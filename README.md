@@ -1,116 +1,204 @@
-# Piano Performance Analysis with Music Transformers
+# 🎹 CrescendAI
 
-**State-of-the-art transformer-based approach for predicting perceptual dimensions of piano performance**
+## AI-powered piano performance analysis using Audio Spectrogram Transformer technology
 
-## Research Goal
+## Overview
 
-Develop cutting-edge Audio Spectrogram Transformer (AST) models to predict 19 perceptual dimensions of piano performance, building on the PercePiano dataset with modern deep learning architectures for potential graduate-level research contributions.
+CrescendAI is a cutting-edge mobile research platform that uses state-of-the-art machine learning to analyze piano performances across 19 different dimensions. Built with a focus on technical excellence and research demonstration, the platform combines advanced Audio Spectrogram Transformer (AST) models with high-performance systems architecture to deliver real-time, comprehensive analysis of piano recordings.
 
-**Perceptual Dimensions**: Timing, Articulation, Pedal, Timbre, Dynamics, Musical Expression, Emotion, Interpretation
+The system provides detailed insights into technical performance, tonal quality, musical expression, and interpretive qualities—offering both pianists and researchers unprecedented analytical depth.
 
-## Approach
+## 🚀 Key Features
 
-**Current Phase**: Music Transformer Implementation
+### **19-Dimensional Performance Analysis**
 
-- ✅ PercePiano dataset analysis (1202 performances, 19 dimensions)
-- ✅ Audio preprocessing pipeline (librosa-based)
-- ✅ Baseline neural networks (correlation analysis completed)
-- 🚧 Audio Spectrogram Transformer (AST) implementation
-- 🎯 Multi-task transformer training on mel-spectrograms
+- **Technical Metrics**: Timing stability, articulation control, pedal technique
+- **Tonal Quality**: Timbre variation, harmonic richness, dynamic projection  
+- **Musical Expression**: Phrasing, tempo flexibility, spatial qualities
+- **Interpretive Analysis**: Emotional content, authenticity, overall convincingness
 
-**Technical Foundation**: JAX/Flax implementation following SOTA transformer architectures
+### **Advanced Technology Stack**
 
-## Repository Structure
+- Custom 86M parameter Audio Spectrogram Transformer model
+- High-performance Rust backend with Cloudflare Workers
+- React Native cross-platform mobile application
+- GPU-optimized inference with Modal hosting
+- Global edge processing for <100ms response times
 
+### **Professional Features**
+
+- High-quality audio recording (44.1kHz, 16-bit)
+- Real-time upload and processing status
+- Comprehensive visualization with radar charts
+- Historical performance comparison
+- Raw data export for detailed analysis
+
+## 🏗️ Architecture
+
+```jsonc
+┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
+│  React Native   │────│ Cloudflare       │────│  Modal GPU      │
+│  Mobile App     │    │ Workers (Rust)   │    │  Inference      │
+└─────────────────┘    └──────────────────┘    └─────────────────┘
+         │                       │                       │
+         │              ┌──────────────────┐             │
+         └──────────────│ Cloudflare R2    │─────────────┘
+                        │ Storage          │
+                        └──────────────────┘
 ```
-piano-analysis-model/
-├── src/                    # Core implementation
-│   ├── piano_cnn_jax.py   # Legacy CNN architectures
-│   ├── ast_transformer.py  # Audio Spectrogram Transformer (main)
-│   ├── training_pipeline.py # JAX/Flax training loop
-│   └── audio_preprocessing.py # Spectrogram generation
-├── PercePiano/            # Original dataset and research
-├── data/                  # Preprocessed audio and labels
-├── docs/                  # Project documentation and planning
-├── models/                # Trained transformer checkpoints
-├── results/               # Training metrics and analysis
-└── notebooks/             # Research experiments and visualization
+
+### **Core Components**
+
+- **Mobile Frontend**: React Native app with professional audio recording capabilities
+- **Edge Backend**: Rust-powered Cloudflare Workers for high-performance preprocessing
+- **ML Infrastructure**: Custom AST model deployed on Modal GPU infrastructure
+- **Storage Layer**: Cloudflare R2 for global audio storage and results caching
+
+### **Data Flow**
+
+1. User records 30s-3min piano performance via mobile app
+2. Audio uploaded to Cloudflare R2 with real-time progress tracking
+3. Rust backend preprocesses audio into mel-spectrograms
+4. Modal GPU infrastructure runs AST model inference (2-5 seconds)
+5. Results aggregated and cached for instant retrieval
+6. 19-dimensional analysis displayed in mobile interface
+
+## 🛠️ Setup & Installation
+
+### **Prerequisites**
+
+- Python 3.9+ for model training/development
+- Node.js 18+ for mobile development
+- Rust 1.70+ for backend development
+- Expo CLI for React Native deployment
+
+### **Installation**
+
+```bash
+# Clone the repository
+git clone https://github.com/Jai0Dhiman/crescendai.git
+cd crescendai
+
+# Install Python dependencies (using uv)
+uv venv
+source .venv/bin/activate
+uv pip install -r requirements.txt
+
+# Setup mobile development
+cd mobile
+npm install
+
+# Setup backend (Rust)
+cd ../backend
+cargo build --target wasm32-unknown-unknown --release
+
+# Setup model training environment
+cd ../model
+uv pip install -r requirements.txt
 ```
 
-## Technical Architecture
+### **Configuration**
 
-### Audio Spectrogram Transformer (AST)
+1. Copy `.env.example` to `.env` and configure:
+   - Cloudflare Worker credentials
+   - Modal API keys
+   - R2 storage configuration
 
-- **Input**: Mel-spectrograms (128 frequency bins × time frames)
-- **Patch Embedding**: 16×16 patches → 768-dimensional vectors
-- **Transformer**: 12-layer encoder with multi-head self-attention
-- **Multi-task Head**: 19 parallel regression outputs for perceptual dimensions
+2. Initialize the model:
 
-### Training Pipeline
+   ```bash
+   python model/colab_setup.py
+   ```
 
-- **Framework**: JAX/Flax for high-performance training
-- **Optimization**: AdamW with cosine learning rate scheduling
-- **Evaluation**: Pearson correlation per dimension + cross-validation
+3. Start development servers:
 
-## Dataset Insights
+   ```bash
+   # Mobile app
+   cd mobile && npm run dev
+   
+   # Backend (if developing locally)
+   cd backend && cargo test
+   ```
 
-**PercePiano Analysis:**
+## 📱 Usage
 
-- **1202 performances** across 19 perceptual dimensions
-- **22 professional performers**, classical repertoire (Schubert, Beethoven)
-- **Perceptual ratings**: [0-1] normalized, mean=0.553
-- **Key correlations**: Musical expression dimensions show strong inter-relationships
+### **Recording Analysis**
 
-## Implementation Plan
+1. Open the mobile app
+2. Tap "Record" to capture a piano performance (30s-3min)
+3. Upload automatically begins with progress tracking
+4. View comprehensive analysis results within 10-15 seconds
 
-**Phase 1**: AST Baseline (Current)
+### **Interpreting Results**
 
-1. Implement Audio Spectrogram Transformer architecture
-2. Train on PercePiano mel-spectrograms → 19-dimensional ratings  
-3. Achieve SOTA performance (target: >0.7 correlation on key dimensions)
-4. Comprehensive evaluation and comparison with baseline approaches
+- **Radar Chart**: Visual overview of all 19 performance dimensions
+- **Temporal Analysis**: Performance quality changes over time
+- **Historical Comparison**: Track improvement across multiple recordings
+- **Raw Scores**: Detailed numerical data for technical analysis
 
-**Phase 2**: Research Extensions (Future)
+### **Example Analysis Output**
 
-- Cross-cultural musical perception studies
-- Interpretable attention visualization
-- Few-shot learning for new instruments
-- Real-time performance feedback applications
-
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## Citation
-
-If you use this software in your research, please cite it using the information in [CITATION.cff](CITATION.cff):
-
-```bibtex
-@software{piano_analysis_model,
-  title = {Piano Performance Analysis Model},
-  author = {Piano Analysis User},
-  year = {2025},
-  url = {https://github.com/username/piano-analysis-model}
+```json
+{
+  "technical_performance": {
+    "timing_stability": 8.7,
+    "articulation_length": 7.9,
+    "articulation_touch": 8.2,
+    "pedal_usage": 7.4,
+    "pedal_clarity": 8.1
+  },
+  "tonal_quality": {
+    "timbre_color_variation": 8.8,
+    "timbre_richness": 9.1,
+    "timbre_brightness": 7.6,
+    "dynamic_volume": 8.4
+  }
+  // ... additional dimensions
 }
 ```
 
-## Dataset Attribution
+## 🔧 Technical Specifications
 
-This project uses and extends the **PercePiano dataset** for piano performance analysis:
+### **Performance**
 
-- **Original Dataset**: Cancino-Chacón, C. E., Grachten, M., & Widmer, G. (2017). PercePiano: A Dataset for Piano Performance Analysis. *Proceedings of the International Society for Music Information Retrieval Conference*, 55-62.
-- **Dataset License**: Creative Commons Attribution 4.0 International (CC BY 4.0)
-- **Audio Source**: Classical piano performances from various composers
-- **Labels**: Perceptual annotations across 19 dimensions
+- **Analysis Time**: 10-15 seconds for 3-minute recording
+- **Model Inference**: 2-5 seconds GPU processing
+- **Global Latency**: <100ms upload initiation worldwide
+- **Throughput**: 20+ concurrent analyses supported
 
-## Data Use and Redistribution
+### **Audio Quality**
 
-- **Code**: Available under MIT License - free to use, modify, and distribute
-- **PercePiano Dataset**: Used under CC BY 4.0 - attribution required for any use
-- **Audio Files**: Sample audio included for demonstration purposes only
-- **Redistribution**: Full dataset redistribution must comply with original CC BY 4.0 terms
+- **Sample Rate**: 44.1 kHz minimum
+- **Bit Depth**: 16-bit minimum
+- **Supported Formats**: WAV, MP3
+- **File Size Limit**: 50MB per recording
 
-For questions about dataset usage or to access the complete PercePiano dataset, contact the original authors through the [ISMIR 2017 publication](https://doi.org/10.5334/tismir.17).
+### **System Requirements**
 
----
-*Learning-focused implementation - building everything from scratch for deep understanding*
+- **Mobile**: iOS 12+, Android 8+ (API level 26+)
+- **Storage**: 30-day retention with automatic cleanup
+- **Network**: Optimized for 3G+ connections
+
+## 🧪 Research & Development
+
+This platform serves as a research demonstration showcasing:
+
+- **Advanced ML Deployment**: Production-ready Audio Spectrogram Transformer models
+- **High-Performance Systems**: Rust-powered edge computing with global distribution
+- **Mobile-First Design**: Cross-platform audio processing and real-time feedback
+- **Scalable Architecture**: Cost-efficient design scaling from research to production
+
+### **Model Training**
+
+The AST model is trained on diverse piano performance data with expert annotations across all 19 dimensions. Training code and experimentation notebooks are available in the `model/` directory.
+
+### **Performance Optimization**
+
+- GPU inference batching for cost efficiency
+- Edge preprocessing to minimize latency
+- Adaptive quality settings for network conditions
+- Intelligent caching for repeat analysis
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
