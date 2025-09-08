@@ -1,0 +1,46 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+type: software
+title: "Piano Performance Analysis Model"
+version: "1.0.0"
+date-released: "2025-08-26"
+url: "https://github.com/Jai-Dhiman/ml-learning/tree/main/piano-analysis-model"
+repository-code: "https://github.com/Jai-Dhiman/ml-learning/tree/main/piano-analysis-model"
+abstract: >-
+  A machine learning system for analyzing piano performance across 19 perceptual
+  dimensions including timing, articulation, pedal use, timbre, dynamics, 
+  musical expression, emotion, and interpretation. This project recreates and 
+  extends the PercePiano dataset analysis using deep learning approaches.
+keywords:
+  - piano performance analysis
+  - music information retrieval
+  - machine learning
+  - audio analysis
+  - perceptual modeling
+license: MIT
+authors:
+  - family-names: "Dhiman"
+    given-names: "Jai"
+    email: "jai.dhiman@outlook.com"
+preferred-citation:
+  type: software
+  title: "Piano Performance Analysis Model"
+  authors:
+    - family-names: "User"
+      given-names: "Piano Analysis"
+  year: 2025
+  url: "https://github.com/Jai-Dhiman/ml-learning/tree/main/piano-analysis-model"
+references:
+  - type: article
+    title: "PercePiano: A Dataset for Piano Performance Analysis"
+    authors:
+      - family-names: "Cancino-Chacón"
+        given-names: "Carlos Eduardo"
+      - family-names: "Grachten"
+        given-names: "Maarten"
+      - family-names: "Widmer"
+        given-names: "Gerhard"
+    journal: "Proceedings of the International Society for Music Information Retrieval Conference"
+    year: 2017
+    pages: "55-62"
+    doi: "10.5334/tismir.17"

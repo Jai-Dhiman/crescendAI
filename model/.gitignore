@@ -1,0 +1,11 @@
+PercePiano/
+piano_ml_env/
+.claude/
+CLAUDE.md
+my_implementation/
+
+__pycache__/
+results/
+archive/
+
+.venv/

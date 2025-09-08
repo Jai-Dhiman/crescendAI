@@ -1,0 +1,33 @@
+{
+  "name": "piano-analyzer-mobile",
+  "version": "0.1.0",
+  "description": "Piano Performance Analyzer - React Native Mobile App",
+  "main": "index.js",
+  "scripts": {
+    "dev": "expo start",
+    "ios": "expo start --ios",
+    "android": "expo start --android", 
+    "web": "expo start --web",
+    "build": "expo build",
+    "lint": "eslint . --ext .ts,.tsx",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-native": "^0.73.0",
+    "expo": "^50.0.0",
+    "expo-av": "^14.0.0",
+    "expo-file-system": "^17.0.0",
+    "expo-asset": "^10.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.0",
+    "@types/react-native": "^0.73.0",
+    "typescript": "^5.0.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "eslint": "^8.0.0",
+    "@types/bun": "latest"
+  },
+  "private": true
+}
