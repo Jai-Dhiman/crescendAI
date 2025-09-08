@@ -1,9 +1,9 @@
-name = "piano-analyzer-backend"
-main = "build/worker.js"
+name = "crescendai-backend"
+main = "build/crescendai_backend.js"
 compatibility_date = "2023-12-01"
 
 [build]
-command = "cargo build --target wasm32-unknown-unknown --release && wasm-bindgen --out-dir build --target bundler --no-typescript target/wasm32-unknown-unknown/release/piano_analyzer_backend.wasm"
+command = "cargo build --target wasm32-unknown-unknown --release && wasm-bindgen --out-dir build --target bundler --no-typescript target/wasm32-unknown-unknown/release/crescendai_backend.wasm"
 
 [vars]
 WORKERS_RS_VERSION = "0.3.0"

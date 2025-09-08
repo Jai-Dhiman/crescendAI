@@ -110,6 +110,7 @@ android/local.properties
 target/
 Cargo.lock
 *.pdb
+.wrangler/
 
 # WASM
 *.wasm

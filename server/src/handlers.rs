@@ -3,13 +3,38 @@ use serde_json::json;
 use uuid::Uuid;
 use crate::storage;
 use crate::processing;
+use crate::security::{
+    validate_file_type, sanitize_filename, validate_uuid, validate_body_size, 
+    secure_error_response, SecurityError
+};
 
 pub async fn upload_audio(mut req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    const MAX_FILE_SIZE: usize = 50 * 1024 * 1024; // 50MB limit
+    
+    // Get form data with size validation
     let form = req.form_data().await?;
     
     if let Some(FormEntry::File(file)) = form.get("audio") {
-        let file_id = Uuid::new_v4().to_string();
+        // Get file data and validate size
         let file_data = file.bytes().await?;
+        validate_body_size(file_data.len(), MAX_FILE_SIZE)?;
+        
+        // Get and sanitize filename
+        let original_filename = file.name();
+        let sanitized_filename = sanitize_filename(&original_filename)?;
+        
+        // Validate file type based on content and extension
+        validate_file_type(&sanitized_filename, &file_data)?;
+        
+        // Generate secure file ID
+        let file_id = Uuid::new_v4().to_string();
+        
+        console_log!(
+            "Processing file upload: {} ({} bytes) -> ID: {}", 
+            sanitized_filename, 
+            file_data.len(), 
+            file_id
+        );
         
         // Upload to R2 storage
         match storage::upload_to_r2(&ctx.env, &file_id, file_data).await {
@@ -17,26 +42,50 @@ pub async fn upload_audio(mut req: Request, ctx: RouteContext<()>) -> Result<Res
                 Response::from_json(&json!({
                     "id": file_id,
                     "status": "uploaded",
-                    "message": "Audio file uploaded successfully"
+                    "message": "Audio file uploaded successfully",
+                    "original_filename": sanitized_filename
                 }))
             }
             Err(e) => {
-                console_log!("Upload failed: {:?}", e);
-                Response::error("Upload failed", 500)
+                console_log!("Upload failed for file {}: {:?}", file_id, e);
+                let is_dev = ctx.env.var("ENVIRONMENT")
+                    .map(|v| v.to_string() == "development")
+                    .unwrap_or(false);
+                Ok(secure_error_response(&e, is_dev))
             }
         }
     } else {
-        Response::error("No audio file provided", 400)
+        Err(worker::Error::from(SecurityError::InvalidInput(
+            "No audio file provided in form data".to_string()
+        )))
     }
 }
 
 pub async fn analyze_audio(mut req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    const MAX_JSON_SIZE: usize = 1024; // 1KB limit for JSON payload
+    
+    // Check Content-Length header for early validation
+    if let Ok(Some(content_length)) = req.headers().get("Content-Length") {
+        if let Ok(size) = content_length.parse::<usize>() {
+            validate_body_size(size, MAX_JSON_SIZE)?;
+        }
+    }
+    
     let body: serde_json::Value = req.json().await?;
     
+    // Validate and sanitize file ID
     let file_id = body["id"].as_str()
-        .ok_or_else(|| worker::Error::RustError("Missing file ID".to_string()))?;
+        .ok_or_else(|| worker::Error::from(SecurityError::InvalidInput(
+            "Missing or invalid file ID".to_string()
+        )))?;
     
+    // Validate UUID format
+    validate_uuid(file_id)?;
+    
+    // Generate new job ID
     let job_id = Uuid::new_v4().to_string();
+    
+    console_log!("Starting analysis for file ID: {} with job ID: {}", file_id, job_id);
     
     // Start async processing
     match processing::start_analysis(&ctx.env, file_id, &job_id).await {
@@ -44,31 +93,62 @@ pub async fn analyze_audio(mut req: Request, ctx: RouteContext<()>) -> Result<Re
             Response::from_json(&json!({
                 "job_id": job_id,
                 "status": "processing",
-                "message": "Analysis started"
+                "message": "Analysis started successfully"
             }))
         }
         Err(e) => {
-            console_log!("Analysis failed to start: {:?}", e);
-            Response::error("Failed to start analysis", 500)
+            console_log!("Analysis failed to start for job {}: {:?}", job_id, e);
+            let is_dev = ctx.env.var("ENVIRONMENT")
+                .map(|v| v.to_string() == "development")
+                .unwrap_or(false);
+            Ok(secure_error_response(&e, is_dev))
         }
     }
 }
 
 pub async fn get_job_status(_req: Request, ctx: RouteContext<()>) -> Result<Response> {
-    let job_id = ctx.param("id").unwrap();
+    let job_id = ctx.param("id")
+        .ok_or_else(|| worker::Error::from(SecurityError::InvalidInput(
+            "Missing job ID parameter".to_string()
+        )))?;
+    
+    // Validate UUID format
+    validate_uuid(job_id)?;
     
     match storage::get_job_status(&ctx.env, job_id).await {
-        Ok(status) => Response::from_json(&status),
-        Err(_) => Response::error("Job not found", 404)
+        Ok(status) => {
+            console_log!("Retrieved status for job {}: {}", job_id, status.status);
+            Response::from_json(&status)
+        }
+        Err(e) => {
+            console_log!("Job status not found for ID {}: {:?}", job_id, e);
+            Err(worker::Error::from(SecurityError::InvalidInput(
+                "Job not found".to_string()
+            )))
+        }
     }
 }
 
 pub async fn get_analysis_result(_req: Request, ctx: RouteContext<()>) -> Result<Response> {
-    let result_id = ctx.param("id").unwrap();
+    let result_id = ctx.param("id")
+        .ok_or_else(|| worker::Error::from(SecurityError::InvalidInput(
+            "Missing result ID parameter".to_string()
+        )))?;
+    
+    // Validate UUID format
+    validate_uuid(result_id)?;
     
     match storage::get_analysis_result(&ctx.env, result_id).await {
-        Ok(result) => Response::from_json(&result),
-        Err(_) => Response::error("Result not found", 404)
+        Ok(result) => {
+            console_log!("Retrieved analysis result for ID {}: {}", result_id, result.status);
+            Response::from_json(&result)
+        }
+        Err(e) => {
+            console_log!("Analysis result not found for ID {}: {:?}", result_id, e);
+            Err(worker::Error::from(SecurityError::InvalidInput(
+                "Analysis result not found".to_string()
+            )))
+        }
     }
 }
 
