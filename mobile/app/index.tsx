@@ -1,7 +1,7 @@
-import { useEffect } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import { Redirect } from 'expo-router';
-import { useAuth } from '../src/hooks';
+import { Redirect } from "expo-router";
+import { useEffect } from "react";
+import { StyleSheet, Text, View } from "react-native";
+import { useAuth } from "../src/hooks";
 
 export default function IndexScreen() {
   const { isAuthenticated, isLoading, checkAndRefreshToken } = useAuth();
@@ -9,7 +9,7 @@ export default function IndexScreen() {
   useEffect(() => {
     // Check and refresh token if needed on app start
     checkAndRefreshToken();
-  }, []);
+  }, [checkAndRefreshToken]);
 
   // Show loading screen while checking authentication
   if (isLoading) {
@@ -31,12 +31,12 @@ export default function IndexScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#fff',
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#fff",
   },
   loadingText: {
     fontSize: 16,
-    color: '#666',
+    color: "#666",
   },
 });

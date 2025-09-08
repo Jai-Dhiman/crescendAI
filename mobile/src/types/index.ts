@@ -23,7 +23,12 @@ export interface Recording {
   analysisId?: string;
 }
 
-export type RecordingStatus = 'recorded' | 'uploading' | 'processing' | 'analyzed' | 'error';
+export type RecordingStatus =
+  | "recorded"
+  | "uploading"
+  | "processing"
+  | "analyzed"
+  | "error";
 
 // Analysis types
 export interface Analysis {
@@ -36,7 +41,7 @@ export interface Analysis {
   error?: string;
 }
 
-export type AnalysisStatus = 'pending' | 'processing' | 'completed' | 'failed';
+export type AnalysisStatus = "pending" | "processing" | "completed" | "failed";
 
 export interface AnalysisResults {
   overallScore: number; // 0-100
@@ -71,7 +76,7 @@ export interface NoteError {
   timestamp: number; // seconds
   expectedNote: string;
   playedNote: string;
-  severity: 'minor' | 'major';
+  severity: "minor" | "major";
 }
 
 export interface DynamicsAnalysis {
@@ -163,7 +168,7 @@ export interface AuthState {
 export interface UploadProgress {
   recordingId: string;
   progress: number; // 0-100
-  status: 'uploading' | 'completed' | 'error';
+  status: "uploading" | "completed" | "error";
   error?: string;
 }
 
@@ -183,7 +188,7 @@ export interface NotificationSettings {
 export interface AudioSettings {
   sampleRate: number;
   bitRate: number;
-  format: 'wav' | 'mp3' | 'm4a';
+  format: "wav" | "mp3" | "m4a";
 }
 
 export interface PrivacySettings {
@@ -202,7 +207,7 @@ export interface AppError {
 export type RootStackParamList = {
   index: undefined;
   auth: undefined;
-  '(tabs)': undefined;
+  "(tabs)": undefined;
 };
 
 export type TabParamList = {

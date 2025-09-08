@@ -1,4 +1,4 @@
-import { QueryClient } from '@tanstack/react-query';
+import { QueryClient } from "@tanstack/react-query";
 
 // Create a client
 export const queryClient = new QueryClient({
@@ -21,23 +21,26 @@ export const queryClient = new QueryClient({
 // Query keys factory
 export const queryKeys = {
   // Auth
-  auth: ['auth'] as const,
-  user: (id: string) => ['user', id] as const,
-  
+  auth: ["auth"] as const,
+  user: (id: string) => ["user", id] as const,
+
   // Recordings
-  recordings: ['recordings'] as const,
-  recordingsList: (userId: string) => [...queryKeys.recordings, 'list', userId] as const,
-  recording: (id: string) => [...queryKeys.recordings, 'detail', id] as const,
-  
+  recordings: ["recordings"] as const,
+  recordingsList: (userId: string) =>
+    [...queryKeys.recordings, "list", userId] as const,
+  recording: (id: string) => [...queryKeys.recordings, "detail", id] as const,
+
   // Analysis
-  analysis: ['analysis'] as const,
-  analysisResults: (recordingId: string) => [...queryKeys.analysis, recordingId] as const,
-  
+  analysis: ["analysis"] as const,
+  analysisResults: (recordingId: string) =>
+    [...queryKeys.analysis, recordingId] as const,
+
   // Progress
-  progress: ['progress'] as const,
+  progress: ["progress"] as const,
   userProgress: (userId: string) => [...queryKeys.progress, userId] as const,
-  
+
   // Practice Sessions
-  practiceSessions: ['practiceSessions'] as const,
-  userSessions: (userId: string) => [...queryKeys.practiceSessions, userId] as const,
+  practiceSessions: ["practiceSessions"] as const,
+  userSessions: (userId: string) =>
+    [...queryKeys.practiceSessions, userId] as const,
 } as const;

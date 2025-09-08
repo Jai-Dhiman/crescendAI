@@ -1,5 +1,5 @@
-import { MMKV } from 'react-native-mmkv';
-import { PersistStorage } from 'zustand/middleware';
+import { MMKV } from "react-native-mmkv";
+import type { PersistStorage } from "zustand/middleware";
 
 // Initialize MMKV instance
 export const mmkv = new MMKV();

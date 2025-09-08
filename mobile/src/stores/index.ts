@@ -1,5 +1,5 @@
 // Export all stores
-export * from './authStore';
-export * from './recordingsStore';
-export * from './settingsStore';
-export { mmkv } from './mmkv';
+export * from "./authStore";
+export { mmkv } from "./mmkv";
+export * from "./recordingsStore";
+export * from "./settingsStore";

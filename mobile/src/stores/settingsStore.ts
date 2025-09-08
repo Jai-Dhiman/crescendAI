@@ -1,12 +1,17 @@
-import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
-import { createMMKVStorage } from './mmkv';
-import type { UserSettings, NotificationSettings, AudioSettings, PrivacySettings } from '../types';
+import { create } from "zustand";
+import { persist } from "zustand/middleware";
+import type {
+  AudioSettings,
+  NotificationSettings,
+  PrivacySettings,
+  UserSettings,
+} from "../types";
+import { createMMKVStorage } from "./mmkv";
 
 interface SettingsStore {
   // State
   settings: UserSettings;
-  
+
   // Actions
   updateNotificationSettings: (settings: Partial<NotificationSettings>) => void;
   updateAudioSettings: (settings: Partial<AudioSettings>) => void;
@@ -23,7 +28,7 @@ const defaultSettings: UserSettings = {
   audio: {
     sampleRate: 44100,
     bitRate: 128,
-    format: 'm4a',
+    format: "m4a",
   },
   privacy: {
     shareProgress: false,
@@ -36,7 +41,9 @@ export const useSettingsStore = create<SettingsStore>()(
     (set) => ({
       settings: defaultSettings,
 
-      updateNotificationSettings: (notificationUpdates: Partial<NotificationSettings>) =>
+      updateNotificationSettings: (
+        notificationUpdates: Partial<NotificationSettings>
+      ) =>
         set((state) => ({
           ...state,
           settings: {
@@ -78,7 +85,7 @@ export const useSettingsStore = create<SettingsStore>()(
         })),
     }),
     {
-      name: 'settings-store',
+      name: "settings-store",
       storage: createMMKVStorage(),
     }
   )

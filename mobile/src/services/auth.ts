@@ -1,30 +1,30 @@
-import * as AuthSession from 'expo-auth-session';
-import * as WebBrowser from 'expo-web-browser';
-import * as Crypto from 'expo-crypto';
-import { Platform } from 'react-native';
+import * as AuthSession from "expo-auth-session";
+import * as Crypto from "expo-crypto";
+import * as WebBrowser from "expo-web-browser";
+import { Platform } from "react-native";
 
 // Complete the auth session for web
 WebBrowser.maybeCompleteAuthSession();
 
 // OAuth Configuration
-const GOOGLE_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID || '';
-const GOOGLE_CLIENT_ID_WEB = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_WEB || '';
+const GOOGLE_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID || "";
+const GOOGLE_CLIENT_ID_WEB = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_WEB || "";
 
 // Get the appropriate client ID based on platform
 const getGoogleClientId = () => {
-  if (Platform.OS === 'web') {
+  if (Platform.OS === "web") {
     return GOOGLE_CLIENT_ID_WEB;
   }
   return GOOGLE_CLIENT_ID;
 };
 
 // OAuth scopes
-const SCOPES = ['openid', 'profile', 'email'];
+const SCOPES = ["openid", "profile", "email"];
 
 export class AuthService {
   private discovery = AuthSession.makeRedirectUri({
-    scheme: 'piano-analyzer',
-    path: 'auth',
+    scheme: "piano-analyzer",
+    path: "auth",
   });
 
   async signInWithGoogle(): Promise<string> {
@@ -37,37 +37,39 @@ export class AuthService {
         responseType: AuthSession.ResponseType.Token,
         redirectUri: this.discovery,
         extraParams: {
-          access_type: 'offline',
-          prompt: 'select_account',
+          access_type: "offline",
+          prompt: "select_account",
         },
       });
 
       // Make the auth request
       const result = await request.promptAsync({
-        authorizationEndpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
+        authorizationEndpoint: "https://accounts.google.com/o/oauth2/v2/auth",
       });
 
-      if (result.type === 'success') {
+      if (result.type === "success") {
         if (result.params.access_token) {
           return result.params.access_token;
         } else {
-          throw new Error('Failed to get access token');
+          throw new Error("Failed to get access token");
         }
-      } else if (result.type === 'cancel') {
-        throw new Error('User cancelled authentication');
+      } else if (result.type === "cancel") {
+        throw new Error("User cancelled authentication");
       } else {
-        throw new Error('Authentication failed');
+        throw new Error("Authentication failed");
       }
     } catch (error) {
-      console.error('Google OAuth error:', error);
-      throw error instanceof Error ? error : new Error('Unknown authentication error');
+      console.error("Google OAuth error:", error);
+      throw error instanceof Error
+        ? error
+        : new Error("Unknown authentication error");
     }
   }
 
   // Validate if OAuth is properly configured
   isConfigured(): boolean {
     const clientId = getGoogleClientId();
-    return clientId !== '';
+    return clientId !== "";
   }
 
   // Get configuration status for debugging

@@ -1,7 +1,7 @@
-import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
-import { createMMKVStorage } from './mmkv';
-import type { User, AuthTokens, AuthState } from '../types';
+import { create } from "zustand";
+import { persist } from "zustand/middleware";
+import type { AuthState, AuthTokens, User } from "../types";
+import { createMMKVStorage } from "./mmkv";
 
 interface AuthStore extends AuthState {
   // Actions
@@ -22,20 +22,20 @@ export const useAuthStore = create<AuthStore>()(
       isAuthenticated: false,
       isLoading: false,
 
-      setUser: (user: User) => 
-        set((state) => ({ 
-          ...state, 
+      setUser: (user: User) =>
+        set((state) => ({
+          ...state,
           user,
-          isAuthenticated: !!user 
+          isAuthenticated: !!user,
         })),
 
-      setTokens: (tokens: AuthTokens) => 
-        set((state) => ({ 
-          ...state, 
-          tokens 
+      setTokens: (tokens: AuthTokens) =>
+        set((state) => ({
+          ...state,
+          tokens,
         })),
 
-      signIn: (user: User, tokens: AuthTokens) => 
+      signIn: (user: User, tokens: AuthTokens) =>
         set(() => ({
           user,
           tokens,
@@ -43,7 +43,7 @@ export const useAuthStore = create<AuthStore>()(
           isLoading: false,
         })),
 
-      signOut: () => 
+      signOut: () =>
         set(() => ({
           user: null,
           tokens: null,
@@ -51,13 +51,13 @@ export const useAuthStore = create<AuthStore>()(
           isLoading: false,
         })),
 
-      setLoading: (isLoading: boolean) => 
-        set((state) => ({ 
-          ...state, 
-          isLoading 
+      setLoading: (isLoading: boolean) =>
+        set((state) => ({
+          ...state,
+          isLoading,
         })),
 
-      updateUser: (updates: Partial<User>) => 
+      updateUser: (updates: Partial<User>) =>
         set((state) => ({
           ...state,
           user: state.user ? { ...state.user, ...updates } : null,
@@ -70,7 +70,7 @@ export const useAuthStore = create<AuthStore>()(
       },
     }),
     {
-      name: 'auth-store',
+      name: "auth-store",
       storage: createMMKVStorage(),
       partialize: (state) => ({
         user: state.user,

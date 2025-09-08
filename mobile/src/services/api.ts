@@ -1,9 +1,18 @@
-import { useAuthStore } from '../stores';
-import type { ApiResponse, PaginatedResponse, User, Recording, Analysis, Progress, PracticeSession } from '../types';
+import { useAuthStore } from "../stores";
+import type {
+  Analysis,
+  ApiResponse,
+  PaginatedResponse,
+  PracticeSession,
+  Progress,
+  Recording,
+  User,
+} from "../types";
 
 // API Configuration
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'https://api.pianoanalyzer.com';
-const API_VERSION = 'v1';
+const API_BASE_URL =
+  process.env.EXPO_PUBLIC_API_URL || "https://api.pianoanalyzer.com";
+const API_VERSION = "v1";
 
 class ApiClient {
   private baseURL: string;
@@ -17,9 +26,9 @@ class ApiClient {
     options: RequestInit = {}
   ): Promise<ApiResponse<T>> {
     const { tokens } = useAuthStore.getState();
-    
+
     const defaultHeaders: HeadersInit = {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
     };
 
     if (tokens?.accessToken) {
@@ -36,37 +45,43 @@ class ApiClient {
 
     try {
       const response = await fetch(`${this.baseURL}${endpoint}`, config);
-      
+
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`);
+        throw new Error(
+          errorData.message || `HTTP ${response.status}: ${response.statusText}`
+        );
       }
 
       const data = await response.json();
       return data;
     } catch (error) {
-      throw new Error(error instanceof Error ? error.message : 'Network error');
+      throw new Error(error instanceof Error ? error.message : "Network error");
     }
   }
 
   // Auth endpoints
-  async authenticateWithGoogle(token: string): Promise<ApiResponse<{ user: User; tokens: any }>> {
-    return this.makeRequest('/auth/google', {
-      method: 'POST',
+  async authenticateWithGoogle(
+    token: string
+  ): Promise<ApiResponse<{ user: User; tokens: any }>> {
+    return this.makeRequest("/auth/google", {
+      method: "POST",
       body: JSON.stringify({ token }),
     });
   }
 
-  async refreshToken(refreshToken: string): Promise<ApiResponse<{ tokens: any }>> {
-    return this.makeRequest('/auth/refresh', {
-      method: 'POST',
+  async refreshToken(
+    refreshToken: string
+  ): Promise<ApiResponse<{ tokens: any }>> {
+    return this.makeRequest("/auth/refresh", {
+      method: "POST",
       body: JSON.stringify({ refreshToken }),
     });
   }
 
   async signOut(): Promise<ApiResponse<{}>> {
-    return this.makeRequest('/auth/signout', {
-      method: 'POST',
+    return this.makeRequest("/auth/signout", {
+      method: "POST",
     });
   }
 
@@ -75,16 +90,25 @@ class ApiClient {
     return this.makeRequest(`/users/${userId}`);
   }
 
-  async updateUserProfile(userId: string, updates: Partial<User>): Promise<ApiResponse<User>> {
+  async updateUserProfile(
+    userId: string,
+    updates: Partial<User>
+  ): Promise<ApiResponse<User>> {
     return this.makeRequest(`/users/${userId}`, {
-      method: 'PATCH',
+      method: "PATCH",
       body: JSON.stringify(updates),
     });
   }
 
   // Recordings endpoints
-  async getUserRecordings(userId: string, page = 1, limit = 20): Promise<PaginatedResponse<Recording>> {
-    const response = await this.makeRequest<Recording[]>(`/users/${userId}/recordings?page=${page}&limit=${limit}`);
+  async getUserRecordings(
+    userId: string,
+    page = 1,
+    limit = 20
+  ): Promise<PaginatedResponse<Recording>> {
+    const response = await this.makeRequest<Recording[]>(
+      `/users/${userId}/recordings?page=${page}&limit=${limit}`
+    );
     // Transform the response to match PaginatedResponse structure
     return {
       data: response.data,
@@ -101,32 +125,40 @@ class ApiClient {
     return this.makeRequest(`/recordings/${recordingId}`);
   }
 
-  async createRecording(recordingData: Omit<Recording, 'id' | 'createdAt' | 'updatedAt'>): Promise<ApiResponse<Recording>> {
-    return this.makeRequest('/recordings', {
-      method: 'POST',
+  async createRecording(
+    recordingData: Omit<Recording, "id" | "createdAt" | "updatedAt">
+  ): Promise<ApiResponse<Recording>> {
+    return this.makeRequest("/recordings", {
+      method: "POST",
       body: JSON.stringify(recordingData),
     });
   }
 
-  async updateRecording(recordingId: string, updates: Partial<Recording>): Promise<ApiResponse<Recording>> {
+  async updateRecording(
+    recordingId: string,
+    updates: Partial<Recording>
+  ): Promise<ApiResponse<Recording>> {
     return this.makeRequest(`/recordings/${recordingId}`, {
-      method: 'PATCH',
+      method: "PATCH",
       body: JSON.stringify(updates),
     });
   }
 
   async deleteRecording(recordingId: string): Promise<ApiResponse<{}>> {
     return this.makeRequest(`/recordings/${recordingId}`, {
-      method: 'DELETE',
+      method: "DELETE",
     });
   }
 
-  async uploadRecording(recordingId: string, audioFile: File | Blob): Promise<ApiResponse<{ uploadUrl: string }>> {
+  async uploadRecording(
+    recordingId: string,
+    audioFile: File | Blob
+  ): Promise<ApiResponse<{ uploadUrl: string }>> {
     const formData = new FormData();
-    formData.append('audio', audioFile);
+    formData.append("audio", audioFile);
 
     return this.makeRequest(`/recordings/${recordingId}/upload`, {
-      method: 'POST',
+      method: "POST",
       body: formData,
       headers: {}, // Let the browser set Content-Type for FormData
     });
@@ -139,7 +171,7 @@ class ApiClient {
 
   async requestAnalysis(recordingId: string): Promise<ApiResponse<Analysis>> {
     return this.makeRequest(`/recordings/${recordingId}/analyze`, {
-      method: 'POST',
+      method: "POST",
     });
   }
 
@@ -149,8 +181,14 @@ class ApiClient {
   }
 
   // Practice Sessions endpoints
-  async getUserPracticeSessions(userId: string, page = 1, limit = 20): Promise<PaginatedResponse<PracticeSession>> {
-    const response = await this.makeRequest<PracticeSession[]>(`/users/${userId}/practice-sessions?page=${page}&limit=${limit}`);
+  async getUserPracticeSessions(
+    userId: string,
+    page = 1,
+    limit = 20
+  ): Promise<PaginatedResponse<PracticeSession>> {
+    const response = await this.makeRequest<PracticeSession[]>(
+      `/users/${userId}/practice-sessions?page=${page}&limit=${limit}`
+    );
     // Transform the response to match PaginatedResponse structure
     return {
       data: response.data,
@@ -163,16 +201,21 @@ class ApiClient {
     };
   }
 
-  async createPracticeSession(sessionData: Omit<PracticeSession, 'id'>): Promise<ApiResponse<PracticeSession>> {
-    return this.makeRequest('/practice-sessions', {
-      method: 'POST',
+  async createPracticeSession(
+    sessionData: Omit<PracticeSession, "id">
+  ): Promise<ApiResponse<PracticeSession>> {
+    return this.makeRequest("/practice-sessions", {
+      method: "POST",
       body: JSON.stringify(sessionData),
     });
   }
 
-  async endPracticeSession(sessionId: string, endTime: string): Promise<ApiResponse<PracticeSession>> {
+  async endPracticeSession(
+    sessionId: string,
+    endTime: string
+  ): Promise<ApiResponse<PracticeSession>> {
     return this.makeRequest(`/practice-sessions/${sessionId}/end`, {
-      method: 'POST',
+      method: "POST",
       body: JSON.stringify({ endTime }),
     });
   }

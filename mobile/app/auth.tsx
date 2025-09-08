@@ -1,8 +1,8 @@
-import { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
-import { router } from 'expo-router';
-import { useAuth } from '../src/hooks';
-import { authService } from '../src/services/auth';
+import { router } from "expo-router";
+import { useState } from "react";
+import { Alert, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useAuth } from "../src/hooks";
+import { authService } from "../src/services/auth";
 
 export default function AuthScreen() {
   const { signInWithGoogle, isSigningIn, signInError } = useAuth();
@@ -13,27 +13,27 @@ export default function AuthScreen() {
       // Check if OAuth is configured
       if (!isConfigured) {
         Alert.alert(
-          'Configuration Required',
-          'Google OAuth is not configured. Please set up your Google Client ID in the environment variables.',
-          [{ text: 'OK' }]
+          "Configuration Required",
+          "Google OAuth is not configured. Please set up your Google Client ID in the environment variables.",
+          [{ text: "OK" }]
         );
         return;
       }
 
       // Get Google access token
       const accessToken = await authService.signInWithGoogle();
-      
+
       // Sign in with our backend
       await signInWithGoogle(accessToken);
-      
+
       // Navigate to main app
-      router.replace('/(tabs)');
+      router.replace("/(tabs)");
     } catch (error) {
-      console.error('Sign in error:', error);
+      console.error("Sign in error:", error);
       Alert.alert(
-        'Sign In Failed',
-        error instanceof Error ? error.message : 'An unexpected error occurred',
-        [{ text: 'OK' }]
+        "Sign In Failed",
+        error instanceof Error ? error.message : "An unexpected error occurred",
+        [{ text: "OK" }]
       );
     }
   };
@@ -41,12 +41,12 @@ export default function AuthScreen() {
   const showConfigStatus = () => {
     const config = authService.getConfigStatus();
     Alert.alert(
-      'OAuth Configuration',
+      "OAuth Configuration",
       `Platform: ${config.platform}
 Has Client ID: ${config.hasClientId}
 Has Web Client ID: ${config.hasWebClientId}
 Redirect URI: ${config.redirectUri}`,
-      [{ text: 'OK' }]
+      [{ text: "OK" }]
     );
   };
 
@@ -64,24 +64,20 @@ Redirect URI: ${config.redirectUri}`,
           disabled={isSigningIn}
         >
           <Text style={styles.buttonText}>
-            {isSigningIn ? 'Signing in...' : 'Sign in with Google'}
+            {isSigningIn ? "Signing in..." : "Sign in with Google"}
           </Text>
         </TouchableOpacity>
 
         {signInError && (
-          <Text style={styles.errorText}>
-            {signInError.message}
-          </Text>
+          <Text style={styles.errorText}>{signInError.message}</Text>
         )}
 
         {!isConfigured && (
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.configButton}
             onPress={showConfigStatus}
           >
-            <Text style={styles.configButtonText}>
-              Configuration Status
-            </Text>
+            <Text style={styles.configButtonText}>Configuration Status</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -92,30 +88,30 @@ Redirect URI: ${config.redirectUri}`,
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
   },
   content: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     paddingHorizontal: 32,
   },
   title: {
     fontSize: 24,
-    fontWeight: 'bold',
-    textAlign: 'center',
+    fontWeight: "bold",
+    textAlign: "center",
     marginBottom: 16,
-    color: '#333',
+    color: "#333",
   },
   subtitle: {
     fontSize: 16,
-    textAlign: 'center',
+    textAlign: "center",
     marginBottom: 48,
-    color: '#666',
+    color: "#666",
     lineHeight: 22,
   },
   button: {
-    backgroundColor: '#4285F4',
+    backgroundColor: "#4285F4",
     paddingHorizontal: 32,
     paddingVertical: 16,
     borderRadius: 8,
@@ -123,18 +119,18 @@ const styles = StyleSheet.create({
     minWidth: 200,
   },
   buttonDisabled: {
-    backgroundColor: '#ccc',
+    backgroundColor: "#ccc",
   },
   buttonText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 16,
-    fontWeight: '600',
-    textAlign: 'center',
+    fontWeight: "600",
+    textAlign: "center",
   },
   errorText: {
-    color: '#ff4444',
+    color: "#ff4444",
     fontSize: 14,
-    textAlign: 'center',
+    textAlign: "center",
     marginTop: 16,
   },
   configButton: {
@@ -142,8 +138,8 @@ const styles = StyleSheet.create({
     padding: 8,
   },
   configButtonText: {
-    color: '#666',
+    color: "#666",
     fontSize: 12,
-    textDecorationLine: 'underline',
+    textDecorationLine: "underline",
   },
 });

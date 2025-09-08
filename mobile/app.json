@@ -30,13 +30,7 @@
       "bundler": "metro"
     },
     "plugins": [
-      "expo-router",
-      [
-        "expo-auth-session",
-        {
-          "authSessionRedirectUrl": "com.crescendai.pianoanalyzer://auth"
-        }
-      ]
+      "expo-router"
     ],
     "scheme": "piano-analyzer",
     "experiments": {

@@ -1,7 +1,7 @@
-import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
-import { createMMKVStorage } from './mmkv';
-import type { Recording, UploadProgress } from '../types';
+import { create } from "zustand";
+import { persist } from "zustand/middleware";
+import type { Recording, UploadProgress } from "../types";
+import { createMMKVStorage } from "./mmkv";
 
 interface RecordingsStore {
   // State
@@ -9,7 +9,7 @@ interface RecordingsStore {
   currentRecording: Recording | null;
   uploadProgress: Record<string, UploadProgress>;
   isRecording: boolean;
-  
+
   // Actions
   addRecording: (recording: Recording) => void;
   updateRecording: (id: string, updates: Partial<Recording>) => void;
@@ -20,7 +20,7 @@ interface RecordingsStore {
   removeUploadProgress: (recordingId: string) => void;
   setIsRecording: (isRecording: boolean) => void;
   getRecordingById: (id: string) => Recording | undefined;
-  getRecordingsByStatus: (status: Recording['status']) => Recording[];
+  getRecordingsByStatus: (status: Recording["status"]) => Recording[];
 }
 
 export const useRecordingsStore = create<RecordingsStore>()(
@@ -52,7 +52,9 @@ export const useRecordingsStore = create<RecordingsStore>()(
       removeRecording: (id: string) =>
         set((state) => ({
           ...state,
-          recordings: state.recordings.filter((recording) => recording.id !== id),
+          recordings: state.recordings.filter(
+            (recording) => recording.id !== id
+          ),
           currentRecording:
             state.currentRecording?.id === id ? null : state.currentRecording,
         })),
@@ -86,13 +88,13 @@ export const useRecordingsStore = create<RecordingsStore>()(
         return recordings.find((recording) => recording.id === id);
       },
 
-      getRecordingsByStatus: (status: Recording['status']) => {
+      getRecordingsByStatus: (status: Recording["status"]) => {
         const { recordings } = get();
         return recordings.filter((recording) => recording.status === status);
       },
     }),
     {
-      name: 'recordings-store',
+      name: "recordings-store",
       storage: createMMKVStorage(),
       partialize: (state) => ({
         recordings: state.recordings,
