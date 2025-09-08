@@ -1,14 +1,21 @@
 name = "piano-analyzer-backend"
 main = "build/worker.js"
-compatibility_date = "2023-05-18"
+compatibility_date = "2023-12-01"
 
 [build]
 command = "cargo build --target wasm32-unknown-unknown --release && wasm-bindgen --out-dir build --target bundler --no-typescript target/wasm32-unknown-unknown/release/piano_analyzer_backend.wasm"
 
 [vars]
 WORKERS_RS_VERSION = "0.3.0"
+MODAL_ENDPOINT = "https://your-modal-endpoint.modal.run"
+WORKER_URL = "https://piano-analyzer-backend.your-subdomain.workers.dev"
 
 [[r2_buckets]]
 binding = "AUDIO_BUCKET"
 bucket_name = "piano-audio-storage"
 preview_bucket_name = "piano-audio-storage-preview"
+
+[[kv_namespaces]]
+binding = "METADATA"
+id = "your-kv-namespace-id"
+preview_id = "your-kv-namespace-preview-id"
