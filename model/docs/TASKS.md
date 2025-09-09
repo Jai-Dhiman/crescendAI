@@ -2,9 +2,11 @@
 
 *Last Updated: 2025-01-04*
 
-## 🎉 MAJOR MILESTONE ACHIEVED: Complete AST+SSAST Implementation
+## 🎉 MILESTONE ACHIEVED: Complete AST+SSAST Training Pipeline
 
-**Status**: ✅ **Core architecture and training pipeline completed!**
+**Status**: 🚀 **MODEL TRAINED - NOW OPTIMIZING PERFORMANCE**  
+**Current Results**: 0.5285 correlation (competitive but needs improvement)  
+**Target**: Beat Random Forest (0.5869) and reach 0.65-0.70 correlation
 
 ### Implementation Summary (2025-01-04)
 
@@ -31,69 +33,105 @@
   - Checkpoint management and parameter transfer
   - **Location**: `src/train_ast.py`
 
-**Next Phase**: Dataset acquisition and training execution
+**Current Phase**: Performance optimization through systematic improvements
 
-## Current Sprint: AST + SSAST Implementation (Weeks 1-6)
+### 📊 Current Performance Analysis (Revised Understanding)
+- **AST Model**: 0.5285 overall correlation (90% of Random Forest)
+- **Random Forest**: 0.5869 correlation (leverages domain knowledge + ensemble)
+- **Gap to Close**: +0.0584 correlation (achievable with architecture + features)
+- **Realistic Target**: 0.60-0.65 correlation (strong result for dataset size)
+- **Publication Quality**: Any improvement over RF is significant given data constraints
 
-*Updated with architecture decisions - 2025-01-03*
+### 🎯 Why Random Forest is Winning (Critical Insights)
+1. **Massive Overfitting**: 86M parameters on 832 samples = 103k samples per parameter (catastrophic)
+2. **Domain Knowledge Gap**: RF uses 50+ hand-crafted musical features, AST learns from raw spectrograms
+3. **Ensemble Advantage**: RF is inherently an ensemble (100+ trees), AST is single model
+4. **Data Efficiency**: Tree-based methods excel with limited data, transformers need 10k+ samples
+5. **Feature Engineering**: RF directly accesses MFCCs, spectral, harmonic features that encode musical knowledge
 
-### In Progress
+## Current Sprint: Performance Optimization (Weeks 1-4)
 
-- [ ] Complete training pipeline and evaluation on PercePiano dataset
-  - Integrate PercePiano dataset with existing audio preprocessing
-  - Implement fine-tuning pipeline with proper parameter transfer
-  - Add comprehensive evaluation metrics and correlation analysis
-  - **Acceptance**: Trained AST+SSAST model achieving >0.7 correlation on key dimensions
+*Updated with performance analysis - 2025-01-09*
 
-### Todo
+### 🚨 CRITICAL PRIORITY - Week 1: Architecture-First + Hybrid Features (Expected +0.08-0.12 correlation)
 
-#### Week 1-2: AST Foundation & MAESTRO Pipeline
+- [ ] **Ultra-Small Architecture Testing** (Priority #1)
+  - Test drastically smaller models: 5M, 10M, 15M, 20M parameters (NOT 30M+)
+  - Compare 3, 4, 6 layers (NOT 8-12) with embedding dims 256, 384, 512
+  - **Critical insight**: 832 samples cannot support 86M parameters (100:1 ratio)
+  - **Expected Result**: +0.05-0.08 correlation from reduced overfitting
 
-- [ ] AST architecture implementation (research-grade)
-  - Implement AST following 2021 Gong et al. specification exactly
-  - 12-layer transformer encoder, 768 hidden dims, 12 attention heads
-  - 16×16 patch embedding with learnable 2D positional encoding
-  - Design grouped regression heads: {Timing}, {Dynamics, Articulation}, {Expression, Emotion, Interpretation}
-  - **Acceptance**: Complete AST architecture matching SOTA specifications
+- [ ] **Immediate Hybrid Feature Integration** (Priority #2)
+  - Extract MFCC, spectral, harmonic features that Random Forest uses
+  - Implement multi-input architecture: tiny AST + traditional feature network
+  - **Why now**: RF's advantage is domain knowledge, not just algorithm
+  - **Expected Result**: +0.03-0.06 correlation from feature engineering
 
-- [ ] MAESTRO dataset integration for SSAST pre-training (Google Colab)
-  - Download and preprocess MAESTRO v3 dataset (200 hours piano audio) to Google Drive
-  - Implement SSAST masked spectrogram patch modeling (MSPM) for TPU training
-  - Create efficient data loading for large-scale self-supervised training with Colab constraints
-  - Set up unlabeled pre-training pipeline optimized for TPU v3-8
-  - **Acceptance**: MAESTRO data ready for SSAST pre-training with TPU-optimized MSPM objectives
+- [ ] **Smart Data Augmentation** (Priority #3)
+  - Conservative augmentation: time-stretch (0.9-1.1x), pitch-shift (±1 semitone)
+  - SpecAugment with piano-specific parameters
+  - Target: 3x dataset (quality over quantity)
+  - **Expected Result**: +0.02-0.04 correlation support for smaller model
 
-#### Week 3-4: SSAST Pre-training & Multi-task Heads
+### 🔴 ACTIVE TASKS
 
-- [ ] Self-supervised pre-training implementation (TPU optimized)
-  - Implement joint discriminative/generative MSPM following SSAST paper for TPU
-  - Train AST encoder on MAESTRO with masked patch reconstruction using TPU v3-8
-  - Add gradient accumulation for large batch training (effective batch size 512+ on TPU)
-  - Implement automatic checkpointing and Google Drive backup for Colab sessions
-  - **Acceptance**: Pre-trained AST encoder achieving good reconstruction on MAESTRO within 12 hours
+#### Week 1: Architecture-First Optimization & Hybrid Features
 
-- [ ] Grouped multi-task architecture
-  - Implement shared encoder with 3 task-specific head groups
-  - Add cross-task attention mechanisms between related dimensions
-  - Create adaptive loss weighting for balanced multi-task learning
-  - Design group-specific output normalization strategies
-  - **Acceptance**: Multi-task heads properly grouped and balanced during training
+- [ ] **Ultra-Small Architecture Ablation** (Priority #1)
+  - Test configurations optimized for small datasets:
+    - Ultra-tiny: (3, 256, 4, 5M) - minimal overfitting
+    - Tiny: (4, 320, 6, 10M) - sweet spot candidate  
+    - Small: (6, 384, 8, 15M) - capacity ceiling
+    - Medium: (6, 512, 8, 20M) - overfitting threshold test
+  - **Acceptance**: Find architecture that doesn't overfit 832 samples
 
-#### Week 5-6: PercePiano Fine-tuning & Evaluation
+- [ ] **Hybrid Model Implementation** (Priority #2)
+  - Extract traditional features: 13 MFCCs + spectral + harmonic (50-100 features)
+  - Multi-input fusion: ultra-small AST + dense feature network
+  - Test fusion strategies: concatenation, attention-weighted, gated
+  - **Acceptance**: Beat Random Forest by leveraging domain knowledge immediately
 
-- [ ] Fine-tuning pipeline on PercePiano (GPU optimized)
-  - Transfer pre-trained MAESTRO encoder to PercePiano task on GPU
-  - Implement efficient fine-tuning with frozen vs unfrozen layer strategies for GPU
-  - Add data augmentation (time-stretch, pitch-shift, mixup) from MAESTRO
-  - Create comprehensive evaluation with cross-validation optimized for Colab sessions
-  - **Acceptance**: Fine-tuned model achieving >0.7 correlation on primary dimensions within 3 hours
+#### Week 2: Advanced Loss Functions & Training Optimization
 
-- [ ] Research-grade evaluation and analysis
-  - Compare AST+SSAST vs CNN baselines vs feedforward baselines
-  - Implement attention visualization for musical interpretability
-  - Statistical significance testing with confidence intervals
-  - Analyze which perceptual dimensions benefit most from transformer attention
-  - **Acceptance**: Publication-ready results showing clear transformer advantages
+- [ ] **Correlation-Aware Loss Functions** (Priority #1)
+  - Implement direct Pearson correlation loss (not MSE surrogate)
+  - Multi-task reweighting based on Random Forest per-dimension scores
+  - Combined objective: correlation + ranking + MSE with learned weights
+  - **Acceptance**: Loss function optimizing correlation directly
+
+- [ ] **Small-Dataset Training Strategies** (Priority #2)
+  - Aggressive regularization: dropout 0.3-0.5, spectral normalization
+  - Correlation-based early stopping (not loss-based)
+  - Learning schedules optimized for limited data
+  - **Acceptance**: Training strategy that doesn't overfit small datasets
+
+#### Week 3: Ensemble Methods & Model Understanding
+
+- [ ] **Ensemble Strategy Implementation** (Priority #1)
+  - Train 5-10 ultra-small models (5-15M params) with different seeds
+  - Test bagging, boosting, stacking combinations
+  - Test-time augmentation for ensemble robustness
+  - **Acceptance**: Ensemble significantly outperforming single models
+
+- [ ] **Model Interpretability & Analysis** (Priority #2)
+  - Attention visualization for musical pattern understanding
+  - Feature importance analysis across hybrid pathways
+  - Error analysis: hardest pieces, dimensions, performers
+  - **Acceptance**: Clear understanding of model behavior and failure modes
+
+#### Week 4: Evaluation & Statistical Analysis
+
+- [ ] **Comprehensive A/B Testing Framework**
+  - Statistical significance testing (paired t-tests, bootstrap CI)
+  - Cross-validation: K-fold, leave-one-performer-out, composer-split
+  - Multiple random seeds (5 runs) for robust estimates
+  - **Acceptance**: Publication-ready experimental rigor
+
+- [ ] **Error Analysis & Interpretability**
+  - Systematic analysis of failure cases and outliers
+  - Attention visualization for musical interpretability
+  - Feature importance analysis across different approaches
+  - **Acceptance**: Clear understanding of model behavior and limitations
 
 ### Completed (Baseline Foundation)
 
@@ -166,12 +204,14 @@
 
 ## Success Metrics
 
-### Technical Objectives
+### Technical Objectives (Revised for Dataset Reality)
 
-- **Performance Target**: >0.7 correlation on primary dimensions (Timing, Dynamics, Musical Expression)
-- **Model Efficiency**: Training convergence within 24 hours on standard GPU
+- **Week 1 Target**: Beat Random Forest (>0.5869 correlation) with tiny architecture + hybrid features
+- **Week 2 Target**: Achieve 0.60+ correlation with optimized loss functions
+- **Week 3 Target**: Reach 0.62+ correlation with ensemble methods
+- **Week 4 Target**: 0.63-0.65 correlation (excellent result for 832 samples)
 - **Code Quality**: Publication-ready implementation with comprehensive documentation
-- **Reproducibility**: All experiments reproducible with fixed random seeds
+- **Statistical Rigor**: All comparisons with proper significance testing
 
 ### Research Impact Goals
 

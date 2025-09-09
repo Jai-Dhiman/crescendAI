@@ -1,0 +1,16 @@
+<script lang="ts">
+	import { QueryClientProvider } from '@tanstack/svelte-query';
+	import { queryClient } from '$lib/query';
+	import '../app.css';
+
+	let { children } = $props();
+</script>
+
+<svelte:head>
+	<title>CrescendAI - Piano Performance Analyzer</title>
+	<meta name="description" content="AI-powered piano performance analysis with 19-dimensional feedback" />
+</svelte:head>
+
+<QueryClientProvider client={queryClient}>
+	{@render children?.()}
+</QueryClientProvider>

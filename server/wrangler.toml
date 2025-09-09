@@ -1,9 +1,9 @@
 name = "crescendai-backend"
-main = "build/crescendai_backend.js"
-compatibility_date = "2023-12-01"
+main = "build/worker/shim.mjs"
+compatibility_date = "2024-09-25"
 
 [build]
-command = "cargo build --target wasm32-unknown-unknown --release && wasm-bindgen --out-dir build --target bundler --no-typescript target/wasm32-unknown-unknown/release/crescendai_backend.wasm"
+command = "cargo install -q worker-build && worker-build --release"
 
 [vars]
 WORKERS_RS_VERSION = "0.3.0"

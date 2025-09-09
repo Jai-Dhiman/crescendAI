@@ -1,7 +1,5 @@
 # Architecture Decisions for Piano Perception Transformer
 
-*Decision Log - Updated: 2025-01-03*
-
 ## **Core Architecture Decisions**
 
 ### **1. Transformer Architecture: Audio Spectrogram Transformer (AST)**
