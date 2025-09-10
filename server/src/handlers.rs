@@ -152,6 +152,155 @@ pub async fn get_analysis_result(_req: Request, ctx: RouteContext<()>) -> Result
     }
 }
 
+pub async fn compare_models(mut req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    const MAX_JSON_SIZE: usize = 1024; // 1KB limit for JSON payload
+    
+    // Check Content-Length header for early validation
+    if let Ok(Some(content_length)) = req.headers().get("Content-Length") {
+        if let Ok(size) = content_length.parse::<usize>() {
+            validate_body_size(size, MAX_JSON_SIZE)?;
+        }
+    }
+    
+    let body: serde_json::Value = req.json().await?;
+    
+    // Validate and sanitize file ID
+    let file_id = body["id"].as_str()
+        .ok_or_else(|| worker::Error::from(SecurityError::InvalidInput(
+            "Missing or invalid file ID".to_string()
+        )))?;
+    
+    // Validate UUID format
+    validate_uuid(file_id)?;
+    
+    // Optional model configuration
+    let model_a = body["model_a"].as_str().unwrap_or("hybrid_ast");
+    let model_b = body["model_b"].as_str().unwrap_or("ultra_small_ast");
+    
+    // Generate new comparison job ID
+    let comparison_id = Uuid::new_v4().to_string();
+    
+    console_log!("Starting model comparison for file ID: {} with comparison ID: {} (models: {} vs {})", 
+                 file_id, comparison_id, model_a, model_b);
+    
+    // Start async comparison processing
+    match processing::start_model_comparison(&ctx.env, file_id, &comparison_id, model_a, model_b).await {
+        Ok(_) => {
+            Response::from_json(&json!({
+                "comparison_id": comparison_id,
+                "status": "processing",
+                "message": "Model comparison started successfully",
+                "models": {
+                    "model_a": model_a,
+                    "model_b": model_b
+                }
+            }))
+        }
+        Err(e) => {
+            console_log!("Comparison failed to start for job {}: {:?}", comparison_id, e);
+            let is_dev = ctx.env.var("ENVIRONMENT")
+                .map(|v| v.to_string() == "development")
+                .unwrap_or(false);
+            Ok(secure_error_response(&e, is_dev))
+        }
+    }
+}
+
+pub async fn get_comparison_result(_req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    let comparison_id = ctx.param("id")
+        .ok_or_else(|| worker::Error::from(SecurityError::InvalidInput(
+            "Missing comparison ID parameter".to_string()
+        )))?;
+    
+    // Validate UUID format
+    validate_uuid(comparison_id)?;
+    
+    match storage::get_comparison_result(&ctx.env, comparison_id).await {
+        Ok(result) => {
+            console_log!("Retrieved comparison result for ID {}: {}", comparison_id, result.status);
+            Response::from_json(&result)
+        }
+        Err(e) => {
+            console_log!("Comparison result not found for ID {}: {:?}", comparison_id, e);
+            Err(worker::Error::from(SecurityError::InvalidInput(
+                "Comparison result not found".to_string()
+            )))
+        }
+    }
+}
+
+pub async fn save_user_preference(mut req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    const MAX_JSON_SIZE: usize = 2048; // 2KB limit for preference data
+    
+    // Check Content-Length header
+    if let Ok(Some(content_length)) = req.headers().get("Content-Length") {
+        if let Ok(size) = content_length.parse::<usize>() {
+            validate_body_size(size, MAX_JSON_SIZE)?;
+        }
+    }
+    
+    let body: serde_json::Value = req.json().await?;
+    
+    // Validate required fields
+    let comparison_id = body["comparison_id"].as_str()
+        .ok_or_else(|| worker::Error::from(SecurityError::InvalidInput(
+            "Missing comparison_id".to_string()
+        )))?;
+    
+    let preferred_model = body["preferred_model"].as_str()
+        .ok_or_else(|| worker::Error::from(SecurityError::InvalidInput(
+            "Missing preferred_model".to_string()
+        )))?;
+    
+    // Validate UUID format for comparison ID
+    validate_uuid(comparison_id)?;
+    
+    // Validate preferred model value
+    if !matches!(preferred_model, "model_a" | "model_b") {
+        return Err(worker::Error::from(SecurityError::InvalidInput(
+            "preferred_model must be 'model_a' or 'model_b'".to_string()
+        )));
+    }
+    
+    // Optional feedback (with length limit)
+    let feedback = body["feedback"].as_str();
+    if let Some(fb) = feedback {
+        if fb.len() > 1000 {
+            return Err(worker::Error::from(SecurityError::InvalidInput(
+                "Feedback too long (max 1000 characters)".to_string()
+            )));
+        }
+    }
+    
+    let preference = crate::UserPreference {
+        comparison_id: comparison_id.to_string(),
+        preferred_model: preferred_model.to_string(),
+        feedback: feedback.map(|s| s.to_string()),
+        created_at: js_sys::Date::new_0().to_iso_string().into(),
+    };
+    
+    console_log!("Saving user preference for comparison {}: prefers {}", 
+                 comparison_id, preferred_model);
+    
+    match storage::save_user_preference(&ctx.env, &preference).await {
+        Ok(_) => {
+            Response::from_json(&json!({
+                "status": "saved",
+                "message": "User preference saved successfully",
+                "comparison_id": comparison_id,
+                "preferred_model": preferred_model
+            }))
+        }
+        Err(e) => {
+            console_log!("Failed to save preference for comparison {}: {:?}", comparison_id, e);
+            let is_dev = ctx.env.var("ENVIRONMENT")
+                .map(|v| v.to_string() == "development")
+                .unwrap_or(false);
+            Ok(secure_error_response(&e, is_dev))
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

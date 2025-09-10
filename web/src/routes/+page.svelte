@@ -1,316 +1,335 @@
 <script lang="ts">
-import Button from '$lib/components/Button.svelte';
-	import Card from '$lib/components/Card.svelte';
-	import SketchyPianoKeys from '$lib/components/SketchyPianoKeys.svelte';
-	import SketchyWaveform from '$lib/components/SketchyWaveform.svelte';
-	import SketchySheetMusic from '$lib/components/SketchySheetMusic.svelte';
-	import AnalysisVisualization from '$lib/components/AnalysisVisualization.svelte';
-	import FeatureCard from '$lib/components/FeatureCard.svelte';
+	import { goto } from '$app/navigation';
+	import { analysisStore } from '$lib/stores/analysis';
+	import { useUploadAndAnalyzeMutation } from '$lib/hooks/useAnalysis';
+	import { crescendApi, type CrescendApiError } from '$lib/services/crescendApi';
+	import { Upload } from 'lucide-svelte';
 
-	const features = [
-		{
-			title: "Multi-Dimensional Analysis",
-			description: "Our AI evaluates 19 distinct performance dimensions including timing precision, articulation clarity, tonal quality, and musical expression."
-		},
-		{
-			title: "Score-Referenced Feedback",
-			description: "Compare your performance directly against the written score with measure-by-measure analysis and specific improvement suggestions."
-		},
-		{
-			title: "Conservatory-Grade Standards",
-			description: "Built with input from piano faculty at leading conservatories, ensuring feedback meets the highest academic and artistic standards."
-		},
-		{
-			title: "Progress Tracking",
-			description: "Monitor your development over time with detailed performance analytics and personalized practice recommendations."
+	let files: FileList | null = null;
+	let isDragging = false;
+	let uploadError = '';
+	let progress = 0;
+	let currentStage: 'uploading' | 'analyzing' | 'processing' | null = null;
+	let comparisonMode = false;
+
+	const ACCEPTED_AUDIO_TYPES = [
+		'audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/ogg', 'audio/m4a', 'audio/aac',
+		'video/mp4', 'video/mov', 'video/avi'
+	];
+
+	const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
+	
+	// Create the mutation for upload and analysis
+	const uploadAndAnalyzeMutation = useUploadAndAnalyzeMutation();
+
+	function validateFile(file: File): string | null {
+		if (!ACCEPTED_AUDIO_TYPES.includes(file.type) && 
+			!file.name.toLowerCase().match(/\.(mp3|wav|ogg|m4a|aac|mp4|mov|avi)$/)) {
+			return 'Please select an audio or video file (MP3, WAV, OGG, M4A, AAC, MP4, MOV, AVI)';
 		}
-	];
-
-	const analysisCategories = [
-		"Rhythm & Timing",
-		"Articulation & Touch",
-		"Dynamics & Expression",
-		"Pedaling Technique",
-		"Musical Interpretation"
-	];
-
-	function handleGetStarted() {
-		window.location.href = '/auth';
+		
+		if (file.size > MAX_FILE_SIZE) {
+			return 'File size must be less than 100MB';
+		}
+		
+		return null;
 	}
 
-	function handleWatchDemo() {
-		console.log("Demo functionality to be implemented");
+	async function processFile(file: File) {
+		const error = validateFile(file);
+		if (error) {
+			uploadError = error;
+			files = null;
+			return;
+		}
+		
+		uploadError = '';
+		progress = 0;
+		currentStage = 'uploading';
+
+		try {
+			let result;
+			
+			if (comparisonMode) {
+				// Use comparison workflow
+				result = await crescendApi.uploadAndCompare(
+					file,
+					'hybrid_ast',
+					'ultra_small_ast',
+					(stage, progressValue) => {
+						currentStage = stage;
+						if (progressValue !== undefined) {
+							progress = progressValue;
+						} else {
+							// Set progress based on stage
+							switch (stage) {
+								case 'uploading':
+									progress = 25;
+									break;
+								case 'analyzing':
+									progress = 50;
+									break;
+								case 'processing':
+									progress = 75;
+									break;
+							}
+						}
+					}
+				);
+			} else {
+				// Use regular analysis workflow
+				result = await $uploadAndAnalyzeMutation.mutateAsync({
+					file,
+					onProgress: (stage, progressValue) => {
+						currentStage = stage;
+						if (progressValue !== undefined) {
+							progress = progressValue;
+						} else {
+							// Set progress based on stage
+							switch (stage) {
+								case 'uploading':
+									progress = 25;
+									break;
+								case 'analyzing':
+									progress = 50;
+									break;
+								case 'processing':
+									progress = 75;
+									break;
+							}
+						}
+					}
+				});
+			}
+
+			// Analysis complete, save result and navigate
+			progress = 100;
+			analysisStore.set(result);
+			
+			// Navigate to appropriate results page
+			if (comparisonMode) {
+				goto(`/results/comparison?id=${result.id}`);
+			} else {
+				goto('/results');
+			}
+			
+		} catch (error) {
+			console.error('Analysis failed:', error);
+			currentStage = null;
+			progress = 0;
+			
+			if (error instanceof Error) {
+				uploadError = error.message;
+			} else {
+				uploadError = 'Analysis failed. Please try again.';
+			}
+		}
 	}
+
+	function handleFileSelect(event: Event) {
+		const input = event.target as HTMLInputElement;
+		const selectedFiles = input.files;
+		if (selectedFiles && selectedFiles.length > 0) {
+			files = selectedFiles;
+			processFile(selectedFiles[0]);
+		}
+	}
+
+	function handleDrop(event: DragEvent) {
+		event.preventDefault();
+		isDragging = false;
+		const droppedFiles = event.dataTransfer?.files;
+		if (droppedFiles && droppedFiles.length > 0) {
+			files = droppedFiles;
+			processFile(droppedFiles[0]);
+		}
+	}
+
+	function handleDragOver(event: DragEvent) {
+		event.preventDefault();
+		isDragging = true;
+	}
+
+	function handleDragLeave(event: DragEvent) {
+		// Only stop dragging if we're actually leaving the drop area
+		if (!(event.currentTarget as HTMLElement).contains(event.relatedTarget as Node)) {
+			isDragging = false;
+		}
+	}
+
+	function resetUpload() {
+		files = null;
+		uploadError = '';
+		progress = 0;
+		const input = document.getElementById('audioFile') as HTMLInputElement;
+		if (input) input.value = '';
+	}
+
 </script>
 
 <svelte:head>
-	<title>CrescendAI - Perfect Your Piano Performance with AI</title>
+	<title>CrescendAI - Analyze Your Piano Playing</title>
 </svelte:head>
 
-<div class="min-h-screen bg-slate-50">
-	<!-- Hero Section -->
-	<section class="relative overflow-hidden bg-gradient-to-b from-slate-50 to-white">
-		<div class="absolute inset-0 opacity-5">
-			<SketchyPianoKeys class="absolute top-0 left-0 w-full h-32 text-slate-400" />
-			<SketchyPianoKeys class="absolute bottom-0 right-0 w-full h-32 text-slate-400 transform rotate-180" />
+<main class="min-h-screen bg-cream relative overflow-hidden px-6 py-8">
+	<!-- Background elements -->
+	<div class="absolute inset-0 opacity-5">
+		<!-- Staff lines -->
+		<div class="absolute top-1/4 left-0 right-0 h-px bg-charcoal transform rotate-1"></div>
+		<div class="absolute top-1/3 left-0 right-0 h-px bg-charcoal transform -rotate-1"></div>
+		<div class="absolute top-1/2 left-0 right-0 h-px bg-charcoal transform rotate-0.5"></div>
+		<div class="absolute top-2/3 left-0 right-0 h-px bg-charcoal transform -rotate-0.5"></div>
+		<div class="absolute top-3/4 left-0 right-0 h-px bg-charcoal transform rotate-1"></div>
+	</div>
+
+
+	<div class="max-w-4xl mx-auto min-h-screen flex flex-col justify-center items-center text-center relative z-10 mobile-padding">
+		<!-- Brand Section -->
+		<div class="space-y-6 md:space-y-8 mb-8 md:mb-12 mobile-spacing">
+			<!-- Icon with artistic placement -->
+			<div class="relative">
+				<img src="/crescendai.png" alt="CrescendAI" class="sketchy-hero-icon sketchy-border sketchy-rounded w-24 h-24 md:w-32 md:h-32 hero-icon-mobile mx-auto mb-4 md:mb-6" />
+			</div>
+
+			<!-- Title with creative typography -->
+			<div class="space-y-3 md:space-y-4">
+				<h1 class="sketchy-title text-4xl md:text-7xl lg:text-8xl">CrescendAI</h1>
+				<p class="handwritten text-lg md:text-xl lg:text-2xl text-sage max-w-lg mx-auto leading-relaxed px-4">
+					~ where your piano meets AI brilliance ~
+				</p>
+			</div>
 		</div>
-		
-		<div class="relative max-w-6xl mx-auto px-6 py-20">
-			<div class="grid lg:grid-cols-2 gap-12 items-center">
-				<div class="space-y-8">
-					<div class="space-y-4">
-						<div class="inline-block">
-							<div class="px-4 py-2 bg-slate-100 border border-slate-300 rounded-full text-sm text-slate-700 transform -rotate-1">
-								AI-Powered Piano Analysis
-							</div>
-						</div>
-						
-						<h1 class="text-4xl lg:text-5xl text-slate-900 leading-tight">
-							Perfect Your Piano Performance with{" "}
-							<span class="relative">
-								<span class="relative z-10">19-Dimensional</span>
-								<svg class="absolute -bottom-2 left-0 right-0 h-3" viewBox="0 0 200 12" fill="none">
-									<path d="M2 8.5c65.3-1.2 130.7-2.1 196 0.5" stroke="#64748b" stroke-width="2" opacity="0.6" stroke-linecap="round" />
-								</svg>
-							</span>
-							Feedback
-						</h1>
-						
-						<p class="text-lg text-slate-600 leading-relaxed">
-							Advanced AI analysis designed for conservatory and university piano students. 
-							Get detailed, actionable feedback on every aspect of your performance—from technical precision to musical expression.
+
+		<!-- Mode Selection -->
+		<div class="mb-6 space-y-4">
+			<div class="flex items-center justify-center gap-6 p-4 sketchy-card bg-white/50">
+				<!-- Single Analysis Option -->
+				<label class="flex items-center gap-3 cursor-pointer">
+					<input
+						type="radio"
+						name="analysisMode"
+						value="single"
+						checked={!comparisonMode}
+						class="sketchy-radio"
+						on:change={() => comparisonMode = false}
+					/>
+					<div class="text-center">
+						<div class="sketchy-text font-medium">Quick Analysis</div>
+						<div class="text-xs text-warm-gray">Single model analysis</div>
+					</div>
+				</label>
+
+				<!-- Comparison Option -->
+				<label class="flex items-center gap-3 cursor-pointer">
+					<input
+						type="radio"
+						name="analysisMode"
+						value="compare"
+						checked={comparisonMode}
+						class="sketchy-radio"
+						on:change={() => comparisonMode = true}
+					/>
+					<div class="text-center">
+						<div class="sketchy-text font-medium">A/B Comparison</div>
+						<div class="text-xs text-warm-gray">Two models side-by-side</div>
+					</div>
+				</label>
+			</div>
+
+			{#if comparisonMode}
+				<div class="text-center p-3 bg-sage/10 sketchy-border sketchy-rounded">
+					<p class="handwritten text-sm text-sage">
+						✨ Compare Hybrid AST vs Ultra-Small AST models
+					</p>
+				</div>
+			{/if}
+		</div>
+
+		<!-- Upload Section -->
+		<div class="max-w-2xl mx-auto">
+			<input
+				type="file"
+				id="audioFile"
+				accept="audio/*,video/*"
+				class="hidden"
+				on:change={handleFileSelect}
+			/>
+			
+			<!-- Main upload area with creative design -->
+			<div 
+				class="sketchy-upload-area {isDragging ? 'drag-over' : ''} cursor-pointer relative"
+				on:drop={handleDrop}
+				on:dragover={handleDragOver}
+				on:dragleave={handleDragLeave}
+				on:click={() => document.getElementById('audioFile')?.click()}
+				on:keydown={(e) => {
+					if (e.key === 'Enter' || e.key === ' ') {
+						e.preventDefault();
+						document.getElementById('audioFile')?.click();
+					}
+				}}
+				tabindex="0"
+				role="button"
+				aria-label="Upload audio file"
+			>
+
+				<div class="space-y-6 py-4">
+					<!-- Central illustration -->
+					<div class="relative mx-auto w-24 h-24">
+						<Upload class="sketchy-icon w-full h-full" aria-hidden="true" />
+					</div>
+
+					<div class="space-y-3">
+						<h2 class="sketchy-text text-xl md:text-2xl font-medium">
+							Drop Your Performance Here
+						</h2>
+						<p class="sketchy-text text-warm-gray leading-relaxed px-2 md:px-4 text-sm md:text-base">
+							Drag & drop your recording or 
+							<span class="marker-highlight handwritten text-sage font-medium">click anywhere</span> to browse
+						</p>
+						<p class="text-xs md:text-sm text-warm-gray opacity-75 px-2">
+							Supports MP3, WAV, M4A, MP4 • Max 100MB
 						</p>
 					</div>
-					
-					<div class="flex flex-col sm:flex-row gap-4">
-						<Button 
-							onclick={handleGetStarted}
-							class="bg-slate-800 hover:bg-slate-700 text-white px-8 py-3 rounded-lg border-2 border-slate-800 transform hover:-translate-y-1 transition-all"
-						>
-							Start Free Analysis
-						</Button>
-						<Button 
-							variant="outline" 
-							onclick={handleWatchDemo}
-							class="border-2 border-slate-300 text-slate-700 hover:bg-slate-50 px-8 py-3 rounded-lg transform hover:-translate-y-1 transition-all"
-						>
-							Watch Demo
-						</Button>
-					</div>
-					
-					<div class="flex items-center space-x-6 text-sm text-slate-500">
-						<div class="flex items-center space-x-2">
-							<svg class="w-4 h-4" viewBox="0 0 16 16" fill="none">
-								<path d="M2.1 8.2c1.2 1.1 2.4 2.1 3.7 3.1c2.8-2.9 5.7-5.8 8.5-8.7" 
-									  stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
-							</svg>
-							<span>No signup required</span>
-						</div>
-						<div class="flex items-center space-x-2">
-							<svg class="w-4 h-4" viewBox="0 0 16 16" fill="none">
-								<path d="M2.1 8.2c1.2 1.1 2.4 2.1 3.7 3.1c2.8-2.9 5.7-5.8 8.5-8.7" 
-									  stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
-							</svg>
-							<span>Results in minutes</span>
-						</div>
-					</div>
-				</div>
-				
-				<div class="relative">
-					<div class="relative z-10">
-						<img
-							src="https://images.unsplash.com/photo-1597066453679-331bb8175ddb?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxwaWFubyUyMGtleXMlMjBzaGVldCUyMG11c2ljJTIwY29uc2VydmF0b3J5fGVufDF8fHx8MTc1NzM2ODk3OHww&ixlib=rb-4.1.0&q=80&w=1080"
-							alt="Piano keys and sheet music"
-							class="w-full h-96 object-cover rounded-lg border-4 border-white shadow-lg transform rotate-2"
-						/>
-					</div>
-					<div class="absolute -top-4 -right-4 z-20">
-						<AnalysisVisualization class="w-80 h-48 transform -rotate-3" />
-					</div>
-				</div>
-			</div>
-		</div>
-	</section>
 
-	<!-- Features Section -->
-	<section class="py-20 bg-white">
-		<div class="max-w-6xl mx-auto px-6">
-			<div class="text-center mb-16">
-				<div class="inline-block mb-4">
-					<SketchySheetMusic class="w-20 h-16 text-slate-400 mx-auto" />
-				</div>
-				<h2 class="text-3xl lg:text-4xl text-slate-900 mb-4">
-					Comprehensive Performance Analysis
-				</h2>
-				<p class="text-lg text-slate-600 max-w-2xl mx-auto">
-					Our AI doesn't just listen—it understands music theory, performance practice, and pedagogical principles to provide meaningful feedback.
-				</p>
-			</div>
-			
-			<div class="grid md:grid-cols-2 gap-8 mb-16">
-				{#each features as feature, index}
-					<FeatureCard
-						title={feature.title}
-						description={feature.description}
-						class="transform hover:scale-105 transition-transform"
-					>
-						{#snippet icon()}
-							{#if index === 0}
-								<SketchyWaveform class="w-8 h-8 text-slate-600" />
-							{:else if index === 1}
-								<SketchySheetMusic class="w-8 h-8 text-slate-600" />
-							{:else if index === 2}
-								<svg class="w-8 h-8 text-slate-600" viewBox="0 0 32 32" fill="none">
-									<path d="M8.2 16.1c2.1-2.2 4.3-4.3 6.6-6.2c3.8 3.9 7.7 7.9 11.6 11.8c1.2-1.3 2.5-2.5 3.8-3.7" 
-										  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-								</svg>
-							{:else}
-								<svg class="w-8 h-8 text-slate-600" viewBox="0 0 32 32" fill="none">
-									<circle cx="16" cy="12" r="4.2" stroke="currentColor" stroke-width="2" fill="none" />
-									<path d="M10.1 20.8c1.8-1.2 3.8-1.9 5.9-1.9s4.1 0.7 5.9 1.9" 
-										  stroke="currentColor" stroke-width="2" stroke-linecap="round" />
-								</svg>
+					{#if progress > 0 && progress < 100}
+						<div class="mt-6 space-y-4">
+						<p class="sketchy-text text-sm text-charcoal text-center">
+							{#if currentStage === 'uploading'}
+								Uploading your masterpiece...
+							{:else if currentStage === 'analyzing'}
+								AI is listening...
+							{:else if currentStage === 'processing'}
+								Creating your analysis...
 							{/if}
-						{/snippet}
-					</FeatureCard>
-				{/each}
-			</div>
-		</div>
-	</section>
-
-	<!-- Analysis Categories -->
-	<section class="py-20 bg-slate-50">
-		<div class="max-w-6xl mx-auto px-6">
-			<div class="text-center mb-16">
-				<h2 class="text-3xl lg:text-4xl text-slate-900 mb-4">
-					19 Dimensions of Analysis
-				</h2>
-				<p class="text-lg text-slate-600 max-w-2xl mx-auto">
-					Every recording is analyzed across multiple performance categories, providing detailed insights into both technical execution and musical interpretation.
-				</p>
-			</div>
-			
-			<div class="grid lg:grid-cols-5 gap-8">
-				{#each analysisCategories as category, index}
-					<Card class="p-6 text-center border-2 border-slate-200 bg-white transform hover:-translate-y-2 transition-all hover:shadow-lg">
-						<div class="mb-4">
-							<div class="w-12 h-12 bg-slate-100 rounded-full mx-auto flex items-center justify-center border-2 border-slate-200">
-								<span class="text-slate-600 font-mono text-lg">{index + 1}</span>
+						</p>
+							<div class="sketchy-progress max-w-sm mx-auto">
+								<div style={`width: ${progress}%`}></div>
 							</div>
+							<p class="handwritten text-sm text-warm-gray text-center">{progress}% complete</p>
 						</div>
-						<h3 class="text-slate-800 mb-2">{category}</h3>
-						<div class="text-sm text-slate-500">
-							{Math.floor(3 + index * 0.8)} metrics
-						</div>
-					</Card>
-				{/each}
+					{/if}
+				</div>
 			</div>
-		</div>
-	</section>
 
-	<!-- How It Works -->
-	<section class="py-20 bg-white">
-		<div class="max-w-6xl mx-auto px-6">
-			<div class="text-center mb-16">
-				<h2 class="text-3xl lg:text-4xl text-slate-900 mb-4">
-					Simple Process, Detailed Results
-				</h2>
-				<p class="text-lg text-slate-600">
-					Upload your recording and receive comprehensive feedback in minutes
-				</p>
-			</div>
-			
-			<div class="grid md:grid-cols-3 gap-8">
-				{#each [
-					{
-						step: "1",
-						title: "Upload Recording",
-						description: "Upload your piano performance—audio or video files accepted. No special equipment needed."
-					},
-					{
-						step: "2", 
-						title: "AI Analysis",
-						description: "Our specialized AI analyzes your performance across 19 dimensions, comparing against conservatory standards."
-					},
-					{
-						step: "3",
-						title: "Detailed Feedback",
-						description: "Receive actionable insights with specific practice recommendations and progress tracking."
-					}
-				] as item, index}
-					<div class="text-center relative">
-						{#if index < 2}
-							<div class="hidden md:block absolute top-8 left-full w-full">
-								<svg class="w-full h-4" viewBox="0 0 100 16" fill="none">
-									<path d="M2 8c32.7-1.2 65.3-0.8 98 0" stroke="#cbd5e1" stroke-width="2" stroke-linecap="round" opacity="0.6" />
-									<path d="M88 4l8 4-8 4" stroke="#cbd5e1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity="0.6" />
-								</svg>
-							</div>
-						{/if}
-						<div class="w-16 h-16 bg-slate-800 text-white rounded-full mx-auto flex items-center justify-center mb-4 border-4 border-slate-200">
-							<span class="text-xl font-mono">{item.step}</span>
-						</div>
-						<h3 class="text-slate-800 mb-2">{item.title}</h3>
-						<p class="text-slate-600 text-sm">{item.description}</p>
+			<!-- Error Display -->
+			{#if uploadError}
+				<div class="card p-4 border-red-400 bg-red-50 mt-6 max-w-lg mx-auto">
+					<div class="flex items-center justify-between gap-4">
+						<p class="sketchy-text text-red-800 flex-1">{uploadError}</p>
+						<button on:click={resetUpload} class="btn-primary bg-red-500 border-red-500 hover:bg-red-600 hover:border-red-600 text-sm px-3 py-1">
+							try again
+						</button>
 					</div>
-				{/each}
-			</div>
-		</div>
-	</section>
-
-	<!-- CTA Section -->
-	<section class="py-20 bg-slate-900 relative overflow-hidden">
-		<div class="absolute inset-0 opacity-10">
-			<SketchyWaveform class="absolute top-0 left-0 w-full h-full text-white" />
-		</div>
-		
-		<div class="relative max-w-4xl mx-auto px-6 text-center">
-			<h2 class="text-3xl lg:text-4xl text-white mb-4">
-				Ready to Elevate Your Piano Performance?
-			</h2>
-			<p class="text-lg text-slate-300 mb-8 max-w-2xl mx-auto">
-				Join conservatory students worldwide who are using AI-powered analysis to accelerate their musical development.
-			</p>
-			
-			<div class="flex flex-col sm:flex-row gap-4 justify-center">
-				<Button 
-					onclick={handleGetStarted}
-					class="bg-white text-slate-900 hover:bg-slate-100 px-8 py-3 rounded-lg border-2 border-white transform hover:-translate-y-1 transition-all"
-				>
-					Start Free Analysis
-				</Button>
-				<Button 
-					variant="outline" 
-					class="border-2 border-slate-400 text-white hover:bg-slate-800 px-8 py-3 rounded-lg transform hover:-translate-y-1 transition-all"
-				>
-					Learn More
-				</Button>
-			</div>
-			
-			<div class="mt-8 text-sm text-slate-400">
-				Free for students • No credit card required • Results in minutes
-			</div>
-		</div>
-	</section>
-
-	<!-- Footer -->
-	<footer class="bg-slate-100 py-8 border-t border-slate-200">
-		<div class="max-w-6xl mx-auto px-6">
-			<div class="flex flex-col md:flex-row justify-between items-center">
-				<div class="flex items-center space-x-2 mb-4 md:mb-0">
-					<SketchyPianoKeys class="w-8 h-6 text-slate-600" />
-					<span class="text-slate-700">CrescendAI</span>
 				</div>
-				<div class="flex space-x-6 text-sm text-slate-500">
-					<a href="#" class="hover:text-slate-700 transition-colors">Privacy</a>
-					<a href="#" class="hover:text-slate-700 transition-colors">Terms</a>
-					<a href="#" class="hover:text-slate-700 transition-colors">Support</a>
-					<a href="#" class="hover:text-slate-700 transition-colors">About</a>
-				</div>
-			</div>
-			<div class="mt-4 pt-4 border-t border-slate-200 text-center text-sm text-slate-500">
-				© 2025 CrescendAI. Designed for serious musicians.
+			{/if}
+		</div>
+
+		<!-- Footer -->
+		<div class="absolute bottom-4 md:bottom-8 left-1/2 transform -translate-x-1/2 text-center px-4">
+			<div class="sketchy-text text-xs text-warm-gray opacity-50 mt-1">
+				CrescendAI • 2025
 			</div>
 		</div>
-	</footer>
-</div>
+	</div>
+</main>

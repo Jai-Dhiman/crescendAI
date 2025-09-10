@@ -1,62 +1,68 @@
 use worker::*;
-use crate::{JobStatus, AnalysisResult};
+use crate::{JobStatus, AnalysisResult, AnalysisData, ComparisonResult, ModelResult};
 use crate::storage;
 use crate::modal_client;
 
 pub async fn start_analysis(env: &Env, file_id: &str, job_id: &str) -> Result<()> {
+    console_log!("Starting analysis for file_id: {}, job_id: {}", file_id, job_id);
+    
     // Initialize job status
     let initial_status = JobStatus {
-        id: job_id.to_string(),
-        status: "preprocessing".to_string(),
+        job_id: job_id.to_string(),
+        status: "processing".to_string(),
         progress: 0.0,
         error: None,
     };
     
+    console_log!("Updating initial job status...");
     storage::update_job_status(env, job_id, &initial_status).await?;
     
     // Get audio data from R2
+    console_log!("Retrieving audio data from R2 for file_id: {}", file_id);
     let audio_data = storage::get_audio_from_r2(env, file_id).await?;
+    console_log!("Retrieved {} bytes of audio data", audio_data.len());
     
     // Update status - preprocessing
     let preprocessing_status = JobStatus {
-        id: job_id.to_string(),
-        status: "preprocessing".to_string(),
+        job_id: job_id.to_string(),
+        status: "processing".to_string(),
         progress: 25.0,
         error: None,
     };
     storage::update_job_status(env, job_id, &preprocessing_status).await?;
     
     // Generate mel-spectrogram (simplified - would need actual audio processing)
+    console_log!("Generating mel-spectrogram for job_id: {}", job_id);
     let spectrogram_data = generate_mel_spectrogram(&audio_data).await?;
+    console_log!("Generated {} bytes of spectrogram data", spectrogram_data.len());
     
     // Update status - sending to modal
     let modal_status = JobStatus {
-        id: job_id.to_string(),
-        status: "analyzing".to_string(),
+        job_id: job_id.to_string(),
+        status: "processing".to_string(),
         progress: 50.0,
         error: None,
     };
     storage::update_job_status(env, job_id, &modal_status).await?;
     
     // Send to Modal for inference
-    match modal_client::send_for_inference(env, &spectrogram_data, job_id).await {
+    console_log!("Sending to ML service for inference...");
+    match modal_client::send_for_inference(env, &spectrogram_data, job_id, file_id).await {
         Ok(_) => {
-            let processing_status = JobStatus {
-                id: job_id.to_string(),
-                status: "processing".to_string(),
-                progress: 75.0,
-                error: None,
-            };
-            storage::update_job_status(env, job_id, &processing_status).await?;
+            console_log!("ML inference completed successfully for job_id: {}", job_id);
+            // Note: send_for_inference already calls complete_analysis() which sets status to "completed"
+            // No need to update status here as it would overwrite the "completed" status
         }
         Err(e) => {
+            console_log!("ML inference failed for job_id: {}: {:?}", job_id, e);
             let error_status = JobStatus {
-                id: job_id.to_string(),
+                job_id: job_id.to_string(),
                 status: "failed".to_string(),
                 progress: 0.0,
                 error: Some(e.to_string()),
             };
             storage::update_job_status(env, job_id, &error_status).await?;
+            return Err(e);
         }
     }
     
@@ -88,43 +94,250 @@ async fn generate_mel_spectrogram(audio_data: &[u8]) -> Result<Vec<u8>> {
 }
 
 fn create_placeholder_spectrogram() -> Vec<u8> {
-    // Create a placeholder 128x128 spectrogram (16KB of data)
+    // Create a placeholder 128x128 spectrogram (64KB of data)
     // This represents a mel-spectrogram with 128 mel bins and 128 time frames
     let size = 128 * 128 * 4; // 4 bytes per float32
     let mut data = Vec::with_capacity(size);
     
-    // Generate some dummy spectral data
+    // Generate some dummy spectral data as float32 values
     for i in 0..(128 * 128) {
-        let value = ((i as f32).sin() * 0.5 + 0.5) * 255.0;
-        let bytes = (value as u32).to_le_bytes();
+        let value = ((i as f32).sin() * 0.5 + 0.5); // Range [0, 1]
+        let bytes = value.to_le_bytes(); // Convert float32 to bytes
         data.extend_from_slice(&bytes);
     }
     
+    console_log!("Generated placeholder spectrogram: {} bytes (expected: {})", data.len(), size);
     data
 }
 
-pub async fn complete_analysis(env: &Env, job_id: &str, dimensions: Vec<f32>) -> Result<()> {
+pub async fn complete_analysis(
+    env: &Env, 
+    job_id: &str, 
+    file_id: &str,
+    analysis_data: AnalysisData,
+    insights: Vec<String>,
+    processing_time: Option<f32>
+) -> Result<()> {
+    console_log!("complete_analysis: Starting completion for job_id: {}", job_id);
+    
     // Create analysis result
     let result = AnalysisResult {
         id: job_id.to_string(),
         status: "completed".to_string(),
-        dimensions: Some(dimensions),
+        file_id: file_id.to_string(),
+        analysis: analysis_data,
+        insights,
         created_at: js_sys::Date::new_0().to_iso_string().as_string().unwrap(),
+        processing_time,
     };
     
+    console_log!("complete_analysis: Created analysis result for job_id: {}", job_id);
+    
     // Store the result
-    storage::store_analysis_result(env, job_id, &result).await?;
+    match storage::store_analysis_result(env, job_id, &result).await {
+        Ok(_) => console_log!("complete_analysis: Successfully stored analysis result for job_id: {}", job_id),
+        Err(e) => {
+            console_log!("complete_analysis: ERROR storing analysis result for job_id {}: {:?}", job_id, e);
+            return Err(e);
+        }
+    }
     
     // Update job status to completed
     let completed_status = JobStatus {
-        id: job_id.to_string(),
+        job_id: job_id.to_string(),
         status: "completed".to_string(),
         progress: 100.0,
         error: None,
     };
     
-    storage::update_job_status(env, job_id, &completed_status).await?;
+    console_log!("complete_analysis: Updating job status to completed for job_id: {}", job_id);
+    match storage::update_job_status(env, job_id, &completed_status).await {
+        Ok(_) => {
+            console_log!("complete_analysis: Successfully updated job status to completed for job_id: {}", job_id);
+            
+            // Verify the status was actually written by reading it back
+            match storage::get_job_status(env, job_id).await {
+                Ok(verified_status) => {
+                    console_log!("complete_analysis: Verified job status for {}: {} (expected: completed)", job_id, verified_status.status);
+                }
+                Err(e) => {
+                    console_log!("complete_analysis: WARNING: Could not verify job status for {}: {:?}", job_id, e);
+                }
+            }
+        }
+        Err(e) => {
+            console_log!("complete_analysis: ERROR updating job status for job_id {}: {:?}", job_id, e);
+            return Err(e);
+        }
+    }
     
+    console_log!("complete_analysis: Completed all operations for job_id: {}", job_id);
+    Ok(())
+}
+
+pub async fn start_model_comparison(
+    env: &Env, 
+    file_id: &str, 
+    comparison_id: &str, 
+    model_a: &str, 
+    model_b: &str
+) -> Result<()> {
+    console_log!("Starting model comparison for file_id: {}, comparison_id: {} (models: {} vs {})", 
+                 file_id, comparison_id, model_a, model_b);
+    
+    // Initialize job status
+    let initial_status = JobStatus {
+        job_id: comparison_id.to_string(),
+        status: "processing".to_string(),
+        progress: 0.0,
+        error: None,
+    };
+    
+    storage::update_job_status(env, comparison_id, &initial_status).await?;
+    
+    // Get audio data from R2
+    console_log!("Retrieving audio data from R2 for file_id: {}", file_id);
+    let audio_data = storage::get_audio_from_r2(env, file_id).await?;
+    console_log!("Retrieved {} bytes of audio data", audio_data.len());
+    
+    // Update status - preprocessing
+    let preprocessing_status = JobStatus {
+        job_id: comparison_id.to_string(),
+        status: "processing".to_string(),
+        progress: 20.0,
+        error: None,
+    };
+    storage::update_job_status(env, comparison_id, &preprocessing_status).await?;
+    
+    // Generate spectrogram
+    console_log!("Generating mel-spectrogram for comparison: {}", comparison_id);
+    let spectrogram_data = generate_mel_spectrogram(&audio_data).await?;
+    
+    // Update status - running parallel inference
+    let inference_status = JobStatus {
+        job_id: comparison_id.to_string(),
+        status: "processing".to_string(),
+        progress: 40.0,
+        error: None,
+    };
+    storage::update_job_status(env, comparison_id, &inference_status).await?;
+    
+    // Run both models in parallel
+    console_log!("Running parallel inference for models {} and {}", model_a, model_b);
+    
+    let model_a_future = modal_client::send_for_inference_with_model(
+        env, &spectrogram_data, comparison_id, file_id, model_a
+    );
+    let model_b_future = modal_client::send_for_inference_with_model(
+        env, &spectrogram_data, comparison_id, file_id, model_b
+    );
+    
+    // Wait for both models to complete
+    let (result_a, result_b) = match futures::try_join!(model_a_future, model_b_future) {
+        Ok((a, b)) => (a, b),
+        Err(e) => {
+            console_log!("Parallel inference failed for comparison {}: {:?}", comparison_id, e);
+            let error_status = JobStatus {
+                job_id: comparison_id.to_string(),
+                status: "failed".to_string(),
+                progress: 0.0,
+                error: Some(e.to_string()),
+            };
+            storage::update_job_status(env, comparison_id, &error_status).await?;
+            return Err(e);
+        }
+    };
+    
+    // Update status - processing results
+    let processing_status = JobStatus {
+        job_id: comparison_id.to_string(),
+        status: "processing".to_string(),
+        progress: 80.0,
+        error: None,
+    };
+    storage::update_job_status(env, comparison_id, &processing_status).await?;
+    
+    // Complete the comparison
+    complete_model_comparison(env, comparison_id, file_id, result_a, result_b).await?;
+    
+    console_log!("Model comparison completed successfully for comparison_id: {}", comparison_id);
+    Ok(())
+}
+
+pub async fn complete_model_comparison(
+    env: &Env,
+    comparison_id: &str,
+    file_id: &str,
+    result_a: (AnalysisData, Vec<String>, Option<f32>),
+    result_b: (AnalysisData, Vec<String>, Option<f32>),
+) -> Result<()> {
+    console_log!("Completing model comparison for comparison_id: {}", comparison_id);
+    
+    let (analysis_a, insights_a, time_a) = result_a;
+    let (analysis_b, insights_b, time_b) = result_b;
+    
+    let model_a_result = ModelResult {
+        model_name: "Model A".to_string(),
+        model_type: "hybrid_ast".to_string(),
+        analysis: analysis_a,
+        insights: insights_a,
+        processing_time: time_a,
+    };
+    
+    let model_b_result = ModelResult {
+        model_name: "Model B".to_string(),
+        model_type: "ultra_small_ast".to_string(),
+        analysis: analysis_b,
+        insights: insights_b,
+        processing_time: time_b,
+    };
+    
+    let total_processing_time = match (time_a, time_b) {
+        (Some(a), Some(b)) => Some(a.max(b)), // Use the longer time since they ran in parallel
+        (Some(a), None) => Some(a),
+        (None, Some(b)) => Some(b),
+        (None, None) => None,
+    };
+    
+    // Create comparison result
+    let comparison_result = ComparisonResult {
+        id: comparison_id.to_string(),
+        status: "completed".to_string(),
+        file_id: file_id.to_string(),
+        model_a: model_a_result,
+        model_b: model_b_result,
+        created_at: js_sys::Date::new_0().to_iso_string().as_string().unwrap(),
+        total_processing_time,
+    };
+    
+    // Store the comparison result
+    match storage::store_comparison_result(env, comparison_id, &comparison_result).await {
+        Ok(_) => console_log!("Successfully stored comparison result for comparison_id: {}", comparison_id),
+        Err(e) => {
+            console_log!("ERROR storing comparison result for comparison_id {}: {:?}", comparison_id, e);
+            return Err(e);
+        }
+    }
+    
+    // Update job status to completed
+    let completed_status = JobStatus {
+        job_id: comparison_id.to_string(),
+        status: "completed".to_string(),
+        progress: 100.0,
+        error: None,
+    };
+    
+    match storage::update_job_status(env, comparison_id, &completed_status).await {
+        Ok(_) => {
+            console_log!("Successfully updated comparison job status to completed for comparison_id: {}", comparison_id);
+        }
+        Err(e) => {
+            console_log!("ERROR updating comparison job status for comparison_id {}: {:?}", comparison_id, e);
+            return Err(e);
+        }
+    }
+    
+    console_log!("Completed all operations for comparison_id: {}", comparison_id);
     Ok(())
 }
 
@@ -173,14 +386,14 @@ mod tests {
     fn test_initial_job_status_creation() {
         let job_id = "test-job-123";
         let initial_status = JobStatus {
-            id: job_id.to_string(),
-            status: "preprocessing".to_string(),
+            job_id: job_id.to_string(),
+            status: "processing".to_string(),
             progress: 0.0,
             error: None,
         };
         
-        assert_eq!(initial_status.id, job_id);
-        assert_eq!(initial_status.status, "preprocessing");
+        assert_eq!(initial_status.job_id, job_id);
+        assert_eq!(initial_status.status, "processing");
         assert_eq!(initial_status.progress, 0.0);
         assert_eq!(initial_status.error, None);
     }
@@ -189,16 +402,16 @@ mod tests {
     fn test_status_progression() {
         let job_id = "test-job";
         let statuses = vec![
-            ("preprocessing", 0.0),
-            ("preprocessing", 25.0),
-            ("analyzing", 50.0),
+            ("processing", 0.0),
+            ("processing", 25.0),
+            ("processing", 50.0),
             ("processing", 75.0),
             ("completed", 100.0),
         ];
         
         for (status_name, progress) in statuses {
             let status = JobStatus {
-                id: job_id.to_string(),
+                job_id: job_id.to_string(),
                 status: status_name.to_string(),
                 progress,
                 error: None,
@@ -216,7 +429,7 @@ mod tests {
         let error_message = "Processing failed";
         
         let error_status = JobStatus {
-            id: job_id.to_string(),
+            job_id: job_id.to_string(),
             status: "failed".to_string(),
             progress: 0.0,
             error: Some(error_message.to_string()),
@@ -330,7 +543,7 @@ mod tests {
         let job_id = "completed-job";
         
         let completed_status = JobStatus {
-            id: job_id.to_string(),
+            job_id: job_id.to_string(),
             status: "completed".to_string(),
             progress: 100.0,
             error: None,
@@ -347,7 +560,7 @@ mod tests {
         
         for progress in progress_values {
             let status = JobStatus {
-                id: "test".to_string(),
+                job_id: "test".to_string(),
                 status: "processing".to_string(),
                 progress,
                 error: None,
@@ -362,8 +575,8 @@ mod tests {
     #[test]
     fn test_status_names() {
         let status_names = vec![
-            "preprocessing",
-            "analyzing", 
+            "pending",
+            "processing", 
             "processing",
             "completed",
             "failed"
@@ -371,7 +584,7 @@ mod tests {
         
         for status_name in status_names {
             let status = JobStatus {
-                id: "test".to_string(),
+                job_id: "test".to_string(),
                 status: status_name.to_string(),
                 progress: if status_name == "completed" { 100.0 } else { 50.0 },
                 error: if status_name == "failed" { Some("Error".to_string()) } else { None },
@@ -444,7 +657,7 @@ mod tests {
         
         for error_msg in error_scenarios {
             let error_status = JobStatus {
-                id: "error-test".to_string(),
+                job_id: "error-test".to_string(),
                 status: "failed".to_string(),
                 progress: 0.0,
                 error: Some(error_msg.to_string()),
@@ -497,14 +710,14 @@ mod tests {
         
         for job_id in job_ids {
             let status = JobStatus {
-                id: job_id.to_string(),
+                job_id: job_id.to_string(),
                 status: "processing".to_string(),
                 progress: 50.0,
                 error: None,
             };
             
-            assert_eq!(status.id, job_id);
-            assert!(!status.id.is_empty());
+            assert_eq!(status.job_id, job_id);
+            assert!(!status.job_id.is_empty());
         }
     }
 }

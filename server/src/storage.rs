@@ -1,6 +1,6 @@
 use worker::*;
 use serde_json::json;
-use crate::{AnalysisResult, JobStatus};
+use crate::{AnalysisResult, JobStatus, ComparisonResult, UserPreference};
 
 pub async fn upload_to_r2(env: &Env, file_id: &str, data: Vec<u8>) -> Result<()> {
     let bucket = env.bucket("AUDIO_BUCKET")?;
@@ -28,10 +28,14 @@ pub async fn upload_to_r2(env: &Env, file_id: &str, data: Vec<u8>) -> Result<()>
 pub async fn get_job_status(env: &Env, job_id: &str) -> Result<JobStatus> {
     let kv = env.kv("METADATA")?;
     
-    match kv.get(&format!("job:{}", job_id)).text().await? {
+    // Try with cache-busting first for potentially completed jobs
+    let key = format!("job:{}", job_id);
+    
+    match kv.get(&key).cache_ttl(60).text().await? { // 60 second cache TTL (minimum allowed)
         Some(data) => {
             let status: JobStatus = serde_json::from_str(&data)
                 .map_err(|e| worker::Error::RustError(e.to_string()))?;
+            console_log!("Retrieved job status for {}: {} (progress: {})", job_id, status.status, status.progress);
             Ok(status)
         }
         None => Err(worker::Error::RustError("Job not found".to_string()))
@@ -43,10 +47,17 @@ pub async fn update_job_status(env: &Env, job_id: &str, status: &JobStatus) -> R
     let status_json = serde_json::to_string(status)
         .map_err(|e| worker::Error::RustError(e.to_string()))?;
     
-    kv.put(&format!("job:{}", job_id), &status_json)?
-        .execute()
-        .await?;
+    // Use a shorter TTL to force faster propagation for completed jobs
+    let mut put_builder = kv.put(&format!("job:{}", job_id), &status_json)?;
     
+    // For completed or failed jobs, use shorter TTL to force faster updates
+    if status.status == "completed" || status.status == "failed" {
+        put_builder = put_builder.expiration_ttl(60); // 1 minute TTL to force refresh
+    }
+    
+    put_builder.execute().await?;
+    
+    console_log!("Updated job status for {}: {} (progress: {})", job_id, status.status, status.progress);
     Ok(())
 }
 
@@ -88,6 +99,85 @@ pub async fn get_audio_from_r2(env: &Env, file_id: &str) -> Result<Vec<u8>> {
     Ok(data)
 }
 
+pub async fn store_comparison_result(env: &Env, comparison_id: &str, result: &ComparisonResult) -> Result<()> {
+    let kv = env.kv("METADATA")?;
+    let result_json = serde_json::to_string(result)
+        .map_err(|e| worker::Error::RustError(e.to_string()))?;
+    
+    kv.put(&format!("comparison:{}", comparison_id), &result_json)?
+        .execute()
+        .await?;
+    
+    console_log!("Stored comparison result for comparison_id: {}", comparison_id);
+    Ok(())
+}
+
+pub async fn get_comparison_result(env: &Env, comparison_id: &str) -> Result<ComparisonResult> {
+    let kv = env.kv("METADATA")?;
+    
+    match kv.get(&format!("comparison:{}", comparison_id)).text().await? {
+        Some(data) => {
+            let result: ComparisonResult = serde_json::from_str(&data)
+                .map_err(|e| worker::Error::RustError(e.to_string()))?;
+            console_log!("Retrieved comparison result for comparison_id: {}", comparison_id);
+            Ok(result)
+        }
+        None => Err(worker::Error::RustError("Comparison result not found".to_string()))
+    }
+}
+
+pub async fn save_user_preference(env: &Env, preference: &UserPreference) -> Result<()> {
+    let kv = env.kv("METADATA")?;
+    let preference_json = serde_json::to_string(preference)
+        .map_err(|e| worker::Error::RustError(e.to_string()))?;
+    
+    // Store preference with unique key based on comparison ID and timestamp
+    let preference_key = format!("preference:{}:{}", 
+                                preference.comparison_id, 
+                                js_sys::Date::now() as u64);
+    
+    kv.put(&preference_key, &preference_json)?
+        .execute()
+        .await?;
+    
+    // Also store aggregated preferences for analytics
+    let analytics_key = format!("analytics:{}", preference.comparison_id);
+    match kv.get(&analytics_key).text().await? {
+        Some(existing_data) => {
+            // Update existing analytics
+            let mut analytics: serde_json::Value = serde_json::from_str(&existing_data)
+                .unwrap_or_else(|_| json!({"model_a_votes": 0, "model_b_votes": 0, "total_votes": 0}));
+            
+            if preference.preferred_model == "model_a" {
+                analytics["model_a_votes"] = json!(analytics["model_a_votes"].as_u64().unwrap_or(0) + 1);
+            } else {
+                analytics["model_b_votes"] = json!(analytics["model_b_votes"].as_u64().unwrap_or(0) + 1);
+            }
+            analytics["total_votes"] = json!(analytics["total_votes"].as_u64().unwrap_or(0) + 1);
+            
+            kv.put(&analytics_key, &analytics.to_string())?
+                .execute()
+                .await?;
+        }
+        None => {
+            // Create new analytics entry
+            let analytics = if preference.preferred_model == "model_a" {
+                json!({"model_a_votes": 1, "model_b_votes": 0, "total_votes": 1})
+            } else {
+                json!({"model_a_votes": 0, "model_b_votes": 1, "total_votes": 1})
+            };
+            
+            kv.put(&analytics_key, &analytics.to_string())?
+                .execute()
+                .await?;
+        }
+    }
+    
+    console_log!("Saved user preference for comparison_id: {} (prefers: {})", 
+                 preference.comparison_id, preference.preferred_model);
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use crate::{AnalysisResult, JobStatus};
@@ -95,7 +185,7 @@ mod tests {
 
     fn create_test_job_status(id: &str) -> JobStatus {
         JobStatus {
-            id: id.to_string(),
+            job_id: id.to_string(),
             status: "processing".to_string(),
             progress: 50.0,
             error: None,
@@ -182,12 +272,12 @@ mod tests {
 
     #[test]
     fn test_job_status_deserialization() {
-        let json_str = r#"{"id":"test-job","status":"completed","progress":100.0,"error":null}"#;
+        let json_str = r#"{"job_id":"test-job","status":"completed","progress":100.0,"error":null}"#;
         let result: std::result::Result<JobStatus, serde_json::Error> = serde_json::from_str(json_str);
         
         assert!(result.is_ok());
         let status = result.unwrap();
-        assert_eq!(status.id, "test-job");
+        assert_eq!(status.job_id, "test-job");
         assert_eq!(status.status, "completed");
         assert_eq!(status.progress, 100.0);
         assert_eq!(status.error, None);
@@ -196,7 +286,7 @@ mod tests {
     #[test]
     fn test_job_status_with_error_serialization() {
         let status = JobStatus {
-            id: "failed-job".to_string(),
+            job_id: "failed-job".to_string(),
             status: "failed".to_string(),
             progress: 25.0,
             error: Some("Network timeout".to_string()),
@@ -314,7 +404,7 @@ mod tests {
         
         for (progress, status) in test_cases {
             let job_status = JobStatus {
-                id: "test".to_string(),
+                job_id: "test".to_string(),
                 status: status.to_string(),
                 progress,
                 error: None,
@@ -336,7 +426,7 @@ mod tests {
 
     #[test]
     fn test_missing_required_fields() {
-        let incomplete_json = r#"{"id":"test"}"#;
+        let incomplete_json = r#"{"job_id":"test"}"#;
         let result: std::result::Result<JobStatus, serde_json::Error> = serde_json::from_str(incomplete_json);
         
         assert!(result.is_err());
@@ -344,12 +434,12 @@ mod tests {
 
     #[test]
     fn test_extra_fields_ignored() {
-        let json_with_extra = r#"{"id":"test","status":"completed","progress":100.0,"error":null,"extra_field":"ignored"}"#;
+        let json_with_extra = r#"{"job_id":"test","status":"completed","progress":100.0,"error":null,"extra_field":"ignored"}"#;
         let result: std::result::Result<JobStatus, serde_json::Error> = serde_json::from_str(json_with_extra);
         
         assert!(result.is_ok());
         let status = result.unwrap();
-        assert_eq!(status.id, "test");
+        assert_eq!(status.job_id, "test");
         assert_eq!(status.status, "completed");
     }
 
@@ -398,7 +488,7 @@ mod tests {
         
         for status in statuses {
             let job_status = JobStatus {
-                id: "test".to_string(),
+                job_id: "test".to_string(),
                 status: status.to_string(),
                 progress: if status == "completed" { 100.0 } else if status == "failed" { 0.0 } else { 50.0 },
                 error: if status == "failed" { Some("Test error".to_string()) } else { None },
@@ -421,7 +511,7 @@ mod tests {
         
         for error in error_messages {
             let job_status = JobStatus {
-                id: "test".to_string(),
+                job_id: "test".to_string(),
                 status: if error.is_some() { "failed" } else { "completed" }.to_string(),
                 progress: if error.is_some() { 0.0 } else { 100.0 },
                 error: error.clone(),

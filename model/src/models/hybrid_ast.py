@@ -141,8 +141,12 @@ class HybridAudioSpectrogramTransformer(nn.Module):
     embed_dim: int = 512  # Reduced from 768 for smaller model
     num_layers: int = 6   # Reduced from 12 for smaller model
     num_heads: int = 8    # Reduced from 12 for smaller model
-    mlp_dim: int = 2048   # Reduced from 3072 for smaller model
     dropout_rate: float = 0.2  # Increased dropout for regularization
+    
+    @property
+    def mlp_dim(self):
+        """MLP dimension computed as 4x embed_dim"""
+        return 4 * self.embed_dim
     
     # Traditional feature parameters
     traditional_feature_dim: int = 64

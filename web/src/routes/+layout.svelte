@@ -9,6 +9,7 @@
 <svelte:head>
 	<title>CrescendAI - Piano Performance Analyzer</title>
 	<meta name="description" content="AI-powered piano performance analysis with 19-dimensional feedback" />
+	<link rel="icon" href="/crescendai.png" />
 </svelte:head>
 
 <QueryClientProvider client={queryClient}>

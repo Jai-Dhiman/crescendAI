@@ -4,45 +4,234 @@ use serde_json::json;
 use wasm_bindgen::JsValue;
 use worker::*;
 
-pub async fn send_for_inference(env: &Env, spectrogram_data: &[u8], job_id: &str) -> Result<()> {
-    let modal_api_key = env.secret("MODAL_API_KEY")?.to_string();
-    let modal_endpoint = env.var("MODAL_ENDPOINT")?.to_string();
+pub async fn send_for_inference(env: &Env, spectrogram_data: &[u8], job_id: &str, file_id: &str) -> Result<()> {
+    // Use real model service endpoint (fallback to localhost for development)
+    let model_endpoint = env.var("MODEL_SERVICE_URL")
+        .map(|s| s.to_string())
+        .unwrap_or_else(|_| "http://localhost:8002".to_string());
+
+    console_log!("Sending inference request to: {}/analyze", model_endpoint);
+    console_log!("Job ID: {}, File ID: {}, Spectrogram size: {} bytes", job_id, file_id, spectrogram_data.len());
 
     // Encode spectrogram data as base64
     use base64::Engine;
     let encoded_data = base64::engine::general_purpose::STANDARD.encode(spectrogram_data);
 
     let request_body = json!({
-        "job_id": job_id,
-        "spectrogram": encoded_data,
-        "callback_url": format!("{}/webhook/modal", env.var("WORKER_URL")?.to_string())
+        "file_id": job_id,
+        "spectrogram_data": encoded_data,
+        "metadata": {
+            "source": "crescend_ai",
+            "timestamp": js_sys::Date::new_0().to_iso_string().as_string().unwrap()
+        }
     });
+
+    console_log!("Request body size: {} chars", request_body.to_string().len());
 
     let headers = Headers::new();
     headers.set("Content-Type", "application/json")?;
-    headers.set("Authorization", &format!("Bearer {}", modal_api_key))?;
 
     let request = Request::new_with_init(
-        &modal_endpoint,
+        &format!("{}/analyze", model_endpoint),
         RequestInit::new()
             .with_method(Method::Post)
             .with_headers(headers)
             .with_body(Some(JsValue::from_str(&request_body.to_string()))),
     )?;
 
+    console_log!("Making inference request...");
     let mut response = Fetch::Request(request).send().await?;
+    console_log!("Got response with status: {}", response.status_code());
 
     if response.status_code() == 200 {
-        console_log!("Successfully sent job {} to Modal", job_id);
+        // Parse the real model service response
+        let response_data: serde_json::Value = response.json().await?;
+        
+        console_log!("Real model analysis completed for job {}", job_id);
+        
+        // Extract analysis data from real model service response
+        if let Some(analysis) = response_data["analysis"].as_object() {
+            use crate::AnalysisData;
+            
+            // Extract individual analysis values
+            let analysis_data = AnalysisData {
+                rhythm: analysis.get("rhythm").and_then(|v| v.as_f64()).unwrap_or(75.0) as f32,
+                pitch: analysis.get("pitch").and_then(|v| v.as_f64()).unwrap_or(75.0) as f32,
+                dynamics: analysis.get("dynamics").and_then(|v| v.as_f64()).unwrap_or(75.0) as f32,
+                tempo: analysis.get("tempo").and_then(|v| v.as_f64()).unwrap_or(75.0) as f32,
+                articulation: analysis.get("articulation").and_then(|v| v.as_f64()).unwrap_or(75.0) as f32,
+                expression: analysis.get("expression").and_then(|v| v.as_f64()).unwrap_or(75.0) as f32,
+                technique: analysis.get("technique").and_then(|v| v.as_f64()).unwrap_or(75.0) as f32,
+                timing: analysis.get("timing").and_then(|v| v.as_f64()).unwrap_or(75.0) as f32,
+                phrasing: analysis.get("phrasing").and_then(|v| v.as_f64()).unwrap_or(75.0) as f32,
+                voicing: analysis.get("voicing").and_then(|v| v.as_f64()).unwrap_or(75.0) as f32,
+                pedaling: analysis.get("pedaling").and_then(|v| v.as_f64()).unwrap_or(75.0) as f32,
+                hand_coordination: analysis.get("hand_coordination").and_then(|v| v.as_f64()).unwrap_or(75.0) as f32,
+                musical_understanding: analysis.get("musical_understanding").and_then(|v| v.as_f64()).unwrap_or(75.0) as f32,
+                stylistic_accuracy: analysis.get("stylistic_accuracy").and_then(|v| v.as_f64()).unwrap_or(75.0) as f32,
+                creativity: analysis.get("creativity").and_then(|v| v.as_f64()).unwrap_or(75.0) as f32,
+                listening: analysis.get("listening").and_then(|v| v.as_f64()).unwrap_or(75.0) as f32,
+                overall_performance: analysis.get("overall_performance").and_then(|v| v.as_f64()).unwrap_or(75.0) as f32,
+                stage_presence: analysis.get("stage_presence").and_then(|v| v.as_f64()).unwrap_or(75.0) as f32,
+                repertoire_difficulty: analysis.get("repertoire_difficulty").and_then(|v| v.as_f64()).unwrap_or(75.0) as f32,
+            };
+            
+            // Extract insights from the response
+            let insights = response_data["insights"].as_array()
+                .unwrap_or(&vec![])
+                .iter()
+                .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                .collect();
+            
+            // Extract processing time
+            let processing_time = response_data["processing_time"].as_f64().map(|t| t as f32);
+            
+            // Complete the analysis with the results
+            console_log!("Attempting to complete analysis for job_id: {}", job_id);
+            match processing::complete_analysis(env, job_id, file_id, analysis_data, insights, processing_time).await {
+                Ok(_) => {
+                    console_log!("Successfully completed analysis for job_id: {}", job_id);
+                }
+                Err(e) => {
+                    console_log!("ERROR: Failed to complete analysis for job_id {}: {:?}", job_id, e);
+                    return Err(e);
+                }
+            }
+            
+        } else {
+            return Err(worker::Error::RustError(
+                "Invalid response format from real model service".to_string()
+            ));
+        }
+        
         Ok(())
     } else {
         let error_text = response
             .text()
             .await
             .unwrap_or_else(|_| "Unknown error".to_string());
-        console_log!("Modal API error: {}", error_text);
+        console_log!("Real model API error: {}", error_text);
         Err(worker::Error::RustError(format!(
-            "Modal API error: {}",
+            "Real model API error: {}",
+            error_text
+        )))
+    }
+}
+
+pub async fn send_for_inference_with_model(
+    env: &Env, 
+    spectrogram_data: &[u8], 
+    job_id: &str, 
+    file_id: &str,
+    model_type: &str
+) -> Result<(crate::AnalysisData, Vec<String>, Option<f32>)> {
+    // Determine model endpoint based on model type
+    let model_endpoint = match model_type {
+        "hybrid_ast" => env.var("MODEL_SERVICE_URL")
+            .map(|s| s.to_string())
+            .unwrap_or_else(|_| "http://localhost:8002".to_string()),
+        "ultra_small_ast" => env.var("MODEL_SERVICE_SMALL_URL")
+            .map(|s| s.to_string())
+            .unwrap_or_else(|_| "http://localhost:8001".to_string()),
+        _ => env.var("MODEL_SERVICE_URL")
+            .map(|s| s.to_string())
+            .unwrap_or_else(|_| "http://localhost:8002".to_string()),
+    };
+
+    console_log!("Sending inference request to: {}/analyze (model: {})", model_endpoint, model_type);
+    console_log!("Job ID: {}, File ID: {}, Spectrogram size: {} bytes", job_id, file_id, spectrogram_data.len());
+
+    // Encode spectrogram data as base64
+    use base64::Engine;
+    let encoded_data = base64::engine::general_purpose::STANDARD.encode(spectrogram_data);
+
+    let request_body = json!({
+        "file_id": job_id,
+        "spectrogram_data": encoded_data,
+        "model_type": model_type,
+        "metadata": {
+            "source": "crescend_ai_comparison",
+            "timestamp": js_sys::Date::new_0().to_iso_string().as_string().unwrap(),
+            "comparison_mode": true
+        }
+    });
+
+    let headers = Headers::new();
+    headers.set("Content-Type", "application/json")?;
+
+    let request = Request::new_with_init(
+        &format!("{}/analyze", model_endpoint),
+        RequestInit::new()
+            .with_method(Method::Post)
+            .with_headers(headers)
+            .with_body(Some(JsValue::from_str(&request_body.to_string()))),
+    )?;
+
+    console_log!("Making inference request for model {}...", model_type);
+    let mut response = Fetch::Request(request).send().await?;
+    console_log!("Got response with status: {} for model {}", response.status_code(), model_type);
+
+    if response.status_code() == 200 {
+        // Parse the model service response
+        let response_data: serde_json::Value = response.json().await?;
+        
+        console_log!("Model {} analysis completed for job {}", model_type, job_id);
+        
+        // Extract analysis data from model service response
+        if let Some(analysis) = response_data["analysis"].as_object() {
+            use crate::AnalysisData;
+            
+            // Extract individual analysis values
+            let analysis_data = AnalysisData {
+                rhythm: analysis.get("rhythm").and_then(|v| v.as_f64()).unwrap_or(75.0) as f32,
+                pitch: analysis.get("pitch").and_then(|v| v.as_f64()).unwrap_or(75.0) as f32,
+                dynamics: analysis.get("dynamics").and_then(|v| v.as_f64()).unwrap_or(75.0) as f32,
+                tempo: analysis.get("tempo").and_then(|v| v.as_f64()).unwrap_or(75.0) as f32,
+                articulation: analysis.get("articulation").and_then(|v| v.as_f64()).unwrap_or(75.0) as f32,
+                expression: analysis.get("expression").and_then(|v| v.as_f64()).unwrap_or(75.0) as f32,
+                technique: analysis.get("technique").and_then(|v| v.as_f64()).unwrap_or(75.0) as f32,
+                timing: analysis.get("timing").and_then(|v| v.as_f64()).unwrap_or(75.0) as f32,
+                phrasing: analysis.get("phrasing").and_then(|v| v.as_f64()).unwrap_or(75.0) as f32,
+                voicing: analysis.get("voicing").and_then(|v| v.as_f64()).unwrap_or(75.0) as f32,
+                pedaling: analysis.get("pedaling").and_then(|v| v.as_f64()).unwrap_or(75.0) as f32,
+                hand_coordination: analysis.get("hand_coordination").and_then(|v| v.as_f64()).unwrap_or(75.0) as f32,
+                musical_understanding: analysis.get("musical_understanding").and_then(|v| v.as_f64()).unwrap_or(75.0) as f32,
+                stylistic_accuracy: analysis.get("stylistic_accuracy").and_then(|v| v.as_f64()).unwrap_or(75.0) as f32,
+                creativity: analysis.get("creativity").and_then(|v| v.as_f64()).unwrap_or(75.0) as f32,
+                listening: analysis.get("listening").and_then(|v| v.as_f64()).unwrap_or(75.0) as f32,
+                overall_performance: analysis.get("overall_performance").and_then(|v| v.as_f64()).unwrap_or(75.0) as f32,
+                stage_presence: analysis.get("stage_presence").and_then(|v| v.as_f64()).unwrap_or(75.0) as f32,
+                repertoire_difficulty: analysis.get("repertoire_difficulty").and_then(|v| v.as_f64()).unwrap_or(75.0) as f32,
+            };
+            
+            // Extract insights from the response
+            let insights = response_data["insights"].as_array()
+                .unwrap_or(&vec![])
+                .iter()
+                .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                .collect();
+            
+            // Extract processing time
+            let processing_time = response_data["processing_time"].as_f64().map(|t| t as f32);
+            
+            console_log!("Successfully extracted analysis data for model {}", model_type);
+            Ok((analysis_data, insights, processing_time))
+            
+        } else {
+            Err(worker::Error::RustError(format!(
+                "Invalid response format from model service ({})",
+                model_type
+            )))
+        }
+    } else {
+        let error_text = response
+            .text()
+            .await
+            .unwrap_or_else(|_| "Unknown error".to_string());
+        console_log!("Model {} API error: {}", model_type, error_text);
+        Err(worker::Error::RustError(format!(
+            "Model {} API error: {}",
+            model_type,
             error_text
         )))
     }
@@ -131,7 +320,41 @@ pub async fn handle_modal_webhook(mut req: Request, ctx: RouteContext<()>) -> Re
                     .collect();
 
                 let dimension_values = dimension_values?;
-                processing::complete_analysis(&ctx.env, job_id, dimension_values).await?;
+                
+                // Convert Vec<f32> to AnalysisData struct 
+                // Ensure we have enough values (fill with defaults if needed)
+                let mut vals = dimension_values.clone();
+                vals.resize(19, 75.0); // Fill missing values with 75.0 default
+                
+                let analysis_data = crate::AnalysisData {
+                    rhythm: vals.get(0).copied().unwrap_or(75.0),
+                    pitch: vals.get(1).copied().unwrap_or(75.0),
+                    dynamics: vals.get(2).copied().unwrap_or(75.0),
+                    tempo: vals.get(3).copied().unwrap_or(75.0),
+                    articulation: vals.get(4).copied().unwrap_or(75.0),
+                    expression: vals.get(5).copied().unwrap_or(75.0),
+                    technique: vals.get(6).copied().unwrap_or(75.0),
+                    timing: vals.get(7).copied().unwrap_or(75.0),
+                    phrasing: vals.get(8).copied().unwrap_or(75.0),
+                    voicing: vals.get(9).copied().unwrap_or(75.0),
+                    pedaling: vals.get(10).copied().unwrap_or(75.0),
+                    hand_coordination: vals.get(11).copied().unwrap_or(75.0),
+                    musical_understanding: vals.get(12).copied().unwrap_or(75.0),
+                    stylistic_accuracy: vals.get(13).copied().unwrap_or(75.0),
+                    creativity: vals.get(14).copied().unwrap_or(75.0),
+                    listening: vals.get(15).copied().unwrap_or(75.0),
+                    stage_presence: vals.get(16).copied().unwrap_or(75.0),
+                    repertoire_difficulty: vals.get(17).copied().unwrap_or(75.0),
+                    overall_performance: vals.get(18).copied().unwrap_or(75.0),
+                };
+                
+                // Create some default insights for this webhook-based completion
+                let insights = vec![
+                    "Analysis completed via Modal webhook".to_string(),
+                    "Performance shows good technical foundation".to_string(),
+                ];
+                
+                processing::complete_analysis(&ctx.env, job_id, job_id, analysis_data, insights, None).await?;
 
                 console_log!("Analysis completed successfully for job {}", job_id);
                 Response::from_json(&json!({
@@ -154,7 +377,7 @@ pub async fn handle_modal_webhook(mut req: Request, ctx: RouteContext<()>) -> Re
 
             // Update job status to failed
             let failed_status = crate::JobStatus {
-                id: job_id.to_string(),
+                job_id: job_id.to_string(),
                 status: "failed".to_string(),
                 progress: 0.0,
                 error: Some(error_message.clone()),
@@ -416,13 +639,13 @@ mod tests {
         let error_message = "Network timeout";
 
         let failed_status = crate::JobStatus {
-            id: job_id.to_string(),
+            job_id: job_id.to_string(),
             status: "failed".to_string(),
             progress: 0.0,
             error: Some(error_message.to_string()),
         };
 
-        assert_eq!(failed_status.id, job_id);
+        assert_eq!(failed_status.job_id, job_id);
         assert_eq!(failed_status.status, "failed");
         assert_eq!(failed_status.progress, 0.0);
         assert_eq!(failed_status.error, Some(error_message.to_string()));

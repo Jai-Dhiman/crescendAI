@@ -283,9 +283,15 @@ pub fn secure_error_response(error: &worker::Error, include_details: bool) -> Re
         }
     };
 
-    Response::error(message, status).unwrap_or_else(|_| {
-        Response::error("Request could not be processed", 500).unwrap()
-    })
+    let error_response = serde_json::json!({
+        "error": "Request failed",
+        "message": message,
+        "code": status
+    });
+
+    Response::from_json(&error_response)
+        .map(|response| response.with_status(status))
+        .unwrap_or_else(|_| Response::error("Request could not be processed", 500).unwrap())
 }
 
 #[cfg(test)]
