@@ -1,56 +1,109 @@
-# Piano Performance Analysis with Music Transformers
+# CrescendAI Model - Piano Performance Analysis
 
-**State-of-the-art transformer-based approach for predicting perceptual dimensions of piano performance**
+Audio Spectrogram Transformer (AST) for 19-dimensional piano performance analysis using JAX/Flax.
 
-## Research Goal
-
-Develop cutting-edge Audio Spectrogram Transformer (AST) models to predict 19 perceptual dimensions of piano performance, building on the PercePiano dataset with modern deep learning architectures for potential graduate-level research contributions.
-
-**Perceptual Dimensions**: Timing, Articulation, Pedal, Timbre, Dynamics, Musical Expression, Emotion, Interpretation
-
-## Approach
-
-**Current Phase**: Music Transformer Implementation
-
-- ✅ PercePiano dataset analysis (1202 performances, 19 dimensions)
-- ✅ Audio preprocessing pipeline (librosa-based)
-- ✅ Baseline neural networks (correlation analysis completed)
-- 🚧 Audio Spectrogram Transformer (AST) implementation
-- 🎯 Multi-task transformer training on mel-spectrograms
-
-**Technical Foundation**: JAX/Flax implementation following SOTA transformer architectures
-
-## Repository Structure
+## Project Structure
 
 ```
-piano-analysis-model/
-├── src/                    # Core implementation
-│   ├── piano_cnn_jax.py   # Legacy CNN architectures
-│   ├── ast_transformer.py  # Audio Spectrogram Transformer (main)
-│   ├── training_pipeline.py # JAX/Flax training loop
-│   └── audio_preprocessing.py # Spectrogram generation
-├── PercePiano/            # Original dataset and research
-├── data/                  # Preprocessed audio and labels
-├── docs/                  # Project documentation and planning
-├── models/                # Trained transformer checkpoints
-├── results/               # Training metrics and analysis
-└── notebooks/             # Research experiments and visualization
+crescendai_model/
+├── __init__.py                 # Main package exports
+├── core/                       # Core functionality
+│   ├── __init__.py
+│   ├── audio_preprocessing.py  # Audio preprocessing pipeline
+│   └── training.py            # Training pipeline and utilities
+├── models/                     # Neural network architectures
+│   ├── __init__.py
+│   ├── ast_transformer.py     # Audio Spectrogram Transformer
+│   ├── hybrid_ast.py          # Hybrid AST variants
+│   └── ssast_pretraining.py   # Self-supervised pre-training
+├── datasets/                   # Dataset loaders and processors
+│   ├── __init__.py
+│   ├── percepiano_dataset.py  # PercePiano dataset loader
+│   ├── maestro_dataset.py     # MAESTRO dataset loader
+│   └── ccmusic_piano_dataset.py  # CC Music dataset loader
+├── api/                        # API contracts and interfaces
+│   ├── __init__.py
+│   └── contracts.py           # Pydantic models for API
+├── utils/                      # Utility functions
+│   ├── __init__.py
+│   └── preprocessing.py       # Preprocessing helpers
+└── deployment/                 # Deployment utilities
+    ├── __init__.py
+    ├── modal_service.py       # Modal service deployment
+    └── deploy.py              # Deployment management script
+
+# Additional files
+├── deploy.py                  # Top-level deployment entry point
+├── pyproject.toml            # Package configuration and dependencies
+├── README_DEPLOYMENT.md      # Detailed deployment guide
+├── results/                  # Training results and models
+│   └── final_finetuned_model.pkl  # Trained model (327MB)
+├── PercePiano/              # Original dataset (external)
+└── tests/                   # Unit tests
 ```
 
-## Technical Architecture
+## Quick Start
 
-### Audio Spectrogram Transformer (AST)
+### Installation
+```bash
+# Install dependencies using uv
+uv sync
 
-- **Input**: Mel-spectrograms (128 frequency bins × time frames)
-- **Patch Embedding**: 16×16 patches → 768-dimensional vectors
-- **Transformer**: 12-layer encoder with multi-head self-attention
-- **Multi-task Head**: 19 parallel regression outputs for perceptual dimensions
+# Or install the package in development mode
+uv pip install -e .
+```
 
-### Training Pipeline
+### Usage
 
-- **Framework**: JAX/Flax for high-performance training
-- **Optimization**: AdamW with cosine learning rate scheduling
-- **Evaluation**: Pearson correlation per dimension + cross-validation
+#### Import the main components
+```python
+from crescendai_model import (
+    PianoAudioPreprocessor,
+    AudioSpectrogramTransformer,
+    PerformanceDimensions
+)
+
+# Initialize preprocessor
+preprocessor = PianoAudioPreprocessor(target_sr=22050)
+
+# Load and preprocess audio
+audio_data, sr = preprocessor.load_and_normalize_audio("piano.wav")
+features = preprocessor.extract_spectral_features(audio_data, sr)
+```
+
+#### Train a model
+```python
+from crescendai_model.core.training import ASTTrainingPipeline
+
+# Initialize training pipeline
+config = {
+    "checkpoint_dir": "./checkpoints",
+    "results_dir": "./results",
+    "seed": 42
+}
+
+pipeline = ASTTrainingPipeline(config)
+# ... training code
+```
+
+#### Deploy to Modal
+```bash
+# Set up Modal authentication
+modal token new
+
+# Deploy the service
+python deploy.py
+
+# Choose option 3: "Test locally then deploy"
+```
+
+## Architecture
+
+The model uses an Audio Spectrogram Transformer (AST) with:
+- **86M parameters** for comprehensive analysis
+- **16×16 patch embeddings** from mel-spectrograms  
+- **12-layer transformer** with multi-head attention
+- **19-dimensional output** for perceptual analysis
 
 ## Dataset Insights
 

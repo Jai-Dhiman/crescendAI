@@ -2,6 +2,164 @@ use worker::*;
 use serde_json::json;
 use crate::{AnalysisResult, JobStatus, ComparisonResult, UserPreference};
 
+/// Cache configuration for different data types
+#[derive(Debug, Clone)]
+pub struct CacheConfig {
+    pub ttl_seconds: u64,
+    pub use_cache_bust: bool,
+    pub cache_warming: bool,
+}
+
+impl CacheConfig {
+    pub fn for_job_status(status: &str) -> Self {
+        match status {
+            "completed" | "failed" => Self {
+                ttl_seconds: 3600, // 1 hour for final states
+                use_cache_bust: false,
+                cache_warming: true,
+            },
+            _ => Self {
+                ttl_seconds: 60, // 1 minute for in-progress jobs
+                use_cache_bust: true,
+                cache_warming: false,
+            },
+        }
+    }
+    
+    pub fn for_analysis_results() -> Self {
+        Self {
+            ttl_seconds: 7200, // 2 hours for analysis results
+            use_cache_bust: false,
+            cache_warming: true,
+        }
+    }
+    
+    pub fn for_comparison_results() -> Self {
+        Self {
+            ttl_seconds: 3600, // 1 hour for comparison results
+            use_cache_bust: false,
+            cache_warming: true,
+        }
+    }
+    
+    pub fn for_file_metadata() -> Self {
+        Self {
+            ttl_seconds: 1800, // 30 minutes for file metadata
+            use_cache_bust: false,
+            cache_warming: false,
+        }
+    }
+}
+
+/// Enhanced cache metrics for monitoring
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct CacheMetrics {
+    pub hit_count: u64,
+    pub miss_count: u64,
+    pub last_access: f64,
+    pub data_size: usize,
+}
+
+impl CacheMetrics {
+    pub fn new(data_size: usize) -> Self {
+        Self {
+            hit_count: 0,
+            miss_count: 1, // First access is a miss
+            last_access: js_sys::Date::now(),
+            data_size,
+        }
+    }
+    
+    pub fn record_hit(&mut self) {
+        self.hit_count += 1;
+        self.last_access = js_sys::Date::now();
+    }
+    
+    pub fn record_miss(&mut self) {
+        self.miss_count += 1;
+        self.last_access = js_sys::Date::now();
+    }
+    
+    pub fn hit_rate(&self) -> f64 {
+        let total = self.hit_count + self.miss_count;
+        if total == 0 { 0.0 } else { self.hit_count as f64 / total as f64 }
+    }
+}
+
+/// Update cache metrics for monitoring and optimization
+async fn update_cache_metrics(env: &Env, metrics_key: &str, is_hit: bool) -> Result<()> {
+    let kv = env.kv("METADATA")?;
+    
+    // Get existing metrics or create new ones
+    let mut metrics = match kv.get(metrics_key).text().await? {
+        Some(data) => {
+            serde_json::from_str::<CacheMetrics>(&data)
+                .unwrap_or_else(|_| CacheMetrics::new(0))
+        }
+        None => CacheMetrics::new(0),
+    };
+    
+    // Update metrics
+    if is_hit {
+        metrics.record_hit();
+    } else {
+        metrics.record_miss();
+    }
+    
+    // Store updated metrics (with short TTL to avoid bloat)
+    let metrics_json = serde_json::to_string(&metrics)?;
+    kv.put(metrics_key, &metrics_json)?
+        .expiration_ttl(3600) // 1 hour TTL for metrics
+        .execute()
+        .await?;
+    
+    Ok(())
+}
+
+/// Warm cache for frequently accessed items
+pub async fn warm_cache_for_completed_job(env: &Env, job_id: &str) -> Result<()> {
+    console_log!("Warming cache for completed job: {}", job_id);
+    
+    // Pre-populate cache with job status and related data
+    match get_job_status(env, job_id).await {
+        Ok(status) if status.status == "completed" => {
+            // Also try to warm analysis result cache if it exists
+            if let Ok(_) = get_analysis_result(env, job_id).await {
+                console_log!("Cache warmed for job {} and its analysis result", job_id);
+            }
+        }
+        _ => {}
+    }
+    
+    Ok(())
+}
+
+/// Intelligent cache invalidation for related data
+pub async fn invalidate_related_cache(env: &Env, job_id: &str, invalidation_type: &str) -> Result<()> {
+    let kv = env.kv("METADATA")?;
+    
+    match invalidation_type {
+        "job_completed" => {
+            // When a job completes, we might want to invalidate analysis cache too
+            console_log!("Invalidating caches related to job completion: {}", job_id);
+            
+            // Force refresh of job status
+            kv.delete(&format!("job:{}", job_id)).await?;
+            
+            // Warm the cache with fresh data
+            warm_cache_for_completed_job(env, job_id).await?;
+        }
+        "analysis_updated" => {
+            // When analysis is updated, invalidate result cache
+            console_log!("Invalidating analysis result cache: {}", job_id);
+            kv.delete(&format!("result:{}", job_id)).await?;
+        }
+        _ => {}
+    }
+    
+    Ok(())
+}
+
 pub async fn upload_to_r2(env: &Env, file_id: &str, data: Vec<u8>) -> Result<()> {
     let bucket = env.bucket("AUDIO_BUCKET")?;
     let key = format!("audio/{}.wav", file_id);
@@ -27,18 +185,28 @@ pub async fn upload_to_r2(env: &Env, file_id: &str, data: Vec<u8>) -> Result<()>
 
 pub async fn get_job_status(env: &Env, job_id: &str) -> Result<JobStatus> {
     let kv = env.kv("METADATA")?;
-    
-    // Try with cache-busting first for potentially completed jobs
     let key = format!("job:{}", job_id);
     
-    match kv.get(&key).cache_ttl(60).text().await? { // 60 second cache TTL (minimum allowed)
+    // Use a shorter TTL for faster updates, but still cache to reduce KV reads
+    match kv.get(&key).cache_ttl(60).text().await? {
         Some(data) => {
             let status: JobStatus = serde_json::from_str(&data)
                 .map_err(|e| worker::Error::RustError(e.to_string()))?;
-            console_log!("Retrieved job status for {}: {} (progress: {})", job_id, status.status, status.progress);
+            
+            // Update cache metrics
+            update_cache_metrics(env, &format!("metrics:job:{}", job_id), true).await.ok();
+            
+            console_log!("Retrieved job status for {}: {} (progress: {}) [CACHE HIT]", 
+                        job_id, status.status, status.progress);
             Ok(status)
         }
-        None => Err(worker::Error::RustError("Job not found".to_string()))
+        None => {
+            // Record cache miss
+            update_cache_metrics(env, &format!("metrics:job:{}", job_id), false).await.ok();
+            
+            console_log!("Job status not found for {} [CACHE MISS]", job_id);
+            Err(worker::Error::RustError("Job not found".to_string()))
+        }
     }
 }
 
@@ -47,17 +215,30 @@ pub async fn update_job_status(env: &Env, job_id: &str, status: &JobStatus) -> R
     let status_json = serde_json::to_string(status)
         .map_err(|e| worker::Error::RustError(e.to_string()))?;
     
-    // Use a shorter TTL to force faster propagation for completed jobs
+    // Get intelligent cache configuration based on status
+    let cache_config = CacheConfig::for_job_status(&status.status);
+    
+    // Store with optimized TTL
     let mut put_builder = kv.put(&format!("job:{}", job_id), &status_json)?;
-    
-    // For completed or failed jobs, use shorter TTL to force faster updates
-    if status.status == "completed" || status.status == "failed" {
-        put_builder = put_builder.expiration_ttl(60); // 1 minute TTL to force refresh
-    }
-    
+    put_builder = put_builder.expiration_ttl(cache_config.ttl_seconds);
     put_builder.execute().await?;
     
-    console_log!("Updated job status for {}: {} (progress: {})", job_id, status.status, status.progress);
+    // Handle cache invalidation and warming for final states
+    if status.status == "completed" {
+        // Invalidate related caches and warm for completed jobs
+        invalidate_related_cache(env, job_id, "job_completed").await.ok();
+        
+        // Warm cache for this completed job
+        if cache_config.cache_warming {
+            warm_cache_for_completed_job(env, job_id).await.ok();
+        }
+    } else if status.status == "failed" {
+        // Invalidate caches for failed jobs
+        invalidate_related_cache(env, job_id, "job_failed").await.ok();
+    }
+    
+    console_log!("Updated job status for {}: {} (progress: {}) [TTL: {}s]", 
+                 job_id, status.status, status.progress, cache_config.ttl_seconds);
     Ok(())
 }
 
@@ -66,23 +247,42 @@ pub async fn store_analysis_result(env: &Env, result_id: &str, result: &Analysis
     let result_json = serde_json::to_string(result)
         .map_err(|e| worker::Error::RustError(e.to_string()))?;
     
+    // Use intelligent caching for analysis results
+    let cache_config = CacheConfig::for_analysis_results();
+    
     kv.put(&format!("result:{}", result_id), &result_json)?
+        .expiration_ttl(cache_config.ttl_seconds)
         .execute()
         .await?;
     
+    console_log!("Stored analysis result for {}: [TTL: {}s]", result_id, cache_config.ttl_seconds);
     Ok(())
 }
 
 pub async fn get_analysis_result(env: &Env, result_id: &str) -> Result<AnalysisResult> {
     let kv = env.kv("METADATA")?;
+    let cache_config = CacheConfig::for_analysis_results();
     
-    match kv.get(&format!("result:{}", result_id)).text().await? {
+    match kv.get(&format!("result:{}", result_id))
+        .cache_ttl(cache_config.ttl_seconds)
+        .text().await? {
         Some(data) => {
             let result: AnalysisResult = serde_json::from_str(&data)
                 .map_err(|e| worker::Error::RustError(e.to_string()))?;
+            
+            // Update cache metrics
+            update_cache_metrics(env, &format!("metrics:result:{}", result_id), true).await.ok();
+            
+            console_log!("Retrieved analysis result for {}: [CACHE HIT]", result_id);
             Ok(result)
         }
-        None => Err(worker::Error::RustError("Result not found".to_string()))
+        None => {
+            // Record cache miss
+            update_cache_metrics(env, &format!("metrics:result:{}", result_id), false).await.ok();
+            
+            console_log!("Analysis result not found for {} [CACHE MISS]", result_id);
+            Err(worker::Error::RustError("Result not found".to_string()))
+        }
     }
 }
 
@@ -193,11 +393,22 @@ mod tests {
     }
 
     fn create_test_analysis_result(id: &str) -> AnalysisResult {
+        use crate::AnalysisData;
         AnalysisResult {
             id: id.to_string(),
             status: "completed".to_string(),
-            dimensions: Some(vec![1.0, 2.0, 3.0]),
+            file_id: "test-file-id".to_string(),
+            analysis: AnalysisData {
+                rhythm: 8.5, pitch: 7.8, dynamics: 8.2, tempo: 7.9,
+                articulation: 8.1, expression: 7.7, technique: 8.3, timing: 8.0,
+                phrasing: 7.9, voicing: 8.1, pedaling: 7.8, hand_coordination: 8.2,
+                musical_understanding: 8.0, stylistic_accuracy: 7.9, creativity: 7.5,
+                listening: 8.1, overall_performance: 8.0, stage_presence: 7.8,
+                repertoire_difficulty: 8.5
+            },
+            insights: vec!["Great performance".to_string()],
             created_at: "2023-01-01T00:00:00Z".to_string(),
+            processing_time: Some(2.5),
         }
     }
 
@@ -310,50 +521,55 @@ mod tests {
         let json_str = json_result.unwrap();
         assert!(json_str.contains("test-result"));
         assert!(json_str.contains("completed"));
-        assert!(json_str.contains("1.0"));
-        assert!(json_str.contains("2.0"));
-        assert!(json_str.contains("3.0"));
+        assert!(json_str.contains("8.5")); // rhythm value
+        assert!(json_str.contains("7.8")); // pitch value  
+        assert!(json_str.contains("8.2")); // dynamics value
     }
 
     #[test]
     fn test_analysis_result_deserialization() {
-        let json_str = r#"{"id":"test-result","status":"completed","dimensions":[4.0,5.0,6.0],"created_at":"2023-01-01T00:00:00Z"}"#;
+        let json_str = r#"{"id":"test-result","status":"completed","file_id":"test-file","analysis":{"rhythm":8.0,"pitch":7.5,"dynamics":8.2,"tempo":8.1,"articulation":7.9,"expression":7.7,"technique":8.3,"timing":8.0,"phrasing":7.8,"voicing":8.1,"pedaling":7.6,"hand_coordination":8.2,"musical_understanding":8.0,"stylistic_accuracy":7.9,"creativity":7.4,"listening":8.1,"overall_performance":8.0,"stage_presence":7.8,"repertoire_difficulty":8.5},"insights":["Good timing"],"created_at":"2023-01-01T00:00:00Z","processing_time":2.3}"#;
         let result: std::result::Result<AnalysisResult, serde_json::Error> = serde_json::from_str(json_str);
         
         assert!(result.is_ok());
         let analysis = result.unwrap();
         assert_eq!(analysis.id, "test-result");
         assert_eq!(analysis.status, "completed");
-        assert_eq!(analysis.dimensions, Some(vec![4.0, 5.0, 6.0]));
+        assert_eq!(analysis.file_id, "test-file");
         assert_eq!(analysis.created_at, "2023-01-01T00:00:00Z");
     }
 
     #[test]
-    fn test_analysis_result_no_dimensions() {
+    fn test_analysis_result_in_progress() {
+        use crate::AnalysisData;
         let result = AnalysisResult {
-            id: "no-dims".to_string(),
+            id: "in-progress".to_string(),
             status: "processing".to_string(),
-            dimensions: None,
+            file_id: "test-file".to_string(),
+            analysis: AnalysisData {
+                rhythm: 0.0, pitch: 0.0, dynamics: 0.0, tempo: 0.0,
+                articulation: 0.0, expression: 0.0, technique: 0.0, timing: 0.0,
+                phrasing: 0.0, voicing: 0.0, pedaling: 0.0, hand_coordination: 0.0,
+                musical_understanding: 0.0, stylistic_accuracy: 0.0, creativity: 0.0,
+                listening: 0.0, overall_performance: 0.0, stage_presence: 0.0,
+                repertoire_difficulty: 0.0
+            },
+            insights: vec![],
             created_at: "2023-01-01T00:00:00Z".to_string(),
+            processing_time: None,
         };
         
         let json_result = serde_json::to_string(&result);
         assert!(json_result.is_ok());
         
         let json_str = json_result.unwrap();
-        assert!(json_str.contains("no-dims"));
-        assert!(json_str.contains("null") || json_str.contains("\"dimensions\":null"));
+        assert!(json_str.contains("in-progress"));
+        assert!(json_str.contains("processing"));
     }
 
     #[test]
-    fn test_large_dimensions_array() {
-        let large_dimensions: Vec<f32> = (0..1000).map(|i| i as f32 * 0.1).collect();
-        let result = AnalysisResult {
-            id: "large-dims".to_string(),
-            status: "completed".to_string(),
-            dimensions: Some(large_dimensions.clone()),
-            created_at: "2023-01-01T00:00:00Z".to_string(),
-        };
+    fn test_analysis_result_serialization_complete() {
+        let result = create_test_analysis_result("serialize-test");
         
         let json_result = serde_json::to_string(&result);
         assert!(json_result.is_ok());
@@ -364,18 +580,30 @@ mod tests {
         assert!(parsed.is_ok());
         
         let parsed_result = parsed.unwrap();
-        assert_eq!(parsed_result.dimensions.as_ref().unwrap().len(), 1000);
-        assert_eq!(parsed_result.dimensions.as_ref().unwrap()[0], 0.0);
-        assert_eq!(parsed_result.dimensions.as_ref().unwrap()[999], 99.9);
+        assert_eq!(parsed_result.id, "serialize-test");
+        assert_eq!(parsed_result.status, "completed");
+        assert_eq!(parsed_result.file_id, "test-file-id");
+        assert!(!parsed_result.insights.is_empty());
     }
 
     #[test]
-    fn test_empty_dimensions_array() {
+    fn test_analysis_result_with_no_insights() {
+        use crate::AnalysisData;
         let result = AnalysisResult {
-            id: "empty-dims".to_string(),
+            id: "no-insights".to_string(),
             status: "completed".to_string(),
-            dimensions: Some(vec![]),
+            file_id: "test-file".to_string(),
+            analysis: AnalysisData {
+                rhythm: 8.0, pitch: 7.5, dynamics: 8.2, tempo: 8.1,
+                articulation: 7.9, expression: 7.7, technique: 8.3, timing: 8.0,
+                phrasing: 7.8, voicing: 8.1, pedaling: 7.6, hand_coordination: 8.2,
+                musical_understanding: 8.0, stylistic_accuracy: 7.9, creativity: 7.4,
+                listening: 8.1, overall_performance: 8.0, stage_presence: 7.8,
+                repertoire_difficulty: 8.5
+            },
+            insights: vec![], // Empty insights array
             created_at: "2023-01-01T00:00:00Z".to_string(),
+            processing_time: Some(1.8),
         };
         
         let json_result = serde_json::to_string(&result);
@@ -389,7 +617,7 @@ mod tests {
         assert!(parsed.is_ok());
         
         let parsed_result = parsed.unwrap();
-        assert_eq!(parsed_result.dimensions, Some(vec![]));
+        assert_eq!(parsed_result.insights, vec![] as Vec<String>);
     }
 
     #[test]

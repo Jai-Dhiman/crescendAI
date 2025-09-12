@@ -4,6 +4,101 @@ use serde_json::json;
 use wasm_bindgen::JsValue;
 use worker::*;
 
+/// Optimized binary data transfer using multipart/form-data or binary body
+async fn send_optimized_request(
+    endpoint: &str,
+    spectrogram_data: &[u8],
+    job_id: &str,
+    _file_id: &str,
+    model_type: Option<&str>,
+) -> Result<Request> {
+    console_log!("Creating optimized binary request");
+    
+    // Create metadata as JSON
+    let metadata = json!({
+        "file_id": job_id,
+        "source": "crescend_ai",
+        "timestamp": js_sys::Date::new_0().to_iso_string().as_string().unwrap(),
+        "model_type": model_type.unwrap_or("default"),
+        "compression": "none",
+        "data_format": "mel_spectrogram_binary"
+    });
+    
+    // Create multipart body using FormData
+    let form_data = web_sys::FormData::new().map_err(|_| {
+        worker::Error::RustError("Failed to create FormData".to_string())
+    })?;
+    
+    // Add metadata as JSON field
+    form_data.append_with_str("metadata", &metadata.to_string()).map_err(|_| {
+        worker::Error::RustError("Failed to append metadata".to_string())
+    })?;
+    
+    // Add binary spectrogram data as Blob
+    let uint8_array = js_sys::Uint8Array::new_with_length(spectrogram_data.len() as u32);
+    uint8_array.copy_from(spectrogram_data);
+    
+    let blob_parts = js_sys::Array::new();
+    blob_parts.push(&uint8_array);
+    
+    let blob = web_sys::Blob::new_with_u8_array_sequence(&blob_parts).map_err(|_| {
+        worker::Error::RustError("Failed to create Blob".to_string())
+    })?;
+    
+    form_data.append_with_blob("spectrogram", &blob).map_err(|_| {
+        worker::Error::RustError("Failed to append binary data".to_string())
+    })?;
+    
+    // Create request with multipart body
+    let request = Request::new_with_init(
+        &format!("{}/analyze", endpoint),
+        RequestInit::new()
+            .with_method(Method::Post)
+            .with_body(Some(form_data.into())),
+    )?;
+    
+    console_log!("Optimized binary request created successfully - {} bytes binary data", spectrogram_data.len());
+    Ok(request)
+}
+
+/// Alternative compressed binary transfer (fallback)
+async fn send_compressed_binary_request(
+    endpoint: &str,
+    spectrogram_data: &[u8],
+    job_id: &str,
+    file_id: &str,
+    model_type: Option<&str>,
+) -> Result<Request> {
+    console_log!("Creating compressed binary request");
+    
+    // For now, implement simple binary transfer without compression
+    // In production, could add gzip/deflate compression here
+    let compressed_data = spectrogram_data; // TODO: Add compression
+    
+    let headers = Headers::new();
+    headers.set("Content-Type", "application/octet-stream")?;
+    headers.set("X-CrescendAI-Job-ID", job_id)?;
+    headers.set("X-CrescendAI-File-ID", file_id)?;
+    headers.set("X-CrescendAI-Model-Type", model_type.unwrap_or("default"))?;
+    headers.set("X-CrescendAI-Data-Format", "mel_spectrogram_binary")?;
+    headers.set("X-CrescendAI-Compression", "none")?;
+    
+    // Create Uint8Array for binary data
+    let uint8_array = js_sys::Uint8Array::new_with_length(compressed_data.len() as u32);
+    uint8_array.copy_from(compressed_data);
+    
+    let request = Request::new_with_init(
+        &format!("{}/analyze", endpoint),
+        RequestInit::new()
+            .with_method(Method::Post)
+            .with_headers(headers)
+            .with_body(Some(uint8_array.into())),
+    )?;
+    
+    console_log!("Compressed binary request created - {} bytes", compressed_data.len());
+    Ok(request)
+}
+
 pub async fn send_for_inference(env: &Env, spectrogram_data: &[u8], job_id: &str, file_id: &str) -> Result<()> {
     // Use real model service endpoint (fallback to localhost for development)
     let model_endpoint = env.var("MODEL_SERVICE_URL")
@@ -13,31 +108,41 @@ pub async fn send_for_inference(env: &Env, spectrogram_data: &[u8], job_id: &str
     console_log!("Sending inference request to: {}/analyze", model_endpoint);
     console_log!("Job ID: {}, File ID: {}, Spectrogram size: {} bytes", job_id, file_id, spectrogram_data.len());
 
-    // Encode spectrogram data as base64
-    use base64::Engine;
-    let encoded_data = base64::engine::general_purpose::STANDARD.encode(spectrogram_data);
-
-    let request_body = json!({
-        "file_id": job_id,
-        "spectrogram_data": encoded_data,
-        "metadata": {
-            "source": "crescend_ai",
-            "timestamp": js_sys::Date::new_0().to_iso_string().as_string().unwrap()
+    // Try optimized binary transfer first, fall back to base64 if not supported
+    let request = match send_optimized_request(&model_endpoint, spectrogram_data, job_id, file_id, None).await {
+        Ok(request) => {
+            console_log!("Using optimized binary transfer protocol");
+            request
         }
-    });
+        Err(_) => {
+            console_log!("Falling back to base64 encoding");
+            // Fallback to base64 encoding for compatibility
+            use base64::Engine;
+            let encoded_data = base64::engine::general_purpose::STANDARD.encode(spectrogram_data);
 
-    console_log!("Request body size: {} chars", request_body.to_string().len());
+            let request_body = json!({
+                "file_id": job_id,
+                "spectrogram_data": encoded_data,
+                "metadata": {
+                    "source": "crescend_ai",
+                    "timestamp": js_sys::Date::new_0().to_iso_string().as_string().unwrap()
+                }
+            });
 
-    let headers = Headers::new();
-    headers.set("Content-Type", "application/json")?;
+            console_log!("Request body size: {} chars (base64)", request_body.to_string().len());
 
-    let request = Request::new_with_init(
-        &format!("{}/analyze", model_endpoint),
-        RequestInit::new()
-            .with_method(Method::Post)
-            .with_headers(headers)
-            .with_body(Some(JsValue::from_str(&request_body.to_string()))),
-    )?;
+            let headers = Headers::new();
+            headers.set("Content-Type", "application/json")?;
+
+            Request::new_with_init(
+                &format!("{}/analyze", model_endpoint),
+                RequestInit::new()
+                    .with_method(Method::Post)
+                    .with_headers(headers)
+                    .with_body(Some(JsValue::from_str(&request_body.to_string()))),
+            )?
+        }
+    };
 
     console_log!("Making inference request...");
     let mut response = Fetch::Request(request).send().await?;
@@ -53,27 +158,46 @@ pub async fn send_for_inference(env: &Env, spectrogram_data: &[u8], job_id: &str
         if let Some(analysis) = response_data["analysis"].as_object() {
             use crate::AnalysisData;
             
-            // Extract individual analysis values
+            // Extract individual analysis values with proper error handling
             let analysis_data = AnalysisData {
-                rhythm: analysis.get("rhythm").and_then(|v| v.as_f64()).unwrap_or(75.0) as f32,
-                pitch: analysis.get("pitch").and_then(|v| v.as_f64()).unwrap_or(75.0) as f32,
-                dynamics: analysis.get("dynamics").and_then(|v| v.as_f64()).unwrap_or(75.0) as f32,
-                tempo: analysis.get("tempo").and_then(|v| v.as_f64()).unwrap_or(75.0) as f32,
-                articulation: analysis.get("articulation").and_then(|v| v.as_f64()).unwrap_or(75.0) as f32,
-                expression: analysis.get("expression").and_then(|v| v.as_f64()).unwrap_or(75.0) as f32,
-                technique: analysis.get("technique").and_then(|v| v.as_f64()).unwrap_or(75.0) as f32,
-                timing: analysis.get("timing").and_then(|v| v.as_f64()).unwrap_or(75.0) as f32,
-                phrasing: analysis.get("phrasing").and_then(|v| v.as_f64()).unwrap_or(75.0) as f32,
-                voicing: analysis.get("voicing").and_then(|v| v.as_f64()).unwrap_or(75.0) as f32,
-                pedaling: analysis.get("pedaling").and_then(|v| v.as_f64()).unwrap_or(75.0) as f32,
-                hand_coordination: analysis.get("hand_coordination").and_then(|v| v.as_f64()).unwrap_or(75.0) as f32,
-                musical_understanding: analysis.get("musical_understanding").and_then(|v| v.as_f64()).unwrap_or(75.0) as f32,
-                stylistic_accuracy: analysis.get("stylistic_accuracy").and_then(|v| v.as_f64()).unwrap_or(75.0) as f32,
-                creativity: analysis.get("creativity").and_then(|v| v.as_f64()).unwrap_or(75.0) as f32,
-                listening: analysis.get("listening").and_then(|v| v.as_f64()).unwrap_or(75.0) as f32,
-                overall_performance: analysis.get("overall_performance").and_then(|v| v.as_f64()).unwrap_or(75.0) as f32,
-                stage_presence: analysis.get("stage_presence").and_then(|v| v.as_f64()).unwrap_or(75.0) as f32,
-                repertoire_difficulty: analysis.get("repertoire_difficulty").and_then(|v| v.as_f64()).unwrap_or(75.0) as f32,
+                rhythm: analysis.get("rhythm").and_then(|v| v.as_f64())
+                    .ok_or_else(|| worker::Error::RustError("Missing or invalid 'rhythm' value from ML service".to_string()))? as f32,
+                pitch: analysis.get("pitch").and_then(|v| v.as_f64())
+                    .ok_or_else(|| worker::Error::RustError("Missing or invalid 'pitch' value from ML service".to_string()))? as f32,
+                dynamics: analysis.get("dynamics").and_then(|v| v.as_f64())
+                    .ok_or_else(|| worker::Error::RustError("Missing or invalid 'dynamics' value from ML service".to_string()))? as f32,
+                tempo: analysis.get("tempo").and_then(|v| v.as_f64())
+                    .ok_or_else(|| worker::Error::RustError("Missing or invalid 'tempo' value from ML service".to_string()))? as f32,
+                articulation: analysis.get("articulation").and_then(|v| v.as_f64())
+                    .ok_or_else(|| worker::Error::RustError("Missing or invalid 'articulation' value from ML service".to_string()))? as f32,
+                expression: analysis.get("expression").and_then(|v| v.as_f64())
+                    .ok_or_else(|| worker::Error::RustError("Missing or invalid 'expression' value from ML service".to_string()))? as f32,
+                technique: analysis.get("technique").and_then(|v| v.as_f64())
+                    .ok_or_else(|| worker::Error::RustError("Missing or invalid 'technique' value from ML service".to_string()))? as f32,
+                timing: analysis.get("timing").and_then(|v| v.as_f64())
+                    .ok_or_else(|| worker::Error::RustError("Missing or invalid 'timing' value from ML service".to_string()))? as f32,
+                phrasing: analysis.get("phrasing").and_then(|v| v.as_f64())
+                    .ok_or_else(|| worker::Error::RustError("Missing or invalid 'phrasing' value from ML service".to_string()))? as f32,
+                voicing: analysis.get("voicing").and_then(|v| v.as_f64())
+                    .ok_or_else(|| worker::Error::RustError("Missing or invalid 'voicing' value from ML service".to_string()))? as f32,
+                pedaling: analysis.get("pedaling").and_then(|v| v.as_f64())
+                    .ok_or_else(|| worker::Error::RustError("Missing or invalid 'pedaling' value from ML service".to_string()))? as f32,
+                hand_coordination: analysis.get("hand_coordination").and_then(|v| v.as_f64())
+                    .ok_or_else(|| worker::Error::RustError("Missing or invalid 'hand_coordination' value from ML service".to_string()))? as f32,
+                musical_understanding: analysis.get("musical_understanding").and_then(|v| v.as_f64())
+                    .ok_or_else(|| worker::Error::RustError("Missing or invalid 'musical_understanding' value from ML service".to_string()))? as f32,
+                stylistic_accuracy: analysis.get("stylistic_accuracy").and_then(|v| v.as_f64())
+                    .ok_or_else(|| worker::Error::RustError("Missing or invalid 'stylistic_accuracy' value from ML service".to_string()))? as f32,
+                creativity: analysis.get("creativity").and_then(|v| v.as_f64())
+                    .ok_or_else(|| worker::Error::RustError("Missing or invalid 'creativity' value from ML service".to_string()))? as f32,
+                listening: analysis.get("listening").and_then(|v| v.as_f64())
+                    .ok_or_else(|| worker::Error::RustError("Missing or invalid 'listening' value from ML service".to_string()))? as f32,
+                overall_performance: analysis.get("overall_performance").and_then(|v| v.as_f64())
+                    .ok_or_else(|| worker::Error::RustError("Missing or invalid 'overall_performance' value from ML service".to_string()))? as f32,
+                stage_presence: analysis.get("stage_presence").and_then(|v| v.as_f64())
+                    .ok_or_else(|| worker::Error::RustError("Missing or invalid 'stage_presence' value from ML service".to_string()))? as f32,
+                repertoire_difficulty: analysis.get("repertoire_difficulty").and_then(|v| v.as_f64())
+                    .ok_or_else(|| worker::Error::RustError("Missing or invalid 'repertoire_difficulty' value from ML service".to_string()))? as f32,
             };
             
             // Extract insights from the response
@@ -141,31 +265,41 @@ pub async fn send_for_inference_with_model(
     console_log!("Sending inference request to: {}/analyze (model: {})", model_endpoint, model_type);
     console_log!("Job ID: {}, File ID: {}, Spectrogram size: {} bytes", job_id, file_id, spectrogram_data.len());
 
-    // Encode spectrogram data as base64
-    use base64::Engine;
-    let encoded_data = base64::engine::general_purpose::STANDARD.encode(spectrogram_data);
-
-    let request_body = json!({
-        "file_id": job_id,
-        "spectrogram_data": encoded_data,
-        "model_type": model_type,
-        "metadata": {
-            "source": "crescend_ai_comparison",
-            "timestamp": js_sys::Date::new_0().to_iso_string().as_string().unwrap(),
-            "comparison_mode": true
+    // Try optimized binary transfer first, fall back to base64 if not supported
+    let request = match send_optimized_request(&model_endpoint, spectrogram_data, job_id, file_id, Some(model_type)).await {
+        Ok(request) => {
+            console_log!("Using optimized binary transfer for model {}", model_type);
+            request
         }
-    });
+        Err(_) => {
+            console_log!("Falling back to base64 encoding for model {}", model_type);
+            // Fallback to base64 encoding for compatibility
+            use base64::Engine;
+            let encoded_data = base64::engine::general_purpose::STANDARD.encode(spectrogram_data);
 
-    let headers = Headers::new();
-    headers.set("Content-Type", "application/json")?;
+            let request_body = json!({
+                "file_id": job_id,
+                "spectrogram_data": encoded_data,
+                "model_type": model_type,
+                "metadata": {
+                    "source": "crescend_ai_comparison",
+                    "timestamp": js_sys::Date::new_0().to_iso_string().as_string().unwrap(),
+                    "comparison_mode": true
+                }
+            });
 
-    let request = Request::new_with_init(
-        &format!("{}/analyze", model_endpoint),
-        RequestInit::new()
-            .with_method(Method::Post)
-            .with_headers(headers)
-            .with_body(Some(JsValue::from_str(&request_body.to_string()))),
-    )?;
+            let headers = Headers::new();
+            headers.set("Content-Type", "application/json")?;
+
+            Request::new_with_init(
+                &format!("{}/analyze", model_endpoint),
+                RequestInit::new()
+                    .with_method(Method::Post)
+                    .with_headers(headers)
+                    .with_body(Some(JsValue::from_str(&request_body.to_string()))),
+            )?
+        }
+    };
 
     console_log!("Making inference request for model {}...", model_type);
     let mut response = Fetch::Request(request).send().await?;
@@ -181,27 +315,46 @@ pub async fn send_for_inference_with_model(
         if let Some(analysis) = response_data["analysis"].as_object() {
             use crate::AnalysisData;
             
-            // Extract individual analysis values
+            // Extract individual analysis values with proper error handling
             let analysis_data = AnalysisData {
-                rhythm: analysis.get("rhythm").and_then(|v| v.as_f64()).unwrap_or(75.0) as f32,
-                pitch: analysis.get("pitch").and_then(|v| v.as_f64()).unwrap_or(75.0) as f32,
-                dynamics: analysis.get("dynamics").and_then(|v| v.as_f64()).unwrap_or(75.0) as f32,
-                tempo: analysis.get("tempo").and_then(|v| v.as_f64()).unwrap_or(75.0) as f32,
-                articulation: analysis.get("articulation").and_then(|v| v.as_f64()).unwrap_or(75.0) as f32,
-                expression: analysis.get("expression").and_then(|v| v.as_f64()).unwrap_or(75.0) as f32,
-                technique: analysis.get("technique").and_then(|v| v.as_f64()).unwrap_or(75.0) as f32,
-                timing: analysis.get("timing").and_then(|v| v.as_f64()).unwrap_or(75.0) as f32,
-                phrasing: analysis.get("phrasing").and_then(|v| v.as_f64()).unwrap_or(75.0) as f32,
-                voicing: analysis.get("voicing").and_then(|v| v.as_f64()).unwrap_or(75.0) as f32,
-                pedaling: analysis.get("pedaling").and_then(|v| v.as_f64()).unwrap_or(75.0) as f32,
-                hand_coordination: analysis.get("hand_coordination").and_then(|v| v.as_f64()).unwrap_or(75.0) as f32,
-                musical_understanding: analysis.get("musical_understanding").and_then(|v| v.as_f64()).unwrap_or(75.0) as f32,
-                stylistic_accuracy: analysis.get("stylistic_accuracy").and_then(|v| v.as_f64()).unwrap_or(75.0) as f32,
-                creativity: analysis.get("creativity").and_then(|v| v.as_f64()).unwrap_or(75.0) as f32,
-                listening: analysis.get("listening").and_then(|v| v.as_f64()).unwrap_or(75.0) as f32,
-                overall_performance: analysis.get("overall_performance").and_then(|v| v.as_f64()).unwrap_or(75.0) as f32,
-                stage_presence: analysis.get("stage_presence").and_then(|v| v.as_f64()).unwrap_or(75.0) as f32,
-                repertoire_difficulty: analysis.get("repertoire_difficulty").and_then(|v| v.as_f64()).unwrap_or(75.0) as f32,
+                rhythm: analysis.get("rhythm").and_then(|v| v.as_f64())
+                    .ok_or_else(|| worker::Error::RustError("Missing or invalid 'rhythm' value from ML service".to_string()))? as f32,
+                pitch: analysis.get("pitch").and_then(|v| v.as_f64())
+                    .ok_or_else(|| worker::Error::RustError("Missing or invalid 'pitch' value from ML service".to_string()))? as f32,
+                dynamics: analysis.get("dynamics").and_then(|v| v.as_f64())
+                    .ok_or_else(|| worker::Error::RustError("Missing or invalid 'dynamics' value from ML service".to_string()))? as f32,
+                tempo: analysis.get("tempo").and_then(|v| v.as_f64())
+                    .ok_or_else(|| worker::Error::RustError("Missing or invalid 'tempo' value from ML service".to_string()))? as f32,
+                articulation: analysis.get("articulation").and_then(|v| v.as_f64())
+                    .ok_or_else(|| worker::Error::RustError("Missing or invalid 'articulation' value from ML service".to_string()))? as f32,
+                expression: analysis.get("expression").and_then(|v| v.as_f64())
+                    .ok_or_else(|| worker::Error::RustError("Missing or invalid 'expression' value from ML service".to_string()))? as f32,
+                technique: analysis.get("technique").and_then(|v| v.as_f64())
+                    .ok_or_else(|| worker::Error::RustError("Missing or invalid 'technique' value from ML service".to_string()))? as f32,
+                timing: analysis.get("timing").and_then(|v| v.as_f64())
+                    .ok_or_else(|| worker::Error::RustError("Missing or invalid 'timing' value from ML service".to_string()))? as f32,
+                phrasing: analysis.get("phrasing").and_then(|v| v.as_f64())
+                    .ok_or_else(|| worker::Error::RustError("Missing or invalid 'phrasing' value from ML service".to_string()))? as f32,
+                voicing: analysis.get("voicing").and_then(|v| v.as_f64())
+                    .ok_or_else(|| worker::Error::RustError("Missing or invalid 'voicing' value from ML service".to_string()))? as f32,
+                pedaling: analysis.get("pedaling").and_then(|v| v.as_f64())
+                    .ok_or_else(|| worker::Error::RustError("Missing or invalid 'pedaling' value from ML service".to_string()))? as f32,
+                hand_coordination: analysis.get("hand_coordination").and_then(|v| v.as_f64())
+                    .ok_or_else(|| worker::Error::RustError("Missing or invalid 'hand_coordination' value from ML service".to_string()))? as f32,
+                musical_understanding: analysis.get("musical_understanding").and_then(|v| v.as_f64())
+                    .ok_or_else(|| worker::Error::RustError("Missing or invalid 'musical_understanding' value from ML service".to_string()))? as f32,
+                stylistic_accuracy: analysis.get("stylistic_accuracy").and_then(|v| v.as_f64())
+                    .ok_or_else(|| worker::Error::RustError("Missing or invalid 'stylistic_accuracy' value from ML service".to_string()))? as f32,
+                creativity: analysis.get("creativity").and_then(|v| v.as_f64())
+                    .ok_or_else(|| worker::Error::RustError("Missing or invalid 'creativity' value from ML service".to_string()))? as f32,
+                listening: analysis.get("listening").and_then(|v| v.as_f64())
+                    .ok_or_else(|| worker::Error::RustError("Missing or invalid 'listening' value from ML service".to_string()))? as f32,
+                overall_performance: analysis.get("overall_performance").and_then(|v| v.as_f64())
+                    .ok_or_else(|| worker::Error::RustError("Missing or invalid 'overall_performance' value from ML service".to_string()))? as f32,
+                stage_presence: analysis.get("stage_presence").and_then(|v| v.as_f64())
+                    .ok_or_else(|| worker::Error::RustError("Missing or invalid 'stage_presence' value from ML service".to_string()))? as f32,
+                repertoire_difficulty: analysis.get("repertoire_difficulty").and_then(|v| v.as_f64())
+                    .ok_or_else(|| worker::Error::RustError("Missing or invalid 'repertoire_difficulty' value from ML service".to_string()))? as f32,
             };
             
             // Extract insights from the response

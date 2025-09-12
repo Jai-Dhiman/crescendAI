@@ -23,12 +23,32 @@ hex = "0.4"
 regex = "1.10"
 once_cell = "1.19"
 futures = "0.3"
+# Audio processing dependencies (WASM-compatible)
+rustfft = "6.1"
+hound = "3.5"
+num-complex = "0.4"
+log = "0.4"
+realfft = "3.3"
 
 [dependencies.web-sys]
 version = "0.3"
-features = ["console", "Request", "Response", "FormData", "File"]
+features = [
+  "console", "Request", "Response", "FormData", "File", "Blob"
+]
 
 [dev-dependencies]
+wasm-bindgen-test = "0.3"
 tokio-test = "0.4"
 mockall = "0.12"
 serde_test = "1.0"
+futures-test = "0.3"
+async-trait = "0.1"
+mockito = "1.4"
+criterion = { version = "0.5", features = ["html_reports"] }
+proptest = "1.4"
+test-case = "3.3"
+tempfile = "3.8"
+toml = "0.8"
+once_cell = "1.19"
+insta = "1.34" # For snapshot testing
+fake = "2.9" # For generating test data
