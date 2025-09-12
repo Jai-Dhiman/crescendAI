@@ -534,3 +534,130 @@ input, textarea, select {
 		padding: 1.5rem 1rem;
 	}
 }
+
+/* Processing State */
+.processing-state {
+	margin-top: 1.5rem;
+	padding: 1.25rem;
+	background: rgba(201, 168, 118, 0.08);
+	border: 1px solid rgba(201, 168, 118, 0.2);
+	border-radius: 12px;
+	max-width: 20rem;
+	margin-left: auto;
+	margin-right: auto;
+}
+
+.processing-info {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	margin-bottom: 0.75rem;
+}
+
+.processing-label {
+	font-family: var(--font-sans);
+	font-size: 0.875rem;
+	font-weight: 500;
+	color: var(--charcoal-text);
+	margin: 0;
+}
+
+.processing-percentage {
+	font-family: var(--font-mono);
+	font-size: 0.875rem;
+	font-weight: 600;
+	color: var(--warm-bronze);
+}
+
+.progress-bar {
+	width: 100%;
+	height: 6px;
+	background: rgba(201, 168, 118, 0.15);
+	border-radius: 3px;
+	overflow: hidden;
+	position: relative;
+}
+
+.progress-fill {
+	height: 100%;
+	background: linear-gradient(90deg, var(--accent-gold), var(--warm-bronze));
+	border-radius: 3px;
+	transition: width 0.3s ease;
+	position: relative;
+}
+
+.progress-fill::after {
+	content: '';
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+	animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+	0% { transform: translateX(-100%); }
+	100% { transform: translateX(100%); }
+}
+
+/* Error Display */
+.error-card {
+	background: #fff5f5 !important;
+	border: 2px solid #feb2b2 !important;
+	border-radius: 12px !important;
+	padding: 1.25rem !important;
+	box-shadow: 0 4px 12px rgba(220, 53, 69, 0.15) !important;
+	border-left: 4px solid #dc3545 !important;
+}
+
+.error-icon {
+	width: 2.5rem !important;
+	height: 2.5rem !important;
+	display: flex !important;
+	align-items: center !important;
+	justify-content: center !important;
+	background: #fee2e2 !important;
+	border-radius: 50% !important;
+	color: #dc3545 !important;
+	flex-shrink: 0 !important;
+	border: 2px solid #fecaca !important;
+}
+
+.error-title {
+	font-family: var(--font-sans) !important;
+	font-size: 1.1rem !important;
+	font-weight: 600 !important;
+	color: #dc3545 !important;
+	margin: 0 0 0.5rem 0 !important;
+}
+
+.error-message {
+	font-family: var(--font-serif) !important;
+	color: #991b1b !important;
+	line-height: 1.5 !important;
+	margin: 0 0 1rem 0 !important;
+	font-size: 0.95rem !important;
+}
+
+.error-retry {
+	background: #dc3545 !important;
+	color: white !important;
+	padding: 0.6rem 1.2rem !important;
+	border-radius: 8px !important;
+	font-size: 0.875rem !important;
+	font-weight: 600 !important;
+	font-family: var(--font-sans) !important;
+	transition: all 0.2s ease !important;
+	border: none !important;
+	cursor: pointer !important;
+	text-transform: uppercase !important;
+	letter-spacing: 0.05em !important;
+}
+
+.error-retry:hover {
+	background: #b91c1c !important;
+	transform: translateY(-1px) !important;
+	box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3) !important;
+}

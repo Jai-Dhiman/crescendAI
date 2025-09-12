@@ -120,13 +120,13 @@ pub fn validate_webhook_signature(
 pub fn validate_file_type(filename: &str, content: &[u8]) -> Result<()> {
     // Check file extension
     let extension = filename.split('.').last().unwrap_or("").to_lowercase();
-    if !matches!(extension.as_str(), "wav" | "mp3") {
+    if !matches!(extension.as_str(), "wav" | "mp3" | "ogg" | "m4a" | "aac" | "flac" | "mp4") {
         return Err(worker::Error::from(SecurityError::InvalidInput(
-            "Only WAV and MP3 files are allowed".to_string()
+            "Only audio files are allowed (WAV, MP3, OGG, M4A, AAC, FLAC, MP4)".to_string()
         )));
     }
 
-    // Validate content based on magic numbers
+    // Validate content based on magic numbers (basic validation for common formats)
     match extension.as_str() {
         "wav" => {
             if content.len() < 12 || &content[0..4] != b"RIFF" || &content[8..12] != b"WAVE" {
@@ -145,7 +145,43 @@ pub fn validate_file_type(filename: &str, content: &[u8]) -> Result<()> {
                 )));
             }
         }
-        _ => unreachable!(),
+        "ogg" => {
+            if content.len() < 4 || !content.starts_with(b"OggS") {
+                return Err(worker::Error::from(SecurityError::InvalidInput(
+                    "Invalid OGG file format".to_string()
+                )));
+            }
+        }
+        "flac" => {
+            if content.len() < 4 || !content.starts_with(b"fLaC") {
+                return Err(worker::Error::from(SecurityError::InvalidInput(
+                    "Invalid FLAC file format".to_string()
+                )));
+            }
+        }
+        "m4a" | "aac" | "mp4" => {
+            // Basic validation for MP4 container (used by M4A/AAC/MP4)
+            if content.len() < 8 {
+                return Err(worker::Error::from(SecurityError::InvalidInput(
+                    format!("Invalid {} file format", extension.to_uppercase())
+                )));
+            }
+            // Look for 'ftyp' box in MP4 container
+            let has_ftyp = content.windows(4).any(|window| window == b"ftyp");
+            if !has_ftyp {
+                return Err(worker::Error::from(SecurityError::InvalidInput(
+                    format!("Invalid {} file format", extension.to_uppercase())
+                )));
+            }
+        }
+        _ => {
+            // For other formats, just check minimum file size
+            if content.len() < 100 {
+                return Err(worker::Error::from(SecurityError::InvalidInput(
+                    "Audio file appears to be too small or corrupted".to_string()
+                )));
+            }
+        },
     }
 
     Ok(())
@@ -312,6 +348,8 @@ mod tests {
         assert!(sanitize_filename("audio.wav").is_ok());
         assert!(sanitize_filename("test_file-1.mp3").is_ok());
         assert!(sanitize_filename("file123.wav").is_ok());
+        assert!(sanitize_filename("audio.flac").is_ok());
+        assert!(sanitize_filename("music.m4a").is_ok());
 
         // Invalid filenames
         assert!(sanitize_filename("../etc/passwd").is_err());

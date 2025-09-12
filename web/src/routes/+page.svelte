@@ -2,9 +2,8 @@
 import { goto } from "$app/navigation";
 import { browser } from "$app/environment";
 import { analysisStore } from "$lib/stores/analysis";
-import { useUploadAndAnalyzeMutation } from "$lib/hooks/useAnalysis";
 import { crescendApi, type CrescendApiError } from "$lib/services/crescendApi";
-import { Upload } from "lucide-svelte";
+import { Upload, AlertTriangle } from "lucide-svelte";
 
 let files: FileList | null = $state(null);
 let isDragging = $state(false);
@@ -18,9 +17,12 @@ const ACCEPTED_AUDIO_TYPES = [
 	"audio/mpeg",
 	"audio/mp3",
 	"audio/wav",
+	"audio/x-wav", // Support for .wav files that show as audio/x-wav
 	"audio/ogg",
 	"audio/m4a",
 	"audio/aac",
+	"audio/flac", // Add FLAC support as mentioned in error
+	"audio/mp4", // Add audio/mp4 as mentioned in error
 	"video/mp4",
 	"video/mov",
 	"video/avi",
@@ -28,24 +30,7 @@ const ACCEPTED_AUDIO_TYPES = [
 
 const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
 
-// Create the mutation for upload and analysis (lazily initialized)
-let uploadAndAnalyzeMutation: ReturnType<
-	typeof useUploadAndAnalyzeMutation
-> | null = $state(null);
-
-// Initialize mutation when needed and context is available
-function getUploadMutation() {
-	if (!browser) return null;
-	if (!uploadAndAnalyzeMutation) {
-		try {
-			uploadAndAnalyzeMutation = useUploadAndAnalyzeMutation();
-		} catch (error) {
-			console.error("Failed to initialize upload mutation:", error);
-			return null;
-		}
-	}
-	return uploadAndAnalyzeMutation;
-}
+// Use direct API calls instead of mutations to avoid context issues
 
 function validateFile(file: File): string | null {
 	if (
@@ -104,56 +89,29 @@ async function processFile(file: File) {
 				},
 			);
 		} else {
-			// Use regular analysis workflow - try mutation first, fallback to direct API
-			const mutation = getUploadMutation();
-			if (mutation) {
-				result = await mutation.mutateAsync({
-					file,
-					onProgress: (stage, progressValue) => {
-						currentStage = stage;
-						if (progressValue !== undefined) {
-							progress = progressValue;
-						} else {
-							// Set progress based on stage
-							switch (stage) {
-								case "uploading":
-									progress = 25;
-									break;
-								case "analyzing":
-									progress = 50;
-									break;
-								case "processing":
-									progress = 75;
-									break;
-							}
+			// Use regular analysis workflow with direct API call
+			result = await crescendApi.uploadAndAnalyze(
+				file,
+				(stage, progressValue) => {
+					currentStage = stage;
+					if (progressValue !== undefined) {
+						progress = progressValue;
+					} else {
+						// Set progress based on stage
+						switch (stage) {
+							case "uploading":
+								progress = 25;
+								break;
+							case "analyzing":
+								progress = 50;
+								break;
+							case "processing":
+								progress = 75;
+								break;
 						}
-					},
-				});
-			} else {
-				// Fallback to direct API call
-				result = await crescendApi.uploadAndAnalyze(
-					file,
-					(stage, progressValue) => {
-						currentStage = stage;
-						if (progressValue !== undefined) {
-							progress = progressValue;
-						} else {
-							// Set progress based on stage
-							switch (stage) {
-								case "uploading":
-									progress = 25;
-									break;
-								case "analyzing":
-									progress = 50;
-									break;
-								case "processing":
-									progress = 75;
-									break;
-							}
-						}
-					},
-				);
-			}
+					}
+				},
+			);
 		}
 
 		// Analysis complete, save result and navigate
@@ -376,7 +334,7 @@ function resetUpload() {
 					</div>
 
 					<!-- Processing State -->
-					<!-- {#if progress > 0 && progress < 100}
+					{#if progress > 0 && progress < 100}
 						<div class="processing-state">
 							<div class="processing-info">
 								<p class="processing-label">
@@ -394,25 +352,94 @@ function resetUpload() {
 								<div class="progress-fill" style={`width: ${progress}%`}></div>
 							</div>
 						</div>
-					{/if} -->
+					{/if}
 				</div>
 			</div>
 
 			<!-- Error Display -->
-			<!-- {#if uploadError}
-				<div class="error-card mt-6 max-w-lg mx-auto">
-					<div class="flex items-start gap-4">
-						<div class="error-icon">⚠</div>
-						<div class="flex-1">
-							<h4 class="error-title">Upload Error</h4>
-							<p class="error-message">{uploadError}</p>
-							<button onclick={resetUpload} class="error-retry">
+			{#if uploadError}
+				<div 
+					class="error-card" 
+					style="
+						margin-top: 1.5rem; 
+						max-width: 28rem; 
+						margin-left: auto; 
+						margin-right: auto;
+						background: #fff5f5; 
+						border: 2px solid #feb2b2; 
+						border-radius: 12px; 
+						padding: 1.25rem; 
+						box-shadow: 0 4px 12px rgba(220, 53, 69, 0.15); 
+						border-left: 4px solid #dc3545;
+					"
+				>
+					<div style="display: flex; align-items: flex-start; gap: 1rem;">
+						<div 
+							class="error-icon"
+							style="
+								width: 2.5rem; 
+								height: 2.5rem; 
+								display: flex; 
+								align-items: center; 
+								justify-content: center; 
+								background: #fee2e2; 
+								border-radius: 50%; 
+								color: #dc3545; 
+								flex-shrink: 0; 
+								border: 2px solid #fecaca;
+							"
+						>
+							<AlertTriangle size={20} />
+						</div>
+						<div style="flex: 1;">
+							<h4 
+								class="error-title"
+								style="
+									font-family: var(--font-sans); 
+									font-size: 1.1rem; 
+									font-weight: 600; 
+									color: #dc3545; 
+									margin: 0 0 0.5rem 0;
+								"
+							>
+								Upload Error
+							</h4>
+							<p 
+								class="error-message"
+								style="
+									font-family: var(--font-serif); 
+									color: #991b1b; 
+									line-height: 1.5; 
+									margin: 0 0 1rem 0; 
+									font-size: 0.95rem;
+								"
+							>
+								{uploadError}
+							</p>
+							<button 
+								onclick={resetUpload} 
+								class="error-retry"
+								style="
+									background: #dc3545; 
+									color: white; 
+									padding: 0.6rem 1.2rem; 
+									border-radius: 8px; 
+									font-size: 0.875rem; 
+									font-weight: 600; 
+									font-family: var(--font-sans); 
+									transition: all 0.2s ease; 
+									border: none; 
+									cursor: pointer; 
+									text-transform: uppercase; 
+									letter-spacing: 0.05em;
+								"
+							>
 								Try Again
 							</button>
 						</div>
 					</div>
 				</div>
-			{/if} -->
+			{/if}
 		</section>
 
 		<!-- Footer -->
