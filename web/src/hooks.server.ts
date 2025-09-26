@@ -6,19 +6,22 @@ import { dev } from '$app/environment';
  * Security Configuration
  * Implements comprehensive security headers for the CrescendAI web application
  */
+const allowEval = dev || process.env.ALLOW_UNSAFE_EVAL === '1';
+
 const SECURITY_CONFIG = {
   // Content Security Policy sources
   CSP: {
     // Allow self for basic resources
     default: "'self'",
     
-    // Script sources - restrictive for security
+    // Script sources - tuned for SvelteKit/Svelte 5 runtime and dev tools
     script: [
       "'self'",
       // Allow inline scripts in development
       dev ? "'unsafe-inline'" : "",
-      // Allow eval in development (needed for Vite)
-      dev ? "'unsafe-eval'" : "",
+      // Allow eval when needed by runtime or dev tools (can be disabled via ALLOW_UNSAFE_EVAL)
+      allowEval ? "'unsafe-eval'" : "",
+      allowEval ? "'wasm-unsafe-eval'" : "",
       // Google Fonts and analytics if needed
       "https://www.google.com",
       "https://www.gstatic.com",
@@ -59,7 +62,7 @@ const SECURITY_CONFIG = {
     connect: [
       "'self'",
       // Development API
-      dev ? "http://localhost:8787" : "",
+      dev ? "http://localhost:*" : "",
       // Production API
       "https://api.pianoanalyzer.com",
       "https://*.pianoanalyzer.com",
@@ -160,11 +163,11 @@ export const handle: Handle = async ({ event, resolve }) => {
   const response = await resolve(event, {
     // Transform page chunks to add nonce to scripts in production
     transformPageChunk: ({ html, done }) => {
-      if (done && !dev) {
-        // In production, add nonce to inline scripts
+      if (done) {
+        // Add nonce to inline scripts when present
         return html.replace(
-          /<script>/g, 
-          `<script nonce="${nonce}">`
+          /<script(?![^>]*nonce=)/g,
+          `<script nonce="${nonce}"`
         );
       }
       return html;

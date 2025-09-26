@@ -19,7 +19,7 @@ macro_rules! console_log {
     };
 }
 
-pub async fn start_analysis(env: &Env, file_id: &str, job_id: &str) -> Result<()> {
+pub async fn start_analysis(env: &Env, file_id: &str, job_id: &str, force_gpu: Option<bool>) -> Result<()> {
     console_log!("Starting analysis for file_id: {}, job_id: {}", file_id, job_id);
     
     // Initialize job status
@@ -32,6 +32,19 @@ pub async fn start_analysis(env: &Env, file_id: &str, job_id: &str) -> Result<()
     
     console_log!("Updating initial job status...");
     storage::update_job_status(env, job_id, &initial_status).await?;
+
+    // Mock-by-default path for portfolio demo cost control
+let use_mock_default = env.var("USE_MOCK_INFERENCE").map(|v| v.to_string() == "true").unwrap_or(false);
+    let use_mock = match force_gpu {
+        Some(true) => false,   // force real GPU
+        _ => use_mock_default, // default behavior
+    };
+    if use_mock {
+        console_log!("USE_MOCK_INFERENCE=true -> generating mock analysis (no GPU call)");
+        let (analysis_data, insights, processing_time) = generate_mock_analysis(file_id);
+        complete_analysis(env, job_id, file_id, analysis_data, insights, Some(processing_time)).await?;
+        return Ok(());
+    }
     
     // Get audio data from R2
     console_log!("Retrieving audio data from R2 for file_id: {}", file_id);
@@ -67,7 +80,6 @@ pub async fn start_analysis(env: &Env, file_id: &str, job_id: &str) -> Result<()
         Ok(_) => {
             console_log!("ML inference completed successfully for job_id: {}", job_id);
             // Note: send_for_inference already calls complete_analysis() which sets status to "completed"
-            // No need to update status here as it would overwrite the "completed" status
         }
         Err(e) => {
             console_log!("ML inference failed for job_id: {}: {:?}", job_id, e);
@@ -124,6 +136,38 @@ fn create_placeholder_spectrogram() -> Vec<u8> {
     
     console_log!("Generated placeholder spectrogram: {} bytes (expected: {})", data.len(), size);
     data
+}
+
+/// Generate a lightweight mock analysis to avoid real GPU costs in demos
+fn generate_mock_analysis(_file_id: &str) -> (AnalysisData, Vec<String>, f32) {
+    // Simple deterministic pseudo-random generator to avoid rand in WASM
+    let mut seed = (js_sys::Date::now() as u64).wrapping_mul(6364136223846793005);
+    let mut next = || {
+        // xorshift64*
+        let mut x = seed;
+        x ^= x >> 12;
+        x ^= x << 25;
+        x ^= x >> 27;
+        seed = x;
+        ((x.wrapping_mul(2685821657736338717) >> 33) as f32) / (u32::MAX as f32)
+    };
+    let mut randf = || 0.3f32 + 0.6f32 * next().abs().min(1.0);
+
+    let data = AnalysisData {
+        rhythm: randf(), pitch: randf(), dynamics: randf(), tempo: randf(), articulation: randf(),
+        expression: randf(), technique: randf(), timing: randf(), phrasing: randf(), voicing: randf(),
+        pedaling: randf(), hand_coordination: randf(), musical_understanding: randf(), stylistic_accuracy: randf(),
+        creativity: randf(), listening: randf(), overall_performance: randf(), stage_presence: randf(),
+        repertoire_difficulty: randf(),
+    };
+
+    let insights = vec![
+        "Strong rhythmic stability".to_string(),
+        "Balanced dynamics with room for expressiveness".to_string(),
+    ];
+
+    let processing_time = 0.05 + 0.1 * next();
+    (data, insights, processing_time)
 }
 
 pub async fn complete_analysis(
@@ -201,7 +245,8 @@ pub async fn start_model_comparison(
     file_id: &str, 
     comparison_id: &str, 
     model_a: &str, 
-    model_b: &str
+    model_b: &str,
+    force_gpu: Option<bool>
 ) -> Result<()> {
     console_log!("Starting model comparison for file_id: {}, comparison_id: {} (models: {} vs {})", 
                  file_id, comparison_id, model_a, model_b);
@@ -215,6 +260,20 @@ pub async fn start_model_comparison(
     };
     
     storage::update_job_status(env, comparison_id, &initial_status).await?;
+
+    // Mock-by-default path for portfolio demo cost control
+let use_mock_default = env.var("USE_MOCK_INFERENCE").map(|v| v.to_string() == "true").unwrap_or(false);
+    let use_mock = match force_gpu {
+        Some(true) => false,
+        _ => use_mock_default,
+    };
+    if use_mock {
+        console_log!("USE_MOCK_INFERENCE=true -> generating mock comparison (no GPU calls)");
+        let (a_data, a_insights, a_time) = generate_mock_analysis(file_id);
+        let (b_data, b_insights, b_time) = generate_mock_analysis(file_id);
+        complete_model_comparison(env, comparison_id, file_id, (a_data, a_insights, Some(a_time)), (b_data, b_insights, Some(b_time))).await?;
+        return Ok(());
+    }
     
     // Get audio data from R2
     console_log!("Retrieving audio data from R2 for file_id: {}", file_id);

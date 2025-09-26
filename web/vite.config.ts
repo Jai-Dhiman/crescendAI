@@ -12,8 +12,8 @@ export default defineConfig(({ mode }): UserConfig => {
 		plugins: [
 			sveltekit(),
 			
-			// Progressive Web App
-			VitePWA({
+			// Progressive Web App (disabled for production static demo to avoid build error)
+			isDev && VitePWA({
 				registerType: 'autoUpdate',
 				workbox: {
 					globPatterns: ['**/*.{js,css,html,ico,png,svg,webp,woff,woff2}'],
@@ -28,13 +28,9 @@ export default defineConfig(({ mode }): UserConfig => {
 									maxAgeSeconds: 60 * 60 * 24, // 24 hours
 								},
 								cacheKeyWillBeUsed: async ({ request }) => {
-									// Cache API responses but not authenticated ones
 									const url = new URL(request.url);
-									if (url.pathname.includes('/auth/') || 
-										url.pathname.includes('/user/')) {
-										return null;
-									}
-									return request.url;
+									if (url.pathname.includes('/auth/') || url.pathname.includes('/user/')) return null as any;
+									return request.url as any;
 								},
 							},
 						},
@@ -73,28 +69,12 @@ export default defineConfig(({ mode }): UserConfig => {
 					scope: '/',
 					start_url: '/',
 					icons: [
-						{
-							src: '/pwa-192x192.png',
-							sizes: '192x192',
-							type: 'image/png'
-						},
-						{
-							src: '/pwa-512x512.png',
-							sizes: '512x512',
-							type: 'image/png'
-						},
-						{
-							src: '/pwa-512x512.png',
-							sizes: '512x512',
-							type: 'image/png',
-							purpose: 'any maskable'
-						}
+						{ src: '/pwa-192x192.png', sizes: '192x192', type: 'image/png' },
+						{ src: '/pwa-512x512.png', sizes: '512x512', type: 'image/png' },
+						{ src: '/pwa-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' }
 					],
 				},
-				devOptions: {
-					enabled: isDev,
-					type: 'module',
-				},
+				devOptions: { enabled: isDev, type: 'module' },
 			}),
 			
 			// Bundle analyzer

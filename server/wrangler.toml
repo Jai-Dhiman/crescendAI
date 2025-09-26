@@ -10,7 +10,10 @@ WORKERS_RS_VERSION = "0.3.0"
 MODAL_ENDPOINT = "https://your-modal-endpoint.modal.run"
 WORKER_URL = "https://piano-analyzer-backend.your-subdomain.workers.dev"
 ENVIRONMENT = "development"
-ALLOWED_ORIGINS = "http://localhost:3000,http://localhost:5173,https://crescendai.com,https://app.crescendai.com"
+# Update this after Pages is deployed to include your exact pages.dev domain
+ALLOWED_ORIGINS = "http://localhost:3000,http://localhost:5173,https://crescendai.com,https://app.crescendai.com,https://crescendai.pages.dev"
+# Mock inference by default for portfolio demo cost control
+USE_MOCK_INFERENCE = "true"
 
 # Note: Add these as secrets via wrangler secret put command:
 # wrangler secret put API_KEY

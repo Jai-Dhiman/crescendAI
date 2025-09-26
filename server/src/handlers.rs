@@ -88,7 +88,8 @@ pub async fn analyze_audio(mut req: Request, ctx: RouteContext<()>) -> Result<Re
     console_log!("Starting analysis for file ID: {} with job ID: {}", file_id, job_id);
     
     // Start async processing
-    match processing::start_analysis(&ctx.env, file_id, &job_id).await {
+let force_gpu = req.headers().get("X-Run-GPU").ok().flatten().map(|v| v.eq_ignore_ascii_case("true"));
+    match processing::start_analysis(&ctx.env, file_id, &job_id, force_gpu).await {
         Ok(_) => {
             Response::from_json(&json!({
                 "job_id": job_id,
@@ -106,7 +107,7 @@ pub async fn analyze_audio(mut req: Request, ctx: RouteContext<()>) -> Result<Re
     }
 }
 
-pub async fn get_job_status(_req: Request, ctx: RouteContext<()>) -> Result<Response> {
+pub async fn get_job_status(req: Request, ctx: RouteContext<()>) -> Result<Response> {
     let job_id = ctx.param("id")
         .ok_or_else(|| worker::Error::from(SecurityError::InvalidInput(
             "Missing job ID parameter".to_string()
@@ -118,10 +119,31 @@ pub async fn get_job_status(_req: Request, ctx: RouteContext<()>) -> Result<Resp
     match storage::get_job_status(&ctx.env, job_id).await {
         Ok(status) => {
             console_log!("Retrieved status for job {}: {}", job_id, status.status);
-            Response::from_json(&status)
+            // Compute body and ETag for HTTP caching
+            let body = serde_json::to_string(&status)
+                .map_err(|e| worker::Error::RustError(e.to_string()))?;
+            let etag = crate::utils::compute_etag_from_str(&body);
+            let if_none_match = req.headers().get("If-None-Match").ok().flatten();
+
+            if let Some(tag) = if_none_match {
+                if tag == etag {
+                    let mut res = Response::empty()?;
+                    res = res.with_status(304);
+                    let headers = res.headers_mut();
+                    headers.set("ETag", &etag)?;
+                    headers.set("Cache-Control", "public, max-age=0, s-maxage=86400, stale-while-revalidate=604800")?;
+                    return Ok(res);
+                }
+            }
+
+            let mut res = Response::from_json(&status)?;
+            let headers = res.headers_mut();
+            headers.set("ETag", &etag)?;
+            headers.set("Cache-Control", "public, max-age=0, s-maxage=86400, stale-while-revalidate=604800")?;
+            Ok(res)
         }
-        Err(e) => {
-            console_log!("Job status not found for ID {}: {:?}", job_id, e);
+        Err(_e) => {
+            console_log!("Job status not found for ID {}", job_id);
             Err(worker::Error::from(SecurityError::InvalidInput(
                 "Job not found".to_string()
             )))
@@ -129,7 +151,7 @@ pub async fn get_job_status(_req: Request, ctx: RouteContext<()>) -> Result<Resp
     }
 }
 
-pub async fn get_analysis_result(_req: Request, ctx: RouteContext<()>) -> Result<Response> {
+pub async fn get_analysis_result(req: Request, ctx: RouteContext<()>) -> Result<Response> {
     let result_id = ctx.param("id")
         .ok_or_else(|| worker::Error::from(SecurityError::InvalidInput(
             "Missing result ID parameter".to_string()
@@ -141,10 +163,30 @@ pub async fn get_analysis_result(_req: Request, ctx: RouteContext<()>) -> Result
     match storage::get_analysis_result(&ctx.env, result_id).await {
         Ok(result) => {
             console_log!("Retrieved analysis result for ID {}: {}", result_id, result.status);
-            Response::from_json(&result)
+            let body = serde_json::to_string(&result)
+                .map_err(|e| worker::Error::RustError(e.to_string()))?;
+            let etag = crate::utils::compute_etag_from_str(&body);
+            let if_none_match = req.headers().get("If-None-Match").ok().flatten();
+
+            if let Some(tag) = if_none_match {
+                if tag == etag {
+                    let mut res = Response::empty()?;
+                    res = res.with_status(304);
+                    let headers = res.headers_mut();
+                    headers.set("ETag", &etag)?;
+                    headers.set("Cache-Control", "public, max-age=0, s-maxage=86400, stale-while-revalidate=604800")?;
+                    return Ok(res);
+                }
+            }
+
+            let mut res = Response::from_json(&result)?;
+            let headers = res.headers_mut();
+            headers.set("ETag", &etag)?;
+            headers.set("Cache-Control", "public, max-age=0, s-maxage=86400, stale-while-revalidate=604800")?;
+            Ok(res)
         }
-        Err(e) => {
-            console_log!("Analysis result not found for ID {}: {:?}", result_id, e);
+        Err(_e) => {
+            console_log!("Analysis result not found for ID {}", result_id);
             Err(worker::Error::from(SecurityError::InvalidInput(
                 "Analysis result not found".to_string()
             )))
@@ -184,7 +226,8 @@ pub async fn compare_models(mut req: Request, ctx: RouteContext<()>) -> Result<R
                  file_id, comparison_id, model_a, model_b);
     
     // Start async comparison processing
-    match processing::start_model_comparison(&ctx.env, file_id, &comparison_id, model_a, model_b).await {
+let force_gpu = req.headers().get("X-Run-GPU").ok().flatten().map(|v| v.eq_ignore_ascii_case("true"));
+    match processing::start_model_comparison(&ctx.env, file_id, &comparison_id, model_a, model_b, force_gpu).await {
         Ok(_) => {
             Response::from_json(&json!({
                 "comparison_id": comparison_id,
@@ -206,7 +249,7 @@ pub async fn compare_models(mut req: Request, ctx: RouteContext<()>) -> Result<R
     }
 }
 
-pub async fn get_comparison_result(_req: Request, ctx: RouteContext<()>) -> Result<Response> {
+pub async fn get_comparison_result(req: Request, ctx: RouteContext<()>) -> Result<Response> {
     let comparison_id = ctx.param("id")
         .ok_or_else(|| worker::Error::from(SecurityError::InvalidInput(
             "Missing comparison ID parameter".to_string()
@@ -218,10 +261,30 @@ pub async fn get_comparison_result(_req: Request, ctx: RouteContext<()>) -> Resu
     match storage::get_comparison_result(&ctx.env, comparison_id).await {
         Ok(result) => {
             console_log!("Retrieved comparison result for ID {}: {}", comparison_id, result.status);
-            Response::from_json(&result)
+            let body = serde_json::to_string(&result)
+                .map_err(|e| worker::Error::RustError(e.to_string()))?;
+            let etag = crate::utils::compute_etag_from_str(&body);
+            let if_none_match = req.headers().get("If-None-Match").ok().flatten();
+
+            if let Some(tag) = if_none_match {
+                if tag == etag {
+                    let mut res = Response::empty()?;
+                    res = res.with_status(304);
+                    let headers = res.headers_mut();
+                    headers.set("ETag", &etag)?;
+                    headers.set("Cache-Control", "public, max-age=0, s-maxage=86400, stale-while-revalidate=604800")?;
+                    return Ok(res);
+                }
+            }
+
+            let mut res = Response::from_json(&result)?;
+            let headers = res.headers_mut();
+            headers.set("ETag", &etag)?;
+            headers.set("Cache-Control", "public, max-age=0, s-maxage=86400, stale-while-revalidate=604800")?;
+            Ok(res)
         }
-        Err(e) => {
-            console_log!("Comparison result not found for ID {}: {:?}", comparison_id, e);
+        Err(_e) => {
+            console_log!("Comparison result not found for ID {}", comparison_id);
             Err(worker::Error::from(SecurityError::InvalidInput(
                 "Comparison result not found".to_string()
             )))

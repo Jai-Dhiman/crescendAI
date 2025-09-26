@@ -36,6 +36,8 @@ dependencies = [
     "optax>=0.1.7,<0.2.0",
     "datasets>=4.0.0",
     "python-multipart>=0.0.20",
+    "pyarrow>=21.0.0",
+    "huggingface-hub>=0.34.4",
 ]
 
 [project.optional-dependencies]

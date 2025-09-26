@@ -41,11 +41,11 @@ def check_gpu_requirements():
         print(f"✅ Model file found: {model_path} ({size_mb:.1f}MB)")
     else:
         print(f"❌ Model file not found: {model_path}")
-        print("Run training first with GPU: uv run python3 -m crescendai_model.train_ast")
+        print("Run training first with GPU in Colab or via src.training modules")
         return False
     
     # Check Modal service file
-    modal_service_path = Path("crescendai_model/deployment/modal_service.py")
+    modal_service_path = Path("src/deployment/modal_service.py")
     if modal_service_path.exists():
         print(f"✅ Modal service file found: {modal_service_path}")
     else:
@@ -83,7 +83,7 @@ def deploy_to_modal():
     try:
         # Deploy the service
         result = subprocess.run([
-            "modal", "deploy", "crescendai_model/deployment/modal_service.py"
+            "modal", "deploy", "src/deployment/modal_service.py"
         ], capture_output=True, text=True, check=True)
         
         print("✅ Modal service deployed successfully!")
@@ -110,7 +110,7 @@ def test_modal_service():
     try:
         # Run local test
         result = subprocess.run([
-            "modal", "run", "crescendai_model/deployment/modal_service.py::test_inference"
+            "modal", "run", "src/deployment/modal_service.py::test_inference"
         ], capture_output=True, text=True, check=True, timeout=300)
         
         print("✅ Modal local test passed!")

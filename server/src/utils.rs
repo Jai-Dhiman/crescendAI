@@ -33,6 +33,15 @@ pub fn is_supported_audio_format(extension: &str) -> bool {
     matches!(extension.to_lowercase().as_str(), "wav" | "mp3" | "m4a" | "flac")
 }
 
+/// Compute an HTTP ETag for a JSON string body (weak hash acceptable for demo)
+pub fn compute_etag_from_str(body: &str) -> String {
+    use sha2::{Digest, Sha256};
+    let mut hasher = Sha256::new();
+    hasher.update(body.as_bytes());
+    let hash = hasher.finalize();
+    format!("\"{:x}\"", hash) // quoted etag
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

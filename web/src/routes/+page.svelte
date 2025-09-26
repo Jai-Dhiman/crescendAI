@@ -4,6 +4,7 @@ import { browser } from "$app/environment";
 import { analysisStore } from "$lib/stores/analysis";
 import { crescendApi, type CrescendApiError } from "$lib/services/crescendApi";
 import { Upload, AlertTriangle } from "lucide-svelte";
+import RunOnGPUToggle from "$lib/components/RunOnGPUToggle.svelte";
 
 let files: FileList | null = $state(null);
 let isDragging = $state(false);
@@ -278,6 +279,13 @@ function resetUpload() {
 						</p>
 					</div>
 				{/if} -->
+			</div>
+		</section>
+
+		<!-- GPU Toggle Inline -->
+		<section class="mb-6 mx-auto" style="max-width: 24rem;">
+			<div class="flex justify-center">
+				<RunOnGPUToggle />
 			</div>
 		</section>
 

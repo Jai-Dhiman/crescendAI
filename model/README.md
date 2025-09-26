@@ -5,32 +5,32 @@ Audio Spectrogram Transformer (AST) for 19-dimensional piano performance analysi
 ## Project Structure
 
 ```
-crescendai_model/
-├── __init__.py                 # Main package exports
+src/
+├── __init__.py                 # Top-level package
 ├── core/                       # Core functionality
 │   ├── __init__.py
 │   ├── audio_preprocessing.py  # Audio preprocessing pipeline
-│   └── training.py            # Training pipeline and utilities
+│   └── training.py             # Training pipeline and utilities
 ├── models/                     # Neural network architectures
 │   ├── __init__.py
-│   ├── ast_transformer.py     # Audio Spectrogram Transformer
-│   ├── hybrid_ast.py          # Hybrid AST variants
-│   └── ssast_pretraining.py   # Self-supervised pre-training
+│   ├── ast_transformer.py      # Audio Spectrogram Transformer
+│   ├── hybrid_ast.py           # Hybrid AST variants
+│   └── ssast_pretraining.py    # Self-supervised pre-training
 ├── datasets/                   # Dataset loaders and processors
 │   ├── __init__.py
-│   ├── percepiano_dataset.py  # PercePiano dataset loader
-│   ├── maestro_dataset.py     # MAESTRO dataset loader
+│   ├── percepiano_dataset.py   # PercePiano dataset loader
+│   ├── maestro_dataset.py      # MAESTRO dataset loader
 │   └── ccmusic_piano_dataset.py  # CC Music dataset loader
 ├── api/                        # API contracts and interfaces
 │   ├── __init__.py
-│   └── contracts.py           # Pydantic models for API
+│   └── contracts.py            # Pydantic models for API
 ├── utils/                      # Utility functions
 │   ├── __init__.py
-│   └── preprocessing.py       # Preprocessing helpers
+│   └── preprocessing.py        # Preprocessing helpers
 └── deployment/                 # Deployment utilities
     ├── __init__.py
-    ├── modal_service.py       # Modal service deployment
-    └── deploy.py              # Deployment management script
+    ├── modal_service.py        # Modal service deployment
+    └── (scripts)               # Deployment management scripts
 
 # Additional files
 ├── deploy.py                  # Top-level deployment entry point
@@ -57,10 +57,8 @@ uv pip install -e .
 
 #### Import the main components
 ```python
-from crescendai_model import (
-    PianoAudioPreprocessor,
-    AudioSpectrogramTransformer,
-    PerformanceDimensions
+from src import (
+    # These may be imported from specific submodules after refactor
 )
 
 # Initialize preprocessor
@@ -73,7 +71,7 @@ features = preprocessor.extract_spectral_features(audio_data, sr)
 
 #### Train a model
 ```python
-from crescendai_model.core.training import ASTTrainingPipeline
+from src.core.training import ASTTrainingPipeline
 
 # Initialize training pipeline
 config = {
