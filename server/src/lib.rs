@@ -5,7 +5,6 @@ mod handlers;
 mod security;
 mod storage;
 mod processing;
-mod modal_client;
 mod utils;
 mod audio_dsp;
 mod monitoring;
@@ -108,8 +107,6 @@ pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Respo
         .get_async("/api/v1/result/:id", secure_result_handler)
         .get_async("/api/v1/comparison/:id", secure_comparison_result_handler)
         .post_async("/api/v1/preference", secure_preference_handler)
-        // Webhook endpoints with signature validation (no API key required)
-        .post_async("/webhook/modal", secure_modal_webhook_handler)
         // Health endpoint without authentication (for monitoring)
         .get_async("/api/v1/health", basic_health_handler)
         // Detailed health endpoint (requires authentication)
@@ -400,29 +397,6 @@ async fn secure_preference_handler(req: Request, ctx: RouteContext<()>) -> Resul
     }
 }
 
-/// Secure webhook handler for Modal callbacks with signature validation
-async fn secure_modal_webhook_handler(req: Request, ctx: RouteContext<()>) -> Result<Response> {
-    // Get allowed origins for CORS and check development mode
-    let allowed_origins = get_allowed_origins_from_env(Some(&ctx.env));
-    let is_development = ctx.env.var("ENVIRONMENT")
-        .map(|env| env.to_string() == "development")
-        .unwrap_or(false);
-    
-    // Webhooks don't need API key authentication, but DO need signature validation
-    // The signature validation is handled inside the modal_client::handle_modal_webhook function
-    
-    match modal_client::handle_modal_webhook(req, ctx).await {
-        Ok(mut response) => {
-            add_cors_headers(&mut response, &allowed_origins).ok();
-            Ok(response)
-        }
-        Err(e) => {
-            let mut error_response = secure_error_response(&e, is_development);
-            add_cors_headers(&mut error_response, &allowed_origins).ok();
-            Ok(error_response)
-        }
-    }
-}
 
 /// Basic health check handler (no authentication required)
 async fn basic_health_handler(req: Request, ctx: RouteContext<()>) -> Result<Response> {

@@ -1,0 +1,27 @@
+{
+  "timing_stability": {
+    "low":  {"clip_uri": "", "desc": "Noticeable pulse jitter at the beat level; uneven spacing across bars."},
+    "mid":  {"clip_uri": "", "desc": "Mostly steady pulse with minor fluctuations; generally locked to the beat."},
+    "high": {"clip_uri": "", "desc": "Consistently steady pulse across bars; metronomic without rigidity."}
+  },
+  "articulation_length": {
+    "low":  {"clip_uri": "", "desc": "Notes are overly detached or overly overlapped vs. score intent; inconsistent lengths."},
+    "mid":  {"clip_uri": "", "desc": "Generally appropriate note lengths with occasional mismatch to score phrasing."},
+    "high": {"clip_uri": "", "desc": "Realized durations match score intent closely; crisp legato/staccato where appropriate."}
+  },
+  "pedal_clarity": {
+    "low":  {"clip_uri": "", "desc": "Blurred harmony; excessive sustain obscures inner voices and bass clarity."},
+    "mid":  {"clip_uri": "", "desc": "Pedal mostly supportive; occasional blur on fast harmonic changes."},
+    "high": {"clip_uri": "", "desc": "Clean harmonic transitions; sympathetic resonance controlled; voices remain distinct."}
+  },
+  "dynamic_range": {
+    "low":  {"clip_uri": "", "desc": "Narrow loudness span; little contrast between soft and loud passages."},
+    "mid":  {"clip_uri": "", "desc": "Moderate contrast; dynamic shaping is present but could be broader."},
+    "high": {"clip_uri": "", "desc": "Wide expressive span from true piano to forte; controlled crescendi/decrescendi."}
+  },
+  "phrasing_continuity": {
+    "low":  {"clip_uri": "", "desc": "Phrase breaks feel abrupt; breath-line is unclear or chopped."},
+    "mid":  {"clip_uri": "", "desc": "Mostly continuous phrasing with occasional awkward break points."},
+    "high": {"clip_uri": "", "desc": "Clear long-line; phrase connections are natural and cohesive throughout."}
+  }
+}
