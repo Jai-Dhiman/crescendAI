@@ -1,7 +1,6 @@
 use worker::*;
 use crate::{JobStatus, AnalysisResult, AnalysisData, ComparisonResult, ModelResult};
 use crate::storage;
-use crate::modal_client;
 use crate::audio_dsp;
 
 // Conditional logging macro for test vs WASM environments
@@ -33,19 +32,6 @@ pub async fn start_analysis(env: &Env, file_id: &str, job_id: &str, force_gpu: O
     console_log!("Updating initial job status...");
     storage::update_job_status(env, job_id, &initial_status).await?;
 
-    // Mock-by-default path for portfolio demo cost control
-let use_mock_default = env.var("USE_MOCK_INFERENCE").map(|v| v.to_string() == "true").unwrap_or(false);
-    let use_mock = match force_gpu {
-        Some(true) => false,   // force real GPU
-        _ => use_mock_default, // default behavior
-    };
-    if use_mock {
-        console_log!("USE_MOCK_INFERENCE=true -> generating mock analysis (no GPU call)");
-        let (analysis_data, insights, processing_time) = generate_mock_analysis(file_id);
-        complete_analysis(env, job_id, file_id, analysis_data, insights, Some(processing_time)).await?;
-        return Ok(());
-    }
-    
     // Get audio data from R2
     console_log!("Retrieving audio data from R2 for file_id: {}", file_id);
     let audio_data = storage::get_audio_from_r2(env, file_id).await?;
@@ -65,36 +51,15 @@ let use_mock_default = env.var("USE_MOCK_INFERENCE").map(|v| v.to_string() == "t
     let spectrogram_data = generate_mel_spectrogram(&audio_data).await?;
     console_log!("Generated {} bytes of spectrogram data", spectrogram_data.len());
     
-    // Update status - sending to modal
-    let modal_status = JobStatus {
+    // At this point, inference is not configured. Return an explicit error per project policy.
+    let error_status = JobStatus {
         job_id: job_id.to_string(),
-        status: "processing".to_string(),
+        status: "failed".to_string(),
         progress: 50.0,
-        error: None,
+        error: Some("ML inference not configured".to_string()),
     };
-    storage::update_job_status(env, job_id, &modal_status).await?;
-    
-    // Send to Modal for inference
-    console_log!("Sending to ML service for inference...");
-    match modal_client::send_for_inference(env, &spectrogram_data, job_id, file_id).await {
-        Ok(_) => {
-            console_log!("ML inference completed successfully for job_id: {}", job_id);
-            // Note: send_for_inference already calls complete_analysis() which sets status to "completed"
-        }
-        Err(e) => {
-            console_log!("ML inference failed for job_id: {}: {:?}", job_id, e);
-            let error_status = JobStatus {
-                job_id: job_id.to_string(),
-                status: "failed".to_string(),
-                progress: 0.0,
-                error: Some(e.to_string()),
-            };
-            storage::update_job_status(env, job_id, &error_status).await?;
-            return Err(e);
-        }
-    }
-    
-    Ok(())
+    storage::update_job_status(env, job_id, &error_status).await?;
+    return Err(worker::Error::RustError("ML inference not configured".to_string()));
 }
 
 async fn generate_mel_spectrogram(audio_data: &[u8]) -> Result<Vec<u8>> {
@@ -138,37 +103,6 @@ fn create_placeholder_spectrogram() -> Vec<u8> {
     data
 }
 
-/// Generate a lightweight mock analysis to avoid real GPU costs in demos
-fn generate_mock_analysis(_file_id: &str) -> (AnalysisData, Vec<String>, f32) {
-    // Simple deterministic pseudo-random generator to avoid rand in WASM
-    let mut seed = (js_sys::Date::now() as u64).wrapping_mul(6364136223846793005);
-    let mut next = || {
-        // xorshift64*
-        let mut x = seed;
-        x ^= x >> 12;
-        x ^= x << 25;
-        x ^= x >> 27;
-        seed = x;
-        ((x.wrapping_mul(2685821657736338717) >> 33) as f32) / (u32::MAX as f32)
-    };
-    let mut randf = || 0.3f32 + 0.6f32 * next().abs().min(1.0);
-
-    let data = AnalysisData {
-        rhythm: randf(), pitch: randf(), dynamics: randf(), tempo: randf(), articulation: randf(),
-        expression: randf(), technique: randf(), timing: randf(), phrasing: randf(), voicing: randf(),
-        pedaling: randf(), hand_coordination: randf(), musical_understanding: randf(), stylistic_accuracy: randf(),
-        creativity: randf(), listening: randf(), overall_performance: randf(), stage_presence: randf(),
-        repertoire_difficulty: randf(),
-    };
-
-    let insights = vec![
-        "Strong rhythmic stability".to_string(),
-        "Balanced dynamics with room for expressiveness".to_string(),
-    ];
-
-    let processing_time = 0.05 + 0.1 * next();
-    (data, insights, processing_time)
-}
 
 pub async fn complete_analysis(
     env: &Env, 

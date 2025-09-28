@@ -1,5 +1,39 @@
 # CrescendAI Model - Piano Performance Analysis
 
+Two-Model Architecture (Evaluator + Tutor)
+
+Overview
+- Evaluator (PyTorch): audio segments → multidimensional performance scores (execution, phrasing, timbre). Lives in scorer/ with training on masked multi-task regression, optional pseudo-labels and distillation.
+- Tutor (RAG): takes evaluator outputs (global scores, time-local hotspots, uncertainties) + piece metadata; retrieves curated masterclasses/teacher docs/recordings and generates actionable, citeable feedback with a small instruction model. Lives outside this folder (web/server), but data contracts are defined here.
+
+Data flow
+1) Data ingestion
+   - Datasets: MAESTRO/ASAP/MAPS (execution/phrasing), CCMusic/MusicNet/YouTube (timbre/interpretation anchors)
+   - Alignment (optional but recommended): VirtuosoNet pyScoreParser to get bar/beat-aligned segments for MAESTRO/ASAP/MAPS
+2) Segmentation
+   - 10–20s segments (8–16 bars where aligned). Manifests in data/manifests and data/splits
+3) Labeling
+   - Human labels (targeted dims per dataset) via quick labeler; anchors in data/anchors
+   - Pseudo-labels (optional): symbolic proxies from aligned MIDI (timing/articulation/pedal/dynamics) in symbolic/
+4) Training (Evaluator)
+   - PyTorch Lightning loop (scorer/train.py) with masked multi-task loss, optional pseudo-loss and cosine distillation from symbolic embeddings
+   - Calibration per dimension on validation set
+5) Inference (Evaluator)
+   - Outputs: per-dimension scores [0..1], uncertainties (MC-dropout), time-local hotspots (optional local heads), and provenance
+6) Tutor (RAG)
+   - Index corpus of masterclasses/teacher docs/recordings with dimension/difficulty tags; hybrid search (dense + filters)
+   - Generate JSON-first feedback using retrieved context + evaluator outputs; include citations and targeted drills
+
+Where to look
+- Labeling + training guide: README_EVALUATOR.md
+- Evaluator code: scorer/ (dataset.py, model.py, train.py, infer.py, calibrate.py)
+- Symbolic helpers (pseudo-labels/calibration): symbolic/
+
+Quick commands (Evaluator)
+- Train: uv run python scorer/train.py
+- Infer (MC uncertainty): use scorer/infer.py utilities
+- Calibrate: scorer/calibrate.py on held-out predictions
+
 Audio Spectrogram Transformer (AST) for 19-dimensional piano performance analysis using JAX/Flax.
 
 ## Project Structure
