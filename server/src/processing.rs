@@ -195,20 +195,6 @@ pub async fn start_model_comparison(
     
     storage::update_job_status(env, comparison_id, &initial_status).await?;
 
-    // Mock-by-default path for portfolio demo cost control
-let use_mock_default = env.var("USE_MOCK_INFERENCE").map(|v| v.to_string() == "true").unwrap_or(false);
-    let use_mock = match force_gpu {
-        Some(true) => false,
-        _ => use_mock_default,
-    };
-    if use_mock {
-        console_log!("USE_MOCK_INFERENCE=true -> generating mock comparison (no GPU calls)");
-        let (a_data, a_insights, a_time) = generate_mock_analysis(file_id);
-        let (b_data, b_insights, b_time) = generate_mock_analysis(file_id);
-        complete_model_comparison(env, comparison_id, file_id, (a_data, a_insights, Some(a_time)), (b_data, b_insights, Some(b_time))).await?;
-        return Ok(());
-    }
-    
     // Get audio data from R2
     console_log!("Retrieving audio data from R2 for file_id: {}", file_id);
     let audio_data = storage::get_audio_from_r2(env, file_id).await?;
@@ -236,46 +222,15 @@ let use_mock_default = env.var("USE_MOCK_INFERENCE").map(|v| v.to_string() == "t
     };
     storage::update_job_status(env, comparison_id, &inference_status).await?;
     
-    // Run both models in parallel
-    console_log!("Running parallel inference for models {} and {}", model_a, model_b);
-    
-    let model_a_future = modal_client::send_for_inference_with_model(
-        env, &spectrogram_data, comparison_id, file_id, model_a
-    );
-    let model_b_future = modal_client::send_for_inference_with_model(
-        env, &spectrogram_data, comparison_id, file_id, model_b
-    );
-    
-    // Wait for both models to complete
-    let (result_a, result_b) = match futures::try_join!(model_a_future, model_b_future) {
-        Ok((a, b)) => (a, b),
-        Err(e) => {
-            console_log!("Parallel inference failed for comparison {}: {:?}", comparison_id, e);
-            let error_status = JobStatus {
-                job_id: comparison_id.to_string(),
-                status: "failed".to_string(),
-                progress: 0.0,
-                error: Some(e.to_string()),
-            };
-            storage::update_job_status(env, comparison_id, &error_status).await?;
-            return Err(e);
-        }
-    };
-    
-    // Update status - processing results
-    let processing_status = JobStatus {
+    // Inference not configured; return explicit error for comparison as well
+    let error_status = JobStatus {
         job_id: comparison_id.to_string(),
-        status: "processing".to_string(),
-        progress: 80.0,
-        error: None,
+        status: "failed".to_string(),
+        progress: 50.0,
+        error: Some("Model comparison not configured".to_string()),
     };
-    storage::update_job_status(env, comparison_id, &processing_status).await?;
-    
-    // Complete the comparison
-    complete_model_comparison(env, comparison_id, file_id, result_a, result_b).await?;
-    
-    console_log!("Model comparison completed successfully for comparison_id: {}", comparison_id);
-    Ok(())
+    storage::update_job_status(env, comparison_id, &error_status).await?;
+    return Err(worker::Error::RustError("Model comparison not configured".to_string()));
 }
 
 pub async fn complete_model_comparison(
