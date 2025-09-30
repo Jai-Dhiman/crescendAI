@@ -4,13 +4,11 @@
 
 ## Overview
 
-CrescendAI is a cutting-edge mobile research platform that uses state-of-the-art machine learning to analyze piano performances across 19 different dimensions. Built with a focus on technical excellence and research demonstration, the platform combines advanced Audio Spectrogram Transformer (AST) models with high-performance systems architecture to deliver real-time, comprehensive analysis of piano recordings.
-
-The system provides detailed insights into technical performance, tonal quality, musical expression, and interpretive qualities—offering both pianists and researchers unprecedented analytical depth.
+CrescendAI is a platform that uses machine learning to analyze piano performances across 16 different dimensions. The platform uses Audio Spectrogram Transformer (AST) models with  to deliver comprehensive analysis of classical piano recordings. The system provides detailed insights into technical performance, tonal quality, musical expression, and interpretive qualities.
 
 ## 🚀 Key Features
 
-### **19-Dimensional Performance Analysis**
+### **16-Dimensional Performance Analysis**
 
 - **Technical Metrics**: Timing stability, articulation control, pedal technique
 - **Tonal Quality**: Timbre variation, harmonic richness, dynamic projection  
@@ -76,7 +74,7 @@ The system provides detailed insights into technical performance, tonal quality,
 
 ```bash
 # Clone the repository
-git clone https://github.com/Jai0Dhiman/crescendai.git
+git clone https://github.com/Jai-Dhiman/crescendai.git
 cd crescendai
 
 # Install Python dependencies (using uv)
@@ -131,7 +129,7 @@ uv pip install -r requirements.txt
 
 ### **Interpreting Results**
 
-- **Radar Chart**: Visual overview of all 19 performance dimensions
+- **Radar Chart**: Visual overview of all 16 performance dimensions
 - **Temporal Analysis**: Performance quality changes over time
 - **Historical Comparison**: Track improvement across multiple recordings
 - **Raw Scores**: Detailed numerical data for technical analysis

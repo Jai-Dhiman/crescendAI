@@ -30,6 +30,9 @@ hound = "3.5"
 num-complex = "0.4"
 log = "0.4"
 realfft = "3.3"
+# ML inference dependencies (using simple rule-based evaluator)
+# ort = "2.0.0-rc.10"  # Disabled - no WASM support
+# ndarray = "0.15"     # Disabled - not needed for simple evaluator
 
 [dependencies.web-sys]
 version = "0.3"

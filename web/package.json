@@ -24,7 +24,8 @@
 		"test:all": "npm run test:run && npm run test:e2e",
 		"analyze:bundle": "vite build --mode analyze",
 		"build:perf": "vite build --mode production --sourcemap",
-		"lighthouse": "lighthouse http://localhost:4173 --output html --output-path ./lighthouse-report.html"
+		"lighthouse": "lighthouse http://localhost:4173 --output html --output-path ./lighthouse-report.html",
+		"deploy": "bun run build && wrangler pages deploy build --project-name crescendai-web"
 	},
 	"dependencies": {
 		"@tanstack/svelte-form": "^1.19.4",
@@ -38,7 +39,7 @@
 		"zustand": "^5.0.8"
 	},
 	"devDependencies": {
-		"@biomejs/biome": "^2.1.4",
+		"@biomejs/biome": "2.1.4",
 		"@playwright/test": "^1.55.0",
 		"@sentry/vite-plugin": "^4.3.0",
 		"@sveltejs/adapter-auto": "^6.0.0",

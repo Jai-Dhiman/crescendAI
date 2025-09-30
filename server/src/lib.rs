@@ -8,6 +8,10 @@ mod processing;
 mod utils;
 mod audio_dsp;
 mod monitoring;
+mod simple_evaluator;
+mod percepiano_evaluator;
+mod knowledge_base; // TUTOR Phase 2: RAG retrieval interfaces
+mod tutor;         // TUTOR Phase 2: LLM integration and schema
 
 use security::{validate_api_key, get_client_ip, RateLimiter, secure_error_response};
 use monitoring::{RequestLogger, HealthChecker, SystemInfo};
@@ -62,25 +66,25 @@ pub struct UserPreference {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct AnalysisData {
-    pub rhythm: f32,
-    pub pitch: f32,
-    pub dynamics: f32,
-    pub tempo: f32,
-    pub articulation: f32,
-    pub expression: f32,
-    pub technique: f32,
-    pub timing: f32,
-    pub phrasing: f32,
-    pub voicing: f32,
-    pub pedaling: f32,
-    pub hand_coordination: f32,
-    pub musical_understanding: f32,
-    pub stylistic_accuracy: f32,
-    pub creativity: f32,
-    pub listening: f32,
-    pub overall_performance: f32,
-    pub stage_presence: f32,
-    pub repertoire_difficulty: f32,
+    pub timing_stable_unstable: f32,
+    pub articulation_short_long: f32,
+    pub articulation_soft_hard: f32,
+    pub pedal_sparse_saturated: f32,
+    pub pedal_clean_blurred: f32,
+    pub timbre_even_colorful: f32,
+    pub timbre_shallow_rich: f32,
+    pub timbre_bright_dark: f32,
+    pub timbre_soft_loud: f32,
+    pub dynamic_sophisticated_raw: f32,
+    pub dynamic_range_little_large: f32,
+    pub music_making_fast_slow: f32,
+    pub music_making_flat_spacious: f32,
+    pub music_making_disproportioned_balanced: f32,
+    pub music_making_pure_dramatic: f32,
+    pub emotion_mood_optimistic_dark: f32,
+    pub emotion_mood_low_high_energy: f32,
+    pub emotion_mood_honest_imaginative: f32,
+    pub interpretation_unsatisfactory_convincing: f32,
 }
 
 #[event(fetch)]
@@ -98,6 +102,7 @@ pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Respo
         .options("/api/v1/result/:id", handle_options)
         .options("/api/v1/comparison/:id", handle_options)
         .options("/api/v1/preference", handle_options)
+        .options("/api/v1/tutor", handle_options)
         .options("/api/v1/health", handle_options)
         // Main API routes with authentication and CORS
         .post_async("/api/v1/upload", secure_upload_handler)
@@ -107,6 +112,7 @@ pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Respo
         .get_async("/api/v1/result/:id", secure_result_handler)
         .get_async("/api/v1/comparison/:id", secure_comparison_result_handler)
         .post_async("/api/v1/preference", secure_preference_handler)
+        .post_async("/api/v1/tutor", secure_tutor_handler)
         // Health endpoint without authentication (for monitoring)
         .get_async("/api/v1/health", basic_health_handler)
         // Detailed health endpoint (requires authentication)
@@ -132,9 +138,8 @@ fn get_allowed_origins_from_env(env: Option<&Env>) -> Vec<String> {
     
     // Safe defaults if environment variable is not set
     vec![
-        "https://crescendai.com".to_string(),
-        "https://app.crescendai.com".to_string(),
-        "https://www.crescendai.com".to_string(),
+        "https://crescend.ai".to_string(),
+        "https://www.crescend.ai".to_string(),
         "http://localhost:3000".to_string(),  // Development
         "http://localhost:5173".to_string(),  // Vite dev server
     ]
@@ -145,16 +150,28 @@ fn get_allowed_origins() -> Vec<String> {
     get_allowed_origins_from_env(None)
 }
 
+/// Resolve which origin to allow based on the request's Origin header
+fn resolve_cors_origin(req_origin: Option<&str>, allowed: &[String]) -> String {
+    if let Some(origin) = req_origin {
+        if allowed.iter().any(|o| o == origin) {
+            return origin.to_string();
+        }
+    }
+    // Fallback to first allowed origin or a safe default
+    allowed
+        .first()
+        .cloned()
+        .unwrap_or_else(|| "https://crescend.ai".to_string())
+}
+
 /// Add CORS headers to a response with proper origin validation
-fn add_cors_headers(response: &mut Response, allowed_origins: &[String]) -> Result<()> {
+fn add_cors_headers(response: &mut Response, allowed_origins: &[String], req_origin: Option<&str>) -> Result<()> {
     let headers = response.headers_mut();
-    
-    // Set a safe default origin (first in the list)
-    let origin = allowed_origins.first()
-        .map(|s| s.as_str())
-        .unwrap_or("https://crescendai.com");
-    
-    headers.set("Access-Control-Allow-Origin", origin)
+
+    // Choose the appropriate origin
+    let origin = resolve_cors_origin(req_origin, allowed_origins);
+
+    headers.set("Access-Control-Allow-Origin", &origin)
         .map_err(|_| worker::Error::RustError("Failed to set CORS origin".to_string()))?;
     headers.set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
         .map_err(|_| worker::Error::RustError("Failed to set CORS methods".to_string()))?;
@@ -187,17 +204,10 @@ async fn validate_request_security(req: &Request, env: &Env) -> Result<()> {
 fn handle_options(req: Request, _ctx: RouteContext<()>) -> Result<Response> {
     let mut response = Response::empty()?;
     let allowed_origins = get_allowed_origins();
-    
-    // Get the origin from request and validate it
-    if let Ok(Some(origin)) = req.headers().get("Origin") {
-        if allowed_origins.contains(&origin) {
-            let headers = response.headers_mut();
-            headers.set("Access-Control-Allow-Origin", &origin)
-                .map_err(|_| worker::Error::RustError("Failed to set CORS origin".to_string()))?;
-        }
-    }
-    
-    add_cors_headers(&mut response, &allowed_origins)?;
+
+    // Use request origin if allowed
+    let req_origin = req.headers().get("Origin").ok().flatten();
+    add_cors_headers(&mut response, &allowed_origins, req_origin.as_deref())?;
     Ok(response)
 }
 
@@ -208,22 +218,25 @@ async fn secure_upload_handler(req: Request, ctx: RouteContext<()>) -> Result<Re
     let is_development = ctx.env.var("ENVIRONMENT")
         .map(|env| env.to_string() == "development")
         .unwrap_or(false);
+
+    // Capture origin before moving req
+    let req_origin = req.headers().get("Origin").ok().flatten();
     
     // Validate security first
     if let Err(security_error) = validate_request_security(&req, &ctx.env).await {
         let mut error_response = secure_error_response(&security_error, is_development);
-        add_cors_headers(&mut error_response, &allowed_origins).ok();
+        add_cors_headers(&mut error_response, &allowed_origins, req_origin.as_deref()).ok();
         return Ok(error_response);
     }
     
     match handlers::upload_audio(req, ctx).await {
         Ok(mut response) => {
-            add_cors_headers(&mut response, &allowed_origins).ok();
+            add_cors_headers(&mut response, &allowed_origins, req_origin.as_deref()).ok();
             Ok(response)
         }
         Err(e) => {
             let mut error_response = secure_error_response(&e, is_development);
-            add_cors_headers(&mut error_response, &allowed_origins).ok();
+            add_cors_headers(&mut error_response, &allowed_origins, req_origin.as_deref()).ok();
             Ok(error_response)
         }
     }
@@ -236,22 +249,25 @@ async fn secure_analyze_handler(req: Request, ctx: RouteContext<()>) -> Result<R
     let is_development = ctx.env.var("ENVIRONMENT")
         .map(|env| env.to_string() == "development")
         .unwrap_or(false);
+
+    // Capture origin before moving req
+    let req_origin = req.headers().get("Origin").ok().flatten();
     
     // Validate security first
     if let Err(security_error) = validate_request_security(&req, &ctx.env).await {
         let mut error_response = secure_error_response(&security_error, is_development);
-        add_cors_headers(&mut error_response, &allowed_origins).ok();
+        add_cors_headers(&mut error_response, &allowed_origins, req_origin.as_deref()).ok();
         return Ok(error_response);
     }
     
     match handlers::analyze_audio(req, ctx).await {
         Ok(mut response) => {
-            add_cors_headers(&mut response, &allowed_origins).ok();
+            add_cors_headers(&mut response, &allowed_origins, req_origin.as_deref()).ok();
             Ok(response)
         }
         Err(e) => {
             let mut error_response = secure_error_response(&e, is_development);
-            add_cors_headers(&mut error_response, &allowed_origins).ok();
+            add_cors_headers(&mut error_response, &allowed_origins, req_origin.as_deref()).ok();
             Ok(error_response)
         }
     }
@@ -264,22 +280,25 @@ async fn secure_job_status_handler(req: Request, ctx: RouteContext<()>) -> Resul
     let is_development = ctx.env.var("ENVIRONMENT")
         .map(|env| env.to_string() == "development")
         .unwrap_or(false);
+
+    // Capture origin before moving req
+    let req_origin = req.headers().get("Origin").ok().flatten();
     
     // Validate security first
     if let Err(security_error) = validate_request_security(&req, &ctx.env).await {
         let mut error_response = secure_error_response(&security_error, is_development);
-        add_cors_headers(&mut error_response, &allowed_origins).ok();
+        add_cors_headers(&mut error_response, &allowed_origins, req_origin.as_deref()).ok();
         return Ok(error_response);
     }
     
     match handlers::get_job_status(req, ctx).await {
         Ok(mut response) => {
-            add_cors_headers(&mut response, &allowed_origins).ok();
+            add_cors_headers(&mut response, &allowed_origins, req_origin.as_deref()).ok();
             Ok(response)
         }
         Err(e) => {
             let mut error_response = secure_error_response(&e, is_development);
-            add_cors_headers(&mut error_response, &allowed_origins).ok();
+            add_cors_headers(&mut error_response, &allowed_origins, req_origin.as_deref()).ok();
             Ok(error_response)
         }
     }
@@ -292,22 +311,25 @@ async fn secure_result_handler(req: Request, ctx: RouteContext<()>) -> Result<Re
     let is_development = ctx.env.var("ENVIRONMENT")
         .map(|env| env.to_string() == "development")
         .unwrap_or(false);
+
+    // Capture origin before moving req
+    let req_origin = req.headers().get("Origin").ok().flatten();
     
     // Validate security first
     if let Err(security_error) = validate_request_security(&req, &ctx.env).await {
         let mut error_response = secure_error_response(&security_error, is_development);
-        add_cors_headers(&mut error_response, &allowed_origins).ok();
+        add_cors_headers(&mut error_response, &allowed_origins, req_origin.as_deref()).ok();
         return Ok(error_response);
     }
     
     match handlers::get_analysis_result(req, ctx).await {
         Ok(mut response) => {
-            add_cors_headers(&mut response, &allowed_origins).ok();
+            add_cors_headers(&mut response, &allowed_origins, req_origin.as_deref()).ok();
             Ok(response)
         }
         Err(e) => {
             let mut error_response = secure_error_response(&e, is_development);
-            add_cors_headers(&mut error_response, &allowed_origins).ok();
+            add_cors_headers(&mut error_response, &allowed_origins, req_origin.as_deref()).ok();
             Ok(error_response)
         }
     }
@@ -320,22 +342,25 @@ async fn secure_compare_handler(req: Request, ctx: RouteContext<()>) -> Result<R
     let is_development = ctx.env.var("ENVIRONMENT")
         .map(|env| env.to_string() == "development")
         .unwrap_or(false);
+
+    // Capture origin before moving req
+    let req_origin = req.headers().get("Origin").ok().flatten();
     
     // Validate security first
     if let Err(security_error) = validate_request_security(&req, &ctx.env).await {
         let mut error_response = secure_error_response(&security_error, is_development);
-        add_cors_headers(&mut error_response, &allowed_origins).ok();
+        add_cors_headers(&mut error_response, &allowed_origins, req_origin.as_deref()).ok();
         return Ok(error_response);
     }
     
     match handlers::compare_models(req, ctx).await {
         Ok(mut response) => {
-            add_cors_headers(&mut response, &allowed_origins).ok();
+            add_cors_headers(&mut response, &allowed_origins, req_origin.as_deref()).ok();
             Ok(response)
         }
         Err(e) => {
             let mut error_response = secure_error_response(&e, is_development);
-            add_cors_headers(&mut error_response, &allowed_origins).ok();
+            add_cors_headers(&mut error_response, &allowed_origins, req_origin.as_deref()).ok();
             Ok(error_response)
         }
     }
@@ -348,22 +373,25 @@ async fn secure_comparison_result_handler(req: Request, ctx: RouteContext<()>) -
     let is_development = ctx.env.var("ENVIRONMENT")
         .map(|env| env.to_string() == "development")
         .unwrap_or(false);
+
+    // Capture origin before moving req
+    let req_origin = req.headers().get("Origin").ok().flatten();
     
     // Validate security first
     if let Err(security_error) = validate_request_security(&req, &ctx.env).await {
         let mut error_response = secure_error_response(&security_error, is_development);
-        add_cors_headers(&mut error_response, &allowed_origins).ok();
+        add_cors_headers(&mut error_response, &allowed_origins, req_origin.as_deref()).ok();
         return Ok(error_response);
     }
     
     match handlers::get_comparison_result(req, ctx).await {
         Ok(mut response) => {
-            add_cors_headers(&mut response, &allowed_origins).ok();
+            add_cors_headers(&mut response, &allowed_origins, req_origin.as_deref()).ok();
             Ok(response)
         }
         Err(e) => {
             let mut error_response = secure_error_response(&e, is_development);
-            add_cors_headers(&mut error_response, &allowed_origins).ok();
+            add_cors_headers(&mut error_response, &allowed_origins, req_origin.as_deref()).ok();
             Ok(error_response)
         }
     }
@@ -376,22 +404,56 @@ async fn secure_preference_handler(req: Request, ctx: RouteContext<()>) -> Resul
     let is_development = ctx.env.var("ENVIRONMENT")
         .map(|env| env.to_string() == "development")
         .unwrap_or(false);
+
+    // Capture origin before moving req
+    let req_origin = req.headers().get("Origin").ok().flatten();
     
     // Validate security first
     if let Err(security_error) = validate_request_security(&req, &ctx.env).await {
         let mut error_response = secure_error_response(&security_error, is_development);
-        add_cors_headers(&mut error_response, &allowed_origins).ok();
+        add_cors_headers(&mut error_response, &allowed_origins, req_origin.as_deref()).ok();
         return Ok(error_response);
     }
     
     match handlers::save_user_preference(req, ctx).await {
         Ok(mut response) => {
-            add_cors_headers(&mut response, &allowed_origins).ok();
+            add_cors_headers(&mut response, &allowed_origins, req_origin.as_deref()).ok();
             Ok(response)
         }
         Err(e) => {
             let mut error_response = secure_error_response(&e, is_development);
-            add_cors_headers(&mut error_response, &allowed_origins).ok();
+            add_cors_headers(&mut error_response, &allowed_origins, req_origin.as_deref()).ok();
+            Ok(error_response)
+        }
+    }
+}
+
+/// Secure tutor handler with authentication and CORS
+async fn secure_tutor_handler(req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    // Get allowed origins for CORS and check development mode
+    let allowed_origins = get_allowed_origins_from_env(Some(&ctx.env));
+    let is_development = ctx.env.var("ENVIRONMENT")
+        .map(|env| env.to_string() == "development")
+        .unwrap_or(false);
+
+    // Capture origin before moving req
+    let req_origin = req.headers().get("Origin").ok().flatten();
+
+    // Validate security first
+    if let Err(security_error) = validate_request_security(&req, &ctx.env).await {
+        let mut error_response = secure_error_response(&security_error, is_development);
+        add_cors_headers(&mut error_response, &allowed_origins, req_origin.as_deref()).ok();
+        return Ok(error_response);
+    }
+
+    match handlers::generate_tutor_feedback(req, ctx).await {
+        Ok(mut response) => {
+            add_cors_headers(&mut response, &allowed_origins, req_origin.as_deref()).ok();
+            Ok(response)
+        }
+        Err(e) => {
+            let mut error_response = secure_error_response(&e, is_development);
+            add_cors_headers(&mut error_response, &allowed_origins, req_origin.as_deref()).ok();
             Ok(error_response)
         }
     }
@@ -423,7 +485,10 @@ async fn basic_health_handler(req: Request, ctx: RouteContext<()>) -> Result<Res
     }))?;
     
     response = response.with_status(status_code);
-    add_cors_headers(&mut response, &allowed_origins)?;
+
+    // Use request origin if present
+    let req_origin = req.headers().get("Origin").ok().flatten();
+    add_cors_headers(&mut response, &allowed_origins, req_origin.as_deref())?;
     
     logger.log_request_complete(status_code, None);
     Ok(response)
@@ -438,11 +503,14 @@ async fn secure_detailed_health_handler(req: Request, ctx: RouteContext<()>) -> 
     let is_development = ctx.env.var("ENVIRONMENT")
         .map(|env| env.to_string() == "development")
         .unwrap_or(false);
+
+    // Capture origin before moving req
+    let req_origin = req.headers().get("Origin").ok().flatten();
     
     // Validate security first
     if let Err(security_error) = validate_request_security(&req, &ctx.env).await {
         let mut error_response = secure_error_response(&security_error, is_development);
-        add_cors_headers(&mut error_response, &allowed_origins).ok();
+        add_cors_headers(&mut error_response, &allowed_origins, req_origin.as_deref()).ok();
         logger.log_error(&format!("{}", security_error), "authentication", None);
         return Ok(error_response);
     }
@@ -474,7 +542,7 @@ async fn secure_detailed_health_handler(req: Request, ctx: RouteContext<()>) -> 
     }))?;
     
     response = response.with_status(status_code);
-    add_cors_headers(&mut response, &allowed_origins)?;
+    add_cors_headers(&mut response, &allowed_origins, req_origin.as_deref())?;
     
     logger.log_request_complete(status_code, None);
     Ok(response)
@@ -490,10 +558,13 @@ async fn secure_system_info_handler(req: Request, ctx: RouteContext<()>) -> Resu
         .map(|env| env.to_string() == "development")
         .unwrap_or(false);
     
+    // Capture origin before moving req
+    let req_origin = req.headers().get("Origin").ok().flatten();
+    
     // Validate security first
     if let Err(security_error) = validate_request_security(&req, &ctx.env).await {
         let mut error_response = secure_error_response(&security_error, is_development);
-        add_cors_headers(&mut error_response, &allowed_origins).ok();
+        add_cors_headers(&mut error_response, &allowed_origins, req_origin.as_deref()).ok();
         logger.log_error(&format!("{}", security_error), "authentication", None);
         return Ok(error_response);
     }
@@ -511,7 +582,7 @@ async fn secure_system_info_handler(req: Request, ctx: RouteContext<()>) -> Resu
         }
     }))?;
     
-    add_cors_headers(&mut response, &allowed_origins)?;
+    add_cors_headers(&mut response, &allowed_origins, req_origin.as_deref())?;
     
     logger.log_request_complete(200, None);
     Ok(response)

@@ -7,6 +7,8 @@ use crate::security::{
     validate_file_type, sanitize_filename, validate_uuid, validate_body_size, 
     secure_error_response, SecurityError
 };
+use crate::tutor::{UserContext};
+use crate::AnalysisData;
 
 pub async fn upload_audio(mut req: Request, ctx: RouteContext<()>) -> Result<Response> {
     const MAX_FILE_SIZE: usize = 50 * 1024 * 1024; // 50MB limit
@@ -356,6 +358,104 @@ pub async fn save_user_preference(mut req: Request, ctx: RouteContext<()>) -> Re
         }
         Err(e) => {
             console_log!("Failed to save preference for comparison {}: {:?}", comparison_id, e);
+            let is_dev = ctx.env.var("ENVIRONMENT")
+                .map(|v| v.to_string() == "development")
+                .unwrap_or(false);
+            Ok(secure_error_response(&e, is_dev))
+        }
+    }
+}
+
+pub async fn generate_tutor_feedback(mut req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    const MAX_JSON_SIZE: usize = 8 * 1024; // 8KB limit for tutor payload
+
+    // Check Content-Length header for early validation
+    if let Ok(Some(content_length)) = req.headers().get("Content-Length") {
+        if let Ok(size) = content_length.parse::<usize>() {
+            validate_body_size(size, MAX_JSON_SIZE)?;
+        }
+    }
+
+    let body: serde_json::Value = req.json().await?;
+
+    // Parse analysis (supports both existing AnalysisData and PercepPiano 19-d schema)
+    let analysis_val = body.get("analysis")
+        .ok_or_else(|| worker::Error::from(SecurityError::InvalidInput("Missing analysis".to_string())))?;
+
+    // First attempt: directly parse to AnalysisData
+    let analysis: AnalysisData = match serde_json::from_value::<AnalysisData>(analysis_val.clone()) {
+        Ok(a) => a,
+        Err(_) => {
+            // Second attempt: parse PercepPiano schema and map
+            #[derive(serde::Deserialize)]
+            struct PP19 {
+                timing_stable_unstable: f32,
+                articulation_short_long: f32,
+                articulation_soft_hard: f32,
+                pedal_sparse_saturated: f32,
+                pedal_clean_blurred: f32,
+                timbre_even_colorful: f32,
+                timbre_shallow_rich: f32,
+                timbre_bright_dark: f32,
+                timbre_soft_loud: f32,
+                dynamic_sophisticated_raw: f32,
+                dynamic_range_little_large: f32,
+                music_making_fast_slow: f32,
+                music_making_flat_spacious: f32,
+                music_making_disproportioned_balanced: f32,
+                music_making_pure_dramatic: f32,
+                emotion_mood_optimistic_dark: f32,
+                emotion_mood_low_high_energy: f32,
+                emotion_mood_honest_imaginative: f32,
+                interpretation_unsatisfactory_convincing: f32,
+            }
+            fn avg(a: f32, b: f32) -> f32 { ((a + b) / 2.0).clamp(0.0, 1.0) }
+            let pp: PP19 = serde_json::from_value(analysis_val.clone())
+                .map_err(|_| worker::Error::from(SecurityError::InvalidInput("Invalid analysis payload (schema)".to_string())))?;
+            // Mapping notes: use PercepPiano 19-d schema directly to AnalysisData (same schema)
+            AnalysisData {
+                timing_stable_unstable: pp.timing_stable_unstable,
+                articulation_short_long: pp.articulation_short_long,
+                articulation_soft_hard: pp.articulation_soft_hard,
+                pedal_sparse_saturated: pp.pedal_sparse_saturated,
+                pedal_clean_blurred: pp.pedal_clean_blurred,
+                timbre_even_colorful: pp.timbre_even_colorful,
+                timbre_shallow_rich: pp.timbre_shallow_rich,
+                timbre_bright_dark: pp.timbre_bright_dark,
+                timbre_soft_loud: pp.timbre_soft_loud,
+                dynamic_sophisticated_raw: pp.dynamic_sophisticated_raw,
+                dynamic_range_little_large: pp.dynamic_range_little_large,
+                music_making_fast_slow: pp.music_making_fast_slow,
+                music_making_flat_spacious: pp.music_making_flat_spacious,
+                music_making_disproportioned_balanced: pp.music_making_disproportioned_balanced,
+                music_making_pure_dramatic: pp.music_making_pure_dramatic,
+                emotion_mood_optimistic_dark: pp.emotion_mood_optimistic_dark,
+                emotion_mood_low_high_energy: pp.emotion_mood_low_high_energy,
+                emotion_mood_honest_imaginative: pp.emotion_mood_honest_imaginative,
+                interpretation_unsatisfactory_convincing: pp.interpretation_unsatisfactory_convincing,
+            }
+        }
+    };
+
+    // Parse user_context
+    let user_ctx_val = body.get("user_context")
+        .ok_or_else(|| worker::Error::from(SecurityError::InvalidInput("Missing user_context".to_string())))?;
+    let user_ctx: UserContext = serde_json::from_value(user_ctx_val.clone())
+        .map_err(|_| worker::Error::from(SecurityError::InvalidInput("Invalid user_context payload".to_string())))?;
+
+    // Options
+    let top_k = body.get("options").and_then(|o| o.get("top_k")).and_then(|v| v.as_u64()).unwrap_or(0) as usize;
+
+    // Ensure Tutor feature is enabled
+    let enabled = ctx.env.var("TUTOR_ENABLED").map(|v| v.to_string() == "true").unwrap_or(true);
+    if !enabled {
+        return Err(worker::Error::from(SecurityError::InvalidInput("Tutor service disabled".to_string())));
+    }
+
+    // Generate feedback
+    match crate::tutor::generate_feedback(&ctx.env, &analysis, &user_ctx, top_k).await {
+        Ok(feedback) => Response::from_json(&feedback),
+        Err(e) => {
             let is_dev = ctx.env.var("ENVIRONMENT")
                 .map(|v| v.to_string() == "development")
                 .unwrap_or(false);

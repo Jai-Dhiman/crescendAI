@@ -38,7 +38,9 @@ def resolve_file_uri(uri: str) -> str:
     return uri
 
 
-def safe_slice_audio(path: Path, t0: float, t1: float, target_sr: Optional[int] = None) -> Optional[bytes]:
+def safe_slice_audio(
+    path: Path, t0: float, t1: float, target_sr: Optional[int] = None
+) -> Optional[bytes]:
     """Load and slice audio to [t0, t1], return WAV bytes suitable for st.audio.
     Explicit exceptions where appropriate per user preference; otherwise return None on recoverable cases.
     """
@@ -89,7 +91,9 @@ def load_anchors(anchors_path: Path) -> Dict[str, Dict[str, Dict[str, str]]]:
         return {}
 
 
-def merge_labels(orig: Dict, new_labels: Dict[str, float], new_mask: Dict[str, int]) -> Dict:
+def merge_labels(
+    orig: Dict, new_labels: Dict[str, float], new_mask: Dict[str, int]
+) -> Dict:
     eg = dict(orig)
     labels = dict(eg.get("labels") or {})
     labels.update(new_labels)
@@ -123,9 +127,11 @@ with st.sidebar:
             default_manifests.append(p)
     manifest_path_str = st.selectbox(
         "Manifest JSONL",
-        options=(default_manifests + ["<custom path>"])
-        if default_manifests
-        else ["<custom path>"],
+        options=(
+            (default_manifests + ["<custom path>"])
+            if default_manifests
+            else ["<custom path>"]
+        ),
         index=0,
     )
     if manifest_path_str == "<custom path>":
@@ -194,7 +200,9 @@ with st.expander("Audio", expanded=True):
 # Dimensions and labeling UI
 dims: List[str] = list(example.get("dims") or [])
 if not dims:
-    st.warning("This segment has no dims field; add dims to your manifest for a better UI.")
+    st.warning(
+        "This segment has no dims field; add dims to your manifest for a better UI."
+    )
 
 # Anchors panel per-dimension (if available)
 if anchors:
@@ -236,7 +244,9 @@ for d in dims:
             f"{d}", min_value=0.0, max_value=1.0, value=float(cur_val), step=0.01
         )
     with col2:
-        m = st.checkbox("Mark labeled", value=bool((example.get("label_mask") or {}).get(d, 0)))
+        m = st.checkbox(
+            "Mark labeled", value=bool((example.get("label_mask") or {}).get(d, 0))
+        )
     new_labels[d] = float(v)
     new_mask[d] = 1 if m else 0
 

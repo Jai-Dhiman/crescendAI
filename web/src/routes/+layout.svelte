@@ -2,33 +2,9 @@
 	import { QueryClientProvider } from '@tanstack/svelte-query';
 	import { queryClient } from '$lib/query';
 	import '../app.css';
-	import RunOnGPUToggle from '$lib/components/RunOnGPUToggle.svelte';
-	import { runOnGPU, loadRunOnGPUFromStorage } from '$lib/stores/settings';
-	import { onMount } from 'svelte';
 
 	let { children } = $props();
-
-	// Attach X-Run-GPU header to all client-side fetch calls
-	onMount(() => {
-		loadRunOnGPUFromStorage();
-		const originalFetch = window.fetch.bind(window);
-		window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
-			// Snapshot current toggle value
-			let run = false;
-			const unsub = runOnGPU.subscribe((v) => (run = v));
-			unsub();
-
-			const headers = new Headers((init && init.headers) || (input instanceof Request ? input.headers : undefined));
-			headers.set('X-Run-GPU', run ? 'true' : 'false');
-
-			if (input instanceof Request) {
-				const req = new Request(input, { headers });
-				return originalFetch(req);
-			} else {
-				return originalFetch(input, { ...(init || {}), headers });
-			}
-		};
-	});
+	// GPU header injection removed; no global fetch override
 </script>
 
 <svelte:head>

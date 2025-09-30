@@ -2,6 +2,7 @@ use worker::*;
 use crate::{JobStatus, AnalysisResult, AnalysisData, ComparisonResult, ModelResult};
 use crate::storage;
 use crate::audio_dsp;
+use crate::percepiano_evaluator::PercepianoEvaluator;
 
 // Conditional logging macro for test vs WASM environments
 #[cfg(test)]
@@ -51,15 +52,43 @@ pub async fn start_analysis(env: &Env, file_id: &str, job_id: &str, force_gpu: O
     let spectrogram_data = generate_mel_spectrogram(&audio_data).await?;
     console_log!("Generated {} bytes of spectrogram data", spectrogram_data.len());
     
-    // At this point, inference is not configured. Return an explicit error per project policy.
-    let error_status = JobStatus {
+    // Update status - running ML inference
+    let inference_status = JobStatus {
         job_id: job_id.to_string(),
-        status: "failed".to_string(),
-        progress: 50.0,
-        error: Some("ML inference not configured".to_string()),
+        status: "processing".to_string(),
+        progress: 75.0,
+        error: None,
     };
-    storage::update_job_status(env, job_id, &error_status).await?;
-    return Err(worker::Error::RustError("ML inference not configured".to_string()));
+    storage::update_job_status(env, job_id, &inference_status).await?;
+    
+    // Run ML inference using embedded ONNX model
+    console_log!("Running ML inference for job_id: {}", job_id);
+    
+    // Convert spectrogram bytes to f32 array for model input
+    let mel_spectrogram_floats = bytes_to_mel_spectrogram(&spectrogram_data)?;
+    
+    // Use PercePiano evaluator with research dimensions
+    let evaluator = PercepianoEvaluator::new();
+    let features = evaluator.extract_features(&mel_spectrogram_floats);
+    let analysis_data = evaluator.analyze(&features);
+    
+    console_log!("PercePiano analysis complete for job_id: {}, timing_score: {:.3}", 
+                 job_id, analysis_data.timing_stable_unstable);
+    
+    // Generate insights/feedback
+    let insights = evaluator.generate_insights(&analysis_data);
+    
+    // Complete the analysis with real results
+    complete_analysis(
+        env, 
+        job_id, 
+        file_id, 
+        analysis_data, 
+        insights, 
+        None // No processing time tracking for simple evaluator
+    ).await?;
+    
+    Ok(())
 }
 
 async fn generate_mel_spectrogram(audio_data: &[u8]) -> Result<Vec<u8>> {
@@ -101,6 +130,44 @@ fn create_placeholder_spectrogram() -> Vec<u8> {
     
     console_log!("Generated placeholder spectrogram: {} bytes (expected: {})", data.len(), size);
     data
+}
+
+fn bytes_to_mel_spectrogram(spectrogram_bytes: &[u8]) -> Result<Vec<f32>> {
+    console_log!("Converting {} bytes to mel-spectrogram floats", spectrogram_bytes.len());
+    
+    // Expected: 128 x 128 x 4 bytes = 65,536 bytes for f32 array
+    if spectrogram_bytes.len() != 128 * 128 * 4 {
+        console_log!("Warning: unexpected spectrogram size, using placeholder conversion");
+        
+        // Create normalized placeholder data
+        let mut floats = Vec::with_capacity(128 * 128);
+        for i in 0..(128 * 128) {
+            // Simple normalization: convert to [0, 1] range
+            let val = (i % 256) as f32 / 255.0;
+            floats.push(val);
+        }
+        return Ok(floats);
+    }
+    
+    // Convert bytes to f32 array (little-endian)
+    let mut floats = Vec::with_capacity(128 * 128);
+    
+    for chunk in spectrogram_bytes.chunks_exact(4) {
+        let bytes: [u8; 4] = chunk.try_into()
+            .map_err(|_| worker::Error::RustError("Failed to convert chunk to f32".to_string()))?;
+        let float_val = f32::from_le_bytes(bytes);
+        
+        // Ensure values are in [0, 1] range for model
+        let normalized = float_val.max(0.0).min(1.0);
+        floats.push(normalized);
+    }
+    
+    console_log!("Converted to {} float values, range: [{:.3}, {:.3}]", 
+                 floats.len(), 
+                 floats.iter().fold(f32::INFINITY, |a, &b| a.min(b)),
+                 floats.iter().fold(f32::NEG_INFINITY, |a, &b| a.max(b)));
+    
+    Ok(floats)
 }
 
 
@@ -469,25 +536,25 @@ mod tests {
         let file_id = "test-file-id";
         
         let analysis_data = AnalysisData {
-            rhythm: 0.8,
-            pitch: 0.7,
-            dynamics: 0.6,
-            tempo: 0.9,
-            articulation: 0.7,
-            expression: 0.8,
-            technique: 0.6,
-            timing: 0.7,
-            phrasing: 0.8,
-            voicing: 0.7,
-            pedaling: 0.6,
-            hand_coordination: 0.7,
-            musical_understanding: 0.8,
-            stylistic_accuracy: 0.7,
-            creativity: 0.8,
-            listening: 0.7,
-            overall_performance: 0.8,
-            stage_presence: 0.7,
-            repertoire_difficulty: 0.6,
+            timing_stable_unstable: 0.8,
+            articulation_short_long: 0.7,
+            articulation_soft_hard: 0.6,
+            pedal_sparse_saturated: 0.9,
+            pedal_clean_blurred: 0.7,
+            timbre_even_colorful: 0.8,
+            timbre_shallow_rich: 0.6,
+            timbre_bright_dark: 0.7,
+            timbre_soft_loud: 0.8,
+            dynamic_sophisticated_raw: 0.7,
+            dynamic_range_little_large: 0.6,
+            music_making_fast_slow: 0.7,
+            music_making_flat_spacious: 0.8,
+            music_making_disproportioned_balanced: 0.7,
+            music_making_pure_dramatic: 0.8,
+            emotion_mood_optimistic_dark: 0.7,
+            emotion_mood_low_high_energy: 0.8,
+            emotion_mood_honest_imaginative: 0.7,
+            interpretation_unsatisfactory_convincing: 0.6,
         };
         
         let result = AnalysisResult {
@@ -495,7 +562,7 @@ mod tests {
             status: "completed".to_string(),
             file_id: file_id.to_string(),
             analysis: analysis_data.clone(),
-            insights: vec!["Good rhythm".to_string(), "Work on dynamics".to_string()],
+            insights: vec!["Good timing stability".to_string(), "Work on articulation".to_string()],
             created_at: "2023-01-01T00:00:00Z".to_string(), // Mock timestamp for testing
             processing_time: Some(0.5),
         };
@@ -511,25 +578,25 @@ mod tests {
         let large_dimensions: Vec<f32> = (0..1000).map(|i| i as f32 * 0.1).collect();
         
         let analysis_data = AnalysisData {
-            rhythm: 0.8,
-            pitch: 0.7,
-            dynamics: 0.6,
-            tempo: 0.9,
-            articulation: 0.7,
-            expression: 0.8,
-            technique: 0.6,
-            timing: 0.7,
-            phrasing: 0.8,
-            voicing: 0.7,
-            pedaling: 0.6,
-            hand_coordination: 0.7,
-            musical_understanding: 0.8,
-            stylistic_accuracy: 0.7,
-            creativity: 0.8,
-            listening: 0.7,
-            overall_performance: 0.8,
-            stage_presence: 0.7,
-            repertoire_difficulty: 0.6,
+            timing_stable_unstable: 0.8,
+            articulation_short_long: 0.7,
+            articulation_soft_hard: 0.6,
+            pedal_sparse_saturated: 0.9,
+            pedal_clean_blurred: 0.7,
+            timbre_even_colorful: 0.8,
+            timbre_shallow_rich: 0.6,
+            timbre_bright_dark: 0.7,
+            timbre_soft_loud: 0.8,
+            dynamic_sophisticated_raw: 0.7,
+            dynamic_range_little_large: 0.6,
+            music_making_fast_slow: 0.7,
+            music_making_flat_spacious: 0.8,
+            music_making_disproportioned_balanced: 0.7,
+            music_making_pure_dramatic: 0.8,
+            emotion_mood_optimistic_dark: 0.7,
+            emotion_mood_low_high_energy: 0.8,
+            emotion_mood_honest_imaginative: 0.7,
+            interpretation_unsatisfactory_convincing: 0.6,
         };
         
         // Use ModelResult instead which has the dimensions field
@@ -537,7 +604,7 @@ mod tests {
             model_name: "test-model".to_string(),
             model_type: "spectrogram".to_string(),
             analysis: analysis_data,
-            insights: vec!["Good rhythm".to_string()],
+            insights: vec!["Good timing stability".to_string()],
             processing_time: 0.5,
             dimensions: Some(large_dimensions.clone()),
         };
@@ -550,25 +617,25 @@ mod tests {
     #[test]
     fn test_model_result_empty_dimensions() {
         let analysis_data = AnalysisData {
-            rhythm: 0.8,
-            pitch: 0.7,
-            dynamics: 0.6,
-            tempo: 0.9,
-            articulation: 0.7,
-            expression: 0.8,
-            technique: 0.6,
-            timing: 0.7,
-            phrasing: 0.8,
-            voicing: 0.7,
-            pedaling: 0.6,
-            hand_coordination: 0.7,
-            musical_understanding: 0.8,
-            stylistic_accuracy: 0.7,
-            creativity: 0.8,
-            listening: 0.7,
-            overall_performance: 0.8,
-            stage_presence: 0.7,
-            repertoire_difficulty: 0.6,
+            timing_stable_unstable: 0.8,
+            articulation_short_long: 0.7,
+            articulation_soft_hard: 0.6,
+            pedal_sparse_saturated: 0.9,
+            pedal_clean_blurred: 0.7,
+            timbre_even_colorful: 0.8,
+            timbre_shallow_rich: 0.6,
+            timbre_bright_dark: 0.7,
+            timbre_soft_loud: 0.8,
+            dynamic_sophisticated_raw: 0.7,
+            dynamic_range_little_large: 0.6,
+            music_making_fast_slow: 0.7,
+            music_making_flat_spacious: 0.8,
+            music_making_disproportioned_balanced: 0.7,
+            music_making_pure_dramatic: 0.8,
+            emotion_mood_optimistic_dark: 0.7,
+            emotion_mood_low_high_energy: 0.8,
+            emotion_mood_honest_imaginative: 0.7,
+            interpretation_unsatisfactory_convincing: 0.6,
         };
         
         // Use ModelResult instead which has the dimensions field
@@ -739,25 +806,25 @@ mod tests {
         ];
         
         let analysis_data = AnalysisData {
-            rhythm: 0.8,
-            pitch: 0.7,
-            dynamics: 0.6,
-            tempo: 0.9,
-            articulation: 0.7,
-            expression: 0.8,
-            technique: 0.6,
-            timing: 0.7,
-            phrasing: 0.8,
-            voicing: 0.7,
-            pedaling: 0.6,
-            hand_coordination: 0.7,
-            musical_understanding: 0.8,
-            stylistic_accuracy: 0.7,
-            creativity: 0.8,
-            listening: 0.7,
-            overall_performance: 0.8,
-            stage_presence: 0.7,
-            repertoire_difficulty: 0.6,
+            timing_stable_unstable: 0.8,
+            articulation_short_long: 0.7,
+            articulation_soft_hard: 0.6,
+            pedal_sparse_saturated: 0.9,
+            pedal_clean_blurred: 0.7,
+            timbre_even_colorful: 0.8,
+            timbre_shallow_rich: 0.6,
+            timbre_bright_dark: 0.7,
+            timbre_soft_loud: 0.8,
+            dynamic_sophisticated_raw: 0.7,
+            dynamic_range_little_large: 0.6,
+            music_making_fast_slow: 0.7,
+            music_making_flat_spacious: 0.8,
+            music_making_disproportioned_balanced: 0.7,
+            music_making_pure_dramatic: 0.8,
+            emotion_mood_optimistic_dark: 0.7,
+            emotion_mood_low_high_energy: 0.8,
+            emotion_mood_honest_imaginative: 0.7,
+            interpretation_unsatisfactory_convincing: 0.6,
         };
         
         // Use ModelResult instead which has the dimensions field

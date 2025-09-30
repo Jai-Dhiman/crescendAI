@@ -1,0 +1,36 @@
+{
+  "model_type": "percepiano_ast_onnx",
+  "input_shape": [
+    1,
+    1,
+    128,
+    128
+  ],
+  "output_shape": [
+    1,
+    19
+  ],
+  "dimension_names": [
+    "timing_stable_unstable",
+    "articulation_short_long",
+    "articulation_soft_hard",
+    "pedal_sparse_saturated",
+    "pedal_clean_blurred",
+    "timbre_even_colorful",
+    "timbre_shallow_rich",
+    "timbre_bright_dark",
+    "timbre_soft_loud",
+    "dynamic_sophisticated_raw",
+    "dynamic_range_little_large",
+    "music_making_fast_slow",
+    "music_making_flat_spacious",
+    "music_making_disproportioned_balanced",
+    "music_making_pure_dramatic",
+    "emotion_mood_optimistic_dark",
+    "emotion_mood_low_high_energy",
+    "emotion_mood_honest_imaginative",
+    "interpretation_unsatisfactory_convincing"
+  ],
+  "model_size_mb": 3.645406723022461,
+  "opset_version": 14
+}

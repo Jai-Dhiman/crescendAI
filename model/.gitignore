@@ -1,4 +1,3 @@
-PercePiano/
 piano_ml_env/
 .claude/
 CLAUDE.md
@@ -10,3 +9,6 @@ archive/
 
 .venv/
 raw/
+
+*.onnx
+*.pth

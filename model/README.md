@@ -1,201 +1,155 @@
-# CrescendAI Model - Piano Performance Analysis
+# CrescendAI Model - Two-Model Architecture (Evaluator + Tutor)
 
-Two-Model Architecture (Evaluator + Tutor)
+PyTorch Lightning implementation of the **Evaluator** component in CrescendAI's dual-model piano performance analysis system.
 
-Overview
-- Evaluator (PyTorch): audio segments → multidimensional performance scores (execution, phrasing, timbre). Lives in scorer/ with training on masked multi-task regression, optional pseudo-labels and distillation.
-- Tutor (RAG): takes evaluator outputs (global scores, time-local hotspots, uncertainties) + piece metadata; retrieves curated masterclasses/teacher docs/recordings and generates actionable, citeable feedback with a small instruction model. Lives outside this folder (web/server), but data contracts are defined here.
+## 🏗️ **Two-Model Architecture Overview**
 
-Data flow
-1) Data ingestion
-   - Datasets: MAESTRO/ASAP/MAPS (execution/phrasing), CCMusic/MusicNet/YouTube (timbre/interpretation anchors)
-   - Alignment (optional but recommended): VirtuosoNet pyScoreParser to get bar/beat-aligned segments for MAESTRO/ASAP/MAPS
-2) Segmentation
-   - 10–20s segments (8–16 bars where aligned). Manifests in data/manifests and data/splits
-3) Labeling
-   - Human labels (targeted dims per dataset) via quick labeler; anchors in data/anchors
-   - Pseudo-labels (optional): symbolic proxies from aligned MIDI (timing/articulation/pedal/dynamics) in symbolic/
-4) Training (Evaluator)
-   - PyTorch Lightning loop (scorer/train.py) with masked multi-task loss, optional pseudo-loss and cosine distillation from symbolic embeddings
-   - Calibration per dimension on validation set
-5) Inference (Evaluator)
-   - Outputs: per-dimension scores [0..1], uncertainties (MC-dropout), time-local hotspots (optional local heads), and provenance
-6) Tutor (RAG)
-   - Index corpus of masterclasses/teacher docs/recordings with dimension/difficulty tags; hybrid search (dense + filters)
-   - Generate JSON-first feedback using retrieved context + evaluator outputs; include citations and targeted drills
+### **Evaluator** (This Repository)
+- **Purpose**: Audio segments → multidimensional performance scores
+- **Input**: 10-20s piano audio segments
+- **Output**: 16 performance dimensions [0-1] + uncertainties + time-local hotspots
+- **Technology**: PyTorch Lightning + Audio Spectrogram Transformer (AST)
+- **Location**: `model/` (this directory)
 
-Where to look
-- Labeling + training guide: README_EVALUATOR.md
-- Evaluator code: scorer/ (dataset.py, model.py, train.py, infer.py, calibrate.py)
-- Symbolic helpers (pseudo-labels/calibration): symbolic/
+### **Tutor** (RAG System)
+- **Purpose**: Evaluator outputs → actionable, cited feedback
+- **Input**: Performance scores + piece metadata + user context
+- **Output**: Personalized practice suggestions with citations
+- **Technology**: RAG (dense + sparse search) + instruction model
+- **Location**: `web/` and `server/` directories
 
-Quick commands (Evaluator)
-- Train: uv run python scorer/train.py
-- Infer (MC uncertainty): use scorer/infer.py utilities
-- Calibrate: scorer/calibrate.py on held-out predictions
+## 🎯 **Current Focus**: Evaluator Data Labeling & Training
 
-Audio Spectrogram Transformer (AST) for 19-dimensional piano performance analysis using JAX/Flax.
+## Data Flow (Complete System)
 
-## Project Structure
+1. **Audio Ingestion** → 10-20s segments (8-16 bars where aligned)
+2. **Human Labeling** → Targeted dimensions per dataset via Streamlit interface
+3. **Evaluator Training** → PyTorch Lightning with masked multi-task loss
+4. **Evaluator Inference** → Performance scores + uncertainties + hotspots
+5. **Tutor RAG** → Retrieve relevant teaching content + generate feedback
+6. **User Interface** → Actionable, cited practice recommendations
+
+## 📊 **Performance Dimensions (16 Core)**
+
+### Execution Dimensions
+- `timing_stability`, `tempo_control`, `rhythmic_accuracy`
+- `articulation_length`, `articulation_hardness` 
+- `pedal_density`, `pedal_clarity`
+- `dynamic_range`, `dynamic_control`, `balance_melody_vs_accomp`
+
+### Musical Shaping
+- `phrasing_continuity`, `expressiveness_intensity`, `energy_level`
+
+### Timbre Dimensions  
+- `timbre_brightness`, `timbre_richness`, `timbre_color_variety`
+
+## 🏗️ **Project Structure**
 
 ```
-src/
-├── __init__.py                 # Top-level package
-├── core/                       # Core functionality
-│   ├── __init__.py
-│   ├── audio_preprocessing.py  # Audio preprocessing pipeline
-│   └── training.py             # Training pipeline and utilities
-├── models/                     # Neural network architectures
-│   ├── __init__.py
-│   ├── ast_transformer.py      # Audio Spectrogram Transformer
-│   ├── hybrid_ast.py           # Hybrid AST variants
-│   └── ssast_pretraining.py    # Self-supervised pre-training
-├── datasets/                   # Dataset loaders and processors
-│   ├── __init__.py
-│   ├── percepiano_dataset.py   # PercePiano dataset loader
-│   ├── maestro_dataset.py      # MAESTRO dataset loader
-│   └── ccmusic_piano_dataset.py  # CC Music dataset loader
-├── api/                        # API contracts and interfaces
-│   ├── __init__.py
-│   └── contracts.py            # Pydantic models for API
-├── utils/                      # Utility functions
-│   ├── __init__.py
-│   └── preprocessing.py        # Preprocessing helpers
-└── deployment/                 # Deployment utilities
-    ├── __init__.py
-    ├── modal_service.py        # Modal service deployment
-    └── (scripts)               # Deployment management scripts
-
-# Additional files
-├── deploy.py                  # Top-level deployment entry point
-├── pyproject.toml            # Package configuration and dependencies
-├── README_DEPLOYMENT.md      # Detailed deployment guide
-├── results/                  # Training results and models
-│   └── final_finetuned_model.pkl  # Trained model (327MB)
-├── PercePiano/              # Original dataset (external)
-└── tests/                   # Unit tests
+model/                       # Evaluator implementation
+├── src/                     # PyTorch Lightning codebase
+│   ├── models/              # AST architecture + Lightning module
+│   ├── data/                # Data loading & preprocessing
+│   ├── training/            # Training utilities & callbacks
+│   └── evaluation/          # Metrics & validation
+├── labeling/                # Human annotation tools
+│   └── quick_labeler.py     # Streamlit labeling interface
+├── data/                    # Datasets and annotations
+│   ├── manifests/           # JSONL segment manifests
+│   ├── anchors/             # Low/mid/high exemplars per dimension
+│   └── splits/              # Train/val/test splits
+├── configs/                 # Training configurations
+├── symbolic/                # VirtuosoNet + pseudo-label integration
+└── train.py                 # Main training script
 ```
 
-## Quick Start
+## 🚀 **Quick Start (Evaluator)**
 
-### Installation
 ```bash
-# Install dependencies using uv
-uv sync
+# Setup environment
+uv venv && source .venv/bin/activate
+uv sync --extra labeling
 
-# Or install the package in development mode
-uv pip install -e .
+# Label data
+streamlit run labeling/quick_labeler.py
+
+# Train evaluator model
+python train.py --data_dir ./data --experiment_name evaluator_v1
+
+# Monitor training
+tensorboard --logdir ./logs
 ```
 
-### Usage
+## 🔄 **Integration with Complete System**
 
-#### Import the main components
-```python
-from src import (
-    # These may be imported from specific submodules after refactor
-)
+### **Dataset Targeting Strategy**
+- **MAESTRO/ASAP/MAPS**: Execution + phrasing dimensions
+- **CCMusic/MusicNet/YouTube**: Timbre + interpretation anchors
+- **VirtuosoNet Integration**: Bar/beat-aligned segments + symbolic pseudo-labels
+- **MidiBERT-Piano**: Optional distillation for structural understanding
 
-# Initialize preprocessor
-preprocessor = PianoAudioPreprocessor(target_sr=22050)
-
-# Load and preprocess audio
-audio_data, sr = preprocessor.load_and_normalize_audio("piano.wav")
-features = preprocessor.extract_spectral_features(audio_data, sr)
-```
-
-#### Train a model
-```python
-from src.core.training import ASTTrainingPipeline
-
-# Initialize training pipeline
-config = {
-    "checkpoint_dir": "./checkpoints",
-    "results_dir": "./results",
-    "seed": 42
-}
-
-pipeline = ASTTrainingPipeline(config)
-# ... training code
-```
-
-#### Deploy to Modal
-```bash
-# Set up Modal authentication
-modal token new
-
-# Deploy the service
-python deploy.py
-
-# Choose option 3: "Test locally then deploy"
-```
-
-## Architecture
-
-The model uses an Audio Spectrogram Transformer (AST) with:
-- **86M parameters** for comprehensive analysis
-- **16×16 patch embeddings** from mel-spectrograms  
-- **12-layer transformer** with multi-head attention
-- **19-dimensional output** for perceptual analysis
-
-## Dataset Insights
-
-**PercePiano Analysis:**
-
-- **1202 performances** across 19 perceptual dimensions
-- **22 professional performers**, classical repertoire (Schubert, Beethoven)
-- **Perceptual ratings**: [0-1] normalized, mean=0.553
-- **Key correlations**: Musical expression dimensions show strong inter-relationships
-
-## Implementation Plan
-
-**Phase 1**: AST Baseline (Current)
-
-1. Implement Audio Spectrogram Transformer architecture
-2. Train on PercePiano mel-spectrograms → 19-dimensional ratings  
-3. Achieve SOTA performance (target: >0.7 correlation on key dimensions)
-4. Comprehensive evaluation and comparison with baseline approaches
-
-**Phase 2**: Research Extensions (Future)
-
-- Cross-cultural musical perception studies
-- Interpretable attention visualization
-- Few-shot learning for new instruments
-- Real-time performance feedback applications
-
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## Citation
-
-If you use this software in your research, please cite it using the information in [CITATION.cff](CITATION.cff):
-
-```bibtex
-@software{piano_analysis_model,
-  title = {Piano Performance Analysis Model},
-  author = {Piano Analysis User},
-  year = {2025},
-  url = {https://github.com/username/piano-analysis-model}
+### **Evaluator → Tutor Data Contract**
+```json
+{
+  "segment_scores": {"timing_stability": 0.62, "expressiveness": 0.41, ...},
+  "uncertainties": {"timing_stability": 0.15, "expressiveness": 0.23, ...},
+  "hotspots": [{"t0": 12.3, "t1": 15.7, "dims": ["timing_stability"], "severity": 0.8}],
+  "piece_metadata": {"composer": "Chopin", "opus": "10 No. 1", "difficulty": 8},
+  "provenance": {"model_version": "v1.2", "confidence": 0.87}
 }
 ```
 
-## Dataset Attribution
+### **Tutor System (Separate Implementation)**
+- **Knowledge Base**: Curated masterclasses, teacher docs, technique guides
+- **Retrieval**: Hybrid search (dense + sparse) filtered by dimension/difficulty
+- **Generation**: Small instruction model producing structured feedback
+- **Citations**: Linked references to retrieved teaching materials
 
-This project uses and extends the **PercePiano dataset** for piano performance analysis:
+## 📈 **Training Pipeline**
 
-- **Original Dataset**: Cancino-Chacón, C. E., Grachten, M., & Widmer, G. (2017). PercePiano: A Dataset for Piano Performance Analysis. *Proceedings of the International Society for Music Information Retrieval Conference*, 55-62.
-- **Dataset License**: Creative Commons Attribution 4.0 International (CC BY 4.0)
-- **Audio Source**: Classical piano performances from various composers
-- **Labels**: Perceptual annotations across 19 dimensions
+### **Active Learning Workflow**
+1. **Initial Labeling**: 1-2k mixed segments across datasets
+2. **Baseline Training**: 30 epochs → evaluator v0
+3. **Uncertainty Sampling**: MC-dropout to identify informative segments
+4. **Model-Assisted Labeling**: Pre-fill UI with predictions for faster annotation
+5. **Iterative Improvement**: Retrain → recalibrate → repeat
 
-## Data Use and Redistribution
+### **Multi-Modal Training** (Advanced)
+- **Human Labels**: Primary supervision with masked multi-task loss
+- **Pseudo-Labels**: VirtuosoNet-derived symbolic proxies (α=0.3 weight)
+- **Distillation**: Optional MidiBERT-Piano structural embeddings (β=0.1 weight)
 
-- **Code**: Available under MIT License - free to use, modify, and distribute
-- **PercePiano Dataset**: Used under CC BY 4.0 - attribution required for any use
-- **Audio Files**: Sample audio included for demonstration purposes only
-- **Redistribution**: Full dataset redistribution must comply with original CC BY 4.0 terms
+## 📊 **Evaluation Metrics**
 
-For questions about dataset usage or to access the complete PercePiano dataset, contact the original authors through the [ISMIR 2017 publication](https://doi.org/10.5334/tismir.17).
+### **Evaluator Performance**
+- **Per-dimension MAE** + **Pearson correlation** by dataset
+- **Calibration quality**: Before/after temperature scaling
+- **Uncertainty quality**: Correlation with prediction errors
 
----
-*Learning-focused implementation - building everything from scratch for deep understanding*
+### **System-Level Goals**
+- **Evaluator**: >0.7 correlation on key dimensions, <5s inference time
+- **Tutor**: Actionable feedback with verified citations
+- **Integration**: Real-time analysis → personalized practice recommendations
+
+## 🎯 **Next Steps**
+
+### **Immediate (Evaluator Focus)**
+1. Complete human labeling workflow with Streamlit interface
+2. Train baseline evaluator with masked multi-task learning
+3. Implement MC-dropout uncertainty estimation
+4. Set up active learning pipeline
+
+### **Future Integration**
+1. Deploy evaluator as inference service for web/iOS apps
+2. Build RAG knowledge base with teaching materials
+3. Develop tutor prompt engineering and citation system
+4. Integrate complete pipeline: audio → scores → feedback
+
+## 🔗 **Related Components**
+
+- **Web App** (`../web/`): SvelteKit interface for audio upload + feedback display
+- **iOS App** (`../ios/`): Native Swift app with real-time audio analysis  
+- **Server** (`../server/`): Rust backend for evaluator inference + tutor RAG
+- **Docs** (`../docs/`): System architecture and API specifications
+
+Ready to train the evaluator and build the complete CrescendAI teaching system! 🎹🚀

@@ -1,0 +1,53 @@
+# Default configuration for CrescendAI model training
+
+model:
+  num_dims: 19              # 19 perceptual dimensions
+  num_datasets: 8           # Number of different datasets
+  ds_embed_dim: 16          # Dataset embedding dimension
+  emb_dim: 256              # Audio embedding dimension
+  learning_rate: 1e-3       # Learning rate
+  weight_decay: 1e-4        # Weight decay for regularization
+  distillation_weight: 0.1  # Weight for distillation loss
+  use_weighted_loss: true   # Use per-dimension weights
+
+data:
+  batch_size: 32            # Batch size for training
+  num_workers: 4            # Number of data loading workers
+  pin_memory: true          # Pin memory for faster GPU transfer
+  shuffle: true             # Shuffle training data
+  
+  # Audio preprocessing
+  sample_rate: 44100        # Audio sample rate
+  n_mels: 128               # Number of mel frequency bins
+  hop_length: 512           # Hop length for STFT
+  win_length: 2048          # Window length for STFT
+  duration: 30.0            # Audio segment duration in seconds
+
+trainer:
+  max_epochs: 100           # Maximum training epochs
+  accelerator: "auto"       # Hardware accelerator (auto/gpu/cpu)
+  devices: "auto"           # Number of devices to use
+  precision: "16-mixed"     # Training precision
+  log_every_n_steps: 10     # Log metrics every N steps
+  val_check_interval: 1.0   # Validation frequency
+  
+  # Checkpointing
+  save_top_k: 3            # Save top K checkpoints
+  monitor: "val_loss"       # Metric to monitor for checkpointing
+  mode: "min"               # Direction to optimize (min/max)
+  
+  # Early stopping
+  patience: 10              # Early stopping patience
+  min_delta: 0.001          # Minimum change to qualify as improvement
+
+# Experiment tracking
+logging:
+  project_name: "crescendai-model"
+  log_dir: "./logs"
+  
+# Data augmentation (optional)
+augmentation:
+  time_stretch: 0.1         # Time stretching factor
+  pitch_shift: 2            # Pitch shift in semitones
+  noise_level: 0.01         # Background noise level
+  mixup_alpha: 0.2          # Mixup alpha parameter

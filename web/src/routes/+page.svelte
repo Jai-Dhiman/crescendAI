@@ -4,7 +4,6 @@ import { browser } from "$app/environment";
 import { analysisStore } from "$lib/stores/analysis";
 import { crescendApi, type CrescendApiError } from "$lib/services/crescendApi";
 import { Upload, AlertTriangle } from "lucide-svelte";
-import RunOnGPUToggle from "$lib/components/RunOnGPUToggle.svelte";
 
 let files: FileList | null = $state(null);
 let isDragging = $state(false);
@@ -12,7 +11,8 @@ let uploadError = $state("");
 let progress = $state(0);
 let currentStage: "uploading" | "analyzing" | "processing" | null =
 	$state(null);
-let comparisonMode = $state(false);
+// Comparison mode temporarily disabled (single-model only)
+// let comparisonMode = $state(false);
 
 const ACCEPTED_AUDIO_TYPES = [
 	"audio/mpeg",
@@ -63,68 +63,36 @@ async function processFile(file: File) {
 	try {
 		let result;
 
-		if (comparisonMode) {
-			// Use comparison workflow
-			result = await crescendApi.uploadAndCompare(
-				file,
-				"hybrid_ast",
-				"ultra_small_ast",
-				(stage, progressValue) => {
-					currentStage = stage;
-					if (progressValue !== undefined) {
-						progress = progressValue;
-					} else {
-						// Set progress based on stage
-						switch (stage) {
-							case "uploading":
-								progress = 25;
-								break;
-							case "analyzing":
-								progress = 50;
-								break;
-							case "processing":
-								progress = 75;
-								break;
-						}
+		// Comparison workflow temporarily disabled — always use regular analysis
+		result = await crescendApi.uploadAndAnalyze(
+			file,
+			(stage, progressValue) => {
+				currentStage = stage;
+				if (progressValue !== undefined) {
+					progress = progressValue;
+				} else {
+					// Set progress based on stage
+					switch (stage) {
+						case "uploading":
+							progress = 25;
+							break;
+						case "analyzing":
+							progress = 50;
+							break;
+						case "processing":
+							progress = 75;
+							break;
 					}
-				},
-			);
-		} else {
-			// Use regular analysis workflow with direct API call
-			result = await crescendApi.uploadAndAnalyze(
-				file,
-				(stage, progressValue) => {
-					currentStage = stage;
-					if (progressValue !== undefined) {
-						progress = progressValue;
-					} else {
-						// Set progress based on stage
-						switch (stage) {
-							case "uploading":
-								progress = 25;
-								break;
-							case "analyzing":
-								progress = 50;
-								break;
-							case "processing":
-								progress = 75;
-								break;
-						}
-					}
-				},
-			);
-		}
+				}
+			},
+		);
 
 		// Analysis complete, save result and navigate
 		progress = 100;
 		analysisStore.set(result);
 
-		// Navigate to appropriate results page
-		if (comparisonMode) {
-			goto(`/results/comparison?id=${result.id}`);
-		} else {
-			goto("/results");
-		}
+		// Navigate to results page (comparison disabled)
+		goto("/results");
 	} catch (error) {
 		console.error("Analysis failed:", error);
 		currentStage = null;
@@ -223,7 +191,7 @@ function resetUpload() {
 			</div>
 		</header>
 
-		<!-- Analysis Method Selection -->
+  {#if false}
 		<section class="mb-8 mx-auto" style="margin-bottom: 1rem; max-width: 24rem;">
 			<div class="card" style="padding: 0.5rem;">
 				<h3 class="text-xl font-semibold text-charcoal-text mb-3 text-center" style="padding-top: 0.25rem;">Analysis Method</h3>
@@ -249,7 +217,7 @@ function resetUpload() {
 							</p>
 						</div>
 					</label>
-
+					
 					<!-- Comparative Analysis -->
 					<label class="analysis-option group cursor-pointer">
 						<input
@@ -271,23 +239,17 @@ function resetUpload() {
 						</div>
 					</label>
 				</div>
-
-				<!-- {#if comparisonMode}
+				
+{#if comparisonMode}
 					<div class="mt-6 p-4 bg-accent-gold/10 rounded-lg border border-accent-gold/20">
 						<p class="text-sm text-warm-bronze text-center">
 							<strong>Hybrid AST</strong> vs <strong>Ultra-Small AST</strong> · Comparative Performance Metrics
 						</p>
 					</div>
-				{/if} -->
-			</div>
+{/if}
 		</section>
+  {/if}
 
-		<!-- GPU Toggle Inline -->
-		<section class="mb-6 mx-auto" style="max-width: 24rem;">
-			<div class="flex justify-center">
-				<RunOnGPUToggle />
-			</div>
-		</section>
 
 		<!-- Upload Section -->
 		<section class="max-w-3xl mx-auto">

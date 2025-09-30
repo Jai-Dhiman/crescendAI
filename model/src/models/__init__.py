@@ -1,11 +1,6 @@
-"""Neural network models for piano performance analysis"""
+"""Model architectures for CrescendAI."""
 
-from src.models.ast_transformer import AudioSpectrogramTransformer
-from src.models.hybrid_ast import HybridAudioSpectrogramTransformer
-from src.models.ssast_pretraining import SSASTPreTrainingModel
+from .ast_model import SimpleAST, Evaluator
+from .lightning_module import CrescendAILightningModule
 
-__all__ = [
-    "AudioSpectrogramTransformer",
-    "HybridAudioSpectrogramTransformer", 
-    "SSASTPreTrainingModel"
-]
+__all__ = ["SimpleAST", "Evaluator", "CrescendAILightningModule"]
