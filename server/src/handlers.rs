@@ -89,22 +89,55 @@ pub async fn analyze_audio(mut req: Request, ctx: RouteContext<()>) -> Result<Re
     
     console_log!("Starting analysis for file ID: {} with job ID: {}", file_id, job_id);
     
+    // Check if temporal analysis is requested via header
+    let use_temporal = req.headers()
+        .get("X-Use-Temporal")
+        .ok()
+        .flatten()
+        .map(|v| v.eq_ignore_ascii_case("true"))
+        .unwrap_or(true); // Default to temporal analysis
+    
+    console_log!("Using temporal analysis: {}", use_temporal);
+    
     // Start async processing
-let force_gpu = req.headers().get("X-Run-GPU").ok().flatten().map(|v| v.eq_ignore_ascii_case("true"));
-    match processing::start_analysis(&ctx.env, file_id, &job_id, force_gpu).await {
-        Ok(_) => {
-            Response::from_json(&json!({
-                "job_id": job_id,
-                "status": "processing",
-                "message": "Analysis started successfully"
-            }))
+    if use_temporal {
+        // Use new temporal analysis workflow
+        match processing::start_temporal_analysis(&ctx.env, file_id, &job_id).await {
+            Ok(_) => {
+                Response::from_json(&json!({
+                    "job_id": job_id,
+                    "status": "processing",
+                    "message": "Temporal analysis started successfully",
+                    "analysis_type": "temporal"
+                }))
+            }
+            Err(e) => {
+                console_log!("Temporal analysis failed to start for job {}: {:?}", job_id, e);
+                let is_dev = ctx.env.var("ENVIRONMENT")
+                    .map(|v| v.to_string() == "development")
+                    .unwrap_or(false);
+                Ok(secure_error_response(&e, is_dev))
+            }
         }
-        Err(e) => {
-            console_log!("Analysis failed to start for job {}: {:?}", job_id, e);
-            let is_dev = ctx.env.var("ENVIRONMENT")
-                .map(|v| v.to_string() == "development")
-                .unwrap_or(false);
-            Ok(secure_error_response(&e, is_dev))
+    } else {
+        // Use legacy analysis workflow
+        let force_gpu = req.headers().get("X-Run-GPU").ok().flatten().map(|v| v.eq_ignore_ascii_case("true"));
+        match processing::start_analysis(&ctx.env, file_id, &job_id, force_gpu).await {
+            Ok(_) => {
+                Response::from_json(&json!({
+                    "job_id": job_id,
+                    "status": "processing",
+                    "message": "Analysis started successfully",
+                    "analysis_type": "legacy"
+                }))
+            }
+            Err(e) => {
+                console_log!("Analysis failed to start for job {}: {:?}", job_id, e);
+                let is_dev = ctx.env.var("ENVIRONMENT")
+                    .map(|v| v.to_string() == "development")
+                    .unwrap_or(false);
+                Ok(secure_error_response(&e, is_dev))
+            }
         }
     }
 }
@@ -162,9 +195,41 @@ pub async fn get_analysis_result(req: Request, ctx: RouteContext<()>) -> Result<
     // Validate UUID format
     validate_uuid(result_id)?;
     
+    // Try temporal analysis result first
+    match storage::get_temporal_analysis_result(&ctx.env, result_id).await {
+        Ok(result) => {
+            console_log!("Retrieved temporal analysis result for ID {}: {}", result_id, result.status);
+            let body = serde_json::to_string(&result)
+                .map_err(|e| worker::Error::RustError(e.to_string()))?;
+            let etag = crate::utils::compute_etag_from_str(&body);
+            let if_none_match = req.headers().get("If-None-Match").ok().flatten();
+
+            if let Some(tag) = if_none_match {
+                if tag == etag {
+                    let mut res = Response::empty()?;
+                    res = res.with_status(304);
+                    let headers = res.headers_mut();
+                    headers.set("ETag", &etag)?;
+                    headers.set("Cache-Control", "public, max-age=0, s-maxage=86400, stale-while-revalidate=604800")?;
+                    return Ok(res);
+                }
+            }
+
+            let mut res = Response::from_json(&result)?;
+            let headers = res.headers_mut();
+            headers.set("ETag", &etag)?;
+            headers.set("Cache-Control", "public, max-age=0, s-maxage=86400, stale-while-revalidate=604800")?;
+            return Ok(res);
+        }
+        Err(e) => {
+            console_log!("Temporal result not found: {}, trying legacy format", e);
+        }
+    }
+    
+    // Fallback to legacy analysis result
     match storage::get_analysis_result(&ctx.env, result_id).await {
         Ok(result) => {
-            console_log!("Retrieved analysis result for ID {}: {}", result_id, result.status);
+            console_log!("Retrieved legacy analysis result for ID {}: {}", result_id, result.status);
             let body = serde_json::to_string(&result)
                 .map_err(|e| worker::Error::RustError(e.to_string()))?;
             let etag = crate::utils::compute_etag_from_str(&body);

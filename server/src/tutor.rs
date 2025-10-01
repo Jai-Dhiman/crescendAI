@@ -127,7 +127,7 @@ fn build_prompt_chunks(chunks: &[KBChunk]) -> Vec<serde_json::Value> {
     }).collect()
 }
 
-async fn call_llm(env: &Env, system: &str, user: &str, temperature: f32, max_tokens: u32) -> Result<String> {
+pub async fn call_llm(env: &Env, system: &str, user: &str, temperature: f32, max_tokens: u32) -> Result<String> {
     // Try Cloudflare AI first via REST
     if let (Ok(account_id), Ok(cf_model), Ok(cf_token)) = (
         env.var("CF_ACCOUNT_ID"), env.var("TUTOR_CF_MODEL"), env.secret("CF_API_TOKEN")
@@ -181,15 +181,33 @@ async fn call_llm(env: &Env, system: &str, user: &str, temperature: f32, max_tok
         .map(|v| v.to_string())
         .unwrap_or_else(|_| "gpt-5-nano-2025-08-07".to_string());
     let url = "https://api.openai.com/v1/chat/completions";
-    let payload = serde_json::json!({
+    
+    // Newer models have different parameter requirements
+    let is_new_model = model.starts_with("gpt-5") || model.starts_with("o1") || model.starts_with("o3");
+    
+    let mut payload = serde_json::json!({
         "model": model,
         "messages": [
             {"role": "system", "content": system},
             {"role": "user", "content": user}
-        ],
-        "temperature": temperature,
-        "max_tokens": max_tokens
+        ]
     });
+    
+    // Only add temperature for older models (newer models only support default temperature=1)
+    if !is_new_model {
+        payload["temperature"] = serde_json::json!(temperature);
+    }
+    
+    // Use max_completion_tokens for newer models, max_tokens for older ones
+    if is_new_model {
+        payload["max_completion_tokens"] = serde_json::json!(max_tokens);
+    } else {
+        payload["max_tokens"] = serde_json::json!(max_tokens);
+    }
+    
+    #[cfg(not(test))]
+    worker::console_log!("OpenAI request: model={}, temp={}, max_tokens={}", model, temperature, max_tokens);
+    
     let mut headers = Headers::new();
     headers.set("Authorization", &format!("Bearer {}", openai_key)).ok();
     headers.set("Content-Type", "application/json").ok();
@@ -200,7 +218,11 @@ async fn call_llm(env: &Env, system: &str, user: &str, temperature: f32, max_tok
     let req = Request::new_with_init(url, &init)?;
     let mut resp = Fetch::Request(req).send().await?;
     if resp.status_code() / 100 != 2 {
-        return Err(worker::Error::RustError(format!("OpenAI chat HTTP {}", resp.status_code())));
+        // Try to get error details
+        let error_body = resp.text().await.unwrap_or_else(|_| "(no error body)".to_string());
+        #[cfg(not(test))]
+        worker::console_log!("OpenAI error response ({}): {}", resp.status_code(), error_body);
+        return Err(worker::Error::RustError(format!("OpenAI chat HTTP {}: {}", resp.status_code(), error_body)));
     }
     let v: serde_json::Value = resp.json().await?;
     let content = v.pointer("/choices/0/message/content")
@@ -236,7 +258,7 @@ pub async fn generate_feedback(env: &Env, analysis: &AnalysisData, user_ctx: &Us
     let cache_key = crate::utils::compute_etag_from_str(&cache_key_input);
 
     // Try KV cache
-    if let Ok(kv) = env.kv("METADATA") {
+    if let Ok(kv) = env.kv("CRESCENDAI_METADATA") {
         if let Ok(Some(cached)) = kv.get(&format!("tutor:{}", cache_key)).text().await {
             if let Ok(tf) = serde_json::from_str::<TutorFeedback>(&cached) {
                 return Ok(tf);
@@ -287,7 +309,7 @@ pub async fn generate_feedback(env: &Env, analysis: &AnalysisData, user_ctx: &Us
     feedback = validate_and_normalize(feedback);
 
     // Store in KV cache
-    if let Ok(kv) = env.kv("METADATA") {
+    if let Ok(kv) = env.kv("CRESCENDAI_METADATA") {
         if let Ok(json) = serde_json::to_string(&feedback) {
             let _ = kv.put(&format!("tutor:{}", cache_key), &json)?.expiration_ttl(86400).execute().await; // 24h
         }

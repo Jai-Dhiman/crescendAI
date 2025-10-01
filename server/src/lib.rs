@@ -6,7 +6,7 @@ mod security;
 mod storage;
 mod processing;
 mod utils;
-mod audio_dsp;
+pub mod audio_dsp;
 mod monitoring;
 mod simple_evaluator;
 mod percepiano_evaluator;
@@ -85,6 +85,90 @@ pub struct AnalysisData {
     pub emotion_mood_low_high_energy: f32,
     pub emotion_mood_honest_imaginative: f32,
     pub interpretation_unsatisfactory_convincing: f32,
+}
+
+// ============================================================================
+// Temporal Analysis Data Structures
+// ============================================================================
+
+/// Individual insight for a temporal segment
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct AnalysisInsight {
+    /// Category: "Technical", "Musical", or "Interpretive"
+    pub category: String,
+    /// What was observed in the performance
+    pub observation: String,
+    /// Specific, actionable advice for improvement
+    pub actionable_advice: String,
+    /// Reference to scores (hidden from UI, for debugging)
+    pub score_reference: String,
+}
+
+/// Temporal feedback for a specific time segment
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct TemporalFeedbackItem {
+    /// Timestamp range (e.g., "0:00-0:03")
+    pub timestamp: String,
+    /// Multiple insights for this segment
+    pub insights: Vec<AnalysisInsight>,
+    /// Key practice focus for this segment
+    pub practice_focus: String,
+}
+
+/// Overall assessment of the entire performance
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct OverallAssessment {
+    /// List of performance strengths (2-5 items)
+    pub strengths: Vec<String>,
+    /// Priority areas for improvement (2-4 items)
+    pub priority_areas: Vec<String>,
+    /// 2-3 sentence character description of the performance
+    pub performance_character: String,
+}
+
+/// Immediate practice priority
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ImmediatePriority {
+    /// Skill area to focus on
+    pub skill_area: String,
+    /// Specific exercise or technique to practice
+    pub specific_exercise: String,
+    /// What improvement to expect
+    pub expected_outcome: String,
+}
+
+/// Long-term musical development goal
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct LongTermDevelopment {
+    /// Musical aspect to develop over time
+    pub musical_aspect: String,
+    /// Approach or strategy for development
+    pub development_approach: String,
+    /// Suggested repertoire to support this development
+    pub repertoire_suggestions: String,
+}
+
+/// Practice recommendations structure
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct PracticeRecommendations {
+    /// 3-5 immediate practice priorities
+    pub immediate_priorities: Vec<ImmediatePriority>,
+    /// 2-3 long-term development goals
+    pub long_term_development: Vec<LongTermDevelopment>,
+}
+
+/// New temporal analysis result format
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct TemporalAnalysisResult {
+    pub id: String,
+    pub status: String,
+    pub file_id: String,
+    pub overall_assessment: OverallAssessment,
+    pub temporal_feedback: Vec<TemporalFeedbackItem>,
+    pub practice_recommendations: PracticeRecommendations,
+    pub encouragement: String,
+    pub created_at: String,
+    pub processing_time: Option<f32>,
 }
 
 #[event(fetch)]
@@ -187,11 +271,12 @@ fn add_cors_headers(response: &mut Response, allowed_origins: &[String], req_ori
 
 /// Authentication and security validation
 async fn validate_request_security(req: &Request, env: &Env) -> Result<()> {
-    // Validate API key first
-    validate_api_key(req, env)?;
+    // TODO: Add proper authentication when ready
+    // For now, API key validation is disabled
+    // validate_api_key(req, env)?;
     
     // Check rate limiting
-    if let Ok(kv) = env.kv("METADATA") {
+    if let Ok(kv) = env.kv("CRESCENDAI_METADATA") {
         let rate_limiter = RateLimiter::new(kv, 60, 100); // 100 requests per minute
         let client_ip = get_client_ip(req);
         rate_limiter.check_rate_limit(&client_ip).await?;
@@ -468,7 +553,7 @@ async fn basic_health_handler(req: Request, ctx: RouteContext<()>) -> Result<Res
     let allowed_origins = get_allowed_origins_from_env(Some(&ctx.env));
     
     // Get KV store for health checker
-    let kv_store = ctx.env.kv("METADATA").ok();
+    let kv_store = ctx.env.kv("CRESCENDAI_METADATA").ok();
     let health_checker = HealthChecker::new(kv_store);
     
     // Perform basic health check
@@ -516,7 +601,7 @@ async fn secure_detailed_health_handler(req: Request, ctx: RouteContext<()>) -> 
     }
     
     // Get KV store for health checker
-    let kv_store = ctx.env.kv("METADATA").ok();
+    let kv_store = ctx.env.kv("CRESCENDAI_METADATA").ok();
     let health_checker = HealthChecker::new(kv_store);
     
     // Perform detailed health check

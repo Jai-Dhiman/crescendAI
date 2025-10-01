@@ -379,6 +379,1025 @@ pub async fn complete_model_comparison(
     Ok(())
 }
 
+// ============================================================================
+// Temporal Analysis - Chunk Processing
+// ============================================================================
+
+/// Analysis result for a single chunk
+#[derive(Debug, Clone)]
+struct ChunkAnalysisResult {
+    timestamp: String,
+    chunk_index: usize,
+    analysis_data: AnalysisData,
+    raw_scores: Vec<(String, f32)>, // For debugging/logging
+}
+
+/// Analyze a single audio chunk
+///
+/// # Arguments
+/// * `chunk` - Audio chunk to analyze
+/// * `spectrogram_bytes` - Pre-computed mel-spectrogram
+///
+/// # Returns
+/// Analysis result for this chunk
+///
+/// # Errors
+/// Returns error if analysis fails
+async fn analyze_chunk(
+    chunk: &audio_dsp::AudioChunk,
+    spectrogram_bytes: &[u8],
+) -> Result<ChunkAnalysisResult> {
+    console_log!(
+        "Analyzing chunk {} ({})",
+        chunk.chunk_index,
+        chunk.timestamp
+    );
+    
+    // Convert spectrogram bytes to floats
+    let mel_spectrogram_floats = bytes_to_mel_spectrogram(spectrogram_bytes)
+        .map_err(|e| {
+            worker::Error::RustError(format!(
+                "Failed to convert spectrogram for chunk {}: {}",
+                chunk.chunk_index, e
+            ))
+        })?;
+    
+    // Use PercePiano evaluator
+    let evaluator = PercepianoEvaluator::new();
+    let features = evaluator.extract_features(&mel_spectrogram_floats);
+    let analysis_data = evaluator.analyze(&features);
+    
+    // Extract raw scores for debugging
+    let raw_scores = vec![
+        ("timing_stable_unstable".to_string(), analysis_data.timing_stable_unstable),
+        ("articulation_short_long".to_string(), analysis_data.articulation_short_long),
+        ("articulation_soft_hard".to_string(), analysis_data.articulation_soft_hard),
+        ("pedal_sparse_saturated".to_string(), analysis_data.pedal_sparse_saturated),
+        ("pedal_clean_blurred".to_string(), analysis_data.pedal_clean_blurred),
+        ("timbre_even_colorful".to_string(), analysis_data.timbre_even_colorful),
+        ("timbre_shallow_rich".to_string(), analysis_data.timbre_shallow_rich),
+        ("timbre_bright_dark".to_string(), analysis_data.timbre_bright_dark),
+        ("timbre_soft_loud".to_string(), analysis_data.timbre_soft_loud),
+        ("dynamic_sophisticated_raw".to_string(), analysis_data.dynamic_sophisticated_raw),
+        ("dynamic_range_little_large".to_string(), analysis_data.dynamic_range_little_large),
+        ("music_making_fast_slow".to_string(), analysis_data.music_making_fast_slow),
+        ("music_making_flat_spacious".to_string(), analysis_data.music_making_flat_spacious),
+        ("music_making_disproportioned_balanced".to_string(), analysis_data.music_making_disproportioned_balanced),
+        ("music_making_pure_dramatic".to_string(), analysis_data.music_making_pure_dramatic),
+        ("emotion_mood_optimistic_dark".to_string(), analysis_data.emotion_mood_optimistic_dark),
+        ("emotion_mood_low_high_energy".to_string(), analysis_data.emotion_mood_low_high_energy),
+        ("emotion_mood_honest_imaginative".to_string(), analysis_data.emotion_mood_honest_imaginative),
+        ("interpretation_unsatisfactory_convincing".to_string(), analysis_data.interpretation_unsatisfactory_convincing),
+    ];
+    
+    console_log!(
+        "Chunk {} analysis complete: timing={:.3}, articulation_long={:.3}, interpretation={:.3}",
+        chunk.chunk_index,
+        analysis_data.timing_stable_unstable,
+        analysis_data.articulation_short_long,
+        analysis_data.interpretation_unsatisfactory_convincing
+    );
+    
+    Ok(ChunkAnalysisResult {
+        timestamp: chunk.timestamp.clone(),
+        chunk_index: chunk.chunk_index,
+        analysis_data,
+        raw_scores,
+    })
+}
+
+/// Generate natural language insights for a chunk's analysis
+///
+/// # Arguments
+/// * `env` - Worker environment for LLM access
+/// * `chunk_result` - Analysis result for the chunk
+///
+/// # Returns
+/// Vector of structured insights
+///
+/// # Errors
+/// Returns error if LLM call fails
+async fn generate_chunk_insights(
+    env: &Env,
+    chunk_result: &ChunkAnalysisResult,
+) -> Result<Vec<crate::AnalysisInsight>> {
+    console_log!(
+        "Generating insights for chunk {} ({})",
+        chunk_result.chunk_index,
+        chunk_result.timestamp
+    );
+    
+    // Find notable scores (high and low)
+    let mut notable_high: Vec<(&str, f32)> = vec![];
+    let mut notable_low: Vec<(&str, f32)> = vec![];
+    
+    for (name, score) in &chunk_result.raw_scores {
+        if *score >= 0.75 {
+            notable_high.push((name.as_str(), *score));
+        } else if *score <= 0.35 && *score > 0.0 {
+            // Exclude zeros (likely errors)
+            notable_low.push((name.as_str(), *score));
+        }
+    }
+    
+    // Sort by score
+    notable_high.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+    notable_low.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
+    
+    // Take top 2 of each
+    notable_high.truncate(2);
+    notable_low.truncate(2);
+    
+    console_log!(
+        "Chunk {}: {} high points, {} low points",
+        chunk_result.chunk_index,
+        notable_high.len(),
+        notable_low.len()
+    );
+    
+    let mut insights = Vec::new();
+    
+    // Generate insights for high points
+    for (dimension, score) in notable_high {
+        let insight = generate_insight_for_dimension(
+            env,
+            dimension,
+            score,
+            true, // is_strength
+            &chunk_result.timestamp,
+        ).await?;
+        insights.push(insight);
+    }
+    
+    // Generate insights for low points
+    for (dimension, score) in notable_low {
+        let insight = generate_insight_for_dimension(
+            env,
+            dimension,
+            score,
+            false, // is_strength
+            &chunk_result.timestamp,
+        ).await?;
+        insights.push(insight);
+    }
+    
+    // Ensure at least one insight per chunk
+    if insights.is_empty() {
+        insights.push(crate::AnalysisInsight {
+            category: "Technical".to_string(),
+            observation: "Performance characteristics in this segment are balanced".to_string(),
+            actionable_advice: "Continue maintaining consistent technique throughout your performance".to_string(),
+            score_reference: format!("avg_score: {:.2}", 
+                chunk_result.raw_scores.iter().map(|(_, s)| s).sum::<f32>() / chunk_result.raw_scores.len() as f32
+            ),
+        });
+    }
+    
+    console_log!(
+        "Generated {} insights for chunk {}",
+        insights.len(),
+        chunk_result.chunk_index
+    );
+    
+    Ok(insights)
+}
+
+/// Generate a single insight for a dimension using LLM
+///
+/// # Arguments
+/// * `env` - Worker environment
+/// * `dimension` - Performance dimension name
+/// * `score` - Score value (0-1)
+/// * `is_strength` - Whether this is a strength or weakness
+/// * `timestamp` - Time range for context
+///
+/// # Returns
+/// Structured insight with observation and advice
+async fn generate_insight_for_dimension(
+    env: &Env,
+    dimension: &str,
+    score: f32,
+    is_strength: bool,
+    timestamp: &str,
+) -> Result<crate::AnalysisInsight> {
+    // Map dimension name to readable form
+    let readable_dimension = dimension
+        .replace('_', " ")
+        .replace("stable unstable", "stability")
+        .replace("short long", "length")
+        .replace("soft hard", "firmness");
+    
+    // Determine category
+    let category = if dimension.starts_with("timing") || dimension.starts_with("articulation") {
+        "Technical"
+    } else if dimension.starts_with("music_making") || dimension.starts_with("emotion") {
+        "Musical"
+    } else {
+        "Interpretive"
+    };
+    
+    // Build prompt for LLM
+    let system_prompt = "You are an expert piano pedagogue providing specific, actionable feedback. \
+        Be encouraging but honest. Focus on concrete observations and practical advice. \
+        Keep responses concise (2-3 sentences each).";
+    
+    let user_prompt = format!(
+        "At timestamp {}, the performer shows {} in {}. Score: {:.2}/1.0\n\n\
+        Provide:\n\
+        1. A specific observation about what you hear\n\
+        2. Concrete, actionable advice for improvement\n\n\
+        Format: OBSERVATION: ... | ADVICE: ...",
+        timestamp,
+        if is_strength { "strength" } else { "weakness" },
+        readable_dimension,
+        score
+    );
+    
+    // Call LLM (using existing tutor infrastructure)
+    let response = crate::tutor::call_llm(
+        env,
+        system_prompt,
+        &user_prompt,
+        0.7, // temperature
+        150, // max tokens
+    ).await.map_err(|e| {
+        console_log!("LLM call failed for dimension {}: {}", dimension, e);
+        worker::Error::RustError(format!("Failed to generate insight: {}", e))
+    })?;
+    
+    // Parse response
+    let parts: Vec<&str> = response.split('|').collect();
+    let observation = parts.get(0)
+        .and_then(|s| s.strip_prefix("OBSERVATION:"))
+        .map(|s| s.trim())
+        .unwrap_or("Notable performance characteristic observed")
+        .to_string();
+    
+    let advice = parts.get(1)
+        .and_then(|s| s.strip_prefix("ADVICE:"))
+        .map(|s| s.trim())
+        .unwrap_or("Continue focused practice in this area")
+        .to_string();
+    
+    Ok(crate::AnalysisInsight {
+        category: category.to_string(),
+        observation,
+        actionable_advice: advice,
+        score_reference: format!("{}: {:.3}", dimension, score),
+    })
+}
+
+/// Determine the key practice focus for a chunk
+///
+/// # Arguments
+/// * `chunk_result` - Analysis result for the chunk
+///
+/// # Returns
+/// One-sentence practice focus
+fn determine_practice_focus(chunk_result: &ChunkAnalysisResult) -> String {
+    // Find the weakest dimension
+    let weakest = chunk_result.raw_scores
+        .iter()
+        .filter(|(_, score)| *score > 0.0) // Exclude zeros
+        .min_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
+    
+    if let Some((dimension, _score)) = weakest {
+        let readable = dimension
+            .replace('_', " ")
+            .replace("stable unstable", "stability")
+            .replace("short long", "length")
+            .replace("soft hard", "firmness");
+        
+        format!("Focus on improving {} in this passage", readable)
+    } else {
+        "Maintain consistent technique throughout".to_string()
+    }
+}
+
+/// Generate overall assessment from all chunks
+///
+/// # Arguments
+/// * `env` - Worker environment for LLM access
+/// * `chunk_results` - All chunk analysis results
+///
+/// # Returns
+/// Overall assessment structure
+///
+/// # Errors
+/// Returns error if LLM call fails
+async fn generate_overall_assessment(
+    env: &Env,
+    chunk_results: &[ChunkAnalysisResult],
+) -> Result<crate::OverallAssessment> {
+    console_log!("Generating overall assessment from {} chunks", chunk_results.len());
+    
+    // Aggregate scores across all chunks
+    let mut aggregated_scores: std::collections::HashMap<String, Vec<f32>> = 
+        std::collections::HashMap::new();
+    
+    for chunk in chunk_results {
+        for (name, score) in &chunk.raw_scores {
+            aggregated_scores
+                .entry(name.clone())
+                .or_insert_with(Vec::new)
+                .push(*score);
+        }
+    }
+    
+    // Calculate averages and identify patterns
+    let mut avg_scores: Vec<(String, f32)> = aggregated_scores
+        .iter()
+        .map(|(name, scores)| {
+            let avg = scores.iter().filter(|s| **s > 0.0).sum::<f32>() 
+                / scores.iter().filter(|s| **s > 0.0).count().max(1) as f32;
+            (name.clone(), avg)
+        })
+        .collect();
+    
+    avg_scores.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+    
+    // Identify strengths (top 3-5)
+    let strengths_data: Vec<(String, f32)> = avg_scores
+        .iter()
+        .filter(|(_, score)| *score >= 0.65)
+        .take(5)
+        .cloned()
+        .collect();
+    
+    // Identify priority areas (bottom 3-4, excluding zeros)
+    let mut priority_data: Vec<(String, f32)> = avg_scores
+        .iter()
+        .filter(|(_, score)| *score > 0.0 && *score <= 0.45)
+        .cloned()
+        .collect();
+    priority_data.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
+    priority_data.truncate(4);
+    
+    // Use LLM to generate natural language descriptions
+    let strengths = generate_strength_descriptions(env, &strengths_data).await?;
+    let priority_areas = generate_priority_descriptions(env, &priority_data).await?;
+    let performance_character = generate_performance_character(
+        env,
+        chunk_results,
+        &strengths_data,
+        &priority_data,
+    ).await?;
+    
+    console_log!("Overall assessment generated: {} strengths, {} priorities",
+        strengths.len(), priority_areas.len());
+    
+    Ok(crate::OverallAssessment {
+        strengths,
+        priority_areas,
+        performance_character,
+    })
+}
+
+/// Generate natural language strength descriptions using LLM
+async fn generate_strength_descriptions(
+    env: &Env,
+    strengths_data: &[(String, f32)],
+) -> Result<Vec<String>> {
+    if strengths_data.is_empty() {
+        return Ok(vec!["Shows developing technical skills".to_string()]);
+    }
+    
+    let dimensions_str = strengths_data
+        .iter()
+        .map(|(name, score)| format!("{} ({:.2})", name.replace('_', " "), score))
+        .collect::<Vec<_>>()
+        .join(", ");
+    
+    let system_prompt = "You are an expert piano teacher identifying performance strengths. \
+        Be specific and encouraging.";
+    
+    let user_prompt = format!(
+        "The performer shows strength in these areas: {}\n\n\
+        Generate 3-5 specific strength statements. Each should:\n\
+        - Start with a concrete observation\n\
+        - Be encouraging and specific\n\
+        - Mention the dimension naturally\n\n\
+        Format: One statement per line.",
+        dimensions_str
+    );
+    
+    let response = crate::tutor::call_llm(env, system_prompt, &user_prompt, 0.7, 300)
+        .await
+        .map_err(|e| {
+            console_log!("Failed to generate strength descriptions: {}", e);
+            worker::Error::RustError(format!("LLM call failed: {}", e))
+        })?;
+    
+    // Parse response into individual strengths
+    let strengths: Vec<String> = response
+        .lines()
+        .map(|line| line.trim())
+        .filter(|line| !line.is_empty() && !line.starts_with('-'))
+        .map(|line| line.trim_start_matches(&['1', '2', '3', '4', '5', '.', ' '][..]))
+        .map(|s| s.to_string())
+        .take(5)
+        .collect();
+    
+    if strengths.is_empty() {
+        Ok(vec!["Demonstrates foundational technique".to_string()])
+    } else {
+        Ok(strengths)
+    }
+}
+
+/// Generate priority area descriptions using LLM
+async fn generate_priority_descriptions(
+    env: &Env,
+    priority_data: &[(String, f32)],
+) -> Result<Vec<String>> {
+    if priority_data.is_empty() {
+        return Ok(vec!["Continue refining overall musicality".to_string()]);
+    }
+    
+    let dimensions_str = priority_data
+        .iter()
+        .map(|(name, score)| format!("{} ({:.2})", name.replace('_', " "), score))
+        .collect::<Vec<_>>()
+        .join(", ");
+    
+    let system_prompt = "You are an expert piano teacher identifying areas for growth. \
+        Be constructive and supportive, focusing on development opportunities.";
+    
+    let user_prompt = format!(
+        "These areas show room for development: {}\n\n\
+        Generate 2-4 priority statements. Each should:\n\
+        - Be constructive and supportive\n\
+        - Focus on growth opportunity\n\
+        - Mention the dimension naturally\n\n\
+        Format: One statement per line.",
+        dimensions_str
+    );
+    
+    let response = crate::tutor::call_llm(env, system_prompt, &user_prompt, 0.7, 250)
+        .await
+        .map_err(|e| {
+            console_log!("Failed to generate priority descriptions: {}", e);
+            worker::Error::RustError(format!("LLM call failed: {}", e))
+        })?;
+    
+    let priorities: Vec<String> = response
+        .lines()
+        .map(|line| line.trim())
+        .filter(|line| !line.is_empty() && !line.starts_with('-'))
+        .map(|line| line.trim_start_matches(&['1', '2', '3', '4', '.', ' '][..]))
+        .map(|s| s.to_string())
+        .take(4)
+        .collect();
+    
+    if priorities.is_empty() {
+        Ok(vec!["Focus on consistent technique development".to_string()])
+    } else {
+        Ok(priorities)
+    }
+}
+
+/// Generate performance character description using LLM
+async fn generate_performance_character(
+    env: &Env,
+    chunk_results: &[ChunkAnalysisResult],
+    strengths_data: &[(String, f32)],
+    priority_data: &[(String, f32)],
+) -> Result<String> {
+    let num_chunks = chunk_results.len();
+    let duration = if num_chunks > 0 {
+        // Estimate duration based on chunks (3 sec each, 1 sec overlap = 2 sec step)
+        2.0 * num_chunks as f32 + 1.0
+    } else {
+        0.0
+    };
+    
+    let strengths_summary = strengths_data
+        .iter()
+        .take(3)
+        .map(|(name, _)| name.replace('_', " "))
+        .collect::<Vec<_>>()
+        .join(", ");
+    
+    let challenges_summary = priority_data
+        .iter()
+        .take(2)
+        .map(|(name, _)| name.replace('_', " "))
+        .collect::<Vec<_>>()
+        .join(", ");
+    
+    let system_prompt = "You are an expert piano teacher writing a concise performance assessment. \
+        Write 2-3 sentences that capture the overall character and quality of the performance.";
+    
+    let user_prompt = format!(
+        "Performance details:\n\
+        - Duration: ~{:.0} seconds\n\
+        - Key strengths: {}\n\
+        - Areas for growth: {}\n\n\
+        Write a 2-3 sentence character assessment that:\n\
+        - Describes the overall performance character\n\
+        - Balances acknowledgment of strengths and areas for growth\n\
+        - Uses natural, encouraging language",
+        duration,
+        if strengths_summary.is_empty() { "developing technique" } else { &strengths_summary },
+        if challenges_summary.is_empty() { "continued refinement" } else { &challenges_summary }
+    );
+    
+    let response = crate::tutor::call_llm(env, system_prompt, &user_prompt, 0.7, 200)
+        .await
+        .map_err(|e| {
+            console_log!("Failed to generate performance character: {}", e);
+            worker::Error::RustError(format!("LLM call failed: {}", e))
+        })?;
+    
+    // Clean up response
+    let character = response
+        .trim()
+        .lines()
+        .filter(|line| !line.trim().is_empty())
+        .collect::<Vec<_>>()
+        .join(" ");
+    
+    if character.is_empty() {
+        Ok("A developing performance with both strengths and opportunities for growth.".to_string())
+    } else {
+        Ok(character)
+    }
+}
+
+/// Generate practice recommendations from chunk analyses
+///
+/// # Arguments
+/// * `env` - Worker environment for LLM access
+/// * `chunk_results` - All chunk analysis results
+///
+/// # Returns
+/// Practice recommendations structure
+async fn generate_practice_recommendations(
+    env: &Env,
+    chunk_results: &[ChunkAnalysisResult],
+) -> Result<crate::PracticeRecommendations> {
+    console_log!("Generating practice recommendations");
+    
+    // Aggregate weakest dimensions across all chunks
+    let mut dimension_scores: std::collections::HashMap<String, Vec<f32>> = 
+        std::collections::HashMap::new();
+    
+    for chunk in chunk_results {
+        for (name, score) in &chunk.raw_scores {
+            if *score > 0.0 { // Exclude zeros
+                dimension_scores
+                    .entry(name.clone())
+                    .or_insert_with(Vec::new)
+                    .push(*score);
+            }
+        }
+    }
+    
+    // Calculate averages and sort by need
+    let mut avg_scores: Vec<(String, f32)> = dimension_scores
+        .iter()
+        .map(|(name, scores)| {
+            let avg = scores.iter().sum::<f32>() / scores.len() as f32;
+            (name.clone(), avg)
+        })
+        .collect();
+    
+    avg_scores.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
+    
+    // Get top 5 weakest for immediate priorities
+    let immediate_data: Vec<(String, f32)> = avg_scores
+        .iter()
+        .take(5)
+        .cloned()
+        .collect();
+    
+    // Get 2-3 medium-term areas for long-term development
+    let longterm_data: Vec<(String, f32)> = avg_scores
+        .iter()
+        .skip(5)
+        .take(3)
+        .cloned()
+        .collect();
+    
+    let immediate_priorities = generate_immediate_priorities(env, &immediate_data).await?;
+    let long_term_development = generate_longterm_development(env, &longterm_data).await?;
+    
+    console_log!(
+        "Generated {} immediate priorities, {} long-term goals",
+        immediate_priorities.len(),
+        long_term_development.len()
+    );
+    
+    Ok(crate::PracticeRecommendations {
+        immediate_priorities,
+        long_term_development,
+    })
+}
+
+/// Generate immediate practice priorities using LLM
+async fn generate_immediate_priorities(
+    env: &Env,
+    dimension_data: &[(String, f32)],
+) -> Result<Vec<crate::ImmediatePriority>> {
+    let mut priorities = Vec::new();
+    
+    for (dimension, score) in dimension_data.iter().take(3) {
+        let readable_dimension = dimension
+            .replace('_', " ")
+            .replace("stable unstable", "stability")
+            .replace("short long", "length");
+        
+        let system_prompt = "You are an expert piano pedagogue providing specific practice exercises. \
+            Be concrete and actionable.";
+        
+        let user_prompt = format!(
+            "The student needs to improve: {} (current level: {:.2}/1.0)\n\n\
+            Provide:\n\
+            1. SKILL_AREA: A clear skill area name (2-4 words)\n\
+            2. EXERCISE: A specific practice exercise or technique (1-2 sentences)\n\
+            3. OUTCOME: What improvement to expect (1 sentence)\n\n\
+            Format: SKILL_AREA: ... | EXERCISE: ... | OUTCOME: ...",
+            readable_dimension,
+            score
+        );
+        
+        let response = crate::tutor::call_llm(env, system_prompt, &user_prompt, 0.7, 200)
+            .await
+            .map_err(|e| {
+                console_log!("Failed to generate immediate priority: {}", e);
+                e
+            })?;
+        
+        // Parse response
+        let parts: Vec<&str> = response.split('|').collect();
+        let skill_area = parts.get(0)
+            .and_then(|s| s.strip_prefix("SKILL_AREA:"))
+            .map(|s| s.trim().to_string())
+            .unwrap_or_else(|| readable_dimension.clone());
+        
+        let specific_exercise = parts.get(1)
+            .and_then(|s| s.strip_prefix("EXERCISE:"))
+            .map(|s| s.trim().to_string())
+            .unwrap_or_else(|| "Practice scales and exercises focusing on this area".to_string());
+        
+        let expected_outcome = parts.get(2)
+            .and_then(|s| s.strip_prefix("OUTCOME:"))
+            .map(|s| s.trim().to_string())
+            .unwrap_or_else(|| "Improved technique and control".to_string());
+        
+        priorities.push(crate::ImmediatePriority {
+            skill_area,
+            specific_exercise,
+            expected_outcome,
+        });
+    }
+    
+    // Ensure at least one priority
+    if priorities.is_empty() {
+        priorities.push(crate::ImmediatePriority {
+            skill_area: "Overall Technique".to_string(),
+            specific_exercise: "Continue daily technical practice with scales and arpeggios".to_string(),
+            expected_outcome: "Stronger foundational technique".to_string(),
+        });
+    }
+    
+    Ok(priorities)
+}
+
+/// Generate long-term development goals using LLM
+async fn generate_longterm_development(
+    env: &Env,
+    dimension_data: &[(String, f32)],
+) -> Result<Vec<crate::LongTermDevelopment>> {
+    let mut developments = Vec::new();
+    
+    for (dimension, _score) in dimension_data.iter().take(2) {
+        let readable_dimension = dimension
+            .replace('_', " ")
+            .replace("stable unstable", "stability");
+        
+        let system_prompt = "You are an expert piano pedagogue providing long-term musical development guidance. \
+            Think big picture and repertoire-based.";
+        
+        let user_prompt = format!(
+            "For long-term development in: {}\n\n\
+            Provide:\n\
+            1. ASPECT: The broader musical aspect to develop (2-4 words)\n\
+            2. APPROACH: Development strategy over months (1-2 sentences)\n\
+            3. REPERTOIRE: Specific composers or pieces to support this (1 sentence)\n\n\
+            Format: ASPECT: ... | APPROACH: ... | REPERTOIRE: ...",
+            readable_dimension
+        );
+        
+        let response = crate::tutor::call_llm(env, system_prompt, &user_prompt, 0.7, 250)
+            .await
+            .map_err(|e| {
+                console_log!("Failed to generate long-term development: {}", e);
+                e
+            })?;
+        
+        // Parse response
+        let parts: Vec<&str> = response.split('|').collect();
+        let musical_aspect = parts.get(0)
+            .and_then(|s| s.strip_prefix("ASPECT:"))
+            .map(|s| s.trim().to_string())
+            .unwrap_or_else(|| readable_dimension.clone());
+        
+        let development_approach = parts.get(1)
+            .and_then(|s| s.strip_prefix("APPROACH:"))
+            .map(|s| s.trim().to_string())
+            .unwrap_or_else(|| "Study diverse repertoire and work with a teacher".to_string());
+        
+        let repertoire_suggestions = parts.get(2)
+            .and_then(|s| s.strip_prefix("REPERTOIRE:"))
+            .map(|s| s.trim().to_string())
+            .unwrap_or_else(|| "Explore varied repertoire appropriate to your level".to_string());
+        
+        developments.push(crate::LongTermDevelopment {
+            musical_aspect,
+            development_approach,
+            repertoire_suggestions,
+        });
+    }
+    
+    // Ensure at least one long-term goal
+    if developments.is_empty() {
+        developments.push(crate::LongTermDevelopment {
+            musical_aspect: "Musical Maturity".to_string(),
+            development_approach: "Continue regular practice while exploring diverse musical styles and periods".to_string(),
+            repertoire_suggestions: "Study works from Baroque through Contemporary periods".to_string(),
+        });
+    }
+    
+    Ok(developments)
+}
+
+/// Generate encouraging message using LLM
+///
+/// # Arguments
+/// * `env` - Worker environment
+/// * `overall_assessment` - The overall assessment
+///
+/// # Returns
+/// Encouraging message string
+async fn generate_encouragement(
+    env: &Env,
+    overall_assessment: &crate::OverallAssessment,
+) -> Result<String> {
+    let system_prompt = "You are a supportive piano teacher writing an encouraging message. \
+        Be warm, specific, and motivating. Focus on growth and potential.";
+    
+    let strengths_preview = overall_assessment.strengths
+        .first()
+        .map(|s| s.as_str())
+        .unwrap_or("your dedication");
+    
+    let user_prompt = format!(
+        "Write 2-3 sentences of encouragement for a piano student. \
+        Their key strength is: {}\n\
+        Performance character: {}\n\n\
+        Be specific, warm, and motivating. End with forward-looking encouragement.",
+        strengths_preview,
+        overall_assessment.performance_character
+    );
+    
+    let response = crate::tutor::call_llm(env, system_prompt, &user_prompt, 0.8, 200)
+        .await
+        .map_err(|e| {
+            console_log!("Failed to generate encouragement: {}", e);
+            e
+        })?;
+    
+    let encouragement = response.trim().to_string();
+    
+    if encouragement.is_empty() {
+        Ok("Keep practicing with focus and dedication. Your musical journey is developing beautifully!".to_string())
+    } else {
+        Ok(encouragement)
+    }
+}
+
+/// Main temporal analysis workflow
+///
+/// # Arguments
+/// * `env` - Worker environment
+/// * `file_id` - Audio file ID
+/// * `job_id` - Analysis job ID
+///
+/// # Errors
+/// Returns detailed error if any step fails
+pub async fn start_temporal_analysis(
+    env: &Env,
+    file_id: &str,
+    job_id: &str,
+) -> Result<()> {
+    console_log!("=== Starting Temporal Analysis ===");
+    console_log!("File ID: {}, Job ID: {}", file_id, job_id);
+    
+    // Initialize job status
+    let initial_status = JobStatus {
+        job_id: job_id.to_string(),
+        status: "processing".to_string(),
+        progress: 0.0,
+        error: None,
+    };
+    storage::update_job_status(env, job_id, &initial_status).await?;
+    
+    // Step 1: Retrieve and parse audio
+    console_log!("Step 1: Retrieving audio from R2");
+    let audio_bytes = storage::get_audio_from_r2(env, file_id)
+        .await
+        .map_err(|e| {
+            console_log!("Failed to retrieve audio: {}", e);
+            e
+        })?;
+    
+    let audio_data = audio_dsp::parse_audio_data(&audio_bytes)
+        .map_err(|e| {
+            console_log!("Failed to parse audio: {}", e);
+            worker::Error::RustError(format!("Audio parsing failed: {}", e))
+        })?;
+    
+    console_log!(
+        "Audio loaded: {} samples at {}Hz ({:.2}s duration)",
+        audio_data.samples.len(),
+        audio_data.sample_rate,
+        audio_data.duration_seconds
+    );
+    
+    storage::update_job_status(env, job_id, &JobStatus {
+        job_id: job_id.to_string(),
+        status: "processing".to_string(),
+        progress: 10.0,
+        error: None,
+    }).await?;
+    
+    // Step 2: Chunk audio
+    console_log!("Step 2: Chunking audio (3s chunks, 1s overlap)");
+    let chunks = audio_dsp::chunk_audio_with_overlap(&audio_data, 3.0, 1.0)
+        .map_err(|e| {
+            console_log!("Failed to chunk audio: {}", e);
+            e
+        })?;
+    
+    console_log!("Created {} chunks", chunks.len());
+    
+    storage::update_job_status(env, job_id, &JobStatus {
+        job_id: job_id.to_string(),
+        status: "processing".to_string(),
+        progress: 15.0,
+        error: None,
+    }).await?;
+    
+    // Step 3: Analyze each chunk
+    console_log!("Step 3: Analyzing {} chunks", chunks.len());
+    let mut chunk_results = Vec::new();
+    let progress_per_chunk = 50.0 / chunks.len() as f32;
+    
+    for (idx, chunk) in chunks.iter().enumerate() {
+        console_log!("Processing chunk {}/{}", idx + 1, chunks.len());
+        
+        // Generate spectrogram for chunk
+        let spectrogram_bytes = audio_dsp::generate_mel_spectrogram_for_chunk(chunk)
+            .await
+            .map_err(|e| {
+                console_log!("Spectrogram generation failed for chunk {}: {}", idx, e);
+                e
+            })?;
+        
+        // Analyze chunk
+        let chunk_result = analyze_chunk(chunk, &spectrogram_bytes)
+            .await
+            .map_err(|e| {
+                console_log!("Analysis failed for chunk {}: {}", idx, e);
+                e
+            })?;
+        
+        chunk_results.push(chunk_result);
+        
+        // Update progress
+        let progress = 15.0 + (idx + 1) as f32 * progress_per_chunk;
+        storage::update_job_status(env, job_id, &JobStatus {
+            job_id: job_id.to_string(),
+            status: "processing".to_string(),
+            progress,
+            error: None,
+        }).await?;
+    }
+    
+    console_log!("All chunks analyzed successfully");
+    
+    storage::update_job_status(env, job_id, &JobStatus {
+        job_id: job_id.to_string(),
+        status: "processing".to_string(),
+        progress: 65.0,
+        error: None,
+    }).await?;
+    
+    // Step 4: Generate temporal feedback with LLM insights
+    console_log!("Step 4: Generating natural language insights");
+    let mut temporal_feedback = Vec::new();
+    
+    for chunk_result in &chunk_results {
+        let insights = generate_chunk_insights(env, chunk_result)
+            .await
+            .map_err(|e| {
+                console_log!("Failed to generate insights for chunk {}: {}", chunk_result.chunk_index, e);
+                e
+            })?;
+        
+        let practice_focus = determine_practice_focus(chunk_result);
+        
+        temporal_feedback.push(crate::TemporalFeedbackItem {
+            timestamp: chunk_result.timestamp.clone(),
+            insights,
+            practice_focus,
+        });
+    }
+    
+    console_log!("Generated temporal feedback for all chunks");
+    
+    storage::update_job_status(env, job_id, &JobStatus {
+        job_id: job_id.to_string(),
+        status: "processing".to_string(),
+        progress: 75.0,
+        error: None,
+    }).await?;
+    
+    // Step 5: Generate overall assessment
+    console_log!("Step 5: Generating overall assessment");
+    let overall_assessment = generate_overall_assessment(env, &chunk_results)
+        .await
+        .map_err(|e| {
+            console_log!("Failed to generate overall assessment: {}", e);
+            e
+        })?;
+    
+    storage::update_job_status(env, job_id, &JobStatus {
+        job_id: job_id.to_string(),
+        status: "processing".to_string(),
+        progress: 85.0,
+        error: None,
+    }).await?;
+    
+    // Step 6: Generate practice recommendations
+    console_log!("Step 6: Generating practice recommendations");
+    let practice_recommendations = generate_practice_recommendations(env, &chunk_results)
+        .await
+        .map_err(|e| {
+            console_log!("Failed to generate practice recommendations: {}", e);
+            e
+        })?;
+    
+    storage::update_job_status(env, job_id, &JobStatus {
+        job_id: job_id.to_string(),
+        status: "processing".to_string(),
+        progress: 90.0,
+        error: None,
+    }).await?;
+    
+    // Step 7: Generate encouragement
+    console_log!("Step 7: Generating encouragement");
+    let encouragement = generate_encouragement(env, &overall_assessment)
+        .await
+        .map_err(|e| {
+            console_log!("Failed to generate encouragement: {}", e);
+            e
+        })?;
+    
+    // Step 8: Create and store final result
+    console_log!("Step 8: Storing temporal analysis result");
+    let result = crate::TemporalAnalysisResult {
+        id: job_id.to_string(),
+        status: "completed".to_string(),
+        file_id: file_id.to_string(),
+        overall_assessment,
+        temporal_feedback,
+        practice_recommendations,
+        encouragement,
+        created_at: js_sys::Date::new_0().to_iso_string().as_string().unwrap(),
+        processing_time: None,
+    };
+    
+    storage::store_temporal_analysis_result(env, job_id, &result)
+        .await
+        .map_err(|e| {
+            console_log!("Failed to store result: {}", e);
+            e
+        })?;
+    
+    // Step 9: Mark job as completed
+    storage::update_job_status(env, job_id, &JobStatus {
+        job_id: job_id.to_string(),
+        status: "completed".to_string(),
+        progress: 100.0,
+        error: None,
+    }).await?;
+    
+    console_log!("=== Temporal Analysis Complete ===");
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

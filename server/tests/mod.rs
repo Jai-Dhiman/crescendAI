@@ -9,6 +9,7 @@ wasm_bindgen_test_configure!(run_in_browser);
 pub mod security_tests;
 pub mod performance_tests;
 pub mod integration_tests;
+pub mod temporal_analysis_tests;
 
 // Test utilities and common functions
 pub mod test_utils {

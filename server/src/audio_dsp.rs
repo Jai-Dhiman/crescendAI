@@ -115,14 +115,25 @@ pub fn parse_audio_data(audio_bytes: &[u8]) -> AudioResult<AudioData> {
         return Err(AudioError::InsufficientData);
     }
     
-    // For now, return a simple placeholder AudioData for WASM compatibility
-    // TODO: Implement full WAV parsing when WASM compilation is stable
-    Ok(AudioData {
-        samples: vec![0.0; 22050], // 1 second of silence at 22050 Hz
-        sample_rate: SAMPLE_RATE,
-        channels: 1,
-        duration_seconds: 1.0,
-    })
+    // Parse WAV data using hound library
+    let mut audio_data = parse_wav_data(audio_bytes)?;
+    
+    console_log!("Parsed audio: {} samples at {}Hz ({:.2}s duration)",
+                 audio_data.samples.len(),
+                 audio_data.sample_rate,
+                 audio_data.duration_seconds);
+    
+    // Resample to standard rate if needed
+    if audio_data.sample_rate != SAMPLE_RATE {
+        console_log!("Resampling from {}Hz to {}Hz", audio_data.sample_rate, SAMPLE_RATE);
+        audio_data = resample_audio(&audio_data, SAMPLE_RATE)?;
+        console_log!("Resampled to {} samples at {}Hz ({:.2}s duration)",
+                     audio_data.samples.len(),
+                     audio_data.sample_rate,
+                     audio_data.duration_seconds);
+    }
+    
+    Ok(audio_data)
 }
 
 /// Parse WAV audio data using hound library
@@ -370,8 +381,213 @@ pub fn generate_mel_spectrogram(audio: &AudioData, n_fft: usize, hop_length: usi
     })
 }
 
+// ============================================================================
+// Audio Chunking for Temporal Analysis
+// ============================================================================
+
+/// Represents a chunk of audio with temporal metadata
+#[derive(Debug, Clone)]
+pub struct AudioChunk {
+    /// Original audio samples for this chunk
+    pub samples: Vec<f32>,
+    /// Sample rate (inherited from parent)
+    pub sample_rate: u32,
+    /// Start time in seconds
+    pub start_time_secs: f32,
+    /// End time in seconds
+    pub end_time_secs: f32,
+    /// Formatted timestamp string (e.g., "0:00-0:03")
+    pub timestamp: String,
+    /// Chunk index in the sequence
+    pub chunk_index: usize,
+}
+
+impl AudioChunk {
+    /// Format time in seconds to MM:SS string
+    fn format_time(seconds: f32) -> String {
+        let minutes = (seconds / 60.0).floor() as u32;
+        let secs = (seconds % 60.0).floor() as u32;
+        format!("{}:{:02}", minutes, secs)
+    }
+    
+    /// Create timestamp range string
+    pub fn create_timestamp(start: f32, end: f32) -> String {
+        format!("{}-{}", Self::format_time(start), Self::format_time(end))
+    }
+}
+
+/// Chunk audio into overlapping segments
+///
+/// # Arguments
+/// * `audio` - Source audio data
+/// * `chunk_duration_secs` - Duration of each chunk (e.g., 3.0)
+/// * `overlap_secs` - Overlap between chunks (e.g., 1.0)
+///
+/// # Returns
+/// Vector of audio chunks with temporal metadata
+///
+/// # Errors
+/// Returns error if:
+/// - Audio is too short for even one chunk
+/// - Invalid chunk duration or overlap values
+/// - Sample rate is invalid
+pub fn chunk_audio_with_overlap(
+    audio: &AudioData,
+    chunk_duration_secs: f32,
+    overlap_secs: f32,
+) -> worker::Result<Vec<AudioChunk>> {
+    // Validate parameters
+    if chunk_duration_secs <= 0.0 {
+        return Err(worker::Error::RustError(
+            "Chunk duration must be positive".to_string()
+        ));
+    }
+    
+    if overlap_secs < 0.0 || overlap_secs >= chunk_duration_secs {
+        return Err(worker::Error::RustError(
+            "Overlap must be non-negative and less than chunk duration".to_string()
+        ));
+    }
+    
+    if audio.sample_rate == 0 {
+        return Err(worker::Error::RustError(
+            "Invalid sample rate".to_string()
+        ));
+    }
+    
+    // Calculate sample counts
+    let chunk_samples = (chunk_duration_secs * audio.sample_rate as f32) as usize;
+    let hop_samples = ((chunk_duration_secs - overlap_secs) * audio.sample_rate as f32) as usize;
+    
+    // Validate audio length
+    if audio.samples.len() < chunk_samples {
+        return Err(worker::Error::RustError(
+            format!(
+                "Audio too short: {} samples, need at least {} for one {}-second chunk",
+                audio.samples.len(), chunk_samples, chunk_duration_secs
+            )
+        ));
+    }
+    
+    console_log!(
+        "Chunking audio: {} samples at {}Hz into {}-second chunks with {}-second overlap",
+        audio.samples.len(),
+        audio.sample_rate,
+        chunk_duration_secs,
+        overlap_secs
+    );
+    
+    let mut chunks = Vec::new();
+    let mut start_sample = 0;
+    let mut chunk_index = 0;
+    
+    while start_sample + chunk_samples <= audio.samples.len() {
+        let end_sample = start_sample + chunk_samples;
+        
+        // Calculate times
+        let start_time_secs = start_sample as f32 / audio.sample_rate as f32;
+        let end_time_secs = end_sample as f32 / audio.sample_rate as f32;
+        let timestamp = AudioChunk::create_timestamp(start_time_secs, end_time_secs);
+        
+        // Extract samples - use to_vec() to avoid borrowing issues
+        let chunk_samples_vec = audio.samples[start_sample..end_sample].to_vec();
+        
+        console_log!(
+            "Created chunk {}: {} ({:.2}s - {:.2}s, {} samples)",
+            chunk_index,
+            timestamp,
+            start_time_secs,
+            end_time_secs,
+            chunk_samples_vec.len()
+        );
+        
+        chunks.push(AudioChunk {
+            samples: chunk_samples_vec,
+            sample_rate: audio.sample_rate,
+            start_time_secs,
+            end_time_secs,
+            timestamp,
+            chunk_index,
+        });
+        
+        start_sample += hop_samples;
+        chunk_index += 1;
+    }
+    
+    console_log!("Created {} chunks from audio", chunks.len());
+    
+    // Ensure we got at least one chunk
+    if chunks.is_empty() {
+        return Err(worker::Error::RustError(
+            "Failed to create any chunks from audio".to_string()
+        ));
+    }
+    
+    Ok(chunks)
+}
+
+/// Generate mel-spectrogram specifically for an audio chunk
+///
+/// # Arguments
+/// * `chunk` - Audio chunk to process
+///
+/// # Returns
+/// Serialized mel-spectrogram bytes
+///
+/// # Errors
+/// Returns error if DSP processing fails
+pub async fn generate_mel_spectrogram_for_chunk(
+    chunk: &AudioChunk,
+) -> worker::Result<Vec<u8>> {
+    console_log!(
+        "Generating mel-spectrogram for chunk {} ({})",
+        chunk.chunk_index,
+        chunk.timestamp
+    );
+    
+    // Create temporary AudioData for this chunk
+    let chunk_audio = AudioData {
+        samples: chunk.samples.clone(),
+        sample_rate: chunk.sample_rate,
+        channels: 1, // Assume mono for chunks
+        duration_seconds: chunk.end_time_secs - chunk.start_time_secs,
+    };
+    
+    // Use existing mel-spectrogram generation
+    match process_audio_to_mel_spectrogram_from_audio(&chunk_audio).await {
+        Ok(spectrogram_bytes) => {
+            console_log!(
+                "Generated {}-byte spectrogram for chunk {}",
+                spectrogram_bytes.len(),
+                chunk.chunk_index
+            );
+            Ok(spectrogram_bytes)
+        }
+        Err(e) => {
+            console_log!(
+                "Failed to generate spectrogram for chunk {}: {}",
+                chunk.chunk_index,
+                e
+            );
+            Err(worker::Error::RustError(format!(
+                "Spectrogram generation failed for chunk {}: {}",
+                chunk.chunk_index, e
+            )))
+        }
+    }
+}
+
+/// Helper function to generate mel-spectrogram from AudioData directly
+pub async fn process_audio_to_mel_spectrogram_from_audio(audio_data: &AudioData) -> worker::Result<Vec<u8>> {
+    // Generate mel-spectrogram
+    let mel_spec = generate_mel_spectrogram(audio_data, N_FFT, HOP_LENGTH, N_MELS)
+        .map_err(|e| worker::Error::RustError(format!("Mel-spectrogram generation failed: {}", e)))?;
+    
+    // Convert to bytes for transmission
+    Ok(mel_spec.to_bytes())
+}
+
 /// Main function to process audio data and generate mel-spectrogram
-#[cfg(not(test))]
 pub async fn process_audio_to_mel_spectrogram(audio_bytes: &[u8]) -> worker::Result<Vec<u8>> {
     console_log!("Starting audio processing for mel-spectrogram generation");
     
@@ -401,36 +617,9 @@ pub async fn process_audio_to_mel_spectrogram(audio_bytes: &[u8]) -> worker::Res
     Ok(mel_spec.to_bytes())
 }
 
-/// Test version of process_audio_to_mel_spectrogram 
-#[cfg(test)]
-pub async fn process_audio_to_mel_spectrogram(audio_bytes: &[u8]) -> Result<Vec<u8>, String> {
-    console_log!("Starting audio processing for mel-spectrogram generation");
-    
-    // Parse audio data
-    let mut audio_data = parse_audio_data(audio_bytes)
-        .map_err(|e| format!("Audio parsing failed: {}", e))?;
-    
-    // Validate minimum duration (need at least 1 second for meaningful analysis)
-    if audio_data.duration_seconds < 1.0 {
-        return Err("Audio too short for analysis (minimum 1 second required)".to_string());
-    }
-    
-    // Resample to standard rate if needed
-    if audio_data.sample_rate != SAMPLE_RATE {
-        audio_data = resample_audio(&audio_data, SAMPLE_RATE)
-            .map_err(|e| format!("Resampling failed: {}", e))?;
-    }
-    
-    // Generate mel-spectrogram
-    let mel_spec = generate_mel_spectrogram(&audio_data, N_FFT, HOP_LENGTH, N_MELS)
-        .map_err(|e| format!("Mel-spectrogram generation failed: {}", e))?;
-    
-    console_log!("Audio processing completed successfully: {}x{} mel-spectrogram", 
-                 mel_spec.n_mels, mel_spec.n_frames);
-    
-    // Convert to bytes for transmission
-    Ok(mel_spec.to_bytes())
-}
+// Note: The original test version that returned Result<Vec<u8>, String> has been removed
+// as it conflicted with the main function. Tests now use the main function which returns
+// worker::Result<Vec<u8>>.
 
 #[cfg(test)]
 mod tests {
