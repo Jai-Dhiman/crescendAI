@@ -89,7 +89,14 @@ async function processFile(file: File) {
 
 		// Analysis complete, save result and navigate
 		progress = 100;
-		analysisStore.set(result);
+		
+		// Create blob URL for audio playback and add to result
+		const audioUrl = URL.createObjectURL(file);
+		analysisStore.set({
+			...result,
+			audioUrl,
+			fileName: file.name
+		});
 
 		// Navigate to results page (comparison disabled)
 		goto("/results");
@@ -414,15 +421,12 @@ function resetUpload() {
 
 		<!-- Footer -->
 		<footer class="mt-8 w-full flex justify-center">
-			<div class="academic-footer text-center">
-				<div class="footer-divider"></div>
-				<p class="footer-text">
-					<strong>CrescendAI</strong> · Advanced Performance Analysis · 2025
-				</p>
-				<p class="footer-subtitle">
-					Empowering Musicians Through AI Research
-				</p>
-			</div>
+		<div class="academic-footer text-center">
+			<div class="footer-divider"></div>
+			<p class="footer-text">
+				<strong>CrescendAI</strong> · Advanced Performance Analysis · 2025
+			</p>
+		</div>
 		</footer>
 	</div>
 </main>
