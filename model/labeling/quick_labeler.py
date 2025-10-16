@@ -241,11 +241,18 @@ for d in dims:
     col1, col2 = st.columns([4, 1])
     with col1:
         v = st.slider(
-            f"{d}", min_value=0.0, max_value=1.0, value=float(cur_val), step=0.01
+            f"{d}",
+            min_value=0.0,
+            max_value=1.0,
+            value=float(cur_val),
+            step=0.01,
+            key=f"slider_{example.get('segment_id','')}_{d}",
         )
     with col2:
         m = st.checkbox(
-            "Mark labeled", value=bool((example.get("label_mask") or {}).get(d, 0))
+            "Mark labeled",
+            value=bool((example.get("label_mask") or {}).get(d, 0)),
+            key=f"mask_{example.get('segment_id','')}_{d}",
         )
     new_labels[d] = float(v)
     new_mask[d] = 1 if m else 0

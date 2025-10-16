@@ -517,9 +517,47 @@ pub async fn generate_tutor_feedback(mut req: Request, ctx: RouteContext<()>) ->
         return Err(worker::Error::from(SecurityError::InvalidInput("Tutor service disabled".to_string())));
     }
 
-    // Generate feedback
-    match crate::tutor::generate_feedback(&ctx.env, &analysis, &user_ctx, top_k).await {
+    // Generate feedback - check if ACE should be used
+    let use_ace = req.headers().get("X-Use-ACE")
+        .ok()
+        .flatten()
+        .map(|v| v.eq_ignore_ascii_case("true"));
+        
+    match crate::tutor::generate_feedback_ace(&ctx.env, &analysis, &user_ctx, top_k, use_ace).await {
         Ok(feedback) => Response::from_json(&feedback),
+        Err(e) => {
+            let is_dev = ctx.env.var("ENVIRONMENT")
+                .map(|v| v.to_string() == "development")
+                .unwrap_or(false);
+            Ok(secure_error_response(&e, is_dev))
+        }
+    }
+}
+
+pub async fn record_session_outcome(mut req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    const MAX_JSON_SIZE: usize = 4 * 1024; // 4KB limit for outcome payload
+
+    // Check Content-Length header for early validation
+    if let Ok(Some(content_length)) = req.headers().get("Content-Length") {
+        if let Ok(size) = content_length.parse::<usize>() {
+            validate_body_size(size, MAX_JSON_SIZE)?;
+        }
+    }
+
+    let body: serde_json::Value = req.json().await?;
+
+    // Parse session outcome
+    let session_outcome: crate::tutor::SessionOutcome = serde_json::from_value(body)
+        .map_err(|_| worker::Error::from(SecurityError::InvalidInput(
+            "Invalid session outcome payload".to_string()
+        )))?;
+
+    // Record the outcome
+    match crate::tutor::record_session_outcome(&ctx.env, session_outcome).await {
+        Ok(_) => Response::from_json(&json!({
+            "status": "recorded",
+            "message": "Session outcome recorded successfully"
+        })),
         Err(e) => {
             let is_dev = ctx.env.var("ENVIRONMENT")
                 .map(|v| v.to_string() == "development")

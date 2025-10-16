@@ -137,3 +137,8 @@ temp/
 CLAUDE.md
 WARP.md
 .claude/
+
+# Training Audio
+*.wav
+model/data/maestro-v3.0.0.zip
+model/data/maestro-v3.0.0.csv

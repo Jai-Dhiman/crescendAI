@@ -1,0 +1,15 @@
+{
+  "download_complete": false,
+  "files_processed": [
+    "maestro-v3.0.0/2018/MIDI-Unprocessed_Chamber3_MID--AUDIO_10_R3_2018_wav--1.wav",
+    "maestro-v3.0.0/2008/MIDI-Unprocessed_03_R2_2008_01-03_ORIG_MID--AUDIO_03_R2_2008_wav--2.wav",
+    "maestro-v3.0.0/2017/MIDI-Unprocessed_066_PIANO066_MID--AUDIO-split_07-07-17_Piano-e_3-02_wav--3.wav",
+    "maestro-v3.0.0/2004/MIDI-Unprocessed_XP_21_R1_2004_01_ORIG_MID--AUDIO_21_R1_2004_01_Track01_wav.wav",
+    "maestro-v3.0.0/2006/MIDI-Unprocessed_17_R1_2006_01-06_ORIG_MID--AUDIO_17_R1_2006_04_Track04_wav.wav"
+  ],
+  "files_failed": [],
+  "segments_created": 393,
+  "last_updated": "2025-10-06T16:25:42.127804",
+  "processing_started": "2025-10-06T16:24:13.483684",
+  "processing_completed": "2025-10-06T16:25:42.127791"
+}

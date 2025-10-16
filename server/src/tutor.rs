@@ -4,6 +4,17 @@ use worker::*;
 use crate::AnalysisData;
 use crate::knowledge_base::{query_top_k, KBChunk};
 
+// Import ACE framework components
+mod ace_framework;
+mod ace_generator;
+mod ace_reflector;
+mod ace_curator;
+mod ace_pipeline;
+
+use ace_framework::AceConfig;
+use ace_pipeline::AcePipeline;
+pub use ace_curator::SessionOutcome;
+
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct RepertoireInfo {
     pub composer: String,
@@ -246,7 +257,77 @@ fn validate_and_normalize(mut feedback: TutorFeedback) -> TutorFeedback {
     feedback
 }
 
+/// Enhanced generate_feedback function that can use ACE pipeline
+pub async fn generate_feedback_ace(
+    env: &Env, 
+    analysis: &AnalysisData, 
+    user_ctx: &UserContext, 
+    k: usize,
+    use_ace: Option<bool>
+) -> Result<TutorFeedback> {
+    let use_ace_pipeline = use_ace.unwrap_or_else(|| {
+        env.var("ACE_ENABLED").map(|v| v.to_string() == "true").unwrap_or(false)
+    });
+
+    if use_ace_pipeline {
+        console_log!("Using ACE pipeline for feedback generation");
+        
+        let config = AceConfig {
+            generator_model: env.var("ACE_GENERATOR_MODEL")
+                .map(|v| v.to_string())
+                .unwrap_or_else(|_| "gpt-5-nano-2025-08-07".to_string()),
+            reflector_model: env.var("ACE_REFLECTOR_MODEL")
+                .map(|v| v.to_string())
+                .unwrap_or_else(|_| "gpt-5-nano-2025-08-07".to_string()),
+            curator_enabled: env.var("ACE_CURATOR_ENABLED")
+                .map(|v| v.to_string() == "true")
+                .unwrap_or(true),
+            max_playbook_size: env.var("ACE_MAX_PLAYBOOK_SIZE")
+                .ok()
+                .and_then(|v| v.to_string().parse().ok())
+                .unwrap_or(500),
+            confidence_threshold: env.var("ACE_CONFIDENCE_THRESHOLD")
+                .ok()
+                .and_then(|v| v.to_string().parse().ok())
+                .unwrap_or(0.6),
+            cache_ttl_hours: env.var("ACE_CACHE_TTL_HOURS")
+                .ok()
+                .and_then(|v| v.to_string().parse().ok())
+                .unwrap_or(24),
+        };
+
+        let ace_pipeline = AcePipeline::with_config(config);
+        
+        match ace_pipeline.generate_ace_feedback(
+            env, 
+            analysis, 
+            user_ctx, 
+            Some(k),
+            None
+        ).await {
+            Ok(ace_output) => {
+                console_log!("ACE pipeline completed in {}ms", 
+                           ace_output.pipeline_metadata.processing_time_ms);
+                return Ok(ace_output.feedback);
+            }
+            Err(e) => {
+                console_log!("ACE pipeline failed: {:?}, falling back to legacy", e);
+                // Fall through to legacy implementation
+            }
+        }
+    }
+
+    // Legacy implementation (original generate_feedback)
+    generate_feedback_legacy(env, analysis, user_ctx, k).await
+}
+
+/// Original generate_feedback function (now legacy)
 pub async fn generate_feedback(env: &Env, analysis: &AnalysisData, user_ctx: &UserContext, k: usize) -> Result<TutorFeedback> {
+    generate_feedback_legacy(env, analysis, user_ctx, k).await
+}
+
+/// Legacy feedback generation implementation
+async fn generate_feedback_legacy(env: &Env, analysis: &AnalysisData, user_ctx: &UserContext, k: usize) -> Result<TutorFeedback> {
     // Build cache key
     let compact = compact_scores(analysis);
     let cache_key_input = serde_json::json!({
@@ -316,4 +397,16 @@ pub async fn generate_feedback(env: &Env, analysis: &AnalysisData, user_ctx: &Us
     }
 
     Ok(feedback)
+}
+
+/// Record session outcome for ACE learning
+pub async fn record_session_outcome(
+    env: &Env,
+    session_outcome: SessionOutcome,
+) -> Result<()> {
+    let config = AceConfig::default();
+    let ace_pipeline = AcePipeline::with_config(config);
+    
+    ace_pipeline.record_session_outcome(env, session_outcome).await
+        .map_err(|e| worker::Error::RustError(format!("Failed to record session outcome: {}", e)))
 }
