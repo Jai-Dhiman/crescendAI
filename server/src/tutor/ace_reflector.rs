@@ -4,8 +4,8 @@ use worker::*;
 use crate::tutor::call_llm;
 
 use super::ace_framework::{
-    AceAgent, AceError, ContextDelta, FeedbackContext, FeedbackReflection, 
-    InitialFeedback, Operation, QualityAssessment,
+    AceAgent, AceError, ContextDelta, FeedbackContext, FeedbackReflection, InitialFeedback,
+    Operation, QualityAssessment,
 };
 
 /// Input for the Reflector agent
@@ -110,7 +110,8 @@ Guidelines:
                 "Do citations actually support the claims made?",
                 "What patterns could be learned for similar future cases?"
             ]
-        }).to_string()
+        })
+        .to_string()
     }
 
     /// Extract main performance issues for reflection context
@@ -119,12 +120,19 @@ Guidelines:
 
         // Check each major category
         if analysis.timing_stable_unstable < 0.5 {
-            issues.push(format!("Timing instability (score: {:.2})", analysis.timing_stable_unstable));
+            issues.push(format!(
+                "Timing instability (score: {:.2})",
+                analysis.timing_stable_unstable
+            ));
         }
 
-        let articulation_avg = (analysis.articulation_short_long + analysis.articulation_soft_hard) / 2.0;
+        let articulation_avg =
+            (analysis.articulation_short_long + analysis.articulation_soft_hard) / 2.0;
         if articulation_avg < 0.5 {
-            issues.push(format!("Articulation control (avg score: {:.2})", articulation_avg));
+            issues.push(format!(
+                "Articulation control (avg score: {:.2})",
+                articulation_avg
+            ));
         }
 
         let pedal_avg = (analysis.pedal_sparse_saturated + analysis.pedal_clean_blurred) / 2.0;
@@ -132,15 +140,22 @@ Guidelines:
             issues.push(format!("Pedal technique (avg score: {:.2})", pedal_avg));
         }
 
-        let dynamic_avg = (analysis.dynamic_sophisticated_raw + analysis.dynamic_range_little_large) / 2.0;
+        let dynamic_avg =
+            (analysis.dynamic_sophisticated_raw + analysis.dynamic_range_little_large) / 2.0;
         if dynamic_avg < 0.5 {
             issues.push(format!("Dynamic control (avg score: {:.2})", dynamic_avg));
         }
 
-        let musical_avg = (analysis.music_making_fast_slow + analysis.music_making_flat_spacious + 
-                          analysis.music_making_disproportioned_balanced + analysis.music_making_pure_dramatic) / 4.0;
+        let musical_avg = (analysis.music_making_fast_slow
+            + analysis.music_making_flat_spacious
+            + analysis.music_making_disproportioned_balanced
+            + analysis.music_making_pure_dramatic)
+            / 4.0;
         if musical_avg < 0.5 {
-            issues.push(format!("Musical expression (avg score: {:.2})", musical_avg));
+            issues.push(format!(
+                "Musical expression (avg score: {:.2})",
+                musical_avg
+            ));
         }
 
         issues
@@ -157,12 +172,11 @@ Guidelines:
         assessment.completeness_score = assessment.completeness_score.clamp(0.0, 1.0);
 
         // Calculate overall score as weighted average
-        assessment.overall_score = (
-            assessment.actionability_score * 0.3 +
-            assessment.citation_accuracy_score * 0.2 +
-            assessment.user_alignment_score * 0.3 +
-            assessment.completeness_score * 0.2
-        ).clamp(0.0, 1.0);
+        assessment.overall_score = (assessment.actionability_score * 0.3
+            + assessment.citation_accuracy_score * 0.2
+            + assessment.user_alignment_score * 0.3
+            + assessment.completeness_score * 0.2)
+            .clamp(0.0, 1.0);
 
         // Ensure confidence is reasonable
         reflection.confidence_score = reflection.confidence_score.clamp(0.4, 0.95);
@@ -170,7 +184,10 @@ Guidelines:
         // Validate deltas
         for delta in &mut reflection.deltas {
             // Ensure section is valid
-            if !matches!(delta.section.as_str(), "strategies" | "techniques" | "patterns" | "failure_modes") {
+            if !matches!(
+                delta.section.as_str(),
+                "strategies" | "techniques" | "patterns" | "failure_modes"
+            ) {
                 delta.section = "strategies".to_string();
             }
 
@@ -196,26 +213,39 @@ Guidelines:
     /// Generate fallback reflection if LLM fails
     fn generate_fallback_reflection(&self, input: &ReflectorInput) -> FeedbackReflection {
         let feedback = &input.initial_feedback;
-        
+
         // Basic quality assessment
-        let actionability_score = if feedback.practice_suggestions.is_empty() { 0.3 } else { 0.6 };
-        let citation_accuracy_score = if feedback.citations.is_empty() { 0.4 } else { 0.7 };
+        let actionability_score = if feedback.practice_suggestions.is_empty() {
+            0.3
+        } else {
+            0.6
+        };
+        let citation_accuracy_score = if feedback.citations.is_empty() {
+            0.4
+        } else {
+            0.7
+        };
         let user_alignment_score = 0.6; // Default reasonable score
-        let completeness_score = if feedback.recommendations.is_empty() { 0.2 } else { 0.6 };
+        let completeness_score = if feedback.recommendations.is_empty() {
+            0.2
+        } else {
+            0.6
+        };
 
         let quality_assessment = QualityAssessment {
             actionability_score,
             citation_accuracy_score,
             user_alignment_score,
             completeness_score,
-            overall_score: (actionability_score + citation_accuracy_score + 
-                           user_alignment_score + completeness_score) / 4.0,
+            overall_score: (actionability_score
+                + citation_accuracy_score
+                + user_alignment_score
+                + completeness_score)
+                / 4.0,
         };
 
         // Generate basic insights
-        let mut extracted_insights = vec![
-            "Feedback generation system is operational".to_string(),
-        ];
+        let mut extracted_insights = vec!["Feedback generation system is operational".to_string()];
 
         if feedback.recommendations.is_empty() {
             extracted_insights.push("Recommendation generation needs improvement".to_string());
@@ -269,7 +299,15 @@ impl AceAgent for FeedbackReflector {
         let user_prompt = self.build_user_prompt(&input);
 
         // Call LLM for reflection analysis
-        let llm_response = match call_llm(env, &system_prompt, &user_prompt, self.temperature, self.max_tokens).await {
+        let llm_response = match call_llm(
+            env,
+            &system_prompt,
+            &user_prompt,
+            self.temperature,
+            self.max_tokens,
+        )
+        .await
+        {
             Ok(response) => response,
             Err(e) => {
                 console_log!("Reflector LLM call failed: {:?}, using fallback", e);
@@ -283,18 +321,20 @@ impl AceAgent for FeedbackReflector {
             Err(e) => {
                 // Try one repair attempt
                 let repair_prompt = format!(
-                    "Return only valid JSON matching the schema. Fix this response: {}", 
+                    "Return only valid JSON matching the schema. Fix this response: {}",
                     llm_response
                 );
-                
-                let repaired_response = match call_llm(env, &system_prompt, &repair_prompt, 0.0, self.max_tokens).await {
-                    Ok(response) => response,
-                    Err(_) => {
-                        console_log!("Reflector repair failed, using fallback");
-                        return Ok(self.generate_fallback_reflection(&input));
-                    }
-                };
-                
+
+                let repaired_response =
+                    match call_llm(env, &system_prompt, &repair_prompt, 0.0, self.max_tokens).await
+                    {
+                        Ok(response) => response,
+                        Err(_) => {
+                            console_log!("Reflector repair failed, using fallback");
+                            return Ok(self.generate_fallback_reflection(&input));
+                        }
+                    };
+
                 match serde_json::from_str::<FeedbackReflection>(&repaired_response) {
                     Ok(reflection) => reflection,
                     Err(_) => {
@@ -326,7 +366,7 @@ impl Default for FeedbackReflector {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tutor::{UserContext, RepertoireInfo};
+    use crate::tutor::{RepertoireInfo, UserContext};
     use crate::AnalysisData;
 
     fn create_test_input() -> ReflectorInput {
@@ -372,9 +412,7 @@ mod tests {
                 "Focus on steady beat in left hand".to_string(),
             ],
             technique_focus: vec!["timing_stability".to_string()],
-            practice_suggestions: vec![
-                "Start at 60 BPM, increase by 5 BPM when steady".to_string(),
-            ],
+            practice_suggestions: vec!["Start at 60 BPM, increase by 5 BPM when steady".to_string()],
             expected_timeline: "2-3 weeks with daily practice".to_string(),
             citations: vec!["metronome_practice_guide".to_string()],
             reasoning_trace: "Timing issues identified, metronome practice recommended".to_string(),
@@ -423,7 +461,7 @@ mod tests {
 
         let issues = reflector.extract_main_issues(&analysis);
         assert!(!issues.is_empty());
-        
+
         // Should identify timing and articulation issues
         assert!(issues.iter().any(|issue| issue.contains("Timing")));
         assert!(issues.iter().any(|issue| issue.contains("Articulation")));
@@ -448,10 +486,10 @@ mod tests {
     #[test]
     fn test_validate_reflection() {
         let reflector = FeedbackReflector::new();
-        
+
         let mut reflection = FeedbackReflection {
             quality_assessment: QualityAssessment {
-                actionability_score: 1.5, // Invalid - too high
+                actionability_score: 1.5,      // Invalid - too high
                 citation_accuracy_score: -0.1, // Invalid - negative
                 user_alignment_score: 0.7,
                 completeness_score: 0.8,
@@ -463,7 +501,7 @@ mod tests {
             deltas: vec![ContextDelta {
                 operation: Operation::Add,
                 bullet_id: None,
-                content: "".to_string(), // Invalid - empty
+                content: "".to_string(),                // Invalid - empty
                 section: "invalid_section".to_string(), // Invalid section
                 tags: vec!["test".to_string()],
                 confidence: 1.5, // Invalid - too high

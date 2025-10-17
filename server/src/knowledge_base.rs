@@ -4,8 +4,8 @@ use worker::*;
 /// Knowledge Base chunk metadata stored in Vectorize
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct KBChunk {
-    pub id: String,       // e.g., "hanon_01::c0"
-    pub doc_id: String,   // e.g., "hanon_01"
+    pub id: String,     // e.g., "hanon_01::c0"
+    pub doc_id: String, // e.g., "hanon_01"
     pub title: String,
     pub tags: Vec<String>,
     pub source: String,
@@ -14,163 +14,142 @@ pub struct KBChunk {
     pub chunk_id: u32,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-struct CfEmbeddingResponse {
-    result: Option<CfEmbeddingResult>,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-struct CfEmbeddingResult {
-    data: Option<Vec<f32>>, // Some models return flat vector
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-struct OpenAiEmbeddingResponse {
-    data: Vec<OpenAiEmbeddingItem>,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-struct OpenAiEmbeddingItem {
-    embedding: Vec<f32>,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-struct VectorizeQueryRequest {
-    vector: Vec<f32>,
-    #[serde(rename = "topK")]
-    top_k: usize,
-    #[serde(rename = "includeVectors")]
-    include_vectors: bool,
-    #[serde(rename = "includeMetadata")]
-    include_metadata: bool,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-struct VectorizeQueryResponse {
-    result: Option<VectorizeQueryResult>,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-struct VectorizeQueryResult {
-    #[serde(default)]
-    matches: Vec<VectorizeMatch>,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-struct VectorizeMatch {
-    id: String,
-    #[serde(default)]
-    metadata: Option<KBChunk>,
-}
-
-fn get_env_var(env: &Env, key: &str) -> Option<String> {
-    env.var(key).ok().map(|v| v.to_string())
-}
-
-/// Embeds a text using Workers AI (primary via CF REST) or OpenAI as fallback
+/// Embeds a text using Workers AI via HTTP API (no fallbacks)
 pub async fn embed_text(env: &Env, text: &str) -> Result<Vec<f32>> {
-    // Try Cloudflare AI embeddings first (requires CF_ACCOUNT_ID and CF_API_TOKEN)
-    let cf_account = get_env_var(env, "CF_ACCOUNT_ID");
-    let cf_token = env.secret("CF_API_TOKEN").ok().map(|s| s.to_string());
-    let cf_model = get_env_var(env, "CF_EMBED_MODEL").unwrap_or_else(|| "@cf/baai/bge-small-en-v1.5".to_string());
-
-    if let (Some(account_id), Some(token)) = (cf_account, cf_token) {
-        let url = format!(
-            "https://api.cloudflare.com/client/v4/accounts/{}/ai/run/{}",
-            account_id, cf_model
-        );
-        let payload = serde_json::json!({ "text": text });
-        let mut headers = Headers::new();
-        headers.set("Authorization", &format!("Bearer {}", token)).ok();
-        headers.set("Content-Type", "application/json").ok();
-        let mut init = RequestInit::new();
-        init.with_method(Method::Post);
-        init.with_headers(headers);
-        init.with_body(Some(serde_json::to_string(&payload).map_err(|e| worker::Error::RustError(e.to_string()))?.into()));
-        let req = Request::new_with_init(&url, &init)?;
-        let mut resp = Fetch::Request(req).send().await?;
-        if resp.status_code() / 100 == 2 {
-            let cf: CfEmbeddingResponse = resp.json().await?;
-            if let Some(res) = cf.result {
-                if let Some(vec) = res.data {
-                    return Ok(vec);
-                }
-            }
-        }
-        // If CF path fails, continue to fallback
-    }
-
-    // Fallback: OpenAI embeddings
-    let openai_key = env.secret("OPENAI_API_KEY")
-        .map_err(|_| worker::Error::RustError("OPENAI_API_KEY not configured".to_string()))?
-        .to_string();
-    let embed_model = get_env_var(env, "OPENAI_EMBED_MODEL").unwrap_or_else(|| "text-embedding-3-small".to_string());
-    let url = "https://api.openai.com/v1/embeddings";
-    let payload = serde_json::json!({
-        "model": embed_model,
-        "input": text,
-    });
-    let mut headers = Headers::new();
-    headers.set("Authorization", &format!("Bearer {}", openai_key)).ok();
-    headers.set("Content-Type", "application/json").ok();
-    let mut init = RequestInit::new();
-    init.with_method(Method::Post);
-    init.with_headers(headers);
-    init.with_body(Some(serde_json::to_string(&payload).map_err(|e| worker::Error::RustError(e.to_string()))?.into()));
-    let req = Request::new_with_init(url, &init)?;
-    let mut resp = Fetch::Request(req).send().await?;
-    if resp.status_code() / 100 != 2 {
-        return Err(worker::Error::RustError(format!("OpenAI embeddings HTTP {}", resp.status_code())));
-    }
-    let body: OpenAiEmbeddingResponse = resp.json().await?;
-    let first = body.data.into_iter().next().ok_or_else(|| worker::Error::RustError("OpenAI embeddings empty".to_string()))?;
-    Ok(first.embedding)
-}
-
-/// Queries Vectorize using an embedded query vector
-pub async fn query_top_k(env: &Env, query: &str, k: usize) -> Result<Vec<KBChunk>> {
-    let vector = embed_text(env, query).await?;
-
-    // Cloudflare Vectorize REST
-    let account_id = get_env_var(env, "CF_ACCOUNT_ID")
-        .ok_or_else(|| worker::Error::RustError("CF_ACCOUNT_ID not configured".to_string()))?;
+    let account_id = env.var("CF_ACCOUNT_ID")
+        .map_err(|_| worker::Error::RustError("CF_ACCOUNT_ID not configured".to_string()))?;
     let token = env.secret("CF_API_TOKEN")
         .map_err(|_| worker::Error::RustError("CF_API_TOKEN not configured".to_string()))?
         .to_string();
-    let index_name = get_env_var(env, "VECTORIZE_INDEX_NAME").unwrap_or_else(|| "crescendai-piano-pedagogy".to_string());
+    let cf_model = env.var("CF_EMBED_MODEL")
+        .map(|v| v.to_string())
+        .unwrap_or_else(|_| "@cf/google/embeddinggemma-300m".to_string());
 
     let url = format!(
-        "https://api.cloudflare.com/client/v4/accounts/{}/vectorize/indexes/{}/query",
-        account_id, index_name
+        "https://api.cloudflare.com/client/v4/accounts/{}/ai/run/{}",
+        account_id.to_string(), cf_model
     );
-    let payload = VectorizeQueryRequest {
-        vector,
-        top_k: k,
-        include_vectors: false,
-        include_metadata: true,
-    };
-
+    
+    // Send as array to match API expectation
+    let payload = serde_json::json!({ "text": [text] });
+    
     let mut headers = Headers::new();
-    headers.set("Authorization", &format!("Bearer {}", token)).ok();
-    headers.set("Content-Type", "application/json").ok();
+    headers.set("Authorization", &format!("Bearer {}", token.to_string()))?;
+    headers.set("Content-Type", "application/json")?;
+    
     let mut init = RequestInit::new();
     init.with_method(Method::Post);
     init.with_headers(headers);
-    init.with_body(Some(serde_json::to_string(&payload).map_err(|e| worker::Error::RustError(e.to_string()))?.into()));
+    init.with_body(Some(
+        serde_json::to_string(&payload)
+            .map_err(|e| worker::Error::RustError(e.to_string()))?
+            .into(),
+    ));
+    
     let req = Request::new_with_init(&url, &init)?;
     let mut resp = Fetch::Request(req).send().await?;
+    
     if resp.status_code() / 100 != 2 {
-        return Err(worker::Error::RustError(format!("Vectorize query HTTP {}", resp.status_code())));
+        let error_text = resp.text().await.unwrap_or_default();
+        return Err(worker::Error::RustError(format!(
+            "CF AI API error {}: {}", resp.status_code(), error_text
+        )));
     }
-
-    let parsed: VectorizeQueryResponse = resp.json().await?;
-    let mut chunks: Vec<KBChunk> = vec![];
-    if let Some(res) = parsed.result {
-        for m in res.matches {
-            if let Some(meta) = m.metadata.clone() {
-                chunks.push(meta);
+    
+    let response_json: serde_json::Value = resp.json().await?;
+    
+    // Parse embedding from response
+    if let Some(result) = response_json.get("result") {
+        if let Some(data) = result.get("data") {
+            if let Some(arr) = data.as_array() {
+                if !arr.is_empty() {
+                    if let Some(first) = arr[0].as_array() {
+                        // Response format: {"result": {"data": [[embedding]]}}
+                        let embedding: Vec<f32> = first
+                            .iter()
+                            .filter_map(|v| v.as_f64().map(|f| f as f32))
+                            .collect();
+                        if !embedding.is_empty() {
+                            return Ok(embedding);
+                        }
+                    }
+                }
             }
         }
     }
+    
+    Err(worker::Error::RustError(
+        "Invalid embedding response format from CF AI".to_string()
+    ))
+}
+
+/// Queries Vectorize using HTTP API (no fallbacks)
+pub async fn query_top_k(env: &Env, query: &str, k: usize) -> Result<Vec<KBChunk>> {
+    let vector = embed_text(env, query).await?;
+    
+    let account_id = env.var("CF_ACCOUNT_ID")
+        .map_err(|_| worker::Error::RustError("CF_ACCOUNT_ID not configured".to_string()))?;
+    let token = env.secret("CF_API_TOKEN")
+        .map_err(|_| worker::Error::RustError("CF_API_TOKEN not configured".to_string()))?
+        .to_string();
+    let index_name = env.var("VECTORIZE_INDEX_NAME")
+        .map(|v| v.to_string())
+        .unwrap_or_else(|_| "crescendai-piano-pedagogy".to_string());
+
+    let url = format!(
+        "https://api.cloudflare.com/client/v4/accounts/{}/vectorize/indexes/{}/query",
+        account_id.to_string(), index_name
+    );
+    
+    let payload = serde_json::json!({
+        "vector": vector,
+        "topK": k,
+        "includeVectors": false,
+        "includeMetadata": true
+    });
+    
+    let mut headers = Headers::new();
+    headers.set("Authorization", &format!("Bearer {}", token.to_string()))?;
+    headers.set("Content-Type", "application/json")?;
+    
+    let mut init = RequestInit::new();
+    init.with_method(Method::Post);
+    init.with_headers(headers);
+    init.with_body(Some(
+        serde_json::to_string(&payload)
+            .map_err(|e| worker::Error::RustError(e.to_string()))?
+            .into(),
+    ));
+    
+    let req = Request::new_with_init(&url, &init)?;
+    let mut resp = Fetch::Request(req).send().await?;
+    
+    if resp.status_code() / 100 != 2 {
+        let error_text = resp.text().await.unwrap_or_default();
+        return Err(worker::Error::RustError(format!(
+            "Vectorize query error {}: {}", resp.status_code(), error_text
+        )));
+    }
+    
+    let response_json: serde_json::Value = resp.json().await?;
+    
+    let mut chunks: Vec<KBChunk> = Vec::new();
+    
+    if let Some(result) = response_json.get("result") {
+        if let Some(matches) = result.get("matches").and_then(|m| m.as_array()) {
+            for match_item in matches {
+                if let Some(metadata) = match_item.get("metadata") {
+                    match serde_json::from_value::<KBChunk>(metadata.clone()) {
+                        Ok(chunk) => chunks.push(chunk),
+                        Err(e) => {
+                            console_log!("Warning: Failed to parse chunk metadata: {:?}", e);
+                            continue;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
     Ok(chunks)
 }

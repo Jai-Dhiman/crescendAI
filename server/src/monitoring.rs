@@ -1,15 +1,15 @@
-// Phase 3.4: Production Monitoring and Observability
+// Monitoring and Observability
 // Implements structured logging, metrics collection, and health checks
 
-use worker::*;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::HashMap;
+use worker::*;
 
 #[cfg(not(test))]
 use js_sys::Date;
 
-// Test-only Date implementation  
+// Test-only Date implementation
 #[cfg(test)]
 struct Date;
 
@@ -98,7 +98,7 @@ impl RequestLogger {
     pub fn new(req: &Request) -> Self {
         let request_id = uuid::Uuid::new_v4().to_string();
         let timestamp = Date::now();
-        
+
         let context = RequestContext {
             request_id: request_id.clone(),
             method: req.method().to_string(),
@@ -144,36 +144,48 @@ impl RequestLogger {
 
     /// Log request start
     pub fn log_request_start(&self) {
-        self.log(LogLevel::INFO, "Request started", Some(json!({
-            "user_agent": self.context.user_agent,
-            "api_key_present": self.context.api_key_hash.is_some()
-        })));
+        self.log(
+            LogLevel::INFO,
+            "Request started",
+            Some(json!({
+                "user_agent": self.context.user_agent,
+                "api_key_present": self.context.api_key_hash.is_some()
+            })),
+        );
     }
 
     /// Log request completion
     pub fn log_request_complete(&mut self, status_code: u16, response_size: Option<usize>) {
         self.metrics.request_duration_ms = Date::now() - self.start_time;
-        
-        self.log(LogLevel::INFO, "Request completed", Some(json!({
-            "status_code": status_code,
-            "duration_ms": self.metrics.request_duration_ms,
-            "response_size_bytes": response_size,
-            "processing_time_ms": self.metrics.processing_time_ms,
-            "cache_hit": self.metrics.cache_hit,
-            "file_size_bytes": self.metrics.file_size_bytes
-        })));
+
+        self.log(
+            LogLevel::INFO,
+            "Request completed",
+            Some(json!({
+                "status_code": status_code,
+                "duration_ms": self.metrics.request_duration_ms,
+                "response_size_bytes": response_size,
+                "processing_time_ms": self.metrics.processing_time_ms,
+                "cache_hit": self.metrics.cache_hit,
+                "file_size_bytes": self.metrics.file_size_bytes
+            })),
+        );
     }
 
     /// Log error
     pub fn log_error(&mut self, error: &str, error_type: &str, stack_trace: Option<&str>) {
         self.metrics.error_count += 1;
-        
-        self.log(LogLevel::ERROR, "Request error", Some(json!({
-            "error": error,
-            "error_type": error_type,
-            "stack_trace": stack_trace,
-            "error_count": self.metrics.error_count
-        })));
+
+        self.log(
+            LogLevel::ERROR,
+            "Request error",
+            Some(json!({
+                "error": error,
+                "error_type": error_type,
+                "stack_trace": stack_trace,
+                "error_count": self.metrics.error_count
+            })),
+        );
     }
 
     /// Update processing metrics
@@ -207,7 +219,7 @@ impl PerformanceMetricsCollector {
     pub async fn record_api_latency(&self, endpoint: &str, duration_ms: f64) -> Result<()> {
         let key = format!("metrics:api_latency:{}", endpoint);
         let timestamp = Date::now() as u64;
-        
+
         let metric_data = json!({
             "endpoint": endpoint,
             "duration_ms": duration_ms,
@@ -228,7 +240,7 @@ impl PerformanceMetricsCollector {
     pub async fn record_processing_time(&self, operation: &str, duration_ms: f64) -> Result<()> {
         let key = format!("metrics:processing:{}", operation);
         let timestamp = Date::now() as u64;
-        
+
         let metric_data = json!({
             "operation": operation,
             "duration_ms": duration_ms,
@@ -248,10 +260,10 @@ impl PerformanceMetricsCollector {
     pub async fn record_error(&self, error_type: &str, endpoint: &str) -> Result<()> {
         let key = format!("metrics:errors:{}:{}", error_type, endpoint);
         let timestamp = Date::now() as u64;
-        
+
         // Get current error count
         let current_count = self.get_error_count(&key).await.unwrap_or(0);
-        
+
         let metric_data = json!({
             "error_type": error_type,
             "endpoint": endpoint,
@@ -281,13 +293,13 @@ impl PerformanceMetricsCollector {
     /// Get API latency statistics
     pub async fn get_api_latency_stats(&self, endpoint: &str) -> Result<Option<Value>> {
         let key = format!("metrics:api_latency:{}", endpoint);
-        
+
         if let Some(data) = self.kv_store.get(&key).text().await? {
             if let Ok(parsed) = serde_json::from_str::<Value>(&data) {
                 return Ok(Some(parsed));
             }
         }
-        
+
         Ok(None)
     }
 }
@@ -300,14 +312,17 @@ pub struct ErrorTracker {
 
 impl ErrorTracker {
     pub fn new(kv_store: kv::KvStore, window_size: u64) -> Self {
-        Self { kv_store, window_size }
+        Self {
+            kv_store,
+            window_size,
+        }
     }
 
     /// Track error occurrence
     pub async fn track_error(&self, error_type: &str, endpoint: &str) -> Result<()> {
         let now = Date::now() as u64 / 1000;
         let key = format!("errors:{}:{}", error_type, endpoint);
-        
+
         // Get current error timestamps
         let current_data = self.kv_store.get(&key).text().await?;
         let mut error_timestamps: Vec<u64> = current_data
@@ -322,9 +337,10 @@ impl ErrorTracker {
         error_timestamps.push(now);
 
         // Store updated timestamps
-        let data = serde_json::to_string(&error_timestamps)
-            .map_err(|_| worker::Error::RustError("Failed to serialize error timestamps".to_string()))?;
-        
+        let data = serde_json::to_string(&error_timestamps).map_err(|_| {
+            worker::Error::RustError("Failed to serialize error timestamps".to_string())
+        })?;
+
         self.kv_store
             .put(&key, data)?
             .expiration_ttl(self.window_size + 60) // TTL with buffer
@@ -338,7 +354,7 @@ impl ErrorTracker {
     pub async fn get_error_rate(&self, error_type: &str, endpoint: &str) -> Result<f64> {
         let now = Date::now() as u64 / 1000;
         let key = format!("errors:{}:{}", error_type, endpoint);
-        
+
         let current_data = self.kv_store.get(&key).text().await?;
         let error_timestamps: Vec<u64> = current_data
             .and_then(|data| serde_json::from_str(&data).ok())
@@ -356,7 +372,12 @@ impl ErrorTracker {
     }
 
     /// Check if error rate exceeds threshold
-    pub async fn is_error_rate_exceeded(&self, error_type: &str, endpoint: &str, threshold: f64) -> Result<bool> {
+    pub async fn is_error_rate_exceeded(
+        &self,
+        error_type: &str,
+        endpoint: &str,
+        threshold: f64,
+    ) -> Result<bool> {
         let current_rate = self.get_error_rate(error_type, endpoint).await?;
         Ok(current_rate > threshold)
     }
@@ -383,18 +404,24 @@ impl HealthChecker {
 
         // Check system time
         result.checks.insert("system_time".to_string(), true);
-        result.details.insert("system_time".to_string(), json!({
-            "current_time": Date::now(),
-            "status": "ok"
-        }));
+        result.details.insert(
+            "system_time".to_string(),
+            json!({
+                "current_time": Date::now(),
+                "status": "ok"
+            }),
+        );
 
         // Check memory (simulated)
         let memory_ok = self.check_memory_usage().await;
         result.checks.insert("memory".to_string(), memory_ok);
-        result.details.insert("memory".to_string(), json!({
-            "status": if memory_ok { "ok" } else { "warning" },
-            "usage_mb": 64 // Simulated value
-        }));
+        result.details.insert(
+            "memory".to_string(),
+            json!({
+                "status": if memory_ok { "ok" } else { "warning" },
+                "usage_mb": 64 // Simulated value
+            }),
+        );
 
         // If any check fails, mark as unhealthy
         if !result.checks.values().all(|&check| check) {
@@ -412,19 +439,25 @@ impl HealthChecker {
         if let Some(kv) = &self.kv_store {
             let kv_ok = self.check_kv_store(kv).await;
             result.checks.insert("kv_store".to_string(), kv_ok);
-            result.details.insert("kv_store".to_string(), json!({
-                "status": if kv_ok { "ok" } else { "error" },
-                "latency_ms": 10 // Simulated latency
-            }));
+            result.details.insert(
+                "kv_store".to_string(),
+                json!({
+                    "status": if kv_ok { "ok" } else { "error" },
+                    "latency_ms": 10 // Simulated latency
+                }),
+            );
         }
 
         // Check external dependencies
         let modal_ok = self.check_modal_api().await;
         result.checks.insert("modal_api".to_string(), modal_ok);
-        result.details.insert("modal_api".to_string(), json!({
-            "status": if modal_ok { "ok" } else { "degraded" },
-            "response_time_ms": 250 // Simulated response time
-        }));
+        result.details.insert(
+            "modal_api".to_string(),
+            json!({
+                "status": if modal_ok { "ok" } else { "degraded" },
+                "response_time_ms": 250 // Simulated response time
+            }),
+        );
 
         // Update overall status
         if !result.checks.values().all(|&check| check) {
@@ -446,7 +479,7 @@ impl HealthChecker {
         // Try a simple KV operation
         let test_key = "health_check_test";
         let test_value = "ok";
-        
+
         match kv.put(test_key, test_value) {
             Ok(put_request) => {
                 match put_request.execute().await {
@@ -520,7 +553,8 @@ fn get_client_ip_from_request(req: &Request) -> String {
 
 fn get_api_key_hash(req: &Request) -> Option<String> {
     // Get API key and create a hash for correlation without exposure
-    let api_key = req.headers()
+    let api_key = req
+        .headers()
         .get("Authorization")
         .ok()
         .flatten()
@@ -531,7 +565,7 @@ fn get_api_key_hash(req: &Request) -> Option<String> {
         // Create a simple hash of the API key for correlation
         use std::collections::hash_map::DefaultHasher;
         use std::hash::{Hash, Hasher};
-        
+
         let mut hasher = DefaultHasher::new();
         key.hash(&mut hasher);
         format!("{:x}", hasher.finish())
@@ -549,7 +583,12 @@ impl AlertingSystem {
     }
 
     /// Send critical alert
-    pub async fn send_critical_alert(&self, title: &str, message: &str, details: Option<Value>) -> Result<()> {
+    pub async fn send_critical_alert(
+        &self,
+        title: &str,
+        message: &str,
+        details: Option<Value>,
+    ) -> Result<()> {
         let alert = json!({
             "level": "critical",
             "title": title,
@@ -588,7 +627,9 @@ impl AlertingSystem {
     async fn send_webhook_alert(&self, webhook_url: &str, alert: &Value) -> Result<()> {
         // In a real implementation, this would send HTTP POST to webhook URL
         // For now, just log that it would be sent
-        web_sys::console::log_1(&format!("Would send webhook to {}: {}", webhook_url, alert).into());
+        web_sys::console::log_1(
+            &format!("Would send webhook to {}: {}", webhook_url, alert).into(),
+        );
         Ok(())
     }
 }
@@ -599,12 +640,17 @@ mod tests {
 
     #[test]
     fn test_log_level_serialization() {
-        let levels = vec![LogLevel::DEBUG, LogLevel::INFO, LogLevel::WARN, LogLevel::ERROR];
-        
+        let levels = vec![
+            LogLevel::DEBUG,
+            LogLevel::INFO,
+            LogLevel::WARN,
+            LogLevel::ERROR,
+        ];
+
         for level in levels {
             let serialized = serde_json::to_string(&level).unwrap();
             let deserialized: LogLevel = serde_json::from_str(&serialized).unwrap();
-            
+
             // Use Debug trait for comparison since LogLevel doesn't implement PartialEq
             assert_eq!(format!("{:?}", level), format!("{:?}", deserialized));
         }
@@ -613,7 +659,7 @@ mod tests {
     #[test]
     fn test_system_info() {
         let info = SystemInfo::get_system_info();
-        
+
         assert!(info["service"].as_str() == Some("crescendai-backend"));
         assert!(info["version"].is_string());
         assert!(info["runtime"].as_str() == Some("cloudflare-workers"));
@@ -623,7 +669,7 @@ mod tests {
     #[test]
     fn test_runtime_metrics() {
         let metrics = SystemInfo::get_runtime_metrics();
-        
+
         assert!(metrics["uptime_ms"].is_number());
         assert!(metrics["memory_usage_estimate_mb"].is_number());
         assert!(metrics["timestamp"].is_number());
@@ -633,20 +679,20 @@ mod tests {
     fn test_health_check_result_serialization() {
         let mut checks = HashMap::new();
         checks.insert("test".to_string(), true);
-        
+
         let mut details = HashMap::new();
         details.insert("test".to_string(), json!({"status": "ok"}));
-        
+
         let result = HealthCheckResult {
             status: "healthy".to_string(),
             timestamp: 1609459200.0,
             checks,
             details,
         };
-        
+
         let serialized = serde_json::to_string(&result).unwrap();
         let deserialized: HealthCheckResult = serde_json::from_str(&serialized).unwrap();
-        
+
         assert_eq!(result.status, deserialized.status);
         assert_eq!(result.timestamp, deserialized.timestamp);
         assert_eq!(result.checks.len(), deserialized.checks.len());

@@ -1,10 +1,9 @@
+use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use worker::*;
-use chrono::Utc;
 
 use super::ace_framework::{
-    AceAgent, AceError, ContextDelta, FeedbackReflection, PianoPlaybook,
-    Operation, PlaybookBullet,
+    AceAgent, AceError, ContextDelta, FeedbackReflection, Operation, PianoPlaybook, PlaybookBullet,
 };
 
 /// Input for the Curator agent
@@ -19,7 +18,7 @@ pub struct CuratorInput {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SessionOutcome {
     pub session_id: String,
-    pub user_improvement_score: f32, // 0-1, how much user improved
+    pub user_improvement_score: f32,  // 0-1, how much user improved
     pub user_satisfaction_score: f32, // 0-1, how satisfied user was
     pub followed_recommendations: Vec<String>, // Which recommendations were followed
     pub success_indicators: Vec<String>, // What worked well
@@ -60,14 +59,21 @@ impl TutorCurator {
     }
 
     /// Apply deltas to the playbook
-    fn apply_deltas(&self, playbook: &mut PianoPlaybook, deltas: &[ContextDelta]) -> Result<Vec<ContextDelta>> {
+    fn apply_deltas(
+        &self,
+        playbook: &mut PianoPlaybook,
+        deltas: &[ContextDelta],
+    ) -> Result<Vec<ContextDelta>> {
         let mut applied_deltas = Vec::new();
 
         for delta in deltas {
             // Skip deltas with very low confidence
             if delta.confidence < self.confidence_threshold {
-                console_log!("Skipping low-confidence delta: {} (confidence: {:.2})", 
-                           delta.content, delta.confidence);
+                console_log!(
+                    "Skipping low-confidence delta: {} (confidence: {:.2})",
+                    delta.content,
+                    delta.confidence
+                );
                 continue;
             }
 
@@ -108,18 +114,25 @@ impl TutorCurator {
     }
 
     /// Update bullet statistics based on session outcome
-    fn update_bullet_statistics(&self, 
-        playbook: &mut PianoPlaybook, 
-        outcome: &SessionOutcome
+    fn update_bullet_statistics(
+        &self,
+        playbook: &mut PianoPlaybook,
+        outcome: &SessionOutcome,
     ) -> Result<()> {
         // Find bullets that were referenced in followed recommendations
         for recommendation in &outcome.followed_recommendations {
             // Simple keyword matching - could be improved with embeddings
-            let matching_bullets: Vec<String> = playbook.bullets
+            let matching_bullets: Vec<String> = playbook
+                .bullets
                 .iter()
                 .filter(|(_, bullet)| {
-                    recommendation.to_lowercase().contains(&bullet.content.to_lowercase()) ||
-                    bullet.content.to_lowercase().contains(&recommendation.to_lowercase())
+                    recommendation
+                        .to_lowercase()
+                        .contains(&bullet.content.to_lowercase())
+                        || bullet
+                            .content
+                            .to_lowercase()
+                            .contains(&recommendation.to_lowercase())
                 })
                 .map(|(id, _)| id.clone())
                 .collect();
@@ -136,11 +149,16 @@ impl TutorCurator {
                         // Decrease confidence for unsuccessful bullets
                         bullet.confidence = (bullet.confidence - 0.05).max(0.3);
                     }
-                    
+
                     bullet.last_used = Utc::now();
-                    
-                    console_log!("Updated bullet {} stats: helpful={}, harmful={}, confidence={:.2}", 
-                               bullet_id, bullet.helpful_count, bullet.harmful_count, bullet.confidence);
+
+                    console_log!(
+                        "Updated bullet {} stats: helpful={}, harmful={}, confidence={:.2}",
+                        bullet_id,
+                        bullet.helpful_count,
+                        bullet.harmful_count,
+                        bullet.confidence
+                    );
                 }
             }
         }
@@ -185,19 +203,24 @@ impl TutorCurator {
 
         // If still too large, remove least useful bullets
         if playbook.bullets.len() > self.max_playbook_size {
-            let mut bullet_scores: Vec<(String, f32)> = playbook.bullets
+            let mut bullet_scores: Vec<(String, f32)> = playbook
+                .bullets
                 .iter()
                 .map(|(id, bullet)| {
-                    let usage_score = bullet.helpful_count as f32 / (bullet.helpful_count + bullet.harmful_count + 1) as f32;
-                    let recency_score = 1.0 / (1.0 + (Utc::now() - bullet.last_used).num_days() as f32 / 30.0);
-                    let overall_score = bullet.confidence * 0.4 + usage_score * 0.4 + recency_score * 0.2;
+                    let usage_score = bullet.helpful_count as f32
+                        / (bullet.helpful_count + bullet.harmful_count + 1) as f32;
+                    let recency_score =
+                        1.0 / (1.0 + (Utc::now() - bullet.last_used).num_days() as f32 / 30.0);
+                    let overall_score =
+                        bullet.confidence * 0.4 + usage_score * 0.4 + recency_score * 0.2;
                     (id.clone(), overall_score)
                 })
                 .collect();
 
             // Sort by score (ascending) and remove lowest scoring bullets
-            bullet_scores.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
-            
+            bullet_scores
+                .sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
+
             let bullets_to_remove = playbook.bullets.len() - self.max_playbook_size;
             for (id, _) in bullet_scores.into_iter().take(bullets_to_remove) {
                 if playbook.remove_bullet(&id) {
@@ -213,9 +236,10 @@ impl TutorCurator {
     /// Basic deduplication using content similarity
     fn deduplicate_bullets(&self, playbook: &mut PianoPlaybook) -> Vec<String> {
         let mut removed_ids = Vec::new();
-        
+
         // Simple approach: find bullets with very similar content
-        let bullet_list: Vec<(String, String)> = playbook.bullets
+        let bullet_list: Vec<(String, String)> = playbook
+            .bullets
             .iter()
             .map(|(id, bullet)| (id.clone(), bullet.content.to_lowercase()))
             .collect();
@@ -223,24 +247,24 @@ impl TutorCurator {
         let mut to_remove = Vec::new();
 
         for i in 0..bullet_list.len() {
-            for j in i+1..bullet_list.len() {
+            for j in i + 1..bullet_list.len() {
                 let (id1, content1) = &bullet_list[i];
                 let (id2, content2) = &bullet_list[j];
-                
+
                 // Simple similarity check - could be improved with proper text similarity
                 let similarity = self.simple_text_similarity(content1, content2);
-                
+
                 if similarity > self.deduplication_threshold {
                     // Keep the bullet with higher confidence
                     let bullet1 = playbook.bullets.get(id1).unwrap();
                     let bullet2 = playbook.bullets.get(id2).unwrap();
-                    
+
                     let id_to_remove = if bullet1.confidence >= bullet2.confidence {
                         id2.clone()
                     } else {
                         id1.clone()
                     };
-                    
+
                     if !to_remove.contains(&id_to_remove) {
                         to_remove.push(id_to_remove);
                     }
@@ -263,14 +287,14 @@ impl TutorCurator {
     fn simple_text_similarity(&self, text1: &str, text2: &str) -> f32 {
         let words1: std::collections::HashSet<&str> = text1.split_whitespace().collect();
         let words2: std::collections::HashSet<&str> = text2.split_whitespace().collect();
-        
+
         if words1.is_empty() && words2.is_empty() {
             return 1.0;
         }
-        
+
         let intersection = words1.intersection(&words2).count();
         let union = words1.union(&words2).count();
-        
+
         if union == 0 {
             0.0
         } else {
@@ -279,19 +303,33 @@ impl TutorCurator {
     }
 
     /// Generate a summary of refinement actions taken
-    fn generate_refinement_summary(&self,
+    fn generate_refinement_summary(
+        &self,
         applied_deltas: &[ContextDelta],
         pruned_bullets: &[String],
-        deduplication_count: usize
+        deduplication_count: usize,
     ) -> String {
-        let adds = applied_deltas.iter().filter(|d| matches!(d.operation, Operation::Add)).count();
-        let updates = applied_deltas.iter().filter(|d| matches!(d.operation, Operation::Update)).count();
-        let removes = applied_deltas.iter().filter(|d| matches!(d.operation, Operation::Remove)).count();
+        let adds = applied_deltas
+            .iter()
+            .filter(|d| matches!(d.operation, Operation::Add))
+            .count();
+        let updates = applied_deltas
+            .iter()
+            .filter(|d| matches!(d.operation, Operation::Update))
+            .count();
+        let removes = applied_deltas
+            .iter()
+            .filter(|d| matches!(d.operation, Operation::Remove))
+            .count();
 
         format!(
             "Playbook refinement: {} new bullets, {} updated, {} removed via deltas. \
              {} bullets pruned for low performance. {} duplicates removed.",
-            adds, updates, removes, pruned_bullets.len(), deduplication_count
+            adds,
+            updates,
+            removes,
+            pruned_bullets.len(),
+            deduplication_count
         )
     }
 }
@@ -306,7 +344,8 @@ impl AceAgent for TutorCurator {
         let reflection = input.reflection;
 
         // Apply deltas from reflection
-        let applied_deltas = self.apply_deltas(&mut playbook, &reflection.deltas)
+        let applied_deltas = self
+            .apply_deltas(&mut playbook, &reflection.deltas)
             .map_err(|e| AceError::ValidationError(e.to_string()))?;
 
         // Update bullet statistics if we have session outcome data
@@ -318,19 +357,16 @@ impl AceAgent for TutorCurator {
         // Perform playbook maintenance
         let deduplication_removals = self.deduplicate_bullets(&mut playbook);
         let deduplication_count = deduplication_removals.len();
-        
+
         let pruned_bullets = self.prune_playbook(&mut playbook);
-        
+
         // Combine all removed bullets
         let mut all_removed = pruned_bullets.clone();
         all_removed.extend(deduplication_removals);
 
         // Generate refinement summary
-        let refinement_summary = self.generate_refinement_summary(
-            &applied_deltas, 
-            &all_removed, 
-            deduplication_count
-        );
+        let refinement_summary =
+            self.generate_refinement_summary(&applied_deltas, &all_removed, deduplication_count);
 
         console_log!("{}", refinement_summary);
 
@@ -356,12 +392,12 @@ impl Default for TutorCurator {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tutor::ace_framework::{QualityAssessment, generate_context_tags};
-    use chrono::{Duration};
+    use crate::tutor::ace_framework::{generate_context_tags, QualityAssessment};
+    use chrono::Duration;
 
     fn create_test_playbook() -> PianoPlaybook {
         let mut playbook = PianoPlaybook::new();
-        
+
         // Add some test bullets
         let delta1 = ContextDelta {
             operation: Operation::Add,
@@ -378,14 +414,17 @@ mod tests {
             bullet_id: None,
             content: "Use slow practice for difficult passages".to_string(),
             section: "strategies".to_string(),
-            tags: vec!["difficult_passages".to_string(), "slow_practice".to_string()],
+            tags: vec![
+                "difficult_passages".to_string(),
+                "slow_practice".to_string(),
+            ],
             confidence: 0.7,
             reasoning: "Proven practice strategy".to_string(),
         };
 
         playbook.add_bullet(delta1);
         playbook.add_bullet(delta2);
-        
+
         playbook
     }
 
@@ -403,20 +442,18 @@ mod tests {
                 "Timing improvements noted after 1 week".to_string(),
             ],
             improvement_suggestions: vec![
-                "Consider adding more specific tempo markings".to_string(),
+                "Consider adding more specific tempo markings".to_string()
             ],
             confidence_score: 0.8,
-            deltas: vec![
-                ContextDelta {
-                    operation: Operation::Add,
-                    bullet_id: None,
-                    content: "For timing issues, start metronome at 50% tempo".to_string(),
-                    section: "techniques".to_string(),
-                    tags: vec!["timing".to_string(), "metronome".to_string()],
-                    confidence: 0.85,
-                    reasoning: "Specific tempo guidance improves success rate".to_string(),
-                }
-            ],
+            deltas: vec![ContextDelta {
+                operation: Operation::Add,
+                bullet_id: None,
+                content: "For timing issues, start metronome at 50% tempo".to_string(),
+                section: "techniques".to_string(),
+                tags: vec!["timing".to_string(), "metronome".to_string()],
+                confidence: 0.85,
+                reasoning: "Specific tempo guidance improves success rate".to_string(),
+            }],
         }
     }
 
@@ -433,18 +470,16 @@ mod tests {
         let curator = TutorCurator::new();
         let mut playbook = create_test_playbook();
         let initial_count = playbook.bullets.len();
-        
-        let deltas = vec![
-            ContextDelta {
-                operation: Operation::Add,
-                bullet_id: None,
-                content: "New practice technique".to_string(),
-                section: "techniques".to_string(),
-                tags: vec!["new".to_string()],
-                confidence: 0.7,
-                reasoning: "Testing delta application".to_string(),
-            }
-        ];
+
+        let deltas = vec![ContextDelta {
+            operation: Operation::Add,
+            bullet_id: None,
+            content: "New practice technique".to_string(),
+            section: "techniques".to_string(),
+            tags: vec!["new".to_string()],
+            confidence: 0.7,
+            reasoning: "Testing delta application".to_string(),
+        }];
 
         let applied = curator.apply_deltas(&mut playbook, &deltas).unwrap();
         assert_eq!(applied.len(), 1);
@@ -455,7 +490,7 @@ mod tests {
     fn test_prune_low_confidence_bullets() {
         let curator = TutorCurator::new();
         let mut playbook = PianoPlaybook::new();
-        
+
         // Add a low confidence bullet
         let low_conf_delta = ContextDelta {
             operation: Operation::Add,
@@ -466,7 +501,7 @@ mod tests {
             confidence: 0.2, // Very low confidence
             reasoning: "Test".to_string(),
         };
-        
+
         let bullet_id = playbook.add_bullet(low_conf_delta);
         assert_eq!(playbook.bullets.len(), 1);
 
@@ -483,17 +518,18 @@ mod tests {
     #[test]
     fn test_simple_text_similarity() {
         let curator = TutorCurator::new();
-        
+
         // Identical texts
         let sim1 = curator.simple_text_similarity("practice scales daily", "practice scales daily");
         assert_eq!(sim1, 1.0);
-        
+
         // Completely different texts
         let sim2 = curator.simple_text_similarity("practice scales", "use metronome");
         assert!(sim2 < 0.5);
-        
+
         // Partially similar texts
-        let sim3 = curator.simple_text_similarity("practice scales with metronome", "practice scales daily");
+        let sim3 = curator
+            .simple_text_similarity("practice scales with metronome", "practice scales daily");
         assert!(sim3 > 0.0 && sim3 < 1.0);
     }
 
@@ -501,7 +537,7 @@ mod tests {
     fn test_update_bullet_statistics() {
         let curator = TutorCurator::new();
         let mut playbook = create_test_playbook();
-        
+
         let outcome = SessionOutcome {
             session_id: "test".to_string(),
             user_improvement_score: 0.8, // Good improvement
@@ -516,7 +552,9 @@ mod tests {
         let initial_helpful = bullet.helpful_count;
         let initial_confidence = bullet.confidence;
 
-        curator.update_bullet_statistics(&mut playbook, &outcome).unwrap();
+        curator
+            .update_bullet_statistics(&mut playbook, &outcome)
+            .unwrap();
 
         // Check that matching bullet was updated
         let updated_bullet = playbook.bullets.get(&bullet.id).unwrap();
@@ -527,21 +565,19 @@ mod tests {
     #[test]
     fn test_generate_refinement_summary() {
         let curator = TutorCurator::new();
-        
-        let deltas = vec![
-            ContextDelta {
-                operation: Operation::Add,
-                bullet_id: None,
-                content: "New bullet".to_string(),
-                section: "techniques".to_string(),
-                tags: vec![],
-                confidence: 0.7,
-                reasoning: "Test".to_string(),
-            }
-        ];
-        
+
+        let deltas = vec![ContextDelta {
+            operation: Operation::Add,
+            bullet_id: None,
+            content: "New bullet".to_string(),
+            section: "techniques".to_string(),
+            tags: vec![],
+            confidence: 0.7,
+            reasoning: "Test".to_string(),
+        }];
+
         let pruned = vec!["bullet_1".to_string(), "bullet_2".to_string()];
-        
+
         let summary = curator.generate_refinement_summary(&deltas, &pruned, 1);
         assert!(summary.contains("1 new bullets"));
         assert!(summary.contains("2 bullets pruned"));

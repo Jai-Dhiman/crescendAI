@@ -9,9 +9,9 @@ mod utils;
 pub mod audio_dsp;
 mod monitoring;
 mod simple_evaluator;
-mod percepiano_evaluator;
 mod knowledge_base; // TUTOR Phase 2: RAG retrieval interfaces
 mod tutor;         // TUTOR Phase 2: LLM integration and schema
+mod ingestion;     // TUTOR Phase 2: Knowledge base ingestion
 
 use security::{validate_api_key, get_client_ip, RateLimiter, secure_error_response};
 use monitoring::{RequestLogger, HealthChecker, SystemInfo};
@@ -188,6 +188,10 @@ pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Respo
         .options("/api/v1/preference", handle_options)
         .options("/api/v1/tutor", handle_options)
         .options("/api/v1/tutor/outcome", handle_options)
+        .options("/api/v1/tutor/retrieve", handle_options)
+        .options("/api/v1/tutor/ingest", handle_options)
+        .options("/api/v1/tutor/ingest/validate", handle_options)
+        .options("/api/v1/tutor/ingest/purge", handle_options)
         .options("/api/v1/health", handle_options)
         // Main API routes with authentication and CORS
         .post_async("/api/v1/upload", secure_upload_handler)
@@ -199,6 +203,10 @@ pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Respo
         .post_async("/api/v1/preference", secure_preference_handler)
         .post_async("/api/v1/tutor", secure_tutor_handler)
         .post_async("/api/v1/tutor/outcome", secure_session_outcome_handler)
+        .post_async("/api/v1/tutor/retrieve", secure_tutor_retrieve_handler)
+        .post_async("/api/v1/tutor/ingest", secure_tutor_ingest_handler)
+        .post_async("/api/v1/tutor/ingest/validate", secure_tutor_validate_handler)
+        .post_async("/api/v1/tutor/ingest/purge", secure_tutor_purge_handler)
         // Health endpoint without authentication (for monitoring)
         .get_async("/api/v1/health", basic_health_handler)
         // Detailed health endpoint (requires authentication)
@@ -703,4 +711,128 @@ async fn secure_system_info_handler(req: Request, ctx: RouteContext<()>) -> Resu
     
     logger.log_request_complete(200, None);
     Ok(response)
+}
+
+/// Secure tutor retrieve handler with authentication and CORS
+async fn secure_tutor_retrieve_handler(req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    // Get allowed origins for CORS and check development mode
+    let allowed_origins = get_allowed_origins_from_env(Some(&ctx.env));
+    let is_development = ctx.env.var("ENVIRONMENT")
+        .map(|env| env.to_string() == "development")
+        .unwrap_or(false);
+
+    // Capture origin before moving req
+    let req_origin = req.headers().get("Origin").ok().flatten();
+
+    // Validate security first
+    if let Err(security_error) = validate_request_security(&req, &ctx.env).await {
+        let mut error_response = secure_error_response(&security_error, is_development);
+        add_cors_headers(&mut error_response, &allowed_origins, req_origin.as_deref()).ok();
+        return Ok(error_response);
+    }
+
+    match handlers::tutor_retrieve(req, ctx).await {
+        Ok(mut response) => {
+            add_cors_headers(&mut response, &allowed_origins, req_origin.as_deref()).ok();
+            Ok(response)
+        }
+        Err(e) => {
+            let mut error_response = secure_error_response(&e, is_development);
+            add_cors_headers(&mut error_response, &allowed_origins, req_origin.as_deref()).ok();
+            Ok(error_response)
+        }
+    }
+}
+
+/// Secure tutor ingest handler with authentication and CORS
+async fn secure_tutor_ingest_handler(req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    // Get allowed origins for CORS and check development mode
+    let allowed_origins = get_allowed_origins_from_env(Some(&ctx.env));
+    let is_development = ctx.env.var("ENVIRONMENT")
+        .map(|env| env.to_string() == "development")
+        .unwrap_or(false);
+
+    // Capture origin before moving req
+    let req_origin = req.headers().get("Origin").ok().flatten();
+
+    // Validate security first
+    if let Err(security_error) = validate_request_security(&req, &ctx.env).await {
+        let mut error_response = secure_error_response(&security_error, is_development);
+        add_cors_headers(&mut error_response, &allowed_origins, req_origin.as_deref()).ok();
+        return Ok(error_response);
+    }
+
+    match handlers::tutor_ingest(req, ctx).await {
+        Ok(mut response) => {
+            add_cors_headers(&mut response, &allowed_origins, req_origin.as_deref()).ok();
+            Ok(response)
+        }
+        Err(e) => {
+            let mut error_response = secure_error_response(&e, is_development);
+            add_cors_headers(&mut error_response, &allowed_origins, req_origin.as_deref()).ok();
+            Ok(error_response)
+        }
+    }
+}
+
+/// Secure tutor validate handler with authentication and CORS
+async fn secure_tutor_validate_handler(req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    // Get allowed origins for CORS and check development mode
+    let allowed_origins = get_allowed_origins_from_env(Some(&ctx.env));
+    let is_development = ctx.env.var("ENVIRONMENT")
+        .map(|env| env.to_string() == "development")
+        .unwrap_or(false);
+
+    // Capture origin before moving req
+    let req_origin = req.headers().get("Origin").ok().flatten();
+
+    // Validate security first
+    if let Err(security_error) = validate_request_security(&req, &ctx.env).await {
+        let mut error_response = secure_error_response(&security_error, is_development);
+        add_cors_headers(&mut error_response, &allowed_origins, req_origin.as_deref()).ok();
+        return Ok(error_response);
+    }
+
+    match handlers::tutor_validate(req, ctx).await {
+        Ok(mut response) => {
+            add_cors_headers(&mut response, &allowed_origins, req_origin.as_deref()).ok();
+            Ok(response)
+        }
+        Err(e) => {
+            let mut error_response = secure_error_response(&e, is_development);
+            add_cors_headers(&mut error_response, &allowed_origins, req_origin.as_deref()).ok();
+            Ok(error_response)
+        }
+    }
+}
+
+/// Secure tutor purge handler with authentication and CORS
+async fn secure_tutor_purge_handler(req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    // Get allowed origins for CORS and check development mode
+    let allowed_origins = get_allowed_origins_from_env(Some(&ctx.env));
+    let is_development = ctx.env.var("ENVIRONMENT")
+        .map(|env| env.to_string() == "development")
+        .unwrap_or(false);
+
+    // Capture origin before moving req
+    let req_origin = req.headers().get("Origin").ok().flatten();
+
+    // Validate security first
+    if let Err(security_error) = validate_request_security(&req, &ctx.env).await {
+        let mut error_response = secure_error_response(&security_error, is_development);
+        add_cors_headers(&mut error_response, &allowed_origins, req_origin.as_deref()).ok();
+        return Ok(error_response);
+    }
+
+    match handlers::tutor_purge(req, ctx).await {
+        Ok(mut response) => {
+            add_cors_headers(&mut response, &allowed_origins, req_origin.as_deref()).ok();
+            Ok(response)
+        }
+        Err(e) => {
+            let mut error_response = secure_error_response(&e, is_development);
+            add_cors_headers(&mut error_response, &allowed_origins, req_origin.as_deref()).ok();
+            Ok(error_response)
+        }
+    }
 }

@@ -1,10 +1,10 @@
-use serde::{Deserialize, Serialize};
-use worker::*;
-use std::collections::HashMap;
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use worker::*;
 
-use crate::AnalysisData;
 use crate::tutor::UserContext;
+use crate::AnalysisData;
 
 /// Individual bullet in the ACE playbook
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -76,7 +76,11 @@ impl PianoPlaybook {
         bullet_id
     }
 
-    pub fn update_bullet(&mut self, bullet_id: &str, delta: ContextDelta) -> std::result::Result<(), String> {
+    pub fn update_bullet(
+        &mut self,
+        bullet_id: &str,
+        delta: ContextDelta,
+    ) -> std::result::Result<(), String> {
         if let Some(bullet) = self.bullets.get_mut(bullet_id) {
             bullet.content = delta.content;
             bullet.confidence = delta.confidence;
@@ -109,13 +113,13 @@ impl PianoPlaybook {
 
     pub fn should_refine(&self) -> bool {
         // Refine if we have too many bullets or low-confidence entries
-        self.bullets.len() > 100 || 
-        self.bullets.values().any(|b| b.confidence < 0.3)
+        self.bullets.len() > 100 || self.bullets.values().any(|b| b.confidence < 0.3)
     }
 
     pub async fn deduplicate_and_prune(&mut self) {
         // Remove low-confidence bullets
-        let low_confidence_ids: Vec<String> = self.bullets
+        let low_confidence_ids: Vec<String> = self
+            .bullets
             .iter()
             .filter(|(_, bullet)| bullet.confidence < 0.3)
             .map(|(id, _)| id.clone())
@@ -130,7 +134,11 @@ impl PianoPlaybook {
         self.version += 1;
     }
 
-    pub fn get_relevant_bullets(&self, tags: &[String], section: Option<&str>) -> Vec<&PlaybookBullet> {
+    pub fn get_relevant_bullets(
+        &self,
+        tags: &[String],
+        section: Option<&str>,
+    ) -> Vec<&PlaybookBullet> {
         self.bullets
             .values()
             .filter(|bullet| {
@@ -141,8 +149,8 @@ impl PianoPlaybook {
                     }
                 }
                 // Check for tag overlap
-                tags.iter().any(|tag| bullet.tags.contains(tag)) ||
-                bullet.confidence > 0.7 // High confidence bullets are always relevant
+                tags.iter().any(|tag| bullet.tags.contains(tag)) || bullet.confidence > 0.7
+                // High confidence bullets are always relevant
             })
             .collect()
     }
@@ -172,10 +180,10 @@ pub struct FeedbackReflection {
 /// Quality assessment metrics
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct QualityAssessment {
-    pub actionability_score: f32,      // How specific and actionable
-    pub citation_accuracy_score: f32,  // Do citations support claims
-    pub user_alignment_score: f32,     // Appropriate for user context
-    pub completeness_score: f32,       // Covers important aspects
+    pub actionability_score: f32,     // How specific and actionable
+    pub citation_accuracy_score: f32, // Do citations support claims
+    pub user_alignment_score: f32,    // Appropriate for user context
+    pub completeness_score: f32,      // Covers important aspects
     pub overall_score: f32,
 }
 
@@ -202,8 +210,8 @@ pub struct AceConfig {
 impl Default for AceConfig {
     fn default() -> Self {
         Self {
-            generator_model: "gpt-5-nano-2025-08-07".to_string(),
-            reflector_model: "gpt-5-nano-2025-08-07".to_string(),
+            generator_model: "@cf/google/gemma-7b-it".to_string(),
+            reflector_model: "@cf/google/gemma-7b-it".to_string(),
             curator_enabled: true,
             max_playbook_size: 500,
             confidence_threshold: 0.6,
@@ -264,17 +272,26 @@ pub fn extract_weakest_dimensions(analysis: &AnalysisData, n: usize) -> Vec<(Str
         ("balance_melody_accomp", analysis.dynamic_range_little_large),
         ("tempo_control", analysis.music_making_fast_slow),
         ("phrasing_continuity", analysis.music_making_flat_spacious),
-        ("expressiveness_intensity", analysis.music_making_disproportioned_balanced),
+        (
+            "expressiveness_intensity",
+            analysis.music_making_disproportioned_balanced,
+        ),
         ("energy_level", analysis.music_making_pure_dramatic),
         ("mood_character", analysis.emotion_mood_optimistic_dark),
         ("emotional_energy", analysis.emotion_mood_low_high_energy),
-        ("interpretive_imagination", analysis.emotion_mood_honest_imaginative),
-        ("overall_convincingness", analysis.interpretation_unsatisfactory_convincing),
+        (
+            "interpretive_imagination",
+            analysis.emotion_mood_honest_imaginative,
+        ),
+        (
+            "overall_convincingness",
+            analysis.interpretation_unsatisfactory_convincing,
+        ),
     ];
 
     // Sort by score (lower is weaker)
     dimensions.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
-    
+
     dimensions
         .into_iter()
         .take(n)
@@ -285,20 +302,20 @@ pub fn extract_weakest_dimensions(analysis: &AnalysisData, n: usize) -> Vec<(Str
 /// Helper function to generate tags from performance scores and user context
 pub fn generate_context_tags(analysis: &AnalysisData, user_context: &UserContext) -> Vec<String> {
     let mut tags = Vec::new();
-    
+
     // Add weakness-based tags
     let weakest = extract_weakest_dimensions(analysis, 3);
     for (dimension, _) in weakest {
         tags.push(dimension);
     }
-    
+
     // Add user context tags
     if user_context.practice_time_per_day_minutes < 30 {
         tags.push("limited_time".to_string());
     } else if user_context.practice_time_per_day_minutes > 120 {
         tags.push("extensive_practice".to_string());
     }
-    
+
     // Add repertoire tags
     if let Some(rep) = &user_context.repertoire_info {
         if !rep.composer.is_empty() {
@@ -314,7 +331,7 @@ pub fn generate_context_tags(analysis: &AnalysisData, user_context: &UserContext
             }
         }
     }
-    
+
     tags
 }
 
@@ -341,7 +358,7 @@ mod tests {
             confidence: 0.8,
             reasoning: "User shows timing instability".to_string(),
         };
-        
+
         let bullet_id = playbook.add_bullet(delta);
         assert_eq!(playbook.bullets.len(), 1);
         assert_eq!(playbook.version, 2);

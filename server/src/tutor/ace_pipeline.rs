@@ -1,17 +1,17 @@
 use serde::{Deserialize, Serialize};
-use worker::*;
 use uuid::Uuid;
+use worker::*;
 
+use crate::tutor::{TutorCitation, TutorFeedback, TutorRecommendation, UserContext};
 use crate::AnalysisData;
-use crate::tutor::{UserContext, TutorFeedback, TutorRecommendation, TutorCitation};
 
+use super::ace_curator::{CuratorInput, SessionOutcome, TutorCurator};
 use super::ace_framework::{
-    AceAgent, AceConfig, FeedbackContext, PianoPlaybook, 
-    extract_weakest_dimensions, generate_context_tags,
+    extract_weakest_dimensions, generate_context_tags, AceAgent, AceConfig, FeedbackContext,
+    PianoPlaybook,
 };
 use super::ace_generator::{FeedbackGenerator, GeneratorInput};
 use super::ace_reflector::{FeedbackReflector, ReflectorInput};
-use super::ace_curator::{TutorCurator, CuratorInput, SessionOutcome};
 
 /// Complete ACE pipeline output
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -55,7 +55,10 @@ impl AcePipeline {
         Self {
             generator: FeedbackGenerator::with_config(0.3, 600),
             reflector: FeedbackReflector::with_config(0.2, 800),
-            curator: TutorCurator::with_config(config.confidence_threshold, config.max_playbook_size),
+            curator: TutorCurator::with_config(
+                config.confidence_threshold,
+                config.max_playbook_size,
+            ),
             config,
         }
     }
@@ -83,20 +86,23 @@ impl AcePipeline {
         // Check cache first
         let cache_key = self.build_cache_key(analysis, user_context, retrieval_k.unwrap_or(3));
         let cached_result = self.check_cache(env, &cache_key).await;
-        
+
         if let Some(cached) = cached_result {
             console_log!("ACE pipeline cache hit for session {}", session_id);
             return Ok(cached);
         }
 
         // Load or initialize playbook
-        let mut playbook = self.load_playbook(env).await.unwrap_or_else(|_| {
+        let playbook = self.load_playbook(env).await.unwrap_or_else(|_| {
             console_log!("Initializing new playbook");
             PianoPlaybook::new()
         });
 
-        console_log!("Starting ACE pipeline for session {} with playbook version {}", 
-                   session_id, playbook.version);
+        console_log!(
+            "Starting ACE pipeline for session {} with playbook version {}",
+            session_id,
+            playbook.version
+        );
 
         // Step 1: Generator - produce initial feedback
         let generator_input = GeneratorInput {
@@ -105,10 +111,16 @@ impl AcePipeline {
             retrieval_k: retrieval_k.unwrap_or(3),
         };
 
-        let initial_feedback = self.generator.process(env, generator_input).await
+        let initial_feedback = self
+            .generator
+            .process(env, generator_input)
+            .await
             .map_err(|e| worker::Error::RustError(format!("Generator failed: {}", e)))?;
 
-        console_log!("Generator produced {} recommendations", initial_feedback.recommendations.len());
+        console_log!(
+            "Generator produced {} recommendations",
+            initial_feedback.recommendations.len()
+        );
 
         // Step 2: Reflector - analyze and critique feedback
         let reflector_input = ReflectorInput {
@@ -117,11 +129,17 @@ impl AcePipeline {
             previous_reflections: vec![], // Could be populated from storage
         };
 
-        let reflection = self.reflector.process(env, reflector_input).await
+        let reflection = self
+            .reflector
+            .process(env, reflector_input)
+            .await
             .map_err(|e| worker::Error::RustError(format!("Reflector failed: {}", e)))?;
 
-        console_log!("Reflector generated {} deltas with confidence {:.2}", 
-                   reflection.deltas.len(), reflection.confidence_score);
+        console_log!(
+            "Reflector generated {} deltas with confidence {:.2}",
+            reflection.deltas.len(),
+            reflection.confidence_score
+        );
 
         // Step 3: Curator - update playbook (if enabled)
         let curator_output = if self.config.curator_enabled {
@@ -131,11 +149,17 @@ impl AcePipeline {
                 session_outcome: previous_session_outcome,
             };
 
-            let output = self.curator.process(env, curator_input).await
+            let output = self
+                .curator
+                .process(env, curator_input)
+                .await
                 .map_err(|e| worker::Error::RustError(format!("Curator failed: {}", e)))?;
 
-            console_log!("Curator applied {} deltas, pruned {} bullets", 
-                       output.applied_deltas.len(), output.pruned_bullets.len());
+            console_log!(
+                "Curator applied {} deltas, pruned {} bullets",
+                output.applied_deltas.len(),
+                output.pruned_bullets.len()
+            );
 
             // Save updated playbook
             if let Err(e) = self.save_playbook(env, &output.updated_playbook).await {
@@ -148,11 +172,8 @@ impl AcePipeline {
         };
 
         // Convert to TutorFeedback format
-        let tutor_feedback = self.convert_to_tutor_feedback(
-            &initial_feedback, 
-            &reflection,
-            user_context
-        );
+        let tutor_feedback =
+            self.convert_to_tutor_feedback(&initial_feedback, &reflection, user_context);
 
         // Build pipeline metadata
         let processing_time_ms = js_sys::Date::now() as u64 - start_time;
@@ -160,10 +181,12 @@ impl AcePipeline {
             generator_confidence: self.calculate_generator_confidence(&initial_feedback),
             reflector_confidence: reflection.confidence_score,
             quality_scores: serde_json::json!(reflection.quality_assessment),
-            playbook_version: curator_output.as_ref()
+            playbook_version: curator_output
+                .as_ref()
                 .map(|c| c.updated_playbook.version)
                 .unwrap_or(0),
-            applied_deltas_count: curator_output.as_ref()
+            applied_deltas_count: curator_output
+                .as_ref()
                 .map(|c| c.applied_deltas.len())
                 .unwrap_or(0),
             processing_time_ms,
@@ -193,7 +216,8 @@ impl AcePipeline {
         user_context: &UserContext,
     ) -> TutorFeedback {
         // Build recommendations from initial feedback
-        let recommendations: Vec<TutorRecommendation> = initial_feedback.recommendations
+        let recommendations: Vec<TutorRecommendation> = initial_feedback
+            .recommendations
             .iter()
             .enumerate()
             .map(|(i, rec)| {
@@ -212,8 +236,9 @@ impl AcePipeline {
                 // Estimate time based on user's available practice time
                 let estimated_time_minutes = std::cmp::min(
                     user_context.practice_time_per_day_minutes / 3, // About 1/3 of practice time
-                    30 // Cap at 30 minutes
-                ).max(5); // Minimum 5 minutes
+                    30,                                             // Cap at 30 minutes
+                )
+                .max(5); // Minimum 5 minutes
 
                 TutorRecommendation {
                     title: rec.clone(),
@@ -227,7 +252,8 @@ impl AcePipeline {
             .collect();
 
         // Build citations from initial feedback
-        let citations: Vec<TutorCitation> = initial_feedback.citations
+        let citations: Vec<TutorCitation> = initial_feedback
+            .citations
             .iter()
             .map(|citation_id| TutorCitation {
                 id: citation_id.clone(),
@@ -245,20 +271,24 @@ impl AcePipeline {
     }
 
     /// Calculate generator confidence based on output quality
-    fn calculate_generator_confidence(&self, feedback: &super::ace_framework::InitialFeedback) -> f32 {
+    fn calculate_generator_confidence(
+        &self,
+        feedback: &super::ace_framework::InitialFeedback,
+    ) -> f32 {
         let mut confidence: f32 = 0.5; // Base confidence
 
         // Boost confidence if recommendations are present and specific
         if !feedback.recommendations.is_empty() {
             confidence += 0.2;
-            
+
             // Check for specificity (presence of numbers, specific instructions)
-            let has_specific_guidance = feedback.recommendations.iter()
-                .any(|rec| rec.chars().any(|c| c.is_ascii_digit()) || 
-                     rec.to_lowercase().contains("bpm") ||
-                     rec.to_lowercase().contains("minutes") ||
-                     rec.to_lowercase().contains("times"));
-            
+            let has_specific_guidance = feedback.recommendations.iter().any(|rec| {
+                rec.chars().any(|c| c.is_ascii_digit())
+                    || rec.to_lowercase().contains("bpm")
+                    || rec.to_lowercase().contains("minutes")
+                    || rec.to_lowercase().contains("times")
+            });
+
             if has_specific_guidance {
                 confidence += 0.1;
             }
@@ -278,12 +308,17 @@ impl AcePipeline {
     }
 
     /// Build cache key for ACE results
-    fn build_cache_key(&self, analysis: &AnalysisData, user_context: &UserContext, k: usize) -> String {
+    fn build_cache_key(
+        &self,
+        analysis: &AnalysisData,
+        user_context: &UserContext,
+        k: usize,
+    ) -> String {
         use std::collections::hash_map::DefaultHasher;
         use std::hash::{Hash, Hasher};
 
         let mut hasher = DefaultHasher::new();
-        
+
         // Hash the key components
         format!("{:.2}", analysis.timing_stable_unstable).hash(&mut hasher);
         format!("{:.2}", analysis.articulation_short_long).hash(&mut hasher);
@@ -291,7 +326,7 @@ impl AcePipeline {
         user_context.practice_time_per_day_minutes.hash(&mut hasher);
         user_context.goals.join(",").hash(&mut hasher);
         k.hash(&mut hasher);
-        
+
         format!("ace_pipeline:{:x}", hasher.finish())
     }
 
@@ -309,11 +344,20 @@ impl AcePipeline {
     }
 
     /// Cache ACE pipeline result
-    async fn cache_result(&self, env: &Env, cache_key: &str, output: &AcePipelineOutput) -> Result<()> {
+    async fn cache_result(
+        &self,
+        env: &Env,
+        cache_key: &str,
+        output: &AcePipelineOutput,
+    ) -> Result<()> {
         if let Ok(kv) = env.kv("CRESCENDAI_METADATA") {
             if let Ok(json) = serde_json::to_string(output) {
                 let ttl_seconds = self.config.cache_ttl_hours * 3600;
-                let _ = kv.put(cache_key, &json)?.expiration_ttl(ttl_seconds as u64).execute().await;
+                let _ = kv
+                    .put(cache_key, &json)?
+                    .expiration_ttl(ttl_seconds as u64)
+                    .execute()
+                    .await;
             }
         }
         Ok(())
@@ -324,8 +368,11 @@ impl AcePipeline {
         if let Ok(kv) = env.kv("CRESCENDAI_METADATA") {
             if let Ok(Some(playbook_json)) = kv.get("ace_playbook").text().await {
                 if let Ok(playbook) = serde_json::from_str::<PianoPlaybook>(&playbook_json) {
-                    console_log!("Loaded playbook version {} with {} bullets", 
-                               playbook.version, playbook.bullets.len());
+                    console_log!(
+                        "Loaded playbook version {} with {} bullets",
+                        playbook.version,
+                        playbook.bullets.len()
+                    );
                     return Ok(playbook);
                 }
             }
@@ -338,8 +385,11 @@ impl AcePipeline {
         if let Ok(kv) = env.kv("CRESCENDAI_METADATA") {
             if let Ok(json) = serde_json::to_string(playbook) {
                 let _ = kv.put("ace_playbook", &json)?.execute().await;
-                console_log!("Saved playbook version {} with {} bullets", 
-                           playbook.version, playbook.bullets.len());
+                console_log!(
+                    "Saved playbook version {} with {} bullets",
+                    playbook.version,
+                    playbook.bullets.len()
+                );
             }
         }
         Ok(())
@@ -355,7 +405,8 @@ impl AcePipeline {
         if let Ok(kv) = env.kv("CRESCENDAI_METADATA") {
             let outcome_key = format!("session_outcome:{}", session_outcome.session_id);
             if let Ok(json) = serde_json::to_string(&session_outcome) {
-                let _ = kv.put(&outcome_key, &json)?
+                let _ = kv
+                    .put(&outcome_key, &json)?
                     .expiration_ttl(7 * 24 * 3600) // Keep for 7 days
                     .execute()
                     .await;
@@ -365,7 +416,7 @@ impl AcePipeline {
         // Trigger playbook update with this outcome
         if self.config.curator_enabled {
             // Load current playbook
-            if let Ok(mut playbook) = self.load_playbook(env).await {
+            if let Ok(playbook) = self.load_playbook(env).await {
                 // Create a minimal reflection for the curator
                 let minimal_reflection = super::ace_framework::FeedbackReflection {
                     quality_assessment: super::ace_framework::QualityAssessment {
@@ -375,11 +426,11 @@ impl AcePipeline {
                         completeness_score: 0.7,
                         overall_score: 0.7,
                     },
-                    extracted_insights: vec![
-                        format!("Session outcome recorded: improvement={:.2}, satisfaction={:.2}", 
-                               session_outcome.user_improvement_score, 
-                               session_outcome.user_satisfaction_score)
-                    ],
+                    extracted_insights: vec![format!(
+                        "Session outcome recorded: improvement={:.2}, satisfaction={:.2}",
+                        session_outcome.user_improvement_score,
+                        session_outcome.user_satisfaction_score
+                    )],
                     improvement_suggestions: vec![],
                     confidence_score: 0.6,
                     deltas: vec![], // No new deltas, just updating statistics
@@ -439,7 +490,10 @@ mod tests {
 
     fn create_test_user_context() -> UserContext {
         UserContext {
-            goals: vec!["Improve timing".to_string(), "Better articulation".to_string()],
+            goals: vec![
+                "Improve timing".to_string(),
+                "Better articulation".to_string(),
+            ],
             practice_time_per_day_minutes: 45,
             constraints: vec!["Limited practice space".to_string()],
             repertoire_info: Some(RepertoireInfo {
@@ -470,10 +524,10 @@ mod tests {
 
         // Same inputs should produce same key
         assert_eq!(key1, key2);
-        
+
         // Different k should produce different key
         assert_ne!(key1, key3);
-        
+
         assert!(key1.starts_with("ace_pipeline:"));
     }
 
@@ -515,7 +569,7 @@ mod tests {
     fn test_convert_to_tutor_feedback() {
         let pipeline = AcePipeline::new();
         let user_context = create_test_user_context();
-        
+
         let initial_feedback = super::ace_framework::InitialFeedback {
             recommendations: vec![
                 "Practice scales with metronome".to_string(),
@@ -527,7 +581,10 @@ mod tests {
                 "Practice hands separately first".to_string(),
             ],
             expected_timeline: "2-3 weeks".to_string(),
-            citations: vec!["scales_guide".to_string(), "articulation_exercises".to_string()],
+            citations: vec![
+                "scales_guide".to_string(),
+                "articulation_exercises".to_string(),
+            ],
             reasoning_trace: "Analysis complete".to_string(),
         };
 
@@ -545,11 +602,12 @@ mod tests {
             deltas: vec![],
         };
 
-        let tutor_feedback = pipeline.convert_to_tutor_feedback(&initial_feedback, &reflection, &user_context);
+        let tutor_feedback =
+            pipeline.convert_to_tutor_feedback(&initial_feedback, &reflection, &user_context);
 
         assert_eq!(tutor_feedback.recommendations.len(), 2);
         assert_eq!(tutor_feedback.citations.len(), 2);
-        
+
         // Check that practice time is reasonable
         for rec in &tutor_feedback.recommendations {
             assert!(rec.estimated_time_minutes >= 5);

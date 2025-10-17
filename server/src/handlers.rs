@@ -567,6 +567,126 @@ pub async fn record_session_outcome(mut req: Request, ctx: RouteContext<()>) -> 
     }
 }
 
+/// Tutor retrieval endpoint - embeds query and returns relevant chunks
+pub async fn tutor_retrieve(mut req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    const MAX_JSON_SIZE: usize = 2 * 1024; // 2KB limit for retrieval query
+    
+    // Check Content-Length header for early validation
+    if let Ok(Some(content_length)) = req.headers().get("Content-Length") {
+        if let Ok(size) = content_length.parse::<usize>() {
+            validate_body_size(size, MAX_JSON_SIZE)?;
+        }
+    }
+    
+    let body: serde_json::Value = req.json().await?;
+    
+    // Parse query and options
+    let query = body.get("query")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| worker::Error::from(SecurityError::InvalidInput("Missing query".to_string())))?;
+    
+    let top_k = body.get("top_k")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(5) as usize;
+    
+    // Query knowledge base
+    let chunks = crate::knowledge_base::query_top_k(&ctx.env, query, top_k).await
+        .map_err(|e| worker::Error::RustError(format!("Knowledge base query failed: {}", e)))?;
+    
+    // Convert chunks to response format with citations
+    let results: Vec<serde_json::Value> = chunks.iter().map(|chunk| {
+        serde_json::json!({
+            "id": chunk.id,
+            "title": chunk.title,
+            "source": chunk.source,
+            "text_snippet": chunk.text.chars().take(200).collect::<String>(),
+            "tags": chunk.tags,
+            "url": chunk.url,
+            "r2_pdf_key": chunk.url.as_ref().map(|_| format!("docs/{}/{}.pdf", chunk.doc_id, chunk.source))
+        })
+    }).collect();
+    
+    Response::from_json(&serde_json::json!({
+        "query": query,
+        "results": results,
+        "total_found": results.len()
+    }))
+}
+
+/// Tutor ingestion endpoint - processes documents and stores in KB
+pub async fn tutor_ingest(mut req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    const MAX_JSON_SIZE: usize = 50 * 1024 * 1024; // 50MB limit for ingestion
+    
+    // Check Content-Length header for early validation
+    if let Ok(Some(content_length)) = req.headers().get("Content-Length") {
+        if let Ok(size) = content_length.parse::<usize>() {
+            validate_body_size(size, MAX_JSON_SIZE)?;
+        }
+    }
+    
+    let body: serde_json::Value = req.json().await?;
+    
+    // Parse ingestion request
+    let ingestion_request: crate::ingestion::IngestionRequest = serde_json::from_value(body)
+        .map_err(|_| worker::Error::from(SecurityError::InvalidInput(
+            "Invalid ingestion request payload".to_string()
+        )))?;
+    
+    // Process ingestion
+    match crate::ingestion::ingest_documents(&ctx.env, ingestion_request).await {
+        Ok(result) => Response::from_json(&result),
+        Err(e) => {
+            let is_dev = ctx.env.var("ENVIRONMENT")
+                .map(|v| v.to_string() == "development")
+                .unwrap_or(false);
+            Ok(secure_error_response(&e, is_dev))
+        }
+    }
+}
+
+/// Tutor validation endpoint - checks ingestion setup
+pub async fn tutor_validate(_req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    match crate::ingestion::validate_setup(&ctx.env).await {
+        Ok(validation_result) => Response::from_json(&validation_result),
+        Err(e) => {
+            let is_dev = ctx.env.var("ENVIRONMENT")
+                .map(|v| v.to_string() == "development")
+                .unwrap_or(false);
+            Ok(secure_error_response(&e, is_dev))
+        }
+    }
+}
+
+/// Tutor purge endpoint - removes document data
+pub async fn tutor_purge(mut req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    const MAX_JSON_SIZE: usize = 1 * 1024; // 1KB limit for purge request
+    
+    // Check Content-Length header for early validation
+    if let Ok(Some(content_length)) = req.headers().get("Content-Length") {
+        if let Ok(size) = content_length.parse::<usize>() {
+            validate_body_size(size, MAX_JSON_SIZE)?;
+        }
+    }
+    
+    let body: serde_json::Value = req.json().await?;
+    
+    // Parse document ID
+    let doc_id = body.get("doc_id")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| worker::Error::from(SecurityError::InvalidInput("Missing doc_id".to_string())))?;
+    
+    // Purge document
+    match crate::ingestion::purge_document(&ctx.env, doc_id).await {
+        Ok(result) => Response::from_json(&result),
+        Err(e) => {
+            let is_dev = ctx.env.var("ENVIRONMENT")
+                .map(|v| v.to_string() == "development")
+                .unwrap_or(false);
+            Ok(secure_error_response(&e, is_dev))
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
