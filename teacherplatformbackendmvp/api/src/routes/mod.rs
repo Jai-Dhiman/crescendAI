@@ -1,0 +1,75 @@
+pub mod auth;
+pub mod health;
+pub mod relationships;
+pub mod knowledge;
+pub mod chat;
+
+use axum::{middleware, Router};
+
+use crate::state::AppState;
+
+/// Creates the main API router with all routes
+pub fn create_router(state: AppState) -> Router {
+    Router::new().nest("/api", api_routes(state))
+}
+
+/// API routes under /api prefix
+fn api_routes(state: AppState) -> Router {
+    // Public routes
+    let public = Router::new()
+        .merge(health::routes())
+        .route("/auth/register", axum::routing::post(auth::register))
+        .route("/auth/login", axum::routing::post(auth::login))
+        .route("/auth/refresh", axum::routing::post(auth::refresh));
+
+    // Protected routes (require authentication)
+    let protected = Router::new()
+        .route("/auth/me", axum::routing::get(auth::me))
+        .route(
+            "/relationships",
+            axum::routing::post(relationships::create_relationship)
+                .get(relationships::list_relationships),
+        )
+        .route(
+            "/relationships/:id",
+            axum::routing::delete(relationships::delete_relationship),
+        )
+        // Knowledge base routes
+        .route(
+            "/knowledge",
+            axum::routing::post(knowledge::create_knowledge_doc)
+                .get(knowledge::list_knowledge_docs),
+        )
+        .route(
+            "/knowledge/:id",
+            axum::routing::get(knowledge::get_knowledge_doc)
+                .delete(knowledge::delete_knowledge_doc),
+        )
+        .route(
+            "/knowledge/:id/process",
+            axum::routing::post(knowledge::process_knowledge_doc),
+        )
+        .route(
+            "/knowledge/:id/status",
+            axum::routing::get(knowledge::get_processing_status),
+        )
+        // Chat/RAG routes
+        .route(
+            "/chat/query",
+            axum::routing::post(chat::rag_query),
+        )
+        .route(
+            "/chat/health",
+            axum::routing::get(chat::chat_health),
+        )
+        .route_layer(middleware::from_fn_with_state(
+            state.clone(),
+            crate::auth::middleware::auth_required,
+        ));
+
+    public.merge(protected).with_state(state)
+    // Future routes will be added here:
+    // .merge(projects::routes())
+    // .merge(annotations::routes())
+    // .merge(chat::routes())
+}
