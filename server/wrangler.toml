@@ -17,9 +17,9 @@ WORKERS_RS_VERSION = "0.3.0"
 WORKER_URL = "https://crescendai-backend.jai-d.workers.dev"
 ENVIRONMENT = "development"
 # Production domain: crescend.ai (frontend) and api.crescend.ai (backend)
-ALLOWED_ORIGINS = "http://localhost:3000,http://localhost:5173,https://crescend.ai,https://www.crescend.ai"
+ALLOWED_ORIGINS = "http://localhost:3000, http://localhost:5173, https://crescend.ai, https://www.crescend.ai"
 # Tutor model configuration
-TUTOR_CF_MODEL = "@cf/google/gemma-7b-it"
+TUTOR_CF_MODEL = "@cf/openai/gpt-oss-20b"
 CF_EMBED_MODEL = "@cf/google/embeddinggemma-300m"
 VECTORIZE_INDEX_NAME = "crescendai-piano-pedagogy"
 # Add your CF_ACCOUNT_ID below - get from Cloudflare dashboard
@@ -29,10 +29,6 @@ TUTOR_MAX_TOKENS = "300"
 TUTOR_TEMPERATURE = "0.3"
 TUTOR_ENABLED = "true"
 ACE_ENABLED = "true"
-
-# Note: Add these as secrets via wrangler secret put command:
-# wrangler secret put API_KEY
-# wrangler secret put WEBHOOK_SECRET
 
 [[r2_buckets]]
 binding = "AUDIO_BUCKET"

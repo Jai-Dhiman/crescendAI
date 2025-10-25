@@ -93,6 +93,7 @@ Optional `.meta.json` files can supplement text files:
 ### PDF Attachments
 
 Place PDF files alongside text files with matching names:
+
 ```
 scales_guide.txt
 scales_guide.pdf
@@ -106,6 +107,7 @@ scales_guide.meta.json
 Main ingestion endpoint.
 
 **Request Body:**
+
 ```json
 {
   "documents": [
@@ -128,6 +130,7 @@ Main ingestion endpoint.
 ```
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -143,6 +146,7 @@ Main ingestion endpoint.
 Validate ingestion setup and bindings.
 
 **Response:**
+
 ```json
 {
   "ai_binding": {"status": "ok"},
@@ -158,6 +162,7 @@ Validate ingestion setup and bindings.
 Remove all data for a document.
 
 **Request Body:**
+
 ```json
 {
   "doc_id": "scales_guide"
@@ -165,6 +170,7 @@ Remove all data for a document.
 ```
 
 **Response:**
+
 ```json
 {
   "deleted_vectors": 15,
@@ -185,17 +191,20 @@ The system uses character-based chunking with overlap:
 ## Storage Layout
 
 ### Vectorize
+
 - **Index**: `crescendai-piano-pedagogy`
 - **Vector ID**: `{doc_id}::c{chunk_index}`
 - **Metadata**: Full KBChunk JSON structure
 - **Embedding**: 768-dimensional vectors from `@cf/google/embeddinggemma-300m`
 
 ### KV Storage
+
 - **Chunk Data**: `doc:{doc_id}:chunk:{chunk_index}`
 - **Content**: Full chunk JSON for retrieval
 - **TTL**: No expiration (permanent storage)
 
 ### R2 Storage
+
 - **PDFs**: `docs/{doc_id}/{filename}.pdf`
 - **Manifests**: `ingest/manifests/{timestamp}-{uuid}.ndjson`
 - **Bucket**: `crescendai-practice`
@@ -203,22 +212,26 @@ The system uses character-based chunking with overlap:
 ## Example Workflow
 
 1. **Prepare Documents**
+
    ```bash
    mkdir piano_pedagogy
    echo -e "id: test_doc\ntitle: Test Document\n\nThis is a test." > piano_pedagogy/test_doc.txt
    ```
 
 2. **Validate Setup**
+
    ```bash
    cargo run -- --validate-only --endpoint https://api.crescend.ai
    ```
 
 3. **Ingest Documents**
+
    ```bash
    cargo run -- --kb-dir piano_pedagogy --endpoint https://api.crescend.ai
    ```
 
 4. **Verify Ingestion**
+
    ```bash
    curl -X POST https://api.crescend.ai/api/v1/tutor/retrieve \
      -H "X-API-Key: $CRESCENDAI_API_KEY" \
@@ -245,6 +258,7 @@ Common ingestion errors and solutions:
 ## Monitoring
 
 The system logs structured information:
+
 - Document processing times
 - Chunk creation counts
 - Storage operation results

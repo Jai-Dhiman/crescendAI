@@ -222,65 +222,41 @@ pub async fn call_llm(
     temperature: f32,
     max_tokens: u32,
 ) -> Result<String> {
-    // Cloudflare Workers AI only (no fallbacks)
-    if let (Ok(account_id), Ok(cf_model), Ok(cf_token)) = (
-        env.var("CF_ACCOUNT_ID"),
-        env.var("TUTOR_CF_MODEL"),
-        env.secret("CF_API_TOKEN"),
-    ) {
-        let url = format!(
-            "https://api.cloudflare.com/client/v4/accounts/{}/ai/run/{}",
-            account_id.to_string(),
-            cf_model.to_string()
-        );
-        let payload = serde_json::json!({
-            "messages": [
-                {"role": "system", "content": system},
-                {"role": "user", "content": user}
-            ],
-            "temperature": temperature,
-            "max_tokens": max_tokens
-        });
-        let headers = Headers::new();
-        headers
-            .set("Authorization", &format!("Bearer {}", cf_token.to_string()))
-            .ok();
-        headers.set("Content-Type", "application/json").ok();
-        let mut init = RequestInit::new();
-        init.with_method(Method::Post);
-        init.with_headers(headers);
-        init.with_body(Some(
-            serde_json::to_string(&payload)
-                .map_err(|e| worker::Error::RustError(e.to_string()))?
-                .into(),
-        ));
-        let req = Request::new_with_init(&url, &init)?;
-        let mut resp = Fetch::Request(req).send().await?;
-        if resp.status_code() / 100 == 2 {
-            let text: String = resp.text().await?;
-            if let Ok(v) = serde_json::from_str::<serde_json::Value>(&text) {
-                if let Some(s) = v.pointer("/result/response").and_then(|x| x.as_str()) {
-                    return Ok(s.to_string());
-                }
-                if let Some(s) = v.pointer("/result/output_text").and_then(|x| x.as_str()) {
-                    return Ok(s.to_string());
-                }
-                if let Some(s) = v.pointer("/result/text").and_then(|x| x.as_str()) {
-                    return Ok(s.to_string());
-                }
-            }
-            return Err(worker::Error::RustError("Cloudflare AI: unexpected response shape".to_string()));
-        } else {
-            let error_body = resp.text().await.unwrap_or_default();
-            return Err(worker::Error::RustError(format!(
-                "Cloudflare AI HTTP {}: {}",
-                resp.status_code(),
-                error_body
-            )));
-        }
+    let ai = env.ai("AI")?;
+    let cf_model = env.var("TUTOR_CF_MODEL")
+        .map(|v| v.to_string())
+        .unwrap_or_else(|_| "@cf/openai/gpt-oss-20b".to_string());
+
+    let payload = serde_json::json!({
+        "messages": [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user}
+        ],
+        "temperature": temperature,
+        "max_tokens": max_tokens
+    });
+
+let response: serde_json::Value = ai
+        .run(&cf_model, payload)
+        .await
+        .map_err(|e| worker::Error::RustError(format!("AI call failed: {}", e)))?;
+
+    // Try different response fields that CF AI might use
+    if let Some(s) = response.get("response").and_then(|x| x.as_str()) {
+        return Ok(s.to_string());
     }
+    if let Some(s) = response.get("output_text").and_then(|x| x.as_str()) {
+        return Ok(s.to_string());
+    }
+    if let Some(s) = response.get("text").and_then(|x| x.as_str()) {
+        return Ok(s.to_string());
+    }
+    if let Some(s) = response.get("content").and_then(|x| x.as_str()) {
+        return Ok(s.to_string());
+    }
+    
     Err(worker::Error::RustError(
-        "Cloudflare AI not configured: set CF_ACCOUNT_ID, CF_API_TOKEN, TUTOR_CF_MODEL".to_string(),
+        "Cloudflare AI: unexpected response format".to_string()
     ))
 }
 
@@ -325,11 +301,11 @@ pub async fn generate_feedback_ace(
             generator_model: env
                 .var("ACE_GENERATOR_MODEL")
                 .map(|v| v.to_string())
-                .unwrap_or_else(|_| "@cf/google/gemma-7b-it".to_string()),
+                .unwrap_or_else(|_| "@cf/openai/gpt-oss-20b".to_string()),
             reflector_model: env
                 .var("ACE_REFLECTOR_MODEL")
                 .map(|v| v.to_string())
-                .unwrap_or_else(|_| "@cf/google/gemma-7b-it".to_string()),
+                .unwrap_or_else(|_| "@cf/openai/gpt-oss-20b".to_string()),
             curator_enabled: env
                 .var("ACE_CURATOR_ENABLED")
                 .map(|v| v.to_string() == "true")

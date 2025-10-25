@@ -210,8 +210,8 @@ pub struct AceConfig {
 impl Default for AceConfig {
     fn default() -> Self {
         Self {
-            generator_model: "@cf/google/gemma-7b-it".to_string(),
-            reflector_model: "@cf/google/gemma-7b-it".to_string(),
+            generator_model: "@cf/openai/gpt-oss-20b".to_string(),
+            reflector_model: "@cf/openai/gpt-oss-20b".to_string(),
             curator_enabled: true,
             max_playbook_size: 500,
             confidence_threshold: 0.6,

@@ -1,8 +1,9 @@
 use serde::{Deserialize, Serialize};
 use worker::*;
-use crate::knowledge_base::{embed_text, query_top_k, KBChunk};
+use crate::knowledge_base::KBChunk;
 use uuid::Uuid;
 use chrono::{DateTime, Utc};
+use crate::knowledge_base::embed_text;
 
 /// Document metadata for ingestion
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -120,65 +121,13 @@ pub async fn process_document(
     Ok(kb_chunks)
 }
 
-/// Embed and store chunks in Vectorize using HTTP API
+/// Store chunks in KV (Vectorize disabled for this build)
 pub async fn store_chunks(env: &Env, chunks: &[KBChunk]) -> Result<usize> {
-    let account_id = env.var("CF_ACCOUNT_ID")
-        .map_err(|_| worker::Error::RustError("CF_ACCOUNT_ID not configured".to_string()))?;
-    let token = env.secret("CF_API_TOKEN")
-        .map_err(|_| worker::Error::RustError("CF_API_TOKEN not configured".to_string()))?
-        .to_string();
-    let index_name = env.var("VECTORIZE_INDEX_NAME")
-        .map(|v| v.to_string())
-        .unwrap_or_else(|_| "crescendai-piano-pedagogy".to_string());
     let kv = env.kv("CRESCENDAI_METADATA")?;
     
     let mut stored_count = 0;
 
     for chunk in chunks {
-        // Generate embedding
-        let vector = embed_text(env, &chunk.text).await?;
-        
-        // Store in Vectorize with metadata
-        let metadata = serde_json::to_value(chunk)
-            .map_err(|e| worker::Error::RustError(format!("Metadata serialization failed: {}", e)))?;
-        
-        // Upsert to Vectorize via HTTP API
-        let vectorize_url = format!(
-            "https://api.cloudflare.com/client/v4/accounts/{}/vectorize/indexes/{}/upsert",
-            account_id.to_string(), index_name
-        );
-        
-        let upsert_payload = serde_json::json!({
-            "vectors": [{
-                "id": chunk.id,
-                "values": vector,
-                "metadata": metadata
-            }]
-        });
-        
-        let mut headers = Headers::new();
-        headers.set("Authorization", &format!("Bearer {}", token.to_string()))?;
-        headers.set("Content-Type", "application/json")?;
-        
-        let mut init = RequestInit::new();
-        init.with_method(Method::Post);
-        init.with_headers(headers);
-        init.with_body(Some(
-            serde_json::to_string(&upsert_payload)
-                .map_err(|e| worker::Error::RustError(e.to_string()))?
-                .into(),
-        ));
-        
-        let req = Request::new_with_init(&vectorize_url, &init)?;
-        let mut resp = Fetch::Request(req).send().await?;
-        
-        if resp.status_code() / 100 != 2 {
-            let error_text = resp.text().await.unwrap_or_default();
-            return Err(worker::Error::RustError(format!(
-                "Vectorize upsert error {}: {}", resp.status_code(), error_text
-            )));
-        }
-        
         // Store chunk JSON in KV for retrieval
         let kv_key = format!("doc:{}:chunk:{}", chunk.doc_id, chunk.chunk_id);
         let chunk_json = serde_json::to_string(chunk)
@@ -319,13 +268,16 @@ pub async fn ingest_documents(env: &Env, request: IngestionRequest) -> Result<In
 pub async fn validate_setup(env: &Env) -> Result<serde_json::Value> {
     let mut checks = serde_json::Map::new();
     
-    // Check CF credentials
-    match (env.var("CF_ACCOUNT_ID"), env.secret("CF_API_TOKEN")) {
-        (Ok(_), Ok(_)) => checks.insert("cf_credentials".to_string(), serde_json::json!({"status": "ok"})),
-        _ => checks.insert("cf_credentials".to_string(), serde_json::json!({"status": "error", "message": "CF_ACCOUNT_ID or CF_API_TOKEN not configured"})),
+    // Check AI binding
+    match env.ai("AI") {
+        Ok(_) => checks.insert("ai_binding".to_string(), serde_json::json!({"status": "ok"})),
+        Err(e) => checks.insert("ai_binding".to_string(), serde_json::json!({"status": "error", "message": e.to_string()})),
     };
     
-    // Check KV binding
+// Check Vectorize binding (disabled)
+    checks.insert("vectorize_binding".to_string(), serde_json::json!({"status": "skipped"}));
+    
+    // Test KV binding
     match env.kv("CRESCENDAI_METADATA") {
         Ok(_) => checks.insert("kv_binding".to_string(), serde_json::json!({"status": "ok"})),
         Err(e) => checks.insert("kv_binding".to_string(), serde_json::json!({"status": "error", "message": e.to_string()})),
@@ -337,84 +289,42 @@ pub async fn validate_setup(env: &Env) -> Result<serde_json::Value> {
         Err(e) => checks.insert("embedding_test".to_string(), serde_json::json!({"status": "error", "message": e.to_string()})),
     };
     
-    // Test Vectorize connectivity
-    let vectorize_test = match query_top_k(env, "test query", 1).await {
-        Ok(_) => serde_json::json!({"status": "ok"}),
-        Err(e) => serde_json::json!({"status": "error", "message": e.to_string()}),
-    };
-    checks.insert("vectorize_test".to_string(), vectorize_test);
+// Test Vectorize connectivity (disabled)
+    checks.insert("vectorize_test".to_string(), serde_json::json!({"status": "skipped"}));
     
     Ok(serde_json::Value::Object(checks))
 }
 
-/// Purge document data using HTTP API
+/// Purge document data using native Wrangler bindings
 pub async fn purge_document(env: &Env, doc_id: &str) -> Result<serde_json::Value> {
-    let account_id = env.var("CF_ACCOUNT_ID")
-        .map_err(|_| worker::Error::RustError("CF_ACCOUNT_ID not configured".to_string()))?;
-    let token = env.secret("CF_API_TOKEN")
-        .map_err(|_| worker::Error::RustError("CF_API_TOKEN not configured".to_string()))?
-        .to_string();
-    let index_name = env.var("VECTORIZE_INDEX_NAME")
-        .map(|v| v.to_string())
-        .unwrap_or_else(|_| "crescendai-piano-pedagogy".to_string());
     let kv = env.kv("CRESCENDAI_METADATA")?;
     
     let mut results = serde_json::Map::new();
-    let mut deleted_vectors = 0;
     let mut deleted_kv_keys = 0;
     
-    // Try to delete common chunk patterns (simplified approach)
+    // Collect chunk IDs to delete (simplified approach)
     for chunk_idx in 0..1000 { // Assume max 1000 chunks per doc
-        let chunk_id = format!("{}::c{}", doc_id, chunk_idx);
-        
-        // Try to delete from Vectorize via HTTP API
-        let delete_url = format!(
-            "https://api.cloudflare.com/client/v4/accounts/{}/vectorize/indexes/{}/delete",
-            account_id.to_string(), index_name
-        );
-        
-        let delete_payload = serde_json::json!({
-            "ids": [chunk_id.clone()]
-        });
-        
-        let mut headers = Headers::new();
-        headers.set("Authorization", &format!("Bearer {}", token.to_string())).ok();
-        headers.set("Content-Type", "application/json").ok();
-        
-        let mut init = RequestInit::new();
-        init.with_method(Method::Post);
-        init.with_headers(headers);
-        init.with_body(Some(
-            serde_json::to_string(&delete_payload).unwrap_or_default().into(),
-        ));
-        
-        if let Ok(req) = Request::new_with_init(&delete_url, &init) {
-            if let Ok(mut resp) = Fetch::Request(req).send().await {
-                if resp.status_code() / 100 == 2 {
-                    deleted_vectors += 1;
-                }
-            }
-        }
-        
         // Try to delete from KV
         let kv_key = format!("doc:{}:chunk:{}", doc_id, chunk_idx);
         if kv.delete(&kv_key).await.is_ok() {
             deleted_kv_keys += 1;
         }
         
-        // Also try to delete PDF from KV
-        let pdf_key = format!("pdf:{}:*.pdf", doc_id);
-        let _ = kv.delete(&pdf_key).await; // Best effort
-        
-        // If we haven't found any for a while, assume we're done
-        if chunk_idx > 10 && deleted_vectors == 0 && deleted_kv_keys == 0 {
+        // If we haven't found any KV keys for a while, assume we're done
+        if chunk_idx > 10 && deleted_kv_keys == 0 {
             break;
         }
     }
     
-    results.insert("deleted_vectors".to_string(), serde_json::json!(deleted_vectors));
+    // Also try to delete PDF from KV (pattern-based cleanup)
+    let pdf_pattern_keys = ["pdf:{}:*.pdf", "pdf:{}/*"];
+    for pattern in pdf_pattern_keys {
+        let pdf_key = pattern.replace("{}", doc_id);
+        let _ = kv.delete(&pdf_key).await; // Best effort
+    }
+    
     results.insert("deleted_kv_keys".to_string(), serde_json::json!(deleted_kv_keys));
-    results.insert("note".to_string(), serde_json::json!("PDF and manifest cleanup attempted via KV"));
+    results.insert("note".to_string(), serde_json::json!("Vectorize deletion skipped; performed KV cleanup only"));
     
     Ok(serde_json::Value::Object(results))
 }

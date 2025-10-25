@@ -51,7 +51,7 @@ struct Metadata {
 }
 
 fn default_kb_dir() -> PathBuf {
-    PathBuf::from("tools/ingest-kb/piano_pedagogy")
+    PathBuf::from("piano_pedagogy")
 }
 
 fn parse_header_and_body(raw: &str) -> (Header, String) {
