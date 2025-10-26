@@ -1,3 +1,4 @@
+use crate::ai::workers_ai::WorkersAIClient;
 use crate::errors::Result;
 use crate::models::SearchResult;
 use crate::search::{bm25_search, vector_search, UserContext};
@@ -31,6 +32,89 @@ pub async fn hybrid_search(
 
     // Return top results
     Ok(merged.into_iter().take(final_limit).collect())
+}
+
+/// Perform hybrid search with re-ranking using cross-encoder model
+/// This provides better accuracy at the cost of slightly higher latency
+pub async fn hybrid_search_with_rerank(
+    pool: &PgPool,
+    query_embedding: Vec<f32>,
+    query_text: &str,
+    user_context: &UserContext,
+    workers_ai: &WorkersAIClient,
+    final_limit: usize,
+) -> Result<Vec<SearchResult>> {
+    // Fetch more candidates for re-ranking (3-4x final limit for best results)
+    let candidate_limit = final_limit * 3;
+
+    // Perform both searches in parallel
+    let (vector_results, bm25_results) = tokio::try_join!(
+        vector_search(pool, query_embedding, user_context, candidate_limit),
+        bm25_search(pool, query_text, user_context, candidate_limit),
+    )?;
+
+    // Merge results using RRF to get candidates
+    let rrf_candidates = reciprocal_rank_fusion(vector_results, bm25_results);
+
+    // Take top candidates for re-ranking (2x final limit)
+    let rerank_candidates: Vec<_> = rrf_candidates
+        .into_iter()
+        .take(final_limit * 2)
+        .collect();
+
+    if rerank_candidates.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    // Re-rank using cross-encoder model
+    tracing::debug!("Re-ranking {} candidates", rerank_candidates.len());
+    let candidate_texts: Vec<&str> = rerank_candidates
+        .iter()
+        .map(|r| r.content.as_str())
+        .collect();
+
+    let rerank_results = workers_ai
+        .rerank(query_text, candidate_texts)
+        .await
+        .map_err(|e| {
+            tracing::warn!("Re-ranking failed, falling back to RRF scores: {}", e);
+            e
+        });
+
+    // If re-ranking succeeds, use those scores; otherwise fall back to RRF
+    let final_results = match rerank_results {
+        Ok(rerank_scores) => {
+            // Map re-rank scores back to search results
+            let mut scored_results: Vec<(SearchResult, f32)> = rerank_scores
+                .into_iter()
+                .filter_map(|rr| {
+                    rerank_candidates.get(rr.index).map(|sr| (sr.clone(), rr.score))
+                })
+                .collect();
+
+            // Sort by re-rank score descending
+            scored_results.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+
+            // Update scores and take top results
+            scored_results
+                .into_iter()
+                .take(final_limit)
+                .map(|(mut result, rerank_score)| {
+                    result.score = rerank_score;
+                    result
+                })
+                .collect()
+        }
+        Err(_) => {
+            // Fall back to RRF scores
+            rerank_candidates
+                .into_iter()
+                .take(final_limit)
+                .collect()
+        }
+    };
+
+    Ok(final_results)
 }
 
 /// Merge two ranked lists using Reciprocal Rank Fusion

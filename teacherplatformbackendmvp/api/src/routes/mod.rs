@@ -62,6 +62,20 @@ fn api_routes(state: AppState) -> Router {
             "/chat/health",
             axum::routing::get(chat::chat_health),
         )
+        .route(
+            "/chat/sessions",
+            axum::routing::post(chat::create_session)
+                .get(chat::list_sessions),
+        )
+        .route(
+            "/chat/sessions/:id",
+            axum::routing::get(chat::get_session)
+                .delete(chat::delete_session),
+        )
+        .route(
+            "/chat/messages",
+            axum::routing::post(chat::store_message),
+        )
         .route_layer(middleware::from_fn_with_state(
             state.clone(),
             crate::auth::middleware::auth_required,

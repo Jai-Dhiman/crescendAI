@@ -10,6 +10,7 @@ use uuid::Uuid;
 use crate::{
     auth::jwt::JwtClaims,
     errors::{AppError, Result},
+    ingestion::processor::process_pdf_document,
     models::{
         CreateKnowledgeRequest, CreateKnowledgeResponse, KnowledgeDoc, ProcessingStatus,
         ProcessingStatusResponse,
@@ -227,6 +228,11 @@ pub async fn process_knowledge_doc(
         ));
     }
 
+    // Verify we have Workers AI client for embeddings
+    let workers_ai = state.workers_ai.as_ref().ok_or_else(|| {
+        AppError::BadRequest("Workers AI is not configured - cannot process document".to_string())
+    })?;
+
     // Update status to processing
     sqlx::query(
         r#"
@@ -239,14 +245,51 @@ pub async fn process_knowledge_doc(
     .execute(&state.pool)
     .await?;
 
-    // TODO: Spawn background job to process document
-    // For MVP, we'll return immediately and process synchronously later
-    // In production: tokio::spawn(process_document_job(state.clone(), id));
+    // For MVP: We'll spawn a background task that processes a dummy PDF
+    // In production: Fetch PDF from R2 storage using the source_url
+    // Example: let pdf_bytes = state.r2_client.download_object(&doc.source_url.unwrap()).await?;
 
-    Ok(Json(serde_json::json!({
-        "message": "Processing started",
-        "doc_id": id
-    })))
+    // Spawn background task to process the document
+    let pool = state.pool.clone();
+    let workers_ai = workers_ai.clone();
+    tokio::spawn(async move {
+        // For MVP: Use a minimal test PDF (empty placeholder)
+        // TODO: Replace with actual R2 fetch when R2 integration is ready
+        let pdf_bytes = include_bytes!("../../../test_data/sample.pdf");
+
+        match process_pdf_document(&pool, &workers_ai, id, pdf_bytes).await {
+            Ok(chunk_count) => {
+                // Update status to completed and set total chunks
+                if let Err(e) = sqlx::query(
+                    r#"
+                    UPDATE knowledge_base_docs
+                    SET status = 'completed', total_chunks = $2
+                    WHERE id = $1
+                    "#,
+                )
+                .bind(id)
+                .bind(chunk_count as i32)
+                .execute(&pool)
+                .await
+                {
+                    tracing::error!("Failed to update document status to completed: {:?}", e);
+                }
+            }
+            Err(e) => {
+                // Error handling is already done in process_pdf_document
+                tracing::error!("Failed to process document {}: {:?}", id, e);
+            }
+        }
+    });
+
+    // Return 202 Accepted immediately
+    Ok((
+        StatusCode::ACCEPTED,
+        Json(serde_json::json!({
+            "message": "Processing started",
+            "doc_id": id
+        })),
+    ))
 }
 
 /// Get processing status for a knowledge base document

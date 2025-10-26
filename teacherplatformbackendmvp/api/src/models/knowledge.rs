@@ -66,7 +66,7 @@ pub struct ProcessingStatusResponse {
 }
 
 /// Search result from hybrid search
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SearchResult {
     pub chunk_id: Uuid,
     pub doc_id: Uuid,

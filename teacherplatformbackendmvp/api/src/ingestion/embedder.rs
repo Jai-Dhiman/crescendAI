@@ -1,58 +1,102 @@
+use crate::ai::workers_ai::WorkersAIClient;
 use crate::errors::{AppError, Result};
 use crate::ingestion::Chunk;
+use std::time::Duration;
 
-/// Generate embeddings for a batch of chunks
-/// For MVP without Cloudflare credentials, this creates mock embeddings
-pub async fn generate_embeddings(chunks: Vec<Chunk>) -> Result<Vec<(Chunk, Vec<f32>)>> {
+/// Generate embeddings for a batch of chunks using Cloudflare Workers AI
+pub async fn generate_embeddings(
+    workers_ai: &WorkersAIClient,
+    chunks: Vec<Chunk>,
+) -> Result<Vec<(Chunk, Vec<f32>)>> {
     if chunks.is_empty() {
         return Ok(Vec::new());
     }
 
-    // For MVP, generate mock embeddings (768 dimensions for BGE-base-v1.5)
-    // In production, this would call Workers AI API
+    tracing::info!("Generating embeddings for {} chunks", chunks.len());
+
+    // Process chunks in batches to respect rate limits and avoid overwhelming the API
+    const BATCH_SIZE: usize = 50;
     let mut results = Vec::with_capacity(chunks.len());
 
-    for chunk in chunks {
-        // Create a deterministic but varied embedding based on chunk content
-        let embedding = create_mock_embedding(&chunk.content);
-        results.push((chunk, embedding));
-    }
+    for (batch_idx, chunk_batch) in chunks.chunks(BATCH_SIZE).enumerate() {
+        tracing::debug!(
+            "Processing embedding batch {}/{} ({} chunks)",
+            batch_idx + 1,
+            (chunks.len() + BATCH_SIZE - 1) / BATCH_SIZE,
+            chunk_batch.len()
+        );
 
-    Ok(results)
-}
+        // Extract text from chunks for embedding
+        let texts: Vec<&str> = chunk_batch.iter().map(|c| c.content.as_str()).collect();
 
-/// Create a mock embedding for testing (768 dimensions)
-/// In production, this would be replaced with actual Workers AI call
-fn create_mock_embedding(text: &str) -> Vec<f32> {
-    const EMBEDDING_DIM: usize = 768;
+        // Generate embeddings with retry logic
+        let embeddings = generate_embeddings_with_retry(workers_ai, texts).await?;
 
-    // Create a simple hash-based embedding
-    // This is deterministic and varies based on content
-    let mut embedding = vec![0.0; EMBEDDING_DIM];
+        // Pair chunks with their embeddings
+        for (chunk, embedding) in chunk_batch.iter().zip(embeddings.iter()) {
+            results.push((chunk.clone(), embedding.clone()));
+        }
 
-    // Use text bytes to create variation
-    let bytes = text.as_bytes();
-    for (i, val) in embedding.iter_mut().enumerate() {
-        // Create pseudo-random but deterministic values
-        let idx = i % bytes.len().max(1);
-        let byte_val = bytes.get(idx).copied().unwrap_or(0) as f32;
-        *val = (byte_val / 255.0) * 2.0 - 1.0; // Normalize to [-1, 1]
-    }
-
-    // Add some variation based on position
-    for (i, val) in embedding.iter_mut().enumerate() {
-        *val += (i as f32 / EMBEDDING_DIM as f32) * 0.1;
-    }
-
-    // Normalize the embedding vector (L2 normalization)
-    let magnitude: f32 = embedding.iter().map(|x| x * x).sum::<f32>().sqrt();
-    if magnitude > 0.0 {
-        for val in &mut embedding {
-            *val /= magnitude;
+        // Small delay between batches to avoid rate limiting
+        if batch_idx < (chunks.len() + BATCH_SIZE - 1) / BATCH_SIZE - 1 {
+            tokio::time::sleep(Duration::from_millis(100)).await;
         }
     }
 
-    embedding
+    tracing::info!("Successfully generated {} embeddings", results.len());
+    Ok(results)
+}
+
+/// Generate embeddings with exponential backoff retry logic
+async fn generate_embeddings_with_retry(
+    workers_ai: &WorkersAIClient,
+    texts: Vec<&str>,
+) -> Result<Vec<Vec<f32>>> {
+    const MAX_RETRIES: u32 = 3;
+    let mut retry_count = 0;
+
+    loop {
+        match workers_ai.batch_embed(texts.clone()).await {
+            Ok(embeddings) => {
+                // Validate embedding dimensions (should be 768 for BGE-base-en-v1.5)
+                for (idx, embedding) in embeddings.iter().enumerate() {
+                    if embedding.len() != 768 {
+                        return Err(AppError::Internal(format!(
+                            "Invalid embedding dimension for text {}: expected 768, got {}",
+                            idx,
+                            embedding.len()
+                        )));
+                    }
+                }
+                return Ok(embeddings);
+            }
+            Err(e) => {
+                retry_count += 1;
+                if retry_count >= MAX_RETRIES {
+                    tracing::error!(
+                        "Failed to generate embeddings after {} retries: {}",
+                        MAX_RETRIES,
+                        e
+                    );
+                    return Err(AppError::Internal(format!(
+                        "Failed to generate embeddings: {}",
+                        e
+                    )));
+                }
+
+                // Exponential backoff: 1s, 2s, 4s
+                let delay = Duration::from_secs(2u64.pow(retry_count - 1));
+                tracing::warn!(
+                    "Embedding generation failed (attempt {}/{}), retrying in {:?}: {}",
+                    retry_count,
+                    MAX_RETRIES,
+                    delay,
+                    e
+                );
+                tokio::time::sleep(delay).await;
+            }
+        }
+    }
 }
 
 /// Store chunks with embeddings to database
@@ -130,29 +174,4 @@ pub async fn store_chunks(
     .await?;
 
     Ok(stored_count)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_create_mock_embedding() {
-        let embedding1 = create_mock_embedding("test text");
-        let embedding2 = create_mock_embedding("test text");
-        let embedding3 = create_mock_embedding("different text");
-
-        // Same text should produce same embedding
-        assert_eq!(embedding1, embedding2);
-
-        // Different text should produce different embedding
-        assert_ne!(embedding1, embedding3);
-
-        // Check dimensions
-        assert_eq!(embedding1.len(), 768);
-
-        // Check normalization (L2 norm should be approximately 1.0)
-        let magnitude: f32 = embedding1.iter().map(|x| x * x).sum::<f32>().sqrt();
-        assert!((magnitude - 1.0).abs() < 0.001);
-    }
 }

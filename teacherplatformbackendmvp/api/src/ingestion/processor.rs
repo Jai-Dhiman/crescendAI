@@ -1,3 +1,4 @@
+use crate::ai::workers_ai::WorkersAIClient;
 use crate::errors::{AppError, Result};
 use crate::ingestion::{
     chunk_pages, extract_pdf_text, generate_embeddings, store_chunks, ChunkConfig,
@@ -9,6 +10,7 @@ use uuid::Uuid;
 /// Process a PDF document: extract → chunk → embed → store
 pub async fn process_pdf_document(
     pool: &PgPool,
+    workers_ai: &WorkersAIClient,
     doc_id: Uuid,
     pdf_bytes: &[u8],
 ) -> Result<usize> {
@@ -28,15 +30,16 @@ pub async fn process_pdf_document(
     let pages = match extract_pdf_text(pdf_bytes) {
         Ok(pages) => pages,
         Err(e) => {
-            // Mark as failed
+            // Mark as failed with error message
             sqlx::query(
                 r#"
                 UPDATE knowledge_base_docs
-                SET status = 'failed'
+                SET status = 'failed', error_message = $2
                 WHERE id = $1
                 "#,
             )
             .bind(doc_id)
+            .bind(format!("Failed to extract PDF text: {}", e))
             .execute(pool)
             .await?;
             return Err(e);
@@ -51,29 +54,32 @@ pub async fn process_pdf_document(
             sqlx::query(
                 r#"
                 UPDATE knowledge_base_docs
-                SET status = 'failed'
+                SET status = 'failed', error_message = $2
                 WHERE id = $1
                 "#,
             )
             .bind(doc_id)
+            .bind(format!("Failed to chunk text: {}", e))
             .execute(pool)
             .await?;
             return Err(e);
         }
     };
 
-    // Generate embeddings
-    let chunks_with_embeddings = match generate_embeddings(chunks).await {
+    // Generate embeddings using Workers AI
+    let chunks_with_embeddings = match generate_embeddings(workers_ai, chunks).await {
         Ok(embeddings) => embeddings,
         Err(e) => {
+            // Store error message in database
             sqlx::query(
                 r#"
                 UPDATE knowledge_base_docs
-                SET status = 'failed'
+                SET status = 'failed', error_message = $2
                 WHERE id = $1
                 "#,
             )
             .bind(doc_id)
+            .bind(format!("Failed to generate embeddings: {}", e))
             .execute(pool)
             .await?;
             return Err(e);

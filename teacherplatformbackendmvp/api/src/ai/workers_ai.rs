@@ -1,6 +1,9 @@
 use anyhow::{Context, Result};
+use futures::stream::Stream;
+use futures::StreamExt;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
+use std::pin::Pin;
 
 #[derive(Clone)]
 pub struct WorkersAIClient {
@@ -183,4 +186,96 @@ struct RerankResponse {
 pub struct RerankResult {
     pub index: usize,
     pub score: f32,
+}
+
+// LLM Streaming Support
+
+#[derive(Debug, Serialize)]
+pub struct Message {
+    pub role: String,
+    pub content: String,
+}
+
+#[derive(Debug, Serialize)]
+struct LLMRequest {
+    messages: Vec<Message>,
+    stream: bool,
+}
+
+#[derive(Debug, Deserialize)]
+struct LLMStreamResponse {
+    response: Option<String>,
+}
+
+impl WorkersAIClient {
+    /// Query LLM with streaming support
+    /// Uses @cf/meta/llama-4-scout-17b-16e-instruct
+    pub async fn query_llm_stream(
+        &self,
+        messages: Vec<Message>,
+    ) -> Result<Pin<Box<dyn Stream<Item = Result<String>> + Send>>> {
+        let url = format!(
+            "https://api.cloudflare.com/client/v4/accounts/{}/ai/run/@cf/meta/llama-4-scout-17b-16e-instruct",
+            self.account_id
+        );
+
+        let request_body = LLMRequest {
+            messages,
+            stream: true,
+        };
+
+        let response = self
+            .http_client
+            .post(&url)
+            .header("Authorization", format!("Bearer {}", self.api_token))
+            .json(&request_body)
+            .send()
+            .await
+            .context("Failed to call Workers AI LLM API")?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let error_text = response.text().await.unwrap_or_default();
+            anyhow::bail!(
+                "Workers AI LLM API failed with status {}: {}",
+                status,
+                error_text
+            );
+        }
+
+        // Convert bytes stream to text stream
+        let byte_stream = response.bytes_stream();
+
+        let text_stream = byte_stream.map(|chunk_result| {
+            chunk_result
+                .context("Failed to read stream chunk")
+                .and_then(|bytes| {
+                    // Parse Server-Sent Events format
+                    let text = String::from_utf8(bytes.to_vec())
+                        .context("Failed to decode stream chunk")?;
+
+                    // SSE format: "data: {json}\n\n"
+                    for line in text.lines() {
+                        if let Some(data) = line.strip_prefix("data: ") {
+                            if data == "[DONE]" {
+                                continue;
+                            }
+
+                            match serde_json::from_str::<LLMStreamResponse>(data) {
+                                Ok(parsed) => {
+                                    if let Some(content) = parsed.response {
+                                        return Ok(content);
+                                    }
+                                }
+                                Err(_) => continue,
+                            }
+                        }
+                    }
+
+                    Ok(String::new())
+                })
+        });
+
+        Ok(Box::pin(text_stream))
+    }
 }

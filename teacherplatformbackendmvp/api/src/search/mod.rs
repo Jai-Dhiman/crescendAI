@@ -4,4 +4,4 @@ pub mod fusion;
 
 pub use vector::{vector_search, UserContext};
 pub use bm25::bm25_search;
-pub use fusion::hybrid_search;
+pub use fusion::{hybrid_search, hybrid_search_with_rerank};
