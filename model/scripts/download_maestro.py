@@ -1,290 +1,226 @@
 #!/usr/bin/env python3
 """
-Production MAESTRO dataset download with resume capability and validation.
-Downloads MAESTRO v3.0.0 with integrity checking and incremental processing.
+MAESTRO Dataset Download Script
+
+Downloads MAESTRO v3.0.0 dataset with support for subset selection.
+Organizes files into audio/ and midi/ directories by year.
 """
 
+import argparse
+import csv
 import hashlib
 import json
-import logging
 import os
-import shutil
-import tempfile
+import urllib.request
 import zipfile
 from pathlib import Path
-from typing import Dict, List, Optional
-from urllib.request import urlopen, urlretrieve
+from typing import Optional
 
-import pandas as pd
-import requests
-from tqdm import tqdm
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
-
-# MAESTRO v3.0.0 constants
 MAESTRO_URL = "https://storage.googleapis.com/magentadata/datasets/maestro/v3.0.0/maestro-v3.0.0.zip"
-MAESTRO_ZIP_SIZE = 114_000_000_000  # ~114GB compressed
-MAESTRO_EXTRACTED_SIZE = 200_000_000_000  # ~200GB extracted
-MAESTRO_SHA256 = "bfd50b1b38f2bbfcc4cc50d06b33cb1ba20b8f5a90b6a26b6d3e0c18d0bdc0d1"  # Placeholder
+MAESTRO_JSON_URL = "https://storage.googleapis.com/magentadata/datasets/maestro/v3.0.0/maestro-v3.0.0.json"
 
-class MAESTRODownloader:
-    """Production-ready MAESTRO dataset downloader with resume capability."""
-    
-    def __init__(self, data_dir: Path, validate_checksums: bool = True):
-        self.data_dir = Path(data_dir)
-        self.raw_dir = self.data_dir / "raw" / "MAESTRO"
-        self.validate_checksums = validate_checksums
-        
-        # Create directories
-        self.raw_dir.mkdir(parents=True, exist_ok=True)
-        self.zip_path = self.data_dir / "maestro-v3.0.0.zip"
-        
-    def check_disk_space(self) -> bool:
-        """Check if sufficient disk space is available."""
-        stat = shutil.disk_usage(self.data_dir)
-        available_gb = stat.free / (1024**3)
-        required_gb = (MAESTRO_ZIP_SIZE + MAESTRO_EXTRACTED_SIZE) / (1024**3)
-        
-        logger.info(f"Available space: {available_gb:.1f}GB")
-        logger.info(f"Required space: {required_gb:.1f}GB")
-        
-        if available_gb < required_gb:
-            logger.error(f"Insufficient disk space. Need {required_gb:.1f}GB, have {available_gb:.1f}GB")
-            return False
+
+def download_file(url: str, dest: Path, show_progress: bool = True) -> None:
+    """Download file with progress reporting."""
+    print(f"Downloading {url} to {dest}")
+
+    def report_progress(block_num, block_size, total_size):
+        if show_progress and total_size > 0:
+            downloaded = block_num * block_size
+            percent = min(100, downloaded * 100 / total_size)
+            print(f"\rProgress: {percent:.1f}% ({downloaded / 1e9:.2f}GB / {total_size / 1e9:.2f}GB)", end="")
+
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    urllib.request.urlretrieve(url, dest, reporthook=report_progress if show_progress else None)
+    if show_progress:
+        print()  # New line after progress
+
+
+def verify_checksum(file_path: Path, expected_md5: Optional[str] = None) -> bool:
+    """Verify file integrity with MD5 checksum."""
+    if expected_md5 is None:
         return True
-    
-    def download_with_resume(self) -> bool:
-        """Download MAESTRO zip with resume capability."""
-        if self.zip_path.exists():
-            logger.info(f"Found existing zip: {self.zip_path}")
-            if self._validate_zip():
-                logger.info("Existing zip is valid, skipping download")
-                return True
-            logger.warning("Existing zip is corrupted, redownloading")
-            self.zip_path.unlink()
-        
-        logger.info(f"Downloading MAESTRO from {MAESTRO_URL}")
-        
-        try:
-            # Use requests for better control and progress
-            response = requests.get(MAESTRO_URL, stream=True)
-            response.raise_for_status()
-            
-            total_size = int(response.headers.get('content-length', 0))
-            
-            with open(self.zip_path, 'wb') as f:
-                with tqdm(
-                    total=total_size,
-                    unit='B',
-                    unit_scale=True,
-                    desc="Downloading MAESTRO"
-                ) as pbar:
-                    for chunk in response.iter_content(chunk_size=8192):
-                        if chunk:
-                            f.write(chunk)
-                            pbar.update(len(chunk))
-            
-            logger.info("Download completed")
-            return self._validate_zip()
-            
-        except Exception as e:
-            logger.error(f"Download failed: {e}")
-            if self.zip_path.exists():
-                self.zip_path.unlink()
-            return False
-    
-    def _validate_zip(self) -> bool:
-        """Validate downloaded zip file."""
-        if not self.zip_path.exists():
-            return False
-            
-        try:
-            # Basic zip validity check
-            with zipfile.ZipFile(self.zip_path, 'r') as zf:
-                if zf.testzip() is not None:
-                    logger.error("Zip file is corrupted")
-                    return False
-            
-            # Optional: checksum validation (if we have the correct hash)
-            if self.validate_checksums and MAESTRO_SHA256 != "placeholder":
-                logger.info("Validating checksum...")
-                calculated_hash = self._calculate_sha256(self.zip_path)
-                if calculated_hash != MAESTRO_SHA256:
-                    logger.error("Checksum validation failed")
-                    return False
-                logger.info("Checksum validation passed")
-            
-            return True
-            
-        except Exception as e:
-            logger.error(f"Zip validation failed: {e}")
-            return False
-    
-    def _calculate_sha256(self, file_path: Path) -> str:
-        """Calculate SHA256 hash of file."""
-        sha256_hash = hashlib.sha256()
-        with open(file_path, "rb") as f:
-            for chunk in iter(lambda: f.read(4096), b""):
-                sha256_hash.update(chunk)
-        return sha256_hash.hexdigest()
-    
-    def extract_dataset(self) -> bool:
-        """Extract MAESTRO dataset with progress tracking."""
-        if not self.zip_path.exists():
-            logger.error("Zip file not found")
-            return False
-        
-        # Check if already extracted
-        metadata_file = self.raw_dir / "maestro-v3.0.0.csv"
-        if metadata_file.exists():
-            logger.info("MAESTRO already extracted")
-            return True
-        
-        logger.info("Extracting MAESTRO dataset...")
-        
-        try:
-            with zipfile.ZipFile(self.zip_path, 'r') as zf:
-                file_list = zf.namelist()
-                
-                with tqdm(total=len(file_list), desc="Extracting") as pbar:
-                    for file_info in file_list:
-                        zf.extract(file_info, self.raw_dir)
-                        pbar.update(1)
-            
-            # Move contents from maestro-v3.0.0/ subdirectory to raw_dir
-            extracted_dir = self.raw_dir / "maestro-v3.0.0"
-            if extracted_dir.exists():
-                for item in extracted_dir.iterdir():
-                    shutil.move(str(item), str(self.raw_dir / item.name))
-                extracted_dir.rmdir()
-            
-            logger.info("Extraction completed")
-            return True
-            
-        except Exception as e:
-            logger.error(f"Extraction failed: {e}")
-            return False
-    
-    def cleanup_zip(self) -> None:
-        """Remove zip file after successful extraction."""
-        if self.zip_path.exists():
-            logger.info("Removing zip file to save space")
-            self.zip_path.unlink()
-    
-    def validate_dataset(self) -> bool:
-        """Validate extracted dataset structure."""
-        metadata_file = self.raw_dir / "maestro-v3.0.0.csv"
-        
-        if not metadata_file.exists():
-            logger.error("Dataset metadata not found")
-            return False
-        
-        try:
-            # Load and validate metadata
-            df = pd.read_csv(metadata_file)
-            logger.info(f"Found {len(df)} recordings in metadata")
-            
-            # Check required columns
-            required_cols = ['canonical_composer', 'canonical_title', 'split', 
-                           'year', 'midi_filename', 'audio_filename', 'duration']
-            missing_cols = [col for col in required_cols if col not in df.columns]
-            if missing_cols:
-                logger.error(f"Missing required columns: {missing_cols}")
-                return False
-            
-            # Validate file existence (sample check)
-            sample_size = min(10, len(df))
-            sample_df = df.sample(n=sample_size)
-            
-            missing_files = []
-            for _, row in sample_df.iterrows():
-                audio_path = self.raw_dir / row['audio_filename']
-                midi_path = self.raw_dir / row['midi_filename']
-                
-                if not audio_path.exists():
-                    missing_files.append(row['audio_filename'])
-                if not midi_path.exists():
-                    missing_files.append(row['midi_filename'])
-            
-            if missing_files:
-                logger.error(f"Missing files in sample check: {missing_files[:5]}...")
-                return False
-            
-            logger.info("Dataset validation passed")
-            return True
-            
-        except Exception as e:
-            logger.error(f"Dataset validation failed: {e}")
-            return False
-    
-    def get_dataset_info(self) -> Optional[Dict]:
-        """Get dataset statistics and information."""
-        metadata_file = self.raw_dir / "maestro-v3.0.0.csv"
-        
-        if not metadata_file.exists():
-            return None
-        
-        try:
-            df = pd.read_csv(metadata_file)
-            
-            info = {
-                'total_recordings': len(df),
-                'total_duration_hours': df['duration'].sum() / 3600,
-                'splits': df['split'].value_counts().to_dict(),
-                'years': sorted(df['year'].unique().tolist()),
-                'composers': df['canonical_composer'].nunique(),
-                'unique_compositions': df['canonical_title'].nunique(),
-            }
-            
-            return info
-            
-        except Exception as e:
-            logger.error(f"Failed to get dataset info: {e}")
-            return None
+
+    print(f"Verifying checksum for {file_path.name}...")
+    md5 = hashlib.md5()
+    with open(file_path, 'rb') as f:
+        for chunk in iter(lambda: f.read(4096), b''):
+            md5.update(chunk)
+
+    actual_md5 = md5.hexdigest()
+    if actual_md5 == expected_md5:
+        print(f"Checksum verified: {actual_md5}")
+        return True
+    else:
+        print(f"Checksum mismatch! Expected {expected_md5}, got {actual_md5}")
+        return False
+
+
+def extract_zip(zip_path: Path, extract_to: Path) -> None:
+    """Extract zip file."""
+    print(f"Extracting {zip_path} to {extract_to}")
+    with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+        zip_ref.extractall(extract_to)
+    print("Extraction complete")
+
+
+def organize_files(maestro_dir: Path, output_dir: Path, subset: Optional[int] = None) -> list:
+    """
+    Organize MAESTRO files into year/audio and year/midi directories.
+
+    Args:
+        maestro_dir: Path to extracted MAESTRO directory
+        output_dir: Output directory for organized files
+        subset: Number of pieces to include (None = all)
+
+    Returns:
+        List of metadata dictionaries for each piece
+    """
+    # Load MAESTRO metadata
+    metadata_file = maestro_dir / "maestro-v3.0.0.json"
+    if not metadata_file.exists():
+        raise FileNotFoundError(f"Metadata file not found: {metadata_file}")
+
+    with open(metadata_file, 'r') as f:
+        maestro_data = json.load(f)
+
+    # Filter to training set for pseudo-labeling
+    pieces = [p for p in maestro_data if p.get('split') == 'train']
+
+    if subset is not None:
+        pieces = pieces[:subset]
+        print(f"Using subset of {subset} pieces (out of {len(maestro_data)} total)")
+
+    metadata = []
+
+    for i, piece in enumerate(pieces, 1):
+        # Parse paths
+        audio_rel_path = piece['audio_filename']
+        midi_rel_path = piece['midi_filename']
+
+        audio_src = maestro_dir / audio_rel_path
+        midi_src = maestro_dir / midi_rel_path
+
+        if not audio_src.exists() or not midi_src.exists():
+            print(f"Warning: Missing files for {piece.get('canonical_title', 'unknown')}, skipping")
+            continue
+
+        # Determine year and piece ID
+        year = piece.get('year', 'unknown')
+        canonical_title = piece.get('canonical_title', f'piece_{i}')
+        piece_id = f"{year}_{canonical_title.replace(' ', '_').replace('/', '_')}"
+
+        # Create output directories
+        audio_dir = output_dir / str(year) / "audio"
+        midi_dir = output_dir / str(year) / "midi"
+        audio_dir.mkdir(parents=True, exist_ok=True)
+        midi_dir.mkdir(parents=True, exist_ok=True)
+
+        # Copy files
+        audio_dest = audio_dir / audio_src.name
+        midi_dest = midi_dir / midi_src.name
+
+        if not audio_dest.exists():
+            import shutil
+            shutil.copy2(audio_src, audio_dest)
+
+        if not midi_dest.exists():
+            import shutil
+            shutil.copy2(midi_src, midi_dest)
+
+        # Add to metadata
+        metadata.append({
+            'piece_id': piece_id,
+            'audio_path': str(audio_dest.relative_to(output_dir)),
+            'midi_path': str(midi_dest.relative_to(output_dir)),
+            'duration': piece.get('duration', 0.0),
+            'canonical_composer': piece.get('canonical_composer', 'Unknown'),
+            'canonical_title': canonical_title,
+            'year': year,
+            'split': piece.get('split', 'unknown')
+        })
+
+        print(f"Processed {i}/{len(pieces)}: {canonical_title}")
+
+    return metadata
+
+
+def save_metadata_csv(metadata: list, output_file: Path) -> None:
+    """Save metadata to CSV file."""
+    if not metadata:
+        print("No metadata to save")
+        return
+
+    output_file.parent.mkdir(parents=True, exist_ok=True)
+
+    with open(output_file, 'w', newline='') as f:
+        fieldnames = ['piece_id', 'audio_path', 'midi_path', 'duration',
+                      'canonical_composer', 'canonical_title', 'year', 'split']
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(metadata)
+
+    print(f"Metadata saved to {output_file}")
 
 
 def main():
-    """Main download and setup function."""
-    data_dir = Path("data")
-    downloader = MAESTRODownloader(data_dir)
-    
-    # Check disk space
-    if not downloader.check_disk_space():
-        return False
-    
-    # Download dataset
-    if not downloader.download_with_resume():
-        return False
-    
-    # Extract dataset
-    if not downloader.extract_dataset():
-        return False
-    
-    # Validate dataset
-    if not downloader.validate_dataset():
-        return False
-    
-    # Get dataset info
-    info = downloader.get_dataset_info()
-    if info:
-        logger.info("Dataset Info:")
-        for key, value in info.items():
-            logger.info(f"  {key}: {value}")
-    
-    # Optional: cleanup zip to save space
-    confirm = input("Remove zip file to save ~114GB space? [y/N]: ")
-    if confirm.lower() == 'y':
-        downloader.cleanup_zip()
-    
-    logger.info("MAESTRO dataset setup completed!")
-    return True
+    parser = argparse.ArgumentParser(description='Download and organize MAESTRO dataset')
+    parser.add_argument('--output', type=str, default='data/maestro',
+                        help='Output directory (default: data/maestro)')
+    parser.add_argument('--subset', type=int, default=None,
+                        help='Download subset of N pieces (default: all)')
+    parser.add_argument('--skip-download', action='store_true',
+                        help='Skip download if files already exist')
+    parser.add_argument('--keep-zip', action='store_true',
+                        help='Keep zip file after extraction')
+
+    args = parser.parse_args()
+
+    output_dir = Path(args.output)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Download paths
+    download_dir = output_dir / 'downloads'
+    download_dir.mkdir(parents=True, exist_ok=True)
+    zip_path = download_dir / 'maestro-v3.0.0.zip'
+    extract_dir = download_dir / 'extracted'
+
+    # Step 1: Download
+    if not args.skip_download or not zip_path.exists():
+        download_file(MAESTRO_URL, zip_path)
+    else:
+        print(f"Using existing download: {zip_path}")
+
+    # Step 2: Extract
+    if not extract_dir.exists():
+        extract_zip(zip_path, extract_dir)
+    else:
+        print(f"Using existing extraction: {extract_dir}")
+
+    # Find maestro directory
+    maestro_dir = extract_dir / 'maestro-v3.0.0'
+    if not maestro_dir.exists():
+        raise FileNotFoundError(f"MAESTRO directory not found: {maestro_dir}")
+
+    # Step 3: Organize files
+    metadata = organize_files(maestro_dir, output_dir, subset=args.subset)
+
+    # Step 4: Save metadata
+    metadata_csv = output_dir / 'metadata.csv'
+    save_metadata_csv(metadata, metadata_csv)
+
+    # Step 5: Cleanup
+    if not args.keep_zip:
+        print(f"Removing zip file: {zip_path}")
+        zip_path.unlink()
+
+    print("\n" + "="*60)
+    print(f"MAESTRO download complete!")
+    print(f"Pieces downloaded: {len(metadata)}")
+    print(f"Output directory: {output_dir}")
+    print(f"Metadata file: {metadata_csv}")
+    print("="*60)
 
 
-if __name__ == "__main__":
-    success = main()
-    exit(0 if success else 1)
+if __name__ == '__main__':
+    main()
