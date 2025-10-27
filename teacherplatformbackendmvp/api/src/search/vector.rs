@@ -33,11 +33,12 @@ pub async fn vector_search(
         .execute(pool)
         .await?;
 
-    let results = sqlx::query_as::<_, (Uuid, Uuid, String, f32, serde_json::Value)>(
+    let results = sqlx::query_as::<_, (Uuid, Uuid, String, String, f32, serde_json::Value)>(
         r#"
         SELECT
             c.id as chunk_id,
             c.doc_id,
+            kb.title as doc_title,
             c.content,
             (c.embedding <=> $1::vector) as score,
             c.metadata
@@ -62,9 +63,10 @@ pub async fn vector_search(
 
     Ok(results
         .into_iter()
-        .map(|(chunk_id, doc_id, content, score, metadata)| SearchResult {
+        .map(|(chunk_id, doc_id, doc_title, content, score, metadata)| SearchResult {
             chunk_id,
             doc_id,
+            doc_title,
             content,
             score,
             metadata,

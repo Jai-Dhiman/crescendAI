@@ -70,6 +70,7 @@ pub struct ProcessingStatusResponse {
 pub struct SearchResult {
     pub chunk_id: Uuid,
     pub doc_id: Uuid,
+    pub doc_title: String,
     pub content: String,
     pub score: f32,
     pub metadata: serde_json::Value,

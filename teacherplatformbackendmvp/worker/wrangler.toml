@@ -3,8 +3,6 @@ main = "build/worker/shim.mjs"
 compatibility_date = "2024-01-01"
 workers_dev = true
 
-# Bindings - zero-latency access to Cloudflare services
-
 # R2 Storage (PDF files)
 [[r2_buckets]]
 binding = "PDFS_BUCKET"
@@ -17,15 +15,15 @@ bucket_name = "piano-knowledge"
 # Workers KV (3-layer cache)
 [[kv_namespaces]]
 binding = "EMBEDDING_CACHE"
-id = "TO_BE_CREATED"  # Run: wrangler kv:namespace create "EMBEDDING_CACHE"
+id = "e88f6058dea9404a9c9d2c5e07f06899"
 
 [[kv_namespaces]]
 binding = "SEARCH_CACHE"
-id = "TO_BE_CREATED"  # Run: wrangler kv:namespace create "SEARCH_CACHE"
+id = "42d783da9d434366bd5d2ffaba78bbed"
 
 [[kv_namespaces]]
 binding = "LLM_CACHE"
-id = "TO_BE_CREATED"  # Run: wrangler kv:namespace create "LLM_CACHE"
+id = "bd6541961f194b7d869abbc967f58699"
 
 # Workers AI binding (embeddings, re-ranking)
 [ai]
@@ -36,17 +34,9 @@ binding = "AI"
 GCP_API_URL = "http://localhost:8080"  # Update with your GCP API URL after deployment
 ENVIRONMENT = "development"
 
-# Secrets (set via: wrangler secret put <NAME>)
-# - SUPABASE_JWT_SECRET (for JWT validation)
-# - GCP_API_TOKEN (optional, for authenticating Worker -> GCP API calls)
-
 # Build configuration
 [build]
 command = "cargo install -q worker-build && worker-build --release"
-
-[build.upload]
-format = "modules"
-main = "./build/worker/shim.mjs"
 
 # Routes (update with your domain after Cloudflare setup)
 # routes = [

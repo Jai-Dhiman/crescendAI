@@ -117,7 +117,12 @@ impl WorkersAIClient {
 
         let request_body = RerankRequest {
             query: query.to_string(),
-            documents: candidates.iter().map(|s| s.to_string()).collect(),
+            contexts: candidates
+                .iter()
+                .map(|s| RerankContext {
+                    text: s.to_string(),
+                })
+                .collect(),
         };
 
         let response = self
@@ -145,7 +150,7 @@ impl WorkersAIClient {
             .context("Failed to parse rerank response")?;
 
         if rerank_response.success {
-            Ok(rerank_response.result)
+            Ok(rerank_response.result.response)
         } else {
             anyhow::bail!("Failed to rerank: {:?}", rerank_response.errors)
         }
@@ -172,19 +177,29 @@ struct EmbeddingResult {
 #[derive(Debug, Serialize)]
 struct RerankRequest {
     query: String,
-    documents: Vec<String>,
+    contexts: Vec<RerankContext>,
+}
+
+#[derive(Debug, Serialize)]
+struct RerankContext {
+    text: String,
 }
 
 #[derive(Debug, Deserialize)]
 struct RerankResponse {
     success: bool,
-    result: Vec<RerankResult>,
+    result: RerankResponseResult,
     errors: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct RerankResponseResult {
+    response: Vec<RerankResult>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct RerankResult {
-    pub index: usize,
+    pub id: usize,
     pub score: f32,
 }
 

@@ -12,9 +12,7 @@ pub struct HealthResponse {
     version: String,
 }
 
-/// Health check endpoint
-///
-/// Returns the health status of the API and its dependencies
+/// Health check
 async fn health_check(State(state): State<AppState>) -> Result<Json<HealthResponse>, AppError> {
     // Check database connectivity
     let db_status = match crate::db::health_check(&state.pool).await {
@@ -34,10 +32,7 @@ async fn health_check(State(state): State<AppState>) -> Result<Json<HealthRespon
 }
 
 /// Readiness probe for load balancers
-///
-/// Returns 200 if the service is ready to accept traffic
 async fn readiness(State(state): State<AppState>) -> Result<Json<serde_json::Value>, AppError> {
-    // Check if database is accessible
     crate::db::health_check(&state.pool).await?;
 
     Ok(Json(serde_json::json!({
@@ -46,8 +41,6 @@ async fn readiness(State(state): State<AppState>) -> Result<Json<serde_json::Val
 }
 
 /// Liveness probe for orchestration systems
-///
-/// Returns 200 if the service is alive
 async fn liveness() -> Json<serde_json::Value> {
     Json(serde_json::json!({
         "alive": true

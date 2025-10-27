@@ -15,12 +15,12 @@ async fn main(req: Request, env: Env, _ctx: Context) -> Result<Response> {
         .with_methods(vec![Method::Get, Method::Post, Method::Put, Method::Delete, Method::Options])
         .with_allowed_headers(vec!["Content-Type", "Authorization"]);
 
-    // Create router
-    let router = Router::with_data(env);
+    // Create router with Env data
+    let router = Router::with_data(env.clone());
 
-    router
+    let response = router
         // Health check
-        .get("/health", |_, ctx| {
+        .get("/health", |_, _ctx| {
             Response::ok("Worker is healthy")
         })
 
@@ -42,8 +42,7 @@ async fn main(req: Request, env: Env, _ctx: Context) -> Result<Response> {
             Response::error("Not Found", 404)
         })
         .run(req, env)
-        .await
-        .map(|mut res| {
-            res.with_cors(&cors)
-        })
+        .await?;
+
+    Ok(response.with_cors(&cors)?)
 }

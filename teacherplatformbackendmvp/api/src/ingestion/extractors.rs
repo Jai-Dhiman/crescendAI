@@ -14,7 +14,7 @@ pub fn extract_pdf_text(pdf_bytes: &[u8]) -> Result<Vec<PageText>> {
         .map_err(|e| AppError::Internal(format!("Failed to extract PDF text: {}", e)))?;
 
     // For now, we'll treat the entire PDF as a single page
-    // In a production system, we'd want to extract page-by-page
+    // TODO: In a production system, we'd want to extract page-by-page
     // This requires more complex PDF parsing
 
     // Split by form feed or page break characters as a simple heuristic

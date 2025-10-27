@@ -65,7 +65,7 @@ pub async fn require_teacher(claims: &JwtClaims) -> Result<(), AppError> {
 }
 
 /// Check if user has access to a specific project
-pub async fn require_project_access(
+pub async fn check_project_access(
     pool: &PgPool,
     user_id: Uuid,
     project_id: Uuid,
@@ -112,6 +112,9 @@ pub async fn require_project_access(
         )),
     }
 }
+
+/// Alias for backwards compatibility
+pub use check_project_access as require_project_access;
 
 /// Check if granted level satisfies required level
 fn can_access(granted: AccessLevel, required: AccessLevel) -> bool {

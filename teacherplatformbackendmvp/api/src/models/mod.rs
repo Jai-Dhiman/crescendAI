@@ -1,16 +1,26 @@
 pub mod access;
-pub mod user;
-pub mod knowledge;
+pub mod annotation;
 pub mod chat;
+pub mod knowledge;
+pub mod project;
+pub mod user;
 
 pub use access::AccessLevel;
-pub use user::{User, UserRole, CreateUserRequest, UserResponse};
-pub use knowledge::{
-    KnowledgeDoc, DocumentChunk, ProcessingStatus,
-    CreateKnowledgeRequest, CreateKnowledgeResponse,
-    ProcessingStatusResponse, SearchResult, ChunkMetadata,
+pub use annotation::{
+    Annotation, AnnotationType, CreateAnnotationRequest, DrawingContent, HighlightContent,
+    NoteContent, Point, UpdateAnnotationRequest,
 };
 pub use chat::{
-    ChatSession, ChatMessage, CreateSessionRequest,
-    SessionResponse, SessionListResponse, SessionMessagesResponse,
+    ChatMessage, ChatSession, CreateSessionRequest, SessionListResponse, SessionMessagesResponse,
+    SessionResponse,
 };
+pub use knowledge::{
+    ChunkMetadata, CreateKnowledgeRequest, CreateKnowledgeResponse, DocumentChunk, KnowledgeDoc,
+    ProcessingStatus, ProcessingStatusResponse, SearchResult,
+};
+pub use project::{
+    AccessResponse, CreateProjectRequest, CreateProjectResponse,
+    GrantAccessRequest, PdfMetadata, Project, ProjectAccess, ProjectAccessListResponse,
+    ProjectAccessWithUser, ProjectWithAccess, UpdateProjectRequest,
+};
+pub use user::{CreateUserRequest, User, UserResponse, UserRole};

@@ -58,7 +58,6 @@ pub struct CacheConfig {
 
 impl Config {
     pub fn from_env() -> Result<Self> {
-        // Load .env file if it exists (for local development)
         dotenvy::dotenv().ok();
 
         let config = Config {
@@ -70,8 +69,7 @@ impl Config {
                     .context("Failed to parse PORT")?,
             },
             database: DatabaseConfig {
-                url: env::var("DATABASE_URL")
-                    .context("DATABASE_URL must be set")?,
+                url: env::var("DATABASE_URL").context("DATABASE_URL must be set")?,
                 max_connections: env::var("DATABASE_MAX_CONNECTIONS")
                     .unwrap_or_else(|_| "10".to_string())
                     .parse()

@@ -1,8 +1,10 @@
+pub mod annotations;
 pub mod auth;
-pub mod health;
-pub mod relationships;
-pub mod knowledge;
 pub mod chat;
+pub mod health;
+pub mod knowledge;
+pub mod projects;
+pub mod relationships;
 
 use axum::{middleware, Router};
 
@@ -53,6 +55,43 @@ fn api_routes(state: AppState) -> Router {
             "/knowledge/:id/status",
             axum::routing::get(knowledge::get_processing_status),
         )
+        // Project routes
+        .route(
+            "/projects",
+            axum::routing::post(projects::create_project)
+                .get(projects::list_projects),
+        )
+        .route(
+            "/projects/:id",
+            axum::routing::get(projects::get_project)
+                .patch(projects::update_project)
+                .delete(projects::delete_project),
+        )
+        .route(
+            "/projects/:id/confirm",
+            axum::routing::post(projects::confirm_upload),
+        )
+        .route(
+            "/projects/:id/access",
+            axum::routing::post(projects::grant_access)
+                .get(projects::list_project_access),
+        )
+        .route(
+            "/projects/:id/access/:user_id",
+            axum::routing::delete(projects::revoke_access),
+        )
+        // Annotation routes
+        .route(
+            "/annotations",
+            axum::routing::post(annotations::create_annotation)
+                .get(annotations::list_annotations),
+        )
+        .route(
+            "/annotations/:id",
+            axum::routing::get(annotations::get_annotation)
+                .patch(annotations::update_annotation)
+                .delete(annotations::delete_annotation),
+        )
         // Chat/RAG routes
         .route(
             "/chat/query",
@@ -82,8 +121,4 @@ fn api_routes(state: AppState) -> Router {
         ));
 
     public.merge(protected).with_state(state)
-    // Future routes will be added here:
-    // .merge(projects::routes())
-    // .merge(annotations::routes())
-    // .merge(chat::routes())
 }

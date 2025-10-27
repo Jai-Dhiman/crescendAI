@@ -7,8 +7,8 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
-# Cloudflare Workers runtime
-worker = "0.4"
+# Cloudflare Workers runtime (latest)
+worker = "0.6"
 
 # Serialization
 serde = { version = "1.0", features = ["derive"] }
@@ -20,8 +20,8 @@ anyhow = "1.0"
 # Async utilities
 futures-util = "0.3"
 
-# UUID support
-uuid = { version = "1.6", features = ["v4", "serde"] }
+# UUID support (js feature for wasm32-unknown-unknown)
+uuid = { version = "1.11", features = ["v4", "serde", "js"] }
 
 # Hashing
 sha2 = "0.10"

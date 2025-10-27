@@ -35,7 +35,6 @@ pub async fn hybrid_search(
 }
 
 /// Perform hybrid search with re-ranking using cross-encoder model
-/// This provides better accuracy at the cost of slightly higher latency
 pub async fn hybrid_search_with_rerank(
     pool: &PgPool,
     query_embedding: Vec<f32>,
@@ -88,7 +87,7 @@ pub async fn hybrid_search_with_rerank(
             let mut scored_results: Vec<(SearchResult, f32)> = rerank_scores
                 .into_iter()
                 .filter_map(|rr| {
-                    rerank_candidates.get(rr.index).map(|sr| (sr.clone(), rr.score))
+                    rerank_candidates.get(rr.id).map(|sr| (sr.clone(), rr.score))
                 })
                 .collect();
 
@@ -152,6 +151,7 @@ fn reciprocal_rank_fusion(
             chunk_map.get(&chunk_id).map(|result| SearchResult {
                 chunk_id: result.chunk_id,
                 doc_id: result.doc_id,
+                doc_title: result.doc_title.clone(),
                 content: result.content.clone(),
                 score: rrf_score, // Replace original score with RRF score
                 metadata: result.metadata.clone(),
@@ -169,6 +169,7 @@ mod tests {
         SearchResult {
             chunk_id,
             doc_id,
+            doc_title: "Test Document".to_string(),
             content: content.to_string(),
             score,
             metadata: json!({}),
