@@ -3,6 +3,10 @@ import librosa
 import scipy.signal
 from typing import Optional, Dict, Any
 import random
+import tempfile
+import os
+from pydub import AudioSegment
+import soundfile as sf
 
 
 class AudioAugmentation:
@@ -176,43 +180,91 @@ class AudioAugmentation:
         quality: Optional[str] = None
     ) -> np.ndarray:
         """
-        Simulate MP3 compression artifacts.
+        Apply real MP3 compression using pydub and ffmpeg.
 
-        This is a simplified simulation using low-pass filtering and bit reduction.
-        Real MP3 compression would require additional libraries.
+        Compresses audio to MP3 format at specified bitrate and decodes back,
+        introducing authentic lossy compression artifacts.
 
         Args:
-            audio: Input audio signal
+            audio: Input audio signal (mono numpy array)
             quality: 'low' (128kbps) or 'medium' (192kbps) or 'high' (320kbps)
 
         Returns:
-            Compressed audio simulation
+            Audio with MP3 compression artifacts
+
+        Requires:
+            ffmpeg must be installed and available in system PATH
         """
         if quality is None:
             quality = random.choice(['low', 'medium', 'high'])
 
-        # Simulate compression with low-pass filter and bit reduction
-        if quality == 'low':
-            cutoff = 12000  # Hz
-            bits = 12
-        elif quality == 'medium':
-            cutoff = 16000
-            bits = 14
-        else:  # high
-            cutoff = 18000
-            bits = 15
+        # Map quality levels to bitrates
+        bitrate_map = {
+            'low': '128k',      # 128 kbps
+            'medium': '192k',   # 192 kbps
+            'high': '320k'      # 320 kbps
+        }
+        bitrate = bitrate_map[quality]
 
-        # Low-pass filter
-        nyquist = self.sr / 2
-        normalized_cutoff = cutoff / nyquist
-        b, a = scipy.signal.butter(4, normalized_cutoff, btype='low')
-        filtered = scipy.signal.filtfilt(b, a, audio)
+        # Create temporary files for MP3 encoding/decoding
+        with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmp_wav:
+            with tempfile.NamedTemporaryFile(suffix='.mp3', delete=False) as tmp_mp3:
+                tmp_wav_path = tmp_wav.name
+                tmp_mp3_path = tmp_mp3.name
 
-        # Bit reduction (quantization)
-        max_val = 2 ** (bits - 1)
-        quantized = np.round(filtered * max_val) / max_val
+        try:
+            # Write audio to temporary WAV file
+            sf.write(tmp_wav_path, audio, self.sr, subtype='PCM_16')
 
-        return quantized
+            # Load with pydub and export to MP3
+            audio_segment = AudioSegment.from_wav(tmp_wav_path)
+            audio_segment.export(
+                tmp_mp3_path,
+                format='mp3',
+                bitrate=bitrate,
+                parameters=['-q:a', '2']  # Good quality encoder settings
+            )
+
+            # Load compressed MP3 back as numpy array
+            compressed_segment = AudioSegment.from_mp3(tmp_mp3_path)
+
+            # Convert to numpy array
+            samples = np.array(compressed_segment.get_array_of_samples(), dtype=np.float32)
+
+            # Normalize to [-1, 1] range
+            if compressed_segment.sample_width == 1:
+                samples = samples / (2**7)
+            elif compressed_segment.sample_width == 2:
+                samples = samples / (2**15)
+            elif compressed_segment.sample_width == 4:
+                samples = samples / (2**31)
+
+            # Handle stereo to mono conversion if needed
+            if compressed_segment.channels == 2:
+                samples = samples.reshape((-1, 2)).mean(axis=1)
+
+            # Resample if sample rate changed during compression
+            if compressed_segment.frame_rate != self.sr:
+                samples = librosa.resample(
+                    samples,
+                    orig_sr=compressed_segment.frame_rate,
+                    target_sr=self.sr
+                )
+
+            # Ensure output length matches input (crop or pad)
+            if len(samples) > len(audio):
+                samples = samples[:len(audio)]
+            elif len(samples) < len(audio):
+                samples = np.pad(samples, (0, len(audio) - len(samples)), mode='constant')
+
+            return samples
+
+        finally:
+            # Clean up temporary files
+            if os.path.exists(tmp_wav_path):
+                os.unlink(tmp_wav_path)
+            if os.path.exists(tmp_mp3_path):
+                os.unlink(tmp_mp3_path)
 
     def gain_variation(
         self,

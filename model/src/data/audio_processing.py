@@ -7,7 +7,7 @@ from typing import Tuple, Optional, Union
 
 def load_audio(
     path: Union[str, Path],
-    sr: int = 44100,
+    sr: int = 24000,
     mono: bool = True,
     duration: Optional[float] = None,
     offset: float = 0.0,
@@ -15,9 +15,12 @@ def load_audio(
     """
     Load audio file and resample to target sample rate.
 
+    PRODUCTION: Default is 24kHz to match MERT-v1-95M requirements.
+    MERT expects raw audio waveforms at 24kHz sampling rate.
+
     Args:
         path: Path to audio file (WAV, MP3, FLAC, etc.)
-        sr: Target sample rate (default: 44100 Hz)
+        sr: Target sample rate (default: 24000 Hz for MERT)
         mono: Convert to mono if True
         duration: Maximum duration in seconds (None = load all)
         offset: Start reading after this time (in seconds)
@@ -38,7 +41,7 @@ def load_audio(
 
 def compute_cqt(
     audio: np.ndarray,
-    sr: int = 44100,
+    sr: int = 24000,
     hop_length: int = 512,
     n_bins: int = 168,
     bins_per_octave: int = 24,
@@ -47,14 +50,20 @@ def compute_cqt(
     """
     Compute Constant-Q Transform spectrogram.
 
+    NOTE: CQT is NOT used by MERT (which processes raw waveforms).
+    This function is kept for:
+    - Visualization purposes
+    - Alternative models that may use spectrograms
+    - Analysis and debugging
+
     CQT parameters optimized for piano (C1 to C8, 7 octaves):
     - 24 bins per octave captures piano harmonics
-    - Hop length 512 samples = ~11.6ms @ 44.1kHz
+    - Hop length 512 samples = ~11.6ms @ 44.1kHz, ~21.3ms @ 24kHz
     - Logarithmic frequency spacing matches musical pitch
 
     Args:
         audio: Audio signal
-        sr: Sample rate
+        sr: Sample rate (default: 24000 Hz)
         hop_length: Number of samples between frames
         n_bins: Total number of frequency bins (default: 168 = 24 bins × 7 octaves)
         bins_per_octave: Frequency bins per octave
@@ -169,27 +178,31 @@ def get_audio_duration(path: Union[str, Path]) -> float:
 
 def preprocess_audio_file(
     path: Union[str, Path],
-    sr: int = 44100,
+    sr: int = 24000,
     segment_len: float = 10.0,
     overlap: float = 0.5,
     normalize: bool = True,
-    compute_cqt_specs: bool = True,
+    compute_cqt_specs: bool = False,
 ) -> dict:
     """
     Complete preprocessing pipeline for a single audio file.
 
+    PRODUCTION: Returns raw audio waveforms for MERT processing.
+    CQT computation is disabled by default (not needed for MERT).
+
     Args:
         path: Path to audio file
-        sr: Target sample rate
+        sr: Target sample rate (default: 24000 Hz for MERT)
         segment_len: Segment length in seconds
         overlap: Overlap ratio for segmentation
         normalize: Whether to normalize audio
-        compute_cqt_specs: Whether to compute CQT spectrograms
+        compute_cqt_specs: Whether to compute CQT spectrograms (default: False)
+                          Only enable for visualization/debugging
 
     Returns:
         Dictionary containing:
-            - 'audio': Full audio array
-            - 'segments': List of audio segments
+            - 'audio': Full audio array (raw waveform)
+            - 'segments': List of audio segments (raw waveforms)
             - 'cqt_segments': List of CQT spectrograms (if compute_cqt_specs=True)
             - 'sr': Sample rate
             - 'duration': Duration in seconds
@@ -211,7 +224,7 @@ def preprocess_audio_file(
         'duration': len(audio) / sr,
     }
 
-    # Compute CQT for each segment
+    # Compute CQT for each segment (optional, for visualization only)
     if compute_cqt_specs:
         cqt_segments = []
         for segment in segments:
@@ -225,6 +238,8 @@ def preprocess_audio_file(
 if __name__ == "__main__":
     # Example usage
     print("Audio processing module loaded successfully")
-    print(f"Example: compute CQT for piano range (C1 to C8)")
-    print(f"- Frequency bins: 168 (24 bins/octave × 7 octaves)")
-    print(f"- Hop length: 512 samples (~11.6ms @ 44.1kHz)")
+    print("PRODUCTION CONFIGURATION:")
+    print(f"- Sample rate: 24kHz (MERT requirement)")
+    print(f"- Format: Raw audio waveforms (not spectrograms)")
+    print(f"- CQT: Available for visualization only (disabled by default)")
+    print(f"- Piano range: C1 to C8 (7 octaves, 168 frequency bins)")

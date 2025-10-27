@@ -90,14 +90,51 @@ class OctupleMIDITokenizer:
         tempo_changes: Tuple[np.ndarray, np.ndarray],
         midi_data: pretty_midi.PrettyMIDI
     ) -> Tuple[float, float]:
-        """Convert time in seconds to beat and position."""
-        # Simplified: assume constant tempo
-        tempo = 120  # Default tempo
-        if len(tempo_changes[1]) > 0:
-            tempo = tempo_changes[1][0]
+        """
+        Convert time in seconds to beat and position.
 
-        beat = time * (tempo / 60.0)
-        position = (beat % 1.0) * 16  # 16 subdivisions per beat
+        PRODUCTION: Properly handles tempo changes throughout the piece.
+        """
+        tempo_times, tempos = tempo_changes
+
+        # If no tempo changes, use default
+        if len(tempos) == 0:
+            tempo = 120.0
+            beat = time * (tempo / 60.0)
+        else:
+            # Find the appropriate tempo for this time
+            # tempo_times are in seconds, tempos are in BPM
+            beat = 0.0
+            current_time = 0.0
+
+            for i in range(len(tempo_times)):
+                # Get tempo for this segment
+                tempo = tempos[i]
+
+                # Determine segment end time
+                if i < len(tempo_times) - 1:
+                    segment_end = tempo_times[i + 1]
+                else:
+                    segment_end = time  # Last segment extends to our target time
+
+                # If our target time is before this segment starts, we're done
+                if i > 0 and time < tempo_times[i]:
+                    break
+
+                # Calculate how much time to advance in this segment
+                if time <= segment_end:
+                    # Target time is in this segment
+                    time_in_segment = time - current_time
+                    beat += time_in_segment * (tempo / 60.0)
+                    break
+                else:
+                    # Target time is after this segment, accumulate full segment
+                    time_in_segment = segment_end - current_time
+                    beat += time_in_segment * (tempo / 60.0)
+                    current_time = segment_end
+
+        # Calculate position within beat (16 subdivisions per beat)
+        position = (beat % 1.0) * 16
 
         return beat, position
 

@@ -12,9 +12,7 @@ class CrossAttentionFusion(nn.Module):
     - Audio queries attend to MIDI keys/values (what notes are written?)
     - MIDI queries attend to audio keys/values (how are notes performed?)
     - Concatenate fused representations
-    - Support fallback to audio-only mode when MIDI unavailable
-
-    Research shows 21% performance gain with multi-modal fusion.
+    - Both audio and MIDI inputs are required (multi-modal mandatory)
     """
 
     def __init__(
@@ -110,20 +108,9 @@ class CrossAttentionFusion(nn.Module):
                 - fused: Fused features [batch, audio_time, audio_dim + midi_dim]
                 - attention_weights: Dict of attention weights (optional)
         """
-        batch_size, audio_len, _ = audio_features.shape
+        assert midi_features is not None, "MIDI features are required for multi-modal fusion"
 
-        # Fallback to audio-only if MIDI unavailable
-        if midi_features is None:
-            # Pass audio through without fusion
-            audio_out = self._audio_only_forward(audio_features)
-            # Pad with zeros where MIDI features would be
-            midi_placeholder = torch.zeros(
-                batch_size, audio_len, self.midi_dim,
-                device=audio_features.device,
-                dtype=audio_features.dtype,
-            )
-            fused = torch.cat([audio_out, midi_placeholder], dim=-1)
-            return fused, None
+        batch_size, audio_len, _ = audio_features.shape
 
         # Audio-to-MIDI cross-attention
         # Audio queries attend to MIDI
@@ -158,7 +145,6 @@ class CrossAttentionFusion(nn.Module):
         midi_out = self.midi_norm2(midi_out + self.midi_ffn(midi_out))
 
         # Align MIDI features to audio time dimension
-        # Simple approach: interpolate MIDI features to match audio length
         if midi_out.shape[1] != audio_len:
             midi_out = self._align_sequences(midi_out, audio_len)
 
@@ -167,8 +153,8 @@ class CrossAttentionFusion(nn.Module):
 
         # Collect attention weights for visualization
         attention_weights = {
-            'audio_to_midi': audio_attn_weights,
-            'midi_to_audio': midi_attn_weights,
+            "audio_to_midi": audio_attn_weights,
+            "midi_to_audio": midi_attn_weights,
         }
 
         return fused, attention_weights
@@ -211,7 +197,7 @@ class CrossAttentionFusion(nn.Module):
         aligned = torch.nn.functional.interpolate(
             sequence,
             size=target_length,
-            mode='linear',
+            mode="linear",
             align_corners=False,
         )
 
@@ -225,100 +211,10 @@ class CrossAttentionFusion(nn.Module):
         return self.output_dim
 
 
-class AudioOnlyFallback(nn.Module):
-    """
-    Fallback module for audio-only processing when MIDI unavailable.
-    """
-
-    def __init__(self, audio_dim: int = 768, midi_dim: int = 256):
-        """
-        Initialize fallback module.
-
-        Args:
-            audio_dim: Audio feature dimension
-            midi_dim: MIDI feature dimension (for output compatibility)
-        """
-        super().__init__()
-
-        self.audio_dim = audio_dim
-        self.midi_dim = midi_dim
-        self.output_dim = audio_dim + midi_dim
-
-        # Simple pass-through for audio
-        self.audio_proj = nn.Identity()
-
-    def forward(
-        self,
-        audio_features: torch.Tensor,
-        midi_features: Optional[torch.Tensor] = None,
-        **kwargs
-    ) -> Tuple[torch.Tensor, None]:
-        """
-        Forward pass (audio-only).
-
-        Args:
-            audio_features: Audio embeddings [batch, time, audio_dim]
-            midi_features: Ignored
-            **kwargs: Ignored
-
-        Returns:
-            Tuple of (fused features, None)
-        """
-        batch_size, time_len, _ = audio_features.shape
-
-        # Process audio
-        audio_out = self.audio_proj(audio_features)
-
-        # Pad with zeros for MIDI dimension
-        midi_placeholder = torch.zeros(
-            batch_size, time_len, self.midi_dim,
-            device=audio_features.device,
-            dtype=audio_features.dtype,
-        )
-
-        fused = torch.cat([audio_out, midi_placeholder], dim=-1)
-
-        return fused, None
-
-    def get_output_dim(self) -> int:
-        """Get output dimension."""
-        return self.output_dim
-
-
-def create_fusion_module(
-    audio_dim: int = 768,
-    midi_dim: int = 256,
-    use_cross_attention: bool = True,
-    **kwargs
-) -> nn.Module:
-    """
-    Factory function to create fusion module.
-
-    Args:
-        audio_dim: Audio feature dimension
-        midi_dim: MIDI feature dimension
-        use_cross_attention: If True, use cross-attention; else use fallback
-        **kwargs: Additional arguments for cross-attention
-
-    Returns:
-        Fusion module
-    """
-    if use_cross_attention:
-        return CrossAttentionFusion(
-            audio_dim=audio_dim,
-            midi_dim=midi_dim,
-            **kwargs
-        )
-    else:
-        return AudioOnlyFallback(
-            audio_dim=audio_dim,
-            midi_dim=midi_dim,
-        )
-
-
 if __name__ == "__main__":
     print("Cross-attention fusion module loaded successfully")
-    print("- Bidirectional audio-MIDI attention")
-    print("- Audio-only fallback mode")
+    print("PRODUCTION: Multi-modal fusion only (Audio + MIDI required)")
+    print("- Bidirectional cross-attention (audio↔MIDI)")
+    print("- 8 attention heads for rich interaction")
+    print("- Relative positional encoding")
     print("- Attention weight visualization support")
-    print("- Automatic sequence alignment")
