@@ -3,8 +3,8 @@
 
 data:
   # Annotation paths
-  train_path: data/maestro_pseudo_labels_train.jsonl
-  val_path: data/maestro_pseudo_labels_val.jsonl
+  train_path: data/annotations/maestro_train.jsonl
+  val_path: data/annotations/maestro_val.jsonl
   test_path: null
 
   # Dimensions (technical only for pseudo-labels)
@@ -12,8 +12,8 @@ data:
     - note_accuracy
     - rhythmic_precision
     - dynamics_control
-    - articulation_quality
-    - pedaling_technique
+    - articulation
+    - pedaling
     - tone_quality
 
   # Audio settings

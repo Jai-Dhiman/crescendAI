@@ -14,9 +14,10 @@ use crate::{
         AccessLevel, AccessResponse, CreateProjectRequest,
         CreateProjectResponse, GrantAccessRequest, Project, ProjectAccess,
         ProjectAccessListResponse, ProjectAccessWithUser, ProjectWithAccess,
-        UpdateProjectRequest, UserRole,
+        ProjectWithAccessAndDownload, UpdateProjectRequest, UserRole,
     },
     state::AppState,
+    storage::BucketType,
 };
 
 /// Query parameters for listing projects
@@ -33,12 +34,14 @@ pub struct ConfirmUploadRequest {
     pub page_count: Option<i32>,
 }
 
-/// Create a new project
-/// NOTE: This endpoint only creates the database record.
-/// The Cloudflare Worker layer intercepts this request and:
-/// 1. Generates an R2 presigned upload URL
-/// 2. Forwards the request to this endpoint
-/// 3. Returns {project, upload_url} to the client
+/// Create a new project with presigned upload URL
+///
+/// Workflow:
+/// 1. Create database record with R2 key
+/// 2. Generate presigned upload URL (1-hour expiry)
+/// 3. Return project + upload_url to client
+/// 4. Client uploads PDF directly to R2 using presigned URL
+/// 5. Client calls confirm_upload() to update metadata
 pub async fn create_project(
     Extension(claims): Extension<JwtClaims>,
     State(state): State<AppState>,
@@ -73,7 +76,7 @@ pub async fn create_project(
         user_id,
         payload.title.trim(),
         payload.description.as_deref().map(|d| d.trim()),
-        "piano-pdfs", // Bucket name (Worker has the actual binding)
+        "piano-pdfs",
         r2_key
     )
     .execute(&state.pool)
@@ -93,8 +96,23 @@ pub async fn create_project(
     .fetch_one(&state.pool)
     .await?;
 
-    // Return project (Worker will add upload_url)
-    Ok(Json(CreateProjectResponse { project }))
+    // Generate presigned upload URL (1 hour expiry for security)
+    let upload_url = state
+        .r2
+        .generate_upload_url(BucketType::Pdfs, &r2_key, 3600)
+        .await?;
+
+    tracing::info!(
+        project_id = %project_id,
+        user_id = %user_id,
+        r2_key = %r2_key,
+        "Created project with presigned upload URL"
+    );
+
+    Ok(Json(CreateProjectResponse {
+        project,
+        upload_url,
+    }))
 }
 
 /// Confirm upload after client has uploaded to R2
@@ -180,8 +198,10 @@ pub async fn list_projects(
     Ok(Json(projects))
 }
 
-/// Get a specific project
-/// NOTE: The Cloudflare Worker intercepts this response and adds a presigned download_url
+/// Get a specific project with presigned download URL
+///
+/// Returns project details with a presigned download URL (1-hour expiry)
+/// Client can use this URL to download the PDF directly from R2
 pub async fn get_project(
     Extension(claims): Extension<JwtClaims>,
     State(state): State<AppState>,
@@ -214,8 +234,22 @@ pub async fn get_project(
     .await?
     .ok_or(AppError::NotFound("Project not found".to_string()))?;
 
-    // Return project (Worker will add download_url)
-    Ok(Json(project))
+    // Generate presigned download URL (1 hour expiry)
+    let download_url = state
+        .r2
+        .generate_download_url(BucketType::Pdfs, &project.r2_key, 3600)
+        .await?;
+
+    tracing::debug!(
+        project_id = %project_id,
+        user_id = %user_id,
+        "Generated presigned download URL for project"
+    );
+
+    Ok(Json(ProjectWithAccessAndDownload {
+        project,
+        download_url,
+    }))
 }
 
 /// Update project metadata
@@ -252,10 +286,12 @@ pub async fn update_project(
     Ok(Json(project))
 }
 
-/// Delete a project
-/// NOTE: The Cloudflare Worker intercepts this request and:
-/// 1. Forwards to this endpoint to delete from database
-/// 2. Deletes the file from R2 using direct binding
+/// Delete a project and its R2 file
+///
+/// Workflow:
+/// 1. Verify ownership
+/// 2. Delete from R2
+/// 3. Delete from database (cascades to annotations and access)
 pub async fn delete_project(
     Extension(claims): Extension<JwtClaims>,
     State(state): State<AppState>,
@@ -263,7 +299,7 @@ pub async fn delete_project(
 ) -> Result<impl IntoResponse> {
     let user_id = Uuid::parse_str(&claims.sub)?;
 
-    // Get project to verify ownership and get R2 key for Worker cleanup
+    // Get project to verify ownership and get R2 key
     let project = sqlx::query_as!(
         Project,
         r#"
@@ -285,6 +321,12 @@ pub async fn delete_project(
         ));
     }
 
+    // Delete from R2 first (idempotent - succeeds even if file doesn't exist)
+    state
+        .r2
+        .delete_object(BucketType::Pdfs, &project.r2_key)
+        .await?;
+
     // Delete from database (cascades to annotations and access)
     sqlx::query!(
         r#"
@@ -295,7 +337,13 @@ pub async fn delete_project(
     .execute(&state.pool)
     .await?;
 
-    // Worker handles R2 file deletion
+    tracing::info!(
+        project_id = %project_id,
+        user_id = %user_id,
+        r2_key = %project.r2_key,
+        "Deleted project and R2 file"
+    );
+
     Ok(StatusCode::NO_CONTENT)
 }
 

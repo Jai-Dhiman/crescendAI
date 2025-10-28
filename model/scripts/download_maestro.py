@@ -64,7 +64,7 @@ def extract_zip(zip_path: Path, extract_to: Path) -> None:
     print("Extraction complete")
 
 
-def organize_files(maestro_dir: Path, output_dir: Path, subset: Optional[int] = None) -> list:
+def organize_files(maestro_dir: Path, output_dir: Path, subset: Optional[int] = None, composers: Optional[list] = None) -> list:
     """
     Organize MAESTRO files into year/audio and year/midi directories.
 
@@ -72,6 +72,7 @@ def organize_files(maestro_dir: Path, output_dir: Path, subset: Optional[int] = 
         maestro_dir: Path to extracted MAESTRO directory
         output_dir: Output directory for organized files
         subset: Number of pieces to include (None = all)
+        composers: List of composer names to filter (None = all)
 
     Returns:
         List of metadata dictionaries for each piece
@@ -82,10 +83,22 @@ def organize_files(maestro_dir: Path, output_dir: Path, subset: Optional[int] = 
         raise FileNotFoundError(f"Metadata file not found: {metadata_file}")
 
     with open(metadata_file, 'r') as f:
-        maestro_data = json.load(f)
+        maestro_data_raw = json.load(f)
+
+    # Convert column-oriented JSON to row-oriented list of dicts
+    num_pieces = len(maestro_data_raw['canonical_composer'])
+    maestro_data = []
+    for i in range(num_pieces):
+        piece_dict = {key: maestro_data_raw[key][str(i)] for key in maestro_data_raw.keys()}
+        maestro_data.append(piece_dict)
 
     # Filter to training set for pseudo-labeling
     pieces = [p for p in maestro_data if p.get('split') == 'train']
+
+    # Filter by composers if specified
+    if composers is not None:
+        pieces = [p for p in pieces if p.get('canonical_composer') in composers]
+        print(f"Filtered to {len(pieces)} pieces from composers: {', '.join(composers)}")
 
     if subset is not None:
         pieces = pieces[:subset]
@@ -169,6 +182,8 @@ def main():
                         help='Output directory (default: data/maestro)')
     parser.add_argument('--subset', type=int, default=None,
                         help='Download subset of N pieces (default: all)')
+    parser.add_argument('--composers', type=str, nargs='+', default=None,
+                        help='Filter by composer names (e.g., "Frédéric Chopin" "Franz Liszt")')
     parser.add_argument('--skip-download', action='store_true',
                         help='Skip download if files already exist')
     parser.add_argument('--keep-zip', action='store_true',
@@ -203,7 +218,7 @@ def main():
         raise FileNotFoundError(f"MAESTRO directory not found: {maestro_dir}")
 
     # Step 3: Organize files
-    metadata = organize_files(maestro_dir, output_dir, subset=args.subset)
+    metadata = organize_files(maestro_dir, output_dir, subset=args.subset, composers=args.composers)
 
     # Step 4: Save metadata
     metadata_csv = output_dir / 'metadata.csv'

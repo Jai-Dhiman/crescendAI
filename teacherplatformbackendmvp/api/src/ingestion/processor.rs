@@ -1,9 +1,8 @@
 use crate::ai::workers_ai::WorkersAIClient;
-use crate::errors::{AppError, Result};
+use crate::errors::Result;
 use crate::ingestion::{
     chunk_pages, extract_pdf_text, generate_embeddings, store_chunks, ChunkConfig,
 };
-use crate::models::ProcessingStatus;
 use sqlx::PgPool;
 use uuid::Uuid;
 

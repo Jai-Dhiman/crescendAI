@@ -49,9 +49,12 @@ uuid = { version = "1.6", features = ["v4", "serde"] }
 # Time handling
 chrono = { version = "0.4", features = ["serde"] }
 
-# Note: R2 storage is handled by Cloudflare Worker (edge layer)
-# No S3 SDK needed in this API server
-bytes = "1.5"  # Still needed for other operations
+# AWS SDK for R2 (S3-compatible API)
+aws-config = "1.1"
+aws-sdk-s3 = "1.9"
+aws-types = "1.1"
+aws-credential-types = "1.1"
+bytes = "1.5"
 
 # Hashing (for cache keys)
 sha2 = "0.10"

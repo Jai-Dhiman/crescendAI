@@ -27,14 +27,13 @@ async fn main(req: Request, env: Env, _ctx: Context) -> Result<Response> {
         // RAG query endpoint (with caching)
         .post_async("/api/chat/query", routes::rag_query)
 
-        // Project presigned URLs (R2 direct access)
-        .post_async("/api/projects/upload-url", routes::generate_upload_url)
-        .get_async("/api/projects/:id/download-url", routes::generate_download_url)
+        // Project streaming (R2 binding - zero latency)
+        .get_async("/api/projects/:id/stream", routes::stream_project)
 
         // Embedding endpoint (with caching)
         .post_async("/api/embeddings/generate", routes::generate_embedding)
 
-        // Proxy to GCP API for complex operations
+        // Proxy to GCP API for all other operations
         .on_async("/api/*", routes::proxy_to_gcp)
 
         // 404 handler

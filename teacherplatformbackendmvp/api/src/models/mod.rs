@@ -21,6 +21,6 @@ pub use knowledge::{
 pub use project::{
     AccessResponse, CreateProjectRequest, CreateProjectResponse,
     GrantAccessRequest, PdfMetadata, Project, ProjectAccess, ProjectAccessListResponse,
-    ProjectAccessWithUser, ProjectWithAccess, UpdateProjectRequest,
+    ProjectAccessWithUser, ProjectWithAccess, ProjectWithAccessAndDownload, UpdateProjectRequest,
 };
 pub use user::{CreateUserRequest, User, UserResponse, UserRole};

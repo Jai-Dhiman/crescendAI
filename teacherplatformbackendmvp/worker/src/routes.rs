@@ -60,43 +60,59 @@ pub async fn rag_query(mut req: Request, ctx: RouteContext<Env>) -> Result<Respo
     Response::from_json(&rag_response)
 }
 
-/// Generate presigned upload URL (R2 direct access)
-pub async fn generate_upload_url(_req: Request, ctx: RouteContext<Env>) -> Result<Response> {
-    // Generate a unique key (unused for now - GCP API handles this)
-    let _key = format!("projects/{}/{}.pdf", uuid::Uuid::new_v4(), uuid::Uuid::new_v4());
-
-    // Note: R2 binding doesn't directly support presigned URLs from Workers
-    // Best practice: Generate from GCP API which has AWS SDK
-    let gcp_api_url = ctx.env.var("GCP_API_URL")?.to_string();
-
-    let mut init = RequestInit::new();
-    init.with_method(Method::Post);
-
-    let request = Request::new_with_init(&format!("{}/api/projects/upload-url", gcp_api_url), &init)?;
-    let mut response = Fetch::Request(request).send().await?;
-
-    let json: serde_json::Value = response.json().await?;
-    Response::from_json(&json)
-}
-
-/// Generate presigned download URL
-pub async fn generate_download_url(_req: Request, ctx: RouteContext<Env>) -> Result<Response> {
+/// Stream a project PDF directly from R2 (zero-latency edge access)
+///
+/// This endpoint provides the fastest download experience by streaming directly
+/// from R2 using Worker bindings. Recommended for frequently accessed files.
+///
+/// For infrequent access or temporary shares, use presigned URLs instead.
+pub async fn stream_project(_req: Request, ctx: RouteContext<Env>) -> Result<Response> {
     let project_id = ctx.param("id").ok_or_else(|| Error::RustError("Missing project ID".to_string()))?;
 
-    // Forward to GCP API for presigned URL generation
+    // First, get the project metadata from GCP API to get the R2 key
     let gcp_api_url = ctx.env.var("GCP_API_URL")?.to_string();
 
     let mut init = RequestInit::new();
     init.with_method(Method::Get);
 
     let request = Request::new_with_init(
-        &format!("{}/api/projects/{}/download-url", gcp_api_url, project_id),
+        &format!("{}/api/projects/{}", gcp_api_url, project_id),
         &init
     )?;
     let mut response = Fetch::Request(request).send().await?;
 
-    let json: serde_json::Value = response.json().await?;
-    Response::from_json(&json)
+    if response.status_code() != 200 {
+        return Ok(response);
+    }
+
+    let project: serde_json::Value = response.json().await?;
+    let r2_key = project["project"]["r2_key"]
+        .as_str()
+        .ok_or_else(|| Error::RustError("Missing r2_key in project".to_string()))?;
+
+    // Stream directly from R2 using binding
+    let pdfs_bucket = ctx.env.r2("PDFS_BUCKET")?;
+    let object = pdfs_bucket.get(r2_key).execute().await?;
+
+    match object {
+        Some(obj) => {
+            // Stream the object body with proper headers
+            let mut headers = worker::Headers::new();
+            headers.set("Content-Type", "application/pdf")?;
+            headers.set("Content-Disposition", &format!("inline; filename=\"{}.pdf\"", project_id))?;
+
+            // Add cache headers for edge caching
+            headers.set("Cache-Control", "public, max-age=3600")?;
+            headers.set("ETag", &obj.http_etag())?;
+
+            console_log!("Streaming project {} from R2 (key: {})", project_id, r2_key);
+
+            Response::from_stream(obj.body())?.with_headers(headers)
+        }
+        None => {
+            Response::error("PDF file not found in R2", 404)
+        }
+    }
 }
 
 /// Generate embedding with caching

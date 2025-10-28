@@ -45,3 +45,6 @@ wandb/
 *.pt
 *.bin
 *.safetensors
+
+# Datasets
+maestro/

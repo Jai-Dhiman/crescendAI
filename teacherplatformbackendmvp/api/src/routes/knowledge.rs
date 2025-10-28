@@ -16,6 +16,7 @@ use crate::{
         ProcessingStatusResponse,
     },
     state::AppState,
+    storage::BucketType,
 };
 
 /// List knowledge base documents with filtering
@@ -57,13 +58,35 @@ pub async fn create_knowledge_doc(
     .fetch_one(&state.pool)
     .await?;
 
-    // Generate presigned R2 URL if PDF
+    // Generate presigned R2 URL if PDF (1 hour expiry)
     let upload_url = if payload.source_type == "pdf" {
-        // For MVP, we'll skip R2 integration and return None
-        // In production, this would call:
-        // let key = format!("knowledge/{}/{}", user_id, doc.id);
-        // Some(state.r2_client.generate_presigned_upload_url(&key, 600).await?)
-        None
+        let key = format!("knowledge/{}/{}.pdf", user_id, doc.id);
+        let url = state
+            .r2
+            .generate_upload_url(BucketType::Knowledge, &key, 3600)
+            .await?;
+
+        // Update the document's source_url with the R2 key for later retrieval
+        sqlx::query!(
+            r#"
+            UPDATE knowledge_base_docs
+            SET source_url = $1
+            WHERE id = $2
+            "#,
+            key,
+            doc.id
+        )
+        .execute(&state.pool)
+        .await?;
+
+        tracing::info!(
+            doc_id = %doc.id,
+            user_id = %user_id,
+            r2_key = %key,
+            "Generated presigned upload URL for knowledge document"
+        );
+
+        Some(url)
     } else {
         None
     };
@@ -245,39 +268,84 @@ pub async fn process_knowledge_doc(
     .execute(&state.pool)
     .await?;
 
-    // For MVP: We'll spawn a background task that processes a dummy PDF
-    // In production: Fetch PDF from R2 storage using the source_url
-    // Example: let pdf_bytes = state.r2_client.download_object(&doc.source_url.unwrap()).await?;
-
     // Spawn background task to process the document
     let pool = state.pool.clone();
     let workers_ai = workers_ai.clone();
-    tokio::spawn(async move {
-        // For MVP: Use a minimal test PDF (empty placeholder)
-        // TODO: Replace with actual R2 fetch when R2 integration is ready
-        let pdf_bytes = include_bytes!("../../../test_data/sample.pdf");
+    let r2_client = state.r2.clone();
+    let source_url = doc.source_url.clone();
 
-        match process_pdf_document(&pool, &workers_ai, id, pdf_bytes).await {
-            Ok(chunk_count) => {
-                // Update status to completed and set total chunks
+    tokio::spawn(async move {
+        // Fetch PDF from R2
+        let pdf_result = if let Some(r2_key) = source_url {
+            // Download the PDF from R2
+            match r2_client.download_object(BucketType::Knowledge, &r2_key).await {
+                Ok(pdf_bytes) => {
+                    tracing::info!(
+                        doc_id = %id,
+                        r2_key = %r2_key,
+                        size_bytes = %pdf_bytes.len(),
+                        "Fetched PDF from R2 for processing"
+                    );
+                    Ok(pdf_bytes)
+                }
+                Err(e) => {
+                    tracing::error!(
+                        doc_id = %id,
+                        r2_key = %r2_key,
+                        error = ?e,
+                        "Failed to fetch PDF from R2"
+                    );
+                    Err(format!("Failed to fetch PDF from R2: {}", e))
+                }
+            }
+        } else {
+            tracing::error!(doc_id = %id, "No source_url found for document");
+            Err("No source_url found for document".to_string())
+        };
+
+        match pdf_result {
+            Ok(pdf_bytes) => {
+                // Process the PDF
+                match process_pdf_document(&pool, &workers_ai, id, &pdf_bytes).await {
+                    Ok(chunk_count) => {
+                        // Update status to completed and set total chunks
+                        if let Err(e) = sqlx::query(
+                            r#"
+                            UPDATE knowledge_base_docs
+                            SET status = 'completed', total_chunks = $2
+                            WHERE id = $1
+                            "#,
+                        )
+                        .bind(id)
+                        .bind(chunk_count as i32)
+                        .execute(&pool)
+                        .await
+                        {
+                            tracing::error!("Failed to update document status to completed: {:?}", e);
+                        }
+                    }
+                    Err(e) => {
+                        // Error handling is already done in process_pdf_document
+                        tracing::error!("Failed to process document {}: {:?}", id, e);
+                    }
+                }
+            }
+            Err(error_msg) => {
+                // Update status to failed with error message
                 if let Err(e) = sqlx::query(
                     r#"
                     UPDATE knowledge_base_docs
-                    SET status = 'completed', total_chunks = $2
+                    SET status = 'failed', error_message = $2
                     WHERE id = $1
                     "#,
                 )
                 .bind(id)
-                .bind(chunk_count as i32)
+                .bind(&error_msg)
                 .execute(&pool)
                 .await
                 {
-                    tracing::error!("Failed to update document status to completed: {:?}", e);
+                    tracing::error!("Failed to update document status to failed: {:?}", e);
                 }
-            }
-            Err(e) => {
-                // Error handling is already done in process_pdf_document
-                tracing::error!("Failed to process document {}: {:?}", id, e);
             }
         }
     });

@@ -10,6 +10,7 @@ mod models;
 mod routes;
 mod search;
 mod state;
+mod storage;
 mod utils;
 
 use anyhow::Result;
@@ -97,8 +98,13 @@ async fn main() -> Result<()> {
         cache::CacheService::new(None, config.cache.clone())
     };
 
+    // Initialize R2 client for presigned URL generation
+    tracing::info!("Initializing R2 client for presigned URL generation");
+    let r2_client = storage::R2Client::new(&config.cloudflare).await?;
+    tracing::info!("R2 client initialized successfully");
+
     // Create app state
-    let state = state::AppState::new(pool, config.clone(), workers_ai, cache);
+    let state = state::AppState::new(pool, config.clone(), workers_ai, cache, r2_client);
 
     // Build router with middleware
     let app = routes::create_router(state)

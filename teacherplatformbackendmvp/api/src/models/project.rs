@@ -43,10 +43,11 @@ pub struct CreateProjectRequest {
 }
 
 /// Response after creating a project
-/// NOTE: Worker layer will wrap this with upload_url field
+/// Includes presigned upload URL for client direct upload to R2
 #[derive(Debug, Serialize)]
 pub struct CreateProjectResponse {
     pub project: Project,
+    pub upload_url: String,
 }
 
 /// Request to update project metadata
@@ -73,6 +74,14 @@ pub struct ProjectWithAccess {
 
     // Access level for current user
     pub access_level: AccessLevel,
+}
+
+/// Project with access level and download URL
+#[derive(Debug, Serialize)]
+pub struct ProjectWithAccessAndDownload {
+    #[serde(flatten)]
+    pub project: ProjectWithAccess,
+    pub download_url: String,
 }
 
 /// PDF metadata extracted from uploaded file
