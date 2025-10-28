@@ -1,7 +1,0 @@
-/target
-/build
-.wrangler
-.env
-node_modules
-worker-build
-dist
