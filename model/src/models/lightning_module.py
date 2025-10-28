@@ -320,11 +320,18 @@ class PerformanceEvaluationModel(pl.LightningModule):
         head_params.extend(list(self.aggregator.parameters()))
         head_params.extend(list(self.mtl_head.parameters()))
 
-        # Create parameter groups
-        param_groups = [
-            {"params": backbone_params, "lr": self.hparams.backbone_lr, "name": "backbone"},
-            {"params": head_params, "lr": self.hparams.heads_lr, "name": "heads"},
-        ]
+        # Create parameter groups (only add non-empty groups)
+        param_groups = []
+        if backbone_params:
+            param_groups.append({
+                "params": backbone_params,
+                "lr": float(self.hparams.backbone_lr),
+            })
+        if head_params:
+            param_groups.append({
+                "params": head_params,
+                "lr": float(self.hparams.heads_lr),
+            })
 
         # Optimizer
         optimizer = AdamW(
