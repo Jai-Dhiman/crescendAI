@@ -7,7 +7,7 @@ from torch.utils.data import Dataset, DataLoader
 
 from .audio_processing import load_audio, segment_audio, normalize_audio
 from .midi_processing import load_midi, encode_octuple_midi, segment_midi, align_midi_to_audio
-from .augmentation import augment_pipeline
+from .augmentation import AudioAugmentation
 
 
 class PerformanceDataset(Dataset):
@@ -63,6 +63,11 @@ class PerformanceDataset(Dataset):
         self.augmentation_config = augmentation_config
         self.apply_augmentation = apply_augmentation
 
+        # Initialize augmentation pipeline if enabled
+        self.augmentor = None
+        if self.apply_augmentation:
+            self.augmentor = AudioAugmentation(sr=self.audio_sample_rate)
+
         # Load annotations
         self.annotations = self._load_annotations()
 
@@ -113,8 +118,8 @@ class PerformanceDataset(Dataset):
         audio = normalize_audio(audio)
 
         # Apply augmentation if enabled
-        if self.apply_augmentation and self.augmentation_config is not None:
-            audio = augment_pipeline(audio, sr, self.augmentation_config)
+        if self.apply_augmentation and self.augmentor is not None:
+            audio = self.augmentor.augment_pipeline(audio, config=self.augmentation_config)
 
         # Pad or truncate audio to max length
         if len(audio) > self.max_audio_length:
