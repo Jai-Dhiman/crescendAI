@@ -35,24 +35,32 @@ def load_config(config_path: str) -> dict:
     return config
 
 
-def analyze_data_statistics(train_loader, val_loader, dimension_names):
+def analyze_data_statistics(train_loader, val_loader, dimension_names, max_batches=50):
     """Analyze data statistics from dataloaders."""
     print("\n" + "=" * 80)
     print("DATA STATISTICS")
     print("=" * 80)
 
-    # Collect all labels from training set
+    # Collect labels from subset of data (to avoid long waits)
     all_train_labels = []
     all_val_labels = []
 
-    print("\nCollecting training data statistics...")
-    for batch in train_loader:
+    print(f"\nCollecting training data statistics (sampling {max_batches} batches)...")
+    for i, batch in enumerate(train_loader):
+        if i >= max_batches:
+            break
         all_train_labels.append(batch['labels'].numpy())
+        if (i + 1) % 10 == 0:
+            print(f"  Processed {i + 1} batches...")
     all_train_labels = np.concatenate(all_train_labels, axis=0)
 
-    print("Collecting validation data statistics...")
-    for batch in val_loader:
+    print(f"\nCollecting validation data statistics (sampling {max_batches} batches)...")
+    for i, batch in enumerate(val_loader):
+        if i >= max_batches:
+            break
         all_val_labels.append(batch['labels'].numpy())
+        if (i + 1) % 10 == 0:
+            print(f"  Processed {i + 1} batches...")
     all_val_labels = np.concatenate(all_val_labels, axis=0)
 
     # Per-dimension statistics
@@ -318,7 +326,7 @@ def main():
     parser = argparse.ArgumentParser(description="Diagnose training issues")
     parser.add_argument("--config", type=str, required=True, help="Path to config YAML file")
     parser.add_argument("--checkpoint", type=str, default=None, help="Path to checkpoint")
-    parser.add_argument("--num-batches", type=int, default=1, help="Number of batches to analyze")
+    parser.add_argument("--max-batches", type=int, default=50, help="Max batches to sample for data statistics")
     args = parser.parse_args()
 
     # Load config
@@ -344,7 +352,8 @@ def main():
     )
 
     # Analyze data statistics
-    analyze_data_statistics(train_loader, val_loader, config["data"]["dimensions"])
+    print(f"\nNote: Sampling {args.max_batches} batches for statistics (use --max-batches to change)")
+    analyze_data_statistics(train_loader, val_loader, config["data"]["dimensions"], max_batches=args.max_batches)
 
     # Initialize model
     print("\n" + "=" * 80)
@@ -389,7 +398,7 @@ def main():
     # Run diagnostics
     analyze_model_outputs(model, batch, device)
     analyze_gradients(model, batch, device)
-    analyze_parameter_updates(model, batch, device, learning_rate=config["training"]["heads_lr"])
+    analyze_parameter_updates(model, batch, device, learning_rate=float(config["training"]["heads_lr"]))
 
     print("\n" + "=" * 80)
     print("DIAGNOSTICS COMPLETE")
