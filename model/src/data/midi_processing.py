@@ -145,15 +145,134 @@ class OctupleMIDITokenizer:
 
 def load_midi(path: Union[str, Path]) -> pretty_midi.PrettyMIDI:
     """
-    Load MIDI file using pretty_midi.
+    Load MIDI file using pretty_midi with fallback to mido for problematic files.
 
     Args:
         path: Path to MIDI file
 
     Returns:
         PrettyMIDI object
+
+    Raises:
+        Exception: If MIDI file is malformed or cannot be parsed
+
+    Note:
+        Some MAESTRO MIDI files have malformed tempo tracks that cause numpy
+        dimension mismatch errors in pretty_midi. This function catches those
+        errors and attempts to load via mido with manual tempo handling.
     """
-    return pretty_midi.PrettyMIDI(str(path))
+    path_str = str(path)
+
+    try:
+        # First attempt: standard pretty_midi loading
+        return pretty_midi.PrettyMIDI(path_str)
+    except (ValueError, IndexError) as e:
+        # Check if this is the tempo/dimension mismatch error
+        error_msg = str(e)
+        if "dimension" in error_msg.lower() or "concatenat" in error_msg.lower():
+            # Try alternative loading via mido
+            try:
+                return _load_midi_via_mido(path_str)
+            except Exception as mido_error:
+                raise ValueError(
+                    f"Failed to parse MIDI via both pretty_midi and mido. "
+                    f"pretty_midi error: {e}, mido error: {mido_error}"
+                ) from e
+        else:
+            # Different error, re-raise
+            raise ValueError(f"Failed to parse MIDI file: {e}") from e
+    except Exception as e:
+        # Unexpected error
+        raise ValueError(f"Failed to parse MIDI file: {e}") from e
+
+
+def _load_midi_via_mido(path: str) -> pretty_midi.PrettyMIDI:
+    """
+    Load MIDI file using mido and convert to PrettyMIDI.
+
+    This is a fallback for MIDI files that pretty_midi cannot parse directly
+    due to malformed tempo tracks or other structural issues.
+
+    Args:
+        path: Path to MIDI file
+
+    Returns:
+        PrettyMIDI object
+
+    Raises:
+        Exception: If file cannot be loaded via mido
+    """
+    # Load with mido (more permissive parser)
+    midi_data = mido.MidiFile(path)
+
+    # Create a new PrettyMIDI object from scratch
+    pm = pretty_midi.PrettyMIDI()
+
+    # Set initial tempo (will be updated from tempo events)
+    current_tempo = 500000  # microseconds per beat (120 BPM)
+
+    # Process tracks
+    time_in_seconds = 0.0
+    ticks_per_beat = midi_data.ticks_per_beat
+
+    # Create instrument for each track
+    for track_idx, track in enumerate(midi_data.tracks):
+        # Skip track 0 if it's a tempo/meta track with no notes
+        instrument = pretty_midi.Instrument(program=0, is_drum=False, name=f"Track {track_idx}")
+
+        # Track state
+        active_notes = {}  # pitch -> (start_time, velocity)
+        current_time = 0.0
+
+        for msg in track:
+            # Update time
+            delta_ticks = msg.time
+            if delta_ticks > 0:
+                # Convert ticks to seconds using current tempo
+                seconds_per_tick = (current_tempo / 1_000_000) / ticks_per_beat
+                current_time += delta_ticks * seconds_per_tick
+
+            # Process message
+            if msg.type == 'set_tempo':
+                current_tempo = msg.tempo
+            elif msg.type == 'note_on' and msg.velocity > 0:
+                # Note on
+                active_notes[msg.note] = (current_time, msg.velocity)
+            elif msg.type == 'note_off' or (msg.type == 'note_on' and msg.velocity == 0):
+                # Note off
+                if msg.note in active_notes:
+                    start_time, velocity = active_notes.pop(msg.note)
+                    note = pretty_midi.Note(
+                        velocity=velocity,
+                        pitch=msg.note,
+                        start=start_time,
+                        end=current_time
+                    )
+                    instrument.notes.append(note)
+            elif msg.type == 'control_change':
+                # Add control changes (e.g., pedal)
+                cc = pretty_midi.ControlChange(
+                    number=msg.control,
+                    value=msg.value,
+                    time=current_time
+                )
+                instrument.control_changes.append(cc)
+
+        # Close any remaining active notes
+        for pitch, (start_time, velocity) in active_notes.items():
+            note = pretty_midi.Note(
+                velocity=velocity,
+                pitch=pitch,
+                start=start_time,
+                end=current_time
+            )
+            instrument.notes.append(note)
+
+        # Only add instrument if it has notes
+        if instrument.notes:
+            pm.instruments.append(instrument)
+
+    return pm
 
 
 def align_midi_to_audio(

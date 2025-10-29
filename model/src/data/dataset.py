@@ -133,8 +133,8 @@ class PerformanceDataset(Dataset):
         # Load MIDI if available
         midi_tokens = None
         if 'midi_path' in annotation and annotation['midi_path']:
+            midi_path = Path(annotation['midi_path'])
             try:
-                midi_path = Path(annotation['midi_path'])
                 midi = load_midi(str(midi_path))
 
                 # Align MIDI to audio duration
@@ -152,17 +152,23 @@ class PerformanceDataset(Dataset):
                 # Encode MIDI to OctupleMIDI tokens
                 midi_tokens = encode_octuple_midi(midi)
 
-                # Pad or truncate MIDI tokens
-                if len(midi_tokens) > self.max_midi_events:
-                    midi_tokens = midi_tokens[:self.max_midi_events]
-                elif len(midi_tokens) < self.max_midi_events:
-                    # Pad with zeros
-                    padding = np.zeros((self.max_midi_events - len(midi_tokens), 8), dtype=np.int64)
-                    midi_tokens = np.concatenate([midi_tokens, padding], axis=0)
+                # Validate tokens before padding
+                if len(midi_tokens) == 0:
+                    # Empty MIDI file, skip
+                    midi_tokens = None
+                else:
+                    # Pad or truncate MIDI tokens
+                    if len(midi_tokens) > self.max_midi_events:
+                        midi_tokens = midi_tokens[:self.max_midi_events]
+                    elif len(midi_tokens) < self.max_midi_events:
+                        # Pad with zeros
+                        padding = np.zeros((self.max_midi_events - len(midi_tokens), 8), dtype=np.int64)
+                        midi_tokens = np.concatenate([midi_tokens, padding], axis=0)
 
-                midi_tokens = torch.from_numpy(midi_tokens).long()
+                    midi_tokens = torch.from_numpy(midi_tokens).long()
 
             except Exception as e:
+                # Report MIDI loading errors loudly for debugging
                 print(f"Warning: Failed to load MIDI for {midi_path}: {e}")
                 midi_tokens = None
 
