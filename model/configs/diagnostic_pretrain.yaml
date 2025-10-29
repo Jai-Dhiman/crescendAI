@@ -1,0 +1,100 @@
+# Diagnostic Pre-training Configuration
+# Simplified single-dimension training for diagnosing issues
+# Tests basic model learning capability before full training
+
+# Data paths (update these to match your setup)
+data:
+  train_path: "data/maestro_pseudo_labels_train.jsonl"
+  val_path: "data/maestro_pseudo_labels_val.jsonl"
+  test_path: null
+
+  # SIMPLIFIED: Only train on note_accuracy dimension
+  dimensions:
+    - "note_accuracy"
+
+  batch_size: 8
+  num_workers: 4
+
+  # Audio settings (MERT requires 24kHz)
+  audio_sample_rate: 24000
+  max_audio_length: 240000  # 10 seconds
+
+  # MIDI settings
+  max_midi_events: 512
+
+  # Augmentation (disabled for diagnostic run)
+  augmentation: null
+
+# Model architecture
+model:
+  # Dimensions
+  audio_dim: 768        # MERT-95M output
+  midi_dim: 256         # MIDIBert hidden size
+  fusion_dim: 1024      # Cross-attention fusion
+  aggregator_dim: 512   # Hierarchical aggregator
+  num_dimensions: 1     # SIMPLIFIED: Only one dimension
+
+  # Encoder
+  mert_model_name: "m-a-p/MERT-v1-95M"
+  freeze_audio_encoder: false  # Allow training
+  gradient_checkpointing: true
+
+# Training configuration
+training:
+  max_epochs: 5  # SIMPLIFIED: Only 5 epochs for quick testing
+
+  # Mixed precision for memory efficiency
+  precision: 16
+
+  # Learning rates (slightly higher for faster convergence)
+  learning_rate: 1e-4
+  backbone_lr: 2e-5      # MERT + MIDIBert (higher for diagnostic)
+  heads_lr: 2e-4         # Fusion + aggregator + MTL head (higher for diagnostic)
+
+  # Optimization
+  weight_decay: 0.01
+  gradient_clip_val: 1.0
+  warmup_steps: 100      # SIMPLIFIED: Shorter warmup
+
+  # Batch accumulation
+  accumulate_grad_batches: 2  # Effective batch size = 16
+
+  # Validation
+  val_check_interval: 0.5  # Check twice per epoch
+  limit_val_batches: 1.0
+
+# Callbacks
+callbacks:
+  # Model checkpointing
+  checkpoint:
+    monitor: "val_loss"
+    mode: "min"
+    save_top_k: 2
+    save_last: true
+    dirpath: "checkpoints/diagnostic_pretrain"
+    filename: "epoch{epoch:02d}-val_loss{val_loss:.2f}"
+
+  # Early stopping (relaxed for diagnostic)
+  early_stopping:
+    monitor: "val_loss"
+    mode: "min"
+    patience: 3
+    min_delta: 0.01
+
+  # Learning rate monitoring
+  lr_monitor:
+    logging_interval: "step"
+
+# Logging
+logging:
+  use_tensorboard: true
+  tensorboard_logdir: "logs/diagnostic_pretrain"
+  log_every_n_steps: 10
+
+  use_wandb: false
+  wandb_project: "piano-eval-diagnostic"
+  wandb_entity: null
+  wandb_run_name: "diagnostic-single-dim"
+
+# Random seed
+seed: 42
