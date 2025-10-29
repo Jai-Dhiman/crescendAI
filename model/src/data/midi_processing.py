@@ -97,6 +97,10 @@ class OctupleMIDITokenizer:
         """
         tempo_times, tempos = tempo_changes
 
+        # Ensure arrays are properly shaped (flatten if needed)
+        tempo_times = np.atleast_1d(tempo_times).flatten()
+        tempos = np.atleast_1d(tempos).flatten()
+
         # If no tempo changes, use default
         if len(tempos) == 0:
             tempo = 120.0

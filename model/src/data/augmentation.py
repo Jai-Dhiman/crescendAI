@@ -298,14 +298,30 @@ class AudioAugmentation:
         Args:
             audio: Input audio signal
             config: Optional configuration dict to override probabilities
+                   Supports both flat format (pitch_shift_prob: 0.3) and
+                   nested format (pitch_shift: {probability: 0.3, enabled: True})
 
         Returns:
             Augmented audio
         """
         if config is not None:
-            # Override probabilities if provided
+            # Parse config to override probabilities
+            # Handle both flat and nested config formats
             for key, value in config.items():
-                if hasattr(self, key):
+                if isinstance(value, dict):
+                    # Nested format: pitch_shift: {enabled: True, probability: 0.3}
+                    if value.get('enabled', True):
+                        prob_key = f"{key}_prob"
+                        if 'probability' in value and hasattr(self, prob_key):
+                            setattr(self, prob_key, value['probability'])
+                elif key.endswith('_prob') and hasattr(self, key):
+                    # Flat format: pitch_shift_prob: 0.3
+                    setattr(self, key, value)
+                elif key == 'max_transforms' and hasattr(self, 'max_augmentations'):
+                    # Handle max_transforms alias
+                    setattr(self, 'max_augmentations', value)
+                elif hasattr(self, key):
+                    # Direct attribute
                     setattr(self, key, value)
 
         # List of available augmentations

@@ -106,12 +106,32 @@ class CrossAttentionFusion(nn.Module):
         Returns:
             Tuple of:
                 - fused: Fused features [batch, audio_time, audio_dim + midi_dim]
-                - attention_weights: Dict of attention weights (optional)
-        """
-        assert midi_features is not None, "MIDI features are required for multi-modal fusion"
+                - attention_weights: Dict of attention weights (optional, None if audio-only)
 
+        Note:
+            If MIDI features are not available, falls back to audio-only processing
+            with zero-padded MIDI features to maintain consistent output dimension.
+        """
         batch_size, audio_len, _ = audio_features.shape
 
+        # Handle audio-only case (when MIDI loading failed)
+        if midi_features is None:
+            # Process audio features only
+            audio_out = self._audio_only_forward(audio_features)
+
+            # Create zero-filled MIDI features to match expected output dimension
+            midi_placeholder = torch.zeros(
+                batch_size, audio_len, self.midi_dim,
+                dtype=audio_features.dtype,
+                device=audio_features.device
+            )
+
+            # Concatenate to maintain output dimension consistency
+            fused = torch.cat([audio_out, midi_placeholder], dim=-1)
+
+            return fused, None
+
+        # Standard multi-modal fusion path
         # Audio-to-MIDI cross-attention
         # Audio queries attend to MIDI
         audio_attended, audio_attn_weights = self.audio_to_midi_attn(
