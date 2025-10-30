@@ -48,3 +48,5 @@ wandb/
 
 # Datasets
 maestro/
+maestro_selected/
+segments/
