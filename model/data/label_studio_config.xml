@@ -1,0 +1,133 @@
+<View>
+  <Header value="Piano Performance Annotation - MAESTRO Dataset"/>
+  <Text name="instructions" value="Listen to the segment 2-3 times, then rate all 12 dimensions."/>
+
+  <Audio name="audio" value="$audio_path" hotkey="space"/>
+
+  <!-- Metadata display -->
+  <View style="margin-top: 20px; padding: 10px; background: #f5f5f5; border-radius: 5px;">
+    <Text name="composer" value="Composer: $canonical_composer"/>
+    <Text name="title" value="Title: $canonical_title"/>
+    <Text name="year" value="Year: $year"/>
+    <Text name="duration_info" value="Duration: $duration_display"/>
+  </View>
+
+  <Header value="TECHNICAL DIMENSIONS (6)" size="3" style="margin-top: 30px; color: #2563eb;"/>
+
+  <View style="margin: 10px 0;">
+    <Text name="note_acc_label" value="1. Note Accuracy"/>
+    <Text name="note_acc_desc" value="Pitch correctness - Are the right notes played?"
+          style="font-size: 12px; color: #666; margin-bottom: 5px;"/>
+    <Slider name="note_accuracy" toName="audio"
+            min="0" max="100" step="1" defaultValue="50"
+            hotkey="1"/>
+  </View>
+
+  <View style="margin: 10px 0;">
+    <Text name="rhythm_label" value="2. Rhythmic Precision"/>
+    <Text name="rhythm_desc" value="Timing accuracy - Is the rhythm steady and accurate?"
+          style="font-size: 12px; color: #666; margin-bottom: 5px;"/>
+    <Slider name="rhythmic_precision" toName="audio"
+            min="0" max="100" step="1" defaultValue="50"
+            hotkey="2"/>
+  </View>
+
+  <View style="margin: 10px 0;">
+    <Text name="dynamics_label" value="3. Dynamics Control"/>
+    <Text name="dynamics_desc" value="Volume variation - Is there good loud/soft contrast?"
+          style="font-size: 12px; color: #666; margin-bottom: 5px;"/>
+    <Slider name="dynamics_control" toName="audio"
+            min="0" max="100" step="1" defaultValue="50"
+            hotkey="3"/>
+  </View>
+
+  <View style="margin: 10px 0;">
+    <Text name="articulation_label" value="4. Articulation Quality"/>
+    <Text name="articulation_desc" value="Note separation - Are notes connected/separated appropriately?"
+          style="font-size: 12px; color: #666; margin-bottom: 5px;"/>
+    <Slider name="articulation" toName="audio"
+            min="0" max="100" step="1" defaultValue="50"
+            hotkey="4"/>
+  </View>
+
+  <View style="margin: 10px 0;">
+    <Text name="pedaling_label" value="5. Pedaling Technique"/>
+    <Text name="pedaling_desc" value="Sustain pedal usage - Is pedaling clean and appropriate?"
+          style="font-size: 12px; color: #666; margin-bottom: 5px;"/>
+    <Slider name="pedaling" toName="audio"
+            min="0" max="100" step="1" defaultValue="50"
+            hotkey="5"/>
+  </View>
+
+  <View style="margin: 10px 0;">
+    <Text name="tone_label" value="6. Tone Quality"/>
+    <Text name="tone_desc" value="Timbre and color - Is the sound beautiful and controlled?"
+          style="font-size: 12px; color: #666; margin-bottom: 5px;"/>
+    <Slider name="tone_quality" toName="audio"
+            min="0" max="100" step="1" defaultValue="50"
+            hotkey="6"/>
+  </View>
+
+  <Header value="INTERPRETIVE DIMENSIONS (6)" size="3" style="margin-top: 30px; color: #9333ea;"/>
+
+  <View style="margin: 10px 0;">
+    <Text name="phrasing_label" value="7. Phrasing"/>
+    <Text name="phrasing_desc" value="Musical sentences - Are phrases shaped naturally and convincingly?"
+          style="font-size: 12px; color: #666; margin-bottom: 5px;"/>
+    <Slider name="phrasing" toName="audio"
+            min="0" max="100" step="1" defaultValue="50"
+            hotkey="7"/>
+  </View>
+
+  <View style="margin: 10px 0;">
+    <Text name="expressiveness_label" value="8. Expressiveness"/>
+    <Text name="expressiveness_desc" value="Emotional communication - Does it convey feeling and emotion?"
+          style="font-size: 12px; color: #666; margin-bottom: 5px;"/>
+    <Slider name="expressiveness" toName="audio"
+            min="0" max="100" step="1" defaultValue="50"
+            hotkey="8"/>
+  </View>
+
+  <View style="margin: 10px 0;">
+    <Text name="interpretation_label" value="9. Musical Interpretation"/>
+    <Text name="interpretation_desc" value="Artistic choices - Are musical decisions thoughtful and coherent?"
+          style="font-size: 12px; color: #666; margin-bottom: 5px;"/>
+    <Slider name="interpretation" toName="audio"
+            min="0" max="100" step="1" defaultValue="50"
+            hotkey="9"/>
+  </View>
+
+  <View style="margin: 10px 0;">
+    <Text name="stylistic_label" value="10. Stylistic Appropriateness"/>
+    <Text name="stylistic_desc" value="Period/composer style - Does it match the expected musical style?"
+          style="font-size: 12px; color: #666; margin-bottom: 5px;"/>
+    <Slider name="stylistic_appropriateness" toName="audio"
+            min="0" max="100" step="1" defaultValue="50"/>
+  </View>
+
+  <View style="margin: 10px 0;">
+    <Text name="musicality_label" value="11. Overall Musicality"/>
+    <Text name="musicality_desc" value="Holistic musical quality - How musical is the overall performance?"
+          style="font-size: 12px; color: #666; margin-bottom: 5px;"/>
+    <Slider name="overall_musicality" toName="audio"
+            min="0" max="100" step="1" defaultValue="50"/>
+  </View>
+
+  <View style="margin: 10px 0;">
+    <Text name="technical_label" value="12. Overall Technical Quality"/>
+    <Text name="technical_desc" value="Holistic technical execution - How clean is the overall execution?"
+          style="font-size: 12px; color: #666; margin-bottom: 5px;"/>
+    <Slider name="overall_technical" toName="audio"
+            min="0" max="100" step="1" defaultValue="50"/>
+  </View>
+
+  <Header value="NOTES (Optional)" size="3" style="margin-top: 30px;"/>
+  <TextArea name="notes" toName="audio"
+            placeholder="Optional: Note specific issues, standout moments, or uncertainties..."
+            rows="3"
+            maxSubmissions="1"/>
+
+  <View style="margin-top: 20px; padding: 10px; background: #fef3c7; border-radius: 5px;">
+    <Text name="tip" value="💡 Tip: Use hotkeys 1-9 to jump to sliders. Press Space to play/pause audio."/>
+  </View>
+</View>
