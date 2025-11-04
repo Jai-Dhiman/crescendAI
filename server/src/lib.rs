@@ -1,838 +1,257 @@
+//! CrescendAI Server - Piano Education Platform Backend
+//!
+//! A Cloudflare Workers-based backend combining AI-powered piano performance
+//! analysis with RAG (Retrieval-Augmented Generation) for pedagogy support.
+//!
+//! # Architecture
+//!
+//! - **Runtime:** Rust on Cloudflare Workers (WASM)
+//! - **AI:** Dedalus API (GPT-5-nano) via Python worker service binding
+//! - **Database:** D1 (distributed SQLite)
+//! - **Vector Search:** Cloudflare Vectorize
+//! - **Storage:** R2 (audio files, PDFs), KV (caching)
+//! - **Analysis:** MERT-330M (mocked, Modal integration planned)
+
 use worker::*;
-use serde::{Deserialize, Serialize};
 
+// ============================================================================
+// Core Modules
+// ============================================================================
+
+/// Database query helpers and models
+pub mod db;
+
+/// API request/response models and Dedalus types
+pub mod models;
+
+/// HTTP handlers for API endpoints
 mod handlers;
+
+// ============================================================================
+// AI & RAG System
+// ============================================================================
+
+/// Dedalus service binding client
+mod dedalus_client;
+
+/// RAG tool definitions for Dedalus
+mod rag_tools;
+
+/// Tool execution handlers
+mod tool_executor;
+
+/// Hybrid RAG search (Vectorize + D1 FTS)
+mod knowledge_base;
+
+/// Document ingestion pipeline
+mod ingestion;
+
+// ============================================================================
+// Analysis & Feedback
+// ============================================================================
+
+/// Mock MERT-330M model for development
+mod ast_mock;
+
+// ============================================================================
+// Infrastructure
+// ============================================================================
+
+/// Security, auth, rate limiting
 mod security;
-mod storage;
-mod processing;
-mod utils;
-pub mod audio_dsp;
+
+/// Health checks and monitoring
 mod monitoring;
-mod simple_evaluator;
-mod knowledge_base; // TUTOR Phase 2: RAG retrieval interfaces
-mod tutor;         // TUTOR Phase 2: LLM integration and schema
-mod ingestion;     // TUTOR Phase 2: Knowledge base ingestion
-
-use security::{validate_api_key, get_client_ip, RateLimiter, secure_error_response};
-use monitoring::{RequestLogger, HealthChecker, SystemInfo};
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct JobStatus {
-    pub job_id: String,
-    pub status: String,
-    pub progress: f32,
-    pub error: Option<String>,
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct AnalysisResult {
-    pub id: String,
-    pub status: String,
-    pub file_id: String,
-    pub analysis: AnalysisData,
-    pub insights: Vec<String>,
-    pub created_at: String,
-    pub processing_time: Option<f32>,
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct ComparisonResult {
-    pub id: String,
-    pub status: String,
-    pub file_id: String,
-    pub model_a: ModelResult,
-    pub model_b: ModelResult,
-    pub created_at: String,
-    pub total_processing_time: Option<f32>,
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct ModelResult {
-    pub model_name: String,
-    pub model_type: String,
-    pub analysis: AnalysisData,
-    pub insights: Vec<String>,
-    pub processing_time: f64,
-    pub dimensions: Option<Vec<f32>>,
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct UserPreference {
-    pub comparison_id: String,
-    pub preferred_model: String, // "model_a" or "model_b"
-    pub feedback: Option<String>,
-    pub created_at: String,
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct AnalysisData {
-    pub timing_stable_unstable: f32,
-    pub articulation_short_long: f32,
-    pub articulation_soft_hard: f32,
-    pub pedal_sparse_saturated: f32,
-    pub pedal_clean_blurred: f32,
-    pub timbre_even_colorful: f32,
-    pub timbre_shallow_rich: f32,
-    pub timbre_bright_dark: f32,
-    pub timbre_soft_loud: f32,
-    pub dynamic_sophisticated_raw: f32,
-    pub dynamic_range_little_large: f32,
-    pub music_making_fast_slow: f32,
-    pub music_making_flat_spacious: f32,
-    pub music_making_disproportioned_balanced: f32,
-    pub music_making_pure_dramatic: f32,
-    pub emotion_mood_optimistic_dark: f32,
-    pub emotion_mood_low_high_energy: f32,
-    pub emotion_mood_honest_imaginative: f32,
-    pub interpretation_unsatisfactory_convincing: f32,
-}
 
 // ============================================================================
-// Temporal Analysis Data Structures
+// Router & Main Handler
 // ============================================================================
 
-/// Individual insight for a temporal segment
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct AnalysisInsight {
-    /// Category: "Technical", "Musical", or "Interpretive"
-    pub category: String,
-    /// What was observed in the performance
-    pub observation: String,
-    /// Specific, actionable advice for improvement
-    pub actionable_advice: String,
-    /// Reference to scores (hidden from UI, for debugging)
-    pub score_reference: String,
-}
-
-/// Temporal feedback for a specific time segment
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct TemporalFeedbackItem {
-    /// Timestamp range (e.g., "0:00-0:03")
-    pub timestamp: String,
-    /// Multiple insights for this segment
-    pub insights: Vec<AnalysisInsight>,
-    /// Key practice focus for this segment
-    pub practice_focus: String,
-}
-
-/// Overall assessment of the entire performance
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct OverallAssessment {
-    /// List of performance strengths (2-5 items)
-    pub strengths: Vec<String>,
-    /// Priority areas for improvement (2-4 items)
-    pub priority_areas: Vec<String>,
-    /// 2-3 sentence character description of the performance
-    pub performance_character: String,
-}
-
-/// Immediate practice priority
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct ImmediatePriority {
-    /// Skill area to focus on
-    pub skill_area: String,
-    /// Specific exercise or technique to practice
-    pub specific_exercise: String,
-    /// What improvement to expect
-    pub expected_outcome: String,
-}
-
-/// Long-term musical development goal
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct LongTermDevelopment {
-    /// Musical aspect to develop over time
-    pub musical_aspect: String,
-    /// Approach or strategy for development
-    pub development_approach: String,
-    /// Suggested repertoire to support this development
-    pub repertoire_suggestions: String,
-}
-
-/// Practice recommendations structure
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct PracticeRecommendations {
-    /// 3-5 immediate practice priorities
-    pub immediate_priorities: Vec<ImmediatePriority>,
-    /// 2-3 long-term development goals
-    pub long_term_development: Vec<LongTermDevelopment>,
-}
-
-/// New temporal analysis result format
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct TemporalAnalysisResult {
-    pub id: String,
-    pub status: String,
-    pub file_id: String,
-    pub overall_assessment: OverallAssessment,
-    pub temporal_feedback: Vec<TemporalFeedbackItem>,
-    pub practice_recommendations: PracticeRecommendations,
-    pub encouragement: String,
-    pub created_at: String,
-    pub processing_time: Option<f32>,
-}
+use handlers::{chat, feedback};
+use security::{get_client_ip, RateLimiter, secure_error_response};
+use monitoring::{HealthChecker, SystemInfo};
 
 #[event(fetch)]
-pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Response> {
+async fn main(req: Request, env: Env, _ctx: Context) -> Result<Response> {
+    // Initialize panic hook for better error messages
     console_error_panic_hook::set_once();
-    
+
+    // Get CORS headers before env is moved
+    let cors_headers = get_cors_headers(&env);
+
+    // CORS preflight
+    if req.method() == Method::Options {
+        return Response::empty()
+            .map(|res| {
+                res.with_cors(&cors_headers)
+                    .expect("CORS headers")
+            });
+    }
+
+    // Route the request
     let router = Router::new();
-    
+
     router
-        // CORS preflight handler for all routes
-        .options("/api/v1/upload", handle_options)
-        .options("/api/v1/analyze", handle_options)
-        .options("/api/v1/compare", handle_options)
-        .options("/api/v1/job/:id", handle_options)
-        .options("/api/v1/result/:id", handle_options)
-        .options("/api/v1/comparison/:id", handle_options)
-        .options("/api/v1/preference", handle_options)
-        .options("/api/v1/tutor", handle_options)
-        .options("/api/v1/tutor/outcome", handle_options)
-        .options("/api/v1/tutor/retrieve", handle_options)
-        .options("/api/v1/tutor/ingest", handle_options)
-        .options("/api/v1/tutor/ingest/validate", handle_options)
-        .options("/api/v1/tutor/ingest/purge", handle_options)
-        .options("/api/v1/health", handle_options)
-        // Main API routes with authentication and CORS
-        .post_async("/api/v1/upload", secure_upload_handler)
-        .post_async("/api/v1/analyze", secure_analyze_handler)
-        .post_async("/api/v1/compare", secure_compare_handler)
-        .get_async("/api/v1/job/:id", secure_job_status_handler)
-        .get_async("/api/v1/result/:id", secure_result_handler)
-        .get_async("/api/v1/comparison/:id", secure_comparison_result_handler)
-        .post_async("/api/v1/preference", secure_preference_handler)
-        .post_async("/api/v1/tutor", secure_tutor_handler)
-        .post_async("/api/v1/tutor/outcome", secure_session_outcome_handler)
-        .post_async("/api/v1/tutor/retrieve", secure_tutor_retrieve_handler)
-        .post_async("/api/v1/tutor/ingest", secure_tutor_ingest_handler)
-        .post_async("/api/v1/tutor/ingest/validate", secure_tutor_validate_handler)
-        .post_async("/api/v1/tutor/ingest/purge", secure_tutor_purge_handler)
-        // Health endpoint without authentication (for monitoring)
-        .get_async("/api/v1/health", basic_health_handler)
-        // Detailed health endpoint (requires authentication)
-        .get_async("/api/v1/health/detailed", secure_detailed_health_handler)
-        // System info endpoint (requires authentication)
-        .get_async("/api/v1/info", secure_system_info_handler)
+        // Health & Status
+        .get_async("/health", health_handler)
+        .get_async("/api/health", health_handler)
+        .get_async("/api/status", status_handler)
+
+        // Chat System
+        .post_async("/api/v1/chat", secure_chat_handler)
+        .post_async("/api/v1/chat/sessions", secure_create_session_handler)
+        .get_async("/api/v1/chat/sessions/:id", secure_get_session_handler)
+        .get_async("/api/v1/chat/sessions", secure_list_sessions_handler)
+        .delete_async("/api/v1/chat/sessions/:id", secure_delete_session_handler)
+
+        // Feedback System
+        .post_async("/api/v1/feedback/:id", secure_feedback_handler)
+
+        // Catch-all
+        .or_else_any_method_async("/*", not_found_handler)
         .run(req, env)
         .await
+        .map(|res| res.with_cors(&cors_headers).expect("CORS"))
 }
 
-/// Get allowed origins based on environment variables
-fn get_allowed_origins_from_env(env: Option<&Env>) -> Vec<String> {
-    if let Some(env) = env {
-        if let Ok(origins_string) = env.var("ALLOWED_ORIGINS") {
-            return origins_string
-                .to_string()
-                .split(',')
-                .map(|s| s.trim().to_string())
-                .filter(|s| !s.is_empty())
-                .collect();
-        }
+// ============================================================================
+// Handler Wrappers with Security
+// ============================================================================
+
+async fn secure_chat_handler(req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    // Rate limiting
+    let client_ip = get_client_ip(&req);
+    let rate_limiter = RateLimiter::new(&ctx.env);
+
+    if !rate_limiter.check_rate_limit(&client_ip).await? {
+        return secure_error_response(
+            "Rate limit exceeded. Please try again later.",
+            429,
+        );
     }
-    
-    // Safe defaults if environment variable is not set
-    vec![
-        "https://crescend.ai".to_string(),
-        "https://www.crescend.ai".to_string(),
-        "http://localhost:3000".to_string(),  // Development
-        "http://localhost:5173".to_string(),  // Vite dev server
-    ]
+
+    chat::stream_chat(req, ctx).await
 }
 
-/// Get allowed origins (legacy function for compatibility)
-fn get_allowed_origins() -> Vec<String> {
-    get_allowed_origins_from_env(None)
+async fn secure_create_session_handler(req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    // Rate limiting
+    let client_ip = get_client_ip(&req);
+    let rate_limiter = RateLimiter::new(&ctx.env);
+
+    if !rate_limiter.check_rate_limit(&client_ip).await? {
+        return secure_error_response(
+            "Rate limit exceeded. Please try again later.",
+            429,
+        );
+    }
+
+    chat::create_session(req, ctx).await
 }
 
-/// Resolve which origin to allow based on the request's Origin header
-fn resolve_cors_origin(req_origin: Option<&str>, allowed: &[String]) -> String {
-    if let Some(origin) = req_origin {
-        if allowed.iter().any(|o| o == origin) {
-            return origin.to_string();
-        }
+async fn secure_get_session_handler(req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    // Rate limiting
+    let client_ip = get_client_ip(&req);
+    let rate_limiter = RateLimiter::new(&ctx.env);
+
+    if !rate_limiter.check_rate_limit(&client_ip).await? {
+        return secure_error_response(
+            "Rate limit exceeded. Please try again later.",
+            429,
+        );
     }
-    // Fallback to first allowed origin or a safe default
-    allowed
-        .first()
-        .cloned()
-        .unwrap_or_else(|| "https://crescend.ai".to_string())
+
+    chat::get_session(req, ctx).await
 }
 
-/// Add CORS headers to a response with proper origin validation
-fn add_cors_headers(response: &mut Response, allowed_origins: &[String], req_origin: Option<&str>) -> Result<()> {
-    let headers = response.headers_mut();
+async fn secure_list_sessions_handler(req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    // Rate limiting
+    let client_ip = get_client_ip(&req);
+    let rate_limiter = RateLimiter::new(&ctx.env);
 
-    // Choose the appropriate origin
-    let origin = resolve_cors_origin(req_origin, allowed_origins);
+    if !rate_limiter.check_rate_limit(&client_ip).await? {
+        return secure_error_response(
+            "Rate limit exceeded. Please try again later.",
+            429,
+        );
+    }
 
-    headers.set("Access-Control-Allow-Origin", &origin)
-        .map_err(|_| worker::Error::RustError("Failed to set CORS origin".to_string()))?;
-    headers.set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-        .map_err(|_| worker::Error::RustError("Failed to set CORS methods".to_string()))?;
-    headers.set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-API-Key, X-Requested-With")
-        .map_err(|_| worker::Error::RustError("Failed to set CORS headers".to_string()))?;
-    headers.set("Access-Control-Max-Age", "86400")
-        .map_err(|_| worker::Error::RustError("Failed to set CORS max age".to_string()))?; // 24 hours
-    headers.set("Access-Control-Allow-Credentials", "true")
-        .map_err(|_| worker::Error::RustError("Failed to set CORS credentials".to_string()))?;
-    
-    Ok(())
+    chat::list_sessions(req, ctx).await
 }
 
-/// Authentication and security validation
-async fn validate_request_security(req: &Request, env: &Env) -> Result<()> {
-    // TODO: Add proper authentication when ready
-    // For now, API key validation is disabled
-    // validate_api_key(req, env)?;
-    
-    // Check rate limiting
-    if let Ok(kv) = env.kv("CRESCENDAI_METADATA") {
-        let rate_limiter = RateLimiter::new(kv, 60, 100); // 100 requests per minute
-        let client_ip = get_client_ip(req);
-        rate_limiter.check_rate_limit(&client_ip).await?;
+async fn secure_delete_session_handler(req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    // Rate limiting
+    let client_ip = get_client_ip(&req);
+    let rate_limiter = RateLimiter::new(&ctx.env);
+
+    if !rate_limiter.check_rate_limit(&client_ip).await? {
+        return secure_error_response(
+            "Rate limit exceeded. Please try again later.",
+            429,
+        );
     }
-    
-    Ok(())
+
+    chat::delete_session(req, ctx).await
 }
 
-/// Handle OPTIONS preflight requests
-fn handle_options(req: Request, _ctx: RouteContext<()>) -> Result<Response> {
-    let mut response = Response::empty()?;
-    let allowed_origins = get_allowed_origins();
+async fn secure_feedback_handler(req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    // Rate limiting
+    let client_ip = get_client_ip(&req);
+    let rate_limiter = RateLimiter::new(&ctx.env);
 
-    // Use request origin if allowed
-    let req_origin = req.headers().get("Origin").ok().flatten();
-    add_cors_headers(&mut response, &allowed_origins, req_origin.as_deref())?;
-    Ok(response)
+    if !rate_limiter.check_rate_limit(&client_ip).await? {
+        return secure_error_response(
+            "Rate limit exceeded. Please try again later.",
+            429,
+        );
+    }
+
+    feedback::generate_feedback_handler(req, ctx).await
 }
 
-/// Secure upload handler with authentication and CORS
-async fn secure_upload_handler(req: Request, ctx: RouteContext<()>) -> Result<Response> {
-    // Get allowed origins for CORS and check development mode
-    let allowed_origins = get_allowed_origins_from_env(Some(&ctx.env));
-    let is_development = ctx.env.var("ENVIRONMENT")
-        .map(|env| env.to_string() == "development")
-        .unwrap_or(false);
+// ============================================================================
+// System Handlers
+// ============================================================================
 
-    // Capture origin before moving req
-    let req_origin = req.headers().get("Origin").ok().flatten();
-    
-    // Validate security first
-    if let Err(security_error) = validate_request_security(&req, &ctx.env).await {
-        let mut error_response = secure_error_response(&security_error, is_development);
-        add_cors_headers(&mut error_response, &allowed_origins, req_origin.as_deref()).ok();
-        return Ok(error_response);
-    }
-    
-    match handlers::upload_audio(req, ctx).await {
-        Ok(mut response) => {
-            add_cors_headers(&mut response, &allowed_origins, req_origin.as_deref()).ok();
-            Ok(response)
-        }
-        Err(e) => {
-            let mut error_response = secure_error_response(&e, is_development);
-            add_cors_headers(&mut error_response, &allowed_origins, req_origin.as_deref()).ok();
-            Ok(error_response)
-        }
-    }
+async fn health_handler(_req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    let checker = HealthChecker::new(&ctx.env);
+    let health = checker.check_health().await?;
+    Response::from_json(&health)
 }
 
-/// Secure analyze handler with authentication and CORS
-async fn secure_analyze_handler(req: Request, ctx: RouteContext<()>) -> Result<Response> {
-    // Get allowed origins for CORS and check development mode
-    let allowed_origins = get_allowed_origins_from_env(Some(&ctx.env));
-    let is_development = ctx.env.var("ENVIRONMENT")
-        .map(|env| env.to_string() == "development")
-        .unwrap_or(false);
-
-    // Capture origin before moving req
-    let req_origin = req.headers().get("Origin").ok().flatten();
-    
-    // Validate security first
-    if let Err(security_error) = validate_request_security(&req, &ctx.env).await {
-        let mut error_response = secure_error_response(&security_error, is_development);
-        add_cors_headers(&mut error_response, &allowed_origins, req_origin.as_deref()).ok();
-        return Ok(error_response);
-    }
-    
-    match handlers::analyze_audio(req, ctx).await {
-        Ok(mut response) => {
-            add_cors_headers(&mut response, &allowed_origins, req_origin.as_deref()).ok();
-            Ok(response)
-        }
-        Err(e) => {
-            let mut error_response = secure_error_response(&e, is_development);
-            add_cors_headers(&mut error_response, &allowed_origins, req_origin.as_deref()).ok();
-            Ok(error_response)
-        }
-    }
+async fn status_handler(_req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    let info = SystemInfo::gather(&ctx.env).await?;
+    Response::from_json(&info)
 }
 
-/// Secure job status handler with authentication and CORS
-async fn secure_job_status_handler(req: Request, ctx: RouteContext<()>) -> Result<Response> {
-    // Get allowed origins for CORS and check development mode
-    let allowed_origins = get_allowed_origins_from_env(Some(&ctx.env));
-    let is_development = ctx.env.var("ENVIRONMENT")
-        .map(|env| env.to_string() == "development")
-        .unwrap_or(false);
-
-    // Capture origin before moving req
-    let req_origin = req.headers().get("Origin").ok().flatten();
-    
-    // Validate security first
-    if let Err(security_error) = validate_request_security(&req, &ctx.env).await {
-        let mut error_response = secure_error_response(&security_error, is_development);
-        add_cors_headers(&mut error_response, &allowed_origins, req_origin.as_deref()).ok();
-        return Ok(error_response);
-    }
-    
-    match handlers::get_job_status(req, ctx).await {
-        Ok(mut response) => {
-            add_cors_headers(&mut response, &allowed_origins, req_origin.as_deref()).ok();
-            Ok(response)
-        }
-        Err(e) => {
-            let mut error_response = secure_error_response(&e, is_development);
-            add_cors_headers(&mut error_response, &allowed_origins, req_origin.as_deref()).ok();
-            Ok(error_response)
-        }
-    }
+async fn not_found_handler(_req: Request, _ctx: RouteContext<()>) -> Result<Response> {
+    Response::error("Not Found", 404)
 }
 
-/// Secure result handler with authentication and CORS
-async fn secure_result_handler(req: Request, ctx: RouteContext<()>) -> Result<Response> {
-    // Get allowed origins for CORS and check development mode
-    let allowed_origins = get_allowed_origins_from_env(Some(&ctx.env));
-    let is_development = ctx.env.var("ENVIRONMENT")
-        .map(|env| env.to_string() == "development")
-        .unwrap_or(false);
+// ============================================================================
+// CORS Configuration
+// ============================================================================
 
-    // Capture origin before moving req
-    let req_origin = req.headers().get("Origin").ok().flatten();
-    
-    // Validate security first
-    if let Err(security_error) = validate_request_security(&req, &ctx.env).await {
-        let mut error_response = secure_error_response(&security_error, is_development);
-        add_cors_headers(&mut error_response, &allowed_origins, req_origin.as_deref()).ok();
-        return Ok(error_response);
-    }
-    
-    match handlers::get_analysis_result(req, ctx).await {
-        Ok(mut response) => {
-            add_cors_headers(&mut response, &allowed_origins, req_origin.as_deref()).ok();
-            Ok(response)
-        }
-        Err(e) => {
-            let mut error_response = secure_error_response(&e, is_development);
-            add_cors_headers(&mut error_response, &allowed_origins, req_origin.as_deref()).ok();
-            Ok(error_response)
-        }
-    }
-}
+fn get_cors_headers(env: &Env) -> worker::Cors {
+    let allowed_origins = env
+        .var("ALLOWED_ORIGINS")
+        .map(|v| v.to_string())
+        .unwrap_or_else(|_| "http://localhost:3000,http://localhost:5173".to_string());
 
-/// Secure compare handler with authentication and CORS
-async fn secure_compare_handler(req: Request, ctx: RouteContext<()>) -> Result<Response> {
-    // Get allowed origins for CORS and check development mode
-    let allowed_origins = get_allowed_origins_from_env(Some(&ctx.env));
-    let is_development = ctx.env.var("ENVIRONMENT")
-        .map(|env| env.to_string() == "development")
-        .unwrap_or(false);
+    let origins: Vec<&str> = allowed_origins.split(',').map(|s| s.trim()).collect();
 
-    // Capture origin before moving req
-    let req_origin = req.headers().get("Origin").ok().flatten();
-    
-    // Validate security first
-    if let Err(security_error) = validate_request_security(&req, &ctx.env).await {
-        let mut error_response = secure_error_response(&security_error, is_development);
-        add_cors_headers(&mut error_response, &allowed_origins, req_origin.as_deref()).ok();
-        return Ok(error_response);
-    }
-    
-    match handlers::compare_models(req, ctx).await {
-        Ok(mut response) => {
-            add_cors_headers(&mut response, &allowed_origins, req_origin.as_deref()).ok();
-            Ok(response)
-        }
-        Err(e) => {
-            let mut error_response = secure_error_response(&e, is_development);
-            add_cors_headers(&mut error_response, &allowed_origins, req_origin.as_deref()).ok();
-            Ok(error_response)
-        }
-    }
-}
-
-/// Secure comparison result handler with authentication and CORS
-async fn secure_comparison_result_handler(req: Request, ctx: RouteContext<()>) -> Result<Response> {
-    // Get allowed origins for CORS and check development mode
-    let allowed_origins = get_allowed_origins_from_env(Some(&ctx.env));
-    let is_development = ctx.env.var("ENVIRONMENT")
-        .map(|env| env.to_string() == "development")
-        .unwrap_or(false);
-
-    // Capture origin before moving req
-    let req_origin = req.headers().get("Origin").ok().flatten();
-    
-    // Validate security first
-    if let Err(security_error) = validate_request_security(&req, &ctx.env).await {
-        let mut error_response = secure_error_response(&security_error, is_development);
-        add_cors_headers(&mut error_response, &allowed_origins, req_origin.as_deref()).ok();
-        return Ok(error_response);
-    }
-    
-    match handlers::get_comparison_result(req, ctx).await {
-        Ok(mut response) => {
-            add_cors_headers(&mut response, &allowed_origins, req_origin.as_deref()).ok();
-            Ok(response)
-        }
-        Err(e) => {
-            let mut error_response = secure_error_response(&e, is_development);
-            add_cors_headers(&mut error_response, &allowed_origins, req_origin.as_deref()).ok();
-            Ok(error_response)
-        }
-    }
-}
-
-/// Secure preference handler with authentication and CORS
-async fn secure_preference_handler(req: Request, ctx: RouteContext<()>) -> Result<Response> {
-    // Get allowed origins for CORS and check development mode
-    let allowed_origins = get_allowed_origins_from_env(Some(&ctx.env));
-    let is_development = ctx.env.var("ENVIRONMENT")
-        .map(|env| env.to_string() == "development")
-        .unwrap_or(false);
-
-    // Capture origin before moving req
-    let req_origin = req.headers().get("Origin").ok().flatten();
-    
-    // Validate security first
-    if let Err(security_error) = validate_request_security(&req, &ctx.env).await {
-        let mut error_response = secure_error_response(&security_error, is_development);
-        add_cors_headers(&mut error_response, &allowed_origins, req_origin.as_deref()).ok();
-        return Ok(error_response);
-    }
-    
-    match handlers::save_user_preference(req, ctx).await {
-        Ok(mut response) => {
-            add_cors_headers(&mut response, &allowed_origins, req_origin.as_deref()).ok();
-            Ok(response)
-        }
-        Err(e) => {
-            let mut error_response = secure_error_response(&e, is_development);
-            add_cors_headers(&mut error_response, &allowed_origins, req_origin.as_deref()).ok();
-            Ok(error_response)
-        }
-    }
-}
-
-/// Secure tutor handler with authentication and CORS
-async fn secure_tutor_handler(req: Request, ctx: RouteContext<()>) -> Result<Response> {
-    // Get allowed origins for CORS and check development mode
-    let allowed_origins = get_allowed_origins_from_env(Some(&ctx.env));
-    let is_development = ctx.env.var("ENVIRONMENT")
-        .map(|env| env.to_string() == "development")
-        .unwrap_or(false);
-
-    // Capture origin before moving req
-    let req_origin = req.headers().get("Origin").ok().flatten();
-
-    // Validate security first
-    if let Err(security_error) = validate_request_security(&req, &ctx.env).await {
-        let mut error_response = secure_error_response(&security_error, is_development);
-        add_cors_headers(&mut error_response, &allowed_origins, req_origin.as_deref()).ok();
-        return Ok(error_response);
-    }
-
-    match handlers::generate_tutor_feedback(req, ctx).await {
-        Ok(mut response) => {
-            add_cors_headers(&mut response, &allowed_origins, req_origin.as_deref()).ok();
-            Ok(response)
-        }
-        Err(e) => {
-            let mut error_response = secure_error_response(&e, is_development);
-            add_cors_headers(&mut error_response, &allowed_origins, req_origin.as_deref()).ok();
-            Ok(error_response)
-        }
-    }
-}
-
-/// Secure session outcome handler with authentication and CORS
-async fn secure_session_outcome_handler(req: Request, ctx: RouteContext<()>) -> Result<Response> {
-    // Get allowed origins for CORS and check development mode
-    let allowed_origins = get_allowed_origins_from_env(Some(&ctx.env));
-    let is_development = ctx.env.var("ENVIRONMENT")
-        .map(|env| env.to_string() == "development")
-        .unwrap_or(false);
-
-    // Capture origin before moving req
-    let req_origin = req.headers().get("Origin").ok().flatten();
-
-    // Validate security first
-    if let Err(security_error) = validate_request_security(&req, &ctx.env).await {
-        let mut error_response = secure_error_response(&security_error, is_development);
-        add_cors_headers(&mut error_response, &allowed_origins, req_origin.as_deref()).ok();
-        return Ok(error_response);
-    }
-
-    match handlers::record_session_outcome(req, ctx).await {
-        Ok(mut response) => {
-            add_cors_headers(&mut response, &allowed_origins, req_origin.as_deref()).ok();
-            Ok(response)
-        }
-        Err(e) => {
-            let mut error_response = secure_error_response(&e, is_development);
-            add_cors_headers(&mut error_response, &allowed_origins, req_origin.as_deref()).ok();
-            Ok(error_response)
-        }
-    }
-}
-
-/// Basic health check handler (no authentication required)
-async fn basic_health_handler(req: Request, ctx: RouteContext<()>) -> Result<Response> {
-    let mut logger = RequestLogger::new(&req);
-    logger.log_request_start();
-    
-    let allowed_origins = get_allowed_origins_from_env(Some(&ctx.env));
-    
-    // Get KV store for health checker
-    let kv_store = ctx.env.kv("CRESCENDAI_METADATA").ok();
-    let health_checker = HealthChecker::new(kv_store);
-    
-    // Perform basic health check
-    let health_result = health_checker.basic_health_check().await;
-    
-    let status_code = if health_result.status == "healthy" { 200 } else { 503 };
-    
-    let mut response = Response::from_json(&serde_json::json!({
-        "status": health_result.status,
-        "message": "CrescendAI API health check",
-        "timestamp": health_result.timestamp,
-        "checks": health_result.checks,
-        "version": env!("CARGO_PKG_VERSION")
-    }))?;
-    
-    response = response.with_status(status_code);
-
-    // Use request origin if present
-    let req_origin = req.headers().get("Origin").ok().flatten();
-    add_cors_headers(&mut response, &allowed_origins, req_origin.as_deref())?;
-    
-    logger.log_request_complete(status_code, None);
-    Ok(response)
-}
-
-/// Detailed health check handler (requires authentication)
-async fn secure_detailed_health_handler(req: Request, ctx: RouteContext<()>) -> Result<Response> {
-    let mut logger = RequestLogger::new(&req);
-    logger.log_request_start();
-    
-    let allowed_origins = get_allowed_origins_from_env(Some(&ctx.env));
-    let is_development = ctx.env.var("ENVIRONMENT")
-        .map(|env| env.to_string() == "development")
-        .unwrap_or(false);
-
-    // Capture origin before moving req
-    let req_origin = req.headers().get("Origin").ok().flatten();
-    
-    // Validate security first
-    if let Err(security_error) = validate_request_security(&req, &ctx.env).await {
-        let mut error_response = secure_error_response(&security_error, is_development);
-        add_cors_headers(&mut error_response, &allowed_origins, req_origin.as_deref()).ok();
-        logger.log_error(&format!("{}", security_error), "authentication", None);
-        return Ok(error_response);
-    }
-    
-    // Get KV store for health checker
-    let kv_store = ctx.env.kv("CRESCENDAI_METADATA").ok();
-    let health_checker = HealthChecker::new(kv_store);
-    
-    // Perform detailed health check
-    let health_result = health_checker.detailed_health_check().await;
-    
-    let status_code = match health_result.status.as_str() {
-        "healthy" => 200,
-        "degraded" => 200, // Still operational but with warnings
-        _ => 503,
-    };
-    
-    let mut response = Response::from_json(&serde_json::json!({
-        "status": health_result.status,
-        "message": "CrescendAI API detailed health check",
-        "timestamp": health_result.timestamp,
-        "checks": health_result.checks,
-        "details": health_result.details,
-        "version": env!("CARGO_PKG_VERSION"),
-        "build_info": {
-            "target": "wasm32-unknown-unknown",
-            "runtime": "cloudflare-workers"
-        }
-    }))?;
-    
-    response = response.with_status(status_code);
-    add_cors_headers(&mut response, &allowed_origins, req_origin.as_deref())?;
-    
-    logger.log_request_complete(status_code, None);
-    Ok(response)
-}
-
-/// System info handler (requires authentication)
-async fn secure_system_info_handler(req: Request, ctx: RouteContext<()>) -> Result<Response> {
-    let mut logger = RequestLogger::new(&req);
-    logger.log_request_start();
-    
-    let allowed_origins = get_allowed_origins_from_env(Some(&ctx.env));
-    let is_development = ctx.env.var("ENVIRONMENT")
-        .map(|env| env.to_string() == "development")
-        .unwrap_or(false);
-    
-    // Capture origin before moving req
-    let req_origin = req.headers().get("Origin").ok().flatten();
-    
-    // Validate security first
-    if let Err(security_error) = validate_request_security(&req, &ctx.env).await {
-        let mut error_response = secure_error_response(&security_error, is_development);
-        add_cors_headers(&mut error_response, &allowed_origins, req_origin.as_deref()).ok();
-        logger.log_error(&format!("{}", security_error), "authentication", None);
-        return Ok(error_response);
-    }
-    
-    // Get system information
-    let system_info = SystemInfo::get_system_info();
-    let runtime_metrics = SystemInfo::get_runtime_metrics();
-    
-    let mut response = Response::from_json(&serde_json::json!({
-        "system": system_info,
-        "metrics": runtime_metrics,
-        "environment": {
-            "development_mode": is_development,
-            "allowed_origins": allowed_origins
-        }
-    }))?;
-    
-    add_cors_headers(&mut response, &allowed_origins, req_origin.as_deref())?;
-    
-    logger.log_request_complete(200, None);
-    Ok(response)
-}
-
-/// Secure tutor retrieve handler with authentication and CORS
-async fn secure_tutor_retrieve_handler(req: Request, ctx: RouteContext<()>) -> Result<Response> {
-    // Get allowed origins for CORS and check development mode
-    let allowed_origins = get_allowed_origins_from_env(Some(&ctx.env));
-    let is_development = ctx.env.var("ENVIRONMENT")
-        .map(|env| env.to_string() == "development")
-        .unwrap_or(false);
-
-    // Capture origin before moving req
-    let req_origin = req.headers().get("Origin").ok().flatten();
-
-    // Validate security first
-    if let Err(security_error) = validate_request_security(&req, &ctx.env).await {
-        let mut error_response = secure_error_response(&security_error, is_development);
-        add_cors_headers(&mut error_response, &allowed_origins, req_origin.as_deref()).ok();
-        return Ok(error_response);
-    }
-
-    match handlers::tutor_retrieve(req, ctx).await {
-        Ok(mut response) => {
-            add_cors_headers(&mut response, &allowed_origins, req_origin.as_deref()).ok();
-            Ok(response)
-        }
-        Err(e) => {
-            let mut error_response = secure_error_response(&e, is_development);
-            add_cors_headers(&mut error_response, &allowed_origins, req_origin.as_deref()).ok();
-            Ok(error_response)
-        }
-    }
-}
-
-/// Secure tutor ingest handler with authentication and CORS
-async fn secure_tutor_ingest_handler(req: Request, ctx: RouteContext<()>) -> Result<Response> {
-    // Get allowed origins for CORS and check development mode
-    let allowed_origins = get_allowed_origins_from_env(Some(&ctx.env));
-    let is_development = ctx.env.var("ENVIRONMENT")
-        .map(|env| env.to_string() == "development")
-        .unwrap_or(false);
-
-    // Capture origin before moving req
-    let req_origin = req.headers().get("Origin").ok().flatten();
-
-    // Validate security first
-    if let Err(security_error) = validate_request_security(&req, &ctx.env).await {
-        let mut error_response = secure_error_response(&security_error, is_development);
-        add_cors_headers(&mut error_response, &allowed_origins, req_origin.as_deref()).ok();
-        return Ok(error_response);
-    }
-
-    match handlers::tutor_ingest(req, ctx).await {
-        Ok(mut response) => {
-            add_cors_headers(&mut response, &allowed_origins, req_origin.as_deref()).ok();
-            Ok(response)
-        }
-        Err(e) => {
-            let mut error_response = secure_error_response(&e, is_development);
-            add_cors_headers(&mut error_response, &allowed_origins, req_origin.as_deref()).ok();
-            Ok(error_response)
-        }
-    }
-}
-
-/// Secure tutor validate handler with authentication and CORS
-async fn secure_tutor_validate_handler(req: Request, ctx: RouteContext<()>) -> Result<Response> {
-    // Get allowed origins for CORS and check development mode
-    let allowed_origins = get_allowed_origins_from_env(Some(&ctx.env));
-    let is_development = ctx.env.var("ENVIRONMENT")
-        .map(|env| env.to_string() == "development")
-        .unwrap_or(false);
-
-    // Capture origin before moving req
-    let req_origin = req.headers().get("Origin").ok().flatten();
-
-    // Validate security first
-    if let Err(security_error) = validate_request_security(&req, &ctx.env).await {
-        let mut error_response = secure_error_response(&security_error, is_development);
-        add_cors_headers(&mut error_response, &allowed_origins, req_origin.as_deref()).ok();
-        return Ok(error_response);
-    }
-
-    match handlers::tutor_validate(req, ctx).await {
-        Ok(mut response) => {
-            add_cors_headers(&mut response, &allowed_origins, req_origin.as_deref()).ok();
-            Ok(response)
-        }
-        Err(e) => {
-            let mut error_response = secure_error_response(&e, is_development);
-            add_cors_headers(&mut error_response, &allowed_origins, req_origin.as_deref()).ok();
-            Ok(error_response)
-        }
-    }
-}
-
-/// Secure tutor purge handler with authentication and CORS
-async fn secure_tutor_purge_handler(req: Request, ctx: RouteContext<()>) -> Result<Response> {
-    // Get allowed origins for CORS and check development mode
-    let allowed_origins = get_allowed_origins_from_env(Some(&ctx.env));
-    let is_development = ctx.env.var("ENVIRONMENT")
-        .map(|env| env.to_string() == "development")
-        .unwrap_or(false);
-
-    // Capture origin before moving req
-    let req_origin = req.headers().get("Origin").ok().flatten();
-
-    // Validate security first
-    if let Err(security_error) = validate_request_security(&req, &ctx.env).await {
-        let mut error_response = secure_error_response(&security_error, is_development);
-        add_cors_headers(&mut error_response, &allowed_origins, req_origin.as_deref()).ok();
-        return Ok(error_response);
-    }
-
-    match handlers::tutor_purge(req, ctx).await {
-        Ok(mut response) => {
-            add_cors_headers(&mut response, &allowed_origins, req_origin.as_deref()).ok();
-            Ok(response)
-        }
-        Err(e) => {
-            let mut error_response = secure_error_response(&e, is_development);
-            add_cors_headers(&mut error_response, &allowed_origins, req_origin.as_deref()).ok();
-            Ok(error_response)
-        }
-    }
+    worker::Cors::new()
+        .with_origins(origins)
+        .with_methods(vec![
+            Method::Get,
+            Method::Post,
+            Method::Put,
+            Method::Delete,
+            Method::Options,
+        ])
+        .with_allowed_headers(vec![
+            "Content-Type",
+            "Authorization",
+            "X-API-Key",
+        ])
+        .with_max_age(86400)
 }

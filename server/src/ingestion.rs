@@ -121,21 +121,30 @@ pub async fn process_document(
     Ok(kb_chunks)
 }
 
-/// Store chunks in KV (Vectorize disabled for this build)
-pub async fn store_chunks(env: &Env, chunks: &[KBChunk]) -> Result<usize> {
-    let kv = env.kv("CRESCENDAI_METADATA")?;
-    
+/// Store chunks in D1 database (with optional KV backup for caching)
+pub async fn store_chunks(env: &Env, chunks: &[KBChunk], document_id: &str) -> Result<usize> {
     let mut stored_count = 0;
 
     for chunk in chunks {
-        // Store chunk JSON in KV for retrieval
-        let kv_key = format!("doc:{}:chunk:{}", chunk.doc_id, chunk.chunk_id);
-        let chunk_json = serde_json::to_string(chunk)
-            .map_err(|e| worker::Error::RustError(format!("Chunk serialization failed: {}", e)))?;
-        
-        kv.put(&kv_key, &chunk_json)?.execute().await?;
-        
-        stored_count += 1;
+        // Store in D1 database using the proper knowledge base schema
+        match crate::db::knowledge::insert_chunk(
+            env,
+            document_id,
+            chunk.chunk_id as i32,
+            &chunk.text,
+            None, // vectorize_id - will be added when Vectorize is available
+            None, // token_count - can calculate later if needed
+            None, // metadata
+        ).await {
+            Ok(_) => {
+                stored_count += 1;
+                console_log!("Stored chunk {} in D1", chunk.id);
+            }
+            Err(e) => {
+                console_log!("Failed to store chunk {} in D1: {:?}", chunk.id, e);
+                return Err(worker::Error::RustError(format!("Failed to store chunk in D1: {:?}", e)));
+            }
+        }
     }
 
     Ok(stored_count)
@@ -221,16 +230,45 @@ pub async fn ingest_documents(env: &Env, request: IngestionRequest) -> Result<In
     let mut processed_docs = 0;
 
     for doc in &request.documents {
+        // First, create the document in D1 knowledge_documents table
+        let pdf_filename = doc.pdf_filename.as_deref();
+        let doc_metadata = serde_json::json!({
+            "tags": doc.tags,
+            "content_length": doc.content.len(),
+        }).to_string();
+
+        let knowledge_doc = match crate::db::knowledge::insert_document(
+            env,
+            &doc.title,
+            doc.url.as_deref(),
+            "pdf", // default to pdf, could be enhanced
+            None, // author
+            None, // year
+            pdf_filename,
+            Some(&doc_metadata),
+        ).await {
+            Ok(d) => d,
+            Err(e) => {
+                errors.push(format!("Failed to create document {} in D1: {:?}", doc.id, e));
+                continue;
+            }
+        };
+
+        console_log!("Created knowledge document {} in D1", knowledge_doc.id);
+
+        // Process and chunk the document
         match process_document(env, doc, &config).await {
             Ok(chunks) => {
-                match store_chunks(env, &chunks).await {
+                // Store chunks in D1 with the document ID from D1
+                match store_chunks(env, &chunks, &knowledge_doc.id).await {
                     Ok(stored_count) => {
                         total_chunks += stored_count;
                         processed_docs += 1;
-                        
+                        console_log!("Stored {} chunks for document {}", stored_count, knowledge_doc.id);
+
                         // Store PDF if provided
                         if let (Some(pdf_data), Some(filename)) = (&doc.pdf_data, &doc.pdf_filename) {
-                            if let Err(e) = store_pdf(env, &doc.id, pdf_data, filename).await {
+                            if let Err(e) = store_pdf(env, &knowledge_doc.id, pdf_data, filename).await {
                                 errors.push(format!("Failed to store PDF for {}: {}", doc.id, e));
                             }
                         }
@@ -295,36 +333,50 @@ pub async fn validate_setup(env: &Env) -> Result<serde_json::Value> {
     Ok(serde_json::Value::Object(checks))
 }
 
-/// Purge document data using native Wrangler bindings
+/// Purge document data from D1 and KV
 pub async fn purge_document(env: &Env, doc_id: &str) -> Result<serde_json::Value> {
-    let kv = env.kv("CRESCENDAI_METADATA")?;
-    
     let mut results = serde_json::Map::new();
-    let mut deleted_kv_keys = 0;
-    
-    // Collect chunk IDs to delete (simplified approach)
-    for chunk_idx in 0..1000 { // Assume max 1000 chunks per doc
-        // Try to delete from KV
-        let kv_key = format!("doc:{}:chunk:{}", doc_id, chunk_idx);
-        if kv.delete(&kv_key).await.is_ok() {
+
+    // Delete from D1 - this will cascade delete chunks due to foreign key
+    let db = env.d1("DB")
+        .map_err(|e| worker::Error::RustError(format!("Failed to get DB binding: {}", e)))?;
+
+    // Delete document (cascades to chunks and FTS entries)
+    let delete_stmt = db.prepare("DELETE FROM knowledge_documents WHERE id = ?1");
+    let delete_query = delete_stmt
+        .bind(&[wasm_bindgen::JsValue::from_str(doc_id)])
+        .map_err(|e| worker::Error::RustError(format!("Failed to bind parameter: {}", e)))?;
+
+    match delete_query.run().await {
+        Ok(_) => {
+            results.insert("d1_document_deleted".to_string(), serde_json::json!(true));
+            console_log!("Deleted document {} from D1 (with cascade)", doc_id);
+        }
+        Err(e) => {
+            results.insert("d1_error".to_string(), serde_json::json!(format!("{}", e)));
+        }
+    }
+
+    // Clean up KV cache entries
+    if let Ok(kv) = env.kv("CRESCENDAI_METADATA") {
+        let mut deleted_kv_keys = 0;
+
+        // Try to delete PDF from KV
+        let pdf_key = format!("pdf:{}:", doc_id);
+        if kv.delete(&pdf_key).await.is_ok() {
             deleted_kv_keys += 1;
         }
-        
-        // If we haven't found any KV keys for a while, assume we're done
-        if chunk_idx > 10 && deleted_kv_keys == 0 {
-            break;
+
+        // Try to delete manifest entries
+        let manifest_key = format!("manifest:*:{}:*", doc_id);
+        if kv.delete(&manifest_key).await.is_ok() {
+            deleted_kv_keys += 1;
         }
+
+        results.insert("kv_keys_deleted".to_string(), serde_json::json!(deleted_kv_keys));
     }
-    
-    // Also try to delete PDF from KV (pattern-based cleanup)
-    let pdf_pattern_keys = ["pdf:{}:*.pdf", "pdf:{}/*"];
-    for pattern in pdf_pattern_keys {
-        let pdf_key = pattern.replace("{}", doc_id);
-        let _ = kv.delete(&pdf_key).await; // Best effort
-    }
-    
-    results.insert("deleted_kv_keys".to_string(), serde_json::json!(deleted_kv_keys));
-    results.insert("note".to_string(), serde_json::json!("Vectorize deletion skipped; performed KV cleanup only"));
-    
+
+    results.insert("note".to_string(), serde_json::json!("Document and chunks deleted from D1; KV cache cleaned up"));
+
     Ok(serde_json::Value::Object(results))
 }

@@ -1,0 +1,18 @@
+name = "crescendai-dedalus-worker"
+main = "index.py"
+compatibility_date = "2024-10-30"
+compatibility_flags = ["python_workers"]
+
+# Python Workers runtime
+# Note: Python Workers are in beta, using Pyodide runtime
+
+[observability]
+enabled = true
+
+# Development configuration
+[env.development]
+vars = { ENV = "development" }
+
+# Production configuration
+[env.production]
+vars = { ENV = "production" }

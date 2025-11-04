@@ -1,0 +1,3302 @@
+[
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_024.wav",
+      "segment_id": "MIDI-Unprocessed_052_PIANO052_MID--AUDIO-split_07-06-17_Piano-e_3-03_wav--5_seg018",
+      "composer": "Fr\u00e9d\u00e9ric Chopin",
+      "title": "Sonata No. 3 in B Minor, Op. 58, I. Allegro maestoso",
+      "difficulty": 3.5,
+      "start_time": 360.0,
+      "end_time": 385.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Fr\u00e9d\u00e9ric Chopin",
+      "title_display": "Title: Sonata No. 3 in B Minor, Op. 58, I. Allegro maestoso",
+      "difficulty_display": "Difficulty: 3.5",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-Unprocessed_052_PIANO052_MID--AUDIO-split_07-06-17_Piano-e_3-03_wav--5/MIDI-Unprocessed_052_PIANO052_MID--AUDIO-split_07-06-17_Piano-e_3-03_wav--5_seg018.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-Unprocessed_052_PIANO052_MID--AUDIO-split_07-06-17_Piano-e_3-03_wav--5",
+      "midi_path": "segments/MIDI-Unprocessed_052_PIANO052_MID--AUDIO-split_07-06-17_Piano-e_3-03_wav--5/MIDI-Unprocessed_052_PIANO052_MID--AUDIO-split_07-06-17_Piano-e_3-03_wav--5_seg018.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_057.wav",
+      "segment_id": "youtube_LdH1hSWGFGU_3",
+      "source": "youtube",
+      "video_id": "LdH1hSWGFGU",
+      "duration": 25.0,
+      "piano_confidence": 0.7,
+      "original_path": "youtube_segments/LdH1hSWGFGU/segment_003.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_129.wav",
+      "segment_id": "youtube_VHwlGiF4CpE_0",
+      "source": "youtube",
+      "video_id": "VHwlGiF4CpE",
+      "duration": 25.0,
+      "piano_confidence": 1.0,
+      "original_path": "youtube_segments/VHwlGiF4CpE/segment_000.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_301.wav",
+      "segment_id": "youtube_gEKdcbqU-Ds_3",
+      "source": "youtube",
+      "video_id": "gEKdcbqU-Ds",
+      "duration": 25.0,
+      "piano_confidence": 0.7,
+      "original_path": "youtube_segments/gEKdcbqU-Ds/segment_003.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_045.wav",
+      "segment_id": "youtube_AqsibzAiIBs_28",
+      "source": "youtube",
+      "video_id": "AqsibzAiIBs",
+      "duration": 25.0,
+      "piano_confidence": 1.0,
+      "original_path": "youtube_segments/AqsibzAiIBs/segment_028.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_172.wav",
+      "segment_id": "youtube_bMPrD6DN7Ks_17",
+      "source": "youtube",
+      "video_id": "bMPrD6DN7Ks",
+      "duration": 25.0,
+      "piano_confidence": 1.0,
+      "original_path": "youtube_segments/bMPrD6DN7Ks/segment_017.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_020.wav",
+      "segment_id": "MIDI-Unprocessed_04_R1_2006_01-04_ORIG_MID--AUDIO_04_R1_2006_02_Track02_wav_seg029",
+      "composer": "Claude Debussy",
+      "title": "PreludesBII/7-12",
+      "difficulty": 3.5,
+      "start_time": 580.0,
+      "end_time": 605.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Claude Debussy",
+      "title_display": "Title: PreludesBII/7-12",
+      "difficulty_display": "Difficulty: 3.5",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-Unprocessed_04_R1_2006_01-04_ORIG_MID--AUDIO_04_R1_2006_02_Track02_wav/MIDI-Unprocessed_04_R1_2006_01-04_ORIG_MID--AUDIO_04_R1_2006_02_Track02_wav_seg029.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-Unprocessed_04_R1_2006_01-04_ORIG_MID--AUDIO_04_R1_2006_02_Track02_wav",
+      "midi_path": "segments/MIDI-Unprocessed_04_R1_2006_01-04_ORIG_MID--AUDIO_04_R1_2006_02_Track02_wav/MIDI-Unprocessed_04_R1_2006_01-04_ORIG_MID--AUDIO_04_R1_2006_02_Track02_wav_seg029.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_045.wav",
+      "segment_id": "MIDI-Unprocessed_12_R1_2006_01-08_ORIG_MID--AUDIO_12_R1_2006_02_Track02_wav_seg007",
+      "composer": "Alexander Scriabin",
+      "title": "Sonata No. 2",
+      "difficulty": 4.0,
+      "start_time": 140.0,
+      "end_time": 165.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Alexander Scriabin",
+      "title_display": "Title: Sonata No. 2",
+      "difficulty_display": "Difficulty: 4.0",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-Unprocessed_12_R1_2006_01-08_ORIG_MID--AUDIO_12_R1_2006_02_Track02_wav/MIDI-Unprocessed_12_R1_2006_01-08_ORIG_MID--AUDIO_12_R1_2006_02_Track02_wav_seg007.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-Unprocessed_12_R1_2006_01-08_ORIG_MID--AUDIO_12_R1_2006_02_Track02_wav",
+      "midi_path": "segments/MIDI-Unprocessed_12_R1_2006_01-08_ORIG_MID--AUDIO_12_R1_2006_02_Track02_wav/MIDI-Unprocessed_12_R1_2006_01-08_ORIG_MID--AUDIO_12_R1_2006_02_Track02_wav_seg007.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_100.wav",
+      "segment_id": "ORIG-MIDI_03_7_8_13_Group__MID--AUDIO_18_R2_2013_wav--4_seg019",
+      "composer": "Fr\u00e9d\u00e9ric Chopin",
+      "title": "Sonata No. 3 in B Minor, Op. 58, 1st mov.",
+      "difficulty": 3.5,
+      "start_time": 380.0,
+      "end_time": 405.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Fr\u00e9d\u00e9ric Chopin",
+      "title_display": "Title: Sonata No. 3 in B Minor, Op. 58, 1st mov.",
+      "difficulty_display": "Difficulty: 3.5",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/ORIG-MIDI_03_7_8_13_Group__MID--AUDIO_18_R2_2013_wav--4/ORIG-MIDI_03_7_8_13_Group__MID--AUDIO_18_R2_2013_wav--4_seg019.wav"
+    },
+    "meta": {
+      "piece_id": "ORIG-MIDI_03_7_8_13_Group__MID--AUDIO_18_R2_2013_wav--4",
+      "midi_path": "segments/ORIG-MIDI_03_7_8_13_Group__MID--AUDIO_18_R2_2013_wav--4/ORIG-MIDI_03_7_8_13_Group__MID--AUDIO_18_R2_2013_wav--4_seg019.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_079.wav",
+      "segment_id": "MIDI-Unprocessed_XP_06_R1_2004_01_ORIG_MID--AUDIO_06_R1_2004_01_Track01_wav_seg045",
+      "composer": "Fr\u00e9d\u00e9ric Chopin",
+      "title": "24 Preludes, Op. 28",
+      "difficulty": 2.5,
+      "start_time": 900.0,
+      "end_time": 925.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Fr\u00e9d\u00e9ric Chopin",
+      "title_display": "Title: 24 Preludes, Op. 28",
+      "difficulty_display": "Difficulty: 2.5",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-Unprocessed_XP_06_R1_2004_01_ORIG_MID--AUDIO_06_R1_2004_01_Track01_wav/MIDI-Unprocessed_XP_06_R1_2004_01_ORIG_MID--AUDIO_06_R1_2004_01_Track01_wav_seg045.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-Unprocessed_XP_06_R1_2004_01_ORIG_MID--AUDIO_06_R1_2004_01_Track01_wav",
+      "midi_path": "segments/MIDI-Unprocessed_XP_06_R1_2004_01_ORIG_MID--AUDIO_06_R1_2004_01_Track01_wav/MIDI-Unprocessed_XP_06_R1_2004_01_ORIG_MID--AUDIO_06_R1_2004_01_Track01_wav_seg045.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_134.wav",
+      "segment_id": "youtube_VHwlGiF4CpE_6",
+      "source": "youtube",
+      "video_id": "VHwlGiF4CpE",
+      "duration": 25.0,
+      "piano_confidence": 0.8,
+      "original_path": "youtube_segments/VHwlGiF4CpE/segment_006.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_339.wav",
+      "segment_id": "youtube_u6N4enSvNW4_1",
+      "source": "youtube",
+      "video_id": "u6N4enSvNW4",
+      "duration": 25.0,
+      "piano_confidence": 0.7,
+      "original_path": "youtube_segments/u6N4enSvNW4/segment_001.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_246.wav",
+      "segment_id": "youtube_bMPrD6DN7Ks_100",
+      "source": "youtube",
+      "video_id": "bMPrD6DN7Ks",
+      "duration": 25.0,
+      "piano_confidence": 1.0,
+      "original_path": "youtube_segments/bMPrD6DN7Ks/segment_100.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_036.wav",
+      "segment_id": "MIDI-Unprocessed_09_R1_2011_MID--AUDIO_R1-D3_12_Track12_wav_seg004",
+      "composer": "Johann Sebastian Bach",
+      "title": "Prelude and Fugue in B Major, WTC II, BWV 892",
+      "difficulty": 3.5,
+      "start_time": 80.0,
+      "end_time": 105.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Johann Sebastian Bach",
+      "title_display": "Title: Prelude and Fugue in B Major, WTC II, BWV 892",
+      "difficulty_display": "Difficulty: 3.5",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-Unprocessed_09_R1_2011_MID--AUDIO_R1-D3_12_Track12_wav/MIDI-Unprocessed_09_R1_2011_MID--AUDIO_R1-D3_12_Track12_wav_seg004.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-Unprocessed_09_R1_2011_MID--AUDIO_R1-D3_12_Track12_wav",
+      "midi_path": "segments/MIDI-Unprocessed_09_R1_2011_MID--AUDIO_R1-D3_12_Track12_wav/MIDI-Unprocessed_09_R1_2011_MID--AUDIO_R1-D3_12_Track12_wav_seg004.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_319.wav",
+      "segment_id": "youtube_ofnjUvih9Dc_6",
+      "source": "youtube",
+      "video_id": "ofnjUvih9Dc",
+      "duration": 25.0,
+      "piano_confidence": 0.7,
+      "original_path": "youtube_segments/ofnjUvih9Dc/segment_006.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_082.wav",
+      "segment_id": "youtube_PgFRQfKhG-w_13",
+      "source": "youtube",
+      "video_id": "PgFRQfKhG-w",
+      "duration": 25.0,
+      "piano_confidence": 0.7,
+      "original_path": "youtube_segments/PgFRQfKhG-w/segment_013.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_080.wav",
+      "segment_id": "MIDI-Unprocessed_XP_06_R1_2004_01_ORIG_MID--AUDIO_06_R1_2004_01_Track01_wav_seg075",
+      "composer": "Fr\u00e9d\u00e9ric Chopin",
+      "title": "24 Preludes, Op. 28",
+      "difficulty": 2.5,
+      "start_time": 1500.0,
+      "end_time": 1525.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Fr\u00e9d\u00e9ric Chopin",
+      "title_display": "Title: 24 Preludes, Op. 28",
+      "difficulty_display": "Difficulty: 2.5",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-Unprocessed_XP_06_R1_2004_01_ORIG_MID--AUDIO_06_R1_2004_01_Track01_wav/MIDI-Unprocessed_XP_06_R1_2004_01_ORIG_MID--AUDIO_06_R1_2004_01_Track01_wav_seg075.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-Unprocessed_XP_06_R1_2004_01_ORIG_MID--AUDIO_06_R1_2004_01_Track01_wav",
+      "midi_path": "segments/MIDI-Unprocessed_XP_06_R1_2004_01_ORIG_MID--AUDIO_06_R1_2004_01_Track01_wav/MIDI-Unprocessed_XP_06_R1_2004_01_ORIG_MID--AUDIO_06_R1_2004_01_Track01_wav_seg075.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_059.wav",
+      "segment_id": "youtube_LdH1hSWGFGU_5",
+      "source": "youtube",
+      "video_id": "LdH1hSWGFGU",
+      "duration": 25.0,
+      "piano_confidence": 1.0,
+      "original_path": "youtube_segments/LdH1hSWGFGU/segment_005.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_055.wav",
+      "segment_id": "MIDI-Unprocessed_19_R1_2009_01-02_ORIG_MID--AUDIO_19_R1_2009_19_R1_2009_02_WAV_seg053",
+      "composer": "Franz Liszt",
+      "title": "Sonata in B Minor, S. 178",
+      "difficulty": 4.0,
+      "start_time": 1060.0,
+      "end_time": 1085.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Franz Liszt",
+      "title_display": "Title: Sonata in B Minor, S. 178",
+      "difficulty_display": "Difficulty: 4.0",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-Unprocessed_19_R1_2009_01-02_ORIG_MID--AUDIO_19_R1_2009_19_R1_2009_02_WAV/MIDI-Unprocessed_19_R1_2009_01-02_ORIG_MID--AUDIO_19_R1_2009_19_R1_2009_02_WAV_seg053.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-Unprocessed_19_R1_2009_01-02_ORIG_MID--AUDIO_19_R1_2009_19_R1_2009_02_WAV",
+      "midi_path": "segments/MIDI-Unprocessed_19_R1_2009_01-02_ORIG_MID--AUDIO_19_R1_2009_19_R1_2009_02_WAV/MIDI-Unprocessed_19_R1_2009_01-02_ORIG_MID--AUDIO_19_R1_2009_19_R1_2009_02_WAV_seg053.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_046.wav",
+      "segment_id": "MIDI-Unprocessed_12_R1_2006_01-08_ORIG_MID--AUDIO_12_R1_2006_02_Track02_wav_seg023",
+      "composer": "Alexander Scriabin",
+      "title": "Sonata No. 2",
+      "difficulty": 4.0,
+      "start_time": 460.0,
+      "end_time": 485.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Alexander Scriabin",
+      "title_display": "Title: Sonata No. 2",
+      "difficulty_display": "Difficulty: 4.0",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-Unprocessed_12_R1_2006_01-08_ORIG_MID--AUDIO_12_R1_2006_02_Track02_wav/MIDI-Unprocessed_12_R1_2006_01-08_ORIG_MID--AUDIO_12_R1_2006_02_Track02_wav_seg023.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-Unprocessed_12_R1_2006_01-08_ORIG_MID--AUDIO_12_R1_2006_02_Track02_wav",
+      "midi_path": "segments/MIDI-Unprocessed_12_R1_2006_01-08_ORIG_MID--AUDIO_12_R1_2006_02_Track02_wav/MIDI-Unprocessed_12_R1_2006_01-08_ORIG_MID--AUDIO_12_R1_2006_02_Track02_wav_seg023.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_320.wav",
+      "segment_id": "youtube_ofnjUvih9Dc_7",
+      "source": "youtube",
+      "video_id": "ofnjUvih9Dc",
+      "duration": 25.0,
+      "piano_confidence": 0.7,
+      "original_path": "youtube_segments/ofnjUvih9Dc/segment_007.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_005.wav",
+      "segment_id": "MIDI-UNPROCESSED_16-18_R1_2014_MID--AUDIO_16_R1_2014_wav--3_seg008",
+      "composer": "C\u00e9sar Franck",
+      "title": "Pr\u00e9lude, chorale, et fugue, M. 21",
+      "difficulty": 3.0,
+      "start_time": 160.0,
+      "end_time": 185.0,
+      "duration": 25.0,
+      "composer_display": "Composer: C\u00e9sar Franck",
+      "title_display": "Title: Pr\u00e9lude, chorale, et fugue, M. 21",
+      "difficulty_display": "Difficulty: 3.0",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-UNPROCESSED_16-18_R1_2014_MID--AUDIO_16_R1_2014_wav--3/MIDI-UNPROCESSED_16-18_R1_2014_MID--AUDIO_16_R1_2014_wav--3_seg008.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-UNPROCESSED_16-18_R1_2014_MID--AUDIO_16_R1_2014_wav--3",
+      "midi_path": "segments/MIDI-UNPROCESSED_16-18_R1_2014_MID--AUDIO_16_R1_2014_wav--3/MIDI-UNPROCESSED_16-18_R1_2014_MID--AUDIO_16_R1_2014_wav--3_seg008.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_084.wav",
+      "segment_id": "MIDI-Unprocessed_XP_14_R2_2004_01_ORIG_MID--AUDIO_14_R2_2004_02_Track02_wav_seg022",
+      "composer": "Franz Schubert",
+      "title": "Sonata in B-flat Major, D960",
+      "difficulty": 3.0,
+      "start_time": 440.0,
+      "end_time": 465.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Franz Schubert",
+      "title_display": "Title: Sonata in B-flat Major, D960",
+      "difficulty_display": "Difficulty: 3.0",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-Unprocessed_XP_14_R2_2004_01_ORIG_MID--AUDIO_14_R2_2004_02_Track02_wav/MIDI-Unprocessed_XP_14_R2_2004_01_ORIG_MID--AUDIO_14_R2_2004_02_Track02_wav_seg022.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-Unprocessed_XP_14_R2_2004_01_ORIG_MID--AUDIO_14_R2_2004_02_Track02_wav",
+      "midi_path": "segments/MIDI-Unprocessed_XP_14_R2_2004_01_ORIG_MID--AUDIO_14_R2_2004_02_Track02_wav/MIDI-Unprocessed_XP_14_R2_2004_01_ORIG_MID--AUDIO_14_R2_2004_02_Track02_wav_seg022.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_217.wav",
+      "segment_id": "youtube_bMPrD6DN7Ks_68",
+      "source": "youtube",
+      "video_id": "bMPrD6DN7Ks",
+      "duration": 25.0,
+      "piano_confidence": 1.0,
+      "original_path": "youtube_segments/bMPrD6DN7Ks/segment_068.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_056.wav",
+      "segment_id": "youtube_LdH1hSWGFGU_2",
+      "source": "youtube",
+      "video_id": "LdH1hSWGFGU",
+      "duration": 25.0,
+      "piano_confidence": 0.7,
+      "original_path": "youtube_segments/LdH1hSWGFGU/segment_002.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_077.wav",
+      "segment_id": "youtube_PgFRQfKhG-w_5",
+      "source": "youtube",
+      "video_id": "PgFRQfKhG-w",
+      "duration": 25.0,
+      "piano_confidence": 0.7,
+      "original_path": "youtube_segments/PgFRQfKhG-w/segment_005.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_060.wav",
+      "segment_id": "MIDI-Unprocessed_R1_D1-1-8_mid--AUDIO-from_mp3_03_R1_2015_wav--2_seg003",
+      "composer": "Fr\u00e9d\u00e9ric Chopin",
+      "title": "Etude Op. 10 No. 1",
+      "difficulty": 4.0,
+      "start_time": 60.0,
+      "end_time": 85.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Fr\u00e9d\u00e9ric Chopin",
+      "title_display": "Title: Etude Op. 10 No. 1",
+      "difficulty_display": "Difficulty: 4.0",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-Unprocessed_R1_D1-1-8_mid--AUDIO-from_mp3_03_R1_2015_wav--2/MIDI-Unprocessed_R1_D1-1-8_mid--AUDIO-from_mp3_03_R1_2015_wav--2_seg003.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-Unprocessed_R1_D1-1-8_mid--AUDIO-from_mp3_03_R1_2015_wav--2",
+      "midi_path": "segments/MIDI-Unprocessed_R1_D1-1-8_mid--AUDIO-from_mp3_03_R1_2015_wav--2/MIDI-Unprocessed_R1_D1-1-8_mid--AUDIO-from_mp3_03_R1_2015_wav--2_seg003.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_043.wav",
+      "segment_id": "youtube_AqsibzAiIBs_26",
+      "source": "youtube",
+      "video_id": "AqsibzAiIBs",
+      "duration": 25.0,
+      "piano_confidence": 1.0,
+      "original_path": "youtube_segments/AqsibzAiIBs/segment_026.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_010.wav",
+      "segment_id": "MIDI-UNPROCESSED_21-22_R1_2014_MID--AUDIO_22_R1_2014_wav--4_seg024",
+      "composer": "Alexander Scriabin",
+      "title": "Sonata No. 5, Op. 53",
+      "difficulty": 4.0,
+      "start_time": 480.0,
+      "end_time": 505.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Alexander Scriabin",
+      "title_display": "Title: Sonata No. 5, Op. 53",
+      "difficulty_display": "Difficulty: 4.0",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-UNPROCESSED_21-22_R1_2014_MID--AUDIO_22_R1_2014_wav--4/MIDI-UNPROCESSED_21-22_R1_2014_MID--AUDIO_22_R1_2014_wav--4_seg024.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-UNPROCESSED_21-22_R1_2014_MID--AUDIO_22_R1_2014_wav--4",
+      "midi_path": "segments/MIDI-UNPROCESSED_21-22_R1_2014_MID--AUDIO_22_R1_2014_wav--4/MIDI-UNPROCESSED_21-22_R1_2014_MID--AUDIO_22_R1_2014_wav--4_seg024.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_302.wav",
+      "segment_id": "youtube_gEKdcbqU-Ds_4",
+      "source": "youtube",
+      "video_id": "gEKdcbqU-Ds",
+      "duration": 25.0,
+      "piano_confidence": 0.7,
+      "original_path": "youtube_segments/gEKdcbqU-Ds/segment_004.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_022.wav",
+      "segment_id": "MIDI-Unprocessed_04_R3_2008_01-07_ORIG_MID--AUDIO_04_R3_2008_wav--2_seg001",
+      "composer": "Franz Liszt",
+      "title": "Transcendental Etude No. 1 \"Prelude\"",
+      "difficulty": 5.0,
+      "start_time": 20.0,
+      "end_time": 45.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Franz Liszt",
+      "title_display": "Title: Transcendental Etude No. 1 \"Prelude\"",
+      "difficulty_display": "Difficulty: 5.0",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-Unprocessed_04_R3_2008_01-07_ORIG_MID--AUDIO_04_R3_2008_wav--2/MIDI-Unprocessed_04_R3_2008_01-07_ORIG_MID--AUDIO_04_R3_2008_wav--2_seg001.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-Unprocessed_04_R3_2008_01-07_ORIG_MID--AUDIO_04_R3_2008_wav--2",
+      "midi_path": "segments/MIDI-Unprocessed_04_R3_2008_01-07_ORIG_MID--AUDIO_04_R3_2008_wav--2/MIDI-Unprocessed_04_R3_2008_01-07_ORIG_MID--AUDIO_04_R3_2008_wav--2_seg001.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_204.wav",
+      "segment_id": "youtube_bMPrD6DN7Ks_52",
+      "source": "youtube",
+      "video_id": "bMPrD6DN7Ks",
+      "duration": 25.0,
+      "piano_confidence": 1.0,
+      "original_path": "youtube_segments/bMPrD6DN7Ks/segment_052.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_019.wav",
+      "segment_id": "MIDI-Unprocessed_04_R1_2006_01-04_ORIG_MID--AUDIO_04_R1_2006_02_Track02_wav_seg009",
+      "composer": "Claude Debussy",
+      "title": "PreludesBII/7-12",
+      "difficulty": 3.5,
+      "start_time": 180.0,
+      "end_time": 205.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Claude Debussy",
+      "title_display": "Title: PreludesBII/7-12",
+      "difficulty_display": "Difficulty: 3.5",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-Unprocessed_04_R1_2006_01-04_ORIG_MID--AUDIO_04_R1_2006_02_Track02_wav/MIDI-Unprocessed_04_R1_2006_01-04_ORIG_MID--AUDIO_04_R1_2006_02_Track02_wav_seg009.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-Unprocessed_04_R1_2006_01-04_ORIG_MID--AUDIO_04_R1_2006_02_Track02_wav",
+      "midi_path": "segments/MIDI-Unprocessed_04_R1_2006_01-04_ORIG_MID--AUDIO_04_R1_2006_02_Track02_wav/MIDI-Unprocessed_04_R1_2006_01-04_ORIG_MID--AUDIO_04_R1_2006_02_Track02_wav_seg009.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_069.wav",
+      "segment_id": "MIDI-Unprocessed_R1_D2-13-20_mid--AUDIO-from_mp3_18_R1_2015_wav--4_seg020",
+      "composer": "Franz Liszt",
+      "title": "Tarantella",
+      "difficulty": 4.0,
+      "start_time": 400.0,
+      "end_time": 425.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Franz Liszt",
+      "title_display": "Title: Tarantella",
+      "difficulty_display": "Difficulty: 4.0",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-Unprocessed_R1_D2-13-20_mid--AUDIO-from_mp3_18_R1_2015_wav--4/MIDI-Unprocessed_R1_D2-13-20_mid--AUDIO-from_mp3_18_R1_2015_wav--4_seg020.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-Unprocessed_R1_D2-13-20_mid--AUDIO-from_mp3_18_R1_2015_wav--4",
+      "midi_path": "segments/MIDI-Unprocessed_R1_D2-13-20_mid--AUDIO-from_mp3_18_R1_2015_wav--4/MIDI-Unprocessed_R1_D2-13-20_mid--AUDIO-from_mp3_18_R1_2015_wav--4_seg020.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_314.wav",
+      "segment_id": "youtube_ofnjUvih9Dc_1",
+      "source": "youtube",
+      "video_id": "ofnjUvih9Dc",
+      "duration": 25.0,
+      "piano_confidence": 0.7,
+      "original_path": "youtube_segments/ofnjUvih9Dc/segment_001.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_087.wav",
+      "segment_id": "MIDI-Unprocessed_XP_18_R1_2004_04_ORIG_MID--AUDIO_18_R1_2004_07_Track07_wav_seg060",
+      "composer": "Fr\u00e9d\u00e9ric Chopin",
+      "title": "Sonata in B Minor, Op. 58",
+      "difficulty": 3.5,
+      "start_time": 1200.0,
+      "end_time": 1225.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Fr\u00e9d\u00e9ric Chopin",
+      "title_display": "Title: Sonata in B Minor, Op. 58",
+      "difficulty_display": "Difficulty: 3.5",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-Unprocessed_XP_18_R1_2004_04_ORIG_MID--AUDIO_18_R1_2004_07_Track07_wav/MIDI-Unprocessed_XP_18_R1_2004_04_ORIG_MID--AUDIO_18_R1_2004_07_Track07_wav_seg060.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-Unprocessed_XP_18_R1_2004_04_ORIG_MID--AUDIO_18_R1_2004_07_Track07_wav",
+      "midi_path": "segments/MIDI-Unprocessed_XP_18_R1_2004_04_ORIG_MID--AUDIO_18_R1_2004_07_Track07_wav/MIDI-Unprocessed_XP_18_R1_2004_04_ORIG_MID--AUDIO_18_R1_2004_07_Track07_wav_seg060.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_096.wav",
+      "segment_id": "ORIG-MIDI_02_7_10_13_Group_MID--AUDIO_14_R3_2013_wav--2_seg028",
+      "composer": "Fr\u00e9d\u00e9ric Chopin",
+      "title": "Sonata No. 2 in B-flat Minor, Op. 35",
+      "difficulty": 3.5,
+      "start_time": 560.0,
+      "end_time": 585.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Fr\u00e9d\u00e9ric Chopin",
+      "title_display": "Title: Sonata No. 2 in B-flat Minor, Op. 35",
+      "difficulty_display": "Difficulty: 3.5",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/ORIG-MIDI_02_7_10_13_Group_MID--AUDIO_14_R3_2013_wav--2/ORIG-MIDI_02_7_10_13_Group_MID--AUDIO_14_R3_2013_wav--2_seg028.wav"
+    },
+    "meta": {
+      "piece_id": "ORIG-MIDI_02_7_10_13_Group_MID--AUDIO_14_R3_2013_wav--2",
+      "midi_path": "segments/ORIG-MIDI_02_7_10_13_Group_MID--AUDIO_14_R3_2013_wav--2/ORIG-MIDI_02_7_10_13_Group_MID--AUDIO_14_R3_2013_wav--2_seg028.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_303.wav",
+      "segment_id": "youtube_gEKdcbqU-Ds_5",
+      "source": "youtube",
+      "video_id": "gEKdcbqU-Ds",
+      "duration": 25.0,
+      "piano_confidence": 0.7,
+      "original_path": "youtube_segments/gEKdcbqU-Ds/segment_005.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_049.wav",
+      "segment_id": "MIDI-Unprocessed_17_R1_2008_01-04_ORIG_MID--AUDIO_17_R1_2008_wav--4_seg015",
+      "composer": "Franz Liszt",
+      "title": "Sonetto 104 del Petrarca",
+      "difficulty": 4.0,
+      "start_time": 300.0,
+      "end_time": 325.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Franz Liszt",
+      "title_display": "Title: Sonetto 104 del Petrarca",
+      "difficulty_display": "Difficulty: 4.0",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-Unprocessed_17_R1_2008_01-04_ORIG_MID--AUDIO_17_R1_2008_wav--4/MIDI-Unprocessed_17_R1_2008_01-04_ORIG_MID--AUDIO_17_R1_2008_wav--4_seg015.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-Unprocessed_17_R1_2008_01-04_ORIG_MID--AUDIO_17_R1_2008_wav--4",
+      "midi_path": "segments/MIDI-Unprocessed_17_R1_2008_01-04_ORIG_MID--AUDIO_17_R1_2008_wav--4/MIDI-Unprocessed_17_R1_2008_01-04_ORIG_MID--AUDIO_17_R1_2008_wav--4_seg015.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_341.wav",
+      "segment_id": "youtube_u6N4enSvNW4_3",
+      "source": "youtube",
+      "video_id": "u6N4enSvNW4",
+      "duration": 25.0,
+      "piano_confidence": 0.7,
+      "original_path": "youtube_segments/u6N4enSvNW4/segment_003.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_340.wav",
+      "segment_id": "youtube_u6N4enSvNW4_2",
+      "source": "youtube",
+      "video_id": "u6N4enSvNW4",
+      "duration": 25.0,
+      "piano_confidence": 0.7,
+      "original_path": "youtube_segments/u6N4enSvNW4/segment_002.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_095.wav",
+      "segment_id": "ORIG-MIDI_02_7_10_13_Group_MID--AUDIO_14_R3_2013_wav--2_seg009",
+      "composer": "Fr\u00e9d\u00e9ric Chopin",
+      "title": "Sonata No. 2 in B-flat Minor, Op. 35",
+      "difficulty": 3.5,
+      "start_time": 180.0,
+      "end_time": 205.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Fr\u00e9d\u00e9ric Chopin",
+      "title_display": "Title: Sonata No. 2 in B-flat Minor, Op. 35",
+      "difficulty_display": "Difficulty: 3.5",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/ORIG-MIDI_02_7_10_13_Group_MID--AUDIO_14_R3_2013_wav--2/ORIG-MIDI_02_7_10_13_Group_MID--AUDIO_14_R3_2013_wav--2_seg009.wav"
+    },
+    "meta": {
+      "piece_id": "ORIG-MIDI_02_7_10_13_Group_MID--AUDIO_14_R3_2013_wav--2",
+      "midi_path": "segments/ORIG-MIDI_02_7_10_13_Group_MID--AUDIO_14_R3_2013_wav--2/ORIG-MIDI_02_7_10_13_Group_MID--AUDIO_14_R3_2013_wav--2_seg009.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_033.wav",
+      "segment_id": "MIDI-Unprocessed_08_R1_2006_01-04_ORIG_MID--AUDIO_08_R1_2006_Disk1_01_Track01_wav_seg007",
+      "composer": "Charles Gounod / Franz Liszt",
+      "title": "Faust Waltz",
+      "difficulty": 3.0,
+      "start_time": 140.0,
+      "end_time": 165.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Charles Gounod / Franz Liszt",
+      "title_display": "Title: Faust Waltz",
+      "difficulty_display": "Difficulty: 3.0",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-Unprocessed_08_R1_2006_01-04_ORIG_MID--AUDIO_08_R1_2006_Disk1_01_Track01_wav/MIDI-Unprocessed_08_R1_2006_01-04_ORIG_MID--AUDIO_08_R1_2006_Disk1_01_Track01_wav_seg007.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-Unprocessed_08_R1_2006_01-04_ORIG_MID--AUDIO_08_R1_2006_Disk1_01_Track01_wav",
+      "midi_path": "segments/MIDI-Unprocessed_08_R1_2006_01-04_ORIG_MID--AUDIO_08_R1_2006_Disk1_01_Track01_wav/MIDI-Unprocessed_08_R1_2006_01-04_ORIG_MID--AUDIO_08_R1_2006_Disk1_01_Track01_wav_seg007.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_288.wav",
+      "segment_id": "youtube_brm0BGwC67w_3",
+      "source": "youtube",
+      "video_id": "brm0BGwC67w",
+      "duration": 25.0,
+      "piano_confidence": 0.7,
+      "original_path": "youtube_segments/brm0BGwC67w/segment_003.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_075.wav",
+      "segment_id": "youtube_PgFRQfKhG-w_3",
+      "source": "youtube",
+      "video_id": "PgFRQfKhG-w",
+      "duration": 25.0,
+      "piano_confidence": 0.7,
+      "original_path": "youtube_segments/PgFRQfKhG-w/segment_003.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_050.wav",
+      "segment_id": "MIDI-Unprocessed_17_R1_2009_04_ORIG_MID--AUDIO_17_R1_2009_17_R1_2009_04_WAV_seg016",
+      "composer": "Fr\u00e9d\u00e9ric Chopin",
+      "title": "Preludes, Op.28",
+      "difficulty": 2.5,
+      "start_time": 320.0,
+      "end_time": 345.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Fr\u00e9d\u00e9ric Chopin",
+      "title_display": "Title: Preludes, Op.28",
+      "difficulty_display": "Difficulty: 2.5",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-Unprocessed_17_R1_2009_04_ORIG_MID--AUDIO_17_R1_2009_17_R1_2009_04_WAV/MIDI-Unprocessed_17_R1_2009_04_ORIG_MID--AUDIO_17_R1_2009_17_R1_2009_04_WAV_seg016.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-Unprocessed_17_R1_2009_04_ORIG_MID--AUDIO_17_R1_2009_17_R1_2009_04_WAV",
+      "midi_path": "segments/MIDI-Unprocessed_17_R1_2009_04_ORIG_MID--AUDIO_17_R1_2009_17_R1_2009_04_WAV/MIDI-Unprocessed_17_R1_2009_04_ORIG_MID--AUDIO_17_R1_2009_17_R1_2009_04_WAV_seg016.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_215.wav",
+      "segment_id": "youtube_bMPrD6DN7Ks_63",
+      "source": "youtube",
+      "video_id": "bMPrD6DN7Ks",
+      "duration": 25.0,
+      "piano_confidence": 1.0,
+      "original_path": "youtube_segments/bMPrD6DN7Ks/segment_063.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_153.wav",
+      "segment_id": "youtube_VHwlGiF4CpE_25",
+      "source": "youtube",
+      "video_id": "VHwlGiF4CpE",
+      "duration": 25.0,
+      "piano_confidence": 1.0,
+      "original_path": "youtube_segments/VHwlGiF4CpE/segment_025.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_038.wav",
+      "segment_id": "MIDI-Unprocessed_10_R1_2009_01-02_ORIG_MID--AUDIO_10_R1_2009_10_R1_2009_01_WAV_seg010",
+      "composer": "Johann Sebastian Bach",
+      "title": "Partita No. 6 in E Minor",
+      "difficulty": 4.0,
+      "start_time": 200.0,
+      "end_time": 225.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Johann Sebastian Bach",
+      "title_display": "Title: Partita No. 6 in E Minor",
+      "difficulty_display": "Difficulty: 4.0",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-Unprocessed_10_R1_2009_01-02_ORIG_MID--AUDIO_10_R1_2009_10_R1_2009_01_WAV/MIDI-Unprocessed_10_R1_2009_01-02_ORIG_MID--AUDIO_10_R1_2009_10_R1_2009_01_WAV_seg010.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-Unprocessed_10_R1_2009_01-02_ORIG_MID--AUDIO_10_R1_2009_10_R1_2009_01_WAV",
+      "midi_path": "segments/MIDI-Unprocessed_10_R1_2009_01-02_ORIG_MID--AUDIO_10_R1_2009_10_R1_2009_01_WAV/MIDI-Unprocessed_10_R1_2009_01-02_ORIG_MID--AUDIO_10_R1_2009_10_R1_2009_01_WAV_seg010.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_048.wav",
+      "segment_id": "youtube_AqsibzAiIBs_31",
+      "source": "youtube",
+      "video_id": "AqsibzAiIBs",
+      "duration": 25.0,
+      "piano_confidence": 1.0,
+      "original_path": "youtube_segments/AqsibzAiIBs/segment_031.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_149.wav",
+      "segment_id": "youtube_VHwlGiF4CpE_21",
+      "source": "youtube",
+      "video_id": "VHwlGiF4CpE",
+      "duration": 25.0,
+      "piano_confidence": 1.0,
+      "original_path": "youtube_segments/VHwlGiF4CpE/segment_021.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_094.wav",
+      "segment_id": "ORIG-MIDI_02_7_10_13_Group_MID--AUDIO_12_R3_2013_wav--1_seg024",
+      "composer": "Ludwig van Beethoven",
+      "title": "Thirty-Two Variations in C Minor, WoO 80",
+      "difficulty": 4.0,
+      "start_time": 480.0,
+      "end_time": 505.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Ludwig van Beethoven",
+      "title_display": "Title: Thirty-Two Variations in C Minor, WoO 80",
+      "difficulty_display": "Difficulty: 4.0",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/ORIG-MIDI_02_7_10_13_Group_MID--AUDIO_12_R3_2013_wav--1/ORIG-MIDI_02_7_10_13_Group_MID--AUDIO_12_R3_2013_wav--1_seg024.wav"
+    },
+    "meta": {
+      "piece_id": "ORIG-MIDI_02_7_10_13_Group_MID--AUDIO_12_R3_2013_wav--1",
+      "midi_path": "segments/ORIG-MIDI_02_7_10_13_Group_MID--AUDIO_12_R3_2013_wav--1/ORIG-MIDI_02_7_10_13_Group_MID--AUDIO_12_R3_2013_wav--1_seg024.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_138.wav",
+      "segment_id": "youtube_VHwlGiF4CpE_10",
+      "source": "youtube",
+      "video_id": "VHwlGiF4CpE",
+      "duration": 25.0,
+      "piano_confidence": 1.0,
+      "original_path": "youtube_segments/VHwlGiF4CpE/segment_010.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_289.wav",
+      "segment_id": "youtube_brm0BGwC67w_4",
+      "source": "youtube",
+      "video_id": "brm0BGwC67w",
+      "duration": 25.0,
+      "piano_confidence": 0.7,
+      "original_path": "youtube_segments/brm0BGwC67w/segment_004.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_078.wav",
+      "segment_id": "MIDI-Unprocessed_XP_06_R1_2004_01_ORIG_MID--AUDIO_06_R1_2004_01_Track01_wav_seg015",
+      "composer": "Fr\u00e9d\u00e9ric Chopin",
+      "title": "24 Preludes, Op. 28",
+      "difficulty": 2.5,
+      "start_time": 300.0,
+      "end_time": 325.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Fr\u00e9d\u00e9ric Chopin",
+      "title_display": "Title: 24 Preludes, Op. 28",
+      "difficulty_display": "Difficulty: 2.5",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-Unprocessed_XP_06_R1_2004_01_ORIG_MID--AUDIO_06_R1_2004_01_Track01_wav/MIDI-Unprocessed_XP_06_R1_2004_01_ORIG_MID--AUDIO_06_R1_2004_01_Track01_wav_seg015.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-Unprocessed_XP_06_R1_2004_01_ORIG_MID--AUDIO_06_R1_2004_01_Track01_wav",
+      "midi_path": "segments/MIDI-Unprocessed_XP_06_R1_2004_01_ORIG_MID--AUDIO_06_R1_2004_01_Track01_wav/MIDI-Unprocessed_XP_06_R1_2004_01_ORIG_MID--AUDIO_06_R1_2004_01_Track01_wav_seg015.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_014.wav",
+      "segment_id": "MIDI-Unprocessed_03_R2_2008_01-03_ORIG_MID--AUDIO_03_R2_2008_wav--2_seg009",
+      "composer": "Alban Berg",
+      "title": "Sonata Op. 1",
+      "difficulty": 3.0,
+      "start_time": 180.0,
+      "end_time": 205.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Alban Berg",
+      "title_display": "Title: Sonata Op. 1",
+      "difficulty_display": "Difficulty: 3.0",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-Unprocessed_03_R2_2008_01-03_ORIG_MID--AUDIO_03_R2_2008_wav--2/MIDI-Unprocessed_03_R2_2008_01-03_ORIG_MID--AUDIO_03_R2_2008_wav--2_seg009.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-Unprocessed_03_R2_2008_01-03_ORIG_MID--AUDIO_03_R2_2008_wav--2",
+      "midi_path": "segments/MIDI-Unprocessed_03_R2_2008_01-03_ORIG_MID--AUDIO_03_R2_2008_wav--2/MIDI-Unprocessed_03_R2_2008_01-03_ORIG_MID--AUDIO_03_R2_2008_wav--2_seg009.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_076.wav",
+      "segment_id": "youtube_PgFRQfKhG-w_4",
+      "source": "youtube",
+      "video_id": "PgFRQfKhG-w",
+      "duration": 25.0,
+      "piano_confidence": 0.7,
+      "original_path": "youtube_segments/PgFRQfKhG-w/segment_004.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_300.wav",
+      "segment_id": "youtube_gEKdcbqU-Ds_2",
+      "source": "youtube",
+      "video_id": "gEKdcbqU-Ds",
+      "duration": 25.0,
+      "piano_confidence": 0.7,
+      "original_path": "youtube_segments/gEKdcbqU-Ds/segment_002.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_006.wav",
+      "segment_id": "MIDI-UNPROCESSED_16-18_R1_2014_MID--AUDIO_16_R1_2014_wav--3_seg026",
+      "composer": "C\u00e9sar Franck",
+      "title": "Pr\u00e9lude, chorale, et fugue, M. 21",
+      "difficulty": 3.0,
+      "start_time": 520.0,
+      "end_time": 545.0,
+      "duration": 25.0,
+      "composer_display": "Composer: C\u00e9sar Franck",
+      "title_display": "Title: Pr\u00e9lude, chorale, et fugue, M. 21",
+      "difficulty_display": "Difficulty: 3.0",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-UNPROCESSED_16-18_R1_2014_MID--AUDIO_16_R1_2014_wav--3/MIDI-UNPROCESSED_16-18_R1_2014_MID--AUDIO_16_R1_2014_wav--3_seg026.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-UNPROCESSED_16-18_R1_2014_MID--AUDIO_16_R1_2014_wav--3",
+      "midi_path": "segments/MIDI-UNPROCESSED_16-18_R1_2014_MID--AUDIO_16_R1_2014_wav--3/MIDI-UNPROCESSED_16-18_R1_2014_MID--AUDIO_16_R1_2014_wav--3_seg026.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_064.wav",
+      "segment_id": "MIDI-Unprocessed_R1_D2-13-20_mid--AUDIO-from_mp3_15_R1_2015_wav--1_seg004",
+      "composer": "Johann Sebastian Bach",
+      "title": "Prelude and Fugue in G Minor, WTC II, BWV 885",
+      "difficulty": 3.5,
+      "start_time": 80.0,
+      "end_time": 105.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Johann Sebastian Bach",
+      "title_display": "Title: Prelude and Fugue in G Minor, WTC II, BWV 885",
+      "difficulty_display": "Difficulty: 3.5",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-Unprocessed_R1_D2-13-20_mid--AUDIO-from_mp3_15_R1_2015_wav--1/MIDI-Unprocessed_R1_D2-13-20_mid--AUDIO-from_mp3_15_R1_2015_wav--1_seg004.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-Unprocessed_R1_D2-13-20_mid--AUDIO-from_mp3_15_R1_2015_wav--1",
+      "midi_path": "segments/MIDI-Unprocessed_R1_D2-13-20_mid--AUDIO-from_mp3_15_R1_2015_wav--1/MIDI-Unprocessed_R1_D2-13-20_mid--AUDIO-from_mp3_15_R1_2015_wav--1_seg004.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_135.wav",
+      "segment_id": "youtube_VHwlGiF4CpE_7",
+      "source": "youtube",
+      "video_id": "VHwlGiF4CpE",
+      "duration": 25.0,
+      "piano_confidence": 1.0,
+      "original_path": "youtube_segments/VHwlGiF4CpE/segment_007.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_061.wav",
+      "segment_id": "MIDI-Unprocessed_R1_D1-1-8_mid--AUDIO-from_mp3_06_R1_2015_wav--3_seg001",
+      "composer": "Franz Liszt",
+      "title": "Transcendental Etude No. 1, \u201cPreludio\"",
+      "difficulty": 5.0,
+      "start_time": 20.0,
+      "end_time": 45.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Franz Liszt",
+      "title_display": "Title: Transcendental Etude No. 1, \u201cPreludio\"",
+      "difficulty_display": "Difficulty: 5.0",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-Unprocessed_R1_D1-1-8_mid--AUDIO-from_mp3_06_R1_2015_wav--3/MIDI-Unprocessed_R1_D1-1-8_mid--AUDIO-from_mp3_06_R1_2015_wav--3_seg001.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-Unprocessed_R1_D1-1-8_mid--AUDIO-from_mp3_06_R1_2015_wav--3",
+      "midi_path": "segments/MIDI-Unprocessed_R1_D1-1-8_mid--AUDIO-from_mp3_06_R1_2015_wav--3/MIDI-Unprocessed_R1_D1-1-8_mid--AUDIO-from_mp3_06_R1_2015_wav--3_seg001.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_317.wav",
+      "segment_id": "youtube_ofnjUvih9Dc_4",
+      "source": "youtube",
+      "video_id": "ofnjUvih9Dc",
+      "duration": 25.0,
+      "piano_confidence": 0.7,
+      "original_path": "youtube_segments/ofnjUvih9Dc/segment_004.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_345.wav",
+      "segment_id": "youtube_u6N4enSvNW4_7",
+      "source": "youtube",
+      "video_id": "u6N4enSvNW4",
+      "duration": 25.0,
+      "piano_confidence": 0.7,
+      "original_path": "youtube_segments/u6N4enSvNW4/segment_007.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_132.wav",
+      "segment_id": "youtube_VHwlGiF4CpE_4",
+      "source": "youtube",
+      "video_id": "VHwlGiF4CpE",
+      "duration": 25.0,
+      "piano_confidence": 0.8,
+      "original_path": "youtube_segments/VHwlGiF4CpE/segment_004.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_004.wav",
+      "segment_id": "MIDI-UNPROCESSED_16-18_R1_2014_MID--AUDIO_16_R1_2014_wav--1_seg006",
+      "composer": "Johann Sebastian Bach",
+      "title": "Prelude and Fugue in C Major, WTC II, BWV 846",
+      "difficulty": 3.5,
+      "start_time": 120.0,
+      "end_time": 145.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Johann Sebastian Bach",
+      "title_display": "Title: Prelude and Fugue in C Major, WTC II, BWV 846",
+      "difficulty_display": "Difficulty: 3.5",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-UNPROCESSED_16-18_R1_2014_MID--AUDIO_16_R1_2014_wav--1/MIDI-UNPROCESSED_16-18_R1_2014_MID--AUDIO_16_R1_2014_wav--1_seg006.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-UNPROCESSED_16-18_R1_2014_MID--AUDIO_16_R1_2014_wav--1",
+      "midi_path": "segments/MIDI-UNPROCESSED_16-18_R1_2014_MID--AUDIO_16_R1_2014_wav--1/MIDI-UNPROCESSED_16-18_R1_2014_MID--AUDIO_16_R1_2014_wav--1_seg006.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_003.wav",
+      "segment_id": "youtube_7QA1GyU4Q1A_5",
+      "source": "youtube",
+      "video_id": "7QA1GyU4Q1A",
+      "duration": 25.0,
+      "piano_confidence": 1.0,
+      "original_path": "youtube_segments/7QA1GyU4Q1A/segment_005.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_016.wav",
+      "segment_id": "MIDI-Unprocessed_03_R3_2011_MID--AUDIO_R3-D1_04_Track04_wav_seg008",
+      "composer": "Felix Mendelssohn",
+      "title": "Variations Serieuses, Op. 54",
+      "difficulty": 3.0,
+      "start_time": 160.0,
+      "end_time": 185.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Felix Mendelssohn",
+      "title_display": "Title: Variations Serieuses, Op. 54",
+      "difficulty_display": "Difficulty: 3.0",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-Unprocessed_03_R3_2011_MID--AUDIO_R3-D1_04_Track04_wav/MIDI-Unprocessed_03_R3_2011_MID--AUDIO_R3-D1_04_Track04_wav_seg008.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-Unprocessed_03_R3_2011_MID--AUDIO_R3-D1_04_Track04_wav",
+      "midi_path": "segments/MIDI-Unprocessed_03_R3_2011_MID--AUDIO_R3-D1_04_Track04_wav/MIDI-Unprocessed_03_R3_2011_MID--AUDIO_R3-D1_04_Track04_wav_seg008.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_021.wav",
+      "segment_id": "MIDI-Unprocessed_04_R1_2006_01-04_ORIG_MID--AUDIO_04_R1_2006_02_Track02_wav_seg049",
+      "composer": "Claude Debussy",
+      "title": "PreludesBII/7-12",
+      "difficulty": 3.5,
+      "start_time": 980.0,
+      "end_time": 1005.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Claude Debussy",
+      "title_display": "Title: PreludesBII/7-12",
+      "difficulty_display": "Difficulty: 3.5",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-Unprocessed_04_R1_2006_01-04_ORIG_MID--AUDIO_04_R1_2006_02_Track02_wav/MIDI-Unprocessed_04_R1_2006_01-04_ORIG_MID--AUDIO_04_R1_2006_02_Track02_wav_seg049.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-Unprocessed_04_R1_2006_01-04_ORIG_MID--AUDIO_04_R1_2006_02_Track02_wav",
+      "midi_path": "segments/MIDI-Unprocessed_04_R1_2006_01-04_ORIG_MID--AUDIO_04_R1_2006_02_Track02_wav/MIDI-Unprocessed_04_R1_2006_01-04_ORIG_MID--AUDIO_04_R1_2006_02_Track02_wav_seg049.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_346.wav",
+      "segment_id": "youtube_u6N4enSvNW4_8",
+      "source": "youtube",
+      "video_id": "u6N4enSvNW4",
+      "duration": 25.0,
+      "piano_confidence": 0.7,
+      "original_path": "youtube_segments/u6N4enSvNW4/segment_008.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_290.wav",
+      "segment_id": "youtube_brm0BGwC67w_5",
+      "source": "youtube",
+      "video_id": "brm0BGwC67w",
+      "duration": 25.0,
+      "piano_confidence": 0.7,
+      "original_path": "youtube_segments/brm0BGwC67w/segment_005.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_018.wav",
+      "segment_id": "youtube_AqsibzAiIBs_0",
+      "source": "youtube",
+      "video_id": "AqsibzAiIBs",
+      "duration": 25.0,
+      "piano_confidence": 0.7,
+      "original_path": "youtube_segments/AqsibzAiIBs/segment_000.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_023.wav",
+      "segment_id": "MIDI-Unprocessed_052_PIANO052_MID--AUDIO-split_07-06-17_Piano-e_3-03_wav--5_seg006",
+      "composer": "Fr\u00e9d\u00e9ric Chopin",
+      "title": "Sonata No. 3 in B Minor, Op. 58, I. Allegro maestoso",
+      "difficulty": 3.5,
+      "start_time": 120.0,
+      "end_time": 145.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Fr\u00e9d\u00e9ric Chopin",
+      "title_display": "Title: Sonata No. 3 in B Minor, Op. 58, I. Allegro maestoso",
+      "difficulty_display": "Difficulty: 3.5",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-Unprocessed_052_PIANO052_MID--AUDIO-split_07-06-17_Piano-e_3-03_wav--5/MIDI-Unprocessed_052_PIANO052_MID--AUDIO-split_07-06-17_Piano-e_3-03_wav--5_seg006.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-Unprocessed_052_PIANO052_MID--AUDIO-split_07-06-17_Piano-e_3-03_wav--5",
+      "midi_path": "segments/MIDI-Unprocessed_052_PIANO052_MID--AUDIO-split_07-06-17_Piano-e_3-03_wav--5/MIDI-Unprocessed_052_PIANO052_MID--AUDIO-split_07-06-17_Piano-e_3-03_wav--5_seg006.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_043.wav",
+      "segment_id": "MIDI-Unprocessed_10_R1_2009_01-02_ORIG_MID--AUDIO_10_R1_2009_10_R1_2009_02_WAV_seg047",
+      "composer": "Ludwig van Beethoven",
+      "title": "Bagtellen, Op.126",
+      "difficulty": 4.0,
+      "start_time": 940.0,
+      "end_time": 965.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Ludwig van Beethoven",
+      "title_display": "Title: Bagtellen, Op.126",
+      "difficulty_display": "Difficulty: 4.0",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-Unprocessed_10_R1_2009_01-02_ORIG_MID--AUDIO_10_R1_2009_10_R1_2009_02_WAV/MIDI-Unprocessed_10_R1_2009_01-02_ORIG_MID--AUDIO_10_R1_2009_10_R1_2009_02_WAV_seg047.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-Unprocessed_10_R1_2009_01-02_ORIG_MID--AUDIO_10_R1_2009_10_R1_2009_02_WAV",
+      "midi_path": "segments/MIDI-Unprocessed_10_R1_2009_01-02_ORIG_MID--AUDIO_10_R1_2009_10_R1_2009_02_WAV/MIDI-Unprocessed_10_R1_2009_01-02_ORIG_MID--AUDIO_10_R1_2009_10_R1_2009_02_WAV_seg047.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_080.wav",
+      "segment_id": "youtube_PgFRQfKhG-w_11",
+      "source": "youtube",
+      "video_id": "PgFRQfKhG-w",
+      "duration": 25.0,
+      "piano_confidence": 0.7,
+      "original_path": "youtube_segments/PgFRQfKhG-w/segment_011.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_047.wav",
+      "segment_id": "MIDI-Unprocessed_14_R1_2008_01-05_ORIG_MID--AUDIO_14_R1_2008_wav--4_seg006",
+      "composer": "Fr\u00e9d\u00e9ric Chopin",
+      "title": "Berceuse Op. 57",
+      "difficulty": 3.5,
+      "start_time": 120.0,
+      "end_time": 145.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Fr\u00e9d\u00e9ric Chopin",
+      "title_display": "Title: Berceuse Op. 57",
+      "difficulty_display": "Difficulty: 3.5",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-Unprocessed_14_R1_2008_01-05_ORIG_MID--AUDIO_14_R1_2008_wav--4/MIDI-Unprocessed_14_R1_2008_01-05_ORIG_MID--AUDIO_14_R1_2008_wav--4_seg006.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-Unprocessed_14_R1_2008_01-05_ORIG_MID--AUDIO_14_R1_2008_wav--4",
+      "midi_path": "segments/MIDI-Unprocessed_14_R1_2008_01-05_ORIG_MID--AUDIO_14_R1_2008_wav--4/MIDI-Unprocessed_14_R1_2008_01-05_ORIG_MID--AUDIO_14_R1_2008_wav--4_seg006.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_142.wav",
+      "segment_id": "youtube_VHwlGiF4CpE_14",
+      "source": "youtube",
+      "video_id": "VHwlGiF4CpE",
+      "duration": 25.0,
+      "piano_confidence": 1.0,
+      "original_path": "youtube_segments/VHwlGiF4CpE/segment_014.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_059.wav",
+      "segment_id": "MIDI-Unprocessed_22_R1_2011_MID--AUDIO_R1-D8_12_Track12_wav_seg001",
+      "composer": "Johann Sebastian Bach",
+      "title": "Prelude and Fugue in G Minor, WTC II, BWV 885",
+      "difficulty": 3.5,
+      "start_time": 20.0,
+      "end_time": 45.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Johann Sebastian Bach",
+      "title_display": "Title: Prelude and Fugue in G Minor, WTC II, BWV 885",
+      "difficulty_display": "Difficulty: 3.5",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-Unprocessed_22_R1_2011_MID--AUDIO_R1-D8_12_Track12_wav/MIDI-Unprocessed_22_R1_2011_MID--AUDIO_R1-D8_12_Track12_wav_seg001.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-Unprocessed_22_R1_2011_MID--AUDIO_R1-D8_12_Track12_wav",
+      "midi_path": "segments/MIDI-Unprocessed_22_R1_2011_MID--AUDIO_R1-D8_12_Track12_wav/MIDI-Unprocessed_22_R1_2011_MID--AUDIO_R1-D8_12_Track12_wav_seg001.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_052.wav",
+      "segment_id": "MIDI-Unprocessed_17_R1_2009_04_ORIG_MID--AUDIO_17_R1_2009_17_R1_2009_04_WAV_seg081",
+      "composer": "Fr\u00e9d\u00e9ric Chopin",
+      "title": "Preludes, Op.28",
+      "difficulty": 2.5,
+      "start_time": 1620.0,
+      "end_time": 1645.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Fr\u00e9d\u00e9ric Chopin",
+      "title_display": "Title: Preludes, Op.28",
+      "difficulty_display": "Difficulty: 2.5",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-Unprocessed_17_R1_2009_04_ORIG_MID--AUDIO_17_R1_2009_17_R1_2009_04_WAV/MIDI-Unprocessed_17_R1_2009_04_ORIG_MID--AUDIO_17_R1_2009_17_R1_2009_04_WAV_seg081.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-Unprocessed_17_R1_2009_04_ORIG_MID--AUDIO_17_R1_2009_17_R1_2009_04_WAV",
+      "midi_path": "segments/MIDI-Unprocessed_17_R1_2009_04_ORIG_MID--AUDIO_17_R1_2009_17_R1_2009_04_WAV/MIDI-Unprocessed_17_R1_2009_04_ORIG_MID--AUDIO_17_R1_2009_17_R1_2009_04_WAV_seg081.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_304.wav",
+      "segment_id": "youtube_gEKdcbqU-Ds_6",
+      "source": "youtube",
+      "video_id": "gEKdcbqU-Ds",
+      "duration": 25.0,
+      "piano_confidence": 0.7,
+      "original_path": "youtube_segments/gEKdcbqU-Ds/segment_006.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_070.wav",
+      "segment_id": "MIDI-Unprocessed_Recital1-3_MID--AUDIO_02_R1_2018_wav--1_seg015",
+      "composer": "Ludwig van Beethoven",
+      "title": "Sonata No. 29 in B-flat Major, Op. 106",
+      "difficulty": 4.0,
+      "start_time": 300.0,
+      "end_time": 325.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Ludwig van Beethoven",
+      "title_display": "Title: Sonata No. 29 in B-flat Major, Op. 106",
+      "difficulty_display": "Difficulty: 4.0",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-Unprocessed_Recital1-3_MID--AUDIO_02_R1_2018_wav--1/MIDI-Unprocessed_Recital1-3_MID--AUDIO_02_R1_2018_wav--1_seg015.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-Unprocessed_Recital1-3_MID--AUDIO_02_R1_2018_wav--1",
+      "midi_path": "segments/MIDI-Unprocessed_Recital1-3_MID--AUDIO_02_R1_2018_wav--1/MIDI-Unprocessed_Recital1-3_MID--AUDIO_02_R1_2018_wav--1_seg015.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_011.wav",
+      "segment_id": "youtube_7QA1GyU4Q1A_14",
+      "source": "youtube",
+      "video_id": "7QA1GyU4Q1A",
+      "duration": 25.0,
+      "piano_confidence": 1.0,
+      "original_path": "youtube_segments/7QA1GyU4Q1A/segment_014.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_032.wav",
+      "segment_id": "youtube_AqsibzAiIBs_14",
+      "source": "youtube",
+      "video_id": "AqsibzAiIBs",
+      "duration": 25.0,
+      "piano_confidence": 1.0,
+      "original_path": "youtube_segments/AqsibzAiIBs/segment_014.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_074.wav",
+      "segment_id": "youtube_LdH1hSWGFGU_22",
+      "source": "youtube",
+      "video_id": "LdH1hSWGFGU",
+      "duration": 25.0,
+      "piano_confidence": 1.0,
+      "original_path": "youtube_segments/LdH1hSWGFGU/segment_022.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_286.wav",
+      "segment_id": "youtube_brm0BGwC67w_1",
+      "source": "youtube",
+      "video_id": "brm0BGwC67w",
+      "duration": 25.0,
+      "piano_confidence": 0.7,
+      "original_path": "youtube_segments/brm0BGwC67w/segment_001.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_081.wav",
+      "segment_id": "MIDI-Unprocessed_XP_06_R1_2004_02-03_ORIG_MID--AUDIO_06_R1_2004_05_Track05_wav_seg009",
+      "composer": "Franz Liszt",
+      "title": "Spanish Rhapsody",
+      "difficulty": 4.0,
+      "start_time": 180.0,
+      "end_time": 205.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Franz Liszt",
+      "title_display": "Title: Spanish Rhapsody",
+      "difficulty_display": "Difficulty: 4.0",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-Unprocessed_XP_06_R1_2004_02-03_ORIG_MID--AUDIO_06_R1_2004_05_Track05_wav/MIDI-Unprocessed_XP_06_R1_2004_02-03_ORIG_MID--AUDIO_06_R1_2004_05_Track05_wav_seg009.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-Unprocessed_XP_06_R1_2004_02-03_ORIG_MID--AUDIO_06_R1_2004_05_Track05_wav",
+      "midi_path": "segments/MIDI-Unprocessed_XP_06_R1_2004_02-03_ORIG_MID--AUDIO_06_R1_2004_05_Track05_wav/MIDI-Unprocessed_XP_06_R1_2004_02-03_ORIG_MID--AUDIO_06_R1_2004_05_Track05_wav_seg009.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_008.wav",
+      "segment_id": "MIDI-UNPROCESSED_21-22_R1_2014_MID--AUDIO_21_R1_2014_wav--1_seg002",
+      "composer": "Edvard Grieg",
+      "title": "Lyric Piece in A Minor, \u201cWaltz,\u201d Op. 12 No. 2",
+      "difficulty": 3.0,
+      "start_time": 40.0,
+      "end_time": 65.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Edvard Grieg",
+      "title_display": "Title: Lyric Piece in A Minor, \u201cWaltz,\u201d Op. 12 No. 2",
+      "difficulty_display": "Difficulty: 3.0",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-UNPROCESSED_21-22_R1_2014_MID--AUDIO_21_R1_2014_wav--1/MIDI-UNPROCESSED_21-22_R1_2014_MID--AUDIO_21_R1_2014_wav--1_seg002.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-UNPROCESSED_21-22_R1_2014_MID--AUDIO_21_R1_2014_wav--1",
+      "midi_path": "segments/MIDI-UNPROCESSED_21-22_R1_2014_MID--AUDIO_21_R1_2014_wav--1/MIDI-UNPROCESSED_21-22_R1_2014_MID--AUDIO_21_R1_2014_wav--1_seg002.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_015.wav",
+      "segment_id": "youtube_7QA1GyU4Q1A_20",
+      "source": "youtube",
+      "video_id": "7QA1GyU4Q1A",
+      "duration": 25.0,
+      "piano_confidence": 0.8,
+      "original_path": "youtube_segments/7QA1GyU4Q1A/segment_020.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_212.wav",
+      "segment_id": "youtube_bMPrD6DN7Ks_60",
+      "source": "youtube",
+      "video_id": "bMPrD6DN7Ks",
+      "duration": 25.0,
+      "piano_confidence": 1.0,
+      "original_path": "youtube_segments/bMPrD6DN7Ks/segment_060.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_344.wav",
+      "segment_id": "youtube_u6N4enSvNW4_6",
+      "source": "youtube",
+      "video_id": "u6N4enSvNW4",
+      "duration": 25.0,
+      "piano_confidence": 0.7,
+      "original_path": "youtube_segments/u6N4enSvNW4/segment_006.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_099.wav",
+      "segment_id": "ORIG-MIDI_03_7_8_13_Group__MID--AUDIO_18_R2_2013_wav--4_seg006",
+      "composer": "Fr\u00e9d\u00e9ric Chopin",
+      "title": "Sonata No. 3 in B Minor, Op. 58, 1st mov.",
+      "difficulty": 3.5,
+      "start_time": 120.0,
+      "end_time": 145.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Fr\u00e9d\u00e9ric Chopin",
+      "title_display": "Title: Sonata No. 3 in B Minor, Op. 58, 1st mov.",
+      "difficulty_display": "Difficulty: 3.5",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/ORIG-MIDI_03_7_8_13_Group__MID--AUDIO_18_R2_2013_wav--4/ORIG-MIDI_03_7_8_13_Group__MID--AUDIO_18_R2_2013_wav--4_seg006.wav"
+    },
+    "meta": {
+      "piece_id": "ORIG-MIDI_03_7_8_13_Group__MID--AUDIO_18_R2_2013_wav--4",
+      "midi_path": "segments/ORIG-MIDI_03_7_8_13_Group__MID--AUDIO_18_R2_2013_wav--4/ORIG-MIDI_03_7_8_13_Group__MID--AUDIO_18_R2_2013_wav--4_seg006.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_042.wav",
+      "segment_id": "MIDI-Unprocessed_10_R1_2009_01-02_ORIG_MID--AUDIO_10_R1_2009_10_R1_2009_02_WAV_seg028",
+      "composer": "Ludwig van Beethoven",
+      "title": "Bagtellen, Op.126",
+      "difficulty": 4.0,
+      "start_time": 560.0,
+      "end_time": 585.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Ludwig van Beethoven",
+      "title_display": "Title: Bagtellen, Op.126",
+      "difficulty_display": "Difficulty: 4.0",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-Unprocessed_10_R1_2009_01-02_ORIG_MID--AUDIO_10_R1_2009_10_R1_2009_02_WAV/MIDI-Unprocessed_10_R1_2009_01-02_ORIG_MID--AUDIO_10_R1_2009_10_R1_2009_02_WAV_seg028.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-Unprocessed_10_R1_2009_01-02_ORIG_MID--AUDIO_10_R1_2009_10_R1_2009_02_WAV",
+      "midi_path": "segments/MIDI-Unprocessed_10_R1_2009_01-02_ORIG_MID--AUDIO_10_R1_2009_10_R1_2009_02_WAV/MIDI-Unprocessed_10_R1_2009_01-02_ORIG_MID--AUDIO_10_R1_2009_10_R1_2009_02_WAV_seg028.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_292.wav",
+      "segment_id": "youtube_brm0BGwC67w_7",
+      "source": "youtube",
+      "video_id": "brm0BGwC67w",
+      "duration": 25.0,
+      "piano_confidence": 0.7,
+      "original_path": "youtube_segments/brm0BGwC67w/segment_007.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_321.wav",
+      "segment_id": "youtube_ofnjUvih9Dc_8",
+      "source": "youtube",
+      "video_id": "ofnjUvih9Dc",
+      "duration": 25.0,
+      "piano_confidence": 1.0,
+      "original_path": "youtube_segments/ofnjUvih9Dc/segment_008.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_316.wav",
+      "segment_id": "youtube_ofnjUvih9Dc_3",
+      "source": "youtube",
+      "video_id": "ofnjUvih9Dc",
+      "duration": 25.0,
+      "piano_confidence": 0.7,
+      "original_path": "youtube_segments/ofnjUvih9Dc/segment_003.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_090.wav",
+      "segment_id": "ORIG-MIDI_01_7_10_13_Group_MID--AUDIO_08_R3_2013_wav--2_seg034",
+      "composer": "Johann Sebastian Bach",
+      "title": "English Suite in A Minor, BWV 807",
+      "difficulty": 3.0,
+      "start_time": 680.0,
+      "end_time": 705.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Johann Sebastian Bach",
+      "title_display": "Title: English Suite in A Minor, BWV 807",
+      "difficulty_display": "Difficulty: 3.0",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/ORIG-MIDI_01_7_10_13_Group_MID--AUDIO_08_R3_2013_wav--2/ORIG-MIDI_01_7_10_13_Group_MID--AUDIO_08_R3_2013_wav--2_seg034.wav"
+    },
+    "meta": {
+      "piece_id": "ORIG-MIDI_01_7_10_13_Group_MID--AUDIO_08_R3_2013_wav--2",
+      "midi_path": "segments/ORIG-MIDI_01_7_10_13_Group_MID--AUDIO_08_R3_2013_wav--2/ORIG-MIDI_01_7_10_13_Group_MID--AUDIO_08_R3_2013_wav--2_seg034.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_003.wav",
+      "segment_id": "MIDI-UNPROCESSED_11-13_R1_2014_MID--AUDIO_13_R1_2014_wav--6_seg040",
+      "composer": "Franz Liszt",
+      "title": "R\u00e9miniscences de Don Juan, S.418",
+      "difficulty": 4.0,
+      "start_time": 800.0,
+      "end_time": 825.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Franz Liszt",
+      "title_display": "Title: R\u00e9miniscences de Don Juan, S.418",
+      "difficulty_display": "Difficulty: 4.0",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-UNPROCESSED_11-13_R1_2014_MID--AUDIO_13_R1_2014_wav--6/MIDI-UNPROCESSED_11-13_R1_2014_MID--AUDIO_13_R1_2014_wav--6_seg040.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-UNPROCESSED_11-13_R1_2014_MID--AUDIO_13_R1_2014_wav--6",
+      "midi_path": "segments/MIDI-UNPROCESSED_11-13_R1_2014_MID--AUDIO_13_R1_2014_wav--6/MIDI-UNPROCESSED_11-13_R1_2014_MID--AUDIO_13_R1_2014_wav--6_seg040.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_054.wav",
+      "segment_id": "youtube_LdH1hSWGFGU_0",
+      "source": "youtube",
+      "video_id": "LdH1hSWGFGU",
+      "duration": 25.0,
+      "piano_confidence": 0.7,
+      "original_path": "youtube_segments/LdH1hSWGFGU/segment_000.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_047.wav",
+      "segment_id": "youtube_AqsibzAiIBs_30",
+      "source": "youtube",
+      "video_id": "AqsibzAiIBs",
+      "duration": 25.0,
+      "piano_confidence": 1.0,
+      "original_path": "youtube_segments/AqsibzAiIBs/segment_030.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_029.wav",
+      "segment_id": "MIDI-Unprocessed_06_R1_2009_03-07_ORIG_MID--AUDIO_06_R1_2009_06_R1_2009_06_WAV_seg028",
+      "composer": "Fr\u00e9d\u00e9ric Chopin",
+      "title": "Fantasy in F Minor, Op.49",
+      "difficulty": 3.5,
+      "start_time": 560.0,
+      "end_time": 585.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Fr\u00e9d\u00e9ric Chopin",
+      "title_display": "Title: Fantasy in F Minor, Op.49",
+      "difficulty_display": "Difficulty: 3.5",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-Unprocessed_06_R1_2009_03-07_ORIG_MID--AUDIO_06_R1_2009_06_R1_2009_06_WAV/MIDI-Unprocessed_06_R1_2009_03-07_ORIG_MID--AUDIO_06_R1_2009_06_R1_2009_06_WAV_seg028.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-Unprocessed_06_R1_2009_03-07_ORIG_MID--AUDIO_06_R1_2009_06_R1_2009_06_WAV",
+      "midi_path": "segments/MIDI-Unprocessed_06_R1_2009_03-07_ORIG_MID--AUDIO_06_R1_2009_06_R1_2009_06_WAV/MIDI-Unprocessed_06_R1_2009_03-07_ORIG_MID--AUDIO_06_R1_2009_06_R1_2009_06_WAV_seg028.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_343.wav",
+      "segment_id": "youtube_u6N4enSvNW4_5",
+      "source": "youtube",
+      "video_id": "u6N4enSvNW4",
+      "duration": 25.0,
+      "piano_confidence": 0.7,
+      "original_path": "youtube_segments/u6N4enSvNW4/segment_005.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_009.wav",
+      "segment_id": "MIDI-UNPROCESSED_21-22_R1_2014_MID--AUDIO_22_R1_2014_wav--4_seg008",
+      "composer": "Alexander Scriabin",
+      "title": "Sonata No. 5, Op. 53",
+      "difficulty": 4.0,
+      "start_time": 160.0,
+      "end_time": 185.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Alexander Scriabin",
+      "title_display": "Title: Sonata No. 5, Op. 53",
+      "difficulty_display": "Difficulty: 4.0",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-UNPROCESSED_21-22_R1_2014_MID--AUDIO_22_R1_2014_wav--4/MIDI-UNPROCESSED_21-22_R1_2014_MID--AUDIO_22_R1_2014_wav--4_seg008.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-UNPROCESSED_21-22_R1_2014_MID--AUDIO_22_R1_2014_wav--4",
+      "midi_path": "segments/MIDI-UNPROCESSED_21-22_R1_2014_MID--AUDIO_22_R1_2014_wav--4/MIDI-UNPROCESSED_21-22_R1_2014_MID--AUDIO_22_R1_2014_wav--4_seg008.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_054.wav",
+      "segment_id": "MIDI-Unprocessed_19_R1_2009_01-02_ORIG_MID--AUDIO_19_R1_2009_19_R1_2009_02_WAV_seg031",
+      "composer": "Franz Liszt",
+      "title": "Sonata in B Minor, S. 178",
+      "difficulty": 4.0,
+      "start_time": 620.0,
+      "end_time": 645.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Franz Liszt",
+      "title_display": "Title: Sonata in B Minor, S. 178",
+      "difficulty_display": "Difficulty: 4.0",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-Unprocessed_19_R1_2009_01-02_ORIG_MID--AUDIO_19_R1_2009_19_R1_2009_02_WAV/MIDI-Unprocessed_19_R1_2009_01-02_ORIG_MID--AUDIO_19_R1_2009_19_R1_2009_02_WAV_seg031.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-Unprocessed_19_R1_2009_01-02_ORIG_MID--AUDIO_19_R1_2009_19_R1_2009_02_WAV",
+      "midi_path": "segments/MIDI-Unprocessed_19_R1_2009_01-02_ORIG_MID--AUDIO_19_R1_2009_19_R1_2009_02_WAV/MIDI-Unprocessed_19_R1_2009_01-02_ORIG_MID--AUDIO_19_R1_2009_19_R1_2009_02_WAV_seg031.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_002.wav",
+      "segment_id": "youtube_7QA1GyU4Q1A_4",
+      "source": "youtube",
+      "video_id": "7QA1GyU4Q1A",
+      "duration": 25.0,
+      "piano_confidence": 0.7,
+      "original_path": "youtube_segments/7QA1GyU4Q1A/segment_004.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_063.wav",
+      "segment_id": "MIDI-Unprocessed_R1_D1-9-12_mid--AUDIO-from_mp3_11_R1_2015_wav--5_seg002",
+      "composer": "Sergei Rachmaninoff",
+      "title": "Prelude Op. 32 No. 8 in A Minor",
+      "difficulty": 4.5,
+      "start_time": 40.0,
+      "end_time": 65.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Sergei Rachmaninoff",
+      "title_display": "Title: Prelude Op. 32 No. 8 in A Minor",
+      "difficulty_display": "Difficulty: 4.5",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-Unprocessed_R1_D1-9-12_mid--AUDIO-from_mp3_11_R1_2015_wav--5/MIDI-Unprocessed_R1_D1-9-12_mid--AUDIO-from_mp3_11_R1_2015_wav--5_seg002.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-Unprocessed_R1_D1-9-12_mid--AUDIO-from_mp3_11_R1_2015_wav--5",
+      "midi_path": "segments/MIDI-Unprocessed_R1_D1-9-12_mid--AUDIO-from_mp3_11_R1_2015_wav--5/MIDI-Unprocessed_R1_D1-9-12_mid--AUDIO-from_mp3_11_R1_2015_wav--5_seg002.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_075.wav",
+      "segment_id": "MIDI-Unprocessed_Recital13-15_MID--AUDIO_13_R1_2018_wav--2_seg063",
+      "composer": "Robert Schumann",
+      "title": "Symphonic Etudes Op. 13",
+      "difficulty": 3.5,
+      "start_time": 1260.0,
+      "end_time": 1285.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Robert Schumann",
+      "title_display": "Title: Symphonic Etudes Op. 13",
+      "difficulty_display": "Difficulty: 3.5",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-Unprocessed_Recital13-15_MID--AUDIO_13_R1_2018_wav--2/MIDI-Unprocessed_Recital13-15_MID--AUDIO_13_R1_2018_wav--2_seg063.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-Unprocessed_Recital13-15_MID--AUDIO_13_R1_2018_wav--2",
+      "midi_path": "segments/MIDI-Unprocessed_Recital13-15_MID--AUDIO_13_R1_2018_wav--2/MIDI-Unprocessed_Recital13-15_MID--AUDIO_13_R1_2018_wav--2_seg063.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_068.wav",
+      "segment_id": "youtube_LdH1hSWGFGU_15",
+      "source": "youtube",
+      "video_id": "LdH1hSWGFGU",
+      "duration": 25.0,
+      "piano_confidence": 1.0,
+      "original_path": "youtube_segments/LdH1hSWGFGU/segment_015.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_214.wav",
+      "segment_id": "youtube_bMPrD6DN7Ks_62",
+      "source": "youtube",
+      "video_id": "bMPrD6DN7Ks",
+      "duration": 25.0,
+      "piano_confidence": 1.0,
+      "original_path": "youtube_segments/bMPrD6DN7Ks/segment_062.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_306.wav",
+      "segment_id": "youtube_gEKdcbqU-Ds_8",
+      "source": "youtube",
+      "video_id": "gEKdcbqU-Ds",
+      "duration": 25.0,
+      "piano_confidence": 0.7,
+      "original_path": "youtube_segments/gEKdcbqU-Ds/segment_008.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_337.wav",
+      "segment_id": "youtube_ofnjUvih9Dc_24",
+      "source": "youtube",
+      "video_id": "ofnjUvih9Dc",
+      "duration": 25.0,
+      "piano_confidence": 0.8,
+      "original_path": "youtube_segments/ofnjUvih9Dc/segment_024.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_347.wav",
+      "segment_id": "youtube_u6N4enSvNW4_9",
+      "source": "youtube",
+      "video_id": "u6N4enSvNW4",
+      "duration": 25.0,
+      "piano_confidence": 0.7,
+      "original_path": "youtube_segments/u6N4enSvNW4/segment_009.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_016.wav",
+      "segment_id": "youtube_7QA1GyU4Q1A_21",
+      "source": "youtube",
+      "video_id": "7QA1GyU4Q1A",
+      "duration": 25.0,
+      "piano_confidence": 1.0,
+      "original_path": "youtube_segments/7QA1GyU4Q1A/segment_021.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_082.wav",
+      "segment_id": "MIDI-Unprocessed_XP_06_R1_2004_02-03_ORIG_MID--AUDIO_06_R1_2004_05_Track05_wav_seg027",
+      "composer": "Franz Liszt",
+      "title": "Spanish Rhapsody",
+      "difficulty": 4.0,
+      "start_time": 540.0,
+      "end_time": 565.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Franz Liszt",
+      "title_display": "Title: Spanish Rhapsody",
+      "difficulty_display": "Difficulty: 4.0",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-Unprocessed_XP_06_R1_2004_02-03_ORIG_MID--AUDIO_06_R1_2004_05_Track05_wav/MIDI-Unprocessed_XP_06_R1_2004_02-03_ORIG_MID--AUDIO_06_R1_2004_05_Track05_wav_seg027.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-Unprocessed_XP_06_R1_2004_02-03_ORIG_MID--AUDIO_06_R1_2004_05_Track05_wav",
+      "midi_path": "segments/MIDI-Unprocessed_XP_06_R1_2004_02-03_ORIG_MID--AUDIO_06_R1_2004_05_Track05_wav/MIDI-Unprocessed_XP_06_R1_2004_02-03_ORIG_MID--AUDIO_06_R1_2004_05_Track05_wav_seg027.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_018.wav",
+      "segment_id": "MIDI-Unprocessed_049_PIANO049_MID--AUDIO-split_07-06-17_Piano-e_2-06_wav--3_seg003",
+      "composer": "Fr\u00e9d\u00e9ric Chopin",
+      "title": "Etude Op. 10 No. 4 in C-sharp Minor",
+      "difficulty": 4.0,
+      "start_time": 60.0,
+      "end_time": 85.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Fr\u00e9d\u00e9ric Chopin",
+      "title_display": "Title: Etude Op. 10 No. 4 in C-sharp Minor",
+      "difficulty_display": "Difficulty: 4.0",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-Unprocessed_049_PIANO049_MID--AUDIO-split_07-06-17_Piano-e_2-06_wav--3/MIDI-Unprocessed_049_PIANO049_MID--AUDIO-split_07-06-17_Piano-e_2-06_wav--3_seg003.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-Unprocessed_049_PIANO049_MID--AUDIO-split_07-06-17_Piano-e_2-06_wav--3",
+      "midi_path": "segments/MIDI-Unprocessed_049_PIANO049_MID--AUDIO-split_07-06-17_Piano-e_2-06_wav--3/MIDI-Unprocessed_049_PIANO049_MID--AUDIO-split_07-06-17_Piano-e_2-06_wav--3_seg003.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_338.wav",
+      "segment_id": "youtube_u6N4enSvNW4_0",
+      "source": "youtube",
+      "video_id": "u6N4enSvNW4",
+      "duration": 25.0,
+      "piano_confidence": 0.7,
+      "original_path": "youtube_segments/u6N4enSvNW4/segment_000.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_128.wav",
+      "segment_id": "youtube_PgFRQfKhG-w_86",
+      "source": "youtube",
+      "video_id": "PgFRQfKhG-w",
+      "duration": 25.0,
+      "piano_confidence": 0.8,
+      "original_path": "youtube_segments/PgFRQfKhG-w/segment_086.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_293.wav",
+      "segment_id": "youtube_brm0BGwC67w_8",
+      "source": "youtube",
+      "video_id": "brm0BGwC67w",
+      "duration": 25.0,
+      "piano_confidence": 0.7,
+      "original_path": "youtube_segments/brm0BGwC67w/segment_008.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_073.wav",
+      "segment_id": "youtube_LdH1hSWGFGU_21",
+      "source": "youtube",
+      "video_id": "LdH1hSWGFGU",
+      "duration": 25.0,
+      "piano_confidence": 1.0,
+      "original_path": "youtube_segments/LdH1hSWGFGU/segment_021.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_222.wav",
+      "segment_id": "youtube_bMPrD6DN7Ks_73",
+      "source": "youtube",
+      "video_id": "bMPrD6DN7Ks",
+      "duration": 25.0,
+      "piano_confidence": 1.0,
+      "original_path": "youtube_segments/bMPrD6DN7Ks/segment_073.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_062.wav",
+      "segment_id": "MIDI-Unprocessed_R1_D1-1-8_mid--AUDIO-from_mp3_06_R1_2015_wav--5_seg007",
+      "composer": "Franz Liszt",
+      "title": "Concert Etude No. 2, \u201cLa leggierezza\", S. 144",
+      "difficulty": 4.0,
+      "start_time": 140.0,
+      "end_time": 165.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Franz Liszt",
+      "title_display": "Title: Concert Etude No. 2, \u201cLa leggierezza\", S. 144",
+      "difficulty_display": "Difficulty: 4.0",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-Unprocessed_R1_D1-1-8_mid--AUDIO-from_mp3_06_R1_2015_wav--5/MIDI-Unprocessed_R1_D1-1-8_mid--AUDIO-from_mp3_06_R1_2015_wav--5_seg007.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-Unprocessed_R1_D1-1-8_mid--AUDIO-from_mp3_06_R1_2015_wav--5",
+      "midi_path": "segments/MIDI-Unprocessed_R1_D1-1-8_mid--AUDIO-from_mp3_06_R1_2015_wav--5/MIDI-Unprocessed_R1_D1-1-8_mid--AUDIO-from_mp3_06_R1_2015_wav--5_seg007.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_065.wav",
+      "segment_id": "MIDI-Unprocessed_R1_D2-13-20_mid--AUDIO-from_mp3_15_R1_2015_wav--1_seg012",
+      "composer": "Johann Sebastian Bach",
+      "title": "Prelude and Fugue in G Minor, WTC II, BWV 885",
+      "difficulty": 3.5,
+      "start_time": 240.0,
+      "end_time": 265.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Johann Sebastian Bach",
+      "title_display": "Title: Prelude and Fugue in G Minor, WTC II, BWV 885",
+      "difficulty_display": "Difficulty: 3.5",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-Unprocessed_R1_D2-13-20_mid--AUDIO-from_mp3_15_R1_2015_wav--1/MIDI-Unprocessed_R1_D2-13-20_mid--AUDIO-from_mp3_15_R1_2015_wav--1_seg012.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-Unprocessed_R1_D2-13-20_mid--AUDIO-from_mp3_15_R1_2015_wav--1",
+      "midi_path": "segments/MIDI-Unprocessed_R1_D2-13-20_mid--AUDIO-from_mp3_15_R1_2015_wav--1/MIDI-Unprocessed_R1_D2-13-20_mid--AUDIO-from_mp3_15_R1_2015_wav--1_seg012.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_037.wav",
+      "segment_id": "MIDI-Unprocessed_09_R1_2011_MID--AUDIO_R1-D3_12_Track12_wav_seg012",
+      "composer": "Johann Sebastian Bach",
+      "title": "Prelude and Fugue in B Major, WTC II, BWV 892",
+      "difficulty": 3.5,
+      "start_time": 240.0,
+      "end_time": 265.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Johann Sebastian Bach",
+      "title_display": "Title: Prelude and Fugue in B Major, WTC II, BWV 892",
+      "difficulty_display": "Difficulty: 3.5",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-Unprocessed_09_R1_2011_MID--AUDIO_R1-D3_12_Track12_wav/MIDI-Unprocessed_09_R1_2011_MID--AUDIO_R1-D3_12_Track12_wav_seg012.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-Unprocessed_09_R1_2011_MID--AUDIO_R1-D3_12_Track12_wav",
+      "midi_path": "segments/MIDI-Unprocessed_09_R1_2011_MID--AUDIO_R1-D3_12_Track12_wav/MIDI-Unprocessed_09_R1_2011_MID--AUDIO_R1-D3_12_Track12_wav_seg012.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_013.wav",
+      "segment_id": "MIDI-Unprocessed_02_R3_2008_01-03_ORIG_MID--AUDIO_02_R3_2008_wav--3_seg039",
+      "composer": "Carl Maria von Weber",
+      "title": "Sonata No. 1, 2nd, 3rd and 4th movements",
+      "difficulty": 3.0,
+      "start_time": 780.0,
+      "end_time": 805.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Carl Maria von Weber",
+      "title_display": "Title: Sonata No. 1, 2nd, 3rd and 4th movements",
+      "difficulty_display": "Difficulty: 3.0",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-Unprocessed_02_R3_2008_01-03_ORIG_MID--AUDIO_02_R3_2008_wav--3/MIDI-Unprocessed_02_R3_2008_01-03_ORIG_MID--AUDIO_02_R3_2008_wav--3_seg039.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-Unprocessed_02_R3_2008_01-03_ORIG_MID--AUDIO_02_R3_2008_wav--3",
+      "midi_path": "segments/MIDI-Unprocessed_02_R3_2008_01-03_ORIG_MID--AUDIO_02_R3_2008_wav--3/MIDI-Unprocessed_02_R3_2008_01-03_ORIG_MID--AUDIO_02_R3_2008_wav--3_seg039.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_041.wav",
+      "segment_id": "MIDI-Unprocessed_10_R1_2009_01-02_ORIG_MID--AUDIO_10_R1_2009_10_R1_2009_02_WAV_seg009",
+      "composer": "Ludwig van Beethoven",
+      "title": "Bagtellen, Op.126",
+      "difficulty": 4.0,
+      "start_time": 180.0,
+      "end_time": 205.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Ludwig van Beethoven",
+      "title_display": "Title: Bagtellen, Op.126",
+      "difficulty_display": "Difficulty: 4.0",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-Unprocessed_10_R1_2009_01-02_ORIG_MID--AUDIO_10_R1_2009_10_R1_2009_02_WAV/MIDI-Unprocessed_10_R1_2009_01-02_ORIG_MID--AUDIO_10_R1_2009_10_R1_2009_02_WAV_seg009.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-Unprocessed_10_R1_2009_01-02_ORIG_MID--AUDIO_10_R1_2009_10_R1_2009_02_WAV",
+      "midi_path": "segments/MIDI-Unprocessed_10_R1_2009_01-02_ORIG_MID--AUDIO_10_R1_2009_10_R1_2009_02_WAV/MIDI-Unprocessed_10_R1_2009_01-02_ORIG_MID--AUDIO_10_R1_2009_10_R1_2009_02_WAV_seg009.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_079.wav",
+      "segment_id": "youtube_PgFRQfKhG-w_7",
+      "source": "youtube",
+      "video_id": "PgFRQfKhG-w",
+      "duration": 25.0,
+      "piano_confidence": 0.7,
+      "original_path": "youtube_segments/PgFRQfKhG-w/segment_007.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_014.wav",
+      "segment_id": "youtube_7QA1GyU4Q1A_19",
+      "source": "youtube",
+      "video_id": "7QA1GyU4Q1A",
+      "duration": 25.0,
+      "piano_confidence": 1.0,
+      "original_path": "youtube_segments/7QA1GyU4Q1A/segment_019.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_027.wav",
+      "segment_id": "MIDI-Unprocessed_061_PIANO061_MID--AUDIO-split_07-07-17_Piano-e_2-05_wav--2_seg012",
+      "composer": "Ludwig van Beethoven",
+      "title": "Sonata No. 4 in E-flat Major, Op. 7, I. Allegro molto e con brio",
+      "difficulty": 4.0,
+      "start_time": 240.0,
+      "end_time": 265.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Ludwig van Beethoven",
+      "title_display": "Title: Sonata No. 4 in E-flat Major, Op. 7, I. Allegro molto e con brio",
+      "difficulty_display": "Difficulty: 4.0",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-Unprocessed_061_PIANO061_MID--AUDIO-split_07-07-17_Piano-e_2-05_wav--2/MIDI-Unprocessed_061_PIANO061_MID--AUDIO-split_07-07-17_Piano-e_2-05_wav--2_seg012.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-Unprocessed_061_PIANO061_MID--AUDIO-split_07-07-17_Piano-e_2-05_wav--2",
+      "midi_path": "segments/MIDI-Unprocessed_061_PIANO061_MID--AUDIO-split_07-07-17_Piano-e_2-05_wav--2/MIDI-Unprocessed_061_PIANO061_MID--AUDIO-split_07-07-17_Piano-e_2-05_wav--2_seg012.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_086.wav",
+      "segment_id": "MIDI-Unprocessed_XP_18_R1_2004_04_ORIG_MID--AUDIO_18_R1_2004_07_Track07_wav_seg036",
+      "composer": "Fr\u00e9d\u00e9ric Chopin",
+      "title": "Sonata in B Minor, Op. 58",
+      "difficulty": 3.5,
+      "start_time": 720.0,
+      "end_time": 745.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Fr\u00e9d\u00e9ric Chopin",
+      "title_display": "Title: Sonata in B Minor, Op. 58",
+      "difficulty_display": "Difficulty: 3.5",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-Unprocessed_XP_18_R1_2004_04_ORIG_MID--AUDIO_18_R1_2004_07_Track07_wav/MIDI-Unprocessed_XP_18_R1_2004_04_ORIG_MID--AUDIO_18_R1_2004_07_Track07_wav_seg036.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-Unprocessed_XP_18_R1_2004_04_ORIG_MID--AUDIO_18_R1_2004_07_Track07_wav",
+      "midi_path": "segments/MIDI-Unprocessed_XP_18_R1_2004_04_ORIG_MID--AUDIO_18_R1_2004_07_Track07_wav/MIDI-Unprocessed_XP_18_R1_2004_04_ORIG_MID--AUDIO_18_R1_2004_07_Track07_wav_seg036.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_051.wav",
+      "segment_id": "MIDI-Unprocessed_17_R1_2009_04_ORIG_MID--AUDIO_17_R1_2009_17_R1_2009_04_WAV_seg049",
+      "composer": "Fr\u00e9d\u00e9ric Chopin",
+      "title": "Preludes, Op.28",
+      "difficulty": 2.5,
+      "start_time": 980.0,
+      "end_time": 1005.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Fr\u00e9d\u00e9ric Chopin",
+      "title_display": "Title: Preludes, Op.28",
+      "difficulty_display": "Difficulty: 2.5",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-Unprocessed_17_R1_2009_04_ORIG_MID--AUDIO_17_R1_2009_17_R1_2009_04_WAV/MIDI-Unprocessed_17_R1_2009_04_ORIG_MID--AUDIO_17_R1_2009_17_R1_2009_04_WAV_seg049.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-Unprocessed_17_R1_2009_04_ORIG_MID--AUDIO_17_R1_2009_17_R1_2009_04_WAV",
+      "midi_path": "segments/MIDI-Unprocessed_17_R1_2009_04_ORIG_MID--AUDIO_17_R1_2009_17_R1_2009_04_WAV/MIDI-Unprocessed_17_R1_2009_04_ORIG_MID--AUDIO_17_R1_2009_17_R1_2009_04_WAV_seg049.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_098.wav",
+      "segment_id": "ORIG-MIDI_02_7_6_13_Group__MID--AUDIO_06_R1_2013_wav--1_seg007",
+      "composer": "Ludwig van Beethoven",
+      "title": "Sonata No. 7 in D Major, Op. 10 No. 3, 1st mov.",
+      "difficulty": 4.0,
+      "start_time": 140.0,
+      "end_time": 165.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Ludwig van Beethoven",
+      "title_display": "Title: Sonata No. 7 in D Major, Op. 10 No. 3, 1st mov.",
+      "difficulty_display": "Difficulty: 4.0",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/ORIG-MIDI_02_7_6_13_Group__MID--AUDIO_06_R1_2013_wav--1/ORIG-MIDI_02_7_6_13_Group__MID--AUDIO_06_R1_2013_wav--1_seg007.wav"
+    },
+    "meta": {
+      "piece_id": "ORIG-MIDI_02_7_6_13_Group__MID--AUDIO_06_R1_2013_wav--1",
+      "midi_path": "segments/ORIG-MIDI_02_7_6_13_Group__MID--AUDIO_06_R1_2013_wav--1/ORIG-MIDI_02_7_6_13_Group__MID--AUDIO_06_R1_2013_wav--1_seg007.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_093.wav",
+      "segment_id": "ORIG-MIDI_02_7_10_13_Group_MID--AUDIO_12_R3_2013_wav--1_seg008",
+      "composer": "Ludwig van Beethoven",
+      "title": "Thirty-Two Variations in C Minor, WoO 80",
+      "difficulty": 4.0,
+      "start_time": 160.0,
+      "end_time": 185.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Ludwig van Beethoven",
+      "title_display": "Title: Thirty-Two Variations in C Minor, WoO 80",
+      "difficulty_display": "Difficulty: 4.0",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/ORIG-MIDI_02_7_10_13_Group_MID--AUDIO_12_R3_2013_wav--1/ORIG-MIDI_02_7_10_13_Group_MID--AUDIO_12_R3_2013_wav--1_seg008.wav"
+    },
+    "meta": {
+      "piece_id": "ORIG-MIDI_02_7_10_13_Group_MID--AUDIO_12_R3_2013_wav--1",
+      "midi_path": "segments/ORIG-MIDI_02_7_10_13_Group_MID--AUDIO_12_R3_2013_wav--1/ORIG-MIDI_02_7_10_13_Group_MID--AUDIO_12_R3_2013_wav--1_seg008.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_083.wav",
+      "segment_id": "MIDI-Unprocessed_XP_14_R2_2004_01_ORIG_MID--AUDIO_14_R2_2004_02_Track02_wav_seg007",
+      "composer": "Franz Schubert",
+      "title": "Sonata in B-flat Major, D960",
+      "difficulty": 3.0,
+      "start_time": 140.0,
+      "end_time": 165.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Franz Schubert",
+      "title_display": "Title: Sonata in B-flat Major, D960",
+      "difficulty_display": "Difficulty: 3.0",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-Unprocessed_XP_14_R2_2004_01_ORIG_MID--AUDIO_14_R2_2004_02_Track02_wav/MIDI-Unprocessed_XP_14_R2_2004_01_ORIG_MID--AUDIO_14_R2_2004_02_Track02_wav_seg007.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-Unprocessed_XP_14_R2_2004_01_ORIG_MID--AUDIO_14_R2_2004_02_Track02_wav",
+      "midi_path": "segments/MIDI-Unprocessed_XP_14_R2_2004_01_ORIG_MID--AUDIO_14_R2_2004_02_Track02_wav/MIDI-Unprocessed_XP_14_R2_2004_01_ORIG_MID--AUDIO_14_R2_2004_02_Track02_wav_seg007.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_058.wav",
+      "segment_id": "MIDI-Unprocessed_21_R1_2009_01-03_ORIG_MID--AUDIO_21_R1_2009_21_R1_2009_01_WAV_seg049",
+      "composer": "Ludwig van Beethoven",
+      "title": "Sonata in A-flat, Op. 110",
+      "difficulty": 5.0,
+      "start_time": 980.0,
+      "end_time": 1005.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Ludwig van Beethoven",
+      "title_display": "Title: Sonata in A-flat, Op. 110",
+      "difficulty_display": "Difficulty: 5.0",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-Unprocessed_21_R1_2009_01-03_ORIG_MID--AUDIO_21_R1_2009_21_R1_2009_01_WAV/MIDI-Unprocessed_21_R1_2009_01-03_ORIG_MID--AUDIO_21_R1_2009_21_R1_2009_01_WAV_seg049.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-Unprocessed_21_R1_2009_01-03_ORIG_MID--AUDIO_21_R1_2009_21_R1_2009_01_WAV",
+      "midi_path": "segments/MIDI-Unprocessed_21_R1_2009_01-03_ORIG_MID--AUDIO_21_R1_2009_21_R1_2009_01_WAV/MIDI-Unprocessed_21_R1_2009_01-03_ORIG_MID--AUDIO_21_R1_2009_21_R1_2009_01_WAV_seg049.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_007.wav",
+      "segment_id": "youtube_7QA1GyU4Q1A_9",
+      "source": "youtube",
+      "video_id": "7QA1GyU4Q1A",
+      "duration": 25.0,
+      "piano_confidence": 1.0,
+      "original_path": "youtube_segments/7QA1GyU4Q1A/segment_009.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_307.wav",
+      "segment_id": "youtube_gEKdcbqU-Ds_9",
+      "source": "youtube",
+      "video_id": "gEKdcbqU-Ds",
+      "duration": 25.0,
+      "piano_confidence": 0.7,
+      "original_path": "youtube_segments/gEKdcbqU-Ds/segment_009.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_318.wav",
+      "segment_id": "youtube_ofnjUvih9Dc_5",
+      "source": "youtube",
+      "video_id": "ofnjUvih9Dc",
+      "duration": 25.0,
+      "piano_confidence": 0.7,
+      "original_path": "youtube_segments/ofnjUvih9Dc/segment_005.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_001.wav",
+      "segment_id": "MIDI-UNPROCESSED_11-13_R1_2014_MID--AUDIO_13_R1_2014_wav--6_seg008",
+      "composer": "Franz Liszt",
+      "title": "R\u00e9miniscences de Don Juan, S.418",
+      "difficulty": 4.0,
+      "start_time": 160.0,
+      "end_time": 185.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Franz Liszt",
+      "title_display": "Title: R\u00e9miniscences de Don Juan, S.418",
+      "difficulty_display": "Difficulty: 4.0",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-UNPROCESSED_11-13_R1_2014_MID--AUDIO_13_R1_2014_wav--6/MIDI-UNPROCESSED_11-13_R1_2014_MID--AUDIO_13_R1_2014_wav--6_seg008.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-UNPROCESSED_11-13_R1_2014_MID--AUDIO_13_R1_2014_wav--6",
+      "midi_path": "segments/MIDI-UNPROCESSED_11-13_R1_2014_MID--AUDIO_13_R1_2014_wav--6/MIDI-UNPROCESSED_11-13_R1_2014_MID--AUDIO_13_R1_2014_wav--6_seg008.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_019.wav",
+      "segment_id": "youtube_AqsibzAiIBs_1",
+      "source": "youtube",
+      "video_id": "AqsibzAiIBs",
+      "duration": 25.0,
+      "piano_confidence": 0.7,
+      "original_path": "youtube_segments/AqsibzAiIBs/segment_001.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_291.wav",
+      "segment_id": "youtube_brm0BGwC67w_6",
+      "source": "youtube",
+      "video_id": "brm0BGwC67w",
+      "duration": 25.0,
+      "piano_confidence": 0.7,
+      "original_path": "youtube_segments/brm0BGwC67w/segment_006.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_039.wav",
+      "segment_id": "MIDI-Unprocessed_10_R1_2009_01-02_ORIG_MID--AUDIO_10_R1_2009_10_R1_2009_01_WAV_seg032",
+      "composer": "Johann Sebastian Bach",
+      "title": "Partita No. 6 in E Minor",
+      "difficulty": 4.0,
+      "start_time": 640.0,
+      "end_time": 665.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Johann Sebastian Bach",
+      "title_display": "Title: Partita No. 6 in E Minor",
+      "difficulty_display": "Difficulty: 4.0",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-Unprocessed_10_R1_2009_01-02_ORIG_MID--AUDIO_10_R1_2009_10_R1_2009_01_WAV/MIDI-Unprocessed_10_R1_2009_01-02_ORIG_MID--AUDIO_10_R1_2009_10_R1_2009_01_WAV_seg032.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-Unprocessed_10_R1_2009_01-02_ORIG_MID--AUDIO_10_R1_2009_10_R1_2009_01_WAV",
+      "midi_path": "segments/MIDI-Unprocessed_10_R1_2009_01-02_ORIG_MID--AUDIO_10_R1_2009_10_R1_2009_01_WAV/MIDI-Unprocessed_10_R1_2009_01-02_ORIG_MID--AUDIO_10_R1_2009_10_R1_2009_01_WAV_seg032.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_031.wav",
+      "segment_id": "MIDI-Unprocessed_07_R1_2006_01-04_ORIG_MID--AUDIO_07_R1_2006_03_Track03_wav_seg036",
+      "composer": "Fr\u00e9d\u00e9ric Chopin",
+      "title": "Sonata 3 Op. 58",
+      "difficulty": 3.5,
+      "start_time": 720.0,
+      "end_time": 745.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Fr\u00e9d\u00e9ric Chopin",
+      "title_display": "Title: Sonata 3 Op. 58",
+      "difficulty_display": "Difficulty: 3.5",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-Unprocessed_07_R1_2006_01-04_ORIG_MID--AUDIO_07_R1_2006_03_Track03_wav/MIDI-Unprocessed_07_R1_2006_01-04_ORIG_MID--AUDIO_07_R1_2006_03_Track03_wav_seg036.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-Unprocessed_07_R1_2006_01-04_ORIG_MID--AUDIO_07_R1_2006_03_Track03_wav",
+      "midi_path": "segments/MIDI-Unprocessed_07_R1_2006_01-04_ORIG_MID--AUDIO_07_R1_2006_03_Track03_wav/MIDI-Unprocessed_07_R1_2006_01-04_ORIG_MID--AUDIO_07_R1_2006_03_Track03_wav_seg036.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_313.wav",
+      "segment_id": "youtube_ofnjUvih9Dc_0",
+      "source": "youtube",
+      "video_id": "ofnjUvih9Dc",
+      "duration": 25.0,
+      "piano_confidence": 0.7,
+      "original_path": "youtube_segments/ofnjUvih9Dc/segment_000.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_007.wav",
+      "segment_id": "MIDI-UNPROCESSED_19-21_R3_2014_MID--AUDIO_21_R3_2014_wav--1_seg006",
+      "composer": "Domenico Scarlatti",
+      "title": "Sonata in C Major, K. 132",
+      "difficulty": 3.0,
+      "start_time": 120.0,
+      "end_time": 145.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Domenico Scarlatti",
+      "title_display": "Title: Sonata in C Major, K. 132",
+      "difficulty_display": "Difficulty: 3.0",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-UNPROCESSED_19-21_R3_2014_MID--AUDIO_21_R3_2014_wav--1/MIDI-UNPROCESSED_19-21_R3_2014_MID--AUDIO_21_R3_2014_wav--1_seg006.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-UNPROCESSED_19-21_R3_2014_MID--AUDIO_21_R3_2014_wav--1",
+      "midi_path": "segments/MIDI-UNPROCESSED_19-21_R3_2014_MID--AUDIO_21_R3_2014_wav--1/MIDI-UNPROCESSED_19-21_R3_2014_MID--AUDIO_21_R3_2014_wav--1_seg006.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_044.wav",
+      "segment_id": "MIDI-Unprocessed_11_R1_2011_MID--AUDIO_R1-D4_09_Track09_wav_seg005",
+      "composer": "Fr\u00e9d\u00e9ric Chopin",
+      "title": "Etude Op. 25 No. 11 in A Minor",
+      "difficulty": 4.5,
+      "start_time": 100.0,
+      "end_time": 125.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Fr\u00e9d\u00e9ric Chopin",
+      "title_display": "Title: Etude Op. 25 No. 11 in A Minor",
+      "difficulty_display": "Difficulty: 4.5",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-Unprocessed_11_R1_2011_MID--AUDIO_R1-D4_09_Track09_wav/MIDI-Unprocessed_11_R1_2011_MID--AUDIO_R1-D4_09_Track09_wav_seg005.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-Unprocessed_11_R1_2011_MID--AUDIO_R1-D4_09_Track09_wav",
+      "midi_path": "segments/MIDI-Unprocessed_11_R1_2011_MID--AUDIO_R1-D4_09_Track09_wav/MIDI-Unprocessed_11_R1_2011_MID--AUDIO_R1-D4_09_Track09_wav_seg005.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_057.wav",
+      "segment_id": "MIDI-Unprocessed_21_R1_2009_01-03_ORIG_MID--AUDIO_21_R1_2009_21_R1_2009_01_WAV_seg029",
+      "composer": "Ludwig van Beethoven",
+      "title": "Sonata in A-flat, Op. 110",
+      "difficulty": 5.0,
+      "start_time": 580.0,
+      "end_time": 605.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Ludwig van Beethoven",
+      "title_display": "Title: Sonata in A-flat, Op. 110",
+      "difficulty_display": "Difficulty: 5.0",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-Unprocessed_21_R1_2009_01-03_ORIG_MID--AUDIO_21_R1_2009_21_R1_2009_01_WAV/MIDI-Unprocessed_21_R1_2009_01-03_ORIG_MID--AUDIO_21_R1_2009_21_R1_2009_01_WAV_seg029.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-Unprocessed_21_R1_2009_01-03_ORIG_MID--AUDIO_21_R1_2009_21_R1_2009_01_WAV",
+      "midi_path": "segments/MIDI-Unprocessed_21_R1_2009_01-03_ORIG_MID--AUDIO_21_R1_2009_21_R1_2009_01_WAV/MIDI-Unprocessed_21_R1_2009_01-03_ORIG_MID--AUDIO_21_R1_2009_21_R1_2009_01_WAV_seg029.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_040.wav",
+      "segment_id": "MIDI-Unprocessed_10_R1_2009_01-02_ORIG_MID--AUDIO_10_R1_2009_10_R1_2009_01_WAV_seg053",
+      "composer": "Johann Sebastian Bach",
+      "title": "Partita No. 6 in E Minor",
+      "difficulty": 4.0,
+      "start_time": 1060.0,
+      "end_time": 1085.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Johann Sebastian Bach",
+      "title_display": "Title: Partita No. 6 in E Minor",
+      "difficulty_display": "Difficulty: 4.0",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-Unprocessed_10_R1_2009_01-02_ORIG_MID--AUDIO_10_R1_2009_10_R1_2009_01_WAV/MIDI-Unprocessed_10_R1_2009_01-02_ORIG_MID--AUDIO_10_R1_2009_10_R1_2009_01_WAV_seg053.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-Unprocessed_10_R1_2009_01-02_ORIG_MID--AUDIO_10_R1_2009_10_R1_2009_01_WAV",
+      "midi_path": "segments/MIDI-Unprocessed_10_R1_2009_01-02_ORIG_MID--AUDIO_10_R1_2009_10_R1_2009_01_WAV/MIDI-Unprocessed_10_R1_2009_01-02_ORIG_MID--AUDIO_10_R1_2009_10_R1_2009_01_WAV_seg053.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_216.wav",
+      "segment_id": "youtube_bMPrD6DN7Ks_64",
+      "source": "youtube",
+      "video_id": "bMPrD6DN7Ks",
+      "duration": 25.0,
+      "piano_confidence": 0.8,
+      "original_path": "youtube_segments/bMPrD6DN7Ks/segment_064.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_017.wav",
+      "segment_id": "MIDI-Unprocessed_03_R3_2011_MID--AUDIO_R3-D1_04_Track04_wav_seg024",
+      "composer": "Felix Mendelssohn",
+      "title": "Variations Serieuses, Op. 54",
+      "difficulty": 3.0,
+      "start_time": 480.0,
+      "end_time": 505.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Felix Mendelssohn",
+      "title_display": "Title: Variations Serieuses, Op. 54",
+      "difficulty_display": "Difficulty: 3.0",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-Unprocessed_03_R3_2011_MID--AUDIO_R3-D1_04_Track04_wav/MIDI-Unprocessed_03_R3_2011_MID--AUDIO_R3-D1_04_Track04_wav_seg024.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-Unprocessed_03_R3_2011_MID--AUDIO_R3-D1_04_Track04_wav",
+      "midi_path": "segments/MIDI-Unprocessed_03_R3_2011_MID--AUDIO_R3-D1_04_Track04_wav/MIDI-Unprocessed_03_R3_2011_MID--AUDIO_R3-D1_04_Track04_wav_seg024.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_073.wav",
+      "segment_id": "MIDI-Unprocessed_Recital13-15_MID--AUDIO_13_R1_2018_wav--2_seg012",
+      "composer": "Robert Schumann",
+      "title": "Symphonic Etudes Op. 13",
+      "difficulty": 3.5,
+      "start_time": 240.0,
+      "end_time": 265.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Robert Schumann",
+      "title_display": "Title: Symphonic Etudes Op. 13",
+      "difficulty_display": "Difficulty: 3.5",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-Unprocessed_Recital13-15_MID--AUDIO_13_R1_2018_wav--2/MIDI-Unprocessed_Recital13-15_MID--AUDIO_13_R1_2018_wav--2_seg012.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-Unprocessed_Recital13-15_MID--AUDIO_13_R1_2018_wav--2",
+      "midi_path": "segments/MIDI-Unprocessed_Recital13-15_MID--AUDIO_13_R1_2018_wav--2/MIDI-Unprocessed_Recital13-15_MID--AUDIO_13_R1_2018_wav--2_seg012.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_048.wav",
+      "segment_id": "MIDI-Unprocessed_17_R1_2008_01-04_ORIG_MID--AUDIO_17_R1_2008_wav--4_seg005",
+      "composer": "Franz Liszt",
+      "title": "Sonetto 104 del Petrarca",
+      "difficulty": 4.0,
+      "start_time": 100.0,
+      "end_time": 125.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Franz Liszt",
+      "title_display": "Title: Sonetto 104 del Petrarca",
+      "difficulty_display": "Difficulty: 4.0",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-Unprocessed_17_R1_2008_01-04_ORIG_MID--AUDIO_17_R1_2008_wav--4/MIDI-Unprocessed_17_R1_2008_01-04_ORIG_MID--AUDIO_17_R1_2008_wav--4_seg005.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-Unprocessed_17_R1_2008_01-04_ORIG_MID--AUDIO_17_R1_2008_wav--4",
+      "midi_path": "segments/MIDI-Unprocessed_17_R1_2008_01-04_ORIG_MID--AUDIO_17_R1_2008_wav--4/MIDI-Unprocessed_17_R1_2008_01-04_ORIG_MID--AUDIO_17_R1_2008_wav--4_seg005.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_137.wav",
+      "segment_id": "youtube_VHwlGiF4CpE_9",
+      "source": "youtube",
+      "video_id": "VHwlGiF4CpE",
+      "duration": 25.0,
+      "piano_confidence": 0.8,
+      "original_path": "youtube_segments/VHwlGiF4CpE/segment_009.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_010.wav",
+      "segment_id": "youtube_7QA1GyU4Q1A_13",
+      "source": "youtube",
+      "video_id": "7QA1GyU4Q1A",
+      "duration": 25.0,
+      "piano_confidence": 1.0,
+      "original_path": "youtube_segments/7QA1GyU4Q1A/segment_013.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_034.wav",
+      "segment_id": "MIDI-Unprocessed_08_R1_2006_01-04_ORIG_MID--AUDIO_08_R1_2006_Disk1_01_Track01_wav_seg021",
+      "composer": "Charles Gounod / Franz Liszt",
+      "title": "Faust Waltz",
+      "difficulty": 3.0,
+      "start_time": 420.0,
+      "end_time": 445.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Charles Gounod / Franz Liszt",
+      "title_display": "Title: Faust Waltz",
+      "difficulty_display": "Difficulty: 3.0",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-Unprocessed_08_R1_2006_01-04_ORIG_MID--AUDIO_08_R1_2006_Disk1_01_Track01_wav/MIDI-Unprocessed_08_R1_2006_01-04_ORIG_MID--AUDIO_08_R1_2006_Disk1_01_Track01_wav_seg021.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-Unprocessed_08_R1_2006_01-04_ORIG_MID--AUDIO_08_R1_2006_Disk1_01_Track01_wav",
+      "midi_path": "segments/MIDI-Unprocessed_08_R1_2006_01-04_ORIG_MID--AUDIO_08_R1_2006_Disk1_01_Track01_wav/MIDI-Unprocessed_08_R1_2006_01-04_ORIG_MID--AUDIO_08_R1_2006_Disk1_01_Track01_wav_seg021.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_085.wav",
+      "segment_id": "MIDI-Unprocessed_XP_18_R1_2004_04_ORIG_MID--AUDIO_18_R1_2004_07_Track07_wav_seg012",
+      "composer": "Fr\u00e9d\u00e9ric Chopin",
+      "title": "Sonata in B Minor, Op. 58",
+      "difficulty": 3.5,
+      "start_time": 240.0,
+      "end_time": 265.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Fr\u00e9d\u00e9ric Chopin",
+      "title_display": "Title: Sonata in B Minor, Op. 58",
+      "difficulty_display": "Difficulty: 3.5",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-Unprocessed_XP_18_R1_2004_04_ORIG_MID--AUDIO_18_R1_2004_07_Track07_wav/MIDI-Unprocessed_XP_18_R1_2004_04_ORIG_MID--AUDIO_18_R1_2004_07_Track07_wav_seg012.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-Unprocessed_XP_18_R1_2004_04_ORIG_MID--AUDIO_18_R1_2004_07_Track07_wav",
+      "midi_path": "segments/MIDI-Unprocessed_XP_18_R1_2004_04_ORIG_MID--AUDIO_18_R1_2004_07_Track07_wav/MIDI-Unprocessed_XP_18_R1_2004_04_ORIG_MID--AUDIO_18_R1_2004_07_Track07_wav_seg012.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_026.wav",
+      "segment_id": "MIDI-Unprocessed_061_PIANO061_MID--AUDIO-split_07-07-17_Piano-e_2-05_wav--2_seg004",
+      "composer": "Ludwig van Beethoven",
+      "title": "Sonata No. 4 in E-flat Major, Op. 7, I. Allegro molto e con brio",
+      "difficulty": 4.0,
+      "start_time": 80.0,
+      "end_time": 105.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Ludwig van Beethoven",
+      "title_display": "Title: Sonata No. 4 in E-flat Major, Op. 7, I. Allegro molto e con brio",
+      "difficulty_display": "Difficulty: 4.0",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-Unprocessed_061_PIANO061_MID--AUDIO-split_07-07-17_Piano-e_2-05_wav--2/MIDI-Unprocessed_061_PIANO061_MID--AUDIO-split_07-07-17_Piano-e_2-05_wav--2_seg004.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-Unprocessed_061_PIANO061_MID--AUDIO-split_07-07-17_Piano-e_2-05_wav--2",
+      "midi_path": "segments/MIDI-Unprocessed_061_PIANO061_MID--AUDIO-split_07-07-17_Piano-e_2-05_wav--2/MIDI-Unprocessed_061_PIANO061_MID--AUDIO-split_07-07-17_Piano-e_2-05_wav--2_seg004.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_056.wav",
+      "segment_id": "MIDI-Unprocessed_21_R1_2009_01-03_ORIG_MID--AUDIO_21_R1_2009_21_R1_2009_01_WAV_seg009",
+      "composer": "Ludwig van Beethoven",
+      "title": "Sonata in A-flat, Op. 110",
+      "difficulty": 5.0,
+      "start_time": 180.0,
+      "end_time": 205.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Ludwig van Beethoven",
+      "title_display": "Title: Sonata in A-flat, Op. 110",
+      "difficulty_display": "Difficulty: 5.0",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-Unprocessed_21_R1_2009_01-03_ORIG_MID--AUDIO_21_R1_2009_21_R1_2009_01_WAV/MIDI-Unprocessed_21_R1_2009_01-03_ORIG_MID--AUDIO_21_R1_2009_21_R1_2009_01_WAV_seg009.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-Unprocessed_21_R1_2009_01-03_ORIG_MID--AUDIO_21_R1_2009_21_R1_2009_01_WAV",
+      "midi_path": "segments/MIDI-Unprocessed_21_R1_2009_01-03_ORIG_MID--AUDIO_21_R1_2009_21_R1_2009_01_WAV/MIDI-Unprocessed_21_R1_2009_01-03_ORIG_MID--AUDIO_21_R1_2009_21_R1_2009_01_WAV_seg009.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_077.wav",
+      "segment_id": "MIDI-Unprocessed_SMF_12_01_2004_01-05_ORIG_MID--AUDIO_12_R1_2004_10_Track10_wav_seg025",
+      "composer": "Franz Liszt",
+      "title": "Mephisto Waltz No. 1",
+      "difficulty": 4.5,
+      "start_time": 500.0,
+      "end_time": 525.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Franz Liszt",
+      "title_display": "Title: Mephisto Waltz No. 1",
+      "difficulty_display": "Difficulty: 4.5",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-Unprocessed_SMF_12_01_2004_01-05_ORIG_MID--AUDIO_12_R1_2004_10_Track10_wav/MIDI-Unprocessed_SMF_12_01_2004_01-05_ORIG_MID--AUDIO_12_R1_2004_10_Track10_wav_seg025.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-Unprocessed_SMF_12_01_2004_01-05_ORIG_MID--AUDIO_12_R1_2004_10_Track10_wav",
+      "midi_path": "segments/MIDI-Unprocessed_SMF_12_01_2004_01-05_ORIG_MID--AUDIO_12_R1_2004_10_Track10_wav/MIDI-Unprocessed_SMF_12_01_2004_01-05_ORIG_MID--AUDIO_12_R1_2004_10_Track10_wav_seg025.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_074.wav",
+      "segment_id": "MIDI-Unprocessed_Recital13-15_MID--AUDIO_13_R1_2018_wav--2_seg038",
+      "composer": "Robert Schumann",
+      "title": "Symphonic Etudes Op. 13",
+      "difficulty": 3.5,
+      "start_time": 760.0,
+      "end_time": 785.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Robert Schumann",
+      "title_display": "Title: Symphonic Etudes Op. 13",
+      "difficulty_display": "Difficulty: 3.5",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-Unprocessed_Recital13-15_MID--AUDIO_13_R1_2018_wav--2/MIDI-Unprocessed_Recital13-15_MID--AUDIO_13_R1_2018_wav--2_seg038.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-Unprocessed_Recital13-15_MID--AUDIO_13_R1_2018_wav--2",
+      "midi_path": "segments/MIDI-Unprocessed_Recital13-15_MID--AUDIO_13_R1_2018_wav--2/MIDI-Unprocessed_Recital13-15_MID--AUDIO_13_R1_2018_wav--2_seg038.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_022.wav",
+      "segment_id": "youtube_AqsibzAiIBs_4",
+      "source": "youtube",
+      "video_id": "AqsibzAiIBs",
+      "duration": 25.0,
+      "piano_confidence": 0.7,
+      "original_path": "youtube_segments/AqsibzAiIBs/segment_004.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_298.wav",
+      "segment_id": "youtube_gEKdcbqU-Ds_0",
+      "source": "youtube",
+      "video_id": "gEKdcbqU-Ds",
+      "duration": 25.0,
+      "piano_confidence": 0.7,
+      "original_path": "youtube_segments/gEKdcbqU-Ds/segment_000.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_071.wav",
+      "segment_id": "MIDI-Unprocessed_Recital1-3_MID--AUDIO_02_R1_2018_wav--1_seg046",
+      "composer": "Ludwig van Beethoven",
+      "title": "Sonata No. 29 in B-flat Major, Op. 106",
+      "difficulty": 4.0,
+      "start_time": 920.0,
+      "end_time": 945.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Ludwig van Beethoven",
+      "title_display": "Title: Sonata No. 29 in B-flat Major, Op. 106",
+      "difficulty_display": "Difficulty: 4.0",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-Unprocessed_Recital1-3_MID--AUDIO_02_R1_2018_wav--1/MIDI-Unprocessed_Recital1-3_MID--AUDIO_02_R1_2018_wav--1_seg046.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-Unprocessed_Recital1-3_MID--AUDIO_02_R1_2018_wav--1",
+      "midi_path": "segments/MIDI-Unprocessed_Recital1-3_MID--AUDIO_02_R1_2018_wav--1/MIDI-Unprocessed_Recital1-3_MID--AUDIO_02_R1_2018_wav--1_seg046.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_021.wav",
+      "segment_id": "youtube_AqsibzAiIBs_3",
+      "source": "youtube",
+      "video_id": "AqsibzAiIBs",
+      "duration": 25.0,
+      "piano_confidence": 0.7,
+      "original_path": "youtube_segments/AqsibzAiIBs/segment_003.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_091.wav",
+      "segment_id": "ORIG-MIDI_01_7_6_13_Group__MID--AUDIO_01_R1_2013_wav--4_seg004",
+      "composer": "Franz Liszt",
+      "title": "Transcendental Etude No. 8 \"Wilde Jagd\"",
+      "difficulty": 5.0,
+      "start_time": 80.0,
+      "end_time": 105.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Franz Liszt",
+      "title_display": "Title: Transcendental Etude No. 8 \"Wilde Jagd\"",
+      "difficulty_display": "Difficulty: 5.0",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/ORIG-MIDI_01_7_6_13_Group__MID--AUDIO_01_R1_2013_wav--4/ORIG-MIDI_01_7_6_13_Group__MID--AUDIO_01_R1_2013_wav--4_seg004.wav"
+    },
+    "meta": {
+      "piece_id": "ORIG-MIDI_01_7_6_13_Group__MID--AUDIO_01_R1_2013_wav--4",
+      "midi_path": "segments/ORIG-MIDI_01_7_6_13_Group__MID--AUDIO_01_R1_2013_wav--4/ORIG-MIDI_01_7_6_13_Group__MID--AUDIO_01_R1_2013_wav--4_seg004.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_083.wav",
+      "segment_id": "youtube_PgFRQfKhG-w_15",
+      "source": "youtube",
+      "video_id": "PgFRQfKhG-w",
+      "duration": 25.0,
+      "piano_confidence": 0.7,
+      "original_path": "youtube_segments/PgFRQfKhG-w/segment_015.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_072.wav",
+      "segment_id": "MIDI-Unprocessed_Recital1-3_MID--AUDIO_02_R1_2018_wav--1_seg076",
+      "composer": "Ludwig van Beethoven",
+      "title": "Sonata No. 29 in B-flat Major, Op. 106",
+      "difficulty": 4.0,
+      "start_time": 1520.0,
+      "end_time": 1545.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Ludwig van Beethoven",
+      "title_display": "Title: Sonata No. 29 in B-flat Major, Op. 106",
+      "difficulty_display": "Difficulty: 4.0",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-Unprocessed_Recital1-3_MID--AUDIO_02_R1_2018_wav--1/MIDI-Unprocessed_Recital1-3_MID--AUDIO_02_R1_2018_wav--1_seg076.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-Unprocessed_Recital1-3_MID--AUDIO_02_R1_2018_wav--1",
+      "midi_path": "segments/MIDI-Unprocessed_Recital1-3_MID--AUDIO_02_R1_2018_wav--1/MIDI-Unprocessed_Recital1-3_MID--AUDIO_02_R1_2018_wav--1_seg076.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_055.wav",
+      "segment_id": "youtube_LdH1hSWGFGU_1",
+      "source": "youtube",
+      "video_id": "LdH1hSWGFGU",
+      "duration": 25.0,
+      "piano_confidence": 0.7,
+      "original_path": "youtube_segments/LdH1hSWGFGU/segment_001.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_092.wav",
+      "segment_id": "ORIG-MIDI_01_7_6_13_Group__MID--AUDIO_01_R1_2013_wav--4_seg012",
+      "composer": "Franz Liszt",
+      "title": "Transcendental Etude No. 8 \"Wilde Jagd\"",
+      "difficulty": 5.0,
+      "start_time": 240.0,
+      "end_time": 265.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Franz Liszt",
+      "title_display": "Title: Transcendental Etude No. 8 \"Wilde Jagd\"",
+      "difficulty_display": "Difficulty: 5.0",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/ORIG-MIDI_01_7_6_13_Group__MID--AUDIO_01_R1_2013_wav--4/ORIG-MIDI_01_7_6_13_Group__MID--AUDIO_01_R1_2013_wav--4_seg012.wav"
+    },
+    "meta": {
+      "piece_id": "ORIG-MIDI_01_7_6_13_Group__MID--AUDIO_01_R1_2013_wav--4",
+      "midi_path": "segments/ORIG-MIDI_01_7_6_13_Group__MID--AUDIO_01_R1_2013_wav--4/ORIG-MIDI_01_7_6_13_Group__MID--AUDIO_01_R1_2013_wav--4_seg012.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_015.wav",
+      "segment_id": "MIDI-Unprocessed_03_R2_2008_01-03_ORIG_MID--AUDIO_03_R2_2008_wav--2_seg028",
+      "composer": "Alban Berg",
+      "title": "Sonata Op. 1",
+      "difficulty": 3.0,
+      "start_time": 560.0,
+      "end_time": 585.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Alban Berg",
+      "title_display": "Title: Sonata Op. 1",
+      "difficulty_display": "Difficulty: 3.0",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-Unprocessed_03_R2_2008_01-03_ORIG_MID--AUDIO_03_R2_2008_wav--2/MIDI-Unprocessed_03_R2_2008_01-03_ORIG_MID--AUDIO_03_R2_2008_wav--2_seg028.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-Unprocessed_03_R2_2008_01-03_ORIG_MID--AUDIO_03_R2_2008_wav--2",
+      "midi_path": "segments/MIDI-Unprocessed_03_R2_2008_01-03_ORIG_MID--AUDIO_03_R2_2008_wav--2/MIDI-Unprocessed_03_R2_2008_01-03_ORIG_MID--AUDIO_03_R2_2008_wav--2_seg028.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_089.wav",
+      "segment_id": "ORIG-MIDI_01_7_10_13_Group_MID--AUDIO_08_R3_2013_wav--2_seg020",
+      "composer": "Johann Sebastian Bach",
+      "title": "English Suite in A Minor, BWV 807",
+      "difficulty": 3.0,
+      "start_time": 400.0,
+      "end_time": 425.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Johann Sebastian Bach",
+      "title_display": "Title: English Suite in A Minor, BWV 807",
+      "difficulty_display": "Difficulty: 3.0",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/ORIG-MIDI_01_7_10_13_Group_MID--AUDIO_08_R3_2013_wav--2/ORIG-MIDI_01_7_10_13_Group_MID--AUDIO_08_R3_2013_wav--2_seg020.wav"
+    },
+    "meta": {
+      "piece_id": "ORIG-MIDI_01_7_10_13_Group_MID--AUDIO_08_R3_2013_wav--2",
+      "midi_path": "segments/ORIG-MIDI_01_7_10_13_Group_MID--AUDIO_08_R3_2013_wav--2/ORIG-MIDI_01_7_10_13_Group_MID--AUDIO_08_R3_2013_wav--2_seg020.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_294.wav",
+      "segment_id": "youtube_brm0BGwC67w_9",
+      "source": "youtube",
+      "video_id": "brm0BGwC67w",
+      "duration": 25.0,
+      "piano_confidence": 0.7,
+      "original_path": "youtube_segments/brm0BGwC67w/segment_009.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_001.wav",
+      "segment_id": "youtube_7QA1GyU4Q1A_3",
+      "source": "youtube",
+      "video_id": "7QA1GyU4Q1A",
+      "duration": 25.0,
+      "piano_confidence": 1.0,
+      "original_path": "youtube_segments/7QA1GyU4Q1A/segment_003.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_067.wav",
+      "segment_id": "MIDI-Unprocessed_R1_D2-13-20_mid--AUDIO-from_mp3_15_R1_2015_wav--5_seg024",
+      "composer": "Fr\u00e9d\u00e9ric Chopin",
+      "title": "Scherzo No. 4 in E Major, Op. 54",
+      "difficulty": 4.5,
+      "start_time": 480.0,
+      "end_time": 505.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Fr\u00e9d\u00e9ric Chopin",
+      "title_display": "Title: Scherzo No. 4 in E Major, Op. 54",
+      "difficulty_display": "Difficulty: 4.5",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-Unprocessed_R1_D2-13-20_mid--AUDIO-from_mp3_15_R1_2015_wav--5/MIDI-Unprocessed_R1_D2-13-20_mid--AUDIO-from_mp3_15_R1_2015_wav--5_seg024.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-Unprocessed_R1_D2-13-20_mid--AUDIO-from_mp3_15_R1_2015_wav--5",
+      "midi_path": "segments/MIDI-Unprocessed_R1_D2-13-20_mid--AUDIO-from_mp3_15_R1_2015_wav--5/MIDI-Unprocessed_R1_D2-13-20_mid--AUDIO-from_mp3_15_R1_2015_wav--5_seg024.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_158.wav",
+      "segment_id": "youtube_VHwlGiF4CpE_31",
+      "source": "youtube",
+      "video_id": "VHwlGiF4CpE",
+      "duration": 25.0,
+      "piano_confidence": 1.0,
+      "original_path": "youtube_segments/VHwlGiF4CpE/segment_031.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_299.wav",
+      "segment_id": "youtube_gEKdcbqU-Ds_1",
+      "source": "youtube",
+      "video_id": "gEKdcbqU-Ds",
+      "duration": 25.0,
+      "piano_confidence": 0.7,
+      "original_path": "youtube_segments/gEKdcbqU-Ds/segment_001.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_081.wav",
+      "segment_id": "youtube_PgFRQfKhG-w_12",
+      "source": "youtube",
+      "video_id": "PgFRQfKhG-w",
+      "duration": 25.0,
+      "piano_confidence": 0.7,
+      "original_path": "youtube_segments/PgFRQfKhG-w/segment_012.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_028.wav",
+      "segment_id": "MIDI-Unprocessed_06_R1_2009_03-07_ORIG_MID--AUDIO_06_R1_2009_06_R1_2009_06_WAV_seg009",
+      "composer": "Fr\u00e9d\u00e9ric Chopin",
+      "title": "Fantasy in F Minor, Op.49",
+      "difficulty": 3.5,
+      "start_time": 180.0,
+      "end_time": 205.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Fr\u00e9d\u00e9ric Chopin",
+      "title_display": "Title: Fantasy in F Minor, Op.49",
+      "difficulty_display": "Difficulty: 3.5",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-Unprocessed_06_R1_2009_03-07_ORIG_MID--AUDIO_06_R1_2009_06_R1_2009_06_WAV/MIDI-Unprocessed_06_R1_2009_03-07_ORIG_MID--AUDIO_06_R1_2009_06_R1_2009_06_WAV_seg009.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-Unprocessed_06_R1_2009_03-07_ORIG_MID--AUDIO_06_R1_2009_06_R1_2009_06_WAV",
+      "midi_path": "segments/MIDI-Unprocessed_06_R1_2009_03-07_ORIG_MID--AUDIO_06_R1_2009_06_R1_2009_06_WAV/MIDI-Unprocessed_06_R1_2009_03-07_ORIG_MID--AUDIO_06_R1_2009_06_R1_2009_06_WAV_seg009.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_287.wav",
+      "segment_id": "youtube_brm0BGwC67w_2",
+      "source": "youtube",
+      "video_id": "brm0BGwC67w",
+      "duration": 25.0,
+      "piano_confidence": 0.7,
+      "original_path": "youtube_segments/brm0BGwC67w/segment_002.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_305.wav",
+      "segment_id": "youtube_gEKdcbqU-Ds_7",
+      "source": "youtube",
+      "video_id": "gEKdcbqU-Ds",
+      "duration": 25.0,
+      "piano_confidence": 0.7,
+      "original_path": "youtube_segments/gEKdcbqU-Ds/segment_007.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_315.wav",
+      "segment_id": "youtube_ofnjUvih9Dc_2",
+      "source": "youtube",
+      "video_id": "ofnjUvih9Dc",
+      "duration": 25.0,
+      "piano_confidence": 0.7,
+      "original_path": "youtube_segments/ofnjUvih9Dc/segment_002.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_277.wav",
+      "segment_id": "youtube_bMPrD6DN7Ks_135",
+      "source": "youtube",
+      "video_id": "bMPrD6DN7Ks",
+      "duration": 25.0,
+      "piano_confidence": 1.0,
+      "original_path": "youtube_segments/bMPrD6DN7Ks/segment_135.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_032.wav",
+      "segment_id": "MIDI-Unprocessed_07_R1_2006_01-04_ORIG_MID--AUDIO_07_R1_2006_03_Track03_wav_seg060",
+      "composer": "Fr\u00e9d\u00e9ric Chopin",
+      "title": "Sonata 3 Op. 58",
+      "difficulty": 3.5,
+      "start_time": 1200.0,
+      "end_time": 1225.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Fr\u00e9d\u00e9ric Chopin",
+      "title_display": "Title: Sonata 3 Op. 58",
+      "difficulty_display": "Difficulty: 3.5",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-Unprocessed_07_R1_2006_01-04_ORIG_MID--AUDIO_07_R1_2006_03_Track03_wav/MIDI-Unprocessed_07_R1_2006_01-04_ORIG_MID--AUDIO_07_R1_2006_03_Track03_wav_seg060.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-Unprocessed_07_R1_2006_01-04_ORIG_MID--AUDIO_07_R1_2006_03_Track03_wav",
+      "midi_path": "segments/MIDI-Unprocessed_07_R1_2006_01-04_ORIG_MID--AUDIO_07_R1_2006_03_Track03_wav/MIDI-Unprocessed_07_R1_2006_01-04_ORIG_MID--AUDIO_07_R1_2006_03_Track03_wav_seg060.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_066.wav",
+      "segment_id": "MIDI-Unprocessed_R1_D2-13-20_mid--AUDIO-from_mp3_15_R1_2015_wav--5_seg008",
+      "composer": "Fr\u00e9d\u00e9ric Chopin",
+      "title": "Scherzo No. 4 in E Major, Op. 54",
+      "difficulty": 4.5,
+      "start_time": 160.0,
+      "end_time": 185.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Fr\u00e9d\u00e9ric Chopin",
+      "title_display": "Title: Scherzo No. 4 in E Major, Op. 54",
+      "difficulty_display": "Difficulty: 4.5",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-Unprocessed_R1_D2-13-20_mid--AUDIO-from_mp3_15_R1_2015_wav--5/MIDI-Unprocessed_R1_D2-13-20_mid--AUDIO-from_mp3_15_R1_2015_wav--5_seg008.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-Unprocessed_R1_D2-13-20_mid--AUDIO-from_mp3_15_R1_2015_wav--5",
+      "midi_path": "segments/MIDI-Unprocessed_R1_D2-13-20_mid--AUDIO-from_mp3_15_R1_2015_wav--5/MIDI-Unprocessed_R1_D2-13-20_mid--AUDIO-from_mp3_15_R1_2015_wav--5_seg008.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_076.wav",
+      "segment_id": "MIDI-Unprocessed_SMF_12_01_2004_01-05_ORIG_MID--AUDIO_12_R1_2004_10_Track10_wav_seg008",
+      "composer": "Franz Liszt",
+      "title": "Mephisto Waltz No. 1",
+      "difficulty": 4.5,
+      "start_time": 160.0,
+      "end_time": 185.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Franz Liszt",
+      "title_display": "Title: Mephisto Waltz No. 1",
+      "difficulty_display": "Difficulty: 4.5",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-Unprocessed_SMF_12_01_2004_01-05_ORIG_MID--AUDIO_12_R1_2004_10_Track10_wav/MIDI-Unprocessed_SMF_12_01_2004_01-05_ORIG_MID--AUDIO_12_R1_2004_10_Track10_wav_seg008.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-Unprocessed_SMF_12_01_2004_01-05_ORIG_MID--AUDIO_12_R1_2004_10_Track10_wav",
+      "midi_path": "segments/MIDI-Unprocessed_SMF_12_01_2004_01-05_ORIG_MID--AUDIO_12_R1_2004_10_Track10_wav/MIDI-Unprocessed_SMF_12_01_2004_01-05_ORIG_MID--AUDIO_12_R1_2004_10_Track10_wav_seg008.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_011.wav",
+      "segment_id": "MIDI-Unprocessed_02_R3_2008_01-03_ORIG_MID--AUDIO_02_R3_2008_wav--3_seg007",
+      "composer": "Carl Maria von Weber",
+      "title": "Sonata No. 1, 2nd, 3rd and 4th movements",
+      "difficulty": 3.0,
+      "start_time": 140.0,
+      "end_time": 165.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Carl Maria von Weber",
+      "title_display": "Title: Sonata No. 1, 2nd, 3rd and 4th movements",
+      "difficulty_display": "Difficulty: 3.0",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-Unprocessed_02_R3_2008_01-03_ORIG_MID--AUDIO_02_R3_2008_wav--3/MIDI-Unprocessed_02_R3_2008_01-03_ORIG_MID--AUDIO_02_R3_2008_wav--3_seg007.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-Unprocessed_02_R3_2008_01-03_ORIG_MID--AUDIO_02_R3_2008_wav--3",
+      "midi_path": "segments/MIDI-Unprocessed_02_R3_2008_01-03_ORIG_MID--AUDIO_02_R3_2008_wav--3/MIDI-Unprocessed_02_R3_2008_01-03_ORIG_MID--AUDIO_02_R3_2008_wav--3_seg007.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_012.wav",
+      "segment_id": "MIDI-Unprocessed_02_R3_2008_01-03_ORIG_MID--AUDIO_02_R3_2008_wav--3_seg023",
+      "composer": "Carl Maria von Weber",
+      "title": "Sonata No. 1, 2nd, 3rd and 4th movements",
+      "difficulty": 3.0,
+      "start_time": 460.0,
+      "end_time": 485.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Carl Maria von Weber",
+      "title_display": "Title: Sonata No. 1, 2nd, 3rd and 4th movements",
+      "difficulty_display": "Difficulty: 3.0",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-Unprocessed_02_R3_2008_01-03_ORIG_MID--AUDIO_02_R3_2008_wav--3/MIDI-Unprocessed_02_R3_2008_01-03_ORIG_MID--AUDIO_02_R3_2008_wav--3_seg023.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-Unprocessed_02_R3_2008_01-03_ORIG_MID--AUDIO_02_R3_2008_wav--3",
+      "midi_path": "segments/MIDI-Unprocessed_02_R3_2008_01-03_ORIG_MID--AUDIO_02_R3_2008_wav--3/MIDI-Unprocessed_02_R3_2008_01-03_ORIG_MID--AUDIO_02_R3_2008_wav--3_seg023.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_020.wav",
+      "segment_id": "youtube_AqsibzAiIBs_2",
+      "source": "youtube",
+      "video_id": "AqsibzAiIBs",
+      "duration": 25.0,
+      "piano_confidence": 1.0,
+      "original_path": "youtube_segments/AqsibzAiIBs/segment_002.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_295.wav",
+      "segment_id": "youtube_brm0BGwC67w_10",
+      "source": "youtube",
+      "video_id": "brm0BGwC67w",
+      "duration": 25.0,
+      "piano_confidence": 0.7,
+      "original_path": "youtube_segments/brm0BGwC67w/segment_010.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_025.wav",
+      "segment_id": "MIDI-Unprocessed_054_PIANO054_MID--AUDIO-split_07-07-17_Piano-e_1-02_wav--3_seg006",
+      "composer": "Franz Liszt",
+      "title": "Grandes \u00e9tudes de Paganini, No. 3 \"La campanella\", S.141/3",
+      "difficulty": 5.0,
+      "start_time": 120.0,
+      "end_time": 145.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Franz Liszt",
+      "title_display": "Title: Grandes \u00e9tudes de Paganini, No. 3 \"La campanella\", S.141/3",
+      "difficulty_display": "Difficulty: 5.0",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-Unprocessed_054_PIANO054_MID--AUDIO-split_07-07-17_Piano-e_1-02_wav--3/MIDI-Unprocessed_054_PIANO054_MID--AUDIO-split_07-07-17_Piano-e_1-02_wav--3_seg006.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-Unprocessed_054_PIANO054_MID--AUDIO-split_07-07-17_Piano-e_1-02_wav--3",
+      "midi_path": "segments/MIDI-Unprocessed_054_PIANO054_MID--AUDIO-split_07-07-17_Piano-e_1-02_wav--3/MIDI-Unprocessed_054_PIANO054_MID--AUDIO-split_07-07-17_Piano-e_1-02_wav--3_seg006.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_012.wav",
+      "segment_id": "youtube_7QA1GyU4Q1A_17",
+      "source": "youtube",
+      "video_id": "7QA1GyU4Q1A",
+      "duration": 25.0,
+      "piano_confidence": 0.8,
+      "original_path": "youtube_segments/7QA1GyU4Q1A/segment_017.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_342.wav",
+      "segment_id": "youtube_u6N4enSvNW4_4",
+      "source": "youtube",
+      "video_id": "u6N4enSvNW4",
+      "duration": 25.0,
+      "piano_confidence": 0.7,
+      "original_path": "youtube_segments/u6N4enSvNW4/segment_004.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_002.wav",
+      "segment_id": "MIDI-UNPROCESSED_11-13_R1_2014_MID--AUDIO_13_R1_2014_wav--6_seg024",
+      "composer": "Franz Liszt",
+      "title": "R\u00e9miniscences de Don Juan, S.418",
+      "difficulty": 4.0,
+      "start_time": 480.0,
+      "end_time": 505.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Franz Liszt",
+      "title_display": "Title: R\u00e9miniscences de Don Juan, S.418",
+      "difficulty_display": "Difficulty: 4.0",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-UNPROCESSED_11-13_R1_2014_MID--AUDIO_13_R1_2014_wav--6/MIDI-UNPROCESSED_11-13_R1_2014_MID--AUDIO_13_R1_2014_wav--6_seg024.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-UNPROCESSED_11-13_R1_2014_MID--AUDIO_13_R1_2014_wav--6",
+      "midi_path": "segments/MIDI-UNPROCESSED_11-13_R1_2014_MID--AUDIO_13_R1_2014_wav--6/MIDI-UNPROCESSED_11-13_R1_2014_MID--AUDIO_13_R1_2014_wav--6_seg024.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_058.wav",
+      "segment_id": "youtube_LdH1hSWGFGU_4",
+      "source": "youtube",
+      "video_id": "LdH1hSWGFGU",
+      "duration": 25.0,
+      "piano_confidence": 0.7,
+      "original_path": "youtube_segments/LdH1hSWGFGU/segment_004.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_068.wav",
+      "segment_id": "MIDI-Unprocessed_R1_D2-13-20_mid--AUDIO-from_mp3_18_R1_2015_wav--4_seg006",
+      "composer": "Franz Liszt",
+      "title": "Tarantella",
+      "difficulty": 4.0,
+      "start_time": 120.0,
+      "end_time": 145.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Franz Liszt",
+      "title_display": "Title: Tarantella",
+      "difficulty_display": "Difficulty: 4.0",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-Unprocessed_R1_D2-13-20_mid--AUDIO-from_mp3_18_R1_2015_wav--4/MIDI-Unprocessed_R1_D2-13-20_mid--AUDIO-from_mp3_18_R1_2015_wav--4_seg006.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-Unprocessed_R1_D2-13-20_mid--AUDIO-from_mp3_18_R1_2015_wav--4",
+      "midi_path": "segments/MIDI-Unprocessed_R1_D2-13-20_mid--AUDIO-from_mp3_18_R1_2015_wav--4/MIDI-Unprocessed_R1_D2-13-20_mid--AUDIO-from_mp3_18_R1_2015_wav--4_seg006.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_030.wav",
+      "segment_id": "MIDI-Unprocessed_07_R1_2006_01-04_ORIG_MID--AUDIO_07_R1_2006_03_Track03_wav_seg012",
+      "composer": "Fr\u00e9d\u00e9ric Chopin",
+      "title": "Sonata 3 Op. 58",
+      "difficulty": 3.5,
+      "start_time": 240.0,
+      "end_time": 265.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Fr\u00e9d\u00e9ric Chopin",
+      "title_display": "Title: Sonata 3 Op. 58",
+      "difficulty_display": "Difficulty: 3.5",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-Unprocessed_07_R1_2006_01-04_ORIG_MID--AUDIO_07_R1_2006_03_Track03_wav/MIDI-Unprocessed_07_R1_2006_01-04_ORIG_MID--AUDIO_07_R1_2006_03_Track03_wav_seg012.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-Unprocessed_07_R1_2006_01-04_ORIG_MID--AUDIO_07_R1_2006_03_Track03_wav",
+      "midi_path": "segments/MIDI-Unprocessed_07_R1_2006_01-04_ORIG_MID--AUDIO_07_R1_2006_03_Track03_wav/MIDI-Unprocessed_07_R1_2006_01-04_ORIG_MID--AUDIO_07_R1_2006_03_Track03_wav_seg012.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_097.wav",
+      "segment_id": "ORIG-MIDI_02_7_10_13_Group_MID--AUDIO_14_R3_2013_wav--2_seg046",
+      "composer": "Fr\u00e9d\u00e9ric Chopin",
+      "title": "Sonata No. 2 in B-flat Minor, Op. 35",
+      "difficulty": 3.5,
+      "start_time": 920.0,
+      "end_time": 945.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Fr\u00e9d\u00e9ric Chopin",
+      "title_display": "Title: Sonata No. 2 in B-flat Minor, Op. 35",
+      "difficulty_display": "Difficulty: 3.5",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/ORIG-MIDI_02_7_10_13_Group_MID--AUDIO_14_R3_2013_wav--2/ORIG-MIDI_02_7_10_13_Group_MID--AUDIO_14_R3_2013_wav--2_seg046.wav"
+    },
+    "meta": {
+      "piece_id": "ORIG-MIDI_02_7_10_13_Group_MID--AUDIO_14_R3_2013_wav--2",
+      "midi_path": "segments/ORIG-MIDI_02_7_10_13_Group_MID--AUDIO_14_R3_2013_wav--2/ORIG-MIDI_02_7_10_13_Group_MID--AUDIO_14_R3_2013_wav--2_seg046.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_088.wav",
+      "segment_id": "ORIG-MIDI_01_7_10_13_Group_MID--AUDIO_08_R3_2013_wav--2_seg006",
+      "composer": "Johann Sebastian Bach",
+      "title": "English Suite in A Minor, BWV 807",
+      "difficulty": 3.0,
+      "start_time": 120.0,
+      "end_time": 145.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Johann Sebastian Bach",
+      "title_display": "Title: English Suite in A Minor, BWV 807",
+      "difficulty_display": "Difficulty: 3.0",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/ORIG-MIDI_01_7_10_13_Group_MID--AUDIO_08_R3_2013_wav--2/ORIG-MIDI_01_7_10_13_Group_MID--AUDIO_08_R3_2013_wav--2_seg006.wav"
+    },
+    "meta": {
+      "piece_id": "ORIG-MIDI_01_7_10_13_Group_MID--AUDIO_08_R3_2013_wav--2",
+      "midi_path": "segments/ORIG-MIDI_01_7_10_13_Group_MID--AUDIO_08_R3_2013_wav--2/ORIG-MIDI_01_7_10_13_Group_MID--AUDIO_08_R3_2013_wav--2_seg006.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_060.wav",
+      "segment_id": "youtube_LdH1hSWGFGU_6",
+      "source": "youtube",
+      "video_id": "LdH1hSWGFGU",
+      "duration": 25.0,
+      "piano_confidence": 0.7,
+      "original_path": "youtube_segments/LdH1hSWGFGU/segment_006.wav"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_035.wav",
+      "segment_id": "MIDI-Unprocessed_09_R1_2009_01-04_ORIG_MID--AUDIO_09_R1_2009_09_R1_2009_01_WAV_seg006",
+      "composer": "Antonio Soler",
+      "title": "Sonata No. 10 in B Minor",
+      "difficulty": 3.0,
+      "start_time": 120.0,
+      "end_time": 145.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Antonio Soler",
+      "title_display": "Title: Sonata No. 10 in B Minor",
+      "difficulty_display": "Difficulty: 3.0",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-Unprocessed_09_R1_2009_01-04_ORIG_MID--AUDIO_09_R1_2009_09_R1_2009_01_WAV/MIDI-Unprocessed_09_R1_2009_01-04_ORIG_MID--AUDIO_09_R1_2009_09_R1_2009_01_WAV_seg006.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-Unprocessed_09_R1_2009_01-04_ORIG_MID--AUDIO_09_R1_2009_09_R1_2009_01_WAV",
+      "midi_path": "segments/MIDI-Unprocessed_09_R1_2009_01-04_ORIG_MID--AUDIO_09_R1_2009_09_R1_2009_01_WAV/MIDI-Unprocessed_09_R1_2009_01-04_ORIG_MID--AUDIO_09_R1_2009_09_R1_2009_01_WAV_seg006.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/maestro_053.wav",
+      "segment_id": "MIDI-Unprocessed_19_R1_2009_01-02_ORIG_MID--AUDIO_19_R1_2009_19_R1_2009_02_WAV_seg010",
+      "composer": "Franz Liszt",
+      "title": "Sonata in B Minor, S. 178",
+      "difficulty": 4.0,
+      "start_time": 200.0,
+      "end_time": 225.0,
+      "duration": 25.0,
+      "composer_display": "Composer: Franz Liszt",
+      "title_display": "Title: Sonata in B Minor, S. 178",
+      "difficulty_display": "Difficulty: 4.0",
+      "duration_display": "25.0s",
+      "source": "maestro",
+      "original_path": "segments/MIDI-Unprocessed_19_R1_2009_01-02_ORIG_MID--AUDIO_19_R1_2009_19_R1_2009_02_WAV/MIDI-Unprocessed_19_R1_2009_01-02_ORIG_MID--AUDIO_19_R1_2009_19_R1_2009_02_WAV_seg010.wav"
+    },
+    "meta": {
+      "piece_id": "MIDI-Unprocessed_19_R1_2009_01-02_ORIG_MID--AUDIO_19_R1_2009_19_R1_2009_02_WAV",
+      "midi_path": "segments/MIDI-Unprocessed_19_R1_2009_01-02_ORIG_MID--AUDIO_19_R1_2009_19_R1_2009_02_WAV/MIDI-Unprocessed_19_R1_2009_01-02_ORIG_MID--AUDIO_19_R1_2009_19_R1_2009_02_WAV_seg010.midi"
+    }
+  },
+  {
+    "data": {
+      "audio": "/data/local-files/?d=all_segments/youtube_078.wav",
+      "segment_id": "youtube_PgFRQfKhG-w_6",
+      "source": "youtube",
+      "video_id": "PgFRQfKhG-w",
+      "duration": 25.0,
+      "piano_confidence": 0.7,
+      "original_path": "youtube_segments/PgFRQfKhG-w/segment_006.wav"
+    }
+  }
+]

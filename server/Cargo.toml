@@ -7,7 +7,7 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
-worker = "0.6.1"
+worker = { version = "0.6.1", features = ["d1"] }
 wasm-bindgen = "=0.2.101"
 console_error_panic_hook = "0.1"
 serde = { version = "1.0", features = ["derive"] }

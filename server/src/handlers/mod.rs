@@ -1,0 +1,9 @@
+//! API Request Handlers
+//!
+//! This module contains all HTTP request handlers for the CrescendAI API.
+
+/// Chat system handlers (sessions, streaming chat)
+pub mod chat;
+
+/// Performance feedback generation handlers
+pub mod feedback;
