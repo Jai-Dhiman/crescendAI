@@ -1,2 +1,0 @@
-# Dedalus SDK for AI orchestration
-dedalus-labs

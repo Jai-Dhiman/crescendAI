@@ -24,6 +24,12 @@ pub mod db;
 /// API request/response models and Dedalus types
 pub mod models;
 
+/// Comprehensive error handling
+pub mod errors;
+
+/// Unified caching system
+pub mod cache;
+
 /// HTTP handlers for API endpoints
 mod handlers;
 
@@ -67,7 +73,7 @@ mod monitoring;
 // Router & Main Handler
 // ============================================================================
 
-use handlers::{chat, feedback};
+use handlers::{chat, feedback, upload, context};
 use security::{get_client_ip, RateLimiter, secure_error_response};
 use monitoring::{HealthChecker, SystemInfo};
 
@@ -97,6 +103,15 @@ async fn main(req: Request, env: Env, _ctx: Context) -> Result<Response> {
         .get_async("/api/health", health_handler)
         .get_async("/api/status", status_handler)
 
+        // Upload & Recordings
+        .post_async("/api/v1/upload", secure_upload_handler)
+        .get_async("/api/v1/recordings/:id", secure_get_recording_handler)
+        .get_async("/api/v1/recordings", secure_list_recordings_handler)
+
+        // User Context
+        .put_async("/api/v1/context", secure_update_context_handler)
+        .get_async("/api/v1/context", secure_get_context_handler)
+
         // Chat System
         .post_async("/api/v1/chat", secure_chat_handler)
         .post_async("/api/v1/chat/sessions", secure_create_session_handler)
@@ -106,9 +121,6 @@ async fn main(req: Request, env: Env, _ctx: Context) -> Result<Response> {
 
         // Feedback System
         .post_async("/api/v1/feedback/:id", secure_feedback_handler)
-
-        // Catch-all
-        .or_else_any_method_async("/*", not_found_handler)
         .run(req, env)
         .await
         .map(|res| res.with_cors(&cors_headers).expect("CORS"))
@@ -206,6 +218,81 @@ async fn secure_feedback_handler(req: Request, ctx: RouteContext<()>) -> Result<
     }
 
     feedback::generate_feedback_handler(req, ctx).await
+}
+
+async fn secure_upload_handler(req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    // Rate limiting
+    let client_ip = get_client_ip(&req);
+    let rate_limiter = RateLimiter::new(&ctx.env);
+
+    if !rate_limiter.check_rate_limit(&client_ip).await? {
+        return secure_error_response(
+            "Rate limit exceeded. Please try again later.",
+            429,
+        );
+    }
+
+    upload::upload_handler(req, ctx).await
+}
+
+async fn secure_get_recording_handler(req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    // Rate limiting
+    let client_ip = get_client_ip(&req);
+    let rate_limiter = RateLimiter::new(&ctx.env);
+
+    if !rate_limiter.check_rate_limit(&client_ip).await? {
+        return secure_error_response(
+            "Rate limit exceeded. Please try again later.",
+            429,
+        );
+    }
+
+    upload::get_recording_handler(req, ctx).await
+}
+
+async fn secure_list_recordings_handler(req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    // Rate limiting
+    let client_ip = get_client_ip(&req);
+    let rate_limiter = RateLimiter::new(&ctx.env);
+
+    if !rate_limiter.check_rate_limit(&client_ip).await? {
+        return secure_error_response(
+            "Rate limit exceeded. Please try again later.",
+            429,
+        );
+    }
+
+    upload::list_recordings_handler(req, ctx).await
+}
+
+async fn secure_update_context_handler(req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    // Rate limiting
+    let client_ip = get_client_ip(&req);
+    let rate_limiter = RateLimiter::new(&ctx.env);
+
+    if !rate_limiter.check_rate_limit(&client_ip).await? {
+        return secure_error_response(
+            "Rate limit exceeded. Please try again later.",
+            429,
+        );
+    }
+
+    context::update_context_handler(req, ctx).await
+}
+
+async fn secure_get_context_handler(req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    // Rate limiting
+    let client_ip = get_client_ip(&req);
+    let rate_limiter = RateLimiter::new(&ctx.env);
+
+    if !rate_limiter.check_rate_limit(&client_ip).await? {
+        return secure_error_response(
+            "Rate limit exceeded. Please try again later.",
+            429,
+        );
+    }
+
+    context::get_context_handler(req, ctx).await
 }
 
 // ============================================================================

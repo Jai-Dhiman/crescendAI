@@ -196,7 +196,7 @@ impl DedalusClient {
         req_init.with_method(Method::Post);
 
         // Set headers
-        let mut headers = Headers::new();
+        let headers = Headers::new();
         headers.set("Content-Type", "application/json")
             .map_err(|e| DedalusError::NetworkError(format!("Failed to set header: {}", e)))?;
 
@@ -206,7 +206,8 @@ impl DedalusClient {
         req_init.with_body(Some(body.into()));
 
         // Execute fetch via service binding to /chat endpoint
-        let mut response = self.fetcher.fetch("/chat", Some(req_init))
+        // Service bindings require an absolute URL even though the host is ignored
+        let mut response = self.fetcher.fetch("http://fake-host/chat", Some(req_init))
             .await
             .map_err(|e| DedalusError::ServiceBindingError(format!("Service binding fetch failed: {}", e)))?;
 

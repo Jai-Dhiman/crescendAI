@@ -176,6 +176,127 @@ pub fn validate_uuid(uuid: &str) -> Result<()> {
 }
 
 // ============================================================================
+// API Key Validation
+// ============================================================================
+
+/// Validate API key for development/testing
+///
+/// Checks if the provided API key matches one of the allowed keys in the environment.
+/// This is primarily for development and testing. Production auth should use proper OAuth/JWT.
+pub fn validate_api_key(env: &Env, api_key: &str) -> Result<bool> {
+    // Get allowed API keys from environment
+    let allowed_keys = env
+        .var("ALLOWED_API_KEYS")
+        .ok()
+        .map(|v| v.to_string())
+        .unwrap_or_default();
+
+    if allowed_keys.is_empty() {
+        // If no keys configured, allow all (development mode)
+        console_log!("Warning: No API keys configured, allowing all requests");
+        return Ok(true);
+    }
+
+    // Split comma-separated keys
+    let keys: Vec<&str> = allowed_keys.split(',').map(|s| s.trim()).collect();
+
+    Ok(keys.contains(&api_key))
+}
+
+/// Extract API key from request headers
+///
+/// Checks Authorization header (Bearer token) and X-API-Key header
+pub fn get_api_key(req: &Request) -> Option<String> {
+    // Check Authorization header (Bearer token)
+    if let Ok(Some(auth)) = req.headers().get("Authorization") {
+        if let Some(token) = auth.strip_prefix("Bearer ") {
+            return Some(token.to_string());
+        }
+    }
+
+    // Check X-API-Key header
+    req.headers().get("X-API-Key").ok().flatten()
+}
+
+// ============================================================================
+// File Validation (Magic Bytes)
+// ============================================================================
+
+/// Validate file type by checking magic bytes (file signature)
+///
+/// This provides more security than just checking file extensions, as it verifies
+/// the actual file format by reading the first few bytes.
+pub fn validate_file_magic_bytes(file_bytes: &[u8], expected_mime: &str) -> Result<bool> {
+    if file_bytes.len() < 12 {
+        return Ok(false); // File too small to have valid header
+    }
+
+    match expected_mime {
+        // WAV files start with "RIFF" and have "WAVE" at bytes 8-11
+        "audio/wav" | "audio/wave" => {
+            let is_valid = file_bytes.starts_with(b"RIFF") && &file_bytes[8..12] == b"WAVE";
+            Ok(is_valid)
+        }
+
+        // MP3 files start with ID3 tag or MPEG frame sync
+        "audio/mpeg" | "audio/mp3" => {
+            let has_id3 = file_bytes.starts_with(b"ID3");
+            let has_mpeg_sync = file_bytes[0] == 0xFF && (file_bytes[1] & 0xE0) == 0xE0;
+            Ok(has_id3 || has_mpeg_sync)
+        }
+
+        // M4A files (MPEG-4 Audio) start with ftyp box
+        "audio/mp4" | "audio/x-m4a" => {
+            let has_ftyp = file_bytes.len() >= 12
+                && &file_bytes[4..8] == b"ftyp"
+                && (&file_bytes[8..12] == b"M4A " || &file_bytes[8..12] == b"mp42");
+            Ok(has_ftyp)
+        }
+
+        // Unknown MIME type - allow by default (extension check already done)
+        _ => {
+            console_log!("Warning: Unknown MIME type for magic byte validation: {}", expected_mime);
+            Ok(true)
+        }
+    }
+}
+
+/// Sanitize user input to prevent injection attacks
+///
+/// Removes potentially dangerous characters and limits length
+pub fn sanitize_user_input(input: &str, max_length: usize) -> String {
+    input
+        .chars()
+        .take(max_length)
+        .filter(|c| c.is_alphanumeric() || c.is_whitespace() || *c == '-' || *c == '_' || *c == '.')
+        .collect()
+}
+
+// ============================================================================
+// Security Headers
+// ============================================================================
+
+/// Add security headers to a response
+pub fn add_security_headers(mut response: Response) -> Response {
+    let headers = response.headers_mut();
+
+    // Prevent MIME type sniffing
+    let _ = headers.set("X-Content-Type-Options", "nosniff");
+
+    // Prevent clickjacking
+    let _ = headers.set("X-Frame-Options", "DENY");
+
+    // Basic CSP for API (no scripts needed)
+    let _ = headers.set("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'");
+
+    // Remove sensitive headers
+    let _ = headers.delete("Server");
+    let _ = headers.delete("X-Powered-By");
+
+    response
+}
+
+// ============================================================================
 // Tests
 // ============================================================================
 

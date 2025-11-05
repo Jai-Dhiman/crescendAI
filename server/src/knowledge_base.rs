@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use worker::*;
-use crate::db::knowledge::{KnowledgeChunk, search_chunks_fulltext, get_chunks_by_ids};
+use crate::db::knowledge::{KnowledgeChunk, search_chunks_fulltext};
 use sha2::{Sha256, Digest};
 
 /// Knowledge Base chunk metadata stored in Vectorize

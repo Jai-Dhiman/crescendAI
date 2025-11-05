@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use worker::*;
 use crate::knowledge_base::KBChunk;
 use uuid::Uuid;
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 use crate::knowledge_base::embed_text;
 
 /// Document metadata for ingestion

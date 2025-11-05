@@ -2,7 +2,7 @@
 // Tool schemas and definitions for Dedalus function calling
 
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::json;
 use crate::models::{DedalusTool, FunctionDefinition};
 
 // ============================================================================

@@ -3,7 +3,6 @@
 
 use crate::db;
 use crate::rag_tools::*;
-use serde_json;
 use worker::*;
 
 // ============================================================================

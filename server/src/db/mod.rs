@@ -9,6 +9,7 @@ pub mod messages;
 pub mod recordings;
 pub mod knowledge;
 pub mod analysis;
+pub mod context;
 
 // Re-export commonly used types
 pub use sessions::{ChatSession, create_session, get_session, list_sessions_by_user, delete_session};
@@ -16,6 +17,7 @@ pub use messages::{ChatMessage, insert_message, get_messages_by_session, get_mes
 pub use recordings::{Recording, insert_recording, get_recording, list_recordings_by_user, update_recording_status};
 pub use knowledge::{KnowledgeDocument, KnowledgeChunk, insert_document, insert_chunk, get_chunks_by_ids, search_chunks_fulltext};
 pub use analysis::{AnalysisResultRecord, insert_analysis_result, get_analysis_result, delete_analysis_result};
+pub use context::{UserContext, upsert_context, get_context, get_context_or_default};
 
 // Common error type for database operations
 #[derive(Debug)]

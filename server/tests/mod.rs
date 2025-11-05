@@ -11,6 +11,11 @@ pub mod performance_tests;
 pub mod integration_tests;
 pub mod temporal_analysis_tests;
 
+// Phase 7 Task 7.1 - New integration tests
+pub mod v1_api_tests;
+pub mod rag_tests;
+pub mod cache_tests;
+
 // Test utilities and common functions
 pub mod test_utils {
     use worker::*;

@@ -4,6 +4,7 @@ import { browser } from "$app/environment";
 import { analysisStore } from "$lib/stores/analysis";
 import { crescendApi, type CrescendApiError } from "$lib/services/crescendApi";
 import { Upload, AlertTriangle } from "lucide-svelte";
+import BeginnerChat from "$lib/components/chat/BeginnerChat.svelte";
 
 let files: FileList | null = $state(null);
 let isDragging = $state(false);
@@ -257,6 +258,17 @@ function resetUpload() {
 		</section>
   {/if}
 
+		<!-- Beginner Chat Section -->
+		<section class="max-w-4xl mx-auto mb-8">
+			<BeginnerChat />
+		</section>
+
+		<!-- OR Divider -->
+		<div class="divider-container">
+			<div class="divider-line"></div>
+			<span class="divider-text">OR</span>
+			<div class="divider-line"></div>
+		</div>
 
 		<!-- Upload Section -->
 		<section class="max-w-3xl mx-auto">
@@ -430,3 +442,37 @@ function resetUpload() {
 		</footer>
 	</div>
 </main>
+
+<style>
+.divider-container {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	max-width: 500px;
+	margin: 3rem auto;
+	gap: 1.5rem;
+}
+
+.divider-line {
+	flex: 1;
+	height: 1px;
+	background: linear-gradient(to right, transparent, #c4a777, transparent);
+	opacity: 0.3;
+}
+
+.divider-text {
+	font-family: var(--font-sans, sans-serif);
+	font-size: 0.875rem;
+	font-weight: 600;
+	letter-spacing: 0.2em;
+	color: #c4a777;
+	padding: 0 1rem;
+	background: white;
+	border: 2px solid #c4a777;
+	border-radius: 2rem;
+	min-width: 60px;
+	text-align: center;
+	padding: 0.5rem 1.5rem;
+	opacity: 0.7;
+}
+</style>
