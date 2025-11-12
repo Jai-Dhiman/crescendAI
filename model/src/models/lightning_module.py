@@ -84,12 +84,16 @@ class PerformanceEvaluationModel(pl.LightningModule):
             gradient_checkpointing=gradient_checkpointing,
         )
 
-        self.midi_encoder = MIDIBertEncoder(
-            hidden_size=midi_dim,
-            num_layers=6,
-            num_heads=4,
-            dropout=0.1,
-        )
+        # Only create MIDI encoder if midi_dim > 0 (audio-only mode when midi_dim=0)
+        if midi_dim > 0:
+            self.midi_encoder = MIDIBertEncoder(
+                hidden_size=midi_dim,
+                num_layers=6,
+                num_heads=4,
+                dropout=0.1,
+            )
+        else:
+            self.midi_encoder = None
 
         self.fusion = CrossAttentionFusion(
             audio_dim=audio_dim,
@@ -165,8 +169,8 @@ class PerformanceEvaluationModel(pl.LightningModule):
             attention_mask=audio_mask,
         )
 
-        # Encode MIDI (if available)
-        if midi_tokens is not None:
+        # Encode MIDI (if available and encoder exists)
+        if midi_tokens is not None and self.midi_encoder is not None:
             midi_features = self.midi_encoder(
                 midi_tokens=midi_tokens,
                 attention_mask=midi_mask,
@@ -312,8 +316,9 @@ class PerformanceEvaluationModel(pl.LightningModule):
         if not self.hparams.freeze_audio_encoder:
             backbone_params.extend(list(self.audio_encoder.parameters()))
 
-        # MIDI encoder parameters
-        backbone_params.extend(list(self.midi_encoder.parameters()))
+        # MIDI encoder parameters (if encoder exists)
+        if self.midi_encoder is not None:
+            backbone_params.extend(list(self.midi_encoder.parameters()))
 
         # Fusion, aggregator, and MTL head parameters
         head_params.extend(list(self.fusion.parameters()))

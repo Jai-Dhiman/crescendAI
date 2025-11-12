@@ -50,3 +50,13 @@ wandb/
 maestro/
 maestro_selected/
 segments/
+
+
+*.midi
+*.mid
+*.wav
+maestro-v3.0.0.zip
+
+.tmp.driveupload
+
+data/all_segments
