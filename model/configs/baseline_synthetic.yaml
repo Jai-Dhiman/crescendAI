@@ -3,10 +3,10 @@
 # Goal: Validate architecture can learn patterns from heuristic labels
 
 data:
-  # Annotation paths (synthetic labels)
-  train_path: data/annotations/synthetic_train.jsonl
-  val_path: data/annotations/synthetic_val.jsonl
-  test_path: data/annotations/synthetic_test.jsonl
+  # Annotation paths - COLAB MYDRIVE PATHS
+  train_path: /content/drive/MyDrive/crescendai_data/annotations/synthetic_train.jsonl
+  val_path: /content/drive/MyDrive/crescendai_data/annotations/synthetic_val.jsonl
+  test_path: /content/drive/MyDrive/crescendai_data/annotations/synthetic_test.jsonl
 
   # Dimensions (6 technical dimensions)
   dimensions:
@@ -19,7 +19,7 @@ data:
 
   # Audio settings
   audio_sample_rate: 24000
-  max_audio_length: 240000  # 10 seconds at 24kHz
+  max_audio_length: 240000
   max_midi_events: 512
 
   # DataLoader settings
@@ -27,7 +27,7 @@ data:
   num_workers: 4
   pin_memory: true
 
-  # Augmentation (training only)
+  # Augmentation
   augmentation:
     enabled: true
     pitch_shift:
@@ -58,71 +58,48 @@ data:
       probability: 0.3
       min_db: -6
       max_db: 6
-    max_transforms: 3  # Apply at most 3 transforms per sample
+    max_transforms: 3
 
 model:
-  # Architecture dimensions
   audio_dim: 768
   midi_dim: 256
   fusion_dim: 1024
   aggregator_dim: 512
-  num_dimensions: 6  # 6 technical dimensions
-
-  # Encoder settings
+  num_dimensions: 6
   mert_model_name: m-a-p/MERT-v1-95M
   freeze_audio_encoder: false
   gradient_checkpointing: true
-
-  # MIDI encoder
   midi_hidden_size: 256
   midi_num_layers: 6
   midi_num_heads: 4
-
-  # Fusion
   fusion_num_heads: 8
   fusion_dropout: 0.1
-
-  # Aggregator
   lstm_hidden: 256
   lstm_layers: 2
   attention_heads: 4
   aggregator_dropout: 0.2
-
-  # MTL Head
   shared_hidden: 256
   task_hidden: 128
   mtl_dropout: 0.1
 
 training:
-  # Training duration (reduced for faster iteration)
   max_epochs: 18
-  precision: 16  # Mixed precision (FP16)
-
-  # Optimization
+  precision: 16
   optimizer: AdamW
-  learning_rate: 1e-5  # Default (not used, see backbone_lr and heads_lr)
-  backbone_lr: 1e-5  # Lower LR for pre-trained encoders
-  heads_lr: 1e-4  # Higher LR for task heads
+  learning_rate: 1e-5
+  backbone_lr: 1e-5
+  heads_lr: 1e-4
   weight_decay: 0.01
-
-  # Learning rate schedule
   scheduler: cosine
   warmup_steps: 500
   min_lr: 1e-6
-
-  # Gradient settings
   gradient_clip_val: 1.0
-  accumulate_grad_batches: 4  # Effective batch size = 8 * 4 = 32
-
-  # Validation
-  val_check_interval: 1.0  # Check every epoch
-  limit_val_batches: 1.0  # Use full val set
-
-  # Metrics (add correlation tracking)
-  track_correlations: true  # Enable Pearson correlation logging
+  accumulate_grad_batches: 4
+  val_check_interval: 1.0
+  limit_val_batches: 1.0
+  track_correlations: true
 
 callbacks:
-  # Model checkpointing
   checkpoint:
     monitor: val_loss
     mode: min
@@ -130,29 +107,20 @@ callbacks:
     save_last: true
     dirpath: checkpoints/baseline_synthetic
     filename: baseline-{epoch:02d}-{val_loss:.4f}
-
-  # Early stopping
   early_stopping:
     monitor: val_loss
     mode: min
     patience: 5
     min_delta: 0.001
-
-  # Learning rate monitoring
   lr_monitor:
     logging_interval: step
 
 logging:
-  # Logging frequency
   log_every_n_steps: 50
-
-  # WandB (optional)
   use_wandb: false
   wandb_project: piano-eval-baseline
   wandb_entity: null
   wandb_run_name: baseline-synthetic
-
-  # TensorBoard
   use_tensorboard: true
   tensorboard_logdir: logs/baseline_synthetic
 
