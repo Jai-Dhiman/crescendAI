@@ -20,10 +20,38 @@ from pathlib import Path
 import torch
 import numpy as np
 from tqdm import tqdm
+import time
 
 # Import model components
 from src.models.lightning_module import PerformanceEvaluationModel
 from src.data.dataset import create_dataloaders
+
+
+def check_file_exists_with_retry(file_path: Path, max_retries: int = 3, delay: float = 0.5) -> bool:
+    """
+    Check if file exists with retry logic to handle Google Drive I/O issues.
+
+    Args:
+        file_path: Path to check
+        max_retries: Number of retry attempts
+        delay: Delay between retries in seconds
+
+    Returns:
+        True if file exists, False otherwise
+
+    Raises:
+        OSError: If I/O error persists after all retries
+    """
+    for attempt in range(max_retries):
+        try:
+            return file_path.exists()
+        except OSError as e:
+            if attempt < max_retries - 1:
+                time.sleep(delay)
+                continue
+            else:
+                raise OSError(f"Failed to access {file_path} after {max_retries} attempts: {e}")
+    return False
 
 
 def load_config(config_path: str) -> dict:
@@ -51,6 +79,7 @@ def check_annotation_file(annotation_path: Path, check_files: bool = True, sampl
         "num_samples": 0,
         "missing_audio": 0,
         "missing_midi": 0,
+        "io_errors": 0,
         "dimensions": set(),
         "errors": []
     }
@@ -103,14 +132,32 @@ def check_annotation_file(annotation_path: Path, check_files: bool = True, sampl
             # Check audio file
             if 'audio_path' in ann:
                 audio_path = Path(ann['audio_path'])
-                if not audio_path.exists():
-                    results["missing_audio"] += 1
+                try:
+                    if not check_file_exists_with_retry(audio_path, max_retries=3, delay=0.5):
+                        results["missing_audio"] += 1
+                except OSError as e:
+                    results["io_errors"] += 1
+                    if results["io_errors"] <= 3:
+                        results["errors"].append(f"I/O error accessing {audio_path.name}: {e}")
 
             # Check MIDI file (optional)
             if 'midi_path' in ann and ann['midi_path']:
                 midi_path = Path(ann['midi_path'])
-                if not midi_path.exists():
-                    results["missing_midi"] += 1
+                try:
+                    if not check_file_exists_with_retry(midi_path, max_retries=3, delay=0.5):
+                        results["missing_midi"] += 1
+                except OSError as e:
+                    results["io_errors"] += 1
+                    if results["io_errors"] <= 3:
+                        results["errors"].append(f"I/O error accessing {midi_path.name}: {e}")
+
+            # Add small delay between files to avoid Google Drive throttling
+            time.sleep(0.05)
+
+        if results["io_errors"] > 0:
+            results["errors"].append(
+                f"Total I/O errors: {results['io_errors']} (Google Drive mount issues or sync delays)"
+            )
 
     return results
 
@@ -324,14 +371,18 @@ def main():
             print(f"    ✓ Dimensions: {', '.join(sorted(results['dimensions']))}")
 
         if not args.skip_files:
+            if results["io_errors"] > 0:
+                print(f"    ⚠ I/O errors encountered: {results['io_errors']} files (Google Drive sync issues)")
+                print(f"      This is common with Google Drive mounts. Files may still be accessible.")
+
             if results["missing_audio"] > 0:
                 print(f"    ⚠ Missing audio files: {results['missing_audio']}/100 samples checked")
-            else:
+            elif results["io_errors"] == 0:
                 print(f"    ✓ All audio files exist (sampled)")
 
             if results["missing_midi"] > 0 and config["model"]["midi_dim"] > 0:
                 print(f"    ⚠ Missing MIDI files: {results['missing_midi']}/100 samples checked")
-            elif config["model"]["midi_dim"] > 0:
+            elif config["model"]["midi_dim"] > 0 and results["io_errors"] == 0:
                 print(f"    ✓ All MIDI files exist (sampled)")
 
         if results["errors"]:
