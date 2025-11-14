@@ -24,7 +24,7 @@ data:
 
   # DataLoader settings
   batch_size: 8
-  num_workers: 4
+  num_workers: 2  # Reduced to avoid Google Drive throttling
   pin_memory: true
 
   # Augmentation
