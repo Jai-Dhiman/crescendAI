@@ -69,16 +69,23 @@ class OctupleMIDITokenizer:
                 duration_ticks = int((note.end - note.start) * 100)  # Rough quantization
                 duration_ticks = min(duration_ticks, 127)
 
-                # Create note-on event
+                # Remap pitch from MIDI range (21-108) to vocab range (0-87)
+                pitch_remapped = note.pitch - self.min_pitch
+                pitch_remapped = max(0, min(pitch_remapped, self.vocab_sizes['pitch'] - 1))
+
+                # Clamp bar to vocabulary size
+                bar_clamped = min(bar, self.vocab_sizes['bar'] - 1)
+
+                # Clamp all other dimensions to vocabulary sizes
                 event = [
-                    0,  # type: note-on
-                    int(beat_in_bar),
-                    int(position),
-                    note.pitch,
-                    duration_ticks,
-                    note.velocity,
-                    0,  # instrument: piano
-                    bar,
+                    0,  # type: note-on (0-4)
+                    min(int(beat_in_bar), self.vocab_sizes['beat'] - 1),  # beat (0-15)
+                    min(int(position), self.vocab_sizes['position'] - 1),  # position (0-15)
+                    pitch_remapped,  # pitch (0-87)
+                    duration_ticks,  # duration (0-127)
+                    note.velocity,  # velocity (0-127)
+                    0,  # instrument (0 only)
+                    bar_clamped,  # bar (0-511)
                 ]
                 events.append(event)
 

@@ -113,6 +113,9 @@ def main():
     # Set seed for reproducibility
     pl.seed_everything(config.get("seed", 42))
 
+    # Enable Tensor Cores for better performance on modern GPUs
+    torch.set_float32_matmul_precision('high')
+
     # Create checkpoint directory
     checkpoint_dir = Path(config["callbacks"]["checkpoint"]["dirpath"])
     checkpoint_dir.mkdir(parents=True, exist_ok=True)

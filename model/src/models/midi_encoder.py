@@ -123,6 +123,18 @@ class MIDIBertEncoder(nn.Module):
         batch_size, num_events, num_dims = midi_tokens.shape
         assert num_dims == 8, f"Expected 8 dimensions, got {num_dims}"
 
+        # Clamp all tokens to valid vocabulary ranges (defensive programming)
+        # This protects against malformed data that bypassed tokenizer validation
+        midi_tokens = midi_tokens.clone()  # Don't modify input in-place
+        midi_tokens[:, :, 0] = torch.clamp(midi_tokens[:, :, 0], 0, self.vocab_sizes['type'] - 1)
+        midi_tokens[:, :, 1] = torch.clamp(midi_tokens[:, :, 1], 0, self.vocab_sizes['beat'] - 1)
+        midi_tokens[:, :, 2] = torch.clamp(midi_tokens[:, :, 2], 0, self.vocab_sizes['position'] - 1)
+        midi_tokens[:, :, 3] = torch.clamp(midi_tokens[:, :, 3], 0, self.vocab_sizes['pitch'] - 1)
+        midi_tokens[:, :, 4] = torch.clamp(midi_tokens[:, :, 4], 0, self.vocab_sizes['duration'] - 1)
+        midi_tokens[:, :, 5] = torch.clamp(midi_tokens[:, :, 5], 0, self.vocab_sizes['velocity'] - 1)
+        midi_tokens[:, :, 6] = torch.clamp(midi_tokens[:, :, 6], 0, self.vocab_sizes['instrument'] - 1)
+        midi_tokens[:, :, 7] = torch.clamp(midi_tokens[:, :, 7], 0, self.vocab_sizes['bar'] - 1)
+
         # Embed each dimension
         type_emb = self.type_embed(midi_tokens[:, :, 0])
         beat_emb = self.beat_embed(midi_tokens[:, :, 1])
