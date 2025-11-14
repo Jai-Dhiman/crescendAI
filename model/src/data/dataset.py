@@ -93,7 +93,7 @@ class PerformanceDataset(Dataset):
 
     def __getitem__(self, idx: int) -> Dict[str, torch.Tensor]:
         """
-        Get a single sample with fallback for corrupted files.
+        Get a single sample.
 
         Returns:
             Dictionary containing:
@@ -102,26 +102,20 @@ class PerformanceDataset(Dataset):
                 - labels: Ground truth scores [num_dimensions]
                 - metadata: Additional info (paths, times, etc.)
         """
-        # Try current index, if it fails try next index (skip corrupted files)
-        max_attempts = 10
-        for attempt in range(max_attempts):
-            try:
-                # Calculate actual index (wrap around if needed)
-                actual_idx = (idx + attempt) % len(self.annotations)
-                annotation = self.annotations[actual_idx]
+        annotation = self.annotations[idx]
 
-                # Load audio
-                audio_path = Path(annotation['audio_path'])
-                audio, sr = load_audio(str(audio_path), sr=self.audio_sample_rate)
+        # Load audio
+        audio_path = Path(annotation['audio_path'])
+        audio, sr = load_audio(str(audio_path), sr=self.audio_sample_rate)
 
-                # Extract segment if start/end times specified
-                if 'start_time' in annotation and 'end_time' in annotation:
-                    start_sample = int(annotation['start_time'] * sr)
-                    end_sample = int(annotation['end_time'] * sr)
-                    audio = audio[start_sample:end_sample]
+        # Extract segment if start/end times specified
+        if 'start_time' in annotation and 'end_time' in annotation:
+            start_sample = int(annotation['start_time'] * sr)
+            end_sample = int(annotation['end_time'] * sr)
+            audio = audio[start_sample:end_sample]
 
-                # Normalize audio
-                audio = normalize_audio(audio)
+        # Normalize audio
+        audio = normalize_audio(audio)
 
         # Apply augmentation if enabled
         if self.apply_augmentation and self.augmentor is not None:
