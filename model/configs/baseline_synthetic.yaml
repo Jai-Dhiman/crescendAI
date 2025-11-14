@@ -3,10 +3,10 @@
 # Goal: Validate architecture can learn patterns from heuristic labels
 
 data:
-  # Annotation paths - COLAB MYDRIVE PATHS
-  train_path: /content/drive/MyDrive/crescendai_data/annotations/synthetic_train.jsonl
-  val_path: /content/drive/MyDrive/crescendai_data/annotations/synthetic_val.jsonl
-  test_path: /content/drive/MyDrive/crescendai_data/annotations/synthetic_test.jsonl
+  # Annotation paths - COLAB MYDRIVE PATHS (filtered for missing files)
+  train_path: /content/drive/MyDrive/crescendai_data/annotations/synthetic_train_filtered.jsonl
+  val_path: /content/drive/MyDrive/crescendai_data/annotations/synthetic_val_filtered.jsonl
+  test_path: /content/drive/MyDrive/crescendai_data/annotations/synthetic_test_filtered.jsonl
 
   # Dimensions (6 technical dimensions)
   dimensions:
@@ -105,7 +105,7 @@ callbacks:
     mode: min
     save_top_k: 3
     save_last: true
-    dirpath: checkpoints/baseline_synthetic
+    dirpath: /content/checkpoints
     filename: baseline-{epoch:02d}-{val_loss:.4f}
   early_stopping:
     monitor: val_loss
@@ -122,6 +122,6 @@ logging:
   wandb_entity: null
   wandb_run_name: baseline-synthetic
   use_tensorboard: true
-  tensorboard_logdir: logs/baseline_synthetic
+  tensorboard_logdir: /content/logs
 
 seed: 42
