@@ -11,12 +11,16 @@ def load_audio(
     mono: bool = True,
     duration: Optional[float] = None,
     offset: float = 0.0,
+    max_retries: int = 3,
+    retry_delay: float = 0.5,
 ) -> Tuple[np.ndarray, int]:
     """
-    Load audio file and resample to target sample rate.
+    Load audio file and resample to target sample rate with retry logic.
 
     PRODUCTION: Default is 24kHz to match MERT-v1-95M requirements.
     MERT expects raw audio waveforms at 24kHz sampling rate.
+
+    Includes retry logic for Google Drive I/O errors (common in Colab).
 
     Args:
         path: Path to audio file (WAV, MP3, FLAC, etc.)
@@ -24,19 +28,48 @@ def load_audio(
         mono: Convert to mono if True
         duration: Maximum duration in seconds (None = load all)
         offset: Start reading after this time (in seconds)
+        max_retries: Maximum retry attempts for I/O errors (default: 3)
+        retry_delay: Delay between retries in seconds (default: 0.5)
 
     Returns:
         Tuple of (audio array, sample rate)
-    """
-    audio, original_sr = librosa.load(
-        path,
-        sr=sr,
-        mono=mono,
-        duration=duration,
-        offset=offset
-    )
 
-    return audio, sr
+    Raises:
+        OSError: If file cannot be loaded after all retries
+        Exception: For other errors (corrupted file, unsupported format)
+    """
+    import time
+
+    last_error = None
+    for attempt in range(max_retries):
+        try:
+            audio, original_sr = librosa.load(
+                path,
+                sr=sr,
+                mono=mono,
+                duration=duration,
+                offset=offset
+            )
+            return audio, sr
+        except OSError as e:
+            # I/O error (common with Google Drive mounts in Colab)
+            last_error = e
+            if attempt < max_retries - 1:
+                time.sleep(retry_delay)
+                continue
+            else:
+                # All retries exhausted
+                raise OSError(
+                    f"Failed to load audio after {max_retries} attempts: {path}"
+                ) from e
+        except Exception as e:
+            # Other errors (corrupted file, unsupported format) - don't retry
+            raise Exception(f"Failed to load audio file: {path}") from e
+
+    # Should never reach here, but just in case
+    if last_error is not None:
+        raise last_error
+    raise Exception(f"Unexpected error loading audio: {path}")
 
 
 def compute_cqt(
