@@ -1,28 +1,26 @@
-# Baseline Audio-Only Training Configuration
-# Experiment: Audio-only baseline with synthetic labels (no MIDI)
-# Goal: Compare with multi-modal to quantify multi-modal advantage
+# Multi-Modal Fusion (Audio + MIDI) - 10K samples
+# Experiment: Prove multi-modal fusion advantage
+# Goal: Best performance, baseline for comparison
 
 data:
-  # Annotation paths - COLAB MYDRIVE PATHS
-  train_path: /content/drive/MyDrive/crescendai_data/annotations/synthetic_train_filtered.jsonl
-  val_path: /content/drive/MyDrive/crescendai_data/annotations/synthetic_val_filtered.jsonl
-  test_path: /content/drive/MyDrive/crescendai_data/annotations/synthetic_test_filtered.jsonl
+  # LOCAL PATHS (after running optimize_colab_data.py)
+  train_path: /tmp/training_data/synthetic_train_filtered.jsonl
+  val_path: /tmp/training_data/synthetic_val_filtered.jsonl
+  test_path: /tmp/training_data/synthetic_test_filtered.jsonl
 
   dimensions:
     - note_accuracy
     - rhythmic_precision
-    - dynamics_control
-    - articulation
-    - pedaling
     - tone_quality
 
   audio_sample_rate: 24000
   max_audio_length: 240000
-  max_midi_events: 0
+  max_midi_events: 512
 
-  batch_size: 8
-  num_workers: 4
+  batch_size: 16  # Increased from 8 (faster epochs)
+  num_workers: 12  # Increased from 4 (parallel loading)
   pin_memory: true
+  persistent_workers: true  # Keep workers alive between epochs
 
   augmentation:
     enabled: true
@@ -42,36 +40,36 @@ data:
       min_snr_db: 25
       max_snr_db: 40
     room_acoustics:
-      enabled: true
-      probability: 0.2
+      enabled: false  # Disable for speed
+      probability: 0.0
       num_room_types: 5
     compress_audio:
-      enabled: true
-      probability: 0.15
+      enabled: false  # Disable for speed
+      probability: 0.0
       bitrates: [128, 192, 256, 320]
     gain_variation:
       enabled: true
       probability: 0.3
       min_db: -6
       max_db: 6
-    max_transforms: 3
+    max_transforms: 2  # Reduced from 3
 
 model:
   audio_dim: 768
-  midi_dim: 0
-  fusion_dim: 768
+  midi_dim: 256
+  fusion_dim: 1024
   aggregator_dim: 512
-  num_dimensions: 6
+  num_dimensions: 3  # Only 3 dimensions
   mert_model_name: m-a-p/MERT-v1-95M
   freeze_audio_encoder: false
   gradient_checkpointing: true
-  midi_hidden_size: 0
-  midi_num_layers: 0
-  midi_num_heads: 0
-  use_midi: false
-  fusion_num_heads: 0
-  fusion_dropout: 0.0
-  use_fusion: false
+  midi_hidden_size: 256
+  midi_num_layers: 6
+  midi_num_heads: 8
+  use_midi: true
+  fusion_num_heads: 8
+  fusion_dropout: 0.1
+  use_fusion: true
   lstm_hidden: 256
   lstm_layers: 2
   attention_heads: 4
@@ -81,7 +79,7 @@ model:
   mtl_dropout: 0.1
 
 training:
-  max_epochs: 18
+  max_epochs: 5  # Reduced from 18 (proof of concept)
   precision: 16
   optimizer: AdamW
   learning_rate: 1e-5
@@ -89,10 +87,10 @@ training:
   heads_lr: 1e-4
   weight_decay: 0.01
   scheduler: cosine
-  warmup_steps: 500
+  warmup_steps: 200  # Reduced from 500 (fewer samples)
   min_lr: 1e-6
   gradient_clip_val: 1.0
-  accumulate_grad_batches: 4
+  accumulate_grad_batches: 2  # Reduced from 4 (effective batch = 32)
   val_check_interval: 1.0
   limit_val_batches: 1.0
   track_correlations: true
@@ -101,25 +99,25 @@ callbacks:
   checkpoint:
     monitor: val_loss
     mode: min
-    save_top_k: 3
+    save_top_k: 2  # Save top 2 only
     save_last: true
-    dirpath: checkpoints/baseline_audioonly
-    filename: audioonly-{epoch:02d}-{val_loss:.4f}
+    dirpath: /content/drive/MyDrive/crescendai_checkpoints/fusion_10k
+    filename: fusion-{epoch:02d}-{val_loss:.4f}
   early_stopping:
     monitor: val_loss
     mode: min
-    patience: 5
+    patience: 3  # Reduced from 5 (faster stopping)
     min_delta: 0.001
   lr_monitor:
     logging_interval: step
 
 logging:
-  log_every_n_steps: 50
+  log_every_n_steps: 25  # Reduced from 50 (more frequent logging)
   use_wandb: false
-  wandb_project: piano-eval-baseline
+  wandb_project: piano-eval-fusion
   wandb_entity: null
-  wandb_run_name: baseline-audioonly
+  wandb_run_name: fusion-10k
   use_tensorboard: true
-  tensorboard_logdir: logs/baseline_audioonly
+  tensorboard_logdir: logs/fusion_10k
 
 seed: 42

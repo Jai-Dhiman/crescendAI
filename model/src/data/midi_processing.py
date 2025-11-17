@@ -300,10 +300,20 @@ def align_midi_to_audio(
     """
     midi_duration = midi.get_end_time()
 
-    if abs(midi_duration - audio_duration) < 0.1:
-        return midi  # Already aligned
+    # Handle empty or invalid MIDI
+    if midi_duration <= 0:
+        # Return empty MIDI - will be skipped in dataset loading
+        return midi
 
-    # Calculate stretch ratio
+    # Handle invalid audio duration
+    if audio_duration <= 0:
+        raise ValueError(f"Invalid audio duration: {audio_duration:.3f}s")
+
+    # Already aligned (within 100ms)
+    if abs(midi_duration - audio_duration) < 0.1:
+        return midi
+
+    # Calculate stretch ratio (safe - we checked midi_duration > 0 above)
     ratio = audio_duration / midi_duration * time_stretch_ratio
 
     # Adjust all note times

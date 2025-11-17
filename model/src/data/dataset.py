@@ -167,9 +167,11 @@ class PerformanceDataset(Dataset):
 
                     midi_tokens = torch.from_numpy(midi_tokens).long()
 
-            except Exception as e:
-                # Report MIDI loading errors loudly for debugging
-                print(f"Warning: Failed to load MIDI for {midi_path}: {e}")
+            except (ValueError, FileNotFoundError, Exception) as e:
+                # Skip MIDI on errors (audio-only fallback)
+                # Note: ValueError catches divide-by-zero from align_midi_to_audio
+                if idx % 100 == 0:  # Only log every 100th error to avoid spam
+                    print(f"Warning: Failed to load MIDI for {midi_path}: {e}")
                 midi_tokens = None
 
         # Extract labels
