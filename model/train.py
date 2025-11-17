@@ -104,11 +104,28 @@ def main():
     parser.add_argument(
         "--fast-dev-run", action="store_true", help="Run a single batch for debugging"
     )
+    parser.add_argument(
+        "--mode", type=str, choices=["audio", "midi", "fusion"], default=None,
+        help="Model mode: audio-only, midi-only, or fusion (overrides config)"
+    )
     args = parser.parse_args()
 
     # Load config
     config = load_config(args.config)
     print(f"Loaded config from {args.config}")
+
+    # Apply mode overrides if specified
+    if args.mode:
+        print(f"Applying mode: {args.mode}")
+        mode_overrides = config.get('modes', {}).get(args.mode, {})
+        config['model'].update(mode_overrides)
+        # Update checkpoint path to include mode
+        if '{mode}' in config['callbacks']['checkpoint']['dirpath']:
+            config['callbacks']['checkpoint']['dirpath'] = config['callbacks']['checkpoint']['dirpath'].replace('{mode}', args.mode)
+        if '{mode}' in config['callbacks']['checkpoint']['filename']:
+            config['callbacks']['checkpoint']['filename'] = config['callbacks']['checkpoint']['filename'].replace('{mode}', args.mode)
+        if '{mode}' in config['logging']['tensorboard_logdir']:
+            config['logging']['tensorboard_logdir'] = config['logging']['tensorboard_logdir'].replace('{mode}', args.mode)
 
     # Set seed for reproducibility
     pl.seed_everything(config.get("seed", 42))
