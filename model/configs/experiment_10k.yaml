@@ -19,12 +19,12 @@ data:
   max_audio_length: 240000  # 10 seconds at 24kHz
   max_midi_events: 512
 
-  # OPTIMIZED for speed
+  # OPTIMIZED for speed (local SSD after copying files)
   batch_size: 16           # 2× larger (faster epochs)
-  num_workers: 12          # More parallel loading (Colab has 12 CPU cores)
+  num_workers: 4           # Parallel loading from local SSD (fast)
   pin_memory: true         # Faster GPU transfer
-  persistent_workers: true # Don't respawn workers between epochs
-  prefetch_factor: 4       # Pre-load 4 batches per worker
+  persistent_workers: true # Keep workers alive between epochs
+  prefetch_factor: 2       # Pre-load 2 batches per worker
 
   # Minimal augmentation for speed (can increase later)
   augmentation:
