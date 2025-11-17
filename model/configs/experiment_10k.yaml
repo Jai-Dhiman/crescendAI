@@ -3,11 +3,12 @@
 # Usage: python train.py --config configs/experiment_10k.yaml --mode [audio|midi|fusion]
 
 data:
-  # LOCAL PATHS (after running optimize_colab_data.py)
+  # LOCAL PATHS (after running scripts/copy_data_to_local.py)
   # Use /tmp/ for fast local SSD access (not Google Drive!)
-  train_path: /tmp/training_data/synthetic_train_filtered.jsonl
-  val_path: /tmp/training_data/synthetic_val_filtered.jsonl
-  test_path: /tmp/training_data/synthetic_test_filtered.jsonl
+  # IMPORTANT: Run `python scripts/copy_data_to_local.py` before training
+  train_path: /tmp/crescendai_data/annotations/synthetic_train_filtered.jsonl
+  val_path: /tmp/crescendai_data/annotations/synthetic_val_filtered.jsonl
+  test_path: /tmp/crescendai_data/annotations/synthetic_test_filtered.jsonl
 
   # Reduced to 3 core dimensions for faster convergence
   dimensions:
@@ -19,11 +20,11 @@ data:
   max_audio_length: 240000  # 10 seconds at 24kHz
   max_midi_events: 512
 
-  # OPTIMIZED for Google Drive (no file copying needed)
+  # OPTIMIZED for LOCAL SSD (10-30x faster than Google Drive!)
   batch_size: 16           # 2× larger (faster epochs)
-  num_workers: 0           # Required for Google Drive (no parallel workers)
+  num_workers: 4           # Parallel loading (was 0 for Drive, now 4 for local SSD)
   pin_memory: true         # Faster GPU transfer
-  persistent_workers: false # Not used with num_workers=0
+  persistent_workers: true # Keep workers alive between epochs
   prefetch_factor: 2       # Pre-load batches
 
   # Minimal augmentation for speed (can increase later)
