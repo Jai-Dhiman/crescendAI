@@ -19,12 +19,12 @@ data:
   max_audio_length: 240000  # 10 seconds at 24kHz
   max_midi_events: 512
 
-  # OPTIMIZED for speed (local SSD after copying files)
+  # OPTIMIZED for Google Drive (no file copying needed)
   batch_size: 16           # 2× larger (faster epochs)
-  num_workers: 4           # Parallel loading from local SSD (fast)
+  num_workers: 0           # Required for Google Drive (no parallel workers)
   pin_memory: true         # Faster GPU transfer
-  persistent_workers: true # Keep workers alive between epochs
-  prefetch_factor: 2       # Pre-load 2 batches per worker
+  persistent_workers: false # Not used with num_workers=0
+  prefetch_factor: 2       # Pre-load batches
 
   # Minimal augmentation for speed (can increase later)
   augmentation:
