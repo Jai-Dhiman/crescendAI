@@ -133,75 +133,128 @@ def copy_data_to_local(
     print(f"  Found {len(audio_files):,} unique audio files")
     print(f"  Found {len(midi_files):,} unique MIDI files")
 
-    # Estimate sizes
-    sample_audio = list(audio_files)[0] if audio_files else None
-    if sample_audio and sample_audio.exists():
-        avg_audio_size = get_file_size_mb(sample_audio)
-        total_audio_mb = avg_audio_size * len(audio_files)
-        print(f"  Estimated audio size: ~{total_audio_mb:.0f} MB ({avg_audio_size:.1f} MB/file)")
+    # Estimate sizes (skip if Drive is having issues)
+    try:
+        sample_audio = list(audio_files)[0] if audio_files else None
+        if sample_audio and sample_audio.exists():
+            avg_audio_size = get_file_size_mb(sample_audio)
+            total_audio_mb = avg_audio_size * len(audio_files)
+            print(f"  Estimated audio size: ~{total_audio_mb:.0f} MB ({avg_audio_size:.1f} MB/file)")
+    except (OSError, IOError) as e:
+        print(f"  ⚠ Could not estimate size (Drive I/O issue): {e}")
+        print(f"  Proceeding with copy anyway...")
 
-    # Copy audio files
+    # Copy audio files with retry logic for Drive flakiness
     print(f"\n5. Copying {len(audio_files):,} audio files...")
     copied_audio = 0
     skipped_audio = 0
+    failed_audio = 0
 
     for audio_path in tqdm(list(audio_files), desc="  Audio", unit="files"):
-        try:
-            # Calculate relative path from Drive root
-            if drive_root in audio_path.parents:
-                rel_path = audio_path.relative_to(drive_root)
-            else:
-                # Path might already be relative
-                rel_path = audio_path
+        max_retries = 3
+        retry_delay = 0.5
 
-            local_path = local_root / rel_path
-            local_path.parent.mkdir(parents=True, exist_ok=True)
+        for attempt in range(max_retries):
+            try:
+                # Calculate relative path from Drive root
+                if drive_root in audio_path.parents:
+                    rel_path = audio_path.relative_to(drive_root)
+                else:
+                    # Path might already be relative
+                    rel_path = audio_path
 
-            # Copy if source exists and destination doesn't
-            if audio_path.exists():
-                if not local_path.exists():
+                local_path = local_root / rel_path
+                local_path.parent.mkdir(parents=True, exist_ok=True)
+
+                # Check if already exists (skip)
+                if local_path.exists():
+                    skipped_audio += 1
+                    break
+
+                # Try to copy (may fail due to Drive I/O)
+                if audio_path.exists():
                     shutil.copy2(audio_path, local_path)
                     copied_audio += 1
+                    break
                 else:
-                    skipped_audio += 1
-            else:
-                print(f"\n  ⚠ Audio not found: {audio_path}")
+                    # File doesn't exist, don't retry
+                    if attempt == 0:  # Only warn once
+                        print(f"\n  ⚠ Audio not found: {audio_path}")
+                    failed_audio += 1
+                    break
 
-        except Exception as e:
-            print(f"\n  ✗ Failed to copy {audio_path}: {e}")
+            except (OSError, IOError) as e:
+                # I/O error (Drive flakiness), retry
+                if attempt < max_retries - 1:
+                    import time
+                    time.sleep(retry_delay)
+                    continue
+                else:
+                    # All retries failed
+                    print(f"\n  ✗ Failed to copy after {max_retries} attempts: {audio_path.name[:60]}...")
+                    failed_audio += 1
+                    break
+            except Exception as e:
+                # Other errors, don't retry
+                print(f"\n  ✗ Error copying {audio_path.name[:60]}...: {e}")
+                failed_audio += 1
+                break
 
-    print(f"  ✓ Copied: {copied_audio:,} files, Skipped: {skipped_audio:,} (already exist)")
+    print(f"  ✓ Copied: {copied_audio:,}, Skipped: {skipped_audio:,}, Failed: {failed_audio:,}")
 
-    # Copy MIDI files
+    # Copy MIDI files with retry logic
     print(f"\n6. Copying {len(midi_files):,} MIDI files...")
     copied_midi = 0
     skipped_midi = 0
+    failed_midi = 0
 
     for midi_path in tqdm(list(midi_files), desc="  MIDI", unit="files"):
-        try:
-            # Calculate relative path
-            if drive_root in midi_path.parents:
-                rel_path = midi_path.relative_to(drive_root)
-            else:
-                rel_path = midi_path
+        max_retries = 3
+        retry_delay = 0.5
 
-            local_path = local_root / rel_path
-            local_path.parent.mkdir(parents=True, exist_ok=True)
+        for attempt in range(max_retries):
+            try:
+                # Calculate relative path
+                if drive_root in midi_path.parents:
+                    rel_path = midi_path.relative_to(drive_root)
+                else:
+                    rel_path = midi_path
 
-            # Copy if source exists
-            if midi_path.exists():
-                if not local_path.exists():
+                local_path = local_root / rel_path
+                local_path.parent.mkdir(parents=True, exist_ok=True)
+
+                # Check if already exists
+                if local_path.exists():
+                    skipped_midi += 1
+                    break
+
+                # Try to copy
+                if midi_path.exists():
                     shutil.copy2(midi_path, local_path)
                     copied_midi += 1
+                    break
                 else:
-                    skipped_midi += 1
-            else:
-                print(f"\n  ⚠ MIDI not found: {midi_path}")
+                    if attempt == 0:
+                        print(f"\n  ⚠ MIDI not found: {midi_path}")
+                    failed_midi += 1
+                    break
 
-        except Exception as e:
-            print(f"\n  ✗ Failed to copy {midi_path}: {e}")
+            except (OSError, IOError) as e:
+                # I/O error, retry
+                if attempt < max_retries - 1:
+                    import time
+                    time.sleep(retry_delay)
+                    continue
+                else:
+                    print(f"\n  ✗ Failed to copy after {max_retries} attempts: {midi_path.name[:60]}...")
+                    failed_midi += 1
+                    break
+            except Exception as e:
+                print(f"\n  ✗ Error copying {midi_path.name[:60]}...: {e}")
+                failed_midi += 1
+                break
 
-    print(f"  ✓ Copied: {copied_midi:,} files, Skipped: {skipped_midi:,} (already exist)")
+    print(f"  ✓ Copied: {copied_midi:,}, Skipped: {skipped_midi:,}, Failed: {failed_midi:,}")
 
     # Update annotation paths to point to local files
     print("\n7. Updating annotation paths to local files...")
@@ -258,21 +311,50 @@ def copy_data_to_local(
 
     # Final summary
     print("\n" + "="*70)
-    print("✓ DATA COPY COMPLETE")
+
+    # Check if copy was successful
+    total_files = len(audio_files) + len(midi_files)
+    copied_files = copied_audio + copied_midi
+    failed_files = failed_audio + failed_midi
+    success_rate = copied_files / total_files if total_files > 0 else 0
+
+    if success_rate >= 0.95:
+        print("✓ DATA COPY COMPLETE")
+        success = True
+    elif success_rate >= 0.80:
+        print("⚠ DATA COPY PARTIALLY COMPLETE")
+        print(f"  {failed_files:,}/{total_files:,} files failed ({failed_files/total_files*100:.1f}%)")
+        print(f"  Training may still work, but some samples may fail to load")
+        success = True  # Still allow training
+    else:
+        print("✗ DATA COPY FAILED")
+        print(f"  Only {copied_files:,}/{total_files:,} files copied ({success_rate*100:.1f}%)")
+        print(f"  Too many failures - Google Drive may be having issues")
+        success = False
+
     print("="*70)
     print(f"\nLocal annotation files:")
     for split, ann_file in annotation_files.items():
         print(f"  {split:5s}: {ann_file}")
 
-    print(f"\nNext steps:")
-    print(f"  1. Update config to use local paths:")
-    print(f"     train_path: {local_root}/annotations/synthetic_train_filtered.jsonl")
-    print(f"     val_path:   {local_root}/annotations/synthetic_val_filtered.jsonl")
-    print(f"     test_path:  {local_root}/annotations/synthetic_test_filtered.jsonl")
-    print(f"  2. Set num_workers: 4 in config (was 0 for Drive)")
-    print(f"  3. Expected speedup: 10-30x faster training!")
+    print(f"\nCopy statistics:")
+    print(f"  Audio: {copied_audio:,} copied, {skipped_audio:,} skipped, {failed_audio:,} failed")
+    print(f"  MIDI:  {copied_midi:,} copied, {skipped_midi:,} skipped, {failed_midi:,} failed")
+    print(f"  Total: {copied_files:,}/{total_files:,} files ({success_rate*100:.1f}%)")
 
-    return True
+    if success:
+        print(f"\nNext steps:")
+        print(f"  1. Run preflight check:")
+        print(f"     python scripts/preflight_check.py --config configs/experiment_10k.yaml")
+        print(f"  2. Train models (now 6x faster!):")
+        print(f"     python train.py --config configs/experiment_10k.yaml --mode audio")
+    else:
+        print(f"\nTroubleshooting:")
+        print(f"  1. Check Google Drive connection")
+        print(f"  2. Try restarting Colab runtime")
+        print(f"  3. Re-run this script (it will resume where it left off)")
+
+    return success
 
 
 def main():
