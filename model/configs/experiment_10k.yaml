@@ -6,9 +6,9 @@ data:
   # LOCAL PATHS (after downloading from Hugging Face Hub)
   # Data is downloaded to /tmp/ (local SSD) for fast access
   # Download happens automatically in notebook Step 2
-  train_path: /tmp/crescendai_data/data/annotations/synthetic_train_filtered.jsonl
-  val_path: /tmp/crescendai_data/data/annotations/synthetic_val_filtered.jsonl
-  test_path: /tmp/crescendai_data/data/annotations/synthetic_test_filtered.jsonl
+  train_path: /tmp/crescendai_data/data/annotations/synthetic_train.jsonl
+  val_path: /tmp/crescendai_data/data/annotations/synthetic_val.jsonl
+  test_path: /tmp/crescendai_data/data/annotations/synthetic_test.jsonl
 
   # Reduced to 3 core dimensions for faster convergence
   dimensions:
