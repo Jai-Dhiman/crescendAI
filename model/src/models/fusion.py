@@ -40,49 +40,59 @@ class CrossAttentionFusion(nn.Module):
         self.num_heads = num_heads
         self.use_relative_position = use_relative_position
 
-        # Audio-to-MIDI cross-attention
-        self.audio_to_midi_attn = nn.MultiheadAttention(
-            embed_dim=audio_dim,
-            num_heads=num_heads,
-            kdim=midi_dim,
-            vdim=midi_dim,
-            dropout=dropout,
-            batch_first=True,
-        )
+        # Determine if we're in single-modality mode
+        self.audio_only = (midi_dim == 0)
+        self.midi_only = (audio_dim == 0)
 
-        # MIDI-to-Audio cross-attention
-        self.midi_to_audio_attn = nn.MultiheadAttention(
-            embed_dim=midi_dim,
-            num_heads=num_heads,
-            kdim=audio_dim,
-            vdim=audio_dim,
-            dropout=dropout,
-            batch_first=True,
-        )
+        # Only create cross-attention if both modalities are present
+        if not self.audio_only and not self.midi_only:
+            # Audio-to-MIDI cross-attention
+            self.audio_to_midi_attn = nn.MultiheadAttention(
+                embed_dim=audio_dim,
+                num_heads=num_heads,
+                kdim=midi_dim,
+                vdim=midi_dim,
+                dropout=dropout,
+                batch_first=True,
+            )
 
-        # Layer normalization
-        self.audio_norm1 = nn.LayerNorm(audio_dim)
-        self.midi_norm1 = nn.LayerNorm(midi_dim)
+            # MIDI-to-Audio cross-attention
+            self.midi_to_audio_attn = nn.MultiheadAttention(
+                embed_dim=midi_dim,
+                num_heads=num_heads,
+                kdim=audio_dim,
+                vdim=audio_dim,
+                dropout=dropout,
+                batch_first=True,
+            )
 
-        # Feed-forward networks
-        self.audio_ffn = nn.Sequential(
-            nn.Linear(audio_dim, audio_dim * 4),
-            nn.GELU(),
-            nn.Dropout(dropout),
-            nn.Linear(audio_dim * 4, audio_dim),
-            nn.Dropout(dropout),
-        )
+        # Layer normalization (only for active modalities)
+        if audio_dim > 0:
+            self.audio_norm1 = nn.LayerNorm(audio_dim)
+            self.audio_norm2 = nn.LayerNorm(audio_dim)
 
-        self.midi_ffn = nn.Sequential(
-            nn.Linear(midi_dim, midi_dim * 4),
-            nn.GELU(),
-            nn.Dropout(dropout),
-            nn.Linear(midi_dim * 4, midi_dim),
-            nn.Dropout(dropout),
-        )
+        if midi_dim > 0:
+            self.midi_norm1 = nn.LayerNorm(midi_dim)
+            self.midi_norm2 = nn.LayerNorm(midi_dim)
 
-        self.audio_norm2 = nn.LayerNorm(audio_dim)
-        self.midi_norm2 = nn.LayerNorm(midi_dim)
+        # Feed-forward networks (only for active modalities)
+        if audio_dim > 0:
+            self.audio_ffn = nn.Sequential(
+                nn.Linear(audio_dim, audio_dim * 4),
+                nn.GELU(),
+                nn.Dropout(dropout),
+                nn.Linear(audio_dim * 4, audio_dim),
+                nn.Dropout(dropout),
+            )
+
+        if midi_dim > 0:
+            self.midi_ffn = nn.Sequential(
+                nn.Linear(midi_dim, midi_dim * 4),
+                nn.GELU(),
+                nn.Dropout(dropout),
+                nn.Linear(midi_dim * 4, midi_dim),
+                nn.Dropout(dropout),
+            )
 
         # Output dimension after concatenation
         self.output_dim = audio_dim + midi_dim
@@ -114,8 +124,8 @@ class CrossAttentionFusion(nn.Module):
         """
         batch_size, audio_len, _ = audio_features.shape
 
-        # Handle audio-only case (when MIDI loading failed)
-        if midi_features is None:
+        # Handle audio-only mode (midi_dim=0)
+        if self.audio_only or midi_features is None:
             # Process audio features only
             audio_out = self._audio_only_forward(audio_features)
 
@@ -128,6 +138,23 @@ class CrossAttentionFusion(nn.Module):
 
             # Concatenate to maintain output dimension consistency
             fused = torch.cat([audio_out, midi_placeholder], dim=-1)
+
+            return fused, None
+
+        # Handle MIDI-only mode (audio_dim=0)
+        if self.midi_only:
+            # Process MIDI features only
+            midi_out = self._midi_only_forward(midi_features)
+
+            # Create zero-filled audio features to match expected output dimension
+            audio_placeholder = torch.zeros(
+                batch_size, midi_out.shape[1], self.audio_dim,
+                dtype=midi_out.dtype,
+                device=midi_out.device
+            )
+
+            # Concatenate to maintain output dimension consistency
+            fused = torch.cat([audio_placeholder, midi_out], dim=-1)
 
             return fused, None
 
@@ -193,6 +220,21 @@ class CrossAttentionFusion(nn.Module):
         audio_out = self.audio_norm1(audio_features)
         audio_out = self.audio_norm2(audio_out + self.audio_ffn(audio_out))
         return audio_out
+
+    def _midi_only_forward(self, midi_features: torch.Tensor) -> torch.Tensor:
+        """
+        Process MIDI features without audio fusion.
+
+        Args:
+            midi_features: MIDI embeddings [batch, events, midi_dim]
+
+        Returns:
+            Processed MIDI features
+        """
+        # Just apply feed-forward network
+        midi_out = self.midi_norm1(midi_features)
+        midi_out = self.midi_norm2(midi_out + self.midi_ffn(midi_out))
+        return midi_out
 
     def _align_sequences(self, sequence: torch.Tensor, target_length: int) -> torch.Tensor:
         """
