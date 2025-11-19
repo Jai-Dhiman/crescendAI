@@ -181,6 +181,18 @@ class PerformanceEvaluationModel(pl.LightningModule):
             )
         else:
             midi_features = None
+            # Debug: Log why MIDI encoding was skipped
+            if self.hparams.audio_dim == 0:  # MIDI-only mode
+                if midi_tokens is None:
+                    raise ValueError(
+                        "MIDI-only mode requires MIDI tokens, but midi_tokens is None. "
+                        "Check that the dataloader is providing MIDI data."
+                    )
+                if self.midi_encoder is None:
+                    raise ValueError(
+                        "MIDI-only mode requires MIDI encoder, but self.midi_encoder is None. "
+                        f"Check that midi_dim ({self.hparams.midi_dim}) > 0."
+                    )
 
         # Fuse modalities
         fused_features, fusion_attention = self.fusion(
