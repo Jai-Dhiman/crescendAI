@@ -170,7 +170,11 @@ class PerformanceDataset(Dataset):
             except (ValueError, FileNotFoundError, Exception) as e:
                 # Skip MIDI on errors (audio-only fallback)
                 # Note: ValueError catches divide-by-zero from align_midi_to_audio
-                print(f"Warning: Failed to load MIDI for sample {idx} ({midi_path}): {type(e).__name__}: {e}")
+                import traceback
+                print(f"\nWarning: Failed to load MIDI for sample {idx}")
+                print(f"  Path: {midi_path}")
+                print(f"  Error: {type(e).__name__}: {e}")
+                print(f"  Traceback: {traceback.format_exc()}")
                 midi_tokens = None
 
         # Extract labels
