@@ -235,14 +235,33 @@ def collate_fn(batch: List[Dict[str, torch.Tensor]]) -> Dict[str, torch.Tensor]:
         if all('midi_tokens' in item for item in batch):
             midi_tokens = torch.stack([item['midi_tokens'] for item in batch])
         else:
-            # Some samples are missing MIDI - log which ones
+            # Some samples are missing MIDI - filter them out
+            valid_indices = [i for i, item in enumerate(batch) if 'midi_tokens' in item]
             missing_indices = [i for i, item in enumerate(batch) if 'midi_tokens' not in item]
-            missing_paths = [batch[i]['metadata']['midi_path'] for i in missing_indices]
-            print(f"\nWarning: Batch has {len(missing_indices)}/{len(batch)} samples without MIDI:")
-            for i, path in zip(missing_indices, missing_paths):
-                print(f"  Sample {i}: {path}")
-            # Set midi_tokens to None for the entire batch
-            midi_tokens = None
+
+            if len(valid_indices) > 0:
+                # Create partial batch with only valid samples
+                batch = [batch[i] for i in valid_indices]
+                audio_waveforms = torch.stack([item['audio_waveform'] for item in batch])
+                labels = torch.stack([item['labels'] for item in batch])
+                midi_tokens = torch.stack([item['midi_tokens'] for item in batch])
+                metadata = [item['metadata'] for item in batch]
+
+                # Log the filtering (but don't spam)
+                if missing_indices[0] % 100 == 0:  # Log occasionally
+                    missing_paths = [batch[i]['metadata']['midi_path'] for i in missing_indices]
+                    print(f"\nInfo: Filtered out {len(missing_indices)} samples without MIDI from batch")
+
+                return {
+                    'audio_waveform': audio_waveforms,
+                    'midi_tokens': midi_tokens,
+                    'labels': labels,
+                    'metadata': metadata,
+                }
+            else:
+                # All samples failed - return None to skip this batch
+                print(f"\nWarning: Entire batch failed MIDI loading - skipping")
+                midi_tokens = None
 
     # Collect metadata
     metadata = [item['metadata'] for item in batch]
