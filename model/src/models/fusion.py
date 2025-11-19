@@ -99,7 +99,7 @@ class CrossAttentionFusion(nn.Module):
 
     def forward(
         self,
-        audio_features: torch.Tensor,
+        audio_features: Optional[torch.Tensor] = None,
         midi_features: Optional[torch.Tensor] = None,
         audio_mask: Optional[torch.Tensor] = None,
         midi_mask: Optional[torch.Tensor] = None,
@@ -108,31 +108,41 @@ class CrossAttentionFusion(nn.Module):
         Forward pass through cross-attention fusion.
 
         Args:
-            audio_features: Audio embeddings [batch, audio_time, audio_dim]
+            audio_features: Audio embeddings [batch, audio_time, audio_dim] or None
             midi_features: MIDI embeddings [batch, midi_events, midi_dim] or None
             audio_mask: Audio attention mask [batch, audio_time]
             midi_mask: MIDI attention mask [batch, midi_events]
 
         Returns:
             Tuple of:
-                - fused: Fused features [batch, audio_time, audio_dim + midi_dim]
-                - attention_weights: Dict of attention weights (optional, None if audio-only)
+                - fused: Fused features [batch, seq_len, audio_dim + midi_dim]
+                - attention_weights: Dict of attention weights (optional, None if single-modal)
 
         Note:
-            If MIDI features are not available, falls back to audio-only processing
-            with zero-padded MIDI features to maintain consistent output dimension.
+            Supports three modes:
+            - Audio-only: audio_features provided, midi_features None
+            - MIDI-only: midi_features provided, audio_features None
+            - Fusion: both provided
         """
-        batch_size, audio_len, _ = audio_features.shape
+        # Determine batch size and sequence length from whichever input is available
+        if audio_features is not None:
+            batch_size = audio_features.shape[0]
+            seq_len = audio_features.shape[1]
+        elif midi_features is not None:
+            batch_size = midi_features.shape[0]
+            seq_len = midi_features.shape[1]
+        else:
+            raise ValueError("At least one of audio_features or midi_features must be provided")
 
         # Handle audio-only mode (midi_dim=0)
         # Only use audio-only path if not in MIDI-only mode
-        if (self.audio_only or midi_features is None) and not self.midi_only:
+        if (self.audio_only or midi_features is None) and not self.midi_only and audio_features is not None:
             # Process audio features only
             audio_out = self._audio_only_forward(audio_features)
 
             # Create zero-filled MIDI features to match expected output dimension
             midi_placeholder = torch.zeros(
-                batch_size, audio_len, self.midi_dim,
+                batch_size, seq_len, self.midi_dim,
                 dtype=audio_features.dtype,
                 device=audio_features.device
             )
@@ -198,6 +208,7 @@ class CrossAttentionFusion(nn.Module):
         midi_out = self.midi_norm2(midi_out + self.midi_ffn(midi_out))
 
         # Align MIDI features to audio time dimension
+        audio_len = audio_out.shape[1]
         if midi_out.shape[1] != audio_len:
             midi_out = self._align_sequences(midi_out, audio_len)
 

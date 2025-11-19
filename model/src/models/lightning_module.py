@@ -164,10 +164,14 @@ class PerformanceEvaluationModel(pl.LightningModule):
                 - 'attention': Attention weights if requested
         """
         # Encode audio (MERT expects raw waveforms at 24kHz)
-        audio_features, _ = self.audio_encoder(
-            audio_waveform=audio_waveform,
-            attention_mask=audio_mask,
-        )
+        # Skip audio encoding in MIDI-only mode (audio_dim=0)
+        if self.hparams.audio_dim > 0:
+            audio_features, _ = self.audio_encoder(
+                audio_waveform=audio_waveform,
+                attention_mask=audio_mask,
+            )
+        else:
+            audio_features = None
 
         # Encode MIDI (if available and encoder exists)
         if midi_tokens is not None and self.midi_encoder is not None:
