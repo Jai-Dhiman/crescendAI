@@ -125,7 +125,8 @@ class CrossAttentionFusion(nn.Module):
         batch_size, audio_len, _ = audio_features.shape
 
         # Handle audio-only mode (midi_dim=0)
-        if self.audio_only or midi_features is None:
+        # Only use audio-only path if not in MIDI-only mode
+        if (self.audio_only or midi_features is None) and not self.midi_only:
             # Process audio features only
             audio_out = self._audio_only_forward(audio_features)
 
@@ -143,6 +144,11 @@ class CrossAttentionFusion(nn.Module):
 
         # Handle MIDI-only mode (audio_dim=0)
         if self.midi_only:
+            if midi_features is None:
+                raise ValueError(
+                    "MIDI-only mode requires MIDI features, but got None. "
+                    "Check that MIDI data is being loaded and processed correctly."
+                )
             # Process MIDI features only
             midi_out = self._midi_only_forward(midi_features)
 

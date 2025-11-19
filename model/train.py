@@ -14,15 +14,21 @@ Usage:
 """
 
 import argparse
-import yaml
-import torch
-import pytorch_lightning as pl
 from pathlib import Path
-from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping, LearningRateMonitor
+import warnings
+
+import pytorch_lightning as pl
+import torch
+import yaml
+from pytorch_lightning.callbacks import EarlyStopping, LearningRateMonitor, ModelCheckpoint
 from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
 
-from src.models.lightning_module import PerformanceEvaluationModel
 from src.data.dataset import create_dataloaders
+from src.models.lightning_module import PerformanceEvaluationModel
+
+# Suppress known warnings
+warnings.filterwarnings('ignore', category=UserWarning, module='torchaudio')
+warnings.filterwarnings('ignore', category=UserWarning, module='torchmetrics')
 
 
 def load_config(config_path: str) -> dict:
@@ -105,8 +111,11 @@ def main():
         "--fast-dev-run", action="store_true", help="Run a single batch for debugging"
     )
     parser.add_argument(
-        "--mode", type=str, choices=["audio", "midi", "fusion"], default=None,
-        help="Model mode: audio-only, midi-only, or fusion (overrides config)"
+        "--mode",
+        type=str,
+        choices=["audio", "midi", "fusion"],
+        default=None,
+        help="Model mode: audio-only, midi-only, or fusion (overrides config)",
     )
     args = parser.parse_args()
 
@@ -117,21 +126,27 @@ def main():
     # Apply mode overrides if specified
     if args.mode:
         print(f"Applying mode: {args.mode}")
-        mode_overrides = config.get('modes', {}).get(args.mode, {})
-        config['model'].update(mode_overrides)
+        mode_overrides = config.get("modes", {}).get(args.mode, {})
+        config["model"].update(mode_overrides)
         # Update checkpoint path to include mode
-        if '{mode}' in config['callbacks']['checkpoint']['dirpath']:
-            config['callbacks']['checkpoint']['dirpath'] = config['callbacks']['checkpoint']['dirpath'].replace('{mode}', args.mode)
-        if '{mode}' in config['callbacks']['checkpoint']['filename']:
-            config['callbacks']['checkpoint']['filename'] = config['callbacks']['checkpoint']['filename'].replace('{mode}', args.mode)
-        if '{mode}' in config['logging']['tensorboard_logdir']:
-            config['logging']['tensorboard_logdir'] = config['logging']['tensorboard_logdir'].replace('{mode}', args.mode)
+        if "{mode}" in config["callbacks"]["checkpoint"]["dirpath"]:
+            config["callbacks"]["checkpoint"]["dirpath"] = config["callbacks"]["checkpoint"][
+                "dirpath"
+            ].replace("{mode}", args.mode)
+        if "{mode}" in config["callbacks"]["checkpoint"]["filename"]:
+            config["callbacks"]["checkpoint"]["filename"] = config["callbacks"]["checkpoint"][
+                "filename"
+            ].replace("{mode}", args.mode)
+        if "{mode}" in config["logging"]["tensorboard_logdir"]:
+            config["logging"]["tensorboard_logdir"] = config["logging"][
+                "tensorboard_logdir"
+            ].replace("{mode}", args.mode)
 
     # Set seed for reproducibility
     pl.seed_everything(config.get("seed", 42))
 
     # Enable Tensor Cores for better performance on modern GPUs
-    torch.set_float32_matmul_precision('high')
+    torch.set_float32_matmul_precision("high")
 
     # Create checkpoint directory
     checkpoint_dir = Path(config["callbacks"]["checkpoint"]["dirpath"])

@@ -105,8 +105,11 @@ def fix_all_annotations(
     print(f"\nOld prefix: {old_prefix}")
     print(f"New prefix: {new_prefix}\n")
 
-    # Find all JSONL files
-    jsonl_files = list(annotations_dir.glob("*.jsonl"))
+    # Find all JSONL files (skip macOS metadata files starting with ._)
+    jsonl_files = [
+        f for f in annotations_dir.glob("*.jsonl")
+        if not f.name.startswith("._")
+    ]
 
     if not jsonl_files:
         print(f"No .jsonl files found in {annotations_dir}")
