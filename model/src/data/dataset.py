@@ -230,6 +230,15 @@ def collate_fn(batch: List[Dict[str, torch.Tensor]]) -> Dict[str, torch.Tensor]:
         # Check if all samples have MIDI
         if all('midi_tokens' in item for item in batch):
             midi_tokens = torch.stack([item['midi_tokens'] for item in batch])
+        else:
+            # Some samples are missing MIDI - log which ones
+            missing_indices = [i for i, item in enumerate(batch) if 'midi_tokens' not in item]
+            missing_paths = [batch[i]['metadata']['midi_path'] for i in missing_indices]
+            print(f"\nWarning: Batch has {len(missing_indices)}/{len(batch)} samples without MIDI:")
+            for i, path in zip(missing_indices, missing_paths):
+                print(f"  Sample {i}: {path}")
+            # Set midi_tokens to None for the entire batch
+            midi_tokens = None
 
     # Collect metadata
     metadata = [item['metadata'] for item in batch]
