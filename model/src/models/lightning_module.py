@@ -184,10 +184,15 @@ class PerformanceEvaluationModel(pl.LightningModule):
             # Debug: Log why MIDI encoding was skipped
             if self.hparams.audio_dim == 0:  # MIDI-only mode
                 if midi_tokens is None:
-                    raise ValueError(
-                        "MIDI-only mode requires MIDI tokens, but midi_tokens is None. "
-                        "Check that the dataloader is providing MIDI data."
+                    # Skip this batch - all MIDI files failed to load
+                    # Return a dummy output to avoid breaking the training loop
+                    import warnings
+                    warnings.warn(
+                        "Skipping batch in MIDI-only mode: all MIDI files failed to load. "
+                        "This is expected if some MIDI files are corrupted."
                     )
+                    # Return None to signal the batch should be skipped
+                    return None
                 if self.midi_encoder is None:
                     raise ValueError(
                         "MIDI-only mode requires MIDI encoder, but self.midi_encoder is None. "
@@ -306,15 +311,25 @@ class PerformanceEvaluationModel(pl.LightningModule):
     def training_step(self, batch: Dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:
         """Training step."""
         result = self._shared_step(batch, "train")
+        if result is None:
+            # Batch was skipped due to missing MIDI data
+            # Return a zero loss to continue training
+            return torch.tensor(0.0, device=self.device, requires_grad=True)
         return result["loss"]
 
     def validation_step(self, batch: Dict[str, torch.Tensor], batch_idx: int) -> None:
         """Validation step."""
-        self._shared_step(batch, "val")
+        result = self._shared_step(batch, "val")
+        # Skip if batch was None (all MIDI failed)
+        if result is None:
+            return
 
     def test_step(self, batch: Dict[str, torch.Tensor], batch_idx: int) -> None:
         """Test step."""
-        self._shared_step(batch, "test")
+        result = self._shared_step(batch, "test")
+        # Skip if batch was None (all MIDI failed)
+        if result is None:
+            return
 
     def configure_optimizers(self) -> Dict[str, Any]:
         """
