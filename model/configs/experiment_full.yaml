@@ -27,35 +27,42 @@ data:
   persistent_workers: true # Keep workers alive between epochs
   prefetch_factor: 2       # Pre-load batches
 
-  # Minimal augmentation for speed
+  # Stronger augmentation to bridge synthetic→real domain gap
   augmentation:
     enabled: true
     pitch_shift:
       enabled: true
-      probability: 0.2
+      probability: 0.4  # Increased from 0.2
       min_semitones: -1
       max_semitones: 1
     time_stretch:
       enabled: true
-      probability: 0.2
+      probability: 0.4  # Increased from 0.2
       min_rate: 0.9
       max_rate: 1.1
     add_noise:
       enabled: true
-      probability: 0.1
+      probability: 0.3  # Increased from 0.1
       min_snr_db: 30
       max_snr_db: 40
     gain_variation:
       enabled: true
-      probability: 0.2
+      probability: 0.4  # Increased from 0.2
       min_db: -3
       max_db: 3
-    # Disable slow augmentations
+    # Enable room acoustics for more realistic audio
     room_acoustics:
-      enabled: false
+      enabled: true
+      probability: 0.3  # Adds reverberation/room effects
     compress_audio:
-      enabled: false
-    max_transforms: 2
+      enabled: false  # Keep disabled (slow)
+    max_transforms: 3  # Increased from 2 for more diversity
+
+  # Mixup augmentation (applied in collate_fn for efficiency)
+  mixup:
+    enabled: true
+    alpha: 0.2          # Beta distribution parameter
+    probability: 0.5    # Apply to 50% of batches
 
 model:
   # These will be overridden by --mode flag
@@ -69,6 +76,10 @@ model:
   mert_model_name: m-a-p/MERT-v1-95M
   freeze_audio_encoder: false
   gradient_checkpointing: true  # Essential for memory
+  use_layer_selection: true     # Use middle layers (5-7) instead of last layer
+  selected_layers: [5, 6, 7]    # Optimal for music understanding (research-backed)
+  freeze_bottom_layers: true    # Freeze bottom 6 layers to reduce overfitting
+  num_freeze_layers: 6          # Freeze layers 0-5, train 6-11
 
   # MIDI encoder settings
   midi_hidden_size: 256
@@ -85,27 +96,27 @@ model:
   attention_heads: 4
   aggregator_dropout: 0.2
 
-  # MTL head
+  # MTL head - expanded for better capacity
   shared_hidden: 256
   task_hidden: 128
-  mtl_dropout: 0.1
+  mtl_dropout: 0.2  # Increased from 0.1 for better regularization
 
 training:
-  max_epochs: 3            # Fewer epochs needed with 114K samples (~10K steps total)
+  max_epochs: 5            # Increased from 3 (model needs more time with new architecture)
   precision: 16            # Mixed precision (faster + less memory)
   optimizer: AdamW
-  learning_rate: 1e-5      # Conservative for MERT
-  backbone_lr: 1e-5        # MERT learning rate
-  heads_lr: 1e-4           # Task heads learn faster
+  learning_rate: 3e-5      # Increased 3x from 1e-5 (scaled with effective batch size)
+  backbone_lr: 3e-5        # Increased 3x - MERT can handle higher LR with partial freezing
+  heads_lr: 3e-4           # Increased 3x - matches backbone scaling
   weight_decay: 0.01
   scheduler: cosine
-  warmup_steps: 500        # Longer warmup for full dataset
+  warmup_steps: 1000       # Increased from 500 for stability with higher LR
   min_lr: 1e-6
-  gradient_clip_val: 1.0
+  gradient_clip_val: 0.5   # Reduced from 1.0 for tighter control with higher LR
   accumulate_grad_batches: 2  # Effective batch = 32
 
   # Validation
-  val_check_interval: 0.5  # Validate twice per epoch (more frequent feedback)
+  val_check_interval: 0.25 # Validate 4x per epoch (increased from 2x for more feedback)
   limit_val_batches: 1.0   # Use full validation set
   track_correlations: true # Log Pearson/Spearman correlations
 

@@ -210,6 +210,49 @@ class PerformanceDataset(Dataset):
         return result
 
 
+def mixup_batch(
+    audio: torch.Tensor,
+    labels: torch.Tensor,
+    alpha: float = 0.2,
+    probability: float = 0.5
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    """
+    Apply mixup augmentation to a batch.
+
+    Mixup creates virtual training examples by mixing pairs of examples and their labels.
+    Research shows this improves generalization and calibration for regression tasks.
+
+    Args:
+        audio: Batch of audio waveforms [batch, num_samples]
+        labels: Batch of labels [batch, num_dimensions]
+        alpha: Beta distribution parameter (0.2 is standard)
+        probability: Probability of applying mixup
+
+    Returns:
+        Tuple of (mixed_audio, mixed_labels)
+    """
+    if np.random.random() >= probability:
+        # Don't apply mixup
+        return audio, labels
+
+    batch_size = audio.shape[0]
+    if batch_size < 2:
+        # Need at least 2 samples to mix
+        return audio, labels
+
+    # Sample mixing coefficient from Beta distribution
+    lam = np.random.beta(alpha, alpha)
+
+    # Create random permutation for pairing samples
+    index = torch.randperm(batch_size, device=audio.device)
+
+    # Mix audio and labels
+    mixed_audio = lam * audio + (1 - lam) * audio[index]
+    mixed_labels = lam * labels + (1 - lam) * labels[index]
+
+    return mixed_audio, mixed_labels
+
+
 def collate_fn(batch: List[Dict[str, torch.Tensor]]) -> Dict[str, torch.Tensor]:
     """
     Collate function for DataLoader.
@@ -278,6 +321,42 @@ def collate_fn(batch: List[Dict[str, torch.Tensor]]) -> Dict[str, torch.Tensor]:
     return result
 
 
+def create_collate_fn_with_mixup(
+    apply_mixup: bool = True,
+    mixup_alpha: float = 0.2,
+    mixup_probability: float = 0.5
+):
+    """
+    Create a collate function with optional mixup augmentation.
+
+    Args:
+        apply_mixup: Whether to apply mixup
+        mixup_alpha: Beta distribution parameter
+        mixup_probability: Probability of applying mixup
+
+    Returns:
+        Collate function
+    """
+    def collate_with_mixup(batch: List[Dict[str, torch.Tensor]]) -> Dict[str, torch.Tensor]:
+        # First, use standard collate
+        result = collate_fn(batch)
+
+        # Apply mixup to training data only (if enabled)
+        if apply_mixup and 'audio_waveform' in result and 'labels' in result:
+            mixed_audio, mixed_labels = mixup_batch(
+                result['audio_waveform'],
+                result['labels'],
+                alpha=mixup_alpha,
+                probability=mixup_probability
+            )
+            result['audio_waveform'] = mixed_audio
+            result['labels'] = mixed_labels
+
+        return result
+
+    return collate_with_mixup
+
+
 def create_dataloaders(
     train_annotation_path: str,
     val_annotation_path: str,
@@ -286,6 +365,9 @@ def create_dataloaders(
     batch_size: int = 8,
     num_workers: int = 4,
     augmentation_config: Optional[Dict[str, Any]] = None,
+    use_mixup: bool = True,
+    mixup_alpha: float = 0.2,
+    mixup_probability: float = 0.5,
     **dataset_kwargs
 ) -> Tuple[DataLoader, DataLoader, Optional[DataLoader]]:
     """
@@ -299,6 +381,9 @@ def create_dataloaders(
         batch_size: Batch size
         num_workers: Number of DataLoader workers
         augmentation_config: Augmentation config (applied to train only)
+        use_mixup: Whether to apply mixup augmentation (train only)
+        mixup_alpha: Beta distribution parameter for mixup
+        mixup_probability: Probability of applying mixup per batch
         **dataset_kwargs: Additional arguments for PerformanceDataset
 
     Returns:
@@ -333,13 +418,21 @@ def create_dataloaders(
             **dataset_kwargs
         )
 
+    # Create collate functions
+    # Training uses mixup, validation/test don't
+    train_collate_fn = create_collate_fn_with_mixup(
+        apply_mixup=use_mixup,
+        mixup_alpha=mixup_alpha,
+        mixup_probability=mixup_probability
+    )
+
     # Create dataloaders
     train_loader = DataLoader(
         train_dataset,
         batch_size=batch_size,
         shuffle=True,
         num_workers=num_workers,
-        collate_fn=collate_fn,
+        collate_fn=train_collate_fn,  # Use mixup for training
         pin_memory=True,
         persistent_workers=num_workers > 0,
     )
@@ -349,7 +442,7 @@ def create_dataloaders(
         batch_size=batch_size,
         shuffle=False,
         num_workers=num_workers,
-        collate_fn=collate_fn,
+        collate_fn=collate_fn,  # No mixup for validation
         pin_memory=True,
         persistent_workers=num_workers > 0,
     )
@@ -361,7 +454,7 @@ def create_dataloaders(
             batch_size=batch_size,
             shuffle=False,
             num_workers=num_workers,
-            collate_fn=collate_fn,
+            collate_fn=collate_fn,  # No mixup for testing
             pin_memory=True,
             persistent_workers=num_workers > 0,
         )
@@ -374,5 +467,6 @@ if __name__ == "__main__":
     print("- Loads audio (24kHz raw waveforms)")
     print("- Loads MIDI (OctupleMIDI tokenization)")
     print("- Supports augmentation (train only)")
+    print("- Mixup augmentation for better generalization")
     print("- Handles variable-length sequences")
     print("- Annotation format: JSONL")
