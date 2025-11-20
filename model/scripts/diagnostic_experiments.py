@@ -105,7 +105,7 @@ def single_batch_overfit_test(
 
         # Forward pass
         embeddings, _ = encoder(audio)
-        aggregated = aggregator(embeddings)
+        aggregated, _ = aggregator(embeddings)  # aggregator returns (output, attention)
         predictions, _ = head(aggregated)
 
         # Loss
@@ -144,7 +144,7 @@ def single_batch_overfit_test(
     # Final evaluation
     with torch.no_grad():
         embeddings, _ = encoder(audio)
-        aggregated = aggregator(embeddings)
+        aggregated, _ = aggregator(embeddings)  # aggregator returns (output, attention)
         predictions, _ = head(aggregated)
         final_loss = criterion(predictions, labels).item()
 
@@ -272,7 +272,7 @@ def layer_ablation_test(
 
             optimizer.zero_grad()
             embeddings, _ = encoder(audio)
-            aggregated = aggregator(embeddings)
+            aggregated, _ = aggregator(embeddings)  # aggregator returns (output, attention)
             predictions, _ = head(aggregated)
 
             loss = criterion(predictions, labels)
