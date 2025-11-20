@@ -21,7 +21,7 @@ sys.path.append(str(Path(__file__).parent.parent))
 
 from src.data.dataset import PerformanceDataset, collate_fn
 from src.models.audio_encoder import MERTEncoder
-from src.models.temporal_aggregation import BiLSTMAttentionAggregator
+from src.models.aggregation import HierarchicalAggregator
 from src.models.mtl_head import MultiTaskHead
 
 
@@ -65,11 +65,13 @@ def single_batch_overfit_test(
         freeze_bottom_layers=False
     ).to(device)
 
-    aggregator = BiLSTMAttentionAggregator(
+    aggregator = HierarchicalAggregator(
         input_dim=768,
-        hidden_dim=256,
-        num_layers=2,
-        attention_heads=4
+        lstm_hidden=256,
+        lstm_layers=2,
+        attention_heads=4,
+        dropout=0.2,
+        output_dim=512
     ).to(device)
 
     head = MultiTaskHead(
@@ -231,10 +233,13 @@ def layer_ablation_test(
             freeze_bottom_layers=False
         ).to(device)
 
-        aggregator = BiLSTMAttentionAggregator(
+        aggregator = HierarchicalAggregator(
             input_dim=768,
-            hidden_dim=256,
-            num_layers=2
+            lstm_hidden=256,
+            lstm_layers=2,
+            attention_heads=4,
+            dropout=0.2,
+            output_dim=512
         ).to(device)
 
         head = MultiTaskHead(
