@@ -10,11 +10,14 @@ data:
   val_path: /tmp/crescendai_data/data/annotations/synthetic_val.jsonl
   test_path: /tmp/crescendai_data/data/annotations/synthetic_test.jsonl
 
-  # Reduced to 3 core dimensions for faster convergence
+  # All 6 technical dimensions to identify which are learnable
   dimensions:
     - note_accuracy      # MIDI can predict this
     - rhythmic_precision # MIDI can predict this
     - tone_quality       # Only audio can predict this (fusion advantage)
+    - dynamics_control   # MIDI velocity-based
+    - articulation       # MIDI duration patterns
+    - pedaling           # MIDI CC64 sustain pedal
 
   audio_sample_rate: 24000
   max_audio_length: 240000  # 10 seconds at 24kHz
@@ -70,7 +73,7 @@ model:
   midi_dim: 256
   fusion_dim: 1024
   aggregator_dim: 512
-  num_dimensions: 3
+  num_dimensions: 6
 
   # MERT settings
   mert_model_name: m-a-p/MERT-v1-95M
