@@ -258,6 +258,10 @@ class PerformanceEvaluationModel(pl.LightningModule):
             midi_tokens=midi_tokens,
         )
 
+        # Check if batch was skipped (all MIDI failed in MIDI-only mode)
+        if output is None:
+            return None
+
         predictions = output["scores"]
         uncertainties = output["uncertainties"]
 
