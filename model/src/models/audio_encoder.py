@@ -53,17 +53,37 @@ class MERTEncoder(nn.Module):
         self.num_freeze_layers = num_freeze_layers
 
         # Load pre-trained MERT model
+        # Try to load from local snapshot directory first (for offline environments)
+        import os
+
+        # Check for local snapshot directory (used in Thunder Compute/Colab)
+        snapshot_dir = os.path.join(
+            os.path.expanduser("~/.cache/huggingface/hub"),
+            f"models--{model_name.replace('/', '--')}/snapshots/main"
+        )
+
+        if os.path.exists(snapshot_dir) and os.path.isdir(snapshot_dir):
+            # Load from snapshot directory directly (don't use local_files_only with direct paths)
+            model_path = snapshot_dir
+            use_local_only = False  # Direct path, no HF Hub lookup needed
+            print(f"Loading MERT from local snapshot: {snapshot_dir}")
+        else:
+            # Fall back to model name (will use HF cache resolution)
+            model_path = model_name
+            use_local_only = True  # Use cache only, don't download
+
         try:
             self.processor = Wav2Vec2FeatureExtractor.from_pretrained(
-                model_name, trust_remote_code=True, local_files_only=True
+                model_path, trust_remote_code=True, local_files_only=use_local_only
             )
             self.model = AutoModel.from_pretrained(
-                model_name, trust_remote_code=True, local_files_only=True
+                model_path, trust_remote_code=True, local_files_only=use_local_only
             )
         except Exception as e:
             raise RuntimeError(
                 f"Failed to load MERT model '{model_name}'. "
                 f"Error: {e}\n"
+                f"Tried loading from: {model_path}\n"
                 f"Make sure the model is cached locally at ~/.cache/huggingface/hub/"
             )
 
