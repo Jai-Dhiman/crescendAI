@@ -55,16 +55,16 @@ class MERTEncoder(nn.Module):
         # Load pre-trained MERT model
         try:
             self.processor = Wav2Vec2FeatureExtractor.from_pretrained(
-                model_name, trust_remote_code=True
+                model_name, trust_remote_code=True, local_files_only=True
             )
             self.model = AutoModel.from_pretrained(
-                model_name, trust_remote_code=True
+                model_name, trust_remote_code=True, local_files_only=True
             )
         except Exception as e:
             raise RuntimeError(
                 f"Failed to load MERT model '{model_name}'. "
                 f"Error: {e}\n"
-                f"Make sure you have internet connection and HuggingFace access."
+                f"Make sure the model is cached locally at ~/.cache/huggingface/hub/"
             )
 
         # Enable gradient checkpointing for memory efficiency
