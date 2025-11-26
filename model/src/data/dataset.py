@@ -200,6 +200,35 @@ class PerformanceDataset(Dataset):
                 - labels: Ground truth scores [num_dimensions]
                 - metadata: Additional info (paths, times, etc.)
         """
+        return self._load_sample_with_retry(idx, max_retries=5)
+
+    def _load_sample_with_retry(self, idx: int, max_retries: int = 5) -> Dict[str, torch.Tensor]:
+        """Load a sample with retry logic for corrupted/unreadable files."""
+        tried_indices = set()
+
+        for attempt in range(max_retries):
+            current_idx = idx if attempt == 0 else random.randint(0, len(self) - 1)
+
+            # Avoid retrying same index
+            if current_idx in tried_indices:
+                continue
+            tried_indices.add(current_idx)
+
+            try:
+                return self._load_sample(current_idx)
+            except (OSError, IOError) as e:
+                print(f"\nWarning: Failed to load sample {current_idx} (attempt {attempt + 1}/{max_retries})")
+                print(f"  Error: {type(e).__name__}: {e}")
+                if attempt == max_retries - 1:
+                    raise RuntimeError(
+                        f"Failed to load any valid sample after {max_retries} attempts. "
+                        f"Last error: {e}"
+                    )
+
+        raise RuntimeError(f"Exhausted retries loading sample {idx}")
+
+    def _load_sample(self, idx: int) -> Dict[str, torch.Tensor]:
+        """Load a single sample (internal method)."""
         annotation = self.annotations[idx]
 
         # Load audio
