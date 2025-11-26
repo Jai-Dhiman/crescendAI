@@ -102,11 +102,23 @@ class PerformanceDataset(Dataset):
         if not self.annotation_path.exists():
             raise FileNotFoundError(f"Annotation file not found: {self.annotation_path}")
 
+        # Base directory for resolving relative paths (parent of annotations dir)
+        # e.g., /tmp/maestro_data/annotations/train.jsonl -> /tmp/maestro_data/
+        base_dir = self.annotation_path.parent.parent
+
         annotations = []
         with open(self.annotation_path, 'r') as f:
             for line in f:
                 if line.strip():
-                    annotations.append(json.loads(line))
+                    ann = json.loads(line)
+
+                    # Resolve relative paths to absolute
+                    if 'audio_path' in ann and not Path(ann['audio_path']).is_absolute():
+                        ann['audio_path'] = str(base_dir / ann['audio_path'])
+                    if 'midi_path' in ann and ann['midi_path'] and not Path(ann['midi_path']).is_absolute():
+                        ann['midi_path'] = str(base_dir / ann['midi_path'])
+
+                    annotations.append(ann)
 
         if len(annotations) == 0:
             raise ValueError(f"No annotations found in {self.annotation_path}")
@@ -200,32 +212,42 @@ class PerformanceDataset(Dataset):
                 - labels: Ground truth scores [num_dimensions]
                 - metadata: Additional info (paths, times, etc.)
         """
-        return self._load_sample_with_retry(idx, max_retries=5)
+        return self._load_sample_with_retry(idx)
 
-    def _load_sample_with_retry(self, idx: int, max_retries: int = 5) -> Dict[str, torch.Tensor]:
+    def _load_sample_with_retry(self, idx: int, max_retries: int = 10) -> Dict[str, torch.Tensor]:
         """Load a sample with retry logic for corrupted/unreadable files."""
         tried_indices = set()
+        last_error = None
+        attempts = 0
 
-        for attempt in range(max_retries):
-            current_idx = idx if attempt == 0 else random.randint(0, len(self) - 1)
+        while attempts < max_retries and len(tried_indices) < len(self):
+            # First attempt uses requested idx, subsequent attempts use random
+            if attempts == 0:
+                current_idx = idx
+            else:
+                # Pick a random index we haven't tried
+                current_idx = random.randint(0, len(self) - 1)
+                while current_idx in tried_indices and len(tried_indices) < len(self):
+                    current_idx = random.randint(0, len(self) - 1)
 
-            # Avoid retrying same index
             if current_idx in tried_indices:
-                continue
+                break  # Exhausted all options
             tried_indices.add(current_idx)
+            attempts += 1
 
             try:
                 return self._load_sample(current_idx)
-            except (OSError, IOError) as e:
-                print(f"\nWarning: Failed to load sample {current_idx} (attempt {attempt + 1}/{max_retries})")
-                print(f"  Error: {type(e).__name__}: {e}")
-                if attempt == max_retries - 1:
-                    raise RuntimeError(
-                        f"Failed to load any valid sample after {max_retries} attempts. "
-                        f"Last error: {e}"
-                    )
+            except (OSError, IOError, RuntimeError) as e:
+                last_error = e
+                # Only print every few failures to reduce noise
+                if attempts <= 3 or attempts == max_retries:
+                    print(f"Warning: Sample {current_idx} failed (attempt {attempts}/{max_retries}): {type(e).__name__}")
 
-        raise RuntimeError(f"Exhausted retries loading sample {idx}")
+        raise RuntimeError(
+            f"Failed to load any valid sample after {attempts} attempts. "
+            f"Tried indices: {sorted(list(tried_indices)[:5])}... "
+            f"Last error: {last_error}"
+        )
 
     def _load_sample(self, idx: int) -> Dict[str, torch.Tensor]:
         """Load a single sample (internal method)."""
