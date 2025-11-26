@@ -1,0 +1,160 @@
+# Unified Experiment Config - 3-Model Comparison
+# Supports: crossattn (baseline), gated (GMU), concat (simple)
+# Usage: python train.py --config configs/experiment.yaml --fusion_type [crossattn|gated|concat]
+
+data:
+  # Data paths (after downloading from Hugging Face Hub)
+  train_path: /tmp/crescendai_data/data/annotations/degraded_train.jsonl
+  val_path: /tmp/crescendai_data/data/annotations/degraded_val.jsonl
+  test_path: /tmp/crescendai_data/data/annotations/degraded_test.jsonl
+
+  # 8 dimensions (Technical 4, Timbre/Dynamics 2, Interpretive 2)
+  dimensions:
+    - note_accuracy
+    - rhythmic_stability
+    - articulation_clarity
+    - pedal_technique
+    - tone_quality
+    - dynamic_range
+    - musical_expression
+    - overall_interpretation
+
+  audio_sample_rate: 24000
+  max_audio_length: 240000  # 10 seconds at 24kHz
+  max_midi_events: 512
+
+  # DataLoader settings
+  batch_size: 8
+  num_workers: 4
+  pin_memory: true
+  persistent_workers: true
+  prefetch_factor: 2
+
+  # Augmentation
+  augmentation:
+    enabled: true
+    pitch_shift:
+      enabled: true
+      probability: 0.4
+      min_semitones: -1
+      max_semitones: 1
+    time_stretch:
+      enabled: true
+      probability: 0.4
+      min_rate: 0.9
+      max_rate: 1.1
+    add_noise:
+      enabled: true
+      probability: 0.3
+      min_snr_db: 30
+      max_snr_db: 40
+    gain_variation:
+      enabled: true
+      probability: 0.4
+      min_db: -3
+      max_db: 3
+    room_acoustics:
+      enabled: true
+      probability: 0.3
+    max_transforms: 3
+
+  mixup:
+    enabled: true
+    alpha: 0.2
+    probability: 0.5
+
+model:
+  # Encoder dimensions
+  audio_dim: 768          # MERT-95M output
+  midi_dim: 256           # MIDIBert output
+  shared_dim: 512         # Projection head output
+  aggregator_dim: 512
+  num_dimensions: 8
+
+  # Fusion type: crossattn, gated, or concat
+  fusion_type: gated      # Default to recommended
+  use_projection: true    # Use projection heads (recommended)
+
+  # MERT settings
+  mert_model_name: m-a-p/MERT-v1-95M
+  freeze_audio_encoder: false
+  gradient_checkpointing: true
+
+  # MIDI encoder
+  midi_hidden_size: 256
+  midi_num_layers: 6
+  midi_num_heads: 4
+
+  # Aggregation
+  lstm_hidden: 256
+  lstm_layers: 2
+  attention_heads: 4
+  aggregator_dropout: 0.2
+
+  # MTL head
+  shared_hidden: 256
+  task_hidden: 128
+  mtl_dropout: 0.1
+
+loss:
+  # Combined loss weights
+  mse_weight: 1.0
+  ranking_weight: 0.2
+  contrastive_weight: 0.1
+  ranking_margin: 5.0
+  contrastive_temperature: 0.07
+
+training:
+  max_epochs: 5
+  precision: 16
+  optimizer: AdamW
+  learning_rate: 1e-5
+  backbone_lr: 5e-6
+  heads_lr: 1e-4
+  weight_decay: 0.01
+  scheduler: cosine
+  warmup_steps: 500
+  min_lr: 1e-6
+  gradient_clip_val: 1.0
+  accumulate_grad_batches: 2
+
+  val_check_interval: 0.5
+  limit_val_batches: 1.0
+
+callbacks:
+  checkpoint:
+    monitor: val_loss
+    mode: min
+    save_top_k: 1
+    save_last: true
+    dirpath: checkpoints/{fusion_type}
+    filename: '{fusion_type}-{epoch:02d}-{val_loss:.4f}'
+  early_stopping:
+    monitor: val_loss
+    mode: min
+    patience: 3
+    min_delta: 0.001
+
+logging:
+  log_every_n_steps: 50
+  use_tensorboard: true
+  tensorboard_logdir: logs/{fusion_type}
+
+seed: 42
+
+# Fusion type presets
+fusion_presets:
+  crossattn:
+    fusion_type: crossattn
+    use_projection: true
+    description: "Cross-attention fusion (baseline)"
+
+  gated:
+    fusion_type: gated
+    use_projection: true
+    description: "Gated Multimodal Unit (recommended)"
+
+  concat:
+    fusion_type: concat
+    use_projection: true
+    description: "Simple concatenation fusion"

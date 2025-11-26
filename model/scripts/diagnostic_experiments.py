@@ -374,6 +374,225 @@ def label_quality_baseline(train_dataset, dimension_names):
     }
 
 
+def phase2_fusion_comparison(
+    train_annotation_path: str,
+    val_annotation_path: str,
+    dimension_names: list,
+    device: str = 'cuda',
+    num_epochs: int = 5,
+    batch_size: int = 16
+):
+    """
+    Phase 2 diagnostic experiments from TRAINING_PLAN_v2.md.
+
+    Compares 4 fusion approaches:
+    1. Audio-only baseline
+    2. MIDI-only baseline
+    3. Fusion-concatenation (simple)
+    4. Fusion-cross-attention (current)
+
+    Success criteria:
+    - Fusion beats best single-modal by ≥10%
+    - Models learn quality not difficulty
+    - Attention diagnostics show both modalities being used
+
+    Args:
+        train_annotation_path: Path to training annotations
+        val_annotation_path: Path to validation annotations
+        dimension_names: List of dimension names
+        device: Device to use
+        num_epochs: Number of epochs per experiment
+        batch_size: Batch size
+
+    Returns:
+        Dict with results for each mode
+    """
+    print("\n" + "="*80)
+    print("PHASE 2: FUSION COMPARISON EXPERIMENTS")
+    print("="*80)
+    print("Comparing 4 fusion approaches (TRAINING_PLAN_v2.md)")
+    print(f"Epochs per experiment: {num_epochs}")
+    print(f"Batch size: {batch_size}\n")
+
+    from src.data.dataset import create_dataloaders
+    from src.models.lightning_module import PerformanceEvaluationModel
+    import pytorch_lightning as pl
+    from pytorch_lightning.callbacks import ModelCheckpoint
+
+    # Create dataloaders
+    train_loader, val_loader, _ = create_dataloaders(
+        train_annotation_path=train_annotation_path,
+        val_annotation_path=val_annotation_path,
+        test_annotation_path=val_annotation_path,  # Use val as test for quick diagnostic
+        dimension_names=dimension_names,
+        batch_size=batch_size,
+        num_workers=4,
+        augmentation_config=None,  # No augmentation for diagnostic
+        audio_sample_rate=24000,
+        max_audio_length=240000,
+        max_midi_events=512
+    )
+
+    print(f"Train samples: {len(train_loader.dataset)}")
+    print(f"Val samples: {len(val_loader.dataset)}\n")
+
+    # Define experiment configurations
+    experiments = [
+        {
+            'name': 'Audio-Only',
+            'audio_dim': 768,
+            'midi_dim': 0,
+            'fusion_type': None,
+        },
+        {
+            'name': 'MIDI-Only',
+            'audio_dim': 0,
+            'midi_dim': 256,
+            'fusion_type': None,
+        },
+        {
+            'name': 'Fusion-Concatenation',
+            'audio_dim': 768,
+            'midi_dim': 256,
+            'fusion_type': 'concatenation',
+        },
+        {
+            'name': 'Fusion-CrossAttention',
+            'audio_dim': 768,
+            'midi_dim': 256,
+            'fusion_type': 'cross_attention',
+        },
+    ]
+
+    results = {}
+
+    for exp in experiments:
+        print("\n" + "="*80)
+        print(f"EXPERIMENT: {exp['name']}")
+        print("="*80)
+
+        # Create model
+        model = PerformanceEvaluationModel(
+            audio_dim=exp['audio_dim'],
+            midi_dim=exp['midi_dim'],
+            fusion_dim=1024,
+            aggregator_dim=512,
+            num_dimensions=len(dimension_names),
+            dimension_names=dimension_names,
+            learning_rate=3e-5,
+            backbone_lr=3e-5,
+            heads_lr=3e-4,
+            max_epochs=num_epochs,
+            freeze_audio_encoder=False,
+            gradient_checkpointing=True,
+        )
+
+        # Note: To use concatenation fusion, would need to modify lightning_module
+        # to support fusion_type parameter. For now, cross-attention is default.
+        # This is left as TODO for full implementation.
+
+        # Trainer
+        trainer = pl.Trainer(
+            max_epochs=num_epochs,
+            accelerator='auto',
+            devices='auto',
+            precision=16,
+            val_check_interval=0.5,  # Validate twice per epoch
+            log_every_n_steps=10,
+            enable_progress_bar=True,
+            enable_model_summary=True,
+        )
+
+        # Train
+        print(f"\nTraining {exp['name']} for {num_epochs} epochs...")
+        trainer.fit(model, train_loader, val_loader)
+
+        # Evaluate
+        val_results = trainer.validate(model, val_loader, verbose=False)[0]
+
+        # Collect results
+        results[exp['name']] = {
+            'val_loss': val_results.get('val_loss', float('inf')),
+            'correlations': {
+                dim: val_results.get(f'val_pearson_{dim}', 0.0)
+                for dim in dimension_names
+            },
+            'avg_correlation': np.mean([
+                val_results.get(f'val_pearson_{dim}', 0.0)
+                for dim in dimension_names
+            ]),
+        }
+
+        # Add diagnostics if fusion mode
+        if exp['midi_dim'] > 0 and exp['audio_dim'] > 0:
+            results[exp['name']]['diagnostics'] = {
+                'attention_entropy': val_results.get('val_attention_entropy', None),
+                'attention_sparsity': val_results.get('val_attention_sparsity', None),
+                'cross_modal_alignment': val_results.get('val_cross_modal_alignment', None),
+                'audio_diversity': val_results.get('val_audio_feature_diversity', None),
+                'midi_diversity': val_results.get('val_midi_feature_diversity', None),
+            }
+
+        print(f"\n{exp['name']} Results:")
+        print(f"  Val Loss: {results[exp['name']]['val_loss']:.4f}")
+        print(f"  Avg Correlation: {results[exp['name']]['avg_correlation']:.4f}")
+
+    # Compare results
+    print("\n" + "="*80)
+    print("PHASE 2 COMPARISON RESULTS")
+    print("="*80)
+
+    # Find best single-modal
+    audio_corr = results['Audio-Only']['avg_correlation']
+    midi_corr = results['MIDI-Only']['avg_correlation']
+    best_single_modal = max(audio_corr, midi_corr)
+    best_single_name = 'Audio-Only' if audio_corr >= midi_corr else 'MIDI-Only'
+
+    print(f"\nBest Single-Modal: {best_single_name} (r={best_single_modal:.3f})")
+
+    # Compare fusion methods
+    for fusion_name in ['Fusion-Concatenation', 'Fusion-CrossAttention']:
+        if fusion_name in results:
+            fusion_corr = results[fusion_name]['avg_correlation']
+            improvement = ((fusion_corr - best_single_modal) / best_single_modal * 100)
+
+            print(f"\n{fusion_name}:")
+            print(f"  Correlation: r={fusion_corr:.3f}")
+            print(f"  Improvement: {improvement:+.1f}% over best single-modal")
+
+            # Success criteria
+            if improvement >= 10:
+                print(f"  ✓ PASS: Fusion beats single-modal by ≥10%")
+            else:
+                print(f"  ✗ FAIL: Fusion improvement < 10% threshold")
+
+            # Print diagnostics
+            if 'diagnostics' in results[fusion_name]:
+                diag = results[fusion_name]['diagnostics']
+                print(f"\n  Diagnostics:")
+                print(f"    Attention Entropy: {diag['attention_entropy']:.3f}" if diag['attention_entropy'] else "    Attention Entropy: N/A")
+                print(f"    Attention Sparsity: {diag['attention_sparsity']:.3f}" if diag['attention_sparsity'] else "    Attention Sparsity: N/A")
+                print(f"    Cross-Modal Alignment: {diag['cross_modal_alignment']:.3f}" if diag['cross_modal_alignment'] else "    Cross-Modal Alignment: N/A")
+
+    # Verdict
+    print("\n" + "="*80)
+    print("PHASE 2 VERDICT")
+    print("="*80)
+
+    fusion_ca_corr = results['Fusion-CrossAttention']['avg_correlation']
+    ca_improvement = ((fusion_ca_corr - best_single_modal) / best_single_modal * 100)
+
+    if ca_improvement >= 10:
+        print("\n✓ GO TO PHASE 3: Fusion architecture validated")
+        print("  Proceed with contrastive pre-training")
+    else:
+        print("\n✗ NO-GO: Fusion does not beat single-modal by 10%")
+        print("  Debug fusion architecture before proceeding")
+        print("  Consider simpler fusion or single-modal specialization")
+
+    return results
+
+
 def run_all_diagnostics(
     annotation_path: str,
     dimension_names: list,

@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from typing import Dict, Optional
+from typing import Dict, Optional, Literal
 
 
 class UncertaintyWeightedLoss(nn.Module):
@@ -13,7 +13,7 @@ class UncertaintyWeightedLoss(nn.Module):
     L_total = Σ_i [ (1 / 2σ_i²) * L_i + log(σ_i) ]
 
     where:
-    - L_i: Individual task loss (MSE for regression)
+    - L_i: Individual task loss (MSE or Huber for regression)
     - σ_i: Learned uncertainty parameter (per dimension)
     - First term: Task loss weighted by inverse uncertainty
     - Second term: Regularization preventing σ → ∞
@@ -22,6 +22,7 @@ class UncertaintyWeightedLoss(nn.Module):
     - No manual loss weight tuning required
     - Tasks with higher inherent noise automatically downweighted
     - Provides per-dimension uncertainty estimates
+    - Huber loss option for robustness to outliers
     """
 
     def __init__(
@@ -29,6 +30,8 @@ class UncertaintyWeightedLoss(nn.Module):
         num_tasks: int = 10,
         reduction: str = 'mean',
         label_smoothing: float = 0.0,
+        base_loss: Literal['mse', 'huber', 'mae'] = 'mse',
+        huber_delta: float = 1.0,
     ):
         """
         Initialize uncertainty-weighted loss.
@@ -37,12 +40,16 @@ class UncertaintyWeightedLoss(nn.Module):
             num_tasks: Number of tasks (dimensions)
             reduction: Loss reduction method ('mean', 'sum', 'none')
             label_smoothing: Label smoothing factor (0.0 to 1.0)
+            base_loss: Base loss function ('mse', 'huber', or 'mae')
+            huber_delta: Delta parameter for Huber loss (default: 1.0)
         """
         super().__init__()
 
         self.num_tasks = num_tasks
         self.reduction = reduction
         self.label_smoothing = label_smoothing
+        self.base_loss = base_loss
+        self.huber_delta = huber_delta
 
     def forward(
         self,
@@ -74,9 +81,17 @@ class UncertaintyWeightedLoss(nn.Module):
         if self.label_smoothing > 0:
             targets = self._apply_label_smoothing(targets)
 
-        # Compute per-task MSE losses
-        task_losses = F.mse_loss(predictions, targets, reduction='none')  # [batch, num_tasks]
-        task_losses = task_losses.mean(dim=0)  # [num_tasks]
+        # Compute per-task losses using configured base loss
+        if self.base_loss == 'mse':
+            task_losses = F.mse_loss(predictions, targets, reduction='none')
+        elif self.base_loss == 'huber':
+            task_losses = F.huber_loss(predictions, targets, reduction='none', delta=self.huber_delta)
+        elif self.base_loss == 'mae':
+            task_losses = F.l1_loss(predictions, targets, reduction='none')
+        else:
+            raise ValueError(f"Unknown base_loss: {self.base_loss}")
+
+        task_losses = task_losses.mean(dim=0)  # [batch, num_tasks] -> [num_tasks]
 
         # Compute precision (inverse variance) from log variance
         # precision = 1 / (2 * σ²) = exp(-log_vars) / 2

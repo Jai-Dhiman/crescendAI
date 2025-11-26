@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
-from typing import Optional, Tuple
+from pathlib import Path
+from typing import Optional, Tuple, Union
 
 
 class MIDIBertEncoder(nn.Module):
@@ -25,6 +26,7 @@ class MIDIBertEncoder(nn.Module):
         num_heads: int = 8,
         dropout: float = 0.1,
         max_seq_length: int = 2048,
+        pretrained_checkpoint: Optional[Union[str, Path]] = None,
     ):
         """
         Initialize MIDI encoder.
@@ -36,6 +38,7 @@ class MIDIBertEncoder(nn.Module):
             num_heads: Number of attention heads
             dropout: Dropout probability
             max_seq_length: Maximum sequence length
+            pretrained_checkpoint: Path to pretrained encoder weights (optional)
         """
         super().__init__()
 
@@ -104,6 +107,10 @@ class MIDIBertEncoder(nn.Module):
 
         # Layer normalization
         self.layer_norm = nn.LayerNorm(hidden_size)
+
+        # Load pretrained weights if provided
+        if pretrained_checkpoint is not None:
+            self.load_pretrained(pretrained_checkpoint)
 
     def forward(
         self,
@@ -189,6 +196,85 @@ class MIDIBertEncoder(nn.Module):
     def get_output_dim(self) -> int:
         """Get output dimension."""
         return self.hidden_size
+
+    def load_pretrained(self, checkpoint_path: Union[str, Path]) -> None:
+        """
+        Load pretrained encoder weights.
+
+        Args:
+            checkpoint_path: Path to checkpoint file (.pt)
+                Can be either:
+                - encoder_pretrained.pt (just state_dict)
+                - full checkpoint with 'encoder_state_dict' key
+
+        Raises:
+            FileNotFoundError: If checkpoint file doesn't exist
+            RuntimeError: If weights don't match model architecture
+        """
+        checkpoint_path = Path(checkpoint_path)
+
+        if not checkpoint_path.exists():
+            raise FileNotFoundError(f"Pretrained checkpoint not found: {checkpoint_path}")
+
+        print(f"Loading pretrained MIDI encoder from: {checkpoint_path}")
+
+        checkpoint = torch.load(checkpoint_path, map_location='cpu')
+
+        # Handle different checkpoint formats
+        if isinstance(checkpoint, dict) and 'encoder_state_dict' in checkpoint:
+            # Full checkpoint from pretrain_midi_encoder.py
+            state_dict = checkpoint['encoder_state_dict']
+        else:
+            # Direct state_dict
+            state_dict = checkpoint
+
+        # Load weights
+        missing_keys, unexpected_keys = self.load_state_dict(state_dict, strict=False)
+
+        if missing_keys:
+            print(f"  Warning: Missing keys in checkpoint: {missing_keys}")
+        if unexpected_keys:
+            print(f"  Warning: Unexpected keys in checkpoint: {unexpected_keys}")
+
+        print(f"  Successfully loaded pretrained weights")
+
+    def freeze(self) -> None:
+        """Freeze all encoder parameters."""
+        for param in self.parameters():
+            param.requires_grad = False
+
+    def unfreeze(self) -> None:
+        """Unfreeze all encoder parameters."""
+        for param in self.parameters():
+            param.requires_grad = True
+
+    def freeze_embeddings(self) -> None:
+        """Freeze only embedding layers (keep transformer trainable)."""
+        for name, param in self.named_parameters():
+            if 'embed' in name or 'embed_projection' in name:
+                param.requires_grad = False
+
+    def unfreeze_top_layers(self, num_layers: int = 2) -> None:
+        """
+        Unfreeze only the top N transformer layers.
+
+        Useful for staged unfreezing during fine-tuning.
+
+        Args:
+            num_layers: Number of top layers to unfreeze
+        """
+        # First freeze everything
+        self.freeze()
+
+        # Unfreeze layer norm (always trainable)
+        self.layer_norm.weight.requires_grad = True
+        self.layer_norm.bias.requires_grad = True
+
+        # Unfreeze top N transformer layers
+        total_layers = self.num_layers
+        for i in range(total_layers - num_layers, total_layers):
+            for param in self.transformer.layers[i].parameters():
+                param.requires_grad = True
 
 
 if __name__ == "__main__":

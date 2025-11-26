@@ -1,4 +1,5 @@
-# Unified Experiment Config - Full Dataset (114K samples)
+# Unified Experiment Config - Full Dataset (114K→450K with degradation)
+# Updated for TRAINING_PLAN_v2.md Phase 2
 # Switch between audio-only, MIDI-only, and fusion modes
 # Usage: python train.py --config configs/experiment_full.yaml --mode [audio|midi|fusion]
 
@@ -6,18 +7,32 @@ data:
   # LOCAL PATHS (after downloading from Hugging Face Hub)
   # Data is downloaded to /tmp/ (local SSD) for fast access
   # Download happens automatically in notebook Step 2
+
+  # Original synthetic labels (114K samples, 6 dimensions)
   train_path: /tmp/crescendai_data/data/annotations/synthetic_train.jsonl
   val_path: /tmp/crescendai_data/data/annotations/synthetic_val.jsonl
   test_path: /tmp/crescendai_data/data/annotations/synthetic_test.jsonl
 
-  # All 6 technical dimensions to identify which are learnable
+  # Phase 1: Degraded dataset paths (450K samples, 8 dimensions, 4 quality tiers)
+  # Uncomment these after running create_degraded_maestro.py
+  # train_path: /tmp/crescendai_data/data/annotations_degraded/degraded_train.jsonl
+  # val_path: /tmp/crescendai_data/data/annotations_degraded/degraded_val.jsonl
+  # test_path: /tmp/crescendai_data/data/annotations_degraded/degraded_test.jsonl
+
+  # All 8 dimensions (TRAINING_PLAN_v2.md - updated from 6)
+  # Technical (4), Timbre/Dynamics (2), Interpretive (2)
   dimensions:
-    - note_accuracy      # MIDI can predict this
-    - rhythmic_precision # MIDI can predict this
-    - tone_quality       # Only audio can predict this (fusion advantage)
-    - dynamics_control   # MIDI velocity-based
-    - articulation       # MIDI duration patterns
-    - pedaling           # MIDI CC64 sustain pedal
+    # Technical (4)
+    - note_accuracy          # MIDI note count/pitch complexity
+    - rhythmic_stability     # MIDI timing variance and tempo stability
+    - articulation_clarity   # MIDI duration variance + audio attack transients
+    - pedal_technique        # MIDI CC64 sustain pedal coherence
+    # Timbre/Dynamics (2)
+    - tone_quality           # Audio spectral centroid + inharmonicity
+    - dynamic_range          # MIDI velocity range + smoothing
+    # Interpretive (2) - NEW in v2
+    - musical_expression     # MIDI phrasing + audio dynamic contour
+    - overall_interpretation # Combined performance quality metrics
 
   audio_sample_rate: 24000
   max_audio_length: 240000  # 10 seconds at 24kHz
@@ -67,13 +82,19 @@ data:
     alpha: 0.2          # Beta distribution parameter
     probability: 0.5    # Apply to 50% of batches
 
+  # Modality dropout (prevents modality collapse, ensures both encoders learn)
+  modality_dropout:
+    enabled: true
+    audio_prob: 0.15    # Probability of dropping audio modality
+    midi_prob: 0.15     # Probability of dropping MIDI modality
+
 model:
   # These will be overridden by --mode flag
   audio_dim: 768
   midi_dim: 256
   fusion_dim: 1024
   aggregator_dim: 512
-  num_dimensions: 6
+  num_dimensions: 8  # Updated from 6 (TRAINING_PLAN_v2.md)
 
   # MERT settings
   mert_model_name: m-a-p/MERT-v1-95M
@@ -88,6 +109,7 @@ model:
   midi_hidden_size: 256
   midi_num_layers: 6
   midi_num_heads: 8
+  midi_pretrained_checkpoint: null  # Path to pretrained MIDI encoder (optional)
 
   # Fusion settings
   fusion_num_heads: 8
@@ -105,7 +127,7 @@ model:
   mtl_dropout: 0.2  # Increased from 0.1 for better regularization
 
 training:
-  max_epochs: 5            # Increased from 3 (model needs more time with new architecture)
+  max_epochs: 20           # Increased for full training (diagnostic: 5 epochs)
   precision: 16            # Mixed precision (faster + less memory)
   optimizer: AdamW
   learning_rate: 3e-5      # Increased 3x from 1e-5 (scaled with effective batch size)
@@ -118,7 +140,47 @@ training:
   gradient_clip_val: 0.5   # Reduced from 1.0 for tighter control with higher LR
   accumulate_grad_batches: 2  # Effective batch = 32
 
-  # Validation
+  # Staged unfreezing schedule (prevents catastrophic forgetting)
+  staged_unfreezing:
+    enabled: true
+    schedule:
+      - epoch: 0
+        freeze: [audio_encoder, midi_encoder]
+        unfreeze: [projection]
+      - epoch: 5
+        unfreeze: [audio_encoder.top_4, midi_encoder.top_2]
+        lr_scale: 0.1
+      - epoch: 10
+        unfreeze: [audio_encoder.all, midi_encoder.all]
+        lr_scale: 0.1
+
+loss:
+  # Base loss function (mse, huber, or mae)
+  base_loss: huber
+  huber_delta: 1.0
+
+  # Loss component weights
+  mse_weight: 1.0
+  ranking_weight: 0.2
+  contrastive_weight: 0.1
+  ranking_margin: 5.0
+  contrastive_temperature: 0.07
+
+  # Label Distribution Smoothing (upweights rare label regions)
+  lds:
+    enabled: true
+    num_bins: 100
+    kernel_size: 5
+    sigma: 2.0
+    reweight_scale: 1.0
+
+  # Bootstrap loss (handles noisy labels)
+  bootstrap:
+    enabled: true
+    beta: 0.8              # Weight on original label (vs model prediction)
+    warmup_epochs: 5       # Train with pure labels first
+
+validation:
   val_check_interval: 0.25 # Validate 4x per epoch (increased from 2x for more feedback)
   limit_val_batches: 1.0   # Use full validation set
   track_correlations: true # Log Pearson/Spearman correlations

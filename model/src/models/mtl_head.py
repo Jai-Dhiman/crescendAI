@@ -77,21 +77,15 @@ class MultiTaskHead(nn.Module):
         )
 
         # Task-specific heads
-        # Expanded to 4 layers with gradual dimensionality reduction
-        # Research shows deeper heads improve regression performance
+        # Simplified to 2 layers for better generalization with noisy labels
+        # Deeper heads (4 layers) were overparameterized for weak supervision
         self.task_heads = nn.ModuleDict()
         for dim_name in dimensions:
             self.task_heads[dim_name] = nn.Sequential(
-                nn.Linear(shared_hidden, shared_hidden),  # Layer 1: maintain dim
+                nn.Linear(shared_hidden, task_hidden),  # Layer 1: compress
                 nn.ReLU(),
                 nn.Dropout(dropout),
-                nn.Linear(shared_hidden, task_hidden),    # Layer 2: compress
-                nn.ReLU(),
-                nn.Dropout(dropout),
-                nn.Linear(task_hidden, task_hidden // 2),  # Layer 3: further compress
-                nn.ReLU(),
-                nn.Dropout(dropout),
-                nn.Linear(task_hidden // 2, 1),            # Layer 4: output
+                nn.Linear(task_hidden, 1),              # Layer 2: output
                 nn.Sigmoid(),  # Output 0-1, will scale to 0-100
             )
 
@@ -159,8 +153,8 @@ class MultiTaskHead(nn.Module):
 if __name__ == "__main__":
     print("Multi-task learning head module loaded successfully")
     print("- 10 dimensions (6 technical + 4 interpretive)")
-    print("- 2-layer shared feature extractor (deeper capacity)")
-    print("- 4-layer task-specific heads (improved regression)")
-    print("- Pyramid architecture with gradual compression")
+    print("- 2-layer shared feature extractor")
+    print("- 2-layer task-specific heads (simplified for weak supervision)")
+    print("- Higher dropout (0.3) for better regularization")
     print("- Learnable uncertainty parameters")
     print("- Output range: 0-100")

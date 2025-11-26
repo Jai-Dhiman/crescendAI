@@ -2,15 +2,22 @@
 """
 Training script for piano performance evaluation model.
 
-Usage:
-    # Pseudo-label pre-training
-    python train.py --config configs/pseudo_pretrain.yaml
+Supports 3 fusion modes for comparison experiments:
+- crossattn: Cross-attention fusion (baseline)
+- gated: Gated Multimodal Unit fusion (recommended)
+- concat: Simple concatenation fusion
 
-    # Expert label fine-tuning
-    python train.py --config configs/expert_finetune.yaml
+Usage:
+    # Train with default (gated) fusion
+    python train.py --config configs/experiment.yaml
+
+    # Train specific fusion type
+    python train.py --config configs/experiment.yaml --fusion_type crossattn
+    python train.py --config configs/experiment.yaml --fusion_type gated
+    python train.py --config configs/experiment.yaml --fusion_type concat
 
     # Resume from checkpoint
-    python train.py --config configs/expert_finetune.yaml --checkpoint checkpoints/pseudo_pretrain/best.ckpt
+    python train.py --config configs/experiment.yaml --checkpoint checkpoints/gated/best.ckpt
 """
 
 import argparse
@@ -35,6 +42,26 @@ def load_config(config_path: str) -> dict:
     """Load configuration from YAML file."""
     with open(config_path, "r") as f:
         config = yaml.safe_load(f)
+    return config
+
+
+def apply_fusion_type_to_paths(config: dict, fusion_type: str) -> dict:
+    """Replace {fusion_type} placeholders in config paths."""
+    # Checkpoint path
+    if "callbacks" in config and "checkpoint" in config["callbacks"]:
+        ckpt = config["callbacks"]["checkpoint"]
+        if "dirpath" in ckpt and "{fusion_type}" in ckpt["dirpath"]:
+            ckpt["dirpath"] = ckpt["dirpath"].replace("{fusion_type}", fusion_type)
+        if "filename" in ckpt and "{fusion_type}" in ckpt["filename"]:
+            ckpt["filename"] = ckpt["filename"].replace("{fusion_type}", fusion_type)
+
+    # Logging path
+    if "logging" in config and "tensorboard_logdir" in config["logging"]:
+        if "{fusion_type}" in config["logging"]["tensorboard_logdir"]:
+            config["logging"]["tensorboard_logdir"] = config["logging"]["tensorboard_logdir"].replace(
+                "{fusion_type}", fusion_type
+            )
+
     return config
 
 
@@ -67,10 +94,13 @@ def setup_callbacks(config: dict) -> list:
     callbacks.append(early_stop_callback)
 
     # Learning rate monitor
-    lr_monitor = LearningRateMonitor(
-        logging_interval=config["callbacks"]["lr_monitor"]["logging_interval"]
-    )
-    callbacks.append(lr_monitor)
+    if "lr_monitor" in config["callbacks"]:
+        lr_monitor = LearningRateMonitor(
+            logging_interval=config["callbacks"]["lr_monitor"]["logging_interval"]
+        )
+        callbacks.append(lr_monitor)
+    else:
+        callbacks.append(LearningRateMonitor(logging_interval="step"))
 
     return callbacks
 
@@ -104,18 +134,21 @@ def main():
     # Parse arguments
     parser = argparse.ArgumentParser(description="Train piano performance evaluation model")
     parser.add_argument("--config", type=str, required=True, help="Path to config YAML file")
+    parser.add_argument("--checkpoint", type=str, default=None, help="Path to checkpoint to resume from")
+    parser.add_argument("--fast-dev-run", action="store_true", help="Run a single batch for debugging")
     parser.add_argument(
-        "--checkpoint", type=str, default=None, help="Path to checkpoint to resume from"
-    )
-    parser.add_argument(
-        "--fast-dev-run", action="store_true", help="Run a single batch for debugging"
+        "--fusion_type",
+        type=str,
+        choices=["crossattn", "gated", "concat"],
+        default=None,
+        help="Fusion type: crossattn, gated, or concat (overrides config)",
     )
     parser.add_argument(
         "--mode",
         type=str,
         choices=["audio", "midi", "fusion"],
         default=None,
-        help="Model mode: audio-only, midi-only, or fusion (overrides config)",
+        help="Legacy mode: audio-only, midi-only, or fusion (for backward compatibility)",
     )
     args = parser.parse_args()
 
@@ -123,29 +156,31 @@ def main():
     config = load_config(args.config)
     print(f"Loaded config from {args.config}")
 
-    # Apply mode overrides if specified
+    # Determine fusion type
+    fusion_type = args.fusion_type or config.get("model", {}).get("fusion_type", "gated")
+    print(f"Fusion type: {fusion_type}")
+
+    # Apply fusion type presets if available
+    if "fusion_presets" in config and fusion_type in config["fusion_presets"]:
+        preset = config["fusion_presets"][fusion_type]
+        print(f"Applying preset: {preset.get('description', fusion_type)}")
+        for key, value in preset.items():
+            if key != "description":
+                config["model"][key] = value
+
+    # Apply fusion type to paths
+    config = apply_fusion_type_to_paths(config, fusion_type)
+
+    # Handle legacy mode argument
     if args.mode:
-        print(f"Applying mode: {args.mode}")
-        mode_overrides = config.get("modes", {}).get(args.mode, {})
-        config["model"].update(mode_overrides)
-        # Update checkpoint path to include mode
-        if "{mode}" in config["callbacks"]["checkpoint"]["dirpath"]:
-            config["callbacks"]["checkpoint"]["dirpath"] = config["callbacks"]["checkpoint"][
-                "dirpath"
-            ].replace("{mode}", args.mode)
-        if "{mode}" in config["callbacks"]["checkpoint"]["filename"]:
-            config["callbacks"]["checkpoint"]["filename"] = config["callbacks"]["checkpoint"][
-                "filename"
-            ].replace("{mode}", args.mode)
-        if "{mode}" in config["logging"]["tensorboard_logdir"]:
-            config["logging"]["tensorboard_logdir"] = config["logging"][
-                "tensorboard_logdir"
-            ].replace("{mode}", args.mode)
+        print(f"Warning: --mode is deprecated. Use --fusion_type instead.")
+        if "modes" in config and args.mode in config["modes"]:
+            config["model"].update(config["modes"][args.mode])
 
     # Set seed for reproducibility
     pl.seed_everything(config.get("seed", 42))
 
-    # Enable Tensor Cores for better performance on modern GPUs
+    # Enable Tensor Cores for better performance
     torch.set_float32_matmul_precision("high")
 
     # Create checkpoint directory
@@ -172,97 +207,98 @@ def main():
     if test_loader is not None:
         print(f"Test samples: {len(test_loader.dataset)}")
 
+    # Get model config
+    model_config = config["model"]
+    training_config = config["training"]
+    loss_config = config.get("loss", {})
+
     # Initialize model
     print("Initializing model...")
-
-    # Check for checkpoint to resume from
     checkpoint_path = args.checkpoint or config.get("resume_from_checkpoint", None)
+
+    model_kwargs = {
+        "audio_dim": model_config.get("audio_dim", 768),
+        "midi_dim": model_config.get("midi_dim", 256),
+        "shared_dim": model_config.get("shared_dim", 512),
+        "aggregator_dim": model_config.get("aggregator_dim", 512),
+        "num_dimensions": model_config.get("num_dimensions", 8),
+        "dimension_names": config["data"]["dimensions"],
+        "fusion_type": fusion_type,
+        "use_projection": model_config.get("use_projection", True),
+        "mert_model_name": model_config.get("mert_model_name", "m-a-p/MERT-v1-95M"),
+        "freeze_audio_encoder": model_config.get("freeze_audio_encoder", False),
+        "gradient_checkpointing": model_config.get("gradient_checkpointing", True),
+        # Loss weights
+        "mse_weight": loss_config.get("mse_weight", 1.0),
+        "ranking_weight": loss_config.get("ranking_weight", 0.2),
+        "contrastive_weight": loss_config.get("contrastive_weight", 0.1),
+        "ranking_margin": loss_config.get("ranking_margin", 5.0),
+        "contrastive_temperature": loss_config.get("contrastive_temperature", 0.07),
+        # Training params
+        "learning_rate": training_config.get("learning_rate", 1e-5),
+        "backbone_lr": training_config.get("backbone_lr", 5e-6),
+        "heads_lr": training_config.get("heads_lr", 1e-4),
+        "weight_decay": training_config.get("weight_decay", 0.01),
+        "warmup_steps": training_config.get("warmup_steps", 500),
+        "max_epochs": training_config.get("max_epochs", 50),
+    }
 
     if checkpoint_path and Path(checkpoint_path).exists():
         print(f"Loading model from checkpoint: {checkpoint_path}")
         model = PerformanceEvaluationModel.load_from_checkpoint(
             checkpoint_path,
-            # Override config params
-            audio_dim=config["model"]["audio_dim"],
-            midi_dim=config["model"]["midi_dim"],
-            fusion_dim=config["model"]["fusion_dim"],
-            aggregator_dim=config["model"]["aggregator_dim"],
-            num_dimensions=config["model"]["num_dimensions"],
-            dimension_names=config["data"]["dimensions"],
-            mert_model_name=config["model"]["mert_model_name"],
-            freeze_audio_encoder=config["model"]["freeze_audio_encoder"],
-            gradient_checkpointing=config["model"]["gradient_checkpointing"],
-            learning_rate=config["training"]["learning_rate"],
-            backbone_lr=config["training"]["backbone_lr"],
-            heads_lr=config["training"]["heads_lr"],
-            weight_decay=config["training"]["weight_decay"],
-            warmup_steps=config["training"]["warmup_steps"],
-            max_epochs=config["training"]["max_epochs"],
+            **model_kwargs,
         )
     else:
         print("Creating new model from scratch")
-        model = PerformanceEvaluationModel(
-            audio_dim=config["model"]["audio_dim"],
-            midi_dim=config["model"]["midi_dim"],
-            fusion_dim=config["model"]["fusion_dim"],
-            aggregator_dim=config["model"]["aggregator_dim"],
-            num_dimensions=config["model"]["num_dimensions"],
-            dimension_names=config["data"]["dimensions"],
-            mert_model_name=config["model"]["mert_model_name"],
-            freeze_audio_encoder=config["model"]["freeze_audio_encoder"],
-            gradient_checkpointing=config["model"]["gradient_checkpointing"],
-            learning_rate=config["training"]["learning_rate"],
-            backbone_lr=config["training"]["backbone_lr"],
-            heads_lr=config["training"]["heads_lr"],
-            weight_decay=config["training"]["weight_decay"],
-            warmup_steps=config["training"]["warmup_steps"],
-            max_epochs=config["training"]["max_epochs"],
-        )
+        model = PerformanceEvaluationModel(**model_kwargs)
 
     # Print model summary
     print("\nModel Architecture:")
-    print(f"- Audio encoder: {config['model']['mert_model_name']}")
-    print(f"- MIDI encoder: {config['model']['midi_dim']}d")
-    print(f"- Fusion dimension: {config['model']['fusion_dim']}")
-    print(f"- Aggregator dimension: {config['model']['aggregator_dim']}")
-    print(f"- Number of dimensions: {config['model']['num_dimensions']}")
+    print(f"- Audio encoder: {model_config.get('mert_model_name', 'm-a-p/MERT-v1-95M')}")
+    print(f"- MIDI encoder: {model_config.get('midi_dim', 256)}d")
+    print(f"- Shared dimension: {model_config.get('shared_dim', 512)}")
+    print(f"- Fusion type: {fusion_type}")
+    print(f"- Use projection: {model_config.get('use_projection', True)}")
+    print(f"- Number of dimensions: {model_config.get('num_dimensions', 8)}")
     print(f"- Dimensions: {config['data']['dimensions']}")
+    print(f"\nLoss weights:")
+    print(f"- MSE: {loss_config.get('mse_weight', 1.0)}")
+    print(f"- Ranking: {loss_config.get('ranking_weight', 0.2)}")
+    print(f"- Contrastive: {loss_config.get('contrastive_weight', 0.1)}")
 
-    # Setup callbacks
+    # Setup callbacks and loggers
     callbacks = setup_callbacks(config)
-
-    # Setup loggers
     loggers = setup_loggers(config)
 
     # Create trainer
     print("\nInitializing trainer...")
     trainer = pl.Trainer(
-        max_epochs=config["training"]["max_epochs"],
-        precision=config["training"]["precision"],
+        max_epochs=training_config["max_epochs"],
+        precision=training_config.get("precision", 16),
         accelerator="auto",
         devices="auto",
         callbacks=callbacks,
         logger=loggers,
-        log_every_n_steps=config["logging"]["log_every_n_steps"],
-        gradient_clip_val=config["training"]["gradient_clip_val"],
-        accumulate_grad_batches=config["training"]["accumulate_grad_batches"],
-        val_check_interval=config["training"]["val_check_interval"],
-        limit_val_batches=config["training"]["limit_val_batches"],
+        log_every_n_steps=config["logging"].get("log_every_n_steps", 50),
+        gradient_clip_val=training_config.get("gradient_clip_val", 1.0),
+        accumulate_grad_batches=training_config.get("accumulate_grad_batches", 1),
+        val_check_interval=training_config.get("val_check_interval", 1.0),
+        limit_val_batches=training_config.get("limit_val_batches", 1.0),
         fast_dev_run=args.fast_dev_run,
     )
 
     # Print training info
     print("\nTraining Configuration:")
-    print(f"- Max epochs: {config['training']['max_epochs']}")
+    print(f"- Max epochs: {training_config['max_epochs']}")
     print(f"- Batch size: {config['data']['batch_size']}")
-    print(f"- Gradient accumulation: {config['training']['accumulate_grad_batches']}")
-    print(
-        f"- Effective batch size: {config['data']['batch_size'] * config['training']['accumulate_grad_batches']}"
-    )
-    print(f"- Backbone LR: {config['training']['backbone_lr']}")
-    print(f"- Heads LR: {config['training']['heads_lr']}")
-    print(f"- Warmup steps: {config['training']['warmup_steps']}")
-    print(f"- Precision: {config['training']['precision']}")
+    print(f"- Gradient accumulation: {training_config.get('accumulate_grad_batches', 1)}")
+    effective_batch = config['data']['batch_size'] * training_config.get('accumulate_grad_batches', 1)
+    print(f"- Effective batch size: {effective_batch}")
+    print(f"- Backbone LR: {training_config.get('backbone_lr', 5e-6)}")
+    print(f"- Heads LR: {training_config.get('heads_lr', 1e-4)}")
+    print(f"- Warmup steps: {training_config.get('warmup_steps', 500)}")
+    print(f"- Precision: {training_config.get('precision', 16)}")
 
     # Train
     print("\nStarting training...\n")
