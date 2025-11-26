@@ -241,7 +241,7 @@ class PerformanceDataset(Dataset):
                 last_error = e
                 # Only print every few failures to reduce noise
                 if attempts <= 3 or attempts == max_retries:
-                    print(f"Warning: Sample {current_idx} failed (attempt {attempts}/{max_retries}): {type(e).__name__}")
+                    print(f"Warning: Sample {current_idx} failed (attempt {attempts}/{max_retries}): {e}")
 
         raise RuntimeError(
             f"Failed to load any valid sample after {attempts} attempts. "
