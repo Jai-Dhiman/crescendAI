@@ -61,7 +61,7 @@ class MIDIBertEncoder(nn.Module):
         self.max_seq_length = max_seq_length
 
         # Embedding layers for each OctupleMIDI dimension
-        self.type_embed = nn.Embedding(vocab_sizes['type'], hidden_size // 8)
+        self.type_embed = nn.Embedding(vocab_sizes['event_type'], hidden_size // 8)
         self.beat_embed = nn.Embedding(vocab_sizes['beat'], hidden_size // 8)
         self.position_embed = nn.Embedding(vocab_sizes['position'], hidden_size // 8)
         self.pitch_embed = nn.Embedding(vocab_sizes['pitch'], hidden_size // 4)
@@ -133,7 +133,7 @@ class MIDIBertEncoder(nn.Module):
         # Clamp all tokens to valid vocabulary ranges (defensive programming)
         # This protects against malformed data that bypassed tokenizer validation
         midi_tokens = midi_tokens.clone()  # Don't modify input in-place
-        midi_tokens[:, :, 0] = torch.clamp(midi_tokens[:, :, 0], 0, self.vocab_sizes['type'] - 1)
+        midi_tokens[:, :, 0] = torch.clamp(midi_tokens[:, :, 0], 0, self.vocab_sizes['event_type'] - 1)
         midi_tokens[:, :, 1] = torch.clamp(midi_tokens[:, :, 1], 0, self.vocab_sizes['beat'] - 1)
         midi_tokens[:, :, 2] = torch.clamp(midi_tokens[:, :, 2], 0, self.vocab_sizes['position'] - 1)
         midi_tokens[:, :, 3] = torch.clamp(midi_tokens[:, :, 3], 0, self.vocab_sizes['pitch'] - 1)

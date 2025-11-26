@@ -26,7 +26,7 @@ class OctupleMIDITokenizer:
 
         # Vocabulary sizes for each dimension
         self.vocab_sizes = {
-            'type': 5,  # note-on, note-off, time-shift, pedal-on, pedal-off
+            'event_type': 5,  # note-on, note-off, time-shift, pedal-on, pedal-off
             'beat': 16,  # up to 16 beats per measure
             'position': 16,  # 16 subdivisions per beat
             'pitch': max_pitch - min_pitch + 1,  # 88 piano keys

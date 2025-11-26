@@ -138,7 +138,7 @@ class MIDIPretrainDataset(Dataset):
 
             # Apply masking: replace masked tokens with mask token ID
             input_tokens = tokens.copy()
-            for dim_idx, dim_name in enumerate(['type', 'beat', 'position', 'pitch',
+            for dim_idx, dim_name in enumerate(['event_type', 'beat', 'position', 'pitch',
                                                  'duration', 'velocity', 'instrument', 'bar']):
                 vocab_size = self.vocab_sizes[dim_name]
                 # Use 0 as mask token (will be ignored in loss for padding)
@@ -209,7 +209,7 @@ class MIDIPretrainModel(nn.Module):
 
         # Prediction heads for each dimension
         self.prediction_heads = nn.ModuleDict({
-            'type': nn.Linear(self.hidden_size, vocab_sizes['type']),
+            'event_type': nn.Linear(self.hidden_size, vocab_sizes['event_type']),
             'beat': nn.Linear(self.hidden_size, vocab_sizes['beat']),
             'position': nn.Linear(self.hidden_size, vocab_sizes['position']),
             'pitch': nn.Linear(self.hidden_size, vocab_sizes['pitch']),
@@ -252,7 +252,7 @@ class MIDIPretrainModel(nn.Module):
         losses = {}
         total_loss = 0.0
 
-        dim_names = ['type', 'beat', 'position', 'pitch', 'duration', 'velocity', 'instrument', 'bar']
+        dim_names = ['event_type', 'beat', 'position', 'pitch', 'duration', 'velocity', 'instrument', 'bar']
 
         for dim_idx, dim_name in enumerate(dim_names):
             # Get predictions for this dimension
@@ -320,7 +320,7 @@ def train_epoch(
     """Train for one epoch."""
     model.train()
 
-    total_losses = {dim: 0.0 for dim in ['type', 'beat', 'position', 'pitch',
+    total_losses = {dim: 0.0 for dim in ['event_type', 'beat', 'position', 'pitch',
                                           'duration', 'velocity', 'instrument', 'bar', 'total']}
     num_batches = 0
 
@@ -370,7 +370,7 @@ def validate(
     """Validate model."""
     model.eval()
 
-    total_losses = {dim: 0.0 for dim in ['type', 'beat', 'position', 'pitch',
+    total_losses = {dim: 0.0 for dim in ['event_type', 'beat', 'position', 'pitch',
                                           'duration', 'velocity', 'instrument', 'bar', 'total']}
     num_batches = 0
 

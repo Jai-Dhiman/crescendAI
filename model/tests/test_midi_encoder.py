@@ -48,7 +48,7 @@ class TestMIDIBertEncoderInitialization:
         assert default_encoder.hidden_size == 256
         assert default_encoder.num_layers == 6
         assert default_encoder.max_seq_length == 2048
-        assert default_encoder.vocab_sizes['type'] == 5
+        assert default_encoder.vocab_sizes['event_type'] == 5
         assert default_encoder.vocab_sizes['pitch'] == 88
 
     def test_custom_initialization(self, custom_encoder):
