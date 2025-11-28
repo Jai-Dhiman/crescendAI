@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import gc
 from transformers import Wav2Vec2FeatureExtractor, AutoModel
 from typing import Optional, Tuple
 
@@ -115,7 +116,7 @@ class MERTEncoder(nn.Module):
         Forward pass through MERT encoder.
 
         IMPORTANT: MERT expects raw audio waveforms at 24kHz, NOT spectrograms.
-        The Wav2Vec2FeatureExtractor handles all preprocessing internally.
+        Audio should be normalized (mean=0, std=1) before passing to the model.
 
         Args:
             audio_waveform: Raw audio waveform [batch, num_samples]
@@ -128,20 +129,20 @@ class MERTEncoder(nn.Module):
                 - embeddings: Frame-level features [batch, sequence_length, hidden_size]
                 - hidden_states: All layer outputs if requested (optional)
         """
-        # Process raw audio through MERT's feature extractor
-        # The processor handles:
-        # - Resampling to 24kHz if needed
-        # - Normalization
-        # - Conversion to appropriate input format
-        inputs = self.processor(
-            audio_waveform.cpu().numpy() if audio_waveform.is_cuda else audio_waveform.numpy(),
-            sampling_rate=24000,  # MERT expects 24kHz
-            return_tensors="pt",
-            padding=True,
-        )
+        # Manual normalization to avoid HuggingFace processor memory leak
+        # The processor just does: (audio - mean) / std, which we can do directly
+        # This avoids CPU<->numpy conversions that accumulate memory
+        input_values = audio_waveform.clone()
 
-        # Move to same device as model
-        inputs = {k: v.to(audio_waveform.device) for k, v in inputs.items()}
+        # Normalize each sample independently (per-sample normalization)
+        # This matches what Wav2Vec2FeatureExtractor does
+        mean = input_values.mean(dim=-1, keepdim=True)
+        std = input_values.std(dim=-1, keepdim=True)
+        std = torch.clamp(std, min=1e-7)  # Avoid division by zero
+        input_values = (input_values - mean) / std
+
+        # Build inputs dict matching HuggingFace format
+        inputs = {"input_values": input_values}
 
         # Forward through MERT
         # Always get hidden states if using layer selection
@@ -149,7 +150,7 @@ class MERTEncoder(nn.Module):
 
         outputs = self.model(
             inputs["input_values"],
-            attention_mask=inputs.get("attention_mask", attention_mask),
+            attention_mask=attention_mask,
             output_hidden_states=need_hidden_states,
         )
 

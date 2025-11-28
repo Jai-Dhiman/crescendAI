@@ -9,6 +9,7 @@ Supports 3 fusion modes for comparison experiments:
 All modes use projection heads to align encoder representations.
 """
 
+import gc
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -720,6 +721,18 @@ class PerformanceEvaluationModel(pl.LightningModule):
     def test_step(self, batch: Dict[str, torch.Tensor], batch_idx: int) -> None:
         """Test step."""
         self._shared_step(batch, "test")
+
+    def on_train_epoch_end(self) -> None:
+        """Clean up memory at end of each epoch."""
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
+    def on_validation_epoch_end(self) -> None:
+        """Clean up memory at end of validation."""
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
 
     def _compute_diagnostics(self, batch: Dict[str, torch.Tensor]) -> Dict[str, float]:
         """Compute fusion diagnostics for analysis."""
