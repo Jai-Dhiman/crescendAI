@@ -23,7 +23,7 @@ def load_audio_torchaudio(
     """
     Load audio using torchaudio (3-10x faster than librosa).
 
-    Uses soundfile backend by default, no deprecated dependencies.
+    Uses soundfile backend explicitly to avoid TorchCodec dependency.
     GPU-accelerated resampling available.
 
     Args:
@@ -38,8 +38,8 @@ def load_audio_torchaudio(
     """
     import torch
 
-    # Load audio
-    waveform, original_sr = torchaudio.load(str(path))
+    # Load audio using soundfile backend (avoids TorchCodec dependency)
+    waveform, original_sr = torchaudio.load(str(path), backend="soundfile")
 
     # Apply offset and duration
     if offset > 0 or duration is not None:
