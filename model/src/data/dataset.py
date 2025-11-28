@@ -633,14 +633,15 @@ def create_dataloaders(
     )
 
     # Create dataloaders
+    # Note: persistent_workers=False and pin_memory=False to reduce CPU memory usage
     train_loader = DataLoader(
         train_dataset,
         batch_size=batch_size,
         shuffle=True,
         num_workers=num_workers,
         collate_fn=train_collate_fn,  # Use mixup for training
-        pin_memory=True,
-        persistent_workers=num_workers > 0,
+        pin_memory=False,
+        persistent_workers=False,
     )
 
     val_loader = DataLoader(
@@ -649,8 +650,8 @@ def create_dataloaders(
         shuffle=False,
         num_workers=num_workers,
         collate_fn=collate_fn,  # No mixup for validation
-        pin_memory=True,
-        persistent_workers=num_workers > 0,
+        pin_memory=False,
+        persistent_workers=False,
     )
 
     test_loader = None
@@ -661,8 +662,8 @@ def create_dataloaders(
             shuffle=False,
             num_workers=num_workers,
             collate_fn=collate_fn,  # No mixup for testing
-            pin_memory=True,
-            persistent_workers=num_workers > 0,
+            pin_memory=False,
+            persistent_workers=False,
         )
 
     return train_loader, val_loader, test_loader

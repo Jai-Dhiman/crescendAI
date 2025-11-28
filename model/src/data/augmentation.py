@@ -31,7 +31,7 @@ class AudioAugmentation:
         noise_prob: float = 0.2,
         gain_prob: float = 0.3,
         room_acoustics_prob: float = 0.4,
-        compression_prob: float = 0.2,
+        compression_prob: float = 0.0,  # Disabled: requires ffmpeg
         max_augmentations: int = 3,
         sr: int = 44100,
     ):

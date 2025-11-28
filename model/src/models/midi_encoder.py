@@ -45,7 +45,7 @@ class MIDIBertEncoder(nn.Module):
         if vocab_sizes is None:
             # Default vocabulary sizes from OctupleMIDI
             vocab_sizes = {
-                'type': 5,
+                'event_type': 5,
                 'beat': 16,
                 'position': 16,
                 'pitch': 88,  # 88 piano keys
