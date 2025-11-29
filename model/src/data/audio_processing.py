@@ -19,6 +19,7 @@ def load_audio_torchaudio(
     mono: bool = True,
     duration: Optional[float] = None,
     offset: float = 0.0,
+    use_gpu: bool = False,
 ) -> Tuple[np.ndarray, int]:
     """
     Load audio using torchaudio (3-10x faster than librosa).
@@ -32,6 +33,7 @@ def load_audio_torchaudio(
         mono: Convert to mono if True
         duration: Maximum duration in seconds (None = load all)
         offset: Start reading after this time (in seconds)
+        use_gpu: Use GPU for resampling (faster for large batches)
 
     Returns:
         Tuple of (audio array, sample rate)
@@ -54,13 +56,19 @@ def load_audio_torchaudio(
     if mono and waveform.shape[0] > 1:
         waveform = waveform.mean(dim=0, keepdim=True)
 
-    # Resample if needed
+    # Resample if needed (GPU-accelerated if requested)
     if sr != original_sr:
         resampler = torchaudio.transforms.Resample(
             orig_freq=original_sr,
             new_freq=sr,
         )
-        waveform = resampler(waveform)
+        if use_gpu and torch.cuda.is_available():
+            waveform = waveform.cuda()
+            resampler = resampler.cuda()
+            waveform = resampler(waveform)
+            waveform = waveform.cpu()
+        else:
+            waveform = resampler(waveform)
 
     # Convert to numpy
     audio = waveform.squeeze().numpy()

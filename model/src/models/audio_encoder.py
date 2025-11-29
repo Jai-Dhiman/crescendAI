@@ -132,14 +132,10 @@ class MERTEncoder(nn.Module):
         # Manual normalization to avoid HuggingFace processor memory leak
         # The processor just does: (audio - mean) / std, which we can do directly
         # This avoids CPU<->numpy conversions that accumulate memory
-        input_values = audio_waveform.clone()
-
-        # Normalize each sample independently (per-sample normalization)
-        # This matches what Wav2Vec2FeatureExtractor does
-        mean = input_values.mean(dim=-1, keepdim=True)
-        std = input_values.std(dim=-1, keepdim=True)
-        std = torch.clamp(std, min=1e-7)  # Avoid division by zero
-        input_values = (input_values - mean) / std
+        # NOTE: We don't clone - the input tensor is from DataLoader and not reused
+        mean = audio_waveform.mean(dim=-1, keepdim=True)
+        std = audio_waveform.std(dim=-1, keepdim=True).clamp(min=1e-7)
+        input_values = (audio_waveform - mean) / std
 
         # Build inputs dict matching HuggingFace format
         inputs = {"input_values": input_values}
@@ -163,6 +159,11 @@ class MERTEncoder(nn.Module):
                 for layer_idx in self.selected_layers
             ]
             embeddings = torch.stack(selected_hidden_states, dim=0).mean(dim=0)
+
+            # Free unused hidden states immediately (12 layers, only 3 used)
+            # This prevents holding all layer outputs in memory until function returns
+            if not output_hidden_states:
+                del outputs
         else:
             # Fallback to last hidden state
             embeddings = outputs.last_hidden_state  # [batch, seq_len, hidden_size]

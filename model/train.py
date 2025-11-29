@@ -200,6 +200,10 @@ def main():
         audio_sample_rate=config["data"]["audio_sample_rate"],
         max_audio_length=config["data"]["max_audio_length"],
         max_midi_events=config["data"]["max_midi_events"],
+        # GPU optimization settings
+        pin_memory=config["data"].get("pin_memory", True),
+        persistent_workers=config["data"].get("persistent_workers", True),
+        prefetch_factor=config["data"].get("prefetch_factor", 2),
     )
 
     print(f"Train samples: {len(train_loader.dataset)}")
@@ -241,6 +245,9 @@ def main():
         "weight_decay": training_config.get("weight_decay", 0.01),
         "warmup_steps": training_config.get("warmup_steps", 500),
         "max_epochs": training_config.get("max_epochs", 50),
+        # GPU augmentation (faster than CPU augmentation)
+        "gpu_augmentation_enabled": training_config.get("gpu_augmentation", {}).get("enabled", False),
+        "gpu_augmentation_config": training_config.get("gpu_augmentation", {}),
     }
 
     if checkpoint_path and Path(checkpoint_path).exists():
@@ -252,6 +259,16 @@ def main():
     else:
         print("Creating new model from scratch")
         model = PerformanceEvaluationModel(**model_kwargs)
+
+    # Apply torch.compile() for PyTorch 2.0+ (20-50% speedup on A100)
+    if training_config.get("compile_model", False):
+        if hasattr(torch, "compile"):
+            compile_mode = training_config.get("compile_mode", "reduce-overhead")
+            print(f"\nApplying torch.compile() with mode='{compile_mode}'...")
+            model = torch.compile(model, mode=compile_mode)
+            print("Model compiled successfully (first batch will be slower due to compilation)")
+        else:
+            print("\nWarning: torch.compile() requested but PyTorch < 2.0, skipping...")
 
     # Print model summary
     print("\nModel Architecture:")

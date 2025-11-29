@@ -33,6 +33,7 @@ from ..losses.contrastive_loss import InfoNCELoss
 from ..losses.lds import LDSWeighting, FDSFeatureSmoothing
 from ..losses.bootstrap_loss import BootstrapLoss
 from ..losses.coral_loss import CORALHead
+from ..data.gpu_augmentation import GPUAudioAugmentation
 
 
 FusionType = Literal["crossattn", "gated", "concat"]
@@ -104,6 +105,9 @@ class PerformanceEvaluationModel(pl.LightningModule):
         fds_momentum: float = 0.9,
         fds_kernel_sigma: float = 2.0,
         fds_start_epoch: int = 0,
+        # GPU augmentation options (runs on GPU for speed)
+        gpu_augmentation_enabled: bool = False,
+        gpu_augmentation_config: Optional[Dict[str, Any]] = None,
         # Training options
         learning_rate: float = 1e-5,
         backbone_lr: float = 5e-6,
@@ -335,6 +339,20 @@ class PerformanceEvaluationModel(pl.LightningModule):
                 label_range=(0.0, 100.0),
             )
 
+        # GPU augmentation (runs on GPU for speed, replaces CPU augmentation)
+        self.gpu_augmentation = None
+        if gpu_augmentation_enabled:
+            aug_config = gpu_augmentation_config or {}
+            self.gpu_augmentation = GPUAudioAugmentation(
+                sample_rate=24000,  # MERT sample rate
+                gain_prob=aug_config.get('gain_prob', 0.4),
+                noise_prob=aug_config.get('noise_prob', 0.3),
+                time_mask_prob=aug_config.get('time_mask_prob', 0.3),
+                pitch_shift_prob=aug_config.get('pitch_shift_prob', 0.3),
+                time_stretch_prob=aug_config.get('time_stretch_prob', 0.3),
+                max_augmentations=aug_config.get('max_augmentations', 3),
+            )
+
         # Metrics
         self.dimension_names = self.mtl_head.get_dimension_names()
         self._setup_metrics()
@@ -557,27 +575,42 @@ class PerformanceEvaluationModel(pl.LightningModule):
         midi_tokens = batch.get("midi_tokens", None)
         targets = batch.get("labels", None)
 
-        # Forward pass with embeddings for contrastive loss
+        # Apply GPU augmentation during training (faster than CPU augmentation)
+        if self.training and self.gpu_augmentation is not None:
+            audio_waveform = self.gpu_augmentation(audio_waveform)
+
+        # Only request embeddings when needed for contrastive loss (training_mode="full")
+        # or for FDS feature smoothing. Avoids keeping 6 extra tensors in memory.
+        need_embeddings = (
+            self.training_mode in ("full", "contrastive") or
+            (self.fds_smoothing is not None and self.training)
+        )
+
+        # Forward pass
         output = self.forward(
             audio_waveform=audio_waveform,
             midi_tokens=midi_tokens,
-            return_embeddings=True,
+            return_embeddings=need_embeddings,
         )
 
         if output is None:
             return None
 
-        embeddings = output["embeddings"]
+        # Extract embeddings only if they were requested
+        embeddings = output.get("embeddings", None)
 
-        # Get pooled embeddings for contrastive loss
+        # Get pooled embeddings for contrastive loss (only if embeddings available)
         audio_embed = None
         midi_embed = None
-        if embeddings["audio_proj"] is not None:
-            audio_embed = embeddings["audio_proj"].mean(dim=1)
-            audio_embed = F.normalize(audio_embed, p=2, dim=-1)
-        if embeddings["midi_proj"] is not None:
-            midi_embed = embeddings["midi_proj"].mean(dim=1)
-            midi_embed = F.normalize(midi_embed, p=2, dim=-1)
+        aggregated_features = None
+        if embeddings is not None:
+            if embeddings.get("audio_proj") is not None:
+                audio_embed = embeddings["audio_proj"].mean(dim=1)
+                audio_embed = F.normalize(audio_embed, p=2, dim=-1)
+            if embeddings.get("midi_proj") is not None:
+                midi_embed = embeddings["midi_proj"].mean(dim=1)
+                midi_embed = F.normalize(midi_embed, p=2, dim=-1)
+            aggregated_features = embeddings.get("aggregated", None)
 
         # Handle contrastive-only training mode
         if self.training_mode == "contrastive":
@@ -585,7 +618,6 @@ class PerformanceEvaluationModel(pl.LightningModule):
 
         # For regression and full modes, we need predictions and targets
         predictions = output["scores"]
-        aggregated_features = embeddings.get("aggregated", None)
 
         # FDS: Update statistics during training
         if self.fds_smoothing is not None and self.training and targets is not None:
@@ -631,22 +663,26 @@ class PerformanceEvaluationModel(pl.LightningModule):
             self.log("fds_bin_coverage", fds_stats["coverage"])
 
         # Log per-dimension metrics
+        # NOTE: Pearson/Spearman metrics accumulate ALL predictions/targets until epoch end,
+        # causing OOM on large training sets (7000+ batches). Only compute during val/test.
         for i, dim_name in enumerate(self.dimension_names):
             pred_i = predictions[:, i]
             target_i = targets[:, i]
 
+            # MAE uses running mean - safe for training
             mae_metric = getattr(self, f"{split}_mae_{dim_name}")
-            pearson_metric = getattr(self, f"{split}_pearson_{dim_name}")
-            spearman_metric = getattr(self, f"{split}_spearman_{dim_name}")
-
             mae_metric(pred_i, target_i)
-            pearson_metric(pred_i, target_i)
-            spearman_metric(pred_i, target_i)
-
             self.log(f"{split}_mae_{dim_name}", mae_metric, on_step=False, on_epoch=True)
-            self.log(f"{split}_pearson_{dim_name}", pearson_metric, on_step=False, on_epoch=True)
-            self.log(f"{split}_spearman_{dim_name}", spearman_metric, on_step=False, on_epoch=True)
             self.log(f"{split}_task_loss_{dim_name}", task_losses[i])
+
+            # Correlation metrics only for val/test (they accumulate all data)
+            if split != "train":
+                pearson_metric = getattr(self, f"{split}_pearson_{dim_name}")
+                spearman_metric = getattr(self, f"{split}_spearman_{dim_name}")
+                pearson_metric(pred_i, target_i)
+                spearman_metric(pred_i, target_i)
+                self.log(f"{split}_pearson_{dim_name}", pearson_metric, on_step=False, on_epoch=True)
+                self.log(f"{split}_spearman_{dim_name}", spearman_metric, on_step=False, on_epoch=True)
 
         # Log uncertainties on validation
         if split == "val":
@@ -704,7 +740,10 @@ class PerformanceEvaluationModel(pl.LightningModule):
         result = self._shared_step(batch, "train")
         if result is None:
             return torch.tensor(0.0, device=self.device, requires_grad=True)
-        return result["loss"]
+        # Extract loss and explicitly free predictions/targets to help GC
+        loss = result["loss"]
+        del result
+        return loss
 
     def validation_step(self, batch: Dict[str, torch.Tensor], batch_idx: int) -> None:
         """Validation step with diagnostics."""

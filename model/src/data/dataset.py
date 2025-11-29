@@ -571,6 +571,9 @@ def create_dataloaders(
     use_mixup: bool = True,
     mixup_alpha: float = 0.2,
     mixup_probability: float = 0.5,
+    pin_memory: bool = True,
+    persistent_workers: bool = True,
+    prefetch_factor: int = 2,
     **dataset_kwargs
 ) -> Tuple[DataLoader, DataLoader, Optional[DataLoader]]:
     """
@@ -589,6 +592,9 @@ def create_dataloaders(
         use_mixup: Whether to apply mixup augmentation (train only)
         mixup_alpha: Beta distribution parameter for mixup
         mixup_probability: Probability of applying mixup per batch
+        pin_memory: Pin memory for faster GPU transfer (default: True)
+        persistent_workers: Keep workers alive between epochs (default: True)
+        prefetch_factor: Number of batches to prefetch per worker (default: 2)
         **dataset_kwargs: Additional arguments for PerformanceDataset
 
     Returns:
@@ -632,16 +638,21 @@ def create_dataloaders(
         mixup_probability=mixup_probability
     )
 
-    # Create dataloaders
-    # Note: persistent_workers=False and pin_memory=False to reduce CPU memory usage
+    # Create dataloaders with GPU optimization settings
+    # pin_memory=True: faster CPU->GPU transfer via page-locked memory
+    # persistent_workers=True: avoid worker startup overhead between epochs
+    # prefetch_factor: number of batches to load in advance per worker
+    use_persistent = persistent_workers and num_workers > 0
+
     train_loader = DataLoader(
         train_dataset,
         batch_size=batch_size,
         shuffle=True,
         num_workers=num_workers,
-        collate_fn=train_collate_fn,  # Use mixup for training
-        pin_memory=False,
-        persistent_workers=False,
+        collate_fn=train_collate_fn,
+        pin_memory=pin_memory,
+        persistent_workers=use_persistent,
+        prefetch_factor=prefetch_factor if num_workers > 0 else None,
     )
 
     val_loader = DataLoader(
@@ -649,9 +660,10 @@ def create_dataloaders(
         batch_size=batch_size,
         shuffle=False,
         num_workers=num_workers,
-        collate_fn=collate_fn,  # No mixup for validation
-        pin_memory=False,
-        persistent_workers=False,
+        collate_fn=collate_fn,
+        pin_memory=pin_memory,
+        persistent_workers=use_persistent,
+        prefetch_factor=prefetch_factor if num_workers > 0 else None,
     )
 
     test_loader = None
@@ -661,9 +673,10 @@ def create_dataloaders(
             batch_size=batch_size,
             shuffle=False,
             num_workers=num_workers,
-            collate_fn=collate_fn,  # No mixup for testing
-            pin_memory=False,
-            persistent_workers=False,
+            collate_fn=collate_fn,
+            pin_memory=pin_memory,
+            persistent_workers=use_persistent,
+            prefetch_factor=prefetch_factor if num_workers > 0 else None,
         )
 
     return train_loader, val_loader, test_loader
