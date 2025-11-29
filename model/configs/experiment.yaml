@@ -3,10 +3,10 @@
 # Usage: python train.py --config configs/experiment.yaml --fusion_type [crossattn|gated|concat]
 
 data:
-  # Data paths (after downloading from Hugging Face Hub)
-  train_path: /tmp/crescendai_data/data/annotations/degraded_train.jsonl
-  val_path: /tmp/crescendai_data/data/annotations/degraded_val.jsonl
-  test_path: /tmp/crescendai_data/data/annotations/degraded_test.jsonl
+  # Data paths (MAESTRO dataset)
+  train_path: /tmp/maestro_data/annotations/train.jsonl
+  val_path: /tmp/maestro_data/annotations/validation.jsonl
+  test_path: /tmp/maestro_data/annotations/test.jsonl
 
   # 8 dimensions (Technical 4, Timbre/Dynamics 2, Interpretive 2)
   dimensions:
