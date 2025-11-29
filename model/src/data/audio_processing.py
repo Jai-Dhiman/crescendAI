@@ -1,16 +1,30 @@
 import numpy as np
-import librosa
 import soundfile as sf
 from pathlib import Path
 from typing import Tuple, Optional, Union
 import warnings
 
-# Try to import torchaudio (faster than librosa)
-try:
-    import torchaudio
-    TORCHAUDIO_AVAILABLE = True
-except ImportError:
-    TORCHAUDIO_AVAILABLE = False
+import torch
+import torchaudio
+
+# Cache for GPU resamplers (expensive to create)
+_GPU_RESAMPLERS: dict = {}
+
+
+def _get_resampler(
+    orig_freq: int,
+    new_freq: int,
+    device: torch.device,
+) -> torchaudio.transforms.Resample:
+    """Get or create a cached resampler for the given frequencies."""
+    key = (orig_freq, new_freq, str(device))
+    if key not in _GPU_RESAMPLERS:
+        resampler = torchaudio.transforms.Resample(
+            orig_freq=orig_freq,
+            new_freq=new_freq,
+        ).to(device)
+        _GPU_RESAMPLERS[key] = resampler
+    return _GPU_RESAMPLERS[key]
 
 
 def load_audio_torchaudio(
@@ -24,8 +38,8 @@ def load_audio_torchaudio(
     """
     Load audio using torchaudio (3-10x faster than librosa).
 
-    Uses soundfile backend explicitly to avoid TorchCodec dependency.
-    GPU-accelerated resampling available.
+    Modern torchaudio API (2.0+) auto-detects the best backend.
+    GPU-accelerated resampling available for significant speedup.
 
     Args:
         path: Path to audio file
@@ -37,33 +51,29 @@ def load_audio_torchaudio(
 
     Returns:
         Tuple of (audio array, sample rate)
+
+    Raises:
+        RuntimeError: If audio file cannot be loaded
     """
-    import torch
+    path_str = str(path)
 
-    # Load audio - try soundfile backend first, then sox, then default
-    waveform = None
-    original_sr = None
-    for backend in ["soundfile", "sox", None]:
-        try:
-            if backend:
-                waveform, original_sr = torchaudio.load(str(path), backend=backend)
-            else:
-                waveform, original_sr = torchaudio.load(str(path))
-            break
-        except Exception:
-            continue
-
-    if waveform is None:
-        raise RuntimeError(f"Failed to load audio with torchaudio: {path}")
-
-    # Apply offset and duration
+    # Modern torchaudio.load() - no backend parameter needed
+    # It auto-detects: uses ffmpeg/soundfile based on installation
     if offset > 0 or duration is not None:
-        start_frame = int(offset * original_sr)
-        if duration is not None:
-            num_frames = int(duration * original_sr)
-            waveform = waveform[:, start_frame:start_frame + num_frames]
-        else:
-            waveform = waveform[:, start_frame:]
+        # Get file info first for offset/duration calculation
+        info = torchaudio.info(path_str)
+        original_sr = info.sample_rate
+
+        frame_offset = int(offset * original_sr) if offset > 0 else 0
+        num_frames = int(duration * original_sr) if duration is not None else -1
+
+        waveform, original_sr = torchaudio.load(
+            path_str,
+            frame_offset=frame_offset,
+            num_frames=num_frames,
+        )
+    else:
+        waveform, original_sr = torchaudio.load(path_str)
 
     # Convert to mono if needed
     if mono and waveform.shape[0] > 1:
@@ -71,16 +81,14 @@ def load_audio_torchaudio(
 
     # Resample if needed (GPU-accelerated if requested)
     if sr != original_sr:
-        resampler = torchaudio.transforms.Resample(
-            orig_freq=original_sr,
-            new_freq=sr,
-        )
         if use_gpu and torch.cuda.is_available():
-            waveform = waveform.cuda()
-            resampler = resampler.cuda()
+            device = torch.device("cuda")
+            waveform = waveform.to(device)
+            resampler = _get_resampler(original_sr, sr, device)
             waveform = resampler(waveform)
             waveform = waveform.cpu()
         else:
+            resampler = _get_resampler(original_sr, sr, torch.device("cpu"))
             waveform = resampler(waveform)
 
     # Convert to numpy
@@ -97,19 +105,19 @@ def load_audio(
     offset: float = 0.0,
     max_retries: int = 3,
     retry_delay: float = 0.5,
-    prefer_torchaudio: bool = True,
+    use_gpu: bool = False,
 ) -> Tuple[np.ndarray, int]:
     """
-    Load audio file and resample to target sample rate with retry logic.
+    Load audio file using torchaudio with retry logic.
 
-    PRODUCTION: Default is 24kHz to match MERT-v1-95M requirements.
-    MERT expects raw audio waveforms at 24kHz sampling rate.
+    PRODUCTION: Uses torchaudio exclusively (no librosa fallback).
+    Default is 24kHz to match MERT-v1-95M requirements.
 
     Includes retry logic for Google Drive I/O errors (common in Colab).
 
     Performance:
-    - torchaudio (preferred): 3-10x faster than librosa, GPU-accelerated
-    - librosa (fallback): Slower but more compatible
+    - torchaudio: 3-10x faster than librosa
+    - GPU resampling: Additional 2-5x speedup on resampling
 
     Args:
         path: Path to audio file (WAV, MP3, FLAC, etc.)
@@ -119,75 +127,42 @@ def load_audio(
         offset: Start reading after this time (in seconds)
         max_retries: Maximum retry attempts for I/O errors (default: 3)
         retry_delay: Delay between retries in seconds (default: 0.5)
-        prefer_torchaudio: Use torchaudio if available (default: True)
+        use_gpu: Use GPU for resampling (default: False)
 
     Returns:
         Tuple of (audio array, sample rate)
 
     Raises:
         OSError: If file cannot be loaded after all retries
-        Exception: For other errors (corrupted file, unsupported format)
+        RuntimeError: For torchaudio errors (corrupted file, unsupported format)
     """
     import time
 
-    # Try torchaudio first if available and preferred
-    if prefer_torchaudio and TORCHAUDIO_AVAILABLE:
-        last_error = None
-        for attempt in range(max_retries):
-            try:
-                audio, sr_out = load_audio_torchaudio(
-                    path, sr, mono, duration, offset
-                )
-                return audio, sr_out
-            except OSError as e:
-                # I/O error (retry)
-                last_error = e
-                if attempt < max_retries - 1:
-                    time.sleep(retry_delay)
-                    continue
-                else:
-                    # Fall through to librosa
-                    warnings.warn(
-                        f"torchaudio failed after {max_retries} attempts, "
-                        f"trying librosa: {e}"
-                    )
-                    break
-            except Exception as e:
-                # Other errors, fall through to librosa
-                warnings.warn(f"torchaudio failed, trying librosa: {e}")
-                break
-
-    # Fallback to librosa
     last_error = None
     for attempt in range(max_retries):
         try:
-            audio, original_sr = librosa.load(
-                path,
-                sr=sr,
-                mono=mono,
-                duration=duration,
-                offset=offset
+            audio, sr_out = load_audio_torchaudio(
+                path, sr, mono, duration, offset, use_gpu=use_gpu
             )
-            return audio, sr
+            return audio, sr_out
         except OSError as e:
-            # I/O error (common with Google Drive mounts in Colab)
+            # I/O error - retry (common with Google Drive mounts)
             last_error = e
             if attempt < max_retries - 1:
                 time.sleep(retry_delay)
                 continue
             else:
-                # All retries exhausted
                 raise OSError(
                     f"Failed to load audio after {max_retries} attempts: {path}"
                 ) from e
         except Exception as e:
             # Other errors (corrupted file, unsupported format) - don't retry
-            raise Exception(f"Failed to load audio file: {path}") from e
+            raise RuntimeError(f"Failed to load audio file: {path}") from e
 
-    # Should never reach here, but just in case
+    # Should never reach here
     if last_error is not None:
         raise last_error
-    raise Exception(f"Unexpected error loading audio: {path}")
+    raise RuntimeError(f"Unexpected error loading audio: {path}")
 
 
 def compute_cqt(
@@ -223,6 +198,9 @@ def compute_cqt(
     Returns:
         CQT spectrogram of shape [n_bins, time_frames]
     """
+    # Import librosa only when CQT is needed (not for audio loading)
+    import librosa
+
     if fmin is None:
         fmin = librosa.note_to_hz('C1')  # 32.7 Hz
 
@@ -387,10 +365,19 @@ def preprocess_audio_file(
 
 
 if __name__ == "__main__":
-    # Example usage
-    print("Audio processing module loaded successfully")
+    # Example usage and diagnostics
+    print("Audio Processing Module")
+    print("=" * 50)
+    print(f"torchaudio version: {torchaudio.__version__}")
+    print(f"torch version: {torch.__version__}")
+    print(f"CUDA available: {torch.cuda.is_available()}")
+    if torch.cuda.is_available():
+        print(f"CUDA device: {torch.cuda.get_device_name(0)}")
+    print()
     print("PRODUCTION CONFIGURATION:")
-    print(f"- Sample rate: 24kHz (MERT requirement)")
-    print(f"- Format: Raw audio waveforms (not spectrograms)")
-    print(f"- CQT: Available for visualization only (disabled by default)")
-    print(f"- Piano range: C1 to C8 (7 octaves, 168 frequency bins)")
+    print("- Audio loading: torchaudio (no librosa fallback)")
+    print("- Sample rate: 24kHz (MERT requirement)")
+    print("- Format: Raw audio waveforms (not spectrograms)")
+    print("- Resampling: GPU-accelerated when use_gpu=True")
+    print("- CQT: Available for visualization only (uses librosa)")
+    print("- Piano range: C1 to C8 (7 octaves, 168 frequency bins)")

@@ -332,9 +332,14 @@ def main():
 
     # Print best model path
     best_model_path = callbacks[0].best_model_path
+    best_score = callbacks[0].best_model_score
     print(f"\nTraining complete!")
-    print(f"Best model saved to: {best_model_path}")
-    print(f"Best validation loss: {callbacks[0].best_model_score:.4f}")
+    if best_model_path:
+        print(f"Best model saved to: {best_model_path}")
+    if best_score is not None:
+        print(f"Best validation loss: {best_score:.4f}")
+    else:
+        print("(No checkpoints saved - fast_dev_run mode)")
 
 
 if __name__ == "__main__":
