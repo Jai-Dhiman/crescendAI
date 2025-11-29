@@ -8,11 +8,6 @@ import warnings
 # Try to import torchaudio (faster than librosa)
 try:
     import torchaudio
-    # Set soundfile as default backend (avoids TorchCodec dependency issues)
-    try:
-        torchaudio.set_audio_backend("soundfile")
-    except RuntimeError:
-        pass  # Backend already set or not available
     TORCHAUDIO_AVAILABLE = True
 except ImportError:
     TORCHAUDIO_AVAILABLE = False
