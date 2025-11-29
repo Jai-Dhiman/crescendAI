@@ -8,6 +8,11 @@ import warnings
 # Try to import torchaudio (faster than librosa)
 try:
     import torchaudio
+    # Set soundfile as default backend (avoids TorchCodec dependency issues)
+    try:
+        torchaudio.set_audio_backend("soundfile")
+    except RuntimeError:
+        pass  # Backend already set or not available
     TORCHAUDIO_AVAILABLE = True
 except ImportError:
     TORCHAUDIO_AVAILABLE = False
@@ -40,8 +45,21 @@ def load_audio_torchaudio(
     """
     import torch
 
-    # Load audio using soundfile backend (avoids TorchCodec dependency)
-    waveform, original_sr = torchaudio.load(str(path), backend="soundfile")
+    # Load audio - try soundfile backend first, then sox, then default
+    waveform = None
+    original_sr = None
+    for backend in ["soundfile", "sox", None]:
+        try:
+            if backend:
+                waveform, original_sr = torchaudio.load(str(path), backend=backend)
+            else:
+                waveform, original_sr = torchaudio.load(str(path))
+            break
+        except Exception:
+            continue
+
+    if waveform is None:
+        raise RuntimeError(f"Failed to load audio with torchaudio: {path}")
 
     # Apply offset and duration
     if offset > 0 or duration is not None:

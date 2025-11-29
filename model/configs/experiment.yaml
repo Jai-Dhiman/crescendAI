@@ -24,12 +24,13 @@ data:
   max_midi_events: 512
 
   # DataLoader settings - A100 optimized
-  # A100 has 40-80GB VRAM, can handle much larger batches
-  batch_size: 32  # Increased from 8 (A100 can handle 32-64 easily)
-  num_workers: 8  # More workers to keep GPU fed
+  # NOTE: num_workers creates separate processes that each load data into CPU RAM
+  # Too many workers = OOM on CPU side. Adjust based on system RAM.
+  batch_size: 16  # Balanced for GPU utilization vs CPU memory
+  num_workers: 4  # Reduced to prevent CPU OOM (each worker uses ~1-2GB RAM)
   pin_memory: true  # Faster CPU->GPU transfer
-  persistent_workers: true  # Avoid worker startup overhead
-  prefetch_factor: 4  # Prefetch more batches
+  persistent_workers: false  # Disable to reduce memory (workers exit between epochs)
+  prefetch_factor: 2  # Reduced prefetch to save CPU memory
 
   # Augmentation
   augmentation:
@@ -123,7 +124,9 @@ training:
   limit_val_batches: 1.0
 
   # PyTorch 2.0+ optimizations
-  compile_model: true  # torch.compile() for 20-50% speedup on A100
+  # NOTE: torch.compile() causes issues with TorchMetrics (CUDA graph errors)
+  # Disable until TorchMetrics compatibility is fixed
+  compile_model: false  # Disabled due to TorchMetrics incompatibility
   compile_mode: reduce-overhead  # Options: default, reduce-overhead, max-autotune
 
   # GPU augmentation (replaces slow CPU augmentation)
