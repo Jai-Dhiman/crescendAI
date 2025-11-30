@@ -209,6 +209,7 @@ class PerformanceEvaluationModel(pl.LightningModule):
                 num_layers=6,
                 num_heads=4,
                 dropout=0.1,
+                max_seq_length=512,  # Must match pretrained checkpoint
                 pretrained_checkpoint=midi_pretrained_checkpoint,
             )
         else:
