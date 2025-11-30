@@ -137,7 +137,8 @@ class MemoryProfilerCallback(pl.Callback):
         step_delta = current["cpu_rss_mb"] - self.step_start_memory["cpu_rss_mb"]
         total_delta = current["cpu_rss_mb"] - self.initial_memory["cpu_rss_mb"]
 
-        # Store history
+        # Store history (capped to prevent memory leak)
+        # Keep last 200 entries, trim to 100 when exceeded
         self.memory_history.append({
             "step": self.step_count,
             "batch_idx": batch_idx,
@@ -145,6 +146,8 @@ class MemoryProfilerCallback(pl.Callback):
             "step_delta_mb": step_delta,
             "total_delta_mb": total_delta,
         })
+        if len(self.memory_history) > 200:
+            self.memory_history = self.memory_history[-100:]
 
         # Log periodically
         should_log = (

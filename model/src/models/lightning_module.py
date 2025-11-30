@@ -743,6 +743,12 @@ class PerformanceEvaluationModel(pl.LightningModule):
         # Extract loss and explicitly free predictions/targets to help GC
         loss = result["loss"]
         del result
+
+        # Periodic garbage collection to prevent memory accumulation
+        # Every 500 steps, force GC to reclaim any leaked objects
+        if batch_idx > 0 and batch_idx % 500 == 0:
+            gc.collect()
+
         return loss
 
     def validation_step(self, batch: Dict[str, torch.Tensor], batch_idx: int) -> None:
