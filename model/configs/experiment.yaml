@@ -23,14 +23,14 @@ data:
   max_audio_length: 240000  # 10 seconds at 24kHz
   max_midi_events: 512
 
-  # DataLoader settings - A100 optimized
+  # DataLoader settings - Memory-optimized for sequential multi-model training
   # NOTE: num_workers creates separate processes that each load data into CPU RAM
-  # Too many workers = OOM on CPU side. Adjust based on system RAM.
+  # Too many workers = OOM on CPU side. Reduced for 32GB RAM systems.
   batch_size: 16  # Balanced for GPU utilization vs CPU memory
-  num_workers: 4  # Reduced to prevent CPU OOM (each worker uses ~1-2GB RAM)
+  num_workers: 2  # Reduced from 4 to prevent CPU OOM (each worker uses ~1-2GB RAM)
   pin_memory: true  # Faster CPU->GPU transfer
   persistent_workers: false  # Disable to reduce memory (workers exit between epochs)
-  prefetch_factor: 2  # Reduced prefetch to save CPU memory
+  prefetch_factor: 1  # Reduced from 2 to save CPU memory
 
   # Augmentation
   augmentation:

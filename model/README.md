@@ -11,7 +11,7 @@ Multi-modal (audio + MIDI) architecture combining MERT-95M pre-trained music enc
 
 ## Key Features
 
-- MERT-95M pre-trained music encoder (95M parameters, Colab-friendly)
+- MERT-95M pre-trained music encoder (95M parameters)
 - Multi-modal audio-MIDI cross-attention fusion
 - Uncertainty-weighted multi-task learning (Kendall & Gal)
 - Hierarchical BiLSTM temporal aggregation
@@ -25,7 +25,7 @@ Multi-modal (audio + MIDI) architecture combining MERT-95M pre-trained music enc
 
 ## Training Budget
 
-- **Compute**: 20-25 GPU hours on Colab Pro (T4/V100)
+- **Compute**: 20-25 GPU hours on Thunder Compute (T4/V100)
 - **Storage**: ~50GB (MAESTRO subset + checkpoints)
 
 ## Expected Performance

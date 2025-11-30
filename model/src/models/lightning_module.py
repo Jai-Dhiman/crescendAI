@@ -642,21 +642,22 @@ class PerformanceEvaluationModel(pl.LightningModule):
         total_loss = loss_output["loss"]
         task_losses = loss_output["task_losses"]
 
-        # Log losses
-        self.log(f"{split}_loss", total_loss, prog_bar=True)
-        self.log(f"{split}_mse_loss", loss_output["mse_loss"])
-        self.log(f"{split}_rank_loss", loss_output["rank_loss"])
-        self.log(f"{split}_contrast_loss", loss_output["contrast_loss"])
+        # Log losses - use on_step=False for non-essential metrics to reduce memory
+        # Only the main loss needs on_step=True for progress bar
+        self.log(f"{split}_loss", total_loss, prog_bar=True, on_step=(split == "train"), on_epoch=True)
+        self.log(f"{split}_mse_loss", loss_output["mse_loss"], on_step=False, on_epoch=True)
+        self.log(f"{split}_rank_loss", loss_output["rank_loss"], on_step=False, on_epoch=True)
+        self.log(f"{split}_contrast_loss", loss_output["contrast_loss"], on_step=False, on_epoch=True)
 
         # Log CORAL loss if enabled
         if self.coral_head is not None:
-            self.log(f"{split}_coral_loss", loss_output["coral_loss"])
+            self.log(f"{split}_coral_loss", loss_output["coral_loss"], on_step=False, on_epoch=True)
 
         # Log bootstrap and LDS metrics if enabled
         if self.bootstrap_loss is not None:
-            self.log(f"{split}_bootstrap_loss", loss_output["bootstrap_loss"])
+            self.log(f"{split}_bootstrap_loss", loss_output["bootstrap_loss"], on_step=False, on_epoch=True)
         if self.lds_weighting is not None:
-            self.log(f"{split}_lds_weight", loss_output["lds_weight"])
+            self.log(f"{split}_lds_weight", loss_output["lds_weight"], on_step=False, on_epoch=True)
 
         # Log FDS statistics periodically
         if self.fds_smoothing is not None and split == "val":
@@ -674,7 +675,7 @@ class PerformanceEvaluationModel(pl.LightningModule):
             mae_metric = getattr(self, f"{split}_mae_{dim_name}")
             mae_metric(pred_i, target_i)
             self.log(f"{split}_mae_{dim_name}", mae_metric, on_step=False, on_epoch=True)
-            self.log(f"{split}_task_loss_{dim_name}", task_losses[i])
+            self.log(f"{split}_task_loss_{dim_name}", task_losses[i], on_step=False, on_epoch=True)
 
             # Correlation metrics only for val/test (they accumulate all data)
             if split != "train":
@@ -745,10 +746,12 @@ class PerformanceEvaluationModel(pl.LightningModule):
         loss = result["loss"]
         del result
 
-        # Periodic garbage collection to prevent memory accumulation
-        # Every 500 steps, force GC to reclaim any leaked objects
-        if batch_idx > 0 and batch_idx % 500 == 0:
+        # More aggressive garbage collection to prevent memory accumulation
+        # Every 100 steps: GC + CUDA cache clear to reclaim leaked objects
+        if batch_idx > 0 and batch_idx % 100 == 0:
             gc.collect()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
 
         return loss
 
@@ -764,9 +767,24 @@ class PerformanceEvaluationModel(pl.LightningModule):
             for name, value in diagnostics.items():
                 self.log(f"val_{name}", value, prog_bar=False)
 
+        # Free result to prevent memory accumulation
+        del result
+
     def test_step(self, batch: Dict[str, torch.Tensor], batch_idx: int) -> None:
         """Test step."""
-        self._shared_step(batch, "test")
+        result = self._shared_step(batch, "test")
+        if result is not None:
+            del result
+
+    def on_train_batch_end(self, outputs, batch, batch_idx) -> None:
+        """Periodically reset metrics to prevent memory accumulation."""
+        # Reset training MAE metrics every 500 steps
+        # They accumulate predictions internally; resetting prevents OOM
+        if batch_idx > 0 and batch_idx % 500 == 0:
+            for dim_name in self.dimension_names:
+                mae_metric = getattr(self, f"train_mae_{dim_name}", None)
+                if mae_metric is not None:
+                    mae_metric.reset()
 
     def on_train_epoch_end(self) -> None:
         """Clean up memory at end of each epoch."""
