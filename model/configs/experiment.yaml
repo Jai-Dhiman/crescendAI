@@ -23,40 +23,40 @@ data:
   max_audio_length: 240000  # 10 seconds at 24kHz
   max_midi_events: 512
 
-  # DataLoader settings - Memory-optimized for sequential multi-model training
-  # NOTE: num_workers creates separate processes that each load data into CPU RAM
-  # Too many workers = OOM on CPU side. Reduced for 32GB RAM systems.
-  batch_size: 16  # Balanced for GPU utilization vs CPU memory
-  num_workers: 2  # Reduced from 4 to prevent CPU OOM (each worker uses ~1-2GB RAM)
+  # DataLoader settings - Optimized for T4 GPU (16GB) + 64GB RAM + 8 vCPUs
+  # With 64GB RAM, we can use more workers for faster data loading
+  batch_size: 8  # Reduced for T4's 16GB VRAM (use accumulate_grad_batches to compensate)
+  num_workers: 6  # 6 workers for 8 vCPUs (each uses ~1-2GB RAM, 6x2=12GB << 64GB)
   pin_memory: true  # Faster CPU->GPU transfer
-  persistent_workers: false  # Disable to reduce memory (workers exit between epochs)
-  prefetch_factor: 1  # Reduced from 2 to save CPU memory
+  persistent_workers: true  # Keep workers alive - no restart overhead (have enough RAM)
+  prefetch_factor: 3  # Prefetch more batches to keep GPU fed
 
-  # Augmentation
+  # CPU Augmentation - DISABLED (using GPU augmentation instead for speed)
+  # GPU augmentation is faster and doesn't block data loading
   augmentation:
-    enabled: true
+    enabled: false  # Disabled - using gpu_augmentation in training section instead
     pitch_shift:
-      enabled: true
+      enabled: false
       probability: 0.4
       min_semitones: -1
       max_semitones: 1
     time_stretch:
-      enabled: true
+      enabled: false
       probability: 0.4
       min_rate: 0.9
       max_rate: 1.1
     add_noise:
-      enabled: true
+      enabled: false
       probability: 0.3
       min_snr_db: 30
       max_snr_db: 40
     gain_variation:
-      enabled: true
+      enabled: false
       probability: 0.4
       min_db: -3
       max_db: 3
     room_acoustics:
-      enabled: true
+      enabled: false
       probability: 0.3
     max_transforms: 3
 
@@ -118,7 +118,7 @@ training:
   warmup_steps: 500
   min_lr: 1e-6
   gradient_clip_val: 1.0
-  accumulate_grad_batches: 1  # Reduced since batch_size is larger now
+  accumulate_grad_batches: 2  # Accumulate 2 batches of 8 = effective batch of 16
 
   val_check_interval: 0.5
   limit_val_batches: 1.0
@@ -130,13 +130,14 @@ training:
   compile_mode: reduce-overhead  # Options: default, reduce-overhead, max-autotune
 
   # GPU augmentation (replaces slow CPU augmentation)
+  # With T4, keep GPU busy with augmentation while CPU prefetches next batches
   gpu_augmentation:
     enabled: true
-    gain_prob: 0.4
-    noise_prob: 0.3
-    time_mask_prob: 0.3
-    pitch_shift_prob: 0.3
-    time_stretch_prob: 0.3
+    gain_prob: 0.5
+    noise_prob: 0.4
+    time_mask_prob: 0.4
+    pitch_shift_prob: 0.4
+    time_stretch_prob: 0.4
     max_augmentations: 3
 
 callbacks:
