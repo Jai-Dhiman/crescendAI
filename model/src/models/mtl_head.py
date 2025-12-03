@@ -79,14 +79,14 @@ class MultiTaskHead(nn.Module):
         # Task-specific heads
         # Simplified to 2 layers for better generalization with noisy labels
         # Deeper heads (4 layers) were overparameterized for weak supervision
+        # NOTE: No sigmoid here - sigmoid applied in MIDIOnlyModule.forward()
         self.task_heads = nn.ModuleDict()
         for dim_name in dimensions:
             self.task_heads[dim_name] = nn.Sequential(
                 nn.Linear(shared_hidden, task_hidden),  # Layer 1: compress
                 nn.ReLU(),
                 nn.Dropout(dropout),
-                nn.Linear(task_hidden, 1),              # Layer 2: output
-                nn.Sigmoid(),  # Output 0-1, will scale to 0-100
+                nn.Linear(task_hidden, 1),              # Layer 2: raw logits
             )
 
         # Learnable uncertainty parameters (log variance) for each dimension
@@ -124,10 +124,8 @@ class MultiTaskHead(nn.Module):
             predictions.append(pred)
 
         # Stack predictions: [batch, num_dimensions]
+        # Returns raw logits - sigmoid applied in MIDIOnlyModule.forward()
         scores = torch.cat(predictions, dim=1)
-
-        # Scale from [0, 1] to [0, 100]
-        scores = scores * 100.0
 
         if return_uncertainties:
             # Convert log variance to standard deviation
@@ -152,9 +150,8 @@ class MultiTaskHead(nn.Module):
 
 if __name__ == "__main__":
     print("Multi-task learning head module loaded successfully")
-    print("- 10 dimensions (6 technical + 4 interpretive)")
+    print("- 19 dimensions (matching PercePiano)")
     print("- 2-layer shared feature extractor")
-    print("- 2-layer task-specific heads (simplified for weak supervision)")
-    print("- Higher dropout (0.3) for better regularization")
+    print("- 2-layer task-specific heads (raw logits output)")
+    print("- Sigmoid applied in MIDIOnlyModule, not here")
     print("- Learnable uncertainty parameters")
-    print("- Output range: 0-100")

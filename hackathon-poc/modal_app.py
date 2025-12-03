@@ -18,10 +18,12 @@ image = (
 )
 
 
-@app.function(image=image, allow_concurrent_inputs=100)
+@app.function(image=image)
+@modal.concurrent(max_inputs=100)
 @modal.asgi_app()
 def serve():
     from mcp.server.fastmcp import FastMCP
+    from mcp.server.transport_security import TransportSecuritySettings
     from starlette.applications import Starlette
     from starlette.routing import Mount
     from starlette.middleware.cors import CORSMiddleware
@@ -29,8 +31,20 @@ def serve():
     from starlette.responses import JSONResponse
     import contextlib
 
+    # Configure security to allow Modal hosts and xAI servers
+    security_settings = TransportSecuritySettings(
+        enable_dns_rebinding_protection=True,
+        allowed_hosts=[
+            "*.modal.run",
+            "*.modal.run:*",
+            "jai-dhiman--crescendai-poc-serve-dev.modal.run",
+            "jai-dhiman--crescendai-poc-serve.modal.run",
+        ],
+        allowed_origins=["*"],
+    )
+
     # Create the MCP server
-    mcp = FastMCP("CrescendAI Piano Teacher", stateless_http=True)
+    mcp = FastMCP("CrescendAI Piano Teacher", stateless_http=True, transport_security=security_settings)
 
     # Simulated session storage
     sessions = {}
