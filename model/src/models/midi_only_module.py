@@ -219,11 +219,16 @@ class MIDIOnlyModule(pl.LightningModule):
 
     def on_validation_epoch_end(self):
         if not self.validation_step_outputs:
+            print("[DEBUG] validation_step_outputs is empty!")
             return
 
         # Collect all predictions and targets
         all_preds = torch.cat([x["predictions"] for x in self.validation_step_outputs])
         all_targets = torch.cat([x["targets"] for x in self.validation_step_outputs])
+
+        print(f"[DEBUG] Validation samples: {len(all_preds)}")
+        print(f"[DEBUG] Preds has NaN: {torch.isnan(all_preds).any()}")
+        print(f"[DEBUG] Targets has NaN: {torch.isnan(all_targets).any()}")
 
         # Compute per-dimension metrics
         r_values = []
@@ -247,6 +252,8 @@ class MIDIOnlyModule(pl.LightningModule):
 
         # Mean metrics (use already computed r_values)
         mean_r = np.mean(r_values)
+        print(f"[DEBUG] r_values: {r_values}")
+        print(f"[DEBUG] mean_r: {mean_r}")
         self.log("val/mean_r", mean_r, prog_bar=True)
 
         self.validation_step_outputs.clear()
