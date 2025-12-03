@@ -206,6 +206,17 @@ class MIDIOnlyModule(pl.LightningModule):
         self.log("val/loss", loss, prog_bar=True)
         return result
 
+    def _safe_pearson_r(self, preds: np.ndarray, targets: np.ndarray) -> float:
+        """Compute Pearson correlation with handling for constant arrays."""
+        if len(preds) < 2:
+            return 0.0
+        # Check for zero variance (constant values)
+        if np.std(preds) < 1e-8 or np.std(targets) < 1e-8:
+            return 0.0
+        r = np.corrcoef(preds, targets)[0, 1]
+        # Handle NaN that can still occur in edge cases
+        return 0.0 if np.isnan(r) else r
+
     def on_validation_epoch_end(self):
         if not self.validation_step_outputs:
             return
@@ -215,12 +226,14 @@ class MIDIOnlyModule(pl.LightningModule):
         all_targets = torch.cat([x["targets"] for x in self.validation_step_outputs])
 
         # Compute per-dimension metrics
+        r_values = []
         for i, dim in enumerate(self.dimensions):
             preds = all_preds[:, i].cpu().numpy()
             targets = all_targets[:, i].cpu().numpy()
 
-            # Pearson correlation
-            r = np.corrcoef(preds, targets)[0, 1] if len(preds) > 1 else 0.0
+            # Pearson correlation (safe version)
+            r = self._safe_pearson_r(preds, targets)
+            r_values.append(r)
             # R-squared
             ss_res = np.sum((targets - preds) ** 2)
             ss_tot = np.sum((targets - np.mean(targets)) ** 2) + 1e-8
@@ -232,11 +245,8 @@ class MIDIOnlyModule(pl.LightningModule):
             self.log(f"val/r2_{dim}", r2)
             self.log(f"val/mae_{dim}", mae)
 
-        # Mean metrics
-        mean_r = np.mean([
-            np.corrcoef(all_preds[:, i].cpu().numpy(), all_targets[:, i].cpu().numpy())[0, 1]
-            for i in range(self.num_dimensions)
-        ])
+        # Mean metrics (use already computed r_values)
+        mean_r = np.mean(r_values)
         self.log("val/mean_r", mean_r, prog_bar=True)
 
         self.validation_step_outputs.clear()
