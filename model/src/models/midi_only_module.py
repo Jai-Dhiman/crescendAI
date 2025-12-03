@@ -206,6 +206,23 @@ class MIDIOnlyModule(pl.LightningModule):
         self.log("val/loss", loss, prog_bar=True)
         return result
 
+    def test_step(self, batch: Dict, batch_idx: int) -> Dict:
+        """Test step - same as validation but logs to test/ namespace."""
+        outputs = self(batch["midi_tokens"], batch.get("attention_mask"))
+        loss, per_dim_losses = self.compute_loss(
+            outputs["predictions"], batch["scores"], outputs["log_vars"]
+        )
+
+        self.log("test/loss", loss)
+        for dim, dim_loss in per_dim_losses.items():
+            self.log(f"test/loss_{dim}", dim_loss)
+
+        return {
+            "test_loss": loss.detach(),
+            "predictions": outputs["predictions"].detach(),
+            "targets": batch["scores"].detach(),
+        }
+
     def _safe_pearson_r(self, preds: np.ndarray, targets: np.ndarray) -> float:
         """Compute Pearson correlation with handling for constant arrays."""
         if len(preds) < 2:
@@ -219,16 +236,11 @@ class MIDIOnlyModule(pl.LightningModule):
 
     def on_validation_epoch_end(self):
         if not self.validation_step_outputs:
-            print("[DEBUG] validation_step_outputs is empty!")
             return
 
         # Collect all predictions and targets
         all_preds = torch.cat([x["predictions"] for x in self.validation_step_outputs])
         all_targets = torch.cat([x["targets"] for x in self.validation_step_outputs])
-
-        print(f"[DEBUG] Validation samples: {len(all_preds)}")
-        print(f"[DEBUG] Preds has NaN: {torch.isnan(all_preds).any()}")
-        print(f"[DEBUG] Targets has NaN: {torch.isnan(all_targets).any()}")
 
         # Compute per-dimension metrics
         r_values = []
@@ -252,8 +264,6 @@ class MIDIOnlyModule(pl.LightningModule):
 
         # Mean metrics (use already computed r_values)
         mean_r = np.mean(r_values)
-        print(f"[DEBUG] r_values: {r_values}")
-        print(f"[DEBUG] mean_r: {mean_r}")
         self.log("val/mean_r", mean_r, prog_bar=True)
 
         self.validation_step_outputs.clear()
