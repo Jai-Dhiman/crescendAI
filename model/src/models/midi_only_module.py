@@ -18,16 +18,27 @@ from .aggregation import HierarchicalAggregator
 from .mtl_head import MultiTaskHead
 
 
-# Default dimensions for PercePiano
+# All 19 PercePiano dimensions (matching reference implementation)
 PERCEPIANO_DIMENSIONS = [
-    "timing_stability",
-    "note_accuracy",
-    "dynamic_range",
-    "articulation",
-    "pedal_technique",
-    "expression",
-    "tone_quality",
-    "overall",
+    "timing",              # 0: Stable <-> Unstable
+    "articulation_length", # 1: Short <-> Long
+    "articulation_touch",  # 2: Soft/Cushioned <-> Hard/Solid
+    "pedal_amount",        # 3: Sparse/Dry <-> Saturated/Wet
+    "pedal_clarity",       # 4: Clean <-> Blurred
+    "timbre_variety",      # 5: Even <-> Colorful
+    "timbre_depth",        # 6: Shallow <-> Rich
+    "timbre_brightness",   # 7: Bright <-> Dark
+    "timbre_loudness",     # 8: Soft <-> Loud
+    "dynamic_range",       # 9: Little Range <-> Large Range
+    "tempo",               # 10: Fast-paced <-> Slow-paced
+    "space",               # 11: Flat <-> Spacious
+    "balance",             # 12: Disproportioned <-> Balanced
+    "drama",               # 13: Pure <-> Dramatic
+    "mood_valence",        # 14: Optimistic <-> Dark
+    "mood_energy",         # 15: Low Energy <-> High Energy
+    "mood_imagination",    # 16: Honest <-> Imaginative
+    "sophistication",      # 17: Sophisticated/Mellow <-> Raw/Crude
+    "interpretation",      # 18: Unsatisfactory <-> Convincing
 ]
 
 
@@ -128,6 +139,9 @@ class MIDIOnlyModule(pl.LightningModule):
 
         # Predict scores (returns tuple: scores, uncertainties)
         predictions, _ = self.mtl_head(aggregated)  # [B, num_dims]
+
+        # Apply sigmoid to bound predictions to 0-1 (matching PercePiano reference)
+        predictions = torch.sigmoid(predictions)
 
         return {
             "predictions": predictions,
@@ -306,8 +320,8 @@ class MIDIOnlyModule(pl.LightningModule):
         """Inference step for prediction."""
         outputs = self(batch["midi_tokens"], batch.get("attention_mask"))
 
-        # Convert predictions to 0-100 scale (clamped)
-        predictions = torch.clamp(outputs["predictions"], 0, 100)
+        # Predictions are already 0-1 from sigmoid, scale to 0-100 for display
+        predictions = outputs["predictions"] * 100
 
         # Get uncertainty estimates (sigma)
         sigmas = torch.exp(0.5 * outputs["log_vars"])
@@ -339,7 +353,8 @@ class MIDIOnlyModule(pl.LightningModule):
         self.eval()
         with torch.no_grad():
             outputs = self(midi_tokens)
-            predictions = torch.clamp(outputs["predictions"], 0, 100)
+            # Predictions are already 0-1 from sigmoid, scale to 0-100 for display
+            predictions = outputs["predictions"] * 100
             sigmas = torch.exp(0.5 * outputs["log_vars"])
 
             # Convert sigma to confidence (inverse relationship)

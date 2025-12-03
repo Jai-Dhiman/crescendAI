@@ -12,41 +12,28 @@ from typing import Dict, List, Tuple
 import random
 
 
-# PercePiano dimension mapping to our 8 target dimensions
-# PercePiano has 19 dimensions (0-indexed), we map to 8
-DIMENSION_MAPPING = {
-    # Our dimension: list of PercePiano dimension indices to average
-    "timing_stability": [0],  # 0: Timing (Stable/Unstable)
-    "note_accuracy": [],  # Derived from MIDI alignment (not in annotations)
-    "dynamic_range": [9],  # 9: Dynamic Range (Little/Large)
-    "articulation": [1, 2],  # 1: Short/Long, 2: Soft/Cushioned vs Hard/Solid
-    "pedal_technique": [3, 4],  # 3: Pedal Sparse/Saturated, 4: Clean/Blurred
-    "expression": [10, 11, 12, 13],  # Music Making: Fast/Slow, Flat/Spacious, Balanced, Dramatic
-    "tone_quality": [5, 6, 7, 8],  # Timbre: Even/Colorful, Shallow/Rich, Bright/Dark, Soft/Loud
-    "overall": [18],  # 18: Interpretation (Unsatisfactory/Convincing)
-}
-
-# PercePiano dimension names for reference
+# All 19 PercePiano dimensions (matching reference implementation exactly)
+# Labels are kept in original 0-1 scale (no aggregation, no scaling)
 PERCEPIANO_DIMENSIONS = [
-    "timing",  # 0: Stable <-> Unstable
-    "articulation_length",  # 1: Short <-> Long
+    "timing",              # 0: Stable <-> Unstable
+    "articulation_length", # 1: Short <-> Long
     "articulation_touch",  # 2: Soft/Cushioned <-> Hard/Solid
-    "pedal_amount",  # 3: Sparse/Dry <-> Saturated/Wet
-    "pedal_clarity",  # 4: Clean <-> Blurred
-    "timbre_variety",  # 5: Even <-> Colorful
-    "timbre_depth",  # 6: Shallow <-> Rich
-    "timbre_brightness",  # 7: Bright <-> Dark
-    "timbre_loudness",  # 8: Soft <-> Loud
-    "dynamic_range",  # 9: Little Range <-> Large Range
-    "tempo",  # 10: Fast-paced <-> Slow-paced
-    "space",  # 11: Flat <-> Spacious
-    "balance",  # 12: Disproportioned <-> Balanced
-    "drama",  # 13: Pure <-> Dramatic
-    "mood_valence",  # 14: Optimistic <-> Dark
-    "mood_energy",  # 15: Low Energy <-> High Energy
-    "mood_imagination",  # 16: Honest <-> Imaginative
-    "sophistication",  # 17: Sophisticated/Mellow <-> Raw/Crude
-    "interpretation",  # 18: Unsatisfactory <-> Convincing
+    "pedal_amount",        # 3: Sparse/Dry <-> Saturated/Wet
+    "pedal_clarity",       # 4: Clean <-> Blurred
+    "timbre_variety",      # 5: Even <-> Colorful
+    "timbre_depth",        # 6: Shallow <-> Rich
+    "timbre_brightness",   # 7: Bright <-> Dark
+    "timbre_loudness",     # 8: Soft <-> Loud
+    "dynamic_range",       # 9: Little Range <-> Large Range
+    "tempo",               # 10: Fast-paced <-> Slow-paced
+    "space",               # 11: Flat <-> Spacious
+    "balance",             # 12: Disproportioned <-> Balanced
+    "drama",               # 13: Pure <-> Dramatic
+    "mood_valence",        # 14: Optimistic <-> Dark
+    "mood_energy",         # 15: Low Energy <-> High Energy
+    "mood_imagination",    # 16: Honest <-> Imaginative
+    "sophistication",      # 17: Sophisticated/Mellow <-> Raw/Crude
+    "interpretation",      # 18: Unsatisfactory <-> Convincing
 ]
 
 
@@ -100,22 +87,15 @@ def find_midi_files(repo_dir: Path) -> Dict[str, Path]:
 
 
 def map_dimensions(percepiano_scores: List[float]) -> Dict[str, float]:
-    """Map 19 PercePiano dimensions to our 8 target dimensions."""
-    our_scores = {}
+    """Return all 19 PercePiano dimensions in 0-1 scale (no aggregation).
 
-    for our_dim, pp_indices in DIMENSION_MAPPING.items():
-        if not pp_indices:
-            # note_accuracy is derived, set to neutral
-            our_scores[our_dim] = 50.0
-        else:
-            # Average the mapped dimensions and scale to 0-100
-            # PercePiano uses 0-1 scale, we use 0-100
-            values = [percepiano_scores[i] for i in pp_indices]
-            avg = sum(values) / len(values)
-            # Scale from 0-1 to 0-100
-            our_scores[our_dim] = avg * 100
-
-    return our_scores
+    This matches the reference implementation exactly.
+    percepiano_scores has 20 values, last one is performer ID (ignored).
+    """
+    return {
+        dim: percepiano_scores[i]
+        for i, dim in enumerate(PERCEPIANO_DIMENSIONS)
+    }
 
 
 def extract_piece_name(name: str) -> str:
@@ -220,19 +200,19 @@ def prepare_dataset(data_dir: Path, output_dir: Path):
             json.dump(split_data, f, indent=2)
         print(f"Saved {output_file}")
 
-    # Save dimension mapping for reference
-    mapping_file = output_dir / "dimension_mapping.json"
-    with open(mapping_file, "w") as f:
+    # Save dimension info for reference
+    dimension_file = output_dir / "dimensions.json"
+    with open(dimension_file, "w") as f:
         json.dump(
             {
-                "our_dimensions": list(DIMENSION_MAPPING.keys()),
-                "percepiano_dimensions": PERCEPIANO_DIMENSIONS,
-                "mapping": DIMENSION_MAPPING,
+                "dimensions": PERCEPIANO_DIMENSIONS,
+                "num_dimensions": len(PERCEPIANO_DIMENSIONS),
+                "scale": "0-1",
             },
             f,
             indent=2,
         )
-    print(f"Saved {mapping_file}")
+    print(f"Saved {dimension_file}")
 
     # Print statistics
     print("\nDataset Statistics:")
@@ -243,11 +223,11 @@ def prepare_dataset(data_dir: Path, output_dir: Path):
 
     # Print score distribution for each dimension
     print("\nScore Distribution (mean +/- std):")
-    for dim in DIMENSION_MAPPING.keys():
+    for dim in PERCEPIANO_DIMENSIONS:
         values = [s["scores"][dim] for s in samples]
         mean = sum(values) / len(values)
         std = (sum((v - mean) ** 2 for v in values) / len(values)) ** 0.5
-        print(f"  {dim}: {mean:.1f} +/- {std:.1f}")
+        print(f"  {dim}: {mean:.3f} +/- {std:.3f}")
 
 
 if __name__ == "__main__":

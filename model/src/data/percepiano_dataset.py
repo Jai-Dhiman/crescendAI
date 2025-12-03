@@ -16,16 +16,27 @@ from typing import Dict, List, Optional, Tuple
 from .midi_processing import OctupleMIDITokenizer
 
 
-# Our 8 target dimensions
+# All 19 PercePiano dimensions (matching reference implementation)
 DIMENSIONS = [
-    "timing_stability",
-    "note_accuracy",
-    "dynamic_range",
-    "articulation",
-    "pedal_technique",
-    "expression",
-    "tone_quality",
-    "overall",
+    "timing",              # 0: Stable <-> Unstable
+    "articulation_length", # 1: Short <-> Long
+    "articulation_touch",  # 2: Soft/Cushioned <-> Hard/Solid
+    "pedal_amount",        # 3: Sparse/Dry <-> Saturated/Wet
+    "pedal_clarity",       # 4: Clean <-> Blurred
+    "timbre_variety",      # 5: Even <-> Colorful
+    "timbre_depth",        # 6: Shallow <-> Rich
+    "timbre_brightness",   # 7: Bright <-> Dark
+    "timbre_loudness",     # 8: Soft <-> Loud
+    "dynamic_range",       # 9: Little Range <-> Large Range
+    "tempo",               # 10: Fast-paced <-> Slow-paced
+    "space",               # 11: Flat <-> Spacious
+    "balance",             # 12: Disproportioned <-> Balanced
+    "drama",               # 13: Pure <-> Dramatic
+    "mood_valence",        # 14: Optimistic <-> Dark
+    "mood_energy",         # 15: Low Energy <-> High Energy
+    "mood_imagination",    # 16: Honest <-> Imaginative
+    "sophistication",      # 17: Sophisticated/Mellow <-> Raw/Crude
+    "interpretation",      # 18: Unsatisfactory <-> Convincing
 ]
 
 
