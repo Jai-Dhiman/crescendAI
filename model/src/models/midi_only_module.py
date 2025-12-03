@@ -155,32 +155,27 @@ class MIDIOnlyModule(pl.LightningModule):
         log_vars: torch.Tensor,
     ) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]:
         """
-        Compute uncertainty-weighted multi-task loss.
-
-        L = sum_i [ (1/2) * exp(-log_var_i) * MSE_i + (1/2) * log_var_i ]
+        Compute simple MSE loss (matching PercePiano reference).
 
         Args:
-            predictions: [batch, num_dims] predicted scores
-            targets: [batch, num_dims] target scores
-            log_vars: [num_dims] learnable log-variance per task
+            predictions: [batch, num_dims] predicted scores (0-1 from sigmoid)
+            targets: [batch, num_dims] target scores (0-1 scale)
+            log_vars: [num_dims] (unused - kept for API compatibility)
 
         Returns:
             Tuple of (total_loss, per_dimension_losses)
         """
         per_dim_losses = {}
-        total_loss = 0.0
 
+        # Simple MSE loss matching PercePiano reference
+        total_loss = torch.nn.functional.mse_loss(predictions, targets, reduction="mean")
+
+        # Also compute per-dimension losses for logging
         for i, dim in enumerate(self.dimensions):
-            # MSE for this dimension
             mse = torch.nn.functional.mse_loss(
                 predictions[:, i], targets[:, i], reduction="mean"
             )
             per_dim_losses[dim] = mse
-
-            # Uncertainty-weighted loss
-            precision = torch.exp(-log_vars[i])
-            weighted_loss = 0.5 * precision * mse + 0.5 * log_vars[i]
-            total_loss = total_loss + weighted_loss
 
         return total_loss, per_dim_losses
 
@@ -194,11 +189,6 @@ class MIDIOnlyModule(pl.LightningModule):
         self.log("train/loss", loss, prog_bar=True)
         for dim, dim_loss in per_dim_losses.items():
             self.log(f"train/loss_{dim}", dim_loss)
-
-        # Log uncertainty (sigma = exp(log_var/2))
-        sigmas = torch.exp(0.5 * outputs["log_vars"]).detach()
-        for i, dim in enumerate(self.dimensions):
-            self.log(f"train/sigma_{dim}", sigmas[i])
 
         self.training_step_outputs.append({"loss": loss.detach()})
         return loss
