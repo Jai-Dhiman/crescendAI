@@ -92,7 +92,8 @@ class PercePianoDataset(Dataset):
         )
 
         # Create attention mask (1 for real tokens, 0 for padding)
-        attention_mask = (midi_tokens[:, 0] != 0).float()  # Check if event_type is 0 (padding)
+        # Padding is all zeros, real tokens have non-zero pitch (column 3) or velocity (column 5)
+        attention_mask = ((midi_tokens[:, 3] != 0) | (midi_tokens[:, 5] != 0)).float()
 
         return {
             "midi_tokens": midi_tokens,

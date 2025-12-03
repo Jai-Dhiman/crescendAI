@@ -38,6 +38,7 @@ dependencies = [
     # Optional: Experiment tracking
     "wandb>=0.15.0",
     "ipykernel>=7.0.1",
+    "rich>=14.2.0",
 ]
 
 [project.optional-dependencies]

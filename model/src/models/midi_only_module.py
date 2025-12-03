@@ -123,11 +123,11 @@ class MIDIOnlyModule(pl.LightningModule):
         # Encode MIDI
         midi_features = self.midi_encoder(midi_tokens, attention_mask)  # [B, T, H]
 
-        # Aggregate over time
-        aggregated = self.aggregator(midi_features, attention_mask)  # [B, H]
+        # Aggregate over time (returns tuple: aggregated, attention_weights)
+        aggregated, _ = self.aggregator(midi_features, attention_mask)  # [B, H]
 
-        # Predict scores
-        predictions = self.mtl_head(aggregated)  # [B, num_dims]
+        # Predict scores (returns tuple: scores, uncertainties)
+        predictions, _ = self.mtl_head(aggregated)  # [B, num_dims]
 
         return {
             "predictions": predictions,
@@ -251,11 +251,18 @@ class MIDIOnlyModule(pl.LightningModule):
             weight_decay=self.hparams.weight_decay,
         )
 
+        # Get total steps
+        total_steps = self.trainer.estimated_stepping_batches
+
+        # OneCycleLR requires at least 2 steps for warmup, fall back to constant LR
+        if total_steps < 10:
+            return optimizer
+
         # Linear warmup + cosine decay
         scheduler = torch.optim.lr_scheduler.OneCycleLR(
             optimizer,
             max_lr=self.hparams.learning_rate,
-            total_steps=self.trainer.estimated_stepping_batches,
+            total_steps=total_steps,
             pct_start=0.1,  # 10% warmup
             anneal_strategy="cos",
         )

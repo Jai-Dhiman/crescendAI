@@ -109,13 +109,29 @@ def map_dimensions(percepiano_scores: List[float]) -> Dict[str, float]:
             our_scores[our_dim] = 50.0
         else:
             # Average the mapped dimensions and scale to 0-100
-            # PercePiano uses 1-7 scale, we use 0-100
+            # PercePiano uses 0-1 scale, we use 0-100
             values = [percepiano_scores[i] for i in pp_indices]
             avg = sum(values) / len(values)
-            # Scale from 1-7 to 0-100
-            our_scores[our_dim] = (avg - 1) / 6 * 100
+            # Scale from 0-1 to 0-100
+            our_scores[our_dim] = avg * 100
 
     return our_scores
+
+
+def extract_piece_name(name: str) -> str:
+    """
+    Extract piece name from PercePiano sample name.
+
+    Format: [composer]_[piece]_[section]_[bars]bars_[segment]_[player]
+    e.g. Schubert_D935_no.3_4bars_1_25 -> Schubert_D935_no.3_4bars
+    """
+    parts = name.split("_")
+    # Find the part containing 'bars' and include everything up to it
+    for i, part in enumerate(parts):
+        if "bars" in part.lower():
+            return "_".join(parts[: i + 1])
+    # Fallback: return first two parts (composer_piece)
+    return "_".join(parts[:2]) if len(parts) >= 2 else parts[0]
 
 
 def create_splits(
@@ -133,9 +149,9 @@ def create_splits(
     # Group by piece
     pieces = {}
     for sample in samples:
-        # Extract piece name (before _bars)
+        # Extract piece name (everything up to and including 'bars')
         name = sample["name"]
-        piece = name.split("_")[0]
+        piece = extract_piece_name(name)
         if piece not in pieces:
             pieces[piece] = []
         pieces[piece].append(sample)

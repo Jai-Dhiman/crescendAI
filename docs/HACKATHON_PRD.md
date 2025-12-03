@@ -6,7 +6,7 @@
 
 ## One-Liner
 
-An AI piano teacher that listens to your performance, catches every mistake, and coaches you with the wit of Douglas Adams and the expertise of a conservatory professor.
+Talk to Grok. Play piano. Get coached. The first AI piano teacher that lives inside your Grok conversation.
 
 ---
 
@@ -20,65 +20,185 @@ Learning piano alone means practicing mistakes for hours—or weeks—before any
 
 ## The Solution
 
-CrescendAI analyzes piano recordings and delivers instant, measure-specific feedback through Grok—not as a generic chatbot, but as an opinionated, encouraging teacher who orchestrates your entire practice session.
+CrescendAI extends Grok's capabilities through xAI's Remote MCP Tools, enabling voice-driven piano lessons where Grok orchestrates everything—listening to your performance, analyzing it, and coaching you with personality.
+
+**The key insight:** Grok can't process audio directly (yet), but it *can* call external tools. We build the audio analysis bridge; Grok provides the intelligence and personality.
 
 **Demo flow:**
 
-1. User uploads a recording (or we use pre-loaded examples)
-2. Grok introduces itself and the piece, setting context
-3. System analyzes performance against the reference score
-4. Grok delivers streaming feedback—specific measures, timing issues, dynamics
-5. Grok calls functions to play the "correct" version, highlight problem areas, suggest exercises
-6. User can ask follow-up questions; Grok maintains lesson context
+1. User opens Grok (voice mode) on phone + CrescendAI companion app on laptop
+2. Companion displays session code: `A7X2`
+3. User says: "Hey Grok, start my piano lesson. My session code is A7X2."
+4. Grok calls MCP tool → Companion confirms connection, shows "Ready"
+5. User selects their recording in companion app (amateur or professional)
+6. User says: "Analyze my performance"
+7. Grok calls MCP tool → Gets analysis → Streams feedback with personality
+8. Grok calls tools to highlight problem areas, play reference, suggest exercises
+9. User asks follow-up questions; Grok maintains full lesson context
 
 **What makes it different:**
 
-- **Grok as conductor, not commentator.** Function calling lets Grok orchestrate the lesson—triggering playback, adjusting difficulty, sequencing exercises—rather than just describing what went wrong.
-- **Personality that sticks.** Feedback in the style of a Hitchhiker's Guide narrator: witty, warm, occasionally irreverent, but always pedagogically sound.
-- **Symbolic depth under the hood.** Score-aligned analysis catches timing deviations, wrong notes, articulation issues, and dynamic inconsistencies—not just "you hit the wrong key."
+- **Grok IS the interface.** You talk to Grok, not our app. Grok orchestrates the entire lesson through MCP tool calls.
+- **Uses xAI's newest feature.** Remote MCP Tools let Grok call our analysis backend autonomously.
+- **Real-time X integration.** Grok can search X for piano tips, famous interpretations, and trending discussions mid-lesson—no other AI can do this.
+- **Guided personality.** Our tool responses include teaching hints that shape Grok's feedback style—encouraging first, specific second, always musical.
+- **Future-proof.** When Grok adds native audio input, we flip a switch and go fully native.
+
+---
+
+## Session Linking Design
+
+The companion app and Grok need to communicate. Here's how:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  COMPANION APP (Laptop Browser)                                  │
+│                                                                  │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │                                                          │   │
+│  │     Your session code:  A 7 X 2                          │   │
+│  │                                                          │   │
+│  │     Tell Grok: "My session code is A7X2"                 │   │
+│  │                                                          │   │
+│  │     Status: ⏳ Waiting for Grok to connect...            │   │
+│  │                                                          │   │
+│  └──────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────┘
+
+User says to Grok: "Start my piano lesson. My session code is A7X2."
+
+Grok calls: start_lesson(session_code="A7X2", piece="pathetique")
+
+┌─────────────────────────────────────────────────────────────────┐
+│  COMPANION APP (Connected)                                       │
+│                                                                  │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │     ✅ Connected to Grok                                 │   │
+│  │     Piece: Pathétique Sonata, 3rd Movement               │   │
+│  │                                                          │   │
+│  │     Select recording:                                    │   │
+│  │     ○ My Practice Recording (amateur)                    │   │
+│  │     ○ Professional Reference                             │   │
+│  │                                                          │   │
+│  └──────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Why this works:**
+
+- 4-character codes are easy to say aloud ("A7X2" not "session-id-7f3a9b2c")
+- Natural in conversation: "My session code is..." feels like joining a video call
+- No QR scanning, no account linking, no complexity
+- Bulletproof for demo—code is visible on screen, user just reads it
+
+**For the hackathon demo:** Pre-generate a memorable code like `PIANO` or `JAI1` so it flows naturally in the pitch.
 
 ---
 
 ## Demo Recordings
 
-Two pre-loaded performances of **Für Elise** (universally recognized, demonstrates clear contrast):
+Two pre-recorded performances of **Pathétique Sonata, 3rd Movement** (Beethoven's most dramatic piano sonata—judges will recognize the opening immediately):
 
 | Recording | Description | Purpose |
 |-----------|-------------|---------|
-| **Student Version** | Intentionally flawed: rushed tempo in measures 3-4, missed notes in arpeggios, flat dynamics | Shows error detection + coaching |
-| **Professional Version** | Clean performance with musical expression | Shows positive reinforcement + nuanced feedback |
+| **Amateur (Jai's recording)** | Real practice session with authentic mistakes: rushed passages in development, uneven runs, dynamic inconsistencies | Shows error detection + coaching |
+| **Professional Reference** | Clean performance with musical expression | Shows positive reinforcement + nuanced feedback on interpretation |
 
-The demo narrative: "Let's hear the difference between practicing alone and practicing with CrescendAI."
+**Why pre-recorded (not live):**
+
+- Controlled audio quality (no venue noise, no laptop mic issues)
+- Authentic mistakes that demonstrate the analysis (not artificial errors)
+- Faster demo flow (no waiting for someone to play)
+- Can still show "live" analysis—user selects recording, Grok analyzes it
+
+**Demo narrative:** "This is me practicing last week. Let's see what Grok catches."
 
 ---
 
-## Grok Integration (Why This Must Be Grok)
+## Why This Must Be Grok (Not ChatGPT, Not Claude)
 
-### Function Calling as Lesson Orchestration
+### 1. Remote MCP Tools (Only Grok Has This)
+
+Grok's Remote MCP Tools allow Grok to call external servers autonomously. This is what makes the architecture possible:
+
+```python
+tools=[
+    mcp(server_url="https://crescendai.modal.run/mcp"),
+    x_search(),      # Real-time X integration
+]
+```
+
+### 2. Real-Time X Integration (Unique to Grok)
+
+Mid-lesson, Grok can search X for:
+
+- What pianists are saying about Pathétique right now
+- Tips from piano teachers on specific techniques  
+- Famous interpretations and discussions
+
+> "I just checked X—there's a thread from @PianoPedagogy about this exact passage. They recommend practicing the left hand octaves separately before combining."
+
+### 3. MCP Tool Calling as Lesson Orchestration
 
 Grok doesn't just respond—it *conducts* the lesson by calling tools:
 
-| Function | What It Does | Example Trigger |
-|----------|--------------|-----------------|
-| `play_reference` | Plays the correct version of a specific passage | "Let me show you how measure 5 should sound..." |
-| `highlight_measures` | Visually marks problem areas on piano roll | "Watch the red sections—that's where we need work" |
-| `set_tempo` | Adjusts practice tempo | "Let's slow this down to 60% speed" |
-| `play_comparison` | A/B comparison of student vs. reference | "Hear the difference in the left hand?" |
-| `suggest_exercise` | Recommends targeted practice | "Try this five-finger pattern to build evenness" |
+| MCP Tool | What It Does | Grok Trigger |
+|----------|--------------|--------------|
+| `start_lesson` | Links session, loads piece | "Start my piano lesson, session A7X2" |
+| `analyze_performance` | Transcribes audio, analyzes, returns metrics + teaching hints | "Analyze my performance" |
+| `play_reference` | Plays correct version on companion | "Let me show you how it should sound..." |
+| `highlight_measures` | Marks problem areas on piano roll | "Watch the red sections..." |
+| `play_comparison` | A/B student vs. reference | "Hear the difference?" |
+| `set_practice_tempo` | Adjusts playback speed | "Try it at 60% tempo" |
+| `get_measure_detail` | Deep dive on specific measure | "What's wrong with measure 47?" |
 
-This makes Grok the **intelligent orchestrator**, not a text formatter.
+### 4. Guided Personality Through Tool Responses
 
-### Personality as Differentiator
+Our tools don't just return data—they return **teaching hints** that shape Grok's response:
 
-The teaching persona is distinctively Grok:
+```json
+{
+  "analysis": {
+    "overall_accuracy": 0.84,
+    "tempo_stability": 0.71,
+    "measures_with_issues": [...]
+  },
+  "teaching_context": {
+    "lead_with": "The dramatic opening chords show real commitment to the character of the piece",
+    "primary_focus": "Tempo rushing in the sixteenth-note passages (measures 43-51)",
+    "analogy_suggestion": "The left hand octaves are like a heartbeat—steady, inevitable, grounding the drama above",
+    "personality_note": "Be encouraging but direct. This student can handle specific criticism."
+  }
+}
+```
 
-- Leads with encouragement, but doesn't sugarcoat
-- Makes musical concepts accessible through unexpected analogies
-- Occasionally breaks the fourth wall ("Yes, I'm an AI, but I've listened to more Beethoven than anyone you know")
-- Culturally aware—can reference trending performances, famous recordings, pianist memes
+Grok receives these hints and naturally incorporates them, maintaining its wit while following pedagogically sound guidance.
 
-**Example feedback:**
-> "Right, so here's the thing about measure 3—you're playing it like you're late for a bus. Beethoven wrote those sixteenth notes to *breathe*, not sprint. Listen to how Barenboim handles it... [plays reference]. See? The rubato isn't random; it's gravitational. Try again at 70% tempo, and pretend you're being paid by the hour."
+---
+
+## Example Conversation
+
+> **User:** "Hey Grok, start my piano lesson. My session code is A7X2. I'm working on the Pathétique."
+>
+> **Grok:** *[calls start_lesson]* "Got it—I'm connected to your companion app and I've loaded the Pathétique, third movement. Beethoven's angriest rondo. Select your recording and tell me when you're ready for feedback."
+>
+> *[User selects amateur recording in companion app]*
+>
+> **User:** "Analyze my performance."
+>
+> **Grok:** *[calls analyze_performance, receives analysis + teaching hints]*
+>
+> "Alright, let's dig in. First—those opening chords? You're committing to them. That's the right instinct; this piece demands drama, not politeness.
+>
+> Now, measures 43 through 51... *[calls highlight_measures]* ...see the red section on your screen? You're rushing. The sixteenth notes are tumbling over each other like they're late for something. But here's the thing—the left hand octaves are supposed to be the heartbeat underneath. Steady. Inevitable. When you rush, the heartbeat goes into arrhythmia.
+>
+> *[calls play_comparison]*
+>
+> Listen to this comparison. Your version, then the reference... Hear how the reference keeps that pulse locked? Try it at 60% tempo. *[calls set_practice_tempo]* I've slowed it down on your app. Play just measures 43-51, and pretend your left hand is a metronome that doesn't know your right hand exists."
+>
+> **User:** "Why do I always rush there?"
+>
+> **Grok:** "Probably because the right hand pattern is hard and your brain is trying to 'get through it.' Classic survival instinct. But Beethoven isn't trying to kill you—he's trying to build tension. The slower you play that passage, the more dramatic it becomes. Counterintuitive, right?"
 
 ---
 
@@ -91,6 +211,7 @@ The teaching persona is distinctively Grok:
 - Motivated enough to record and analyze their practice
 - Sophisticated enough to appreciate nuanced feedback
 - Underserved by gamified apps designed for beginners
+- Comfortable with voice assistants
 
 ---
 
@@ -98,32 +219,39 @@ The teaching persona is distinctively Grok:
 
 | Metric | Target |
 |--------|--------|
-| End-to-end latency (upload → first token) | <4 seconds |
+| Session linking (code → connected) | <3 seconds |
+| Analysis completion (select → first token) | <5 seconds |
 | Demo completion without failure | 100% (with fallbacks) |
-| Judge "wow" reaction | Streaming feedback + function call in action |
-| Memorable pitch | Personal story + personality demo |
+| Judge "wow" moment | Grok calling tools + companion reacting live |
+| "Why Grok?" answer | MCP demo + X integration + personality |
 
 ---
 
 ## The Pitch (90 seconds)
 
-> "I spent four years at Berklee College of Music and performed over a hundred classical piano concerts. I know what it's like to practice alone for hours, unsure if you're reinforcing mistakes.
+> "I spent four years at Berklee College of Music and performed over a hundred classical concerts. I know what it's like to practice alone for hours, unsure if you're reinforcing mistakes.
 >
-> CrescendAI is the teacher I wished I had.
+> What if you could just talk to your teacher?
 >
-> *[Plays student recording—notes appear on piano roll]*
+> *[Shows phone with Grok, points to laptop with companion app showing session code]*
 >
-> Watch what happens. Grok analyzes the performance in real-time, catches the rushed tempo in measure 3, and doesn't just tell me—it *shows* me.
+> 'Hey Grok, start my piano lesson. My session code is PIANO.'
 >
-> *[Grok streams: "Ah, measure 3. You're treating those sixteenth notes like they owe you money..."]*
+> *[Companion app shows: ✅ Connected to Grok]*
 >
-> *[Grok calls function: plays reference passage]*
+> This is me practicing the Pathétique last week. Let's see what Grok finds.
 >
-> See that? Grok orchestrates the entire lesson—playing examples, highlighting problems, suggesting exercises. It's not a chatbot bolted onto a music app. It's an AI that teaches like a human would, with personality and patience.
+> 'Analyze my performance.'
 >
-> *[Shows professional recording analysis for contrast]*
+> *[Grok streams response, companion highlights measures 43-51 in red]*
 >
-> That's CrescendAI. Every student deserves a teacher this attentive."
+> See that? Grok called our analysis tools, found where I was rushing, and is coaching me through it—with personality, with specifics, with actual playback.
+>
+> *[Grok calls play_comparison, companion plays A/B]*
+>
+> It's orchestrating the entire lesson. And because it's Grok, it can pull tips from X in real-time. No other AI can do that.
+>
+> That's CrescendAI. The first AI piano teacher that lives inside your conversation."
 
 ---
 
@@ -141,13 +269,31 @@ The teaching persona is distinctively Grok:
 
 ---
 
-## Out of Scope (For Hackathon)
+## Scope
 
-- Real-time MIDI input (no hardware available)
-- Multiple piece support (Für Elise only)
-- User accounts / progress persistence
-- Mobile app
-- Voice output (stretch goal only)
+### In Scope (Hackathon MVP)
+
+- Voice-driven lesson flow via Grok + MCP
+- Companion web app with session linking, recording selection, piano roll
+- MCP server with core tools (start_lesson, analyze, playback, highlight)
+- Pre-recorded audio files (amateur + professional)
+- Pre-transcribed MIDI fallback (if live transcription fails)
+- Teaching hints in tool responses for guided personality
+- Single piece: Pathétique Sonata, 3rd Movement
+
+### Out of Scope
+
+- Live audio recording (using pre-recorded files)
+- Native Grok audio input (waiting on xAI)
+- Multiple piece support
+- User accounts / progress persistence  
+- Mobile companion app
+
+### Stretch Goals
+
+- X search integration demo (if Grok naturally uses it)
+- Additional tool: `suggest_exercise` with specific drills
+- Voice output from Grok
 
 ---
 
@@ -155,8 +301,24 @@ The teaching persona is distinctively Grok:
 
 | Risk | Mitigation |
 |------|------------|
-| Audio transcription fails | Pre-transcribed MIDI files as instant fallback |
-| Grok API timeout | Cached example responses ready to display |
-| Cold start delay | Pre-warming protocol, min_containers=2 |
+| MCP tools don't work as expected | Day 1 proof-of-concept; have direct API fallback |
+| Session linking confuses judges | Pre-generate memorable code (PIANO); practice the flow |
+| Audio transcription fails | Pre-transcribed MIDI files load instantly |
+| Grok ignores teaching hints | Hints are suggestions; Grok's default personality is good |
+| Companion ↔ MCP latency | WebSocket connection; pre-warm before demo |
+| Cold start delay | Modal min_containers=2, pre-warming protocol |
 | Demo nerves | Pre-recorded video backup at 720p |
-| "Why Grok?" question | Function calling demo + personality contrast prepared |
+| WiFi issues | Phone hotspot ready |
+
+---
+
+## Audio & MIDI Assets Checklist
+
+| Asset | Format | Purpose |
+|-------|--------|---------|
+| `pathetique_amateur.mp3` | MP3/WAV | Jai's practice recording with authentic mistakes |
+| `pathetique_amateur.mid` | MIDI | Pre-transcribed fallback |
+| `pathetique_professional.mp3` | MP3/WAV | Clean reference performance |
+| `pathetique_professional.mid` | MIDI | Pre-transcribed fallback |
+| `pathetique_reference.mid` | MIDI | Ground truth score for alignment |
+| `pathetique_reference.xml` | MusicXML | Score data for measure mapping |
