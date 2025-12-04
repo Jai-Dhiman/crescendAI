@@ -1,3 +1,4 @@
+import math
 import torch
 import torch.nn as nn
 from pathlib import Path
@@ -10,20 +11,20 @@ class MIDIBertEncoder(nn.Module):
 
     Architecture:
     - Embedding layer for each OctupleMIDI dimension
-    - Transformer encoder (6 layers, 256 hidden dim)
-    - Positional encoding
+    - Transformer encoder (12 layers, 768 hidden dim to match MidiBERT)
+    - Positional encoding with embedding scaling
     - Output: Event-level embeddings
 
     Input: OctupleMIDI tokens [batch, events, 8]
-    Output: Event embeddings [batch, events, 256]
+    Output: Event embeddings [batch, events, 768]
     """
 
     def __init__(
         self,
         vocab_sizes: Optional[dict] = None,
-        hidden_size: int = 256,
-        num_layers: int = 6,
-        num_heads: int = 8,
+        hidden_size: int = 768,  # Increased to match MidiBERT
+        num_layers: int = 12,    # Increased to match MidiBERT
+        num_heads: int = 12,     # Increased to match MidiBERT
         dropout: float = 0.1,
         max_seq_length: int = 2048,
         pretrained_checkpoint: Optional[Union[str, Path]] = None,
@@ -49,7 +50,7 @@ class MIDIBertEncoder(nn.Module):
                 'beat': 16,
                 'position': 16,
                 'pitch': 88,  # 88 piano keys
-                'duration': 128,
+                'duration': 64,  # 64 bins at 60-tick intervals (like CP tokenization)
                 'velocity': 128,
                 'instrument': 1,
                 'bar': 512,
@@ -167,6 +168,10 @@ class MIDIBertEncoder(nn.Module):
         # Project to hidden size
         embeddings = self.embed_projection(combined)
 
+        # Scale embeddings by sqrt(hidden_size) before adding positional encoding
+        # This is standard practice in transformers (Vaswani et al., 2017)
+        embeddings = embeddings * math.sqrt(self.hidden_size)
+
         # Add positional encoding
         seq_len = num_events
         if seq_len <= self.max_seq_length:
@@ -279,7 +284,8 @@ class MIDIBertEncoder(nn.Module):
 
 if __name__ == "__main__":
     print("MIDI encoder module loaded successfully")
-    print("PRODUCTION: MIDIBert-style transformer encoder only")
+    print("PRODUCTION: MIDIBert-style transformer encoder")
     print("- OctupleMIDI tokenization (8-tuple per event)")
-    print("- Transformer encoder (6 layers, 256 hidden)")
-    print("- Positional encoding for temporal awareness")
+    print("- Transformer encoder (12 layers, 768 hidden to match MidiBERT)")
+    print("- Positional encoding with embedding scaling")
+    print("- Duration quantization: 64 bins at 60-tick intervals")

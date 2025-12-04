@@ -394,16 +394,17 @@ def validate(
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Pre-train MIDI encoder on GiantMIDI-Piano")
+    parser = argparse.ArgumentParser(description="Pre-train MIDI encoder on GiantMIDI-Piano or MAESTRO")
     parser.add_argument("--midi_dir", type=str, required=True, help="Directory containing MIDI files")
     parser.add_argument("--output_dir", type=str, default="checkpoints/midi_pretrain", help="Output directory")
     parser.add_argument("--epochs", type=int, default=20, help="Number of epochs")
-    parser.add_argument("--batch_size", type=int, default=64, help="Batch size")
+    parser.add_argument("--batch_size", type=int, default=32, help="Batch size (reduced for larger model)")
     parser.add_argument("--learning_rate", type=float, default=1e-4, help="Learning rate")
     parser.add_argument("--warmup_steps", type=int, default=1000, help="Warmup steps")
     parser.add_argument("--max_seq_length", type=int, default=512, help="Maximum sequence length")
-    parser.add_argument("--hidden_size", type=int, default=256, help="Hidden size")
-    parser.add_argument("--num_layers", type=int, default=6, help="Number of transformer layers")
+    parser.add_argument("--hidden_size", type=int, default=768, help="Hidden size (768 to match MidiBERT)")
+    parser.add_argument("--num_layers", type=int, default=12, help="Number of transformer layers (12 to match MidiBERT)")
+    parser.add_argument("--num_heads", type=int, default=12, help="Number of attention heads (12 to match MidiBERT)")
     parser.add_argument("--mask_prob", type=float, default=0.15, help="Masking probability")
     parser.add_argument("--val_split", type=float, default=0.1, help="Validation split")
     parser.add_argument("--limit_files", type=int, default=None, help="Limit number of files (for debugging)")
@@ -478,12 +479,12 @@ def main():
         pin_memory=True,
     )
 
-    # Create encoder
+    # Create encoder (using args for all dimensions)
     encoder = MIDIBertEncoder(
         vocab_sizes=tokenizer.vocab_sizes,
         hidden_size=args.hidden_size,
         num_layers=args.num_layers,
-        num_heads=8,
+        num_heads=args.num_heads,
         dropout=0.1,
         max_seq_length=args.max_seq_length,
     )

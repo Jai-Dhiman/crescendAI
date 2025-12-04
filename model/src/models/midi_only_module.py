@@ -1,10 +1,11 @@
 """
 MIDI-only Lightning Module for piano performance evaluation.
 
-Simplified architecture for hackathon:
-- MIDI Encoder (MIDIBert-style)
-- BiLSTM Aggregation
-- Multi-task Head with uncertainty weighting
+Architecture aligned with PercePiano reference:
+- MIDIBert Encoder (12 layers, 768 hidden to match MidiBERT)
+- PercePiano Self-Attention Aggregation
+- Simplified 2-layer classification head
+- Post-hoc calibration support
 """
 
 import torch
@@ -12,10 +13,12 @@ import torch.nn as nn
 import pytorch_lightning as pl
 from typing import Dict, List, Optional, Tuple
 import numpy as np
+from torch.utils.data import DataLoader
 
 from .midi_encoder import MIDIBertEncoder
-from .aggregation import HierarchicalAggregator
-from .mtl_head import MultiTaskHead
+from .aggregation import HierarchicalAggregator, PercePianoSelfAttention
+from .mtl_head import MultiTaskHead, PercePianoHead
+from .calibration import CalibrationWrapper, IsotonicCalibrator, TemperatureScaling
 
 
 # All 19 PercePiano dimensions (matching reference implementation)
@@ -46,31 +49,37 @@ class MIDIOnlyModule(pl.LightningModule):
     """
     PyTorch Lightning module for MIDI-only piano performance evaluation.
 
-    Architecture:
-        MIDI tokens -> MIDIBert Encoder -> BiLSTM Aggregation -> MTL Head -> 8 Scores
+    Architecture aligned with PercePiano reference:
+        MIDI tokens -> MIDIBert Encoder (768d, 12L) -> Self-Attention Aggregation -> 2-layer Head -> 19 Scores
 
-    Uses uncertainty-weighted loss for automatic task balancing.
+    Supports post-hoc calibration for fixing systematic bias (positive Pearson r, negative R^2).
     """
 
     def __init__(
         self,
-        # Encoder params
-        midi_hidden_dim: int = 256,
-        midi_num_layers: int = 6,
-        midi_num_heads: int = 8,
-        max_seq_length: int = 1024,
-        # Aggregation params
+        # Encoder params (defaults match MidiBERT)
+        midi_hidden_dim: int = 768,
+        midi_num_layers: int = 12,
+        midi_num_heads: int = 12,
+        max_seq_length: int = 512,
+        # Aggregation params (PercePiano Self-Attention)
+        attention_da: int = 128,
+        attention_r: int = 4,
+        # MTL head params (simplified PercePiano-style)
+        head_hidden_dim: int = 256,
+        # Training params (matching PercePiano)
+        learning_rate: float = 1e-5,  # PercePiano uses 1e-5
+        weight_decay: float = 0.01,
+        dropout: float = 0.1,
+        # Architecture selection
+        use_percepiano_architecture: bool = True,  # Use PercePiano-style components
+        # Legacy params for backward compatibility
         lstm_hidden: int = 256,
         lstm_layers: int = 2,
         attention_heads: int = 4,
-        # MTL head params
         shared_hidden: int = 256,
         task_hidden: int = 128,
-        # Training params
-        learning_rate: float = 1e-4,
-        weight_decay: float = 0.01,
         warmup_steps: int = 500,
-        dropout: float = 0.1,
         # Task params
         dimensions: Optional[List[str]] = None,
     ):
@@ -79,8 +88,9 @@ class MIDIOnlyModule(pl.LightningModule):
 
         self.dimensions = dimensions or PERCEPIANO_DIMENSIONS
         self.num_dimensions = len(self.dimensions)
+        self.use_percepiano_architecture = use_percepiano_architecture
 
-        # MIDI Encoder
+        # MIDI Encoder (12 layers, 768 hidden to match MidiBERT)
         self.midi_encoder = MIDIBertEncoder(
             hidden_size=midi_hidden_dim,
             num_layers=midi_num_layers,
@@ -89,28 +99,48 @@ class MIDIOnlyModule(pl.LightningModule):
             max_seq_length=max_seq_length,
         )
 
-        # Aggregation: BiLSTM + Attention
-        self.aggregator = HierarchicalAggregator(
-            input_dim=midi_hidden_dim,
-            lstm_hidden=lstm_hidden,
-            lstm_layers=lstm_layers,
-            attention_heads=attention_heads,
-            dropout=dropout,
-            output_dim=shared_hidden,
-        )
+        if use_percepiano_architecture:
+            # PercePiano-style: Self-Attention Aggregation
+            self.aggregator = PercePianoSelfAttention(
+                input_dim=midi_hidden_dim,
+                da=attention_da,
+                r=attention_r,
+            )
+            aggregator_output_dim = attention_r * midi_hidden_dim  # r * D
 
-        # Multi-task head with uncertainty
-        self.mtl_head = MultiTaskHead(
-            input_dim=shared_hidden,
-            shared_hidden=shared_hidden,
-            task_hidden=task_hidden,
-            dimensions=self.dimensions,
-            dropout=dropout,
-        )
+            # PercePiano-style: Simple 2-layer head
+            self.mtl_head = PercePianoHead(
+                input_dim=aggregator_output_dim,
+                num_dims=self.num_dimensions,
+                hidden_dim=head_hidden_dim,
+            )
+        else:
+            # Legacy: BiLSTM + Attention Aggregation
+            self.aggregator = HierarchicalAggregator(
+                input_dim=midi_hidden_dim,
+                lstm_hidden=lstm_hidden,
+                lstm_layers=lstm_layers,
+                attention_heads=attention_heads,
+                dropout=dropout,
+                output_dim=shared_hidden,
+            )
 
-        # Learnable log-variance for uncertainty-weighted loss
-        # Initialize to 0 (sigma=1 for all tasks)
+            # Legacy: Multi-task head with uncertainty
+            self.mtl_head = MultiTaskHead(
+                input_dim=shared_hidden,
+                shared_hidden=shared_hidden,
+                task_hidden=task_hidden,
+                dimensions=self.dimensions,
+                dropout=dropout,
+            )
+
+        # Learnable log-variance for uncertainty-weighted loss (kept for API compatibility)
         self.log_vars = nn.Parameter(torch.zeros(self.num_dimensions))
+
+        # Calibration support (initialized after training)
+        self.isotonic_calibrator: Optional[IsotonicCalibrator] = None
+        self.temperature_scaling: Optional[TemperatureScaling] = None
+        self.calibration_method: Optional[str] = None
 
         # Metrics storage for logging
         self.training_step_outputs = []
@@ -276,35 +306,18 @@ class MIDIOnlyModule(pl.LightningModule):
         self.training_step_outputs.clear()
 
     def configure_optimizers(self):
+        """
+        Configure optimizer (constant LR matching PercePiano reference).
+
+        PercePiano uses constant LR of 1e-5 without any scheduler.
+        """
         optimizer = torch.optim.AdamW(
             self.parameters(),
             lr=self.hparams.learning_rate,
             weight_decay=self.hparams.weight_decay,
         )
-
-        # Get total steps
-        total_steps = self.trainer.estimated_stepping_batches
-
-        # OneCycleLR requires at least 2 steps for warmup, fall back to constant LR
-        if total_steps < 10:
-            return optimizer
-
-        # Linear warmup + cosine decay
-        scheduler = torch.optim.lr_scheduler.OneCycleLR(
-            optimizer,
-            max_lr=self.hparams.learning_rate,
-            total_steps=total_steps,
-            pct_start=0.1,  # 10% warmup
-            anneal_strategy="cos",
-        )
-
-        return {
-            "optimizer": optimizer,
-            "lr_scheduler": {
-                "scheduler": scheduler,
-                "interval": "step",
-            },
-        }
+        # No scheduler - constant LR matching PercePiano reference
+        return optimizer
 
     def predict_step(self, batch: Dict, batch_idx: int) -> Dict[str, torch.Tensor]:
         """Inference step for prediction."""
@@ -359,3 +372,125 @@ class MIDIOnlyModule(pl.LightningModule):
                 }
 
             return results
+
+    def calibrate(self, val_loader: DataLoader, method: str = 'both') -> Dict[str, float]:
+        """
+        Fit post-hoc calibration on validation set.
+
+        This should be called after training to fix systematic bias
+        (positive Pearson r but negative R^2).
+
+        Args:
+            val_loader: Validation data loader
+            method: 'temperature', 'isotonic', or 'both'
+
+        Returns:
+            Dictionary with calibration results (R^2 before/after)
+        """
+        self.eval()
+        device = next(self.parameters()).device
+
+        # Collect all predictions and targets
+        all_preds = []
+        all_targets = []
+
+        with torch.no_grad():
+            for batch in val_loader:
+                midi_tokens = batch['midi_tokens'].to(device)
+                attention_mask = batch['attention_mask'].to(device)
+                targets = batch['scores'].to(device)
+
+                outputs = self(midi_tokens, attention_mask)
+                all_preds.append(outputs['predictions'])
+                all_targets.append(targets)
+
+        preds = torch.cat(all_preds, dim=0)
+        targets = torch.cat(all_targets, dim=0)
+
+        # Convert to numpy for metrics
+        preds_np = preds.cpu().numpy()
+        targets_np = targets.cpu().numpy()
+
+        results = {}
+
+        # Baseline metrics
+        results['baseline_r2'] = self._compute_mean_r2(preds_np, targets_np)
+        results['baseline_mse'] = np.mean((preds_np - targets_np) ** 2)
+
+        # Fit isotonic regression
+        if method in ['isotonic', 'both']:
+            self.isotonic_calibrator = IsotonicCalibrator(num_dims=self.num_dimensions)
+            mse_before, mse_after = self.isotonic_calibrator.fit(preds_np, targets_np)
+            iso_preds = self.isotonic_calibrator.calibrate(preds_np)
+            results['isotonic_r2'] = self._compute_mean_r2(iso_preds, targets_np)
+            results['isotonic_mse'] = mse_after
+
+        # Fit temperature scaling
+        if method in ['temperature', 'both']:
+            self.temperature_scaling = TemperatureScaling().to(device)
+            # Approximate logits from sigmoid outputs
+            eps = 1e-7
+            approx_logits = torch.log(preds.clamp(eps, 1-eps) / (1 - preds.clamp(eps, 1-eps)))
+            ts_mse = self.temperature_scaling.fit(approx_logits, targets)
+            ts_preds = self.temperature_scaling(approx_logits).detach().cpu().numpy()
+            results['temperature_r2'] = self._compute_mean_r2(ts_preds, targets_np)
+            results['temperature_mse'] = ts_mse
+            results['temperature_value'] = self.temperature_scaling.get_temperature()
+
+        # Select best method
+        if method == 'both':
+            if results.get('isotonic_r2', -float('inf')) > results.get('temperature_r2', -float('inf')):
+                self.calibration_method = 'isotonic'
+            else:
+                self.calibration_method = 'temperature'
+            results['selected_method'] = self.calibration_method
+        elif method == 'isotonic':
+            self.calibration_method = 'isotonic'
+        else:
+            self.calibration_method = 'temperature'
+
+        return results
+
+    def predict_calibrated(
+        self,
+        midi_tokens: torch.Tensor,
+        attention_mask: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor:
+        """
+        Get calibrated predictions.
+
+        Args:
+            midi_tokens: [batch, seq_len, 8] OctupleMIDI tokens
+            attention_mask: Optional attention mask
+
+        Returns:
+            Calibrated predictions [batch, num_dims] in [0, 1]
+
+        Raises:
+            RuntimeError: If calibrate() has not been called
+        """
+        if self.calibration_method is None:
+            raise RuntimeError("Model has not been calibrated. Call calibrate() first.")
+
+        self.eval()
+        with torch.no_grad():
+            outputs = self(midi_tokens, attention_mask)
+            preds = outputs['predictions']
+
+            if self.calibration_method == 'isotonic':
+                return self.isotonic_calibrator.calibrate_torch(preds)
+            else:
+                # Temperature scaling
+                eps = 1e-7
+                logits = torch.log(preds.clamp(eps, 1-eps) / (1 - preds.clamp(eps, 1-eps)))
+                return self.temperature_scaling(logits)
+
+    def _compute_mean_r2(self, preds: np.ndarray, targets: np.ndarray) -> float:
+        """Compute mean R^2 across all dimensions."""
+        r2_scores = []
+        for dim in range(self.num_dimensions):
+            ss_res = np.sum((targets[:, dim] - preds[:, dim]) ** 2)
+            ss_tot = np.sum((targets[:, dim] - np.mean(targets[:, dim])) ** 2) + 1e-8
+            r2 = 1 - ss_res / ss_tot
+            r2_scores.append(r2)
+        return np.mean(r2_scores)

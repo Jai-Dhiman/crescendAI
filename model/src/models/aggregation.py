@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from typing import Optional, Tuple
 
 
@@ -131,6 +132,77 @@ class HierarchicalAggregator(nn.Module):
             return aggregated, attn_weights
         else:
             return aggregated, None
+
+    def get_output_dim(self) -> int:
+        """Get output dimension."""
+        return self.output_dim
+
+
+class PercePianoSelfAttention(nn.Module):
+    """
+    Self-attention aggregation matching PercePiano exactly.
+
+    Uses structured self-attention (Lin et al., 2017) to aggregate
+    sequence embeddings into a fixed-size representation.
+
+    Args:
+        input_dim: Input embedding dimension (from MIDI encoder)
+        da: Attention hidden dimension
+        r: Number of attention heads (hops)
+    """
+
+    def __init__(self, input_dim: int = 768, da: int = 128, r: int = 4):
+        super().__init__()
+        self.input_dim = input_dim
+        self.da = da
+        self.r = r
+
+        # Attention weights (no bias, matching PercePiano)
+        self.ws1 = nn.Linear(input_dim, da, bias=False)
+        self.ws2 = nn.Linear(da, r, bias=False)
+
+        # Output dimension is r * input_dim
+        self.output_dim = r * input_dim
+
+    def forward(
+        self,
+        h: torch.Tensor,
+        mask: Optional[torch.Tensor] = None,
+        return_attention: bool = False,
+    ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
+        """
+        Forward pass through self-attention aggregation.
+
+        Args:
+            h: Input embeddings [batch, seq_len, input_dim]
+            mask: Optional attention mask [batch, seq_len] (unused, for API compatibility)
+            return_attention: Whether to return attention weights
+
+        Returns:
+            Tuple of:
+                - aggregated: Aggregated features [batch, r * input_dim]
+                - attention_weights: Attention weights if requested [batch, r, seq_len]
+        """
+        # Compute attention scores
+        # ws1: [B, T, D] -> [B, T, da]
+        # ws2: [B, T, da] -> [B, T, r]
+        attn_scores = self.ws2(torch.tanh(self.ws1(h)))  # [B, T, r]
+
+        # Softmax over sequence dimension
+        attn_mat = F.softmax(attn_scores, dim=1)  # [B, T, r]
+
+        # Transpose for batch matrix multiplication
+        attn_mat = attn_mat.permute(0, 2, 1)  # [B, r, T]
+
+        # Weighted sum: [B, r, T] @ [B, T, D] -> [B, r, D]
+        m = torch.bmm(attn_mat, h)
+
+        # Flatten to [B, r * D]
+        out = m.view(m.size(0), -1)
+
+        if return_attention:
+            return out, attn_mat
+        return out, None
 
     def get_output_dim(self) -> int:
         """Get output dimension."""

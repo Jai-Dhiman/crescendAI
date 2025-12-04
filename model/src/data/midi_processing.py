@@ -30,7 +30,7 @@ class OctupleMIDITokenizer:
             'beat': 16,  # up to 16 beats per measure
             'position': 16,  # 16 subdivisions per beat
             'pitch': max_pitch - min_pitch + 1,  # 88 piano keys
-            'duration': 128,  # quantized durations
+            'duration': 64,  # 64 bins at 60-tick intervals (like CP tokenization)
             'velocity': 128,  # MIDI velocity range
             'instrument': 1,  # piano only
             'bar': 512,  # up to 512 measures
@@ -65,9 +65,11 @@ class OctupleMIDITokenizer:
                 bar = int(beat // 4)  # Assuming 4/4 time
                 beat_in_bar = beat % 4
 
-                # Quantize duration
-                duration_ticks = int((note.end - note.start) * 100)  # Rough quantization
-                duration_ticks = min(duration_ticks, 127)
+                # Quantize duration using 60-tick intervals (like CP tokenization)
+                # 480 ticks per beat at 120 BPM, 60 ticks = 1/8 of a beat
+                duration_seconds = note.end - note.start
+                duration_ticks = int(duration_seconds * 480 / 60)  # 60-tick resolution
+                duration_ticks = min(max(duration_ticks, 0), 63)  # 64 bins (0-63)
 
                 # Remap pitch from MIDI range (21-108) to vocab range (0-87)
                 pitch_remapped = note.pitch - self.min_pitch

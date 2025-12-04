@@ -102,9 +102,9 @@ class PercePianoDataset(Dataset):
             dtype=torch.float32,
         )
 
-        # Create attention mask (1 for real tokens, 0 for padding)
-        # Padding is all zeros, real tokens have non-zero pitch (column 3) or velocity (column 5)
-        attention_mask = ((midi_tokens[:, 3] != 0) | (midi_tokens[:, 5] != 0)).float()
+        # Create attention mask (all-ones for sequence classification, matching PercePiano)
+        # PercePiano uses uniform attention over all positions
+        attention_mask = torch.ones(self.max_seq_length, dtype=torch.float32)
 
         return {
             "midi_tokens": midi_tokens,

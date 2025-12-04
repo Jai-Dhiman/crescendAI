@@ -148,6 +148,60 @@ class MultiTaskHead(nn.Module):
         return torch.exp(0.5 * self.log_vars)
 
 
+class PercePianoHead(nn.Module):
+    """
+    Simple 2-layer classifier matching PercePiano exactly.
+
+    This is a simplified classification head without uncertainty estimation,
+    designed to match the PercePiano reference implementation.
+
+    Args:
+        input_dim: Input dimension from aggregator (typically r * encoder_dim)
+        num_dims: Number of output dimensions (19 for PercePiano)
+        hidden_dim: Hidden layer dimension
+    """
+
+    def __init__(
+        self,
+        input_dim: int = 3072,  # 4 * 768 = r * encoder_dim
+        num_dims: int = 19,
+        hidden_dim: int = 256,
+    ):
+        super().__init__()
+        self.input_dim = input_dim
+        self.num_dims = num_dims
+
+        self.classifier = nn.Sequential(
+            nn.Linear(input_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, num_dims),
+        )
+
+    def forward(
+        self,
+        features: torch.Tensor,
+        return_uncertainties: bool = False,
+    ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
+        """
+        Forward pass through classifier.
+
+        Args:
+            features: Aggregated features [batch, input_dim]
+            return_uncertainties: Ignored (for API compatibility)
+
+        Returns:
+            Tuple of:
+                - scores: Predicted scores [batch, num_dims] (raw logits)
+                - uncertainties: None (not supported)
+        """
+        scores = self.classifier(features)
+        return scores, None
+
+    def get_output_dim(self) -> int:
+        """Get output dimension."""
+        return self.num_dims
+
+
 if __name__ == "__main__":
     print("Multi-task learning head module loaded successfully")
     print("- 19 dimensions (matching PercePiano)")
