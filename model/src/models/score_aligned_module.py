@@ -382,6 +382,34 @@ class ScoreAlignedModule(pl.LightningModule):
     def on_train_epoch_end(self):
         self.training_step_outputs.clear()
 
+    def test_step(self, batch: Dict, batch_idx: int) -> Dict:
+        """Test step - same as validation step."""
+        outputs = self(
+            batch["midi_tokens"],
+            batch["score_note_features"],
+            batch["score_global_features"],
+            batch["score_tempo_curve"],
+            batch.get("midi_attention_mask"),
+            batch.get("score_attention_mask"),
+        )
+        loss, per_dim_losses = self.compute_loss(
+            outputs["predictions"], batch["scores"], outputs["log_vars"]
+        )
+
+        self.log("test/loss", loss)
+        for dim, dim_loss in per_dim_losses.items():
+            self.log(f"test/loss_{dim}", dim_loss)
+
+        return {
+            "test_loss": loss.detach(),
+            "predictions": outputs["predictions"].detach(),
+            "targets": batch["scores"].detach(),
+        }
+
+    def on_test_epoch_end(self):
+        """Compute test metrics at end of epoch."""
+        pass  # Metrics logged per-batch in test_step
+
     def configure_optimizers(self):
         """Configure optimizer with separate LR for MIDI encoder and rest."""
         # Group parameters
