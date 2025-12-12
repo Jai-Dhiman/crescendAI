@@ -49,7 +49,12 @@ class PeriodicCheckpointSync(pl.Callback):
         self._rclone_available = None
 
     def _check_rclone(self) -> bool:
-        """Check if rclone is available and configured."""
+        """
+        Check if rclone is available and configured.
+
+        Note: Does NOT raise exception if rclone unavailable - sync is optional.
+        However, failures are logged explicitly per fail-fast principle.
+        """
         if self._rclone_available is not None:
             return self._rclone_available
 
@@ -61,22 +66,40 @@ class PeriodicCheckpointSync(pl.Callback):
                 timeout=10,
             )
             self._rclone_available = 'gdrive:' in result.stdout
-            if not self._rclone_available and self.verbose:
-                print("WARNING: rclone 'gdrive' remote not configured - checkpoint sync disabled")
-        except (subprocess.TimeoutExpired, FileNotFoundError):
+            if not self._rclone_available:
+                # Explicit warning - make it clear sync is disabled
+                print("[CHECKPOINT SYNC] WARNING: rclone 'gdrive' remote not configured")
+                print("[CHECKPOINT SYNC] Checkpoints will NOT be backed up to GDrive!")
+                print("[CHECKPOINT SYNC] To enable: rclone config")
+        except subprocess.TimeoutExpired:
             self._rclone_available = False
-            if self.verbose:
-                print("WARNING: rclone not available - checkpoint sync disabled")
+            print("[CHECKPOINT SYNC] WARNING: rclone timed out checking remotes")
+            print("[CHECKPOINT SYNC] Checkpoints will NOT be backed up!")
+        except FileNotFoundError:
+            self._rclone_available = False
+            print("[CHECKPOINT SYNC] WARNING: rclone not installed")
+            print("[CHECKPOINT SYNC] Install with: brew install rclone (macOS)")
+            print("[CHECKPOINT SYNC] Checkpoints will NOT be backed up!")
 
         return self._rclone_available
 
-    def _sync(self, context: str = "periodic"):
-        """Perform the actual sync operation."""
+    def _sync(self, context: str = "periodic") -> bool:
+        """
+        Perform the actual sync operation.
+
+        Returns:
+            True if sync succeeded, False otherwise
+
+        Note: Sync failures are logged but don't raise exceptions since
+        checkpoint sync is optional and shouldn't crash training.
+        """
         if not self._check_rclone():
-            return
+            return False
 
         if not self.local_dir.exists():
-            return
+            print(f"[CHECKPOINT SYNC] WARNING: Local directory does not exist: {self.local_dir}")
+            print("[CHECKPOINT SYNC] Cannot sync non-existent checkpoints!")
+            return False
 
         timestamp = datetime.now().strftime("%H:%M:%S")
 
@@ -93,12 +116,21 @@ class PeriodicCheckpointSync(pl.Callback):
             if result.returncode == 0:
                 if self.verbose:
                     print(f"[{timestamp}] Sync complete")
+                return True
             else:
-                print(f"[{timestamp}] Sync failed: {result.stderr}")
+                # Explicit failure logging
+                print(f"[{timestamp}] [SYNC FAILED] rclone exited with code {result.returncode}")
+                print(f"[{timestamp}] [SYNC FAILED] stderr: {result.stderr}")
+                print("[CHECKPOINT SYNC] Checkpoints may not be backed up!")
+                return False
         except subprocess.TimeoutExpired:
-            print(f"[{timestamp}] Sync timed out (continuing training)")
+            print(f"[{timestamp}] [SYNC FAILED] Timed out after 120s")
+            print("[CHECKPOINT SYNC] Network may be slow - checkpoints not fully synced!")
+            return False
         except Exception as e:
-            print(f"[{timestamp}] Sync error: {e}")
+            print(f"[{timestamp}] [SYNC FAILED] Unexpected error: {type(e).__name__}: {e}")
+            print("[CHECKPOINT SYNC] Checkpoints may not be backed up!")
+            return False
 
     def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
         """Sync periodically during training."""

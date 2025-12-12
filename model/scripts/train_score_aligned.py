@@ -11,15 +11,25 @@ Supports two encoder modes:
 
 Expected improvement: R-squared from 0.18 to 0.30-0.40 (based on PercePiano paper)
 
+IMPORTANT: This script runs pre-flight validation before training.
+If validation fails, training will NOT start. This prevents wasting
+compute on runs that would produce R^2 = 0.
+
 Usage:
     # Basic training with hierarchical encoder (recommended)
     python scripts/train_score_aligned.py --data-dir data/processed --score-dir data/scores --use-hierarchical
 
-    # Training with flat encoder
-    python scripts/train_score_aligned.py --data-dir data/processed --score-dir data/scores
+    # Training with pre-trained MIDI encoder (strongly recommended)
+    python scripts/train_score_aligned.py --data-dir data/processed --score-dir data/scores \\
+        --midi-pretrained-checkpoint /tmp/checkpoints/encoder_pretrained.pt --use-hierarchical
+
+    # Skip validation (not recommended - use only for debugging)
+    python scripts/train_score_aligned.py --data-dir data/processed --score-dir data/scores --skip-validation
 
 For Thunder Compute:
-    python scripts/train_score_aligned.py --data-dir data/processed --score-dir data/scores --gpus 1 --precision 16 --use-hierarchical
+    python scripts/train_score_aligned.py --data-dir data/processed --score-dir data/scores \\
+        --midi-pretrained-checkpoint /tmp/checkpoints/encoder_pretrained.pt \\
+        --gpus 1 --precision 16 --use-hierarchical
 """
 
 import argparse
@@ -39,6 +49,10 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.data.percepiano_score_dataset import create_score_dataloaders
 from src.models.score_aligned_module import ScoreAlignedModule, ScoreAlignedModuleWithFallback
+from src.utils.preflight_validation import (
+    run_preflight_validation,
+    PreflightValidationError,
+)
 
 
 def main():
@@ -56,8 +70,24 @@ def main():
     parser.add_argument(
         "--score-dir",
         type=Path,
+        default=Path("data/scores"),
+        help="Directory containing MusicXML score files (REQUIRED for score-aligned training)",
+    )
+    parser.add_argument(
+        "--midi-pretrained-checkpoint",
+        type=Path,
         default=None,
-        help="Directory containing MusicXML score files",
+        help="Path to pre-trained MIDI encoder weights (strongly recommended)",
+    )
+    parser.add_argument(
+        "--skip-validation",
+        action="store_true",
+        help="Skip pre-flight validation (NOT recommended - use for debugging only)",
+    )
+    parser.add_argument(
+        "--require-pretrained",
+        action="store_true",
+        help="Require pre-trained encoder (fail if not provided)",
     )
 
     # Model arguments
@@ -206,15 +236,46 @@ def main():
 
     args = parser.parse_args()
 
-    # Validate paths
-    if not args.data_dir.exists():
-        print(f"Error: Data directory not found: {args.data_dir}")
-        sys.exit(1)
+    # Pre-flight validation - FAIL FAST if requirements not met
+    if not args.skip_validation:
+        print("\n" + "=" * 60)
+        print("Running pre-flight validation...")
+        print("=" * 60)
 
-    if args.score_dir and not args.score_dir.exists():
-        print(f"Warning: Score directory not found: {args.score_dir}")
-        print("Training will proceed without score alignment features")
-        args.score_dir = None
+        try:
+            run_preflight_validation(
+                data_dir=args.data_dir,
+                score_dir=args.score_dir,
+                pretrained_checkpoint=args.midi_pretrained_checkpoint,
+                require_pretrained=args.require_pretrained,
+            )
+        except PreflightValidationError as e:
+            print(f"\n[VALIDATION FAILED]\n{e}", file=sys.stderr)
+            print("\nTraining aborted. Fix the issues above and try again.")
+            print("Use --skip-validation to bypass (NOT recommended).")
+            sys.exit(1)
+
+        print("\n")
+    else:
+        print("\n[WARNING] Skipping pre-flight validation - NOT recommended!")
+        print("If training produces R^2 = 0, run validation to diagnose.\n")
+
+        # Still fail fast on missing data directory
+        if not args.data_dir.exists():
+            raise FileNotFoundError(
+                f"Data directory not found: {args.data_dir}\n"
+                "This is a critical error. Check the path and try again."
+            )
+
+        # Fail fast on missing score directory (no more silent fallback!)
+        if not args.score_dir.exists():
+            raise FileNotFoundError(
+                f"Score directory not found: {args.score_dir}\n"
+                "\n"
+                "ACTION REQUIRED for score-aligned training:\n"
+                "1. Copy local scores: cp -r data/raw/PercePiano/virtuoso/data/score_xml/ {args.score_dir}/\n"
+                "2. Or download: rclone copy gdrive:percepiano_data/PercePiano/virtuoso/data/score_xml/ {args.score_dir}/"
+            )
 
     # Create dataloaders
     print("Creating dataloaders...")
@@ -244,6 +305,7 @@ def main():
         "freeze_midi_encoder": args.freeze_midi_encoder,
         "max_seq_length": args.max_midi_seq_length,
         "use_hierarchical_encoder": args.use_hierarchical,
+        "midi_pretrained_checkpoint": args.midi_pretrained_checkpoint,
     }
 
     if args.use_fallback:

@@ -238,11 +238,21 @@ class MusicXMLParser:
         )
 
     def _get_note_duration(self, note_elem, ns: str) -> float:
-        """Get note duration in beats."""
+        """
+        Get note duration in beats.
+
+        Raises:
+            ValueError: If note has no duration element (malformed MusicXML)
+        """
         duration_elem = note_elem.find(f'{ns}duration') if ns else note_elem.find('duration')
-        if duration_elem is not None:
-            return int(duration_elem.text) / self.divisions
-        return 0.0
+        if duration_elem is None:
+            # This is a structural error in the MusicXML - notes should have duration
+            raise ValueError(
+                f"Note element has no 'duration' child. This indicates malformed MusicXML.\n"
+                f"Note pitch: {note_elem.find(f'{ns}pitch') if ns else note_elem.find('pitch')}\n"
+                "Check the MusicXML file for structural issues."
+            )
+        return int(duration_elem.text) / self.divisions
 
     def _is_chord(self, note_elem, ns: str) -> bool:
         """Check if note is part of a chord (doesn't advance time)."""

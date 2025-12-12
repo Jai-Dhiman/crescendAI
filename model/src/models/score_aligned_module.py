@@ -13,7 +13,8 @@ Following PercePiano research findings:
 import torch
 import torch.nn as nn
 import pytorch_lightning as pl
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Union
+from pathlib import Path
 import numpy as np
 from torch.utils.data import DataLoader
 
@@ -98,6 +99,8 @@ class ScoreAlignedModule(pl.LightningModule):
         freeze_midi_encoder: bool = False,
         # Hierarchical encoder option
         use_hierarchical_encoder: bool = False,
+        # Pre-trained MIDI encoder checkpoint
+        midi_pretrained_checkpoint: Optional[Union[str, Path]] = None,
     ):
         super().__init__()
         self.save_hyperparameters()
@@ -115,6 +118,22 @@ class ScoreAlignedModule(pl.LightningModule):
             dropout=dropout,
             max_seq_length=max_seq_length,
         )
+
+        # Load pre-trained MIDI encoder weights if provided
+        if midi_pretrained_checkpoint is not None:
+            pretrained_path = Path(midi_pretrained_checkpoint)
+            if not pretrained_path.exists():
+                raise FileNotFoundError(
+                    f"Pre-trained MIDI encoder checkpoint not found: {pretrained_path}\n"
+                    "\n"
+                    "ACTION REQUIRED:\n"
+                    "1. Download from GDrive:\n"
+                    "   rclone copy gdrive:crescendai_checkpoints/midi_pretrain/encoder_pretrained.pt /tmp/checkpoints/\n"
+                    "2. Or run pre-training first:\n"
+                    "   python scripts/pretrain_midi_encoder.py --midi_dir <path>"
+                )
+            self.midi_encoder.load_pretrained(pretrained_path)
+            print(f"[OK] Loaded pre-trained MIDI encoder from: {pretrained_path}")
 
         if freeze_midi_encoder:
             self.midi_encoder.freeze()

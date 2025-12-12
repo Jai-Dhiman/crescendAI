@@ -134,7 +134,7 @@ class PercePianoScoreDataset(Dataset):
         self._score_cache: Dict[str, Dict] = {}
 
         # Track score feature loading stats
-        self._score_load_stats = {"loaded": 0, "empty": 0}
+        self._score_load_stats = {"loaded": 0}
 
     def _detect_dimensions(self) -> None:
         """Detect which dimension format to use based on data."""
@@ -192,22 +192,16 @@ class PercePianoScoreDataset(Dataset):
         midi_tokens = self._load_midi(sample["midi_path"])
         midi_tokens = self._prepare_midi_tokens(midi_tokens)
 
-        # Load score alignment features
-        score_features, score_loaded = self._get_score_features(sample)
+        # Load score alignment features (raises on failure - no silent fallback)
+        score_features, _ = self._get_score_features(sample)
 
-        # Track score loading stats
-        if score_loaded:
-            self._score_load_stats["loaded"] += 1
-        else:
-            self._score_load_stats["empty"] += 1
+        # Track successful loading
+        self._score_load_stats["loaded"] += 1
 
         # Log periodically
-        total = self._score_load_stats["loaded"] + self._score_load_stats["empty"]
+        total = self._score_load_stats["loaded"]
         if total == 1 or total % 100 == 0:
-            logger.info(
-                f"Score feature loading: {self._score_load_stats['loaded']}/{total} "
-                f"loaded ({100*self._score_load_stats['loaded']/total:.1f}%)"
-            )
+            logger.info(f"Score features loaded: {total} samples")
 
         # Get scores as tensor based on format
         scores = self._get_scores_tensor(sample)
@@ -238,33 +232,68 @@ class PercePianoScoreDataset(Dataset):
     def _get_score_features(
         self, sample: Dict
     ) -> Tuple[Dict[str, torch.Tensor], bool]:
-        """Load score alignment features with tracking."""
+        """
+        Load score alignment features.
+
+        FAIL-FAST: Raises exceptions instead of returning empty features.
+        This ensures training will not silently produce R^2 = 0 due to
+        missing or invalid score data.
+
+        Raises:
+            ValueError: If sample has no score_path
+            ValueError: If score_dir is None but score_path is set
+            FileNotFoundError: If score file doesn't exist
+            RuntimeError: If score features are all zeros (invalid)
+        """
         score_path = sample.get("score_path")
-        if score_path and self.score_dir:
-            full_score_path = self.score_dir / score_path
-            if full_score_path.exists():
-                try:
-                    features = self._load_score_features(
-                        sample["midi_path"],
-                        full_score_path,
-                        sample.get("tempo", self.default_tempo),
-                    )
-                    # Verify features are not all zeros
-                    if self._features_are_valid(features):
-                        return features, True
-                    else:
-                        logger.warning(
-                            f"Score features are all zeros for {sample['name']}"
-                        )
-                        return self._get_empty_score_features(), False
-                except Exception as e:
-                    logger.warning(
-                        f"Failed to load score features for {sample['name']}: {e}"
-                    )
-                    return self._get_empty_score_features(), False
-            else:
-                logger.debug(f"Score file not found: {full_score_path}")
-        return self._get_empty_score_features(), False
+
+        # FAIL FAST: Require score_path for score-aligned training
+        if not score_path:
+            raise ValueError(
+                f"Sample '{sample['name']}' has no 'score_path' field.\n"
+                "Score alignment requires score_path to be set in the data JSON.\n"
+                "Check your data preparation or use MIDI-only training."
+            )
+
+        # FAIL FAST: Require score_dir to be set
+        if not self.score_dir:
+            raise ValueError(
+                f"score_dir is None but sample '{sample['name']}' has score_path='{score_path}'.\n"
+                "Pass score_dir to PercePianoScoreDataset constructor or to training script:\n"
+                "  --score-dir data/scores"
+            )
+
+        full_score_path = self.score_dir / score_path
+
+        # FAIL FAST: Require score file to exist
+        if not full_score_path.exists():
+            raise FileNotFoundError(
+                f"Score file not found: {full_score_path}\n"
+                f"Sample: {sample['name']}\n"
+                "\n"
+                "ACTION REQUIRED:\n"
+                "1. Copy local scores: cp -r data/raw/PercePiano/virtuoso/data/score_xml/* {self.score_dir}/\n"
+                "2. Or upload to GDrive: python scripts/upload_score_files.py\n"
+                "3. Then download: rclone copy gdrive:percepiano_data/PercePiano/virtuoso/data/score_xml/ {self.score_dir}/"
+            )
+
+        # Load features - let exceptions propagate (no silent fallback)
+        features = self._load_score_features(
+            sample["midi_path"],
+            full_score_path,
+            sample.get("tempo", self.default_tempo),
+        )
+
+        # FAIL FAST: Require valid (non-zero) features
+        if not self._features_are_valid(features):
+            raise RuntimeError(
+                f"Score features are all zeros for sample '{sample['name']}'.\n"
+                f"Score file: {full_score_path}\n"
+                "This indicates a problem with MusicXML parsing.\n"
+                "Check the score file format or the ScoreAlignmentFeatureExtractor."
+            )
+
+        return features, True
 
     def _features_are_valid(self, features: Dict[str, torch.Tensor]) -> bool:
         """Check if score features are valid (not all zeros)."""
