@@ -266,8 +266,9 @@ class ScoreAlignedModule(pl.LightningModule):
         batch_size = midi_tokens.size(0)
         device = midi_tokens.device
 
-        # Create zero score features
-        score_note_features = torch.zeros(batch_size, 1, 6, device=device)
+        # Create zero score features (use configured number of features)
+        num_note_features = self.hparams.score_note_features
+        score_note_features = torch.zeros(batch_size, 1, num_note_features, device=device)
         score_global_features = torch.zeros(batch_size, 12, device=device)
         score_tempo_curve = torch.ones(batch_size, 1, device=device)
         score_attention_mask = torch.ones(batch_size, 1, device=device)
