@@ -97,10 +97,35 @@ def cal_length_from_padded_beat_numbers(beat_numbers: torch.Tensor) -> torch.Ten
     Returns:
         Tensor of shape (N,) with actual sequence lengths
     """
+    batch_size = beat_numbers.shape[0]
+    seq_len = beat_numbers.shape[1]
+
+    # Handle edge cases
+    if seq_len <= 1:
+        return torch.ones(batch_size, dtype=torch.long, device=beat_numbers.device)
+
     # Find first position where diff becomes negative (padding starts)
     diffs = torch.diff(beat_numbers, dim=1)
-    # Minimum diff gives first negative value position
-    len_note = torch.min(diffs, dim=1)[1] + 1
+
+    # Handle empty diffs
+    if diffs.shape[1] == 0:
+        return torch.ones(batch_size, dtype=torch.long, device=beat_numbers.device)
+
+    # For each batch, find where padding starts (diff < 0) or use full length
+    len_note = torch.zeros(batch_size, dtype=torch.long, device=beat_numbers.device)
+    for i in range(batch_size):
+        neg_pos = torch.where(diffs[i] < 0)[0]
+        if len(neg_pos) > 0:
+            len_note[i] = neg_pos[0].item() + 1
+        else:
+            # No negative diff found - either all valid or all padding
+            # Check if sequence has any non-zero values
+            non_zero = torch.where(beat_numbers[i] > 0)[0]
+            if len(non_zero) > 0:
+                len_note[i] = seq_len  # All valid
+            else:
+                len_note[i] = 1  # All zeros, use minimum length
+
     return len_note
 
 
