@@ -5,13 +5,21 @@ Train the score-aligned piano performance evaluation model.
 This model incorporates score alignment features to compare
 performance MIDI against reference MusicXML scores.
 
+Supports two encoder modes:
+- Flat encoder: Standard transformer-based score encoder
+- Hierarchical encoder: HAN-style note->beat->measure hierarchy (recommended)
+
 Expected improvement: R-squared from 0.18 to 0.30-0.40 (based on PercePiano paper)
 
 Usage:
+    # Basic training with hierarchical encoder (recommended)
+    python scripts/train_score_aligned.py --data-dir data/processed --score-dir data/scores --use-hierarchical
+
+    # Training with flat encoder
     python scripts/train_score_aligned.py --data-dir data/processed --score-dir data/scores
 
 For Thunder Compute:
-    python scripts/train_score_aligned.py --data-dir data/processed --score-dir data/scores --gpus 1 --precision 16
+    python scripts/train_score_aligned.py --data-dir data/processed --score-dir data/scores --gpus 1 --precision 16 --use-hierarchical
 """
 
 import argparse
@@ -26,11 +34,11 @@ from pytorch_lightning.callbacks import (
 )
 from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
 
-# Add src to path
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+# Add project root to path
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from data.percepiano_score_dataset import create_score_dataloaders
-from models.score_aligned_module import ScoreAlignedModule, ScoreAlignedModuleWithFallback
+from src.data.percepiano_score_dataset import create_score_dataloaders
+from src.models.score_aligned_module import ScoreAlignedModule, ScoreAlignedModuleWithFallback
 
 
 def main():
@@ -93,6 +101,17 @@ def main():
         "--freeze-midi-encoder",
         action="store_true",
         help="Freeze MIDI encoder initially (for faster convergence)",
+    )
+    parser.add_argument(
+        "--use-hierarchical",
+        action="store_true",
+        help="Use hierarchical HAN encoder (recommended for better performance)",
+    )
+    parser.add_argument(
+        "--score-note-features",
+        type=int,
+        default=20,
+        help="Number of per-note score features (20 for expanded features)",
     )
 
     # Training arguments
@@ -219,16 +238,22 @@ def main():
         "midi_hidden_dim": args.midi_hidden_dim,
         "midi_num_layers": args.midi_num_layers,
         "score_hidden_dim": args.score_hidden_dim,
+        "score_note_features": args.score_note_features,
         "fusion_type": args.fusion_type,
         "learning_rate": args.learning_rate,
         "freeze_midi_encoder": args.freeze_midi_encoder,
         "max_seq_length": args.max_midi_seq_length,
+        "use_hierarchical_encoder": args.use_hierarchical,
     }
 
     if args.use_fallback:
         model_kwargs["fallback_probability"] = args.fallback_probability
 
     model = ModelClass(**model_kwargs)
+
+    # Log encoder type
+    encoder_type = "Hierarchical (HAN)" if args.use_hierarchical else "Flat (Transformer)"
+    print(f"Score encoder: {encoder_type}")
 
     # Count parameters
     total_params = sum(p.numel() for p in model.parameters())

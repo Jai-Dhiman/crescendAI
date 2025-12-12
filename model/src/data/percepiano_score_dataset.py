@@ -8,6 +8,7 @@ Score files location: PercePiano/virtuoso/data/all_2rounds/*.musicxml
 """
 
 import json
+import logging
 import numpy as np
 import pretty_midi
 import torch
@@ -20,11 +21,13 @@ from .score_alignment import (
     MusicXMLParser,
     ScorePerformanceAligner,
     ScoreAlignmentFeatureExtractor,
+    NUM_NOTE_FEATURES,
 )
 
+logger = logging.getLogger(__name__)
 
-# All 19 PercePiano dimensions
-DIMENSIONS = [
+# All 19 PercePiano dimensions (in order matching percepiano_scores list)
+PERCEPIANO_DIMENSIONS = [
     "timing",
     "articulation_length",
     "articulation_touch",
@@ -44,6 +47,18 @@ DIMENSIONS = [
     "mood_imagination",
     "sophistication",
     "interpretation",
+]
+
+# Custom 8 dimensions (alternative format)
+CUSTOM_DIMENSIONS = [
+    "timing_stability",
+    "note_accuracy",
+    "dynamic_range",
+    "articulation",
+    "pedal_technique",
+    "expression",
+    "tone_quality",
+    "overall",
 ]
 
 
@@ -73,6 +88,7 @@ class PercePianoScoreDataset(Dataset):
         cache_midi: bool = True,
         cache_scores: bool = True,
         default_tempo: float = 120.0,
+        use_percepiano_dims: bool = True,
     ):
         """
         Args:
@@ -86,6 +102,9 @@ class PercePianoScoreDataset(Dataset):
             cache_midi: Whether to cache loaded MIDI in memory
             cache_scores: Whether to cache parsed scores in memory
             default_tempo: Default tempo if not specified in score
+            use_percepiano_dims: If True, use 19 PercePiano dimensions from
+                percepiano_scores list. If False, use 8 custom dimensions from
+                scores dict.
         """
         self.data_file = Path(data_file)
         self.score_dir = Path(score_dir) if score_dir else None
@@ -97,10 +116,14 @@ class PercePianoScoreDataset(Dataset):
         self.cache_midi = cache_midi
         self.cache_scores = cache_scores
         self.default_tempo = default_tempo
+        self.use_percepiano_dims = use_percepiano_dims
 
         # Load sample list
         with open(self.data_file, "r") as f:
             self.samples = json.load(f)
+
+        # Detect and set dimensions based on data format
+        self._detect_dimensions()
 
         # Initialize components
         self.tokenizer = OctupleMIDITokenizer()
@@ -110,7 +133,54 @@ class PercePianoScoreDataset(Dataset):
         self._midi_cache: Dict[str, np.ndarray] = {}
         self._score_cache: Dict[str, Dict] = {}
 
-        self.dimensions = DIMENSIONS
+        # Track score feature loading stats
+        self._score_load_stats = {"loaded": 0, "empty": 0}
+
+    def _detect_dimensions(self) -> None:
+        """Detect which dimension format to use based on data."""
+        if not self.samples:
+            raise ValueError(f"No samples found in {self.data_file}")
+
+        sample = self.samples[0]
+
+        # Check if percepiano_scores list is available and valid
+        has_percepiano = (
+            "percepiano_scores" in sample
+            and isinstance(sample["percepiano_scores"], list)
+            and len(sample["percepiano_scores"]) >= 19
+        )
+
+        # Check if scores dict is available
+        has_custom = "scores" in sample and isinstance(sample["scores"], dict)
+
+        if self.use_percepiano_dims and has_percepiano:
+            self.dimensions = PERCEPIANO_DIMENSIONS
+            self._score_format = "percepiano"
+            logger.info(
+                f"Using 19 PercePiano dimensions from percepiano_scores list"
+            )
+        elif has_custom:
+            # Use custom dimensions from scores dict
+            self.dimensions = list(sample["scores"].keys())
+            self._score_format = "custom"
+            logger.info(
+                f"Using {len(self.dimensions)} custom dimensions from scores dict: "
+                f"{self.dimensions}"
+            )
+        elif has_percepiano:
+            # Fallback to percepiano if custom requested but not available
+            self.dimensions = PERCEPIANO_DIMENSIONS
+            self._score_format = "percepiano"
+            logger.warning(
+                "Custom dimensions requested but scores dict not found. "
+                "Falling back to PercePiano dimensions."
+            )
+        else:
+            raise ValueError(
+                f"No valid score format found in data. Sample keys: {sample.keys()}"
+            )
+
+        self.num_dimensions = len(self.dimensions)
 
     def __len__(self) -> int:
         return len(self.samples)
@@ -123,29 +193,33 @@ class PercePianoScoreDataset(Dataset):
         midi_tokens = self._prepare_midi_tokens(midi_tokens)
 
         # Load score alignment features
-        score_path = sample.get("score_path")
-        if score_path and self.score_dir:
-            full_score_path = self.score_dir / score_path
-            if full_score_path.exists():
-                score_features = self._load_score_features(
-                    sample["midi_path"],
-                    full_score_path,
-                    sample.get("tempo", self.default_tempo),
-                )
-            else:
-                score_features = self._get_empty_score_features()
-        else:
-            score_features = self._get_empty_score_features()
+        score_features, score_loaded = self._get_score_features(sample)
 
-        # Get scores as tensor
-        scores = torch.tensor(
-            [sample["scores"][dim] for dim in self.dimensions],
-            dtype=torch.float32,
-        )
+        # Track score loading stats
+        if score_loaded:
+            self._score_load_stats["loaded"] += 1
+        else:
+            self._score_load_stats["empty"] += 1
+
+        # Log periodically
+        total = self._score_load_stats["loaded"] + self._score_load_stats["empty"]
+        if total == 1 or total % 100 == 0:
+            logger.info(
+                f"Score feature loading: {self._score_load_stats['loaded']}/{total} "
+                f"loaded ({100*self._score_load_stats['loaded']/total:.1f}%)"
+            )
+
+        # Get scores as tensor based on format
+        scores = self._get_scores_tensor(sample)
 
         # Create attention masks
         midi_attention_mask = torch.ones(self.max_midi_seq_length, dtype=torch.float32)
         score_attention_mask = torch.ones(self.max_score_notes, dtype=torch.float32)
+
+        # Get note_locations for hierarchical processing
+        note_locations = score_features.get("note_locations")
+        if note_locations is None:
+            note_locations = self._get_empty_note_locations()
 
         return {
             "midi_tokens": midi_tokens,
@@ -154,9 +228,76 @@ class PercePianoScoreDataset(Dataset):
             "score_global_features": score_features["global_features"],
             "score_tempo_curve": score_features["tempo_curve"],
             "score_attention_mask": score_attention_mask,
+            "note_locations_beat": note_locations["beat"],
+            "note_locations_measure": note_locations["measure"],
+            "note_locations_voice": note_locations["voice"],
             "scores": scores,
             "name": sample["name"],
         }
+
+    def _get_score_features(
+        self, sample: Dict
+    ) -> Tuple[Dict[str, torch.Tensor], bool]:
+        """Load score alignment features with tracking."""
+        score_path = sample.get("score_path")
+        if score_path and self.score_dir:
+            full_score_path = self.score_dir / score_path
+            if full_score_path.exists():
+                try:
+                    features = self._load_score_features(
+                        sample["midi_path"],
+                        full_score_path,
+                        sample.get("tempo", self.default_tempo),
+                    )
+                    # Verify features are not all zeros
+                    if self._features_are_valid(features):
+                        return features, True
+                    else:
+                        logger.warning(
+                            f"Score features are all zeros for {sample['name']}"
+                        )
+                        return self._get_empty_score_features(), False
+                except Exception as e:
+                    logger.warning(
+                        f"Failed to load score features for {sample['name']}: {e}"
+                    )
+                    return self._get_empty_score_features(), False
+            else:
+                logger.debug(f"Score file not found: {full_score_path}")
+        return self._get_empty_score_features(), False
+
+    def _features_are_valid(self, features: Dict[str, torch.Tensor]) -> bool:
+        """Check if score features are valid (not all zeros)."""
+        note_features = features["note_features"]
+        global_features = features["global_features"]
+
+        # Check if note features have any non-zero values
+        if isinstance(note_features, torch.Tensor):
+            note_nonzero = note_features.abs().sum() > 0.01
+        else:
+            note_nonzero = np.abs(note_features).sum() > 0.01
+
+        # Check if global features have any non-zero values
+        if isinstance(global_features, torch.Tensor):
+            global_nonzero = global_features.abs().sum() > 0.01
+        else:
+            global_nonzero = np.abs(global_features).sum() > 0.01
+
+        return note_nonzero or global_nonzero
+
+    def _get_scores_tensor(self, sample: Dict) -> torch.Tensor:
+        """Get scores tensor based on the detected format."""
+        if self._score_format == "percepiano":
+            # Use percepiano_scores list (first 19 values)
+            scores_list = sample["percepiano_scores"][:19]
+            return torch.tensor(scores_list, dtype=torch.float32)
+        else:
+            # Use scores dict with custom dimensions
+            scores_list = [
+                sample["scores"].get(dim, 0.0) / 100.0  # Normalize to 0-1
+                for dim in self.dimensions
+            ]
+            return torch.tensor(scores_list, dtype=torch.float32)
 
     def _load_midi(self, midi_path: str) -> np.ndarray:
         """Load and tokenize a MIDI file."""
@@ -205,6 +346,11 @@ class PercePianoScoreDataset(Dataset):
                 "note_features": torch.tensor(cached["note_features"], dtype=torch.float32),
                 "global_features": torch.tensor(cached["global_features"], dtype=torch.float32),
                 "tempo_curve": torch.tensor(cached["tempo_curve"], dtype=torch.float32),
+                "note_locations": {
+                    "beat": torch.tensor(cached["note_locations"]["beat"], dtype=torch.long),
+                    "measure": torch.tensor(cached["note_locations"]["measure"], dtype=torch.long),
+                    "voice": torch.tensor(cached["note_locations"]["voice"], dtype=torch.long),
+                },
             }
 
         # Load performance MIDI
@@ -221,6 +367,7 @@ class PercePianoScoreDataset(Dataset):
         note_features = self._prepare_note_features(features["note_features"])
         global_features = features["global_features"]
         tempo_curve = self._prepare_tempo_curve(features["tempo_curve"])
+        note_locations = self._prepare_note_locations(features["note_locations"])
 
         # Cache
         if self.cache_scores:
@@ -228,12 +375,18 @@ class PercePianoScoreDataset(Dataset):
                 "note_features": note_features.numpy(),
                 "global_features": global_features,
                 "tempo_curve": tempo_curve.numpy(),
+                "note_locations": {
+                    "beat": note_locations["beat"].numpy(),
+                    "measure": note_locations["measure"].numpy(),
+                    "voice": note_locations["voice"].numpy(),
+                },
             }
 
         return {
             "note_features": torch.tensor(note_features, dtype=torch.float32),
             "global_features": torch.tensor(global_features, dtype=torch.float32),
             "tempo_curve": torch.tensor(tempo_curve, dtype=torch.float32),
+            "note_locations": note_locations,
         }
 
     def _prepare_note_features(self, note_features: np.ndarray) -> np.ndarray:
@@ -269,12 +422,49 @@ class PercePianoScoreDataset(Dataset):
 
         return tempo_curve
 
+    def _prepare_note_locations(
+        self, note_locations: Dict[str, np.ndarray]
+    ) -> Dict[str, torch.Tensor]:
+        """Prepare note_locations: truncate or pad to max length."""
+        num_notes = len(note_locations["beat"])
+        prepared = {}
+
+        for key in ["beat", "measure", "voice"]:
+            arr = note_locations[key]
+
+            if num_notes > self.max_score_notes:
+                # Truncate (same logic as note_features)
+                if self.augment:
+                    start = np.random.randint(0, num_notes - self.max_score_notes)
+                else:
+                    start = (num_notes - self.max_score_notes) // 2
+                arr = arr[start : start + self.max_score_notes]
+            elif num_notes < self.max_score_notes:
+                # Pad with zeros
+                padding = np.zeros(self.max_score_notes - num_notes, dtype=arr.dtype)
+                arr = np.concatenate([arr, padding], axis=0)
+
+            prepared[key] = torch.tensor(arr, dtype=torch.long)
+
+        return prepared
+
+    def _get_empty_note_locations(self) -> Dict[str, torch.Tensor]:
+        """Return empty note_locations when score is unavailable."""
+        # Create linear indices - every 4 notes is a beat, every 16 is a measure
+        indices = np.arange(self.max_score_notes)
+        return {
+            "beat": torch.tensor(indices // 4, dtype=torch.long),
+            "measure": torch.tensor(indices // 16, dtype=torch.long),
+            "voice": torch.ones(self.max_score_notes, dtype=torch.long),
+        }
+
     def _get_empty_score_features(self) -> Dict[str, torch.Tensor]:
         """Return empty/neutral score features when score is unavailable."""
         return {
-            "note_features": torch.zeros(self.max_score_notes, 6, dtype=torch.float32),
+            "note_features": torch.zeros(self.max_score_notes, NUM_NOTE_FEATURES, dtype=torch.float32),
             "global_features": torch.zeros(12, dtype=torch.float32),
             "tempo_curve": torch.ones(self.max_tempo_segments, dtype=torch.float32),
+            "note_locations": self._get_empty_note_locations(),
         }
 
     def _augment_midi(self, tokens: np.ndarray) -> np.ndarray:
@@ -310,6 +500,7 @@ def create_score_dataloaders(
     max_midi_seq_length: int = 1024,
     max_score_notes: int = 1024,
     num_workers: int = 4,
+    use_percepiano_dims: bool = True,
 ) -> Tuple[torch.utils.data.DataLoader, torch.utils.data.DataLoader, torch.utils.data.DataLoader]:
     """
     Create train, validation, and test dataloaders with score alignment.
@@ -321,6 +512,8 @@ def create_score_dataloaders(
         max_midi_seq_length: Maximum MIDI sequence length
         max_score_notes: Maximum number of score notes
         num_workers: Number of data loading workers
+        use_percepiano_dims: If True, use 19 PercePiano dimensions.
+            If False, use custom dimensions from scores dict.
 
     Returns:
         Tuple of (train_loader, val_loader, test_loader)
@@ -333,6 +526,7 @@ def create_score_dataloaders(
         augment=True,
         cache_midi=True,
         cache_scores=True,
+        use_percepiano_dims=use_percepiano_dims,
     )
 
     val_dataset = PercePianoScoreDataset(
@@ -343,6 +537,7 @@ def create_score_dataloaders(
         augment=False,
         cache_midi=True,
         cache_scores=True,
+        use_percepiano_dims=use_percepiano_dims,
     )
 
     test_dataset = PercePianoScoreDataset(
@@ -353,6 +548,7 @@ def create_score_dataloaders(
         augment=False,
         cache_midi=True,
         cache_scores=True,
+        use_percepiano_dims=use_percepiano_dims,
     )
 
     train_loader = torch.utils.data.DataLoader(

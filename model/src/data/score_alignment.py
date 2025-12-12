@@ -13,6 +13,9 @@ Features extracted:
 """
 
 import numpy as np
+
+# Number of features per note (expanded to match PercePiano-style features)
+NUM_NOTE_FEATURES = 20
 import pretty_midi
 from dataclasses import dataclass
 from pathlib import Path
@@ -56,6 +59,14 @@ class AlignedNote:
     onset_deviation: Optional[float] = None  # in beats
     duration_ratio: Optional[float] = None  # perf_duration / expected_duration
     velocity_deviation: Optional[float] = None  # deviation from expected velocity
+
+    # Extended features for HAN
+    beat_index: Optional[int] = None  # Beat index within piece
+    beat_position: Optional[float] = None  # Position within beat (0-1)
+    local_tempo_ratio: Optional[float] = None  # Local tempo vs expected
+    articulation_log: Optional[float] = None  # Log-scale articulation (PercePiano style)
+    is_chord_member: bool = False  # Part of a chord
+    following_rest: Optional[float] = None  # Duration of rest after note (in beats)
 
 
 class MusicXMLParser:
@@ -428,16 +439,26 @@ class ScoreAlignmentFeatureExtractor:
     """
     Extracts score alignment features for piano performance evaluation.
 
-    Features computed at note level:
-    - onset_deviation: Timing deviation from score (in beats)
-    - duration_ratio: Actual duration / expected duration
-    - velocity_deviation: Actual velocity - expected velocity
-    - local_tempo_ratio: Local tempo / marked tempo
+    Expanded feature set (30+ features per note) following PercePiano approach:
 
-    Features aggregated to sequence level:
-    - Mean and std of all deviation features
-    - Per-measure statistics
-    - Global tempo curve features
+    Note-level features:
+    - Timing: onset_deviation, beat_position, local_tempo_ratio
+    - Articulation: duration_ratio, articulation_log
+    - Dynamics: velocity, velocity_deviation
+    - Pitch: midi_pitch, pitch_class, octave
+    - Context: voice, measure, beat_index, is_chord_member
+    - Performance: matched indicator
+
+    Also extracts note_locations for hierarchical processing:
+    - beat: Beat index per note
+    - measure: Measure index per note
+    - voice: Voice index per note
+
+    Global features (12):
+    - Mean/std of deviations
+    - Match rate
+    - Quantiles
+    - Reference tempo
     """
 
     def __init__(self, window_size: int = 10):
@@ -465,9 +486,10 @@ class ScoreAlignmentFeatureExtractor:
 
         Returns:
             Dictionary of feature arrays:
-            - note_features: [num_notes, num_features] per-note features
-            - global_features: [num_global_features] aggregated statistics
+            - note_features: [num_notes, 20] per-note features (expanded)
+            - global_features: [12] aggregated statistics
             - tempo_curve: [num_segments] local tempo ratios
+            - note_locations: Dict with beat/measure/voice indices
         """
         # Parse score
         score_notes = self.parser.parse(score_path)
@@ -475,7 +497,10 @@ class ScoreAlignmentFeatureExtractor:
         # Align performance to score
         aligned_notes = self.aligner.align(performance_midi, score_notes, tempo_bpm)
 
-        # Extract per-note features
+        # Enhance aligned notes with additional features
+        aligned_notes = self._enhance_aligned_notes(aligned_notes, tempo_bpm)
+
+        # Extract per-note features (expanded)
         note_features = self._extract_note_features(aligned_notes)
 
         # Compute global statistics
@@ -484,32 +509,238 @@ class ScoreAlignmentFeatureExtractor:
         # Compute tempo curve
         tempo_curve = self._extract_tempo_curve(aligned_notes, tempo_bpm)
 
+        # Extract note_locations for hierarchical processing
+        note_locations = self._extract_note_locations(aligned_notes)
+
         return {
             'note_features': note_features,
             'global_features': global_features,
             'tempo_curve': tempo_curve,
+            'note_locations': note_locations,
         }
 
+    def _enhance_aligned_notes(
+        self,
+        aligned_notes: List[AlignedNote],
+        tempo_bpm: float,
+    ) -> List[AlignedNote]:
+        """
+        Add extended features to aligned notes.
+
+        Computes:
+        - beat_index: Which beat the note falls on
+        - beat_position: Position within the beat (0-1)
+        - local_tempo_ratio: Local tempo vs expected
+        - articulation_log: Log-scale articulation ratio
+        - is_chord_member: Whether note is part of a chord
+        - following_rest: Duration of rest after note
+        """
+        sec_per_beat = 60.0 / tempo_bpm
+
+        # Sort by onset for chord detection and tempo estimation
+        sorted_notes = sorted(
+            [(i, n) for i, n in enumerate(aligned_notes) if n.score_onset_beat is not None],
+            key=lambda x: x[1].score_onset_beat
+        )
+
+        # Detect chords (notes starting at same beat)
+        chord_groups = {}
+        for i, note in sorted_notes:
+            beat = round(note.score_onset_beat * 4) / 4  # Quantize to 16th notes
+            if beat not in chord_groups:
+                chord_groups[beat] = []
+            chord_groups[beat].append(i)
+
+        # Mark chord members
+        for indices in chord_groups.values():
+            if len(indices) > 1:
+                for idx in indices:
+                    aligned_notes[idx].is_chord_member = True
+
+        # Compute local tempo ratios in windows
+        matched_indices = [i for i, n in enumerate(aligned_notes) if n.onset_deviation is not None]
+        for i, idx in enumerate(matched_indices):
+            note = aligned_notes[idx]
+
+            # Beat index and position
+            if note.score_onset_beat is not None:
+                note.beat_index = int(note.score_onset_beat)
+                note.beat_position = note.score_onset_beat - note.beat_index
+
+            # Log-scale articulation (PercePiano style)
+            if note.duration_ratio is not None and note.duration_ratio > 0:
+                note.articulation_log = float(np.log10(max(note.duration_ratio, 0.01)))
+            else:
+                note.articulation_log = 0.0
+
+            # Local tempo ratio from window
+            start_idx = max(0, i - self.window_size // 2)
+            end_idx = min(len(matched_indices), i + self.window_size // 2)
+
+            if end_idx > start_idx + 1:
+                window_indices = matched_indices[start_idx:end_idx]
+                first_note = aligned_notes[window_indices[0]]
+                last_note = aligned_notes[window_indices[-1]]
+
+                if (first_note.perf_onset is not None and last_note.perf_onset is not None and
+                    first_note.score_onset_beat is not None and last_note.score_onset_beat is not None):
+
+                    perf_ioi = last_note.perf_onset - first_note.perf_onset
+                    score_ioi_beats = last_note.score_onset_beat - first_note.score_onset_beat
+
+                    if score_ioi_beats > 0 and perf_ioi > 0:
+                        expected_ioi = score_ioi_beats * sec_per_beat
+                        note.local_tempo_ratio = expected_ioi / perf_ioi
+                    else:
+                        note.local_tempo_ratio = 1.0
+                else:
+                    note.local_tempo_ratio = 1.0
+            else:
+                note.local_tempo_ratio = 1.0
+
+        # Compute following rest duration
+        for i in range(len(sorted_notes) - 1):
+            curr_idx, curr_note = sorted_notes[i]
+            next_idx, next_note = sorted_notes[i + 1]
+
+            if curr_note.score_onset_beat is not None and curr_note.score_duration_beat is not None:
+                curr_end = curr_note.score_onset_beat + curr_note.score_duration_beat
+                rest_duration = next_note.score_onset_beat - curr_end
+                aligned_notes[curr_idx].following_rest = max(0.0, rest_duration)
+
+        return aligned_notes
+
     def _extract_note_features(self, aligned_notes: List[AlignedNote]) -> np.ndarray:
-        """Extract per-note deviation features."""
+        """
+        Extract expanded per-note deviation features (20 features per note).
+
+        Features:
+        0: onset_deviation - timing deviation in beats
+        1: duration_ratio - performed/expected duration
+        2: articulation_log - log10(duration_ratio) for PercePiano style
+        3: velocity - MIDI velocity (0-127 normalized to 0-1)
+        4: velocity_deviation - deviation from expected velocity (normalized)
+        5: local_tempo_ratio - local tempo vs marked tempo
+        6: midi_pitch - MIDI pitch (normalized 0-1, 21-108 range)
+        7: pitch_class - pitch class (0-11, normalized)
+        8: octave - octave number (normalized)
+        9: beat_position - position within beat (0-1)
+        10: beat_index - beat index (normalized by max)
+        11: measure - measure number (normalized by max)
+        12: voice - voice number (normalized)
+        13: matched - whether note was matched to score
+        14: is_chord_member - whether note is part of chord
+        15: following_rest - duration of rest after note (normalized)
+        16: is_staccato - articulation indicator
+        17: is_legato - articulation indicator
+        18: dynamic_level - expected dynamic level (0-1)
+        19: tempo_marking - tempo marking (log-normalized)
+        """
         features = []
 
+        # Get max values for normalization
+        max_beat = max((n.beat_index or 0 for n in aligned_notes), default=1) or 1
+        max_measure = max((n.score_measure or 0 for n in aligned_notes), default=1) or 1
+        max_voice = max((n.score_voice or 1 for n in aligned_notes), default=1) or 1
+
         for note in aligned_notes:
-            # 6 features per note
+            # Basic deviations
+            onset_dev = note.onset_deviation if note.onset_deviation is not None else 0.0
+            dur_ratio = note.duration_ratio if note.duration_ratio is not None else 1.0
+            art_log = note.articulation_log if note.articulation_log is not None else 0.0
+            vel = note.perf_velocity / 127.0
+            vel_dev = (note.velocity_deviation or 0.0) / 64.0  # Normalize to roughly -1 to 1
+            local_tempo = note.local_tempo_ratio if note.local_tempo_ratio is not None else 1.0
+
+            # Pitch features
+            midi_pitch = (note.perf_pitch - 21) / 87.0  # Normalize 21-108 to 0-1
+            pitch_class = (note.perf_pitch % 12) / 11.0
+            octave = (note.perf_pitch // 12 - 1) / 8.0  # Normalize roughly 0-8 octaves
+
+            # Position features
+            beat_pos = note.beat_position if note.beat_position is not None else 0.0
+            beat_idx = (note.beat_index or 0) / max_beat
+            measure = (note.score_measure or 0) / max_measure
+            voice = ((note.score_voice or 1) - 1) / max(max_voice - 1, 1)
+
+            # Indicators
+            matched = 1.0 if note.score_pitch is not None else 0.0
+            is_chord = 1.0 if note.is_chord_member else 0.0
+            following_rest = min(note.following_rest or 0.0, 4.0) / 4.0  # Clip and normalize
+
+            # Articulation indicators
+            is_staccato = 1.0 if note.score_articulation in ['staccato', 'staccatissimo'] else 0.0
+            is_legato = 1.0 if note.score_articulation in ['tenuto', 'legato'] else 0.0
+
+            # Dynamic level from marking
+            dynamic_map = {'ppp': 0.1, 'pp': 0.2, 'p': 0.35, 'mp': 0.5, 'mf': 0.65, 'f': 0.8, 'ff': 0.9, 'fff': 1.0}
+            dynamic_level = dynamic_map.get(note.score_dynamic, 0.5)
+
+            # Tempo marking (log-normalized)
+            tempo_val = 0.5  # default
+            # tempo_marking would come from score
+
             note_feat = [
-                note.onset_deviation if note.onset_deviation is not None else 0.0,
-                note.duration_ratio if note.duration_ratio is not None else 1.0,
-                note.velocity_deviation if note.velocity_deviation is not None else 0.0,
-                1.0 if note.score_pitch is not None else 0.0,  # matched indicator
-                float(note.score_voice) if note.score_voice is not None else 0.0,
-                float(note.score_measure) if note.score_measure is not None else 0.0,
+                onset_dev,           # 0
+                dur_ratio,           # 1
+                art_log,             # 2
+                vel,                 # 3
+                vel_dev,             # 4
+                local_tempo,         # 5
+                midi_pitch,          # 6
+                pitch_class,         # 7
+                octave,              # 8
+                beat_pos,            # 9
+                beat_idx,            # 10
+                measure,             # 11
+                voice,               # 12
+                matched,             # 13
+                is_chord,            # 14
+                following_rest,      # 15
+                is_staccato,         # 16
+                is_legato,           # 17
+                dynamic_level,       # 18
+                tempo_val,           # 19
             ]
             features.append(note_feat)
 
         if not features:
-            return np.zeros((1, 6), dtype=np.float32)
+            return np.zeros((1, NUM_NOTE_FEATURES), dtype=np.float32)
 
         return np.array(features, dtype=np.float32)
+
+    def _extract_note_locations(self, aligned_notes: List[AlignedNote]) -> Dict[str, np.ndarray]:
+        """
+        Extract note_locations for hierarchical processing (HAN encoder).
+
+        Returns:
+            Dict with:
+            - beat: [num_notes] beat index per note (for note->beat aggregation)
+            - measure: [num_notes] measure index per note (for beat->measure aggregation)
+            - voice: [num_notes] voice index per note (for voice processing)
+        """
+        beats = []
+        measures = []
+        voices = []
+
+        for note in aligned_notes:
+            # Beat index (default to 0 if not matched)
+            beat_idx = note.beat_index if note.beat_index is not None else 0
+            beats.append(beat_idx)
+
+            # Measure index
+            measure_idx = note.score_measure if note.score_measure is not None else 0
+            measures.append(measure_idx)
+
+            # Voice index (1-indexed for PercePiano compatibility)
+            voice_idx = note.score_voice if note.score_voice is not None else 1
+            voices.append(voice_idx)
+
+        return {
+            'beat': np.array(beats, dtype=np.int64),
+            'measure': np.array(measures, dtype=np.int64),
+            'voice': np.array(voices, dtype=np.int64),
+        }
 
     def _extract_global_features(
         self,

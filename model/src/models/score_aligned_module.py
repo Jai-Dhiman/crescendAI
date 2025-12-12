@@ -20,7 +20,7 @@ from torch.utils.data import DataLoader
 from .midi_encoder import MIDIBertEncoder
 from .aggregation import HierarchicalAggregator, PercePianoSelfAttention
 from .mtl_head import MultiTaskHead, PercePianoHead
-from .score_encoder import ScoreAlignmentEncoder, ScoreMIDIFusion
+from .score_encoder import ScoreAlignmentEncoder, HierarchicalScoreEncoder, ScoreMIDIFusion
 from .calibration import IsotonicCalibrator, TemperatureScaling
 
 
@@ -76,7 +76,7 @@ class ScoreAlignedModule(pl.LightningModule):
         midi_num_heads: int = 12,
         max_seq_length: int = 512,
         # Score Encoder params
-        score_note_features: int = 6,
+        score_note_features: int = 20,  # Expanded to 20 features
         score_global_features: int = 12,
         score_hidden_dim: int = 256,
         score_num_layers: int = 2,
@@ -96,6 +96,8 @@ class ScoreAlignedModule(pl.LightningModule):
         dimensions: Optional[List[str]] = None,
         # Optional: freeze MIDI encoder initially
         freeze_midi_encoder: bool = False,
+        # Hierarchical encoder option
+        use_hierarchical_encoder: bool = False,
     ):
         super().__init__()
         self.save_hyperparameters()
@@ -103,6 +105,7 @@ class ScoreAlignedModule(pl.LightningModule):
         self.dimensions = dimensions or PERCEPIANO_DIMENSIONS
         self.num_dimensions = len(self.dimensions)
         self.freeze_midi_encoder = freeze_midi_encoder
+        self.use_hierarchical_encoder = use_hierarchical_encoder
 
         # MIDI Encoder (12 layers, 768 hidden to match MidiBERT)
         self.midi_encoder = MIDIBertEncoder(
@@ -124,16 +127,31 @@ class ScoreAlignedModule(pl.LightningModule):
         )
         midi_aggregated_dim = attention_r * midi_hidden_dim  # r * D
 
-        # Score Alignment Encoder
-        self.score_encoder = ScoreAlignmentEncoder(
-            note_features=score_note_features,
-            global_features=score_global_features,
-            hidden_dim=score_hidden_dim,
-            num_note_layers=score_num_layers,
-            num_heads=4,
-            dropout=dropout,
-            output_mode='global',  # Use global representation for fusion
-        )
+        # Score Alignment Encoder (flat or hierarchical)
+        if use_hierarchical_encoder:
+            self.score_encoder = HierarchicalScoreEncoder(
+                note_features=score_note_features,
+                global_features=score_global_features,
+                hidden_dim=score_hidden_dim,
+                note_size=score_hidden_dim // 2,
+                beat_size=score_hidden_dim // 4,
+                measure_size=score_hidden_dim // 4,
+                num_note_layers=score_num_layers,
+                num_attention_heads=4,
+                dropout=dropout,
+                use_voice_processing=False,  # Start without voice for simplicity
+                output_mode='global',
+            )
+        else:
+            self.score_encoder = ScoreAlignmentEncoder(
+                note_features=score_note_features,
+                global_features=score_global_features,
+                hidden_dim=score_hidden_dim,
+                num_note_layers=score_num_layers,
+                num_heads=4,
+                dropout=dropout,
+                output_mode='global',  # Use global representation for fusion
+            )
 
         # Fusion module
         self.fusion = ScoreMIDIFusion(
@@ -171,17 +189,19 @@ class ScoreAlignedModule(pl.LightningModule):
         score_tempo_curve: torch.Tensor,
         midi_attention_mask: Optional[torch.Tensor] = None,
         score_attention_mask: Optional[torch.Tensor] = None,
+        note_locations: Optional[Dict[str, torch.Tensor]] = None,
     ) -> Dict[str, torch.Tensor]:
         """
         Forward pass with both MIDI and score alignment features.
 
         Args:
             midi_tokens: [batch, seq_len, 8] OctupleMIDI tokens
-            score_note_features: [batch, num_notes, 6] per-note deviations
+            score_note_features: [batch, num_notes, 20] per-note deviations (expanded)
             score_global_features: [batch, 12] aggregated statistics
             score_tempo_curve: [batch, num_segments] tempo ratios
             midi_attention_mask: [batch, seq_len] MIDI attention mask
             score_attention_mask: [batch, num_notes] score attention mask
+            note_locations: Dict with 'beat', 'measure', 'voice' tensors for hierarchical encoder
 
         Returns:
             Dict with 'predictions' [batch, num_dimensions] and 'log_vars'
@@ -193,12 +213,21 @@ class ScoreAlignedModule(pl.LightningModule):
         midi_aggregated, _ = self.midi_aggregator(midi_features, midi_attention_mask)  # [B, r*H]
 
         # Encode score alignment features
-        score_outputs = self.score_encoder(
-            score_note_features,
-            score_global_features,
-            score_tempo_curve,
-            score_attention_mask,
-        )
+        if self.use_hierarchical_encoder:
+            score_outputs = self.score_encoder(
+                score_note_features,
+                score_global_features,
+                score_tempo_curve,
+                note_locations=note_locations,
+                attention_mask=score_attention_mask,
+            )
+        else:
+            score_outputs = self.score_encoder(
+                score_note_features,
+                score_global_features,
+                score_tempo_curve,
+                score_attention_mask,
+            )
         score_features = score_outputs['global']  # [B, score_hidden_dim]
 
         # Fuse MIDI and score features
@@ -283,7 +312,18 @@ class ScoreAlignedModule(pl.LightningModule):
 
         return total_loss, per_dim_losses
 
+    def _get_note_locations(self, batch: Dict) -> Optional[Dict[str, torch.Tensor]]:
+        """Extract note_locations from batch if available."""
+        if "note_locations_beat" in batch:
+            return {
+                "beat": batch["note_locations_beat"],
+                "measure": batch["note_locations_measure"],
+                "voice": batch["note_locations_voice"],
+            }
+        return None
+
     def training_step(self, batch: Dict, batch_idx: int) -> torch.Tensor:
+        note_locations = self._get_note_locations(batch)
         outputs = self(
             batch["midi_tokens"],
             batch["score_note_features"],
@@ -291,6 +331,7 @@ class ScoreAlignedModule(pl.LightningModule):
             batch["score_tempo_curve"],
             batch.get("midi_attention_mask"),
             batch.get("score_attention_mask"),
+            note_locations=note_locations,
         )
         loss, per_dim_losses = self.compute_loss(
             outputs["predictions"], batch["scores"], outputs["log_vars"]
@@ -304,6 +345,7 @@ class ScoreAlignedModule(pl.LightningModule):
         return loss
 
     def validation_step(self, batch: Dict, batch_idx: int) -> Dict:
+        note_locations = self._get_note_locations(batch)
         outputs = self(
             batch["midi_tokens"],
             batch["score_note_features"],
@@ -311,6 +353,7 @@ class ScoreAlignedModule(pl.LightningModule):
             batch["score_tempo_curve"],
             batch.get("midi_attention_mask"),
             batch.get("score_attention_mask"),
+            note_locations=note_locations,
         )
         loss, per_dim_losses = self.compute_loss(
             outputs["predictions"], batch["scores"], outputs["log_vars"]
@@ -372,10 +415,15 @@ class ScoreAlignedModule(pl.LightningModule):
         self.log("val/mean_r", mean_r, prog_bar=True)
         self.log("val/mean_r2", mean_r2, prog_bar=True)
 
-        # Specifically track tempo dimension improvement
-        tempo_idx = self.dimensions.index("tempo") if "tempo" in self.dimensions else None
-        if tempo_idx is not None:
+        # Specifically track tempo dimension improvement (key for score-aligned training)
+        if "tempo" in self.dimensions:
+            tempo_idx = self.dimensions.index("tempo")
             self.log("val/tempo_r2", r2_values[tempo_idx], prog_bar=True)
+
+        # Also track timing for custom dimensions
+        if "timing" in self.dimensions:
+            timing_idx = self.dimensions.index("timing")
+            self.log("val/timing_r2", r2_values[timing_idx], prog_bar=True)
 
         self.validation_step_outputs.clear()
 
@@ -384,6 +432,7 @@ class ScoreAlignedModule(pl.LightningModule):
 
     def test_step(self, batch: Dict, batch_idx: int) -> Dict:
         """Test step - same as validation step."""
+        note_locations = self._get_note_locations(batch)
         outputs = self(
             batch["midi_tokens"],
             batch["score_note_features"],
@@ -391,6 +440,7 @@ class ScoreAlignedModule(pl.LightningModule):
             batch["score_tempo_curve"],
             batch.get("midi_attention_mask"),
             batch.get("score_attention_mask"),
+            note_locations=note_locations,
         )
         loss, per_dim_losses = self.compute_loss(
             outputs["predictions"], batch["scores"], outputs["log_vars"]
@@ -478,6 +528,7 @@ class ScoreAlignedModuleWithFallback(ScoreAlignedModule):
             )
         else:
             # Use full mode with score
+            note_locations = self._get_note_locations(batch)
             outputs = self(
                 batch["midi_tokens"],
                 batch["score_note_features"],
@@ -485,6 +536,7 @@ class ScoreAlignedModuleWithFallback(ScoreAlignedModule):
                 batch["score_tempo_curve"],
                 batch.get("midi_attention_mask"),
                 batch.get("score_attention_mask"),
+                note_locations=note_locations,
             )
 
         loss, per_dim_losses = self.compute_loss(
@@ -503,7 +555,9 @@ if __name__ == "__main__":
     print("Score-aligned module loaded successfully")
     print("Features:")
     print("- MIDI encoder (MIDIBert-style, 12 layers, 768 dim)")
-    print("- Score alignment encoder (note + global + tempo features)")
+    print("- Score alignment encoder (flat or hierarchical HAN)")
+    print("- Expanded 20 note-level features")
+    print("- Note locations for hierarchical processing (beat/measure/voice)")
     print("- Gated/concat/crossattn fusion options")
     print("- Fallback mode for inference without score")
     print("- Separate LR for pretrained MIDI encoder")

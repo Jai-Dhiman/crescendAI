@@ -458,11 +458,220 @@ class ScoreMIDIFusion(nn.Module):
         raise RuntimeError(f"Unknown fusion type: {self.fusion_type}")
 
 
+class HierarchicalScoreEncoder(nn.Module):
+    """
+    Hierarchical score encoder using HAN (Hierarchical Attention Network).
+
+    Implements the PercePiano-style hierarchical structure:
+    - Note level: Process individual notes with Transformer/LSTM
+    - Beat level: Aggregate notes within beats using attention
+    - Measure level: Aggregate beats within measures using attention
+
+    This captures musical structure at multiple temporal scales,
+    critical for dimensions like tempo, phrasing, and overall interpretation.
+    """
+
+    def __init__(
+        self,
+        note_features: int = 20,
+        global_features: int = 12,
+        hidden_dim: int = 256,
+        note_size: int = 128,
+        beat_size: int = 64,
+        measure_size: int = 64,
+        num_note_layers: int = 2,
+        num_attention_heads: int = 4,
+        dropout: float = 0.1,
+        use_voice_processing: bool = False,
+        output_mode: str = 'both',
+    ):
+        """
+        Args:
+            note_features: Number of per-note features (expanded to 20)
+            global_features: Number of global statistic features
+            hidden_dim: Final output hidden dimension
+            note_size: Hidden size for note-level LSTM
+            beat_size: Hidden size for beat-level LSTM
+            measure_size: Hidden size for measure-level LSTM
+            num_note_layers: Number of LSTM/Transformer layers at note level
+            num_attention_heads: Number of attention heads
+            dropout: Dropout probability
+            use_voice_processing: Whether to use voice-level parallel processing
+            output_mode: What to output ('sequence', 'global', or 'both')
+        """
+        super().__init__()
+
+        self.hidden_dim = hidden_dim
+        self.output_mode = output_mode
+        self.use_voice_processing = use_voice_processing
+
+        # Import HAN components
+        from .han_encoder import SimplifiedHanEncoder, HanEncoder
+        from .context_attention import ContextAttention
+
+        # Note-level projection
+        self.note_projection = nn.Linear(note_features, note_size)
+
+        # Hierarchical encoder (simplified or full based on voice processing)
+        if use_voice_processing:
+            self.han_encoder = HanEncoder(
+                input_size=note_size,
+                note_size=note_size,
+                note_layers=num_note_layers,
+                voice_size=beat_size,
+                voice_layers=1,
+                beat_size=beat_size,
+                beat_layers=1,
+                measure_size=measure_size,
+                measure_layers=1,
+                num_attention_heads=num_attention_heads,
+                dropout=dropout,
+            )
+            han_output_dim = self.han_encoder.output_dim
+        else:
+            self.han_encoder = SimplifiedHanEncoder(
+                input_size=note_size,
+                hidden_size=note_size,
+                num_layers=num_note_layers,
+                num_attention_heads=num_attention_heads,
+                dropout=dropout,
+            )
+            han_output_dim = self.han_encoder.output_dim
+
+        # Global feature encoder
+        self.global_encoder = GlobalFeatureEncoder(
+            num_features=global_features,
+            hidden_dim=hidden_dim // 4,
+            dropout=dropout,
+        )
+
+        # Tempo curve encoder
+        self.tempo_encoder = TempoCurveEncoder(
+            hidden_dim=hidden_dim // 4,
+            dropout=dropout,
+        )
+
+        # Final attention aggregation for global output
+        self.final_attention = ContextAttention(han_output_dim, num_attention_heads)
+
+        # Combine hierarchical, global, and tempo features
+        self.global_combiner = nn.Sequential(
+            nn.Linear(han_output_dim + hidden_dim // 2, hidden_dim),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.LayerNorm(hidden_dim),
+        )
+
+        # Project sequence for cross-attention with MIDI
+        self.sequence_projection = nn.Linear(han_output_dim, hidden_dim)
+
+    def forward(
+        self,
+        note_features: torch.Tensor,
+        global_features: torch.Tensor,
+        tempo_curve: torch.Tensor,
+        note_locations: Optional[Dict[str, torch.Tensor]] = None,
+        attention_mask: Optional[torch.Tensor] = None,
+    ) -> Dict[str, torch.Tensor]:
+        """
+        Encode score features using hierarchical structure.
+
+        Args:
+            note_features: [batch, num_notes, note_features] per-note features
+            global_features: [batch, 12] aggregated statistics
+            tempo_curve: [batch, num_segments] tempo ratios
+            note_locations: Dict with 'beat', 'measure', 'voice' tensors
+            attention_mask: [batch, num_notes] (1 = valid, 0 = padding)
+
+        Returns:
+            Dictionary containing:
+            - 'sequence': [batch, num_notes, hidden_dim] if output_mode in ['sequence', 'both']
+            - 'global': [batch, hidden_dim] if output_mode in ['global', 'both']
+            - 'hierarchical': Dict with note/beat/measure outputs
+        """
+        outputs = {}
+        batch_size, num_notes, _ = note_features.shape
+
+        # Project note features
+        x = self.note_projection(note_features)
+
+        # Create note_locations if not provided (default to flat structure)
+        if note_locations is None:
+            note_locations = self._create_default_note_locations(batch_size, num_notes, note_features.device)
+
+        # Run hierarchical encoder
+        han_outputs = self.han_encoder(x, note_locations)
+
+        # Get hierarchical sequence (concatenated note/beat/measure)
+        hierarchical_seq = han_outputs['total_note_cat']  # [B, N, han_output_dim]
+
+        outputs['hierarchical'] = han_outputs
+
+        if self.output_mode in ['sequence', 'both']:
+            # Project for cross-attention fusion
+            sequence_out = self.sequence_projection(hierarchical_seq)
+            outputs['sequence'] = sequence_out
+
+        if self.output_mode in ['global', 'both']:
+            # Aggregate sequence using context attention
+            # Mask zero-padded positions
+            if attention_mask is not None:
+                mask_expanded = attention_mask.unsqueeze(-1).expand_as(hierarchical_seq)
+                hierarchical_seq_masked = hierarchical_seq * mask_expanded
+            else:
+                hierarchical_seq_masked = hierarchical_seq
+
+            hierarchical_global = self.final_attention(hierarchical_seq_masked)  # [B, han_output_dim]
+
+            # Encode global statistics
+            global_encoded = self.global_encoder(global_features)  # [B, hidden_dim/4]
+
+            # Encode tempo curve
+            tempo_encoded = self.tempo_encoder(tempo_curve)  # [B, hidden_dim/4]
+
+            # Combine all global features
+            combined = torch.cat([
+                hierarchical_global,
+                global_encoded,
+                tempo_encoded,
+            ], dim=-1)
+
+            global_out = self.global_combiner(combined)
+            outputs['global'] = global_out
+
+        return outputs
+
+    def _create_default_note_locations(
+        self,
+        batch_size: int,
+        num_notes: int,
+        device: torch.device,
+    ) -> Dict[str, torch.Tensor]:
+        """Create default note_locations with linear beat/measure indices."""
+        # Simple linear indexing - every 4 notes is a beat, every 16 notes is a measure
+        note_indices = torch.arange(num_notes, device=device)
+
+        beat_indices = note_indices // 4  # 4 notes per beat
+        measure_indices = note_indices // 16  # 16 notes per measure (4 beats)
+        voice_indices = torch.ones(num_notes, dtype=torch.long, device=device)  # Single voice
+
+        return {
+            'beat': beat_indices.unsqueeze(0).expand(batch_size, -1),
+            'measure': measure_indices.unsqueeze(0).expand(batch_size, -1),
+            'voice': voice_indices.unsqueeze(0).expand(batch_size, -1),
+        }
+
+    def get_output_dim(self) -> int:
+        """Get output dimension."""
+        return self.hidden_dim
+
+
 if __name__ == "__main__":
     print("Score encoder module loaded successfully")
     print("Components:")
     print("- NoteFeatureEncoder: Transformer for per-note deviations")
     print("- GlobalFeatureEncoder: MLP for aggregated statistics")
     print("- TempoCurveEncoder: 1D CNN for tempo ratios")
-    print("- ScoreAlignmentEncoder: Combined encoder")
+    print("- ScoreAlignmentEncoder: Combined encoder (flat)")
+    print("- HierarchicalScoreEncoder: HAN-based encoder (hierarchical)")
     print("- ScoreMIDIFusion: Fusion strategies (concat, crossattn, gated)")
