@@ -451,11 +451,12 @@ class PercePianoScoreDataset(Dataset):
     def _get_empty_note_locations(self) -> Dict[str, torch.Tensor]:
         """Return empty note_locations when score is unavailable."""
         # Create linear indices - every 4 notes is a beat, every 16 is a measure
+        # Use 1-based indexing (0 is reserved for padding in HAN encoder)
         indices = np.arange(self.max_score_notes)
         return {
-            "beat": torch.tensor(indices // 4, dtype=torch.long),
-            "measure": torch.tensor(indices // 16, dtype=torch.long),
-            "voice": torch.ones(self.max_score_notes, dtype=torch.long),
+            "beat": torch.tensor(indices // 4 + 1, dtype=torch.long),  # Start from 1
+            "measure": torch.tensor(indices // 16 + 1, dtype=torch.long),  # Start from 1
+            "voice": torch.ones(self.max_score_notes, dtype=torch.long),  # Already 1-based
         }
 
     def _get_empty_score_features(self) -> Dict[str, torch.Tensor]:

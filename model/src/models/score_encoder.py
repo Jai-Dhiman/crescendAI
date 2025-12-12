@@ -649,11 +649,12 @@ class HierarchicalScoreEncoder(nn.Module):
     ) -> Dict[str, torch.Tensor]:
         """Create default note_locations with linear beat/measure indices."""
         # Simple linear indexing - every 4 notes is a beat, every 16 notes is a measure
+        # Use 1-based indexing (0 is reserved for padding in HAN encoder)
         note_indices = torch.arange(num_notes, device=device)
 
-        beat_indices = note_indices // 4  # 4 notes per beat
-        measure_indices = note_indices // 16  # 16 notes per measure (4 beats)
-        voice_indices = torch.ones(num_notes, dtype=torch.long, device=device)  # Single voice
+        beat_indices = note_indices // 4 + 1  # Start from 1
+        measure_indices = note_indices // 16 + 1  # Start from 1
+        voice_indices = torch.ones(num_notes, dtype=torch.long, device=device)  # Already 1-based
 
         return {
             'beat': beat_indices.unsqueeze(0).expand(batch_size, -1),

@@ -718,21 +718,24 @@ class ScoreAlignmentFeatureExtractor:
             - beat: [num_notes] beat index per note (for note->beat aggregation)
             - measure: [num_notes] measure index per note (for beat->measure aggregation)
             - voice: [num_notes] voice index per note (for voice processing)
+
+        Note: All indices are 1-based (0 is reserved for padding in HAN encoder).
         """
         beats = []
         measures = []
         voices = []
 
         for note in aligned_notes:
-            # Beat index (default to 0 if not matched)
-            beat_idx = note.beat_index if note.beat_index is not None else 0
+            # Beat index (1-based, default to 1 if not matched)
+            # HAN encoder uses 0 for padding, so valid indices start from 1
+            beat_idx = (note.beat_index + 1) if note.beat_index is not None else 1
             beats.append(beat_idx)
 
-            # Measure index
-            measure_idx = note.score_measure if note.score_measure is not None else 0
+            # Measure index (1-based)
+            measure_idx = (note.score_measure + 1) if note.score_measure is not None else 1
             measures.append(measure_idx)
 
-            # Voice index (1-indexed for PercePiano compatibility)
+            # Voice index (already 1-indexed for PercePiano compatibility)
             voice_idx = note.score_voice if note.score_voice is not None else 1
             voices.append(voice_idx)
 
