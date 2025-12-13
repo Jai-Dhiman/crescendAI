@@ -21,6 +21,11 @@ from .score_aligned_module import (
     ScoreAlignedModule,
     ScoreAlignedModuleWithFallback,
 )
+from .percepiano_replica import (
+    PercePianoReplicaModule,
+    PercePianoHAN,
+    PERCEPIANO_DIMENSIONS,
+)
 
 __all__ = [
     "MERTEncoder",
@@ -44,4 +49,7 @@ __all__ = [
     "TempoCurveEncoder",
     "ScoreAlignedModule",
     "ScoreAlignedModuleWithFallback",
+    "PercePianoReplicaModule",
+    "PercePianoHAN",
+    "PERCEPIANO_DIMENSIONS",
 ]
