@@ -174,13 +174,22 @@ def make_higher_node(
         ]
 
     # Apply softmax within each segment
-    softmax_similarity = torch.nn.utils.rnn.pad_sequence(
-        [
-            torch.cat(get_softmax_by_boundary(similarity[batch_idx], boundaries[batch_idx]))
-            for batch_idx in range(len(lower_out))
-        ],
-        batch_first=True,
-    )
+    softmax_results = [
+        torch.cat(get_softmax_by_boundary(similarity[batch_idx], boundaries[batch_idx]))
+        for batch_idx in range(len(lower_out))
+    ]
+    softmax_similarity = torch.nn.utils.rnn.pad_sequence(softmax_results, batch_first=True)
+
+    # Ensure softmax_similarity matches lower_out sequence length (may need padding)
+    if softmax_similarity.shape[1] < lower_out.shape[1]:
+        padding = torch.zeros(
+            softmax_similarity.shape[0],
+            lower_out.shape[1] - softmax_similarity.shape[1],
+            softmax_similarity.shape[2],
+            device=softmax_similarity.device,
+            dtype=softmax_similarity.dtype,
+        )
+        softmax_similarity = torch.cat([softmax_similarity, padding], dim=1)
 
     # Compute weighted sum within each segment
     if hasattr(attention_weights, 'head_size'):
