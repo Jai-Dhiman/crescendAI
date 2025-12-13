@@ -234,10 +234,14 @@ def make_higher_node(
         ]
 
     # Apply softmax within each segment
-    softmax_results = [
-        torch.cat(get_softmax_by_boundary(similarity[batch_idx], boundaries[batch_idx]))
-        for batch_idx in range(len(lower_out))
-    ]
+    softmax_results = []
+    for batch_idx in range(len(lower_out)):
+        segments = get_softmax_by_boundary(similarity[batch_idx], boundaries[batch_idx])
+        if len(segments) > 0:
+            softmax_results.append(torch.cat(segments))
+        else:
+            # Handle edge case: no valid segments, create a single-element tensor
+            softmax_results.append(similarity[batch_idx, :1, :])
     softmax_similarity = torch.nn.utils.rnn.pad_sequence(softmax_results, batch_first=True)
 
     # Ensure softmax_similarity matches lower_out sequence length (may need padding)
@@ -257,27 +261,38 @@ def make_higher_node(
         weighted_x = x_split * softmax_similarity.unsqueeze(-1).repeat(1, 1, 1, x_split.shape[-1])
         weighted_x = weighted_x.view(x_split.shape[0], x_split.shape[1], lower_out.shape[-1])
 
-        higher_nodes = torch.nn.utils.rnn.pad_sequence(
-            [
-                torch.cat(
-                    [
-                        torch.sum(weighted_x[i:i+1, boundaries[i][j-1]:boundaries[i][j], :], dim=1)
-                        for j in range(1, len(boundaries[i]))
-                    ],
-                    dim=0,
-                )
-                for i in range(len(lower_out))
-            ],
-            batch_first=True,
-        )
+        higher_nodes_list = []
+        for i in range(len(lower_out)):
+            batch_segments = []
+            for j in range(1, len(boundaries[i])):
+                start, end = boundaries[i][j-1], boundaries[i][j]
+                if start < end and end <= weighted_x.shape[1]:
+                    segment_sum = torch.sum(weighted_x[i:i+1, start:end, :], dim=1)
+                    batch_segments.append(segment_sum)
+            if len(batch_segments) > 0:
+                higher_nodes_list.append(torch.cat(batch_segments, dim=0))
+            else:
+                # Handle edge case: no valid segments, use first position
+                higher_nodes_list.append(weighted_x[i, :1, :])
+
+        higher_nodes = torch.nn.utils.rnn.pad_sequence(higher_nodes_list, batch_first=True)
     else:
+        # Non-head-size path (for compatibility)
         weighted_sum = softmax_similarity * lower_out
-        higher_nodes = torch.cat(
-            [
-                torch.sum(weighted_sum[:, boundaries[i-1]:boundaries[i], :], dim=1)
-                for i in range(1, len(boundaries))
-            ]
-        ).unsqueeze(0)
+        higher_nodes_list = []
+        for i in range(len(lower_out)):
+            batch_segments = []
+            for j in range(1, len(boundaries[i])):
+                start, end = boundaries[i][j-1], boundaries[i][j]
+                if start < end and end <= weighted_sum.shape[1]:
+                    segment_sum = torch.sum(weighted_sum[i:i+1, start:end, :], dim=1)
+                    batch_segments.append(segment_sum)
+            if len(batch_segments) > 0:
+                higher_nodes_list.append(torch.cat(batch_segments, dim=0))
+            else:
+                higher_nodes_list.append(weighted_sum[i, :1, :])
+
+        higher_nodes = torch.nn.utils.rnn.pad_sequence(higher_nodes_list, batch_first=True)
 
     return higher_nodes
 
