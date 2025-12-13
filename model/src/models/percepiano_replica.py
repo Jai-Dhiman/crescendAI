@@ -527,7 +527,7 @@ class PercePianoReplicaModule(pl.LightningModule):
 
         # Optional: learning rate scheduler
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-            optimizer, mode='max', factor=0.5, patience=10, verbose=True
+            optimizer, mode='max', factor=0.5, patience=10
         )
 
         return {
