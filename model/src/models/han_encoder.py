@@ -12,7 +12,12 @@ from typing import Dict, Optional
 from dataclasses import dataclass
 
 from .context_attention import ContextAttention
-from .hierarchy_utils import make_higher_node, span_beat_to_note_num, run_hierarchy_lstm_with_pack
+from .hierarchy_utils import (
+    make_higher_node,
+    span_beat_to_note_num,
+    run_hierarchy_lstm_with_pack,
+    compute_actual_lengths,
+)
 
 
 @dataclass
@@ -166,16 +171,15 @@ class HanEncoder(nn.Module):
         beat_numbers = note_locations['beat']
         measure_numbers = note_locations['measure']
 
+        # Compute actual sequence lengths for proper handling throughout hierarchy
+        actual_lengths = compute_actual_lengths(beat_numbers)
+
         # Project input if needed
         x = self.note_fc(x)
 
         # Pack sequence for efficient LSTM processing
-        # Calculate actual lengths (non-zero positions)
-        seq_lengths = x.shape[1] - (voice_numbers == 0).sum(dim=1)
-        seq_lengths = seq_lengths.clamp(min=1)  # Ensure at least 1
-
         if not isinstance(x, nn.utils.rnn.PackedSequence):
-            x_packed = pack_padded_sequence(x, seq_lengths.cpu(), batch_first=True, enforce_sorted=False)
+            x_packed = pack_padded_sequence(x, actual_lengths.cpu(), batch_first=True, enforce_sorted=False)
         else:
             x_packed = x
 
@@ -190,9 +194,9 @@ class HanEncoder(nn.Module):
         # Concatenate note and voice outputs
         hidden_out = torch.cat((note_out, voice_out), dim=2)
 
-        # Process through beat and measure levels
+        # Process through beat and measure levels - pass actual_lengths
         beat_hidden_out, measure_hidden_out, beat_out_spanned, measure_out_spanned = self._run_beat_and_measure(
-            hidden_out, note_locations
+            hidden_out, note_locations, actual_lengths=actual_lengths
         )
 
         # Concatenate all levels for final output
@@ -279,6 +283,7 @@ class HanEncoder(nn.Module):
         self,
         hidden_out: torch.Tensor,
         note_locations: Dict[str, torch.Tensor],
+        actual_lengths: Optional[torch.Tensor] = None,
     ):
         """
         Aggregate from note level to beat and measure levels.
@@ -286,6 +291,8 @@ class HanEncoder(nn.Module):
         Args:
             hidden_out: Note+voice representations (N, T, combined_dim)
             note_locations: Dict with beat and measure indices
+            actual_lengths: Optional tensor of shape (N,) with actual sequence lengths.
+                           If not provided, will be computed from beat_numbers.
 
         Returns:
             Tuple of:
@@ -297,9 +304,14 @@ class HanEncoder(nn.Module):
         beat_numbers = note_locations['beat']
         measure_numbers = note_locations['measure']
 
+        # Compute actual_lengths if not provided
+        if actual_lengths is None:
+            actual_lengths = compute_actual_lengths(beat_numbers)
+
         # Aggregate notes to beats using attention
         beat_nodes = make_higher_node(
-            hidden_out, self.beat_attention, beat_numbers, beat_numbers, lower_is_note=True
+            hidden_out, self.beat_attention, beat_numbers, beat_numbers,
+            lower_is_note=True, actual_lengths=actual_lengths
         )
 
         # Process beats through LSTM
@@ -307,15 +319,16 @@ class HanEncoder(nn.Module):
 
         # Aggregate beats to measures using attention
         measure_nodes = make_higher_node(
-            beat_hidden_out, self.measure_attention, beat_numbers, measure_numbers
+            beat_hidden_out, self.measure_attention, beat_numbers, measure_numbers,
+            actual_lengths=actual_lengths
         )
 
         # Process measures through LSTM
         measure_hidden_out = run_hierarchy_lstm_with_pack(measure_nodes, self.measure_rnn)
 
         # Span back to note level
-        beat_out_spanned = span_beat_to_note_num(beat_hidden_out, beat_numbers)
-        measure_out_spanned = span_beat_to_note_num(measure_hidden_out, measure_numbers)
+        beat_out_spanned = span_beat_to_note_num(beat_hidden_out, beat_numbers, actual_lengths=actual_lengths)
+        measure_out_spanned = span_beat_to_note_num(measure_hidden_out, measure_numbers, actual_lengths=actual_lengths)
 
         return beat_hidden_out, measure_hidden_out, beat_out_spanned, measure_out_spanned
 
@@ -388,19 +401,23 @@ class SimplifiedHanEncoder(nn.Module):
         beat_numbers = note_locations['beat']
         measure_numbers = note_locations['measure']
 
+        # Compute actual sequence lengths for proper handling throughout hierarchy
+        actual_lengths = compute_actual_lengths(beat_numbers)
+
         # Note-level processing
         x = self.note_fc(x)
-        seq_lengths = x.shape[1] - (beat_numbers == 0).sum(dim=1)
-        seq_lengths = seq_lengths.clamp(min=1)
 
-        x_packed = pack_padded_sequence(x, seq_lengths.cpu(), batch_first=True, enforce_sorted=False)
+        x_packed = pack_padded_sequence(x, actual_lengths.cpu(), batch_first=True, enforce_sorted=False)
         note_out, _ = self.note_lstm(x_packed)
         note_out, _ = pad_packed_sequence(note_out, batch_first=True, total_length=orig_seq_len)
 
-        # Beat aggregation
-        beat_nodes = make_higher_node(note_out, self.beat_attention, beat_numbers, beat_numbers, lower_is_note=True)
+        # Beat aggregation - pass actual_lengths for proper boundary handling
+        beat_nodes = make_higher_node(
+            note_out, self.beat_attention, beat_numbers, beat_numbers,
+            lower_is_note=True, actual_lengths=actual_lengths
+        )
         beat_out = run_hierarchy_lstm_with_pack(beat_nodes, self.beat_lstm)
-        beat_spanned = span_beat_to_note_num(beat_out, beat_numbers)
+        beat_spanned = span_beat_to_note_num(beat_out, beat_numbers, actual_lengths=actual_lengths)
 
         # Ensure beat_spanned matches original sequence length
         if beat_spanned.shape[1] < orig_seq_len:
@@ -410,10 +427,13 @@ class SimplifiedHanEncoder(nn.Module):
             )
             beat_spanned = torch.cat([beat_spanned, padding], dim=1)
 
-        # Measure aggregation
-        measure_nodes = make_higher_node(beat_out, self.measure_attention, beat_numbers, measure_numbers)
+        # Measure aggregation - pass actual_lengths for proper boundary handling
+        measure_nodes = make_higher_node(
+            beat_out, self.measure_attention, beat_numbers, measure_numbers,
+            actual_lengths=actual_lengths
+        )
         measure_out = run_hierarchy_lstm_with_pack(measure_nodes, self.measure_lstm)
-        measure_spanned = span_beat_to_note_num(measure_out, measure_numbers)
+        measure_spanned = span_beat_to_note_num(measure_out, measure_numbers, actual_lengths=actual_lengths)
 
         # Ensure measure_spanned matches original sequence length
         if measure_spanned.shape[1] < orig_seq_len:

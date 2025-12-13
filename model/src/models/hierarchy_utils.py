@@ -12,6 +12,36 @@ from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 from typing import List, Tuple, Optional
 
 
+def compute_actual_lengths(beat_numbers: torch.Tensor) -> torch.Tensor:
+    """
+    Compute actual sequence lengths from zero-padded beat numbers.
+
+    This is the core helper that enables proper length tracking throughout
+    the hierarchical processing pipeline.
+
+    Args:
+        beat_numbers: Tensor of shape (N, T) with beat indices per note.
+                      Assumes padding positions have beat_number == 0.
+
+    Returns:
+        Tensor of shape (N,) with actual sequence lengths.
+    """
+    batch_size, seq_len = beat_numbers.shape
+
+    # Find last non-zero position for each batch element
+    non_zero_mask = beat_numbers != 0  # (N, T)
+
+    lengths = torch.zeros(batch_size, dtype=torch.long, device=beat_numbers.device)
+    for i in range(batch_size):
+        non_zero_positions = torch.where(non_zero_mask[i])[0]
+        if len(non_zero_positions) > 0:
+            lengths[i] = non_zero_positions[-1].item() + 1
+        else:
+            lengths[i] = 1  # Minimum length
+
+    return lengths
+
+
 def find_boundaries(diff_boundary: torch.Tensor, beat_numbers: torch.Tensor, batch_idx: int) -> List[int]:
     """
     Find boundary indices for a single batch element.
@@ -43,7 +73,10 @@ def find_boundaries(diff_boundary: torch.Tensor, beat_numbers: torch.Tensor, bat
     return boundaries
 
 
-def find_boundaries_batch(beat_numbers: torch.Tensor) -> List[List[int]]:
+def find_boundaries_batch(
+    beat_numbers: torch.Tensor,
+    actual_lengths: Optional[torch.Tensor] = None,
+) -> List[List[int]]:
     """
     Find beat/measure boundaries for a batch of sequences.
 
@@ -52,15 +85,35 @@ def find_boundaries_batch(beat_numbers: torch.Tensor) -> List[List[int]]:
     Args:
         beat_numbers: Tensor of shape (N, T) with beat/measure indices per note.
                       Zero-padded sequences.
+        actual_lengths: Optional tensor of shape (N,) with actual sequence lengths.
+                       If not provided, will be computed from beat_numbers.
 
     Returns:
         List of lists, each containing boundary indices for that batch element.
-        Includes 0 at start and sequence length at end.
+        Includes 0 at start and actual sequence length at end.
     """
-    # Find positions where beat number increases by 1
-    diff_boundary = torch.nonzero(beat_numbers[:, 1:] - beat_numbers[:, :-1] == 1).cpu()
+    if actual_lengths is None:
+        actual_lengths = compute_actual_lengths(beat_numbers)
 
-    return [find_boundaries(diff_boundary, beat_numbers, i) for i in range(len(beat_numbers))]
+    batch_size = beat_numbers.shape[0]
+    all_boundaries = []
+
+    for i in range(batch_size):
+        length = int(actual_lengths[i].item())
+        valid_beats = beat_numbers[i, :length]
+
+        # Find where beat number changes (increases by 1)
+        if length > 1:
+            diffs = valid_beats[1:] - valid_beats[:-1]
+            change_positions = torch.where(diffs == 1)[0].cpu().tolist()
+            # Boundaries are after the change position
+            boundaries = [0] + [p + 1 for p in change_positions] + [length]
+        else:
+            boundaries = [0, length]
+
+        all_boundaries.append(boundaries)
+
+    return all_boundaries
 
 
 def get_softmax_by_boundary(
@@ -135,6 +188,7 @@ def make_higher_node(
     lower_indices: torch.Tensor,
     higher_indices: torch.Tensor,
     lower_is_note: bool = False,
+    actual_lengths: Optional[torch.Tensor] = None,
 ) -> torch.Tensor:
     """
     Aggregate lower-level nodes into higher-level nodes using attention.
@@ -149,6 +203,8 @@ def make_higher_node(
         lower_indices: Tensor of shape (N, T_lower) - beat/measure indices at lower level
         higher_indices: Tensor of shape (N, T_lower) - measure indices for each lower element
         lower_is_note: If True, lower_out is notes, else it's beats
+        actual_lengths: Optional tensor of shape (N,) with actual sequence lengths.
+                       If not provided, will be computed from indices.
 
     Returns:
         Tensor of shape (N, T_higher, C) - aggregated higher-level representations
@@ -156,15 +212,19 @@ def make_higher_node(
     # Get attention scores
     similarity = attention_weights.get_attention(lower_out)  # (N, T, num_heads)
 
+    # Compute actual_lengths if not provided
+    if actual_lengths is None:
+        actual_lengths = compute_actual_lengths(higher_indices)
+
     if lower_is_note:
         # Notes -> Beats: use higher_indices directly
-        boundaries = find_boundaries_batch(higher_indices)
+        boundaries = find_boundaries_batch(higher_indices, actual_lengths)
     else:
         # Beats -> Measures: need to map through lower_indices
-        higher_boundaries = find_boundaries_batch(higher_indices)
+        higher_boundaries = find_boundaries_batch(higher_indices, actual_lengths)
         zero_shifted_lower_indices = lower_indices - lower_indices[:, 0:1]
 
-        # Calculate actual lengths
+        # Calculate actual lengths for beat-level output
         num_zero_padded = ((lower_out != 0).sum(-1) == 0).sum(1)
         len_lower_out = (lower_out.shape[1] - num_zero_padded).tolist()
 
@@ -222,7 +282,11 @@ def make_higher_node(
     return higher_nodes
 
 
-def span_beat_to_note_num(beat_out: torch.Tensor, beat_number: torch.Tensor) -> torch.Tensor:
+def span_beat_to_note_num(
+    beat_out: torch.Tensor,
+    beat_number: torch.Tensor,
+    actual_lengths: Optional[torch.Tensor] = None,
+) -> torch.Tensor:
     """
     Broadcast beat-level representations back to note level.
 
@@ -231,6 +295,8 @@ def span_beat_to_note_num(beat_out: torch.Tensor, beat_number: torch.Tensor) -> 
     Args:
         beat_out: Tensor of shape (N, T_beat, C) - beat-level representations
         beat_number: Tensor of shape (N, T_note) - beat index for each note
+        actual_lengths: Optional tensor of shape (N,) with actual sequence lengths.
+                       If not provided, will be computed from beat_number.
 
     Returns:
         Tensor of shape (N, T_note, C) - beat representations repeated for each note
@@ -238,8 +304,11 @@ def span_beat_to_note_num(beat_out: torch.Tensor, beat_number: torch.Tensor) -> 
     # Shift beat numbers to start from 0
     zero_shifted_beat_number = beat_number - beat_number[:, 0:1]
 
-    # Get actual note lengths
-    len_note = cal_length_from_padded_beat_numbers(beat_number)
+    # Get actual note lengths - use provided or compute
+    if actual_lengths is not None:
+        len_note = actual_lengths
+    else:
+        len_note = cal_length_from_padded_beat_numbers(beat_number)
 
     # Build index arrays for sparse matrix
     batch_indices = torch.cat([torch.ones(length) * i for i, length in enumerate(len_note)]).long()
