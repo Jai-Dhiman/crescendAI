@@ -398,12 +398,12 @@ class PercePianoScoreDataset(Dataset):
         tempo_curve = self._prepare_tempo_curve(features["tempo_curve"])
         note_locations = self._prepare_note_locations(features["note_locations"])
 
-        # Cache
+        # Cache (note_features and tempo_curve are already numpy arrays)
         if self.cache_scores:
             self._score_cache[cache_key] = {
-                "note_features": note_features.numpy(),
+                "note_features": note_features,
                 "global_features": global_features,
-                "tempo_curve": tempo_curve.numpy(),
+                "tempo_curve": tempo_curve,
                 "note_locations": {
                     "beat": note_locations["beat"].numpy(),
                     "measure": note_locations["measure"].numpy(),
