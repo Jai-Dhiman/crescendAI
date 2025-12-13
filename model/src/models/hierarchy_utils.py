@@ -249,9 +249,13 @@ def span_beat_to_note_num(beat_out: torch.Tensor, beat_number: torch.Tensor) -> 
         for i, length in enumerate(len_note)
     ]).long()
 
+    # Clamp beat_indices to valid range to prevent out-of-bounds errors
+    max_beat_idx = beat_out.shape[1] - 1
+    beat_indices = beat_indices.clamp(0, max_beat_idx)
+
     # Create span matrix (N, T_note, T_beat)
     span_mat = torch.zeros(beat_number.shape[0], beat_number.shape[1], beat_out.shape[1]).to(beat_out.device)
-    span_mat[batch_indices, note_indices, beat_indices] = 1
+    span_mat[batch_indices.to(beat_out.device), note_indices.to(beat_out.device), beat_indices.to(beat_out.device)] = 1
 
     # Multiply to get note-level representations
     spanned_beat = torch.bmm(span_mat, beat_out)
