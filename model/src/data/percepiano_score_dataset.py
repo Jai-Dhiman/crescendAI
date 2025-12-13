@@ -370,17 +370,8 @@ class PercePianoScoreDataset(Dataset):
         cache_key = f"{midi_path}:{score_path}"
 
         if self.cache_scores and cache_key in self._score_cache:
-            cached = self._score_cache[cache_key]
-            return {
-                "note_features": torch.tensor(cached["note_features"], dtype=torch.float32),
-                "global_features": torch.tensor(cached["global_features"], dtype=torch.float32),
-                "tempo_curve": torch.tensor(cached["tempo_curve"], dtype=torch.float32),
-                "note_locations": {
-                    "beat": torch.tensor(cached["note_locations"]["beat"], dtype=torch.long),
-                    "measure": torch.tensor(cached["note_locations"]["measure"], dtype=torch.long),
-                    "voice": torch.tensor(cached["note_locations"]["voice"], dtype=torch.long),
-                },
-            }
+            # Return cached tensor results directly
+            return self._score_cache[cache_key]
 
         # Load performance MIDI
         perf_midi = pretty_midi.PrettyMIDI(midi_path)
@@ -398,25 +389,19 @@ class PercePianoScoreDataset(Dataset):
         tempo_curve = self._prepare_tempo_curve(features["tempo_curve"])
         note_locations = self._prepare_note_locations(features["note_locations"])
 
-        # Cache (note_features and tempo_curve are already numpy arrays)
-        if self.cache_scores:
-            self._score_cache[cache_key] = {
-                "note_features": note_features,
-                "global_features": global_features,
-                "tempo_curve": tempo_curve,
-                "note_locations": {
-                    "beat": note_locations["beat"].numpy(),
-                    "measure": note_locations["measure"].numpy(),
-                    "voice": note_locations["voice"].numpy(),
-                },
-            }
-
-        return {
+        # Convert to tensors
+        result = {
             "note_features": torch.tensor(note_features, dtype=torch.float32),
             "global_features": torch.tensor(global_features, dtype=torch.float32),
             "tempo_curve": torch.tensor(tempo_curve, dtype=torch.float32),
             "note_locations": note_locations,
         }
+
+        # Cache the tensor results directly (no numpy conversion needed)
+        if self.cache_scores:
+            self._score_cache[cache_key] = result
+
+        return result
 
     def _prepare_note_features(self, note_features: np.ndarray) -> np.ndarray:
         """Prepare note features: truncate or pad to max length."""
