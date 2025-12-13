@@ -244,8 +244,9 @@ def make_higher_node(
             softmax_results.append(similarity[batch_idx, :1, :])
     softmax_similarity = torch.nn.utils.rnn.pad_sequence(softmax_results, batch_first=True)
 
-    # Ensure softmax_similarity matches lower_out sequence length (may need padding)
+    # Ensure softmax_similarity matches lower_out sequence length
     if softmax_similarity.shape[1] < lower_out.shape[1]:
+        # Pad if softmax is shorter
         padding = torch.zeros(
             softmax_similarity.shape[0],
             lower_out.shape[1] - softmax_similarity.shape[1],
@@ -254,6 +255,9 @@ def make_higher_node(
             dtype=softmax_similarity.dtype,
         )
         softmax_similarity = torch.cat([softmax_similarity, padding], dim=1)
+    elif softmax_similarity.shape[1] > lower_out.shape[1]:
+        # Truncate if softmax is longer (can happen in beat->measure aggregation)
+        softmax_similarity = softmax_similarity[:, :lower_out.shape[1], :]
 
     # Compute weighted sum within each segment
     if hasattr(attention_weights, 'head_size'):
