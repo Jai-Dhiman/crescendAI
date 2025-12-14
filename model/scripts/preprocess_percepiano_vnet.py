@@ -89,9 +89,21 @@ def process_sample(
         Feature dictionary or None if extraction fails
     """
     try:
-        # Get paths
-        midi_path = data_root / sample['midi_path']
-        score_path = score_xml_dir / sample['score_path']
+        # Get MIDI path - handle both absolute and relative paths
+        midi_path_str = sample['midi_path']
+        midi_path = Path(midi_path_str)
+        if not midi_path.is_absolute():
+            midi_path = data_root / midi_path_str
+
+        # Get score path - handle both absolute and relative paths
+        score_path_str = sample['score_path']
+        score_path = Path(score_path_str)
+        if not score_path.is_absolute():
+            # Try as relative to score_xml_dir first
+            score_path = score_xml_dir / score_path_str
+            if not score_path.exists():
+                # Try just the filename in score_xml_dir
+                score_path = score_xml_dir / Path(score_path_str).name
 
         if not midi_path.exists():
             print(f"MIDI file not found: {midi_path}")
@@ -181,6 +193,10 @@ def main():
     parser = argparse.ArgumentParser(description='Preprocess PercePiano data with VirtuosoNet features')
     parser.add_argument('--data_root', type=Path, default=PROJECT_ROOT / 'data',
                        help='Root data directory')
+    parser.add_argument('--json_dir', type=Path, default=None,
+                       help='Directory containing percepiano_*.json split files (defaults to data_root)')
+    parser.add_argument('--score_xml_dir', type=Path, default=None,
+                       help='Directory containing score XML files')
     parser.add_argument('--output_dir', type=Path, default=None,
                        help='Output directory for processed data')
     parser.add_argument('--skip_normalization', action='store_true',
@@ -189,18 +205,35 @@ def main():
 
     # Set up paths
     data_root = args.data_root
-    processed_dir = data_root / 'processed'
-    raw_dir = data_root / 'raw' / 'PercePiano'
-    score_xml_dir = raw_dir / 'virtuoso' / 'data' / 'score_xml'
 
-    output_dir = args.output_dir or (processed_dir / 'percepiano_vnet')
+    # JSON directory: explicit arg, or data_root itself, or data_root/processed
+    if args.json_dir:
+        json_dir = args.json_dir
+    elif (data_root / 'percepiano_train.json').exists():
+        json_dir = data_root
+    else:
+        json_dir = data_root / 'processed'
+
+    # Score XML directory: explicit arg, or search common locations
+    if args.score_xml_dir:
+        score_xml_dir = args.score_xml_dir
+    elif (data_root / 'PercePiano' / 'virtuoso' / 'data' / 'score_xml').exists():
+        score_xml_dir = data_root / 'PercePiano' / 'virtuoso' / 'data' / 'score_xml'
+    else:
+        score_xml_dir = data_root / 'raw' / 'PercePiano' / 'virtuoso' / 'data' / 'score_xml'
+
+    output_dir = args.output_dir or (data_root / 'percepiano_vnet')
     output_dir.mkdir(parents=True, exist_ok=True)
+
+    print(f"JSON directory: {json_dir}")
+    print(f"Score XML directory: {score_xml_dir}")
+    print(f"Output directory: {output_dir}")
 
     # Load split files
     splits = {
-        'train': processed_dir / 'percepiano_train.json',
-        'val': processed_dir / 'percepiano_val.json',
-        'test': processed_dir / 'percepiano_test.json',
+        'train': json_dir / 'percepiano_train.json',
+        'val': json_dir / 'percepiano_val.json',
+        'test': json_dir / 'percepiano_test.json',
     }
 
     # Process each split
