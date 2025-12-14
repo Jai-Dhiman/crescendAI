@@ -28,7 +28,7 @@ import torch
 import torch.nn as nn
 import pytorch_lightning as pl
 import numpy as np
-from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
+from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence, pad_sequence
 from typing import Dict, List, Optional, Tuple
 from pathlib import Path
 
@@ -238,21 +238,80 @@ class PercePianoHAN(nn.Module):
         actual_lengths: torch.Tensor,
     ) -> torch.Tensor:
         """
-        Process notes through voice LSTM.
+        Process notes through voice LSTM, grouped by voice.
 
-        Simplified version that processes all notes together.
-        Full PercePiano does per-voice parallel processing.
+        Matches original PercePiano encoder_score.py:526-549:
+        - Process each voice separately through LSTM
+        - Scatter results back to original positions
+        - This preserves voice-specific temporal patterns
+
+        Args:
+            x: Input features [batch, seq_len, hidden]
+            voice_numbers: Voice assignment per note [batch, seq_len]
+            actual_lengths: Actual sequence lengths [batch]
+
+        Returns:
+            Voice-processed features [batch, seq_len, voice_hidden*2]
         """
-        batch_size, seq_len, _ = x.shape
-
-        x_packed = pack_padded_sequence(
-            x, actual_lengths.cpu().clamp(min=1),
-            batch_first=True, enforce_sorted=False
+        batch_size, seq_len, hidden_dim = x.shape
+        output = torch.zeros(
+            batch_size, seq_len, self.voice_size * 2,
+            device=x.device, dtype=x.dtype
         )
-        voice_out, _ = self.voice_lstm(x_packed)
-        voice_out, _ = pad_packed_sequence(voice_out, batch_first=True, total_length=seq_len)
 
-        return voice_out
+        # Get max voice across batch (voice numbers start at 1)
+        max_voice = voice_numbers.max().item()
+        if max_voice == 0:
+            # No valid voices, return zeros
+            return output
+
+        # Process each voice separately
+        for voice_idx in range(1, int(max_voice) + 1):
+            # Create mask for this voice [batch, seq_len]
+            voice_mask = (voice_numbers == voice_idx)
+            num_voice_notes_per_batch = voice_mask.sum(dim=1)  # [batch]
+
+            # Skip if no notes in this voice across entire batch
+            if num_voice_notes_per_batch.sum() == 0:
+                continue
+
+            # Extract notes belonging to this voice from each batch item
+            voice_notes = []
+            voice_lengths = []
+            for b in range(batch_size):
+                n_notes = num_voice_notes_per_batch[b].item()
+                if n_notes > 0:
+                    # Extract notes for this voice in this batch item
+                    voice_notes.append(x[b, voice_mask[b]])
+                    voice_lengths.append(n_notes)
+                else:
+                    # Placeholder for batches with no notes in this voice
+                    voice_notes.append(torch.zeros(1, hidden_dim, device=x.device, dtype=x.dtype))
+                    voice_lengths.append(1)
+
+            # Pad to same length and pack
+            voice_x = pad_sequence(voice_notes, batch_first=True)
+            voice_packed = pack_padded_sequence(
+                voice_x,
+                torch.tensor(voice_lengths, dtype=torch.long),
+                batch_first=True,
+                enforce_sorted=False
+            )
+
+            # Process through voice LSTM
+            voice_out, _ = self.voice_lstm(voice_packed)
+            voice_out, _ = pad_packed_sequence(voice_out, batch_first=True)
+
+            # Scatter results back to original positions
+            for b in range(batch_size):
+                n_notes = num_voice_notes_per_batch[b].item()
+                if n_notes > 0:
+                    # Get positions in original sequence where this voice's notes are
+                    positions = voice_mask[b].nonzero(as_tuple=True)[0]
+                    # Place voice LSTM outputs at those positions
+                    output[b, positions] = voice_out[b, :n_notes]
+
+        return output
 
 
 class PercePianoReplicaModule(pl.LightningModule):
@@ -403,11 +462,8 @@ class PercePianoReplicaModule(pl.LightningModule):
         # Combine with global context
         combined = torch.cat([aggregated, global_context], dim=-1)  # [B, han_output_dim + H]
 
-        # Predict scores
+        # Predict scores (no sigmoid - let MSE loss work on unbounded outputs)
         predictions = self.prediction_head(combined)  # [B, num_dims]
-
-        # Apply sigmoid to bound to 0-1
-        predictions = torch.sigmoid(predictions)
 
         return {
             'predictions': predictions,
@@ -526,6 +582,234 @@ class PercePianoReplicaModule(pl.LightningModule):
         )
 
         # Optional: learning rate scheduler
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer, mode='max', factor=0.5, patience=10
+        )
+
+        return {
+            'optimizer': optimizer,
+            'lr_scheduler': {
+                'scheduler': scheduler,
+                'monitor': 'val/mean_r2',
+            }
+        }
+
+    def count_parameters(self) -> int:
+        """Count trainable parameters."""
+        return sum(p.numel() for p in self.parameters() if p.requires_grad)
+
+
+class PercePianoVNetModule(pl.LightningModule):
+    """
+    Faithful PercePiano replica using VirtuosoNet 78-dim features.
+
+    This version matches the original PercePiano architecture exactly:
+    - Input: 78-dim VirtuosoNet features (NOT concatenated with global context)
+    - HAN encoder: Note -> Voice -> Beat -> Measure hierarchy
+    - Output: 19-dim scores
+
+    Key difference from PercePianoReplicaModule:
+    - No global_encoder or tempo_encoder (these aren't in original PercePiano)
+    - HAN input is exactly 78-dim (no global context concatenation)
+    - Simpler, more faithful to published architecture
+    """
+
+    def __init__(
+        self,
+        # Input dimension (VirtuosoNet features)
+        input_size: int = 78,
+        # HAN dimensions (matched to PercePiano han_bigger256_concat.yml)
+        hidden_size: int = 256,
+        note_layers: int = 2,
+        voice_layers: int = 2,
+        beat_layers: int = 2,
+        measure_layers: int = 1,
+        num_attention_heads: int = 8,
+        # Final head
+        final_hidden: int = 128,
+        # Training (PercePiano defaults)
+        learning_rate: float = 2.5e-5,
+        weight_decay: float = 0.01,
+        dropout: float = 0.2,
+        # Task
+        dimensions: Optional[List[str]] = None,
+    ):
+        super().__init__()
+        self.save_hyperparameters()
+
+        self.dimensions = dimensions or PERCEPIANO_DIMENSIONS
+        self.num_dimensions = len(self.dimensions)
+
+        # HAN encoder - takes 78-dim input directly (no global context concatenation)
+        self.han_encoder = PercePianoHAN(
+            input_size=input_size,  # 78-dim VirtuosoNet features
+            note_size=hidden_size,
+            voice_size=hidden_size,
+            beat_size=hidden_size,
+            measure_size=hidden_size,
+            note_layers=note_layers,
+            voice_layers=voice_layers,
+            beat_layers=beat_layers,
+            measure_layers=measure_layers,
+            num_attention_heads=num_attention_heads,
+            dropout=dropout,
+        )
+
+        # Final attention aggregation
+        self.final_attention = ContextAttention(
+            self.han_encoder.output_dim, num_attention_heads
+        )
+
+        # Prediction head
+        self.prediction_head = nn.Sequential(
+            nn.Linear(self.han_encoder.output_dim, final_hidden),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+            nn.Linear(final_hidden, self.num_dimensions),
+        )
+
+        # Metrics storage
+        self.training_step_outputs = []
+        self.validation_step_outputs = []
+
+    def forward(
+        self,
+        input_features: torch.Tensor,
+        note_locations: Dict[str, torch.Tensor],
+        attention_mask: Optional[torch.Tensor] = None,
+    ) -> Dict[str, torch.Tensor]:
+        """
+        Forward pass with VirtuosoNet features.
+
+        Args:
+            input_features: [batch, num_notes, 78] VirtuosoNet features
+            note_locations: Dict with 'beat', 'measure', 'voice' tensors
+            attention_mask: [batch, num_notes] optional mask
+
+        Returns:
+            Dict with 'predictions' [batch, num_dimensions]
+        """
+        # Run HAN encoder directly on 78-dim features (no global context)
+        han_outputs = self.han_encoder(input_features, note_locations)
+        total_note_cat = han_outputs['total_note_cat']  # [B, N, han_output_dim]
+
+        # Aggregate to single vector using attention
+        aggregated = self.final_attention(total_note_cat)  # [B, han_output_dim]
+
+        # Predict scores (no sigmoid - let MSE loss work on unbounded outputs)
+        predictions = self.prediction_head(aggregated)  # [B, num_dims]
+
+        return {
+            'predictions': predictions,
+            'han_outputs': han_outputs,
+        }
+
+    def compute_loss(
+        self,
+        predictions: torch.Tensor,
+        targets: torch.Tensor,
+    ) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]:
+        """Compute MSE loss (matching PercePiano)."""
+        total_loss = nn.functional.mse_loss(predictions, targets, reduction='mean')
+
+        per_dim_losses = {}
+        for i, dim in enumerate(self.dimensions):
+            per_dim_losses[dim] = nn.functional.mse_loss(
+                predictions[:, i], targets[:, i], reduction='mean'
+            )
+
+        return total_loss, per_dim_losses
+
+    def _get_note_locations(self, batch: Dict) -> Dict[str, torch.Tensor]:
+        """Extract note_locations from batch."""
+        return {
+            'beat': batch['note_locations_beat'],
+            'measure': batch['note_locations_measure'],
+            'voice': batch['note_locations_voice'],
+        }
+
+    def training_step(self, batch: Dict, batch_idx: int) -> torch.Tensor:
+        note_locations = self._get_note_locations(batch)
+        outputs = self(
+            batch['input_features'],
+            note_locations,
+            batch.get('attention_mask'),
+        )
+
+        loss, per_dim_losses = self.compute_loss(outputs['predictions'], batch['scores'])
+
+        self.log('train/loss', loss, prog_bar=True)
+        self.training_step_outputs.append({'loss': loss.detach()})
+
+        return loss
+
+    def validation_step(self, batch: Dict, batch_idx: int) -> Dict:
+        note_locations = self._get_note_locations(batch)
+        outputs = self(
+            batch['input_features'],
+            note_locations,
+            batch.get('attention_mask'),
+        )
+
+        loss, _ = self.compute_loss(outputs['predictions'], batch['scores'])
+
+        result = {
+            'val_loss': loss.detach(),
+            'predictions': outputs['predictions'].detach(),
+            'targets': batch['scores'].detach(),
+        }
+        self.validation_step_outputs.append(result)
+
+        self.log('val/loss', loss, prog_bar=True)
+        return result
+
+    def on_validation_epoch_end(self):
+        if not self.validation_step_outputs:
+            return
+
+        all_preds = torch.cat([x['predictions'] for x in self.validation_step_outputs])
+        all_targets = torch.cat([x['targets'] for x in self.validation_step_outputs])
+
+        r2_values = []
+
+        for i, dim in enumerate(self.dimensions):
+            preds = all_preds[:, i].cpu().numpy()
+            targets = all_targets[:, i].cpu().numpy()
+
+            # R-squared
+            ss_res = np.sum((targets - preds) ** 2)
+            ss_tot = np.sum((targets - np.mean(targets)) ** 2) + 1e-8
+            r2 = 1 - ss_res / ss_tot
+            r2_values.append(r2)
+
+            self.log(f'val/r2_{dim}', r2)
+
+        mean_r2 = np.mean(r2_values)
+        self.log('val/mean_r2', mean_r2, prog_bar=True)
+
+        # Log key dimensions
+        if 'tempo' in self.dimensions:
+            self.log('val/tempo_r2', r2_values[self.dimensions.index('tempo')], prog_bar=True)
+        if 'timing' in self.dimensions:
+            self.log('val/timing_r2', r2_values[self.dimensions.index('timing')], prog_bar=True)
+
+        self.validation_step_outputs.clear()
+
+    def on_train_epoch_end(self):
+        self.training_step_outputs.clear()
+
+    def test_step(self, batch: Dict, batch_idx: int) -> Dict:
+        return self.validation_step(batch, batch_idx)
+
+    def configure_optimizers(self):
+        """Configure optimizer with PercePiano settings."""
+        optimizer = torch.optim.AdamW(
+            self.parameters(),
+            lr=self.hparams.learning_rate,
+            weight_decay=self.hparams.weight_decay,
+        )
+
+        # Learning rate scheduler
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             optimizer, mode='max', factor=0.5, patience=10
         )

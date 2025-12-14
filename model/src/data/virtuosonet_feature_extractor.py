@@ -1,0 +1,474 @@
+"""
+VirtuosoNet Feature Extractor for PercePiano Replica.
+
+This module wraps VirtuosoNet's pyScoreParser to extract the 78 features
+used in the original PercePiano paper. The features include score-level
+information (pitch, duration, dynamics, tempo, articulation) and are
+extracted by aligning MusicXML scores with MIDI performances.
+
+Reference:
+- VirtuosoNet: https://github.com/jdasam/virtuosoNet
+- PercePiano: https://github.com/JonghoKimSNU/PercePiano
+"""
+
+import sys
+import math
+import pickle
+import numpy as np
+from pathlib import Path
+from typing import Dict, List, Tuple, Optional, Any
+from dataclasses import dataclass
+
+
+# Add VirtuosoNet to path
+VIRTUOSO_PATH = Path(__file__).parent.parent.parent / "data" / "raw" / "PercePiano" / "virtuoso" / "virtuoso" / "pyScoreParser"
+if str(VIRTUOSO_PATH) not in sys.path:
+    sys.path.insert(0, str(VIRTUOSO_PATH))
+
+
+# VirtuosoNet Input Feature Keys (from data_for_training.py)
+VNET_INPUT_KEYS = (
+    'midi_pitch', 'duration', 'beat_importance', 'measure_length',
+    'qpm_primo', 'section_tempo',
+    'following_rest', 'distance_from_abs_dynamic', 'distance_from_recent_tempo',
+    'beat_position', 'xml_position', 'grace_order', 'preceded_by_grace_note',
+    'followed_by_fermata_rest', 'pitch', 'tempo', 'dynamic', 'time_sig_vec',
+    'slur_beam_vec', 'composer_vec', 'notation', 'tempo_primo'
+)
+
+# Features that need z-score normalization
+NORM_FEAT_KEYS = (
+    'midi_pitch', 'duration', 'beat_importance', 'measure_length',
+    'qpm_primo', 'section_tempo',
+    'following_rest', 'distance_from_abs_dynamic', 'distance_from_recent_tempo'
+)
+
+# Feature dimensions (based on VirtuosoNet implementation)
+FEATURE_DIMS = {
+    'midi_pitch': 1,
+    'duration': 1,
+    'beat_importance': 1,
+    'measure_length': 1,
+    'qpm_primo': 1,
+    'section_tempo': 1,
+    'following_rest': 1,
+    'distance_from_abs_dynamic': 1,
+    'distance_from_recent_tempo': 1,
+    'beat_position': 1,
+    'xml_position': 1,
+    'grace_order': 1,
+    'preceded_by_grace_note': 1,
+    'followed_by_fermata_rest': 1,
+    'pitch': 13,  # octave (normalized) + 12-class one-hot
+    'tempo': 5,   # tempo marking embedding
+    'dynamic': 4, # dynamic marking embedding
+    'time_sig_vec': 9,  # 5 numerator + 4 denominator
+    'slur_beam_vec': 6, # slur start/continue/stop + beam start/continue/stop
+    'composer_vec': 17, # 16 composers + unknown
+    'notation': 9,  # trill, tenuto, accent, staccato, fermata, arpeggiate, strong_accent, cue, slash
+    'tempo_primo': 2,  # initial tempo embedding
+}
+
+TOTAL_FEATURE_DIM = sum(FEATURE_DIMS.values())  # Should be 78
+
+
+@dataclass
+class FeatureStats:
+    """Statistics for z-score normalization."""
+    mean: Dict[str, float]
+    std: Dict[str, float]
+
+
+class VirtuosoNetFeatureExtractor:
+    """
+    Extract VirtuosoNet features from aligned MusicXML scores and MIDI performances.
+
+    This class wraps VirtuosoNet's feature extraction pipeline to produce the
+    78-dimensional feature vectors used in the original PercePiano paper.
+    """
+
+    def __init__(self, composer: str = "unknown"):
+        """
+        Initialize the feature extractor.
+
+        Args:
+            composer: Composer name for composer_vec encoding.
+                     One of: Bach, Balakirev, Beethoven, Brahms, Chopin, Debussy,
+                     Glinka, Haydn, Liszt, Mozart, Prokofiev, Rachmaninoff, Ravel,
+                     Schubert, Schumann, Scriabin, or "unknown"
+        """
+        self.composer = composer
+        self._import_virtuoso_modules()
+
+    def _import_virtuoso_modules(self):
+        """Import VirtuosoNet modules with error handling."""
+        try:
+            import feature_extraction as feat_ext
+            import feature_utils
+            import xml_direction_encoding as dir_enc
+
+            self.feat_ext = feat_ext
+            self.feature_utils = feature_utils
+            self.dir_enc = dir_enc
+            self._virtuoso_available = True
+        except ImportError as e:
+            print(f"Warning: Could not import VirtuosoNet modules: {e}")
+            print(f"Make sure {VIRTUOSO_PATH} exists and contains the required modules.")
+            self._virtuoso_available = False
+
+    def extract_features(
+        self,
+        score_xml_path: Path,
+        performance_midi_path: Path,
+    ) -> Dict[str, Any]:
+        """
+        Extract 78 VirtuosoNet features from a score-performance pair.
+
+        Args:
+            score_xml_path: Path to MusicXML score file
+            performance_midi_path: Path to performance MIDI file
+
+        Returns:
+            Dictionary containing:
+            - 'input': numpy array of shape (num_notes, 78)
+            - 'note_location': dict with 'beat', 'measure', 'voice' arrays
+            - 'num_notes': number of notes in the piece
+            - 'align_matched': boolean array indicating matched notes
+        """
+        if not self._virtuoso_available:
+            raise RuntimeError("VirtuosoNet modules not available")
+
+        # Import the data loading modules
+        try:
+            import xml_matching
+            import data_class
+        except ImportError as e:
+            raise RuntimeError(f"Could not import VirtuosoNet data modules: {e}")
+
+        # Load and parse the score
+        try:
+            piece_data = xml_matching.load_xml_and_midi(
+                str(score_xml_path),
+                str(performance_midi_path)
+            )
+        except Exception as e:
+            raise RuntimeError(f"Failed to load score/MIDI: {e}")
+
+        # Set composer for composer_vec
+        piece_data.composer = self.composer
+
+        # Create score extractor and extract features
+        score_extractor = self.feat_ext.ScoreExtractor(list(VNET_INPUT_KEYS))
+        score_features = score_extractor.extract_score_features(piece_data)
+
+        # Get note locations
+        note_locations = score_features.get('note_location', {})
+
+        # Build the 78-dim feature vector for each note
+        num_notes = len(score_features.get('midi_pitch', []))
+        input_features = np.zeros((num_notes, TOTAL_FEATURE_DIM), dtype=np.float32)
+
+        feature_idx = 0
+        for key in VNET_INPUT_KEYS:
+            dim = FEATURE_DIMS[key]
+            feat_values = score_features.get(key)
+
+            if feat_values is None:
+                feature_idx += dim
+                continue
+
+            # Handle scalar vs vector features
+            if dim == 1:
+                # Scalar feature
+                if isinstance(feat_values, (int, float)):
+                    # Global scalar (like qpm_primo)
+                    input_features[:, feature_idx] = feat_values
+                else:
+                    # Per-note scalar
+                    input_features[:, feature_idx] = np.array(feat_values)
+            else:
+                # Vector feature
+                if isinstance(feat_values[0], (list, tuple, np.ndarray)):
+                    # Per-note vector
+                    for i, vec in enumerate(feat_values):
+                        input_features[i, feature_idx:feature_idx + dim] = vec[:dim]
+                else:
+                    # Global vector (like tempo_primo, composer_vec)
+                    vec = np.array(feat_values[:dim])
+                    input_features[:, feature_idx:feature_idx + dim] = vec
+
+            feature_idx += dim
+
+        # Get alignment info
+        align_matched = np.ones(num_notes, dtype=bool)  # Default to all matched
+        if 'align_matched' in score_features:
+            align_matched = np.array(score_features['align_matched'], dtype=bool)
+
+        return {
+            'input': input_features,
+            'note_location': note_locations,
+            'num_notes': num_notes,
+            'align_matched': align_matched,
+            'score_path': str(score_xml_path),
+            'perform_path': str(performance_midi_path),
+        }
+
+    @staticmethod
+    def compute_normalization_stats(
+        features_list: List[Dict[str, Any]]
+    ) -> FeatureStats:
+        """
+        Compute z-score normalization statistics from a list of feature dicts.
+
+        Args:
+            features_list: List of feature dictionaries from extract_features()
+
+        Returns:
+            FeatureStats with mean and std for each normalizable feature
+        """
+        # Concatenate all feature vectors
+        all_features = np.concatenate([f['input'] for f in features_list], axis=0)
+
+        # Compute mean and std for each feature dimension
+        means = {}
+        stds = {}
+
+        feature_idx = 0
+        for key in VNET_INPUT_KEYS:
+            dim = FEATURE_DIMS[key]
+
+            if key in NORM_FEAT_KEYS:
+                feat_slice = all_features[:, feature_idx:feature_idx + dim]
+                means[key] = float(np.mean(feat_slice))
+                std = float(np.std(feat_slice))
+                stds[key] = std if std > 0 else 1.0  # Avoid division by zero
+            else:
+                means[key] = 0.0
+                stds[key] = 1.0  # No normalization for these
+
+            feature_idx += dim
+
+        return FeatureStats(mean=means, std=stds)
+
+    @staticmethod
+    def apply_normalization(
+        features: Dict[str, Any],
+        stats: FeatureStats
+    ) -> Dict[str, Any]:
+        """
+        Apply z-score normalization to features.
+
+        Args:
+            features: Feature dictionary from extract_features()
+            stats: Normalization statistics from compute_normalization_stats()
+
+        Returns:
+            Features with normalized input array
+        """
+        normalized = features.copy()
+        input_features = features['input'].copy()
+
+        feature_idx = 0
+        for key in VNET_INPUT_KEYS:
+            dim = FEATURE_DIMS[key]
+
+            if key in NORM_FEAT_KEYS:
+                mean = stats.mean[key]
+                std = stats.std[key]
+                input_features[:, feature_idx:feature_idx + dim] = (
+                    input_features[:, feature_idx:feature_idx + dim] - mean
+                ) / std
+
+            feature_idx += dim
+
+        normalized['input'] = input_features
+        return normalized
+
+
+def extract_features_standalone(
+    score_xml_path: Path,
+    performance_midi_path: Path,
+    composer: str = "unknown"
+) -> Optional[Dict[str, Any]]:
+    """
+    Standalone function to extract VirtuosoNet features.
+
+    This is a convenience wrapper that handles errors gracefully.
+
+    Args:
+        score_xml_path: Path to MusicXML score
+        performance_midi_path: Path to performance MIDI
+        composer: Composer name
+
+    Returns:
+        Feature dictionary or None if extraction fails
+    """
+    try:
+        extractor = VirtuosoNetFeatureExtractor(composer=composer)
+        return extractor.extract_features(score_xml_path, performance_midi_path)
+    except Exception as e:
+        print(f"Feature extraction failed for {performance_midi_path}: {e}")
+        return None
+
+
+def cal_beat_importance(beat_position: float, numerator: int) -> float:
+    """
+    Calculate beat importance from beat position and time signature numerator.
+
+    This is a standalone implementation that doesn't require VirtuosoNet.
+
+    Args:
+        beat_position: Position within measure [0, 1)
+        numerator: Time signature numerator
+
+    Returns:
+        Beat importance value (0-4 scale)
+    """
+    if beat_position == 0:
+        return 4.0
+    elif beat_position == 0.5 and numerator in [2, 4, 6, 12]:
+        return 3.0
+    elif abs(beat_position - (1/3)) < 0.001 and numerator in [3, 9]:
+        return 2.0
+    elif (beat_position * 4) % 1 == 0 and numerator in [2, 4]:
+        return 1.0
+    elif (beat_position * 5) % 1 == 0 and numerator in [5]:
+        return 2.0
+    elif (beat_position * 6) % 1 == 0 and numerator in [3, 6, 12]:
+        return 1.0
+    elif (beat_position * 8) % 1 == 0 and numerator in [2, 4]:
+        return 0.5
+    elif (beat_position * 9) % 1 == 0 and numerator in [9]:
+        return 1.0
+    elif (beat_position * 12) % 1 == 0 and numerator in [3, 6, 12]:
+        return 0.5
+    elif numerator == 7:
+        if abs((beat_position * 7) - 2) < 0.001:
+            return 2.0
+        elif abs((beat_position * 5) - 2) < 0.001:
+            return 2.0
+        else:
+            return 0.0
+    else:
+        return 0.0
+
+
+def pitch_into_vector(pitch: int) -> List[float]:
+    """
+    Convert MIDI pitch to 13-dimensional vector (octave + pitch class one-hot).
+
+    Args:
+        pitch: MIDI pitch value (0-127)
+
+    Returns:
+        13-dim vector: [normalized_octave, pitch_class_one_hot (12)]
+    """
+    pitch_vec = [0.0] * 13
+    octave = (pitch // 12) - 1
+    octave_normalized = (octave - 4) / 4  # Normalize around octave 4
+    pitch_class = pitch % 12
+
+    pitch_vec[0] = octave_normalized
+    pitch_vec[pitch_class + 1] = 1.0
+
+    return pitch_vec
+
+
+def time_signature_to_vector(numerator: int, denominator: int) -> List[int]:
+    """
+    Convert time signature to 9-dimensional multi-hot vector.
+
+    Args:
+        numerator: Time signature numerator
+        denominator: Time signature denominator
+
+    Returns:
+        9-dim vector: [numerator_encoding (5), denominator_encoding (4)]
+    """
+    denominator_list = [2, 4, 8, 16]
+    numerator_vec = [0] * 5
+    denominator_vec = [0] * 4
+
+    # Denominator encoding
+    if denominator == 32:
+        denominator_vec[-1] = 1
+    elif denominator in denominator_list:
+        denominator_vec[denominator_list.index(denominator)] = 1
+
+    # Numerator encoding (multi-hot for compound meters)
+    if numerator == 2:
+        numerator_vec[0] = 1
+    elif numerator == 3:
+        numerator_vec[1] = 1
+    elif numerator == 4:
+        numerator_vec[0] = 1
+        numerator_vec[2] = 1
+    elif numerator == 6:
+        numerator_vec[0] = 1
+        numerator_vec[3] = 1
+    elif numerator == 9:
+        numerator_vec[1] = 1
+        numerator_vec[3] = 1
+    elif numerator in [12, 24]:
+        numerator_vec[0] = 1
+        numerator_vec[2] = 1
+        numerator_vec[3] = 1
+    else:
+        numerator_vec[4] = 1  # Unknown
+
+    return numerator_vec + denominator_vec
+
+
+def composer_name_to_vec(composer_name: str) -> List[int]:
+    """
+    Convert composer name to 17-dimensional one-hot vector.
+
+    Args:
+        composer_name: Composer name
+
+    Returns:
+        17-dim one-hot vector (16 composers + unknown)
+    """
+    composer_list = [
+        'Bach', 'Balakirev', 'Beethoven', 'Brahms', 'Chopin', 'Debussy',
+        'Glinka', 'Haydn', 'Liszt', 'Mozart', 'Prokofiev', 'Rachmaninoff',
+        'Ravel', 'Schubert', 'Schumann', 'Scriabin'
+    ]
+    one_hot = [0] * 17
+
+    if composer_name in composer_list:
+        one_hot[composer_list.index(composer_name)] = 1
+    else:
+        one_hot[-1] = 1  # Unknown
+
+    return one_hot
+
+
+def note_notation_to_vector(
+    is_trill: bool = False,
+    is_tenuto: bool = False,
+    is_accent: bool = False,
+    is_staccato: bool = False,
+    is_fermata: bool = False,
+    is_arpeggiate: bool = False,
+    is_strong_accent: bool = False,
+    is_cue: bool = False,
+    is_slash: bool = False
+) -> List[int]:
+    """
+    Convert note notation flags to 9-dimensional multi-hot vector.
+
+    Returns:
+        9-dim multi-hot vector for notation marks
+    """
+    return [
+        int(is_trill),
+        int(is_tenuto),
+        int(is_accent),
+        int(is_staccato),
+        int(is_fermata),
+        int(is_arpeggiate),
+        int(is_strong_accent),
+        int(is_cue),
+        int(is_slash)
+    ]
