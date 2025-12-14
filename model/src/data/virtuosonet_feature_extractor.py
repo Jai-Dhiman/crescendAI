@@ -20,8 +20,14 @@ from typing import Dict, List, Tuple, Optional, Any
 from dataclasses import dataclass
 
 
-# Add VirtuosoNet to path
-VIRTUOSO_PATH = Path(__file__).parent.parent.parent / "data" / "raw" / "PercePiano" / "virtuoso" / "virtuoso" / "pyScoreParser"
+# Add VirtuosoNet to path - need both the parent (for package imports) and pyScoreParser itself
+VIRTUOSO_ROOT = Path(__file__).parent.parent.parent / "data" / "raw" / "PercePiano" / "virtuoso" / "virtuoso"
+VIRTUOSO_PATH = VIRTUOSO_ROOT / "pyScoreParser"
+
+# Add parent for package-style imports (from pyScoreParser import ...)
+if str(VIRTUOSO_ROOT) not in sys.path:
+    sys.path.insert(0, str(VIRTUOSO_ROOT))
+# Add pyScoreParser directly for direct imports (import feature_extraction)
 if str(VIRTUOSO_PATH) not in sys.path:
     sys.path.insert(0, str(VIRTUOSO_PATH))
 
@@ -139,8 +145,9 @@ class VirtuosoNetFeatureExtractor:
             raise RuntimeError("VirtuosoNet modules not available")
 
         # Import the data loading modules
+        # xml_matching uses relative imports, so import from package
         try:
-            import xml_matching
+            from pyScoreParser import xml_matching
             import data_class
         except ImportError as e:
             raise RuntimeError(f"Could not import VirtuosoNet data modules: {e}")
