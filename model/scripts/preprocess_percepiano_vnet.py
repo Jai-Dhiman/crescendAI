@@ -130,7 +130,14 @@ def process_sample(
         return features
 
     except Exception as e:
-        print(f"Error processing {sample.get('name', 'unknown')}: {e}")
+        import traceback
+        sample_name = sample.get('name', 'unknown')
+        print(f"\nError processing {sample_name}:")
+        print(f"  Type: {type(e).__name__}")
+        print(f"  Message: {e}")
+        print(f"  MIDI: {sample.get('midi_path', 'N/A')}")
+        print(f"  Score: {sample.get('score_path', 'N/A')}")
+        print(f"  Traceback:\n{traceback.format_exc()}")
         return None
 
 
