@@ -462,8 +462,9 @@ class PercePianoReplicaModule(pl.LightningModule):
         # Combine with global context
         combined = torch.cat([aggregated, global_context], dim=-1)  # [B, han_output_dim + H]
 
-        # Predict scores (no sigmoid - let MSE loss work on unbounded outputs)
-        predictions = self.prediction_head(combined)  # [B, num_dims]
+        # Predict scores - apply sigmoid to match [0, 1] label range
+        # (Original PercePiano always applies sigmoid before loss computation)
+        predictions = torch.sigmoid(self.prediction_head(combined))  # [B, num_dims]
 
         return {
             'predictions': predictions,
@@ -696,8 +697,9 @@ class PercePianoVNetModule(pl.LightningModule):
         # Aggregate to single vector using attention
         aggregated = self.final_attention(total_note_cat)  # [B, han_output_dim]
 
-        # Predict scores (no sigmoid - let MSE loss work on unbounded outputs)
-        predictions = self.prediction_head(aggregated)  # [B, num_dims]
+        # Predict scores - apply sigmoid to match [0, 1] label range
+        # (Original PercePiano always applies sigmoid before loss computation)
+        predictions = torch.sigmoid(self.prediction_head(aggregated))  # [B, num_dims]
 
         return {
             'predictions': predictions,
