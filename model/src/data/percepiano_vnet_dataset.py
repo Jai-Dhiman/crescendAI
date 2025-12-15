@@ -2,7 +2,7 @@
 PyTorch Dataset for PercePiano with VirtuosoNet features.
 
 This module provides a Dataset class that loads preprocessed VirtuosoNet
-features (78-dim) for training the PercePiano replica model.
+features (79-dim) for training the PercePiano replica model.
 """
 
 import pickle
@@ -18,10 +18,10 @@ import pytorch_lightning as pl
 
 class PercePianoVNetDataset(Dataset):
     """
-    PyTorch Dataset for PercePiano with VirtuosoNet 78-dim features.
+    PyTorch Dataset for PercePiano with VirtuosoNet 79-dim features.
 
     Loads preprocessed pickle files containing:
-    - input: (num_notes, 78) VirtuosoNet features
+    - input: (num_notes, 79) VirtuosoNet features
     - note_location: dict with 'beat', 'measure', 'voice' arrays
     - labels: (19,) PercePiano scores
 
@@ -65,7 +65,7 @@ class PercePianoVNetDataset(Dataset):
 
         Returns:
             Dictionary with:
-            - input_features: (max_notes, 78) float tensor
+            - input_features: (max_notes, 79) float tensor
             - note_locations_beat: (max_notes,) long tensor
             - note_locations_measure: (max_notes,) long tensor
             - note_locations_voice: (max_notes,) long tensor
@@ -148,7 +148,7 @@ class PercePianoVNetDataset(Dataset):
         Matches original PercePiano training augmentation for better generalization.
 
         Args:
-            input_features: (num_notes, 78) feature array
+            input_features: (num_notes, 79) feature array
             num_notes: Actual number of notes (before padding)
 
         Returns:

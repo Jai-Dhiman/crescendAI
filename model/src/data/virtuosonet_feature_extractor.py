@@ -1,8 +1,8 @@
 """
 VirtuosoNet Feature Extractor for PercePiano Replica.
 
-This module wraps VirtuosoNet's pyScoreParser to extract the 78 features
-used in the original PercePiano paper. The features include score-level
+This module wraps VirtuosoNet's pyScoreParser to extract 79 features
+based on the VirtuosoNet implementation. The features include score-level
 information (pitch, duration, dynamics, tempo, articulation) and are
 extracted by aligning MusicXML scores with MIDI performances.
 
@@ -76,7 +76,7 @@ FEATURE_DIMS = {
     'tempo_primo': 2,  # initial tempo embedding
 }
 
-TOTAL_FEATURE_DIM = sum(FEATURE_DIMS.values())  # Should be 78
+TOTAL_FEATURE_DIM = sum(FEATURE_DIMS.values())  # = 79 (14 scalar + 65 vector features)
 
 
 @dataclass
@@ -164,7 +164,7 @@ class VirtuosoNetFeatureExtractor:
         performance_midi_path: Path,
     ) -> Dict[str, Any]:
         """
-        Extract 78 VirtuosoNet features from a score-performance pair.
+        Extract 79 VirtuosoNet features from a score-performance pair.
 
         Args:
             score_xml_path: Path to MusicXML score file
@@ -172,7 +172,7 @@ class VirtuosoNetFeatureExtractor:
 
         Returns:
             Dictionary containing:
-            - 'input': numpy array of shape (num_notes, 78)
+            - 'input': numpy array of shape (num_notes, 79)
             - 'note_location': dict with 'beat', 'measure', 'voice' arrays
             - 'num_notes': number of notes in the piece
             - 'align_matched': boolean array indicating matched notes

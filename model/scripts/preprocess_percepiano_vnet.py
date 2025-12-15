@@ -2,7 +2,7 @@
 """
 Preprocess PercePiano data using VirtuosoNet feature extraction.
 
-This script extracts 78-dimensional VirtuosoNet features from the PercePiano dataset
+This script extracts 79-dimensional VirtuosoNet features from the PercePiano dataset
 and saves them as pickle files for training.
 
 Usage:

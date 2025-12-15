@@ -87,7 +87,7 @@ class PercePianoHAN(nn.Module):
 
     def __init__(
         self,
-        input_size: int = 78,  # PercePiano score input dimension
+        input_size: int = 79,  # VirtuosoNet feature dimension (FEATURE_DIMS sum)
         note_size: int = 256,
         voice_size: int = 256,
         beat_size: int = 256,
