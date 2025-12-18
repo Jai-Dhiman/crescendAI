@@ -395,18 +395,28 @@ class PercePianoReplicaModule(pl.LightningModule):
             dropout=dropout,
         )
 
-        # Final attention aggregation
-        self.final_attention = ContextAttention(
-            self.han_encoder.output_dim, num_attention_heads
+        # Performance contractor: Contract total_note_cat from 2048 -> 512
+        # (Critical layer from original PercePiano VirtuosoNetMultiLevel)
+        encoder_output_size = hidden_size * 2  # 512 for hidden_size=256
+        self.performance_contractor = nn.Linear(
+            self.han_encoder.output_dim,  # 2048
+            encoder_output_size,  # 512
         )
 
-        # Prediction head
-        head_input_dim = self.han_encoder.output_dim + hidden_size  # HAN + global/tempo
+        # Final attention aggregation (over contracted 512-dim, not raw 2048-dim)
+        self.final_attention = ContextAttention(
+            encoder_output_size, num_attention_heads
+        )
+
+        # Prediction head (matching original PercePiano out_fc structure)
+        # Original: Dropout -> Linear -> GELU -> Dropout -> Linear
+        head_input_dim = encoder_output_size + hidden_size  # 512 + 256 for global context
         self.prediction_head = nn.Sequential(
-            nn.Linear(head_input_dim, final_hidden),
-            nn.ReLU(),
             nn.Dropout(dropout),
-            nn.Linear(final_hidden, self.num_dimensions),
+            nn.Linear(head_input_dim, encoder_output_size),  # -> 512
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(encoder_output_size, self.num_dimensions),  # 512 -> 19
         )
 
         # Metrics storage
@@ -454,13 +464,16 @@ class PercePianoReplicaModule(pl.LightningModule):
 
         # Run HAN encoder
         han_outputs = self.han_encoder(han_input, note_locations)
-        total_note_cat = han_outputs['total_note_cat']  # [B, N, han_output_dim]
+        total_note_cat = han_outputs['total_note_cat']  # [B, N, 2048]
 
-        # Aggregate to single vector using attention
-        aggregated = self.final_attention(total_note_cat)  # [B, han_output_dim]
+        # Contract from 2048 -> 512 (critical step from original PercePiano)
+        contracted = self.performance_contractor(total_note_cat)  # [B, N, 512]
+
+        # Aggregate to single vector using attention (over 512-dim, not 2048)
+        aggregated = self.final_attention(contracted)  # [B, 512]
 
         # Combine with global context
-        combined = torch.cat([aggregated, global_context], dim=-1)  # [B, han_output_dim + H]
+        combined = torch.cat([aggregated, global_context], dim=-1)  # [B, 512 + H]
 
         # Predict scores - apply sigmoid to match [0, 1] label range
         # (Original PercePiano always applies sigmoid before loss computation)
@@ -656,17 +669,27 @@ class PercePianoVNetModule(pl.LightningModule):
             dropout=dropout,
         )
 
-        # Final attention aggregation
-        self.final_attention = ContextAttention(
-            self.han_encoder.output_dim, num_attention_heads
+        # Performance contractor: Contract total_note_cat from 2048 -> 512
+        # (Critical layer from original PercePiano VirtuosoNetMultiLevel)
+        encoder_output_size = hidden_size * 2  # 512 for hidden_size=256
+        self.performance_contractor = nn.Linear(
+            self.han_encoder.output_dim,  # 2048
+            encoder_output_size,  # 512
         )
 
-        # Prediction head
+        # Final attention aggregation (over contracted 512-dim, not raw 2048-dim)
+        self.final_attention = ContextAttention(
+            encoder_output_size, num_attention_heads
+        )
+
+        # Prediction head (matching original PercePiano out_fc structure)
+        # Original: Dropout -> Linear -> GELU -> Dropout -> Linear
         self.prediction_head = nn.Sequential(
-            nn.Linear(self.han_encoder.output_dim, final_hidden),
-            nn.ReLU(),
             nn.Dropout(dropout),
-            nn.Linear(final_hidden, self.num_dimensions),
+            nn.Linear(encoder_output_size, encoder_output_size),  # 512 -> 512
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(encoder_output_size, self.num_dimensions),  # 512 -> 19
         )
 
         # Metrics storage
@@ -692,10 +715,13 @@ class PercePianoVNetModule(pl.LightningModule):
         """
         # Run HAN encoder directly on 78-dim features (no global context)
         han_outputs = self.han_encoder(input_features, note_locations)
-        total_note_cat = han_outputs['total_note_cat']  # [B, N, han_output_dim]
+        total_note_cat = han_outputs['total_note_cat']  # [B, N, 2048]
 
-        # Aggregate to single vector using attention
-        aggregated = self.final_attention(total_note_cat)  # [B, han_output_dim]
+        # Contract from 2048 -> 512 (critical step from original PercePiano)
+        contracted = self.performance_contractor(total_note_cat)  # [B, N, 512]
+
+        # Aggregate to single vector using attention (over 512-dim, not 2048)
+        aggregated = self.final_attention(contracted)  # [B, 512]
 
         # Predict scores - apply sigmoid to match [0, 1] label range
         # (Original PercePiano always applies sigmoid before loss computation)
