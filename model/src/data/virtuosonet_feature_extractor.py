@@ -1,10 +1,14 @@
 """
 VirtuosoNet Feature Extractor for PercePiano Replica.
 
-This module wraps VirtuosoNet's pyScoreParser to extract 79 features
-based on the VirtuosoNet implementation. The features include score-level
-information (pitch, duration, dynamics, tempo, articulation) and are
-extracted by aligning MusicXML scores with MIDI performances.
+This module wraps VirtuosoNet's pyScoreParser to extract 84 features
+based on the VirtuosoNet implementation. The features include:
+- 79 base features (score-level information: pitch, duration, dynamics, tempo, articulation)
+- 5 preserved unnormalized features (midi_pitch_unnorm, duration_unnorm, etc.)
+
+The unnormalized features are critical for:
+- Key augmentation (midi_pitch_unnorm provides raw MIDI pitch 21-108)
+- Preserving original scale information before z-score normalization
 
 Reference:
 - VirtuosoNet: https://github.com/jdasam/virtuosoNet
@@ -50,6 +54,10 @@ NORM_FEAT_KEYS = (
     'following_rest', 'distance_from_abs_dynamic', 'distance_from_recent_tempo'
 )
 
+# Features to preserve BEFORE normalization (original PercePiano data_for_training.py:21)
+# These are appended as _unnorm variants after the base 79 features
+PRESERVE_FEAT_KEYS = ('midi_pitch', 'duration', 'beat_importance', 'measure_length', 'following_rest')
+
 # Feature dimensions (based on VirtuosoNet implementation)
 FEATURE_DIMS = {
     'midi_pitch': 1,
@@ -76,7 +84,16 @@ FEATURE_DIMS = {
     'tempo_primo': 2,  # initial tempo embedding
 }
 
-TOTAL_FEATURE_DIM = sum(FEATURE_DIMS.values())  # = 79 (14 scalar + 65 vector features)
+BASE_FEATURE_DIM = sum(FEATURE_DIMS.values())  # = 79 (14 scalar + 65 vector features)
+NUM_PRESERVE_FEATURES = len(PRESERVE_FEAT_KEYS)  # = 5 unnorm features
+TOTAL_FEATURE_DIM = BASE_FEATURE_DIM + NUM_PRESERVE_FEATURES  # = 84 (79 base + 5 unnorm)
+
+# Feature indices for key augmentation (after unnorm features are appended)
+MIDI_PITCH_IDX = 0  # Normalized midi_pitch (z-score)
+MIDI_PITCH_UNNORM_IDX = BASE_FEATURE_DIM  # Raw midi_pitch (21-108), appended at end
+PITCH_VEC_START = 14  # pitch vector starts at index 14 (after 14 scalar features)
+PITCH_CLASS_START = 15  # octave at 14, pitch class one-hot starts at 15
+PITCH_CLASS_END = 27  # 12 pitch classes (indices 15-26)
 
 
 @dataclass
@@ -91,7 +108,9 @@ class VirtuosoNetFeatureExtractor:
     Extract VirtuosoNet features from aligned MusicXML scores and MIDI performances.
 
     This class wraps VirtuosoNet's feature extraction pipeline to produce the
-    78-dimensional feature vectors used in the original PercePiano paper.
+    84-dimensional feature vectors used in the original PercePiano paper:
+    - 79 base features (normalized where applicable)
+    - 5 preserved unnormalized features (midi_pitch_unnorm, duration_unnorm, etc.)
     """
 
     def __init__(self, composer: str = "unknown"):
@@ -164,7 +183,10 @@ class VirtuosoNetFeatureExtractor:
         performance_midi_path: Path,
     ) -> Dict[str, Any]:
         """
-        Extract 79 VirtuosoNet features from a score-performance pair.
+        Extract 79 base VirtuosoNet features from a score-performance pair.
+
+        Note: This returns 79 base features. The preprocessing script adds
+        5 unnorm features to make 84 total before normalization.
 
         Args:
             score_xml_path: Path to MusicXML score file
@@ -172,7 +194,7 @@ class VirtuosoNetFeatureExtractor:
 
         Returns:
             Dictionary containing:
-            - 'input': numpy array of shape (num_notes, 79)
+            - 'input': numpy array of shape (num_notes, 79) - base features
             - 'note_location': dict with 'beat', 'measure', 'voice' arrays
             - 'num_notes': number of notes in the piece
             - 'align_matched': boolean array indicating matched notes
@@ -209,9 +231,10 @@ class VirtuosoNetFeatureExtractor:
         # Get note locations
         note_locations = score_features.get('note_location', {})
 
-        # Build the 78-dim feature vector for each note
+        # Build the 79-dim base feature vector for each note
+        # (unnorm features are added in preprocessing, making 84 total)
         num_notes = len(score_features.get('midi_pitch', []))
-        input_features = np.zeros((num_notes, TOTAL_FEATURE_DIM), dtype=np.float32)
+        input_features = np.zeros((num_notes, BASE_FEATURE_DIM), dtype=np.float32)
 
         feature_idx = 0
         for key in VNET_INPUT_KEYS:

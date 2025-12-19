@@ -2,8 +2,11 @@
 """
 Preprocess PercePiano data using VirtuosoNet feature extraction.
 
-This script extracts 79-dimensional VirtuosoNet features from the PercePiano dataset
-and saves them as pickle files for training.
+This script extracts 84-dimensional VirtuosoNet features from the PercePiano dataset:
+- 79 base features (normalized where applicable)
+- 5 preserved unnormalized features (midi_pitch_unnorm, duration_unnorm, etc.)
+
+The unnormalized features are critical for key augmentation (pitch shifting).
 
 Usage:
     python scripts/preprocess_percepiano_vnet.py
@@ -35,6 +38,8 @@ from data.virtuosonet_feature_extractor import (
     VNET_INPUT_KEYS,
     FEATURE_DIMS,
     NORM_FEAT_KEYS,
+    PRESERVE_FEAT_KEYS,
+    BASE_FEATURE_DIM,
     TOTAL_FEATURE_DIM,
 )
 
@@ -43,6 +48,52 @@ def load_split_data(split_file: Path) -> List[Dict[str, Any]]:
     """Load a split JSON file."""
     with open(split_file, 'r') as f:
         return json.load(f)
+
+
+def add_unnorm_features(features: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Add preserved unnormalized features to the input array.
+
+    This copies certain features BEFORE normalization and appends them
+    to the end of the feature vector. This matches the original PercePiano
+    behavior in data_for_training.py:412-419.
+
+    The unnorm features are critical for:
+    - Key augmentation (midi_pitch_unnorm provides raw MIDI pitch 21-108)
+    - Preserving original scale information
+
+    Args:
+        features: Feature dict with 'input' array of shape (num_notes, 79)
+
+    Returns:
+        Updated features with 'input' array of shape (num_notes, 84)
+    """
+    input_features = features['input']
+    num_notes = input_features.shape[0]
+
+    # Create expanded array with space for unnorm features
+    expanded = np.zeros((num_notes, TOTAL_FEATURE_DIM), dtype=np.float32)
+    expanded[:, :BASE_FEATURE_DIM] = input_features
+
+    # Copy preserved features to unnorm slots
+    # Feature indices in VNET_INPUT_KEYS order:
+    # midi_pitch=0, duration=1, beat_importance=2, measure_length=3, following_rest=6
+    preserve_indices = {
+        'midi_pitch': 0,
+        'duration': 1,
+        'beat_importance': 2,
+        'measure_length': 3,
+        'following_rest': 6,
+    }
+
+    for i, key in enumerate(PRESERVE_FEAT_KEYS):
+        src_idx = preserve_indices[key]
+        dst_idx = BASE_FEATURE_DIM + i
+        expanded[:, dst_idx] = input_features[:, src_idx]
+
+    result = features.copy()
+    result['input'] = expanded
+    return result
 
 
 def get_composer_from_name(name: str) -> str:
@@ -145,14 +196,16 @@ def compute_normalization_stats(features_list: List[Dict[str, Any]]) -> Dict[str
     """
     Compute z-score normalization statistics from training features.
 
+    Only computes stats for the base 79 features (not the unnorm features).
+
     Args:
-        features_list: List of feature dictionaries
+        features_list: List of feature dictionaries (with 84-dim input)
 
     Returns:
         Dict with 'mean' and 'std' for each normalizable feature
     """
-    # Concatenate all features
-    all_features = np.concatenate([f['input'] for f in features_list], axis=0)
+    # Concatenate all features (only use base features for stats)
+    all_features = np.concatenate([f['input'][:, :BASE_FEATURE_DIM] for f in features_list], axis=0)
 
     stats = {'mean': {}, 'std': {}}
     feature_idx = 0
@@ -175,10 +228,15 @@ def compute_normalization_stats(features_list: List[Dict[str, Any]]) -> Dict[str
 
 
 def apply_normalization(features: Dict[str, Any], stats: Dict[str, Dict[str, float]]) -> Dict[str, Any]:
-    """Apply z-score normalization to features."""
+    """
+    Apply z-score normalization to base features only.
+
+    The unnorm features (indices 79-83) are left untouched.
+    """
     normalized = features.copy()
     input_features = features['input'].copy()
 
+    # Only normalize the base features (first 79)
     feature_idx = 0
     for key in VNET_INPUT_KEYS:
         dim = FEATURE_DIMS[key]
@@ -192,6 +250,7 @@ def apply_normalization(features: Dict[str, Any], stats: Dict[str, Dict[str, flo
 
         feature_idx += dim
 
+    # Unnorm features (indices BASE_FEATURE_DIM to TOTAL_FEATURE_DIM) remain unchanged
     normalized['input'] = input_features
     return normalized
 
@@ -269,6 +328,14 @@ def main():
 
             if features is not None:
                 all_features[split_name].append(features)
+
+    # Add unnorm features BEFORE normalization
+    # This preserves raw values for key augmentation (midi_pitch_unnorm = raw MIDI 21-108)
+    print("\nAdding unnorm features (79-dim -> 84-dim)...")
+    for split_name in all_features:
+        all_features[split_name] = [
+            add_unnorm_features(f) for f in all_features[split_name]
+        ]
 
     # Compute normalization statistics from training set
     if not args.skip_normalization and all_features['train']:

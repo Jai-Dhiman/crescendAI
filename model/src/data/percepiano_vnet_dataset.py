@@ -2,7 +2,15 @@
 PyTorch Dataset for PercePiano with VirtuosoNet features.
 
 This module provides a Dataset class that loads preprocessed VirtuosoNet
-features (79-dim) for training the PercePiano replica model.
+features (84-dim: 79 base + 5 unnorm) for training the PercePiano replica model.
+
+Feature layout:
+- Indices 0-78: Base VirtuosoNet features (z-score normalized where applicable)
+- Index 79: midi_pitch_unnorm (raw MIDI pitch 21-108, used for key augmentation)
+- Index 80: duration_unnorm
+- Index 81: beat_importance_unnorm
+- Index 82: measure_length_unnorm
+- Index 83: following_rest_unnorm
 """
 
 import pickle
@@ -18,12 +26,15 @@ import pytorch_lightning as pl
 
 class PercePianoVNetDataset(Dataset):
     """
-    PyTorch Dataset for PercePiano with VirtuosoNet 79-dim features.
+    PyTorch Dataset for PercePiano with VirtuosoNet 84-dim features.
 
     Loads preprocessed pickle files containing:
-    - input: (num_notes, 79) VirtuosoNet features
+    - input: (num_notes, 84) VirtuosoNet features (79 base + 5 unnorm)
     - note_location: dict with 'beat', 'measure', 'voice' arrays
     - labels: (19,) PercePiano scores
+
+    The unnorm features (indices 79-83) preserve raw values before normalization,
+    which is critical for key augmentation (midi_pitch_unnorm gives raw MIDI pitch 21-108).
 
     Args:
         data_dir: Path to preprocessed data directory (e.g., data/processed/percepiano_vnet/train)
@@ -93,7 +104,7 @@ class PercePianoVNetDataset(Dataset):
 
         Returns:
             Dictionary with:
-            - input_features: (max_notes, 79) float tensor
+            - input_features: (max_notes, 84) float tensor
             - note_locations_beat: (max_notes,) long tensor
             - note_locations_measure: (max_notes,) long tensor
             - note_locations_voice: (max_notes,) long tensor
@@ -174,36 +185,36 @@ class PercePianoVNetDataset(Dataset):
         Apply random key augmentation (pitch shift) to features.
 
         Matches original PercePiano training augmentation for better generalization.
+        Uses midi_pitch_unnorm (raw MIDI pitch 21-108) for calculating valid shift range.
 
         Args:
-            input_features: (num_notes, 79) feature array
+            input_features: (num_notes, 84) feature array
             num_notes: Actual number of notes (before padding)
 
         Returns:
             Augmented feature array
         """
         # Feature indices based on VNET_INPUT_KEYS order:
-        # midi_pitch is at index 0 (normalized scalar)
+        # midi_pitch (normalized) is at index 0
         # pitch vector is at index 14: [octave (1), pitch_class_one_hot (12)]
+        # midi_pitch_unnorm (raw MIDI 21-108) is at index 79
         MIDI_PITCH_IDX = 0
         PITCH_VEC_START = 14  # After 14 scalar features
         PITCH_CLASS_START = 15  # octave at 14, pitch class starts at 15
         PITCH_CLASS_END = 27  # 12 pitch classes
+        MIDI_PITCH_UNNORM_IDX = 79  # Raw MIDI pitch (21-108)
 
-        # Get current pitch range from midi_pitch feature
-        # Note: midi_pitch is z-score normalized, so we need to work with relative shifts
-        pitches_normalized = input_features[:num_notes, MIDI_PITCH_IDX]
+        # Get current pitch range from midi_pitch_unnorm (raw MIDI values)
+        # This is much more accurate than estimating from normalized values
+        raw_pitches = input_features[:num_notes, MIDI_PITCH_UNNORM_IDX]
 
-        # Estimate original pitch range (assuming std=12 from normalization)
         # For piano: MIDI 21 (A0) to 108 (C8)
-        # We limit shifts to stay within piano range
-        pitch_mean = pitches_normalized.mean() * self.pitch_std
-        estimated_max = pitch_mean + pitches_normalized.max() * self.pitch_std
-        estimated_min = pitch_mean + pitches_normalized.min() * self.pitch_std
+        # Calculate safe shift range to stay within piano range
+        current_max = raw_pitches.max()
+        current_min = raw_pitches.min()
 
-        # Calculate safe shift range
-        max_up = min(108 - estimated_max, 7)  # Max 7 semitones up
-        max_down = min(estimated_min - 21, 5)  # Max 5 semitones down
+        max_up = min(108 - current_max, 7)  # Max 7 semitones up
+        max_down = min(current_min - 21, 5)  # Max 5 semitones down
 
         # Clamp to valid range
         max_up = max(0, int(max_up))
@@ -220,6 +231,9 @@ class PercePianoVNetDataset(Dataset):
 
         # Apply shift to midi_pitch (normalized, so shift by key_shift/std)
         input_features[:num_notes, MIDI_PITCH_IDX] += key_shift / self.pitch_std
+
+        # Apply shift to midi_pitch_unnorm (raw MIDI values)
+        input_features[:num_notes, MIDI_PITCH_UNNORM_IDX] += key_shift
 
         # Roll the pitch class one-hot encoding
         pitch_class = input_features[:num_notes, PITCH_CLASS_START:PITCH_CLASS_END].copy()
@@ -252,7 +266,7 @@ class PercePianoVNetDataModule(pl.LightningDataModule):
     def __init__(
         self,
         data_dir: Union[str, Path],
-        batch_size: int = 8,
+        batch_size: int = 32,  # Original PercePiano uses batch_size=32 (parser.py:107)
         max_notes: int = 1024,
         num_workers: int = 4,
         augment_train: bool = True,
@@ -333,7 +347,7 @@ class PercePianoVNetDataModule(pl.LightningDataModule):
 
 def create_vnet_dataloaders(
     data_dir: Union[str, Path],
-    batch_size: int = 8,
+    batch_size: int = 32,  # Original PercePiano uses batch_size=32 (parser.py:107)
     max_notes: int = 1024,
     num_workers: int = 4,
     augment_train: bool = True,

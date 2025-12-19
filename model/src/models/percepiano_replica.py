@@ -28,6 +28,7 @@ import torch
 import torch.nn as nn
 import pytorch_lightning as pl
 import numpy as np
+from sklearn.metrics import r2_score
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence, pad_sequence
 from typing import Dict, List, Optional, Tuple
 from pathlib import Path
@@ -87,7 +88,7 @@ class PercePianoHAN(nn.Module):
 
     def __init__(
         self,
-        input_size: int = 79,  # VirtuosoNet feature dimension (FEATURE_DIMS sum)
+        input_size: int = 84,  # VirtuosoNet feature dimension (79 base + 5 unnorm)
         note_size: int = 256,
         voice_size: int = 256,
         beat_size: int = 256,
@@ -118,9 +119,11 @@ class PercePianoHAN(nn.Module):
         )
 
         # Voice-level Bi-LSTM (processes notes grouped by voice)
-        # Input is note_size * 2 because it receives bidirectional note LSTM output
+        # CRITICAL: Input is note_size (256), NOT note_size * 2 (512)
+        # Original PercePiano processes the SAME 256-dim embeddings through both
+        # note_lstm and voice_net IN PARALLEL (encoder_score.py:496-516)
         self.voice_lstm = nn.LSTM(
-            note_size * 2, voice_size, voice_layers,
+            note_size, voice_size, voice_layers,  # note_size=256, NOT note_size*2
             batch_first=True, bidirectional=True,
             dropout=dropout if voice_layers > 1 else 0,
         )
@@ -169,23 +172,23 @@ class PercePianoHAN(nn.Module):
         # Compute actual sequence lengths
         actual_lengths = compute_actual_lengths(beat_numbers)
 
-        # Project input
-        x = self.note_fc(x)
-        print(f"x after note_fc: {x.shape}")  # Should be [B, T, 256]
+        # Project input to 256-dim embeddings
+        x_embedded = self.note_fc(x)  # [B, T, 256]
 
-        # Note-level LSTM
+        # Note-level LSTM (processes 256-dim embeddings)
         x_packed = pack_padded_sequence(
-            x, actual_lengths.cpu().clamp(min=1),
+            x_embedded, actual_lengths.cpu().clamp(min=1),
             batch_first=True, enforce_sorted=False
         )
         note_out, _ = self.note_lstm(x_packed)
         note_out, _ = pad_packed_sequence(note_out, batch_first=True, total_length=seq_len)
-        print(f"note_out: {note_out.shape}")  # Should be [B, T, 512]
+        # note_out: [B, T, 512] (bidirectional)
 
-        # Voice-level LSTM (processes note LSTM output grouped by voice)
-        # Full PercePiano does per-voice processing on note_out, not x
-        voice_out = self._run_voice_processing(note_out, voice_numbers, actual_lengths)
-        print(f"voice_out: {voice_out.shape}")  # Should be [B, T, 512]
+        # Voice-level LSTM (processes the SAME 256-dim embeddings, NOT note_out)
+        # CRITICAL FIX: Original PercePiano runs voice_net on x_embedded IN PARALLEL
+        # with note_lstm, not on note_lstm output (encoder_score.py:515-516)
+        voice_out = self._run_voice_processing(x_embedded, voice_numbers, actual_lengths)
+        # voice_out: [B, T, 512] (bidirectional)
 
         # Concatenate note and voice outputs
         hidden_out = torch.cat([note_out, voice_out], dim=-1)
@@ -237,7 +240,7 @@ class PercePianoHAN(nn.Module):
 
     def _run_voice_processing(
         self,
-        note_out: torch.Tensor,
+        x_embedded: torch.Tensor,
         voice_numbers: torch.Tensor,
         actual_lengths: torch.Tensor,
     ) -> torch.Tensor:
@@ -249,18 +252,22 @@ class PercePianoHAN(nn.Module):
         - Scatter results back using batched torch.bmm (not Python loops)
         - This preserves voice-specific temporal patterns
 
+        CRITICAL: This receives the 256-dim projected embeddings (x_embedded),
+        NOT the 512-dim note LSTM output. The original PercePiano processes
+        x through voice_net IN PARALLEL with note_lstm.
+
         Args:
-            note_out: Note LSTM output [batch, seq_len, note_size*2] (512-dim bidirectional)
+            x_embedded: Projected embeddings [batch, seq_len, note_size] (256-dim)
             voice_numbers: Voice assignment per note [batch, seq_len]
             actual_lengths: Actual sequence lengths [batch]
 
         Returns:
-            Voice-processed features [batch, seq_len, voice_hidden*2]
+            Voice-processed features [batch, seq_len, voice_hidden*2] (512-dim)
         """
-        batch_size, num_notes, hidden_dim = note_out.shape
+        batch_size, num_notes, hidden_dim = x_embedded.shape
         output = torch.zeros(
             batch_size, num_notes, self.voice_size * 2,
-            device=note_out.device, dtype=note_out.dtype
+            device=x_embedded.device, dtype=x_embedded.dtype
         )
 
         # Get max voice across batch (voice numbers start at 1)
@@ -279,8 +286,8 @@ class PercePianoHAN(nn.Module):
                 # Extract notes belonging to this voice from each batch item
                 # (matching original: list comprehension with placeholder for empty batches)
                 voice_notes = [
-                    note_out[i, voice_x_bool[i]] if torch.sum(voice_x_bool[i]) > 0
-                    else torch.zeros(1, hidden_dim, device=note_out.device, dtype=note_out.dtype)
+                    x_embedded[i, voice_x_bool[i]] if torch.sum(voice_x_bool[i]) > 0
+                    else torch.zeros(1, hidden_dim, device=x_embedded.device, dtype=x_embedded.dtype)
                     for i in range(batch_size)
                 ]
 
@@ -298,12 +305,12 @@ class PercePianoHAN(nn.Module):
                 ith_voice_out, _ = pad_packed_sequence(ith_voice_out, batch_first=True)
 
                 # Scatter results back using batched torch.bmm (matching original exactly)
-                span_mat = torch.zeros(batch_size, num_notes, voice_x.shape[1], device=note_out.device)
+                span_mat = torch.zeros(batch_size, num_notes, voice_x.shape[1], device=x_embedded.device)
                 voice_where = torch.nonzero(voice_x_bool)
                 span_mat[
                     voice_where[:, 0],
                     voice_where[:, 1],
-                    torch.cat([torch.arange(num_batch_voice_notes[i].item(), device=note_out.device)
+                    torch.cat([torch.arange(num_batch_voice_notes[i].item(), device=x_embedded.device)
                                for i in range(batch_size)])
                 ] = 1
 
@@ -554,22 +561,21 @@ class PercePianoReplicaModule(pl.LightningModule):
         all_preds = torch.cat([x['predictions'] for x in self.validation_step_outputs])
         all_targets = torch.cat([x['targets'] for x in self.validation_step_outputs])
 
-        r2_values = []
+        # Convert to numpy for sklearn
+        all_preds_np = all_preds.cpu().numpy()
+        all_targets_np = all_targets.cpu().numpy()
 
-        for i, dim in enumerate(self.dimensions):
-            preds = all_preds[:, i].cpu().numpy()
-            targets = all_targets[:, i].cpu().numpy()
-
-            # R-squared
-            ss_res = np.sum((targets - preds) ** 2)
-            ss_tot = np.sum((targets - np.mean(targets)) ** 2) + 1e-8
-            r2 = 1 - ss_res / ss_tot
-            r2_values.append(r2)
-
-            self.log(f'val/r2_{dim}', r2)
-
-        mean_r2 = np.mean(r2_values)
+        # Use sklearn's r2_score for consistency with original PercePiano (train_m2pf.py:222)
+        # This uses uniform_average by default for multioutput
+        mean_r2 = r2_score(all_targets_np, all_preds_np)
         self.log('val/mean_r2', mean_r2, prog_bar=True)
+
+        # Also compute and log per-dimension R2
+        r2_values = []
+        for i, dim in enumerate(self.dimensions):
+            dim_r2 = r2_score(all_targets_np[:, i], all_preds_np[:, i])
+            r2_values.append(dim_r2)
+            self.log(f'val/r2_{dim}', dim_r2)
 
         # Log key dimensions
         if 'tempo' in self.dimensions:
@@ -613,23 +619,38 @@ class PercePianoReplicaModule(pl.LightningModule):
 
 class PercePianoVNetModule(pl.LightningModule):
     """
-    Faithful PercePiano replica using VirtuosoNet 78-dim features.
+    Faithful PercePiano replica using VirtuosoNet 84-dim features.
 
     This version matches the original PercePiano architecture exactly:
-    - Input: 78-dim VirtuosoNet features (NOT concatenated with global context)
+    - Input: 84-dim VirtuosoNet features (79 base + 5 unnorm for key augmentation)
     - HAN encoder: Note -> Voice -> Beat -> Measure hierarchy
     - Output: 19-dim scores
 
+    Feature layout:
+    - Indices 0-78: Base VirtuosoNet features (z-score normalized where applicable)
+    - Index 79: midi_pitch_unnorm (raw MIDI pitch 21-108, for key augmentation)
+    - Index 80-83: duration_unnorm, beat_importance_unnorm, measure_length_unnorm, following_rest_unnorm
+
     Key difference from PercePianoReplicaModule:
     - No global_encoder or tempo_encoder (these aren't in original PercePiano)
-    - HAN input is exactly 78-dim (no global context concatenation)
+    - HAN input is exactly the VirtuosoNet features (no global context concatenation)
     - Simpler, more faithful to published architecture
+
+    Training settings matched to original PercePiano:
+    - learning_rate: 1e-4 (parser.py:119)
+    - weight_decay: 1e-5 (parser.py:135)
+    - batch_size: 32 (parser.py:107)
+    - gradient_clip_val: 2.0 (parser.py:159) - SET IN TRAINER
+    - scheduler: StepLR(step_size=3000, gamma=0.98)
     """
+
+    # Recommended gradient clipping value (set in Lightning Trainer)
+    GRADIENT_CLIP_VAL = 2.0
 
     def __init__(
         self,
-        # Input dimension (VirtuosoNet features)
-        input_size: int = 78,
+        # Input dimension (VirtuosoNet features: 79 base + 5 unnorm)
+        input_size: int = 84,
         # HAN dimensions (matched to PercePiano han_bigger256_concat.yml)
         hidden_size: int = 256,
         note_layers: int = 2,
@@ -652,9 +673,9 @@ class PercePianoVNetModule(pl.LightningModule):
         self.dimensions = dimensions or PERCEPIANO_DIMENSIONS
         self.num_dimensions = len(self.dimensions)
 
-        # HAN encoder - takes 78-dim input directly (no global context concatenation)
+        # HAN encoder - takes 84-dim input directly (no global context concatenation)
         self.han_encoder = PercePianoHAN(
-            input_size=input_size,  # 78-dim VirtuosoNet features
+            input_size=input_size,  # 84-dim VirtuosoNet features (79 base + 5 unnorm)
             note_size=hidden_size,
             voice_size=hidden_size,
             beat_size=hidden_size,
@@ -704,14 +725,14 @@ class PercePianoVNetModule(pl.LightningModule):
         Forward pass with VirtuosoNet features.
 
         Args:
-            input_features: [batch, num_notes, 78] VirtuosoNet features
+            input_features: [batch, num_notes, 84] VirtuosoNet features (79 base + 5 unnorm)
             note_locations: Dict with 'beat', 'measure', 'voice' tensors
             attention_mask: [batch, num_notes] optional mask
 
         Returns:
             Dict with 'predictions' [batch, num_dimensions]
         """
-        # Run HAN encoder directly on 78-dim features (no global context)
+        # Run HAN encoder directly on 84-dim features (no global context)
         han_outputs = self.han_encoder(input_features, note_locations)
         total_note_cat = han_outputs['total_note_cat']  # [B, N, 2048]
 
@@ -796,22 +817,21 @@ class PercePianoVNetModule(pl.LightningModule):
         all_preds = torch.cat([x['predictions'] for x in self.validation_step_outputs])
         all_targets = torch.cat([x['targets'] for x in self.validation_step_outputs])
 
-        r2_values = []
+        # Convert to numpy for sklearn
+        all_preds_np = all_preds.cpu().numpy()
+        all_targets_np = all_targets.cpu().numpy()
 
-        for i, dim in enumerate(self.dimensions):
-            preds = all_preds[:, i].cpu().numpy()
-            targets = all_targets[:, i].cpu().numpy()
-
-            # R-squared
-            ss_res = np.sum((targets - preds) ** 2)
-            ss_tot = np.sum((targets - np.mean(targets)) ** 2) + 1e-8
-            r2 = 1 - ss_res / ss_tot
-            r2_values.append(r2)
-
-            self.log(f'val/r2_{dim}', r2)
-
-        mean_r2 = np.mean(r2_values)
+        # Use sklearn's r2_score for consistency with original PercePiano (train_m2pf.py:222)
+        # This uses uniform_average by default for multioutput
+        mean_r2 = r2_score(all_targets_np, all_preds_np)
         self.log('val/mean_r2', mean_r2, prog_bar=True)
+
+        # Also compute and log per-dimension R2
+        r2_values = []
+        for i, dim in enumerate(self.dimensions):
+            dim_r2 = r2_score(all_targets_np[:, i], all_preds_np[:, i])
+            r2_values.append(dim_r2)
+            self.log(f'val/r2_{dim}', dim_r2)
 
         # Log key dimensions
         if 'tempo' in self.dimensions:
@@ -828,7 +848,13 @@ class PercePianoVNetModule(pl.LightningModule):
         return self.validation_step(batch, batch_idx)
 
     def configure_optimizers(self):
-        """Configure optimizer with PercePiano settings (matched to original)."""
+        """
+        Configure optimizer with PercePiano settings (matched to original).
+
+        NOTE: Gradient clipping (grad_clip=2) should be set in the Lightning Trainer:
+            trainer = pl.Trainer(gradient_clip_val=2.0, ...)
+        Original PercePiano uses grad_clip=2 (parser.py:159, train_m2pf.py:173).
+        """
         # Original uses Adam (not AdamW) with very light weight decay
         optimizer = torch.optim.Adam(
             self.parameters(),
