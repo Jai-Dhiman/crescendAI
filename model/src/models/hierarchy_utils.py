@@ -201,6 +201,17 @@ def make_higher_node(
         batch_first=True
     )
 
+    # Pad softmax_similarity to match lower_out sequence length (for fixed-padding scenarios)
+    if softmax_similarity.shape[1] < lower_out.shape[1]:
+        padding = torch.zeros(
+            softmax_similarity.shape[0],
+            lower_out.shape[1] - softmax_similarity.shape[1],
+            softmax_similarity.shape[2],
+            device=softmax_similarity.device,
+            dtype=softmax_similarity.dtype,
+        )
+        softmax_similarity = torch.cat([softmax_similarity, padding], dim=1)
+
     # Compute weighted sum within each segment
     if hasattr(attention_weights, 'head_size'):
         x_split = torch.stack(lower_out.split(split_size=attention_weights.head_size, dim=2), dim=2)
