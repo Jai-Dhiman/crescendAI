@@ -15,6 +15,7 @@ Feature layout:
 
 import pickle
 import random
+import warnings
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Any, Union
 
@@ -22,6 +23,9 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset, DataLoader
 import pytorch_lightning as pl
+
+# Global flag to track if we've logged diagnostics (to avoid spam)
+_FIRST_SAMPLE_LOGGED = False
 
 
 class PercePianoVNetDataset(Dataset):
@@ -98,6 +102,75 @@ class PercePianoVNetDataset(Dataset):
     def __len__(self) -> int:
         return len(self.pkl_files)
 
+    def _validate_sample(
+        self,
+        idx: int,
+        input_features: np.ndarray,
+        beat_indices: np.ndarray,
+        labels: np.ndarray,
+        num_notes: int,
+    ) -> None:
+        """
+        Validate a sample for common issues that cause training to fail.
+
+        Logs warnings (not errors) to help diagnose poor training performance.
+        Only logs detailed diagnostics for the first sample to avoid spam.
+        """
+        global _FIRST_SAMPLE_LOGGED
+        sample_name = self.pkl_files[idx].stem
+
+        # 1. Check for NaN/Inf in features
+        nan_count = np.isnan(input_features).sum()
+        inf_count = np.isinf(input_features).sum()
+        if nan_count > 0:
+            warnings.warn(
+                f"[DATA] Sample '{sample_name}' has {nan_count} NaN values in features! "
+                "This will cause training to produce NaN losses.",
+                RuntimeWarning
+            )
+        if inf_count > 0:
+            warnings.warn(
+                f"[DATA] Sample '{sample_name}' has {inf_count} Inf values in features! "
+                "This will cause training to produce Inf losses.",
+                RuntimeWarning
+            )
+
+        # 2. Check label range (should be 0-1 for sigmoid output)
+        if labels.min() < 0 or labels.max() > 1:
+            warnings.warn(
+                f"[DATA] Sample '{sample_name}' has labels outside [0,1]: "
+                f"[{labels.min():.3f}, {labels.max():.3f}]. "
+                "Model uses sigmoid output (0-1), causing MSE mismatch!",
+                RuntimeWarning
+            )
+
+        # 3. Check beat indices for gaps (critical for hierarchy_utils)
+        # hierarchy_utils.find_boundaries_batch expects diff == 1 at boundaries
+        valid_beats = beat_indices[:num_notes]
+        if len(valid_beats) > 1:
+            diffs = np.diff(valid_beats)
+            # Beat indices should either stay same (within beat) or increase by 1 (new beat)
+            invalid_diffs = np.sum((diffs != 0) & (diffs != 1))
+            if invalid_diffs > 0:
+                warnings.warn(
+                    f"[DATA] Sample '{sample_name}' has {invalid_diffs} beat index gaps > 1. "
+                    "hierarchy_utils expects consecutive beat indices. "
+                    f"Beat range: [{valid_beats.min()}, {valid_beats.max()}]",
+                    RuntimeWarning
+                )
+
+        # 4. Log detailed diagnostics for first sample only
+        if not _FIRST_SAMPLE_LOGGED:
+            _FIRST_SAMPLE_LOGGED = True
+            print(f"\n[DATASET DIAGNOSTICS] First sample loaded: {sample_name}")
+            print(f"  Feature shape: {input_features.shape}")
+            print(f"  Feature stats: mean={input_features.mean():.4f}, std={input_features.std():.4f}")
+            print(f"  Feature range: [{input_features.min():.4f}, {input_features.max():.4f}]")
+            print(f"  NaN/Inf count: {nan_count}/{inf_count}")
+            print(f"  Labels: mean={labels.mean():.4f}, range=[{labels.min():.4f}, {labels.max():.4f}]")
+            print(f"  Beat indices: range=[{beat_indices[:num_notes].min()}, {beat_indices[:num_notes].max()}]")
+            print(f"  Num notes: {num_notes}")
+
     def __getitem__(self, idx: int) -> Dict[str, torch.Tensor]:
         """
         Load and return a single sample.
@@ -141,6 +214,9 @@ class PercePianoVNetDataset(Dataset):
         if 'labels' not in data:
             raise ValueError(f"Missing 'labels' in {self.pkl_files[idx]}")
         labels = np.array(data['labels'], dtype=np.float32)
+
+        # VALIDATION: Check for common issues that cause training to fail
+        self._validate_sample(idx, input_features, beat_indices, labels, num_notes)
 
         # Key augmentation (random pitch shift) - training only
         if self.augment:

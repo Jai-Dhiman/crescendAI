@@ -6,10 +6,21 @@ These functions handle hierarchical aggregation (note -> beat -> measure)
 and broadcasting back to note level.
 """
 
+import warnings
 import torch
 import torch.nn as nn
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 from typing import List, Tuple, Optional
+
+# Global debug flag - set to True to enable detailed logging
+HIERARCHY_DEBUG = False
+
+def set_hierarchy_debug(enabled: bool) -> None:
+    """Enable or disable hierarchy debug logging."""
+    global HIERARCHY_DEBUG
+    HIERARCHY_DEBUG = enabled
+    if enabled:
+        print("[HIERARCHY_DEBUG] Debug mode ENABLED - will log detailed information")
 
 
 def compute_actual_lengths(beat_numbers: torch.Tensor) -> torch.Tensor:
@@ -87,9 +98,43 @@ def find_boundaries_batch(
         List of lists, each containing boundary indices for that batch element.
         Includes 0 at start and actual sequence length at end.
     """
+    global HIERARCHY_DEBUG
+
     # Original: batched boundary detection using nonzero
     diff_boundary = torch.nonzero(beat_numbers[:, 1:] - beat_numbers[:, :-1] == 1).cpu()
-    return [find_boundaries(diff_boundary, beat_numbers, i) for i in range(len(beat_numbers))]
+    boundaries = [find_boundaries(diff_boundary, beat_numbers, i) for i in range(len(beat_numbers))]
+
+    # Debug logging
+    if HIERARCHY_DEBUG:
+        batch_size = len(beat_numbers)
+        print(f"\n[HIERARCHY_DEBUG] find_boundaries_batch:")
+        print(f"  Input shape: {beat_numbers.shape}")
+        print(f"  Batch size: {batch_size}")
+
+        # Check for potential issues
+        for i in range(min(3, batch_size)):  # Log first 3 samples
+            b = boundaries[i]
+            bt = beat_numbers[i].cpu()
+            non_zero = torch.nonzero(bt != 0).squeeze(-1)
+            actual_len = len(non_zero) if len(non_zero.shape) > 0 else 0
+
+            print(f"  Sample {i}:")
+            print(f"    Beat range: [{bt[bt != 0].min().item() if actual_len > 0 else 0}, "
+                  f"{bt[bt != 0].max().item() if actual_len > 0 else 0}]")
+            print(f"    Boundaries: {b[:10]}{'...' if len(b) > 10 else ''} (total: {len(b)})")
+
+            if len(b) < 2:
+                print(f"    [WARNING] Only {len(b)} boundaries - hierarchy may fail!")
+
+            # Check for gaps
+            if actual_len > 1:
+                valid = bt[:actual_len]
+                diffs = valid[1:] - valid[:-1]
+                gaps = ((diffs != 0) & (diffs != 1)).sum().item()
+                if gaps > 0:
+                    print(f"    [WARNING] {gaps} beat index gaps > 1 detected!")
+
+    return boundaries
 
 
 def get_softmax_by_boundary(
@@ -171,8 +216,21 @@ def make_higher_node(
     Returns:
         Tensor of shape (N, T_higher, C) - aggregated higher-level representations
     """
+    global HIERARCHY_DEBUG
+
+    if HIERARCHY_DEBUG:
+        level_name = "Note->Beat" if lower_is_note else "Beat->Measure"
+        print(f"\n[HIERARCHY_DEBUG] make_higher_node ({level_name}):")
+        print(f"  lower_out shape: {lower_out.shape}")
+        print(f"  higher_indices shape: {higher_indices.shape}")
+        print(f"  lower_indices shape: {lower_indices.shape}")
+
     # Get attention scores
     similarity = attention_weights.get_attention(lower_out)  # (N, T, num_heads)
+
+    if HIERARCHY_DEBUG:
+        print(f"  attention similarity shape: {similarity.shape}")
+        print(f"  attention stats: mean={similarity.mean():.4f}, std={similarity.std():.4f}")
 
     # Note: actual_lengths parameter kept for backward compatibility but not used
     # Original find_boundaries_batch uses nonzero() to detect boundaries directly
@@ -231,6 +289,9 @@ def make_higher_node(
         higher_nodes = torch.cat(
             [torch.sum(weighted_sum[:, boundaries[i-1]:boundaries[i], :], dim=1)
              for i in range(1, len(boundaries))]).unsqueeze(0)
+
+    if HIERARCHY_DEBUG:
+        print(f"  output higher_nodes shape: {higher_nodes.shape}")
 
     return higher_nodes
 
