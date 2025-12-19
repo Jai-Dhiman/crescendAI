@@ -42,35 +42,31 @@ def compute_actual_lengths(beat_numbers: torch.Tensor) -> torch.Tensor:
     return lengths
 
 
-def find_boundaries(diff_boundary: torch.Tensor, beat_numbers: torch.Tensor, batch_idx: int) -> List[int]:
+def find_boundaries(diff_boundary: torch.Tensor, higher_indices: torch.Tensor, batch_idx: int) -> List[int]:
     """
     Find boundary indices for a single batch element.
 
+    Matches original PercePiano logic exactly.
+
     Args:
         diff_boundary: Tensor of shape (num_boundaries, 2) with [batch_idx, position]
-        beat_numbers: Tensor of shape (N, T) with beat numbers
+        higher_indices: Tensor of shape (N, T) with beat/measure numbers
         batch_idx: Index of the batch element to process
 
     Returns:
         List of boundary indices including 0 and sequence length
     """
-    mask = diff_boundary[:, 0] == batch_idx
-    indices = diff_boundary[mask, 1].tolist()
+    # Original: [0] + (positions where diff == 1) + [last non-zero position + 1]
+    out = [0] + (diff_boundary[diff_boundary[:, 0] == batch_idx][:, 1] + 1).tolist()
 
-    # Add 1 to indices (boundaries are after the position)
-    boundaries = [0] + [i + 1 for i in indices]
+    # Final boundary: last non-zero position + 1
+    out.append(torch.max(torch.nonzero(higher_indices[batch_idx])).item() + 1)
 
-    # Calculate actual sequence length (first position where beat number doesn't increase)
-    seq_len = beat_numbers.shape[1]
-    if len(beat_numbers[batch_idx]) > 1:
-        diffs = beat_numbers[batch_idx, 1:] - beat_numbers[batch_idx, :-1]
-        # Find where diff becomes negative (padding starts)
-        neg_positions = torch.where(diffs < 0)[0]
-        if len(neg_positions) > 0:
-            seq_len = int(neg_positions[0].item()) + 1
+    # Original duplicate removal: if the first boundary occurs at 0, it will be duplicated
+    if len(out) > 1 and out[1] == 0:
+        out.pop(0)
 
-    boundaries.append(seq_len)
-    return boundaries
+    return out
 
 
 def find_boundaries_batch(
@@ -80,40 +76,20 @@ def find_boundaries_batch(
     """
     Find beat/measure boundaries for a batch of sequences.
 
-    A boundary is where beat_number[t] != beat_number[t-1].
+    Matches original PercePiano logic exactly: uses batched torch.nonzero().
 
     Args:
         beat_numbers: Tensor of shape (N, T) with beat/measure indices per note.
                       Zero-padded sequences.
-        actual_lengths: Optional tensor of shape (N,) with actual sequence lengths.
-                       If not provided, will be computed from beat_numbers.
+        actual_lengths: Optional tensor - ignored for compatibility, not used in original.
 
     Returns:
         List of lists, each containing boundary indices for that batch element.
         Includes 0 at start and actual sequence length at end.
     """
-    if actual_lengths is None:
-        actual_lengths = compute_actual_lengths(beat_numbers)
-
-    batch_size = beat_numbers.shape[0]
-    all_boundaries = []
-
-    for i in range(batch_size):
-        length = int(actual_lengths[i].item())
-        valid_beats = beat_numbers[i, :length]
-
-        # Find where beat number changes (increases by 1)
-        if length > 1:
-            diffs = valid_beats[1:] - valid_beats[:-1]
-            change_positions = torch.where(diffs == 1)[0].cpu().tolist()
-            # Boundaries are after the change position
-            boundaries = [0] + [p + 1 for p in change_positions] + [length]
-        else:
-            boundaries = [0, length]
-
-        all_boundaries.append(boundaries)
-
-    return all_boundaries
+    # Original: batched boundary detection using nonzero
+    diff_boundary = torch.nonzero(beat_numbers[:, 1:] - beat_numbers[:, :-1] == 1).cpu()
+    return [find_boundaries(diff_boundary, beat_numbers, i) for i in range(len(beat_numbers))]
 
 
 def get_softmax_by_boundary(
@@ -143,6 +119,9 @@ def cal_length_from_padded_beat_numbers(beat_numbers: torch.Tensor) -> torch.Ten
     """
     Calculate actual sequence lengths from zero-padded beat numbers.
 
+    Matches original PercePiano logic exactly: uses torch.min() to find the
+    position of minimum diff value (where padding starts or boundary occurs).
+
     Args:
         beat_numbers: Tensor of shape (N, T) with beat indices per note.
                       Assumes zero-padding at the end.
@@ -150,34 +129,17 @@ def cal_length_from_padded_beat_numbers(beat_numbers: torch.Tensor) -> torch.Ten
     Returns:
         Tensor of shape (N,) with actual sequence lengths
     """
-    batch_size = beat_numbers.shape[0]
-    seq_len = beat_numbers.shape[1]
+    try:
+        # Original logic: find position of minimum diff (where padding/boundary occurs)
+        # torch.min(...)[1] returns the indices of the minimum values
+        len_note = torch.min(torch.diff(beat_numbers, dim=1), dim=1)[1] + 1
+    except Exception:
+        # Fallback for edge cases (empty sequences, etc.)
+        len_note = torch.LongTensor([beat_numbers.shape[1]] * len(beat_numbers)).to(beat_numbers.device)
 
-    # Handle edge cases
-    if seq_len <= 1:
-        return torch.ones(batch_size, dtype=torch.long, device=beat_numbers.device)
-
-    # Find first position where diff becomes negative (padding starts)
-    diffs = torch.diff(beat_numbers, dim=1)
-
-    # Handle empty diffs
-    if diffs.shape[1] == 0:
-        return torch.ones(batch_size, dtype=torch.long, device=beat_numbers.device)
-
-    # For each batch, find where padding starts (diff < 0) or use full length
-    len_note = torch.zeros(batch_size, dtype=torch.long, device=beat_numbers.device)
-    for i in range(batch_size):
-        neg_pos = torch.where(diffs[i] < 0)[0]
-        if len(neg_pos) > 0:
-            len_note[i] = neg_pos[0].item() + 1
-        else:
-            # No negative diff found - either all valid or all padding
-            # Check if sequence has any non-zero values
-            non_zero = torch.where(beat_numbers[i] > 0)[0]
-            if len(non_zero) > 0:
-                len_note[i] = seq_len  # All valid
-            else:
-                len_note[i] = 1  # All zeros, use minimum length
+    # Original correction: if len_note==1, use full sequence length
+    # This handles cases where the minimum diff occurs at position 0
+    len_note[len_note == 1] = beat_numbers.shape[1]
 
     return len_note
 
@@ -212,16 +174,15 @@ def make_higher_node(
     # Get attention scores
     similarity = attention_weights.get_attention(lower_out)  # (N, T, num_heads)
 
-    # Compute actual_lengths if not provided
-    if actual_lengths is None:
-        actual_lengths = compute_actual_lengths(higher_indices)
+    # Note: actual_lengths parameter kept for backward compatibility but not used
+    # Original find_boundaries_batch uses nonzero() to detect boundaries directly
 
     if lower_is_note:
         # Notes -> Beats: use higher_indices directly
-        boundaries = find_boundaries_batch(higher_indices, actual_lengths)
+        boundaries = find_boundaries_batch(higher_indices)
     else:
         # Beats -> Measures: need to map through lower_indices
-        higher_boundaries = find_boundaries_batch(higher_indices, actual_lengths)
+        higher_boundaries = find_boundaries_batch(higher_indices)
         zero_shifted_lower_indices = lower_indices - lower_indices[:, 0:1]
 
         # Calculate actual lengths for beat-level output
@@ -233,31 +194,12 @@ def make_higher_node(
             for i in range(len(lower_out))
         ]
 
-    # Apply softmax within each segment
-    softmax_results = []
-    for batch_idx in range(len(lower_out)):
-        segments = get_softmax_by_boundary(similarity[batch_idx], boundaries[batch_idx])
-        if len(segments) > 0:
-            softmax_results.append(torch.cat(segments))
-        else:
-            # Handle edge case: no valid segments, create a single-element tensor
-            softmax_results.append(similarity[batch_idx, :1, :])
-    softmax_similarity = torch.nn.utils.rnn.pad_sequence(softmax_results, batch_first=True)
-
-    # Ensure softmax_similarity matches lower_out sequence length
-    if softmax_similarity.shape[1] < lower_out.shape[1]:
-        # Pad if softmax is shorter
-        padding = torch.zeros(
-            softmax_similarity.shape[0],
-            lower_out.shape[1] - softmax_similarity.shape[1],
-            softmax_similarity.shape[2],
-            device=softmax_similarity.device,
-            dtype=softmax_similarity.dtype,
-        )
-        softmax_similarity = torch.cat([softmax_similarity, padding], dim=1)
-    elif softmax_similarity.shape[1] > lower_out.shape[1]:
-        # Truncate if softmax is longer (can happen in beat->measure aggregation)
-        softmax_similarity = softmax_similarity[:, :lower_out.shape[1], :]
+    # Apply softmax within each segment - match original exactly (no edge case fallback)
+    softmax_similarity = torch.nn.utils.rnn.pad_sequence(
+        [torch.cat(get_softmax_by_boundary(similarity[batch_idx], boundaries[batch_idx]))
+         for batch_idx in range(len(lower_out))],
+        batch_first=True
+    )
 
     # Compute weighted sum within each segment
     if hasattr(attention_weights, 'head_size'):
@@ -265,38 +207,19 @@ def make_higher_node(
         weighted_x = x_split * softmax_similarity.unsqueeze(-1).repeat(1, 1, 1, x_split.shape[-1])
         weighted_x = weighted_x.view(x_split.shape[0], x_split.shape[1], lower_out.shape[-1])
 
-        higher_nodes_list = []
-        for i in range(len(lower_out)):
-            batch_segments = []
-            for j in range(1, len(boundaries[i])):
-                start, end = boundaries[i][j-1], boundaries[i][j]
-                if start < end and end <= weighted_x.shape[1]:
-                    segment_sum = torch.sum(weighted_x[i:i+1, start:end, :], dim=1)
-                    batch_segments.append(segment_sum)
-            if len(batch_segments) > 0:
-                higher_nodes_list.append(torch.cat(batch_segments, dim=0))
-            else:
-                # Handle edge case: no valid segments, use first position
-                higher_nodes_list.append(weighted_x[i, :1, :])
-
-        higher_nodes = torch.nn.utils.rnn.pad_sequence(higher_nodes_list, batch_first=True)
+        # Original: single list comprehension with torch.cat for each batch
+        higher_nodes = torch.nn.utils.rnn.pad_sequence(
+            [torch.cat([torch.sum(weighted_x[i:i+1, boundaries[i][j-1]:boundaries[i][j], :], dim=1)
+                        for j in range(1, len(boundaries[i]))], dim=0)
+             for i in range(len(lower_out))],
+            batch_first=True
+        )
     else:
-        # Non-head-size path (for compatibility)
+        # Non-head-size path (for compatibility) - matches original single-batch logic
         weighted_sum = softmax_similarity * lower_out
-        higher_nodes_list = []
-        for i in range(len(lower_out)):
-            batch_segments = []
-            for j in range(1, len(boundaries[i])):
-                start, end = boundaries[i][j-1], boundaries[i][j]
-                if start < end and end <= weighted_sum.shape[1]:
-                    segment_sum = torch.sum(weighted_sum[i:i+1, start:end, :], dim=1)
-                    batch_segments.append(segment_sum)
-            if len(batch_segments) > 0:
-                higher_nodes_list.append(torch.cat(batch_segments, dim=0))
-            else:
-                higher_nodes_list.append(weighted_sum[i, :1, :])
-
-        higher_nodes = torch.nn.utils.rnn.pad_sequence(higher_nodes_list, batch_first=True)
+        higher_nodes = torch.cat(
+            [torch.sum(weighted_sum[:, boundaries[i-1]:boundaries[i], :], dim=1)
+             for i in range(1, len(boundaries))]).unsqueeze(0)
 
     return higher_nodes
 
@@ -329,7 +252,7 @@ def span_beat_to_note_num(
     else:
         len_note = cal_length_from_padded_beat_numbers(beat_number)
 
-    # Build index arrays for sparse matrix
+    # Build index arrays for sparse matrix (matches original exactly)
     batch_indices = torch.cat([torch.ones(length) * i for i, length in enumerate(len_note)]).long()
     note_indices = torch.cat([torch.arange(length) for length in len_note])
     beat_indices = torch.cat([
@@ -337,11 +260,8 @@ def span_beat_to_note_num(
         for i, length in enumerate(len_note)
     ]).long()
 
-    # Clamp beat_indices to valid range to prevent out-of-bounds errors
-    max_beat_idx = beat_out.shape[1] - 1
-    beat_indices = beat_indices.clamp(0, max_beat_idx)
-
     # Create span matrix (N, T_note, T_beat)
+    # Note: No clamping - original trusts indices are valid. Errors surface if upstream is wrong.
     span_mat = torch.zeros(beat_number.shape[0], beat_number.shape[1], beat_out.shape[1]).to(beat_out.device)
     span_mat[batch_indices.to(beat_out.device), note_indices.to(beat_out.device), beat_indices.to(beat_out.device)] = 1
 
