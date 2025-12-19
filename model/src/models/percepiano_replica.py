@@ -118,8 +118,9 @@ class PercePianoHAN(nn.Module):
         )
 
         # Voice-level Bi-LSTM (processes notes grouped by voice)
+        # Input is note_size * 2 because it receives bidirectional note LSTM output
         self.voice_lstm = nn.LSTM(
-            note_size, voice_size, voice_layers,
+            note_size * 2, voice_size, voice_layers,
             batch_first=True, bidirectional=True,
             dropout=dropout if voice_layers > 1 else 0,
         )
@@ -170,6 +171,7 @@ class PercePianoHAN(nn.Module):
 
         # Project input
         x = self.note_fc(x)
+        print(f"x after note_fc: {x.shape}")  # Should be [B, T, 256]
 
         # Note-level LSTM
         x_packed = pack_padded_sequence(
@@ -178,10 +180,12 @@ class PercePianoHAN(nn.Module):
         )
         note_out, _ = self.note_lstm(x_packed)
         note_out, _ = pad_packed_sequence(note_out, batch_first=True, total_length=seq_len)
+        print(f"note_out: {note_out.shape}")  # Should be [B, T, 512]
 
-        # Voice-level LSTM (simplified - process all notes together)
-        # Full PercePiano does per-voice processing, but this is a good approximation
-        voice_out = self._run_voice_processing(x, voice_numbers, actual_lengths)
+        # Voice-level LSTM (processes note LSTM output grouped by voice)
+        # Full PercePiano does per-voice processing on note_out, not x
+        voice_out = self._run_voice_processing(note_out, voice_numbers, actual_lengths)
+        print(f"voice_out: {voice_out.shape}")  # Should be [B, T, 512]
 
         # Concatenate note and voice outputs
         hidden_out = torch.cat([note_out, voice_out], dim=-1)
@@ -233,83 +237,77 @@ class PercePianoHAN(nn.Module):
 
     def _run_voice_processing(
         self,
-        x: torch.Tensor,
+        note_out: torch.Tensor,
         voice_numbers: torch.Tensor,
         actual_lengths: torch.Tensor,
     ) -> torch.Tensor:
         """
         Process notes through voice LSTM, grouped by voice.
 
-        Matches original PercePiano encoder_score.py:526-549:
+        Matches original PercePiano encoder_score.py:526-549 exactly:
         - Process each voice separately through LSTM
-        - Scatter results back to original positions
+        - Scatter results back using batched torch.bmm (not Python loops)
         - This preserves voice-specific temporal patterns
 
         Args:
-            x: Input features [batch, seq_len, hidden]
+            note_out: Note LSTM output [batch, seq_len, note_size*2] (512-dim bidirectional)
             voice_numbers: Voice assignment per note [batch, seq_len]
             actual_lengths: Actual sequence lengths [batch]
 
         Returns:
             Voice-processed features [batch, seq_len, voice_hidden*2]
         """
-        batch_size, seq_len, hidden_dim = x.shape
+        batch_size, num_notes, hidden_dim = note_out.shape
         output = torch.zeros(
-            batch_size, seq_len, self.voice_size * 2,
-            device=x.device, dtype=x.dtype
+            batch_size, num_notes, self.voice_size * 2,
+            device=note_out.device, dtype=note_out.dtype
         )
 
         # Get max voice across batch (voice numbers start at 1)
         max_voice = voice_numbers.max().item()
         if max_voice == 0:
-            # No valid voices, return zeros
             return output
 
-        # Process each voice separately
+        # Process each voice separately (matching original exactly)
         for voice_idx in range(1, int(max_voice) + 1):
             # Create mask for this voice [batch, seq_len]
-            voice_mask = (voice_numbers == voice_idx)
-            num_voice_notes_per_batch = voice_mask.sum(dim=1)  # [batch]
+            voice_x_bool = (voice_numbers == voice_idx)
+            num_voice_notes = torch.sum(voice_x_bool)
+            num_batch_voice_notes = torch.sum(voice_x_bool, dim=1)  # [batch]
 
-            # Skip if no notes in this voice across entire batch
-            if num_voice_notes_per_batch.sum() == 0:
-                continue
+            if num_voice_notes > 0:
+                # Extract notes belonging to this voice from each batch item
+                # (matching original: list comprehension with placeholder for empty batches)
+                voice_notes = [
+                    note_out[i, voice_x_bool[i]] if torch.sum(voice_x_bool[i]) > 0
+                    else torch.zeros(1, hidden_dim, device=note_out.device, dtype=note_out.dtype)
+                    for i in range(batch_size)
+                ]
 
-            # Extract notes belonging to this voice from each batch item
-            voice_notes = []
-            voice_lengths = []
-            for b in range(batch_size):
-                n_notes = num_voice_notes_per_batch[b].item()
-                if n_notes > 0:
-                    # Extract notes for this voice in this batch item
-                    voice_notes.append(x[b, voice_mask[b]])
-                    voice_lengths.append(n_notes)
-                else:
-                    # Placeholder for batches with no notes in this voice
-                    voice_notes.append(torch.zeros(1, hidden_dim, device=x.device, dtype=x.dtype))
-                    voice_lengths.append(1)
+                # Pad to same length
+                voice_x = pad_sequence(voice_notes, batch_first=True)
 
-            # Pad to same length and pack
-            voice_x = pad_sequence(voice_notes, batch_first=True)
-            voice_packed = pack_padded_sequence(
-                voice_x,
-                torch.tensor(voice_lengths, dtype=torch.long),
-                batch_first=True,
-                enforce_sorted=False
-            )
+                # Pack and process through voice LSTM
+                pack_voice_x = pack_padded_sequence(
+                    voice_x,
+                    [len(v) for v in voice_notes],
+                    batch_first=True,
+                    enforce_sorted=False
+                )
+                ith_voice_out, _ = self.voice_lstm(pack_voice_x)
+                ith_voice_out, _ = pad_packed_sequence(ith_voice_out, batch_first=True)
 
-            # Process through voice LSTM
-            voice_out, _ = self.voice_lstm(voice_packed)
-            voice_out, _ = pad_packed_sequence(voice_out, batch_first=True)
+                # Scatter results back using batched torch.bmm (matching original exactly)
+                span_mat = torch.zeros(batch_size, num_notes, voice_x.shape[1], device=note_out.device)
+                voice_where = torch.nonzero(voice_x_bool)
+                span_mat[
+                    voice_where[:, 0],
+                    voice_where[:, 1],
+                    torch.cat([torch.arange(num_batch_voice_notes[i].item(), device=note_out.device)
+                               for i in range(batch_size)])
+                ] = 1
 
-            # Scatter results back to original positions
-            for b in range(batch_size):
-                n_notes = num_voice_notes_per_batch[b].item()
-                if n_notes > 0:
-                    # Get positions in original sequence where this voice's notes are
-                    positions = voice_mask[b].nonzero(as_tuple=True)[0]
-                    # Place voice LSTM outputs at those positions
-                    output[b, positions] = voice_out[b, :n_notes]
+                output += torch.bmm(span_mat, ith_voice_out)
 
         return output
 
@@ -641,9 +639,9 @@ class PercePianoVNetModule(pl.LightningModule):
         num_attention_heads: int = 8,
         # Final head
         final_hidden: int = 128,
-        # Training (PercePiano defaults)
-        learning_rate: float = 2.5e-5,
-        weight_decay: float = 0.01,
+        # Training (matched to original PercePiano han_bigger256_concat.yml)
+        learning_rate: float = 1e-4,   # Original: 1e-4 (was 2.5e-5 - 4x too low!)
+        weight_decay: float = 1e-5,    # Original: 1e-5 (was 0.01 - 100x too high!)
         dropout: float = 0.2,
         # Task
         dimensions: Optional[List[str]] = None,
@@ -830,23 +828,24 @@ class PercePianoVNetModule(pl.LightningModule):
         return self.validation_step(batch, batch_idx)
 
     def configure_optimizers(self):
-        """Configure optimizer with PercePiano settings."""
-        optimizer = torch.optim.AdamW(
+        """Configure optimizer with PercePiano settings (matched to original)."""
+        # Original uses Adam (not AdamW) with very light weight decay
+        optimizer = torch.optim.Adam(
             self.parameters(),
             lr=self.hparams.learning_rate,
             weight_decay=self.hparams.weight_decay,
         )
 
-        # Learning rate scheduler
-        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-            optimizer, mode='max', factor=0.5, patience=10
+        # Original uses StepLR with step_size=3000, gamma=0.98
+        scheduler = torch.optim.lr_scheduler.StepLR(
+            optimizer, step_size=3000, gamma=0.98
         )
 
         return {
             'optimizer': optimizer,
             'lr_scheduler': {
                 'scheduler': scheduler,
-                'monitor': 'val/mean_r2',
+                'interval': 'step',  # StepLR operates per step, not per epoch
             }
         }
 

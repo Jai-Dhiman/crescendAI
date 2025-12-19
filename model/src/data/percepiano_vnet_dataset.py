@@ -30,7 +30,10 @@ class PercePianoVNetDataset(Dataset):
         max_notes: Maximum number of notes per sample (for padding/truncation)
         transform: Optional transform to apply to features
         augment: Whether to apply key augmentation (random pitch shifts)
-        pitch_std: Standard deviation used for midi_pitch normalization (for augmentation)
+        pitch_std: Standard deviation used for midi_pitch normalization (for augmentation).
+                   If None, will attempt to load from stat.pkl in parent directory.
+        stats_file: Optional path to stats file. If None and pitch_std is None,
+                    will look for stat.pkl in parent directory.
     """
 
     def __init__(
@@ -39,13 +42,19 @@ class PercePianoVNetDataset(Dataset):
         max_notes: int = 1024,
         transform: Optional[callable] = None,
         augment: bool = False,
-        pitch_std: float = 12.0,
+        pitch_std: Optional[float] = None,
+        stats_file: Optional[Union[str, Path]] = None,
     ):
         self.data_dir = Path(data_dir)
         self.max_notes = max_notes
         self.transform = transform
         self.augment = augment
-        self.pitch_std = pitch_std
+
+        # Load pitch_std from stats file if not provided
+        if pitch_std is None:
+            self.pitch_std = self._load_pitch_std_from_stats(stats_file)
+        else:
+            self.pitch_std = pitch_std
 
         # Find all pickle files
         self.pkl_files = sorted(self.data_dir.glob("*.pkl"))
@@ -54,7 +63,26 @@ class PercePianoVNetDataset(Dataset):
 
         print(f"Found {len(self.pkl_files)} samples in {self.data_dir}")
         if augment:
-            print(f"  Key augmentation ENABLED (pitch_std={pitch_std})")
+            print(f"  Key augmentation ENABLED (pitch_std={self.pitch_std})")
+
+    def _load_pitch_std_from_stats(self, stats_file: Optional[Union[str, Path]] = None) -> float:
+        """Load pitch_std from stats file."""
+        if stats_file is None:
+            # Look for stat.pkl in parent directory (data_dir is train/val/test subdirectory)
+            stats_file = self.data_dir.parent / 'stat.pkl'
+
+        stats_path = Path(stats_file)
+        if stats_path.exists():
+            with open(stats_path, 'rb') as f:
+                stats = pickle.load(f)
+            if 'std' in stats and 'midi_pitch' in stats['std']:
+                loaded_std = stats['std']['midi_pitch']
+                print(f"  Loaded pitch_std={loaded_std:.4f} from {stats_path}")
+                return loaded_std
+
+        # Fallback to default if stats file not found or doesn't have midi_pitch
+        print(f"  Warning: Could not load pitch_std from stats, using default 12.0")
+        return 12.0
 
     def __len__(self) -> int:
         return len(self.pkl_files)
@@ -217,7 +245,8 @@ class PercePianoVNetDataModule(pl.LightningDataModule):
         max_notes: Maximum notes per sample
         num_workers: Number of dataloader workers
         augment_train: Whether to apply key augmentation to training data
-        pitch_std: Standard deviation for pitch normalization (for augmentation)
+        pitch_std: Standard deviation for pitch normalization (for augmentation).
+                   If None (default), auto-loads from stat.pkl in data_dir.
     """
 
     def __init__(
@@ -227,7 +256,7 @@ class PercePianoVNetDataModule(pl.LightningDataModule):
         max_notes: int = 1024,
         num_workers: int = 4,
         augment_train: bool = True,
-        pitch_std: float = 12.0,
+        pitch_std: Optional[float] = None,
     ):
         super().__init__()
         self.data_dir = Path(data_dir)
@@ -235,7 +264,8 @@ class PercePianoVNetDataModule(pl.LightningDataModule):
         self.max_notes = max_notes
         self.num_workers = num_workers
         self.augment_train = augment_train
-        self.pitch_std = pitch_std
+        self.pitch_std = pitch_std  # None = auto-load from stats
+        self._stats_file = self.data_dir / 'stat.pkl'
 
         self.train_dataset: Optional[PercePianoVNetDataset] = None
         self.val_dataset: Optional[PercePianoVNetDataset] = None
@@ -254,18 +284,23 @@ class PercePianoVNetDataModule(pl.LightningDataModule):
                     max_notes=self.max_notes,
                     augment=self.augment_train,
                     pitch_std=self.pitch_std,
+                    stats_file=self._stats_file,
                 )
             if val_dir.exists():
                 # Validation dataset without augmentation
                 self.val_dataset = PercePianoVNetDataset(
-                    val_dir, max_notes=self.max_notes
+                    val_dir,
+                    max_notes=self.max_notes,
+                    stats_file=self._stats_file,
                 )
 
         if stage == "test" or stage is None:
             test_dir = self.data_dir / "test"
             if test_dir.exists():
                 self.test_dataset = PercePianoVNetDataset(
-                    test_dir, max_notes=self.max_notes
+                    test_dir,
+                    max_notes=self.max_notes,
+                    stats_file=self._stats_file,
                 )
 
     def train_dataloader(self) -> DataLoader:
@@ -302,7 +337,7 @@ def create_vnet_dataloaders(
     max_notes: int = 1024,
     num_workers: int = 4,
     augment_train: bool = True,
-    pitch_std: float = 12.0,
+    pitch_std: Optional[float] = None,
 ) -> Tuple[DataLoader, DataLoader, DataLoader]:
     """
     Create train, validation, and test dataloaders for VirtuosoNet features.
@@ -313,12 +348,14 @@ def create_vnet_dataloaders(
         max_notes: Maximum notes per sample
         num_workers: Number of dataloader workers
         augment_train: Whether to apply key augmentation to training data (default: True)
-        pitch_std: Standard deviation for pitch normalization (for augmentation)
+        pitch_std: Standard deviation for pitch normalization (for augmentation).
+                   If None (default), auto-loads from stat.pkl in data_dir.
 
     Returns:
         Tuple of (train_loader, val_loader, test_loader)
     """
     data_dir = Path(data_dir)
+    stats_file = data_dir / 'stat.pkl'
 
     # Training dataset with augmentation enabled by default
     train_dataset = PercePianoVNetDataset(
@@ -326,10 +363,19 @@ def create_vnet_dataloaders(
         max_notes=max_notes,
         augment=augment_train,
         pitch_std=pitch_std,
+        stats_file=stats_file,
     )
     # Validation and test datasets without augmentation
-    val_dataset = PercePianoVNetDataset(data_dir / "val", max_notes=max_notes)
-    test_dataset = PercePianoVNetDataset(data_dir / "test", max_notes=max_notes)
+    val_dataset = PercePianoVNetDataset(
+        data_dir / "val",
+        max_notes=max_notes,
+        stats_file=stats_file,
+    )
+    test_dataset = PercePianoVNetDataset(
+        data_dir / "test",
+        max_notes=max_notes,
+        stats_file=stats_file,
+    )
 
     train_loader = DataLoader(
         train_dataset,
