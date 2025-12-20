@@ -234,7 +234,13 @@ class PercePianoVNetDataset(Dataset):
             input_features = self._apply_key_augmentation(input_features.copy(), num_notes)
 
         # Pad or truncate to max_notes
-        padded_features = np.zeros((self.max_notes, input_features.shape[1]), dtype=np.float32)
+        # CRITICAL FIX: Only use first 79 features for model input
+        # The 5 unnorm features (indices 79-83) are only for key augmentation, not model input
+        # Original PercePiano uses input_size=78 or 79, NOT 84
+        BASE_FEATURE_DIM = 79
+        model_features = input_features[:, :BASE_FEATURE_DIM]  # Only normalized features
+
+        padded_features = np.zeros((self.max_notes, BASE_FEATURE_DIM), dtype=np.float32)
         padded_beat = np.zeros(self.max_notes, dtype=np.int64)
         padded_measure = np.zeros(self.max_notes, dtype=np.int64)
         padded_voice = np.zeros(self.max_notes, dtype=np.int64)
@@ -242,7 +248,7 @@ class PercePianoVNetDataset(Dataset):
 
         # Fill with actual data
         actual_notes = min(num_notes, self.max_notes)
-        padded_features[:actual_notes] = input_features[:actual_notes]
+        padded_features[:actual_notes] = model_features[:actual_notes]
         padded_beat[:actual_notes] = beat_indices[:actual_notes]
         padded_measure[:actual_notes] = measure_indices[:actual_notes]
         padded_voice[:actual_notes] = voice_indices[:actual_notes]
