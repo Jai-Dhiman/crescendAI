@@ -240,6 +240,19 @@ class PercePianoVNetDataset(Dataset):
         BASE_FEATURE_DIM = 79
         model_features = input_features[:, :BASE_FEATURE_DIM]  # Only normalized features
 
+        # DEBUG: Log stripped feature stats for first sample
+        global _FIRST_SAMPLE_LOGGED
+        if _FIRST_SAMPLE_LOGGED and not getattr(self, '_stripped_logged', False):
+            self._stripped_logged = True
+            print(f"\n[MODEL INPUT] After stripping to {BASE_FEATURE_DIM} features:")
+            print(f"  Shape: {model_features.shape}")
+            print(f"  Range: [{model_features.min():.4f}, {model_features.max():.4f}]")
+            print(f"  Mean: {model_features.mean():.4f}, Std: {model_features.std():.4f}")
+            # Check per-feature stats for first few features
+            for i in range(min(5, BASE_FEATURE_DIM)):
+                feat = model_features[:num_notes, i]
+                print(f"  Feature[{i}]: range=[{feat.min():.3f}, {feat.max():.3f}], mean={feat.mean():.3f}")
+
         padded_features = np.zeros((self.max_notes, BASE_FEATURE_DIM), dtype=np.float32)
         padded_beat = np.zeros(self.max_notes, dtype=np.int64)
         padded_measure = np.zeros(self.max_notes, dtype=np.int64)
