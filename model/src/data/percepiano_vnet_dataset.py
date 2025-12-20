@@ -210,12 +210,23 @@ class PercePianoVNetDataset(Dataset):
         # Voice can default to 1 (single voice) if not present
         voice_indices = np.array(note_loc.get('voice', np.ones(num_notes)), dtype=np.int64)
 
+        # CRITICAL FIX: hierarchy_utils expects indices to start from 1, not 0
+        # It uses torch.nonzero() which treats 0 as padding
+        # Shift all indices to start from 1
+        if beat_indices.min() == 0:
+            beat_indices = beat_indices + 1
+        if measure_indices.min() == 0:
+            measure_indices = measure_indices + 1
+        if voice_indices.min() == 0:
+            voice_indices = voice_indices + 1
+
         # Get labels - REQUIRED
         if 'labels' not in data:
             raise ValueError(f"Missing 'labels' in {self.pkl_files[idx]}")
         labels = np.array(data['labels'], dtype=np.float32)
 
         # VALIDATION: Check for common issues that cause training to fail
+        # Note: beat_indices are already shifted to start from 1 at this point
         self._validate_sample(idx, input_features, beat_indices, labels, num_notes)
 
         # Key augmentation (random pitch shift) - training only
