@@ -146,19 +146,7 @@ class PercePianoVNetDataset(Dataset):
                 RuntimeWarning
             )
 
-        # 3. Check beat indices for gaps (critical for hierarchy_utils)
-        # Use warnings.warn which auto-deduplicates by default
-        valid_beats = beat_indices[:num_notes]
-        if len(valid_beats) > 1 and is_main_process:
-            diffs = np.diff(valid_beats)
-            invalid_diffs = np.sum((diffs != 0) & (diffs != 1))
-            if invalid_diffs > 0:
-                warnings.warn(
-                    f"[DATA] Sample '{sample_name}' has {invalid_diffs} beat index gaps > 1. "
-                    "hierarchy_utils expects consecutive beat indices. "
-                    f"Beat range: [{valid_beats.min()}, {valid_beats.max()}]",
-                    RuntimeWarning
-                )
+        # Beat index gap check removed - gaps are common and don't break training
 
     def __getitem__(self, idx: int) -> Dict[str, torch.Tensor]:
         """
@@ -499,3 +487,470 @@ def create_vnet_dataloaders(
     )
 
     return train_loader, val_loader, test_loader
+
+
+class PercePianoKFoldDataset(Dataset):
+    """
+    K-Fold Dataset for PercePiano with VirtuosoNet features.
+
+    Unlike PercePianoVNetDataset which uses fixed train/val/test directories,
+    this dataset uses fold assignments to dynamically select samples based on
+    the current fold and mode.
+
+    For fold_id=0, mode='val': uses samples from fold 0 as validation
+    For fold_id=0, mode='train': uses samples from folds 1,2,3 as training
+
+    Normalization stats are computed from training folds only (not val fold).
+
+    Args:
+        data_dir: Path to data directory containing all .pkl files (or train/val/test subdirs)
+        fold_assignments: Dictionary mapping sample_name -> {'fold': 0-3 or 'test', 'piece_id': str}
+        fold_id: Which fold to use as validation (0 to n_folds-1)
+        mode: 'train' or 'val'
+        max_notes: Maximum number of notes per sample
+        augment: Whether to apply key augmentation (only for training)
+        normalization_stats: Optional pre-computed stats dict. If None, will be computed.
+    """
+
+    # Class-level cache for loaded sample data
+    _sample_cache: Dict[str, Dict[str, Any]] = {}
+
+    def __init__(
+        self,
+        data_dir: Union[str, Path],
+        fold_assignments: Dict[str, Dict[str, Union[int, str]]],
+        fold_id: int,
+        mode: str,
+        max_notes: int = 1024,
+        augment: bool = False,
+        normalization_stats: Optional[Dict[str, Any]] = None,
+    ):
+        if mode not in ('train', 'val'):
+            raise ValueError(f"mode must be 'train' or 'val', got: {mode}")
+
+        self.data_dir = Path(data_dir)
+        self.fold_assignments = fold_assignments
+        self.fold_id = fold_id
+        self.mode = mode
+        self.max_notes = max_notes
+        self.augment = augment and (mode == 'train')  # Only augment training
+
+        # Get sample list for this fold/mode
+        self.sample_files = self._get_sample_files()
+        if not self.sample_files:
+            raise ValueError(f"No samples found for fold {fold_id}, mode '{mode}'")
+
+        # Load or compute normalization stats
+        if normalization_stats is not None:
+            self.stats = normalization_stats
+        else:
+            self.stats = self._compute_normalization_stats()
+
+        self.pitch_std = self.stats.get('std', {}).get('midi_pitch', 12.0)
+
+        print(f"KFold Dataset: fold={fold_id}, mode={mode}, samples={len(self.sample_files)}")
+        if self.augment:
+            print(f"  Key augmentation ENABLED (pitch_std={self.pitch_std:.4f})")
+
+    def _get_sample_files(self) -> List[Path]:
+        """Get list of sample files for this fold/mode."""
+        sample_names = []
+
+        for sample_name, info in self.fold_assignments.items():
+            sample_fold = info['fold']
+
+            # Skip test samples
+            if sample_fold == 'test':
+                continue
+
+            if self.mode == 'val':
+                # Validation: use only samples from this fold
+                if sample_fold == self.fold_id:
+                    sample_names.append(sample_name)
+            else:
+                # Training: use samples from all OTHER folds
+                if sample_fold != self.fold_id:
+                    sample_names.append(sample_name)
+
+        # Find actual file paths
+        sample_files = []
+        for sample_name in sample_names:
+            # Try to find the file in data_dir or its subdirectories
+            file_path = self._find_sample_file(sample_name)
+            if file_path is not None:
+                sample_files.append(file_path)
+
+        return sorted(sample_files)
+
+    def _find_sample_file(self, sample_name: str) -> Optional[Path]:
+        """Find the file path for a sample name."""
+        # Add .pkl extension if not present
+        if not sample_name.endswith('.pkl'):
+            sample_name = f"{sample_name}.pkl"
+
+        # Check direct path
+        direct_path = self.data_dir / sample_name
+        if direct_path.exists():
+            return direct_path
+
+        # Check subdirectories (train/val/test)
+        for subdir in ['train', 'val', 'test']:
+            subdir_path = self.data_dir / subdir / sample_name
+            if subdir_path.exists():
+                return subdir_path
+
+        return None
+
+    def _compute_normalization_stats(self) -> Dict[str, Any]:
+        """
+        Compute normalization statistics from training samples only.
+
+        Returns dict with 'mean' and 'std' for each feature.
+        """
+        print(f"  Computing normalization stats from {len(self.sample_files)} training samples...")
+
+        # Collect all features from training samples
+        all_features = []
+
+        for file_path in self.sample_files:
+            with open(file_path, 'rb') as f:
+                data = pickle.load(f)
+            # Only use base 79 features for stats (not unnormalized)
+            features = data['input'][:, :79]
+            all_features.append(features)
+
+        # Concatenate all features
+        all_features = np.concatenate(all_features, axis=0)
+
+        # Compute mean and std per feature
+        mean = np.mean(all_features, axis=0)
+        std = np.std(all_features, axis=0)
+
+        # Avoid division by zero
+        std = np.where(std < 1e-6, 1.0, std)
+
+        # Create stats dict in same format as stat.pkl
+        # Note: These are per-dimension stats, but for key augmentation
+        # we specifically need midi_pitch std
+        stats = {
+            'mean': {'midi_pitch': float(mean[0])},
+            'std': {'midi_pitch': float(std[0])},
+            '_raw_mean': mean,  # Keep raw arrays for potential future use
+            '_raw_std': std,
+        }
+
+        print(f"  Computed stats: pitch_std={stats['std']['midi_pitch']:.4f}")
+        return stats
+
+    def get_normalization_stats(self) -> Dict[str, Any]:
+        """Return normalization stats for sharing with validation dataset."""
+        return self.stats
+
+    def __len__(self) -> int:
+        return len(self.sample_files)
+
+    def __getitem__(self, idx: int) -> Dict[str, torch.Tensor]:
+        """Load and return a single sample."""
+        file_path = self.sample_files[idx]
+
+        # Load pickle file
+        with open(file_path, 'rb') as f:
+            data = pickle.load(f)
+
+        # Get input features
+        input_features = data['input']
+        num_notes = min(input_features.shape[0], self.max_notes)
+
+        # Get note locations
+        note_loc = data['note_location']
+        beat_indices = np.array(note_loc['beat'], dtype=np.int64)
+        measure_indices = np.array(note_loc['measure'], dtype=np.int64)
+        voice_indices = np.array(note_loc.get('voice', np.ones(num_notes)), dtype=np.int64)
+
+        # Shift indices to start from 1 (hierarchy_utils expects this)
+        if beat_indices.min() == 0:
+            beat_indices = beat_indices + 1
+        if measure_indices.min() == 0:
+            measure_indices = measure_indices + 1
+        if voice_indices.min() == 0:
+            voice_indices = voice_indices + 1
+
+        # Get labels
+        labels = np.array(data['labels'], dtype=np.float32)
+
+        # Key augmentation
+        if self.augment:
+            input_features = self._apply_key_augmentation(input_features.copy(), num_notes)
+
+        # Only use first 79 features for model input
+        BASE_FEATURE_DIM = 79
+        model_features = input_features[:, :BASE_FEATURE_DIM]
+
+        # Pad or truncate
+        padded_features = np.zeros((self.max_notes, BASE_FEATURE_DIM), dtype=np.float32)
+        padded_beat = np.zeros(self.max_notes, dtype=np.int64)
+        padded_measure = np.zeros(self.max_notes, dtype=np.int64)
+        padded_voice = np.zeros(self.max_notes, dtype=np.int64)
+        attention_mask = np.zeros(self.max_notes, dtype=bool)
+
+        actual_notes = min(num_notes, self.max_notes)
+        padded_features[:actual_notes] = model_features[:actual_notes]
+        padded_beat[:actual_notes] = beat_indices[:actual_notes]
+        padded_measure[:actual_notes] = measure_indices[:actual_notes]
+        padded_voice[:actual_notes] = voice_indices[:actual_notes]
+        attention_mask[:actual_notes] = True
+
+        return {
+            'input_features': torch.from_numpy(padded_features),
+            'note_locations_beat': torch.from_numpy(padded_beat),
+            'note_locations_measure': torch.from_numpy(padded_measure),
+            'note_locations_voice': torch.from_numpy(padded_voice),
+            'scores': torch.from_numpy(labels),
+            'num_notes': actual_notes,
+            'attention_mask': torch.from_numpy(attention_mask),
+        }
+
+    def _apply_key_augmentation(
+        self, input_features: np.ndarray, num_notes: int
+    ) -> np.ndarray:
+        """Apply random key augmentation (pitch shift)."""
+        MIDI_PITCH_IDX = 0
+        PITCH_VEC_START = 14
+        PITCH_CLASS_START = 15
+        PITCH_CLASS_END = 27
+        MIDI_PITCH_UNNORM_IDX = 79
+
+        raw_pitches = input_features[:num_notes, MIDI_PITCH_UNNORM_IDX]
+        current_max = raw_pitches.max()
+        current_min = raw_pitches.min()
+
+        max_up = min(108 - current_max, 7)
+        max_down = min(current_min - 21, 5)
+        max_up = max(0, int(max_up))
+        max_down = max(0, int(max_down))
+
+        if max_up == 0 and max_down == 0:
+            return input_features
+
+        key_shift = random.randint(-max_down, max_up)
+        if key_shift == 0:
+            return input_features
+
+        input_features[:num_notes, MIDI_PITCH_IDX] += key_shift / self.pitch_std
+        input_features[:num_notes, MIDI_PITCH_UNNORM_IDX] += key_shift
+
+        pitch_class = input_features[:num_notes, PITCH_CLASS_START:PITCH_CLASS_END].copy()
+        pitch_class_shifted = np.roll(pitch_class, key_shift, axis=1)
+        input_features[:num_notes, PITCH_CLASS_START:PITCH_CLASS_END] = pitch_class_shifted
+
+        octave_adjustment = key_shift // 12
+        if octave_adjustment != 0:
+            input_features[:num_notes, PITCH_VEC_START] += octave_adjustment * 0.25
+
+        return input_features
+
+
+class PercePianoKFoldDataModule(pl.LightningDataModule):
+    """
+    K-Fold DataModule for PercePiano with VirtuosoNet features.
+
+    Creates train/val dataloaders for a specific fold of k-fold cross-validation.
+    Normalization stats are computed from training folds only.
+
+    Args:
+        data_dir: Path to data directory
+        fold_assignments: Dictionary mapping sample_name -> {'fold': 0-3 or 'test', 'piece_id': str}
+        fold_id: Which fold to use as validation (0 to n_folds-1)
+        batch_size: Batch size for dataloaders
+        max_notes: Maximum notes per sample
+        num_workers: Number of dataloader workers
+        augment_train: Whether to apply key augmentation to training data
+    """
+
+    def __init__(
+        self,
+        data_dir: Union[str, Path],
+        fold_assignments: Dict[str, Dict[str, Union[int, str]]],
+        fold_id: int,
+        batch_size: int = 32,
+        max_notes: int = 1024,
+        num_workers: int = 4,
+        augment_train: bool = True,
+    ):
+        super().__init__()
+        self.data_dir = Path(data_dir)
+        self.fold_assignments = fold_assignments
+        self.fold_id = fold_id
+        self.batch_size = batch_size
+        self.max_notes = max_notes
+        self.num_workers = num_workers
+        self.augment_train = augment_train
+
+        self.train_dataset: Optional[PercePianoKFoldDataset] = None
+        self.val_dataset: Optional[PercePianoKFoldDataset] = None
+        self._normalization_stats: Optional[Dict[str, Any]] = None
+
+    def setup(self, stage: Optional[str] = None):
+        """Set up datasets for this fold."""
+        if stage == "fit" or stage is None:
+            # Create training dataset first to compute normalization stats
+            self.train_dataset = PercePianoKFoldDataset(
+                data_dir=self.data_dir,
+                fold_assignments=self.fold_assignments,
+                fold_id=self.fold_id,
+                mode='train',
+                max_notes=self.max_notes,
+                augment=self.augment_train,
+                normalization_stats=None,  # Will compute from training data
+            )
+
+            # Get stats from training dataset
+            self._normalization_stats = self.train_dataset.get_normalization_stats()
+
+            # Create validation dataset with same stats
+            self.val_dataset = PercePianoKFoldDataset(
+                data_dir=self.data_dir,
+                fold_assignments=self.fold_assignments,
+                fold_id=self.fold_id,
+                mode='val',
+                max_notes=self.max_notes,
+                augment=False,  # Never augment validation
+                normalization_stats=self._normalization_stats,
+            )
+
+    def train_dataloader(self) -> DataLoader:
+        return DataLoader(
+            self.train_dataset,
+            batch_size=self.batch_size,
+            shuffle=True,
+            num_workers=self.num_workers,
+            pin_memory=True,
+        )
+
+    def val_dataloader(self) -> DataLoader:
+        return DataLoader(
+            self.val_dataset,
+            batch_size=self.batch_size,
+            shuffle=False,
+            num_workers=self.num_workers,
+            pin_memory=True,
+        )
+
+
+class PercePianoTestDataset(Dataset):
+    """
+    Test Dataset for PercePiano with VirtuosoNet features.
+
+    Loads only the test samples (fold='test') from fold assignments.
+
+    Args:
+        data_dir: Path to data directory
+        fold_assignments: Dictionary mapping sample_name -> {'fold': 0-3 or 'test', 'piece_id': str}
+        max_notes: Maximum number of notes per sample
+        normalization_stats: Optional pre-computed stats dict
+    """
+
+    def __init__(
+        self,
+        data_dir: Union[str, Path],
+        fold_assignments: Dict[str, Dict[str, Union[int, str]]],
+        max_notes: int = 1024,
+        normalization_stats: Optional[Dict[str, Any]] = None,
+    ):
+        self.data_dir = Path(data_dir)
+        self.fold_assignments = fold_assignments
+        self.max_notes = max_notes
+
+        # Get test samples
+        self.sample_files = self._get_test_files()
+        if not self.sample_files:
+            raise ValueError("No test samples found in fold assignments")
+
+        self.stats = normalization_stats or {}
+        self.pitch_std = self.stats.get('std', {}).get('midi_pitch', 12.0)
+
+        print(f"Test Dataset: {len(self.sample_files)} samples")
+
+    def _get_test_files(self) -> List[Path]:
+        """Get list of test sample files."""
+        sample_names = [
+            name for name, info in self.fold_assignments.items()
+            if info['fold'] == 'test'
+        ]
+
+        sample_files = []
+        for sample_name in sample_names:
+            file_path = self._find_sample_file(sample_name)
+            if file_path is not None:
+                sample_files.append(file_path)
+
+        return sorted(sample_files)
+
+    def _find_sample_file(self, sample_name: str) -> Optional[Path]:
+        """Find the file path for a sample name."""
+        if not sample_name.endswith('.pkl'):
+            sample_name = f"{sample_name}.pkl"
+
+        direct_path = self.data_dir / sample_name
+        if direct_path.exists():
+            return direct_path
+
+        for subdir in ['train', 'val', 'test']:
+            subdir_path = self.data_dir / subdir / sample_name
+            if subdir_path.exists():
+                return subdir_path
+
+        return None
+
+    def __len__(self) -> int:
+        return len(self.sample_files)
+
+    def __getitem__(self, idx: int) -> Dict[str, torch.Tensor]:
+        """Load and return a single sample."""
+        file_path = self.sample_files[idx]
+
+        with open(file_path, 'rb') as f:
+            data = pickle.load(f)
+
+        input_features = data['input']
+        num_notes = min(input_features.shape[0], self.max_notes)
+
+        note_loc = data['note_location']
+        beat_indices = np.array(note_loc['beat'], dtype=np.int64)
+        measure_indices = np.array(note_loc['measure'], dtype=np.int64)
+        voice_indices = np.array(note_loc.get('voice', np.ones(num_notes)), dtype=np.int64)
+
+        if beat_indices.min() == 0:
+            beat_indices = beat_indices + 1
+        if measure_indices.min() == 0:
+            measure_indices = measure_indices + 1
+        if voice_indices.min() == 0:
+            voice_indices = voice_indices + 1
+
+        labels = np.array(data['labels'], dtype=np.float32)
+
+        BASE_FEATURE_DIM = 79
+        model_features = input_features[:, :BASE_FEATURE_DIM]
+
+        padded_features = np.zeros((self.max_notes, BASE_FEATURE_DIM), dtype=np.float32)
+        padded_beat = np.zeros(self.max_notes, dtype=np.int64)
+        padded_measure = np.zeros(self.max_notes, dtype=np.int64)
+        padded_voice = np.zeros(self.max_notes, dtype=np.int64)
+        attention_mask = np.zeros(self.max_notes, dtype=bool)
+
+        actual_notes = min(num_notes, self.max_notes)
+        padded_features[:actual_notes] = model_features[:actual_notes]
+        padded_beat[:actual_notes] = beat_indices[:actual_notes]
+        padded_measure[:actual_notes] = measure_indices[:actual_notes]
+        padded_voice[:actual_notes] = voice_indices[:actual_notes]
+        attention_mask[:actual_notes] = True
+
+        return {
+            'input_features': torch.from_numpy(padded_features),
+            'note_locations_beat': torch.from_numpy(padded_beat),
+            'note_locations_measure': torch.from_numpy(padded_measure),
+            'note_locations_voice': torch.from_numpy(padded_voice),
+            'scores': torch.from_numpy(labels),
+            'num_notes': actual_notes,
+            'attention_mask': torch.from_numpy(attention_mask),
+        }

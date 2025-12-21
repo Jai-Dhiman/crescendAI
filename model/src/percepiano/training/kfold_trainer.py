@@ -1,0 +1,724 @@
+"""
+K-Fold Cross-Validation Trainer for PercePiano
+
+Implements 4-fold cross-validation following the PercePiano paper methodology.
+Each fold trains a model with proper train/val splits and early stopping.
+Final evaluation aggregates results across all folds.
+"""
+
+import json
+import time
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple, Union
+
+import numpy as np
+import pytorch_lightning as pl
+import torch
+from pytorch_lightning.callbacks import EarlyStopping, LearningRateMonitor, ModelCheckpoint, Callback
+from pytorch_lightning.loggers import TensorBoardLogger
+from sklearn.metrics import r2_score
+from scipy.stats import pearsonr, spearmanr
+from torch.utils.data import DataLoader
+
+from ..data.kfold_split import load_fold_assignments, get_test_samples
+from ..data.percepiano_vnet_dataset import (
+    PercePianoKFoldDataModule,
+    PercePianoTestDataset,
+)
+from ..models.percepiano_replica import PercePianoVNetModule, PERCEPIANO_DIMENSIONS
+
+
+class EpochLogger(Callback):
+    """Callback for logging epoch summaries during training."""
+
+    def __init__(self, fold_id: int):
+        super().__init__()
+        self.fold_id = fold_id
+        self.epoch_start_time = None
+        self.best_val_r2 = -float('inf')
+        self.best_epoch = 0
+
+    def on_train_epoch_start(self, trainer, pl_module):
+        self.epoch_start_time = time.time()
+
+    def on_train_epoch_end(self, trainer, pl_module):
+        epoch = trainer.current_epoch
+        epoch_time = time.time() - self.epoch_start_time
+
+        # Get metrics
+        train_loss = trainer.callback_metrics.get('train/loss', 0.0)
+        val_loss = trainer.callback_metrics.get('val/loss', 0.0)
+        val_r2 = trainer.callback_metrics.get('val/mean_r2', 0.0)
+        lr = trainer.optimizers[0].param_groups[0]['lr']
+
+        # Track best
+        is_best = ""
+        if val_r2 > self.best_val_r2:
+            self.best_val_r2 = val_r2
+            self.best_epoch = epoch
+            is_best = " *best*"
+
+        # Log every epoch
+        print(f"  [Fold {self.fold_id}] Epoch {epoch:3d} | "
+              f"train_loss: {train_loss:.4f} | val_loss: {val_loss:.4f} | "
+              f"val_r2: {val_r2:+.4f} | lr: {lr:.2e} | "
+              f"time: {epoch_time:.1f}s{is_best}")
+
+
+@dataclass
+class FoldMetrics:
+    """Metrics for a single fold."""
+    fold_id: int
+    train_loss: float
+    val_loss: float
+    val_r2: float
+    val_pearson: float
+    val_spearman: float
+    val_mae: float
+    val_rmse: float
+    per_dim_r2: Dict[str, float]
+    per_dim_pearson: Dict[str, float]
+    epochs_trained: int
+    best_epoch: int
+    training_time_seconds: float
+    n_train_samples: int
+    n_val_samples: int
+    prediction_stats: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class AggregateMetrics:
+    """Aggregated metrics across all folds."""
+    mean_r2: float
+    std_r2: float
+    mean_pearson: float
+    std_pearson: float
+    mean_spearman: float
+    std_spearman: float
+    mean_mae: float
+    std_mae: float
+    mean_rmse: float
+    std_rmse: float
+    per_dim_mean_r2: Dict[str, float]
+    per_dim_std_r2: Dict[str, float]
+    total_training_time: float
+
+
+class KFoldTrainer:
+    """
+    K-Fold Cross-Validation trainer for PercePiano.
+
+    Trains models for each fold, saves checkpoints, and aggregates metrics.
+    """
+
+    def __init__(
+        self,
+        config: Dict[str, Any],
+        fold_assignments: Dict[str, Dict[str, Union[int, str]]],
+        data_dir: Union[str, Path],
+        checkpoint_dir: Union[str, Path],
+        log_dir: Optional[Union[str, Path]] = None,
+        n_folds: int = 4,
+    ):
+        self.config = config
+        self.fold_assignments = fold_assignments
+        self.data_dir = Path(data_dir)
+        self.checkpoint_dir = Path(checkpoint_dir)
+        self.log_dir = Path(log_dir) if log_dir else self.checkpoint_dir / "logs"
+        self.n_folds = n_folds
+
+        # Create directories
+        self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
+        self.log_dir.mkdir(parents=True, exist_ok=True)
+
+        # Storage for results
+        self.fold_metrics: List[FoldMetrics] = []
+        self.fold_checkpoints: List[Path] = []
+        self.total_start_time: Optional[float] = None
+
+    def _create_model(self) -> PercePianoVNetModule:
+        """Create a new model instance."""
+        return PercePianoVNetModule(
+            input_size=self.config.get('input_size', 79),
+            hidden_size=self.config.get('hidden_size', 256),
+            note_layers=self.config.get('note_layers', 2),
+            voice_layers=self.config.get('voice_layers', 2),
+            beat_layers=self.config.get('beat_layers', 2),
+            measure_layers=self.config.get('measure_layers', 1),
+            num_attention_heads=self.config.get('num_attention_heads', 8),
+            final_hidden=self.config.get('final_hidden', 128),
+            dropout=self.config.get('dropout', 0.2),
+            learning_rate=self.config.get('learning_rate', 1e-4),
+            weight_decay=self.config.get('weight_decay', 1e-5),
+        )
+
+    def _create_callbacks(self, fold_id: int) -> List[pl.Callback]:
+        """Create callbacks for training."""
+        checkpoint_callback = ModelCheckpoint(
+            dirpath=self.checkpoint_dir / f"fold_{fold_id}",
+            filename="best-{epoch:02d}-{val/mean_r2:.4f}",
+            monitor="val/mean_r2",
+            mode="max",
+            save_top_k=1,
+            save_last=True,
+        )
+
+        early_stopping = EarlyStopping(
+            monitor="val/mean_r2",
+            mode="max",
+            patience=self.config.get('early_stopping_patience', 20),
+            verbose=False,  # We have our own logging
+        )
+
+        lr_monitor = LearningRateMonitor(logging_interval='epoch')
+        epoch_logger = EpochLogger(fold_id=fold_id)
+
+        return [checkpoint_callback, early_stopping, lr_monitor, epoch_logger]
+
+    def train_fold(self, fold_id: int, verbose: bool = True) -> FoldMetrics:
+        """Train a single fold."""
+        start_time = time.time()
+
+        # Create data module
+        data_module = PercePianoKFoldDataModule(
+            data_dir=self.data_dir,
+            fold_assignments=self.fold_assignments,
+            fold_id=fold_id,
+            batch_size=self.config.get('batch_size', 32),
+            max_notes=self.config.get('max_notes', 1024),
+            num_workers=self.config.get('num_workers', 0),
+            augment_train=self.config.get('augment_train', True),
+        )
+        data_module.setup('fit')
+
+        n_train = len(data_module.train_dataset)
+        n_val = len(data_module.val_dataset)
+
+        if verbose:
+            print(f"\n{'='*70}")
+            print(f"FOLD {fold_id}/{self.n_folds - 1}")
+            print(f"{'='*70}")
+            print(f"  Train samples: {n_train} | Val samples: {n_val}")
+            print(f"  Batch size: {self.config.get('batch_size', 32)} | "
+                  f"Max epochs: {self.config.get('max_epochs', 100)} | "
+                  f"Early stop patience: {self.config.get('early_stopping_patience', 20)}")
+            print(f"{'='*70}")
+
+        # Create model
+        model = self._create_model()
+        if verbose and fold_id == 0:
+            print(f"  Model parameters: {model.count_parameters():,}")
+
+        # Create callbacks
+        callbacks = self._create_callbacks(fold_id)
+        checkpoint_callback = callbacks[0]
+        epoch_logger = callbacks[3]
+
+        # Create logger
+        logger = TensorBoardLogger(
+            save_dir=str(self.log_dir),
+            name=f"fold_{fold_id}",
+            version=0,
+        )
+
+        # Create trainer
+        trainer = pl.Trainer(
+            max_epochs=self.config.get('max_epochs', 100),
+            accelerator='auto',
+            devices=1,
+            precision=self.config.get('precision', '16-mixed'),
+            gradient_clip_val=self.config.get('gradient_clip_val', 2.0),
+            callbacks=callbacks,
+            logger=logger,
+            enable_progress_bar=False,  # We use our own logging
+            log_every_n_steps=10,
+            enable_model_summary=False,
+        )
+
+        # Train
+        trainer.fit(model, data_module)
+
+        training_time = time.time() - start_time
+
+        # Get best checkpoint
+        best_checkpoint = Path(checkpoint_callback.best_model_path)
+        self.fold_checkpoints.append(best_checkpoint)
+
+        # Load best model and do detailed evaluation
+        best_model = PercePianoVNetModule.load_from_checkpoint(
+            str(best_checkpoint),
+            input_size=self.config.get('input_size', 79),
+            hidden_size=self.config.get('hidden_size', 256),
+            note_layers=self.config.get('note_layers', 2),
+            voice_layers=self.config.get('voice_layers', 2),
+            beat_layers=self.config.get('beat_layers', 2),
+            measure_layers=self.config.get('measure_layers', 1),
+            num_attention_heads=self.config.get('num_attention_heads', 8),
+            final_hidden=self.config.get('final_hidden', 128),
+            dropout=self.config.get('dropout', 0.2),
+        )
+
+        # Detailed evaluation
+        val_metrics = self._detailed_evaluation(
+            best_model, data_module.val_dataloader(), "Validation", verbose
+        )
+
+        # Create fold metrics
+        fold_metrics = FoldMetrics(
+            fold_id=fold_id,
+            train_loss=float(trainer.callback_metrics.get('train/loss', 0.0)),
+            val_loss=val_metrics['loss'],
+            val_r2=val_metrics['r2'],
+            val_pearson=val_metrics['pearson'],
+            val_spearman=val_metrics['spearman'],
+            val_mae=val_metrics['mae'],
+            val_rmse=val_metrics['rmse'],
+            per_dim_r2=val_metrics['per_dim_r2'],
+            per_dim_pearson=val_metrics['per_dim_pearson'],
+            epochs_trained=trainer.current_epoch + 1,
+            best_epoch=epoch_logger.best_epoch,
+            training_time_seconds=training_time,
+            n_train_samples=n_train,
+            n_val_samples=n_val,
+            prediction_stats=val_metrics['prediction_stats'],
+        )
+
+        self.fold_metrics.append(fold_metrics)
+
+        if verbose:
+            self._print_fold_summary(fold_metrics)
+
+        return fold_metrics
+
+    def _detailed_evaluation(
+        self,
+        model: PercePianoVNetModule,
+        dataloader: DataLoader,
+        split_name: str,
+        verbose: bool = True,
+    ) -> Dict[str, Any]:
+        """Detailed model evaluation with prediction analysis."""
+        model.eval()
+        device = next(model.parameters()).device
+
+        all_preds = []
+        all_targets = []
+
+        with torch.no_grad():
+            for batch in dataloader:
+                input_features = batch['input_features'].to(device)
+                beat_indices = batch['note_locations_beat'].to(device)
+                measure_indices = batch['note_locations_measure'].to(device)
+                voice_indices = batch['note_locations_voice'].to(device)
+                targets = batch['scores'].to(device)
+
+                outputs = model(input_features, beat_indices, measure_indices, voice_indices)
+                predictions = outputs['predictions']
+
+                all_preds.append(predictions.cpu().numpy())
+                all_targets.append(targets.cpu().numpy())
+
+        preds = np.concatenate(all_preds, axis=0)
+        targets = np.concatenate(all_targets, axis=0)
+
+        # Overall metrics
+        mse = np.mean((preds - targets) ** 2)
+        mae = np.mean(np.abs(preds - targets))
+        rmse = np.sqrt(mse)
+        r2 = r2_score(targets, preds)
+        pearson = pearsonr(targets.flatten(), preds.flatten())[0]
+        spearman = spearmanr(targets.flatten(), preds.flatten())[0]
+
+        # Per-dimension metrics
+        per_dim_r2 = {}
+        per_dim_pearson = {}
+        per_dim_pred_std = {}
+        per_dim_target_std = {}
+
+        for i, dim in enumerate(PERCEPIANO_DIMENSIONS):
+            if targets.shape[1] > i:
+                per_dim_r2[dim] = r2_score(targets[:, i], preds[:, i])
+                per_dim_pearson[dim] = pearsonr(targets[:, i], preds[:, i])[0]
+                per_dim_pred_std[dim] = float(np.std(preds[:, i]))
+                per_dim_target_std[dim] = float(np.std(targets[:, i]))
+
+        # Prediction distribution analysis
+        prediction_stats = {
+            'pred_mean': float(np.mean(preds)),
+            'pred_std': float(np.std(preds)),
+            'pred_min': float(np.min(preds)),
+            'pred_max': float(np.max(preds)),
+            'target_mean': float(np.mean(targets)),
+            'target_std': float(np.std(targets)),
+            'n_collapsed_dims': sum(1 for d in per_dim_pred_std.values() if d < 0.05),
+            'per_dim_pred_std': per_dim_pred_std,
+            'per_dim_target_std': per_dim_target_std,
+        }
+
+        return {
+            'loss': mse,
+            'r2': r2,
+            'pearson': pearson,
+            'spearman': spearman,
+            'mae': mae,
+            'rmse': rmse,
+            'per_dim_r2': per_dim_r2,
+            'per_dim_pearson': per_dim_pearson,
+            'prediction_stats': prediction_stats,
+            'predictions': preds,
+            'targets': targets,
+        }
+
+    def _print_fold_summary(self, m: FoldMetrics) -> None:
+        """Print detailed fold summary."""
+        print(f"\n  {'─'*66}")
+        print(f"  FOLD {m.fold_id} SUMMARY")
+        print(f"  {'─'*66}")
+        print(f"  Training: {m.epochs_trained} epochs ({m.training_time_seconds:.1f}s) | "
+              f"Best epoch: {m.best_epoch}")
+        print(f"  Samples:  train={m.n_train_samples}, val={m.n_val_samples}")
+        print()
+        print(f"  Overall Metrics:")
+        print(f"    R2:       {m.val_r2:+.4f}")
+        print(f"    Pearson:  {m.val_pearson:+.4f}")
+        print(f"    Spearman: {m.val_spearman:+.4f}")
+        print(f"    MAE:      {m.val_mae:.4f}")
+        print(f"    RMSE:     {m.val_rmse:.4f}")
+
+        # Prediction health check
+        stats = m.prediction_stats
+        print()
+        print(f"  Prediction Health:")
+        print(f"    Pred range: [{stats['pred_min']:.3f}, {stats['pred_max']:.3f}] "
+              f"(target: [0, 1])")
+        print(f"    Pred std: {stats['pred_std']:.4f} (target std: {stats['target_std']:.4f})")
+        if stats['n_collapsed_dims'] > 0:
+            print(f"    WARNING: {stats['n_collapsed_dims']}/19 dimensions have collapsed predictions (std < 0.05)")
+        else:
+            print(f"    No collapsed dimensions detected")
+
+        # Per-dimension breakdown (top 5 and bottom 5)
+        sorted_dims = sorted(m.per_dim_r2.items(), key=lambda x: x[1], reverse=True)
+        print()
+        print(f"  Top 5 Dimensions by R2:")
+        for dim, r2 in sorted_dims[:5]:
+            pearson = m.per_dim_pearson.get(dim, 0)
+            print(f"    {dim:<22} R2={r2:+.4f}  r={pearson:+.4f}")
+
+        print(f"  Bottom 5 Dimensions by R2:")
+        for dim, r2 in sorted_dims[-5:]:
+            pearson = m.per_dim_pearson.get(dim, 0)
+            status = "NEGATIVE" if r2 < 0 else ""
+            print(f"    {dim:<22} R2={r2:+.4f}  r={pearson:+.4f}  {status}")
+
+    def train_all_folds(self, verbose: bool = True) -> AggregateMetrics:
+        """Train all folds sequentially."""
+        self.total_start_time = time.time()
+
+        print(f"\n{'#'*70}")
+        print(f"  {self.n_folds}-FOLD CROSS-VALIDATION")
+        print(f"{'#'*70}")
+        print(f"  Data directory: {self.data_dir}")
+        print(f"  Checkpoint directory: {self.checkpoint_dir}")
+        print(f"  Config: lr={self.config.get('learning_rate')}, "
+              f"hidden={self.config.get('hidden_size')}, "
+              f"batch={self.config.get('batch_size')}")
+
+        for fold_id in range(self.n_folds):
+            self.train_fold(fold_id, verbose=verbose)
+
+            # Progress update
+            elapsed = time.time() - self.total_start_time
+            avg_per_fold = elapsed / (fold_id + 1)
+            remaining = avg_per_fold * (self.n_folds - fold_id - 1)
+            print(f"\n  Progress: {fold_id + 1}/{self.n_folds} folds complete | "
+                  f"Elapsed: {elapsed/60:.1f}m | Est. remaining: {remaining/60:.1f}m")
+
+        # Aggregate metrics
+        aggregate = self._compute_aggregate_metrics()
+
+        if verbose:
+            self._print_aggregate_results(aggregate)
+
+        return aggregate
+
+    def _compute_aggregate_metrics(self) -> AggregateMetrics:
+        """Compute aggregate metrics across folds."""
+        r2_values = [m.val_r2 for m in self.fold_metrics]
+        pearson_values = [m.val_pearson for m in self.fold_metrics]
+        spearman_values = [m.val_spearman for m in self.fold_metrics]
+        mae_values = [m.val_mae for m in self.fold_metrics]
+        rmse_values = [m.val_rmse for m in self.fold_metrics]
+
+        per_dim_mean_r2 = {}
+        per_dim_std_r2 = {}
+
+        for dim in PERCEPIANO_DIMENSIONS:
+            dim_values = [m.per_dim_r2.get(dim, 0.0) for m in self.fold_metrics]
+            per_dim_mean_r2[dim] = np.mean(dim_values)
+            per_dim_std_r2[dim] = np.std(dim_values)
+
+        total_time = sum(m.training_time_seconds for m in self.fold_metrics)
+
+        return AggregateMetrics(
+            mean_r2=np.mean(r2_values),
+            std_r2=np.std(r2_values),
+            mean_pearson=np.mean(pearson_values),
+            std_pearson=np.std(pearson_values),
+            mean_spearman=np.mean(spearman_values),
+            std_spearman=np.std(spearman_values),
+            mean_mae=np.mean(mae_values),
+            std_mae=np.std(mae_values),
+            mean_rmse=np.mean(rmse_values),
+            std_rmse=np.std(rmse_values),
+            per_dim_mean_r2=per_dim_mean_r2,
+            per_dim_std_r2=per_dim_std_r2,
+            total_training_time=total_time,
+        )
+
+    def _print_aggregate_results(self, agg: AggregateMetrics) -> None:
+        """Print aggregate results."""
+        print(f"\n{'='*70}")
+        print(f"  AGGREGATE RESULTS ({self.n_folds}-Fold Cross-Validation)")
+        print(f"{'='*70}")
+        print(f"  Total training time: {agg.total_training_time/60:.1f} minutes")
+        print()
+        print(f"  Overall Metrics (mean +/- std):")
+        print(f"    R2:       {agg.mean_r2:+.4f} +/- {agg.std_r2:.4f}")
+        print(f"    Pearson:  {agg.mean_pearson:+.4f} +/- {agg.std_pearson:.4f}")
+        print(f"    Spearman: {agg.mean_spearman:+.4f} +/- {agg.std_spearman:.4f}")
+        print(f"    MAE:      {agg.mean_mae:.4f} +/- {agg.std_mae:.4f}")
+        print(f"    RMSE:     {agg.mean_rmse:.4f} +/- {agg.std_rmse:.4f}")
+
+        # Per-fold summary table
+        print()
+        print(f"  Per-Fold Results:")
+        print(f"    {'Fold':<6} {'R2':>10} {'Pearson':>10} {'MAE':>10} {'Epochs':>8}")
+        print(f"    {'-'*6} {'-'*10} {'-'*10} {'-'*10} {'-'*8}")
+        for m in self.fold_metrics:
+            print(f"    {m.fold_id:<6} {m.val_r2:>+10.4f} {m.val_pearson:>+10.4f} "
+                  f"{m.val_mae:>10.4f} {m.epochs_trained:>8}")
+        print(f"    {'-'*6} {'-'*10} {'-'*10} {'-'*10} {'-'*8}")
+        print(f"    {'Mean':<6} {agg.mean_r2:>+10.4f} {agg.mean_pearson:>+10.4f} "
+              f"{agg.mean_mae:>10.4f}")
+        print(f"    {'Std':<6} {agg.std_r2:>10.4f} {agg.std_pearson:>10.4f} "
+              f"{agg.std_mae:>10.4f}")
+
+        # Dimension analysis
+        sorted_dims = sorted(agg.per_dim_mean_r2.items(), key=lambda x: x[1], reverse=True)
+        positive_dims = sum(1 for _, r2 in sorted_dims if r2 > 0)
+        strong_dims = sum(1 for _, r2 in sorted_dims if r2 >= 0.2)
+
+        print()
+        print(f"  Dimension Analysis: {positive_dims}/19 positive R2, {strong_dims}/19 strong (>=0.2)")
+        print(f"    Best:  {sorted_dims[0][0]} (R2={sorted_dims[0][1]:+.4f})")
+        print(f"    Worst: {sorted_dims[-1][0]} (R2={sorted_dims[-1][1]:+.4f})")
+
+        # Baseline comparison
+        print()
+        print(f"  Baseline Comparison:")
+        print(f"    Bi-LSTM (published):  R2 = 0.185")
+        print(f"    MidiBERT (published): R2 = 0.313")
+        print(f"    HAN SOTA (published): R2 = 0.397")
+        print(f"    Ours:                 R2 = {agg.mean_r2:.3f} +/- {agg.std_r2:.3f}")
+
+        # Interpretation
+        print()
+        if agg.mean_r2 >= 0.35:
+            print(f"  --> EXCELLENT: Matching published SOTA!")
+        elif agg.mean_r2 >= 0.25:
+            print(f"  --> GOOD: Usable for pseudo-labeling MAESTRO")
+        elif agg.mean_r2 >= 0.10:
+            print(f"  --> FAIR: Model is learning, needs improvement")
+        elif agg.mean_r2 >= 0:
+            print(f"  --> WEAK: Barely better than mean prediction")
+        else:
+            print(f"  --> FAILED: Worse than predicting the mean")
+
+    def evaluate_on_test(
+        self,
+        normalization_stats: Optional[Dict[str, Any]] = None,
+        verbose: bool = True,
+    ) -> Dict[str, Any]:
+        """Evaluate all fold models on held-out test set."""
+        print(f"\n{'='*70}")
+        print(f"  TEST SET EVALUATION")
+        print(f"{'='*70}")
+
+        # Create test dataset
+        test_dataset = PercePianoTestDataset(
+            data_dir=self.data_dir,
+            fold_assignments=self.fold_assignments,
+            max_notes=self.config.get('max_notes', 1024),
+            normalization_stats=normalization_stats,
+        )
+
+        test_loader = DataLoader(
+            test_dataset,
+            batch_size=self.config.get('batch_size', 32),
+            shuffle=False,
+            num_workers=0,
+        )
+
+        print(f"  Test samples: {len(test_dataset)}")
+
+        # Evaluate each fold
+        fold_test_metrics = []
+        all_fold_preds = []
+        targets = None
+
+        print()
+        print(f"  Per-Fold Test Results:")
+        print(f"    {'Fold':<6} {'R2':>10} {'Pearson':>10} {'MAE':>10}")
+        print(f"    {'-'*6} {'-'*10} {'-'*10} {'-'*10}")
+
+        for fold_id, checkpoint_path in enumerate(self.fold_checkpoints):
+            model = PercePianoVNetModule.load_from_checkpoint(
+                str(checkpoint_path),
+                input_size=self.config.get('input_size', 79),
+                hidden_size=self.config.get('hidden_size', 256),
+                note_layers=self.config.get('note_layers', 2),
+                voice_layers=self.config.get('voice_layers', 2),
+                beat_layers=self.config.get('beat_layers', 2),
+                measure_layers=self.config.get('measure_layers', 1),
+                num_attention_heads=self.config.get('num_attention_heads', 8),
+                final_hidden=self.config.get('final_hidden', 128),
+                dropout=self.config.get('dropout', 0.2),
+            )
+
+            model.eval()
+            device = next(model.parameters()).device
+
+            preds = []
+            tgts = []
+
+            with torch.no_grad():
+                for batch in test_loader:
+                    input_features = batch['input_features'].to(device)
+                    beat_indices = batch['note_locations_beat'].to(device)
+                    measure_indices = batch['note_locations_measure'].to(device)
+                    voice_indices = batch['note_locations_voice'].to(device)
+
+                    outputs = model(input_features, beat_indices, measure_indices, voice_indices)
+                    preds.append(outputs['predictions'].cpu().numpy())
+                    tgts.append(batch['scores'].numpy())
+
+            preds = np.concatenate(preds, axis=0)
+            tgts = np.concatenate(tgts, axis=0)
+            all_fold_preds.append(preds)
+            targets = tgts
+
+            r2 = r2_score(targets, preds)
+            pearson = pearsonr(targets.flatten(), preds.flatten())[0]
+            mae = np.mean(np.abs(preds - targets))
+
+            fold_test_metrics.append({
+                'fold_id': fold_id,
+                'r2': r2,
+                'pearson': pearson,
+                'mae': mae,
+                'predictions': preds,
+            })
+
+            print(f"    {fold_id:<6} {r2:>+10.4f} {pearson:>+10.4f} {mae:>10.4f}")
+
+        # Ensemble
+        ensemble_preds = np.mean(all_fold_preds, axis=0)
+        ensemble_r2 = r2_score(targets, ensemble_preds)
+        ensemble_pearson = pearsonr(targets.flatten(), ensemble_preds.flatten())[0]
+        ensemble_spearman = spearmanr(targets.flatten(), ensemble_preds.flatten())[0]
+        ensemble_mae = np.mean(np.abs(ensemble_preds - targets))
+        ensemble_rmse = np.sqrt(np.mean((ensemble_preds - targets) ** 2))
+
+        print(f"    {'-'*6} {'-'*10} {'-'*10} {'-'*10}")
+        print(f"    {'Ens.':<6} {ensemble_r2:>+10.4f} {ensemble_pearson:>+10.4f} {ensemble_mae:>10.4f}")
+
+        # Per-dimension test results
+        per_dim_r2 = {}
+        for i, dim in enumerate(PERCEPIANO_DIMENSIONS):
+            per_dim_r2[dim] = r2_score(targets[:, i], ensemble_preds[:, i])
+
+        sorted_dims = sorted(per_dim_r2.items(), key=lambda x: x[1], reverse=True)
+        positive = sum(1 for _, r2 in sorted_dims if r2 > 0)
+
+        print()
+        print(f"  Ensemble Test Metrics:")
+        print(f"    R2:       {ensemble_r2:+.4f}")
+        print(f"    Pearson:  {ensemble_pearson:+.4f}")
+        print(f"    Spearman: {ensemble_spearman:+.4f}")
+        print(f"    MAE:      {ensemble_mae:.4f}")
+        print(f"    RMSE:     {ensemble_rmse:.4f}")
+        print(f"    Positive dimensions: {positive}/19")
+
+        # Check for improvement from ensemble
+        mean_fold_r2 = np.mean([m['r2'] for m in fold_test_metrics])
+        ensemble_gain = ensemble_r2 - mean_fold_r2
+        print()
+        print(f"  Ensemble Gain: {ensemble_gain:+.4f} R2 over mean of individual folds")
+
+        return {
+            'fold_metrics': fold_test_metrics,
+            'ensemble': {
+                'r2': ensemble_r2,
+                'pearson': ensemble_pearson,
+                'spearman': ensemble_spearman,
+                'mae': ensemble_mae,
+                'rmse': ensemble_rmse,
+                'per_dim_r2': per_dim_r2,
+                'predictions': ensemble_preds,
+                'targets': targets,
+            },
+        }
+
+    def save_results(self, output_path: Optional[Union[str, Path]] = None) -> None:
+        """Save training results to JSON."""
+        output_path = output_path or self.checkpoint_dir / "kfold_results.json"
+        output_path = Path(output_path)
+
+        results = {
+            'config': {k: v for k, v in self.config.items() if not callable(v)},
+            'n_folds': self.n_folds,
+            'fold_metrics': [
+                {
+                    'fold_id': m.fold_id,
+                    'train_loss': float(m.train_loss),
+                    'val_loss': float(m.val_loss),
+                    'val_r2': float(m.val_r2),
+                    'val_pearson': float(m.val_pearson),
+                    'val_spearman': float(m.val_spearman),
+                    'val_mae': float(m.val_mae),
+                    'val_rmse': float(m.val_rmse),
+                    'epochs_trained': m.epochs_trained,
+                    'best_epoch': m.best_epoch,
+                    'training_time_seconds': m.training_time_seconds,
+                    'n_train_samples': m.n_train_samples,
+                    'n_val_samples': m.n_val_samples,
+                    'per_dim_r2': {k: float(v) for k, v in m.per_dim_r2.items()},
+                }
+                for m in self.fold_metrics
+            ],
+            'fold_checkpoints': [str(p) for p in self.fold_checkpoints],
+        }
+
+        if self.fold_metrics:
+            agg = self._compute_aggregate_metrics()
+            results['aggregate'] = {
+                'mean_r2': float(agg.mean_r2),
+                'std_r2': float(agg.std_r2),
+                'mean_pearson': float(agg.mean_pearson),
+                'std_pearson': float(agg.std_pearson),
+                'mean_spearman': float(agg.mean_spearman),
+                'std_spearman': float(agg.std_spearman),
+                'mean_mae': float(agg.mean_mae),
+                'std_mae': float(agg.std_mae),
+                'mean_rmse': float(agg.mean_rmse),
+                'std_rmse': float(agg.std_rmse),
+                'total_training_time_seconds': float(agg.total_training_time),
+                'per_dim_mean_r2': {k: float(v) for k, v in agg.per_dim_mean_r2.items()},
+            }
+
+        with open(output_path, 'w') as f:
+            json.dump(results, f, indent=2)
+
+        print(f"\n  Results saved to {output_path}")

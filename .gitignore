@@ -45,7 +45,7 @@ coverage.xml
 .hypothesis/
 
 # Project specific
-PercePiano/
+/PercePiano/
 piano_ml_env/
 my_implementation/
 
