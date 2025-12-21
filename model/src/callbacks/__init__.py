@@ -1,8 +1,8 @@
 """
-PyTorch Lightning callbacks for training.
+Backward-compatible imports for src.callbacks.
+
+Callbacks have been moved to src.shared.callbacks.
+This file provides backward-compatible imports.
 """
 
-from .unfreezing import StagedUnfreezingCallback
-from .checkpoint_sync import PeriodicCheckpointSync, sync_checkpoints_now
-
-__all__ = ['StagedUnfreezingCallback', 'PeriodicCheckpointSync', 'sync_checkpoints_now']
+from src.shared.callbacks import *

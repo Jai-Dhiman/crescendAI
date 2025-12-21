@@ -19,10 +19,10 @@ from scipy.stats import pearsonr
 # Add parent directory to path for imports
 sys.path.append(str(Path(__file__).parent.parent))
 
-from src.data.dataset import PerformanceDataset, collate_fn
-from src.models.audio_encoder import MERTEncoder
-from src.models.aggregation import HierarchicalAggregator
-from src.models.mtl_head import MultiTaskHead
+from src.crescendai.data.dataset import PerformanceDataset, collate_fn
+from src.crescendai.models.audio_encoder import MERTEncoder
+from src.shared.models.aggregation import HierarchicalAggregator
+from src.shared.models.mtl_head import MultiTaskHead
 
 
 def single_batch_overfit_test(
@@ -414,8 +414,8 @@ def phase2_fusion_comparison(
     print(f"Epochs per experiment: {num_epochs}")
     print(f"Batch size: {batch_size}\n")
 
-    from src.data.dataset import create_dataloaders
-    from src.models.lightning_module import PerformanceEvaluationModel
+    from src.crescendai.data.dataset import create_dataloaders
+    from src.crescendai.models.lightning_module import PerformanceEvaluationModel
     import pytorch_lightning as pl
     from pytorch_lightning.callbacks import ModelCheckpoint
 

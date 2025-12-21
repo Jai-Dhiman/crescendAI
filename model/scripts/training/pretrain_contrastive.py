@@ -37,8 +37,8 @@ from pytorch_lightning.loggers import TensorBoardLogger
 import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.models.lightning_module import PerformanceEvaluationModel
-from src.data.dataset import create_contrastive_dataloader
+from src.crescendai.models.lightning_module import PerformanceEvaluationModel
+from src.crescendai.data.dataset import create_contrastive_dataloader
 
 
 def parse_args():

@@ -47,9 +47,9 @@ from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.data.percepiano_score_dataset import create_score_dataloaders
-from src.models.score_aligned_module import ScoreAlignedModule, ScoreAlignedModuleWithFallback
-from src.utils.preflight_validation import (
+from src.percepiano.data.percepiano_score_dataset import create_score_dataloaders
+from src.crescendai.models.score_aligned_module import ScoreAlignedModule, ScoreAlignedModuleWithFallback
+from src.shared.utils.preflight_validation import (
     run_preflight_validation,
     PreflightValidationError,
 )

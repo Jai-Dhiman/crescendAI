@@ -30,7 +30,7 @@ from tqdm import tqdm
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.data.degradation import QualityTier, QUALITY_TIER_PARAMS
+from src.crescendai.data.degradation import QualityTier, QUALITY_TIER_PARAMS
 
 
 # 8 dimensions from TRAINING_PLAN_v2.md

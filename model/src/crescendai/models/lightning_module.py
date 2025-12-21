@@ -25,8 +25,8 @@ from .fusion_crossattn import CrossAttentionFusion
 from .fusion_concat import ConcatenationFusion
 from .fusion_gated import GatedFusion
 from .projection import DualProjection
-from .aggregation import HierarchicalAggregator
-from .mtl_head import MultiTaskHead
+from src.shared.models.aggregation import HierarchicalAggregator
+from src.shared.models.mtl_head import MultiTaskHead
 from ..losses.uncertainty_loss import UncertaintyWeightedLoss
 from ..losses.ranking_loss import RankingLoss
 from ..losses.contrastive_loss import InfoNCELoss

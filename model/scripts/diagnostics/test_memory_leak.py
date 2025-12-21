@@ -20,8 +20,8 @@ import torch
 # Add src to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from src.data.dataset import create_dataloaders
-from src.models.audio_encoder import MERTEncoder
+from src.crescendai.data.dataset import create_dataloaders
+from src.crescendai.models.audio_encoder import MERTEncoder
 
 
 def get_memory_mb():
@@ -197,7 +197,7 @@ def test_training_simulation(annotation_path: str, num_batches: int = 100):
     print(f"Device: {device}")
 
     # Import the full model
-    from src.models.lightning_module import PerformanceEvaluationModel
+    from src.crescendai.models.lightning_module import PerformanceEvaluationModel
 
     dimensions = [
         'note_accuracy', 'rhythmic_stability', 'articulation_clarity', 'pedal_technique',

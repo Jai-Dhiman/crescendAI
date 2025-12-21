@@ -28,8 +28,8 @@ from omegaconf import OmegaConf
 import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.models.midi_only_module import MIDIOnlyModule
-from src.data.percepiano_dataset import create_dataloaders
+from src.crescendai.models.midi_only_module import MIDIOnlyModule
+from src.percepiano.data.percepiano_dataset import create_dataloaders
 
 
 def train(config_path: str, gpus: int = 1, wandb: bool = False):

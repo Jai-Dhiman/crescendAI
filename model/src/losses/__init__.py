@@ -1,29 +1,8 @@
-"""Loss functions for piano performance evaluation."""
+"""
+Backward-compatible imports for src.losses.
 
-from .uncertainty_loss import (
-    UncertaintyWeightedLoss,
-    WeightedMSELoss,
-    CombinedLoss,
-    create_loss_function,
-)
-from .ranking_loss import RankingLoss
-from .contrastive_loss import InfoNCELoss
-from .lds import LDSWeighting, FDSFeatureSmoothing
-from .bootstrap_loss import BootstrapLoss, SymmetricBootstrapLoss, AdaptiveBootstrapLoss
-from .coral_loss import CORALLoss, CORALHead
+Losses have been moved to src.crescendai.losses.
+This file provides backward-compatible imports.
+"""
 
-__all__ = [
-    "UncertaintyWeightedLoss",
-    "WeightedMSELoss",
-    "CombinedLoss",
-    "create_loss_function",
-    "RankingLoss",
-    "InfoNCELoss",
-    "LDSWeighting",
-    "FDSFeatureSmoothing",
-    "BootstrapLoss",
-    "SymmetricBootstrapLoss",
-    "AdaptiveBootstrapLoss",
-    "CORALLoss",
-    "CORALHead",
-]
+from src.crescendai.losses import *

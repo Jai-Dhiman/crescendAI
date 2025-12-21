@@ -51,8 +51,8 @@ import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
 from tqdm import tqdm
 
-from src.data.midi_processing import load_midi, OctupleMIDITokenizer
-from src.models.midi_encoder import MIDIBertEncoder
+from src.crescendai.data.midi_processing import load_midi, OctupleMIDITokenizer
+from src.crescendai.models.midi_encoder import MIDIBertEncoder
 
 
 # Mask token ID (use vocab_size for each dimension as mask token)

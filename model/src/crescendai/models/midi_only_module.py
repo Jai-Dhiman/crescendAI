@@ -16,9 +16,9 @@ import numpy as np
 from torch.utils.data import DataLoader
 
 from .midi_encoder import MIDIBertEncoder
-from .aggregation import HierarchicalAggregator, PercePianoSelfAttention
-from .mtl_head import MultiTaskHead, PercePianoHead
 from .calibration import CalibrationWrapper, IsotonicCalibrator, TemperatureScaling
+from src.shared.models.aggregation import HierarchicalAggregator, PercePianoSelfAttention
+from src.shared.models.mtl_head import MultiTaskHead, PercePianoHead
 
 
 # All 19 PercePiano dimensions (matching reference implementation)

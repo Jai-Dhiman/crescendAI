@@ -1,11 +1,14 @@
-"""
-Backward-compatible imports for src.utils.
+"""Utility modules for training and debugging."""
 
-Utils have been moved to src.shared.utils.
-This file provides backward-compatible imports.
-"""
+from .memory_profiler import (
+    MemoryProfilerCallback,
+    DetailedMemoryProfiler,
+    get_memory_stats,
+    log_memory,
+    profile_object_counts,
+)
 
-from src.shared.utils.preflight_validation import (
+from .preflight_validation import (
     PreflightValidationError,
     ScoreValidationError,
     MIDIValidationError,
@@ -17,15 +20,15 @@ from src.shared.utils.preflight_validation import (
     validate_score_files,
     validate_pretrained_encoder,
 )
-from src.shared.utils.memory_profiler import (
-    MemoryProfilerCallback,
-    DetailedMemoryProfiler,
-    get_memory_stats,
-    log_memory,
-    profile_object_counts,
-)
 
 __all__ = [
+    # Memory profiler
+    "MemoryProfilerCallback",
+    "DetailedMemoryProfiler",
+    "get_memory_stats",
+    "log_memory",
+    "profile_object_counts",
+    # Preflight validation
     "PreflightValidationError",
     "ScoreValidationError",
     "MIDIValidationError",
@@ -36,9 +39,4 @@ __all__ = [
     "validate_midi_files",
     "validate_score_files",
     "validate_pretrained_encoder",
-    "MemoryProfilerCallback",
-    "DetailedMemoryProfiler",
-    "get_memory_stats",
-    "log_memory",
-    "profile_object_counts",
 ]

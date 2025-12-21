@@ -30,8 +30,8 @@ import yaml
 from pytorch_lightning.callbacks import EarlyStopping, LearningRateMonitor, ModelCheckpoint
 from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
 
-from src.data.dataset import create_dataloaders
-from src.models.lightning_module import PerformanceEvaluationModel
+from src.crescendai.data.dataset import create_dataloaders
+from src.crescendai.models.lightning_module import PerformanceEvaluationModel
 
 # Suppress known warnings
 warnings.filterwarnings('ignore', category=UserWarning, module='torchaudio')

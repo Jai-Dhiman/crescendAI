@@ -84,8 +84,8 @@ def check_data_loading(
     """Test actual audio/MIDI loading from data files."""
     print(f"\n2. Testing data loading ({num_samples} samples)...")
 
-    from src.data.audio_processing import load_audio, normalize_audio, TORCHAUDIO_AVAILABLE
-    from src.data.midi_processing import load_midi, align_midi_to_audio, encode_octuple_midi
+    from src.crescendai.data.audio_processing import load_audio, normalize_audio, TORCHAUDIO_AVAILABLE
+    from src.crescendai.data.midi_processing import load_midi, align_midi_to_audio, encode_octuple_midi
 
     # Report which audio backend is available
     if TORCHAUDIO_AVAILABLE:
@@ -185,7 +185,7 @@ def check_dataloader_speed(
     print(f"\n3. Testing DataLoader speed...")
     print(f"  Config: batch_size={batch_size}, num_workers={num_workers}")
 
-    from src.data.dataset import create_dataloaders
+    from src.crescendai.data.dataset import create_dataloaders
 
     # Create dataloaders
     train_loader, val_loader, _ = create_dataloaders(
@@ -259,7 +259,7 @@ def check_model_instantiation(config_path: str) -> Tuple[bool, dict]:
     try:
         import yaml
         import torch
-        from src.models.lightning_module import PerformanceEvaluationModel
+        from src.crescendai.models.lightning_module import PerformanceEvaluationModel
 
         # Load config
         with open(config_path) as f:

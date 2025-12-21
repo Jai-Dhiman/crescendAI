@@ -21,7 +21,7 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset, DataLoader, WeightedRandomSampler
 
-from .percepiano_score_dataset import PercePianoScoreDataset
+from src.percepiano.data.percepiano_score_dataset import PercePianoScoreDataset
 
 
 class MixedLabelDataset(Dataset):
