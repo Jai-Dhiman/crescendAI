@@ -28,11 +28,11 @@ from typing import Dict, List, Optional, Any
 from tqdm import tqdm
 import numpy as np
 
-# Add project root to path
-PROJECT_ROOT = Path(__file__).parent.parent
+# Add project root to path (model/)
+PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
-from data.virtuosonet_feature_extractor import (
+from percepiano.data.virtuosonet_feature_extractor import (
     VirtuosoNetFeatureExtractor,
     FeatureStats,
     VNET_INPUT_KEYS,

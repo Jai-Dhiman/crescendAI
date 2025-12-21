@@ -1,6 +1,6 @@
 """CrescendAI data loading and processing."""
 
-from .dataset import PerformanceDataset
+from .dataset import PerformanceDataset, create_dataloaders
 from .audio_processing import (
     load_audio,
     compute_cqt,
@@ -14,10 +14,7 @@ from .midi_processing import (
     segment_midi,
     encode_octuple_midi,
 )
-from .augmentation import (
-    AudioAugmentation,
-    MIDIAugmentation,
-)
+from .augmentation import AudioAugmentation
 from .score_alignment import (
     MusicXMLParser,
     ScorePerformanceAligner,
@@ -26,12 +23,13 @@ from .score_alignment import (
     AlignedNote,
     load_score_midi,
 )
-from .mixed_dataset import MixedDataset, create_mixed_dataloaders
-from .gpu_augmentation import GPUAugmentation
-from .degradation import AudioDegradation
+from .mixed_dataset import MixedLabelDataset, create_mixed_dataloaders
+from .gpu_augmentation import GPUAudioAugmentation
+from .degradation import degrade_audio_quality, apply_quality_tier, QualityTier
 
 __all__ = [
     "PerformanceDataset",
+    "create_dataloaders",
     "load_audio",
     "compute_cqt",
     "normalize_audio",
@@ -42,15 +40,16 @@ __all__ = [
     "segment_midi",
     "encode_octuple_midi",
     "AudioAugmentation",
-    "MIDIAugmentation",
     "MusicXMLParser",
     "ScorePerformanceAligner",
     "ScoreAlignmentFeatureExtractor",
     "ScoreNote",
     "AlignedNote",
     "load_score_midi",
-    "MixedDataset",
+    "MixedLabelDataset",
     "create_mixed_dataloaders",
-    "GPUAugmentation",
-    "AudioDegradation",
+    "GPUAudioAugmentation",
+    "degrade_audio_quality",
+    "apply_quality_tier",
+    "QualityTier",
 ]

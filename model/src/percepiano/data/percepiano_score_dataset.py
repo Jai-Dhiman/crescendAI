@@ -16,8 +16,8 @@ from pathlib import Path
 from torch.utils.data import Dataset
 from typing import Dict, List, Optional, Tuple
 
-from .midi_processing import OctupleMIDITokenizer
-from .score_alignment import (
+from src.crescendai.data.midi_processing import OctupleMIDITokenizer
+from src.crescendai.data.score_alignment import (
     MusicXMLParser,
     ScorePerformanceAligner,
     ScoreAlignmentFeatureExtractor,

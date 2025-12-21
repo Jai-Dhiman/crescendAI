@@ -16,8 +16,8 @@ from src.percepiano.models.percepiano_replica import (
     PercePianoHAN,
     PERCEPIANO_DIMENSIONS,
 )
-from src.percepiano.models.han_encoder import HANEncoder
-from src.percepiano.models.context_attention import ContextAttention, MultiHeadContextAttention
+from src.percepiano.models.han_encoder import HanEncoder
+from src.percepiano.models.context_attention import ContextAttention
 from src.percepiano.models.hierarchy_utils import (
     make_higher_node,
     span_beat_to_note_num,
@@ -54,9 +54,8 @@ __all__ = [
     "PercePianoVNetModule",
     "PercePianoHAN",
     "PERCEPIANO_DIMENSIONS",
-    "HANEncoder",
+    "HanEncoder",
     "ContextAttention",
-    "MultiHeadContextAttention",
     # CrescendAI
     "MERTEncoder",
     "MIDIBertEncoder",
