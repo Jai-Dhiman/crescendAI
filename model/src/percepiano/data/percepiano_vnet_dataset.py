@@ -24,8 +24,7 @@ import torch
 from torch.utils.data import Dataset, DataLoader
 import pytorch_lightning as pl
 
-# Global flag to track if we've logged diagnostics (to avoid spam)
-_FIRST_SAMPLE_LOGGED = False
+# No global flags - they don't work correctly with multiprocessing workers
 
 
 class PercePianoVNetDataset(Dataset):
@@ -76,6 +75,10 @@ class PercePianoVNetDataset(Dataset):
         if not self.pkl_files:
             raise ValueError(f"No pickle files found in {self.data_dir}")
 
+        # Instance-level flags for diagnostics (only log once per dataset instance)
+        self._first_sample_logged = False
+        self._stripped_logged = False
+
         print(f"Found {len(self.pkl_files)} samples in {self.data_dir}")
         if augment:
             print(f"  Key augmentation ENABLED (pitch_std={self.pitch_std})")
@@ -114,21 +117,24 @@ class PercePianoVNetDataset(Dataset):
         Validate a sample for common issues that cause training to fail.
 
         Logs warnings (not errors) to help diagnose poor training performance.
-        Only logs detailed diagnostics for the first sample to avoid spam.
+        Only logs detailed diagnostics for the first sample in main process to avoid spam.
         """
-        global _FIRST_SAMPLE_LOGGED
+        # Only log from main process (worker_info is None) to avoid spam from workers
+        worker_info = torch.utils.data.get_worker_info()
+        is_main_process = worker_info is None
+
         sample_name = self.pkl_files[idx].stem
 
-        # 1. Check for NaN/Inf in features
+        # 1. Check for NaN/Inf in features (always check, only warn from main)
         nan_count = np.isnan(input_features).sum()
         inf_count = np.isinf(input_features).sum()
-        if nan_count > 0:
+        if nan_count > 0 and is_main_process:
             warnings.warn(
                 f"[DATA] Sample '{sample_name}' has {nan_count} NaN values in features! "
                 "This will cause training to produce NaN losses.",
                 RuntimeWarning
             )
-        if inf_count > 0:
+        if inf_count > 0 and is_main_process:
             warnings.warn(
                 f"[DATA] Sample '{sample_name}' has {inf_count} Inf values in features! "
                 "This will cause training to produce Inf losses.",
@@ -136,7 +142,7 @@ class PercePianoVNetDataset(Dataset):
             )
 
         # 2. Check label range (should be 0-1 for sigmoid output)
-        if labels.min() < 0 or labels.max() > 1:
+        if (labels.min() < 0 or labels.max() > 1) and is_main_process:
             warnings.warn(
                 f"[DATA] Sample '{sample_name}' has labels outside [0,1]: "
                 f"[{labels.min():.3f}, {labels.max():.3f}]. "
@@ -145,11 +151,10 @@ class PercePianoVNetDataset(Dataset):
             )
 
         # 3. Check beat indices for gaps (critical for hierarchy_utils)
-        # hierarchy_utils.find_boundaries_batch expects diff == 1 at boundaries
+        # Only warn once per dataset from main process
         valid_beats = beat_indices[:num_notes]
-        if len(valid_beats) > 1:
+        if len(valid_beats) > 1 and is_main_process and not self._first_sample_logged:
             diffs = np.diff(valid_beats)
-            # Beat indices should either stay same (within beat) or increase by 1 (new beat)
             invalid_diffs = np.sum((diffs != 0) & (diffs != 1))
             if invalid_diffs > 0:
                 warnings.warn(
@@ -159,9 +164,9 @@ class PercePianoVNetDataset(Dataset):
                     RuntimeWarning
                 )
 
-        # 4. Log detailed diagnostics for first sample only
-        if not _FIRST_SAMPLE_LOGGED:
-            _FIRST_SAMPLE_LOGGED = True
+        # 4. Log detailed diagnostics for first sample only (main process only)
+        if not self._first_sample_logged and is_main_process:
+            self._first_sample_logged = True
             print(f"\n[DATASET DIAGNOSTICS] First sample loaded: {sample_name}")
             print(f"  Feature shape: {input_features.shape}")
             print(f"  Feature stats: mean={input_features.mean():.4f}, std={input_features.std():.4f}")
@@ -240,9 +245,10 @@ class PercePianoVNetDataset(Dataset):
         BASE_FEATURE_DIM = 79
         model_features = input_features[:, :BASE_FEATURE_DIM]  # Only normalized features
 
-        # DEBUG: Log stripped feature stats for first sample
-        global _FIRST_SAMPLE_LOGGED
-        if _FIRST_SAMPLE_LOGGED and not getattr(self, '_stripped_logged', False):
+        # DEBUG: Log stripped feature stats for first sample (main process only)
+        worker_info = torch.utils.data.get_worker_info()
+        is_main_process = worker_info is None
+        if self._first_sample_logged and not self._stripped_logged and is_main_process:
             self._stripped_logged = True
             print(f"\n[MODEL INPUT] After stripping to {BASE_FEATURE_DIM} features:")
             print(f"  Shape: {model_features.shape}")
