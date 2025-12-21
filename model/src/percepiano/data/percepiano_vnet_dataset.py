@@ -75,10 +75,6 @@ class PercePianoVNetDataset(Dataset):
         if not self.pkl_files:
             raise ValueError(f"No pickle files found in {self.data_dir}")
 
-        # Instance-level flags for diagnostics (only log once per dataset instance)
-        self._first_sample_logged = False
-        self._stripped_logged = False
-
         print(f"Found {len(self.pkl_files)} samples in {self.data_dir}")
         if augment:
             print(f"  Key augmentation ENABLED (pitch_std={self.pitch_std})")
@@ -151,9 +147,9 @@ class PercePianoVNetDataset(Dataset):
             )
 
         # 3. Check beat indices for gaps (critical for hierarchy_utils)
-        # Only warn once per dataset from main process
+        # Use warnings.warn which auto-deduplicates by default
         valid_beats = beat_indices[:num_notes]
-        if len(valid_beats) > 1 and is_main_process and not self._first_sample_logged:
+        if len(valid_beats) > 1 and is_main_process:
             diffs = np.diff(valid_beats)
             invalid_diffs = np.sum((diffs != 0) & (diffs != 1))
             if invalid_diffs > 0:
@@ -163,18 +159,6 @@ class PercePianoVNetDataset(Dataset):
                     f"Beat range: [{valid_beats.min()}, {valid_beats.max()}]",
                     RuntimeWarning
                 )
-
-        # 4. Log detailed diagnostics for first sample only (main process only)
-        if not self._first_sample_logged and is_main_process:
-            self._first_sample_logged = True
-            print(f"\n[DATASET DIAGNOSTICS] First sample loaded: {sample_name}")
-            print(f"  Feature shape: {input_features.shape}")
-            print(f"  Feature stats: mean={input_features.mean():.4f}, std={input_features.std():.4f}")
-            print(f"  Feature range: [{input_features.min():.4f}, {input_features.max():.4f}]")
-            print(f"  NaN/Inf count: {nan_count}/{inf_count}")
-            print(f"  Labels: mean={labels.mean():.4f}, range=[{labels.min():.4f}, {labels.max():.4f}]")
-            print(f"  Beat indices: range=[{beat_indices[:num_notes].min()}, {beat_indices[:num_notes].max()}]")
-            print(f"  Num notes: {num_notes}")
 
     def __getitem__(self, idx: int) -> Dict[str, torch.Tensor]:
         """
@@ -245,19 +229,6 @@ class PercePianoVNetDataset(Dataset):
         BASE_FEATURE_DIM = 79
         model_features = input_features[:, :BASE_FEATURE_DIM]  # Only normalized features
 
-        # DEBUG: Log stripped feature stats for first sample (main process only)
-        worker_info = torch.utils.data.get_worker_info()
-        is_main_process = worker_info is None
-        if self._first_sample_logged and not self._stripped_logged and is_main_process:
-            self._stripped_logged = True
-            print(f"\n[MODEL INPUT] After stripping to {BASE_FEATURE_DIM} features:")
-            print(f"  Shape: {model_features.shape}")
-            print(f"  Range: [{model_features.min():.4f}, {model_features.max():.4f}]")
-            print(f"  Mean: {model_features.mean():.4f}, Std: {model_features.std():.4f}")
-            # Check per-feature stats for first few features
-            for i in range(min(5, BASE_FEATURE_DIM)):
-                feat = model_features[:num_notes, i]
-                print(f"  Feature[{i}]: range=[{feat.min():.3f}, {feat.max():.3f}], mean={feat.mean():.3f}")
 
         padded_features = np.zeros((self.max_notes, BASE_FEATURE_DIM), dtype=np.float32)
         padded_beat = np.zeros(self.max_notes, dtype=np.int64)
