@@ -701,6 +701,10 @@ class PercePianoVNetModule(pl.LightningModule):
             encoder_output_size, num_attention_heads
         )
 
+        # LayerNorm after aggregation to normalize weak signals before prediction
+        # (GRADIENT FIX: total_note_cat has std~0.008, needs normalization)
+        self.aggregation_norm = nn.LayerNorm(encoder_output_size)
+
         # Prediction head (matching original PercePiano out_fc structure)
         # Original: Dropout -> Linear -> GELU -> Dropout -> Linear
         self.prediction_head = nn.Sequential(
@@ -727,7 +731,7 @@ class PercePianoVNetModule(pl.LightningModule):
         Args:
             input_features: [batch, num_notes, 84] VirtuosoNet features (79 base + 5 unnorm)
             note_locations: Dict with 'beat', 'measure', 'voice' tensors
-            attention_mask: [batch, num_notes] optional mask
+            attention_mask: [batch, num_notes] optional mask (True = valid position)
 
         Returns:
             Dict with 'predictions' [batch, num_dimensions]
@@ -739,8 +743,22 @@ class PercePianoVNetModule(pl.LightningModule):
         # Contract from 2048 -> 512 (critical step from original PercePiano)
         contracted = self.performance_contractor(total_note_cat)  # [B, N, 512]
 
+        # Create attention mask if not provided
+        # CRITICAL FIX: After performance_contractor (linear layer with bias), all positions
+        # become non-zero. We must create explicit mask based on beat_numbers.
+        # Valid positions have beat_number > 0 (after +1 shift in dataset).
+        if attention_mask is None:
+            # Use beat_numbers to identify valid positions
+            # Beat number > 0 means this is a real note (after +1 shift in dataset)
+            # Padded positions have beat_number = 0
+            attention_mask = note_locations['beat'] > 0  # [B, N]
+
         # Aggregate to single vector using attention (over 512-dim, not 2048)
-        aggregated = self.final_attention(contracted)  # [B, 512]
+        aggregated = self.final_attention(contracted, mask=attention_mask)  # [B, 512]
+
+        # Normalize aggregated features before prediction
+        # (GRADIENT FIX: aggregated has very small std, needs normalization for stable gradients)
+        aggregated = self.aggregation_norm(aggregated)
 
         # Predict scores - apply sigmoid to match [0, 1] label range
         # (Original PercePiano always applies sigmoid before loss computation)

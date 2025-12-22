@@ -187,6 +187,15 @@ class PercePianoVNetDataset(Dataset):
         # Voice can default to 1 (single voice) if not present
         voice_indices = np.array(note_loc.get('voice', np.ones(num_notes)), dtype=np.int64)
 
+        # CRITICAL FIX: Convert sparse indices to dense sequential indices
+        # Original data has non-sequential values like [0, 1, 4, 11, 15] from the score
+        # But hierarchy_utils expects sequential indices like [0, 1, 2, 3, 4]
+        # This densification ensures proper beat->measure and measure aggregation
+        beat_indices = self._densify_indices(beat_indices)
+        measure_indices = self._densify_indices(measure_indices)
+        # Voice indices are typically already dense, but apply anyway for safety
+        voice_indices = self._densify_indices(voice_indices)
+
         # CRITICAL FIX: hierarchy_utils expects indices to start from 1, not 0
         # It uses torch.nonzero() which treats 0 as padding
         # Shift all indices to start from 1
@@ -248,6 +257,31 @@ class PercePianoVNetDataset(Dataset):
             result = self.transform(result)
 
         return result
+
+    def _densify_indices(self, indices: np.ndarray) -> np.ndarray:
+        """
+        Convert sparse non-sequential indices to dense sequential indices.
+
+        The original PercePiano data has beat/measure indices from the score which
+        may be non-sequential (e.g., [0, 0, 1, 1, 4, 4, 11, 11, 15, 15] for beats).
+        The hierarchy_utils functions expect sequential indices (0, 1, 2, 3, 4...).
+
+        This converts sparse to dense by assigning sequential indices based on
+        unique values in order of first appearance.
+
+        Example:
+            Input:  [0, 0, 0, 1, 1, 4, 4, 11, 11, 15, 15]
+            Output: [0, 0, 0, 1, 1, 2, 2, 3,  3,  4,  4]
+
+        Args:
+            indices: Array of non-sequential indices
+
+        Returns:
+            Array of sequential indices (0, 1, 2, ..., n_unique-1)
+        """
+        # Get unique values in order of first appearance
+        _, unique_indices = np.unique(indices, return_inverse=True)
+        return unique_indices
 
     def _apply_key_augmentation(
         self, input_features: np.ndarray, num_notes: int

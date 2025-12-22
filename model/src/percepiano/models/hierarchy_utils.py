@@ -92,11 +92,15 @@ def find_boundaries_batch(
     """
     Find beat/measure boundaries for a batch of sequences.
 
-    Matches original PercePiano logic exactly: uses batched torch.nonzero().
+    NOTE: Modified from original PercePiano to handle non-sequential beat indices.
+    Original PercePiano uses sequential indices (0, 1, 2, 3...) but our preprocessed
+    data has actual beat numbers from the score which may skip values (e.g., 0, 1, 4, 11).
+
+    The fix: Changed `diff == 1` to `diff > 0` to detect ANY beat change.
 
     Args:
         beat_numbers: Tensor of shape (N, T) with beat/measure indices per note.
-                      Zero-padded sequences.
+                      Zero-padded sequences. May be non-sequential.
         actual_lengths: Optional tensor - ignored for compatibility, not used in original.
 
     Returns:
@@ -105,8 +109,10 @@ def find_boundaries_batch(
     """
     global HIERARCHY_DEBUG
 
-    # Original: batched boundary detection using nonzero
-    diff_boundary = torch.nonzero(beat_numbers[:, 1:] - beat_numbers[:, :-1] == 1).cpu()
+    # FIX: Changed from `== 1` to `> 0` to handle non-sequential beat indices
+    # Original PercePiano expects sequential (0, 1, 2...) but our data has actual beat
+    # numbers which may skip values. Any positive diff indicates a beat boundary.
+    diff_boundary = torch.nonzero(beat_numbers[:, 1:] - beat_numbers[:, :-1] > 0).cpu()
     boundaries = [find_boundaries(diff_boundary, beat_numbers, i) for i in range(len(beat_numbers))]
 
     # Debug logging
