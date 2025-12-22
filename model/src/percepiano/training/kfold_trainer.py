@@ -308,12 +308,14 @@ class KFoldTrainer:
         with torch.no_grad():
             for batch in dataloader:
                 input_features = batch['input_features'].to(device)
-                beat_indices = batch['note_locations_beat'].to(device)
-                measure_indices = batch['note_locations_measure'].to(device)
-                voice_indices = batch['note_locations_voice'].to(device)
+                note_locations = {
+                    'beat': batch['note_locations_beat'].to(device),
+                    'measure': batch['note_locations_measure'].to(device),
+                    'voice': batch['note_locations_voice'].to(device),
+                }
                 targets = batch['scores'].to(device)
 
-                outputs = model(input_features, beat_indices, measure_indices, voice_indices)
+                outputs = model(input_features, note_locations)
                 predictions = outputs['predictions']
 
                 all_preds.append(predictions.cpu().numpy())
@@ -596,11 +598,13 @@ class KFoldTrainer:
             with torch.no_grad():
                 for batch in test_loader:
                     input_features = batch['input_features'].to(device)
-                    beat_indices = batch['note_locations_beat'].to(device)
-                    measure_indices = batch['note_locations_measure'].to(device)
-                    voice_indices = batch['note_locations_voice'].to(device)
+                    note_locations = {
+                        'beat': batch['note_locations_beat'].to(device),
+                        'measure': batch['note_locations_measure'].to(device),
+                        'voice': batch['note_locations_voice'].to(device),
+                    }
 
-                    outputs = model(input_features, beat_indices, measure_indices, voice_indices)
+                    outputs = model(input_features, note_locations)
                     preds.append(outputs['predictions'].cpu().numpy())
                     tgts.append(batch['scores'].numpy())
 
