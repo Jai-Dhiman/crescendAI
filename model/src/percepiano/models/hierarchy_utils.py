@@ -71,7 +71,12 @@ def find_boundaries(diff_boundary: torch.Tensor, higher_indices: torch.Tensor, b
     out = [0] + (diff_boundary[diff_boundary[:, 0] == batch_idx][:, 1] + 1).tolist()
 
     # Final boundary: last non-zero position + 1
-    out.append(torch.max(torch.nonzero(higher_indices[batch_idx])).item() + 1)
+    # Handle edge case where sequence might be all zeros
+    nonzero_positions = torch.nonzero(higher_indices[batch_idx])
+    if len(nonzero_positions) > 0:
+        out.append(torch.max(nonzero_positions).item() + 1)
+    else:
+        out.append(1)  # Minimum sequence length
 
     # Original duplicate removal: if the first boundary occurs at 0, it will be duplicated
     if len(out) > 1 and out[1] == 0:
@@ -333,9 +338,11 @@ def span_beat_to_note_num(
     ]).long()
 
     # Create span matrix (N, T_note, T_beat)
-    # Note: No clamping - original trusts indices are valid. Errors surface if upstream is wrong.
+    # Clamp indices to valid range to prevent CUDA assertion errors
     span_mat = torch.zeros(beat_number.shape[0], beat_number.shape[1], beat_out.shape[1]).to(beat_out.device)
-    span_mat[batch_indices.to(beat_out.device), note_indices.to(beat_out.device), beat_indices.to(beat_out.device)] = 1
+    beat_indices_clamped = beat_indices.clamp(0, beat_out.shape[1] - 1)
+    note_indices_clamped = note_indices.clamp(0, beat_number.shape[1] - 1)
+    span_mat[batch_indices.to(beat_out.device), note_indices_clamped.to(beat_out.device), beat_indices_clamped.to(beat_out.device)] = 1
 
     # Multiply to get note-level representations
     spanned_beat = torch.bmm(span_mat, beat_out)
