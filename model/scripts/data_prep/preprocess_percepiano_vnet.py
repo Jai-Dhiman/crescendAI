@@ -2,14 +2,15 @@
 """
 Preprocess PercePiano data using VirtuosoNet feature extraction.
 
-This script extracts 84-dimensional VirtuosoNet features from the PercePiano dataset:
-- 79 base features (normalized where applicable)
+This script extracts 83-dimensional VirtuosoNet features from the PercePiano dataset
+(SOTA configuration, R2 = 0.397):
+- 78 base features (normalized where applicable, excludes section_tempo)
 - 5 preserved unnormalized features (midi_pitch_unnorm, duration_unnorm, etc.)
 
 The unnormalized features are critical for key augmentation (pitch shifting).
 
 Usage:
-    python scripts/preprocess_percepiano_vnet.py
+    python scripts/data_prep/preprocess_percepiano_vnet.py
 
 Output:
     data/processed/percepiano_vnet/
@@ -63,10 +64,10 @@ def add_unnorm_features(features: Dict[str, Any]) -> Dict[str, Any]:
     - Preserving original scale information
 
     Args:
-        features: Feature dict with 'input' array of shape (num_notes, 79)
+        features: Feature dict with 'input' array of shape (num_notes, 78) - SOTA config
 
     Returns:
-        Updated features with 'input' array of shape (num_notes, 84)
+        Updated features with 'input' array of shape (num_notes, 83)
     """
     input_features = features['input']
     num_notes = input_features.shape[0]
@@ -76,14 +77,15 @@ def add_unnorm_features(features: Dict[str, Any]) -> Dict[str, Any]:
     expanded[:, :BASE_FEATURE_DIM] = input_features
 
     # Copy preserved features to unnorm slots
-    # Feature indices in VNET_INPUT_KEYS order:
-    # midi_pitch=0, duration=1, beat_importance=2, measure_length=3, following_rest=6
+    # Feature indices in VNET_INPUT_KEYS order (SOTA 78-feature config):
+    # midi_pitch=0, duration=1, beat_importance=2, measure_length=3, qpm_primo=4, following_rest=5
+    # (section_tempo was removed, so following_rest shifted from 6 to 5)
     preserve_indices = {
         'midi_pitch': 0,
         'duration': 1,
         'beat_importance': 2,
         'measure_length': 3,
-        'following_rest': 6,
+        'following_rest': 5,  # Was 6 before section_tempo removal
     }
 
     for i, key in enumerate(PRESERVE_FEAT_KEYS):
@@ -196,10 +198,10 @@ def compute_normalization_stats(features_list: List[Dict[str, Any]]) -> Dict[str
     """
     Compute z-score normalization statistics from training features.
 
-    Only computes stats for the base 79 features (not the unnorm features).
+    Only computes stats for the base 78 features (not the unnorm features).
 
     Args:
-        features_list: List of feature dictionaries (with 84-dim input)
+        features_list: List of feature dictionaries (with 83-dim input)
 
     Returns:
         Dict with 'mean' and 'std' for each normalizable feature
@@ -231,12 +233,12 @@ def apply_normalization(features: Dict[str, Any], stats: Dict[str, Dict[str, flo
     """
     Apply z-score normalization to base features only.
 
-    The unnorm features (indices 79-83) are left untouched.
+    The unnorm features (indices 78-82) are left untouched.
     """
     normalized = features.copy()
     input_features = features['input'].copy()
 
-    # Only normalize the base features (first 79)
+    # Only normalize the base features (first 78)
     feature_idx = 0
     for key in VNET_INPUT_KEYS:
         dim = FEATURE_DIMS[key]
@@ -331,7 +333,7 @@ def main():
 
     # Add unnorm features BEFORE normalization
     # This preserves raw values for key augmentation (midi_pitch_unnorm = raw MIDI 21-108)
-    print("\nAdding unnorm features (79-dim -> 84-dim)...")
+    print("\nAdding unnorm features (78-dim -> 83-dim)...")
     for split_name in all_features:
         all_features[split_name] = [
             add_unnorm_features(f) for f in all_features[split_name]

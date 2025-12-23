@@ -88,7 +88,7 @@ class PercePianoHAN(nn.Module):
 
     def __init__(
         self,
-        input_size: int = 84,  # VirtuosoNet feature dimension (79 base + 5 unnorm)
+        input_size: int = 78,  # VirtuosoNet feature dimension (SOTA configuration)
         note_size: int = 256,
         voice_size: int = 256,
         beat_size: int = 256,
@@ -619,29 +619,28 @@ class PercePianoReplicaModule(pl.LightningModule):
 
 class PercePianoVNetModule(pl.LightningModule):
     """
-    Faithful PercePiano replica using VirtuosoNet 84-dim features.
+    Faithful PercePiano replica using VirtuosoNet features (SOTA configuration).
 
     This version matches the original PercePiano architecture exactly:
-    - Input: 84-dim VirtuosoNet features (79 base + 5 unnorm for key augmentation)
+    - Input: 78-dim VirtuosoNet features (SOTA uses 78, not 79)
     - HAN encoder: Note -> Voice -> Beat -> Measure hierarchy
     - Output: 19-dim scores
 
     Feature layout:
-    - Indices 0-78: Base VirtuosoNet features (z-score normalized where applicable)
-    - Index 79: midi_pitch_unnorm (raw MIDI pitch 21-108, for key augmentation)
-    - Index 80-83: duration_unnorm, beat_importance_unnorm, measure_length_unnorm, following_rest_unnorm
+    - Indices 0-77: Base VirtuosoNet features (z-score normalized where applicable)
+    - Index 78: midi_pitch_unnorm (raw MIDI pitch 21-108, for key augmentation)
+    - Index 79-82: duration_unnorm, beat_importance_unnorm, measure_length_unnorm, following_rest_unnorm
 
     Key difference from PercePianoReplicaModule:
     - No global_encoder or tempo_encoder (these aren't in original PercePiano)
     - HAN input is exactly the VirtuosoNet features (no global context concatenation)
     - Simpler, more faithful to published architecture
 
-    Training settings matched to original PercePiano:
-    - learning_rate: 1e-4 (parser.py:119)
-    - weight_decay: 1e-5 (parser.py:135)
-    - batch_size: 32 (parser.py:107)
+    Training settings matched to original PercePiano SOTA (2_run_comp_multilevel_total.sh):
+    - learning_rate: 2.5e-5 (SOTA training script)
+    - batch_size: 8 (SOTA training script)
+    - augment_train: False (SOTA doesn't use augmentation)
     - gradient_clip_val: 2.0 (parser.py:159) - SET IN TRAINER
-    - scheduler: StepLR(step_size=3000, gamma=0.98)
     """
 
     # Recommended gradient clipping value (set in Lightning Trainer)
@@ -649,8 +648,8 @@ class PercePianoVNetModule(pl.LightningModule):
 
     def __init__(
         self,
-        # Input dimension (VirtuosoNet features: 79 base + 5 unnorm)
-        input_size: int = 84,
+        # Input dimension (VirtuosoNet features: 78 base - SOTA configuration)
+        input_size: int = 78,
         # HAN dimensions (matched to PercePiano han_bigger256_concat.yml)
         hidden_size: int = 256,
         note_layers: int = 2,
@@ -660,9 +659,9 @@ class PercePianoVNetModule(pl.LightningModule):
         num_attention_heads: int = 8,
         # Final head
         final_hidden: int = 128,
-        # Training (matched to original PercePiano han_bigger256_concat.yml)
-        learning_rate: float = 1e-4,   # Original: 1e-4 (was 2.5e-5 - 4x too low!)
-        weight_decay: float = 1e-5,    # Original: 1e-5 (was 0.01 - 100x too high!)
+        # Training (matched to original PercePiano SOTA)
+        learning_rate: float = 2.5e-5,  # SOTA: 2.5e-5 (from 2_run_comp_multilevel_total.sh)
+        weight_decay: float = 1e-5,     # Original: 1e-5
         dropout: float = 0.2,
         # Task
         dimensions: Optional[List[str]] = None,
@@ -673,9 +672,9 @@ class PercePianoVNetModule(pl.LightningModule):
         self.dimensions = dimensions or PERCEPIANO_DIMENSIONS
         self.num_dimensions = len(self.dimensions)
 
-        # HAN encoder - takes 84-dim input directly (no global context concatenation)
+        # HAN encoder - takes 78-dim input directly (SOTA configuration)
         self.han_encoder = PercePianoHAN(
-            input_size=input_size,  # 84-dim VirtuosoNet features (79 base + 5 unnorm)
+            input_size=input_size,  # 78-dim VirtuosoNet features (SOTA)
             note_size=hidden_size,
             voice_size=hidden_size,
             beat_size=hidden_size,
@@ -697,13 +696,10 @@ class PercePianoVNetModule(pl.LightningModule):
         )
 
         # Final attention aggregation (over contracted 512-dim, not raw 2048-dim)
+        # Note: Original PercePiano has no extra LayerNorm after aggregation
         self.final_attention = ContextAttention(
             encoder_output_size, num_attention_heads
         )
-
-        # LayerNorm after aggregation to normalize weak signals before prediction
-        # (GRADIENT FIX: total_note_cat has std~0.008, needs normalization)
-        self.aggregation_norm = nn.LayerNorm(encoder_output_size)
 
         # Prediction head (matching original PercePiano out_fc structure)
         # Original: Dropout -> Linear -> GELU -> Dropout -> Linear
@@ -729,14 +725,14 @@ class PercePianoVNetModule(pl.LightningModule):
         Forward pass with VirtuosoNet features.
 
         Args:
-            input_features: [batch, num_notes, 84] VirtuosoNet features (79 base + 5 unnorm)
+            input_features: [batch, num_notes, 78] VirtuosoNet features (SOTA configuration)
             note_locations: Dict with 'beat', 'measure', 'voice' tensors
             attention_mask: [batch, num_notes] optional mask (True = valid position)
 
         Returns:
             Dict with 'predictions' [batch, num_dimensions]
         """
-        # Run HAN encoder directly on 84-dim features (no global context)
+        # Run HAN encoder directly on 78-dim features (no global context)
         han_outputs = self.han_encoder(input_features, note_locations)
         total_note_cat = han_outputs['total_note_cat']  # [B, N, 2048]
 
@@ -754,11 +750,8 @@ class PercePianoVNetModule(pl.LightningModule):
             attention_mask = note_locations['beat'] > 0  # [B, N]
 
         # Aggregate to single vector using attention (over 512-dim, not 2048)
+        # Note: Original PercePiano has no extra normalization after aggregation
         aggregated = self.final_attention(contracted, mask=attention_mask)  # [B, 512]
-
-        # Normalize aggregated features before prediction
-        # (GRADIENT FIX: aggregated has very small std, needs normalization for stable gradients)
-        aggregated = self.aggregation_norm(aggregated)
 
         # Predict scores - apply sigmoid to match [0, 1] label range
         # (Original PercePiano always applies sigmoid before loss computation)

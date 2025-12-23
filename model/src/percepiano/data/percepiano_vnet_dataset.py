@@ -2,15 +2,16 @@
 PyTorch Dataset for PercePiano with VirtuosoNet features.
 
 This module provides a Dataset class that loads preprocessed VirtuosoNet
-features (84-dim: 79 base + 5 unnorm) for training the PercePiano replica model.
+features (83-dim: 78 base + 5 unnorm) for training the PercePiano replica model.
+This matches the SOTA configuration (R2 = 0.397).
 
 Feature layout:
-- Indices 0-78: Base VirtuosoNet features (z-score normalized where applicable)
-- Index 79: midi_pitch_unnorm (raw MIDI pitch 21-108, used for key augmentation)
-- Index 80: duration_unnorm
-- Index 81: beat_importance_unnorm
-- Index 82: measure_length_unnorm
-- Index 83: following_rest_unnorm
+- Indices 0-77: Base VirtuosoNet features (z-score normalized where applicable)
+- Index 78: midi_pitch_unnorm (raw MIDI pitch 21-108, used for key augmentation)
+- Index 79: duration_unnorm
+- Index 80: beat_importance_unnorm
+- Index 81: measure_length_unnorm
+- Index 82: following_rest_unnorm
 """
 
 import pickle
@@ -29,14 +30,14 @@ import pytorch_lightning as pl
 
 class PercePianoVNetDataset(Dataset):
     """
-    PyTorch Dataset for PercePiano with VirtuosoNet 84-dim features.
+    PyTorch Dataset for PercePiano with VirtuosoNet 83-dim features (SOTA config).
 
     Loads preprocessed pickle files containing:
-    - input: (num_notes, 84) VirtuosoNet features (79 base + 5 unnorm)
+    - input: (num_notes, 83) VirtuosoNet features (78 base + 5 unnorm)
     - note_location: dict with 'beat', 'measure', 'voice' arrays
     - labels: (19,) PercePiano scores
 
-    The unnorm features (indices 79-83) preserve raw values before normalization,
+    The unnorm features (indices 78-82) preserve raw values before normalization,
     which is critical for key augmentation (midi_pitch_unnorm gives raw MIDI pitch 21-108).
 
     Args:
@@ -220,10 +221,9 @@ class PercePianoVNetDataset(Dataset):
             input_features = self._apply_key_augmentation(input_features.copy(), num_notes)
 
         # Pad or truncate to max_notes
-        # CRITICAL FIX: Only use first 79 features for model input
-        # The 5 unnorm features (indices 79-83) are only for key augmentation, not model input
-        # Original PercePiano uses input_size=78 or 79, NOT 84
-        BASE_FEATURE_DIM = 79
+        # Only use first 78 features for model input (SOTA configuration)
+        # The 5 unnorm features (indices 78-82) are only for key augmentation, not model input
+        BASE_FEATURE_DIM = 78
         model_features = input_features[:, :BASE_FEATURE_DIM]  # Only normalized features
 
 
@@ -293,21 +293,21 @@ class PercePianoVNetDataset(Dataset):
         Uses midi_pitch_unnorm (raw MIDI pitch 21-108) for calculating valid shift range.
 
         Args:
-            input_features: (num_notes, 84) feature array
+            input_features: (num_notes, 83) feature array (78 base + 5 unnorm)
             num_notes: Actual number of notes (before padding)
 
         Returns:
             Augmented feature array
         """
-        # Feature indices based on VNET_INPUT_KEYS order:
+        # Feature indices based on VNET_INPUT_KEYS order (SOTA 78-feature config):
         # midi_pitch (normalized) is at index 0
-        # pitch vector is at index 14: [octave (1), pitch_class_one_hot (12)]
-        # midi_pitch_unnorm (raw MIDI 21-108) is at index 79
+        # pitch vector is at index 13: [octave (1), pitch_class_one_hot (12)]
+        # midi_pitch_unnorm (raw MIDI 21-108) is at index 78
         MIDI_PITCH_IDX = 0
-        PITCH_VEC_START = 14  # After 14 scalar features
-        PITCH_CLASS_START = 15  # octave at 14, pitch class starts at 15
-        PITCH_CLASS_END = 27  # 12 pitch classes
-        MIDI_PITCH_UNNORM_IDX = 79  # Raw MIDI pitch (21-108)
+        PITCH_VEC_START = 13  # After 13 scalar features (section_tempo removed)
+        PITCH_CLASS_START = 14  # octave at 13, pitch class starts at 14
+        PITCH_CLASS_END = 26  # 12 pitch classes (indices 14-25)
+        MIDI_PITCH_UNNORM_IDX = 78  # Raw MIDI pitch (21-108)
 
         # Get current pitch range from midi_pitch_unnorm (raw MIDI values)
         # This is much more accurate than estimating from normalized values
@@ -360,10 +360,10 @@ class PercePianoVNetDataModule(pl.LightningDataModule):
 
     Args:
         data_dir: Root directory containing train/val/test subdirectories
-        batch_size: Batch size for dataloaders
+        batch_size: Batch size for dataloaders (SOTA: 8)
         max_notes: Maximum notes per sample
         num_workers: Number of dataloader workers
-        augment_train: Whether to apply key augmentation to training data
+        augment_train: Whether to apply key augmentation to training data (SOTA: False)
         pitch_std: Standard deviation for pitch normalization (for augmentation).
                    If None (default), auto-loads from stat.pkl in data_dir.
     """
@@ -371,10 +371,10 @@ class PercePianoVNetDataModule(pl.LightningDataModule):
     def __init__(
         self,
         data_dir: Union[str, Path],
-        batch_size: int = 32,  # Original PercePiano uses batch_size=32 (parser.py:107)
+        batch_size: int = 8,  # SOTA uses batch_size=8
         max_notes: int = 1024,
         num_workers: int = 4,
-        augment_train: bool = True,
+        augment_train: bool = False,  # SOTA doesn't use augmentation
         pitch_std: Optional[float] = None,
     ):
         super().__init__()
@@ -452,10 +452,10 @@ class PercePianoVNetDataModule(pl.LightningDataModule):
 
 def create_vnet_dataloaders(
     data_dir: Union[str, Path],
-    batch_size: int = 32,  # Original PercePiano uses batch_size=32 (parser.py:107)
+    batch_size: int = 8,  # SOTA uses batch_size=8
     max_notes: int = 1024,
     num_workers: int = 4,
-    augment_train: bool = True,
+    augment_train: bool = False,  # SOTA doesn't use augmentation
     pitch_std: Optional[float] = None,
 ) -> Tuple[DataLoader, DataLoader, DataLoader]:
     """
@@ -463,10 +463,10 @@ def create_vnet_dataloaders(
 
     Args:
         data_dir: Root directory containing train/val/test subdirectories
-        batch_size: Batch size
+        batch_size: Batch size (SOTA: 8)
         max_notes: Maximum notes per sample
         num_workers: Number of dataloader workers
-        augment_train: Whether to apply key augmentation to training data (default: True)
+        augment_train: Whether to apply key augmentation to training data (SOTA: False)
         pitch_std: Standard deviation for pitch normalization (for augmentation).
                    If None (default), auto-loads from stat.pkl in data_dir.
 
@@ -649,8 +649,8 @@ class PercePianoKFoldDataset(Dataset):
         for file_path in self.sample_files:
             with open(file_path, 'rb') as f:
                 data = pickle.load(f)
-            # Only use base 79 features for stats (not unnormalized)
-            features = data['input'][:, :79]
+            # Only use base 78 features for stats (not unnormalized) - SOTA config
+            features = data['input'][:, :78]
             all_features.append(features)
 
         # Concatenate all features
@@ -716,8 +716,8 @@ class PercePianoKFoldDataset(Dataset):
         if self.augment:
             input_features = self._apply_key_augmentation(input_features.copy(), num_notes)
 
-        # Only use first 79 features for model input
-        BASE_FEATURE_DIM = 79
+        # Only use first 78 features for model input (SOTA configuration)
+        BASE_FEATURE_DIM = 78
         model_features = input_features[:, :BASE_FEATURE_DIM]
 
         # Pad or truncate
@@ -748,11 +748,12 @@ class PercePianoKFoldDataset(Dataset):
         self, input_features: np.ndarray, num_notes: int
     ) -> np.ndarray:
         """Apply random key augmentation (pitch shift)."""
+        # SOTA 78-feature configuration indices
         MIDI_PITCH_IDX = 0
-        PITCH_VEC_START = 14
-        PITCH_CLASS_START = 15
-        PITCH_CLASS_END = 27
-        MIDI_PITCH_UNNORM_IDX = 79
+        PITCH_VEC_START = 13  # After 13 scalar features
+        PITCH_CLASS_START = 14  # octave at 13, pitch class starts at 14
+        PITCH_CLASS_END = 26  # 12 pitch classes (indices 14-25)
+        MIDI_PITCH_UNNORM_IDX = 78
 
         raw_pitches = input_features[:num_notes, MIDI_PITCH_UNNORM_IDX]
         current_max = raw_pitches.max()
@@ -786,7 +787,7 @@ class PercePianoKFoldDataset(Dataset):
 
 class PercePianoKFoldDataModule(pl.LightningDataModule):
     """
-    K-Fold DataModule for PercePiano with VirtuosoNet features.
+    K-Fold DataModule for PercePiano with VirtuosoNet features (SOTA config).
 
     Creates train/val dataloaders for a specific fold of k-fold cross-validation.
     Normalization stats are computed from training folds only.
@@ -795,10 +796,10 @@ class PercePianoKFoldDataModule(pl.LightningDataModule):
         data_dir: Path to data directory
         fold_assignments: Dictionary mapping sample_name -> {'fold': 0-3 or 'test', 'piece_id': str}
         fold_id: Which fold to use as validation (0 to n_folds-1)
-        batch_size: Batch size for dataloaders
+        batch_size: Batch size for dataloaders (SOTA: 8)
         max_notes: Maximum notes per sample
         num_workers: Number of dataloader workers
-        augment_train: Whether to apply key augmentation to training data
+        augment_train: Whether to apply key augmentation to training data (SOTA: False)
     """
 
     def __init__(
@@ -806,10 +807,10 @@ class PercePianoKFoldDataModule(pl.LightningDataModule):
         data_dir: Union[str, Path],
         fold_assignments: Dict[str, Dict[str, Union[int, str]]],
         fold_id: int,
-        batch_size: int = 32,
+        batch_size: int = 8,  # SOTA uses batch_size=8
         max_notes: int = 1024,
         num_workers: int = 4,
-        augment_train: bool = True,
+        augment_train: bool = False,  # SOTA doesn't use augmentation
     ):
         super().__init__()
         self.data_dir = Path(data_dir)
@@ -963,7 +964,8 @@ class PercePianoTestDataset(Dataset):
 
         labels = np.array(data['labels'], dtype=np.float32)
 
-        BASE_FEATURE_DIM = 79
+        # SOTA configuration uses 78 base features
+        BASE_FEATURE_DIM = 78
         model_features = input_features[:, :BASE_FEATURE_DIM]
 
         padded_features = np.zeros((self.max_notes, BASE_FEATURE_DIM), dtype=np.float32)

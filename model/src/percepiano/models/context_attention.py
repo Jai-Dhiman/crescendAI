@@ -4,8 +4,8 @@ Context Attention module for hierarchical aggregation.
 Ported from PercePiano's virtuoso/module.py.
 Implements multi-head attention with learned context vectors.
 
-GRADIENT FIX: Added LayerNorm, proper initialization, and temperature scaling
-to prevent vanishing gradients through tanh saturation and uniform softmax.
+This version matches the original PercePiano implementation exactly to reproduce
+the SOTA R2 = 0.397 result.
 """
 
 import torch
@@ -22,27 +22,22 @@ class ContextAttention(nn.Module):
 
     Each head has a learnable context vector that determines what to attend to.
 
-    GRADIENT FIXES:
-    1. LayerNorm before projection to prevent tanh saturation
-    2. Xavier initialization for stable gradient flow
-    3. Learnable temperature to sharpen attention (prevent uniform averaging)
+    This implementation matches the original PercePiano/VirtuosoNet exactly:
+    - No LayerNorm (original doesn't have it)
+    - No temperature scaling (original doesn't have it)
+    - Uniform(-1, 1) initialization for context vectors (original init)
     """
 
-    def __init__(self, size: int, num_head: int, init_temperature: float = 0.1):
+    def __init__(self, size: int, num_head: int):
         """
         Args:
             size: Input/output feature dimension
             num_head: Number of attention heads (must divide size evenly)
-            init_temperature: Initial softmax temperature (lower = sharper attention)
-                              Default 0.1 for sharper initial attention
         """
         super().__init__()
 
         if size % num_head != 0:
             raise ValueError(f"size ({size}) must be divisible by num_head ({num_head})")
-
-        # LayerNorm to prevent tanh saturation (GRADIENT FIX)
-        self.layer_norm = nn.LayerNorm(size)
 
         self.attention_net = nn.Linear(size, size)
         self.num_head = num_head
@@ -51,15 +46,8 @@ class ContextAttention(nn.Module):
         # Learnable context vector for each head
         self.context_vector = nn.Parameter(torch.Tensor(num_head, self.head_size, 1))
 
-        # Learnable temperature for softmax sharpening (GRADIENT FIX)
-        # Lower temperature = sharper attention = stronger gradients
-        # Default 0.1 makes initial attention 10x sharper than uniform
-        self.log_temperature = nn.Parameter(torch.tensor(init_temperature).log())
-
-        # Xavier initialization for stable gradients (GRADIENT FIX)
-        nn.init.xavier_uniform_(self.context_vector.view(num_head, -1))
-        nn.init.xavier_uniform_(self.attention_net.weight)
-        nn.init.zeros_(self.attention_net.bias)
+        # Original PercePiano uses uniform(-1, 1) initialization
+        nn.init.uniform_(self.context_vector, a=-1, b=1)
 
     def get_attention(self, x: torch.Tensor) -> torch.Tensor:
         """
@@ -71,11 +59,8 @@ class ContextAttention(nn.Module):
         Returns:
             Attention scores of shape (N, T, num_head)
         """
-        # Apply LayerNorm before projection (GRADIENT FIX)
-        x_norm = self.layer_norm(x)
-
-        # Project to attention space
-        attention = self.attention_net(x_norm)
+        # Project to attention space and apply tanh (original PercePiano)
+        attention = self.attention_net(x)
         attention_tanh = torch.tanh(attention)
 
         # Split into heads and compute similarity with context vectors
@@ -92,10 +77,6 @@ class ContextAttention(nn.Module):
         # Reshape to (N, T, num_head)
         similarity = similarity.view(self.num_head, x.shape[0], -1).permute(1, 2, 0)
 
-        # Apply temperature scaling (GRADIENT FIX)
-        temperature = self.log_temperature.exp().clamp(min=0.1)
-        similarity = similarity / temperature
-
         return similarity
 
     def forward(self, x: torch.Tensor, mask: Optional[torch.Tensor] = None) -> torch.Tensor:
@@ -109,11 +90,8 @@ class ContextAttention(nn.Module):
         Returns:
             Weighted sum of shape (N, C)
         """
-        # Apply LayerNorm before projection (GRADIENT FIX)
-        x_norm = self.layer_norm(x)
-
-        # Project and apply tanh
-        attention = self.attention_net(x_norm)
+        # Project and apply tanh (original PercePiano - no LayerNorm)
+        attention = self.attention_net(x)
         attention_tanh = torch.tanh(attention)
 
         if self.head_size != 1:
@@ -130,10 +108,6 @@ class ContextAttention(nn.Module):
 
             # Reshape to (N, T, num_head)
             similarity = similarity.view(self.num_head, x.shape[0], -1).permute(1, 2, 0)
-
-            # Apply temperature scaling (GRADIENT FIX)
-            temperature = self.log_temperature.exp().clamp(min=0.1)
-            similarity = similarity / temperature
 
             # Mask out zero-padded positions
             is_zero_padded = x.sum(-1) == 0
@@ -153,11 +127,8 @@ class ContextAttention(nn.Module):
             # Merge heads back
             attention = weighted_x.view(x_split.shape[0], x_split.shape[1], x.shape[-1])
         else:
-            # Single head case
-            # Apply temperature scaling
-            temperature = self.log_temperature.exp().clamp(min=0.1)
-            attention = attention / temperature
-            softmax_weight = torch.softmax(attention, dim=1)
+            # Single head case (no temperature scaling in original)
+            softmax_weight = torch.softmax(attention_tanh, dim=1)
             attention = softmax_weight * x
 
         # Sum over time

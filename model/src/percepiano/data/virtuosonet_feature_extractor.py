@@ -1,14 +1,17 @@
 """
 VirtuosoNet Feature Extractor for PercePiano Replica.
 
-This module wraps VirtuosoNet's pyScoreParser to extract 84 features
-based on the VirtuosoNet implementation. The features include:
-- 79 base features (score-level information: pitch, duration, dynamics, tempo, articulation)
+This module wraps VirtuosoNet's pyScoreParser to extract 83 features
+based on the VirtuosoNet implementation (SOTA configuration). The features include:
+- 78 base features (score-level information: pitch, duration, dynamics, tempo, articulation)
 - 5 preserved unnormalized features (midi_pitch_unnorm, duration_unnorm, etc.)
 
 The unnormalized features are critical for:
 - Key augmentation (midi_pitch_unnorm provides raw MIDI pitch 21-108)
 - Preserving original scale information before z-score normalization
+
+Note: section_tempo was removed to match the SOTA 78-feature configuration from the
+original PercePiano paper (R2 = 0.397).
 
 Reference:
 - VirtuosoNet: https://github.com/jdasam/virtuosoNet
@@ -38,9 +41,10 @@ if str(VIRTUOSO_PATH) not in sys.path:
 
 
 # VirtuosoNet Input Feature Keys (from data_for_training.py)
+# SOTA uses 78 features (excludes section_tempo which was not in original VirtuosoNet)
 VNET_INPUT_KEYS = (
     'midi_pitch', 'duration', 'beat_importance', 'measure_length',
-    'qpm_primo', 'section_tempo',
+    'qpm_primo',  # section_tempo removed to match SOTA 78-feature configuration
     'following_rest', 'distance_from_abs_dynamic', 'distance_from_recent_tempo',
     'beat_position', 'xml_position', 'grace_order', 'preceded_by_grace_note',
     'followed_by_fermata_rest', 'pitch', 'tempo', 'dynamic', 'time_sig_vec',
@@ -48,24 +52,26 @@ VNET_INPUT_KEYS = (
 )
 
 # Features that need z-score normalization
+# section_tempo removed to match SOTA 78-feature configuration
 NORM_FEAT_KEYS = (
     'midi_pitch', 'duration', 'beat_importance', 'measure_length',
-    'qpm_primo', 'section_tempo',
+    'qpm_primo',  # section_tempo removed
     'following_rest', 'distance_from_abs_dynamic', 'distance_from_recent_tempo'
 )
 
 # Features to preserve BEFORE normalization (original PercePiano data_for_training.py:21)
-# These are appended as _unnorm variants after the base 79 features
+# These are appended as _unnorm variants after the base 78 features
 PRESERVE_FEAT_KEYS = ('midi_pitch', 'duration', 'beat_importance', 'measure_length', 'following_rest')
 
 # Feature dimensions (based on VirtuosoNet implementation)
+# section_tempo removed to match SOTA 78-feature configuration
 FEATURE_DIMS = {
     'midi_pitch': 1,
     'duration': 1,
     'beat_importance': 1,
     'measure_length': 1,
     'qpm_primo': 1,
-    'section_tempo': 1,
+    # section_tempo removed (was 1 dim at index 5)
     'following_rest': 1,
     'distance_from_abs_dynamic': 1,
     'distance_from_recent_tempo': 1,
@@ -84,16 +90,17 @@ FEATURE_DIMS = {
     'tempo_primo': 2,  # initial tempo embedding
 }
 
-BASE_FEATURE_DIM = sum(FEATURE_DIMS.values())  # = 79 (14 scalar + 65 vector features)
+BASE_FEATURE_DIM = sum(FEATURE_DIMS.values())  # = 78 (13 scalar + 65 vector features) - SOTA configuration
 NUM_PRESERVE_FEATURES = len(PRESERVE_FEAT_KEYS)  # = 5 unnorm features
-TOTAL_FEATURE_DIM = BASE_FEATURE_DIM + NUM_PRESERVE_FEATURES  # = 84 (79 base + 5 unnorm)
+TOTAL_FEATURE_DIM = BASE_FEATURE_DIM + NUM_PRESERVE_FEATURES  # = 83 (78 base + 5 unnorm)
 
 # Feature indices for key augmentation (after unnorm features are appended)
+# After removing section_tempo at index 5, all indices >= 5 shift down by 1
 MIDI_PITCH_IDX = 0  # Normalized midi_pitch (z-score)
-MIDI_PITCH_UNNORM_IDX = BASE_FEATURE_DIM  # Raw midi_pitch (21-108), appended at end
-PITCH_VEC_START = 14  # pitch vector starts at index 14 (after 14 scalar features)
-PITCH_CLASS_START = 15  # octave at 14, pitch class one-hot starts at 15
-PITCH_CLASS_END = 27  # 12 pitch classes (indices 15-26)
+MIDI_PITCH_UNNORM_IDX = BASE_FEATURE_DIM  # Raw midi_pitch (21-108), appended at end = 78
+PITCH_VEC_START = 13  # pitch vector starts at index 13 (after 13 scalar features, was 14)
+PITCH_CLASS_START = 14  # octave at 13, pitch class one-hot starts at 14 (was 15)
+PITCH_CLASS_END = 26  # 12 pitch classes (indices 14-25, was 15-26)
 
 
 @dataclass
@@ -108,8 +115,8 @@ class VirtuosoNetFeatureExtractor:
     Extract VirtuosoNet features from aligned MusicXML scores and MIDI performances.
 
     This class wraps VirtuosoNet's feature extraction pipeline to produce the
-    84-dimensional feature vectors used in the original PercePiano paper:
-    - 79 base features (normalized where applicable)
+    83-dimensional feature vectors used in the SOTA PercePiano configuration:
+    - 78 base features (normalized where applicable)
     - 5 preserved unnormalized features (midi_pitch_unnorm, duration_unnorm, etc.)
     """
 
@@ -183,10 +190,10 @@ class VirtuosoNetFeatureExtractor:
         performance_midi_path: Path,
     ) -> Dict[str, Any]:
         """
-        Extract 79 base VirtuosoNet features from a score-performance pair.
+        Extract 78 base VirtuosoNet features from a score-performance pair.
 
-        Note: This returns 79 base features. The preprocessing script adds
-        5 unnorm features to make 84 total before normalization.
+        Note: This returns 78 base features (SOTA configuration). The preprocessing
+        script adds 5 unnorm features to make 83 total before normalization.
 
         Args:
             score_xml_path: Path to MusicXML score file
@@ -194,7 +201,7 @@ class VirtuosoNetFeatureExtractor:
 
         Returns:
             Dictionary containing:
-            - 'input': numpy array of shape (num_notes, 79) - base features
+            - 'input': numpy array of shape (num_notes, 78) - base features
             - 'note_location': dict with 'beat', 'measure', 'voice' arrays
             - 'num_notes': number of notes in the piece
             - 'align_matched': boolean array indicating matched notes
@@ -231,8 +238,8 @@ class VirtuosoNetFeatureExtractor:
         # Get note locations
         note_locations = score_features.get('note_location', {})
 
-        # Build the 79-dim base feature vector for each note
-        # (unnorm features are added in preprocessing, making 84 total)
+        # Build the 78-dim base feature vector for each note (SOTA configuration)
+        # (unnorm features are added in preprocessing, making 83 total)
         num_notes = len(score_features.get('midi_pitch', []))
         input_features = np.zeros((num_notes, BASE_FEATURE_DIM), dtype=np.float32)
 
