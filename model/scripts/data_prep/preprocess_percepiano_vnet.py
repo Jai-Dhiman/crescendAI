@@ -20,34 +20,35 @@ Output:
         stat.pkl (normalization statistics)
 """
 
-import sys
+import argparse
 import json
 import pickle
-import argparse
+import sys
 from pathlib import Path
-from typing import Dict, List, Optional, Any
-from tqdm import tqdm
+from typing import Any, Dict, List, Optional
+
 import numpy as np
+from tqdm import tqdm
 
 # Add project root to path (model/)
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 from percepiano.data.virtuosonet_feature_extractor import (
-    VirtuosoNetFeatureExtractor,
-    FeatureStats,
-    VNET_INPUT_KEYS,
+    BASE_FEATURE_DIM,
     FEATURE_DIMS,
     NORM_FEAT_KEYS,
     PRESERVE_FEAT_KEYS,
-    BASE_FEATURE_DIM,
     TOTAL_FEATURE_DIM,
+    VNET_INPUT_KEYS,
+    FeatureStats,
+    VirtuosoNetFeatureExtractor,
 )
 
 
 def load_split_data(split_file: Path) -> List[Dict[str, Any]]:
     """Load a split JSON file."""
-    with open(split_file, 'r') as f:
+    with open(split_file, "r") as f:
         return json.load(f)
 
 
@@ -69,7 +70,7 @@ def add_unnorm_features(features: Dict[str, Any]) -> Dict[str, Any]:
     Returns:
         Updated features with 'input' array of shape (num_notes, 83)
     """
-    input_features = features['input']
+    input_features = features["input"]
     num_notes = input_features.shape[0]
 
     # Create expanded array with space for unnorm features
@@ -81,11 +82,11 @@ def add_unnorm_features(features: Dict[str, Any]) -> Dict[str, Any]:
     # midi_pitch=0, duration=1, beat_importance=2, measure_length=3, qpm_primo=4, following_rest=5
     # (section_tempo was removed, so following_rest shifted from 6 to 5)
     preserve_indices = {
-        'midi_pitch': 0,
-        'duration': 1,
-        'beat_importance': 2,
-        'measure_length': 3,
-        'following_rest': 5,  # Was 6 before section_tempo removal
+        "midi_pitch": 0,
+        "duration": 1,
+        "beat_importance": 2,
+        "measure_length": 3,
+        "following_rest": 5,  # Was 6 before section_tempo removal
     }
 
     for i, key in enumerate(PRESERVE_FEAT_KEYS):
@@ -94,33 +95,33 @@ def add_unnorm_features(features: Dict[str, Any]) -> Dict[str, Any]:
         expanded[:, dst_idx] = input_features[:, src_idx]
 
     result = features.copy()
-    result['input'] = expanded
+    result["input"] = expanded
     return result
 
 
 def get_composer_from_name(name: str) -> str:
     """Extract composer name from file name."""
     name_lower = name.lower()
-    if 'beethoven' in name_lower:
-        return 'Beethoven'
-    elif 'schubert' in name_lower:
-        return 'Schubert'
-    elif 'bach' in name_lower:
-        return 'Bach'
-    elif 'chopin' in name_lower:
-        return 'Chopin'
-    elif 'mozart' in name_lower:
-        return 'Mozart'
-    elif 'liszt' in name_lower:
-        return 'Liszt'
-    elif 'brahms' in name_lower:
-        return 'Brahms'
-    elif 'debussy' in name_lower:
-        return 'Debussy'
-    elif 'ravel' in name_lower:
-        return 'Ravel'
+    if "beethoven" in name_lower:
+        return "Beethoven"
+    elif "schubert" in name_lower:
+        return "Schubert"
+    elif "bach" in name_lower:
+        return "Bach"
+    elif "chopin" in name_lower:
+        return "Chopin"
+    elif "mozart" in name_lower:
+        return "Mozart"
+    elif "liszt" in name_lower:
+        return "Liszt"
+    elif "brahms" in name_lower:
+        return "Brahms"
+    elif "debussy" in name_lower:
+        return "Debussy"
+    elif "ravel" in name_lower:
+        return "Ravel"
     else:
-        return 'unknown'
+        return "unknown"
 
 
 def process_sample(
@@ -143,13 +144,13 @@ def process_sample(
     """
     try:
         # Get MIDI path - handle both absolute and relative paths
-        midi_path_str = sample['midi_path']
+        midi_path_str = sample["midi_path"]
         midi_path = Path(midi_path_str)
         if not midi_path.is_absolute():
             midi_path = data_root / midi_path_str
 
         # Get score path - handle both absolute and relative paths
-        score_path_str = sample['score_path']
+        score_path_str = sample["score_path"]
         score_path = Path(score_path_str)
         if not score_path.is_absolute():
             # Try as relative to score_xml_dir first
@@ -170,21 +171,24 @@ def process_sample(
         features = extractor.extract_features(score_path, midi_path)
 
         # Add labels
-        scores = sample.get('percepiano_scores', [])
+        scores = sample.get("percepiano_scores", [])
         if len(scores) >= 19:
-            features['labels'] = np.array(scores[:19], dtype=np.float32)
+            features["labels"] = np.array(scores[:19], dtype=np.float32)
         else:
-            print(f"Warning: {sample['name']} has only {len(scores)} scores, expected 19")
-            features['labels'] = np.zeros(19, dtype=np.float32)
+            print(
+                f"Warning: {sample['name']} has only {len(scores)} scores, expected 19"
+            )
+            features["labels"] = np.zeros(19, dtype=np.float32)
 
         # Add metadata
-        features['name'] = sample['name']
+        features["name"] = sample["name"]
 
         return features
 
     except Exception as e:
         import traceback
-        sample_name = sample.get('name', 'unknown')
+
+        sample_name = sample.get("name", "unknown")
         print(f"\nError processing {sample_name}:")
         print(f"  Type: {type(e).__name__}")
         print(f"  Message: {e}")
@@ -194,7 +198,9 @@ def process_sample(
         return None
 
 
-def compute_normalization_stats(features_list: List[Dict[str, Any]]) -> Dict[str, Dict[str, float]]:
+def compute_normalization_stats(
+    features_list: List[Dict[str, Any]],
+) -> Dict[str, Dict[str, float]]:
     """
     Compute z-score normalization statistics from training features.
 
@@ -207,36 +213,40 @@ def compute_normalization_stats(features_list: List[Dict[str, Any]]) -> Dict[str
         Dict with 'mean' and 'std' for each normalizable feature
     """
     # Concatenate all features (only use base features for stats)
-    all_features = np.concatenate([f['input'][:, :BASE_FEATURE_DIM] for f in features_list], axis=0)
+    all_features = np.concatenate(
+        [f["input"][:, :BASE_FEATURE_DIM] for f in features_list], axis=0
+    )
 
-    stats = {'mean': {}, 'std': {}}
+    stats = {"mean": {}, "std": {}}
     feature_idx = 0
 
     for key in VNET_INPUT_KEYS:
         dim = FEATURE_DIMS[key]
 
         if key in NORM_FEAT_KEYS:
-            feat_slice = all_features[:, feature_idx:feature_idx + dim]
-            stats['mean'][key] = float(np.mean(feat_slice))
+            feat_slice = all_features[:, feature_idx : feature_idx + dim]
+            stats["mean"][key] = float(np.mean(feat_slice))
             std = float(np.std(feat_slice))
-            stats['std'][key] = std if std > 0 else 1.0
+            stats["std"][key] = std if std > 0 else 1.0
         else:
-            stats['mean'][key] = 0.0
-            stats['std'][key] = 1.0
+            stats["mean"][key] = 0.0
+            stats["std"][key] = 1.0
 
         feature_idx += dim
 
     return stats
 
 
-def apply_normalization(features: Dict[str, Any], stats: Dict[str, Dict[str, float]]) -> Dict[str, Any]:
+def apply_normalization(
+    features: Dict[str, Any], stats: Dict[str, Dict[str, float]]
+) -> Dict[str, Any]:
     """
     Apply z-score normalization to base features only.
 
     The unnorm features (indices 78-82) are left untouched.
     """
     normalized = features.copy()
-    input_features = features['input'].copy()
+    input_features = features["input"].copy()
 
     # Only normalize the base features (first 78)
     feature_idx = 0
@@ -244,31 +254,50 @@ def apply_normalization(features: Dict[str, Any], stats: Dict[str, Dict[str, flo
         dim = FEATURE_DIMS[key]
 
         if key in NORM_FEAT_KEYS:
-            mean = stats['mean'][key]
-            std = stats['std'][key]
-            input_features[:, feature_idx:feature_idx + dim] = (
-                input_features[:, feature_idx:feature_idx + dim] - mean
+            mean = stats["mean"][key]
+            std = stats["std"][key]
+            input_features[:, feature_idx : feature_idx + dim] = (
+                input_features[:, feature_idx : feature_idx + dim] - mean
             ) / std
 
         feature_idx += dim
 
     # Unnorm features (indices BASE_FEATURE_DIM to TOTAL_FEATURE_DIM) remain unchanged
-    normalized['input'] = input_features
+    normalized["input"] = input_features
     return normalized
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Preprocess PercePiano data with VirtuosoNet features')
-    parser.add_argument('--data_root', type=Path, default=PROJECT_ROOT / 'data',
-                       help='Root data directory')
-    parser.add_argument('--json_dir', type=Path, default=None,
-                       help='Directory containing percepiano_*.json split files (defaults to data_root)')
-    parser.add_argument('--score_xml_dir', type=Path, default=None,
-                       help='Directory containing score XML files')
-    parser.add_argument('--output_dir', type=Path, default=None,
-                       help='Output directory for processed data')
-    parser.add_argument('--skip_normalization', action='store_true',
-                       help='Skip z-score normalization')
+    parser = argparse.ArgumentParser(
+        description="Preprocess PercePiano data with VirtuosoNet features"
+    )
+    parser.add_argument(
+        "--data_root",
+        type=Path,
+        default=PROJECT_ROOT / "data",
+        help="Root data directory",
+    )
+    parser.add_argument(
+        "--json_dir",
+        type=Path,
+        default=None,
+        help="Directory containing percepiano_*.json split files (defaults to data_root)",
+    )
+    parser.add_argument(
+        "--score_xml_dir",
+        type=Path,
+        default=None,
+        help="Directory containing score XML files",
+    )
+    parser.add_argument(
+        "--output_dir",
+        type=Path,
+        default=None,
+        help="Output directory for processed data",
+    )
+    parser.add_argument(
+        "--skip_normalization", action="store_true", help="Skip z-score normalization"
+    )
     args = parser.parse_args()
 
     # Set up paths
@@ -277,20 +306,22 @@ def main():
     # JSON directory: explicit arg, or data_root itself, or data_root/processed
     if args.json_dir:
         json_dir = args.json_dir
-    elif (data_root / 'percepiano_train.json').exists():
+    elif (data_root / "percepiano_train.json").exists():
         json_dir = data_root
     else:
-        json_dir = data_root / 'processed'
+        json_dir = data_root / "processed"
 
     # Score XML directory: explicit arg, or search common locations
     if args.score_xml_dir:
         score_xml_dir = args.score_xml_dir
-    elif (data_root / 'PercePiano' / 'virtuoso' / 'data' / 'score_xml').exists():
-        score_xml_dir = data_root / 'PercePiano' / 'virtuoso' / 'data' / 'score_xml'
+    elif (data_root / "PercePiano" / "virtuoso" / "data" / "score_xml").exists():
+        score_xml_dir = data_root / "PercePiano" / "virtuoso" / "data" / "score_xml"
     else:
-        score_xml_dir = data_root / 'raw' / 'PercePiano' / 'virtuoso' / 'data' / 'score_xml'
+        score_xml_dir = (
+            data_root / "raw" / "PercePiano" / "virtuoso" / "data" / "score_xml"
+        )
 
-    output_dir = args.output_dir or (data_root / 'percepiano_vnet')
+    output_dir = args.output_dir or (data_root / "percepiano_vnet")
     output_dir.mkdir(parents=True, exist_ok=True)
 
     print(f"JSON directory: {json_dir}")
@@ -299,13 +330,13 @@ def main():
 
     # Load split files
     splits = {
-        'train': json_dir / 'percepiano_train.json',
-        'val': json_dir / 'percepiano_val.json',
-        'test': json_dir / 'percepiano_test.json',
+        "train": json_dir / "percepiano_train.json",
+        "val": json_dir / "percepiano_val.json",
+        "test": json_dir / "percepiano_test.json",
     }
 
     # Process each split
-    all_features = {'train': [], 'val': [], 'test': []}
+    all_features = {"train": [], "val": [], "test": []}
 
     for split_name, split_file in splits.items():
         print(f"\nProcessing {split_name} split...")
@@ -323,7 +354,7 @@ def main():
 
         # Process samples
         for sample in tqdm(samples, desc=split_name):
-            composer = get_composer_from_name(sample.get('name', ''))
+            composer = get_composer_from_name(sample.get("name", ""))
             extractor = VirtuosoNetFeatureExtractor(composer=composer)
 
             features = process_sample(sample, data_root, score_xml_dir, extractor)
@@ -340,13 +371,13 @@ def main():
         ]
 
     # Compute normalization statistics from training set
-    if not args.skip_normalization and all_features['train']:
+    if not args.skip_normalization and all_features["train"]:
         print("\nComputing normalization statistics from training set...")
-        stats = compute_normalization_stats(all_features['train'])
+        stats = compute_normalization_stats(all_features["train"])
 
         # Save statistics
-        stats_file = output_dir / 'stat.pkl'
-        with open(stats_file, 'wb') as f:
+        stats_file = output_dir / "stat.pkl"
+        with open(stats_file, "wb") as f:
             pickle.dump(stats, f)
         print(f"Saved normalization statistics to {stats_file}")
 
@@ -366,27 +397,27 @@ def main():
         print(f"\nSaving {len(features_list)} samples to {split_output_dir}...")
 
         for features in tqdm(features_list, desc=f"Saving {split_name}"):
-            name = features.get('name', 'unknown')
+            name = features.get("name", "unknown")
             output_file = split_output_dir / f"{name}.pkl"
 
-            with open(output_file, 'wb') as f:
+            with open(output_file, "wb") as f:
                 pickle.dump(features, f)
 
     # Print summary
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("PREPROCESSING COMPLETE")
-    print("="*60)
+    print("=" * 60)
     print(f"Output directory: {output_dir}")
     for split_name, features_list in all_features.items():
         print(f"  {split_name}: {len(features_list)} samples")
 
-    if all_features['train']:
-        sample = all_features['train'][0]
+    if all_features["train"]:
+        sample = all_features["train"][0]
         print(f"\nFeature dimensions:")
         print(f"  Input shape: {sample['input'].shape}")
         print(f"  Labels shape: {sample['labels'].shape}")
         print(f"  Num notes: {sample['num_notes']}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

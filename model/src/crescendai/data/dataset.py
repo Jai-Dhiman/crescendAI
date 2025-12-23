@@ -1,19 +1,25 @@
-import torch
 import json
 import random
-import numpy as np
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Any
-from torch.utils.data import Dataset, DataLoader
+from typing import Any, Dict, List, Optional, Tuple
 
-from .audio_processing import load_audio, segment_audio, normalize_audio
-from .midi_processing import load_midi, encode_octuple_midi, segment_midi, align_midi_to_audio
+import numpy as np
+import torch
+from torch.utils.data import DataLoader, Dataset
+
+from .audio_processing import load_audio, normalize_audio, segment_audio
 from .augmentation import AudioAugmentation
 from .degradation import (
+    compress_midi_dynamics,
     degrade_audio_quality,
     degrade_midi_timing,
     inject_wrong_notes,
-    compress_midi_dynamics,
+)
+from .midi_processing import (
+    align_midi_to_audio,
+    encode_octuple_midi,
+    load_midi,
+    segment_midi,
 )
 
 # Import pretty_midi for type hints in degradation
@@ -85,9 +91,11 @@ class PerformanceDataset(Dataset):
 
         # Modality dropout configuration
         self.modality_dropout_config = modality_dropout_config or {}
-        self.modality_dropout_enabled = self.modality_dropout_config.get('enabled', False)
-        self.audio_dropout_prob = self.modality_dropout_config.get('audio_prob', 0.15)
-        self.midi_dropout_prob = self.modality_dropout_config.get('midi_prob', 0.15)
+        self.modality_dropout_enabled = self.modality_dropout_config.get(
+            "enabled", False
+        )
+        self.audio_dropout_prob = self.modality_dropout_config.get("audio_prob", 0.15)
+        self.midi_dropout_prob = self.modality_dropout_config.get("midi_prob", 0.15)
 
         # Initialize augmentation pipeline if enabled
         self.augmentor = None
@@ -100,23 +108,32 @@ class PerformanceDataset(Dataset):
     def _load_annotations(self) -> List[Dict[str, Any]]:
         """Load annotations from JSONL file."""
         if not self.annotation_path.exists():
-            raise FileNotFoundError(f"Annotation file not found: {self.annotation_path}")
+            raise FileNotFoundError(
+                f"Annotation file not found: {self.annotation_path}"
+            )
 
         # Base directory for resolving relative paths (parent of annotations dir)
         # e.g., /tmp/maestro_data/annotations/train.jsonl -> /tmp/maestro_data/
         base_dir = self.annotation_path.parent.parent
 
         annotations = []
-        with open(self.annotation_path, 'r') as f:
+        with open(self.annotation_path, "r") as f:
             for line in f:
                 if line.strip():
                     ann = json.loads(line)
 
                     # Resolve relative paths to absolute
-                    if 'audio_path' in ann and not Path(ann['audio_path']).is_absolute():
-                        ann['audio_path'] = str(base_dir / ann['audio_path'])
-                    if 'midi_path' in ann and ann['midi_path'] and not Path(ann['midi_path']).is_absolute():
-                        ann['midi_path'] = str(base_dir / ann['midi_path'])
+                    if (
+                        "audio_path" in ann
+                        and not Path(ann["audio_path"]).is_absolute()
+                    ):
+                        ann["audio_path"] = str(base_dir / ann["audio_path"])
+                    if (
+                        "midi_path" in ann
+                        and ann["midi_path"]
+                        and not Path(ann["midi_path"]).is_absolute()
+                    ):
+                        ann["midi_path"] = str(base_dir / ann["midi_path"])
 
                     annotations.append(ann)
 
@@ -126,10 +143,7 @@ class PerformanceDataset(Dataset):
         return annotations
 
     def _apply_audio_degradation(
-        self,
-        audio: np.ndarray,
-        degradation_params: Dict[str, Any],
-        seed: int
+        self, audio: np.ndarray, degradation_params: Dict[str, Any], seed: int
     ) -> np.ndarray:
         """
         Apply audio degradation based on annotation parameters.
@@ -142,8 +156,8 @@ class PerformanceDataset(Dataset):
         Returns:
             Degraded audio waveform
         """
-        noise_snr_db = degradation_params.get('audio_noise_snr_db')
-        apply_filter = degradation_params.get('audio_filter_enabled', False)
+        noise_snr_db = degradation_params.get("audio_noise_snr_db")
+        apply_filter = degradation_params.get("audio_filter_enabled", False)
 
         # Skip if no degradation needed
         if noise_snr_db is None and not apply_filter:
@@ -154,15 +168,15 @@ class PerformanceDataset(Dataset):
             sr=self.audio_sample_rate,
             noise_snr_db=noise_snr_db,
             apply_filtering=apply_filter,
-            seed=seed
+            seed=seed,
         )
 
     def _apply_midi_degradation(
         self,
-        midi_obj: 'pretty_midi.PrettyMIDI',
+        midi_obj: "pretty_midi.PrettyMIDI",
         degradation_params: Dict[str, Any],
-        seed: int
-    ) -> 'pretty_midi.PrettyMIDI':
+        seed: int,
+    ) -> "pretty_midi.PrettyMIDI":
         """
         Apply MIDI degradation based on annotation parameters.
 
@@ -177,21 +191,19 @@ class PerformanceDataset(Dataset):
         degraded = midi_obj
 
         # 1. Timing jitter
-        jitter_ms = degradation_params.get('midi_jitter_ms', 0)
+        jitter_ms = degradation_params.get("midi_jitter_ms", 0)
         if jitter_ms > 0:
             degraded = degrade_midi_timing(degraded, jitter_ms, seed=seed)
 
         # 2. Wrong notes
-        wrong_note_rate = degradation_params.get('wrong_note_rate', 0.0)
+        wrong_note_rate = degradation_params.get("wrong_note_rate", 0.0)
         if wrong_note_rate > 0:
             degraded = inject_wrong_notes(
-                degraded,
-                wrong_note_rate,
-                seed=seed + 1 if seed is not None else None
+                degraded, wrong_note_rate, seed=seed + 1 if seed is not None else None
             )
 
         # 3. Dynamics compression
-        compression = degradation_params.get('dynamics_compression', 0.0)
+        compression = degradation_params.get("dynamics_compression", 0.0)
         if compression > 0:
             degraded = compress_midi_dynamics(degraded, compression)
 
@@ -214,7 +226,9 @@ class PerformanceDataset(Dataset):
         """
         return self._load_sample_with_retry(idx)
 
-    def _load_sample_with_retry(self, idx: int, max_retries: int = 10) -> Dict[str, torch.Tensor]:
+    def _load_sample_with_retry(
+        self, idx: int, max_retries: int = 10
+    ) -> Dict[str, torch.Tensor]:
         """Load a sample with retry logic for corrupted/unreadable files."""
         tried_indices = set()
         last_error = None
@@ -241,7 +255,9 @@ class PerformanceDataset(Dataset):
                 last_error = e
                 # Only print every few failures to reduce noise
                 if attempts <= 3 or attempts == max_retries:
-                    print(f"Warning: Sample {current_idx} failed (attempt {attempts}/{max_retries}): {e}")
+                    print(
+                        f"Warning: Sample {current_idx} failed (attempt {attempts}/{max_retries}): {e}"
+                    )
 
         raise RuntimeError(
             f"Failed to load any valid sample after {attempts} attempts. "
@@ -254,13 +270,13 @@ class PerformanceDataset(Dataset):
         annotation = self.annotations[idx]
 
         # Load audio
-        audio_path = Path(annotation['audio_path'])
+        audio_path = Path(annotation["audio_path"])
         audio, sr = load_audio(str(audio_path), sr=self.audio_sample_rate)
 
         # Extract segment if start/end times specified
-        if 'start_time' in annotation and 'end_time' in annotation:
-            start_sample = int(annotation['start_time'] * sr)
-            end_sample = int(annotation['end_time'] * sr)
+        if "start_time" in annotation and "end_time" in annotation:
+            start_sample = int(annotation["start_time"] * sr)
+            end_sample = int(annotation["end_time"] * sr)
             audio = audio[start_sample:end_sample]
 
         # Normalize audio
@@ -268,20 +284,20 @@ class PerformanceDataset(Dataset):
 
         # Apply runtime degradation if specified in annotation
         # This creates quality variance (pristine/good/moderate/poor tiers)
-        if 'degradation_params' in annotation:
+        if "degradation_params" in annotation:
             audio = self._apply_audio_degradation(
-                audio,
-                annotation['degradation_params'],
-                seed=idx
+                audio, annotation["degradation_params"], seed=idx
             )
 
         # Apply augmentation if enabled
         if self.apply_augmentation and self.augmentor is not None:
-            audio = self.augmentor.augment_pipeline(audio, config=self.augmentation_config)
+            audio = self.augmentor.augment_pipeline(
+                audio, config=self.augmentation_config
+            )
 
         # Pad or truncate audio to max length
         if len(audio) > self.max_audio_length:
-            audio = audio[:self.max_audio_length]
+            audio = audio[: self.max_audio_length]
         elif len(audio) < self.max_audio_length:
             audio = np.pad(audio, (0, self.max_audio_length - len(audio)))
 
@@ -290,8 +306,8 @@ class PerformanceDataset(Dataset):
 
         # Load MIDI if available
         midi_tokens = None
-        if 'midi_path' in annotation and annotation['midi_path']:
-            midi_path = Path(annotation['midi_path'])
+        if "midi_path" in annotation and annotation["midi_path"]:
+            midi_path = Path(annotation["midi_path"])
             try:
                 midi = load_midi(str(midi_path))
 
@@ -300,20 +316,18 @@ class PerformanceDataset(Dataset):
                 midi = align_midi_to_audio(midi, audio_duration)
 
                 # Extract segment if needed
-                if 'start_time' in annotation and 'end_time' in annotation:
-                    start_time = annotation['start_time']
-                    end_time = annotation['end_time']
+                if "start_time" in annotation and "end_time" in annotation:
+                    start_time = annotation["start_time"]
+                    end_time = annotation["end_time"]
                     segment_times = [(start_time, end_time)]
                     midi_segments = segment_midi(midi, segment_times)
                     midi = midi_segments[0] if midi_segments else midi
 
                 # Apply runtime degradation to MIDI if specified
                 # Degrades timing precision, adds wrong notes, compresses dynamics
-                if 'degradation_params' in annotation:
+                if "degradation_params" in annotation:
                     midi = self._apply_midi_degradation(
-                        midi,
-                        annotation['degradation_params'],
-                        seed=idx
+                        midi, annotation["degradation_params"], seed=idx
                     )
 
                 # Encode MIDI to OctupleMIDI tokens
@@ -322,15 +336,19 @@ class PerformanceDataset(Dataset):
                 # Validate tokens before padding
                 if len(midi_tokens) == 0:
                     # Empty MIDI file - log warning and fall back to audio-only
-                    print(f"Warning: Empty MIDI file at {midi_path}, falling back to audio-only")
+                    print(
+                        f"Warning: Empty MIDI file at {midi_path}, falling back to audio-only"
+                    )
                     midi_tokens = None
                 else:
                     # Pad or truncate MIDI tokens
                     if len(midi_tokens) > self.max_midi_events:
-                        midi_tokens = midi_tokens[:self.max_midi_events]
+                        midi_tokens = midi_tokens[: self.max_midi_events]
                     elif len(midi_tokens) < self.max_midi_events:
                         # Pad with zeros
-                        padding = np.zeros((self.max_midi_events - len(midi_tokens), 8), dtype=np.int64)
+                        padding = np.zeros(
+                            (self.max_midi_events - len(midi_tokens), 8), dtype=np.int64
+                        )
                         midi_tokens = np.concatenate([midi_tokens, padding], axis=0)
 
                     midi_tokens = torch.from_numpy(midi_tokens).long()
@@ -349,7 +367,7 @@ class PerformanceDataset(Dataset):
                 midi_tokens = None
 
         # Extract labels - all dimensions must be present
-        labels_dict = annotation['labels']
+        labels_dict = annotation["labels"]
         labels = []
         for dim_name in self.dimension_names:
             if dim_name not in labels_dict:
@@ -364,10 +382,10 @@ class PerformanceDataset(Dataset):
 
         # Metadata
         metadata = {
-            'audio_path': str(audio_path),
-            'midi_path': str(annotation.get('midi_path', '')),
-            'start_time': annotation.get('start_time', 0.0),
-            'end_time': annotation.get('end_time', len(audio) / sr),
+            "audio_path": str(audio_path),
+            "midi_path": str(annotation.get("midi_path", "")),
+            "start_time": annotation.get("start_time", 0.0),
+            "end_time": annotation.get("end_time", len(audio) / sr),
         }
 
         # Apply modality dropout (only during training with augmentation enabled)
@@ -388,26 +406,26 @@ class PerformanceDataset(Dataset):
                     drop_midi = False
 
         result = {
-            'labels': labels_tensor,
-            'metadata': metadata,
+            "labels": labels_tensor,
+            "metadata": metadata,
         }
 
         # Add audio (or None if dropped)
         if drop_audio:
             # Return zeros for audio - model should handle gracefully
-            result['audio_waveform'] = torch.zeros_like(audio_tensor)
-            result['audio_dropped'] = True
+            result["audio_waveform"] = torch.zeros_like(audio_tensor)
+            result["audio_dropped"] = True
         else:
-            result['audio_waveform'] = audio_tensor
-            result['audio_dropped'] = False
+            result["audio_waveform"] = audio_tensor
+            result["audio_dropped"] = False
 
         # Add MIDI (or None if dropped)
         if drop_midi or midi_tokens is None:
-            result['midi_dropped'] = True
+            result["midi_dropped"] = True
             # Don't include midi_tokens key - model handles None
         else:
-            result['midi_tokens'] = midi_tokens
-            result['midi_dropped'] = False
+            result["midi_tokens"] = midi_tokens
+            result["midi_dropped"] = False
 
         return result
 
@@ -416,7 +434,7 @@ def mixup_batch(
     audio: torch.Tensor,
     labels: torch.Tensor,
     alpha: float = 0.2,
-    probability: float = 0.5
+    probability: float = 0.5,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     """
     Apply mixup augmentation to a batch.
@@ -468,40 +486,48 @@ def collate_fn(batch: List[Dict[str, torch.Tensor]]) -> Dict[str, torch.Tensor]:
         Batched dictionary
     """
     # Stack audio waveforms (all same length after padding in __getitem__)
-    audio_waveforms = torch.stack([item['audio_waveform'] for item in batch])
+    audio_waveforms = torch.stack([item["audio_waveform"] for item in batch])
 
     # Stack labels
-    labels = torch.stack([item['labels'] for item in batch])
+    labels = torch.stack([item["labels"] for item in batch])
 
     # Handle MIDI tokens (may not be present for all samples)
     midi_tokens = None
-    if 'midi_tokens' in batch[0]:
+    if "midi_tokens" in batch[0]:
         # Check if all samples have MIDI
-        if all('midi_tokens' in item for item in batch):
-            midi_tokens = torch.stack([item['midi_tokens'] for item in batch])
+        if all("midi_tokens" in item for item in batch):
+            midi_tokens = torch.stack([item["midi_tokens"] for item in batch])
         else:
             # Some samples are missing MIDI - filter them out
-            valid_indices = [i for i, item in enumerate(batch) if 'midi_tokens' in item]
-            missing_indices = [i for i, item in enumerate(batch) if 'midi_tokens' not in item]
+            valid_indices = [i for i, item in enumerate(batch) if "midi_tokens" in item]
+            missing_indices = [
+                i for i, item in enumerate(batch) if "midi_tokens" not in item
+            ]
 
             if len(valid_indices) > 0:
                 # Create partial batch with only valid samples
                 batch = [batch[i] for i in valid_indices]
-                audio_waveforms = torch.stack([item['audio_waveform'] for item in batch])
-                labels = torch.stack([item['labels'] for item in batch])
-                midi_tokens = torch.stack([item['midi_tokens'] for item in batch])
-                metadata = [item['metadata'] for item in batch]
+                audio_waveforms = torch.stack(
+                    [item["audio_waveform"] for item in batch]
+                )
+                labels = torch.stack([item["labels"] for item in batch])
+                midi_tokens = torch.stack([item["midi_tokens"] for item in batch])
+                metadata = [item["metadata"] for item in batch]
 
                 # Log the filtering (but don't spam)
                 if missing_indices[0] % 100 == 0:  # Log occasionally
-                    missing_paths = [batch[i]['metadata']['midi_path'] for i in missing_indices]
-                    print(f"\nInfo: Filtered out {len(missing_indices)} samples without MIDI from batch")
+                    missing_paths = [
+                        batch[i]["metadata"]["midi_path"] for i in missing_indices
+                    ]
+                    print(
+                        f"\nInfo: Filtered out {len(missing_indices)} samples without MIDI from batch"
+                    )
 
                 return {
-                    'audio_waveform': audio_waveforms,
-                    'midi_tokens': midi_tokens,
-                    'labels': labels,
-                    'metadata': metadata,
+                    "audio_waveform": audio_waveforms,
+                    "midi_tokens": midi_tokens,
+                    "labels": labels,
+                    "metadata": metadata,
                 }
             else:
                 # All samples failed - return None to skip this batch
@@ -509,24 +535,22 @@ def collate_fn(batch: List[Dict[str, torch.Tensor]]) -> Dict[str, torch.Tensor]:
                 midi_tokens = None
 
     # Collect metadata
-    metadata = [item['metadata'] for item in batch]
+    metadata = [item["metadata"] for item in batch]
 
     result = {
-        'audio_waveform': audio_waveforms,
-        'labels': labels,
-        'metadata': metadata,
+        "audio_waveform": audio_waveforms,
+        "labels": labels,
+        "metadata": metadata,
     }
 
     if midi_tokens is not None:
-        result['midi_tokens'] = midi_tokens
+        result["midi_tokens"] = midi_tokens
 
     return result
 
 
 def create_collate_fn_with_mixup(
-    apply_mixup: bool = True,
-    mixup_alpha: float = 0.2,
-    mixup_probability: float = 0.5
+    apply_mixup: bool = True, mixup_alpha: float = 0.2, mixup_probability: float = 0.5
 ):
     """
     Create a collate function with optional mixup augmentation.
@@ -539,20 +563,23 @@ def create_collate_fn_with_mixup(
     Returns:
         Collate function
     """
-    def collate_with_mixup(batch: List[Dict[str, torch.Tensor]]) -> Dict[str, torch.Tensor]:
+
+    def collate_with_mixup(
+        batch: List[Dict[str, torch.Tensor]],
+    ) -> Dict[str, torch.Tensor]:
         # First, use standard collate
         result = collate_fn(batch)
 
         # Apply mixup to training data only (if enabled)
-        if apply_mixup and 'audio_waveform' in result and 'labels' in result:
+        if apply_mixup and "audio_waveform" in result and "labels" in result:
             mixed_audio, mixed_labels = mixup_batch(
-                result['audio_waveform'],
-                result['labels'],
+                result["audio_waveform"],
+                result["labels"],
                 alpha=mixup_alpha,
-                probability=mixup_probability
+                probability=mixup_probability,
             )
-            result['audio_waveform'] = mixed_audio
-            result['labels'] = mixed_labels
+            result["audio_waveform"] = mixed_audio
+            result["labels"] = mixed_labels
 
         return result
 
@@ -574,7 +601,7 @@ def create_dataloaders(
     pin_memory: bool = True,
     persistent_workers: bool = True,
     prefetch_factor: int = 2,
-    **dataset_kwargs
+    **dataset_kwargs,
 ) -> Tuple[DataLoader, DataLoader, Optional[DataLoader]]:
     """
     Create train, validation, and test dataloaders.
@@ -607,7 +634,7 @@ def create_dataloaders(
         augmentation_config=augmentation_config,
         apply_augmentation=True,
         modality_dropout_config=modality_dropout_config,
-        **dataset_kwargs
+        **dataset_kwargs,
     )
 
     # Validation dataset (no augmentation)
@@ -616,7 +643,7 @@ def create_dataloaders(
         dimension_names=dimension_names,
         augmentation_config=None,
         apply_augmentation=False,
-        **dataset_kwargs
+        **dataset_kwargs,
     )
 
     # Test dataset (optional, no augmentation)
@@ -627,7 +654,7 @@ def create_dataloaders(
             dimension_names=dimension_names,
             augmentation_config=None,
             apply_augmentation=False,
-            **dataset_kwargs
+            **dataset_kwargs,
         )
 
     # Create collate functions
@@ -635,7 +662,7 @@ def create_dataloaders(
     train_collate_fn = create_collate_fn_with_mixup(
         apply_mixup=use_mixup,
         mixup_alpha=mixup_alpha,
-        mixup_probability=mixup_probability
+        mixup_probability=mixup_probability,
     )
 
     # Create dataloaders with GPU optimization settings
@@ -719,14 +746,15 @@ class ContrastiveBatchSampler:
         # Group samples by piece_id
         self.piece_groups: Dict[str, List[int]] = {}
         for idx, ann in enumerate(annotations):
-            piece_id = ann.get('piece_id', ann.get('audio_path', str(idx)))
+            piece_id = ann.get("piece_id", ann.get("audio_path", str(idx)))
             if piece_id not in self.piece_groups:
                 self.piece_groups[piece_id] = []
             self.piece_groups[piece_id].append(idx)
 
         # Filter pieces with multiple samples (for hard negatives)
         self.multi_sample_pieces = [
-            piece_id for piece_id, indices in self.piece_groups.items()
+            piece_id
+            for piece_id, indices in self.piece_groups.items()
             if len(indices) >= 2
         ]
 
@@ -786,10 +814,12 @@ class ContrastiveBatchSampler:
 
             # Yield batch if full
             if len(batch) >= self.batch_size:
-                yield batch[:self.batch_size]
-                batch = batch[self.batch_size:]
+                yield batch[: self.batch_size]
+                batch = batch[self.batch_size :]
                 used_in_batch = set(batch)
-            elif not self.drop_last and len(batch) > 0 and random_idx >= len(all_indices):
+            elif (
+                not self.drop_last and len(batch) > 0 and random_idx >= len(all_indices)
+            ):
                 # Last incomplete batch
                 yield batch
                 break
@@ -804,7 +834,7 @@ def create_contrastive_dataloader(
     num_workers: int = 4,
     use_hard_negatives: bool = True,
     hard_neg_ratio: float = 0.25,
-    **dataset_kwargs
+    **dataset_kwargs,
 ) -> DataLoader:
     """
     Create a dataloader for contrastive pre-training.
@@ -826,7 +856,7 @@ def create_contrastive_dataloader(
         dimension_names=dimension_names,
         augmentation_config=None,
         apply_augmentation=False,
-        **dataset_kwargs
+        **dataset_kwargs,
     )
 
     if use_hard_negatives:

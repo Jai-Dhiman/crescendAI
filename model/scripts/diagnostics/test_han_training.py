@@ -20,9 +20,9 @@ from pathlib import Path
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+import numpy as np
 import torch
 import torch.nn as nn
-import numpy as np
 from rich.console import Console
 from sklearn.metrics import r2_score
 
@@ -37,7 +37,13 @@ def run_quick_training_test(data_dir: str, num_epochs: int = 5, batch_size: int 
     console.print("[bold cyan]=" * 70)
 
     # Check CUDA
-    device = torch.device('cuda' if torch.cuda.is_available() else 'mps' if torch.backends.mps.is_available() else 'cpu')
+    device = torch.device(
+        "cuda"
+        if torch.cuda.is_available()
+        else "mps"
+        if torch.backends.mps.is_available()
+        else "cpu"
+    )
     console.print(f"\nDevice: {device}")
 
     # Import modules
@@ -88,15 +94,17 @@ def run_quick_training_test(data_dir: str, num_epochs: int = 5, batch_size: int 
     console.print(f"  input_features: {batch['input_features'].shape}")
     console.print(f"  attention_mask: {batch['attention_mask'].shape}")
     console.print(f"  scores: {batch['scores'].shape}")
-    console.print(f"  beat indices range: [{batch['note_locations_beat'].min()}, {batch['note_locations_beat'].max()}]")
+    console.print(
+        f"  beat indices range: [{batch['note_locations_beat'].min()}, {batch['note_locations_beat'].max()}]"
+    )
 
     # Check for NaN in input
-    if torch.isnan(batch['input_features']).any():
+    if torch.isnan(batch["input_features"]).any():
         console.print("[red]  CRITICAL: NaN values in input features![/red]")
         return False
 
     # Check label range
-    label_min, label_max = batch['scores'].min().item(), batch['scores'].max().item()
+    label_min, label_max = batch["scores"].min().item(), batch["scores"].max().item()
     console.print(f"  Label range: [{label_min:.3f}, {label_max:.3f}]")
     if label_min < 0 or label_max > 1:
         console.print("[red]  CRITICAL: Labels outside [0, 1] range![/red]")
@@ -117,14 +125,14 @@ def run_quick_training_test(data_dir: str, num_epochs: int = 5, batch_size: int 
         epoch_losses = []
 
         for batch_idx, batch in enumerate(train_loader):
-            input_features = batch['input_features'].to(device)
-            attention_mask = batch['attention_mask'].to(device)
-            scores = batch['scores'].to(device)
+            input_features = batch["input_features"].to(device)
+            attention_mask = batch["attention_mask"].to(device)
+            scores = batch["scores"].to(device)
 
             note_locations = {
-                'beat': batch['note_locations_beat'].to(device),
-                'measure': batch['note_locations_measure'].to(device),
-                'voice': batch['note_locations_voice'].to(device),
+                "beat": batch["note_locations_beat"].to(device),
+                "measure": batch["note_locations_measure"].to(device),
+                "voice": batch["note_locations_voice"].to(device),
             }
 
             optimizer.zero_grad()
@@ -135,13 +143,17 @@ def run_quick_training_test(data_dir: str, num_epochs: int = 5, batch_size: int 
                     note_locations=note_locations,
                     attention_mask=attention_mask,
                 )
-                predictions = outputs['predictions']
+                predictions = outputs["predictions"]
                 loss = criterion(predictions, scores)
 
                 # Check for NaN loss
                 if torch.isnan(loss):
-                    console.print(f"[red]  Epoch {epoch+1}: NaN loss at batch {batch_idx}![/red]")
-                    console.print(f"  Predictions: mean={predictions.mean():.4f}, std={predictions.std():.4f}")
+                    console.print(
+                        f"[red]  Epoch {epoch + 1}: NaN loss at batch {batch_idx}![/red]"
+                    )
+                    console.print(
+                        f"  Predictions: mean={predictions.mean():.4f}, std={predictions.std():.4f}"
+                    )
                     return False
 
                 loss.backward()
@@ -151,8 +163,11 @@ def run_quick_training_test(data_dir: str, num_epochs: int = 5, batch_size: int 
                 epoch_losses.append(loss.item())
 
             except Exception as e:
-                console.print(f"[red]  Epoch {epoch+1}, Batch {batch_idx}: Forward pass failed: {e}[/red]")
+                console.print(
+                    f"[red]  Epoch {epoch + 1}, Batch {batch_idx}: Forward pass failed: {e}[/red]"
+                )
                 import traceback
+
                 traceback.print_exc()
                 return False
 
@@ -165,14 +180,14 @@ def run_quick_training_test(data_dir: str, num_epochs: int = 5, batch_size: int 
 
         with torch.no_grad():
             for batch in val_loader:
-                input_features = batch['input_features'].to(device)
-                attention_mask = batch['attention_mask'].to(device)
-                scores = batch['scores'].to(device)
+                input_features = batch["input_features"].to(device)
+                attention_mask = batch["attention_mask"].to(device)
+                scores = batch["scores"].to(device)
 
                 note_locations = {
-                    'beat': batch['note_locations_beat'].to(device),
-                    'measure': batch['note_locations_measure'].to(device),
-                    'voice': batch['note_locations_voice'].to(device),
+                    "beat": batch["note_locations_beat"].to(device),
+                    "measure": batch["note_locations_measure"].to(device),
+                    "voice": batch["note_locations_voice"].to(device),
                 }
 
                 outputs = model(
@@ -181,7 +196,7 @@ def run_quick_training_test(data_dir: str, num_epochs: int = 5, batch_size: int 
                     attention_mask=attention_mask,
                 )
 
-                all_preds.append(outputs['predictions'].cpu())
+                all_preds.append(outputs["predictions"].cpu())
                 all_targets.append(scores.cpu())
 
         all_preds = torch.cat(all_preds).numpy()
@@ -191,16 +206,22 @@ def run_quick_training_test(data_dir: str, num_epochs: int = 5, batch_size: int 
         try:
             val_r2 = r2_score(all_targets, all_preds)
         except Exception:
-            val_r2 = float('-inf')
+            val_r2 = float("-inf")
 
         val_r2s.append(val_r2)
 
         # Print progress
         r2_color = "green" if val_r2 > 0 else "red"
-        loss_trend = "v" if len(train_losses) > 1 and train_loss < train_losses[-2] else "^" if len(train_losses) > 1 else "-"
+        loss_trend = (
+            "v"
+            if len(train_losses) > 1 and train_loss < train_losses[-2]
+            else "^"
+            if len(train_losses) > 1
+            else "-"
+        )
 
         console.print(
-            f"  Epoch {epoch+1}/{num_epochs} | "
+            f"  Epoch {epoch + 1}/{num_epochs} | "
             f"Loss: {train_loss:.4f} {loss_trend} | "
             f"Val R2: [{r2_color}]{val_r2:+.4f}[/{r2_color}]"
         )
@@ -208,7 +229,9 @@ def run_quick_training_test(data_dir: str, num_epochs: int = 5, batch_size: int 
         # Check prediction statistics
         pred_std = all_preds.std()
         if pred_std < 0.01:
-            console.print(f"    [yellow]Warning: Prediction std={pred_std:.4f} (collapsed?)[/yellow]")
+            console.print(
+                f"    [yellow]Warning: Prediction std={pred_std:.4f} (collapsed?)[/yellow]"
+            )
 
     # Summary
     console.print("\n" + "=" * 70)
@@ -223,13 +246,19 @@ def run_quick_training_test(data_dir: str, num_epochs: int = 5, batch_size: int 
     console.print(f"\n1. LOSS TREND")
     console.print(f"   Initial: {train_losses[0]:.4f}")
     console.print(f"   Final:   {train_losses[-1]:.4f}")
-    console.print(f"   Decreased: {'[green]YES[/green]' if loss_decreased else '[red]NO[/red]'}")
+    console.print(
+        f"   Decreased: {'[green]YES[/green]' if loss_decreased else '[red]NO[/red]'}"
+    )
 
     console.print(f"\n2. R2 TREND")
     console.print(f"   Initial: {val_r2s[0]:+.4f}")
     console.print(f"   Final:   {val_r2s[-1]:+.4f}")
-    console.print(f"   Improved: {'[green]YES[/green]' if r2_improved else '[red]NO[/red]'}")
-    console.print(f"   Positive: {'[green]YES[/green]' if final_r2_positive else '[red]NO[/red]'}")
+    console.print(
+        f"   Improved: {'[green]YES[/green]' if r2_improved else '[red]NO[/red]'}"
+    )
+    console.print(
+        f"   Positive: {'[green]YES[/green]' if final_r2_positive else '[red]NO[/red]'}"
+    )
 
     console.print(f"\n3. DIAGNOSIS")
     if loss_decreased and (r2_improved or final_r2_positive):
@@ -254,14 +283,17 @@ def run_quick_training_test(data_dir: str, num_epochs: int = 5, batch_size: int 
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Quick HAN training test')
-    parser.add_argument('--data_dir', type=str,
-                        default='/tmp/percepiano_data/percepiano_vnet',
-                        help='Path to preprocessed VirtuosoNet data')
-    parser.add_argument('--epochs', type=int, default=5,
-                        help='Number of test epochs')
-    parser.add_argument('--batch_size', type=int, default=8,
-                        help='Batch size for testing')
+    parser = argparse.ArgumentParser(description="Quick HAN training test")
+    parser.add_argument(
+        "--data_dir",
+        type=str,
+        default="/tmp/percepiano_data/percepiano_vnet",
+        help="Path to preprocessed VirtuosoNet data",
+    )
+    parser.add_argument("--epochs", type=int, default=5, help="Number of test epochs")
+    parser.add_argument(
+        "--batch_size", type=int, default=8, help="Batch size for testing"
+    )
 
     args = parser.parse_args()
 
@@ -272,8 +304,8 @@ def main():
         console.print("Run preprocessing first or provide correct path.")
         sys.exit(1)
 
-    train_dir = data_path / 'train'
-    if not train_dir.exists() or not list(train_dir.glob('*.pkl')):
+    train_dir = data_path / "train"
+    if not train_dir.exists() or not list(train_dir.glob("*.pkl")):
         console.print(f"[red]No training data found in {train_dir}[/red]")
         sys.exit(1)
 
@@ -286,5 +318,5 @@ def main():
     sys.exit(0 if success else 1)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

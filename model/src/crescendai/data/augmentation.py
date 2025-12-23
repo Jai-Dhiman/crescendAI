@@ -1,12 +1,13 @@
-import numpy as np
-import librosa
-import scipy.signal
-from typing import Optional, Dict, Any
+import os
 import random
 import tempfile
-import os
-from pydub import AudioSegment
+from typing import Any, Dict, Optional
+
+import librosa
+import numpy as np
+import scipy.signal
 import soundfile as sf
+from pydub import AudioSegment
 
 
 class AudioAugmentation:
@@ -57,7 +58,9 @@ class AudioAugmentation:
         self.max_augmentations = max_augmentations
         self.sr = sr
 
-    def pitch_shift(self, audio: np.ndarray, semitones: Optional[float] = None) -> np.ndarray:
+    def pitch_shift(
+        self, audio: np.ndarray, semitones: Optional[float] = None
+    ) -> np.ndarray:
         """
         Shift pitch by specified semitones.
 
@@ -73,7 +76,9 @@ class AudioAugmentation:
 
         return librosa.effects.pitch_shift(audio, sr=self.sr, n_steps=semitones)
 
-    def time_stretch(self, audio: np.ndarray, rate: Optional[float] = None) -> np.ndarray:
+    def time_stretch(
+        self, audio: np.ndarray, rate: Optional[float] = None
+    ) -> np.ndarray:
         """
         Stretch or compress audio in time.
 
@@ -90,9 +95,7 @@ class AudioAugmentation:
         return librosa.effects.time_stretch(audio, rate=rate)
 
     def add_noise(
-        self,
-        audio: np.ndarray,
-        snr_db: Optional[float] = None
+        self, audio: np.ndarray, snr_db: Optional[float] = None
     ) -> np.ndarray:
         """
         Add Gaussian noise at specified SNR.
@@ -108,7 +111,7 @@ class AudioAugmentation:
             snr_db = np.random.uniform(25.0, 40.0)
 
         # Calculate signal power
-        signal_power = np.mean(audio ** 2)
+        signal_power = np.mean(audio**2)
 
         # Calculate noise power for desired SNR
         snr_linear = 10 ** (snr_db / 10.0)
@@ -120,9 +123,7 @@ class AudioAugmentation:
         return audio + noise
 
     def apply_room_acoustics(
-        self,
-        audio: np.ndarray,
-        impulse_response: Optional[np.ndarray] = None
+        self, audio: np.ndarray, impulse_response: Optional[np.ndarray] = None
     ) -> np.ndarray:
         """
         Apply room acoustics via impulse response convolution.
@@ -139,7 +140,7 @@ class AudioAugmentation:
             impulse_response = self._generate_simple_ir()
 
         # Convolve with impulse response
-        return scipy.signal.fftconvolve(audio, impulse_response, mode='same')
+        return scipy.signal.fftconvolve(audio, impulse_response, mode="same")
 
     def _generate_simple_ir(self) -> np.ndarray:
         """
@@ -168,16 +169,16 @@ class AudioAugmentation:
         # Exponential decay tail
         tail_start = delay_samples * 2
         if tail_start < ir_length:
-            decay_envelope = np.exp(-np.arange(ir_length - tail_start) / (decay_time * self.sr))
+            decay_envelope = np.exp(
+                -np.arange(ir_length - tail_start) / (decay_time * self.sr)
+            )
             tail = np.random.randn(ir_length - tail_start) * decay_envelope * 0.1
             ir[tail_start:] += tail
 
         return ir
 
     def compress_audio(
-        self,
-        audio: np.ndarray,
-        quality: Optional[str] = None
+        self, audio: np.ndarray, quality: Optional[str] = None
     ) -> np.ndarray:
         """
         Apply real MP3 compression using pydub and ffmpeg.
@@ -196,40 +197,42 @@ class AudioAugmentation:
             ffmpeg must be installed and available in system PATH
         """
         if quality is None:
-            quality = random.choice(['low', 'medium', 'high'])
+            quality = random.choice(["low", "medium", "high"])
 
         # Map quality levels to bitrates
         bitrate_map = {
-            'low': '128k',      # 128 kbps
-            'medium': '192k',   # 192 kbps
-            'high': '320k'      # 320 kbps
+            "low": "128k",  # 128 kbps
+            "medium": "192k",  # 192 kbps
+            "high": "320k",  # 320 kbps
         }
         bitrate = bitrate_map[quality]
 
         # Create temporary files for MP3 encoding/decoding
-        with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmp_wav:
-            with tempfile.NamedTemporaryFile(suffix='.mp3', delete=False) as tmp_mp3:
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp_wav:
+            with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp_mp3:
                 tmp_wav_path = tmp_wav.name
                 tmp_mp3_path = tmp_mp3.name
 
         try:
             # Write audio to temporary WAV file
-            sf.write(tmp_wav_path, audio, self.sr, subtype='PCM_16')
+            sf.write(tmp_wav_path, audio, self.sr, subtype="PCM_16")
 
             # Load with pydub and export to MP3
             audio_segment = AudioSegment.from_wav(tmp_wav_path)
             audio_segment.export(
                 tmp_mp3_path,
-                format='mp3',
+                format="mp3",
                 bitrate=bitrate,
-                parameters=['-q:a', '2']  # Good quality encoder settings
+                parameters=["-q:a", "2"],  # Good quality encoder settings
             )
 
             # Load compressed MP3 back as numpy array
             compressed_segment = AudioSegment.from_mp3(tmp_mp3_path)
 
             # Convert to numpy array
-            samples = np.array(compressed_segment.get_array_of_samples(), dtype=np.float32)
+            samples = np.array(
+                compressed_segment.get_array_of_samples(), dtype=np.float32
+            )
 
             # Normalize to [-1, 1] range
             if compressed_segment.sample_width == 1:
@@ -246,16 +249,16 @@ class AudioAugmentation:
             # Resample if sample rate changed during compression
             if compressed_segment.frame_rate != self.sr:
                 samples = librosa.resample(
-                    samples,
-                    orig_sr=compressed_segment.frame_rate,
-                    target_sr=self.sr
+                    samples, orig_sr=compressed_segment.frame_rate, target_sr=self.sr
                 )
 
             # Ensure output length matches input (crop or pad)
             if len(samples) > len(audio):
-                samples = samples[:len(audio)]
+                samples = samples[: len(audio)]
             elif len(samples) < len(audio):
-                samples = np.pad(samples, (0, len(audio) - len(samples)), mode='constant')
+                samples = np.pad(
+                    samples, (0, len(audio) - len(samples)), mode="constant"
+                )
 
             return samples
 
@@ -267,9 +270,7 @@ class AudioAugmentation:
                 os.unlink(tmp_mp3_path)
 
     def gain_variation(
-        self,
-        audio: np.ndarray,
-        db_range: Optional[float] = None
+        self, audio: np.ndarray, db_range: Optional[float] = None
     ) -> np.ndarray:
         """
         Apply random gain variation.
@@ -288,9 +289,7 @@ class AudioAugmentation:
         return audio * gain_linear
 
     def augment_pipeline(
-        self,
-        audio: np.ndarray,
-        config: Optional[Dict[str, Any]] = None
+        self, audio: np.ndarray, config: Optional[Dict[str, Any]] = None
     ) -> np.ndarray:
         """
         Apply random subset of augmentations (max 3).
@@ -310,16 +309,16 @@ class AudioAugmentation:
             for key, value in config.items():
                 if isinstance(value, dict):
                     # Nested format: pitch_shift: {enabled: True, probability: 0.3}
-                    if value.get('enabled', True):
+                    if value.get("enabled", True):
                         prob_key = f"{key}_prob"
-                        if 'probability' in value and hasattr(self, prob_key):
-                            setattr(self, prob_key, value['probability'])
-                elif key.endswith('_prob') and hasattr(self, key):
+                        if "probability" in value and hasattr(self, prob_key):
+                            setattr(self, prob_key, value["probability"])
+                elif key.endswith("_prob") and hasattr(self, key):
                     # Flat format: pitch_shift_prob: 0.3
                     setattr(self, key, value)
-                elif key == 'max_transforms' and hasattr(self, 'max_augmentations'):
+                elif key == "max_transforms" and hasattr(self, "max_augmentations"):
                     # Handle max_transforms alias
-                    setattr(self, 'max_augmentations', value)
+                    setattr(self, "max_augmentations", value)
                 elif hasattr(self, key):
                     # Direct attribute
                     setattr(self, key, value)
@@ -328,17 +327,17 @@ class AudioAugmentation:
         augmentations = []
 
         if random.random() < self.pitch_shift_prob:
-            augmentations.append(('pitch_shift', {}))
+            augmentations.append(("pitch_shift", {}))
         if random.random() < self.time_stretch_prob:
-            augmentations.append(('time_stretch', {}))
+            augmentations.append(("time_stretch", {}))
         if random.random() < self.noise_prob:
-            augmentations.append(('add_noise', {}))
+            augmentations.append(("add_noise", {}))
         if random.random() < self.gain_prob:
-            augmentations.append(('gain_variation', {}))
+            augmentations.append(("gain_variation", {}))
         if random.random() < self.room_acoustics_prob:
-            augmentations.append(('apply_room_acoustics', {}))
+            augmentations.append(("apply_room_acoustics", {}))
         if random.random() < self.compression_prob:
-            augmentations.append(('compress_audio', {}))
+            augmentations.append(("compress_audio", {}))
 
         # Limit to max_augmentations
         if len(augmentations) > self.max_augmentations:
@@ -359,8 +358,7 @@ class AudioAugmentation:
 
 
 def create_augmentation_pipeline(
-    sr: int = 44100,
-    training: bool = True
+    sr: int = 44100, training: bool = True
 ) -> Optional[AudioAugmentation]:
     """
     Create augmentation pipeline for training or inference.

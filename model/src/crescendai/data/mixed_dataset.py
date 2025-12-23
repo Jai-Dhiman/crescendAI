@@ -19,7 +19,7 @@ from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
-from torch.utils.data import Dataset, DataLoader, WeightedRandomSampler
+from torch.utils.data import DataLoader, Dataset, WeightedRandomSampler
 
 from src.percepiano.data.percepiano_score_dataset import PercePianoScoreDataset
 
@@ -70,9 +70,9 @@ class MixedLabelDataset(Dataset):
 
         # Mark as real labels
         for sample in self.real_samples:
-            sample['is_pseudo_label'] = False
-            sample['confidence'] = 1.0  # Real labels have confidence 1.0
-            sample['sample_weight'] = 1.0
+            sample["is_pseudo_label"] = False
+            sample["confidence"] = 1.0  # Real labels have confidence 1.0
+            sample["sample_weight"] = 1.0
 
         print(f"Loaded {len(self.real_samples)} real samples")
 
@@ -84,18 +84,22 @@ class MixedLabelDataset(Dataset):
 
             # Filter by confidence
             for sample in pseudo_data:
-                confidence = sample.get('confidence', 0.5)
+                confidence = sample.get("confidence", 0.5)
                 if confidence >= min_pseudo_confidence:
-                    sample['is_pseudo_label'] = True
+                    sample["is_pseudo_label"] = True
                     # Weight by confidence and pseudo_weight
                     if use_confidence_weighting:
-                        sample['sample_weight'] = confidence * pseudo_weight
+                        sample["sample_weight"] = confidence * pseudo_weight
                     else:
-                        sample['sample_weight'] = pseudo_weight
+                        sample["sample_weight"] = pseudo_weight
                     self.pseudo_samples.append(sample)
 
-            print(f"Loaded {len(self.pseudo_samples)} pseudo samples (confidence >= {min_pseudo_confidence})")
-            print(f"Filtered out {len(pseudo_data) - len(self.pseudo_samples)} low-confidence samples")
+            print(
+                f"Loaded {len(self.pseudo_samples)} pseudo samples (confidence >= {min_pseudo_confidence})"
+            )
+            print(
+                f"Filtered out {len(pseudo_data) - len(self.pseudo_samples)} low-confidence samples"
+            )
         else:
             print("No pseudo labels provided - using real labels only")
 
@@ -107,12 +111,16 @@ class MixedLabelDataset(Dataset):
         self._init_feature_extraction()
 
         print(f"\nTotal samples: {len(self.samples)}")
-        print(f"  Real: {len(self.real_samples)} ({100*len(self.real_samples)/len(self.samples):.1f}%)")
-        print(f"  Pseudo: {len(self.pseudo_samples)} ({100*len(self.pseudo_samples)/len(self.samples):.1f}%)")
+        print(
+            f"  Real: {len(self.real_samples)} ({100 * len(self.real_samples) / len(self.samples):.1f}%)"
+        )
+        print(
+            f"  Pseudo: {len(self.pseudo_samples)} ({100 * len(self.pseudo_samples) / len(self.samples):.1f}%)"
+        )
 
     def _init_feature_extraction(self):
         """Initialize feature extraction components."""
-        from .score_alignment import ScoreAlignmentFeatureExtractor, NUM_NOTE_FEATURES
+        from .score_alignment import NUM_NOTE_FEATURES, ScoreAlignmentFeatureExtractor
         from .tokenizer import OctupleMidiTokenizer
 
         self.tokenizer = OctupleMidiTokenizer()
@@ -121,17 +129,30 @@ class MixedLabelDataset(Dataset):
 
         # Get dimensions from first sample
         first_sample = self.samples[0]
-        if 'scores' in first_sample:
-            self.dimensions = list(first_sample['scores'].keys())
+        if "scores" in first_sample:
+            self.dimensions = list(first_sample["scores"].keys())
         else:
             # Default PercePiano dimensions
             self.dimensions = [
-                "timing", "articulation_length", "articulation_touch",
-                "pedal_amount", "pedal_clarity", "timbre_variety",
-                "timbre_depth", "timbre_brightness", "timbre_loudness",
-                "dynamic_range", "tempo", "space", "balance", "drama",
-                "mood_valence", "mood_energy", "mood_imagination",
-                "sophistication", "interpretation",
+                "timing",
+                "articulation_length",
+                "articulation_touch",
+                "pedal_amount",
+                "pedal_clarity",
+                "timbre_variety",
+                "timbre_depth",
+                "timbre_brightness",
+                "timbre_loudness",
+                "dynamic_range",
+                "tempo",
+                "space",
+                "balance",
+                "drama",
+                "mood_valence",
+                "mood_energy",
+                "mood_imagination",
+                "sophistication",
+                "interpretation",
             ]
 
     def __len__(self) -> int:
@@ -145,7 +166,7 @@ class MixedLabelDataset(Dataset):
             # Extract features using PercePianoScoreDataset logic
             import pretty_midi
 
-            midi_path = Path(sample['midi_path'])
+            midi_path = Path(sample["midi_path"])
             if not midi_path.exists():
                 raise FileNotFoundError(f"MIDI not found: {midi_path}")
 
@@ -155,7 +176,7 @@ class MixedLabelDataset(Dataset):
 
             # Pad/truncate tokens
             if len(tokens) > self.max_midi_seq_length:
-                tokens = tokens[:self.max_midi_seq_length]
+                tokens = tokens[: self.max_midi_seq_length]
 
             # Convert to tensor
             midi_tokens = torch.tensor(tokens, dtype=torch.long)
@@ -163,8 +184,7 @@ class MixedLabelDataset(Dataset):
             # Pad if needed
             if len(midi_tokens) < self.max_midi_seq_length:
                 padding = torch.zeros(
-                    self.max_midi_seq_length - len(midi_tokens), 8,
-                    dtype=torch.long
+                    self.max_midi_seq_length - len(midi_tokens), 8, dtype=torch.long
                 )
                 midi_tokens = torch.cat([midi_tokens, padding], dim=0)
 
@@ -172,35 +192,49 @@ class MixedLabelDataset(Dataset):
             midi_attention_mask = (midi_tokens[:, 0] != 0).float()
 
             # Extract score features
-            score_path = sample.get('score_path')
+            score_path = sample.get("score_path")
             if score_path and self.score_dir:
                 full_score_path = self.score_dir / score_path
                 if full_score_path.exists():
-                    features = self.feature_extractor.extract_features(midi, full_score_path)
+                    features = self.feature_extractor.extract_features(
+                        midi, full_score_path
+                    )
                 else:
                     features = self._extract_midi_only_features(midi)
             else:
                 features = self._extract_midi_only_features(midi)
 
             # Convert features to tensors
-            note_features = torch.tensor(features['note_features'], dtype=torch.float32)
-            global_features = torch.tensor(features['global_features'], dtype=torch.float32)
-            tempo_curve = torch.tensor(features['tempo_curve'], dtype=torch.float32)
+            note_features = torch.tensor(features["note_features"], dtype=torch.float32)
+            global_features = torch.tensor(
+                features["global_features"], dtype=torch.float32
+            )
+            tempo_curve = torch.tensor(features["tempo_curve"], dtype=torch.float32)
 
             # Pad/truncate note features
             num_notes = note_features.shape[0]
             if num_notes > self.max_score_notes:
-                note_features = note_features[:self.max_score_notes]
+                note_features = note_features[: self.max_score_notes]
                 num_notes = self.max_score_notes
             elif num_notes < self.max_score_notes:
-                padding = torch.zeros(self.max_score_notes - num_notes, note_features.shape[1])
+                padding = torch.zeros(
+                    self.max_score_notes - num_notes, note_features.shape[1]
+                )
                 note_features = torch.cat([note_features, padding], dim=0)
 
             # Note locations
-            note_locations = features.get('note_locations', {})
-            beat = torch.tensor(note_locations.get('beat', np.arange(1, num_notes + 1)), dtype=torch.long)
-            measure = torch.tensor(note_locations.get('measure', np.arange(1, num_notes + 1) // 4 + 1), dtype=torch.long)
-            voice = torch.tensor(note_locations.get('voice', np.ones(num_notes)), dtype=torch.long)
+            note_locations = features.get("note_locations", {})
+            beat = torch.tensor(
+                note_locations.get("beat", np.arange(1, num_notes + 1)),
+                dtype=torch.long,
+            )
+            measure = torch.tensor(
+                note_locations.get("measure", np.arange(1, num_notes + 1) // 4 + 1),
+                dtype=torch.long,
+            )
+            voice = torch.tensor(
+                note_locations.get("voice", np.ones(num_notes)), dtype=torch.long
+            )
 
             # Pad locations
             if len(beat) < self.max_score_notes:
@@ -209,9 +243,9 @@ class MixedLabelDataset(Dataset):
                 measure = torch.cat([measure, torch.zeros(pad_size, dtype=torch.long)])
                 voice = torch.cat([voice, torch.zeros(pad_size, dtype=torch.long)])
             elif len(beat) > self.max_score_notes:
-                beat = beat[:self.max_score_notes]
-                measure = measure[:self.max_score_notes]
-                voice = voice[:self.max_score_notes]
+                beat = beat[: self.max_score_notes]
+                measure = measure[: self.max_score_notes]
+                voice = voice[: self.max_score_notes]
 
             # Pad tempo curve
             max_tempo = 256
@@ -226,30 +260,39 @@ class MixedLabelDataset(Dataset):
             score_attention_mask[:num_notes] = 1.0
 
             # Get scores
-            if 'scores' in sample:
+            if "scores" in sample:
                 scores = torch.tensor(
-                    [sample['scores'].get(dim, 0.5) for dim in self.dimensions],
-                    dtype=torch.float32
+                    [sample["scores"].get(dim, 0.5) for dim in self.dimensions],
+                    dtype=torch.float32,
                 )
-            elif 'percepiano_scores' in sample:
-                scores = torch.tensor(sample['percepiano_scores'][:len(self.dimensions)], dtype=torch.float32)
+            elif "percepiano_scores" in sample:
+                scores = torch.tensor(
+                    sample["percepiano_scores"][: len(self.dimensions)],
+                    dtype=torch.float32,
+                )
             else:
                 scores = torch.full((len(self.dimensions),), 0.5, dtype=torch.float32)
 
             return {
-                'midi_tokens': midi_tokens,
-                'midi_attention_mask': midi_attention_mask,
-                'score_note_features': note_features,
-                'score_global_features': global_features,
-                'score_tempo_curve': tempo_curve,
-                'score_attention_mask': score_attention_mask,
-                'note_locations_beat': beat,
-                'note_locations_measure': measure,
-                'note_locations_voice': voice,
-                'scores': scores,
-                'is_pseudo_label': torch.tensor(sample.get('is_pseudo_label', False), dtype=torch.bool),
-                'sample_weight': torch.tensor(sample.get('sample_weight', 1.0), dtype=torch.float32),
-                'confidence': torch.tensor(sample.get('confidence', 1.0), dtype=torch.float32),
+                "midi_tokens": midi_tokens,
+                "midi_attention_mask": midi_attention_mask,
+                "score_note_features": note_features,
+                "score_global_features": global_features,
+                "score_tempo_curve": tempo_curve,
+                "score_attention_mask": score_attention_mask,
+                "note_locations_beat": beat,
+                "note_locations_measure": measure,
+                "note_locations_voice": voice,
+                "scores": scores,
+                "is_pseudo_label": torch.tensor(
+                    sample.get("is_pseudo_label", False), dtype=torch.bool
+                ),
+                "sample_weight": torch.tensor(
+                    sample.get("sample_weight", 1.0), dtype=torch.float32
+                ),
+                "confidence": torch.tensor(
+                    sample.get("confidence", 1.0), dtype=torch.float32
+                ),
             }
 
         except Exception as e:
@@ -266,65 +309,72 @@ class MixedLabelDataset(Dataset):
             if instrument.is_drum:
                 continue
             for note in instrument.notes:
-                all_notes.append({
-                    'pitch': note.pitch,
-                    'onset': note.start,
-                    'duration': note.end - note.start,
-                    'velocity': note.velocity,
-                })
+                all_notes.append(
+                    {
+                        "pitch": note.pitch,
+                        "onset": note.start,
+                        "duration": note.end - note.start,
+                        "velocity": note.velocity,
+                    }
+                )
 
-        all_notes.sort(key=lambda x: x['onset'])
+        all_notes.sort(key=lambda x: x["onset"])
 
         if len(all_notes) == 0:
             return {
-                'note_features': np.zeros((1, NUM_NOTE_FEATURES), dtype=np.float32),
-                'global_features': np.zeros(12, dtype=np.float32),
-                'tempo_curve': np.ones(1, dtype=np.float32),
-                'note_locations': {},
+                "note_features": np.zeros((1, NUM_NOTE_FEATURES), dtype=np.float32),
+                "global_features": np.zeros(12, dtype=np.float32),
+                "tempo_curve": np.ones(1, dtype=np.float32),
+                "note_locations": {},
             }
 
         # Extract features
         note_features = []
         for i, note in enumerate(all_notes):
             feat = np.zeros(NUM_NOTE_FEATURES, dtype=np.float32)
-            feat[3] = note['velocity'] / 127.0
-            feat[6] = (note['pitch'] - 21) / 87.0
-            feat[7] = (note['pitch'] % 12) / 11.0
+            feat[3] = note["velocity"] / 127.0
+            feat[6] = (note["pitch"] - 21) / 87.0
+            feat[7] = (note["pitch"] % 12) / 11.0
             feat[13] = 1.0  # matched
             note_features.append(feat)
 
         return {
-            'note_features': np.array(note_features, dtype=np.float32),
-            'global_features': np.zeros(12, dtype=np.float32),
-            'tempo_curve': np.ones(max(1, len(all_notes) // 10), dtype=np.float32),
-            'note_locations': {
-                'beat': np.arange(1, len(note_features) + 1, dtype=np.int64),
-                'measure': np.arange(1, len(note_features) + 1, dtype=np.int64) // 4 + 1,
-                'voice': np.ones(len(note_features), dtype=np.int64),
+            "note_features": np.array(note_features, dtype=np.float32),
+            "global_features": np.zeros(12, dtype=np.float32),
+            "tempo_curve": np.ones(max(1, len(all_notes) // 10), dtype=np.float32),
+            "note_locations": {
+                "beat": np.arange(1, len(note_features) + 1, dtype=np.int64),
+                "measure": np.arange(1, len(note_features) + 1, dtype=np.int64) // 4
+                + 1,
+                "voice": np.ones(len(note_features), dtype=np.int64),
             },
         }
 
     def _get_dummy_sample(self) -> Dict[str, torch.Tensor]:
         """Return dummy sample for error cases."""
         return {
-            'midi_tokens': torch.zeros(self.max_midi_seq_length, 8, dtype=torch.long),
-            'midi_attention_mask': torch.zeros(self.max_midi_seq_length),
-            'score_note_features': torch.zeros(self.max_score_notes, self.num_note_features),
-            'score_global_features': torch.zeros(12),
-            'score_tempo_curve': torch.ones(256),
-            'score_attention_mask': torch.zeros(self.max_score_notes),
-            'note_locations_beat': torch.zeros(self.max_score_notes, dtype=torch.long),
-            'note_locations_measure': torch.zeros(self.max_score_notes, dtype=torch.long),
-            'note_locations_voice': torch.zeros(self.max_score_notes, dtype=torch.long),
-            'scores': torch.full((len(self.dimensions),), 0.5),
-            'is_pseudo_label': torch.tensor(False),
-            'sample_weight': torch.tensor(0.0),  # Zero weight for errors
-            'confidence': torch.tensor(0.0),
+            "midi_tokens": torch.zeros(self.max_midi_seq_length, 8, dtype=torch.long),
+            "midi_attention_mask": torch.zeros(self.max_midi_seq_length),
+            "score_note_features": torch.zeros(
+                self.max_score_notes, self.num_note_features
+            ),
+            "score_global_features": torch.zeros(12),
+            "score_tempo_curve": torch.ones(256),
+            "score_attention_mask": torch.zeros(self.max_score_notes),
+            "note_locations_beat": torch.zeros(self.max_score_notes, dtype=torch.long),
+            "note_locations_measure": torch.zeros(
+                self.max_score_notes, dtype=torch.long
+            ),
+            "note_locations_voice": torch.zeros(self.max_score_notes, dtype=torch.long),
+            "scores": torch.full((len(self.dimensions),), 0.5),
+            "is_pseudo_label": torch.tensor(False),
+            "sample_weight": torch.tensor(0.0),  # Zero weight for errors
+            "confidence": torch.tensor(0.0),
         }
 
     def get_sample_weights(self) -> List[float]:
         """Get sample weights for WeightedRandomSampler."""
-        return [s.get('sample_weight', 1.0) for s in self.samples]
+        return [s.get("sample_weight", 1.0) for s in self.samples]
 
 
 def create_mixed_dataloaders(
@@ -359,7 +409,7 @@ def create_mixed_dataloaders(
     """
     # Train dataset with pseudo labels
     train_dataset = MixedLabelDataset(
-        real_data_path=real_data_dir / 'percepiano_train.json',
+        real_data_path=real_data_dir / "percepiano_train.json",
         pseudo_data_path=pseudo_data_path,
         score_dir=score_dir,
         max_midi_seq_length=max_midi_seq_length,
@@ -370,7 +420,7 @@ def create_mixed_dataloaders(
 
     # Val/test datasets (real labels only)
     val_dataset = MixedLabelDataset(
-        real_data_path=real_data_dir / 'percepiano_val.json',
+        real_data_path=real_data_dir / "percepiano_val.json",
         pseudo_data_path=None,  # No pseudo labels for validation
         score_dir=score_dir,
         max_midi_seq_length=max_midi_seq_length,
@@ -378,7 +428,7 @@ def create_mixed_dataloaders(
     )
 
     test_dataset = MixedLabelDataset(
-        real_data_path=real_data_dir / 'percepiano_test.json',
+        real_data_path=real_data_dir / "percepiano_test.json",
         pseudo_data_path=None,  # No pseudo labels for testing
         score_dir=score_dir,
         max_midi_seq_length=max_midi_seq_length,

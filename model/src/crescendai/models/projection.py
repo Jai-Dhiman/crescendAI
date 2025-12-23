@@ -9,10 +9,11 @@ embedding geometries that cause cross-attention to fail.
 Reference: CLIP, MuLan, CLaMP approaches for multi-modal alignment.
 """
 
+from typing import Optional, Tuple
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from typing import Optional, Tuple
 
 
 class ProjectionHead(nn.Module):

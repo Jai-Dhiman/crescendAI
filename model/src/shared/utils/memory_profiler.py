@@ -13,11 +13,12 @@ Usage:
 
 import gc
 import os
-import psutil
-import torch
-import pytorch_lightning as pl
-from typing import Any, Optional
 from datetime import datetime
+from typing import Any, Optional
+
+import psutil
+import pytorch_lightning as pl
+import torch
 
 
 def get_memory_stats() -> dict:
@@ -48,7 +49,9 @@ def log_memory(tag: str = "", verbose: bool = True) -> dict:
         if "gpu_allocated_mb" in stats:
             gpu_str = f", GPU: {stats['gpu_allocated_mb']:.1f}MB"
 
-        print(f"[MEM {tag}] CPU: {stats['cpu_rss_mb']:.1f}MB ({stats['cpu_percent']:.1f}%){gpu_str}")
+        print(
+            f"[MEM {tag}] CPU: {stats['cpu_rss_mb']:.1f}MB ({stats['cpu_percent']:.1f}%){gpu_str}"
+        )
 
     return stats
 
@@ -119,7 +122,9 @@ class MemoryProfilerCallback(pl.Callback):
         self._log("=" * 70)
         self._log("MEMORY PROFILER STARTED")
         self._log("=" * 70)
-        self._log(f"Initial CPU: {self.initial_memory['cpu_rss_mb']:.1f}MB ({self.initial_memory['cpu_percent']:.1f}%)")
+        self._log(
+            f"Initial CPU: {self.initial_memory['cpu_rss_mb']:.1f}MB ({self.initial_memory['cpu_percent']:.1f}%)"
+        )
         if "gpu_allocated_mb" in self.initial_memory:
             self._log(f"Initial GPU: {self.initial_memory['gpu_allocated_mb']:.1f}MB")
         self._log("")
@@ -139,20 +144,22 @@ class MemoryProfilerCallback(pl.Callback):
 
         # Store history (capped to prevent memory leak)
         # Keep last 200 entries, trim to 100 when exceeded
-        self.memory_history.append({
-            "step": self.step_count,
-            "batch_idx": batch_idx,
-            "cpu_mb": current["cpu_rss_mb"],
-            "step_delta_mb": step_delta,
-            "total_delta_mb": total_delta,
-        })
+        self.memory_history.append(
+            {
+                "step": self.step_count,
+                "batch_idx": batch_idx,
+                "cpu_mb": current["cpu_rss_mb"],
+                "step_delta_mb": step_delta,
+                "total_delta_mb": total_delta,
+            }
+        )
         if len(self.memory_history) > 200:
             self.memory_history = self.memory_history[-100:]
 
         # Log periodically
         should_log = (
-            self.step_count % self.log_every_n_steps == 0 or
-            abs(step_delta) > self.warn_threshold_mb
+            self.step_count % self.log_every_n_steps == 0
+            or abs(step_delta) > self.warn_threshold_mb
         )
 
         if should_log:
@@ -197,7 +204,9 @@ class MemoryProfilerCallback(pl.Callback):
         self._log("=" * 70)
         self._log(f"EPOCH {trainer.current_epoch} COMPLETE")
         self._log("=" * 70)
-        self._log(f"Current CPU: {current['cpu_rss_mb']:.1f}MB ({current['cpu_percent']:.1f}%)")
+        self._log(
+            f"Current CPU: {current['cpu_rss_mb']:.1f}MB ({current['cpu_percent']:.1f}%)"
+        )
         self._log(f"Total growth since start: {total_delta:+.1f}MB")
 
         # Analyze growth pattern

@@ -1,7 +1,8 @@
+import math
+from typing import Optional, Tuple
+
 import torch
 import torch.nn as nn
-from typing import Optional, Tuple
-import math
 
 
 class CrossAttentionFusion(nn.Module):
@@ -41,8 +42,8 @@ class CrossAttentionFusion(nn.Module):
         self.use_relative_position = use_relative_position
 
         # Determine if we're in single-modality mode
-        self.audio_only = (midi_dim == 0)
-        self.midi_only = (audio_dim == 0)
+        self.audio_only = midi_dim == 0
+        self.midi_only = audio_dim == 0
 
         # Only create cross-attention if both modalities are present
         if not self.audio_only and not self.midi_only:
@@ -132,19 +133,27 @@ class CrossAttentionFusion(nn.Module):
             batch_size = midi_features.shape[0]
             seq_len = midi_features.shape[1]
         else:
-            raise ValueError("At least one of audio_features or midi_features must be provided")
+            raise ValueError(
+                "At least one of audio_features or midi_features must be provided"
+            )
 
         # Handle audio-only mode (midi_dim=0)
         # Only use audio-only path if not in MIDI-only mode
-        if (self.audio_only or midi_features is None) and not self.midi_only and audio_features is not None:
+        if (
+            (self.audio_only or midi_features is None)
+            and not self.midi_only
+            and audio_features is not None
+        ):
             # Process audio features only
             audio_out = self._audio_only_forward(audio_features)
 
             # Create zero-filled MIDI features to match expected output dimension
             midi_placeholder = torch.zeros(
-                batch_size, seq_len, self.midi_dim,
+                batch_size,
+                seq_len,
+                self.midi_dim,
                 dtype=audio_features.dtype,
-                device=audio_features.device
+                device=audio_features.device,
             )
 
             # Concatenate to maintain output dimension consistency
@@ -164,9 +173,11 @@ class CrossAttentionFusion(nn.Module):
 
             # Create zero-filled audio features to match expected output dimension
             audio_placeholder = torch.zeros(
-                batch_size, midi_out.shape[1], self.audio_dim,
+                batch_size,
+                midi_out.shape[1],
+                self.audio_dim,
                 dtype=midi_out.dtype,
-                device=midi_out.device
+                device=midi_out.device,
             )
 
             # Concatenate to maintain output dimension consistency
@@ -253,7 +264,9 @@ class CrossAttentionFusion(nn.Module):
         midi_out = self.midi_norm2(midi_out + self.midi_ffn(midi_out))
         return midi_out
 
-    def _align_sequences(self, sequence: torch.Tensor, target_length: int) -> torch.Tensor:
+    def _align_sequences(
+        self, sequence: torch.Tensor, target_length: int
+    ) -> torch.Tensor:
         """
         Align sequence to target length using interpolation.
 

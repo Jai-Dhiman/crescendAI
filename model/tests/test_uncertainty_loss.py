@@ -2,9 +2,8 @@
 Unit tests for uncertainty-weighted loss module.
 """
 
-import torch
 import pytest
-
+import torch
 from src.losses.uncertainty_loss import UncertaintyWeightedLoss, WeightedMSELoss
 
 
@@ -31,14 +30,14 @@ def test_uncertainty_loss_forward():
 
     # Check output is a dictionary
     assert isinstance(result, dict)
-    assert 'loss' in result
-    assert 'task_losses' in result
-    assert 'uncertainties' in result
+    assert "loss" in result
+    assert "task_losses" in result
+    assert "uncertainties" in result
 
     # Check shapes
-    assert result['loss'].shape == ()  # Scalar
-    assert result['task_losses'].shape == (num_tasks,)
-    assert result['uncertainties'].shape == (num_tasks,)
+    assert result["loss"].shape == ()  # Scalar
+    assert result["task_losses"].shape == (num_tasks,)
+    assert result["uncertainties"].shape == (num_tasks,)
 
 
 def test_uncertainty_loss_positive():
@@ -50,7 +49,7 @@ def test_uncertainty_loss_positive():
     loss_fn = UncertaintyWeightedLoss(num_tasks=6)
     result = loss_fn(predictions, targets, log_vars)
 
-    assert result['loss'].item() >= 0
+    assert result["loss"].item() >= 0
 
 
 def test_uncertainty_loss_gradient():
@@ -63,7 +62,7 @@ def test_uncertainty_loss_gradient():
     result = loss_fn(predictions, targets, log_vars)
 
     # Backprop
-    result['loss'].backward()
+    result["loss"].backward()
 
     # Gradients should exist
     assert predictions.grad is not None
@@ -80,7 +79,7 @@ def test_uncertainty_loss_gradient_log_vars():
     result = loss_fn(predictions, targets, log_vars)
 
     # Backprop
-    result['loss'].backward()
+    result["loss"].backward()
 
     # Gradients should exist for log_vars
     assert log_vars.grad is not None
@@ -97,7 +96,7 @@ def test_uncertainty_loss_perfect_prediction():
     result = loss_fn(predictions, targets, log_vars)
 
     # Loss should be small
-    assert result['loss'].item() < 1.0
+    assert result["loss"].item() < 1.0
 
 
 def test_uncertainty_loss_task_losses():
@@ -110,7 +109,7 @@ def test_uncertainty_loss_task_losses():
     result = loss_fn(predictions, targets, log_vars)
 
     # All task losses should be non-negative
-    assert torch.all(result['task_losses'] >= 0)
+    assert torch.all(result["task_losses"] >= 0)
 
 
 @pytest.mark.parametrize("num_tasks", [1, 3, 6, 10])
@@ -123,7 +122,7 @@ def test_uncertainty_loss_different_num_tasks(num_tasks):
     loss_fn = UncertaintyWeightedLoss(num_tasks=num_tasks)
     result = loss_fn(predictions, targets, log_vars)
 
-    assert result['task_losses'].shape[0] == num_tasks
+    assert result["task_losses"].shape[0] == num_tasks
 
 
 def test_uncertainty_loss_batch_size_one():
@@ -135,7 +134,7 @@ def test_uncertainty_loss_batch_size_one():
     loss_fn = UncertaintyWeightedLoss(num_tasks=6)
     result = loss_fn(predictions, targets, log_vars)
 
-    assert result['loss'].shape == ()
+    assert result["loss"].shape == ()
 
 
 def test_uncertainty_loss_numerical_stability():
@@ -148,8 +147,8 @@ def test_uncertainty_loss_numerical_stability():
     loss_fn = UncertaintyWeightedLoss(num_tasks=6)
     result = loss_fn(predictions, targets, log_vars)
 
-    assert torch.isfinite(result['loss'])
-    assert torch.all(torch.isfinite(result['task_losses']))
+    assert torch.isfinite(result["loss"])
+    assert torch.all(torch.isfinite(result["task_losses"]))
 
 
 def test_uncertainty_loss_label_smoothing():
@@ -161,7 +160,7 @@ def test_uncertainty_loss_label_smoothing():
     loss_fn = UncertaintyWeightedLoss(num_tasks=6, label_smoothing=0.1)
     result = loss_fn(predictions, targets, log_vars)
 
-    assert result['loss'] is not None
+    assert result["loss"] is not None
 
 
 def test_weighted_mse_loss():
@@ -172,9 +171,9 @@ def test_weighted_mse_loss():
     loss_fn = WeightedMSELoss(num_tasks=6)
     result = loss_fn(predictions, targets)
 
-    assert 'loss' in result
-    assert 'task_losses' in result
-    assert result['loss'].item() >= 0
+    assert "loss" in result
+    assert "task_losses" in result
+    assert result["loss"].item() >= 0
 
 
 def test_task_weights():
@@ -187,4 +186,4 @@ def test_task_weights():
     loss_fn = UncertaintyWeightedLoss(num_tasks=6)
     result = loss_fn(predictions, targets, log_vars, task_weights=task_weights)
 
-    assert result['loss'] is not None
+    assert result["loss"] is not None

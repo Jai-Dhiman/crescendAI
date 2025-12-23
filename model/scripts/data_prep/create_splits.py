@@ -9,10 +9,10 @@ Usage:
     uv run python scripts/data_prep/create_splits.py
 """
 
-import shutil
 import random
-from pathlib import Path
+import shutil
 from collections import defaultdict
+from pathlib import Path
 
 # Paths
 INPUT_DIR = Path("data/percepiano_vnet_converted")
@@ -30,7 +30,7 @@ SEED = 42
 def get_performer_id(filename: str) -> str:
     """Extract performer ID from filename."""
     # Format: Composer_Piece_bars_PerformerID_Segment
-    parts = filename.split('_')
+    parts = filename.split("_")
     if len(parts) >= 5:
         return parts[-2]
     return "unknown"
@@ -42,10 +42,7 @@ def main():
     print("=" * 60)
 
     # Get all pickle files (excluding stat.pkl)
-    pkl_files = sorted([
-        f for f in INPUT_DIR.glob("*.pkl")
-        if f.stem != "stat"
-    ])
+    pkl_files = sorted([f for f in INPUT_DIR.glob("*.pkl") if f.stem != "stat"])
     print(f"\nFound {len(pkl_files)} samples")
 
     # Group by performer
@@ -72,8 +69,8 @@ def main():
     n_val = int(len(performers) * VAL_RATIO)
 
     train_performers = performers[:n_train]
-    val_performers = performers[n_train:n_train + n_val]
-    test_performers = performers[n_train + n_val:]
+    val_performers = performers[n_train : n_train + n_val]
+    test_performers = performers[n_train + n_val :]
 
     print(f"\nSplit by performers:")
     print(f"  Train: {len(train_performers)} performers")

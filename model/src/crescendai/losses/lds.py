@@ -7,10 +7,11 @@ narrow target distributions (e.g., all MAESTRO performances being virtuoso-level
 Reference: "Delving into Deep Imbalanced Regression" (Yang et al., ICML 2021)
 """
 
+from typing import Literal, Optional
+
 import numpy as np
 import torch
 import torch.nn as nn
-from typing import Optional, Literal
 from scipy.ndimage import gaussian_filter1d
 
 
@@ -32,7 +33,7 @@ class LDSWeighting(nn.Module):
         self,
         num_bins: int = 100,
         kernel_size: int = 5,
-        kernel_type: Literal['gaussian', 'laplacian', 'triangular'] = 'gaussian',
+        kernel_type: Literal["gaussian", "laplacian", "triangular"] = "gaussian",
         sigma: float = 2.0,
         reweight_scale: float = 1.0,
         min_weight: float = 0.1,
@@ -67,7 +68,7 @@ class LDSWeighting(nn.Module):
         self.kernel = self._create_kernel()
 
         # Will be populated by fit()
-        self.register_buffer('bin_weights', None)
+        self.register_buffer("bin_weights", None)
         self._fitted = False
 
     def _create_kernel(self) -> np.ndarray:
@@ -75,11 +76,11 @@ class LDSWeighting(nn.Module):
         half = self.kernel_size // 2
         x = np.arange(-half, half + 1, dtype=np.float64)
 
-        if self.kernel_type == 'gaussian':
-            kernel = np.exp(-x**2 / (2 * self.sigma**2))
-        elif self.kernel_type == 'laplacian':
+        if self.kernel_type == "gaussian":
+            kernel = np.exp(-(x**2) / (2 * self.sigma**2))
+        elif self.kernel_type == "laplacian":
             kernel = np.exp(-np.abs(x) / self.sigma)
-        elif self.kernel_type == 'triangular':
+        elif self.kernel_type == "triangular":
             kernel = np.maximum(0, 1 - np.abs(x) / (half + 1))
         else:
             raise ValueError(f"Unknown kernel type: {self.kernel_type}")
@@ -88,7 +89,7 @@ class LDSWeighting(nn.Module):
         kernel = kernel / kernel.sum()
         return kernel
 
-    def fit(self, labels: torch.Tensor) -> 'LDSWeighting':
+    def fit(self, labels: torch.Tensor) -> "LDSWeighting":
         """
         Fit LDS weights from training labels.
 
@@ -146,14 +147,20 @@ class LDSWeighting(nn.Module):
             Weights tensor [batch_size]
         """
         if not self._fitted:
-            raise RuntimeError("LDSWeighting must be fit() before calling get_weights()")
+            raise RuntimeError(
+                "LDSWeighting must be fit() before calling get_weights()"
+            )
 
         # Handle multi-dimensional labels
         if labels.dim() > 1:
             labels = labels.mean(dim=1)
 
         # Map labels to bin indices
-        bin_indices = ((labels - self.label_min) / (self.label_max - self.label_min) * self.num_bins)
+        bin_indices = (
+            (labels - self.label_min)
+            / (self.label_max - self.label_min)
+            * self.num_bins
+        )
         bin_indices = bin_indices.long().clamp(0, self.num_bins - 1)
 
         # Look up weights
@@ -190,16 +197,16 @@ class LDSWeighting(nn.Module):
     def get_density_stats(self) -> dict:
         """Get statistics about the fitted density for debugging."""
         if not self._fitted:
-            return {'fitted': False}
+            return {"fitted": False}
 
         weights = self.bin_weights.numpy()
         return {
-            'fitted': True,
-            'num_bins': self.num_bins,
-            'weight_min': float(weights.min()),
-            'weight_max': float(weights.max()),
-            'weight_mean': float(weights.mean()),
-            'weight_std': float(weights.std()),
+            "fitted": True,
+            "num_bins": self.num_bins,
+            "weight_min": float(weights.min()),
+            "weight_max": float(weights.max()),
+            "weight_mean": float(weights.mean()),
+            "weight_std": float(weights.std()),
         }
 
 
@@ -251,13 +258,13 @@ class FDSFeatureSmoothing(nn.Module):
         self.eps = 1e-6  # For numerical stability
 
         # Running statistics per bin
-        self.register_buffer('running_mean', torch.zeros(num_bins, feature_dim))
-        self.register_buffer('running_var', torch.ones(num_bins, feature_dim))
-        self.register_buffer('bin_counts', torch.zeros(num_bins))
+        self.register_buffer("running_mean", torch.zeros(num_bins, feature_dim))
+        self.register_buffer("running_var", torch.ones(num_bins, feature_dim))
+        self.register_buffer("bin_counts", torch.zeros(num_bins))
 
         # Smoothed statistics (computed from running stats)
-        self.register_buffer('smoothed_mean', torch.zeros(num_bins, feature_dim))
-        self.register_buffer('smoothed_var', torch.ones(num_bins, feature_dim))
+        self.register_buffer("smoothed_mean", torch.zeros(num_bins, feature_dim))
+        self.register_buffer("smoothed_var", torch.ones(num_bins, feature_dim))
 
         # Precompute smoothing kernel
         self._precompute_kernel()
@@ -268,9 +275,9 @@ class FDSFeatureSmoothing(nn.Module):
         kernel_size = self.num_bins
         center = kernel_size // 2
         x = torch.arange(kernel_size, dtype=torch.float32) - center
-        kernel = torch.exp(-x**2 / (2 * self.kernel_sigma**2))
+        kernel = torch.exp(-(x**2) / (2 * self.kernel_sigma**2))
         kernel = kernel / kernel.sum()  # Normalize
-        self.register_buffer('smoothing_kernel', kernel)
+        self.register_buffer("smoothing_kernel", kernel)
 
     def _get_bin_indices(self, targets: torch.Tensor) -> torch.Tensor:
         """
@@ -370,14 +377,10 @@ class FDSFeatureSmoothing(nn.Module):
             # Pad for convolution
             pad_size = self.num_bins // 2
             means_padded = torch.nn.functional.pad(
-                means.unsqueeze(0).unsqueeze(0),
-                (pad_size, pad_size),
-                mode='replicate'
+                means.unsqueeze(0).unsqueeze(0), (pad_size, pad_size), mode="replicate"
             )
             vars_padded = torch.nn.functional.pad(
-                vars.unsqueeze(0).unsqueeze(0),
-                (pad_size, pad_size),
-                mode='replicate'
+                vars.unsqueeze(0).unsqueeze(0), (pad_size, pad_size), mode="replicate"
             )
 
             # Apply kernel
@@ -391,13 +394,17 @@ class FDSFeatureSmoothing(nn.Module):
 
             # Handle edge cases where conv output size might differ
             if smoothed_means.shape[0] > self.num_bins:
-                smoothed_means = smoothed_means[:self.num_bins]
-                smoothed_vars = smoothed_vars[:self.num_bins]
+                smoothed_means = smoothed_means[: self.num_bins]
+                smoothed_vars = smoothed_vars[: self.num_bins]
             elif smoothed_means.shape[0] < self.num_bins:
                 # Pad if needed
                 diff = self.num_bins - smoothed_means.shape[0]
-                smoothed_means = torch.nn.functional.pad(smoothed_means, (0, diff), value=smoothed_means[-1])
-                smoothed_vars = torch.nn.functional.pad(smoothed_vars, (0, diff), value=smoothed_vars[-1])
+                smoothed_means = torch.nn.functional.pad(
+                    smoothed_means, (0, diff), value=smoothed_means[-1]
+                )
+                smoothed_vars = torch.nn.functional.pad(
+                    smoothed_vars, (0, diff), value=smoothed_vars[-1]
+                )
 
             self.smoothed_mean[:, dim_idx] = smoothed_means
             self.smoothed_var[:, dim_idx] = smoothed_vars.clamp(min=self.eps)
@@ -442,7 +449,10 @@ class FDSFeatureSmoothing(nn.Module):
         standardized = (features - sample_mean) / (sample_var.sqrt() + self.eps)
 
         # Restandardize with smoothed statistics
-        smoothed = standardized * (smoothed_sample_var.sqrt() + self.eps) + smoothed_sample_mean
+        smoothed = (
+            standardized * (smoothed_sample_var.sqrt() + self.eps)
+            + smoothed_sample_mean
+        )
 
         return smoothed
 
@@ -450,18 +460,15 @@ class FDSFeatureSmoothing(nn.Module):
         """Get summary of collected statistics for debugging."""
         observed_bins = (self.bin_counts > 0).sum().item()
         return {
-            'observed_bins': observed_bins,
-            'total_bins': self.num_bins,
-            'coverage': observed_bins / self.num_bins,
-            'total_samples': self.bin_counts.sum().item(),
-            'mean_range': (
+            "observed_bins": observed_bins,
+            "total_bins": self.num_bins,
+            "coverage": observed_bins / self.num_bins,
+            "total_samples": self.bin_counts.sum().item(),
+            "mean_range": (
                 self.running_mean.min().item(),
-                self.running_mean.max().item()
+                self.running_mean.max().item(),
             ),
-            'var_range': (
-                self.running_var.min().item(),
-                self.running_var.max().item()
-            ),
+            "var_range": (self.running_var.min().item(), self.running_var.max().item()),
         }
 
 

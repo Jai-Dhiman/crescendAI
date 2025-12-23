@@ -5,10 +5,11 @@ Ensures checkpoints are backed up regularly, protecting against crashes/OOM.
 """
 
 import subprocess
-import pytorch_lightning as pl
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
-from datetime import datetime
+
+import pytorch_lightning as pl
 
 
 class PeriodicCheckpointSync(pl.Callback):
@@ -60,15 +61,17 @@ class PeriodicCheckpointSync(pl.Callback):
 
         try:
             result = subprocess.run(
-                ['rclone', 'listremotes'],
+                ["rclone", "listremotes"],
                 capture_output=True,
                 text=True,
                 timeout=10,
             )
-            self._rclone_available = 'gdrive:' in result.stdout
+            self._rclone_available = "gdrive:" in result.stdout
             if not self._rclone_available:
                 # Explicit warning - make it clear sync is disabled
-                print("[CHECKPOINT SYNC] WARNING: rclone 'gdrive' remote not configured")
+                print(
+                    "[CHECKPOINT SYNC] WARNING: rclone 'gdrive' remote not configured"
+                )
                 print("[CHECKPOINT SYNC] Checkpoints will NOT be backed up to GDrive!")
                 print("[CHECKPOINT SYNC] To enable: rclone config")
         except subprocess.TimeoutExpired:
@@ -97,7 +100,9 @@ class PeriodicCheckpointSync(pl.Callback):
             return False
 
         if not self.local_dir.exists():
-            print(f"[CHECKPOINT SYNC] WARNING: Local directory does not exist: {self.local_dir}")
+            print(
+                f"[CHECKPOINT SYNC] WARNING: Local directory does not exist: {self.local_dir}"
+            )
             print("[CHECKPOINT SYNC] Cannot sync non-existent checkpoints!")
             return False
 
@@ -108,7 +113,7 @@ class PeriodicCheckpointSync(pl.Callback):
 
         try:
             result = subprocess.run(
-                ['rclone', 'copy', str(self.local_dir), self.remote_path, '--quiet'],
+                ["rclone", "copy", str(self.local_dir), self.remote_path, "--quiet"],
                 capture_output=True,
                 text=True,
                 timeout=120,  # 2 minute timeout
@@ -119,16 +124,22 @@ class PeriodicCheckpointSync(pl.Callback):
                 return True
             else:
                 # Explicit failure logging
-                print(f"[{timestamp}] [SYNC FAILED] rclone exited with code {result.returncode}")
+                print(
+                    f"[{timestamp}] [SYNC FAILED] rclone exited with code {result.returncode}"
+                )
                 print(f"[{timestamp}] [SYNC FAILED] stderr: {result.stderr}")
                 print("[CHECKPOINT SYNC] Checkpoints may not be backed up!")
                 return False
         except subprocess.TimeoutExpired:
             print(f"[{timestamp}] [SYNC FAILED] Timed out after 120s")
-            print("[CHECKPOINT SYNC] Network may be slow - checkpoints not fully synced!")
+            print(
+                "[CHECKPOINT SYNC] Network may be slow - checkpoints not fully synced!"
+            )
             return False
         except Exception as e:
-            print(f"[{timestamp}] [SYNC FAILED] Unexpected error: {type(e).__name__}: {e}")
+            print(
+                f"[{timestamp}] [SYNC FAILED] Unexpected error: {type(e).__name__}: {e}"
+            )
             print("[CHECKPOINT SYNC] Checkpoints may not be backed up!")
             return False
 
@@ -137,7 +148,10 @@ class PeriodicCheckpointSync(pl.Callback):
         global_step = trainer.global_step
 
         # Check if we should sync
-        if global_step > 0 and global_step - self._last_sync_step >= self.sync_every_n_steps:
+        if (
+            global_step > 0
+            and global_step - self._last_sync_step >= self.sync_every_n_steps
+        ):
             self._sync(context=f"step {global_step}")
             self._last_sync_step = global_step
 
@@ -151,7 +165,9 @@ class PeriodicCheckpointSync(pl.Callback):
         self._sync(context="post-validation")
 
 
-def sync_checkpoints_now(local_dir: str, remote_path: str, verbose: bool = True) -> bool:
+def sync_checkpoints_now(
+    local_dir: str, remote_path: str, verbose: bool = True
+) -> bool:
     """
     Manually sync checkpoints to Google Drive.
 
@@ -169,12 +185,12 @@ def sync_checkpoints_now(local_dir: str, remote_path: str, verbose: bool = True)
     # Check rclone availability
     try:
         result = subprocess.run(
-            ['rclone', 'listremotes'],
+            ["rclone", "listremotes"],
             capture_output=True,
             text=True,
             timeout=10,
         )
-        if 'gdrive:' not in result.stdout:
+        if "gdrive:" not in result.stdout:
             print(f"[{timestamp}] ERROR: rclone 'gdrive' remote not configured")
             return False
     except Exception as e:
@@ -191,7 +207,7 @@ def sync_checkpoints_now(local_dir: str, remote_path: str, verbose: bool = True)
 
     try:
         result = subprocess.run(
-            ['rclone', 'copy', str(local_path), remote_path, '--progress'],
+            ["rclone", "copy", str(local_path), remote_path, "--progress"],
             timeout=300,  # 5 minute timeout for manual sync
         )
         if result.returncode == 0:

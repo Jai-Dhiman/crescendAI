@@ -14,6 +14,7 @@ import gc
 import os
 import sys
 import time
+
 import psutil
 import torch
 
@@ -43,8 +44,14 @@ def test_dataloader_memory(annotation_path: str, num_batches: int = 50):
     print("=" * 70)
 
     dimensions = [
-        'note_accuracy', 'rhythmic_stability', 'articulation_clarity', 'pedal_technique',
-        'tone_quality', 'dynamic_range', 'musical_expression', 'overall_interpretation'
+        "note_accuracy",
+        "rhythmic_stability",
+        "articulation_clarity",
+        "pedal_technique",
+        "tone_quality",
+        "dynamic_range",
+        "musical_expression",
+        "overall_interpretation",
     ]
 
     train_loader, _, _ = create_dataloaders(
@@ -70,13 +77,15 @@ def test_dataloader_memory(annotation_path: str, num_batches: int = 50):
             break
 
         # Just access the data (simulates what would happen in training)
-        _ = batch['audio_waveform']
-        _ = batch['labels']
+        _ = batch["audio_waveform"]
+        _ = batch["labels"]
 
         if i % 10 == 0:
             cpu_mb, gpu_mb = get_memory_mb()
             memory_samples.append((i, cpu_mb, gpu_mb))
-            print(f"  Batch {i:3d}: CPU {cpu_mb:.1f} MB (+{cpu_mb - initial_cpu:.1f}), GPU {gpu_mb:.1f} MB")
+            print(
+                f"  Batch {i:3d}: CPU {cpu_mb:.1f} MB (+{cpu_mb - initial_cpu:.1f}), GPU {gpu_mb:.1f} MB"
+            )
 
     final_cpu, final_gpu = get_memory_mb()
     cpu_growth = final_cpu - initial_cpu
@@ -98,7 +107,7 @@ def test_encoder_memory(annotation_path: str, num_batches: int = 50):
     print("TEST 2: MERT Encoder Memory Test")
     print("=" * 70)
 
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Device: {device}")
 
     # Load encoder
@@ -111,8 +120,14 @@ def test_encoder_memory(annotation_path: str, num_batches: int = 50):
     encoder.eval()
 
     dimensions = [
-        'note_accuracy', 'rhythmic_stability', 'articulation_clarity', 'pedal_technique',
-        'tone_quality', 'dynamic_range', 'musical_expression', 'overall_interpretation'
+        "note_accuracy",
+        "rhythmic_stability",
+        "articulation_clarity",
+        "pedal_technique",
+        "tone_quality",
+        "dynamic_range",
+        "musical_expression",
+        "overall_interpretation",
     ]
 
     train_loader, _, _ = create_dataloaders(
@@ -134,7 +149,7 @@ def test_encoder_memory(annotation_path: str, num_batches: int = 50):
         for i, batch in enumerate(train_loader):
             if i >= 3:
                 break
-            audio = batch['audio_waveform'].to(device)
+            audio = batch["audio_waveform"].to(device)
             _ = encoder(audio)
 
     gc.collect()
@@ -142,7 +157,9 @@ def test_encoder_memory(annotation_path: str, num_batches: int = 50):
         torch.cuda.empty_cache()
 
     initial_cpu, initial_gpu = get_memory_mb()
-    print(f"Initial memory (after warmup) - CPU: {initial_cpu:.1f} MB, GPU: {initial_gpu:.1f} MB")
+    print(
+        f"Initial memory (after warmup) - CPU: {initial_cpu:.1f} MB, GPU: {initial_gpu:.1f} MB"
+    )
 
     memory_samples = []
 
@@ -152,7 +169,7 @@ def test_encoder_memory(annotation_path: str, num_batches: int = 50):
             if i >= num_batches:
                 break
 
-            audio = batch['audio_waveform'].to(device)
+            audio = batch["audio_waveform"].to(device)
             embeddings, _ = encoder(audio)
 
             # Simulate what happens in training - we use the output
@@ -161,7 +178,9 @@ def test_encoder_memory(annotation_path: str, num_batches: int = 50):
             if i % 10 == 0:
                 cpu_mb, gpu_mb = get_memory_mb()
                 memory_samples.append((i, cpu_mb, gpu_mb))
-                print(f"  Batch {i:3d}: CPU {cpu_mb:.1f} MB (+{cpu_mb - initial_cpu:.1f}), GPU {gpu_mb:.1f} MB (+{gpu_mb - initial_gpu:.1f})")
+                print(
+                    f"  Batch {i:3d}: CPU {cpu_mb:.1f} MB (+{cpu_mb - initial_cpu:.1f}), GPU {gpu_mb:.1f} MB (+{gpu_mb - initial_gpu:.1f})"
+                )
 
     final_cpu, final_gpu = get_memory_mb()
     cpu_growth = final_cpu - initial_cpu
@@ -193,15 +212,21 @@ def test_training_simulation(annotation_path: str, num_batches: int = 100):
     print("TEST 3: Training Loop Simulation")
     print("=" * 70)
 
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Device: {device}")
 
     # Import the full model
     from src.crescendai.models.lightning_module import PerformanceEvaluationModel
 
     dimensions = [
-        'note_accuracy', 'rhythmic_stability', 'articulation_clarity', 'pedal_technique',
-        'tone_quality', 'dynamic_range', 'musical_expression', 'overall_interpretation'
+        "note_accuracy",
+        "rhythmic_stability",
+        "articulation_clarity",
+        "pedal_technique",
+        "tone_quality",
+        "dynamic_range",
+        "musical_expression",
+        "overall_interpretation",
     ]
 
     print("Creating model...")
@@ -212,8 +237,8 @@ def test_training_simulation(annotation_path: str, num_batches: int = 100):
         aggregator_dim=512,
         num_dimensions=len(dimensions),
         dimension_names=dimensions,
-        modality='audio',
-        fusion_type='gated',
+        modality="audio",
+        fusion_type="gated",
         use_projection=True,
         freeze_audio_encoder=True,
     ).to(device)
@@ -240,12 +265,12 @@ def test_training_simulation(annotation_path: str, num_batches: int = 100):
     for i, batch in enumerate(train_loader):
         if i >= 3:
             break
-        audio = batch['audio_waveform'].to(device)
-        labels = batch['labels'].to(device)
+        audio = batch["audio_waveform"].to(device)
+        labels = batch["labels"].to(device)
 
         output = model(audio_waveform=audio)
         if output is not None:
-            loss = torch.nn.functional.mse_loss(output['scores'], labels)
+            loss = torch.nn.functional.mse_loss(output["scores"], labels)
             loss.backward()
             optimizer.step()
             optimizer.zero_grad()
@@ -255,7 +280,9 @@ def test_training_simulation(annotation_path: str, num_batches: int = 100):
         torch.cuda.empty_cache()
 
     initial_cpu, initial_gpu = get_memory_mb()
-    print(f"Initial memory (after warmup) - CPU: {initial_cpu:.1f} MB, GPU: {initial_gpu:.1f} MB")
+    print(
+        f"Initial memory (after warmup) - CPU: {initial_cpu:.1f} MB, GPU: {initial_gpu:.1f} MB"
+    )
 
     memory_samples = []
     start_time = time.time()
@@ -265,13 +292,13 @@ def test_training_simulation(annotation_path: str, num_batches: int = 100):
         if i >= num_batches:
             break
 
-        audio = batch['audio_waveform'].to(device)
-        labels = batch['labels'].to(device)
+        audio = batch["audio_waveform"].to(device)
+        labels = batch["labels"].to(device)
 
         # Forward pass
         output = model(audio_waveform=audio)
         if output is not None:
-            loss = torch.nn.functional.mse_loss(output['scores'], labels)
+            loss = torch.nn.functional.mse_loss(output["scores"], labels)
 
             # Backward pass
             loss.backward()
@@ -283,9 +310,11 @@ def test_training_simulation(annotation_path: str, num_batches: int = 100):
             memory_samples.append((i, cpu_mb, gpu_mb))
             elapsed = time.time() - start_time
             rate = (i + 1) / elapsed if elapsed > 0 else 0
-            print(f"  Batch {i:3d}: CPU {cpu_mb:.1f} MB (+{cpu_mb - initial_cpu:.1f}), "
-                  f"GPU {gpu_mb:.1f} MB (+{gpu_mb - initial_gpu:.1f}), "
-                  f"Rate: {rate:.2f} it/s")
+            print(
+                f"  Batch {i:3d}: CPU {cpu_mb:.1f} MB (+{cpu_mb - initial_cpu:.1f}), "
+                f"GPU {gpu_mb:.1f} MB (+{gpu_mb - initial_gpu:.1f}), "
+                f"Rate: {rate:.2f} it/s"
+            )
 
     final_cpu, final_gpu = get_memory_mb()
     cpu_growth = final_cpu - initial_cpu
@@ -303,14 +332,18 @@ def test_training_simulation(annotation_path: str, num_batches: int = 100):
     # Extrapolate to full epoch (7119 batches)
     full_epoch_batches = 7119
     extrapolated_cpu = cpu_growth * (full_epoch_batches / num_batches)
-    print(f"\nExtrapolated CPU growth for full epoch ({full_epoch_batches} batches): {extrapolated_cpu:.1f} MB")
+    print(
+        f"\nExtrapolated CPU growth for full epoch ({full_epoch_batches} batches): {extrapolated_cpu:.1f} MB"
+    )
 
     if cpu_growth > 500:
         print("\nWARNING: Significant memory growth detected!")
         print("Memory leak likely still present.")
         return False
     elif extrapolated_cpu > 2000:
-        print("\nWARNING: Extrapolated growth exceeds 2GB - may still OOM on full epoch")
+        print(
+            "\nWARNING: Extrapolated growth exceeds 2GB - may still OOM on full epoch"
+        )
         return False
     else:
         print("\nPASSED: Memory growth is acceptable")
@@ -319,13 +352,28 @@ def test_training_simulation(annotation_path: str, num_batches: int = 100):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Test for memory leaks in training pipeline')
-    parser.add_argument('--annotation-path', type=str, required=True,
-                        help='Path to training annotation JSONL file')
-    parser.add_argument('--num-batches', type=int, default=100,
-                        help='Number of batches to test (default: 100)')
-    parser.add_argument('--test', type=str, choices=['dataloader', 'encoder', 'training', 'all'],
-                        default='all', help='Which test to run')
+    parser = argparse.ArgumentParser(
+        description="Test for memory leaks in training pipeline"
+    )
+    parser.add_argument(
+        "--annotation-path",
+        type=str,
+        required=True,
+        help="Path to training annotation JSONL file",
+    )
+    parser.add_argument(
+        "--num-batches",
+        type=int,
+        default=100,
+        help="Number of batches to test (default: 100)",
+    )
+    parser.add_argument(
+        "--test",
+        type=str,
+        choices=["dataloader", "encoder", "training", "all"],
+        default="all",
+        help="Which test to run",
+    )
     args = parser.parse_args()
 
     print("Memory Leak Detection Script")
@@ -339,14 +387,18 @@ def main():
 
     results = {}
 
-    if args.test in ['dataloader', 'all']:
-        results['dataloader'] = test_dataloader_memory(args.annotation_path, args.num_batches)
+    if args.test in ["dataloader", "all"]:
+        results["dataloader"] = test_dataloader_memory(
+            args.annotation_path, args.num_batches
+        )
 
-    if args.test in ['encoder', 'all']:
-        results['encoder'] = test_encoder_memory(args.annotation_path, args.num_batches)
+    if args.test in ["encoder", "all"]:
+        results["encoder"] = test_encoder_memory(args.annotation_path, args.num_batches)
 
-    if args.test in ['training', 'all']:
-        results['training'] = test_training_simulation(args.annotation_path, args.num_batches)
+    if args.test in ["training", "all"]:
+        results["training"] = test_training_simulation(
+            args.annotation_path, args.num_batches
+        )
 
     # Summary
     print("\n" + "=" * 70)
@@ -366,5 +418,5 @@ def main():
     return 0 if all_passed else 1
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     sys.exit(main())

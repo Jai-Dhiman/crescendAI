@@ -4,21 +4,20 @@ Unit tests for audio processing module.
 Tests the production-ready audio pipeline using raw waveforms at 24kHz.
 """
 
-import numpy as np
-import pytest
 import tempfile
-import soundfile as sf
 from pathlib import Path
 
+import numpy as np
+import pytest
+import soundfile as sf
 from src.data.audio_processing import (
-    load_audio,
     compute_cqt,
-    segment_audio,
-    normalize_audio,
     get_audio_duration,
+    load_audio,
+    normalize_audio,
     preprocess_audio_file,
+    segment_audio,
 )
-
 
 # ==================== Helper Functions ====================
 
@@ -28,7 +27,7 @@ def create_test_audio_file(duration=2.0, sr=24000, freq=440.0):
     t = np.linspace(0, duration, int(sr * duration))
     audio = 0.5 * np.sin(2 * np.pi * freq * t)
 
-    temp_file = tempfile.NamedTemporaryFile(suffix='.wav', delete=False)
+    temp_file = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
     sf.write(temp_file.name, audio, sr)
 
     return temp_file.name, audio, sr
@@ -97,7 +96,7 @@ def test_load_audio_mono():
     """Test mono conversion."""
     # Create stereo audio
     audio_stereo = np.random.randn(2, 48000)  # 2 channels, 2 seconds
-    temp_file = tempfile.NamedTemporaryFile(suffix='.wav', delete=False)
+    temp_file = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
     sf.write(temp_file.name, audio_stereo.T, 24000)
 
     try:
@@ -268,22 +267,22 @@ def test_preprocess_audio_file_default():
         result = preprocess_audio_file(audio_path)
 
         # Check result structure
-        assert 'audio' in result
-        assert 'segments' in result
-        assert 'sr' in result
-        assert 'duration' in result
+        assert "audio" in result
+        assert "segments" in result
+        assert "sr" in result
+        assert "duration" in result
 
         # Check sample rate is 24kHz (production default)
-        assert result['sr'] == 24000
+        assert result["sr"] == 24000
 
         # Check duration
-        assert result['duration'] == pytest.approx(25.0, rel=0.01)
+        assert result["duration"] == pytest.approx(25.0, rel=0.01)
 
         # Check segments exist
-        assert len(result['segments']) > 0
+        assert len(result["segments"]) > 0
 
         # CQT should NOT be computed by default (production mode)
-        assert 'cqt_segments' not in result
+        assert "cqt_segments" not in result
 
     finally:
         Path(audio_path).unlink()
@@ -297,11 +296,11 @@ def test_preprocess_audio_file_with_cqt():
         result = preprocess_audio_file(audio_path, compute_cqt_specs=True)
 
         # CQT should be computed when explicitly requested
-        assert 'cqt_segments' in result
-        assert len(result['cqt_segments']) == len(result['segments'])
+        assert "cqt_segments" in result
+        assert len(result["cqt_segments"]) == len(result["segments"])
 
         # Check CQT shape
-        for cqt in result['cqt_segments']:
+        for cqt in result["cqt_segments"]:
             assert cqt.shape[0] == 168  # Piano range bins
 
     finally:
@@ -316,7 +315,7 @@ def test_preprocess_audio_file_normalization():
         result = preprocess_audio_file(audio_path, normalize=True)
 
         # Check audio is normalized
-        peak = np.abs(result['audio']).max()
+        peak = np.abs(result["audio"]).max()
         target = 10 ** (-3.0 / 20.0)  # -3dB
         assert peak == pytest.approx(target, rel=0.01)
 
@@ -332,8 +331,8 @@ def test_preprocess_audio_file_custom_sr():
         result = preprocess_audio_file(audio_path, sr=16000)
 
         # Check resampling to 16kHz
-        assert result['sr'] == 16000
-        assert len(result['audio']) == 32000  # 2 seconds at 16kHz
+        assert result["sr"] == 16000
+        assert len(result["audio"]) == 32000  # 2 seconds at 16kHz
 
     finally:
         Path(audio_path).unlink()
@@ -344,17 +343,13 @@ def test_preprocess_audio_file_segmentation():
     audio_path, _, _ = create_test_audio_file(duration=30.0, sr=24000)
 
     try:
-        result = preprocess_audio_file(
-            audio_path,
-            segment_len=5.0,
-            overlap=0.0
-        )
+        result = preprocess_audio_file(audio_path, segment_len=5.0, overlap=0.0)
 
         # Should have 6 segments (30 / 5 = 6)
-        assert len(result['segments']) == 6
+        assert len(result["segments"]) == 6
 
         # Each segment should be 5 seconds = 120000 samples
-        for seg in result['segments']:
+        for seg in result["segments"]:
             assert len(seg) == 120000
 
     finally:
@@ -372,12 +367,12 @@ def test_full_pipeline_raw_waveforms():
         result = preprocess_audio_file(audio_path)
 
         # Verify we get raw waveforms
-        assert isinstance(result['audio'], np.ndarray)
-        assert result['audio'].ndim == 1  # 1D waveform
-        assert result['sr'] == 24000  # MERT sample rate
+        assert isinstance(result["audio"], np.ndarray)
+        assert result["audio"].ndim == 1  # 1D waveform
+        assert result["sr"] == 24000  # MERT sample rate
 
         # Segments should also be raw waveforms
-        for seg in result['segments']:
+        for seg in result["segments"]:
             assert isinstance(seg, np.ndarray)
             assert seg.ndim == 1
 
@@ -394,9 +389,9 @@ def test_production_config():
         result = preprocess_audio_file(audio_path)
 
         # Check production defaults
-        assert result['sr'] == 24000  # MERT requirement
-        assert 'cqt_segments' not in result  # CQT disabled by default
-        assert 'segments' in result  # Raw waveform segments present
+        assert result["sr"] == 24000  # MERT requirement
+        assert "cqt_segments" not in result  # CQT disabled by default
+        assert "segments" in result  # Raw waveform segments present
 
     finally:
         Path(audio_path).unlink()

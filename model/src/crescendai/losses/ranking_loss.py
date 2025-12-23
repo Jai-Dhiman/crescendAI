@@ -55,8 +55,12 @@ class RankingLoss(nn.Module):
         # Compute pairwise differences
         # diff_target[i, j] = target[i] - target[j]
         # diff_pred[i, j] = prediction[i] - prediction[j]
-        diff_target = targets.unsqueeze(1) - targets.unsqueeze(0)  # [batch, batch, num_dims]
-        diff_pred = predictions.unsqueeze(1) - predictions.unsqueeze(0)  # [batch, batch, num_dims]
+        diff_target = targets.unsqueeze(1) - targets.unsqueeze(
+            0
+        )  # [batch, batch, num_dims]
+        diff_pred = predictions.unsqueeze(1) - predictions.unsqueeze(
+            0
+        )  # [batch, batch, num_dims]
 
         # Create mask for pairs where target[i] > target[j]
         mask = (diff_target > 0).float()

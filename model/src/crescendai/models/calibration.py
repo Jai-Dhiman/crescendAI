@@ -10,11 +10,12 @@ Implements:
 - Calibration Wrapper: Combines both methods for inference
 """
 
+from typing import List, Optional, Tuple
+
 import numpy as np
 import torch
 import torch.nn as nn
 from sklearn.isotonic import IsotonicRegression
-from typing import Optional, List, Tuple
 from torch.utils.data import DataLoader
 
 
@@ -107,7 +108,7 @@ class IsotonicCalibrator:
     def __init__(self, num_dims: int = 19):
         self.num_dims = num_dims
         self.models: List[IsotonicRegression] = [
-            IsotonicRegression(y_min=0.0, y_max=1.0, out_of_bounds='clip')
+            IsotonicRegression(y_min=0.0, y_max=1.0, out_of_bounds="clip")
             for _ in range(num_dims)
         ]
         self.fitted = False
@@ -154,7 +155,9 @@ class IsotonicCalibrator:
             RuntimeError: If calibrator has not been fitted
         """
         if not self.fitted:
-            raise RuntimeError("IsotonicCalibrator has not been fitted. Call fit() first.")
+            raise RuntimeError(
+                "IsotonicCalibrator has not been fitted. Call fit() first."
+            )
 
         calibrated = np.zeros_like(predictions)
         for dim in range(self.num_dims):
@@ -200,7 +203,7 @@ class CalibrationWrapper:
         self,
         model: nn.Module,
         num_dims: int = 19,
-        device: str = 'cpu',
+        device: str = "cpu",
     ):
         """
         Initialize calibration wrapper.
@@ -237,9 +240,9 @@ class CalibrationWrapper:
 
         with torch.no_grad():
             for batch in val_loader:
-                midi_tokens = batch['midi_tokens'].to(self.device)
-                attention_mask = batch['attention_mask'].to(self.device)
-                targets = batch['scores'].to(self.device)
+                midi_tokens = batch["midi_tokens"].to(self.device)
+                attention_mask = batch["attention_mask"].to(self.device)
+                targets = batch["scores"].to(self.device)
 
                 # Get model output (assumes model returns dict with 'predictions')
                 output = self.model(midi_tokens, attention_mask)
@@ -247,7 +250,7 @@ class CalibrationWrapper:
                     # Get raw logits before sigmoid
                     # This requires access to intermediate values
                     # For now, assume predictions are already sigmoided
-                    preds = output['predictions']
+                    preds = output["predictions"]
                 else:
                     preds = output
 
@@ -265,24 +268,26 @@ class CalibrationWrapper:
         results = {}
 
         # Compute baseline metrics
-        results['baseline_mse'] = np.mean((preds_np - targets_np) ** 2)
-        results['baseline_r2'] = self._compute_r2(preds_np, targets_np)
+        results["baseline_mse"] = np.mean((preds_np - targets_np) ** 2)
+        results["baseline_r2"] = self._compute_r2(preds_np, targets_np)
 
         # Fit isotonic calibrator
         mse_before, mse_after = self.isotonic_calibrator.fit(preds_np, targets_np)
         iso_preds = self.isotonic_calibrator.calibrate(preds_np)
-        results['isotonic_mse'] = mse_after
-        results['isotonic_r2'] = self._compute_r2(iso_preds, targets_np)
+        results["isotonic_mse"] = mse_after
+        results["isotonic_r2"] = self._compute_r2(iso_preds, targets_np)
 
         # Note: Temperature scaling needs logits, not post-sigmoid predictions
         # If model only returns sigmoid outputs, we approximate by inverse sigmoid
         eps = 1e-7
-        approx_logits = torch.log(all_preds.clamp(eps, 1 - eps) / (1 - all_preds.clamp(eps, 1 - eps)))
+        approx_logits = torch.log(
+            all_preds.clamp(eps, 1 - eps) / (1 - all_preds.clamp(eps, 1 - eps))
+        )
         ts_mse = self.temperature_scaling.fit(approx_logits, all_targets)
         ts_preds = self.temperature_scaling(approx_logits).detach().cpu().numpy()
-        results['temperature_mse'] = ts_mse
-        results['temperature_r2'] = self._compute_r2(ts_preds, targets_np)
-        results['temperature_value'] = self.temperature_scaling.get_temperature()
+        results["temperature_mse"] = ts_mse
+        results["temperature_r2"] = self._compute_r2(ts_preds, targets_np)
+        results["temperature_value"] = self.temperature_scaling.get_temperature()
 
         self.fitted = True
 
@@ -292,7 +297,7 @@ class CalibrationWrapper:
         self,
         midi_tokens: torch.Tensor,
         attention_mask: torch.Tensor,
-        method: str = 'isotonic',
+        method: str = "isotonic",
     ) -> torch.Tensor:
         """
         Get calibrated predictions.
@@ -305,25 +310,31 @@ class CalibrationWrapper:
         Returns:
             Calibrated predictions [batch, num_dims]
         """
-        if not self.fitted and method != 'none':
-            raise RuntimeError("CalibrationWrapper has not been fitted. Call fit() first.")
+        if not self.fitted and method != "none":
+            raise RuntimeError(
+                "CalibrationWrapper has not been fitted. Call fit() first."
+            )
 
         self.model.eval()
         with torch.no_grad():
-            output = self.model(midi_tokens.to(self.device), attention_mask.to(self.device))
+            output = self.model(
+                midi_tokens.to(self.device), attention_mask.to(self.device)
+            )
             if isinstance(output, dict):
-                preds = output['predictions']
+                preds = output["predictions"]
             else:
                 preds = output
 
-            if method == 'none':
+            if method == "none":
                 return preds
-            elif method == 'temperature':
+            elif method == "temperature":
                 # Apply inverse sigmoid then temperature scaling
                 eps = 1e-7
-                logits = torch.log(preds.clamp(eps, 1 - eps) / (1 - preds.clamp(eps, 1 - eps)))
+                logits = torch.log(
+                    preds.clamp(eps, 1 - eps) / (1 - preds.clamp(eps, 1 - eps))
+                )
                 return self.temperature_scaling(logits)
-            elif method == 'isotonic':
+            elif method == "isotonic":
                 return self.isotonic_calibrator.calibrate_torch(preds)
             else:
                 raise ValueError(f"Unknown calibration method: {method}")

@@ -1,7 +1,8 @@
+from typing import Optional, Tuple
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from typing import Optional, Tuple
 
 
 class HierarchicalAggregator(nn.Module):
@@ -66,9 +67,7 @@ class HierarchicalAggregator(nn.Module):
         )
 
         # Learnable query for attention pooling
-        self.attention_query = nn.Parameter(
-            torch.randn(1, 1, lstm_output_dim)
-        )
+        self.attention_query = nn.Parameter(torch.randn(1, 1, lstm_output_dim))
 
         # Layer normalization
         self.layer_norm = nn.LayerNorm(lstm_output_dim)

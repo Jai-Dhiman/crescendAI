@@ -8,28 +8,30 @@ Provides:
 - Significance testing
 """
 
-import numpy as np
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple, Any
-from scipy import stats
 import warnings
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional, Tuple
+
+import numpy as np
+from scipy import stats
 
 from .metrics import (
-    compute_r2,
-    compute_mse,
+    DIMENSION_CATEGORIES,
+    MetricResult,
+    compute_all_metrics,
     compute_mae,
+    compute_mse,
     compute_pearson_r,
+    compute_r2,
     compute_spearman_rho,
     compute_std_score,
-    compute_all_metrics,
-    MetricResult,
-    DIMENSION_CATEGORIES,
 )
 
 
 @dataclass
 class DimensionResult:
     """Results for a single dimension."""
+
     name: str
     r2: float
     mse: float
@@ -52,6 +54,7 @@ class PerDimensionAnalysis:
         weak_dimensions: List of dimensions with R^2 < threshold
         strong_dimensions: List of dimensions with R^2 > threshold
     """
+
     dimension_results: Dict[str, DimensionResult] = field(default_factory=dict)
     overall_metrics: Dict[str, float] = field(default_factory=dict)
     category_metrics: Dict[str, Dict[str, float]] = field(default_factory=dict)
@@ -102,7 +105,8 @@ class PerDimensionAnalysis:
             std_score = None
             if target_stds is not None and i < len(target_stds):
                 std_result = compute_std_score(
-                    pred, targ,
+                    pred,
+                    targ,
                     np.array([target_stds[i]]),
                     alpha=1.0,
                     per_dimension=False,
@@ -127,7 +131,9 @@ class PerDimensionAnalysis:
                 analysis.strong_dimensions.append(dim_name)
 
         # Overall metrics
-        all_metrics = compute_all_metrics(predictions, targets, dimension_names, target_stds)
+        all_metrics = compute_all_metrics(
+            predictions, targets, dimension_names, target_stds
+        )
         analysis.overall_metrics = {
             name: result.value for name, result in all_metrics.items()
         }
@@ -153,7 +159,9 @@ class PerDimensionAnalysis:
 
         return analysis
 
-    def get_ranked_dimensions(self, metric: str = "r2", ascending: bool = False) -> List[Tuple[str, float]]:
+    def get_ranked_dimensions(
+        self, metric: str = "r2", ascending: bool = False
+    ) -> List[Tuple[str, float]]:
         """Get dimensions ranked by a metric."""
         results = []
         for dim_name, dim_result in self.dimension_results.items():
@@ -180,7 +188,9 @@ class PerDimensionAnalysis:
         lines.append("\nCategory Breakdown:")
         lines.append("-" * 40)
         for category, metrics in sorted(self.category_metrics.items()):
-            lines.append(f"  {category}: R^2={metrics['r2']:.4f}, MAE={metrics['mae']:.4f} ({metrics['n_dims']} dims)")
+            lines.append(
+                f"  {category}: R^2={metrics['r2']:.4f}, MAE={metrics['mae']:.4f} ({metrics['n_dims']} dims)"
+            )
 
         # Dimension ranking
         lines.append("\nDimensions Ranked by R^2:")
@@ -202,7 +212,9 @@ class PerDimensionAnalysis:
         lines.append(f"  Total dimensions: {len(self.dimension_results)}")
 
         if self.weak_dimensions:
-            lines.append(f"\n  Weak dimensions to improve: {', '.join(self.weak_dimensions)}")
+            lines.append(
+                f"\n  Weak dimensions to improve: {', '.join(self.weak_dimensions)}"
+            )
 
         lines.append("=" * 70)
         return "\n".join(lines)
@@ -211,6 +223,7 @@ class PerDimensionAnalysis:
 @dataclass
 class ModelComparisonResult:
     """Result of comparing two models."""
+
     model_a_name: str
     model_b_name: str
     metric: str
@@ -336,7 +349,7 @@ class ModelComparison:
         comparisons = []
 
         for i, model_a in enumerate(model_names):
-            for model_b in model_names[i + 1:]:
+            for model_b in model_names[i + 1 :]:
                 comparisons.append(self.compare_models(model_a, model_b, metric))
 
         return comparisons
@@ -411,7 +424,9 @@ class StatisticalTests:
         """
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            t_stat, p_value = stats.ttest_rel(scores_a, scores_b, alternative=alternative)
+            t_stat, p_value = stats.ttest_rel(
+                scores_a, scores_b, alternative=alternative
+            )
         return t_stat, p_value
 
     @staticmethod
@@ -436,7 +451,8 @@ class StatisticalTests:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             stat, p_value = stats.wilcoxon(
-                scores_a, scores_b,
+                scores_a,
+                scores_b,
                 alternative=alternative,
                 zero_method="wilcox",
             )
@@ -558,17 +574,29 @@ if __name__ == "__main__":
     predictions_b = targets + np.random.randn(n_samples, n_dims) * 0.20
 
     dims = [
-        "timing", "tempo", "articulation_length", "articulation_touch",
-        "pedal_amount", "pedal_clarity", "timbre_variety", "timbre_depth",
-        "timbre_brightness", "timbre_loudness", "dynamic_range", "sophistication",
-        "space", "balance", "drama", "mood_valence", "mood_energy",
-        "mood_imagination", "interpretation",
+        "timing",
+        "tempo",
+        "articulation_length",
+        "articulation_touch",
+        "pedal_amount",
+        "pedal_clarity",
+        "timbre_variety",
+        "timbre_depth",
+        "timbre_brightness",
+        "timbre_loudness",
+        "dynamic_range",
+        "sophistication",
+        "space",
+        "balance",
+        "drama",
+        "mood_valence",
+        "mood_energy",
+        "mood_imagination",
+        "interpretation",
     ]
 
     # Per-dimension analysis
-    analysis = PerDimensionAnalysis.from_predictions(
-        predictions_a, targets, dims
-    )
+    analysis = PerDimensionAnalysis.from_predictions(predictions_a, targets, dims)
     print(analysis.format_report())
 
     # Model comparison

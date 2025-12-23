@@ -11,8 +11,8 @@ Output:
     Creates 'gdrive_upload/percepiano_data/' containing everything needed.
 """
 
-import shutil
 import json
+import shutil
 from pathlib import Path
 
 
@@ -74,7 +74,7 @@ def main():
     print(f"\n{'=' * 60}")
     print("UPLOAD INSTRUCTIONS")
     print(f"{'=' * 60}")
-    print(f"\nTotal size: {total_size / (1024*1024):.1f} MB")
+    print(f"\nTotal size: {total_size / (1024 * 1024):.1f} MB")
     print(f"\nUpload this folder to your Google Drive root:")
     print(f"  {output_dir}")
     print(f"\nThe folder should appear as:")

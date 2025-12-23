@@ -1,7 +1,8 @@
+from typing import Dict, Literal, Optional
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from typing import Dict, Optional, Literal
 
 
 class UncertaintyWeightedLoss(nn.Module):
@@ -28,9 +29,9 @@ class UncertaintyWeightedLoss(nn.Module):
     def __init__(
         self,
         num_tasks: int = 10,
-        reduction: str = 'mean',
+        reduction: str = "mean",
         label_smoothing: float = 0.0,
-        base_loss: Literal['mse', 'huber', 'mae'] = 'mse',
+        base_loss: Literal["mse", "huber", "mae"] = "mse",
         huber_delta: float = 1.0,
     ):
         """
@@ -75,19 +76,23 @@ class UncertaintyWeightedLoss(nn.Module):
                 - 'weighted_losses': Per-task weighted losses [num_tasks]
         """
         batch_size, num_tasks = predictions.shape
-        assert num_tasks == self.num_tasks, f"Expected {self.num_tasks} tasks, got {num_tasks}"
+        assert num_tasks == self.num_tasks, (
+            f"Expected {self.num_tasks} tasks, got {num_tasks}"
+        )
 
         # Apply label smoothing if requested
         if self.label_smoothing > 0:
             targets = self._apply_label_smoothing(targets)
 
         # Compute per-task losses using configured base loss
-        if self.base_loss == 'mse':
-            task_losses = F.mse_loss(predictions, targets, reduction='none')
-        elif self.base_loss == 'huber':
-            task_losses = F.huber_loss(predictions, targets, reduction='none', delta=self.huber_delta)
-        elif self.base_loss == 'mae':
-            task_losses = F.l1_loss(predictions, targets, reduction='none')
+        if self.base_loss == "mse":
+            task_losses = F.mse_loss(predictions, targets, reduction="none")
+        elif self.base_loss == "huber":
+            task_losses = F.huber_loss(
+                predictions, targets, reduction="none", delta=self.huber_delta
+            )
+        elif self.base_loss == "mae":
+            task_losses = F.l1_loss(predictions, targets, reduction="none")
         else:
             raise ValueError(f"Unknown base_loss: {self.base_loss}")
 
@@ -106,9 +111,9 @@ class UncertaintyWeightedLoss(nn.Module):
             weighted_losses = weighted_losses * task_weights
 
         # Total loss
-        if self.reduction == 'mean':
+        if self.reduction == "mean":
             total_loss = weighted_losses.mean()
-        elif self.reduction == 'sum':
+        elif self.reduction == "sum":
             total_loss = weighted_losses.sum()
         else:  # 'none'
             total_loss = weighted_losses
@@ -117,10 +122,10 @@ class UncertaintyWeightedLoss(nn.Module):
         uncertainties = torch.exp(0.5 * log_vars)
 
         return {
-            'loss': total_loss,
-            'task_losses': task_losses,
-            'uncertainties': uncertainties,
-            'weighted_losses': weighted_losses,
+            "loss": total_loss,
+            "task_losses": task_losses,
+            "uncertainties": uncertainties,
+            "weighted_losses": weighted_losses,
         }
 
     def _apply_label_smoothing(self, targets: torch.Tensor) -> torch.Tensor:
@@ -140,7 +145,9 @@ class UncertaintyWeightedLoss(nn.Module):
         task_means = targets.mean(dim=0, keepdim=True)
 
         # Interpolate between targets and means
-        smoothed = (1 - self.label_smoothing) * targets + self.label_smoothing * task_means
+        smoothed = (
+            1 - self.label_smoothing
+        ) * targets + self.label_smoothing * task_means
 
         return smoothed
 
@@ -156,7 +163,7 @@ class WeightedMSELoss(nn.Module):
         self,
         num_tasks: int = 10,
         task_weights: Optional[torch.Tensor] = None,
-        reduction: str = 'mean',
+        reduction: str = "mean",
     ):
         """
         Initialize weighted MSE loss.
@@ -174,13 +181,10 @@ class WeightedMSELoss(nn.Module):
         if task_weights is None:
             # Equal weights
             task_weights = torch.ones(num_tasks)
-        self.register_buffer('task_weights', task_weights)
+        self.register_buffer("task_weights", task_weights)
 
     def forward(
-        self,
-        predictions: torch.Tensor,
-        targets: torch.Tensor,
-        **kwargs
+        self, predictions: torch.Tensor, targets: torch.Tensor, **kwargs
     ) -> Dict[str, torch.Tensor]:
         """
         Compute weighted MSE loss.
@@ -194,24 +198,24 @@ class WeightedMSELoss(nn.Module):
             Dictionary with 'loss' and 'task_losses'
         """
         # Per-task MSE
-        task_losses = F.mse_loss(predictions, targets, reduction='none')
+        task_losses = F.mse_loss(predictions, targets, reduction="none")
         task_losses = task_losses.mean(dim=0)  # [num_tasks]
 
         # Weighted losses
         weighted_losses = task_losses * self.task_weights
 
         # Total loss
-        if self.reduction == 'mean':
+        if self.reduction == "mean":
             total_loss = weighted_losses.mean()
-        elif self.reduction == 'sum':
+        elif self.reduction == "sum":
             total_loss = weighted_losses.sum()
         else:
             total_loss = weighted_losses
 
         return {
-            'loss': total_loss,
-            'task_losses': task_losses,
-            'weighted_losses': weighted_losses,
+            "loss": total_loss,
+            "task_losses": task_losses,
+            "weighted_losses": weighted_losses,
         }
 
 
@@ -240,10 +244,7 @@ class CombinedLoss(nn.Module):
         self.auxiliary_losses = auxiliary_losses or {}
 
     def forward(
-        self,
-        predictions: torch.Tensor,
-        targets: torch.Tensor,
-        **kwargs
+        self, predictions: torch.Tensor, targets: torch.Tensor, **kwargs
     ) -> Dict[str, torch.Tensor]:
         """
         Compute combined loss.
@@ -260,21 +261,19 @@ class CombinedLoss(nn.Module):
         result = self.primary_loss(predictions, targets, **kwargs)
 
         # Compute auxiliary losses
-        total_loss = result['loss']
+        total_loss = result["loss"]
         for name, (loss_fn, weight) in self.auxiliary_losses.items():
             aux_loss = loss_fn(predictions, targets, **kwargs)
-            result[f'aux_{name}'] = aux_loss
+            result[f"aux_{name}"] = aux_loss
             total_loss = total_loss + weight * aux_loss
 
-        result['total_loss'] = total_loss
+        result["total_loss"] = total_loss
 
         return result
 
 
 def create_loss_function(
-    loss_type: str = 'uncertainty',
-    num_tasks: int = 10,
-    **kwargs
+    loss_type: str = "uncertainty", num_tasks: int = 10, **kwargs
 ) -> nn.Module:
     """
     Factory function to create loss function.
@@ -287,16 +286,10 @@ def create_loss_function(
     Returns:
         Loss function module
     """
-    if loss_type == 'uncertainty':
-        return UncertaintyWeightedLoss(
-            num_tasks=num_tasks,
-            **kwargs
-        )
-    elif loss_type == 'weighted_mse':
-        return WeightedMSELoss(
-            num_tasks=num_tasks,
-            **kwargs
-        )
+    if loss_type == "uncertainty":
+        return UncertaintyWeightedLoss(num_tasks=num_tasks, **kwargs)
+    elif loss_type == "weighted_mse":
+        return WeightedMSELoss(num_tasks=num_tasks, **kwargs)
     else:
         raise ValueError(f"Unknown loss type: {loss_type}")
 

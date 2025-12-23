@@ -14,12 +14,14 @@ Key findings:
 
 from dataclasses import dataclass
 from typing import Dict, List, Optional
+
 import numpy as np
 
 
 @dataclass
 class BaselineResult:
     """Container for a baseline model's results."""
+
     model_name: str
     r2_piece_split: float
     r2_performer_split: float
@@ -80,35 +82,28 @@ DIMENSION_BASELINES = {
     # Timing dimensions (typically higher R^2)
     "timing": 0.45,
     "tempo": 0.42,
-
     # Articulation dimensions
     "articulation_length": 0.38,
     "articulation_touch": 0.35,
-
     # Pedal dimensions (moderate R^2)
     "pedal_amount": 0.32,
     "pedal_clarity": 0.30,
-
     # Timbre dimensions (challenging)
     "timbre_variety": 0.28,
     "timbre_depth": 0.25,
     "timbre_brightness": 0.27,
     "timbre_loudness": 0.35,
-
     # Dynamics dimensions
     "dynamic_range": 0.40,
     "sophistication": 0.30,
-
     # Musical dimensions (subjective, lower R^2)
     "space": 0.25,
     "balance": 0.32,
     "drama": 0.22,
-
     # Emotion dimensions (most subjective)
     "mood_valence": 0.20,
     "mood_energy": 0.35,
     "mood_imagination": 0.18,
-
     # Overall interpretation
     "interpretation": 0.38,
 }
@@ -154,8 +149,7 @@ def compare_to_sota(
 
     # MIDI-only best (for score alignment comparison)
     midi_only_baselines = [
-        (n, b) for n, b in baselines_sorted
-        if not b.uses_score_alignment
+        (n, b) for n, b in baselines_sorted if not b.uses_score_alignment
     ]
     best_midi_only = midi_only_baselines[0] if midi_only_baselines else None
     best_midi_only_r2 = getattr(best_midi_only[1], r2_key) if best_midi_only else None
@@ -169,7 +163,9 @@ def compare_to_sota(
         "best_baseline": best_baseline[1].model_name,
         "best_baseline_r2": best_r2,
         "improvement_vs_best": model_r2 - best_r2,
-        "improvement_vs_best_pct": (model_r2 - best_r2) / abs(best_r2) * 100 if best_r2 != 0 else 0,
+        "improvement_vs_best_pct": (model_r2 - best_r2) / abs(best_r2) * 100
+        if best_r2 != 0
+        else 0,
     }
 
     if best_midi_only:
@@ -232,24 +228,34 @@ def format_comparison_table(comparison: Dict) -> str:
     lines.append("-" * 55)
 
     # Add our model first
-    lines.append(f"{comparison['model_name']:<25} {comparison['model_r2']:>8.4f} {'--':>8} {'--':>10}")
+    lines.append(
+        f"{comparison['model_name']:<25} {comparison['model_r2']:>8.4f} {'--':>8} {'--':>10}"
+    )
 
     # Add baselines
     for name, data in comparison["baseline_comparisons"].items():
         score_flag = "Yes" if data["uses_score"] else "No"
         diff_str = f"{data['difference']:+.4f}"
-        lines.append(f"{data['model']:<25} {data['r2']:>8.4f} {score_flag:>8} {diff_str:>10}")
+        lines.append(
+            f"{data['model']:<25} {data['r2']:>8.4f} {score_flag:>8} {diff_str:>10}"
+        )
 
     lines.append("-" * 55)
 
     # Summary
     if comparison["improvement_vs_best"] > 0:
-        lines.append(f"Beats best baseline ({comparison['best_baseline']}) by {comparison['improvement_vs_best']:+.4f}")
+        lines.append(
+            f"Beats best baseline ({comparison['best_baseline']}) by {comparison['improvement_vs_best']:+.4f}"
+        )
     else:
-        lines.append(f"Below best baseline ({comparison['best_baseline']}) by {comparison['improvement_vs_best']:.4f}")
+        lines.append(
+            f"Below best baseline ({comparison['best_baseline']}) by {comparison['improvement_vs_best']:.4f}"
+        )
 
     if "improvement_vs_midi_only" in comparison:
-        lines.append(f"Score alignment improvement: {comparison['improvement_vs_midi_only']:+.4f} vs MIDI-only")
+        lines.append(
+            f"Score alignment improvement: {comparison['improvement_vs_midi_only']:+.4f} vs MIDI-only"
+        )
 
     # Per-dimension comparison if available
     if "dimension_comparison" in comparison and comparison["dimension_comparison"]:
@@ -272,10 +278,16 @@ def format_comparison_table(comparison: Dict) -> str:
                 f"{dim:<25} {data['model_r2']:>8.4f} {data['baseline_r2']:>8.4f} {diff_str:>10}{status}"
             )
 
-        beats_count = sum(1 for d in comparison["dimension_comparison"].values() if d["beats_baseline"])
+        beats_count = sum(
+            1
+            for d in comparison["dimension_comparison"].values()
+            if d["beats_baseline"]
+        )
         total = len(comparison["dimension_comparison"])
         lines.append("-" * 55)
-        lines.append(f"Beats baseline in {beats_count}/{total} dimensions (* = beats baseline)")
+        lines.append(
+            f"Beats baseline in {beats_count}/{total} dimensions (* = beats baseline)"
+        )
 
     lines.append("=" * 70)
 

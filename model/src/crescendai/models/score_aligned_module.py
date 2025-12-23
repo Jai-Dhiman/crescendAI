@@ -10,20 +10,28 @@ Following PercePiano research findings:
 - Enables evaluation against composer's intent
 """
 
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple, Union
+
+import numpy as np
+import pytorch_lightning as pl
 import torch
 import torch.nn as nn
-import pytorch_lightning as pl
-from typing import Dict, List, Optional, Tuple, Union
-from pathlib import Path
-import numpy as np
 from torch.utils.data import DataLoader
 
-from .midi_encoder import MIDIBertEncoder
-from .score_encoder import ScoreAlignmentEncoder, HierarchicalScoreEncoder, ScoreMIDIFusion
-from .calibration import IsotonicCalibrator, TemperatureScaling
-from src.shared.models.aggregation import HierarchicalAggregator, PercePianoSelfAttention
+from src.shared.models.aggregation import (
+    HierarchicalAggregator,
+    PercePianoSelfAttention,
+)
 from src.shared.models.mtl_head import MultiTaskHead, PercePianoHead
 
+from .calibration import IsotonicCalibrator, TemperatureScaling
+from .midi_encoder import MIDIBertEncoder
+from .score_encoder import (
+    HierarchicalScoreEncoder,
+    ScoreAlignmentEncoder,
+    ScoreMIDIFusion,
+)
 
 # All 19 PercePiano dimensions
 PERCEPIANO_DIMENSIONS = [
@@ -85,7 +93,7 @@ class ScoreAlignedModule(pl.LightningModule):
         attention_da: int = 128,
         attention_r: int = 4,
         # Fusion params
-        fusion_type: str = 'gated',  # 'concat', 'crossattn', or 'gated'
+        fusion_type: str = "gated",  # 'concat', 'crossattn', or 'gated'
         fused_dim: int = 768,
         # MTL head params
         head_hidden_dim: int = 256,
@@ -159,7 +167,7 @@ class ScoreAlignedModule(pl.LightningModule):
                 num_attention_heads=4,
                 dropout=dropout,
                 use_voice_processing=False,  # Start without voice for simplicity
-                output_mode='global',
+                output_mode="global",
             )
         else:
             self.score_encoder = ScoreAlignmentEncoder(
@@ -169,7 +177,7 @@ class ScoreAlignedModule(pl.LightningModule):
                 num_note_layers=score_num_layers,
                 num_heads=4,
                 dropout=dropout,
-                output_mode='global',  # Use global representation for fusion
+                output_mode="global",  # Use global representation for fusion
             )
 
         # Fusion module
@@ -229,7 +237,9 @@ class ScoreAlignedModule(pl.LightningModule):
         midi_features = self.midi_encoder(midi_tokens, midi_attention_mask)  # [B, T, H]
 
         # Aggregate MIDI over time
-        midi_aggregated, _ = self.midi_aggregator(midi_features, midi_attention_mask)  # [B, r*H]
+        midi_aggregated, _ = self.midi_aggregator(
+            midi_features, midi_attention_mask
+        )  # [B, r*H]
 
         # Encode score alignment features
         if self.use_hierarchical_encoder:
@@ -247,7 +257,7 @@ class ScoreAlignedModule(pl.LightningModule):
                 score_tempo_curve,
                 score_attention_mask,
             )
-        score_features = score_outputs['global']  # [B, score_hidden_dim]
+        score_features = score_outputs["global"]  # [B, score_hidden_dim]
 
         # Fuse MIDI and score features
         fused = self.fusion(midi_aggregated, score_features)  # [B, fused_dim]
@@ -287,7 +297,9 @@ class ScoreAlignedModule(pl.LightningModule):
 
         # Create zero score features (use configured number of features)
         num_note_features = self.hparams.score_note_features
-        score_note_features = torch.zeros(batch_size, 1, num_note_features, device=device)
+        score_note_features = torch.zeros(
+            batch_size, 1, num_note_features, device=device
+        )
         score_global_features = torch.zeros(batch_size, 12, device=device)
         score_tempo_curve = torch.ones(batch_size, 1, device=device)
         score_attention_mask = torch.ones(batch_size, 1, device=device)
@@ -321,7 +333,9 @@ class ScoreAlignedModule(pl.LightningModule):
         per_dim_losses = {}
 
         # Simple MSE loss
-        total_loss = torch.nn.functional.mse_loss(predictions, targets, reduction="mean")
+        total_loss = torch.nn.functional.mse_loss(
+            predictions, targets, reduction="mean"
+        )
 
         # Per-dimension losses for logging
         for i, dim in enumerate(self.dimensions):
@@ -485,11 +499,11 @@ class ScoreAlignedModule(pl.LightningModule):
         # Group parameters
         midi_params = list(self.midi_encoder.parameters())
         other_params = (
-            list(self.score_encoder.parameters()) +
-            list(self.midi_aggregator.parameters()) +
-            list(self.fusion.parameters()) +
-            list(self.mtl_head.parameters()) +
-            [self.log_vars]
+            list(self.score_encoder.parameters())
+            + list(self.midi_aggregator.parameters())
+            + list(self.fusion.parameters())
+            + list(self.mtl_head.parameters())
+            + [self.log_vars]
         )
 
         # Different learning rates: lower for pretrained MIDI encoder

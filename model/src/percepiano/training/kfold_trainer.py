@@ -15,18 +15,23 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import numpy as np
 import pytorch_lightning as pl
 import torch
-from pytorch_lightning.callbacks import EarlyStopping, LearningRateMonitor, ModelCheckpoint, Callback
+from pytorch_lightning.callbacks import (
+    Callback,
+    EarlyStopping,
+    LearningRateMonitor,
+    ModelCheckpoint,
+)
 from pytorch_lightning.loggers import TensorBoardLogger
-from sklearn.metrics import r2_score
 from scipy.stats import pearsonr, spearmanr
+from sklearn.metrics import r2_score
 from torch.utils.data import DataLoader
 
-from ..data.kfold_split import load_fold_assignments, get_test_samples
+from ..data.kfold_split import get_test_samples, load_fold_assignments
 from ..data.percepiano_vnet_dataset import (
     PercePianoKFoldDataModule,
     PercePianoTestDataset,
 )
-from ..models.percepiano_replica import PercePianoVNetModule, PERCEPIANO_DIMENSIONS
+from ..models.percepiano_replica import PERCEPIANO_DIMENSIONS, PercePianoVNetModule
 
 
 class EpochLogger(Callback):
@@ -36,7 +41,7 @@ class EpochLogger(Callback):
         super().__init__()
         self.fold_id = fold_id
         self.epoch_start_time = None
-        self.best_val_r2 = -float('inf')
+        self.best_val_r2 = -float("inf")
         self.best_epoch = 0
 
     def on_train_epoch_start(self, trainer, pl_module):
@@ -47,10 +52,10 @@ class EpochLogger(Callback):
         epoch_time = time.time() - self.epoch_start_time
 
         # Get metrics
-        train_loss = trainer.callback_metrics.get('train/loss', 0.0)
-        val_loss = trainer.callback_metrics.get('val/loss', 0.0)
-        val_r2 = trainer.callback_metrics.get('val/mean_r2', 0.0)
-        lr = trainer.optimizers[0].param_groups[0]['lr']
+        train_loss = trainer.callback_metrics.get("train/loss", 0.0)
+        val_loss = trainer.callback_metrics.get("val/loss", 0.0)
+        val_r2 = trainer.callback_metrics.get("val/mean_r2", 0.0)
+        lr = trainer.optimizers[0].param_groups[0]["lr"]
 
         # Track best
         is_best = ""
@@ -60,15 +65,18 @@ class EpochLogger(Callback):
             is_best = " *best*"
 
         # Log every epoch
-        print(f"  [Fold {self.fold_id}] Epoch {epoch:3d} | "
-              f"train_loss: {train_loss:.4f} | val_loss: {val_loss:.4f} | "
-              f"val_r2: {val_r2:+.4f} | lr: {lr:.2e} | "
-              f"time: {epoch_time:.1f}s{is_best}")
+        print(
+            f"  [Fold {self.fold_id}] Epoch {epoch:3d} | "
+            f"train_loss: {train_loss:.4f} | val_loss: {val_loss:.4f} | "
+            f"val_r2: {val_r2:+.4f} | lr: {lr:.2e} | "
+            f"time: {epoch_time:.1f}s{is_best}"
+        )
 
 
 @dataclass
 class FoldMetrics:
     """Metrics for a single fold."""
+
     fold_id: int
     train_loss: float
     val_loss: float
@@ -90,6 +98,7 @@ class FoldMetrics:
 @dataclass
 class AggregateMetrics:
     """Aggregated metrics across all folds."""
+
     mean_r2: float
     std_r2: float
     mean_pearson: float
@@ -140,17 +149,17 @@ class KFoldTrainer:
     def _create_model(self) -> PercePianoVNetModule:
         """Create a new model instance."""
         return PercePianoVNetModule(
-            input_size=self.config.get('input_size', 78),  # SOTA uses 78 features
-            hidden_size=self.config.get('hidden_size', 256),
-            note_layers=self.config.get('note_layers', 2),
-            voice_layers=self.config.get('voice_layers', 2),
-            beat_layers=self.config.get('beat_layers', 2),
-            measure_layers=self.config.get('measure_layers', 1),
-            num_attention_heads=self.config.get('num_attention_heads', 8),
-            final_hidden=self.config.get('final_hidden', 128),
-            dropout=self.config.get('dropout', 0.2),
-            learning_rate=self.config.get('learning_rate', 2.5e-5),  # SOTA: 2.5e-5
-            weight_decay=self.config.get('weight_decay', 1e-5),
+            input_size=self.config.get("input_size", 78),  # SOTA uses 78 features
+            hidden_size=self.config.get("hidden_size", 256),
+            note_layers=self.config.get("note_layers", 2),
+            voice_layers=self.config.get("voice_layers", 2),
+            beat_layers=self.config.get("beat_layers", 2),
+            measure_layers=self.config.get("measure_layers", 1),
+            num_attention_heads=self.config.get("num_attention_heads", 8),
+            final_hidden=self.config.get("final_hidden", 128),
+            dropout=self.config.get("dropout", 0.2),
+            learning_rate=self.config.get("learning_rate", 2.5e-5),  # SOTA: 2.5e-5
+            weight_decay=self.config.get("weight_decay", 1e-5),
         )
 
     def _create_callbacks(self, fold_id: int) -> List[pl.Callback]:
@@ -167,11 +176,11 @@ class KFoldTrainer:
         early_stopping = EarlyStopping(
             monitor="val/mean_r2",
             mode="max",
-            patience=self.config.get('early_stopping_patience', 20),
+            patience=self.config.get("early_stopping_patience", 20),
             verbose=False,  # We have our own logging
         )
 
-        lr_monitor = LearningRateMonitor(logging_interval='epoch')
+        lr_monitor = LearningRateMonitor(logging_interval="epoch")
         epoch_logger = EpochLogger(fold_id=fold_id)
 
         return [checkpoint_callback, early_stopping, lr_monitor, epoch_logger]
@@ -186,25 +195,29 @@ class KFoldTrainer:
             data_dir=self.data_dir,
             fold_assignments=self.fold_assignments,
             fold_id=fold_id,
-            batch_size=self.config.get('batch_size', 8),  # SOTA: 8
-            max_notes=self.config.get('max_notes', 1024),
-            num_workers=self.config.get('num_workers', 0),
-            augment_train=self.config.get('augment_train', False),  # SOTA: no augmentation
+            batch_size=self.config.get("batch_size", 8),  # SOTA: 8
+            max_notes=self.config.get("max_notes", 1024),
+            num_workers=self.config.get("num_workers", 0),
+            augment_train=self.config.get(
+                "augment_train", False
+            ),  # SOTA: no augmentation
         )
-        data_module.setup('fit')
+        data_module.setup("fit")
 
         n_train = len(data_module.train_dataset)
         n_val = len(data_module.val_dataset)
 
         if verbose:
-            print(f"\n{'='*70}")
+            print(f"\n{'=' * 70}")
             print(f"FOLD {fold_id}/{self.n_folds - 1}")
-            print(f"{'='*70}")
+            print(f"{'=' * 70}")
             print(f"  Train samples: {n_train} | Val samples: {n_val}")
-            print(f"  Batch size: {self.config.get('batch_size', 32)} | "
-                  f"Max epochs: {self.config.get('max_epochs', 100)} | "
-                  f"Early stop patience: {self.config.get('early_stopping_patience', 20)}")
-            print(f"{'='*70}")
+            print(
+                f"  Batch size: {self.config.get('batch_size', 32)} | "
+                f"Max epochs: {self.config.get('max_epochs', 100)} | "
+                f"Early stop patience: {self.config.get('early_stopping_patience', 20)}"
+            )
+            print(f"{'=' * 70}")
 
         # Create model
         model = self._create_model()
@@ -225,11 +238,11 @@ class KFoldTrainer:
 
         # Create trainer
         trainer = pl.Trainer(
-            max_epochs=self.config.get('max_epochs', 100),
-            accelerator='auto',
+            max_epochs=self.config.get("max_epochs", 100),
+            accelerator="auto",
             devices=1,
-            precision=self.config.get('precision', '16-mixed'),
-            gradient_clip_val=self.config.get('gradient_clip_val', 2.0),
+            precision=self.config.get("precision", "16-mixed"),
+            gradient_clip_val=self.config.get("gradient_clip_val", 2.0),
             callbacks=callbacks,
             logger=logger,
             enable_progress_bar=False,  # We use our own logging
@@ -249,15 +262,15 @@ class KFoldTrainer:
         # Load best model and do detailed evaluation
         best_model = PercePianoVNetModule.load_from_checkpoint(
             str(best_checkpoint),
-            input_size=self.config.get('input_size', 78),  # SOTA: 78 features
-            hidden_size=self.config.get('hidden_size', 256),
-            note_layers=self.config.get('note_layers', 2),
-            voice_layers=self.config.get('voice_layers', 2),
-            beat_layers=self.config.get('beat_layers', 2),
-            measure_layers=self.config.get('measure_layers', 1),
-            num_attention_heads=self.config.get('num_attention_heads', 8),
-            final_hidden=self.config.get('final_hidden', 128),
-            dropout=self.config.get('dropout', 0.2),
+            input_size=self.config.get("input_size", 78),  # SOTA: 78 features
+            hidden_size=self.config.get("hidden_size", 256),
+            note_layers=self.config.get("note_layers", 2),
+            voice_layers=self.config.get("voice_layers", 2),
+            beat_layers=self.config.get("beat_layers", 2),
+            measure_layers=self.config.get("measure_layers", 1),
+            num_attention_heads=self.config.get("num_attention_heads", 8),
+            final_hidden=self.config.get("final_hidden", 128),
+            dropout=self.config.get("dropout", 0.2),
         )
 
         # Detailed evaluation
@@ -268,21 +281,21 @@ class KFoldTrainer:
         # Create fold metrics
         fold_metrics = FoldMetrics(
             fold_id=fold_id,
-            train_loss=float(trainer.callback_metrics.get('train/loss', 0.0)),
-            val_loss=val_metrics['loss'],
-            val_r2=val_metrics['r2'],
-            val_pearson=val_metrics['pearson'],
-            val_spearman=val_metrics['spearman'],
-            val_mae=val_metrics['mae'],
-            val_rmse=val_metrics['rmse'],
-            per_dim_r2=val_metrics['per_dim_r2'],
-            per_dim_pearson=val_metrics['per_dim_pearson'],
+            train_loss=float(trainer.callback_metrics.get("train/loss", 0.0)),
+            val_loss=val_metrics["loss"],
+            val_r2=val_metrics["r2"],
+            val_pearson=val_metrics["pearson"],
+            val_spearman=val_metrics["spearman"],
+            val_mae=val_metrics["mae"],
+            val_rmse=val_metrics["rmse"],
+            per_dim_r2=val_metrics["per_dim_r2"],
+            per_dim_pearson=val_metrics["per_dim_pearson"],
             epochs_trained=trainer.current_epoch + 1,
             best_epoch=epoch_logger.best_epoch,
             training_time_seconds=training_time,
             n_train_samples=n_train,
             n_val_samples=n_val,
-            prediction_stats=val_metrics['prediction_stats'],
+            prediction_stats=val_metrics["prediction_stats"],
         )
 
         self.fold_metrics.append(fold_metrics)
@@ -308,16 +321,16 @@ class KFoldTrainer:
 
         with torch.no_grad():
             for batch in dataloader:
-                input_features = batch['input_features'].to(device)
+                input_features = batch["input_features"].to(device)
                 note_locations = {
-                    'beat': batch['note_locations_beat'].to(device),
-                    'measure': batch['note_locations_measure'].to(device),
-                    'voice': batch['note_locations_voice'].to(device),
+                    "beat": batch["note_locations_beat"].to(device),
+                    "measure": batch["note_locations_measure"].to(device),
+                    "voice": batch["note_locations_voice"].to(device),
                 }
-                targets = batch['scores'].to(device)
+                targets = batch["scores"].to(device)
 
                 outputs = model(input_features, note_locations)
-                predictions = outputs['predictions']
+                predictions = outputs["predictions"]
 
                 all_preds.append(predictions.cpu().numpy())
                 all_targets.append(targets.cpu().numpy())
@@ -348,38 +361,40 @@ class KFoldTrainer:
 
         # Prediction distribution analysis
         prediction_stats = {
-            'pred_mean': float(np.mean(preds)),
-            'pred_std': float(np.std(preds)),
-            'pred_min': float(np.min(preds)),
-            'pred_max': float(np.max(preds)),
-            'target_mean': float(np.mean(targets)),
-            'target_std': float(np.std(targets)),
-            'n_collapsed_dims': sum(1 for d in per_dim_pred_std.values() if d < 0.05),
-            'per_dim_pred_std': per_dim_pred_std,
-            'per_dim_target_std': per_dim_target_std,
+            "pred_mean": float(np.mean(preds)),
+            "pred_std": float(np.std(preds)),
+            "pred_min": float(np.min(preds)),
+            "pred_max": float(np.max(preds)),
+            "target_mean": float(np.mean(targets)),
+            "target_std": float(np.std(targets)),
+            "n_collapsed_dims": sum(1 for d in per_dim_pred_std.values() if d < 0.05),
+            "per_dim_pred_std": per_dim_pred_std,
+            "per_dim_target_std": per_dim_target_std,
         }
 
         return {
-            'loss': mse,
-            'r2': r2,
-            'pearson': pearson,
-            'spearman': spearman,
-            'mae': mae,
-            'rmse': rmse,
-            'per_dim_r2': per_dim_r2,
-            'per_dim_pearson': per_dim_pearson,
-            'prediction_stats': prediction_stats,
-            'predictions': preds,
-            'targets': targets,
+            "loss": mse,
+            "r2": r2,
+            "pearson": pearson,
+            "spearman": spearman,
+            "mae": mae,
+            "rmse": rmse,
+            "per_dim_r2": per_dim_r2,
+            "per_dim_pearson": per_dim_pearson,
+            "prediction_stats": prediction_stats,
+            "predictions": preds,
+            "targets": targets,
         }
 
     def _print_fold_summary(self, m: FoldMetrics) -> None:
         """Print detailed fold summary."""
-        print(f"\n  {'─'*66}")
+        print(f"\n  {'─' * 66}")
         print(f"  FOLD {m.fold_id} SUMMARY")
-        print(f"  {'─'*66}")
-        print(f"  Training: {m.epochs_trained} epochs ({m.training_time_seconds:.1f}s) | "
-              f"Best epoch: {m.best_epoch}")
+        print(f"  {'─' * 66}")
+        print(
+            f"  Training: {m.epochs_trained} epochs ({m.training_time_seconds:.1f}s) | "
+            f"Best epoch: {m.best_epoch}"
+        )
         print(f"  Samples:  train={m.n_train_samples}, val={m.n_val_samples}")
         print()
         print(f"  Overall Metrics:")
@@ -393,11 +408,17 @@ class KFoldTrainer:
         stats = m.prediction_stats
         print()
         print(f"  Prediction Health:")
-        print(f"    Pred range: [{stats['pred_min']:.3f}, {stats['pred_max']:.3f}] "
-              f"(target: [0, 1])")
-        print(f"    Pred std: {stats['pred_std']:.4f} (target std: {stats['target_std']:.4f})")
-        if stats['n_collapsed_dims'] > 0:
-            print(f"    WARNING: {stats['n_collapsed_dims']}/19 dimensions have collapsed predictions (std < 0.05)")
+        print(
+            f"    Pred range: [{stats['pred_min']:.3f}, {stats['pred_max']:.3f}] "
+            f"(target: [0, 1])"
+        )
+        print(
+            f"    Pred std: {stats['pred_std']:.4f} (target std: {stats['target_std']:.4f})"
+        )
+        if stats["n_collapsed_dims"] > 0:
+            print(
+                f"    WARNING: {stats['n_collapsed_dims']}/19 dimensions have collapsed predictions (std < 0.05)"
+            )
         else:
             print(f"    No collapsed dimensions detected")
 
@@ -419,14 +440,16 @@ class KFoldTrainer:
         """Train all folds sequentially."""
         self.total_start_time = time.time()
 
-        print(f"\n{'#'*70}")
+        print(f"\n{'#' * 70}")
         print(f"  {self.n_folds}-FOLD CROSS-VALIDATION")
-        print(f"{'#'*70}")
+        print(f"{'#' * 70}")
         print(f"  Data directory: {self.data_dir}")
         print(f"  Checkpoint directory: {self.checkpoint_dir}")
-        print(f"  Config: lr={self.config.get('learning_rate')}, "
-              f"hidden={self.config.get('hidden_size')}, "
-              f"batch={self.config.get('batch_size')}")
+        print(
+            f"  Config: lr={self.config.get('learning_rate')}, "
+            f"hidden={self.config.get('hidden_size')}, "
+            f"batch={self.config.get('batch_size')}"
+        )
 
         for fold_id in range(self.n_folds):
             self.train_fold(fold_id, verbose=verbose)
@@ -435,8 +458,10 @@ class KFoldTrainer:
             elapsed = time.time() - self.total_start_time
             avg_per_fold = elapsed / (fold_id + 1)
             remaining = avg_per_fold * (self.n_folds - fold_id - 1)
-            print(f"\n  Progress: {fold_id + 1}/{self.n_folds} folds complete | "
-                  f"Elapsed: {elapsed/60:.1f}m | Est. remaining: {remaining/60:.1f}m")
+            print(
+                f"\n  Progress: {fold_id + 1}/{self.n_folds} folds complete | "
+                f"Elapsed: {elapsed / 60:.1f}m | Est. remaining: {remaining / 60:.1f}m"
+            )
 
         # Aggregate metrics
         aggregate = self._compute_aggregate_metrics()
@@ -482,10 +507,10 @@ class KFoldTrainer:
 
     def _print_aggregate_results(self, agg: AggregateMetrics) -> None:
         """Print aggregate results."""
-        print(f"\n{'='*70}")
+        print(f"\n{'=' * 70}")
         print(f"  AGGREGATE RESULTS ({self.n_folds}-Fold Cross-Validation)")
-        print(f"{'='*70}")
-        print(f"  Total training time: {agg.total_training_time/60:.1f} minutes")
+        print(f"{'=' * 70}")
+        print(f"  Total training time: {agg.total_training_time / 60:.1f} minutes")
         print()
         print(f"  Overall Metrics (mean +/- std):")
         print(f"    R2:       {agg.mean_r2:+.4f} +/- {agg.std_r2:.4f}")
@@ -498,23 +523,33 @@ class KFoldTrainer:
         print()
         print(f"  Per-Fold Results:")
         print(f"    {'Fold':<6} {'R2':>10} {'Pearson':>10} {'MAE':>10} {'Epochs':>8}")
-        print(f"    {'-'*6} {'-'*10} {'-'*10} {'-'*10} {'-'*8}")
+        print(f"    {'-' * 6} {'-' * 10} {'-' * 10} {'-' * 10} {'-' * 8}")
         for m in self.fold_metrics:
-            print(f"    {m.fold_id:<6} {m.val_r2:>+10.4f} {m.val_pearson:>+10.4f} "
-                  f"{m.val_mae:>10.4f} {m.epochs_trained:>8}")
-        print(f"    {'-'*6} {'-'*10} {'-'*10} {'-'*10} {'-'*8}")
-        print(f"    {'Mean':<6} {agg.mean_r2:>+10.4f} {agg.mean_pearson:>+10.4f} "
-              f"{agg.mean_mae:>10.4f}")
-        print(f"    {'Std':<6} {agg.std_r2:>10.4f} {agg.std_pearson:>10.4f} "
-              f"{agg.std_mae:>10.4f}")
+            print(
+                f"    {m.fold_id:<6} {m.val_r2:>+10.4f} {m.val_pearson:>+10.4f} "
+                f"{m.val_mae:>10.4f} {m.epochs_trained:>8}"
+            )
+        print(f"    {'-' * 6} {'-' * 10} {'-' * 10} {'-' * 10} {'-' * 8}")
+        print(
+            f"    {'Mean':<6} {agg.mean_r2:>+10.4f} {agg.mean_pearson:>+10.4f} "
+            f"{agg.mean_mae:>10.4f}"
+        )
+        print(
+            f"    {'Std':<6} {agg.std_r2:>10.4f} {agg.std_pearson:>10.4f} "
+            f"{agg.std_mae:>10.4f}"
+        )
 
         # Dimension analysis
-        sorted_dims = sorted(agg.per_dim_mean_r2.items(), key=lambda x: x[1], reverse=True)
+        sorted_dims = sorted(
+            agg.per_dim_mean_r2.items(), key=lambda x: x[1], reverse=True
+        )
         positive_dims = sum(1 for _, r2 in sorted_dims if r2 > 0)
         strong_dims = sum(1 for _, r2 in sorted_dims if r2 >= 0.2)
 
         print()
-        print(f"  Dimension Analysis: {positive_dims}/19 positive R2, {strong_dims}/19 strong (>=0.2)")
+        print(
+            f"  Dimension Analysis: {positive_dims}/19 positive R2, {strong_dims}/19 strong (>=0.2)"
+        )
         print(f"    Best:  {sorted_dims[0][0]} (R2={sorted_dims[0][1]:+.4f})")
         print(f"    Worst: {sorted_dims[-1][0]} (R2={sorted_dims[-1][1]:+.4f})")
 
@@ -545,21 +580,21 @@ class KFoldTrainer:
         verbose: bool = True,
     ) -> Dict[str, Any]:
         """Evaluate all fold models on held-out test set."""
-        print(f"\n{'='*70}")
+        print(f"\n{'=' * 70}")
         print(f"  TEST SET EVALUATION")
-        print(f"{'='*70}")
+        print(f"{'=' * 70}")
 
         # Create test dataset
         test_dataset = PercePianoTestDataset(
             data_dir=self.data_dir,
             fold_assignments=self.fold_assignments,
-            max_notes=self.config.get('max_notes', 1024),
+            max_notes=self.config.get("max_notes", 1024),
             normalization_stats=normalization_stats,
         )
 
         test_loader = DataLoader(
             test_dataset,
-            batch_size=self.config.get('batch_size', 32),
+            batch_size=self.config.get("batch_size", 32),
             shuffle=False,
             num_workers=0,
         )
@@ -574,20 +609,20 @@ class KFoldTrainer:
         print()
         print(f"  Per-Fold Test Results:")
         print(f"    {'Fold':<6} {'R2':>10} {'Pearson':>10} {'MAE':>10}")
-        print(f"    {'-'*6} {'-'*10} {'-'*10} {'-'*10}")
+        print(f"    {'-' * 6} {'-' * 10} {'-' * 10} {'-' * 10}")
 
         for fold_id, checkpoint_path in enumerate(self.fold_checkpoints):
             model = PercePianoVNetModule.load_from_checkpoint(
                 str(checkpoint_path),
-                input_size=self.config.get('input_size', 78),  # SOTA: 78 features
-                hidden_size=self.config.get('hidden_size', 256),
-                note_layers=self.config.get('note_layers', 2),
-                voice_layers=self.config.get('voice_layers', 2),
-                beat_layers=self.config.get('beat_layers', 2),
-                measure_layers=self.config.get('measure_layers', 1),
-                num_attention_heads=self.config.get('num_attention_heads', 8),
-                final_hidden=self.config.get('final_hidden', 128),
-                dropout=self.config.get('dropout', 0.2),
+                input_size=self.config.get("input_size", 78),  # SOTA: 78 features
+                hidden_size=self.config.get("hidden_size", 256),
+                note_layers=self.config.get("note_layers", 2),
+                voice_layers=self.config.get("voice_layers", 2),
+                beat_layers=self.config.get("beat_layers", 2),
+                measure_layers=self.config.get("measure_layers", 1),
+                num_attention_heads=self.config.get("num_attention_heads", 8),
+                final_hidden=self.config.get("final_hidden", 128),
+                dropout=self.config.get("dropout", 0.2),
             )
 
             model.eval()
@@ -598,16 +633,16 @@ class KFoldTrainer:
 
             with torch.no_grad():
                 for batch in test_loader:
-                    input_features = batch['input_features'].to(device)
+                    input_features = batch["input_features"].to(device)
                     note_locations = {
-                        'beat': batch['note_locations_beat'].to(device),
-                        'measure': batch['note_locations_measure'].to(device),
-                        'voice': batch['note_locations_voice'].to(device),
+                        "beat": batch["note_locations_beat"].to(device),
+                        "measure": batch["note_locations_measure"].to(device),
+                        "voice": batch["note_locations_voice"].to(device),
                     }
 
                     outputs = model(input_features, note_locations)
-                    preds.append(outputs['predictions'].cpu().numpy())
-                    tgts.append(batch['scores'].numpy())
+                    preds.append(outputs["predictions"].cpu().numpy())
+                    tgts.append(batch["scores"].numpy())
 
             preds = np.concatenate(preds, axis=0)
             tgts = np.concatenate(tgts, axis=0)
@@ -618,13 +653,15 @@ class KFoldTrainer:
             pearson = pearsonr(targets.flatten(), preds.flatten())[0]
             mae = np.mean(np.abs(preds - targets))
 
-            fold_test_metrics.append({
-                'fold_id': fold_id,
-                'r2': r2,
-                'pearson': pearson,
-                'mae': mae,
-                'predictions': preds,
-            })
+            fold_test_metrics.append(
+                {
+                    "fold_id": fold_id,
+                    "r2": r2,
+                    "pearson": pearson,
+                    "mae": mae,
+                    "predictions": preds,
+                }
+            )
 
             print(f"    {fold_id:<6} {r2:>+10.4f} {pearson:>+10.4f} {mae:>10.4f}")
 
@@ -636,8 +673,10 @@ class KFoldTrainer:
         ensemble_mae = np.mean(np.abs(ensemble_preds - targets))
         ensemble_rmse = np.sqrt(np.mean((ensemble_preds - targets) ** 2))
 
-        print(f"    {'-'*6} {'-'*10} {'-'*10} {'-'*10}")
-        print(f"    {'Ens.':<6} {ensemble_r2:>+10.4f} {ensemble_pearson:>+10.4f} {ensemble_mae:>10.4f}")
+        print(f"    {'-' * 6} {'-' * 10} {'-' * 10} {'-' * 10}")
+        print(
+            f"    {'Ens.':<6} {ensemble_r2:>+10.4f} {ensemble_pearson:>+10.4f} {ensemble_mae:>10.4f}"
+        )
 
         # Per-dimension test results
         per_dim_r2 = {}
@@ -657,22 +696,22 @@ class KFoldTrainer:
         print(f"    Positive dimensions: {positive}/19")
 
         # Check for improvement from ensemble
-        mean_fold_r2 = np.mean([m['r2'] for m in fold_test_metrics])
+        mean_fold_r2 = np.mean([m["r2"] for m in fold_test_metrics])
         ensemble_gain = ensemble_r2 - mean_fold_r2
         print()
         print(f"  Ensemble Gain: {ensemble_gain:+.4f} R2 over mean of individual folds")
 
         return {
-            'fold_metrics': fold_test_metrics,
-            'ensemble': {
-                'r2': ensemble_r2,
-                'pearson': ensemble_pearson,
-                'spearman': ensemble_spearman,
-                'mae': ensemble_mae,
-                'rmse': ensemble_rmse,
-                'per_dim_r2': per_dim_r2,
-                'predictions': ensemble_preds,
-                'targets': targets,
+            "fold_metrics": fold_test_metrics,
+            "ensemble": {
+                "r2": ensemble_r2,
+                "pearson": ensemble_pearson,
+                "spearman": ensemble_spearman,
+                "mae": ensemble_mae,
+                "rmse": ensemble_rmse,
+                "per_dim_r2": per_dim_r2,
+                "predictions": ensemble_preds,
+                "targets": targets,
             },
         }
 
@@ -682,48 +721,50 @@ class KFoldTrainer:
         output_path = Path(output_path)
 
         results = {
-            'config': {k: v for k, v in self.config.items() if not callable(v)},
-            'n_folds': self.n_folds,
-            'fold_metrics': [
+            "config": {k: v for k, v in self.config.items() if not callable(v)},
+            "n_folds": self.n_folds,
+            "fold_metrics": [
                 {
-                    'fold_id': m.fold_id,
-                    'train_loss': float(m.train_loss),
-                    'val_loss': float(m.val_loss),
-                    'val_r2': float(m.val_r2),
-                    'val_pearson': float(m.val_pearson),
-                    'val_spearman': float(m.val_spearman),
-                    'val_mae': float(m.val_mae),
-                    'val_rmse': float(m.val_rmse),
-                    'epochs_trained': m.epochs_trained,
-                    'best_epoch': m.best_epoch,
-                    'training_time_seconds': m.training_time_seconds,
-                    'n_train_samples': m.n_train_samples,
-                    'n_val_samples': m.n_val_samples,
-                    'per_dim_r2': {k: float(v) for k, v in m.per_dim_r2.items()},
+                    "fold_id": m.fold_id,
+                    "train_loss": float(m.train_loss),
+                    "val_loss": float(m.val_loss),
+                    "val_r2": float(m.val_r2),
+                    "val_pearson": float(m.val_pearson),
+                    "val_spearman": float(m.val_spearman),
+                    "val_mae": float(m.val_mae),
+                    "val_rmse": float(m.val_rmse),
+                    "epochs_trained": m.epochs_trained,
+                    "best_epoch": m.best_epoch,
+                    "training_time_seconds": m.training_time_seconds,
+                    "n_train_samples": m.n_train_samples,
+                    "n_val_samples": m.n_val_samples,
+                    "per_dim_r2": {k: float(v) for k, v in m.per_dim_r2.items()},
                 }
                 for m in self.fold_metrics
             ],
-            'fold_checkpoints': [str(p) for p in self.fold_checkpoints],
+            "fold_checkpoints": [str(p) for p in self.fold_checkpoints],
         }
 
         if self.fold_metrics:
             agg = self._compute_aggregate_metrics()
-            results['aggregate'] = {
-                'mean_r2': float(agg.mean_r2),
-                'std_r2': float(agg.std_r2),
-                'mean_pearson': float(agg.mean_pearson),
-                'std_pearson': float(agg.std_pearson),
-                'mean_spearman': float(agg.mean_spearman),
-                'std_spearman': float(agg.std_spearman),
-                'mean_mae': float(agg.mean_mae),
-                'std_mae': float(agg.std_mae),
-                'mean_rmse': float(agg.mean_rmse),
-                'std_rmse': float(agg.std_rmse),
-                'total_training_time_seconds': float(agg.total_training_time),
-                'per_dim_mean_r2': {k: float(v) for k, v in agg.per_dim_mean_r2.items()},
+            results["aggregate"] = {
+                "mean_r2": float(agg.mean_r2),
+                "std_r2": float(agg.std_r2),
+                "mean_pearson": float(agg.mean_pearson),
+                "std_pearson": float(agg.std_pearson),
+                "mean_spearman": float(agg.mean_spearman),
+                "std_spearman": float(agg.std_spearman),
+                "mean_mae": float(agg.mean_mae),
+                "std_mae": float(agg.std_mae),
+                "mean_rmse": float(agg.mean_rmse),
+                "std_rmse": float(agg.std_rmse),
+                "total_training_time_seconds": float(agg.total_training_time),
+                "per_dim_mean_r2": {
+                    k: float(v) for k, v in agg.per_dim_mean_r2.items()
+                },
             }
 
-        with open(output_path, 'w') as f:
+        with open(output_path, "w") as f:
             json.dump(results, f, indent=2)
 
         print(f"\n  Results saved to {output_path}")

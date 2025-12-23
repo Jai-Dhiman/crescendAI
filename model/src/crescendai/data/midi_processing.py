@@ -1,8 +1,9 @@
-import numpy as np
-import mido
-import pretty_midi
 from pathlib import Path
-from typing import Dict, List, Tuple, Union, Optional
+from typing import Dict, List, Optional, Tuple, Union
+
+import mido
+import numpy as np
+import pretty_midi
 
 
 class OctupleMIDITokenizer:
@@ -26,14 +27,14 @@ class OctupleMIDITokenizer:
 
         # Vocabulary sizes for each dimension
         self.vocab_sizes = {
-            'event_type': 5,  # note-on, note-off, time-shift, pedal-on, pedal-off
-            'beat': 16,  # up to 16 beats per measure
-            'position': 16,  # 16 subdivisions per beat
-            'pitch': max_pitch - min_pitch + 1,  # 88 piano keys
-            'duration': 64,  # 64 bins at 60-tick intervals (like CP tokenization)
-            'velocity': 128,  # MIDI velocity range
-            'instrument': 1,  # piano only
-            'bar': 512,  # up to 512 measures
+            "event_type": 5,  # note-on, note-off, time-shift, pedal-on, pedal-off
+            "beat": 16,  # up to 16 beats per measure
+            "position": 16,  # 16 subdivisions per beat
+            "pitch": max_pitch - min_pitch + 1,  # 88 piano keys
+            "duration": 64,  # 64 bins at 60-tick intervals (like CP tokenization)
+            "velocity": 128,  # MIDI velocity range
+            "instrument": 1,  # piano only
+            "bar": 512,  # up to 512 measures
         }
 
     def encode(self, midi_data: pretty_midi.PrettyMIDI) -> np.ndarray:
@@ -61,7 +62,9 @@ class OctupleMIDITokenizer:
 
             for note in notes:
                 # Calculate beat and bar information
-                beat, position = self._time_to_beat(note.start, tempo_changes, midi_data)
+                beat, position = self._time_to_beat(
+                    note.start, tempo_changes, midi_data
+                )
                 bar = int(beat // 4)  # Assuming 4/4 time
                 beat_in_bar = beat % 4
 
@@ -73,16 +76,20 @@ class OctupleMIDITokenizer:
 
                 # Remap pitch from MIDI range (21-108) to vocab range (0-87)
                 pitch_remapped = note.pitch - self.min_pitch
-                pitch_remapped = max(0, min(pitch_remapped, self.vocab_sizes['pitch'] - 1))
+                pitch_remapped = max(
+                    0, min(pitch_remapped, self.vocab_sizes["pitch"] - 1)
+                )
 
                 # Clamp bar to vocabulary size
-                bar_clamped = min(bar, self.vocab_sizes['bar'] - 1)
+                bar_clamped = min(bar, self.vocab_sizes["bar"] - 1)
 
                 # Clamp all other dimensions to vocabulary sizes
                 event = [
                     0,  # type: note-on (0-4)
-                    min(int(beat_in_bar), self.vocab_sizes['beat'] - 1),  # beat (0-15)
-                    min(int(position), self.vocab_sizes['position'] - 1),  # position (0-15)
+                    min(int(beat_in_bar), self.vocab_sizes["beat"] - 1),  # beat (0-15)
+                    min(
+                        int(position), self.vocab_sizes["position"] - 1
+                    ),  # position (0-15)
                     pitch_remapped,  # pitch (0-87)
                     duration_ticks,  # duration (0-127)
                     note.velocity,  # velocity (0-127)
@@ -97,7 +104,7 @@ class OctupleMIDITokenizer:
         self,
         time: float,
         tempo_changes: Tuple[np.ndarray, np.ndarray],
-        midi_data: pretty_midi.PrettyMIDI
+        midi_data: pretty_midi.PrettyMIDI,
     ) -> Tuple[float, float]:
         """
         Convert time in seconds to beat and position.
@@ -227,7 +234,9 @@ def _load_midi_via_mido(path: str) -> pretty_midi.PrettyMIDI:
     # Create instrument for each track
     for track_idx, track in enumerate(midi_data.tracks):
         # Skip track 0 if it's a tempo/meta track with no notes
-        instrument = pretty_midi.Instrument(program=0, is_drum=False, name=f"Track {track_idx}")
+        instrument = pretty_midi.Instrument(
+            program=0, is_drum=False, name=f"Track {track_idx}"
+        )
 
         # Track state
         active_notes = {}  # pitch -> (start_time, velocity)
@@ -242,12 +251,14 @@ def _load_midi_via_mido(path: str) -> pretty_midi.PrettyMIDI:
                 current_time += delta_ticks * seconds_per_tick
 
             # Process message
-            if msg.type == 'set_tempo':
+            if msg.type == "set_tempo":
                 current_tempo = msg.tempo
-            elif msg.type == 'note_on' and msg.velocity > 0:
+            elif msg.type == "note_on" and msg.velocity > 0:
                 # Note on
                 active_notes[msg.note] = (current_time, msg.velocity)
-            elif msg.type == 'note_off' or (msg.type == 'note_on' and msg.velocity == 0):
+            elif msg.type == "note_off" or (
+                msg.type == "note_on" and msg.velocity == 0
+            ):
                 # Note off
                 if msg.note in active_notes:
                     start_time, velocity = active_notes.pop(msg.note)
@@ -255,25 +266,20 @@ def _load_midi_via_mido(path: str) -> pretty_midi.PrettyMIDI:
                         velocity=velocity,
                         pitch=msg.note,
                         start=start_time,
-                        end=current_time
+                        end=current_time,
                     )
                     instrument.notes.append(note)
-            elif msg.type == 'control_change':
+            elif msg.type == "control_change":
                 # Add control changes (e.g., pedal)
                 cc = pretty_midi.ControlChange(
-                    number=msg.control,
-                    value=msg.value,
-                    time=current_time
+                    number=msg.control, value=msg.value, time=current_time
                 )
                 instrument.control_changes.append(cc)
 
         # Close any remaining active notes
         for pitch, (start_time, velocity) in active_notes.items():
             note = pretty_midi.Note(
-                velocity=velocity,
-                pitch=pitch,
-                start=start_time,
-                end=current_time
+                velocity=velocity, pitch=pitch, start=start_time, end=current_time
             )
             instrument.notes.append(note)
 
@@ -359,9 +365,9 @@ def extract_midi_features(midi: pretty_midi.PrettyMIDI) -> Dict[str, np.ndarray]
     velocities = np.array([note.velocity for note in all_notes])
     pitches = np.array([note.pitch for note in all_notes])
 
-    features['onset_times'] = onset_times
-    features['velocities'] = velocities
-    features['pitches'] = pitches
+    features["onset_times"] = onset_times
+    features["velocities"] = velocities
+    features["pitches"] = pitches
 
     # Extract pedal events
     pedal_events = []
@@ -371,18 +377,18 @@ def extract_midi_features(midi: pretty_midi.PrettyMIDI) -> Dict[str, np.ndarray]
                 pedal_events.append((control_change.time, control_change.value))
 
     if pedal_events:
-        features['pedal_times'] = np.array([t for t, v in pedal_events])
-        features['pedal_values'] = np.array([v for t, v in pedal_events])
+        features["pedal_times"] = np.array([t for t, v in pedal_events])
+        features["pedal_values"] = np.array([v for t, v in pedal_events])
     else:
-        features['pedal_times'] = np.array([])
-        features['pedal_values'] = np.array([])
+        features["pedal_times"] = np.array([])
+        features["pedal_values"] = np.array([])
 
     # Calculate statistics
-    features['pitch_range'] = pitches.max() - pitches.min() if len(pitches) > 0 else 0
-    features['velocity_mean'] = velocities.mean() if len(velocities) > 0 else 0
-    features['velocity_std'] = velocities.std() if len(velocities) > 0 else 0
-    features['note_count'] = len(all_notes)
-    features['duration'] = midi.get_end_time()
+    features["pitch_range"] = pitches.max() - pitches.min() if len(pitches) > 0 else 0
+    features["velocity_mean"] = velocities.mean() if len(velocities) > 0 else 0
+    features["velocity_std"] = velocities.std() if len(velocities) > 0 else 0
+    features["note_count"] = len(all_notes)
+    features["duration"] = midi.get_end_time()
 
     return features
 
@@ -409,8 +415,7 @@ def segment_midi(
 
         # Copy tempo information
         segment_midi.time_signature_changes = [
-            ts for ts in midi.time_signature_changes
-            if start_time <= ts.time < end_time
+            ts for ts in midi.time_signature_changes if start_time <= ts.time < end_time
         ]
 
         # Copy notes within time range
@@ -418,7 +423,7 @@ def segment_midi(
             segment_instrument = pretty_midi.Instrument(
                 program=instrument.program,
                 is_drum=instrument.is_drum,
-                name=instrument.name
+                name=instrument.name,
             )
 
             for note in instrument.notes:
@@ -429,7 +434,7 @@ def segment_midi(
                         velocity=note.velocity,
                         pitch=note.pitch,
                         start=max(0, note.start - start_time),
-                        end=min(end_time - start_time, note.end - start_time)
+                        end=min(end_time - start_time, note.end - start_time),
                     )
                     segment_instrument.notes.append(new_note)
 
@@ -437,9 +442,7 @@ def segment_midi(
             for cc in instrument.control_changes:
                 if start_time <= cc.time < end_time:
                     new_cc = pretty_midi.ControlChange(
-                        number=cc.number,
-                        value=cc.value,
-                        time=cc.time - start_time
+                        number=cc.number, value=cc.value, time=cc.time - start_time
                     )
                     segment_instrument.control_changes.append(new_cc)
 

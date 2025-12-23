@@ -17,10 +17,11 @@ import json
 import sys
 from pathlib import Path
 from typing import Dict, List, Optional
-from tqdm import tqdm
-import pretty_midi
+
 import librosa
 import numpy as np
+import pretty_midi
+from tqdm import tqdm
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
@@ -65,7 +66,9 @@ def process_midi_file(
         audio_data = None
         if not skip_audio and audio_path and audio_path.exists():
             try:
-                audio_data, sr = librosa.load(str(audio_path), sr=sample_rate, mono=True)
+                audio_data, sr = librosa.load(
+                    str(audio_path), sr=sample_rate, mono=True
+                )
             except Exception as e:
                 print(f"Warning: Could not load audio {audio_path}: {e}")
 
@@ -83,26 +86,24 @@ def process_midi_file(
 
             # Prepare data for labeling functions
             sample_data = {
-                'midi_data': midi_data,
-                'audio_data': audio_data,
-                'sr': sample_rate,
+                "midi_data": midi_data,
+                "audio_data": audio_data,
+                "sr": sample_rate,
             }
 
             # Apply labeling functions
             labels = apply_labeling_functions(
-                sample_data,
-                labeling_functions,
-                use_adaptive_weights=False
+                sample_data, labeling_functions, use_adaptive_weights=False
             )
 
             # Create annotation entry
             annotation = {
-                'audio_path': str(audio_path) if audio_path else None,
-                'midi_path': str(midi_path),
-                'start_time': start_time,
-                'end_time': end_time,
-                'labels': labels,
-                'dataset': 'atepp' if 'atepp' in str(midi_path).lower() else 'maestro',
+                "audio_path": str(audio_path) if audio_path else None,
+                "midi_path": str(midi_path),
+                "start_time": start_time,
+                "end_time": end_time,
+                "labels": labels,
+                "dataset": "atepp" if "atepp" in str(midi_path).lower() else "maestro",
             }
 
             annotations.append(annotation)
@@ -119,7 +120,7 @@ def process_dataset(
     dataset_name: str,
     labeling_functions: Dict,
     max_samples: Optional[int] = None,
-    audio_extensions: List[str] = ['.wav', '.mp3', '.flac'],
+    audio_extensions: List[str] = [".wav", ".mp3", ".flac"],
     skip_audio: bool = False,
 ) -> List[Dict]:
     """
@@ -135,17 +136,17 @@ def process_dataset(
     Returns:
         List of annotations
     """
-    print(f"\n{'='*80}")
+    print(f"\n{'=' * 80}")
     print(f"Processing {dataset_name} dataset")
-    print(f"{'='*80}")
+    print(f"{'=' * 80}")
     print(f"Dataset directory: {dataset_dir}")
 
     # Find all MIDI files (excluding macOS metadata)
     midi_files = []
-    for ext in ['.mid', '.midi']:
-        all_files = list(dataset_dir.rglob(f'*{ext}'))
+    for ext in [".mid", ".midi"]:
+        all_files = list(dataset_dir.rglob(f"*{ext}"))
         # Filter out __MACOSX metadata files
-        midi_files.extend([f for f in all_files if '__MACOSX' not in str(f)])
+        midi_files.extend([f for f in all_files if "__MACOSX" not in str(f)])
 
     print(f"Found {len(midi_files)} MIDI files")
 
@@ -167,10 +168,7 @@ def process_dataset(
 
         # Process file
         annotations = process_midi_file(
-            midi_path,
-            labeling_functions,
-            audio_path=audio_path,
-            skip_audio=skip_audio
+            midi_path, labeling_functions, audio_path=audio_path, skip_audio=skip_audio
         )
 
         all_annotations.extend(annotations)
@@ -183,7 +181,7 @@ def save_annotations(
     annotations: List[Dict],
     output_path: Path,
     train_ratio: float = 0.8,
-    val_ratio: float = 0.1
+    val_ratio: float = 0.1,
 ):
     """
     Save annotations to JSONL files (train/val/test split).
@@ -194,9 +192,9 @@ def save_annotations(
         train_ratio: Fraction for training set
         val_ratio: Fraction for validation set
     """
-    print(f"\n{'='*80}")
+    print(f"\n{'=' * 80}")
     print("Saving annotations")
-    print(f"{'='*80}")
+    print(f"{'=' * 80}")
 
     # Shuffle annotations
     np.random.shuffle(annotations)
@@ -207,8 +205,8 @@ def save_annotations(
     n_val = int(n * val_ratio)
 
     train_annotations = annotations[:n_train]
-    val_annotations = annotations[n_train:n_train + n_val]
-    test_annotations = annotations[n_train + n_val:]
+    val_annotations = annotations[n_train : n_train + n_val]
+    test_annotations = annotations[n_train + n_val :]
 
     print(f"Train: {len(train_annotations)}")
     print(f"Val: {len(val_annotations)}")
@@ -219,40 +217,40 @@ def save_annotations(
 
     # Save splits
     splits = {
-        'train': train_annotations,
-        'val': val_annotations,
-        'test': test_annotations,
+        "train": train_annotations,
+        "val": val_annotations,
+        "test": test_annotations,
     }
 
     for split_name, split_annotations in splits.items():
         split_path = output_path.parent / f"{output_path.stem}_{split_name}.jsonl"
 
-        with open(split_path, 'w') as f:
+        with open(split_path, "w") as f:
             for annotation in split_annotations:
-                f.write(json.dumps(annotation) + '\n')
+                f.write(json.dumps(annotation) + "\n")
 
         print(f"Saved {split_name}: {split_path}")
 
     # Save statistics
     stats = {
-        'total_samples': len(annotations),
-        'train_samples': len(train_annotations),
-        'val_samples': len(val_annotations),
-        'test_samples': len(test_annotations),
-        'dimensions': list(annotations[0]['labels'].keys()) if annotations else [],
+        "total_samples": len(annotations),
+        "train_samples": len(train_annotations),
+        "val_samples": len(val_annotations),
+        "test_samples": len(test_annotations),
+        "dimensions": list(annotations[0]["labels"].keys()) if annotations else [],
     }
 
     # Compute label statistics
     if annotations:
-        for dim in stats['dimensions']:
-            values = [a['labels'][dim] for a in annotations if dim in a['labels']]
-            stats[f'{dim}_mean'] = float(np.mean(values))
-            stats[f'{dim}_std'] = float(np.std(values))
-            stats[f'{dim}_min'] = float(np.min(values))
-            stats[f'{dim}_max'] = float(np.max(values))
+        for dim in stats["dimensions"]:
+            values = [a["labels"][dim] for a in annotations if dim in a["labels"]]
+            stats[f"{dim}_mean"] = float(np.mean(values))
+            stats[f"{dim}_std"] = float(np.std(values))
+            stats[f"{dim}_min"] = float(np.min(values))
+            stats[f"{dim}_max"] = float(np.max(values))
 
     stats_path = output_path.parent / f"{output_path.stem}_stats.json"
-    with open(stats_path, 'w') as f:
+    with open(stats_path, "w") as f:
         json.dump(stats, f, indent=2)
 
     print(f"Saved statistics: {stats_path}")
@@ -260,38 +258,29 @@ def save_annotations(
 
 def main():
     parser = argparse.ArgumentParser(description="Generate weak supervision labels")
+    parser.add_argument("--atepp_dir", type=str, help="Path to ATEPP dataset directory")
     parser.add_argument(
-        '--atepp_dir',
-        type=str,
-        help='Path to ATEPP dataset directory'
+        "--maestro_dir", type=str, help="Path to MAESTRO dataset directory"
     )
     parser.add_argument(
-        '--maestro_dir',
+        "--output_dir",
         type=str,
-        help='Path to MAESTRO dataset directory'
+        default="/tmp/weak_labels",
+        help="Output directory for annotations",
     )
     parser.add_argument(
-        '--output_dir',
-        type=str,
-        default='/tmp/weak_labels',
-        help='Output directory for annotations'
-    )
-    parser.add_argument(
-        '--max_samples',
+        "--max_samples",
         type=int,
         default=None,
-        help='Maximum number of samples per dataset (for testing, e.g., 100)'
+        help="Maximum number of samples per dataset (for testing, e.g., 100)",
     )
     parser.add_argument(
-        '--skip_audio',
-        action='store_true',
-        help='Skip audio loading (MIDI-only labeling functions, faster)'
+        "--skip_audio",
+        action="store_true",
+        help="Skip audio loading (MIDI-only labeling functions, faster)",
     )
     parser.add_argument(
-        '--seed',
-        type=int,
-        default=42,
-        help='Random seed for reproducibility'
+        "--seed", type=int, default=42, help="Random seed for reproducibility"
     )
 
     args = parser.parse_args()
@@ -324,7 +313,7 @@ def main():
                 "ATEPP",
                 labeling_functions,
                 max_samples=args.max_samples,
-                skip_audio=args.skip_audio
+                skip_audio=args.skip_audio,
             )
             all_annotations.extend(atepp_annotations)
 
@@ -338,7 +327,7 @@ def main():
                 "MAESTRO",
                 labeling_functions,
                 max_samples=args.max_samples,
-                skip_audio=args.skip_audio
+                skip_audio=args.skip_audio,
             )
             all_annotations.extend(maestro_annotations)
 

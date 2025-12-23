@@ -6,37 +6,37 @@ the MIDI-only scoring model.
 """
 
 import json
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple
+
 import numpy as np
 import pretty_midi
 import torch
-from pathlib import Path
 from torch.utils.data import Dataset
-from typing import Dict, List, Optional, Tuple
 
 from src.crescendai.data.midi_processing import OctupleMIDITokenizer
 
-
 # All 19 PercePiano dimensions (matching reference implementation)
 DIMENSIONS = [
-    "timing",              # 0: Stable <-> Unstable
-    "articulation_length", # 1: Short <-> Long
+    "timing",  # 0: Stable <-> Unstable
+    "articulation_length",  # 1: Short <-> Long
     "articulation_touch",  # 2: Soft/Cushioned <-> Hard/Solid
-    "pedal_amount",        # 3: Sparse/Dry <-> Saturated/Wet
-    "pedal_clarity",       # 4: Clean <-> Blurred
-    "timbre_variety",      # 5: Even <-> Colorful
-    "timbre_depth",        # 6: Shallow <-> Rich
-    "timbre_brightness",   # 7: Bright <-> Dark
-    "timbre_loudness",     # 8: Soft <-> Loud
-    "dynamic_range",       # 9: Little Range <-> Large Range
-    "tempo",               # 10: Fast-paced <-> Slow-paced
-    "space",               # 11: Flat <-> Spacious
-    "balance",             # 12: Disproportioned <-> Balanced
-    "drama",               # 13: Pure <-> Dramatic
-    "mood_valence",        # 14: Optimistic <-> Dark
-    "mood_energy",         # 15: Low Energy <-> High Energy
-    "mood_imagination",    # 16: Honest <-> Imaginative
-    "sophistication",      # 17: Sophisticated/Mellow <-> Raw/Crude
-    "interpretation",      # 18: Unsatisfactory <-> Convincing
+    "pedal_amount",  # 3: Sparse/Dry <-> Saturated/Wet
+    "pedal_clarity",  # 4: Clean <-> Blurred
+    "timbre_variety",  # 5: Even <-> Colorful
+    "timbre_depth",  # 6: Shallow <-> Rich
+    "timbre_brightness",  # 7: Bright <-> Dark
+    "timbre_loudness",  # 8: Soft <-> Loud
+    "dynamic_range",  # 9: Little Range <-> Large Range
+    "tempo",  # 10: Fast-paced <-> Slow-paced
+    "space",  # 11: Flat <-> Spacious
+    "balance",  # 12: Disproportioned <-> Balanced
+    "drama",  # 13: Pure <-> Dramatic
+    "mood_valence",  # 14: Optimistic <-> Dark
+    "mood_energy",  # 15: Low Energy <-> High Energy
+    "mood_imagination",  # 16: Honest <-> Imaginative
+    "sophistication",  # 17: Sophisticated/Mellow <-> Raw/Crude
+    "interpretation",  # 18: Unsatisfactory <-> Convincing
 ]
 
 
@@ -197,7 +197,11 @@ def create_dataloaders(
     batch_size: int = 16,
     max_seq_length: int = 1024,
     num_workers: int = 4,
-) -> Tuple[torch.utils.data.DataLoader, torch.utils.data.DataLoader, torch.utils.data.DataLoader]:
+) -> Tuple[
+    torch.utils.data.DataLoader,
+    torch.utils.data.DataLoader,
+    torch.utils.data.DataLoader,
+]:
     """
     Create train, validation, and test dataloaders.
 

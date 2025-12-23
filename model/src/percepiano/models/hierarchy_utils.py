@@ -7,13 +7,15 @@ and broadcasting back to note level.
 """
 
 import warnings
+from typing import List, Optional, Tuple
+
 import torch
 import torch.nn as nn
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
-from typing import List, Tuple, Optional
 
 # Global debug flag - set to True to enable detailed logging
 HIERARCHY_DEBUG = False
+
 
 def set_hierarchy_debug(enabled: bool) -> None:
     """Enable or disable hierarchy debug logging."""
@@ -53,7 +55,9 @@ def compute_actual_lengths(beat_numbers: torch.Tensor) -> torch.Tensor:
     return lengths
 
 
-def find_boundaries(diff_boundary: torch.Tensor, higher_indices: torch.Tensor, batch_idx: int) -> List[int]:
+def find_boundaries(
+    diff_boundary: torch.Tensor, higher_indices: torch.Tensor, batch_idx: int
+) -> List[int]:
     """
     Find boundary indices for a single batch element.
 
@@ -113,7 +117,10 @@ def find_boundaries_batch(
     # Original PercePiano expects sequential (0, 1, 2...) but our data has actual beat
     # numbers which may skip values. Any positive diff indicates a beat boundary.
     diff_boundary = torch.nonzero(beat_numbers[:, 1:] - beat_numbers[:, :-1] > 0).cpu()
-    boundaries = [find_boundaries(diff_boundary, beat_numbers, i) for i in range(len(beat_numbers))]
+    boundaries = [
+        find_boundaries(diff_boundary, beat_numbers, i)
+        for i in range(len(beat_numbers))
+    ]
 
     # Debug logging
     if HIERARCHY_DEBUG:
@@ -130,9 +137,13 @@ def find_boundaries_batch(
             actual_len = len(non_zero) if len(non_zero.shape) > 0 else 0
 
             print(f"  Sample {i}:")
-            print(f"    Beat range: [{bt[bt != 0].min().item() if actual_len > 0 else 0}, "
-                  f"{bt[bt != 0].max().item() if actual_len > 0 else 0}]")
-            print(f"    Boundaries: {b[:10]}{'...' if len(b) > 10 else ''} (total: {len(b)})")
+            print(
+                f"    Beat range: [{bt[bt != 0].min().item() if actual_len > 0 else 0}, "
+                f"{bt[bt != 0].max().item() if actual_len > 0 else 0}]"
+            )
+            print(
+                f"    Boundaries: {b[:10]}{'...' if len(b) > 10 else ''} (total: {len(b)})"
+            )
 
             if len(b) < 2:
                 print(f"    [WARNING] Only {len(b)} boundaries - hierarchy may fail!")
@@ -191,7 +202,9 @@ def cal_length_from_padded_beat_numbers(beat_numbers: torch.Tensor) -> torch.Ten
         len_note = torch.min(torch.diff(beat_numbers, dim=1), dim=1)[1] + 1
     except Exception:
         # Fallback for edge cases (empty sequences, etc.)
-        len_note = torch.LongTensor([beat_numbers.shape[1]] * len(beat_numbers)).to(beat_numbers.device)
+        len_note = torch.LongTensor([beat_numbers.shape[1]] * len(beat_numbers)).to(
+            beat_numbers.device
+        )
 
     # Original correction: if len_note==1, use full sequence length
     # This handles cases where the minimum diff occurs at position 0
@@ -241,7 +254,9 @@ def make_higher_node(
 
     if HIERARCHY_DEBUG:
         print(f"  attention similarity shape: {similarity.shape}")
-        print(f"  attention stats: mean={similarity.mean():.4f}, std={similarity.std():.4f}")
+        print(
+            f"  attention stats: mean={similarity.mean():.4f}, std={similarity.std():.4f}"
+        )
 
     # Note: actual_lengths parameter kept for backward compatibility but not used
     # Original find_boundaries_batch uses nonzero() to detect boundaries directly
@@ -259,15 +274,20 @@ def make_higher_node(
         len_lower_out = (lower_out.shape[1] - num_zero_padded).tolist()
 
         boundaries = [
-            zero_shifted_lower_indices[i, higher_boundaries[i][:-1]].tolist() + [len_lower_out[i]]
+            zero_shifted_lower_indices[i, higher_boundaries[i][:-1]].tolist()
+            + [len_lower_out[i]]
             for i in range(len(lower_out))
         ]
 
     # Apply softmax within each segment - match original exactly (no edge case fallback)
     softmax_similarity = torch.nn.utils.rnn.pad_sequence(
-        [torch.cat(get_softmax_by_boundary(similarity[batch_idx], boundaries[batch_idx]))
-         for batch_idx in range(len(lower_out))],
-        batch_first=True
+        [
+            torch.cat(
+                get_softmax_by_boundary(similarity[batch_idx], boundaries[batch_idx])
+            )
+            for batch_idx in range(len(lower_out))
+        ],
+        batch_first=True,
     )
 
     # Pad softmax_similarity to match lower_out sequence length (for fixed-padding scenarios)
@@ -282,24 +302,45 @@ def make_higher_node(
         softmax_similarity = torch.cat([softmax_similarity, padding], dim=1)
 
     # Compute weighted sum within each segment
-    if hasattr(attention_weights, 'head_size'):
-        x_split = torch.stack(lower_out.split(split_size=attention_weights.head_size, dim=2), dim=2)
-        weighted_x = x_split * softmax_similarity.unsqueeze(-1).repeat(1, 1, 1, x_split.shape[-1])
-        weighted_x = weighted_x.view(x_split.shape[0], x_split.shape[1], lower_out.shape[-1])
+    if hasattr(attention_weights, "head_size"):
+        x_split = torch.stack(
+            lower_out.split(split_size=attention_weights.head_size, dim=2), dim=2
+        )
+        weighted_x = x_split * softmax_similarity.unsqueeze(-1).repeat(
+            1, 1, 1, x_split.shape[-1]
+        )
+        weighted_x = weighted_x.view(
+            x_split.shape[0], x_split.shape[1], lower_out.shape[-1]
+        )
 
         # Original: single list comprehension with torch.cat for each batch
         higher_nodes = torch.nn.utils.rnn.pad_sequence(
-            [torch.cat([torch.sum(weighted_x[i:i+1, boundaries[i][j-1]:boundaries[i][j], :], dim=1)
-                        for j in range(1, len(boundaries[i]))], dim=0)
-             for i in range(len(lower_out))],
-            batch_first=True
+            [
+                torch.cat(
+                    [
+                        torch.sum(
+                            weighted_x[
+                                i : i + 1, boundaries[i][j - 1] : boundaries[i][j], :
+                            ],
+                            dim=1,
+                        )
+                        for j in range(1, len(boundaries[i]))
+                    ],
+                    dim=0,
+                )
+                for i in range(len(lower_out))
+            ],
+            batch_first=True,
         )
     else:
         # Non-head-size path (for compatibility) - matches original single-batch logic
         weighted_sum = softmax_similarity * lower_out
         higher_nodes = torch.cat(
-            [torch.sum(weighted_sum[:, boundaries[i-1]:boundaries[i], :], dim=1)
-             for i in range(1, len(boundaries))]).unsqueeze(0)
+            [
+                torch.sum(weighted_sum[:, boundaries[i - 1] : boundaries[i], :], dim=1)
+                for i in range(1, len(boundaries))
+            ]
+        ).unsqueeze(0)
 
     if HIERARCHY_DEBUG:
         print(f"  output higher_nodes shape: {higher_nodes.shape}")
@@ -336,19 +377,26 @@ def span_beat_to_note_num(
         len_note = cal_length_from_padded_beat_numbers(beat_number)
 
     # Build index arrays for sparse matrix (matches original exactly)
-    batch_indices = torch.cat([torch.ones(length) * i for i, length in enumerate(len_note)]).long()
+    batch_indices = torch.cat(
+        [torch.ones(length) * i for i, length in enumerate(len_note)]
+    ).long()
     note_indices = torch.cat([torch.arange(length) for length in len_note])
-    beat_indices = torch.cat([
-        zero_shifted_beat_number[i, :length]
-        for i, length in enumerate(len_note)
-    ]).long()
+    beat_indices = torch.cat(
+        [zero_shifted_beat_number[i, :length] for i, length in enumerate(len_note)]
+    ).long()
 
     # Create span matrix (N, T_note, T_beat)
     # Clamp indices to valid range to prevent CUDA assertion errors
-    span_mat = torch.zeros(beat_number.shape[0], beat_number.shape[1], beat_out.shape[1]).to(beat_out.device)
+    span_mat = torch.zeros(
+        beat_number.shape[0], beat_number.shape[1], beat_out.shape[1]
+    ).to(beat_out.device)
     beat_indices_clamped = beat_indices.clamp(0, beat_out.shape[1] - 1)
     note_indices_clamped = note_indices.clamp(0, beat_number.shape[1] - 1)
-    span_mat[batch_indices.to(beat_out.device), note_indices_clamped.to(beat_out.device), beat_indices_clamped.to(beat_out.device)] = 1
+    span_mat[
+        batch_indices.to(beat_out.device),
+        note_indices_clamped.to(beat_out.device),
+        beat_indices_clamped.to(beat_out.device),
+    ] = 1
 
     # Multiply to get note-level representations
     spanned_beat = torch.bmm(span_mat, beat_out)
@@ -372,7 +420,9 @@ def run_hierarchy_lstm_with_pack(sequence: torch.Tensor, lstm: nn.LSTM) -> torch
     batch_note_length = batch_note_length.clamp(min=1)  # Ensure at least 1 for pack
 
     # Pack, run LSTM, unpack
-    packed_sequence = pack_padded_sequence(sequence, batch_note_length.cpu(), batch_first=True, enforce_sorted=False)
+    packed_sequence = pack_padded_sequence(
+        sequence, batch_note_length.cpu(), batch_first=True, enforce_sorted=False
+    )
     hidden_out, _ = lstm(packed_sequence)
     hidden_out, _ = pad_packed_sequence(hidden_out, batch_first=True)
 

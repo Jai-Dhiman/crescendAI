@@ -23,9 +23,10 @@ Usage:
 
 import json
 import sys
-import torch
 from pathlib import Path
 from typing import List, Optional, Tuple
+
+import torch
 
 
 class PreflightValidationError(Exception):
@@ -35,26 +36,31 @@ class PreflightValidationError(Exception):
     This exception indicates that training should NOT proceed because
     critical requirements are not met.
     """
+
     pass
 
 
 class ScoreValidationError(PreflightValidationError):
     """Raised when score file validation fails."""
+
     pass
 
 
 class MIDIValidationError(PreflightValidationError):
     """Raised when MIDI file validation fails."""
+
     pass
 
 
 class EncoderValidationError(PreflightValidationError):
     """Raised when pre-trained encoder validation fails."""
+
     pass
 
 
 class DataValidationError(PreflightValidationError):
     """Raised when data file validation fails."""
+
     pass
 
 
@@ -73,8 +79,8 @@ def validate_data_files(data_dir: Path) -> Tuple[int, int, int]:
     """
     counts = {}
 
-    for split in ['train', 'val', 'test']:
-        data_file = data_dir / f'percepiano_{split}.json'
+    for split in ["train", "val", "test"]:
+        data_file = data_dir / f"percepiano_{split}.json"
 
         if not data_file.exists():
             raise DataValidationError(
@@ -103,7 +109,7 @@ def validate_data_files(data_dir: Path) -> Tuple[int, int, int]:
             raise DataValidationError(f"Empty data file: {data_file}")
 
         # Validate first sample has required fields
-        required_fields = ['name', 'midi_path', 'percepiano_scores']
+        required_fields = ["name", "midi_path", "percepiano_scores"]
         sample = samples[0]
         missing_fields = [f for f in required_fields if f not in sample]
         if missing_fields:
@@ -114,8 +120,10 @@ def validate_data_files(data_dir: Path) -> Tuple[int, int, int]:
 
         counts[split] = len(samples)
 
-    print(f"[OK] Data files: train={counts['train']}, val={counts['val']}, test={counts['test']}")
-    return counts['train'], counts['val'], counts['test']
+    print(
+        f"[OK] Data files: train={counts['train']}, val={counts['val']}, test={counts['test']}"
+    )
+    return counts["train"], counts["val"], counts["test"]
 
 
 def validate_midi_files(data_dir: Path) -> int:
@@ -134,24 +142,24 @@ def validate_midi_files(data_dir: Path) -> int:
     missing_midi = []
     total = 0
 
-    for split in ['train', 'val', 'test']:
-        data_file = data_dir / f'percepiano_{split}.json'
+    for split in ["train", "val", "test"]:
+        data_file = data_dir / f"percepiano_{split}.json"
 
         with open(data_file) as f:
             samples = json.load(f)
 
         for sample in samples:
             total += 1
-            midi_path = Path(sample['midi_path'])
+            midi_path = Path(sample["midi_path"])
 
             if not midi_path.exists():
-                missing_midi.append((split, sample['name'], str(midi_path)))
+                missing_midi.append((split, sample["name"], str(midi_path)))
 
     if missing_midi:
         error_lines = [
             f"Missing {len(missing_midi)} MIDI files out of {total}",
             "",
-            "First 10 missing:"
+            "First 10 missing:",
         ]
         for split, name, path in missing_midi[:10]:
             error_lines.append(f"  [{split}] {name}: {path}")
@@ -159,15 +167,17 @@ def validate_midi_files(data_dir: Path) -> int:
         if len(missing_midi) > 10:
             error_lines.append(f"  ... and {len(missing_midi) - 10} more")
 
-        error_lines.extend([
-            "",
-            "ACTION REQUIRED:",
-            "1. Download MIDI files from GDrive:",
-            "   rclone copy gdrive:percepiano_data/PercePiano/virtuoso/data/all_2rounds/ /tmp/midi_files/",
-            "2. Or update paths in data files to match actual file locations"
-        ])
+        error_lines.extend(
+            [
+                "",
+                "ACTION REQUIRED:",
+                "1. Download MIDI files from GDrive:",
+                "   rclone copy gdrive:percepiano_data/PercePiano/virtuoso/data/all_2rounds/ /tmp/midi_files/",
+                "2. Or update paths in data files to match actual file locations",
+            ]
+        )
 
-        raise MIDIValidationError('\n'.join(error_lines))
+        raise MIDIValidationError("\n".join(error_lines))
 
     print(f"[OK] MIDI files: {total}/{total} exist")
     return total
@@ -207,18 +217,18 @@ def validate_score_files(
     total = 0
     found = 0
 
-    for split in ['train', 'val', 'test']:
-        data_file = data_dir / f'percepiano_{split}.json'
+    for split in ["train", "val", "test"]:
+        data_file = data_dir / f"percepiano_{split}.json"
 
         with open(data_file) as f:
             samples = json.load(f)
 
         for sample in samples:
             total += 1
-            score_path = sample.get('score_path')
+            score_path = sample.get("score_path")
 
             if not score_path:
-                no_score_path.append((split, sample['name']))
+                no_score_path.append((split, sample["name"]))
                 continue
 
             full_path = score_dir / score_path
@@ -226,7 +236,7 @@ def validate_score_files(
             if full_path.exists():
                 found += 1
             else:
-                missing_scores.append((split, sample['name'], str(full_path)))
+                missing_scores.append((split, sample["name"], str(full_path)))
 
     coverage = found / total if total > 0 else 0
 
@@ -234,11 +244,13 @@ def validate_score_files(
         error_lines = [
             f"Score file coverage ({coverage:.1%}) below threshold ({min_coverage:.1%})",
             f"Found {found} of {total} score files",
-            ""
+            "",
         ]
 
         if no_score_path:
-            error_lines.append(f"Samples without score_path field: {len(no_score_path)}")
+            error_lines.append(
+                f"Samples without score_path field: {len(no_score_path)}"
+            )
 
         if missing_scores:
             error_lines.append(f"Missing score files: {len(missing_scores)}")
@@ -247,15 +259,17 @@ def validate_score_files(
             for split, name, path in missing_scores[:10]:
                 error_lines.append(f"  [{split}] {name}: {path}")
 
-        error_lines.extend([
-            "",
-            "ACTION REQUIRED:",
-            "1. Upload scores: python scripts/upload_score_files.py",
-            f"2. Download scores: rclone copy gdrive:percepiano_data/PercePiano/virtuoso/data/score_xml/ {score_dir}/",
-            f"3. Or copy local: cp -r data/raw/PercePiano/virtuoso/data/score_xml/* {score_dir}/"
-        ])
+        error_lines.extend(
+            [
+                "",
+                "ACTION REQUIRED:",
+                "1. Upload scores: python scripts/upload_score_files.py",
+                f"2. Download scores: rclone copy gdrive:percepiano_data/PercePiano/virtuoso/data/score_xml/ {score_dir}/",
+                f"3. Or copy local: cp -r data/raw/PercePiano/virtuoso/data/score_xml/* {score_dir}/",
+            ]
+        )
 
-        raise ScoreValidationError('\n'.join(error_lines))
+        raise ScoreValidationError("\n".join(error_lines))
 
     print(f"[OK] Score files: {found}/{total} ({coverage:.1%})")
     return found, total
@@ -292,7 +306,9 @@ def validate_pretrained_encoder(
             )
         else:
             print("[WARN] No pre-trained encoder specified - training from scratch")
-            print("       For better results, download encoder_pretrained.pt from GDrive")
+            print(
+                "       For better results, download encoder_pretrained.pt from GDrive"
+            )
             return False
 
     if not checkpoint_path.exists():
@@ -306,7 +322,7 @@ def validate_pretrained_encoder(
 
     # Verify it's a valid checkpoint
     try:
-        checkpoint = torch.load(checkpoint_path, map_location='cpu', weights_only=False)
+        checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
     except Exception as e:
         raise EncoderValidationError(
             f"Failed to load pre-trained encoder: {e}\n"
@@ -316,8 +332,10 @@ def validate_pretrained_encoder(
 
     # Check for expected structure
     if isinstance(checkpoint, dict):
-        if 'encoder_state_dict' in checkpoint:
-            print(f"[OK] Pre-trained encoder: {checkpoint_path} (full checkpoint format)")
+        if "encoder_state_dict" in checkpoint:
+            print(
+                f"[OK] Pre-trained encoder: {checkpoint_path} (full checkpoint format)"
+            )
         else:
             print(f"[OK] Pre-trained encoder: {checkpoint_path} (state_dict format)")
     else:
@@ -377,33 +395,33 @@ def main():
         description="Pre-flight validation for score-aligned training"
     )
     parser.add_argument(
-        '--data-dir',
+        "--data-dir",
         type=Path,
-        default=Path('data/processed'),
-        help="Directory containing percepiano_*.json files"
+        default=Path("data/processed"),
+        help="Directory containing percepiano_*.json files",
     )
     parser.add_argument(
-        '--score-dir',
+        "--score-dir",
         type=Path,
-        default=Path('data/scores'),
-        help="Directory containing MusicXML score files"
+        default=Path("data/scores"),
+        help="Directory containing MusicXML score files",
     )
     parser.add_argument(
-        '--pretrained-checkpoint',
+        "--pretrained-checkpoint",
         type=Path,
         default=None,
-        help="Path to pre-trained encoder checkpoint"
+        help="Path to pre-trained encoder checkpoint",
     )
     parser.add_argument(
-        '--require-pretrained',
-        action='store_true',
-        help="Require pre-trained encoder (fail if not provided)"
+        "--require-pretrained",
+        action="store_true",
+        help="Require pre-trained encoder (fail if not provided)",
     )
     parser.add_argument(
-        '--min-score-coverage',
+        "--min-score-coverage",
         type=float,
         default=0.95,
-        help="Minimum score file coverage (default: 0.95)"
+        help="Minimum score file coverage (default: 0.95)",
     )
 
     args = parser.parse_args()

@@ -33,9 +33,15 @@ def sample_midi_tokens():
     tokens[:, :, 1] = torch.randint(0, 16, (batch_size, num_events))  # beat (0-15)
     tokens[:, :, 2] = torch.randint(0, 16, (batch_size, num_events))  # position (0-15)
     tokens[:, :, 3] = torch.randint(0, 88, (batch_size, num_events))  # pitch (0-87)
-    tokens[:, :, 4] = torch.randint(0, 128, (batch_size, num_events))  # duration (0-127)
-    tokens[:, :, 5] = torch.randint(0, 128, (batch_size, num_events))  # velocity (0-127)
-    tokens[:, :, 6] = torch.zeros(batch_size, num_events, dtype=torch.long)  # instrument (0)
+    tokens[:, :, 4] = torch.randint(
+        0, 128, (batch_size, num_events)
+    )  # duration (0-127)
+    tokens[:, :, 5] = torch.randint(
+        0, 128, (batch_size, num_events)
+    )  # velocity (0-127)
+    tokens[:, :, 6] = torch.zeros(
+        batch_size, num_events, dtype=torch.long
+    )  # instrument (0)
     tokens[:, :, 7] = torch.randint(0, 512, (batch_size, num_events))  # bar (0-511)
     return tokens
 
@@ -48,8 +54,8 @@ class TestMIDIBertEncoderInitialization:
         assert default_encoder.hidden_size == 256
         assert default_encoder.num_layers == 6
         assert default_encoder.max_seq_length == 2048
-        assert default_encoder.vocab_sizes['event_type'] == 5
-        assert default_encoder.vocab_sizes['pitch'] == 88
+        assert default_encoder.vocab_sizes["event_type"] == 5
+        assert default_encoder.vocab_sizes["pitch"] == 88
 
     def test_custom_initialization(self, custom_encoder):
         """Test initialization with custom parameters."""
@@ -60,35 +66,35 @@ class TestMIDIBertEncoderInitialization:
     def test_custom_vocab_sizes(self):
         """Test initialization with custom vocabulary sizes."""
         custom_vocab = {
-            'type': 10,
-            'beat': 32,
-            'position': 32,
-            'pitch': 128,
-            'duration': 256,
-            'velocity': 256,
-            'instrument': 16,
-            'bar': 1024,
+            "type": 10,
+            "beat": 32,
+            "position": 32,
+            "pitch": 128,
+            "duration": 256,
+            "velocity": 256,
+            "instrument": 16,
+            "bar": 1024,
         }
         encoder = MIDIBertEncoder(vocab_sizes=custom_vocab)
         assert encoder.vocab_sizes == custom_vocab
 
     def test_embedding_layers_created(self, default_encoder):
         """Test that all embedding layers are created."""
-        assert hasattr(default_encoder, 'type_embed')
-        assert hasattr(default_encoder, 'beat_embed')
-        assert hasattr(default_encoder, 'position_embed')
-        assert hasattr(default_encoder, 'pitch_embed')
-        assert hasattr(default_encoder, 'duration_embed')
-        assert hasattr(default_encoder, 'velocity_embed')
-        assert hasattr(default_encoder, 'instrument_embed')
-        assert hasattr(default_encoder, 'bar_embed')
+        assert hasattr(default_encoder, "type_embed")
+        assert hasattr(default_encoder, "beat_embed")
+        assert hasattr(default_encoder, "position_embed")
+        assert hasattr(default_encoder, "pitch_embed")
+        assert hasattr(default_encoder, "duration_embed")
+        assert hasattr(default_encoder, "velocity_embed")
+        assert hasattr(default_encoder, "instrument_embed")
+        assert hasattr(default_encoder, "bar_embed")
 
     def test_transformer_layers_created(self, default_encoder):
         """Test that transformer and supporting layers are created."""
-        assert hasattr(default_encoder, 'transformer')
-        assert hasattr(default_encoder, 'embed_projection')
-        assert hasattr(default_encoder, 'positional_encoding')
-        assert hasattr(default_encoder, 'layer_norm')
+        assert hasattr(default_encoder, "transformer")
+        assert hasattr(default_encoder, "embed_projection")
+        assert hasattr(default_encoder, "positional_encoding")
+        assert hasattr(default_encoder, "layer_norm")
 
 
 class TestMIDIBertEncoderForward:
@@ -304,7 +310,7 @@ class TestMIDIBertEncoderGradients:
             if param.grad is not None:
                 param_norm = param.grad.data.norm(2)
                 total_norm += param_norm.item() ** 2
-        total_norm = total_norm ** 0.5
+        total_norm = total_norm**0.5
 
         # Total norm should be <= 1.0 (might be less if already small)
         assert total_norm <= 1.01  # Small tolerance for floating point
@@ -358,7 +364,9 @@ class TestMIDIBertEncoderIntegration:
     def test_parameter_count(self, default_encoder):
         """Test that parameter count is reasonable."""
         total_params = sum(p.numel() for p in default_encoder.parameters())
-        trainable_params = sum(p.numel() for p in default_encoder.parameters() if p.requires_grad)
+        trainable_params = sum(
+            p.numel() for p in default_encoder.parameters() if p.requires_grad
+        )
 
         assert total_params == trainable_params  # All params should be trainable
         assert total_params > 100000  # Should have at least 100k parameters
@@ -368,21 +376,21 @@ class TestMIDIBertEncoderIntegration:
         """Test that model works on different devices."""
         # CPU test
         output_cpu = default_encoder(sample_midi_tokens)
-        assert output_cpu.device.type == 'cpu'
+        assert output_cpu.device.type == "cpu"
 
         # GPU test (if available)
         if torch.cuda.is_available():
             default_encoder_gpu = default_encoder.cuda()
             tokens_gpu = sample_midi_tokens.cuda()
             output_gpu = default_encoder_gpu(tokens_gpu)
-            assert output_gpu.device.type == 'cuda'
+            assert output_gpu.device.type == "cuda"
 
         # MPS test (if available on macOS)
         if torch.backends.mps.is_available():
-            default_encoder_mps = default_encoder.to('mps')
-            tokens_mps = sample_midi_tokens.to('mps')
+            default_encoder_mps = default_encoder.to("mps")
+            tokens_mps = sample_midi_tokens.to("mps")
             output_mps = default_encoder_mps(tokens_mps)
-            assert output_mps.device.type == 'mps'
+            assert output_mps.device.type == "mps"
 
 
 class TestMIDIBertEncoderAttentionMask:
@@ -395,18 +403,24 @@ class TestMIDIBertEncoderAttentionMask:
 
         default_encoder.eval()
         with torch.no_grad():
-            output_with_mask = default_encoder(sample_midi_tokens, attention_mask=attention_mask)
-            output_without_mask = default_encoder(sample_midi_tokens, attention_mask=None)
+            output_with_mask = default_encoder(
+                sample_midi_tokens, attention_mask=attention_mask
+            )
+            output_without_mask = default_encoder(
+                sample_midi_tokens, attention_mask=None
+            )
 
         # Should be very similar (not exact due to numerical/dropout differences)
-        assert torch.allclose(output_with_mask, output_without_mask, rtol=0.01, atol=0.1)
+        assert torch.allclose(
+            output_with_mask, output_without_mask, rtol=0.01, atol=0.1
+        )
 
     def test_attention_mask_partial(self, default_encoder, sample_midi_tokens):
         """Test with partial masking."""
         batch_size, num_events, _ = sample_midi_tokens.shape
         attention_mask = torch.ones(batch_size, num_events, dtype=torch.bool)
         # Mask out half the sequence
-        attention_mask[:, num_events // 2:] = False
+        attention_mask[:, num_events // 2 :] = False
 
         output = default_encoder(sample_midi_tokens, attention_mask=attention_mask)
         assert output.shape == (batch_size, num_events, 256)
@@ -421,7 +435,7 @@ class TestMIDIBertEncoderAttentionMask:
         # Different mask for each batch item
         attention_mask[0, 10:] = False  # Mask last 10
         attention_mask[1, 15:] = False  # Mask last 5
-        attention_mask[2, :5] = False   # Mask first 5
+        attention_mask[2, :5] = False  # Mask first 5
         # attention_mask[3] remains all True
 
         output = default_encoder(tokens, attention_mask=attention_mask)

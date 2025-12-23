@@ -16,16 +16,18 @@ import numpy as np
 
 # Number of features per note (expanded to match PercePiano-style features)
 NUM_NOTE_FEATURES = 20
-import pretty_midi
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 from xml.etree import ElementTree as ET
 
+import pretty_midi
+
 
 @dataclass
 class ScoreNote:
     """Represents a note from the musical score."""
+
     pitch: int  # MIDI pitch (21-108)
     onset_beat: float  # Onset time in beats
     duration_beat: float  # Duration in beats
@@ -40,6 +42,7 @@ class ScoreNote:
 @dataclass
 class AlignedNote:
     """A performance note aligned to its corresponding score note."""
+
     # Performance data
     perf_pitch: int
     perf_onset: float  # in seconds
@@ -64,7 +67,9 @@ class AlignedNote:
     beat_index: Optional[int] = None  # Beat index within piece
     beat_position: Optional[float] = None  # Position within beat (0-1)
     local_tempo_ratio: Optional[float] = None  # Local tempo vs expected
-    articulation_log: Optional[float] = None  # Log-scale articulation (PercePiano style)
+    articulation_log: Optional[float] = (
+        None  # Log-scale articulation (PercePiano style)
+    )
     is_chord_member: bool = False  # Part of a chord
     following_rest: Optional[float] = None  # Duration of rest after note (in beats)
 
@@ -79,15 +84,15 @@ class MusicXMLParser:
 
     # Dynamic marking to velocity mapping (approximate)
     DYNAMIC_TO_VELOCITY = {
-        'ppp': 20,
-        'pp': 35,
-        'p': 50,
-        'mp': 65,
-        'mf': 80,
-        'm': 75,
-        'f': 95,
-        'ff': 110,
-        'fff': 125,
+        "ppp": 20,
+        "pp": 35,
+        "p": 50,
+        "mp": 65,
+        "mf": 80,
+        "m": 75,
+        "f": 95,
+        "ff": 110,
+        "fff": 125,
     }
 
     def __init__(self):
@@ -125,28 +130,36 @@ class MusicXMLParser:
         current_tempo = 120.0
 
         # Find all parts
-        parts = root.findall(f'.//{ns}part') if ns else root.findall('.//part')
+        parts = root.findall(f".//{ns}part") if ns else root.findall(".//part")
 
         for part_idx, part in enumerate(parts):
-            measures = part.findall(f'{ns}measure') if ns else part.findall('measure')
+            measures = part.findall(f"{ns}measure") if ns else part.findall("measure")
 
             for measure in measures:
-                measure_num = int(measure.get('number', current_measure + 1))
+                measure_num = int(measure.get("number", current_measure + 1))
                 current_measure = measure_num
                 measure_beat = 0.0
 
                 # Get divisions (may be updated per measure)
-                attributes = measure.find(f'{ns}attributes') if ns else measure.find('attributes')
+                attributes = (
+                    measure.find(f"{ns}attributes")
+                    if ns
+                    else measure.find("attributes")
+                )
                 if attributes is not None:
-                    div_elem = attributes.find(f'{ns}divisions') if ns else attributes.find('divisions')
+                    div_elem = (
+                        attributes.find(f"{ns}divisions")
+                        if ns
+                        else attributes.find("divisions")
+                    )
                     if div_elem is not None:
                         self.divisions = int(div_elem.text)
 
                 # Process elements in order
                 for elem in measure:
-                    tag = elem.tag.replace(f'{{{ns}}}', '') if ns else elem.tag
+                    tag = elem.tag.replace(f"{{{ns}}}", "") if ns else elem.tag
 
-                    if tag == 'direction':
+                    if tag == "direction":
                         # Check for tempo and dynamics
                         tempo, dynamic = self._parse_direction(elem, ns)
                         if tempo is not None:
@@ -154,11 +167,16 @@ class MusicXMLParser:
                         if dynamic is not None:
                             current_dynamic = dynamic
 
-                    elif tag == 'note':
+                    elif tag == "note":
                         note_info = self._parse_note(
-                            elem, ns, current_beat + measure_beat,
-                            current_measure, measure_beat,
-                            part_idx, current_dynamic, current_tempo
+                            elem,
+                            ns,
+                            current_beat + measure_beat,
+                            current_measure,
+                            measure_beat,
+                            part_idx,
+                            current_dynamic,
+                            current_tempo,
                         )
 
                         if note_info is not None:
@@ -176,9 +194,9 @@ class MusicXMLParser:
 
     def _get_namespace(self, root) -> str:
         """Extract namespace from root element if present."""
-        if root.tag.startswith('{'):
-            return root.tag[1:root.tag.index('}')]
-        return ''
+        if root.tag.startswith("{"):
+            return root.tag[1 : root.tag.index("}")]
+        return ""
 
     def _parse_note(
         self,
@@ -193,26 +211,24 @@ class MusicXMLParser:
     ) -> Optional[ScoreNote]:
         """Parse a single note element."""
         # Skip rests
-        rest = note_elem.find(f'{ns}rest') if ns else note_elem.find('rest')
+        rest = note_elem.find(f"{ns}rest") if ns else note_elem.find("rest")
         if rest is not None:
             return None
 
         # Get pitch
-        pitch_elem = note_elem.find(f'{ns}pitch') if ns else note_elem.find('pitch')
+        pitch_elem = note_elem.find(f"{ns}pitch") if ns else note_elem.find("pitch")
         if pitch_elem is None:
             return None
 
-        step = pitch_elem.find(f'{ns}step') if ns else pitch_elem.find('step')
-        octave = pitch_elem.find(f'{ns}octave') if ns else pitch_elem.find('octave')
-        alter = pitch_elem.find(f'{ns}alter') if ns else pitch_elem.find('alter')
+        step = pitch_elem.find(f"{ns}step") if ns else pitch_elem.find("step")
+        octave = pitch_elem.find(f"{ns}octave") if ns else pitch_elem.find("octave")
+        alter = pitch_elem.find(f"{ns}alter") if ns else pitch_elem.find("alter")
 
         if step is None or octave is None:
             return None
 
         midi_pitch = self._note_to_midi(
-            step.text,
-            int(octave.text),
-            int(alter.text) if alter is not None else 0
+            step.text, int(octave.text), int(alter.text) if alter is not None else 0
         )
 
         # Get duration in beats
@@ -222,7 +238,7 @@ class MusicXMLParser:
         articulation = self._get_articulation(note_elem, ns)
 
         # Get voice (for multi-voice parts)
-        voice_elem = note_elem.find(f'{ns}voice') if ns else note_elem.find('voice')
+        voice_elem = note_elem.find(f"{ns}voice") if ns else note_elem.find("voice")
         note_voice = int(voice_elem.text) if voice_elem is not None else voice
 
         return ScoreNote(
@@ -244,10 +260,12 @@ class MusicXMLParser:
         Grace notes in MusicXML don't have duration elements - this is valid.
         Returns a small default duration (0.125 beats) for grace notes.
         """
-        duration_elem = note_elem.find(f'{ns}duration') if ns else note_elem.find('duration')
+        duration_elem = (
+            note_elem.find(f"{ns}duration") if ns else note_elem.find("duration")
+        )
         if duration_elem is None:
             # Check if this is a grace note (grace notes don't have duration in MusicXML)
-            grace_elem = note_elem.find(f'{ns}grace') if ns else note_elem.find('grace')
+            grace_elem = note_elem.find(f"{ns}grace") if ns else note_elem.find("grace")
             if grace_elem is not None:
                 # Grace note - return small default duration
                 return 0.125  # 1/8 beat for grace notes
@@ -258,29 +276,39 @@ class MusicXMLParser:
 
     def _is_chord(self, note_elem, ns: str) -> bool:
         """Check if note is part of a chord (doesn't advance time)."""
-        chord = note_elem.find(f'{ns}chord') if ns else note_elem.find('chord')
+        chord = note_elem.find(f"{ns}chord") if ns else note_elem.find("chord")
         return chord is not None
 
     def _note_to_midi(self, step: str, octave: int, alter: int = 0) -> int:
         """Convert note name to MIDI pitch."""
-        note_map = {'C': 0, 'D': 2, 'E': 4, 'F': 5, 'G': 7, 'A': 9, 'B': 11}
+        note_map = {"C": 0, "D": 2, "E": 4, "F": 5, "G": 7, "A": 9, "B": 11}
         return note_map[step] + alter + (octave + 1) * 12
 
-    def _parse_direction(self, direction_elem, ns: str) -> Tuple[Optional[float], Optional[str]]:
+    def _parse_direction(
+        self, direction_elem, ns: str
+    ) -> Tuple[Optional[float], Optional[str]]:
         """Parse direction element for tempo and dynamics."""
         tempo = None
         dynamic = None
 
         # Look for tempo
-        sound = direction_elem.find(f'.//{ns}sound') if ns else direction_elem.find('.//sound')
-        if sound is not None and 'tempo' in sound.attrib:
-            tempo = float(sound.attrib['tempo'])
+        sound = (
+            direction_elem.find(f".//{ns}sound")
+            if ns
+            else direction_elem.find(".//sound")
+        )
+        if sound is not None and "tempo" in sound.attrib:
+            tempo = float(sound.attrib["tempo"])
 
         # Look for dynamics
-        dynamics_elem = direction_elem.find(f'.//{ns}dynamics') if ns else direction_elem.find('.//dynamics')
+        dynamics_elem = (
+            direction_elem.find(f".//{ns}dynamics")
+            if ns
+            else direction_elem.find(".//dynamics")
+        )
         if dynamics_elem is not None:
             for dyn in dynamics_elem:
-                tag = dyn.tag.replace(f'{{{ns}}}', '') if ns else dyn.tag
+                tag = dyn.tag.replace(f"{{{ns}}}", "") if ns else dyn.tag
                 if tag in self.DYNAMIC_TO_VELOCITY:
                     dynamic = tag
                     break
@@ -289,17 +317,27 @@ class MusicXMLParser:
 
     def _get_articulation(self, note_elem, ns: str) -> Optional[str]:
         """Extract articulation from note notations."""
-        notations = note_elem.find(f'{ns}notations') if ns else note_elem.find('notations')
+        notations = (
+            note_elem.find(f"{ns}notations") if ns else note_elem.find("notations")
+        )
         if notations is None:
             return None
 
-        articulations = notations.find(f'{ns}articulations') if ns else notations.find('articulations')
+        articulations = (
+            notations.find(f"{ns}articulations")
+            if ns
+            else notations.find("articulations")
+        )
         if articulations is None:
             return None
 
         # Check for common articulations
-        for art_type in ['staccato', 'staccatissimo', 'tenuto', 'accent', 'marcato']:
-            art = articulations.find(f'{ns}{art_type}') if ns else articulations.find(art_type)
+        for art_type in ["staccato", "staccatissimo", "tenuto", "accent", "marcato"]:
+            art = (
+                articulations.find(f"{ns}{art_type}")
+                if ns
+                else articulations.find(art_type)
+            )
             if art is not None:
                 return art_type
 
@@ -353,15 +391,17 @@ class ScorePerformanceAligner:
             if instrument.is_drum:
                 continue
             for note in instrument.notes:
-                perf_notes.append({
-                    'pitch': note.pitch,
-                    'onset': note.start,
-                    'duration': note.end - note.start,
-                    'velocity': note.velocity,
-                })
+                perf_notes.append(
+                    {
+                        "pitch": note.pitch,
+                        "onset": note.start,
+                        "duration": note.end - note.start,
+                        "velocity": note.velocity,
+                    }
+                )
 
         # Sort by onset time
-        perf_notes.sort(key=lambda x: x['onset'])
+        perf_notes.sort(key=lambda x: x["onset"])
         score_notes_list = sorted(score_notes, key=lambda x: x.onset_beat)
 
         # Convert tempo to seconds per beat
@@ -374,18 +414,18 @@ class ScorePerformanceAligner:
 
         for perf in perf_notes:
             # Convert performance onset to beats
-            perf_onset_beat = perf['onset'] / sec_per_beat
+            perf_onset_beat = perf["onset"] / sec_per_beat
 
             # Find best matching score note
             best_match_idx = None
-            best_match_dist = float('inf')
+            best_match_dist = float("inf")
 
             for i, score_note in enumerate(score_notes_list):
                 if i in matched_score_indices:
                     continue
 
                 # Check pitch match
-                if abs(score_note.pitch - perf['pitch']) > self.pitch_tolerance:
+                if abs(score_note.pitch - perf["pitch"]) > self.pitch_tolerance:
                     continue
 
                 # Check time proximity
@@ -407,36 +447,46 @@ class ScorePerformanceAligner:
 
                 # Expected duration in seconds
                 expected_duration = score_note.duration_beat * sec_per_beat
-                duration_ratio = perf['duration'] / expected_duration if expected_duration > 0 else 1.0
+                duration_ratio = (
+                    perf["duration"] / expected_duration
+                    if expected_duration > 0
+                    else 1.0
+                )
 
                 # Expected velocity from dynamics
                 expected_velocity = self._dynamic_to_velocity(score_note.dynamic)
-                velocity_deviation = perf['velocity'] - expected_velocity if expected_velocity else 0.0
+                velocity_deviation = (
+                    perf["velocity"] - expected_velocity if expected_velocity else 0.0
+                )
 
-                aligned_notes.append(AlignedNote(
-                    perf_pitch=perf['pitch'],
-                    perf_onset=perf['onset'],
-                    perf_duration=perf['duration'],
-                    perf_velocity=perf['velocity'],
-                    score_pitch=score_note.pitch,
-                    score_onset_beat=score_note.onset_beat,
-                    score_duration_beat=score_note.duration_beat,
-                    score_voice=score_note.voice,
-                    score_measure=score_note.measure,
-                    score_dynamic=score_note.dynamic,
-                    score_articulation=score_note.articulation,
-                    onset_deviation=onset_deviation,
-                    duration_ratio=duration_ratio,
-                    velocity_deviation=velocity_deviation,
-                ))
+                aligned_notes.append(
+                    AlignedNote(
+                        perf_pitch=perf["pitch"],
+                        perf_onset=perf["onset"],
+                        perf_duration=perf["duration"],
+                        perf_velocity=perf["velocity"],
+                        score_pitch=score_note.pitch,
+                        score_onset_beat=score_note.onset_beat,
+                        score_duration_beat=score_note.duration_beat,
+                        score_voice=score_note.voice,
+                        score_measure=score_note.measure,
+                        score_dynamic=score_note.dynamic,
+                        score_articulation=score_note.articulation,
+                        onset_deviation=onset_deviation,
+                        duration_ratio=duration_ratio,
+                        velocity_deviation=velocity_deviation,
+                    )
+                )
             else:
                 # Unmatched performance note (extra note or wrong note)
-                aligned_notes.append(AlignedNote(
-                    perf_pitch=perf['pitch'],
-                    perf_onset=perf['onset'],
-                    perf_duration=perf['duration'],
-                    perf_velocity=perf['velocity'],
-                ))
+                aligned_notes.append(
+                    AlignedNote(
+                        perf_pitch=perf["pitch"],
+                        perf_onset=perf["onset"],
+                        perf_duration=perf["duration"],
+                        perf_velocity=perf["velocity"],
+                    )
+                )
 
         return aligned_notes
 
@@ -525,10 +575,10 @@ class ScoreAlignmentFeatureExtractor:
         note_locations = self._extract_note_locations(aligned_notes)
 
         return {
-            'note_features': note_features,
-            'global_features': global_features,
-            'tempo_curve': tempo_curve,
-            'note_locations': note_locations,
+            "note_features": note_features,
+            "global_features": global_features,
+            "tempo_curve": tempo_curve,
+            "note_locations": note_locations,
         }
 
     def _enhance_aligned_notes(
@@ -551,8 +601,12 @@ class ScoreAlignmentFeatureExtractor:
 
         # Sort by onset for chord detection and tempo estimation
         sorted_notes = sorted(
-            [(i, n) for i, n in enumerate(aligned_notes) if n.score_onset_beat is not None],
-            key=lambda x: x[1].score_onset_beat
+            [
+                (i, n)
+                for i, n in enumerate(aligned_notes)
+                if n.score_onset_beat is not None
+            ],
+            key=lambda x: x[1].score_onset_beat,
         )
 
         # Detect chords (notes starting at same beat)
@@ -570,7 +624,9 @@ class ScoreAlignmentFeatureExtractor:
                     aligned_notes[idx].is_chord_member = True
 
         # Compute local tempo ratios in windows
-        matched_indices = [i for i, n in enumerate(aligned_notes) if n.onset_deviation is not None]
+        matched_indices = [
+            i for i, n in enumerate(aligned_notes) if n.onset_deviation is not None
+        ]
         for i, idx in enumerate(matched_indices):
             note = aligned_notes[idx]
 
@@ -594,11 +650,16 @@ class ScoreAlignmentFeatureExtractor:
                 first_note = aligned_notes[window_indices[0]]
                 last_note = aligned_notes[window_indices[-1]]
 
-                if (first_note.perf_onset is not None and last_note.perf_onset is not None and
-                    first_note.score_onset_beat is not None and last_note.score_onset_beat is not None):
-
+                if (
+                    first_note.perf_onset is not None
+                    and last_note.perf_onset is not None
+                    and first_note.score_onset_beat is not None
+                    and last_note.score_onset_beat is not None
+                ):
                     perf_ioi = last_note.perf_onset - first_note.perf_onset
-                    score_ioi_beats = last_note.score_onset_beat - first_note.score_onset_beat
+                    score_ioi_beats = (
+                        last_note.score_onset_beat - first_note.score_onset_beat
+                    )
 
                     if score_ioi_beats > 0 and perf_ioi > 0:
                         expected_ioi = score_ioi_beats * sec_per_beat
@@ -615,7 +676,10 @@ class ScoreAlignmentFeatureExtractor:
             curr_idx, curr_note = sorted_notes[i]
             next_idx, next_note = sorted_notes[i + 1]
 
-            if curr_note.score_onset_beat is not None and curr_note.score_duration_beat is not None:
+            if (
+                curr_note.score_onset_beat is not None
+                and curr_note.score_duration_beat is not None
+            ):
                 curr_end = curr_note.score_onset_beat + curr_note.score_duration_beat
                 rest_duration = next_note.score_onset_beat - curr_end
                 aligned_notes[curr_idx].following_rest = max(0.0, rest_duration)
@@ -657,12 +721,20 @@ class ScoreAlignmentFeatureExtractor:
 
         for note in aligned_notes:
             # Basic deviations
-            onset_dev = note.onset_deviation if note.onset_deviation is not None else 0.0
+            onset_dev = (
+                note.onset_deviation if note.onset_deviation is not None else 0.0
+            )
             dur_ratio = note.duration_ratio if note.duration_ratio is not None else 1.0
-            art_log = note.articulation_log if note.articulation_log is not None else 0.0
+            art_log = (
+                note.articulation_log if note.articulation_log is not None else 0.0
+            )
             vel = note.perf_velocity / 127.0
-            vel_dev = (note.velocity_deviation or 0.0) / 64.0  # Normalize to roughly -1 to 1
-            local_tempo = note.local_tempo_ratio if note.local_tempo_ratio is not None else 1.0
+            vel_dev = (
+                note.velocity_deviation or 0.0
+            ) / 64.0  # Normalize to roughly -1 to 1
+            local_tempo = (
+                note.local_tempo_ratio if note.local_tempo_ratio is not None else 1.0
+            )
 
             # Pitch features
             midi_pitch = (note.perf_pitch - 21) / 87.0  # Normalize 21-108 to 0-1
@@ -678,14 +750,27 @@ class ScoreAlignmentFeatureExtractor:
             # Indicators
             matched = 1.0 if note.score_pitch is not None else 0.0
             is_chord = 1.0 if note.is_chord_member else 0.0
-            following_rest = min(note.following_rest or 0.0, 4.0) / 4.0  # Clip and normalize
+            following_rest = (
+                min(note.following_rest or 0.0, 4.0) / 4.0
+            )  # Clip and normalize
 
             # Articulation indicators
-            is_staccato = 1.0 if note.score_articulation in ['staccato', 'staccatissimo'] else 0.0
-            is_legato = 1.0 if note.score_articulation in ['tenuto', 'legato'] else 0.0
+            is_staccato = (
+                1.0 if note.score_articulation in ["staccato", "staccatissimo"] else 0.0
+            )
+            is_legato = 1.0 if note.score_articulation in ["tenuto", "legato"] else 0.0
 
             # Dynamic level from marking
-            dynamic_map = {'ppp': 0.1, 'pp': 0.2, 'p': 0.35, 'mp': 0.5, 'mf': 0.65, 'f': 0.8, 'ff': 0.9, 'fff': 1.0}
+            dynamic_map = {
+                "ppp": 0.1,
+                "pp": 0.2,
+                "p": 0.35,
+                "mp": 0.5,
+                "mf": 0.65,
+                "f": 0.8,
+                "ff": 0.9,
+                "fff": 1.0,
+            }
             dynamic_level = dynamic_map.get(note.score_dynamic, 0.5)
 
             # Tempo marking (log-normalized)
@@ -693,26 +778,26 @@ class ScoreAlignmentFeatureExtractor:
             # tempo_marking would come from score
 
             note_feat = [
-                onset_dev,           # 0
-                dur_ratio,           # 1
-                art_log,             # 2
-                vel,                 # 3
-                vel_dev,             # 4
-                local_tempo,         # 5
-                midi_pitch,          # 6
-                pitch_class,         # 7
-                octave,              # 8
-                beat_pos,            # 9
-                beat_idx,            # 10
-                measure,             # 11
-                voice,               # 12
-                matched,             # 13
-                is_chord,            # 14
-                following_rest,      # 15
-                is_staccato,         # 16
-                is_legato,           # 17
-                dynamic_level,       # 18
-                tempo_val,           # 19
+                onset_dev,  # 0
+                dur_ratio,  # 1
+                art_log,  # 2
+                vel,  # 3
+                vel_dev,  # 4
+                local_tempo,  # 5
+                midi_pitch,  # 6
+                pitch_class,  # 7
+                octave,  # 8
+                beat_pos,  # 9
+                beat_idx,  # 10
+                measure,  # 11
+                voice,  # 12
+                matched,  # 13
+                is_chord,  # 14
+                following_rest,  # 15
+                is_staccato,  # 16
+                is_legato,  # 17
+                dynamic_level,  # 18
+                tempo_val,  # 19
             ]
             features.append(note_feat)
 
@@ -721,7 +806,9 @@ class ScoreAlignmentFeatureExtractor:
 
         return np.array(features, dtype=np.float32)
 
-    def _extract_note_locations(self, aligned_notes: List[AlignedNote]) -> Dict[str, np.ndarray]:
+    def _extract_note_locations(
+        self, aligned_notes: List[AlignedNote]
+    ) -> Dict[str, np.ndarray]:
         """
         Extract note_locations for hierarchical processing (HAN encoder).
 
@@ -744,7 +831,9 @@ class ScoreAlignmentFeatureExtractor:
             beats.append(beat_idx)
 
             # Measure index (1-based)
-            measure_idx = (note.score_measure + 1) if note.score_measure is not None else 1
+            measure_idx = (
+                (note.score_measure + 1) if note.score_measure is not None else 1
+            )
             measures.append(measure_idx)
 
             # Voice index (already 1-indexed for PercePiano compatibility)
@@ -752,9 +841,9 @@ class ScoreAlignmentFeatureExtractor:
             voices.append(voice_idx)
 
         return {
-            'beat': np.array(beats, dtype=np.int64),
-            'measure': np.array(measures, dtype=np.int64),
-            'voice': np.array(voices, dtype=np.int64),
+            "beat": np.array(beats, dtype=np.int64),
+            "measure": np.array(measures, dtype=np.int64),
+            "voice": np.array(voices, dtype=np.int64),
         }
 
     def _extract_global_features(
@@ -771,7 +860,9 @@ class ScoreAlignmentFeatureExtractor:
 
         onset_devs = [n.onset_deviation for n in matched]
         dur_ratios = [n.duration_ratio for n in matched]
-        vel_devs = [n.velocity_deviation for n in matched if n.velocity_deviation is not None]
+        vel_devs = [
+            n.velocity_deviation for n in matched if n.velocity_deviation is not None
+        ]
 
         # Compute statistics
         features = [
@@ -801,7 +892,11 @@ class ScoreAlignmentFeatureExtractor:
 
         Computes tempo ratio in sliding windows over the performance.
         """
-        matched = [n for n in aligned_notes if n.onset_deviation is not None and n.score_onset_beat is not None]
+        matched = [
+            n
+            for n in aligned_notes
+            if n.onset_deviation is not None and n.score_onset_beat is not None
+        ]
 
         if len(matched) < self.window_size:
             return np.ones(1, dtype=np.float32)
@@ -813,7 +908,7 @@ class ScoreAlignmentFeatureExtractor:
         sec_per_beat = 60.0 / tempo_bpm
 
         for i in range(len(matched) - self.window_size):
-            window = matched[i:i + self.window_size]
+            window = matched[i : i + self.window_size]
 
             # Compute local tempo from IOI (inter-onset interval)
             perf_ioi = window[-1].perf_onset - window[0].perf_onset

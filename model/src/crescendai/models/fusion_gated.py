@@ -8,10 +8,11 @@ representation spaces.
 Reference: "Gated Multimodal Units for Information Fusion" (Arevalo et al., 2017)
 """
 
+from typing import Dict, Optional, Tuple
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from typing import Optional, Tuple, Dict
 
 
 class GatedFusion(nn.Module):
@@ -113,7 +114,9 @@ class GatedFusion(nn.Module):
         """
         # Handle single-modality cases
         if audio_features is None and midi_features is None:
-            raise ValueError("At least one of audio_features or midi_features must be provided")
+            raise ValueError(
+                "At least one of audio_features or midi_features must be provided"
+            )
 
         if audio_features is None:
             # MIDI-only mode

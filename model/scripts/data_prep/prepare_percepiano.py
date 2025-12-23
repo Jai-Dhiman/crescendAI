@@ -6,34 +6,33 @@ Downloads the dataset from GitHub and processes annotations into our format.
 """
 
 import json
+import random
 import subprocess
 from pathlib import Path
 from typing import Dict, List, Tuple
-import random
-
 
 # All 19 PercePiano dimensions (matching reference implementation exactly)
 # Labels are kept in original 0-1 scale (no aggregation, no scaling)
 PERCEPIANO_DIMENSIONS = [
-    "timing",              # 0: Stable <-> Unstable
-    "articulation_length", # 1: Short <-> Long
+    "timing",  # 0: Stable <-> Unstable
+    "articulation_length",  # 1: Short <-> Long
     "articulation_touch",  # 2: Soft/Cushioned <-> Hard/Solid
-    "pedal_amount",        # 3: Sparse/Dry <-> Saturated/Wet
-    "pedal_clarity",       # 4: Clean <-> Blurred
-    "timbre_variety",      # 5: Even <-> Colorful
-    "timbre_depth",        # 6: Shallow <-> Rich
-    "timbre_brightness",   # 7: Bright <-> Dark
-    "timbre_loudness",     # 8: Soft <-> Loud
-    "dynamic_range",       # 9: Little Range <-> Large Range
-    "tempo",               # 10: Fast-paced <-> Slow-paced
-    "space",               # 11: Flat <-> Spacious
-    "balance",             # 12: Disproportioned <-> Balanced
-    "drama",               # 13: Pure <-> Dramatic
-    "mood_valence",        # 14: Optimistic <-> Dark
-    "mood_energy",         # 15: Low Energy <-> High Energy
-    "mood_imagination",    # 16: Honest <-> Imaginative
-    "sophistication",      # 17: Sophisticated/Mellow <-> Raw/Crude
-    "interpretation",      # 18: Unsatisfactory <-> Convincing
+    "pedal_amount",  # 3: Sparse/Dry <-> Saturated/Wet
+    "pedal_clarity",  # 4: Clean <-> Blurred
+    "timbre_variety",  # 5: Even <-> Colorful
+    "timbre_depth",  # 6: Shallow <-> Rich
+    "timbre_brightness",  # 7: Bright <-> Dark
+    "timbre_loudness",  # 8: Soft <-> Loud
+    "dynamic_range",  # 9: Little Range <-> Large Range
+    "tempo",  # 10: Fast-paced <-> Slow-paced
+    "space",  # 11: Flat <-> Spacious
+    "balance",  # 12: Disproportioned <-> Balanced
+    "drama",  # 13: Pure <-> Dramatic
+    "mood_valence",  # 14: Optimistic <-> Dark
+    "mood_energy",  # 15: Low Energy <-> High Energy
+    "mood_imagination",  # 16: Honest <-> Imaginative
+    "sophistication",  # 17: Sophisticated/Mellow <-> Raw/Crude
+    "interpretation",  # 18: Unsatisfactory <-> Convincing
 ]
 
 
@@ -47,7 +46,14 @@ def clone_percepiano(data_dir: Path) -> Path:
 
     print("Cloning PercePiano repository...")
     subprocess.run(
-        ["git", "clone", "--depth", "1", "https://github.com/JonghoKimSNU/PercePiano.git", str(repo_dir)],
+        [
+            "git",
+            "clone",
+            "--depth",
+            "1",
+            "https://github.com/JonghoKimSNU/PercePiano.git",
+            str(repo_dir),
+        ],
         check=True,
     )
     print(f"Cloned to {repo_dir}")
@@ -56,7 +62,9 @@ def clone_percepiano(data_dir: Path) -> Path:
 
 def load_annotations(repo_dir: Path) -> Dict[str, List[float]]:
     """Load mean annotations from PercePiano."""
-    labels_file = repo_dir / "labels" / "label_2round_mean_reg_19_with0_rm_highstd0.json"
+    labels_file = (
+        repo_dir / "labels" / "label_2round_mean_reg_19_with0_rm_highstd0.json"
+    )
 
     if not labels_file.exists():
         raise FileNotFoundError(f"Labels file not found: {labels_file}")
@@ -92,10 +100,7 @@ def map_dimensions(percepiano_scores: List[float]) -> Dict[str, float]:
     This matches the reference implementation exactly.
     percepiano_scores has 20 values, last one is performer ID (ignored).
     """
-    return {
-        dim: percepiano_scores[i]
-        for i, dim in enumerate(PERCEPIANO_DIMENSIONS)
-    }
+    return {dim: percepiano_scores[i] for i, dim in enumerate(PERCEPIANO_DIMENSIONS)}
 
 
 def extract_piece_name(name: str) -> str:
@@ -155,8 +160,12 @@ def create_splits(
     val_samples = [s for p in val_pieces for s in pieces[p]]
     test_samples = [s for p in test_pieces for s in pieces[p]]
 
-    print(f"Split: {len(train_samples)} train, {len(val_samples)} val, {len(test_samples)} test")
-    print(f"Pieces: {len(train_pieces)} train, {len(val_pieces)} val, {len(test_pieces)} test")
+    print(
+        f"Split: {len(train_samples)} train, {len(val_samples)} val, {len(test_samples)} test"
+    )
+    print(
+        f"Pieces: {len(train_pieces)} train, {len(val_pieces)} val, {len(test_pieces)} test"
+    )
 
     return train_samples, val_samples, test_samples
 
@@ -217,9 +226,9 @@ def prepare_dataset(data_dir: Path, output_dir: Path):
     # Print statistics
     print("\nDataset Statistics:")
     print(f"  Total samples: {len(samples)}")
-    print(f"  Train: {len(train)} ({len(train)/len(samples)*100:.1f}%)")
-    print(f"  Val: {len(val)} ({len(val)/len(samples)*100:.1f}%)")
-    print(f"  Test: {len(test)} ({len(test)/len(samples)*100:.1f}%)")
+    print(f"  Train: {len(train)} ({len(train) / len(samples) * 100:.1f}%)")
+    print(f"  Val: {len(val)} ({len(val) / len(samples) * 100:.1f}%)")
+    print(f"  Test: {len(test)} ({len(test) / len(samples) * 100:.1f}%)")
 
     # Print score distribution for each dimension
     print("\nScore Distribution (mean +/- std):")

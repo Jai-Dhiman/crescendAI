@@ -13,16 +13,18 @@ realistic amateur performance errors.
 Reference: TRAINING_PLAN_v2.md Phase 1
 """
 
+from enum import Enum
+from typing import Dict, Optional, Tuple
+
+import librosa
 import numpy as np
 import pretty_midi
-import librosa
 import scipy.signal
-from typing import Tuple, Optional, Dict
-from enum import Enum
 
 
 class QualityTier(Enum):
     """Quality tier enumeration."""
+
     PRISTINE = "pristine"
     GOOD = "good"
     MODERATE = "moderate"
@@ -32,48 +34,46 @@ class QualityTier(Enum):
 # Quality tier parameters
 QUALITY_TIER_PARAMS = {
     QualityTier.PRISTINE: {
-        'score_range': (95, 100),
-        'probability': 0.30,
-        'midi_jitter_ms': 0,
-        'wrong_note_rate': 0.0,
-        'dynamics_compression': 0.0,
-        'audio_noise_snr_db': None,
-        'audio_filter_enabled': False,
+        "score_range": (95, 100),
+        "probability": 0.30,
+        "midi_jitter_ms": 0,
+        "wrong_note_rate": 0.0,
+        "dynamics_compression": 0.0,
+        "audio_noise_snr_db": None,
+        "audio_filter_enabled": False,
     },
     QualityTier.GOOD: {
-        'score_range': (80, 95),
-        'probability': 0.30,
-        'midi_jitter_ms': 10,
-        'wrong_note_rate': 0.0,
-        'dynamics_compression': 0.1,
-        'audio_noise_snr_db': 35,
-        'audio_filter_enabled': False,
+        "score_range": (80, 95),
+        "probability": 0.30,
+        "midi_jitter_ms": 10,
+        "wrong_note_rate": 0.0,
+        "dynamics_compression": 0.1,
+        "audio_noise_snr_db": 35,
+        "audio_filter_enabled": False,
     },
     QualityTier.MODERATE: {
-        'score_range': (65, 80),
-        'probability': 0.25,
-        'midi_jitter_ms': 30,
-        'wrong_note_rate': 0.02,
-        'dynamics_compression': 0.3,
-        'audio_noise_snr_db': 25,
-        'audio_filter_enabled': False,
+        "score_range": (65, 80),
+        "probability": 0.25,
+        "midi_jitter_ms": 30,
+        "wrong_note_rate": 0.02,
+        "dynamics_compression": 0.3,
+        "audio_noise_snr_db": 25,
+        "audio_filter_enabled": False,
     },
     QualityTier.POOR: {
-        'score_range': (50, 65),
-        'probability': 0.15,
-        'midi_jitter_ms': 60,
-        'wrong_note_rate': 0.05,
-        'dynamics_compression': 0.5,
-        'audio_noise_snr_db': 20,
-        'audio_filter_enabled': True,
+        "score_range": (50, 65),
+        "probability": 0.15,
+        "midi_jitter_ms": 60,
+        "wrong_note_rate": 0.05,
+        "dynamics_compression": 0.5,
+        "audio_noise_snr_db": 20,
+        "audio_filter_enabled": True,
     },
 }
 
 
 def degrade_midi_timing(
-    midi_data: pretty_midi.PrettyMIDI,
-    jitter_ms: float,
-    seed: Optional[int] = None
+    midi_data: pretty_midi.PrettyMIDI, jitter_ms: float, seed: Optional[int] = None
 ) -> pretty_midi.PrettyMIDI:
     """
     Add timing jitter to MIDI note onsets and offsets.
@@ -103,9 +103,7 @@ def degrade_midi_timing(
 
     for instrument in midi_data.instruments:
         new_instrument = pretty_midi.Instrument(
-            program=instrument.program,
-            is_drum=instrument.is_drum,
-            name=instrument.name
+            program=instrument.program, is_drum=instrument.is_drum, name=instrument.name
         )
 
         # Jitter note times
@@ -116,13 +114,12 @@ def degrade_midi_timing(
 
             # Apply jitter (ensure onset < offset)
             new_start = max(0, note.start + onset_jitter)
-            new_end = max(new_start + 0.01, note.end + offset_jitter)  # Minimum 10ms duration
+            new_end = max(
+                new_start + 0.01, note.end + offset_jitter
+            )  # Minimum 10ms duration
 
             new_note = pretty_midi.Note(
-                velocity=note.velocity,
-                pitch=note.pitch,
-                start=new_start,
-                end=new_end
+                velocity=note.velocity, pitch=note.pitch, start=new_start, end=new_end
             )
             new_instrument.notes.append(new_note)
 
@@ -138,7 +135,7 @@ def inject_wrong_notes(
     midi_data: pretty_midi.PrettyMIDI,
     error_rate: float,
     pitch_offset_range: Tuple[int, int] = (-3, 3),
-    seed: Optional[int] = None
+    seed: Optional[int] = None,
 ) -> pretty_midi.PrettyMIDI:
     """
     Inject wrong notes by randomly altering pitches.
@@ -166,16 +163,16 @@ def inject_wrong_notes(
 
     for instrument in midi_data.instruments:
         new_instrument = pretty_midi.Instrument(
-            program=instrument.program,
-            is_drum=instrument.is_drum,
-            name=instrument.name
+            program=instrument.program, is_drum=instrument.is_drum, name=instrument.name
         )
 
         for note in instrument.notes:
             # Decide if this note should be altered
             if np.random.random() < error_rate:
                 # Generate random pitch offset (exclude 0 to ensure change)
-                offset = np.random.randint(pitch_offset_range[0], pitch_offset_range[1] + 1)
+                offset = np.random.randint(
+                    pitch_offset_range[0], pitch_offset_range[1] + 1
+                )
                 if offset == 0:
                     offset = 1 if np.random.random() < 0.5 else -1
 
@@ -185,10 +182,7 @@ def inject_wrong_notes(
                 new_pitch = note.pitch
 
             new_note = pretty_midi.Note(
-                velocity=note.velocity,
-                pitch=new_pitch,
-                start=note.start,
-                end=note.end
+                velocity=note.velocity, pitch=new_pitch, start=note.start, end=note.end
             )
             new_instrument.notes.append(new_note)
 
@@ -201,8 +195,7 @@ def inject_wrong_notes(
 
 
 def compress_midi_dynamics(
-    midi_data: pretty_midi.PrettyMIDI,
-    compression_factor: float
+    midi_data: pretty_midi.PrettyMIDI, compression_factor: float
 ) -> pretty_midi.PrettyMIDI:
     """
     Compress MIDI velocity range to simulate poor dynamics control.
@@ -234,16 +227,14 @@ def compress_midi_dynamics(
         mean_velocity = np.mean(velocities)
 
         new_instrument = pretty_midi.Instrument(
-            program=instrument.program,
-            is_drum=instrument.is_drum,
-            name=instrument.name
+            program=instrument.program, is_drum=instrument.is_drum, name=instrument.name
         )
 
         for note in instrument.notes:
             # Compress velocity toward mean
             compressed_velocity = (
-                note.velocity * (1 - compression_factor) +
-                mean_velocity * compression_factor
+                note.velocity * (1 - compression_factor)
+                + mean_velocity * compression_factor
             )
             compressed_velocity = int(np.clip(compressed_velocity, 1, 127))
 
@@ -251,7 +242,7 @@ def compress_midi_dynamics(
                 velocity=compressed_velocity,
                 pitch=note.pitch,
                 start=note.start,
-                end=note.end
+                end=note.end,
             )
             new_instrument.notes.append(new_note)
 
@@ -269,7 +260,7 @@ def degrade_audio_quality(
     noise_snr_db: Optional[float] = None,
     apply_filtering: bool = False,
     filter_cutoffs: Tuple[float, float] = (100, 6000),
-    seed: Optional[int] = None
+    seed: Optional[int] = None,
 ) -> np.ndarray:
     """
     Degrade audio quality by adding noise and/or filtering.
@@ -295,7 +286,7 @@ def degrade_audio_quality(
     # Add noise
     if noise_snr_db is not None:
         # Calculate signal power
-        signal_power = np.mean(audio_data ** 2)
+        signal_power = np.mean(audio_data**2)
 
         # Calculate noise power for desired SNR
         snr_linear = 10 ** (noise_snr_db / 10)
@@ -314,7 +305,7 @@ def degrade_audio_quality(
         high = filter_cutoffs[1] / nyquist
 
         # Design Butterworth bandpass filter
-        b, a = scipy.signal.butter(4, [low, high], btype='band')
+        b, a = scipy.signal.butter(4, [low, high], btype="band")
 
         # Apply filter
         degraded = scipy.signal.filtfilt(b, a, degraded)
@@ -330,7 +321,7 @@ def apply_quality_tier(
     audio_data: Optional[np.ndarray],
     sr: int,
     quality_tier: QualityTier,
-    seed: Optional[int] = None
+    seed: Optional[int] = None,
 ) -> Tuple[Optional[pretty_midi.PrettyMIDI], Optional[np.ndarray], Dict]:
     """
     Apply degradation corresponding to a quality tier.
@@ -359,26 +350,23 @@ def apply_quality_tier(
         degraded_midi = midi_data
 
         # 1. Timing jitter
-        if params['midi_jitter_ms'] > 0:
+        if params["midi_jitter_ms"] > 0:
             degraded_midi = degrade_midi_timing(
-                degraded_midi,
-                params['midi_jitter_ms'],
-                seed=seed
+                degraded_midi, params["midi_jitter_ms"], seed=seed
             )
 
         # 2. Wrong notes
-        if params['wrong_note_rate'] > 0:
+        if params["wrong_note_rate"] > 0:
             degraded_midi = inject_wrong_notes(
                 degraded_midi,
-                params['wrong_note_rate'],
-                seed=seed + 1 if seed is not None else None
+                params["wrong_note_rate"],
+                seed=seed + 1 if seed is not None else None,
             )
 
         # 3. Dynamics compression
-        if params['dynamics_compression'] > 0:
+        if params["dynamics_compression"] > 0:
             degraded_midi = compress_midi_dynamics(
-                degraded_midi,
-                params['dynamics_compression']
+                degraded_midi, params["dynamics_compression"]
             )
 
     # Apply audio degradations
@@ -386,27 +374,27 @@ def apply_quality_tier(
         degraded_audio = degrade_audio_quality(
             audio_data,
             sr,
-            noise_snr_db=params['audio_noise_snr_db'],
-            apply_filtering=params['audio_filter_enabled'],
-            seed=seed + 2 if seed is not None else None
+            noise_snr_db=params["audio_noise_snr_db"],
+            apply_filtering=params["audio_filter_enabled"],
+            seed=seed + 2 if seed is not None else None,
         )
 
     # Generate quality score
-    score_min, score_max = params['score_range']
+    score_min, score_max = params["score_range"]
     quality_score = np.random.uniform(score_min, score_max)
 
     # Create metadata
     metadata = {
-        'quality_tier': quality_tier.value,
-        'quality_score': quality_score,
-        'score_range': params['score_range'],
-        'degradations_applied': {
-            'midi_jitter_ms': params['midi_jitter_ms'],
-            'wrong_note_rate': params['wrong_note_rate'],
-            'dynamics_compression': params['dynamics_compression'],
-            'audio_noise_snr_db': params['audio_noise_snr_db'],
-            'audio_filter_enabled': params['audio_filter_enabled'],
-        }
+        "quality_tier": quality_tier.value,
+        "quality_score": quality_score,
+        "score_range": params["score_range"],
+        "degradations_applied": {
+            "midi_jitter_ms": params["midi_jitter_ms"],
+            "wrong_note_rate": params["wrong_note_rate"],
+            "dynamics_compression": params["dynamics_compression"],
+            "audio_noise_snr_db": params["audio_noise_snr_db"],
+            "audio_filter_enabled": params["audio_filter_enabled"],
+        },
     }
 
     return degraded_midi, degraded_audio, metadata
@@ -431,7 +419,7 @@ def sample_quality_tier(seed: Optional[int] = None) -> QualityTier:
     if seed is not None:
         np.random.seed(seed)
 
-    probabilities = [QUALITY_TIER_PARAMS[tier]['probability'] for tier in QualityTier]
+    probabilities = [QUALITY_TIER_PARAMS[tier]["probability"] for tier in QualityTier]
     tiers = list(QualityTier)
 
     chosen_tier = np.random.choice(tiers, p=probabilities)
@@ -450,5 +438,9 @@ if __name__ == "__main__":
         print(f"  MIDI jitter: {params['midi_jitter_ms']}ms")
         print(f"  Wrong notes: {params['wrong_note_rate']:.1%}")
         print(f"  Dynamics compression: {params['dynamics_compression']:.1%}")
-        print(f"  Audio SNR: {params['audio_noise_snr_db']} dB" if params['audio_noise_snr_db'] else "  Audio SNR: None")
+        print(
+            f"  Audio SNR: {params['audio_noise_snr_db']} dB"
+            if params["audio_noise_snr_db"]
+            else "  Audio SNR: None"
+        )
         print(f"  Audio filtering: {params['audio_filter_enabled']}")

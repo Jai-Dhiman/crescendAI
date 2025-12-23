@@ -10,11 +10,15 @@ For Thunder Compute:
 """
 
 import argparse
-from pathlib import Path
-from datetime import datetime
 
-import torch
+# Add src to path
+import sys
+from datetime import datetime
+from pathlib import Path
+
 import pytorch_lightning as pl
+import torch
+from omegaconf import OmegaConf
 from pytorch_lightning.callbacks import (
     EarlyStopping,
     LearningRateMonitor,
@@ -22,10 +26,7 @@ from pytorch_lightning.callbacks import (
     RichProgressBar,
 )
 from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
-from omegaconf import OmegaConf
 
-# Add src to path
-import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.crescendai.models.midi_only_module import MIDIOnlyModule
@@ -142,11 +143,14 @@ def train(config_path: str, gpus: int = 1, wandb: bool = False):
 
     # Save final model for inference
     final_path = Path(config.checkpoints.dirpath) / "midi_scorer_final.pt"
-    torch.save({
-        "state_dict": model.state_dict(),
-        "hparams": dict(model.hparams),
-        "dimensions": model.dimensions,
-    }, final_path)
+    torch.save(
+        {
+            "state_dict": model.state_dict(),
+            "hparams": dict(model.hparams),
+            "dimensions": model.dimensions,
+        },
+        final_path,
+    )
     print(f"Saved final model to {final_path}")
 
     return model

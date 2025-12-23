@@ -9,10 +9,11 @@ Reference: "Rank Consistent Ordinal Regression for Neural Networks"
 (Cao et al., Pattern Recognition 2020)
 """
 
+from typing import Optional, Tuple
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from typing import Optional, Tuple
 
 
 class CORALLoss(nn.Module):
@@ -69,9 +70,9 @@ class CORALLoss(nn.Module):
 
         # Optional importance weights
         if importance_weights is not None:
-            self.register_buffer('importance_weights', importance_weights)
+            self.register_buffer("importance_weights", importance_weights)
         else:
-            self.register_buffer('importance_weights', None)
+            self.register_buffer("importance_weights", None)
 
     def _init_biases(self) -> None:
         """Initialize biases to span the threshold range evenly."""
@@ -80,9 +81,7 @@ class CORALLoss(nn.Module):
         with torch.no_grad():
             # Spread biases from positive to negative
             # Higher threshold -> lower probability of exceeding
-            self.bias.data = torch.linspace(
-                2.0, -2.0, self.num_classes - 1
-            )
+            self.bias.data = torch.linspace(2.0, -2.0, self.num_classes - 1)
 
     def _to_ordinal_labels(
         self,
@@ -116,8 +115,7 @@ class CORALLoss(nn.Module):
         # ordinal[i, k] = 1 if class_indices[i] > k
         batch_size = targets.shape[0]
         ordinal_labels = torch.zeros(
-            batch_size, self.num_classes - 1,
-            device=targets.device, dtype=targets.dtype
+            batch_size, self.num_classes - 1, device=targets.device, dtype=targets.dtype
         )
 
         for k in range(self.num_classes - 1):
@@ -153,15 +151,13 @@ class CORALLoss(nn.Module):
         if self.importance_weights is not None:
             # Weighted BCE
             loss = F.binary_cross_entropy_with_logits(
-                logits, ordinal_labels, reduction='none'
+                logits, ordinal_labels, reduction="none"
             )
             loss = loss * self.importance_weights.unsqueeze(0)
             loss = loss.mean()
         else:
             # Unweighted BCE
-            loss = F.binary_cross_entropy_with_logits(
-                logits, ordinal_labels
-            )
+            loss = F.binary_cross_entropy_with_logits(logits, ordinal_labels)
 
         return loss
 
@@ -190,8 +186,7 @@ class CORALLoss(nn.Module):
         # With P(Y > -1) = 1 and P(Y > K-1) = 0
         batch_size = features.shape[0]
         class_probs = torch.zeros(
-            batch_size, self.num_classes,
-            device=features.device, dtype=features.dtype
+            batch_size, self.num_classes, device=features.device, dtype=features.dtype
         )
 
         # P(Y = 0) = 1 - P(Y > 0)
@@ -228,7 +223,8 @@ class CORALLoss(nn.Module):
             self.label_min + self.bin_width / 2,
             self.label_max - self.bin_width / 2,
             self.num_classes,
-            device=features.device, dtype=features.dtype
+            device=features.device,
+            dtype=features.dtype,
         )
 
         # Expected value
@@ -258,14 +254,17 @@ class CORALLoss(nn.Module):
             self.label_min + self.bin_width / 2,
             self.label_max - self.bin_width / 2,
             self.num_classes,
-            device=features.device, dtype=features.dtype
+            device=features.device,
+            dtype=features.dtype,
         )
 
         # Expected value
         predictions = (class_probs * bin_centers).sum(dim=1)
 
         # Variance (uncertainty)
-        variance = (class_probs * (bin_centers - predictions.unsqueeze(1)) ** 2).sum(dim=1)
+        variance = (class_probs * (bin_centers - predictions.unsqueeze(1)) ** 2).sum(
+            dim=1
+        )
         uncertainty = variance.sqrt()
 
         return predictions, uncertainty
@@ -301,14 +300,16 @@ class CORALHead(nn.Module):
         self.num_classes = num_classes
 
         # Create CORAL classifier for each dimension
-        self.coral_heads = nn.ModuleList([
-            CORALLoss(
-                num_classes=num_classes,
-                input_dim=input_dim,
-                label_range=label_range,
-            )
-            for _ in range(num_dimensions)
-        ])
+        self.coral_heads = nn.ModuleList(
+            [
+                CORALLoss(
+                    num_classes=num_classes,
+                    input_dim=input_dim,
+                    label_range=label_range,
+                )
+                for _ in range(num_dimensions)
+            ]
+        )
 
     def forward(
         self,
@@ -404,7 +405,9 @@ if __name__ == "__main__":
 
     # Get predictions
     predictions = coral.predict_continuous(features)
-    print(f"Predictions range: [{predictions.min().item():.1f}, {predictions.max().item():.1f}]")
+    print(
+        f"Predictions range: [{predictions.min().item():.1f}, {predictions.max().item():.1f}]"
+    )
 
     # Get predictions with uncertainty
     preds, uncertainty = coral.predict_with_uncertainty(features)

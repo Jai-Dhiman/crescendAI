@@ -21,8 +21,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
 from percepiano.data.kfold_split import (
     create_piece_based_folds,
-    save_fold_assignments,
     print_fold_statistics,
+    save_fold_assignments,
 )
 
 
@@ -34,31 +34,31 @@ def main():
         "--data-dir",
         type=str,
         default="/Users/jdhiman/Documents/crescendai/model/data/percepiano_vnet_split",
-        help="Path to data directory containing train/val/test subdirs"
+        help="Path to data directory containing train/val/test subdirs",
     )
     parser.add_argument(
         "--n-folds",
         type=int,
         default=4,
-        help="Number of cross-validation folds (default: 4)"
+        help="Number of cross-validation folds (default: 4)",
     )
     parser.add_argument(
         "--test-ratio",
         type=float,
         default=0.15,
-        help="Fraction of pieces for test set (default: 0.15)"
+        help="Fraction of pieces for test set (default: 0.15)",
     )
     parser.add_argument(
         "--seed",
         type=int,
         default=42,
-        help="Random seed for reproducibility (default: 42)"
+        help="Random seed for reproducibility (default: 42)",
     )
     parser.add_argument(
         "--output",
         type=str,
         default=None,
-        help="Output path for fold assignments (default: data_dir/fold_assignments.json)"
+        help="Output path for fold assignments (default: data_dir/fold_assignments.json)",
     )
 
     args = parser.parse_args()
@@ -80,7 +80,7 @@ def main():
         data_dir=data_dir,
         n_folds=args.n_folds,
         test_ratio=args.test_ratio,
-        seed=args.seed
+        seed=args.seed,
     )
 
     # Print statistics

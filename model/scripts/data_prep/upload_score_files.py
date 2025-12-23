@@ -21,7 +21,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-
 # Default paths
 DEFAULT_LOCAL_SCORE_DIR = Path("data/raw/PercePiano/virtuoso/data/score_xml")
 DEFAULT_GDRIVE_DEST = "gdrive:percepiano_data/PercePiano/virtuoso/data/score_xml"
@@ -30,6 +29,7 @@ EXPECTED_FILE_COUNT = 262  # Known count of MusicXML files
 
 class UploadError(Exception):
     """Raised when upload fails."""
+
     pass
 
 
@@ -42,7 +42,7 @@ def check_rclone_available() -> None:
     """
     try:
         result = subprocess.run(
-            ['rclone', 'listremotes'],
+            ["rclone", "listremotes"],
             capture_output=True,
             text=True,
             timeout=30,
@@ -64,7 +64,7 @@ def check_rclone_available() -> None:
     if result.returncode != 0:
         raise UploadError(f"rclone listremotes failed: {result.stderr}")
 
-    if 'gdrive:' not in result.stdout:
+    if "gdrive:" not in result.stdout:
         raise UploadError(
             "rclone 'gdrive' remote not configured.\n"
             "\n"
@@ -132,7 +132,7 @@ def check_existing_remote_files(remote_path: str) -> int:
     """
     try:
         result = subprocess.run(
-            ['rclone', 'ls', remote_path],
+            ["rclone", "ls", remote_path],
             capture_output=True,
             text=True,
             timeout=60,
@@ -142,7 +142,7 @@ def check_existing_remote_files(remote_path: str) -> int:
             # Directory might not exist yet
             return 0
 
-        lines = [l for l in result.stdout.strip().split('\n') if l.strip()]
+        lines = [l for l in result.stdout.strip().split("\n") if l.strip()]
         return len(lines)
 
     except subprocess.TimeoutExpired:
@@ -163,15 +163,17 @@ def upload_files(local_dir: Path, remote_path: str, dry_run: bool = False) -> No
         UploadError: If upload fails
     """
     cmd = [
-        'rclone', 'copy',
+        "rclone",
+        "copy",
         str(local_dir),
         remote_path,
-        '--progress',
-        '--stats', '1s',
+        "--progress",
+        "--stats",
+        "1s",
     ]
 
     if dry_run:
-        cmd.append('--dry-run')
+        cmd.append("--dry-run")
         print(f"\n[DRY RUN] Would execute: {' '.join(cmd)}\n")
     else:
         print(f"\nUploading to {remote_path}...")
@@ -212,7 +214,7 @@ def verify_upload(remote_path: str, expected_count: int) -> None:
 
     try:
         result = subprocess.run(
-            ['rclone', 'ls', remote_path],
+            ["rclone", "ls", remote_path],
             capture_output=True,
             text=True,
             timeout=60,
@@ -223,7 +225,7 @@ def verify_upload(remote_path: str, expected_count: int) -> None:
     except subprocess.TimeoutExpired:
         raise UploadError("Verification timed out")
 
-    lines = [l for l in result.stdout.strip().split('\n') if l.strip()]
+    lines = [l for l in result.stdout.strip().split("\n") if l.strip()]
     uploaded_count = len(lines)
 
     if uploaded_count < expected_count:
@@ -241,26 +243,24 @@ def main():
         description="Upload score XML files to Google Drive for score-aligned training"
     )
     parser.add_argument(
-        '--local-dir',
+        "--local-dir",
         type=Path,
         default=DEFAULT_LOCAL_SCORE_DIR,
-        help=f"Local directory containing MusicXML files (default: {DEFAULT_LOCAL_SCORE_DIR})"
+        help=f"Local directory containing MusicXML files (default: {DEFAULT_LOCAL_SCORE_DIR})",
     )
     parser.add_argument(
-        '--remote',
+        "--remote",
         type=str,
         default=DEFAULT_GDRIVE_DEST,
-        help=f"rclone remote path (default: {DEFAULT_GDRIVE_DEST})"
+        help=f"rclone remote path (default: {DEFAULT_GDRIVE_DEST})",
     )
     parser.add_argument(
-        '--dry-run',
-        action='store_true',
-        help="Show what would be uploaded without actually uploading"
+        "--dry-run",
+        action="store_true",
+        help="Show what would be uploaded without actually uploading",
     )
     parser.add_argument(
-        '--skip-verify',
-        action='store_true',
-        help="Skip upload verification step"
+        "--skip-verify", action="store_true", help="Skip upload verification step"
     )
 
     args = parser.parse_args()

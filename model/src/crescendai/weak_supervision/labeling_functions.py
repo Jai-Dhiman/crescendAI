@@ -21,9 +21,10 @@ Each function operates on MIDI and/or audio features to estimate quality scores.
 These imperfect signals are combined via weak supervision to create training labels.
 """
 
-import numpy as np
-import librosa
 from typing import Dict, Optional, Tuple
+
+import librosa
+import numpy as np
 import pretty_midi
 
 
@@ -48,7 +49,7 @@ class LabelingFunction:
         midi_data: Optional[pretty_midi.PrettyMIDI] = None,
         audio_data: Optional[np.ndarray] = None,
         sr: int = 24000,
-        **kwargs
+        **kwargs,
     ) -> Optional[float]:
         """
         Compute pseudo-label score.
@@ -67,6 +68,7 @@ class LabelingFunction:
 
 # ==================== NOTE ACCURACY ====================
 
+
 class MIDINoteCountComplexity(LabelingFunction):
     """
     Note accuracy proxy based on MIDI note count and density.
@@ -77,9 +79,7 @@ class MIDINoteCountComplexity(LabelingFunction):
 
     def __init__(self):
         super().__init__(
-            name="midi_note_count_complexity",
-            dimension="note_accuracy",
-            weight=0.7
+            name="midi_note_count_complexity", dimension="note_accuracy", weight=0.7
         )
 
     def __call__(self, midi_data=None, **kwargs):
@@ -124,9 +124,7 @@ class MIDIPitchRangeComplexity(LabelingFunction):
 
     def __init__(self):
         super().__init__(
-            name="midi_pitch_range_complexity",
-            dimension="note_accuracy",
-            weight=0.5
+            name="midi_pitch_range_complexity", dimension="note_accuracy", weight=0.5
         )
 
     def __call__(self, midi_data=None, **kwargs):
@@ -156,6 +154,7 @@ class MIDIPitchRangeComplexity(LabelingFunction):
 
 # ==================== RHYTHMIC PRECISION ====================
 
+
 class MIDITimingVariance(LabelingFunction):
     """
     Rhythmic precision based on timing variance from grid.
@@ -166,9 +165,7 @@ class MIDITimingVariance(LabelingFunction):
 
     def __init__(self):
         super().__init__(
-            name="midi_timing_variance",
-            dimension="rhythmic_precision",
-            weight=0.8
+            name="midi_timing_variance", dimension="rhythmic_precision", weight=0.8
         )
 
     def __call__(self, midi_data=None, **kwargs):
@@ -226,9 +223,7 @@ class MIDITempoStability(LabelingFunction):
 
     def __init__(self):
         super().__init__(
-            name="midi_tempo_stability",
-            dimension="rhythmic_precision",
-            weight=0.6
+            name="midi_tempo_stability", dimension="rhythmic_precision", weight=0.6
         )
 
     def __call__(self, midi_data=None, **kwargs):
@@ -261,6 +256,7 @@ class MIDITempoStability(LabelingFunction):
 
 # ==================== TONE QUALITY ====================
 
+
 class AudioSpectralCentroid(LabelingFunction):
     """
     Tone quality based on spectral centroid (brightness).
@@ -271,9 +267,7 @@ class AudioSpectralCentroid(LabelingFunction):
 
     def __init__(self):
         super().__init__(
-            name="audio_spectral_centroid",
-            dimension="tone_quality",
-            weight=0.7
+            name="audio_spectral_centroid", dimension="tone_quality", weight=0.7
         )
 
     def __call__(self, audio_data=None, sr=24000, **kwargs):
@@ -309,9 +303,7 @@ class AudioInharmonicity(LabelingFunction):
 
     def __init__(self):
         super().__init__(
-            name="audio_inharmonicity",
-            dimension="tone_quality",
-            weight=0.5
+            name="audio_inharmonicity", dimension="tone_quality", weight=0.5
         )
 
     def __call__(self, audio_data=None, sr=24000, **kwargs):
@@ -336,6 +328,7 @@ class AudioInharmonicity(LabelingFunction):
 
 # ==================== DYNAMICS CONTROL ====================
 
+
 class MIDIVelocityRange(LabelingFunction):
     """
     Dynamics control based on velocity range.
@@ -346,9 +339,7 @@ class MIDIVelocityRange(LabelingFunction):
 
     def __init__(self):
         super().__init__(
-            name="midi_velocity_range",
-            dimension="dynamics_control",
-            weight=0.8
+            name="midi_velocity_range", dimension="dynamics_control", weight=0.8
         )
 
     def __call__(self, midi_data=None, **kwargs):
@@ -390,9 +381,7 @@ class MIDIVelocitySmoothing(LabelingFunction):
 
     def __init__(self):
         super().__init__(
-            name="midi_velocity_smoothing",
-            dimension="dynamics_control",
-            weight=0.6
+            name="midi_velocity_smoothing", dimension="dynamics_control", weight=0.6
         )
 
     def __call__(self, midi_data=None, **kwargs):
@@ -433,6 +422,7 @@ class MIDIVelocitySmoothing(LabelingFunction):
 
 # ==================== ARTICULATION ====================
 
+
 class MIDINoteDurationVariance(LabelingFunction):
     """
     Articulation based on note duration variance.
@@ -443,9 +433,7 @@ class MIDINoteDurationVariance(LabelingFunction):
 
     def __init__(self):
         super().__init__(
-            name="midi_note_duration_variance",
-            dimension="articulation",
-            weight=0.7
+            name="midi_note_duration_variance", dimension="articulation", weight=0.7
         )
 
     def __call__(self, midi_data=None, **kwargs):
@@ -488,9 +476,7 @@ class AudioAttackTransients(LabelingFunction):
 
     def __init__(self):
         super().__init__(
-            name="audio_attack_transients",
-            dimension="articulation",
-            weight=0.6
+            name="audio_attack_transients", dimension="articulation", weight=0.6
         )
 
     def __call__(self, audio_data=None, sr=24000, **kwargs):
@@ -516,6 +502,7 @@ class AudioAttackTransients(LabelingFunction):
 
 # ==================== PEDALING ====================
 
+
 class MIDIPedalCoherence(LabelingFunction):
     """
     Pedaling technique based on CC64 (sustain pedal) coherence.
@@ -524,11 +511,7 @@ class MIDIPedalCoherence(LabelingFunction):
     """
 
     def __init__(self):
-        super().__init__(
-            name="midi_pedal_coherence",
-            dimension="pedaling",
-            weight=0.8
-        )
+        super().__init__(name="midi_pedal_coherence", dimension="pedaling", weight=0.8)
 
     def __call__(self, midi_data=None, **kwargs):
         if midi_data is None:
@@ -585,11 +568,7 @@ class MIDIPedalTiming(LabelingFunction):
     """
 
     def __init__(self):
-        super().__init__(
-            name="midi_pedal_timing",
-            dimension="pedaling",
-            weight=0.6
-        )
+        super().__init__(name="midi_pedal_timing", dimension="pedaling", weight=0.6)
 
     def __call__(self, midi_data=None, **kwargs):
         if midi_data is None:
@@ -638,6 +617,7 @@ class MIDIPedalTiming(LabelingFunction):
 
 # ==================== MUSICAL EXPRESSION ====================
 
+
 class MIDIPhrasingCoherence(LabelingFunction):
     """
     Musical expression based on phrasing coherence.
@@ -648,9 +628,7 @@ class MIDIPhrasingCoherence(LabelingFunction):
 
     def __init__(self):
         super().__init__(
-            name="midi_phrasing_coherence",
-            dimension="musical_expression",
-            weight=0.7
+            name="midi_phrasing_coherence", dimension="musical_expression", weight=0.7
         )
 
     def __call__(self, midi_data=None, audio_data=None, sr=24000, **kwargs):
@@ -677,7 +655,9 @@ class MIDIPhrasingCoherence(LabelingFunction):
         if window_size < 3:
             return 75.0
 
-        velocity_trends = np.convolve(velocities, np.ones(window_size) / window_size, mode='valid')
+        velocity_trends = np.convolve(
+            velocities, np.ones(window_size) / window_size, mode="valid"
+        )
 
         # Count direction changes (phrase boundaries)
         direction_changes = np.sum(np.diff(np.sign(np.diff(velocity_trends))) != 0)
@@ -707,9 +687,7 @@ class AudioDynamicContour(LabelingFunction):
 
     def __init__(self):
         super().__init__(
-            name="audio_dynamic_contour",
-            dimension="musical_expression",
-            weight=0.6
+            name="audio_dynamic_contour", dimension="musical_expression", weight=0.6
         )
 
     def __call__(self, audio_data=None, sr=24000, **kwargs):
@@ -719,13 +697,19 @@ class AudioDynamicContour(LabelingFunction):
         # Compute RMS energy in frames
         frame_length = 2048
         hop_length = 512
-        rms = librosa.feature.rms(y=audio_data, frame_length=frame_length, hop_length=hop_length)[0]
+        rms = librosa.feature.rms(
+            y=audio_data, frame_length=frame_length, hop_length=hop_length
+        )[0]
 
         # Smooth RMS to get dynamic contour
-        smoothed_rms = np.convolve(rms, np.ones(20) / 20, mode='same')
+        smoothed_rms = np.convolve(rms, np.ones(20) / 20, mode="same")
 
         # Measure variance (too flat = poor expression, too erratic = poor control)
-        rms_cv = np.std(smoothed_rms) / np.mean(smoothed_rms) if np.mean(smoothed_rms) > 0 else 0
+        rms_cv = (
+            np.std(smoothed_rms) / np.mean(smoothed_rms)
+            if np.mean(smoothed_rms) > 0
+            else 0
+        )
 
         # Good expression: CV = 0.3-0.6 (moderate variance)
         if 0.3 <= rms_cv <= 0.6:
@@ -742,6 +726,7 @@ class AudioDynamicContour(LabelingFunction):
 
 # ==================== OVERALL INTERPRETATION ====================
 
+
 class CombinedPerformanceQuality(LabelingFunction):
     """
     Overall interpretation based on combined technical and expressive metrics.
@@ -753,7 +738,7 @@ class CombinedPerformanceQuality(LabelingFunction):
         super().__init__(
             name="combined_performance_quality",
             dimension="overall_interpretation",
-            weight=0.8
+            weight=0.8,
         )
 
     def __call__(self, midi_data=None, audio_data=None, sr=24000, **kwargs):
@@ -804,7 +789,7 @@ class AudioTemporalCoherence(LabelingFunction):
         super().__init__(
             name="audio_temporal_coherence",
             dimension="overall_interpretation",
-            weight=0.6
+            weight=0.6,
         )
 
     def __call__(self, audio_data=None, sr=24000, **kwargs):
@@ -819,7 +804,7 @@ class AudioTemporalCoherence(LabelingFunction):
 
         # Strong autocorrelation = good temporal structure
         # Weak autocorrelation = incoherent/random
-        autocorr_strength = np.max(onset_autocorr[1:len(onset_autocorr)//4])
+        autocorr_strength = np.max(onset_autocorr[1 : len(onset_autocorr) // 4])
 
         # Normalize and score
         if autocorr_strength > 100:
@@ -834,6 +819,7 @@ class AudioTemporalCoherence(LabelingFunction):
 
 # ==================== LABELING FUNCTION REGISTRY ====================
 
+
 def get_all_labeling_functions() -> Dict[str, list]:
     """
     Get all labeling functions organized by dimension.
@@ -847,35 +833,35 @@ def get_all_labeling_functions() -> Dict[str, list]:
         Dictionary mapping dimension names to lists of labeling functions
     """
     return {
-        'note_accuracy': [
+        "note_accuracy": [
             MIDINoteCountComplexity(),
             MIDIPitchRangeComplexity(),
         ],
-        'rhythmic_stability': [  # Renamed from rhythmic_precision
+        "rhythmic_stability": [  # Renamed from rhythmic_precision
             MIDITimingVariance(),
             MIDITempoStability(),
         ],
-        'articulation_clarity': [  # Renamed from articulation
+        "articulation_clarity": [  # Renamed from articulation
             MIDINoteDurationVariance(),
             AudioAttackTransients(),
         ],
-        'pedal_technique': [  # Renamed from pedaling
+        "pedal_technique": [  # Renamed from pedaling
             MIDIPedalCoherence(),
             MIDIPedalTiming(),
         ],
-        'tone_quality': [
+        "tone_quality": [
             AudioSpectralCentroid(),
             AudioInharmonicity(),
         ],
-        'dynamic_range': [  # Renamed from dynamics_control
+        "dynamic_range": [  # Renamed from dynamics_control
             MIDIVelocityRange(),
             MIDIVelocitySmoothing(),
         ],
-        'musical_expression': [  # NEW
+        "musical_expression": [  # NEW
             MIDIPhrasingCoherence(),
             AudioDynamicContour(),
         ],
-        'overall_interpretation': [  # NEW
+        "overall_interpretation": [  # NEW
             CombinedPerformanceQuality(),
             AudioTemporalCoherence(),
         ],

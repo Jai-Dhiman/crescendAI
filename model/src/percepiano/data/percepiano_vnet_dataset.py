@@ -18,12 +18,12 @@ import pickle
 import random
 import warnings
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Any, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
-import torch
-from torch.utils.data import Dataset, DataLoader
 import pytorch_lightning as pl
+import torch
+from torch.utils.data import DataLoader, Dataset
 
 # No global flags - they don't work correctly with multiprocessing workers
 
@@ -80,18 +80,20 @@ class PercePianoVNetDataset(Dataset):
         if augment:
             print(f"  Key augmentation ENABLED (pitch_std={self.pitch_std})")
 
-    def _load_pitch_std_from_stats(self, stats_file: Optional[Union[str, Path]] = None) -> float:
+    def _load_pitch_std_from_stats(
+        self, stats_file: Optional[Union[str, Path]] = None
+    ) -> float:
         """Load pitch_std from stats file."""
         if stats_file is None:
             # Look for stat.pkl in parent directory (data_dir is train/val/test subdirectory)
-            stats_file = self.data_dir.parent / 'stat.pkl'
+            stats_file = self.data_dir.parent / "stat.pkl"
 
         stats_path = Path(stats_file)
         if stats_path.exists():
-            with open(stats_path, 'rb') as f:
+            with open(stats_path, "rb") as f:
                 stats = pickle.load(f)
-            if 'std' in stats and 'midi_pitch' in stats['std']:
-                loaded_std = stats['std']['midi_pitch']
+            if "std" in stats and "midi_pitch" in stats["std"]:
+                loaded_std = stats["std"]["midi_pitch"]
                 print(f"  Loaded pitch_std={loaded_std:.4f} from {stats_path}")
                 return loaded_std
 
@@ -129,13 +131,13 @@ class PercePianoVNetDataset(Dataset):
             warnings.warn(
                 f"[DATA] Sample '{sample_name}' has {nan_count} NaN values in features! "
                 "This will cause training to produce NaN losses.",
-                RuntimeWarning
+                RuntimeWarning,
             )
         if inf_count > 0 and is_main_process:
             warnings.warn(
                 f"[DATA] Sample '{sample_name}' has {inf_count} Inf values in features! "
                 "This will cause training to produce Inf losses.",
-                RuntimeWarning
+                RuntimeWarning,
             )
 
         # 2. Check label range (should be 0-1 for sigmoid output)
@@ -144,7 +146,7 @@ class PercePianoVNetDataset(Dataset):
                 f"[DATA] Sample '{sample_name}' has labels outside [0,1]: "
                 f"[{labels.min():.3f}, {labels.max():.3f}]. "
                 "Model uses sigmoid output (0-1), causing MSE mismatch!",
-                RuntimeWarning
+                RuntimeWarning,
             )
 
         # Beat index gap check removed - gaps are common and don't break training
@@ -164,29 +166,35 @@ class PercePianoVNetDataset(Dataset):
             - attention_mask: (max_notes,) bool tensor - True for valid notes
         """
         # Load pickle file
-        with open(self.pkl_files[idx], 'rb') as f:
+        with open(self.pkl_files[idx], "rb") as f:
             data = pickle.load(f)
 
         # Get input features - REQUIRED
-        if 'input' not in data:
+        if "input" not in data:
             raise ValueError(f"Missing 'input' features in {self.pkl_files[idx]}")
-        input_features = data['input']  # (num_notes, 78)
+        input_features = data["input"]  # (num_notes, 78)
         num_notes = min(input_features.shape[0], self.max_notes)
 
         # Get note locations - beat and measure are REQUIRED, voice can default to 1
-        if 'note_location' not in data:
+        if "note_location" not in data:
             raise ValueError(f"Missing 'note_location' in {self.pkl_files[idx]}")
-        note_loc = data['note_location']
+        note_loc = data["note_location"]
 
-        if 'beat' not in note_loc:
-            raise ValueError(f"Missing 'beat' in note_location for {self.pkl_files[idx]}")
-        if 'measure' not in note_loc:
-            raise ValueError(f"Missing 'measure' in note_location for {self.pkl_files[idx]}")
+        if "beat" not in note_loc:
+            raise ValueError(
+                f"Missing 'beat' in note_location for {self.pkl_files[idx]}"
+            )
+        if "measure" not in note_loc:
+            raise ValueError(
+                f"Missing 'measure' in note_location for {self.pkl_files[idx]}"
+            )
 
-        beat_indices = np.array(note_loc['beat'], dtype=np.int64)
-        measure_indices = np.array(note_loc['measure'], dtype=np.int64)
+        beat_indices = np.array(note_loc["beat"], dtype=np.int64)
+        measure_indices = np.array(note_loc["measure"], dtype=np.int64)
         # Voice can default to 1 (single voice) if not present
-        voice_indices = np.array(note_loc.get('voice', np.ones(num_notes)), dtype=np.int64)
+        voice_indices = np.array(
+            note_loc.get("voice", np.ones(num_notes)), dtype=np.int64
+        )
 
         # CRITICAL FIX: Convert sparse indices to dense sequential indices
         # Original data has non-sequential values like [0, 1, 4, 11, 15] from the score
@@ -208,9 +216,9 @@ class PercePianoVNetDataset(Dataset):
             voice_indices = voice_indices + 1
 
         # Get labels - REQUIRED
-        if 'labels' not in data:
+        if "labels" not in data:
             raise ValueError(f"Missing 'labels' in {self.pkl_files[idx]}")
-        labels = np.array(data['labels'], dtype=np.float32)
+        labels = np.array(data["labels"], dtype=np.float32)
 
         # VALIDATION: Check for common issues that cause training to fail
         # Note: beat_indices are already shifted to start from 1 at this point
@@ -218,14 +226,17 @@ class PercePianoVNetDataset(Dataset):
 
         # Key augmentation (random pitch shift) - training only
         if self.augment:
-            input_features = self._apply_key_augmentation(input_features.copy(), num_notes)
+            input_features = self._apply_key_augmentation(
+                input_features.copy(), num_notes
+            )
 
         # Pad or truncate to max_notes
         # Only use first 78 features for model input (SOTA configuration)
         # The 5 unnorm features (indices 78-82) are only for key augmentation, not model input
         BASE_FEATURE_DIM = 78
-        model_features = input_features[:, :BASE_FEATURE_DIM]  # Only normalized features
-
+        model_features = input_features[
+            :, :BASE_FEATURE_DIM
+        ]  # Only normalized features
 
         padded_features = np.zeros((self.max_notes, BASE_FEATURE_DIM), dtype=np.float32)
         padded_beat = np.zeros(self.max_notes, dtype=np.int64)
@@ -243,13 +254,13 @@ class PercePianoVNetDataset(Dataset):
 
         # Convert to tensors
         result = {
-            'input_features': torch.from_numpy(padded_features),
-            'note_locations_beat': torch.from_numpy(padded_beat),
-            'note_locations_measure': torch.from_numpy(padded_measure),
-            'note_locations_voice': torch.from_numpy(padded_voice),
-            'scores': torch.from_numpy(labels),
-            'num_notes': actual_notes,
-            'attention_mask': torch.from_numpy(attention_mask),
+            "input_features": torch.from_numpy(padded_features),
+            "note_locations_beat": torch.from_numpy(padded_beat),
+            "note_locations_measure": torch.from_numpy(padded_measure),
+            "note_locations_voice": torch.from_numpy(padded_voice),
+            "scores": torch.from_numpy(labels),
+            "num_notes": actual_notes,
+            "attention_mask": torch.from_numpy(attention_mask),
         }
 
         # Apply transform if provided
@@ -341,9 +352,13 @@ class PercePianoVNetDataset(Dataset):
         input_features[:num_notes, MIDI_PITCH_UNNORM_IDX] += key_shift
 
         # Roll the pitch class one-hot encoding
-        pitch_class = input_features[:num_notes, PITCH_CLASS_START:PITCH_CLASS_END].copy()
+        pitch_class = input_features[
+            :num_notes, PITCH_CLASS_START:PITCH_CLASS_END
+        ].copy()
         pitch_class_shifted = np.roll(pitch_class, key_shift, axis=1)
-        input_features[:num_notes, PITCH_CLASS_START:PITCH_CLASS_END] = pitch_class_shifted
+        input_features[:num_notes, PITCH_CLASS_START:PITCH_CLASS_END] = (
+            pitch_class_shifted
+        )
 
         # Adjust octave if shift crosses octave boundary
         # Octave is normalized around octave 4, each octave = 0.25
@@ -384,7 +399,7 @@ class PercePianoVNetDataModule(pl.LightningDataModule):
         self.num_workers = num_workers
         self.augment_train = augment_train
         self.pitch_std = pitch_std  # None = auto-load from stats
-        self._stats_file = self.data_dir / 'stat.pkl'
+        self._stats_file = self.data_dir / "stat.pkl"
 
         self.train_dataset: Optional[PercePianoVNetDataset] = None
         self.val_dataset: Optional[PercePianoVNetDataset] = None
@@ -474,7 +489,7 @@ def create_vnet_dataloaders(
         Tuple of (train_loader, val_loader, test_loader)
     """
     data_dir = Path(data_dir)
-    stats_file = data_dir / 'stat.pkl'
+    stats_file = data_dir / "stat.pkl"
 
     # Training dataset with augmentation enabled by default
     train_dataset = PercePianoVNetDataset(
@@ -559,7 +574,7 @@ class PercePianoKFoldDataset(Dataset):
         augment: bool = False,
         normalization_stats: Optional[Dict[str, Any]] = None,
     ):
-        if mode not in ('train', 'val'):
+        if mode not in ("train", "val"):
             raise ValueError(f"mode must be 'train' or 'val', got: {mode}")
 
         self.data_dir = Path(data_dir)
@@ -567,7 +582,7 @@ class PercePianoKFoldDataset(Dataset):
         self.fold_id = fold_id
         self.mode = mode
         self.max_notes = max_notes
-        self.augment = augment and (mode == 'train')  # Only augment training
+        self.augment = augment and (mode == "train")  # Only augment training
 
         # Get sample list for this fold/mode
         self.sample_files = self._get_sample_files()
@@ -580,9 +595,11 @@ class PercePianoKFoldDataset(Dataset):
         else:
             self.stats = self._compute_normalization_stats()
 
-        self.pitch_std = self.stats.get('std', {}).get('midi_pitch', 12.0)
+        self.pitch_std = self.stats.get("std", {}).get("midi_pitch", 12.0)
 
-        print(f"KFold Dataset: fold={fold_id}, mode={mode}, samples={len(self.sample_files)}")
+        print(
+            f"KFold Dataset: fold={fold_id}, mode={mode}, samples={len(self.sample_files)}"
+        )
         if self.augment:
             print(f"  Key augmentation ENABLED (pitch_std={self.pitch_std:.4f})")
 
@@ -591,13 +608,13 @@ class PercePianoKFoldDataset(Dataset):
         sample_names = []
 
         for sample_name, info in self.fold_assignments.items():
-            sample_fold = info['fold']
+            sample_fold = info["fold"]
 
             # Skip test samples
-            if sample_fold == 'test':
+            if sample_fold == "test":
                 continue
 
-            if self.mode == 'val':
+            if self.mode == "val":
                 # Validation: use only samples from this fold
                 if sample_fold == self.fold_id:
                     sample_names.append(sample_name)
@@ -619,7 +636,7 @@ class PercePianoKFoldDataset(Dataset):
     def _find_sample_file(self, sample_name: str) -> Optional[Path]:
         """Find the file path for a sample name."""
         # Add .pkl extension if not present
-        if not sample_name.endswith('.pkl'):
+        if not sample_name.endswith(".pkl"):
             sample_name = f"{sample_name}.pkl"
 
         # Check direct path
@@ -628,7 +645,7 @@ class PercePianoKFoldDataset(Dataset):
             return direct_path
 
         # Check subdirectories (train/val/test)
-        for subdir in ['train', 'val', 'test']:
+        for subdir in ["train", "val", "test"]:
             subdir_path = self.data_dir / subdir / sample_name
             if subdir_path.exists():
                 return subdir_path
@@ -641,16 +658,18 @@ class PercePianoKFoldDataset(Dataset):
 
         Returns dict with 'mean' and 'std' for each feature.
         """
-        print(f"  Computing normalization stats from {len(self.sample_files)} training samples...")
+        print(
+            f"  Computing normalization stats from {len(self.sample_files)} training samples..."
+        )
 
         # Collect all features from training samples
         all_features = []
 
         for file_path in self.sample_files:
-            with open(file_path, 'rb') as f:
+            with open(file_path, "rb") as f:
                 data = pickle.load(f)
             # Only use base 78 features for stats (not unnormalized) - SOTA config
-            features = data['input'][:, :78]
+            features = data["input"][:, :78]
             all_features.append(features)
 
         # Concatenate all features
@@ -667,10 +686,10 @@ class PercePianoKFoldDataset(Dataset):
         # Note: These are per-dimension stats, but for key augmentation
         # we specifically need midi_pitch std
         stats = {
-            'mean': {'midi_pitch': float(mean[0])},
-            'std': {'midi_pitch': float(std[0])},
-            '_raw_mean': mean,  # Keep raw arrays for potential future use
-            '_raw_std': std,
+            "mean": {"midi_pitch": float(mean[0])},
+            "std": {"midi_pitch": float(std[0])},
+            "_raw_mean": mean,  # Keep raw arrays for potential future use
+            "_raw_std": std,
         }
 
         print(f"  Computed stats: pitch_std={stats['std']['midi_pitch']:.4f}")
@@ -688,18 +707,20 @@ class PercePianoKFoldDataset(Dataset):
         file_path = self.sample_files[idx]
 
         # Load pickle file
-        with open(file_path, 'rb') as f:
+        with open(file_path, "rb") as f:
             data = pickle.load(f)
 
         # Get input features
-        input_features = data['input']
+        input_features = data["input"]
         num_notes = min(input_features.shape[0], self.max_notes)
 
         # Get note locations
-        note_loc = data['note_location']
-        beat_indices = np.array(note_loc['beat'], dtype=np.int64)
-        measure_indices = np.array(note_loc['measure'], dtype=np.int64)
-        voice_indices = np.array(note_loc.get('voice', np.ones(num_notes)), dtype=np.int64)
+        note_loc = data["note_location"]
+        beat_indices = np.array(note_loc["beat"], dtype=np.int64)
+        measure_indices = np.array(note_loc["measure"], dtype=np.int64)
+        voice_indices = np.array(
+            note_loc.get("voice", np.ones(num_notes)), dtype=np.int64
+        )
 
         # Shift indices to start from 1 (hierarchy_utils expects this)
         if beat_indices.min() == 0:
@@ -710,11 +731,13 @@ class PercePianoKFoldDataset(Dataset):
             voice_indices = voice_indices + 1
 
         # Get labels
-        labels = np.array(data['labels'], dtype=np.float32)
+        labels = np.array(data["labels"], dtype=np.float32)
 
         # Key augmentation
         if self.augment:
-            input_features = self._apply_key_augmentation(input_features.copy(), num_notes)
+            input_features = self._apply_key_augmentation(
+                input_features.copy(), num_notes
+            )
 
         # Only use first 78 features for model input (SOTA configuration)
         BASE_FEATURE_DIM = 78
@@ -735,13 +758,13 @@ class PercePianoKFoldDataset(Dataset):
         attention_mask[:actual_notes] = True
 
         return {
-            'input_features': torch.from_numpy(padded_features),
-            'note_locations_beat': torch.from_numpy(padded_beat),
-            'note_locations_measure': torch.from_numpy(padded_measure),
-            'note_locations_voice': torch.from_numpy(padded_voice),
-            'scores': torch.from_numpy(labels),
-            'num_notes': actual_notes,
-            'attention_mask': torch.from_numpy(attention_mask),
+            "input_features": torch.from_numpy(padded_features),
+            "note_locations_beat": torch.from_numpy(padded_beat),
+            "note_locations_measure": torch.from_numpy(padded_measure),
+            "note_locations_voice": torch.from_numpy(padded_voice),
+            "scores": torch.from_numpy(labels),
+            "num_notes": actual_notes,
+            "attention_mask": torch.from_numpy(attention_mask),
         }
 
     def _apply_key_augmentation(
@@ -774,9 +797,13 @@ class PercePianoKFoldDataset(Dataset):
         input_features[:num_notes, MIDI_PITCH_IDX] += key_shift / self.pitch_std
         input_features[:num_notes, MIDI_PITCH_UNNORM_IDX] += key_shift
 
-        pitch_class = input_features[:num_notes, PITCH_CLASS_START:PITCH_CLASS_END].copy()
+        pitch_class = input_features[
+            :num_notes, PITCH_CLASS_START:PITCH_CLASS_END
+        ].copy()
         pitch_class_shifted = np.roll(pitch_class, key_shift, axis=1)
-        input_features[:num_notes, PITCH_CLASS_START:PITCH_CLASS_END] = pitch_class_shifted
+        input_features[:num_notes, PITCH_CLASS_START:PITCH_CLASS_END] = (
+            pitch_class_shifted
+        )
 
         octave_adjustment = key_shift // 12
         if octave_adjustment != 0:
@@ -833,7 +860,7 @@ class PercePianoKFoldDataModule(pl.LightningDataModule):
                 data_dir=self.data_dir,
                 fold_assignments=self.fold_assignments,
                 fold_id=self.fold_id,
-                mode='train',
+                mode="train",
                 max_notes=self.max_notes,
                 augment=self.augment_train,
                 normalization_stats=None,  # Will compute from training data
@@ -847,7 +874,7 @@ class PercePianoKFoldDataModule(pl.LightningDataModule):
                 data_dir=self.data_dir,
                 fold_assignments=self.fold_assignments,
                 fold_id=self.fold_id,
-                mode='val',
+                mode="val",
                 max_notes=self.max_notes,
                 augment=False,  # Never augment validation
                 normalization_stats=self._normalization_stats,
@@ -902,15 +929,16 @@ class PercePianoTestDataset(Dataset):
             raise ValueError("No test samples found in fold assignments")
 
         self.stats = normalization_stats or {}
-        self.pitch_std = self.stats.get('std', {}).get('midi_pitch', 12.0)
+        self.pitch_std = self.stats.get("std", {}).get("midi_pitch", 12.0)
 
         print(f"Test Dataset: {len(self.sample_files)} samples")
 
     def _get_test_files(self) -> List[Path]:
         """Get list of test sample files."""
         sample_names = [
-            name for name, info in self.fold_assignments.items()
-            if info['fold'] == 'test'
+            name
+            for name, info in self.fold_assignments.items()
+            if info["fold"] == "test"
         ]
 
         sample_files = []
@@ -923,14 +951,14 @@ class PercePianoTestDataset(Dataset):
 
     def _find_sample_file(self, sample_name: str) -> Optional[Path]:
         """Find the file path for a sample name."""
-        if not sample_name.endswith('.pkl'):
+        if not sample_name.endswith(".pkl"):
             sample_name = f"{sample_name}.pkl"
 
         direct_path = self.data_dir / sample_name
         if direct_path.exists():
             return direct_path
 
-        for subdir in ['train', 'val', 'test']:
+        for subdir in ["train", "val", "test"]:
             subdir_path = self.data_dir / subdir / sample_name
             if subdir_path.exists():
                 return subdir_path
@@ -944,16 +972,18 @@ class PercePianoTestDataset(Dataset):
         """Load and return a single sample."""
         file_path = self.sample_files[idx]
 
-        with open(file_path, 'rb') as f:
+        with open(file_path, "rb") as f:
             data = pickle.load(f)
 
-        input_features = data['input']
+        input_features = data["input"]
         num_notes = min(input_features.shape[0], self.max_notes)
 
-        note_loc = data['note_location']
-        beat_indices = np.array(note_loc['beat'], dtype=np.int64)
-        measure_indices = np.array(note_loc['measure'], dtype=np.int64)
-        voice_indices = np.array(note_loc.get('voice', np.ones(num_notes)), dtype=np.int64)
+        note_loc = data["note_location"]
+        beat_indices = np.array(note_loc["beat"], dtype=np.int64)
+        measure_indices = np.array(note_loc["measure"], dtype=np.int64)
+        voice_indices = np.array(
+            note_loc.get("voice", np.ones(num_notes)), dtype=np.int64
+        )
 
         if beat_indices.min() == 0:
             beat_indices = beat_indices + 1
@@ -962,7 +992,7 @@ class PercePianoTestDataset(Dataset):
         if voice_indices.min() == 0:
             voice_indices = voice_indices + 1
 
-        labels = np.array(data['labels'], dtype=np.float32)
+        labels = np.array(data["labels"], dtype=np.float32)
 
         # SOTA configuration uses 78 base features
         BASE_FEATURE_DIM = 78
@@ -982,11 +1012,11 @@ class PercePianoTestDataset(Dataset):
         attention_mask[:actual_notes] = True
 
         return {
-            'input_features': torch.from_numpy(padded_features),
-            'note_locations_beat': torch.from_numpy(padded_beat),
-            'note_locations_measure': torch.from_numpy(padded_measure),
-            'note_locations_voice': torch.from_numpy(padded_voice),
-            'scores': torch.from_numpy(labels),
-            'num_notes': actual_notes,
-            'attention_mask': torch.from_numpy(attention_mask),
+            "input_features": torch.from_numpy(padded_features),
+            "note_locations_beat": torch.from_numpy(padded_beat),
+            "note_locations_measure": torch.from_numpy(padded_measure),
+            "note_locations_voice": torch.from_numpy(padded_voice),
+            "scores": torch.from_numpy(labels),
+            "num_notes": actual_notes,
+            "attention_mask": torch.from_numpy(attention_mask),
         }

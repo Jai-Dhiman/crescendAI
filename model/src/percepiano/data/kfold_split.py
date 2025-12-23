@@ -32,14 +32,16 @@ def extract_piece_id(filename: str) -> str:
         Piece identifier string
     """
     # Remove extension if present
-    name = filename.replace('.pkl', '')
+    name = filename.replace(".pkl", "")
 
     # Split by underscore and take first 4 parts
-    parts = name.split('_')
+    parts = name.split("_")
     if len(parts) < 4:
-        raise ValueError(f"Invalid filename format: {filename}. Expected at least 4 underscore-separated parts.")
+        raise ValueError(
+            f"Invalid filename format: {filename}. Expected at least 4 underscore-separated parts."
+        )
 
-    return '_'.join(parts[:4])
+    return "_".join(parts[:4])
 
 
 def get_all_samples(data_dir: Union[str, Path]) -> List[str]:
@@ -57,10 +59,10 @@ def get_all_samples(data_dir: Union[str, Path]) -> List[str]:
     data_dir = Path(data_dir)
     samples = []
 
-    for subdir in ['train', 'val', 'test']:
+    for subdir in ["train", "val", "test"]:
         subdir_path = data_dir / subdir
         if subdir_path.exists():
-            pkl_files = list(subdir_path.glob('*.pkl'))
+            pkl_files = list(subdir_path.glob("*.pkl"))
             samples.extend([f.name for f in pkl_files])
 
     if not samples:
@@ -92,7 +94,7 @@ def create_piece_based_folds(
     data_dir: Union[str, Path],
     n_folds: int = 4,
     test_ratio: float = 0.15,
-    seed: int = 42
+    seed: int = 42,
 ) -> Dict[str, Dict[str, Union[int, str]]]:
     """
     Create piece-based k-fold assignments.
@@ -132,25 +134,18 @@ def create_piece_based_folds(
     for i, piece in enumerate(cv_pieces):
         fold_id = i % n_folds
         for sample in piece_groups[piece]:
-            fold_assignments[sample] = {
-                'fold': fold_id,
-                'piece_id': piece
-            }
+            fold_assignments[sample] = {"fold": fold_id, "piece_id": piece}
 
     # Assign test pieces
     for piece in test_pieces:
         for sample in piece_groups[piece]:
-            fold_assignments[sample] = {
-                'fold': 'test',
-                'piece_id': piece
-            }
+            fold_assignments[sample] = {"fold": "test", "piece_id": piece}
 
     return fold_assignments
 
 
 def save_fold_assignments(
-    assignments: Dict[str, Dict[str, Union[int, str]]],
-    output_path: Union[str, Path]
+    assignments: Dict[str, Dict[str, Union[int, str]]], output_path: Union[str, Path]
 ) -> None:
     """
     Save fold assignments to JSON file.
@@ -162,13 +157,15 @@ def save_fold_assignments(
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    with open(output_path, 'w') as f:
+    with open(output_path, "w") as f:
         json.dump(assignments, f, indent=2)
 
     print(f"Saved fold assignments to {output_path}")
 
 
-def load_fold_assignments(path: Union[str, Path]) -> Dict[str, Dict[str, Union[int, str]]]:
+def load_fold_assignments(
+    path: Union[str, Path],
+) -> Dict[str, Dict[str, Union[int, str]]]:
     """
     Load fold assignments from JSON file.
 
@@ -183,16 +180,14 @@ def load_fold_assignments(path: Union[str, Path]) -> Dict[str, Dict[str, Union[i
     if not path.exists():
         raise FileNotFoundError(f"Fold assignments file not found: {path}")
 
-    with open(path, 'r') as f:
+    with open(path, "r") as f:
         assignments = json.load(f)
 
     return assignments
 
 
 def get_fold_samples(
-    assignments: Dict[str, Dict[str, Union[int, str]]],
-    fold_id: int,
-    mode: str
+    assignments: Dict[str, Dict[str, Union[int, str]]], fold_id: int, mode: str
 ) -> List[str]:
     """
     Get samples for a specific fold and mode.
@@ -207,19 +202,19 @@ def get_fold_samples(
     Returns:
         List of sample filenames for this fold/mode
     """
-    if mode not in ('train', 'val'):
+    if mode not in ("train", "val"):
         raise ValueError(f"mode must be 'train' or 'val', got: {mode}")
 
     samples = []
 
     for sample, info in assignments.items():
-        sample_fold = info['fold']
+        sample_fold = info["fold"]
 
         # Skip test samples
-        if sample_fold == 'test':
+        if sample_fold == "test":
             continue
 
-        if mode == 'val':
+        if mode == "val":
             # Validation: use only samples from this fold
             if sample_fold == fold_id:
                 samples.append(sample)
@@ -231,9 +226,7 @@ def get_fold_samples(
     return samples
 
 
-def get_test_samples(
-    assignments: Dict[str, Dict[str, Union[int, str]]]
-) -> List[str]:
+def get_test_samples(assignments: Dict[str, Dict[str, Union[int, str]]]) -> List[str]:
     """
     Get test set samples.
 
@@ -243,15 +236,11 @@ def get_test_samples(
     Returns:
         List of test sample filenames
     """
-    return [
-        sample for sample, info in assignments.items()
-        if info['fold'] == 'test'
-    ]
+    return [sample for sample, info in assignments.items() if info["fold"] == "test"]
 
 
 def print_fold_statistics(
-    assignments: Dict[str, Dict[str, Union[int, str]]],
-    n_folds: int = 4
+    assignments: Dict[str, Dict[str, Union[int, str]]], n_folds: int = 4
 ) -> None:
     """
     Print statistics about fold assignments.
@@ -265,18 +254,22 @@ def print_fold_statistics(
     piece_counts = defaultdict(set)
 
     for sample, info in assignments.items():
-        fold = info['fold']
-        piece_id = info['piece_id']
+        fold = info["fold"]
+        piece_id = info["piece_id"]
         fold_counts[fold] += 1
         piece_counts[fold].add(piece_id)
 
     print("\n=== Fold Assignment Statistics ===")
     print(f"Total samples: {len(assignments)}")
-    print(f"Total pieces: {len(set(info['piece_id'] for info in assignments.values()))}")
+    print(
+        f"Total pieces: {len(set(info['piece_id'] for info in assignments.values()))}"
+    )
     print()
 
     # Print test set info
-    print(f"Test set: {fold_counts['test']} samples, {len(piece_counts['test'])} pieces")
+    print(
+        f"Test set: {fold_counts['test']} samples, {len(piece_counts['test'])} pieces"
+    )
 
     # Print CV fold info
     print("\nCross-validation folds:")
@@ -288,8 +281,8 @@ def print_fold_statistics(
     # Print train/val splits for each fold
     print("\nTrain/Val distribution per fold:")
     for fold_id in range(n_folds):
-        val_samples = get_fold_samples(assignments, fold_id, 'val')
-        train_samples = get_fold_samples(assignments, fold_id, 'train')
+        val_samples = get_fold_samples(assignments, fold_id, "val")
+        train_samples = get_fold_samples(assignments, fold_id, "train")
         print(f"  Fold {fold_id}: train={len(train_samples)}, val={len(val_samples)}")
 
     print()

@@ -48,12 +48,11 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
-from src.crescendai.data.midi_processing import load_midi, OctupleMIDITokenizer
+from src.crescendai.data.midi_processing import OctupleMIDITokenizer, load_midi
 from src.crescendai.models.midi_encoder import MIDIBertEncoder
-
 
 # Mask token ID (use vocab_size for each dimension as mask token)
 MASK_TOKEN_OFFSET = 1  # Add to vocab_size to get mask token ID
@@ -120,10 +119,12 @@ class MIDIPretrainDataset(Dataset):
             if len(tokens) > self.max_seq_length:
                 # Random crop for variety during training
                 start_idx = random.randint(0, len(tokens) - self.max_seq_length)
-                tokens = tokens[start_idx:start_idx + self.max_seq_length]
+                tokens = tokens[start_idx : start_idx + self.max_seq_length]
             elif len(tokens) < self.max_seq_length:
                 # Pad with zeros
-                padding = np.zeros((self.max_seq_length - len(tokens), 8), dtype=np.int64)
+                padding = np.zeros(
+                    (self.max_seq_length - len(tokens), 8), dtype=np.int64
+                )
                 tokens = np.concatenate([tokens, padding], axis=0)
 
             # Create mask (True = masked)
@@ -138,8 +139,18 @@ class MIDIPretrainDataset(Dataset):
 
             # Apply masking: replace masked tokens with mask token ID
             input_tokens = tokens.copy()
-            for dim_idx, dim_name in enumerate(['event_type', 'beat', 'position', 'pitch',
-                                                 'duration', 'velocity', 'instrument', 'bar']):
+            for dim_idx, dim_name in enumerate(
+                [
+                    "event_type",
+                    "beat",
+                    "position",
+                    "pitch",
+                    "duration",
+                    "velocity",
+                    "instrument",
+                    "bar",
+                ]
+            ):
                 vocab_size = self.vocab_sizes[dim_name]
                 # Use 0 as mask token (will be ignored in loss for padding)
                 # Actually, we'll use a special strategy: replace with random token 80%,
@@ -147,7 +158,9 @@ class MIDIPretrainDataset(Dataset):
                 dim_mask = mask[:, dim_idx]
 
                 # 80% random replacement
-                random_replace_mask = dim_mask & (np.random.random(self.max_seq_length) < 0.8)
+                random_replace_mask = dim_mask & (
+                    np.random.random(self.max_seq_length) < 0.8
+                )
                 input_tokens[random_replace_mask, dim_idx] = np.random.randint(
                     0, vocab_size, size=random_replace_mask.sum()
                 )
@@ -156,9 +169,9 @@ class MIDIPretrainDataset(Dataset):
                 # 10% use special mask token (vocab_size, will be handled in model)
 
             return {
-                'input_tokens': torch.from_numpy(input_tokens).long(),
-                'target_tokens': torch.from_numpy(target_tokens).long(),
-                'mask': torch.from_numpy(mask).bool(),
+                "input_tokens": torch.from_numpy(input_tokens).long(),
+                "target_tokens": torch.from_numpy(target_tokens).long(),
+                "mask": torch.from_numpy(mask).bool(),
             }
 
         except Exception as e:
@@ -166,7 +179,9 @@ class MIDIPretrainDataset(Dataset):
             return None
 
 
-def collate_pretrain_batch(batch: List[Optional[Dict[str, torch.Tensor]]]) -> Optional[Dict[str, torch.Tensor]]:
+def collate_pretrain_batch(
+    batch: List[Optional[Dict[str, torch.Tensor]]],
+) -> Optional[Dict[str, torch.Tensor]]:
     """Collate function that filters out None samples."""
     # Filter out None samples
     batch = [b for b in batch if b is not None]
@@ -175,9 +190,9 @@ def collate_pretrain_batch(batch: List[Optional[Dict[str, torch.Tensor]]]) -> Op
         return None
 
     return {
-        'input_tokens': torch.stack([b['input_tokens'] for b in batch]),
-        'target_tokens': torch.stack([b['target_tokens'] for b in batch]),
-        'mask': torch.stack([b['mask'] for b in batch]),
+        "input_tokens": torch.stack([b["input_tokens"] for b in batch]),
+        "target_tokens": torch.stack([b["target_tokens"] for b in batch]),
+        "mask": torch.stack([b["mask"] for b in batch]),
     }
 
 
@@ -208,16 +223,18 @@ class MIDIPretrainModel(nn.Module):
         self.hidden_size = encoder.hidden_size
 
         # Prediction heads for each dimension
-        self.prediction_heads = nn.ModuleDict({
-            'event_type': nn.Linear(self.hidden_size, vocab_sizes['event_type']),
-            'beat': nn.Linear(self.hidden_size, vocab_sizes['beat']),
-            'position': nn.Linear(self.hidden_size, vocab_sizes['position']),
-            'pitch': nn.Linear(self.hidden_size, vocab_sizes['pitch']),
-            'duration': nn.Linear(self.hidden_size, vocab_sizes['duration']),
-            'velocity': nn.Linear(self.hidden_size, vocab_sizes['velocity']),
-            'instrument': nn.Linear(self.hidden_size, vocab_sizes['instrument']),
-            'bar': nn.Linear(self.hidden_size, vocab_sizes['bar']),
-        })
+        self.prediction_heads = nn.ModuleDict(
+            {
+                "event_type": nn.Linear(self.hidden_size, vocab_sizes["event_type"]),
+                "beat": nn.Linear(self.hidden_size, vocab_sizes["beat"]),
+                "position": nn.Linear(self.hidden_size, vocab_sizes["position"]),
+                "pitch": nn.Linear(self.hidden_size, vocab_sizes["pitch"]),
+                "duration": nn.Linear(self.hidden_size, vocab_sizes["duration"]),
+                "velocity": nn.Linear(self.hidden_size, vocab_sizes["velocity"]),
+                "instrument": nn.Linear(self.hidden_size, vocab_sizes["instrument"]),
+                "bar": nn.Linear(self.hidden_size, vocab_sizes["bar"]),
+            }
+        )
 
         # Loss weights based on vocabulary size (larger vocab = harder task)
         total_vocab = sum(vocab_sizes.values())
@@ -226,7 +243,7 @@ class MIDIPretrainModel(nn.Module):
             for dim in vocab_sizes
         }
         # Give extra weight to pitch (most musically important)
-        self.loss_weights['pitch'] *= 2.0
+        self.loss_weights["pitch"] *= 2.0
 
     def forward(
         self,
@@ -252,11 +269,22 @@ class MIDIPretrainModel(nn.Module):
         losses = {}
         total_loss = 0.0
 
-        dim_names = ['event_type', 'beat', 'position', 'pitch', 'duration', 'velocity', 'instrument', 'bar']
+        dim_names = [
+            "event_type",
+            "beat",
+            "position",
+            "pitch",
+            "duration",
+            "velocity",
+            "instrument",
+            "bar",
+        ]
 
         for dim_idx, dim_name in enumerate(dim_names):
             # Get predictions for this dimension
-            logits = self.prediction_heads[dim_name](hidden)  # [batch, seq_len, vocab_size]
+            logits = self.prediction_heads[dim_name](
+                hidden
+            )  # [batch, seq_len, vocab_size]
 
             # Get targets and mask for this dimension
             targets = target_tokens[:, :, dim_idx]  # [batch, seq_len]
@@ -269,7 +297,7 @@ class MIDIPretrainModel(nn.Module):
                 masked_targets = targets[dim_mask]  # [num_masked]
 
                 # Cross entropy loss
-                loss = F.cross_entropy(masked_logits, masked_targets, reduction='mean')
+                loss = F.cross_entropy(masked_logits, masked_targets, reduction="mean")
                 losses[dim_name] = loss
 
                 # Weighted contribution to total loss
@@ -277,7 +305,7 @@ class MIDIPretrainModel(nn.Module):
             else:
                 losses[dim_name] = torch.tensor(0.0, device=input_tokens.device)
 
-        losses['total'] = total_loss
+        losses["total"] = total_loss
 
         return losses
 
@@ -296,7 +324,7 @@ def find_midi_files(midi_dir: Path, limit: Optional[int] = None) -> List[Path]:
     midi_files = []
 
     # Search for .mid and .midi files
-    for pattern in ['**/*.mid', '**/*.midi', '**/*.MID', '**/*.MIDI']:
+    for pattern in ["**/*.mid", "**/*.midi", "**/*.MID", "**/*.MIDI"]:
         midi_files.extend(midi_dir.glob(pattern))
 
     # Remove duplicates and sort
@@ -320,8 +348,20 @@ def train_epoch(
     """Train for one epoch."""
     model.train()
 
-    total_losses = {dim: 0.0 for dim in ['event_type', 'beat', 'position', 'pitch',
-                                          'duration', 'velocity', 'instrument', 'bar', 'total']}
+    total_losses = {
+        dim: 0.0
+        for dim in [
+            "event_type",
+            "beat",
+            "position",
+            "pitch",
+            "duration",
+            "velocity",
+            "instrument",
+            "bar",
+            "total",
+        ]
+    }
     num_batches = 0
 
     pbar = tqdm(dataloader, desc=f"Epoch {epoch}")
@@ -330,16 +370,16 @@ def train_epoch(
             continue
 
         # Move to device
-        input_tokens = batch['input_tokens'].to(device)
-        target_tokens = batch['target_tokens'].to(device)
-        mask = batch['mask'].to(device)
+        input_tokens = batch["input_tokens"].to(device)
+        target_tokens = batch["target_tokens"].to(device)
+        mask = batch["mask"].to(device)
 
         # Forward pass
         optimizer.zero_grad()
         losses = model(input_tokens, target_tokens, mask)
 
         # Backward pass
-        losses['total'].backward()
+        losses["total"].backward()
 
         # Gradient clipping
         torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
@@ -352,13 +392,17 @@ def train_epoch(
         num_batches += 1
 
         # Update progress bar
-        pbar.set_postfix({
-            'loss': f"{losses['total'].item():.4f}",
-            'pitch': f"{losses['pitch'].item():.4f}",
-        })
+        pbar.set_postfix(
+            {
+                "loss": f"{losses['total'].item():.4f}",
+                "pitch": f"{losses['pitch'].item():.4f}",
+            }
+        )
 
     # Average losses
-    avg_losses = {dim: total / max(num_batches, 1) for dim, total in total_losses.items()}
+    avg_losses = {
+        dim: total / max(num_batches, 1) for dim, total in total_losses.items()
+    }
     return avg_losses
 
 
@@ -370,8 +414,20 @@ def validate(
     """Validate model."""
     model.eval()
 
-    total_losses = {dim: 0.0 for dim in ['event_type', 'beat', 'position', 'pitch',
-                                          'duration', 'velocity', 'instrument', 'bar', 'total']}
+    total_losses = {
+        dim: 0.0
+        for dim in [
+            "event_type",
+            "beat",
+            "position",
+            "pitch",
+            "duration",
+            "velocity",
+            "instrument",
+            "bar",
+            "total",
+        ]
+    }
     num_batches = 0
 
     with torch.no_grad():
@@ -379,9 +435,9 @@ def validate(
             if batch is None:
                 continue
 
-            input_tokens = batch['input_tokens'].to(device)
-            target_tokens = batch['target_tokens'].to(device)
-            mask = batch['mask'].to(device)
+            input_tokens = batch["input_tokens"].to(device)
+            target_tokens = batch["target_tokens"].to(device)
+            mask = batch["mask"].to(device)
 
             losses = model(input_tokens, target_tokens, mask)
 
@@ -389,28 +445,74 @@ def validate(
                 total_losses[dim] += losses[dim].item()
             num_batches += 1
 
-    avg_losses = {dim: total / max(num_batches, 1) for dim, total in total_losses.items()}
+    avg_losses = {
+        dim: total / max(num_batches, 1) for dim, total in total_losses.items()
+    }
     return avg_losses
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Pre-train MIDI encoder on GiantMIDI-Piano or MAESTRO")
-    parser.add_argument("--midi_dir", type=str, required=True, help="Directory containing MIDI files")
-    parser.add_argument("--output_dir", type=str, default="checkpoints/midi_pretrain", help="Output directory")
+    parser = argparse.ArgumentParser(
+        description="Pre-train MIDI encoder on GiantMIDI-Piano or MAESTRO"
+    )
+    parser.add_argument(
+        "--midi_dir", type=str, required=True, help="Directory containing MIDI files"
+    )
+    parser.add_argument(
+        "--output_dir",
+        type=str,
+        default="checkpoints/midi_pretrain",
+        help="Output directory",
+    )
     parser.add_argument("--epochs", type=int, default=20, help="Number of epochs")
-    parser.add_argument("--batch_size", type=int, default=32, help="Batch size (reduced for larger model)")
-    parser.add_argument("--learning_rate", type=float, default=1e-4, help="Learning rate")
+    parser.add_argument(
+        "--batch_size",
+        type=int,
+        default=32,
+        help="Batch size (reduced for larger model)",
+    )
+    parser.add_argument(
+        "--learning_rate", type=float, default=1e-4, help="Learning rate"
+    )
     parser.add_argument("--warmup_steps", type=int, default=1000, help="Warmup steps")
-    parser.add_argument("--max_seq_length", type=int, default=512, help="Maximum sequence length")
-    parser.add_argument("--hidden_size", type=int, default=768, help="Hidden size (768 to match MidiBERT)")
-    parser.add_argument("--num_layers", type=int, default=12, help="Number of transformer layers (12 to match MidiBERT)")
-    parser.add_argument("--num_heads", type=int, default=12, help="Number of attention heads (12 to match MidiBERT)")
-    parser.add_argument("--mask_prob", type=float, default=0.15, help="Masking probability")
+    parser.add_argument(
+        "--max_seq_length", type=int, default=512, help="Maximum sequence length"
+    )
+    parser.add_argument(
+        "--hidden_size",
+        type=int,
+        default=768,
+        help="Hidden size (768 to match MidiBERT)",
+    )
+    parser.add_argument(
+        "--num_layers",
+        type=int,
+        default=12,
+        help="Number of transformer layers (12 to match MidiBERT)",
+    )
+    parser.add_argument(
+        "--num_heads",
+        type=int,
+        default=12,
+        help="Number of attention heads (12 to match MidiBERT)",
+    )
+    parser.add_argument(
+        "--mask_prob", type=float, default=0.15, help="Masking probability"
+    )
     parser.add_argument("--val_split", type=float, default=0.1, help="Validation split")
-    parser.add_argument("--limit_files", type=int, default=None, help="Limit number of files (for debugging)")
-    parser.add_argument("--num_workers", type=int, default=4, help="Number of data workers")
+    parser.add_argument(
+        "--limit_files",
+        type=int,
+        default=None,
+        help="Limit number of files (for debugging)",
+    )
+    parser.add_argument(
+        "--num_workers", type=int, default=4, help="Number of data workers"
+    )
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
-    parser.add_argument("--resume", type=str, default=None, help="Path to checkpoint to resume from")
+    parser.add_argument(
+        "--resume", type=str, default=None, help="Path to checkpoint to resume from"
+    )
     args = parser.parse_args()
 
     # Set random seed
@@ -513,14 +615,16 @@ def main():
         if step < args.warmup_steps:
             return step / args.warmup_steps
         else:
-            progress = (step - args.warmup_steps) / (num_training_steps - args.warmup_steps)
+            progress = (step - args.warmup_steps) / (
+                num_training_steps - args.warmup_steps
+            )
             return max(0.1, 0.5 * (1.0 + np.cos(np.pi * progress)))
 
     scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
 
     # Resume from checkpoint if specified
     start_epoch = 1
-    best_val_loss = float('inf')
+    best_val_loss = float("inf")
     training_log = []
 
     if args.resume is not None:
@@ -528,10 +632,10 @@ def main():
         if resume_path.exists():
             print(f"Resuming from checkpoint: {resume_path}")
             checkpoint = torch.load(resume_path, map_location=device)
-            model.load_state_dict(checkpoint['model_state_dict'])
-            optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-            start_epoch = checkpoint['epoch'] + 1
-            best_val_loss = checkpoint.get('val_losses', {}).get('total', float('inf'))
+            model.load_state_dict(checkpoint["model_state_dict"])
+            optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+            start_epoch = checkpoint["epoch"] + 1
+            best_val_loss = checkpoint.get("val_losses", {}).get("total", float("inf"))
             print(f"  Resuming from epoch {start_epoch}")
             print(f"  Previous best val loss: {best_val_loss:.4f}")
         else:
@@ -558,38 +662,40 @@ def main():
 
         # Log
         log_entry = {
-            'epoch': epoch,
-            'train_loss': train_losses['total'],
-            'val_loss': val_losses['total'],
-            'train_losses': train_losses,
-            'val_losses': val_losses,
-            'lr': optimizer.param_groups[0]['lr'],
+            "epoch": epoch,
+            "train_loss": train_losses["total"],
+            "val_loss": val_losses["total"],
+            "train_losses": train_losses,
+            "val_losses": val_losses,
+            "lr": optimizer.param_groups[0]["lr"],
         }
         training_log.append(log_entry)
 
         print(f"\nEpoch {epoch}/{args.epochs}")
         print(f"  Train loss: {train_losses['total']:.4f}")
         print(f"  Val loss: {val_losses['total']:.4f}")
-        print(f"  Pitch loss: train={train_losses['pitch']:.4f}, val={val_losses['pitch']:.4f}")
+        print(
+            f"  Pitch loss: train={train_losses['pitch']:.4f}, val={val_losses['pitch']:.4f}"
+        )
         print(f"  LR: {optimizer.param_groups[0]['lr']:.6f}")
 
         # Save checkpoint
         checkpoint = {
-            'epoch': epoch,
-            'encoder_state_dict': encoder.state_dict(),
-            'model_state_dict': model.state_dict(),
-            'optimizer_state_dict': optimizer.state_dict(),
-            'train_losses': train_losses,
-            'val_losses': val_losses,
-            'args': vars(args),
+            "epoch": epoch,
+            "encoder_state_dict": encoder.state_dict(),
+            "model_state_dict": model.state_dict(),
+            "optimizer_state_dict": optimizer.state_dict(),
+            "train_losses": train_losses,
+            "val_losses": val_losses,
+            "args": vars(args),
         }
 
         # Save latest
         torch.save(checkpoint, output_dir / "latest.pt")
 
         # Save best
-        if val_losses['total'] < best_val_loss:
-            best_val_loss = val_losses['total']
+        if val_losses["total"] < best_val_loss:
+            best_val_loss = val_losses["total"]
             torch.save(checkpoint, output_dir / "best.pt")
             print(f"  New best model saved! (val_loss={val_losses['total']:.4f})")
 
@@ -598,13 +704,10 @@ def main():
             torch.save(checkpoint, output_dir / f"epoch_{epoch:03d}.pt")
 
     # Save final encoder weights only (for fine-tuning)
-    torch.save(
-        encoder.state_dict(),
-        output_dir / "encoder_pretrained.pt"
-    )
+    torch.save(encoder.state_dict(), output_dir / "encoder_pretrained.pt")
 
     # Save training log
-    with open(output_dir / "training_log.json", 'w') as f:
+    with open(output_dir / "training_log.json", "w") as f:
         json.dump(training_log, f, indent=2)
 
     print("\nPre-training complete!")

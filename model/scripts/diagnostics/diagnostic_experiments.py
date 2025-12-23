@@ -8,13 +8,14 @@ These quick tests help identify fundamental issues before full training:
 4. Per-dimension analysis - identify which dimensions are learnable
 """
 
+import sys
+from pathlib import Path
+
+import numpy as np
 import torch
 import torch.nn as nn
-from torch.utils.data import DataLoader, Subset
-from pathlib import Path
-import sys
-import numpy as np
 from scipy.stats import pearsonr
+from torch.utils.data import DataLoader, Subset
 
 # Add parent directory to path for imports
 sys.path.append(str(Path(__file__).parent.parent))
@@ -26,11 +27,7 @@ from src.shared.models.mtl_head import MultiTaskHead
 
 
 def single_batch_overfit_test(
-    train_dataset,
-    dimension_names,
-    device='cuda',
-    max_iterations=1000,
-    target_loss=0.1
+    train_dataset, dimension_names, device="cuda", max_iterations=1000, target_loss=0.1
 ):
     """
     Test if model can overfit a single batch.
@@ -47,9 +44,9 @@ def single_batch_overfit_test(
     Returns:
         Dict with results
     """
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("DIAGNOSTIC 1: Single-Batch Overfitting Test")
-    print("="*70)
+    print("=" * 70)
     print("Testing if model has capacity to learn...")
     print(f"Target: Loss < {target_loss}, Correlation > 0.95")
 
@@ -60,9 +57,7 @@ def single_batch_overfit_test(
 
     # Create simple model
     encoder = MERTEncoder(
-        use_layer_selection=True,
-        selected_layers=(5, 6, 7),
-        freeze_bottom_layers=False
+        use_layer_selection=True, selected_layers=(5, 6, 7), freeze_bottom_layers=False
     ).to(device)
 
     aggregator = HierarchicalAggregator(
@@ -71,7 +66,7 @@ def single_batch_overfit_test(
         lstm_layers=2,
         attention_heads=4,
         dropout=0.2,
-        output_dim=512
+        output_dim=512,
     ).to(device)
 
     head = MultiTaskHead(
@@ -79,22 +74,22 @@ def single_batch_overfit_test(
         shared_hidden=256,
         task_hidden=128,
         dimensions=dimension_names,
-        dropout=0.1
+        dropout=0.1,
     ).to(device)
 
     # Optimizer
     optimizer = torch.optim.AdamW(
-        list(encoder.parameters()) +
-        list(aggregator.parameters()) +
-        list(head.parameters()),
-        lr=1e-3  # Higher LR for faster overfitting
+        list(encoder.parameters())
+        + list(aggregator.parameters())
+        + list(head.parameters()),
+        lr=1e-3,  # Higher LR for faster overfitting
     )
 
     criterion = nn.MSELoss()
 
     # Move batch to device
-    audio = batch['audio_waveform'].to(device)
-    labels = batch['labels'].to(device)
+    audio = batch["audio_waveform"].to(device)
+    labels = batch["labels"].to(device)
 
     # Training loop
     losses = []
@@ -134,7 +129,9 @@ def single_batch_overfit_test(
                 avg_corr = np.mean(corrs) if corrs else 0.0
                 correlations.append(avg_corr)
 
-                print(f"Iteration {iteration:4d} | Loss: {loss.item():.4f} | Avg Correlation: {avg_corr:.4f}")
+                print(
+                    f"Iteration {iteration:4d} | Loss: {loss.item():.4f} | Avg Correlation: {avg_corr:.4f}"
+                )
 
         # Early stopping if target reached
         if loss.item() < target_loss:
@@ -170,20 +167,16 @@ def single_batch_overfit_test(
         print("Model cannot overfit single batch - architecture issue likely!")
 
     return {
-        'success': success,
-        'final_loss': final_loss,
-        'final_correlation': avg_final_corr,
-        'losses': losses,
-        'correlations': correlations
+        "success": success,
+        "final_loss": final_loss,
+        "final_correlation": avg_final_corr,
+        "losses": losses,
+        "correlations": correlations,
     }
 
 
 def layer_ablation_test(
-    train_dataset,
-    dimension_names,
-    device='cuda',
-    num_epochs=1,
-    batch_size=16
+    train_dataset, dimension_names, device="cuda", num_epochs=1, batch_size=16
 ):
     """
     Compare different MERT layer selections.
@@ -203,22 +196,24 @@ def layer_ablation_test(
     Returns:
         Dict with results for each configuration
     """
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("DIAGNOSTIC 2: MERT Layer Ablation Test")
-    print("="*70)
+    print("=" * 70)
     print("Comparing layer selections...")
 
     # Test configurations
     configs = [
-        ('Layer 12 (last)', False, (12,)),
-        ('Layers 5-7 (middle)', True, (5, 6, 7)),
-        ('Layers 4,6,8 (multi-scale)', True, (4, 6, 8)),
+        ("Layer 12 (last)", False, (12,)),
+        ("Layers 5-7 (middle)", True, (5, 6, 7)),
+        ("Layers 4,6,8 (multi-scale)", True, (4, 6, 8)),
     ]
 
     # Create small subset for quick test
     subset_size = min(500, len(train_dataset))
     subset = Subset(train_dataset, range(subset_size))
-    loader = DataLoader(subset, batch_size=batch_size, shuffle=True, collate_fn=collate_fn)
+    loader = DataLoader(
+        subset, batch_size=batch_size, shuffle=True, collate_fn=collate_fn
+    )
 
     results = {}
 
@@ -230,7 +225,7 @@ def layer_ablation_test(
         encoder = MERTEncoder(
             use_layer_selection=use_selection,
             selected_layers=layers if use_selection else None,
-            freeze_bottom_layers=False
+            freeze_bottom_layers=False,
         ).to(device)
 
         aggregator = HierarchicalAggregator(
@@ -239,21 +234,21 @@ def layer_ablation_test(
             lstm_layers=2,
             attention_heads=4,
             dropout=0.2,
-            output_dim=512
+            output_dim=512,
         ).to(device)
 
         head = MultiTaskHead(
             input_dim=512,
             shared_hidden=256,
             task_hidden=128,
-            dimensions=dimension_names
+            dimensions=dimension_names,
         ).to(device)
 
         optimizer = torch.optim.AdamW(
-            list(encoder.parameters()) +
-            list(aggregator.parameters()) +
-            list(head.parameters()),
-            lr=3e-5
+            list(encoder.parameters())
+            + list(aggregator.parameters())
+            + list(head.parameters()),
+            lr=3e-5,
         )
 
         criterion = nn.MSELoss()
@@ -267,12 +262,14 @@ def layer_ablation_test(
         head.train()
 
         for batch in loader:
-            audio = batch['audio_waveform'].to(device)
-            labels = batch['labels'].to(device)
+            audio = batch["audio_waveform"].to(device)
+            labels = batch["labels"].to(device)
 
             optimizer.zero_grad()
             embeddings, _ = encoder(audio)
-            aggregated, _ = aggregator(embeddings)  # aggregator returns (output, attention)
+            aggregated, _ = aggregator(
+                embeddings
+            )  # aggregator returns (output, attention)
             predictions, _ = head(aggregated)
 
             loss = criterion(predictions, labels)
@@ -285,17 +282,14 @@ def layer_ablation_test(
         avg_loss = total_loss / num_batches
         print(f"Average Loss: {avg_loss:.4f}")
 
-        results[config_name] = {
-            'avg_loss': avg_loss,
-            'layers': layers
-        }
+        results[config_name] = {"avg_loss": avg_loss, "layers": layers}
 
     # Compare results
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("LAYER ABLATION RESULTS")
-    print("="*70)
+    print("=" * 70)
 
-    best_config = min(results.items(), key=lambda x: x[1]['avg_loss'])
+    best_config = min(results.items(), key=lambda x: x[1]["avg_loss"])
 
     for config_name, metrics in results.items():
         print(f"{config_name}: Loss = {metrics['avg_loss']:.4f}")
@@ -320,17 +314,19 @@ def label_quality_baseline(train_dataset, dimension_names):
     Returns:
         Dict with baseline correlations
     """
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("DIAGNOSTIC 3: Label Quality Baseline")
-    print("="*70)
+    print("=" * 70)
     print("Testing if labels are informative...")
 
     # Collect all labels
-    loader = DataLoader(train_dataset, batch_size=64, shuffle=False, collate_fn=collate_fn)
+    loader = DataLoader(
+        train_dataset, batch_size=64, shuffle=False, collate_fn=collate_fn
+    )
 
     all_labels = []
     for batch in loader:
-        all_labels.append(batch['labels'])
+        all_labels.append(batch["labels"])
 
     all_labels = torch.cat(all_labels, dim=0).numpy()
 
@@ -367,10 +363,10 @@ def label_quality_baseline(train_dataset, dimension_names):
         print("\nGOOD: Low baseline correlation - labels have signal!")
 
     return {
-        'baseline_correlations': baseline_corrs,
-        'avg_baseline': avg_baseline,
-        'means': means,
-        'stds': stds
+        "baseline_correlations": baseline_corrs,
+        "avg_baseline": avg_baseline,
+        "means": means,
+        "stds": stds,
     }
 
 
@@ -378,9 +374,9 @@ def phase2_fusion_comparison(
     train_annotation_path: str,
     val_annotation_path: str,
     dimension_names: list,
-    device: str = 'cuda',
+    device: str = "cuda",
     num_epochs: int = 5,
-    batch_size: int = 16
+    batch_size: int = 16,
 ):
     """
     Phase 2 diagnostic experiments from TRAINING_PLAN_v2.md.
@@ -407,17 +403,18 @@ def phase2_fusion_comparison(
     Returns:
         Dict with results for each mode
     """
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("PHASE 2: FUSION COMPARISON EXPERIMENTS")
-    print("="*80)
+    print("=" * 80)
     print("Comparing 4 fusion approaches (TRAINING_PLAN_v2.md)")
     print(f"Epochs per experiment: {num_epochs}")
     print(f"Batch size: {batch_size}\n")
 
-    from src.crescendai.data.dataset import create_dataloaders
-    from src.crescendai.models.lightning_module import PerformanceEvaluationModel
     import pytorch_lightning as pl
     from pytorch_lightning.callbacks import ModelCheckpoint
+
+    from src.crescendai.data.dataset import create_dataloaders
+    from src.crescendai.models.lightning_module import PerformanceEvaluationModel
 
     # Create dataloaders
     train_loader, val_loader, _ = create_dataloaders(
@@ -430,7 +427,7 @@ def phase2_fusion_comparison(
         augmentation_config=None,  # No augmentation for diagnostic
         audio_sample_rate=24000,
         max_audio_length=240000,
-        max_midi_events=512
+        max_midi_events=512,
     )
 
     print(f"Train samples: {len(train_loader.dataset)}")
@@ -439,42 +436,42 @@ def phase2_fusion_comparison(
     # Define experiment configurations
     experiments = [
         {
-            'name': 'Audio-Only',
-            'audio_dim': 768,
-            'midi_dim': 0,
-            'fusion_type': None,
+            "name": "Audio-Only",
+            "audio_dim": 768,
+            "midi_dim": 0,
+            "fusion_type": None,
         },
         {
-            'name': 'MIDI-Only',
-            'audio_dim': 0,
-            'midi_dim': 256,
-            'fusion_type': None,
+            "name": "MIDI-Only",
+            "audio_dim": 0,
+            "midi_dim": 256,
+            "fusion_type": None,
         },
         {
-            'name': 'Fusion-Concatenation',
-            'audio_dim': 768,
-            'midi_dim': 256,
-            'fusion_type': 'concatenation',
+            "name": "Fusion-Concatenation",
+            "audio_dim": 768,
+            "midi_dim": 256,
+            "fusion_type": "concatenation",
         },
         {
-            'name': 'Fusion-CrossAttention',
-            'audio_dim': 768,
-            'midi_dim': 256,
-            'fusion_type': 'cross_attention',
+            "name": "Fusion-CrossAttention",
+            "audio_dim": 768,
+            "midi_dim": 256,
+            "fusion_type": "cross_attention",
         },
     ]
 
     results = {}
 
     for exp in experiments:
-        print("\n" + "="*80)
+        print("\n" + "=" * 80)
         print(f"EXPERIMENT: {exp['name']}")
-        print("="*80)
+        print("=" * 80)
 
         # Create model
         model = PerformanceEvaluationModel(
-            audio_dim=exp['audio_dim'],
-            midi_dim=exp['midi_dim'],
+            audio_dim=exp["audio_dim"],
+            midi_dim=exp["midi_dim"],
             fusion_dim=1024,
             aggregator_dim=512,
             num_dimensions=len(dimension_names),
@@ -494,8 +491,8 @@ def phase2_fusion_comparison(
         # Trainer
         trainer = pl.Trainer(
             max_epochs=num_epochs,
-            accelerator='auto',
-            devices='auto',
+            accelerator="auto",
+            devices="auto",
             precision=16,
             val_check_interval=0.5,  # Validate twice per epoch
             log_every_n_steps=10,
@@ -511,26 +508,27 @@ def phase2_fusion_comparison(
         val_results = trainer.validate(model, val_loader, verbose=False)[0]
 
         # Collect results
-        results[exp['name']] = {
-            'val_loss': val_results.get('val_loss', float('inf')),
-            'correlations': {
-                dim: val_results.get(f'val_pearson_{dim}', 0.0)
+        results[exp["name"]] = {
+            "val_loss": val_results.get("val_loss", float("inf")),
+            "correlations": {
+                dim: val_results.get(f"val_pearson_{dim}", 0.0)
                 for dim in dimension_names
             },
-            'avg_correlation': np.mean([
-                val_results.get(f'val_pearson_{dim}', 0.0)
-                for dim in dimension_names
-            ]),
+            "avg_correlation": np.mean(
+                [val_results.get(f"val_pearson_{dim}", 0.0) for dim in dimension_names]
+            ),
         }
 
         # Add diagnostics if fusion mode
-        if exp['midi_dim'] > 0 and exp['audio_dim'] > 0:
-            results[exp['name']]['diagnostics'] = {
-                'attention_entropy': val_results.get('val_attention_entropy', None),
-                'attention_sparsity': val_results.get('val_attention_sparsity', None),
-                'cross_modal_alignment': val_results.get('val_cross_modal_alignment', None),
-                'audio_diversity': val_results.get('val_audio_feature_diversity', None),
-                'midi_diversity': val_results.get('val_midi_feature_diversity', None),
+        if exp["midi_dim"] > 0 and exp["audio_dim"] > 0:
+            results[exp["name"]]["diagnostics"] = {
+                "attention_entropy": val_results.get("val_attention_entropy", None),
+                "attention_sparsity": val_results.get("val_attention_sparsity", None),
+                "cross_modal_alignment": val_results.get(
+                    "val_cross_modal_alignment", None
+                ),
+                "audio_diversity": val_results.get("val_audio_feature_diversity", None),
+                "midi_diversity": val_results.get("val_midi_feature_diversity", None),
             }
 
         print(f"\n{exp['name']} Results:")
@@ -538,23 +536,23 @@ def phase2_fusion_comparison(
         print(f"  Avg Correlation: {results[exp['name']]['avg_correlation']:.4f}")
 
     # Compare results
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("PHASE 2 COMPARISON RESULTS")
-    print("="*80)
+    print("=" * 80)
 
     # Find best single-modal
-    audio_corr = results['Audio-Only']['avg_correlation']
-    midi_corr = results['MIDI-Only']['avg_correlation']
+    audio_corr = results["Audio-Only"]["avg_correlation"]
+    midi_corr = results["MIDI-Only"]["avg_correlation"]
     best_single_modal = max(audio_corr, midi_corr)
-    best_single_name = 'Audio-Only' if audio_corr >= midi_corr else 'MIDI-Only'
+    best_single_name = "Audio-Only" if audio_corr >= midi_corr else "MIDI-Only"
 
     print(f"\nBest Single-Modal: {best_single_name} (r={best_single_modal:.3f})")
 
     # Compare fusion methods
-    for fusion_name in ['Fusion-Concatenation', 'Fusion-CrossAttention']:
+    for fusion_name in ["Fusion-Concatenation", "Fusion-CrossAttention"]:
         if fusion_name in results:
-            fusion_corr = results[fusion_name]['avg_correlation']
-            improvement = ((fusion_corr - best_single_modal) / best_single_modal * 100)
+            fusion_corr = results[fusion_name]["avg_correlation"]
+            improvement = (fusion_corr - best_single_modal) / best_single_modal * 100
 
             print(f"\n{fusion_name}:")
             print(f"  Correlation: r={fusion_corr:.3f}")
@@ -567,20 +565,32 @@ def phase2_fusion_comparison(
                 print(f"  ✗ FAIL: Fusion improvement < 10% threshold")
 
             # Print diagnostics
-            if 'diagnostics' in results[fusion_name]:
-                diag = results[fusion_name]['diagnostics']
+            if "diagnostics" in results[fusion_name]:
+                diag = results[fusion_name]["diagnostics"]
                 print(f"\n  Diagnostics:")
-                print(f"    Attention Entropy: {diag['attention_entropy']:.3f}" if diag['attention_entropy'] else "    Attention Entropy: N/A")
-                print(f"    Attention Sparsity: {diag['attention_sparsity']:.3f}" if diag['attention_sparsity'] else "    Attention Sparsity: N/A")
-                print(f"    Cross-Modal Alignment: {diag['cross_modal_alignment']:.3f}" if diag['cross_modal_alignment'] else "    Cross-Modal Alignment: N/A")
+                print(
+                    f"    Attention Entropy: {diag['attention_entropy']:.3f}"
+                    if diag["attention_entropy"]
+                    else "    Attention Entropy: N/A"
+                )
+                print(
+                    f"    Attention Sparsity: {diag['attention_sparsity']:.3f}"
+                    if diag["attention_sparsity"]
+                    else "    Attention Sparsity: N/A"
+                )
+                print(
+                    f"    Cross-Modal Alignment: {diag['cross_modal_alignment']:.3f}"
+                    if diag["cross_modal_alignment"]
+                    else "    Cross-Modal Alignment: N/A"
+                )
 
     # Verdict
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("PHASE 2 VERDICT")
-    print("="*80)
+    print("=" * 80)
 
-    fusion_ca_corr = results['Fusion-CrossAttention']['avg_correlation']
-    ca_improvement = ((fusion_ca_corr - best_single_modal) / best_single_modal * 100)
+    fusion_ca_corr = results["Fusion-CrossAttention"]["avg_correlation"]
+    ca_improvement = (fusion_ca_corr - best_single_modal) / best_single_modal * 100
 
     if ca_improvement >= 10:
         print("\n✓ GO TO PHASE 3: Fusion architecture validated")
@@ -594,9 +604,7 @@ def phase2_fusion_comparison(
 
 
 def run_all_diagnostics(
-    annotation_path: str,
-    dimension_names: list,
-    device: str = 'cuda'
+    annotation_path: str, dimension_names: list, device: str = "cuda"
 ):
     """
     Run all diagnostic experiments.
@@ -609,9 +617,9 @@ def run_all_diagnostics(
     Returns:
         Dict with all results
     """
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("RUNNING DIAGNOSTIC EXPERIMENTS")
-    print("="*70)
+    print("=" * 70)
 
     # Create dataset
     dataset = PerformanceDataset(
@@ -619,7 +627,7 @@ def run_all_diagnostics(
         dimension_names=dimension_names,
         audio_sample_rate=24000,
         max_audio_length=240000,
-        apply_augmentation=False
+        apply_augmentation=False,
     )
 
     print(f"\nDataset: {len(dataset)} samples")
@@ -628,19 +636,25 @@ def run_all_diagnostics(
     results = {}
 
     # Run diagnostics
-    results['label_quality'] = label_quality_baseline(dataset, dimension_names)
-    results['single_batch_overfit'] = single_batch_overfit_test(dataset, dimension_names, device)
-    results['layer_ablation'] = layer_ablation_test(dataset, dimension_names, device)
+    results["label_quality"] = label_quality_baseline(dataset, dimension_names)
+    results["single_batch_overfit"] = single_batch_overfit_test(
+        dataset, dimension_names, device
+    )
+    results["layer_ablation"] = layer_ablation_test(dataset, dimension_names, device)
 
     # Summary
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("DIAGNOSTIC SUMMARY")
-    print("="*70)
+    print("=" * 70)
 
-    print(f"\n1. Label Quality: {'GOOD' if results['label_quality']['avg_baseline'] < 0.2 else 'CONCERNING'}")
+    print(
+        f"\n1. Label Quality: {'GOOD' if results['label_quality']['avg_baseline'] < 0.2 else 'CONCERNING'}"
+    )
     print(f"   Baseline correlation: {results['label_quality']['avg_baseline']:.4f}")
 
-    print(f"\n2. Model Capacity: {'PASS' if results['single_batch_overfit']['success'] else 'FAIL'}")
+    print(
+        f"\n2. Model Capacity: {'PASS' if results['single_batch_overfit']['success'] else 'FAIL'}"
+    )
     print(f"   Can overfit single batch: {results['single_batch_overfit']['success']}")
 
     print(f"\n3. Layer Selection: See detailed results above")
@@ -652,21 +666,25 @@ if __name__ == "__main__":
     # Example usage
     import argparse
 
-    parser = argparse.ArgumentParser(description='Run diagnostic experiments')
-    parser.add_argument('--train-path', type=str, required=True,
-                       help='Path to training annotations')
-    parser.add_argument('--dimensions', type=str, nargs='+',
-                       default=['note_accuracy', 'rhythmic_precision', 'tone_quality'],
-                       help='Dimension names')
-    parser.add_argument('--device', type=str, default='cuda',
-                       help='Device to use')
+    parser = argparse.ArgumentParser(description="Run diagnostic experiments")
+    parser.add_argument(
+        "--train-path", type=str, required=True, help="Path to training annotations"
+    )
+    parser.add_argument(
+        "--dimensions",
+        type=str,
+        nargs="+",
+        default=["note_accuracy", "rhythmic_precision", "tone_quality"],
+        help="Dimension names",
+    )
+    parser.add_argument("--device", type=str, default="cuda", help="Device to use")
 
     args = parser.parse_args()
 
     results = run_all_diagnostics(
         annotation_path=args.train_path,
         dimension_names=args.dimensions,
-        device=args.device
+        device=args.device,
     )
 
     print("\nDiagnostics complete!")

@@ -8,40 +8,44 @@ Architecture aligned with PercePiano reference:
 - Post-hoc calibration support
 """
 
+from typing import Dict, List, Optional, Tuple
+
+import numpy as np
+import pytorch_lightning as pl
 import torch
 import torch.nn as nn
-import pytorch_lightning as pl
-from typing import Dict, List, Optional, Tuple
-import numpy as np
 from torch.utils.data import DataLoader
 
-from .midi_encoder import MIDIBertEncoder
-from .calibration import CalibrationWrapper, IsotonicCalibrator, TemperatureScaling
-from src.shared.models.aggregation import HierarchicalAggregator, PercePianoSelfAttention
+from src.shared.models.aggregation import (
+    HierarchicalAggregator,
+    PercePianoSelfAttention,
+)
 from src.shared.models.mtl_head import MultiTaskHead, PercePianoHead
 
+from .calibration import CalibrationWrapper, IsotonicCalibrator, TemperatureScaling
+from .midi_encoder import MIDIBertEncoder
 
 # All 19 PercePiano dimensions (matching reference implementation)
 PERCEPIANO_DIMENSIONS = [
-    "timing",              # 0: Stable <-> Unstable
-    "articulation_length", # 1: Short <-> Long
+    "timing",  # 0: Stable <-> Unstable
+    "articulation_length",  # 1: Short <-> Long
     "articulation_touch",  # 2: Soft/Cushioned <-> Hard/Solid
-    "pedal_amount",        # 3: Sparse/Dry <-> Saturated/Wet
-    "pedal_clarity",       # 4: Clean <-> Blurred
-    "timbre_variety",      # 5: Even <-> Colorful
-    "timbre_depth",        # 6: Shallow <-> Rich
-    "timbre_brightness",   # 7: Bright <-> Dark
-    "timbre_loudness",     # 8: Soft <-> Loud
-    "dynamic_range",       # 9: Little Range <-> Large Range
-    "tempo",               # 10: Fast-paced <-> Slow-paced
-    "space",               # 11: Flat <-> Spacious
-    "balance",             # 12: Disproportioned <-> Balanced
-    "drama",               # 13: Pure <-> Dramatic
-    "mood_valence",        # 14: Optimistic <-> Dark
-    "mood_energy",         # 15: Low Energy <-> High Energy
-    "mood_imagination",    # 16: Honest <-> Imaginative
-    "sophistication",      # 17: Sophisticated/Mellow <-> Raw/Crude
-    "interpretation",      # 18: Unsatisfactory <-> Convincing
+    "pedal_amount",  # 3: Sparse/Dry <-> Saturated/Wet
+    "pedal_clarity",  # 4: Clean <-> Blurred
+    "timbre_variety",  # 5: Even <-> Colorful
+    "timbre_depth",  # 6: Shallow <-> Rich
+    "timbre_brightness",  # 7: Bright <-> Dark
+    "timbre_loudness",  # 8: Soft <-> Loud
+    "dynamic_range",  # 9: Little Range <-> Large Range
+    "tempo",  # 10: Fast-paced <-> Slow-paced
+    "space",  # 11: Flat <-> Spacious
+    "balance",  # 12: Disproportioned <-> Balanced
+    "drama",  # 13: Pure <-> Dramatic
+    "mood_valence",  # 14: Optimistic <-> Dark
+    "mood_energy",  # 15: Low Energy <-> High Energy
+    "mood_imagination",  # 16: Honest <-> Imaginative
+    "sophistication",  # 17: Sophisticated/Mellow <-> Raw/Crude
+    "interpretation",  # 18: Unsatisfactory <-> Convincing
 ]
 
 
@@ -198,7 +202,9 @@ class MIDIOnlyModule(pl.LightningModule):
         per_dim_losses = {}
 
         # Simple MSE loss matching PercePiano reference
-        total_loss = torch.nn.functional.mse_loss(predictions, targets, reduction="mean")
+        total_loss = torch.nn.functional.mse_loss(
+            predictions, targets, reduction="mean"
+        )
 
         # Also compute per-dimension losses for logging
         for i, dim in enumerate(self.dimensions):
@@ -373,7 +379,9 @@ class MIDIOnlyModule(pl.LightningModule):
 
             return results
 
-    def calibrate(self, val_loader: DataLoader, method: str = 'both') -> Dict[str, float]:
+    def calibrate(
+        self, val_loader: DataLoader, method: str = "both"
+    ) -> Dict[str, float]:
         """
         Fit post-hoc calibration on validation set.
 
@@ -396,12 +404,12 @@ class MIDIOnlyModule(pl.LightningModule):
 
         with torch.no_grad():
             for batch in val_loader:
-                midi_tokens = batch['midi_tokens'].to(device)
-                attention_mask = batch['attention_mask'].to(device)
-                targets = batch['scores'].to(device)
+                midi_tokens = batch["midi_tokens"].to(device)
+                attention_mask = batch["attention_mask"].to(device)
+                targets = batch["scores"].to(device)
 
                 outputs = self(midi_tokens, attention_mask)
-                all_preds.append(outputs['predictions'])
+                all_preds.append(outputs["predictions"])
                 all_targets.append(targets)
 
         preds = torch.cat(all_preds, dim=0)
@@ -414,40 +422,44 @@ class MIDIOnlyModule(pl.LightningModule):
         results = {}
 
         # Baseline metrics
-        results['baseline_r2'] = self._compute_mean_r2(preds_np, targets_np)
-        results['baseline_mse'] = np.mean((preds_np - targets_np) ** 2)
+        results["baseline_r2"] = self._compute_mean_r2(preds_np, targets_np)
+        results["baseline_mse"] = np.mean((preds_np - targets_np) ** 2)
 
         # Fit isotonic regression
-        if method in ['isotonic', 'both']:
+        if method in ["isotonic", "both"]:
             self.isotonic_calibrator = IsotonicCalibrator(num_dims=self.num_dimensions)
             mse_before, mse_after = self.isotonic_calibrator.fit(preds_np, targets_np)
             iso_preds = self.isotonic_calibrator.calibrate(preds_np)
-            results['isotonic_r2'] = self._compute_mean_r2(iso_preds, targets_np)
-            results['isotonic_mse'] = mse_after
+            results["isotonic_r2"] = self._compute_mean_r2(iso_preds, targets_np)
+            results["isotonic_mse"] = mse_after
 
         # Fit temperature scaling
-        if method in ['temperature', 'both']:
+        if method in ["temperature", "both"]:
             self.temperature_scaling = TemperatureScaling().to(device)
             # Approximate logits from sigmoid outputs
             eps = 1e-7
-            approx_logits = torch.log(preds.clamp(eps, 1-eps) / (1 - preds.clamp(eps, 1-eps)))
+            approx_logits = torch.log(
+                preds.clamp(eps, 1 - eps) / (1 - preds.clamp(eps, 1 - eps))
+            )
             ts_mse = self.temperature_scaling.fit(approx_logits, targets)
             ts_preds = self.temperature_scaling(approx_logits).detach().cpu().numpy()
-            results['temperature_r2'] = self._compute_mean_r2(ts_preds, targets_np)
-            results['temperature_mse'] = ts_mse
-            results['temperature_value'] = self.temperature_scaling.get_temperature()
+            results["temperature_r2"] = self._compute_mean_r2(ts_preds, targets_np)
+            results["temperature_mse"] = ts_mse
+            results["temperature_value"] = self.temperature_scaling.get_temperature()
 
         # Select best method
-        if method == 'both':
-            if results.get('isotonic_r2', -float('inf')) > results.get('temperature_r2', -float('inf')):
-                self.calibration_method = 'isotonic'
+        if method == "both":
+            if results.get("isotonic_r2", -float("inf")) > results.get(
+                "temperature_r2", -float("inf")
+            ):
+                self.calibration_method = "isotonic"
             else:
-                self.calibration_method = 'temperature'
-            results['selected_method'] = self.calibration_method
-        elif method == 'isotonic':
-            self.calibration_method = 'isotonic'
+                self.calibration_method = "temperature"
+            results["selected_method"] = self.calibration_method
+        elif method == "isotonic":
+            self.calibration_method = "isotonic"
         else:
-            self.calibration_method = 'temperature'
+            self.calibration_method = "temperature"
 
         return results
 
@@ -475,14 +487,16 @@ class MIDIOnlyModule(pl.LightningModule):
         self.eval()
         with torch.no_grad():
             outputs = self(midi_tokens, attention_mask)
-            preds = outputs['predictions']
+            preds = outputs["predictions"]
 
-            if self.calibration_method == 'isotonic':
+            if self.calibration_method == "isotonic":
                 return self.isotonic_calibrator.calibrate_torch(preds)
             else:
                 # Temperature scaling
                 eps = 1e-7
-                logits = torch.log(preds.clamp(eps, 1-eps) / (1 - preds.clamp(eps, 1-eps)))
+                logits = torch.log(
+                    preds.clamp(eps, 1 - eps) / (1 - preds.clamp(eps, 1 - eps))
+                )
                 return self.temperature_scaling(logits)
 
     def _compute_mean_r2(self, preds: np.ndarray, targets: np.ndarray) -> float:

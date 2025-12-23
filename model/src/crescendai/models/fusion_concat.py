@@ -10,9 +10,10 @@ in TRAINING_PLAN_v2.md Phase 2.
 Reference: TRAINING_PLAN_v2.md Phase 2 - Experiment 3
 """
 
+from typing import Dict, Optional, Tuple
+
 import torch
 import torch.nn as nn
-from typing import Optional, Tuple, Dict
 
 
 class ConcatenationFusion(nn.Module):
@@ -95,7 +96,9 @@ class ConcatenationFusion(nn.Module):
         """
         # Handle single-modal cases
         if audio_features is None and midi_features is None:
-            raise ValueError("At least one of audio_features or midi_features must be provided")
+            raise ValueError(
+                "At least one of audio_features or midi_features must be provided"
+            )
 
         if audio_features is None:
             # MIDI-only mode

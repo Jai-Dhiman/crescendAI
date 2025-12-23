@@ -8,9 +8,10 @@ This version matches the original PercePiano implementation exactly to reproduce
 the SOTA R2 = 0.397 result.
 """
 
+from typing import Optional
+
 import torch
 import torch.nn as nn
-from typing import Optional
 
 
 class ContextAttention(nn.Module):
@@ -37,7 +38,9 @@ class ContextAttention(nn.Module):
         super().__init__()
 
         if size % num_head != 0:
-            raise ValueError(f"size ({size}) must be divisible by num_head ({num_head})")
+            raise ValueError(
+                f"size ({size}) must be divisible by num_head ({num_head})"
+            )
 
         self.attention_net = nn.Linear(size, size)
         self.num_head = num_head
@@ -79,7 +82,9 @@ class ContextAttention(nn.Module):
 
         return similarity
 
-    def forward(self, x: torch.Tensor, mask: Optional[torch.Tensor] = None) -> torch.Tensor:
+    def forward(
+        self, x: torch.Tensor, mask: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
         """
         Apply context attention and return weighted sum.
 
@@ -122,7 +127,9 @@ class ContextAttention(nn.Module):
 
             # Split x into heads and weight
             x_split = torch.stack(x.split(split_size=self.head_size, dim=2), dim=2)
-            weighted_x = x_split * softmax_weight.unsqueeze(-1).repeat(1, 1, 1, x_split.shape[-1])
+            weighted_x = x_split * softmax_weight.unsqueeze(-1).repeat(
+                1, 1, 1, x_split.shape[-1]
+            )
 
             # Merge heads back
             attention = weighted_x.view(x_split.shape[0], x_split.shape[1], x.shape[-1])

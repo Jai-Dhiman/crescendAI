@@ -9,7 +9,8 @@ Prevents catastrophic forgetting by:
 Reference: ULMFiT (Howard & Ruder, 2018) for staged unfreezing strategy
 """
 
-from typing import Dict, List, Optional, Any
+from typing import Any, Dict, List, Optional
+
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import Callback
 
@@ -48,7 +49,7 @@ class StagedUnfreezingCallback(Callback):
             verbose: Whether to print unfreezing actions
         """
         super().__init__()
-        self.schedule = sorted(schedule, key=lambda x: x['epoch'])
+        self.schedule = sorted(schedule, key=lambda x: x["epoch"])
         self.verbose = verbose
         self._applied_epochs = set()
 
@@ -61,7 +62,7 @@ class StagedUnfreezingCallback(Callback):
         current_epoch = trainer.current_epoch
 
         for step in self.schedule:
-            step_epoch = step['epoch']
+            step_epoch = step["epoch"]
 
             # Skip if already applied or not yet reached
             if step_epoch in self._applied_epochs:
@@ -80,23 +81,23 @@ class StagedUnfreezingCallback(Callback):
         trainer: pl.Trainer,
     ) -> None:
         """Apply a single schedule step."""
-        epoch = step['epoch']
+        epoch = step["epoch"]
 
         if self.verbose:
             print(f"\n[StagedUnfreezing] Epoch {epoch}:")
 
         # Handle freezing
-        freeze_targets = step.get('freeze', [])
+        freeze_targets = step.get("freeze", [])
         for target in freeze_targets:
             self._freeze_component(pl_module, target)
 
         # Handle unfreezing
-        unfreeze_targets = step.get('unfreeze', [])
+        unfreeze_targets = step.get("unfreeze", [])
         for target in unfreeze_targets:
             self._unfreeze_component(pl_module, target)
 
         # Handle learning rate scaling
-        lr_scale = step.get('lr_scale')
+        lr_scale = step.get("lr_scale")
         if lr_scale is not None:
             self._scale_backbone_lr(trainer, pl_module, lr_scale)
 
@@ -106,22 +107,25 @@ class StagedUnfreezingCallback(Callback):
         target: str,
     ) -> None:
         """Freeze a model component."""
-        if target == 'audio_encoder':
-            if hasattr(pl_module, 'audio_encoder'):
+        if target == "audio_encoder":
+            if hasattr(pl_module, "audio_encoder"):
                 for param in pl_module.audio_encoder.parameters():
                     param.requires_grad = False
                 if self.verbose:
                     print(f"  Froze: audio_encoder")
 
-        elif target == 'midi_encoder':
-            if hasattr(pl_module, 'midi_encoder') and pl_module.midi_encoder is not None:
+        elif target == "midi_encoder":
+            if (
+                hasattr(pl_module, "midi_encoder")
+                and pl_module.midi_encoder is not None
+            ):
                 for param in pl_module.midi_encoder.parameters():
                     param.requires_grad = False
                 if self.verbose:
                     print(f"  Froze: midi_encoder")
 
-        elif target == 'projection':
-            if hasattr(pl_module, 'projection') and pl_module.projection is not None:
+        elif target == "projection":
+            if hasattr(pl_module, "projection") and pl_module.projection is not None:
                 for param in pl_module.projection.parameters():
                     param.requires_grad = False
                 if self.verbose:
@@ -138,39 +142,45 @@ class StagedUnfreezingCallback(Callback):
     ) -> None:
         """Unfreeze a model component (or part of it)."""
         # Audio encoder targets
-        if target == 'audio_encoder.all':
-            if hasattr(pl_module, 'audio_encoder'):
+        if target == "audio_encoder.all":
+            if hasattr(pl_module, "audio_encoder"):
                 for param in pl_module.audio_encoder.parameters():
                     param.requires_grad = True
                 if self.verbose:
                     print(f"  Unfroze: audio_encoder (all layers)")
 
-        elif target.startswith('audio_encoder.top_'):
-            num_layers = int(target.split('_')[-1])
-            if hasattr(pl_module, 'audio_encoder'):
+        elif target.startswith("audio_encoder.top_"):
+            num_layers = int(target.split("_")[-1])
+            if hasattr(pl_module, "audio_encoder"):
                 # MERT encoder structure - unfreeze top N layers
-                self._unfreeze_top_layers(pl_module.audio_encoder, num_layers, 'audio')
+                self._unfreeze_top_layers(pl_module.audio_encoder, num_layers, "audio")
                 if self.verbose:
                     print(f"  Unfroze: audio_encoder (top {num_layers} layers)")
 
         # MIDI encoder targets
-        elif target == 'midi_encoder.all':
-            if hasattr(pl_module, 'midi_encoder') and pl_module.midi_encoder is not None:
+        elif target == "midi_encoder.all":
+            if (
+                hasattr(pl_module, "midi_encoder")
+                and pl_module.midi_encoder is not None
+            ):
                 for param in pl_module.midi_encoder.parameters():
                     param.requires_grad = True
                 if self.verbose:
                     print(f"  Unfroze: midi_encoder (all layers)")
 
-        elif target.startswith('midi_encoder.top_'):
-            num_layers = int(target.split('_')[-1])
-            if hasattr(pl_module, 'midi_encoder') and pl_module.midi_encoder is not None:
+        elif target.startswith("midi_encoder.top_"):
+            num_layers = int(target.split("_")[-1])
+            if (
+                hasattr(pl_module, "midi_encoder")
+                and pl_module.midi_encoder is not None
+            ):
                 pl_module.midi_encoder.unfreeze_top_layers(num_layers)
                 if self.verbose:
                     print(f"  Unfroze: midi_encoder (top {num_layers} layers)")
 
         # Projection head
-        elif target == 'projection':
-            if hasattr(pl_module, 'projection') and pl_module.projection is not None:
+        elif target == "projection":
+            if hasattr(pl_module, "projection") and pl_module.projection is not None:
                 for param in pl_module.projection.parameters():
                     param.requires_grad = True
                 if self.verbose:
@@ -187,9 +197,9 @@ class StagedUnfreezingCallback(Callback):
         encoder_type: str,
     ) -> None:
         """Unfreeze the top N layers of an encoder."""
-        if encoder_type == 'audio':
+        if encoder_type == "audio":
             # MERT encoder - access transformer layers
-            if hasattr(encoder, 'mert') and hasattr(encoder.mert, 'encoder'):
+            if hasattr(encoder, "mert") and hasattr(encoder.mert, "encoder"):
                 layers = encoder.mert.encoder.layers
                 total_layers = len(layers)
                 for i in range(total_layers - num_layers, total_layers):
@@ -197,7 +207,7 @@ class StagedUnfreezingCallback(Callback):
                         param.requires_grad = True
 
                 # Also unfreeze the final layer norm
-                if hasattr(encoder.mert.encoder, 'layer_norm'):
+                if hasattr(encoder.mert.encoder, "layer_norm"):
                     for param in encoder.mert.encoder.layer_norm.parameters():
                         param.requires_grad = True
 
@@ -212,11 +222,13 @@ class StagedUnfreezingCallback(Callback):
 
         # Find backbone param group (usually the first one)
         for i, param_group in enumerate(optimizer.param_groups):
-            if 'backbone' in str(param_group.get('name', '')).lower() or i == 0:
-                old_lr = param_group['lr']
-                param_group['lr'] = old_lr * scale
+            if "backbone" in str(param_group.get("name", "")).lower() or i == 0:
+                old_lr = param_group["lr"]
+                param_group["lr"] = old_lr * scale
                 if self.verbose:
-                    print(f"  Scaled backbone LR: {old_lr:.2e} -> {param_group['lr']:.2e}")
+                    print(
+                        f"  Scaled backbone LR: {old_lr:.2e} -> {param_group['lr']:.2e}"
+                    )
                 break
 
 
@@ -241,21 +253,24 @@ def create_default_unfreezing_schedule(
     return [
         # Phase 1: Freeze encoders, train only heads
         {
-            'epoch': 0,
-            'freeze': ['audio_encoder', 'midi_encoder'],
-            'unfreeze': ['projection'],
+            "epoch": 0,
+            "freeze": ["audio_encoder", "midi_encoder"],
+            "unfreeze": ["projection"],
         },
         # Phase 2: Unfreeze top layers with reduced LR
         {
-            'epoch': freeze_epochs,
-            'unfreeze': [f'audio_encoder.top_{audio_top_layers}', f'midi_encoder.top_{midi_top_layers}'],
-            'lr_scale': 0.1,
+            "epoch": freeze_epochs,
+            "unfreeze": [
+                f"audio_encoder.top_{audio_top_layers}",
+                f"midi_encoder.top_{midi_top_layers}",
+            ],
+            "lr_scale": 0.1,
         },
         # Phase 3: Unfreeze all with further reduced LR
         {
-            'epoch': freeze_epochs + partial_unfreeze_epochs,
-            'unfreeze': ['audio_encoder.all', 'midi_encoder.all'],
-            'lr_scale': 0.1,  # Cumulative: 0.1 * 0.1 = 0.01 of original
+            "epoch": freeze_epochs + partial_unfreeze_epochs,
+            "unfreeze": ["audio_encoder.all", "midi_encoder.all"],
+            "lr_scale": 0.1,  # Cumulative: 0.1 * 0.1 = 0.01 of original
         },
     ]
 

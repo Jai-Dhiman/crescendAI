@@ -47,11 +47,14 @@ from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from src.crescendai.models.score_aligned_module import (
+    ScoreAlignedModule,
+    ScoreAlignedModuleWithFallback,
+)
 from src.percepiano.data.percepiano_score_dataset import create_score_dataloaders
-from src.crescendai.models.score_aligned_module import ScoreAlignedModule, ScoreAlignedModuleWithFallback
 from src.shared.utils.preflight_validation import (
-    run_preflight_validation,
     PreflightValidationError,
+    run_preflight_validation,
 )
 
 
@@ -293,7 +296,9 @@ def main():
 
     # Create model
     print("Creating model...")
-    ModelClass = ScoreAlignedModuleWithFallback if args.use_fallback else ScoreAlignedModule
+    ModelClass = (
+        ScoreAlignedModuleWithFallback if args.use_fallback else ScoreAlignedModule
+    )
 
     model_kwargs = {
         "midi_hidden_dim": args.midi_hidden_dim,
@@ -314,7 +319,9 @@ def main():
     model = ModelClass(**model_kwargs)
 
     # Log encoder type
-    encoder_type = "Hierarchical (HAN)" if args.use_hierarchical else "Flat (Transformer)"
+    encoder_type = (
+        "Hierarchical (HAN)" if args.use_hierarchical else "Flat (Transformer)"
+    )
     print(f"Score encoder: {encoder_type}")
 
     # Count parameters

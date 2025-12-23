@@ -8,10 +8,11 @@ Reference: "Snorkel: rapid training data creation with weak supervision"
 (Ratner et al., 2017)
 """
 
-import numpy as np
-from typing import Dict, List, Optional, Tuple
-import torch
 from collections import defaultdict
+from typing import Dict, List, Optional, Tuple
+
+import numpy as np
+import torch
 
 
 class WeakSupervisionAggregator:
@@ -46,11 +47,13 @@ class WeakSupervisionAggregator:
         self.confidence_threshold = confidence_threshold
 
         # Track labeling function statistics for auto-weighting
-        self.lf_stats = defaultdict(lambda: {
-            'count': 0,
-            'mean': 0.0,
-            'variance': 0.0,
-        })
+        self.lf_stats = defaultdict(
+            lambda: {
+                "count": 0,
+                "mean": 0.0,
+                "variance": 0.0,
+            }
+        )
 
     def aggregate_labels(
         self,
@@ -76,7 +79,8 @@ class WeakSupervisionAggregator:
 
             # Filter out None labels and apply confidence threshold
             valid_labels = [
-                (label, weight) for label, weight in labels_weights
+                (label, weight)
+                for label, weight in labels_weights
                 if label is not None and weight >= self.confidence_threshold
             ]
 
@@ -93,15 +97,16 @@ class WeakSupervisionAggregator:
             elif self.aggregation_method == "trimmed_mean":
                 agg_label, confidence = self._trimmed_mean(valid_labels)
             else:
-                raise ValueError(f"Unknown aggregation method: {self.aggregation_method}")
+                raise ValueError(
+                    f"Unknown aggregation method: {self.aggregation_method}"
+                )
 
             aggregated[dimension] = (agg_label, confidence)
 
         return aggregated
 
     def _weighted_average(
-        self,
-        labels_weights: List[Tuple[float, float]]
+        self, labels_weights: List[Tuple[float, float]]
     ) -> Tuple[float, float]:
         """
         Compute weighted average of labels.
@@ -134,8 +139,7 @@ class WeakSupervisionAggregator:
         return float(agg_label), float(confidence)
 
     def _median_aggregation(
-        self,
-        labels_weights: List[Tuple[float, float]]
+        self, labels_weights: List[Tuple[float, float]]
     ) -> Tuple[float, float]:
         """
         Compute weighted median (robust to outliers).
@@ -166,9 +170,7 @@ class WeakSupervisionAggregator:
         return float(agg_label), float(confidence)
 
     def _trimmed_mean(
-        self,
-        labels_weights: List[Tuple[float, float]],
-        trim_fraction: float = 0.2
+        self, labels_weights: List[Tuple[float, float]], trim_fraction: float = 0.2
     ) -> Tuple[float, float]:
         """
         Compute trimmed mean (remove outliers then average).
@@ -233,7 +235,7 @@ class AdaptiveWeightLearner:
         self,
         dimension: str,
         label_matrix: np.ndarray,
-        initial_weights: Optional[np.ndarray] = None
+        initial_weights: Optional[np.ndarray] = None,
     ) -> np.ndarray:
         """
         Learn optimal weights for labeling functions.
@@ -267,9 +269,7 @@ class AdaptiveWeightLearner:
         return weights
 
     def _compute_consensus(
-        self,
-        label_matrix: np.ndarray,
-        weights: np.ndarray
+        self, label_matrix: np.ndarray, weights: np.ndarray
     ) -> np.ndarray:
         """
         Compute consensus labels using weighted average.
@@ -297,7 +297,7 @@ class AdaptiveWeightLearner:
         self,
         label_matrix: np.ndarray,
         consensus: np.ndarray,
-        current_weights: np.ndarray
+        current_weights: np.ndarray,
     ) -> np.ndarray:
         """
         Update weights based on agreement with consensus.
@@ -313,7 +313,9 @@ class AdaptiveWeightLearner:
         num_samples, num_functions = label_matrix.shape
 
         # Compute error for each labeling function
-        errors = np.abs(label_matrix - consensus[:, None])  # [num_samples, num_functions]
+        errors = np.abs(
+            label_matrix - consensus[:, None]
+        )  # [num_samples, num_functions]
 
         # Mean error per function (ignoring NaN)
         mean_errors = np.nanmean(errors, axis=0)  # [num_functions]
@@ -323,7 +325,9 @@ class AdaptiveWeightLearner:
         accuracies = np.exp(-mean_errors / 10)  # Scale factor of 10 for 0-100 labels
 
         # Update weights with learning rate
-        new_weights = current_weights * (1 - self.learning_rate) + accuracies * self.learning_rate
+        new_weights = (
+            current_weights * (1 - self.learning_rate) + accuracies * self.learning_rate
+        )
 
         # Normalize
         new_weights = new_weights / new_weights.sum()
@@ -335,7 +339,7 @@ def apply_labeling_functions(
     sample_data: Dict,
     labeling_functions: Dict[str, List],
     use_adaptive_weights: bool = False,
-    weight_learner: Optional[AdaptiveWeightLearner] = None
+    weight_learner: Optional[AdaptiveWeightLearner] = None,
 ) -> Dict[str, float]:
     """
     Apply all labeling functions to a sample and aggregate results.
@@ -366,7 +370,11 @@ def apply_labeling_functions(
 
             if label is not None:
                 # Use learned weight if available, otherwise use function's default weight
-                if use_adaptive_weights and weight_learner and dimension in weight_learner.learned_weights:
+                if (
+                    use_adaptive_weights
+                    and weight_learner
+                    and dimension in weight_learner.learned_weights
+                ):
                     # Find index of this function in the learned weights
                     # For now, use function's default weight
                     weight = lf.weight

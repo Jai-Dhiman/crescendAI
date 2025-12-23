@@ -1,8 +1,9 @@
 import math
-import torch
-import torch.nn as nn
 from pathlib import Path
 from typing import Optional, Tuple, Union
+
+import torch
+import torch.nn as nn
 
 
 class MIDIBertEncoder(nn.Module):
@@ -23,8 +24,8 @@ class MIDIBertEncoder(nn.Module):
         self,
         vocab_sizes: Optional[dict] = None,
         hidden_size: int = 768,  # Increased to match MidiBERT
-        num_layers: int = 12,    # Increased to match MidiBERT
-        num_heads: int = 12,     # Increased to match MidiBERT
+        num_layers: int = 12,  # Increased to match MidiBERT
+        num_heads: int = 12,  # Increased to match MidiBERT
         dropout: float = 0.1,
         max_seq_length: int = 2048,
         pretrained_checkpoint: Optional[Union[str, Path]] = None,
@@ -46,14 +47,14 @@ class MIDIBertEncoder(nn.Module):
         if vocab_sizes is None:
             # Default vocabulary sizes from OctupleMIDI
             vocab_sizes = {
-                'event_type': 5,
-                'beat': 16,
-                'position': 16,
-                'pitch': 88,  # 88 piano keys
-                'duration': 64,  # 64 bins at 60-tick intervals (like CP tokenization)
-                'velocity': 128,
-                'instrument': 1,
-                'bar': 512,
+                "event_type": 5,
+                "beat": 16,
+                "position": 16,
+                "pitch": 88,  # 88 piano keys
+                "duration": 64,  # 64 bins at 60-tick intervals (like CP tokenization)
+                "velocity": 128,
+                "instrument": 1,
+                "bar": 512,
             }
 
         self.vocab_sizes = vocab_sizes
@@ -62,25 +63,27 @@ class MIDIBertEncoder(nn.Module):
         self.max_seq_length = max_seq_length
 
         # Embedding layers for each OctupleMIDI dimension
-        self.type_embed = nn.Embedding(vocab_sizes['event_type'], hidden_size // 8)
-        self.beat_embed = nn.Embedding(vocab_sizes['beat'], hidden_size // 8)
-        self.position_embed = nn.Embedding(vocab_sizes['position'], hidden_size // 8)
-        self.pitch_embed = nn.Embedding(vocab_sizes['pitch'], hidden_size // 4)
-        self.duration_embed = nn.Embedding(vocab_sizes['duration'], hidden_size // 8)
-        self.velocity_embed = nn.Embedding(vocab_sizes['velocity'], hidden_size // 8)
-        self.instrument_embed = nn.Embedding(vocab_sizes['instrument'], hidden_size // 16)
-        self.bar_embed = nn.Embedding(vocab_sizes['bar'], hidden_size // 16)
+        self.type_embed = nn.Embedding(vocab_sizes["event_type"], hidden_size // 8)
+        self.beat_embed = nn.Embedding(vocab_sizes["beat"], hidden_size // 8)
+        self.position_embed = nn.Embedding(vocab_sizes["position"], hidden_size // 8)
+        self.pitch_embed = nn.Embedding(vocab_sizes["pitch"], hidden_size // 4)
+        self.duration_embed = nn.Embedding(vocab_sizes["duration"], hidden_size // 8)
+        self.velocity_embed = nn.Embedding(vocab_sizes["velocity"], hidden_size // 8)
+        self.instrument_embed = nn.Embedding(
+            vocab_sizes["instrument"], hidden_size // 16
+        )
+        self.bar_embed = nn.Embedding(vocab_sizes["bar"], hidden_size // 16)
 
         # Calculate total embedding dimension
         total_embed_dim = (
-            hidden_size // 8 +  # type
-            hidden_size // 8 +  # beat
-            hidden_size // 8 +  # position
-            hidden_size // 4 +  # pitch (larger - most important)
-            hidden_size // 8 +  # duration
-            hidden_size // 8 +  # velocity
-            hidden_size // 16 +  # instrument
-            hidden_size // 16   # bar
+            hidden_size // 8  # type
+            + hidden_size // 8  # beat
+            + hidden_size // 8  # position
+            + hidden_size // 4  # pitch (larger - most important)
+            + hidden_size // 8  # duration
+            + hidden_size // 8  # velocity
+            + hidden_size // 16  # instrument
+            + hidden_size // 16  # bar
         )
 
         # Project concatenated embeddings to hidden_size
@@ -97,7 +100,7 @@ class MIDIBertEncoder(nn.Module):
             nhead=num_heads,
             dim_feedforward=hidden_size * 4,
             dropout=dropout,
-            activation='gelu',
+            activation="gelu",
             batch_first=True,
         )
 
@@ -134,14 +137,30 @@ class MIDIBertEncoder(nn.Module):
         # Clamp all tokens to valid vocabulary ranges (defensive programming)
         # This protects against malformed data that bypassed tokenizer validation
         midi_tokens = midi_tokens.clone()  # Don't modify input in-place
-        midi_tokens[:, :, 0] = torch.clamp(midi_tokens[:, :, 0], 0, self.vocab_sizes['event_type'] - 1)
-        midi_tokens[:, :, 1] = torch.clamp(midi_tokens[:, :, 1], 0, self.vocab_sizes['beat'] - 1)
-        midi_tokens[:, :, 2] = torch.clamp(midi_tokens[:, :, 2], 0, self.vocab_sizes['position'] - 1)
-        midi_tokens[:, :, 3] = torch.clamp(midi_tokens[:, :, 3], 0, self.vocab_sizes['pitch'] - 1)
-        midi_tokens[:, :, 4] = torch.clamp(midi_tokens[:, :, 4], 0, self.vocab_sizes['duration'] - 1)
-        midi_tokens[:, :, 5] = torch.clamp(midi_tokens[:, :, 5], 0, self.vocab_sizes['velocity'] - 1)
-        midi_tokens[:, :, 6] = torch.clamp(midi_tokens[:, :, 6], 0, self.vocab_sizes['instrument'] - 1)
-        midi_tokens[:, :, 7] = torch.clamp(midi_tokens[:, :, 7], 0, self.vocab_sizes['bar'] - 1)
+        midi_tokens[:, :, 0] = torch.clamp(
+            midi_tokens[:, :, 0], 0, self.vocab_sizes["event_type"] - 1
+        )
+        midi_tokens[:, :, 1] = torch.clamp(
+            midi_tokens[:, :, 1], 0, self.vocab_sizes["beat"] - 1
+        )
+        midi_tokens[:, :, 2] = torch.clamp(
+            midi_tokens[:, :, 2], 0, self.vocab_sizes["position"] - 1
+        )
+        midi_tokens[:, :, 3] = torch.clamp(
+            midi_tokens[:, :, 3], 0, self.vocab_sizes["pitch"] - 1
+        )
+        midi_tokens[:, :, 4] = torch.clamp(
+            midi_tokens[:, :, 4], 0, self.vocab_sizes["duration"] - 1
+        )
+        midi_tokens[:, :, 5] = torch.clamp(
+            midi_tokens[:, :, 5], 0, self.vocab_sizes["velocity"] - 1
+        )
+        midi_tokens[:, :, 6] = torch.clamp(
+            midi_tokens[:, :, 6], 0, self.vocab_sizes["instrument"] - 1
+        )
+        midi_tokens[:, :, 7] = torch.clamp(
+            midi_tokens[:, :, 7], 0, self.vocab_sizes["bar"] - 1
+        )
 
         # Embed each dimension
         type_emb = self.type_embed(midi_tokens[:, :, 0])
@@ -154,16 +173,19 @@ class MIDIBertEncoder(nn.Module):
         bar_emb = self.bar_embed(midi_tokens[:, :, 7])
 
         # Concatenate all embeddings
-        combined = torch.cat([
-            type_emb,
-            beat_emb,
-            position_emb,
-            pitch_emb,
-            duration_emb,
-            velocity_emb,
-            instrument_emb,
-            bar_emb,
-        ], dim=-1)
+        combined = torch.cat(
+            [
+                type_emb,
+                beat_emb,
+                position_emb,
+                pitch_emb,
+                duration_emb,
+                velocity_emb,
+                instrument_emb,
+                bar_emb,
+            ],
+            dim=-1,
+        )
 
         # Project to hidden size
         embeddings = self.embed_projection(combined)
@@ -178,7 +200,9 @@ class MIDIBertEncoder(nn.Module):
             embeddings = embeddings + self.positional_encoding[:, :seq_len, :]
         else:
             # Truncate or handle longer sequences
-            embeddings = embeddings + self.positional_encoding[:, :self.max_seq_length, :]
+            embeddings = (
+                embeddings + self.positional_encoding[:, : self.max_seq_length, :]
+            )
 
         # Create attention mask for transformer
         if attention_mask is not None:
@@ -219,16 +243,18 @@ class MIDIBertEncoder(nn.Module):
         checkpoint_path = Path(checkpoint_path)
 
         if not checkpoint_path.exists():
-            raise FileNotFoundError(f"Pretrained checkpoint not found: {checkpoint_path}")
+            raise FileNotFoundError(
+                f"Pretrained checkpoint not found: {checkpoint_path}"
+            )
 
         print(f"Loading pretrained MIDI encoder from: {checkpoint_path}")
 
-        checkpoint = torch.load(checkpoint_path, map_location='cpu')
+        checkpoint = torch.load(checkpoint_path, map_location="cpu")
 
         # Handle different checkpoint formats
-        if isinstance(checkpoint, dict) and 'encoder_state_dict' in checkpoint:
+        if isinstance(checkpoint, dict) and "encoder_state_dict" in checkpoint:
             # Full checkpoint from pretrain_midi_encoder.py
-            state_dict = checkpoint['encoder_state_dict']
+            state_dict = checkpoint["encoder_state_dict"]
         else:
             # Direct state_dict
             state_dict = checkpoint
@@ -256,7 +282,7 @@ class MIDIBertEncoder(nn.Module):
     def freeze_embeddings(self) -> None:
         """Freeze only embedding layers (keep transformer trainable)."""
         for name, param in self.named_parameters():
-            if 'embed' in name or 'embed_projection' in name:
+            if "embed" in name or "embed_projection" in name:
                 param.requires_grad = False
 
     def unfreeze_top_layers(self, num_layers: int = 2) -> None:

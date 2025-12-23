@@ -9,19 +9,20 @@ Score files location: PercePiano/virtuoso/data/all_2rounds/*.musicxml
 
 import json
 import logging
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple
+
 import numpy as np
 import pretty_midi
 import torch
-from pathlib import Path
 from torch.utils.data import Dataset
-from typing import Dict, List, Optional, Tuple
 
 from src.crescendai.data.midi_processing import OctupleMIDITokenizer
 from src.crescendai.data.score_alignment import (
-    MusicXMLParser,
-    ScorePerformanceAligner,
-    ScoreAlignmentFeatureExtractor,
     NUM_NOTE_FEATURES,
+    MusicXMLParser,
+    ScoreAlignmentFeatureExtractor,
+    ScorePerformanceAligner,
 )
 
 logger = logging.getLogger(__name__)
@@ -156,9 +157,7 @@ class PercePianoScoreDataset(Dataset):
         if self.use_percepiano_dims and has_percepiano:
             self.dimensions = PERCEPIANO_DIMENSIONS
             self._score_format = "percepiano"
-            logger.info(
-                f"Using 19 PercePiano dimensions from percepiano_scores list"
-            )
+            logger.info(f"Using 19 PercePiano dimensions from percepiano_scores list")
         elif has_custom:
             # Use custom dimensions from scores dict
             self.dimensions = list(sample["scores"].keys())
@@ -229,9 +228,7 @@ class PercePianoScoreDataset(Dataset):
             "name": sample["name"],
         }
 
-    def _get_score_features(
-        self, sample: Dict
-    ) -> Tuple[Dict[str, torch.Tensor], bool]:
+    def _get_score_features(self, sample: Dict) -> Tuple[Dict[str, torch.Tensor], bool]:
         """
         Load score alignment features.
 
@@ -428,7 +425,9 @@ class PercePianoScoreDataset(Dataset):
 
         if num_segments > self.max_tempo_segments:
             # Downsample to fit
-            indices = np.linspace(0, num_segments - 1, self.max_tempo_segments, dtype=int)
+            indices = np.linspace(
+                0, num_segments - 1, self.max_tempo_segments, dtype=int
+            )
             tempo_curve = tempo_curve[indices]
         elif num_segments < self.max_tempo_segments:
             padding = np.ones(self.max_tempo_segments - num_segments, dtype=np.float32)
@@ -469,14 +468,20 @@ class PercePianoScoreDataset(Dataset):
         indices = np.arange(self.max_score_notes)
         return {
             "beat": torch.tensor(indices // 4 + 1, dtype=torch.long),  # Start from 1
-            "measure": torch.tensor(indices // 16 + 1, dtype=torch.long),  # Start from 1
-            "voice": torch.ones(self.max_score_notes, dtype=torch.long),  # Already 1-based
+            "measure": torch.tensor(
+                indices // 16 + 1, dtype=torch.long
+            ),  # Start from 1
+            "voice": torch.ones(
+                self.max_score_notes, dtype=torch.long
+            ),  # Already 1-based
         }
 
     def _get_empty_score_features(self) -> Dict[str, torch.Tensor]:
         """Return empty/neutral score features when score is unavailable."""
         return {
-            "note_features": torch.zeros(self.max_score_notes, NUM_NOTE_FEATURES, dtype=torch.float32),
+            "note_features": torch.zeros(
+                self.max_score_notes, NUM_NOTE_FEATURES, dtype=torch.float32
+            ),
             "global_features": torch.zeros(12, dtype=torch.float32),
             "tempo_curve": torch.ones(self.max_tempo_segments, dtype=torch.float32),
             "note_locations": self._get_empty_note_locations(),
@@ -516,7 +521,11 @@ def create_score_dataloaders(
     max_score_notes: int = 1024,
     num_workers: int = 4,
     use_percepiano_dims: bool = True,
-) -> Tuple[torch.utils.data.DataLoader, torch.utils.data.DataLoader, torch.utils.data.DataLoader]:
+) -> Tuple[
+    torch.utils.data.DataLoader,
+    torch.utils.data.DataLoader,
+    torch.utils.data.DataLoader,
+]:
     """
     Create train, validation, and test dataloaders with score alignment.
 

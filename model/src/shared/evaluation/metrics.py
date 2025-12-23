@@ -10,15 +10,17 @@ Implements all metrics from PercePiano paper:
 - Std-Score (range accuracy accounting for annotator disagreement)
 """
 
-import numpy as np
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple, Union
+
+import numpy as np
 from scipy import stats
 
 
 @dataclass
 class MetricResult:
     """Container for a single metric result."""
+
     value: float
     per_dimension: Optional[Dict[str, float]] = None
     confidence_interval: Optional[Tuple[float, float]] = None
@@ -390,7 +392,9 @@ def compute_all_metrics(
         "mse": compute_mse(predictions, targets, True, dimension_names),
         "mae": compute_mae(predictions, targets, True, dimension_names),
         "pearson_r": compute_pearson_r(predictions, targets, True, dimension_names),
-        "spearman_rho": compute_spearman_rho(predictions, targets, True, dimension_names),
+        "spearman_rho": compute_spearman_rho(
+            predictions, targets, True, dimension_names
+        ),
     }
 
     # Add Std-Score if target_stds provided
@@ -409,7 +413,12 @@ DIMENSION_CATEGORIES = {
     "timing": ["timing", "tempo"],
     "articulation": ["articulation_length", "articulation_touch"],
     "pedal": ["pedal_amount", "pedal_clarity"],
-    "timbre": ["timbre_variety", "timbre_depth", "timbre_brightness", "timbre_loudness"],
+    "timbre": [
+        "timbre_variety",
+        "timbre_depth",
+        "timbre_brightness",
+        "timbre_loudness",
+    ],
     "dynamics": ["dynamic_range", "sophistication"],
     "musical": ["space", "balance", "drama"],
     "emotion": ["mood_valence", "mood_energy", "mood_imagination"],

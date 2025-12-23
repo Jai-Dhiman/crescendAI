@@ -8,10 +8,11 @@ Reference: "Training Deep Neural Networks on Noisy Labels with Bootstrapping"
 (Reed et al., ICLR Workshop 2014)
 """
 
+from typing import Literal, Optional
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from typing import Literal, Optional
 
 
 class BootstrapLoss(nn.Module):
@@ -37,7 +38,7 @@ class BootstrapLoss(nn.Module):
         self,
         beta: float = 0.8,
         warmup_epochs: int = 0,
-        base_loss: Literal['mse', 'huber', 'mae'] = 'mse',
+        base_loss: Literal["mse", "huber", "mae"] = "mse",
         huber_delta: float = 1.0,
     ):
         """
@@ -95,14 +96,16 @@ class BootstrapLoss(nn.Module):
 
         # Compute soft targets
         # Using .detach() prevents gradients flowing through the soft target
-        soft_targets = effective_beta * targets + (1 - effective_beta) * predictions.detach()
+        soft_targets = (
+            effective_beta * targets + (1 - effective_beta) * predictions.detach()
+        )
 
         # Compute loss against soft targets
-        if self.base_loss == 'mse':
+        if self.base_loss == "mse":
             loss = F.mse_loss(predictions, soft_targets)
-        elif self.base_loss == 'huber':
+        elif self.base_loss == "huber":
             loss = F.huber_loss(predictions, soft_targets, delta=self.huber_delta)
-        elif self.base_loss == 'mae':
+        elif self.base_loss == "mae":
             loss = F.l1_loss(predictions, soft_targets)
         else:
             raise ValueError(f"Unknown base_loss: {self.base_loss}")
@@ -126,7 +129,7 @@ class SymmetricBootstrapLoss(nn.Module):
         self,
         beta: float = 0.8,
         alpha: float = 0.5,
-        base_loss: Literal['mse', 'huber', 'mae'] = 'mse',
+        base_loss: Literal["mse", "huber", "mae"] = "mse",
     ):
         """
         Initialize symmetric bootstrap loss.
@@ -161,13 +164,13 @@ class SymmetricBootstrapLoss(nn.Module):
         soft_targets = self.beta * targets + (1 - self.beta) * predictions.detach()
 
         # Forward loss: prediction trying to match soft target
-        if self.base_loss == 'mse':
+        if self.base_loss == "mse":
             forward_loss = F.mse_loss(predictions, soft_targets)
             backward_loss = F.mse_loss(soft_targets, predictions.detach())
-        elif self.base_loss == 'huber':
+        elif self.base_loss == "huber":
             forward_loss = F.huber_loss(predictions, soft_targets)
             backward_loss = F.huber_loss(soft_targets, predictions.detach())
-        elif self.base_loss == 'mae':
+        elif self.base_loss == "mae":
             forward_loss = F.l1_loss(predictions, soft_targets)
             backward_loss = F.l1_loss(soft_targets, predictions.detach())
         else:
@@ -195,7 +198,7 @@ class AdaptiveBootstrapLoss(nn.Module):
         self,
         base_beta: float = 0.8,
         confidence_scale: float = 0.2,
-        base_loss: Literal['mse', 'huber', 'mae'] = 'mse',
+        base_loss: Literal["mse", "huber", "mae"] = "mse",
     ):
         """
         Initialize adaptive bootstrap loss.
@@ -246,11 +249,11 @@ class AdaptiveBootstrapLoss(nn.Module):
         soft_targets = beta * targets + (1 - beta) * predictions.detach()
 
         # Compute loss
-        if self.base_loss == 'mse':
+        if self.base_loss == "mse":
             loss = F.mse_loss(predictions, soft_targets)
-        elif self.base_loss == 'huber':
+        elif self.base_loss == "huber":
             loss = F.huber_loss(predictions, soft_targets)
-        elif self.base_loss == 'mae':
+        elif self.base_loss == "mae":
             loss = F.l1_loss(predictions, soft_targets)
         else:
             raise ValueError(f"Unknown base_loss: {self.base_loss}")

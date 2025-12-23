@@ -2,16 +2,15 @@
 Unit tests for multi-task learning head module.
 """
 
-import torch
 import pytest
-
+import torch
 from src.models.mtl_head import MultiTaskHead
 
 
 def test_mtl_head_init():
     """Test MTL head initialization."""
     input_dim = 512
-    dimensions = ['dim1', 'dim2', 'dim3', 'dim4', 'dim5', 'dim6']
+    dimensions = ["dim1", "dim2", "dim3", "dim4", "dim5", "dim6"]
 
     head = MultiTaskHead(input_dim=input_dim, dimensions=dimensions)
 
@@ -23,7 +22,7 @@ def test_mtl_head_forward():
     """Test MTL head forward pass."""
     batch_size = 4
     input_dim = 512
-    dimensions = ['dim1', 'dim2', 'dim3', 'dim4', 'dim5', 'dim6']
+    dimensions = ["dim1", "dim2", "dim3", "dim4", "dim5", "dim6"]
 
     head = MultiTaskHead(input_dim=input_dim, dimensions=dimensions)
 
@@ -46,7 +45,7 @@ def test_mtl_head_score_range():
     """Test that scores are in 0-100 range."""
     batch_size = 8
     input_dim = 512
-    dimensions = ['d1', 'd2', 'd3', 'd4', 'd5', 'd6']
+    dimensions = ["d1", "d2", "d3", "d4", "d5", "d6"]
 
     head = MultiTaskHead(input_dim=input_dim, dimensions=dimensions)
     x = torch.randn(batch_size, input_dim)
@@ -60,7 +59,7 @@ def test_mtl_head_score_range():
 
 def test_mtl_head_uncertainties_positive():
     """Test that uncertainties are positive."""
-    head = MultiTaskHead(input_dim=512, dimensions=['d1', 'd2', 'd3'])
+    head = MultiTaskHead(input_dim=512, dimensions=["d1", "d2", "d3"])
     x = torch.randn(4, 512)
 
     _, uncertainties = head(x, return_uncertainties=True)
@@ -71,7 +70,7 @@ def test_mtl_head_uncertainties_positive():
 
 def test_mtl_head_gradient_flow():
     """Test gradient flow through MTL head."""
-    head = MultiTaskHead(input_dim=512, dimensions=['d1', 'd2', 'd3'])
+    head = MultiTaskHead(input_dim=512, dimensions=["d1", "d2", "d3"])
     x = torch.randn(4, 512, requires_grad=True)
 
     scores, _ = head(x)
@@ -87,7 +86,7 @@ def test_mtl_head_gradient_flow():
 
 def test_mtl_head_uncertainty_gradient():
     """Test gradient flow to uncertainty parameters."""
-    head = MultiTaskHead(input_dim=512, dimensions=['d1', 'd2', 'd3'])
+    head = MultiTaskHead(input_dim=512, dimensions=["d1", "d2", "d3"])
     x = torch.randn(4, 512)
 
     scores, uncertainties = head(x, return_uncertainties=True)
@@ -103,7 +102,7 @@ def test_mtl_head_uncertainty_gradient():
 @pytest.mark.parametrize("num_dimensions", [1, 6, 10])
 def test_mtl_head_different_dimensions(num_dimensions):
     """Test MTL head with different numbers of dimensions."""
-    dimensions = [f'd{i}' for i in range(num_dimensions)]
+    dimensions = [f"d{i}" for i in range(num_dimensions)]
     head = MultiTaskHead(input_dim=512, dimensions=dimensions)
     x = torch.randn(4, 512)
 
@@ -116,7 +115,7 @@ def test_mtl_head_different_dimensions(num_dimensions):
 @pytest.mark.parametrize("batch_size", [1, 4, 16, 32])
 def test_mtl_head_different_batch_sizes(batch_size):
     """Test MTL head with different batch sizes."""
-    head = MultiTaskHead(input_dim=512, dimensions=['d1', 'd2', 'd3'])
+    head = MultiTaskHead(input_dim=512, dimensions=["d1", "d2", "d3"])
     x = torch.randn(batch_size, 512)
 
     scores, _ = head(x)
@@ -127,10 +126,7 @@ def test_mtl_head_different_batch_sizes(batch_size):
 def test_mtl_head_hidden_dim():
     """Test MTL head with custom hidden dimension."""
     head = MultiTaskHead(
-        input_dim=512,
-        dimensions=['d1', 'd2', 'd3'],
-        shared_hidden=256,
-        task_hidden=128
+        input_dim=512, dimensions=["d1", "d2", "d3"], shared_hidden=256, task_hidden=128
     )
 
     x = torch.randn(4, 512)
@@ -142,11 +138,7 @@ def test_mtl_head_hidden_dim():
 
 def test_mtl_head_dropout():
     """Test MTL head with dropout."""
-    head = MultiTaskHead(
-        input_dim=512,
-        dimensions=['d1', 'd2', 'd3'],
-        dropout=0.5
-    )
+    head = MultiTaskHead(input_dim=512, dimensions=["d1", "d2", "d3"], dropout=0.5)
 
     x = torch.randn(4, 512)
 
@@ -166,7 +158,7 @@ def test_mtl_head_dropout():
 
 def test_mtl_head_state_dict():
     """Test saving and loading MTL head."""
-    dimensions = ['d1', 'd2', 'd3']
+    dimensions = ["d1", "d2", "d3"]
     head = MultiTaskHead(input_dim=512, dimensions=dimensions)
     x = torch.randn(4, 512)
 
@@ -191,7 +183,7 @@ def test_mtl_head_state_dict():
 
 def test_mtl_head_per_dimension_heads():
     """Test that each dimension has independent head."""
-    dimensions = ['d1', 'd2', 'd3']
+    dimensions = ["d1", "d2", "d3"]
     head = MultiTaskHead(input_dim=512, dimensions=dimensions)
 
     # Check task_heads ModuleDict
@@ -206,7 +198,9 @@ def test_mtl_head_per_dimension_heads():
 
 def test_mtl_head_shared_features():
     """Test shared feature extractor."""
-    head = MultiTaskHead(input_dim=512, dimensions=['d1', 'd2', 'd3'], shared_hidden=256)
+    head = MultiTaskHead(
+        input_dim=512, dimensions=["d1", "d2", "d3"], shared_hidden=256
+    )
     x = torch.randn(4, 512)
 
     # All dimensions should use same shared features
@@ -217,7 +211,7 @@ def test_mtl_head_shared_features():
 
 def test_mtl_head_numerical_stability():
     """Test numerical stability with extreme inputs."""
-    head = MultiTaskHead(input_dim=512, dimensions=['d1', 'd2', 'd3'])
+    head = MultiTaskHead(input_dim=512, dimensions=["d1", "d2", "d3"])
 
     # Large values
     x_large = torch.randn(4, 512) * 100
@@ -236,7 +230,7 @@ def test_mtl_head_numerical_stability():
 
 def test_mtl_head_get_dimension_names():
     """Test getting dimension names."""
-    dimensions = ['note_accuracy', 'rhythmic_precision', 'dynamics']
+    dimensions = ["note_accuracy", "rhythmic_precision", "dynamics"]
     head = MultiTaskHead(input_dim=512, dimensions=dimensions)
 
     assert head.get_dimension_names() == dimensions
@@ -244,7 +238,7 @@ def test_mtl_head_get_dimension_names():
 
 def test_mtl_head_get_uncertainties():
     """Test getting current uncertainties."""
-    head = MultiTaskHead(input_dim=512, dimensions=['d1', 'd2', 'd3'])
+    head = MultiTaskHead(input_dim=512, dimensions=["d1", "d2", "d3"])
 
     uncertainties = head.get_uncertainties()
 

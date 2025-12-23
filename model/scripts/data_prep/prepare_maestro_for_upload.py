@@ -19,35 +19,37 @@ Usage:
 import argparse
 import json
 import shutil
+import sys
 import tarfile
 import zipfile
 from pathlib import Path
-from tqdm import tqdm
-import sys
+
 import numpy as np
+from tqdm import tqdm
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from data.degradation import apply_quality_tier, QualityTier, sample_quality_tier
+from data.degradation import QualityTier, apply_quality_tier, sample_quality_tier
 from labeling_functions import get_all_labeling_functions
 from weak_supervision import apply_labeling_functions
 
 try:
-    import pretty_midi
     import librosa
+    import pretty_midi
 except ImportError:
     print("Installing required packages...")
     import subprocess
-    subprocess.run([sys.executable, "-m", "pip", "install", "pretty_midi", "librosa", "scipy"])
-    import pretty_midi
+
+    subprocess.run(
+        [sys.executable, "-m", "pip", "install", "pretty_midi", "librosa", "scipy"]
+    )
     import librosa
+    import pretty_midi
 
 
 def extract_maestro_efficiently(
-    maestro_zip_path: Path,
-    extract_dir: Path,
-    max_pieces: int = None
+    maestro_zip_path: Path, extract_dir: Path, max_pieces: int = None
 ):
     """
     Extract MAESTRO zip efficiently (only MIDI + WAV, skip unnecessary files).
@@ -60,25 +62,27 @@ def extract_maestro_efficiently(
     Returns:
         List of (audio_path, midi_path) tuples
     """
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("STEP 1: EXTRACTING MAESTRO")
-    print("="*80)
+    print("=" * 80)
 
     extract_dir.mkdir(parents=True, exist_ok=True)
 
     pairs = []
 
-    with zipfile.ZipFile(maestro_zip_path, 'r') as zf:
+    with zipfile.ZipFile(maestro_zip_path, "r") as zf:
         # Get all WAV and MIDI files
-        all_files = [f for f in zf.namelist() if f.endswith(('.wav', '.midi', '.mid'))]
+        all_files = [f for f in zf.namelist() if f.endswith((".wav", ".midi", ".mid"))]
 
         print(f"Found {len([f for f in all_files if f.endswith('.wav')])} audio files")
-        print(f"Found {len([f for f in all_files if f.endswith(('.midi', '.mid'))])} MIDI files")
+        print(
+            f"Found {len([f for f in all_files if f.endswith(('.midi', '.mid'))])} MIDI files"
+        )
 
         # Extract files
         print("Extracting files...")
         for file in tqdm(all_files, desc="Extracting"):
-            if '__MACOSX' in file:
+            if "__MACOSX" in file:
                 continue
             zf.extract(file, extract_dir)
 
@@ -93,9 +97,9 @@ def extract_maestro_efficiently(
     print(f"\nPairing audio and MIDI files...")
     for audio_path in tqdm(audio_files, desc="Finding pairs"):
         # Try both .midi and .mid extensions
-        midi_path = audio_path.with_suffix('.midi')
+        midi_path = audio_path.with_suffix(".midi")
         if not midi_path.exists():
-            midi_path = audio_path.with_suffix('.mid')
+            midi_path = audio_path.with_suffix(".mid")
 
         if midi_path.exists():
             pairs.append((audio_path, midi_path))
@@ -110,7 +114,7 @@ def create_degraded_segments(
     output_dir: Path,
     segment_duration: float = 10.0,
     sample_rate: int = 24000,
-    quality_tier_distribution: dict = None
+    quality_tier_distribution: dict = None,
 ):
     """
     Create degraded segments with quality tiers.
@@ -125,9 +129,9 @@ def create_degraded_segments(
     Returns:
         List of annotation dictionaries
     """
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("STEP 2: CREATING DEGRADED SEGMENTS")
-    print("="*80)
+    print("=" * 80)
 
     audio_dir = output_dir / "audio"
     midi_dir = output_dir / "midi"
@@ -176,7 +180,7 @@ def create_degraded_segments(
                         audio_segment,
                         sample_rate,
                         quality_tier,
-                        seed=segment_idx
+                        seed=segment_idx,
                     )
 
                     # Save files
@@ -187,40 +191,42 @@ def create_degraded_segments(
                     audio_output_path = audio_dir / audio_filename
                     midi_output_path = midi_dir / midi_filename
 
-                    librosa.output.write_wav(str(audio_output_path), degraded_audio, sample_rate)
+                    librosa.output.write_wav(
+                        str(audio_output_path), degraded_audio, sample_rate
+                    )
                     degraded_midi.write(str(midi_output_path))
 
                     # Generate weak labels
                     sample_data = {
-                        'midi_data': degraded_midi,
-                        'audio_data': degraded_audio,
-                        'sr': sample_rate,
+                        "midi_data": degraded_midi,
+                        "audio_data": degraded_audio,
+                        "sr": sample_rate,
                     }
 
                     labels = apply_labeling_functions(
-                        sample_data,
-                        labeling_functions,
-                        use_adaptive_weights=False
+                        sample_data, labeling_functions, use_adaptive_weights=False
                     )
 
                     # Scale labels by quality tier
-                    score_range = metadata['degradations_applied']
-                    scale_factor = metadata['quality_score'] / 100.0
+                    score_range = metadata["degradations_applied"]
+                    scale_factor = metadata["quality_score"] / 100.0
 
-                    scaled_labels = {dim: val * scale_factor for dim, val in labels.items()}
+                    scaled_labels = {
+                        dim: val * scale_factor for dim, val in labels.items()
+                    }
 
                     # Create annotation
                     annotation = {
-                        'audio_path': str(audio_output_path),
-                        'midi_path': str(midi_output_path),
-                        'start_time': start_time,
-                        'end_time': end_time,
-                        'labels': scaled_labels,
-                        'quality_tier': quality_tier.value,
-                        'quality_score': metadata['quality_score'],
-                        'degradations': metadata['degradations_applied'],
-                        'dataset': 'maestro',
-                        'original_piece': audio_path.stem,
+                        "audio_path": str(audio_output_path),
+                        "midi_path": str(midi_output_path),
+                        "start_time": start_time,
+                        "end_time": end_time,
+                        "labels": scaled_labels,
+                        "quality_tier": quality_tier.value,
+                        "quality_score": metadata["quality_score"],
+                        "degradations": metadata["degradations_applied"],
+                        "dataset": "maestro",
+                        "original_piece": audio_path.stem,
                     }
 
                     annotations.append(annotation)
@@ -239,7 +245,7 @@ def create_train_val_test_split(
     annotations: list,
     output_dir: Path,
     train_ratio: float = 0.8,
-    val_ratio: float = 0.1
+    val_ratio: float = 0.1,
 ):
     """
     Split annotations into train/val/test and save.
@@ -250,9 +256,9 @@ def create_train_val_test_split(
         train_ratio: Training set ratio
         val_ratio: Validation set ratio
     """
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("STEP 3: CREATING TRAIN/VAL/TEST SPLIT")
-    print("="*80)
+    print("=" * 80)
 
     # Shuffle
     np.random.shuffle(annotations)
@@ -263,8 +269,8 @@ def create_train_val_test_split(
     n_val = int(n * val_ratio)
 
     train_annotations = annotations[:n_train]
-    val_annotations = annotations[n_train:n_train + n_val]
-    test_annotations = annotations[n_train + n_val:]
+    val_annotations = annotations[n_train : n_train + n_val]
+    test_annotations = annotations[n_train + n_val :]
 
     print(f"Train: {len(train_annotations)}")
     print(f"Val: {len(val_annotations)}")
@@ -275,30 +281,27 @@ def create_train_val_test_split(
     annotations_dir.mkdir(parents=True, exist_ok=True)
 
     splits = {
-        'train': train_annotations,
-        'val': val_annotations,
-        'test': test_annotations,
+        "train": train_annotations,
+        "val": val_annotations,
+        "test": test_annotations,
     }
 
     for split_name, split_data in splits.items():
         output_path = annotations_dir / f"{split_name}.jsonl"
-        with open(output_path, 'w') as f:
+        with open(output_path, "w") as f:
             for annotation in split_data:
-                f.write(json.dumps(annotation) + '\n')
+                f.write(json.dumps(annotation) + "\n")
         print(f"Saved {split_name}: {output_path}")
 
     # Print quality tier distribution
     print("\nQuality tier distribution:")
     for tier in QualityTier:
-        count = sum(1 for a in annotations if a['quality_tier'] == tier.value)
+        count = sum(1 for a in annotations if a["quality_tier"] == tier.value)
         pct = count / len(annotations) * 100
         print(f"  {tier.value}: {count} ({pct:.1f}%)")
 
 
-def create_final_tarball(
-    data_dir: Path,
-    output_path: Path
-):
+def create_final_tarball(data_dir: Path, output_path: Path):
     """
     Create final tar.gz for upload.
 
@@ -306,14 +309,14 @@ def create_final_tarball(
         data_dir: Directory containing audio/, midi/, annotations/
         output_path: Output tar.gz path
     """
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("STEP 4: CREATING TAR.GZ FOR UPLOAD")
-    print("="*80)
+    print("=" * 80)
 
     print(f"Creating {output_path}...")
 
     with tarfile.open(output_path, "w:gz") as tar:
-        for item in ['audio', 'midi', 'annotations']:
+        for item in ["audio", "midi", "annotations"]:
             item_path = data_dir / item
             if item_path.exists():
                 print(f"Adding {item}/...")
@@ -328,49 +331,40 @@ def create_final_tarball(
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Prepare MAESTRO with variance for upload")
-    parser.add_argument(
-        '--maestro_zip',
-        type=str,
-        required=True,
-        help='Path to maestro-v3.0.0.zip'
+    parser = argparse.ArgumentParser(
+        description="Prepare MAESTRO with variance for upload"
     )
     parser.add_argument(
-        '--output_dir',
-        type=str,
-        default='/tmp/maestro_upload',
-        help='Working directory (will be cleaned up)'
+        "--maestro_zip", type=str, required=True, help="Path to maestro-v3.0.0.zip"
     )
     parser.add_argument(
-        '--output_tarball',
+        "--output_dir",
         type=str,
-        default='maestro_with_variance.tar.gz',
-        help='Output tar.gz filename'
+        default="/tmp/maestro_upload",
+        help="Working directory (will be cleaned up)",
     )
     parser.add_argument(
-        '--max_pieces',
+        "--output_tarball",
+        type=str,
+        default="maestro_with_variance.tar.gz",
+        help="Output tar.gz filename",
+    )
+    parser.add_argument(
+        "--max_pieces",
         type=int,
         default=None,
-        help='Max pieces to process (for testing, e.g., 10)'
+        help="Max pieces to process (for testing, e.g., 10)",
     )
     parser.add_argument(
-        '--segment_duration',
+        "--segment_duration",
         type=float,
         default=10.0,
-        help='Segment duration in seconds'
+        help="Segment duration in seconds",
     )
     parser.add_argument(
-        '--sample_rate',
-        type=int,
-        default=24000,
-        help='Audio sample rate'
+        "--sample_rate", type=int, default=24000, help="Audio sample rate"
     )
-    parser.add_argument(
-        '--seed',
-        type=int,
-        default=42,
-        help='Random seed'
-    )
+    parser.add_argument("--seed", type=int, default=42, help="Random seed")
 
     args = parser.parse_args()
 
@@ -382,12 +376,14 @@ def main():
     if not maestro_zip.exists():
         print(f"Error: {maestro_zip} not found!")
         print("Please download MAESTRO v3.0.0 first:")
-        print("https://storage.googleapis.com/magentadata/datasets/maestro/v3.0.0/maestro-v3.0.0.zip")
+        print(
+            "https://storage.googleapis.com/magentadata/datasets/maestro/v3.0.0/maestro-v3.0.0.zip"
+        )
         return
 
-    print("="*80)
+    print("=" * 80)
     print("MAESTRO WITH VARIANCE - DATA PREPARATION")
-    print("="*80)
+    print("=" * 80)
     print(f"Input: {maestro_zip}")
     print(f"Output: {args.output_tarball}")
     print(f"Working dir: {output_dir}")
@@ -398,9 +394,7 @@ def main():
     # Step 1: Extract MAESTRO
     extract_dir = output_dir / "maestro_extracted"
     audio_midi_pairs = extract_maestro_efficiently(
-        maestro_zip,
-        extract_dir,
-        max_pieces=args.max_pieces
+        maestro_zip, extract_dir, max_pieces=args.max_pieces
     )
 
     # Step 2: Create degraded segments
@@ -409,7 +403,7 @@ def main():
         audio_midi_pairs,
         segments_dir,
         segment_duration=args.segment_duration,
-        sample_rate=args.sample_rate
+        sample_rate=args.sample_rate,
     )
 
     # Step 3: Train/val/test split
@@ -420,17 +414,17 @@ def main():
     create_final_tarball(segments_dir, output_tarball)
 
     # Cleanup
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("STEP 5: CLEANUP")
-    print("="*80)
+    print("=" * 80)
     print(f"Removing temporary directory: {output_dir}")
     shutil.rmtree(output_dir)
     print("✓ Cleanup complete")
 
     # Final instructions
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("SUCCESS - READY FOR UPLOAD")
-    print("="*80)
+    print("=" * 80)
     print(f"\n✓ Created: {output_tarball}")
     print(f"  Size: {output_tarball.stat().st_size / (1024**3):.2f} GB")
     print("\nNext steps:")

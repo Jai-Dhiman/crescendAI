@@ -1,7 +1,8 @@
-import pytest
-import numpy as np
-import tempfile
 import os
+import tempfile
+
+import numpy as np
+import pytest
 from src.data.augmentation import AudioAugmentation, create_augmentation_pipeline
 
 
@@ -171,20 +172,20 @@ class TestCompressAudio:
     def test_compress_audio_low_quality(self, augmentor, sample_audio):
         """Test MP3 compression at low quality."""
         audio, _ = sample_audio
-        compressed = augmentor.compress_audio(audio, quality='low')
+        compressed = augmentor.compress_audio(audio, quality="low")
         assert compressed.shape == audio.shape
         assert compressed.dtype == np.float32
 
     def test_compress_audio_medium_quality(self, augmentor, sample_audio):
         """Test MP3 compression at medium quality."""
         audio, _ = sample_audio
-        compressed = augmentor.compress_audio(audio, quality='medium')
+        compressed = augmentor.compress_audio(audio, quality="medium")
         assert compressed.shape == audio.shape
 
     def test_compress_audio_high_quality(self, augmentor, sample_audio):
         """Test MP3 compression at high quality."""
         audio, _ = sample_audio
-        compressed = augmentor.compress_audio(audio, quality='high')
+        compressed = augmentor.compress_audio(audio, quality="high")
         assert compressed.shape == audio.shape
         # High quality should be more similar to original
         assert np.allclose(compressed, audio, atol=0.1)
@@ -198,18 +199,17 @@ class TestCompressAudio:
     def test_compress_audio_length_preserved(self, augmentor, sample_audio):
         """Test that compression preserves exact length."""
         audio, _ = sample_audio
-        compressed = augmentor.compress_audio(audio, quality='medium')
+        compressed = augmentor.compress_audio(audio, quality="medium")
         assert len(compressed) == len(audio)
 
     @pytest.mark.skipif(
-        os.system("which ffmpeg > /dev/null 2>&1") != 0,
-        reason="ffmpeg not installed"
+        os.system("which ffmpeg > /dev/null 2>&1") != 0, reason="ffmpeg not installed"
     )
     def test_compress_audio_requires_ffmpeg(self, augmentor, sample_audio):
         """Test that compression requires ffmpeg."""
         audio, _ = sample_audio
         # This should work if ffmpeg is installed
-        compressed = augmentor.compress_audio(audio, quality='low')
+        compressed = augmentor.compress_audio(audio, quality="low")
         assert compressed.shape == audio.shape
 
 
@@ -268,13 +268,13 @@ class TestAugmentPipeline:
         """Test pipeline with custom config."""
         audio, _ = sample_audio
         config = {
-            'pitch_shift_prob': 1.0,  # Always apply
-            'time_stretch_prob': 0.0,  # Never apply
-            'noise_prob': 0.0,
-            'gain_prob': 0.0,
-            'room_acoustics_prob': 0.0,
-            'compression_prob': 0.0,
-            'max_augmentations': 1,
+            "pitch_shift_prob": 1.0,  # Always apply
+            "time_stretch_prob": 0.0,  # Never apply
+            "noise_prob": 0.0,
+            "gain_prob": 0.0,
+            "room_acoustics_prob": 0.0,
+            "compression_prob": 0.0,
+            "max_augmentations": 1,
         }
         augmented = augmentor.augment_pipeline(audio, config=config)
         assert augmented.shape == audio.shape
@@ -301,13 +301,13 @@ class TestAugmentPipeline:
 
         # Use fixed probabilities to avoid randomness in selection
         config = {
-            'pitch_shift_prob': 1.0,
-            'time_stretch_prob': 0.0,
-            'noise_prob': 0.0,
-            'gain_prob': 1.0,
-            'room_acoustics_prob': 0.0,
-            'compression_prob': 0.0,
-            'max_augmentations': 2,
+            "pitch_shift_prob": 1.0,
+            "time_stretch_prob": 0.0,
+            "noise_prob": 0.0,
+            "gain_prob": 1.0,
+            "room_acoustics_prob": 0.0,
+            "compression_prob": 0.0,
+            "max_augmentations": 2,
         }
 
         # Set seed and augment
@@ -327,13 +327,13 @@ class TestAugmentPipeline:
 
         # Use augmentations that preserve length
         config = {
-            'pitch_shift_prob': 0.5,
-            'time_stretch_prob': 0.0,  # Skip time stretch (changes length)
-            'noise_prob': 0.5,
-            'gain_prob': 0.5,
-            'room_acoustics_prob': 0.5,
-            'compression_prob': 0.5,
-            'max_augmentations': 2,
+            "pitch_shift_prob": 0.5,
+            "time_stretch_prob": 0.0,  # Skip time stretch (changes length)
+            "noise_prob": 0.5,
+            "gain_prob": 0.5,
+            "room_acoustics_prob": 0.5,
+            "compression_prob": 0.5,
+            "max_augmentations": 2,
         }
 
         augmented1 = augmentor.augment_pipeline(audio, config=config)
@@ -428,13 +428,13 @@ class TestEdgeCases:
 
         # Use augmentations that preserve length
         config = {
-            'pitch_shift_prob': 0.0,
-            'time_stretch_prob': 0.0,  # Avoid time stretch on short audio
-            'noise_prob': 1.0,
-            'gain_prob': 1.0,
-            'room_acoustics_prob': 0.0,
-            'compression_prob': 0.0,
-            'max_augmentations': 2,
+            "pitch_shift_prob": 0.0,
+            "time_stretch_prob": 0.0,  # Avoid time stretch on short audio
+            "noise_prob": 1.0,
+            "gain_prob": 1.0,
+            "room_acoustics_prob": 0.0,
+            "compression_prob": 0.0,
+            "max_augmentations": 2,
         }
 
         # Should handle gracefully
@@ -455,7 +455,9 @@ class TestEdgeCases:
 
         # Use deterministic audio with known max value
         np.random.seed(42)
-        audio = np.random.randn(44100).astype(np.float32) * 0.1  # Very small to avoid any normalization
+        audio = (
+            np.random.randn(44100).astype(np.float32) * 0.1
+        )  # Very small to avoid any normalization
         original_max = np.abs(audio).max()
 
         augmented = aug.augment_pipeline(audio)

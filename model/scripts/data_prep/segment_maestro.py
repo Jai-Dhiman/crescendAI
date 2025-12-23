@@ -19,11 +19,11 @@ Usage:
 
 import argparse
 import json
-import zipfile
-from pathlib import Path
-from typing import Optional, List, Dict, Tuple
 import shutil
 import sys
+import zipfile
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -32,9 +32,9 @@ from tqdm import tqdm
 
 def extract_maestro_metadata(zip_path: Path) -> pd.DataFrame:
     """Extract metadata CSV from MAESTRO zip without full extraction."""
-    with zipfile.ZipFile(zip_path, 'r') as zf:
+    with zipfile.ZipFile(zip_path, "r") as zf:
         # Find the CSV file
-        csv_files = [f for f in zf.namelist() if f.endswith('.csv')]
+        csv_files = [f for f in zf.namelist() if f.endswith(".csv")]
         if not csv_files:
             raise ValueError("No CSV file found in MAESTRO zip")
 
@@ -63,7 +63,9 @@ def segment_audio_file(
         import librosa
         import soundfile as sf
     except ImportError:
-        print("ERROR: librosa and soundfile required. Install with: uv pip install librosa soundfile")
+        print(
+            "ERROR: librosa and soundfile required. Install with: uv pip install librosa soundfile"
+        )
         sys.exit(1)
 
     segments = []
@@ -97,15 +99,17 @@ def segment_audio_file(
 
             sf.write(str(segment_path), segment_audio, sr)
 
-            segments.append({
-                'segment_id': f"{piece_id}_seg{i:04d}",
-                'piece_id': piece_id,
-                'segment_idx': i,
-                'start_time': i * segment_length,
-                'end_time': (i + 1) * segment_length,
-                'audio_path': str(segment_path),
-                'duration': segment_length,
-            })
+            segments.append(
+                {
+                    "segment_id": f"{piece_id}_seg{i:04d}",
+                    "piece_id": piece_id,
+                    "segment_idx": i,
+                    "start_time": i * segment_length,
+                    "end_time": (i + 1) * segment_length,
+                    "audio_path": str(segment_path),
+                    "duration": segment_length,
+                }
+            )
 
     except Exception as e:
         print(f"  Warning: Failed to process {audio_path}: {e}")
@@ -134,8 +138,8 @@ def segment_midi_file(
         midi = pretty_midi.PrettyMIDI(str(midi_path))
 
         for seg in audio_segments:
-            start_time = seg['start_time']
-            end_time = seg['end_time']
+            start_time = seg["start_time"]
+            end_time = seg["end_time"]
 
             # Create new MIDI with only notes in this time range
             segment_midi = pretty_midi.PrettyMIDI()
@@ -144,7 +148,7 @@ def segment_midi_file(
                 new_instrument = pretty_midi.Instrument(
                     program=instrument.program,
                     is_drum=instrument.is_drum,
-                    name=instrument.name
+                    name=instrument.name,
                 )
 
                 for note in instrument.notes:
@@ -159,7 +163,7 @@ def segment_midi_file(
                                 velocity=note.velocity,
                                 pitch=note.pitch,
                                 start=new_start,
-                                end=new_end
+                                end=new_end,
                             )
                             new_instrument.notes.append(new_note)
 
@@ -167,9 +171,7 @@ def segment_midi_file(
                 for cc in instrument.control_changes:
                     if start_time <= cc.time < end_time:
                         new_cc = pretty_midi.ControlChange(
-                            number=cc.number,
-                            value=cc.value,
-                            time=cc.time - start_time
+                            number=cc.number, value=cc.value, time=cc.time - start_time
                         )
                         new_instrument.control_changes.append(new_cc)
 
@@ -182,15 +184,15 @@ def segment_midi_file(
 
             if segment_midi.instruments:
                 segment_midi.write(str(midi_path))
-                seg['midi_path'] = str(midi_path)
+                seg["midi_path"] = str(midi_path)
             else:
-                seg['midi_path'] = None
+                seg["midi_path"] = None
 
     except Exception as e:
         print(f"  Warning: Failed to process MIDI {midi_path}: {e}")
         # Set MIDI paths to None for all segments
         for seg in audio_segments:
-            seg['midi_path'] = None
+            seg["midi_path"] = None
 
 
 def process_maestro(
@@ -199,16 +201,16 @@ def process_maestro(
     segment_length: float = 10.0,
     sample_rate: int = 24000,
     max_pieces: Optional[int] = None,
-    splits: List[str] = ['train', 'validation', 'test'],
+    splits: List[str] = ["train", "validation", "test"],
 ) -> Dict[str, List[Dict]]:
     """
     Process MAESTRO dataset: extract, segment, and create metadata.
 
     Returns dictionary of split -> list of segment metadata.
     """
-    print("="*70)
+    print("=" * 70)
     print("MAESTRO SEGMENTATION")
-    print("="*70)
+    print("=" * 70)
 
     # Create output directories
     (output_dir / "audio").mkdir(parents=True, exist_ok=True)
@@ -226,18 +228,18 @@ def process_maestro(
 
     # Process by split
     for split in splits:
-        split_df = metadata[metadata['split'] == split]
+        split_df = metadata[metadata["split"] == split]
 
         if max_pieces:
             split_df = split_df.head(max_pieces // len(splits))
 
-        print(f"\n{'='*50}")
+        print(f"\n{'=' * 50}")
         print(f"Processing {split}: {len(split_df)} pieces")
-        print(f"{'='*50}")
+        print(f"{'=' * 50}")
 
-        with zipfile.ZipFile(zip_path, 'r') as zf:
+        with zipfile.ZipFile(zip_path, "r") as zf:
             for idx, row in tqdm(split_df.iterrows(), total=len(split_df), desc=split):
-                piece_id = Path(row['audio_filename']).stem
+                piece_id = Path(row["audio_filename"]).stem
 
                 # Extract audio
                 audio_zip_path = f"maestro-v3.0.0/{row['audio_filename']}"
@@ -264,9 +266,11 @@ def process_maestro(
 
                     # Add metadata
                     for seg in segments:
-                        seg['split'] = split
-                        seg['canonical_composer'] = row.get('canonical_composer', 'Unknown')
-                        seg['canonical_title'] = row.get('canonical_title', 'Unknown')
+                        seg["split"] = split
+                        seg["canonical_composer"] = row.get(
+                            "canonical_composer", "Unknown"
+                        )
+                        seg["canonical_title"] = row.get("canonical_title", "Unknown")
 
                     all_segments[split].extend(segments)
 
@@ -282,9 +286,9 @@ def process_maestro(
     shutil.rmtree(temp_dir, ignore_errors=True)
 
     # Print summary
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("SEGMENTATION COMPLETE")
-    print("="*70)
+    print("=" * 70)
 
     total_segments = 0
     for split, segments in all_segments.items():
@@ -307,16 +311,30 @@ def process_maestro(
 
 def main():
     parser = argparse.ArgumentParser(description="Segment MAESTRO dataset")
-    parser.add_argument('--maestro_zip', type=str, required=True,
-                        help='Path to maestro-v3.0.0.zip')
-    parser.add_argument('--output_dir', type=str, required=True,
-                        help='Output directory for segments')
-    parser.add_argument('--segment_length', type=float, default=10.0,
-                        help='Segment length in seconds (default: 10)')
-    parser.add_argument('--sample_rate', type=int, default=24000,
-                        help='Audio sample rate (default: 24000)')
-    parser.add_argument('--max_pieces', type=int, default=None,
-                        help='Maximum pieces to process (for testing)')
+    parser.add_argument(
+        "--maestro_zip", type=str, required=True, help="Path to maestro-v3.0.0.zip"
+    )
+    parser.add_argument(
+        "--output_dir", type=str, required=True, help="Output directory for segments"
+    )
+    parser.add_argument(
+        "--segment_length",
+        type=float,
+        default=10.0,
+        help="Segment length in seconds (default: 10)",
+    )
+    parser.add_argument(
+        "--sample_rate",
+        type=int,
+        default=24000,
+        help="Audio sample rate (default: 24000)",
+    )
+    parser.add_argument(
+        "--max_pieces",
+        type=int,
+        default=None,
+        help="Maximum pieces to process (for testing)",
+    )
 
     args = parser.parse_args()
 
@@ -338,7 +356,7 @@ def main():
 
     # Save segment metadata
     metadata_path = output_dir / "segments_metadata.json"
-    with open(metadata_path, 'w') as f:
+    with open(metadata_path, "w") as f:
         json.dump(all_segments, f, indent=2)
 
     print(f"\nMetadata saved to: {metadata_path}")

@@ -18,6 +18,7 @@ Usage:
 
 import sys
 from pathlib import Path
+
 import numpy as np
 import torch
 import torch.nn as nn
@@ -27,7 +28,10 @@ from sklearn.metrics import r2_score
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
-from percepiano.models.percepiano_replica import PercePianoVNetModule, PERCEPIANO_DIMENSIONS
+from percepiano.models.percepiano_replica import (
+    PERCEPIANO_DIMENSIONS,
+    PercePianoVNetModule,
+)
 
 
 def create_synthetic_batch(
@@ -76,15 +80,15 @@ def create_synthetic_batch(
     num_notes_tensor = torch.full((batch_size,), num_notes, dtype=torch.long)
 
     return {
-        'input_features': features.to(device),
-        'labels': labels.to(device),
-        'note_locations': {
-            'beat': beat_indices.to(device),
-            'measure': measure_indices.to(device),
-            'voice': voice_indices.to(device),
+        "input_features": features.to(device),
+        "labels": labels.to(device),
+        "note_locations": {
+            "beat": beat_indices.to(device),
+            "measure": measure_indices.to(device),
+            "voice": voice_indices.to(device),
         },
-        'attention_mask': attention_mask.to(device),
-        'num_notes': num_notes_tensor.to(device),
+        "attention_mask": attention_mask.to(device),
+        "num_notes": num_notes_tensor.to(device),
     }
 
 
@@ -139,8 +143,12 @@ def run_overfit_test(
     )
     print(f"  Input shape: {batch['input_features'].shape}")
     print(f"  Labels shape: {batch['labels'].shape}")
-    print(f"  Beat indices range: [{batch['note_locations']['beat'].min()}, {batch['note_locations']['beat'].max()}]")
-    print(f"  Measure indices range: [{batch['note_locations']['measure'].min()}, {batch['note_locations']['measure'].max()}]")
+    print(
+        f"  Beat indices range: [{batch['note_locations']['beat'].min()}, {batch['note_locations']['beat'].max()}]"
+    )
+    print(
+        f"  Measure indices range: [{batch['note_locations']['measure'].min()}, {batch['note_locations']['measure'].max()}]"
+    )
 
     # Set up optimizer and loss
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
@@ -156,12 +164,12 @@ def run_overfit_test(
 
         # Forward pass
         outputs = model(
-            batch['input_features'],
-            batch['note_locations'],
-            batch.get('attention_mask'),
+            batch["input_features"],
+            batch["note_locations"],
+            batch.get("attention_mask"),
         )
-        predictions = outputs['predictions']
-        targets = batch['labels']
+        predictions = outputs["predictions"]
+        targets = batch["labels"]
 
         # Compute loss
         loss = criterion(predictions, targets)
@@ -170,10 +178,10 @@ def run_overfit_test(
         if torch.isnan(loss):
             print(f"\n[CRITICAL] NaN loss at step {step}!")
             return {
-                'success': False,
-                'error': 'NaN loss',
-                'final_loss': float('nan'),
-                'final_r2': float('nan'),
+                "success": False,
+                "error": "NaN loss",
+                "final_loss": float("nan"),
+                "final_r2": float("nan"),
             }
 
         # Backward pass
@@ -205,7 +213,9 @@ def run_overfit_test(
     print("=" * 60)
     print(f"\nFinal loss: {final_loss:.6f}")
     print(f"Final R2: {final_r2:.4f}")
-    print(f"Loss reduction: {losses[0]:.6f} -> {final_loss:.6f} ({(1 - final_loss/losses[0])*100:.1f}%)")
+    print(
+        f"Loss reduction: {losses[0]:.6f} -> {final_loss:.6f} ({(1 - final_loss / losses[0]) * 100:.1f}%)"
+    )
     print(f"R2 improvement: {r2_scores[0]:.4f} -> {final_r2:.4f}")
 
     # Check success criteria
@@ -227,11 +237,11 @@ def run_overfit_test(
         print("    - Need more training steps")
 
     return {
-        'success': success,
-        'final_loss': final_loss,
-        'final_r2': final_r2,
-        'losses': losses,
-        'r2_scores': r2_scores,
+        "success": success,
+        "final_loss": final_loss,
+        "final_r2": final_r2,
+        "losses": losses,
+        "r2_scores": r2_scores,
     }
 
 
@@ -250,7 +260,7 @@ def main():
     )
 
     # Return exit code
-    return 0 if results['success'] else 1
+    return 0 if results["success"] else 1
 
 
 if __name__ == "__main__":

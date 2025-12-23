@@ -9,35 +9,42 @@ Provides publication-quality plots for:
 - Results tables
 """
 
-import numpy as np
-from typing import Dict, List, Optional, Tuple, Any
 from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
+
+import numpy as np
 
 try:
-    import matplotlib.pyplot as plt
     import matplotlib.patches as mpatches
+    import matplotlib.pyplot as plt
+
     HAS_MATPLOTLIB = True
 except ImportError:
     HAS_MATPLOTLIB = False
 
 try:
     import seaborn as sns
+
     HAS_SEABORN = True
 except ImportError:
     HAS_SEABORN = False
 
-from .metrics import MetricResult, DIMENSION_CATEGORIES
+from .metrics import DIMENSION_CATEGORIES, MetricResult
 from .sota_baselines import DIMENSION_BASELINES
 
 
 def _check_matplotlib():
     if not HAS_MATPLOTLIB:
-        raise ImportError("matplotlib is required for visualization. Install with: pip install matplotlib")
+        raise ImportError(
+            "matplotlib is required for visualization. Install with: pip install matplotlib"
+        )
 
 
 def _check_seaborn():
     if not HAS_SEABORN:
-        raise ImportError("seaborn is required for this visualization. Install with: pip install seaborn")
+        raise ImportError(
+            "seaborn is required for this visualization. Install with: pip install seaborn"
+        )
 
 
 def plot_per_dimension_results(
@@ -91,7 +98,9 @@ def plot_per_dimension_results(
             "interpretation": "#7f7f7f",
         }
 
-        colors = [category_colors.get(dim_to_category.get(d, ""), "#333333") for d in dims]
+        colors = [
+            category_colors.get(dim_to_category.get(d, ""), "#333333") for d in dims
+        ]
     else:
         colors = "#1f77b4"
 
@@ -120,12 +129,23 @@ def plot_per_dimension_results(
 
     # Add legend for categories
     if show_categories:
-        handles = [mpatches.Patch(color=color, label=cat)
-                   for cat, color in category_colors.items()
-                   if any(dim_to_category.get(d) == cat for d in dims)]
+        handles = [
+            mpatches.Patch(color=color, label=cat)
+            for cat, color in category_colors.items()
+            if any(dim_to_category.get(d) == cat for d in dims)
+        ]
         if baseline_values:
-            handles.append(plt.Line2D([0], [0], marker="_", color="red",
-                                      label="SOTA Baseline", markersize=10, linewidth=0))
+            handles.append(
+                plt.Line2D(
+                    [0],
+                    [0],
+                    marker="_",
+                    color="red",
+                    label="SOTA Baseline",
+                    markersize=10,
+                    linewidth=0,
+                )
+            )
         ax.legend(handles=handles, loc="upper right", fontsize=8)
 
     plt.tight_layout()
@@ -256,7 +276,7 @@ def plot_confusion_matrix(
     fig, ax = plt.subplots(figsize=figsize)
 
     # Create labels
-    labels = [f"{bin_edges[i]:.1f}-{bin_edges[i+1]:.1f}" for i in range(n_bins)]
+    labels = [f"{bin_edges[i]:.1f}-{bin_edges[i + 1]:.1f}" for i in range(n_bins)]
 
     sns.heatmap(
         confusion_norm,
@@ -362,7 +382,9 @@ def create_results_table(
     # Overall metrics
     lines.append("\nOverall Metrics:")
     lines.append("-" * 60)
-    lines.append(f"{'Metric':<20} {'Value':>10} {'Std':>10} {'Baseline':>10} {'Diff':>10}")
+    lines.append(
+        f"{'Metric':<20} {'Value':>10} {'Std':>10} {'Baseline':>10} {'Diff':>10}"
+    )
     lines.append("-" * 60)
 
     for name, result in sorted(metrics.items()):
@@ -376,7 +398,9 @@ def create_results_table(
             baseline_str = "N/A"
             diff_str = "N/A"
 
-        lines.append(f"{name:<20} {result.value:>10.4f} {std_str:>10} {baseline_str:>10} {diff_str:>10}")
+        lines.append(
+            f"{name:<20} {result.value:>10.4f} {std_str:>10} {baseline_str:>10} {diff_str:>10}"
+        )
 
     # Per-dimension breakdown for R^2
     if "r2" in metrics and metrics["r2"].per_dimension:
@@ -463,8 +487,13 @@ def plot_training_curves(
         best_r2 = max(val_r2)
         axes[2].axvline(x=best_epoch, color="red", linestyle="--", alpha=0.5)
         axes[2].scatter([best_epoch], [best_r2], color="red", s=50, zorder=5)
-        axes[2].annotate(f"Best: {best_r2:.4f}", (best_epoch, best_r2),
-                         xytext=(5, 5), textcoords="offset points", fontsize=9)
+        axes[2].annotate(
+            f"Best: {best_r2:.4f}",
+            (best_epoch, best_r2),
+            xytext=(5, 5),
+            textcoords="offset points",
+            fontsize=9,
+        )
 
     plt.tight_layout()
 
@@ -558,11 +587,25 @@ if __name__ == "__main__":
     n_samples, n_dims = 100, 19
 
     dims = [
-        "timing", "tempo", "articulation_length", "articulation_touch",
-        "pedal_amount", "pedal_clarity", "timbre_variety", "timbre_depth",
-        "timbre_brightness", "timbre_loudness", "dynamic_range", "sophistication",
-        "space", "balance", "drama", "mood_valence", "mood_energy",
-        "mood_imagination", "interpretation",
+        "timing",
+        "tempo",
+        "articulation_length",
+        "articulation_touch",
+        "pedal_amount",
+        "pedal_clarity",
+        "timbre_variety",
+        "timbre_depth",
+        "timbre_brightness",
+        "timbre_loudness",
+        "dynamic_range",
+        "sophistication",
+        "space",
+        "balance",
+        "drama",
+        "mood_valence",
+        "mood_energy",
+        "mood_imagination",
+        "interpretation",
     ]
 
     # Generate demo data

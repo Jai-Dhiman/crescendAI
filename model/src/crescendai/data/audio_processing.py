@@ -1,9 +1,9 @@
+import warnings
+from pathlib import Path
+from typing import Optional, Tuple, Union
+
 import numpy as np
 import soundfile as sf
-from pathlib import Path
-from typing import Tuple, Optional, Union
-import warnings
-
 import torch
 import torchaudio
 
@@ -202,7 +202,7 @@ def compute_cqt(
     import librosa
 
     if fmin is None:
-        fmin = librosa.note_to_hz('C1')  # 32.7 Hz
+        fmin = librosa.note_to_hz("C1")  # 32.7 Hz
 
     cqt = librosa.cqt(
         audio,
@@ -210,7 +210,7 @@ def compute_cqt(
         hop_length=hop_length,
         n_bins=n_bins,
         bins_per_octave=bins_per_octave,
-        fmin=fmin
+        fmin=fmin,
     )
 
     # Convert to magnitude (dB scale)
@@ -244,7 +244,7 @@ def segment_audio(
     start = 0
 
     while start + segment_samples <= len(audio):
-        segment = audio[start:start + segment_samples]
+        segment = audio[start : start + segment_samples]
         segments.append(segment)
         start += hop_samples
 
@@ -253,7 +253,7 @@ def segment_audio(
         # Pad the last segment to full length
         last_segment = audio[start:]
         pad_length = segment_samples - len(last_segment)
-        last_segment = np.pad(last_segment, (0, pad_length), mode='constant')
+        last_segment = np.pad(last_segment, (0, pad_length), mode="constant")
         segments.append(last_segment)
 
     return segments
@@ -347,10 +347,10 @@ def preprocess_audio_file(
     segments = segment_audio(audio, sr, segment_len, overlap)
 
     result = {
-        'audio': audio,
-        'segments': segments,
-        'sr': sr,
-        'duration': len(audio) / sr,
+        "audio": audio,
+        "segments": segments,
+        "sr": sr,
+        "duration": len(audio) / sr,
     }
 
     # Compute CQT for each segment (optional, for visualization only)
@@ -359,7 +359,7 @@ def preprocess_audio_file(
         for segment in segments:
             cqt = compute_cqt(segment, sr=sr)
             cqt_segments.append(cqt)
-        result['cqt_segments'] = cqt_segments
+        result["cqt_segments"] = cqt_segments
 
     return result
 

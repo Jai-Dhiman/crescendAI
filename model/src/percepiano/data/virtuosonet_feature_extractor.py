@@ -18,18 +18,25 @@ Reference:
 - PercePiano: https://github.com/JonghoKimSNU/PercePiano
 """
 
-import sys
-import os
 import math
+import os
 import pickle
-import numpy as np
-from pathlib import Path
-from typing import Dict, List, Tuple, Optional, Any
+import sys
 from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
+import numpy as np
 
 # Add VirtuosoNet to path - need both the parent (for package imports) and pyScoreParser itself
-VIRTUOSO_ROOT = Path(__file__).parent.parent.parent / "data" / "raw" / "PercePiano" / "virtuoso" / "virtuoso"
+VIRTUOSO_ROOT = (
+    Path(__file__).parent.parent.parent
+    / "data"
+    / "raw"
+    / "PercePiano"
+    / "virtuoso"
+    / "virtuoso"
+)
 VIRTUOSO_PATH = VIRTUOSO_ROOT / "pyScoreParser"
 
 # Add parent for package-style imports (from pyScoreParser import ...)
@@ -43,62 +50,96 @@ if str(VIRTUOSO_PATH) not in sys.path:
 # VirtuosoNet Input Feature Keys (from data_for_training.py)
 # SOTA uses 78 features (excludes section_tempo which was not in original VirtuosoNet)
 VNET_INPUT_KEYS = (
-    'midi_pitch', 'duration', 'beat_importance', 'measure_length',
-    'qpm_primo',  # section_tempo removed to match SOTA 78-feature configuration
-    'following_rest', 'distance_from_abs_dynamic', 'distance_from_recent_tempo',
-    'beat_position', 'xml_position', 'grace_order', 'preceded_by_grace_note',
-    'followed_by_fermata_rest', 'pitch', 'tempo', 'dynamic', 'time_sig_vec',
-    'slur_beam_vec', 'composer_vec', 'notation', 'tempo_primo'
+    "midi_pitch",
+    "duration",
+    "beat_importance",
+    "measure_length",
+    "qpm_primo",  # section_tempo removed to match SOTA 78-feature configuration
+    "following_rest",
+    "distance_from_abs_dynamic",
+    "distance_from_recent_tempo",
+    "beat_position",
+    "xml_position",
+    "grace_order",
+    "preceded_by_grace_note",
+    "followed_by_fermata_rest",
+    "pitch",
+    "tempo",
+    "dynamic",
+    "time_sig_vec",
+    "slur_beam_vec",
+    "composer_vec",
+    "notation",
+    "tempo_primo",
 )
 
 # Features that need z-score normalization
 # section_tempo removed to match SOTA 78-feature configuration
 NORM_FEAT_KEYS = (
-    'midi_pitch', 'duration', 'beat_importance', 'measure_length',
-    'qpm_primo',  # section_tempo removed
-    'following_rest', 'distance_from_abs_dynamic', 'distance_from_recent_tempo'
+    "midi_pitch",
+    "duration",
+    "beat_importance",
+    "measure_length",
+    "qpm_primo",  # section_tempo removed
+    "following_rest",
+    "distance_from_abs_dynamic",
+    "distance_from_recent_tempo",
 )
 
 # Features to preserve BEFORE normalization (original PercePiano data_for_training.py:21)
 # These are appended as _unnorm variants after the base 78 features
-PRESERVE_FEAT_KEYS = ('midi_pitch', 'duration', 'beat_importance', 'measure_length', 'following_rest')
+PRESERVE_FEAT_KEYS = (
+    "midi_pitch",
+    "duration",
+    "beat_importance",
+    "measure_length",
+    "following_rest",
+)
 
 # Feature dimensions (based on VirtuosoNet implementation)
 # section_tempo removed to match SOTA 78-feature configuration
 FEATURE_DIMS = {
-    'midi_pitch': 1,
-    'duration': 1,
-    'beat_importance': 1,
-    'measure_length': 1,
-    'qpm_primo': 1,
+    "midi_pitch": 1,
+    "duration": 1,
+    "beat_importance": 1,
+    "measure_length": 1,
+    "qpm_primo": 1,
     # section_tempo removed (was 1 dim at index 5)
-    'following_rest': 1,
-    'distance_from_abs_dynamic': 1,
-    'distance_from_recent_tempo': 1,
-    'beat_position': 1,
-    'xml_position': 1,
-    'grace_order': 1,
-    'preceded_by_grace_note': 1,
-    'followed_by_fermata_rest': 1,
-    'pitch': 13,  # octave (normalized) + 12-class one-hot
-    'tempo': 5,   # tempo marking embedding
-    'dynamic': 4, # dynamic marking embedding
-    'time_sig_vec': 9,  # 5 numerator + 4 denominator
-    'slur_beam_vec': 6, # slur start/continue/stop + beam start/continue/stop
-    'composer_vec': 17, # 16 composers + unknown
-    'notation': 9,  # trill, tenuto, accent, staccato, fermata, arpeggiate, strong_accent, cue, slash
-    'tempo_primo': 2,  # initial tempo embedding
+    "following_rest": 1,
+    "distance_from_abs_dynamic": 1,
+    "distance_from_recent_tempo": 1,
+    "beat_position": 1,
+    "xml_position": 1,
+    "grace_order": 1,
+    "preceded_by_grace_note": 1,
+    "followed_by_fermata_rest": 1,
+    "pitch": 13,  # octave (normalized) + 12-class one-hot
+    "tempo": 5,  # tempo marking embedding
+    "dynamic": 4,  # dynamic marking embedding
+    "time_sig_vec": 9,  # 5 numerator + 4 denominator
+    "slur_beam_vec": 6,  # slur start/continue/stop + beam start/continue/stop
+    "composer_vec": 17,  # 16 composers + unknown
+    "notation": 9,  # trill, tenuto, accent, staccato, fermata, arpeggiate, strong_accent, cue, slash
+    "tempo_primo": 2,  # initial tempo embedding
 }
 
-BASE_FEATURE_DIM = sum(FEATURE_DIMS.values())  # = 78 (13 scalar + 65 vector features) - SOTA configuration
+BASE_FEATURE_DIM = sum(
+    FEATURE_DIMS.values()
+)  # = 78 (13 scalar + 65 vector features) - SOTA configuration
 NUM_PRESERVE_FEATURES = len(PRESERVE_FEAT_KEYS)  # = 5 unnorm features
-TOTAL_FEATURE_DIM = BASE_FEATURE_DIM + NUM_PRESERVE_FEATURES  # = 83 (78 base + 5 unnorm)
+TOTAL_FEATURE_DIM = (
+    BASE_FEATURE_DIM + NUM_PRESERVE_FEATURES
+)  # = 83 (78 base + 5 unnorm)
 
 # Feature indices for key augmentation (after unnorm features are appended)
 # After removing section_tempo at index 5, all indices >= 5 shift down by 1
 MIDI_PITCH_IDX = 0  # Normalized midi_pitch (z-score)
-MIDI_PITCH_UNNORM_IDX = BASE_FEATURE_DIM  # Raw midi_pitch (21-108), appended at end = 78
-PITCH_VEC_START = 13  # pitch vector starts at index 13 (after 13 scalar features, was 14)
+MIDI_PITCH_UNNORM_IDX = (
+    BASE_FEATURE_DIM  # Raw midi_pitch (21-108), appended at end = 78
+)
+PITCH_VEC_START = (
+    13  # pitch vector starts at index 13 (after 13 scalar features, was 14)
+)
 PITCH_CLASS_START = 14  # octave at 13, pitch class one-hot starts at 14 (was 15)
 PITCH_CLASS_END = 26  # 12 pitch classes (indices 14-25, was 15-26)
 
@@ -106,6 +147,7 @@ PITCH_CLASS_END = 26  # 12 pitch classes (indices 14-25, was 15-26)
 @dataclass
 class FeatureStats:
     """Statistics for z-score normalization."""
+
     mean: Dict[str, float]
     std: Dict[str, float]
 
@@ -136,10 +178,10 @@ class VirtuosoNetFeatureExtractor:
     def _import_virtuoso_modules(self):
         """Import VirtuosoNet modules with error handling."""
         try:
+            import data_class
             import feature_extraction as feat_ext
             import feature_utils
             import xml_direction_encoding as dir_enc
-            import data_class
             import xml_midi_matching as matching
 
             self.feat_ext = feat_ext
@@ -150,7 +192,9 @@ class VirtuosoNetFeatureExtractor:
             self._virtuoso_available = True
         except ImportError as e:
             print(f"Warning: Could not import VirtuosoNet modules: {e}")
-            print(f"Make sure {VIRTUOSO_PATH} exists and contains the required modules.")
+            print(
+                f"Make sure {VIRTUOSO_PATH} exists and contains the required modules."
+            )
             self._virtuoso_available = False
 
     def _get_or_create_score_midi(self, score_xml_path: Path) -> Path:
@@ -169,10 +213,10 @@ class VirtuosoNetFeatureExtractor:
         """
         # Common naming conventions for score MIDIs
         possible_paths = [
-            score_xml_path.with_suffix('.mid'),
-            score_xml_path.parent / 'midi_cleaned.mid',
-            score_xml_path.parent / 'midi_score.mid',
-            score_xml_path.parent / (score_xml_path.stem + '_score.mid'),
+            score_xml_path.with_suffix(".mid"),
+            score_xml_path.parent / "midi_cleaned.mid",
+            score_xml_path.parent / "midi_score.mid",
+            score_xml_path.parent / (score_xml_path.stem + "_score.mid"),
         ]
 
         for path in possible_paths:
@@ -181,7 +225,7 @@ class VirtuosoNetFeatureExtractor:
 
         # No existing score MIDI found - will be generated by ScoreData
         # ScoreData.make_score_midi() creates it if missing
-        generated_path = score_xml_path.with_suffix('.mid')
+        generated_path = score_xml_path.with_suffix(".mid")
         return generated_path
 
     def extract_features(
@@ -222,7 +266,7 @@ class VirtuosoNetFeatureExtractor:
             score_data = self.data_class.ScoreData(
                 xml_path=str(score_xml_path),
                 score_midi_path=str(score_midi_path),
-                composer=self.composer
+                composer=self.composer,
             )
         except Exception as e:
             raise RuntimeError(f"Failed to load score data from {score_xml_path}: {e}")
@@ -231,16 +275,16 @@ class VirtuosoNetFeatureExtractor:
         # Note: ScoreExtractor expects a piece_data with score_features dict
         # Add note_location to the feature keys (it's needed for output but not in input vector)
         score_data.score_features = {}
-        feature_keys_with_location = list(VNET_INPUT_KEYS) + ['note_location']
+        feature_keys_with_location = list(VNET_INPUT_KEYS) + ["note_location"]
         score_extractor = self.feat_ext.ScoreExtractor(feature_keys_with_location)
         score_features = score_extractor.extract_score_features(score_data)
 
         # Get note locations
-        note_locations = score_features.get('note_location', {})
+        note_locations = score_features.get("note_location", {})
 
         # Build the 78-dim base feature vector for each note (SOTA configuration)
         # (unnorm features are added in preprocessing, making 83 total)
-        num_notes = len(score_features.get('midi_pitch', []))
+        num_notes = len(score_features.get("midi_pitch", []))
         input_features = np.zeros((num_notes, BASE_FEATURE_DIM), dtype=np.float32)
 
         feature_idx = 0
@@ -266,31 +310,31 @@ class VirtuosoNetFeatureExtractor:
                 if isinstance(feat_values[0], (list, tuple, np.ndarray)):
                     # Per-note vector
                     for i, vec in enumerate(feat_values):
-                        input_features[i, feature_idx:feature_idx + dim] = vec[:dim]
+                        input_features[i, feature_idx : feature_idx + dim] = vec[:dim]
                 else:
                     # Global vector (like tempo_primo, composer_vec)
                     vec = np.array(feat_values[:dim])
-                    input_features[:, feature_idx:feature_idx + dim] = vec
+                    input_features[:, feature_idx : feature_idx + dim] = vec
 
             feature_idx += dim
 
         # Get alignment info
         align_matched = np.ones(num_notes, dtype=bool)  # Default to all matched
-        if 'align_matched' in score_features:
-            align_matched = np.array(score_features['align_matched'], dtype=bool)
+        if "align_matched" in score_features:
+            align_matched = np.array(score_features["align_matched"], dtype=bool)
 
         return {
-            'input': input_features,
-            'note_location': note_locations,
-            'num_notes': num_notes,
-            'align_matched': align_matched,
-            'score_path': str(score_xml_path),
-            'perform_path': str(performance_midi_path),
+            "input": input_features,
+            "note_location": note_locations,
+            "num_notes": num_notes,
+            "align_matched": align_matched,
+            "score_path": str(score_xml_path),
+            "perform_path": str(performance_midi_path),
         }
 
     @staticmethod
     def compute_normalization_stats(
-        features_list: List[Dict[str, Any]]
+        features_list: List[Dict[str, Any]],
     ) -> FeatureStats:
         """
         Compute z-score normalization statistics from a list of feature dicts.
@@ -302,7 +346,7 @@ class VirtuosoNetFeatureExtractor:
             FeatureStats with mean and std for each normalizable feature
         """
         # Concatenate all feature vectors
-        all_features = np.concatenate([f['input'] for f in features_list], axis=0)
+        all_features = np.concatenate([f["input"] for f in features_list], axis=0)
 
         # Compute mean and std for each feature dimension
         means = {}
@@ -313,7 +357,7 @@ class VirtuosoNetFeatureExtractor:
             dim = FEATURE_DIMS[key]
 
             if key in NORM_FEAT_KEYS:
-                feat_slice = all_features[:, feature_idx:feature_idx + dim]
+                feat_slice = all_features[:, feature_idx : feature_idx + dim]
                 means[key] = float(np.mean(feat_slice))
                 std = float(np.std(feat_slice))
                 stds[key] = std if std > 0 else 1.0  # Avoid division by zero
@@ -327,8 +371,7 @@ class VirtuosoNetFeatureExtractor:
 
     @staticmethod
     def apply_normalization(
-        features: Dict[str, Any],
-        stats: FeatureStats
+        features: Dict[str, Any], stats: FeatureStats
     ) -> Dict[str, Any]:
         """
         Apply z-score normalization to features.
@@ -341,7 +384,7 @@ class VirtuosoNetFeatureExtractor:
             Features with normalized input array
         """
         normalized = features.copy()
-        input_features = features['input'].copy()
+        input_features = features["input"].copy()
 
         feature_idx = 0
         for key in VNET_INPUT_KEYS:
@@ -350,20 +393,18 @@ class VirtuosoNetFeatureExtractor:
             if key in NORM_FEAT_KEYS:
                 mean = stats.mean[key]
                 std = stats.std[key]
-                input_features[:, feature_idx:feature_idx + dim] = (
-                    input_features[:, feature_idx:feature_idx + dim] - mean
+                input_features[:, feature_idx : feature_idx + dim] = (
+                    input_features[:, feature_idx : feature_idx + dim] - mean
                 ) / std
 
             feature_idx += dim
 
-        normalized['input'] = input_features
+        normalized["input"] = input_features
         return normalized
 
 
 def extract_features_standalone(
-    score_xml_path: Path,
-    performance_midi_path: Path,
-    composer: str = "unknown"
+    score_xml_path: Path, performance_midi_path: Path, composer: str = "unknown"
 ) -> Optional[Dict[str, Any]]:
     """
     Standalone function to extract VirtuosoNet features.
@@ -403,7 +444,7 @@ def cal_beat_importance(beat_position: float, numerator: int) -> float:
         return 4.0
     elif beat_position == 0.5 and numerator in [2, 4, 6, 12]:
         return 3.0
-    elif abs(beat_position - (1/3)) < 0.001 and numerator in [3, 9]:
+    elif abs(beat_position - (1 / 3)) < 0.001 and numerator in [3, 9]:
         return 2.0
     elif (beat_position * 4) % 1 == 0 and numerator in [2, 4]:
         return 1.0
@@ -505,9 +546,22 @@ def composer_name_to_vec(composer_name: str) -> List[int]:
         17-dim one-hot vector (16 composers + unknown)
     """
     composer_list = [
-        'Bach', 'Balakirev', 'Beethoven', 'Brahms', 'Chopin', 'Debussy',
-        'Glinka', 'Haydn', 'Liszt', 'Mozart', 'Prokofiev', 'Rachmaninoff',
-        'Ravel', 'Schubert', 'Schumann', 'Scriabin'
+        "Bach",
+        "Balakirev",
+        "Beethoven",
+        "Brahms",
+        "Chopin",
+        "Debussy",
+        "Glinka",
+        "Haydn",
+        "Liszt",
+        "Mozart",
+        "Prokofiev",
+        "Rachmaninoff",
+        "Ravel",
+        "Schubert",
+        "Schumann",
+        "Scriabin",
     ]
     one_hot = [0] * 17
 
@@ -528,7 +582,7 @@ def note_notation_to_vector(
     is_arpeggiate: bool = False,
     is_strong_accent: bool = False,
     is_cue: bool = False,
-    is_slash: bool = False
+    is_slash: bool = False,
 ) -> List[int]:
     """
     Convert note notation flags to 9-dimensional multi-hot vector.
@@ -545,5 +599,5 @@ def note_notation_to_vector(
         int(is_arpeggiate),
         int(is_strong_accent),
         int(is_cue),
-        int(is_slash)
+        int(is_slash),
     ]

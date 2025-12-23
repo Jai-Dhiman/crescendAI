@@ -21,11 +21,7 @@ def run_command(cmd, description, show_output=False):
     print(f"  {description}...", end=" ", flush=True)
     try:
         result = subprocess.run(
-            cmd,
-            shell=True,
-            capture_output=not show_output,
-            text=True,
-            check=False
+            cmd, shell=True, capture_output=not show_output, text=True, check=False
         )
         if result.returncode == 0:
             print("✓")
@@ -47,13 +43,12 @@ def install_audio_backends():
     # Install system dependencies
     run_command(
         "apt-get update -qq && apt-get install -y -qq libsndfile1 ffmpeg libavcodec-extra",
-        "Installing libsndfile1 + ffmpeg"
+        "Installing libsndfile1 + ffmpeg",
     )
 
     # Verify Python packages
     run_command(
-        "pip install -q --upgrade soundfile audioread",
-        "Updating soundfile + audioread"
+        "pip install -q --upgrade soundfile audioread", "Updating soundfile + audioread"
     )
 
 
@@ -62,19 +57,19 @@ def verify_installations():
     print("\n2. Verifying installations...")
 
     packages = {
-        'soundfile': 'Audio I/O (primary backend)',
-        'librosa': 'Audio processing',
-        'torch': 'PyTorch',
-        'torchaudio': 'PyTorch audio',
-        'pytorch_lightning': 'Training framework',
-        'transformers': 'MERT model',
+        "soundfile": "Audio I/O (primary backend)",
+        "librosa": "Audio processing",
+        "torch": "PyTorch",
+        "torchaudio": "PyTorch audio",
+        "pytorch_lightning": "Training framework",
+        "transformers": "MERT model",
     }
 
     all_good = True
     for package, description in packages.items():
         try:
             module = __import__(package)
-            version = getattr(module, '__version__', 'unknown')
+            version = getattr(module, "__version__", "unknown")
             print(f"  ✓ {package:20s} {version:15s} ({description})")
         except ImportError:
             print(f"  ✗ {package:20s} MISSING ({description})")
@@ -103,7 +98,9 @@ def check_gpu():
 
         # Check if sufficient memory
         if gpu_memory < 10:
-            print(f"  ⚠ Warning: {gpu_memory:.1f} GB may be insufficient (need ~12GB for MERT-95M)")
+            print(
+                f"  ⚠ Warning: {gpu_memory:.1f} GB may be insufficient (need ~12GB for MERT-95M)"
+            )
 
         return True
 
@@ -117,13 +114,14 @@ def test_audio_loading():
     print("\n4. Testing audio backend...")
 
     try:
-        import soundfile as sf
-        import numpy as np
-        import tempfile
         import os
+        import tempfile
+
+        import numpy as np
+        import soundfile as sf
 
         # Create a test audio file
-        with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as f:
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
             test_file = f.name
 
         # Write test audio (1 second at 24kHz)
@@ -144,8 +142,7 @@ def test_audio_loading():
 
             # Check if PySoundFile warning appeared
             pysoundfile_warnings = [
-                warning for warning in w
-                if 'PySoundFile failed' in str(warning.message)
+                warning for warning in w if "PySoundFile failed" in str(warning.message)
             ]
 
             if pysoundfile_warnings:
@@ -153,7 +150,9 @@ def test_audio_loading():
                 print("     This may cause training slowdowns")
                 success = False
             else:
-                print(f"  ✓ librosa: Loaded {len(audio_librosa)} samples (using soundfile backend)")
+                print(
+                    f"  ✓ librosa: Loaded {len(audio_librosa)} samples (using soundfile backend)"
+                )
                 success = True
 
         # Clean up
@@ -171,10 +170,10 @@ def configure_warnings():
     print("\n5. Configuring warning filters...")
 
     # Filter common but harmless warnings
-    warnings.filterwarnings('ignore', message='divide by zero')
-    warnings.filterwarnings('ignore', category=SyntaxWarning)
-    warnings.filterwarnings('ignore', message='PySoundFile failed')
-    warnings.filterwarnings('ignore', category=FutureWarning, module='librosa')
+    warnings.filterwarnings("ignore", message="divide by zero")
+    warnings.filterwarnings("ignore", category=SyntaxWarning)
+    warnings.filterwarnings("ignore", message="PySoundFile failed")
+    warnings.filterwarnings("ignore", category=FutureWarning, module="librosa")
 
     print("  ✓ Suppressed harmless warnings")
 
@@ -187,7 +186,7 @@ def set_pytorch_optimizations():
         import torch
 
         # Enable Tensor Cores for better performance
-        torch.set_float32_matmul_precision('high')
+        torch.set_float32_matmul_precision("high")
         print("  ✓ Enabled high-precision matmul (Tensor Cores)")
 
         # Enable cudNN benchmarking for faster convolutions
@@ -207,9 +206,9 @@ def set_pytorch_optimizations():
 
 def main():
     """Main setup routine."""
-    print("="*70)
+    print("=" * 70)
     print("COLAB ENVIRONMENT SETUP")
-    print("="*70)
+    print("=" * 70)
     print("\nOptimizing environment for audio model training...")
 
     # Run all setup steps
@@ -221,9 +220,9 @@ def main():
     pytorch_ok = set_pytorch_optimizations()
 
     # Summary
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("SETUP SUMMARY")
-    print("="*70)
+    print("=" * 70)
 
     status = {
         "Python packages": packages_ok,

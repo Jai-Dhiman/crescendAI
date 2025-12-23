@@ -297,8 +297,8 @@ def split_dataset(
     n_val = int(n_pieces * val_ratio)
 
     train_pieces = piece_ids[:n_train]
-    val_pieces = piece_ids[n_train:n_train + n_val]
-    test_pieces = piece_ids[n_train + n_val:]
+    val_pieces = piece_ids[n_train : n_train + n_val]
+    test_pieces = piece_ids[n_train + n_val :]
 
     # Collect samples
     train_samples = []

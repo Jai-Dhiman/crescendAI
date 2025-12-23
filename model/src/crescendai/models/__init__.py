@@ -1,22 +1,22 @@
 """CrescendAI multi-modal model implementations."""
 
 from .audio_encoder import MERTEncoder
-from .midi_encoder import MIDIBertEncoder
+from .calibration import IsotonicCalibrator, TemperatureScaling
+from .fusion_concat import ConcatenationFusion
+from .fusion_crossattn import CrossAttentionFusion
+from .fusion_gated import FiLMFusion, GatedFusion
 from .lightning_module import PerformanceEvaluationModel
+from .midi_encoder import MIDIBertEncoder
 from .midi_only_module import MIDIOnlyModule
+from .projection import DualProjection, ProjectionHead
 from .score_aligned_module import ScoreAlignedModule, ScoreAlignedModuleWithFallback
 from .score_encoder import (
+    GlobalFeatureEncoder,
+    NoteFeatureEncoder,
     ScoreAlignmentEncoder,
     ScoreMIDIFusion,
-    NoteFeatureEncoder,
-    GlobalFeatureEncoder,
     TempoCurveEncoder,
 )
-from .fusion_crossattn import CrossAttentionFusion
-from .fusion_gated import GatedFusion, FiLMFusion
-from .fusion_concat import ConcatenationFusion
-from .projection import ProjectionHead, DualProjection
-from .calibration import TemperatureScaling, IsotonicCalibrator
 
 __all__ = [
     "MERTEncoder",

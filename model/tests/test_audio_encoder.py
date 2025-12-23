@@ -4,11 +4,9 @@ Unit tests for audio encoder module.
 PRODUCTION: Tests MERTEncoder only (no fallback encoders).
 """
 
-import torch
 import pytest
-
+import torch
 from src.models.audio_encoder import MERTEncoder
-
 
 # ==================== MERTEncoder Tests ====================
 

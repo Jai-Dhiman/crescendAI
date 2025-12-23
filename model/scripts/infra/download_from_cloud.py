@@ -17,6 +17,7 @@ import argparse
 import json
 import sys
 from pathlib import Path
+
 from tqdm import tqdm
 
 
@@ -40,6 +41,7 @@ def download_from_gcs(bucket_name, prefix, local_root):
     except ImportError:
         print("Installing google-cloud-storage...")
         import subprocess
+
         subprocess.run(["pip", "install", "-q", "google-cloud-storage"], check=True)
         from google.cloud import storage
 
@@ -55,7 +57,7 @@ def download_from_gcs(bucket_name, prefix, local_root):
     # Download each blob
     for blob in tqdm(blobs, desc="Downloading"):
         # Calculate local path
-        rel_path = blob.name[len(prefix):].lstrip('/')
+        rel_path = blob.name[len(prefix) :].lstrip("/")
         local_path = Path(local_root) / rel_path
         local_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -76,31 +78,32 @@ def download_from_s3(bucket_name, prefix, local_root):
     except ImportError:
         print("Installing boto3...")
         import subprocess
+
         subprocess.run(["pip", "install", "-q", "boto3"], check=True)
         import boto3
 
     print(f"Downloading from s3://{bucket_name}/{prefix}...")
 
-    s3 = boto3.client('s3', config=boto3.session.Config(signature_version='UNSIGNED'))
+    s3 = boto3.client("s3", config=boto3.session.Config(signature_version="UNSIGNED"))
 
     # List objects
-    paginator = s3.get_paginator('list_objects_v2')
+    paginator = s3.get_paginator("list_objects_v2")
     pages = paginator.paginate(Bucket=bucket_name, Prefix=prefix)
 
     files = []
     for page in pages:
-        files.extend(page.get('Contents', []))
+        files.extend(page.get("Contents", []))
 
     print(f"Found {len(files):,} files to download")
 
     # Download
     for obj in tqdm(files, desc="Downloading"):
-        key = obj['Key']
-        rel_path = key[len(prefix):].lstrip('/')
+        key = obj["Key"]
+        rel_path = key[len(prefix) :].lstrip("/")
         local_path = Path(local_root) / rel_path
         local_path.parent.mkdir(parents=True, exist_ok=True)
 
-        if local_path.exists() and local_path.stat().st_size == obj['Size']:
+        if local_path.exists() and local_path.stat().st_size == obj["Size"]:
             continue
 
         s3.download_file(bucket_name, key, str(local_path))
@@ -128,6 +131,7 @@ def download_from_hf_hub(repo_id, subfolder, local_root):
     except ImportError:
         print("Installing huggingface_hub...")
         import subprocess
+
         subprocess.run(["pip", "install", "-q", "huggingface_hub"], check=True)
         from huggingface_hub import snapshot_download
 
@@ -182,7 +186,7 @@ def download_from_http(base_url, file_list, local_root):
         response = requests.get(url, stream=True)
         response.raise_for_status()
 
-        with open(local_path, 'wb') as f:
+        with open(local_path, "wb") as f:
             for chunk in response.iter_content(chunk_size=8192):
                 f.write(chunk)
 
@@ -281,34 +285,34 @@ hf_hub_download(
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Download training data from cloud storage',
+        description="Download training data from cloud storage",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=create_tar_archive_instructions()
+        epilog=create_tar_archive_instructions(),
     )
 
     parser.add_argument(
-        '--backend',
-        choices=['gcs', 's3', 'hf', 'http', 'instructions'],
-        default='instructions',
-        help='Cloud storage backend'
+        "--backend",
+        choices=["gcs", "s3", "hf", "http", "instructions"],
+        default="instructions",
+        help="Cloud storage backend",
     )
-    parser.add_argument('--bucket', help='GCS/S3 bucket name')
-    parser.add_argument('--prefix', help='Prefix/folder in bucket')
-    parser.add_argument('--repo-id', help='Hugging Face repo ID')
-    parser.add_argument('--base-url', help='Base URL for HTTP downloads')
-    parser.add_argument('--file-list', help='File list for HTTP downloads')
+    parser.add_argument("--bucket", help="GCS/S3 bucket name")
+    parser.add_argument("--prefix", help="Prefix/folder in bucket")
+    parser.add_argument("--repo-id", help="Hugging Face repo ID")
+    parser.add_argument("--base-url", help="Base URL for HTTP downloads")
+    parser.add_argument("--file-list", help="File list for HTTP downloads")
     parser.add_argument(
-        '--local-root',
-        default='/tmp/crescendai_data',
-        help='Local destination directory'
+        "--local-root",
+        default="/tmp/crescendai_data",
+        help="Local destination directory",
     )
 
     args = parser.parse_args()
 
-    if args.backend == 'instructions':
-        print("="*70)
+    if args.backend == "instructions":
+        print("=" * 70)
         print("CLOUD STORAGE SETUP INSTRUCTIONS")
-        print("="*70)
+        print("=" * 70)
         print(create_tar_archive_instructions())
         return 0
 
@@ -317,25 +321,25 @@ def main():
 
     # Download based on backend
     try:
-        if args.backend == 'gcs':
+        if args.backend == "gcs":
             if not args.bucket or not args.prefix:
                 print("Error: --bucket and --prefix required for GCS")
                 return 1
             download_from_gcs(args.bucket, args.prefix, args.local_root)
 
-        elif args.backend == 's3':
+        elif args.backend == "s3":
             if not args.bucket or not args.prefix:
                 print("Error: --bucket and --prefix required for S3")
                 return 1
             download_from_s3(args.bucket, args.prefix, args.local_root)
 
-        elif args.backend == 'hf':
+        elif args.backend == "hf":
             if not args.repo_id:
                 print("Error: --repo-id required for Hugging Face")
                 return 1
-            download_from_hf_hub(args.repo_id, args.prefix or '', args.local_root)
+            download_from_hf_hub(args.repo_id, args.prefix or "", args.local_root)
 
-        elif args.backend == 'http':
+        elif args.backend == "http":
             if not args.base_url or not args.file_list:
                 print("Error: --base-url and --file-list required for HTTP")
                 return 1

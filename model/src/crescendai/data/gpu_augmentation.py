@@ -9,15 +9,17 @@ Usage:
     augmented_batch = augmentor(audio_batch)  # [batch, samples]
 """
 
+import random
+from typing import Any, Dict, Optional
+
 import torch
 import torch.nn as nn
-from typing import Optional, Dict, Any
-import random
 
 # Check for torchaudio availability
 try:
     import torchaudio
     import torchaudio.transforms as T
+
     TORCHAUDIO_AVAILABLE = True
 except ImportError:
     TORCHAUDIO_AVAILABLE = False
@@ -130,7 +132,7 @@ class GPUAudioAugmentation(nn.Module):
         )
 
         # Calculate signal power per sample
-        signal_power = (audio ** 2).mean(dim=-1, keepdim=True)
+        signal_power = (audio**2).mean(dim=-1, keepdim=True)
 
         # Calculate noise power for desired SNR
         snr_linear = 10 ** (snr_db / 10.0)
@@ -149,7 +151,7 @@ class GPUAudioAugmentation(nn.Module):
             mask_len = random.randint(0, self.time_mask_max_len)
             if mask_len > 0 and mask_len < num_samples:
                 start = random.randint(0, num_samples - mask_len)
-                audio[i, start:start + mask_len] = 0
+                audio[i, start : start + mask_len] = 0
 
         return audio
 
@@ -241,10 +243,10 @@ class GPUAudioAugmentation(nn.Module):
         # Override probabilities from config if provided
         if config is not None:
             for key, value in config.items():
-                if isinstance(value, dict) and value.get('enabled', True):
+                if isinstance(value, dict) and value.get("enabled", True):
                     prob_attr = f"{key}_prob"
-                    if hasattr(self, prob_attr) and 'probability' in value:
-                        setattr(self, prob_attr, value['probability'])
+                    if hasattr(self, prob_attr) and "probability" in value:
+                        setattr(self, prob_attr, value["probability"])
 
         # Build list of augmentations to apply
         augmentations = []

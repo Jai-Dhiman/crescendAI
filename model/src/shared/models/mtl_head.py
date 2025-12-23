@@ -1,6 +1,7 @@
+from typing import Dict, List, Optional, Tuple
+
 import torch
 import torch.nn as nn
-from typing import List, Dict, Tuple, Optional
 
 
 class MultiTaskHead(nn.Module):
@@ -49,16 +50,16 @@ class MultiTaskHead(nn.Module):
         if dimensions is None:
             # Default: 10 dimensions (6 technical + 4 interpretive)
             dimensions = [
-                'note_accuracy',
-                'rhythmic_precision',
-                'dynamics_control',
-                'articulation_quality',
-                'pedaling_technique',
-                'tone_quality',
-                'phrasing',
-                'musicality',
-                'overall_quality',
-                'expressiveness',
+                "note_accuracy",
+                "rhythmic_precision",
+                "dynamics_control",
+                "articulation_quality",
+                "pedaling_technique",
+                "tone_quality",
+                "phrasing",
+                "musicality",
+                "overall_quality",
+                "expressiveness",
             ]
 
         self.dimensions = dimensions
@@ -86,14 +87,12 @@ class MultiTaskHead(nn.Module):
                 nn.Linear(shared_hidden, task_hidden),  # Layer 1: compress
                 nn.ReLU(),
                 nn.Dropout(dropout),
-                nn.Linear(task_hidden, 1),              # Layer 2: raw logits
+                nn.Linear(task_hidden, 1),  # Layer 2: raw logits
             )
 
         # Learnable uncertainty parameters (log variance) for each dimension
         # Initialize to small values (log(1.0) = 0)
-        self.log_vars = nn.Parameter(
-            torch.zeros(self.num_dimensions)
-        )
+        self.log_vars = nn.Parameter(torch.zeros(self.num_dimensions))
 
     def forward(
         self,

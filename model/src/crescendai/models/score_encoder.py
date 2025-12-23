@@ -10,10 +10,11 @@ Following PercePiano approach:
 - Combined representation for fusion with MIDI features
 """
 
+from typing import Dict, Optional, Tuple
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from typing import Dict, Optional, Tuple
 
 
 class NoteFeatureEncoder(nn.Module):
@@ -52,7 +53,7 @@ class NoteFeatureEncoder(nn.Module):
             nhead=num_heads,
             dim_feedforward=hidden_dim * 4,
             dropout=dropout,
-            activation='gelu',
+            activation="gelu",
             batch_first=True,
         )
         self.transformer = nn.TransformerEncoder(
@@ -88,7 +89,7 @@ class NoteFeatureEncoder(nn.Module):
             x = x + self.positional_encoding[:, :num_notes, :]
         else:
             # Handle longer sequences by truncating
-            x = x + self.positional_encoding[:, :self.positional_encoding.size(1), :]
+            x = x + self.positional_encoding[:, : self.positional_encoding.size(1), :]
 
         # Create transformer mask (True = mask out)
         if attention_mask is not None:
@@ -214,7 +215,7 @@ class ScoreAlignmentEncoder(nn.Module):
         num_heads: int = 4,
         dropout: float = 0.1,
         max_notes: int = 2048,
-        output_mode: str = 'both',  # 'sequence', 'global', or 'both'
+        output_mode: str = "both",  # 'sequence', 'global', or 'both'
     ):
         """
         Args:
@@ -305,30 +306,34 @@ class ScoreAlignmentEncoder(nn.Module):
         # Encode tempo curve
         tempo_encoded = self.tempo_encoder(tempo_curve)  # [B, D/2]
 
-        if self.output_mode in ['sequence', 'both']:
+        if self.output_mode in ["sequence", "both"]:
             # Project note sequence for cross-attention
             sequence_out = self.sequence_projection(note_encoded)  # [B, N, D]
-            outputs['sequence'] = sequence_out
+            outputs["sequence"] = sequence_out
 
-        if self.output_mode in ['global', 'both']:
+        if self.output_mode in ["global", "both"]:
             # Aggregate note sequence using attention
             attn_scores = self.sequence_attention(note_encoded).squeeze(-1)  # [B, N]
             if attention_mask is not None:
-                attn_scores = attn_scores.masked_fill(~attention_mask.bool(), float('-inf'))
+                attn_scores = attn_scores.masked_fill(
+                    ~attention_mask.bool(), float("-inf")
+                )
             attn_weights = F.softmax(attn_scores, dim=-1)  # [B, N]
             note_aggregated = torch.bmm(
-                attn_weights.unsqueeze(1),
-                note_encoded
+                attn_weights.unsqueeze(1), note_encoded
             ).squeeze(1)  # [B, D/2]
 
             # Combine with global and tempo features
-            combined_global = torch.cat([
-                global_encoded + note_aggregated,  # Residual connection
-                tempo_encoded,
-            ], dim=-1)  # [B, D]
+            combined_global = torch.cat(
+                [
+                    global_encoded + note_aggregated,  # Residual connection
+                    tempo_encoded,
+                ],
+                dim=-1,
+            )  # [B, D]
 
             global_out = self.global_combiner(combined_global)
-            outputs['global'] = global_out
+            outputs["global"] = global_out
 
         return outputs
 
@@ -352,7 +357,7 @@ class ScoreMIDIFusion(nn.Module):
         midi_dim: int = 768,
         score_dim: int = 256,
         output_dim: int = 768,
-        fusion_type: str = 'gated',  # 'concat', 'crossattn', or 'gated'
+        fusion_type: str = "gated",  # 'concat', 'crossattn', or 'gated'
         num_heads: int = 8,
         dropout: float = 0.1,
     ):
@@ -363,7 +368,7 @@ class ScoreMIDIFusion(nn.Module):
         self.output_dim = output_dim
         self.fusion_type = fusion_type
 
-        if fusion_type == 'concat':
+        if fusion_type == "concat":
             self.fusion = nn.Sequential(
                 nn.Linear(midi_dim + score_dim, output_dim),
                 nn.GELU(),
@@ -371,7 +376,7 @@ class ScoreMIDIFusion(nn.Module):
                 nn.LayerNorm(output_dim),
             )
 
-        elif fusion_type == 'crossattn':
+        elif fusion_type == "crossattn":
             # Project score to midi dimension for attention
             self.score_projection = nn.Linear(score_dim, midi_dim)
 
@@ -389,7 +394,7 @@ class ScoreMIDIFusion(nn.Module):
                 nn.LayerNorm(output_dim),
             )
 
-        elif fusion_type == 'gated':
+        elif fusion_type == "gated":
             # Project both to same dimension
             self.midi_projection = nn.Linear(midi_dim, output_dim)
             self.score_projection = nn.Linear(score_dim, output_dim)
@@ -420,11 +425,11 @@ class ScoreMIDIFusion(nn.Module):
         Returns:
             Fused features [batch, output_dim]
         """
-        if self.fusion_type == 'concat':
+        if self.fusion_type == "concat":
             combined = torch.cat([midi_features, score_features], dim=-1)
             return self.fusion(combined)
 
-        elif self.fusion_type == 'crossattn':
+        elif self.fusion_type == "crossattn":
             # Project score features
             score_proj = self.score_projection(score_features)
 
@@ -442,7 +447,7 @@ class ScoreMIDIFusion(nn.Module):
             # Remove sequence dimension and project
             return self.output_projection(attn_out.squeeze(1))
 
-        elif self.fusion_type == 'gated':
+        elif self.fusion_type == "gated":
             midi_proj = self.midi_projection(midi_features)
             score_proj = self.score_projection(score_features)
 
@@ -483,7 +488,7 @@ class HierarchicalScoreEncoder(nn.Module):
         num_attention_heads: int = 4,
         dropout: float = 0.1,
         use_voice_processing: bool = False,
-        output_mode: str = 'both',
+        output_mode: str = "both",
     ):
         """
         Args:
@@ -506,8 +511,8 @@ class HierarchicalScoreEncoder(nn.Module):
         self.use_voice_processing = use_voice_processing
 
         # Import HAN components
-        from .han_encoder import SimplifiedHanEncoder, HanEncoder
         from .context_attention import ContextAttention
+        from .han_encoder import HanEncoder, SimplifiedHanEncoder
 
         # Note-level projection
         self.note_projection = nn.Linear(note_features, note_size)
@@ -597,22 +602,24 @@ class HierarchicalScoreEncoder(nn.Module):
 
         # Create note_locations if not provided (default to flat structure)
         if note_locations is None:
-            note_locations = self._create_default_note_locations(batch_size, num_notes, note_features.device)
+            note_locations = self._create_default_note_locations(
+                batch_size, num_notes, note_features.device
+            )
 
         # Run hierarchical encoder
         han_outputs = self.han_encoder(x, note_locations)
 
         # Get hierarchical sequence (concatenated note/beat/measure)
-        hierarchical_seq = han_outputs['total_note_cat']  # [B, N, han_output_dim]
+        hierarchical_seq = han_outputs["total_note_cat"]  # [B, N, han_output_dim]
 
-        outputs['hierarchical'] = han_outputs
+        outputs["hierarchical"] = han_outputs
 
-        if self.output_mode in ['sequence', 'both']:
+        if self.output_mode in ["sequence", "both"]:
             # Project for cross-attention fusion
             sequence_out = self.sequence_projection(hierarchical_seq)
-            outputs['sequence'] = sequence_out
+            outputs["sequence"] = sequence_out
 
-        if self.output_mode in ['global', 'both']:
+        if self.output_mode in ["global", "both"]:
             # Aggregate sequence using context attention
             # Mask zero-padded positions
             if attention_mask is not None:
@@ -621,7 +628,9 @@ class HierarchicalScoreEncoder(nn.Module):
             else:
                 hierarchical_seq_masked = hierarchical_seq
 
-            hierarchical_global = self.final_attention(hierarchical_seq_masked)  # [B, han_output_dim]
+            hierarchical_global = self.final_attention(
+                hierarchical_seq_masked
+            )  # [B, han_output_dim]
 
             # Encode global statistics
             global_encoded = self.global_encoder(global_features)  # [B, hidden_dim/4]
@@ -630,14 +639,17 @@ class HierarchicalScoreEncoder(nn.Module):
             tempo_encoded = self.tempo_encoder(tempo_curve)  # [B, hidden_dim/4]
 
             # Combine all global features
-            combined = torch.cat([
-                hierarchical_global,
-                global_encoded,
-                tempo_encoded,
-            ], dim=-1)
+            combined = torch.cat(
+                [
+                    hierarchical_global,
+                    global_encoded,
+                    tempo_encoded,
+                ],
+                dim=-1,
+            )
 
             global_out = self.global_combiner(combined)
-            outputs['global'] = global_out
+            outputs["global"] = global_out
 
         return outputs
 
@@ -654,12 +666,14 @@ class HierarchicalScoreEncoder(nn.Module):
 
         beat_indices = note_indices // 4 + 1  # Start from 1
         measure_indices = note_indices // 16 + 1  # Start from 1
-        voice_indices = torch.ones(num_notes, dtype=torch.long, device=device)  # Already 1-based
+        voice_indices = torch.ones(
+            num_notes, dtype=torch.long, device=device
+        )  # Already 1-based
 
         return {
-            'beat': beat_indices.unsqueeze(0).expand(batch_size, -1),
-            'measure': measure_indices.unsqueeze(0).expand(batch_size, -1),
-            'voice': voice_indices.unsqueeze(0).expand(batch_size, -1),
+            "beat": beat_indices.unsqueeze(0).expand(batch_size, -1),
+            "measure": measure_indices.unsqueeze(0).expand(batch_size, -1),
+            "voice": voice_indices.unsqueeze(0).expand(batch_size, -1),
         }
 
     def get_output_dim(self) -> int:

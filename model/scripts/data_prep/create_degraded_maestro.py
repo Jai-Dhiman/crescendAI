@@ -21,23 +21,24 @@ Usage:
 
 import argparse
 import json
+import shutil
 import sys
 from pathlib import Path
 from typing import Dict, List, Optional
-from tqdm import tqdm
-import pretty_midi
+
 import librosa
 import numpy as np
-import shutil
+import pretty_midi
+from tqdm import tqdm
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from data.degradation import (
+    QUALITY_TIER_PARAMS,
+    QualityTier,
     apply_quality_tier,
     sample_quality_tier,
-    QualityTier,
-    QUALITY_TIER_PARAMS
 )
 
 
@@ -49,7 +50,7 @@ def process_single_sample(
     output_midi_dir: Path,
     quality_tier: QualityTier,
     sample_idx: int,
-    sample_rate: int = 24000
+    sample_rate: int = 24000,
 ) -> Optional[Dict]:
     """
     Process a single sample and create degraded version.
@@ -69,8 +70,8 @@ def process_single_sample(
     """
     try:
         # Load original files
-        audio_path = Path(annotation.get('audio_path', ''))
-        midi_path = Path(annotation.get('midi_path', ''))
+        audio_path = Path(annotation.get("audio_path", ""))
+        midi_path = Path(annotation.get("midi_path", ""))
 
         # Load MIDI
         midi_data = None
@@ -85,7 +86,9 @@ def process_single_sample(
         audio_data = None
         if audio_path.exists():
             try:
-                audio_data, sr = librosa.load(str(audio_path), sr=sample_rate, mono=True)
+                audio_data, sr = librosa.load(
+                    str(audio_path), sr=sample_rate, mono=True
+                )
             except Exception as e:
                 print(f"Warning: Could not load audio {audio_path}: {e}")
                 return None
@@ -96,7 +99,7 @@ def process_single_sample(
             audio_data,
             sample_rate,
             quality_tier,
-            seed=sample_idx  # Use sample index as seed for reproducibility
+            seed=sample_idx,  # Use sample index as seed for reproducibility
         )
 
         # Generate output filenames
@@ -109,7 +112,9 @@ def process_single_sample(
 
         # Save degraded files
         if degraded_audio is not None:
-            librosa.output.write_wav(str(audio_output_path), degraded_audio, sample_rate)
+            librosa.output.write_wav(
+                str(audio_output_path), degraded_audio, sample_rate
+            )
         else:
             audio_output_path = None
 
@@ -120,17 +125,17 @@ def process_single_sample(
 
         # Create new annotation
         new_annotation = {
-            'audio_path': str(audio_output_path) if audio_output_path else None,
-            'midi_path': str(midi_output_path) if midi_output_path else None,
-            'start_time': annotation.get('start_time', 0),
-            'end_time': annotation.get('end_time', 10),
-            'labels': annotation['labels'].copy(),
-            'dataset': annotation.get('dataset', 'maestro'),
-            'quality_tier': metadata['quality_tier'],
-            'quality_score': metadata['quality_score'],
-            'degradations_applied': metadata['degradations_applied'],
-            'original_audio_path': str(audio_path),
-            'original_midi_path': str(midi_path),
+            "audio_path": str(audio_output_path) if audio_output_path else None,
+            "midi_path": str(midi_output_path) if midi_output_path else None,
+            "start_time": annotation.get("start_time", 0),
+            "end_time": annotation.get("end_time", 10),
+            "labels": annotation["labels"].copy(),
+            "dataset": annotation.get("dataset", "maestro"),
+            "quality_tier": metadata["quality_tier"],
+            "quality_score": metadata["quality_score"],
+            "degradations_applied": metadata["degradations_applied"],
+            "original_audio_path": str(audio_path),
+            "original_midi_path": str(midi_path),
         }
 
         # Adjust labels based on quality tier
@@ -139,13 +144,13 @@ def process_single_sample(
         # Good: multiply by ~0.87 (average of 80-95 range)
         # Moderate: multiply by ~0.72 (average of 65-80 range)
         # Poor: multiply by ~0.57 (average of 50-65 range)
-        score_range = QUALITY_TIER_PARAMS[quality_tier]['score_range']
+        score_range = QUALITY_TIER_PARAMS[quality_tier]["score_range"]
         scale_factor = np.mean(score_range) / 100.0
 
-        for dim, original_value in annotation['labels'].items():
+        for dim, original_value in annotation["labels"].items():
             # Scale down based on degradation level
             degraded_value = original_value * scale_factor
-            new_annotation['labels'][dim] = degraded_value
+            new_annotation["labels"][dim] = degraded_value
 
         return new_annotation
 
@@ -162,7 +167,7 @@ def process_annotation_file(
     output_audio_dir: Path,
     output_midi_dir: Path,
     max_samples: Optional[int] = None,
-    sample_rate: int = 24000
+    sample_rate: int = 24000,
 ):
     """
     Process an entire annotation file.
@@ -179,13 +184,13 @@ def process_annotation_file(
         max_samples: Maximum number of original samples to process (None = all)
         sample_rate: Audio sample rate
     """
-    print(f"\n{'='*80}")
+    print(f"\n{'=' * 80}")
     print(f"Processing {input_file.name}")
-    print(f"{'='*80}")
+    print(f"{'=' * 80}")
 
     # Read annotations
     annotations = []
-    with open(input_file, 'r') as f:
+    with open(input_file, "r") as f:
         for line in f:
             annotations.append(json.loads(line))
 
@@ -210,7 +215,7 @@ def process_annotation_file(
                 output_midi_dir,
                 quality_tier,
                 sample_idx,
-                sample_rate
+                sample_rate,
             )
 
             if degraded_annotation:
@@ -223,16 +228,16 @@ def process_annotation_file(
     # Save output annotations
     output_file.parent.mkdir(parents=True, exist_ok=True)
 
-    with open(output_file, 'w') as f:
+    with open(output_file, "w") as f:
         for annotation in all_degraded:
-            f.write(json.dumps(annotation) + '\n')
+            f.write(json.dumps(annotation) + "\n")
 
     print(f"Saved to: {output_file}")
 
     # Print statistics
     tier_counts = {}
     for tier in QualityTier:
-        count = sum(1 for a in all_degraded if a['quality_tier'] == tier.value)
+        count = sum(1 for a in all_degraded if a["quality_tier"] == tier.value)
         tier_counts[tier.value] = count
 
     print(f"\nQuality tier distribution:")
@@ -244,58 +249,55 @@ def process_annotation_file(
 def main():
     parser = argparse.ArgumentParser(description="Create degraded MAESTRO dataset")
     parser.add_argument(
-        '--input_dir',
+        "--input_dir",
         type=str,
         required=True,
-        help='Directory containing original annotation files'
+        help="Directory containing original annotation files",
     )
     parser.add_argument(
-        '--output_dir',
+        "--output_dir",
         type=str,
         required=True,
-        help='Output directory for degraded annotations'
+        help="Output directory for degraded annotations",
     )
     parser.add_argument(
-        '--audio_dir',
+        "--audio_dir",
         type=str,
         required=True,
-        help='Directory containing original audio files'
+        help="Directory containing original audio files",
     )
     parser.add_argument(
-        '--midi_dir',
+        "--midi_dir",
         type=str,
         required=True,
-        help='Directory containing original MIDI files'
+        help="Directory containing original MIDI files",
     )
     parser.add_argument(
-        '--output_audio_dir',
+        "--output_audio_dir",
         type=str,
         default=None,
-        help='Output directory for degraded audio files (default: output_dir/audio)'
+        help="Output directory for degraded audio files (default: output_dir/audio)",
     )
     parser.add_argument(
-        '--output_midi_dir',
+        "--output_midi_dir",
         type=str,
         default=None,
-        help='Output directory for degraded MIDI files (default: output_dir/midi)'
+        help="Output directory for degraded MIDI files (default: output_dir/midi)",
     )
     parser.add_argument(
-        '--max_samples',
+        "--max_samples",
         type=int,
         default=None,
-        help='Maximum number of original samples per split (for testing, e.g., 100)'
+        help="Maximum number of original samples per split (for testing, e.g., 100)",
     )
     parser.add_argument(
-        '--sample_rate',
+        "--sample_rate",
         type=int,
         default=24000,
-        help='Audio sample rate (default: 24000)'
+        help="Audio sample rate (default: 24000)",
     )
     parser.add_argument(
-        '--seed',
-        type=int,
-        default=42,
-        help='Random seed for reproducibility'
+        "--seed", type=int, default=42, help="Random seed for reproducibility"
     )
 
     args = parser.parse_args()
@@ -321,12 +323,12 @@ def main():
     if args.output_audio_dir:
         output_audio_dir = Path(args.output_audio_dir)
     else:
-        output_audio_dir = output_dir / 'audio'
+        output_audio_dir = output_dir / "audio"
 
     if args.output_midi_dir:
         output_midi_dir = Path(args.output_midi_dir)
     else:
-        output_midi_dir = output_dir / 'midi'
+        output_midi_dir = output_dir / "midi"
 
     output_audio_dir.mkdir(parents=True, exist_ok=True)
     output_midi_dir.mkdir(parents=True, exist_ok=True)
@@ -335,7 +337,7 @@ def main():
     print(f"Output MIDI directory: {output_midi_dir}")
 
     # Process each split
-    splits = ['train', 'val', 'test']
+    splits = ["train", "val", "test"]
 
     for split in splits:
         input_file = input_dir / f"synthetic_{split}.jsonl"
@@ -354,7 +356,7 @@ def main():
             output_audio_dir,
             output_midi_dir,
             max_samples=args.max_samples,
-            sample_rate=args.sample_rate
+            sample_rate=args.sample_rate,
         )
 
     print("\n" + "=" * 80)

@@ -10,31 +10,32 @@ All modes use projection heads to align encoder representations.
 """
 
 import gc
+from typing import Any, Dict, List, Literal, Optional
+
+import pytorch_lightning as pl
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import pytorch_lightning as pl
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import CosineAnnealingLR, LinearLR, SequentialLR
 from torchmetrics import MeanAbsoluteError, PearsonCorrCoef, SpearmanCorrCoef
-from typing import Dict, List, Optional, Any, Literal
 
-from .audio_encoder import MERTEncoder
-from .midi_encoder import MIDIBertEncoder
-from .fusion_crossattn import CrossAttentionFusion
-from .fusion_concat import ConcatenationFusion
-from .fusion_gated import GatedFusion
-from .projection import DualProjection
 from src.shared.models.aggregation import HierarchicalAggregator
 from src.shared.models.mtl_head import MultiTaskHead
-from ..losses.uncertainty_loss import UncertaintyWeightedLoss
-from ..losses.ranking_loss import RankingLoss
-from ..losses.contrastive_loss import InfoNCELoss
-from ..losses.lds import LDSWeighting, FDSFeatureSmoothing
-from ..losses.bootstrap_loss import BootstrapLoss
-from ..losses.coral_loss import CORALHead
-from ..data.gpu_augmentation import GPUAudioAugmentation
 
+from ..data.gpu_augmentation import GPUAudioAugmentation
+from ..losses.bootstrap_loss import BootstrapLoss
+from ..losses.contrastive_loss import InfoNCELoss
+from ..losses.coral_loss import CORALHead
+from ..losses.lds import FDSFeatureSmoothing, LDSWeighting
+from ..losses.ranking_loss import RankingLoss
+from ..losses.uncertainty_loss import UncertaintyWeightedLoss
+from .audio_encoder import MERTEncoder
+from .fusion_concat import ConcatenationFusion
+from .fusion_crossattn import CrossAttentionFusion
+from .fusion_gated import GatedFusion
+from .midi_encoder import MIDIBertEncoder
+from .projection import DualProjection
 
 FusionType = Literal["crossattn", "gated", "concat"]
 ModalityType = Literal["audio", "midi", "fusion"]
@@ -346,12 +347,12 @@ class PerformanceEvaluationModel(pl.LightningModule):
             aug_config = gpu_augmentation_config or {}
             self.gpu_augmentation = GPUAudioAugmentation(
                 sample_rate=24000,  # MERT sample rate
-                gain_prob=aug_config.get('gain_prob', 0.4),
-                noise_prob=aug_config.get('noise_prob', 0.3),
-                time_mask_prob=aug_config.get('time_mask_prob', 0.3),
-                pitch_shift_prob=aug_config.get('pitch_shift_prob', 0.3),
-                time_stretch_prob=aug_config.get('time_stretch_prob', 0.3),
-                max_augmentations=aug_config.get('max_augmentations', 3),
+                gain_prob=aug_config.get("gain_prob", 0.4),
+                noise_prob=aug_config.get("noise_prob", 0.3),
+                time_mask_prob=aug_config.get("time_mask_prob", 0.3),
+                pitch_shift_prob=aug_config.get("pitch_shift_prob", 0.3),
+                time_stretch_prob=aug_config.get("time_stretch_prob", 0.3),
+                max_augmentations=aug_config.get("max_augmentations", 3),
             )
 
         # Metrics
@@ -421,6 +422,7 @@ class PerformanceEvaluationModel(pl.LightningModule):
         # Validate we have at least one modality
         if audio_features is None and midi_features is None:
             import warnings
+
             warnings.warn("Skipping batch: No audio or MIDI features available")
             return None
 
@@ -582,9 +584,8 @@ class PerformanceEvaluationModel(pl.LightningModule):
 
         # Only request embeddings when needed for contrastive loss (training_mode="full")
         # or for FDS feature smoothing. Avoids keeping 6 extra tensors in memory.
-        need_embeddings = (
-            self.training_mode in ("full", "contrastive") or
-            (self.fds_smoothing is not None and self.training)
+        need_embeddings = self.training_mode in ("full", "contrastive") or (
+            self.fds_smoothing is not None and self.training
         )
 
         # Forward pass
@@ -644,20 +645,50 @@ class PerformanceEvaluationModel(pl.LightningModule):
 
         # Log losses - use on_step=False for non-essential metrics to reduce memory
         # Only the main loss needs on_step=True for progress bar
-        self.log(f"{split}_loss", total_loss, prog_bar=True, on_step=(split == "train"), on_epoch=True)
-        self.log(f"{split}_mse_loss", loss_output["mse_loss"], on_step=False, on_epoch=True)
-        self.log(f"{split}_rank_loss", loss_output["rank_loss"], on_step=False, on_epoch=True)
-        self.log(f"{split}_contrast_loss", loss_output["contrast_loss"], on_step=False, on_epoch=True)
+        self.log(
+            f"{split}_loss",
+            total_loss,
+            prog_bar=True,
+            on_step=(split == "train"),
+            on_epoch=True,
+        )
+        self.log(
+            f"{split}_mse_loss", loss_output["mse_loss"], on_step=False, on_epoch=True
+        )
+        self.log(
+            f"{split}_rank_loss", loss_output["rank_loss"], on_step=False, on_epoch=True
+        )
+        self.log(
+            f"{split}_contrast_loss",
+            loss_output["contrast_loss"],
+            on_step=False,
+            on_epoch=True,
+        )
 
         # Log CORAL loss if enabled
         if self.coral_head is not None:
-            self.log(f"{split}_coral_loss", loss_output["coral_loss"], on_step=False, on_epoch=True)
+            self.log(
+                f"{split}_coral_loss",
+                loss_output["coral_loss"],
+                on_step=False,
+                on_epoch=True,
+            )
 
         # Log bootstrap and LDS metrics if enabled
         if self.bootstrap_loss is not None:
-            self.log(f"{split}_bootstrap_loss", loss_output["bootstrap_loss"], on_step=False, on_epoch=True)
+            self.log(
+                f"{split}_bootstrap_loss",
+                loss_output["bootstrap_loss"],
+                on_step=False,
+                on_epoch=True,
+            )
         if self.lds_weighting is not None:
-            self.log(f"{split}_lds_weight", loss_output["lds_weight"], on_step=False, on_epoch=True)
+            self.log(
+                f"{split}_lds_weight",
+                loss_output["lds_weight"],
+                on_step=False,
+                on_epoch=True,
+            )
 
         # Log FDS statistics periodically
         if self.fds_smoothing is not None and split == "val":
@@ -674,8 +705,15 @@ class PerformanceEvaluationModel(pl.LightningModule):
             # MAE uses running mean - safe for training
             mae_metric = getattr(self, f"{split}_mae_{dim_name}")
             mae_metric(pred_i, target_i)
-            self.log(f"{split}_mae_{dim_name}", mae_metric, on_step=False, on_epoch=True)
-            self.log(f"{split}_task_loss_{dim_name}", task_losses[i], on_step=False, on_epoch=True)
+            self.log(
+                f"{split}_mae_{dim_name}", mae_metric, on_step=False, on_epoch=True
+            )
+            self.log(
+                f"{split}_task_loss_{dim_name}",
+                task_losses[i],
+                on_step=False,
+                on_epoch=True,
+            )
 
             # Correlation metrics only for val/test (they accumulate all data)
             if split != "train":
@@ -683,8 +721,18 @@ class PerformanceEvaluationModel(pl.LightningModule):
                 spearman_metric = getattr(self, f"{split}_spearman_{dim_name}")
                 pearson_metric(pred_i, target_i)
                 spearman_metric(pred_i, target_i)
-                self.log(f"{split}_pearson_{dim_name}", pearson_metric, on_step=False, on_epoch=True)
-                self.log(f"{split}_spearman_{dim_name}", spearman_metric, on_step=False, on_epoch=True)
+                self.log(
+                    f"{split}_pearson_{dim_name}",
+                    pearson_metric,
+                    on_step=False,
+                    on_epoch=True,
+                )
+                self.log(
+                    f"{split}_spearman_{dim_name}",
+                    spearman_metric,
+                    on_step=False,
+                    on_epoch=True,
+                )
 
         # Log uncertainties on validation
         if split == "val":
@@ -737,7 +785,9 @@ class PerformanceEvaluationModel(pl.LightningModule):
             "contrastive_acc": contrastive_acc,
         }
 
-    def training_step(self, batch: Dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:
+    def training_step(
+        self, batch: Dict[str, torch.Tensor], batch_idx: int
+    ) -> torch.Tensor:
         """Training step."""
         result = self._shared_step(batch, "train")
         if result is None:
@@ -800,7 +850,9 @@ class PerformanceEvaluationModel(pl.LightningModule):
 
     def _compute_diagnostics(self, batch: Dict[str, torch.Tensor]) -> Dict[str, float]:
         """Compute fusion diagnostics for analysis."""
-        diagnostics = {"fusion_type": hash(self.fusion_type) % 100}  # Encode fusion type
+        diagnostics = {
+            "fusion_type": hash(self.fusion_type) % 100
+        }  # Encode fusion type
 
         with torch.no_grad():
             output = self.forward(
@@ -816,21 +868,38 @@ class PerformanceEvaluationModel(pl.LightningModule):
             embeddings = output["embeddings"]
 
             # Cross-modal alignment
-            if embeddings["audio_proj"] is not None and embeddings["midi_proj"] is not None:
-                audio_pooled = F.normalize(embeddings["audio_proj"].mean(dim=1), p=2, dim=-1)
-                midi_pooled = F.normalize(embeddings["midi_proj"].mean(dim=1), p=2, dim=-1)
+            if (
+                embeddings["audio_proj"] is not None
+                and embeddings["midi_proj"] is not None
+            ):
+                audio_pooled = F.normalize(
+                    embeddings["audio_proj"].mean(dim=1), p=2, dim=-1
+                )
+                midi_pooled = F.normalize(
+                    embeddings["midi_proj"].mean(dim=1), p=2, dim=-1
+                )
                 alignment = (audio_pooled * midi_pooled).sum(dim=-1).mean().item()
                 diagnostics["cross_modal_alignment"] = alignment
 
             # Feature diversity
-            if embeddings["audio_proj"] is not None and embeddings["audio_proj"].shape[0] > 1:
-                audio_norm = F.normalize(embeddings["audio_proj"].mean(dim=1), p=2, dim=-1)
+            if (
+                embeddings["audio_proj"] is not None
+                and embeddings["audio_proj"].shape[0] > 1
+            ):
+                audio_norm = F.normalize(
+                    embeddings["audio_proj"].mean(dim=1), p=2, dim=-1
+                )
                 sim_matrix = torch.mm(audio_norm, audio_norm.t())
-                mask = ~torch.eye(sim_matrix.shape[0], dtype=torch.bool, device=sim_matrix.device)
+                mask = ~torch.eye(
+                    sim_matrix.shape[0], dtype=torch.bool, device=sim_matrix.device
+                )
                 diagnostics["audio_diversity"] = 1.0 - sim_matrix[mask].mean().item()
 
             # Gated fusion: log gate values
-            if self.fusion_type == "gated" and output["attention"]["fusion"] is not None:
+            if (
+                self.fusion_type == "gated"
+                and output["attention"]["fusion"] is not None
+            ):
                 fusion_info = output["attention"]["fusion"]
                 if "gate_mean" in fusion_info:
                     diagnostics["gate_mean"] = fusion_info["gate_mean"]
@@ -857,9 +926,13 @@ class PerformanceEvaluationModel(pl.LightningModule):
 
         param_groups = []
         if backbone_params:
-            param_groups.append({"params": backbone_params, "lr": float(self.hparams.backbone_lr)})
+            param_groups.append(
+                {"params": backbone_params, "lr": float(self.hparams.backbone_lr)}
+            )
         if head_params:
-            param_groups.append({"params": head_params, "lr": float(self.hparams.heads_lr)})
+            param_groups.append(
+                {"params": head_params, "lr": float(self.hparams.heads_lr)}
+            )
 
         optimizer = AdamW(param_groups, weight_decay=self.hparams.weight_decay)
 
@@ -884,7 +957,11 @@ class PerformanceEvaluationModel(pl.LightningModule):
 
         return {
             "optimizer": optimizer,
-            "lr_scheduler": {"scheduler": scheduler, "interval": "step", "frequency": 1},
+            "lr_scheduler": {
+                "scheduler": scheduler,
+                "interval": "step",
+                "frequency": 1,
+            },
         }
 
 
