@@ -119,6 +119,7 @@ class KFoldTrainer:
     K-Fold Cross-Validation trainer for PercePiano.
 
     Trains models for each fold, saves checkpoints, and aggregates metrics.
+    Supports resuming from checkpoints after interruption.
     """
 
     def __init__(
@@ -145,6 +146,54 @@ class KFoldTrainer:
         self.fold_metrics: List[FoldMetrics] = []
         self.fold_checkpoints: List[Path] = []
         self.total_start_time: Optional[float] = None
+
+    def _find_checkpoint(self, fold_id: int, checkpoint_type: str = "last") -> Optional[Path]:
+        """
+        Find existing checkpoint for a fold.
+
+        Args:
+            fold_id: The fold number
+            checkpoint_type: "last" for last.ckpt, "best" for best checkpoint
+
+        Returns:
+            Path to checkpoint if found, None otherwise
+        """
+        fold_dir = self.checkpoint_dir / f"fold_{fold_id}"
+        if not fold_dir.exists():
+            return None
+
+        if checkpoint_type == "last":
+            last_ckpt = fold_dir / "last.ckpt"
+            if last_ckpt.exists():
+                return last_ckpt
+        elif checkpoint_type == "best":
+            # Find best checkpoint (format: best-epoch=XX-val/mean_r2=X.XXXX.ckpt)
+            best_ckpts = list(fold_dir.glob("best-*.ckpt"))
+            if best_ckpts:
+                # Return most recent best checkpoint
+                return max(best_ckpts, key=lambda p: p.stat().st_mtime)
+
+        return None
+
+    def _load_completed_folds(self) -> Tuple[int, List[Path]]:
+        """
+        Detect which folds have completed training (have best checkpoints).
+
+        Returns:
+            Tuple of (first_incomplete_fold, list_of_best_checkpoints)
+        """
+        completed_checkpoints = []
+        first_incomplete = 0
+
+        for fold_id in range(self.n_folds):
+            best_ckpt = self._find_checkpoint(fold_id, "best")
+            if best_ckpt:
+                completed_checkpoints.append(best_ckpt)
+                first_incomplete = fold_id + 1
+            else:
+                break
+
+        return first_incomplete, completed_checkpoints
 
     def _create_model(self) -> PercePianoVNetModule:
         """Create a new model instance."""
@@ -185,9 +234,28 @@ class KFoldTrainer:
 
         return [checkpoint_callback, early_stopping, lr_monitor, epoch_logger]
 
-    def train_fold(self, fold_id: int, verbose: bool = True) -> FoldMetrics:
-        """Train a single fold."""
+    def train_fold(
+        self, fold_id: int, verbose: bool = True, resume_from_checkpoint: bool = False
+    ) -> FoldMetrics:
+        """
+        Train a single fold.
+
+        Args:
+            fold_id: The fold number to train
+            verbose: Whether to print progress
+            resume_from_checkpoint: If True, attempt to resume from last.ckpt
+
+        Returns:
+            FoldMetrics for this fold
+        """
         start_time = time.time()
+
+        # Check for existing checkpoint to resume from
+        resume_ckpt_path = None
+        if resume_from_checkpoint:
+            resume_ckpt_path = self._find_checkpoint(fold_id, "last")
+            if resume_ckpt_path and verbose:
+                print(f"  Found checkpoint to resume from: {resume_ckpt_path}")
 
         # Create data module
         # SOTA uses batch_size=8 and no augmentation
@@ -217,11 +285,13 @@ class KFoldTrainer:
                 f"Max epochs: {self.config.get('max_epochs', 100)} | "
                 f"Early stop patience: {self.config.get('early_stopping_patience', 20)}"
             )
+            if resume_ckpt_path:
+                print(f"  RESUMING from checkpoint: {resume_ckpt_path.name}")
             print(f"{'=' * 70}")
 
         # Create model
         model = self._create_model()
-        if verbose and fold_id == 0:
+        if verbose and fold_id == 0 and not resume_ckpt_path:
             print(f"  Model parameters: {model.count_parameters():,}")
 
         # Create callbacks
@@ -250,8 +320,12 @@ class KFoldTrainer:
             enable_model_summary=False,
         )
 
-        # Train
-        trainer.fit(model, data_module)
+        # Train (with optional checkpoint resume)
+        trainer.fit(
+            model,
+            data_module,
+            ckpt_path=str(resume_ckpt_path) if resume_ckpt_path else None,
+        )
 
         training_time = time.time() - start_time
 
@@ -436,8 +510,19 @@ class KFoldTrainer:
             status = "NEGATIVE" if r2 < 0 else ""
             print(f"    {dim:<22} R2={r2:+.4f}  r={pearson:+.4f}  {status}")
 
-    def train_all_folds(self, verbose: bool = True) -> AggregateMetrics:
-        """Train all folds sequentially."""
+    def train_all_folds(
+        self, verbose: bool = True, resume: bool = False
+    ) -> AggregateMetrics:
+        """
+        Train all folds sequentially.
+
+        Args:
+            verbose: Whether to print progress
+            resume: If True, skip completed folds and resume any in-progress fold
+
+        Returns:
+            AggregateMetrics across all folds
+        """
         self.total_start_time = time.time()
 
         print(f"\n{'#' * 70}")
@@ -451,12 +536,54 @@ class KFoldTrainer:
             f"batch={self.config.get('batch_size')}"
         )
 
-        for fold_id in range(self.n_folds):
-            self.train_fold(fold_id, verbose=verbose)
+        # Check for existing checkpoints if resuming
+        start_fold = 0
+        if resume:
+            start_fold, completed_checkpoints = self._load_completed_folds()
+            if completed_checkpoints:
+                print(f"\n  RESUME MODE: Found {len(completed_checkpoints)} completed folds")
+                print(f"  Skipping folds 0-{start_fold - 1}, starting from fold {start_fold}")
+                # Load completed fold checkpoints
+                self.fold_checkpoints = completed_checkpoints
+                # Load metrics for completed folds from saved results if available
+                results_file = self.checkpoint_dir / "kfold_results.json"
+                if results_file.exists():
+                    with open(results_file) as f:
+                        saved_results = json.load(f)
+                    for fm in saved_results.get("fold_metrics", [])[:start_fold]:
+                        self.fold_metrics.append(
+                            FoldMetrics(
+                                fold_id=fm["fold_id"],
+                                train_loss=fm["train_loss"],
+                                val_loss=fm["val_loss"],
+                                val_r2=fm["val_r2"],
+                                val_pearson=fm["val_pearson"],
+                                val_spearman=fm["val_spearman"],
+                                val_mae=fm["val_mae"],
+                                val_rmse=fm["val_rmse"],
+                                per_dim_r2=fm["per_dim_r2"],
+                                per_dim_pearson=fm.get("per_dim_pearson", {}),
+                                epochs_trained=fm["epochs_trained"],
+                                best_epoch=fm["best_epoch"],
+                                training_time_seconds=fm["training_time_seconds"],
+                                n_train_samples=fm["n_train_samples"],
+                                n_val_samples=fm["n_val_samples"],
+                            )
+                        )
+                    print(f"  Loaded metrics for {len(self.fold_metrics)} completed folds")
+
+        for fold_id in range(start_fold, self.n_folds):
+            # For the first fold after resume, try to resume from checkpoint
+            resume_from_ckpt = resume and fold_id == start_fold
+            self.train_fold(fold_id, verbose=verbose, resume_from_checkpoint=resume_from_ckpt)
+
+            # Save results after each fold (for crash recovery)
+            self.save_results()
 
             # Progress update
             elapsed = time.time() - self.total_start_time
-            avg_per_fold = elapsed / (fold_id + 1)
+            folds_done = fold_id - start_fold + 1
+            avg_per_fold = elapsed / folds_done
             remaining = avg_per_fold * (self.n_folds - fold_id - 1)
             print(
                 f"\n  Progress: {fold_id + 1}/{self.n_folds} folds complete | "
@@ -739,6 +866,7 @@ class KFoldTrainer:
                     "n_train_samples": m.n_train_samples,
                     "n_val_samples": m.n_val_samples,
                     "per_dim_r2": {k: float(v) for k, v in m.per_dim_r2.items()},
+                    "per_dim_pearson": {k: float(v) for k, v in m.per_dim_pearson.items()},
                 }
                 for m in self.fold_metrics
             ],
