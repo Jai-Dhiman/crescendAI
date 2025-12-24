@@ -97,15 +97,18 @@ def create_piece_based_folds(
     seed: int = 42,
 ) -> Dict[str, Dict[str, Union[int, str]]]:
     """
-    Create piece-based k-fold assignments.
+    Create piece-based k-fold assignments following PercePiano methodology.
 
     All samples from the same piece are assigned to the same fold.
-    Test set is held out first, then remaining pieces are distributed across folds.
+    Test set is selected by randomly picking pieces until reaching test_ratio
+    of total SAMPLES (not pieces), matching the original PercePiano approach.
+
+    Reference: PercePiano/virtuoso/virtuoso/pyScoreParser/m2pf_dataset_compositionfold.py
 
     Args:
         data_dir: Path to data directory
         n_folds: Number of CV folds (default: 4)
-        test_ratio: Fraction of pieces for test set (default: 0.15)
+        test_ratio: Target fraction of SAMPLES for test set (default: 0.15)
         seed: Random seed for reproducibility
 
     Returns:
@@ -116,19 +119,32 @@ def create_piece_based_folds(
     # Get all samples and group by piece
     samples = get_all_samples(data_dir)
     piece_groups = group_samples_by_piece(samples)
+    total_samples = len(samples)
 
-    # Get list of unique pieces
+    # Get list of unique pieces and shuffle
     pieces = list(piece_groups.keys())
     random.shuffle(pieces)
 
-    # Calculate number of test pieces
-    n_test = max(1, int(len(pieces) * test_ratio))
+    # Select pieces for test set until reaching test_ratio of SAMPLES
+    # This matches PercePiano's approach in m2pf_dataset_compositionfold.py
+    test_pieces = set()
+    test_sample_count = 0
+    remaining_pieces = list(pieces)  # Copy to modify
 
-    # Assign pieces to test set
-    test_pieces = set(pieces[:n_test])
-    cv_pieces = pieces[n_test:]
+    while test_sample_count < test_ratio * total_samples and remaining_pieces:
+        # Randomly select a piece
+        piece = random.choice(remaining_pieces)
+        remaining_pieces.remove(piece)
 
-    # Distribute CV pieces across folds
+        # Only add pieces with more than 1 sample (matching PercePiano)
+        if len(piece_groups[piece]) > 1:
+            test_pieces.add(piece)
+            test_sample_count += len(piece_groups[piece])
+
+    # CV pieces are everything not in test
+    cv_pieces = [p for p in pieces if p not in test_pieces]
+
+    # Distribute CV pieces across folds (round-robin by piece index)
     fold_assignments = {}
 
     for i, piece in enumerate(cv_pieces):
