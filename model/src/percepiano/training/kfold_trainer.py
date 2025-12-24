@@ -511,7 +511,10 @@ class KFoldTrainer:
             print(f"    {dim:<22} R2={r2:+.4f}  r={pearson:+.4f}  {status}")
 
     def train_all_folds(
-        self, verbose: bool = True, resume: bool = False
+        self,
+        verbose: bool = True,
+        resume: bool = False,
+        fold_order: list = None,
     ) -> AggregateMetrics:
         """
         Train all folds sequentially.
@@ -519,10 +522,14 @@ class KFoldTrainer:
         Args:
             verbose: Whether to print progress
             resume: If True, skip completed folds and resume any in-progress fold
+            fold_order: Custom order to train folds (e.g., [1, 2, 3, 0] to train
+                       balanced folds first). If None, uses [0, 1, ..., n_folds-1].
 
         Returns:
             AggregateMetrics across all folds
         """
+        if fold_order is None:
+            fold_order = list(range(self.n_folds))
         self.total_start_time = time.time()
 
         print(f"\n{'#' * 70}")
@@ -530,6 +537,7 @@ class KFoldTrainer:
         print(f"{'#' * 70}")
         print(f"  Data directory: {self.data_dir}")
         print(f"  Checkpoint directory: {self.checkpoint_dir}")
+        print(f"  Fold order: {fold_order}")
         print(
             f"  Config: lr={self.config.get('learning_rate')}, "
             f"hidden={self.config.get('hidden_size')}, "
@@ -572,9 +580,17 @@ class KFoldTrainer:
                         )
                     print(f"  Loaded metrics for {len(self.fold_metrics)} completed folds")
 
-        for fold_id in range(start_fold, self.n_folds):
+        # Filter fold_order to skip already completed folds
+        folds_to_train = [f for f in fold_order if f >= start_fold or f not in range(start_fold)]
+        if resume and start_fold > 0:
+            # When resuming, skip folds that are already complete
+            completed_fold_ids = {m.fold_id for m in self.fold_metrics}
+            folds_to_train = [f for f in fold_order if f not in completed_fold_ids]
+            print(f"  Training folds in order: {folds_to_train}")
+
+        for i, fold_id in enumerate(folds_to_train):
             # For the first fold after resume, try to resume from checkpoint
-            resume_from_ckpt = resume and fold_id == start_fold
+            resume_from_ckpt = resume and i == 0
             self.train_fold(fold_id, verbose=verbose, resume_from_checkpoint=resume_from_ckpt)
 
             # Save results after each fold (for crash recovery)
@@ -582,11 +598,11 @@ class KFoldTrainer:
 
             # Progress update
             elapsed = time.time() - self.total_start_time
-            folds_done = fold_id - start_fold + 1
+            folds_done = i + 1
             avg_per_fold = elapsed / folds_done
-            remaining = avg_per_fold * (self.n_folds - fold_id - 1)
+            remaining = avg_per_fold * (len(folds_to_train) - i - 1)
             print(
-                f"\n  Progress: {fold_id + 1}/{self.n_folds} folds complete | "
+                f"\n  Progress: {folds_done}/{len(folds_to_train)} folds complete (fold {fold_id}) | "
                 f"Elapsed: {elapsed / 60:.1f}m | Est. remaining: {remaining / 60:.1f}m"
             )
 
