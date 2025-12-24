@@ -589,11 +589,16 @@ class PercePianoKFoldDataset(Dataset):
         if not self.sample_files:
             raise ValueError(f"No samples found for fold {fold_id}, mode '{mode}'")
 
-        # Load or compute normalization stats
+        # Load or compute normalization stats ONLY if augmentation is enabled
+        # SOTA uses augment_train=False, so skip expensive stats computation
         if normalization_stats is not None:
             self.stats = normalization_stats
-        else:
+        elif self.augment:
+            # Only compute stats if we actually need them for augmentation
             self.stats = self._compute_normalization_stats()
+        else:
+            # No augmentation = no stats needed (SOTA config)
+            self.stats = {"std": {"midi_pitch": 12.0}}  # Default, unused
 
         self.pitch_std = self.stats.get("std", {}).get("midi_pitch", 12.0)
 
@@ -722,6 +727,13 @@ class PercePianoKFoldDataset(Dataset):
             note_loc.get("voice", np.ones(num_notes)), dtype=np.int64
         )
 
+        # CRITICAL FIX: Densify sparse indices to sequential indices
+        # Original data may have gaps like [0, 1, 4, 11, 15] from the score
+        # hierarchy_utils expects sequential indices like [0, 1, 2, 3, 4]
+        beat_indices = self._densify_indices(beat_indices)
+        measure_indices = self._densify_indices(measure_indices)
+        voice_indices = self._densify_indices(voice_indices)
+
         # Shift indices to start from 1 (hierarchy_utils expects this)
         if beat_indices.min() == 0:
             beat_indices = beat_indices + 1
@@ -766,6 +778,15 @@ class PercePianoKFoldDataset(Dataset):
             "num_notes": actual_notes,
             "attention_mask": torch.from_numpy(attention_mask),
         }
+
+    def _densify_indices(self, indices: np.ndarray) -> np.ndarray:
+        """
+        Convert sparse non-sequential indices to dense sequential indices.
+
+        Example: [0, 0, 4, 4, 11, 15] -> [0, 0, 1, 1, 2, 3]
+        """
+        _, unique_indices = np.unique(indices, return_inverse=True)
+        return unique_indices
 
     def _apply_key_augmentation(
         self, input_features: np.ndarray, num_notes: int
@@ -985,6 +1006,11 @@ class PercePianoTestDataset(Dataset):
             note_loc.get("voice", np.ones(num_notes)), dtype=np.int64
         )
 
+        # CRITICAL FIX: Densify sparse indices to sequential indices
+        beat_indices = self._densify_indices(beat_indices)
+        measure_indices = self._densify_indices(measure_indices)
+        voice_indices = self._densify_indices(voice_indices)
+
         if beat_indices.min() == 0:
             beat_indices = beat_indices + 1
         if measure_indices.min() == 0:
@@ -1020,3 +1046,12 @@ class PercePianoTestDataset(Dataset):
             "num_notes": actual_notes,
             "attention_mask": torch.from_numpy(attention_mask),
         }
+
+    def _densify_indices(self, indices: np.ndarray) -> np.ndarray:
+        """
+        Convert sparse non-sequential indices to dense sequential indices.
+
+        Example: [0, 0, 4, 4, 11, 15] -> [0, 0, 1, 1, 2, 3]
+        """
+        _, unique_indices = np.unique(indices, return_inverse=True)
+        return unique_indices

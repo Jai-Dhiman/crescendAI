@@ -73,6 +73,39 @@ class EpochLogger(Callback):
         )
 
 
+class GradientMonitorCallback(Callback):
+    """DIAGNOSTIC: Monitor gradient norms during training to detect exploding/vanishing gradients."""
+
+    def __init__(self, log_every_n_steps: int = 100):
+        super().__init__()
+        self.log_every_n_steps = log_every_n_steps
+
+    def on_after_backward(self, trainer, pl_module):
+        if trainer.global_step % self.log_every_n_steps == 0:
+            total_norm = 0.0
+            param_norms = {}
+            for name, param in pl_module.named_parameters():
+                if param.grad is not None:
+                    param_norm = param.grad.data.norm(2).item()
+                    total_norm += param_norm**2
+                    # Track a few key layers
+                    if "note_fc" in name or "prediction_head" in name:
+                        param_norms[name] = param_norm
+            total_norm = total_norm**0.5
+
+            # Log to console
+            print(f"  [GRAD] Step {trainer.global_step}: total_norm={total_norm:.4f}")
+            if param_norms:
+                for name, norm in list(param_norms.items())[:3]:
+                    print(f"    {name}: {norm:.4f}")
+
+            # Warn if gradient is very large or very small
+            if total_norm > 100:
+                print("  [GRAD] WARNING: Gradient explosion detected!")
+            elif total_norm < 1e-6:
+                print("  [GRAD] WARNING: Gradient vanishing detected!")
+
+
 @dataclass
 class FoldMetrics:
     """Metrics for a single fold."""
@@ -232,7 +265,10 @@ class KFoldTrainer:
         lr_monitor = LearningRateMonitor(logging_interval="epoch")
         epoch_logger = EpochLogger(fold_id=fold_id)
 
-        return [checkpoint_callback, early_stopping, lr_monitor, epoch_logger]
+        # DIAGNOSTIC: Add gradient monitoring (logs every 100 steps)
+        grad_monitor = GradientMonitorCallback(log_every_n_steps=100)
+
+        return [checkpoint_callback, early_stopping, lr_monitor, epoch_logger, grad_monitor]
 
     def train_fold(
         self, fold_id: int, verbose: bool = True, resume_from_checkpoint: bool = False
@@ -259,13 +295,14 @@ class KFoldTrainer:
 
         # Create data module
         # SOTA uses batch_size=8 and no augmentation
+        # num_workers=4 is optimal for A100XL (4 vCPUs) - avoids dataloader bottleneck
         data_module = PercePianoKFoldDataModule(
             data_dir=self.data_dir,
             fold_assignments=self.fold_assignments,
             fold_id=fold_id,
             batch_size=self.config.get("batch_size", 8),  # SOTA: 8
             max_notes=self.config.get("max_notes", 1024),
-            num_workers=self.config.get("num_workers", 0),
+            num_workers=self.config.get("num_workers", 4),  # 4 for A100XL vCPUs
             augment_train=self.config.get(
                 "augment_train", False
             ),  # SOTA: no augmentation

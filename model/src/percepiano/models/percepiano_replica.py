@@ -922,6 +922,31 @@ class PercePianoVNetModule(pl.LightningModule):
                 prog_bar=True,
             )
 
+        # DIAGNOSTIC: Check for prediction collapse
+        pred_mean = all_preds_np.mean()
+        pred_std = all_preds_np.std()
+        pred_min = all_preds_np.min()
+        pred_max = all_preds_np.max()
+        target_mean = all_targets_np.mean()
+        target_std = all_targets_np.std()
+
+        print(
+            f"  [DIAG] Predictions: mean={pred_mean:.4f}, std={pred_std:.4f}, "
+            f"range=[{pred_min:.4f}, {pred_max:.4f}]"
+        )
+        print(f"  [DIAG] Targets: mean={target_mean:.4f}, std={target_std:.4f}")
+
+        # If std is very small, predictions are collapsing
+        if pred_std < 0.05:
+            print(
+                "  [DIAG] WARNING: Prediction collapse detected! "
+                "All predictions converging to same value."
+            )
+
+        # Log prediction stats for tracking
+        self.log("val/pred_mean", pred_mean)
+        self.log("val/pred_std", pred_std)
+
         self.validation_step_outputs.clear()
 
     def on_train_epoch_end(self):
