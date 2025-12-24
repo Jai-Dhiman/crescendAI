@@ -103,6 +103,11 @@ def create_piece_based_folds(
     Test set is selected by randomly picking pieces until reaching test_ratio
     of total SAMPLES (not pieces), matching the original PercePiano approach.
 
+    CV fold distribution uses greedy bin-packing (largest piece first, assign to
+    smallest fold) for balanced sample counts. This improves on the original
+    round-robin approach which can create severely imbalanced folds when pieces
+    have very different sample counts.
+
     Reference: PercePiano/virtuoso/virtuoso/pyScoreParser/m2pf_dataset_compositionfold.py
 
     Args:
@@ -144,11 +149,23 @@ def create_piece_based_folds(
     # CV pieces are everything not in test
     cv_pieces = [p for p in pieces if p not in test_pieces]
 
-    # Distribute CV pieces across folds (round-robin by piece index)
-    fold_assignments = {}
+    # Distribute CV pieces across folds using greedy bin-packing for balance
+    # Sort pieces by sample count (largest first) for better packing
+    cv_pieces_sorted = sorted(cv_pieces, key=lambda p: len(piece_groups[p]), reverse=True)
 
-    for i, piece in enumerate(cv_pieces):
-        fold_id = i % n_folds
+    # Track sample count per fold
+    fold_sample_counts = [0] * n_folds
+    piece_to_fold = {}
+
+    for piece in cv_pieces_sorted:
+        # Assign piece to fold with fewest samples
+        min_fold = min(range(n_folds), key=lambda f: fold_sample_counts[f])
+        piece_to_fold[piece] = min_fold
+        fold_sample_counts[min_fold] += len(piece_groups[piece])
+
+    # Build fold assignments
+    fold_assignments = {}
+    for piece, fold_id in piece_to_fold.items():
         for sample in piece_groups[piece]:
             fold_assignments[sample] = {"fold": fold_id, "piece_id": piece}
 
