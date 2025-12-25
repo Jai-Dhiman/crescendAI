@@ -75,17 +75,16 @@ class EpochLogger(Callback):
 
 class GradientMonitorCallback(Callback):
     """
-    DIAGNOSTIC: Comprehensive gradient and activation monitoring.
+    DIAGNOSTIC: Gradient monitoring for debugging training issues.
 
-    Logs gradient norms by layer category, detects explosion/vanishing,
-    and tracks key metrics for debugging training issues.
+    Logs gradient norms by layer category at regular intervals.
+    Focus on detecting gradient imbalance (prediction_head doing all the work).
     """
 
     def __init__(self, log_every_n_steps: int = 100, verbose_first_n_steps: int = 5):
         super().__init__()
         self.log_every_n_steps = log_every_n_steps
         self.verbose_first_n_steps = verbose_first_n_steps
-        self.step_losses = []
 
     def on_after_backward(self, trainer, pl_module):
         step = trainer.global_step
@@ -97,16 +96,13 @@ class GradientMonitorCallback(Callback):
 
         # Collect gradient norms by category
         grad_stats = {
-            "han_encoder": {"norm": 0.0, "count": 0, "max": 0.0},
-            "performance_contractor": {"norm": 0.0, "count": 0, "max": 0.0},
-            "final_attention": {"norm": 0.0, "count": 0, "max": 0.0},
-            "prediction_head": {"norm": 0.0, "count": 0, "max": 0.0},
-            "other": {"norm": 0.0, "count": 0, "max": 0.0},
+            "han_encoder": {"norm": 0.0, "count": 0},
+            "performance_contractor": {"norm": 0.0, "count": 0},
+            "final_attention": {"norm": 0.0, "count": 0},
+            "prediction_head": {"norm": 0.0, "count": 0},
         }
 
         total_norm_sq = 0.0
-        max_param_norm = 0.0
-        max_param_name = ""
 
         for name, param in pl_module.named_parameters():
             if param.grad is None:
@@ -114,11 +110,6 @@ class GradientMonitorCallback(Callback):
 
             param_norm = param.grad.data.norm(2).item()
             total_norm_sq += param_norm**2
-
-            # Track max gradient
-            if param_norm > max_param_norm:
-                max_param_norm = param_norm
-                max_param_name = name
 
             # Categorize
             if "han_encoder" in name:
@@ -130,11 +121,10 @@ class GradientMonitorCallback(Callback):
             elif "prediction_head" in name:
                 cat = "prediction_head"
             else:
-                cat = "other"
+                continue  # Skip 'other' category
 
             grad_stats[cat]["norm"] += param_norm**2
             grad_stats[cat]["count"] += 1
-            grad_stats[cat]["max"] = max(grad_stats[cat]["max"], param_norm)
 
         total_norm = total_norm_sq**0.5
 
@@ -143,94 +133,112 @@ class GradientMonitorCallback(Callback):
             if grad_stats[cat]["count"] > 0:
                 grad_stats[cat]["norm"] = grad_stats[cat]["norm"]**0.5
 
-        # Get current loss from trainer
+        # Get current loss
         current_loss = trainer.callback_metrics.get("train/loss", float("nan"))
         if hasattr(current_loss, "item"):
             current_loss = current_loss.item()
-        self.step_losses.append(current_loss)
 
-        # Print diagnostics
-        print(f"\n  [DIAG] Step {step}: total_grad_norm={total_norm:.4f}, loss={current_loss:.6f}")
-        print(f"    Gradient by category:")
-        for cat, stats in grad_stats.items():
-            if stats["count"] > 0:
-                print(f"      {cat:<22} norm={stats['norm']:8.4f}  max={stats['max']:8.4f}  params={stats['count']}")
+        # Compute gradient balance ratio (prediction_head vs rest)
+        pred_head_norm = grad_stats["prediction_head"]["norm"]
+        encoder_norm = grad_stats["han_encoder"]["norm"] + grad_stats["performance_contractor"]["norm"]
+        balance_ratio = pred_head_norm / (encoder_norm + 1e-8)
 
-        if max_param_norm > 0:
-            print(f"    Max gradient: {max_param_name} = {max_param_norm:.4f}")
+        # Print compact diagnostics
+        print(f"\n  [GRAD] Step {step}: total={total_norm:.3f}, loss={current_loss:.6f}")
+        print(f"    han={grad_stats['han_encoder']['norm']:.3f}, "
+              f"contractor={grad_stats['performance_contractor']['norm']:.3f}, "
+              f"attn={grad_stats['final_attention']['norm']:.4f}, "
+              f"head={grad_stats['prediction_head']['norm']:.3f}")
+        print(f"    Balance (head/encoder): {balance_ratio:.1f}x", end="")
 
-        # Gradient health assessment
-        if total_norm > 100:
-            print(f"  [DIAG] WARNING: Large gradient norm (>{100}). May need gradient clipping.")
-        elif total_norm > 10:
-            print(f"  [DIAG] NOTE: Moderate gradient norm. Training should be stable with clip=2.0")
-        elif total_norm < 1e-6:
-            print(f"  [DIAG] WARNING: Vanishing gradients detected!")
-        elif total_norm < 0.01:
-            print(f"  [DIAG] NOTE: Small gradients. Learning may be slow.")
-
-        # Check for NaN/Inf
-        if not np.isfinite(total_norm):
-            print(f"  [DIAG] CRITICAL: NaN/Inf in gradients! Training will fail.")
-
-        # Track loss trend (after first few steps)
-        if len(self.step_losses) >= 10:
-            recent_losses = [l for l in self.step_losses[-10:] if np.isfinite(l)]
-            if len(recent_losses) >= 5:
-                loss_trend = recent_losses[-1] - recent_losses[0]
-                if loss_trend > 0:
-                    print(f"  [DIAG] WARNING: Loss increasing over last 10 steps ({loss_trend:+.6f})")
+        # Flag issues
+        if balance_ratio > 10:
+            print(" [IMBALANCED - head doing all work]")
+        elif total_norm > 100:
+            print(" [EXPLOSION]")
+        elif total_norm < 0.001:
+            print(" [VANISHING]")
+        elif not np.isfinite(total_norm):
+            print(" [NaN/Inf DETECTED]")
+        else:
+            print(" [OK]")
 
 
 class ActivationDiagnosticCallback(Callback):
     """
-    DIAGNOSTIC: Run activation diagnostics on first few batches.
+    DIAGNOSTIC: Check key activation statistics on first batch only.
 
-    Calls forward with diagnose=True to print intermediate activation statistics.
-    This helps identify where values explode or collapse in the forward pass.
+    Focus on the critical metrics for detecting prediction collapse:
+    - Logits std (should be 0.5-2.0 for proper sigmoid spread)
+    - Prediction std (should be 0.10-0.15 to match target std)
     """
 
-    def __init__(self, diagnose_first_n_batches: int = 3):
+    def __init__(self):
         super().__init__()
-        self.diagnose_first_n_batches = diagnose_first_n_batches
-        self.batch_count = 0
+        self.checked = False
 
     def on_train_batch_start(self, trainer, pl_module, batch, batch_idx):
-        if self.batch_count < self.diagnose_first_n_batches:
-            print(f"\n{'='*60}")
-            print(f"  ACTIVATION DIAGNOSTICS - Batch {self.batch_count}")
-            print(f"{'='*60}")
+        if self.checked:
+            return
 
-            # Run diagnostic forward pass
-            with torch.no_grad():
-                input_features = batch["input_features"]
-                note_locations = {
-                    "beat": batch["note_locations_beat"],
-                    "measure": batch["note_locations_measure"],
-                    "voice": batch["note_locations_voice"],
-                }
-                targets = batch["scores"]
+        self.checked = True
+        print(f"\n{'='*60}")
+        print(f"  ACTIVATION CHECK - Batch 0")
+        print(f"{'='*60}")
 
-                # Move to device
-                device = next(pl_module.parameters()).device
-                input_features = input_features.to(device)
-                note_locations = {k: v.to(device) for k, v in note_locations.items()}
-                targets = targets.to(device)
+        # Run diagnostic forward pass
+        with torch.no_grad():
+            input_features = batch["input_features"]
+            note_locations = {
+                "beat": batch["note_locations_beat"],
+                "measure": batch["note_locations_measure"],
+                "voice": batch["note_locations_voice"],
+            }
+            targets = batch["scores"]
 
-                # Run forward with diagnostics
-                _ = pl_module(
-                    input_features,
-                    note_locations,
-                    diagnose=True,
-                )
+            # Move to device
+            device = next(pl_module.parameters()).device
+            input_features = input_features.to(device)
+            note_locations = {k: v.to(device) for k, v in note_locations.items()}
+            targets = targets.to(device)
 
-                # Also print target statistics
-                print(f"  [ACT] Targets: shape={targets.shape}")
-                print(f"    mean={targets.mean().item():.4f}, std={targets.std().item():.4f}")
-                print(f"    min={targets.min().item():.4f}, max={targets.max().item():.4f}")
+            # Run forward
+            outputs = pl_module(input_features, note_locations, diagnose=False)
+            logits = outputs.get("logits")
+            predictions = outputs["predictions"]
 
-            print(f"{'='*60}\n")
-            self.batch_count += 1
+            # Key metrics
+            target_std = targets.std().item()
+            pred_std = predictions.std().item()
+            pred_mean = predictions.mean().item()
+            pred_min = predictions.min().item()
+            pred_max = predictions.max().item()
+
+            print(f"  Targets:     mean={targets.mean().item():.3f}, std={target_std:.3f}")
+            print(f"  Predictions: mean={pred_mean:.3f}, std={pred_std:.3f}, range=[{pred_min:.3f}, {pred_max:.3f}]")
+
+            if logits is not None:
+                logit_std = logits.std().item()
+                logit_mean = logits.mean().item()
+                print(f"  Logits:      mean={logit_mean:.3f}, std={logit_std:.3f}")
+
+                # Health check
+                print(f"\n  Health Check:")
+                if logit_std < 0.3:
+                    print(f"    [WARN] Logits std={logit_std:.3f} too small (target: 0.5-2.0)")
+                elif logit_std > 5.0:
+                    print(f"    [WARN] Logits std={logit_std:.3f} too large (target: 0.5-2.0)")
+                else:
+                    print(f"    [OK] Logits std={logit_std:.3f} in good range")
+
+            if pred_std < 0.05:
+                print(f"    [FAIL] Prediction collapse! std={pred_std:.3f} (target: ~{target_std:.3f})")
+            elif pred_std < target_std * 0.5:
+                print(f"    [WARN] Predictions under-spread: std={pred_std:.3f} vs target={target_std:.3f}")
+            else:
+                print(f"    [OK] Prediction spread looks reasonable")
+
+        print(f"{'='*60}\n")
 
 
 @dataclass
@@ -392,11 +400,11 @@ class KFoldTrainer:
         lr_monitor = LearningRateMonitor(logging_interval="epoch")
         epoch_logger = EpochLogger(fold_id=fold_id)
 
-        # DIAGNOSTIC: Add gradient monitoring (logs every 100 steps, verbose first 5)
+        # DIAGNOSTIC: Gradient monitoring (logs every 100 steps, verbose first 5)
         grad_monitor = GradientMonitorCallback(log_every_n_steps=100, verbose_first_n_steps=5)
 
-        # DIAGNOSTIC: Add activation diagnostics (runs on first 3 batches)
-        activation_diag = ActivationDiagnosticCallback(diagnose_first_n_batches=3)
+        # DIAGNOSTIC: Activation check on first batch
+        activation_diag = ActivationDiagnosticCallback()
 
         return [checkpoint_callback, early_stopping, lr_monitor, epoch_logger, grad_monitor, activation_diag]
 

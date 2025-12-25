@@ -788,10 +788,12 @@ class PercePianoVNetModule(pl.LightningModule):
             nn.Linear(encoder_output_size, self.num_dimensions),  # 512 -> 19
         )
 
-        # Initialize prediction head final layer with smaller weights
-        # to produce logits closer to 0 initially (predictions ~0.5)
-        nn.init.xavier_normal_(self.prediction_head[4].weight, gain=0.1)
-        nn.init.zeros_(self.prediction_head[4].bias)
+        # Initialize prediction head for appropriate logit range
+        # With LayerNorm input (std=1.0), Xavier gain=2.0 produces logits with std~1.0
+        # This gives sigmoid outputs spanning [0.1, 0.9] instead of collapsing to 0.5
+        # Non-zero bias breaks symmetry and helps different dimensions specialize
+        nn.init.xavier_normal_(self.prediction_head[4].weight, gain=2.0)
+        nn.init.uniform_(self.prediction_head[4].bias, -1.0, 1.0)
 
         # Metrics storage
         self.training_step_outputs = []
@@ -816,44 +818,28 @@ class PercePianoVNetModule(pl.LightningModule):
         Returns:
             Dict with 'predictions' [batch, num_dimensions]
         """
-        # DIAGNOSTIC: Log input statistics
+        # DIAGNOSTIC: Log key statistics for debugging
         if diagnose:
-            print(f"\n  [ACT] Input features: shape={input_features.shape}")
-            print(f"    mean={input_features.mean().item():.4f}, std={input_features.std().item():.4f}")
-            print(f"    min={input_features.min().item():.4f}, max={input_features.max().item():.4f}")
-            # Check for NaN/Inf
-            if torch.isnan(input_features).any():
-                print(f"    WARNING: NaN detected in input features!")
-            if torch.isinf(input_features).any():
-                print(f"    WARNING: Inf detected in input features!")
+            print(f"  Input: mean={input_features.mean().item():.3f}, std={input_features.std().item():.3f}")
 
         # Run HAN encoder directly on 78-dim features (no global context)
         han_outputs = self.han_encoder(input_features, note_locations)
         total_note_cat = han_outputs["total_note_cat"]  # [B, N, 2048]
 
-        # DIAGNOSTIC: Log HAN output statistics (before norm)
         if diagnose:
-            print(f"  [ACT] HAN total_note_cat (raw): shape={total_note_cat.shape}")
-            print(f"    mean={total_note_cat.mean().item():.4f}, std={total_note_cat.std().item():.4f}")
-            print(f"    min={total_note_cat.min().item():.4f}, max={total_note_cat.max().item():.4f}")
-            if torch.isnan(total_note_cat).any():
-                print(f"    WARNING: NaN detected in HAN output!")
+            print(f"  HAN raw: std={total_note_cat.std().item():.4f}")
 
-        # CRITICAL FIX: Normalize HAN output to stabilize magnitude
+        # Normalize HAN output to stabilize magnitude
         total_note_cat = self.han_output_norm(total_note_cat)
 
         if diagnose:
-            print(f"  [ACT] HAN total_note_cat (after LayerNorm): shape={total_note_cat.shape}")
-            print(f"    mean={total_note_cat.mean().item():.4f}, std={total_note_cat.std().item():.4f}")
+            print(f"  HAN normed: std={total_note_cat.std().item():.3f}")
 
         # Contract from 2048 -> 512 (critical step from original PercePiano)
         contracted = self.performance_contractor(total_note_cat)  # [B, N, 512]
 
-        # DIAGNOSTIC: Log contracted statistics
         if diagnose:
-            print(f"  [ACT] Contracted: shape={contracted.shape}")
-            print(f"    mean={contracted.mean().item():.4f}, std={contracted.std().item():.4f}")
-            print(f"    min={contracted.min().item():.4f}, max={contracted.max().item():.4f}")
+            print(f"  Contracted: std={contracted.std().item():.3f}")
 
         # Create attention mask if not provided
         # CRITICAL FIX: After performance_contractor (linear layer with bias), all positions
@@ -866,40 +852,28 @@ class PercePianoVNetModule(pl.LightningModule):
             attention_mask = note_locations["beat"] > 0  # [B, N]
 
         # Aggregate to single vector using attention (over 512-dim, not 2048)
-        # Note: Original PercePiano has no extra normalization after aggregation
         aggregated = self.final_attention(contracted, mask=attention_mask)  # [B, 512]
 
-        # DIAGNOSTIC: Log aggregated statistics (before norm)
         if diagnose:
-            print(f"  [ACT] Aggregated (raw): shape={aggregated.shape}")
-            print(f"    mean={aggregated.mean().item():.4f}, std={aggregated.std().item():.4f}")
-            print(f"    min={aggregated.min().item():.4f}, max={aggregated.max().item():.4f}")
+            print(f"  Aggregated raw: std={aggregated.std().item():.3f}")
 
-        # CRITICAL FIX: Normalize before prediction head
+        # Normalize before prediction head
         aggregated = self.pre_prediction_norm(aggregated)
 
         if diagnose:
-            print(f"  [ACT] Aggregated (after LayerNorm): shape={aggregated.shape}")
-            print(f"    mean={aggregated.mean().item():.4f}, std={aggregated.std().item():.4f}")
+            print(f"  Aggregated normed: std={aggregated.std().item():.3f}")
 
         # Get logits before sigmoid
         logits = self.prediction_head(aggregated)
 
-        # DIAGNOSTIC: Log logits statistics (before sigmoid)
         if diagnose:
-            print(f"  [ACT] Logits (before sigmoid): shape={logits.shape}")
-            print(f"    mean={logits.mean().item():.4f}, std={logits.std().item():.4f}")
-            print(f"    min={logits.min().item():.4f}, max={logits.max().item():.4f}")
+            print(f"  Logits: mean={logits.mean().item():.3f}, std={logits.std().item():.3f}")
 
         # Predict scores - apply sigmoid to match [0, 1] label range
-        # (Original PercePiano always applies sigmoid before loss computation)
         predictions = torch.sigmoid(logits)  # [B, num_dims]
 
-        # DIAGNOSTIC: Log final predictions
         if diagnose:
-            print(f"  [ACT] Predictions (after sigmoid): shape={predictions.shape}")
-            print(f"    mean={predictions.mean().item():.4f}, std={predictions.std().item():.4f}")
-            print(f"    min={predictions.min().item():.4f}, max={predictions.max().item():.4f}")
+            print(f"  Predictions: mean={predictions.mean().item():.3f}, std={predictions.std().item():.3f}")
 
         return {
             "predictions": predictions,
@@ -1003,28 +977,9 @@ class PercePianoVNetModule(pl.LightningModule):
                 prog_bar=True,
             )
 
-        # DIAGNOSTIC: Check for prediction collapse
+        # Log prediction stats for monitoring
         pred_mean = all_preds_np.mean()
         pred_std = all_preds_np.std()
-        pred_min = all_preds_np.min()
-        pred_max = all_preds_np.max()
-        target_mean = all_targets_np.mean()
-        target_std = all_targets_np.std()
-
-        print(
-            f"  [DIAG] Predictions: mean={pred_mean:.4f}, std={pred_std:.4f}, "
-            f"range=[{pred_min:.4f}, {pred_max:.4f}]"
-        )
-        print(f"  [DIAG] Targets: mean={target_mean:.4f}, std={target_std:.4f}")
-
-        # If std is very small, predictions are collapsing
-        if pred_std < 0.05:
-            print(
-                "  [DIAG] WARNING: Prediction collapse detected! "
-                "All predictions converging to same value."
-            )
-
-        # Log prediction stats for tracking
         self.log("val/pred_mean", pred_mean)
         self.log("val/pred_std", pred_std)
 

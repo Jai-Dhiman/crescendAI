@@ -422,7 +422,7 @@ Gradient by category:
 4. **No Normalization**: Unlike modern transformers, the original has no LayerNorm. But with
    our attention bug, values collapsed to near-zero, requiring normalization to recover.
 
-**Fixes Applied**:
+**Fixes Applied (Round 1)**:
 
 | Fix | File | Description |
 |-----|------|-------------|
@@ -432,15 +432,55 @@ Gradient by category:
 | Pre-prediction norm | `percepiano_replica.py:775` | Added `LayerNorm(512)` before prediction head |
 | Prediction head init | `percepiano_replica.py:787-790` | Xavier init with gain=0.1, zero bias |
 
-**Expected Results After Fixes**:
+**Results After Round 1 (Partial Fix)**:
 
-| Metric | Before Fix | Expected After |
-|--------|-----------|----------------|
-| HAN output std | 0.014 | ~1.0 |
-| Logits std | 0.03 | 0.5-2.0 |
-| Predictions std | 0.008 | 0.10-0.15 |
-| Gradient norm | 600-1600 | 10-100 |
-| R2 after 20 epochs | +0.03 | +0.15-0.25 |
+Training run showed gradient explosion was fixed, but prediction collapse persisted:
+
+```
+Activation Statistics (After LayerNorm fixes):
+  HAN output (raw): std=0.012 (unchanged from before)
+  HAN output (normed): std=0.35 (improved but still low)
+  Aggregated (normed): std=1.0 (good - LayerNorm working)
+  Logits: std=0.05 (STILL 10x too small, should be 0.5-2.0)
+  Predictions: std=0.01-0.06 (STILL COLLAPSED, should be 0.15)
+
+Gradient Norms (After fixes):
+  Total: 0.06-0.10 (fixed from 600-2000, but perhaps now too small)
+  Prediction head: 0.05-0.08 (still dominant)
+  Final attention: 0.0001-0.003 (still negligible)
+
+Training Progress (5 epochs):
+  Epoch 0: val_r2=-0.0702
+  Epoch 1: val_r2=-0.0394
+  Epoch 4: val_r2=-0.0794
+  Prediction collapse warnings persisted
+```
+
+**Root Cause**: The Xavier gain=0.1 initialization produced tiny logits (std=0.05).
+With input std=1.0 from LayerNorm, the output should have std proportional to gain.
+Using gain=0.1 meant sigmoid(tiny logits) collapsed everything to ~0.5.
+
+#### 2025-12-25: Round 2 Fixes
+
+**Additional Fix Applied**:
+
+| Fix | File | Description |
+|-----|------|-------------|
+| Prediction head init | `percepiano_replica.py:791-796` | Xavier gain=2.0, bias uniform [-1, 1] |
+
+The larger gain (2.0 vs 0.1 = 20x increase) should produce logits with std~1.0,
+giving sigmoid outputs spanning [0.1, 0.9] instead of collapsing to 0.5.
+The non-zero bias breaks symmetry, helping different dimensions specialize.
+
+**Expected Results After Round 2**:
+
+| Metric | Round 1 | Expected Round 2 |
+|--------|---------|------------------|
+| Logits std | 0.05 | 0.8-1.5 |
+| Predictions std | 0.01-0.06 | 0.10-0.15 |
+| Gradient balance | head dominates | more distributed |
+| R2 after 5 epochs | -0.07 to -0.04 | 0.0 to +0.10 |
+| R2 after 20 epochs | ~0.03 | +0.15-0.25 |
 
 **IMPORTANT**: Training config must explicitly set `precision="32"`. The default change only
 applies when precision is not specified in the config.
@@ -482,23 +522,25 @@ These deviations were added to fix bugs or improve stability:
 
 2. **LayerNorm before prediction head** - Ensures consistent input magnitude.
 
-3. **Smaller prediction head init** - Prevents initial logits from being too large.
+3. **Larger prediction head init** - Xavier gain=2.0 (not default 1.0) and non-zero bias
+   to produce logits with std~1.0 for proper sigmoid spread.
 
 ### Active Diagnostics
 
-1. **Activation diagnostics** (`kfold_trainer.py:185-233`)
-   - `ActivationDiagnosticCallback` runs on first 3 batches
-   - Logs input, HAN output, contracted, aggregated, logits, predictions
-   - Identifies magnitude collapse at each stage
+1. **Activation check** (`kfold_trainer.py:ActivationDiagnosticCallback`)
+   - Runs on first batch only
+   - Reports logits std, prediction std, and health status
+   - Flags prediction collapse (std < 0.05) or under-spread
 
-2. **Gradient monitoring** (`kfold_trainer.py:76-182`)
-   - `GradientMonitorCallback` logs gradient norms by layer category
-   - Tracks han_encoder, performance_contractor, final_attention, prediction_head
-   - Warns on explosion (>100), vanishing (<1e-6), or loss increasing
+2. **Gradient monitoring** (`kfold_trainer.py:GradientMonitorCallback`)
+   - Logs every 100 steps (verbose first 5)
+   - Reports gradient norms by layer category
+   - Computes balance ratio (prediction_head vs encoder)
+   - Flags imbalance (>10x), explosion, or vanishing
 
-3. **Prediction collapse detection** (`percepiano_replica.py`)
-   - Logs pred mean, std, range after each validation epoch
-   - Warns if `pred_std < 0.05`
+3. **TensorBoard logging** (`percepiano_replica.py`)
+   - Logs val/pred_mean and val/pred_std each epoch
+   - Track via TensorBoard or checkpoint files
 
 ---
 
