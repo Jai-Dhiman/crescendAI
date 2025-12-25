@@ -189,11 +189,12 @@ class ActivationDiagnosticCallback(Callback):
     DIAGNOSTIC: Check key activation statistics on first batch only.
 
     Focus on the critical metrics for detecting issues:
-    1. Logits std (should be 0.5-1.5 for proper sigmoid spread)
-    2. Prediction std (should be 0.10-0.15 to match target std ~0.106)
-    3. Pred/Target std ratio (should be 0.8-1.5, not >2.0 like Round 3)
-    4. Per-dimension std (detect collapsed dimensions)
-    5. Context vectors present (Round 3 fix validation)
+    1. Model architecture validation (Round 5: prediction head size)
+    2. Logits std (should be 0.5-1.5 for proper sigmoid spread)
+    3. Prediction std (should be 0.10-0.15 to match target std ~0.106)
+    4. Pred/Target std ratio (should be 0.8-1.5, not >2.0 like Round 3)
+    5. Per-dimension std (detect collapsed dimensions)
+    6. Context vectors present (Round 3 fix validation)
     """
 
     def __init__(self):
@@ -208,6 +209,27 @@ class ActivationDiagnosticCallback(Callback):
         print(f"\n{'='*60}")
         print(f"  ACTIVATION CHECK - Batch 0")
         print(f"{'='*60}")
+
+        # Model architecture check (Round 5 validation)
+        total_params = sum(p.numel() for p in pl_module.parameters() if p.requires_grad)
+        print(f"  Model parameters: {total_params:,}")
+
+        # Check prediction head architecture (Round 5: should be 512->128->19)
+        if hasattr(pl_module, 'prediction_head'):
+            head = pl_module.prediction_head
+            # Get layer sizes from Sequential
+            layer_sizes = []
+            for module in head:
+                if hasattr(module, 'in_features'):
+                    layer_sizes.append(f"{module.in_features}->{module.out_features}")
+            if layer_sizes:
+                head_arch = ", ".join(layer_sizes)
+                print(f"  Prediction head: {head_arch}")
+                # Validate Round 5 fix
+                if "512->128" in head_arch and "128->19" in head_arch:
+                    print(f"    [OK] Prediction head architecture correct (Round 5)")
+                elif "512->512" in head_arch:
+                    print(f"    [WARN] Prediction head using 512 hidden (should be 128)")
 
         # Log learning rate to confirm config
         lr = trainer.optimizers[0].param_groups[0]["lr"]

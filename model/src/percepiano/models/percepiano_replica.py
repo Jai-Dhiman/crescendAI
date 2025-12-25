@@ -782,21 +782,18 @@ class PercePianoVNetModule(pl.LightningModule):
         self.pre_prediction_norm = nn.LayerNorm(encoder_output_size)
 
         # Prediction head (matching original PercePiano out_fc structure)
-        # Original: Dropout -> Linear -> GELU -> Dropout -> Linear
+        # Original: Dropout -> Linear(512, 128) -> GELU -> Dropout -> Linear(128, 19)
+        # CRITICAL FIX (Round 5): Use final_hidden=128 (SOTA config), NOT encoder_output_size=512
+        # Previous versions incorrectly used 512, adding ~200k extra params and slowing convergence
         self.prediction_head = nn.Sequential(
             nn.Dropout(dropout),
-            nn.Linear(encoder_output_size, encoder_output_size),  # 512 -> 512
+            nn.Linear(encoder_output_size, final_hidden),  # 512 -> 128 (SOTA)
             nn.GELU(),
             nn.Dropout(dropout),
-            nn.Linear(encoder_output_size, self.num_dimensions),  # 512 -> 19
+            nn.Linear(final_hidden, self.num_dimensions),  # 128 -> 19 (SOTA)
         )
-
-        # Initialize prediction head for appropriate logit range
-        # Round 4 fix: Reduced from gain=2.0 to gain=1.0 and bias from [-1,1] to [-0.1,0.1]
-        # Round 2-3 produced pred std=0.242 (2.3x higher than target std=0.106)
-        # More moderate initialization should produce pred std ~0.15 matching targets
-        nn.init.xavier_normal_(self.prediction_head[4].weight, gain=1.0)
-        nn.init.uniform_(self.prediction_head[4].bias, -0.1, 0.1)
+        # NOTE: Using PyTorch defaults for initialization (kaiming_uniform)
+        # Original PercePiano doesn't use custom init - removed Xavier/uniform overrides
 
         # Metrics storage
         self.training_step_outputs = []

@@ -1,7 +1,8 @@
 # PercePiano SOTA Reference
 
-**Last Updated**: 2025-12-25 (Round 4)
-**Purpose**: Source of truth for reproducing PercePiano SOTA results (R2 = 0.397)
+**Purpose**: Source of truth for PercePiano architecture and hyperparameters (R2 = 0.397)
+
+For our experiment history and debugging journey, see `EXPERIMENT_LOG.md`.
 
 ---
 
@@ -62,48 +63,40 @@ DOI: 10.1038/s41598-024-73810-0
 Input (78-dim VirtuosoNet features)
     |
     v
-[Note FC] Linear(78 -> hidden)
+[Note FC] Linear(78 -> 256)
     |
     v
-[Note LSTM] BiLSTM(hidden, layers=2) --> note_out [B, T, hidden*2]
-    |                                         |
-    v                                         v
-[Voice LSTM] BiLSTM(hidden, layers=2) --> voice_out [B, T, hidden*2]
-    |                                         |
-    +------ cat(note_out, voice_out) ---------+
+[Note LSTM] BiLSTM(256, layers=2) --> note_out [B, T, 512]
+    |                                       |
+    v                                       v
+[Voice LSTM] BiLSTM(256, layers=2) --> voice_out [B, T, 512]
+    |                                       |
+    +------ cat(note_out, voice_out) -------+
                         |
                         v
-            hidden_out [B, T, hidden*4]
+            hidden_out [B, T, 1024]
                         |
                         v
-[Beat Attention] --> [Beat LSTM] BiLSTM --> beat_out [B, T_beat, hidden*2]
+[Beat Attention] --> [Beat LSTM] BiLSTM --> beat_out [B, T_beat, 512]
                                                 |
                                                 v
-[Measure Attention] --> [Measure LSTM] BiLSTM --> measure_out [B, T_meas, hidden*2]
+[Measure Attention] --> [Measure LSTM] BiLSTM --> measure_out [B, T_meas, 512]
                         |
                         v
         span_beat_to_note + span_measure_to_note
                         |
                         v
     total_note_cat = cat(hidden_out, beat_spanned, measure_spanned)
-                    [B, T, hidden*8]  (2048 for hidden=256)
+                    [B, T, 2048]
                         |
                         v
-              [LayerNorm(2048)]  <-- ADDED: Stabilizes HAN output magnitude
+[Performance Contractor] Linear(2048 -> 512)
                         |
                         v
-[Performance Contractor] Linear(hidden*8 -> hidden*2)  [B, T, 512]
+[Final Attention] ContextAttention(512, heads=8)  [B, 512]
                         |
                         v
-[Final Attention] ContextAttention(hidden*2, heads=8)  [B, 512]
-                        |                               ^
-                        |                               |
-                        |         NOW MATCHES ORIGINAL: Linear(512->512) + tanh + context vectors
-                        v
-              [LayerNorm(512)]  <-- ADDED: Stabilizes pre-prediction input
-                        |
-                        v
-[Prediction Head] Dropout -> Linear -> GELU -> Dropout -> Linear
+[Prediction Head] Dropout -> Linear(512, 128) -> GELU -> Dropout -> Linear(128, 19)
                         |
                         v
                   [Sigmoid]
@@ -124,7 +117,13 @@ Input (78-dim VirtuosoNet features)
    - Without this, model has gradient flow issues
    - Reference: `model_m2pf.py` VirtuosoNetMultiLevel class
 
-3. **Sigmoid on output** (confirmed from code)
+3. **ContextAttention structure**
+   - `Linear(size, size)` + tanh activation
+   - Learnable context vectors per head (8 vectors of 64-dim each)
+   - Softmax over sequence dimension
+   - Reference: `virtuoso/module.py:348-383`
+
+4. **Sigmoid on output** (confirmed from code)
    - `train_m2pf.py:135`: `loss = loss_calculator(sigmoid(logitss[-1]), targets)`
    - Targets are normalized to [0, 1], sigmoid constrains predictions to same range
 
@@ -160,7 +159,7 @@ Input (78-dim VirtuosoNet features)
 | measure_layer | 1 |
 | num_attention_heads | 8 |
 | dropout | 0.2 |
-| final_fc_size | 128 |
+| **final_fc_size** | **128** |
 | final_fc_layer | 1 |
 | encoder | HAN |
 | meas_note | true |
@@ -180,6 +179,7 @@ Input (78-dim VirtuosoNet features)
 | lr_scheduler | StepLR(step_size=3000, gamma=0.98) |
 | optimizer | Adam |
 | augment_train | False |
+| precision | FP32 |
 
 ---
 
@@ -364,330 +364,12 @@ for name, param in model.named_parameters():
 
 ---
 
-## Our Implementation Status
-
-**Last Updated**: 2025-12-25
-
-### Issue History
-
-#### 2024-12-24: Prediction Collapse & Gradient Explosion
-
-**Symptoms observed**:
-
-- Gradient norms 800-2500+ (before clipping)
-- Prediction std ~0.03-0.05 vs target std ~0.15
-- R2 stuck negative, slowly approaching 0 but never crossing
-- Key layers affected: `note_fc.weight` (16-800), `prediction_head.1.weight` (108-900)
-
-**Experiments run**:
-
-| LR | Result |
-|----|--------|
-| 2.5e-5 (SOTA) | R2: -0.23 to -0.05 over 20 epochs, pred_std ~0.04 |
-| 1e-5 | R2: -0.15 to ~0.00 over 25 epochs, pred_std ~0.05 |
-| 5e-6 | R2: -0.17 to -0.05 over 18 epochs, pred_std ~0.035 |
-
-#### 2025-12-25: Deep Investigation & Fixes
-
-**Diagnostic run with activation logging** revealed the root causes:
-
-```
-Input features: mean=0.01, std=0.17 (OK)
-HAN total_note_cat: mean=-0.0002, std=0.0139 (100x TOO SMALL!)
-Contracted: mean=0.0001, std=0.0149 (TOO SMALL)
-Aggregated: mean=0.0003, std=0.0211 (TOO SMALL)
-Logits: mean=-0.004, std=0.03 (50x TOO SMALL - should be 1-3)
-Predictions: mean=0.499, std=0.008 (all ~0.5, sigmoid of ~0)
-
-Gradient by category:
-  han_encoder:            norm=70,  max=16
-  performance_contractor: norm=187, max=152
-  final_attention:        norm=0.1, max=0.1 (NEGLIGIBLE!)
-  prediction_head:        norm=622, max=561 (DOING ALL THE WORK)
-```
-
-**Root Causes Identified**:
-
-1. **FP16 Mixed Precision**: Original uses FP32, we defaulted to FP16-mixed which causes
-   numerical instability in attention softmax and gradient computation.
-
-2. **ContextAttention Architecture Wrong**: Our implementation used `Linear(size, size)` (512->512)
-   but original uses `Linear(size, num_head)` (512->8). This fundamental mismatch caused
-   the attention to produce near-uniform weights, averaging all positions and collapsing magnitudes.
-
-3. **Magnitude Collapse Through Hierarchy**: With near-uniform attention weights over T=1024
-   positions, each aggregation step divides std by ~sqrt(T). After multiple hierarchy levels,
-   the output std becomes ~0.01 instead of ~1.0.
-
-4. **No Normalization**: Unlike modern transformers, the original has no LayerNorm. But with
-   our attention bug, values collapsed to near-zero, requiring normalization to recover.
-
-**Fixes Applied (Round 1)**:
-
-| Fix | File | Description |
-|-----|------|-------------|
-| Precision FP32 | `kfold_trainer.py:351-353` | Changed default from `"16-mixed"` to `"32"` |
-| ContextAttention | `context_attention.py` | Fixed to use `Linear(size, num_head)`, softmax over sequence |
-| HAN output norm | `percepiano_replica.py:761` | Added `LayerNorm(2048)` after HAN encoder |
-| Pre-prediction norm | `percepiano_replica.py:775` | Added `LayerNorm(512)` before prediction head |
-| Prediction head init | `percepiano_replica.py:787-790` | Xavier init with gain=0.1, zero bias |
-
-**Results After Round 1 (Partial Fix)**:
-
-Training run showed gradient explosion was fixed, but prediction collapse persisted:
-
-```
-Activation Statistics (After LayerNorm fixes):
-  HAN output (raw): std=0.012 (unchanged from before)
-  HAN output (normed): std=0.35 (improved but still low)
-  Aggregated (normed): std=1.0 (good - LayerNorm working)
-  Logits: std=0.05 (STILL 10x too small, should be 0.5-2.0)
-  Predictions: std=0.01-0.06 (STILL COLLAPSED, should be 0.15)
-
-Gradient Norms (After fixes):
-  Total: 0.06-0.10 (fixed from 600-2000, but perhaps now too small)
-  Prediction head: 0.05-0.08 (still dominant)
-  Final attention: 0.0001-0.003 (still negligible)
-
-Training Progress (5 epochs):
-  Epoch 0: val_r2=-0.0702
-  Epoch 1: val_r2=-0.0394
-  Epoch 4: val_r2=-0.0794
-  Prediction collapse warnings persisted
-```
-
-**Root Cause**: The Xavier gain=0.1 initialization produced tiny logits (std=0.05).
-With input std=1.0 from LayerNorm, the output should have std proportional to gain.
-Using gain=0.1 meant sigmoid(tiny logits) collapsed everything to ~0.5.
-
-#### 2025-12-25: Round 2 Fixes
-
-**Additional Fix Applied**:
-
-| Fix | File | Description |
-|-----|------|-------------|
-| Prediction head init | `percepiano_replica.py:791-796` | Xavier gain=2.0, bias uniform [-1, 1] |
-
-The larger gain (2.0 vs 0.1 = 20x increase) should produce logits with std~1.0,
-giving sigmoid outputs spanning [0.1, 0.9] instead of collapsing to 0.5.
-The non-zero bias breaks symmetry, helping different dimensions specialize.
-
-**Expected Results After Round 2**:
-
-| Metric | Round 1 | Expected Round 2 |
-|--------|---------|------------------|
-| Logits std | 0.05 | 0.8-1.5 |
-| Predictions std | 0.01-0.06 | 0.10-0.15 |
-| Gradient balance | head dominates | more distributed |
-| R2 after 5 epochs | -0.07 to -0.04 | 0.0 to +0.10 |
-| R2 after 20 epochs | ~0.03 | +0.15-0.25 |
-
-**IMPORTANT**: Training config must explicitly set `precision="32"`. The default change only
-applies when precision is not specified in the config.
-
-**Actual Results After Round 2** (7 epochs):
-
-| Metric | Expected | Actual | Status |
-|--------|----------|--------|--------|
-| Logits std | 0.8-1.5 | 1.317 | PASS |
-| Predictions std | 0.10-0.15 | 0.250 | PASS |
-| Gradient balance | 0.3-0.5x [OK] | 0.4x [OK] | PASS |
-| R2 after 5 epochs | 0.0 to +0.10 | -0.14 | FAIL |
-| R2 after 7 epochs | >+0.05 | -0.13 | FAIL |
-
-Round 2 fixed the activation collapse but R2 still negative and oscillating.
-
-#### 2025-12-25: Round 3 Fixes
-
-**Root Cause Identified**: `FinalContextAttention` was too simplified compared to original.
-
-The original PercePiano (model_m2pf.py:117) uses `ContextAttention` for final aggregation:
-
-- `Linear(512, 512)` + tanh activation
-- Learnable context vectors per head (8 vectors of 64-dim each)
-- Head-wise weighted sums
-
-Our `FinalContextAttention` was a simplified version:
-
-- `Linear(512, 8)` only
-- No context vectors
-- Average attention across heads
-
-The context vector mechanism is critical for learning what to attend to. Removing it
-severely limits the model's expressiveness for sequence aggregation.
-
-**Fix Applied**:
-
-| Fix | File | Description |
-|-----|------|-------------|
-| Final attention | `percepiano_replica.py:775-777` | Changed from `FinalContextAttention` to `ContextAttention` |
-
-**Expected Results After Round 3**:
-
-| Metric | Round 2 | Expected Round 3 |
-|--------|---------|------------------|
-| R2 after 5 epochs | -0.14 | 0.0 to +0.10 |
-| R2 after 20 epochs | ~-0.10 | +0.15-0.25 |
-| R2 at convergence | Unknown | +0.30-0.40 (SOTA range) |
-
-**Actual Results After Round 3** (12 epochs):
-
-| Metric | Expected | Actual | Status |
-|--------|----------|--------|--------|
-| Logits std | 0.8-1.5 | 1.201 | PASS |
-| Predictions std | 0.10-0.15 | 0.242 | HIGH |
-| Context vectors | Present | Present | PASS |
-| Gradient balance | 0.3-1.0x [OK] | 0.4x [OK] | PASS |
-| R2 after 5 epochs | 0.0 to +0.10 | -0.234 | FAIL |
-| R2 after 12 epochs | >+0.05 | -0.136 | FAIL |
-
-Round 3 fixed context vectors but R2 still negative. Predictions std (0.242) was 2.3x higher
-than target std (0.106), causing high residuals and slow convergence.
-
-#### 2025-12-25: Round 4 Fixes
-
-**Root Cause Identified**: Prediction head initialization (gain=2.0, bias [-1,1]) was too aggressive.
-
-With input std=1.0 from LayerNorm, Xavier gain=2.0 produces logits with std~2.0. After sigmoid,
-this creates predictions with high variance (0.242) compared to target variance (0.106). The
-predictions "overshoot" in magnitude, causing large MSE despite learning the correct direction.
-
-The original PercePiano uses PyTorch defaults for Linear layers:
-- Weights: kaiming_uniform_(a=sqrt(5)) which is roughly equivalent to xavier_uniform_ with gain~0.58
-- Bias: uniform(-bound, bound) where bound = 1/sqrt(fan_in) ~ 0.044 for 512 inputs
-
-**Fixes Applied**:
-
-| Fix | File | Description |
-|-----|------|-------------|
-| Learning rate | `notebook cell-12` | Increased from 2.5e-5 to 5e-5 (paper's upper bound) |
-| Xavier gain | `percepiano_replica.py:798` | Reduced from 2.0 to 1.0 |
-| Bias range | `percepiano_replica.py:799` | Reduced from [-1,1] to [-0.1,0.1] |
-
-**Rationale**:
-
-1. **Higher learning rate**: Gradients are stable (total norm 0.15-1.15), well within safe range.
-   Paper searched {5e-5, 2.5e-5}, we can safely use the upper bound for faster convergence.
-
-2. **Moderate initialization**: gain=1.0 with std=1.0 input produces logits with std~1.0.
-   After sigmoid, this should give predictions with std~0.15, matching target std (0.106).
-
-**Expected Results After Round 4**:
-
-| Metric | Round 3 | Expected Round 4 |
-|--------|---------|------------------|
-| Predictions std | 0.242 | 0.10-0.15 |
-| R2 after 5 epochs | -0.234 | 0.0 to +0.10 |
-| R2 after 20 epochs | -0.136 (at epoch 12) | +0.15-0.25 |
-| R2 at convergence | Unknown | +0.30-0.40 (SOTA range) |
-
-### Verified Matching SOTA
-
-| Component | Status | Notes |
-|-----------|--------|-------|
-| Model architecture | MATCH | HAN, performance_contractor, final_attention, prediction head |
-| Hidden size | MATCH | 256 for all levels |
-| Layer counts | MATCH | note=2, voice=2, beat=2, measure=1 |
-| Attention heads | MATCH | 8 |
-| Dropout | MATCH | 0.2 |
-| Learning rate | MATCH | 5e-5 (Round 4: paper's upper bound) |
-| Batch size | MATCH | 8 |
-| Weight decay | MATCH | 1e-5 |
-| Optimizer | MATCH | Adam (not AdamW) |
-| LR Scheduler | MATCH | StepLR(step_size=3000, gamma=0.98, interval=step) |
-| Gradient clipping | MATCH | 2.0 |
-| Loss function | MATCH | MSE after sigmoid |
-| R2 computation | MATCH | sklearn r2_score with uniform_average |
-| **Precision** | **FIXED** | FP32 (was incorrectly using FP16-mixed) |
-| **Final Attention** | **FIXED** | Uses ContextAttention with context vectors (was simplified FinalContextAttention) |
-
-### Ruled Out Issues
-
-1. **Feature normalization** - CORRECT: 8 features z-scored, 70 categorical/embeddings unchanged
-2. **Measure-aligned slicing** - Samples 51-413 notes, max_notes=1024 sufficient
-3. **Sequence iteration** - HanEncoder doesn't use it (only ISGN encoders do)
-4. **Fold assignment** - Fixed with greedy bucket balancing
-5. **Labels** - Correct range (0.24-0.90 within [0,1])
-
-### Deviations from Original (Intentional)
-
-These deviations were added to fix bugs or improve stability:
-
-1. **LayerNorm after HAN encoder** - Original has no normalization, but our attention fix
-   still produces small outputs. LayerNorm rescales to unit variance.
-
-2. **LayerNorm before prediction head** - Ensures consistent input magnitude.
-
-3. **Prediction head init** - Xavier gain=1.0 (matches default behavior) with small non-zero
-   bias [-0.1, 0.1] to break symmetry while not overshooting prediction variance.
-
-### Active Diagnostics
-
-1. **Activation check** (`kfold_trainer.py:ActivationDiagnosticCallback`)
-   - Runs on first batch only
-   - Reports logits std, prediction std, and health status
-   - Flags prediction collapse (std < 0.05) or under-spread
-   - **Round 3**: Verifies context vectors are present in model
-
-2. **Gradient monitoring** (`kfold_trainer.py:GradientMonitorCallback`)
-   - Logs every 100 steps (verbose first 5)
-   - Reports gradient norms by layer category
-   - Computes balance ratio (prediction_head vs encoder)
-   - Flags imbalance (>10x), explosion, or vanishing
-   - **Round 3**: Tracks context vector gradient norms to verify they're learning
-
-3. **TensorBoard logging** (`percepiano_replica.py`)
-   - Logs val/pred_mean and val/pred_std each epoch
-   - Track via TensorBoard or checkpoint files
-
-### Diagnostic Output to Watch
-
-After Round 4 fix, look for these in training logs:
-
-```
-============================================================
-  ACTIVATION CHECK - Batch 0
-============================================================
-  Learning rate: 5.00e-05              # Confirm LR is 5e-5 (Round 4)
-  Targets:     mean=0.55, std=0.106
-  Predictions: mean=0.50, std=0.12, range=[0.1, 0.9]
-  Logits:      mean=0.0, std=0.6
-
-  Health Check:
-    [OK] Logits std=0.60 in good range           # Should be 0.5-1.5 (reduced from 1.2)
-    [OK] Prediction std=0.12 in good range       # Should be 0.10-0.15
-    [OK] Pred/target std ratio=1.13x             # CRITICAL: Should be 0.8-1.5x (was 2.3x in Round 3!)
-    [OK] All 19 dimensions have healthy variance
-    [OK] Context vectors present (Round 3 fix active)
-============================================================
-
-  [GRAD] Step 0: total=0.5-2.0
-    han=0.3, contractor=0.8, attn=0.03, head=0.4
-    context_vectors=0.002 [OK: learning]
-    Balance (head/encoder): 0.4x [OK]
-```
-
-**Key Metrics for Round 4:**
-
-| Metric | Round 3 | Expected Round 4 | Status If Wrong |
-|--------|---------|------------------|-----------------|
-| Learning rate | 2.5e-5 | 5e-5 | Check notebook config |
-| Pred/target std ratio | 2.3x | 0.8-1.5x | Init still too aggressive |
-| Logits std | 1.2 | 0.5-1.0 | Init gain wrong |
-| R2 at epoch 5 | -0.23 | >0.0 | Need more training or different approach |
-
-**If problems persist:**
-- `context_vectors [WARN: not learning!]` -> Attention may be stuck
-- `Pred/target std ratio > 2.0x` -> Try gain=0.5 or PyTorch defaults
-- `R2 still negative at epoch 10` -> Consider data/architecture issues
-
----
-
 ## File Locations
 
 ### Our Implementation
 
 - Model: `src/percepiano/models/percepiano_replica.py`
+- Attention: `src/percepiano/models/context_attention.py`
 - HAN encoder: `src/percepiano/models/han_encoder.py`
 - Hierarchy utils: `src/percepiano/models/hierarchy_utils.py`
 - Feature extractor: `src/percepiano/data/virtuosonet_feature_extractor.py`
