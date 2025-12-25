@@ -349,7 +349,7 @@ class KFoldTrainer:
             accelerator="auto",
             devices=1,
             precision=self.config.get("precision", "16-mixed"),
-            gradient_clip_val=self.config.get("gradient_clip_val", 2.0),
+            gradient_clip_val=self.config.get("gradient_clip_val", 1.0),  # More aggressive than original 2.0
             callbacks=callbacks,
             logger=logger,
             enable_progress_bar=False,  # We use our own logging

@@ -388,23 +388,27 @@ for name, param in model.named_parameters():
 
 #### 2025-12-25: Stability Fixes Applied
 
-**Fix 1: LayerNorm after note_fc** (`percepiano_replica.py:111-116`)
+**Attempt 1: LayerNorm after note_fc + Xavier init** - FAILED
+- Gradients got WORSE (1586 -> 9159 by step 1000)
+- LayerNorm after Linear doesn't help because gradient explosion happens in backprop through Linear
+
+**Attempt 2: Input LayerNorm + Aggressive Clipping** (`percepiano_replica.py:114-115`)
 
 ```python
-self.note_fc = nn.Sequential(
-    nn.Linear(input_size, note_size),
-    nn.LayerNorm(note_size),
-)
+self.input_norm = nn.LayerNorm(input_size)  # Normalize 78-dim input
+self.note_fc = nn.Linear(input_size, note_size)
+
+# In forward():
+x_normed = self.input_norm(x)
+x_embedded = self.note_fc(x_normed)
 ```
 
-**Fix 2: Xavier/Orthogonal weight initialization** (`percepiano_replica.py:171-188`)
+Also reduced gradient clipping from 2.0 to 1.0 (`kfold_trainer.py:352`)
 
-- Linear layers: Xavier uniform
-- LSTM input weights: Xavier uniform
-- LSTM hidden weights: Orthogonal
-- LSTM forget gate bias: 1.0 (better gradient flow)
+**Rationale**: The 78-dim input features have varied scales (8 z-scored + 70 categorical/embeddings).
+LayerNorm on INPUT normalizes all features to unit variance before projection, preventing gradient explosion.
 
-**Status**: Awaiting test results
+**Status**: Testing
 
 ### Verified Matching SOTA
 

@@ -108,12 +108,11 @@ class PercePianoHAN(nn.Module):
         self.beat_size = beat_size
         self.measure_size = measure_size
 
-        # Input projection with LayerNorm for gradient stability
-        # The 78->256 projection can cause gradient explosion without normalization
-        self.note_fc = nn.Sequential(
-            nn.Linear(input_size, note_size),
-            nn.LayerNorm(note_size),
-        )
+        # Input normalization + projection for gradient stability
+        # LayerNorm on INPUT features (before Linear) normalizes the varied feature scales
+        # This prevents gradient explosion from features with different magnitudes
+        self.input_norm = nn.LayerNorm(input_size)
+        self.note_fc = nn.Linear(input_size, note_size)
 
         # Note-level Bi-LSTM
         self.note_lstm = nn.LSTM(
@@ -210,8 +209,9 @@ class PercePianoHAN(nn.Module):
         # Compute actual sequence lengths
         actual_lengths = compute_actual_lengths(beat_numbers)
 
-        # Project input to 256-dim embeddings
-        x_embedded = self.note_fc(x)  # [B, T, 256]
+        # Normalize input features, then project to 256-dim embeddings
+        x_normed = self.input_norm(x)  # [B, T, 78] normalized
+        x_embedded = self.note_fc(x_normed)  # [B, T, 256]
 
         # Note-level LSTM (processes 256-dim embeddings)
         x_packed = pack_padded_sequence(
