@@ -78,7 +78,9 @@ class GradientMonitorCallback(Callback):
     DIAGNOSTIC: Gradient monitoring for debugging training issues.
 
     Logs gradient norms by layer category at regular intervals.
-    Focus on detecting gradient imbalance (prediction_head doing all the work).
+    Focus on detecting:
+    1. Gradient imbalance (prediction_head doing all the work)
+    2. Context vector learning (critical for Round 3 fix validation)
     """
 
     def __init__(self, log_every_n_steps: int = 100, verbose_first_n_steps: int = 5):
@@ -102,6 +104,10 @@ class GradientMonitorCallback(Callback):
             "prediction_head": {"norm": 0.0, "count": 0},
         }
 
+        # Track context vector gradients specifically (Round 3 fix validation)
+        context_vector_norm = 0.0
+        context_vector_count = 0
+
         total_norm_sq = 0.0
 
         for name, param in pl_module.named_parameters():
@@ -110,6 +116,11 @@ class GradientMonitorCallback(Callback):
 
             param_norm = param.grad.data.norm(2).item()
             total_norm_sq += param_norm**2
+
+            # Track context vectors specifically (critical for Round 3)
+            if "context_vector" in name:
+                context_vector_norm += param_norm**2
+                context_vector_count += 1
 
             # Categorize
             if "han_encoder" in name:
@@ -127,6 +138,7 @@ class GradientMonitorCallback(Callback):
             grad_stats[cat]["count"] += 1
 
         total_norm = total_norm_sq**0.5
+        context_vector_norm = context_vector_norm**0.5
 
         # Compute category norms
         for cat in grad_stats:
@@ -149,6 +161,14 @@ class GradientMonitorCallback(Callback):
               f"contractor={grad_stats['performance_contractor']['norm']:.3f}, "
               f"attn={grad_stats['final_attention']['norm']:.4f}, "
               f"head={grad_stats['prediction_head']['norm']:.3f}")
+
+        # Log context vector gradient (critical for Round 3 validation)
+        if context_vector_count > 0 and is_verbose_step:
+            if context_vector_norm < 1e-6:
+                print(f"    context_vectors={context_vector_norm:.6f} [WARN: not learning!]")
+            else:
+                print(f"    context_vectors={context_vector_norm:.4f} [OK: learning]")
+
         print(f"    Balance (head/encoder): {balance_ratio:.1f}x", end="")
 
         # Flag issues
@@ -168,9 +188,10 @@ class ActivationDiagnosticCallback(Callback):
     """
     DIAGNOSTIC: Check key activation statistics on first batch only.
 
-    Focus on the critical metrics for detecting prediction collapse:
-    - Logits std (should be 0.5-2.0 for proper sigmoid spread)
-    - Prediction std (should be 0.10-0.15 to match target std)
+    Focus on the critical metrics for detecting issues:
+    1. Logits std (should be 0.5-2.0 for proper sigmoid spread)
+    2. Prediction std (should be 0.10-0.15 to match target std)
+    3. Attention weight distribution (should not be uniform or collapsed)
     """
 
     def __init__(self):
@@ -237,6 +258,16 @@ class ActivationDiagnosticCallback(Callback):
                 print(f"    [WARN] Predictions under-spread: std={pred_std:.3f} vs target={target_std:.3f}")
             else:
                 print(f"    [OK] Prediction spread looks reasonable")
+
+            # Check attention context vectors exist (Round 3 validation)
+            has_context_vectors = any(
+                "context_vector" in name
+                for name, _ in pl_module.named_parameters()
+            )
+            if has_context_vectors:
+                print(f"    [OK] Context vectors present (Round 3 fix active)")
+            else:
+                print(f"    [WARN] No context vectors found - check final_attention type")
 
         print(f"{'='*60}\n")
 

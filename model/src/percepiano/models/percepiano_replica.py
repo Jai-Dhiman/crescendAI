@@ -459,9 +459,10 @@ class PercePianoReplicaModule(pl.LightningModule):
         )
 
         # Final attention aggregation (over contracted 512-dim, not raw 2048-dim)
-        # Use FinalContextAttention (simplified for piece-level aggregation)
-        # ContextAttention is used for hierarchy processing (beat/measure)
-        self.final_attention = FinalContextAttention(
+        # CRITICAL: Use ContextAttention (same as original PercePiano model_m2pf.py:117)
+        # The original uses the SAME attention mechanism for both hierarchy and final
+        # aggregation, with learnable context vectors per head.
+        self.final_attention = ContextAttention(
             encoder_output_size, num_attention_heads
         )
 
@@ -768,9 +769,11 @@ class PercePianoVNetModule(pl.LightningModule):
         )
 
         # Final attention aggregation (over contracted 512-dim, not raw 2048-dim)
-        # Use FinalContextAttention (simplified for piece-level aggregation)
-        # ContextAttention is used for hierarchy processing (beat/measure)
-        self.final_attention = FinalContextAttention(
+        # CRITICAL: Use ContextAttention (same as original PercePiano model_m2pf.py:117)
+        # The original uses the SAME attention mechanism for both hierarchy and final
+        # aggregation, with learnable context vectors per head.
+        # FinalContextAttention was too simplified and hurt R2 performance.
+        self.final_attention = ContextAttention(
             encoder_output_size, num_attention_heads
         )
 

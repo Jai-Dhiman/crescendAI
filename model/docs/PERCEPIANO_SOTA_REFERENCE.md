@@ -98,7 +98,7 @@ Input (78-dim VirtuosoNet features)
 [Final Attention] ContextAttention(hidden*2, heads=8)  [B, 512]
                         |                               ^
                         |                               |
-                        |         FIXED: Linear(512->8) with softmax over sequence
+                        |         NOW MATCHES ORIGINAL: Linear(512->512) + tanh + context vectors
                         v
               [LayerNorm(512)]  <-- ADDED: Stabilizes pre-prediction input
                         |
@@ -485,6 +485,49 @@ The non-zero bias breaks symmetry, helping different dimensions specialize.
 **IMPORTANT**: Training config must explicitly set `precision="32"`. The default change only
 applies when precision is not specified in the config.
 
+**Actual Results After Round 2** (7 epochs):
+
+| Metric | Expected | Actual | Status |
+|--------|----------|--------|--------|
+| Logits std | 0.8-1.5 | 1.317 | PASS |
+| Predictions std | 0.10-0.15 | 0.250 | PASS |
+| Gradient balance | 0.3-0.5x [OK] | 0.4x [OK] | PASS |
+| R2 after 5 epochs | 0.0 to +0.10 | -0.14 | FAIL |
+| R2 after 7 epochs | >+0.05 | -0.13 | FAIL |
+
+Round 2 fixed the activation collapse but R2 still negative and oscillating.
+
+#### 2025-12-25: Round 3 Fixes
+
+**Root Cause Identified**: `FinalContextAttention` was too simplified compared to original.
+
+The original PercePiano (model_m2pf.py:117) uses `ContextAttention` for final aggregation:
+- `Linear(512, 512)` + tanh activation
+- Learnable context vectors per head (8 vectors of 64-dim each)
+- Head-wise weighted sums
+
+Our `FinalContextAttention` was a simplified version:
+- `Linear(512, 8)` only
+- No context vectors
+- Average attention across heads
+
+The context vector mechanism is critical for learning what to attend to. Removing it
+severely limits the model's expressiveness for sequence aggregation.
+
+**Fix Applied**:
+
+| Fix | File | Description |
+|-----|------|-------------|
+| Final attention | `percepiano_replica.py:775-777` | Changed from `FinalContextAttention` to `ContextAttention` |
+
+**Expected Results After Round 3**:
+
+| Metric | Round 2 | Expected Round 3 |
+|--------|---------|------------------|
+| R2 after 5 epochs | -0.14 | 0.0 to +0.10 |
+| R2 after 20 epochs | ~-0.10 | +0.15-0.25 |
+| R2 at convergence | Unknown | +0.30-0.40 (SOTA range) |
+
 ### Verified Matching SOTA
 
 | Component | Status | Notes |
@@ -503,7 +546,7 @@ applies when precision is not specified in the config.
 | Loss function | MATCH | MSE after sigmoid |
 | R2 computation | MATCH | sklearn r2_score with uniform_average |
 | **Precision** | **FIXED** | FP32 (was incorrectly using FP16-mixed) |
-| **ContextAttention** | **FIXED** | Linear(size, num_head) with sequence softmax |
+| **Final Attention** | **FIXED** | Uses ContextAttention with context vectors (was simplified FinalContextAttention) |
 
 ### Ruled Out Issues
 
@@ -531,16 +574,35 @@ These deviations were added to fix bugs or improve stability:
    - Runs on first batch only
    - Reports logits std, prediction std, and health status
    - Flags prediction collapse (std < 0.05) or under-spread
+   - **Round 3**: Verifies context vectors are present in model
 
 2. **Gradient monitoring** (`kfold_trainer.py:GradientMonitorCallback`)
    - Logs every 100 steps (verbose first 5)
    - Reports gradient norms by layer category
    - Computes balance ratio (prediction_head vs encoder)
    - Flags imbalance (>10x), explosion, or vanishing
+   - **Round 3**: Tracks context vector gradient norms to verify they're learning
 
 3. **TensorBoard logging** (`percepiano_replica.py`)
    - Logs val/pred_mean and val/pred_std each epoch
    - Track via TensorBoard or checkpoint files
+
+### Diagnostic Output to Watch
+
+After Round 3 fix, look for these in training logs:
+
+```
+ACTIVATION CHECK - Batch 0
+  Logits:      std=0.8-1.5 [OK]
+  Predictions: std=0.10-0.15 [OK]
+  [OK] Context vectors present (Round 3 fix active)
+
+[GRAD] Step 0: total=0.5-2.0
+  context_vectors=0.01-0.1 [OK: learning]
+  Balance (head/encoder): 0.3-1.0x [OK]
+```
+
+If `context_vectors` shows `[WARN: not learning!]`, the attention may be stuck.
 
 ---
 
