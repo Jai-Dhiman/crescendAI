@@ -1,6 +1,6 @@
 # PercePiano SOTA Reference
 
-**Last Updated**: 2024-12-23
+**Last Updated**: 2025-12-25
 **Purpose**: Source of truth for reproducing PercePiano SOTA results (R2 = 0.397)
 
 ---
@@ -89,10 +89,18 @@ Input (78-dim VirtuosoNet features)
                     [B, T, hidden*8]  (2048 for hidden=256)
                         |
                         v
+              [LayerNorm(2048)]  <-- ADDED: Stabilizes HAN output magnitude
+                        |
+                        v
 [Performance Contractor] Linear(hidden*8 -> hidden*2)  [B, T, 512]
                         |
                         v
 [Final Attention] ContextAttention(hidden*2, heads=8)  [B, 512]
+                        |                               ^
+                        |                               |
+                        |         FIXED: Linear(512->8) with softmax over sequence
+                        v
+              [LayerNorm(512)]  <-- ADDED: Stabilizes pre-prediction input
                         |
                         v
 [Prediction Head] Dropout -> Linear -> GELU -> Dropout -> Linear
@@ -379,38 +387,63 @@ for name, param in model.named_parameters():
 | 1e-5 | R2: -0.15 to ~0.00 over 25 epochs, pred_std ~0.05 |
 | 5e-6 | R2: -0.17 to -0.05 over 18 epochs, pred_std ~0.035 |
 
-**Root cause analysis**:
+#### 2025-12-25: Deep Investigation & Fixes
 
-- Feature normalization verified CORRECT (only 8 scalar features z-scored, rest categorical)
-- Gradient clipping at 2.0 verified CONFIGURED
-- Issue: 78->256 projection (`note_fc`) without normalization causes gradient instability
-- Original PercePiano uses PyTorch defaults but may have different seed/conditions
+**Diagnostic run with activation logging** revealed the root causes:
 
-#### 2025-12-25: Stability Fixes Applied
+```
+Input features: mean=0.01, std=0.17 (OK)
+HAN total_note_cat: mean=-0.0002, std=0.0139 (100x TOO SMALL!)
+Contracted: mean=0.0001, std=0.0149 (TOO SMALL)
+Aggregated: mean=0.0003, std=0.0211 (TOO SMALL)
+Logits: mean=-0.004, std=0.03 (50x TOO SMALL - should be 1-3)
+Predictions: mean=0.499, std=0.008 (all ~0.5, sigmoid of ~0)
 
-**Attempt 1: LayerNorm after note_fc + Xavier init** - FAILED
+Gradient by category:
+  han_encoder:            norm=70,  max=16
+  performance_contractor: norm=187, max=152
+  final_attention:        norm=0.1, max=0.1 (NEGLIGIBLE!)
+  prediction_head:        norm=622, max=561 (DOING ALL THE WORK)
+```
 
-- Gradients got WORSE (1586 -> 9159 by step 1000)
-- LayerNorm after Linear doesn't help because gradient explosion happens in backprop through Linear
+**Root Causes Identified**:
 
-**Attempt 2: Input LayerNorm + Aggressive Clipping** - FAILED
+1. **FP16 Mixed Precision**: Original uses FP32, we defaulted to FP16-mixed which causes
+   numerical instability in attention softmax and gradient computation.
 
-- Gradients still 1571 at step 0, increasing to 2531 by step 100
-- No improvement over baseline
+2. **ContextAttention Architecture Wrong**: Our implementation used `Linear(size, size)` (512->512)
+   but original uses `Linear(size, num_head)` (512->8). This fundamental mismatch caused
+   the attention to produce near-uniform weights, averaging all positions and collapsing magnitudes.
 
-**Attempt 3: Input LayerNorm (reverted to simpler)** - FAILED
+3. **Magnitude Collapse Through Hierarchy**: With near-uniform attention weights over T=1024
+   positions, each aggregation step divides std by ~sqrt(T). After multiple hierarchy levels,
+   the output std becomes ~0.01 instead of ~1.0.
 
-- Same pattern: gradients 1571 -> 2531 -> 2071 -> 1714
-- Prediction collapse persists (std ~0.04 vs target 0.15)
+4. **No Normalization**: Unlike modern transformers, the original has no LayerNorm. But with
+   our attention bug, values collapsed to near-zero, requiring normalization to recover.
 
-**Key Observation**: ALL attempts show identical gradient patterns at step 0 (~1500+).
-This suggests the problem is NOT in the model architecture but possibly in:
+**Fixes Applied**:
 
-1. Data pipeline (feature values, labels)
-2. Loss computation
-3. How original PercePiano differs from our implementation in subtle ways
+| Fix | File | Description |
+|-----|------|-------------|
+| Precision FP32 | `kfold_trainer.py:351-353` | Changed default from `"16-mixed"` to `"32"` |
+| ContextAttention | `context_attention.py` | Fixed to use `Linear(size, num_head)`, softmax over sequence |
+| HAN output norm | `percepiano_replica.py:761` | Added `LayerNorm(2048)` after HAN encoder |
+| Pre-prediction norm | `percepiano_replica.py:775` | Added `LayerNorm(512)` before prediction head |
+| Prediction head init | `percepiano_replica.py:787-790` | Xavier init with gain=0.1, zero bias |
 
-**Status**: Needs deep investigation - see investigation prompt below
+**Expected Results After Fixes**:
+
+| Metric | Before Fix | Expected After |
+|--------|-----------|----------------|
+| HAN output std | 0.014 | ~1.0 |
+| Logits std | 0.03 | 0.5-2.0 |
+| Predictions std | 0.008 | 0.10-0.15 |
+| Gradient norm | 600-1600 | 10-100 |
+| R2 after 20 epochs | +0.03 | +0.15-0.25 |
+
+**IMPORTANT**: Training config must explicitly set `precision="32"`. The default change only
+applies when precision is not specified in the config.
 
 ### Verified Matching SOTA
 
@@ -429,6 +462,8 @@ This suggests the problem is NOT in the model architecture but possibly in:
 | Gradient clipping | MATCH | 2.0 |
 | Loss function | MATCH | MSE after sigmoid |
 | R2 computation | MATCH | sklearn r2_score with uniform_average |
+| **Precision** | **FIXED** | FP32 (was incorrectly using FP16-mixed) |
+| **ContextAttention** | **FIXED** | Linear(size, num_head) with sequence softmax |
 
 ### Ruled Out Issues
 
@@ -438,16 +473,32 @@ This suggests the problem is NOT in the model architecture but possibly in:
 4. **Fold assignment** - Fixed with greedy bucket balancing
 5. **Labels** - Correct range (0.24-0.90 within [0,1])
 
+### Deviations from Original (Intentional)
+
+These deviations were added to fix bugs or improve stability:
+
+1. **LayerNorm after HAN encoder** - Original has no normalization, but our attention fix
+   still produces small outputs. LayerNorm rescales to unit variance.
+
+2. **LayerNorm before prediction head** - Ensures consistent input magnitude.
+
+3. **Smaller prediction head init** - Prevents initial logits from being too large.
+
 ### Active Diagnostics
 
-1. **Prediction collapse detection** (`percepiano_replica.py`)
+1. **Activation diagnostics** (`kfold_trainer.py:185-233`)
+   - `ActivationDiagnosticCallback` runs on first 3 batches
+   - Logs input, HAN output, contracted, aggregated, logits, predictions
+   - Identifies magnitude collapse at each stage
+
+2. **Gradient monitoring** (`kfold_trainer.py:76-182`)
+   - `GradientMonitorCallback` logs gradient norms by layer category
+   - Tracks han_encoder, performance_contractor, final_attention, prediction_head
+   - Warns on explosion (>100), vanishing (<1e-6), or loss increasing
+
+3. **Prediction collapse detection** (`percepiano_replica.py`)
    - Logs pred mean, std, range after each validation epoch
    - Warns if `pred_std < 0.05`
-
-2. **Gradient monitoring** (`kfold_trainer.py:76-107`)
-   - `GradientMonitorCallback` logs gradient norms every 100 steps
-   - Tracks `note_fc`, `prediction_head` layers
-   - Warns on explosion (>100) or vanishing (<1e-6)
 
 ---
 

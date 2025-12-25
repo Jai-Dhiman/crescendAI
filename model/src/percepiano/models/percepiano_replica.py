@@ -754,16 +754,25 @@ class PercePianoVNetModule(pl.LightningModule):
         # Performance contractor: Contract total_note_cat from 2048 -> 512
         # (Critical layer from original PercePiano VirtuosoNetMultiLevel)
         encoder_output_size = hidden_size * 2  # 512 for hidden_size=256
+
+        # CRITICAL FIX: Add LayerNorm to stabilize HAN output magnitude
+        # The HAN encoder produces very small outputs (std ~0.01) due to
+        # hierarchical attention averaging. LayerNorm rescales to unit variance.
+        self.han_output_norm = nn.LayerNorm(self.han_encoder.output_dim)
+
         self.performance_contractor = nn.Linear(
             self.han_encoder.output_dim,  # 2048
             encoder_output_size,  # 512
         )
 
         # Final attention aggregation (over contracted 512-dim, not raw 2048-dim)
-        # Note: Original PercePiano has no extra LayerNorm after aggregation
         self.final_attention = ContextAttention(
             encoder_output_size, num_attention_heads
         )
+
+        # CRITICAL FIX: Add LayerNorm before prediction head to ensure
+        # consistent input magnitude regardless of sequence length
+        self.pre_prediction_norm = nn.LayerNorm(encoder_output_size)
 
         # Prediction head (matching original PercePiano out_fc structure)
         # Original: Dropout -> Linear -> GELU -> Dropout -> Linear
@@ -774,6 +783,11 @@ class PercePianoVNetModule(pl.LightningModule):
             nn.Dropout(dropout),
             nn.Linear(encoder_output_size, self.num_dimensions),  # 512 -> 19
         )
+
+        # Initialize prediction head final layer with smaller weights
+        # to produce logits closer to 0 initially (predictions ~0.5)
+        nn.init.xavier_normal_(self.prediction_head[4].weight, gain=0.1)
+        nn.init.zeros_(self.prediction_head[4].bias)
 
         # Metrics storage
         self.training_step_outputs = []
@@ -813,13 +827,20 @@ class PercePianoVNetModule(pl.LightningModule):
         han_outputs = self.han_encoder(input_features, note_locations)
         total_note_cat = han_outputs["total_note_cat"]  # [B, N, 2048]
 
-        # DIAGNOSTIC: Log HAN output statistics
+        # DIAGNOSTIC: Log HAN output statistics (before norm)
         if diagnose:
-            print(f"  [ACT] HAN total_note_cat: shape={total_note_cat.shape}")
+            print(f"  [ACT] HAN total_note_cat (raw): shape={total_note_cat.shape}")
             print(f"    mean={total_note_cat.mean().item():.4f}, std={total_note_cat.std().item():.4f}")
             print(f"    min={total_note_cat.min().item():.4f}, max={total_note_cat.max().item():.4f}")
             if torch.isnan(total_note_cat).any():
                 print(f"    WARNING: NaN detected in HAN output!")
+
+        # CRITICAL FIX: Normalize HAN output to stabilize magnitude
+        total_note_cat = self.han_output_norm(total_note_cat)
+
+        if diagnose:
+            print(f"  [ACT] HAN total_note_cat (after LayerNorm): shape={total_note_cat.shape}")
+            print(f"    mean={total_note_cat.mean().item():.4f}, std={total_note_cat.std().item():.4f}")
 
         # Contract from 2048 -> 512 (critical step from original PercePiano)
         contracted = self.performance_contractor(total_note_cat)  # [B, N, 512]
@@ -844,11 +865,18 @@ class PercePianoVNetModule(pl.LightningModule):
         # Note: Original PercePiano has no extra normalization after aggregation
         aggregated = self.final_attention(contracted, mask=attention_mask)  # [B, 512]
 
-        # DIAGNOSTIC: Log aggregated statistics
+        # DIAGNOSTIC: Log aggregated statistics (before norm)
         if diagnose:
-            print(f"  [ACT] Aggregated (after attention): shape={aggregated.shape}")
+            print(f"  [ACT] Aggregated (raw): shape={aggregated.shape}")
             print(f"    mean={aggregated.mean().item():.4f}, std={aggregated.std().item():.4f}")
             print(f"    min={aggregated.min().item():.4f}, max={aggregated.max().item():.4f}")
+
+        # CRITICAL FIX: Normalize before prediction head
+        aggregated = self.pre_prediction_norm(aggregated)
+
+        if diagnose:
+            print(f"  [ACT] Aggregated (after LayerNorm): shape={aggregated.shape}")
+            print(f"    mean={aggregated.mean().item():.4f}, std={aggregated.std().item():.4f}")
 
         # Get logits before sigmoid
         logits = self.prediction_head(aggregated)

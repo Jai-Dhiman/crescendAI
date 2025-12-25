@@ -1,11 +1,18 @@
 """
 Context Attention module for hierarchical aggregation.
 
-Ported from PercePiano's virtuoso/module.py.
-Implements multi-head attention with learned context vectors.
+Ported from PercePiano's virtuoso/module.py (line 348-383).
+Implements multi-head attention for aggregating sequences.
 
-This version matches the original PercePiano implementation exactly to reproduce
-the SOTA R2 = 0.397 result.
+CRITICAL: The original PercePiano uses a SIMPLER attention mechanism:
+- attention_net: Linear(size, num_head) - projects to num_head scores per position
+- softmax over heads (not over sequence)
+- BUT the multiplication x * attention has a shape mismatch in original code
+
+After investigation, we implement a corrected version that:
+1. Projects to num_head attention scores per position
+2. Applies softmax over the SEQUENCE dimension (not heads)
+3. Computes weighted sum properly
 """
 
 from typing import Optional
@@ -16,132 +23,95 @@ import torch.nn as nn
 
 class ContextAttention(nn.Module):
     """
-    Multi-head context attention with learned context vectors.
+    Multi-head context attention for sequence aggregation.
 
-    Used in hierarchical networks to aggregate lower-level representations
-    (e.g., notes -> beats, beats -> measures) using attention.
+    This implementation is based on the original PercePiano but fixes the
+    shape mismatch in the original code. Key design:
+    - Projects input to num_head scores per position: [B, T, num_head]
+    - Softmax over sequence (T) for each head
+    - Weighted sum of input features
 
-    Each head has a learnable context vector that determines what to attend to.
+    The original PercePiano code has:
+        attention = self.attention_net(x)  # [B, T, num_head]
+        attention = self.softmax(attention)  # softmax over heads (dim=-1)
+        upper = x * attention  # SHAPE MISMATCH: [B, T, D] * [B, T, H]
 
-    This implementation matches the original PercePiano/VirtuosoNet exactly:
-    - No LayerNorm (original doesn't have it)
-    - No temperature scaling (original doesn't have it)
-    - Uniform(-1, 1) initialization for context vectors (original init)
+    We fix this by applying softmax over sequence (dim=1) and properly
+    broadcasting the attention weights.
     """
 
     def __init__(self, size: int, num_head: int):
         """
         Args:
-            size: Input/output feature dimension
-            num_head: Number of attention heads (must divide size evenly)
+            size: Input feature dimension
+            num_head: Number of attention heads
         """
         super().__init__()
 
-        if size % num_head != 0:
-            raise ValueError(
-                f"size ({size}) must be divisible by num_head ({num_head})"
-            )
-
-        self.attention_net = nn.Linear(size, size)
+        self.size = size
         self.num_head = num_head
-        self.head_size = size // num_head
 
-        # Learnable context vector for each head
-        self.context_vector = nn.Parameter(torch.Tensor(num_head, self.head_size, 1))
+        # Project to num_head attention scores per position
+        # This matches original: nn.Linear(size, num_head)
+        self.attention_net = nn.Linear(size, num_head)
 
-        # Original PercePiano uses uniform(-1, 1) initialization
-        nn.init.uniform_(self.context_vector, a=-1, b=1)
+        # Use softmax over sequence dimension for proper aggregation
+        self.softmax = nn.Softmax(dim=1)
 
     def get_attention(self, x: torch.Tensor) -> torch.Tensor:
         """
-        Compute attention scores without applying softmax.
+        Compute attention scores (before softmax).
 
         Args:
-            x: Input tensor of shape (N, T, C)
+            x: Input tensor of shape (B, T, D)
 
         Returns:
-            Attention scores of shape (N, T, num_head)
+            Raw attention scores of shape (B, T, num_head)
         """
-        # Project to attention space and apply tanh (original PercePiano)
-        attention = self.attention_net(x)
-        attention_tanh = torch.tanh(attention)
-
-        # Split into heads and compute similarity with context vectors
-        attention_split = torch.stack(
-            attention_tanh.split(split_size=self.head_size, dim=2), dim=0
-        )  # (num_head, N, T, head_size)
-
-        # Compute similarity with context vector
-        similarity = torch.bmm(
-            attention_split.view(self.num_head, -1, self.head_size),
-            self.context_vector,
-        )  # (num_head, N*T, 1)
-
-        # Reshape to (N, T, num_head)
-        similarity = similarity.view(self.num_head, x.shape[0], -1).permute(1, 2, 0)
-
-        return similarity
+        return self.attention_net(x)
 
     def forward(
         self, x: torch.Tensor, mask: Optional[torch.Tensor] = None
     ) -> torch.Tensor:
         """
-        Apply context attention and return weighted sum.
+        Apply attention and return weighted sum.
 
         Args:
-            x: Input tensor of shape (N, T, C)
-            mask: Optional mask of shape (N, T) where True indicates valid positions
+            x: Input tensor of shape (B, T, D)
+            mask: Optional mask of shape (B, T) where True = valid position
 
         Returns:
-            Weighted sum of shape (N, C)
+            Weighted sum of shape (B, D)
         """
-        # Project and apply tanh (original PercePiano - no LayerNorm)
+        # Compute attention scores: [B, T, num_head]
         attention = self.attention_net(x)
-        attention_tanh = torch.tanh(attention)
 
-        if self.head_size != 1:
-            # Split into heads
-            attention_split = torch.stack(
-                attention_tanh.split(split_size=self.head_size, dim=2), dim=0
-            )  # (num_head, N, T, head_size)
+        # Mask out invalid positions before softmax
+        if mask is not None:
+            # Expand mask to match attention shape
+            mask_expanded = mask.unsqueeze(-1).expand_as(attention)
+            attention = attention.masked_fill(~mask_expanded, -1e9)
 
-            # Compute similarity with context vectors
-            similarity = torch.bmm(
-                attention_split.view(self.num_head, -1, self.head_size),
-                self.context_vector,
-            )  # (num_head, N*T, 1)
+        # Also mask zero-padded positions (backup for when mask not provided)
+        is_zero_padded = (x.abs().sum(dim=-1) < 1e-8)  # [B, T]
+        if is_zero_padded.any():
+            zero_mask = is_zero_padded.unsqueeze(-1).expand_as(attention)
+            attention = attention.masked_fill(zero_mask, -1e9)
 
-            # Reshape to (N, T, num_head)
-            similarity = similarity.view(self.num_head, x.shape[0], -1).permute(1, 2, 0)
+        # Softmax over SEQUENCE dimension (not heads)
+        # This gives attention weights that sum to 1 across positions for each head
+        attention_weights = self.softmax(attention)  # [B, T, num_head]
 
-            # Mask out zero-padded positions
-            is_zero_padded = x.sum(-1) == 0
-            similarity[is_zero_padded] = -1e10
+        # Weighted sum: average over heads, then sum over sequence
+        # Expand attention weights to match input: [B, T, num_head] -> [B, T, 1]
+        # We average the attention weights across heads
+        avg_attention = attention_weights.mean(dim=-1, keepdim=True)  # [B, T, 1]
 
-            # Apply optional explicit mask
-            if mask is not None:
-                similarity[~mask] = -1e10
+        # Weighted sum over sequence
+        weighted_x = x * avg_attention  # [B, T, D] * [B, T, 1] = [B, T, D]
+        output = weighted_x.sum(dim=1)  # [B, D]
 
-            # Softmax over time dimension
-            softmax_weight = torch.softmax(similarity, dim=1)
-
-            # Split x into heads and weight
-            x_split = torch.stack(x.split(split_size=self.head_size, dim=2), dim=2)
-            weighted_x = x_split * softmax_weight.unsqueeze(-1).repeat(
-                1, 1, 1, x_split.shape[-1]
-            )
-
-            # Merge heads back
-            attention = weighted_x.view(x_split.shape[0], x_split.shape[1], x.shape[-1])
-        else:
-            # Single head case (no temperature scaling in original)
-            softmax_weight = torch.softmax(attention_tanh, dim=1)
-            attention = softmax_weight * x
-
-        # Sum over time
-        sum_attention = torch.sum(attention, dim=1)
-
-        return sum_attention
+        return output
 
 
 class SimpleAttention(nn.Module):
