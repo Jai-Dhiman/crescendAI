@@ -108,8 +108,12 @@ class PercePianoHAN(nn.Module):
         self.beat_size = beat_size
         self.measure_size = measure_size
 
-        # Input projection
-        self.note_fc = nn.Linear(input_size, note_size)
+        # Input projection with LayerNorm for gradient stability
+        # The 78->256 projection can cause gradient explosion without normalization
+        self.note_fc = nn.Sequential(
+            nn.Linear(input_size, note_size),
+            nn.LayerNorm(note_size),
+        )
 
         # Note-level Bi-LSTM
         self.note_lstm = nn.LSTM(
@@ -160,6 +164,28 @@ class PercePianoHAN(nn.Module):
 
         # Output dimension: note+voice + beat + measure (all bidirectional)
         self.output_dim = combined_dim + beat_size * 2 + measure_size * 2
+
+        # Initialize weights for stability
+        self._init_weights()
+
+    def _init_weights(self):
+        """Initialize weights with Xavier uniform for better gradient flow."""
+        for module in self.modules():
+            if isinstance(module, nn.Linear):
+                nn.init.xavier_uniform_(module.weight)
+                if module.bias is not None:
+                    nn.init.zeros_(module.bias)
+            elif isinstance(module, nn.LSTM):
+                for name, param in module.named_parameters():
+                    if "weight_ih" in name:
+                        nn.init.xavier_uniform_(param.data)
+                    elif "weight_hh" in name:
+                        nn.init.orthogonal_(param.data)
+                    elif "bias" in name:
+                        nn.init.zeros_(param.data)
+                        # Set forget gate bias to 1 for better gradient flow
+                        n = param.size(0)
+                        param.data[n // 4 : n // 2].fill_(1.0)
 
     def forward(
         self,

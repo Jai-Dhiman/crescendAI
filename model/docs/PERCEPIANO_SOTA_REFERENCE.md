@@ -358,52 +358,90 @@ for name, param in model.named_parameters():
 
 ## Our Implementation Status
 
-### Matches SOTA
+**Last Updated**: 2025-12-25
 
-- Hidden size: 256
-- Layer counts: note=2, voice=2, beat=2, measure=1
-- Attention heads: 8
-- Dropout: 0.2
-- Learning rate: 2.5e-5
-- Batch size: 8
-- Sigmoid output: YES
-- MSE loss: YES
-- Gradient clipping: 2.0
+### Issue History
 
-### Needs Verification
+#### 2024-12-24: Prediction Collapse & Gradient Explosion
 
-- [x] sequence_iteration: **NOT USED by HAN encoder** (see note below)
-- [ ] Input features: Are we loading the exact preprocessed data?
-- [ ] Normalization: Are our z-score stats matching original?
-- [ ] meas_note mode: Config has this enabled, verify our hierarchy matches
+**Symptoms observed**:
 
-### Known Gaps
+- Gradient norms 800-2500+ (before clipping)
+- Prediction std ~0.03-0.05 vs target std ~0.15
+- R2 stuck negative, slowly approaching 0 but never crossing
+- Key layers affected: `note_fc.weight` (16-800), `prediction_head.1.weight` (108-900)
 
-- May need to verify exact pickle file loading matches original
+**Experiments run**:
 
----
+| LR | Result |
+|----|--------|
+| 2.5e-5 (SOTA) | R2: -0.23 to -0.05 over 20 epochs, pred_std ~0.04 |
+| 1e-5 | R2: -0.15 to ~0.00 over 25 epochs, pred_std ~0.05 |
+| 5e-6 | R2: -0.17 to -0.05 over 18 epochs, pred_std ~0.035 |
 
-## IMPORTANT: sequence_iteration Clarification
+**Root cause analysis**:
 
-**`sequence_iteration: 3` in the config is NOT used by HAN encoder!**
+- Feature normalization verified CORRECT (only 8 scalar features z-scored, rest categorical)
+- Gradient clipping at 2.0 verified CONFIGURED
+- Issue: 78->256 projection (`note_fc`) without normalization causes gradient instability
+- Original PercePiano uses PyTorch defaults but may have different seed/conditions
 
-After analyzing the original code:
+#### 2025-12-25: Stability Fixes Applied
 
-- The `HanEncoder` class (encoder_score.py:491-583) does NOT have any iteration loop
-- `sequence_iteration` is only used by graph-based encoders (`IsgnEncoder`, `IsgnBeatMeasEncoder`, etc.)
-- These encoders have `for i in range(self.num_sequence_iteration):` loops for GatedGraph refinement
-- The SOTA config uses `encoder: HAN`, which means HanEncoder is used
-- HanEncoder performs a **single pass** through the hierarchy (Note -> Beat -> Measure)
+**Fix 1: LayerNorm after note_fc** (`percepiano_replica.py:111-116`)
 
-**Conclusion**: Our single-pass implementation is CORRECT for HAN. The R2 gap must be caused by other factors.
+```python
+self.note_fc = nn.Sequential(
+    nn.Linear(input_size, note_size),
+    nn.LayerNorm(note_size),
+)
+```
 
-### Other Potential Root Causes to Investigate
+**Fix 2: Xavier/Orthogonal weight initialization** (`percepiano_replica.py:171-188`)
 
-1. **Data loading differences**: Are we using the exact same preprocessed pickle files?
-2. **Feature normalization**: Are z-score statistics matching original?
-3. **Weight initialization**: PyTorch defaults vs any custom init
-4. **Training dynamics**: Learning rate warmup, gradient flow, etc.
-5. **Evaluation protocol**: Are we computing R2 exactly as original?
+- Linear layers: Xavier uniform
+- LSTM input weights: Xavier uniform
+- LSTM hidden weights: Orthogonal
+- LSTM forget gate bias: 1.0 (better gradient flow)
+
+**Status**: Awaiting test results
+
+### Verified Matching SOTA
+
+| Component | Status | Notes |
+|-----------|--------|-------|
+| Model architecture | MATCH | HAN, performance_contractor, final_attention, prediction head |
+| Hidden size | MATCH | 256 for all levels |
+| Layer counts | MATCH | note=2, voice=2, beat=2, measure=1 |
+| Attention heads | MATCH | 8 |
+| Dropout | MATCH | 0.2 |
+| Learning rate | MATCH | 2.5e-5 |
+| Batch size | MATCH | 8 |
+| Weight decay | MATCH | 1e-5 |
+| Optimizer | MATCH | Adam (not AdamW) |
+| LR Scheduler | MATCH | StepLR(step_size=3000, gamma=0.98, interval=step) |
+| Gradient clipping | MATCH | 2.0 |
+| Loss function | MATCH | MSE after sigmoid |
+| R2 computation | MATCH | sklearn r2_score with uniform_average |
+
+### Ruled Out Issues
+
+1. **Feature normalization** - CORRECT: 8 features z-scored, 70 categorical/embeddings unchanged
+2. **Measure-aligned slicing** - Samples 51-413 notes, max_notes=1024 sufficient
+3. **Sequence iteration** - HanEncoder doesn't use it (only ISGN encoders do)
+4. **Fold assignment** - Fixed with greedy bucket balancing
+5. **Labels** - Correct range (0.24-0.90 within [0,1])
+
+### Active Diagnostics
+
+1. **Prediction collapse detection** (`percepiano_replica.py`)
+   - Logs pred mean, std, range after each validation epoch
+   - Warns if `pred_std < 0.05`
+
+2. **Gradient monitoring** (`kfold_trainer.py:76-107`)
+   - `GradientMonitorCallback` logs gradient norms every 100 steps
+   - Tracks `note_fc`, `prediction_head` layers
+   - Warns on explosion (>100) or vanishing (<1e-6)
 
 ---
 
@@ -417,10 +455,12 @@ After analyzing the original code:
 - Feature extractor: `src/percepiano/data/virtuosonet_feature_extractor.py`
 - Dataset: `src/percepiano/data/percepiano_vnet_dataset.py`
 - Trainer: `src/percepiano/training/kfold_trainer.py`
+- Training notebook: `notebooks/train_percepiano_replica.ipynb`
 
 ### Original PercePiano (in data/raw)
 
 - Encoder: `data/raw/PercePiano/virtuoso/virtuoso/encoder_score.py`
 - Training: `data/raw/PercePiano/virtuoso/virtuoso/train_m2pf.py`
+- Dataset: `data/raw/PercePiano/virtuoso/virtuoso/dataset.py`
 - Config: `data/raw/PercePiano/virtuoso/ymls/shared/label19/han_measnote_nomask_bigger256.yml`
 - Feature extraction: `data/raw/PercePiano/virtuoso/virtuoso/pyScoreParser/data_for_training.py`
