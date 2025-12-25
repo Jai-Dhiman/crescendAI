@@ -792,11 +792,11 @@ class PercePianoVNetModule(pl.LightningModule):
         )
 
         # Initialize prediction head for appropriate logit range
-        # With LayerNorm input (std=1.0), Xavier gain=2.0 produces logits with std~1.0
-        # This gives sigmoid outputs spanning [0.1, 0.9] instead of collapsing to 0.5
-        # Non-zero bias breaks symmetry and helps different dimensions specialize
-        nn.init.xavier_normal_(self.prediction_head[4].weight, gain=2.0)
-        nn.init.uniform_(self.prediction_head[4].bias, -1.0, 1.0)
+        # Round 4 fix: Reduced from gain=2.0 to gain=1.0 and bias from [-1,1] to [-0.1,0.1]
+        # Round 2-3 produced pred std=0.242 (2.3x higher than target std=0.106)
+        # More moderate initialization should produce pred std ~0.15 matching targets
+        nn.init.xavier_normal_(self.prediction_head[4].weight, gain=1.0)
+        nn.init.uniform_(self.prediction_head[4].bias, -0.1, 0.1)
 
         # Metrics storage
         self.training_step_outputs = []

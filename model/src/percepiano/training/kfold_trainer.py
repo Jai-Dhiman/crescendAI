@@ -189,9 +189,11 @@ class ActivationDiagnosticCallback(Callback):
     DIAGNOSTIC: Check key activation statistics on first batch only.
 
     Focus on the critical metrics for detecting issues:
-    1. Logits std (should be 0.5-2.0 for proper sigmoid spread)
-    2. Prediction std (should be 0.10-0.15 to match target std)
-    3. Attention weight distribution (should not be uniform or collapsed)
+    1. Logits std (should be 0.5-1.5 for proper sigmoid spread)
+    2. Prediction std (should be 0.10-0.15 to match target std ~0.106)
+    3. Pred/Target std ratio (should be 0.8-1.5, not >2.0 like Round 3)
+    4. Per-dimension std (detect collapsed dimensions)
+    5. Context vectors present (Round 3 fix validation)
     """
 
     def __init__(self):
@@ -206,6 +208,10 @@ class ActivationDiagnosticCallback(Callback):
         print(f"\n{'='*60}")
         print(f"  ACTIVATION CHECK - Batch 0")
         print(f"{'='*60}")
+
+        # Log learning rate to confirm config
+        lr = trainer.optimizers[0].param_groups[0]["lr"]
+        print(f"  Learning rate: {lr:.2e}")
 
         # Run diagnostic forward pass
         with torch.no_grad():
@@ -234,6 +240,7 @@ class ActivationDiagnosticCallback(Callback):
             pred_mean = predictions.mean().item()
             pred_min = predictions.min().item()
             pred_max = predictions.max().item()
+            std_ratio = pred_std / (target_std + 1e-8)
 
             print(f"  Targets:     mean={targets.mean().item():.3f}, std={target_std:.3f}")
             print(f"  Predictions: mean={pred_mean:.3f}, std={pred_std:.3f}, range=[{pred_min:.3f}, {pred_max:.3f}]")
@@ -243,23 +250,44 @@ class ActivationDiagnosticCallback(Callback):
                 logit_mean = logits.mean().item()
                 print(f"  Logits:      mean={logit_mean:.3f}, std={logit_std:.3f}")
 
-                # Health check
-                print(f"\n  Health Check:")
+            print(f"\n  Health Check:")
+
+            # 1. Logits std check (Round 4: expect 0.5-1.5)
+            if logits is not None:
                 if logit_std < 0.3:
-                    print(f"    [WARN] Logits std={logit_std:.3f} too small (target: 0.5-2.0)")
-                elif logit_std > 5.0:
-                    print(f"    [WARN] Logits std={logit_std:.3f} too large (target: 0.5-2.0)")
+                    print(f"    [WARN] Logits std={logit_std:.3f} too small (target: 0.5-1.5)")
+                elif logit_std > 3.0:
+                    print(f"    [WARN] Logits std={logit_std:.3f} too large (target: 0.5-1.5)")
                 else:
                     print(f"    [OK] Logits std={logit_std:.3f} in good range")
 
+            # 2. Prediction std absolute check
             if pred_std < 0.05:
-                print(f"    [FAIL] Prediction collapse! std={pred_std:.3f} (target: ~{target_std:.3f})")
-            elif pred_std < target_std * 0.5:
-                print(f"    [WARN] Predictions under-spread: std={pred_std:.3f} vs target={target_std:.3f}")
+                print(f"    [FAIL] Prediction collapse! std={pred_std:.3f} (target: 0.10-0.15)")
+            elif pred_std < 0.08:
+                print(f"    [WARN] Predictions under-spread: std={pred_std:.3f} (target: 0.10-0.15)")
+            elif pred_std > 0.25:
+                print(f"    [WARN] Predictions over-spread: std={pred_std:.3f} (target: 0.10-0.15)")
             else:
-                print(f"    [OK] Prediction spread looks reasonable")
+                print(f"    [OK] Prediction std={pred_std:.3f} in good range")
 
-            # Check attention context vectors exist (Round 3 validation)
+            # 3. Pred/Target std ratio check (Round 4 key metric)
+            if std_ratio < 0.5:
+                print(f"    [WARN] Pred/target std ratio={std_ratio:.2f}x too low (target: 0.8-1.5x)")
+            elif std_ratio > 2.0:
+                print(f"    [WARN] Pred/target std ratio={std_ratio:.2f}x too high - overshoot! (target: 0.8-1.5x)")
+            else:
+                print(f"    [OK] Pred/target std ratio={std_ratio:.2f}x (target: 0.8-1.5x)")
+
+            # 4. Per-dimension std check (detect collapsed dimensions)
+            dim_stds = predictions.std(dim=0)  # [19]
+            collapsed_dims = (dim_stds < 0.03).sum().item()
+            if collapsed_dims > 0:
+                print(f"    [WARN] {collapsed_dims}/19 dimensions collapsed (std < 0.03)")
+            else:
+                print(f"    [OK] All 19 dimensions have healthy variance")
+
+            # 5. Check attention context vectors exist (Round 3 validation)
             has_context_vectors = any(
                 "context_vector" in name
                 for name, _ in pl_module.named_parameters()

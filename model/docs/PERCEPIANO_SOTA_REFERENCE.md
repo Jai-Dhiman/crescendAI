@@ -1,6 +1,6 @@
 # PercePiano SOTA Reference
 
-**Last Updated**: 2025-12-25
+**Last Updated**: 2025-12-25 (Round 4)
 **Purpose**: Source of truth for reproducing PercePiano SOTA results (R2 = 0.397)
 
 ---
@@ -502,11 +502,13 @@ Round 2 fixed the activation collapse but R2 still negative and oscillating.
 **Root Cause Identified**: `FinalContextAttention` was too simplified compared to original.
 
 The original PercePiano (model_m2pf.py:117) uses `ContextAttention` for final aggregation:
+
 - `Linear(512, 512)` + tanh activation
 - Learnable context vectors per head (8 vectors of 64-dim each)
 - Head-wise weighted sums
 
 Our `FinalContextAttention` was a simplified version:
+
 - `Linear(512, 8)` only
 - No context vectors
 - Average attention across heads
@@ -528,6 +530,57 @@ severely limits the model's expressiveness for sequence aggregation.
 | R2 after 20 epochs | ~-0.10 | +0.15-0.25 |
 | R2 at convergence | Unknown | +0.30-0.40 (SOTA range) |
 
+**Actual Results After Round 3** (12 epochs):
+
+| Metric | Expected | Actual | Status |
+|--------|----------|--------|--------|
+| Logits std | 0.8-1.5 | 1.201 | PASS |
+| Predictions std | 0.10-0.15 | 0.242 | HIGH |
+| Context vectors | Present | Present | PASS |
+| Gradient balance | 0.3-1.0x [OK] | 0.4x [OK] | PASS |
+| R2 after 5 epochs | 0.0 to +0.10 | -0.234 | FAIL |
+| R2 after 12 epochs | >+0.05 | -0.136 | FAIL |
+
+Round 3 fixed context vectors but R2 still negative. Predictions std (0.242) was 2.3x higher
+than target std (0.106), causing high residuals and slow convergence.
+
+#### 2025-12-25: Round 4 Fixes
+
+**Root Cause Identified**: Prediction head initialization (gain=2.0, bias [-1,1]) was too aggressive.
+
+With input std=1.0 from LayerNorm, Xavier gain=2.0 produces logits with std~2.0. After sigmoid,
+this creates predictions with high variance (0.242) compared to target variance (0.106). The
+predictions "overshoot" in magnitude, causing large MSE despite learning the correct direction.
+
+The original PercePiano uses PyTorch defaults for Linear layers:
+- Weights: kaiming_uniform_(a=sqrt(5)) which is roughly equivalent to xavier_uniform_ with gain~0.58
+- Bias: uniform(-bound, bound) where bound = 1/sqrt(fan_in) ~ 0.044 for 512 inputs
+
+**Fixes Applied**:
+
+| Fix | File | Description |
+|-----|------|-------------|
+| Learning rate | `notebook cell-12` | Increased from 2.5e-5 to 5e-5 (paper's upper bound) |
+| Xavier gain | `percepiano_replica.py:798` | Reduced from 2.0 to 1.0 |
+| Bias range | `percepiano_replica.py:799` | Reduced from [-1,1] to [-0.1,0.1] |
+
+**Rationale**:
+
+1. **Higher learning rate**: Gradients are stable (total norm 0.15-1.15), well within safe range.
+   Paper searched {5e-5, 2.5e-5}, we can safely use the upper bound for faster convergence.
+
+2. **Moderate initialization**: gain=1.0 with std=1.0 input produces logits with std~1.0.
+   After sigmoid, this should give predictions with std~0.15, matching target std (0.106).
+
+**Expected Results After Round 4**:
+
+| Metric | Round 3 | Expected Round 4 |
+|--------|---------|------------------|
+| Predictions std | 0.242 | 0.10-0.15 |
+| R2 after 5 epochs | -0.234 | 0.0 to +0.10 |
+| R2 after 20 epochs | -0.136 (at epoch 12) | +0.15-0.25 |
+| R2 at convergence | Unknown | +0.30-0.40 (SOTA range) |
+
 ### Verified Matching SOTA
 
 | Component | Status | Notes |
@@ -537,7 +590,7 @@ severely limits the model's expressiveness for sequence aggregation.
 | Layer counts | MATCH | note=2, voice=2, beat=2, measure=1 |
 | Attention heads | MATCH | 8 |
 | Dropout | MATCH | 0.2 |
-| Learning rate | MATCH | 2.5e-5 |
+| Learning rate | MATCH | 5e-5 (Round 4: paper's upper bound) |
 | Batch size | MATCH | 8 |
 | Weight decay | MATCH | 1e-5 |
 | Optimizer | MATCH | Adam (not AdamW) |
@@ -565,8 +618,8 @@ These deviations were added to fix bugs or improve stability:
 
 2. **LayerNorm before prediction head** - Ensures consistent input magnitude.
 
-3. **Larger prediction head init** - Xavier gain=2.0 (not default 1.0) and non-zero bias
-   to produce logits with std~1.0 for proper sigmoid spread.
+3. **Prediction head init** - Xavier gain=1.0 (matches default behavior) with small non-zero
+   bias [-0.1, 0.1] to break symmetry while not overshooting prediction variance.
 
 ### Active Diagnostics
 
@@ -589,20 +642,44 @@ These deviations were added to fix bugs or improve stability:
 
 ### Diagnostic Output to Watch
 
-After Round 3 fix, look for these in training logs:
+After Round 4 fix, look for these in training logs:
 
 ```
-ACTIVATION CHECK - Batch 0
-  Logits:      std=0.8-1.5 [OK]
-  Predictions: std=0.10-0.15 [OK]
-  [OK] Context vectors present (Round 3 fix active)
+============================================================
+  ACTIVATION CHECK - Batch 0
+============================================================
+  Learning rate: 5.00e-05              # Confirm LR is 5e-5 (Round 4)
+  Targets:     mean=0.55, std=0.106
+  Predictions: mean=0.50, std=0.12, range=[0.1, 0.9]
+  Logits:      mean=0.0, std=0.6
 
-[GRAD] Step 0: total=0.5-2.0
-  context_vectors=0.01-0.1 [OK: learning]
-  Balance (head/encoder): 0.3-1.0x [OK]
+  Health Check:
+    [OK] Logits std=0.60 in good range           # Should be 0.5-1.5 (reduced from 1.2)
+    [OK] Prediction std=0.12 in good range       # Should be 0.10-0.15
+    [OK] Pred/target std ratio=1.13x             # CRITICAL: Should be 0.8-1.5x (was 2.3x in Round 3!)
+    [OK] All 19 dimensions have healthy variance
+    [OK] Context vectors present (Round 3 fix active)
+============================================================
+
+  [GRAD] Step 0: total=0.5-2.0
+    han=0.3, contractor=0.8, attn=0.03, head=0.4
+    context_vectors=0.002 [OK: learning]
+    Balance (head/encoder): 0.4x [OK]
 ```
 
-If `context_vectors` shows `[WARN: not learning!]`, the attention may be stuck.
+**Key Metrics for Round 4:**
+
+| Metric | Round 3 | Expected Round 4 | Status If Wrong |
+|--------|---------|------------------|-----------------|
+| Learning rate | 2.5e-5 | 5e-5 | Check notebook config |
+| Pred/target std ratio | 2.3x | 0.8-1.5x | Init still too aggressive |
+| Logits std | 1.2 | 0.5-1.0 | Init gain wrong |
+| R2 at epoch 5 | -0.23 | >0.0 | Need more training or different approach |
+
+**If problems persist:**
+- `context_vectors [WARN: not learning!]` -> Attention may be stuck
+- `Pred/target std ratio > 2.0x` -> Try gain=0.5 or PyTorch defaults
+- `R2 still negative at epoch 10` -> Consider data/architecture issues
 
 ---
 
