@@ -389,26 +389,28 @@ for name, param in model.named_parameters():
 #### 2025-12-25: Stability Fixes Applied
 
 **Attempt 1: LayerNorm after note_fc + Xavier init** - FAILED
+
 - Gradients got WORSE (1586 -> 9159 by step 1000)
 - LayerNorm after Linear doesn't help because gradient explosion happens in backprop through Linear
 
-**Attempt 2: Input LayerNorm + Aggressive Clipping** (`percepiano_replica.py:114-115`)
+**Attempt 2: Input LayerNorm + Aggressive Clipping** - FAILED
 
-```python
-self.input_norm = nn.LayerNorm(input_size)  # Normalize 78-dim input
-self.note_fc = nn.Linear(input_size, note_size)
+- Gradients still 1571 at step 0, increasing to 2531 by step 100
+- No improvement over baseline
 
-# In forward():
-x_normed = self.input_norm(x)
-x_embedded = self.note_fc(x_normed)
-```
+**Attempt 3: Input LayerNorm (reverted to simpler)** - FAILED
 
-Also reduced gradient clipping from 2.0 to 1.0 (`kfold_trainer.py:352`)
+- Same pattern: gradients 1571 -> 2531 -> 2071 -> 1714
+- Prediction collapse persists (std ~0.04 vs target 0.15)
 
-**Rationale**: The 78-dim input features have varied scales (8 z-scored + 70 categorical/embeddings).
-LayerNorm on INPUT normalizes all features to unit variance before projection, preventing gradient explosion.
+**Key Observation**: ALL attempts show identical gradient patterns at step 0 (~1500+).
+This suggests the problem is NOT in the model architecture but possibly in:
 
-**Status**: Testing
+1. Data pipeline (feature values, labels)
+2. Loss computation
+3. How original PercePiano differs from our implementation in subtle ways
+
+**Status**: Needs deep investigation - see investigation prompt below
 
 ### Verified Matching SOTA
 

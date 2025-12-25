@@ -108,10 +108,7 @@ class PercePianoHAN(nn.Module):
         self.beat_size = beat_size
         self.measure_size = measure_size
 
-        # Input normalization + projection for gradient stability
-        # LayerNorm on INPUT features (before Linear) normalizes the varied feature scales
-        # This prevents gradient explosion from features with different magnitudes
-        self.input_norm = nn.LayerNorm(input_size)
+        # Input projection (matches original PercePiano)
         self.note_fc = nn.Linear(input_size, note_size)
 
         # Note-level Bi-LSTM
@@ -164,28 +161,6 @@ class PercePianoHAN(nn.Module):
         # Output dimension: note+voice + beat + measure (all bidirectional)
         self.output_dim = combined_dim + beat_size * 2 + measure_size * 2
 
-        # Initialize weights for stability
-        self._init_weights()
-
-    def _init_weights(self):
-        """Initialize weights with Xavier uniform for better gradient flow."""
-        for module in self.modules():
-            if isinstance(module, nn.Linear):
-                nn.init.xavier_uniform_(module.weight)
-                if module.bias is not None:
-                    nn.init.zeros_(module.bias)
-            elif isinstance(module, nn.LSTM):
-                for name, param in module.named_parameters():
-                    if "weight_ih" in name:
-                        nn.init.xavier_uniform_(param.data)
-                    elif "weight_hh" in name:
-                        nn.init.orthogonal_(param.data)
-                    elif "bias" in name:
-                        nn.init.zeros_(param.data)
-                        # Set forget gate bias to 1 for better gradient flow
-                        n = param.size(0)
-                        param.data[n // 4 : n // 2].fill_(1.0)
-
     def forward(
         self,
         x: torch.Tensor,
@@ -209,9 +184,8 @@ class PercePianoHAN(nn.Module):
         # Compute actual sequence lengths
         actual_lengths = compute_actual_lengths(beat_numbers)
 
-        # Normalize input features, then project to 256-dim embeddings
-        x_normed = self.input_norm(x)  # [B, T, 78] normalized
-        x_embedded = self.note_fc(x_normed)  # [B, T, 256]
+        # Project input to 256-dim embeddings
+        x_embedded = self.note_fc(x)  # [B, T, 256]
 
         # Note-level LSTM (processes 256-dim embeddings)
         x_packed = pack_padded_sequence(
@@ -810,6 +784,7 @@ class PercePianoVNetModule(pl.LightningModule):
         input_features: torch.Tensor,
         note_locations: Dict[str, torch.Tensor],
         attention_mask: Optional[torch.Tensor] = None,
+        diagnose: bool = False,
     ) -> Dict[str, torch.Tensor]:
         """
         Forward pass with VirtuosoNet features.
@@ -818,16 +793,42 @@ class PercePianoVNetModule(pl.LightningModule):
             input_features: [batch, num_notes, 78] VirtuosoNet features (SOTA configuration)
             note_locations: Dict with 'beat', 'measure', 'voice' tensors
             attention_mask: [batch, num_notes] optional mask (True = valid position)
+            diagnose: If True, print activation statistics for debugging
 
         Returns:
             Dict with 'predictions' [batch, num_dimensions]
         """
+        # DIAGNOSTIC: Log input statistics
+        if diagnose:
+            print(f"\n  [ACT] Input features: shape={input_features.shape}")
+            print(f"    mean={input_features.mean().item():.4f}, std={input_features.std().item():.4f}")
+            print(f"    min={input_features.min().item():.4f}, max={input_features.max().item():.4f}")
+            # Check for NaN/Inf
+            if torch.isnan(input_features).any():
+                print(f"    WARNING: NaN detected in input features!")
+            if torch.isinf(input_features).any():
+                print(f"    WARNING: Inf detected in input features!")
+
         # Run HAN encoder directly on 78-dim features (no global context)
         han_outputs = self.han_encoder(input_features, note_locations)
         total_note_cat = han_outputs["total_note_cat"]  # [B, N, 2048]
 
+        # DIAGNOSTIC: Log HAN output statistics
+        if diagnose:
+            print(f"  [ACT] HAN total_note_cat: shape={total_note_cat.shape}")
+            print(f"    mean={total_note_cat.mean().item():.4f}, std={total_note_cat.std().item():.4f}")
+            print(f"    min={total_note_cat.min().item():.4f}, max={total_note_cat.max().item():.4f}")
+            if torch.isnan(total_note_cat).any():
+                print(f"    WARNING: NaN detected in HAN output!")
+
         # Contract from 2048 -> 512 (critical step from original PercePiano)
         contracted = self.performance_contractor(total_note_cat)  # [B, N, 512]
+
+        # DIAGNOSTIC: Log contracted statistics
+        if diagnose:
+            print(f"  [ACT] Contracted: shape={contracted.shape}")
+            print(f"    mean={contracted.mean().item():.4f}, std={contracted.std().item():.4f}")
+            print(f"    min={contracted.min().item():.4f}, max={contracted.max().item():.4f}")
 
         # Create attention mask if not provided
         # CRITICAL FIX: After performance_contractor (linear layer with bias), all positions
@@ -843,12 +844,34 @@ class PercePianoVNetModule(pl.LightningModule):
         # Note: Original PercePiano has no extra normalization after aggregation
         aggregated = self.final_attention(contracted, mask=attention_mask)  # [B, 512]
 
+        # DIAGNOSTIC: Log aggregated statistics
+        if diagnose:
+            print(f"  [ACT] Aggregated (after attention): shape={aggregated.shape}")
+            print(f"    mean={aggregated.mean().item():.4f}, std={aggregated.std().item():.4f}")
+            print(f"    min={aggregated.min().item():.4f}, max={aggregated.max().item():.4f}")
+
+        # Get logits before sigmoid
+        logits = self.prediction_head(aggregated)
+
+        # DIAGNOSTIC: Log logits statistics (before sigmoid)
+        if diagnose:
+            print(f"  [ACT] Logits (before sigmoid): shape={logits.shape}")
+            print(f"    mean={logits.mean().item():.4f}, std={logits.std().item():.4f}")
+            print(f"    min={logits.min().item():.4f}, max={logits.max().item():.4f}")
+
         # Predict scores - apply sigmoid to match [0, 1] label range
         # (Original PercePiano always applies sigmoid before loss computation)
-        predictions = torch.sigmoid(self.prediction_head(aggregated))  # [B, num_dims]
+        predictions = torch.sigmoid(logits)  # [B, num_dims]
+
+        # DIAGNOSTIC: Log final predictions
+        if diagnose:
+            print(f"  [ACT] Predictions (after sigmoid): shape={predictions.shape}")
+            print(f"    mean={predictions.mean().item():.4f}, std={predictions.std().item():.4f}")
+            print(f"    min={predictions.min().item():.4f}, max={predictions.max().item():.4f}")
 
         return {
             "predictions": predictions,
+            "logits": logits,  # Also return logits for debugging
             "han_outputs": han_outputs,
         }
 
