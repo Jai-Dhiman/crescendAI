@@ -34,7 +34,7 @@ import torch.nn as nn
 from sklearn.metrics import r2_score
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence, pad_sequence
 
-from .context_attention import ContextAttention
+from .context_attention import ContextAttention, FinalContextAttention
 from .hierarchy_utils import (
     compute_actual_lengths,
     make_higher_node,
@@ -459,7 +459,9 @@ class PercePianoReplicaModule(pl.LightningModule):
         )
 
         # Final attention aggregation (over contracted 512-dim, not raw 2048-dim)
-        self.final_attention = ContextAttention(
+        # Use FinalContextAttention (simplified for piece-level aggregation)
+        # ContextAttention is used for hierarchy processing (beat/measure)
+        self.final_attention = FinalContextAttention(
             encoder_output_size, num_attention_heads
         )
 
@@ -766,7 +768,9 @@ class PercePianoVNetModule(pl.LightningModule):
         )
 
         # Final attention aggregation (over contracted 512-dim, not raw 2048-dim)
-        self.final_attention = ContextAttention(
+        # Use FinalContextAttention (simplified for piece-level aggregation)
+        # ContextAttention is used for hierarchy processing (beat/measure)
+        self.final_attention = FinalContextAttention(
             encoder_output_size, num_attention_heads
         )
 
