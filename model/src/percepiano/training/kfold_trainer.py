@@ -456,7 +456,7 @@ class KFoldTrainer:
             beat_layers=self.config.get("beat_layers", 2),
             measure_layers=self.config.get("measure_layers", 1),
             num_attention_heads=self.config.get("num_attention_heads", 8),
-            final_hidden=self.config.get("final_hidden", 128),
+            # NOTE: final_hidden removed in Round 6 - prediction head is 512->512->19
             dropout=self.config.get("dropout", 0.2),
             learning_rate=self.config.get("learning_rate", 2.5e-5),  # SOTA: 2.5e-5
             weight_decay=self.config.get("weight_decay", 1e-5),
@@ -603,7 +603,6 @@ class KFoldTrainer:
             beat_layers=self.config.get("beat_layers", 2),
             measure_layers=self.config.get("measure_layers", 1),
             num_attention_heads=self.config.get("num_attention_heads", 8),
-            final_hidden=self.config.get("final_hidden", 128),
             dropout=self.config.get("dropout", 0.2),
         )
 
@@ -1024,7 +1023,6 @@ class KFoldTrainer:
                 beat_layers=self.config.get("beat_layers", 2),
                 measure_layers=self.config.get("measure_layers", 1),
                 num_attention_heads=self.config.get("num_attention_heads", 8),
-                final_hidden=self.config.get("final_hidden", 128),
                 dropout=self.config.get("dropout", 0.2),
             )
 
