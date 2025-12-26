@@ -449,7 +449,7 @@ class KFoldTrainer:
     def _create_model(self) -> PercePianoVNetModule:
         """Create a new model instance."""
         return PercePianoVNetModule(
-            input_size=self.config.get("input_size", 78),  # SOTA uses 78 features
+            input_size=self.config.get("input_size", 79),  # 79 base features (matches original)
             hidden_size=self.config.get("hidden_size", 256),
             note_layers=self.config.get("note_layers", 2),
             voice_layers=self.config.get("voice_layers", 2),
@@ -596,7 +596,7 @@ class KFoldTrainer:
         # Load best model and do detailed evaluation
         best_model = PercePianoVNetModule.load_from_checkpoint(
             str(best_checkpoint),
-            input_size=self.config.get("input_size", 78),  # SOTA: 78 features
+            input_size=self.config.get("input_size", 79),  # SOTA: 79 features
             hidden_size=self.config.get("hidden_size", 256),
             note_layers=self.config.get("note_layers", 2),
             voice_layers=self.config.get("voice_layers", 2),
@@ -1016,7 +1016,7 @@ class KFoldTrainer:
         for fold_id, checkpoint_path in enumerate(self.fold_checkpoints):
             model = PercePianoVNetModule.load_from_checkpoint(
                 str(checkpoint_path),
-                input_size=self.config.get("input_size", 78),  # SOTA: 78 features
+                input_size=self.config.get("input_size", 79),  # SOTA: 79 features
                 hidden_size=self.config.get("hidden_size", 256),
                 note_layers=self.config.get("note_layers", 2),
                 voice_layers=self.config.get("voice_layers", 2),
