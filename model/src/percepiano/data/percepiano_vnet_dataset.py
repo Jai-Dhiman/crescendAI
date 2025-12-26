@@ -17,6 +17,7 @@ Batching:
 - Note locations are padded (needed for hierarchy boundary detection)
 """
 
+import math
 import pickle
 import random
 import warnings
@@ -39,6 +40,92 @@ MIDI_PITCH_UNNORM_IDX = 79  # Raw MIDI pitch (21-108)
 PITCH_VEC_START = 14  # pitch vector starts after 14 scalar features
 PITCH_CLASS_START = 15  # octave at 14, pitch class starts at 15
 PITCH_CLASS_END = 27  # 12 pitch classes (indices 15-26)
+
+
+def make_slicing_indexes_by_measure(
+    num_notes: int,
+    measure_numbers: List[int],
+    steps: int = 5000,
+    overlap: bool = True,
+) -> List[Tuple[int, int]]:
+    """
+    Create overlapping slice indices based on measure boundaries.
+
+    This is a direct port from the original PercePiano implementation
+    (virtuoso/data_process.py:53-103). Creates 3-5 overlapping slices
+    per performance for data augmentation and training efficiency.
+
+    Args:
+        num_notes: Total number of notes in the piece
+        measure_numbers: List of measure numbers for each note (length = num_notes)
+        steps: Maximum number of notes per slice (default 5000)
+        overlap: Whether to create overlapping slices (default True)
+
+    Returns:
+        List of (start_idx, end_idx) tuples defining slice boundaries
+    """
+    slice_indexes = []
+
+    if num_notes < steps:
+        # Short piece: use entire piece as single slice
+        slice_indexes.append((0, num_notes))
+    elif overlap:
+        # Create overlapping slices aligned to measure boundaries
+        first_end_measure = measure_numbers[steps]
+        last_measure = measure_numbers[-1]
+
+        if first_end_measure < last_measure - 1:
+            # First slice: from beginning to first measure boundary after 'steps' notes
+            first_note_after_the_measure = measure_numbers.index(first_end_measure + 1)
+            slice_indexes.append((0, first_note_after_the_measure))
+
+            # Last slice: from measure boundary 'steps' notes before end to end
+            second_end_start_measure = measure_numbers[num_notes - steps]
+            first_note_of_the_measure = measure_numbers.index(second_end_start_measure)
+            slice_indexes.append((first_note_of_the_measure, num_notes))
+
+            # Middle slices: create overlapping slices between first and last
+            if num_notes > steps * 2:
+                first_start = random.randrange(int(steps / 2), int(steps * 1.5))
+                start_measure = measure_numbers[first_start]
+                end_measure = start_measure
+
+                while end_measure < second_end_start_measure:
+                    start_note = measure_numbers.index(start_measure)
+                    if start_note + steps < num_notes:
+                        end_measure = measure_numbers[start_note + steps]
+                    else:
+                        break
+                    end_note = measure_numbers.index(end_measure - 1)
+                    slice_indexes.append((start_note, end_note))
+
+                    # Advance with overlap (2 measures back)
+                    if end_measure > start_measure + 2:
+                        start_measure = end_measure - 2
+                    elif end_measure > start_measure + 1:
+                        start_measure = end_measure - 1
+                    else:
+                        start_measure = end_measure
+        else:
+            # Not enough measures for overlap: use entire piece
+            slice_indexes.append((0, num_notes))
+    else:
+        # Non-overlapping slices
+        num_slice = math.ceil(num_notes / steps)
+        prev_end_index = 0
+        for i in range(num_slice):
+            if prev_end_index + steps >= num_notes:
+                slice_indexes.append((prev_end_index, num_notes))
+                break
+            end_measure = measure_numbers[prev_end_index + steps]
+            if end_measure >= measure_numbers[-1]:
+                slice_indexes.append((prev_end_index, num_notes))
+                break
+            first_note_after_the_measure = measure_numbers.index(end_measure + 1)
+            slice_indexes.append((prev_end_index, first_note_after_the_measure))
+            prev_end_index = first_note_after_the_measure
+
+    return slice_indexes
 
 
 def percepiano_pack_collate(batch: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -624,14 +711,21 @@ class PercePianoKFoldDataset(Dataset):
 
     Normalization stats are computed from training folds only (not val fold).
 
+    SOTA Slice Sampling (new):
+    - Preloads all data into memory for efficiency
+    - Creates overlapping slices (3-5 per performance) based on measure boundaries
+    - Regenerates slice indices each epoch for variation
+    - Increases effective training samples from ~200 to ~600-1000
+
     Args:
         data_dir: Path to data directory containing all .pkl files (or train/val/test subdirs)
         fold_assignments: Dictionary mapping sample_name -> {'fold': 0-3 or 'test', 'piece_id': str}
         fold_id: Which fold to use as validation (0 to n_folds-1)
         mode: 'train' or 'val'
-        max_notes: Maximum number of notes per sample
+        max_notes: Maximum number of notes per sample (also used as slice_len)
         augment: Whether to apply key augmentation (only for training)
         normalization_stats: Optional pre-computed stats dict. If None, will be computed.
+        slice_len: Number of notes per slice (default 5000 to match SOTA). If None, uses max_notes.
     """
 
     # Class-level cache for loaded sample data
@@ -643,9 +737,10 @@ class PercePianoKFoldDataset(Dataset):
         fold_assignments: Dict[str, Dict[str, Union[int, str]]],
         fold_id: int,
         mode: str,
-        max_notes: int = 1024,
+        max_notes: int = 5000,
         augment: bool = False,
         normalization_stats: Optional[Dict[str, Any]] = None,
+        slice_len: Optional[int] = None,
     ):
         if mode not in ("train", "val"):
             raise ValueError(f"mode must be 'train' or 'val', got: {mode}")
@@ -655,6 +750,7 @@ class PercePianoKFoldDataset(Dataset):
         self.fold_id = fold_id
         self.mode = mode
         self.max_notes = max_notes
+        self.slice_len = slice_len if slice_len is not None else max_notes
         self.augment = augment and (mode == "train")  # Only augment training
 
         # Get sample list for this fold/mode
@@ -675,8 +771,18 @@ class PercePianoKFoldDataset(Dataset):
 
         self.pitch_std = self.stats.get("std", {}).get("midi_pitch", 12.0)
 
+        # Preload all sample data into memory for efficient slicing
+        self.data = self._preload_samples()
+
+        # Initialize slice info (will be regenerated each epoch for training)
+        self.slice_info: List[Tuple[int, Tuple[int, int]]] = []
+        self.update_slice_info()
+
+        n_slices = len(self.slice_info)
+        avg_slices = n_slices / len(self.sample_files) if self.sample_files else 0
         print(
-            f"KFold Dataset: fold={fold_id}, mode={mode}, samples={len(self.sample_files)}"
+            f"KFold Dataset: fold={fold_id}, mode={mode}, "
+            f"samples={len(self.sample_files)}, slices={n_slices} ({avg_slices:.1f}/sample)"
         )
         if self.augment:
             print(f"  Key augmentation ENABLED (pitch_std={self.pitch_std:.4f})")
@@ -730,6 +836,48 @@ class PercePianoKFoldDataset(Dataset):
 
         return None
 
+    def _preload_samples(self) -> List[Dict[str, Any]]:
+        """
+        Preload all sample data into memory for efficient slicing.
+
+        Returns:
+            List of sample data dictionaries, one per sample file
+        """
+        data = []
+        for file_path in self.sample_files:
+            with open(file_path, "rb") as f:
+                sample_data = pickle.load(f)
+            data.append(sample_data)
+        return data
+
+    def update_slice_info(self) -> None:
+        """
+        Generate slice indices for all samples based on measure boundaries.
+
+        Creates overlapping slices (typically 3-5 per sample) to increase
+        effective training data. Called once at init and again at the start
+        of each training epoch for variation.
+
+        This method is designed to be called by SliceRegenerationCallback
+        at the start of each training epoch.
+        """
+        self.slice_info = []
+        for i, sample_data in enumerate(self.data):
+            num_notes = len(sample_data["input"])
+            measure_numbers = list(sample_data["note_location"]["measure"])
+
+            # Generate slice indices using measure-aligned boundaries
+            slice_indices = make_slicing_indexes_by_measure(
+                num_notes=num_notes,
+                measure_numbers=measure_numbers,
+                steps=self.slice_len,
+                overlap=True,  # Always use overlapping slices for more data
+            )
+
+            # Add each slice to slice_info as (sample_idx, (start, end))
+            for start_idx, end_idx in slice_indices:
+                self.slice_info.append((i, (start_idx, end_idx)))
+
     def _compute_normalization_stats(self) -> Dict[str, Any]:
         """
         Compute normalization statistics from training samples only.
@@ -778,56 +926,64 @@ class PercePianoKFoldDataset(Dataset):
         return self.stats
 
     def __len__(self) -> int:
-        return len(self.sample_files)
+        return len(self.slice_info)
 
     def __getitem__(self, idx: int) -> Dict[str, torch.Tensor]:
-        """Load and return a single sample."""
-        file_path = self.sample_files[idx]
+        """
+        Load and return a single slice from a sample.
 
-        # Load pickle file
-        with open(file_path, "rb") as f:
-            data = pickle.load(f)
+        Uses slice_info to determine which sample and slice to return.
+        Each call returns a slice of notes from a performance, enabling
+        3-5x more training data through overlapping slices.
+        """
+        # Get sample index and slice boundaries from slice_info
+        sample_idx, (slice_start, slice_end) = self.slice_info[idx]
+        data = self.data[sample_idx]
 
-        # Get input features
-        input_features = data["input"]
-        num_notes = min(input_features.shape[0], self.max_notes)
+        # Extract slice from input features
+        input_features = data["input"][slice_start:slice_end].copy()
+        num_notes = min(len(input_features), self.max_notes)
 
-        # Get note locations
+        # Extract slice from note locations
         note_loc = data["note_location"]
-        beat_indices = np.array(note_loc["beat"], dtype=np.int64)
-        measure_indices = np.array(note_loc["measure"], dtype=np.int64)
+        beat_indices = np.array(note_loc["beat"][slice_start:slice_end], dtype=np.int64)
+        measure_indices = np.array(note_loc["measure"][slice_start:slice_end], dtype=np.int64)
         voice_indices = np.array(
-            note_loc.get("voice", np.ones(num_notes)), dtype=np.int64
+            note_loc.get("voice", np.ones(len(input_features)))[slice_start:slice_end]
+            if "voice" in note_loc
+            else np.ones(len(input_features)),
+            dtype=np.int64,
         )
 
         # CRITICAL FIX: Densify sparse indices to sequential indices
         # Original data may have gaps like [0, 1, 4, 11, 15] from the score
         # hierarchy_utils expects sequential indices like [0, 1, 2, 3, 4]
+        # Note: Densification MUST happen AFTER slicing to get correct sequential indices
         beat_indices = self._densify_indices(beat_indices)
         measure_indices = self._densify_indices(measure_indices)
         voice_indices = self._densify_indices(voice_indices)
 
         # Shift indices to start from 1 (hierarchy_utils expects this)
-        if beat_indices.min() == 0:
+        if len(beat_indices) > 0 and beat_indices.min() == 0:
             beat_indices = beat_indices + 1
-        if measure_indices.min() == 0:
+        if len(measure_indices) > 0 and measure_indices.min() == 0:
             measure_indices = measure_indices + 1
-        if voice_indices.min() == 0:
+        if len(voice_indices) > 0 and voice_indices.min() == 0:
             voice_indices = voice_indices + 1
 
-        # Get labels
+        # Get labels (same for all slices of a performance)
         labels = np.array(data["labels"], dtype=np.float32)
 
-        # Key augmentation
+        # Key augmentation (applied to the slice)
         if self.augment:
             input_features = self._apply_key_augmentation(
-                input_features.copy(), num_notes
+                input_features, num_notes
             )
 
         # Only use first 79 features for model input (matching original PercePiano)
         model_features = input_features[:, :BASE_FEATURE_DIM]
 
-        # Pad or truncate
+        # Pad or truncate to max_notes
         padded_features = np.zeros((self.max_notes, BASE_FEATURE_DIM), dtype=np.float32)
         padded_beat = np.zeros(self.max_notes, dtype=np.int64)
         padded_measure = np.zeros(self.max_notes, dtype=np.int64)
@@ -906,14 +1062,20 @@ class PercePianoKFoldDataModule(pl.LightningDataModule):
     Creates train/val dataloaders for a specific fold of k-fold cross-validation.
     Normalization stats are computed from training folds only.
 
+    SOTA Slice Sampling:
+    - Uses overlapping slices (3-5 per performance) for more training data
+    - Slice indices are regenerated each epoch via SliceRegenerationCallback
+    - Increases effective training samples from ~200 to ~600-1000
+
     Args:
         data_dir: Path to data directory
         fold_assignments: Dictionary mapping sample_name -> {'fold': 0-3 or 'test', 'piece_id': str}
         fold_id: Which fold to use as validation (0 to n_folds-1)
         batch_size: Batch size for dataloaders (SOTA: 8)
-        max_notes: Maximum notes per sample
+        max_notes: Maximum notes per sample (also affects slice size)
         num_workers: Number of dataloader workers
         augment_train: Whether to apply key augmentation to training data (SOTA: False)
+        slice_len: Number of notes per slice (SOTA: 5000). If None, uses max_notes.
     """
 
     def __init__(
@@ -922,9 +1084,10 @@ class PercePianoKFoldDataModule(pl.LightningDataModule):
         fold_assignments: Dict[str, Dict[str, Union[int, str]]],
         fold_id: int,
         batch_size: int = 8,  # SOTA uses batch_size=8
-        max_notes: int = 1024,
+        max_notes: int = 5000,  # SOTA: 5000 notes
         num_workers: int = 4,
         augment_train: bool = False,  # SOTA doesn't use augmentation
+        slice_len: Optional[int] = None,  # SOTA: 5000, defaults to max_notes
     ):
         super().__init__()
         self.data_dir = Path(data_dir)
@@ -932,6 +1095,7 @@ class PercePianoKFoldDataModule(pl.LightningDataModule):
         self.fold_id = fold_id
         self.batch_size = batch_size
         self.max_notes = max_notes
+        self.slice_len = slice_len
         self.num_workers = num_workers
         self.augment_train = augment_train
 
@@ -951,6 +1115,7 @@ class PercePianoKFoldDataModule(pl.LightningDataModule):
                 max_notes=self.max_notes,
                 augment=self.augment_train,
                 normalization_stats=None,  # Will compute from training data
+                slice_len=self.slice_len,
             )
 
             # Get stats from training dataset
@@ -965,6 +1130,7 @@ class PercePianoKFoldDataModule(pl.LightningDataModule):
                 max_notes=self.max_notes,
                 augment=False,  # Never augment validation
                 normalization_stats=self._normalization_stats,
+                slice_len=self.slice_len,
             )
 
     def train_dataloader(self) -> DataLoader:

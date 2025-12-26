@@ -184,6 +184,42 @@ class GradientMonitorCallback(Callback):
             print(" [OK]")
 
 
+class SliceRegenerationCallback(Callback):
+    """
+    Regenerates slice indices at the start of each training epoch.
+
+    This is critical for SOTA performance - the original PercePiano calls
+    update_slice_info() at the start of each epoch to create new overlapping
+    slices, providing data augmentation through varied slice boundaries.
+
+    Without this callback, the same slices would be used every epoch,
+    reducing the effective training data diversity.
+    """
+
+    def on_train_epoch_start(self, trainer, pl_module):
+        """Regenerate slice indices at the start of each training epoch."""
+        # Access the training dataset through the datamodule
+        if hasattr(trainer, 'datamodule') and trainer.datamodule is not None:
+            dataset = trainer.datamodule.train_dataset
+        elif hasattr(trainer, 'train_dataloader'):
+            # Fallback: access through dataloader
+            dataloader = trainer.train_dataloader
+            if callable(dataloader):
+                dataloader = dataloader()
+            dataset = dataloader.dataset
+        else:
+            return
+
+        # Call update_slice_info if the method exists
+        if hasattr(dataset, 'update_slice_info'):
+            old_count = len(dataset.slice_info) if hasattr(dataset, 'slice_info') else 0
+            dataset.update_slice_info()
+            new_count = len(dataset.slice_info) if hasattr(dataset, 'slice_info') else 0
+            # Only log on first epoch or if count changed significantly
+            if trainer.current_epoch == 0:
+                print(f"  [Slice] Epoch {trainer.current_epoch}: regenerated {new_count} slices")
+
+
 class ActivationDiagnosticCallback(Callback):
     """
     DIAGNOSTIC: Check key activation statistics on first batch only.
@@ -483,13 +519,16 @@ class KFoldTrainer:
         lr_monitor = LearningRateMonitor(logging_interval="epoch")
         epoch_logger = EpochLogger(fold_id=fold_id)
 
+        # SOTA: Slice regeneration each epoch for data augmentation
+        slice_regen = SliceRegenerationCallback()
+
         # DIAGNOSTIC: Gradient monitoring (logs every 100 steps, verbose first 5)
         grad_monitor = GradientMonitorCallback(log_every_n_steps=100, verbose_first_n_steps=5)
 
         # DIAGNOSTIC: Activation check on first batch
         activation_diag = ActivationDiagnosticCallback()
 
-        return [checkpoint_callback, early_stopping, lr_monitor, epoch_logger, grad_monitor, activation_diag]
+        return [checkpoint_callback, early_stopping, lr_monitor, epoch_logger, slice_regen, grad_monitor, activation_diag]
 
     def train_fold(
         self, fold_id: int, verbose: bool = True, resume_from_checkpoint: bool = False
@@ -516,17 +555,19 @@ class KFoldTrainer:
 
         # Create data module
         # SOTA uses batch_size=8 and no augmentation
+        # SOTA uses slice sampling with slice_len=5000
         # num_workers=4 is optimal for A100XL (4 vCPUs) - avoids dataloader bottleneck
         data_module = PercePianoKFoldDataModule(
             data_dir=self.data_dir,
             fold_assignments=self.fold_assignments,
             fold_id=fold_id,
             batch_size=self.config.get("batch_size", 8),  # SOTA: 8
-            max_notes=self.config.get("max_notes", 1024),
+            max_notes=self.config.get("max_notes", 5000),  # SOTA: 5000
             num_workers=self.config.get("num_workers", 4),  # 4 for A100XL vCPUs
             augment_train=self.config.get(
                 "augment_train", False
             ),  # SOTA: no augmentation
+            slice_len=self.config.get("slice_len", None),  # SOTA: 5000
         )
         data_module.setup("fit")
 
@@ -537,7 +578,7 @@ class KFoldTrainer:
             print(f"\n{'=' * 70}")
             print(f"FOLD {fold_id}/{self.n_folds - 1}")
             print(f"{'=' * 70}")
-            print(f"  Train samples: {n_train} | Val samples: {n_val}")
+            print(f"  Train slices: {n_train} | Val slices: {n_val}")
             print(
                 f"  Batch size: {self.config.get('batch_size', 32)} | "
                 f"Max epochs: {self.config.get('max_epochs', 100)} | "
