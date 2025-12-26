@@ -96,7 +96,7 @@ Input (78-dim VirtuosoNet features)
 [Final Attention] ContextAttention(512, heads=8)  [B, 512]
                         |
                         v
-[Prediction Head] Dropout -> Linear(512, 128) -> GELU -> Dropout -> Linear(128, 19)
+[Prediction Head] Dropout -> Linear(512, 512) -> GELU -> Dropout -> Linear(512, 19)
                         |
                         v
                   [Sigmoid]
@@ -104,6 +104,10 @@ Input (78-dim VirtuosoNet features)
                         v
                  predictions [B, 19]
 ```
+
+**IMPORTANT CORRECTION (2025-12-25)**: The prediction head uses 512->512->19, NOT 512->128->19.
+The `final_fc_size: 128` in the config file is for the **decoder** (not used in classification),
+not the `out_fc` classifier head. See `model_m2pf.py:118-124` for actual implementation.
 
 ### Critical Architecture Details
 
@@ -126,6 +130,70 @@ Input (78-dim VirtuosoNet features)
 4. **Sigmoid on output** (confirmed from code)
    - `train_m2pf.py:135`: `loss = loss_calculator(sigmoid(logitss[-1]), targets)`
    - Targets are normalized to [0, 1], sigmoid constrains predictions to same range
+
+5. **MixEmbedder is SEPARATE from HAN** (discovered 2025-12-25)
+   - Input embedding (`MixEmbedder`: Linear 78->256) is a separate module
+   - HAN's `note_fc` is **commented out** in original (`encoder_score.py:509`)
+   - Flow: `x -> MixEmbedder -> HAN encoder` (not `x -> HAN.note_fc -> HAN encoder`)
+   - Reference: `model_m2pf.py:67-68`, `encoder_score.py:509`
+
+6. **NO LayerNorm anywhere** (discovered 2025-12-25)
+   - Original has NO normalization layers in the entire model
+   - We incorrectly added LayerNorm in Round 1 to fix gradient issues
+   - Original relies on proper data preprocessing for magnitude control
+
+---
+
+## Data Pipeline (CRITICAL - discovered 2025-12-25)
+
+The original uses a fundamentally different data pipeline than our implementation:
+
+### Slicing Strategy
+
+Each performance is sliced into **multiple overlapping segments**:
+
+```python
+# From dataset.py:67-77
+def update_slice_info(self):
+    self.slice_info = []
+    for i, data in enumerate(self.data):
+        slice_indices = make_slicing_indexes_by_measure(
+            len(data['input']),
+            data['note_location']['measure'],
+            self.slice_len  # default: 5000 notes
+        )
+        for idx in slice_indices:
+            self.slice_info.append((i, idx))  # Each slice is a training sample
+```
+
+**Impact**: Creates 3-5x more training samples from the same data via overlapping slices.
+
+### Variable-Length Batching (PackedSequence)
+
+Original uses `pack_sequence` for variable-length sequences:
+
+```python
+# From dataset.py:223 (FeatureCollate)
+batch_x = pack_sequence([sample[0] for sample in batch], enforce_sorted=False)
+```
+
+**NOT** `pad_sequence` with fixed-length tensors and attention masks.
+
+### Our Implementation (WRONG)
+
+| Aspect | Original SOTA | Our Implementation |
+|--------|---------------|-------------------|
+| Sampling | Multiple overlapping slices per performance | One sample per performance |
+| Slice size | ~5000 notes with random overlap | Entire performance (truncate to max_notes) |
+| Training samples | 1000s (slices across all performances) | ~500-600 (just the pickle files) |
+| Batching | `pack_sequence()` - PackedSequence | `pad_sequence()` - Fixed-length tensors |
+
+### Key Parameters
+
+| Parameter | Value | Source |
+|-----------|-------|--------|
+| len_slice | 5000 | parser.py:123 |
+| len_valid_slice | 5000 | parser.py:131 |
 
 ---
 
@@ -159,7 +227,7 @@ Input (78-dim VirtuosoNet features)
 | measure_layer | 1 |
 | num_attention_heads | 8 |
 | dropout | 0.2 |
-| **final_fc_size** | **128** |
+| final_fc_size | 128 | **NOTE: This is for decoder, NOT classifier** |
 | final_fc_layer | 1 |
 | encoder | HAN |
 | meas_note | true |
@@ -180,6 +248,22 @@ Input (78-dim VirtuosoNet features)
 | optimizer | Adam |
 | augment_train | False |
 | precision | FP32 |
+
+### Prediction Head (CORRECTED 2025-12-25)
+
+The actual classifier head from `model_m2pf.py:118-124`:
+
+```python
+self.out_fc = nn.Sequential(
+    nn.Dropout(net_param.drop_out),
+    nn.Linear(net_param.encoder.size * 2, net_param.encoder.size * 2),  # 512 -> 512
+    nn.GELU(),
+    nn.Dropout(net_param.drop_out),
+    nn.Linear(net_param.encoder.size * 2, net_param.num_label),  # 512 -> 19
+)
+```
+
+**Architecture**: `512 -> 512 -> 19` (NOT 512 -> 128 -> 19)
 
 ---
 

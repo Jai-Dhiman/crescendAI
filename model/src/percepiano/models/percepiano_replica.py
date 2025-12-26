@@ -724,10 +724,9 @@ class PercePianoVNetModule(pl.LightningModule):
         beat_layers: int = 2,
         measure_layers: int = 1,
         num_attention_heads: int = 8,
-        # Final head
-        final_hidden: int = 128,
-        # Training (matched to original PercePiano SOTA)
-        learning_rate: float = 2.5e-5,  # SOTA: 2.5e-5 (from 2_run_comp_multilevel_total.sh)
+        # Training (matched to original PercePiano SOTA exactly)
+        # NOTE: LR 2.5e-5 is from 2_run_comp_multilevel_total.sh (NOT 5e-5!)
+        learning_rate: float = 2.5e-5,
         weight_decay: float = 1e-5,  # Original: 1e-5
         dropout: float = 0.2,
         # Task
@@ -758,10 +757,8 @@ class PercePianoVNetModule(pl.LightningModule):
         # (Critical layer from original PercePiano VirtuosoNetMultiLevel)
         encoder_output_size = hidden_size * 2  # 512 for hidden_size=256
 
-        # CRITICAL FIX: Add LayerNorm to stabilize HAN output magnitude
-        # The HAN encoder produces very small outputs (std ~0.01) due to
-        # hierarchical attention averaging. LayerNorm rescales to unit variance.
-        self.han_output_norm = nn.LayerNorm(self.han_encoder.output_dim)
+        # NOTE: Original PercePiano has NO LayerNorm anywhere
+        # We removed LayerNorm in Round 6 to match original exactly
 
         self.performance_contractor = nn.Linear(
             self.han_encoder.output_dim,  # 2048
@@ -772,28 +769,26 @@ class PercePianoVNetModule(pl.LightningModule):
         # CRITICAL: Use ContextAttention (same as original PercePiano model_m2pf.py:117)
         # The original uses the SAME attention mechanism for both hierarchy and final
         # aggregation, with learnable context vectors per head.
-        # FinalContextAttention was too simplified and hurt R2 performance.
         self.final_attention = ContextAttention(
             encoder_output_size, num_attention_heads
         )
 
-        # CRITICAL FIX: Add LayerNorm before prediction head to ensure
-        # consistent input magnitude regardless of sequence length
-        self.pre_prediction_norm = nn.LayerNorm(encoder_output_size)
-
-        # Prediction head (matching original PercePiano out_fc structure)
-        # Original: Dropout -> Linear(512, 128) -> GELU -> Dropout -> Linear(128, 19)
-        # CRITICAL FIX (Round 5): Use final_hidden=128 (SOTA config), NOT encoder_output_size=512
-        # Previous versions incorrectly used 512, adding ~200k extra params and slowing convergence
+        # Prediction head (matching original PercePiano out_fc structure EXACTLY)
+        # From model_m2pf.py:118-124:
+        #   Dropout -> Linear(512, 512) -> GELU -> Dropout -> Linear(512, 19)
+        #
+        # CRITICAL FIX (Round 6): The config's final_fc_size=128 is for the DECODER,
+        # NOT the classifier. The actual classifier uses encoder.size*2 = 512.
+        # See model_m2pf.py:118-124 for proof.
         self.prediction_head = nn.Sequential(
             nn.Dropout(dropout),
-            nn.Linear(encoder_output_size, final_hidden),  # 512 -> 128 (SOTA)
+            nn.Linear(encoder_output_size, encoder_output_size),  # 512 -> 512 (CORRECT)
             nn.GELU(),
             nn.Dropout(dropout),
-            nn.Linear(final_hidden, self.num_dimensions),  # 128 -> 19 (SOTA)
+            nn.Linear(encoder_output_size, self.num_dimensions),  # 512 -> 19 (CORRECT)
         )
         # NOTE: Using PyTorch defaults for initialization (kaiming_uniform)
-        # Original PercePiano doesn't use custom init - removed Xavier/uniform overrides
+        # Original PercePiano doesn't use custom init
 
         # Metrics storage
         self.training_step_outputs = []
@@ -827,15 +822,10 @@ class PercePianoVNetModule(pl.LightningModule):
         total_note_cat = han_outputs["total_note_cat"]  # [B, N, 2048]
 
         if diagnose:
-            print(f"  HAN raw: std={total_note_cat.std().item():.4f}")
-
-        # Normalize HAN output to stabilize magnitude
-        total_note_cat = self.han_output_norm(total_note_cat)
-
-        if diagnose:
-            print(f"  HAN normed: std={total_note_cat.std().item():.3f}")
+            print(f"  HAN output: std={total_note_cat.std().item():.4f}")
 
         # Contract from 2048 -> 512 (critical step from original PercePiano)
+        # NOTE: Original has NO LayerNorm - removed in Round 6
         contracted = self.performance_contractor(total_note_cat)  # [B, N, 512]
 
         if diagnose:
@@ -855,13 +845,9 @@ class PercePianoVNetModule(pl.LightningModule):
         aggregated = self.final_attention(contracted, mask=attention_mask)  # [B, 512]
 
         if diagnose:
-            print(f"  Aggregated raw: std={aggregated.std().item():.3f}")
+            print(f"  Aggregated: std={aggregated.std().item():.3f}")
 
-        # Normalize before prediction head
-        aggregated = self.pre_prediction_norm(aggregated)
-
-        if diagnose:
-            print(f"  Aggregated normed: std={aggregated.std().item():.3f}")
+        # NOTE: Original has NO LayerNorm before prediction head - removed in Round 6
 
         # Get logits before sigmoid
         logits = self.prediction_head(aggregated)

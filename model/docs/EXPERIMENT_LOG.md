@@ -1,6 +1,6 @@
 # PercePiano Replica Experiment Log
 
-**Last Updated**: 2025-12-25 (Round 5)
+**Last Updated**: 2025-12-25 (Round 6)
 **Purpose**: Track our debugging journey to reproduce PercePiano SOTA (R2 = 0.397)
 
 For architecture details and hyperparameters, see `PERCEPIANO_SOTA_REFERENCE.md`.
@@ -9,22 +9,26 @@ For architecture details and hyperparameters, see `PERCEPIANO_SOTA_REFERENCE.md`
 
 ## Current Status
 
-**Round 5** - Prediction head architecture fixed
+**Round 6** - Major architecture corrections based on original code analysis
 
-| Metric | Status |
-|--------|--------|
-| Activation health | PASS (all metrics in range) |
-| Gradient balance | PASS (0.4-0.7x ratio) |
-| R2 progression | PENDING (awaiting training run) |
+| Change | Description |
+|--------|-------------|
+| LayerNorm | **REMOVED** - original has none |
+| Prediction head | **FIXED** to 512->512->19 (was 512->128->19) |
+| Learning rate | **REVERTED** to 2.5e-5 (was 5e-5) |
 
-**Expected after Round 5:**
+**Key Discovery (Round 6):**
+The config's `final_fc_size: 128` is for the DECODER (not used), NOT the classifier.
+The actual classifier uses `encoder.size * 2 = 512`. See `model_m2pf.py:118-124`.
+
+**Expected after Round 6:**
 - R2 crosses 0 by epoch 5
 - R2 > 0.15 by epoch 20
 - R2 reaches 0.30-0.40 at convergence (SOTA range)
 
 ---
 
-## Verified Configuration (Matching SOTA)
+## Verified Configuration (Matching SOTA - Round 6)
 
 | Component | Status | Notes |
 |-----------|--------|-------|
@@ -33,7 +37,7 @@ For architecture details and hyperparameters, see `PERCEPIANO_SOTA_REFERENCE.md`
 | Layer counts | MATCH | note=2, voice=2, beat=2, measure=1 |
 | Attention heads | MATCH | 8 |
 | Dropout | MATCH | 0.2 |
-| Learning rate | MATCH | 5e-5 (paper's upper bound) |
+| **Learning rate** | **FIXED** | 2.5e-5 (was incorrectly 5e-5 in Round 4) |
 | Batch size | MATCH | 8 |
 | Weight decay | MATCH | 1e-5 |
 | Optimizer | MATCH | Adam (not AdamW) |
@@ -41,10 +45,11 @@ For architecture details and hyperparameters, see `PERCEPIANO_SOTA_REFERENCE.md`
 | Gradient clipping | MATCH | 2.0 |
 | Loss function | MATCH | MSE after sigmoid |
 | R2 computation | MATCH | sklearn r2_score with uniform_average |
-| **Precision** | **FIXED** | FP32 (was incorrectly using FP16-mixed) |
-| **Final Attention** | **FIXED** | Uses ContextAttention with context vectors |
-| **Prediction head size** | **FIXED** | 512->128->19 (was incorrectly 512->512->19) |
-| **Initialization** | **FIXED** | PyTorch defaults (was custom Xavier) |
+| Precision | MATCH | FP32 (fixed in Round 1) |
+| Final Attention | MATCH | ContextAttention with context vectors (fixed in Round 3) |
+| **Prediction head** | **FIXED** | 512->512->19 (was incorrectly 512->128->19 in Round 5) |
+| **LayerNorm** | **FIXED** | REMOVED (was incorrectly added in Round 1) |
+| Initialization | MATCH | PyTorch defaults (kaiming_uniform) |
 
 ---
 
@@ -191,39 +196,87 @@ All activation health metrics passed, but R2 progression far too slow.
 
 ---
 
-### 2025-12-25: Round 5 - Prediction Head Size Fix
+### 2025-12-25: Round 5 - Prediction Head Size Fix (INCORRECT)
 
-**Root Cause**: Prediction head using wrong hidden size (512 vs 128)
+**Hypothesis**: Prediction head using wrong hidden size (512 vs 128)
 
-The SOTA config specifies `final_fc_size: 128`, but our implementation used `encoder_output_size=512`. The `final_hidden=128` parameter was defined but NEVER USED!
-
-**Original** (from SOTA config):
-```
-Linear(512, 128) -> GELU -> Linear(128, 19)
-```
-
-**Our implementation** (before fix):
-```
-Linear(512, 512) -> GELU -> Linear(512, 19)
-```
-
-This added ~200k extra parameters, causing slower convergence.
+The SOTA config specifies `final_fc_size: 128`, so we changed to 512->128->19.
 
 **Fixes Applied**:
 
 | Fix | File | Description |
 |-----|------|-------------|
-| Prediction head size | `percepiano_replica.py:790-793` | Use `final_hidden=128` |
+| Prediction head size | `percepiano_replica.py:790-793` | Changed to `final_hidden=128` |
 | Remove custom init | `percepiano_replica.py:795-796` | Use PyTorch defaults |
 
-**Expected Results**:
+**Actual Results** (28 epochs, interrupted):
 
-| Metric | Round 4 | Expected Round 5 |
+| Metric | Expected | Actual | Status |
+|--------|----------|--------|--------|
+| Prediction head | 512->128, 128->19 | Correct | PASS |
+| Logits std | 0.5-1.5 | 0.203 | **FAIL** |
+| Predictions std | 0.10-0.15 | 0.050 | **FAIL** |
+| Pred/target std ratio | 0.8-1.5x | 0.41x | **FAIL** |
+| Collapsed dimensions | 0/19 | 5/19 | **FAIL** |
+| R2 after 5 epochs | > 0 | +0.017 | PASS |
+| R2 after 10 epochs | > 0.05 | -0.040 | **FAIL** |
+| R2 after 20 epochs | > 0.15 | -0.032 | **FAIL** |
+| Best R2 | 0.30+ | +0.017 (epoch 8) | **FAIL** |
+
+**Conclusion**: Round 5 did not help. R2 plateaued around 0 and activation metrics regressed.
+
+---
+
+### 2025-12-25: Round 6 - Systematic Original Code Analysis
+
+**Approach**: Stop guessing, systematically compare our implementation with original code.
+
+**Key Discoveries from Original Code Analysis**:
+
+1. **Prediction head is 512->512->19, NOT 512->128->19** (CRITICAL)
+   - We misread the config: `final_fc_size: 128` is for the DECODER, not the classifier
+   - Actual code (`model_m2pf.py:118-124`):
+     ```python
+     nn.Linear(net_param.encoder.size * 2, net_param.encoder.size * 2),  # 512 -> 512
+     nn.Linear(net_param.encoder.size * 2, net_param.num_label),  # 512 -> 19
+     ```
+
+2. **Original has NO LayerNorm anywhere** (CRITICAL)
+   - We added LayerNorm in Round 1 to fix gradient issues
+   - Original code has zero normalization layers
+   - LayerNorm may be preventing the model from learning
+
+3. **MixEmbedder is separate from HAN**
+   - Input embedding (78->256) is done by `MixEmbedder` before HAN
+   - HAN's `note_fc` is commented out in original (`encoder_score.py:509`)
+
+4. **Learning rate is 2.5e-5** (not 5e-5)
+   - We incorrectly increased to 5e-5 in Round 4
+   - Original uses 2.5e-5 (`2_run_comp_multilevel_total.sh`)
+
+5. **Data is already pre-segmented**
+   - Our pickle files are individual 4/8/16-bar segments (1202 total)
+   - No additional slicing needed - that's for full performances
+
+**Fixes Applied**:
+
+| Fix | File | Description |
+|-----|------|-------------|
+| Remove LayerNorm | `percepiano_replica.py:761-764` | Removed `han_output_norm` |
+| Remove LayerNorm | `percepiano_replica.py:782` | Removed `pre_prediction_norm` |
+| Prediction head | `percepiano_replica.py:784-790` | Changed to 512->512->19 |
+| Learning rate | `notebook cell-12` | Reverted to 2.5e-5 |
+
+**Expected Results (Round 6)**:
+
+| Metric | Round 5 | Expected Round 6 |
 |--------|---------|------------------|
-| R2 after 5 epochs | -0.081 | > 0 |
-| R2 after 20 epochs | -0.039 | > 0.15 |
-| R2 at convergence | Unknown | +0.30-0.40 (SOTA) |
-| Model parameters | ~higher | ~reduced by 200k |
+| Prediction head | 512->128->19 | 512->512->19 |
+| LayerNorm | Present | Removed |
+| Learning rate | 5e-5 | 2.5e-5 |
+| R2 after 5 epochs | +0.017 | > 0 |
+| R2 after 20 epochs | -0.032 | > 0.15 |
+| R2 at convergence | +0.017 | +0.30-0.40 (SOTA) |
 
 ---
 
@@ -237,13 +290,12 @@ This added ~200k extra parameters, causing slower convergence.
 
 ---
 
-## Intentional Deviations from Original
+## Deviations from Original (Round 6: ALL REMOVED)
 
-These deviations were added to fix bugs or improve stability:
-
-1. **LayerNorm after HAN encoder** - Original has no normalization, but our attention fix still produces small outputs. LayerNorm rescales to unit variance.
-
-2. **LayerNorm before prediction head** - Ensures consistent input magnitude.
+As of Round 6, we now match the original architecture exactly:
+- No LayerNorm anywhere (removed)
+- Prediction head: 512->512->19 (corrected)
+- Learning rate: 2.5e-5 (reverted)
 
 ---
 

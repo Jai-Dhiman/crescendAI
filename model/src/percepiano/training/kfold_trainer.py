@@ -214,7 +214,9 @@ class ActivationDiagnosticCallback(Callback):
         total_params = sum(p.numel() for p in pl_module.parameters() if p.requires_grad)
         print(f"  Model parameters: {total_params:,}")
 
-        # Check prediction head architecture (Round 5: should be 512->128->19)
+        # Check prediction head architecture (Round 6: should be 512->512->19)
+        # NOTE: The config's final_fc_size=128 is for DECODER, not classifier!
+        # See model_m2pf.py:118-124 for actual implementation.
         if hasattr(pl_module, 'prediction_head'):
             head = pl_module.prediction_head
             # Get layer sizes from Sequential
@@ -225,11 +227,11 @@ class ActivationDiagnosticCallback(Callback):
             if layer_sizes:
                 head_arch = ", ".join(layer_sizes)
                 print(f"  Prediction head: {head_arch}")
-                # Validate Round 5 fix
-                if "512->128" in head_arch and "128->19" in head_arch:
-                    print(f"    [OK] Prediction head architecture correct (Round 5)")
-                elif "512->512" in head_arch:
-                    print(f"    [WARN] Prediction head using 512 hidden (should be 128)")
+                # Validate Round 6 fix: 512->512->19 is correct
+                if "512->512" in head_arch and "512->19" in head_arch:
+                    print(f"    [OK] Prediction head architecture correct (Round 6)")
+                elif "512->128" in head_arch:
+                    print(f"    [WARN] Prediction head using 128 hidden (should be 512!)")
 
         # Log learning rate to confirm config
         lr = trainer.optimizers[0].param_groups[0]["lr"]
