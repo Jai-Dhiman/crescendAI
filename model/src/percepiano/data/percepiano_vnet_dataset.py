@@ -2,16 +2,19 @@
 PyTorch Dataset for PercePiano with VirtuosoNet features.
 
 This module provides a Dataset class that loads preprocessed VirtuosoNet
-features (83-dim: 78 base + 5 unnorm) for training the PercePiano replica model.
-This matches the SOTA configuration (R2 = 0.397).
+features (84-dim: 79 base + 5 unnorm) matching the original PercePiano implementation.
 
 Feature layout:
-- Indices 0-77: Base VirtuosoNet features (z-score normalized where applicable)
-- Index 78: midi_pitch_unnorm (raw MIDI pitch 21-108, used for key augmentation)
-- Index 79: duration_unnorm
-- Index 80: beat_importance_unnorm
-- Index 81: measure_length_unnorm
-- Index 82: following_rest_unnorm
+- Indices 0-78: Base VirtuosoNet features (z-score normalized where applicable)
+- Index 79: midi_pitch_unnorm (raw MIDI pitch 21-108, used for key augmentation)
+- Index 80: duration_unnorm
+- Index 81: beat_importance_unnorm
+- Index 82: measure_length_unnorm
+- Index 83: following_rest_unnorm
+
+Batching:
+- Uses pack_sequence for input features (matching original PercePiano)
+- Note locations are padded (needed for hierarchy boundary detection)
 """
 
 import pickle
@@ -23,21 +26,94 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import numpy as np
 import pytorch_lightning as pl
 import torch
+from torch.nn.utils.rnn import pack_sequence, pad_sequence
 from torch.utils.data import DataLoader, Dataset
 
-# No global flags - they don't work correctly with multiprocessing workers
+# Feature dimension constants (matching original PercePiano)
+BASE_FEATURE_DIM = 79  # 79 base features (includes section_tempo)
+TOTAL_FEATURE_DIM = 84  # 79 base + 5 unnorm
+
+# Feature indices for key augmentation (matching original PercePiano)
+MIDI_PITCH_IDX = 0
+MIDI_PITCH_UNNORM_IDX = 79  # Raw MIDI pitch (21-108)
+PITCH_VEC_START = 14  # pitch vector starts after 14 scalar features
+PITCH_CLASS_START = 15  # octave at 14, pitch class starts at 15
+PITCH_CLASS_END = 27  # 12 pitch classes (indices 15-26)
+
+
+def percepiano_pack_collate(batch: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """
+    Custom collate function using pack_sequence for input features.
+
+    Matches original PercePiano batching exactly (dataset.py:FeatureCollate):
+    - Input features: PackedSequence (variable length, no padding waste)
+    - Note locations: Padded tensors (needed for hierarchy indexing)
+    - Scores: Stacked tensor
+
+    Args:
+        batch: List of sample dicts from Dataset.__getitem__()
+
+    Returns:
+        Collated batch with:
+        - input_features: PackedSequence of shape (total_notes, 79)
+        - note_locations_beat: (B, max_len) padded tensor
+        - note_locations_measure: (B, max_len) padded tensor
+        - note_locations_voice: (B, max_len) padded tensor
+        - scores: (B, 19) stacked tensor
+        - lengths: (B,) tensor of sequence lengths
+        - attention_mask: (B, max_len) padded mask
+    """
+    # Sort by num_notes descending (required for pack_sequence efficiency)
+    batch = sorted(batch, key=lambda x: x['num_notes'], reverse=True)
+
+    # Extract sequence lengths
+    lengths = torch.tensor([s['num_notes'] for s in batch], dtype=torch.long)
+    max_len = int(lengths[0])  # Longest sequence after sorting
+
+    # Pack input features (no padding - matches original PercePiano)
+    # Each sample has shape (num_notes, 79), we trim to actual length
+    input_seqs = [
+        s['input_features'][:s['num_notes']]  # (num_notes, 79)
+        for s in batch
+    ]
+    input_features = pack_sequence(input_seqs, enforce_sorted=True)
+
+    # Pad note locations (needed for hierarchy boundary detection)
+    # hierarchy_utils needs padded tensors to detect beat/measure boundaries
+    beat_seqs = [s['note_locations_beat'][:s['num_notes']] for s in batch]
+    measure_seqs = [s['note_locations_measure'][:s['num_notes']] for s in batch]
+    voice_seqs = [s['note_locations_voice'][:s['num_notes']] for s in batch]
+    mask_seqs = [s['attention_mask'][:s['num_notes']] for s in batch]
+
+    note_locations_beat = pad_sequence(beat_seqs, batch_first=True, padding_value=0)
+    note_locations_measure = pad_sequence(measure_seqs, batch_first=True, padding_value=0)
+    note_locations_voice = pad_sequence(voice_seqs, batch_first=True, padding_value=0)
+    attention_mask = pad_sequence(mask_seqs, batch_first=True, padding_value=False)
+
+    # Stack scores
+    scores = torch.stack([s['scores'] for s in batch])
+
+    return {
+        'input_features': input_features,  # PackedSequence
+        'note_locations_beat': note_locations_beat,  # (B, max_len)
+        'note_locations_measure': note_locations_measure,  # (B, max_len)
+        'note_locations_voice': note_locations_voice,  # (B, max_len)
+        'scores': scores,  # (B, 19)
+        'lengths': lengths,  # (B,)
+        'attention_mask': attention_mask,  # (B, max_len)
+    }
 
 
 class PercePianoVNetDataset(Dataset):
     """
-    PyTorch Dataset for PercePiano with VirtuosoNet 83-dim features (SOTA config).
+    PyTorch Dataset for PercePiano with VirtuosoNet 84-dim features.
 
     Loads preprocessed pickle files containing:
-    - input: (num_notes, 83) VirtuosoNet features (78 base + 5 unnorm)
+    - input: (num_notes, 84) VirtuosoNet features (79 base + 5 unnorm)
     - note_location: dict with 'beat', 'measure', 'voice' arrays
     - labels: (19,) PercePiano scores
 
-    The unnorm features (indices 78-82) preserve raw values before normalization,
+    The unnorm features (indices 79-83) preserve raw values before normalization,
     which is critical for key augmentation (midi_pitch_unnorm gives raw MIDI pitch 21-108).
 
     Args:
@@ -231,9 +307,8 @@ class PercePianoVNetDataset(Dataset):
             )
 
         # Pad or truncate to max_notes
-        # Only use first 78 features for model input (SOTA configuration)
-        # The 5 unnorm features (indices 78-82) are only for key augmentation, not model input
-        BASE_FEATURE_DIM = 78
+        # Only use first 79 features for model input (matching original PercePiano)
+        # The 5 unnorm features (indices 79-83) are only for key augmentation, not model input
         model_features = input_features[
             :, :BASE_FEATURE_DIM
         ]  # Only normalized features
@@ -304,21 +379,13 @@ class PercePianoVNetDataset(Dataset):
         Uses midi_pitch_unnorm (raw MIDI pitch 21-108) for calculating valid shift range.
 
         Args:
-            input_features: (num_notes, 83) feature array (78 base + 5 unnorm)
+            input_features: (num_notes, 84) feature array (79 base + 5 unnorm)
             num_notes: Actual number of notes (before padding)
 
         Returns:
             Augmented feature array
         """
-        # Feature indices based on VNET_INPUT_KEYS order (SOTA 78-feature config):
-        # midi_pitch (normalized) is at index 0
-        # pitch vector is at index 13: [octave (1), pitch_class_one_hot (12)]
-        # midi_pitch_unnorm (raw MIDI 21-108) is at index 78
-        MIDI_PITCH_IDX = 0
-        PITCH_VEC_START = 13  # After 13 scalar features (section_tempo removed)
-        PITCH_CLASS_START = 14  # octave at 13, pitch class starts at 14
-        PITCH_CLASS_END = 26  # 12 pitch classes (indices 14-25)
-        MIDI_PITCH_UNNORM_IDX = 78  # Raw MIDI pitch (21-108)
+        # Use module-level constants for feature indices
 
         # Get current pitch range from midi_pitch_unnorm (raw MIDI values)
         # This is much more accurate than estimating from normalized values
@@ -351,7 +418,7 @@ class PercePianoVNetDataset(Dataset):
         # Apply shift to midi_pitch_unnorm (raw MIDI values)
         input_features[:num_notes, MIDI_PITCH_UNNORM_IDX] += key_shift
 
-        # Roll the pitch class one-hot encoding
+        # Roll the pitch class one-hot encoding (using module-level constants)
         pitch_class = input_features[
             :num_notes, PITCH_CLASS_START:PITCH_CLASS_END
         ].copy()
@@ -361,7 +428,7 @@ class PercePianoVNetDataset(Dataset):
         )
 
         # Adjust octave if shift crosses octave boundary
-        # Octave is normalized around octave 4, each octave = 0.25
+        # Octave is normalized around octave 4, each octave = 0.25 (using module-level constant)
         octave_adjustment = key_shift // 12
         if octave_adjustment != 0:
             input_features[:num_notes, PITCH_VEC_START] += octave_adjustment * 0.25
@@ -443,6 +510,7 @@ class PercePianoVNetDataModule(pl.LightningDataModule):
             batch_size=self.batch_size,
             shuffle=True,
             num_workers=self.num_workers,
+            collate_fn=percepiano_pack_collate,  # PackedSequence batching
             pin_memory=True,
         )
 
@@ -452,6 +520,7 @@ class PercePianoVNetDataModule(pl.LightningDataModule):
             batch_size=self.batch_size,
             shuffle=False,
             num_workers=self.num_workers,
+            collate_fn=percepiano_pack_collate,  # PackedSequence batching
             pin_memory=True,
         )
 
@@ -461,6 +530,7 @@ class PercePianoVNetDataModule(pl.LightningDataModule):
             batch_size=self.batch_size,
             shuffle=False,
             num_workers=self.num_workers,
+            collate_fn=percepiano_pack_collate,  # PackedSequence batching
             pin_memory=True,
         )
 
@@ -516,6 +586,7 @@ def create_vnet_dataloaders(
         batch_size=batch_size,
         shuffle=True,
         num_workers=num_workers,
+        collate_fn=percepiano_pack_collate,  # PackedSequence batching
         pin_memory=True,
     )
 
@@ -524,6 +595,7 @@ def create_vnet_dataloaders(
         batch_size=batch_size,
         shuffle=False,
         num_workers=num_workers,
+        collate_fn=percepiano_pack_collate,  # PackedSequence batching
         pin_memory=True,
     )
 
@@ -532,6 +604,7 @@ def create_vnet_dataloaders(
         batch_size=batch_size,
         shuffle=False,
         num_workers=num_workers,
+        collate_fn=percepiano_pack_collate,  # PackedSequence batching
         pin_memory=True,
     )
 
@@ -673,8 +746,8 @@ class PercePianoKFoldDataset(Dataset):
         for file_path in self.sample_files:
             with open(file_path, "rb") as f:
                 data = pickle.load(f)
-            # Only use base 78 features for stats (not unnormalized) - SOTA config
-            features = data["input"][:, :78]
+            # Only use base 79 features for stats (not unnormalized)
+            features = data["input"][:, :BASE_FEATURE_DIM]
             all_features.append(features)
 
         # Concatenate all features
@@ -751,8 +824,7 @@ class PercePianoKFoldDataset(Dataset):
                 input_features.copy(), num_notes
             )
 
-        # Only use first 78 features for model input (SOTA configuration)
-        BASE_FEATURE_DIM = 78
+        # Only use first 79 features for model input (matching original PercePiano)
         model_features = input_features[:, :BASE_FEATURE_DIM]
 
         # Pad or truncate
@@ -792,13 +864,7 @@ class PercePianoKFoldDataset(Dataset):
         self, input_features: np.ndarray, num_notes: int
     ) -> np.ndarray:
         """Apply random key augmentation (pitch shift)."""
-        # SOTA 78-feature configuration indices
-        MIDI_PITCH_IDX = 0
-        PITCH_VEC_START = 13  # After 13 scalar features
-        PITCH_CLASS_START = 14  # octave at 13, pitch class starts at 14
-        PITCH_CLASS_END = 26  # 12 pitch classes (indices 14-25)
-        MIDI_PITCH_UNNORM_IDX = 78
-
+        # Use module-level constants for feature indices
         raw_pitches = input_features[:num_notes, MIDI_PITCH_UNNORM_IDX]
         current_max = raw_pitches.max()
         current_min = raw_pitches.min()
@@ -907,6 +973,7 @@ class PercePianoKFoldDataModule(pl.LightningDataModule):
             batch_size=self.batch_size,
             shuffle=True,
             num_workers=self.num_workers,
+            collate_fn=percepiano_pack_collate,  # PackedSequence batching
             pin_memory=True,
         )
 
@@ -916,6 +983,7 @@ class PercePianoKFoldDataModule(pl.LightningDataModule):
             batch_size=self.batch_size,
             shuffle=False,
             num_workers=self.num_workers,
+            collate_fn=percepiano_pack_collate,  # PackedSequence batching
             pin_memory=True,
         )
 
@@ -1020,8 +1088,7 @@ class PercePianoTestDataset(Dataset):
 
         labels = np.array(data["labels"], dtype=np.float32)
 
-        # SOTA configuration uses 78 base features
-        BASE_FEATURE_DIM = 78
+        # Use module-level constant for base feature dimension (79 features)
         model_features = input_features[:, :BASE_FEATURE_DIM]
 
         padded_features = np.zeros((self.max_notes, BASE_FEATURE_DIM), dtype=np.float32)

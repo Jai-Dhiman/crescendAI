@@ -34,6 +34,8 @@ import torch.nn as nn
 from sklearn.metrics import r2_score
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence, pad_sequence
 
+from torch.nn.utils.rnn import PackedSequence
+
 from .context_attention import ContextAttention, FinalContextAttention
 from .hierarchy_utils import (
     compute_actual_lengths,
@@ -88,7 +90,7 @@ class PercePianoHAN(nn.Module):
 
     def __init__(
         self,
-        input_size: int = 78,  # VirtuosoNet feature dimension (SOTA configuration)
+        input_size: int = 79,  # VirtuosoNet feature dimension (matches original PercePiano)
         note_size: int = 256,
         voice_size: int = 256,
         beat_size: int = 256,
@@ -686,17 +688,18 @@ class PercePianoReplicaModule(pl.LightningModule):
 
 class PercePianoVNetModule(pl.LightningModule):
     """
-    Faithful PercePiano replica using VirtuosoNet features (SOTA configuration).
+    Faithful PercePiano replica using VirtuosoNet features.
 
     This version matches the original PercePiano architecture exactly:
-    - Input: 78-dim VirtuosoNet features (SOTA uses 78, not 79)
+    - Input: 79-dim VirtuosoNet features (matches original)
+    - Batching: PackedSequence for input features (matches original dataset.py)
     - HAN encoder: Note -> Voice -> Beat -> Measure hierarchy
     - Output: 19-dim scores
 
-    Feature layout:
-    - Indices 0-77: Base VirtuosoNet features (z-score normalized where applicable)
-    - Index 78: midi_pitch_unnorm (raw MIDI pitch 21-108, for key augmentation)
-    - Index 79-82: duration_unnorm, beat_importance_unnorm, measure_length_unnorm, following_rest_unnorm
+    Feature layout (79 base + 5 unnorm = 84 total):
+    - Indices 0-78: Base VirtuosoNet features (z-score normalized where applicable)
+    - Index 79: midi_pitch_unnorm (raw MIDI pitch 21-108, for key augmentation)
+    - Index 80-83: duration_unnorm, beat_importance_unnorm, measure_length_unnorm, following_rest_unnorm
 
     Key difference from PercePianoReplicaModule:
     - No global_encoder or tempo_encoder (these aren't in original PercePiano)
@@ -715,8 +718,8 @@ class PercePianoVNetModule(pl.LightningModule):
 
     def __init__(
         self,
-        # Input dimension (VirtuosoNet features: 78 base - SOTA configuration)
-        input_size: int = 78,
+        # Input dimension (VirtuosoNet features: 79 base - matches original PercePiano)
+        input_size: int = 79,
         # HAN dimensions (matched to PercePiano han_bigger256_concat.yml)
         hidden_size: int = 256,
         note_layers: int = 2,
@@ -738,9 +741,9 @@ class PercePianoVNetModule(pl.LightningModule):
         self.dimensions = dimensions or PERCEPIANO_DIMENSIONS
         self.num_dimensions = len(self.dimensions)
 
-        # HAN encoder - takes 78-dim input directly (SOTA configuration)
+        # HAN encoder - takes 79-dim input directly (matches original PercePiano)
         self.han_encoder = PercePianoHAN(
-            input_size=input_size,  # 78-dim VirtuosoNet features (SOTA)
+            input_size=input_size,  # 79-dim VirtuosoNet features
             note_size=hidden_size,
             voice_size=hidden_size,
             beat_size=hidden_size,
@@ -799,25 +802,44 @@ class PercePianoVNetModule(pl.LightningModule):
         input_features: torch.Tensor,
         note_locations: Dict[str, torch.Tensor],
         attention_mask: Optional[torch.Tensor] = None,
+        lengths: Optional[torch.Tensor] = None,
         diagnose: bool = False,
     ) -> Dict[str, torch.Tensor]:
         """
         Forward pass with VirtuosoNet features.
 
         Args:
-            input_features: [batch, num_notes, 78] VirtuosoNet features (SOTA configuration)
-            note_locations: Dict with 'beat', 'measure', 'voice' tensors
+            input_features: Either [batch, num_notes, 79] padded tensor OR PackedSequence
+            note_locations: Dict with 'beat', 'measure', 'voice' tensors (always padded)
             attention_mask: [batch, num_notes] optional mask (True = valid position)
+            lengths: Optional sequence lengths (required if input_features is PackedSequence)
             diagnose: If True, print activation statistics for debugging
 
         Returns:
             Dict with 'predictions' [batch, num_dimensions]
         """
+        # Handle PackedSequence input (from percepiano_pack_collate)
+        if isinstance(input_features, PackedSequence):
+            # Unpack to padded format for HAN processing
+            # HAN needs padded tensors to work with note_locations
+            input_features, seq_lengths = pad_packed_sequence(
+                input_features, batch_first=True
+            )
+            # Create attention mask from lengths if not provided
+            if attention_mask is None:
+                batch_size = input_features.shape[0]
+                max_len = input_features.shape[1]
+                attention_mask = torch.zeros(
+                    batch_size, max_len, dtype=torch.bool, device=input_features.device
+                )
+                for i, length in enumerate(seq_lengths):
+                    attention_mask[i, :length] = True
+
         # DIAGNOSTIC: Log key statistics for debugging
         if diagnose:
             print(f"  Input: mean={input_features.mean().item():.3f}, std={input_features.std().item():.3f}")
 
-        # Run HAN encoder directly on 78-dim features (no global context)
+        # Run HAN encoder directly on 79-dim features (no global context)
         han_outputs = self.han_encoder(input_features, note_locations)
         total_note_cat = han_outputs["total_note_cat"]  # [B, N, 2048]
 
@@ -897,6 +919,7 @@ class PercePianoVNetModule(pl.LightningModule):
             batch["input_features"],
             note_locations,
             batch.get("attention_mask"),
+            batch.get("lengths"),  # Pass lengths for PackedSequence handling
         )
 
         loss, per_dim_losses = self.compute_loss(
@@ -914,6 +937,7 @@ class PercePianoVNetModule(pl.LightningModule):
             batch["input_features"],
             note_locations,
             batch.get("attention_mask"),
+            batch.get("lengths"),  # Pass lengths for PackedSequence handling
         )
 
         loss, _ = self.compute_loss(outputs["predictions"], batch["scores"])

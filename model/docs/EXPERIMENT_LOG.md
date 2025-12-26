@@ -280,9 +280,51 @@ The SOTA config specifies `final_fc_size: 128`, so we changed to 512->128->19.
 
 ---
 
+### 2025-12-25: Round 7 - Data Processing Fix (section_tempo + PackedSequence)
+
+**Problem**: Round 6 showed all context_vectors had exactly zero gradients, preventing attention
+mechanism from learning. Root cause: differences in data processing pipeline vs original PercePiano.
+
+**Key Differences Found**:
+
+| Aspect | Original | Ours (before) | Ours (after) |
+|--------|----------|---------------|--------------|
+| Feature count | 79 base + 5 unnorm = 84 | 78 base + 5 unnorm = 83 | 79 base + 5 unnorm = 84 |
+| section_tempo | Present at index 5 | Missing | Restored at index 5 |
+| Batching | pack_sequence (PackedSequence) | pad_sequence (fixed 1024) | pack_sequence (PackedSequence) |
+| NORM_FEAT_KEYS | 9 features | 8 features | 9 features |
+
+**Fixes Applied**:
+
+| Fix | File | Description |
+|-----|------|-------------|
+| Add section_tempo | `virtuosonet_feature_extractor.py` | Restored section_tempo at index 5 |
+| Update dimensions | `virtuosonet_feature_extractor.py` | BASE_FEATURE_DIM=79, TOTAL_FEATURE_DIM=84 |
+| PackedSequence collate | `percepiano_vnet_dataset.py` | Added `percepiano_pack_collate()` function |
+| Handle PackedSequence | `percepiano_replica.py` | Model unpacks PackedSequence in forward() |
+| Reprocess data | `data/percepiano_vnet_84dim/` | New 84-dim train/val/test splits |
+| Upload to GDrive | `gdrive:crescendai_data/percepiano_vnet_84dim` | 955 train, 27 val, 197 test |
+
+**Data Location**:
+- Local: `data/percepiano_vnet_84dim/` (84-dim with section_tempo)
+- GDrive: `gdrive:crescendai_data/percepiano_vnet_84dim`
+- Old 83-dim: `gdrive:crescendai_data/percepiano_vnet_split` (deprecated)
+
+**Expected Results (Round 7)**:
+
+| Metric | Round 6 | Expected Round 7 |
+|--------|---------|------------------|
+| context_vectors gradient | 0.000000 | > 0 |
+| Feature count | 83 (78 base) | 84 (79 base) |
+| Batching | padded (1024) | PackedSequence |
+| R2 after 5 epochs | -0.037 | > 0 |
+| R2 at convergence | ~ 0 | +0.30-0.40 (SOTA) |
+
+---
+
 ## Ruled Out Issues
 
-1. **Feature normalization** - CORRECT: 8 features z-scored, 70 categorical/embeddings unchanged
+1. **Feature normalization** - CORRECT: 9 features z-scored (includes section_tempo), 70 categorical/embeddings unchanged
 2. **Measure-aligned slicing** - Samples 51-413 notes, max_notes=1024 sufficient
 3. **Sequence iteration** - HanEncoder doesn't use it (only ISGN encoders do)
 4. **Fold assignment** - Fixed with greedy bucket balancing
@@ -290,12 +332,12 @@ The SOTA config specifies `final_fc_size: 128`, so we changed to 512->128->19.
 
 ---
 
-## Deviations from Original (Round 6: ALL REMOVED)
+## Deviations from Original (Round 7: DATA PROCESSING FIXED)
 
-As of Round 6, we now match the original architecture exactly:
-- No LayerNorm anywhere (removed)
-- Prediction head: 512->512->19 (corrected)
-- Learning rate: 2.5e-5 (reverted)
+As of Round 7, we now match the original PercePiano exactly:
+- Architecture: No LayerNorm, prediction head 512->512->19, LR 2.5e-5
+- Data: 84-dim features (79 base + 5 unnorm), includes section_tempo at index 5
+- Batching: PackedSequence (not padded to fixed 1024)
 
 ---
 
