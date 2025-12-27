@@ -1,6 +1,6 @@
 # PercePiano Replica Experiment Log
 
-**Last Updated**: 2025-12-26 (Round 8)
+**Last Updated**: 2025-12-26 (Round 9)
 **Purpose**: Track our debugging journey to reproduce PercePiano SOTA (R2 = 0.397)
 
 For architecture details and hyperparameters, see `PERCEPIANO_SOTA_REFERENCE.md`.
@@ -9,25 +9,31 @@ For architecture details and hyperparameters, see `PERCEPIANO_SOTA_REFERENCE.md`
 
 ## Current Status
 
-**Round 8** - SLICE SAMPLING (the critical missing piece)
+**Round 9** - DIAGNOSTIC INFRASTRUCTURE + HIERARCHY INVESTIGATION
 
 | Change | Description |
 |--------|-------------|
-| Slice sampling | **ADDED** - 3-5 overlapping slices per performance |
-| max_notes/slice_len | **5000** (matches original) |
-| SliceRegenerationCallback | Regenerates slices each epoch |
-| Training samples | ~600-1000 slices (was ~200 samples) |
+| Diagnostic callbacks | **ADDED** - Activation variances, attention entropy, contribution analysis |
+| Ablation testing | **ADDED** - Compares full model vs Bi-LSTM only (measures hierarchy gain) |
+| Index analysis | **FIXED** - Now correctly excludes padding zeros from analysis |
+| PackedSequence handling | **FIXED** - Proper device transfer for ablation callback |
 
-**Key Discovery (Round 8):**
-The original PercePiano uses overlapping slice sampling (dataset.py:67-77, data_process.py:53-103).
-Each performance is divided into 3-5 overlapping slices of ~5000 notes, and these slices
-are regenerated each epoch for data augmentation. This was the single most impactful
-missing component.
+**Key Discovery (Round 9):**
+Round 8 training achieved R2 ~0.15 (CV average), which matches the Bi-LSTM baseline.
+This indicates the hierarchical components (beat/measure attention + HAN) are NOT
+contributing the expected +0.21 R2 improvement. Added comprehensive diagnostics to
+investigate why hierarchy isn't helping.
 
-**Expected after Round 8:**
-- Training slices: ~600-1000 (vs ~200 samples before)
-- R2 > 0.10 by epoch 10
-- R2 reaches 0.30-0.40 at convergence (SOTA range)
+**Diagnostic findings:**
+- Beat range [1, 26] (valid positions only, excluding padding)
+- No negative zero-shifted values in valid positions
+- LSTM output variance is low (0.0297 vs expected 0.1-0.4)
+- Beat/measure contributing ~52% variance (needs ablation to verify actual R2 contribution)
+
+**Next steps:**
+- Run training with fixed ablation callback to measure hierarchy gain
+- If hierarchy gain < 0.05 R2, investigate `span_beat_to_note_num` clamping issue
+- Target: R2 improvement from 0.15 to 0.30-0.40 (SOTA range)
 
 ---
 
@@ -387,6 +393,99 @@ codebase, identified one critical issue.
 | R2 after 10 epochs | 0.0017 | > 0.10 |
 | R2 at convergence | 0.0017 | +0.30-0.40 (SOTA) |
 
+**Actual Results (Round 8)**:
+
+| Metric | Expected | Actual | Status |
+|--------|----------|--------|--------|
+| Training samples | ~600-1000 | ~600 slices | PASS |
+| Predictions std | 0.10-0.15 | 0.10-0.12 | PASS |
+| R2 after 10 epochs | > 0.10 | ~0.10 | PASS |
+| CV R2 average | 0.30-0.40 | 0.1496 | FAIL |
+| Test R2 | 0.30-0.40 | 0.0398 | FAIL |
+
+**Conclusion**: Slice sampling fixed prediction collapse. Model now learns (R2 ~0.15)
+but matches Bi-LSTM baseline only. Hierarchical components not contributing.
+
+---
+
+### 2025-12-26: Round 9 - Diagnostic Infrastructure + Hierarchy Investigation
+
+**Problem**: Round 8 achieved R2 ~0.15 (CV average), matching Bi-LSTM baseline.
+The hierarchical components (beat/measure attention) should add +0.21 R2 (per paper),
+but appear to be contributing nothing.
+
+**Hypothesis**: Either:
+1. Beat/measure indices have issues preventing proper aggregation
+2. Attention is collapsing or not learning
+3. `span_beat_to_note_num` clamping corrupts first beat representation
+
+**Diagnostic Infrastructure Added**:
+
+| Component | File | Description |
+|-----------|------|-------------|
+| `DiagnosticCallback` | `diagnostics.py:166-562` | Captures activation variances, attention entropy |
+| `HierarchyAblationCallback` | `diagnostics.py:564-721` | Compares full model vs Bi-LSTM only |
+| `analyze_indices()` | `diagnostics.py:111-205` | Validates beat/measure index health |
+| `run_full_diagnostics()` | `diagnostics.py:724-808` | Standalone diagnostic function |
+
+**Issues Found & Fixed**:
+
+| Issue | Root Cause | Fix |
+|-------|------------|-----|
+| Beat range [0, 26] | Including padding zeros in analysis | Only analyze valid positions (> 0) |
+| 657 negative values | Zero-shifting applied to padding | Zero-shift only valid positions |
+| Ablation device error | PackedSequence not moved to GPU | Explicitly handle PackedSequence device transfer |
+
+**Fixes Applied**:
+
+| Fix | File | Description |
+|-----|------|-------------|
+| analyze_indices | `diagnostics.py:111-205` | Only analyze valid (non-padding) positions |
+| Ablation callback | `diagnostics.py:605-623` | Move PackedSequence components to device |
+| run_full_diagnostics | `diagnostics.py:760-781` | Same PackedSequence fix |
+| Re-enable ablation | `kfold_trainer.py:540-552` | Uncommented ablation callback |
+
+**Initial Diagnostic Output** (before fixes):
+
+```
+[1] INDEX ANALYSIS:
+  Beat range: [0, 26]
+  Measure range: [0, 10]
+  [WARNING] Negative zero-shifted values: 657
+
+[2] ACTIVATION VARIANCES (std):
+  note_out (LSTM)               0.0297 [LOW - ISSUE]
+  beat_nodes                    0.0540 [OK]
+  beat_spanned                  0.0540 [OK]
+  measure_nodes                 0.0663 [OK]
+  measure_spanned               0.0663 [OK]
+
+[4] HIERARCHY CONTRIBUTION (fraction of total variance):
+  hidden_out (Bi-LSTM):  47.6%
+  beat_spanned:          26.2%
+  measure_spanned:       26.2%
+```
+
+**Expected Diagnostic Output** (after fixes):
+
+```
+[1] INDEX ANALYSIS:
+  Beat range: [1, 26]  (no padding zeros)
+  Measure range: [1, 10]
+  Zero-shifted values: OK (no negatives)
+
+[ABLATION] Full R2: 0.15
+[ABLATION] Ablated (Bi-LSTM only) R2: ???
+[ABLATION] Hierarchy gain: +??? (expected ~+0.21)
+```
+
+**Remaining Investigation**:
+
+If ablation shows hierarchy gain < 0.05 R2:
+1. Check `span_beat_to_note_num` in `hierarchy_utils.py` - clamping may corrupt first beat
+2. Verify `make_higher_node` boundary detection is correct
+3. Compare attention weights with original implementation
+
 ---
 
 ## Ruled Out Issues
@@ -415,7 +514,7 @@ As of Round 8, we now match the original PercePiano exactly:
 
 Runs on first batch only. Reports:
 - Model parameter count
-- Prediction head architecture verification (Round 5)
+- Prediction head architecture verification
 - Logits std, prediction std, health status
 - Pred/target std ratio
 - Per-dimension collapse check
@@ -433,6 +532,23 @@ Logs every 100 steps (verbose first 5). Reports:
 
 - val/pred_mean and val/pred_std each epoch
 - Per-dimension R2 values
+
+### 4. Comprehensive Diagnostics (`diagnostics.py:DiagnosticCallback`) - Round 9
+
+Runs every 5 epochs during validation. Reports:
+- Index analysis: beat/measure ranges, zero-shift validation
+- Activation variances at each hierarchy level
+- Attention entropy (collapsed vs uniform vs healthy)
+- Hierarchy contribution analysis (% variance from each component)
+- Gradient flow through all components
+
+### 5. Hierarchy Ablation (`diagnostics.py:HierarchyAblationCallback`) - Round 9
+
+Runs every 10 epochs. Reports:
+- Full model R2
+- Bi-LSTM only R2 (hierarchy zeroed out)
+- Hierarchy gain (full - ablated)
+- Warning if hierarchy contributing < 0.01 R2
 
 ---
 
@@ -482,11 +598,16 @@ Potential next fixes (in priority order):
 
 ### Our Implementation
 - Model: `src/percepiano/models/percepiano_replica.py`
+- Hierarchy utils: `src/percepiano/models/hierarchy_utils.py`
 - Attention: `src/percepiano/models/context_attention.py`
 - Trainer: `src/percepiano/training/kfold_trainer.py`
+- Diagnostics: `src/percepiano/training/diagnostics.py` (Round 9)
+- Dataset: `src/percepiano/data/percepiano_vnet_dataset.py`
 - Notebook: `notebooks/train_percepiano_replica.ipynb`
 
 ### Original PercePiano (in data/raw)
 - Encoder: `data/raw/PercePiano/virtuoso/virtuoso/encoder_score.py`
+- Model utils: `data/raw/PercePiano/virtuoso/virtuoso/model_utils.py`
+- Utils: `data/raw/PercePiano/virtuoso/virtuoso/utils.py`
 - Training: `data/raw/PercePiano/virtuoso/virtuoso/train_m2pf.py`
 - Config: `data/raw/PercePiano/virtuoso/ymls/shared/label19/han_measnote_nomask_bigger256.yml`

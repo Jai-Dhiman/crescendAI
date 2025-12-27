@@ -537,8 +537,7 @@ class KFoldTrainer:
             save_dir=self.checkpoint_dir / f"fold_{fold_id}" / "diagnostics",
         )
 
-        # DIAGNOSTIC: Ablation test (every 10 epochs)
-        # Compares full model vs Bi-LSTM only to measure hierarchy contribution
+        # DIAGNOSTIC: Ablation test - measures hierarchy contribution
         ablation_callback = HierarchyAblationCallback(run_every_n_epochs=10)
 
         return [

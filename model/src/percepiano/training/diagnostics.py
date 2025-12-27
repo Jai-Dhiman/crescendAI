@@ -115,31 +115,71 @@ def analyze_indices(
     """
     Analyze beat and measure indices for potential issues.
 
+    Note: Padding positions have value 0. Valid positions have value >= 1.
+    This function analyzes ONLY valid positions (> 0) to avoid confusion.
+
     Returns dict with:
-    - Index ranges
+    - Index ranges (excluding padding zeros)
     - Gaps in indices
-    - Negative values after zero-shifting
+    - Negative values after zero-shifting (only in valid positions)
     - Boundary detection issues
     """
     results = {}
 
-    # Basic stats
-    results['beat_min'] = beat_numbers.min().item()
-    results['beat_max'] = beat_numbers.max().item()
-    results['measure_min'] = measure_numbers.min().item()
-    results['measure_max'] = measure_numbers.max().item()
+    # Only consider non-padding values (> 0) for range
+    valid_beat_mask = beat_numbers > 0
+    valid_measure_mask = measure_numbers > 0
 
-    # Check zero-shifting
-    zero_shifted_beat = beat_numbers - beat_numbers[:, 0:1]
-    zero_shifted_measure = measure_numbers - measure_numbers[:, 0:1]
+    if valid_beat_mask.any():
+        results['beat_min'] = beat_numbers[valid_beat_mask].min().item()
+        results['beat_max'] = beat_numbers[valid_beat_mask].max().item()
+    else:
+        results['beat_min'] = 0
+        results['beat_max'] = 0
 
-    results['beat_zero_shifted_min'] = zero_shifted_beat.min().item()
-    results['beat_zero_shifted_max'] = zero_shifted_beat.max().item()
-    results['negative_beat_count'] = (zero_shifted_beat < 0).sum().item()
+    if valid_measure_mask.any():
+        results['measure_min'] = measure_numbers[valid_measure_mask].min().item()
+        results['measure_max'] = measure_numbers[valid_measure_mask].max().item()
+    else:
+        results['measure_min'] = 0
+        results['measure_max'] = 0
 
-    results['measure_zero_shifted_min'] = zero_shifted_measure.min().item()
-    results['measure_zero_shifted_max'] = zero_shifted_measure.max().item()
-    results['negative_measure_count'] = (zero_shifted_measure < 0).sum().item()
+    # Count negative zero-shifted ONLY in valid positions
+    # This is the real issue indicator - if valid positions become negative after zero-shifting
+    negative_beat_count = 0
+    negative_measure_count = 0
+    beat_zero_shifted_min = float('inf')
+    beat_zero_shifted_max = float('-inf')
+    measure_zero_shifted_min = float('inf')
+    measure_zero_shifted_max = float('-inf')
+
+    for i in range(beat_numbers.shape[0]):
+        # Beat analysis - only valid positions
+        valid_mask = beat_numbers[i] > 0
+        if valid_mask.any():
+            valid_beats = beat_numbers[i][valid_mask]
+            # Zero-shift relative to first valid beat
+            zero_shifted = valid_beats - valid_beats[0]
+            negative_beat_count += (zero_shifted < 0).sum().item()
+            beat_zero_shifted_min = min(beat_zero_shifted_min, zero_shifted.min().item())
+            beat_zero_shifted_max = max(beat_zero_shifted_max, zero_shifted.max().item())
+
+        # Measure analysis - only valid positions
+        valid_mask = measure_numbers[i] > 0
+        if valid_mask.any():
+            valid_measures = measure_numbers[i][valid_mask]
+            zero_shifted = valid_measures - valid_measures[0]
+            negative_measure_count += (zero_shifted < 0).sum().item()
+            measure_zero_shifted_min = min(measure_zero_shifted_min, zero_shifted.min().item())
+            measure_zero_shifted_max = max(measure_zero_shifted_max, zero_shifted.max().item())
+
+    results['beat_zero_shifted_min'] = beat_zero_shifted_min if beat_zero_shifted_min != float('inf') else 0
+    results['beat_zero_shifted_max'] = beat_zero_shifted_max if beat_zero_shifted_max != float('-inf') else 0
+    results['negative_beat_count'] = negative_beat_count
+
+    results['measure_zero_shifted_min'] = measure_zero_shifted_min if measure_zero_shifted_min != float('inf') else 0
+    results['measure_zero_shifted_max'] = measure_zero_shifted_max if measure_zero_shifted_max != float('-inf') else 0
+    results['negative_measure_count'] = negative_measure_count
 
     # Check if indices are sequential (after densification)
     # For each batch item, check if unique values are 0,1,2,3...
@@ -154,11 +194,13 @@ def analyze_indices(
                 sequential_issues += 1
     results['non_sequential_samples'] = sequential_issues
 
-    # Check boundary detection
+    # Check boundary detection (excluding padding-to-valid transitions)
     diff = beat_numbers[:, 1:] - beat_numbers[:, :-1]
-    results['diff_equals_1_count'] = (diff == 1).sum().item()
-    results['diff_greater_0_count'] = (diff > 0).sum().item()
-    results['diff_less_0_count'] = (diff < 0).sum().item()  # Should only be at padding boundary
+    # Only count transitions between valid positions
+    valid_transitions = (beat_numbers[:, :-1] > 0) & (beat_numbers[:, 1:] > 0)
+    results['diff_equals_1_count'] = ((diff == 1) & valid_transitions).sum().item()
+    results['diff_greater_0_count'] = ((diff > 0) & valid_transitions).sum().item()
+    results['diff_less_0_count'] = ((diff < 0) & valid_transitions).sum().item()
 
     return results
 
@@ -603,12 +645,22 @@ class HierarchyAblationCallback(Callback):
         device = pl_module.device
 
         with torch.no_grad():
+            from torch.nn.utils.rnn import PackedSequence
+
             for batch in val_loader:
-                # Move tensors to device (PackedSequence handled separately)
+                # Move tensors to device, handling PackedSequence properly
                 batch_on_device = {}
                 for k, v in batch.items():
                     if isinstance(v, torch.Tensor):
                         batch_on_device[k] = v.to(device)
+                    elif isinstance(v, PackedSequence):
+                        # Move PackedSequence components to device
+                        batch_on_device[k] = PackedSequence(
+                            v.data.to(device),
+                            v.batch_sizes.to(device),
+                            v.sorted_indices.to(device) if v.sorted_indices is not None else None,
+                            v.unsorted_indices.to(device) if v.unsorted_indices is not None else None,
+                        )
                     else:
                         batch_on_device[k] = v
 
@@ -748,15 +800,25 @@ def run_full_diagnostics(
     callback = DiagnosticCallback()
 
     with torch.no_grad():
+        from torch.nn.utils.rnn import PackedSequence
+
         for i, batch in enumerate(dataloader):
             if i >= num_batches:
                 break
 
-            # Move tensors to device (PackedSequence handled in _run_diagnostic_forward)
+            # Move tensors to device, handling PackedSequence properly
             batch_on_device = {}
             for k, v in batch.items():
                 if isinstance(v, torch.Tensor):
                     batch_on_device[k] = v.to(device)
+                elif isinstance(v, PackedSequence):
+                    # Move PackedSequence components to device
+                    batch_on_device[k] = PackedSequence(
+                        v.data.to(device),
+                        v.batch_sizes.to(device),
+                        v.sorted_indices.to(device) if v.sorted_indices is not None else None,
+                        v.unsorted_indices.to(device) if v.unsorted_indices is not None else None,
+                    )
                 else:
                     batch_on_device[k] = v
 
