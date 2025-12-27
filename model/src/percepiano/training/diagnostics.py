@@ -654,10 +654,10 @@ class HierarchyAblationCallback(Callback):
                     if isinstance(v, torch.Tensor):
                         batch_on_device[k] = v.to(device)
                     elif isinstance(v, PackedSequence):
-                        # Move PackedSequence components to device
+                        # Move PackedSequence data to device (batch_sizes MUST stay on CPU)
                         batch_on_device[k] = PackedSequence(
                             v.data.to(device),
-                            v.batch_sizes.to(device),
+                            v.batch_sizes,  # Must stay on CPU per PyTorch requirement
                             v.sorted_indices.to(device) if v.sorted_indices is not None else None,
                             v.unsorted_indices.to(device) if v.unsorted_indices is not None else None,
                         )
@@ -812,10 +812,10 @@ def run_full_diagnostics(
                 if isinstance(v, torch.Tensor):
                     batch_on_device[k] = v.to(device)
                 elif isinstance(v, PackedSequence):
-                    # Move PackedSequence components to device
+                    # Move PackedSequence data to device (batch_sizes MUST stay on CPU)
                     batch_on_device[k] = PackedSequence(
                         v.data.to(device),
-                        v.batch_sizes.to(device),
+                        v.batch_sizes,  # Must stay on CPU per PyTorch requirement
                         v.sorted_indices.to(device) if v.sorted_indices is not None else None,
                         v.unsorted_indices.to(device) if v.unsorted_indices is not None else None,
                     )
