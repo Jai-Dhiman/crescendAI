@@ -323,13 +323,15 @@ class DiagnosticCallback(Callback):
         stats = DiagnosticStats()
 
         pl_module.eval()
+        device = pl_module.device
+
         with torch.no_grad():
             # Extract inputs
             input_features = batch['input_features']
             note_locations = {
-                'beat': batch['note_locations_beat'],
-                'measure': batch['note_locations_measure'],
-                'voice': batch['note_locations_voice'],
+                'beat': batch['note_locations_beat'].to(device),
+                'measure': batch['note_locations_measure'].to(device),
+                'voice': batch['note_locations_voice'].to(device),
             }
 
             # Handle PackedSequence
@@ -337,10 +339,13 @@ class DiagnosticCallback(Callback):
             if isinstance(input_features, PackedSequence):
                 input_features, _ = pad_packed_sequence(input_features, batch_first=True)
 
-            # Index analysis
+            # Ensure input is on correct device
+            input_features = input_features.to(device)
+
+            # Index analysis (can stay on CPU)
             idx_stats = analyze_indices(
-                note_locations['beat'],
-                note_locations['measure'],
+                note_locations['beat'].cpu(),
+                note_locations['measure'].cpu(),
             )
             stats.beat_idx_min = idx_stats['beat_min']
             stats.beat_idx_max = idx_stats['beat_max']
@@ -599,26 +604,32 @@ class HierarchyAblationCallback(Callback):
 
         with torch.no_grad():
             for batch in val_loader:
-                batch = {k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in batch.items()}
+                # Move tensors to device (PackedSequence handled separately)
+                batch_on_device = {}
+                for k, v in batch.items():
+                    if isinstance(v, torch.Tensor):
+                        batch_on_device[k] = v.to(device)
+                    else:
+                        batch_on_device[k] = v
 
                 # Full model prediction
                 note_locations = {
-                    'beat': batch['note_locations_beat'],
-                    'measure': batch['note_locations_measure'],
-                    'voice': batch['note_locations_voice'],
+                    'beat': batch_on_device['note_locations_beat'],
+                    'measure': batch_on_device['note_locations_measure'],
+                    'voice': batch_on_device['note_locations_voice'],
                 }
 
                 outputs = pl_module(
-                    batch['input_features'],
+                    batch_on_device['input_features'],
                     note_locations,
-                    batch.get('attention_mask'),
-                    batch.get('lengths'),
+                    batch_on_device.get('attention_mask'),
+                    batch_on_device.get('lengths'),
                 )
                 full_preds.append(outputs['predictions'].cpu())
-                targets.append(batch['scores'].cpu())
+                targets.append(batch_on_device['scores'].cpu())
 
                 # Ablated prediction (zero out hierarchy)
-                ablated_outputs = self._forward_ablated(pl_module, batch, note_locations)
+                ablated_outputs = self._forward_ablated(pl_module, batch_on_device, note_locations)
                 ablated_preds.append(ablated_outputs.cpu())
 
         # Compute R2 scores
@@ -663,9 +674,13 @@ class HierarchyAblationCallback(Callback):
         """Forward pass with hierarchy zeroed out."""
         from torch.nn.utils.rnn import pad_packed_sequence, PackedSequence
 
+        device = pl_module.device
         input_features = batch['input_features']
         if isinstance(input_features, PackedSequence):
             input_features, _ = pad_packed_sequence(input_features, batch_first=True)
+
+        # Ensure input is on correct device
+        input_features = input_features.to(device)
 
         han = pl_module.han_encoder
 
@@ -737,15 +752,21 @@ def run_full_diagnostics(
             if i >= num_batches:
                 break
 
-            batch = {k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in batch.items()}
+            # Move tensors to device (PackedSequence handled in _run_diagnostic_forward)
+            batch_on_device = {}
+            for k, v in batch.items():
+                if isinstance(v, torch.Tensor):
+                    batch_on_device[k] = v.to(device)
+                else:
+                    batch_on_device[k] = v
 
-            stats = callback._run_diagnostic_forward(model, batch)
+            stats = callback._run_diagnostic_forward(model, batch_on_device)
             all_stats.append(stats.to_dict())
 
-            # Index analysis
+            # Index analysis (on CPU)
             idx_stats = analyze_indices(
-                batch['note_locations_beat'],
-                batch['note_locations_measure'],
+                batch['note_locations_beat'].cpu() if isinstance(batch['note_locations_beat'], torch.Tensor) else batch['note_locations_beat'],
+                batch['note_locations_measure'].cpu() if isinstance(batch['note_locations_measure'], torch.Tensor) else batch['note_locations_measure'],
             )
             all_index_stats.append(idx_stats)
 
