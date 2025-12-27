@@ -403,51 +403,6 @@ Extracted via pyScoreParser from aligned MusicXML + MIDI pairs.
 
 ---
 
-## Debugging Checklist
-
-When R2 is below expected:
-
-### Check 1: Prediction Statistics
-
-```python
-print(f"Pred mean: {preds.mean():.4f}, std: {preds.std():.4f}")
-print(f"Pred min: {preds.min():.4f}, max: {preds.max():.4f}")
-# Expected: mean ~0.5, std > 0.1, range covers [0.1, 0.9]
-```
-
-### Check 2: Collapsed Dimensions
-
-```python
-for i, dim in enumerate(dimensions):
-    dim_std = preds[:, i].std()
-    if dim_std < 0.05:
-        print(f"COLLAPSED: {dim} has std={dim_std:.4f}")
-```
-
-### Check 3: Target Distribution
-
-```python
-print(f"Target mean: {targets.mean():.4f}, std: {targets.std():.4f}")
-# Ensure targets are in [0, 1] and not already scaled differently
-```
-
-### Check 4: Feature Statistics
-
-```python
-print(f"Feature mean: {features.mean():.4f}, std: {features.std():.4f}")
-# Z-scored features should have mean ~0, std ~1
-```
-
-### Check 5: Gradient Flow
-
-```python
-for name, param in model.named_parameters():
-    if param.grad is not None:
-        print(f"{name}: grad_norm={param.grad.norm():.6f}")
-```
-
----
-
 ## File Locations
 
 ### Our Implementation

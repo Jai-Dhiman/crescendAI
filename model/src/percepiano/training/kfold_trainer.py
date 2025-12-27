@@ -32,6 +32,7 @@ from ..data.percepiano_vnet_dataset import (
     PercePianoTestDataset,
 )
 from ..models.percepiano_replica import PERCEPIANO_DIMENSIONS, PercePianoVNetModule
+from .diagnostics import DiagnosticCallback, HierarchyAblationCallback
 
 
 class EpochLogger(Callback):
@@ -528,7 +529,29 @@ class KFoldTrainer:
         # DIAGNOSTIC: Activation check on first batch
         activation_diag = ActivationDiagnosticCallback()
 
-        return [checkpoint_callback, early_stopping, lr_monitor, epoch_logger, slice_regen, grad_monitor, activation_diag]
+        # DIAGNOSTIC: Comprehensive hierarchy diagnostics (every 5 epochs)
+        # Captures activation variances, attention entropy, contribution analysis
+        hierarchy_diag = DiagnosticCallback(
+            log_every_n_steps=200,
+            detailed_analysis_every_n_epochs=5,
+            save_dir=self.checkpoint_dir / f"fold_{fold_id}" / "diagnostics",
+        )
+
+        # DIAGNOSTIC: Ablation test (every 10 epochs)
+        # Compares full model vs Bi-LSTM only to measure hierarchy contribution
+        ablation_callback = HierarchyAblationCallback(run_every_n_epochs=10)
+
+        return [
+            checkpoint_callback,
+            early_stopping,
+            lr_monitor,
+            epoch_logger,
+            slice_regen,
+            grad_monitor,
+            activation_diag,
+            hierarchy_diag,
+            ablation_callback,
+        ]
 
     def train_fold(
         self, fold_id: int, verbose: bool = True, resume_from_checkpoint: bool = False
