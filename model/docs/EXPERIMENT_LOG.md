@@ -1,6 +1,6 @@
 # PercePiano Replica Experiment Log
 
-**Last Updated**: 2025-12-27 (Round 12)
+**Last Updated**: 2025-12-27 (Round 19)
 **Purpose**: Track our debugging journey to reproduce PercePiano SOTA (R2 = 0.397)
 
 For architecture details and hyperparameters, see `PERCEPIANO_SOTA_REFERENCE.md`.
@@ -18,7 +18,7 @@ For architecture details and hyperparameters, see `PERCEPIANO_SOTA_REFERENCE.md`
 | Bi-LSTM baseline | **CRITICAL MISMATCH** - Our ablation uses wrong architecture |
 | Checkpoint saving | **FIXED** - ModelCheckpoint filename template corrected |
 
-**Key Discovery (Round 12):**
+**Key Discovery (Round 10):**
 Our "ablation" test comparing Full HAN vs Bi-LSTM baseline uses the WRONG baseline
 architecture. The original PercePiano Bi-LSTM baseline (`VirtuosoNetSingle`) is a
 **7-layer single LSTM**, NOT our "zeroed hierarchy" approach.
@@ -34,18 +34,21 @@ architecture. The original PercePiano Bi-LSTM baseline (`VirtuosoNetSingle`) is 
 | Architecture | Clean baseline | Broken HAN with zeros |
 
 **Why This Matters:**
+
 - Original paper: Bi-LSTM baseline R2 = 0.187, HAN R2 = 0.397 (gain = +0.21)
 - Our "ablation" measures HAN vs broken-HAN, NOT HAN vs true baseline
 - The +0.13 hierarchy gain we measured is comparing wrong things
 - The overall low R2 (-0.1 to +0.15) may be due to architectural issues
 
 **Data Investigation Results:**
+
 - PercePiano has 1,202 labeled segments total
 - We have 1,179 preprocessed (98.1% match - small loss from filtering/alignment)
 - 22 unique pieces, 49 unique performers
 - Data heavily imbalanced: Schubert D960 mvmt 3 = 40% of all data
 
 **Next Steps:**
+
 1. Implement proper `VirtuosoNetSingle` baseline matching original exactly
 2. Update ablation callback to use correct baseline for comparison
 3. Re-run ablation to get true hierarchy gain measurement
@@ -85,6 +88,7 @@ architecture. The original PercePiano Bi-LSTM baseline (`VirtuosoNetSingle`) is 
 ### 2024-12-24: Initial Problem - Prediction Collapse & Gradient Explosion
 
 **Symptoms observed**:
+
 - Gradient norms 800-2500+ (before clipping)
 - Prediction std ~0.03-0.05 vs target std ~0.15
 - R2 stuck negative, slowly approaching 0 but never crossing
@@ -168,10 +172,12 @@ Activation collapse fixed but R2 still negative.
 **Root Cause**: `FinalContextAttention` was too simplified - missing context vectors
 
 Original PercePiano uses:
+
 - `Linear(512, 512)` + tanh activation
 - Learnable context vectors per head (8 vectors of 64-dim each)
 
 Our simplified version had:
+
 - `Linear(512, 8)` only
 - No context vectors
 
@@ -263,6 +269,7 @@ The SOTA config specifies `final_fc_size: 128`, so we changed to 512->128->19.
 1. **Prediction head is 512->512->19, NOT 512->128->19** (CRITICAL)
    - We misread the config: `final_fc_size: 128` is for the DECODER, not the classifier
    - Actual code (`model_m2pf.py:118-124`):
+
      ```python
      nn.Linear(net_param.encoder.size * 2, net_param.encoder.size * 2),  # 512 -> 512
      nn.Linear(net_param.encoder.size * 2, net_param.num_label),  # 512 -> 19
@@ -333,6 +340,7 @@ mechanism from learning. Root cause: differences in data processing pipeline vs 
 | Upload to GDrive | `gdrive:crescendai_data/percepiano_vnet_84dim` | 955 train, 27 val, 197 test |
 
 **Data Location**:
+
 - Local: `data/percepiano_vnet_84dim/` (84-dim with section_tempo)
 - GDrive: `gdrive:crescendai_data/percepiano_vnet_84dim`
 - Old 83-dim: `gdrive:crescendai_data/percepiano_vnet_split` (deprecated)
@@ -376,6 +384,7 @@ codebase, identified one critical issue.
 | Slice regeneration | Each epoch | None | No variation |
 
 **Evidence from Original Code**:
+
 - `dataset.py:67-77`: `update_slice_info()` called each epoch
 - `data_process.py:53-103`: `make_slicing_indexes_by_measure()` creates overlapping slices
 - `train_m2pf.py:288`: Slice regeneration at epoch start
@@ -424,13 +433,14 @@ but matches Bi-LSTM baseline only. Hierarchical components not contributing.
 
 ---
 
-### 2025-12-27: Round 12 - Bi-LSTM Baseline Architecture Mismatch (CRITICAL)
+### 2025-12-27: Round 10 - Bi-LSTM Baseline Architecture Mismatch (CRITICAL)
 
 **Problem**: Rounds 9-11 showed hierarchy gain of +0.13 R2, but overall model R2 stuck at
 -0.1 to +0.15 instead of target 0.397. Deep investigation of original PercePiano source
 code revealed critical architectural mismatch in our Bi-LSTM baseline.
 
 **Investigation Approach**:
+
 1. Researched all PercePiano publications (Nature Scientific Reports, ISMIR, GitHub, Zenodo)
 2. Compared our preprocessed data against original dataset counts
 3. Deep-dived into original source code (`model_m2pf.py`, `encoder_score.py`, etc.)
@@ -446,6 +456,7 @@ code revealed critical architectural mismatch in our Bi-LSTM baseline.
 | Perceptual dimensions | 19 | 19 | MATCH |
 
 **Data Distribution (Highly Imbalanced)**:
+
 ```
 Schubert_D960_mv3_8bars: 481 segments (40%)
 Schubert_D960_mv2_8bars: 221 segments (18%)
@@ -457,6 +468,7 @@ Other pieces: remaining (13%)
 **Critical Finding: Bi-LSTM Baseline Architecture Mismatch**
 
 Original `VirtuosoNetSingle` (from `model_m2pf.py:56-85`):
+
 ```python
 class VirtuosoNetSingle(nn.Module):
     def __init__(self, net_param, data_stats):
@@ -489,6 +501,7 @@ class VirtuosoNetSingle(nn.Module):
 ```
 
 Our Ablation (from `diagnostics.py:720-773`):
+
 ```python
 def _forward_ablated(self, pl_module, batch, note_locations):
     # Uses separate LSTMs
@@ -548,6 +561,7 @@ The hierarchical components (beat/measure attention) should add +0.21 R2 (per pa
 but appear to be contributing nothing.
 
 **Hypothesis**: Either:
+
 1. Beat/measure indices have issues preventing proper aggregation
 2. Attention is collapsing or not learning
 3. `span_beat_to_note_num` clamping corrupts first beat representation
@@ -615,6 +629,7 @@ but appear to be contributing nothing.
 **Remaining Investigation**:
 
 If ablation shows hierarchy gain < 0.05 R2:
+
 1. Check `span_beat_to_note_num` in `hierarchy_utils.py` - clamping may corrupt first beat
 2. Verify `make_higher_node` boundary detection is correct
 3. Compare attention weights with original implementation
@@ -634,6 +649,7 @@ If ablation shows hierarchy gain < 0.05 R2:
 ## Deviations from Original (Round 8: SLICE SAMPLING FIXED)
 
 As of Round 8, we now match the original PercePiano exactly:
+
 - Architecture: No LayerNorm, prediction head 512->512->19, LR 2.5e-5
 - Data: 84-dim features (79 base + 5 unnorm), includes section_tempo at index 5
 - Batching: PackedSequence (not padded to fixed 1024)
@@ -646,6 +662,7 @@ As of Round 8, we now match the original PercePiano exactly:
 ### 1. Activation Check (`kfold_trainer.py:ActivationDiagnosticCallback`)
 
 Runs on first batch only. Reports:
+
 - Model parameter count
 - Prediction head architecture verification
 - Logits std, prediction std, health status
@@ -656,6 +673,7 @@ Runs on first batch only. Reports:
 ### 2. Gradient Monitor (`kfold_trainer.py:GradientMonitorCallback`)
 
 Logs every 100 steps (verbose first 5). Reports:
+
 - Gradient norms by layer category
 - Balance ratio (prediction_head vs encoder)
 - Context vector gradient norms
@@ -669,6 +687,7 @@ Logs every 100 steps (verbose first 5). Reports:
 ### 4. Comprehensive Diagnostics (`diagnostics.py:DiagnosticCallback`) - Round 9
 
 Runs every 5 epochs during validation. Reports:
+
 - Index analysis: beat/measure ranges, zero-shift validation
 - Activation variances at each hierarchy level
 - Attention entropy (collapsed vs uniform vs healthy)
@@ -678,6 +697,7 @@ Runs every 5 epochs during validation. Reports:
 ### 5. Hierarchy Ablation (`diagnostics.py:HierarchyAblationCallback`) - Round 9
 
 Runs every 10 epochs. Reports:
+
 - Full model R2
 - Bi-LSTM only R2 (hierarchy zeroed out)
 - Hierarchy gain (full - ablated)
@@ -730,6 +750,7 @@ Potential next fixes (in priority order):
 ## File Locations
 
 ### Our Implementation
+
 - Model: `src/percepiano/models/percepiano_replica.py`
 - Hierarchy utils: `src/percepiano/models/hierarchy_utils.py`
 - Attention: `src/percepiano/models/context_attention.py`
@@ -739,6 +760,7 @@ Potential next fixes (in priority order):
 - Notebook: `notebooks/train_percepiano_replica.ipynb`
 
 ### Original PercePiano (in data/raw)
+
 - Encoder: `data/raw/PercePiano/virtuoso/virtuoso/encoder_score.py`
 - Model utils: `data/raw/PercePiano/virtuoso/virtuoso/model_utils.py`
 - Utils: `data/raw/PercePiano/virtuoso/virtuoso/utils.py`

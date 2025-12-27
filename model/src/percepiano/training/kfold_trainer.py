@@ -31,8 +31,16 @@ from ..data.percepiano_vnet_dataset import (
     PercePianoKFoldDataModule,
     PercePianoTestDataset,
 )
-from ..models.percepiano_replica import PERCEPIANO_DIMENSIONS, PercePianoVNetModule
+from ..models.percepiano_replica import (
+    PERCEPIANO_DIMENSIONS,
+    PercePianoVNetModule,
+    PercePianoBiLSTMBaseline,
+)
 from .diagnostics import DiagnosticCallback, HierarchyAblationCallback
+
+# Model type constants
+MODEL_TYPE_HAN = "han"
+MODEL_TYPE_BASELINE = "baseline"
 
 
 class EpochLogger(Callback):
@@ -418,12 +426,30 @@ class KFoldTrainer:
         checkpoint_dir: Union[str, Path],
         log_dir: Optional[Union[str, Path]] = None,
         n_folds: int = 4,
+        model_type: str = MODEL_TYPE_HAN,
     ):
+        """
+        Initialize K-Fold trainer.
+
+        Args:
+            config: Training configuration dictionary
+            fold_assignments: Fold assignments from create_piece_based_folds()
+            data_dir: Path to data directory
+            checkpoint_dir: Path to save checkpoints
+            log_dir: Path to save logs (default: checkpoint_dir/logs)
+            n_folds: Number of folds (default: 4)
+            model_type: Either MODEL_TYPE_HAN ("han") for full hierarchical model
+                       or MODEL_TYPE_BASELINE ("baseline") for Bi-LSTM baseline
+        """
         self.config = config
         self.fold_assignments = fold_assignments
         self.data_dir = Path(data_dir)
-        self.checkpoint_dir = Path(checkpoint_dir)
-        self.log_dir = Path(log_dir) if log_dir else self.checkpoint_dir / "logs"
+        self.model_type = model_type
+
+        # Use model-specific subdirectory for checkpoints
+        model_suffix = "_baseline" if model_type == MODEL_TYPE_BASELINE else ""
+        self.checkpoint_dir = Path(checkpoint_dir) / f"percepiano{model_suffix}"
+        self.log_dir = Path(log_dir) / f"percepiano{model_suffix}" if log_dir else self.checkpoint_dir / "logs"
         self.n_folds = n_folds
 
         # Create directories
@@ -434,6 +460,10 @@ class KFoldTrainer:
         self.fold_metrics: List[FoldMetrics] = []
         self.fold_checkpoints: List[Path] = []
         self.total_start_time: Optional[float] = None
+
+        # Print model type info
+        model_name = "Bi-LSTM Baseline (7-layer)" if model_type == MODEL_TYPE_BASELINE else "HAN (Hierarchical)"
+        print(f"  Model type: {model_name}")
 
     def get_trained_model(self, fold_id: int) -> Optional[PercePianoVNetModule]:
         """
@@ -498,21 +528,35 @@ class KFoldTrainer:
 
         return first_incomplete, completed_checkpoints
 
-    def _create_model(self) -> PercePianoVNetModule:
-        """Create a new model instance."""
-        return PercePianoVNetModule(
-            input_size=self.config.get("input_size", 79),  # 79 base features (matches original)
-            hidden_size=self.config.get("hidden_size", 256),
-            note_layers=self.config.get("note_layers", 2),
-            voice_layers=self.config.get("voice_layers", 2),
-            beat_layers=self.config.get("beat_layers", 2),
-            measure_layers=self.config.get("measure_layers", 1),
-            num_attention_heads=self.config.get("num_attention_heads", 8),
-            # NOTE: final_hidden removed in Round 6 - prediction head is 512->512->19
-            dropout=self.config.get("dropout", 0.2),
-            learning_rate=self.config.get("learning_rate", 2.5e-5),  # SOTA: 2.5e-5
-            weight_decay=self.config.get("weight_decay", 1e-5),
-        )
+    def _create_model(self) -> pl.LightningModule:
+        """Create a new model instance based on model_type."""
+        if self.model_type == MODEL_TYPE_BASELINE:
+            # Bi-LSTM Baseline: 7-layer single LSTM (matches VirtuosoNetSingle)
+            # Total layers = note(2) + voice(2) + beat(2) + measure(1) = 7
+            return PercePianoBiLSTMBaseline(
+                input_size=self.config.get("input_size", 79),
+                hidden_size=self.config.get("hidden_size", 256),
+                num_layers=7,  # Fixed: matches original VirtuosoNetSingle
+                num_attention_heads=self.config.get("num_attention_heads", 8),
+                dropout=self.config.get("dropout", 0.2),
+                learning_rate=self.config.get("learning_rate", 2.5e-5),
+                weight_decay=self.config.get("weight_decay", 1e-5),
+            )
+        else:
+            # HAN: Full hierarchical model (matches VirtuosoNetMultiLevel)
+            return PercePianoVNetModule(
+                input_size=self.config.get("input_size", 79),  # 79 base features (matches original)
+                hidden_size=self.config.get("hidden_size", 256),
+                note_layers=self.config.get("note_layers", 2),
+                voice_layers=self.config.get("voice_layers", 2),
+                beat_layers=self.config.get("beat_layers", 2),
+                measure_layers=self.config.get("measure_layers", 1),
+                num_attention_heads=self.config.get("num_attention_heads", 8),
+                # NOTE: final_hidden removed in Round 6 - prediction head is 512->512->19
+                dropout=self.config.get("dropout", 0.2),
+                learning_rate=self.config.get("learning_rate", 2.5e-5),  # SOTA: 2.5e-5
+                weight_decay=self.config.get("weight_decay", 1e-5),
+            )
 
     def _create_callbacks(self, fold_id: int) -> List[pl.Callback]:
         """Create callbacks for training."""
@@ -545,18 +589,8 @@ class KFoldTrainer:
         # DIAGNOSTIC: Activation check on first batch
         activation_diag = ActivationDiagnosticCallback()
 
-        # DIAGNOSTIC: Comprehensive hierarchy diagnostics (every 5 epochs)
-        # Captures activation variances, attention entropy, contribution analysis
-        hierarchy_diag = DiagnosticCallback(
-            log_every_n_steps=200,
-            detailed_analysis_every_n_epochs=5,
-            save_dir=self.checkpoint_dir / f"fold_{fold_id}" / "diagnostics",
-        )
-
-        # DIAGNOSTIC: Ablation test - measures hierarchy contribution
-        ablation_callback = HierarchyAblationCallback(run_every_n_epochs=10)
-
-        return [
+        # Base callbacks for both model types
+        callbacks = [
             checkpoint_callback,
             early_stopping,
             lr_monitor,
@@ -564,9 +598,26 @@ class KFoldTrainer:
             slice_regen,
             grad_monitor,
             activation_diag,
-            hierarchy_diag,
-            ablation_callback,
         ]
+
+        # Add hierarchy-specific callbacks only for HAN model
+        if self.model_type == MODEL_TYPE_HAN:
+            # DIAGNOSTIC: Comprehensive hierarchy diagnostics (every 5 epochs)
+            # Captures activation variances, attention entropy, contribution analysis
+            hierarchy_diag = DiagnosticCallback(
+                log_every_n_steps=200,
+                detailed_analysis_every_n_epochs=5,
+                save_dir=self.checkpoint_dir / f"fold_{fold_id}" / "diagnostics",
+            )
+            callbacks.append(hierarchy_diag)
+
+            # DIAGNOSTIC: Ablation test - measures hierarchy contribution
+            # Note: This uses zeroed_hierarchy mode by default. For true comparison,
+            # train baseline separately and use baseline checkpoint.
+            ablation_callback = HierarchyAblationCallback(run_every_n_epochs=10)
+            callbacks.append(ablation_callback)
+
+        return callbacks
 
     def train_fold(
         self, fold_id: int, verbose: bool = True, resume_from_checkpoint: bool = False
