@@ -1,6 +1,6 @@
 # PercePiano Replica Experiment Log
 
-**Last Updated**: 2025-12-26 (Round 9)
+**Last Updated**: 2025-12-27 (Round 12)
 **Purpose**: Track our debugging journey to reproduce PercePiano SOTA (R2 = 0.397)
 
 For architecture details and hyperparameters, see `PERCEPIANO_SOTA_REFERENCE.md`.
@@ -9,31 +9,47 @@ For architecture details and hyperparameters, see `PERCEPIANO_SOTA_REFERENCE.md`
 
 ## Current Status
 
-**Round 9** - DIAGNOSTIC INFRASTRUCTURE + HIERARCHY INVESTIGATION
+**Round 12** - BI-LSTM BASELINE ARCHITECTURE MISMATCH (CRITICAL FINDING)
 
 | Change | Description |
 |--------|-------------|
-| Diagnostic callbacks | **ADDED** - Activation variances, attention entropy, contribution analysis |
-| Ablation testing | **ADDED** - Compares full model vs Bi-LSTM only (measures hierarchy gain) |
-| Index analysis | **FIXED** - Now correctly excludes padding zeros from analysis |
-| PackedSequence handling | **FIXED** - Proper device transfer for ablation callback |
+| Data investigation | **COMPLETE** - Confirmed we have full PercePiano dataset (1,179 of 1,202 segments) |
+| Architecture comparison | **COMPLETE** - Our HAN matches original 99.8% |
+| Bi-LSTM baseline | **CRITICAL MISMATCH** - Our ablation uses wrong architecture |
+| Checkpoint saving | **FIXED** - ModelCheckpoint filename template corrected |
 
-**Key Discovery (Round 9):**
-Round 8 training achieved R2 ~0.15 (CV average), which matches the Bi-LSTM baseline.
-This indicates the hierarchical components (beat/measure attention + HAN) are NOT
-contributing the expected +0.21 R2 improvement. Added comprehensive diagnostics to
-investigate why hierarchy isn't helping.
+**Key Discovery (Round 12):**
+Our "ablation" test comparing Full HAN vs Bi-LSTM baseline uses the WRONG baseline
+architecture. The original PercePiano Bi-LSTM baseline (`VirtuosoNetSingle`) is a
+**7-layer single LSTM**, NOT our "zeroed hierarchy" approach.
 
-**Diagnostic findings:**
-- Beat range [1, 26] (valid positions only, excluding padding)
-- No negative zero-shifted values in valid positions
-- LSTM output variance is low (0.0297 vs expected 0.1-0.4)
-- Beat/measure contributing ~52% variance (needs ablation to verify actual R2 contribution)
+**Critical Architecture Mismatch:**
 
-**Next steps:**
-- Run training with fixed ablation callback to measure hierarchy gain
-- If hierarchy gain < 0.05 R2, investigate `span_beat_to_note_num` clamping issue
-- Target: R2 improvement from 0.15 to 0.30-0.40 (SOTA range)
+| Aspect | Original VirtuosoNetSingle | Our "Ablated" Model |
+|--------|---------------------------|---------------------|
+| LSTM structure | Single 7-layer LSTM | 2-layer note + 2-layer voice (separate) |
+| Voice processing | None | Full voice LSTM |
+| Total backbone params | ~2M | ~4M (higher capacity) |
+| Input to contractor | 512-dim (dense) | 2048-dim (1024 zeros) |
+| Architecture | Clean baseline | Broken HAN with zeros |
+
+**Why This Matters:**
+- Original paper: Bi-LSTM baseline R2 = 0.187, HAN R2 = 0.397 (gain = +0.21)
+- Our "ablation" measures HAN vs broken-HAN, NOT HAN vs true baseline
+- The +0.13 hierarchy gain we measured is comparing wrong things
+- The overall low R2 (-0.1 to +0.15) may be due to architectural issues
+
+**Data Investigation Results:**
+- PercePiano has 1,202 labeled segments total
+- We have 1,179 preprocessed (98.1% match - small loss from filtering/alignment)
+- 22 unique pieces, 49 unique performers
+- Data heavily imbalanced: Schubert D960 mvmt 3 = 40% of all data
+
+**Next Steps:**
+1. Implement proper `VirtuosoNetSingle` baseline matching original exactly
+2. Update ablation callback to use correct baseline for comparison
+3. Re-run ablation to get true hierarchy gain measurement
+4. If true baseline R2 ~0.19 and our HAN still low, investigate HAN issues
 
 ---
 
@@ -405,6 +421,123 @@ codebase, identified one critical issue.
 
 **Conclusion**: Slice sampling fixed prediction collapse. Model now learns (R2 ~0.15)
 but matches Bi-LSTM baseline only. Hierarchical components not contributing.
+
+---
+
+### 2025-12-27: Round 12 - Bi-LSTM Baseline Architecture Mismatch (CRITICAL)
+
+**Problem**: Rounds 9-11 showed hierarchy gain of +0.13 R2, but overall model R2 stuck at
+-0.1 to +0.15 instead of target 0.397. Deep investigation of original PercePiano source
+code revealed critical architectural mismatch in our Bi-LSTM baseline.
+
+**Investigation Approach**:
+1. Researched all PercePiano publications (Nature Scientific Reports, ISMIR, GitHub, Zenodo)
+2. Compared our preprocessed data against original dataset counts
+3. Deep-dived into original source code (`model_m2pf.py`, `encoder_score.py`, etc.)
+4. Analyzed `VirtuosoNetSingle` (Bi-LSTM baseline) vs our ablation implementation
+
+**Data Investigation Results**:
+
+| Metric | Original PercePiano | Our Data | Status |
+|--------|---------------------|----------|--------|
+| Labeled segments | 1,202 | 1,179 | MATCH (98.1%) |
+| Unique pieces | 22 | 22 | MATCH |
+| Unique performers | 49 | 49 | MATCH |
+| Perceptual dimensions | 19 | 19 | MATCH |
+
+**Data Distribution (Highly Imbalanced)**:
+```
+Schubert_D960_mv3_8bars: 481 segments (40%)
+Schubert_D960_mv2_8bars: 221 segments (18%)
+Schubert_D935_no.3_4bars: 117 segments (10%)
+16 Beethoven variations: ~14 segments each (19%)
+Other pieces: remaining (13%)
+```
+
+**Critical Finding: Bi-LSTM Baseline Architecture Mismatch**
+
+Original `VirtuosoNetSingle` (from `model_m2pf.py:56-85`):
+```python
+class VirtuosoNetSingle(nn.Module):
+    def __init__(self, net_param, data_stats):
+        # SINGLE LSTM combining ALL hierarchy layers
+        self.lstm = nn.LSTM(
+            net_param.note.size,  # 256
+            net_param.note.size,  # 256
+            net_param.note.layer + net_param.voice.layer +
+            net_param.beat.layer + net_param.measure.layer,  # 2+2+2+1 = 7 LAYERS
+            batch_first=True, bidirectional=True, dropout=net_param.drop_out
+        )
+        self.note_contractor = nn.Linear(512, 512)
+        self.note_attention = ContextAttention(512, 8)
+        self.out_fc = nn.Sequential(
+            nn.Dropout(0.2),
+            nn.Linear(512, 512),
+            nn.GELU(),
+            nn.Dropout(0.2),
+            nn.Linear(512, 19),
+        )
+
+    def forward(self, x):
+        x_embedded = self.note_embedder(x)  # 79 -> 256
+        score_embedding, _ = self.lstm(x_embedded)  # 7-layer LSTM
+        score_embedding, _ = pad_packed_sequence(score_embedding, True)
+        note = self.note_contractor(score_embedding)  # 512 -> 512
+        note_output = self.note_attention(note)  # Attention aggregation
+        outputs = self.out_fc(note_output)
+        return outputs
+```
+
+Our Ablation (from `diagnostics.py:720-773`):
+```python
+def _forward_ablated(self, pl_module, batch, note_locations):
+    # Uses separate LSTMs
+    note_out, _ = han.note_lstm(x_packed)  # 2-layer LSTM
+    voice_out = han._run_voice_processing(...)  # 2-layer voice LSTM
+    hidden_out = torch.cat([note_out, voice_out], dim=-1)  # 1024
+
+    # Zero out hierarchy (but still process through full pipeline!)
+    beat_spanned = torch.zeros(...)  # 512 zeros
+    measure_spanned = torch.zeros(...)  # 512 zeros
+    total_note_cat = torch.cat([hidden_out, beat_spanned, measure_spanned], dim=-1)  # 2048
+
+    # Process 2048-dim through contractor (half zeros!)
+    contracted = pl_module.performance_contractor(total_note_cat)  # 2048 -> 512
+```
+
+**Architecture Comparison Table**:
+
+| Aspect | Original VirtuosoNetSingle | Our "Ablated" Model |
+|--------|---------------------------|---------------------|
+| LSTM architecture | Single 7-layer bidirectional | 2x separate 2-layer bidirectional |
+| Voice processing | None | Full voice LSTM (2 layers) |
+| Total LSTM layers | 7 | 4 (split into note + voice) |
+| Backbone params | ~2M | ~4M (double capacity) |
+| Input to contractor | 512 (LSTM output) | 2048 (1024 real + 1024 zeros) |
+| Contractor behavior | 512 -> 512 (normal) | 2048 -> 512 (half zeros corrupt weights) |
+
+**Impact of Mismatch**:
+
+1. **Wrong comparison**: Our ablation compares HAN vs "broken HAN with zeros", not HAN vs true baseline
+2. **Higher baseline capacity**: 4-layer split backbone may have different learning dynamics than 7-layer single
+3. **Corrupted contractor**: Feeding 50% zeros to linear layer corrupts weight learning
+4. **Hierarchy gain invalid**: The +0.13 R2 gain we measured is NOT the true hierarchy contribution
+
+**Fixes Applied (Round 12)**:
+
+| Fix | File | Description |
+|-----|------|-------------|
+| Checkpoint filename | `kfold_trainer.py:504-512` | Changed to `best-epoch={epoch:02d}-r2={val/mean_r2:.4f}` |
+| auto_insert_metric_name | `kfold_trainer.py:511` | Added `auto_insert_metric_name=False` |
+| get_trained_model() | `kfold_trainer.py:438-451` | Added method to retrieve in-memory trained model |
+| Model storage | `kfold_trainer.py:673-674` | Store trained model after training completes |
+
+**Next Steps (Implementation Required)**:
+
+1. **Implement `VirtuosoNetSingle`**: Create proper 7-layer baseline matching original exactly
+2. **Update ablation callback**: Use `VirtuosoNetSingle` for true baseline comparison
+3. **Re-run ablation**: Measure true hierarchy gain (expected: +0.21 R2)
+4. **Diagnostic check**: If baseline R2 ~0.19 and HAN still low, investigate HAN-specific issues
 
 ---
 

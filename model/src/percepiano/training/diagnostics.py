@@ -607,17 +607,76 @@ class HierarchyAblationCallback(Callback):
     """
     Callback to measure model performance with and without hierarchy.
 
-    At the end of each validation epoch, computes:
-    1. Full model R2 (with hierarchy)
-    2. Bi-LSTM only R2 (zeroing out beat_spanned and measure_spanned)
+    Supports two ablation modes:
 
-    This directly measures how much the hierarchy is contributing.
+    1. "true_baseline" (RECOMMENDED): Uses a pre-trained PercePianoBiLSTMBaseline model
+       that matches the original VirtuosoNetSingle architecture (7-layer single LSTM).
+       This gives the TRUE hierarchy gain as reported in the paper (+0.21 R2).
+
+    2. "zeroed_hierarchy" (DEPRECATED): Zeros out beat_spanned and measure_spanned
+       but still uses HAN's note+voice LSTMs. This does NOT match the original
+       baseline and gives misleading hierarchy gain measurements.
+
+    The original PercePiano paper compares:
+    - VirtuosoNetSingle (7-layer LSTM): R2 = 0.187
+    - VirtuosoNetMultiLevel (HAN): R2 = 0.397
+    - Hierarchy gain: +0.21
+
+    Usage:
+        # True baseline comparison (requires pre-trained baseline checkpoint)
+        callback = HierarchyAblationCallback(
+            baseline_checkpoint="/path/to/bilstm_baseline.ckpt",
+            mode="true_baseline"
+        )
+
+        # Legacy mode (not recommended, gives misleading results)
+        callback = HierarchyAblationCallback(mode="zeroed_hierarchy")
     """
 
-    def __init__(self, run_every_n_epochs: int = 10):
+    def __init__(
+        self,
+        run_every_n_epochs: int = 10,
+        baseline_checkpoint: Optional[str] = None,
+        mode: str = "zeroed_hierarchy",
+    ):
         super().__init__()
         self.run_every_n_epochs = run_every_n_epochs
+        self.baseline_checkpoint = baseline_checkpoint
+        self.mode = mode
         self.ablation_results: List[Dict[str, float]] = []
+        self._baseline_model: Optional[pl.LightningModule] = None
+
+        if mode == "true_baseline" and baseline_checkpoint is None:
+            print("[ABLATION] WARNING: true_baseline mode requires baseline_checkpoint. "
+                  "Falling back to zeroed_hierarchy mode.")
+            self.mode = "zeroed_hierarchy"
+
+        if mode == "zeroed_hierarchy":
+            print("[ABLATION] WARNING: Using zeroed_hierarchy mode. This does NOT match "
+                  "the original VirtuosoNetSingle baseline and gives misleading results. "
+                  "For accurate comparison, train PercePianoBiLSTMBaseline separately "
+                  "and use mode='true_baseline' with baseline_checkpoint.")
+
+    def _load_baseline_model(self, device: torch.device) -> Optional[pl.LightningModule]:
+        """Load the pre-trained baseline model."""
+        if self._baseline_model is not None:
+            return self._baseline_model
+
+        if self.baseline_checkpoint is None:
+            return None
+
+        try:
+            from ..models.percepiano_replica import PercePianoBiLSTMBaseline
+            self._baseline_model = PercePianoBiLSTMBaseline.load_from_checkpoint(
+                self.baseline_checkpoint
+            )
+            self._baseline_model.to(device)
+            self._baseline_model.eval()
+            print(f"[ABLATION] Loaded baseline model from {self.baseline_checkpoint}")
+            return self._baseline_model
+        except Exception as e:
+            print(f"[ABLATION] Failed to load baseline model: {e}")
+            return None
 
     def on_validation_epoch_end(
         self,
@@ -634,7 +693,8 @@ class HierarchyAblationCallback(Callback):
         if val_loader is None:
             return
 
-        print(f"\n[ABLATION] Running hierarchy ablation test at epoch {current_epoch}...")
+        mode_str = "TRUE BASELINE" if self.mode == "true_baseline" else "ZEROED HIERARCHY (deprecated)"
+        print(f"\n[ABLATION] Running {mode_str} test at epoch {current_epoch}...")
 
         # Collect predictions with full model and ablated model
         full_preds = []
@@ -643,6 +703,14 @@ class HierarchyAblationCallback(Callback):
 
         pl_module.eval()
         device = pl_module.device
+
+        # Load baseline model if using true_baseline mode
+        baseline_model = None
+        if self.mode == "true_baseline":
+            baseline_model = self._load_baseline_model(device)
+            if baseline_model is None:
+                print("[ABLATION] Falling back to zeroed_hierarchy mode")
+                self.mode = "zeroed_hierarchy"
 
         with torch.no_grad():
             from torch.nn.utils.rnn import PackedSequence
@@ -680,9 +748,21 @@ class HierarchyAblationCallback(Callback):
                 full_preds.append(outputs['predictions'].cpu())
                 targets.append(batch_on_device['scores'].cpu())
 
-                # Ablated prediction (zero out hierarchy)
-                ablated_outputs = self._forward_ablated(pl_module, batch_on_device, note_locations)
-                ablated_preds.append(ablated_outputs.cpu())
+                # Ablated prediction
+                if self.mode == "true_baseline" and baseline_model is not None:
+                    ablated_outputs = baseline_model(
+                        batch_on_device['input_features'],
+                        note_locations,
+                        batch_on_device.get('attention_mask'),
+                        batch_on_device.get('lengths'),
+                    )
+                    ablated_preds.append(ablated_outputs['predictions'].cpu())
+                else:
+                    # Legacy: zero out hierarchy
+                    ablated_outputs = self._forward_zeroed_hierarchy(
+                        pl_module, batch_on_device, note_locations
+                    )
+                    ablated_preds.append(ablated_outputs.cpu())
 
         # Compute R2 scores
         from sklearn.metrics import r2_score
@@ -700,6 +780,7 @@ class HierarchyAblationCallback(Callback):
             'full_r2': full_r2,
             'ablated_r2': ablated_r2,
             'hierarchy_gain': hierarchy_gain,
+            'mode': self.mode,
         }
         self.ablation_results.append(result)
 
@@ -708,22 +789,38 @@ class HierarchyAblationCallback(Callback):
         pl_module.log('ablation/ablated_r2', ablated_r2)
         pl_module.log('ablation/hierarchy_gain', hierarchy_gain)
 
-        print(f"[ABLATION] Full R2: {full_r2:.4f}")
-        print(f"[ABLATION] Ablated (Bi-LSTM only) R2: {ablated_r2:.4f}")
+        baseline_name = "Bi-LSTM 7-layer" if self.mode == "true_baseline" else "zeroed hierarchy"
+        print(f"[ABLATION] Full HAN R2: {full_r2:.4f}")
+        print(f"[ABLATION] Baseline ({baseline_name}) R2: {ablated_r2:.4f}")
         print(f"[ABLATION] Hierarchy gain: {hierarchy_gain:+.4f}")
 
-        if hierarchy_gain < 0.01:
+        if self.mode == "true_baseline":
+            expected_gain = 0.21
+            if abs(hierarchy_gain - expected_gain) > 0.10:
+                print(f"[ABLATION] NOTE: Expected gain ~+0.21, got {hierarchy_gain:+.4f}")
+        elif hierarchy_gain < 0.01:
             print("[ABLATION] WARNING: Hierarchy contributing < 0.01 R2!")
+            print("[ABLATION] NOTE: This uses zeroed_hierarchy which may underestimate gain.")
 
         pl_module.train()
 
-    def _forward_ablated(
+    def _forward_zeroed_hierarchy(
         self,
         pl_module: pl.LightningModule,
         batch: Dict[str, torch.Tensor],
         note_locations: Dict[str, torch.Tensor],
     ) -> torch.Tensor:
-        """Forward pass with hierarchy zeroed out."""
+        """
+        Forward pass with hierarchy zeroed out (DEPRECATED approach).
+
+        WARNING: This does NOT match the original VirtuosoNetSingle baseline!
+        - Uses 4-layer split LSTMs (note + voice) instead of 7-layer single LSTM
+        - Still includes voice processing which baseline doesn't have
+        - Feeds 2048-dim (half zeros) to contractor instead of 512-dim dense
+
+        For accurate comparison, use mode='true_baseline' with a trained
+        PercePianoBiLSTMBaseline checkpoint.
+        """
         from torch.nn.utils.rnn import pad_packed_sequence, PackedSequence
 
         device = pl_module.device

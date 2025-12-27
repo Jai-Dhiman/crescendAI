@@ -1034,6 +1034,264 @@ class PercePianoVNetModule(pl.LightningModule):
         return sum(p.numel() for p in self.parameters() if p.requires_grad)
 
 
+class PercePianoBiLSTMBaseline(pl.LightningModule):
+    """
+    Bi-LSTM Baseline matching original PercePiano VirtuosoNetSingle exactly.
+
+    This is the baseline model used in the PercePiano paper for comparison.
+    The paper reports R2 = 0.187 for this baseline vs R2 = 0.397 for full HAN.
+
+    Architecture (from model_m2pf.py:56-85):
+        - MixEmbedder: Linear(79, 256) - input projection
+        - Single 7-layer bidirectional LSTM (combines note+voice+beat+measure layers)
+        - note_contractor: Linear(512, 512)
+        - ContextAttention(512, 8) - single attention aggregation
+        - out_fc: Dropout -> Linear(512, 512) -> GELU -> Dropout -> Linear(512, 19)
+
+    Key differences from HAN:
+        - Single deep LSTM instead of hierarchical LSTMs
+        - No voice/beat/measure separation
+        - No hierarchical attention aggregation
+        - Simpler architecture (~2M params vs ~4M for HAN)
+    """
+
+    def __init__(
+        self,
+        input_size: int = 79,
+        hidden_size: int = 256,
+        # Layer counts matching original: note(2) + voice(2) + beat(2) + measure(1) = 7
+        num_layers: int = 7,
+        num_attention_heads: int = 8,
+        dropout: float = 0.2,
+        learning_rate: float = 2.5e-5,
+        weight_decay: float = 1e-5,
+        dimensions: Optional[List[str]] = None,
+    ):
+        super().__init__()
+        self.save_hyperparameters()
+
+        self.dimensions = dimensions or PERCEPIANO_DIMENSIONS
+        self.num_dimensions = len(self.dimensions)
+        self.hidden_size = hidden_size
+
+        # MixEmbedder: Simple linear projection (matches original note_embedder)
+        self.note_embedder = nn.Linear(input_size, hidden_size)
+
+        # Single 7-layer bidirectional LSTM (matches VirtuosoNetSingle)
+        # Original: note.layer + voice.layer + beat.layer + measure.layer = 2+2+2+1 = 7
+        self.lstm = nn.LSTM(
+            hidden_size,
+            hidden_size,
+            num_layers,
+            batch_first=True,
+            bidirectional=True,
+            dropout=dropout if num_layers > 1 else 0,
+        )
+
+        # Contractor: Linear(512, 512) - matches original note_contractor
+        encoder_output_size = hidden_size * 2  # 512 for bidirectional
+        self.note_contractor = nn.Linear(encoder_output_size, encoder_output_size)
+
+        # Single ContextAttention over entire sequence (matches original)
+        self.note_attention = ContextAttention(encoder_output_size, num_attention_heads)
+
+        # Output head (matches original out_fc exactly)
+        self.out_fc = nn.Sequential(
+            nn.Dropout(dropout),
+            nn.Linear(encoder_output_size, encoder_output_size),  # 512 -> 512
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(encoder_output_size, self.num_dimensions),  # 512 -> 19
+        )
+
+        # Metrics storage
+        self.training_step_outputs = []
+        self.validation_step_outputs = []
+
+    def forward(
+        self,
+        input_features: torch.Tensor,
+        note_locations: Optional[Dict[str, torch.Tensor]] = None,
+        attention_mask: Optional[torch.Tensor] = None,
+        lengths: Optional[torch.Tensor] = None,
+    ) -> Dict[str, torch.Tensor]:
+        """
+        Forward pass matching VirtuosoNetSingle exactly.
+
+        Args:
+            input_features: [batch, num_notes, 79] or PackedSequence
+            note_locations: Optional (used only to create attention mask)
+            attention_mask: [batch, num_notes] optional mask
+            lengths: Optional sequence lengths
+
+        Returns:
+            Dict with 'predictions' [batch, num_dimensions]
+        """
+        # Handle PackedSequence input
+        if isinstance(input_features, PackedSequence):
+            input_features, seq_lengths = pad_packed_sequence(
+                input_features, batch_first=True
+            )
+            if attention_mask is None:
+                batch_size = input_features.shape[0]
+                max_len = input_features.shape[1]
+                attention_mask = torch.zeros(
+                    batch_size, max_len, dtype=torch.bool, device=input_features.device
+                )
+                for i, length in enumerate(seq_lengths):
+                    attention_mask[i, :length] = True
+
+        batch_size, seq_len, _ = input_features.shape
+
+        # Step 1: Embed input (MixEmbedder)
+        x_embedded = self.note_embedder(input_features)  # [B, T, 256]
+
+        # Compute actual lengths for packing
+        if attention_mask is not None:
+            actual_lengths = attention_mask.sum(dim=1).cpu().clamp(min=1)
+        elif note_locations is not None and "beat" in note_locations:
+            actual_lengths = compute_actual_lengths(note_locations["beat"])
+        else:
+            actual_lengths = torch.full((batch_size,), seq_len, dtype=torch.long)
+
+        # Step 2: Pack and run through 7-layer LSTM
+        x_packed = pack_padded_sequence(
+            x_embedded,
+            actual_lengths,
+            batch_first=True,
+            enforce_sorted=False,
+        )
+        lstm_out, _ = self.lstm(x_packed)
+        lstm_out, _ = pad_packed_sequence(lstm_out, batch_first=True, total_length=seq_len)
+        # lstm_out: [B, T, 512]
+
+        # Step 3: Contract (512 -> 512)
+        note_contracted = self.note_contractor(lstm_out)  # [B, T, 512]
+
+        # Step 4: Create attention mask if needed
+        if attention_mask is None and note_locations is not None:
+            attention_mask = note_locations["beat"] > 0
+
+        # Step 5: Attention aggregation to single vector
+        aggregated = self.note_attention(note_contracted, mask=attention_mask)  # [B, 512]
+
+        # Step 6: Predict through out_fc
+        logits = self.out_fc(aggregated)  # [B, 19]
+        predictions = torch.sigmoid(logits)
+
+        return {
+            "predictions": predictions,
+            "logits": logits,
+            "lstm_out": lstm_out,
+        }
+
+    def compute_loss(
+        self,
+        predictions: torch.Tensor,
+        targets: torch.Tensor,
+    ) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]:
+        """Compute MSE loss (matching PercePiano)."""
+        total_loss = nn.functional.mse_loss(predictions, targets, reduction="mean")
+
+        per_dim_losses = {}
+        for i, dim in enumerate(self.dimensions):
+            per_dim_losses[dim] = nn.functional.mse_loss(
+                predictions[:, i], targets[:, i], reduction="mean"
+            )
+
+        return total_loss, per_dim_losses
+
+    def _get_note_locations(self, batch: Dict) -> Dict[str, torch.Tensor]:
+        """Extract note_locations from batch."""
+        return {
+            "beat": batch["note_locations_beat"],
+            "measure": batch["note_locations_measure"],
+            "voice": batch["note_locations_voice"],
+        }
+
+    def training_step(self, batch: Dict, batch_idx: int) -> torch.Tensor:
+        note_locations = self._get_note_locations(batch)
+        outputs = self(
+            batch["input_features"],
+            note_locations,
+            batch.get("attention_mask"),
+            batch.get("lengths"),
+        )
+
+        loss, _ = self.compute_loss(outputs["predictions"], batch["scores"])
+        self.log("train/loss", loss, prog_bar=True)
+        self.training_step_outputs.append({"loss": loss.detach()})
+
+        return loss
+
+    def validation_step(self, batch: Dict, batch_idx: int) -> Dict:
+        note_locations = self._get_note_locations(batch)
+        outputs = self(
+            batch["input_features"],
+            note_locations,
+            batch.get("attention_mask"),
+            batch.get("lengths"),
+        )
+
+        loss, _ = self.compute_loss(outputs["predictions"], batch["scores"])
+
+        result = {
+            "val_loss": loss.detach(),
+            "predictions": outputs["predictions"].detach(),
+            "targets": batch["scores"].detach(),
+        }
+        self.validation_step_outputs.append(result)
+
+        self.log("val/loss", loss, prog_bar=True)
+        return result
+
+    def on_validation_epoch_end(self):
+        if not self.validation_step_outputs:
+            return
+
+        all_preds = torch.cat([x["predictions"] for x in self.validation_step_outputs])
+        all_targets = torch.cat([x["targets"] for x in self.validation_step_outputs])
+
+        all_preds_np = all_preds.cpu().numpy()
+        all_targets_np = all_targets.cpu().numpy()
+
+        mean_r2 = r2_score(all_targets_np, all_preds_np)
+        self.log("val/mean_r2", mean_r2, prog_bar=True)
+
+        for i, dim in enumerate(self.dimensions):
+            dim_r2 = r2_score(all_targets_np[:, i], all_preds_np[:, i])
+            self.log(f"val/r2_{dim}", dim_r2)
+
+        self.validation_step_outputs.clear()
+
+    def on_train_epoch_end(self):
+        self.training_step_outputs.clear()
+
+    def configure_optimizers(self):
+        """Configure optimizer matching original PercePiano."""
+        optimizer = torch.optim.Adam(
+            self.parameters(),
+            lr=self.hparams.learning_rate,
+            weight_decay=self.hparams.weight_decay,
+        )
+
+        scheduler = torch.optim.lr_scheduler.StepLR(
+            optimizer, step_size=3000, gamma=0.98
+        )
+
+        return {
+            "optimizer": optimizer,
+            "lr_scheduler": {
+                "scheduler": scheduler,
+                "interval": "step",
+            },
+        }
+
+    def count_parameters(self) -> int:
+        """Count trainable parameters."""
+        return sum(p.numel() for p in self.parameters() if p.requires_grad)
+
+
 if __name__ == "__main__":
     print("PercePiano Replica Model")
     print("=" * 60)
@@ -1041,10 +1299,44 @@ if __name__ == "__main__":
     print("GitHub: https://github.com/JonghoKimSNU/PercePiano")
     print("=" * 60)
 
-    # Test model creation
-    model = PercePianoReplicaModule()
-    num_params = model.count_parameters()
+    # Test HAN model creation (use PercePianoVNetModule which has simpler interface)
+    print("\n[1] Full HAN Model (PercePianoVNetModule):")
+    han_model = PercePianoVNetModule()
+    han_params = han_model.count_parameters()
+    print(f"    Parameters: {han_params:,}")
+    print(f"    Target R2: 0.35-0.40 (piece-split)")
+    print(f"    Dimensions: {len(han_model.dimensions)}")
 
-    print(f"Total parameters: {num_params:,}")
-    print(f"Target R-squared: 0.35-0.40 (piece-split)")
-    print(f"Dimensions: {len(model.dimensions)}")
+    # Test Bi-LSTM baseline creation
+    print("\n[2] Bi-LSTM Baseline (PercePianoBiLSTMBaseline):")
+    baseline = PercePianoBiLSTMBaseline()
+    baseline_params = baseline.count_parameters()
+    print(f"    Parameters: {baseline_params:,}")
+    print(f"    Target R2: ~0.19 (paper baseline)")
+    print(f"    LSTM layers: 7 (note+voice+beat+measure)")
+    print(f"    Architecture: Input(79) -> Embed(256) -> LSTM(7-layer) -> Contract(512) -> Attn -> FC -> 19")
+
+    # Architecture comparison
+    print("\n[3] Architecture Comparison:")
+    print(f"    HAN params:      {han_params:,}")
+    print(f"    Baseline params: {baseline_params:,}")
+    print(f"    Ratio: {han_params / baseline_params:.2f}x")
+    print(f"    Expected hierarchy gain: +0.21 R2")
+
+    # Test baseline forward pass only (HAN requires properly structured beat/measure data)
+    print("\n[4] Baseline Forward Pass Test:")
+    batch_size, seq_len, input_dim = 2, 100, 79
+    dummy_input = torch.randn(batch_size, seq_len, input_dim)
+    dummy_locations = {
+        "beat": torch.arange(1, seq_len + 1).unsqueeze(0).expand(batch_size, -1),
+        "measure": (torch.arange(seq_len) // 10 + 1).unsqueeze(0).expand(batch_size, -1),
+        "voice": torch.ones(batch_size, seq_len, dtype=torch.long),
+    }
+
+    baseline_out = baseline(dummy_input, dummy_locations)
+    print(f"    Baseline output shape: {baseline_out['predictions'].shape}")
+    print(f"    Output range: [{baseline_out['predictions'].min():.3f}, {baseline_out['predictions'].max():.3f}]")
+    print(f"    LSTM output shape: {baseline_out['lstm_out'].shape}")
+
+    print("\n" + "=" * 60)
+    print("All tests passed!")

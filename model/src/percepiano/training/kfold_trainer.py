@@ -435,6 +435,21 @@ class KFoldTrainer:
         self.fold_checkpoints: List[Path] = []
         self.total_start_time: Optional[float] = None
 
+    def get_trained_model(self, fold_id: int) -> Optional[PercePianoVNetModule]:
+        """
+        Get the trained model for a specific fold.
+
+        Models are stored in memory after train_fold() completes.
+        This is useful for running diagnostics without loading from checkpoint.
+
+        Args:
+            fold_id: The fold number
+
+        Returns:
+            The trained model if available, None otherwise
+        """
+        return getattr(self, f"_trained_model_fold_{fold_id}", None)
+
     def _find_checkpoint(self, fold_id: int, checkpoint_type: str = "last") -> Optional[Path]:
         """
         Find existing checkpoint for a fold.
@@ -503,11 +518,12 @@ class KFoldTrainer:
         """Create callbacks for training."""
         checkpoint_callback = ModelCheckpoint(
             dirpath=self.checkpoint_dir / f"fold_{fold_id}",
-            filename="best-{epoch:02d}-{val/mean_r2:.4f}",
+            filename="best-epoch={epoch:02d}-r2={val/mean_r2:.4f}",
             monitor="val/mean_r2",
             mode="max",
             save_top_k=1,
             save_last=True,
+            auto_insert_metric_name=False,  # Prevent Lightning from auto-inserting metric name
         )
 
         early_stopping = EarlyStopping(
@@ -668,6 +684,9 @@ class KFoldTrainer:
             num_attention_heads=self.config.get("num_attention_heads", 8),
             dropout=self.config.get("dropout", 0.2),
         )
+
+        # Store trained model for later retrieval (e.g., for diagnostics)
+        setattr(self, f"_trained_model_fold_{fold_id}", best_model)
 
         # Detailed evaluation
         val_metrics = self._detailed_evaluation(
