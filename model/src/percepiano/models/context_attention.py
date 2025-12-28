@@ -31,11 +31,12 @@ class ContextAttention(nn.Module):
     - get_attention() returns [B, T, num_head] for use in make_higher_node
     """
 
-    def __init__(self, size: int, num_head: int):
+    def __init__(self, size: int, num_head: int, temperature: float = 1.0):
         """
         Args:
             size: Input/output feature dimension
             num_head: Number of attention heads (must divide size evenly)
+            temperature: Softmax temperature (< 1.0 sharpens attention, > 1.0 softens)
         """
         super().__init__()
 
@@ -47,6 +48,7 @@ class ContextAttention(nn.Module):
         self.attention_net = nn.Linear(size, size)
         self.num_head = num_head
         self.head_size = size // num_head
+        self.temperature = temperature
 
         # Learnable context vector for each head
         self.context_vector = nn.Parameter(torch.Tensor(num_head, self.head_size, 1))
@@ -106,7 +108,7 @@ class ContextAttention(nn.Module):
         attention_tanh = torch.tanh(attention)
 
         if diagnose:
-            print(f"\n    [ContextAttention DIAGNOSE]")
+            print(f"\n    [ContextAttention DIAGNOSE] (temperature={self.temperature})")
             print(f"      input x:        mean={x.mean():.4f}, std={x.std():.4f}")
             print(f"      attention_tanh: mean={attention_tanh.mean():.4f}, std={attention_tanh.std():.4f}")
             print(f"      context_vector: mean={self.context_vector.mean():.4f}, std={self.context_vector.std():.4f}")
@@ -133,8 +135,9 @@ class ContextAttention(nn.Module):
         if mask is not None:
             similarity[~mask] = -1e10
 
-        # Softmax over time dimension
-        softmax_weight = torch.softmax(similarity, dim=1)
+        # Softmax over time dimension (with optional temperature scaling)
+        # Temperature < 1.0 sharpens attention, > 1.0 softens
+        softmax_weight = torch.softmax(similarity / self.temperature, dim=1)
 
         if diagnose:
             # Check for uniform attention (indicates gradient vanishing)

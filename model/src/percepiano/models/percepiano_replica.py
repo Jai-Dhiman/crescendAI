@@ -1088,12 +1088,33 @@ class PercePianoBiLSTMBaseline(pl.LightningModule):
             dropout=dropout if num_layers > 1 else 0,
         )
 
+        # Apply orthogonal initialization to LSTM weights for better gradient flow
+        # This helps prevent signal collapse in deep (7-layer) LSTMs
+        for name, param in self.lstm.named_parameters():
+            if 'weight_ih' in name:
+                # Input-hidden weights: orthogonal init
+                nn.init.orthogonal_(param.data)
+            elif 'weight_hh' in name:
+                # Hidden-hidden weights: orthogonal init (critical for deep RNNs)
+                nn.init.orthogonal_(param.data)
+            elif 'bias' in name:
+                # Biases: set forget gate bias to 1.0 for better gradient flow
+                # LSTM bias is [input_gate, forget_gate, cell_gate, output_gate]
+                n = param.size(0)
+                param.data.fill_(0)
+                # Set forget gate bias to 1.0 (indices n//4 to n//2)
+                param.data[n // 4 : n // 2].fill_(1.0)
+
         # Contractor: Linear(512, 512) - matches original note_contractor
         encoder_output_size = hidden_size * 2  # 512 for bidirectional
         self.note_contractor = nn.Linear(encoder_output_size, encoder_output_size)
 
         # Single ContextAttention over entire sequence (matches original)
-        self.note_attention = ContextAttention(encoder_output_size, num_attention_heads)
+        # Use temperature=0.5 to sharpen attention and prevent uniform weights
+        # that cause vanishing gradients through softmax
+        self.note_attention = ContextAttention(
+            encoder_output_size, num_attention_heads, temperature=0.5
+        )
 
         # Output head (matches original out_fc exactly)
         self.out_fc = nn.Sequential(
