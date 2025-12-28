@@ -1114,6 +1114,7 @@ class PercePianoBiLSTMBaseline(pl.LightningModule):
         note_locations: Optional[Dict[str, torch.Tensor]] = None,
         attention_mask: Optional[torch.Tensor] = None,
         lengths: Optional[torch.Tensor] = None,
+        diagnose: bool = False,
     ) -> Dict[str, torch.Tensor]:
         """
         Forward pass matching VirtuosoNetSingle exactly.
@@ -1123,6 +1124,7 @@ class PercePianoBiLSTMBaseline(pl.LightningModule):
             note_locations: Optional (used only to create attention mask)
             attention_mask: [batch, num_notes] optional mask
             lengths: Optional sequence lengths
+            diagnose: If True, print activation statistics for debugging
 
         Returns:
             Dict with 'predictions' [batch, num_dimensions]
