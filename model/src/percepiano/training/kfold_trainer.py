@@ -724,17 +724,30 @@ class KFoldTrainer:
         self.fold_checkpoints.append(best_checkpoint)
 
         # Load best model and do detailed evaluation
-        best_model = PercePianoVNetModule.load_from_checkpoint(
-            str(best_checkpoint),
-            input_size=self.config.get("input_size", 79),  # SOTA: 79 features
-            hidden_size=self.config.get("hidden_size", 256),
-            note_layers=self.config.get("note_layers", 2),
-            voice_layers=self.config.get("voice_layers", 2),
-            beat_layers=self.config.get("beat_layers", 2),
-            measure_layers=self.config.get("measure_layers", 1),
-            num_attention_heads=self.config.get("num_attention_heads", 8),
-            dropout=self.config.get("dropout", 0.2),
-        )
+        # Use the correct model class based on model_type
+        if self.model_type == MODEL_TYPE_BASELINE:
+            best_model = PercePianoBiLSTMBaseline.load_from_checkpoint(
+                str(best_checkpoint),
+                input_size=self.config.get("input_size", 79),
+                hidden_size=self.config.get("hidden_size", 256),
+                num_layers=7,
+                num_attention_heads=self.config.get("num_attention_heads", 8),
+                dropout=self.config.get("dropout", 0.2),
+                learning_rate=self.config.get("learning_rate", 2.5e-5),
+                weight_decay=self.config.get("weight_decay", 1e-5),
+            )
+        else:
+            best_model = PercePianoVNetModule.load_from_checkpoint(
+                str(best_checkpoint),
+                input_size=self.config.get("input_size", 79),  # SOTA: 79 features
+                hidden_size=self.config.get("hidden_size", 256),
+                note_layers=self.config.get("note_layers", 2),
+                voice_layers=self.config.get("voice_layers", 2),
+                beat_layers=self.config.get("beat_layers", 2),
+                measure_layers=self.config.get("measure_layers", 1),
+                num_attention_heads=self.config.get("num_attention_heads", 8),
+                dropout=self.config.get("dropout", 0.2),
+            )
 
         # Store trained model for later retrieval (e.g., for diagnostics)
         setattr(self, f"_trained_model_fold_{fold_id}", best_model)
