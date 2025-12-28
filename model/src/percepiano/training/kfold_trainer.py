@@ -131,17 +131,17 @@ class GradientMonitorCallback(Callback):
                 context_vector_norm += param_norm**2
                 context_vector_count += 1
 
-            # Categorize
-            if "han_encoder" in name:
+            # Categorize - handle both HAN and Bi-LSTM naming conventions
+            if "han_encoder" in name or "lstm" in name:
                 cat = "han_encoder"
-            elif "performance_contractor" in name:
+            elif "performance_contractor" in name or "note_contractor" in name:
                 cat = "performance_contractor"
-            elif "final_attention" in name:
+            elif "final_attention" in name or "note_attention" in name:
                 cat = "final_attention"
-            elif "prediction_head" in name:
+            elif "prediction_head" in name or "out_fc" in name:
                 cat = "prediction_head"
             else:
-                continue  # Skip 'other' category
+                continue  # Skip 'other' category (embedder, etc.)
 
             grad_stats[cat]["norm"] += param_norm**2
             grad_stats[cat]["count"] += 1
@@ -298,8 +298,8 @@ class ActivationDiagnosticCallback(Callback):
             note_locations = {k: v.to(device) for k, v in note_locations.items()}
             targets = targets.to(device)
 
-            # Run forward
-            outputs = pl_module(input_features, note_locations, diagnose=False)
+            # Run forward with diagnose=True to see detailed activation flow
+            outputs = pl_module(input_features, note_locations, diagnose=True)
             logits = outputs.get("logits")
             predictions = outputs["predictions"]
 

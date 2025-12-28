@@ -85,7 +85,7 @@ class ContextAttention(nn.Module):
         return similarity
 
     def forward(
-        self, x: torch.Tensor, mask: Optional[torch.Tensor] = None
+        self, x: torch.Tensor, mask: Optional[torch.Tensor] = None, diagnose: bool = False
     ) -> torch.Tensor:
         """
         Apply context attention and return weighted sum.
@@ -96,6 +96,7 @@ class ContextAttention(nn.Module):
         Args:
             x: Input tensor of shape (B, T, C)
             mask: Optional mask of shape (B, T) where True indicates valid positions
+            diagnose: If True, print attention statistics
 
         Returns:
             Weighted sum of shape (B, C)
@@ -103,6 +104,12 @@ class ContextAttention(nn.Module):
         # Project and apply tanh
         attention = self.attention_net(x)
         attention_tanh = torch.tanh(attention)
+
+        if diagnose:
+            print(f"\n    [ContextAttention DIAGNOSE]")
+            print(f"      input x:        mean={x.mean():.4f}, std={x.std():.4f}")
+            print(f"      attention_tanh: mean={attention_tanh.mean():.4f}, std={attention_tanh.std():.4f}")
+            print(f"      context_vector: mean={self.context_vector.mean():.4f}, std={self.context_vector.std():.4f}")
 
         # Split into heads
         attention_split = torch.stack(
@@ -128,6 +135,18 @@ class ContextAttention(nn.Module):
 
         # Softmax over time dimension
         softmax_weight = torch.softmax(similarity, dim=1)
+
+        if diagnose:
+            # Check for uniform attention (indicates gradient vanishing)
+            seq_len = x.shape[1]
+            uniform_weight = 1.0 / seq_len
+            max_weight = softmax_weight.max().item()
+            min_weight = softmax_weight[softmax_weight > 0].min().item() if (softmax_weight > 0).any() else 0
+            print(f"      similarity:     mean={similarity.mean():.4f}, std={similarity.std():.4f}")
+            print(f"      softmax_weight: max={max_weight:.4f}, min={min_weight:.4f}, uniform={uniform_weight:.4f}")
+            if max_weight < 2 * uniform_weight:
+                print(f"      [WARN] Attention is near-uniform! max/uniform={max_weight/uniform_weight:.2f}x")
+                print(f"      [WARN] This causes vanishing gradients through softmax!")
 
         # Split x into heads and weight
         x_split = torch.stack(x.split(split_size=self.head_size, dim=2), dim=2)

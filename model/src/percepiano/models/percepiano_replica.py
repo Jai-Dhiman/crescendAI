@@ -1167,19 +1167,35 @@ class PercePianoBiLSTMBaseline(pl.LightningModule):
         lstm_out, _ = pad_packed_sequence(lstm_out, batch_first=True, total_length=seq_len)
         # lstm_out: [B, T, 512]
 
+        if diagnose:
+            print(f"\n  [Bi-LSTM DIAGNOSE]")
+            print(f"    x_embedded: mean={x_embedded.mean():.4f}, std={x_embedded.std():.4f}")
+            print(f"    lstm_out:   mean={lstm_out.mean():.4f}, std={lstm_out.std():.4f}")
+            # Check for near-zero LSTM output (critical issue)
+            if lstm_out.std() < 0.1:
+                print(f"    [WARN] LSTM output std={lstm_out.std():.4f} is very low!")
+
         # Step 3: Contract (512 -> 512)
         note_contracted = self.note_contractor(lstm_out)  # [B, T, 512]
 
-        # Step 4: Create attention mask if needed
-        if attention_mask is None and note_locations is not None:
-            attention_mask = note_locations["beat"] > 0
+        if diagnose:
+            print(f"    contracted: mean={note_contracted.mean():.4f}, std={note_contracted.std():.4f}")
 
-        # Step 5: Attention aggregation to single vector
-        aggregated = self.note_attention(note_contracted, mask=attention_mask)  # [B, 512]
+        # Step 4: Attention aggregation to single vector
+        # NOTE: Original VirtuosoNetSingle does NOT pass a mask to ContextAttention!
+        # It relies on internal x.sum(-1)==0 check. Passing mask was causing gradient issues.
+        aggregated = self.note_attention(note_contracted, mask=None, diagnose=diagnose)  # [B, 512]
 
-        # Step 6: Predict through out_fc
+        if diagnose:
+            print(f"    aggregated: mean={aggregated.mean():.4f}, std={aggregated.std():.4f}")
+
+        # Step 5: Predict through out_fc
         logits = self.out_fc(aggregated)  # [B, 19]
         predictions = torch.sigmoid(logits)
+
+        if diagnose:
+            print(f"    logits:     mean={logits.mean():.4f}, std={logits.std():.4f}")
+            print(f"    predictions: mean={predictions.mean():.4f}, std={predictions.std():.4f}")
 
         return {
             "predictions": predictions,
