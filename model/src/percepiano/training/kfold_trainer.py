@@ -35,12 +35,16 @@ from ..models.percepiano_replica import (
     PERCEPIANO_DIMENSIONS,
     PercePianoVNetModule,
     PercePianoBiLSTMBaseline,
+    PercePianoBaselinePlusBeat,
+    PercePianoBaselinePlusBeatMeasure,
 )
 from .diagnostics import DiagnosticCallback, HierarchyAblationCallback
 
 # Model type constants
 MODEL_TYPE_HAN = "han"
 MODEL_TYPE_BASELINE = "baseline"
+MODEL_TYPE_BASELINE_BEAT = "baseline_beat"
+MODEL_TYPE_BASELINE_BEAT_MEASURE = "baseline_beat_measure"
 
 
 class EpochLogger(Callback):
@@ -530,32 +534,64 @@ class KFoldTrainer:
 
     def _create_model(self) -> pl.LightningModule:
         """Create a new model instance based on model_type."""
+        input_size = self.config.get("input_size", 79)
+        hidden_size = self.config.get("hidden_size", 256)
+        num_attention_heads = self.config.get("num_attention_heads", 8)
+        dropout = self.config.get("dropout", 0.2)
+        learning_rate = self.config.get("learning_rate", 2.5e-5)
+        weight_decay = self.config.get("weight_decay", 1e-5)
+        beat_layers = self.config.get("beat_layers", 2)
+        measure_layers = self.config.get("measure_layers", 1)
+
         if self.model_type == MODEL_TYPE_BASELINE:
             # Bi-LSTM Baseline: 7-layer single LSTM (matches VirtuosoNetSingle)
-            # Total layers = note(2) + voice(2) + beat(2) + measure(1) = 7
             return PercePianoBiLSTMBaseline(
-                input_size=self.config.get("input_size", 79),
-                hidden_size=self.config.get("hidden_size", 256),
+                input_size=input_size,
+                hidden_size=hidden_size,
                 num_layers=7,  # Fixed: matches original VirtuosoNetSingle
-                num_attention_heads=self.config.get("num_attention_heads", 8),
-                dropout=self.config.get("dropout", 0.2),
-                learning_rate=self.config.get("learning_rate", 2.5e-5),
-                weight_decay=self.config.get("weight_decay", 1e-5),
+                num_attention_heads=num_attention_heads,
+                dropout=dropout,
+                learning_rate=learning_rate,
+                weight_decay=weight_decay,
+            )
+        elif self.model_type == MODEL_TYPE_BASELINE_BEAT:
+            # Baseline + Beat: 7-layer LSTM + beat hierarchy (Phase 2 Step 1)
+            return PercePianoBaselinePlusBeat(
+                input_size=input_size,
+                hidden_size=hidden_size,
+                num_layers=7,
+                beat_layers=beat_layers,
+                num_attention_heads=num_attention_heads,
+                dropout=dropout,
+                learning_rate=learning_rate,
+                weight_decay=weight_decay,
+            )
+        elif self.model_type == MODEL_TYPE_BASELINE_BEAT_MEASURE:
+            # Baseline + Beat + Measure: 7-layer LSTM + beat + measure (Phase 2 Step 2)
+            return PercePianoBaselinePlusBeatMeasure(
+                input_size=input_size,
+                hidden_size=hidden_size,
+                num_layers=7,
+                beat_layers=beat_layers,
+                measure_layers=measure_layers,
+                num_attention_heads=num_attention_heads,
+                dropout=dropout,
+                learning_rate=learning_rate,
+                weight_decay=weight_decay,
             )
         else:
             # HAN: Full hierarchical model (matches VirtuosoNetMultiLevel)
             return PercePianoVNetModule(
-                input_size=self.config.get("input_size", 79),  # 79 base features (matches original)
-                hidden_size=self.config.get("hidden_size", 256),
+                input_size=input_size,
+                hidden_size=hidden_size,
                 note_layers=self.config.get("note_layers", 2),
                 voice_layers=self.config.get("voice_layers", 2),
-                beat_layers=self.config.get("beat_layers", 2),
-                measure_layers=self.config.get("measure_layers", 1),
-                num_attention_heads=self.config.get("num_attention_heads", 8),
-                # NOTE: final_hidden removed in Round 6 - prediction head is 512->512->19
-                dropout=self.config.get("dropout", 0.2),
-                learning_rate=self.config.get("learning_rate", 2.5e-5),  # SOTA: 2.5e-5
-                weight_decay=self.config.get("weight_decay", 1e-5),
+                beat_layers=beat_layers,
+                measure_layers=measure_layers,
+                num_attention_heads=num_attention_heads,
+                dropout=dropout,
+                learning_rate=learning_rate,
+                weight_decay=weight_decay,
             )
 
     def _create_callbacks(self, fold_id: int) -> List[pl.Callback]:
@@ -600,8 +636,15 @@ class KFoldTrainer:
             activation_diag,
         ]
 
-        # Add hierarchy-specific callbacks only for HAN model
-        if self.model_type == MODEL_TYPE_HAN:
+        # Add hierarchy-specific callbacks for models with hierarchy
+        # (HAN and Phase 2 incremental models)
+        has_hierarchy = self.model_type in [
+            MODEL_TYPE_HAN,
+            MODEL_TYPE_BASELINE_BEAT,
+            MODEL_TYPE_BASELINE_BEAT_MEASURE,
+        ]
+
+        if has_hierarchy:
             # DIAGNOSTIC: Comprehensive hierarchy diagnostics (every 5 epochs)
             # Captures activation variances, attention entropy, contribution analysis
             hierarchy_diag = DiagnosticCallback(
@@ -611,11 +654,11 @@ class KFoldTrainer:
             )
             callbacks.append(hierarchy_diag)
 
-            # DIAGNOSTIC: Ablation test - measures hierarchy contribution
-            # Note: This uses zeroed_hierarchy mode by default. For true comparison,
-            # train baseline separately and use baseline checkpoint.
-            ablation_callback = HierarchyAblationCallback(run_every_n_epochs=10)
-            callbacks.append(ablation_callback)
+            # DIAGNOSTIC: Ablation test (only for full HAN, not incremental models)
+            # For incremental models, we compare directly to baseline checkpoint
+            if self.model_type == MODEL_TYPE_HAN:
+                ablation_callback = HierarchyAblationCallback(run_every_n_epochs=10)
+                callbacks.append(ablation_callback)
 
         return callbacks
 
