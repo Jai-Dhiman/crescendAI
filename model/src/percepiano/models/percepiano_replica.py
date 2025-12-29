@@ -140,7 +140,8 @@ class PercePianoHAN(nn.Module):
         combined_dim = (note_size + voice_size) * 2
 
         # Beat-level: Attention aggregation + Bi-LSTM
-        self.beat_attention = ContextAttention(combined_dim, num_attention_heads)
+        # Temperature=0.5 sharpens attention (prevents uniform collapse)
+        self.beat_attention = ContextAttention(combined_dim, num_attention_heads, temperature=0.5)
         self.beat_lstm = nn.LSTM(
             combined_dim,
             beat_size,
@@ -151,7 +152,8 @@ class PercePianoHAN(nn.Module):
         )
 
         # Measure-level: Attention aggregation + Bi-LSTM
-        self.measure_attention = ContextAttention(beat_size * 2, num_attention_heads)
+        # Temperature=0.5 sharpens attention (prevents uniform collapse)
+        self.measure_attention = ContextAttention(beat_size * 2, num_attention_heads, temperature=0.5)
         self.measure_lstm = nn.LSTM(
             beat_size * 2,
             measure_size,
@@ -162,6 +164,32 @@ class PercePianoHAN(nn.Module):
 
         # Output dimension: note+voice + beat + measure (all bidirectional)
         self.output_dim = combined_dim + beat_size * 2 + measure_size * 2
+
+        # Apply orthogonal initialization to all LSTMs for better gradient flow
+        self._init_lstm_weights()
+
+    def _init_lstm_weights(self):
+        """
+        Apply orthogonal initialization to all LSTM weights for better gradient flow.
+        Also sets forget gate bias to 1.0 to prevent vanishing gradients.
+
+        This matches the fix applied to PercePianoBiLSTMBaseline that achieved R2=0.1931.
+        """
+        for lstm in [self.note_lstm, self.voice_lstm, self.beat_lstm, self.measure_lstm]:
+            for name, param in lstm.named_parameters():
+                if 'weight_ih' in name:
+                    # Input-hidden weights: orthogonal initialization
+                    nn.init.orthogonal_(param.data)
+                elif 'weight_hh' in name:
+                    # Hidden-hidden weights: orthogonal initialization
+                    nn.init.orthogonal_(param.data)
+                elif 'bias' in name:
+                    # Bias initialization: zero all, then set forget gate to 1.0
+                    n = param.size(0)
+                    param.data.fill_(0)
+                    # Forget gate is the second quarter of the bias vector
+                    # LSTM bias layout: [input_gate, forget_gate, cell_gate, output_gate]
+                    param.data[n // 4 : n // 2].fill_(1.0)
 
     def forward(
         self,
@@ -464,8 +492,9 @@ class PercePianoReplicaModule(pl.LightningModule):
         # CRITICAL: Use ContextAttention (same as original PercePiano model_m2pf.py:117)
         # The original uses the SAME attention mechanism for both hierarchy and final
         # aggregation, with learnable context vectors per head.
+        # Temperature=0.5 sharpens attention (prevents uniform collapse that causes zero gradients)
         self.final_attention = ContextAttention(
-            encoder_output_size, num_attention_heads
+            encoder_output_size, num_attention_heads, temperature=0.5
         )
 
         # Prediction head (matching original PercePiano out_fc structure)
@@ -772,8 +801,9 @@ class PercePianoVNetModule(pl.LightningModule):
         # CRITICAL: Use ContextAttention (same as original PercePiano model_m2pf.py:117)
         # The original uses the SAME attention mechanism for both hierarchy and final
         # aggregation, with learnable context vectors per head.
+        # Temperature=0.5 sharpens attention (prevents uniform collapse that causes zero gradients)
         self.final_attention = ContextAttention(
-            encoder_output_size, num_attention_heads
+            encoder_output_size, num_attention_heads, temperature=0.5
         )
 
         # Prediction head (matching original PercePiano out_fc structure EXACTLY)

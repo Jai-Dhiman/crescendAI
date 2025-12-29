@@ -1,6 +1,6 @@
 # PercePiano Replica Experiment Log
 
-**Last Updated**: 2025-12-27 (Round 19)
+**Last Updated**: 2025-12-28 (Round 13)
 **Purpose**: Track our debugging journey to reproduce PercePiano SOTA (R2 = 0.397)
 
 For architecture details and hyperparameters, see `PERCEPIANO_SOTA_REFERENCE.md`.
@@ -8,6 +8,58 @@ For architecture details and hyperparameters, see `PERCEPIANO_SOTA_REFERENCE.md`
 ---
 
 ## Current Status
+
+**Round 13** - HAN LSTM INITIALIZATION FIX (CRITICAL)
+
+| Status | Description |
+|--------|-------------|
+| Bi-LSTM Baseline | **SUCCESS** - R2 = +0.1931 (matches expected 0.185) |
+| HAN Training | **FIXED** - Same initialization issues as baseline, now fixed |
+
+**Baseline Success (Round 12b):**
+After applying orthogonal LSTM initialization + forget gate bias + temperature scaling to
+`PercePianoBiLSTMBaseline`, Fold 2 achieved R2 = +0.1931, matching the expected VirtuosoNetSingle
+baseline of 0.185.
+
+**HAN Failure Analysis (Round 13):**
+HAN training showed the EXACT SAME symptoms as the baseline before fixes:
+
+| Issue | Baseline (Fixed) | HAN (Before Fix) |
+|-------|------------------|------------------|
+| LSTM output std | 0.2403 | 0.0330 (collapsed!) |
+| Attention entropy | Sharpened | 1.000 (uniform!) |
+| Context vectors | Learning (0.0001) | 0.000000 (not learning) |
+| Prediction std | ~0.10 | 0.007 (collapsed) |
+| R2 | +0.1931 | -0.3666 |
+
+**Root Cause:**
+The fixes applied to `PercePianoBiLSTMBaseline` were NOT applied to the HAN model
+(`PercePianoHAN` class). The HAN has 4 LSTMs (note, voice, beat, measure) and
+3 ContextAttention modules (beat, measure, final) that all needed the same fixes.
+
+**Fixes Applied (Round 13):**
+
+| Fix | File | Description |
+|-----|------|-------------|
+| LSTM orthogonal init | `percepiano_replica.py:171-192` | Added `_init_lstm_weights()` to PercePianoHAN |
+| Forget gate bias | `percepiano_replica.py:186-192` | Set forget gate bias = 1.0 for all 4 LSTMs |
+| Beat attention temp | `percepiano_replica.py:144` | `temperature=0.5` for beat_attention |
+| Measure attention temp | `percepiano_replica.py:156` | `temperature=0.5` for measure_attention |
+| Final attention temp | `percepiano_replica.py:803-807` | `temperature=0.5` for final_attention |
+
+**Expected Results (Round 13):**
+
+| Metric | Before Fix | Expected After Fix |
+|--------|------------|-------------------|
+| LSTM output std | 0.0330 | ~0.24 |
+| Attention entropy | 1.000 | < 0.8 |
+| Context vectors | 0.0 | > 0 |
+| Prediction std | 0.007 | 0.10-0.15 |
+| Val R2 | -0.37 | +0.35-0.40 (SOTA) |
+
+---
+
+## Previous Status
 
 **Round 12** - BI-LSTM BASELINE ARCHITECTURE MISMATCH (CRITICAL FINDING)
 
