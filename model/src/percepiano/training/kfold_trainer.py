@@ -779,7 +779,32 @@ class KFoldTrainer:
                 learning_rate=self.config.get("learning_rate", 2.5e-5),
                 weight_decay=self.config.get("weight_decay", 1e-5),
             )
-        else:
+        elif self.model_type == MODEL_TYPE_BASELINE_BEAT:
+            best_model = PercePianoBaselinePlusBeat.load_from_checkpoint(
+                str(best_checkpoint),
+                input_size=self.config.get("input_size", 79),
+                hidden_size=self.config.get("hidden_size", 256),
+                num_layers=7,
+                beat_layers=self.config.get("beat_layers", 2),
+                num_attention_heads=self.config.get("num_attention_heads", 8),
+                dropout=self.config.get("dropout", 0.2),
+                learning_rate=self.config.get("learning_rate", 2.5e-5),
+                weight_decay=self.config.get("weight_decay", 1e-5),
+            )
+        elif self.model_type == MODEL_TYPE_BASELINE_BEAT_MEASURE:
+            best_model = PercePianoBaselinePlusBeatMeasure.load_from_checkpoint(
+                str(best_checkpoint),
+                input_size=self.config.get("input_size", 79),
+                hidden_size=self.config.get("hidden_size", 256),
+                num_layers=7,
+                beat_layers=self.config.get("beat_layers", 2),
+                measure_layers=self.config.get("measure_layers", 1),
+                num_attention_heads=self.config.get("num_attention_heads", 8),
+                dropout=self.config.get("dropout", 0.2),
+                learning_rate=self.config.get("learning_rate", 2.5e-5),
+                weight_decay=self.config.get("weight_decay", 1e-5),
+            )
+        else:  # MODEL_TYPE_HAN
             best_model = PercePianoVNetModule.load_from_checkpoint(
                 str(best_checkpoint),
                 input_size=self.config.get("input_size", 79),  # SOTA: 79 features
