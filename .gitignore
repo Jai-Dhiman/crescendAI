@@ -143,3 +143,5 @@ WARP.md
 *.wav
 model/data/maestro-v3.0.0.zip
 model/data/maestro-v3.0.0.csv
+
+*.ckpt
