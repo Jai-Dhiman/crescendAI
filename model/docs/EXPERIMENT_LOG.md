@@ -1,12 +1,89 @@
 # PercePiano Replica Experiment Log
 
-**Last Updated**: 2025-12-29 (Round 13 Complete)
+**Last Updated**: 2025-12-29 (Round 15 - Attention Fixes)
 **Purpose**: Track debugging and reproduce PercePiano SOTA (R2 = 0.397)
 **Reference**: See `PERCEPIANO_SOTA_REFERENCE.md` for architecture details.
 
 ---
 
-## Current Status: Round 13
+## Current Status: Round 15 (Attention Fixes)
+
+### Round 15 Changes Applied
+
+Based on investigation of near-uniform attention (entropy=0.95), five fixes were implemented:
+
+| Fix | Description | File | Impact |
+|-----|-------------|------|--------|
+| 1 | Apply temperature in hierarchy softmax | `hierarchy_utils.py:get_softmax_by_boundary()` | Sharpens attention in make_higher_node |
+| 2 | Xavier init for attention_net, wider context_vector | `context_attention.py:ContextAttention.__init__()` | Better gradient flow at init |
+| 3 | Separate LR for attention (10x multiplier) | `percepiano_replica.py:configure_optimizers()` | Faster attention learning |
+| 4 | Entropy regularization | `percepiano_replica.py:compute_loss()` | Penalizes uniform attention > 0.6 |
+| 5 | Boundary diagnostic logging | `hierarchy_utils.py:find_boundaries_batch()` | Logs ==1 vs >0 boundary differences |
+
+### Root Cause Analysis
+
+**Problem**: Beat attention entropy = 0.9508 (near-uniform) at initialization and not improving during training.
+
+**Findings**:
+1. Temperature=0.5 was set in ContextAttention but **never applied** in the hierarchy path
+   - `make_higher_node()` calls `get_attention()` which returns raw similarity
+   - `get_softmax_by_boundary()` applied raw softmax without temperature
+2. Default PyTorch Linear initialization produces too-small weights (std ~0.04 for size=512)
+   - `tanh(small) ≈ small` → small similarity values → uniform softmax
+3. Attention parameters have same LR as encoder, but need to learn faster
+
+### New Hyperparameters
+
+```python
+CONFIG = {
+    ...
+    'attention_lr_multiplier': 10.0,  # Higher LR for attention params
+    'entropy_weight': 0.01,           # Penalty for uniform attention
+    'entropy_target': 0.6,            # Target entropy (0=focused, 1=uniform)
+}
+```
+
+### Expected Outcome (Round 15)
+
+With fixes applied, expected improvements:
+- Beat attention entropy: 0.95 → < 0.8 (more focused)
+- Beat hierarchy gain: +0.041 → +0.10-0.15
+- Total R2: +0.22 → +0.30-0.35
+
+---
+
+## Previous Status: Round 14 (Phase 2 Incremental Build)
+
+### Phase 2 Results (Fold 2 - Longest Pieces)
+
+| Model | Val R2 | Best Epoch | Hierarchy Gain | Expected Gain |
+|-------|--------|------------|----------------|---------------|
+| Baseline (7-layer BiLSTM) | **+0.1765** | 5 | - | ~0.19 |
+| Baseline + Beat | **+0.2175** | 26 | **+0.041** | +0.10 to +0.15 |
+| Baseline + Beat + Measure | (pending) | - | - | +0.05 to +0.10 |
+
+**Key Finding**: Beat hierarchy provides +0.041 R2 gain, which is positive but below the expected +0.10-0.15. Total expected hierarchy gain is ~+0.21.
+
+### Critical Issues Identified
+
+1. **Beat Attention Near-Uniform**: Entropy = 0.9508 (1.0 = perfectly uniform)
+   - Attention is NOT learning to focus on specific beats
+   - All beats treated equally, adding noise rather than signal
+
+2. **Prediction Collapse at Init**: pred_std = 0.008-0.009 (target: 0.10-0.15)
+   - Logits std = 0.031-0.034 (target: 0.5-1.5)
+   - 19/19 dimensions collapsed at initialization
+   - Improves during training but remains suboptimal
+
+3. **High Validation Variance**: R2 jumps wildly between epochs
+   - Epoch 8: +0.2108, Epoch 10: +0.0522, Epoch 22: +0.1852, Epoch 26: +0.2175
+   - Suggests sensitivity to slice sampling or batch composition
+
+4. **Diagnostic Callback Bug** (FIXED): `DiagnosticCallback._run_diagnostic_forward()` only supports full HAN model, shows all zeros for incremental models
+
+5. **Checkpoint Loading Bug** (FIXED): `kfold_trainer.py:771-793` was loading wrong model class for `MODEL_TYPE_BASELINE_BEAT`
+
+### Previous Status: Round 13
 
 | Model | Our R2 | Paper R2 | Status |
 |-------|--------|----------|--------|
@@ -30,7 +107,7 @@ The hierarchy only works on longer pieces:
 ### Persistent Issues
 
 1. **Prediction Collapse**: pred_std = 0.06-0.08 vs target_std = 0.12-0.15
-2. **Near-Uniform Attention**: Entropy 0.97-1.0 (should be < 0.8)
+2. **Near-Uniform Attention**: Entropy 0.95-1.0 (should be < 0.8)
 3. **Generalization Failure**: CV R2 = +0.19, Test R2 = -0.45
 
 ---
@@ -130,33 +207,42 @@ The best baseline checkpoint (`best-epoch=14-r2=0.2998.ckpt`) from Fold 2:
 
 ## Next Steps: Incremental Build Approach
 
-To isolate where hierarchy fails, build incrementally:
+### Phase 1: Verify Baseline - COMPLETE
+- [x] Train `PercePianoBiLSTMBaseline` on Fold 2
+- [x] Result: R2 = +0.1765 (matches expected ~0.19)
 
-### Phase 1: Verify Baseline Still Works
-- [ ] Train `PercePianoBiLSTMBaseline` on Fold 2
-- [ ] Confirm R2 ~0.30
+### Phase 2: Incremental Hierarchy - IN PROGRESS
+- [x] Baseline (7-layer BiLSTM): R2 = +0.1765
+- [x] Baseline + Beat: R2 = +0.2175 (gain: +0.041, expected: +0.10-0.15)
+- [ ] Baseline + Beat + Measure: (pending)
 
-### Phase 2: Add Voice (Note + Voice LSTMs)
-- [ ] Create `PercePianoNoteVoice` model
-- [ ] Architecture: Note LSTM (2 layers) + Voice LSTM (2 layers) in parallel
-- [ ] No beat/measure hierarchy
-- [ ] Measure: Does voice processing help or hurt?
+### Phase 2 Investigation Priorities
+The beat hierarchy gain (+0.041) is below expected (+0.10-0.15). Key issues to investigate:
 
-### Phase 3: Add Beat Hierarchy
-- [ ] Create `PercePianoNoteBeat` model
-- [ ] Architecture: Note LSTM + Beat attention + Beat LSTM
-- [ ] No voice or measure
-- [ ] Measure: Does beat hierarchy help?
+1. **Beat Attention Not Learning** (HIGH PRIORITY)
+   - Entropy = 0.9508 at init (1.0 = uniform)
+   - Need to check if entropy decreases during training
+   - Consider: lower temperature, higher LR for attention, different init
 
-### Phase 4: Full HAN
-- [ ] Add measure hierarchy
-- [ ] Compare against Phase 3
+2. **Prediction Collapse at Init** (MEDIUM PRIORITY)
+   - Logits std = 0.031 (target: 0.5-1.5)
+   - Model starts predicting mean, has to "unlearn" this
+   - Consider: different head initialization, output scaling
 
-### Alternative Investigation: Data Pipeline
-The original PercePiano uses overlapping slice sampling that creates 3-5x more training samples. Consider:
-- [ ] Verify our slice sampling matches original exactly
-- [ ] Check if longer training (more epochs) helps
-- [ ] Investigate attention learning (why entropy stays ~1.0?)
+3. **High Validation Variance** (MEDIUM PRIORITY)
+   - R2 jumps from +0.21 to +0.05 between epochs
+   - Slice regeneration may cause instability
+   - Consider: fixed slices, larger patience, lower LR
+
+4. **DiagnosticCallback Bug** (LOW PRIORITY - cosmetic)
+   - `_run_diagnostic_forward()` only supports full HAN
+   - Shows all zeros for incremental models
+   - Need to add support for `PercePianoBaselinePlusBeat` architecture
+
+### Phase 3: Full Hierarchy
+- [ ] Complete Beat+Measure training
+- [ ] Compare total hierarchy gain to paper (+0.21)
+- [ ] If still underperforming, investigate attention mechanisms
 
 ---
 
@@ -173,6 +259,8 @@ The original PercePiano uses overlapping slice sampling that creates 3-5x more t
 | 9 | 12-26 | Diagnostic infrastructure | Added ablation callbacks |
 | 10-12 | 12-27 | Baseline architecture mismatch | Created proper VirtuosoNetSingle |
 | 13 | 12-28 | HAN LSTM initialization | Applied orthogonal init, temp=0.5 |
+| 14 | 12-29 | Phase 2 incremental hierarchy | Beat gain +0.041 (below expected +0.10-0.15) |
+| 15 | 12-29 | Attention fixes | Temperature in softmax, Xavier init, separate LR, entropy reg |
 
 ### Key Fixes Applied
 
@@ -184,6 +272,10 @@ The original PercePiano uses overlapping slice sampling that creates 3-5x more t
 6. **Slice Sampling** - 3-5 overlapping slices per performance, regenerated each epoch
 7. **Orthogonal LSTM Init** - Prevents signal collapse in deep LSTMs
 8. **Attention Temperature 0.5** - Sharpens attention, prevents uniform weights
+9. **Temperature in Hierarchy Softmax** (Round 15) - Temperature now applied in `get_softmax_by_boundary()`
+10. **Xavier Attention Init** (Round 15) - Better gradient flow than default kaiming
+11. **Separate LR for Attention** (Round 15) - 10x multiplier for faster attention learning
+12. **Entropy Regularization** (Round 15) - Penalizes uniform attention > 0.6 entropy
 
 ---
 

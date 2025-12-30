@@ -1392,6 +1392,9 @@ class PercePianoBaselinePlusBeat(pl.LightningModule):
         dropout: float = 0.2,
         learning_rate: float = 2.5e-5,
         weight_decay: float = 1e-5,
+        attention_lr_multiplier: float = 10.0,
+        entropy_weight: float = 0.01,
+        entropy_target: float = 0.6,
         dimensions: Optional[List[str]] = None,
     ):
         super().__init__()
@@ -1540,27 +1543,30 @@ class PercePianoBaselinePlusBeat(pl.LightningModule):
                 )
                 beat_spanned = torch.cat([beat_spanned, padding], dim=1)
 
+            # Compute attention entropy (always, for regularization and diagnostics)
+            beat_attn = self.beat_attention.get_attention(lstm_out)
+            attn_probs = torch.softmax(beat_attn / self.beat_attention.temperature, dim=1)
+            entropy = -torch.sum(attn_probs * torch.log(attn_probs + 1e-8), dim=1).mean()
+            max_entropy = torch.log(torch.tensor(float(seq_len), device=lstm_out.device))
+            beat_entropy = entropy / max_entropy
+            self._last_beat_attention_entropy = beat_entropy.item()
+
             if diagnose:
                 print(f"    beat_nodes: mean={beat_nodes.mean():.4f}, std={beat_nodes.std():.4f}")
                 print(f"    beat_out: mean={beat_out.mean():.4f}, std={beat_out.std():.4f}")
                 print(f"    beat_spanned: mean={beat_spanned.mean():.4f}, std={beat_spanned.std():.4f}")
-
-                # Compute attention entropy for diagnostic
-                beat_attn = self.beat_attention.get_attention(lstm_out)
-                attn_probs = torch.softmax(beat_attn / 0.5, dim=1)
-                entropy = -torch.sum(attn_probs * torch.log(attn_probs + 1e-8), dim=1).mean()
-                max_entropy = torch.log(torch.tensor(float(seq_len)))
-                self._last_beat_attention_entropy = (entropy / max_entropy).item()
                 print(f"    beat_attention entropy: {self._last_beat_attention_entropy:.4f} (1.0=uniform)")
 
             # Concatenate LSTM output with beat-spanned
             combined = torch.cat([lstm_out, beat_spanned], dim=-1)
+            beat_entropy_val = beat_entropy
         else:
             # Fallback: no beat hierarchy, pad with zeros
             combined = torch.cat([
                 lstm_out,
                 torch.zeros_like(lstm_out)
             ], dim=-1)
+            beat_entropy_val = None
 
         # Step 4: Contract from 1024 -> 512
         note_contracted = self.note_contractor(combined)
@@ -1593,16 +1599,32 @@ class PercePianoBaselinePlusBeat(pl.LightningModule):
             "logits": logits,
             "lstm_out": lstm_out,
             "beat_spanned": beat_spanned if beat_numbers is not None else None,
+            "beat_entropy": beat_entropy_val,
         }
 
-    def compute_loss(self, predictions: torch.Tensor, targets: torch.Tensor):
-        total_loss = nn.functional.mse_loss(predictions, targets, reduction="mean")
+    def compute_loss(
+        self,
+        predictions: torch.Tensor,
+        targets: torch.Tensor,
+        beat_entropy: Optional[torch.Tensor] = None,
+    ):
+        mse_loss = nn.functional.mse_loss(predictions, targets, reduction="mean")
         per_dim_losses = {}
         for i, dim in enumerate(self.dimensions):
             per_dim_losses[dim] = nn.functional.mse_loss(
                 predictions[:, i], targets[:, i], reduction="mean"
             )
-        return total_loss, per_dim_losses
+
+        # Entropy regularization: penalize high entropy (uniform) attention
+        # Encourages sharper, more focused attention patterns
+        entropy_penalty = torch.tensor(0.0, device=predictions.device)
+        if beat_entropy is not None and self.hparams.entropy_weight > 0:
+            # Penalize entropy above target (e.g., 0.6)
+            excess_entropy = torch.clamp(beat_entropy - self.hparams.entropy_target, min=0)
+            entropy_penalty = self.hparams.entropy_weight * excess_entropy
+
+        total_loss = mse_loss + entropy_penalty
+        return total_loss, per_dim_losses, {"mse": mse_loss, "entropy_penalty": entropy_penalty}
 
     def _get_note_locations(self, batch: Dict) -> Dict[str, torch.Tensor]:
         return {
@@ -1617,8 +1639,14 @@ class PercePianoBaselinePlusBeat(pl.LightningModule):
             batch["input_features"], note_locations,
             batch.get("attention_mask"), batch.get("lengths"),
         )
-        loss, _ = self.compute_loss(outputs["predictions"], batch["scores"])
+        loss, _, loss_components = self.compute_loss(
+            outputs["predictions"], batch["scores"], outputs.get("beat_entropy")
+        )
         self.log("train/loss", loss, prog_bar=True)
+        self.log("train/mse", loss_components["mse"])
+        self.log("train/entropy_penalty", loss_components["entropy_penalty"])
+        if self._last_beat_attention_entropy is not None:
+            self.log("train/beat_entropy", self._last_beat_attention_entropy)
         self.training_step_outputs.append({"loss": loss.detach()})
         return loss
 
@@ -1628,7 +1656,9 @@ class PercePianoBaselinePlusBeat(pl.LightningModule):
             batch["input_features"], note_locations,
             batch.get("attention_mask"), batch.get("lengths"),
         )
-        loss, _ = self.compute_loss(outputs["predictions"], batch["scores"])
+        loss, _, loss_components = self.compute_loss(
+            outputs["predictions"], batch["scores"], outputs.get("beat_entropy")
+        )
         result = {
             "val_loss": loss.detach(),
             "predictions": outputs["predictions"].detach(),
@@ -1636,6 +1666,9 @@ class PercePianoBaselinePlusBeat(pl.LightningModule):
         }
         self.validation_step_outputs.append(result)
         self.log("val/loss", loss, prog_bar=True)
+        self.log("val/mse", loss_components["mse"])
+        if self._last_beat_attention_entropy is not None:
+            self.log("val/beat_entropy", self._last_beat_attention_entropy)
         return result
 
     def on_validation_epoch_end(self):
@@ -1656,10 +1689,27 @@ class PercePianoBaselinePlusBeat(pl.LightningModule):
         self.training_step_outputs.clear()
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(
-            self.parameters(), lr=self.hparams.learning_rate,
-            weight_decay=self.hparams.weight_decay,
-        )
+        # Separate learning rates: higher LR for attention parameters
+        attention_params = []
+        other_params = []
+        for name, param in self.named_parameters():
+            if 'attention' in name.lower():
+                attention_params.append(param)
+            else:
+                other_params.append(param)
+
+        # Log parameter counts
+        attn_count = sum(p.numel() for p in attention_params)
+        other_count = sum(p.numel() for p in other_params)
+        print(f"[Optimizer] Attention params: {attn_count:,} ({len(attention_params)} tensors)")
+        print(f"[Optimizer] Other params: {other_count:,} ({len(other_params)} tensors)")
+        print(f"[Optimizer] Attention LR multiplier: {self.hparams.attention_lr_multiplier}x")
+
+        optimizer = torch.optim.Adam([
+            {'params': other_params, 'lr': self.hparams.learning_rate},
+            {'params': attention_params, 'lr': self.hparams.learning_rate * self.hparams.attention_lr_multiplier},
+        ], weight_decay=self.hparams.weight_decay)
+
         scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=3000, gamma=0.98)
         return {"optimizer": optimizer, "lr_scheduler": {"scheduler": scheduler, "interval": "step"}}
 

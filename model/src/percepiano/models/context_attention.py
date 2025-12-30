@@ -53,8 +53,15 @@ class ContextAttention(nn.Module):
         # Learnable context vector for each head
         self.context_vector = nn.Parameter(torch.Tensor(num_head, self.head_size, 1))
 
-        # Original PercePiano uses uniform(-1, 1) initialization
-        nn.init.uniform_(self.context_vector, a=-1, b=1)
+        # Initialize attention_net with Xavier for better gradient flow
+        # Default kaiming_uniform produces too small weights (std ~0.04 for size=512)
+        # causing near-uniform attention at initialization
+        nn.init.xavier_uniform_(self.attention_net.weight)
+        nn.init.zeros_(self.attention_net.bias)
+
+        # Wider context vector initialization for sharper initial attention
+        # Original uses uniform(-1, 1), we use (-2, 2) for stronger initial signal
+        nn.init.uniform_(self.context_vector, a=-2, b=2)
 
     def get_attention(self, x: torch.Tensor) -> torch.Tensor:
         """

@@ -122,6 +122,15 @@ def find_boundaries_batch(
         for i in range(len(beat_numbers))
     ]
 
+    # Diagnostic: compare with original == 1 boundary detection
+    if HIERARCHY_DEBUG:
+        diff_eq1 = torch.nonzero(beat_numbers[:, 1:] - beat_numbers[:, :-1] == 1).cpu()
+        if len(diff_eq1) != len(diff_boundary):
+            print(f"\n  [BOUNDARY DIAGNOSTIC] Mismatch detected:")
+            print(f"    Original (==1): {len(diff_eq1)} boundaries")
+            print(f"    Ours (>0):      {len(diff_boundary)} boundaries")
+            print(f"    Difference:     {len(diff_boundary) - len(diff_eq1)} extra boundaries")
+
     # Debug logging
     if HIERARCHY_DEBUG:
         batch_size = len(beat_numbers)
@@ -162,6 +171,7 @@ def find_boundaries_batch(
 def get_softmax_by_boundary(
     similarity: torch.Tensor,
     boundaries: List[int],
+    temperature: float = 1.0,
 ) -> List[torch.Tensor]:
     """
     Apply softmax within each segment defined by boundaries.
@@ -169,6 +179,7 @@ def get_softmax_by_boundary(
     Args:
         similarity: Tensor of shape (T, C) - attention scores for single sequence
         boundaries: List of boundary indices defining segments
+        temperature: Softmax temperature (< 1.0 sharpens, > 1.0 softens)
 
     Returns:
         List of tensors with softmax applied within each segment
@@ -178,7 +189,7 @@ def get_softmax_by_boundary(
         start, end = boundaries[i - 1], boundaries[i]
         if start < end:
             segment = similarity[start:end, :]
-            result.append(torch.softmax(segment, dim=0))
+            result.append(torch.softmax(segment / temperature, dim=0))
     return result
 
 
@@ -279,11 +290,14 @@ def make_higher_node(
             for i in range(len(lower_out))
         ]
 
-    # Apply softmax within each segment - match original exactly (no edge case fallback)
+    # Get temperature from attention module (defaults to 1.0 if not present)
+    temperature = getattr(attention_weights, 'temperature', 1.0)
+
+    # Apply softmax within each segment with temperature scaling
     softmax_similarity = torch.nn.utils.rnn.pad_sequence(
         [
             torch.cat(
-                get_softmax_by_boundary(similarity[batch_idx], boundaries[batch_idx])
+                get_softmax_by_boundary(similarity[batch_idx], boundaries[batch_idx], temperature)
             )
             for batch_idx in range(len(lower_out))
         ],

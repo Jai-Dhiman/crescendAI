@@ -543,6 +543,11 @@ class KFoldTrainer:
         beat_layers = self.config.get("beat_layers", 2)
         measure_layers = self.config.get("measure_layers", 1)
 
+        # Attention improvement hyperparameters (Round 15)
+        attention_lr_multiplier = self.config.get("attention_lr_multiplier", 10.0)
+        entropy_weight = self.config.get("entropy_weight", 0.01)
+        entropy_target = self.config.get("entropy_target", 0.6)
+
         if self.model_type == MODEL_TYPE_BASELINE:
             # Bi-LSTM Baseline: 7-layer single LSTM (matches VirtuosoNetSingle)
             return PercePianoBiLSTMBaseline(
@@ -556,6 +561,7 @@ class KFoldTrainer:
             )
         elif self.model_type == MODEL_TYPE_BASELINE_BEAT:
             # Baseline + Beat: 7-layer LSTM + beat hierarchy (Phase 2 Step 1)
+            # Round 15: Added attention improvement hyperparameters
             return PercePianoBaselinePlusBeat(
                 input_size=input_size,
                 hidden_size=hidden_size,
@@ -565,6 +571,9 @@ class KFoldTrainer:
                 dropout=dropout,
                 learning_rate=learning_rate,
                 weight_decay=weight_decay,
+                attention_lr_multiplier=attention_lr_multiplier,
+                entropy_weight=entropy_weight,
+                entropy_target=entropy_target,
             )
         elif self.model_type == MODEL_TYPE_BASELINE_BEAT_MEASURE:
             # Baseline + Beat + Measure: 7-layer LSTM + beat + measure (Phase 2 Step 2)
