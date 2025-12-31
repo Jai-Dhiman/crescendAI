@@ -141,7 +141,10 @@ class PercePianoHAN(nn.Module):
 
         # Beat-level: Attention aggregation + Bi-LSTM
         # Temperature=0.5 sharpens attention (prevents uniform collapse)
-        self.beat_attention = ContextAttention(combined_dim, num_attention_heads, temperature=0.5)
+        # use_hierarchy_init=True for Xavier init + wider context vectors
+        self.beat_attention = ContextAttention(
+            combined_dim, num_attention_heads, temperature=0.5, use_hierarchy_init=True
+        )
         self.beat_lstm = nn.LSTM(
             combined_dim,
             beat_size,
@@ -153,7 +156,10 @@ class PercePianoHAN(nn.Module):
 
         # Measure-level: Attention aggregation + Bi-LSTM
         # Temperature=0.5 sharpens attention (prevents uniform collapse)
-        self.measure_attention = ContextAttention(beat_size * 2, num_attention_heads, temperature=0.5)
+        # use_hierarchy_init=True for Xavier init + wider context vectors
+        self.measure_attention = ContextAttention(
+            beat_size * 2, num_attention_heads, temperature=0.5, use_hierarchy_init=True
+        )
         self.measure_lstm = nn.LSTM(
             beat_size * 2,
             measure_size,
@@ -1423,8 +1429,9 @@ class PercePianoBaselinePlusBeat(pl.LightningModule):
         encoder_output_size = hidden_size * 2  # 512 for bidirectional
 
         # Beat-level hierarchy (NEW compared to baseline)
+        # use_hierarchy_init=True for Xavier init + wider context vectors
         self.beat_attention = ContextAttention(
-            encoder_output_size, num_attention_heads, temperature=0.5
+            encoder_output_size, num_attention_heads, temperature=0.5, use_hierarchy_init=True
         )
         self.beat_lstm = nn.LSTM(
             encoder_output_size,
@@ -1768,7 +1775,10 @@ class PercePianoBaselinePlusBeatMeasure(pl.LightningModule):
         encoder_output_size = hidden_size * 2  # 512
 
         # Beat hierarchy
-        self.beat_attention = ContextAttention(encoder_output_size, num_attention_heads, temperature=0.5)
+        # use_hierarchy_init=True for Xavier init + wider context vectors
+        self.beat_attention = ContextAttention(
+            encoder_output_size, num_attention_heads, temperature=0.5, use_hierarchy_init=True
+        )
         self.beat_lstm = nn.LSTM(
             encoder_output_size, hidden_size, beat_layers,
             batch_first=True, bidirectional=True,
@@ -1777,7 +1787,10 @@ class PercePianoBaselinePlusBeatMeasure(pl.LightningModule):
         self._init_lstm(self.beat_lstm)
 
         # Measure hierarchy
-        self.measure_attention = ContextAttention(encoder_output_size, num_attention_heads, temperature=0.5)
+        # use_hierarchy_init=True for Xavier init + wider context vectors
+        self.measure_attention = ContextAttention(
+            encoder_output_size, num_attention_heads, temperature=0.5, use_hierarchy_init=True
+        )
         self.measure_lstm = nn.LSTM(
             encoder_output_size, hidden_size, measure_layers,
             batch_first=True, bidirectional=True,

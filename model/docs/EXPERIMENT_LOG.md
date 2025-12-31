@@ -1,12 +1,54 @@
 # PercePiano Replica Experiment Log
 
-**Last Updated**: 2025-12-29 (Round 15 - Attention Fixes)
+**Last Updated**: 2025-12-31 (Round 16 - Fix Baseline Regression)
 **Purpose**: Track debugging and reproduce PercePiano SOTA (R2 = 0.397)
 **Reference**: See `PERCEPIANO_SOTA_REFERENCE.md` for architecture details.
 
 ---
 
-## Current Status: Round 15 (Attention Fixes)
+## Current Status: Round 16 (Fix Baseline Regression)
+
+### Critical Bug Found and Fixed
+
+Round 15 changes to `ContextAttention.__init__()` unintentionally broke the baseline model.
+
+**Symptom**: Baseline R2 dropped from +0.1765 (Round 14) to -0.0989 (Round 15 training).
+
+**Root Cause**: The Xavier init + wider context_vector changes in `ContextAttention` affected ALL models, not just hierarchy models. The baseline uses `ContextAttention` for its final `note_attention`, so it was inadvertently changed.
+
+| Init Type | attention_net std | context_vector | Baseline R2 |
+|-----------|-------------------|----------------|-------------|
+| Original (Round 14) | ~0.025 (kaiming) | [-1, 1] | +0.18 |
+| New (Round 15) | ~0.044 (Xavier) | [-2, 2] | -0.10 |
+
+**Fix Applied**: Added `use_hierarchy_init` parameter to `ContextAttention`:
+- `use_hierarchy_init=False` (default): Original PercePiano init (for baseline/final attention)
+- `use_hierarchy_init=True`: Xavier + wider context_vector (for beat/measure hierarchy)
+
+### Files Modified
+
+| File | Change |
+|------|--------|
+| `context_attention.py` | Added `use_hierarchy_init` parameter to `ContextAttention.__init__()` |
+| `percepiano_replica.py` | Set `use_hierarchy_init=True` for beat_attention and measure_attention in hierarchy models |
+
+### Verification
+
+Local test confirmed fix works correctly:
+- Baseline `note_attention`: context_vector in [-1, 1] (original)
+- Hierarchy `beat_attention`: context_vector in [-2, 2] (Xavier)
+- Hierarchy `measure_attention`: context_vector in [-2, 2] (Xavier)
+- Final `note_attention` in hierarchy models: context_vector in [-1, 1] (original)
+
+### Next Steps
+
+1. Commit and push fix
+2. Resume training with corrected code
+3. Expected: Baseline R2 should return to ~+0.18
+
+---
+
+## Previous Status: Round 15 (Attention Fixes)
 
 ### Round 15 Changes Applied
 

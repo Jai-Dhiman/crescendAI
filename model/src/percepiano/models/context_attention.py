@@ -31,12 +31,21 @@ class ContextAttention(nn.Module):
     - get_attention() returns [B, T, num_head] for use in make_higher_node
     """
 
-    def __init__(self, size: int, num_head: int, temperature: float = 1.0):
+    def __init__(
+        self,
+        size: int,
+        num_head: int,
+        temperature: float = 1.0,
+        use_hierarchy_init: bool = False,
+    ):
         """
         Args:
             size: Input/output feature dimension
             num_head: Number of attention heads (must divide size evenly)
             temperature: Softmax temperature (< 1.0 sharpens attention, > 1.0 softens)
+            use_hierarchy_init: If True, use Xavier + wider context_vector init for
+                hierarchy models (beat/measure attention). If False (default), use
+                original PercePiano init which works better for baseline/final attention.
         """
         super().__init__()
 
@@ -53,15 +62,16 @@ class ContextAttention(nn.Module):
         # Learnable context vector for each head
         self.context_vector = nn.Parameter(torch.Tensor(num_head, self.head_size, 1))
 
-        # Initialize attention_net with Xavier for better gradient flow
-        # Default kaiming_uniform produces too small weights (std ~0.04 for size=512)
-        # causing near-uniform attention at initialization
-        nn.init.xavier_uniform_(self.attention_net.weight)
-        nn.init.zeros_(self.attention_net.bias)
-
-        # Wider context vector initialization for sharper initial attention
-        # Original uses uniform(-1, 1), we use (-2, 2) for stronger initial signal
-        nn.init.uniform_(self.context_vector, a=-2, b=2)
+        if use_hierarchy_init:
+            # Hierarchy init: Xavier + wider context_vector for beat/measure attention
+            # This helps prevent near-uniform attention in hierarchy aggregation
+            nn.init.xavier_uniform_(self.attention_net.weight)
+            nn.init.zeros_(self.attention_net.bias)
+            nn.init.uniform_(self.context_vector, a=-2, b=2)
+        else:
+            # Original PercePiano init: default kaiming + uniform(-1, 1)
+            # This works well for baseline and final attention layers
+            nn.init.uniform_(self.context_vector, a=-1, b=1)
 
     def get_attention(self, x: torch.Tensor) -> torch.Tensor:
         """
