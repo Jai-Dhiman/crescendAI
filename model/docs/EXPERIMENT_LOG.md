@@ -1,12 +1,90 @@
 # PercePiano Replica Experiment Log
 
-**Last Updated**: 2025-12-31 (Round 16 - Fix Baseline Regression)
+**Last Updated**: 2025-12-31 (Round 17 - True Incremental Architecture)
 **Purpose**: Track debugging and reproduce PercePiano SOTA (R2 = 0.397)
 **Reference**: See `PERCEPIANO_SOTA_REFERENCE.md` for architecture details.
 
 ---
 
-## Current Status: Round 16 (Fix Baseline Regression)
+## Current Status: Round 17 (True Incremental Architecture)
+
+### Root Cause Identified
+
+The previous "incremental" approach was fundamentally flawed:
+
+| Issue | Description |
+|-------|-------------|
+| **Wrong Baseline** | 7-layer single LSTM conceptually includes note+voice+beat+measure (2+2+2+1) |
+| **Redundant Hierarchy** | Adding beat hierarchy ON TOP of 7-layer LSTM is redundant |
+| **Original HAN** | Note and voice LSTMs process SAME input IN PARALLEL, then concatenate |
+
+**Evidence from original code** (`encoder_score.py:516-518`):
+```python
+voice_out = self.run_voice_net(x, voice_numbers, max_voice)  # x = embedded input
+note_out, _ = self.lstm(x)                                    # SAME x!
+hidden_out = torch.cat((note_out, voice_out), 2)              # Then concatenate
+```
+
+The original VirtuosoNetSingle (7-layer baseline) is NOT a building block for HAN - it's a separate architecture that conceptually encodes all hierarchy levels in a single deep LSTM.
+
+### Fixes Applied
+
+#### 1. DiagnosticCallback Fix (`diagnostics.py`)
+
+The `_run_diagnostic_forward()` method only worked for models with `han_encoder`, silently returning zeros for other model types.
+
+**Changes**:
+- Added `_detect_model_type()` to identify baseline, baseline_beat, or han models
+- Added `_diagnostic_baseline()` for PercePianoBiLSTMBaseline
+- Added `_diagnostic_baseline_beat()` for PercePianoBaselinePlusBeat
+- Refactored `_diagnostic_han()` for PercePianoHAN
+
+#### 2. True Incremental Models (`percepiano_replica.py`)
+
+Created three new model classes that match the ACTUAL HAN progression:
+
+| Model | Architecture | Contractor Input | Expected R2 |
+|-------|-------------|------------------|-------------|
+| `PercePianoNoteOnly` | 2-layer note BiLSTM | 512 | ~0.10 |
+| `PercePianoNoteVoice` | + parallel 2-layer voice LSTM | 1024 | ~0.15 |
+| `PercePianoNoteVoiceBeat` | + beat attention + 2-layer beat LSTM | 1536 | ~0.25-0.30 |
+| `PercePianoHAN` (exists) | + measure attention + 1-layer measure LSTM | 2048 | ~0.35-0.40 |
+
+**Key architectural insight**: Note and voice process the SAME embedded input in PARALLEL, then concatenate. Beat/measure are applied hierarchically on TOP of this concatenated output.
+
+#### 3. Trainer Updates (`kfold_trainer.py`)
+
+- Added model type constants: `MODEL_TYPE_NOTE_ONLY`, `MODEL_TYPE_NOTE_VOICE`, `MODEL_TYPE_NOTE_VOICE_BEAT`
+- Added model creation logic in `_create_model()`
+- Added checkpoint loading support for all new model types
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `src/percepiano/training/diagnostics.py` | Model type detection, separate diagnostic paths |
+| `src/percepiano/models/percepiano_replica.py` | PercePianoNoteOnly, PercePianoNoteVoice, PercePianoNoteVoiceBeat classes |
+| `src/percepiano/models/__init__.py` | Export new model classes |
+| `src/percepiano/training/kfold_trainer.py` | New model types, creation logic, checkpoint loading |
+
+### Verification Criteria
+
+Each model should show IMPROVEMENT over the previous:
+1. `PercePianoNoteVoice` R2 > `PercePianoNoteOnly` R2 (voice gain ~+0.05)
+2. `PercePianoNoteVoiceBeat` R2 > `PercePianoNoteVoice` R2 (beat gain ~+0.10)
+3. `PercePianoHAN` R2 > `PercePianoNoteVoiceBeat` R2 (measure gain ~+0.05)
+4. Attention entropy 0.3-0.8 (not 0.95+ which indicates collapse)
+
+### Next Steps
+
+1. Train `PercePianoNoteOnly` (expect R2 ~0.10)
+2. Train `PercePianoNoteVoice` (expect R2 ~0.15)
+3. Train `PercePianoNoteVoiceBeat` (expect R2 ~0.25-0.30)
+4. Train `PercePianoHAN` (expect R2 ~0.35-0.40)
+
+---
+
+## Previous Status: Round 16 (Fix Baseline Regression)
 
 ### Critical Bug Found and Fixed
 
@@ -303,6 +381,8 @@ The beat hierarchy gain (+0.041) is below expected (+0.10-0.15). Key issues to i
 | 13 | 12-28 | HAN LSTM initialization | Applied orthogonal init, temp=0.5 |
 | 14 | 12-29 | Phase 2 incremental hierarchy | Beat gain +0.041 (below expected +0.10-0.15) |
 | 15 | 12-29 | Attention fixes | Temperature in softmax, Xavier init, separate LR, entropy reg |
+| 16 | 12-31 | Fix baseline regression | Added use_hierarchy_init to isolate attention init |
+| 17 | 12-31 | True incremental architecture | Fixed architecture mismatch, created NoteOnly/NoteVoice/NoteVoiceBeat |
 
 ### Key Fixes Applied
 
@@ -318,6 +398,9 @@ The beat hierarchy gain (+0.041) is below expected (+0.10-0.15). Key issues to i
 10. **Xavier Attention Init** (Round 15) - Better gradient flow than default kaiming
 11. **Separate LR for Attention** (Round 15) - 10x multiplier for faster attention learning
 12. **Entropy Regularization** (Round 15) - Penalizes uniform attention > 0.6 entropy
+13. **use_hierarchy_init Parameter** (Round 16) - Isolates Xavier init to hierarchy attention only
+14. **True Incremental Models** (Round 17) - NoteOnly, NoteVoice, NoteVoiceBeat match HAN progression
+15. **DiagnosticCallback Model Detection** (Round 17) - Separate diagnostic paths per model type
 
 ---
 

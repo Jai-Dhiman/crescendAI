@@ -361,7 +361,13 @@ class DiagnosticCallback(Callback):
         pl_module: pl.LightningModule,
         batch: Dict[str, torch.Tensor],
     ) -> DiagnosticStats:
-        """Run forward pass with detailed activation capture."""
+        """Run forward pass with detailed activation capture.
+
+        Supports multiple model types:
+        - PercePianoHAN: has han_encoder attribute
+        - PercePianoBiLSTMBaseline: has lstm, note_attention, note_contractor
+        - PercePianoBaselinePlusBeat: has lstm, beat_attention, beat_lstm, note_contractor
+        """
         stats = DiagnosticStats()
 
         pl_module.eval()
@@ -377,7 +383,7 @@ class DiagnosticCallback(Callback):
             }
 
             # Handle PackedSequence
-            from torch.nn.utils.rnn import pad_packed_sequence, PackedSequence
+            from torch.nn.utils.rnn import pad_packed_sequence, pack_padded_sequence, PackedSequence
             if isinstance(input_features, PackedSequence):
                 input_features, _ = pad_packed_sequence(input_features, batch_first=True)
 
@@ -398,130 +404,521 @@ class DiagnosticCallback(Callback):
             # Input stats
             stats.input_std = input_features.std().item()
 
-            # Forward through HAN encoder with intermediate capture
-            if hasattr(pl_module, 'han_encoder'):
-                han = pl_module.han_encoder
+            # Detect model type and dispatch to appropriate handler
+            model_type = self._detect_model_type(pl_module)
 
-                # Project input
-                x_embedded = han.note_fc(input_features)
-                stats.x_embedded_std = x_embedded.std().item()
-
-                # Compute actual lengths
-                from ..models.hierarchy_utils import compute_actual_lengths
-                actual_lengths = compute_actual_lengths(note_locations['beat'])
-
-                # Note LSTM
-                from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
-                x_packed = pack_padded_sequence(
-                    x_embedded,
-                    actual_lengths.cpu().clamp(min=1),
-                    batch_first=True,
-                    enforce_sorted=False,
-                )
-                note_out, _ = han.note_lstm(x_packed)
-                note_out, _ = pad_packed_sequence(note_out, batch_first=True, total_length=x_embedded.shape[1])
-                stats.note_out_std = note_out.std().item()
-
-                # Voice processing
-                voice_out = han._run_voice_processing(x_embedded, note_locations['voice'], actual_lengths)
-                stats.voice_out_std = voice_out.std().item()
-
-                # Combined hidden
-                hidden_out = torch.cat([note_out, voice_out], dim=-1)
-                stats.hidden_out_std = hidden_out.std().item()
-
-                # Beat aggregation
-                from ..models.hierarchy_utils import make_higher_node, run_hierarchy_lstm_with_pack, span_beat_to_note_num
-
-                beat_nodes = make_higher_node(
-                    hidden_out,
-                    han.beat_attention,
-                    note_locations['beat'],
-                    note_locations['beat'],
-                    lower_is_note=True,
-                    actual_lengths=actual_lengths,
-                )
-                stats.beat_nodes_std = beat_nodes.std().item()
-
-                beat_out = run_hierarchy_lstm_with_pack(beat_nodes, han.beat_lstm)
-                stats.beat_out_std = beat_out.std().item()
-
-                beat_spanned = span_beat_to_note_num(beat_out, note_locations['beat'], actual_lengths)
-                # Pad if needed
-                if beat_spanned.shape[1] < hidden_out.shape[1]:
-                    padding = torch.zeros(
-                        beat_spanned.shape[0],
-                        hidden_out.shape[1] - beat_spanned.shape[1],
-                        beat_spanned.shape[2],
-                        device=beat_spanned.device,
-                    )
-                    beat_spanned = torch.cat([beat_spanned, padding], dim=1)
-                stats.beat_spanned_std = beat_spanned.std().item()
-
-                # Measure aggregation
-                measure_nodes = make_higher_node(
-                    beat_out,
-                    han.measure_attention,
-                    note_locations['beat'],
-                    note_locations['measure'],
-                    actual_lengths=actual_lengths,
-                )
-                stats.measure_nodes_std = measure_nodes.std().item()
-
-                measure_out = run_hierarchy_lstm_with_pack(measure_nodes, han.measure_lstm)
-                stats.measure_out_std = measure_out.std().item()
-
-                measure_spanned = span_beat_to_note_num(measure_out, note_locations['measure'], actual_lengths)
-                if measure_spanned.shape[1] < hidden_out.shape[1]:
-                    padding = torch.zeros(
-                        measure_spanned.shape[0],
-                        hidden_out.shape[1] - measure_spanned.shape[1],
-                        measure_spanned.shape[2],
-                        device=measure_spanned.device,
-                    )
-                    measure_spanned = torch.cat([measure_spanned, padding], dim=1)
-                stats.measure_spanned_std = measure_spanned.std().item()
-
-                # Contribution analysis
-                total_var = hidden_out.var() + beat_spanned.var() + measure_spanned.var()
-                if total_var > 0:
-                    stats.hidden_out_contribution = (hidden_out.var() / total_var).item()
-                    stats.beat_spanned_contribution = (beat_spanned.var() / total_var).item()
-                    stats.measure_spanned_contribution = (measure_spanned.var() / total_var).item()
-
-                # Total note cat
-                total_note_cat = torch.cat([hidden_out, beat_spanned, measure_spanned], dim=-1)
-                stats.total_note_cat_std = total_note_cat.std().item()
-
-                # Beat attention entropy
-                beat_similarity = han.beat_attention.get_attention(hidden_out)
-                beat_attention_weights = torch.softmax(beat_similarity, dim=1)
-                stats.beat_attention_entropy = compute_attention_entropy(beat_attention_weights)
-
-                # Measure attention entropy
-                measure_similarity = han.measure_attention.get_attention(beat_out)
-                measure_attention_weights = torch.softmax(measure_similarity, dim=1)
-                stats.measure_attention_entropy = compute_attention_entropy(measure_attention_weights)
-
-            # Performance contractor
-            if hasattr(pl_module, 'performance_contractor'):
-                contracted = pl_module.performance_contractor(total_note_cat)
-                stats.contracted_std = contracted.std().item()
-
-            # Final attention
-            if hasattr(pl_module, 'final_attention'):
-                attention_mask = note_locations['beat'] > 0
-                aggregated = pl_module.final_attention(contracted, mask=attention_mask)
-                stats.aggregated_std = aggregated.std().item()
-
-            # Prediction head
-            if hasattr(pl_module, 'prediction_head'):
-                logits = pl_module.prediction_head(aggregated)
-                stats.logits_std = logits.std().item()
-                predictions = torch.sigmoid(logits)
-                stats.predictions_std = predictions.std().item()
+            if model_type == 'han':
+                # Full HAN model with han_encoder
+                stats = self._diagnostic_han(pl_module, input_features, note_locations, stats)
+            elif model_type == 'note_voice_beat':
+                # True incremental: note + voice + beat
+                stats = self._diagnostic_note_voice_beat(pl_module, input_features, note_locations, stats)
+            elif model_type == 'note_voice':
+                # True incremental: note + voice (parallel)
+                stats = self._diagnostic_note_voice(pl_module, input_features, note_locations, stats)
+            elif model_type == 'note_only':
+                # True incremental: note only
+                stats = self._diagnostic_note_only(pl_module, input_features, note_locations, stats)
+            elif model_type == 'baseline_beat':
+                # Old-style Baseline + Beat hierarchy model
+                stats = self._diagnostic_baseline_beat(pl_module, input_features, note_locations, stats)
+            elif model_type == 'baseline':
+                # Simple 7-layer BiLSTM baseline
+                stats = self._diagnostic_baseline(pl_module, input_features, note_locations, stats)
+            else:
+                # Unknown model type - log warning
+                print(f"[DiagnosticCallback] WARNING: Unknown model type '{model_type}', skipping detailed diagnostics")
 
         pl_module.train()
+        return stats
+
+    def _detect_model_type(self, pl_module: pl.LightningModule) -> str:
+        """Detect model type based on attributes.
+
+        Returns one of:
+        - 'han': Full HAN with han_encoder
+        - 'note_voice_beat': True incremental with note + voice + beat
+        - 'note_voice': True incremental with note + voice (parallel)
+        - 'note_only': True incremental with only note LSTM
+        - 'baseline_beat': Old-style baseline + beat hierarchy
+        - 'baseline': Simple 7-layer BiLSTM baseline
+        - 'unknown': Unrecognized model type
+        """
+        if hasattr(pl_module, 'han_encoder'):
+            return 'han'
+        # True incremental models (Round 17) - check in order of specificity
+        elif hasattr(pl_module, 'beat_attention') and hasattr(pl_module, 'voice_lstm'):
+            return 'note_voice_beat'
+        elif hasattr(pl_module, 'voice_lstm') and hasattr(pl_module, 'note_lstm'):
+            return 'note_voice'
+        elif hasattr(pl_module, 'note_lstm') and not hasattr(pl_module, 'voice_lstm'):
+            return 'note_only'
+        # Old incremental models
+        elif hasattr(pl_module, 'beat_attention') and hasattr(pl_module, 'beat_lstm'):
+            return 'baseline_beat'
+        elif hasattr(pl_module, 'lstm') and hasattr(pl_module, 'note_attention'):
+            return 'baseline'
+        return 'unknown'
+
+    def _diagnostic_baseline(
+        self,
+        pl_module: pl.LightningModule,
+        input_features: torch.Tensor,
+        note_locations: Dict[str, torch.Tensor],
+        stats: DiagnosticStats,
+    ) -> DiagnosticStats:
+        """Diagnostic path for PercePianoBiLSTMBaseline."""
+        from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
+        from ..models.hierarchy_utils import compute_actual_lengths
+
+        # Embed input
+        x_embedded = pl_module.note_embedder(input_features)
+        stats.x_embedded_std = x_embedded.std().item()
+
+        # Compute actual lengths
+        actual_lengths = compute_actual_lengths(note_locations['beat'])
+        seq_len = input_features.shape[1]
+
+        # LSTM
+        x_packed = pack_padded_sequence(
+            x_embedded, actual_lengths.cpu().clamp(min=1),
+            batch_first=True, enforce_sorted=False
+        )
+        lstm_out, _ = pl_module.lstm(x_packed)
+        lstm_out, _ = pad_packed_sequence(lstm_out, batch_first=True, total_length=seq_len)
+        stats.note_out_std = lstm_out.std().item()
+
+        # Contractor
+        contracted = pl_module.note_contractor(lstm_out)
+        stats.contracted_std = contracted.std().item()
+
+        # Final attention
+        aggregated = pl_module.note_attention(contracted, diagnose=False)
+        stats.aggregated_std = aggregated.std().item()
+
+        # Prediction head
+        logits = pl_module.out_fc(aggregated)
+        stats.logits_std = logits.std().item()
+        predictions = torch.sigmoid(logits)
+        stats.predictions_std = predictions.std().item()
+
+        return stats
+
+    def _diagnostic_note_only(
+        self,
+        pl_module: pl.LightningModule,
+        input_features: torch.Tensor,
+        note_locations: Dict[str, torch.Tensor],
+        stats: DiagnosticStats,
+    ) -> DiagnosticStats:
+        """Diagnostic path for PercePianoNoteOnly (true incremental)."""
+        from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
+        from ..models.hierarchy_utils import compute_actual_lengths
+
+        # Embed input
+        x_embedded = pl_module.note_embedder(input_features)
+        stats.x_embedded_std = x_embedded.std().item()
+
+        # Compute actual lengths
+        actual_lengths = compute_actual_lengths(note_locations['beat'])
+        seq_len = input_features.shape[1]
+
+        # Note LSTM (2-layer, not 7-layer like baseline)
+        x_packed = pack_padded_sequence(
+            x_embedded, actual_lengths.cpu().clamp(min=1),
+            batch_first=True, enforce_sorted=False
+        )
+        note_out, _ = pl_module.note_lstm(x_packed)
+        note_out, _ = pad_packed_sequence(note_out, batch_first=True, total_length=seq_len)
+        stats.note_out_std = note_out.std().item()
+
+        # Contractor (512 -> 512)
+        contracted = pl_module.note_contractor(note_out)
+        stats.contracted_std = contracted.std().item()
+
+        # Final attention
+        aggregated = pl_module.note_attention(contracted, diagnose=False)
+        stats.aggregated_std = aggregated.std().item()
+
+        # Prediction head
+        logits = pl_module.out_fc(aggregated)
+        stats.logits_std = logits.std().item()
+        predictions = torch.sigmoid(logits)
+        stats.predictions_std = predictions.std().item()
+
+        return stats
+
+    def _diagnostic_note_voice(
+        self,
+        pl_module: pl.LightningModule,
+        input_features: torch.Tensor,
+        note_locations: Dict[str, torch.Tensor],
+        stats: DiagnosticStats,
+    ) -> DiagnosticStats:
+        """Diagnostic path for PercePianoNoteVoice (true incremental with parallel voice)."""
+        from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
+        from ..models.hierarchy_utils import compute_actual_lengths
+
+        # Embed input
+        x_embedded = pl_module.note_embedder(input_features)
+        stats.x_embedded_std = x_embedded.std().item()
+
+        # Compute actual lengths
+        actual_lengths = compute_actual_lengths(note_locations['beat'])
+        seq_len = input_features.shape[1]
+        batch_size = input_features.shape[0]
+
+        # Note LSTM (processes same input as voice)
+        x_packed = pack_padded_sequence(
+            x_embedded, actual_lengths.cpu().clamp(min=1),
+            batch_first=True, enforce_sorted=False
+        )
+        note_out, _ = pl_module.note_lstm(x_packed)
+        note_out, _ = pad_packed_sequence(note_out, batch_first=True, total_length=seq_len)
+        stats.note_out_std = note_out.std().item()
+
+        # Voice LSTM (processes same embedded input in PARALLEL - key architectural insight)
+        voice_numbers = note_locations['voice']
+        max_voice = voice_numbers.max().item()
+
+        # Run voice LSTM
+        voice_out = pl_module.run_voice_lstm(x_embedded, voice_numbers, max_voice, batch_size, seq_len)
+        stats.voice_out_std = voice_out.std().item()
+
+        # Concatenate note and voice (forms 1024-dim hidden_out)
+        hidden_out = torch.cat([note_out, voice_out], dim=2)
+        stats.hidden_out_std = hidden_out.std().item()
+
+        # Contractor (1024 -> 512)
+        contracted = pl_module.note_contractor(hidden_out)
+        stats.contracted_std = contracted.std().item()
+
+        # Final attention
+        aggregated = pl_module.note_attention(contracted, diagnose=False)
+        stats.aggregated_std = aggregated.std().item()
+
+        # Prediction head
+        logits = pl_module.out_fc(aggregated)
+        stats.logits_std = logits.std().item()
+        predictions = torch.sigmoid(logits)
+        stats.predictions_std = predictions.std().item()
+
+        return stats
+
+    def _diagnostic_note_voice_beat(
+        self,
+        pl_module: pl.LightningModule,
+        input_features: torch.Tensor,
+        note_locations: Dict[str, torch.Tensor],
+        stats: DiagnosticStats,
+    ) -> DiagnosticStats:
+        """Diagnostic path for PercePianoNoteVoiceBeat (true incremental with beat hierarchy)."""
+        from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
+        from ..models.hierarchy_utils import (
+            compute_actual_lengths, make_higher_node,
+            run_hierarchy_lstm_with_pack, span_beat_to_note_num
+        )
+
+        # Embed input
+        x_embedded = pl_module.note_embedder(input_features)
+        stats.x_embedded_std = x_embedded.std().item()
+
+        # Compute actual lengths
+        actual_lengths = compute_actual_lengths(note_locations['beat'])
+        seq_len = input_features.shape[1]
+        batch_size = input_features.shape[0]
+
+        # Note LSTM
+        x_packed = pack_padded_sequence(
+            x_embedded, actual_lengths.cpu().clamp(min=1),
+            batch_first=True, enforce_sorted=False
+        )
+        note_out, _ = pl_module.note_lstm(x_packed)
+        note_out, _ = pad_packed_sequence(note_out, batch_first=True, total_length=seq_len)
+        stats.note_out_std = note_out.std().item()
+
+        # Voice LSTM (parallel with note)
+        voice_numbers = note_locations['voice']
+        max_voice = voice_numbers.max().item()
+        voice_out = pl_module.run_voice_lstm(x_embedded, voice_numbers, max_voice, batch_size, seq_len)
+        stats.voice_out_std = voice_out.std().item()
+
+        # Concatenate note and voice (1024-dim)
+        hidden_out = torch.cat([note_out, voice_out], dim=2)
+        stats.hidden_out_std = hidden_out.std().item()
+
+        # Beat hierarchy
+        beat_numbers = note_locations['beat']
+
+        # Create beat nodes via attention
+        beat_nodes, beat_attn = make_higher_node(
+            hidden_out, beat_numbers, pl_module.beat_attention,
+            return_attention=True
+        )
+        stats.beat_nodes_std = beat_nodes.std().item()
+
+        # Beat attention entropy
+        if beat_attn is not None and len(beat_attn) > 0:
+            entropies = []
+            for attn in beat_attn:
+                if attn is not None and attn.numel() > 1:
+                    attn_flat = attn.flatten()
+                    attn_flat = attn_flat[attn_flat > 1e-10]
+                    if len(attn_flat) > 1:
+                        entropy = -(attn_flat * torch.log(attn_flat + 1e-10)).sum()
+                        max_entropy = torch.log(torch.tensor(len(attn_flat), dtype=torch.float))
+                        normalized_entropy = entropy / max_entropy
+                        entropies.append(normalized_entropy.item())
+            if entropies:
+                stats.beat_attention_entropy = sum(entropies) / len(entropies)
+
+        # Beat LSTM
+        max_beat = beat_numbers.max().item()
+        beat_out = run_hierarchy_lstm_with_pack(
+            beat_nodes, pl_module.beat_lstm, batch_size, max_beat
+        )
+        stats.beat_out_std = beat_out.std().item()
+
+        # Span back to note level
+        beat_spanned = span_beat_to_note_num(beat_out, beat_numbers, seq_len)
+        stats.beat_spanned_std = beat_spanned.std().item()
+
+        # Concatenate for final output (1024 + 512 = 1536)
+        total_note_cat = torch.cat([hidden_out, beat_spanned], dim=2)
+        stats.total_note_cat_std = total_note_cat.std().item()
+
+        # Contractor (1536 -> 512)
+        contracted = pl_module.note_contractor(total_note_cat)
+        stats.contracted_std = contracted.std().item()
+
+        # Final attention
+        aggregated = pl_module.note_attention(contracted, diagnose=False)
+        stats.aggregated_std = aggregated.std().item()
+
+        # Prediction head
+        logits = pl_module.out_fc(aggregated)
+        stats.logits_std = logits.std().item()
+        predictions = torch.sigmoid(logits)
+        stats.predictions_std = predictions.std().item()
+
+        return stats
+
+    def _diagnostic_baseline_beat(
+        self,
+        pl_module: pl.LightningModule,
+        input_features: torch.Tensor,
+        note_locations: Dict[str, torch.Tensor],
+        stats: DiagnosticStats,
+    ) -> DiagnosticStats:
+        """Diagnostic path for PercePianoBaselinePlusBeat."""
+        from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
+        from ..models.hierarchy_utils import (
+            compute_actual_lengths, make_higher_node,
+            run_hierarchy_lstm_with_pack, span_beat_to_note_num
+        )
+
+        # Embed input
+        x_embedded = pl_module.note_embedder(input_features)
+        stats.x_embedded_std = x_embedded.std().item()
+
+        # Compute actual lengths
+        actual_lengths = compute_actual_lengths(note_locations['beat'])
+        seq_len = input_features.shape[1]
+        batch_size = input_features.shape[0]
+
+        # LSTM
+        x_packed = pack_padded_sequence(
+            x_embedded, actual_lengths.cpu().clamp(min=1),
+            batch_first=True, enforce_sorted=False
+        )
+        lstm_out, _ = pl_module.lstm(x_packed)
+        lstm_out, _ = pad_packed_sequence(lstm_out, batch_first=True, total_length=seq_len)
+        stats.note_out_std = lstm_out.std().item()
+        # For baseline+beat, hidden_out is just lstm_out
+        stats.hidden_out_std = lstm_out.std().item()
+
+        # Beat hierarchy
+        beat_nodes = make_higher_node(
+            lstm_out, pl_module.beat_attention,
+            note_locations['beat'], note_locations['beat'],
+            lower_is_note=True, actual_lengths=actual_lengths
+        )
+        stats.beat_nodes_std = beat_nodes.std().item()
+
+        beat_out = run_hierarchy_lstm_with_pack(beat_nodes, pl_module.beat_lstm)
+        stats.beat_out_std = beat_out.std().item()
+
+        beat_spanned = span_beat_to_note_num(beat_out, note_locations['beat'], actual_lengths)
+        if beat_spanned.shape[1] < seq_len:
+            padding = torch.zeros(
+                batch_size, seq_len - beat_spanned.shape[1], beat_spanned.shape[2],
+                device=beat_spanned.device
+            )
+            beat_spanned = torch.cat([beat_spanned, padding], dim=1)
+        stats.beat_spanned_std = beat_spanned.std().item()
+
+        # Beat attention entropy
+        beat_similarity = pl_module.beat_attention.get_attention(lstm_out)
+        beat_attention_weights = torch.softmax(beat_similarity, dim=1)
+        stats.beat_attention_entropy = compute_attention_entropy(beat_attention_weights)
+
+        # Contribution analysis (lstm vs beat for this model)
+        total_var = lstm_out.var() + beat_spanned.var()
+        if total_var > 0:
+            stats.hidden_out_contribution = (lstm_out.var() / total_var).item()
+            stats.beat_spanned_contribution = (beat_spanned.var() / total_var).item()
+
+        # Concatenate and contract
+        combined = torch.cat([lstm_out, beat_spanned], dim=-1)
+        stats.total_note_cat_std = combined.std().item()
+
+        contracted = pl_module.note_contractor(combined)
+        stats.contracted_std = contracted.std().item()
+
+        # Final attention
+        aggregated = pl_module.note_attention(contracted, diagnose=False)
+        stats.aggregated_std = aggregated.std().item()
+
+        # Prediction head
+        logits = pl_module.out_fc(aggregated)
+        stats.logits_std = logits.std().item()
+        predictions = torch.sigmoid(logits)
+        stats.predictions_std = predictions.std().item()
+
+        return stats
+
+    def _diagnostic_han(
+        self,
+        pl_module: pl.LightningModule,
+        input_features: torch.Tensor,
+        note_locations: Dict[str, torch.Tensor],
+        stats: DiagnosticStats,
+    ) -> DiagnosticStats:
+        """Diagnostic path for PercePianoHAN (full hierarchical model)."""
+        from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
+        from ..models.hierarchy_utils import (
+            compute_actual_lengths, make_higher_node,
+            run_hierarchy_lstm_with_pack, span_beat_to_note_num
+        )
+
+        han = pl_module.han_encoder
+
+        # Project input
+        x_embedded = han.note_fc(input_features)
+        stats.x_embedded_std = x_embedded.std().item()
+
+        # Compute actual lengths
+        actual_lengths = compute_actual_lengths(note_locations['beat'])
+        seq_len = input_features.shape[1]
+
+        # Note LSTM
+        x_packed = pack_padded_sequence(
+            x_embedded,
+            actual_lengths.cpu().clamp(min=1),
+            batch_first=True,
+            enforce_sorted=False,
+        )
+        note_out, _ = han.note_lstm(x_packed)
+        note_out, _ = pad_packed_sequence(note_out, batch_first=True, total_length=seq_len)
+        stats.note_out_std = note_out.std().item()
+
+        # Voice processing
+        voice_out = han._run_voice_processing(x_embedded, note_locations['voice'], actual_lengths)
+        stats.voice_out_std = voice_out.std().item()
+
+        # Combined hidden
+        hidden_out = torch.cat([note_out, voice_out], dim=-1)
+        stats.hidden_out_std = hidden_out.std().item()
+
+        # Beat aggregation
+        beat_nodes = make_higher_node(
+            hidden_out,
+            han.beat_attention,
+            note_locations['beat'],
+            note_locations['beat'],
+            lower_is_note=True,
+            actual_lengths=actual_lengths,
+        )
+        stats.beat_nodes_std = beat_nodes.std().item()
+
+        beat_out = run_hierarchy_lstm_with_pack(beat_nodes, han.beat_lstm)
+        stats.beat_out_std = beat_out.std().item()
+
+        beat_spanned = span_beat_to_note_num(beat_out, note_locations['beat'], actual_lengths)
+        # Pad if needed
+        if beat_spanned.shape[1] < hidden_out.shape[1]:
+            padding = torch.zeros(
+                beat_spanned.shape[0],
+                hidden_out.shape[1] - beat_spanned.shape[1],
+                beat_spanned.shape[2],
+                device=beat_spanned.device,
+            )
+            beat_spanned = torch.cat([beat_spanned, padding], dim=1)
+        stats.beat_spanned_std = beat_spanned.std().item()
+
+        # Measure aggregation
+        measure_nodes = make_higher_node(
+            beat_out,
+            han.measure_attention,
+            note_locations['beat'],
+            note_locations['measure'],
+            actual_lengths=actual_lengths,
+        )
+        stats.measure_nodes_std = measure_nodes.std().item()
+
+        measure_out = run_hierarchy_lstm_with_pack(measure_nodes, han.measure_lstm)
+        stats.measure_out_std = measure_out.std().item()
+
+        measure_spanned = span_beat_to_note_num(measure_out, note_locations['measure'], actual_lengths)
+        if measure_spanned.shape[1] < hidden_out.shape[1]:
+            padding = torch.zeros(
+                measure_spanned.shape[0],
+                hidden_out.shape[1] - measure_spanned.shape[1],
+                measure_spanned.shape[2],
+                device=measure_spanned.device,
+            )
+            measure_spanned = torch.cat([measure_spanned, padding], dim=1)
+        stats.measure_spanned_std = measure_spanned.std().item()
+
+        # Contribution analysis
+        total_var = hidden_out.var() + beat_spanned.var() + measure_spanned.var()
+        if total_var > 0:
+            stats.hidden_out_contribution = (hidden_out.var() / total_var).item()
+            stats.beat_spanned_contribution = (beat_spanned.var() / total_var).item()
+            stats.measure_spanned_contribution = (measure_spanned.var() / total_var).item()
+
+        # Total note cat
+        total_note_cat = torch.cat([hidden_out, beat_spanned, measure_spanned], dim=-1)
+        stats.total_note_cat_std = total_note_cat.std().item()
+
+        # Beat attention entropy
+        beat_similarity = han.beat_attention.get_attention(hidden_out)
+        beat_attention_weights = torch.softmax(beat_similarity, dim=1)
+        stats.beat_attention_entropy = compute_attention_entropy(beat_attention_weights)
+
+        # Measure attention entropy
+        measure_similarity = han.measure_attention.get_attention(beat_out)
+        measure_attention_weights = torch.softmax(measure_similarity, dim=1)
+        stats.measure_attention_entropy = compute_attention_entropy(measure_attention_weights)
+
+        # Performance contractor
+        if hasattr(pl_module, 'performance_contractor'):
+            contracted = pl_module.performance_contractor(total_note_cat)
+            stats.contracted_std = contracted.std().item()
+
+        # Final attention
+        if hasattr(pl_module, 'final_attention'):
+            attention_mask = note_locations['beat'] > 0
+            aggregated = pl_module.final_attention(contracted, mask=attention_mask)
+            stats.aggregated_std = aggregated.std().item()
+
+        # Prediction head
+        if hasattr(pl_module, 'prediction_head'):
+            logits = pl_module.prediction_head(aggregated)
+            stats.logits_std = logits.std().item()
+            predictions = torch.sigmoid(logits)
+            stats.predictions_std = predictions.std().item()
+
         return stats
 
     def _print_diagnostic_summary(self, stats: DiagnosticStats, epoch: int) -> None:
@@ -589,6 +986,149 @@ class DiagnosticCallback(Callback):
             print("  [WARNING] Measure hierarchy contributing < 5% - may not be learning!")
 
         print("=" * 70 + "\n")
+
+    def on_fit_end(
+        self,
+        trainer: pl.Trainer,
+        pl_module: pl.LightningModule,
+    ) -> None:
+        """Run comprehensive diagnostics at the end of training.
+
+        This provides a final summary of the trained model's internal state,
+        helping verify that:
+        1. All hierarchy levels are contributing appropriately
+        2. Attention mechanisms are not collapsed or uniform
+        3. Activation variances are in healthy ranges
+        """
+        print("\n" + "=" * 70)
+        print("END OF TRAINING DIAGNOSTICS")
+        print("=" * 70)
+
+        model_type = self._detect_model_type(pl_module)
+        print(f"\nModel type: {model_type}")
+        print(f"Total epochs trained: {trainer.current_epoch + 1}")
+
+        # Get validation dataloader
+        val_loader = trainer.val_dataloaders
+        if val_loader is None:
+            print("[WARNING] No validation dataloader available for final diagnostics")
+            return
+
+        # Run diagnostics on multiple batches for more stable statistics
+        all_stats = []
+        num_batches = min(5, len(val_loader))  # Use up to 5 batches
+
+        print(f"\nRunning diagnostics on {num_batches} validation batches...")
+
+        for i, batch in enumerate(val_loader):
+            if i >= num_batches:
+                break
+
+            # Move batch to device
+            device = pl_module.device
+            batch_on_device = {}
+            for k, v in batch.items():
+                if isinstance(v, torch.Tensor):
+                    batch_on_device[k] = v.to(device)
+                else:
+                    batch_on_device[k] = v
+
+            try:
+                stats = self._run_diagnostic_forward(pl_module, batch_on_device)
+                all_stats.append(stats)
+            except Exception as e:
+                print(f"  [WARNING] Batch {i} diagnostic failed: {e}")
+
+        if not all_stats:
+            print("[ERROR] No successful diagnostic runs")
+            return
+
+        # Aggregate statistics across batches
+        avg_stats = DiagnosticStats()
+        for field_name in [
+            'input_std', 'x_embedded_std', 'note_out_std', 'voice_out_std',
+            'hidden_out_std', 'beat_nodes_std', 'beat_out_std', 'beat_spanned_std',
+            'measure_nodes_std', 'measure_out_std', 'measure_spanned_std',
+            'total_note_cat_std', 'contracted_std', 'aggregated_std',
+            'logits_std', 'predictions_std', 'beat_attention_entropy',
+            'measure_attention_entropy', 'hidden_out_contribution',
+            'beat_spanned_contribution', 'measure_spanned_contribution',
+        ]:
+            values = [getattr(s, field_name) for s in all_stats if getattr(s, field_name) > 0]
+            if values:
+                setattr(avg_stats, field_name, sum(values) / len(values))
+
+        # Use first batch for index stats (they should be consistent)
+        avg_stats.beat_idx_min = all_stats[0].beat_idx_min
+        avg_stats.beat_idx_max = all_stats[0].beat_idx_max
+        avg_stats.measure_idx_min = all_stats[0].measure_idx_min
+        avg_stats.measure_idx_max = all_stats[0].measure_idx_max
+        avg_stats.negative_zero_shifted_count = all_stats[0].negative_zero_shifted_count
+
+        # Print comprehensive summary
+        self._print_diagnostic_summary(avg_stats, trainer.current_epoch)
+
+        # Print model-specific insights
+        self._print_model_insights(model_type, avg_stats)
+
+        # Save stats if save_dir is configured
+        if self.save_dir:
+            self.epoch_stats.append({
+                'epoch': trainer.current_epoch,
+                'is_final': True,
+                **{k: getattr(avg_stats, k) for k in dir(avg_stats) if not k.startswith('_')}
+            })
+            self.save_stats()
+
+    def _print_model_insights(self, model_type: str, stats: DiagnosticStats) -> None:
+        """Print model-specific diagnostic insights."""
+        print("\n[5] MODEL-SPECIFIC INSIGHTS:")
+
+        if model_type == 'note_only':
+            print("  Model: PercePianoNoteOnly (2-layer note LSTM)")
+            print("  Expected R2: ~0.10")
+            print(f"  Note LSTM output std: {stats.note_out_std:.4f}")
+            if stats.note_out_std < 0.05:
+                print("  [WARNING] Note LSTM output variance is low - may indicate vanishing signal")
+
+        elif model_type == 'note_voice':
+            print("  Model: PercePianoNoteVoice (2-layer note + 2-layer voice)")
+            print("  Expected R2: ~0.15 (gain ~+0.05 from voice)")
+            print(f"  Note LSTM output std: {stats.note_out_std:.4f}")
+            print(f"  Voice LSTM output std: {stats.voice_out_std:.4f}")
+            print(f"  Combined hidden_out std: {stats.hidden_out_std:.4f}")
+            if stats.voice_out_std < 0.05:
+                print("  [WARNING] Voice LSTM output variance is low - voice may not be learning")
+
+        elif model_type == 'note_voice_beat':
+            print("  Model: PercePianoNoteVoiceBeat (note + voice + beat hierarchy)")
+            print("  Expected R2: ~0.25-0.30 (gain ~+0.10 from beat)")
+            print(f"  Beat attention entropy: {stats.beat_attention_entropy:.3f}")
+            if stats.beat_attention_entropy > 0.9:
+                print("  [WARNING] Beat attention is near-uniform - attention may not be learning")
+            elif stats.beat_attention_entropy < 0.3:
+                print("  [WARNING] Beat attention is too focused - may be overfitting")
+            else:
+                print("  [OK] Beat attention entropy is in healthy range (0.3-0.8)")
+            print(f"  Beat contribution: {stats.beat_spanned_contribution:.1%}")
+
+        elif model_type == 'han':
+            print("  Model: PercePianoHAN (full hierarchical)")
+            print("  Expected R2: ~0.35-0.40 (target: 0.397)")
+            print(f"  Beat attention entropy: {stats.beat_attention_entropy:.3f}")
+            print(f"  Measure attention entropy: {stats.measure_attention_entropy:.3f}")
+            print(f"  Beat contribution: {stats.beat_spanned_contribution:.1%}")
+            print(f"  Measure contribution: {stats.measure_spanned_contribution:.1%}")
+
+        elif model_type == 'baseline':
+            print("  Model: PercePianoBiLSTMBaseline (7-layer single LSTM)")
+            print("  Expected R2: ~0.19 (matches VirtuosoNetSingle)")
+
+        elif model_type == 'baseline_beat':
+            print("  Model: PercePianoBaselinePlusBeat (7-layer + beat)")
+            print("  [NOTE] This is the OLD incremental approach - consider using note_voice_beat instead")
+
+        print()
 
     def save_stats(self, path: Optional[Path] = None) -> None:
         """Save collected statistics to JSON."""

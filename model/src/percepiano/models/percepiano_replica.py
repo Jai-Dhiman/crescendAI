@@ -2035,6 +2035,918 @@ class PercePianoBaselinePlusBeatMeasure(pl.LightningModule):
         return sum(p.numel() for p in self.parameters() if p.requires_grad)
 
 
+# ============================================================================
+# TRUE INCREMENTAL MODELS (Round 17)
+# These models match the ACTUAL HAN progression, starting with 2-layer note LSTM
+# and progressively adding components. This is the CORRECT way to do incremental
+# debugging, unlike the broken Baseline+Beat approach which added hierarchy
+# on top of a 7-layer LSTM.
+# ============================================================================
+
+
+class PercePianoNoteOnly(pl.LightningModule):
+    """
+    Step 1 of True Incremental Build: 2-layer note BiLSTM only.
+
+    This is the foundation of the HAN architecture - just the note-level LSTM
+    without any voice or hierarchy. Expected R2 ~0.10.
+
+    Architecture:
+        Input(79) -> Embed(256) -> 2-layer BiLSTM(512) ->
+        Contractor(512->512) -> Attention -> FC -> 19
+
+    This matches the note_lstm component of HanEncoder (encoder_score.py:497).
+    """
+
+    def __init__(
+        self,
+        input_size: int = 79,
+        hidden_size: int = 256,
+        note_layers: int = 2,
+        num_attention_heads: int = 8,
+        dropout: float = 0.2,
+        learning_rate: float = 2.5e-5,
+        weight_decay: float = 1e-5,
+        dimensions: Optional[List[str]] = None,
+    ):
+        super().__init__()
+        self.save_hyperparameters()
+
+        self.dimensions = dimensions or PERCEPIANO_DIMENSIONS
+        self.num_dimensions = len(self.dimensions)
+        self.hidden_size = hidden_size
+
+        # MixEmbedder: Project 79-dim input to 256-dim
+        self.note_embedder = nn.Linear(input_size, hidden_size)
+
+        # 2-layer bidirectional LSTM (matches HAN's note_lstm)
+        self.note_lstm = nn.LSTM(
+            hidden_size,
+            hidden_size,
+            note_layers,
+            batch_first=True,
+            bidirectional=True,
+            dropout=dropout if note_layers > 1 else 0,
+        )
+        self._init_lstm(self.note_lstm)
+
+        encoder_output_size = hidden_size * 2  # 512 for bidirectional
+
+        # Contractor: 512 -> 512 (same structure as full HAN)
+        self.note_contractor = nn.Linear(encoder_output_size, encoder_output_size)
+
+        # Final attention
+        self.note_attention = ContextAttention(
+            encoder_output_size, num_attention_heads, temperature=0.5
+        )
+
+        # Output head
+        self.out_fc = nn.Sequential(
+            nn.Dropout(dropout),
+            nn.Linear(encoder_output_size, encoder_output_size),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(encoder_output_size, self.num_dimensions),
+        )
+
+        self.training_step_outputs = []
+        self.validation_step_outputs = []
+
+    def _init_lstm(self, lstm: nn.LSTM):
+        """Apply orthogonal initialization to LSTM."""
+        for name, param in lstm.named_parameters():
+            if 'weight_ih' in name:
+                nn.init.orthogonal_(param.data)
+            elif 'weight_hh' in name:
+                nn.init.orthogonal_(param.data)
+            elif 'bias' in name:
+                n = param.size(0)
+                param.data.fill_(0)
+                param.data[n // 4 : n // 2].fill_(1.0)
+
+    def forward(
+        self,
+        input_features: torch.Tensor,
+        note_locations: Optional[Dict[str, torch.Tensor]] = None,
+        attention_mask: Optional[torch.Tensor] = None,
+        lengths: Optional[torch.Tensor] = None,
+        diagnose: bool = False,
+    ) -> Dict[str, torch.Tensor]:
+        """Forward pass through note-only model."""
+        # Handle PackedSequence input
+        if isinstance(input_features, PackedSequence):
+            input_features, seq_lengths = pad_packed_sequence(
+                input_features, batch_first=True
+            )
+            if attention_mask is None:
+                batch_size = input_features.shape[0]
+                max_len = input_features.shape[1]
+                attention_mask = torch.zeros(
+                    batch_size, max_len, dtype=torch.bool, device=input_features.device
+                )
+                for i, length in enumerate(seq_lengths):
+                    attention_mask[i, :length] = True
+
+        batch_size, seq_len, _ = input_features.shape
+        beat_numbers = note_locations["beat"] if note_locations else None
+
+        # Compute actual lengths
+        if attention_mask is not None:
+            actual_lengths = attention_mask.sum(dim=1).cpu().clamp(min=1)
+        elif beat_numbers is not None:
+            actual_lengths = compute_actual_lengths(beat_numbers)
+        else:
+            actual_lengths = torch.full((batch_size,), seq_len, dtype=torch.long)
+
+        # Embed input
+        x_embedded = self.note_embedder(input_features)
+
+        # Note LSTM
+        x_packed = pack_padded_sequence(
+            x_embedded, actual_lengths, batch_first=True, enforce_sorted=False
+        )
+        note_out, _ = self.note_lstm(x_packed)
+        note_out, _ = pad_packed_sequence(note_out, batch_first=True, total_length=seq_len)
+
+        if diagnose:
+            print(f"\n  [NoteOnly DIAGNOSE]")
+            print(f"    x_embedded: mean={x_embedded.mean():.4f}, std={x_embedded.std():.4f}")
+            print(f"    note_out: mean={note_out.mean():.4f}, std={note_out.std():.4f}")
+
+        # Contract (512 -> 512)
+        contracted = self.note_contractor(note_out)
+
+        if diagnose:
+            print(f"    contracted: mean={contracted.mean():.4f}, std={contracted.std():.4f}")
+
+        # Final attention
+        aggregated = self.note_attention(contracted, diagnose=diagnose)
+
+        # Predict
+        logits = self.out_fc(aggregated)
+        predictions = torch.sigmoid(logits)
+
+        if diagnose:
+            print(f"    logits: mean={logits.mean():.4f}, std={logits.std():.4f}")
+            print(f"    predictions: mean={predictions.mean():.4f}, std={predictions.std():.4f}")
+
+        return {
+            "predictions": predictions,
+            "logits": logits,
+            "note_out": note_out,
+        }
+
+    def compute_loss(self, predictions: torch.Tensor, targets: torch.Tensor):
+        mse_loss = nn.functional.mse_loss(predictions, targets, reduction="mean")
+        per_dim_losses = {}
+        for i, dim in enumerate(self.dimensions):
+            per_dim_losses[dim] = nn.functional.mse_loss(
+                predictions[:, i], targets[:, i], reduction="mean"
+            )
+        return mse_loss, per_dim_losses
+
+    def _get_note_locations(self, batch: Dict) -> Dict[str, torch.Tensor]:
+        return {
+            "beat": batch["note_locations_beat"],
+            "measure": batch["note_locations_measure"],
+            "voice": batch["note_locations_voice"],
+        }
+
+    def training_step(self, batch: Dict, batch_idx: int) -> torch.Tensor:
+        note_locations = self._get_note_locations(batch)
+        outputs = self(
+            batch["input_features"], note_locations,
+            batch.get("attention_mask"), batch.get("lengths"),
+        )
+        loss, _ = self.compute_loss(outputs["predictions"], batch["scores"])
+        self.log("train/loss", loss, prog_bar=True)
+        self.training_step_outputs.append({"loss": loss.detach()})
+        return loss
+
+    def validation_step(self, batch: Dict, batch_idx: int) -> Dict:
+        note_locations = self._get_note_locations(batch)
+        outputs = self(
+            batch["input_features"], note_locations,
+            batch.get("attention_mask"), batch.get("lengths"),
+        )
+        loss, _ = self.compute_loss(outputs["predictions"], batch["scores"])
+        result = {
+            "val_loss": loss.detach(),
+            "predictions": outputs["predictions"].detach(),
+            "targets": batch["scores"].detach(),
+        }
+        self.validation_step_outputs.append(result)
+        self.log("val/loss", loss, prog_bar=True)
+        return result
+
+    def on_validation_epoch_end(self):
+        if not self.validation_step_outputs:
+            return
+        all_preds = torch.cat([x["predictions"] for x in self.validation_step_outputs])
+        all_targets = torch.cat([x["targets"] for x in self.validation_step_outputs])
+        all_preds_np = all_preds.cpu().numpy()
+        all_targets_np = all_targets.cpu().numpy()
+        mean_r2 = r2_score(all_targets_np, all_preds_np)
+        self.log("val/mean_r2", mean_r2, prog_bar=True)
+        for i, dim in enumerate(self.dimensions):
+            dim_r2 = r2_score(all_targets_np[:, i], all_preds_np[:, i])
+            self.log(f"val/r2_{dim}", dim_r2)
+        self.validation_step_outputs.clear()
+
+    def on_train_epoch_end(self):
+        self.training_step_outputs.clear()
+
+    def configure_optimizers(self):
+        optimizer = torch.optim.Adam(
+            self.parameters(), lr=self.hparams.learning_rate,
+            weight_decay=self.hparams.weight_decay,
+        )
+        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=3000, gamma=0.98)
+        return {"optimizer": optimizer, "lr_scheduler": {"scheduler": scheduler, "interval": "step"}}
+
+    def count_parameters(self) -> int:
+        return sum(p.numel() for p in self.parameters() if p.requires_grad)
+
+
+class PercePianoNoteVoice(pl.LightningModule):
+    """
+    Step 2 of True Incremental Build: 2-layer note + 2-layer voice (PARALLEL).
+
+    Adds voice processing to the note LSTM. CRITICAL: voice LSTM processes
+    the SAME 256-dim embedded input as note LSTM (in parallel), not the
+    512-dim note output. This matches encoder_score.py:515-518.
+
+    Expected R2: ~0.15 (gain of ~+0.05 from voice processing)
+
+    Architecture:
+        Input(79) -> Embed(256) ->
+            note_lstm(2 layers) -> 512-dim  ||  voice_lstm(2 layers) -> 512-dim
+        -> Concat(1024) -> Contractor(1024->512) -> Attention -> FC -> 19
+    """
+
+    def __init__(
+        self,
+        input_size: int = 79,
+        hidden_size: int = 256,
+        note_layers: int = 2,
+        voice_layers: int = 2,
+        num_attention_heads: int = 8,
+        dropout: float = 0.2,
+        learning_rate: float = 2.5e-5,
+        weight_decay: float = 1e-5,
+        dimensions: Optional[List[str]] = None,
+    ):
+        super().__init__()
+        self.save_hyperparameters()
+
+        self.dimensions = dimensions or PERCEPIANO_DIMENSIONS
+        self.num_dimensions = len(self.dimensions)
+        self.hidden_size = hidden_size
+        self.voice_size = hidden_size
+
+        # MixEmbedder
+        self.note_embedder = nn.Linear(input_size, hidden_size)
+
+        # Note LSTM (2 layers)
+        self.note_lstm = nn.LSTM(
+            hidden_size, hidden_size, note_layers,
+            batch_first=True, bidirectional=True,
+            dropout=dropout if note_layers > 1 else 0,
+        )
+        self._init_lstm(self.note_lstm)
+
+        # Voice LSTM (2 layers) - processes SAME 256-dim input as note_lstm
+        self.voice_lstm = nn.LSTM(
+            hidden_size, hidden_size, voice_layers,
+            batch_first=True, bidirectional=True,
+            dropout=dropout if voice_layers > 1 else 0,
+        )
+        self._init_lstm(self.voice_lstm)
+
+        # hidden_out = concat(note_out, voice_out) = 1024 dim
+        encoder_output_size = hidden_size * 2  # 512
+        hidden_out_size = encoder_output_size * 2  # 1024
+
+        # Contractor: 1024 -> 512
+        self.note_contractor = nn.Linear(hidden_out_size, encoder_output_size)
+
+        # Final attention
+        self.note_attention = ContextAttention(
+            encoder_output_size, num_attention_heads, temperature=0.5
+        )
+
+        # Output head
+        self.out_fc = nn.Sequential(
+            nn.Dropout(dropout),
+            nn.Linear(encoder_output_size, encoder_output_size),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(encoder_output_size, self.num_dimensions),
+        )
+
+        self.training_step_outputs = []
+        self.validation_step_outputs = []
+
+    def _init_lstm(self, lstm: nn.LSTM):
+        for name, param in lstm.named_parameters():
+            if 'weight_ih' in name:
+                nn.init.orthogonal_(param.data)
+            elif 'weight_hh' in name:
+                nn.init.orthogonal_(param.data)
+            elif 'bias' in name:
+                n = param.size(0)
+                param.data.fill_(0)
+                param.data[n // 4 : n // 2].fill_(1.0)
+
+    def _run_voice_processing(
+        self,
+        x_embedded: torch.Tensor,
+        voice_numbers: torch.Tensor,
+        actual_lengths: torch.Tensor,
+    ) -> torch.Tensor:
+        """
+        Process notes through voice LSTM, grouped by voice.
+        Matches HanEncoder._run_voice_processing exactly.
+        """
+        batch_size, num_notes, hidden_dim = x_embedded.shape
+        output = torch.zeros(
+            batch_size, num_notes, self.voice_size * 2,
+            device=x_embedded.device, dtype=x_embedded.dtype,
+        )
+
+        max_voice = voice_numbers.max().item()
+        if max_voice == 0:
+            return output
+
+        for voice_idx in range(1, int(max_voice) + 1):
+            voice_x_bool = voice_numbers == voice_idx
+            num_voice_notes = torch.sum(voice_x_bool)
+            num_batch_voice_notes = torch.sum(voice_x_bool, dim=1)
+
+            if num_voice_notes > 0:
+                voice_notes = [
+                    x_embedded[i, voice_x_bool[i]]
+                    if torch.sum(voice_x_bool[i]) > 0
+                    else torch.zeros(1, hidden_dim, device=x_embedded.device, dtype=x_embedded.dtype)
+                    for i in range(batch_size)
+                ]
+                voice_x = pad_sequence(voice_notes, batch_first=True)
+                pack_voice_x = pack_padded_sequence(
+                    voice_x, [len(v) for v in voice_notes],
+                    batch_first=True, enforce_sorted=False,
+                )
+                ith_voice_out, _ = self.voice_lstm(pack_voice_x)
+                ith_voice_out, _ = pad_packed_sequence(ith_voice_out, batch_first=True)
+
+                span_mat = torch.zeros(
+                    batch_size, num_notes, voice_x.shape[1], device=x_embedded.device
+                )
+                voice_where = torch.nonzero(voice_x_bool)
+                span_mat[
+                    voice_where[:, 0],
+                    voice_where[:, 1],
+                    torch.cat([
+                        torch.arange(num_batch_voice_notes[i].item(), device=x_embedded.device)
+                        for i in range(batch_size)
+                    ]),
+                ] = 1
+                output += torch.bmm(span_mat, ith_voice_out)
+
+        return output
+
+    def forward(
+        self,
+        input_features: torch.Tensor,
+        note_locations: Optional[Dict[str, torch.Tensor]] = None,
+        attention_mask: Optional[torch.Tensor] = None,
+        lengths: Optional[torch.Tensor] = None,
+        diagnose: bool = False,
+    ) -> Dict[str, torch.Tensor]:
+        # Handle PackedSequence
+        if isinstance(input_features, PackedSequence):
+            input_features, seq_lengths = pad_packed_sequence(input_features, batch_first=True)
+            if attention_mask is None:
+                batch_size = input_features.shape[0]
+                max_len = input_features.shape[1]
+                attention_mask = torch.zeros(
+                    batch_size, max_len, dtype=torch.bool, device=input_features.device
+                )
+                for i, length in enumerate(seq_lengths):
+                    attention_mask[i, :length] = True
+
+        batch_size, seq_len, _ = input_features.shape
+        beat_numbers = note_locations["beat"] if note_locations else None
+        voice_numbers = note_locations["voice"] if note_locations else None
+
+        if attention_mask is not None:
+            actual_lengths = attention_mask.sum(dim=1).cpu().clamp(min=1)
+        elif beat_numbers is not None:
+            actual_lengths = compute_actual_lengths(beat_numbers)
+        else:
+            actual_lengths = torch.full((batch_size,), seq_len, dtype=torch.long)
+
+        # Embed input (256-dim)
+        x_embedded = self.note_embedder(input_features)
+
+        # Note LSTM (processes 256-dim input)
+        x_packed = pack_padded_sequence(
+            x_embedded, actual_lengths, batch_first=True, enforce_sorted=False
+        )
+        note_out, _ = self.note_lstm(x_packed)
+        note_out, _ = pad_packed_sequence(note_out, batch_first=True, total_length=seq_len)
+
+        # Voice LSTM (processes SAME 256-dim input in PARALLEL)
+        if voice_numbers is not None:
+            voice_out = self._run_voice_processing(x_embedded, voice_numbers, actual_lengths)
+        else:
+            voice_out = torch.zeros_like(note_out)
+
+        if diagnose:
+            print(f"\n  [NoteVoice DIAGNOSE]")
+            print(f"    note_out: mean={note_out.mean():.4f}, std={note_out.std():.4f}")
+            print(f"    voice_out: mean={voice_out.mean():.4f}, std={voice_out.std():.4f}")
+
+        # Concatenate note + voice (1024-dim)
+        hidden_out = torch.cat([note_out, voice_out], dim=-1)
+
+        if diagnose:
+            print(f"    hidden_out: mean={hidden_out.mean():.4f}, std={hidden_out.std():.4f}")
+
+        # Contract (1024 -> 512)
+        contracted = self.note_contractor(hidden_out)
+
+        if diagnose:
+            print(f"    contracted: mean={contracted.mean():.4f}, std={contracted.std():.4f}")
+
+        # Final attention
+        aggregated = self.note_attention(contracted, diagnose=diagnose)
+
+        # Predict
+        logits = self.out_fc(aggregated)
+        predictions = torch.sigmoid(logits)
+
+        if diagnose:
+            print(f"    predictions: mean={predictions.mean():.4f}, std={predictions.std():.4f}")
+
+        return {
+            "predictions": predictions,
+            "logits": logits,
+            "note_out": note_out,
+            "voice_out": voice_out,
+            "hidden_out": hidden_out,
+        }
+
+    def compute_loss(self, predictions: torch.Tensor, targets: torch.Tensor):
+        mse_loss = nn.functional.mse_loss(predictions, targets, reduction="mean")
+        per_dim_losses = {}
+        for i, dim in enumerate(self.dimensions):
+            per_dim_losses[dim] = nn.functional.mse_loss(
+                predictions[:, i], targets[:, i], reduction="mean"
+            )
+        return mse_loss, per_dim_losses
+
+    def _get_note_locations(self, batch: Dict) -> Dict[str, torch.Tensor]:
+        return {
+            "beat": batch["note_locations_beat"],
+            "measure": batch["note_locations_measure"],
+            "voice": batch["note_locations_voice"],
+        }
+
+    def training_step(self, batch: Dict, batch_idx: int) -> torch.Tensor:
+        note_locations = self._get_note_locations(batch)
+        outputs = self(
+            batch["input_features"], note_locations,
+            batch.get("attention_mask"), batch.get("lengths"),
+        )
+        loss, _ = self.compute_loss(outputs["predictions"], batch["scores"])
+        self.log("train/loss", loss, prog_bar=True)
+        self.training_step_outputs.append({"loss": loss.detach()})
+        return loss
+
+    def validation_step(self, batch: Dict, batch_idx: int) -> Dict:
+        note_locations = self._get_note_locations(batch)
+        outputs = self(
+            batch["input_features"], note_locations,
+            batch.get("attention_mask"), batch.get("lengths"),
+        )
+        loss, _ = self.compute_loss(outputs["predictions"], batch["scores"])
+        result = {
+            "val_loss": loss.detach(),
+            "predictions": outputs["predictions"].detach(),
+            "targets": batch["scores"].detach(),
+        }
+        self.validation_step_outputs.append(result)
+        self.log("val/loss", loss, prog_bar=True)
+        return result
+
+    def on_validation_epoch_end(self):
+        if not self.validation_step_outputs:
+            return
+        all_preds = torch.cat([x["predictions"] for x in self.validation_step_outputs])
+        all_targets = torch.cat([x["targets"] for x in self.validation_step_outputs])
+        mean_r2 = r2_score(all_targets.cpu().numpy(), all_preds.cpu().numpy())
+        self.log("val/mean_r2", mean_r2, prog_bar=True)
+        for i, dim in enumerate(self.dimensions):
+            dim_r2 = r2_score(all_targets[:, i].cpu().numpy(), all_preds[:, i].cpu().numpy())
+            self.log(f"val/r2_{dim}", dim_r2)
+        self.validation_step_outputs.clear()
+
+    def on_train_epoch_end(self):
+        self.training_step_outputs.clear()
+
+    def configure_optimizers(self):
+        optimizer = torch.optim.Adam(
+            self.parameters(), lr=self.hparams.learning_rate,
+            weight_decay=self.hparams.weight_decay,
+        )
+        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=3000, gamma=0.98)
+        return {"optimizer": optimizer, "lr_scheduler": {"scheduler": scheduler, "interval": "step"}}
+
+    def count_parameters(self) -> int:
+        return sum(p.numel() for p in self.parameters() if p.requires_grad)
+
+
+class PercePianoNoteVoiceBeat(pl.LightningModule):
+    """
+    Step 3 of True Incremental Build: Note + Voice + Beat Hierarchy.
+
+    Adds beat-level attention and LSTM on top of the note+voice hidden_out.
+    This is the correct incremental step - beat hierarchy operates on the
+    1024-dim hidden_out (concatenated note+voice), not on a 7-layer LSTM.
+
+    Expected R2: ~0.25-0.30 (gain of ~+0.10 from beat hierarchy)
+
+    Architecture:
+        Input(79) -> Embed(256) ->
+            note_lstm(2 layers) || voice_lstm(2 layers) -> hidden_out(1024)
+        -> Beat Attention -> Beat LSTM(2 layers) -> beat_spanned(512)
+        -> Concat(hidden_out + beat_spanned = 1536) -> Contractor(1536->512)
+        -> Attention -> FC -> 19
+    """
+
+    def __init__(
+        self,
+        input_size: int = 79,
+        hidden_size: int = 256,
+        note_layers: int = 2,
+        voice_layers: int = 2,
+        beat_layers: int = 2,
+        num_attention_heads: int = 8,
+        dropout: float = 0.2,
+        learning_rate: float = 2.5e-5,
+        weight_decay: float = 1e-5,
+        attention_lr_multiplier: float = 10.0,
+        entropy_weight: float = 0.01,
+        entropy_target: float = 0.6,
+        dimensions: Optional[List[str]] = None,
+    ):
+        super().__init__()
+        self.save_hyperparameters()
+
+        self.dimensions = dimensions or PERCEPIANO_DIMENSIONS
+        self.num_dimensions = len(self.dimensions)
+        self.hidden_size = hidden_size
+        self.voice_size = hidden_size
+
+        # MixEmbedder
+        self.note_embedder = nn.Linear(input_size, hidden_size)
+
+        # Note LSTM (2 layers)
+        self.note_lstm = nn.LSTM(
+            hidden_size, hidden_size, note_layers,
+            batch_first=True, bidirectional=True,
+            dropout=dropout if note_layers > 1 else 0,
+        )
+        self._init_lstm(self.note_lstm)
+
+        # Voice LSTM (2 layers)
+        self.voice_lstm = nn.LSTM(
+            hidden_size, hidden_size, voice_layers,
+            batch_first=True, bidirectional=True,
+            dropout=dropout if voice_layers > 1 else 0,
+        )
+        self._init_lstm(self.voice_lstm)
+
+        encoder_output_size = hidden_size * 2  # 512
+        hidden_out_size = encoder_output_size * 2  # 1024 (note + voice)
+
+        # Beat-level hierarchy (operates on 1024-dim hidden_out)
+        self.beat_attention = ContextAttention(
+            hidden_out_size, num_attention_heads, temperature=0.5, use_hierarchy_init=True
+        )
+        self.beat_lstm = nn.LSTM(
+            hidden_out_size, hidden_size, beat_layers,
+            batch_first=True, bidirectional=True,
+            dropout=dropout if beat_layers > 1 else 0,
+        )
+        self._init_lstm(self.beat_lstm)
+
+        # total_note_cat = hidden_out(1024) + beat_spanned(512) = 1536
+        total_cat_size = hidden_out_size + encoder_output_size
+
+        # Contractor: 1536 -> 512
+        self.note_contractor = nn.Linear(total_cat_size, encoder_output_size)
+
+        # Final attention
+        self.note_attention = ContextAttention(
+            encoder_output_size, num_attention_heads, temperature=0.5
+        )
+
+        # Output head
+        self.out_fc = nn.Sequential(
+            nn.Dropout(dropout),
+            nn.Linear(encoder_output_size, encoder_output_size),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(encoder_output_size, self.num_dimensions),
+        )
+
+        self.training_step_outputs = []
+        self.validation_step_outputs = []
+        self._last_beat_attention_entropy = None
+
+    def _init_lstm(self, lstm: nn.LSTM):
+        for name, param in lstm.named_parameters():
+            if 'weight_ih' in name:
+                nn.init.orthogonal_(param.data)
+            elif 'weight_hh' in name:
+                nn.init.orthogonal_(param.data)
+            elif 'bias' in name:
+                n = param.size(0)
+                param.data.fill_(0)
+                param.data[n // 4 : n // 2].fill_(1.0)
+
+    def _run_voice_processing(
+        self,
+        x_embedded: torch.Tensor,
+        voice_numbers: torch.Tensor,
+        actual_lengths: torch.Tensor,
+    ) -> torch.Tensor:
+        """Process notes through voice LSTM, grouped by voice."""
+        batch_size, num_notes, hidden_dim = x_embedded.shape
+        output = torch.zeros(
+            batch_size, num_notes, self.voice_size * 2,
+            device=x_embedded.device, dtype=x_embedded.dtype,
+        )
+
+        max_voice = voice_numbers.max().item()
+        if max_voice == 0:
+            return output
+
+        for voice_idx in range(1, int(max_voice) + 1):
+            voice_x_bool = voice_numbers == voice_idx
+            num_voice_notes = torch.sum(voice_x_bool)
+            num_batch_voice_notes = torch.sum(voice_x_bool, dim=1)
+
+            if num_voice_notes > 0:
+                voice_notes = [
+                    x_embedded[i, voice_x_bool[i]]
+                    if torch.sum(voice_x_bool[i]) > 0
+                    else torch.zeros(1, hidden_dim, device=x_embedded.device, dtype=x_embedded.dtype)
+                    for i in range(batch_size)
+                ]
+                voice_x = pad_sequence(voice_notes, batch_first=True)
+                pack_voice_x = pack_padded_sequence(
+                    voice_x, [len(v) for v in voice_notes],
+                    batch_first=True, enforce_sorted=False,
+                )
+                ith_voice_out, _ = self.voice_lstm(pack_voice_x)
+                ith_voice_out, _ = pad_packed_sequence(ith_voice_out, batch_first=True)
+
+                span_mat = torch.zeros(
+                    batch_size, num_notes, voice_x.shape[1], device=x_embedded.device
+                )
+                voice_where = torch.nonzero(voice_x_bool)
+                span_mat[
+                    voice_where[:, 0],
+                    voice_where[:, 1],
+                    torch.cat([
+                        torch.arange(num_batch_voice_notes[i].item(), device=x_embedded.device)
+                        for i in range(batch_size)
+                    ]),
+                ] = 1
+                output += torch.bmm(span_mat, ith_voice_out)
+
+        return output
+
+    def forward(
+        self,
+        input_features: torch.Tensor,
+        note_locations: Optional[Dict[str, torch.Tensor]] = None,
+        attention_mask: Optional[torch.Tensor] = None,
+        lengths: Optional[torch.Tensor] = None,
+        diagnose: bool = False,
+    ) -> Dict[str, torch.Tensor]:
+        # Handle PackedSequence
+        if isinstance(input_features, PackedSequence):
+            input_features, seq_lengths = pad_packed_sequence(input_features, batch_first=True)
+            if attention_mask is None:
+                batch_size = input_features.shape[0]
+                max_len = input_features.shape[1]
+                attention_mask = torch.zeros(
+                    batch_size, max_len, dtype=torch.bool, device=input_features.device
+                )
+                for i, length in enumerate(seq_lengths):
+                    attention_mask[i, :length] = True
+
+        batch_size, seq_len, _ = input_features.shape
+        beat_numbers = note_locations["beat"] if note_locations else None
+        voice_numbers = note_locations["voice"] if note_locations else None
+
+        if attention_mask is not None:
+            actual_lengths = attention_mask.sum(dim=1).cpu().clamp(min=1)
+        elif beat_numbers is not None:
+            actual_lengths = compute_actual_lengths(beat_numbers)
+        else:
+            actual_lengths = torch.full((batch_size,), seq_len, dtype=torch.long)
+
+        # Embed input
+        x_embedded = self.note_embedder(input_features)
+
+        # Note LSTM
+        x_packed = pack_padded_sequence(
+            x_embedded, actual_lengths, batch_first=True, enforce_sorted=False
+        )
+        note_out, _ = self.note_lstm(x_packed)
+        note_out, _ = pad_packed_sequence(note_out, batch_first=True, total_length=seq_len)
+
+        # Voice LSTM (parallel)
+        if voice_numbers is not None:
+            voice_out = self._run_voice_processing(x_embedded, voice_numbers, actual_lengths)
+        else:
+            voice_out = torch.zeros_like(note_out)
+
+        # hidden_out = concat(note, voice) = 1024-dim
+        hidden_out = torch.cat([note_out, voice_out], dim=-1)
+
+        if diagnose:
+            print(f"\n  [NoteVoiceBeat DIAGNOSE]")
+            print(f"    hidden_out: mean={hidden_out.mean():.4f}, std={hidden_out.std():.4f}")
+
+        # Beat hierarchy
+        beat_entropy_val = None
+        if beat_numbers is not None:
+            beat_nodes = make_higher_node(
+                hidden_out, self.beat_attention,
+                beat_numbers, beat_numbers,
+                lower_is_note=True, actual_lengths=actual_lengths,
+            )
+            beat_out = run_hierarchy_lstm_with_pack(beat_nodes, self.beat_lstm)
+            beat_spanned = span_beat_to_note_num(beat_out, beat_numbers, actual_lengths)
+
+            if beat_spanned.shape[1] < seq_len:
+                padding = torch.zeros(
+                    batch_size, seq_len - beat_spanned.shape[1], beat_spanned.shape[2],
+                    device=beat_spanned.device, dtype=beat_spanned.dtype
+                )
+                beat_spanned = torch.cat([beat_spanned, padding], dim=1)
+
+            # Compute beat attention entropy
+            beat_attn = self.beat_attention.get_attention(hidden_out)
+            attn_probs = torch.softmax(beat_attn / self.beat_attention.temperature, dim=1)
+            entropy = -torch.sum(attn_probs * torch.log(attn_probs + 1e-8), dim=1).mean()
+            max_entropy = torch.log(torch.tensor(float(seq_len), device=hidden_out.device))
+            beat_entropy_val = entropy / max_entropy
+            self._last_beat_attention_entropy = beat_entropy_val.item()
+
+            if diagnose:
+                print(f"    beat_nodes: mean={beat_nodes.mean():.4f}, std={beat_nodes.std():.4f}")
+                print(f"    beat_out: mean={beat_out.mean():.4f}, std={beat_out.std():.4f}")
+                print(f"    beat_spanned: mean={beat_spanned.mean():.4f}, std={beat_spanned.std():.4f}")
+                print(f"    beat_entropy: {self._last_beat_attention_entropy:.4f}")
+
+            # total_note_cat = hidden_out(1024) + beat_spanned(512) = 1536
+            total_note_cat = torch.cat([hidden_out, beat_spanned], dim=-1)
+        else:
+            beat_spanned = torch.zeros(batch_size, seq_len, self.hidden_size * 2, device=hidden_out.device)
+            total_note_cat = torch.cat([hidden_out, beat_spanned], dim=-1)
+
+        if diagnose:
+            print(f"    total_note_cat: mean={total_note_cat.mean():.4f}, std={total_note_cat.std():.4f}")
+
+        # Contract (1536 -> 512)
+        contracted = self.note_contractor(total_note_cat)
+
+        if diagnose:
+            print(f"    contracted: mean={contracted.mean():.4f}, std={contracted.std():.4f}")
+
+        # Final attention
+        aggregated = self.note_attention(contracted, diagnose=diagnose)
+
+        # Predict
+        logits = self.out_fc(aggregated)
+        predictions = torch.sigmoid(logits)
+
+        if diagnose:
+            print(f"    predictions: mean={predictions.mean():.4f}, std={predictions.std():.4f}")
+
+        return {
+            "predictions": predictions,
+            "logits": logits,
+            "hidden_out": hidden_out,
+            "beat_spanned": beat_spanned,
+            "beat_entropy": beat_entropy_val,
+        }
+
+    def compute_loss(
+        self, predictions: torch.Tensor, targets: torch.Tensor,
+        beat_entropy: Optional[torch.Tensor] = None,
+    ):
+        mse_loss = nn.functional.mse_loss(predictions, targets, reduction="mean")
+        per_dim_losses = {}
+        for i, dim in enumerate(self.dimensions):
+            per_dim_losses[dim] = nn.functional.mse_loss(
+                predictions[:, i], targets[:, i], reduction="mean"
+            )
+
+        # Entropy regularization
+        entropy_penalty = torch.tensor(0.0, device=predictions.device)
+        if beat_entropy is not None and self.hparams.entropy_weight > 0:
+            excess_entropy = torch.clamp(beat_entropy - self.hparams.entropy_target, min=0)
+            entropy_penalty = self.hparams.entropy_weight * excess_entropy
+
+        total_loss = mse_loss + entropy_penalty
+        return total_loss, per_dim_losses, {"mse": mse_loss, "entropy_penalty": entropy_penalty}
+
+    def _get_note_locations(self, batch: Dict) -> Dict[str, torch.Tensor]:
+        return {
+            "beat": batch["note_locations_beat"],
+            "measure": batch["note_locations_measure"],
+            "voice": batch["note_locations_voice"],
+        }
+
+    def training_step(self, batch: Dict, batch_idx: int) -> torch.Tensor:
+        note_locations = self._get_note_locations(batch)
+        outputs = self(
+            batch["input_features"], note_locations,
+            batch.get("attention_mask"), batch.get("lengths"),
+        )
+        loss, _, loss_components = self.compute_loss(
+            outputs["predictions"], batch["scores"], outputs.get("beat_entropy")
+        )
+        self.log("train/loss", loss, prog_bar=True)
+        self.log("train/mse", loss_components["mse"])
+        if self._last_beat_attention_entropy is not None:
+            self.log("train/beat_entropy", self._last_beat_attention_entropy)
+        self.training_step_outputs.append({"loss": loss.detach()})
+        return loss
+
+    def validation_step(self, batch: Dict, batch_idx: int) -> Dict:
+        note_locations = self._get_note_locations(batch)
+        outputs = self(
+            batch["input_features"], note_locations,
+            batch.get("attention_mask"), batch.get("lengths"),
+        )
+        loss, _, _ = self.compute_loss(
+            outputs["predictions"], batch["scores"], outputs.get("beat_entropy")
+        )
+        result = {
+            "val_loss": loss.detach(),
+            "predictions": outputs["predictions"].detach(),
+            "targets": batch["scores"].detach(),
+        }
+        self.validation_step_outputs.append(result)
+        self.log("val/loss", loss, prog_bar=True)
+        if self._last_beat_attention_entropy is not None:
+            self.log("val/beat_entropy", self._last_beat_attention_entropy)
+        return result
+
+    def on_validation_epoch_end(self):
+        if not self.validation_step_outputs:
+            return
+        all_preds = torch.cat([x["predictions"] for x in self.validation_step_outputs])
+        all_targets = torch.cat([x["targets"] for x in self.validation_step_outputs])
+        mean_r2 = r2_score(all_targets.cpu().numpy(), all_preds.cpu().numpy())
+        self.log("val/mean_r2", mean_r2, prog_bar=True)
+        for i, dim in enumerate(self.dimensions):
+            dim_r2 = r2_score(all_targets[:, i].cpu().numpy(), all_preds[:, i].cpu().numpy())
+            self.log(f"val/r2_{dim}", dim_r2)
+        self.validation_step_outputs.clear()
+
+    def on_train_epoch_end(self):
+        self.training_step_outputs.clear()
+
+    def configure_optimizers(self):
+        # Separate learning rates for attention
+        attention_params = []
+        other_params = []
+        for name, param in self.named_parameters():
+            if 'attention' in name.lower():
+                attention_params.append(param)
+            else:
+                other_params.append(param)
+
+        optimizer = torch.optim.Adam([
+            {'params': other_params, 'lr': self.hparams.learning_rate},
+            {'params': attention_params, 'lr': self.hparams.learning_rate * self.hparams.attention_lr_multiplier},
+        ], weight_decay=self.hparams.weight_decay)
+        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=3000, gamma=0.98)
+        return {"optimizer": optimizer, "lr_scheduler": {"scheduler": scheduler, "interval": "step"}}
+
+    def count_parameters(self) -> int:
+        return sum(p.numel() for p in self.parameters() if p.requires_grad)
+
+
 if __name__ == "__main__":
     print("PercePiano Replica Model")
     print("=" * 60)

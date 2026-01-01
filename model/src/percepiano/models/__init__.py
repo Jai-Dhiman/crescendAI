@@ -4,6 +4,13 @@ from .percepiano_replica import (
     PercePianoReplicaModule,
     PercePianoVNetModule,
     PercePianoHAN,
+    PercePianoBiLSTMBaseline,
+    PercePianoBaselinePlusBeat,
+    PercePianoBaselinePlusBeatMeasure,
+    # True incremental models (Round 17)
+    PercePianoNoteOnly,
+    PercePianoNoteVoice,
+    PercePianoNoteVoiceBeat,
     PERCEPIANO_DIMENSIONS,
 )
 from .han_encoder import HanEncoder
@@ -19,6 +26,13 @@ __all__ = [
     "PercePianoReplicaModule",
     "PercePianoVNetModule",
     "PercePianoHAN",
+    "PercePianoBiLSTMBaseline",
+    "PercePianoBaselinePlusBeat",
+    "PercePianoBaselinePlusBeatMeasure",
+    # True incremental models (Round 17)
+    "PercePianoNoteOnly",
+    "PercePianoNoteVoice",
+    "PercePianoNoteVoiceBeat",
     "PERCEPIANO_DIMENSIONS",
     "HanEncoder",
     "make_higher_node",

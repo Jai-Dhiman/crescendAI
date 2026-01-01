@@ -37,6 +37,10 @@ from ..models.percepiano_replica import (
     PercePianoBiLSTMBaseline,
     PercePianoBaselinePlusBeat,
     PercePianoBaselinePlusBeatMeasure,
+    # True incremental models (Round 17)
+    PercePianoNoteOnly,
+    PercePianoNoteVoice,
+    PercePianoNoteVoiceBeat,
 )
 from .diagnostics import DiagnosticCallback, HierarchyAblationCallback
 
@@ -45,6 +49,10 @@ MODEL_TYPE_HAN = "han"
 MODEL_TYPE_BASELINE = "baseline"
 MODEL_TYPE_BASELINE_BEAT = "baseline_beat"
 MODEL_TYPE_BASELINE_BEAT_MEASURE = "baseline_beat_measure"
+# True incremental models (Round 17)
+MODEL_TYPE_NOTE_ONLY = "note_only"
+MODEL_TYPE_NOTE_VOICE = "note_voice"
+MODEL_TYPE_NOTE_VOICE_BEAT = "note_voice_beat"
 
 
 class EpochLogger(Callback):
@@ -588,6 +596,46 @@ class KFoldTrainer:
                 learning_rate=learning_rate,
                 weight_decay=weight_decay,
             )
+        # True incremental models (Round 17 - correct architecture)
+        elif self.model_type == MODEL_TYPE_NOTE_ONLY:
+            # Note Only: 2-layer note LSTM (foundation for true incremental)
+            return PercePianoNoteOnly(
+                input_size=input_size,
+                hidden_size=hidden_size,
+                note_layers=self.config.get("note_layers", 2),
+                num_attention_heads=num_attention_heads,
+                dropout=dropout,
+                learning_rate=learning_rate,
+                weight_decay=weight_decay,
+            )
+        elif self.model_type == MODEL_TYPE_NOTE_VOICE:
+            # Note + Voice: 2-layer note + 2-layer voice (parallel)
+            return PercePianoNoteVoice(
+                input_size=input_size,
+                hidden_size=hidden_size,
+                note_layers=self.config.get("note_layers", 2),
+                voice_layers=self.config.get("voice_layers", 2),
+                num_attention_heads=num_attention_heads,
+                dropout=dropout,
+                learning_rate=learning_rate,
+                weight_decay=weight_decay,
+            )
+        elif self.model_type == MODEL_TYPE_NOTE_VOICE_BEAT:
+            # Note + Voice + Beat: + beat hierarchy (correct incremental)
+            return PercePianoNoteVoiceBeat(
+                input_size=input_size,
+                hidden_size=hidden_size,
+                note_layers=self.config.get("note_layers", 2),
+                voice_layers=self.config.get("voice_layers", 2),
+                beat_layers=beat_layers,
+                num_attention_heads=num_attention_heads,
+                dropout=dropout,
+                learning_rate=learning_rate,
+                weight_decay=weight_decay,
+                attention_lr_multiplier=attention_lr_multiplier,
+                entropy_weight=entropy_weight,
+                entropy_target=entropy_target,
+            )
         else:
             # HAN: Full hierarchical model (matches VirtuosoNetMultiLevel)
             return PercePianoVNetModule(
@@ -645,29 +693,20 @@ class KFoldTrainer:
             activation_diag,
         ]
 
-        # Add hierarchy-specific callbacks for models with hierarchy
-        # (HAN and Phase 2 incremental models)
-        has_hierarchy = self.model_type in [
-            MODEL_TYPE_HAN,
-            MODEL_TYPE_BASELINE_BEAT,
-            MODEL_TYPE_BASELINE_BEAT_MEASURE,
-        ]
+        # Add DiagnosticCallback for all models to get end-of-training diagnostics
+        # This runs on_fit_end to provide comprehensive final analysis
+        diag_callback = DiagnosticCallback(
+            log_every_n_steps=200,
+            detailed_analysis_every_n_epochs=5,
+            save_dir=self.checkpoint_dir / f"fold_{fold_id}" / "diagnostics",
+        )
+        callbacks.append(diag_callback)
 
-        if has_hierarchy:
-            # DIAGNOSTIC: Comprehensive hierarchy diagnostics (every 5 epochs)
-            # Captures activation variances, attention entropy, contribution analysis
-            hierarchy_diag = DiagnosticCallback(
-                log_every_n_steps=200,
-                detailed_analysis_every_n_epochs=5,
-                save_dir=self.checkpoint_dir / f"fold_{fold_id}" / "diagnostics",
-            )
-            callbacks.append(hierarchy_diag)
-
-            # DIAGNOSTIC: Ablation test (only for full HAN, not incremental models)
-            # For incremental models, we compare directly to baseline checkpoint
-            if self.model_type == MODEL_TYPE_HAN:
-                ablation_callback = HierarchyAblationCallback(run_every_n_epochs=10)
-                callbacks.append(ablation_callback)
+        # Add hierarchy-specific ablation callback for full HAN only
+        # For incremental models, we compare R2 directly between levels
+        if self.model_type == MODEL_TYPE_HAN:
+            ablation_callback = HierarchyAblationCallback(run_every_n_epochs=10)
+            callbacks.append(ablation_callback)
 
         return callbacks
 
@@ -808,6 +847,43 @@ class KFoldTrainer:
                 num_layers=7,
                 beat_layers=self.config.get("beat_layers", 2),
                 measure_layers=self.config.get("measure_layers", 1),
+                num_attention_heads=self.config.get("num_attention_heads", 8),
+                dropout=self.config.get("dropout", 0.2),
+                learning_rate=self.config.get("learning_rate", 2.5e-5),
+                weight_decay=self.config.get("weight_decay", 1e-5),
+            )
+        # True incremental models (Round 17)
+        elif self.model_type == MODEL_TYPE_NOTE_ONLY:
+            best_model = PercePianoNoteOnly.load_from_checkpoint(
+                str(best_checkpoint),
+                input_size=self.config.get("input_size", 79),
+                hidden_size=self.config.get("hidden_size", 256),
+                note_layers=self.config.get("note_layers", 2),
+                num_attention_heads=self.config.get("num_attention_heads", 8),
+                dropout=self.config.get("dropout", 0.2),
+                learning_rate=self.config.get("learning_rate", 2.5e-5),
+                weight_decay=self.config.get("weight_decay", 1e-5),
+            )
+        elif self.model_type == MODEL_TYPE_NOTE_VOICE:
+            best_model = PercePianoNoteVoice.load_from_checkpoint(
+                str(best_checkpoint),
+                input_size=self.config.get("input_size", 79),
+                hidden_size=self.config.get("hidden_size", 256),
+                note_layers=self.config.get("note_layers", 2),
+                voice_layers=self.config.get("voice_layers", 2),
+                num_attention_heads=self.config.get("num_attention_heads", 8),
+                dropout=self.config.get("dropout", 0.2),
+                learning_rate=self.config.get("learning_rate", 2.5e-5),
+                weight_decay=self.config.get("weight_decay", 1e-5),
+            )
+        elif self.model_type == MODEL_TYPE_NOTE_VOICE_BEAT:
+            best_model = PercePianoNoteVoiceBeat.load_from_checkpoint(
+                str(best_checkpoint),
+                input_size=self.config.get("input_size", 79),
+                hidden_size=self.config.get("hidden_size", 256),
+                note_layers=self.config.get("note_layers", 2),
+                voice_layers=self.config.get("voice_layers", 2),
+                beat_layers=self.config.get("beat_layers", 2),
                 num_attention_heads=self.config.get("num_attention_heads", 8),
                 dropout=self.config.get("dropout", 0.2),
                 learning_rate=self.config.get("learning_rate", 2.5e-5),
