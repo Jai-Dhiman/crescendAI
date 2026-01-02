@@ -468,6 +468,9 @@ class KFoldTrainer:
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
         self.log_dir.mkdir(parents=True, exist_ok=True)
 
+        # Diagnostics enabled by default, can disable for cleaner output
+        self.enable_diagnostics = config.get("enable_diagnostics", True)
+
         # Storage for results
         self.fold_metrics: List[FoldMetrics] = []
         self.fold_checkpoints: List[Path] = []
@@ -677,36 +680,33 @@ class KFoldTrainer:
         slice_regen = SliceRegenerationCallback()
 
         # DIAGNOSTIC: Gradient monitoring (logs every 100 steps, verbose first 5)
-        grad_monitor = GradientMonitorCallback(log_every_n_steps=100, verbose_first_n_steps=5)
-
-        # DIAGNOSTIC: Activation check on first batch
-        activation_diag = ActivationDiagnosticCallback()
-
-        # Base callbacks for both model types
+        # Base callbacks - always included
         callbacks = [
             checkpoint_callback,
             early_stopping,
             lr_monitor,
             epoch_logger,
             slice_regen,
-            grad_monitor,
-            activation_diag,
         ]
 
-        # Add DiagnosticCallback for all models to get end-of-training diagnostics
-        # This runs on_fit_end to provide comprehensive final analysis
-        diag_callback = DiagnosticCallback(
-            log_every_n_steps=200,
-            detailed_analysis_every_n_epochs=5,
-            save_dir=self.checkpoint_dir / f"fold_{fold_id}" / "diagnostics",
-        )
-        callbacks.append(diag_callback)
+        # Diagnostic callbacks - only if enabled
+        if self.enable_diagnostics:
+            grad_monitor = GradientMonitorCallback(log_every_n_steps=100, verbose_first_n_steps=5)
+            activation_diag = ActivationDiagnosticCallback()
+            callbacks.extend([grad_monitor, activation_diag])
 
-        # Add hierarchy-specific ablation callback for full HAN only
-        # For incremental models, we compare R2 directly between levels
-        if self.model_type == MODEL_TYPE_HAN:
-            ablation_callback = HierarchyAblationCallback(run_every_n_epochs=10)
-            callbacks.append(ablation_callback)
+            # DiagnosticCallback for end-of-training diagnostics
+            diag_callback = DiagnosticCallback(
+                log_every_n_steps=200,
+                detailed_analysis_every_n_epochs=5,
+                save_dir=self.checkpoint_dir / f"fold_{fold_id}" / "diagnostics",
+            )
+            callbacks.append(diag_callback)
+
+            # Hierarchy-specific ablation callback for full HAN only
+            if self.model_type == MODEL_TYPE_HAN:
+                ablation_callback = HierarchyAblationCallback(run_every_n_epochs=10)
+                callbacks.append(ablation_callback)
 
         return callbacks
 
