@@ -14,7 +14,7 @@ import pretty_midi
 import torch
 from torch.utils.data import Dataset
 
-from src.crescendai.data.midi_processing import OctupleMIDITokenizer
+from crescendai.data.midi_processing import OctupleMIDITokenizer
 
 # All 19 PercePiano dimensions (matching reference implementation)
 DIMENSIONS = [

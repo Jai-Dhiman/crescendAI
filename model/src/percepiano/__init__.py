@@ -2,5 +2,6 @@
 
 from . import models
 from . import data
+from . import audio
 
-__all__ = ["models", "data"]
+__all__ = ["models", "data", "audio"]

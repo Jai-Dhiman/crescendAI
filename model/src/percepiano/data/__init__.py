@@ -27,6 +27,14 @@ from .kfold_split import (
     get_test_samples,
     print_fold_statistics,
 )
+from .audio_dataset import (
+    AudioPercePianoDataset,
+    AudioPercePianoDataModule,
+    audio_collate_fn,
+    create_audio_fold_assignments,
+    PERCEPIANO_DIMENSIONS,
+    DIMENSION_CATEGORIES,
+)
 
 __all__ = [
     "PercePianoDataset",
@@ -48,4 +56,11 @@ __all__ = [
     "get_fold_samples",
     "get_test_samples",
     "print_fold_statistics",
+    # Audio dataset
+    "AudioPercePianoDataset",
+    "AudioPercePianoDataModule",
+    "audio_collate_fn",
+    "create_audio_fold_assignments",
+    "PERCEPIANO_DIMENSIONS",
+    "DIMENSION_CATEGORIES",
 ]

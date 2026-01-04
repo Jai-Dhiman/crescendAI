@@ -21,6 +21,10 @@ from .hierarchy_utils import (
     compute_actual_lengths,
 )
 from .context_attention import ContextAttention
+from .audio_baseline import (
+    AudioPercePianoModel,
+    AudioPercePianoWithLSTM,
+)
 
 __all__ = [
     "PercePianoReplicaModule",
@@ -40,4 +44,7 @@ __all__ = [
     "find_boundaries_batch",
     "compute_actual_lengths",
     "ContextAttention",
+    # Audio baseline models
+    "AudioPercePianoModel",
+    "AudioPercePianoWithLSTM",
 ]
