@@ -87,7 +87,9 @@ def analyze_data(data_dir: Path) -> dict:
             if pkl_files:
                 with open(pkl_files[0], "rb") as f:
                     sample = pickle.load(f)
-                fold_info[split]["input_dim"] = sample["input"].shape[1] if len(sample["input"]) > 0 else 0
+                fold_info[split]["input_dim"] = (
+                    sample["input"].shape[1] if len(sample["input"]) > 0 else 0
+                )
                 fold_info[split]["sample_file"] = pkl_files[0].name
 
         # Load stats
@@ -96,7 +98,9 @@ def analyze_data(data_dir: Path) -> dict:
             with open(stat_path, "rb") as f:
                 stats = pickle.load(f)
             fold_info["input_keys"] = len(stats.get("input_keys", []))
-            fold_info["key_to_dim_input"] = len(stats.get("key_to_dim", {}).get("input", {}))
+            fold_info["key_to_dim_input"] = len(
+                stats.get("key_to_dim", {}).get("input", {})
+            )
 
         results["folds"][fold] = fold_info
 
@@ -145,7 +149,9 @@ def main():
     parser.add_argument(
         "--label-path",
         type=Path,
-        default=Path("/tmp/percepiano_labels/label_2round_mean_reg_19_with0_rm_highstd0.json"),
+        default=Path(
+            "/tmp/percepiano_labels/label_2round_mean_reg_19_with0_rm_highstd0.json"
+        ),
         help="Path to label JSON file",
     )
     parser.add_argument(
@@ -205,7 +211,9 @@ def main():
         if early_stopped:
             print("\n*** FINDING: Some folds stopped before epoch 80!")
             print("*** This suggests early stopping may be cutting training too early.")
-            print("*** Original PercePiano trains for 100 epochs with NO early stopping.")
+            print(
+                "*** Original PercePiano trains for 100 epochs with NO early stopping."
+            )
     except Exception as e:
         print(f"Error analyzing checkpoints: {e}")
 
@@ -224,7 +232,9 @@ def main():
                 train_info = fold_info.get("train", {})
                 valid_info = fold_info.get("valid", {})
                 print(f"  Fold {fold}:")
-                print(f"    Train: {train_info.get('num_samples', '?')} samples, input_dim={train_info.get('input_dim', '?')}")
+                print(
+                    f"    Train: {train_info.get('num_samples', '?')} samples, input_dim={train_info.get('input_dim', '?')}"
+                )
                 print(f"    Valid: {valid_info.get('num_samples', '?')} samples")
     else:
         print(f"Data directory not found: {args.data_dir}")
@@ -237,7 +247,9 @@ def main():
         if "error" not in label_results:
             print(f"  Num samples: {label_results['num_samples']}")
             print(f"  Num dimensions: {label_results['num_dimensions']}")
-            print(f"  Value range: [{label_results['min_value']:.4f}, {label_results['max_value']:.4f}]")
+            print(
+                f"  Value range: [{label_results['min_value']:.4f}, {label_results['max_value']:.4f}]"
+            )
             print(f"  Mean value: {label_results['mean_value']:.4f}")
 
             if label_results["min_value"] >= 0 and label_results["max_value"] <= 1:

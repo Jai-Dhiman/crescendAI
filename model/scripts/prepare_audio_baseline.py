@@ -18,12 +18,13 @@ After running, sync to Google Drive:
     rclone copy data/cache/audio_fold_assignments.json gdrive:crescendai_data/audio_baseline/ --progress
 """
 
+import importlib.util
 import json
 import subprocess
 import sys
 import time
 from pathlib import Path
-import importlib.util
+
 
 # Direct file imports to bypass package __init__.py chain
 def import_from_file(module_name: str, file_path: Path):
@@ -34,13 +35,13 @@ def import_from_file(module_name: str, file_path: Path):
     spec.loader.exec_module(module)
     return module
 
+
 PROJECT_ROOT = Path(__file__).parent.parent
 SRC_ROOT = PROJECT_ROOT / "src"
 
 # Import render_midi module directly
 render_midi = import_from_file(
-    "render_midi",
-    SRC_ROOT / "percepiano" / "audio" / "render_midi.py"
+    "render_midi", SRC_ROOT / "percepiano" / "audio" / "render_midi.py"
 )
 batch_render_midi = render_midi.batch_render_midi
 check_fluidsynth_installed = render_midi.check_fluidsynth_installed
@@ -126,10 +127,14 @@ def create_audio_fold_assignments(
             test_keys.extend(composition_groups[comp])
             test_compositions.add(comp)
 
-    print(f"Test set: {len(test_keys)} samples from {len(test_compositions)} compositions")
+    print(
+        f"Test set: {len(test_keys)} samples from {len(test_compositions)} compositions"
+    )
 
     # Get remaining compositions (not in test)
-    cv_compositions = [c for c in composition_groups.keys() if c not in test_compositions]
+    cv_compositions = [
+        c for c in composition_groups.keys() if c not in test_compositions
+    ]
 
     # Assign to folds via round-robin (matching PercePiano line 149)
     fold_map: dict[str, int] = {}
@@ -312,7 +317,9 @@ def main():
     print("=" * 70)
 
     wav_count = len(list(AUDIO_DIR.glob("*.wav")))
-    soundfont_size = SOUNDFONT_PATH.stat().st_size / 1e6 if SOUNDFONT_PATH.exists() else 0
+    soundfont_size = (
+        SOUNDFONT_PATH.stat().st_size / 1e6 if SOUNDFONT_PATH.exists() else 0
+    )
 
     print(f"  Soundfont: {soundfont_size:.1f} MB")
     print(f"  WAV files: {wav_count}")

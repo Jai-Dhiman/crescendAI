@@ -37,22 +37,47 @@ SYMBOLIC_PREDS_FILE = DATA_ROOT / "symbolic_predictions.json"
 RESULTS_FILE = DATA_ROOT / "model_comparison_results.json"
 
 DIMENSIONS = [
-    "timing", "articulation_length", "articulation_touch",
-    "pedal_amount", "pedal_clarity", "timbre_variety", "timbre_depth",
-    "timbre_brightness", "timbre_loudness", "dynamic_range",
-    "tempo", "space", "balance", "drama",
-    "mood_valence", "mood_energy", "mood_imagination",
-    "sophistication", "interpretation",
+    "timing",
+    "articulation_length",
+    "articulation_touch",
+    "pedal_amount",
+    "pedal_clarity",
+    "timbre_variety",
+    "timbre_depth",
+    "timbre_brightness",
+    "timbre_loudness",
+    "dynamic_range",
+    "tempo",
+    "space",
+    "balance",
+    "drama",
+    "mood_valence",
+    "mood_energy",
+    "mood_imagination",
+    "sophistication",
+    "interpretation",
 ]
 
 # Symbolic results from training (hardcoded as reference)
 SYMBOLIC_DIM_R2 = {
-    "articulation_length": 0.5487, "tempo": 0.5329, "mood_imagination": 0.4549,
-    "articulation_touch": 0.4078, "mood_valence": 0.3988, "timbre_depth": 0.3961,
-    "sophistication": 0.3938, "timbre_loudness": 0.3897, "pedal_amount": 0.3716,
-    "space": 0.3525, "mood_energy": 0.3450, "interpretation": 0.3239,
-    "timbre_variety": 0.3066, "balance": 0.2984, "drama": 0.2941,
-    "timbre_brightness": 0.2454, "pedal_clarity": 0.2407, "dynamic_range": 0.2257,
+    "articulation_length": 0.5487,
+    "tempo": 0.5329,
+    "mood_imagination": 0.4549,
+    "articulation_touch": 0.4078,
+    "mood_valence": 0.3988,
+    "timbre_depth": 0.3961,
+    "sophistication": 0.3938,
+    "timbre_loudness": 0.3897,
+    "pedal_amount": 0.3716,
+    "space": 0.3525,
+    "mood_energy": 0.3450,
+    "interpretation": 0.3239,
+    "timbre_variety": 0.3066,
+    "balance": 0.2984,
+    "drama": 0.2941,
+    "timbre_brightness": 0.2454,
+    "pedal_clarity": 0.2407,
+    "dynamic_range": 0.2257,
     "timing": 0.1254,
 }
 SYMBOLIC_OVERALL_R2 = 0.3501
@@ -64,15 +89,28 @@ def download_data():
     print("DOWNLOADING DATA FROM GDRIVE")
     print("=" * 60)
 
-    for d in [CHECKPOINT_ROOT / "audio", CHECKPOINT_ROOT / "symbolic",
-              MERT_CACHE, LABEL_FILE.parent]:
+    for d in [
+        CHECKPOINT_ROOT / "audio",
+        CHECKPOINT_ROOT / "symbolic",
+        MERT_CACHE,
+        LABEL_FILE.parent,
+    ]:
         d.mkdir(parents=True, exist_ok=True)
 
     downloads = [
-        ("gdrive:crescendai_data/checkpoints/audio_baseline", CHECKPOINT_ROOT / "audio"),
+        (
+            "gdrive:crescendai_data/checkpoints/audio_baseline",
+            CHECKPOINT_ROOT / "audio",
+        ),
         ("gdrive:crescendai_data/percepiano_labels", LABEL_FILE.parent),
-        ("gdrive:crescendai_data/audio_baseline/audio_fold_assignments.json", FOLD_ASSIGNMENTS_FILE),
-        ("gdrive:crescendai_data/predictions/symbolic_predictions.json", SYMBOLIC_PREDS_FILE),
+        (
+            "gdrive:crescendai_data/audio_baseline/audio_fold_assignments.json",
+            FOLD_ASSIGNMENTS_FILE,
+        ),
+        (
+            "gdrive:crescendai_data/predictions/symbolic_predictions.json",
+            SYMBOLIC_PREDS_FILE,
+        ),
     ]
 
     for src, dst in downloads:
@@ -82,7 +120,9 @@ def download_data():
         else:
             subprocess.run(["rclone", "copy", src, str(dst)], capture_output=True)
 
-    print(f"\nAudio checkpoints: {len(list((CHECKPOINT_ROOT / 'audio').glob('*.ckpt')))}")
+    print(
+        f"\nAudio checkpoints: {len(list((CHECKPOINT_ROOT / 'audio').glob('*.ckpt')))}"
+    )
     print(f"Labels: {LABEL_FILE.exists()}")
     print(f"Fold assignments: {FOLD_ASSIGNMENTS_FILE.exists()}")
     print(f"Symbolic predictions: {SYMBOLIC_PREDS_FILE.exists()}")
@@ -111,9 +151,10 @@ def load_audio_models(device):
     """Load audio model checkpoints."""
     # Direct import to avoid pulling in unrelated modules
     import importlib.util
+
     spec = importlib.util.spec_from_file_location(
         "audio_baseline",
-        PROJECT_ROOT / "src" / "percepiano" / "models" / "audio_baseline.py"
+        PROJECT_ROOT / "src" / "percepiano" / "models" / "audio_baseline.py",
     )
     audio_module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(audio_module)
@@ -136,9 +177,18 @@ def load_audio_models(device):
             # Get model hyperparameters (filter out training params)
             hparams = checkpoint.get("hyper_parameters", {})
             model_params = {
-                k: v for k, v in hparams.items()
-                if k in ["input_dim", "hidden_dim", "num_labels", "dropout",
-                         "learning_rate", "weight_decay", "pooling"]
+                k: v
+                for k, v in hparams.items()
+                if k
+                in [
+                    "input_dim",
+                    "hidden_dim",
+                    "num_labels",
+                    "dropout",
+                    "learning_rate",
+                    "weight_decay",
+                    "pooling",
+                ]
             }
             model = AudioPercePianoModel(**model_params)
             model.load_state_dict(new_state_dict)
@@ -185,7 +235,9 @@ def run_sanity_checks(predictions, labels, keys):
         ratio = pred_std / label_std if label_std > 0 else 0
         ratios.append(ratio)
         status = "OK" if ratio >= 0.6 else "LOW" if ratio >= 0.4 else "SEVERE"
-        print(f"{dim:<25} {label_std:>10.4f} {pred_std:>10.4f} {ratio:>8.2f} [{status}]")
+        print(
+            f"{dim:<25} {label_std:>10.4f} {pred_std:>10.4f} {ratio:>8.2f} [{status}]"
+        )
 
     avg_ratio = np.mean(ratios)
     print(f"\nAverage dispersion ratio: {avg_ratio:.3f}")
@@ -219,7 +271,9 @@ def run_comparison(audio_dim_r2, audio_overall_r2):
     print("\n" + "=" * 70)
     print("AUDIO vs SYMBOLIC COMPARISON")
     print("=" * 70)
-    print(f"\n{'Dimension':<25} {'Symbolic':>10} {'Audio':>10} {'Winner':>10} {'Delta':>10}")
+    print(
+        f"\n{'Dimension':<25} {'Symbolic':>10} {'Audio':>10} {'Winner':>10} {'Delta':>10}"
+    )
     print("-" * 70)
 
     audio_wins = 0
@@ -230,11 +284,15 @@ def run_comparison(audio_dim_r2, audio_overall_r2):
         winner = "AUDIO" if aud_r2 > sym_r2 else "SYMBOLIC"
         if aud_r2 > sym_r2:
             audio_wins += 1
-        print(f"{dim:<25} {sym_r2:>+10.4f} {aud_r2:>+10.4f} {winner:>10} {delta:>+10.4f}")
+        print(
+            f"{dim:<25} {sym_r2:>+10.4f} {aud_r2:>+10.4f} {winner:>10} {delta:>+10.4f}"
+        )
 
     print("-" * 70)
     print(f"\nAudio wins: {audio_wins}/19")
-    print(f"Overall: Audio={audio_overall_r2:.4f} vs Symbolic={SYMBOLIC_OVERALL_R2:.4f}")
+    print(
+        f"Overall: Audio={audio_overall_r2:.4f} vs Symbolic={SYMBOLIC_OVERALL_R2:.4f}"
+    )
 
     return audio_wins
 
@@ -411,11 +469,15 @@ def main():
         with open(SYMBOLIC_PREDS_FILE) as f:
             symbolic_predictions = json.load(f)
 
-        common_keys = sorted(set(audio_predictions.keys()) & set(symbolic_predictions.keys()))
+        common_keys = sorted(
+            set(audio_predictions.keys()) & set(symbolic_predictions.keys())
+        )
         print(f"\nAligned samples for fusion: {len(common_keys)}")
 
         if len(common_keys) > 100:
-            fusion_results = run_fusion(audio_predictions, symbolic_predictions, audio_labels, common_keys)
+            fusion_results = run_fusion(
+                audio_predictions, symbolic_predictions, audio_labels, common_keys
+            )
     else:
         print("\nSymbolic predictions not found - skipping fusion testing")
         print("Run the Thunder Compute notebook first to generate them")
