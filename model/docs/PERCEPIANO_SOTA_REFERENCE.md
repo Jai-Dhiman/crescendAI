@@ -6,6 +6,22 @@ For our experiment history and debugging journey, see `EXPERIMENT_LOG.md`.
 
 ---
 
+## Our Trained Checkpoint (SOTA Match)
+
+**Location**: `gdrive:crescendai_data/checkpoints/percepiano_sota/fold2_best.pt`
+
+| Metric | Value |
+|--------|-------|
+| R2 | 0.395 |
+| Published SOTA | 0.397 |
+| Model | VirtuosoNetMultiLevel (original PercePiano code) |
+| Epoch | 32 |
+| Fold | 2 (composition-split) |
+
+**Usage**: Load with original PercePiano code from `github.com/JonghoKimSNU/PercePiano`
+
+---
+
 ## Paper Citation
 
 ```

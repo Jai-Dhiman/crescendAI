@@ -15,7 +15,6 @@ Prerequisites:
 
 import json
 import subprocess
-import sys
 from collections import defaultdict
 from pathlib import Path
 
@@ -25,9 +24,8 @@ import torch
 from scipy import stats
 from sklearn.metrics import r2_score
 
-# Add project src to path
+# Project root
 PROJECT_ROOT = Path(__file__).parent.parent
-sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 # Paths
 DATA_ROOT = PROJECT_ROOT / "data" / "analysis"
@@ -111,13 +109,40 @@ def download_mert_embeddings(keys):
 
 def load_audio_models(device):
     """Load audio model checkpoints."""
-    from percepiano.models.audio_baseline import AudioPercePianoModel
+    # Direct import to avoid pulling in unrelated modules
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "audio_baseline",
+        PROJECT_ROOT / "src" / "percepiano" / "models" / "audio_baseline.py"
+    )
+    audio_module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(audio_module)
+    AudioPercePianoModel = audio_module.AudioPercePianoModel
 
     models = {}
     for fold in range(4):
         ckpt_path = CHECKPOINT_ROOT / "audio" / f"fold{fold}_best.ckpt"
         if ckpt_path.exists():
-            model = AudioPercePianoModel.load_from_checkpoint(ckpt_path, map_location=device)
+            # Load checkpoint and fix key names (clf -> classifier)
+            checkpoint = torch.load(ckpt_path, map_location=device, weights_only=False)
+            state_dict = checkpoint["state_dict"]
+
+            # Rename keys if needed
+            new_state_dict = {}
+            for k, v in state_dict.items():
+                new_key = k.replace("clf.", "classifier.")
+                new_state_dict[new_key] = v
+
+            # Get model hyperparameters (filter out training params)
+            hparams = checkpoint.get("hyper_parameters", {})
+            model_params = {
+                k: v for k, v in hparams.items()
+                if k in ["input_dim", "hidden_dim", "num_labels", "dropout",
+                         "learning_rate", "weight_decay", "pooling"]
+            }
+            model = AudioPercePianoModel(**model_params)
+            model.load_state_dict(new_state_dict)
+            model = model.to(device)
             model.eval()
             models[fold] = model
     return models
