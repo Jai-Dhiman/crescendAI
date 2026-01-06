@@ -32,16 +32,19 @@ A research showcase website demonstrating AI-powered piano performance evaluatio
 ## Core Features
 
 ### Performance Gallery
+
 - Curated selection of 6-8 iconic piano performances
 - Each entry shows: composer, piece title, performer, thumbnail
 - Preloaded audio files and MusicXML scores
 
 ### Audio Player
+
 - Waveform visualization
 - Play/pause controls
 - No seeking required (demo simplicity)
 
 ### Analysis Results
+
 - **Radar Chart**: Visual representation of all 19 dimensions grouped by category
   - Timing
   - Articulation (length, touch)
@@ -55,6 +58,7 @@ A research showcase website demonstrating AI-powered piano performance evaluatio
 - **Practice Insights**: 2-3 relevant tips from piano pedagogy literature
 
 ### Loading Experience
+
 - Animated progress indicator
 - Estimated time remaining
 - Brief explanation of what's happening ("Analyzing articulation patterns...")
@@ -79,7 +83,9 @@ A research showcase website demonstrating AI-powered piano performance evaluatio
 ## Content Requirements
 
 ### Demo Performances (6-8 total)
+
 Selection criteria:
+
 - Diverse composers (Chopin, Beethoven, Bach, Rachmaninoff, Prokofiev)
 - Diverse performers (Horowitz, Argerich, Zimerman, Kissin, Gould, Pollini)
 - Diverse character (virtuosic, lyrical, intellectual, romantic)
@@ -87,6 +93,7 @@ Selection criteria:
 - MusicXML scores available
 
 ### Piano Knowledge Base (for RAG)
+
 - Piano pedagogy texts (technique, practice methods)
 - Historical performance practice articles
 - Famous pianist interviews and masterclass transcripts
@@ -95,6 +102,7 @@ Selection criteria:
 ## Feedback Tone Guidelines
 
 The virtual teacher should be:
+
 - **Warm and encouraging**: Celebrate strengths before suggesting improvements
 - **Specific**: Reference actual musical elements, not vague praise
 - **Actionable**: Provide concrete practice strategies
