@@ -5,28 +5,27 @@ compatibility_date = "2024-12-01"
 [build]
 command = "cargo install -q worker-build && worker-build --release"
 
-# KV for caching analysis results (create with: wrangler kv:namespace create ANALYSIS_CACHE)
-# [[kv_namespaces]]
-# binding = "ANALYSIS_CACHE"
-# id = "<to-be-created>"
+[[kv_namespaces]]
+binding = "KV"
+id = "a20cea1f48d9415da9d7ca6418563025"
 
-# R2 for audio files (create with: wrangler r2 bucket create crescendai-audio)
-# [[r2_buckets]]
-# binding = "AUDIO_BUCKET"
-# bucket_name = "crescendai-audio"
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "crescendai-bucket"
 
-# Vectorize for RAG (create with: wrangler vectorize create piano-pedagogy --dimensions 768 --metric cosine)
-# [[vectorize]]
-# binding = "PIANO_KNOWLEDGE"
-# index_name = "piano-pedagogy"
+[[d1_databases]]
+binding = "DB"
+database_name = "crescendai-db"
+database_id = "659755a8-4e9e-4581-a2bd-d34b6f912c3a"
 
-# Workers AI for LLM feedback
-# [ai]
-# binding = "AI"
+[[vectorize]]
+binding = "VECTORIZE"
+index_name = "crescendai-piano-pedagogy"
 
-# Environment variables
+[ai]
+binding = "AI"
+
 [vars]
 ENVIRONMENT = "development"
 
-# Secrets (set via: wrangler secret put RUNPOD_API_KEY)
-# - RUNPOD_API_KEY
+# Secrets (set via: wrangler secret put <SECRET_NAME>)
