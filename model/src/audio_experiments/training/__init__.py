@@ -8,6 +8,12 @@ from .runner import (
     run_4fold_mel_experiment,
     run_4fold_stats_experiment,
 )
+from .sync import (
+    get_completed_experiments,
+    print_experiment_status,
+    restore_all_from_gdrive,
+    sync_experiment_to_gdrive,
+)
 
 __all__ = [
     "bootstrap_r2",
@@ -17,4 +23,8 @@ __all__ = [
     "run_4fold_mert_experiment",
     "run_4fold_mel_experiment",
     "run_4fold_stats_experiment",
+    "get_completed_experiments",
+    "print_experiment_status",
+    "restore_all_from_gdrive",
+    "sync_experiment_to_gdrive",
 ]
