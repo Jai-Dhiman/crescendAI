@@ -6,46 +6,74 @@ pub fn LoadingSpinner(
     #[prop(into)] progress: Signal<u8>,
 ) -> impl IntoView {
     view! {
-        <div class="flex flex-col items-center justify-center py-16">
-            // Animated spinner
+        <div
+            class="card p-12 flex flex-col items-center justify-center text-center"
+            role="status"
+            aria-live="polite"
+            aria-busy="true"
+        >
+            // Circular progress indicator
             <div class="relative w-24 h-24 mb-8">
-                <div class="absolute inset-0 border-4 border-white/10 rounded-full" />
+                // Background track
                 <svg class="absolute inset-0 w-24 h-24 -rotate-90" viewBox="0 0 100 100">
                     <circle
                         cx="50"
                         cy="50"
-                        r="46"
+                        r="44"
                         fill="none"
-                        stroke="currentColor"
-                        stroke-width="8"
-                        stroke-linecap="round"
-                        class="text-rose-500"
-                        stroke-dasharray="289"
-                        stroke-dashoffset=move || {
-                            let p = progress.get() as f64;
-                            289.0 - (289.0 * p / 100.0)
-                        }
-                        style="transition: stroke-dashoffset 0.3s ease"
+                        stroke="#e7e5e4"
+                        stroke-width="6"
                     />
                 </svg>
+                // Progress arc
+                <svg class="absolute inset-0 w-24 h-24 -rotate-90" viewBox="0 0 100 100">
+                    <circle
+                        cx="50"
+                        cy="50"
+                        r="44"
+                        fill="none"
+                        stroke="url(#loadingGradient)"
+                        stroke-width="6"
+                        stroke-linecap="round"
+                        stroke-dasharray="276.46"
+                        stroke-dashoffset=move || {
+                            let p = progress.get() as f64;
+                            276.46 - (276.46 * p / 100.0)
+                        }
+                        style="transition: stroke-dashoffset 0.4s cubic-bezier(0.16, 1, 0.3, 1)"
+                    />
+                    <defs>
+                        <linearGradient id="loadingGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                            <stop offset="0%" stop-color="#d4a012" />
+                            <stop offset="100%" stop-color="#b8860b" />
+                        </linearGradient>
+                    </defs>
+                </svg>
+                // Percentage text
                 <div class="absolute inset-0 flex items-center justify-center">
-                    <span class="text-xl font-bold text-white">
-                        {move || format!("{}%", progress.get())}
+                    <span class="font-display text-display-sm font-semibold text-stone-900">
+                        {move || format!("{}", progress.get())}
                     </span>
+                    <span class="text-body-sm text-stone-400 ml-0.5">"%"</span>
                 </div>
             </div>
 
-            // Message
-            <p class="text-white/70 text-center max-w-md text-lg">
+            // Status message
+            <p class="text-body-md text-stone-600 max-w-sm mb-4">
                 {move || message.get()}
             </p>
 
-            // Subtle animation hint
-            <div class="mt-6 flex gap-1">
-                <div class="w-2 h-2 rounded-full bg-rose-500 animate-bounce" style="animation-delay: 0ms" />
-                <div class="w-2 h-2 rounded-full bg-rose-500 animate-bounce" style="animation-delay: 150ms" />
-                <div class="w-2 h-2 rounded-full bg-rose-500 animate-bounce" style="animation-delay: 300ms" />
+            // Animated dots
+            <div class="flex gap-1.5" aria-hidden="true">
+                <div class="w-2 h-2 rounded-full bg-gold-400 animate-bounce" style="animation-delay: 0ms"></div>
+                <div class="w-2 h-2 rounded-full bg-gold-500 animate-bounce" style="animation-delay: 150ms"></div>
+                <div class="w-2 h-2 rounded-full bg-gold-600 animate-bounce" style="animation-delay: 300ms"></div>
             </div>
+
+            // Screen reader only text
+            <span class="sr-only">
+                {move || format!("Loading: {}% complete. {}", progress.get(), message.get())}
+            </span>
         </div>
     }
 }

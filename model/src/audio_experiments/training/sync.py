@@ -246,6 +246,49 @@ def sync_experiment_to_gdrive(
     return True
 
 
+def should_run_experiment(
+    exp_id: str,
+    checkpoint_root: Path,
+    results_dir: Path,
+    gdrive_results_path: str,
+    completed_cache: Optional[Dict[str, float]] = None,
+) -> bool:
+    """Check if experiment needs to run (not already complete).
+
+    Checks both local files and GDrive to determine if experiment is complete.
+    Use this BEFORE extracting embeddings to avoid unnecessary work.
+
+    Args:
+        exp_id: Experiment ID like 'B0_baseline'
+        checkpoint_root: Local root path for checkpoints
+        results_dir: Local path for results JSON files
+        gdrive_results_path: GDrive path like 'gdrive:crescendai_data/checkpoints/audio_phase2'
+        completed_cache: Optional pre-fetched dict of completed experiments (avoids repeated GDrive calls)
+
+    Returns:
+        True if experiment should run, False if already complete
+    """
+    from .runner import experiment_completed, load_existing_results
+
+    # Check local first (fast)
+    if experiment_completed(exp_id, checkpoint_root) and load_existing_results(exp_id, results_dir):
+        print(f"SKIP {exp_id}: already complete locally")
+        return False
+
+    # Check GDrive (use cache if provided)
+    if completed_cache is not None:
+        if exp_id in completed_cache:
+            print(f"SKIP {exp_id}: already complete on GDrive (R2={completed_cache[exp_id]:.4f})")
+            return False
+    else:
+        completed = get_completed_experiments(gdrive_results_path)
+        if exp_id in completed:
+            print(f"SKIP {exp_id}: already complete on GDrive (R2={completed[exp_id]:.4f})")
+            return False
+
+    return True
+
+
 def print_experiment_status(
     all_experiment_ids: List[str],
     completed_experiments: Dict[str, float],

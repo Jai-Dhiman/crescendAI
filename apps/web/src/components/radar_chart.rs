@@ -13,7 +13,7 @@ pub fn RadarChart(
     #[prop(default = 400)] size: u32,
 ) -> impl IntoView {
     let center = size as f64 / 2.0;
-    let radius = center * 0.65;
+    let radius = center * 0.62;
     let label_radius = center * 0.88;
 
     // Grid levels
@@ -25,14 +25,28 @@ pub fn RadarChart(
             height=size
             viewBox=format!("0 0 {} {}", size, size)
             class="radar-chart"
+            role="img"
+            aria-label="Radar chart showing performance analysis across 19 dimensions"
         >
-            // Background
+            // Definitions for gradients
+            <defs>
+                <linearGradient id="goldGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stop-color="#d4a012" />
+                    <stop offset="100%" stop-color="#b8860b" />
+                </linearGradient>
+                <linearGradient id="goldFill" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stop-color="#d4a012" stop-opacity="0.25" />
+                    <stop offset="100%" stop-color="#b8860b" stop-opacity="0.15" />
+                </linearGradient>
+            </defs>
+
+            // Background circle
             <circle
                 cx=center
                 cy=center
                 r=radius
-                fill="rgba(15, 23, 42, 0.8)"
-                stroke="rgba(255,255,255,0.1)"
+                fill="#f9f5ed"
+                stroke="#e7e5e4"
                 stroke-width="1"
             />
 
@@ -45,9 +59,9 @@ pub fn RadarChart(
                         cy=center
                         r=r
                         fill="none"
-                        stroke="rgba(255,255,255,0.1)"
+                        stroke="#d6d3d1"
                         stroke-width="1"
-                        stroke-dasharray="4 4"
+                        stroke-dasharray="3 3"
                     />
                 }
             }).collect_view()}
@@ -66,14 +80,14 @@ pub fn RadarChart(
                             y1=center
                             x2=x2
                             y2=y2
-                            stroke="rgba(255,255,255,0.15)"
+                            stroke="#d6d3d1"
                             stroke-width="1"
                         />
                     }
                 }).collect_view()
             }}
 
-            // Data polygon
+            // Data polygon with gradient fill
             {move || {
                 let points = data.get();
                 let n = points.len();
@@ -88,9 +102,10 @@ pub fn RadarChart(
                 view! {
                     <polygon
                         points=polygon_points
-                        fill="rgba(244, 63, 94, 0.25)"
-                        stroke="#f43f5e"
-                        stroke-width="2"
+                        fill="url(#goldFill)"
+                        stroke="url(#goldGradient)"
+                        stroke-width="2.5"
+                        stroke-linejoin="round"
                     />
                 }
             }}
@@ -108,10 +123,10 @@ pub fn RadarChart(
                         <circle
                             cx=x
                             cy=y
-                            r="4"
-                            fill="#f43f5e"
+                            r="5"
+                            fill="#d4a012"
                             stroke="white"
-                            stroke-width="1"
+                            stroke-width="2"
                         />
                     }
                 }).collect_view()
@@ -126,7 +141,6 @@ pub fn RadarChart(
                     let x = center + label_radius * angle.cos();
                     let y = center + label_radius * angle.sin();
 
-                    // Determine text anchor based on position
                     let anchor = if angle.cos() < -0.1 {
                         "end"
                     } else if angle.cos() > 0.1 {
@@ -135,7 +149,6 @@ pub fn RadarChart(
                         "middle"
                     };
 
-                    // Adjust y for top/bottom labels
                     let dy = if angle.sin() < -0.5 {
                         "-0.3em"
                     } else if angle.sin() > 0.5 {
@@ -152,8 +165,9 @@ pub fn RadarChart(
                             dominant-baseline="middle"
                             dy=dy
                             font-size="10"
-                            fill="rgba(255,255,255,0.6)"
-                            font-family="Inter, system-ui, sans-serif"
+                            fill="#78716c"
+                            font-family="DM Sans, system-ui, sans-serif"
+                            font-weight="500"
                         >
                             {point.label.clone()}
                         </text>
@@ -161,7 +175,7 @@ pub fn RadarChart(
                 }).collect_view()
             }}
 
-            // Center score
+            // Center score display
             {move || {
                 let points = data.get();
                 let avg: f64 = if points.is_empty() {
@@ -172,14 +186,23 @@ pub fn RadarChart(
                 let score = (avg * 100.0).round() as u32;
 
                 view! {
+                    // Background circle for score
+                    <circle
+                        cx=center
+                        cy=center
+                        r="32"
+                        fill="white"
+                        stroke="#e7e5e4"
+                        stroke-width="1"
+                    />
                     <text
                         x=center
-                        y=center - 8.0
+                        y=center - 6.0
                         text-anchor="middle"
-                        font-size="24"
-                        font-weight="bold"
-                        fill="white"
-                        font-family="Inter, system-ui, sans-serif"
+                        font-size="22"
+                        font-weight="600"
+                        fill="#1c1917"
+                        font-family="Cormorant Garamond, Georgia, serif"
                     >
                         {score}
                     </text>
@@ -187,11 +210,13 @@ pub fn RadarChart(
                         x=center
                         y=center + 12.0
                         text-anchor="middle"
-                        font-size="10"
-                        fill="rgba(255,255,255,0.5)"
-                        font-family="Inter, system-ui, sans-serif"
+                        font-size="9"
+                        fill="#a8a29e"
+                        font-family="DM Sans, system-ui, sans-serif"
+                        text-transform="uppercase"
+                        letter-spacing="0.05em"
                     >
-                        "Overall"
+                        "OVERALL"
                     </text>
                 }
             }}

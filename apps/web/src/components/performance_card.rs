@@ -9,32 +9,71 @@ pub fn PerformanceCard(performance: Performance) -> impl IntoView {
     view! {
         <a
             href=href
-            class="group block bg-slate-800/50 rounded-xl overflow-hidden hover:bg-slate-800 transition-all duration-300 hover:scale-[1.02] hover:shadow-xl hover:shadow-rose-500/10 border border-white/5 hover:border-rose-500/20"
+            class="group card-interactive overflow-hidden focus-visible:ring-2 focus-visible:ring-gold-500 focus-visible:ring-offset-2"
+            aria-label=format!("Analyze {} by {}", performance.piece_title.clone(), performance.performer.clone())
         >
-            <div class="aspect-video relative overflow-hidden bg-gradient-to-br from-slate-700 to-slate-800">
+            // Thumbnail area
+            <div class="aspect-video relative overflow-hidden bg-gradient-to-br from-stone-100 to-stone-200">
+                // Play button overlay
                 <div class="absolute inset-0 flex items-center justify-center">
-                    <div class="w-16 h-16 rounded-full bg-white/10 flex items-center justify-center group-hover:bg-rose-500/20 transition-colors">
-                        <svg class="w-8 h-8 text-white/60 group-hover:text-rose-400 transition-colors" fill="currentColor" viewBox="0 0 24 24">
+                    <div class="w-14 h-14 rounded-full bg-white/90 shadow-elevation-3 flex items-center justify-center
+                                transition-all duration-300 ease-out-expo
+                                group-hover:bg-gradient-gold group-hover:scale-110 group-hover:shadow-gold">
+                        <svg
+                            class="w-6 h-6 text-stone-600 group-hover:text-white transition-colors ml-0.5"
+                            fill="currentColor"
+                            viewBox="0 0 24 24"
+                            aria-hidden="true"
+                        >
                             <path d="M8 5v14l11-7z"/>
                         </svg>
                     </div>
                 </div>
-                <div class="absolute bottom-2 right-2 px-2 py-1 bg-black/60 rounded text-xs text-white/80">
+
+                // Duration badge
+                <div class="absolute bottom-3 right-3 px-2 py-1 bg-stone-900/80 backdrop-blur-xs rounded text-label-sm text-white">
                     {duration_str}
                 </div>
-                <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-                <div class="absolute bottom-3 left-3">
-                    <p class="text-sm text-white/70">{performance.composer.clone()}</p>
+
+                // Composer overlay
+                <div class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-stone-900/70 via-stone-900/30 to-transparent pt-12 pb-3 px-4">
+                    <span class="text-label-md uppercase tracking-wider text-white/90">
+                        {performance.composer.clone()}
+                    </span>
                 </div>
             </div>
-            <div class="p-4">
-                <h3 class="font-serif text-lg font-semibold text-white mb-1 line-clamp-2 group-hover:text-rose-100 transition-colors">
+
+            // Content area
+            <div class="p-5">
+                <h3 class="font-display text-heading-lg text-stone-900 mb-1.5 line-clamp-2
+                           group-hover:text-gold-700 transition-colors duration-200">
                     {performance.piece_title.clone()}
                 </h3>
-                <p class="text-sm text-rose-400">{performance.performer.clone()}</p>
+                <p class="text-body-sm font-medium text-gold-600">
+                    {performance.performer.clone()}
+                </p>
                 {performance.year_recorded.map(|year| view! {
-                    <p class="text-xs text-white/40 mt-1">{format!("Recorded {}", year)}</p>
+                    <p class="text-label-sm text-stone-400 mt-2 uppercase tracking-wide">
+                        {format!("Recorded {}", year)}
+                    </p>
                 })}
+
+                // Analyze indicator
+                <div class="mt-4 pt-4 border-t border-stone-100 flex items-center justify-between">
+                    <span class="text-label-sm uppercase tracking-wider text-stone-400 group-hover:text-gold-600 transition-colors">
+                        "Analyze Performance"
+                    </span>
+                    <svg
+                        class="w-4 h-4 text-stone-300 group-hover:text-gold-500 group-hover:translate-x-1 transition-all duration-200"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        viewBox="0 0 24 24"
+                        aria-hidden="true"
+                    >
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+                    </svg>
+                </div>
             </div>
         </a>
     }

@@ -1,3 +1,3 @@
-pub mod mock;
+pub mod client;
 
-pub use mock::*;
+pub use client::*;

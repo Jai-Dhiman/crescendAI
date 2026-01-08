@@ -12,6 +12,7 @@ from .sync import (
     get_completed_experiments,
     print_experiment_status,
     restore_all_from_gdrive,
+    should_run_experiment,
     sync_experiment_to_gdrive,
 )
 
@@ -26,5 +27,6 @@ __all__ = [
     "get_completed_experiments",
     "print_experiment_status",
     "restore_all_from_gdrive",
+    "should_run_experiment",
     "sync_experiment_to_gdrive",
 ]

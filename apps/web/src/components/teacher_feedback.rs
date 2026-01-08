@@ -5,18 +5,26 @@ pub fn TeacherFeedback(
     #[prop(into)] feedback: String,
 ) -> impl IntoView {
     view! {
-        <div class="bg-slate-800/50 rounded-xl p-6 border border-white/5">
-            <div class="flex items-center gap-3 mb-4">
-                <div class="w-10 h-10 rounded-full bg-rose-500/20 flex items-center justify-center">
-                    <svg class="w-5 h-5 text-rose-400" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M12 14l9-5-9-5-9 5 9 5z"/>
-                        <path d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z"/>
-                        <path fill-rule="evenodd" d="M12 14l-9-5v6.072a2 2 0 001.024 1.746l7.152 4.081a2 2 0 001.648 0l7.152-4.081A2 2 0 0021 15.072V9l-9 5z" clip-rule="evenodd"/>
+        <div class="card p-6">
+            // Header
+            <div class="flex items-center gap-3 mb-5 pb-5 border-b border-stone-100">
+                <div class="w-10 h-10 rounded-lg bg-gold-100 flex items-center justify-center">
+                    <svg class="w-5 h-5 text-gold-600" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M4.26 10.147a60.436 60.436 0 00-.491 6.347A48.627 48.627 0 0112 20.904a48.627 48.627 0 018.232-4.41 60.46 60.46 0 00-.491-6.347m-15.482 0a50.57 50.57 0 00-2.658-.813A59.905 59.905 0 0112 3.493a59.902 59.902 0 0110.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.697 50.697 0 0112 13.489a50.702 50.702 0 017.74-3.342M6.75 15a.75.75 0 100-1.5.75.75 0 000 1.5zm0 0v-3.675A55.378 55.378 0 0112 8.443m-7.007 11.55A5.981 5.981 0 006.75 15.75v-1.5" />
                     </svg>
                 </div>
-                <h3 class="text-xl font-serif font-semibold text-white">"Teacher Feedback"</h3>
+                <div>
+                    <h3 class="font-display text-heading-lg text-stone-900">
+                        "Teacher Feedback"
+                    </h3>
+                    <p class="text-label-sm text-stone-400 uppercase tracking-wide">
+                        "Personalized guidance"
+                    </p>
+                </div>
             </div>
-            <div class="text-white/80 leading-relaxed whitespace-pre-wrap space-y-4">
+
+            // Feedback content
+            <div class="text-body-md text-stone-600 leading-relaxed space-y-4">
                 {feedback.split("\n\n").map(|paragraph| {
                     view! { <p>{paragraph.to_string()}</p> }
                 }).collect_view()}
