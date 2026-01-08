@@ -11,21 +11,13 @@ pub fn Header() -> impl IntoView {
                         class="group flex items-center gap-3 text-stone-800 hover:text-gold-600 transition-colors duration-200"
                         aria-label="CrescendAI Home"
                     >
-                        <div class="relative w-10 h-10 bg-gradient-gold rounded-md shadow-gold flex items-center justify-center transition-transform duration-200 group-hover:scale-105">
-                            <svg
-                                class="w-5 h-5 text-white"
-                                fill="none"
-                                stroke="currentColor"
-                                stroke-width="2"
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                                viewBox="0 0 24 24"
+                        <div class="relative w-10 h-10 rounded-md overflow-hidden transition-transform duration-200 group-hover:scale-105">
+                            <img
+                                src="/crescendai.png"
+                                alt=""
+                                class="w-full h-full object-cover"
                                 aria-hidden="true"
-                            >
-                                <path d="M9 18V5l12-3v13" />
-                                <circle cx="6" cy="18" r="3" />
-                                <circle cx="18" cy="15" r="3" />
-                            </svg>
+                            />
                         </div>
                         <div class="hidden sm:block">
                             <span class="font-display text-xl font-semibold tracking-tight text-stone-900">

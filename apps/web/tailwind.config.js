@@ -82,8 +82,8 @@ module.exports = {
 
       // TYPOGRAPHY
       fontFamily: {
-        display: ['"Cormorant Garamond"', 'Georgia', 'serif'],
-        serif: ['"Cormorant Garamond"', 'Georgia', 'serif'],
+        display: ['"IBM Plex Sans"', 'system-ui', 'sans-serif'],
+        serif: ['Georgia', 'serif'],
         sans: ['"DM Sans"', 'system-ui', 'sans-serif'],
         mono: ['"JetBrains Mono"', 'Consolas', 'monospace'],
       },

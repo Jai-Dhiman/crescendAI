@@ -71,9 +71,18 @@ pub struct PracticeTip {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct ModelResult {
+    pub model_name: String,
+    pub model_type: String, // "Symbolic", "Audio", "Fusion"
+    pub r_squared: f64,
+    pub dimensions: PerformanceDimensions,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct AnalysisResult {
     pub performance_id: String,
     pub dimensions: PerformanceDimensions,
+    pub models: Vec<ModelResult>,
     pub teacher_feedback: String,
     pub practice_tips: Vec<PracticeTip>,
 }

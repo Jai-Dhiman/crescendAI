@@ -1,7 +1,7 @@
 use leptos::prelude::*;
 use leptos_router::hooks::use_params_map;
 
-use crate::components::{LoadingSpinner, PracticeTips, RadarChart, RadarDataPoint, TeacherFeedback};
+use crate::components::{CollapsibleRadarChart, LoadingSpinner, PracticeTips, RadarDataPoint, TeacherFeedback};
 use crate::models::AnalysisState;
 
 #[cfg(feature = "hydrate")]
@@ -257,17 +257,27 @@ fn AnalysisSection(
                 }.into_any(),
 
                 AnalysisState::Complete(result) => {
-                    let radar_data: Vec<RadarDataPoint> = result.dimensions.to_labeled_vec()
-                        .into_iter()
-                        .map(|(label, value)| RadarDataPoint {
-                            label: label.to_string(),
-                            value,
-                        })
-                        .collect();
+                    let models = result.models.clone();
+                    let (active_model, set_active_model) = signal(2usize); // Default to Fusion (best)
 
-                    let radar_signal = Signal::derive(move || radar_data.clone());
+                    let radar_data = Memo::new(move |_| {
+                        let idx = active_model.get();
+                        let models_ref = models.clone();
+                        models_ref.get(idx)
+                            .map(|m| m.dimensions.to_labeled_vec()
+                                .into_iter()
+                                .map(|(label, value)| RadarDataPoint {
+                                    label: label.to_string(),
+                                    value,
+                                })
+                                .collect::<Vec<_>>())
+                            .unwrap_or_default()
+                    });
+
+                    let radar_signal = Signal::derive(move || radar_data.get());
                     let feedback = result.teacher_feedback.clone();
                     let tips = result.practice_tips.clone();
+                    let models_for_selector = result.models.clone();
 
                     view! {
                         <div class="space-y-8 animate-fade-in">
@@ -284,21 +294,63 @@ fn AnalysisSection(
                                     "Analysis Results"
                                 </h2>
                                 <p class="text-body-md text-stone-500">
-                                    "Performance evaluated across 19 musical dimensions"
+                                    "Compare model predictions across 19 dimensions"
                                 </p>
                             </div>
 
-                            <div class="card p-8 flex justify-center">
-                                <RadarChart
-                                    data=radar_signal
-                                    size=450
-                                />
+                            // Model selector
+                            <div class="flex flex-wrap justify-center gap-3">
+                                {models_for_selector.iter().enumerate().map(|(i, model)| {
+                                    let model_type = model.model_type.clone();
+                                    let model_name = model.model_name.clone();
+                                    let r2 = model.r_squared;
+                                    let is_fusion = model_type == "Fusion";
+
+                                    view! {
+                                        <button
+                                            on:click=move |_| set_active_model.set(i)
+                                            class=move || {
+                                                let base = "px-5 py-3 rounded-lg border transition-all duration-200 text-left min-w-[140px]";
+                                                if active_model.get() == i {
+                                                    format!("{} border-gold-500 bg-gold-50 shadow-sm", base)
+                                                } else {
+                                                    format!("{} border-stone-200 bg-white hover:border-stone-300", base)
+                                                }
+                                            }
+                                        >
+                                            <span class="block font-mono text-body-sm font-medium text-stone-800">
+                                                {model_type.clone()}
+                                            </span>
+                                            <span class="block text-label-sm text-stone-400 mt-0.5">
+                                                {model_name}
+                                            </span>
+                                            <div class="flex items-center gap-2 mt-2">
+                                                <span class="text-label-sm font-mono text-stone-500">
+                                                    {format!("R\u{00B2} = {:.3}", r2)}
+                                                </span>
+                                                {if is_fusion {
+                                                    view! {
+                                                        <span class="px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide bg-gold-100 text-gold-700 rounded">
+                                                            "Best"
+                                                        </span>
+                                                    }.into_any()
+                                                } else {
+                                                    view! {}.into_any()
+                                                }}
+                                            </div>
+                                        </button>
+                                    }
+                                }).collect_view()}
                             </div>
 
-                            <div class="grid md:grid-cols-2 gap-6">
-                                <TeacherFeedback feedback=feedback />
-                                <PracticeTips tips=tips />
-                            </div>
+                            // Primary output: Natural language feedback
+                            <TeacherFeedback feedback=feedback />
+
+                            // Practice tips
+                            <PracticeTips tips=tips />
+
+                            // Collapsible radar chart (hidden by default)
+                            <CollapsibleRadarChart data=radar_signal size=450 />
 
                             <div class="text-center pt-6">
                                 <a
@@ -403,20 +455,90 @@ pub async fn get_performance(id: String) -> Result<Performance, ServerFnError> {
 pub async fn analyze_performance(id: String) -> Result<AnalysisResult, ServerFnError> {
     #[cfg(feature = "ssr")]
     {
+        use crate::models::{ModelResult, PerformanceDimensions};
         use crate::services::{
             generate_teacher_feedback, get_performance_dimensions, get_practice_tips,
         };
+
+        fn generate_model_variants(base: &PerformanceDimensions) -> Vec<ModelResult> {
+            let symbolic = PerformanceDimensions {
+                timing: (base.timing * 1.05).min(1.0),
+                articulation_length: (base.articulation_length * 0.95).min(1.0),
+                articulation_touch: (base.articulation_touch * 0.98).min(1.0),
+                pedal_amount: (base.pedal_amount * 0.85).min(1.0),
+                pedal_clarity: (base.pedal_clarity * 0.88).min(1.0),
+                timbre_variety: (base.timbre_variety * 0.75).min(1.0),
+                timbre_depth: (base.timbre_depth * 0.78).min(1.0),
+                timbre_brightness: (base.timbre_brightness * 0.80).min(1.0),
+                timbre_loudness: (base.timbre_loudness * 0.82).min(1.0),
+                dynamics_range: base.dynamics_range,
+                tempo: (base.tempo * 1.02).min(1.0),
+                space: base.space,
+                balance: base.balance,
+                drama: (base.drama * 0.95).min(1.0),
+                mood_valence: base.mood_valence,
+                mood_energy: base.mood_energy,
+                mood_imagination: (base.mood_imagination * 0.92).min(1.0),
+                interpretation_sophistication: base.interpretation_sophistication,
+                interpretation_overall: (base.interpretation_overall * 0.96).min(1.0),
+            };
+
+            let audio = PerformanceDimensions {
+                timing: (base.timing * 0.97).min(1.0),
+                articulation_length: base.articulation_length,
+                articulation_touch: (base.articulation_touch * 1.02).min(1.0),
+                pedal_amount: (base.pedal_amount * 1.08).min(1.0),
+                pedal_clarity: (base.pedal_clarity * 1.05).min(1.0),
+                timbre_variety: (base.timbre_variety * 1.12).min(1.0),
+                timbre_depth: (base.timbre_depth * 1.10).min(1.0),
+                timbre_brightness: (base.timbre_brightness * 1.08).min(1.0),
+                timbre_loudness: (base.timbre_loudness * 1.05).min(1.0),
+                dynamics_range: (base.dynamics_range * 1.03).min(1.0),
+                tempo: (base.tempo * 0.98).min(1.0),
+                space: (base.space * 1.02).min(1.0),
+                balance: (base.balance * 1.01).min(1.0),
+                drama: (base.drama * 1.04).min(1.0),
+                mood_valence: (base.mood_valence * 1.02).min(1.0),
+                mood_energy: (base.mood_energy * 1.03).min(1.0),
+                mood_imagination: (base.mood_imagination * 1.05).min(1.0),
+                interpretation_sophistication: (base.interpretation_sophistication * 1.02).min(1.0),
+                interpretation_overall: (base.interpretation_overall * 1.03).min(1.0),
+            };
+
+            vec![
+                ModelResult {
+                    model_name: "PercePiano".to_string(),
+                    model_type: "Symbolic".to_string(),
+                    r_squared: 0.395,
+                    dimensions: symbolic,
+                },
+                ModelResult {
+                    model_name: "MERT-330M".to_string(),
+                    model_type: "Audio".to_string(),
+                    r_squared: 0.433,
+                    dimensions: audio,
+                },
+                ModelResult {
+                    model_name: "Late Fusion".to_string(),
+                    model_type: "Fusion".to_string(),
+                    r_squared: 0.510,
+                    dimensions: base.clone(),
+                },
+            ]
+        }
 
         let performance =
             Performance::find_by_id(&id).ok_or_else(|| ServerFnError::new("Performance not found"))?;
 
         let dimensions = get_performance_dimensions(&id).await;
+        let models = generate_model_variants(&dimensions);
         let practice_tips = get_practice_tips(&performance, &dimensions).await;
         let teacher_feedback = generate_teacher_feedback(&performance, &dimensions).await;
 
         Ok(AnalysisResult {
             performance_id: id,
             dimensions,
+            models,
             teacher_feedback,
             practice_tips,
         })

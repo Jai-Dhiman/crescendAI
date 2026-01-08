@@ -20,67 +20,15 @@ pub fn HomePage() -> impl IntoView {
         <div class="animate-fade-in">
             <section class="section text-center">
                 <div class="container-narrow">
-                    <div class="flex justify-center mb-8">
-                        <div class="flex items-center gap-3">
-                            <div class="h-px w-12 bg-gradient-to-r from-transparent to-gold-300"></div>
-                            <span class="text-label-md uppercase tracking-widest text-gold-600">
-                                "AI-Powered Analysis"
-                            </span>
-                            <div class="h-px w-12 bg-gradient-to-l from-transparent to-gold-300"></div>
-                        </div>
-                    </div>
-
                     <h1 class="text-display-xl md:text-display-2xl font-display font-semibold text-stone-900 mb-6">
                         "Piano Performance"
                         <span class="block text-gradient-gold">"Analysis"</span>
                     </h1>
 
-                    <p class="text-body-lg text-stone-500 max-w-xl mx-auto leading-relaxed mb-10">
-                        "Experience detailed feedback on legendary piano performances. "
-                        "Discover insights across 19 musical dimensions with our AI-powered system."
+                    <p class="text-body-lg text-stone-500 max-w-xl mx-auto leading-relaxed">
+                        "A research demo exploring AI evaluation of piano performances "
+                        "across 19 perceptual dimensions."
                     </p>
-
-                    <div class="flex justify-center gap-6 md:gap-10">
-                        <div class="text-center">
-                            <span class="block font-display text-display-sm text-gold-600 font-semibold">
-                                "19"
-                            </span>
-                            <span class="text-label-md uppercase tracking-wider text-stone-400">
-                                "Dimensions"
-                            </span>
-                        </div>
-                        <div class="w-px bg-stone-200" aria-hidden="true"></div>
-                        <div class="text-center">
-                            <Suspense fallback=move || view! {
-                                <span class="block font-display text-display-sm text-gold-600 font-semibold">
-                                    "..."
-                                </span>
-                            }>
-                                {move || {
-                                    performances_resource.get().map(|result| {
-                                        let count = result.as_ref().map(|p| p.len()).unwrap_or(0);
-                                        view! {
-                                            <span class="block font-display text-display-sm text-gold-600 font-semibold">
-                                                {count}
-                                            </span>
-                                        }
-                                    })
-                                }}
-                            </Suspense>
-                            <span class="text-label-md uppercase tracking-wider text-stone-400">
-                                "Performances"
-                            </span>
-                        </div>
-                        <div class="w-px bg-stone-200" aria-hidden="true"></div>
-                        <div class="text-center">
-                            <span class="block font-display text-display-sm text-gold-600 font-semibold">
-                                "AI"
-                            </span>
-                            <span class="text-label-md uppercase tracking-wider text-stone-400">
-                                "Feedback"
-                            </span>
-                        </div>
-                    </div>
                 </div>
             </section>
 
@@ -147,68 +95,32 @@ pub fn HomePage() -> impl IntoView {
 
             <section id="about" class="section border-t border-stone-200 mt-12" aria-labelledby="about-heading">
                 <div class="container-narrow text-center">
-                    <div class="flex justify-center mb-6">
-                        <span class="badge-gold">"About"</span>
-                    </div>
-
                     <h2
                         id="about-heading"
-                        class="font-display text-display-md text-stone-900 mb-6"
+                        class="font-display text-display-sm text-stone-900 mb-6"
                     >
-                        "How It Works"
+                        "About This Research"
                     </h2>
 
-                    <div class="space-y-4 text-body-md text-stone-600 leading-relaxed">
-                        <p>
-                            "This demo showcases the PercePiano model, an AI system trained to evaluate "
-                            "piano performances across 19 perceptual dimensions including timing, "
-                            "articulation, dynamics, and interpretation."
-                        </p>
-                        <p>
-                            "Select any performance from the gallery above to receive detailed AI-powered "
-                            "feedback styled as guidance from an encouraging piano teacher."
-                        </p>
-                    </div>
+                    <p class="text-body-md text-stone-600 leading-relaxed max-w-2xl mx-auto mb-10">
+                        "This demo compares three model architectures for piano performance evaluation. "
+                        "Select a performance from the gallery to see AI-generated analysis and feedback."
+                    </p>
 
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-12">
-                        <div class="card p-6 text-left">
-                            <div class="w-10 h-10 rounded-md bg-gold-100 flex items-center justify-center mb-4">
-                                <svg class="w-5 h-5 text-gold-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
-                                </svg>
-                            </div>
-                            <h3 class="font-display text-heading-md text-stone-900 mb-2">
-                                "19 Dimensions"
-                            </h3>
-                            <p class="text-body-sm text-stone-500">
-                                "Comprehensive analysis across timing, dynamics, articulation, and more."
-                            </p>
+                    <div class="flex flex-wrap justify-center gap-4 md:gap-8">
+                        <div class="text-center px-4">
+                            <span class="block font-mono text-body-sm font-medium text-stone-800">"Symbolic"</span>
+                            <span class="text-label-sm text-stone-400">"PercePiano"</span>
                         </div>
-                        <div class="card p-6 text-left">
-                            <div class="w-10 h-10 rounded-md bg-gold-100 flex items-center justify-center mb-4">
-                                <svg class="w-5 h-5 text-gold-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                                </svg>
-                            </div>
-                            <h3 class="font-display text-heading-md text-stone-900 mb-2">
-                                "AI Feedback"
-                            </h3>
-                            <p class="text-body-sm text-stone-500">
-                                "Personalized guidance styled as encouragement from a piano teacher."
-                            </p>
+                        <div class="hidden md:block w-px h-8 bg-stone-200"></div>
+                        <div class="text-center px-4">
+                            <span class="block font-mono text-body-sm font-medium text-stone-800">"Audio"</span>
+                            <span class="text-label-sm text-stone-400">"MERT"</span>
                         </div>
-                        <div class="card p-6 text-left">
-                            <div class="w-10 h-10 rounded-md bg-gold-100 flex items-center justify-center mb-4">
-                                <svg class="w-5 h-5 text-gold-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
-                            </div>
-                            <h3 class="font-display text-heading-md text-stone-900 mb-2">
-                                "Practice Tips"
-                            </h3>
-                            <p class="text-body-sm text-stone-500">
-                                "Actionable suggestions to improve your own performances."
-                            </p>
+                        <div class="hidden md:block w-px h-8 bg-stone-200"></div>
+                        <div class="text-center px-4">
+                            <span class="block font-mono text-body-sm font-medium text-gold-600">"Fusion"</span>
+                            <span class="text-label-sm text-stone-400">"Combined"</span>
                         </div>
                     </div>
                 </div>

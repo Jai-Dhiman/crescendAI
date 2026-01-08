@@ -4,9 +4,9 @@
 
 **Title (Working):** *Multimodal Fusion of Audio and Symbolic Features Achieves State-of-the-Art Piano Performance Evaluation*
 
-**Core Thesis:** Combining audio foundation model representations (MERT) with symbolic MIDI features via late fusion achieves R2=0.51 on the PercePiano benchmark, a 28% improvement over the published state-of-the-art, with audio alone outperforming complex symbolic architectures.
+**Core Thesis:** Audio foundation model representations (MERT) achieve R2=0.433 on PercePiano, matching the published symbolic SOTA (0.397) with a dramatically simpler architecture. Fusion of audio and symbolic modalities is expected to further improve performance by combining complementary strengths.
 
-**Target Venue:** ISMIR 2025 (primary), ICASSP 2025 (backup)
+**Target Venue:** ISMIR 2026 (primary), ICASSP 2026 (backup)
 
 ---
 
@@ -16,20 +16,20 @@
 
 | Component | Status | Result |
 |-----------|--------|--------|
-| Audio Model (MERT + MLP) | Trained | R2 = 0.434 |
-| Symbolic Model (PercePiano HAN) | Trained | R2 = 0.350 |
-| Late Fusion (Simple Average) | Tested | R2 = 0.510 |
-| Late Fusion (Optimal Weights) | Tested | R2 = 0.512 |
-| Per-dimension Analysis | Complete | 17/19 audio wins |
-| Sanity Checks | Passed | Dispersion 0.69, energy correlation low |
+| Symbolic Model (PercePiano HAN) | COMPLETE | R2 = 0.395 (Fold 2) |
+| Audio Model (MERT + MLP) | COMPLETE | R2 = 0.433 (best), 0.405 (baseline) |
+| Audio Ablations | COMPLETE | 13 experiments run |
+| Late Fusion | NOT STARTED | - |
+| Per-dimension Analysis | Partial | Audio baseline only |
+| Sanity Checks | COMPLETE | Dispersion ~0.68-0.71 |
 
-### Gap vs Published Results
+### Comparison vs Published Results
 
-| Model | Our Result | Published | Gap |
-|-------|------------|-----------|-----|
-| Symbolic (HAN) | 0.350 | 0.397 | -0.047 |
-| Audio (MERT) | 0.434 | N/A (novel) | - |
-| Fusion | 0.510 | N/A (novel) | - |
+| Model | Our Result | Published | Notes |
+|-------|------------|-----------|-------|
+| Symbolic (HAN) | 0.395 | 0.397 | SOTA MATCHED |
+| Audio (MERT) | 0.433 | N/A | Novel contribution |
+| Fusion | TBD | N/A | Not yet run |
 
 ---
 
@@ -85,88 +85,91 @@
 
 ---
 
-## Phase 2: Strengthen Audio Baseline
+## Phase 2: Strengthen Audio Baseline - COMPLETE
 
 **Goal:** Validate audio results and establish strong audio-only baseline
 
-### Required Experiments
+**Status:** All 13 experiments completed and synced to Google Drive
 
-1. **Additional Audio Baselines**
+### Results Summary
 
-   | Baseline | Purpose | Priority |
-   |----------|---------|----------|
-   | Linear probe on MERT | Is MLP necessary? | HIGH |
-   | CNN on Mel spectrogram | Non-foundation baseline | HIGH |
-   | VGGish embeddings | Older audio embeddings | MEDIUM |
-   | PANNs embeddings | Alternative foundation model | MEDIUM |
-   | Raw audio statistics | Trivial audio baseline | HIGH |
+| ID | Description | Avg R2 | 95% CI | Key Finding |
+|----|-------------|--------|--------|-------------|
+| **B1b** | MERT layers 7-12 (mid) | **0.433** | [0.409, 0.461] | **BEST** |
+| B1c | MERT layers 13-24 (late) | 0.426 | [0.398, 0.452] | Also strong |
+| B1d | MERT all layers 1-24 | 0.410 | [0.405, 0.457] | Diminishing returns |
+| B0 | MERT+MLP baseline (L13-24) | 0.405 | [0.398, 0.449] | Solid baseline |
+| B1a | MERT layers 1-6 (early) | 0.397 | [0.391, 0.445] | Worse than mid/late |
+| C1a | Hybrid MSE+CCC loss | 0.377 | [0.368, 0.430] | MSE better alone |
+| B2b | Attention pooling | 0.369 | [0.365, 0.420] | Mean pooling better |
+| C1b | Pure CCC loss | 0.363 | [0.348, 0.413] | CCC alone worse |
+| B2c | LSTM pooling | 0.327 | [0.323, 0.380] | Overfits |
+| B2a | Max pooling | 0.316 | [0.316, 0.362] | Loses information |
+| A2 | Mel-CNN | 0.191 | [0.202, 0.252] | Foundation model wins |
+| A1 | Linear probe on MERT | 0.175 | [0.108, 0.182] | MLP head necessary |
+| A3 | Raw audio statistics | -12.6 | - | Complete failure |
 
-2. **MERT Ablations**
+### Validated Findings
 
-   | Ablation | Question | Priority |
-   |----------|----------|----------|
-   | Layer selection (1-24) | Which layers encode performance? | HIGH |
-   | Pooling (mean/max/attention/LSTM) | Best temporal aggregation? | HIGH |
-   | Fine-tuning vs frozen | Is adaptation needed? | MEDIUM |
-   | MERT-95M vs MERT-330M | Model size impact? | LOW |
+- [x] Linear probe (0.175) << MLP (0.405): **MLP head is necessary**
+- [x] Mel-CNN (0.191) << MERT (0.433): **Foundation model justified**
+- [x] Mid layers 7-12 (0.433) > late layers 13-24 (0.426): **Mid layers best**
+- [x] Mean pooling (0.405) > attention (0.369) > LSTM (0.327): **Simple pooling wins**
+- [x] MSE loss (0.405) > hybrid (0.377) > CCC (0.363): **MSE is best**
+- [x] Dispersion ratio ~0.68-0.71: **Predictions properly distributed**
 
-3. **Sanity Checks (Already Done, Document)**
-   - [x] Dispersion analysis (ratio = 0.69)
-   - [x] Energy correlation (low except expected dims)
-   - [x] Per-piece error analysis
+### Checkpoints
 
-### Expected Outcomes
-
-- Linear probe should underperform MLP (justifies architecture)
-- CNN on Mel should underperform MERT (justifies foundation model)
-- MERT layers 12-24 should outperform early layers
-- Mean pooling competitive with attention (simplicity wins)
+All results stored at: `gdrive:crescendai_data/checkpoints/audio_phase2/`
 
 ---
 
-## Phase 3: Fusion Experiments
+## Phase 3: Fusion Experiments - NOT STARTED
 
 **Goal:** Systematically compare fusion strategies and establish SOTA
 
+**Status:** Requires symbolic predictions to be aligned with audio predictions first
+
+### Prerequisites
+
+1. Generate symbolic predictions on same test folds as audio
+2. Ensure sample alignment between modalities
+3. Store predictions for fusion analysis
+
 ### Fusion Strategies to Test
 
-1. **Late Fusion (Prediction Level)**
+1. **Late Fusion (Prediction Level)** - Priority: HIGH
 
    | Strategy | Formula | Status |
    |----------|---------|--------|
-   | Simple average | (audio + symbolic) / 2 | Done: R2=0.510 |
-   | Optimal per-dim weights | w_d *audio + (1-w_d)* symbolic | Done: R2=0.512 |
+   | Simple average | (audio + symbolic) / 2 | TODO |
+   | Optimal per-dim weights | w_d *audio + (1-w_d)* symbolic | TODO |
    | Learned MLP | MLP([audio, symbolic]) | TODO |
    | Stacking (meta-learner) | Ridge/RF on predictions | TODO |
 
-2. **Feature Fusion (Embedding Level)**
+2. **Feature Fusion (Embedding Level)** - Priority: LOW
 
-   | Strategy | Description | Priority |
-   |----------|-------------|----------|
-   | Concatenation | [MERT_pool; HAN_out] -> MLP | MEDIUM |
-   | Cross-attention | MERT attends to HAN | LOW |
-   | FiLM conditioning | HAN modulates MERT | LOW |
+   | Strategy | Description | Status |
+   |----------|-------------|--------|
+   | Concatenation | [MERT_pool; HAN_out] -> MLP | TODO |
+   | Cross-attention | MERT attends to HAN | TODO |
 
 3. **Analysis Required**
 
    | Analysis | Insight | Priority |
    |----------|---------|----------|
-   | Error correlation | Why averaging > oracle? | HIGH |
+   | Error correlation | Do models make different errors? | HIGH |
    | Per-dimension fusion benefit | Which dims benefit from fusion? | HIGH |
    | Fusion weight stability | Cross-val fusion weights | HIGH |
-   | Sample-level analysis | When does fusion help/hurt? | MEDIUM |
 
-### Key Finding to Explain
+### Expected Outcome
 
-**Observation:** Simple average (R2=0.510) beats oracle selection (R2=0.466)
+Based on published multimodal results and dimension analysis:
 
-**Hypothesis:** Models have complementary errors - when one is wrong, the other is often closer to correct. Averaging smooths individual errors.
-
-**Required Analysis:**
-
-- Compute prediction error correlation between models
-- Identify samples where averaging helps most
-- Visualize error distribution overlap
+- Audio strong on: timbre, pedal, dynamics (R2 > 0.5)
+- Audio weak on: tempo (R2 = 0.23), timing (R2 = 0.28)
+- Symbolic should complement audio on timing/tempo dimensions
+- Simple averaging likely to provide 5-15% improvement
 
 ---
 
@@ -261,19 +264,21 @@
 1. **Main Results Table**
 
    ```
-   Model                    R2      95% CI      Params
+   Model                    R2      95% CI         Notes
    -------------------------------------------------
-   Mean predictor          0.000   -           -
-   Mel-CNN                 0.XXX   [X, X]      XM
-   VGGish                  0.XXX   [X, X]      XM
-   MERT Linear             0.XXX   [X, X]      XM
-   MERT + MLP (Ours)       0.434   [0.41, 0.46] XM
+   Mean predictor          0.000   -              Baseline
+   Raw audio stats        -12.6    -              Failed
+   MERT Linear probe       0.175   [0.11, 0.18]   MLP needed
+   Mel-CNN                 0.191   [0.20, 0.25]   Foundation model wins
    -------------------------------------------------
-   Symbolic (PercePiano)   0.397*  -           XM
-   Symbolic (Our repro)    0.350   [X, X]      XM
+   MERT + MLP (L7-12)      0.433   [0.41, 0.46]   Best audio
+   MERT + MLP (L13-24)     0.405   [0.40, 0.45]   Baseline config
    -------------------------------------------------
-   Late Fusion (Avg)       0.510   [X, X]      -
-   Late Fusion (Weighted)  0.512   [X, X]      -
+   Symbolic (Published)    0.397*  -              PercePiano SOTA
+   Symbolic (Our repro)    0.395   -              Fold 2 only
+   -------------------------------------------------
+   Late Fusion (Avg)       TBD     -              Not yet run
+   Late Fusion (Weighted)  TBD     -              Not yet run
    ```
 
 2. **Per-Dimension Table**
@@ -313,42 +318,40 @@
 
 ## Experiment Tracking
 
-### Experiments to Run
+### Completed Experiments
 
 ```
-[ ] Phase 1: Symbolic
-    [ ] Hyperparameter audit
-    [ ] Data processing verification
-    [ ] Longer training attempt
+[x] Phase 1: Symbolic Baseline
+    [x] Matched published SOTA: R2 = 0.395 vs 0.397
 
-[ ] Phase 2: Audio Baselines
-    [ ] Linear probe on MERT
-    [ ] CNN on Mel spectrogram
-    [ ] Raw audio statistics baseline
-    [ ] MERT layer ablation
-    [ ] Pooling ablation
+[x] Phase 2: Audio Baselines (13 experiments)
+    [x] A1: Linear probe on MERT (R2 = 0.175)
+    [x] A2: Mel-CNN baseline (R2 = 0.191)
+    [x] A3: Raw audio statistics (R2 = -12.6, failed)
+    [x] B0: MERT+MLP baseline (R2 = 0.405)
+    [x] B1a-d: Layer ablation (best: B1b = 0.433)
+    [x] B2a-c: Pooling ablation (best: mean = 0.405)
+    [x] C1a-b: Loss ablation (best: MSE = 0.405)
+```
 
+### Remaining Experiments
+
+```
 [ ] Phase 3: Fusion
-    [ ] Learned MLP fusion
-    [ ] Stacking (Ridge regression)
+    [ ] Align symbolic/audio predictions on same samples
+    [ ] Simple average fusion
+    [ ] Optimal per-dim weighted fusion
     [ ] Error correlation analysis
-    [ ] Cross-validated fusion weights
+    [ ] Per-dimension fusion benefit analysis
 
 [ ] Phase 4: Analysis
-    [ ] Bootstrap confidence intervals
-    [ ] Significance tests
-    [ ] Per-category breakdown
+    [ ] Bootstrap confidence intervals (have CIs from Phase 2)
+    [ ] Significance tests (audio vs symbolic)
+    [ ] Per-dimension breakdown table
     [ ] Qualitative examples selection
 
 [ ] Phase 5: Paper
-    [ ] Introduction draft
-    [ ] Methods section
-    [ ] Experiments section
-    [ ] Analysis section
-    [ ] Figures and tables
-    [ ] Abstract
-    [ ] Related work
-    [ ] Conclusion
+    [ ] All sections
 ```
 
 ---
@@ -404,12 +407,19 @@
 
 ## Next Immediate Steps
 
-1. **Today:** Review this roadmap, decide on timeline
-2. **This Week:**
-   - Run linear probe on MERT (quick experiment)
-   - Start Mel-CNN baseline training
-   - Compute bootstrap CIs for current results
-3. **Next Week:**
-   - Complete audio baselines
-   - Investigate symbolic gap
-   - Begin fusion analysis
+**Phase 2 Complete.** Next: Fusion experiments.
+
+1. **Preparation:**
+   - Generate symbolic model predictions for same samples as audio
+   - Ensure fold assignments match between modalities
+   - Create prediction alignment script
+
+2. **Fusion Experiments:**
+   - Simple average: (audio + symbolic) / 2
+   - Per-dimension optimal weights via grid search
+   - Analyze which dimensions benefit most
+
+3. **Analysis:**
+   - Error correlation between modalities
+   - Per-dimension comparison table
+   - Statistical significance tests

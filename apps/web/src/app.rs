@@ -16,7 +16,7 @@ pub fn App() -> impl IntoView {
         <Link rel="preconnect" href="https://fonts.googleapis.com"/>
         <Link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous"/>
         <Link
-            href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap"
+            href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap"
             rel="stylesheet"
         />
 
@@ -68,18 +68,18 @@ fn Footer() -> impl IntoView {
             <div class="container-wide py-8">
                 <div class="flex flex-col sm:flex-row items-center justify-between gap-4">
                     <div class="flex items-center gap-3">
-                        <div class="w-8 h-8 rounded-md bg-gradient-gold flex items-center justify-center">
-                            <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 18V5l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2z" />
-                            </svg>
-                        </div>
+                        <img
+                            src="/crescendai.png"
+                            alt="CrescendAI Logo"
+                            class="w-8 h-8 rounded-md"
+                        />
                         <span class="font-display text-lg font-semibold text-stone-700">
                             "CrescendAI"
                         </span>
                     </div>
 
                     <p class="text-body-sm text-stone-500">
-                        "Built with Leptos + Rust. Powered by PercePiano."
+                        "Powered by PercePiano"
                     </p>
 
                     <p class="text-label-sm text-stone-400 uppercase tracking-wide">
