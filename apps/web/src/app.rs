@@ -1,4 +1,5 @@
 use leptos::prelude::*;
+use leptos_meta::*;
 use leptos_router::components::{Route, Router, Routes};
 use leptos_router::path;
 
@@ -7,7 +8,21 @@ use crate::pages::{HomePage, PerformancePage};
 
 #[component]
 pub fn App() -> impl IntoView {
+    provide_meta_context();
+
     view! {
+        <Stylesheet id="leptos" href="/pkg/output.css"/>
+
+        <Link rel="preconnect" href="https://fonts.googleapis.com"/>
+        <Link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous"/>
+        <Link
+            href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap"
+            rel="stylesheet"
+        />
+
+        <Title text="CrescendAI - Piano Performance Analysis"/>
+        <Meta name="description" content="AI-powered piano performance analysis across 19 musical dimensions"/>
+
         <Router>
             <div class="min-h-screen bg-gradient-page flex flex-col">
                 <Header />
@@ -52,7 +67,6 @@ fn Footer() -> impl IntoView {
         <footer class="border-t border-stone-200 mt-auto">
             <div class="container-wide py-8">
                 <div class="flex flex-col sm:flex-row items-center justify-between gap-4">
-                    // Left side - branding
                     <div class="flex items-center gap-3">
                         <div class="w-8 h-8 rounded-md bg-gradient-gold flex items-center justify-center">
                             <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -64,12 +78,10 @@ fn Footer() -> impl IntoView {
                         </span>
                     </div>
 
-                    // Center - tech stack
                     <p class="text-body-sm text-stone-500">
                         "Built with Leptos + Rust. Powered by PercePiano."
                     </p>
 
-                    // Right side - copyright
                     <p class="text-label-sm text-stone-400 uppercase tracking-wide">
                         "Research Project"
                     </p>

@@ -1,12 +1,9 @@
 use leptos::prelude::*;
 
 #[component]
-pub fn TeacherFeedback(
-    #[prop(into)] feedback: String,
-) -> impl IntoView {
+pub fn TeacherFeedback(#[prop(into)] feedback: String) -> impl IntoView {
     view! {
         <div class="card p-6">
-            // Header
             <div class="flex items-center gap-3 mb-5 pb-5 border-b border-stone-100">
                 <div class="w-10 h-10 rounded-lg bg-gold-100 flex items-center justify-center">
                     <svg class="w-5 h-5 text-gold-600" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
@@ -23,7 +20,6 @@ pub fn TeacherFeedback(
                 </div>
             </div>
 
-            // Feedback content
             <div class="text-body-md text-stone-600 leading-relaxed space-y-4">
                 {feedback.split("\n\n").map(|paragraph| {
                     view! { <p>{paragraph.to_string()}</p> }

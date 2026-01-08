@@ -1,5 +1,5 @@
-pub mod home;
-pub mod performance;
+mod home;
+mod performance;
 
 pub use home::*;
 pub use performance::*;

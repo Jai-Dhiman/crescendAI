@@ -1,12 +1,9 @@
 use crate::models::{Performance, PerformanceDimensions, PracticeTip};
 
-/// Mock Vectorize RAG service that returns relevant practice tips.
-/// In production, this will query Cloudflare Vectorize with the performance context.
 pub async fn get_practice_tips(
     performance: &Performance,
     dimensions: &PerformanceDimensions,
 ) -> Vec<PracticeTip> {
-    // Find areas that could use improvement (lower scores)
     let mut areas: Vec<(&str, f64, &str, &str)> = vec![
         (
             "timing",
@@ -45,10 +42,8 @@ pub async fn get_practice_tips(
         ),
     ];
 
-    // Sort by score (lowest first - most room for improvement)
     areas.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
 
-    // Add composer-specific tip
     let composer_tip = match performance.composer.as_str() {
         "Frederic Chopin" => PracticeTip {
             title: "Chopin's Singing Tone".to_string(),
@@ -94,7 +89,6 @@ pub async fn get_practice_tips(
         },
     };
 
-    // Return top 2 improvement tips plus composer-specific tip
     vec![
         PracticeTip {
             title: areas[0].2.to_string(),

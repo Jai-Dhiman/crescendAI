@@ -12,9 +12,7 @@ pub fn LoadingSpinner(
             aria-live="polite"
             aria-busy="true"
         >
-            // Circular progress indicator
             <div class="relative w-24 h-24 mb-8">
-                // Background track
                 <svg class="absolute inset-0 w-24 h-24 -rotate-90" viewBox="0 0 100 100">
                     <circle
                         cx="50"
@@ -25,7 +23,6 @@ pub fn LoadingSpinner(
                         stroke-width="6"
                     />
                 </svg>
-                // Progress arc
                 <svg class="absolute inset-0 w-24 h-24 -rotate-90" viewBox="0 0 100 100">
                     <circle
                         cx="50"
@@ -49,7 +46,6 @@ pub fn LoadingSpinner(
                         </linearGradient>
                     </defs>
                 </svg>
-                // Percentage text
                 <div class="absolute inset-0 flex items-center justify-center">
                     <span class="font-display text-display-sm font-semibold text-stone-900">
                         {move || format!("{}", progress.get())}
@@ -58,19 +54,16 @@ pub fn LoadingSpinner(
                 </div>
             </div>
 
-            // Status message
             <p class="text-body-md text-stone-600 max-w-sm mb-4">
                 {move || message.get()}
             </p>
 
-            // Animated dots
             <div class="flex gap-1.5" aria-hidden="true">
                 <div class="w-2 h-2 rounded-full bg-gold-400 animate-bounce" style="animation-delay: 0ms"></div>
                 <div class="w-2 h-2 rounded-full bg-gold-500 animate-bounce" style="animation-delay: 150ms"></div>
                 <div class="w-2 h-2 rounded-full bg-gold-600 animate-bounce" style="animation-delay: 300ms"></div>
             </div>
 
-            // Screen reader only text
             <span class="sr-only">
                 {move || format!("Loading: {}% complete. {}", progress.get(), message.get())}
             </span>

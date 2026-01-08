@@ -1,16 +1,12 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   content: [
-    "./index.html",
     "./src/**/*.rs",
+    "./dist/client/**/*.html",
   ],
   theme: {
     extend: {
-      // ═══════════════════════════════════════════════════════════════════════
       // COLOR PALETTE
-      // Refined gold/amber palette with warm neutrals for a sophisticated,
-      // light-themed music analysis platform
-      // ═══════════════════════════════════════════════════════════════════════
       colors: {
         // Primary: Gold/Amber spectrum
         gold: {
@@ -84,10 +80,7 @@ module.exports = {
         },
       },
 
-      // ═══════════════════════════════════════════════════════════════════════
       // TYPOGRAPHY
-      // Cormorant Garamond for elegant headings, DM Sans for clean body text
-      // ═══════════════════════════════════════════════════════════════════════
       fontFamily: {
         display: ['"Cormorant Garamond"', 'Georgia', 'serif'],
         serif: ['"Cormorant Garamond"', 'Georgia', 'serif'],
@@ -117,87 +110,70 @@ module.exports = {
         'label-sm': ['0.6875rem', { lineHeight: '1.4', fontWeight: '500', letterSpacing: '0.075em' }],
       },
 
-      // ═══════════════════════════════════════════════════════════════════════
       // SPACING SCALE
-      // 4px base with architectural precision
-      // ═══════════════════════════════════════════════════════════════════════
       spacing: {
-        '0.5': '0.125rem',  // 2px
-        '1': '0.25rem',     // 4px
-        '1.5': '0.375rem',  // 6px
-        '2': '0.5rem',      // 8px
-        '2.5': '0.625rem',  // 10px
-        '3': '0.75rem',     // 12px
-        '3.5': '0.875rem',  // 14px
-        '4': '1rem',        // 16px
-        '5': '1.25rem',     // 20px
-        '6': '1.5rem',      // 24px
-        '7': '1.75rem',     // 28px
-        '8': '2rem',        // 32px
-        '9': '2.25rem',     // 36px
-        '10': '2.5rem',     // 40px
-        '11': '2.75rem',    // 44px
-        '12': '3rem',       // 48px
-        '14': '3.5rem',     // 56px
-        '16': '4rem',       // 64px
-        '18': '4.5rem',     // 72px
-        '20': '5rem',       // 80px
-        '24': '6rem',       // 96px
-        '28': '7rem',       // 112px
-        '32': '8rem',       // 128px
-        '36': '9rem',       // 144px
-        '40': '10rem',      // 160px
-        '48': '12rem',      // 192px
-        '56': '14rem',      // 224px
-        '64': '16rem',      // 256px
+        '0.5': '0.125rem',
+        '1': '0.25rem',
+        '1.5': '0.375rem',
+        '2': '0.5rem',
+        '2.5': '0.625rem',
+        '3': '0.75rem',
+        '3.5': '0.875rem',
+        '4': '1rem',
+        '5': '1.25rem',
+        '6': '1.5rem',
+        '7': '1.75rem',
+        '8': '2rem',
+        '9': '2.25rem',
+        '10': '2.5rem',
+        '11': '2.75rem',
+        '12': '3rem',
+        '14': '3.5rem',
+        '16': '4rem',
+        '18': '4.5rem',
+        '20': '5rem',
+        '24': '6rem',
+        '28': '7rem',
+        '32': '8rem',
+        '36': '9rem',
+        '40': '10rem',
+        '48': '12rem',
+        '56': '14rem',
+        '64': '16rem',
       },
 
-      // ═══════════════════════════════════════════════════════════════════════
       // BORDER RADIUS
-      // Angular/architectural with minimal rounding
-      // ═══════════════════════════════════════════════════════════════════════
       borderRadius: {
         'none': '0',
-        'xs': '0.0625rem',   // 1px - barely perceptible
-        'sm': '0.125rem',    // 2px - subtle softening
-        'DEFAULT': '0.1875rem', // 3px - primary radius
-        'md': '0.25rem',     // 4px - cards, buttons
-        'lg': '0.375rem',    // 6px - larger elements
-        'xl': '0.5rem',      // 8px - modals, panels
-        'full': '9999px',    // Pills, avatars
+        'xs': '0.0625rem',
+        'sm': '0.125rem',
+        'DEFAULT': '0.1875rem',
+        'md': '0.25rem',
+        'lg': '0.375rem',
+        'xl': '0.5rem',
+        'full': '9999px',
       },
 
-      // ═══════════════════════════════════════════════════════════════════════
       // SHADOWS & ELEVATION
-      // Warm-tinted shadows for depth without harshness
-      // ═══════════════════════════════════════════════════════════════════════
       boxShadow: {
-        // Elevation levels
         'elevation-1': '0 1px 2px 0 rgba(28, 25, 23, 0.05)',
         'elevation-2': '0 1px 3px 0 rgba(28, 25, 23, 0.08), 0 1px 2px -1px rgba(28, 25, 23, 0.08)',
         'elevation-3': '0 4px 6px -1px rgba(28, 25, 23, 0.08), 0 2px 4px -2px rgba(28, 25, 23, 0.06)',
         'elevation-4': '0 10px 15px -3px rgba(28, 25, 23, 0.08), 0 4px 6px -4px rgba(28, 25, 23, 0.06)',
         'elevation-5': '0 20px 25px -5px rgba(28, 25, 23, 0.10), 0 8px 10px -6px rgba(28, 25, 23, 0.06)',
         'elevation-6': '0 25px 50px -12px rgba(28, 25, 23, 0.20)',
-        // Interactive shadows
         'button': '0 1px 2px 0 rgba(28, 25, 23, 0.06), 0 1px 3px 0 rgba(28, 25, 23, 0.10)',
         'button-hover': '0 4px 8px -2px rgba(28, 25, 23, 0.12), 0 2px 4px -2px rgba(28, 25, 23, 0.08)',
         'button-active': '0 1px 2px 0 rgba(28, 25, 23, 0.08)',
-        // Card shadows
         'card': '0 1px 3px 0 rgba(28, 25, 23, 0.06), 0 1px 2px -1px rgba(28, 25, 23, 0.06)',
         'card-hover': '0 8px 16px -4px rgba(28, 25, 23, 0.10), 0 4px 6px -2px rgba(28, 25, 23, 0.06)',
-        // Gold accent shadow for primary elements
         'gold': '0 4px 14px -2px rgba(212, 160, 18, 0.25)',
         'gold-lg': '0 8px 24px -4px rgba(212, 160, 18, 0.30)',
-        // Inner shadows
         'inner-sm': 'inset 0 1px 2px 0 rgba(28, 25, 23, 0.05)',
         'inner': 'inset 0 2px 4px 0 rgba(28, 25, 23, 0.08)',
       },
 
-      // ═══════════════════════════════════════════════════════════════════════
       // TRANSITIONS & ANIMATIONS
-      // Moderate, purposeful motion with refined easing
-      // ═══════════════════════════════════════════════════════════════════════
       transitionDuration: {
         '75': '75ms',
         '100': '100ms',
@@ -218,27 +194,20 @@ module.exports = {
         'smooth': 'cubic-bezier(0.4, 0, 0.2, 1)',
       },
       animation: {
-        // Fade animations
         'fade-in': 'fadeIn 400ms cubic-bezier(0.16, 1, 0.3, 1)',
         'fade-in-up': 'fadeInUp 500ms cubic-bezier(0.16, 1, 0.3, 1)',
         'fade-in-down': 'fadeInDown 500ms cubic-bezier(0.16, 1, 0.3, 1)',
-        // Scale animations
         'scale-in': 'scaleIn 300ms cubic-bezier(0.34, 1.56, 0.64, 1)',
         'scale-out': 'scaleOut 200ms cubic-bezier(0.4, 0, 0.2, 1)',
-        // Slide animations
         'slide-in-right': 'slideInRight 400ms cubic-bezier(0.16, 1, 0.3, 1)',
         'slide-in-left': 'slideInLeft 400ms cubic-bezier(0.16, 1, 0.3, 1)',
         'slide-in-up': 'slideInUp 400ms cubic-bezier(0.16, 1, 0.3, 1)',
-        // Stagger helper
         'stagger-1': 'fadeInUp 500ms cubic-bezier(0.16, 1, 0.3, 1) 100ms both',
         'stagger-2': 'fadeInUp 500ms cubic-bezier(0.16, 1, 0.3, 1) 200ms both',
         'stagger-3': 'fadeInUp 500ms cubic-bezier(0.16, 1, 0.3, 1) 300ms both',
         'stagger-4': 'fadeInUp 500ms cubic-bezier(0.16, 1, 0.3, 1) 400ms both',
-        // Spinner
         'spin-slow': 'spin 2s linear infinite',
-        // Pulse for loading
         'pulse-subtle': 'pulseSubtle 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-        // Progress bar shimmer
         'shimmer': 'shimmer 2s infinite',
       },
       keyframes: {
@@ -284,9 +253,7 @@ module.exports = {
         },
       },
 
-      // ═══════════════════════════════════════════════════════════════════════
       // ADDITIONAL UTILITIES
-      // ═══════════════════════════════════════════════════════════════════════
       backgroundImage: {
         'gradient-gold': 'linear-gradient(135deg, #d4a012 0%, #b8860b 100%)',
         'gradient-gold-subtle': 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)',

@@ -1,13 +1,11 @@
 use leptos::prelude::*;
+
 use crate::models::PracticeTip;
 
 #[component]
-pub fn PracticeTips(
-    #[prop(into)] tips: Vec<PracticeTip>,
-) -> impl IntoView {
+pub fn PracticeTips(#[prop(into)] tips: Vec<PracticeTip>) -> impl IntoView {
     view! {
         <div class="card p-6">
-            // Header
             <div class="flex items-center gap-3 mb-5 pb-5 border-b border-stone-100">
                 <div class="w-10 h-10 rounded-lg bg-gold-100 flex items-center justify-center">
                     <svg class="w-5 h-5 text-gold-600" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
@@ -24,12 +22,10 @@ pub fn PracticeTips(
                 </div>
             </div>
 
-            // Tips list
             <ul class="space-y-4" role="list">
                 {tips.into_iter().enumerate().map(|(i, tip)| {
                     view! {
                         <li class="flex gap-4">
-                            // Number indicator
                             <div class="flex-shrink-0 w-6 h-6 rounded-md bg-gold-100 flex items-center justify-center">
                                 <span class="text-label-sm font-medium text-gold-700">
                                     {i + 1}

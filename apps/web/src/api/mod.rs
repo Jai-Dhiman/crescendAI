@@ -1,3 +1,3 @@
-pub mod client;
+mod handlers;
 
-pub use client::*;
+pub use handlers::{analyze_performance, get_performance, list_performances};

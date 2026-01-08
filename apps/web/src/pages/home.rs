@@ -1,19 +1,25 @@
 use leptos::prelude::*;
+
 use crate::components::PerformanceCard;
-use crate::api::fetch_performances;
+#[cfg(not(feature = "ssr"))]
+use crate::models::Performance;
+
+#[cfg(feature = "ssr")]
+use crate::server_fns::list_performances;
 
 #[component]
 pub fn HomePage() -> impl IntoView {
-    let performances_resource = LocalResource::new(move || async move {
-        fetch_performances().await
-    });
+    #[cfg(feature = "ssr")]
+    let performances_resource = Resource::new(|| (), |_| list_performances());
+
+    #[cfg(not(feature = "ssr"))]
+    let performances_resource: Resource<Result<Vec<Performance>, ServerFnError>> =
+        Resource::new(|| (), |_| async { Ok(vec![]) });
 
     view! {
         <div class="animate-fade-in">
-            // Hero section - refined and sophisticated
             <section class="section text-center">
                 <div class="container-narrow">
-                    // Decorative accent
                     <div class="flex justify-center mb-8">
                         <div class="flex items-center gap-3">
                             <div class="h-px w-12 bg-gradient-to-r from-transparent to-gold-300"></div>
@@ -24,19 +30,16 @@ pub fn HomePage() -> impl IntoView {
                         </div>
                     </div>
 
-                    // Main heading
                     <h1 class="text-display-xl md:text-display-2xl font-display font-semibold text-stone-900 mb-6">
                         "Piano Performance"
                         <span class="block text-gradient-gold">"Analysis"</span>
                     </h1>
 
-                    // Description
                     <p class="text-body-lg text-stone-500 max-w-xl mx-auto leading-relaxed mb-10">
                         "Experience detailed feedback on legendary piano performances. "
                         "Discover insights across 19 musical dimensions with our AI-powered system."
                     </p>
 
-                    // Stats row
                     <div class="flex justify-center gap-6 md:gap-10">
                         <div class="text-center">
                             <span class="block font-display text-display-sm text-gold-600 font-semibold">
@@ -55,7 +58,7 @@ pub fn HomePage() -> impl IntoView {
                             }>
                                 {move || {
                                     performances_resource.get().map(|result| {
-                                        let count = (*result).as_ref().map(|p| p.len()).unwrap_or(0);
+                                        let count = result.as_ref().map(|p| p.len()).unwrap_or(0);
                                         view! {
                                             <span class="block font-display text-display-sm text-gold-600 font-semibold">
                                                 {count}
@@ -81,10 +84,8 @@ pub fn HomePage() -> impl IntoView {
                 </div>
             </section>
 
-            // Decorative divider
             <div class="accent-line max-w-xs mx-auto mb-12"></div>
 
-            // Gallery section
             <section class="section-sm" aria-labelledby="gallery-heading">
                 <div class="container-wide">
                     <div class="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-8">
@@ -116,7 +117,7 @@ pub fn HomePage() -> impl IntoView {
                     }>
                         {move || {
                             performances_resource.get().map(|result| {
-                                match &*result {
+                                match result {
                                     Ok(performances) => view! {
                                         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 stagger">
                                             {performances.iter().cloned().map(|performance| {
@@ -144,10 +145,8 @@ pub fn HomePage() -> impl IntoView {
                 </div>
             </section>
 
-            // About section
             <section id="about" class="section border-t border-stone-200 mt-12" aria-labelledby="about-heading">
                 <div class="container-narrow text-center">
-                    // Section header
                     <div class="flex justify-center mb-6">
                         <span class="badge-gold">"About"</span>
                     </div>
@@ -171,7 +170,6 @@ pub fn HomePage() -> impl IntoView {
                         </p>
                     </div>
 
-                    // Features grid
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-12">
                         <div class="card p-6 text-left">
                             <div class="w-10 h-10 rounded-md bg-gold-100 flex items-center justify-center mb-4">

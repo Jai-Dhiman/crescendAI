@@ -4,7 +4,7 @@ use std::f64::consts::PI;
 #[derive(Clone, Debug, PartialEq)]
 pub struct RadarDataPoint {
     pub label: String,
-    pub value: f64, // 0.0 to 1.0
+    pub value: f64,
 }
 
 #[component]
@@ -16,7 +16,6 @@ pub fn RadarChart(
     let radius = center * 0.62;
     let label_radius = center * 0.88;
 
-    // Grid levels
     let grid_levels = vec![0.25, 0.5, 0.75, 1.0];
 
     view! {
@@ -28,7 +27,6 @@ pub fn RadarChart(
             role="img"
             aria-label="Radar chart showing performance analysis across 19 dimensions"
         >
-            // Definitions for gradients
             <defs>
                 <linearGradient id="goldGradient" x1="0%" y1="0%" x2="100%" y2="100%">
                     <stop offset="0%" stop-color="#d4a012" />
@@ -40,7 +38,6 @@ pub fn RadarChart(
                 </linearGradient>
             </defs>
 
-            // Background circle
             <circle
                 cx=center
                 cy=center
@@ -50,7 +47,6 @@ pub fn RadarChart(
                 stroke-width="1"
             />
 
-            // Grid circles
             {grid_levels.iter().map(|&scale| {
                 let r = radius * scale;
                 view! {
@@ -66,7 +62,6 @@ pub fn RadarChart(
                 }
             }).collect_view()}
 
-            // Axis lines
             {move || {
                 let points = data.get();
                 let n = points.len();
@@ -87,7 +82,6 @@ pub fn RadarChart(
                 }).collect_view()
             }}
 
-            // Data polygon with gradient fill
             {move || {
                 let points = data.get();
                 let n = points.len();
@@ -110,7 +104,6 @@ pub fn RadarChart(
                 }
             }}
 
-            // Data points
             {move || {
                 let points = data.get();
                 let n = points.len();
@@ -132,7 +125,6 @@ pub fn RadarChart(
                 }).collect_view()
             }}
 
-            // Labels
             {move || {
                 let points = data.get();
                 let n = points.len();
@@ -175,7 +167,6 @@ pub fn RadarChart(
                 }).collect_view()
             }}
 
-            // Center score display
             {move || {
                 let points = data.get();
                 let avg: f64 = if points.is_empty() {
@@ -186,7 +177,6 @@ pub fn RadarChart(
                 let score = (avg * 100.0).round() as u32;
 
                 view! {
-                    // Background circle for score
                     <circle
                         cx=center
                         cy=center

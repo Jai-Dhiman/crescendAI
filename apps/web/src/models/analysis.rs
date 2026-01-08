@@ -1,6 +1,5 @@
 use serde::{Deserialize, Serialize};
 
-/// The 19 performance dimensions grouped by category
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct PerformanceDimensions {
     // Timing
@@ -40,7 +39,6 @@ pub struct PerformanceDimensions {
 }
 
 impl PerformanceDimensions {
-    /// Convert to vector for radar chart rendering
     pub fn to_labeled_vec(&self) -> Vec<(&'static str, f64)> {
         vec![
             ("Timing", self.timing),

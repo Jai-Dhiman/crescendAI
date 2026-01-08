@@ -1,11 +1,9 @@
 use crate::models::PerformanceDimensions;
 
-/// Mock RunPod service that returns realistic dimension scores.
-/// In production, this will call the actual RunPod GPU inference endpoint.
 pub async fn get_performance_dimensions(performance_id: &str) -> PerformanceDimensions {
-    // Generate slightly different scores based on the performance ID
-    // to make each analysis feel unique
-    let seed = performance_id.bytes().fold(0u32, |acc, b| acc.wrapping_add(b as u32));
+    let seed = performance_id
+        .bytes()
+        .fold(0u32, |acc, b| acc.wrapping_add(b as u32));
     let variation = |base: f64, offset: u32| -> f64 {
         let v = ((seed.wrapping_add(offset) % 100) as f64) / 500.0 - 0.1;
         (base + v).clamp(0.5, 0.98)
@@ -138,7 +136,6 @@ pub async fn get_performance_dimensions(performance_id: &str) -> PerformanceDime
             interpretation_sophistication: 0.94,
             interpretation_overall: 0.93,
         },
-        // Default fallback with generated values
         _ => PerformanceDimensions {
             timing: variation(0.85, 1),
             articulation_length: variation(0.82, 2),

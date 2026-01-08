@@ -1,9 +1,12 @@
-name = "crescendai-api"
+name = "crescendai"
 main = "build/worker/shim.mjs"
 compatibility_date = "2024-12-01"
 
 [build]
-command = "cargo install -q worker-build && worker-build --release"
+command = "./build.sh"
+
+[assets]
+directory = "./dist/client"
 
 [[kv_namespaces]]
 binding = "KV"
@@ -27,5 +30,3 @@ binding = "AI"
 
 [vars]
 ENVIRONMENT = "development"
-
-# Secrets (set via: wrangler secret put <SECRET_NAME>)

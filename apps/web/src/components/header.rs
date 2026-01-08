@@ -6,13 +6,11 @@ pub fn Header() -> impl IntoView {
         <header class="sticky top-0 z-50 bg-cream-50/95 backdrop-blur-sm border-b border-stone-200">
             <div class="container-wide">
                 <div class="flex items-center justify-between h-16">
-                    // Logo and brand
                     <a
                         href="/"
                         class="group flex items-center gap-3 text-stone-800 hover:text-gold-600 transition-colors duration-200"
                         aria-label="CrescendAI Home"
                     >
-                        // Logo mark - angular, sophisticated
                         <div class="relative w-10 h-10 bg-gradient-gold rounded-md shadow-gold flex items-center justify-center transition-transform duration-200 group-hover:scale-105">
                             <svg
                                 class="w-5 h-5 text-white"
@@ -39,7 +37,6 @@ pub fn Header() -> impl IntoView {
                         </div>
                     </a>
 
-                    // Navigation
                     <nav class="flex items-center gap-1" role="navigation" aria-label="Main navigation">
                         <a
                             href="/"

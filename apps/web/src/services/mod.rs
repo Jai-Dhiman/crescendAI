@@ -1,6 +1,6 @@
-pub mod feedback;
-pub mod runpod;
-pub mod vectorize;
+mod feedback;
+mod runpod;
+mod vectorize;
 
 pub use feedback::generate_teacher_feedback;
 pub use runpod::get_performance_dimensions;

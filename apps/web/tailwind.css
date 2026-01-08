@@ -2,16 +2,9 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ═══════════════════════════════════════════════════════════════════════════
-   CRESCENDAI DESIGN SYSTEM
-   Refined, sophisticated music analysis platform
-   Light theme with gold/amber accents and architectural precision
-   ═══════════════════════════════════════════════════════════════════════════ */
+/* CRESCENDAI DESIGN SYSTEM */
 
 @layer base {
-  /* ─────────────────────────────────────────────────────────────────────────
-     CSS CUSTOM PROPERTIES (Design Tokens)
-     ───────────────────────────────────────────────────────────────────────── */
   :root {
     /* Color Tokens */
     --color-gold-50: #fffbeb;
@@ -91,9 +84,6 @@
     --duration-slow: 400ms;
   }
 
-  /* ─────────────────────────────────────────────────────────────────────────
-     BASE STYLES
-     ───────────────────────────────────────────────────────────────────────── */
   html {
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
     -webkit-font-smoothing: antialiased;
@@ -107,34 +97,21 @@
     line-height: 1.7;
   }
 
-  /* Typography Defaults */
   h1, h2, h3, h4, h5, h6 {
     @apply font-display font-semibold text-stone-900;
     text-wrap: balance;
   }
 
-  h1 {
-    @apply text-display-xl tracking-tight;
-  }
-
-  h2 {
-    @apply text-display-md;
-  }
-
-  h3 {
-    @apply text-heading-xl;
-  }
-
-  h4 {
-    @apply text-heading-lg;
-  }
+  h1 { @apply text-display-xl tracking-tight; }
+  h2 { @apply text-display-md; }
+  h3 { @apply text-heading-xl; }
+  h4 { @apply text-heading-lg; }
 
   p {
     @apply text-body-md text-stone-600;
     text-wrap: pretty;
   }
 
-  /* Link Defaults */
   a {
     @apply text-gold-600 transition-colors duration-200;
   }
@@ -143,17 +120,14 @@
     @apply text-gold-700;
   }
 
-  /* Focus States (Accessibility) */
   :focus-visible {
     @apply outline-none ring-2 ring-gold-500 ring-offset-2 ring-offset-cream-50;
   }
 
-  /* Selection */
   ::selection {
     @apply bg-gold-200 text-stone-900;
   }
 
-  /* Scrollbar Styling */
   ::-webkit-scrollbar {
     width: 8px;
     height: 8px;
@@ -173,10 +147,6 @@
 }
 
 @layer components {
-  /* ─────────────────────────────────────────────────────────────────────────
-     BUTTON COMPONENTS
-     ───────────────────────────────────────────────────────────────────────── */
-
   /* Primary Button */
   .btn-primary {
     @apply inline-flex items-center justify-center gap-2
@@ -230,10 +200,7 @@
     transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
   }
 
-  /* ─────────────────────────────────────────────────────────────────────────
-     CARD COMPONENTS
-     ───────────────────────────────────────────────────────────────────────── */
-
+  /* Cards */
   .card {
     @apply bg-white rounded-lg border border-stone-200 shadow-card
            transition-all duration-300;
@@ -249,10 +216,7 @@
     @apply bg-white rounded-lg shadow-elevation-3;
   }
 
-  /* ─────────────────────────────────────────────────────────────────────────
-     INPUT COMPONENTS
-     ───────────────────────────────────────────────────────────────────────── */
-
+  /* Inputs */
   .input {
     @apply w-full px-4 py-2.5
            bg-white text-stone-800 placeholder:text-stone-400
@@ -266,10 +230,7 @@
     @apply block text-label-md uppercase text-stone-500 mb-1.5;
   }
 
-  /* ─────────────────────────────────────────────────────────────────────────
-     BADGE COMPONENTS
-     ───────────────────────────────────────────────────────────────────────── */
-
+  /* Badges */
   .badge {
     @apply inline-flex items-center gap-1
            px-2.5 py-1
@@ -277,74 +238,27 @@
            rounded-sm;
   }
 
-  .badge-gold {
-    @apply badge bg-gold-100 text-gold-700;
-  }
+  .badge-gold { @apply badge bg-gold-100 text-gold-700; }
+  .badge-neutral { @apply badge bg-stone-100 text-stone-600; }
+  .badge-success { @apply badge bg-success-light text-success-dark; }
+  .badge-error { @apply badge bg-error-light text-error-dark; }
 
-  .badge-neutral {
-    @apply badge bg-stone-100 text-stone-600;
-  }
+  /* Layout */
+  .container-narrow { @apply max-w-3xl mx-auto px-4 sm:px-6; }
+  .container-wide { @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8; }
+  .section { @apply py-16 md:py-24; }
+  .section-sm { @apply py-8 md:py-12; }
 
-  .badge-success {
-    @apply badge bg-success-light text-success-dark;
-  }
+  /* Dividers */
+  .divider { @apply border-t border-stone-200; }
+  .divider-subtle { @apply border-t border-stone-100; }
 
-  .badge-error {
-    @apply badge bg-error-light text-error-dark;
-  }
+  /* Text utilities */
+  .text-gradient-gold { @apply bg-gradient-gold bg-clip-text text-transparent; }
+  .text-balance { text-wrap: balance; }
+  .text-pretty { text-wrap: pretty; }
 
-  /* ─────────────────────────────────────────────────────────────────────────
-     LAYOUT UTILITIES
-     ───────────────────────────────────────────────────────────────────────── */
-
-  .container-narrow {
-    @apply max-w-3xl mx-auto px-4 sm:px-6;
-  }
-
-  .container-wide {
-    @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
-  }
-
-  .section {
-    @apply py-16 md:py-24;
-  }
-
-  .section-sm {
-    @apply py-8 md:py-12;
-  }
-
-  /* ─────────────────────────────────────────────────────────────────────────
-     DIVIDERS
-     ───────────────────────────────────────────────────────────────────────── */
-
-  .divider {
-    @apply border-t border-stone-200;
-  }
-
-  .divider-subtle {
-    @apply border-t border-stone-100;
-  }
-
-  /* ─────────────────────────────────────────────────────────────────────────
-     TEXT UTILITIES
-     ───────────────────────────────────────────────────────────────────────── */
-
-  .text-gradient-gold {
-    @apply bg-gradient-gold bg-clip-text text-transparent;
-  }
-
-  .text-balance {
-    text-wrap: balance;
-  }
-
-  .text-pretty {
-    text-wrap: pretty;
-  }
-
-  /* ─────────────────────────────────────────────────────────────────────────
-     ANIMATION UTILITIES
-     ───────────────────────────────────────────────────────────────────────── */
-
+  /* Animation utilities */
   .hover-lift {
     @apply transition-transform duration-300 hover:-translate-y-1;
     transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
@@ -355,12 +269,10 @@
     transition-timing-function: cubic-bezier(0.34, 1.56, 0.64, 1);
   }
 
-  /* Staggered Animation Helper */
   .stagger > * {
     @apply animate-fade-in-up;
     animation-fill-mode: both;
   }
-
   .stagger > *:nth-child(1) { animation-delay: 0ms; }
   .stagger > *:nth-child(2) { animation-delay: 75ms; }
   .stagger > *:nth-child(3) { animation-delay: 150ms; }
@@ -368,25 +280,17 @@
   .stagger > *:nth-child(5) { animation-delay: 300ms; }
   .stagger > *:nth-child(6) { animation-delay: 375ms; }
 
-  /* ─────────────────────────────────────────────────────────────────────────
-     SKELETON LOADING
-     ───────────────────────────────────────────────────────────────────────── */
-
+  /* Skeleton loading */
   .skeleton {
     @apply bg-gradient-to-r from-stone-100 via-stone-50 to-stone-100
            bg-[length:200%_100%] animate-shimmer rounded;
   }
 
-  /* ─────────────────────────────────────────────────────────────────────────
-     DECORATIVE ELEMENTS
-     ───────────────────────────────────────────────────────────────────────── */
-
-  /* Gold accent line */
+  /* Decorative */
   .accent-line {
     @apply h-px bg-gradient-to-r from-transparent via-gold-400 to-transparent;
   }
 
-  /* Subtle texture overlay */
   .texture-noise {
     background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
     opacity: 0.03;
@@ -395,7 +299,6 @@
 }
 
 @layer utilities {
-  /* Hide scrollbar but keep functionality */
   .scrollbar-hide {
     -ms-overflow-style: none;
     scrollbar-width: none;
@@ -405,7 +308,6 @@
     display: none;
   }
 
-  /* Truncate to specific lines */
   .line-clamp-1 {
     display: -webkit-box;
     -webkit-line-clamp: 1;

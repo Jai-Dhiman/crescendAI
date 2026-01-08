@@ -1,26 +1,22 @@
 use leptos::prelude::*;
-use leptos::task::spawn_local;
 use leptos_router::hooks::use_params_map;
-use crate::components::{
-    AudioPlayer, LoadingSpinner, PracticeTips, RadarChart, RadarDataPoint, TeacherFeedback,
-};
+
+use crate::components::{LoadingSpinner, PracticeTips, RadarChart, RadarDataPoint, TeacherFeedback};
 use crate::models::AnalysisState;
-use crate::api::{analyze_performance, fetch_performance_by_id, get_loading_messages, ApiError};
+
+#[cfg(feature = "hydrate")]
+use crate::components::AudioPlayer;
 
 #[component]
 pub fn PerformancePage() -> impl IntoView {
     let params = use_params_map();
 
-    let id_signal = Memo::new(move |_| {
-        params.read().get("id").unwrap_or_default()
-    });
+    let id_signal = Memo::new(move |_| params.read().get("id").unwrap_or_default());
 
-    let performance_resource = LocalResource::new(move || {
-        let id = id_signal.get();
-        async move {
-            fetch_performance_by_id(&id).await
-        }
-    });
+    let performance_resource = Resource::new(
+        move || id_signal.get(),
+        |id| async move { get_performance(id).await },
+    );
 
     let (analysis_state, set_analysis_state) = signal(AnalysisState::Idle);
     let (loading_message, set_loading_message) = signal(String::new());
@@ -42,15 +38,43 @@ pub fn PerformancePage() -> impl IntoView {
         }>
             {move || {
                 performance_resource.get().map(|result| {
-                    match &*result {
+                    match result {
                         Ok(perf) => {
                             let perf_for_header = perf.clone();
-                            let perf_for_audio = perf.clone();
                             let perf_id = perf.id.clone();
+
+                            #[cfg(feature = "hydrate")]
+                            let audio_section = {
+                                let perf_for_audio = perf.clone();
+                                view! {
+                                    <div class="mb-10">
+                                        <AudioPlayer
+                                            audio_url=perf_for_audio.audio_url.clone()
+                                            title=format!("{} - {}", perf_for_audio.piece_title, perf_for_audio.performer)
+                                        />
+                                    </div>
+                                }
+                            };
+
+                            #[cfg(not(feature = "hydrate"))]
+                            let audio_section = {
+                                let perf_for_audio = perf.clone();
+                                view! {
+                                    <div class="mb-10">
+                                        <div class="card p-6">
+                                            <h3 class="font-display text-heading-md text-stone-900 mb-5">
+                                                {format!("{} - {}", perf_for_audio.piece_title, perf_for_audio.performer)}
+                                            </h3>
+                                            <div class="h-20 bg-stone-50 rounded-lg mb-5 flex items-center justify-center border border-stone-100">
+                                                <p class="text-body-sm text-stone-400">"Audio player loading..."</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                }
+                            };
 
                             view! {
                                 <div class="container-wide animate-fade-in">
-                                    // Breadcrumb navigation
                                     <nav class="mb-8" aria-label="Breadcrumb">
                                         <a
                                             href="/"
@@ -70,7 +94,6 @@ pub fn PerformancePage() -> impl IntoView {
                                         </a>
                                     </nav>
 
-                                    // Performance header
                                     <header class="mb-10">
                                         <div class="flex items-center gap-3 mb-4">
                                             <span class="badge-gold">{perf_for_header.composer.clone()}</span>
@@ -89,18 +112,10 @@ pub fn PerformancePage() -> impl IntoView {
                                         })}
                                     </header>
 
-                                    // Audio player
-                                    <div class="mb-10">
-                                        <AudioPlayer
-                                            audio_url=perf_for_audio.audio_url.clone()
-                                            title=format!("{} - {}", perf_for_audio.piece_title, perf_for_audio.performer)
-                                        />
-                                    </div>
+                                    {audio_section}
 
-                                    // Divider
                                     <div class="accent-line mb-10"></div>
 
-                                    // Analysis section
                                     <AnalysisSection
                                         perf_id=perf_id
                                         analysis_state=analysis_state
@@ -114,9 +129,11 @@ pub fn PerformancePage() -> impl IntoView {
                             }.into_any()
                         },
                         Err(e) => {
-                            match e {
-                                ApiError::NotFound => view! { <PerformanceNotFound /> }.into_any(),
-                                _ => view! {
+                            let error_msg = e.to_string();
+                            if error_msg.contains("not found") {
+                                view! { <PerformanceNotFound /> }.into_any()
+                            } else {
+                                view! {
                                     <div class="container-narrow text-center py-20 animate-fade-in">
                                         <div class="w-16 h-16 mx-auto mb-6 rounded-lg bg-error-light flex items-center justify-center">
                                             <svg class="w-8 h-8 text-error" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
@@ -127,7 +144,7 @@ pub fn PerformancePage() -> impl IntoView {
                                             "Error Loading Performance"
                                         </h1>
                                         <p class="text-body-md text-stone-500 mb-8">
-                                            {e.to_string()}
+                                            {error_msg}
                                         </p>
                                         <a href="/" class="btn-primary">
                                             <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -136,7 +153,7 @@ pub fn PerformancePage() -> impl IntoView {
                                             "Return to Gallery"
                                         </a>
                                     </div>
-                                }.into_any(),
+                                }.into_any()
                             }
                         }
                     }
@@ -158,33 +175,43 @@ fn AnalysisSection(
 ) -> impl IntoView {
     let perf_id_for_analysis = perf_id.clone();
 
-    let start_analysis = move |_: web_sys::MouseEvent| {
+    let start_analysis = move |_: leptos::ev::MouseEvent| {
         let id = perf_id_for_analysis.clone();
         set_analysis_state.set(AnalysisState::Loading {
             message: "Starting analysis...".into(),
             progress: 0,
         });
 
-        spawn_local(async move {
-            let messages = get_loading_messages();
+        #[cfg(feature = "hydrate")]
+        {
+            use leptos::task::spawn_local;
 
-            // Start loading messages animation
-            for (i, msg) in messages.iter().enumerate() {
-                set_loading_message.set(msg.to_string());
-                set_loading_progress.set(((i + 1) * 100 / messages.len()) as u8);
-                gloo_timers::future::TimeoutFuture::new(300).await;
-            }
+            spawn_local(async move {
+                let messages = get_loading_messages();
 
-            // Call the actual API
-            match analyze_performance(&id).await {
-                Ok(result) => {
-                    set_analysis_state.set(AnalysisState::Complete(result));
+                for (i, msg) in messages.iter().enumerate() {
+                    set_loading_message.set(msg.to_string());
+                    set_loading_progress.set(((i + 1) * 100 / messages.len()) as u8);
+                    gloo_timers::future::TimeoutFuture::new(300).await;
                 }
-                Err(e) => {
-                    set_analysis_state.set(AnalysisState::Error(e.to_string()));
+
+                match analyze_performance(id).await {
+                    Ok(result) => {
+                        set_analysis_state.set(AnalysisState::Complete(result));
+                    }
+                    Err(e) => {
+                        set_analysis_state.set(AnalysisState::Error(e.to_string()));
+                    }
                 }
-            }
-        });
+            });
+        }
+
+        #[cfg(not(feature = "hydrate"))]
+        {
+            let _ = id;
+            set_loading_message.set("Loading...".to_string());
+            set_loading_progress.set(50);
+        }
     };
 
     view! {
@@ -244,7 +271,6 @@ fn AnalysisSection(
 
                     view! {
                         <div class="space-y-8 animate-fade-in">
-                            // Results header
                             <div class="text-center">
                                 <div class="flex justify-center mb-4">
                                     <span class="badge-gold">
@@ -262,7 +288,6 @@ fn AnalysisSection(
                                 </p>
                             </div>
 
-                            // Radar chart
                             <div class="card p-8 flex justify-center">
                                 <RadarChart
                                     data=radar_signal
@@ -270,13 +295,11 @@ fn AnalysisSection(
                                 />
                             </div>
 
-                            // Feedback and tips grid
                             <div class="grid md:grid-cols-2 gap-6">
                                 <TeacherFeedback feedback=feedback />
                                 <PracticeTips tips=tips />
                             </div>
 
-                            // Return link
                             <div class="text-center pt-6">
                                 <a
                                     href="/"
@@ -342,5 +365,65 @@ fn PerformanceNotFound() -> impl IntoView {
                 "Return to Gallery"
             </a>
         </div>
+    }
+}
+
+#[cfg(feature = "hydrate")]
+fn get_loading_messages() -> Vec<&'static str> {
+    vec![
+        "Analyzing audio waveform...",
+        "Extracting timing features...",
+        "Evaluating articulation...",
+        "Processing dynamics...",
+        "Analyzing pedal technique...",
+        "Assessing timbre qualities...",
+        "Measuring expression...",
+        "Generating feedback...",
+        "Preparing practice tips...",
+        "Finalizing analysis...",
+    ]
+}
+
+use crate::models::{AnalysisResult, Performance};
+
+#[server(GetPerformance, "/api")]
+pub async fn get_performance(id: String) -> Result<Performance, ServerFnError> {
+    #[cfg(feature = "ssr")]
+    {
+        Performance::find_by_id(&id).ok_or_else(|| ServerFnError::new("Performance not found"))
+    }
+    #[cfg(not(feature = "ssr"))]
+    {
+        let _ = id;
+        Err(ServerFnError::new("SSR only"))
+    }
+}
+
+#[server(AnalyzePerformance, "/api")]
+pub async fn analyze_performance(id: String) -> Result<AnalysisResult, ServerFnError> {
+    #[cfg(feature = "ssr")]
+    {
+        use crate::services::{
+            generate_teacher_feedback, get_performance_dimensions, get_practice_tips,
+        };
+
+        let performance =
+            Performance::find_by_id(&id).ok_or_else(|| ServerFnError::new("Performance not found"))?;
+
+        let dimensions = get_performance_dimensions(&id).await;
+        let practice_tips = get_practice_tips(&performance, &dimensions).await;
+        let teacher_feedback = generate_teacher_feedback(&performance, &dimensions).await;
+
+        Ok(AnalysisResult {
+            performance_id: id,
+            dimensions,
+            teacher_feedback,
+            practice_tips,
+        })
+    }
+    #[cfg(not(feature = "ssr"))]
+    {
+        let _ = id;
+        Err(ServerFnError::new("SSR only"))
     }
 }
