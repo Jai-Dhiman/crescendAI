@@ -9,6 +9,20 @@ from .cross_attention import (
     MultiHeadCrossAttention,
     train_fusion_mlp_cv,
 )
+from .phase3 import (
+    StatsPoolingModel,
+    UncertaintyWeightedModel,
+    DimensionSpecificModel,
+    TransformerPoolingModel,
+    MultiScalePoolingModel,
+    MultiLayerMERTModel,
+)
+from .fusion_models import (
+    ModalityDropoutFusion,
+    OrthogonalityFusion,
+    ResidualFusion,
+    DimensionWeightedFusion,
+)
 
 __all__ = [
     # Base models
@@ -22,4 +36,16 @@ __all__ = [
     "FusionMLPModel",
     "MultiHeadCrossAttention",
     "train_fusion_mlp_cv",
+    # Phase 3 models
+    "StatsPoolingModel",
+    "UncertaintyWeightedModel",
+    "DimensionSpecificModel",
+    "TransformerPoolingModel",
+    "MultiScalePoolingModel",
+    "MultiLayerMERTModel",
+    # Learned fusion models
+    "ModalityDropoutFusion",
+    "OrthogonalityFusion",
+    "ResidualFusion",
+    "DimensionWeightedFusion",
 ]
