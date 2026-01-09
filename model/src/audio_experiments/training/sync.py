@@ -3,7 +3,22 @@
 import json
 import subprocess
 from pathlib import Path
-from typing import Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set
+
+import numpy as np
+
+
+def numpy_serializer(obj: Any) -> Any:
+    """JSON serializer for numpy types."""
+    if isinstance(obj, np.ndarray):
+        return obj.tolist()
+    if isinstance(obj, (np.bool_, np.integer)):
+        return int(obj)
+    if isinstance(obj, np.floating):
+        return float(obj)
+    if isinstance(obj, np.complexfloating):
+        return {"real": float(obj.real), "imag": float(obj.imag)}
+    raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
 
 
 def run_rclone(cmd: List[str], silent: bool = True) -> subprocess.CompletedProcess:
@@ -31,7 +46,7 @@ def list_gdrive_experiments(gdrive_results_path: str) -> Set[str]:
 
     experiments = set()
     for line in result.stdout.strip().split('\n'):
-        if line.endswith('.json') and not line.startswith('phase2_'):
+        if line.endswith('.json') and not line.startswith('phase'):
             exp_id = line[:-5]  # Remove .json
             experiments.add(exp_id)
     return experiments
@@ -57,6 +72,25 @@ def check_gdrive_checkpoints(gdrive_results_path: str, exp_id: str) -> bool:
     return required.issubset(files)
 
 
+def _extract_r2_from_results(exp_results: Dict) -> float:
+    """Extract R2 from various experiment result structures."""
+    # Phase 2 format: summary.avg_r2
+    if 'summary' in exp_results and 'avg_r2' in exp_results['summary']:
+        return exp_results['summary']['avg_r2']
+    # Phase 3 fusion format: overall_r2
+    if 'overall_r2' in exp_results:
+        return exp_results['overall_r2']
+    # Phase 3 bootstrap format: average of audio and symbolic
+    if 'audio' in exp_results and 'symbolic' in exp_results:
+        audio_r2 = exp_results['audio'].get('overall', {}).get('r2', 0)
+        symbolic_r2 = exp_results['symbolic'].get('overall', {}).get('r2', 0)
+        return (audio_r2 + symbolic_r2) / 2
+    # Phase 3 paired tests: no R2, return 0
+    if 'audio_vs_symbolic' in exp_results:
+        return 0.0
+    return 0.0
+
+
 def get_completed_experiments(gdrive_results_path: str) -> Dict[str, float]:
     """Get all completed experiments from GDrive with their R2 scores.
 
@@ -70,19 +104,18 @@ def get_completed_experiments(gdrive_results_path: str) -> Dict[str, float]:
     completed = {}
 
     for exp_id in experiments:
-        if check_gdrive_checkpoints(gdrive_results_path, exp_id):
-            # Fetch the results to get R2
-            result = run_rclone([
-                'rclone', 'cat', f'{gdrive_results_path}/{exp_id}.json'
-            ])
-            if result.returncode == 0:
-                try:
-                    data = json.loads(result.stdout)
-                    r2 = data.get('summary', {}).get('avg_r2', None)
-                    if r2 is not None:
-                        completed[exp_id] = r2
-                except json.JSONDecodeError:
-                    pass
+        # Phase 3 fusion experiments don't have checkpoints, just results JSON
+        # Fetch the results to get R2
+        result = run_rclone([
+            'rclone', 'cat', f'{gdrive_results_path}/{exp_id}.json'
+        ])
+        if result.returncode == 0:
+            try:
+                data = json.loads(result.stdout)
+                r2 = _extract_r2_from_results(data)
+                completed[exp_id] = r2
+            except json.JSONDecodeError:
+                pass
 
     return completed
 
@@ -231,17 +264,18 @@ def sync_experiment_to_gdrive(
 
     # Update aggregate results JSON
     if all_results_dict is not None:
-        aggregate_file = local_results_dir / 'phase2_all_results.json'
+        aggregate_file = local_results_dir / 'phase3_all_results.json'
         with open(aggregate_file, 'w') as f:
-            json.dump(all_results_dict, f, indent=2)
+            json.dump(all_results_dict, f, indent=2, default=numpy_serializer)
 
         run_rclone([
             'rclone', 'copyto',
             str(aggregate_file),
-            f'{gdrive_results_path}/phase2_all_results.json',
+            f'{gdrive_results_path}/phase3_all_results.json',
         ])
 
-    r2 = exp_results.get('summary', {}).get('avg_r2', 0)
+    # Extract R2 from various result structures
+    r2 = _extract_r2_from_results(exp_results)
     print(f"OK (R2={r2:.4f})")
     return True
 
