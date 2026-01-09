@@ -2,41 +2,36 @@
 @tailwind components;
 @tailwind utilities;
 
-/* CRESCENDAI DESIGN SYSTEM */
+/* CRESCENDAI RESEARCH SHOWCASE - Academic Paper Aesthetic */
 
 @layer base {
   :root {
-    /* Color Tokens */
-    --color-gold-50: #fffbeb;
-    --color-gold-100: #fef3c7;
-    --color-gold-200: #fde68a;
-    --color-gold-300: #fcd34d;
-    --color-gold-400: #fbbf24;
-    --color-gold-500: #d4a012;
-    --color-gold-600: #b8860b;
-    --color-gold-700: #92650a;
-    --color-gold-800: #774d0a;
-    --color-gold-900: #5c3a08;
+    /* Color Tokens - Academic Paper Palette */
+    --color-sepia-50: #fdfcfa;
+    --color-sepia-100: #f9f6f0;
+    --color-sepia-200: #f0e9dc;
+    --color-sepia-300: #e3d5c0;
+    --color-sepia-400: #c9b89a;
+    --color-sepia-500: #a69276;
+    --color-sepia-600: #8b7355;
+    --color-sepia-700: #6e5a43;
+    --color-sepia-800: #554535;
+    --color-sepia-900: #3d3228;
 
-    --color-burgundy-500: #df4d6f;
-    --color-burgundy-600: #c92d54;
-    --color-burgundy-700: #a82145;
+    --color-paper-50: #fefdfb;
+    --color-paper-100: #fbf9f5;
+    --color-paper-200: #f5f1e8;
+    --color-paper-300: #ede6d9;
+    --color-paper-400: #e0d5c3;
 
-    --color-stone-50: #fafaf9;
-    --color-stone-100: #f5f5f4;
-    --color-stone-150: #eeede9;
-    --color-stone-200: #e7e5e4;
-    --color-stone-300: #d6d3d1;
-    --color-stone-400: #a8a29e;
-    --color-stone-500: #78716c;
-    --color-stone-600: #57534e;
-    --color-stone-700: #44403c;
-    --color-stone-800: #292524;
-    --color-stone-900: #1c1917;
+    --color-ink-500: #746a5c;
+    --color-ink-600: #5a524a;
+    --color-ink-700: #433d38;
+    --color-ink-800: #2d2926;
+    --color-ink-900: #1a1816;
 
-    --color-cream-50: #fefdfb;
-    --color-cream-100: #fdfbf7;
-    --color-cream-200: #f9f5ed;
+    --color-highlight: #c9a227;
+    --color-highlight-light: #fcf8e8;
 
     /* Semantic Colors */
     --color-success: #059669;
@@ -46,7 +41,8 @@
 
     /* Typography */
     --font-display: "Cormorant Garamond", Georgia, serif;
-    --font-sans: "DM Sans", system-ui, sans-serif;
+    --font-serif: "Source Serif 4", Georgia, serif;
+    --font-sans: "Inter", system-ui, sans-serif;
     --font-mono: "JetBrains Mono", Consolas, monospace;
 
     /* Spacing Scale (4px base) */
@@ -63,18 +59,17 @@
     --space-20: 5rem;
     --space-24: 6rem;
 
-    /* Border Radius (Angular) */
-    --radius-xs: 0.0625rem;
-    --radius-sm: 0.125rem;
-    --radius-md: 0.25rem;
-    --radius-lg: 0.375rem;
-    --radius-xl: 0.5rem;
+    /* Border Radius */
+    --radius-sm: 0.1875rem;
+    --radius-md: 0.375rem;
+    --radius-lg: 0.5rem;
+    --radius-xl: 0.75rem;
 
     /* Shadows */
-    --shadow-sm: 0 1px 2px 0 rgba(28, 25, 23, 0.05);
-    --shadow-md: 0 4px 6px -1px rgba(28, 25, 23, 0.08), 0 2px 4px -2px rgba(28, 25, 23, 0.06);
-    --shadow-lg: 0 10px 15px -3px rgba(28, 25, 23, 0.08), 0 4px 6px -4px rgba(28, 25, 23, 0.06);
-    --shadow-gold: 0 4px 14px -2px rgba(212, 160, 18, 0.25);
+    --shadow-sm: 0 1px 2px 0 rgba(37, 31, 26, 0.04);
+    --shadow-md: 0 4px 6px -1px rgba(37, 31, 26, 0.06), 0 2px 4px -2px rgba(37, 31, 26, 0.04);
+    --shadow-lg: 0 10px 15px -3px rgba(37, 31, 26, 0.06), 0 4px 6px -4px rgba(37, 31, 26, 0.04);
+    --shadow-sepia: 0 4px 14px -2px rgba(166, 146, 118, 0.20);
 
     /* Transitions */
     --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
@@ -89,16 +84,18 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
+    scroll-behavior: smooth;
   }
 
   body {
-    @apply bg-cream-50 text-stone-800 font-sans;
+    @apply bg-paper-50 text-ink-700 font-sans;
     font-size: 1rem;
-    line-height: 1.7;
+    line-height: 1.75;
   }
 
+  /* Scholarly Typography */
   h1, h2, h3, h4, h5, h6 {
-    @apply font-display font-semibold text-stone-900;
+    @apply font-display text-ink-800;
     text-wrap: balance;
   }
 
@@ -108,55 +105,59 @@
   h4 { @apply text-heading-lg; }
 
   p {
-    @apply text-body-md text-stone-600;
+    @apply text-body-md text-ink-600;
     text-wrap: pretty;
   }
 
+  /* Academic link styling */
   a {
-    @apply text-gold-600 transition-colors duration-200;
+    @apply text-sepia-600 transition-colors duration-200;
   }
 
   a:hover {
-    @apply text-gold-700;
+    @apply text-sepia-700;
   }
 
   :focus-visible {
-    @apply outline-none ring-2 ring-gold-500 ring-offset-2 ring-offset-cream-50;
+    @apply outline-none ring-2 ring-sepia-500 ring-offset-2 ring-offset-paper-50;
   }
 
   ::selection {
-    @apply bg-gold-200 text-stone-900;
+    @apply bg-sepia-200 text-ink-900;
   }
 
+  /* Elegant scrollbar */
   ::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
+    width: 10px;
+    height: 10px;
   }
 
   ::-webkit-scrollbar-track {
-    @apply bg-stone-100;
+    @apply bg-paper-200;
   }
 
   ::-webkit-scrollbar-thumb {
-    @apply bg-stone-300 rounded-full;
+    @apply bg-sepia-300 rounded-full;
+    border: 2px solid transparent;
+    background-clip: content-box;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    @apply bg-stone-400;
+    @apply bg-sepia-400;
   }
 }
 
 @layer components {
-  /* Primary Button */
+  /* Primary Button - Sepia Academic */
   .btn-primary {
     @apply inline-flex items-center justify-center gap-2
-           px-5 py-2.5
-           bg-gradient-gold text-white font-medium
+           px-6 py-3
+           bg-gradient-cta text-paper-50 font-medium
            rounded-md shadow-button
-           transition-all duration-200
-           hover:shadow-button-hover hover:brightness-110
+           transition-all duration-300
+           hover:shadow-button-hover hover:brightness-105
            active:shadow-button-active active:scale-[0.98]
-           focus-visible:ring-2 focus-visible:ring-gold-500 focus-visible:ring-offset-2;
+           focus-visible:ring-2 focus-visible:ring-sepia-500 focus-visible:ring-offset-2;
     transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
   }
 
@@ -164,13 +165,13 @@
   .btn-secondary {
     @apply inline-flex items-center justify-center gap-2
            px-5 py-2.5
-           bg-white text-stone-700 font-medium
-           border border-stone-200
+           bg-paper-50 text-ink-700 font-medium
+           border border-paper-400
            rounded-md shadow-button
-           transition-all duration-200
-           hover:bg-stone-50 hover:border-stone-300 hover:shadow-button-hover
-           active:bg-stone-100 active:shadow-button-active active:scale-[0.98]
-           focus-visible:ring-2 focus-visible:ring-gold-500 focus-visible:ring-offset-2;
+           transition-all duration-300
+           hover:bg-paper-100 hover:border-sepia-400 hover:shadow-button-hover
+           active:bg-paper-200 active:shadow-button-active active:scale-[0.98]
+           focus-visible:ring-2 focus-visible:ring-sepia-500 focus-visible:ring-offset-2;
     transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
   }
 
@@ -178,12 +179,12 @@
   .btn-ghost {
     @apply inline-flex items-center justify-center gap-2
            px-4 py-2
-           text-stone-600 font-medium
+           text-ink-600 font-medium
            rounded-md
            transition-all duration-200
-           hover:bg-stone-100 hover:text-stone-800
-           active:bg-stone-200
-           focus-visible:ring-2 focus-visible:ring-gold-500 focus-visible:ring-offset-2;
+           hover:bg-paper-200 hover:text-ink-800
+           active:bg-paper-300
+           focus-visible:ring-2 focus-visible:ring-sepia-500 focus-visible:ring-offset-2;
     transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
   }
 
@@ -191,70 +192,133 @@
   .btn-icon {
     @apply inline-flex items-center justify-center
            w-10 h-10
-           text-stone-500
+           text-ink-500
            rounded-md
            transition-all duration-200
-           hover:bg-stone-100 hover:text-stone-700
-           active:bg-stone-200
-           focus-visible:ring-2 focus-visible:ring-gold-500 focus-visible:ring-offset-2;
+           hover:bg-paper-200 hover:text-ink-700
+           active:bg-paper-300
+           focus-visible:ring-2 focus-visible:ring-sepia-500 focus-visible:ring-offset-2;
     transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
   }
 
-  /* Cards */
+  /* Cards - Paper aesthetic */
   .card {
-    @apply bg-white rounded-lg border border-stone-200 shadow-card
+    @apply bg-paper-50 rounded-lg border border-paper-300 shadow-card
            transition-all duration-300;
     transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
   }
 
   .card-interactive {
     @apply card cursor-pointer
-           hover:shadow-card-hover hover:border-stone-300 hover:-translate-y-0.5;
+           hover:shadow-card-hover hover:border-sepia-300 hover:-translate-y-0.5;
   }
 
   .card-elevated {
-    @apply bg-white rounded-lg shadow-elevation-3;
+    @apply bg-paper-50 rounded-lg shadow-elevation-3;
+  }
+
+  /* Academic callout box */
+  .callout {
+    @apply bg-paper-200 border-l-4 border-sepia-500 p-6 md:p-8 rounded-r-lg;
+  }
+
+  /* Metric highlight (for R-squared values) */
+  .metric-highlight {
+    @apply font-mono text-highlight bg-highlight-light px-2 py-0.5 rounded;
+  }
+
+  /* Model card styling */
+  .model-card {
+    @apply bg-paper-50 rounded-lg border border-paper-300 p-6
+           transition-all duration-300 cursor-pointer;
+  }
+
+  .model-card-active {
+    @apply border-sepia-500 bg-sepia-50 shadow-sepia;
+  }
+
+  .model-card-audio {
+    @apply border-sepia-400 ring-1 ring-sepia-200;
   }
 
   /* Inputs */
   .input {
     @apply w-full px-4 py-2.5
-           bg-white text-stone-800 placeholder:text-stone-400
-           border border-stone-200 rounded-md
+           bg-paper-50 text-ink-800 placeholder:text-ink-400
+           border border-paper-300 rounded-md
            transition-all duration-200
-           hover:border-stone-300
-           focus:border-gold-500 focus:ring-2 focus:ring-gold-100 focus:outline-none;
+           hover:border-sepia-400
+           focus:border-sepia-500 focus:ring-2 focus:ring-sepia-100 focus:outline-none;
   }
 
   .input-label {
-    @apply block text-label-md uppercase text-stone-500 mb-1.5;
+    @apply block text-label-md uppercase text-ink-500 mb-1.5;
   }
 
-  /* Badges */
+  /* Badges - Academic style */
   .badge {
     @apply inline-flex items-center gap-1
            px-2.5 py-1
-           text-label-sm uppercase
-           rounded-sm;
+           text-label-sm uppercase tracking-wider
+           rounded;
   }
 
-  .badge-gold { @apply badge bg-gold-100 text-gold-700; }
-  .badge-neutral { @apply badge bg-stone-100 text-stone-600; }
+  .badge-sepia { @apply badge bg-sepia-100 text-sepia-700; }
+  .badge-neutral { @apply badge bg-paper-200 text-ink-600; }
+  .badge-highlight { @apply badge bg-highlight-light text-highlight-dark; }
   .badge-success { @apply badge bg-success-light text-success-dark; }
   .badge-error { @apply badge bg-error-light text-error-dark; }
+
+  /* Legacy badge aliases */
+  .badge-gold { @apply badge-sepia; }
+
+  /* Step indicator */
+  .step-indicator {
+    @apply inline-flex items-center gap-2 px-3 py-1.5 rounded-full
+           bg-paper-200 text-sepia-700 text-label-sm;
+  }
+
+  .step-number {
+    @apply w-5 h-5 rounded-full bg-sepia-600 text-paper-50
+           flex items-center justify-center text-xs font-semibold;
+  }
 
   /* Layout */
   .container-narrow { @apply max-w-3xl mx-auto px-4 sm:px-6; }
   .container-wide { @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8; }
-  .section { @apply py-16 md:py-24; }
-  .section-sm { @apply py-8 md:py-12; }
+  .section { @apply py-20 md:py-28; }
+  .section-sm { @apply py-10 md:py-16; }
 
   /* Dividers */
-  .divider { @apply border-t border-stone-200; }
-  .divider-subtle { @apply border-t border-stone-100; }
+  .divider { @apply border-t border-paper-300; }
+  .divider-subtle { @apply border-t border-paper-200; }
+
+  /* Decorative */
+  .accent-line {
+    @apply h-px bg-gradient-to-r from-transparent via-sepia-400 to-transparent;
+  }
+
+  .accent-line-vertical {
+    @apply w-px bg-gradient-to-b from-transparent via-sepia-400 to-transparent;
+  }
+
+  /* Paper texture overlay */
+  .texture-paper {
+    position: relative;
+  }
+
+  .texture-paper::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+    opacity: 0.025;
+    pointer-events: none;
+    mix-blend-mode: multiply;
+  }
 
   /* Text utilities */
-  .text-gradient-gold { @apply bg-gradient-gold bg-clip-text text-transparent; }
+  .text-gradient-sepia { @apply bg-gradient-sepia bg-clip-text text-transparent; }
   .text-balance { text-wrap: balance; }
   .text-pretty { text-wrap: pretty; }
 
@@ -274,27 +338,63 @@
     animation-fill-mode: both;
   }
   .stagger > *:nth-child(1) { animation-delay: 0ms; }
-  .stagger > *:nth-child(2) { animation-delay: 75ms; }
-  .stagger > *:nth-child(3) { animation-delay: 150ms; }
-  .stagger > *:nth-child(4) { animation-delay: 225ms; }
-  .stagger > *:nth-child(5) { animation-delay: 300ms; }
-  .stagger > *:nth-child(6) { animation-delay: 375ms; }
+  .stagger > *:nth-child(2) { animation-delay: 100ms; }
+  .stagger > *:nth-child(3) { animation-delay: 200ms; }
+  .stagger > *:nth-child(4) { animation-delay: 300ms; }
+  .stagger > *:nth-child(5) { animation-delay: 400ms; }
+  .stagger > *:nth-child(6) { animation-delay: 500ms; }
 
   /* Skeleton loading */
   .skeleton {
-    @apply bg-gradient-to-r from-stone-100 via-stone-50 to-stone-100
+    @apply bg-gradient-to-r from-paper-200 via-paper-100 to-paper-200
            bg-[length:200%_100%] animate-shimmer rounded;
   }
 
-  /* Decorative */
-  .accent-line {
-    @apply h-px bg-gradient-to-r from-transparent via-gold-400 to-transparent;
+  /* Recording card for demo */
+  /* Note: Add "group" class directly in HTML for group-hover utilities */
+  .recording-card {
+    @apply bg-paper-50 rounded-xl border border-paper-300 overflow-hidden
+           transition-all duration-400 cursor-pointer;
+    transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
   }
 
-  .texture-noise {
-    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
-    opacity: 0.03;
-    pointer-events: none;
+  .recording-card:hover {
+    @apply border-sepia-400 shadow-card-hover -translate-y-1;
+  }
+
+  .recording-card:focus-visible {
+    @apply ring-2 ring-sepia-500 ring-offset-2 outline-none;
+  }
+
+  /* Navigation link */
+  .nav-link {
+    @apply px-4 py-2 text-body-sm font-medium text-ink-600 rounded-md
+           transition-all duration-200
+           hover:bg-paper-200 hover:text-ink-800
+           focus-visible:ring-2 focus-visible:ring-sepia-500 focus-visible:ring-offset-2;
+  }
+
+  /* Section label */
+  .section-label {
+    @apply text-label-sm uppercase tracking-[0.15em] text-sepia-600 mb-3 block;
+  }
+
+  /* Prose styling for longer text */
+  .prose {
+    @apply text-ink-600 leading-relaxed;
+  }
+
+  .prose p {
+    @apply mb-4;
+  }
+
+  .prose strong {
+    @apply text-ink-800 font-semibold;
+  }
+
+  .prose a {
+    @apply text-sepia-600 underline underline-offset-2 decoration-sepia-300
+           hover:text-sepia-700 hover:decoration-sepia-500 transition-colors;
   }
 }
 
@@ -327,5 +427,18 @@
     -webkit-line-clamp: 3;
     -webkit-box-orient: vertical;
     overflow: hidden;
+  }
+
+  /* Custom underline offset */
+  .underline-offset-3 {
+    text-underline-offset: 3px;
+  }
+
+  /* Background patterns */
+  .bg-grid {
+    background-image:
+      linear-gradient(rgba(166, 146, 118, 0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(166, 146, 118, 0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
   }
 }

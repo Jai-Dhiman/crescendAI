@@ -1,5 +1,7 @@
-mod home;
+mod demo;
+mod landing;
 mod performance;
 
-pub use home::*;
+pub use demo::*;
+pub use landing::*;
 pub use performance::*;

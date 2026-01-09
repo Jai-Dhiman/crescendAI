@@ -28,25 +28,29 @@ pub fn RadarChart(
             aria-label="Radar chart showing performance analysis across 19 dimensions"
         >
             <defs>
-                <linearGradient id="goldGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stop-color="#d4a012" />
-                    <stop offset="100%" stop-color="#b8860b" />
+                // Sepia gradient for the data polygon stroke
+                <linearGradient id="sepiaGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stop-color="#a69276" />
+                    <stop offset="100%" stop-color="#8b7355" />
                 </linearGradient>
-                <linearGradient id="goldFill" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stop-color="#d4a012" stop-opacity="0.25" />
-                    <stop offset="100%" stop-color="#b8860b" stop-opacity="0.15" />
+                // Sepia fill with transparency
+                <linearGradient id="sepiaFill" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stop-color="#a69276" stop-opacity="0.25" />
+                    <stop offset="100%" stop-color="#8b7355" stop-opacity="0.15" />
                 </linearGradient>
             </defs>
 
+            // Background circle (parchment color)
             <circle
                 cx=center
                 cy=center
                 r=radius
-                fill="#f9f5ed"
-                stroke="#e7e5e4"
+                fill="#f5f1e8"
+                stroke="#ede6d9"
                 stroke-width="1"
             />
 
+            // Grid circles
             {grid_levels.iter().map(|&scale| {
                 let r = radius * scale;
                 view! {
@@ -55,13 +59,14 @@ pub fn RadarChart(
                         cy=center
                         r=r
                         fill="none"
-                        stroke="#d6d3d1"
+                        stroke="#e0d5c3"
                         stroke-width="1"
                         stroke-dasharray="3 3"
                     />
                 }
             }).collect_view()}
 
+            // Axis lines from center to edge
             {move || {
                 let points = data.get();
                 let n = points.len();
@@ -75,13 +80,14 @@ pub fn RadarChart(
                             y1=center
                             x2=x2
                             y2=y2
-                            stroke="#d6d3d1"
+                            stroke="#e0d5c3"
                             stroke-width="1"
                         />
                     }
                 }).collect_view()
             }}
 
+            // Data polygon
             {move || {
                 let points = data.get();
                 let n = points.len();
@@ -96,14 +102,15 @@ pub fn RadarChart(
                 view! {
                     <polygon
                         points=polygon_points
-                        fill="url(#goldFill)"
-                        stroke="url(#goldGradient)"
+                        fill="url(#sepiaFill)"
+                        stroke="url(#sepiaGradient)"
                         stroke-width="2.5"
                         stroke-linejoin="round"
                     />
                 }
             }}
 
+            // Data points (dots at each vertex)
             {move || {
                 let points = data.get();
                 let n = points.len();
@@ -117,14 +124,15 @@ pub fn RadarChart(
                             cx=x
                             cy=y
                             r="5"
-                            fill="#d4a012"
-                            stroke="white"
+                            fill="#a69276"
+                            stroke="#fefdfb"
                             stroke-width="2"
                         />
                     }
                 }).collect_view()
             }}
 
+            // Labels
             {move || {
                 let points = data.get();
                 let n = points.len();
@@ -157,8 +165,8 @@ pub fn RadarChart(
                             dominant-baseline="middle"
                             dy=dy
                             font-size="10"
-                            fill="#78716c"
-                            font-family="DM Sans, system-ui, sans-serif"
+                            fill="#746a5c"
+                            font-family="Inter, system-ui, sans-serif"
                             font-weight="500"
                         >
                             {point.label.clone()}
@@ -167,6 +175,7 @@ pub fn RadarChart(
                 }).collect_view()
             }}
 
+            // Center score display
             {move || {
                 let points = data.get();
                 let avg: f64 = if points.is_empty() {
@@ -181,8 +190,8 @@ pub fn RadarChart(
                         cx=center
                         cy=center
                         r="32"
-                        fill="white"
-                        stroke="#e7e5e4"
+                        fill="#fefdfb"
+                        stroke="#ede6d9"
                         stroke-width="1"
                     />
                     <text
@@ -190,9 +199,9 @@ pub fn RadarChart(
                         y=center - 6.0
                         text-anchor="middle"
                         font-size="22"
-                        font-weight="600"
-                        fill="#1c1917"
-                        font-family="IBM Plex Sans, system-ui, sans-serif"
+                        font-weight="500"
+                        fill="#2d2926"
+                        font-family="Cormorant Garamond, Georgia, serif"
                     >
                         {score}
                     </text>
@@ -201,10 +210,10 @@ pub fn RadarChart(
                         y=center + 12.0
                         text-anchor="middle"
                         font-size="9"
-                        fill="#a8a29e"
-                        font-family="DM Sans, system-ui, sans-serif"
+                        fill="#968c7d"
+                        font-family="Inter, system-ui, sans-serif"
                         text-transform="uppercase"
-                        letter-spacing="0.05em"
+                        letter-spacing="0.1em"
                     >
                         "OVERALL"
                     </text>
@@ -219,33 +228,33 @@ pub fn CollapsibleRadarChart(
     #[prop(into)] data: Signal<Vec<RadarDataPoint>>,
     #[prop(default = 400)] size: u32,
 ) -> impl IntoView {
-    let (is_expanded, set_expanded) = signal(false);
+    let (is_expanded, set_expanded) = signal(true); // Default to expanded
 
     view! {
         <div class="card overflow-hidden">
             <button
                 on:click=move |_| set_expanded.update(|v| *v = !*v)
                 class="w-full px-6 py-4 flex items-center justify-between text-left
-                       hover:bg-stone-50 transition-colors"
+                       hover:bg-paper-100 transition-colors"
             >
                 <div class="flex items-center gap-3">
-                    <div class="w-8 h-8 rounded-md bg-stone-100 flex items-center justify-center">
-                        <svg class="w-4 h-4 text-stone-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <div class="w-8 h-8 rounded-lg bg-sepia-100 flex items-center justify-center">
+                        <svg class="w-4 h-4 text-sepia-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                         </svg>
                     </div>
                     <div>
-                        <span class="block font-display text-heading-md text-stone-900">
-                            "Technical Details"
+                        <span class="block font-display text-heading-md text-ink-800">
+                            "Dimension Details"
                         </span>
-                        <span class="block text-label-sm text-stone-400">
-                            "19-dimension analysis"
+                        <span class="block text-label-sm text-ink-400">
+                            "19-dimension radar visualization"
                         </span>
                     </div>
                 </div>
                 <svg
                     class=move || format!(
-                        "w-5 h-5 text-stone-400 transition-transform duration-200 {}",
+                        "w-5 h-5 text-ink-400 transition-transform duration-200 {}",
                         if is_expanded.get() { "rotate-180" } else { "" }
                     )
                     fill="none"
@@ -264,7 +273,7 @@ pub fn CollapsibleRadarChart(
                     "max-h-0 opacity-0 overflow-hidden transition-all duration-200"
                 }
             >
-                <div class="p-8 border-t border-stone-100 flex justify-center">
+                <div class="p-8 border-t border-paper-200 flex justify-center">
                     <RadarChart data=data size=size />
                 </div>
             </div>
