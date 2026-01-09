@@ -23,6 +23,21 @@ from .fusion_models import (
     ResidualFusion,
     DimensionWeightedFusion,
 )
+from .muq_models import (
+    MuQBaseModel,
+    MuQStatsModel,
+    MERTMuQEnsemble,
+    MERTMuQConcatModel,
+)
+from .contrastive import (
+    ContrastiveAuxiliaryModel,
+    ContrastiveWarmupModel,
+)
+from .losses import (
+    contrastive_auxiliary_loss,
+    supervised_contrastive_loss,
+    ranking_contrastive_loss,
+)
 
 __all__ = [
     # Base models
@@ -48,4 +63,16 @@ __all__ = [
     "OrthogonalityFusion",
     "ResidualFusion",
     "DimensionWeightedFusion",
+    # MuQ models
+    "MuQBaseModel",
+    "MuQStatsModel",
+    "MERTMuQEnsemble",
+    "MERTMuQConcatModel",
+    # Contrastive models
+    "ContrastiveAuxiliaryModel",
+    "ContrastiveWarmupModel",
+    # Loss functions
+    "contrastive_auxiliary_loss",
+    "supervised_contrastive_loss",
+    "ranking_contrastive_loss",
 ]

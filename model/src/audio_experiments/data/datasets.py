@@ -188,3 +188,94 @@ def stats_collate_fn(batch: List[Dict]) -> Dict:
         "labels": labels,
         "keys": [b["key"] for b in batch],
     }
+
+
+class DualEmbeddingDataset(Dataset):
+    """Dataset for dual MERT+MuQ embeddings.
+
+    Loads embeddings from two different sources (e.g., MERT and MuQ)
+    for ensemble/fusion models.
+    """
+
+    def __init__(
+        self,
+        mert_cache_dir: Path,
+        muq_cache_dir: Path,
+        labels: Dict,
+        keys: List[str],
+        max_frames: int = 1000,
+    ):
+        """Initialize dual embedding dataset.
+
+        Args:
+            mert_cache_dir: Directory containing MERT embeddings.
+            muq_cache_dir: Directory containing MuQ embeddings.
+            labels: Dictionary mapping keys to label arrays.
+            keys: List of keys to include in dataset.
+            max_frames: Maximum number of frames to keep.
+        """
+        self.mert_cache_dir = Path(mert_cache_dir)
+        self.muq_cache_dir = Path(muq_cache_dir)
+        self.max_frames = max_frames
+
+        mert_available = {p.stem for p in self.mert_cache_dir.glob("*.pt")}
+        muq_available = {p.stem for p in self.muq_cache_dir.glob("*.pt")}
+
+        # Only include samples that have both MERT and MuQ embeddings
+        self.samples = [
+            (k, torch.tensor(labels[k][:19], dtype=torch.float32))
+            for k in keys
+            if k in mert_available and k in muq_available and k in labels
+        ]
+
+    def __len__(self):
+        return len(self.samples)
+
+    def __getitem__(self, idx):
+        key, label = self.samples[idx]
+
+        mert_emb = torch.load(self.mert_cache_dir / f"{key}.pt", weights_only=True)
+        muq_emb = torch.load(self.muq_cache_dir / f"{key}.pt", weights_only=True)
+
+        # Truncate if needed
+        if mert_emb.shape[0] > self.max_frames:
+            mert_emb = mert_emb[: self.max_frames]
+        if muq_emb.shape[0] > self.max_frames:
+            muq_emb = muq_emb[: self.max_frames]
+
+        return {
+            "mert_embeddings": mert_emb,
+            "muq_embeddings": muq_emb,
+            "labels": label,
+            "key": key,
+            "mert_length": mert_emb.shape[0],
+            "muq_length": muq_emb.shape[0],
+        }
+
+
+def dual_collate_fn(batch: List[Dict]) -> Dict:
+    """Collate function for dual MERT+MuQ embeddings with padding."""
+    mert_embs = [b["mert_embeddings"] for b in batch]
+    muq_embs = [b["muq_embeddings"] for b in batch]
+    labels = torch.stack([b["labels"] for b in batch])
+    mert_lengths = torch.tensor([b["mert_length"] for b in batch])
+    muq_lengths = torch.tensor([b["muq_length"] for b in batch])
+
+    # Pad each modality separately
+    mert_padded = pad_sequence(mert_embs, batch_first=True)
+    muq_padded = pad_sequence(muq_embs, batch_first=True)
+
+    # Create masks
+    mert_mask = torch.arange(mert_padded.shape[1]).unsqueeze(0) < mert_lengths.unsqueeze(1)
+    muq_mask = torch.arange(muq_padded.shape[1]).unsqueeze(0) < muq_lengths.unsqueeze(1)
+
+    return {
+        "mert_embeddings": mert_padded,
+        "muq_embeddings": muq_padded,
+        "mert_mask": mert_mask,
+        "muq_mask": muq_mask,
+        "labels": labels,
+        "keys": [b["key"] for b in batch],
+        "mert_lengths": mert_lengths,
+        "muq_lengths": muq_lengths,
+    }
