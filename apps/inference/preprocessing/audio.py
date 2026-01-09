@@ -111,3 +111,46 @@ def load_audio_from_file(
     audio, sr = librosa.load(audio_path, sr=target_sr, mono=True)
     duration = len(audio) / sr
     return audio, duration
+
+
+def preprocess_audio_from_bytes(
+    audio_bytes: bytes,
+    target_sr: int = MERT_CONFIG["target_sr"],
+    max_duration: int = 300,
+) -> Tuple[np.ndarray, float]:
+    """Preprocess audio from raw bytes (e.g., base64 decoded).
+
+    Args:
+        audio_bytes: Raw audio file bytes (any format librosa supports)
+        target_sr: Target sample rate (24kHz for MERT)
+        max_duration: Maximum audio duration in seconds
+
+    Returns:
+        Tuple of (audio_array, duration_seconds)
+
+    Raises:
+        AudioProcessingError: If audio processing fails
+    """
+    import io
+
+    try:
+        # Load from bytes buffer - librosa handles format detection
+        audio, sr = librosa.load(io.BytesIO(audio_bytes), sr=target_sr, mono=True)
+        duration = len(audio) / sr
+
+        if duration > max_duration:
+            raise AudioProcessingError(
+                f"Audio too long: {duration:.1f}s > {max_duration}s limit"
+            )
+
+        if duration < 1.0:
+            raise AudioProcessingError(
+                f"Audio too short: {duration:.1f}s < 1.0s minimum"
+            )
+
+        return audio, duration
+
+    except AudioProcessingError:
+        raise
+    except Exception as e:
+        raise AudioProcessingError(f"Failed to process audio bytes: {e}")

@@ -1,18 +1,13 @@
-# RunPod SDK
-runpod>=1.3.0
+# HuggingFace Inference Endpoints dependencies
+# This file is read by HF Endpoints to install Python packages
 
 # PyTorch and ML
 torch>=2.0.0
-pytorch-lightning>=2.0.0
 transformers>=4.30.0
 
 # Audio processing
 librosa>=0.10.0
 soundfile>=0.12.0
-
-# MIDI (optional, for transcription)
-basic-pitch>=0.3.0
-pretty-midi>=0.2.10
 
 # Utilities
 numpy>=1.24.0
