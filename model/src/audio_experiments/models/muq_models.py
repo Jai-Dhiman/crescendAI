@@ -378,11 +378,15 @@ class MERTMuQConcatModel(pl.LightningModule):
     Concatenates pooled representations from both models before the
     classification head. This allows the model to learn cross-modal
     interactions.
+
+    Supports different dimensions for MERT and MuQ embeddings. Both are
+    projected to a shared dimension before concatenation.
     """
 
     def __init__(
         self,
-        input_dim: int = 1024,
+        mert_dim: int = 1024,
+        muq_dim: int = 1024,
         hidden_dim: int = 512,
         num_labels: int = 19,
         dropout: float = 0.2,
@@ -397,23 +401,28 @@ class MERTMuQConcatModel(pl.LightningModule):
         self.wd = weight_decay
         self.pooling = pooling
         self.max_epochs = max_epochs
+        self.mert_dim = mert_dim
+        self.muq_dim = muq_dim
 
-        # Separate attention modules for each modality
+        # Separate attention modules for each modality (use respective dims)
         if pooling == "attention":
             self.mert_attn = nn.Sequential(
-                nn.Linear(input_dim, 256), nn.Tanh(), nn.Linear(256, 1)
+                nn.Linear(mert_dim, 256), nn.Tanh(), nn.Linear(256, 1)
             )
             self.muq_attn = nn.Sequential(
-                nn.Linear(input_dim, 256), nn.Tanh(), nn.Linear(256, 1)
+                nn.Linear(muq_dim, 256), nn.Tanh(), nn.Linear(256, 1)
             )
 
-        # Projection to reduce concatenated dimension
-        concat_dim = input_dim * 2  # 2048
-        self.proj = nn.Linear(concat_dim, input_dim)
+        # Project each modality to hidden_dim before concatenation
+        self.mert_proj = nn.Linear(mert_dim, hidden_dim)
+        self.muq_proj = nn.Linear(muq_dim, hidden_dim)
 
-        # MLP head
+        # Projection after concatenation (2 * hidden_dim -> hidden_dim)
+        self.proj = nn.Linear(hidden_dim * 2, hidden_dim)
+
+        # MLP head (input is hidden_dim from projection)
         self.clf = nn.Sequential(
-            nn.Linear(input_dim, hidden_dim),
+            nn.Linear(hidden_dim, hidden_dim),
             nn.GELU(),
             nn.Dropout(dropout),
             nn.Linear(hidden_dim, hidden_dim),
@@ -448,8 +457,12 @@ class MERTMuQConcatModel(pl.LightningModule):
         attn_mod = self.muq_attn if self.pooling == "attention" else None
         muq_pooled = self.pool(muq_emb, attn_mod, muq_mask)
 
-        # Concatenate and project
-        concat = torch.cat([mert_pooled, muq_pooled], dim=-1)
+        # Project each modality to shared dimension
+        mert_proj = self.mert_proj(mert_pooled)
+        muq_proj = self.muq_proj(muq_pooled)
+
+        # Concatenate and project to hidden_dim
+        concat = torch.cat([mert_proj, muq_proj], dim=-1)
         projected = self.proj(concat)
 
         return self.clf(projected)
@@ -481,6 +494,215 @@ class MERTMuQConcatModel(pl.LightningModule):
             l = torch.cat([x["l"] for x in self.val_outputs]).numpy()
             self.log("val_r2", r2_score(l, p), prog_bar=True)
             self.val_outputs.clear()
+
+    def configure_optimizers(self):
+        opt = torch.optim.AdamW(self.parameters(), lr=self.lr, weight_decay=self.wd)
+        sch = torch.optim.lr_scheduler.CosineAnnealingLR(
+            opt, T_max=self.max_epochs, eta_min=1e-6
+        )
+        return {"optimizer": opt, "lr_scheduler": {"scheduler": sch, "interval": "epoch"}}
+
+
+class AsymmetricGatedFusion(pl.LightningModule):
+    """Asymmetric fusion with per-dimension gating for MERT and MuQ.
+
+    Uses asymmetric projections that respect the information difference between
+    modalities (MERT 6144-dim vs MuQ 1024-dim). Learns per-dimension gates to
+    softly route between modalities for each of the 19 performance dimensions.
+
+    Architecture:
+    - MERT: 6144 -> 768 -> 512 (2-stage projection preserves more detail)
+    - MuQ: 1024 -> 512 (single projection)
+    - Per-dimension gating learns which modality matters for each output
+    """
+
+    def __init__(
+        self,
+        mert_dim: int = 6144,
+        muq_dim: int = 1024,
+        mert_hidden: int = 768,
+        shared_dim: int = 512,
+        num_labels: int = 19,
+        dropout: float = 0.2,
+        learning_rate: float = 1e-4,
+        weight_decay: float = 1e-5,
+        pooling: str = "attention",
+        max_epochs: int = 200,
+    ):
+        super().__init__()
+        self.save_hyperparameters()
+        self.lr = learning_rate
+        self.wd = weight_decay
+        self.pooling = pooling
+        self.max_epochs = max_epochs
+        self.num_labels = num_labels
+
+        # Attention pooling modules
+        if pooling == "attention":
+            self.mert_attn = nn.Sequential(
+                nn.Linear(mert_dim, 256), nn.Tanh(), nn.Linear(256, 1)
+            )
+            self.muq_attn = nn.Sequential(
+                nn.Linear(muq_dim, 256), nn.Tanh(), nn.Linear(256, 1)
+            )
+
+        # Asymmetric projections
+        # MERT: 2-stage to preserve more acoustic detail from 6144-dim
+        self.mert_proj = nn.Sequential(
+            nn.Linear(mert_dim, mert_hidden),
+            nn.LayerNorm(mert_hidden),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(mert_hidden, shared_dim),
+            nn.LayerNorm(shared_dim),
+            nn.GELU(),
+            nn.Dropout(dropout),
+        )
+
+        # MuQ: single-stage projection
+        self.muq_proj = nn.Sequential(
+            nn.Linear(muq_dim, shared_dim),
+            nn.LayerNorm(shared_dim),
+            nn.GELU(),
+            nn.Dropout(dropout),
+        )
+
+        # Per-dimension gating network
+        # Takes concatenated projections, outputs gate weights for each label
+        self.gate_net = nn.Sequential(
+            nn.Linear(shared_dim * 2, shared_dim),
+            nn.GELU(),
+            nn.Linear(shared_dim, num_labels),
+            nn.Sigmoid(),
+        )
+
+        # Per-dimension prediction heads
+        # Each head predicts one label from the gated representation
+        self.heads = nn.ModuleList([
+            nn.Sequential(
+                nn.Linear(shared_dim, shared_dim // 2),
+                nn.GELU(),
+                nn.Dropout(dropout),
+                nn.Linear(shared_dim // 2, 1),
+                nn.Sigmoid(),
+            )
+            for _ in range(num_labels)
+        ])
+
+        self.mse_loss = nn.MSELoss()
+        self.val_outputs = []
+
+    def pool(self, x, attn_module, mask=None):
+        """Pool sequence embeddings using attention or mean pooling."""
+        if self.pooling == "attention":
+            scores = attn_module(x).squeeze(-1)
+            if mask is not None:
+                scores = scores.masked_fill(~mask, float("-inf"))
+            w = torch.softmax(scores, dim=-1).unsqueeze(-1)
+            return (x * w).sum(1)
+        else:
+            if mask is not None:
+                m = mask.unsqueeze(-1).float()
+                return (x * m).sum(1) / m.sum(1).clamp(min=1)
+            return x.mean(1)
+
+    def forward(self, mert_emb, muq_emb, mert_mask=None, muq_mask=None):
+        # Pool sequences to fixed-size vectors
+        attn_mod = self.mert_attn if self.pooling == "attention" else None
+        mert_pooled = self.pool(mert_emb, attn_mod, mert_mask)
+
+        attn_mod = self.muq_attn if self.pooling == "attention" else None
+        muq_pooled = self.pool(muq_emb, attn_mod, muq_mask)
+
+        # Asymmetric projections
+        mert_proj = self.mert_proj(mert_pooled)  # [B, shared_dim]
+        muq_proj = self.muq_proj(muq_pooled)     # [B, shared_dim]
+
+        # Compute per-dimension gates
+        combined = torch.cat([mert_proj, muq_proj], dim=-1)  # [B, shared_dim*2]
+        gates = self.gate_net(combined)  # [B, num_labels]
+
+        # Apply per-dimension gated fusion and predict
+        outputs = []
+        for i, head in enumerate(self.heads):
+            gate = gates[:, i:i+1]  # [B, 1]
+            # Soft routing: gate * mert + (1-gate) * muq
+            gated = gate * mert_proj + (1 - gate) * muq_proj  # [B, shared_dim]
+            out = head(gated)  # [B, 1]
+            outputs.append(out)
+
+        return torch.cat(outputs, dim=1)  # [B, num_labels]
+
+    def training_step(self, batch, idx):
+        pred = self(
+            batch["mert_embeddings"],
+            batch["muq_embeddings"],
+            batch.get("mert_mask"),
+            batch.get("muq_mask"),
+        )
+        loss = self.mse_loss(pred, batch["labels"])
+        self.log("train_loss", loss, prog_bar=True)
+
+        # Log gate statistics periodically
+        if self.global_step % 100 == 0:
+            with torch.no_grad():
+                mert_pooled = self.pool(
+                    batch["mert_embeddings"],
+                    self.mert_attn if self.pooling == "attention" else None,
+                    batch.get("mert_mask")
+                )
+                muq_pooled = self.pool(
+                    batch["muq_embeddings"],
+                    self.muq_attn if self.pooling == "attention" else None,
+                    batch.get("muq_mask")
+                )
+                mert_proj = self.mert_proj(mert_pooled)
+                muq_proj = self.muq_proj(muq_pooled)
+                combined = torch.cat([mert_proj, muq_proj], dim=-1)
+                gates = self.gate_net(combined)
+                self.log("mert_gate_mean", gates.mean())
+                self.log("mert_gate_std", gates.std())
+
+        return loss
+
+    def validation_step(self, batch, idx):
+        pred = self(
+            batch["mert_embeddings"],
+            batch["muq_embeddings"],
+            batch.get("mert_mask"),
+            batch.get("muq_mask"),
+        )
+        self.log("val_loss", self.mse_loss(pred, batch["labels"]), prog_bar=True)
+        self.val_outputs.append({"p": pred.cpu(), "l": batch["labels"].cpu()})
+
+    def on_validation_epoch_end(self):
+        if self.val_outputs:
+            p = torch.cat([x["p"] for x in self.val_outputs]).numpy()
+            l = torch.cat([x["l"] for x in self.val_outputs]).numpy()
+            self.log("val_r2", r2_score(l, p), prog_bar=True)
+            self.val_outputs.clear()
+
+    def get_learned_gates(self, mert_emb, muq_emb, mert_mask=None, muq_mask=None):
+        """Return per-dimension gate values for interpretability.
+
+        Returns dict with gate values per dimension (higher = more MERT).
+        """
+        with torch.no_grad():
+            attn_mod = self.mert_attn if self.pooling == "attention" else None
+            mert_pooled = self.pool(mert_emb, attn_mod, mert_mask)
+
+            attn_mod = self.muq_attn if self.pooling == "attention" else None
+            muq_pooled = self.pool(muq_emb, attn_mod, muq_mask)
+
+            mert_proj = self.mert_proj(mert_pooled)
+            muq_proj = self.muq_proj(muq_pooled)
+            combined = torch.cat([mert_proj, muq_proj], dim=-1)
+            gates = self.gate_net(combined)
+
+            return {
+                "gates": gates.cpu().numpy(),
+                "mert_weight_per_dim": gates.mean(0).cpu().numpy(),
+            }
 
     def configure_optimizers(self):
         opt = torch.optim.AdamW(self.parameters(), lr=self.lr, weight_decay=self.wd)

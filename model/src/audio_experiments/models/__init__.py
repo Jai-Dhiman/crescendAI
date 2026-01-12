@@ -28,6 +28,7 @@ from .muq_models import (
     MuQStatsModel,
     MERTMuQEnsemble,
     MERTMuQConcatModel,
+    AsymmetricGatedFusion,
 )
 from .contrastive import (
     ContrastiveAuxiliaryModel,
@@ -68,6 +69,7 @@ __all__ = [
     "MuQStatsModel",
     "MERTMuQEnsemble",
     "MERTMuQConcatModel",
+    "AsymmetricGatedFusion",
     # Contrastive models
     "ContrastiveAuxiliaryModel",
     "ContrastiveWarmupModel",
