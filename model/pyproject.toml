@@ -37,6 +37,8 @@ dependencies = [
     "jsonlines>=3.1.0",
     # Optional: Experiment tracking
     "wandb>=0.15.0",
+    # RAG ingestion
+    "youtube-transcript-api>=0.6.0",
     "ipykernel>=7.0.1",
     "rich>=14.2.0",
     "torchaudio>=2.9.0",

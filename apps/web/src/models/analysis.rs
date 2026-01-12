@@ -1,3 +1,4 @@
+use super::CitedFeedback;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -83,7 +84,7 @@ pub struct AnalysisResult {
     pub performance_id: String,
     pub dimensions: PerformanceDimensions,
     pub models: Vec<ModelResult>,
-    pub teacher_feedback: String,
+    pub teacher_feedback: CitedFeedback,
     pub practice_tips: Vec<PracticeTip>,
 }
 

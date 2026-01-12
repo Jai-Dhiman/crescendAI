@@ -8,8 +8,6 @@ pub mod pages;
 #[cfg(feature = "ssr")]
 pub mod api;
 #[cfg(feature = "ssr")]
-pub mod server_fns;
-#[cfg(feature = "ssr")]
 pub mod services;
 #[cfg(feature = "ssr")]
 pub mod state;

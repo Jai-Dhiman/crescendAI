@@ -1,7 +1,12 @@
 use leptos::prelude::*;
 
+use crate::models::{CitedFeedback, Citation, SourceType};
+
 #[component]
-pub fn TeacherFeedback(#[prop(into)] feedback: String) -> impl IntoView {
+pub fn TeacherFeedback(feedback: CitedFeedback) -> impl IntoView {
+    let has_citations = !feedback.citations.is_empty();
+    let citations = feedback.citations.clone();
+
     view! {
         <div class="card p-6">
             <div class="flex items-center gap-3 mb-5 pb-5 border-b border-paper-200">
@@ -15,16 +20,94 @@ pub fn TeacherFeedback(#[prop(into)] feedback: String) -> impl IntoView {
                         "AI Teacher Feedback"
                     </h3>
                     <p class="text-label-sm text-sepia-500 uppercase tracking-wider">
-                        "Example Application"
+                        {if has_citations { "Grounded in Pedagogy Sources" } else { "Example Application" }}
                     </p>
                 </div>
             </div>
 
-            <div class="text-body-md text-ink-600 leading-relaxed space-y-4 font-serif">
-                {feedback.split("\n\n").map(|paragraph| {
-                    view! { <p>{paragraph.to_string()}</p> }
+            <div class="text-body-md text-ink-600 leading-relaxed space-y-4 font-serif feedback-content">
+                {feedback.plain_text.split("\n\n").map(|paragraph| {
+                    view! { <p inner_html={render_paragraph_with_citations(paragraph)} /> }
                 }).collect_view()}
             </div>
+
+            // Sources footer
+            {has_citations.then(|| {
+                view! {
+                    <div class="mt-6 pt-4 border-t border-paper-200">
+                        <h4 class="text-label-sm text-sepia-600 uppercase tracking-wider mb-3">
+                            "Sources"
+                        </h4>
+                        <ul class="space-y-2 text-body-sm text-ink-500">
+                            {citations.iter().map(|citation| {
+                                view! { <CitationFootnote citation={citation.clone()} /> }
+                            }).collect_view()}
+                        </ul>
+                    </div>
+                }
+            })}
         </div>
+    }
+}
+
+/// Render a paragraph with citation markers as styled spans
+fn render_paragraph_with_citations(text: &str) -> String {
+    use regex::Regex;
+
+    let citation_regex = Regex::new(r"\[(\d+)\]").unwrap();
+
+    citation_regex
+        .replace_all(text, |caps: &regex::Captures| {
+            let num = &caps[1];
+            format!(
+                "<span class=\"citation-marker inline-flex items-center justify-center w-5 h-5 text-xs font-medium bg-sepia-100 text-sepia-700 rounded cursor-pointer hover:bg-sepia-200 transition-colors\" title=\"View source {}\">[{}]</span>",
+                num, num
+            )
+        })
+        .into_owned()
+}
+
+#[component]
+fn CitationFootnote(citation: Citation) -> impl IntoView {
+    let footnote_text = citation.format_footnote();
+    let url = citation.get_timestamped_url();
+
+    let icon = match citation.source_type {
+        SourceType::Book => view! {
+            <svg class="w-4 h-4 text-sepia-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
+            </svg>
+        }.into_any(),
+        SourceType::Masterclass => view! {
+            <svg class="w-4 h-4 text-sepia-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.971l-11.54 6.347a1.125 1.125 0 01-1.667-.985V5.653z" />
+            </svg>
+        }.into_any(),
+        SourceType::Letter | SourceType::Journal => view! {
+            <svg class="w-4 h-4 text-sepia-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+            </svg>
+        }.into_any(),
+    };
+
+    view! {
+        <li class="flex items-start gap-2">
+            {icon}
+            {match url {
+                Some(link) => view! {
+                    <a
+                        href={link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="hover:text-sepia-600 hover:underline transition-colors"
+                    >
+                        {footnote_text}
+                    </a>
+                }.into_any(),
+                None => view! {
+                    <span>{footnote_text}</span>
+                }.into_any(),
+            }}
+        </li>
     }
 }

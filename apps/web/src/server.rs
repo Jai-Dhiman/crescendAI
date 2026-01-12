@@ -1,12 +1,14 @@
-use axum::{
-    routing::{get, post},
-    Router,
-};
+use axum::{routing::get, Router};
 use leptos::prelude::*;
 use leptos_axum::{generate_route_list, LeptosRoutes};
 use tower::ServiceExt;
-use worker::{event, Context, Env, HttpRequest, Result};
+use worker::{event, console_log, Context, Env, HttpRequest, Result};
 
+use crate::models::{AnalysisResult, ModelResult, Performance, PerformanceDimensions};
+use crate::services::{
+    generate_cited_feedback, generate_fallback_feedback, get_performance_dimensions,
+    get_practice_tips, retrieve_for_analysis,
+};
 use crate::{api, shell::shell, state::AppState, App};
 
 fn router(app_state: AppState) -> Router {
@@ -14,10 +16,10 @@ fn router(app_state: AppState) -> Router {
     let routes = generate_route_list(App);
 
     // API routes with our AppState
+    // Note: /api/analyze/:id is handled directly in the event handler for Workers bindings
     let api_router = Router::new()
         .route("/api/performances", get(api::list_performances))
         .route("/api/performances/:id", get(api::get_performance))
-        .route("/api/analyze/:id", post(api::analyze_performance))
         .route("/health", get(|| async { "OK" }))
         .with_state(app_state.clone());
 
@@ -41,6 +43,175 @@ fn router(app_state: AppState) -> Router {
     api_router.merge(leptos_router)
 }
 
+/// Generate model variants for the analysis result.
+/// In production, these would come from actual model inference.
+fn generate_model_variants(base: &PerformanceDimensions) -> Vec<ModelResult> {
+    let symbolic = PerformanceDimensions {
+        timing: (base.timing * 1.05).min(1.0),
+        articulation_length: (base.articulation_length * 0.95).min(1.0),
+        articulation_touch: (base.articulation_touch * 0.98).min(1.0),
+        pedal_amount: (base.pedal_amount * 0.85).min(1.0),
+        pedal_clarity: (base.pedal_clarity * 0.88).min(1.0),
+        timbre_variety: (base.timbre_variety * 0.75).min(1.0),
+        timbre_depth: (base.timbre_depth * 0.78).min(1.0),
+        timbre_brightness: (base.timbre_brightness * 0.80).min(1.0),
+        timbre_loudness: (base.timbre_loudness * 0.82).min(1.0),
+        dynamics_range: base.dynamics_range,
+        tempo: (base.tempo * 1.02).min(1.0),
+        space: base.space,
+        balance: base.balance,
+        drama: (base.drama * 0.95).min(1.0),
+        mood_valence: base.mood_valence,
+        mood_energy: base.mood_energy,
+        mood_imagination: (base.mood_imagination * 0.92).min(1.0),
+        interpretation_sophistication: base.interpretation_sophistication,
+        interpretation_overall: (base.interpretation_overall * 0.96).min(1.0),
+    };
+
+    let audio = PerformanceDimensions {
+        timing: (base.timing * 0.97).min(1.0),
+        articulation_length: base.articulation_length,
+        articulation_touch: (base.articulation_touch * 1.02).min(1.0),
+        pedal_amount: (base.pedal_amount * 1.08).min(1.0),
+        pedal_clarity: (base.pedal_clarity * 1.05).min(1.0),
+        timbre_variety: (base.timbre_variety * 1.12).min(1.0),
+        timbre_depth: (base.timbre_depth * 1.10).min(1.0),
+        timbre_brightness: (base.timbre_brightness * 1.08).min(1.0),
+        timbre_loudness: (base.timbre_loudness * 1.05).min(1.0),
+        dynamics_range: (base.dynamics_range * 1.03).min(1.0),
+        tempo: (base.tempo * 0.98).min(1.0),
+        space: (base.space * 1.02).min(1.0),
+        balance: (base.balance * 1.01).min(1.0),
+        drama: (base.drama * 1.04).min(1.0),
+        mood_valence: (base.mood_valence * 1.02).min(1.0),
+        mood_energy: (base.mood_energy * 1.03).min(1.0),
+        mood_imagination: (base.mood_imagination * 1.05).min(1.0),
+        interpretation_sophistication: (base.interpretation_sophistication * 1.02).min(1.0),
+        interpretation_overall: (base.interpretation_overall * 1.03).min(1.0),
+    };
+
+    vec![
+        ModelResult {
+            model_name: "PercePiano".to_string(),
+            model_type: "Symbolic".to_string(),
+            r_squared: 0.395,
+            dimensions: symbolic,
+        },
+        ModelResult {
+            model_name: "MERT-330M".to_string(),
+            model_type: "Audio".to_string(),
+            r_squared: 0.433,
+            dimensions: audio,
+        },
+        ModelResult {
+            model_name: "Late Fusion".to_string(),
+            model_type: "Fusion".to_string(),
+            r_squared: 0.510,
+            dimensions: base.clone(),
+        },
+    ]
+}
+
+/// Handle full performance analysis with RAG-based feedback.
+///
+/// This handler returns a complete `AnalysisResult` including:
+/// - Performance dimensions
+/// - Model variants (Symbolic, Audio, Fusion)
+/// - Teacher feedback with citations (via RAG)
+/// - Practice tips
+///
+/// Error handling follows hybrid approach:
+/// - Critical errors (D1 binding fails) -> HTTP 500
+/// - Soft errors (empty retrieval, LLM fails) -> Fallback to template feedback
+async fn handle_full_analyze(
+    env: &Env,
+    performance_id: &str,
+) -> http::Response<axum::body::Body> {
+    use axum::body::Body;
+    use http::{Response, StatusCode};
+
+    // 1. Get performance (404 if not found)
+    let performance = match Performance::find_by_id(performance_id) {
+        Some(p) => p,
+        None => {
+            return Response::builder()
+                .status(StatusCode::NOT_FOUND)
+                .header("Content-Type", "application/json")
+                .body(Body::from(r#"{"error":"Performance not found"}"#))
+                .unwrap();
+        }
+    };
+
+    // 2. Get performance dimensions
+    let dimensions = get_performance_dimensions(performance_id).await;
+
+    // 3. Generate model variants
+    let models = generate_model_variants(&dimensions);
+
+    // 4. Get practice tips
+    let practice_tips = get_practice_tips(&performance, &dimensions).await;
+
+    // 5. Get RAG feedback with hybrid error handling
+    let teacher_feedback = match env.d1("DB") {
+        Ok(db) => {
+            match retrieve_for_analysis(env, &db, &performance, &dimensions).await {
+                Ok(chunks) if !chunks.is_empty() => {
+                    console_log!("Retrieved {} pedagogy chunks for RAG", chunks.len());
+                    match generate_cited_feedback(env, &performance, &dimensions, &chunks).await {
+                        Ok(feedback) => {
+                            console_log!(
+                                "Generated RAG feedback with {} citations",
+                                feedback.citations.len()
+                            );
+                            feedback
+                        }
+                        Err(e) => {
+                            console_log!("LLM generation failed: {}. Using fallback.", e);
+                            generate_fallback_feedback(&performance, &dimensions)
+                        }
+                    }
+                }
+                Ok(_) => {
+                    console_log!("No chunks retrieved. Using fallback feedback.");
+                    generate_fallback_feedback(&performance, &dimensions)
+                }
+                Err(e) => {
+                    console_log!("RAG retrieval failed: {:?}. Using fallback.", e);
+                    generate_fallback_feedback(&performance, &dimensions)
+                }
+            }
+        }
+        Err(e) => {
+            // Critical error: D1 binding failed
+            console_log!("D1 binding failed: {:?}. Returning 500.", e);
+            return Response::builder()
+                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    r#"{"error":"Database connection failed"}"#,
+                ))
+                .unwrap();
+        }
+    };
+
+    // 6. Build and return full analysis result
+    let result = AnalysisResult {
+        performance_id: performance_id.to_string(),
+        dimensions,
+        models,
+        teacher_feedback,
+        practice_tips,
+    };
+
+    let json = serde_json::to_string(&result).unwrap_or_else(|_| "{}".to_string());
+
+    Response::builder()
+        .status(StatusCode::OK)
+        .header("Content-Type", "application/json")
+        .body(Body::from(json))
+        .unwrap()
+}
+
 #[event(fetch)]
 async fn fetch(
     req: HttpRequest,
@@ -48,6 +219,18 @@ async fn fetch(
     _ctx: Context,
 ) -> Result<http::Response<axum::body::Body>> {
     console_error_panic_hook::set_once();
+
+    // Handle API endpoints directly (bypasses Send requirement for Workers bindings)
+    let path = req.uri().path();
+    let method = req.method();
+
+    // Full analysis endpoint with RAG feedback (bypasses Send requirement for Workers bindings)
+    if path.starts_with("/api/analyze/") && method == http::Method::POST {
+        let performance_id = path.trim_start_matches("/api/analyze/");
+        if !performance_id.is_empty() {
+            return Ok(handle_full_analyze(&env, performance_id).await);
+        }
+    }
 
     let leptos_options = LeptosOptions::builder()
         .output_name("crescendai")

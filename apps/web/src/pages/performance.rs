@@ -457,7 +457,7 @@ pub async fn analyze_performance(id: String) -> Result<AnalysisResult, ServerFnE
     {
         use crate::models::{ModelResult, PerformanceDimensions};
         use crate::services::{
-            generate_teacher_feedback, get_performance_dimensions, get_practice_tips,
+            generate_fallback_feedback, get_performance_dimensions, get_practice_tips,
         };
 
         fn generate_model_variants(base: &PerformanceDimensions) -> Vec<ModelResult> {
@@ -533,7 +533,7 @@ pub async fn analyze_performance(id: String) -> Result<AnalysisResult, ServerFnE
         let dimensions = get_performance_dimensions(&id).await;
         let models = generate_model_variants(&dimensions);
         let practice_tips = get_practice_tips(&performance, &dimensions).await;
-        let teacher_feedback = generate_teacher_feedback(&performance, &dimensions).await;
+        let teacher_feedback = generate_fallback_feedback(&performance, &dimensions);
 
         Ok(AnalysisResult {
             performance_id: id,

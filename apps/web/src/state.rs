@@ -31,6 +31,19 @@ impl AppState {
     pub fn d1(&self, binding: &str) -> worker::Result<worker::d1::D1Database> {
         self.env.d1(binding)
     }
+
+    #[allow(dead_code)]
+    pub fn ai(&self, binding: &str) -> worker::Result<worker::Ai> {
+        self.env.ai(binding)
+    }
+
+    /// Get a generic binding by name.
+    /// Use this for bindings without native Rust support (e.g., Vectorize).
+    /// Returns the binding as the specified type.
+    #[allow(dead_code)]
+    pub fn get_binding<T: worker::EnvBinding>(&self, binding: &str) -> worker::Result<T> {
+        self.env.get_binding(binding)
+    }
 }
 
 impl FromRef<AppState> for LeptosOptions {
