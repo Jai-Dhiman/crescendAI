@@ -66,11 +66,20 @@ pub struct Citation {
     pub url: Option<String>,
     pub page_number: Option<i32>,
     pub timestamp_start: Option<f64>,
+    /// The quoted text from the source (for inline expansion)
+    pub quote: Option<String>,
 }
 
 impl Citation {
     /// Create a citation from a pedagogy chunk
     pub fn from_chunk(chunk: &PedagogyChunk, number: i32) -> Self {
+        // Truncate quote to reasonable length for display
+        let quote = if chunk.text.len() > 300 {
+            Some(format!("{}...", &chunk.text[..297]))
+        } else {
+            Some(chunk.text.clone())
+        };
+
         Self {
             number,
             source_type: chunk.source_type.clone(),
@@ -79,6 +88,7 @@ impl Citation {
             url: chunk.source_url.clone(),
             page_number: chunk.page_number,
             timestamp_start: chunk.timestamp_start,
+            quote,
         }
     }
 

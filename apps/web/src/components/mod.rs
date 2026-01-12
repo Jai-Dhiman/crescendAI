@@ -1,3 +1,7 @@
+pub mod chat_input;
+pub mod chat_message;
+pub mod chat_panel;
+pub mod expandable_citation;
 pub mod header;
 pub mod loading_spinner;
 pub mod performance_card;
@@ -8,6 +12,10 @@ pub mod teacher_feedback;
 #[cfg(feature = "hydrate")]
 pub mod audio_player;
 
+pub use chat_input::*;
+pub use chat_message::*;
+pub use chat_panel::*;
+pub use expandable_citation::*;
 pub use header::*;
 pub use loading_spinner::*;
 pub use performance_card::*;

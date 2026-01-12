@@ -203,6 +203,112 @@ pub fn generate_fallback_feedback(
     }
 }
 
+/// Generate a chat response to a user question using RAG
+///
+/// This function:
+/// 1. Builds a prompt with the question and retrieved pedagogy chunks
+/// 2. Calls Workers AI Llama 3.3 70B for answer generation
+/// 3. Parses citation markers from the response
+/// 4. Returns structured CitedFeedback with answer and citations
+#[cfg(feature = "ssr")]
+pub async fn generate_chat_response(
+    env: &Env,
+    question: &str,
+    performance: Option<&Performance>,
+    retrieved_chunks: &[RetrievalResult],
+) -> Result<CitedFeedback, String> {
+    // Build the chat prompt
+    let prompt = build_chat_prompt(question, performance, retrieved_chunks);
+
+    // Call Workers AI
+    let ai = env.ai("AI").map_err(|e| format!("Failed to get AI binding: {:?}", e))?;
+
+    let request = serde_json::json!({
+        "messages": [
+            {
+                "role": "user",
+                "content": prompt
+            }
+        ],
+        "max_tokens": 512,
+        "temperature": 0.7
+    });
+
+    let result = ai
+        .run(LLM_MODEL, request)
+        .await
+        .map_err(|e| format!("Workers AI LLM call failed: {:?}", e))?;
+
+    // Parse the response
+    let response: TextGenerationResponse = serde_json::from_value(result)
+        .map_err(|e| format!("Failed to parse LLM response: {:?}", e))?;
+
+    let plain_text = response.response.trim().to_string();
+
+    // Parse citations from response
+    let cited_numbers = parse_citations(&plain_text, retrieved_chunks);
+
+    // Build citation metadata
+    let citations: Vec<Citation> = cited_numbers
+        .iter()
+        .filter_map(|&num| {
+            let idx = (num - 1) as usize;
+            retrieved_chunks.get(idx).map(|result| {
+                Citation::from_chunk(&result.chunk, num)
+            })
+        })
+        .collect();
+
+    // Convert to HTML with citation buttons
+    let html = text_to_html_with_citations(&plain_text);
+
+    Ok(CitedFeedback {
+        html,
+        plain_text,
+        citations,
+    })
+}
+
+/// Build the LLM prompt for chat response generation
+fn build_chat_prompt(
+    question: &str,
+    performance: Option<&Performance>,
+    retrieved_chunks: &[RetrievalResult],
+) -> String {
+    let mut prompt = String::new();
+
+    // System instruction
+    prompt.push_str("You are an expert piano teacher answering a student's question.\n\n");
+
+    // Performance context if available
+    if let Some(perf) = performance {
+        prompt.push_str("## Context\n");
+        prompt.push_str(&format!("The student is working on: {} by {}\n\n", perf.piece_title, perf.composer));
+    }
+
+    // Question
+    prompt.push_str("## Question\n");
+    prompt.push_str(question);
+    prompt.push_str("\n\n");
+
+    // Reference sources
+    if !retrieved_chunks.is_empty() {
+        prompt.push_str("## Reference Sources\n");
+        for (i, result) in retrieved_chunks.iter().enumerate() {
+            prompt.push_str(&format_source_reference(result, i));
+            prompt.push_str("\n\n");
+        }
+    }
+
+    // Instructions
+    prompt.push_str("## Instructions\n");
+    prompt.push_str("Provide a helpful, concise answer to the question.\n");
+    prompt.push_str("Include inline citations using [1], [2], etc. when referencing advice from the sources.\n");
+    prompt.push_str("Be specific and actionable. Write 1-2 paragraphs maximum.");
+
+    prompt
+}
+
 /// Template-based feedback (original implementation)
 fn generate_template_feedback(
     performance: &Performance,

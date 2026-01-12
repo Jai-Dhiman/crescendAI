@@ -656,6 +656,95 @@ pub async fn ingest_chunks_batch(
     Ok(count)
 }
 
+/// Retrieve pedagogy chunks for a chat question
+///
+/// Simpler query construction than retrieve_for_analysis - uses the question directly
+/// with optional performance context.
+#[cfg(feature = "ssr")]
+pub async fn retrieve_for_chat(
+    env: &Env,
+    db: &D1Database,
+    question: &str,
+    performance: Option<&Performance>,
+) -> Result<Vec<RetrievalResult>, worker::Error> {
+    use super::reranker::rerank_passages;
+
+    // Build query: question + optional composer context
+    let query = if let Some(perf) = performance {
+        format!("{} {} {}", perf.composer, perf.piece_title, question)
+    } else {
+        question.to_string()
+    };
+
+    // Generate embedding for the query
+    let ai = env.ai("AI")?;
+    let embedding = match generate_embedding(&ai, &query).await {
+        Ok(emb) => Some(emb),
+        Err(e) => {
+            worker::console_log!("Failed to generate chat embedding: {}. Falling back to BM25-only.", e);
+            None
+        }
+    };
+
+    // Perform hybrid retrieval
+    let candidates = hybrid_retrieve(
+        env,
+        db,
+        &query,
+        embedding.as_deref(),
+        15, // Get 15 candidates for reranking
+    )
+    .await?;
+
+    if candidates.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    // Cross-encoder reranking
+    let passages: Vec<String> = candidates
+        .iter()
+        .map(|r| r.chunk.text.clone())
+        .collect();
+
+    let reranked = match rerank_passages(env, question, &passages, Some(3)).await {
+        Ok(ranked) => ranked,
+        Err(e) => {
+            worker::console_log!("Chat reranking failed: {}. Using RRF order.", e);
+            return Ok(candidates.into_iter().take(3).collect());
+        }
+    };
+
+    // Map reranked indices back to results
+    let results: Vec<RetrievalResult> = reranked
+        .into_iter()
+        .filter_map(|item| {
+            candidates.get(item.id).cloned().map(|mut r| {
+                r.rrf_score = item.score as f64;
+                r
+            })
+        })
+        .take(3)
+        .collect();
+
+    Ok(results)
+}
+
+/// BM25-only retrieve_for_chat for non-SSR contexts
+#[cfg(not(feature = "ssr"))]
+pub async fn retrieve_for_chat(
+    env: &Env,
+    db: &D1Database,
+    question: &str,
+    performance: Option<&Performance>,
+) -> Result<Vec<RetrievalResult>, worker::Error> {
+    let query = if let Some(perf) = performance {
+        format!("{} {} {}", perf.composer, perf.piece_title, question)
+    } else {
+        question.to_string()
+    };
+    hybrid_retrieve(env, db, &query, None, 3).await
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

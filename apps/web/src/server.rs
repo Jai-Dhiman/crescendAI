@@ -1,13 +1,14 @@
 use axum::{routing::get, Router};
+use http_body_util::BodyExt;
 use leptos::prelude::*;
 use leptos_axum::{generate_route_list, LeptosRoutes};
 use tower::ServiceExt;
 use worker::{event, console_log, Context, Env, HttpRequest, Result};
 
-use crate::models::{AnalysisResult, ModelResult, Performance, PerformanceDimensions};
+use crate::models::{AnalysisResult, CitedFeedback, ModelResult, Performance, PerformanceDimensions};
 use crate::services::{
-    generate_cited_feedback, generate_fallback_feedback, get_performance_dimensions,
-    get_practice_tips, retrieve_for_analysis,
+    generate_chat_response, generate_cited_feedback, generate_fallback_feedback,
+    get_performance_dimensions, get_practice_tips, retrieve_for_analysis, retrieve_for_chat,
 };
 use crate::{api, shell::shell, state::AppState, App};
 
@@ -212,6 +213,100 @@ async fn handle_full_analyze(
         .unwrap()
 }
 
+/// Chat request payload
+#[derive(serde::Deserialize)]
+struct ChatRequest {
+    performance_id: String,
+    question: String,
+}
+
+/// Chat response payload
+#[derive(serde::Serialize)]
+struct ChatApiResponse {
+    answer: String,
+    citations: Vec<crate::models::Citation>,
+}
+
+/// Handle chat question with RAG-based response
+async fn handle_chat(
+    env: &Env,
+    body: &[u8],
+) -> http::Response<axum::body::Body> {
+    use axum::body::Body;
+    use http::{Response, StatusCode};
+
+    // Parse request body
+    let request: ChatRequest = match serde_json::from_slice(body) {
+        Ok(r) => r,
+        Err(e) => {
+            console_log!("Failed to parse chat request: {:?}", e);
+            return Response::builder()
+                .status(StatusCode::BAD_REQUEST)
+                .header("Content-Type", "application/json")
+                .body(Body::from(r#"{"error":"Invalid request body"}"#))
+                .unwrap();
+        }
+    };
+
+    // Get performance for context (optional - may not exist)
+    let performance = Performance::find_by_id(&request.performance_id);
+
+    // Get D1 database
+    let db = match env.d1("DB") {
+        Ok(db) => db,
+        Err(e) => {
+            console_log!("D1 binding failed: {:?}", e);
+            return Response::builder()
+                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                .header("Content-Type", "application/json")
+                .body(Body::from(r#"{"error":"Database connection failed"}"#))
+                .unwrap();
+        }
+    };
+
+    // Retrieve relevant pedagogy chunks
+    let chunks = match retrieve_for_chat(env, &db, &request.question, performance.as_ref()).await {
+        Ok(c) => c,
+        Err(e) => {
+            console_log!("Chat retrieval failed: {:?}", e);
+            return Response::builder()
+                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                .header("Content-Type", "application/json")
+                .body(Body::from(r#"{"error":"Retrieval failed"}"#))
+                .unwrap();
+        }
+    };
+
+    console_log!("Retrieved {} chunks for chat question", chunks.len());
+
+    // Generate response with LLM
+    let feedback = match generate_chat_response(env, &request.question, performance.as_ref(), &chunks).await {
+        Ok(f) => f,
+        Err(e) => {
+            console_log!("Chat generation failed: {:?}", e);
+            // Return a simple fallback response
+            CitedFeedback {
+                html: "I apologize, but I'm having trouble generating a response right now. Please try again.".to_string(),
+                plain_text: "I apologize, but I'm having trouble generating a response right now. Please try again.".to_string(),
+                citations: vec![],
+            }
+        }
+    };
+
+    let response = ChatApiResponse {
+        answer: feedback.plain_text,
+        citations: feedback.citations,
+    };
+
+    let json = serde_json::to_string(&response).unwrap_or_else(|_| r#"{"answer":"Error","citations":[]}"#.to_string());
+
+    Response::builder()
+        .status(StatusCode::OK)
+        .header("Content-Type", "application/json")
+        .body(Body::from(json))
+        .unwrap()
+}
+
 #[event(fetch)]
 async fn fetch(
     req: HttpRequest,
@@ -224,12 +319,24 @@ async fn fetch(
     let path = req.uri().path();
     let method = req.method();
 
-    // Full analysis endpoint with RAG feedback (bypasses Send requirement for Workers bindings)
+    // Full analysis endpoint with RAG feedback
     if path.starts_with("/api/analyze/") && method == http::Method::POST {
         let performance_id = path.trim_start_matches("/api/analyze/");
         if !performance_id.is_empty() {
             return Ok(handle_full_analyze(&env, performance_id).await);
         }
+    }
+
+    // Chat endpoint with RAG-based Q&A
+    if path == "/api/chat" && method == http::Method::POST {
+        // Read the request body using http_body_util
+        let body = req
+            .into_body()
+            .collect()
+            .await
+            .map(|b| b.to_bytes().to_vec())
+            .unwrap_or_default();
+        return Ok(handle_chat(&env, &body).await);
     }
 
     let leptos_options = LeptosOptions::builder()

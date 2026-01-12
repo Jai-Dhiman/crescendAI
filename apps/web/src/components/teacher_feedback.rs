@@ -1,11 +1,24 @@
 use leptos::prelude::*;
+use regex::Regex;
+use std::collections::HashMap;
 
+use crate::components::expandable_citation::{CitationExpansionState, ExpandableCitation};
 use crate::models::{CitedFeedback, Citation, SourceType};
 
 #[component]
 pub fn TeacherFeedback(feedback: CitedFeedback) -> impl IntoView {
     let has_citations = !feedback.citations.is_empty();
     let citations = feedback.citations.clone();
+    let citations_for_footer = citations.clone();
+
+    // Create expansion state for this feedback
+    let expansion_state = CitationExpansionState::new();
+
+    // Build a map from citation number to citation for quick lookup
+    let citation_map: HashMap<i32, Citation> = citations
+        .iter()
+        .map(|c| (c.number, c.clone()))
+        .collect();
 
     view! {
         <div class="card p-6">
@@ -27,44 +40,149 @@ pub fn TeacherFeedback(feedback: CitedFeedback) -> impl IntoView {
 
             <div class="text-body-md text-ink-600 leading-relaxed space-y-4 font-serif feedback-content">
                 {feedback.plain_text.split("\n\n").map(|paragraph| {
-                    view! { <p inner_html={render_paragraph_with_citations(paragraph)} /> }
+                    let citation_map = citation_map.clone();
+                    let expansion_state = expansion_state.clone();
+                    view! {
+                        <FeedbackParagraph
+                            text=paragraph.to_string()
+                            citation_map=citation_map
+                            expansion_state=expansion_state
+                        />
+                    }
                 }).collect_view()}
             </div>
 
-            // Sources footer
+            // Collapsible sources footer
             {has_citations.then(|| {
                 view! {
-                    <div class="mt-6 pt-4 border-t border-paper-200">
-                        <h4 class="text-label-sm text-sepia-600 uppercase tracking-wider mb-3">
-                            "Sources"
-                        </h4>
-                        <ul class="space-y-2 text-body-sm text-ink-500">
-                            {citations.iter().map(|citation| {
-                                view! { <CitationFootnote citation={citation.clone()} /> }
-                            }).collect_view()}
-                        </ul>
-                    </div>
+                    <SourcesFooter citations=citations_for_footer />
                 }
             })}
         </div>
     }
 }
 
-/// Render a paragraph with citation markers as styled spans
-fn render_paragraph_with_citations(text: &str) -> String {
-    use regex::Regex;
+/// A paragraph that renders text with interactive citation markers
+#[component]
+fn FeedbackParagraph(
+    text: String,
+    citation_map: HashMap<i32, Citation>,
+    expansion_state: CitationExpansionState,
+) -> impl IntoView {
+    // Parse the text into segments (text and citations)
+    let segments = parse_text_with_citations(&text);
 
+    view! {
+        <p>
+            {segments.into_iter().map(|segment| {
+                match segment {
+                    TextSegment::Plain(text) => {
+                        view! { <span>{text}</span> }.into_any()
+                    }
+                    TextSegment::Citation(number) => {
+                        if let Some(citation) = citation_map.get(&number) {
+                            let citation = citation.clone();
+                            let state = expansion_state.clone();
+                            let expanded = state.is_expanded(number);
+                            let on_toggle = move || state.toggle(number);
+
+                            view! {
+                                <ExpandableCitation
+                                    citation=citation
+                                    expanded=expanded
+                                    on_toggle=on_toggle
+                                />
+                            }.into_any()
+                        } else {
+                            // Fallback for unknown citation numbers
+                            view! {
+                                <span class="citation-marker inline-flex items-center justify-center w-5 h-5 text-xs font-medium bg-stone-100 text-stone-500 rounded">
+                                    {format!("[{}]", number)}
+                                </span>
+                            }.into_any()
+                        }
+                    }
+                }
+            }).collect_view()}
+        </p>
+    }
+}
+
+/// Text segment types for parsing
+enum TextSegment {
+    Plain(String),
+    Citation(i32),
+}
+
+/// Parse text into segments of plain text and citations
+fn parse_text_with_citations(text: &str) -> Vec<TextSegment> {
     let citation_regex = Regex::new(r"\[(\d+)\]").unwrap();
+    let mut segments = Vec::new();
+    let mut last_end = 0;
 
-    citation_regex
-        .replace_all(text, |caps: &regex::Captures| {
-            let num = &caps[1];
-            format!(
-                "<span class=\"citation-marker inline-flex items-center justify-center w-5 h-5 text-xs font-medium bg-sepia-100 text-sepia-700 rounded cursor-pointer hover:bg-sepia-200 transition-colors\" title=\"View source {}\">[{}]</span>",
-                num, num
-            )
-        })
-        .into_owned()
+    for cap in citation_regex.captures_iter(text) {
+        let full_match = cap.get(0).unwrap();
+        let start = full_match.start();
+        let end = full_match.end();
+
+        // Add preceding plain text if any
+        if start > last_end {
+            segments.push(TextSegment::Plain(text[last_end..start].to_string()));
+        }
+
+        // Add citation
+        if let Ok(number) = cap[1].parse::<i32>() {
+            segments.push(TextSegment::Citation(number));
+        }
+
+        last_end = end;
+    }
+
+    // Add remaining text
+    if last_end < text.len() {
+        segments.push(TextSegment::Plain(text[last_end..].to_string()));
+    }
+
+    segments
+}
+
+/// Collapsible sources footer
+#[component]
+fn SourcesFooter(citations: Vec<Citation>) -> impl IntoView {
+    let (collapsed, set_collapsed) = signal(false);
+
+    view! {
+        <div class="mt-6 pt-4 border-t border-paper-200">
+            <button
+                type="button"
+                class="flex items-center gap-2 text-label-sm text-sepia-600 uppercase tracking-wider mb-3 hover:text-sepia-800 transition-colors"
+                on:click=move |_| set_collapsed.update(|c| *c = !*c)
+            >
+                <svg
+                    class="w-4 h-4 transition-transform duration-200"
+                    class:rotate-180=move || !collapsed.get()
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    viewBox="0 0 24 24"
+                >
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                </svg>
+                "Sources"
+                <span class="text-sepia-400 normal-case">
+                    {format!("({})", citations.len())}
+                </span>
+            </button>
+
+            <Show when=move || !collapsed.get()>
+                <ul class="space-y-2 text-body-sm text-ink-500 animate-in slide-in-from-top-2 duration-200">
+                    {citations.iter().map(|citation| {
+                        view! { <CitationFootnote citation={citation.clone()} /> }
+                    }).collect_view()}
+                </ul>
+            </Show>
+        </div>
+    }
 }
 
 #[component]
