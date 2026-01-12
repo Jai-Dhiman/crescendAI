@@ -506,21 +506,23 @@ class MERTMuQConcatModel(pl.LightningModule):
 class AsymmetricGatedFusion(pl.LightningModule):
     """Asymmetric fusion with per-dimension gating for MERT and MuQ.
 
-    Uses asymmetric projections that respect the information difference between
-    modalities (MERT 6144-dim vs MuQ 1024-dim). Learns per-dimension gates to
-    softly route between modalities for each of the 19 performance dimensions.
+    Uses asymmetric projections and learns per-dimension gates to softly route
+    between modalities for each of the 19 performance dimensions.
 
     Architecture:
-    - MERT: 6144 -> 768 -> 512 (2-stage projection preserves more detail)
-    - MuQ: 1024 -> 512 (single projection)
+    - MERT: mert_dim -> mert_hidden -> shared_dim (2-stage projection)
+    - MuQ: muq_dim -> shared_dim (single projection)
     - Per-dimension gating learns which modality matters for each output
+
+    Note: Default mert_dim=1024 assumes layers are averaged. If using concatenated
+    layers (e.g., 6 layers), set mert_dim=6144.
     """
 
     def __init__(
         self,
-        mert_dim: int = 6144,
+        mert_dim: int = 1024,
         muq_dim: int = 1024,
-        mert_hidden: int = 768,
+        mert_hidden: int = 512,
         shared_dim: int = 512,
         num_labels: int = 19,
         dropout: float = 0.2,
