@@ -11,6 +11,8 @@ pub mod teacher_feedback;
 
 #[cfg(feature = "hydrate")]
 pub mod audio_player;
+#[cfg(feature = "hydrate")]
+pub mod audio_upload;
 
 pub use chat_input::*;
 pub use chat_message::*;
@@ -25,3 +27,5 @@ pub use teacher_feedback::*;
 
 #[cfg(feature = "hydrate")]
 pub use audio_player::*;
+#[cfg(feature = "hydrate")]
+pub use audio_upload::*;

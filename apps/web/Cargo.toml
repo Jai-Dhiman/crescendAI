@@ -47,6 +47,18 @@ web-sys = { version = "0.3", optional = true, features = [
     "AudioContext",
     "AnalyserNode",
     "MediaElementAudioSourceNode",
+    "File",
+    "FileList",
+    "FileReader",
+    "Blob",
+    "BlobPropertyBag",
+    "FormData",
+    "DataTransfer",
+    "DragEvent",
+    "HtmlInputElement",
+    "Request",
+    "RequestInit",
+    "Response",
 ] }
 
 [features]
@@ -59,6 +71,7 @@ hydrate = [
     "dep:gloo-net",
     "dep:js-sys",
     "dep:web-sys",
+    "dep:serde-wasm-bindgen",
 ]
 ssr = [
     "leptos/ssr",
@@ -88,3 +101,6 @@ opt-level = 'z'
 lto = true
 codegen-units = 1
 panic = "abort"
+
+[package.metadata.wasm-pack]
+wasm-opt = false

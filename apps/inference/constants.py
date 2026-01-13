@@ -35,17 +35,17 @@ MERT_CONFIG = {
     "max_frames": 1000,
 }
 
-# Model info for response
+# Model info for response (audio-only model)
 MODEL_INFO = {
-    "symbolic": {"name": "PercePiano", "r2": 0.395},
-    "audio": {"name": "MERT-330M", "r2": 0.433},
-    "fusion": {"name": "Late Fusion", "r2": 0.510},
+    "name": "MERT-330M",
+    "type": "audio",
+    "r2": 0.487,
+    "description": "Audio-only piano performance evaluation using MERT-330M embeddings",
 }
 
 # Checkpoint paths (relative to /app in container)
 CHECKPOINT_PATHS = {
     "mert_folds": "/app/checkpoints/mert/fold{}_best.ckpt",
-    "percepiano_folds": "/app/checkpoints/percepiano/fold{}_best.pt",
 }
 
 # Number of folds for ensemble

@@ -1,31 +1,40 @@
 use leptos::prelude::*;
 use leptos_router::hooks::use_params_map;
 
+#[cfg(feature = "hydrate")]
+use wasm_bindgen::JsCast;
+
 use crate::components::{
     ChatPanel, CollapsibleRadarChart, LoadingSpinner, PracticeTips, RadarDataPoint, TeacherFeedback,
 };
-use crate::models::{AnalysisResult, AnalysisState, Performance};
+use crate::models::{AnalysisResult, AnalysisState, Performance, UploadedPerformance};
 
 #[cfg(feature = "hydrate")]
-use crate::components::AudioPlayer;
+use crate::components::{AudioPlayer, AudioUpload};
 
-/// Interactive Demo Page - streamlined experience for showcasing RAG + Chat
+/// Interactive Demo Page - upload your own or use demo recordings
 #[component]
 pub fn DemoPage() -> impl IntoView {
     let params = use_params_map();
     let initial_id = Memo::new(move |_| params.read().get("id"));
 
     let (selected_id, set_selected_id) = signal::<Option<String>>(None);
+    let (uploaded_perf, set_uploaded_perf) = signal::<Option<UploadedPerformance>>(None);
     let (analysis_state, set_analysis_state) = signal(AnalysisState::Idle);
     let (loading_message, set_loading_message) = signal(String::new());
     let (loading_progress, set_loading_progress) = signal(0u8);
 
-    // Load performances for the picker (only first 3 for streamlined demo)
+    // Load demo performances for the picker
     let performances_resource = Resource::new(|| (), |_| list_performances());
 
-    // Load selected performance details
+    // Load selected performance details (for demos only)
     let performance_resource = Resource::new(
-        move || selected_id.get(),
+        move || {
+            // Only fetch if we have a selected_id and it's not an upload
+            let id = selected_id.get();
+            let is_upload = uploaded_perf.get().map(|u| Some(u.id.clone()) == id).unwrap_or(false);
+            if is_upload { None } else { id }
+        },
         |id| async move {
             match id {
                 Some(id) => get_performance(id).await.ok(),
@@ -40,6 +49,21 @@ pub fn DemoPage() -> impl IntoView {
             set_selected_id.set(Some(id));
         }
     });
+
+    // Handle upload completion
+    let on_upload_complete = Callback::new(move |uploaded: UploadedPerformance| {
+        let id = uploaded.id.clone();
+        set_uploaded_perf.set(Some(uploaded));
+        set_selected_id.set(Some(id));
+        set_analysis_state.set(AnalysisState::Idle);
+    });
+
+    // Select a demo (clears upload)
+    let select_demo = move |id: String| {
+        set_uploaded_perf.set(None);
+        set_selected_id.set(Some(id));
+        set_analysis_state.set(AnalysisState::Idle);
+    };
 
     view! {
         <div class="min-h-screen bg-paper-50">
@@ -63,12 +87,25 @@ pub fn DemoPage() -> impl IntoView {
                 </div>
             </header>
 
-            // Recording Selector - Horizontal compact cards
+            // Upload Section
             <section class="border-b border-paper-200 bg-white py-6">
                 <div class="container-wide">
                     <div class="flex items-center justify-between mb-4">
                         <h2 class="text-label-sm uppercase tracking-wider text-sepia-600">
-                            "Select a Performance"
+                            "Upload Your Recording"
+                        </h2>
+                    </div>
+
+                    <UploadZone on_upload=on_upload_complete />
+                </div>
+            </section>
+
+            // Demo Selector - Horizontal compact cards
+            <section class="border-b border-paper-200 bg-paper-50 py-6">
+                <div class="container-wide">
+                    <div class="flex items-center justify-between mb-4">
+                        <h2 class="text-label-sm uppercase tracking-wider text-sepia-600">
+                            "Or Select a Demo Performance"
                         </h2>
                     </div>
 
@@ -82,19 +119,19 @@ pub fn DemoPage() -> impl IntoView {
                         {move || performances_resource.get().map(|result| {
                             match result {
                                 Ok(performances) => {
-                                    // Take only first 3 for streamlined demo
-                                    let performances: Vec<_> = performances.into_iter().take(3).collect();
                                     view! {
                                         <div class="flex flex-col sm:flex-row gap-3">
                                             {performances.into_iter().map(|perf| {
                                                 let perf_id = perf.id.clone();
-                                                let perf_id_for_signal = perf_id.clone();
-                                                let is_selected = Signal::derive(move || selected_id.get() == Some(perf_id_for_signal.clone()));
+                                                let perf_id_for_click = perf_id.clone();
+                                                let is_selected = Signal::derive(move || {
+                                                    uploaded_perf.get().is_none() && selected_id.get() == Some(perf_id.clone())
+                                                });
                                                 view! {
                                                     <CompactRecordingCard
                                                         performance=perf
                                                         is_selected=is_selected
-                                                        on_click=move |_| set_selected_id.set(Some(perf_id.clone()))
+                                                        on_click=move |_| select_demo(perf_id_for_click.clone())
                                                     />
                                                 }
                                             }).collect_view()}
@@ -135,6 +172,7 @@ pub fn DemoPage() -> impl IntoView {
                         view! {
                             <AnalysisView
                                 perf_id=perf_id
+                                uploaded_perf=uploaded_perf
                                 performance_resource=performance_resource
                                 analysis_state=analysis_state
                                 set_analysis_state=set_analysis_state
@@ -223,9 +261,39 @@ fn CompactRecordingCard(
     }
 }
 
+/// Upload zone wrapper that handles hydrate/SSR conditional rendering
+#[component]
+fn UploadZone(
+    #[prop(into)]
+    on_upload: Callback<UploadedPerformance>,
+) -> impl IntoView {
+    #[cfg(feature = "hydrate")]
+    {
+        view! {
+            <AudioUpload on_upload=on_upload />
+        }
+    }
+
+    #[cfg(not(feature = "hydrate"))]
+    {
+        let _ = on_upload;
+        view! {
+            <div class="border-2 border-dashed border-paper-300 rounded-lg p-8 text-center">
+                <div class="flex flex-col items-center gap-3">
+                    <svg class="w-10 h-10 text-paper-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                    </svg>
+                    <p class="text-body-sm text-ink-400">"Upload component loading..."</p>
+                </div>
+            </div>
+        }
+    }
+}
+
 #[component]
 fn AnalysisView(
     perf_id: String,
+    uploaded_perf: ReadSignal<Option<UploadedPerformance>>,
     performance_resource: Resource<Option<Performance>>,
     analysis_state: ReadSignal<AnalysisState>,
     set_analysis_state: WriteSignal<AnalysisState>,
@@ -256,12 +324,12 @@ fn AnalysisView(
                     gloo_timers::future::TimeoutFuture::new(250).await;
                 }
 
-                match analyze_performance(id).await {
+                match analyze_performance_via_api(id).await {
                     Ok(result) => {
                         set_analysis_state.set(AnalysisState::Complete(result));
                     }
                     Err(e) => {
-                        set_analysis_state.set(AnalysisState::Error(e.to_string()));
+                        set_analysis_state.set(AnalysisState::Error(e));
                     }
                 }
             });
@@ -275,66 +343,126 @@ fn AnalysisView(
         }
     };
 
+    let perf_id_for_view = perf_id.clone();
+    let perf_id_for_demo = perf_id;
+    let start_analysis_for_upload = start_analysis.clone();
+    let start_analysis_for_demo = start_analysis;
+
     view! {
-        <Suspense fallback=|| view! {
-            <div class="space-y-6">
-                <div class="h-20 bg-paper-100 skeleton rounded-xl"></div>
-                <div class="h-64 bg-paper-100 skeleton rounded-xl"></div>
-            </div>
-        }>
-            {move || performance_resource.get().map(|perf_opt| {
-                match perf_opt {
-                    Some(perf) => {
-                        let perf_for_audio = perf.clone();
+        {move || {
+            let current_perf_id = perf_id_for_view.clone();
+            let demo_perf_id = perf_id_for_demo.clone();
+            let upload_handler = start_analysis_for_upload.clone();
+            let demo_handler = start_analysis_for_demo.clone();
 
-                        #[cfg(feature = "hydrate")]
-                        let audio_section = {
-                            view! {
-                                <AudioPlayer
-                                    audio_url=perf_for_audio.audio_url.clone()
-                                    title=format!("{} - {}", perf_for_audio.piece_title, perf_for_audio.performer)
-                                />
-                            }
-                        };
-
-                        #[cfg(not(feature = "hydrate"))]
-                        let audio_section = {
-                            view! {
-                                <div class="card p-6">
-                                    <h3 class="font-display text-heading-md text-ink-800 mb-4">
-                                        {format!("{} - {}", perf_for_audio.piece_title, perf_for_audio.performer)}
-                                    </h3>
-                                    <div class="h-16 bg-paper-100 rounded-lg flex items-center justify-center border border-paper-200">
-                                        <p class="text-body-sm text-ink-400">"Audio player loading..."</p>
-                                    </div>
-                                </div>
-                            }
-                        };
-
+            // If this is an uploaded performance, show it directly
+            if let Some(uploaded) = uploaded_perf.get() {
+                if uploaded.id == current_perf_id {
+                    #[cfg(feature = "hydrate")]
+                    let audio_section = {
                         view! {
-                            <div class="space-y-6 animate-fade-in">
-                                // Audio Player
-                                {audio_section}
+                            <AudioPlayer
+                                audio_url=uploaded.audio_url.clone()
+                                title=uploaded.title.clone()
+                            />
+                        }
+                    };
 
-                                // Analysis Section
-                                <AnalysisContent
-                                    perf_id=perf_id.clone()
-                                    analysis_state=analysis_state
-                                    start_analysis=start_analysis.clone()
-                                    loading_message=loading_message
-                                    loading_progress=loading_progress
-                                />
+                    #[cfg(not(feature = "hydrate"))]
+                    let audio_section = {
+                        view! {
+                            <div class="card p-6">
+                                <h3 class="font-display text-heading-md text-ink-800 mb-4">
+                                    {uploaded.title.clone()}
+                                </h3>
+                                <div class="h-16 bg-paper-100 rounded-lg flex items-center justify-center border border-paper-200">
+                                    <p class="text-body-sm text-ink-400">"Audio player loading..."</p>
+                                </div>
                             </div>
-                        }.into_any()
-                    },
-                    None => view! {
-                        <div class="text-center py-12">
-                            <p class="text-body-md text-ink-500">"Recording not found"</p>
+                        }
+                    };
+
+                    return view! {
+                        <div class="space-y-6 animate-fade-in">
+                            // Audio Player for uploaded file
+                            {audio_section}
+
+                            // Analysis Section
+                            <AnalysisContent
+                                perf_id=current_perf_id
+                                analysis_state=analysis_state
+                                start_analysis=upload_handler
+                                loading_message=loading_message
+                                loading_progress=loading_progress
+                            />
                         </div>
-                    }.into_any(),
+                    }.into_any();
                 }
-            })}
-        </Suspense>
+            }
+
+            // Otherwise show demo performance from resource
+            view! {
+                <Suspense fallback=|| view! {
+                    <div class="space-y-6">
+                        <div class="h-20 bg-paper-100 skeleton rounded-xl"></div>
+                        <div class="h-64 bg-paper-100 skeleton rounded-xl"></div>
+                    </div>
+                }>
+                    {move || performance_resource.get().map(|perf_opt| {
+                        match perf_opt {
+                            Some(perf) => {
+                                let perf_for_audio = perf.clone();
+
+                                #[cfg(feature = "hydrate")]
+                                let audio_section = {
+                                    view! {
+                                        <AudioPlayer
+                                            audio_url=perf_for_audio.audio_url.clone()
+                                            title=format!("{} - {}", perf_for_audio.piece_title, perf_for_audio.performer)
+                                        />
+                                    }
+                                };
+
+                                #[cfg(not(feature = "hydrate"))]
+                                let audio_section = {
+                                    view! {
+                                        <div class="card p-6">
+                                            <h3 class="font-display text-heading-md text-ink-800 mb-4">
+                                                {format!("{} - {}", perf_for_audio.piece_title, perf_for_audio.performer)}
+                                            </h3>
+                                            <div class="h-16 bg-paper-100 rounded-lg flex items-center justify-center border border-paper-200">
+                                                <p class="text-body-sm text-ink-400">"Audio player loading..."</p>
+                                            </div>
+                                        </div>
+                                    }
+                                };
+
+                                view! {
+                                    <div class="space-y-6 animate-fade-in">
+                                        // Audio Player
+                                        {audio_section}
+
+                                        // Analysis Section
+                                        <AnalysisContent
+                                            perf_id=demo_perf_id.clone()
+                                            analysis_state=analysis_state
+                                            start_analysis=demo_handler.clone()
+                                            loading_message=loading_message
+                                            loading_progress=loading_progress
+                                        />
+                                    </div>
+                                }.into_any()
+                            },
+                            None => view! {
+                                <div class="text-center py-12">
+                                    <p class="text-body-md text-ink-500">"Recording not found"</p>
+                                </div>
+                            }.into_any(),
+                        }
+                    })}
+                </Suspense>
+            }.into_any()
+        }}
     }
 }
 
@@ -507,8 +635,46 @@ fn get_loading_messages() -> Vec<&'static str> {
 
 // Server functions
 use crate::pages::performance::get_performance;
+
+/// Analyze performance by calling the API endpoint directly.
+/// This uses the full analysis pipeline with HF inference and RAG.
 #[cfg(feature = "hydrate")]
-use crate::pages::performance::analyze_performance;
+async fn analyze_performance_via_api(id: String) -> Result<AnalysisResult, String> {
+    let window = web_sys::window().ok_or("No window")?;
+
+    let url = format!("/api/analyze/{}", id);
+    let resp = wasm_bindgen_futures::JsFuture::from(window.fetch_with_str(&url))
+        .await
+        .map_err(|e| format!("Fetch error: {:?}", e))?;
+
+    let response: web_sys::Response = resp.dyn_into().map_err(|_| "Invalid response")?;
+
+    if !response.ok() {
+        let status = response.status();
+        let text = wasm_bindgen_futures::JsFuture::from(response.text().map_err(|_| "No text")?)
+            .await
+            .map_err(|_| "Text error")?
+            .as_string()
+            .unwrap_or_default();
+
+        // Try to parse error message from JSON
+        if let Ok(err) = serde_json::from_str::<serde_json::Value>(&text) {
+            if let Some(msg) = err.get("error").and_then(|v| v.as_str()) {
+                return Err(msg.to_string());
+            }
+        }
+        return Err(format!("Analysis failed ({})", status));
+    }
+
+    let json = wasm_bindgen_futures::JsFuture::from(response.json().map_err(|_| "No JSON")?)
+        .await
+        .map_err(|_| "JSON error")?;
+
+    let result: AnalysisResult = serde_wasm_bindgen::from_value(json)
+        .map_err(|e| format!("Parse error: {:?}", e))?;
+
+    Ok(result)
+}
 
 #[server(ListPerformances, "/api")]
 pub async fn list_performances() -> Result<Vec<Performance>, ServerFnError> {

@@ -4,4 +4,4 @@ mod performance;
 
 pub use analysis::{AnalysisResult, AnalysisState, ModelResult, PerformanceDimensions, PracticeTip};
 pub use pedagogy::{Citation, CitedFeedback, PedagogyChunk, RetrievalResult, SourceType};
-pub use performance::Performance;
+pub use performance::{Performance, UploadedPerformance};

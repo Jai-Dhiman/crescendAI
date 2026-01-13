@@ -1,9 +1,7 @@
 """HuggingFace Inference Endpoints handler for piano performance analysis.
 
-This handler loads three models and runs inference:
-1. MERT-330M (audio) - Primary audio analysis
-2. PercePiano (symbolic) - Uses pre-computed or synthetic predictions
-3. Late Fusion - Combines audio and symbolic
+Audio-only model using MERT-330M embeddings with 4-fold ensemble.
+Returns 19-dimension performance evaluation scores.
 
 Compatible with HuggingFace Inference Endpoints custom handler pattern.
 """
@@ -12,18 +10,13 @@ import base64
 import time
 import traceback
 from pathlib import Path
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Union
 
 import numpy as np
 
-from constants import MODEL_INFO, PERCEPIANO_DIMENSIONS
+from constants import PERCEPIANO_DIMENSIONS
 from models.loader import get_model_cache
 from models.mert_inference import extract_mert_embeddings, predict_with_mert_ensemble
-from models.symbolic_inference import (
-    SymbolicPredictions,
-    predict_with_symbolic_model,
-)
-from models.fusion import late_fusion, load_fusion_weights
 from preprocessing.audio import (
     AudioDownloadError,
     AudioProcessingError,
@@ -36,7 +29,7 @@ class EndpointHandler:
     """HuggingFace Inference Endpoints handler for piano performance analysis."""
 
     def __init__(self, path: str = ""):
-        """Initialize models and resources.
+        """Initialize MERT model and MLP heads.
 
         Called once when the endpoint container starts.
 
@@ -67,21 +60,6 @@ class EndpointHandler:
         self._cache = get_model_cache()
         self._cache.initialize(device="cuda", checkpoint_dir=checkpoint_dir)
 
-        # Load pre-computed symbolic predictions if available
-        predictions_path = checkpoint_dir / "symbolic_predictions.json"
-        if predictions_path.exists():
-            self._symbolic_predictions: Optional[SymbolicPredictions] = SymbolicPredictions(
-                predictions_path
-            )
-            print(f"Loaded symbolic predictions from {predictions_path}")
-        else:
-            print("No pre-computed symbolic predictions found, using synthetic fallback")
-            self._symbolic_predictions = SymbolicPredictions()
-
-        # Load fusion weights
-        weights_path = checkpoint_dir / "fusion" / "optimal_weights.json"
-        self._fusion_weights = load_fusion_weights(weights_path)
-
         print("EndpointHandler initialization complete!")
 
     def __call__(self, data: Dict[str, Any]) -> Dict[str, Any]:
@@ -92,10 +70,8 @@ class EndpointHandler:
 
                 HuggingFace format:
                 {
-                    "inputs": "<base64-audio>" or {"audio_url": "...", "performance_id": "..."},
+                    "inputs": "<base64-audio>" or {"audio_url": "..."},
                     "parameters": {
-                        "performance_id": "optional-id",
-                        "return_intermediate": false,
                         "max_duration_seconds": 300
                     }
                 }
@@ -104,7 +80,6 @@ class EndpointHandler:
                 {
                     "input": {
                         "audio_url": "https://...",
-                        "performance_id": "optional-id",
                         "options": {...}
                     }
                 }
@@ -112,12 +87,9 @@ class EndpointHandler:
         Returns:
             Prediction results:
             {
-                "predictions": {
-                    "fusion": {"timing": 0.85, ...},
-                    "audio": {...},      # if return_intermediate
-                    "symbolic": {...}    # if return_intermediate
-                },
-                "model_info": {...},
+                "predictions": {"timing": 0.85, ...},
+                "model_info": {"name": "MERT-330M", "r2": 0.487},
+                "audio_duration_seconds": 180.5,
                 "processing_time_ms": 1234
             }
 
@@ -133,8 +105,6 @@ class EndpointHandler:
             inputs, parameters = self._parse_request(data)
 
             # Extract parameters
-            performance_id = parameters.get("performance_id", "unknown")
-            return_intermediate = parameters.get("return_intermediate", False)
             max_duration = parameters.get("max_duration_seconds", 300)
 
             # Load and preprocess audio
@@ -155,44 +125,24 @@ class EndpointHandler:
             embeddings = extract_mert_embeddings(audio, self._cache)
             print(f"Embeddings shape: {embeddings.shape}")
 
-            # Get audio predictions (MERT ensemble)
+            # Get audio predictions (MERT 4-fold ensemble)
             print("Running MERT ensemble inference...")
-            audio_preds = predict_with_mert_ensemble(embeddings, self._cache)
-
-            # Get symbolic predictions
-            print("Getting symbolic predictions...")
-            symbolic_preds, is_real_symbolic = predict_with_symbolic_model(
-                sample_key=performance_id,
-                audio_preds=audio_preds,
-                precomputed=self._symbolic_predictions,
-            )
-            if is_real_symbolic:
-                print("Using pre-computed symbolic predictions")
-            else:
-                print("Using synthetic symbolic predictions")
-
-            # Apply late fusion
-            print("Applying late fusion...")
-            fusion_preds = late_fusion(audio_preds, symbolic_preds, self._fusion_weights)
+            predictions = predict_with_mert_ensemble(embeddings, self._cache)
 
             # Build response
             processing_time_ms = int((time.time() - start_time) * 1000)
 
             result = {
-                "performance_id": performance_id,
-                "predictions": {
-                    "fusion": self._predictions_to_dict(fusion_preds),
+                "predictions": self._predictions_to_dict(predictions),
+                "model_info": {
+                    "name": "MERT-330M",
+                    "type": "audio",
+                    "r2": 0.487,
+                    "ensemble_folds": len(self._cache.mert_heads),
                 },
-                "model_info": MODEL_INFO,
-                "symbolic_is_real": is_real_symbolic,
                 "audio_duration_seconds": duration,
                 "processing_time_ms": processing_time_ms,
             }
-
-            # Include intermediate predictions if requested
-            if return_intermediate:
-                result["predictions"]["audio"] = self._predictions_to_dict(audio_preds)
-                result["predictions"]["symbolic"] = self._predictions_to_dict(symbolic_preds)
 
             print(f"Inference complete in {processing_time_ms}ms")
             return result

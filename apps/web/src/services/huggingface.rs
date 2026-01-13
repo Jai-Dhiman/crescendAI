@@ -1,12 +1,12 @@
+//! HuggingFace Inference Endpoints integration for audio-only piano performance analysis.
+//!
+//! Uses MERT-330M embeddings with 4-fold ensemble for audio analysis.
+
 use crate::models::PerformanceDimensions;
 use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "ssr")]
 use worker::{Env, Fetch, Headers, Method, Request, RequestInit, Url};
-
-/// HuggingFace Inference Endpoints configuration
-#[cfg(feature = "ssr")]
-const HF_INFERENCE_TIMEOUT_MS: u64 = 120000; // 2 minutes
 
 /// Request to HuggingFace Inference Endpoint
 #[derive(Debug, Serialize)]
@@ -27,11 +27,13 @@ struct HFParameters {
     max_duration_seconds: u32,
 }
 
-/// Response from HuggingFace Inference Endpoint
+/// Response from HuggingFace Inference Endpoint (audio-only model)
 #[derive(Debug, Deserialize)]
 struct HFInferenceResponse {
     predictions: Option<HFPredictions>,
     error: Option<HFError>,
+    #[allow(dead_code)]
+    model_info: Option<HFModelInfo>,
     #[allow(dead_code)]
     processing_time_ms: Option<u64>,
 }
@@ -43,16 +45,16 @@ struct HFError {
 }
 
 #[derive(Debug, Deserialize)]
-struct HFPredictions {
-    fusion: HFDimensions,
+struct HFModelInfo {
     #[allow(dead_code)]
-    audio: Option<HFDimensions>,
+    name: String,
     #[allow(dead_code)]
-    symbolic: Option<HFDimensions>,
+    r2: f64,
 }
 
+/// Audio-only predictions (19 dimensions)
 #[derive(Debug, Deserialize)]
-struct HFDimensions {
+struct HFPredictions {
     timing: f64,
     articulation_length: f64,
     articulation_touch: f64,
@@ -74,35 +76,36 @@ struct HFDimensions {
     interpretation_overall: f64,
 }
 
-impl From<HFDimensions> for PerformanceDimensions {
-    fn from(d: HFDimensions) -> Self {
+impl From<HFPredictions> for PerformanceDimensions {
+    fn from(p: HFPredictions) -> Self {
         PerformanceDimensions {
-            timing: d.timing,
-            articulation_length: d.articulation_length,
-            articulation_touch: d.articulation_touch,
-            pedal_amount: d.pedal_amount,
-            pedal_clarity: d.pedal_clarity,
-            timbre_variety: d.timbre_variety,
-            timbre_depth: d.timbre_depth,
-            timbre_brightness: d.timbre_brightness,
-            timbre_loudness: d.timbre_loudness,
-            dynamics_range: d.dynamics_range,
-            tempo: d.tempo,
-            space: d.space,
-            balance: d.balance,
-            drama: d.drama,
-            mood_valence: d.mood_valence,
-            mood_energy: d.mood_energy,
-            mood_imagination: d.mood_imagination,
-            interpretation_sophistication: d.interpretation_sophistication,
-            interpretation_overall: d.interpretation_overall,
+            timing: p.timing,
+            articulation_length: p.articulation_length,
+            articulation_touch: p.articulation_touch,
+            pedal_amount: p.pedal_amount,
+            pedal_clarity: p.pedal_clarity,
+            timbre_variety: p.timbre_variety,
+            timbre_depth: p.timbre_depth,
+            timbre_brightness: p.timbre_brightness,
+            timbre_loudness: p.timbre_loudness,
+            dynamics_range: p.dynamics_range,
+            tempo: p.tempo,
+            space: p.space,
+            balance: p.balance,
+            drama: p.drama,
+            mood_valence: p.mood_valence,
+            mood_energy: p.mood_energy,
+            mood_imagination: p.mood_imagination,
+            interpretation_sophistication: p.interpretation_sophistication,
+            interpretation_overall: p.interpretation_overall,
         }
     }
 }
 
 /// Get performance dimensions from HuggingFace Inference Endpoint
 ///
-/// If HF is not configured, falls back to mock data.
+/// Requires HF_API_TOKEN and HF_INFERENCE_ENDPOINT environment variables.
+/// Returns an error if not configured or if inference fails.
 #[cfg(feature = "ssr")]
 pub async fn get_performance_dimensions_from_hf(
     env: &Env,
@@ -110,26 +113,19 @@ pub async fn get_performance_dimensions_from_hf(
     performance_id: &str,
 ) -> Result<PerformanceDimensions, String> {
     // Get HF configuration from environment
-    let hf_token = match env.secret("HF_API_TOKEN") {
-        Ok(token) => token.to_string(),
-        Err(_) => {
-            // Fall back to mock data if HF not configured
-            return Ok(get_performance_dimensions(performance_id).await);
-        }
-    };
+    let hf_token = env
+        .secret("HF_API_TOKEN")
+        .map_err(|_| "HF_API_TOKEN not configured")?
+        .to_string();
 
-    let endpoint_url = match env.var("HF_INFERENCE_ENDPOINT") {
-        Ok(url) => {
-            let url_str = url.to_string();
-            if url_str.is_empty() {
-                return Ok(get_performance_dimensions(performance_id).await);
-            }
-            url_str
-        }
-        Err(_) => {
-            return Ok(get_performance_dimensions(performance_id).await);
-        }
-    };
+    let endpoint_url = env
+        .var("HF_INFERENCE_ENDPOINT")
+        .map_err(|_| "HF_INFERENCE_ENDPOINT not configured")?
+        .to_string();
+
+    if endpoint_url.is_empty() {
+        return Err("HF_INFERENCE_ENDPOINT is empty".to_string());
+    }
 
     // Build request
     let request_body = HFInferenceRequest {
@@ -147,7 +143,7 @@ pub async fn get_performance_dimensions_from_hf(
         .map_err(|e| format!("Failed to serialize request: {:?}", e))?;
 
     // Make request to HF endpoint
-    let mut headers = Headers::new();
+    let headers = Headers::new();
     headers
         .set("Authorization", &format!("Bearer {}", hf_token))
         .map_err(|e| format!("Failed to set auth header: {:?}", e))?;
@@ -172,13 +168,18 @@ pub async fn get_performance_dimensions_from_hf(
         .await
         .map_err(|e| format!("HF inference request failed: {:?}", e))?;
 
+    let status = response.status_code();
     let response_text = response
         .text()
         .await
         .map_err(|e| format!("Failed to read response: {:?}", e))?;
 
+    if status != 200 {
+        return Err(format!("HF endpoint returned status {}: {}", status, response_text));
+    }
+
     let hf_response: HFInferenceResponse = serde_json::from_str(&response_text)
-        .map_err(|e| format!("Failed to parse response: {:?}", e))?;
+        .map_err(|e| format!("Failed to parse response: {:?} - body: {}", e, response_text))?;
 
     if let Some(error) = hf_response.error {
         return Err(format!(
@@ -188,168 +189,7 @@ pub async fn get_performance_dimensions_from_hf(
     }
 
     match hf_response.predictions {
-        Some(preds) => Ok(preds.fusion.into()),
+        Some(preds) => Ok(preds.into()),
         None => Err("No predictions in response".to_string()),
-    }
-}
-
-/// Fallback mock implementation (used when HF not configured)
-pub async fn get_performance_dimensions(performance_id: &str) -> PerformanceDimensions {
-    let seed = performance_id
-        .bytes()
-        .fold(0u32, |acc, b| acc.wrapping_add(b as u32));
-    let variation = |base: f64, offset: u32| -> f64 {
-        let v = ((seed.wrapping_add(offset) % 100) as f64) / 500.0 - 0.1;
-        (base + v).clamp(0.5, 0.98)
-    };
-
-    match performance_id {
-        "horowitz-chopin-ballade-1" => PerformanceDimensions {
-            timing: 0.92,
-            articulation_length: 0.88,
-            articulation_touch: 0.94,
-            pedal_amount: 0.85,
-            pedal_clarity: 0.82,
-            timbre_variety: 0.95,
-            timbre_depth: 0.93,
-            timbre_brightness: 0.88,
-            timbre_loudness: 0.90,
-            dynamics_range: 0.96,
-            tempo: 0.87,
-            space: 0.84,
-            balance: 0.91,
-            drama: 0.97,
-            mood_valence: 0.72,
-            mood_energy: 0.94,
-            mood_imagination: 0.93,
-            interpretation_sophistication: 0.95,
-            interpretation_overall: 0.94,
-        },
-        "argerich-prokofiev-toccata" => PerformanceDimensions {
-            timing: 0.94,
-            articulation_length: 0.91,
-            articulation_touch: 0.89,
-            pedal_amount: 0.72,
-            pedal_clarity: 0.88,
-            timbre_variety: 0.86,
-            timbre_depth: 0.84,
-            timbre_brightness: 0.93,
-            timbre_loudness: 0.95,
-            dynamics_range: 0.92,
-            tempo: 0.96,
-            space: 0.78,
-            balance: 0.87,
-            drama: 0.94,
-            mood_valence: 0.65,
-            mood_energy: 0.98,
-            mood_imagination: 0.88,
-            interpretation_sophistication: 0.91,
-            interpretation_overall: 0.92,
-        },
-        "gould-bach-goldberg-aria" => PerformanceDimensions {
-            timing: 0.96,
-            articulation_length: 0.94,
-            articulation_touch: 0.92,
-            pedal_amount: 0.55,
-            pedal_clarity: 0.95,
-            timbre_variety: 0.78,
-            timbre_depth: 0.88,
-            timbre_brightness: 0.82,
-            timbre_loudness: 0.68,
-            dynamics_range: 0.72,
-            tempo: 0.65,
-            space: 0.94,
-            balance: 0.96,
-            drama: 0.62,
-            mood_valence: 0.85,
-            mood_energy: 0.58,
-            mood_imagination: 0.92,
-            interpretation_sophistication: 0.97,
-            interpretation_overall: 0.94,
-        },
-        "zimerman-chopin-ballade-4" => PerformanceDimensions {
-            timing: 0.95,
-            articulation_length: 0.93,
-            articulation_touch: 0.96,
-            pedal_amount: 0.88,
-            pedal_clarity: 0.91,
-            timbre_variety: 0.92,
-            timbre_depth: 0.94,
-            timbre_brightness: 0.86,
-            timbre_loudness: 0.82,
-            dynamics_range: 0.93,
-            tempo: 0.84,
-            space: 0.90,
-            balance: 0.95,
-            drama: 0.88,
-            mood_valence: 0.78,
-            mood_energy: 0.82,
-            mood_imagination: 0.95,
-            interpretation_sophistication: 0.96,
-            interpretation_overall: 0.95,
-        },
-        "kissin-rachmaninoff-prelude" => PerformanceDimensions {
-            timing: 0.91,
-            articulation_length: 0.86,
-            articulation_touch: 0.88,
-            pedal_amount: 0.92,
-            pedal_clarity: 0.78,
-            timbre_variety: 0.89,
-            timbre_depth: 0.91,
-            timbre_brightness: 0.87,
-            timbre_loudness: 0.93,
-            dynamics_range: 0.95,
-            tempo: 0.92,
-            space: 0.82,
-            balance: 0.88,
-            drama: 0.93,
-            mood_valence: 0.68,
-            mood_energy: 0.96,
-            mood_imagination: 0.86,
-            interpretation_sophistication: 0.88,
-            interpretation_overall: 0.90,
-        },
-        "pollini-beethoven-appassionata" => PerformanceDimensions {
-            timing: 0.93,
-            articulation_length: 0.90,
-            articulation_touch: 0.87,
-            pedal_amount: 0.82,
-            pedal_clarity: 0.86,
-            timbre_variety: 0.88,
-            timbre_depth: 0.92,
-            timbre_brightness: 0.84,
-            timbre_loudness: 0.91,
-            dynamics_range: 0.94,
-            tempo: 0.89,
-            space: 0.85,
-            balance: 0.93,
-            drama: 0.95,
-            mood_valence: 0.62,
-            mood_energy: 0.94,
-            mood_imagination: 0.87,
-            interpretation_sophistication: 0.94,
-            interpretation_overall: 0.93,
-        },
-        _ => PerformanceDimensions {
-            timing: variation(0.85, 1),
-            articulation_length: variation(0.82, 2),
-            articulation_touch: variation(0.84, 3),
-            pedal_amount: variation(0.78, 4),
-            pedal_clarity: variation(0.80, 5),
-            timbre_variety: variation(0.83, 6),
-            timbre_depth: variation(0.85, 7),
-            timbre_brightness: variation(0.81, 8),
-            timbre_loudness: variation(0.82, 9),
-            dynamics_range: variation(0.86, 10),
-            tempo: variation(0.84, 11),
-            space: variation(0.79, 12),
-            balance: variation(0.85, 13),
-            drama: variation(0.83, 14),
-            mood_valence: variation(0.72, 15),
-            mood_energy: variation(0.84, 16),
-            mood_imagination: variation(0.81, 17),
-            interpretation_sophistication: variation(0.84, 18),
-            interpretation_overall: variation(0.85, 19),
-        },
     }
 }

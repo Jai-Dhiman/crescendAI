@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 
+/// A piano performance (demo or user-uploaded)
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct Performance {
     pub id: String,
@@ -13,8 +14,37 @@ pub struct Performance {
     pub description: Option<String>,
 }
 
+/// Response from audio upload endpoint
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct UploadedPerformance {
+    pub id: String,
+    pub audio_url: String,
+    pub r2_key: String,
+    pub title: String,
+    pub file_size_bytes: usize,
+    pub content_type: String,
+}
+
+impl UploadedPerformance {
+    /// Convert to a Performance for analysis
+    pub fn to_performance(&self) -> Performance {
+        Performance {
+            id: self.id.clone(),
+            composer: "Unknown".to_string(),
+            piece_title: self.title.clone(),
+            performer: "Your Recording".to_string(),
+            thumbnail_url: "/images/upload-placeholder.svg".to_string(),
+            audio_url: self.audio_url.clone(),
+            duration_seconds: 0, // Will be determined during analysis
+            year_recorded: None,
+            description: Some("Your uploaded recording".to_string()),
+        }
+    }
+}
+
 #[cfg(feature = "ssr")]
 impl Performance {
+    /// Get the 3 demo performances (Horowitz, Argerich, Gould)
     pub fn get_demo_performances() -> Vec<Performance> {
         vec![
             Performance {
@@ -49,39 +79,6 @@ impl Performance {
                 duration_seconds: 180,
                 year_recorded: Some(1981),
                 description: Some("Gould's contemplative 1981 recording, a meditation on musical structure and time.".to_string()),
-            },
-            Performance {
-                id: "zimerman-chopin-ballade-4".to_string(),
-                composer: "Frederic Chopin".to_string(),
-                piece_title: "Ballade No. 4 in F minor, Op. 52".to_string(),
-                performer: "Krystian Zimerman".to_string(),
-                thumbnail_url: "/images/zimerman.jpg".to_string(),
-                audio_url: "/audio/zimerman-chopin-ballade-4.mp3".to_string(),
-                duration_seconds: 660,
-                year_recorded: Some(1988),
-                description: Some("Zimerman's perfectionist approach yields a reading of extraordinary polish and depth.".to_string()),
-            },
-            Performance {
-                id: "kissin-rachmaninoff-prelude".to_string(),
-                composer: "Sergei Rachmaninoff".to_string(),
-                piece_title: "Prelude in G minor, Op. 23 No. 5".to_string(),
-                performer: "Evgeny Kissin".to_string(),
-                thumbnail_url: "/images/kissin.jpg".to_string(),
-                audio_url: "/audio/kissin-rachmaninoff-prelude.mp3".to_string(),
-                duration_seconds: 240,
-                year_recorded: Some(1993),
-                description: Some("Kissin's youthful passion and technical command in one of Rachmaninoff's most beloved preludes.".to_string()),
-            },
-            Performance {
-                id: "pollini-beethoven-appassionata".to_string(),
-                composer: "Ludwig van Beethoven".to_string(),
-                piece_title: "Piano Sonata No. 23 'Appassionata'".to_string(),
-                performer: "Maurizio Pollini".to_string(),
-                thumbnail_url: "/images/pollini.jpg".to_string(),
-                audio_url: "/audio/pollini-beethoven-appassionata.mp3".to_string(),
-                duration_seconds: 720,
-                year_recorded: Some(1975),
-                description: Some("Pollini's intellectual clarity combined with volcanic intensity in Beethoven's tempestuous masterpiece.".to_string()),
             },
         ]
     }
