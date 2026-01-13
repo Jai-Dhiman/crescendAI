@@ -30,7 +30,4 @@ binding = "AI"
 
 [vars]
 ENVIRONMENT = "development"
-# HuggingFace Inference Endpoint URL (set after endpoint creation)
-# Example: https://crescendai-piano.us-east-1.aws.endpoints.huggingface.cloud
-HF_INFERENCE_ENDPOINT = ""
-# Note: HF_API_TOKEN should be added as a secret via: wrangler secret put HF_API_TOKEN
+HF_INFERENCE_ENDPOINT = "https://u1oxy7egvq7rnm8z.us-east-1.aws.endpoints.huggingface.cloud"

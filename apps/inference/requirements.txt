@@ -1,9 +1,12 @@
-# HuggingFace Inference Endpoints dependencies
+# D9c AsymmetricGatedFusion - HuggingFace Inference Endpoints dependencies
 # This file is read by HF Endpoints to install Python packages
 
 # PyTorch and ML
 torch>=2.0.0
 transformers>=4.30.0
+
+# Audio embedding models
+muq  # MuQ - Music Understanding Quantized from ByteDance/OpenMuQ
 
 # Audio processing
 librosa>=0.10.0

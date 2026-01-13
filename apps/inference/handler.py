@@ -1,208 +1,254 @@
-"""RunPod serverless handler for piano performance analysis.
+"""HuggingFace Inference Endpoints handler for piano performance analysis.
 
-This handler loads three models and runs inference:
-1. MERT-330M (audio) - Primary audio analysis
-2. PercePiano (symbolic) - Uses pre-computed or synthetic predictions
-3. Late Fusion - Combines audio and symbolic
+D9c AsymmetricGatedFusion model using MERT+MuQ with per-dimension gating.
+Returns 19-dimension performance evaluation scores.
+
+Compatible with HuggingFace Inference Endpoints custom handler pattern.
 """
 
+import base64
 import time
 import traceback
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Union
 
 import numpy as np
-import runpod
 
 from constants import MODEL_INFO, PERCEPIANO_DIMENSIONS
 from models.loader import get_model_cache
-from models.mert_inference import extract_mert_embeddings, predict_with_mert_ensemble
-from models.symbolic_inference import (
-    SymbolicPredictions,
-    predict_with_symbolic_model,
+from models.inference import (
+    extract_mert_embeddings,
+    extract_muq_embeddings,
+    predict_with_fusion_ensemble,
 )
-from models.fusion import late_fusion, load_fusion_weights
 from preprocessing.audio import (
     AudioDownloadError,
     AudioProcessingError,
     download_and_preprocess_audio,
+    preprocess_audio_from_bytes,
 )
 
-# Global state
-_symbolic_predictions: Optional[SymbolicPredictions] = None
-_fusion_weights: Optional[Dict[str, float]] = None
 
+class EndpointHandler:
+    """HuggingFace Inference Endpoints handler for piano performance analysis."""
 
-def initialize():
-    """Initialize models and load resources. Called once on container start."""
-    global _symbolic_predictions, _fusion_weights
+    def __init__(self, path: str = ""):
+        """Initialize MERT, MuQ, and fusion models.
 
-    print("Initializing inference handler...")
-    checkpoint_dir = Path("/app/checkpoints")
+        Called once when the endpoint container starts.
 
-    # Initialize model cache (loads MERT and MLP heads)
-    cache = get_model_cache()
-    cache.initialize(device="cuda", checkpoint_dir=checkpoint_dir)
+        Args:
+            path: Path to the model repository (provided by HF Inference Endpoints).
+                  Contains the checkpoints/ directory with model weights.
+        """
+        print(f"Initializing D9c EndpointHandler with path: {path}")
 
-    # Load pre-computed symbolic predictions if available
-    predictions_path = checkpoint_dir / "symbolic_predictions.json"
-    if predictions_path.exists():
-        _symbolic_predictions = SymbolicPredictions(predictions_path)
-    else:
-        print("No pre-computed symbolic predictions found")
-        _symbolic_predictions = SymbolicPredictions()
-
-    # Load fusion weights
-    weights_path = checkpoint_dir / "fusion" / "optimal_weights.json"
-    _fusion_weights = load_fusion_weights(weights_path)
-
-    print("Initialization complete!")
-
-
-def predictions_to_dict(preds: np.ndarray) -> Dict[str, float]:
-    """Convert prediction array to dimension dict."""
-    return {dim: float(preds[i]) for i, dim in enumerate(PERCEPIANO_DIMENSIONS)}
-
-
-def handler(job: Dict[str, Any]) -> Dict[str, Any]:
-    """RunPod serverless handler.
-
-    Input schema:
-    {
-        "input": {
-            "audio_url": "https://...",
-            "performance_id": "optional-id",
-            "options": {
-                "return_intermediate": false,
-                "max_duration_seconds": 300
-            }
-        }
-    }
-
-    Output schema:
-    {
-        "predictions": {
-            "fusion": {"timing": 0.85, ...},
-            "audio": {...},      # if return_intermediate
-            "symbolic": {...}    # if return_intermediate
-        },
-        "model_info": {...},
-        "processing_time_ms": 1234
-    }
-    """
-    start_time = time.time()
-    job_input = job.get("input", {})
-
-    try:
-        # Parse input
-        audio_url = job_input.get("audio_url")
-        performance_id = job_input.get("performance_id", "unknown")
-        options = job_input.get("options", {})
-        return_intermediate = options.get("return_intermediate", False)
-        max_duration = options.get("max_duration_seconds", 300)
-
-        if not audio_url:
-            return {
-                "error": {
-                    "code": "MISSING_AUDIO_URL",
-                    "message": "audio_url is required",
-                }
-            }
-
-        # Step 1: Download and preprocess audio
-        print(f"Downloading audio from {audio_url}...")
-        audio, duration = download_and_preprocess_audio(
-            audio_url,
-            max_duration=max_duration,
-        )
-        print(f"Audio loaded: {duration:.1f}s")
-
-        # Step 2: Get model cache
-        cache = get_model_cache()
-        if not cache.mert_model:
-            return {
-                "error": {
-                    "code": "MODEL_NOT_LOADED",
-                    "message": "Models not initialized",
-                }
-            }
-
-        # Step 3: Extract MERT embeddings
-        print("Extracting MERT embeddings...")
-        embeddings = extract_mert_embeddings(audio, cache)
-        print(f"Embeddings shape: {embeddings.shape}")
-
-        # Step 4: Get audio predictions (MERT ensemble)
-        print("Running MERT ensemble inference...")
-        audio_preds = predict_with_mert_ensemble(embeddings, cache)
-
-        # Step 5: Get symbolic predictions
-        print("Getting symbolic predictions...")
-        symbolic_preds, is_real_symbolic = predict_with_symbolic_model(
-            sample_key=performance_id,
-            audio_preds=audio_preds,
-            precomputed=_symbolic_predictions,
-        )
-        if is_real_symbolic:
-            print("Using pre-computed symbolic predictions")
+        # Determine checkpoint directory
+        # HF Inference Endpoints mount the repo at the provided path
+        # Fall back to /repository (HF default) or current dir for local testing
+        if path:
+            model_path = Path(path)
         else:
-            print("Using synthetic symbolic predictions")
+            model_path = Path("/repository")
+            if not model_path.exists():
+                model_path = Path(".")
 
-        # Step 6: Apply late fusion
-        print("Applying late fusion...")
-        fusion_preds = late_fusion(audio_preds, symbolic_preds, _fusion_weights)
+        checkpoint_dir = model_path / "checkpoints"
+        if not checkpoint_dir.exists():
+            # Try /app/checkpoints for backward compatibility
+            checkpoint_dir = Path("/app/checkpoints")
 
-        # Build response
-        processing_time_ms = int((time.time() - start_time) * 1000)
+        print(f"Using checkpoint directory: {checkpoint_dir}")
 
-        result = {
-            "performance_id": performance_id,
-            "predictions": {
-                "fusion": predictions_to_dict(fusion_preds),
-            },
-            "model_info": MODEL_INFO,
-            "symbolic_is_real": is_real_symbolic,
-            "audio_duration_seconds": duration,
-            "processing_time_ms": processing_time_ms,
-        }
+        # Initialize model cache (loads MERT, MuQ, and fusion heads)
+        self._cache = get_model_cache()
+        self._cache.initialize(device="cuda", checkpoint_dir=checkpoint_dir)
 
-        # Include intermediate predictions if requested
-        if return_intermediate:
-            result["predictions"]["audio"] = predictions_to_dict(audio_preds)
-            result["predictions"]["symbolic"] = predictions_to_dict(symbolic_preds)
+        print("D9c EndpointHandler initialization complete!")
 
-        print(f"Inference complete in {processing_time_ms}ms")
-        return result
+    def __call__(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Process inference request.
 
-    except AudioDownloadError as e:
-        return {
-            "error": {
-                "code": "AUDIO_DOWNLOAD_FAILED",
-                "message": str(e),
+        Args:
+            data: Request payload. Supports two formats:
+
+                HuggingFace format:
+                {
+                    "inputs": "<base64-audio>" or {"audio_url": "..."},
+                    "parameters": {
+                        "max_duration_seconds": 300
+                    }
+                }
+
+                Legacy RunPod format (for backward compatibility):
+                {
+                    "input": {
+                        "audio_url": "https://...",
+                        "options": {...}
+                    }
+                }
+
+        Returns:
+            Prediction results:
+            {
+                "predictions": {"timing": 0.85, ...},
+                "model_info": {"name": "D9c-AsymmetricGatedFusion", "r2": 0.531},
+                "audio_duration_seconds": 180.5,
+                "processing_time_ms": 1234
             }
-        }
 
-    except AudioProcessingError as e:
-        return {
-            "error": {
-                "code": "AUDIO_PROCESSING_FAILED",
-                "message": str(e),
+            Or error:
+            {
+                "error": {"code": "...", "message": "..."}
             }
-        }
+        """
+        start_time = time.time()
 
-    except Exception as e:
-        return {
-            "error": {
-                "code": "INFERENCE_ERROR",
-                "message": str(e),
-                "traceback": traceback.format_exc(),
+        try:
+            # Parse input - support both HF and legacy RunPod formats
+            inputs, parameters = self._parse_request(data)
+
+            # Extract parameters
+            max_duration = parameters.get("max_duration_seconds", 300)
+
+            # Load and preprocess audio
+            audio, duration = self._load_audio(inputs, max_duration)
+            print(f"Audio loaded: {duration:.1f}s")
+
+            # Verify models are loaded
+            if not self._cache.mert_model or not self._cache.muq_model:
+                return {
+                    "error": {
+                        "code": "MODEL_NOT_LOADED",
+                        "message": "Models not initialized",
+                    }
+                }
+
+            # Extract MERT embeddings (concatenated layers 19-24)
+            print("Extracting MERT embeddings...")
+            mert_embeddings = extract_mert_embeddings(audio, self._cache)
+            print(f"MERT embeddings shape: {mert_embeddings.shape}")
+
+            # Extract MuQ embeddings
+            print("Extracting MuQ embeddings...")
+            muq_embeddings = extract_muq_embeddings(audio, self._cache)
+            print(f"MuQ embeddings shape: {muq_embeddings.shape}")
+
+            # Get fused predictions (4-fold ensemble)
+            print("Running D9c fusion ensemble inference...")
+            predictions = predict_with_fusion_ensemble(
+                mert_embeddings, muq_embeddings, self._cache
+            )
+
+            # Build response
+            processing_time_ms = int((time.time() - start_time) * 1000)
+
+            result = {
+                "predictions": self._predictions_to_dict(predictions),
+                "model_info": {
+                    "name": MODEL_INFO["name"],
+                    "type": MODEL_INFO["type"],
+                    "r2": MODEL_INFO["r2"],
+                    "architecture": MODEL_INFO["architecture"],
+                    "ensemble_folds": len(self._cache.fusion_heads),
+                },
+                "audio_duration_seconds": duration,
+                "processing_time_ms": processing_time_ms,
             }
-        }
 
+            print(f"Inference complete in {processing_time_ms}ms")
+            return result
 
-# Initialize on import (container start)
-initialize()
+        except AudioDownloadError as e:
+            return {
+                "error": {
+                    "code": "AUDIO_DOWNLOAD_FAILED",
+                    "message": str(e),
+                }
+            }
 
-# Start RunPod serverless
-if __name__ == "__main__":
-    runpod.serverless.start({"handler": handler})
+        except AudioProcessingError as e:
+            return {
+                "error": {
+                    "code": "AUDIO_PROCESSING_FAILED",
+                    "message": str(e),
+                }
+            }
+
+        except Exception as e:
+            return {
+                "error": {
+                    "code": "INFERENCE_ERROR",
+                    "message": str(e),
+                    "traceback": traceback.format_exc(),
+                }
+            }
+
+    def _parse_request(self, data: Dict[str, Any]) -> tuple:
+        """Parse request data supporting both HF and legacy formats.
+
+        Returns:
+            Tuple of (inputs, parameters)
+        """
+        # HF format: {"inputs": ..., "parameters": ...}
+        if "inputs" in data:
+            inputs = data["inputs"]
+            parameters = data.get("parameters", {})
+            return inputs, parameters
+
+        # Legacy RunPod format: {"input": {"audio_url": ..., "options": ...}}
+        if "input" in data:
+            job_input = data["input"]
+            inputs = {
+                "audio_url": job_input.get("audio_url"),
+                "performance_id": job_input.get("performance_id", "unknown"),
+            }
+            parameters = job_input.get("options", {})
+            parameters["performance_id"] = inputs.get("performance_id", "unknown")
+            return inputs, parameters
+
+        # Fallback: treat entire data as inputs
+        return data, {}
+
+    def _load_audio(
+        self, inputs: Union[str, bytes, Dict[str, Any]], max_duration: int
+    ) -> tuple:
+        """Load audio from various input formats.
+
+        Args:
+            inputs: One of:
+                - str: Base64-encoded audio bytes
+                - bytes: Raw audio bytes
+                - dict: {"audio_url": "..."} for URL-based loading
+
+        Returns:
+            Tuple of (audio_array, duration_seconds)
+        """
+        if isinstance(inputs, str):
+            # Base64-encoded audio
+            try:
+                audio_bytes = base64.b64decode(inputs)
+                return preprocess_audio_from_bytes(audio_bytes, max_duration=max_duration)
+            except Exception:
+                # Maybe it's a URL string
+                if inputs.startswith("http"):
+                    return download_and_preprocess_audio(inputs, max_duration=max_duration)
+                raise AudioProcessingError("Invalid input string: not base64 or URL")
+
+        elif isinstance(inputs, bytes):
+            # Raw bytes
+            return preprocess_audio_from_bytes(inputs, max_duration=max_duration)
+
+        elif isinstance(inputs, dict):
+            # URL-based input
+            audio_url = inputs.get("audio_url")
+            if not audio_url:
+                raise AudioProcessingError("No audio_url provided in inputs")
+            return download_and_preprocess_audio(audio_url, max_duration=max_duration)
+
+        else:
+            raise AudioProcessingError(f"Unsupported input type: {type(inputs)}")
+
+    def _predictions_to_dict(self, preds: np.ndarray) -> Dict[str, float]:
+        """Convert prediction array to dimension dict."""
+        return {dim: float(preds[i]) for i, dim in enumerate(PERCEPIANO_DIMENSIONS)}

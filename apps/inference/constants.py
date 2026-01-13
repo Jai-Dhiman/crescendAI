@@ -1,4 +1,4 @@
-"""Constants for inference handler."""
+"""Constants for D9c AsymmetricGatedFusion inference handler."""
 
 PERCEPIANO_DIMENSIONS = [
     "timing",
@@ -22,30 +22,35 @@ PERCEPIANO_DIMENSIONS = [
     "interpretation_overall",
 ]
 
-# Model configuration (must match training config)
-MERT_CONFIG = {
-    "input_dim": 1024,
-    "hidden_dim": 512,
+# D9c AsymmetricGatedFusion configuration
+# MERT uses averaged layers 13-24 (1024 dim)
+# MuQ uses last hidden state (1024)
+MODEL_CONFIG = {
+    # MERT configuration (layers to average)
+    "mert_layer_start": 13,
+    "mert_layer_end": 25,  # Exclusive
+    "mert_dim": 1024,  # Averaged layer dimension
+    "mert_hidden": 512,
+    # MuQ configuration
+    "muq_dim": 1024,  # Last hidden state
+    # Fusion configuration
+    "shared_dim": 512,
     "num_labels": 19,
     "dropout": 0.2,
-    "pooling": "mean",
-    "layer_start": 13,
-    "layer_end": 25,
+    "pooling": "attention",
+    # Audio processing
     "target_sr": 24000,
     "max_frames": 1000,
 }
 
-# Model info for response (audio-only model)
+# Model info for response
 MODEL_INFO = {
-    "name": "MERT-330M",
-    "type": "audio",
-    "r2": 0.487,
-    "description": "Audio-only piano performance evaluation using MERT-330M embeddings",
-}
-
-# Checkpoint paths (relative to /app in container)
-CHECKPOINT_PATHS = {
-    "mert_folds": "/app/checkpoints/mert/fold{}_best.ckpt",
+    "name": "D9c-AsymmetricGatedFusion",
+    "type": "audio-dual-model",
+    "r2": 0.531,
+    "best_fold_r2": 0.587,
+    "description": "MERT+MuQ fusion with per-dimension gating for piano performance evaluation",
+    "architecture": "AsymmetricGatedFusion (MERT 6144->768->512, MuQ 1024->512, per-dim gates)",
 }
 
 # Number of folds for ensemble

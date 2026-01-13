@@ -1,13 +1,21 @@
-"""Model loading and inference modules."""
+"""Model loading and inference for D9c AsymmetricGatedFusion."""
 
-from .loader import ModelCache, get_model_cache
-from .mert_inference import extract_mert_embeddings, predict_with_mert_ensemble
-from .fusion import late_fusion
+from models.loader import (
+    AsymmetricGatedFusionHead,
+    ModelCache,
+    get_model_cache,
+)
+from models.inference import (
+    extract_mert_embeddings,
+    extract_muq_embeddings,
+    predict_with_fusion_ensemble,
+)
 
 __all__ = [
+    "AsymmetricGatedFusionHead",
     "ModelCache",
     "get_model_cache",
     "extract_mert_embeddings",
-    "predict_with_mert_ensemble",
-    "late_fusion",
+    "extract_muq_embeddings",
+    "predict_with_fusion_ensemble",
 ]

@@ -1,5 +1,5 @@
-# CrescendAI Inference Handler
-# RunPod serverless container for piano performance analysis
+# D9c AsymmetricGatedFusion Inference Handler
+# HuggingFace Inference Endpoints container for piano performance analysis
 
 FROM nvidia/cuda:12.1.0-cudnn8-runtime-ubuntu22.04
 
@@ -26,33 +26,36 @@ ENV PATH="/root/.local/bin:$PATH"
 
 WORKDIR /app
 
-# Install Python dependencies with uv (use requirements.txt for Docker layer caching)
+# Install Python dependencies with uv
 COPY requirements.txt .
 RUN uv pip install --system --no-cache -r requirements.txt
 
 # Pre-download HuggingFace models (cached in image)
-# This prevents cold start from downloading ~1.3GB each time
+# This prevents cold start from downloading ~2.5GB each time (MERT + MuQ)
 RUN python3 -c "\
 from transformers import AutoModel, AutoProcessor; \
 print('Downloading MERT-v1-330M...'); \
 AutoProcessor.from_pretrained('m-a-p/MERT-v1-330M', trust_remote_code=True); \
 AutoModel.from_pretrained('m-a-p/MERT-v1-330M', trust_remote_code=True); \
+print('Downloading MuQ-large-msd-iter...'); \
+from muq import MuQ; \
+MuQ.from_pretrained('OpenMuQ/MuQ-large-msd-iter'); \
 print('Done!'); \
 "
 
 # Copy application code
 COPY constants.py .
-COPY handler.py .
+COPY handler_hf.py .
 COPY models/ ./models/
 COPY preprocessing/ ./preprocessing/
 
-# Create checkpoints directory (will be mounted or copied)
-RUN mkdir -p /app/checkpoints/mert /app/checkpoints/percepiano /app/checkpoints/fusion
+# Create checkpoints directory structure for D9c
+RUN mkdir -p /app/checkpoints/fold0 /app/checkpoints/fold1 /app/checkpoints/fold2 /app/checkpoints/fold3
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
 ENV TRANSFORMERS_CACHE=/app/.cache/huggingface
 ENV HF_HOME=/app/.cache/huggingface
 
-# Entry point
-CMD ["python3", "handler.py"]
+# HuggingFace Inference Endpoints expects handler.py or handler_hf.py
+# The EndpointHandler class will be automatically detected
