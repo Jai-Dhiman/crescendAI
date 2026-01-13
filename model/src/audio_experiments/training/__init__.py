@@ -7,6 +7,7 @@ from .runner import (
     run_4fold_mert_experiment,
     run_4fold_mel_experiment,
     run_4fold_stats_experiment,
+    run_4fold_dual_experiment,
 )
 from .sync import (
     get_completed_experiments,
@@ -58,6 +59,7 @@ __all__ = [
     "run_4fold_mert_experiment",
     "run_4fold_mel_experiment",
     "run_4fold_stats_experiment",
+    "run_4fold_dual_experiment",
     # Sync
     "get_completed_experiments",
     "print_experiment_status",
