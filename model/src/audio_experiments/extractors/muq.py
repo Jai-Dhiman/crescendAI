@@ -71,7 +71,22 @@ class MuQExtractor:
 
         # Get hidden size from model config
         self.hidden_size = getattr(self.model.config, "hidden_size", 1024)
-        print(f"Model loaded. Hidden size: {self.hidden_size}")
+
+        # Get number of layers from config
+        self.num_layers = getattr(self.model.config, "num_hidden_layers", None)
+        layer_info_str = f", {self.num_layers} layers" if self.num_layers else ""
+        print(f"Model loaded. Hidden size: {self.hidden_size}{layer_info_str}")
+
+        # Validate layer range against model architecture if we know num_layers
+        if self.use_layer_range and self.num_layers is not None:
+            # hidden_states has num_layers + 1 elements (includes initial embedding)
+            max_layer_idx = self.num_layers + 1
+            if self.layer_end > max_layer_idx:
+                raise ValueError(
+                    f"Requested layers {self.layer_start}-{self.layer_end - 1} but MuQ only has "
+                    f"{self.num_layers} transformer layers (hidden_states indices 0-{self.num_layers}). "
+                    f"Use layer_end <= {max_layer_idx}."
+                )
 
     def get_cache_path(self, key: str) -> Path:
         """Get cache file path for a given key."""
@@ -107,6 +122,21 @@ class MuQExtractor:
         output = self.model(wavs, output_hidden_states=True)
 
         if self.use_layer_range:
+            # Validate hidden_states exists and has expected layers
+            if output.hidden_states is None:
+                raise RuntimeError(
+                    "MuQ model did not return hidden_states. "
+                    "Ensure the model supports output_hidden_states=True."
+                )
+
+            num_layers = len(output.hidden_states)
+            if self.layer_end > num_layers:
+                raise RuntimeError(
+                    f"Requested layers {self.layer_start}-{self.layer_end - 1} but MuQ only has "
+                    f"{num_layers} hidden states (indices 0-{num_layers - 1}). "
+                    f"Use layer_end <= {num_layers}."
+                )
+
             # Average across specified layer range
             hidden_states = output.hidden_states[self.layer_start : self.layer_end]
             embeddings = torch.stack(hidden_states, dim=0).mean(dim=0).squeeze(0).cpu()
@@ -138,6 +168,16 @@ class MuQExtractor:
         output = self.model(wavs, output_hidden_states=True)
 
         if self.use_layer_range:
+            # Validate layer range (should be caught at init, but double-check)
+            if output.hidden_states is None:
+                raise RuntimeError("MuQ model did not return hidden_states.")
+            num_layers = len(output.hidden_states)
+            if self.layer_end > num_layers:
+                raise RuntimeError(
+                    f"Requested layers {self.layer_start}-{self.layer_end - 1} but MuQ only has "
+                    f"{num_layers} hidden states (indices 0-{num_layers - 1})."
+                )
+
             hidden_states = output.hidden_states[self.layer_start : self.layer_end]
             embeddings = torch.stack(hidden_states, dim=0).mean(dim=0).cpu()
         else:
