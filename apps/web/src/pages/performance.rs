@@ -448,7 +448,12 @@ async fn analyze_performance_via_api(id: String) -> Result<AnalysisResult, Strin
     let window = web_sys::window().ok_or("No window")?;
 
     let url = format!("/api/analyze/{}", id);
-    let resp = wasm_bindgen_futures::JsFuture::from(window.fetch_with_str(&url))
+    let opts = web_sys::RequestInit::new();
+    opts.set_method("POST");
+    let request = web_sys::Request::new_with_str_and_init(&url, &opts)
+        .map_err(|e| format!("Request error: {:?}", e))?;
+
+    let resp = wasm_bindgen_futures::JsFuture::from(window.fetch_with_request(&request))
         .await
         .map_err(|e| format!("Fetch error: {:?}", e))?;
 

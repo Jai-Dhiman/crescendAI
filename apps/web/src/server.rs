@@ -114,6 +114,42 @@ fn generate_model_variants(base: &PerformanceDimensions) -> Vec<ModelResult> {
     ]
 }
 
+/// Find an uploaded performance by probing R2 for the file with different extensions.
+///
+/// Upload IDs have format: "upload-{timestamp}-{random}"
+/// R2 keys have format: "user-uploads/{timestamp}-{random}.{extension}"
+async fn find_uploaded_performance(env: &Env, upload_id: &str) -> Option<Performance> {
+    let bucket = env.bucket("BUCKET").ok()?;
+
+    // Extract the file identifier from the upload ID
+    let file_id = upload_id.strip_prefix("upload-")?;
+
+    // Try common audio extensions
+    let extensions = ["wav", "mp3", "m4a", "webm"];
+
+    for ext in extensions {
+        let key = format!("user-uploads/{}.{}", file_id, ext);
+        // Check if file exists by attempting to get its metadata
+        if let Ok(Some(_)) = bucket.head(&key).await {
+            console_log!("Found uploaded file: {}", key);
+            return Some(Performance {
+                id: upload_id.to_string(),
+                composer: "Unknown".to_string(),
+                piece_title: "Your Recording".to_string(),
+                performer: "Uploaded".to_string(),
+                thumbnail_url: "/images/upload-placeholder.svg".to_string(),
+                audio_url: format!("/r2/{}", key),
+                duration_seconds: 0,
+                year_recorded: None,
+                description: Some("Your uploaded recording".to_string()),
+            });
+        }
+    }
+
+    console_log!("Could not find uploaded file for ID: {}", upload_id);
+    None
+}
+
 /// Handle full performance analysis with RAG-based feedback.
 ///
 /// This handler returns a complete `AnalysisResult` including:
@@ -132,20 +168,50 @@ async fn handle_full_analyze(
     use axum::body::Body;
     use http::{Response, StatusCode};
 
-    // 1. Get performance (404 if not found)
-    let performance = match Performance::find_by_id(performance_id) {
-        Some(p) => p,
-        None => {
-            return Response::builder()
-                .status(StatusCode::NOT_FOUND)
-                .header("Content-Type", "application/json")
-                .body(Body::from(r#"{"error":"Performance not found"}"#))
-                .unwrap();
+    // 1. Get performance - either from demos or uploaded recordings
+    let performance = if performance_id.starts_with("upload-") {
+        // Handle uploaded recording - probe R2 for the file
+        match find_uploaded_performance(env, performance_id).await {
+            Some(p) => p,
+            None => {
+                return Response::builder()
+                    .status(StatusCode::NOT_FOUND)
+                    .header("Content-Type", "application/json")
+                    .body(Body::from(r#"{"error":"Uploaded recording not found"}"#))
+                    .unwrap();
+            }
+        }
+    } else {
+        // Demo performance - look up from static list
+        match Performance::find_by_id(performance_id) {
+            Some(p) => p,
+            None => {
+                return Response::builder()
+                    .status(StatusCode::NOT_FOUND)
+                    .header("Content-Type", "application/json")
+                    .body(Body::from(r#"{"error":"Performance not found"}"#))
+                    .unwrap();
+            }
         }
     };
 
-    // 2. Get performance dimensions from HF inference
-    let dimensions = match get_performance_dimensions_from_hf(env, &performance.audio_url, performance_id).await {
+    // 2. Get absolute audio URL for HF inference
+    // HF needs a publicly accessible URL to download the audio
+    let audio_url = if performance.audio_url.starts_with("http") {
+        performance.audio_url.clone()
+    } else {
+        // Convert relative URL to absolute using PUBLIC_URL
+        let public_url = env
+            .var("PUBLIC_URL")
+            .map(|v| v.to_string())
+            .unwrap_or_else(|_| "https://crescend.ai".to_string());
+        format!("{}{}", public_url.trim_end_matches('/'), performance.audio_url)
+    };
+
+    console_log!("Using audio URL for HF: {}", audio_url);
+
+    // 3. Get performance dimensions from HF inference
+    let dimensions = match get_performance_dimensions_from_hf(env, &audio_url, performance_id).await {
         Ok(dims) => dims,
         Err(e) => {
             console_log!("HF inference failed: {}", e);

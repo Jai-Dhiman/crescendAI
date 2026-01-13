@@ -28,6 +28,14 @@ index_name = "crescendai-piano-pedagogy"
 [ai]
 binding = "AI"
 
+# Custom domain (must remove from Pages project first)
+[[routes]]
+pattern = "crescend.ai"
+custom_domain = true
+
 [vars]
 ENVIRONMENT = "development"
 HF_INFERENCE_ENDPOINT = "https://u1oxy7egvq7rnm8z.us-east-1.aws.endpoints.huggingface.cloud"
+# Public URL for audio files - HF inference needs publicly accessible URLs
+# For local dev with ngrok: PUBLIC_URL = "https://your-ngrok-url.ngrok.io"
+PUBLIC_URL = "https://crescend.ai"
