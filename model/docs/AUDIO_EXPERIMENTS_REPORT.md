@@ -378,7 +378,3 @@ All results are stored in `model/data/results/audio_phase2/`:
 - `E3_dimension_analysis.json` - Per-dimension audio vs symbolic comparison
 - `E2_latency_benchmark.json` - Inference latency benchmarks
 - Individual experiment files: `{experiment_id}.json`
-
----
-
-*Generated from training results synced from Google Drive on January 12, 2026.*
