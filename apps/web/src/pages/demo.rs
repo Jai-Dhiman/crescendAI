@@ -10,7 +10,7 @@ use crate::components::{
 use crate::models::{AnalysisResult, AnalysisState, Performance, UploadedPerformance};
 
 #[cfg(feature = "hydrate")]
-use crate::components::{AudioPlayer, AudioUpload};
+use crate::components::AudioUpload;
 
 /// Interactive Demo Page - upload your own or use demo recordings
 #[component]
@@ -338,28 +338,11 @@ fn AnalysisView(
             // If this is an uploaded performance, show it directly
             if let Some(uploaded) = uploaded_perf.get() {
                 if uploaded.id == current_perf_id {
-                    #[cfg(feature = "hydrate")]
-                    let audio_section = {
-                        view! {
-                            <AudioPlayer
-                                audio_url=uploaded.audio_url.clone()
-                                title=uploaded.title.clone()
-                            />
-                        }
-                    };
-
-                    #[cfg(not(feature = "hydrate"))]
-                    let audio_section = {
-                        view! {
-                            <div class="card p-6">
-                                <h3 class="font-display text-heading-md text-ink-800 mb-4">
-                                    {uploaded.title.clone()}
-                                </h3>
-                                <div class="h-16 bg-paper-100 rounded-lg flex items-center justify-center border border-paper-200">
-                                    <p class="text-body-sm text-ink-400">"Audio player loading..."</p>
-                                </div>
-                            </div>
-                        }
+                    let audio_section = view! {
+                        <SimpleAudioPlayer
+                            audio_url=uploaded.audio_url.clone()
+                            title=uploaded.title.clone()
+                        />
                     };
 
                     return view! {
@@ -393,28 +376,11 @@ fn AnalysisView(
                             Some(perf) => {
                                 let perf_for_audio = perf.clone();
 
-                                #[cfg(feature = "hydrate")]
-                                let audio_section = {
-                                    view! {
-                                        <AudioPlayer
-                                            audio_url=perf_for_audio.audio_url.clone()
-                                            title=format!("{} - {}", perf_for_audio.piece_title, perf_for_audio.performer)
-                                        />
-                                    }
-                                };
-
-                                #[cfg(not(feature = "hydrate"))]
-                                let audio_section = {
-                                    view! {
-                                        <div class="card p-6">
-                                            <h3 class="font-display text-heading-md text-ink-800 mb-4">
-                                                {format!("{} - {}", perf_for_audio.piece_title, perf_for_audio.performer)}
-                                            </h3>
-                                            <div class="h-16 bg-paper-100 rounded-lg flex items-center justify-center border border-paper-200">
-                                                <p class="text-body-sm text-ink-400">"Audio player loading..."</p>
-                                            </div>
-                                        </div>
-                                    }
+                                let audio_section = view! {
+                                    <SimpleAudioPlayer
+                                        audio_url=perf_for_audio.audio_url.clone()
+                                        title=format!("{} - {}", perf_for_audio.piece_title, perf_for_audio.performer)
+                                    />
                                 };
 
                                 view! {
@@ -659,6 +625,148 @@ async fn analyze_performance_via_api(id: String) -> Result<AnalysisResult, Strin
         .map_err(|e| format!("Parse error: {:?}", e))?;
 
     Ok(result)
+}
+
+/// Styled audio player that works with SSR hydration
+#[component]
+fn SimpleAudioPlayer(
+    #[prop(into)] audio_url: String,
+    #[prop(into)] title: String,
+) -> impl IntoView {
+    let audio_ref = NodeRef::<leptos::html::Audio>::new();
+    let (is_playing, set_is_playing) = signal(false);
+    let (current_time, set_current_time) = signal(0.0f64);
+    let (duration, set_duration) = signal(0.0f64);
+
+    // Set up audio event listeners on the client
+    #[cfg(feature = "hydrate")]
+    {
+        use wasm_bindgen::prelude::*;
+
+        Effect::new(move |_| {
+            if let Some(audio) = audio_ref.get() {
+                // Duration loaded
+                let on_loaded = Closure::wrap(Box::new({
+                    let audio = audio.clone();
+                    move |_: web_sys::Event| {
+                        set_duration.set(audio.duration());
+                    }
+                }) as Box<dyn FnMut(_)>);
+                audio.set_onloadedmetadata(Some(on_loaded.as_ref().unchecked_ref()));
+                on_loaded.forget();
+
+                // Time update
+                let on_timeupdate = Closure::wrap(Box::new({
+                    let audio = audio.clone();
+                    move |_: web_sys::Event| {
+                        set_current_time.set(audio.current_time());
+                    }
+                }) as Box<dyn FnMut(_)>);
+                audio.set_ontimeupdate(Some(on_timeupdate.as_ref().unchecked_ref()));
+                on_timeupdate.forget();
+
+                // Ended
+                let on_ended = Closure::wrap(Box::new(move |_: web_sys::Event| {
+                    set_is_playing.set(false);
+                    set_current_time.set(0.0);
+                }) as Box<dyn FnMut(_)>);
+                audio.set_onended(Some(on_ended.as_ref().unchecked_ref()));
+                on_ended.forget();
+            }
+        });
+    }
+
+    let toggle_play = move |_| {
+        #[cfg(feature = "hydrate")]
+        {
+            use leptos::task::spawn_local;
+            use wasm_bindgen_futures::JsFuture;
+
+            if let Some(audio) = audio_ref.get() {
+                if is_playing.get_untracked() {
+                    let _ = audio.pause();
+                    set_is_playing.set(false);
+                } else {
+                    if let Ok(promise) = audio.play() {
+                        spawn_local(async move {
+                            let _ = JsFuture::from(promise).await;
+                        });
+                        set_is_playing.set(true);
+                    }
+                }
+            }
+        }
+    };
+
+    let format_time = |seconds: f64| -> String {
+        if seconds.is_nan() || seconds.is_infinite() {
+            return "0:00".to_string();
+        }
+        let mins = (seconds / 60.0).floor() as u32;
+        let secs = (seconds % 60.0).floor() as u32;
+        format!("{}:{:02}", mins, secs)
+    };
+
+    view! {
+        <div class="card p-6">
+            <audio
+                node_ref=audio_ref
+                src=audio_url
+                preload="metadata"
+                class="hidden"
+            />
+
+            <h3 class="font-display text-heading-md text-ink-800 mb-4">{title}</h3>
+
+            <div class="flex items-center gap-4">
+                // Play/Pause button
+                <button
+                    on:click=toggle_play
+                    class="w-12 h-12 rounded-full bg-sepia-600 flex items-center justify-center
+                           shadow-md transition-all duration-200 flex-shrink-0
+                           hover:scale-105 hover:bg-sepia-700 hover:shadow-lg
+                           active:scale-95"
+                >
+                    <Show
+                        when=move || is_playing.get()
+                        fallback=|| view! {
+                            <svg class="w-5 h-5 ml-0.5 text-white" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M8 5v14l11-7z"/>
+                            </svg>
+                        }
+                    >
+                        <svg class="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"/>
+                        </svg>
+                    </Show>
+                </button>
+
+                // Progress section
+                <div class="flex-1 min-w-0">
+                    // Progress bar
+                    <div class="h-2 bg-paper-200 rounded-full overflow-hidden">
+                        <div
+                            class="h-full bg-sepia-500 rounded-full transition-all duration-150"
+                            style=move || {
+                                let d = duration.get();
+                                let progress = if d > 0.0 {
+                                    (current_time.get() / d) * 100.0
+                                } else {
+                                    0.0
+                                };
+                                format!("width: {}%", progress)
+                            }
+                        />
+                    </div>
+                    // Time display
+                    <div class="flex justify-between text-label-sm text-ink-400 mt-1.5">
+                        <span>{move || format_time(current_time.get())}</span>
+                        <span>{move || format_time(duration.get())}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
 }
 
 #[server(ListPerformances, "/api")]
