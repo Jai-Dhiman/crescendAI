@@ -67,26 +67,6 @@ pub fn DemoPage() -> impl IntoView {
 
     view! {
         <div class="min-h-screen bg-paper-50">
-            // Minimal Header
-            <header class="border-b border-paper-200 bg-white/80 backdrop-blur-sm sticky top-0 z-50">
-                <div class="container-wide py-4 flex items-center justify-between">
-                    <a href="/" class="flex items-center gap-2 text-ink-800 hover:text-sepia-600 transition-colors">
-                        <div class="w-8 h-8 rounded-lg bg-sepia-100 flex items-center justify-center">
-                            <svg class="w-4 h-4 text-sepia-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
-                            </svg>
-                        </div>
-                        <span class="font-display text-heading-md">"CrescendAI"</span>
-                    </a>
-                    <a
-                        href="/"
-                        class="text-label-sm text-sepia-600 hover:text-sepia-700 transition-colors"
-                    >
-                        "Learn More"
-                    </a>
-                </div>
-            </header>
-
             // Upload Section
             <section class="border-b border-paper-200 bg-white py-6">
                 <div class="container-wide">
