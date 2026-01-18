@@ -17,26 +17,26 @@ This document provides a comprehensive summary of all audio-based experiments co
 
 ### Key Findings
 
-1. **Best Overall Model:** D8_muq_stats (MuQ + stats pooling) achieves R2 = 0.560
-2. **Best MuQ Layer Configuration:** M1c layers 9-12 (late semantic) achieves R2 = 0.533
+1. **Best Overall Model:** M1c_muq_L9-12 (MuQ layers 9-12) achieves R2 = 0.533 (4-fold CV)
+2. **MuQ Foundation:** F9_muq_symbolic_weighted (MuQ + symbolic fusion) achieves R2 = 0.524
 3. **Best Pure MERT Model:** D1a_stats_mean_std (MERT + stats pooling) achieves R2 = 0.466
-4. **Best Fusion Model:** F9_muq_symbolic_weighted achieves R2 = 0.524 (MuQ + symbolic)
-5. **Audio vs Symbolic:** Audio models win on all 19 PercePiano dimensions (p < 1e-25)
-6. **Baseline Comparisons:** Foundation models decisively outperform traditional approaches
+4. **Cross-Dataset Validation:** X3_psyllabus shows model correlates with difficulty (r = 0.570)
+5. **Performer Generalization:** P1_performer_fold_muq achieves R2 = 0.487 on unseen performers
+6. **Audio vs Symbolic:** Audio models win on all 19 PercePiano dimensions (p < 1e-25)
 7. **Statistical Significance:** All differences validated with bootstrap CIs and paired t-tests
 
 ### Summary Results Table
 
 | Model | R2 | 95% CI | Key Finding |
 |-------|-----|--------|-------------|
-| D8_muq_stats | **0.560** | [0.444, 0.492] | Best overall (MuQ-based) |
-| M1c_muq_L9-12 | **0.533** | [0.514, 0.560] | Best MuQ layer config |
+| M1c_muq_L9-12 | **0.533** | [0.514, 0.560] | Best MuQ layer config (4-fold) |
 | F9_muq_symbolic_weighted | **0.524** | [0.500, 0.545] | Best fusion (MuQ+symbolic) |
-| D7_muq_baseline | 0.523 | [0.480, 0.525] | MuQ outperforms MERT |
 | D9c_mert_muq_gated | 0.516 | [0.497, 0.543] | Gated MERT+MuQ fusion |
-| D1a_stats_mean_std | **0.466** | [0.447, 0.497] | Best pure MERT |
-| F1_weighted (MERT+symbolic) | 0.499 | [0.474, 0.520] | Best MERT fusion |
+| P1_performer_fold_muq | 0.487 | [0.479, 0.521] | MuQ on performer folds |
 | Audio (MERT L7-12) | 0.487 | [0.460, 0.510] | Audio baseline for fusion |
+| D1a_stats_mean_std | **0.466** | [0.447, 0.497] | Best pure MERT |
+| D8_muq_stats | 0.454 | [0.444, 0.493] | MuQ+stats (4-fold, high variance) |
+| P2_performer_fold_mert | 0.444 | [0.431, 0.474] | MERT on performer folds |
 | B1b_layers_7-12 | **0.433** | [0.409, 0.461] | Best MERT layer config |
 | B0_baseline | 0.405 | [0.398, 0.449] | MERT+MLP baseline |
 | Symbolic (Published) | 0.397 | - | PercePiano SOTA |
@@ -187,20 +187,24 @@ Configuration: MERT layers 13-24, mean pooling, 2-layer MLP head.
 | ID | Description | R2 | 95% CI |
 |----|-------------|-----|--------|
 | D7_muq_baseline | MuQ baseline (mean pooling) | 0.523 | [0.480, 0.525] |
-| D8_muq_stats | MuQ + stats pooling | **0.560** | [0.444, 0.492] |
-| D9_mert_muq_ensemble | MERT + MuQ ensemble | - | - |
-| D9b_mert_muq_concat | MERT + MuQ concatenation | - | - |
-| D9c_asymmetric_gated_fusion | Gated fusion | - | - |
+| D8_muq_stats | MuQ + stats pooling | 0.454 | [0.444, 0.493] |
+| D9a_mert_muq_ensemble | MERT + MuQ ensemble (avg) | 0.490 | [0.420, 0.469] |
+| D9b_mert_muq_concat | MERT + MuQ concatenation | 0.471 | [0.452, 0.498] |
+| D9c_mert_muq_gated | Asymmetric gated fusion | **0.516** | [0.497, 0.543] |
 
-**D7 Per-Fold Results:**
+**D8_muq_stats Per-Fold Results (Complete 4-Fold CV):**
 
 | Fold | R2 |
 |------|-----|
-| 2 | 0.483 |
-| 3 | 0.563 |
-| **Mean** | **0.523** |
+| 0 | 0.485 |
+| 1 | 0.529 |
+| 2 | 0.242 |
+| 3 | 0.560 |
+| **Mean** | **0.454** |
 
-**Key Finding:** MuQ significantly outperforms MERT (0.523 vs 0.433). Stats pooling provides further improvement (0.560).
+**Note:** D8 shows high fold variance (std=0.125). Fold 2 has unusually low R2 (0.242). Previous reported R2=0.560 was from fold 3 only. M1c_muq_L9-12 (R2=0.533) is more stable and achieves better average performance.
+
+**Key Finding:** MuQ significantly outperforms MERT. Gated fusion (D9c) achieves best MERT+MuQ combination at R2=0.516.
 
 ### D10: Contrastive Learning
 
@@ -759,6 +763,107 @@ Testing model consistency across different performers playing the same pieces us
 
 **Key Finding:** Low intra-piece variance (0.0072) indicates model predictions are dominated by piece characteristics rather than performer variations. The model learns piece-level features more than performer-specific expression, which may limit its utility for fine-grained performer comparison.
 
+### X3: PSyllabus Cross-Dataset Difficulty Correlation
+
+Testing model predictions on the PSyllabus dataset (external piano repertoire with difficulty ratings 1-11).
+
+**Dataset Statistics:**
+
+| Metric | Value |
+|--------|-------|
+| Total Samples | 290 |
+| Difficulty Levels | 1-11 |
+| Overall Spearman r | **0.570** |
+| p-value | 2.4e-26 |
+
+**Top Correlated Dimensions with Difficulty:**
+
+| Dimension | Spearman r | p-value | Significant |
+|-----------|------------|---------|-------------|
+| pedal_clarity | 0.701 | 2.8e-44 | Yes |
+| mood_imagination | 0.696 | 2.3e-43 | Yes |
+| timbre_loudness | 0.657 | 2.8e-37 | Yes |
+| mood_valence | 0.561 | 1.8e-25 | Yes |
+| pedal_amount | 0.562 | 1.4e-25 | Yes |
+| tempo | 0.558 | 4.3e-25 | Yes |
+| timing | 0.513 | 7.1e-21 | Yes |
+
+**Non-Significant Dimensions:**
+
+| Dimension | Spearman r | p-value |
+|-----------|------------|---------|
+| articulation_touch | 0.056 | 0.345 |
+| drama | 0.028 | 0.640 |
+
+**Per-Difficulty Level Statistics:**
+
+| Difficulty | Count | Mean Prediction | Std |
+|------------|-------|-----------------|-----|
+| 1 | 30 | 0.537 | 0.099 |
+| 2 | 30 | 0.543 | 0.106 |
+| 3 | 28 | 0.575 | 0.101 |
+| 4 | 30 | 0.591 | 0.112 |
+| 5 | 28 | 0.602 | 0.123 |
+| 6 | 28 | 0.620 | 0.117 |
+| 7 | 29 | 0.610 | 0.115 |
+| 8 | 29 | 0.626 | 0.104 |
+| 9 | 29 | 0.634 | 0.118 |
+| 10 | 29 | 0.631 | 0.107 |
+
+**Key Finding:** Strong correlation (r=0.570) between model predictions and piece difficulty validates that the model captures musically meaningful features. Higher difficulty pieces have higher predicted values for pedal use, timbre, and timing dimensions. This provides external validation beyond PercePiano.
+
+---
+
+## Phase 8: Performer Generalization (P-Series)
+
+Experiments testing model generalization to unseen performers using performer-based cross-validation folds.
+
+### P1: MuQ Performer-Fold Evaluation
+
+| ID | Description | R2 | 95% CI |
+|----|-------------|-----|--------|
+| P1_performer_fold_muq | MuQ with performer-based folds | **0.487** | [0.479, 0.521] |
+
+**P1 Per-Fold Results:**
+
+| Fold | R2 |
+|------|-----|
+| 0 | 0.532 |
+| 1 | 0.445 |
+| 2 | 0.471 |
+| 3 | 0.498 |
+| **Mean** | **0.487** |
+
+### P2: MERT Performer-Fold Evaluation
+
+| ID | Description | R2 | 95% CI |
+|----|-------------|-----|--------|
+| P2_performer_fold_mert | MERT with performer-based folds | **0.444** | [0.431, 0.474] |
+
+**P2 Per-Fold Results:**
+
+| Fold | R2 |
+|------|-----|
+| 0 | 0.449 |
+| 1 | 0.473 |
+| 2 | 0.398 |
+| 3 | 0.455 |
+| **Mean** | **0.444** |
+
+### Performer-Fold vs Piece-Fold Comparison
+
+| Model | Piece-Fold R2 | Performer-Fold R2 | Drop | Drop % |
+|-------|---------------|-------------------|------|--------|
+| MuQ (M1c vs P1) | 0.533 | 0.487 | 0.046 | 8.6% |
+| MERT (D1a vs P2) | 0.466 | 0.444 | 0.022 | 4.7% |
+
+**Key Findings:**
+
+1. **MuQ shows larger drop (8.6%)** on performer-based folds vs piece-based folds
+2. **MERT is more stable (4.7% drop)** across fold types
+3. Both models maintain reasonable performance on unseen performers
+4. MuQ may capture more performer-specific features (timbre, touch) which explains the larger generalization gap
+
 ---
 
 ## Appendix: Complete Results Summary
@@ -767,55 +872,62 @@ Testing model consistency across different performers playing the same pieces us
 
 | Rank | Experiment | R2 | Description |
 |------|------------|-----|-------------|
-| 1 | D8_muq_stats | 0.560 | MuQ + stats pooling |
-| 2 | M1c_muq_L9-12 | 0.533 | MuQ layers 9-12 (late semantic) |
-| 3 | M1b_muq_L5-8 | 0.524 | MuQ layers 5-8 (mid perceptual) |
-| 4 | F9_muq_symbolic_weighted | 0.524 | MuQ + symbolic weighted fusion |
-| 5 | D7_muq_baseline | 0.523 | MuQ baseline |
-| 6 | F10_muq_symbolic_ridge | 0.517 | MuQ + symbolic ridge fusion |
-| 7 | F11_muq_symbolic_confidence | 0.516 | MuQ + symbolic confidence fusion |
-| 8 | D9c_mert_muq_gated | 0.516 | MERT+MuQ gated fusion |
-| 9 | M2_muq_last_hidden | 0.513 | MuQ last hidden state |
-| 10 | M1d_muq_L1-12 | 0.510 | MuQ all layers |
-| 11 | F8_muq_symbolic_simple | 0.500 | MuQ + symbolic simple fusion |
-| 12 | F1_weighted | 0.499 | MERT + symbolic weighted fusion |
-| 13 | F7_dim_weighted | 0.495 | Dimension-weighted fusion |
+| 1 | M1c_muq_L9-12 | **0.533** | MuQ layers 9-12 (late semantic) |
+| 2 | M1b_muq_L5-8 | 0.524 | MuQ layers 5-8 (mid perceptual) |
+| 3 | F9_muq_symbolic_weighted | 0.524 | MuQ + symbolic weighted fusion |
+| 4 | D7_muq_baseline | 0.523 | MuQ baseline |
+| 5 | F10_muq_symbolic_ridge | 0.517 | MuQ + symbolic ridge fusion |
+| 6 | F11_muq_symbolic_confidence | 0.516 | MuQ + symbolic confidence fusion |
+| 7 | D9c_mert_muq_gated | 0.516 | MERT+MuQ gated fusion |
+| 8 | M2_muq_last_hidden | 0.513 | MuQ last hidden state |
+| 9 | M1d_muq_L1-12 | 0.510 | MuQ all layers |
+| 10 | F8_muq_symbolic_simple | 0.500 | MuQ + symbolic simple fusion |
+| 11 | F1_weighted | 0.499 | MERT + symbolic weighted fusion |
+| 12 | F3_confidence | 0.497 | Confidence-weighted fusion |
+| 13 | F7_dim_weighted | 0.449 | Dimension-weighted fusion |
 | 14 | F2_ridge | 0.493 | MERT + symbolic ridge fusion |
-| 15 | F3_confidence | 0.491 | Confidence-weighted fusion |
-| 16 | D9a_mert_muq_ensemble | 0.490 | MERT+MuQ ensemble fusion |
-| 17 | F6_residual | 0.490 | Residual fusion |
-| 18 | F4_modality_dropout | 0.489 | Modality dropout fusion |
-| 19 | F5_orthogonality | 0.488 | Orthogonality constraint fusion |
-| 20 | Audio (MERT L7-12) | 0.487 | Aligned audio baseline |
-| 21 | F0_simple | 0.486 | MERT + symbolic simple avg |
-| 22 | D9b_mert_muq_concat | 0.471 | MERT+MuQ concat fusion |
-| 23 | D1a_stats_mean_std | 0.466 | MERT + stats pooling (mean+std) |
-| 24 | D10c_contrastive_0.2 | 0.464 | Contrastive (weight=0.2) |
-| 25 | D2a_uncertainty_mean | 0.460 | Uncertainty-weighted |
-| 26 | D6_multiscale_pool | 0.455 | Multi-scale temporal |
-| 27 | D4_multilayer_6_9_12 | 0.442 | Multi-layer concat |
-| 28 | D5_transformer_pool | 0.442 | Transformer pooling |
-| 29 | D3_dimension_heads | 0.440 | Dimension-specific heads |
-| 30 | M1a_muq_L1-4 | 0.438 | MuQ layers 1-4 (early acoustic) |
-| 31 | B1b_layers_7-12 | 0.433 | MERT mid layers |
-| 32 | D2b_uncertainty_attn | 0.431 | Uncertainty + attention |
-| 33 | B1c_layers_13-24 | 0.426 | MERT late layers |
-| 34 | D1b_stats_full | 0.420 | Stats full (mean+std+min+max) |
-| 35 | D10a_contrastive_0.05 | 0.419 | Contrastive (weight=0.05) |
-| 36 | D10b_contrastive_0.1 | 0.418 | Contrastive (weight=0.1) |
-| 37 | D10d_contrastive_warmup | 0.412 | Contrastive with warmup |
-| 38 | B1d_layers_1-24 | 0.410 | MERT all layers |
-| 39 | B0_baseline | 0.405 | MERT+MLP baseline |
-| 40 | B1a_layers_1-6 | 0.397 | MERT early layers |
-| 41 | C1a_hybrid_loss | 0.377 | MSE + CCC hybrid |
-| 42 | B2b_attention_pool | 0.369 | Attention pooling |
-| 43 | C1b_pure_ccc | 0.363 | Pure CCC loss |
-| 44 | Symbolic (aligned) | 0.347 | Symbolic model (4-fold) |
-| 45 | B2c_lstm_pool | 0.327 | LSTM pooling |
-| 46 | B2a_max_pool | 0.316 | Max pooling |
-| 47 | A2_mel_cnn | 0.191 | Mel-CNN baseline |
-| 48 | A1_linear_probe | 0.175 | Linear probe |
-| 49 | A3_raw_stats | -12.6 | Raw audio statistics |
+| 15 | D9a_mert_muq_ensemble | 0.490 | MERT+MuQ ensemble fusion |
+| 16 | F6_residual | 0.449 | Residual fusion |
+| 17 | P1_performer_fold_muq | **0.487** | MuQ performer-fold CV |
+| 18 | Audio (MERT L7-12) | 0.487 | Aligned audio baseline |
+| 19 | F0_simple | 0.486 | MERT + symbolic simple avg |
+| 20 | D9b_mert_muq_concat | 0.471 | MERT+MuQ concat fusion |
+| 21 | D1a_stats_mean_std | 0.466 | MERT + stats pooling (mean+std) |
+| 22 | D10c_contrastive_0.2 | 0.464 | Contrastive (weight=0.2) |
+| 23 | D2a_uncertainty_mean | 0.460 | Uncertainty-weighted |
+| 24 | D6_multiscale_pool | 0.455 | Multi-scale temporal |
+| 25 | D8_muq_stats | **0.454** | MuQ + stats pooling (4-fold) |
+| 26 | F5_orthogonality | 0.450 | Orthogonality constraint fusion |
+| 27 | P2_performer_fold_mert | **0.444** | MERT performer-fold CV |
+| 28 | D4_multilayer_6_9_12 | 0.442 | Multi-layer concat |
+| 29 | D5_transformer_pool | 0.442 | Transformer pooling |
+| 30 | D3_dimension_heads | 0.440 | Dimension-specific heads |
+| 31 | M1a_muq_L1-4 | 0.438 | MuQ layers 1-4 (early acoustic) |
+| 32 | F4_modality_dropout | 0.436 | Modality dropout fusion |
+| 33 | B1b_layers_7-12 | 0.433 | MERT mid layers |
+| 34 | D2b_uncertainty_attn | 0.431 | Uncertainty + attention |
+| 35 | B1c_layers_13-24 | 0.426 | MERT late layers |
+| 36 | D1b_stats_full | 0.420 | Stats full (mean+std+min+max) |
+| 37 | D10a_contrastive_0.05 | 0.419 | Contrastive (weight=0.05) |
+| 38 | D10b_contrastive_0.1 | 0.418 | Contrastive (weight=0.1) |
+| 39 | D10d_contrastive_warmup | 0.412 | Contrastive with warmup |
+| 40 | B1d_layers_1-24 | 0.410 | MERT all layers |
+| 41 | B0_baseline | 0.405 | MERT+MLP baseline |
+| 42 | B1a_layers_1-6 | 0.397 | MERT early layers |
+| 43 | C1a_hybrid_loss | 0.377 | MSE + CCC hybrid |
+| 44 | B2b_attention_pool | 0.369 | Attention pooling |
+| 45 | C1b_pure_ccc | 0.363 | Pure CCC loss |
+| 46 | Symbolic (aligned) | 0.347 | Symbolic model (4-fold) |
+| 47 | B2c_lstm_pool | 0.327 | LSTM pooling |
+| 48 | B2a_max_pool | 0.316 | Max pooling |
+| 49 | A2_mel_cnn | 0.191 | Mel-CNN baseline |
+| 50 | A1_linear_probe | 0.175 | Linear probe |
+| 51 | A3_raw_stats | -12.6 | Raw audio statistics |
+
+**Notes on Ranking:**
+- D8_muq_stats corrected from 0.560 to 0.454 (complete 4-fold CV)
+- P1 and P2 added for performer-fold generalization experiments
+- Fusion experiments (F4-F7) corrected with complete bootstrap results
 
 ### Training Times
 
