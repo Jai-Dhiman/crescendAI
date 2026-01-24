@@ -4,13 +4,13 @@
 
 **Title (Working):** *Multimodal Fusion of Audio and Symbolic Features Achieves State-of-the-Art Piano Performance Evaluation*
 
-**Core Thesis:** Audio foundation models (MuQ, MERT) significantly outperform symbolic approaches for piano performance evaluation. MuQ layers 9-12 achieve R2=0.533 on PercePiano, exceeding the symbolic SOTA (0.397) by 34%. Cross-dataset validation (PSyllabus r=0.570) and performer-fold experiments (R2=0.487) demonstrate strong generalization.
+**Core Thesis:** Audio foundation models (MuQ, MERT) significantly outperform symbolic approaches for piano performance evaluation. MuQ layers 9-12 achieve R2=0.537 on PercePiano (Pianoteq ensemble), exceeding the symbolic SOTA (0.397) by 35%. Cross-dataset validation (PSyllabus rho=0.623) and cross-soundfont generalization (R2=0.534, 95% CI [0.465, 0.575]) demonstrate strong robustness.
 
 **Target Venue:** ISMIR 2026 (primary), ICASSP 2026 (backup)
 
 ---
 
-## Current State (Updated 2026-01-17)
+## Current State (Updated 2026-01-23)
 
 ### What We Have
 
@@ -18,13 +18,16 @@
 |-----------|--------|--------|
 | Symbolic Model (PercePiano HAN) | COMPLETE | R2 = 0.347 (4-fold CV aligned) |
 | Audio Model (MERT L7-12) | COMPLETE | R2 = 0.487 (aligned baseline) |
-| Audio Model (MuQ L9-12) | COMPLETE | R2 = 0.533 (best single model) |
+| Audio Model (MuQ L9-12) | COMPLETE | R2 = 0.537 (best, Pianoteq ensemble) |
 | Audio Ablations | COMPLETE | 50+ experiments completed |
 | Late Fusion (MERT+Symbolic) | COMPLETE | R2 = 0.499 (F1 weighted) |
 | Late Fusion (MuQ+Symbolic) | COMPLETE | R2 = 0.524 (F9 weighted) |
 | Statistical Analysis | COMPLETE | Bootstrap CIs, paired t-tests |
-| Cross-Dataset Validation | COMPLETE | X3 PSyllabus r=0.570 (p<1e-25) |
-| Performer Generalization | COMPLETE | P1 MuQ R2=0.487, P2 MERT R2=0.444 |
+| Cross-Dataset Validation | COMPLETE | C1 PSyllabus rho=0.623 (p<1e-50) |
+| Multi-Performer Analysis | COMPLETE | C2 ASAP intra-std=0.020 (206 pieces) |
+| MAESTRO Zero-Shot | COMPLETE | C3: 500 samples evaluated |
+| Cross-Soundfont Generalization | COMPLETE | B2: R2=0.534 +/- 0.075 (LOO) |
+| Bootstrap Significance | COMPLETE | B3: 95% CI [0.465, 0.575] |
 | Sanity Checks | COMPLETE | Dispersion ratio ~0.70-0.79 |
 
 ### Comparison vs Published Results
@@ -367,18 +370,29 @@ Fusion provides marginal improvement (+2% for MuQ+symbolic vs MuQ alone). Audio 
 [x] Phase 7: Performer Generalization
     [x] P1: MuQ performer-fold (R2 = 0.487, 8.6% drop)
     [x] P2: MERT performer-fold (R2 = 0.444, 4.7% drop)
+
+[x] Phase 8: Strongest Paper Experiments (01_main_experiments.ipynb)
+    [x] A1a: Piece-based folds (R2 = 0.536)
+    [x] A1b: Performer-based folds (R2 = 0.536)
+    [x] A1c: Stratified folds (R2 = 0.522)
+    [x] A2: Pianoteq ensemble (R2 = 0.537)
+    [x] B1: Multi-seed stability (3 seeds)
+    [x] B2: Cross-soundfont LOO (R2 = 0.534 +/- 0.075)
+    [x] B3: Bootstrap significance (95% CI [0.465, 0.575])
+    [x] C1: PSyllabus difficulty correlation (rho = 0.623, 508 samples)
+    [x] C2: ASAP multi-performer (intra-std = 0.020, 206 pieces)
+    [x] C3: MAESTRO zero-shot transfer (500 samples)
 ```
 
-### Remaining Experiments
+### Remaining Tasks
 
 ```
-[ ] Phase 8: Paper Preparation
+[ ] Phase 9: Paper Preparation
     [ ] Create publication-quality figures
     [ ] Finalize per-dimension analysis table
     [ ] Prepare supplementary materials
-    [ ] Run S1_soundfont_augmented (nice-to-have)
 
-[ ] Phase 9: Paper Writing
+[ ] Phase 10: Paper Writing
     [ ] Draft all sections
     [ ] Internal review
     [ ] Submit to ISMIR 2026
