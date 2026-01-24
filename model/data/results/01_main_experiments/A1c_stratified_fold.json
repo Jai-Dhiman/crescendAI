@@ -1,0 +1,15 @@
+{
+  "experiment_id": "A1c_stratified_fold",
+  "status": "complete",
+  "overall_r2": 0.5225480794906616,
+  "fold_results": {
+    "0": 0.5374791622161865,
+    "1": 0.5430286526679993,
+    "2": 0.44941461086273193,
+    "3": 0.5113685727119446
+  },
+  "fold_std": 0.03714176204790812,
+  "audio_source": "salamander",
+  "fold_method": "stratified",
+  "n_samples": 1005
+}

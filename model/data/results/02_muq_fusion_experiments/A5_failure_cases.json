@@ -1,0 +1,98 @@
+{
+  "exp_id": "A5_failure_cases",
+  "n_samples": 995,
+  "mean_mse": 0.006156103266100767,
+  "max_mse": 0.030661440308267906,
+  "failure_cases": [
+    {
+      "key": "Beethoven_WoO80_var12_8bars_14_9",
+      "mse": 0.0233303920798031,
+      "worst_dimensions": [
+        "balance",
+        "articulation_touch",
+        "mood_energy"
+      ]
+    },
+    {
+      "key": "Beethoven_WoO80_var10_8bars_11_8",
+      "mse": 0.0236863542377878,
+      "worst_dimensions": [
+        "timbre_depth",
+        "timbre_variety",
+        "dynamic_range"
+      ]
+    },
+    {
+      "key": "Beethoven_WoO80_var12_8bars_19_9",
+      "mse": 0.02516982904967598,
+      "worst_dimensions": [
+        "articulation_touch",
+        "timbre_loudness",
+        "timing"
+      ]
+    },
+    {
+      "key": "Schubert_D960_mv3_8bars_7_11",
+      "mse": 0.02554446326543031,
+      "worst_dimensions": [
+        "pedal_clarity",
+        "timing",
+        "pedal_amount"
+      ]
+    },
+    {
+      "key": "Beethoven_WoO80_var12_8bars_Score2_9",
+      "mse": 0.02576231130035895,
+      "worst_dimensions": [
+        "interpretation",
+        "tempo",
+        "drama"
+      ]
+    },
+    {
+      "key": "Schubert_D960_mv3_8bars_6_37",
+      "mse": 0.02602780229099529,
+      "worst_dimensions": [
+        "timbre_depth",
+        "pedal_amount",
+        "pedal_clarity"
+      ]
+    },
+    {
+      "key": "Schubert_D960_mv2_8bars_4_11",
+      "mse": 0.026118094507552446,
+      "worst_dimensions": [
+        "mood_energy",
+        "timbre_brightness",
+        "timbre_variety"
+      ]
+    },
+    {
+      "key": "Beethoven_WoO80_var12_8bars_26_9",
+      "mse": 0.026413033573637147,
+      "worst_dimensions": [
+        "mood_imagination",
+        "space",
+        "timing"
+      ]
+    },
+    {
+      "key": "Schubert_D960_mv2_8bars_3_04",
+      "mse": 0.028908506725029384,
+      "worst_dimensions": [
+        "pedal_clarity",
+        "balance",
+        "pedal_amount"
+      ]
+    },
+    {
+      "key": "Beethoven_WoO80_var12_8bars_18_9",
+      "mse": 0.030661440308267906,
+      "worst_dimensions": [
+        "timbre_brightness",
+        "timing",
+        "mood_energy"
+      ]
+    }
+  ]
+}

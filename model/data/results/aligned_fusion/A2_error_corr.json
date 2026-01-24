@@ -1,0 +1,86 @@
+{
+  "exp_id": "A2_error_corr",
+  "overall": {
+    "correlation": 0.7642630534347314,
+    "p_value": 0.0
+  },
+  "per_dimension": {
+    "timing": {
+      "correlation": 0.8347656588931104,
+      "p_value": 1.368285003616958e-259
+    },
+    "articulation_length": {
+      "correlation": 0.7088781708983057,
+      "p_value": 1.0151718922588653e-152
+    },
+    "articulation_touch": {
+      "correlation": 0.7560324895947912,
+      "p_value": 5.562036425898193e-185
+    },
+    "pedal_amount": {
+      "correlation": 0.7191638590805842,
+      "p_value": 3.451917696024113e-159
+    },
+    "pedal_clarity": {
+      "correlation": 0.7426380002384925,
+      "p_value": 4.235409278605503e-175
+    },
+    "timbre_variety": {
+      "correlation": 0.7592223318405162,
+      "p_value": 1.980863159434109e-187
+    },
+    "timbre_depth": {
+      "correlation": 0.7327361344437979,
+      "p_value": 3.503622729679463e-168
+    },
+    "timbre_brightness": {
+      "correlation": 0.8205062207738558,
+      "p_value": 2.0417455470963376e-243
+    },
+    "timbre_loudness": {
+      "correlation": 0.7434634223868594,
+      "p_value": 1.0860380502470602e-175
+    },
+    "dynamic_range": {
+      "correlation": 0.7457995396479763,
+      "p_value": 2.242036276740215e-177
+    },
+    "tempo": {
+      "correlation": 0.8402975715358638,
+      "p_value": 2.753148169495006e-266
+    },
+    "space": {
+      "correlation": 0.7814597134476904,
+      "p_value": 1.2527148868058303e-205
+    },
+    "balance": {
+      "correlation": 0.7663482298703004,
+      "p_value": 4.859217503949295e-193
+    },
+    "drama": {
+      "correlation": 0.8014378361320562,
+      "p_value": 6.604300925338383e-224
+    },
+    "mood_valence": {
+      "correlation": 0.7870157531542787,
+      "p_value": 1.634447937333581e-210
+    },
+    "mood_energy": {
+      "correlation": 0.7719148403665175,
+      "p_value": 1.4539141592921608e-197
+    },
+    "mood_imagination": {
+      "correlation": 0.7587350841717692,
+      "p_value": 4.713174556892245e-187
+    },
+    "sophistication": {
+      "correlation": 0.7563032944468655,
+      "p_value": 3.45819174219584e-185
+    },
+    "interpretation": {
+      "correlation": 0.795501502621951,
+      "p_value": 2.9063214732804927e-218
+    }
+  },
+  "interpretation": "high"
+}

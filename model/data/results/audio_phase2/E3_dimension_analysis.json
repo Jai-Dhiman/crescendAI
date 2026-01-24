@@ -1,0 +1,189 @@
+{
+  "per_dimension": [
+    {
+      "dimension": "timing",
+      "audio_r2": 0.34307048197347667,
+      "symbolic_r2": 0.1191607676313321,
+      "advantage": 0.22390971434214457,
+      "winner": "AUDIO"
+    },
+    {
+      "dimension": "articulation_length",
+      "audio_r2": 0.6455586695063774,
+      "symbolic_r2": 0.5388344483751577,
+      "advantage": 0.10672422113121971,
+      "winner": "AUDIO"
+    },
+    {
+      "dimension": "articulation_touch",
+      "audio_r2": 0.5004877742803882,
+      "symbolic_r2": 0.4052289189610089,
+      "advantage": 0.09525885531937928,
+      "winner": "AUDIO"
+    },
+    {
+      "dimension": "pedal_amount",
+      "audio_r2": 0.5407613001717061,
+      "symbolic_r2": 0.373136041531404,
+      "advantage": 0.1676252586403021,
+      "winner": "AUDIO"
+    },
+    {
+      "dimension": "pedal_clarity",
+      "audio_r2": 0.44264576126721866,
+      "symbolic_r2": 0.2380264892759466,
+      "advantage": 0.20461927199127206,
+      "winner": "AUDIO"
+    },
+    {
+      "dimension": "timbre_variety",
+      "audio_r2": 0.4465165088181158,
+      "symbolic_r2": 0.30739744761566,
+      "advantage": 0.13911906120245576,
+      "winner": "AUDIO"
+    },
+    {
+      "dimension": "timbre_depth",
+      "audio_r2": 0.5415243885022596,
+      "symbolic_r2": 0.3968197529675831,
+      "advantage": 0.1447046355346765,
+      "winner": "AUDIO"
+    },
+    {
+      "dimension": "timbre_brightness",
+      "audio_r2": 0.36816069285355846,
+      "symbolic_r2": 0.24227523899484205,
+      "advantage": 0.1258854538587164,
+      "winner": "AUDIO"
+    },
+    {
+      "dimension": "timbre_loudness",
+      "audio_r2": 0.6029678811833123,
+      "symbolic_r2": 0.38632859621531923,
+      "advantage": 0.21663928496799312,
+      "winner": "AUDIO"
+    },
+    {
+      "dimension": "dynamic_range",
+      "audio_r2": 0.5511172243914733,
+      "symbolic_r2": 0.3920342843408038,
+      "advantage": 0.15908294005066947,
+      "winner": "AUDIO"
+    },
+    {
+      "dimension": "tempo",
+      "audio_r2": 0.3520679661236704,
+      "symbolic_r2": 0.21734546610112204,
+      "advantage": 0.13472250002254837,
+      "winner": "AUDIO"
+    },
+    {
+      "dimension": "space",
+      "audio_r2": 0.6233174113799839,
+      "symbolic_r2": 0.52030208678041,
+      "advantage": 0.10301532459957385,
+      "winner": "AUDIO"
+    },
+    {
+      "dimension": "balance",
+      "audio_r2": 0.49672396847253786,
+      "symbolic_r2": 0.3515900957621838,
+      "advantage": 0.14513387271035405,
+      "winner": "AUDIO"
+    },
+    {
+      "dimension": "drama",
+      "audio_r2": 0.4100753508413555,
+      "symbolic_r2": 0.29830135513677325,
+      "advantage": 0.11177399570458224,
+      "winner": "AUDIO"
+    },
+    {
+      "dimension": "mood_valence",
+      "audio_r2": 0.408291229311056,
+      "symbolic_r2": 0.2956690893956795,
+      "advantage": 0.1126221399153765,
+      "winner": "AUDIO"
+    },
+    {
+      "dimension": "mood_energy",
+      "audio_r2": 0.43797421460787067,
+      "symbolic_r2": 0.3972109128895739,
+      "advantage": 0.040763301718296785,
+      "winner": "AUDIO"
+    },
+    {
+      "dimension": "mood_imagination",
+      "audio_r2": 0.5233206676343092,
+      "symbolic_r2": 0.3378401816763259,
+      "advantage": 0.18548048595798328,
+      "winner": "AUDIO"
+    },
+    {
+      "dimension": "sophistication",
+      "audio_r2": 0.5901592608404775,
+      "symbolic_r2": 0.4485314068259455,
+      "advantage": 0.14162785401453204,
+      "winner": "AUDIO"
+    },
+    {
+      "dimension": "interpretation",
+      "audio_r2": 0.42301082720726746,
+      "symbolic_r2": 0.3239261600781228,
+      "advantage": 0.09908466712914465,
+      "winner": "AUDIO"
+    }
+  ],
+  "per_category": [
+    {
+      "category": "Timing",
+      "audio_avg": 0.34756922404857354,
+      "symbolic_avg": 0.16825311686622707,
+      "advantage": 0.17931610718234647
+    },
+    {
+      "category": "Articulation",
+      "audio_avg": 0.5730232218933828,
+      "symbolic_avg": 0.4720316836680833,
+      "advantage": 0.10099153822529955
+    },
+    {
+      "category": "Pedal",
+      "audio_avg": 0.4917035307194624,
+      "symbolic_avg": 0.3055812654036753,
+      "advantage": 0.18612226531578707
+    },
+    {
+      "category": "Timbre",
+      "audio_avg": 0.4897923678393115,
+      "symbolic_avg": 0.33320525894835107,
+      "advantage": 0.15658710889096045
+    },
+    {
+      "category": "Dynamics",
+      "audio_avg": 0.5511172243914733,
+      "symbolic_avg": 0.3920342843408038,
+      "advantage": 0.15908294005066947
+    },
+    {
+      "category": "Musical",
+      "audio_avg": 0.5100389102312924,
+      "symbolic_avg": 0.390064512559789,
+      "advantage": 0.11997439767150342
+    },
+    {
+      "category": "Mood",
+      "audio_avg": 0.45652870385107863,
+      "symbolic_avg": 0.3435733946538598,
+      "advantage": 0.11295530919721886
+    },
+    {
+      "category": "Overall",
+      "audio_avg": 0.5065850440238725,
+      "symbolic_avg": 0.38622878345203415,
+      "advantage": 0.12035626057183835
+    }
+  ],
+  "audio_wins": 19,
+  "symbolic_wins": 0
+}

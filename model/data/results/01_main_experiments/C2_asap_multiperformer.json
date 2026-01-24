@@ -1,0 +1,1038 @@
+{
+  "experiment_id": "C2_asap_multiperformer",
+  "n_pieces": 206,
+  "n_performances_total": 631,
+  "mean_intra_piece_std": 0.02000773325562477,
+  "piece_stats": {
+    "Sonata Op. 1": {
+      "n_performances": 3,
+      "mean_std": 0.01870984397828579,
+      "max_std": 0.04659698158502579
+    },
+    "Sonata No. 2 in G-sharp Minor, Op. 19": {
+      "n_performances": 2,
+      "mean_std": 0.008496108464896679,
+      "max_std": 0.021320074796676636
+    },
+    "Sonata No. 3 in F-sharp Minor, Op. 23": {
+      "n_performances": 3,
+      "mean_std": 0.008166246116161346,
+      "max_std": 0.025640351697802544
+    },
+    "Sonata No. 5, Op. 53": {
+      "n_performances": 6,
+      "mean_std": 0.04408632963895798,
+      "max_std": 0.10605360567569733
+    },
+    "Sonata No. 9": {
+      "n_performances": 2,
+      "mean_std": 0.017214059829711914,
+      "max_std": 0.03217974305152893
+    },
+    "Piano Trio in D Minor, Op. 32": {
+      "n_performances": 3,
+      "mean_std": 0.004573401063680649,
+      "max_std": 0.008967005647718906
+    },
+    "Barcarolle, Op. 60": {
+      "n_performances": 5,
+      "mean_std": 0.0210370235145092,
+      "max_std": 0.028975509107112885
+    },
+    "L'isle joyeuse": {
+      "n_performances": 4,
+      "mean_std": 0.02015090361237526,
+      "max_std": 0.043231163173913956
+    },
+    "Preludes No. 2, 6, 12": {
+      "n_performances": 2,
+      "mean_std": 0.09629731625318527,
+      "max_std": 0.1879100650548935
+    },
+    "Prelude, Choral et Fugue": {
+      "n_performances": 2,
+      "mean_std": 0.004839543253183365,
+      "max_std": 0.011868447065353394
+    },
+    "Sonata in B Minor, K. 87": {
+      "n_performances": 2,
+      "mean_std": 0.016719941049814224,
+      "max_std": 0.04106004536151886
+    },
+    "Sonata in D Minor, K. 141": {
+      "n_performances": 2,
+      "mean_std": 0.010835167020559311,
+      "max_std": 0.022943317890167236
+    },
+    "Rondo Capriccioso in E Minor, Op. 14": {
+      "n_performances": 2,
+      "mean_std": 0.009117577224969864,
+      "max_std": 0.029439881443977356
+    },
+    "Variations Serieuses Op. 54": {
+      "n_performances": 5,
+      "mean_std": 0.010717188939452171,
+      "max_std": 0.023551516234874725
+    },
+    "Variations Serieuses, Op. 54": {
+      "n_performances": 14,
+      "mean_std": 0.02933609113097191,
+      "max_std": 0.043587151914834976
+    },
+    "Variations s\u00e9rieuses, Op. 54": {
+      "n_performances": 3,
+      "mean_std": 0.009828764013946056,
+      "max_std": 0.019374078139662743
+    },
+    "\"La Campanella\"": {
+      "n_performances": 3,
+      "mean_std": 0.013084039092063904,
+      "max_std": 0.029624536633491516
+    },
+    "Ballade No. 2 in B Minor, S 171": {
+      "n_performances": 2,
+      "mean_std": 0.006980288308113813,
+      "max_std": 0.019041746854782104
+    },
+    "Ballade No. 2 in B Minor, S. 171": {
+      "n_performances": 2,
+      "mean_std": 0.024826517328619957,
+      "max_std": 0.07273712754249573
+    },
+    "Concert Etude \"Waldesrauschen\"": {
+      "n_performances": 2,
+      "mean_std": 0.007944433949887753,
+      "max_std": 0.01777184009552002
+    },
+    "Concert Etude No. 2, \"La Leggierezza\", S. 144/2": {
+      "n_performances": 2,
+      "mean_std": 0.0076779755763709545,
+      "max_std": 0.02379538118839264
+    },
+    "Concert Etude No. 3 in D-flat Major, \"Un Sospiro\", S. 144/3": {
+      "n_performances": 2,
+      "mean_std": 0.010567966848611832,
+      "max_std": 0.021867096424102783
+    },
+    "Dante Sonata": {
+      "n_performances": 5,
+      "mean_std": 0.024129800498485565,
+      "max_std": 0.04253852739930153
+    },
+    "Funerailles": {
+      "n_performances": 2,
+      "mean_std": 0.01928163878619671,
+      "max_std": 0.041313424706459045
+    },
+    "Grandes \u00e8tudes de Paganini No. 3 \"La Campanella\", S. 141": {
+      "n_performances": 2,
+      "mean_std": 0.00714805256575346,
+      "max_std": 0.022914469242095947
+    },
+    "Grandes \u00e9tudes de Paganini, No. 3 \"La campanella\", S.141/3": {
+      "n_performances": 3,
+      "mean_std": 0.015054993331432343,
+      "max_std": 0.030777880921959877
+    },
+    "Hungarian Rhapsody No. 6, S.244/6": {
+      "n_performances": 2,
+      "mean_std": 0.00796764437109232,
+      "max_std": 0.014818310737609863
+    },
+    "Mephisto Waltz No. 1": {
+      "n_performances": 4,
+      "mean_std": 0.022526729851961136,
+      "max_std": 0.03551028296351433
+    },
+    "Mephisto Waltz No. 1, S.514": {
+      "n_performances": 2,
+      "mean_std": 0.012134291231632233,
+      "max_std": 0.027056396007537842
+    },
+    "Paganini Etude No. 3, S. 141/3 \"La Campanella\"": {
+      "n_performances": 2,
+      "mean_std": 0.015895158052444458,
+      "max_std": 0.03517806529998779
+    },
+    "Rhapsodie Espagnole": {
+      "n_performances": 2,
+      "mean_std": 0.006464758887887001,
+      "max_std": 0.018171608448028564
+    },
+    "Rhapsodie Espagnole, S. 254": {
+      "n_performances": 4,
+      "mean_std": 0.010471037589013577,
+      "max_std": 0.021568359807133675
+    },
+    "Rhapsody Esp.": {
+      "n_performances": 2,
+      "mean_std": 0.006149736698716879,
+      "max_std": 0.01585102081298828
+    },
+    "Sonata in B Min.": {
+      "n_performances": 2,
+      "mean_std": 0.007233073003590107,
+      "max_std": 0.018927067518234253
+    },
+    "Sonata in B Minor, S. 178": {
+      "n_performances": 4,
+      "mean_std": 0.015228861011564732,
+      "max_std": 0.035153020173311234
+    },
+    "Sonetto 104 del Petrarca": {
+      "n_performances": 2,
+      "mean_std": 0.012720319442451,
+      "max_std": 0.021269768476486206
+    },
+    "Spanish Rhapsody": {
+      "n_performances": 2,
+      "mean_std": 0.008781902492046356,
+      "max_std": 0.019296884536743164
+    },
+    "Transcendental Etude No. 12 \"Chasse-neige\"": {
+      "n_performances": 2,
+      "mean_std": 0.01233814936131239,
+      "max_std": 0.03874920308589935
+    },
+    "Transcendental Etude No. 5 \"Feux Follets\"": {
+      "n_performances": 3,
+      "mean_std": 0.009919864125549793,
+      "max_std": 0.019563954323530197
+    },
+    "Transcendental Etude No. 8 \"Wilde Jagd\"": {
+      "n_performances": 2,
+      "mean_std": 0.0054822578094899654,
+      "max_std": 0.010739624500274658
+    },
+    "Valse de l'opera Faust de Charles Gounod, S.407": {
+      "n_performances": 2,
+      "mean_std": 0.013001968152821064,
+      "max_std": 0.02310091257095337
+    },
+    "Venezia e Napoli": {
+      "n_performances": 3,
+      "mean_std": 0.0652385875582695,
+      "max_std": 0.11139636486768723
+    },
+    "\u00c9tudes d'ex\u00e9cution transcendante, No. 4, \"Mazeppa\" S.139/4": {
+      "n_performances": 2,
+      "mean_std": 0.01633423939347267,
+      "max_std": 0.046210020780563354
+    },
+    "Impromptu Op. 142 No. 1 in F Minor, D. 935": {
+      "n_performances": 2,
+      "mean_std": 0.0036004718858748674,
+      "max_std": 0.01215246319770813
+    },
+    "Impromptu Op. 142 No. 3 in B-flat Major": {
+      "n_performances": 4,
+      "mean_std": 0.027444027364253998,
+      "max_std": 0.04538409039378166
+    },
+    "Impromptu Op. 142 No. 3 in B-flat Major, D. 935": {
+      "n_performances": 2,
+      "mean_std": 0.013047035783529282,
+      "max_std": 0.02639758586883545
+    },
+    "Impromptu Op. 142 No. 3 in B-flat Major, D935": {
+      "n_performances": 4,
+      "mean_std": 0.014727824367582798,
+      "max_std": 0.019223127514123917
+    },
+    "Impromptu Op. 142 No. 3, in B-Flat Major, D935": {
+      "n_performances": 4,
+      "mean_std": 0.018167370930314064,
+      "max_std": 0.03177410736680031
+    },
+    "Impromptu Op. 90 No. 1 in C Minor": {
+      "n_performances": 2,
+      "mean_std": 0.012766370549798012,
+      "max_std": 0.032647714018821716
+    },
+    "Impromptu Op. 90 No. 1, in C Minor, D899": {
+      "n_performances": 2,
+      "mean_std": 0.026341401040554047,
+      "max_std": 0.06787341833114624
+    },
+    "Impromptu Op. 90 No. 2 in E-flat Major": {
+      "n_performances": 2,
+      "mean_std": 0.011344258673489094,
+      "max_std": 0.02995738387107849
+    },
+    "Impromptu Op. 90 No. 3 in G-flat Major": {
+      "n_performances": 5,
+      "mean_std": 0.020045451819896698,
+      "max_std": 0.049567438662052155
+    },
+    "Impromptu Op. 90 No. 3 in G-flat Major, D. 899": {
+      "n_performances": 2,
+      "mean_std": 0.0071380711160600185,
+      "max_std": 0.017783045768737793
+    },
+    "Impromptu Op. 90 No. 3, in G-flat Major, D899": {
+      "n_performances": 2,
+      "mean_std": 0.0128996092826128,
+      "max_std": 0.022133201360702515
+    },
+    "Impromptu Op. 90 No. 4 in A-flat Major": {
+      "n_performances": 5,
+      "mean_std": 0.030445897951722145,
+      "max_std": 0.05725671350955963
+    },
+    "Son. in Bb D.960": {
+      "n_performances": 3,
+      "mean_std": 0.01564711704850197,
+      "max_std": 0.03504221513867378
+    },
+    "Son. in Bb D.961": {
+      "n_performances": 3,
+      "mean_std": 0.021818052977323532,
+      "max_std": 0.0573003813624382
+    },
+    "Son. in Bb D.962": {
+      "n_performances": 3,
+      "mean_std": 0.00503714382648468,
+      "max_std": 0.011996975168585777
+    },
+    "Sonata in A D959": {
+      "n_performances": 3,
+      "mean_std": 0.00997875351458788,
+      "max_std": 0.01565992459654808
+    },
+    "Sonata in A D960": {
+      "n_performances": 3,
+      "mean_std": 0.03143094852566719,
+      "max_std": 0.05738433822989464
+    },
+    "Sonata in A D961": {
+      "n_performances": 3,
+      "mean_std": 0.011106835678219795,
+      "max_std": 0.037149108946323395
+    },
+    "Sonata in A Major, D. 959 (Complete)": {
+      "n_performances": 3,
+      "mean_std": 0.012189500033855438,
+      "max_std": 0.02700026147067547
+    },
+    "Sonata in A Min.": {
+      "n_performances": 8,
+      "mean_std": 0.06764630228281021,
+      "max_std": 0.16987109184265137
+    },
+    "Sonata in B-flat Major, D. 960 (Complete)": {
+      "n_performances": 2,
+      "mean_std": 0.010086015798151493,
+      "max_std": 0.019979745149612427
+    },
+    "Sonata in B-flat Major, D960": {
+      "n_performances": 10,
+      "mean_std": 0.07310321182012558,
+      "max_std": 0.12749837338924408
+    },
+    "Sonata in C Minor, D. 958": {
+      "n_performances": 2,
+      "mean_std": 0.007734493352472782,
+      "max_std": 0.020083606243133545
+    },
+    "Sonata in C Minor, D. 958 (Complete)": {
+      "n_performances": 2,
+      "mean_std": 0.01444932073354721,
+      "max_std": 0.027842998504638672
+    },
+    "Sonata in C Minor, D. 959": {
+      "n_performances": 2,
+      "mean_std": 0.004744240548461676,
+      "max_std": 0.013234764337539673
+    },
+    "Sonata in C Minor, D. 960": {
+      "n_performances": 2,
+      "mean_std": 0.016649072989821434,
+      "max_std": 0.03441073000431061
+    },
+    "Sonata in C Minor, D. 961": {
+      "n_performances": 2,
+      "mean_std": 0.0077354516834020615,
+      "max_std": 0.02350553870201111
+    },
+    "Sonata in C Minor, D958": {
+      "n_performances": 14,
+      "mean_std": 0.05959758162498474,
+      "max_std": 0.10753726959228516
+    },
+    "Sonata in D Major, D850": {
+      "n_performances": 5,
+      "mean_std": 0.05100366473197937,
+      "max_std": 0.09901128709316254
+    },
+    "Sonata in G Major D894": {
+      "n_performances": 3,
+      "mean_std": 0.012612391263246536,
+      "max_std": 0.0306235421448946
+    },
+    "Sonata in G Major, D 894": {
+      "n_performances": 4,
+      "mean_std": 0.06177225708961487,
+      "max_std": 0.11192135512828827
+    },
+    "Sonata in G Major, D. 894": {
+      "n_performances": 2,
+      "mean_std": 0.006838969420641661,
+      "max_std": 0.015099048614501953
+    },
+    "Sonata in G Major, D. 895": {
+      "n_performances": 2,
+      "mean_std": 0.007988090626895428,
+      "max_std": 0.017956316471099854
+    },
+    "Sonata in G Major, D. 896": {
+      "n_performances": 2,
+      "mean_std": 0.009771888144314289,
+      "max_std": 0.01379808783531189
+    },
+    "Sonata in G Major, D. 897": {
+      "n_performances": 2,
+      "mean_std": 0.01683747209608555,
+      "max_std": 0.03415372967720032
+    },
+    "Sonata in G Major, D894": {
+      "n_performances": 5,
+      "mean_std": 0.04186687245965004,
+      "max_std": 0.11012812703847885
+    },
+    "Song Transcriptions: Aufenthalt, Gretchen am Spinnrade, Standchen von Shakespeare, Der Erlkonig": {
+      "n_performances": 4,
+      "mean_std": 0.04713631793856621,
+      "max_std": 0.0776507705450058
+    },
+    "12 Etudes, Op. 25": {
+      "n_performances": 2,
+      "mean_std": 0.04865403100848198,
+      "max_std": 0.10388016700744629
+    },
+    "Andante Spianato and Grand Polonaise Brilliante, Op. 22": {
+      "n_performances": 2,
+      "mean_std": 0.010997892357409,
+      "max_std": 0.035662293434143066
+    },
+    "Andante Spianato and Grande Polonaise Brillante, Op. 22": {
+      "n_performances": 2,
+      "mean_std": 0.02297903783619404,
+      "max_std": 0.0707089751958847
+    },
+    "Andante Spianato et Grande Polonaise Brillante, Op. 22": {
+      "n_performances": 2,
+      "mean_std": 0.009773421101272106,
+      "max_std": 0.020175904035568237
+    },
+    "Andante spianato e grande polonaise, Op. 22": {
+      "n_performances": 2,
+      "mean_std": 0.007446865551173687,
+      "max_std": 0.036106109619140625
+    },
+    "Andante spianato et grande polonaise brillante, Op. 22": {
+      "n_performances": 4,
+      "mean_std": 0.010695206001400948,
+      "max_std": 0.026118217036128044
+    },
+    "Ballade No. 1 in G Minor, Op. 23": {
+      "n_performances": 10,
+      "mean_std": 0.02210303768515587,
+      "max_std": 0.03705545887351036
+    },
+    "Ballade No. 2 in F Major, Op. 38": {
+      "n_performances": 3,
+      "mean_std": 0.012906762771308422,
+      "max_std": 0.021789561957120895
+    },
+    "Ballade No. 3 in A-flat Major, Op. 47": {
+      "n_performances": 2,
+      "mean_std": 0.01241855975240469,
+      "max_std": 0.022813692688941956
+    },
+    "Ballade No. 4 in F Minor, Op. 52": {
+      "n_performances": 6,
+      "mean_std": 0.019875044003129005,
+      "max_std": 0.04483241215348244
+    },
+    "Berceuse, Op. 57": {
+      "n_performances": 2,
+      "mean_std": 0.012363982386887074,
+      "max_std": 0.022621259093284607
+    },
+    "Complete Etudes, Opus 25": {
+      "n_performances": 2,
+      "mean_std": 0.03717091679573059,
+      "max_std": 0.13245715200901031
+    },
+    "Etude Op. 10 No. 1": {
+      "n_performances": 5,
+      "mean_std": 0.01850144937634468,
+      "max_std": 0.0410543717443943
+    },
+    "Etude Op. 10 No. 1 in C Major": {
+      "n_performances": 3,
+      "mean_std": 0.012237897142767906,
+      "max_std": 0.033945005387067795
+    },
+    "Etude Op. 10 No. 12": {
+      "n_performances": 4,
+      "mean_std": 0.01331637054681778,
+      "max_std": 0.02666596882045269
+    },
+    "Etude Op. 10 No. 2": {
+      "n_performances": 2,
+      "mean_std": 0.008303365670144558,
+      "max_std": 0.03107638657093048
+    },
+    "Etude Op. 10 No. 4": {
+      "n_performances": 2,
+      "mean_std": 0.010917028412222862,
+      "max_std": 0.025055021047592163
+    },
+    "Etude Op. 10 No. 4 in C-Sharp Minor": {
+      "n_performances": 3,
+      "mean_std": 0.011277887038886547,
+      "max_std": 0.05219632014632225
+    },
+    "Etude Op. 10 No. 4 in C-sharp Minor": {
+      "n_performances": 4,
+      "mean_std": 0.01602914370596409,
+      "max_std": 0.034948479384183884
+    },
+    "Etude Op. 10 No. 5 in G-flat Major": {
+      "n_performances": 3,
+      "mean_std": 0.012263036333024502,
+      "max_std": 0.022206207737326622
+    },
+    "Etude Op. 10 No. 8": {
+      "n_performances": 2,
+      "mean_std": 0.014934045262634754,
+      "max_std": 0.027612000703811646
+    },
+    "Etude Op. 10 No. 8 in F Major": {
+      "n_performances": 3,
+      "mean_std": 0.018119705840945244,
+      "max_std": 0.03170488774776459
+    },
+    "Etude Op. 25 No. 1": {
+      "n_performances": 2,
+      "mean_std": 0.006010551005601883,
+      "max_std": 0.014745503664016724
+    },
+    "Etude Op. 25 No. 1 in A-flat Major": {
+      "n_performances": 2,
+      "mean_std": 0.0037480404134839773,
+      "max_std": 0.013030588626861572
+    },
+    "Etude Op. 25 No. 10 in B Minor": {
+      "n_performances": 3,
+      "mean_std": 0.005195457488298416,
+      "max_std": 0.011213109828531742
+    },
+    "Etude Op. 25 No. 11": {
+      "n_performances": 3,
+      "mean_std": 0.017636243253946304,
+      "max_std": 0.04843723401427269
+    },
+    "Etude Op. 25 No. 11 in A Minor": {
+      "n_performances": 6,
+      "mean_std": 0.0237200316041708,
+      "max_std": 0.04268370196223259
+    },
+    "Etude Op. 25 No. 12": {
+      "n_performances": 2,
+      "mean_std": 0.01579011231660843,
+      "max_std": 0.031085819005966187
+    },
+    "Etude Op. 25 No. 6": {
+      "n_performances": 2,
+      "mean_std": 0.010815953835844994,
+      "max_std": 0.028153836727142334
+    },
+    "Etude Op. 25 No. 6 in G-sharp Minor": {
+      "n_performances": 2,
+      "mean_std": 0.008714626543223858,
+      "max_std": 0.02396807074546814
+    },
+    "Nocturne Op. 27 No. 2 in D-flat Major": {
+      "n_performances": 2,
+      "mean_std": 0.005905516911298037,
+      "max_std": 0.019289463758468628
+    },
+    "Nocturne in B Major, Op. 9, No. 3": {
+      "n_performances": 2,
+      "mean_std": 0.006229471880942583,
+      "max_std": 0.014936268329620361
+    },
+    "Nocturne in Db": {
+      "n_performances": 2,
+      "mean_std": 0.09758251905441284,
+      "max_std": 0.21158166229724884
+    },
+    "Polonaise Op. 53 in A-flat Major": {
+      "n_performances": 2,
+      "mean_std": 0.0046853781677782536,
+      "max_std": 0.008879303932189941
+    },
+    "Polonaise-Fantasie, Op. 61": {
+      "n_performances": 2,
+      "mean_std": 0.01237025111913681,
+      "max_std": 0.036086276173591614
+    },
+    "Scherzo No. 1 in B Minor, Op. 20": {
+      "n_performances": 2,
+      "mean_std": 0.008183090016245842,
+      "max_std": 0.017764687538146973
+    },
+    "Scherzo No. 2 in B-flat Major, Op. 31": {
+      "n_performances": 3,
+      "mean_std": 0.006362918298691511,
+      "max_std": 0.014400414191186428
+    },
+    "Scherzo No. 2 in B-flat Minor, Op. 31": {
+      "n_performances": 6,
+      "mean_std": 0.009901764802634716,
+      "max_std": 0.020473085343837738
+    },
+    "Scherzo No. 4 in E Major, Op. 54": {
+      "n_performances": 10,
+      "mean_std": 0.02063632197678089,
+      "max_std": 0.04596557095646858
+    },
+    "Sonata No. 2 in B-flat Minor, Op. 35": {
+      "n_performances": 2,
+      "mean_std": 0.010322663001716137,
+      "max_std": 0.019814342260360718
+    },
+    "Sonata No. 3 in B Minor, Op. 58": {
+      "n_performances": 5,
+      "mean_std": 0.0487358383834362,
+      "max_std": 0.10187267512083054
+    },
+    "Sonata No. 3 in B Minor, Op. 58 (Complete)": {
+      "n_performances": 2,
+      "mean_std": 0.008164117112755775,
+      "max_std": 0.014864563941955566
+    },
+    "Two Preludes from Op. 28, Nos. 15 and 24": {
+      "n_performances": 2,
+      "mean_std": 0.037506937980651855,
+      "max_std": 0.11272686719894409
+    },
+    "Variations and Fugue in E-flat Major, Op. 35, \"Eroica\"": {
+      "n_performances": 2,
+      "mean_std": 0.004762193653732538,
+      "max_std": 0.012475132942199707
+    },
+    "Suite No. 3 in D Minor": {
+      "n_performances": 2,
+      "mean_std": 0.01432729046791792,
+      "max_std": 0.02814584970474243
+    },
+    "Iberia, Evocation, Triana": {
+      "n_performances": 2,
+      "mean_std": 0.06644677370786667,
+      "max_std": 0.16225893795490265
+    },
+    "Chromatic Fantasy and Fugue in D Minor, BWV 903": {
+      "n_performances": 3,
+      "mean_std": 0.023886865004897118,
+      "max_std": 0.050773993134498596
+    },
+    "English Suite in A Minor, BWV 807": {
+      "n_performances": 2,
+      "mean_std": 0.013407659716904163,
+      "max_std": 0.026481986045837402
+    },
+    "French Suite No. 5 in G Major": {
+      "n_performances": 3,
+      "mean_std": 0.04316828027367592,
+      "max_std": 0.06748253107070923
+    },
+    "Prelude & Fugue": {
+      "n_performances": 2,
+      "mean_std": 0.05457640811800957,
+      "max_std": 0.12106475234031677
+    },
+    "Prelude and Fugue in A Minor, WTC I, BWV 865": {
+      "n_performances": 3,
+      "mean_std": 0.01397125143557787,
+      "max_std": 0.030685463920235634
+    },
+    "Prelude and Fugue in A Minor, WTC II, BWV 889": {
+      "n_performances": 5,
+      "mean_std": 0.018953455612063408,
+      "max_std": 0.03623846545815468
+    },
+    "Prelude and Fugue in B Major, WTC II, BWV 892": {
+      "n_performances": 2,
+      "mean_std": 0.026138033717870712,
+      "max_std": 0.05947229266166687
+    },
+    "Prelude and Fugue in B Minor, WTC II": {
+      "n_performances": 2,
+      "mean_std": 0.007660435047000647,
+      "max_std": 0.018082112073898315
+    },
+    "Prelude and Fugue in B-flat Minor, WTC I, BWV 867": {
+      "n_performances": 4,
+      "mean_std": 0.029578253626823425,
+      "max_std": 0.05180279165506363
+    },
+    "Prelude and Fugue in C-Sharp Major, WTC I, BWV 848": {
+      "n_performances": 2,
+      "mean_std": 0.010325266048312187,
+      "max_std": 0.027450144290924072
+    },
+    "Prelude and Fugue in C-sharp Major, WTC I": {
+      "n_performances": 2,
+      "mean_std": 0.018397852778434753,
+      "max_std": 0.034665971994400024
+    },
+    "Prelude and Fugue in C-sharp Major, WTC I, BWV 848": {
+      "n_performances": 3,
+      "mean_std": 0.018668508157134056,
+      "max_std": 0.03487681597471237
+    },
+    "Prelude and Fugue in D Major, WTC I, BWV 850": {
+      "n_performances": 2,
+      "mean_std": 0.01465399656444788,
+      "max_std": 0.028686732053756714
+    },
+    "Prelude and Fugue in D Major, WTC II, BWV 874": {
+      "n_performances": 4,
+      "mean_std": 0.043933697044849396,
+      "max_std": 0.10266343504190445
+    },
+    "Prelude and Fugue in D Minor, WTC II, BWV 875": {
+      "n_performances": 2,
+      "mean_std": 0.008258932270109653,
+      "max_std": 0.03182625770568848
+    },
+    "Prelude and Fugue in D-flat Major, WTC I, BWV 848": {
+      "n_performances": 2,
+      "mean_std": 0.008373660035431385,
+      "max_std": 0.04479324817657471
+    },
+    "Prelude and Fugue in E Major, WTC I, BWV 854": {
+      "n_performances": 5,
+      "mean_std": 0.027459844946861267,
+      "max_std": 0.038293205201625824
+    },
+    "Prelude and Fugue in E-flat Major, WTC II, BWV 876": {
+      "n_performances": 2,
+      "mean_std": 0.009613581001758575,
+      "max_std": 0.022189736366271973
+    },
+    "Prelude and Fugue in E-flat Minor, WTC I, BWV 853": {
+      "n_performances": 4,
+      "mean_std": 0.01171856839209795,
+      "max_std": 0.027168260887265205
+    },
+    "Prelude and Fugue in F Minor, WTC I, BWV 857": {
+      "n_performances": 6,
+      "mean_std": 0.054934337735176086,
+      "max_std": 0.09929635375738144
+    },
+    "Prelude and Fugue in F-sharp Minor, WTC II, BWV 883": {
+      "n_performances": 3,
+      "mean_std": 0.021229533478617668,
+      "max_std": 0.04621097072958946
+    },
+    "Prelude and Fugue in G Major, WTC I": {
+      "n_performances": 4,
+      "mean_std": 0.01413917075842619,
+      "max_std": 0.027269238606095314
+    },
+    "Prelude and Fugue in G Major, WTC I, BWV 860": {
+      "n_performances": 3,
+      "mean_std": 0.018731925636529922,
+      "max_std": 0.04391646385192871
+    },
+    "Prelude and Fugue in G Minor, WTC II, BWV 885": {
+      "n_performances": 2,
+      "mean_std": 0.0339188389480114,
+      "max_std": 0.082304447889328
+    },
+    "Prelude and Fugue in G-sharp Minor, WTC I, BWV 863": {
+      "n_performances": 3,
+      "mean_std": 0.02408677153289318,
+      "max_std": 0.042225431650877
+    },
+    "Toccata in C Minor, BWV 911": {
+      "n_performances": 2,
+      "mean_std": 0.021244442090392113,
+      "max_std": 0.06435935199260712
+    },
+    "Toccata in E Minor, BWV 914": {
+      "n_performances": 2,
+      "mean_std": 0.02682385966181755,
+      "max_std": 0.06690701842308044
+    },
+    "Prelude and Fugue in A Minor, S.462/1": {
+      "n_performances": 2,
+      "mean_std": 0.009138836525380611,
+      "max_std": 0.023108094930648804
+    },
+    "Sonata in F Minor, Op. 5": {
+      "n_performances": 3,
+      "mean_std": 0.05275030434131622,
+      "max_std": 0.10341432690620422
+    },
+    "Variations on a Theme by Paganini, Op. 35 Book II": {
+      "n_performances": 2,
+      "mean_std": 0.011426863260567188,
+      "max_std": 0.02846178412437439
+    },
+    "Son. Hob. XVI:52": {
+      "n_performances": 2,
+      "mean_std": 0.005829533562064171,
+      "max_std": 0.016767144203186035
+    },
+    "Sonata in B-flat Major, Hob.XVI:41": {
+      "n_performances": 2,
+      "mean_std": 0.05322418734431267,
+      "max_std": 0.08662331104278564
+    },
+    "Sonata in C Major, Hob. XVI: 50, I. Allegro": {
+      "n_performances": 2,
+      "mean_std": 0.00525850523263216,
+      "max_std": 0.011303216218948364
+    },
+    "Sonata in C Major, Hob. XVI:48 (Complete)": {
+      "n_performances": 2,
+      "mean_std": 0.019541144371032715,
+      "max_std": 0.03942415118217468
+    },
+    "Sonata in C Major, Hob. XVI:50": {
+      "n_performances": 3,
+      "mean_std": 0.08428840339183807,
+      "max_std": 0.13691936433315277
+    },
+    "Sonata in C Major, Hob. XVI:50, 1st mov.": {
+      "n_performances": 2,
+      "mean_std": 0.00861249677836895,
+      "max_std": 0.020012840628623962
+    },
+    "Sonata in C Minor, Hob. XVI:20, 1st mov.": {
+      "n_performances": 2,
+      "mean_std": 0.011335951276123524,
+      "max_std": 0.02225664258003235
+    },
+    "Sonata in D Major, Hob. XVI:24": {
+      "n_performances": 2,
+      "mean_std": 0.0682293027639389,
+      "max_std": 0.19591684639453888
+    },
+    "Sonata in E-flat Major, Hob. XVI:52, First Movement": {
+      "n_performances": 3,
+      "mean_std": 0.01772492006421089,
+      "max_std": 0.03717667609453201
+    },
+    "Piano Trio in D Major, Op. 70 No. 1": {
+      "n_performances": 2,
+      "mean_std": 0.007899112068116665,
+      "max_std": 0.015294432640075684
+    },
+    "Sonata No. 11 in B-flat Major, Op. 22, I. Allegro con brio": {
+      "n_performances": 2,
+      "mean_std": 0.008601896464824677,
+      "max_std": 0.02693280577659607
+    },
+    "Sonata No. 16 Op. 31 No. 1 in G Major, I. Allegro vivace": {
+      "n_performances": 2,
+      "mean_std": 0.01816370151937008,
+      "max_std": 0.03083646297454834
+    },
+    "Sonata No. 17 in D Minor, Op. 31 No. 2, First Movement": {
+      "n_performances": 2,
+      "mean_std": 0.007981522008776665,
+      "max_std": 0.02763393521308899
+    },
+    "Sonata No. 17, Op. 31 No. 2 in D Minor \"Tempest\", I. Largo-Allegro": {
+      "n_performances": 4,
+      "mean_std": 0.01155879907310009,
+      "max_std": 0.020621299743652344
+    },
+    "Sonata No. 18 in E-flat Major, Op. 31 No. 3, First Movement": {
+      "n_performances": 2,
+      "mean_std": 0.005860981065779924,
+      "max_std": 0.01780228316783905
+    },
+    "Sonata No. 21 in C Major, Op. 53, \"Waldstein\", First Movement": {
+      "n_performances": 3,
+      "mean_std": 0.01113484799861908,
+      "max_std": 0.019219089299440384
+    },
+    "Sonata No. 21 in C Major, Op. 53, I. Allegro con brio": {
+      "n_performances": 2,
+      "mean_std": 0.005604552570730448,
+      "max_std": 0.014960139989852905
+    },
+    "Sonata No. 21, Op. 53, \"Waldstein\", I. Allegro con brio": {
+      "n_performances": 6,
+      "mean_std": 0.007790436036884785,
+      "max_std": 0.013711280189454556
+    },
+    "Sonata No. 23 in F Minor, Op. 57, First Movement": {
+      "n_performances": 3,
+      "mean_std": 0.007151241414248943,
+      "max_std": 0.011374964378774166
+    },
+    "Sonata No. 26 in 3-flat Major, Op. 81a (2nd & 3rd Movements)": {
+      "n_performances": 2,
+      "mean_std": 0.027624493464827538,
+      "max_std": 0.05504131317138672
+    },
+    "Sonata No. 26 in E-Flat Major, Op. 81a, \"Les Adiex\", First Movement": {
+      "n_performances": 2,
+      "mean_std": 0.007137437351047993,
+      "max_std": 0.015241026878356934
+    },
+    "Sonata No. 28 in A Major, Op. 101 (Complete)": {
+      "n_performances": 3,
+      "mean_std": 0.00891388114541769,
+      "max_std": 0.02348426729440689
+    },
+    "Sonata No. 4 in E-flat Major, Op. 7, 1st mov.": {
+      "n_performances": 2,
+      "mean_std": 0.010519670322537422,
+      "max_std": 0.019007891416549683
+    },
+    "Sonata No. 4 in E-flat Major, Op. 7, I. Allegro molto e con brio": {
+      "n_performances": 3,
+      "mean_std": 0.010751944035291672,
+      "max_std": 0.038114994764328
+    },
+    "Sonata No. 7 in D Major, Op. 10 No. 3, 1st mov.": {
+      "n_performances": 2,
+      "mean_std": 0.008666681125760078,
+      "max_std": 0.01563549041748047
+    },
+    "Sonata No. 7, Op. 10 No. 3 in D Major, I. Presto": {
+      "n_performances": 2,
+      "mean_std": 0.01015467382967472,
+      "max_std": 0.028507590293884277
+    },
+    "Sonata Op. 81 No. 26, 'Les Adieux'": {
+      "n_performances": 2,
+      "mean_std": 0.027745133265852928,
+      "max_std": 0.052291423082351685
+    },
+    "Sonata in A-flat, Op. 110": {
+      "n_performances": 3,
+      "mean_std": 0.0681963562965393,
+      "max_std": 0.18521524965763092
+    },
+    "Sonata in D minor, Op. 31, No. 2": {
+      "n_performances": 2,
+      "mean_std": 0.023224132135510445,
+      "max_std": 0.04893195629119873
+    },
+    "Thirty-Two Variaions in C Minor, WoO80": {
+      "n_performances": 4,
+      "mean_std": 0.012924796901643276,
+      "max_std": 0.021492740139365196
+    },
+    "Thirty-Two Variations in C Minor, WoO 80": {
+      "n_performances": 18,
+      "mean_std": 0.020277248695492744,
+      "max_std": 0.03851887211203575
+    },
+    "Thirty-Two Variations in C minor, WoO 80    ": {
+      "n_performances": 2,
+      "mean_std": 0.0094997463747859,
+      "max_std": 0.015469104051589966
+    },
+    "Lark": {
+      "n_performances": 2,
+      "mean_std": 0.010330932214856148,
+      "max_std": 0.026208892464637756
+    },
+    "Pictures at an E": {
+      "n_performances": 2,
+      "mean_std": 0.03227061405777931,
+      "max_std": 0.06741306185722351
+    },
+    "Pictures at an Exhibition": {
+      "n_performances": 4,
+      "mean_std": 0.015651043504476547,
+      "max_std": 0.04042746126651764
+    },
+    "ABEGG Variations, Op. 1": {
+      "n_performances": 5,
+      "mean_std": 0.017176788300275803,
+      "max_std": 0.033331818878650665
+    },
+    "Arabesque, Op. 18": {
+      "n_performances": 2,
+      "mean_std": 0.010522288270294666,
+      "max_std": 0.02884697914123535
+    },
+    "Carnaval, Op. 9": {
+      "n_performances": 4,
+      "mean_std": 0.023573672398924828,
+      "max_std": 0.03457978367805481
+    },
+    "Fantasie Op. 17": {
+      "n_performances": 2,
+      "mean_std": 0.0023363609798252583,
+      "max_std": 0.005420953035354614
+    },
+    "Kreisleriana, Op. 16": {
+      "n_performances": 3,
+      "mean_std": 0.025155218318104744,
+      "max_std": 0.04728998988866806
+    },
+    "Romances Op. 28, Nos. 2 and 3": {
+      "n_performances": 2,
+      "mean_std": 0.07168962806463242,
+      "max_std": 0.1912735402584076
+    },
+    "Sonata No. 2 in G Minor, Op. 22 (Complete)": {
+      "n_performances": 2,
+      "mean_std": 0.00807669386267662,
+      "max_std": 0.017320841550827026
+    },
+    "Symphonic Etudes": {
+      "n_performances": 3,
+      "mean_std": 0.015772242099046707,
+      "max_std": 0.02762300707399845
+    },
+    "Symphonic Etudes, Op. 13": {
+      "n_performances": 3,
+      "mean_std": 0.017232438549399376,
+      "max_std": 0.045304328203201294
+    },
+    "Toccata in C Major, Op. 7": {
+      "n_performances": 2,
+      "mean_std": 0.016490869224071503,
+      "max_std": 0.031584858894348145
+    },
+    "Moments Musicaux, Op. 16": {
+      "n_performances": 6,
+      "mean_std": 0.07113254070281982,
+      "max_std": 0.15704351663589478
+    },
+    "Prelude in D Major, Op. 23, No. 4": {
+      "n_performances": 2,
+      "mean_std": 0.008275088854134083,
+      "max_std": 0.02224794030189514
+    },
+    "Sonata No. 2 in B-Flat Minor Op. 36 (1913)": {
+      "n_performances": 4,
+      "mean_std": 0.04975869506597519,
+      "max_std": 0.1272234469652176
+    },
+    "Sonata in F Major, K 332 (Complete)": {
+      "n_performances": 2,
+      "mean_std": 0.006320259999483824,
+      "max_std": 0.016650378704071045
+    },
+    "Sonata in F Major, K280": {
+      "n_performances": 3,
+      "mean_std": 0.06273254752159119,
+      "max_std": 0.15502630174160004
+    }
+  }
+}

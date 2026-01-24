@@ -1,0 +1,14 @@
+{
+  "exp_id": "A1_category",
+  "overall_r2": 0.5040197618434452,
+  "category_weights": {
+    "timing": 0.9,
+    "articulation": 0.7000000000000001,
+    "pedal": 0.8,
+    "timbre": 0.75,
+    "dynamics": 0.8,
+    "tempo_space": 0.75,
+    "emotion": 0.7000000000000001,
+    "interpretation": 0.75
+  }
+}

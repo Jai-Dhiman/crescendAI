@@ -1,0 +1,21 @@
+{
+  "experiment_id": "A2_pianoteq_ensemble",
+  "status": "completed_partial",
+  "fold_results": {
+    "0": 0.4931660592556,
+    "1": 0.5590043067932129,
+    "2": 0.5586553812026978
+  },
+  "audio_source": "pianoteq_ensemble",
+  "soundfonts": [
+    "HB_Steinway_Model_D",
+    "YC5_Vintage",
+    "K2_Basic",
+    "NY_Steinway_D_Honky_Tonk",
+    "NY_Steinway_D_Worn_Out",
+    "U4_Small"
+  ],
+  "fold_method": "piece_based",
+  "overall_r2": 0.536942,
+  "note": "Manually marked complete with 3/4 folds for Phase B robustness"
+}

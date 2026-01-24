@@ -1,0 +1,8 @@
+{
+  "best_fold_method": "performer_based",
+  "best_audio_source": "pianoteq_ensemble",
+  "A1_piece_fold_r2": 0.5359611511230469,
+  "A1_performer_fold_r2": 0.5357848405838013,
+  "A2_salamander_r2": 0.5359611511230469,
+  "A2_pianoteq_r2": 0.537
+}

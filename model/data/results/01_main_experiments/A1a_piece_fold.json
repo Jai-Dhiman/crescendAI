@@ -1,0 +1,15 @@
+{
+  "experiment_id": "A1a_piece_fold",
+  "status": "complete",
+  "overall_r2": 0.5359611511230469,
+  "fold_results": {
+    "0": 0.5127571821212769,
+    "1": 0.5433201193809509,
+    "2": 0.48254916071891785,
+    "3": 0.5802465081214905
+  },
+  "fold_std": 0.03623091403291377,
+  "audio_source": "salamander",
+  "fold_method": "piece_based",
+  "n_samples": 1005
+}

@@ -1,0 +1,33 @@
+{
+  "latency_results": [
+    {
+      "duration_sec": 10.0,
+      "mert_extraction_sec": 0.06371549498289823,
+      "prediction_sec": 0.0014206383842974902,
+      "total_sec": 0.06513613336719572,
+      "real_time_factor": 0.006513613336719572
+    },
+    {
+      "duration_sec": 19.364,
+      "mert_extraction_sec": 0.06640962874516845,
+      "prediction_sec": 0.001166687486693263,
+      "total_sec": 0.06757631623186172,
+      "real_time_factor": 0.0034897911708253316
+    },
+    {
+      "duration_sec": 19.364,
+      "mert_extraction_sec": 0.0677478934172541,
+      "prediction_sec": 0.0011189871933311225,
+      "total_sec": 0.06886688061058521,
+      "real_time_factor": 0.003556438783855877
+    },
+    {
+      "duration_sec": 19.364,
+      "mert_extraction_sec": 0.06536242514848709,
+      "prediction_sec": 0.0011138370260596274,
+      "total_sec": 0.06647626217454672,
+      "real_time_factor": 0.003432981934236042
+    }
+  ],
+  "device": "cuda"
+}

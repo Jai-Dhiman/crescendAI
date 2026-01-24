@@ -50,8 +50,6 @@ piano_ml_env/
 my_implementation/
 
 # JAX/Flax specific
-results/
-checkpoints/
 wandb/
 *.pkl
 *.npy
@@ -145,3 +143,5 @@ model/data/maestro-v3.0.0.zip
 model/data/maestro-v3.0.0.csv
 
 *.ckpt
+
+paper/

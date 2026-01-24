@@ -1,0 +1,15 @@
+{
+  "experiment_id": "A1b_performer_fold",
+  "status": "complete",
+  "overall_r2": 0.5357848405838013,
+  "fold_results": {
+    "0": 0.46327465772628784,
+    "1": 0.5387921929359436,
+    "2": 0.5103182792663574,
+    "3": 0.5982378125190735
+  },
+  "fold_std": 0.048865531933325074,
+  "audio_source": "salamander",
+  "fold_method": "performer_based",
+  "n_samples": 1005
+}

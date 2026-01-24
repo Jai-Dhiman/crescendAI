@@ -1,0 +1,100 @@
+{
+  "exp_id": "A7_gate_visualization",
+  "gate_weights": {
+    "timing": 0.008049753494560719,
+    "articulation_length": 0.025308873504400253,
+    "articulation_touch": 0.008338816463947296,
+    "pedal_amount": -0.015048699453473091,
+    "pedal_clarity": 0.02324080839753151,
+    "timbre_variety": -0.005257376469671726,
+    "timbre_depth": -0.0006853903760202229,
+    "timbre_brightness": 0.03141842782497406,
+    "timbre_loudness": 0.024237463250756264,
+    "dynamic_range": 0.030038541182875633,
+    "tempo": 0.008617360144853592,
+    "space": -0.013394081965088844,
+    "balance": -0.03259388357400894,
+    "drama": 0.020441928878426552,
+    "mood_valence": -0.035356443375349045,
+    "mood_energy": -0.008725118823349476,
+    "mood_imagination": -0.010711160488426685,
+    "sophistication": -0.0185179952532053,
+    "interpretation": -0.021832885220646858
+  },
+  "mert_preferred_dims": [
+    "timbre_brightness",
+    "dynamic_range",
+    "articulation_length",
+    "timbre_loudness",
+    "pedal_clarity"
+  ],
+  "muq_preferred_dims": [
+    "pedal_amount",
+    "sophistication",
+    "interpretation",
+    "balance",
+    "mood_valence"
+  ],
+  "category_summary": {
+    "timing": {
+      "mean_mert_weight": 0.008049753494560719,
+      "dimensions": {
+        "timing": 0.008049753494560719
+      }
+    },
+    "articulation": {
+      "mean_mert_weight": 0.016823844984173775,
+      "dimensions": {
+        "articulation_length": 0.025308873504400253,
+        "articulation_touch": 0.008338816463947296
+      }
+    },
+    "pedal": {
+      "mean_mert_weight": 0.004096054472029209,
+      "dimensions": {
+        "pedal_amount": -0.015048699453473091,
+        "pedal_clarity": 0.02324080839753151
+      }
+    },
+    "timbre": {
+      "mean_mert_weight": 0.012428281057509594,
+      "dimensions": {
+        "timbre_variety": -0.005257376469671726,
+        "timbre_depth": -0.0006853903760202229,
+        "timbre_brightness": 0.03141842782497406,
+        "timbre_loudness": 0.024237463250756264
+      }
+    },
+    "dynamics": {
+      "mean_mert_weight": 0.030038541182875633,
+      "dimensions": {
+        "dynamic_range": 0.030038541182875633
+      }
+    },
+    "tempo_space": {
+      "mean_mert_weight": -0.0042321691289544106,
+      "dimensions": {
+        "tempo": 0.008617360144853592,
+        "space": -0.013394081965088844,
+        "balance": -0.03259388357400894,
+        "drama": 0.020441928878426552
+      }
+    },
+    "emotion": {
+      "mean_mert_weight": -0.0182642408957084,
+      "dimensions": {
+        "mood_valence": -0.035356443375349045,
+        "mood_energy": -0.008725118823349476,
+        "mood_imagination": -0.010711160488426685
+      }
+    },
+    "interpretation": {
+      "mean_mert_weight": -0.02017544023692608,
+      "dimensions": {
+        "sophistication": -0.0185179952532053,
+        "interpretation": -0.021832885220646858
+      }
+    }
+  },
+  "mean_gate": 0.0009246809548992468
+}

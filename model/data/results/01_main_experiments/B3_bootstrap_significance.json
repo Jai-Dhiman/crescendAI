@@ -1,0 +1,15 @@
+{
+  "experiment_id": "B3_bootstrap_significance",
+  "status": "complete",
+  "n_bootstrap": 1000,
+  "comparisons": {
+    "B2_cross_soundfont": {
+      "mean_r2": 0.5343688875436783,
+      "std_r2": 0.07544802377229565,
+      "ci_95": [
+        0.4651868266363938,
+        0.5745345450937748
+      ]
+    }
+  }
+}

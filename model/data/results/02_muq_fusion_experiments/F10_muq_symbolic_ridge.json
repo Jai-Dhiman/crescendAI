@@ -1,0 +1,225 @@
+{
+  "exp_id": "F10_muq_symbolic_ridge",
+  "overall_r2": 0.5174951199519475,
+  "bootstrap": {
+    "overall": {
+      "r2": 0.5174951199519475,
+      "ci_lower": 0.49329113891087956,
+      "ci_median": 0.5168137856034141,
+      "ci_upper": 0.5388219652923867
+    },
+    "per_dimension": {
+      "timing": {
+        "r2": 0.40028146491079075,
+        "ci_lower": 0.3452809412763409,
+        "ci_upper": 0.4505917572092439
+      },
+      "articulation_length": {
+        "r2": 0.6902396021128971,
+        "ci_lower": 0.6587077987985223,
+        "ci_upper": 0.7181103049580959
+      },
+      "articulation_touch": {
+        "r2": 0.5396416536011688,
+        "ci_lower": 0.49316243287814926,
+        "ci_upper": 0.5818835984513527
+      },
+      "pedal_amount": {
+        "r2": 0.5664673684729618,
+        "ci_lower": 0.5229558311231555,
+        "ci_upper": 0.6068184379889889
+      },
+      "pedal_clarity": {
+        "r2": 0.454986314913159,
+        "ci_lower": 0.4090794118254716,
+        "ci_upper": 0.4963764668251858
+      },
+      "timbre_variety": {
+        "r2": 0.44151973888770324,
+        "ci_lower": 0.3879816126145271,
+        "ci_upper": 0.49026338073039555
+      },
+      "timbre_depth": {
+        "r2": 0.5813414281372645,
+        "ci_lower": 0.5357074223419681,
+        "ci_upper": 0.6222214366056199
+      },
+      "timbre_brightness": {
+        "r2": 0.4759275857830625,
+        "ci_lower": 0.4232733203354422,
+        "ci_upper": 0.5259581759766624
+      },
+      "timbre_loudness": {
+        "r2": 0.6015708523398984,
+        "ci_lower": 0.5611070695172522,
+        "ci_upper": 0.6376154672691972
+      },
+      "dynamic_range": {
+        "r2": 0.5695909815303989,
+        "ci_lower": 0.5201685168071603,
+        "ci_upper": 0.6133133114086747
+      },
+      "tempo": {
+        "r2": 0.28648234949873497,
+        "ci_lower": 0.22804938729562663,
+        "ci_upper": 0.3408168941347243
+      },
+      "space": {
+        "r2": 0.6670021441405821,
+        "ci_lower": 0.6279221862289911,
+        "ci_upper": 0.7018841370150709
+      },
+      "balance": {
+        "r2": 0.5361994168272786,
+        "ci_lower": 0.4871733990603435,
+        "ci_upper": 0.5789355743950452
+      },
+      "drama": {
+        "r2": 0.4233195884206724,
+        "ci_lower": 0.3612860398569363,
+        "ci_upper": 0.4776082544295764
+      },
+      "mood_valence": {
+        "r2": 0.4380627231418438,
+        "ci_lower": 0.38957957460743575,
+        "ci_upper": 0.48161520060799373
+      },
+      "mood_energy": {
+        "r2": 0.5473748637353534,
+        "ci_lower": 0.4942387354445704,
+        "ci_upper": 0.5956565562132331
+      },
+      "mood_imagination": {
+        "r2": 0.48937515859545067,
+        "ci_lower": 0.4423321920719322,
+        "ci_upper": 0.5323069377097355
+      },
+      "sophistication": {
+        "r2": 0.6677732467245545,
+        "ci_lower": 0.6272326985232851,
+        "ci_upper": 0.7030052817810765
+      },
+      "interpretation": {
+        "r2": 0.4552507973132308,
+        "ci_lower": 0.3967961433905239,
+        "ci_upper": 0.5065121189814444
+      }
+    }
+  },
+  "coefficients": {
+    "timing": {
+      "audio_coef": 0.9914314149976684,
+      "symbolic_coef": 0.02565557259625583,
+      "intercept": -0.007112856146171631,
+      "alpha": 0.01
+    },
+    "articulation_length": {
+      "audio_coef": 0.8469314227216886,
+      "symbolic_coef": 0.20077479689271238,
+      "intercept": -0.025172797535905622,
+      "alpha": 0.01
+    },
+    "articulation_touch": {
+      "audio_coef": 0.7554106343054641,
+      "symbolic_coef": 0.24859822434756068,
+      "intercept": -0.002913658967605537,
+      "alpha": 0.01
+    },
+    "pedal_amount": {
+      "audio_coef": 0.8317270327414036,
+      "symbolic_coef": 0.1994757971617531,
+      "intercept": -0.01862990428646527,
+      "alpha": 0.1
+    },
+    "pedal_clarity": {
+      "audio_coef": 0.8712897133312776,
+      "symbolic_coef": 0.15612598410944964,
+      "intercept": -0.014850732950067225,
+      "alpha": 0.01
+    },
+    "timbre_variety": {
+      "audio_coef": 0.6790143639648837,
+      "symbolic_coef": 0.3655667351156736,
+      "intercept": -0.019727763589797553,
+      "alpha": 0.1
+    },
+    "timbre_depth": {
+      "audio_coef": 0.8245678406674357,
+      "symbolic_coef": 0.18615708867883748,
+      "intercept": -0.003967883574332753,
+      "alpha": 0.01
+    },
+    "timbre_brightness": {
+      "audio_coef": 0.9366984233264568,
+      "symbolic_coef": 0.09200723551130469,
+      "intercept": -0.01032815893161515,
+      "alpha": 0.01
+    },
+    "timbre_loudness": {
+      "audio_coef": 0.8639749393064236,
+      "symbolic_coef": 0.17534537832748556,
+      "intercept": -0.023215677387725786,
+      "alpha": 0.01
+    },
+    "dynamic_range": {
+      "audio_coef": 0.7953960730659325,
+      "symbolic_coef": 0.18338663297816948,
+      "intercept": 0.009662614802502412,
+      "alpha": 0.01
+    },
+    "tempo": {
+      "audio_coef": 0.5541670106490569,
+      "symbolic_coef": 0.44986256168663397,
+      "intercept": 0.0010433788009186484,
+      "alpha": 0.1
+    },
+    "space": {
+      "audio_coef": 0.8563752657834535,
+      "symbolic_coef": 0.18387581458576757,
+      "intercept": -0.018003502786666403,
+      "alpha": 0.01
+    },
+    "balance": {
+      "audio_coef": 0.8051800519236509,
+      "symbolic_coef": 0.17143342274215978,
+      "intercept": 0.016084367630570973,
+      "alpha": 0.01
+    },
+    "drama": {
+      "audio_coef": 0.7161502939756639,
+      "symbolic_coef": 0.24481280555632787,
+      "intercept": 0.026772411316787315,
+      "alpha": 0.1
+    },
+    "mood_valence": {
+      "audio_coef": 0.7264800432318695,
+      "symbolic_coef": 0.3386937999885269,
+      "intercept": -0.0348206377425222,
+      "alpha": 0.1
+    },
+    "mood_energy": {
+      "audio_coef": 0.7467537529348698,
+      "symbolic_coef": 0.314492504760803,
+      "intercept": -0.028269479098602668,
+      "alpha": 0.1
+    },
+    "mood_imagination": {
+      "audio_coef": 0.768103232827776,
+      "symbolic_coef": 0.2536317363523183,
+      "intercept": -0.013557551563360137,
+      "alpha": 0.01
+    },
+    "sophistication": {
+      "audio_coef": 0.9205036322650159,
+      "symbolic_coef": 0.09195594018024737,
+      "intercept": -0.004910291621106011,
+      "alpha": 0.01
+    },
+    "interpretation": {
+      "audio_coef": 0.7322778321058088,
+      "symbolic_coef": 0.26350484011840203,
+      "intercept": 0.00604585374353761,
+      "alpha": 0.1
+    }
+  }
+}

@@ -1,0 +1,174 @@
+{
+  "exp_id": "S1_paired_tests",
+  "audio_vs_symbolic": {
+    "ttest": {
+      "t_stat": -10.71027539437282,
+      "p_value": 2.082337145982498e-25,
+      "mean_mse_a": 0.007800222532636398,
+      "mean_mse_b": 0.010049622144996353,
+      "a_better": true,
+      "significant": true
+    },
+    "wilcoxon": {
+      "stat": 145692.0,
+      "p_value": 2.1553094522374739e-29,
+      "a_better": true,
+      "significant": true
+    },
+    "cohens_d": 0.31013076419916263
+  },
+  "per_dimension": {
+    "timing": {
+      "t_stat": -6.915388093131031,
+      "p_value": 8.338982240381942e-12,
+      "mean_mse_a": 0.011648257614534798,
+      "mean_mse_b": 0.015618482674430638,
+      "a_better": true,
+      "significant": true
+    },
+    "articulation_length": {
+      "t_stat": -4.924507586419556,
+      "p_value": 9.899103784319203e-07,
+      "mean_mse_a": 0.005761957952377074,
+      "mean_mse_b": 0.007496914972772712,
+      "a_better": true,
+      "significant": true
+    },
+    "articulation_touch": {
+      "t_stat": -3.6994871724460077,
+      "p_value": 0.00022787723139488708,
+      "mean_mse_a": 0.007080663345355679,
+      "mean_mse_b": 0.008430972407779066,
+      "a_better": true,
+      "significant": true
+    },
+    "pedal_amount": {
+      "t_stat": -6.397378505702644,
+      "p_value": 2.429941789994323e-10,
+      "mean_mse_a": 0.014835969580298737,
+      "mean_mse_b": 0.020251199697026833,
+      "a_better": true,
+      "significant": true
+    },
+    "pedal_clarity": {
+      "t_stat": -7.3574549504414115,
+      "p_value": 3.9193236257133067e-13,
+      "mean_mse_a": 0.01579455023650409,
+      "mean_mse_b": 0.02159314141286461,
+      "a_better": true,
+      "significant": true
+    },
+    "timbre_variety": {
+      "t_stat": -4.971024920758714,
+      "p_value": 7.840391410152311e-07,
+      "mean_mse_a": 0.007508081237526529,
+      "mean_mse_b": 0.009395250827654768,
+      "a_better": true,
+      "significant": true
+    },
+    "timbre_depth": {
+      "t_stat": -5.625075422702889,
+      "p_value": 2.4098048170091333e-08,
+      "mean_mse_a": 0.007521775528176012,
+      "mean_mse_b": 0.009895807557541051,
+      "a_better": true,
+      "significant": true
+    },
+    "timbre_brightness": {
+      "t_stat": -3.841446689135807,
+      "p_value": 0.0001300617832487821,
+      "mean_mse_a": 0.006969867458779705,
+      "mean_mse_b": 0.00835851947592973,
+      "a_better": true,
+      "significant": true
+    },
+    "timbre_loudness": {
+      "t_stat": -8.530406736832301,
+      "p_value": 5.3792725973196545e-17,
+      "mean_mse_a": 0.006097554433091561,
+      "mean_mse_b": 0.009424665187695958,
+      "a_better": true,
+      "significant": true
+    },
+    "dynamic_range": {
+      "t_stat": -5.383238802728349,
+      "p_value": 9.12847878131996e-08,
+      "mean_mse_a": 0.006872955584194478,
+      "mean_mse_b": 0.00930871396162186,
+      "a_better": true,
+      "significant": true
+    },
+    "tempo": {
+      "t_stat": -4.228725925730983,
+      "p_value": 2.5669283130035284e-05,
+      "mean_mse_a": 0.0067342925762425695,
+      "mean_mse_b": 0.008134533163711124,
+      "a_better": true,
+      "significant": true
+    },
+    "space": {
+      "t_stat": -5.446467009439413,
+      "p_value": 6.47650623488683e-08,
+      "mean_mse_a": 0.005405118855973375,
+      "mean_mse_b": 0.006883313203865214,
+      "a_better": true,
+      "significant": true
+    },
+    "balance": {
+      "t_stat": -5.11856400696883,
+      "p_value": 3.6950460839771226e-07,
+      "mean_mse_a": 0.006366876937981551,
+      "mean_mse_b": 0.00820294591244667,
+      "a_better": true,
+      "significant": true
+    },
+    "drama": {
+      "t_stat": -4.123725040926263,
+      "p_value": 4.039328441031461e-05,
+      "mean_mse_a": 0.006841508240322889,
+      "mean_mse_b": 0.008137780084120805,
+      "a_better": true,
+      "significant": true
+    },
+    "mood_valence": {
+      "t_stat": -3.668088083371141,
+      "p_value": 0.00025733532323280627,
+      "mean_mse_a": 0.007788812661777686,
+      "mean_mse_b": 0.009271286461089536,
+      "a_better": true,
+      "significant": true
+    },
+    "mood_energy": {
+      "t_stat": -1.3399304749101353,
+      "p_value": 0.18057417453808436,
+      "mean_mse_a": 0.007072965788101467,
+      "mean_mse_b": 0.007585962604186001,
+      "a_better": true,
+      "significant": false
+    },
+    "mood_imagination": {
+      "t_stat": -6.6499630592229275,
+      "p_value": 4.830024952012352e-11,
+      "mean_mse_a": 0.004546940004668024,
+      "mean_mse_b": 0.006316197835717889,
+      "a_better": true,
+      "significant": true
+    },
+    "sophistication": {
+      "t_stat": -5.816229712663,
+      "p_value": 8.108381291855009e-09,
+      "mean_mse_a": 0.005680207219332968,
+      "mean_mse_b": 0.007643105198879247,
+      "a_better": true,
+      "significant": true
+    },
+    "interpretation": {
+      "t_stat": -3.483415305017674,
+      "p_value": 0.0005166315863208501,
+      "mean_mse_a": 0.007675872864852374,
+      "mean_mse_b": 0.00899402811559699,
+      "a_better": true,
+      "significant": true
+    }
+  }
+}

@@ -2,14 +2,12 @@
 CLAUDE.md
 
 __pycache__/
-results/
 archive/
 
 .venv/
 raw/
 
 # Data directories
-checkpoints/
 *.ckpt
 *.pth
 
@@ -58,6 +56,3 @@ segments/
 maestro-v3.0.0.zip
 
 .tmp.driveupload
-
-data/all_segments
-data/analysis/mert_embeddings/

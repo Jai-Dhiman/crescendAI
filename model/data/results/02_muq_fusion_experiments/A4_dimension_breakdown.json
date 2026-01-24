@@ -1,0 +1,139 @@
+{
+  "exp_id": "A4_dimension_breakdown",
+  "per_dimension": {
+    "timing": {
+      "muq_r2": 0.4870587966275799,
+      "symbolic_r2": 0.1191607676313321,
+      "fusion_r2": 0.40626145463546703,
+      "winner": "muq",
+      "muq_advantage": 0.3678980289962478
+    },
+    "articulation_length": {
+      "muq_r2": 0.7165063824375646,
+      "symbolic_r2": 0.5388344483751577,
+      "fusion_r2": 0.6862650311824119,
+      "winner": "muq",
+      "muq_advantage": 0.1776719340624069
+    },
+    "articulation_touch": {
+      "muq_r2": 0.6153019567210376,
+      "symbolic_r2": 0.4052289189610089,
+      "fusion_r2": 0.5838469719228296,
+      "winner": "muq",
+      "muq_advantage": 0.21007303776002872
+    },
+    "pedal_amount": {
+      "muq_r2": 0.6112929377970784,
+      "symbolic_r2": 0.373136041531404,
+      "fusion_r2": 0.5602637364694856,
+      "winner": "muq",
+      "muq_advantage": 0.23815689626567438
+    },
+    "pedal_clarity": {
+      "muq_r2": 0.5169930982008493,
+      "symbolic_r2": 0.2380264892759466,
+      "fusion_r2": 0.45609613931450665,
+      "winner": "muq",
+      "muq_advantage": 0.27896660892490266
+    },
+    "timbre_variety": {
+      "muq_r2": 0.5537735983686891,
+      "symbolic_r2": 0.30739744761566,
+      "fusion_r2": 0.5068423595212851,
+      "winner": "muq",
+      "muq_advantage": 0.2463761507530291
+    },
+    "timbre_depth": {
+      "muq_r2": 0.6483897524309414,
+      "symbolic_r2": 0.3968197529675831,
+      "fusion_r2": 0.5899467794807436,
+      "winner": "muq",
+      "muq_advantage": 0.25156999946335834
+    },
+    "timbre_brightness": {
+      "muq_r2": 0.6249278489491636,
+      "symbolic_r2": 0.24227523899484205,
+      "fusion_r2": 0.5210702706942888,
+      "winner": "muq",
+      "muq_advantage": 0.3826526099543216
+    },
+    "timbre_loudness": {
+      "muq_r2": 0.6715068166597705,
+      "symbolic_r2": 0.38632859621531923,
+      "fusion_r2": 0.6109570508831603,
+      "winner": "muq",
+      "muq_advantage": 0.2851782204444513
+    },
+    "dynamic_range": {
+      "muq_r2": 0.6869473509389267,
+      "symbolic_r2": 0.3920342843408038,
+      "fusion_r2": 0.6247403584594272,
+      "winner": "muq",
+      "muq_advantage": 0.2949130665981229
+    },
+    "tempo": {
+      "muq_r2": 0.4158526382259947,
+      "symbolic_r2": 0.21734546610112204,
+      "fusion_r2": 0.39562700569102893,
+      "winner": "muq",
+      "muq_advantage": 0.19850717212487268
+    },
+    "space": {
+      "muq_r2": 0.6526515378021893,
+      "symbolic_r2": 0.52030208678041,
+      "fusion_r2": 0.6466306865592317,
+      "winner": "muq",
+      "muq_advantage": 0.1323494510217793
+    },
+    "balance": {
+      "muq_r2": 0.6202772319599874,
+      "symbolic_r2": 0.3515900957621838,
+      "fusion_r2": 0.5530261642499934,
+      "winner": "muq",
+      "muq_advantage": 0.2686871361978036
+    },
+    "drama": {
+      "muq_r2": 0.5601912835858343,
+      "symbolic_r2": 0.29830135513677325,
+      "fusion_r2": 0.5005294164077794,
+      "winner": "muq",
+      "muq_advantage": 0.261889928449061
+    },
+    "mood_valence": {
+      "muq_r2": 0.5276864132603948,
+      "symbolic_r2": 0.2956690893956795,
+      "fusion_r2": 0.4850031684894819,
+      "winner": "muq",
+      "muq_advantage": 0.2320173238647153
+    },
+    "mood_energy": {
+      "muq_r2": 0.6141494394437983,
+      "symbolic_r2": 0.3972109128895739,
+      "fusion_r2": 0.5850565231961675,
+      "winner": "muq",
+      "muq_advantage": 0.2169385265542244
+    },
+    "mood_imagination": {
+      "muq_r2": 0.6160536175503367,
+      "symbolic_r2": 0.3378401816763259,
+      "fusion_r2": 0.560545057692136,
+      "winner": "muq",
+      "muq_advantage": 0.2782134358740108
+    },
+    "sophistication": {
+      "muq_r2": 0.7029052039540797,
+      "symbolic_r2": 0.4485314068259455,
+      "fusion_r2": 0.6447103271338961,
+      "winner": "muq",
+      "muq_advantage": 0.25437379712813424
+    },
+    "interpretation": {
+      "muq_r2": 0.552459998356366,
+      "symbolic_r2": 0.3239261600781228,
+      "fusion_r2": 0.5027351387322805,
+      "winner": "muq",
+      "muq_advantage": 0.22853383827824325
+    }
+  },
+  "muq_total_wins": 19
+}

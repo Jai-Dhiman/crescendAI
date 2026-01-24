@@ -1,0 +1,76 @@
+{
+  "experiment_id": "B2_cross_soundfont",
+  "status": "complete",
+  "loo_results": {
+    "HB_Steinway_Model_D": {
+      "train_soundfonts": [
+        "YC5_Vintage",
+        "K2_Basic",
+        "NY_Steinway_D_Honky_Tonk",
+        "NY_Steinway_D_Worn_Out",
+        "U4_Small"
+      ],
+      "fold": 3,
+      "test_r2": 0.5846027731895447
+    },
+    "YC5_Vintage": {
+      "train_soundfonts": [
+        "HB_Steinway_Model_D",
+        "K2_Basic",
+        "NY_Steinway_D_Honky_Tonk",
+        "NY_Steinway_D_Worn_Out",
+        "U4_Small"
+      ],
+      "fold": 3,
+      "test_r2": 0.5606977939605713
+    },
+    "K2_Basic": {
+      "train_soundfonts": [
+        "HB_Steinway_Model_D",
+        "YC5_Vintage",
+        "NY_Steinway_D_Honky_Tonk",
+        "NY_Steinway_D_Worn_Out",
+        "U4_Small"
+      ],
+      "fold": 3,
+      "test_r2": 0.5784522891044617
+    },
+    "NY_Steinway_D_Honky_Tonk": {
+      "train_soundfonts": [
+        "HB_Steinway_Model_D",
+        "YC5_Vintage",
+        "K2_Basic",
+        "NY_Steinway_D_Worn_Out",
+        "U4_Small"
+      ],
+      "fold": 3,
+      "test_r2": 0.3677310645580292
+    },
+    "NY_Steinway_D_Worn_Out": {
+      "train_soundfonts": [
+        "HB_Steinway_Model_D",
+        "YC5_Vintage",
+        "K2_Basic",
+        "NY_Steinway_D_Honky_Tonk",
+        "U4_Small"
+      ],
+      "fold": 3,
+      "test_r2": 0.54818195104599
+    },
+    "U4_Small": {
+      "train_soundfonts": [
+        "HB_Steinway_Model_D",
+        "YC5_Vintage",
+        "K2_Basic",
+        "NY_Steinway_D_Honky_Tonk",
+        "NY_Steinway_D_Worn_Out"
+      ],
+      "fold": 3,
+      "test_r2": 0.5665474534034729
+    }
+  },
+  "mean_test_r2": 0.5343688875436783,
+  "std_test_r2": 0.07544802377229565,
+  "fold_method": "performer_based",
+  "fold_used": 3
+}

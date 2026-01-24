@@ -1,0 +1,103 @@
+{
+  "experiment_id": "C1_psyllabus_difficulty",
+  "n_samples": 508,
+  "difficulty_range": [
+    0,
+    10
+  ],
+  "correlations": {
+    "timing": {
+      "spearman_rho": 0.6039646941787218,
+      "p_value": 8.093301464363516e-52
+    },
+    "articulation_length": {
+      "spearman_rho": 0.399062701978423,
+      "p_value": 7.66991508783364e-21
+    },
+    "articulation_touch": {
+      "spearman_rho": -0.22764105407147497,
+      "p_value": 2.144261794164894e-07
+    },
+    "pedal_amount": {
+      "spearman_rho": 0.5778879802140077,
+      "p_value": 1.357066875762527e-46
+    },
+    "pedal_clarity": {
+      "spearman_rho": 0.5621241107152851,
+      "p_value": 1.1744331100389702e-43
+    },
+    "timbre_variety": {
+      "spearman_rho": 0.5314375293529032,
+      "p_value": 2.2716913111369226e-38
+    },
+    "timbre_depth": {
+      "spearman_rho": 0.5796399706548672,
+      "p_value": 6.255167943266007e-47
+    },
+    "timbre_brightness": {
+      "spearman_rho": 0.2610001562141701,
+      "p_value": 2.344018436471173e-09
+    },
+    "timbre_loudness": {
+      "spearman_rho": 0.05355901879125418,
+      "p_value": 0.22818388631845724
+    },
+    "dynamic_range": {
+      "spearman_rho": -0.09654970217053738,
+      "p_value": 0.029566890943857158
+    },
+    "tempo": {
+      "spearman_rho": 0.25656052419407166,
+      "p_value": 4.4424072527421295e-09
+    },
+    "space": {
+      "spearman_rho": -0.1713518808164647,
+      "p_value": 0.00010389779961630482
+    },
+    "balance": {
+      "spearman_rho": 0.5248836971158588,
+      "p_value": 2.6100012257586153e-37
+    },
+    "drama": {
+      "spearman_rho": 0.3656393938901381,
+      "p_value": 1.6304233942316274e-17
+    },
+    "mood_valence": {
+      "spearman_rho": 0.6038160599424746,
+      "p_value": 8.695180938892061e-52
+    },
+    "mood_energy": {
+      "spearman_rho": 0.2615127007418844,
+      "p_value": 2.17555896763231e-09
+    },
+    "mood_imagination": {
+      "spearman_rho": 0.24274985746963165,
+      "p_value": 3.008925489039064e-08
+    },
+    "sophistication": {
+      "spearman_rho": 0.4396472020539086,
+      "p_value": 2.0072732296186401e-25
+    },
+    "interpretation": {
+      "spearman_rho": 0.42251588838973764,
+      "p_value": 2.0560852597012638e-23
+    }
+  },
+  "overall_correlation": {
+    "spearman_rho": 0.623016211426815,
+    "p_value": 5.95844888961674e-56
+  },
+  "by_difficulty": {
+    "0": 50,
+    "1": 48,
+    "2": 46,
+    "3": 47,
+    "4": 46,
+    "5": 47,
+    "6": 40,
+    "7": 47,
+    "8": 47,
+    "9": 47,
+    "10": 43
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "exp_id": "A3_error_correlation",
+  "overall_error_correlation": 0.7375445877607678,
+  "per_dimension_correlation": {
+    "timing": 0.741873291884593,
+    "articulation_length": 0.7089453676992727,
+    "articulation_touch": 0.7324867996239661,
+    "pedal_amount": 0.760461819367291,
+    "pedal_clarity": 0.7705931572505538,
+    "timbre_variety": 0.7536003458606283,
+    "timbre_depth": 0.7503176753611076,
+    "timbre_brightness": 0.7407372867847005,
+    "timbre_loudness": 0.6832871271370978,
+    "dynamic_range": 0.6681751462131873,
+    "tempo": 0.7771551043991058,
+    "space": 0.7154315975259468,
+    "balance": 0.766350519368704,
+    "drama": 0.7730893616575917,
+    "mood_valence": 0.765902988205449,
+    "mood_energy": 0.7093308860041111,
+    "mood_imagination": 0.7079547516499882,
+    "sophistication": 0.7050079045753256,
+    "interpretation": 0.7900554956307603
+  },
+  "mean_dim_correlation": 0.7379345592736516
+}
