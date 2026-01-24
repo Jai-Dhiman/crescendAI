@@ -494,12 +494,11 @@ fn AnalysisContent(
 #[component]
 fn AnalysisResults(result: AnalysisResult, perf_id: String) -> impl IntoView {
     let models = result.models.clone();
-    let (active_model, set_active_model) = signal(2usize); // Default to Fusion (best overall)
 
+    // Use first model (Audio/MuQ) only - no model selector needed
     let radar_data = Memo::new(move |_| {
-        let idx = active_model.get();
         let models_ref = models.clone();
-        models_ref.get(idx)
+        models_ref.first()
             .map(|m| m.dimensions.to_labeled_vec()
                 .into_iter()
                 .map(|(label, value)| RadarDataPoint {
@@ -513,11 +512,10 @@ fn AnalysisResults(result: AnalysisResult, perf_id: String) -> impl IntoView {
     let radar_signal = Signal::derive(move || radar_data.get());
     let feedback = result.teacher_feedback.clone();
     let tips = result.practice_tips.clone();
-    let models_for_selector = result.models.clone();
 
     view! {
         <div class="space-y-6 animate-fade-in">
-            // Two-column layout: Radar + Model Selector
+            // Two-column layout: Radar + Practice Tips
             <div class="grid lg:grid-cols-5 gap-6">
                 // Radar Chart (takes 3 cols)
                 <div class="lg:col-span-3 card p-6">
@@ -525,27 +523,9 @@ fn AnalysisResults(result: AnalysisResult, perf_id: String) -> impl IntoView {
                         <h3 class="font-display text-heading-md text-ink-800">
                             "Performance Analysis"
                         </h3>
-                        // Model selector pills
-                        <div class="flex gap-1 bg-paper-100 p-1 rounded-lg">
-                            {models_for_selector.iter().enumerate().map(|(i, model)| {
-                                let model_type = model.model_type.clone();
-                                view! {
-                                    <button
-                                        on:click=move |_| set_active_model.set(i)
-                                        class=move || {
-                                            let base = "px-3 py-1.5 text-label-sm font-medium rounded-md transition-all";
-                                            if active_model.get() == i {
-                                                format!("{} bg-white text-ink-800 shadow-sm", base)
-                                            } else {
-                                                format!("{} text-ink-500 hover:text-ink-700", base)
-                                            }
-                                        }
-                                    >
-                                        {model_type}
-                                    </button>
-                                }
-                            }).collect_view()}
-                        </div>
+                        <span class="px-3 py-1.5 text-label-sm font-medium rounded-md bg-sepia-100 text-sepia-700">
+                            "MuQ Audio Model"
+                        </span>
                     </div>
                     <div class="flex justify-center">
                         <CollapsibleRadarChart data=radar_signal size=380 />
@@ -570,11 +550,11 @@ fn AnalysisResults(result: AnalysisResult, perf_id: String) -> impl IntoView {
 #[cfg(feature = "hydrate")]
 fn get_loading_messages() -> Vec<&'static str> {
     vec![
-        "Analyzing audio...",
-        "Evaluating timing...",
-        "Processing dynamics...",
-        "Assessing expression...",
-        "Generating feedback...",
+        "Extracting MuQ embeddings...",
+        "Evaluating timing and articulation...",
+        "Processing dynamics and pedal...",
+        "Assessing timbre and expression...",
+        "Generating pedagogical feedback...",
         "Preparing results...",
     ]
 }

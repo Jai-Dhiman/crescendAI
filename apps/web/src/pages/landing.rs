@@ -10,6 +10,8 @@ pub fn LandingPage() -> impl IntoView {
             <MotivationSection />
             <ApproachSection />
             <KeyFindingSection />
+            <PerDimensionSection />
+            <ValidationSection />
             <CtaSection />
             <ApplicationsSection />
         </div>
@@ -59,18 +61,18 @@ fn HeroSection() -> impl IntoView {
 
                 // Stats preview
                 <div class="mt-16 pt-10 border-t border-paper-300 animate-stagger-5">
-                    <div class="grid grid-cols-3 gap-8 max-w-md mx-auto">
+                    <div class="grid grid-cols-3 gap-8 max-w-lg mx-auto">
                         <div class="text-center">
-                            <span class="block font-mono text-display-sm text-sepia-600">3</span>
-                            <span class="text-label-sm text-ink-400 uppercase tracking-wider">"Models"</span>
+                            <span class="block font-mono text-display-sm text-sepia-600">"+55%"</span>
+                            <span class="text-label-sm text-ink-400 uppercase tracking-wider">"vs Symbolic"</span>
                         </div>
                         <div class="text-center">
-                            <span class="block font-mono text-display-sm text-sepia-600">19</span>
+                            <span class="block font-mono text-display-sm text-sepia-600">"19/19"</span>
                             <span class="text-label-sm text-ink-400 uppercase tracking-wider">"Dimensions"</span>
                         </div>
                         <div class="text-center">
-                            <span class="block font-mono text-display-sm text-sepia-600">6</span>
-                            <span class="text-label-sm text-ink-400 uppercase tracking-wider">"Recordings"</span>
+                            <span class="block font-mono text-display-sm text-sepia-600">"p<10"<sup>"-25"</sup></span>
+                            <span class="text-label-sm text-ink-400 uppercase tracking-wider">"Significance"</span>
                         </div>
                     </div>
                 </div>
@@ -123,10 +125,10 @@ fn MotivationSection() -> impl IntoView {
                             </svg>
                         </div>
                         <h3 class="font-display text-heading-lg text-ink-800 mb-2">
-                            "Which dimensions benefit most?"
+                            "Does audio beat symbolic universally?"
                         </h3>
                         <p class="text-body-sm text-ink-500">
-                            "How do audio and symbolic modalities complement each other across different perceptual dimensions?"
+                            "Audio wins all 19 dimensions without tradeoffs, making fusion unnecessary."
                         </p>
                     </div>
                 </div>
@@ -143,11 +145,20 @@ fn ApproachSection() -> impl IntoView {
                 <div class="text-center mb-14">
                     <span class="section-label">"Approach"</span>
                     <h2 class="font-display text-display-md text-ink-900">
-                        "Three Model Architectures"
+                        "Audio vs Symbolic Comparison"
                     </h2>
                 </div>
 
-                <div class="grid md:grid-cols-3 gap-8">
+                // Experiment overview diagram
+                <div class="mb-12 flex justify-center">
+                    <img
+                        src="/figures/excalidraw_experiment_overview.png"
+                        alt="Experiment overview showing validation methodology"
+                        class="w-full max-w-4xl rounded-xl shadow-md border border-paper-300 bg-white p-4"
+                    />
+                </div>
+
+                <div class="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
                     // Symbolic Model Card
                     <div class="card p-8 hover-lift">
                         <div class="w-14 h-14 rounded-xl bg-paper-300 flex items-center justify-center mb-6">
@@ -171,7 +182,7 @@ fn ApproachSection() -> impl IntoView {
                             <span class="text-label-sm text-ink-400">"Published Baseline"</span>
                             <div class="flex items-baseline gap-2 mt-1">
                                 <span class="font-mono text-heading-lg text-ink-700">
-                                    "R\u{00B2} = 0.397"
+                                    "R\u{00B2} = 0.347"
                                 </span>
                             </div>
                         </div>
@@ -182,7 +193,7 @@ fn ApproachSection() -> impl IntoView {
                         // Best badge
                         <div class="absolute -top-3 right-6">
                             <span class="px-3 py-1 text-label-sm font-semibold uppercase tracking-wider bg-sepia-600 text-paper-50 rounded-full shadow-md">
-                                "Key Result"
+                                "+55% Improvement"
                             </span>
                         </div>
 
@@ -196,11 +207,11 @@ fn ApproachSection() -> impl IntoView {
                             "Audio"
                         </h3>
                         <p class="text-label-sm text-sepia-600 uppercase tracking-wider mb-4">
-                            "MERT-330M"
+                            "MuQ (Layers 9-12)"
                         </p>
 
                         <p class="text-body-sm text-ink-600 mb-6">
-                            "Processes raw audio waveforms using a music-specific transformer pretrained on 160K hours. Captures timbre, dynamics, and expression directly."
+                            "Processes raw audio waveforms using a music-specific transformer. Captures timbre, dynamics, and expression directly from the acoustic signal."
                         </p>
 
                         <div class="pt-5 border-t border-sepia-300">
@@ -212,37 +223,33 @@ fn ApproachSection() -> impl IntoView {
                             </span>
                             <div class="flex items-baseline gap-2 mt-1">
                                 <span class="font-mono text-heading-lg text-sepia-700">
-                                    "R\u{00B2} = 0.433"
+                                    "R\u{00B2} = 0.537"
                                 </span>
                             </div>
                         </div>
                     </div>
+                </div>
 
-                    // Fusion Model Card
-                    <div class="card p-8 hover-lift">
-                        <div class="w-14 h-14 rounded-xl bg-paper-300 flex items-center justify-center mb-6">
-                            <svg class="w-7 h-7 text-sepia-600" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5"/>
-                            </svg>
-                        </div>
-
-                        <h3 class="font-display text-heading-xl text-ink-800 mb-2">
-                            "Fusion"
-                        </h3>
-                        <p class="text-label-sm text-sepia-500 uppercase tracking-wider mb-4">
-                            "Late Fusion"
-                        </p>
-
-                        <p class="text-body-sm text-ink-500 mb-6">
-                            "Combines symbolic and audio features through learned gating. Leverages complementary strengths of both modalities."
-                        </p>
-
-                        <div class="pt-5 border-t border-paper-300">
-                            <span class="text-label-sm text-ink-400">"Combined"</span>
-                            <div class="flex items-baseline gap-2 mt-1">
-                                <span class="font-mono text-heading-lg text-ink-700">
-                                    "R\u{00B2} = 0.510"
-                                </span>
+                // Why No Fusion? callout
+                <div class="mt-12 max-w-3xl mx-auto">
+                    <div class="bg-paper-100 border border-paper-300 rounded-xl p-6">
+                        <div class="flex items-start gap-4">
+                            <div class="w-10 h-10 rounded-lg bg-sepia-100 flex items-center justify-center flex-shrink-0">
+                                <svg class="w-5 h-5 text-sepia-600" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z"/>
+                                </svg>
+                            </div>
+                            <div>
+                                <h4 class="font-display text-heading-md text-ink-800 mb-2">
+                                    "Why No Fusion?"
+                                </h4>
+                                <p class="text-body-sm text-ink-600">
+                                    "We tested late fusion of audio and symbolic features, but found "
+                                    <strong class="text-ink-800">"no improvement"</strong>
+                                    " over audio alone. The errors from both models are highly correlated "
+                                    <span class="font-mono text-sepia-600">"(r = 0.738)"</span>
+                                    ", meaning symbolic features provide no complementary signal. Audio dominates across all 19 dimensions."
+                                </p>
                             </div>
                         </div>
                     </div>
@@ -261,33 +268,46 @@ fn KeyFindingSection() -> impl IntoView {
                     <span class="section-label">"Key Finding"</span>
 
                     <h2 class="font-display text-display-sm md:text-display-md text-ink-900 mb-6">
-                        "Audio Models Outperform Symbolic Baselines"
+                        "Audio Wins All 19 Dimensions"
                     </h2>
 
                     <p class="text-body-lg text-ink-600 leading-relaxed mb-8 font-serif">
-                        "Our audio-based model achieves "
-                        <span class="metric-highlight">"R\u{00B2} = 0.433"</span>
+                        "Our audio-based MuQ model achieves "
+                        <span class="metric-highlight">"R\u{00B2} = 0.537"</span>
                         ", representing a "
-                        <strong class="text-ink-800">"9% relative improvement"</strong>
-                        " over the published symbolic baseline ("
-                        <span class="font-mono text-ink-500">"R\u{00B2} = 0.397"</span>
-                        "). This suggests that perceptual qualities like timbre and expressive nuance are better captured directly from audio than through symbolic representations."
+                        <strong class="text-ink-800">"55% relative improvement"</strong>
+                        " over the symbolic baseline ("
+                        <span class="font-mono text-ink-500">"R\u{00B2} = 0.347"</span>
+                        "). Audio outperforms symbolic on every single dimension, with no tradeoffs."
                     </p>
 
-                    <div class="flex flex-wrap items-center gap-8 pt-6 border-t border-sepia-300">
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-6 pt-6 border-t border-sepia-300">
                         <div class="text-center">
-                            <span class="block font-mono text-display-sm text-sepia-600">"9%"</span>
+                            <span class="block font-mono text-heading-xl text-sepia-600">"55%"</span>
                             <span class="text-label-sm text-ink-500 uppercase tracking-wider">"Relative Gain"</span>
                         </div>
                         <div class="text-center">
-                            <span class="block font-mono text-display-sm text-sepia-600">"19"</span>
-                            <span class="text-label-sm text-ink-500 uppercase tracking-wider">"Dimensions"</span>
+                            <span class="block font-mono text-heading-xl text-sepia-600">"19/19"</span>
+                            <span class="text-label-sm text-ink-500 uppercase tracking-wider">"Dimensions Won"</span>
                         </div>
                         <div class="text-center">
-                            <span class="block font-mono text-display-sm text-sepia-600">"0.6-0.7"</span>
-                            <span class="text-label-sm text-ink-500 uppercase tracking-wider">"Human Ceiling"</span>
+                            <span class="block font-mono text-heading-xl text-sepia-600">"d=0.31"</span>
+                            <span class="text-label-sm text-ink-500 uppercase tracking-wider">"Cohen's d"</span>
+                        </div>
+                        <div class="text-center">
+                            <span class="block font-mono text-heading-xl text-sepia-600">"p<10"<sup>"-25"</sup></span>
+                            <span class="text-label-sm text-ink-500 uppercase tracking-wider">"Significance"</span>
                         </div>
                     </div>
+                </div>
+
+                // Performance by category figure
+                <div class="mt-12 flex justify-center">
+                    <img
+                        src="/figures/fig1_dimension_by_category.png"
+                        alt="Audio vs Symbolic performance by category - Audio wins every category"
+                        class="w-full max-w-3xl rounded-xl shadow-md border border-paper-200 bg-white p-2"
+                    />
                 </div>
 
                 // Dimension categories
@@ -312,6 +332,164 @@ fn KeyFindingSection() -> impl IntoView {
                         <div class="p-4 bg-paper-100 rounded-lg border border-paper-200">
                             <h4 class="text-label-md text-sepia-600 uppercase tracking-wider mb-2">"Expression"</h4>
                             <p class="text-body-sm text-ink-500">"dynamics, tempo, space, balance, drama"</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    }
+}
+
+#[component]
+fn PerDimensionSection() -> impl IntoView {
+    view! {
+        <section id="dimensions" class="section bg-paper-200 border-t border-paper-300">
+            <div class="container-narrow">
+                <div class="text-center mb-10">
+                    <span class="section-label">"Per-Dimension Analysis"</span>
+                    <h2 class="font-display text-display-md text-ink-900">
+                        "Improvements Across All Dimensions"
+                    </h2>
+                </div>
+
+                // Dimension gains figure - with white background for legibility
+                <div class="mb-10 flex justify-center">
+                    <img
+                        src="/figures/figma_dimension_gains.png"
+                        alt="Per-dimension R-squared gains showing audio outperforming symbolic on all 19 dimensions"
+                        class="w-full max-w-3xl rounded-xl shadow-md border border-paper-300 bg-white p-4"
+                    />
+                </div>
+
+                // Top improvements - inline with figure width
+                <div class="max-w-2xl mx-auto">
+                    <h3 class="font-display text-heading-md text-ink-800 mb-5 text-center">
+                        "Largest Improvements"
+                    </h3>
+                    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                        <div class="bg-paper-50 border border-paper-300 rounded-lg p-4 text-center">
+                            <span class="block font-mono text-heading-lg text-sepia-600">"+0.383"</span>
+                            <span class="text-label-sm text-ink-500 uppercase tracking-wider">"Brightness"</span>
+                        </div>
+                        <div class="bg-paper-50 border border-paper-300 rounded-lg p-4 text-center">
+                            <span class="block font-mono text-heading-lg text-sepia-600">"+0.368"</span>
+                            <span class="text-label-sm text-ink-500 uppercase tracking-wider">"Timing"</span>
+                        </div>
+                        <div class="bg-paper-50 border border-paper-300 rounded-lg p-4 text-center">
+                            <span class="block font-mono text-heading-lg text-sepia-600">"+0.314"</span>
+                            <span class="text-label-sm text-ink-500 uppercase tracking-wider">"Dynamics"</span>
+                        </div>
+                        <div class="bg-paper-50 border border-paper-300 rounded-lg p-4 text-center">
+                            <span class="block font-mono text-heading-lg text-sepia-600">"+0.279"</span>
+                            <span class="text-label-sm text-ink-500 uppercase tracking-wider">"Pedal Clarity"</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    }
+}
+
+#[component]
+fn ValidationSection() -> impl IntoView {
+    view! {
+        <section id="validation" class="section border-t border-paper-300">
+            <div class="container-narrow">
+                <div class="text-center mb-10">
+                    <span class="section-label">"External Validation"</span>
+                    <h2 class="font-display text-display-md text-ink-900">
+                        "Robust and Generalizable Results"
+                    </h2>
+                </div>
+
+                // Statistical significance - native HTML table
+                <div class="max-w-2xl mx-auto mb-10">
+                    <div class="card p-6 bg-white">
+                        <h3 class="font-display text-heading-md text-ink-800 mb-4 text-center">
+                            "Statistical Significance"
+                        </h3>
+
+                        // Stats grid
+                        <div class="grid grid-cols-2 gap-4 mb-6">
+                            <div class="text-center p-4 bg-paper-100 rounded-lg">
+                                <span class="block text-label-sm text-ink-400 uppercase tracking-wider mb-1">"Paired t-test"</span>
+                                <span class="font-mono text-heading-md text-ink-700">"p = 2.08 x 10"<sup>"-25"</sup></span>
+                            </div>
+                            <div class="text-center p-4 bg-paper-100 rounded-lg">
+                                <span class="block text-label-sm text-ink-400 uppercase tracking-wider mb-1">"Wilcoxon signed-rank"</span>
+                                <span class="font-mono text-heading-md text-ink-700">"p = 2.16 x 10"<sup>"-29"</sup></span>
+                            </div>
+                            <div class="text-center p-4 bg-paper-100 rounded-lg">
+                                <span class="block text-label-sm text-ink-400 uppercase tracking-wider mb-1">"Effect size"</span>
+                                <span class="font-mono text-heading-md text-ink-700">"Cohen's d = 0.31"</span>
+                            </div>
+                            <div class="text-center p-4 bg-paper-100 rounded-lg">
+                                <span class="block text-label-sm text-ink-400 uppercase tracking-wider mb-1">"Dimensions won"</span>
+                                <span class="font-mono text-heading-md text-sepia-600">"19 / 19"</span>
+                            </div>
+                        </div>
+
+                        // Bootstrap CIs
+                        <div class="border-t border-paper-200 pt-4">
+                            <span class="block text-label-sm text-ink-400 uppercase tracking-wider mb-3 text-center">"Bootstrap 95% Confidence Intervals"</span>
+                            <div class="flex justify-center gap-8">
+                                <div class="text-center">
+                                    <span class="block text-label-sm text-sepia-600 font-medium mb-1">"MuQ (Audio)"</span>
+                                    <span class="font-mono text-body-md text-ink-700">"[0.465, 0.575]"</span>
+                                </div>
+                                <div class="text-center">
+                                    <span class="block text-label-sm text-ink-400 font-medium mb-1">"Symbolic"</span>
+                                    <span class="font-mono text-body-md text-ink-500">"[0.315, 0.375]"</span>
+                                </div>
+                            </div>
+                            <p class="text-body-sm text-ink-500 text-center mt-3 italic">
+                                "No overlap in confidence intervals"
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                // Validation cards - 2 column grid
+                <div class="grid md:grid-cols-2 gap-6 max-w-3xl mx-auto">
+                    <div class="card p-6">
+                        <div class="flex items-start gap-4">
+                            <div class="w-11 h-11 rounded-xl bg-sepia-100 flex items-center justify-center flex-shrink-0">
+                                <svg class="w-5 h-5 text-sepia-600" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M4.26 10.147a60.436 60.436 0 00-.491 6.347A48.627 48.627 0 0112 20.904a48.627 48.627 0 018.232-4.41 60.46 60.46 0 00-.491-6.347m-15.482 0a50.57 50.57 0 00-2.658-.813A59.905 59.905 0 0112 3.493a59.902 59.902 0 0110.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.697 50.697 0 0112 13.489a50.702 50.702 0 017.74-3.342M6.75 15a.75.75 0 100-1.5.75.75 0 000 1.5zm0 0v-3.675A55.378 55.378 0 0112 8.443m-7.007 11.55A5.981 5.981 0 006.75 15.75v-1.5"/>
+                                </svg>
+                            </div>
+                            <div>
+                                <h4 class="font-display text-heading-md text-ink-800 mb-2">
+                                    "Syllabus Difficulty Correlation"
+                                </h4>
+                                <p class="text-body-sm text-ink-500 mb-3">
+                                    "Predictions correlate with PSyllabus piano difficulty ratings (n=508 pieces)."
+                                </p>
+                                <span class="inline-block px-3 py-1 bg-sepia-100 text-sepia-700 font-mono text-label-sm rounded-full">
+                                    "Spearman rho = 0.623"
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card p-6">
+                        <div class="flex items-start gap-4">
+                            <div class="w-11 h-11 rounded-xl bg-sepia-100 flex items-center justify-center flex-shrink-0">
+                                <svg class="w-5 h-5 text-sepia-600" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M19.114 5.636a9 9 0 010 12.728M16.463 8.288a5.25 5.25 0 010 7.424M6.75 8.25l4.72-4.72a.75.75 0 011.28.53v15.88a.75.75 0 01-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.01 9.01 0 012.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75z"/>
+                                </svg>
+                            </div>
+                            <div>
+                                <h4 class="font-display text-heading-md text-ink-800 mb-2">
+                                    "Cross-Soundfont Generalization"
+                                </h4>
+                                <p class="text-body-sm text-ink-500 mb-3">
+                                    "Leave-one-out validation across 6 Pianoteq soundfonts confirms timbre robustness."
+                                </p>
+                                <span class="inline-block px-3 py-1 bg-sepia-100 text-sepia-700 font-mono text-label-sm rounded-full">
+                                    "R\u{00B2} = 0.534 \u{00B1} 0.075"
+                                </span>
+                            </div>
                         </div>
                     </div>
                 </div>
