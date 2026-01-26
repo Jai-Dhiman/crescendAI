@@ -82,7 +82,13 @@ pub struct ModelResult {
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct AnalysisResult {
     pub performance_id: String,
+    /// Raw model predictions (0-1 scale from model output)
     pub dimensions: PerformanceDimensions,
+    /// Calibrated predictions relative to MAESTRO professional benchmarks
+    /// ~0.5 = average professional level, can exceed [0,1]
+    pub calibrated_dimensions: PerformanceDimensions,
+    /// Context explaining how to interpret calibrated scores
+    pub calibration_context: Option<String>,
     pub models: Vec<ModelResult>,
     pub teacher_feedback: CitedFeedback,
     pub practice_tips: Vec<PracticeTip>,

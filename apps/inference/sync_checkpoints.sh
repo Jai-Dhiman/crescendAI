@@ -1,14 +1,14 @@
 #!/bin/bash
-# Sync D9c AsymmetricGatedFusion checkpoints from Google Drive
+# Sync M1c MuQ L9-12 checkpoints from Google Drive
 # Run this before building the Docker image or uploading to HuggingFace
 
 set -e
 
 CHECKPOINT_DIR="./checkpoints"
-GDRIVE_PATH="gdrive:crescendai_data/checkpoints/audio_phase2/checkpoints/D9c_asymmetric_gated_fusion"
+GDRIVE_PATH="gdrive:crescendai_data/checkpoints/definitive_experiments/checkpoints/M1c_muq_L9-12"
 
-echo "D9c AsymmetricGatedFusion Checkpoint Sync"
-echo "=========================================="
+echo "M1c MuQ L9-12 Checkpoint Sync"
+echo "=============================="
 echo ""
 
 echo "Creating checkpoint directories..."
@@ -18,14 +18,14 @@ mkdir -p "$CHECKPOINT_DIR/fold2"
 mkdir -p "$CHECKPOINT_DIR/fold3"
 
 echo ""
-echo "Syncing D9c checkpoints (4-fold ensemble)..."
+echo "Syncing M1c checkpoints (4-fold ensemble)..."
 echo "Source: $GDRIVE_PATH"
 echo ""
 
-# Sync each fold
+# Sync each fold (GDrive has foldX_best.ckpt, we need foldX/best.ckpt)
 for fold in 0 1 2 3; do
     echo "Syncing fold$fold..."
-    rclone copy "$GDRIVE_PATH/fold$fold/best.ckpt" "$CHECKPOINT_DIR/fold$fold/" --progress
+    rclone copyto "$GDRIVE_PATH/fold${fold}_best.ckpt" "$CHECKPOINT_DIR/fold$fold/best.ckpt" --progress
 done
 
 echo ""
@@ -48,4 +48,4 @@ echo "    fold1/best.ckpt"
 echo "    fold2/best.ckpt"
 echo "    fold3/best.ckpt"
 echo ""
-echo "Model: D9c AsymmetricGatedFusion (MERT+MuQ, R2=0.531)"
+echo "Model: M1c MuQ L9-12 (MuQ-only, R2=0.539)"

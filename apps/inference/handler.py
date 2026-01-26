@@ -1,6 +1,6 @@
 """HuggingFace Inference Endpoints handler for piano performance analysis.
 
-D9c AsymmetricGatedFusion model using MERT+MuQ with per-dimension gating.
+M1c MuQ L9-12 model using MuQ layers 9-12 with stats pooling.
 Returns 19-dimension performance evaluation scores.
 
 Compatible with HuggingFace Inference Endpoints custom handler pattern.
@@ -17,9 +17,12 @@ import numpy as np
 from constants import MODEL_INFO, PERCEPIANO_DIMENSIONS
 from models.loader import get_model_cache
 from models.inference import (
-    extract_mert_embeddings,
     extract_muq_embeddings,
-    predict_with_fusion_ensemble,
+    predict_with_ensemble,
+)
+from models.calibration import (
+    calibrate_predictions,
+    get_calibration_context,
 )
 from preprocessing.audio import (
     AudioDownloadError,
@@ -33,7 +36,7 @@ class EndpointHandler:
     """HuggingFace Inference Endpoints handler for piano performance analysis."""
 
     def __init__(self, path: str = ""):
-        """Initialize MERT, MuQ, and fusion models.
+        """Initialize MuQ model and prediction heads.
 
         Called once when the endpoint container starts.
 
@@ -41,7 +44,7 @@ class EndpointHandler:
             path: Path to the model repository (provided by HF Inference Endpoints).
                   Contains the checkpoints/ directory with model weights.
         """
-        print(f"Initializing D9c EndpointHandler with path: {path}")
+        print(f"Initializing M1c EndpointHandler with path: {path}")
 
         # Determine checkpoint directory
         # HF Inference Endpoints mount the repo at the provided path
@@ -60,11 +63,11 @@ class EndpointHandler:
 
         print(f"Using checkpoint directory: {checkpoint_dir}")
 
-        # Initialize model cache (loads MERT, MuQ, and fusion heads)
+        # Initialize model cache (loads MuQ and prediction heads)
         self._cache = get_model_cache()
         self._cache.initialize(device="cuda", checkpoint_dir=checkpoint_dir)
 
-        print("D9c EndpointHandler initialization complete!")
+        print("M1c EndpointHandler initialization complete!")
 
     def __call__(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """Process inference request.
@@ -92,7 +95,7 @@ class EndpointHandler:
             Prediction results:
             {
                 "predictions": {"timing": 0.85, ...},
-                "model_info": {"name": "D9c-AsymmetricGatedFusion", "r2": 0.531},
+                "model_info": {"name": "M1c-MuQ-L9-12", "r2": 0.539},
                 "audio_duration_seconds": 180.5,
                 "processing_time_ms": 1234
             }
@@ -116,41 +119,39 @@ class EndpointHandler:
             print(f"Audio loaded: {duration:.1f}s")
 
             # Verify models are loaded
-            if not self._cache.mert_model or not self._cache.muq_model:
+            if not self._cache.muq_model:
                 return {
                     "error": {
                         "code": "MODEL_NOT_LOADED",
-                        "message": "Models not initialized",
+                        "message": "MuQ model not initialized",
                     }
                 }
 
-            # Extract MERT embeddings (concatenated layers 19-24)
-            print("Extracting MERT embeddings...")
-            mert_embeddings = extract_mert_embeddings(audio, self._cache)
-            print(f"MERT embeddings shape: {mert_embeddings.shape}")
+            # Extract MuQ embeddings (averaged layers 9-12)
+            print("Extracting MuQ embeddings (layers 9-12)...")
+            embeddings = extract_muq_embeddings(audio, self._cache)
+            print(f"MuQ embeddings shape: {embeddings.shape}")
 
-            # Extract MuQ embeddings
-            print("Extracting MuQ embeddings...")
-            muq_embeddings = extract_muq_embeddings(audio, self._cache)
-            print(f"MuQ embeddings shape: {muq_embeddings.shape}")
+            # Get ensemble predictions (4-fold)
+            print("Running M1c ensemble inference...")
+            predictions = predict_with_ensemble(embeddings, self._cache)
 
-            # Get fused predictions (4-fold ensemble)
-            print("Running D9c fusion ensemble inference...")
-            predictions = predict_with_fusion_ensemble(
-                mert_embeddings, muq_embeddings, self._cache
-            )
+            # Calibrate predictions against MAESTRO professional benchmarks
+            calibrated = calibrate_predictions(predictions, method="percentile")
 
             # Build response
             processing_time_ms = int((time.time() - start_time) * 1000)
 
             result = {
                 "predictions": self._predictions_to_dict(predictions),
+                "calibrated_predictions": self._predictions_to_dict(calibrated),
+                "calibration_context": get_calibration_context(),
                 "model_info": {
                     "name": MODEL_INFO["name"],
                     "type": MODEL_INFO["type"],
                     "r2": MODEL_INFO["r2"],
                     "architecture": MODEL_INFO["architecture"],
-                    "ensemble_folds": len(self._cache.fusion_heads),
+                    "ensemble_folds": len(self._cache.muq_heads),
                 },
                 "audio_duration_seconds": duration,
                 "processing_time_ms": processing_time_ms,

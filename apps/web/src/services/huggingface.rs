@@ -31,6 +31,8 @@ struct HFParameters {
 #[derive(Debug, Deserialize)]
 struct HFInferenceResponse {
     predictions: Option<HFPredictions>,
+    calibrated_predictions: Option<HFPredictions>,
+    calibration_context: Option<String>,
     error: Option<HFError>,
     #[allow(dead_code)]
     model_info: Option<HFModelInfo>,
@@ -53,7 +55,7 @@ struct HFModelInfo {
 }
 
 /// Audio-only predictions (19 dimensions)
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 struct HFPredictions {
     timing: f64,
     articulation_length: f64,
@@ -102,16 +104,27 @@ impl From<HFPredictions> for PerformanceDimensions {
     }
 }
 
+/// Result from HuggingFace inference including both raw and calibrated predictions
+#[cfg(feature = "ssr")]
+pub struct HFInferenceResult {
+    /// Raw model predictions (0-1 scale)
+    pub raw_dimensions: PerformanceDimensions,
+    /// Calibrated predictions relative to MAESTRO professional benchmarks
+    pub calibrated_dimensions: PerformanceDimensions,
+    /// Context explaining calibration methodology
+    pub calibration_context: Option<String>,
+}
+
 /// Get performance dimensions from HuggingFace Inference Endpoint
 ///
 /// Requires HF_API_TOKEN and HF_INFERENCE_ENDPOINT environment variables.
-/// Returns an error if not configured or if inference fails.
+/// Returns both raw and calibrated predictions.
 #[cfg(feature = "ssr")]
 pub async fn get_performance_dimensions_from_hf(
     env: &Env,
     audio_url: &str,
     performance_id: &str,
-) -> Result<PerformanceDimensions, String> {
+) -> Result<HFInferenceResult, String> {
     // Get HF configuration from environment
     let hf_token = env
         .secret("HF_API_TOKEN")
@@ -188,8 +201,16 @@ pub async fn get_performance_dimensions_from_hf(
         ));
     }
 
-    match hf_response.predictions {
-        Some(preds) => Ok(preds.into()),
-        None => Err("No predictions in response".to_string()),
-    }
+    let raw_predictions = hf_response.predictions
+        .ok_or("No predictions in response")?;
+
+    // Use calibrated predictions if available, otherwise fall back to raw
+    let calibrated_predictions = hf_response.calibrated_predictions
+        .unwrap_or_else(|| raw_predictions.clone());
+
+    Ok(HFInferenceResult {
+        raw_dimensions: raw_predictions.clone().into(),
+        calibrated_dimensions: calibrated_predictions.into(),
+        calibration_context: hf_response.calibration_context,
+    })
 }

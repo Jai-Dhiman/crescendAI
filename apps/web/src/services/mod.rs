@@ -15,7 +15,7 @@ pub use feedback::generate_fallback_feedback;
 #[cfg(feature = "ssr")]
 pub use feedback::{generate_chat_response, generate_cited_feedback};
 #[cfg(feature = "ssr")]
-pub use huggingface::get_performance_dimensions_from_hf;
+pub use huggingface::{get_performance_dimensions_from_hf, HFInferenceResult};
 pub use rag::{bm25_search, build_retrieval_query, hybrid_retrieve, retrieve_for_analysis, retrieve_for_chat};
 #[cfg(feature = "ssr")]
 pub use rag::{ingest_chunk, ingest_chunks_batch};

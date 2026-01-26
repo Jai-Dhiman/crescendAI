@@ -47,6 +47,7 @@ fn build_feedback_prompt(
     performance: &Performance,
     dimensions: &PerformanceDimensions,
     retrieved_chunks: &[RetrievalResult],
+    calibration_context: Option<&str>,
 ) -> String {
     let mut prompt = String::new();
 
@@ -58,10 +59,28 @@ fn build_feedback_prompt(
     prompt.push_str(&format!("Performer: {}\n", performance.performer));
     prompt.push_str(&format!("Piece: {} by {}\n\n", performance.piece_title, performance.composer));
 
-    // Dimension scores
-    prompt.push_str("Dimension Scores (0.0-1.0 scale):\n");
+    // Calibration context if available
+    if let Some(context) = calibration_context {
+        prompt.push_str("## Score Calibration\n");
+        prompt.push_str(context);
+        prompt.push_str("\n\n");
+    }
+
+    // Dimension scores with calibration interpretation
+    prompt.push_str("## Dimension Scores (calibrated relative to professional recordings):\n");
     for (label, score) in dimensions.to_labeled_vec() {
-        prompt.push_str(&format!("- {}: {:.2}\n", label, score));
+        let interpretation = if score >= 0.8 {
+            "exceptional"
+        } else if score >= 0.6 {
+            "above professional average"
+        } else if score >= 0.4 {
+            "professional level"
+        } else if score >= 0.2 {
+            "developing"
+        } else {
+            "needs focus"
+        };
+        prompt.push_str(&format!("- {}: {:.2} ({})\n", label, score, interpretation));
     }
     prompt.push('\n');
 
@@ -136,9 +155,10 @@ pub async fn generate_cited_feedback(
     performance: &Performance,
     dimensions: &PerformanceDimensions,
     retrieved_chunks: &[RetrievalResult],
+    calibration_context: Option<&str>,
 ) -> Result<CitedFeedback, String> {
     // Build the prompt
-    let prompt = build_feedback_prompt(performance, dimensions, retrieved_chunks);
+    let prompt = build_feedback_prompt(performance, dimensions, retrieved_chunks, calibration_context);
 
     // Call Workers AI
     let ai = env.ai("AI").map_err(|e| format!("Failed to get AI binding: {:?}", e))?;

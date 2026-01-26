@@ -1,21 +1,29 @@
-"""Model loading and inference for D9c AsymmetricGatedFusion."""
+"""Model loading and inference for M1c MuQ L9-12."""
 
 from models.loader import (
-    AsymmetricGatedFusionHead,
+    MuQStatsHead,
     ModelCache,
     get_model_cache,
 )
 from models.inference import (
-    extract_mert_embeddings,
     extract_muq_embeddings,
-    predict_with_fusion_ensemble,
+    stats_pool,
+    predict_with_ensemble,
+)
+from models.calibration import (
+    calibrate_predictions,
+    predictions_to_calibrated_dict,
+    get_calibration_context,
 )
 
 __all__ = [
-    "AsymmetricGatedFusionHead",
+    "MuQStatsHead",
     "ModelCache",
     "get_model_cache",
-    "extract_mert_embeddings",
     "extract_muq_embeddings",
-    "predict_with_fusion_ensemble",
+    "stats_pool",
+    "predict_with_ensemble",
+    "calibrate_predictions",
+    "predictions_to_calibrated_dict",
+    "get_calibration_context",
 ]

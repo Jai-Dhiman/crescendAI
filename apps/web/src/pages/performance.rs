@@ -262,21 +262,21 @@ fn AnalysisSection(
                 }.into_any(),
 
                 AnalysisState::Complete(result) => {
-                    let models = result.models.clone();
+                    let _models = result.models.clone(); // Available for future model comparison feature
+                    let calibrated_dims = result.calibrated_dimensions.clone();
                     let (active_model, set_active_model) = signal(2usize); // Default to Fusion (best)
 
+                    // Use calibrated dimensions for display (more interpretable)
                     let radar_data = Memo::new(move |_| {
-                        let idx = active_model.get();
-                        let models_ref = models.clone();
-                        models_ref.get(idx)
-                            .map(|m| m.dimensions.to_labeled_vec()
-                                .into_iter()
-                                .map(|(label, value)| RadarDataPoint {
-                                    label: label.to_string(),
-                                    value,
-                                })
-                                .collect::<Vec<_>>())
-                            .unwrap_or_default()
+                        // Use calibrated dimensions directly for main display
+                        calibrated_dims.to_labeled_vec()
+                            .into_iter()
+                            .map(|(label, value)| RadarDataPoint {
+                                label: label.to_string(),
+                                // Clamp to [0, 1] for visualization
+                                value: value.max(0.0).min(1.0),
+                            })
+                            .collect::<Vec<_>>()
                     });
 
                     let radar_signal = Signal::derive(move || radar_data.get());
@@ -299,7 +299,7 @@ fn AnalysisSection(
                                     "Analysis Results"
                                 </h2>
                                 <p class="text-body-md text-stone-500">
-                                    "Compare model predictions across 19 dimensions"
+                                    "Scores calibrated relative to 500 professional MAESTRO recordings"
                                 </p>
                             </div>
 

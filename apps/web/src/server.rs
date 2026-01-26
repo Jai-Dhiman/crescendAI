@@ -211,8 +211,8 @@ async fn handle_full_analyze(
     console_log!("Using audio URL for HF: {}", audio_url);
 
     // 3. Get performance dimensions from HF inference
-    let dimensions = match get_performance_dimensions_from_hf(env, &audio_url, performance_id).await {
-        Ok(dims) => dims,
+    let hf_result = match get_performance_dimensions_from_hf(env, &audio_url, performance_id).await {
+        Ok(result) => result,
         Err(e) => {
             console_log!("HF inference failed: {}", e);
             return Response::builder()
@@ -223,6 +223,10 @@ async fn handle_full_analyze(
         }
     };
 
+    let dimensions = hf_result.raw_dimensions;
+    let calibrated_dimensions = hf_result.calibrated_dimensions;
+    let calibration_context = hf_result.calibration_context;
+
     // 3. Generate model variants
     let models = generate_model_variants(&dimensions);
 
@@ -230,12 +234,13 @@ async fn handle_full_analyze(
     let practice_tips = get_practice_tips(&performance, &dimensions).await;
 
     // 5. Get RAG feedback with hybrid error handling
+    // Use calibrated dimensions for feedback generation (more interpretable)
     let teacher_feedback = match env.d1("DB") {
         Ok(db) => {
-            match retrieve_for_analysis(env, &db, &performance, &dimensions).await {
+            match retrieve_for_analysis(env, &db, &performance, &calibrated_dimensions).await {
                 Ok(chunks) if !chunks.is_empty() => {
                     console_log!("Retrieved {} pedagogy chunks for RAG", chunks.len());
-                    match generate_cited_feedback(env, &performance, &dimensions, &chunks).await {
+                    match generate_cited_feedback(env, &performance, &calibrated_dimensions, &chunks, calibration_context.as_deref()).await {
                         Ok(feedback) => {
                             console_log!(
                                 "Generated RAG feedback with {} citations",
@@ -245,17 +250,17 @@ async fn handle_full_analyze(
                         }
                         Err(e) => {
                             console_log!("LLM generation failed: {}. Using fallback.", e);
-                            generate_fallback_feedback(&performance, &dimensions)
+                            generate_fallback_feedback(&performance, &calibrated_dimensions)
                         }
                     }
                 }
                 Ok(_) => {
                     console_log!("No chunks retrieved. Using fallback feedback.");
-                    generate_fallback_feedback(&performance, &dimensions)
+                    generate_fallback_feedback(&performance, &calibrated_dimensions)
                 }
                 Err(e) => {
                     console_log!("RAG retrieval failed: {:?}. Using fallback.", e);
-                    generate_fallback_feedback(&performance, &dimensions)
+                    generate_fallback_feedback(&performance, &calibrated_dimensions)
                 }
             }
         }
@@ -276,6 +281,8 @@ async fn handle_full_analyze(
     let result = AnalysisResult {
         performance_id: performance_id.to_string(),
         dimensions,
+        calibrated_dimensions,
+        calibration_context,
         models,
         teacher_feedback,
         practice_tips,
