@@ -144,4 +144,4 @@ model/data/maestro-v3.0.0.csv
 
 *.ckpt
 
-paper/
+# Paper (see paper/.gitignore for exceptions)
