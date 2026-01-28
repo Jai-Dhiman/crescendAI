@@ -88,7 +88,10 @@ fn Footer() -> impl IntoView {
 
                     // Attribution
                     <p class="text-body-sm text-ink-500 text-center md:text-left">
-                        "Built on "
+                        <a href="https://arxiv.org/abs/2601.19029" target="_blank" rel="noopener" class="text-sepia-600 hover:text-sepia-700 underline underline-offset-2">
+                            "Paper"
+                        </a>
+                        " | Built on "
                         <a href="https://arxiv.org/abs/2306.15595" target="_blank" rel="noopener" class="text-sepia-600 hover:text-sepia-700 underline underline-offset-2">
                             "PercePiano"
                         </a>

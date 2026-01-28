@@ -49,12 +49,14 @@ pub fn Header() -> impl IntoView {
 
                         // Paper link (external)
                         <a
-                            href="#"
+                            href="https://arxiv.org/abs/2601.19029"
+                            target="_blank"
+                            rel="noopener noreferrer"
                             class="inline-flex items-center gap-1.5 px-4 py-2 text-body-sm font-medium text-ink-600 rounded-md
                                    transition-all duration-200
                                    hover:bg-paper-200 hover:text-ink-800
                                    focus-visible:ring-2 focus-visible:ring-sepia-500 focus-visible:ring-offset-2"
-                            title="Paper coming soon"
+                            title="Read our paper on arXiv"
                         >
                             "Paper"
                             <svg class="w-3.5 h-3.5 text-ink-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">

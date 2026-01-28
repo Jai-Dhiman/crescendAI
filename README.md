@@ -94,4 +94,4 @@ HF_INFERENCE_ENDPOINT=<your-endpoint-url>
 
 ## Paper
 
-For technical details, see our [paper](paper/arxiv/main.pdf).
+For technical details, see the [paper on arXiv](https://arxiv.org/abs/2601.19029).
