@@ -102,6 +102,15 @@ fn MotivationSection() -> impl IntoView {
                     </p>
                 </div>
 
+                // Model pipeline diagram
+                <div class="mt-10 mb-10 flex justify-center">
+                    <img
+                        src="/figures/excalidraw_model_pipeline.png"
+                        alt="Model pipeline showing audio processing and evaluation"
+                        class="w-full max-w-4xl rounded-xl shadow-md border border-paper-300 bg-white p-4"
+                    />
+                </div>
+
                 // Research questions
                 <div class="mt-12 grid md:grid-cols-2 gap-6">
                     <div class="card p-6">
@@ -149,11 +158,11 @@ fn ApproachSection() -> impl IntoView {
                     </h2>
                 </div>
 
-                // Experiment overview diagram
+                // Audio vs Symbolic paths diagram
                 <div class="mb-12 flex justify-center">
                     <img
-                        src="/figures/excalidraw_experiment_overview.png"
-                        alt="Experiment overview showing validation methodology"
+                        src="/figures/excalidraw_audio_vs_symbolic_paths.png"
+                        alt="Comparison of audio and symbolic processing paths"
                         class="w-full max-w-4xl rounded-xl shadow-md border border-paper-300 bg-white p-4"
                     />
                 </div>

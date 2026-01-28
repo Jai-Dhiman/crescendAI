@@ -42,16 +42,16 @@ MODEL_CONFIG = {
 
 # Model info for response
 MODEL_INFO = {
-    "name": "M1c-MuQ-L9-12",
+    "name": "MuQ L9-12",
     "type": "audio-muq-only",
-    "r2": 0.539,
+    "r2": 0.537,
     "best_fold_r2": 0.586,
-    "description": "MuQ layers 9-12 with stats pooling for piano performance evaluation",
+    "description": "MuQ layers 9-12 with Pianoteq ensemble for piano performance evaluation",
     "architecture": "MuQStatsModel (MuQ L9-12 avg -> mean+std -> 2048 -> 512 -> 19)",
 }
 
 # Number of folds for ensemble
-N_FOLDS = 4
+N_FOLDS = 3
 
 # MAESTRO zero-shot evaluation statistics (n=500 professional recordings)
 # Used for calibrating raw predictions relative to professional performance benchmarks

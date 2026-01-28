@@ -74,7 +74,7 @@ pub struct PracticeTip {
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct ModelResult {
     pub model_name: String,
-    pub model_type: String, // "Symbolic", "Audio", "Fusion"
+    pub model_type: String, // "Symbolic" or "Audio"
     pub r_squared: f64,
     pub dimensions: PerformanceDimensions,
 }

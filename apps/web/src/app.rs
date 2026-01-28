@@ -96,15 +96,15 @@ fn Footer() -> impl IntoView {
                             "PercePiano"
                         </a>
                         " dataset and "
-                        <a href="https://huggingface.co/m-a-p/MERT-v1-330M" target="_blank" rel="noopener" class="text-sepia-600 hover:text-sepia-700 underline underline-offset-2">
-                            "MERT"
+                        <a href="https://github.com/tencent-ailab/MuQ" target="_blank" rel="noopener" class="text-sepia-600 hover:text-sepia-700 underline underline-offset-2">
+                            "MuQ"
                         </a>
                         " audio encoder"
                     </p>
 
                     // Copyright
                     <p class="text-label-sm text-ink-400 uppercase tracking-wider">
-                        "2025 Research Demo"
+                        "2026 Research Demo"
                     </p>
                 </div>
             </div>

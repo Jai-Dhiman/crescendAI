@@ -1,6 +1,6 @@
 //! HuggingFace Inference Endpoints integration for audio-only piano performance analysis.
 //!
-//! Uses MERT-330M embeddings with 4-fold ensemble for audio analysis.
+//! Uses MuQ layers 9-12 with 4-fold Pianoteq ensemble for audio analysis (R² = 0.537).
 
 use crate::models::PerformanceDimensions;
 use serde::{Deserialize, Serialize};

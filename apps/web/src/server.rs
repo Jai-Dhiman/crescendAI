@@ -94,22 +94,16 @@ fn generate_model_variants(base: &PerformanceDimensions) -> Vec<ModelResult> {
 
     vec![
         ModelResult {
-            model_name: "PercePiano".to_string(),
+            model_name: "Symbolic (HAN)".to_string(),
             model_type: "Symbolic".to_string(),
-            r_squared: 0.395,
+            r_squared: 0.347,
             dimensions: symbolic,
         },
         ModelResult {
-            model_name: "MERT-330M".to_string(),
+            model_name: "MuQ L9-12".to_string(),
             model_type: "Audio".to_string(),
-            r_squared: 0.433,
+            r_squared: 0.537,
             dimensions: audio,
-        },
-        ModelResult {
-            model_name: "Late Fusion".to_string(),
-            model_type: "Fusion".to_string(),
-            r_squared: 0.510,
-            dimensions: base.clone(),
         },
     ]
 }
@@ -154,7 +148,7 @@ async fn find_uploaded_performance(env: &Env, upload_id: &str) -> Option<Perform
 ///
 /// This handler returns a complete `AnalysisResult` including:
 /// - Performance dimensions
-/// - Model variants (Symbolic, Audio, Fusion)
+/// - Model variants (Symbolic, Audio)
 /// - Teacher feedback with citations (via RAG)
 /// - Practice tips
 ///

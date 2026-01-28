@@ -264,7 +264,7 @@ fn AnalysisSection(
                 AnalysisState::Complete(result) => {
                     let _models = result.models.clone(); // Available for future model comparison feature
                     let calibrated_dims = result.calibrated_dimensions.clone();
-                    let (active_model, set_active_model) = signal(2usize); // Default to Fusion (best)
+                    let (active_model, set_active_model) = signal(1usize); // Default to Audio (best)
 
                     // Use calibrated dimensions for display (more interpretable)
                     let radar_data = Memo::new(move |_| {
@@ -309,7 +309,7 @@ fn AnalysisSection(
                                     let model_type = model.model_type.clone();
                                     let model_name = model.model_name.clone();
                                     let r2 = model.r_squared;
-                                    let is_fusion = model_type == "Fusion";
+                                    let is_audio = model_type == "Audio";
 
                                     view! {
                                         <button
@@ -333,7 +333,7 @@ fn AnalysisSection(
                                                 <span class="text-label-sm font-mono text-stone-500">
                                                     {format!("R\u{00B2} = {:.3}", r2)}
                                                 </span>
-                                                {if is_fusion {
+                                                {if is_audio {
                                                     view! {
                                                         <span class="px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide bg-gold-100 text-gold-700 rounded">
                                                             "Best"
