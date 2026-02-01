@@ -1,8 +1,3 @@
-"""Experiment runners for disentanglement experiments.
-
-Provides functions to run Approach A, B, C experiments with 4-fold CV.
-"""
-
 import json
 import time
 from pathlib import Path
@@ -16,20 +11,19 @@ from pytorch_lightning.loggers import CSVLogger
 from torch.utils.data import DataLoader
 
 from ..data import (
-    PairwiseRankingDataset,
     DisentanglementDataset,
+    PairwiseRankingDataset,
     TripletRankingDataset,
-    pairwise_collate_fn,
-    disentanglement_collate_fn,
-    triplet_collate_fn,
     build_multi_performer_pieces,
+    disentanglement_collate_fn,
     get_fold_piece_mapping,
+    pairwise_collate_fn,
+    triplet_collate_fn,
 )
 from .metrics import compute_pairwise_metrics, evaluate_disentanglement
 
 
 def experiment_completed(exp_id: str, checkpoint_dir: Path, n_folds: int = 4) -> bool:
-    """Check if experiment has all fold checkpoints."""
     exp_dir = Path(checkpoint_dir) / exp_id
     if not exp_dir.exists():
         return False
@@ -37,7 +31,6 @@ def experiment_completed(exp_id: str, checkpoint_dir: Path, n_folds: int = 4) ->
 
 
 def load_existing_results(exp_id: str, results_dir: Path) -> Optional[Dict]:
-    """Load results from JSON if exists."""
     results_file = Path(results_dir) / f"{exp_id}.json"
     if results_file.exists():
         with open(results_file) as f:
@@ -60,28 +53,6 @@ def run_pairwise_experiment(
     monitor_metric: str = "val_pairwise_acc",
     on_fold_complete: Optional[Callable[[str, int], None]] = None,
 ) -> Dict:
-    """Run 4-fold CV for pairwise ranking experiment.
-
-    Used for Approach A (contrastive) and B (siamese) which use pairwise data.
-
-    Args:
-        exp_id: Experiment identifier.
-        description: Human-readable description.
-        model_factory: Function(config) -> model.
-        cache_dir: Directory with cached embeddings.
-        labels: Dict mapping keys to label arrays.
-        piece_to_keys: Dict mapping piece_id to list of keys.
-        fold_assignments: Dict with fold_0, fold_1, etc.
-        config: Training configuration.
-        checkpoint_root: Root for checkpoints.
-        results_dir: Directory to save results.
-        log_dir: Directory for training logs.
-        monitor_metric: Metric to monitor for checkpointing.
-        on_fold_complete: Optional callback(exp_id, fold) called after each fold.
-
-    Returns:
-        Results dict with summary and fold_results.
-    """
     exp_checkpoint_dir = Path(checkpoint_root) / exp_id
     exp_checkpoint_dir.mkdir(parents=True, exist_ok=True)
     results_dir = Path(results_dir)
@@ -90,13 +61,15 @@ def run_pairwise_experiment(
     # Check if already done
     existing = load_existing_results(exp_id, results_dir)
     if existing and experiment_completed(exp_id, checkpoint_root):
-        print(f"SKIP {exp_id}: already completed (acc={existing['summary']['avg_pairwise_acc']:.4f})")
+        print(
+            f"SKIP {exp_id}: already completed (acc={existing['summary']['avg_pairwise_acc']:.4f})"
+        )
         return existing
 
-    print(f"\n{'='*70}")
+    print(f"\n{'=' * 70}")
     print(f"EXPERIMENT: {exp_id}")
     print(f"Description: {description}")
-    print(f"{'='*70}")
+    print(f"{'=' * 70}")
 
     start_time = time.time()
     fold_results = {}
@@ -117,12 +90,18 @@ def run_pairwise_experiment(
 
         # Create datasets
         train_ds = PairwiseRankingDataset(
-            cache_dir, labels, train_piece_map, train_keys,
+            cache_dir,
+            labels,
+            train_piece_map,
+            train_keys,
             max_frames=config.get("max_frames", 1000),
             ambiguous_threshold=config.get("ambiguous_threshold", 0.05),
         )
         val_ds = PairwiseRankingDataset(
-            cache_dir, labels, val_piece_map, val_keys,
+            cache_dir,
+            labels,
+            val_piece_map,
+            val_keys,
             max_frames=config.get("max_frames", 1000),
             ambiguous_threshold=config.get("ambiguous_threshold", 0.05),
         )
@@ -183,7 +162,7 @@ def run_pairwise_experiment(
                 accelerator="auto",
                 devices=1,
                 gradient_clip_val=config.get("gradient_clip_val", 1.0),
-                enable_progress_bar=False,
+                enable_progress_bar=True,
                 deterministic=True,
                 log_every_n_steps=10,
             )
@@ -205,8 +184,18 @@ def run_pairwise_experiment(
                 outputs = model(
                     batch["embeddings_a"].to(device),
                     batch["embeddings_b"].to(device),
-                    batch.get("mask_a", batch["embeddings_a"].new_ones(batch["embeddings_a"].shape[:2], dtype=torch.bool)).to(device),
-                    batch.get("mask_b", batch["embeddings_b"].new_ones(batch["embeddings_b"].shape[:2], dtype=torch.bool)).to(device),
+                    batch.get(
+                        "mask_a",
+                        batch["embeddings_a"].new_ones(
+                            batch["embeddings_a"].shape[:2], dtype=torch.bool
+                        ),
+                    ).to(device),
+                    batch.get(
+                        "mask_b",
+                        batch["embeddings_b"].new_ones(
+                            batch["embeddings_b"].shape[:2], dtype=torch.bool
+                        ),
+                    ).to(device),
                 )
                 if isinstance(outputs, dict):
                     logits = outputs["ranking_logits"]
@@ -270,17 +259,6 @@ def run_disentanglement_experiment(
     log_dir: Path,
     on_fold_complete: Optional[Callable[[str, int], None]] = None,
 ) -> Dict:
-    """Run 4-fold CV for disentanglement experiment (Approach C).
-
-    Uses single-sample data with piece IDs for adversarial training.
-
-    Args:
-        Similar to run_pairwise_experiment.
-        on_fold_complete: Optional callback(exp_id, fold) called after each fold.
-
-    Returns:
-        Results dict with R2, disentanglement metrics.
-    """
     exp_checkpoint_dir = Path(checkpoint_root) / exp_id
     exp_checkpoint_dir.mkdir(parents=True, exist_ok=True)
     results_dir = Path(results_dir)
@@ -288,13 +266,15 @@ def run_disentanglement_experiment(
 
     existing = load_existing_results(exp_id, results_dir)
     if existing and experiment_completed(exp_id, checkpoint_root):
-        print(f"SKIP {exp_id}: already completed (R2={existing['summary']['avg_r2']:.4f})")
+        print(
+            f"SKIP {exp_id}: already completed (R2={existing['summary']['avg_r2']:.4f})"
+        )
         return existing
 
-    print(f"\n{'='*70}")
+    print(f"\n{'=' * 70}")
     print(f"EXPERIMENT: {exp_id}")
     print(f"Description: {description}")
-    print(f"{'='*70}")
+    print(f"{'=' * 70}")
 
     start_time = time.time()
     fold_results = {}
@@ -314,11 +294,17 @@ def run_disentanglement_experiment(
         )
 
         train_ds = DisentanglementDataset(
-            cache_dir, labels, piece_to_keys, train_keys,
+            cache_dir,
+            labels,
+            piece_to_keys,
+            train_keys,
             max_frames=config.get("max_frames", 1000),
         )
         val_ds = DisentanglementDataset(
-            cache_dir, labels, piece_to_keys, val_keys,
+            cache_dir,
+            labels,
+            piece_to_keys,
+            val_keys,
             max_frames=config.get("max_frames", 1000),
         )
 
@@ -376,7 +362,7 @@ def run_disentanglement_experiment(
                 accelerator="auto",
                 devices=1,
                 gradient_clip_val=config.get("gradient_clip_val", 1.0),
-                enable_progress_bar=False,
+                enable_progress_bar=True,
                 deterministic=True,
                 log_every_n_steps=10,
             )
@@ -397,7 +383,9 @@ def run_disentanglement_experiment(
             for batch in val_dl:
                 outputs = model(
                     batch["embeddings"].to(device),
-                    batch.get("attention_mask").to(device) if batch.get("attention_mask") is not None else None,
+                    batch.get("attention_mask").to(device)
+                    if batch.get("attention_mask") is not None
+                    else None,
                 )
                 all_preds.append(outputs["predictions"].cpu().numpy())
                 all_labels.append(batch["labels"].numpy())
@@ -416,7 +404,8 @@ def run_disentanglement_experiment(
     all_z_piece = np.vstack(all_z_piece)
     all_piece_ids = np.concatenate(all_piece_ids)
 
-    from sklearn.metrics import r2_score, mean_absolute_error
+    from sklearn.metrics import mean_absolute_error, r2_score
+
     overall_r2 = r2_score(all_labels, all_preds)
     overall_mae = mean_absolute_error(all_labels, all_preds)
 
@@ -449,7 +438,9 @@ def run_disentanglement_experiment(
     with open(results_dir / f"{exp_id}.json", "w") as f:
         json.dump(results, f, indent=2)
 
-    print(f"\n{exp_id} COMPLETE: R2={avg_r2:.4f}, style_piece_acc={disentangle['style_piece_accuracy']:.4f}")
+    print(
+        f"\n{exp_id} COMPLETE: R2={avg_r2:.4f}, style_piece_acc={disentangle['style_piece_accuracy']:.4f}"
+    )
     return results
 
 
@@ -468,28 +459,6 @@ def run_triplet_experiment(
     monitor_metric: str = "val_pairwise_acc",
     on_fold_complete: Optional[Callable[[str, int], None]] = None,
 ) -> Dict:
-    """Run 4-fold CV for triplet ranking experiment (E11).
-
-    Uses triplet sampling within same-piece performances.
-
-    Args:
-        exp_id: Experiment identifier.
-        description: Human-readable description.
-        model_factory: Function(config) -> model.
-        cache_dir: Directory with cached embeddings.
-        labels: Dict mapping keys to label arrays.
-        piece_to_keys: Dict mapping piece_id to list of recording keys.
-        fold_assignments: Dict with fold_0, fold_1, etc.
-        config: Training configuration.
-        checkpoint_root: Root for checkpoints.
-        results_dir: Directory to save results.
-        log_dir: Directory for training logs.
-        monitor_metric: Metric to monitor for checkpointing.
-        on_fold_complete: Optional callback(exp_id, fold) called after each fold.
-
-    Returns:
-        Results dict with summary and fold_results.
-    """
     exp_checkpoint_dir = Path(checkpoint_root) / exp_id
     exp_checkpoint_dir.mkdir(parents=True, exist_ok=True)
     results_dir = Path(results_dir)
@@ -498,13 +467,15 @@ def run_triplet_experiment(
     # Check if already done
     existing = load_existing_results(exp_id, results_dir)
     if existing and experiment_completed(exp_id, checkpoint_root):
-        print(f"SKIP {exp_id}: already completed (acc={existing['summary']['avg_pairwise_acc']:.4f})")
+        print(
+            f"SKIP {exp_id}: already completed (acc={existing['summary']['avg_pairwise_acc']:.4f})"
+        )
         return existing
 
-    print(f"\n{'='*70}")
+    print(f"\n{'=' * 70}")
     print(f"EXPERIMENT: {exp_id}")
     print(f"Description: {description}")
-    print(f"{'='*70}")
+    print(f"{'=' * 70}")
 
     start_time = time.time()
     fold_results = {}
@@ -525,12 +496,18 @@ def run_triplet_experiment(
 
         # Create triplet datasets
         train_ds = TripletRankingDataset(
-            cache_dir, labels, train_piece_map, train_keys,
+            cache_dir,
+            labels,
+            train_piece_map,
+            train_keys,
             max_frames=config.get("max_frames", 1000),
             min_score_diff=config.get("min_score_diff", 0.05),
         )
         val_ds = TripletRankingDataset(
-            cache_dir, labels, val_piece_map, val_keys,
+            cache_dir,
+            labels,
+            val_piece_map,
+            val_keys,
             max_frames=config.get("max_frames", 1000),
             min_score_diff=config.get("min_score_diff", 0.05),
         )
@@ -556,7 +533,9 @@ def run_triplet_experiment(
             pin_memory=True,
         )
 
-        print(f"Fold {fold}: {len(train_ds)} train triplets, {len(val_ds)} val triplets")
+        print(
+            f"Fold {fold}: {len(train_ds)} train triplets, {len(val_ds)} val triplets"
+        )
 
         # Add num_pieces to config for models that need it
         config_with_pieces = {**config, "num_pieces": train_ds.get_num_pieces()}
@@ -591,7 +570,7 @@ def run_triplet_experiment(
                 accelerator="auto",
                 devices=1,
                 gradient_clip_val=config.get("gradient_clip_val", 1.0),
-                enable_progress_bar=False,
+                enable_progress_bar=True,
                 deterministic=True,
                 log_every_n_steps=10,
             )
@@ -614,9 +593,24 @@ def run_triplet_experiment(
                     batch["embeddings_anchor"].to(device),
                     batch["embeddings_positive"].to(device),
                     batch["embeddings_negative"].to(device),
-                    batch.get("mask_anchor", batch["embeddings_anchor"].new_ones(batch["embeddings_anchor"].shape[:2], dtype=torch.bool)).to(device),
-                    batch.get("mask_positive", batch["embeddings_positive"].new_ones(batch["embeddings_positive"].shape[:2], dtype=torch.bool)).to(device),
-                    batch.get("mask_negative", batch["embeddings_negative"].new_ones(batch["embeddings_negative"].shape[:2], dtype=torch.bool)).to(device),
+                    batch.get(
+                        "mask_anchor",
+                        batch["embeddings_anchor"].new_ones(
+                            batch["embeddings_anchor"].shape[:2], dtype=torch.bool
+                        ),
+                    ).to(device),
+                    batch.get(
+                        "mask_positive",
+                        batch["embeddings_positive"].new_ones(
+                            batch["embeddings_positive"].shape[:2], dtype=torch.bool
+                        ),
+                    ).to(device),
+                    batch.get(
+                        "mask_negative",
+                        batch["embeddings_negative"].new_ones(
+                            batch["embeddings_negative"].shape[:2], dtype=torch.bool
+                        ),
+                    ).to(device),
                 )
                 # Use anchor vs negative logits for pairwise accuracy
                 all_logits.append(outputs["ranking_logits_neg"].cpu().numpy())
@@ -679,37 +673,14 @@ def run_dimension_group_experiment(
     dimension_groups: Dict[str, list],
     on_fold_complete: Optional[Callable[[str, int], None]] = None,
 ) -> Dict:
-    """Run experiments with separate models for each dimension group.
-
-    Trains specialized models for different dimension categories and
-    aggregates per-dimension accuracy.
-
-    Args:
-        exp_id: Base experiment identifier.
-        description: Human-readable description.
-        model_factory: Function(config) -> model.
-        cache_dir: Directory with cached embeddings.
-        labels: Dict mapping keys to label arrays.
-        piece_to_keys: Dict mapping piece_id to list of recording keys.
-        fold_assignments: Dict with fold_0, fold_1, etc.
-        config: Training configuration.
-        checkpoint_root: Root for checkpoints.
-        results_dir: Directory to save results.
-        log_dir: Directory for training logs.
-        dimension_groups: Dict mapping group names to dimension indices.
-        on_fold_complete: Optional callback(exp_id, fold) called after each fold.
-
-    Returns:
-        Results dict with per-group and aggregated results.
-    """
     results_dir = Path(results_dir)
     results_dir.mkdir(parents=True, exist_ok=True)
 
-    print(f"\n{'='*70}")
+    print(f"\n{'=' * 70}")
     print(f"EXPERIMENT: {exp_id}")
     print(f"Description: {description}")
     print(f"Training {len(dimension_groups)} specialized models")
-    print(f"{'='*70}")
+    print(f"{'=' * 70}")
 
     start_time = time.time()
     group_results = {}

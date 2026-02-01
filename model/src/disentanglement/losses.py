@@ -1,12 +1,3 @@
-"""Loss functions for disentanglement experiments.
-
-Implements:
-- InfoNCE with piece-based positives (same piece = positive)
-- Margin-based pairwise ranking loss
-- Triplet loss for performer discrimination
-- Combined losses for multi-objective training
-"""
-
 from typing import Tuple
 
 import torch
@@ -20,21 +11,7 @@ def piece_based_infonce_loss(
     temperature: float = 0.07,
     eps: float = 1e-8,
 ) -> torch.Tensor:
-    """InfoNCE loss where same-piece samples are positives.
-
-    For each anchor, samples of the same piece are positives and
-    samples of different pieces are negatives. This encourages the
-    model to learn piece-invariant representations.
-
-    Args:
-        embeddings: Normalized embeddings [B, D].
-        piece_ids: Integer piece IDs [B].
-        temperature: Temperature for softmax scaling.
-        eps: Small constant for numerical stability.
-
-    Returns:
-        Scalar InfoNCE loss.
-
+    """
     Reference:
         https://lilianweng.github.io/posts/2021-05-31-contrastive/
     """
@@ -103,22 +80,7 @@ def pairwise_margin_ranking_loss(
     margin: float = 0.2,
     reduction: str = "mean",
 ) -> torch.Tensor:
-    """Margin-based pairwise ranking loss.
-
-    For each pair (A, B), predicts which performance is better and
-    applies margin loss to enforce separation.
-
-    Args:
-        z_a: Embeddings for sample A [B, D].
-        z_b: Embeddings for sample B [B, D].
-        targets: Ranking targets {-1, 0, 1} [B, num_dims].
-            1 = A > B, -1 = B > A, 0 = ambiguous (ignored).
-        margin: Margin for ranking separation.
-        reduction: "mean", "sum", or "none".
-
-    Returns:
-        Margin ranking loss.
-
+    """
     Reference:
         DirectRanker: https://arxiv.org/abs/1909.02768
     """
@@ -151,27 +113,12 @@ def pairwise_margin_ranking_loss(
 
 
 class DimensionWiseRankingLoss(nn.Module):
-    """Per-dimension pairwise ranking loss.
-
-    For each dimension, applies margin loss based on whether A or B
-    is rated higher for that dimension.
-
-    Handles ambiguous pairs (score difference < threshold) by ignoring them.
-    """
-
     def __init__(
         self,
         margin: float = 0.3,
         ambiguous_threshold: float = 0.05,
         label_smoothing: float = 0.0,
     ):
-        """Initialize dimension-wise ranking loss.
-
-        Args:
-            margin: Margin for ranking separation.
-            ambiguous_threshold: Score difference below which pairs are ambiguous.
-            label_smoothing: Smooth targets toward 0.5 (reduces overconfidence).
-        """
         super().__init__()
         self.margin = margin
         self.ambiguous_threshold = ambiguous_threshold
@@ -183,16 +130,6 @@ class DimensionWiseRankingLoss(nn.Module):
         labels_a: torch.Tensor,
         labels_b: torch.Tensor,
     ) -> torch.Tensor:
-        """Compute dimension-wise ranking loss.
-
-        Args:
-            logits: Predicted ranking logits [B, num_dims] where >0 means A>B.
-            labels_a: Ground truth labels for A [B, num_dims].
-            labels_b: Ground truth labels for B [B, num_dims].
-
-        Returns:
-            Scalar loss.
-        """
         # Compute true ranking direction
         label_diff = labels_a - labels_b  # [B, D]
 
@@ -220,14 +157,6 @@ class DimensionWiseRankingLoss(nn.Module):
 
 
 class ContrastiveRankingLoss(nn.Module):
-    """Combined contrastive + ranking loss.
-
-    L_total = L_ranking + lambda_contrastive * L_infonce
-
-    The contrastive loss encourages piece-invariant representations,
-    while the ranking loss enforces correct pairwise orderings.
-    """
-
     def __init__(
         self,
         lambda_contrastive: float = 0.3,
@@ -255,20 +184,6 @@ class ContrastiveRankingLoss(nn.Module):
         piece_ids_a: torch.Tensor,
         piece_ids_b: torch.Tensor,
     ) -> dict:
-        """Compute combined loss.
-
-        Args:
-            z_a: Projected embeddings for sample A [B, D].
-            z_b: Projected embeddings for sample B [B, D].
-            ranking_logits: Predicted A>B logits [B, num_dims].
-            labels_a: Ground truth for A [B, num_dims].
-            labels_b: Ground truth for B [B, num_dims].
-            piece_ids_a: Piece IDs for A [B].
-            piece_ids_b: Piece IDs for B [B].
-
-        Returns:
-            Dict with total_loss, ranking_loss, contrastive_loss.
-        """
         # Ranking loss
         l_rank = self.ranking_loss(ranking_logits, labels_a, labels_b)
 
@@ -291,15 +206,6 @@ class ContrastiveRankingLoss(nn.Module):
 
 
 class DisentanglementLoss(nn.Module):
-    """Loss for disentangled dual-encoder model.
-
-    L_total = L_regression + lambda_adv * L_adversarial + lambda_style * L_contrastive
-
-    - L_regression: MSE on dimension predictions
-    - L_adversarial: Cross-entropy for piece classification (on style encoder)
-    - L_contrastive: InfoNCE to cluster same-performer samples
-    """
-
     def __init__(
         self,
         lambda_adversarial: float = 0.5,
@@ -321,18 +227,6 @@ class DisentanglementLoss(nn.Module):
         piece_ids: torch.Tensor,
         style_embeddings: torch.Tensor,
     ) -> dict:
-        """Compute disentanglement loss.
-
-        Args:
-            predictions: Predicted dimension scores [B, 19].
-            labels: Ground truth labels [B, 19].
-            piece_logits: Piece classification logits [B, num_pieces].
-            piece_ids: Ground truth piece IDs [B].
-            style_embeddings: Style encoder output [B, D].
-
-        Returns:
-            Dict with total_loss and component losses.
-        """
         # Regression loss
         l_reg = self.mse(predictions, labels)
 
@@ -357,23 +251,7 @@ class DisentanglementLoss(nn.Module):
 
 
 class TripletPerformerLoss(nn.Module):
-    """Triplet loss for same-piece performer discrimination.
-
-    This loss encourages the model to learn quality differences within
-    the same piece by using triplet sampling:
-
-    - Anchor: A performance of piece P
-    - Positive: A higher-quality performance of piece P
-    - Negative: A lower-quality performance of piece P
-
-    The loss encourages the anchor to be closer to the positive (better
-    performance) than to the negative (worse performance).
-
-    This differs from standard triplet loss in that:
-    1. All three samples are from the SAME piece
-    2. Positive/negative are determined by quality scores
-    3. Forces model to learn performer variance, not piece similarity
-
+    """
     Reference:
         V7Labs triplet loss literature for fine-grained discrimination.
     """
@@ -384,20 +262,12 @@ class TripletPerformerLoss(nn.Module):
         distance_fn: str = "euclidean",
         swap: bool = False,
     ):
-        """Initialize triplet loss.
-
-        Args:
-            margin: Minimum distance margin between positive and negative.
-            distance_fn: Distance function ("euclidean" or "cosine").
-            swap: Use the semi-hard negative mining swap trick.
-        """
         super().__init__()
         self.margin = margin
         self.distance_fn = distance_fn
         self.swap = swap
 
     def _distance(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-        """Compute pairwise distance."""
         if self.distance_fn == "cosine":
             # Cosine distance = 1 - cosine_similarity
             x_norm = F.normalize(x, dim=-1)
@@ -413,16 +283,6 @@ class TripletPerformerLoss(nn.Module):
         positive: torch.Tensor,
         negative: torch.Tensor,
     ) -> torch.Tensor:
-        """Compute triplet loss.
-
-        Args:
-            anchor: Anchor embeddings [B, D].
-            positive: Positive (higher quality) embeddings [B, D].
-            negative: Negative (lower quality) embeddings [B, D].
-
-        Returns:
-            Scalar triplet loss.
-        """
         pos_dist = self._distance(anchor, positive)
         neg_dist = self._distance(anchor, negative)
 
@@ -438,26 +298,12 @@ class TripletPerformerLoss(nn.Module):
 
 
 class TripletRankingLoss(nn.Module):
-    """Combined triplet loss with dimension-wise ranking.
-
-    Combines TripletPerformerLoss with per-dimension ranking constraints.
-    The triplet component ensures global quality ordering, while the
-    ranking component ensures correct per-dimension comparisons.
-    """
-
     def __init__(
         self,
         margin: float = 0.5,
         lambda_ranking: float = 0.5,
         ambiguous_threshold: float = 0.05,
     ):
-        """Initialize combined triplet ranking loss.
-
-        Args:
-            margin: Margin for triplet loss.
-            lambda_ranking: Weight for ranking loss component.
-            ambiguous_threshold: Threshold for ambiguous pair filtering.
-        """
         super().__init__()
         self.triplet_loss = TripletPerformerLoss(margin=margin)
         self.ranking_loss = DimensionWiseRankingLoss(
@@ -475,20 +321,6 @@ class TripletRankingLoss(nn.Module):
         labels_pos: torch.Tensor,
         labels_neg: torch.Tensor,
     ) -> dict:
-        """Compute combined triplet and ranking loss.
-
-        Args:
-            anchor: Anchor embeddings [B, D].
-            positive: Positive embeddings [B, D].
-            negative: Negative embeddings [B, D].
-            ranking_logits: Ranking logits for anchor vs negative [B, 19].
-            labels_anchor: Labels for anchor [B, 19].
-            labels_pos: Labels for positive [B, 19].
-            labels_neg: Labels for negative [B, 19].
-
-        Returns:
-            Dict with total_loss, triplet_loss, ranking_loss.
-        """
         l_triplet = self.triplet_loss(anchor, positive, negative)
 
         # Ranking loss: anchor vs negative (anchor should be closer to positive)

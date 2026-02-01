@@ -1,8 +1,3 @@
-"""Metrics for disentanglement experiments.
-
-Includes pairwise accuracy, intra-piece variance, and disentanglement metrics.
-"""
-
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -10,7 +5,7 @@ import numpy as np
 import pytorch_lightning as pl
 import torch
 from scipy import stats
-from sklearn.metrics import r2_score, mean_absolute_error, silhouette_score
+from sklearn.metrics import mean_absolute_error, r2_score, silhouette_score
 from tqdm.auto import tqdm
 
 
@@ -21,18 +16,6 @@ def compute_pairwise_accuracy(
     labels_b: np.ndarray,
     ambiguous_threshold: float = 0.05,
 ) -> Dict:
-    """Compute pairwise ranking accuracy.
-
-    Args:
-        predictions_a: Model predictions for sample A [N, 19].
-        predictions_b: Model predictions for sample B [N, 19].
-        labels_a: Ground truth for A [N, 19].
-        labels_b: Ground truth for B [N, 19].
-        ambiguous_threshold: Score difference below which pairs are ambiguous.
-
-    Returns:
-        Dict with overall and per-dimension accuracy.
-    """
     # True ranking direction
     label_diff = labels_a - labels_b
     pred_diff = predictions_a - predictions_b
@@ -75,17 +58,6 @@ def compute_pairwise_metrics(
     labels_b: np.ndarray,
     ambiguous_threshold: float = 0.05,
 ) -> Dict:
-    """Compute pairwise ranking metrics from raw logits.
-
-    Args:
-        ranking_logits: Model ranking logits [N, 19] where >0 means A>B.
-        labels_a: Ground truth for A [N, 19].
-        labels_b: Ground truth for B [N, 19].
-        ambiguous_threshold: Score difference below which pairs are ambiguous.
-
-    Returns:
-        Dict with accuracy and other metrics.
-    """
     label_diff = labels_a - labels_b
 
     # Convert logits to binary predictions
@@ -135,18 +107,6 @@ def compute_intra_piece_std(
     predictions: np.ndarray,
     piece_ids: np.ndarray,
 ) -> Dict:
-    """Compute intra-piece prediction standard deviation.
-
-    Higher values indicate the model differentiates performances
-    of the same piece (desirable for ranking).
-
-    Args:
-        predictions: Model predictions [N, 19].
-        piece_ids: Piece ID for each sample [N].
-
-    Returns:
-        Dict with mean and per-dimension std.
-    """
     unique_pieces = np.unique(piece_ids)
     piece_stds = []
     per_dim_stds = {d: [] for d in range(19)}
@@ -164,8 +124,7 @@ def compute_intra_piece_std(
     return {
         "mean_intra_piece_std": float(np.mean(piece_stds)) if piece_stds else 0.0,
         "per_dimension": {
-            d: float(np.mean(stds)) if stds else 0.0
-            for d, stds in per_dim_stds.items()
+            d: float(np.mean(stds)) if stds else 0.0 for d, stds in per_dim_stds.items()
         },
         "n_multi_performer_pieces": len([s for s in piece_stds if s > 0]),
     }
@@ -177,17 +136,6 @@ def evaluate_disentanglement(
     piece_ids: np.ndarray,
     predictions: np.ndarray,
 ) -> Dict:
-    """Evaluate disentanglement quality.
-
-    Args:
-        z_style: Style encoder embeddings [N, D].
-        z_piece: Piece encoder embeddings [N, D].
-        piece_ids: Piece IDs [N].
-        predictions: Model predictions [N, 19].
-
-    Returns:
-        Dict with disentanglement metrics.
-    """
     from sklearn.linear_model import LogisticRegression
     from sklearn.model_selection import cross_val_score
 
@@ -256,10 +204,6 @@ def bootstrap_pairwise_accuracy(
     n_bootstrap: int = 1000,
     seed: int = 42,
 ) -> Tuple[float, float, float]:
-    """Bootstrap 95% CI for pairwise accuracy.
-
-    Returns (lower, median, upper).
-    """
     np.random.seed(seed)
     n_samples = len(ranking_logits)
 
@@ -292,31 +236,6 @@ def compute_regression_pairwise_accuracy(
     ambiguous_threshold: float = 0.05,
     max_frames: int = 1000,
 ) -> Dict:
-    """Compute pairwise ranking accuracy from a regression model.
-
-    This function evaluates how well a regression model's predictions
-    can be used for pairwise ranking within same-piece comparisons.
-    It loads each sample, predicts scores, then compares all same-piece
-    pairs to measure ranking accuracy.
-
-    Args:
-        model: A trained regression model (e.g., MuQBaseModel) with a forward
-            method that takes (embeddings, mask) and returns [B, 19] predictions.
-        cache_dir: Directory containing cached embeddings (*.pt files).
-        labels: Dict mapping recording keys to label arrays.
-        piece_to_keys: Dict mapping piece_id to list of recording keys.
-        device: Device to run inference on.
-        ambiguous_threshold: Score difference below which pairs are ambiguous.
-        max_frames: Maximum sequence length for embeddings.
-
-    Returns:
-        Dict containing:
-            - overall_accuracy: Mean pairwise accuracy across all pairs.
-            - per_dimension: Dict of accuracy per dimension (0-18).
-            - n_pairs: Number of pairs evaluated.
-            - n_comparisons: Total dimension comparisons.
-            - per_piece_accuracy: Dict mapping piece_id to accuracy.
-    """
     cache_dir = Path(cache_dir)
     model = model.to(device)
     model.eval()
