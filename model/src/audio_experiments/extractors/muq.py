@@ -21,27 +21,32 @@ class MuQExtractor:
     """MuQ feature extractor with optional layer selection.
 
     Extracts embeddings from the MuQ model, which outputs hidden states
-    similar to MERT. Can extract from last hidden state or average across
-    a range of layers.
+    similar to MERT. Can extract from last hidden state, average across
+    a range of layers, or concatenate layers for higher-dimensional output.
     """
 
     def __init__(
         self,
         layer_start: Optional[int] = None,
         layer_end: Optional[int] = None,
+        layer_aggregation: str = "mean",
         cache_dir: Optional[Path] = None,
     ):
         """Initialize MuQ extractor.
 
         Args:
-            layer_start: Starting layer index for averaging (inclusive).
+            layer_start: Starting layer index for aggregation (inclusive).
                 If None, uses last_hidden_state directly.
-            layer_end: Ending layer index for averaging (exclusive).
+            layer_end: Ending layer index for aggregation (exclusive).
                 If None, uses last_hidden_state directly.
+            layer_aggregation: How to aggregate layers when using layer range.
+                "mean": Average across layers (output dim = 1024).
+                "concat": Concatenate layers (output dim = 1024 * n_layers).
             cache_dir: Directory to cache extracted embeddings.
         """
         self.layer_start = layer_start
         self.layer_end = layer_end
+        self.layer_aggregation = layer_aggregation
         self.use_layer_range = layer_start is not None and layer_end is not None
         self.target_sr = 24000  # MuQ uses 24kHz like MERT
         self.cache_dir = Path(cache_dir) if cache_dir else None
@@ -58,12 +63,11 @@ class MuQExtractor:
                 "MuQ library not found. Install with: pip install muq"
             ) from e
 
-        layer_info = (
-            f"layers {self.layer_start}-{self.layer_end - 1}"
-            if self.use_layer_range
-            else "last hidden state"
-        )
-        print(f"Loading MuQ-large-msd-iter ({layer_info}) on {self.device}...")
+        if self.use_layer_range:
+            agg_info = f"{self.layer_aggregation} of layers {self.layer_start}-{self.layer_end - 1}"
+        else:
+            agg_info = "last hidden state"
+        print(f"Loading MuQ-large-msd-iter ({agg_info}) on {self.device}...")
 
         self.model = MuQ.from_pretrained("OpenMuQ/MuQ-large-msd-iter")
         self.model = self.model.to(self.device)
@@ -137,9 +141,15 @@ class MuQExtractor:
                     f"Use layer_end <= {num_layers}."
                 )
 
-            # Average across specified layer range
+            # Get specified layer range
             hidden_states = output.hidden_states[self.layer_start : self.layer_end]
-            embeddings = torch.stack(hidden_states, dim=0).mean(dim=0).squeeze(0).cpu()
+
+            if self.layer_aggregation == "concat":
+                # Concatenate layers: [T, 1024 * n_layers]
+                embeddings = torch.cat(hidden_states, dim=-1).squeeze(0).cpu()
+            else:
+                # Average across specified layer range: [T, 1024]
+                embeddings = torch.stack(hidden_states, dim=0).mean(dim=0).squeeze(0).cpu()
         else:
             # Use last hidden state directly
             embeddings = output.last_hidden_state.squeeze(0).cpu()
@@ -179,7 +189,13 @@ class MuQExtractor:
                 )
 
             hidden_states = output.hidden_states[self.layer_start : self.layer_end]
-            embeddings = torch.stack(hidden_states, dim=0).mean(dim=0).cpu()
+
+            if self.layer_aggregation == "concat":
+                # Concatenate layers: [B, T, 1024 * n_layers]
+                embeddings = torch.cat(hidden_states, dim=-1).cpu()
+            else:
+                # Average across specified layer range: [B, T, 1024]
+                embeddings = torch.stack(hidden_states, dim=0).mean(dim=0).cpu()
         else:
             embeddings = output.last_hidden_state.cpu()
 
@@ -192,6 +208,7 @@ def extract_muq_embeddings(
     keys: List[str],
     layer_start: Optional[int] = None,
     layer_end: Optional[int] = None,
+    layer_aggregation: str = "mean",
 ) -> int:
     """Extract MuQ embeddings for a list of audio files.
 
@@ -199,8 +216,9 @@ def extract_muq_embeddings(
         audio_dir: Directory containing audio files.
         cache_dir: Directory to cache embeddings.
         keys: List of audio file keys (without extension).
-        layer_start: Starting layer index for averaging (optional).
-        layer_end: Ending layer index for averaging (optional).
+        layer_start: Starting layer index for aggregation (optional).
+        layer_end: Ending layer index for aggregation (optional).
+        layer_aggregation: How to aggregate layers ("mean" or "concat").
 
     Returns:
         Count of newly extracted embeddings.
@@ -214,14 +232,13 @@ def extract_muq_embeddings(
         print(f"All {len(keys)} MuQ embeddings already cached.")
         return 0
 
-    layer_info = (
-        f"layers {layer_start}-{layer_end - 1}"
-        if layer_start is not None and layer_end is not None
-        else "last hidden state"
-    )
+    if layer_start is not None and layer_end is not None:
+        layer_info = f"{layer_aggregation} of layers {layer_start}-{layer_end - 1}"
+    else:
+        layer_info = "last hidden state"
     print(f"Extracting {len(to_extract)} MuQ embeddings ({layer_info})...")
 
-    extractor = MuQExtractor(layer_start, layer_end, cache_dir)
+    extractor = MuQExtractor(layer_start, layer_end, layer_aggregation, cache_dir)
 
     for key in tqdm(to_extract, desc="MuQ extraction"):
         audio_path = Path(audio_dir) / f"{key}.wav"
