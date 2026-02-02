@@ -1,0 +1,253 @@
+CrescendAI Research & Product Timeline
+======================================
+
+Current State (Jan 2025)
+------------------------
+- Paper submitted: Audio foundation models for piano evaluation
+- MuQ model: R² = 0.537 on PercePiano (55% over symbolic baseline)
+- Validated: Cross-soundfont, PSyllabus difficulty, MAESTRO zero-shot
+- Key limitation: Model captures piece characteristics more than performer quality
+
+
+Architecture Vision
+-------------------
+The full system requires four components working together:
+
+1. Audio-rendered MIDI score: Structural reference (where in the piece, what should happen)
+   - Keeps everything in audio space (no lossy audio->MIDI transcription)
+   - MIDI score rendered via Pianoteq = 100% accurate reference
+   - Enables structural awareness without symbolic conversion errors
+
+2. Contrastive embeddings: "What is good playing" (Phase 1)
+   - Learned similarity space where quality clusters together
+   - Disentangles piece characteristics from performer quality
+
+3. Temporal localization: "Where in the performance" (Phase 3)
+   - Points to specific moments, not just overall scores
+   - Multi-scale: segment, phrase, passage level
+
+4. Pedagogical interpretive layer: "What to say about it" (Phase 4)
+   - Maps embedding distances to actionable feedback
+   - Captures teacher prioritization and vocabulary
+
+
+Phase 1: Contrastive Learning for Performer Quality
+----------------------------------------------------------------
+SOLVES: Model currently captures piece characteristics more than performer quality.
+Without this, we can't distinguish "hard piece played adequately" from "easy piece 
+played poorly."
+
+Goal: Disentangle piece difficulty from performer quality
+
+- Contrastive learning on ASAP/MAESTRO multi-performer data
+- Train model to rank performances of the same piece
+- Dimension-specific ranking (which has better timing? dynamics?)
+- Publishable paper: "Disentangling Piece and Performer in Piano Evaluation"
+
+Success metric: Pairwise ranking accuracy on held-out pieces
+
+Key insight: Same-piece comparisons force the model to attend to performer 
+differences since piece characteristics are held constant.
+
+
+Phase 2: Audio-Space Score Alignment
+-------------------------------------------------
+SOLVES: Need structural reference for "where are we in the piece" without 
+lossy audio->MIDI transcription. Foundation for temporal localization.
+
+Goal: Align student performance to rendered MIDI score, entirely in audio space
+
+Approach:
+- Render MIDI score to audio via Pianoteq (100% accurate reference)
+- Develop audio-to-audio alignment between student performance and reference
+- Keeps everything in audio space - avoids transcription errors
+- Handles student mistakes (wrong notes, skipped sections) gracefully
+
+Technical considerations:
+- What comparison function works in MuQ embedding space?
+- How to handle tempo variation, rubato?
+- Chunk size for alignment (frame-level vs segment-level)?
+
+Key insight: Teachers think in musical landmarks ("the transition into the 
+development") not measure numbers. Alignment enables structural awareness;
+student-facing localization can still be timestamp-based.
+
+Success metric: Accurate alignment on MAESTRO (where ground truth exists)
+
+
+Phase 3: Grounding in Pedagogy
+-------------------------------------------
+SOLVES: Contrastive model can detect "this is far from good playing" but can't 
+explain WHY or what to DO about it. Embedding distance is not actionable feedback.
+
+Goal: Build the interpretive layer that maps model representations to pedagogical action
+
+Core question: When a teacher evaluates a student, what's actually in their head 
+as the reference? How do we capture tacit expert knowledge in ML-usable form?
+
+THREE OPTIONS TO EXPLORE:
+
+Option A: Dimension Labels
+- "When a teacher stops and says X, that maps to feedback category Y"
+- Build taxonomy of actionable feedback types
+- Model learns to predict which category applies to a given segment
+- Output: Classification over feedback dimensions
+- Pro: Clean ML formulation
+- Con: May impose artificial structure on fluid teaching
+
+Option B: Priority Signal  
+- Not what's wrong, but what's WORTH MENTIONING
+- Teacher heard ten things, chose to stop for one
+- Learning the filtering/attention function
+- Output: Ranking or selection over possible feedback
+- Pro: Matches how teachers actually work (selective, not exhaustive)
+- Con: Harder to train - need negative examples of "noticed but didn't mention"
+
+Option C: Transformation Directions
+- "This is what bad-to-good looks like for this specific issue"
+- Not just distance in embedding space, but DIRECTION
+- Vector from "rushed phrasing" toward "patient phrasing"
+- Output: Directional vectors in embedding space with semantic labels
+- Pro: Could enable generative feedback ("try it more like this")
+- Con: Requires paired examples of same passage with different qualities
+
+DATA SOURCE: Masterclass recordings (YouTube, Tonebase, conservatory archives)
+- Stopping points = implicit "this matters enough to halt momentum"
+- Verbal feedback = dimension vocabulary grounded in real teaching
+- Sequence of feedback = prioritization signal
+- Student level + repertoire = context
+
+Advantages over paid annotation:
+- Teachers revealing actual decision-making, not performing for researcher
+- Ecological validity - real teaching moments
+- Massive scale available (thousands of hours on YouTube)
+
+Challenges:
+- Transcription and timestamping is labor-intensive
+- Nonverbal references ("that bit there") hard to capture
+- Selection bias: masterclass students are already good
+- May not transfer to intermediate students with basic errors
+
+Minimum viable data collection:
+- TBD: What's the smallest dataset that tests whether this approach works?
+
+Deliverable: One of the three options above, validated against teacher judgments
+
+
+Phase 4: Temporal Localization
+--------------------------------------------------
+SOLVES: Overall segment scores aren't useful for practice. Need to point to 
+specific moments. "Measures 12-16" or "the chromatic run before the recap."
+
+Goal: Localize feedback to specific moments in the performance
+
+Integration challenge: Combines contrastive embeddings (Phase 1) with score 
+alignment (Phase 2) to localize pedagogical feedback (Phase 3).
+
+Technical approaches:
+- Frame-level prediction using aligned audio pairs
+- Multi-scale predictions (segment, phrase, passage)
+- Attention-based localization as interpretability tool
+- Leverage Phase 2 alignment for structural grounding
+
+Open question: Can attention weights from MuQ provide interpretable localization 
+without explicit frame-level supervision?
+
+Success metric: Teachers validate localized feedback as meaningful
+
+
+Phase 5: Real Audio & Student Data
+-----------------------------------------------
+SOLVES: All training on synthetic Pianoteq audio. Real recordings have room 
+acoustics, mic variance, noise, instrument differences.
+
+Goal: Bridge synthetic-to-real gap, collect student performances
+
+- Domain adaptation: room acoustics, mic variance, noise augmentation
+- Partner with 1-2 music schools for data collection
+- Collect student recordings with teacher annotations
+- Privacy/consent framework
+- Validate model on real student data
+
+Critical question: Does the masterclass feedback (to advanced students) transfer 
+to intermediate students with basic errors? This phase tests that assumption.
+
+Deliverable: Dataset of student performances with teacher feedback
+
+
+Phase 6: Product MVP
+---------------------------------
+Goal: Working tutor for serious piano students
+
+Core features:
+- Upload recording, get feedback
+- Comparison to audio-rendered score reference
+- Temporal localization with musical landmarks
+- Prioritized feedback (not exhaustive list)
+- Progress tracking over time
+
+Technical requirements:
+- Inference latency < 5 seconds per segment
+- Works with phone recordings
+- Audio-space score alignment
+
+
+Phase 7: Real-Time Interaction
+--------------------------------------
+COMPLEXITY: Very High (unsolved research + product/UX challenges)
+DEPENDENCIES: Everything else plus new research
+Goal: Live feedback during practice - AI as practice companion
+
+Vision: Seamless open recording session with AI filling gaps between playing 
+with guidance. Like a masterclass where AI can wait for natural pauses and 
+guide student through a lesson.
+
+NOT: Eager AI that interrupts constantly or lists everything wrong
+IS: Selective, prioritized, well-timed guidance that earns trust
+
+Key challenges:
+- Interruption timing (wrong moment breaks flow, damages confidence)
+- Building trust (teacher earns right to interrupt through relationship)
+- Limited context (AI has seconds/minutes of audio, not years of student history)
+- "When to speak" is harder than "what to say"
+
+This phase depends on:
+- Model efficiency improvements for streaming
+- Advances in real-time audio ML
+- User research on practice workflows
+- Novel research on conversational timing in educational contexts
+
+
+Open Research Questions
+-----------------------
+From paper:
+- How much does annotation noise limit performance ceiling?
+- Can contrastive learning work with noisy proxy labels?
+- What temporal resolution is useful for feedback?
+- How to handle interpretation differences (valid variation vs error)?
+- Generalization to other instruments?
+
+From Phase 3 discussion:
+- Is teacher mental reference even consistent across student levels?
+- Does masterclass feedback (to advanced students) transfer to intermediate students?
+- What's the minimum viable masterclass dataset to test the approach?
+- Which of the three options (dimensions, priority, directions) is most tractable?
+
+From score alignment discussion:
+- Can audio-to-audio comparison replace symbolic alignment entirely?
+- What comparison function works in MuQ embedding space?
+- How to handle student mistakes (wrong notes, skipped sections) in alignment?
+
+
+Data Needs Summary
+------------------
+Have: 
+- PercePiano (1,202 segments with perceptual ratings)
+- ASAP/MAESTRO (multi-performer, enables contrastive training)
+- PSyllabus (difficulty ratings)
+
+Need: 
+- Masterclass corpus with timestamps + transcriptions (Phase 3)
+- Student recordings with teacher feedback (Phase 5)
+- Real audio validation set (Phase 5)
+- Pairwise teacher rankings for embedding validation (Phase 1/3)
