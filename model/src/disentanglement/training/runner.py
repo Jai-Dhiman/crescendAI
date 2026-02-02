@@ -23,6 +23,32 @@ from ..data import (
 from .metrics import compute_pairwise_metrics, evaluate_disentanglement
 
 
+class PrintProgressCallback(pl.Callback):
+    """Simple callback that prints progress for remote notebook environments."""
+
+    def __init__(self, exp_id: str, fold: int):
+        self.exp_id = exp_id
+        self.fold = fold
+        self.train_losses = []
+
+    def on_train_epoch_end(self, trainer, pl_module):
+        epoch = trainer.current_epoch
+        train_loss = trainer.callback_metrics.get("train_loss", float("nan"))
+        val_loss = trainer.callback_metrics.get("val_loss", float("nan"))
+        val_acc = trainer.callback_metrics.get("val_pairwise_acc", trainer.callback_metrics.get("val_r2", float("nan")))
+        print(
+            f"[{self.exp_id}][Fold {self.fold}] Epoch {epoch:3d} | "
+            f"train_loss: {train_loss:.4f} | val_loss: {val_loss:.4f} | val_metric: {val_acc:.4f}",
+            flush=True,
+        )
+
+    def on_train_start(self, trainer, pl_module):
+        print(f"[{self.exp_id}][Fold {self.fold}] Training started - {trainer.max_epochs} max epochs", flush=True)
+
+    def on_train_end(self, trainer, pl_module):
+        print(f"[{self.exp_id}][Fold {self.fold}] Training finished at epoch {trainer.current_epoch}", flush=True)
+
+
 def experiment_completed(exp_id: str, checkpoint_dir: Path, n_folds: int = 4) -> bool:
     exp_dir = Path(checkpoint_dir) / exp_id
     if not exp_dir.exists():
@@ -153,6 +179,7 @@ def run_pairwise_experiment(
                     patience=config.get("patience", 15),
                     verbose=True,
                 ),
+                PrintProgressCallback(exp_id, fold),
             ]
 
             trainer = pl.Trainer(
@@ -162,7 +189,7 @@ def run_pairwise_experiment(
                 accelerator="auto",
                 devices=1,
                 gradient_clip_val=config.get("gradient_clip_val", 1.0),
-                enable_progress_bar=True,
+                enable_progress_bar=False,  # Disabled for remote notebooks
                 deterministic=True,
                 log_every_n_steps=10,
             )
@@ -353,6 +380,7 @@ def run_disentanglement_experiment(
                     patience=config.get("patience", 15),
                     verbose=True,
                 ),
+                PrintProgressCallback(exp_id, fold),
             ]
 
             trainer = pl.Trainer(
@@ -362,7 +390,7 @@ def run_disentanglement_experiment(
                 accelerator="auto",
                 devices=1,
                 gradient_clip_val=config.get("gradient_clip_val", 1.0),
-                enable_progress_bar=True,
+                enable_progress_bar=False,  # Disabled for remote notebooks
                 deterministic=True,
                 log_every_n_steps=10,
             )
@@ -561,6 +589,7 @@ def run_triplet_experiment(
                     patience=config.get("patience", 15),
                     verbose=True,
                 ),
+                PrintProgressCallback(exp_id, fold),
             ]
 
             trainer = pl.Trainer(
@@ -570,7 +599,7 @@ def run_triplet_experiment(
                 accelerator="auto",
                 devices=1,
                 gradient_clip_val=config.get("gradient_clip_val", 1.0),
-                enable_progress_bar=True,
+                enable_progress_bar=False,  # Disabled for remote notebooks
                 deterministic=True,
                 log_every_n_steps=10,
             )
