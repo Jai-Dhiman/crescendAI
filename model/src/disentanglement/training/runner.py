@@ -192,6 +192,7 @@ def run_pairwise_experiment(
                 enable_progress_bar=False,  # Disabled for remote notebooks
                 deterministic=True,
                 log_every_n_steps=10,
+                precision=config.get("precision", "bf16-mixed"),
             )
 
             trainer.fit(model, train_dl, val_dl)
@@ -393,6 +394,7 @@ def run_disentanglement_experiment(
                 enable_progress_bar=False,  # Disabled for remote notebooks
                 deterministic=True,
                 log_every_n_steps=10,
+                precision=config.get("precision", "bf16-mixed"),
             )
 
             trainer.fit(model, train_dl, val_dl)
@@ -602,6 +604,7 @@ def run_triplet_experiment(
                 enable_progress_bar=False,  # Disabled for remote notebooks
                 deterministic=True,
                 log_every_n_steps=10,
+                precision=config.get("precision", "bf16-mixed"),
             )
 
             trainer.fit(model, train_dl, val_dl)
