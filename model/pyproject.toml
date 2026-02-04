@@ -45,6 +45,7 @@ dependencies = [
     "jupyter>=1.1.1",
     "gdown>=5.2.0",
     "nnaudio>=0.3.3",
+    "muq>=0.1.0",
 ]
 
 [project.optional-dependencies]

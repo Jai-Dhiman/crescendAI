@@ -12,8 +12,8 @@ Hidden size: 1024 (same as MERT-330M)
 from pathlib import Path
 from typing import List, Optional
 
-import librosa
 import torch
+import torchaudio
 from tqdm.auto import tqdm
 
 
@@ -50,7 +50,14 @@ class MuQExtractor:
         self.use_layer_range = layer_start is not None and layer_end is not None
         self.target_sr = 24000  # MuQ uses 24kHz like MERT
         self.cache_dir = Path(cache_dir) if cache_dir else None
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+        # Device selection: CUDA > MPS > CPU
+        if torch.cuda.is_available():
+            self.device = torch.device("cuda")
+        elif torch.backends.mps.is_available():
+            self.device = torch.device("mps")
+        else:
+            self.device = torch.device("cpu")
 
         self._load_model()
 
@@ -71,7 +78,20 @@ class MuQExtractor:
 
         self.model = MuQ.from_pretrained("OpenMuQ/MuQ-large-msd-iter")
         self.model = self.model.to(self.device)
+
+        # Use FP16 on GPU/MPS for ~2x speedup
+        if self.device.type in ("cuda", "mps"):
+            self.model = self.model.half()
+
         self.model.eval()
+
+        # Compile model for additional speedup (PyTorch 2.x)
+        if hasattr(torch, "compile") and self.device.type != "cpu":
+            try:
+                self.model = torch.compile(self.model, mode="reduce-overhead")
+                print("Model compiled with torch.compile()")
+            except Exception:
+                pass  # Compilation not supported for this model/device
 
         # Get hidden size from model config
         self.hidden_size = getattr(self.model.config, "hidden_size", 1024)
@@ -118,9 +138,15 @@ class MuQExtractor:
             if cache_path.exists():
                 return torch.load(cache_path, weights_only=True)
 
-        # Load audio
-        audio, _ = librosa.load(audio_path, sr=self.target_sr, mono=True)
-        wavs = torch.tensor(audio).unsqueeze(0).to(self.device)
+        # Load audio with torchaudio (faster than librosa)
+        audio, sr = torchaudio.load(audio_path)
+        if sr != self.target_sr:
+            audio = torchaudio.functional.resample(audio, sr, self.target_sr)
+        audio = audio.mean(0)  # Convert to mono
+
+        # Match model dtype (FP16 on GPU/MPS)
+        dtype = torch.float16 if self.device.type in ("cuda", "mps") else torch.float32
+        wavs = audio.unsqueeze(0).to(self.device, dtype=dtype)
 
         # Extract embeddings
         output = self.model(wavs, output_hidden_states=True)
@@ -174,7 +200,9 @@ class MuQExtractor:
         if audio.dim() == 1:
             audio = audio.unsqueeze(0)
 
-        wavs = audio.to(self.device)
+        # Match model dtype (FP16 on GPU/MPS)
+        dtype = torch.float16 if self.device.type in ("cuda", "mps") else torch.float32
+        wavs = audio.to(self.device, dtype=dtype)
         output = self.model(wavs, output_hidden_states=True)
 
         if self.use_layer_range:
