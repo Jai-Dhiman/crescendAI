@@ -44,6 +44,7 @@ dependencies = [
     "torchaudio>=2.9.0",
     "jupyter>=1.1.1",
     "gdown>=5.2.0",
+    "nnaudio>=0.3.3",
 ]
 
 [project.optional-dependencies]

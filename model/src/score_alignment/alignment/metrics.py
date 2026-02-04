@@ -162,7 +162,16 @@ def compute_alignment_summary(
         Dict with aggregated statistics.
     """
     if not all_metrics:
-        return {}
+        return {
+            "mean_of_means_ms": 0.0,
+            "std_of_means_ms": 0.0,
+            "mean_of_medians_ms": 0.0,
+            "mean_percent_within_threshold": 0.0,
+            "weighted_mean_error_ms": 0.0,
+            "weighted_percent_within_threshold": 0.0,
+            "num_performances": 0,
+            "total_notes": 0,
+        }
 
     # Collect values
     mean_errors = [m["mean_error_ms"] for m in all_metrics if "mean_error_ms" in m]
