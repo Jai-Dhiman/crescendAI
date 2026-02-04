@@ -19,4 +19,10 @@ from .alignment_dataset import (
     FrameAlignmentDataset,
     MeasureAlignmentDataset,
     frame_alignment_collate_fn,
+    path_to_cache_key,
+)
+from .midi_render import (
+    render_midi_to_wav,
+    render_batch,
+    get_render_jobs_for_asap,
 )

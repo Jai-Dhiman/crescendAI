@@ -11,6 +11,35 @@ use super::vectorize_binding::{get_vectorize_index, query_vectors, VectorMetadat
 /// RRF constant that dampens high-rank dominance
 const RRF_K: f64 = 60.0;
 
+/// Prepare a query string for FTS5 with OR semantics and special character handling
+///
+/// FTS5 uses implicit AND for space-separated terms, which is too restrictive
+/// for natural language queries. This function:
+/// 1. Removes FTS5 special characters (?, *, etc.) that cause syntax errors
+/// 2. Joins terms with OR for better recall
+/// 3. Handles empty/whitespace-only queries gracefully
+fn prepare_fts5_query(query: &str) -> Option<String> {
+    // Characters that have special meaning in FTS5 and should be removed
+    let special_chars = ['?', '*', '"', '(', ')', ':', '^', '-', '+'];
+
+    let cleaned: String = query
+        .chars()
+        .map(|c| if special_chars.contains(&c) { ' ' } else { c })
+        .collect();
+
+    let terms: Vec<&str> = cleaned
+        .split_whitespace()
+        .filter(|t| t.len() >= 2) // Skip single-char terms
+        .collect();
+
+    if terms.is_empty() {
+        return None;
+    }
+
+    // Join with OR for better recall (any term matches)
+    Some(terms.join(" OR "))
+}
+
 /// Dimension name to technique keyword mapping
 fn dimension_to_techniques(dimension: &str) -> Vec<&'static str> {
     match dimension {
@@ -95,6 +124,12 @@ pub async fn bm25_search(
     query: &str,
     limit: usize,
 ) -> Result<Vec<(PedagogyChunk, usize)>, worker::Error> {
+    // Prepare query with OR semantics and special char handling
+    let fts_query = match prepare_fts5_query(query) {
+        Some(q) => q,
+        None => return Ok(Vec::new()), // Empty query returns no results
+    };
+
     // FTS5 match query with weighted BM25 ranking
     // Column order: text, source_title, source_author, composers, pieces, techniques
     // Weights:      1.0,  2.0,          1.5,           1.5,       1.5,    1.2
@@ -109,7 +144,7 @@ pub async fn bm25_search(
 
     let statement = db.prepare(sql);
     let query_result = statement
-        .bind(&[query.into(), (limit as i32).into()])?
+        .bind(&[fts_query.into(), (limit as i32).into()])?
         .all()
         .await?;
 
@@ -756,9 +791,11 @@ mod tests {
             composer: "Chopin".to_string(),
             piece_title: "Nocturne Op. 9 No. 2".to_string(),
             performer: "Test".to_string(),
+            thumbnail_url: "".to_string(),
             audio_url: "".to_string(),
-            duration_seconds: 0.0,
+            duration_seconds: 0,
             year_recorded: None,
+            description: None,
         };
 
         let dimensions = PerformanceDimensions {
@@ -798,5 +835,38 @@ mod tests {
         let score2 = compute_rrf_score(&[Some(10), None]);
 
         assert!(score1 > score2);
+    }
+
+    #[test]
+    fn test_prepare_fts5_query_or_semantics() {
+        // Multi-term queries should use OR
+        let result = prepare_fts5_query("Chopin legato technique");
+        assert_eq!(result, Some("Chopin OR legato OR technique".to_string()));
+    }
+
+    #[test]
+    fn test_prepare_fts5_query_special_chars() {
+        // Special characters should be removed
+        let result = prepare_fts5_query("How do I play Chopin?");
+        assert_eq!(result, Some("How OR do OR play OR Chopin".to_string()));
+
+        // Asterisks and quotes
+        let result = prepare_fts5_query("\"legato\" touch*");
+        assert_eq!(result, Some("legato OR touch".to_string()));
+    }
+
+    #[test]
+    fn test_prepare_fts5_query_short_terms() {
+        // Single-char terms should be filtered out
+        let result = prepare_fts5_query("a Chopin");
+        assert_eq!(result, Some("Chopin".to_string()));
+    }
+
+    #[test]
+    fn test_prepare_fts5_query_empty() {
+        // Empty or whitespace-only queries return None
+        assert_eq!(prepare_fts5_query(""), None);
+        assert_eq!(prepare_fts5_query("   "), None);
+        assert_eq!(prepare_fts5_query("? *"), None); // Only special chars
     }
 }

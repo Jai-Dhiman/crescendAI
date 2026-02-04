@@ -53,6 +53,7 @@ segments/
 *.midi
 *.mid
 *.wav
+*.tmp.wav.tmp
 maestro-v3.0.0.zip
 
 .tmp.driveupload

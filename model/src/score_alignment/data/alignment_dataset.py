@@ -22,6 +22,14 @@ from .asap import (
 )
 
 
+def path_to_cache_key(path_str: str) -> str:
+    """Convert a path string to a safe cache key filename.
+
+    Replaces path separators with underscores and removes .mid extension.
+    """
+    return path_str.replace("/", "_").replace("\\", "_").replace(".mid", "")
+
+
 class FrameAlignmentDataset(Dataset):
     """Dataset for frame-level alignment between score and performance embeddings.
 
@@ -62,17 +70,18 @@ class FrameAlignmentDataset(Dataset):
 
         self.samples = []
         for perf in performances:
-            key = get_performance_key(perf)
+            perf_key = self._get_perf_key(perf)
             score_key = self._get_score_key(perf)
 
             if (
                 score_key in score_available
-                and key in perf_available
+                and perf_key in perf_available
                 and perf.has_alignment()
             ):
                 self.samples.append(
                     {
-                        "key": key,
+                        "key": get_performance_key(perf),  # Original key for display
+                        "perf_key": perf_key,  # Cache key for loading
                         "score_key": score_key,
                         "performance": perf,
                     }
@@ -81,8 +90,14 @@ class FrameAlignmentDataset(Dataset):
     def _get_score_key(self, perf: ASAPPerformance) -> str:
         """Get cache key for the score embeddings."""
         if perf.midi_score_path:
-            return perf.midi_score_path.stem
+            # Use full path to ensure uniqueness (e.g., Bach_Fugue_bwv_846_midi_score)
+            return path_to_cache_key(str(perf.midi_score_path))
         return f"{perf.composer}_{perf.title}_score"
+
+    def _get_perf_key(self, perf: ASAPPerformance) -> str:
+        """Get cache key for performance embeddings."""
+        key = get_performance_key(perf)
+        return path_to_cache_key(key)
 
     def __len__(self) -> int:
         return len(self.samples)
@@ -97,7 +112,7 @@ class FrameAlignmentDataset(Dataset):
             weights_only=True,
         )
         perf_emb = torch.load(
-            self.perf_cache_dir / f"{sample['key']}.pt",
+            self.perf_cache_dir / f"{sample['perf_key']}.pt",
             weights_only=True,
         )
 
@@ -169,17 +184,18 @@ class MeasureAlignmentDataset(Dataset):
 
         self.samples = []
         for perf in performances:
-            key = get_performance_key(perf)
+            perf_key = self._get_perf_key(perf)
             score_key = self._get_score_key(perf)
 
             if (
                 score_key in score_available
-                and key in perf_available
+                and perf_key in perf_available
                 and perf.annotations_path
             ):
                 self.samples.append(
                     {
-                        "key": key,
+                        "key": get_performance_key(perf),  # Original key for display
+                        "perf_key": perf_key,  # Cache key for loading
                         "score_key": score_key,
                         "performance": perf,
                     }
@@ -188,8 +204,14 @@ class MeasureAlignmentDataset(Dataset):
     def _get_score_key(self, perf: ASAPPerformance) -> str:
         """Get cache key for the score embeddings."""
         if perf.midi_score_path:
-            return perf.midi_score_path.stem
+            # Use full path to ensure uniqueness (e.g., Bach_Fugue_bwv_846_midi_score)
+            return path_to_cache_key(str(perf.midi_score_path))
         return f"{perf.composer}_{perf.title}_score"
+
+    def _get_perf_key(self, perf: ASAPPerformance) -> str:
+        """Get cache key for performance embeddings."""
+        key = get_performance_key(perf)
+        return path_to_cache_key(key)
 
     def _pool_by_measures(
         self,
@@ -243,7 +265,7 @@ class MeasureAlignmentDataset(Dataset):
             weights_only=True,
         )
         perf_emb = torch.load(
-            self.perf_cache_dir / f"{sample['key']}.pt",
+            self.perf_cache_dir / f"{sample['perf_key']}.pt",
             weights_only=True,
         )
 
