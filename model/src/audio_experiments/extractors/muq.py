@@ -12,6 +12,8 @@ Hidden size: 1024 (same as MERT-330M)
 from pathlib import Path
 from typing import List, Optional
 
+import numpy as np
+import soundfile as sf
 import torch
 import torchaudio
 from tqdm.auto import tqdm
@@ -85,8 +87,9 @@ class MuQExtractor:
 
         self.model.eval()
 
-        # Compile model for additional speedup (PyTorch 2.x)
-        if hasattr(torch, "compile") and self.device.type != "cpu":
+        # Compile model for additional speedup (PyTorch 2.x, CUDA only)
+        # MPS Metal shaders fail with torch.compile on many ops
+        if hasattr(torch, "compile") and self.device.type == "cuda":
             try:
                 self.model = torch.compile(self.model, mode="reduce-overhead")
                 print("Model compiled with torch.compile()")
@@ -138,11 +141,14 @@ class MuQExtractor:
             if cache_path.exists():
                 return torch.load(cache_path, weights_only=True)
 
-        # Load audio with torchaudio (faster than librosa)
-        audio, sr = torchaudio.load(audio_path)
+        # Load audio with soundfile (torchaudio 2.9 has broken torchcodec default)
+        data, sr = sf.read(audio_path, dtype="float32")
+        # soundfile returns (samples, channels) numpy array
+        audio = torch.from_numpy(data)
+        if audio.dim() == 2:
+            audio = audio.mean(dim=1)  # Convert to mono
         if sr != self.target_sr:
             audio = torchaudio.functional.resample(audio, sr, self.target_sr)
-        audio = audio.mean(0)  # Convert to mono
 
         # Match model dtype (FP16 on GPU/MPS)
         dtype = torch.float16 if self.device.type in ("cuda", "mps") else torch.float32
