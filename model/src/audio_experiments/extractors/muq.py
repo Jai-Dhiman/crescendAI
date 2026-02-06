@@ -81,8 +81,9 @@ class MuQExtractor:
         self.model = MuQ.from_pretrained("OpenMuQ/MuQ-large-msd-iter")
         self.model = self.model.to(self.device)
 
-        # Use FP16 on GPU/MPS for ~2x speedup
-        if self.device.type in ("cuda", "mps"):
+        # Use FP16 on CUDA for ~2x speedup
+        # MPS segfaults with FP16 on many transformer ops
+        if self.device.type == "cuda":
             self.model = self.model.half()
 
         self.model.eval()
@@ -121,9 +122,43 @@ class MuQExtractor:
             raise ValueError("cache_dir not set")
         return self.cache_dir / f"{key}.pt"
 
+    # 30 seconds at 24kHz — keeps MPS memory well under limit
+    MAX_CHUNK_SAMPLES = 30 * 24000
+
+    def _extract_chunk(self, wavs: torch.Tensor) -> torch.Tensor:
+        """Run model on a single [1, samples] tensor, return [T, hidden_size] on CPU."""
+        output = self.model(wavs, output_hidden_states=True)
+
+        if self.use_layer_range:
+            if output.hidden_states is None:
+                raise RuntimeError(
+                    "MuQ model did not return hidden_states. "
+                    "Ensure the model supports output_hidden_states=True."
+                )
+
+            num_layers = len(output.hidden_states)
+            if self.layer_end > num_layers:
+                raise RuntimeError(
+                    f"Requested layers {self.layer_start}-{self.layer_end - 1} but MuQ only has "
+                    f"{num_layers} hidden states (indices 0-{num_layers - 1}). "
+                    f"Use layer_end <= {num_layers}."
+                )
+
+            hidden_states = output.hidden_states[self.layer_start : self.layer_end]
+
+            if self.layer_aggregation == "concat":
+                return torch.cat(hidden_states, dim=-1).squeeze(0).cpu()
+            else:
+                return torch.stack(hidden_states, dim=0).mean(dim=0).squeeze(0).cpu()
+        else:
+            return output.last_hidden_state.squeeze(0).cpu()
+
     @torch.no_grad()
     def extract_from_file(self, audio_path: Path, use_cache: bool = True) -> torch.Tensor:
         """Extract MuQ embeddings from an audio file.
+
+        Long files are processed in 30-second chunks to avoid OOM on MPS/GPU,
+        then the frame-level embeddings are concatenated.
 
         Args:
             audio_path: Path to audio file.
@@ -150,41 +185,21 @@ class MuQExtractor:
         if sr != self.target_sr:
             audio = torchaudio.functional.resample(audio, sr, self.target_sr)
 
-        # Match model dtype (FP16 on GPU/MPS)
-        dtype = torch.float16 if self.device.type in ("cuda", "mps") else torch.float32
-        wavs = audio.unsqueeze(0).to(self.device, dtype=dtype)
+        dtype = torch.float16 if self.device.type == "cuda" else torch.float32
 
-        # Extract embeddings
-        output = self.model(wavs, output_hidden_states=True)
-
-        if self.use_layer_range:
-            # Validate hidden_states exists and has expected layers
-            if output.hidden_states is None:
-                raise RuntimeError(
-                    "MuQ model did not return hidden_states. "
-                    "Ensure the model supports output_hidden_states=True."
-                )
-
-            num_layers = len(output.hidden_states)
-            if self.layer_end > num_layers:
-                raise RuntimeError(
-                    f"Requested layers {self.layer_start}-{self.layer_end - 1} but MuQ only has "
-                    f"{num_layers} hidden states (indices 0-{num_layers - 1}). "
-                    f"Use layer_end <= {num_layers}."
-                )
-
-            # Get specified layer range
-            hidden_states = output.hidden_states[self.layer_start : self.layer_end]
-
-            if self.layer_aggregation == "concat":
-                # Concatenate layers: [T, 1024 * n_layers]
-                embeddings = torch.cat(hidden_states, dim=-1).squeeze(0).cpu()
-            else:
-                # Average across specified layer range: [T, 1024]
-                embeddings = torch.stack(hidden_states, dim=0).mean(dim=0).squeeze(0).cpu()
+        if audio.shape[0] <= self.MAX_CHUNK_SAMPLES:
+            # Short file — single forward pass
+            wavs = audio.unsqueeze(0).to(self.device, dtype=dtype)
+            embeddings = self._extract_chunk(wavs)
         else:
-            # Use last hidden state directly
-            embeddings = output.last_hidden_state.squeeze(0).cpu()
+            # Long file — process in chunks and concatenate
+            chunks = audio.split(self.MAX_CHUNK_SAMPLES)
+            parts = []
+            for chunk in chunks:
+                wavs = chunk.unsqueeze(0).to(self.device, dtype=dtype)
+                parts.append(self._extract_chunk(wavs))
+                del wavs
+            embeddings = torch.cat(parts, dim=0)
 
         # Cache embeddings
         if use_cache and self.cache_dir:
@@ -207,7 +222,7 @@ class MuQExtractor:
             audio = audio.unsqueeze(0)
 
         # Match model dtype (FP16 on GPU/MPS)
-        dtype = torch.float16 if self.device.type in ("cuda", "mps") else torch.float32
+        dtype = torch.float16 if self.device.type == "cuda" else torch.float32
         wavs = audio.to(self.device, dtype=dtype)
         output = self.model(wavs, output_hidden_states=True)
 

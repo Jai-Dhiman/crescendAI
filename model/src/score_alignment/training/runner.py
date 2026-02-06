@@ -12,6 +12,7 @@ from typing import Dict, List, Optional
 import numpy as np
 import pytorch_lightning as pl
 import torch
+from tqdm import tqdm
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 from pytorch_lightning.loggers import CSVLogger
 from torch.utils.data import DataLoader
@@ -173,7 +174,7 @@ def run_alignment_experiment(
         shuffle=True,
         collate_fn=collate_fn,
         num_workers=training_config.num_workers,
-        pin_memory=True,
+        pin_memory=torch.cuda.is_available(),
     )
     val_dl = DataLoader(
         val_ds,
@@ -181,7 +182,7 @@ def run_alignment_experiment(
         shuffle=False,
         collate_fn=collate_fn,
         num_workers=training_config.num_workers,
-        pin_memory=True,
+        pin_memory=torch.cuda.is_available(),
     )
 
     # Create model
@@ -315,7 +316,7 @@ def evaluate_alignment_model(
     all_metrics = []
 
     with torch.no_grad():
-        for i in range(len(dataset)):
+        for i in tqdm(range(len(dataset)), desc="Evaluating alignment"):
             sample = dataset[i]
 
             # Get embeddings
@@ -386,7 +387,7 @@ def run_dtw_baseline(
 
     all_metrics = []
 
-    for i in range(len(dataset)):
+    for i in tqdm(range(len(dataset)), desc="DTW baseline"):
         sample = dataset[i]
 
         # Get raw embeddings (no projection)

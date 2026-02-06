@@ -38,9 +38,14 @@ def log(msg: str) -> None:
     print(f"[{ts}] {msg}", flush=True)
 
 
-def extract_dir(audio_dir: Path, cache_dir: Path, label: str) -> int:
+def extract_dir(
+    audio_dir: Path, cache_dir: Path, label: str, extractor: MuQExtractor
+) -> int:
     """Extract MuQ embeddings for all WAV files in audio_dir."""
     cache_dir.mkdir(parents=True, exist_ok=True)
+
+    # Point extractor cache at this directory
+    extractor.cache_dir = cache_dir
 
     wav_files = sorted(audio_dir.glob("*.wav"))
     cached = {p.stem for p in cache_dir.glob("*.pt")}
@@ -51,12 +56,10 @@ def extract_dir(audio_dir: Path, cache_dir: Path, label: str) -> int:
         return 0
 
     log(f"{label}: {len(to_extract)} to extract ({len(cached)} cached)")
-    log(f"{label}: loading MuQ model...")
-    extractor = MuQExtractor(cache_dir=cache_dir)
-    log(f"{label}: model loaded on {extractor.device}")
 
     failed = 0
     for i, wav_file in enumerate(to_extract, 1):
+        log(f"{label}: Starting {wav_file.stem}...")
         t0 = time.time()
         try:
             extractor.extract_from_file(wav_file)
@@ -66,16 +69,16 @@ def extract_dir(audio_dir: Path, cache_dir: Path, label: str) -> int:
             failed += 1
             log(f"{label}: [{i}/{len(to_extract)}] FAILED {wav_file.stem}: {e}")
 
+        # Periodic cleanup to prevent memory accumulation issues
+        if i % 10 == 0:
+            gc.collect()
+            if torch.backends.mps.is_available():
+                torch.mps.empty_cache()
+            elif torch.cuda.is_available():
+                torch.cuda.empty_cache()
+
     extracted = len(to_extract) - failed
     log(f"{label}: done -- {extracted} extracted, {failed} failed")
-
-    # Free model memory
-    del extractor
-    gc.collect()
-    if torch.backends.mps.is_available():
-        torch.mps.empty_cache()
-    elif torch.cuda.is_available():
-        torch.cuda.empty_cache()
 
     return extracted
 
@@ -108,13 +111,26 @@ def main() -> None:
 
     t_start = time.time()
 
+    # Load model once and reuse for both directories
+    log("Loading MuQ model...")
+    extractor = MuQExtractor()
+    log(f"Model loaded on {extractor.device}")
+
     # Extract scores
     log("=" * 50)
-    extract_dir(scores_dir, SCORE_CACHE_DIR, "SCORES")
+    extract_dir(scores_dir, SCORE_CACHE_DIR, "SCORES", extractor)
 
     # Extract performances
     log("=" * 50)
-    extract_dir(perfs_dir, PERF_CACHE_DIR, "PERFS")
+    extract_dir(perfs_dir, PERF_CACHE_DIR, "PERFS", extractor)
+
+    # Free model memory
+    del extractor
+    gc.collect()
+    if torch.backends.mps.is_available():
+        torch.mps.empty_cache()
+    elif torch.cuda.is_available():
+        torch.cuda.empty_cache()
 
     # Summary
     log("=" * 50)

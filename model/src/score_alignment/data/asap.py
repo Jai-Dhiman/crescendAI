@@ -7,11 +7,13 @@ Reference: https://github.com/CPJKU/asap-dataset
 """
 
 import json
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
+import pretty_midi
 
 
 @dataclass
@@ -337,58 +339,229 @@ def _parse_from_directory_structure(asap_root: Path) -> List[ASAPPerformance]:
     return performances
 
 
-def load_note_alignments(
-    alignment_path: Path,
-    asap_root: Optional[Path] = None,
-) -> List[NoteAlignment]:
-    """Load note-level alignments from an alignment file.
+def _split_match_fields(s: str) -> List[str]:
+    """Split comma-separated fields respecting bracket nesting.
 
-    ASAP alignment files are typically TSV with columns:
-    score_onset, performance_onset, pitch, velocity, duration
+    Match file fields like ``[C,n]`` contain commas that should not be
+    split on. This helper tracks bracket depth so that commas inside
+    ``[...]`` are preserved as part of the field.
+    """
+    fields: List[str] = []
+    depth = 0
+    current: List[str] = []
+    for ch in s:
+        if ch == "[":
+            depth += 1
+            current.append(ch)
+        elif ch == "]":
+            depth -= 1
+            current.append(ch)
+        elif ch == "," and depth == 0:
+            fields.append("".join(current).strip())
+            current = []
+        else:
+            current.append(ch)
+    if current:
+        fields.append("".join(current).strip())
+    return fields
 
-    Args:
-        alignment_path: Path to the alignment file (relative or absolute).
-        asap_root: If provided and alignment_path is relative, prepend this.
+
+_NOTE_NAME_MAP = {"C": 0, "D": 2, "E": 4, "F": 5, "G": 7, "A": 9, "B": 11}
+_ACCIDENTAL_MAP = {"n": 0, "#": 1, "x": 2, "b": -1, "bb": -2}
+
+
+def _note_name_to_midi(name: str, accidental: str, octave: int) -> int:
+    """Convert a symbolic pitch (e.g. C, #, 4) to a MIDI note number."""
+    base = _NOTE_NAME_MAP[name]
+    acc = _ACCIDENTAL_MAP.get(accidental, 0)
+    return (octave + 1) * 12 + base + acc
+
+
+# Regex for extracting snote(...)-note(...) lines
+_SNOTE_NOTE_RE = re.compile(r"^snote\((.+?)\)-note\((.+?)\)\.\s*$")
+
+
+def parse_match_file(
+    match_path: Path,
+) -> Dict[str, Dict]:
+    """Parse an ASAP .match file to extract score note information.
+
+    Handles both v1.0.0 and v5.0 match file formats.
 
     Returns:
-        List of NoteAlignment objects.
+        Dict mapping xml_id -> {score_onset_beat, score_end_beat, pitch, velocity}
 
     Raises:
-        FileNotFoundError: If alignment file doesn't exist.
+        FileNotFoundError: If match file does not exist.
+        ValueError: If no matched notes found.
     """
-    if asap_root and not alignment_path.is_absolute():
-        alignment_path = Path(asap_root) / alignment_path
+    match_path = Path(match_path)
+    if not match_path.exists():
+        raise FileNotFoundError(f"Match file not found: {match_path}")
 
-    alignment_path = Path(alignment_path)
-    if not alignment_path.exists():
-        raise FileNotFoundError(f"Alignment file not found: {alignment_path}")
+    version = "1.0.0"
+    result: Dict[str, Dict] = {}
 
-    alignments = []
-
-    with open(alignment_path) as f:
+    with open(match_path) as f:
         for line in f:
             line = line.strip()
-            if not line or line.startswith("#"):
+
+            # Detect version
+            if line.startswith("info(matchFileVersion,"):
+                ver_str = line.split(",", 1)[1].rstrip(").").strip()
+                version = ver_str
+
+            m = _SNOTE_NOTE_RE.match(line)
+            if not m:
                 continue
 
+            snote_body = m.group(1)
+            note_body = m.group(2)
+
+            snote_fields = _split_match_fields(snote_body)
+            note_fields = _split_match_fields(note_body)
+
+            # snote fields (both versions):
+            #   0: xml_id, 1: pitch_name, 2: octave, 3: measure:beat,
+            #   4: offset, 5: duration, 6: score_onset_beat, 7: score_end_beat,
+            #   8: flags
+            xml_id = snote_fields[0]
+            score_onset_beat = float(snote_fields[6])
+            score_end_beat = float(snote_fields[7])
+
+            # Parse note fields depending on version
+            if version.startswith("5"):
+                # v5.0: note(id, [name,acc], octave, onset_tick, offset_tick, dur_ticks, velocity)
+                note_pitch_field = note_fields[1]  # e.g. "[C,n]"
+                note_octave = int(note_fields[2])
+                velocity = int(note_fields[6])
+                inner = note_pitch_field.strip("[]")
+                parts = inner.split(",")
+                pitch = _note_name_to_midi(parts[0], parts[1], note_octave)
+            else:
+                # v1.0.0: note(id, pitch_int, onset_tick, offset_tick, velocity, track, channel)
+                pitch = int(note_fields[1])
+                velocity = int(note_fields[4])
+
+            result[xml_id] = {
+                "score_onset_beat": score_onset_beat,
+                "score_end_beat": score_end_beat,
+                "pitch": pitch,
+                "velocity": velocity,
+            }
+
+    return result
+
+
+def load_note_alignments(
+    perf: "ASAPPerformance",
+    asap_root: Path,
+) -> List[NoteAlignment]:
+    """Load note-level alignments by joining note_alignment.tsv with the .match file.
+
+    The TSV provides performance onset times keyed by xml_id.
+    The .match file provides score onset (in beats), pitch, and velocity.
+    The score MIDI is used to convert beat positions to seconds via its tempo map.
+
+    Args:
+        perf: An ASAPPerformance object with alignment_path, midi_performance_path,
+              and midi_score_path set.
+        asap_root: Root directory of the ASAP dataset.
+
+    Returns:
+        List of NoteAlignment objects sorted by score onset.
+
+    Raises:
+        FileNotFoundError: If required files are missing.
+        ValueError: If no matched notes could be produced.
+    """
+    asap_root = Path(asap_root)
+
+    # -- 1. Resolve note_alignment.tsv --
+    if perf.alignment_path is None:
+        raise FileNotFoundError(
+            f"No alignment_path for performance {perf.performance_id}"
+        )
+    tsv_path = asap_root / perf.alignment_path
+    if not tsv_path.exists():
+        raise FileNotFoundError(f"Alignment TSV not found: {tsv_path}")
+
+    # -- 2. Resolve .match file (same stem as performance MIDI) --
+    if perf.midi_performance_path is None:
+        raise FileNotFoundError(
+            f"No midi_performance_path for performance {perf.performance_id}"
+        )
+    match_path = asap_root / perf.midi_performance_path.with_suffix(".match")
+    if not match_path.exists():
+        raise FileNotFoundError(f"Match file not found: {match_path}")
+
+    # -- 3. Resolve score MIDI --
+    if perf.midi_score_path is None:
+        raise FileNotFoundError(
+            f"No midi_score_path for performance {perf.performance_id}"
+        )
+    score_midi_path = asap_root / perf.midi_score_path
+    if not score_midi_path.exists():
+        raise FileNotFoundError(f"Score MIDI not found: {score_midi_path}")
+
+    # -- 4. Parse note_alignment.tsv -> {xml_id: perf_onset_seconds} --
+    tsv_data: Dict[str, float] = {}
+    with open(tsv_path) as f:
+        for line_num, line in enumerate(f):
+            line = line.strip()
+            if not line:
+                continue
             parts = line.split("\t")
-            if len(parts) < 5:
-                parts = line.split()  # Try space-separated
+            # Skip header row
+            if line_num == 0 and parts[0] == "xml_id":
+                continue
+            if len(parts) < 6:
+                continue
+            xml_id = parts[0]
+            # Skip deletions (score note not in performance) and insertions
+            if xml_id == "*" or parts[1] == "*":
+                continue
+            perf_onset = float(parts[5])
+            tsv_data[xml_id] = perf_onset
 
-            if len(parts) >= 5:
-                try:
-                    alignment = NoteAlignment(
-                        score_onset=float(parts[0]),
-                        performance_onset=float(parts[1]),
-                        pitch=int(float(parts[2])),
-                        velocity=int(float(parts[3])),
-                        duration=float(parts[4]),
-                        score_duration=float(parts[5]) if len(parts) > 5 else None,
-                    )
-                    alignments.append(alignment)
-                except (ValueError, IndexError):
-                    continue
+    # -- 5. Parse .match file -> {xml_id: score info} --
+    match_data = parse_match_file(match_path)
 
+    # -- 6. Load score MIDI for beat-to-seconds conversion --
+    pm = pretty_midi.PrettyMIDI(str(score_midi_path))
+
+    def beat_to_seconds(beat: float) -> float:
+        tick = int(round(beat * pm.resolution))
+        return pm.tick_to_time(tick)
+
+    # -- 7. Join on xml_id --
+    alignments: List[NoteAlignment] = []
+    for xml_id, perf_onset in tsv_data.items():
+        if xml_id not in match_data:
+            continue
+        info = match_data[xml_id]
+        score_onset_sec = beat_to_seconds(info["score_onset_beat"])
+        score_end_sec = beat_to_seconds(info["score_end_beat"])
+        score_dur = score_end_sec - score_onset_sec
+
+        alignments.append(
+            NoteAlignment(
+                score_onset=score_onset_sec,
+                performance_onset=perf_onset,
+                pitch=info["pitch"],
+                velocity=info["velocity"],
+                duration=0.0,  # Performance duration not in TSV
+                score_duration=score_dur,
+            )
+        )
+
+    if not alignments:
+        raise ValueError(
+            f"No matched notes for {perf.performance_id}. "
+            f"TSV had {len(tsv_data)} entries, match had {len(match_data)} entries."
+        )
+
+    alignments.sort(key=lambda a: a.score_onset)
     return alignments
 
 

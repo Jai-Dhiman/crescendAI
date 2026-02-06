@@ -123,7 +123,7 @@ class FrameAlignmentDataset(Dataset):
             perf_emb = perf_emb[: self.max_frames]
 
         # Load ground truth alignments
-        alignments = load_note_alignments(perf.alignment_path, self.asap_root)
+        alignments = load_note_alignments(perf, self.asap_root)
         score_onsets = torch.tensor(
             [a.score_onset for a in alignments], dtype=torch.float32
         )

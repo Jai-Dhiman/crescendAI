@@ -105,7 +105,11 @@ class SoftDTWLoss(nn.Module):
         self,
         D: torch.Tensor,
     ) -> torch.Tensor:
-        """Compute soft-DTW using dynamic programming.
+        """Compute soft-DTW using anti-diagonal vectorized dynamic programming.
+
+        Instead of a T1*T2 double for-loop, iterates over anti-diagonals
+        k = i + j (from 2 to T1+T2). All cells on a given anti-diagonal are
+        independent and can be computed in a single vectorized step.
 
         Args:
             D: Distance matrix of shape [B, T1, T2] or [T1, T2].
@@ -122,18 +126,32 @@ class SoftDTWLoss(nn.Module):
         device = D.device
         dtype = D.dtype
 
-        # Initialize accumulated cost matrix with infinity
+        # R is (T1+1) x (T2+1) with 0-indexed border; R[0,0]=0, rest=inf
         R = torch.full((B, T1 + 1, T2 + 1), float("inf"), device=device, dtype=dtype)
         R[:, 0, 0] = 0
 
-        # Fill using soft-min
-        for i in range(1, T1 + 1):
-            for j in range(1, T2 + 1):
-                cost = D[:, i - 1, j - 1]
-                r0 = R[:, i - 1, j - 1]
-                r1 = R[:, i - 1, j]
-                r2 = R[:, i, j - 1]
-                R[:, i, j] = cost + self._soft_min(r0, r1, r2)
+        # Iterate over anti-diagonals k = i + j (1-indexed into R)
+        # k ranges from 2 (cell [1,1]) to T1+T2 (cell [T1,T2])
+        for k in range(2, T1 + T2 + 1):
+            # Valid i range: max(1, k-T2) <= i <= min(T1, k-1)
+            i_start = max(1, k - T2)
+            i_end = min(T1, k - 1)
+            i_idx = torch.arange(i_start, i_end + 1, device=device)
+            j_idx = k - i_idx  # j = k - i
+
+            # Gather costs and predecessors for all cells on this diagonal
+            cost = D[:, i_idx - 1, j_idx - 1]          # [B, diag_len]
+            r_diag = R[:, i_idx - 1, j_idx - 1]        # [B, diag_len]
+            r_left = R[:, i_idx, j_idx - 1]             # [B, diag_len]
+            r_up = R[:, i_idx - 1, j_idx]               # [B, diag_len]
+
+            # Soft-min over the three predecessors
+            stacked = torch.stack([r_diag, r_left, r_up], dim=0)  # [3, B, diag_len]
+            soft_min = -self.gamma * torch.logsumexp(
+                -stacked / self.gamma, dim=0
+            )  # [B, diag_len]
+
+            R[:, i_idx, j_idx] = cost + soft_min
 
         result = R[:, T1, T2]
 
