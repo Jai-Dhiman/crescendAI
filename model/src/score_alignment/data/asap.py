@@ -531,8 +531,19 @@ def load_note_alignments(
     pm = pretty_midi.PrettyMIDI(str(score_midi_path))
 
     def beat_to_seconds(beat: float) -> float:
-        tick = int(round(beat * pm.resolution))
-        return pm.tick_to_time(tick)
+        tick = beat * pm.resolution
+        # Compute time directly from tempo map to avoid pretty_midi's MAX_TICK limit
+        # _tick_scales is a list of (tick, seconds_per_tick) from tempo changes
+        time = 0.0
+        for i, (t, scale) in enumerate(pm._tick_scales):
+            if i + 1 < len(pm._tick_scales):
+                next_t = pm._tick_scales[i + 1][0]
+                if tick <= next_t:
+                    return time + (tick - t) * scale
+                time += (next_t - t) * scale
+            else:
+                return time + (tick - t) * scale
+        return time
 
     # -- 7. Join on xml_id --
     alignments: List[NoteAlignment] = []

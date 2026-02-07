@@ -186,39 +186,42 @@ class AlignmentProjectionModel(pl.LightningModule):
         proj_perf = self.projection(perf_emb)
         return proj_score, proj_perf
 
-    def training_step(self, batch, batch_idx):
-        """Training step: minimize soft-DTW divergence."""
-        score_emb = batch["score_embeddings"]
-        perf_emb = batch["perf_embeddings"]
-        score_mask = batch.get("score_mask")
-        perf_mask = batch.get("perf_mask")
+    def _compute_sdtw_loss(self, batch):
+        """Compute soft-DTW divergence loss per-sample to limit memory.
 
-        # Project embeddings
+        Soft-DTW allocates [T1, T2] distance and DP matrices. Processing the
+        full padded batch ([B, T_max, T_max] * 3 for divergence) easily OOMs
+        on MPS/limited-VRAM GPUs. Instead, we project in batch (cheap MLP)
+        then loop over samples using their actual (unpadded) lengths.
+        """
+        score_emb = batch["score_embeddings"]  # [B, T1_padded, D]
+        perf_emb = batch["perf_embeddings"]  # [B, T2_padded, D]
+        score_lengths = batch["score_lengths"]  # [B]
+        perf_lengths = batch["perf_lengths"]  # [B]
+
+        # Project embeddings (batched - efficient for MLP)
         proj_score, proj_perf = self(score_emb, perf_emb)
 
-        # Compute soft-DTW divergence loss
-        loss = self.sdtw_loss(proj_score, proj_perf, score_mask, perf_mask)
+        # Compute loss per sample using actual lengths
+        losses = []
+        for i in range(proj_score.shape[0]):
+            s_len = score_lengths[i].item()
+            p_len = perf_lengths[i].item()
+            s = proj_score[i, :s_len].unsqueeze(0)  # [1, T1_actual, D]
+            p = proj_perf[i, :p_len].unsqueeze(0)  # [1, T2_actual, D]
+            losses.append(self.sdtw_loss(s, p))
 
-        # Handle batch dimension
-        if loss.dim() > 0:
-            loss = loss.mean()
+        return torch.stack(losses).mean()
 
+    def training_step(self, batch, batch_idx):
+        """Training step: minimize soft-DTW divergence."""
+        loss = self._compute_sdtw_loss(batch)
         self.log("train_loss", loss, prog_bar=True)
         return loss
 
     def validation_step(self, batch, batch_idx):
         """Validation step."""
-        score_emb = batch["score_embeddings"]
-        perf_emb = batch["perf_embeddings"]
-        score_mask = batch.get("score_mask")
-        perf_mask = batch.get("perf_mask")
-
-        proj_score, proj_perf = self(score_emb, perf_emb)
-        loss = self.sdtw_loss(proj_score, proj_perf, score_mask, perf_mask)
-
-        if loss.dim() > 0:
-            loss = loss.mean()
-
+        loss = self._compute_sdtw_loss(batch)
         self.log("val_loss", loss, prog_bar=True)
         self.val_losses.append(loss.item())
 

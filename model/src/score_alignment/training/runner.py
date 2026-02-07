@@ -360,6 +360,8 @@ def run_dtw_baseline(
     keys: List[str],
     distance_metric: str = "cosine",
     sakoe_chiba_radius: Optional[int] = None,
+    results_dir: Optional[Path] = None,
+    results_key: str = "A_dtw_baseline",
 ) -> Dict:
     """Run DTW baseline without learned projection.
 
@@ -371,10 +373,21 @@ def run_dtw_baseline(
         keys: Performance keys to evaluate.
         distance_metric: Distance metric for DTW.
         sakoe_chiba_radius: Optional Sakoe-Chiba band constraint.
+        results_dir: Directory to cache results JSON. If set and results
+            exist, the cached results are returned immediately.
+        results_key: Filename stem for the cached results JSON.
 
     Returns:
         Aggregated alignment metrics.
     """
+    # Check for cached results
+    if results_dir:
+        results_dir = Path(results_dir)
+        existing = load_existing_results(results_key, results_dir)
+        if existing:
+            print(f"SKIP {results_key}: loaded cached results from {results_dir / (results_key + '.json')}")
+            return existing
+
     # Create dataset (just for loading embeddings consistently)
     key_to_perf = {get_performance_key(p): p for p in performances}
     eval_perfs = [key_to_perf[k] for k in keys if k in key_to_perf]
@@ -409,4 +422,13 @@ def run_dtw_baseline(
         )
         all_metrics.append(metrics)
 
-    return compute_alignment_summary(all_metrics)
+    result = compute_alignment_summary(all_metrics)
+
+    # Cache results
+    if results_dir:
+        results_dir.mkdir(parents=True, exist_ok=True)
+        with open(results_dir / f"{results_key}.json", "w") as f:
+            json.dump(result, f, indent=2)
+        print(f"Saved results to {results_dir / (results_key + '.json')}")
+
+    return result
