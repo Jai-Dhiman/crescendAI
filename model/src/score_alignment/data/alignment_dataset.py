@@ -106,15 +106,15 @@ class FrameAlignmentDataset(Dataset):
         sample = self.samples[idx]
         perf = sample["performance"]
 
-        # Load embeddings
+        # Load embeddings (ensure float32 -- cached files may be float16)
         score_emb = torch.load(
             self.score_cache_dir / f"{sample['score_key']}.pt",
             weights_only=True,
-        )
+        ).float()
         perf_emb = torch.load(
             self.perf_cache_dir / f"{sample['perf_key']}.pt",
             weights_only=True,
-        )
+        ).float()
 
         # Truncate if needed
         if score_emb.shape[0] > self.max_frames:
@@ -124,6 +124,36 @@ class FrameAlignmentDataset(Dataset):
 
         # Load ground truth alignments
         alignments = load_note_alignments(perf, self.asap_root)
+
+        # Rescale score onsets if they exceed the rendered audio duration.
+        # Some ASAP .match files have beat numbering inconsistent with the
+        # rendered MIDI (e.g. bwv_856 is 4x off). The embedding length is
+        # ground truth for the actual audio duration.
+        score_max_time = score_emb.shape[0] / self.frame_rate
+        perf_max_time = perf_emb.shape[0] / self.frame_rate
+
+        if alignments:
+            max_score_onset = max(a.score_onset for a in alignments)
+            if max_score_onset > score_max_time * 1.1:
+                scale = score_max_time / max_score_onset
+                alignments = [
+                    NoteAlignment(
+                        score_onset=a.score_onset * scale,
+                        performance_onset=a.performance_onset,
+                        pitch=a.pitch,
+                        velocity=a.velocity,
+                        duration=a.duration,
+                        score_duration=a.score_duration * scale if a.score_duration else None,
+                    )
+                    for a in alignments
+                ]
+
+        # Filter onsets to notes within embedding time range
+        alignments = [
+            a for a in alignments
+            if a.score_onset <= score_max_time and a.performance_onset <= perf_max_time
+        ]
+
         score_onsets = torch.tensor(
             [a.score_onset for a in alignments], dtype=torch.float32
         )
@@ -259,15 +289,15 @@ class MeasureAlignmentDataset(Dataset):
         sample = self.samples[idx]
         perf = sample["performance"]
 
-        # Load embeddings
+        # Load embeddings (ensure float32 -- cached files may be float16)
         score_emb = torch.load(
             self.score_cache_dir / f"{sample['score_key']}.pt",
             weights_only=True,
-        )
+        ).float()
         perf_emb = torch.load(
             self.perf_cache_dir / f"{sample['perf_key']}.pt",
             weights_only=True,
-        )
+        ).float()
 
         # Load measure boundaries
         measure_bounds = get_measure_boundaries(perf.annotations_path, self.asap_root)

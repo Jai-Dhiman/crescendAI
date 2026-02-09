@@ -12,7 +12,9 @@ from typing import List, Optional
 # MuQ audio model settings
 MUQ_SAMPLE_RATE = 24000  # Hz
 MUQ_HOP_LENGTH = 320  # samples
-MUQ_FRAME_RATE = MUQ_SAMPLE_RATE // MUQ_HOP_LENGTH  # 75 fps
+# MuQ's convolutional feature encoder introduces additional downsampling
+# beyond hop_length. Empirically measured: 25 fps from audio/embedding pairs.
+MUQ_FRAME_RATE = 25  # fps (verified against WAV durations)
 MUQ_HIDDEN_SIZE = 1024
 MUQ_NUM_LAYERS = 24
 MUQ_LAYER_RANGE = (9, 13)  # Layers 9-12 (exclusive end)
@@ -56,7 +58,7 @@ class TrainingConfig:
     patience: int = 10
     gradient_clip_val: float = 1.0
     num_workers: int = 4
-    max_frames: int = 3000  # Max sequence length (40 seconds at 75 fps)
+    max_frames: int = 3000  # Max sequence length (120 seconds at 25 fps)
 
     # Soft-DTW specific
     soft_dtw_gamma: float = SOFT_DTW_GAMMA

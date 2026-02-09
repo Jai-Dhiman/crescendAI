@@ -392,8 +392,10 @@ def run_dtw_baseline(
     key_to_perf = {get_performance_key(p): p for p in performances}
     eval_perfs = [key_to_perf[k] for k in keys if k in key_to_perf]
 
+    # No batching for DTW baseline -- use large max_frames to avoid truncation
     dataset = FrameAlignmentDataset(
-        eval_perfs, score_cache_dir, perf_cache_dir, asap_root
+        eval_perfs, score_cache_dir, perf_cache_dir, asap_root,
+        max_frames=40000,
     )
 
     print(f"Running DTW baseline on {len(dataset)} samples...")
