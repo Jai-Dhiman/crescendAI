@@ -202,31 +202,21 @@ def _parse_metadata_entry_from_path(
         # Extract performer from filename (remove .mid extension)
         performer = Path(midi_filename).stem
 
-        # Look for corresponding score MIDI
-        perf_dir = asap_root / Path(path).parent
-        score_midi = None
-        for score_name in ["midi_score.mid", "score.mid"]:
-            score_path = perf_dir / score_name
-            if score_path.exists():
-                score_midi = Path(path).parent / score_name
-                break
+        # Set paths based on ASAP naming conventions rather than filesystem
+        # checks. This avoids fragile .exists() calls that can fail on
+        # remote runtimes. Downstream code validates files on load.
+        rel_dir = Path(path).parent
 
-        # Look for alignment file in {performer}_note_alignments/note_alignment.tsv
-        alignment_dir = perf_dir / f"{performer}_note_alignments"
-        alignment_tsv = alignment_dir / "note_alignment.tsv"
+        # Score MIDI (standard ASAP convention)
+        score_midi = rel_dir / "midi_score.mid"
+
+        # Alignment: {performer}_note_alignments/note_alignment.tsv
         alignment_path = (
-            Path(path).parent / f"{performer}_note_alignments" / "note_alignment.tsv"
-            if alignment_tsv.exists()
-            else None
+            rel_dir / f"{performer}_note_alignments" / "note_alignment.tsv"
         )
 
-        # Look for annotations file ({performer}_annotations.txt)
-        annotations_txt = perf_dir / f"{performer}_annotations.txt"
-        annotations_path = (
-            Path(path).parent / f"{performer}_annotations.txt"
-            if annotations_txt.exists()
-            else None
-        )
+        # Annotations: {performer}_annotations.txt
+        annotations_path = rel_dir / f"{performer}_annotations.txt"
 
         return ASAPPerformance(
             performance_id=path,
