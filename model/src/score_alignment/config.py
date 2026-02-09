@@ -58,7 +58,7 @@ class TrainingConfig:
     patience: int = 10
     gradient_clip_val: float = 1.0
     num_workers: int = 4
-    max_frames: int = 3000  # Max sequence length (120 seconds at 25 fps)
+    max_frames: int = 750  # Max sequence length (30 seconds at 25 fps)
 
     # Soft-DTW specific
     soft_dtw_gamma: float = SOFT_DTW_GAMMA
