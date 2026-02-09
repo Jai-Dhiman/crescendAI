@@ -26,10 +26,13 @@ class EpochProgressCallback(Callback):
         epoch = trainer.current_epoch
         train_loss = metrics.get("train_loss", float("nan"))
         val_loss = metrics.get("val_loss", float("nan"))
-        print(
+        # Use flush=True and sys.stderr to bypass PL's stdout capture
+        import sys
+        msg = (
             f"Epoch {epoch:3d}/{trainer.max_epochs} | "
             f"train_loss: {train_loss:.4f} | val_loss: {val_loss:.4f}"
         )
+        print(msg, file=sys.stderr, flush=True)
 
 from ..alignment.dtw import align_embeddings
 from ..alignment.metrics import compute_alignment_summary, evaluate_dtw_alignment
@@ -243,7 +246,7 @@ def run_alignment_experiment(
         accelerator="auto",
         devices=1,
         gradient_clip_val=training_config.gradient_clip_val,
-        enable_progress_bar=True,
+        enable_progress_bar=False,
         deterministic=True,
         log_every_n_steps=10,
     )
