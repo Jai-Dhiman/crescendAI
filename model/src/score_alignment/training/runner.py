@@ -13,9 +13,23 @@ import numpy as np
 import pytorch_lightning as pl
 import torch
 from tqdm import tqdm
-from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
+from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint, Callback
 from pytorch_lightning.loggers import CSVLogger
 from torch.utils.data import DataLoader
+
+
+class EpochProgressCallback(Callback):
+    """Print epoch-level progress to stdout (works in all Jupyter environments)."""
+
+    def on_train_epoch_end(self, trainer, pl_module):
+        metrics = trainer.callback_metrics
+        epoch = trainer.current_epoch
+        train_loss = metrics.get("train_loss", float("nan"))
+        val_loss = metrics.get("val_loss", float("nan"))
+        print(
+            f"Epoch {epoch:3d}/{trainer.max_epochs} | "
+            f"train_loss: {train_loss:.4f} | val_loss: {val_loss:.4f}"
+        )
 
 from ..alignment.dtw import align_embeddings
 from ..alignment.metrics import compute_alignment_summary, evaluate_dtw_alignment
@@ -214,6 +228,7 @@ def run_alignment_experiment(
             verbose=True,
         )
     )
+    callbacks.append(EpochProgressCallback())
 
     # Logger
     logger = None
