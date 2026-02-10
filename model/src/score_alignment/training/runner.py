@@ -36,7 +36,7 @@ class EpochProgressCallback(Callback):
 
 from ..alignment.dtw import align_embeddings
 from ..alignment.metrics import compute_alignment_summary, evaluate_dtw_alignment
-from ..config import ExperimentConfig, ProjectionConfig, TrainingConfig
+from ..config import ExperimentConfig, MUQ_FRAME_RATE, ProjectionConfig, TrainingConfig
 from ..data.alignment_dataset import (
     FrameAlignmentDataset,
     MeasureAlignmentDataset,
@@ -378,6 +378,7 @@ def run_dtw_baseline(
     keys: List[str],
     distance_metric: str = "cosine",
     sakoe_chiba_radius: Optional[int] = None,
+    subsample_factor: int = 1,
     results_dir: Optional[Path] = None,
     results_key: str = "A_dtw_baseline",
 ) -> Dict:
@@ -390,7 +391,10 @@ def run_dtw_baseline(
         asap_root: ASAP dataset root.
         keys: Performance keys to evaluate.
         distance_metric: Distance metric for DTW.
-        sakoe_chiba_radius: Optional Sakoe-Chiba band constraint.
+        sakoe_chiba_radius: Optional Sakoe-Chiba band constraint (in original
+            frame space; automatically scaled when subsampling).
+        subsample_factor: Take every Nth frame before DTW. Reduces cost
+            matrix from O(T1*T2) to O((T1/N)*(T2/N)). Default 1 (no subsampling).
         results_dir: Directory to cache results JSON. If set and results
             exist, the cached results are returned immediately.
         results_key: Filename stem for the cached results JSON.
@@ -416,7 +420,16 @@ def run_dtw_baseline(
         max_frames=40000,
     )
 
+    effective_frame_rate = MUQ_FRAME_RATE / subsample_factor
+    effective_radius = None
+    if sakoe_chiba_radius is not None:
+        effective_radius = max(1, sakoe_chiba_radius // subsample_factor)
+
     print(f"Running DTW baseline on {len(dataset)} samples...")
+    if subsample_factor > 1:
+        print(f"  Subsampling by {subsample_factor}x ({MUQ_FRAME_RATE}fps -> {effective_frame_rate:.0f}fps)")
+    if effective_radius is not None:
+        print(f"  Sakoe-Chiba radius: {effective_radius} frames ({effective_radius / effective_frame_rate:.1f}s)")
 
     all_metrics = []
 
@@ -427,18 +440,25 @@ def run_dtw_baseline(
         score_emb = sample["score_embeddings"].numpy()
         perf_emb = sample["perf_embeddings"].numpy()
 
+        # Subsample for efficiency (25fps -> 5fps is plenty for note-level alignment)
+        if subsample_factor > 1:
+            score_emb = score_emb[::subsample_factor]
+            perf_emb = perf_emb[::subsample_factor]
+
         # Run DTW
         path_score, path_perf, cost, _ = align_embeddings(
-            score_emb, perf_emb, metric=distance_metric
+            score_emb, perf_emb, metric=distance_metric,
+            sakoe_chiba_radius=effective_radius,
         )
 
         # Get ground truth
         score_onsets = sample["score_onsets"].numpy()
         perf_onsets = sample["perf_onsets"].numpy()
 
-        # Evaluate
+        # Evaluate (use effective frame rate for subsampled path)
         metrics = evaluate_dtw_alignment(
-            score_onsets, perf_onsets, path_score, path_perf
+            score_onsets, perf_onsets, path_score, path_perf,
+            frame_rate=effective_frame_rate,
         )
         all_metrics.append(metrics)
 
