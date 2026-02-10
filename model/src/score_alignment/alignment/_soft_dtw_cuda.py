@@ -30,6 +30,17 @@ import torch.cuda
 from numba import cuda, jit, prange
 from torch.autograd import Function
 
+# Numba manages its own CUDA context separately from PyTorch.
+# Initialize it once so cuda.as_cuda_array() can bridge the two.
+_numba_cuda_initialized = False
+
+
+def _ensure_numba_cuda():
+    global _numba_cuda_initialized
+    if not _numba_cuda_initialized:
+        cuda.select_device(0)
+        _numba_cuda_initialized = True
+
 
 @cuda.jit
 def compute_softdtw_cuda(D, gamma, bandwidth, max_i, max_j, n_passes, R):
@@ -85,10 +96,11 @@ class _SoftDTWCUDA(Function):
 
     @staticmethod
     def forward(ctx, D, gamma, bandwidth):
+        _ensure_numba_cuda()
         dev = D.device
         dtype = D.dtype
-        gamma = torch.cuda.FloatTensor([gamma])
-        bandwidth = torch.cuda.FloatTensor([bandwidth])
+        gamma = torch.tensor([gamma], dtype=torch.float32, device="cuda")
+        bandwidth = torch.tensor([bandwidth], dtype=torch.float32, device="cuda")
 
         B = D.shape[0]
         N = D.shape[1]
@@ -109,6 +121,7 @@ class _SoftDTWCUDA(Function):
 
     @staticmethod
     def backward(ctx, grad_output):
+        _ensure_numba_cuda()
         dev = grad_output.device
         dtype = grad_output.dtype
         D, R, gamma, bandwidth = ctx.saved_tensors
