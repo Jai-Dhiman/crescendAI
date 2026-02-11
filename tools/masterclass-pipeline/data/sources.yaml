@@ -1,0 +1,70 @@
+# Curated masterclass sources for the teaching moments extraction pipeline.
+#
+# channels: YouTube channels to scan for masterclass videos
+# videos: Specific video URLs with known metadata
+# search_queries: YouTube search queries to discover new content
+
+channels:
+  - url: "https://www.youtube.com/@tabornemusic"
+    teacher: "Tonebase Piano Faculty"
+    max_videos: 30
+
+  - url: "https://www.youtube.com/@PianistMagazine"
+    teacher: null
+    max_videos: 30
+
+  - url: "https://www.youtube.com/@JuilliardSchool"
+    teacher: null
+    max_videos: 20
+
+  - url: "https://www.youtube.com/@VerbierFestival"
+    teacher: null
+    max_videos: 20
+
+videos:
+  - url: "https://www.youtube.com/watch?v=zJBLCeAHVFg"
+    teacher: "Lang Lang"
+    piece: "Chopin Ballade No. 1 in G minor"
+    composer: "Chopin"
+
+  - url: "https://www.youtube.com/watch?v=dv8xjkRFyUo"
+    teacher: "Daniel Barenboim"
+    piece: "Beethoven Piano Sonata No. 8 Pathetique"
+    composer: "Beethoven"
+
+  - url: "https://www.youtube.com/watch?v=8O9_ZUiFtpE"
+    teacher: "Murray Perahia"
+    piece: null
+    composer: null
+
+  - url: "https://www.youtube.com/watch?v=UkO-x6FLjDo"
+    teacher: "Garrick Ohlsson"
+    piece: "Chopin Etudes"
+    composer: "Chopin"
+
+  - url: "https://www.youtube.com/watch?v=TFi_UrGqyBE"
+    teacher: "Stephen Hough"
+    piece: null
+    composer: null
+
+  - url: "https://www.youtube.com/watch?v=2bOaAcjfBwY"
+    teacher: "Mitsuko Uchida"
+    piece: "Mozart Piano Sonata"
+    composer: "Mozart"
+
+  - url: "https://www.youtube.com/watch?v=V-sjgAIjV1g"
+    teacher: "Seymour Bernstein"
+    piece: null
+    composer: null
+
+  - url: "https://www.youtube.com/watch?v=49MeBLuUiwk"
+    teacher: "Boris Berman"
+    piece: "Prokofiev Piano Sonata"
+    composer: "Prokofiev"
+
+search_queries:
+  - "piano masterclass teacher stops student feedback"
+  - "piano lesson correction technique masterclass"
+  - "concert pianist masterclass teaching"
+  - "classical piano coaching session"
+  - "piano interpretation masterclass university"

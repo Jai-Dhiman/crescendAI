@@ -1,0 +1,4 @@
+# Keep sources.yaml, ignore everything else
+*
+!.gitignore
+!sources.yaml
