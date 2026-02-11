@@ -1,0 +1,10 @@
+{
+  "mean_of_means_ms": 10504.88393919264,
+  "std_of_means_ms": 22467.60973563264,
+  "mean_of_medians_ms": 10032.38673261393,
+  "mean_percent_within_threshold": 34.438748624095524,
+  "weighted_mean_error_ms": 18247.20590378725,
+  "weighted_percent_within_threshold": 30.020015770000608,
+  "num_performances": 214,
+  "total_notes": 659480
+}
