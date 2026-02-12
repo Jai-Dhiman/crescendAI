@@ -1,0 +1,60 @@
+{
+  "experiment_id": "E2a_contrastive_default",
+  "description": "Approach A: Contrastive pairwise ranking with default config",
+  "config": {
+    "input_dim": 1024,
+    "hidden_dim": 512,
+    "projection_dim": 256,
+    "num_labels": 19,
+    "dropout": 0.2,
+    "pooling": "attention",
+    "temperature": 0.07,
+    "lambda_contrastive": 0.3,
+    "margin": 0.2,
+    "ambiguous_threshold": 0.05,
+    "label_smoothing": 0.0,
+    "learning_rate": 0.0001,
+    "weight_decay": 1e-05,
+    "gradient_clip_val": 1.0,
+    "batch_size": 32,
+    "max_epochs": 100,
+    "patience": 15,
+    "max_frames": 1000,
+    "n_folds": 4,
+    "num_workers": 0,
+    "seed": 42
+  },
+  "summary": {
+    "avg_pairwise_acc": 0.7541160881519318,
+    "std_pairwise_acc": 0.0010218322277069092,
+    "overall_accuracy": 0.8404400710673774,
+    "kendall_tau": 0.6808801421347547,
+    "n_comparisons": 102438
+  },
+  "fold_results": {
+    "2": 0.7551379203796387,
+    "3": 0.7530942559242249
+  },
+  "per_dimension": {
+    "0": 0.8185899567675424,
+    "1": 0.8161124307205068,
+    "2": 0.8276990185387132,
+    "3": 0.8341908713692946,
+    "4": 0.8079698261725156,
+    "5": 0.8453125,
+    "6": 0.8371592539454806,
+    "7": 0.8871925360474979,
+    "8": 0.8657794676806083,
+    "9": 0.844722785043286,
+    "10": 0.8305484925535779,
+    "11": 0.9057985757884028,
+    "12": 0.82465483234714,
+    "13": 0.8034548944337812,
+    "14": 0.8383891213389121,
+    "15": 0.8771601082656673,
+    "16": 0.8769956458635704,
+    "17": 0.8390989541432019,
+    "18": 0.8063233623627414
+  },
+  "training_time_seconds": 11511.799261569977
+}
