@@ -142,7 +142,12 @@ pub fn whisper_model_url(model_name: &str) -> String {
 #[allow(dead_code)]
 pub const DEFAULT_WHISPER_MODEL: &str = "large-v3";
 #[allow(dead_code)]
-pub const DEFAULT_LLM_MODEL: &str = "llama3.1";
+pub const DEFAULT_LLM_MODEL: &str = "qwen2.5:32b";
+
+pub const CHUNK_DURATION_SECS: f64 = 300.0;
+pub const CHUNK_OVERLAP_SECS: f64 = 30.0;
+pub const REPETITION_THRESHOLD: usize = 3;
+pub const SIMILARITY_THRESHOLD: f64 = 0.8;
 
 pub const MIN_VIDEO_DURATION_SECS: f64 = 600.0;
 pub const MAX_VIDEO_DURATION_SECS: f64 = 7200.0;

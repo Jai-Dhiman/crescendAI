@@ -30,8 +30,8 @@ struct Cli {
     #[arg(long, default_value = "large-v3", global = true)]
     whisper_model: String,
 
-    /// LLM model name (Ollama model, e.g. llama3.1, mistral, qwen2.5)
-    #[arg(long, default_value = "llama3.1", global = true)]
+    /// LLM model name (Ollama model, e.g. qwen2.5:32b, llama3.1, mistral)
+    #[arg(long, default_value = "qwen2.5:32b", global = true)]
     llm_model: String,
 
     /// LLM server URL (OpenAI-compatible endpoint)
