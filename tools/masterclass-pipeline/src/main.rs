@@ -49,6 +49,10 @@ struct Cli {
     /// Show what would be done without actually doing it
     #[arg(long, global = true)]
     dry_run: bool,
+
+    /// Only process videos matching this piece (substring match, case-insensitive)
+    #[arg(long, global = true)]
+    piece: Option<String>,
 }
 
 #[derive(Subcommand)]
@@ -106,7 +110,7 @@ async fn main() -> Result<()> {
             tracing::info!("Discovered {} videos", videos.len());
         }
         Commands::Download => {
-            let videos = get_videos(&store, &schemas::PipelineStage::Download, cli.force, cli.max_videos)?;
+            let videos = get_videos(&store, &schemas::PipelineStage::Download, cli.force, cli.max_videos, cli.piece.as_deref())?;
             tracing::info!("Downloading audio for {} videos", videos.len());
             for video_id in &videos {
                 if cli.dry_run {
@@ -123,7 +127,7 @@ async fn main() -> Result<()> {
             }
         }
         Commands::Transcribe => {
-            let videos = get_videos(&store, &schemas::PipelineStage::Transcribe, cli.force, cli.max_videos)?;
+            let videos = get_videos(&store, &schemas::PipelineStage::Transcribe, cli.force, cli.max_videos, cli.piece.as_deref())?;
             tracing::info!("Transcribing {} videos", videos.len());
             if !videos.is_empty() {
                 let model_path = cli.data_dir.join("models").join(format!("ggml-{}.bin", cli.whisper_model));
@@ -144,7 +148,7 @@ async fn main() -> Result<()> {
             }
         }
         Commands::Segment => {
-            let videos = get_videos(&store, &schemas::PipelineStage::Segment, cli.force, cli.max_videos)?;
+            let videos = get_videos(&store, &schemas::PipelineStage::Segment, cli.force, cli.max_videos, cli.piece.as_deref())?;
             tracing::info!("Segmenting {} videos", videos.len());
             for video_id in &videos {
                 if cli.dry_run {
@@ -161,7 +165,7 @@ async fn main() -> Result<()> {
             }
         }
         Commands::Extract => {
-            let videos = get_videos(&store, &schemas::PipelineStage::Extract, cli.force, cli.max_videos)?;
+            let videos = get_videos(&store, &schemas::PipelineStage::Extract, cli.force, cli.max_videos, cli.piece.as_deref())?;
             tracing::info!("Extracting teaching moments from {} videos", videos.len());
             if !videos.is_empty() {
                 let client = llm_client::LlmClient::new(Some(&cli.llm_url), &cli.llm_model)?;
@@ -193,6 +197,7 @@ async fn main() -> Result<()> {
                 cli.force,
                 cli.max_videos,
                 cli.dry_run,
+                cli.piece.clone(),
             );
             let report = pipe.run().await?;
             tracing::info!("{}", report);
@@ -210,15 +215,15 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-/// Get videos to process for a given stage, respecting --force and --max-videos.
+/// Get videos to process for a given stage, respecting --force, --max-videos, and --piece.
 fn get_videos(
     store: &store::MasterclassStore,
     stage: &schemas::PipelineStage,
     force: bool,
     max_videos: Option<usize>,
+    piece_filter: Option<&str>,
 ) -> Result<Vec<String>> {
     let mut videos = if force {
-        // With --force, return all known videos (regardless of completion state)
         store
             .load_videos()?
             .into_iter()
@@ -227,6 +232,20 @@ fn get_videos(
     } else {
         store.get_videos_needing_stage(stage)?
     };
+
+    // Filter by piece if --piece is set
+    if let Some(filter) = piece_filter {
+        let filter_lower = filter.to_lowercase();
+        let video_map = store.load_video_map()?;
+        videos.retain(|id| {
+            if let Some(meta) = video_map.get(id) {
+                meta.pieces.iter().any(|p| p.to_lowercase().contains(&filter_lower))
+            } else {
+                false
+            }
+        });
+    }
+
     if let Some(n) = max_videos {
         videos.truncate(n);
     }

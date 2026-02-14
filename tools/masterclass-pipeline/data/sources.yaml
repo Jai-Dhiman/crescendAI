@@ -1,70 +1,186 @@
-# Curated masterclass sources for the teaching moments extraction pipeline.
+# Chopin Ballades & Etudes masterclass sources.
 #
-# channels: YouTube channels to scan for masterclass videos
-# videos: Specific video URLs with known metadata
-# search_queries: YouTube search queries to discover new content
+# Scoped to pieces that exist in the ASAP dataset (aligned score+performance pairs).
+# Processing order: one piece at a time through the full pipeline cycle.
+#
+# ASAP dataset: https://github.com/CPJKU/asap-dataset
+# ASAP path format: Chopin/Ballades/{n}/ or Chopin/Etudes_op_{10,25}/{n}/
 
-channels:
-  - url: "https://www.youtube.com/@tabornemusic"
-    teacher: "Tonebase Piano Faculty"
-    max_videos: 30
-
-  - url: "https://www.youtube.com/@PianistMagazine"
-    teacher: null
-    max_videos: 30
-
-  - url: "https://www.youtube.com/@JuilliardSchool"
-    teacher: null
-    max_videos: 20
-
-  - url: "https://www.youtube.com/@VerbierFestival"
-    teacher: null
-    max_videos: 20
+# No channel scanning - all videos are curated from research.
+channels: []
 
 videos:
-  - url: "https://www.youtube.com/watch?v=zJBLCeAHVFg"
-    teacher: "Lang Lang"
-    piece: "Chopin Ballade No. 1 in G minor"
-    composer: "Chopin"
+  # ---------------------------------------------------------------------------
+  # Ballade No. 1 in G minor, Op. 23
+  # ASAP: 18 performances | Priority: 1 (most masterclass + ASAP coverage)
+  # ---------------------------------------------------------------------------
 
-  - url: "https://www.youtube.com/watch?v=dv8xjkRFyUo"
-    teacher: "Daniel Barenboim"
-    piece: "Beethoven Piano Sonata No. 8 Pathetique"
-    composer: "Beethoven"
-
-  - url: "https://www.youtube.com/watch?v=8O9_ZUiFtpE"
-    teacher: "Murray Perahia"
-    piece: null
-    composer: null
-
-  - url: "https://www.youtube.com/watch?v=UkO-x6FLjDo"
+  - url: "https://www.youtube.com/watch?v=7rUiMR-evTw"
     teacher: "Garrick Ohlsson"
-    piece: "Chopin Etudes"
+    piece: "Chopin Ballade No. 1 in G minor, Op. 23"
     composer: "Chopin"
+    # Student: Alon Kariv | JMC 21 May 2013
+    # Also covers: Etude Op. 10 No. 4, Etude Op. 10 No. 12 (multi-piece session)
+    # Format confidence: high
 
-  - url: "https://www.youtube.com/watch?v=TFi_UrGqyBE"
-    teacher: "Stephen Hough"
-    piece: null
-    composer: null
+  - url: "https://www.youtube.com/watch?v=7FTdGbVCPyQ"
+    teacher: "Arie Vardi"
+    piece: "Chopin Ballade No. 1 in G minor, Op. 23"
+    composer: "Chopin"
+    # Student: Netanel Grinshtein | JMC 2010
+    # Language: Hebrew | Format confidence: high
 
-  - url: "https://www.youtube.com/watch?v=2bOaAcjfBwY"
-    teacher: "Mitsuko Uchida"
-    piece: "Mozart Piano Sonata"
-    composer: "Mozart"
+  - url: "https://www.youtube.com/watch?v=ALDzxU452gA"
+    teacher: "Krystian Zimerman"
+    piece: "Chopin Ballade No. 1 in G minor, Op. 23"
+    composer: "Chopin"
+    # Students: Marie Rorbech, Christina Bjorkoe, Nikolaj Koppel, et al.
+    # Royal Danish Academy of Music, Copenhagen, 28-29 May 1994
+    # Danish Broadcasting Corporation documentary | Multi-piece session (also Schumann)
+    # Format confidence: high
 
-  - url: "https://www.youtube.com/watch?v=V-sjgAIjV1g"
-    teacher: "Seymour Bernstein"
-    piece: null
-    composer: null
+  - url: "https://www.youtube.com/watch?v=TlBmdNm3uhc"
+    teacher: "Arthur Rubinstein"
+    piece: "Chopin Ballade No. 1 in G minor, Op. 23"
+    composer: "Chopin"
+    # Student: possibly Yefim Bronfman | JMC 1978
+    # Audio quality: low (archival 1978 recording)
+    # Format confidence: high
 
-  - url: "https://www.youtube.com/watch?v=49MeBLuUiwk"
-    teacher: "Boris Berman"
-    piece: "Prokofiev Piano Sonata"
-    composer: "Prokofiev"
+  - url: "https://www.youtube.com/watch?v=fR51x3LMbhs"
+    teacher: "Murray Perahia"
+    piece: "Chopin Ballade No. 1 in G minor, Op. 23"
+    composer: "Chopin"
+    # Student: Yoav Roth | JMC 2022
+    # Format confidence: high
 
-search_queries:
-  - "piano masterclass teacher stops student feedback"
-  - "piano lesson correction technique masterclass"
-  - "concert pianist masterclass teaching"
-  - "classical piano coaching session"
-  - "piano interpretation masterclass university"
+  - url: "https://www.youtube.com/watch?v=jmJhV8Aj7oU"
+    teacher: "Benjamin Zander"
+    piece: "Chopin Ballade No. 1 in G minor, Op. 23"
+    composer: "Chopin"
+    # Student: Vartan Arakelian | Boston Public Library, April 2024
+    # Interpretation class format | Format confidence: high
+
+  # ---------------------------------------------------------------------------
+  # Ballade No. 3 in A-flat major, Op. 47
+  # ASAP: 3 performances | Priority: 3
+  # ---------------------------------------------------------------------------
+
+  - url: "https://www.youtube.com/watch?v=-hwINCeUap8"
+    teacher: "Garrick Ohlsson"
+    piece: "Chopin Ballade No. 3 in A-flat major, Op. 47"
+    composer: "Chopin"
+    # Student: Ido Akov | JMC 20 May 2013
+    # Format confidence: high
+
+  # Katsaris NHK Vol. IX - Ballade No. 3
+  # URL needs manual discovery on PianoVirtuosity YouTube channel
+  # Teacher: Cyprien Katsaris | NHK TV 1993 | ~60min | Language: French
+  # Format confidence: medium (URL unconfirmed)
+
+  # Elisi / Yuchao Zhou - PianoTexas 2024
+  # YouTube ID needs extraction from enricoelisipiano.com/masterclass-videos/
+  # Teacher: Enrico Elisi | Amateur Category | Format confidence: high
+
+  # ---------------------------------------------------------------------------
+  # Ballade No. 2 in F major, Op. 38
+  # ASAP: 5 performances | Priority: 4
+  # No free masterclass videos found. Paywalled: Dmitri Alexeev (Saline Royale)
+  # ---------------------------------------------------------------------------
+
+  # ---------------------------------------------------------------------------
+  # Ballade No. 4 in F minor, Op. 52
+  # ASAP: 12 performances | Priority: 2 (high ASAP count, but paywalled only)
+  # No free masterclass videos found.
+  # Paywalled (Saline Royale, 7-day free trial):
+  #   - Stephen Kovacevich / Rodolphe Menguy (41 min)
+  #   - Nelson Goerner / Leo Pensel (48 min)
+  #   - Rena Shereshevskaya
+  # ---------------------------------------------------------------------------
+
+  # ---------------------------------------------------------------------------
+  # Etude Op. 10 No. 4 in C-sharp minor
+  # ASAP: 22 performances | Priority: 2
+  # Covered in Ohlsson/Kariv multi-piece video (7rUiMR-evTw) above
+  # ---------------------------------------------------------------------------
+
+  # ---------------------------------------------------------------------------
+  # Etude Op. 10 No. 12 in C minor "Revolutionary"
+  # ASAP: 13 performances | Priority: 2
+  # Covered in Ohlsson/Kariv multi-piece video (7rUiMR-evTw) above
+  # ---------------------------------------------------------------------------
+
+  # ---------------------------------------------------------------------------
+  # Etude Op. 25 No. 11 in A minor "Winter Wind"
+  # ASAP: 24 performances | Priority: 2
+  # ---------------------------------------------------------------------------
+
+  - url: "https://www.youtube.com/watch?v=ll0qDBCxCEc"
+    teacher: "Garrick Ohlsson"
+    piece: "Chopin Etude Op. 25 No. 11 in A minor"
+    composer: "Chopin"
+    # Student: Netanel Grinshtein | JMC 20 May 2013
+    # Format confidence: high
+
+  # ---------------------------------------------------------------------------
+  # Etude Op. 10 No. 1 in C major "Waterfall"
+  # ASAP: 25 performances | Priority: 3
+  # No free masterclass videos found. Paywalled: Denes Varjon (Saline Royale)
+  # ---------------------------------------------------------------------------
+
+  # ---------------------------------------------------------------------------
+  # Etude Op. 10 No. 8 in F major
+  # ASAP: 28 performances (highest count!) | Priority: 3
+  # No masterclass videos found anywhere.
+  # ---------------------------------------------------------------------------
+
+  # ---------------------------------------------------------------------------
+  # Etude Op. 25 No. 10 in B minor "Octave"
+  # ASAP: 12 performances | Priority: 3
+  # No masterclass videos found.
+  # ---------------------------------------------------------------------------
+
+  # ---------------------------------------------------------------------------
+  # Etude Op. 25 No. 12 in C minor "Ocean"
+  # ASAP: 9 performances | Priority: 3
+  # No free masterclass videos. Paywalled: Finghin Collins (Saline Royale),
+  # Ricardo Castro (iClassical Academy)
+  # ---------------------------------------------------------------------------
+
+  # ---------------------------------------------------------------------------
+  # Etude Op. 10 No. 2 in A minor "Chromatic"
+  # ASAP: 11 performances | No masterclass videos found.
+  # ---------------------------------------------------------------------------
+
+  # ---------------------------------------------------------------------------
+  # Etude Op. 10 No. 5 in G-flat major "Black Keys"
+  # ASAP: 11 performances | No free masterclass videos.
+  # Paywalled: Wojciech Switala (PTNA e-Learning)
+  # ---------------------------------------------------------------------------
+
+  # ---------------------------------------------------------------------------
+  # Remaining ASAP pieces with low performance counts or no masterclass coverage:
+  #
+  # Etude Op. 25 No. 1 in A-flat major "Aeolian Harp"  | ASAP: 5  | No videos
+  # Etude Op. 10 No. 10 in A-flat major               | ASAP: 4  | No videos
+  # Etude Op. 25 No. 8 in D-flat major "Sixths"       | ASAP: 4  | No videos
+  # Etude Op. 10 No. 7 in C major                     | ASAP: 3  | No videos
+  # Etude Op. 25 No. 4 in A minor                     | ASAP: 2  | No videos
+  # Etude Op. 25 No. 5 in E minor                     | ASAP: 2  | No videos
+  # Etude Op. 10 No. 3 in E major "Tristesse"         | ASAP: 1  | Katsaris NHK (URL unknown)
+  # Etude Op. 25 No. 2 in F minor "Bees"              | ASAP: 1  | No videos
+  # ---------------------------------------------------------------------------
+
+# Bilibili mirrors (use as fallback if YouTube originals are removed)
+# - https://www.bilibili.com/video/av50085049/ (Ohlsson/Grinshtein Winter Wind, dup of ll0qDBCxCEc)
+# - https://www.bilibili.com/video/av33782160/ (Golovin Ballade No. 1, medium confidence)
+
+# NAC Canada (uncertain yt-dlp support)
+# - https://nac-cna.ca/en/video/young-artists-program-2018-piano-masterclass-with-angela-cheng
+#   Teacher: Angela Cheng | Student: Stephen Joven-Lee | Ballade No. 1 (partial, multi-student)
+
+# Low confidence / needs verification
+# - https://www.youtube.com/watch?v=Nvh-yxybSog (Lewin Ballade No. 1, likely lecture-only)
+# - https://www.dailymotion.com/video/x2u3npw (Revolutionary Etude tutorial, low confidence)
+
+search_queries: []

@@ -15,6 +15,7 @@ pub struct Pipeline {
     force: bool,
     max_videos: Option<usize>,
     dry_run: bool,
+    piece_filter: Option<String>,
 }
 
 pub struct PipelineReport {
@@ -54,6 +55,7 @@ impl Pipeline {
         force: bool,
         max_videos: Option<usize>,
         dry_run: bool,
+        piece_filter: Option<String>,
     ) -> Self {
         Self {
             store,
@@ -64,13 +66,18 @@ impl Pipeline {
             force,
             max_videos,
             dry_run,
+            piece_filter,
         }
     }
 
     pub async fn run(self) -> Result<PipelineReport> {
         let mut stages = Vec::new();
 
-        // Stage 1: Discover
+        if let Some(ref piece) = self.piece_filter {
+            tracing::info!("=== Piece filter: {} ===", piece);
+        }
+
+        // Stage 1: Discover (imports all videos from sources.yaml)
         tracing::info!("=== Stage: Discover ===");
         let discover_report = self.run_discover().await?;
         stages.push(discover_report);
@@ -295,6 +302,19 @@ impl Pipeline {
         } else {
             self.store.get_videos_needing_stage(stage)?
         };
+
+        // Filter by piece if --piece is set
+        if let Some(ref filter) = self.piece_filter {
+            let filter_lower = filter.to_lowercase();
+            let video_map = self.store.load_video_map()?;
+            videos.retain(|id| {
+                if let Some(meta) = video_map.get(id) {
+                    meta.pieces.iter().any(|p| p.to_lowercase().contains(&filter_lower))
+                } else {
+                    false
+                }
+            });
+        }
 
         if let Some(max) = self.max_videos {
             videos.truncate(max);
