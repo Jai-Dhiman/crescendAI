@@ -2,7 +2,11 @@
 
 import torch
 import pytest
-from model_improvement.symbolic_encoders import TransformerSymbolicEncoder, GNNSymbolicEncoder
+from model_improvement.symbolic_encoders import (
+    TransformerSymbolicEncoder,
+    GNNSymbolicEncoder,
+    ContinuousSymbolicEncoder,
+)
 
 
 class TestTransformerSymbolicEncoder:
@@ -93,5 +97,37 @@ class TestGNNSymbolicEncoder:
             "pos_edges": torch.randint(0, 20, (2, 10)),
             "neg_edges": torch.randint(0, 20, (2, 10)),
         }
+        loss = model.training_step(batch, 0)
+        assert loss.ndim == 0
+
+
+class TestContinuousSymbolicEncoder:
+    def test_forward_shape(self):
+        model = ContinuousSymbolicEncoder(
+            input_channels=5,
+            hidden_dim=512,
+            num_labels=19,
+        )
+        x = torch.randn(4, 200, 5)  # [B, T, C]
+        mask = torch.ones(4, 200, dtype=torch.bool)
+        out = model(x, mask)
+        assert out["z_symbolic"].shape == (4, 512)
+        assert out["scores"].shape == (4, 19)
+
+    def test_contrastive_pretrain_step(self):
+        model = ContinuousSymbolicEncoder(
+            input_channels=5,
+            hidden_dim=512,
+            num_labels=19,
+            stage="pretrain",
+        )
+        batch = {
+            "features": torch.randn(4, 200, 5),
+            "mask": torch.ones(4, 200, dtype=torch.bool),
+            "masked_features": torch.randn(4, 200, 5),
+            "masked_positions": torch.zeros(4, 200, dtype=torch.bool),
+        }
+        # Set some positions as masked
+        batch["masked_positions"][:, 50:70] = True
         loss = model.training_step(batch, 0)
         assert loss.ndim == 0
