@@ -50,6 +50,7 @@ dependencies = [
     "peft>=0.7.0",
     "miditok>=3.0.0",
     "audiomentations>=0.34.0",
+    "torch-geometric>=2.4.0",
 ]
 
 [project.optional-dependencies]

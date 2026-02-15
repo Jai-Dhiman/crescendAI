@@ -322,3 +322,310 @@ class SinusoidalPositionalEncoding(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Add positional encoding to input [B, T, D]."""
         return x + self.pe[:, : x.size(1)]
+
+
+class GNNSymbolicEncoder(pl.LightningModule):
+    """S2: GNN on score graph using GATConv layers.
+
+    Node features: [pitch, velocity, onset, duration, pedal, voice].
+    Edge types: temporal adjacency, harmonic interval, voice grouping.
+
+    Two stages:
+    - pretrain: Link prediction (predict removed edges).
+    - finetune: Pairwise ranking + regression on labeled pairs.
+
+    Architecture: node feature MLP + N GATConv layers + global attention
+    pooling + projection + ranking/regression heads.
+    """
+
+    def __init__(
+        self,
+        node_features: int = 6,
+        hidden_dim: int = 512,
+        num_layers: int = 4,
+        num_labels: int = 19,
+        heads: int = 4,
+        dropout: float = 0.1,
+        stage: str = "finetune",
+        learning_rate: float = 1e-4,
+        weight_decay: float = 1e-5,
+        temperature: float = 0.07,
+        lambda_contrastive: float = 0.3,
+        lambda_regression: float = 0.5,
+        margin: float = 0.2,
+        ambiguous_threshold: float = 0.05,
+        label_smoothing: float = 0.0,
+        max_epochs: int = 200,
+    ):
+        super().__init__()
+        self.save_hyperparameters()
+        self.lr = learning_rate
+        self.wd = weight_decay
+        self.temperature = temperature
+        self.lambda_contrastive = lambda_contrastive
+        self.lambda_regression = lambda_regression
+        self.max_epochs = max_epochs
+        self.num_labels = num_labels
+        self.hidden_dim = hidden_dim
+        self.stage = stage
+
+        if stage not in ("pretrain", "finetune"):
+            raise ValueError(f"stage must be 'pretrain' or 'finetune', got '{stage}'")
+
+        from torch_geometric.nn import GATConv, GlobalAttention
+
+        # Node feature projection
+        self.node_embed = nn.Sequential(
+            nn.Linear(node_features, hidden_dim),
+            nn.LayerNorm(hidden_dim),
+            nn.GELU(),
+            nn.Dropout(dropout),
+        )
+
+        # GAT layers (multi-head attention, concat heads then project)
+        self.gat_layers = nn.ModuleList()
+        self.gat_norms = nn.ModuleList()
+        for _ in range(num_layers):
+            gat = GATConv(
+                in_channels=hidden_dim,
+                out_channels=hidden_dim // heads,
+                heads=heads,
+                dropout=dropout,
+                concat=True,
+            )
+            self.gat_layers.append(gat)
+            self.gat_norms.append(nn.LayerNorm(hidden_dim))
+
+        # Global attention pooling (learned gate)
+        gate_nn = nn.Sequential(nn.Linear(hidden_dim, 1))
+        self.global_pool = GlobalAttention(gate_nn=gate_nn)
+
+        # Projection to hidden_dim
+        self.projection = nn.Sequential(
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.LayerNorm(hidden_dim),
+            nn.GELU(),
+            nn.Dropout(dropout),
+        )
+
+        # -- Pretrain head: link prediction (dot product decoder) --
+        self.link_pred_head = nn.Sequential(
+            nn.Linear(hidden_dim * 2, hidden_dim),
+            nn.GELU(),
+            nn.Linear(hidden_dim, 1),
+        )
+
+        # -- Finetune heads --
+        comparison_dim = hidden_dim * 4
+        self.comparator = nn.Sequential(
+            nn.Linear(comparison_dim, hidden_dim),
+            nn.LayerNorm(hidden_dim),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_dim, hidden_dim // 2),
+            nn.GELU(),
+            nn.Dropout(dropout),
+        )
+
+        self.ranking_heads = nn.ModuleList([
+            nn.Linear(hidden_dim // 2, 1) for _ in range(num_labels)
+        ])
+
+        self.regression_head = nn.Sequential(
+            nn.Linear(hidden_dim, hidden_dim // 2),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_dim // 2, num_labels),
+            nn.Sigmoid(),
+        )
+
+        self.contrastive_proj = nn.Sequential(
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.GELU(),
+            nn.Linear(hidden_dim, hidden_dim // 2),
+        )
+
+        self.ranking_loss = DimensionWiseRankingLoss(
+            margin=margin,
+            ambiguous_threshold=ambiguous_threshold,
+            label_smoothing=label_smoothing,
+        )
+
+        self.val_outputs: list[dict] = []
+
+    def _gnn_forward(
+        self,
+        x: torch.Tensor,
+        edge_index: torch.Tensor,
+    ) -> torch.Tensor:
+        """Run GAT layers, returning node embeddings [N, hidden_dim]."""
+        h = self.node_embed(x)
+        for gat, norm in zip(self.gat_layers, self.gat_norms):
+            h_new = gat(h, edge_index)
+            h_new = norm(h_new)
+            h_new = F.gelu(h_new)
+            h = h + h_new  # residual
+        return h
+
+    def encode_graph(
+        self,
+        x: torch.Tensor,
+        edge_index: torch.Tensor,
+        batch: torch.Tensor,
+    ) -> torch.Tensor:
+        """Encode a batched graph to graph-level embedding [B, hidden_dim]."""
+        node_h = self._gnn_forward(x, edge_index)
+        graph_h = self.global_pool(node_h, batch)
+        return self.projection(graph_h)
+
+    def forward(
+        self,
+        x: torch.Tensor,
+        edge_index: torch.Tensor,
+        batch: torch.Tensor,
+    ) -> dict:
+        z = self.encode_graph(x, edge_index, batch)
+        scores = self.regression_head(z)
+        return {"z_symbolic": z, "scores": scores}
+
+    def compare(self, z_a: torch.Tensor, z_b: torch.Tensor) -> torch.Tensor:
+        diff = z_a - z_b
+        prod = z_a * z_b
+        concat = torch.cat([z_a, z_b, diff, prod], dim=-1)
+        comp = self.comparator(concat)
+        logits = [head(comp) for head in self.ranking_heads]
+        return torch.cat(logits, dim=-1)
+
+    def _link_prediction_score(
+        self, node_h: torch.Tensor, edges: torch.Tensor
+    ) -> torch.Tensor:
+        """Score edges for link prediction. edges shape [2, E]."""
+        src = node_h[edges[0]]
+        dst = node_h[edges[1]]
+        pair_feat = torch.cat([src, dst], dim=-1)
+        return self.link_pred_head(pair_feat).squeeze(-1)
+
+    def training_step(self, batch: dict, idx: int) -> torch.Tensor:
+        if self.stage == "pretrain":
+            return self._pretrain_step(batch)
+        return self._finetune_step(batch)
+
+    def _pretrain_step(self, batch: dict) -> torch.Tensor:
+        """Link prediction loss: predict positive vs negative edges."""
+        node_h = self._gnn_forward(batch["x"], batch["edge_index"])
+
+        pos_scores = self._link_prediction_score(node_h, batch["pos_edges"])
+        neg_scores = self._link_prediction_score(node_h, batch["neg_edges"])
+
+        pos_labels = torch.ones_like(pos_scores)
+        neg_labels = torch.zeros_like(neg_scores)
+
+        all_scores = torch.cat([pos_scores, neg_scores])
+        all_labels = torch.cat([pos_labels, neg_labels])
+
+        loss = F.binary_cross_entropy_with_logits(all_scores, all_labels)
+        self.log("train_link_loss", loss, prog_bar=True)
+        return loss
+
+    def _finetune_step(self, batch: dict) -> torch.Tensor:
+        """Pairwise ranking + regression on graph pairs."""
+        z_a = self.encode_graph(
+            batch["x_a"], batch["edge_index_a"], batch["batch_a"]
+        )
+        z_b = self.encode_graph(
+            batch["x_b"], batch["edge_index_b"], batch["batch_b"]
+        )
+
+        ranking_logits = self.compare(z_a, z_b)
+
+        l_rank = self.ranking_loss(
+            ranking_logits, batch["labels_a"], batch["labels_b"],
+        )
+
+        proj_a = self.contrastive_proj(z_a)
+        proj_b = self.contrastive_proj(z_b)
+        all_proj = torch.cat([proj_a, proj_b], dim=0)
+        all_pieces = torch.cat([batch["piece_ids_a"], batch["piece_ids_b"]], dim=0)
+        l_contrast = piece_based_infonce_loss(
+            all_proj, all_pieces, temperature=self.temperature
+        )
+
+        scores_a = self.regression_head(z_a)
+        scores_b = self.regression_head(z_b)
+        l_reg = (
+            F.mse_loss(scores_a, batch["labels_a"])
+            + F.mse_loss(scores_b, batch["labels_b"])
+        ) / 2.0
+
+        loss = (
+            l_rank
+            + self.lambda_contrastive * l_contrast
+            + self.lambda_regression * l_reg
+        )
+
+        self.log("train_loss", loss, prog_bar=True)
+        self.log("train_rank_loss", l_rank)
+        self.log("train_contrast_loss", l_contrast)
+        self.log("train_reg_loss", l_reg)
+
+        return loss
+
+    def validation_step(self, batch: dict, idx: int) -> None:
+        if self.stage == "pretrain":
+            node_h = self._gnn_forward(batch["x"], batch["edge_index"])
+            pos_scores = self._link_prediction_score(node_h, batch["pos_edges"])
+            neg_scores = self._link_prediction_score(node_h, batch["neg_edges"])
+            all_scores = torch.cat([pos_scores, neg_scores])
+            all_labels = torch.cat([
+                torch.ones_like(pos_scores), torch.zeros_like(neg_scores)
+            ])
+            loss = F.binary_cross_entropy_with_logits(all_scores, all_labels)
+            self.log("val_link_loss", loss, prog_bar=True)
+        else:
+            z_a = self.encode_graph(
+                batch["x_a"], batch["edge_index_a"], batch["batch_a"]
+            )
+            z_b = self.encode_graph(
+                batch["x_b"], batch["edge_index_b"], batch["batch_b"]
+            )
+            ranking_logits = self.compare(z_a, z_b)
+            l_rank = self.ranking_loss(
+                ranking_logits, batch["labels_a"], batch["labels_b"],
+            )
+            self.log("val_loss", l_rank, prog_bar=True)
+
+            self.val_outputs.append({
+                "logits": ranking_logits.cpu(),
+                "labels_a": batch["labels_a"].cpu(),
+                "labels_b": batch["labels_b"].cpu(),
+            })
+
+    def on_validation_epoch_end(self) -> None:
+        if not self.val_outputs:
+            return
+
+        all_logits = torch.cat([x["logits"] for x in self.val_outputs])
+        all_labels_a = torch.cat([x["labels_a"] for x in self.val_outputs])
+        all_labels_b = torch.cat([x["labels_b"] for x in self.val_outputs])
+
+        true_ranking = (all_labels_a > all_labels_b).float()
+        pred_ranking = (all_logits > 0).float()
+
+        diff = (all_labels_a - all_labels_b).abs()
+        non_ambiguous = diff >= 0.05
+
+        if non_ambiguous.any():
+            correct = (pred_ranking[non_ambiguous] == true_ranking[non_ambiguous]).float()
+            accuracy = correct.mean().item()
+        else:
+            accuracy = 0.5
+
+        self.log("val_pairwise_acc", accuracy, prog_bar=True)
+        self.val_outputs.clear()
+
+    def configure_optimizers(self) -> dict:
+        opt = torch.optim.AdamW(self.parameters(), lr=self.lr, weight_decay=self.wd)
+        sch = torch.optim.lr_scheduler.CosineAnnealingLR(
+            opt, T_max=self.max_epochs, eta_min=1e-6
+        )
+        return {"optimizer": opt, "lr_scheduler": {"scheduler": sch, "interval": "epoch"}}
