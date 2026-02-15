@@ -4,6 +4,7 @@ mod config;
 mod discovery;
 mod download;
 mod extract;
+mod identify;
 mod pipeline;
 mod schemas;
 mod segment;
@@ -53,6 +54,14 @@ struct Cli {
     /// Only process videos matching this piece (substring match, case-insensitive)
     #[arg(long, global = true)]
     piece: Option<String>,
+
+    /// OpenAI API key (for Whisper API and cloud LLMs). Also reads OPENAI_API_KEY env var.
+    #[arg(long, env = "OPENAI_API_KEY", global = true)]
+    openai_api_key: Option<String>,
+
+    /// Use local Whisper model instead of API
+    #[arg(long, global = true)]
+    local: bool,
 }
 
 #[derive(Subcommand)]
@@ -74,6 +83,9 @@ enum Commands {
 
     /// Run LLM extraction of teaching moments
     Extract,
+
+    /// Identify teaching moments from transcript (replaces segment+extract)
+    Identify,
 
     /// Run full pipeline (all stages)
     Run,
@@ -130,18 +142,39 @@ async fn main() -> Result<()> {
             let videos = get_videos(&store, &schemas::PipelineStage::Transcribe, cli.force, cli.max_videos, cli.piece.as_deref())?;
             tracing::info!("Transcribing {} videos", videos.len());
             if !videos.is_empty() {
-                let model_path = cli.data_dir.join("models").join(format!("ggml-{}.bin", cli.whisper_model));
-                let ctx = transcribe::load_whisper_context(&model_path)?;
-                for video_id in &videos {
-                    if cli.dry_run {
-                        tracing::info!("[dry-run] Would transcribe {}", video_id);
-                        continue;
+                if cli.local {
+                    let model_path = cli.data_dir.join("models").join(format!("ggml-{}.bin", cli.whisper_model));
+                    let ctx = transcribe::load_whisper_context(&model_path)?;
+                    for video_id in &videos {
+                        if cli.dry_run {
+                            tracing::info!("[dry-run] Would transcribe {} (local)", video_id);
+                            continue;
+                        }
+                        match transcribe::transcribe_video(&ctx, &store, video_id) {
+                            Ok(_) => store.mark_stage_complete(video_id, &schemas::PipelineStage::Transcribe)?,
+                            Err(e) => {
+                                tracing::error!("Failed to transcribe {}: {}", video_id, e);
+                                store.mark_stage_failed(video_id, &schemas::PipelineStage::Transcribe, &e.to_string())?;
+                            }
+                        }
                     }
-                    match transcribe::transcribe_video(&ctx, &store, video_id) {
-                        Ok(_) => store.mark_stage_complete(video_id, &schemas::PipelineStage::Transcribe)?,
-                        Err(e) => {
-                            tracing::error!("Failed to transcribe {}: {}", video_id, e);
-                            store.mark_stage_failed(video_id, &schemas::PipelineStage::Transcribe, &e.to_string())?;
+                } else {
+                    let api_key = cli.openai_api_key.as_deref()
+                        .ok_or_else(|| anyhow::anyhow!("OpenAI API key required for Whisper API. Set --openai-api-key or OPENAI_API_KEY env var. Use --local for local Whisper."))?;
+                    let http_client = reqwest::Client::builder()
+                        .timeout(std::time::Duration::from_secs(600))
+                        .build()?;
+                    for video_id in &videos {
+                        if cli.dry_run {
+                            tracing::info!("[dry-run] Would transcribe {} (API)", video_id);
+                            continue;
+                        }
+                        match transcribe::transcribe_video_api(&http_client, api_key, &store, video_id).await {
+                            Ok(_) => store.mark_stage_complete(video_id, &schemas::PipelineStage::Transcribe)?,
+                            Err(e) => {
+                                tracing::error!("Failed to transcribe {}: {}", video_id, e);
+                                store.mark_stage_failed(video_id, &schemas::PipelineStage::Transcribe, &e.to_string())?;
+                            }
                         }
                     }
                 }
@@ -168,7 +201,7 @@ async fn main() -> Result<()> {
             let videos = get_videos(&store, &schemas::PipelineStage::Extract, cli.force, cli.max_videos, cli.piece.as_deref())?;
             tracing::info!("Extracting teaching moments from {} videos", videos.len());
             if !videos.is_empty() {
-                let client = llm_client::LlmClient::new(Some(&cli.llm_url), &cli.llm_model)?;
+                let client = llm_client::LlmClient::new(Some(&cli.llm_url), &cli.llm_model, None)?;
                 for video_id in &videos {
                     if cli.dry_run {
                         tracing::info!("[dry-run] Would extract from {}", video_id);
@@ -187,6 +220,31 @@ async fn main() -> Result<()> {
                 }
             }
         }
+        Commands::Identify => {
+            let api_key = cli.openai_api_key.as_deref()
+                .ok_or_else(|| anyhow::anyhow!("OpenAI API key required. Set --openai-api-key or OPENAI_API_KEY env var."))?;
+            let videos = get_videos(&store, &schemas::PipelineStage::Identify, cli.force, cli.max_videos, cli.piece.as_deref())?;
+            tracing::info!("Identifying teaching moments in {} videos", videos.len());
+            if !videos.is_empty() {
+                let client = llm_client::LlmClient::new(Some(&cli.llm_url), &cli.llm_model, Some(api_key.to_string()))?;
+                for video_id in &videos {
+                    if cli.dry_run {
+                        tracing::info!("[dry-run] Would identify moments in {}", video_id);
+                        continue;
+                    }
+                    match identify::identify_teaching_moments(&client, &store, video_id).await {
+                        Ok(moments) => {
+                            tracing::info!("Identified {} moments in {}", moments.len(), video_id);
+                            store.mark_stage_complete(video_id, &schemas::PipelineStage::Identify)?;
+                        }
+                        Err(e) => {
+                            tracing::error!("Failed to identify moments in {}: {}", video_id, e);
+                            store.mark_stage_failed(video_id, &schemas::PipelineStage::Identify, &e.to_string())?;
+                        }
+                    }
+                }
+            }
+        }
         Commands::Run => {
             let pipe = pipeline::Pipeline::new(
                 store,
@@ -198,6 +256,8 @@ async fn main() -> Result<()> {
                 cli.max_videos,
                 cli.dry_run,
                 cli.piece.clone(),
+                cli.openai_api_key.clone(),
+                cli.local,
             );
             let report = pipe.run().await?;
             tracing::info!("{}", report);

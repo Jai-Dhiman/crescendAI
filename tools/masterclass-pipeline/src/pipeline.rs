@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use crate::schemas::PipelineStage;
 use crate::store::MasterclassStore;
-use crate::{discovery, download, extract, llm_client, segment, transcribe};
+use crate::{discovery, download, extract, identify, llm_client, segment, transcribe};
 
 pub struct Pipeline {
     store: MasterclassStore,
@@ -16,6 +16,8 @@ pub struct Pipeline {
     max_videos: Option<usize>,
     dry_run: bool,
     piece_filter: Option<String>,
+    openai_api_key: Option<String>,
+    local: bool,
 }
 
 pub struct PipelineReport {
@@ -56,6 +58,8 @@ impl Pipeline {
         max_videos: Option<usize>,
         dry_run: bool,
         piece_filter: Option<String>,
+        openai_api_key: Option<String>,
+        local: bool,
     ) -> Self {
         Self {
             store,
@@ -67,6 +71,8 @@ impl Pipeline {
             max_videos,
             dry_run,
             piece_filter,
+            openai_api_key,
+            local,
         }
     }
 
@@ -77,30 +83,28 @@ impl Pipeline {
             tracing::info!("=== Piece filter: {} ===", piece);
         }
 
-        // Stage 1: Discover (imports all videos from sources.yaml)
         tracing::info!("=== Stage: Discover ===");
-        let discover_report = self.run_discover().await?;
-        stages.push(discover_report);
+        stages.push(self.run_discover().await?);
 
-        // Stage 2: Download
         tracing::info!("=== Stage: Download ===");
-        let download_report = self.run_download().await?;
-        stages.push(download_report);
+        stages.push(self.run_download().await?);
 
-        // Stage 3: Transcribe
         tracing::info!("=== Stage: Transcribe ===");
-        let transcribe_report = self.run_transcribe()?;
-        stages.push(transcribe_report);
+        if self.local {
+            stages.push(self.run_transcribe_local()?);
+        } else {
+            stages.push(self.run_transcribe_api().await?);
+        }
 
-        // Stage 4: Segment
-        tracing::info!("=== Stage: Segment ===");
-        let segment_report = self.run_segment()?;
-        stages.push(segment_report);
-
-        // Stage 5: Extract
-        tracing::info!("=== Stage: Extract ===");
-        let extract_report = self.run_extract().await?;
-        stages.push(extract_report);
+        if self.local {
+            tracing::info!("=== Stage: Segment ===");
+            stages.push(self.run_segment()?);
+            tracing::info!("=== Stage: Extract ===");
+            stages.push(self.run_extract().await?);
+        } else {
+            tracing::info!("=== Stage: Identify ===");
+            stages.push(self.run_identify().await?);
+        }
 
         Ok(PipelineReport { stages })
     }
@@ -171,7 +175,7 @@ impl Pipeline {
         })
     }
 
-    fn run_transcribe(&self) -> Result<StageReport> {
+    fn run_transcribe_local(&self) -> Result<StageReport> {
         let videos = self.get_stage_videos(&PipelineStage::Transcribe)?;
         if videos.is_empty() {
             return Ok(StageReport {
@@ -213,6 +217,48 @@ impl Pipeline {
             succeeded,
             failed,
             skipped: 0,
+        })
+    }
+
+    async fn run_transcribe_api(&self) -> Result<StageReport> {
+        let videos = self.get_stage_videos(&PipelineStage::Transcribe)?;
+        if videos.is_empty() {
+            return Ok(StageReport {
+                stage: "transcribe".to_string(),
+                processed: 0, succeeded: 0, failed: 0, skipped: 0,
+            });
+        }
+
+        let api_key = self.openai_api_key.as_deref()
+            .ok_or_else(|| anyhow::anyhow!("OpenAI API key required for Whisper API"))?;
+        let http_client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(600))
+            .build()?;
+
+        let mut succeeded = 0;
+        let mut failed = 0;
+
+        for video_id in &videos {
+            if self.dry_run {
+                tracing::info!("[dry-run] Would transcribe {} (API)", video_id);
+                continue;
+            }
+            match transcribe::transcribe_video_api(&http_client, api_key, &self.store, video_id).await {
+                Ok(_) => {
+                    self.store.mark_stage_complete(video_id, &PipelineStage::Transcribe)?;
+                    succeeded += 1;
+                }
+                Err(e) => {
+                    tracing::error!("Transcription (API) failed for {}: {}", video_id, e);
+                    self.store.mark_stage_failed(video_id, &PipelineStage::Transcribe, &e.to_string())?;
+                    failed += 1;
+                }
+            }
+        }
+
+        Ok(StageReport {
+            stage: "transcribe".to_string(),
+            processed: videos.len(), succeeded, failed, skipped: 0,
         })
     }
 
@@ -260,7 +306,7 @@ impl Pipeline {
             });
         }
 
-        let client = llm_client::LlmClient::new(Some(&self.llm_url), &self.llm_model)?;
+        let client = llm_client::LlmClient::new(Some(&self.llm_url), &self.llm_model, None)?;
         let mut succeeded = 0;
         let mut failed = 0;
 
@@ -289,6 +335,45 @@ impl Pipeline {
             succeeded,
             failed,
             skipped: 0,
+        })
+    }
+
+    async fn run_identify(&self) -> Result<StageReport> {
+        let videos = self.get_stage_videos(&PipelineStage::Identify)?;
+        if videos.is_empty() {
+            return Ok(StageReport {
+                stage: "identify".to_string(),
+                processed: 0, succeeded: 0, failed: 0, skipped: 0,
+            });
+        }
+
+        let api_key = self.openai_api_key.as_ref().cloned();
+        let client = llm_client::LlmClient::new(Some(&self.llm_url), &self.llm_model, api_key)?;
+        let mut succeeded = 0;
+        let mut failed = 0;
+
+        for video_id in &videos {
+            if self.dry_run {
+                tracing::info!("[dry-run] Would identify moments in {}", video_id);
+                continue;
+            }
+            match identify::identify_teaching_moments(&client, &self.store, video_id).await {
+                Ok(moments) => {
+                    tracing::info!("Identified {} moments in {}", moments.len(), video_id);
+                    self.store.mark_stage_complete(video_id, &PipelineStage::Identify)?;
+                    succeeded += 1;
+                }
+                Err(e) => {
+                    tracing::error!("Identification failed for {}: {}", video_id, e);
+                    self.store.mark_stage_failed(video_id, &PipelineStage::Identify, &e.to_string())?;
+                    failed += 1;
+                }
+            }
+        }
+
+        Ok(StageReport {
+            stage: "identify".to_string(),
+            processed: videos.len(), succeeded, failed, skipped: 0,
         })
     }
 

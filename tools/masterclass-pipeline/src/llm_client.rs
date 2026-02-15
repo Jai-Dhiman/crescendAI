@@ -9,6 +9,7 @@ pub struct LlmClient {
     client: reqwest::Client,
     base_url: String,
     model: String,
+    api_key: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -44,11 +45,12 @@ struct ErrorResponse {
     error: Option<serde_json::Value>,
 }
 
-const MAX_RETRIES: u32 = 3;
+const MAX_RETRIES: u32 = 6;
+const INITIAL_BACKOFF_SECS: u64 = 4;
 const DEFAULT_BASE_URL: &str = "http://localhost:11434";
 
 impl LlmClient {
-    pub fn new(base_url: Option<&str>, model: &str) -> Result<Self> {
+    pub fn new(base_url: Option<&str>, model: &str, api_key: Option<String>) -> Result<Self> {
         let base_url = base_url
             .unwrap_or(DEFAULT_BASE_URL)
             .trim_end_matches('/')
@@ -66,11 +68,20 @@ impl LlmClient {
             client,
             base_url,
             model: model.to_string(),
+            api_key,
         })
     }
 
     pub fn model(&self) -> &str {
         &self.model
+    }
+
+    pub fn client(&self) -> &reqwest::Client {
+        &self.client
+    }
+
+    pub fn api_key(&self) -> Option<&str> {
+        self.api_key.as_deref()
     }
 
     pub async fn message(&self, system: &str, user: &str) -> Result<String> {
@@ -93,11 +104,12 @@ impl LlmClient {
 
         for attempt in 0..MAX_RETRIES {
             if attempt > 0 {
-                let delay = Duration::from_secs(2u64.pow(attempt));
+                let delay = Duration::from_secs(INITIAL_BACKOFF_SECS * 2u64.pow(attempt - 1));
                 tracing::info!(
-                    "Retrying LLM request in {:?} (attempt {})",
-                    delay,
-                    attempt + 1
+                    "Retrying LLM request in {}s (attempt {}/{})",
+                    delay.as_secs(),
+                    attempt + 1,
+                    MAX_RETRIES
                 );
                 tokio::time::sleep(delay).await;
             }
@@ -133,10 +145,16 @@ impl LlmClient {
     async fn send_request(&self, request: &ChatRequest) -> Result<String> {
         let url = format!("{}/v1/chat/completions", self.base_url);
 
-        let response = self
+        let mut req = self
             .client
             .post(&url)
-            .header("content-type", "application/json")
+            .header("content-type", "application/json");
+
+        if let Some(ref key) = self.api_key {
+            req = req.header("Authorization", format!("Bearer {}", key));
+        }
+
+        let response = req
             .json(request)
             .send()
             .await

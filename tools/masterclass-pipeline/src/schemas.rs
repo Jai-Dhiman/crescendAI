@@ -132,6 +132,7 @@ pub enum PipelineStage {
     Transcribe,
     Segment,
     Extract,
+    Identify,
 }
 
 impl std::fmt::Display for PipelineStage {
@@ -142,6 +143,7 @@ impl std::fmt::Display for PipelineStage {
             PipelineStage::Transcribe => write!(f, "transcribe"),
             PipelineStage::Segment => write!(f, "segment"),
             PipelineStage::Extract => write!(f, "extract"),
+            PipelineStage::Identify => write!(f, "identify"),
         }
     }
 }

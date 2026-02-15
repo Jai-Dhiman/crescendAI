@@ -593,3 +593,258 @@ fn apply_corrections(text: &str) -> String {
     }
     result
 }
+
+// ---------------------------------------------------------------------------
+// Whisper API transcription
+// ---------------------------------------------------------------------------
+
+use reqwest::multipart;
+
+#[derive(serde::Deserialize)]
+struct WhisperApiResponse {
+    #[allow(dead_code)]
+    text: String,
+    segments: Option<Vec<WhisperApiSegment>>,
+    words: Option<Vec<WhisperApiWord>>,
+}
+
+#[derive(serde::Deserialize)]
+struct WhisperApiSegment {
+    text: String,
+    start: f64,
+    end: f64,
+}
+
+#[derive(serde::Deserialize)]
+struct WhisperApiWord {
+    word: String,
+    start: f64,
+    end: f64,
+}
+
+/// Transcribe a video using the OpenAI Whisper API with chunked upload.
+///
+/// This mirrors the chunking strategy of the local `transcribe_video` function
+/// (CHUNK_DURATION_SECS chunks with CHUNK_OVERLAP_SECS overlap), but sends each
+/// chunk to the OpenAI API instead of running Whisper locally.
+pub async fn transcribe_video_api(
+    client: &reqwest::Client,
+    api_key: &str,
+    store: &MasterclassStore,
+    video_id: &str,
+) -> Result<Transcript> {
+    let audio_path = store.audio_path(video_id);
+    anyhow::ensure!(
+        audio_path.exists(),
+        "Audio file not found for {}. Run download first.",
+        video_id
+    );
+
+    tracing::info!("Transcribing {} via Whisper API", video_id);
+
+    let samples = read_wav_samples(&audio_path)?;
+    let sample_rate = config::SAMPLE_RATE;
+    let total_duration = samples.len() as f64 / sample_rate as f64;
+    tracing::info!(
+        "Loaded {:.1}s of audio ({} samples)",
+        total_duration,
+        samples.len()
+    );
+
+    let chunk_dur = config::CHUNK_DURATION_SECS;
+    let overlap = config::CHUNK_OVERLAP_SECS;
+
+    // Calculate chunk boundaries (same logic as local transcription)
+    let mut boundaries: Vec<(f64, f64)> = Vec::new();
+    let mut start = 0.0;
+    while start < total_duration {
+        let end = (start + chunk_dur).min(total_duration);
+        boundaries.push((start, end));
+        start += chunk_dur - overlap;
+        if end >= total_duration {
+            break;
+        }
+    }
+
+    tracing::info!(
+        "Splitting {:.0}s audio into {} chunks ({:.0}s each, {:.0}s overlap)",
+        total_duration,
+        boundaries.len(),
+        chunk_dur,
+        overlap
+    );
+
+    let mut all_segments: Vec<TranscriptSegment> = Vec::new();
+
+    for (chunk_idx, &(chunk_start, chunk_end)) in boundaries.iter().enumerate() {
+        let start_sample = (chunk_start * sample_rate as f64) as usize;
+        let end_sample = ((chunk_end * sample_rate as f64) as usize).min(samples.len());
+        let chunk_samples = &samples[start_sample..end_sample];
+
+        tracing::info!(
+            "Chunk {}/{}: {:.0}s - {:.0}s ({:.0}s)",
+            chunk_idx + 1,
+            boundaries.len(),
+            chunk_start,
+            chunk_end,
+            chunk_end - chunk_start
+        );
+
+        let mut chunk_segments =
+            transcribe_chunk_api(client, api_key, chunk_samples, sample_rate).await?;
+
+        // Offset timestamps by chunk start time
+        for seg in &mut chunk_segments {
+            seg.start += chunk_start;
+            seg.end += chunk_start;
+            for tok in &mut seg.tokens {
+                tok.start += chunk_start;
+                tok.end += chunk_start;
+            }
+        }
+
+        all_segments.extend(chunk_segments);
+    }
+
+    // Deduplicate segments in overlap regions
+    let deduped = deduplicate_overlaps(&all_segments, &boundaries);
+
+    // Renumber segment IDs sequentially
+    let final_segments: Vec<TranscriptSegment> = deduped
+        .into_iter()
+        .enumerate()
+        .map(|(i, mut seg)| {
+            seg.id = i as u32;
+            seg
+        })
+        .collect();
+
+    tracing::info!(
+        "Transcribed {} segments from {} via API",
+        final_segments.len(),
+        video_id
+    );
+
+    let transcript = Transcript {
+        video_id: video_id.to_string(),
+        model: "whisper-1-api".to_string(),
+        language: "en".to_string(),
+        transcribed_at: chrono::Utc::now().to_rfc3339(),
+        segments: final_segments,
+    };
+
+    store.save_transcript(&transcript)?;
+    Ok(transcript)
+}
+
+/// Write audio samples to a temporary WAV file for upload to the API.
+fn write_temp_wav(samples: &[f32], sample_rate: u32) -> Result<tempfile::NamedTempFile> {
+    let temp_file = tempfile::Builder::new()
+        .suffix(".wav")
+        .tempfile()
+        .with_context(|| "Failed to create temporary WAV file")?;
+
+    let spec = hound::WavSpec {
+        channels: 1,
+        sample_rate,
+        bits_per_sample: 16,
+        sample_format: hound::SampleFormat::Int,
+    };
+
+    let mut writer = hound::WavWriter::create(temp_file.path(), spec)
+        .with_context(|| "Failed to create WAV writer for temp file")?;
+
+    for &sample in samples {
+        let clamped = sample.clamp(-1.0, 1.0);
+        let int_sample = (clamped * i16::MAX as f32) as i16;
+        writer
+            .write_sample(int_sample)
+            .with_context(|| "Failed to write sample to temp WAV")?;
+    }
+
+    writer
+        .finalize()
+        .with_context(|| "Failed to finalize temp WAV file")?;
+
+    Ok(temp_file)
+}
+
+/// Transcribe a single audio chunk via the OpenAI Whisper API.
+async fn transcribe_chunk_api(
+    client: &reqwest::Client,
+    api_key: &str,
+    samples: &[f32],
+    sample_rate: u32,
+) -> Result<Vec<TranscriptSegment>> {
+    let temp_wav = write_temp_wav(samples, sample_rate)?;
+
+    let wav_bytes = std::fs::read(temp_wav.path())
+        .with_context(|| "Failed to read temp WAV file for upload")?;
+
+    let file_part = multipart::Part::bytes(wav_bytes)
+        .file_name("audio.wav")
+        .mime_str("audio/wav")
+        .with_context(|| "Failed to set MIME type on multipart part")?;
+
+    let form = multipart::Form::new()
+        .part("file", file_part)
+        .text("model", "whisper-1")
+        .text("response_format", "verbose_json")
+        .text("timestamp_granularities[]", "word")
+        .text("timestamp_granularities[]", "segment")
+        .text("language", "en");
+
+    let response = client
+        .post("https://api.openai.com/v1/audio/transcriptions")
+        .bearer_auth(api_key)
+        .multipart(form)
+        .send()
+        .await
+        .with_context(|| "Failed to send request to Whisper API")?;
+
+    anyhow::ensure!(
+        response.status().is_success(),
+        "Whisper API returned error: HTTP {} - {}",
+        response.status(),
+        response
+            .text()
+            .await
+            .unwrap_or_else(|_| "no body".to_string())
+    );
+
+    let api_response: WhisperApiResponse = response
+        .json()
+        .await
+        .with_context(|| "Failed to parse Whisper API response")?;
+
+    let api_segments = api_response.segments.unwrap_or_default();
+    let api_words = api_response.words.unwrap_or_default();
+
+    let mut segments: Vec<TranscriptSegment> = Vec::new();
+
+    for (i, api_seg) in api_segments.iter().enumerate() {
+        // Collect words that fall within this segment's time range
+        let seg_tokens: Vec<TranscriptToken> = api_words
+            .iter()
+            .filter(|w| w.start >= api_seg.start && w.end <= api_seg.end)
+            .map(|w| TranscriptToken {
+                text: w.word.clone(),
+                start: w.start,
+                end: w.end,
+                probability: 1.0,
+            })
+            .collect();
+
+        let corrected_text = apply_corrections(&api_seg.text);
+
+        segments.push(TranscriptSegment {
+            id: i as u32,
+            text: corrected_text,
+            start: api_seg.start,
+            end: api_seg.end,
+            tokens: seg_tokens,
+        });
+    }
+
+    Ok(segments)
+}
