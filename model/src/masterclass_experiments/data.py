@@ -80,29 +80,34 @@ def identify_segments(
     """
     segments: list[Segment] = []
     seq = 0
+    seen_windows: set[tuple[str, float, float]] = set()
 
     for video_id, group in groupby(moments, key=lambda m: m.video_id):
         video_moments = list(group)
 
         for i, m in enumerate(video_moments):
-            segments.append(
-                Segment(
-                    segment_id=f"stop_{seq:04d}",
-                    video_id=m.video_id,
-                    label="stop",
-                    start_time=m.playing_before_start,
-                    end_time=m.playing_before_end,
-                    moment_id=m.moment_id,
+            # Deduplicate STOP segments with identical playing windows
+            window_key = (m.video_id, m.playing_before_start, m.playing_before_end)
+            if window_key not in seen_windows:
+                seen_windows.add(window_key)
+                segments.append(
+                    Segment(
+                        segment_id=f"stop_{seq:04d}",
+                        video_id=m.video_id,
+                        label="stop",
+                        start_time=m.playing_before_start,
+                        end_time=m.playing_before_end,
+                        moment_id=m.moment_id,
+                    )
                 )
-            )
-            seq += 1
+                seq += 1
 
             if i < len(video_moments) - 1:
                 next_m = video_moments[i + 1]
                 gap_start = m.feedback_end
                 gap_end = next_m.playing_before_start
 
-                if gap_end - gap_start >= min_continue_duration:
+                if gap_end > gap_start and gap_end - gap_start >= min_continue_duration:
                     segments.append(
                         Segment(
                             segment_id=f"cont_{seq:04d}",

@@ -231,6 +231,47 @@ def test_identify_segments_no_continue_across_videos():
     assert len(continues) == 0
 
 
+def test_identify_segments_deduplicates_stop_windows():
+    # Two moments with same playing window should produce only one STOP segment
+    moments = [
+        Moment(
+            moment_id="a",
+            video_id="vid1",
+            teacher="T",
+            stop_timestamp=100.0,
+            playing_before_start=80.0,
+            playing_before_end=100.0,
+            feedback_start=100.0,
+            feedback_end=130.0,
+            feedback_summary="s",
+            musical_dimension="timing",
+            severity="moderate",
+            piece="piece",
+            confidence=0.7,
+        ),
+        Moment(
+            moment_id="b",
+            video_id="vid1",
+            teacher="T",
+            stop_timestamp=120.0,
+            playing_before_start=80.0,
+            playing_before_end=100.0,
+            feedback_start=120.0,
+            feedback_end=150.0,
+            feedback_summary="s",
+            musical_dimension="dynamics",
+            severity="moderate",
+            piece="piece",
+            confidence=0.7,
+        ),
+    ]
+
+    segments = identify_segments(moments)
+
+    stops = [s for s in segments if s.label == "stop"]
+    assert len(stops) == 1
+
+
 def test_extract_audio_segments_creates_wav_files():
     with tempfile.TemporaryDirectory() as tmpdir:
         wav_dir = Path(tmpdir) / "audio"
