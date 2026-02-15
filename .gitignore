@@ -137,6 +137,9 @@ CLAUDE.md
 WARP.md
 .claude/
 
+# Git worktrees
+.worktrees/
+
 # Training Audio
 *.wav
 model/data/maestro-v3.0.0.zip
