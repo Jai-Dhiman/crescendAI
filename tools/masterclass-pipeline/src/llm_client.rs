@@ -45,7 +45,8 @@ struct ErrorResponse {
     error: Option<serde_json::Value>,
 }
 
-const MAX_RETRIES: u32 = 3;
+const MAX_RETRIES: u32 = 6;
+const INITIAL_BACKOFF_SECS: u64 = 4;
 const DEFAULT_BASE_URL: &str = "http://localhost:11434";
 
 impl LlmClient {
@@ -103,11 +104,12 @@ impl LlmClient {
 
         for attempt in 0..MAX_RETRIES {
             if attempt > 0 {
-                let delay = Duration::from_secs(2u64.pow(attempt));
+                let delay = Duration::from_secs(INITIAL_BACKOFF_SECS * 2u64.pow(attempt - 1));
                 tracing::info!(
-                    "Retrying LLM request in {:?} (attempt {})",
-                    delay,
-                    attempt + 1
+                    "Retrying LLM request in {}s (attempt {}/{})",
+                    delay.as_secs(),
+                    attempt + 1,
+                    MAX_RETRIES
                 );
                 tokio::time::sleep(delay).await;
             }
