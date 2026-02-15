@@ -7,6 +7,8 @@ from dataclasses import dataclass
 from itertools import groupby
 from pathlib import Path
 
+import soundfile as sf
+
 
 @dataclass
 class Moment:
@@ -113,3 +115,45 @@ def identify_segments(
                     seq += 1
 
     return segments
+
+
+def extract_audio_segments(
+    segments: list[Segment],
+    wav_dir: Path,
+    output_dir: Path,
+) -> None:
+    """Slice audio segments from source WAV files.
+
+    Args:
+        segments: Segments with start/end times.
+        wav_dir: Directory containing {video_id}.wav files.
+        output_dir: Directory to write individual segment WAVs.
+    """
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Cache file info per video to avoid re-reading
+    wav_info: dict[str, tuple[int, int]] = {}  # video_id -> (sr, total_frames)
+
+    for seg in segments:
+        out_path = output_dir / f"{seg.segment_id}.wav"
+        if out_path.exists():
+            continue
+
+        wav_path = wav_dir / f"{seg.video_id}.wav"
+        if not wav_path.exists():
+            raise FileNotFoundError(f"WAV file not found: {wav_path}")
+
+        if seg.video_id not in wav_info:
+            info = sf.info(wav_path)
+            wav_info[seg.video_id] = (info.samplerate, info.frames)
+
+        sr, total_frames = wav_info[seg.video_id]
+        start_frame = int(seg.start_time * sr)
+        end_frame = int(seg.end_time * sr)
+
+        # Clamp to file bounds
+        start_frame = max(0, start_frame)
+        end_frame = min(total_frames, end_frame)
+
+        data, _ = sf.read(wav_path, start=start_frame, stop=end_frame, dtype="float32")
+        sf.write(out_path, data, sr)

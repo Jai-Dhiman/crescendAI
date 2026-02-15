@@ -2,7 +2,16 @@ import json
 import tempfile
 from pathlib import Path
 
-from masterclass_experiments.data import Moment, Segment, identify_segments, load_moments
+import numpy as np
+import soundfile as sf
+
+from masterclass_experiments.data import (
+    Moment,
+    Segment,
+    extract_audio_segments,
+    identify_segments,
+    load_moments,
+)
 
 
 def _write_moments(path: Path, moments: list[dict]) -> None:
@@ -220,3 +229,47 @@ def test_identify_segments_no_continue_across_videos():
 
     continues = [s for s in segments if s.label == "continue"]
     assert len(continues) == 0
+
+
+def test_extract_audio_segments_creates_wav_files():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        wav_dir = Path(tmpdir) / "audio"
+        wav_dir.mkdir()
+        out_dir = Path(tmpdir) / "segments"
+        out_dir.mkdir()
+
+        # Create a 10-second mono WAV at 16kHz
+        sr = 16000
+        audio = np.random.randn(sr * 10).astype(np.float32)
+        sf.write(wav_dir / "vid1.wav", audio, sr)
+
+        segments = [
+            Segment(
+                segment_id="stop_0000",
+                video_id="vid1",
+                label="stop",
+                start_time=1.0,
+                end_time=3.0,
+                moment_id="a",
+            ),
+            Segment(
+                segment_id="cont_0001",
+                video_id="vid1",
+                label="continue",
+                start_time=5.0,
+                end_time=8.0,
+            ),
+        ]
+
+        extract_audio_segments(segments, wav_dir, out_dir)
+
+        # Check files were created
+        assert (out_dir / "stop_0000.wav").exists()
+        assert (out_dir / "cont_0001.wav").exists()
+
+        # Check durations
+        data0, sr0 = sf.read(out_dir / "stop_0000.wav")
+        assert len(data0) == sr * 2  # 2 seconds
+
+        data1, sr1 = sf.read(out_dir / "cont_0001.wav")
+        assert len(data1) == sr * 3  # 3 seconds
