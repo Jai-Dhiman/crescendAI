@@ -7,7 +7,11 @@ import soundfile as sf
 import torch
 
 from masterclass_experiments.data import Segment
-from masterclass_experiments.features import extract_muq_features, stats_pool
+from masterclass_experiments.features import (
+    extract_muq_features,
+    extract_quality_scores,
+    stats_pool,
+)
 
 
 def test_stats_pool_produces_correct_shape():
@@ -56,3 +60,28 @@ def test_extract_muq_features_returns_dict_of_pooled_vectors():
 
         assert "stop_0000" in features
         assert features["stop_0000"].shape == (2048,)  # mean + std
+
+
+def test_extract_quality_scores_returns_19dim_vectors():
+    raw_embeddings = {
+        "stop_0000": torch.randn(10, 1024),
+        "cont_0001": torch.randn(15, 1024),
+    }
+
+    # Mock the model to return 19 scores
+    fake_scores = torch.sigmoid(torch.randn(1, 19))
+    with patch("masterclass_experiments.features.MuQStatsModel") as MockModel:
+        instance = MockModel.load_from_checkpoint.return_value
+        instance.eval.return_value = instance
+        instance.to.return_value = instance
+        instance.pool.return_value = torch.randn(1, 2048)
+        instance.clf.return_value = fake_scores
+
+        scores = extract_quality_scores(
+            raw_embeddings,
+            checkpoint_path=Path("/tmp/fake.ckpt"),
+        )
+
+    assert "stop_0000" in scores
+    assert "cont_0001" in scores
+    assert scores["stop_0000"].shape == (19,)
