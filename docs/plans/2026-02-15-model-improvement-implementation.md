@@ -1171,11 +1171,94 @@ git commit -m "add fusion (09) and robustness validation (10) notebooks"
 
 ---
 
+## Remote Training Environment (Thunder Compute)
+
+All training notebooks run on Thunder Compute GPU instances. Follow the existing pattern from `notebooks/disentanglement/disentanglement_experiments.ipynb`.
+
+### Setup Pattern for Each Notebook
+
+Every training notebook should include a setup cell at the top:
+
+```python
+# -- Thunder Compute Setup --
+# 1. Clone repo
+# !git clone <repo-url> /workspace/crescendai
+# %cd /workspace/crescendai/model
+
+# 2. Install dependencies
+# !uv sync
+
+# 3. Pull cached data + embeddings from Google Drive via rclone
+# !rclone sync gdrive:crescendai/model/data ./data --progress
+
+# 4. Configure paths
+import os
+IS_REMOTE = os.environ.get("THUNDER_COMPUTE", False)
+if IS_REMOTE:
+    DATA_DIR = Path("/workspace/crescendai/model/data")
+    CHECKPOINT_DIR = Path("/workspace/crescendai/model/checkpoints/model_improvement")
+else:
+    DATA_DIR = Path("../data")
+    CHECKPOINT_DIR = Path("../checkpoints/model_improvement")
+```
+
+### Persistence via rclone
+
+Checkpoints and results must be synced back to Google Drive after each fold/experiment completes, since Thunder Compute instances are ephemeral:
+
+```python
+def upload_checkpoint(local_path: Path, remote_subdir: str):
+    """Sync checkpoint to Google Drive after each fold completes."""
+    import subprocess
+    remote = f"gdrive:crescendai/model/checkpoints/model_improvement/{remote_subdir}"
+    subprocess.run(["rclone", "copy", str(local_path), remote, "--progress"], check=True)
+```
+
+Use as the `on_fold_complete` callback in the training runner (same pattern as existing disentanglement experiments).
+
+### Thunder Compute Best Practices
+
+Before implementing the notebooks, research and document:
+- Optimal instance type for these experiments (A100 40GB vs 80GB vs H100)
+- Maximum session duration and auto-save strategy
+- Whether rclone is pre-installed or needs setup per instance
+- GPU memory requirements for MuQ fine-tuning with LoRA (estimate: ~20GB for batch_size=32)
+- GPU memory requirements for full MuQ unfreeze (estimate: ~40GB+, may need A100 80GB)
+- Cost estimates per experiment
+
+Reference the existing Thunder Compute setup in `notebooks/disentanglement/disentanglement_experiments.ipynb` cells 2-7 for the proven rclone + Google Drive pattern.
+
+### Data Sync Strategy
+
+```
+Google Drive (persistent):
+  crescendai/model/data/
+    percepiano_cache/        -- MuQ embeddings + labels
+    maestro_cache/           -- MIDI + audio pairs
+    atepp_cache/             -- new: download and cache
+    giant_midi_cache/        -- new: tokenized MIDI
+    competition_cache/       -- new: audio + metadata
+    augmentation_assets/     -- room IRs, noise clips
+  crescendai/model/checkpoints/
+    model_improvement/
+      A1/, A2/, A3/          -- audio encoder checkpoints per fold
+      S1/, S2/, S3/          -- symbolic encoder checkpoints per fold
+      F1/, F2/, F3/          -- fusion checkpoints
+
+Thunder Compute (ephemeral):
+  /workspace/crescendai/     -- cloned repo
+  Sync down at start: rclone sync gdrive:crescendai/model/data ./data
+  Sync up after each fold: rclone copy ./checkpoints gdrive:crescendai/model/checkpoints
+```
+
+---
+
 ## Execution Notes
 
-- **Phase 0 (Tasks 1-5):** Sequential start with Task 1, then 2-5 in parallel.
-- **Phase 1 (Tasks 6-10)** and **Phase 2 (Tasks 11-14):** Fully parallel.
-- **Phase 3 (Tasks 15-16):** After Phase 1 and 2 winners selected.
+- **Phase 0 (Tasks 1-5):** Sequential start with Task 1, then 2-5 in parallel. Run locally.
+- **Phase 1 (Tasks 6-10)** and **Phase 2 (Tasks 11-14):** Fully parallel. Code locally, train on Thunder Compute.
+- **Phase 3 (Tasks 15-16):** After Phase 1 and 2 winners selected. Train on Thunder Compute.
 - **Total: 16 tasks across 4 phases.**
 - All models follow existing PyTorch Lightning patterns from `src/disentanglement/`.
-- All tests run with: `cd model && python -m pytest tests/model_improvement/ -v`
+- All tests run locally with: `cd model && python -m pytest tests/model_improvement/ -v`
+- All training runs on Thunder Compute with rclone persistence to Google Drive.
