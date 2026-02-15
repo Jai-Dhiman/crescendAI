@@ -202,6 +202,7 @@ impl MasterclassStore {
             PipelineStage::Transcribe => Some(PipelineStage::Download),
             PipelineStage::Segment => Some(PipelineStage::Transcribe),
             PipelineStage::Extract => Some(PipelineStage::Segment),
+            PipelineStage::Identify => Some(PipelineStage::Transcribe),
         };
 
         let mut prev_completed: HashMap<String, bool> = HashMap::new();
@@ -329,6 +330,7 @@ impl MasterclassStore {
             PipelineStage::Transcribe,
             PipelineStage::Segment,
             PipelineStage::Extract,
+            PipelineStage::Identify,
         ];
 
         let mut stage_counts: HashMap<String, StageCounts> = HashMap::new();
@@ -378,7 +380,7 @@ impl std::fmt::Display for StatusSummary {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "Pipeline Status ({} total videos)", self.total_videos)?;
         writeln!(f, "{:-<50}", "")?;
-        let stage_order = ["discover", "download", "transcribe", "segment", "extract"];
+        let stage_order = ["discover", "download", "transcribe", "segment", "extract", "identify"];
         for stage in &stage_order {
             if let Some(counts) = self.stage_counts.get(*stage) {
                 writeln!(
