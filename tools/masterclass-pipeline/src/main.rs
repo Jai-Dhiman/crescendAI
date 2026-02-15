@@ -168,7 +168,7 @@ async fn main() -> Result<()> {
             let videos = get_videos(&store, &schemas::PipelineStage::Extract, cli.force, cli.max_videos, cli.piece.as_deref())?;
             tracing::info!("Extracting teaching moments from {} videos", videos.len());
             if !videos.is_empty() {
-                let client = llm_client::LlmClient::new(Some(&cli.llm_url), &cli.llm_model)?;
+                let client = llm_client::LlmClient::new(Some(&cli.llm_url), &cli.llm_model, None)?;
                 for video_id in &videos {
                     if cli.dry_run {
                         tracing::info!("[dry-run] Would extract from {}", video_id);

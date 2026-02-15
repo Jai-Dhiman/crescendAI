@@ -9,6 +9,7 @@ pub struct LlmClient {
     client: reqwest::Client,
     base_url: String,
     model: String,
+    api_key: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -48,7 +49,7 @@ const MAX_RETRIES: u32 = 3;
 const DEFAULT_BASE_URL: &str = "http://localhost:11434";
 
 impl LlmClient {
-    pub fn new(base_url: Option<&str>, model: &str) -> Result<Self> {
+    pub fn new(base_url: Option<&str>, model: &str, api_key: Option<String>) -> Result<Self> {
         let base_url = base_url
             .unwrap_or(DEFAULT_BASE_URL)
             .trim_end_matches('/')
@@ -66,11 +67,20 @@ impl LlmClient {
             client,
             base_url,
             model: model.to_string(),
+            api_key,
         })
     }
 
     pub fn model(&self) -> &str {
         &self.model
+    }
+
+    pub fn client(&self) -> &reqwest::Client {
+        &self.client
+    }
+
+    pub fn api_key(&self) -> Option<&str> {
+        self.api_key.as_deref()
     }
 
     pub async fn message(&self, system: &str, user: &str) -> Result<String> {
@@ -133,10 +143,16 @@ impl LlmClient {
     async fn send_request(&self, request: &ChatRequest) -> Result<String> {
         let url = format!("{}/v1/chat/completions", self.base_url);
 
-        let response = self
+        let mut req = self
             .client
             .post(&url)
-            .header("content-type", "application/json")
+            .header("content-type", "application/json");
+
+        if let Some(ref key) = self.api_key {
+            req = req.header("Authorization", format!("Bearer {}", key));
+        }
+
+        let response = req
             .json(request)
             .send()
             .await

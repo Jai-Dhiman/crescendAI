@@ -260,7 +260,7 @@ impl Pipeline {
             });
         }
 
-        let client = llm_client::LlmClient::new(Some(&self.llm_url), &self.llm_model)?;
+        let client = llm_client::LlmClient::new(Some(&self.llm_url), &self.llm_model, None)?;
         let mut succeeded = 0;
         let mut failed = 0;
 
