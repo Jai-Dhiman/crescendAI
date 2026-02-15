@@ -15,6 +15,7 @@
 ### Task 1: Module Scaffolding
 
 **Files:**
+
 - Create: `model/src/masterclass_experiments/__init__.py`
 - Create: `model/tests/masterclass_experiments/__init__.py`
 
@@ -32,11 +33,13 @@ mkdir -p model/data/masterclass_cache/quality_scores
 **Step 2: Create `__init__.py` files**
 
 `model/src/masterclass_experiments/__init__.py`:
+
 ```python
 """Masterclass priority signal validation experiment."""
 ```
 
 `model/tests/masterclass_experiments/__init__.py`:
+
 ```python
 ```
 
@@ -57,6 +60,7 @@ git commit -m "scaffold masterclass_experiments module"
 ### Task 2: Data Loading - Parse Moments
 
 **Files:**
+
 - Create: `model/src/masterclass_experiments/data.py`
 - Create: `model/tests/masterclass_experiments/test_data.py`
 
@@ -65,6 +69,7 @@ git commit -m "scaffold masterclass_experiments module"
 **Step 1: Write failing test for moment loading**
 
 `model/tests/masterclass_experiments/test_data.py`:
+
 ```python
 import json
 import tempfile
@@ -148,6 +153,7 @@ Expected: FAIL (cannot import `load_moments`)
 **Step 3: Write implementation**
 
 `model/src/masterclass_experiments/data.py`:
+
 ```python
 """Moment parsing and audio segment extraction for masterclass experiments."""
 
@@ -221,6 +227,7 @@ git commit -m "add moment loading from masterclass JSONL"
 ### Task 3: Segment Extraction - Identify STOP/CONTINUE Windows
 
 **Files:**
+
 - Modify: `model/src/masterclass_experiments/data.py`
 - Modify: `model/tests/masterclass_experiments/test_data.py`
 
@@ -229,6 +236,7 @@ git commit -m "add moment loading from masterclass JSONL"
 **Step 1: Write failing test for segment identification**
 
 Add to `model/tests/masterclass_experiments/test_data.py`:
+
 ```python
 from masterclass_experiments.data import Segment, identify_segments
 
@@ -392,6 +400,7 @@ Expected: FAIL (cannot import `identify_segments`)
 **Step 3: Write implementation**
 
 Add to `model/src/masterclass_experiments/data.py`:
+
 ```python
 from itertools import groupby
 
@@ -477,6 +486,7 @@ git commit -m "add STOP/CONTINUE segment identification from moments"
 ### Task 4: Audio Segment Slicing
 
 **Files:**
+
 - Modify: `model/src/masterclass_experiments/data.py`
 - Modify: `model/tests/masterclass_experiments/test_data.py`
 
@@ -485,6 +495,7 @@ git commit -m "add STOP/CONTINUE segment identification from moments"
 **Step 1: Write failing test**
 
 Add to `model/tests/masterclass_experiments/test_data.py`:
+
 ```python
 import numpy as np
 import soundfile as sf
@@ -544,6 +555,7 @@ Expected: FAIL
 **Step 3: Write implementation**
 
 Add to `model/src/masterclass_experiments/data.py`:
+
 ```python
 import soundfile as sf
 
@@ -607,6 +619,7 @@ git commit -m "add audio segment extraction from WAV files"
 ### Task 5: MuQ Feature Extraction
 
 **Files:**
+
 - Create: `model/src/masterclass_experiments/features.py`
 - Create: `model/tests/masterclass_experiments/test_features.py`
 
@@ -615,6 +628,7 @@ git commit -m "add audio segment extraction from WAV files"
 **Step 1: Write failing test**
 
 `model/tests/masterclass_experiments/test_features.py`:
+
 ```python
 import tempfile
 from pathlib import Path
@@ -684,6 +698,7 @@ Expected: FAIL
 **Step 3: Write implementation**
 
 `model/src/masterclass_experiments/features.py`:
+
 ```python
 """Feature extraction for masterclass segments."""
 
@@ -759,6 +774,7 @@ git commit -m "add MuQ feature extraction with stats pooling"
 ### Task 6: PercePiano Quality Score Inference
 
 **Files:**
+
 - Modify: `model/src/masterclass_experiments/features.py`
 - Modify: `model/tests/masterclass_experiments/test_features.py`
 
@@ -767,6 +783,7 @@ git commit -m "add MuQ feature extraction with stats pooling"
 **Step 1: Write failing test**
 
 Add to `model/tests/masterclass_experiments/test_features.py`:
+
 ```python
 from masterclass_experiments.features import extract_quality_scores
 
@@ -804,6 +821,7 @@ Expected: FAIL
 **Step 3: Write implementation**
 
 Add to `model/src/masterclass_experiments/features.py`:
+
 ```python
 from audio_experiments.models.muq_models import MuQStatsModel
 
@@ -868,6 +886,7 @@ git commit -m "add PercePiano quality score inference from checkpoint"
 ### Task 7: Model Training - Classifiers
 
 **Files:**
+
 - Create: `model/src/masterclass_experiments/models.py`
 - Create: `model/tests/masterclass_experiments/test_models.py`
 
@@ -876,6 +895,7 @@ git commit -m "add PercePiano quality score inference from checkpoint"
 **Step 1: Write failing test**
 
 `model/tests/masterclass_experiments/test_models.py`:
+
 ```python
 import numpy as np
 
@@ -919,6 +939,7 @@ Expected: FAIL
 **Step 3: Write implementation**
 
 `model/src/masterclass_experiments/models.py`:
+
 ```python
 """Binary classifiers for STOP/CONTINUE prediction."""
 
@@ -985,6 +1006,7 @@ git commit -m "add logistic regression classifier for STOP/CONTINUE"
 ### Task 8: Evaluation - Leave-One-Video-Out CV
 
 **Files:**
+
 - Create: `model/src/masterclass_experiments/evaluation.py`
 - Create: `model/tests/masterclass_experiments/test_evaluation.py`
 
@@ -993,6 +1015,7 @@ git commit -m "add logistic regression classifier for STOP/CONTINUE"
 **Step 1: Write failing test**
 
 `model/tests/masterclass_experiments/test_evaluation.py`:
+
 ```python
 import numpy as np
 
@@ -1040,6 +1063,7 @@ Expected: FAIL
 **Step 3: Write implementation**
 
 `model/src/masterclass_experiments/evaluation.py`:
+
 ```python
 """Evaluation utilities for masterclass priority signal experiment."""
 
@@ -1142,6 +1166,7 @@ git commit -m "add leave-one-video-out cross-validation evaluation"
 ### Task 9: Notebook Orchestrator
 
 **Files:**
+
 - Create: `model/notebooks/masterclass_experiments/01_priority_signal_validation.ipynb`
 
 **Context:** Notebook ties everything together. Calls into `masterclass_experiments.*` modules. Seven sections following the existing notebook conventions from `model/CLAUDE.md`.
@@ -1149,6 +1174,7 @@ git commit -m "add leave-one-video-out cross-validation evaluation"
 **Step 1: Create the notebook with these cells**
 
 **Cell 1 (Markdown):**
+
 ```markdown
 # Priority Signal Validation Experiment
 
@@ -1162,6 +1188,7 @@ Design doc: `docs/plans/2026-02-14-priority-signal-validation-design.md`
 ```
 
 **Cell 2 (Code) - Setup:**
+
 ```python
 import sys
 from pathlib import Path
@@ -1178,6 +1205,7 @@ from masterclass_experiments.evaluation import leave_one_video_out_cv
 ```
 
 **Cell 3 (Code) - Config & Paths:**
+
 ```python
 MOMENTS_PATH = Path("../../../../tools/masterclass-pipeline/all_moments.jsonl").resolve()
 WAV_DIR = Path("../../../../tools/masterclass-pipeline/data/audio").resolve()
@@ -1195,6 +1223,7 @@ print(f"Checkpoint: {CHECKPOINT_PATH}")
 ```
 
 **Cell 4 (Code) - Data Preparation:**
+
 ```python
 # Load and explore moments
 moments = load_moments(MOMENTS_PATH)
@@ -1219,6 +1248,7 @@ print(f"Audio segments saved to {SEGMENT_DIR}")
 ```
 
 **Cell 5 (Code) - Feature Extraction:**
+
 ```python
 # Extract MuQ embeddings (this takes a few minutes)
 print("Extracting MuQ features...")
@@ -1240,6 +1270,7 @@ print(f"Extracted quality scores for {len(quality_scores)} segments")
 ```
 
 **Cell 6 (Code) - Run Both Models:**
+
 ```python
 from audio_experiments.constants import PERCEPIANO_DIMENSIONS
 
@@ -1274,6 +1305,7 @@ print(f"Recall: {results_a['recall']:.3f}")
 ```
 
 **Cell 7 (Code) - Analysis & Visualization:**
+
 ```python
 import matplotlib.pyplot as plt
 from masterclass_experiments.models import train_classifier
@@ -1367,6 +1399,7 @@ for v in set(s.video_id for s in segments):
     print(f'  {v}: {v_stops} stops, {v_conts} continues')
 "
 ```
+
 Expected: `Moments: 65, Stops: 65, Continues: <some number>` with per-video breakdown
 
 **Step 3: Final commit if any cleanup needed**

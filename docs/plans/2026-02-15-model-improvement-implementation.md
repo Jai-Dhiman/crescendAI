@@ -37,6 +37,7 @@ Task 15 --> Task 16 (robustness validation)
 ### Task 1: Module Scaffold
 
 **Files:**
+
 - Create: `model/src/model_improvement/__init__.py`
 - Create: `model/src/model_improvement/audio_encoders.py`
 - Create: `model/src/model_improvement/symbolic_encoders.py`
@@ -71,6 +72,7 @@ Fusion: F1 (cross-attention), F2 (concat), F3 (gated)
 **Step 3:** Create empty module files with docstrings only (one per file listed above)
 
 **Step 4:** Update `pyproject.toml`:
+
 - Add `"src/model_improvement"` to `[tool.hatch.build.targets.wheel] packages`
 - Add dependencies:
   - `peft>=0.7.0` (LoRA adapters)
@@ -96,6 +98,7 @@ git commit -m "scaffold model_improvement module with dependency updates"
 ### Task 2: Audio Augmentation Pipeline
 
 **Files:**
+
 - Create: `model/src/model_improvement/augmentation.py`
 - Create: `model/tests/model_improvement/test_augmentation.py`
 
@@ -175,6 +178,7 @@ class AudioAugmentor:
 ```
 
 Each augmentation applied independently with its own probability:
+
 - Room IR: p=0.3 (convolve with random IR from directory, skip if dir is None)
 - Additive noise: p=0.3 (mix with random noise clip at random SNR)
 - Phone sim: p=0.2 (low-pass at 8kHz + dynamic range compression)
@@ -194,6 +198,7 @@ git commit -m "add AudioAugmentor with room IR, noise, phone sim, pitch shift, E
 ### Task 3: REMI MIDI Tokenizer
 
 **Files:**
+
 - Create: `model/src/model_improvement/tokenizer.py`
 - Create: `model/tests/model_improvement/test_tokenizer.py`
 
@@ -295,6 +300,7 @@ git commit -m "add PianoTokenizer (REMI) and continuous MIDI feature extraction"
 ### Task 4: Shared Metrics Suite
 
 **Files:**
+
 - Create: `model/src/model_improvement/metrics.py`
 - Create: `model/tests/model_improvement/test_metrics.py`
 
@@ -393,6 +399,7 @@ git commit -m "add shared MetricsSuite for cross-experiment comparison"
 ### Task 5: Data Pipeline for T2-T4
 
 **Files:**
+
 - Create: `model/src/model_improvement/data.py`
 - Create: `model/tests/model_improvement/test_data.py`
 
@@ -503,6 +510,7 @@ git commit -m "add T2-T4 dataset classes for competition, paired, and pretrainin
 ### Task 6: LoRA Adapter Module for MuQ
 
 **Files:**
+
 - Create: `model/src/model_improvement/lora.py`
 - Create: `model/tests/model_improvement/test_lora.py`
 
@@ -578,6 +586,7 @@ git commit -m "add LoRA adapter integration for MuQ fine-tuning"
 ### Task 7: A1 - MuQ + LoRA Multi-Task Model
 
 **Files:**
+
 - Create: `model/src/model_improvement/audio_encoders.py`
 - Create: `model/tests/model_improvement/test_audio_encoders.py`
 
@@ -641,6 +650,7 @@ class TestMuQLoRAModel:
 **Step 3: Implement MuQLoRAModel**
 
 Extends ContrastivePairwiseRankingModel pattern with:
+
 - Optional LoRA-adapted MuQ backbone (`use_pretrained_muq=True` loads real MuQ + LoRA)
 - Multi-task loss: ranking + contrastive + regression + invariance
 - `predict_scores()` for absolute quality via regression head with sigmoid
@@ -661,6 +671,7 @@ git commit -m "add MuQLoRAModel (A1) with multi-task ranking + regression"
 ### Task 8: A2 - Staged Domain Adaptation Model
 
 **Files:**
+
 - Modify: `model/src/model_improvement/audio_encoders.py` (add MuQStagedModel)
 - Modify: `model/tests/model_improvement/test_audio_encoders.py`
 
@@ -717,6 +728,7 @@ class TestMuQStagedModel:
 **Step 3: Implement MuQStagedModel**
 
 Two-stage model:
+
 - Stage 1 (`self_supervised`): contrastive_cross_performer + augmentation_invariance. T3+T4 data.
 - Stage 2 (`supervised`): same multi-task loss as A1. T1+T2+T3 data.
 - `switch_to_supervised()` transitions stages (adjusts optimizer, loss weighting).
@@ -735,6 +747,7 @@ git commit -m "add MuQStagedModel (A2) with self-supervised + supervised stages"
 ### Task 9: A3 - Full Unfreeze with Gradual Layer Unfreezing
 
 **Files:**
+
 - Modify: `model/src/model_improvement/audio_encoders.py` (add MuQFullUnfreezeModel)
 - Modify: `model/tests/model_improvement/test_audio_encoders.py`
 
@@ -790,6 +803,7 @@ git commit -m "add MuQFullUnfreezeModel (A3) with gradual unfreezing and discrim
 ### Task 10: Audio Comparison Notebook
 
 **Files:**
+
 - Create: `model/notebooks/model_improvement/07_audio_comparison.ipynb`
 
 **Step 1:** Create notebook with cells:
@@ -817,6 +831,7 @@ git commit -m "add audio comparison notebook (07)"
 ### Task 11: S1 - Transformer on MIDI Tokens
 
 **Files:**
+
 - Create: `model/src/model_improvement/symbolic_encoders.py`
 - Create: `model/tests/model_improvement/test_symbolic_encoders.py`
 
@@ -906,6 +921,7 @@ git commit -m "add TransformerSymbolicEncoder (S1) with pretrain/finetune stages
 ### Task 12: S2 - GNN on Score Graph
 
 **Files:**
+
 - Modify: `model/src/model_improvement/symbolic_encoders.py` (add GNNSymbolicEncoder)
 - Modify: `model/tests/model_improvement/test_symbolic_encoders.py`
 
@@ -962,6 +978,7 @@ git commit -m "add GNNSymbolicEncoder (S2) with graph attention and link predict
 ### Task 13: S3 - Continuous MIDI Encoder
 
 **Files:**
+
 - Modify: `model/src/model_improvement/symbolic_encoders.py` (add ContinuousSymbolicEncoder)
 - Modify: `model/tests/model_improvement/test_symbolic_encoders.py`
 
@@ -1016,6 +1033,7 @@ git commit -m "add ContinuousSymbolicEncoder (S3) with 1D-CNN + Transformer"
 ### Task 14: Symbolic Comparison Notebook
 
 **Files:**
+
 - Create: `model/notebooks/model_improvement/08_symbolic_comparison.ipynb`
 
 **Step 1:** Create notebook:
@@ -1040,6 +1058,7 @@ git commit -m "add symbolic comparison notebook (08)"
 ### Task 15: Fusion Modules
 
 **Files:**
+
 - Create: `model/src/model_improvement/fusion.py`
 - Create: `model/tests/model_improvement/test_fusion.py`
 
@@ -1145,10 +1164,12 @@ git commit -m "add fusion modules (cross-attention, concat, gated) and FusedPerf
 ### Task 16: Fusion + Robustness Notebooks
 
 **Files:**
+
 - Create: `model/notebooks/model_improvement/09_fusion_experiments.ipynb`
 - Create: `model/notebooks/model_improvement/10_robustness_validation.ipynb`
 
 **Step 1:** Create fusion notebook (09):
+
 1. Load best audio + symbolic encoder checkpoints
 2. Extract embeddings on PercePiano
 3. Train F1/F2/F3, compare
@@ -1156,6 +1177,7 @@ git commit -m "add fusion modules (cross-attention, concat, gated) and FusedPerf
 5. Winner selection
 
 **Step 2:** Create robustness notebook (10):
+
 1. Load final model
 2. Augmented test set metrics
 3. Per-augmentation breakdown
@@ -1219,6 +1241,7 @@ Use as the `on_fold_complete` callback in the training runner (same pattern as e
 ### Thunder Compute Best Practices
 
 Before implementing the notebooks, research and document:
+
 - Optimal instance type for these experiments (A100 40GB vs 80GB vs H100)
 - Maximum session duration and auto-save strategy
 - Whether rclone is pre-installed or needs setup per instance

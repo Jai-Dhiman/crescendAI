@@ -73,6 +73,7 @@ Output: same `TeachingMoment` schema as today.
 Without audio segmentation, estimate `playing_before_start` and `playing_before_end` from transcript gaps. The last silence gap (no transcript words) before the feedback starts likely corresponds to student playing. Use word-level timestamps to find these gaps.
 
 **Edge cases handled by text-based approach:**
+
 - Teacher demonstrations (plays piano mid-feedback): transcript shows gaps during playing, LLM groups them as one moment
 - Conversational masterclasses (Zander style): LLM distinguishes general discussion from specific performance feedback
 - Teacher talking over playing: still captured in transcript, LLM can identify the feedback
@@ -84,28 +85,33 @@ Same `all_moments.jsonl` consolidated output.
 
 ## Implementation Scope
 
-### Rewritten:
+### Rewritten
+
 - `transcribe.rs` -- add OpenAI Whisper API client, keep local Whisper behind `--local` flag
 - `segment.rs` + `extract.rs` -- merged into new `identify.rs` with two-pass LLM logic
 - `llm_client.rs` -- extend with OpenAI API auth headers (API key)
 - `pipeline.rs` / `main.rs` -- update stage definitions (segment + extract become identify)
 - `config.rs` -- add API key config, model selection
 
-### Unchanged:
+### Unchanged
+
 - `discovery.rs`
 - `download.rs`
 - Output schema (TeachingMoment)
 
-### Kept but optional:
+### Kept but optional
+
 - `audio_features.rs` -- no longer on critical path, available for future enrichment
 - `segment.rs` -- audio segmentation code preserved but not used by default pipeline
 
-### Added:
+### Added
+
 - Whisper API client (HTTP multipart upload)
 - Transcript-based playing boundary estimation
 - Two-pass LLM prompts (moment detection + moment extraction)
 
-### Pipeline state:
+### Pipeline state
+
 - Stages: `discover`, `download`, `transcribe`, `identify`, `export`
 - Same `pipeline_state.jsonl` approach
 

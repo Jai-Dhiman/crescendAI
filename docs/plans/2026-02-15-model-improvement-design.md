@@ -3,6 +3,7 @@
 ## Goal
 
 Build the strongest possible backbone model for piano performance evaluation by:
+
 1. Fine-tuning MuQ for piano-specific quality assessment (audio track)
 2. Building a symbolic foundation model for piano MIDI (symbolic track)
 3. Fusing both encoders for score-conditioned quality assessment and alignment
@@ -23,11 +24,13 @@ The fused model answers the north star question: "How well is the student playin
 Four tiers, each providing a different training signal:
 
 ### T1: Labeled (PercePiano)
+
 - 1,202 segments with 19-dimension perceptual scores from crowdworkers
 - Primary supervised signal for absolute quality prediction
 - Already available
 
 ### T2: Weakly Labeled (Competition Recordings)
+
 - Piano competitions: International Chopin Competition, Cliburn, Leeds, Van Cliburn archives
 - 500-2,000 recordings (estimated, best-effort collection)
 - Signal: ordinal ranking from placements (1st > 2nd > semifinal > eliminated)
@@ -35,6 +38,7 @@ Four tiers, each providing a different training signal:
 - Risk: sourcing difficulty. Some competitions publish freely (Chopin Competition on YouTube), others are behind paywalls. Treat as best-effort, not a blocker. T3 provides ranking signal without explicit labels.
 
 ### T3: Paired Unlabeled (Multi-Performer MIDI+Audio)
+
 - MAESTRO v3: 1,276 performances, 200+ hours (already using)
 - ASAP: 1,067 performances of 236 scores (already using)
 - ATEPP: ~11,000 performances with aligned MIDI (new -- largest multi-performer dataset)
@@ -42,6 +46,7 @@ Four tiers, each providing a different training signal:
 - Piece grouping enables self-supervised ranking signal
 
 ### T4: Unlabeled at Scale
+
 - MIDI: GiantMIDI-Piano (~10,000 transcribed recordings)
 - Audio: YouTube piano channels (professional recitals, conservatory uploads), target 5,000-10,000 recordings
 - Signal: self-supervised pretraining objectives only
@@ -56,12 +61,14 @@ Six independent experiments across two tracks, followed by fusion of the best fr
 ### Audio Encoder Experiments
 
 **A1: MuQ + LoRA Fine-tuning**
+
 - LoRA adapters (rank 16-64) on self-attention layers of MuQ layers 9-12
 - 99%+ of MuQ parameters stay frozen
 - Multi-task training on all available labels (T1+T2+T3)
 - Cheapest, fastest iteration
 
 **A2: MuQ Staged Domain Adaptation**
+
 - Stage 1: Self-supervised on T3+T4 data (no labels needed)
   - Cross-performer contrastive: same piece, different performers -> positive pairs
   - Augmentation invariance: same recording + {noise, room IR, phone sim} -> should produce same embedding
@@ -70,11 +77,13 @@ Six independent experiments across two tracks, followed by fusion of the best fr
 - Most principled approach
 
 **A3: MuQ Full Unfreeze**
+
 - Gradually unfreeze MuQ layers: 12 -> 11 -> 10 -> 9
 - Discriminative learning rates (deeper layers get smaller LR)
 - Highest parameter count, highest risk of catastrophic forgetting, highest ceiling
 
 **All audio experiments share:**
+
 ```
 Raw audio (24kHz)
   -> MuQ backbone (layers 9-12, adapted per experiment)
@@ -86,6 +95,7 @@ Raw audio (24kHz)
 ### Symbolic Encoder Experiments
 
 **S1: Transformer on MIDI Tokens (default)**
+
 - REMI tokenization: note-on, note-off, velocity, time-shift, pedal, bar, tempo
 - Vocabulary: ~500 tokens
 - Architecture: 6-12 layer Transformer, 512-dim, 8 heads (~25M parameters)
@@ -93,18 +103,21 @@ Raw audio (24kHz)
 - Pretrain on GiantMIDI + MAESTRO + ASAP + ATEPP
 
 **S2: GNN on Score Graph**
+
 - Notes as nodes, edges for temporal adjacency, harmonic intervals, voice membership
 - Message-passing encoder
 - Pretraining: link prediction + node attribute prediction (masked velocity/timing)
 - Structurally expressive for counterpoint, harmonic progressions
 
 **S3: Continuous MIDI Encoder**
+
 - MIDI -> continuous feature curves (pitch, velocity, pedal depth over time)
 - 1D-CNN + Transformer architecture
 - wav2vec-style contrastive pretraining: quantize features, predict masked frames
 - Most analogous to MuQ's architecture, may make fusion more natural
 
 **All symbolic experiments share:**
+
 ```
 MIDI performance
   -> Tokenizer/encoder (per experiment)
@@ -113,6 +126,7 @@ MIDI performance
 ```
 
 **Two-phase training for all symbolic experiments:**
+
 1. Self-supervised pretraining on large MIDI corpus (GiantMIDI + MAESTRO + ASAP + ATEPP)
 2. Supervised fine-tuning on PercePiano (symbolic path) + MAESTRO pairwise ranking
 
@@ -121,23 +135,28 @@ MIDI performance
 Input: best audio encoder (winner of A1/A2/A3) + best symbolic encoder (winner of S1/S2/S3).
 
 **F1: Cross-attention fusion**
+
 - z_audio attends to z_symbolic and vice versa
 - Breaks correlated-error pattern that killed concatenation fusion (error correlation r=0.738)
 
 **F2: Concatenation (baseline)**
+
 - [z_audio; z_symbolic] -> MLP
 - Must beat current 0.524 or fusion isn't working
 
 **F3: Gated fusion**
+
 - Learned per-dimension weighting: some dimensions may benefit more from audio, others from symbolic
 - gate_d = sigmoid(W_d * [z_audio; z_symbolic])
-- z_fused_d = gate_d * z_audio + (1 - gate_d) * z_symbolic
+- z_fused_d = gate_d *z_audio + (1 - gate_d)* z_symbolic
 
 **Fusion training:**
+
 - Freeze both encoders initially, train only fusion module + downstream heads on T1+T2+T3
 - If frozen fusion plateaus, optionally unfreeze encoders with very low LR (1e-6) for end-to-end tuning
 
 **Downstream heads (shared across fusion experiments):**
+
 - Quality heads: 19-dimension regression (PercePiano)
 - Ranking heads: 19-dimension pairwise ranking (E2a-style)
 - Difficulty head: auxiliary regression (PSyllabus)
@@ -174,6 +193,7 @@ Applied on-the-fly during training via AudioAugmentor:
 ### MIDI Tokenization
 
 REMI-style tokenizer for symbolic experiments:
+
 - Position tokens (beat subdivisions)
 - Pitch tokens (0-127)
 - Velocity tokens (quantized to 32 bins)

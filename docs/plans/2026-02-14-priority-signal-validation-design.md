@@ -62,6 +62,7 @@ Two extraction paths reusing existing infrastructure:
 - **PercePiano quality scores:** Load trained PercePiano checkpoint, run inference on each segment to produce a 19-dim quality score vector.
 
 Cache structure:
+
 ```
 model/data/masterclass_cache/
   segments/          -- WAV clips

@@ -13,15 +13,19 @@
 ### Task 1: Add reqwest multipart support to Cargo.toml
 
 **Files:**
+
 - Modify: `tools/masterclass-pipeline/Cargo.toml`
 
 **Step 1: Add multipart feature to reqwest**
 
 In `Cargo.toml`, change:
+
 ```toml
 reqwest = { version = "0.12", features = ["json"] }
 ```
+
 to:
+
 ```toml
 reqwest = { version = "0.12", features = ["json", "multipart"] }
 ```
@@ -45,6 +49,7 @@ git commit -m "add reqwest multipart feature for Whisper API uploads"
 ### Task 2: Add Identify stage to pipeline schemas
 
 **Files:**
+
 - Modify: `tools/masterclass-pipeline/src/schemas.rs:129-147`
 
 **Step 1: Add Identify variant to PipelineStage**
@@ -128,6 +133,7 @@ git commit -m "add Identify pipeline stage to schemas and store"
 ### Task 3: Extend LLM client to support OpenAI API authentication
 
 **Files:**
+
 - Modify: `tools/masterclass-pipeline/src/llm_client.rs`
 
 The current `LlmClient` sends to an OpenAI-compatible API without auth headers. We need to support `Authorization: Bearer <key>` for both the OpenAI Whisper API and cloud LLM APIs.
@@ -228,6 +234,7 @@ git commit -m "add API key auth support to LLM client"
 ### Task 4: Add Whisper API transcription to transcribe.rs
 
 **Files:**
+
 - Modify: `tools/masterclass-pipeline/src/transcribe.rs`
 
 This is the largest task. We add a new async function `transcribe_video_api` that sends audio chunks to the OpenAI Whisper API, while keeping the existing local `transcribe_video` function.
@@ -445,6 +452,7 @@ struct WhisperApiWord {
 **Step 2: Add tempfile dependency**
 
 In `Cargo.toml`, add under `[dependencies]`:
+
 ```toml
 tempfile = "3"
 ```
@@ -466,6 +474,7 @@ git commit -m "add Whisper API transcription with chunked upload"
 ### Task 5: Create the identify module (two-pass LLM moment detection)
 
 **Files:**
+
 - Create: `tools/masterclass-pipeline/src/identify.rs`
 
 This is the core new module that replaces both `segment.rs` and `extract.rs`.
@@ -1045,6 +1054,7 @@ git commit -m "add identify module with two-pass LLM moment detection"
 ### Task 6: Wire up CLI and pipeline for the new stages
 
 **Files:**
+
 - Modify: `tools/masterclass-pipeline/src/main.rs`
 - Modify: `tools/masterclass-pipeline/src/pipeline.rs`
 
@@ -1345,6 +1355,7 @@ git commit -m "wire up identify and Whisper API stages to CLI and pipeline"
 ### Task 7: End-to-end test with one video
 
 **Files:**
+
 - No new files
 
 This is a manual verification step. Run the new pipeline on one video to verify everything works.
@@ -1354,6 +1365,7 @@ This is a manual verification step. Run the new pipeline on one video to verify 
 Pick one of the problematic videos (Zimerman: ALDzxU452gA had 0 moments with old pipeline).
 
 Run:
+
 ```bash
 cd tools/masterclass-pipeline
 # Retranscribe and identify one video
@@ -1390,6 +1402,7 @@ git commit -m "verify new pipeline works end-to-end on test video"
 ### Task 8: Run full pipeline on all videos
 
 **Files:**
+
 - No new files
 
 **Step 1: Run the full pipeline**
@@ -1400,6 +1413,7 @@ OPENAI_API_KEY=<your key> cargo run -- run --force
 ```
 
 This will:
+
 1. Discover all videos
 2. Download audio
 3. Transcribe via Whisper API
@@ -1414,6 +1428,7 @@ python verify_moments.py data/
 ```
 
 Review the output. Check:
+
 - All 5 videos now produce teaching moments (especially Zimerman and Perahia which had 0 before)
 - No hallucinated "Teacher gives feedback on student performance" text
 - No duplicate moments
