@@ -4,6 +4,7 @@ mod config;
 mod discovery;
 mod download;
 mod extract;
+mod identify;
 mod pipeline;
 mod schemas;
 mod segment;
