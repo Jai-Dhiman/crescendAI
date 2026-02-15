@@ -1,6 +1,6 @@
 import torch
 import pytest
-from model_improvement.audio_encoders import MuQLoRAModel
+from model_improvement.audio_encoders import MuQLoRAModel, MuQStagedModel
 
 
 class TestMuQLoRAModel:
@@ -47,3 +47,45 @@ class TestMuQLoRAModel:
         loss = model.training_step(batch, 0)
         assert loss.ndim == 0
         assert loss.item() > 0
+
+
+class TestMuQStagedModel:
+    def test_stage1_self_supervised_step(self):
+        model = MuQStagedModel(
+            input_dim=1024, hidden_dim=512, num_labels=19,
+            use_pretrained_muq=False, stage="self_supervised",
+        )
+        batch = {
+            "embeddings_clean": torch.randn(4, 50, 1024),
+            "embeddings_augmented": torch.randn(4, 50, 1024),
+            "mask": torch.ones(4, 50, dtype=torch.bool),
+            "piece_ids": torch.tensor([0, 0, 1, 1]),
+        }
+        loss = model.training_step(batch, 0)
+        assert loss.ndim == 0
+
+    def test_stage2_supervised_step(self):
+        model = MuQStagedModel(
+            input_dim=1024, hidden_dim=512, num_labels=19,
+            use_pretrained_muq=False, stage="supervised",
+        )
+        batch = {
+            "embeddings_a": torch.randn(4, 50, 1024),
+            "embeddings_b": torch.randn(4, 50, 1024),
+            "mask_a": torch.ones(4, 50, dtype=torch.bool),
+            "mask_b": torch.ones(4, 50, dtype=torch.bool),
+            "labels_a": torch.rand(4, 19),
+            "labels_b": torch.rand(4, 19),
+            "piece_ids_a": torch.tensor([0, 0, 1, 1]),
+            "piece_ids_b": torch.tensor([0, 0, 1, 1]),
+        }
+        loss = model.training_step(batch, 0)
+        assert loss.ndim == 0
+
+    def test_switch_stage(self):
+        model = MuQStagedModel(
+            input_dim=1024, hidden_dim=512, num_labels=19,
+            use_pretrained_muq=False, stage="self_supervised",
+        )
+        model.switch_to_supervised()
+        assert model.stage == "supervised"
