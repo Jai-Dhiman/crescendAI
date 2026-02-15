@@ -294,6 +294,339 @@ class MuQLoRAModel(pl.LightningModule):
         return {"optimizer": opt, "lr_scheduler": {"scheduler": sch, "interval": "epoch"}}
 
 
+class MuQFullUnfreezeModel(pl.LightningModule):
+    """A3: Full unfreeze with gradual layer unfreezing and discriminative LR.
+
+    Starts with all backbone layers frozen, then progressively unfreezes
+    layers from top to bottom according to an epoch-based schedule. Each
+    layer group gets a decayed learning rate (deeper = lower LR).
+
+    Uses the same multi-task loss as A1 (ranking + contrastive + regression).
+
+    Args:
+        unfreeze_schedule: Dict mapping epoch -> list of layer indices to unfreeze
+            at that epoch. E.g., {0: [12], 10: [11], 20: [10], 30: [9]}
+        lr_decay_factor: Multiplier applied per layer depth. Layer k gets
+            lr * (factor ^ (max_layer - k)).
+        mock_num_layers: Number of mock transformer layers for testing
+            (only used when use_pretrained_muq=False).
+    """
+
+    def __init__(
+        self,
+        input_dim: int = 1024,
+        hidden_dim: int = 512,
+        projection_dim: int = 256,
+        num_labels: int = 19,
+        dropout: float = 0.2,
+        learning_rate: float = 1e-4,
+        weight_decay: float = 1e-5,
+        temperature: float = 0.07,
+        lambda_contrastive: float = 0.3,
+        lambda_regression: float = 0.5,
+        margin: float = 0.2,
+        ambiguous_threshold: float = 0.05,
+        label_smoothing: float = 0.0,
+        max_epochs: int = 200,
+        use_pretrained_muq: bool = False,
+        unfreeze_schedule: dict[int, list[int]] | None = None,
+        lr_decay_factor: float = 0.8,
+        mock_num_layers: int = 12,
+    ):
+        super().__init__()
+        self.save_hyperparameters()
+        self.lr = learning_rate
+        self.wd = weight_decay
+        self.temperature = temperature
+        self.lambda_contrastive = lambda_contrastive
+        self.lambda_regression = lambda_regression
+        self.max_epochs = max_epochs
+        self.num_labels = num_labels
+        self.lr_decay_factor = lr_decay_factor
+        self.unfreeze_schedule = unfreeze_schedule or {}
+        self._unfrozen_layers: set[int] = set()
+
+        # Backbone (MuQ or mock encoder for testing)
+        if use_pretrained_muq:
+            raise NotImplementedError(
+                "Pretrained MuQ loading not yet implemented. "
+                "Pass use_pretrained_muq=False for testing."
+            )
+        else:
+            from .lora import create_mock_encoder
+            self.backbone = create_mock_encoder(
+                hidden_size=input_dim, num_layers=mock_num_layers
+            )
+
+        # Freeze all backbone layers initially
+        for param in self.backbone.parameters():
+            param.requires_grad = False
+
+        # Attention pooling
+        self.attn = nn.Sequential(
+            nn.Linear(input_dim, 256), nn.Tanh(), nn.Linear(256, 1)
+        )
+
+        # Shared encoder on top of backbone output
+        self.encoder = nn.Sequential(
+            nn.Linear(input_dim, hidden_dim),
+            nn.LayerNorm(hidden_dim),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.LayerNorm(hidden_dim),
+            nn.GELU(),
+            nn.Dropout(dropout),
+        )
+
+        # Projection head for contrastive learning
+        self.projection = nn.Sequential(
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.GELU(),
+            nn.Linear(hidden_dim, projection_dim),
+        )
+
+        # Comparison module for pairwise ranking
+        comparison_dim = hidden_dim * 4
+        self.comparator = nn.Sequential(
+            nn.Linear(comparison_dim, hidden_dim),
+            nn.LayerNorm(hidden_dim),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_dim, hidden_dim // 2),
+            nn.GELU(),
+            nn.Dropout(dropout),
+        )
+
+        # Per-dimension ranking heads
+        self.ranking_heads = nn.ModuleList([
+            nn.Linear(hidden_dim // 2, 1) for _ in range(num_labels)
+        ])
+
+        # Regression head
+        self.regression_head = nn.Sequential(
+            nn.Linear(hidden_dim, hidden_dim // 2),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_dim // 2, num_labels),
+            nn.Sigmoid(),
+        )
+
+        # Losses
+        self.ranking_loss = DimensionWiseRankingLoss(
+            margin=margin,
+            ambiguous_threshold=ambiguous_threshold,
+            label_smoothing=label_smoothing,
+        )
+
+        self.val_outputs: list[dict] = []
+
+    def get_unfrozen_layers(self) -> set[int]:
+        """Return the set of currently unfrozen backbone layer indices."""
+        return set(self._unfrozen_layers)
+
+    def on_train_epoch_start(self) -> None:
+        """Check unfreeze schedule and unfreeze layers as needed."""
+        self.unfreeze_for_epoch(self.current_epoch)
+
+    def unfreeze_for_epoch(self, epoch: int) -> None:
+        """Unfreeze backbone layers scheduled for the given epoch.
+
+        Called automatically by on_train_epoch_start during training.
+        Can also be called directly in tests.
+        """
+        if epoch in self.unfreeze_schedule:
+            for layer_idx in self.unfreeze_schedule[epoch]:
+                if layer_idx < len(self.backbone.layers):
+                    for param in self.backbone.layers[layer_idx].parameters():
+                        param.requires_grad = True
+                    self._unfrozen_layers.add(layer_idx)
+
+    def pool(self, x: torch.Tensor, mask: torch.Tensor | None = None) -> torch.Tensor:
+        scores = self.attn(x).squeeze(-1)
+        if mask is not None:
+            scores = scores.masked_fill(~mask, float("-inf"))
+        w = torch.softmax(scores, dim=-1).unsqueeze(-1)
+        return (x * w).sum(1)
+
+    def encode(self, x: torch.Tensor, mask: torch.Tensor | None = None) -> torch.Tensor:
+        backbone_out = self.backbone(x)
+        pooled = self.pool(backbone_out, mask)
+        return self.encoder(pooled)
+
+    def compare(self, z_a: torch.Tensor, z_b: torch.Tensor) -> torch.Tensor:
+        diff = z_a - z_b
+        prod = z_a * z_b
+        concat = torch.cat([z_a, z_b, diff, prod], dim=-1)
+        comp = self.comparator(concat)
+        logits = [head(comp) for head in self.ranking_heads]
+        return torch.cat(logits, dim=-1)
+
+    def forward(
+        self,
+        emb_a: torch.Tensor,
+        emb_b: torch.Tensor,
+        mask_a: torch.Tensor | None = None,
+        mask_b: torch.Tensor | None = None,
+    ) -> dict:
+        z_a = self.encode(emb_a, mask_a)
+        z_b = self.encode(emb_b, mask_b)
+
+        proj_a = self.projection(z_a)
+        proj_b = self.projection(z_b)
+
+        ranking_logits = self.compare(z_a, z_b)
+
+        return {
+            "ranking_logits": ranking_logits,
+            "z_a": z_a,
+            "z_b": z_b,
+            "proj_a": proj_a,
+            "proj_b": proj_b,
+        }
+
+    def predict_scores(
+        self, x: torch.Tensor, mask: torch.Tensor | None = None
+    ) -> torch.Tensor:
+        z = self.encode(x, mask)
+        return self.regression_head(z)
+
+    def training_step(self, batch: dict, idx: int) -> torch.Tensor:
+        outputs = self(
+            batch["embeddings_a"],
+            batch["embeddings_b"],
+            batch.get("mask_a"),
+            batch.get("mask_b"),
+        )
+
+        # Ranking loss
+        l_rank = self.ranking_loss(
+            outputs["ranking_logits"],
+            batch["labels_a"],
+            batch["labels_b"],
+        )
+
+        # Contrastive loss
+        all_proj = torch.cat([outputs["proj_a"], outputs["proj_b"]], dim=0)
+        all_pieces = torch.cat([batch["piece_ids_a"], batch["piece_ids_b"]], dim=0)
+        l_contrast = piece_based_infonce_loss(
+            all_proj, all_pieces, temperature=self.temperature
+        )
+
+        # Regression loss
+        scores_a = self.regression_head(outputs["z_a"])
+        scores_b = self.regression_head(outputs["z_b"])
+        l_reg = (
+            F.mse_loss(scores_a, batch["labels_a"])
+            + F.mse_loss(scores_b, batch["labels_b"])
+        ) / 2.0
+
+        loss = (
+            l_rank
+            + self.lambda_contrastive * l_contrast
+            + self.lambda_regression * l_reg
+        )
+
+        self.log("train_loss", loss, prog_bar=True)
+        self.log("train_rank_loss", l_rank)
+        self.log("train_contrast_loss", l_contrast)
+        self.log("train_reg_loss", l_reg)
+
+        return loss
+
+    def validation_step(self, batch: dict, idx: int) -> None:
+        outputs = self(
+            batch["embeddings_a"],
+            batch["embeddings_b"],
+            batch.get("mask_a"),
+            batch.get("mask_b"),
+        )
+
+        l_rank = self.ranking_loss(
+            outputs["ranking_logits"],
+            batch["labels_a"],
+            batch["labels_b"],
+        )
+        self.log("val_loss", l_rank, prog_bar=True)
+
+        self.val_outputs.append({
+            "logits": outputs["ranking_logits"].cpu(),
+            "labels_a": batch["labels_a"].cpu(),
+            "labels_b": batch["labels_b"].cpu(),
+        })
+
+    def on_validation_epoch_end(self) -> None:
+        if not self.val_outputs:
+            return
+
+        all_logits = torch.cat([x["logits"] for x in self.val_outputs])
+        all_labels_a = torch.cat([x["labels_a"] for x in self.val_outputs])
+        all_labels_b = torch.cat([x["labels_b"] for x in self.val_outputs])
+
+        true_ranking = (all_labels_a > all_labels_b).float()
+        pred_ranking = (all_logits > 0).float()
+
+        diff = (all_labels_a - all_labels_b).abs()
+        non_ambiguous = diff >= 0.05
+
+        if non_ambiguous.any():
+            correct = (pred_ranking[non_ambiguous] == true_ranking[non_ambiguous]).float()
+            accuracy = correct.mean().item()
+        else:
+            accuracy = 0.5
+
+        self.log("val_pairwise_acc", accuracy, prog_bar=True)
+        self.val_outputs.clear()
+
+    def configure_optimizers(self) -> dict:
+        """Build optimizer with discriminative learning rates per layer group.
+
+        Unfrozen backbone layers get decayed LR (deeper = lower).
+        Head layers (encoder, comparator, ranking/regression heads) get base LR.
+        """
+        param_groups = []
+
+        # Backbone layer groups with discriminative LR
+        if self._unfrozen_layers:
+            max_layer = max(self._unfrozen_layers)
+            for layer_idx in sorted(self._unfrozen_layers):
+                layer_params = list(self.backbone.layers[layer_idx].parameters())
+                trainable = [p for p in layer_params if p.requires_grad]
+                if trainable:
+                    depth = max_layer - layer_idx
+                    layer_lr = self.lr * (self.lr_decay_factor ** depth)
+                    param_groups.append({
+                        "params": trainable,
+                        "lr": layer_lr,
+                        "name": f"backbone_layer_{layer_idx}",
+                    })
+
+        # Head parameters at base LR
+        head_modules = [
+            self.attn, self.encoder, self.projection,
+            self.comparator, self.ranking_heads, self.regression_head,
+        ]
+        head_params = []
+        for module in head_modules:
+            head_params.extend(p for p in module.parameters() if p.requires_grad)
+
+        if head_params:
+            param_groups.append({
+                "params": head_params,
+                "lr": self.lr,
+                "name": "heads",
+            })
+
+        if not param_groups:
+            param_groups = [{"params": [p for p in self.parameters() if p.requires_grad], "lr": self.lr}]
+
+        opt = torch.optim.AdamW(param_groups, weight_decay=self.wd)
+        sch = torch.optim.lr_scheduler.CosineAnnealingLR(
+            opt, T_max=self.max_epochs, eta_min=1e-6
+        )
+        return {"optimizer": opt, "lr_scheduler": {"scheduler": sch, "interval": "epoch"}}
+
+
 class MuQStagedModel(pl.LightningModule):
     """A2: Two-stage domain adaptation model.
 
