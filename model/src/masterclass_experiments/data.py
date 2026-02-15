@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
+from itertools import groupby
 from pathlib import Path
 
 
@@ -51,3 +52,64 @@ def load_moments(jsonl_path: Path) -> list[Moment]:
             )
     moments.sort(key=lambda m: (m.video_id, m.stop_timestamp))
     return moments
+
+
+@dataclass
+class Segment:
+    """An audio segment labeled as STOP or CONTINUE."""
+
+    segment_id: str
+    video_id: str
+    label: str  # "stop" or "continue"
+    start_time: float  # seconds into the WAV
+    end_time: float
+    moment_id: str | None = None  # linked moment for STOP segments
+
+
+def identify_segments(
+    moments: list[Moment],
+    min_continue_duration: float = 5.0,
+) -> list[Segment]:
+    """Identify STOP and CONTINUE segments from moments.
+
+    STOP segments: playing window before each teacher intervention.
+    CONTINUE segments: gaps between consecutive moments in the same video
+    where the student was playing but the teacher did not stop.
+    """
+    segments: list[Segment] = []
+    seq = 0
+
+    for video_id, group in groupby(moments, key=lambda m: m.video_id):
+        video_moments = list(group)
+
+        for i, m in enumerate(video_moments):
+            segments.append(
+                Segment(
+                    segment_id=f"stop_{seq:04d}",
+                    video_id=m.video_id,
+                    label="stop",
+                    start_time=m.playing_before_start,
+                    end_time=m.playing_before_end,
+                    moment_id=m.moment_id,
+                )
+            )
+            seq += 1
+
+            if i < len(video_moments) - 1:
+                next_m = video_moments[i + 1]
+                gap_start = m.feedback_end
+                gap_end = next_m.playing_before_start
+
+                if gap_end - gap_start >= min_continue_duration:
+                    segments.append(
+                        Segment(
+                            segment_id=f"cont_{seq:04d}",
+                            video_id=m.video_id,
+                            label="continue",
+                            start_time=gap_start,
+                            end_time=gap_end,
+                        )
+                    )
+                    seq += 1
+
+    return segments

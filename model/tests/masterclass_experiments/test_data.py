@@ -2,7 +2,7 @@ import json
 import tempfile
 from pathlib import Path
 
-from masterclass_experiments.data import Moment, load_moments
+from masterclass_experiments.data import Moment, Segment, identify_segments, load_moments
 
 
 def _write_moments(path: Path, moments: list[dict]) -> None:
@@ -70,3 +70,153 @@ def test_load_moments_sorts_by_video_and_timestamp():
         moments = load_moments(path)
 
         assert [m.moment_id for m in moments] == ["b", "a", "c"]
+
+
+def test_identify_segments_creates_stop_segments():
+    moments = [
+        Moment(
+            moment_id="a",
+            video_id="vid1",
+            teacher="T",
+            stop_timestamp=100.0,
+            playing_before_start=80.0,
+            playing_before_end=100.0,
+            feedback_start=100.0,
+            feedback_end=130.0,
+            feedback_summary="s",
+            musical_dimension="timing",
+            severity="moderate",
+            piece="piece",
+            confidence=0.7,
+        )
+    ]
+
+    segments = identify_segments(moments)
+
+    stops = [s for s in segments if s.label == "stop"]
+    assert len(stops) == 1
+    assert stops[0].start_time == 80.0
+    assert stops[0].end_time == 100.0
+    assert stops[0].video_id == "vid1"
+
+
+def test_identify_segments_creates_continue_between_moments():
+    moments = [
+        Moment(
+            moment_id="a",
+            video_id="vid1",
+            teacher="T",
+            stop_timestamp=100.0,
+            playing_before_start=80.0,
+            playing_before_end=100.0,
+            feedback_start=100.0,
+            feedback_end=130.0,
+            feedback_summary="s",
+            musical_dimension="timing",
+            severity="moderate",
+            piece="piece",
+            confidence=0.7,
+        ),
+        Moment(
+            moment_id="b",
+            video_id="vid1",
+            teacher="T",
+            stop_timestamp=200.0,
+            playing_before_start=180.0,
+            playing_before_end=200.0,
+            feedback_start=200.0,
+            feedback_end=230.0,
+            feedback_summary="s",
+            musical_dimension="dynamics",
+            severity="moderate",
+            piece="piece",
+            confidence=0.7,
+        ),
+    ]
+
+    segments = identify_segments(moments)
+
+    continues = [s for s in segments if s.label == "continue"]
+    assert len(continues) == 1
+    assert continues[0].start_time == 130.0
+    assert continues[0].end_time == 180.0
+
+
+def test_identify_segments_skips_short_continue_gaps():
+    moments = [
+        Moment(
+            moment_id="a",
+            video_id="vid1",
+            teacher="T",
+            stop_timestamp=100.0,
+            playing_before_start=80.0,
+            playing_before_end=100.0,
+            feedback_start=100.0,
+            feedback_end=130.0,
+            feedback_summary="s",
+            musical_dimension="timing",
+            severity="moderate",
+            piece="piece",
+            confidence=0.7,
+        ),
+        Moment(
+            moment_id="b",
+            video_id="vid1",
+            teacher="T",
+            stop_timestamp=133.0,
+            playing_before_start=131.0,
+            playing_before_end=133.0,
+            feedback_start=133.0,
+            feedback_end=140.0,
+            feedback_summary="s",
+            musical_dimension="dynamics",
+            severity="moderate",
+            piece="piece",
+            confidence=0.7,
+        ),
+    ]
+
+    segments = identify_segments(moments, min_continue_duration=5.0)
+
+    continues = [s for s in segments if s.label == "continue"]
+    assert len(continues) == 0
+
+
+def test_identify_segments_no_continue_across_videos():
+    moments = [
+        Moment(
+            moment_id="a",
+            video_id="vid1",
+            teacher="T",
+            stop_timestamp=100.0,
+            playing_before_start=80.0,
+            playing_before_end=100.0,
+            feedback_start=100.0,
+            feedback_end=130.0,
+            feedback_summary="s",
+            musical_dimension="timing",
+            severity="moderate",
+            piece="piece",
+            confidence=0.7,
+        ),
+        Moment(
+            moment_id="b",
+            video_id="vid2",
+            teacher="T",
+            stop_timestamp=200.0,
+            playing_before_start=180.0,
+            playing_before_end=200.0,
+            feedback_start=200.0,
+            feedback_end=230.0,
+            feedback_summary="s",
+            musical_dimension="dynamics",
+            severity="moderate",
+            piece="piece",
+            confidence=0.7,
+        ),
+    ]
+
+    segments = identify_segments(moments)
+
+    continues = [s for s in segments if s.label == "continue"]
+    assert len(continues) == 0
