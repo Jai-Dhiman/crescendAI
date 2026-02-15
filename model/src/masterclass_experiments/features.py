@@ -59,32 +59,47 @@ def extract_muq_features(
 @torch.no_grad()
 def extract_quality_scores(
     raw_embeddings: dict[str, torch.Tensor],
-    checkpoint_path: Path,
+    checkpoint_paths: Path | list[Path],
 ) -> dict[str, torch.Tensor]:
     """Run PercePiano model inference to get 19-dim quality scores.
 
+    When multiple checkpoint paths are provided, predictions are averaged
+    across all models (ensemble).
+
     Args:
         raw_embeddings: Dict mapping segment_id to [T, 1024] raw MuQ embeddings.
-        checkpoint_path: Path to trained MuQStatsModel checkpoint.
+        checkpoint_paths: Single checkpoint path or list of paths to average.
 
     Returns:
         Dict mapping segment_id to [19] quality score tensor.
     """
-    model = MuQStatsModel.load_from_checkpoint(checkpoint_path)
-    model.eval()
+    if isinstance(checkpoint_paths, Path):
+        checkpoint_paths = [checkpoint_paths]
 
     device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
-    model = model.to(device)
+
+    # Load all fold models
+    models = []
+    for ckpt in checkpoint_paths:
+        model = MuQStatsModel.load_from_checkpoint(ckpt)
+        model.eval()
+        model = model.to(device)
+        models.append(model)
 
     scores: dict[str, torch.Tensor] = {}
 
     for seg_id, emb in raw_embeddings.items():
-        # Model expects [B, T, D] with attention mask
         x = emb.unsqueeze(0).to(device)  # [1, T, 1024]
         mask = torch.ones(1, emb.shape[0], device=device)  # [1, T]
 
-        pooled = model.pool(x, mask)  # [1, 2048]
-        pred = model.clf(pooled)  # [1, 19]
-        scores[seg_id] = pred.squeeze(0).cpu()
+        # Average predictions across all fold models
+        preds = []
+        for model in models:
+            pooled = model.pool(x, mask)  # [1, 2048]
+            pred = model.clf(pooled)  # [1, 19]
+            preds.append(pred)
+
+        avg_pred = torch.stack(preds).mean(dim=0)  # [1, 19]
+        scores[seg_id] = avg_pred.squeeze(0).cpu()
 
     return scores

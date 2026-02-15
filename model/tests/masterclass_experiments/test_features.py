@@ -77,11 +77,34 @@ def test_extract_quality_scores_returns_19dim_vectors():
         instance.pool.return_value = torch.randn(1, 2048)
         instance.clf.return_value = fake_scores
 
+        # Single checkpoint path
         scores = extract_quality_scores(
             raw_embeddings,
-            checkpoint_path=Path("/tmp/fake.ckpt"),
+            checkpoint_paths=Path("/tmp/fake.ckpt"),
         )
 
     assert "stop_0000" in scores
     assert "cont_0001" in scores
+    assert scores["stop_0000"].shape == (19,)
+
+
+def test_extract_quality_scores_averages_multiple_checkpoints():
+    raw_embeddings = {
+        "stop_0000": torch.randn(10, 1024),
+    }
+
+    with patch("masterclass_experiments.features.MuQStatsModel") as MockModel:
+        instance = MockModel.load_from_checkpoint.return_value
+        instance.eval.return_value = instance
+        instance.to.return_value = instance
+        instance.pool.return_value = torch.randn(1, 2048)
+        instance.clf.return_value = torch.sigmoid(torch.randn(1, 19))
+
+        scores = extract_quality_scores(
+            raw_embeddings,
+            checkpoint_paths=[Path("/tmp/f0.ckpt"), Path("/tmp/f1.ckpt"), Path("/tmp/f2.ckpt")],
+        )
+
+    # load_from_checkpoint called 3 times (one per fold)
+    assert MockModel.load_from_checkpoint.call_count == 3
     assert scores["stop_0000"].shape == (19,)
