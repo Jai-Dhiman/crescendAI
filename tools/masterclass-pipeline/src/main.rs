@@ -169,7 +169,7 @@ async fn main() -> Result<()> {
                             tracing::info!("[dry-run] Would transcribe {} (API)", video_id);
                             continue;
                         }
-                        match transcribe::transcribe_video_api(&http_client, api_key, &store, video_id).await {
+                        match transcribe::transcribe_video_api(&http_client, api_key, transcribe::WHISPER_API_BASE_URL, &store, video_id).await {
                             Ok(_) => store.mark_stage_complete(video_id, &schemas::PipelineStage::Transcribe)?,
                             Err(e) => {
                                 tracing::error!("Failed to transcribe {}: {}", video_id, e);

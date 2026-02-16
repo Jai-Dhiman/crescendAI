@@ -630,6 +630,7 @@ struct WhisperApiWord {
 pub async fn transcribe_video_api(
     client: &reqwest::Client,
     api_key: &str,
+    base_url: &str,
     store: &MasterclassStore,
     video_id: &str,
 ) -> Result<Transcript> {
@@ -691,7 +692,7 @@ pub async fn transcribe_video_api(
         );
 
         let mut chunk_segments =
-            transcribe_chunk_api(client, api_key, chunk_samples, sample_rate).await?;
+            transcribe_chunk_api(client, api_key, base_url, chunk_samples, sample_rate).await?;
 
         // Offset timestamps by chunk start time
         for seg in &mut chunk_segments {
@@ -771,61 +772,119 @@ fn write_temp_wav(samples: &[f32], sample_rate: u32) -> Result<tempfile::NamedTe
 
 pub const WHISPER_API_BASE_URL: &str = "https://api.openai.com";
 
-/// Transcribe a single audio chunk via the OpenAI Whisper API.
+const WHISPER_MAX_RETRIES: u32 = 4;
+#[cfg(not(test))]
+const WHISPER_INITIAL_BACKOFF_SECS: u64 = 4;
+#[cfg(test)]
+const WHISPER_INITIAL_BACKOFF_SECS: u64 = 0;
+
+/// Transcribe a single audio chunk via the OpenAI Whisper API with retry.
 async fn transcribe_chunk_api(
     client: &reqwest::Client,
     api_key: &str,
+    base_url: &str,
     samples: &[f32],
     sample_rate: u32,
 ) -> Result<Vec<TranscriptSegment>> {
     let temp_wav = write_temp_wav(samples, sample_rate)?;
-
     let wav_bytes = std::fs::read(temp_wav.path())
         .with_context(|| "Failed to read temp WAV file for upload")?;
 
-    let file_part = multipart::Part::bytes(wav_bytes)
-        .file_name("audio.wav")
-        .mime_str("audio/wav")
-        .with_context(|| "Failed to set MIME type on multipart part")?;
+    let url = format!("{}/v1/audio/transcriptions", base_url);
+    let mut last_error = None;
 
-    let form = multipart::Form::new()
-        .part("file", file_part)
-        .text("model", "whisper-1")
-        .text("response_format", "verbose_json")
-        .text("timestamp_granularities[]", "word")
-        .text("timestamp_granularities[]", "segment")
-        .text("language", "en");
+    for attempt in 0..WHISPER_MAX_RETRIES {
+        if attempt > 0 {
+            let delay =
+                std::time::Duration::from_secs(WHISPER_INITIAL_BACKOFF_SECS * 2u64.pow(attempt - 1));
+            tracing::info!(
+                "Retrying Whisper API in {}s (attempt {}/{})",
+                delay.as_secs(),
+                attempt + 1,
+                WHISPER_MAX_RETRIES
+            );
+            tokio::time::sleep(delay).await;
+        }
 
-    let response = client
-        .post("https://api.openai.com/v1/audio/transcriptions")
-        .bearer_auth(api_key)
-        .multipart(form)
-        .send()
-        .await
-        .with_context(|| "Failed to send request to Whisper API")?;
+        // Rebuild multipart form each attempt (consumed by .multipart())
+        let file_part = multipart::Part::bytes(wav_bytes.clone())
+            .file_name("audio.wav")
+            .mime_str("audio/wav")
+            .with_context(|| "Failed to set MIME type on multipart part")?;
 
-    anyhow::ensure!(
-        response.status().is_success(),
-        "Whisper API returned error: HTTP {} - {}",
-        response.status(),
-        response
-            .text()
+        let form = multipart::Form::new()
+            .part("file", file_part)
+            .text("model", "whisper-1")
+            .text("response_format", "verbose_json")
+            .text("timestamp_granularities[]", "word")
+            .text("timestamp_granularities[]", "segment")
+            .text("language", "en");
+
+        let response = match client
+            .post(&url)
+            .bearer_auth(api_key)
+            .multipart(form)
+            .send()
             .await
-            .unwrap_or_else(|_| "no body".to_string())
-    );
+        {
+            Ok(r) => r,
+            Err(e) => {
+                let err_str = e.to_string();
+                if err_str.contains("timed out") || err_str.contains("connection") {
+                    tracing::warn!("Whisper API attempt {}: {}", attempt + 1, err_str);
+                    last_error = Some(anyhow::anyhow!("Whisper API request failed: {}", e));
+                    continue;
+                }
+                return Err(anyhow::anyhow!("Whisper API request failed: {}", e));
+            }
+        };
 
-    let api_response: WhisperApiResponse = response
-        .json()
-        .await
-        .with_context(|| "Failed to parse Whisper API response")?;
+        let status = response.status();
+        if status.is_success() {
+            let api_response: WhisperApiResponse = response
+                .json()
+                .await
+                .with_context(|| "Failed to parse Whisper API response")?;
+            return Ok(parse_whisper_response(api_response));
+        }
 
+        let status_code = status.as_u16();
+        let body = response.text().await.unwrap_or_else(|_| "no body".to_string());
+
+        if status_code == 429 || status_code == 500 || status_code == 503 {
+            tracing::warn!(
+                "Whisper API attempt {}: HTTP {} - {}",
+                attempt + 1,
+                status_code,
+                &body[..body.len().min(200)]
+            );
+            last_error = Some(anyhow::anyhow!(
+                "Whisper API error: HTTP {} - {}",
+                status_code,
+                body
+            ));
+            continue;
+        }
+
+        // Non-retryable error (400, 401, etc.)
+        anyhow::bail!("Whisper API returned error: HTTP {} - {}", status_code, body);
+    }
+
+    Err(last_error.unwrap_or_else(|| {
+        anyhow::anyhow!(
+            "Whisper API failed after {} retries",
+            WHISPER_MAX_RETRIES
+        )
+    }))
+}
+
+fn parse_whisper_response(api_response: WhisperApiResponse) -> Vec<TranscriptSegment> {
     let api_segments = api_response.segments.unwrap_or_default();
     let api_words = api_response.words.unwrap_or_default();
 
     let mut segments: Vec<TranscriptSegment> = Vec::new();
 
     for (i, api_seg) in api_segments.iter().enumerate() {
-        // Collect words that fall within this segment's time range
         let seg_tokens: Vec<TranscriptToken> = api_words
             .iter()
             .filter(|w| w.start >= api_seg.start && w.end <= api_seg.end)
@@ -848,7 +907,7 @@ async fn transcribe_chunk_api(
         });
     }
 
-    Ok(segments)
+    segments
 }
 
 #[cfg(test)]
@@ -1005,5 +1064,125 @@ mod tests {
 
         let result = deduplicate_overlaps(&segments, &boundaries);
         assert_eq!(result.len(), 1, "duplicate should be removed");
+    }
+
+    // -- transcribe_chunk_api (wiremock) --
+
+    fn whisper_success_body() -> String {
+        serde_json::json!({
+            "text": "Hello world",
+            "segments": [
+                {"text": " Hello world", "start": 0.0, "end": 1.5}
+            ],
+            "words": [
+                {"word": "Hello", "start": 0.0, "end": 0.5},
+                {"word": "world", "start": 0.6, "end": 1.5}
+            ]
+        })
+        .to_string()
+    }
+
+    fn test_samples() -> Vec<f32> {
+        // 0.1s of silence at 16kHz
+        vec![0.0f32; 1600]
+    }
+
+    #[tokio::test]
+    async fn transcribe_chunk_api_success() {
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+        use wiremock::matchers::method;
+
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .respond_with(ResponseTemplate::new(200).set_body_string(whisper_success_body()))
+            .mount(&server)
+            .await;
+
+        let client = reqwest::Client::new();
+        let result = transcribe_chunk_api(
+            &client, "test-key", &server.uri(), &test_samples(), 16000,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(result.len(), 1);
+        assert!(result[0].text.contains("Hello world"));
+    }
+
+    #[tokio::test]
+    async fn transcribe_chunk_api_retry_on_429() {
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+        use wiremock::matchers::method;
+
+        let server = MockServer::start().await;
+
+        // First call returns 429, second returns success
+        Mock::given(method("POST"))
+            .respond_with(ResponseTemplate::new(429).set_body_string("rate limited"))
+            .up_to_n_times(1)
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        Mock::given(method("POST"))
+            .respond_with(ResponseTemplate::new(200).set_body_string(whisper_success_body()))
+            .mount(&server)
+            .await;
+
+        let client = reqwest::Client::new();
+        let result = transcribe_chunk_api(
+            &client, "test-key", &server.uri(), &test_samples(), 16000,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(result.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn transcribe_chunk_api_exhausts_retries() {
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+        use wiremock::matchers::method;
+
+        let server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .respond_with(ResponseTemplate::new(500).set_body_string("server error"))
+            .mount(&server)
+            .await;
+
+        let client = reqwest::Client::new();
+        let result = transcribe_chunk_api(
+            &client, "test-key", &server.uri(), &test_samples(), 16000,
+        )
+        .await;
+
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("500"), "error should mention status: {}", err);
+    }
+
+    #[tokio::test]
+    async fn transcribe_chunk_api_400_fails_immediately() {
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+        use wiremock::matchers::method;
+
+        let server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .respond_with(ResponseTemplate::new(400).set_body_string("bad request"))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let client = reqwest::Client::new();
+        let result = transcribe_chunk_api(
+            &client, "test-key", &server.uri(), &test_samples(), 16000,
+        )
+        .await;
+
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("400"), "error should mention 400: {}", err);
     }
 }

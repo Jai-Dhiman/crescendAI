@@ -243,7 +243,7 @@ impl Pipeline {
                 tracing::info!("[dry-run] Would transcribe {} (API)", video_id);
                 continue;
             }
-            match transcribe::transcribe_video_api(&http_client, api_key, &self.store, video_id).await {
+            match transcribe::transcribe_video_api(&http_client, api_key, transcribe::WHISPER_API_BASE_URL, &self.store, video_id).await {
                 Ok(_) => {
                     self.store.mark_stage_complete(video_id, &PipelineStage::Transcribe)?;
                     succeeded += 1;
