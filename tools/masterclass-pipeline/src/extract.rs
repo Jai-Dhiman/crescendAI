@@ -312,3 +312,63 @@ fn find_json_object(s: &str) -> Result<&str> {
 
     anyhow::bail!("Unterminated JSON object")
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // -- find_json_object --
+
+    #[test]
+    fn find_json_object_valid() {
+        let result = find_json_object(r#"{"key": "value"}"#).unwrap();
+        assert_eq!(result, r#"{"key": "value"}"#);
+    }
+
+    #[test]
+    fn find_json_object_nested() {
+        let result = find_json_object(r#"{"a": {"b": [1, 2]}}"#).unwrap();
+        assert_eq!(result, r#"{"a": {"b": [1, 2]}}"#);
+    }
+
+    #[test]
+    fn find_json_object_escaped_braces() {
+        let result = find_json_object(r#"{"a": "x}y"}"#).unwrap();
+        assert_eq!(result, r#"{"a": "x}y"}"#);
+    }
+
+    #[test]
+    fn find_json_object_unterminated() {
+        assert!(find_json_object(r#"{"key": "value""#).is_err());
+    }
+
+    // -- parse_single_extraction --
+
+    #[test]
+    fn parse_single_extraction_valid() {
+        let input = r#"{"feedback_summary": "Work on dynamics", "musical_dimension": "dynamics", "secondary_dimensions": [], "severity": "moderate", "feedback_type": "correction", "piece": null, "composer": null, "passage_description": null, "student_level": null, "demonstrated": false, "confidence": 0.8}"#;
+        let result = parse_single_extraction(input).unwrap();
+        assert_eq!(result.feedback_summary, "Work on dynamics");
+        assert_eq!(result.musical_dimension, "dynamics");
+    }
+
+    #[test]
+    fn parse_single_extraction_code_fenced() {
+        let input = "```json\n{\"feedback_summary\": \"test\", \"musical_dimension\": \"timing\", \"severity\": \"minor\", \"feedback_type\": \"suggestion\"}\n```";
+        let result = parse_single_extraction(input).unwrap();
+        assert_eq!(result.musical_dimension, "timing");
+    }
+
+    #[test]
+    fn parse_single_extraction_embedded_in_prose() {
+        let input = "Here is the analysis:\n{\"feedback_summary\": \"Nice phrasing\", \"musical_dimension\": \"phrasing\", \"severity\": \"minor\", \"feedback_type\": \"praise\"}\nThat's my analysis.";
+        let result = parse_single_extraction(input).unwrap();
+        assert_eq!(result.musical_dimension, "phrasing");
+    }
+
+    #[test]
+    fn parse_single_extraction_missing_fields() {
+        let input = r#"{"feedback_summary": "test"}"#;
+        assert!(parse_single_extraction(input).is_err());
+    }
+}

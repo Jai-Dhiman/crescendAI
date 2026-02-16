@@ -524,7 +524,7 @@ fn build_context_window(
         .join("\n")
 }
 
-fn estimate_playing_bounds(transcript: &Transcript, stop_timestamp: f64) -> (f64, f64) {
+pub fn estimate_playing_bounds(transcript: &Transcript, stop_timestamp: f64) -> (f64, f64) {
     let lookback = 120.0;
     let start_bound = (stop_timestamp - lookback).max(0.0);
 
@@ -556,5 +556,215 @@ fn estimate_playing_bounds(transcript: &Transcript, stop_timestamp: f64) -> (f64
         ((stop_timestamp - 10.0).max(0.0), stop_timestamp)
     } else {
         (gap_start, gap_end)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // -- find_json_array --
+
+    #[test]
+    fn find_json_array_valid() {
+        let result = find_json_array(r#"[{"a": 1}, {"b": 2}]"#).unwrap();
+        assert_eq!(result, r#"[{"a": 1}, {"b": 2}]"#);
+    }
+
+    #[test]
+    fn find_json_array_nested() {
+        let result = find_json_array(r#"[[1, 2], [3]]"#).unwrap();
+        assert_eq!(result, r#"[[1, 2], [3]]"#);
+    }
+
+    #[test]
+    fn find_json_array_strings_with_bracket() {
+        let result = find_json_array(r#"["a]b", "c"]"#).unwrap();
+        assert_eq!(result, r#"["a]b", "c"]"#);
+    }
+
+    #[test]
+    fn find_json_array_unterminated() {
+        assert!(find_json_array("[1, 2, 3").is_err());
+    }
+
+    #[test]
+    fn find_json_array_not_array() {
+        assert!(find_json_array("{\"a\": 1}").is_err());
+    }
+
+    // -- parse_detected_moments --
+
+    #[test]
+    fn parse_detected_moments_clean_json() {
+        let input = r#"[{"timestamp": 45.2, "description": "dynamics"}, {"timestamp": 100.0, "description": "pedal"}]"#;
+        let moments = parse_detected_moments(input).unwrap();
+        assert_eq!(moments.len(), 2);
+        assert!((moments[0].timestamp - 45.2).abs() < 0.01);
+    }
+
+    #[test]
+    fn parse_detected_moments_code_fenced() {
+        let input = "```json\n[{\"timestamp\": 10.0, \"description\": \"test\"}]\n```";
+        let moments = parse_detected_moments(input).unwrap();
+        assert_eq!(moments.len(), 1);
+    }
+
+    #[test]
+    fn parse_detected_moments_leading_text() {
+        let input = "Here are the moments:\n[{\"timestamp\": 20.0, \"description\": \"feedback\"}]";
+        let moments = parse_detected_moments(input).unwrap();
+        assert_eq!(moments.len(), 1);
+    }
+
+    #[test]
+    fn parse_detected_moments_empty_array() {
+        let moments = parse_detected_moments("[]").unwrap();
+        assert!(moments.is_empty());
+    }
+
+    #[test]
+    fn parse_detected_moments_malformed() {
+        assert!(parse_detected_moments("not json at all").is_err());
+    }
+
+    // -- format_transcript_with_timestamps --
+
+    #[test]
+    fn format_transcript_empty() {
+        let transcript = Transcript {
+            video_id: "v1".into(),
+            model: "m".into(),
+            language: "en".into(),
+            transcribed_at: "now".into(),
+            segments: vec![],
+        };
+        assert_eq!(format_transcript_with_timestamps(&transcript), "");
+    }
+
+    fn make_seg(id: u32, text: &str, start: f64, end: f64) -> TranscriptSegment {
+        TranscriptSegment {
+            id,
+            text: text.to_string(),
+            start,
+            end,
+            tokens: vec![],
+        }
+    }
+
+    fn make_transcript(segments: Vec<TranscriptSegment>) -> Transcript {
+        Transcript {
+            video_id: "v1".into(),
+            model: "m".into(),
+            language: "en".into(),
+            transcribed_at: "now".into(),
+            segments,
+        }
+    }
+
+    #[test]
+    fn format_transcript_single_segment() {
+        let transcript = make_transcript(vec![make_seg(0, "hello", 1.0, 2.0)]);
+        let result = format_transcript_with_timestamps(&transcript);
+        assert!(result.contains("[1.0s] hello"));
+    }
+
+    #[test]
+    fn format_transcript_multiple_segments() {
+        let transcript = make_transcript(vec![
+            make_seg(0, "first", 0.0, 1.0),
+            make_seg(1, "second", 1.0, 2.0),
+        ]);
+        let result = format_transcript_with_timestamps(&transcript);
+        assert!(result.contains("[0.0s] first"));
+        assert!(result.contains("[1.0s] second"));
+    }
+
+    // -- build_context_window --
+
+    #[test]
+    fn build_context_window_segments_in_range() {
+        let transcript = make_transcript(vec![
+            make_seg(0, "before", 10.0, 15.0),
+            make_seg(1, "target", 50.0, 55.0),
+            make_seg(2, "after", 90.0, 95.0),
+        ]);
+        let result = build_context_window(&transcript, 50.0, 10.0);
+        assert!(result.contains("target"));
+        assert!(!result.contains("before"));
+        assert!(!result.contains("after"));
+    }
+
+    #[test]
+    fn build_context_window_empty_transcript() {
+        let transcript = make_transcript(vec![]);
+        let result = build_context_window(&transcript, 50.0, 10.0);
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn build_context_window_no_segments_in_range() {
+        let transcript = make_transcript(vec![make_seg(0, "far away", 500.0, 505.0)]);
+        let result = build_context_window(&transcript, 50.0, 10.0);
+        assert!(result.is_empty());
+    }
+
+    // -- estimate_playing_bounds --
+
+    #[test]
+    fn estimate_playing_bounds_no_segments() {
+        let transcript = make_transcript(vec![]);
+        let (start, end) = estimate_playing_bounds(&transcript, 100.0);
+        assert!((start - 90.0).abs() < 0.01);
+        assert!((end - 100.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn estimate_playing_bounds_clear_gap() {
+        let transcript = make_transcript(vec![
+            make_seg(0, "talk", 30.0, 35.0),
+            make_seg(1, "play", 45.0, 90.0),
+            make_seg(2, "stop", 91.0, 95.0),
+        ]);
+        let (start, end) = estimate_playing_bounds(&transcript, 100.0);
+        // Largest gap is between seg 0 end (35) and seg 1 start (45) = 10s gap
+        assert!((start - 35.0).abs() < 0.01);
+        assert!((end - 45.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn estimate_playing_bounds_lookback_limit() {
+        let transcript = make_transcript(vec![
+            make_seg(0, "very early", 5.0, 10.0),
+        ]);
+        // stop at 200 => lookback starts at 80, seg at 5-10 is outside lookback
+        let (start, end) = estimate_playing_bounds(&transcript, 200.0);
+        assert!((start - 190.0).abs() < 0.01);
+        assert!((end - 200.0).abs() < 0.01);
+    }
+
+    // -- find_json_object (from identify.rs) --
+
+    #[test]
+    fn find_json_object_valid() {
+        let result = find_json_object(r#"{"key": "value"}"#).unwrap();
+        assert_eq!(result, r#"{"key": "value"}"#);
+    }
+
+    #[test]
+    fn find_json_object_nested() {
+        let result = find_json_object(r#"{"a": {"b": 1}}"#).unwrap();
+        assert_eq!(result, r#"{"a": {"b": 1}}"#);
+    }
+
+    #[test]
+    fn find_json_object_escaped_braces_in_string() {
+        let result = find_json_object(r#"{"a": "hello {world}"}"#).unwrap();
+        assert_eq!(result, r#"{"a": "hello {world}"}"#);
+    }
+
+    #[test]
+    fn find_json_object_unterminated() {
+        assert!(find_json_object(r#"{"key": "value""#).is_err());
     }
 }

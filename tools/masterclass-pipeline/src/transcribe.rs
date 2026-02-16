@@ -769,6 +769,8 @@ fn write_temp_wav(samples: &[f32], sample_rate: u32) -> Result<tempfile::NamedTe
     Ok(temp_file)
 }
 
+pub const WHISPER_API_BASE_URL: &str = "https://api.openai.com";
+
 /// Transcribe a single audio chunk via the OpenAI Whisper API.
 async fn transcribe_chunk_api(
     client: &reqwest::Client,
@@ -847,4 +849,161 @@ async fn transcribe_chunk_api(
     }
 
     Ok(segments)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // -- text_similarity --
+
+    #[test]
+    fn text_similarity_identical() {
+        assert_eq!(text_similarity("hello world", "hello world"), 1.0);
+    }
+
+    #[test]
+    fn text_similarity_both_empty() {
+        assert_eq!(text_similarity("", ""), 1.0);
+    }
+
+    #[test]
+    fn text_similarity_one_empty() {
+        assert_eq!(text_similarity("hello", ""), 0.0);
+        assert_eq!(text_similarity("", "hello"), 0.0);
+    }
+
+    #[test]
+    fn text_similarity_partial_match() {
+        let sim = text_similarity("the quick brown fox", "the slow brown fox");
+        assert!(sim > 0.3 && sim < 1.0, "sim = {}", sim);
+    }
+
+    #[test]
+    fn text_similarity_case_insensitive() {
+        assert_eq!(text_similarity("Hello", "hello"), 1.0);
+    }
+
+    // -- apply_corrections --
+
+    #[test]
+    fn apply_corrections_rubato() {
+        assert!(apply_corrections("robot o phrase").contains("rubato"));
+    }
+
+    #[test]
+    fn apply_corrections_no_match() {
+        let input = "this has no known errors";
+        assert_eq!(apply_corrections(input), input);
+    }
+
+    #[test]
+    fn apply_corrections_chopin() {
+        assert!(apply_corrections("show pan nocturne").contains("Chopin"));
+    }
+
+    // -- detect_repetition --
+
+    fn make_seg(id: u32, text: &str) -> TranscriptSegment {
+        TranscriptSegment {
+            id,
+            text: text.to_string(),
+            start: id as f64,
+            end: id as f64 + 1.0,
+            tokens: vec![],
+        }
+    }
+
+    #[test]
+    fn detect_repetition_no_repeats() {
+        let segments = vec![
+            make_seg(0, "hello world"),
+            make_seg(1, "something different"),
+            make_seg(2, "another thing"),
+        ];
+        assert!(detect_repetition(&segments).is_empty());
+    }
+
+    #[test]
+    fn detect_repetition_three_consecutive() {
+        let segments = vec![
+            make_seg(0, "normal text"),
+            make_seg(1, "hallucinated text"),
+            make_seg(2, "hallucinated text"),
+            make_seg(3, "hallucinated text"),
+            make_seg(4, "normal again"),
+        ];
+        let ranges = detect_repetition(&segments);
+        assert_eq!(ranges.len(), 1);
+        assert_eq!(ranges[0], (1, 4));
+    }
+
+    #[test]
+    fn detect_repetition_multiple_runs() {
+        let segments = vec![
+            make_seg(0, "repeat A"),
+            make_seg(1, "repeat A"),
+            make_seg(2, "repeat A"),
+            make_seg(3, "break"),
+            make_seg(4, "repeat B"),
+            make_seg(5, "repeat B"),
+            make_seg(6, "repeat B"),
+        ];
+        let ranges = detect_repetition(&segments);
+        assert_eq!(ranges.len(), 2);
+    }
+
+    #[test]
+    fn detect_repetition_too_few_segments() {
+        let segments = vec![make_seg(0, "a"), make_seg(1, "a")];
+        assert!(detect_repetition(&segments).is_empty());
+    }
+
+    // -- drop_hallucinated --
+
+    #[test]
+    fn drop_hallucinated_removes_ranges() {
+        let segments = vec![
+            make_seg(0, "keep"),
+            make_seg(1, "drop"),
+            make_seg(2, "drop"),
+            make_seg(3, "keep"),
+        ];
+        let result = drop_hallucinated(segments, &[(1, 3)]);
+        assert_eq!(result.len(), 2);
+        assert_eq!(result[0].text, "keep");
+        assert_eq!(result[1].text, "keep");
+    }
+
+    #[test]
+    fn drop_hallucinated_empty_ranges() {
+        let segments = vec![make_seg(0, "keep"), make_seg(1, "keep")];
+        let result = drop_hallucinated(segments, &[]);
+        assert_eq!(result.len(), 2);
+    }
+
+    // -- deduplicate_overlaps --
+
+    #[test]
+    fn deduplicate_overlaps_single_boundary() {
+        let segments = vec![make_seg(0, "first chunk content")];
+        let boundaries = vec![(0.0, 300.0)];
+        let result = deduplicate_overlaps(&segments, &boundaries);
+        assert_eq!(result.len(), 1);
+    }
+
+    #[test]
+    fn deduplicate_overlaps_two_boundaries() {
+        let boundaries = vec![(0.0, 300.0), (270.0, 600.0)];
+        let mut seg1 = make_seg(0, "overlap text here");
+        seg1.start = 280.0;
+        seg1.end = 285.0;
+        let mut seg2 = make_seg(1, "overlap text here");
+        seg2.start = 280.5;
+        seg2.end = 285.5;
+        let segments = vec![seg1, seg2];
+
+        let result = deduplicate_overlaps(&segments, &boundaries);
+        assert_eq!(result.len(), 1, "duplicate should be removed");
+    }
 }
