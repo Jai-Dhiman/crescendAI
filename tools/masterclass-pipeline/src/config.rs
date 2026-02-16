@@ -164,3 +164,96 @@ pub const MASTERCLASS_KEYWORDS: &[&str] = &[
 pub const SAMPLE_RATE: u32 = 16000;
 pub const FFT_SIZE: usize = 2048;
 pub const HOP_SIZE: usize = 512;
+
+pub const MOMENT_DEDUP_THRESHOLD_SECS: f64 = 10.0;
+
+pub const VALID_DIMENSIONS: &[&str] = &[
+    "dynamics",
+    "timing",
+    "articulation",
+    "pedaling",
+    "tone_color",
+    "phrasing",
+    "voicing",
+    "interpretation",
+    "technique",
+    "structure",
+];
+
+/// Normalize a musical dimension string returned by the LLM.
+///
+/// Handles case differences, whitespace, and common aliases.
+/// Returns "interpretation" with a warning for unknown values.
+pub fn normalize_dimension(raw: &str) -> String {
+    let normalized = raw.trim().to_lowercase().replace(' ', "_");
+
+    if VALID_DIMENSIONS.contains(&normalized.as_str()) {
+        return normalized;
+    }
+
+    // Common aliases
+    let mapped = match normalized.as_str() {
+        "rhythm" | "tempo" | "rubato" => "timing",
+        "pedal" | "pedals" => "pedaling",
+        "tone" | "timbre" | "sound" | "tone_quality" | "sound_quality" => "tone_color",
+        "volume" | "dynamic" | "dynamic_range" => "dynamics",
+        "phrase" | "melodic_line" => "phrasing",
+        "voice" | "balance" => "voicing",
+        "expression" | "emotion" | "style" | "musical_expression" => "interpretation",
+        "form" | "form_awareness" => "structure",
+        "fingering" | "hand_position" => "technique",
+        "legato" | "staccato" | "accent" | "accents" => "articulation",
+        _ => {
+            tracing::warn!(
+                "Unknown musical dimension '{}', defaulting to 'interpretation'",
+                raw
+            );
+            "interpretation"
+        }
+    };
+
+    mapped.to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn normalize_dimension_exact_match() {
+        assert_eq!(normalize_dimension("dynamics"), "dynamics");
+        assert_eq!(normalize_dimension("timing"), "timing");
+        assert_eq!(normalize_dimension("tone_color"), "tone_color");
+    }
+
+    #[test]
+    fn normalize_dimension_case_insensitive() {
+        assert_eq!(normalize_dimension("Dynamics"), "dynamics");
+        assert_eq!(normalize_dimension("TIMING"), "timing");
+        assert_eq!(normalize_dimension("Tone_Color"), "tone_color");
+    }
+
+    #[test]
+    fn normalize_dimension_whitespace_to_underscore() {
+        assert_eq!(normalize_dimension("tone color"), "tone_color");
+    }
+
+    #[test]
+    fn normalize_dimension_alias_mapping() {
+        assert_eq!(normalize_dimension("rhythm"), "timing");
+        assert_eq!(normalize_dimension("pedal"), "pedaling");
+        assert_eq!(normalize_dimension("volume"), "dynamics");
+        assert_eq!(normalize_dimension("timbre"), "tone_color");
+        assert_eq!(normalize_dimension("expression"), "interpretation");
+    }
+
+    #[test]
+    fn normalize_dimension_unknown_defaults() {
+        assert_eq!(normalize_dimension("underwater_basket_weaving"), "interpretation");
+    }
+
+    #[test]
+    fn normalize_dimension_trimmed() {
+        assert_eq!(normalize_dimension("  dynamics  "), "dynamics");
+    }
+}

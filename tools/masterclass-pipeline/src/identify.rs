@@ -1,6 +1,7 @@
 use anyhow::{Context, Result};
 use serde::Deserialize;
 
+use crate::config;
 use crate::llm_client::LlmClient;
 use crate::schemas::*;
 use crate::store::MasterclassStore;
@@ -118,8 +119,12 @@ pub async fn identify_teaching_moments(
 
             transcript_text: context_window.clone(),
             feedback_summary: raw.feedback_summary,
-            musical_dimension: raw.musical_dimension,
-            secondary_dimensions: raw.secondary_dimensions,
+            musical_dimension: config::normalize_dimension(&raw.musical_dimension),
+            secondary_dimensions: raw
+                .secondary_dimensions
+                .iter()
+                .map(|d| config::normalize_dimension(d))
+                .collect(),
             severity: raw.severity,
             feedback_type: raw.feedback_type,
 
