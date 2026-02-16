@@ -274,6 +274,37 @@ def midi_to_graph(
     return Data(x=x, edge_index=edge_index, edge_type=edge_type)
 
 
+def homo_to_hetero_graph(homo: Data) -> HeteroData:
+    """Convert a homogeneous score graph to heterogeneous format.
+
+    Splits edges by type into separate edge_index tensors for HeteroConv.
+    Avoids re-parsing MIDI when you already have a homogeneous graph.
+
+    Args:
+        homo: PyG Data object from midi_to_graph() with edge_type attribute.
+
+    Returns:
+        PyG HeteroData object with per-type edge indices.
+    """
+    data = HeteroData()
+    data["note"].x = homo.x
+
+    type_names = ["onset", "during", "follow", "silence"]
+    edge_index = homo.edge_index
+    edge_type = homo.edge_type
+
+    for tid, tname in enumerate(type_names):
+        mask = edge_type == tid
+        if mask.any():
+            data["note", tname, "note"].edge_index = edge_index[:, mask]
+        else:
+            data["note", tname, "note"].edge_index = torch.zeros(
+                (2, 0), dtype=torch.long
+            )
+
+    return data
+
+
 def midi_to_hetero_graph(
     midi_path: str | Path,
     max_voices: int = 8,
@@ -299,26 +330,8 @@ def midi_to_hetero_graph(
     Raises:
         ValueError: If the MIDI file contains no notes.
     """
-    # Build homogeneous graph first, then split edges
     homo = midi_to_graph(midi_path, max_voices, follow_tolerance)
-
-    data = HeteroData()
-    data["note"].x = homo.x
-
-    type_names = ["onset", "during", "follow", "silence"]
-    edge_index = homo.edge_index
-    edge_type = homo.edge_type
-
-    for tid, tname in enumerate(type_names):
-        mask = edge_type == tid
-        if mask.any():
-            data["note", tname, "note"].edge_index = edge_index[:, mask]
-        else:
-            data["note", tname, "note"].edge_index = torch.zeros(
-                (2, 0), dtype=torch.long
-            )
-
-    return data
+    return homo_to_hetero_graph(homo)
 
 
 def sample_negative_edges(

@@ -19,48 +19,57 @@ Since the model improvement pipeline trains on PercePiano labels, we need to und
 ## Experiments
 
 ### 1. Correlation & Redundancy
+
 - Pearson correlation heatmap with hierarchical clustering (seaborn clustermap)
 - Variance Inflation Factor (VIF) per dimension -- VIF > 10 = severe redundancy
 - Ranked list of dimension pairs by |r|
 
 ### 2. Factor Analysis
+
 - PCA on standardized 1202x19 label matrix
 - Scree plot + cumulative explained variance
 - Factor loadings heatmap (which original dims map to which factors)
 - Parallel analysis (Monte Carlo) for statistically justified factor count
 
 ### 3. Per-Dimension Distributions
+
 - 4x5 histogram grid for all 19 dims
 - Flag: variance < 0.01, skewness > |1|, >50% at floor/ceiling
 - Differential entropy per dimension as informativeness score
 
 ### 4. MuQ Probing
+
 - Ridge regression per dimension: stats-pooled MuQ (2048-d) -> score
 - 4-fold CV using existing folds.json
 - R2 bar chart sorted by probing accuracy
 - High R2 = audible, Low R2 = symbolic/subjective or noise
 
 ### 5. MuQ Residual Analysis
+
 - Linear map: MuQ embeddings -> all 19 dims simultaneously
 - PCA on residuals to check if structured or random noise
 - Structured residuals = signal symbolic encoders could capture
 
 ### 6. UMAP Visualization
+
 - 2D UMAP on stats-pooled MuQ embeddings
 - Color by top-5 most/least audible dimensions (from probing)
 - Smooth gradients = well-grounded, salt-and-pepper = noisy
 
 ### 7. Canonical Correlation Analysis (CCA)
+
 - CCA between MuQ embeddings and 19-dim labels
 - Number of significant canonical variates
 - Total shared information quantification
 
 ### 8. STOP Prediction with Reduced Dims
+
 - Reuse masterclass 98-segment data
 - Compare LOVO AUC: all 19 dims vs PCA-reduced vs stable-only vs top-R2-only
 - Tests whether dimension reduction helps downstream
 
 ### 9. Competition Validation (deferred)
+
 - Placeholder for T2 competition ordinal data
 - Spearman correlation per dimension vs placement
 
