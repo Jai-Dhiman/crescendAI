@@ -167,6 +167,24 @@ pub struct DetectedMoment {
     pub description: String,
 }
 
+/// Remove moments that are within MOMENT_DEDUP_THRESHOLD_SECS of each other,
+/// keeping the first occurrence after sorting by timestamp.
+fn deduplicate_moments(mut moments: Vec<DetectedMoment>) -> Vec<DetectedMoment> {
+    moments.sort_by(|a, b| a.timestamp.partial_cmp(&b.timestamp).unwrap());
+    let threshold = config::MOMENT_DEDUP_THRESHOLD_SECS;
+    let mut deduped: Vec<DetectedMoment> = Vec::new();
+    for m in moments {
+        if deduped
+            .last()
+            .map(|prev: &DetectedMoment| (m.timestamp - prev.timestamp).abs() > threshold)
+            .unwrap_or(true)
+        {
+            deduped.push(m);
+        }
+    }
+    deduped
+}
+
 async fn detect_moments(
     client: &LlmClient,
     transcript: &Transcript,
@@ -221,20 +239,7 @@ async fn detect_moments(
             start += window_secs - overlap_secs;
         }
 
-        // Deduplicate moments within 10 seconds of each other
-        all_moments.sort_by(|a, b| a.timestamp.partial_cmp(&b.timestamp).unwrap());
-        let mut deduped: Vec<DetectedMoment> = Vec::new();
-        for m in all_moments {
-            if deduped
-                .last()
-                .map(|prev: &DetectedMoment| (m.timestamp - prev.timestamp).abs() > 10.0)
-                .unwrap_or(true)
-            {
-                deduped.push(m);
-            }
-        }
-
-        Ok(deduped)
+        Ok(deduplicate_moments(all_moments))
     } else {
         let mut moments = detect_moments_single(client, &formatted).await?;
         moments.sort_by(|a, b| a.timestamp.partial_cmp(&b.timestamp).unwrap());
@@ -836,5 +841,58 @@ mod tests {
     fn duration_clamp_normal() {
         let clamped: f64 = 45.0_f64.clamp(5.0, 300.0);
         assert_eq!(clamped, 45.0);
+    }
+
+    // -- deduplicate_moments --
+
+    fn make_moment(timestamp: f64) -> DetectedMoment {
+        DetectedMoment {
+            timestamp,
+            description: format!("moment at {}", timestamp),
+        }
+    }
+
+    #[test]
+    fn deduplicate_moments_close_removed() {
+        let moments = vec![
+            make_moment(10.0),
+            make_moment(15.0), // within 10s of 10.0
+            make_moment(30.0),
+        ];
+        let result = deduplicate_moments(moments);
+        assert_eq!(result.len(), 2);
+        assert!((result[0].timestamp - 10.0).abs() < 0.01);
+        assert!((result[1].timestamp - 30.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn deduplicate_moments_distant_kept() {
+        let moments = vec![
+            make_moment(10.0),
+            make_moment(100.0),
+            make_moment(200.0),
+        ];
+        let result = deduplicate_moments(moments);
+        assert_eq!(result.len(), 3);
+    }
+
+    #[test]
+    fn deduplicate_moments_unsorted_input() {
+        let moments = vec![
+            make_moment(200.0),
+            make_moment(10.0),
+            make_moment(15.0),
+        ];
+        let result = deduplicate_moments(moments);
+        assert_eq!(result.len(), 2);
+        // Should be sorted: 10.0, 200.0
+        assert!((result[0].timestamp - 10.0).abs() < 0.01);
+        assert!((result[1].timestamp - 200.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn deduplicate_moments_empty() {
+        let result = deduplicate_moments(vec![]);
+        assert!(result.is_empty());
     }
 }
