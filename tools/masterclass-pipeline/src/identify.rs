@@ -29,7 +29,24 @@ pub async fn identify_teaching_moments(
     }
 
     // Pass 1: detect moments from the full transcript
-    let detections = detect_moments(client, &transcript).await?;
+    let all_detections = detect_moments(client, &transcript).await?;
+
+    // Filter out moments with invalid timestamps
+    let detections: Vec<_> = all_detections
+        .into_iter()
+        .filter(|m| {
+            if m.timestamp < 0.0 || m.timestamp > video.duration_seconds {
+                tracing::warn!(
+                    "Dropping moment at {:.1}s: outside video duration (0..{:.0}s)",
+                    m.timestamp,
+                    video.duration_seconds
+                );
+                false
+            } else {
+                true
+            }
+        })
+        .collect();
 
     tracing::info!(
         "Pass 1 detected {} teaching moments in {}",
@@ -55,6 +72,16 @@ pub async fn identify_teaching_moments(
         );
 
         let context_window = build_context_window(&transcript, detection.timestamp, 120.0);
+
+        if context_window.is_empty() {
+            tracing::warn!(
+                "  Moment {}: empty context window at {:.1}s, skipping",
+                idx + 1,
+                detection.timestamp
+            );
+            continue;
+        }
+
         let (playing_start, playing_end) =
             estimate_playing_bounds(&transcript, detection.timestamp);
 
@@ -72,7 +99,7 @@ pub async fn identify_teaching_moments(
             }
         };
 
-        let duration = raw.duration_estimate.unwrap_or(30.0);
+        let duration = raw.duration_estimate.unwrap_or(30.0).clamp(5.0, 300.0);
 
         let moment = TeachingMoment {
             moment_id: uuid::Uuid::new_v4().to_string(),
@@ -766,5 +793,43 @@ mod tests {
     #[test]
     fn find_json_object_unterminated() {
         assert!(find_json_object(r#"{"key": "value""#).is_err());
+    }
+
+    // -- timestamp validation (parse_detected_moments allows negative, caller filters) --
+
+    #[test]
+    fn parse_detected_moments_negative_timestamp() {
+        let input = r#"[{"timestamp": -5.0, "description": "bad"}, {"timestamp": 10.0, "description": "good"}]"#;
+        let moments = parse_detected_moments(input).unwrap();
+        // Parser doesn't filter; caller does
+        assert_eq!(moments.len(), 2);
+        assert!(moments[0].timestamp < 0.0);
+    }
+
+    // -- duration clamping --
+
+    #[test]
+    fn duration_clamp_zero() {
+        let clamped: f64 = 0.0_f64.clamp(5.0, 300.0);
+        assert_eq!(clamped, 5.0);
+    }
+
+    #[test]
+    fn duration_clamp_large() {
+        let clamped: f64 = 5000.0_f64.clamp(5.0, 300.0);
+        assert_eq!(clamped, 300.0);
+    }
+
+    #[test]
+    fn duration_clamp_none_default() {
+        let val: Option<f64> = None;
+        let clamped = val.unwrap_or(30.0).clamp(5.0, 300.0);
+        assert_eq!(clamped, 30.0);
+    }
+
+    #[test]
+    fn duration_clamp_normal() {
+        let clamped: f64 = 45.0_f64.clamp(5.0, 300.0);
+        assert_eq!(clamped, 45.0);
     }
 }
