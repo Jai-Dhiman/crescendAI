@@ -51,6 +51,8 @@ dependencies = [
     "miditok>=3.0.0",
     "audiomentations>=0.34.0",
     "torch-geometric>=2.4.0",
+    "statsmodels>=0.14.6",
+    "umap-learn>=0.5.11",
 ]
 
 [project.optional-dependencies]
