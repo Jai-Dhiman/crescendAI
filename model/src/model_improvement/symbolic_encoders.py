@@ -631,6 +631,312 @@ class GNNSymbolicEncoder(pl.LightningModule):
         return {"optimizer": opt, "lr_scheduler": {"scheduler": sch, "interval": "epoch"}}
 
 
+class GNNHeteroSymbolicEncoder(pl.LightningModule):
+    """S2-hetero: Heterogeneous GNN on score graph using HeteroConv + SAGEConv.
+
+    Uses separate convolution per edge type (onset/during/follow/silence) via
+    HeteroConv, which can learn type-specific message passing. Based on research
+    showing heterogeneous GNNs outperform homogeneous for music score graphs.
+
+    Two stages:
+    - pretrain: Link prediction on heterogeneous edges.
+    - finetune: Pairwise ranking + regression on labeled pairs.
+
+    Architecture: node embed MLP + 3 HeteroConv(SAGEConv) layers with residual
+    connections + global_mean_pool + projection + ranking/regression heads.
+    """
+
+    EDGE_TYPES = [
+        ("note", "onset", "note"),
+        ("note", "during", "note"),
+        ("note", "follow", "note"),
+        ("note", "silence", "note"),
+    ]
+
+    def __init__(
+        self,
+        node_features: int = 6,
+        hidden_dim: int = 512,
+        num_layers: int = 3,
+        num_labels: int = 19,
+        dropout: float = 0.1,
+        stage: str = "finetune",
+        learning_rate: float = 1e-4,
+        weight_decay: float = 1e-5,
+        temperature: float = 0.07,
+        lambda_contrastive: float = 0.3,
+        lambda_regression: float = 0.5,
+        margin: float = 0.2,
+        ambiguous_threshold: float = 0.05,
+        label_smoothing: float = 0.0,
+        max_epochs: int = 200,
+    ):
+        super().__init__()
+        self.save_hyperparameters()
+        self.lr = learning_rate
+        self.wd = weight_decay
+        self.temperature = temperature
+        self.lambda_contrastive = lambda_contrastive
+        self.lambda_regression = lambda_regression
+        self.max_epochs = max_epochs
+        self.num_labels = num_labels
+        self.hidden_dim = hidden_dim
+        self.stage = stage
+
+        if stage not in ("pretrain", "finetune"):
+            raise ValueError(f"stage must be 'pretrain' or 'finetune', got '{stage}'")
+
+        from torch_geometric.nn import HeteroConv, SAGEConv, global_mean_pool
+
+        self.pool_fn = global_mean_pool
+
+        # Node feature projection
+        self.node_embed = nn.Sequential(
+            nn.Linear(node_features, hidden_dim),
+            nn.LayerNorm(hidden_dim),
+            nn.GELU(),
+            nn.Dropout(dropout),
+        )
+
+        # HeteroConv layers with SAGEConv per edge type
+        self.conv_layers = nn.ModuleList()
+        self.conv_norms = nn.ModuleList()
+        for _ in range(num_layers):
+            conv_dict = {}
+            for et in self.EDGE_TYPES:
+                conv_dict[et] = SAGEConv(-1, hidden_dim)
+            self.conv_layers.append(HeteroConv(conv_dict, aggr="sum"))
+            self.conv_norms.append(nn.LayerNorm(hidden_dim))
+
+        # Projection to hidden_dim
+        self.projection = nn.Sequential(
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.LayerNorm(hidden_dim),
+            nn.GELU(),
+            nn.Dropout(dropout),
+        )
+
+        # -- Pretrain head: link prediction --
+        self.link_pred_head = nn.Sequential(
+            nn.Linear(hidden_dim * 2, hidden_dim),
+            nn.GELU(),
+            nn.Linear(hidden_dim, 1),
+        )
+
+        # -- Finetune heads --
+        comparison_dim = hidden_dim * 4
+        self.comparator = nn.Sequential(
+            nn.Linear(comparison_dim, hidden_dim),
+            nn.LayerNorm(hidden_dim),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_dim, hidden_dim // 2),
+            nn.GELU(),
+            nn.Dropout(dropout),
+        )
+
+        self.ranking_heads = nn.ModuleList([
+            nn.Linear(hidden_dim // 2, 1) for _ in range(num_labels)
+        ])
+
+        self.regression_head = nn.Sequential(
+            nn.Linear(hidden_dim, hidden_dim // 2),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_dim // 2, num_labels),
+            nn.Sigmoid(),
+        )
+
+        self.contrastive_proj = nn.Sequential(
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.GELU(),
+            nn.Linear(hidden_dim, hidden_dim // 2),
+        )
+
+        self.ranking_loss = DimensionWiseRankingLoss(
+            margin=margin,
+            ambiguous_threshold=ambiguous_threshold,
+            label_smoothing=label_smoothing,
+        )
+
+        self.val_outputs: list[dict] = []
+
+    def _hetero_forward(self, x_dict: dict, edge_index_dict: dict) -> torch.Tensor:
+        """Run HeteroConv layers, returning note embeddings [N, hidden_dim]."""
+        h = self.node_embed(x_dict["note"])
+        h_dict = {"note": h}
+        for conv, norm in zip(self.conv_layers, self.conv_norms):
+            h_new_dict = conv(h_dict, edge_index_dict)
+            h_new = h_new_dict["note"]
+            h_new = norm(h_new)
+            h_new = F.gelu(h_new)
+            h_dict = {"note": h_dict["note"] + h_new}  # residual
+        return h_dict["note"]
+
+    def encode_graph(
+        self,
+        x_dict: dict,
+        edge_index_dict: dict,
+        batch: torch.Tensor,
+    ) -> torch.Tensor:
+        """Encode a batched heterogeneous graph to graph-level embedding [B, hidden_dim]."""
+        node_h = self._hetero_forward(x_dict, edge_index_dict)
+        graph_h = self.pool_fn(node_h, batch)
+        return self.projection(graph_h)
+
+    def forward(
+        self,
+        x_dict: dict,
+        edge_index_dict: dict,
+        batch: torch.Tensor,
+    ) -> dict:
+        z = self.encode_graph(x_dict, edge_index_dict, batch)
+        scores = self.regression_head(z)
+        return {"z_symbolic": z, "scores": scores}
+
+    def compare(self, z_a: torch.Tensor, z_b: torch.Tensor) -> torch.Tensor:
+        diff = z_a - z_b
+        prod = z_a * z_b
+        concat = torch.cat([z_a, z_b, diff, prod], dim=-1)
+        comp = self.comparator(concat)
+        logits = [head(comp) for head in self.ranking_heads]
+        return torch.cat(logits, dim=-1)
+
+    def _link_prediction_score(
+        self, node_h: torch.Tensor, edges: torch.Tensor
+    ) -> torch.Tensor:
+        """Score edges for link prediction. edges shape [2, E]."""
+        src = node_h[edges[0]]
+        dst = node_h[edges[1]]
+        pair_feat = torch.cat([src, dst], dim=-1)
+        return self.link_pred_head(pair_feat).squeeze(-1)
+
+    def training_step(self, batch: dict, idx: int) -> torch.Tensor:
+        if self.stage == "pretrain":
+            return self._pretrain_step(batch)
+        return self._finetune_step(batch)
+
+    def _pretrain_step(self, batch: dict) -> torch.Tensor:
+        """Link prediction loss on heterogeneous graph."""
+        node_h = self._hetero_forward(batch["x_dict"], batch["edge_index_dict"])
+
+        pos_scores = self._link_prediction_score(node_h, batch["pos_edges"])
+        neg_scores = self._link_prediction_score(node_h, batch["neg_edges"])
+
+        pos_labels = torch.ones_like(pos_scores)
+        neg_labels = torch.zeros_like(neg_scores)
+
+        all_scores = torch.cat([pos_scores, neg_scores])
+        all_labels = torch.cat([pos_labels, neg_labels])
+
+        loss = F.binary_cross_entropy_with_logits(all_scores, all_labels)
+        self.log("train_link_loss", loss, prog_bar=True)
+        return loss
+
+    def _finetune_step(self, batch: dict) -> torch.Tensor:
+        """Pairwise ranking + regression on hetero graph pairs."""
+        z_a = self.encode_graph(
+            batch["x_dict_a"], batch["edge_index_dict_a"], batch["batch_a"]
+        )
+        z_b = self.encode_graph(
+            batch["x_dict_b"], batch["edge_index_dict_b"], batch["batch_b"]
+        )
+
+        ranking_logits = self.compare(z_a, z_b)
+
+        l_rank = self.ranking_loss(
+            ranking_logits, batch["labels_a"], batch["labels_b"],
+        )
+
+        proj_a = self.contrastive_proj(z_a)
+        proj_b = self.contrastive_proj(z_b)
+        all_proj = torch.cat([proj_a, proj_b], dim=0)
+        all_pieces = torch.cat([batch["piece_ids_a"], batch["piece_ids_b"]], dim=0)
+        l_contrast = piece_based_infonce_loss(
+            all_proj, all_pieces, temperature=self.temperature
+        )
+
+        scores_a = self.regression_head(z_a)
+        scores_b = self.regression_head(z_b)
+        l_reg = (
+            F.mse_loss(scores_a, batch["labels_a"])
+            + F.mse_loss(scores_b, batch["labels_b"])
+        ) / 2.0
+
+        loss = (
+            l_rank
+            + self.lambda_contrastive * l_contrast
+            + self.lambda_regression * l_reg
+        )
+
+        self.log("train_loss", loss, prog_bar=True)
+        self.log("train_rank_loss", l_rank)
+        self.log("train_contrast_loss", l_contrast)
+        self.log("train_reg_loss", l_reg)
+
+        return loss
+
+    def validation_step(self, batch: dict, idx: int) -> None:
+        if self.stage == "pretrain":
+            node_h = self._hetero_forward(batch["x_dict"], batch["edge_index_dict"])
+            pos_scores = self._link_prediction_score(node_h, batch["pos_edges"])
+            neg_scores = self._link_prediction_score(node_h, batch["neg_edges"])
+            all_scores = torch.cat([pos_scores, neg_scores])
+            all_labels = torch.cat([
+                torch.ones_like(pos_scores), torch.zeros_like(neg_scores)
+            ])
+            loss = F.binary_cross_entropy_with_logits(all_scores, all_labels)
+            self.log("val_link_loss", loss, prog_bar=True)
+        else:
+            z_a = self.encode_graph(
+                batch["x_dict_a"], batch["edge_index_dict_a"], batch["batch_a"]
+            )
+            z_b = self.encode_graph(
+                batch["x_dict_b"], batch["edge_index_dict_b"], batch["batch_b"]
+            )
+            ranking_logits = self.compare(z_a, z_b)
+            l_rank = self.ranking_loss(
+                ranking_logits, batch["labels_a"], batch["labels_b"],
+            )
+            self.log("val_loss", l_rank, prog_bar=True)
+
+            self.val_outputs.append({
+                "logits": ranking_logits.cpu(),
+                "labels_a": batch["labels_a"].cpu(),
+                "labels_b": batch["labels_b"].cpu(),
+            })
+
+    def on_validation_epoch_end(self) -> None:
+        if not self.val_outputs:
+            return
+
+        all_logits = torch.cat([x["logits"] for x in self.val_outputs])
+        all_labels_a = torch.cat([x["labels_a"] for x in self.val_outputs])
+        all_labels_b = torch.cat([x["labels_b"] for x in self.val_outputs])
+
+        true_ranking = (all_labels_a > all_labels_b).float()
+        pred_ranking = (all_logits > 0).float()
+
+        diff = (all_labels_a - all_labels_b).abs()
+        non_ambiguous = diff >= 0.05
+
+        if non_ambiguous.any():
+            correct = (pred_ranking[non_ambiguous] == true_ranking[non_ambiguous]).float()
+            accuracy = correct.mean().item()
+        else:
+            accuracy = 0.5
+
+        self.log("val_pairwise_acc", accuracy, prog_bar=True)
+        self.val_outputs.clear()
+
+    def configure_optimizers(self) -> dict:
+        opt = torch.optim.AdamW(self.parameters(), lr=self.lr, weight_decay=self.wd)
+        sch = torch.optim.lr_scheduler.CosineAnnealingLR(
+            opt, T_max=self.max_epochs, eta_min=1e-6
+        )
+        return {"optimizer": opt, "lr_scheduler": {"scheduler": sch, "interval": "epoch"}}
+
+
 class MultiScaleCNN(nn.Module):
     """1D CNN with multi-scale kernels for feature extraction from continuous MIDI curves."""
 
