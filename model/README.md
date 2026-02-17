@@ -1,6 +1,6 @@
 # Piano Performance Evaluation with Audio Foundation Models
 
-Audio foundation models (MuQ, MERT) for automated piano performance evaluation, achieving state-of-the-art results on the PercePiano benchmark.
+Audio foundation model (MuQ) for automated piano performance evaluation, achieving state-of-the-art results on the PercePiano benchmark.
 
 **Paper**: "Audio Foundation Models Outperform Symbolic Representations for Piano Performance Evaluation" (ISMIR 2026 submission)
 
@@ -130,6 +130,7 @@ wget https://YOUR_HOST/checkpoints/muq_best.ckpt -O data/checkpoints/muq_best.ck
 ```
 
 Available checkpoints:
+
 - `muq_best.ckpt` - Best MuQ model (R2=0.537)
 - `mert_best.ckpt` - Best MERT model (R2=0.487)
 
@@ -185,5 +186,5 @@ Note: This code uses pre-trained models (MuQ, MERT) with their own licenses. See
 ## Acknowledgments
 
 - [PercePiano](https://percepiano.github.io/) for the benchmark dataset
-- [MuQ](https://github.com/bytedance/muq) and [MERT](https://huggingface.co/m-a-p/MERT-v1-330M) for pre-trained audio models
+- [MuQ](https://github.com/bytedance/muq) for pre-trained audio models
 - [Pianoteq](https://www.modartt.com/pianoteq) for high-quality piano synthesis

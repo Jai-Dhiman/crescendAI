@@ -63,12 +63,17 @@ L_invariance     = MSE between clean and augmented embeddings (T4)
 All operate on pre-extracted MuQ embeddings (1024-dim frame-level features).
 
 **A1: MuQ + LoRA Multi-Task**
-- LoRA adapters on attention layers, 99%+ parameters frozen
+- LoRA adapters (rank 16-64) on self-attention layers of MuQ layers 9-12
+- 99%+ of MuQ parameters stay frozen
+- Multi-task training on all available labels (T1+T2+T3)
 - Cheapest, fastest iteration
 - Good baseline for what MuQ can do with minimal adaptation
 
 **A2: Staged Domain Adaptation**
-- Stage 1 (self-supervised): contrastive + invariance on T3+T4. Teaches MuQ what varies between performances.
+- Stage 1 (self-supervised): contrastive + invariance on T3+T4. No labels needed.
+  - Cross-performer contrastive: same piece, different performers -> positive pairs
+  - Augmentation invariance: same recording + {noise, room IR, phone sim} -> same embedding
+  - LoRA adapters on MuQ
 - Stage 2 (supervised): multi-task on T1+T2+T3. Aligns representations to teacher dimensions.
 - Most principled approach -- separates representation learning from label fitting.
 
@@ -91,14 +96,17 @@ MuQ embeddings [T, 1024]
 All pretrain on the 14K+ MIDI corpus (MAESTRO + ATEPP + ASAP + PercePiano), then finetune on PercePiano composite labels.
 
 **S1: Transformer on REMI Tokens**
-- BERT-style masked token prediction pretraining
-- 6-layer Transformer, 512-dim, 8 heads
+- REMI tokenization: note-on, note-off, velocity (32 bins), time-shift, pedal (on/off/partial), bar, tempo
+- Vocabulary: ~500 tokens
+- Architecture: 6-12 layer Transformer, 512-dim, 8 heads (~25M parameters)
+- Pretraining: masked token prediction (15% masking, BERT-style) + cross-performer contrastive
 - Most standard approach, strong baseline
 
 **S2: GNN on Homogeneous Score Graph**
 - Notes as nodes (pitch, velocity, onset, duration, pedal, voice)
 - Edges: temporal adjacency, harmonic interval, voice membership
-- Pretraining: link prediction with negative sampling
+- Message-passing encoder (GATConv layers)
+- Pretraining: link prediction + node attribute prediction (masked velocity/timing)
 - Structurally expressive for counterpoint and harmony
 
 **S2H: Heterogeneous GNN on Score Graph**
@@ -146,10 +154,27 @@ quality = f(z_performance_audio, z_performance_midi, z_score_midi)
 ```
 The model knows what the score asks for AND how the performance sounds. This enables feedback like "the dynamics are correct for this passage" vs "the dynamics don't match what Chopin wrote."
 
+**Downstream heads (shared across fusion experiments):**
+- Quality heads: N-dimension regression (composite labels)
+- Ranking heads: N-dimension pairwise ranking (E2a-style)
+- Difficulty head: auxiliary regression (PSyllabus, 508 pieces, current Spearman rho 0.623)
+
 **Fusion training:**
 - Freeze both encoders initially
 - Train fusion module + downstream heads on T1+T2+T3
 - If frozen fusion plateaus, optionally unfreeze encoders with very low LR (1e-6)
+
+## Audio Augmentation Suite
+
+Applied on-the-fly during training via AudioAugmentor (already implemented in `src/model_improvement/augmentation.py`):
+
+| Augmentation | Source | Probability | Purpose |
+|---|---|---|---|
+| Room impulse response | MIT IR Survey, EchoThief (~500 IRs) | 0.3 | Reverb/acoustics robustness |
+| Additive noise | ESC-50 (2,000 clips), SNR 10-30dB | 0.3 | Background noise |
+| Phone mic simulation | Low-pass 8kHz, compression, distortion | 0.2 | Phone recording bridge |
+| Pitch shift | +/- 50 cents | 0.1 | Tuning variation |
+| EQ variation | Random 3-band parametric EQ | 0.2 | Timbral variation across pianos |
 
 ## Staged Elimination Protocol
 
@@ -281,9 +306,12 @@ Update `MetricsSuite` to work with N dimensions instead of hardcoded 19. Add com
 
 | Metric | Dataset | Current Best |
 |--------|---------|-------------|
-| Pairwise accuracy (N-dim) | PercePiano composite, 4-fold CV | 84% (19-dim E2a) |
-| R2 (N-dim) | PercePiano composite, 4-fold CV | 0.537 (19-dim MuQ) |
-| Per-dimension breakdown | PercePiano composite | varies |
+| R2 (N-dim) | PercePiano composite, 4-fold CV | 0.537 (19-dim MuQ regression) |
+| Pairwise accuracy (N-dim) | PercePiano same-piece pairs, 4-fold CV | 84% (19-dim E2a contrastive) |
+| Per-dimension breakdown | PercePiano composite | varies by dimension |
+| Piece-split vs performer-split R2 | PercePiano | 0.536 both (well-disentangled) |
+| Cross-soundfont R2 | PercePiano leave-one-out | 0.534 |
+| Difficulty correlation (Spearman rho) | PSyllabus (508 pieces) | 0.623 |
 | STOP prediction AUC | Masterclass LOVO CV | 0.814 (19-dim), 0.936 (raw MuQ) |
 
 ### Robustness Metrics (audio experiments)
@@ -291,7 +319,16 @@ Update `MetricsSuite` to work with N dimensions instead of hardcoded 19. Add com
 | Metric | Target |
 |--------|--------|
 | Augmented pairwise accuracy | Drop < 10% vs clean |
-| Cross-condition Pearson r (clean vs augmented) | > 0.9 |
+| Cross-condition consistency (Pearson r, clean vs augmented) | > 0.9 |
+| Real phone recording pilot | Qualitative sanity check |
+
+### Symbolic-Specific Metrics
+
+| Metric | Dataset | Current Baseline |
+|--------|---------|-----------------|
+| Score alignment accuracy (measure-level) | ASAP | ~30% within 30ms |
+| Alignment onset error | ASAP | ~18s (MuQ failed), target < 1s |
+| Symbolic-only R2 | PercePiano MIDI path | 0.347 (hand-crafted features) |
 
 ### Competition Validation
 
@@ -304,15 +341,27 @@ Update `MetricsSuite` to work with N dimensions instead of hardcoded 19. Add com
 
 | Metric | Target |
 |--------|--------|
-| Fused R2 | > best single encoder |
+| Fused R2 | > best single encoder (current fusion: 0.524, must beat 0.537 audio-only) |
 | Fused pairwise accuracy | > best single encoder |
 | Score-conditioned quality | Qualitative: distinguishes wrong notes from expressive deviations |
+
+### Comparison Table Format
+
+Each notebook produces a comparison table tracking cost alongside performance:
+
+```
+Experiment | R2    | Pairwise | Difficulty rho | Robustness | GPU-hours
+-----------+-------+----------+----------------+------------+----------
+A1 (LoRA)  | 0.xxx | xx.x%    | 0.xxx          | xx.x%      | X
+A2 (Staged)| 0.xxx | xx.x%    | 0.xxx          | xx.x%      | X
+A3 (Full)  | 0.xxx | xx.x%    | 0.xxx          | xx.x%      | X
+```
 
 ### Winner Selection
 
 Primary: highest pairwise accuracy on composite labels.
 Tiebreak: R2.
-Veto: robustness drop > 15%.
+Veto: if robustness drop > 15%, experiment disqualified.
 Bonus: STOP AUC improvement over composite-label baseline.
 
 ## Training Infrastructure
@@ -333,12 +382,54 @@ All training notebooks run on Thunder Compute GPU instances (A100 80GB).
 
 4-fold piece-stratified split. Same folds as existing `percepiano_cache/folds.json`. No piece appears in both train and validation for the same fold.
 
+### Training Hyperparameters
+
+- Optimizer: AdamW
+- Scheduler: cosine annealing with warmup (5% of steps)
+- Precision: bf16-mixed on A100
+- Cross-validation: 4-fold piece-stratified (no piece leakage)
+- Early stopping: patience 20, monitor val pairwise accuracy
+- Checkpointing: save top-3 by validation metric per experiment
+- Gradient clipping: 1.0
+
 ### Reproducibility
 
 - CUDA deterministic mode (`CUBLAS_WORKSPACE_CONFIG=:4096:8`)
 - Seed 42 for all random operations
-- Gradient clipping at 1.0
 - bf16-mixed precision
+
+## Source Module Structure
+
+Existing modules in `model/src/model_improvement/` (already implemented):
+
+```
+model/src/model_improvement/
+  __init__.py
+  audio_encoders.py       -- A1 MuQLoRAModel, A2 MuQStagedModel, A3 MuQFullUnfreezeModel
+  symbolic_encoders.py    -- S1 TransformerSymbolicEncoder, S2 GNNSymbolicEncoder,
+                             S2H GNNHeteroSymbolicEncoder, S3 ContinuousSymbolicEncoder
+  fusion.py               -- F1/F2/F3 fusion modules, FusedPerformanceModel
+  losses.py               -- DimensionWiseRankingLoss, piece_based_infonce_loss
+  data.py                 -- PairedPerformanceDataset, CompetitionDataset,
+                             AugmentedEmbeddingDataset, MIDIPretrainingDataset,
+                             ScoreGraphPretrainingDataset, ContinuousPretrainDataset,
+                             HeteroPretrainDataset, multi_task_collate_fn, etc.
+  tokenizer.py            -- PianoTokenizer (REMI via miditok), extract_continuous_features
+  graph.py                -- midi_to_graph, midi_to_hetero_graph, assign_voices
+  metrics.py              -- MetricsSuite (pairwise_accuracy, regression_r2,
+                             difficulty_correlation, robustness)
+  augmentation.py         -- AudioAugmentor (room IR, noise, phone sim, pitch shift, EQ)
+  lora.py                 -- apply_lora_to_muq, count_trainable_params
+  training.py             -- train_model, upload_checkpoint
+  datasets.py             -- load_maestro_midi_files, load_atepp_midi_files,
+                             load_asap_midi_files, load_percepiano_midi_files
+  preprocessing.py        -- preprocess_tokens, preprocess_graphs, preprocess_continuous_features
+  competition.py          -- load_competition_metadata
+```
+
+New modules needed:
+- `taxonomy.py` -- composite label loading, PercePiano bridge (produced by taxonomy work)
+- Update `data.py` -- add CrossPerformerDataset for T3, update collation for tier-mixed batches
 
 ## What This Design Does NOT Cover
 
