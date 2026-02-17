@@ -60,6 +60,134 @@ class CompetitionDataset(Dataset):
         }
 
 
+class CompetitionPairSampler:
+    """Generate ordinal ranking pairs from competition recordings.
+
+    Within-piece pairs: two performers playing the same piece,
+    ranked by placement (lower placement = better).
+
+    Cross-round pairs: same performer in different rounds provides
+    implicit quality signal (later rounds = higher bar cleared).
+    """
+
+    def __init__(self, records: list[dict]):
+        if not records:
+            raise ValueError("records must be a non-empty list")
+
+        self.records = records
+
+        # Index by recording_id for fast lookup
+        self._by_id: Dict[str, dict] = {r["recording_id"]: r for r in records}
+
+        # Group by (competition, edition, piece) for within-piece pairs
+        self._piece_groups: Dict[Tuple[str, int, str], List[dict]] = {}
+        for r in records:
+            key = (r["competition"], r["edition"], r["piece"])
+            if key not in self._piece_groups:
+                self._piece_groups[key] = []
+            self._piece_groups[key].append(r)
+
+        # Group by (competition, edition, performer) for cross-round pairs
+        self._performer_groups: Dict[Tuple[str, int, str], List[dict]] = {}
+        for r in records:
+            key = (r["competition"], r["edition"], r["performer"])
+            if key not in self._performer_groups:
+                self._performer_groups[key] = []
+            self._performer_groups[key].append(r)
+
+        # Pre-compute all within-piece pairs
+        self._within_piece_pairs: List[Tuple[str, str, float]] = []
+        for group in self._piece_groups.values():
+            if len(group) < 2:
+                continue
+            for i, a in enumerate(group):
+                for b in group[i + 1:]:
+                    pa, pb = a["placement"], b["placement"]
+                    if pa == pb:
+                        continue  # skip ties
+                    margin = abs(pa - pb)
+                    if pa < pb:
+                        self._within_piece_pairs.append(
+                            (a["recording_id"], b["recording_id"], float(margin))
+                        )
+                    else:
+                        self._within_piece_pairs.append(
+                            (b["recording_id"], a["recording_id"], float(margin))
+                        )
+
+        # Pre-compute cross-round pairs (same performer, different rounds)
+        round_order = {
+            "preliminary": 0, "stage1": 1, "stage2": 2,
+            "stage3": 3, "final": 4,
+        }
+        self._cross_round_pairs: List[Tuple[str, str, float]] = []
+        for group in self._performer_groups.values():
+            if len(group) < 2:
+                continue
+            sorted_group = sorted(
+                group, key=lambda r: round_order.get(r["round"], -1)
+            )
+            for i, a in enumerate(sorted_group):
+                for b in sorted_group[i + 1:]:
+                    ra = round_order.get(a["round"], -1)
+                    rb = round_order.get(b["round"], -1)
+                    if ra == rb:
+                        continue
+                    # Later round = better (or at least cleared bar)
+                    margin = float(rb - ra)
+                    self._cross_round_pairs.append(
+                        (b["recording_id"], a["recording_id"], margin)
+                    )
+
+    @property
+    def n_within_piece_pairs(self) -> int:
+        return len(self._within_piece_pairs)
+
+    @property
+    def n_cross_round_pairs(self) -> int:
+        return len(self._cross_round_pairs)
+
+    def sample_pairs(
+        self,
+        n_pairs: int,
+        within_piece_weight: float = 0.8,
+    ) -> List[Tuple[str, str, float]]:
+        """Return (better_id, worse_id, margin) tuples.
+
+        Args:
+            n_pairs: Number of pairs to sample.
+            within_piece_weight: Probability of sampling a within-piece pair
+                vs cross-round pair. Within-piece pairs have stronger signal.
+
+        Returns:
+            List of (better_recording_id, worse_recording_id, margin).
+        """
+        import random
+
+        pairs: List[Tuple[str, str, float]] = []
+
+        for _ in range(n_pairs):
+            if (
+                random.random() < within_piece_weight
+                and self._within_piece_pairs
+            ) or not self._cross_round_pairs:
+                if self._within_piece_pairs:
+                    pairs.append(random.choice(self._within_piece_pairs))
+            else:
+                if self._cross_round_pairs:
+                    pairs.append(random.choice(self._cross_round_pairs))
+
+        return pairs
+
+    def all_within_piece_pairs(self) -> List[Tuple[str, str, float]]:
+        """Return all within-piece pairs (deterministic)."""
+        return list(self._within_piece_pairs)
+
+    def all_cross_round_pairs(self) -> List[Tuple[str, str, float]]:
+        """Return all cross-round pairs (deterministic)."""
+        return list(self._cross_round_pairs)
+
+
 class PairedPerformanceDataset(Dataset):
     """T3: Extended PairwiseRankingDataset supporting ATEPP + competition data.
 

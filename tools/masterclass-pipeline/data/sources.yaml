@@ -1,10 +1,11 @@
-# Chopin Ballades & Etudes masterclass sources.
+# Piano masterclass sources for STOP/CONTINUE dataset.
 #
-# Scoped to pieces that exist in the ASAP dataset (aligned score+performance pairs).
-# Processing order: one piece at a time through the full pipeline cycle.
+# Originally scoped to ASAP dataset pieces (Chopin Ballades & Etudes).
+# Expanded to diverse composers, teachers, and difficulty levels for
+# robust STOP detection training (500+ segment target).
 #
+# Diversity targets: 15+ teachers, 20+ pieces, 10+ composers
 # ASAP dataset: https://github.com/CPJKU/asap-dataset
-# ASAP path format: Chopin/Ballades/{n}/ or Chopin/Etudes_op_{10,25}/{n}/
 
 # No channel scanning - all videos are curated from research.
 channels: []
@@ -182,5 +183,236 @@ videos:
 # Low confidence / needs verification
 # - https://www.youtube.com/watch?v=Nvh-yxybSog (Lewin Ballade No. 1, likely lecture-only)
 # - https://www.dailymotion.com/video/x2u3npw (Revolutionary Etude tutorial, low confidence)
+
+  # =========================================================================
+  # DIVERSITY EXPANSION -- Non-Chopin masterclasses
+  # Added 2026-02-16 for STOP/CONTINUE dataset (500+ segment target)
+  # =========================================================================
+
+  # ---------------------------------------------------------------------------
+  # Beethoven
+  # ---------------------------------------------------------------------------
+
+  - url: "https://www.youtube.com/watch?v=85KJkpbh_us"
+    teacher: "Andras Schiff"
+    piece: "Beethoven Sonatas: Moonlight Op. 27/2, Op. 31/3, Appassionata Op. 57"
+    composer: "Beethoven"
+    # Students: Pavel Kolesnikov, Kausikan Rajeshkumar, Anna Fedorova
+    # Royal College of Music, 10 March 2013 | Multi-piece multi-student session
+    # ~179 min (may exceed pipeline max duration -- review after download)
+
+  - url: "https://www.youtube.com/watch?v=3NYfrht6TU8"
+    teacher: "Daniel Barenboim"
+    piece: "Beethoven Sonata No. 23 in F minor, Op. 57 'Appassionata'"
+    composer: "Beethoven"
+    # Student: Lang Lang | Barenboim on Beethoven DVD series | ~55 min
+
+  - url: "https://www.youtube.com/watch?v=C6UqQAfsV4I"
+    teacher: "Murray Perahia"
+    piece: "Beethoven Sonata No. 27 in E minor, Op. 90"
+    composer: "Beethoven"
+    # Student: Uri Zvi Cohen | Jerusalem Music Centre | ~33 min
+
+  - url: "https://www.youtube.com/watch?v=IsE7XOmTwjQ"
+    teacher: "Leon Fleisher"
+    piece: "Beethoven Sonata No. 8 in C minor, Op. 13 'Pathetique'"
+    composer: "Beethoven"
+    # Student: Ben Laude | tonebase Piano | ~36 min
+
+  - url: "https://www.youtube.com/watch?v=4bcCUwODTaQ"
+    teacher: "Murray Perahia"
+    piece: "Beethoven Sonata No. 29 in B-flat major, Op. 106 'Hammerklavier'"
+    composer: "Beethoven"
+    # Student: Qi Xiu | Juilliard Piano Master Class | ~46 min
+
+  - url: "https://www.youtube.com/watch?v=B2nKVpSABsU"
+    teacher: "Robert Levin"
+    piece: "Beethoven Sonata No. 7 in D major, Op. 10/3"
+    composer: "Beethoven"
+    # Student: David Belkovski | Juilliard Piano Master Class | ~48 min
+
+  # ---------------------------------------------------------------------------
+  # Liszt
+  # ---------------------------------------------------------------------------
+
+  - url: "https://www.youtube.com/watch?v=er-PUs0_tys"
+    teacher: "Alfred Brendel"
+    piece: "Liszt Sonata in B minor, S. 178"
+    composer: "Liszt"
+    # Students: Elmar Gasanov, Petr Limonov | Royal College of Music, 14 Nov 2011
+    # ~171 min (may exceed pipeline max duration -- review after download)
+
+  - url: "https://www.youtube.com/watch?v=b1pyFzhsZv8"
+    teacher: "Massimiliano Ferrati"
+    piece: "Liszt Mephisto Waltz No. 1, S. 514"
+    composer: "Liszt"
+    # Berliner Klavierfesttage | ~60 min
+
+  - url: "https://www.youtube.com/watch?v=kvV4jnn3mnM"
+    teacher: "Sergei Dreznin"
+    piece: "Liszt Apres une lecture de Dante (Dante Sonata), S. 161/7"
+    composer: "Liszt"
+    # Steinway masterclass | ~44 min
+
+  # ---------------------------------------------------------------------------
+  # Rachmaninoff
+  # ---------------------------------------------------------------------------
+
+  - url: "https://www.youtube.com/watch?v=DEjUVaeVo7M"
+    teacher: "Jorge Bolet"
+    piece: "Rachmaninoff Piano Concerto No. 3 in D minor, Op. 30"
+    composer: "Rachmaninoff"
+    # Students: Ira Levin, Jose Feghali, Philip Smith, Barry Douglas et al.
+    # 1983 broadcast | ~126 min (concerto, but student plays piano part solo)
+    # Legendary masterclass recording
+
+  - url: "https://www.youtube.com/watch?v=y-TeSU51FPw"
+    teacher: "Ilja Scheps"
+    piece: "Rachmaninoff Piano Concerto No. 2 in C minor, Op. 18, 1st mvt"
+    composer: "Rachmaninoff"
+    # ~45 min
+
+  - url: "https://www.youtube.com/watch?v=Gpy49I6ph0c"
+    teacher: "Lang Lang"
+    piece: "Rachmaninoff Prelude in G major, Op. 32 No. 5"
+    composer: "Rachmaninoff"
+    # Royal College of Music | ~14 min
+
+  # ---------------------------------------------------------------------------
+  # Mozart
+  # ---------------------------------------------------------------------------
+
+  - url: "https://www.youtube.com/watch?v=I3a2IsqDjRw"
+    teacher: "Andras Schiff"
+    piece: "Mozart Piano Sonata No. 12 in F major, K. 332"
+    composer: "Mozart"
+    # Universitat Mozarteum | ~53 min
+
+  - url: "https://www.youtube.com/watch?v=xcFbp-KAujQ"
+    teacher: "Dmitri Bashkirov"
+    piece: "Mozart Sonata in F major, K. 280, I. Allegro assai"
+    composer: "Mozart"
+    # Escuela Superior de Musica Reina Sofia | ~13 min
+
+  - url: "https://www.youtube.com/watch?v=nt5jf0X90J4"
+    teacher: "Robert Levin"
+    piece: "Mozart (Juilliard Master Class)"
+    composer: "Mozart"
+    # Student: Kevin Ahfat | Juilliard Piano Master Class | ~37 min
+
+  # ---------------------------------------------------------------------------
+  # Debussy
+  # ---------------------------------------------------------------------------
+
+  - url: "https://www.youtube.com/watch?v=ebonpd2suG8"
+    teacher: "Menahem Pressler"
+    piece: "Debussy L'Isle joyeuse, L. 106"
+    composer: "Debussy"
+    # Student: Julian Trevelyan | Vienna Musikverein, Dec 2019 | ~45 min
+
+  - url: "https://www.youtube.com/watch?v=aQDFpXNr0hc"
+    teacher: "Julian Jacobson"
+    piece: "Debussy Doctor Gradus ad Parnassum (Children's Corner)"
+    composer: "Debussy"
+    # Opus One Music Studio | ~21 min
+
+  - url: "https://www.youtube.com/watch?v=HQ_NYQT-ZT4"
+    teacher: "Hsing-ay Hsu"
+    piece: "Debussy Reflets dans l'eau (Images, Book 1)"
+    composer: "Debussy"
+    # ~27 min
+
+  # ---------------------------------------------------------------------------
+  # Schumann
+  # ---------------------------------------------------------------------------
+
+  - url: "https://www.youtube.com/watch?v=juMuseHfcpA"
+    teacher: "Andras Schiff"
+    piece: "Schumann Piano Sonata No. 1 in F-sharp minor, Op. 11"
+    composer: "Schumann"
+    # Student: Anna Han | Juilliard Piano Master Class | ~61 min
+
+  - url: "https://www.youtube.com/watch?v=UQjdbh2fICk"
+    teacher: "Murray Perahia"
+    piece: "Schumann Fantasie in C major, Op. 17"
+    composer: "Schumann"
+    # Student: Shengliang Zhang | Juilliard Piano Master Class | ~47 min
+
+  - url: "https://www.youtube.com/watch?v=FHy5ND4ZTxM"
+    teacher: "Emanuel Krasovsky"
+    piece: "Schumann Fantasie in C major, Op. 17"
+    composer: "Schumann"
+    # Berliner Klavierfesttage | ~58 min
+
+  # ---------------------------------------------------------------------------
+  # Brahms
+  # ---------------------------------------------------------------------------
+
+  - url: "https://www.youtube.com/watch?v=nQmOX-cSYaA"
+    teacher: "Jonathan Biss"
+    piece: "Brahms Klavierstucke, Op. 118"
+    composer: "Brahms"
+    # Carnegie Hall | ~47 min
+
+  - url: "https://www.youtube.com/watch?v=I9Tel22TkW4"
+    teacher: "Seymour Bernstein"
+    piece: "Brahms Intermezzo in A major, Op. 118 No. 2"
+    composer: "Brahms"
+    # Also features: Garrick Ohlsson | tonebase Piano | ~35 min
+
+  # ---------------------------------------------------------------------------
+  # Scriabin
+  # ---------------------------------------------------------------------------
+
+  - url: "https://www.youtube.com/watch?v=d8V0ClN_-D4"
+    teacher: "Oxana Yablonskaya"
+    piece: "Scriabin Sonata No. 4, Op. 30"
+    composer: "Scriabin"
+    # Berliner Klavierfesttage | ~57 min
+
+  - url: "https://www.youtube.com/watch?v=18giYEf30FI"
+    teacher: "Enrico Elisi"
+    piece: "Scriabin Sonata-Fantasy No. 2 in G-sharp minor, Op. 19"
+    composer: "Scriabin"
+    # Student: Thomas Luke | PianoTexas 2024 (Young Artist) | ~63 min
+
+  - url: "https://www.youtube.com/watch?v=gazTLs3SK48"
+    teacher: "Stephen Hough"
+    piece: "Scriabin Sonata No. 5, Op. 53"
+    composer: "Scriabin"
+    # ~46 min
+
+  # ---------------------------------------------------------------------------
+  # Ravel
+  # ---------------------------------------------------------------------------
+
+  - url: "https://www.youtube.com/watch?v=s9Wp29iePzs"
+    teacher: "Vlado Perlemuter"
+    piece: "Ravel Ondine and Le Gibet (Gaspard de la nuit)"
+    composer: "Ravel"
+    # 1983 recording | EPTA Netherlands | ~61 min
+    # Perlemuter studied directly with Ravel
+
+  - url: "https://www.youtube.com/watch?v=uvEXFLeqNOI"
+    teacher: "Lucas Debargue"
+    piece: "Ravel Sonatine"
+    composer: "Ravel"
+    # Primavera Foundation of Armenia | ~47 min
+
+  # ---------------------------------------------------------------------------
+  # Prokofiev
+  # ---------------------------------------------------------------------------
+
+  - url: "https://www.youtube.com/watch?v=iEXhLvNi2Jo"
+    teacher: "Menahem Pressler"
+    piece: "Prokofiev Sonata No. 3 in A minor, Op. 28"
+    composer: "Prokofiev"
+    # Student: Mikhail Korzhev | 14 Oct 1991 | ~33 min
+
+  - url: "https://www.youtube.com/watch?v=b2MVxNkijXg"
+    teacher: "Benjamin Bertin"
+    piece: "Prokofiev Sonata No. 8 in B-flat major, Op. 84"
+    composer: "Prokofiev"
+    # ~79 min
 
 search_queries: []

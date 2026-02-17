@@ -18,6 +18,7 @@ pub struct Pipeline {
     piece_filter: Option<String>,
     openai_api_key: Option<String>,
     local: bool,
+    no_transcript: bool,
 }
 
 pub struct PipelineReport {
@@ -60,6 +61,7 @@ impl Pipeline {
         piece_filter: Option<String>,
         openai_api_key: Option<String>,
         local: bool,
+        no_transcript: bool,
     ) -> Self {
         Self {
             store,
@@ -73,6 +75,7 @@ impl Pipeline {
             piece_filter,
             openai_api_key,
             local,
+            no_transcript,
         }
     }
 
@@ -89,21 +92,28 @@ impl Pipeline {
         tracing::info!("=== Stage: Download ===");
         stages.push(self.run_download().await?);
 
-        tracing::info!("=== Stage: Transcribe ===");
-        if self.local {
-            stages.push(self.run_transcribe_local()?);
-        } else {
-            stages.push(self.run_transcribe_api().await?);
-        }
-
-        if self.local {
-            tracing::info!("=== Stage: Segment ===");
+        if self.no_transcript {
+            // Cheap pipeline: skip transcription, use audio-only segmentation
+            tracing::info!("=== Stage: Segment (audio-only) ===");
             stages.push(self.run_segment()?);
-            tracing::info!("=== Stage: Extract ===");
-            stages.push(self.run_extract().await?);
+            tracing::info!("Stopping after segment (--no-transcript mode). Run transcribe + identify separately for full pipeline.");
         } else {
-            tracing::info!("=== Stage: Identify ===");
-            stages.push(self.run_identify().await?);
+            tracing::info!("=== Stage: Transcribe ===");
+            if self.local {
+                stages.push(self.run_transcribe_local()?);
+            } else {
+                stages.push(self.run_transcribe_api().await?);
+            }
+
+            if self.local {
+                tracing::info!("=== Stage: Segment ===");
+                stages.push(self.run_segment()?);
+                tracing::info!("=== Stage: Extract ===");
+                stages.push(self.run_extract().await?);
+            } else {
+                tracing::info!("=== Stage: Identify ===");
+                stages.push(self.run_identify().await?);
+            }
         }
 
         Ok(PipelineReport { stages })
@@ -263,7 +273,11 @@ impl Pipeline {
     }
 
     fn run_segment(&self) -> Result<StageReport> {
-        let videos = self.get_stage_videos(&PipelineStage::Segment)?;
+        let videos = if self.no_transcript {
+            self.get_stage_videos_with_prereq(&PipelineStage::Segment, &PipelineStage::Download)?
+        } else {
+            self.get_stage_videos(&PipelineStage::Segment)?
+        };
         let mut succeeded = 0;
         let mut failed = 0;
 
@@ -272,7 +286,7 @@ impl Pipeline {
                 tracing::info!("[dry-run] Would segment {}", video_id);
                 continue;
             }
-            match segment::segment_video(&self.store, video_id) {
+            match segment::segment_video(&self.store, video_id, self.no_transcript) {
                 Ok(_) => {
                     self.store.mark_stage_complete(video_id, &PipelineStage::Segment)?;
                     succeeded += 1;
@@ -375,6 +389,40 @@ impl Pipeline {
             stage: "identify".to_string(),
             processed: videos.len(), succeeded, failed, skipped: 0,
         })
+    }
+
+    fn get_stage_videos_with_prereq(
+        &self,
+        stage: &PipelineStage,
+        prereq: &PipelineStage,
+    ) -> Result<Vec<String>> {
+        let mut videos = if self.force {
+            self.store
+                .load_videos()?
+                .into_iter()
+                .map(|v| v.video_id)
+                .collect()
+        } else {
+            self.store.get_videos_needing_stage_with_prereq(stage, prereq)?
+        };
+
+        if let Some(ref filter) = self.piece_filter {
+            let filter_lower = filter.to_lowercase();
+            let video_map = self.store.load_video_map()?;
+            videos.retain(|id| {
+                if let Some(meta) = video_map.get(id) {
+                    meta.pieces.iter().any(|p| p.to_lowercase().contains(&filter_lower))
+                } else {
+                    false
+                }
+            });
+        }
+
+        if let Some(max) = self.max_videos {
+            videos.truncate(max);
+        }
+
+        Ok(videos)
     }
 
     fn get_stage_videos(&self, stage: &PipelineStage) -> Result<Vec<String>> {

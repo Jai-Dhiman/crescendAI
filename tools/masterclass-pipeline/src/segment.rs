@@ -21,7 +21,25 @@ const PIANO_CENTROID_THRESHOLD: f32 = 1500.0;
 /// Harmonic ratio threshold to detect piano (piano has strong harmonic content).
 const PIANO_HARMONIC_THRESHOLD: f32 = 0.5;
 
-pub fn segment_video(store: &MasterclassStore, video_id: &str) -> Result<SegmentationResult> {
+// --- Audio-only speech detection thresholds ---
+
+/// ZCR above this suggests speech (speech has more zero-crossings than piano).
+const SPEECH_ZCR_THRESHOLD: f32 = 0.10;
+
+/// Minimum energy (dB) for speech -- must have some energy to be speech.
+const SPEECH_ENERGY_MIN_DB: f32 = -35.0;
+
+/// Maximum energy (dB) for speech -- above this is likely clipping or loud piano.
+const SPEECH_ENERGY_MAX_DB: f32 = -8.0;
+
+/// Number of frames for median smoothing of speech map (~2s at 31 Hz frame rate).
+const SPEECH_SMOOTHING_FRAMES: usize = 64;
+
+pub fn segment_video(
+    store: &MasterclassStore,
+    video_id: &str,
+    no_transcript: bool,
+) -> Result<SegmentationResult> {
     let audio_path = store.audio_path(video_id);
     anyhow::ensure!(
         audio_path.exists(),
@@ -29,12 +47,11 @@ pub fn segment_video(store: &MasterclassStore, video_id: &str) -> Result<Segment
         video_id
     );
 
-    // Load transcript for speech detection
-    let transcript = store
-        .load_transcript(video_id)?
-        .with_context(|| format!("Transcript not found for {}. Run transcribe first.", video_id))?;
-
-    tracing::info!("Segmenting audio for {}", video_id);
+    tracing::info!(
+        "Segmenting audio for {} (mode: {})",
+        video_id,
+        if no_transcript { "audio-only" } else { "transcript" }
+    );
 
     // Read audio samples
     let reader = hound::WavReader::open(&audio_path)
@@ -61,8 +78,20 @@ pub fn segment_video(store: &MasterclassStore, video_id: &str) -> Result<Segment
     let features = audio_features::compute_features(&samples);
     let num_frames = features.rms_db.len();
 
-    // Build speech presence map from transcript tokens
-    let speech_map = build_speech_map(&transcript, &features.frame_times);
+    // Build speech presence map
+    let speech_map = if no_transcript {
+        build_speech_map_from_audio(&features)
+    } else {
+        let transcript = store
+            .load_transcript(video_id)?
+            .with_context(|| {
+                format!(
+                    "Transcript not found for {}. Run transcribe first, or use --no-transcript.",
+                    video_id
+                )
+            })?;
+        build_speech_map(&transcript, &features.frame_times)
+    };
 
     // Classify each frame
     let mut frame_labels: Vec<SegmentLabel> = Vec::with_capacity(num_frames);
@@ -133,6 +162,36 @@ fn build_speech_map(transcript: &Transcript, frame_times: &[f64]) -> Vec<bool> {
     }
 
     speech
+}
+
+/// Build a speech presence map from audio features alone (no transcript needed).
+///
+/// Uses ZCR (high for speech), energy (moderate for speech), and spectral features
+/// (speech is NOT piano-like) to estimate speech frames. Applies median smoothing
+/// to reduce flickering.
+fn build_speech_map_from_audio(features: &audio_features::AudioFeatures) -> Vec<bool> {
+    let num_frames = features.rms_db.len();
+    let mut raw_speech: Vec<f32> = Vec::with_capacity(num_frames);
+
+    for i in 0..num_frames {
+        let energy_db = features.rms_db[i];
+        let centroid = features.spectral_centroid[i];
+        let harmonic = features.harmonic_ratio[i];
+        let zcr = features.zcr[i];
+
+        // Speech: has energy, not piano-like, higher ZCR
+        let has_energy = energy_db > SPEECH_ENERGY_MIN_DB && energy_db < SPEECH_ENERGY_MAX_DB;
+        let not_piano = centroid <= PIANO_CENTROID_THRESHOLD || harmonic <= PIANO_HARMONIC_THRESHOLD;
+        let high_zcr = zcr > SPEECH_ZCR_THRESHOLD;
+
+        let is_speech = has_energy && not_piano && high_zcr;
+        raw_speech.push(if is_speech { 1.0 } else { 0.0 });
+    }
+
+    // Median filter to smooth out flickering
+    let smoothed = audio_features::median_filter_1d(&raw_speech, SPEECH_SMOOTHING_FRAMES);
+
+    smoothed.iter().map(|&v| v > 0.5).collect()
 }
 
 /// Classify a single frame based on features and speech presence.

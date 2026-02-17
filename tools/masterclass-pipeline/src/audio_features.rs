@@ -126,7 +126,7 @@ pub fn zero_crossing_rate(samples: &[f32], frame_size: usize, hop_size: usize) -
 }
 
 /// Apply a 1D median filter to a slice.
-fn median_filter_1d(data: &[f32], kernel_size: usize) -> Vec<f32> {
+pub fn median_filter_1d(data: &[f32], kernel_size: usize) -> Vec<f32> {
     let half = kernel_size / 2;
     let len = data.len();
     let mut result = Vec::with_capacity(len);

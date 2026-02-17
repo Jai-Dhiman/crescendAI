@@ -62,6 +62,10 @@ struct Cli {
     /// Use local Whisper model instead of API
     #[arg(long, global = true)]
     local: bool,
+
+    /// Run segmentation using audio features only (no transcript required)
+    #[arg(long, global = true)]
+    no_transcript: bool,
 }
 
 #[derive(Subcommand)]
@@ -181,14 +185,23 @@ async fn main() -> Result<()> {
             }
         }
         Commands::Segment => {
-            let videos = get_videos(&store, &schemas::PipelineStage::Segment, cli.force, cli.max_videos, cli.piece.as_deref())?;
-            tracing::info!("Segmenting {} videos", videos.len());
+            let videos = if cli.no_transcript {
+                // With --no-transcript, we need Segment not done but Download complete
+                get_videos_with_prereq(&store, &schemas::PipelineStage::Segment, &schemas::PipelineStage::Download, cli.force, cli.max_videos, cli.piece.as_deref())?
+            } else {
+                get_videos(&store, &schemas::PipelineStage::Segment, cli.force, cli.max_videos, cli.piece.as_deref())?
+            };
+            tracing::info!(
+                "Segmenting {} videos (mode: {})",
+                videos.len(),
+                if cli.no_transcript { "audio-only" } else { "transcript" }
+            );
             for video_id in &videos {
                 if cli.dry_run {
                     tracing::info!("[dry-run] Would segment {}", video_id);
                     continue;
                 }
-                match segment::segment_video(&store, video_id) {
+                match segment::segment_video(&store, video_id, cli.no_transcript) {
                     Ok(_) => store.mark_stage_complete(video_id, &schemas::PipelineStage::Segment)?,
                     Err(e) => {
                         tracing::error!("Failed to segment {}: {}", video_id, e);
@@ -258,6 +271,7 @@ async fn main() -> Result<()> {
                 cli.piece.clone(),
                 cli.openai_api_key.clone(),
                 cli.local,
+                cli.no_transcript,
             );
             let report = pipe.run().await?;
             tracing::info!("{}", report);
@@ -273,6 +287,44 @@ async fn main() -> Result<()> {
     }
 
     Ok(())
+}
+
+/// Get videos needing a stage with an explicit prerequisite override.
+/// Used for --no-transcript where Segment needs Download (not Transcribe) as prereq.
+fn get_videos_with_prereq(
+    store: &store::MasterclassStore,
+    stage: &schemas::PipelineStage,
+    prereq: &schemas::PipelineStage,
+    force: bool,
+    max_videos: Option<usize>,
+    piece_filter: Option<&str>,
+) -> Result<Vec<String>> {
+    let mut videos = if force {
+        store
+            .load_videos()?
+            .into_iter()
+            .map(|v| v.video_id)
+            .collect()
+    } else {
+        store.get_videos_needing_stage_with_prereq(stage, prereq)?
+    };
+
+    if let Some(filter) = piece_filter {
+        let filter_lower = filter.to_lowercase();
+        let video_map = store.load_video_map()?;
+        videos.retain(|id| {
+            if let Some(meta) = video_map.get(id) {
+                meta.pieces.iter().any(|p| p.to_lowercase().contains(&filter_lower))
+            } else {
+                false
+            }
+        });
+    }
+
+    if let Some(n) = max_videos {
+        videos.truncate(n);
+    }
+    Ok(videos)
 }
 
 /// Get videos to process for a given stage, respecting --force, --max-videos, and --piece.

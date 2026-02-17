@@ -232,6 +232,45 @@ impl MasterclassStore {
         Ok(needed)
     }
 
+    /// Like `get_videos_needing_stage`, but with an explicit prerequisite override.
+    /// Useful when `--no-transcript` mode needs Segment videos with only Download complete.
+    pub fn get_videos_needing_stage_with_prereq(
+        &self,
+        stage: &PipelineStage,
+        prereq: &PipelineStage,
+    ) -> Result<Vec<String>> {
+        let videos = self.load_videos()?;
+        let states = self.load_state()?;
+
+        let mut completed: HashMap<String, bool> = HashMap::new();
+        for s in &states {
+            if s.stage == *stage {
+                completed.insert(s.video_id.clone(), s.status == StageStatus::Completed);
+            }
+        }
+
+        let mut prev_completed: HashMap<String, bool> = HashMap::new();
+        for s in &states {
+            if s.stage == *prereq {
+                prev_completed.insert(s.video_id.clone(), s.status == StageStatus::Completed);
+            }
+        }
+
+        let mut needed = Vec::new();
+        for v in &videos {
+            let already_done = completed.get(&v.video_id).copied().unwrap_or(false);
+            if already_done {
+                continue;
+            }
+            let prev_done = prev_completed.get(&v.video_id).copied().unwrap_or(false);
+            if !prev_done {
+                continue;
+            }
+            needed.push(v.video_id.clone());
+        }
+        Ok(needed)
+    }
+
     // --- Transcripts ---
 
     pub fn transcript_path(&self, video_id: &str) -> PathBuf {
