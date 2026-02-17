@@ -124,6 +124,8 @@ class MuQExtractor:
 
     # 30 seconds at 24kHz — keeps MPS memory well under limit
     MAX_CHUNK_SAMPLES = 30 * 24000
+    # MuQ's STFT uses n_fft=2048 with padding of 1024 on each side
+    MIN_CHUNK_SAMPLES = 2048
 
     def _extract_chunk(self, wavs: torch.Tensor) -> torch.Tensor:
         """Run model on a single [1, samples] tensor, return [T, hidden_size] on CPU."""
@@ -196,6 +198,8 @@ class MuQExtractor:
             chunks = audio.split(self.MAX_CHUNK_SAMPLES)
             parts = []
             for chunk in chunks:
+                if chunk.shape[0] < self.MIN_CHUNK_SAMPLES:
+                    continue  # skip runt tail chunk — too short for STFT
                 wavs = chunk.unsqueeze(0).to(self.device, dtype=dtype)
                 parts.append(self._extract_chunk(wavs))
                 del wavs

@@ -415,4 +415,208 @@ videos:
     composer: "Prokofiev"
     # ~79 min
 
+  # =========================================================================
+  # EXPANSION WAVE 2 -- 2026-02-17
+  # Target: 350+ stopping points (500+ segments)
+  # Re-sourcing failed composers + new composers for diversity
+  # =========================================================================
+
+  # ---------------------------------------------------------------------------
+  # Schubert (NEW COMPOSER)
+  # ---------------------------------------------------------------------------
+
+  - url: "https://www.youtube.com/watch?v=IzTdpTHIgkc"
+    teacher: "Andras Schiff"
+    piece: "Schubert Impromptu Op. 90 No. 2 in E-flat major"
+    composer: "Schubert"
+    # Student: Martin James Bartlett | Royal College of Music, 10 April 2016 | ~59 min
+
+  - url: "https://www.youtube.com/watch?v=F6Yiul5GVos"
+    teacher: "Jonathan Biss"
+    piece: "Schubert Sonata in B-flat major, D. 960"
+    composer: "Schubert"
+    # Carnegie Hall | ~50 min
+
+  - url: "https://www.youtube.com/watch?v=De6rgUorAGg"
+    teacher: "Murray Perahia"
+    piece: "Schubert Impromptu No. 1 in C minor, Op. 90"
+    composer: "Schubert"
+    # Student: Yonatan Aner | ~53 min
+
+  - url: "https://www.youtube.com/watch?v=M0LCWOuVAHU"
+    teacher: "Andras Schiff"
+    piece: "Schubert Sonata No. 4 in A minor, D. 537"
+    composer: "Schubert"
+    # ~57 min
+
+  - url: "https://www.youtube.com/watch?v=FJKE-p2hNGE"
+    teacher: "Andras Schiff"
+    piece: "Schubert Impromptu Op. 142 No. 3 in B-flat major"
+    composer: "Schubert"
+    # Student: Jun Hwi Cho | Juilliard Piano Master Class | ~47 min
+
+  - url: "https://www.youtube.com/watch?v=W4bYQpLFJG0"
+    teacher: "Emanuel Krasovsky"
+    piece: "Schubert Wanderer-Fantasie in C major, D. 760"
+    composer: "Schubert"
+    # Berliner Klavierfesttage | ~70 min
+
+  # ---------------------------------------------------------------------------
+  # Ravel (alternatives -- previous URLs failed discovery)
+  # ---------------------------------------------------------------------------
+
+  - url: "https://www.youtube.com/watch?v=cJI6Yw8Cang"
+    teacher: "Olga Scheps"
+    piece: "Ravel Gaspard de la nuit"
+    composer: "Ravel"
+    # Student: Ben Holzman | ~54 min
+
+  - url: "https://www.youtube.com/watch?v=mRLyHl2FQK4"
+    teacher: "Ran Zemach"
+    piece: "Ravel Gaspard de la nuit"
+    composer: "Ravel"
+    # Tel Aviv Music Academy | ~68 min
+
+  - url: "https://www.youtube.com/watch?v=ox7wlxfilYw"
+    teacher: "Emanuel Krasovsky"
+    piece: "Ravel Gaspard de la nuit"
+    composer: "Ravel"
+    # Berliner Klavierfesttage | ~43 min
+
+  # ---------------------------------------------------------------------------
+  # Scriabin (alternatives -- previous URLs failed discovery)
+  # ---------------------------------------------------------------------------
+
+  - url: "https://www.youtube.com/watch?v=rSISZncZ6QI"
+    teacher: "Lucas Debargue"
+    piece: "Scriabin Sonata-Fantasy No. 2 in G-sharp minor, Op. 19"
+    composer: "Scriabin"
+    # ~73 min
+
+  - url: "https://www.youtube.com/watch?v=fFKBo0VPPQ4"
+    teacher: "Iddo Bar-Shai"
+    piece: "Scriabin Sonata No. 4, Op. 30"
+    composer: "Scriabin"
+    # Berliner Klavierfesttage | ~39 min
+
+  - url: "https://www.youtube.com/watch?v=I5snifK1J5o"
+    teacher: "Oxana Yablonskaya"
+    piece: "Scriabin Sonata No. 5, Op. 53"
+    composer: "Scriabin"
+    # Berliner Klavierfesttage | ~33 min
+
+  # ---------------------------------------------------------------------------
+  # Haydn (NEW COMPOSER)
+  # ---------------------------------------------------------------------------
+
+  - url: "https://www.youtube.com/watch?v=_LNsFrJNvmA"
+    teacher: "Robert Levin"
+    piece: "Haydn Sonata in C major, Hob. XVI:50"
+    composer: "Haydn"
+    # Student: Isabella Zhaoyan Ma | Juilliard Piano Master Class | ~48 min
+
+  - url: "https://www.youtube.com/watch?v=_Lhy3ru4YrU"
+    teacher: "Andras Schiff"
+    piece: "Haydn Sonata in F major"
+    composer: "Haydn"
+    # Student: Daria Bitsiuk | subtitled | ~61 min
+
+  - url: "https://www.youtube.com/watch?v=nYLClnCGBhY"
+    teacher: "Menahem Pressler"
+    piece: "Haydn Sonata in E-flat major, Hob. XVI/52"
+    composer: "Haydn"
+    # Student: Naoko Kamata | 1 May 2010 | ~42 min
+
+  # ---------------------------------------------------------------------------
+  # Mendelssohn (NEW COMPOSER)
+  # ---------------------------------------------------------------------------
+
+  - url: "https://www.youtube.com/watch?v=7XeyeN_XhQs"
+    teacher: "Orla McDonagh"
+    piece: "Mendelssohn Scottish Fantasia, Op. 28"
+    composer: "Mendelssohn"
+    # Student: William Chiang | DIPF | ~34 min
+
+  - url: "https://www.youtube.com/watch?v=Oxgyz5d9zFg"
+    teacher: "Michael (unknown surname)"
+    piece: "Mendelssohn Rondo Capriccioso, Op. 14"
+    composer: "Mendelssohn"
+    # ~41 min
+
+  # ---------------------------------------------------------------------------
+  # Shostakovich (NEW COMPOSER)
+  # ---------------------------------------------------------------------------
+
+  - url: "https://www.youtube.com/watch?v=Jt3D9TpKUp8"
+    teacher: "Vadim Monastyrski"
+    piece: "Shostakovich 24 Preludes and Fugues, Op. 87"
+    composer: "Shostakovich"
+    # Lecture and performance | ~78 min
+
+  # ---------------------------------------------------------------------------
+  # Additional Berliner Klavierfesttage (high-yield channel)
+  # ---------------------------------------------------------------------------
+
+  - url: "https://www.youtube.com/watch?v=qhDFutPI7eE"
+    teacher: "Massimiliano Ferrati"
+    piece: "Rachmaninoff Preludes, Op. 23"
+    composer: "Rachmaninoff"
+    # Berliner Klavierfesttage | ~52 min
+
+  - url: "https://www.youtube.com/watch?v=s58cgil9GcQ"
+    teacher: "Iddo Bar-Shai"
+    piece: "Chopin Mazurkas, Op. 33"
+    composer: "Chopin"
+    # Berliner Klavierfesttage | ~57 min
+
+  - url: "https://www.youtube.com/watch?v=yr6Wqgqa-eo"
+    teacher: "Massimiliano Ferrati"
+    piece: "Bach English Suite No. 2, BWV 807"
+    composer: "Bach"
+    # Berliner Klavierfesttage | ~47 min
+
+  # ---------------------------------------------------------------------------
+  # Additional Juilliard masterclasses
+  # ---------------------------------------------------------------------------
+
+  - url: "https://www.youtube.com/watch?v=5CNu7sPOmBk"
+    teacher: "Murray Perahia"
+    piece: "Bach French Suite No. 5 in G major, BWV 816"
+    composer: "Bach"
+    # Student: Yuchong Wu | Juilliard Piano Master Class | ~38 min
+
+  - url: "https://www.youtube.com/watch?v=3-mPaaHvLLU"
+    teacher: "Andras Schiff"
+    piece: "Bach Italian Concerto, BWV 971"
+    composer: "Bach"
+    # Student: Christian De Luca | Juilliard Piano Master Class | ~49 min
+
+  # ---------------------------------------------------------------------------
+  # Other high-yield sources
+  # ---------------------------------------------------------------------------
+
+  - url: "https://www.youtube.com/watch?v=9fnf1Q6l6Kk"
+    teacher: "Lang Lang"
+    piece: "Piano Masterclass (multi-piece)"
+    composer: "Various"
+    # ~88 min | Multi-student, multi-piece session
+
+  - url: "https://www.youtube.com/watch?v=levyvp6QI1U"
+    teacher: "Leon Fleisher"
+    piece: "Schubert Sonata No. 19 in C minor, D. 958"
+    composer: "Schubert"
+    # Yuja Wang master class with Leon Fleisher | ~30 min
+
+  - url: "https://www.youtube.com/watch?v=1tQlwsm8xeA"
+    teacher: "Vincenzo Maltempo"
+    piece: "Scriabin Sonata No. 5, Op. 53"
+    composer: "Scriabin"
+    # ~32 min
+
+  - url: "https://www.youtube.com/watch?v=bWnXnoxFXgg"
+    teacher: "Antoine Bouvy"
+    piece: "Haydn Sonata, Hob. XVI:36"
+    composer: "Haydn"
+    # Student: Raisya Jasmine Zahira | ~54 min
+
 search_queries: []

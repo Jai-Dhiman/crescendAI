@@ -80,7 +80,11 @@ def scrape_chopin_results(cache_dir: Path) -> dict:
     cache_dir.mkdir(parents=True, exist_ok=True)
 
     logger.info("Fetching competition results from Wikipedia...")
-    resp = requests.get(WIKIPEDIA_URL, timeout=30)
+    resp = requests.get(
+        WIKIPEDIA_URL,
+        headers={"User-Agent": "CrescendAI/1.0 (research project; piano competition data)"},
+        timeout=30,
+    )
     resp.raise_for_status()
     soup = BeautifulSoup(resp.text, "lxml")
 
@@ -260,13 +264,13 @@ def discover_youtube_urls(cache_dir: Path, results: dict) -> dict:
     cache_dir.mkdir(parents=True, exist_ok=True)
 
     # Chopin Institute YouTube channel playlists for 2021 competition
-    # These are the official playlists organized by round
+    # These are the official playlists with individual performer clips.
+    # Note: preliminary and stage1 only have full-session videos (multi-performer,
+    # ~5h each) so we skip them. Stages 2, 3, and final have individual clips.
     playlist_urls = {
-        "preliminary": "https://www.youtube.com/playlist?list=PLRSkziLNUjYW2DllWoPtcRSV0JNEYxdBR",
-        "stage1": "https://www.youtube.com/playlist?list=PLRSkziLNUjYUPW2SC3bAiTEMOm-7-AGRN",
-        "stage2": "https://www.youtube.com/playlist?list=PLRSkziLNUjYUeFFLmS3g3GiyZ9R6sS6V_",
-        "stage3": "https://www.youtube.com/playlist?list=PLRSkziLNUjYUQPMKXtkRrhpDjmb_qnTyu",
-        "final": "https://www.youtube.com/playlist?list=PLRSkziLNUjYWjmwRMR7zr-0JJlxGK-PU9",
+        "stage2": "https://www.youtube.com/playlist?list=PLTmn2qD3aSQtUl-oPRcgm3kGiGjWkLJzN",
+        "stage3": "https://www.youtube.com/playlist?list=PLTmn2qD3aSQtn2fE4OC_LTx6podD7JYXU",
+        "final": "https://www.youtube.com/playlist?list=PLTmn2qD3aSQs6WnpsMXwf2Qb9sqPyZBSv",
     }
 
     # Build performer slug lookup for fuzzy matching

@@ -19,10 +19,10 @@
 
 ### For Own Preparation (C Exercise)
 
-7. **User Personas** -- 3 personas with user journeys
-8. **Financial Model** -- unit economics, growth scenarios, runway
-9. **Competitive Landscape** -- positioning map
-10. **Market Sizing** -- TAM/SAM/SOM
+1. **User Personas** -- 3 personas with user journeys
+2. **Financial Model** -- unit economics, growth scenarios, runway
+3. **Competitive Landscape** -- positioning map
+4. **Market Sizing** -- TAM/SAM/SOM
 
 ---
 
@@ -44,6 +44,7 @@
 "Right now it evaluates curated performances across 19 dimensions and gives you feedback like a warm, knowledgeable teacher. Next step: any pianist uploads a recording and gets that feedback in under 15 seconds."
 
 **Principles:**
+
 - This is a conversation starter, not a monologue
 - If they interrupt with questions, let it flow
 - No jargon beyond "audio foundation models"
@@ -63,10 +64,12 @@
 6. Closer -- "This is what a $200/hour masterclass teacher gives you, available to anyone with a recording, in 15 seconds."
 
 **Fallback plan:**
+
 - Screen recording on phone in case of wifi issues
 - Pre-cache results for instant display if GPU endpoint is cold
 
 **What NOT to do:**
+
 - Don't explain technical architecture during demo
 - Don't apologize for things not built yet
 - Don't show more than 1-2 performances
@@ -76,38 +79,45 @@
 ## 3. Lightweight Deck (10 Slides)
 
 **Slide 1: Title**
+
 - CrescendAI -- "Expert-level piano feedback, powered by AI"
 - Name, crescend.ai, contact
 
 **Slide 2: The Problem**
+
 - Students practice alone most of the time
 - Feedback is expensive ($50-200/hr), infrequent, gatekept
 - Existing apps only check note accuracy (MIDI) -- miss what matters
 - 30+ educator interviews confirmed this gap
 
 **Slide 3: The Insight**
+
 - Audio foundation models hear what MIDI can't
 - Trained on millions of hours of music
 - Timing moment: these models only became capable in last 1-2 years
 
 **Slide 4: The Product**
+
 - Demo screenshot or embed
 - Upload/select performance -> 19-dimension analysis in <15 seconds
 - Radar chart + teacher feedback + practice tips
 - Runs on Cloudflare edge, costs <$20/month
 
 **Slide 5: The Results**
+
 - 55% improvement over symbolic approaches (R^2 = 0.537 vs 0.347)
 - p < 10^-25
 - Validated across soundfonts, difficulty levels, multiple performers
 - arXiv paper, ISMIR 2026 submission
 
 **Slide 6: Market**
+
 - ~40M piano students globally
 - Online music ed growing post-COVID
 - B2C subscription ($10-30/month) -> institutions -> API licensing
 
 **Slide 7: Traction & Validation**
+
 - 30+ educator interviews
 - Published research (arXiv, ISMIR 2026)
 - Feedback from MIR researchers, ML engineers at OpenAI and Google
@@ -115,18 +125,21 @@
 - 890K+ lines shipped
 
 **Slide 8: Founder**
+
 - Berklee College of Music (percussion, 5x Dean's List)
 - Pianist since age 8, active orchestral musician
 - Self-taught ML engineer -> founding engineer -> founder
 - Deep domain expertise + builds the whole stack alone
 
 **Slide 9: Roadmap**
+
 - Now: curated gallery with AI feedback
 - 3 months: user uploads, accounts, progress tracking
 - 6 months: mobile app, real-time analysis, instrument expansion
 - Research: dual-encoder (audio + score), large-scale data
 
 **Slide 10: The Ask**
+
 - Pre-seed to accelerate: first hire, GPU credits, user research
 - Keep vague -- goal is relationship-building
 
@@ -135,15 +148,18 @@
 ## 4. One-Pager
 
 **Top third: Headline**
+
 - CrescendAI: AI-powered piano performance analysis
 - "We use audio foundation models to deliver expert-level feedback on piano performances across 19 musical dimensions."
 
 **Middle third: Three proof points**
+
 - Works: 55% better than existing approaches (published, peer-reviewed)
 - Real product: Live demo at crescend.ai, <15 second analysis
 - Real demand: 30+ educator interviews, ~40M piano students globally
 
 **Bottom third: Founder + contact**
+
 - Berklee-trained musician (piano since age 8) + full-stack ML engineer
 - arXiv paper, ISMIR 2026 submission, 3x hackathon winner
 - Contact info, website
@@ -153,6 +169,7 @@
 ## 5. Investor Questions (To Ask Them)
 
 **Understanding their perspective:**
+
 1. "What's your take on the music education space? Venture-scale or niche?"
 2. "What separates AI products you're excited about from ones that feel like features?"
 
@@ -224,6 +241,7 @@ Niche they're unlikely to prioritize. Head start on research, data, and domain e
 ## 7. User Personas
 
 ### Persona 1: The Dedicated Self-Learner (B2C Core)
+
 - Age 25-45, serious hobby, 1-3 hours daily practice
 - Had lessons as a kid, may not have teacher now
 - Frustration: "I can tell something is off but I don't know what to fix"
@@ -232,6 +250,7 @@ Niche they're unlikely to prioritize. Head start on research, data, and domain e
 - Journey: Record on phone -> upload -> 19-dimension analysis -> adjust practice -> track improvement
 
 ### Persona 2: The Music Educator (B2B Entry)
+
 - Piano teacher, 15-40 students
 - Frustration: "I only hear each student 30-60 min/week"
 - Wants: extend their ears between lessons, see student progress
@@ -239,6 +258,7 @@ Niche they're unlikely to prioritize. Head start on research, data, and domain e
 - Journey: Assign piece -> student uploads practice -> teacher reviews AI analysis before lesson -> more focused lessons
 
 ### Persona 3: The Institution (B2B Scale)
+
 - Conservatory, university, competition organizer
 - Frustration: "Need consistent, objective evaluation standards"
 - Wants: standardized assessment, progress analytics, audition screening
@@ -281,6 +301,7 @@ Niche they're unlikely to prioritize. Head start on research, data, and domain e
 15-20 months runway. Enough to hit 1,000-user milestone and raise seed.
 
 ### Key Metrics to Track
+
 - Analyses per user per week (engagement)
 - Week 4 retention
 - Free -> paid conversion rate
@@ -315,6 +336,7 @@ CrescendAI: "How did it sound? Was your tone warm? Were your dynamics compelling
 The difference between a metronome and a teacher.
 
 ### Threats
+
 - Big tech unlikely to prioritize this niche
 - Simply Piano (Spotify) is MIDI-native, retrofitting audio is a major pivot
 - New entrant would face 12-18 month head start from published research + proprietary data
@@ -330,6 +352,7 @@ The difference between a metronome and a teacher.
 **SOM (3-year):** 0.1-0.5% of SAM = 6,000-30,000 users. At blended $20/month = $1.4M-$7.2M ARR.
 
 **Conservative because:**
+
 - Excludes non-English markets (China alone: ~80M piano students)
 - Excludes B2B institutional revenue
 - Excludes API licensing

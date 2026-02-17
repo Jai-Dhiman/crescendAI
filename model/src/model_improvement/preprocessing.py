@@ -316,6 +316,13 @@ def preprocess_graphs(
             failures.append((str(entry.midi_path), str(e)))
             logger.warning("Failed to build graph for %s: %s", entry.midi_path, e)
 
+        if (i + 1) % 50 == 0:
+            print(
+                f"  [{i + 1}/{len(remaining)}] "
+                f"{len(shard_graphs)} in current shard, "
+                f"{len(failures)} failures"
+            )
+
         # Flush shard to disk and free memory
         if len(shard_graphs) >= shard_size:
             _save_graph_shard(shard_dir, next_shard_id, shard_graphs, shard_hetero)
@@ -482,6 +489,13 @@ def preprocess_continuous_features(
             failures.append((str(entry.midi_path), str(e)))
             logger.warning(
                 "Failed to extract features for %s: %s", entry.midi_path, e
+            )
+
+        if (i + 1) % 50 == 0:
+            print(
+                f"  [{i + 1}/{len(remaining)}] "
+                f"{len(shard_features)} in current shard, "
+                f"{len(failures)} failures"
             )
 
         # Flush shard to disk and free memory

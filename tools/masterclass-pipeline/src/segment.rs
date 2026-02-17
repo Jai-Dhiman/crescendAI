@@ -9,7 +9,8 @@ use crate::store::MasterclassStore;
 const MIN_SEGMENT_DURATION: f64 = 2.0;
 
 /// Maximum gap between Playing and Talking to count as a stopping point.
-const MAX_STOP_GAP: f64 = 3.0;
+/// Masterclass format often has longer pauses (teacher thinking, shuffling scores).
+const MAX_STOP_GAP: f64 = 5.0;
 
 /// Energy threshold (dB) below which we consider silence.
 const SILENCE_THRESHOLD_DB: f32 = -40.0;
@@ -27,13 +28,16 @@ const PIANO_HARMONIC_THRESHOLD: f32 = 0.5;
 const SPEECH_ZCR_THRESHOLD: f32 = 0.10;
 
 /// Minimum energy (dB) for speech -- must have some energy to be speech.
-const SPEECH_ENERGY_MIN_DB: f32 = -35.0;
+/// Widened from -35 to capture quieter teaching voices.
+const SPEECH_ENERGY_MIN_DB: f32 = -38.0;
 
 /// Maximum energy (dB) for speech -- above this is likely clipping or loud piano.
-const SPEECH_ENERGY_MAX_DB: f32 = -8.0;
+/// Widened from -8 to capture louder/emphatic instruction.
+const SPEECH_ENERGY_MAX_DB: f32 = -5.0;
 
-/// Number of frames for median smoothing of speech map (~2s at 31 Hz frame rate).
-const SPEECH_SMOOTHING_FRAMES: usize = 64;
+/// Number of frames for median smoothing of speech map (~1.5s at 31 Hz frame rate).
+/// Reduced from 64 to preserve brief teaching moments.
+const SPEECH_SMOOTHING_FRAMES: usize = 48;
 
 pub fn segment_video(
     store: &MasterclassStore,
@@ -214,7 +218,9 @@ fn classify_frame(
         (true, false) => SegmentLabel::Talking,
         (false, true) => SegmentLabel::Playing,
         (false, false) => {
-            // No speech detected and not piano-like -- could be quiet passage or ambient
+            // No speech detected and not piano-like -- could be quiet passage,
+            // ambient noise, or undetected speech. Use a higher threshold to avoid
+            // misclassifying moderate-energy speech as Playing.
             if energy_db > -25.0 {
                 // Moderate energy without speech: likely playing
                 SegmentLabel::Playing

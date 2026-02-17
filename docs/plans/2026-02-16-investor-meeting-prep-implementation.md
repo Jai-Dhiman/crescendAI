@@ -15,6 +15,7 @@
 ### Task 1: Set Up Investor Materials Directory
 
 **Files:**
+
 - Create: `investor/deck/index.html`
 - Create: `investor/one-pager/index.html`
 
@@ -27,6 +28,7 @@ mkdir -p investor/deck investor/one-pager
 **Step 2: Scaffold the reveal.js deck**
 
 Create `investor/deck/index.html` with reveal.js loaded from CDN. Use a minimal, clean theme (white background, dark text, no distracting transitions). Include:
+
 - reveal.js CSS + JS from CDN (v5.x)
 - PDF export plugin (built into reveal.js -- just append `?print-pdf` to URL)
 - Custom CSS overrides for clean typography (Inter for body, serif for headings)
@@ -35,6 +37,7 @@ Create `investor/deck/index.html` with reveal.js loaded from CDN. Use a minimal,
 **Step 3: Scaffold the one-pager**
 
 Create `investor/one-pager/index.html` as a single-page HTML document with print-friendly CSS:
+
 - `@media print` styles for clean PDF output
 - A4/Letter page size constraint
 - No scrolling -- everything fits one page
@@ -59,6 +62,7 @@ git commit -m "scaffold investor materials directory with deck and one-pager"
 ### Task 2: Build Slide Deck -- Slides 1-5 (Story Half)
 
 **Files:**
+
 - Modify: `investor/deck/index.html`
 
 Reference: Design doc Section 3 (Lightweight Deck)
@@ -66,14 +70,16 @@ Reference: Design doc Section 3 (Lightweight Deck)
 **Step 1: Build Slide 1 (Title)**
 
 Content:
+
 - "CrescendAI" as large heading
 - Tagline: "Expert-level piano feedback, powered by AI"
-- Jai Dhiman | crescend.ai | jai.dhiman@outlook.com
+- Jai Dhiman | crescend.ai | <jai.dhiman@outlook.com>
 - Clean, minimal -- no clutter
 
 **Step 2: Build Slide 2 (The Problem)**
 
 Content -- use short, punchy bullet points:
+
 - "Piano students practice alone most of the time"
 - "Expert feedback costs $50-200/hour and is hard to access"
 - "Existing apps only check note accuracy -- they miss what actually matters"
@@ -84,6 +90,7 @@ Design: Consider a simple visual split -- text on one side, a striking stat or q
 **Step 3: Build Slide 3 (The Insight)**
 
 Content:
+
 - "Audio foundation models can hear what MIDI can't"
 - "Trained on millions of hours of music, they understand how music sounds"
 - "These models only became capable enough in the last 1-2 years"
@@ -93,6 +100,7 @@ This slide should convey the "why now" -- the technological timing.
 **Step 4: Build Slide 4 (The Product)**
 
 Content:
+
 - Screenshot of the CrescendAI demo page (radar chart + teacher feedback)
 - "Upload a recording. Get 19-dimension analysis in under 15 seconds."
 - "Radar chart + natural language feedback + practice tips"
@@ -103,6 +111,7 @@ Note: Take a screenshot of crescend.ai demo results page and save to `investor/d
 **Step 5: Build Slide 5 (The Results)**
 
 Content:
+
 - Large stat: "+55% vs existing approaches"
 - "R-squared = 0.537 vs 0.347 (symbolic baseline)"
 - "Statistical significance: p < 10^-25"
@@ -131,6 +140,7 @@ git commit -m "add slides 1-5: title, problem, insight, product, results"
 ### Task 3: Build Slide Deck -- Slides 6-10 (Business Half)
 
 **Files:**
+
 - Modify: `investor/deck/index.html`
 
 Reference: Design doc Section 3 (Lightweight Deck)
@@ -138,6 +148,7 @@ Reference: Design doc Section 3 (Lightweight Deck)
 **Step 1: Build Slide 6 (Market)**
 
 Content:
+
 - "~40M piano students globally"
 - "Online music education growing post-COVID"
 - Revenue path: "B2C subscription ($10-30/mo) -> Institutional licenses -> API for piano manufacturers"
@@ -146,6 +157,7 @@ Content:
 **Step 2: Build Slide 7 (Traction & Validation)**
 
 Content:
+
 - "30+ structured educator interviews"
 - "Published research: arXiv, ISMIR 2026 submission"
 - "Iterated with MIR researchers, ML engineers at OpenAI and Google"
@@ -155,6 +167,7 @@ Content:
 **Step 3: Build Slide 8 (Founder)**
 
 This is the most personal slide. Content:
+
 - "Jai Dhiman"
 - "Berklee College of Music -- Percussion Performance (5x Dean's List)"
 - "Pianist since age 8 | Active orchestral musician"
@@ -166,6 +179,7 @@ Consider: a simple layout with text, no photo needed for a casual meeting backup
 **Step 4: Build Slide 9 (Roadmap)**
 
 Content as a simple timeline or progression:
+
 - Now: "Curated gallery with AI feedback (live at crescend.ai)"
 - 3 months: "User uploads, accounts, progress tracking"
 - 6 months: "Mobile app, real-time analysis"
@@ -174,6 +188,7 @@ Content as a simple timeline or progression:
 **Step 5: Build Slide 10 (The Ask)**
 
 Content -- keep deliberately vague per the design:
+
 - "Pre-seed funding to accelerate"
 - Three bullets: "First ML engineer hire | GPU training credits | User research and iteration"
 - Contact info repeated
@@ -199,6 +214,7 @@ git commit -m "add slides 6-10: market, traction, founder, roadmap, ask"
 ### Task 4: Build One-Pager
 
 **Files:**
+
 - Modify: `investor/one-pager/index.html`
 
 Reference: Design doc Section 4 (One-Pager)
@@ -206,6 +222,7 @@ Reference: Design doc Section 4 (One-Pager)
 **Step 1: Build the top third (headline)**
 
 Content:
+
 - "CrescendAI" as heading
 - "AI-powered piano performance analysis"
 - One sentence: "We use audio foundation models to deliver expert-level feedback on piano performances across 19 musical dimensions."
@@ -213,6 +230,7 @@ Content:
 **Step 2: Build the middle third (three proof points)**
 
 Three columns or three stacked sections:
+
 - "It works" -- 55% better than existing approaches. Published, peer-reviewed.
 - "It's real" -- Live demo at crescend.ai. Under 15-second analysis time.
 - "There's demand" -- 30+ educator interviews. ~40M piano students globally.
@@ -222,10 +240,11 @@ Each proof point should be scannable in 3 seconds.
 **Step 3: Build the bottom third (founder + contact)**
 
 Content:
+
 - "Founded by Jai Dhiman"
 - "Berklee College of Music (Percussion Performance) | Pianist since age 8"
 - "First-author arXiv paper | ISMIR 2026 submission | 3x hackathon winner"
-- crescend.ai | jai.dhiman@outlook.com | linkedin.com/in/jai-d
+- crescend.ai | <jai.dhiman@outlook.com> | linkedin.com/in/jai-d
 
 **Step 4: Verify print layout**
 
@@ -247,11 +266,13 @@ git commit -m "add investor one-pager leave-behind"
 ### Task 5: Demo Preparation and Fallback
 
 **Files:**
+
 - Create: `investor/demo-runbook.md`
 
 **Step 1: Test the live demo**
 
 Open crescend.ai in a browser. Walk through the full demo flow:
+
 1. Landing page loads correctly
 2. Navigate to demo page
 3. All 3 performances display (Horowitz, Argerich, Gould)
@@ -269,6 +290,7 @@ Run the analysis for all 3 performances so results are cached. This ensures the 
 **Step 3: Write the demo runbook**
 
 Create `investor/demo-runbook.md` with:
+
 - Exact click-by-click flow (from design doc Section 2)
 - Talking points for each screen
 - Which 2-3 radar dimensions to highlight for Horowitz and why
@@ -278,6 +300,7 @@ Create `investor/demo-runbook.md` with:
 **Step 4: Create backup plan notes**
 
 Add to the runbook:
+
 - Instructions for recording a screen capture backup (QuickTime on Mac: Cmd+Shift+5)
 - Note to have the recording saved on phone as well
 - Offline fallback: screenshots of each demo step saved in `investor/deck/img/`
@@ -294,12 +317,14 @@ git commit -m "add demo runbook with fallback plan"
 ### Task 6: Deck Visual Polish and Screenshots
 
 **Files:**
+
 - Modify: `investor/deck/index.html`
 - Create: `investor/deck/img/` (screenshots)
 
 **Step 1: Capture product screenshots**
 
 Take screenshots of the CrescendAI demo:
+
 1. Landing page hero section
 2. Demo gallery with 3 performances
 3. Analysis results: radar chart + teacher feedback for Horowitz
@@ -312,6 +337,7 @@ Embed the results screenshot in the product slide. Size it to be clearly visible
 **Step 3: Visual consistency pass**
 
 Review all 10 slides for:
+
 - Consistent font sizes (headings, body, stats)
 - Consistent spacing and margins
 - Color palette: stick to 2-3 colors max (dark text, one accent for key stats, white background)
@@ -337,6 +363,7 @@ git commit -m "add screenshots and visual polish to deck"
 ### Task 7: Final Review and Practice Materials
 
 **Files:**
+
 - Create: `investor/practice-checklist.md`
 
 **Step 1: Create practice checklist**
@@ -344,6 +371,7 @@ git commit -m "add screenshots and visual polish to deck"
 Write `investor/practice-checklist.md` with:
 
 **Before the meeting:**
+
 - [ ] Test crescend.ai loads on your phone and laptop
 - [ ] Run analysis on all 3 performances to warm cache
 - [ ] Record screen capture backup of full demo flow
@@ -355,6 +383,7 @@ Write `investor/practice-checklist.md` with:
 - [ ] Print one-pager or have PDF on phone to share
 
 **During the meeting:**
+
 - [ ] Lead with your story, not the deck
 - [ ] Show the demo when conversation naturally goes there
 - [ ] Ask at least 3 of the 7 prepared questions
@@ -362,6 +391,7 @@ Write `investor/practice-checklist.md` with:
 - [ ] Don't explain technical architecture unless asked
 
 **After the meeting:**
+
 - [ ] Send follow-up email within 24 hours
 - [ ] Attach: one-pager PDF + deck PDF
 - [ ] Reference something specific from the conversation
@@ -373,6 +403,7 @@ Add a template to the checklist file:
 
 Subject: "Great meeting -- CrescendAI follow-up"
 Body structure:
+
 - Thanks for time + reference specific conversation point
 - "As promised, attached: [one-pager] and [deck]"
 - "I'd love to keep you posted on progress. [Next milestone]."
@@ -393,6 +424,7 @@ git commit -m "add practice checklist and follow-up email template"
 **Estimated effort:** Tasks 1-5 are the core work. Task 6 depends on having the live demo accessible. Task 7 is quick.
 
 **Dependencies:**
+
 - Task 2 depends on Task 1
 - Task 3 depends on Task 1
 - Task 4 depends on Task 1
@@ -402,6 +434,7 @@ git commit -m "add practice checklist and follow-up email template"
 - Task 7 depends on all other tasks
 
 **What's already done (from design doc):**
+
 - Investor questions (Section 5) -- ready to use as-is
 - FAQ prep (Section 6) -- ready to use as-is
 - User personas (Section 7) -- ready to use as-is
