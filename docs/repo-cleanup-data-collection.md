@@ -95,6 +95,7 @@ model/data/
 ### Remove Old Plan Documents
 
 After the new docs are written and committed:
+
 - Delete `docs/plans/2026-02-15-model-improvement-design.md`
 - Delete `docs/plans/2026-02-15-model-improvement-implementation.md`
 
@@ -107,6 +108,7 @@ After the new docs are written and committed:
 **Source:** International Chopin Piano Competition 2021 -- all performances freely available on YouTube with published round-by-round results.
 
 **Pipeline:**
+
 1. Scrape metadata from chopin2021.pl (performer name, piece, round, placement)
 2. Match to YouTube URLs (competition channel publishes all performances)
 3. Download audio via yt-dlp, convert to 24kHz mono WAV
@@ -127,6 +129,7 @@ After the new docs are written and committed:
 **Source:** MAESTRO v3 audio. We already have the MIDI and metadata; we need the audio files and MuQ embeddings.
 
 **Pipeline:**
+
 1. Download MAESTRO v3 audio (~200GB WAV) on Thunder Compute
 2. Segment each recording into 30s clips with piece and performer metadata
 3. Extract MuQ embeddings per segment (batch processing on A100)
@@ -144,6 +147,7 @@ After the new docs are written and committed:
 **Source:** YouTube piano channels with professional recitals and conservatory uploads.
 
 **Pipeline:**
+
 1. Curate list of high-quality piano channels (20-30 channels)
 2. Download audio via yt-dlp
 3. Segment into 30s clips

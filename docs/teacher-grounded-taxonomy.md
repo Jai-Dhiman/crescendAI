@@ -52,6 +52,7 @@ No engineering changes needed.
 ### Phase B: Expand Source Library
 
 Scale to 150+ videos by mining:
+
 - High-yield channels: Berliner Klavierfesttage, Juilliard Master Classes, tonebase Piano, JMC
 - Underrepresented eras: Baroque (Bach, Handel), 20th century (Bartok, Messiaen, Ligeti)
 - Deliberately diverse teaching styles
@@ -91,10 +92,12 @@ For each candidate dimension, compute four scores:
 ### Step 3: Selection Criteria
 
 **Keep** a dimension if:
+
 - Teacher frequency > 5% of moments (teachers care about it)
 - AND at least one soft signal is positive (model can learn it OR it predicts STOP)
 
 **Drop** a dimension if:
+
 - Teacher frequency < 3% AND no soft signal supports it
 - OR fully redundant with another kept dimension (r > 0.85 on PercePiano proxies)
 
@@ -103,6 +106,7 @@ For each candidate dimension, compute four scores:
 Group surviving dimensions into 3-5 top-level categories for summary feedback, with 1-3 specific dimensions underneath for drill-down. Grouping derived from the clustering dendrogram.
 
 Speculative example (to be validated by data):
+
 ```
 Sound Quality
   - dynamics
@@ -121,6 +125,7 @@ Interpretive Choices
 ### Step 5: Quote Bank Construction
 
 For each final dimension, collect from teaching moments:
+
 - 5-10 representative teacher quotes (feedback_summary + transcript excerpt)
 - Organized by severity and feedback_type
 - These power the feedback delivery: "Here's how Arie Vardi addressed pedaling in Chopin Ballade No. 1..."
@@ -140,14 +145,17 @@ For each teacher-derived dimension, create a composite PercePiano score:
 3. Average into a single composite score per teacher dimension
 
 Example for a hypothetical "Sound Quality" composite:
+
 ```
 sound_quality = w1 * dynamic_range + w2 * timbre_depth + w3 * timbre_variety + w4 * timbre_loudness
 ```
+
 Where weights are proportional to max(0, MLP_R2) and normalized.
 
 ### Dimensions Without PercePiano Proxy
 
 If a teacher dimension has no PercePiano mapping (e.g., "technique", "structure"):
+
 - Use masterclass STOP moments as weak binary labels (teacher flagged this vs didn't)
 - Accept sparse supervision for this dimension in Part 2
 - Potentially rely on the symbolic encoder for score-readable aspects

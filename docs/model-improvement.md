@@ -10,12 +10,14 @@ Train the strongest possible piano performance evaluation model using:
 4. Three consolidated notebooks: audio, symbolic, fusion
 
 This plan starts after both prerequisites are complete:
+
 - Teacher-grounded taxonomy validated (all 5 gates pass)
 - Repo cleanup and data collection done (T2-T4 available)
 
 ## Prerequisites: What This Plan Receives
 
 From the taxonomy work:
+
 - N teacher-grounded dimensions (expected 5-8) with 2-level hierarchy
 - `composite_labels/taxonomy.json`: dimension definitions, PercePiano mapping weights
 - `composite_labels/labels.json`: composite labels for all 1,202 PercePiano segments
@@ -23,12 +25,14 @@ From the taxonomy work:
 - STOP prediction AUC baseline >= 0.80
 
 From data collection:
+
 - T1: `percepiano_cache/` -- MuQ embeddings + composite labels
 - T2: `competition_cache/chopin2021/` -- MuQ embeddings + ordinal placements
 - T3: `maestro_cache/muq_embeddings/` -- cross-performer MuQ embeddings
 - T4: `youtube_piano_cache/` (optional) -- clean + augmented embedding pairs
 
 From existing infrastructure:
+
 - `pretrain_cache/` -- tokenized MIDI, score graphs, continuous features (14K+ corpus)
 - All model code in `src/model_improvement/` (audio_encoders, symbolic_encoders, data, etc.)
 
@@ -63,6 +67,7 @@ L_invariance     = MSE between clean and augmented embeddings (T4)
 All operate on pre-extracted MuQ embeddings (1024-dim frame-level features).
 
 **A1: MuQ + LoRA Multi-Task**
+
 - LoRA adapters (rank 16-64) on self-attention layers of MuQ layers 9-12
 - 99%+ of MuQ parameters stay frozen
 - Multi-task training on all available labels (T1+T2+T3)
@@ -70,6 +75,7 @@ All operate on pre-extracted MuQ embeddings (1024-dim frame-level features).
 - Good baseline for what MuQ can do with minimal adaptation
 
 **A2: Staged Domain Adaptation**
+
 - Stage 1 (self-supervised): contrastive + invariance on T3+T4. No labels needed.
   - Cross-performer contrastive: same piece, different performers -> positive pairs
   - Augmentation invariance: same recording + {noise, room IR, phone sim} -> same embedding
@@ -78,11 +84,13 @@ All operate on pre-extracted MuQ embeddings (1024-dim frame-level features).
 - Most principled approach -- separates representation learning from label fitting.
 
 **A3: Full Unfreeze with Gradual Unfreezing**
+
 - Unfreeze MuQ layers progressively: 12 -> 11 -> 10 -> 9
 - Discriminative learning rates (deeper = smaller)
 - Highest parameter count, highest risk of catastrophic forgetting, highest ceiling
 
 **Shared pipeline:**
+
 ```
 MuQ embeddings [T, 1024]
   -> Attention pooling -> [1024]
@@ -96,6 +104,7 @@ MuQ embeddings [T, 1024]
 All pretrain on the 14K+ MIDI corpus (MAESTRO + ATEPP + ASAP + PercePiano), then finetune on PercePiano composite labels.
 
 **S1: Transformer on REMI Tokens**
+
 - REMI tokenization: note-on, note-off, velocity (32 bins), time-shift, pedal (on/off/partial), bar, tempo
 - Vocabulary: ~500 tokens
 - Architecture: 6-12 layer Transformer, 512-dim, 8 heads (~25M parameters)
@@ -103,6 +112,7 @@ All pretrain on the 14K+ MIDI corpus (MAESTRO + ATEPP + ASAP + PercePiano), then
 - Most standard approach, strong baseline
 
 **S2: GNN on Homogeneous Score Graph**
+
 - Notes as nodes (pitch, velocity, onset, duration, pedal, voice)
 - Edges: temporal adjacency, harmonic interval, voice membership
 - Message-passing encoder (GATConv layers)
@@ -110,17 +120,20 @@ All pretrain on the 14K+ MIDI corpus (MAESTRO + ATEPP + ASAP + PercePiano), then
 - Structurally expressive for counterpoint and harmony
 
 **S2H: Heterogeneous GNN on Score Graph**
+
 - 4 edge types: onset (simultaneous), during (overlapping), follow (sequential), silence (gap)
 - Richer structural representation than S2
 - Pretraining: per-edge-type link prediction
 
 **S3: Continuous MIDI Encoder**
+
 - MIDI -> continuous feature curves (pitch, velocity, density, pedal, IOI)
 - 1D-CNN (multi-scale: 3, 7, 15) + Transformer encoder
 - wav2vec-style contrastive pretraining
 - Most analogous to MuQ's architecture
 
 **Shared pipeline:**
+
 ```
 MIDI input
   -> Tokenizer/encoder (per experiment)
@@ -135,31 +148,38 @@ MIDI input
 Input: best audio encoder + best symbolic encoder (from staged elimination).
 
 **F1: Cross-Attention Fusion**
+
 - z_audio attends to z_symbolic and vice versa
 - Breaks the correlated-error pattern that killed concatenation fusion (r=0.738 in audit)
 
 **F2: Concatenation Baseline**
+
 - [z_audio; z_symbolic] -> MLP
 - Must beat audio-only or fusion isn't working (current: 0.524 < 0.537)
 
 **F3: Gated Per-Dimension Fusion**
+
 - Learned gate per dimension: some dimensions benefit more from audio, others from symbolic
 - gate_d = sigmoid(W_d * [z_audio; z_symbolic])
-- z_fused_d = gate_d * z_audio + (1 - gate_d) * z_symbolic
+- z_fused_d = gate_d *z_audio + (1 - gate_d)* z_symbolic
 - Interpretable: the gate values tell us which modality each dimension relies on
 
 **Score-conditioned quality (the key unlock):**
+
 ```
 quality = f(z_performance_audio, z_performance_midi, z_score_midi)
 ```
+
 The model knows what the score asks for AND how the performance sounds. This enables feedback like "the dynamics are correct for this passage" vs "the dynamics don't match what Chopin wrote."
 
 **Downstream heads (shared across fusion experiments):**
+
 - Quality heads: N-dimension regression (composite labels)
 - Ranking heads: N-dimension pairwise ranking (E2a-style)
 - Difficulty head: auxiliary regression (PSyllabus, 508 pieces, current Spearman rho 0.623)
 
 **Fusion training:**
+
 - Freeze both encoders initially
 - Train fusion module + downstream heads on T1+T2+T3
 - If frozen fusion plateaus, optionally unfreeze encoders with very low LR (1e-6)
@@ -183,6 +203,7 @@ Applied on-the-fly during training via AudioAugmentor (already implemented in `s
 **Purpose:** Identify clear losers before committing full GPU time.
 
 **Config:**
+
 - 50 pretrain epochs (symbolic only)
 - 50 finetune epochs (all)
 - Fold 0 only (no cross-validation)
@@ -200,6 +221,7 @@ Applied on-the-fly during training via AudioAugmentor (already implemented in `s
 **Purpose:** Properly train surviving experiments with full data and cross-validation.
 
 **Config:**
+
 - Full pretrain schedule (symbolic: 50 epochs on 14K+ corpus)
 - 200 finetune epochs with early stopping (patience 20)
 - 4-fold piece-stratified CV (no piece leakage)
@@ -371,6 +393,7 @@ Bonus: STOP AUC improvement over composite-label baseline.
 All training notebooks run on Thunder Compute GPU instances (A100 80GB).
 
 **Setup pattern** (per notebook):
+
 1. Clone repo, install deps with `uv sync`
 2. Sync data from GDrive via rclone
 3. Train
@@ -428,6 +451,7 @@ model/src/model_improvement/
 ```
 
 New modules needed:
+
 - `taxonomy.py` -- composite label loading, PercePiano bridge (produced by taxonomy work)
 - Update `data.py` -- add CrossPerformerDataset for T3, update collation for tier-mixed batches
 

@@ -31,7 +31,7 @@ COPY requirements.txt .
 RUN uv pip install --system --no-cache -r requirements.txt
 
 # Pre-download HuggingFace models (cached in image)
-# MuQ only - no MERT needed for M1c
+# MuQ only
 RUN python3 -c "\
 print('Downloading MuQ-large-msd-iter...'); \
 from muq import MuQ; \

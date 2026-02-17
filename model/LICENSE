@@ -29,13 +29,10 @@ Note on Third-Party Models and Data:
 This software uses the following pre-trained models and datasets, which have
 their own licenses:
 
-- MuQ (OpenMuQ): <https://github.com/bytedance/muq>
+- MuQ (OpenMuQ): <https://github.com/tencent-ailab/MuQ>
   Please refer to their repository for licensing terms.
 
-- MERT: <https://huggingface.co/m-a-p/MERT-v1-330M>
-  Licensed under CC-BY-NC 4.0 for non-commercial use.
-
-- PercePiano dataset: <https://percepiano.github.io/>
+- PercePiano dataset: <https://github.com/JonghoKimSNU/PercePiano>
   Licensed under CC-BY-NC-ND 4.0. Please cite the original paper when using
   this code with PercePiano data.
 
