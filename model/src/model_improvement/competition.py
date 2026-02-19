@@ -571,6 +571,122 @@ def extract_competition_embeddings(cache_dir: Path) -> int:
 
 
 # ---------------------------------------------------------------------------
+# 2f: Segment-level embeddings
+# ---------------------------------------------------------------------------
+
+def segment_and_embed_competition(
+    cache_dir: Path,
+    segment_duration: float = 30.0,
+    min_segment_duration: float = 5.0,
+) -> int:
+    """Segment competition recordings into 30s clips and extract per-segment MuQ embeddings.
+
+    Reads full recordings from cache_dir/audio/*.wav and recording-level metadata
+    from cache_dir/recordings.jsonl. Produces:
+    - cache_dir/metadata.jsonl with per-segment metadata
+    - cache_dir/muq_embeddings/{segment_id}.pt per segment
+
+    Returns count of newly processed segments.
+    """
+    import torch
+    from audio_experiments.extractors.muq import MuQExtractor
+    from model_improvement.audio_utils import load_audio, segment_audio
+
+    audio_dir = cache_dir / "audio"
+    emb_dir = cache_dir / "muq_embeddings"
+    metadata_path = cache_dir / "metadata.jsonl"
+    recordings_path = cache_dir / "recordings.jsonl"
+
+    if not audio_dir.exists():
+        logger.warning("No audio directory at %s", audio_dir)
+        return 0
+
+    # Load recording-level metadata
+    if not recordings_path.exists():
+        logger.warning("No recordings metadata at %s", recordings_path)
+        return 0
+
+    with jsonlines.open(recordings_path) as reader:
+        recordings = list(reader)
+
+    if not recordings:
+        logger.warning("No recordings found in %s", recordings_path)
+        return 0
+
+    # Load already-processed segment IDs for idempotency
+    existing_segments: set[str] = set()
+    if metadata_path.exists():
+        with jsonlines.open(metadata_path) as reader:
+            for seg in reader:
+                existing_segments.add(seg["segment_id"])
+
+    emb_dir.mkdir(parents=True, exist_ok=True)
+
+    extractor = MuQExtractor(cache_dir=emb_dir)
+    new_count = 0
+
+    for recording in recordings:
+        recording_id = recording["recording_id"]
+        wav_path = audio_dir / f"{recording_id}.wav"
+
+        if not wav_path.exists():
+            logger.warning("Audio file not found: %s", wav_path)
+            continue
+
+        # Skip if any segments for this recording already exist
+        if any(sid.startswith(recording_id) for sid in existing_segments):
+            logger.debug("Segments for %s already processed", recording_id)
+            continue
+
+        audio, sr = load_audio(wav_path, target_sr=24000)
+        segments = segment_audio(
+            audio, sr=sr,
+            segment_duration=segment_duration,
+            min_duration=min_segment_duration,
+        )
+
+        for i, seg in enumerate(segments):
+            segment_id = f"{recording_id}_seg{i:03d}"
+
+            if segment_id in existing_segments:
+                continue
+
+            # Extract MuQ embedding for this segment
+            audio_tensor = torch.from_numpy(seg["audio"]).float()
+            embedding = extractor.extract_from_audio(audio_tensor)
+
+            # Save embedding
+            torch.save(embedding, emb_dir / f"{segment_id}.pt")
+
+            # Write segment metadata
+            seg_record = {
+                "segment_id": segment_id,
+                "recording_id": recording_id,
+                "competition": recording.get("competition", "chopin"),
+                "edition": recording.get("edition", 2021),
+                "round": recording["round"],
+                "placement": recording["placement"],
+                "performer": recording["performer"],
+                "piece": recording["piece"],
+                "segment_start": seg["start_sec"],
+                "segment_end": seg["end_sec"],
+                "source_url": recording.get("source_url", ""),
+                "country": recording.get("country", ""),
+            }
+
+            with jsonlines.open(metadata_path, mode="a") as writer:
+                writer.write(seg_record)
+
+            existing_segments.add(segment_id)
+            new_count += 1
+
+    del extractor
+
+    logger.info("Processed %d new segments", new_count)
+    return new_count
+
+
+# ---------------------------------------------------------------------------
 # Load helpers
 # ---------------------------------------------------------------------------
 
