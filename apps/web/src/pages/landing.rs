@@ -20,7 +20,7 @@ pub fn LandingPage() -> impl IntoView {
 #[component]
 fn HeroSection() -> impl IntoView {
     view! {
-        <section class="relative overflow-hidden bg-gradient-hero">
+        <section class="relative overflow-hidden">
             <div class="container-wide py-16 md:py-24 lg:py-32">
                 <div class="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
                     // Left: Copy
@@ -149,7 +149,7 @@ fn HeroMockCard(
 #[component]
 fn ProblemSection() -> impl IntoView {
     view! {
-        <section class="bg-gradient-warm-mid">
+        <section>
             <div class="container-narrow text-center py-16 md:py-24">
                 <p class="font-display text-heading-xl md:text-display-sm text-ink-800 leading-relaxed">
                     "Any app can tell you if you played the right notes. But that's not what separates good playing from great playing."
@@ -167,7 +167,7 @@ fn ProblemSection() -> impl IntoView {
 #[component]
 fn FeedbackShowcase() -> impl IntoView {
     view! {
-        <section class="bg-gradient-warm-deep">
+        <section>
             <div class="container-wide py-16 md:py-24">
                 <h2 class="font-display text-display-sm md:text-display-md text-ink-900 text-center mb-12">
                     "Here's what Crescend hears"
@@ -214,7 +214,7 @@ fn FeedbackPoint(label: &'static str, text: &'static str) -> impl IntoView {
 #[component]
 fn HowItWorksStrip() -> impl IntoView {
     view! {
-        <section id="how-it-works" class="bg-gradient-warm-mid scroll-mt-20">
+        <section id="how-it-works" class="scroll-mt-20">
             <div class="container-wide py-10 md:py-14">
                 <div class="flex flex-col sm:flex-row items-center justify-center gap-6 sm:gap-12 text-center">
                     <StripStep
@@ -260,7 +260,7 @@ fn StripStep(icon_path: &'static str, text: &'static str) -> impl IntoView {
 #[component]
 fn MissionSection() -> impl IntoView {
     view! {
-        <section class="bg-gradient-warm-rich">
+        <section>
             <div class="container-narrow text-center py-16 md:py-24">
                 <p class="font-display text-display-sm text-ink-900 mb-8">
                     "Quality feedback shouldn't cost $200 an hour."
@@ -289,7 +289,7 @@ fn MissionSection() -> impl IntoView {
 #[component]
 fn FinalCtaSection() -> impl IntoView {
     view! {
-        <section class="bg-gradient-hero">
+        <section>
             <div class="container-narrow text-center py-16 md:py-24">
                 <h2 class="font-display text-display-md text-ink-900 mb-6">
                     "Ready to hear what your playing really sounds like?"

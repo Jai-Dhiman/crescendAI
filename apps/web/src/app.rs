@@ -26,7 +26,7 @@ pub fn App() -> impl IntoView {
         <Meta name="description" content="Record yourself playing piano. Get the feedback a great teacher would give you -- on your tone, your dynamics, your phrasing."/>
 
         <Router>
-            <div class="min-h-screen bg-gradient-hero flex flex-col">
+            <div class="min-h-screen bg-paper-50 flex flex-col">
                 <Header />
                 <main class="flex-1">
                     <Routes fallback=|| view! { <NotFound /> }>
