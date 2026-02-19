@@ -1,10 +1,11 @@
 use leptos::prelude::*;
 use leptos_meta::*;
 use leptos_router::components::{Route, Router, Routes};
+use leptos_router::hooks::use_params_map;
 use leptos_router::path;
 
 use crate::components::Header;
-use crate::pages::{DemoPage, LandingPage};
+use crate::pages::{AnalyzePage, LandingPage};
 
 #[component]
 pub fn App() -> impl IntoView {
@@ -21,8 +22,8 @@ pub fn App() -> impl IntoView {
             rel="stylesheet"
         />
 
-        <Title text="CrescendAI - Perceptual Piano Performance Analysis"/>
-        <Meta name="description" content="Research demonstration exploring how audio-based deep learning models predict human perceptual ratings of piano performances across 19 musical dimensions."/>
+        <Title text="Crescend -- Detailed Piano Feedback in Seconds"/>
+        <Meta name="description" content="Upload a piano recording and get detailed, personalized feedback on your sound quality, musical shaping, technique, and interpretation."/>
 
         <Router>
             <div class="min-h-screen bg-gradient-page flex flex-col texture-paper">
@@ -30,13 +31,45 @@ pub fn App() -> impl IntoView {
                 <main class="flex-1">
                     <Routes fallback=|| view! { <NotFound /> }>
                         <Route path=path!("/") view=LandingPage />
-                        <Route path=path!("/demo") view=DemoPage />
-                        <Route path=path!("/demo/:id") view=DemoPage />
+                        <Route path=path!("/analyze") view=AnalyzePage />
+                        <Route path=path!("/analyze/:id") view=AnalyzePage />
+                        <Route path=path!("/demo") view=DemoRedirect />
+                        <Route path=path!("/demo/:id") view=DemoRedirect />
                     </Routes>
                 </main>
                 <Footer />
             </div>
         </Router>
+    }
+}
+
+#[component]
+fn DemoRedirect() -> impl IntoView {
+    let params = use_params_map();
+
+    #[cfg(feature = "hydrate")]
+    {
+        Effect::new(move |_| {
+            if let Some(window) = web_sys::window() {
+                let id = params.read().get("id");
+                let target = match id {
+                    Some(id) => format!("/analyze/{}", id),
+                    None => "/analyze".to_string(),
+                };
+                let _ = window.location().replace(&target);
+            }
+        });
+    }
+
+    #[cfg(not(feature = "hydrate"))]
+    {
+        let _ = params;
+    }
+
+    view! {
+        <div class="text-center py-20">
+            <p class="text-body-md text-ink-500">"Redirecting..."</p>
+        </div>
     }
 }
 
@@ -73,39 +106,33 @@ fn Footer() -> impl IntoView {
                     <div class="flex items-center gap-3">
                         <img
                             src="/crescendai.png"
-                            alt="CrescendAI Logo"
+                            alt="Crescend Logo"
                             class="w-8 h-8 rounded-md"
                         />
-                        <div>
-                            <span class="font-display text-lg font-medium text-ink-800 block">
-                                "CrescendAI"
-                            </span>
-                            <span class="text-label-sm text-ink-400">
-                                "Research Project"
-                            </span>
-                        </div>
+                        <span class="font-display text-lg font-medium text-ink-800">
+                            "Crescend"
+                        </span>
                     </div>
 
-                    // Attribution
-                    <p class="text-body-sm text-ink-500 text-center md:text-left">
+                    // Links
+                    <div class="flex items-center gap-6 text-body-sm">
                         <a href="https://arxiv.org/abs/2601.19029" target="_blank" rel="noopener" class="text-sepia-600 hover:text-sepia-700 underline underline-offset-2">
                             "Paper"
                         </a>
-                        " | Built on "
-                        <a href="https://arxiv.org/abs/2306.15595" target="_blank" rel="noopener" class="text-sepia-600 hover:text-sepia-700 underline underline-offset-2">
-                            "PercePiano"
+                        <a href="mailto:jai@crescend.ai" class="text-sepia-600 hover:text-sepia-700 underline underline-offset-2">
+                            "Contact"
                         </a>
-                        " dataset and "
-                        <a href="https://github.com/tencent-ailab/MuQ" target="_blank" rel="noopener" class="text-sepia-600 hover:text-sepia-700 underline underline-offset-2">
-                            "MuQ"
-                        </a>
-                        " audio encoder"
-                    </p>
+                    </div>
 
-                    // Copyright
-                    <p class="text-label-sm text-ink-400 uppercase tracking-wider">
-                        "2026 Research Demo"
-                    </p>
+                    // Privacy + Copyright
+                    <div class="text-right">
+                        <p class="text-body-xs text-ink-500 mb-1">
+                            "Your recordings are yours. We don't store or train on your data."
+                        </p>
+                        <p class="text-label-sm text-ink-400">
+                            "2026 Crescend"
+                        </p>
+                    </div>
                 </div>
             </div>
         </footer>

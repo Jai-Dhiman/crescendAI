@@ -5,16 +5,16 @@ use leptos_router::hooks::use_params_map;
 use wasm_bindgen::JsCast;
 
 use crate::components::{
-    ChatPanel, CollapsibleRadarChart, LoadingSpinner, PracticeTips, RadarDataPoint, TeacherFeedback,
+    CategoryCard, ChatPanel, LoadingSpinner, TeacherFeedback,
 };
 use crate::models::{AnalysisResult, AnalysisState, Performance, UploadedPerformance};
 
 #[cfg(feature = "hydrate")]
 use crate::components::AudioUpload;
 
-/// Interactive Demo Page - upload your own or use demo recordings
+/// Upload and analyze piano recordings with 4-category feedback
 #[component]
-pub fn DemoPage() -> impl IntoView {
+pub fn AnalyzePage() -> impl IntoView {
     let params = use_params_map();
     let initial_id = Memo::new(move |_| params.read().get("id"));
 
@@ -72,7 +72,7 @@ pub fn DemoPage() -> impl IntoView {
                 <div class="container-wide">
                     <div class="flex items-center justify-between mb-4">
                         <h2 class="text-label-sm uppercase tracking-wider text-sepia-600">
-                            "Upload Your Recording"
+                            "Upload your recording"
                         </h2>
                     </div>
 
@@ -85,7 +85,7 @@ pub fn DemoPage() -> impl IntoView {
                 <div class="container-wide">
                     <div class="flex items-center justify-between mb-4">
                         <h2 class="text-label-sm uppercase tracking-wider text-sepia-600">
-                            "Or Select a Demo Performance"
+                            "Don't have a recording? Try one of these:"
                         </h2>
                     </div>
 
@@ -139,10 +139,10 @@ pub fn DemoPage() -> impl IntoView {
                                 </svg>
                             </div>
                             <h2 class="font-display text-heading-xl text-ink-800 mb-2">
-                                "Select a Recording"
+                                "Upload or Select a Recording"
                             </h2>
                             <p class="text-body-md text-ink-500">
-                                "Choose a performance above to analyze and explore"
+                                "Upload your own recording or choose a demo to hear detailed feedback"
                             </p>
                         </div>
                     }
@@ -436,17 +436,17 @@ fn AnalysisContent(
                             </div>
 
                             <h3 class="font-display text-heading-lg text-ink-900 mb-2">
-                                "Ready to Analyze"
+                                "Ready for Feedback"
                             </h3>
                             <p class="text-body-md text-ink-500 mb-6 max-w-md mx-auto">
-                                "Get AI-powered feedback grounded in piano pedagogy sources"
+                                "Get detailed feedback on your sound, phrasing, technique, and interpretation"
                             </p>
 
                             <button
                                 on:click=handler
                                 class="btn-primary px-6 py-2.5"
                             >
-                                "Analyze Performance"
+                                "Get Feedback"
                             </button>
                         </div>
                     }.into_any()
@@ -493,56 +493,36 @@ fn AnalysisContent(
 
 #[component]
 fn AnalysisResults(result: AnalysisResult, perf_id: String) -> impl IntoView {
-    let models = result.models.clone();
-
-    // Use first model (Audio/MuQ) only - no model selector needed
-    let radar_data = Memo::new(move |_| {
-        let models_ref = models.clone();
-        models_ref.first()
-            .map(|m| m.dimensions.to_labeled_vec()
-                .into_iter()
-                .map(|(label, value)| RadarDataPoint {
-                    label: label.to_string(),
-                    value,
-                })
-                .collect::<Vec<_>>())
-            .unwrap_or_default()
-    });
-
-    let radar_signal = Signal::derive(move || radar_data.get());
+    let categories = result.dimensions.to_category_scores();
     let feedback = result.teacher_feedback.clone();
-    let tips = result.practice_tips.clone();
 
     view! {
         <div class="space-y-6 animate-fade-in">
-            // Two-column layout: Radar + Practice Tips
-            <div class="grid lg:grid-cols-5 gap-6">
-                // Radar Chart (takes 3 cols)
-                <div class="lg:col-span-3 card p-6">
-                    <div class="flex items-center justify-between mb-4">
-                        <h3 class="font-display text-heading-md text-ink-800">
-                            "Performance Analysis"
-                        </h3>
-                        <span class="px-3 py-1.5 text-label-sm font-medium rounded-md bg-sepia-100 text-sepia-700">
-                            "MuQ Audio Model"
-                        </span>
-                    </div>
-                    <div class="flex justify-center">
-                        <CollapsibleRadarChart data=radar_signal size=380 />
-                    </div>
-                </div>
-
-                // Practice Tips (takes 2 cols)
-                <div class="lg:col-span-2">
-                    <PracticeTips tips=tips />
-                </div>
+            // Category Cards
+            <div class="space-y-4">
+                {categories.into_iter().enumerate().map(|(i, cat)| {
+                    view! {
+                        <div
+                            class="animate-fade-in-up"
+                            style=format!("animation-delay: {}ms; animation-fill-mode: both", i * 100)
+                        >
+                            <CategoryCard category=cat />
+                        </div>
+                    }
+                }).collect_view()}
             </div>
 
-            // Teacher Feedback with expandable citations
-            <TeacherFeedback feedback=feedback />
+            // Detailed Analysis (Teacher Feedback with citations)
+            <div>
+                <h3 class="font-display text-heading-lg text-ink-800 mb-4">"Detailed Analysis"</h3>
+                <TeacherFeedback feedback=feedback />
+            </div>
 
-            // Chat Panel for follow-up questions
-            <ChatPanel performance_id=perf_id />
+            // Chat Panel
+            <div>
+                <h3 class="font-display text-heading-lg text-ink-800 mb-4">"Have a question about your feedback?"</h3>
+                <ChatPanel performance_id=perf_id />
+            </div>
         </div>
     }
 }
@@ -550,12 +530,11 @@ fn AnalysisResults(result: AnalysisResult, perf_id: String) -> impl IntoView {
 #[cfg(feature = "hydrate")]
 fn get_loading_messages() -> Vec<&'static str> {
     vec![
-        "Extracting MuQ embeddings...",
-        "Evaluating timing and articulation...",
-        "Processing dynamics and pedal...",
-        "Assessing timbre and expression...",
-        "Generating pedagogical feedback...",
-        "Preparing results...",
+        "Listening to your recording...",
+        "Evaluating your sound quality...",
+        "Analyzing musical shaping...",
+        "Assessing technique and control...",
+        "Preparing your feedback...",
     ]
 }
 

@@ -10,7 +10,7 @@ pub fn Header() -> impl IntoView {
                     <a
                         href="/"
                         class="group flex items-center gap-3 text-ink-800 hover:text-sepia-600 transition-colors duration-200"
-                        aria-label="CrescendAI Home"
+                        aria-label="Crescend Home"
                     >
                         <div class="relative w-10 h-10 rounded-md overflow-hidden transition-transform duration-200 group-hover:scale-105">
                             <img
@@ -20,29 +20,24 @@ pub fn Header() -> impl IntoView {
                                 aria-hidden="true"
                             />
                         </div>
-                        <div class="hidden sm:block">
-                            <span class="font-display text-xl font-medium tracking-tight text-ink-900">
-                                "CrescendAI"
-                            </span>
-                            <span class="block text-label-sm uppercase tracking-[0.15em] text-sepia-500">
-                                "Research Project"
-                            </span>
-                        </div>
+                        <span class="hidden sm:block font-display text-xl font-medium tracking-tight text-ink-900">
+                            "Crescend"
+                        </span>
                     </a>
 
                     // Navigation
                     <nav class="flex items-center gap-1" role="navigation" aria-label="Main navigation">
                         <a
-                            href="/#motivation"
+                            href="/#how-it-works"
                             class="nav-link hidden sm:inline-flex"
                         >
-                            "Research"
+                            "How It Works"
                         </a>
                         <a
-                            href="/demo"
+                            href="/analyze"
                             class="nav-link"
                         >
-                            "Demo"
+                            "Analyze"
                         </a>
 
                         <div class="w-px h-5 bg-paper-300 mx-2" aria-hidden="true"></div>
@@ -56,7 +51,7 @@ pub fn Header() -> impl IntoView {
                                    transition-all duration-200
                                    hover:bg-paper-200 hover:text-ink-800
                                    focus-visible:ring-2 focus-visible:ring-sepia-500 focus-visible:ring-offset-2"
-                            title="Read our paper on arXiv"
+                            title="Read the research paper on arXiv"
                         >
                             "Paper"
                             <svg class="w-3.5 h-3.5 text-ink-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
