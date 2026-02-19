@@ -23,13 +23,14 @@ From the taxonomy work:
 - `composite_labels/labels.json`: composite labels for all 1,202 PercePiano segments
 - `composite_labels/quote_bank.json`: teacher quotes per dimension
 - STOP prediction AUC baseline >= 0.80
+- Distillation pilot report: go/no-go decision, per-dimension calibration functions
 
 From data collection:
 
 - T1: `percepiano_cache/` -- MuQ embeddings + composite labels
-- T2: `competition_cache/chopin2021/` -- MuQ embeddings + ordinal placements
-- T3: `maestro_cache/muq_embeddings/` -- cross-performer MuQ embeddings
-- T4: `youtube_piano_cache/` (optional) -- clean + augmented embedding pairs
+- T2: `competition_cache/chopin2021/` -- MuQ embeddings + ordinal placements (+ teacher labels if distillation go)
+- T3: `maestro_cache/muq_embeddings/` -- cross-performer MuQ embeddings (+ teacher labels if distillation go)
+- T4: `youtube_piano_cache/` (optional) -- clean + augmented embedding pairs (+ teacher labels if distillation go)
 
 From existing infrastructure:
 
@@ -53,6 +54,8 @@ From existing infrastructure:
 
 Multi-task loss across four data tiers:
 
+**Baseline (no distillation, or distillation pilot returned no-go):**
+
 ```
 L_total = L_regression + lambda_rank * L_ranking + lambda_contrastive * L_contrastive + lambda_invariance * L_invariance
 
@@ -61,6 +64,21 @@ L_ranking        = DimensionWiseRankingLoss on same-piece pairs (T1) + ordinal p
 L_contrastive    = Piece-based InfoNCE on cross-performer pairs (T3)
 L_invariance     = MSE between clean and augmented embeddings (T4)
 ```
+
+**With distillation (if pilot and T2 validation passed):**
+
+```
+L_total = L_regression + lambda_rank * L_ranking + lambda_contrastive * L_contrastive + lambda_invariance * L_invariance
+
+L_regression     = confidence-weighted MSE on composite + teacher labels (T1+T2+T3+T4, N dims)
+                   confidence: T1=1.0, T2=0.6, T3=0.4, T4=0.3
+                   only for dimensions where teacher calibration r > 0.5
+L_ranking        = DimensionWiseRankingLoss on same-piece pairs (T1) + ordinal placement pairs (T2)
+L_contrastive    = Piece-based InfoNCE on cross-performer pairs (T3)
+L_invariance     = MSE between clean and augmented embeddings (T4)
+```
+
+The regression loss expands from 1,202 segments (T1 only) to 60,000+ segments (all tiers). All other loss terms are unchanged -- T2/T3/T4 contribute both their original signal AND regression labels. Teacher labels are only used for dimensions where calibration showed Pearson r > 0.5 against PercePiano ground truth; other dimensions fall back to T1-only regression.
 
 ### Audio Encoder Experiments
 
@@ -186,7 +204,7 @@ The model knows what the score asks for AND how the performance sounds. This ena
 
 ## Audio Augmentation Suite
 
-Applied on-the-fly during training via AudioAugmentor (already implemented in `src/model_improvement/augmentation.py`):
+Applied on-the-fly during training via AudioAugmentor (implemented in `src/model_improvement/augmentation.py`). Currently uses torchaudio.functional; swap internals to Pedalboard (JUCE-backed, up to 300x faster for effect chains) without changing the public API. Pedalboard provides native `Convolution`, `LowpassFilter`, `Compressor`, `PitchShift`, and `PeakFilter`/`LowShelfFilter`/`HighShelfFilter` that map 1:1 to the augmentation table below.
 
 | Augmentation | Source | Probability | Purpose |
 |---|---|---|---|
@@ -198,6 +216,26 @@ Applied on-the-fly during training via AudioAugmentor (already implemented in `s
 
 ## Staged Elimination Protocol
 
+### Round 0: Distillation A/B (conditional, only if pilot passed)
+
+**Purpose:** Determine whether teacher labels improve training before running full experiments. Run once with the best-understood audio encoder (A1 LoRA) to isolate the effect of distillation from architecture choice.
+
+**Config:**
+
+- A1 (LoRA) only, fold 0 only, 50 finetune epochs
+- Variant A: T1 composite labels only (baseline)
+- Variant B: T1 composite + T2 teacher labels (confidence-weighted)
+- Both use T2 ordinal ranking loss identically
+
+**Evaluate:** Compare pairwise accuracy, R2, and competition ranking correlation (Spearman rho of model scores vs placement).
+
+**Decision:**
+
+- If variant B improves competition rho by > 0.05 AND doesn't degrade T1 pairwise accuracy: use distillation in all subsequent rounds, expand teacher scoring to T3/T4
+- If variant B shows no improvement or degrades T1 metrics: drop distillation, proceed with bridge-only labels
+
+**Expected cost:** ~1 GPU-hour. This is the cheapest possible test of whether 50x more labeled data actually helps.
+
 ### Round 1: Quick Screening
 
 **Purpose:** Identify clear losers before committing full GPU time.
@@ -207,7 +245,7 @@ Applied on-the-fly during training via AudioAugmentor (already implemented in `s
 - 50 pretrain epochs (symbolic only)
 - 50 finetune epochs (all)
 - Fold 0 only (no cross-validation)
-- T1 + T2 data (no T3/T4 -- faster iteration)
+- T1 + T2 data (no T3/T4 -- faster iteration). If Round 0 chose distillation: T2 includes teacher labels.
 - Batch size 16
 
 **Evaluate:** Pairwise accuracy (primary) + R2 (secondary) on fold 0 validation set.
@@ -225,7 +263,7 @@ Applied on-the-fly during training via AudioAugmentor (already implemented in `s
 - Full pretrain schedule (symbolic: 50 epochs on 14K+ corpus)
 - 200 finetune epochs with early stopping (patience 20)
 - 4-fold piece-stratified CV (no piece leakage)
-- All available data tiers (T1+T2+T3, add T4 if collected)
+- All available data tiers (T1+T2+T3, add T4 if collected). If distillation: all tiers include teacher labels with confidence weighting.
 - Batch size 16
 
 **Evaluate:** Full MetricsSuite on each fold's validation set. Average across folds.
@@ -310,13 +348,13 @@ All model configs change `num_labels=19` to `num_labels=N`.
 
 Add T2/T3/T4 to the training data loaders:
 
-- `CompetitionDataset`: already scaffolded in `data.py`, needs to actually load competition embeddings and generate ordinal pairs
-- `CrossPerformerDataset`: new class for MAESTRO same-piece contrastive pairs
-- `AugmentedEmbeddingDataset`: already exists, needs to use T4 clean+augmented pairs instead of just augmenting T1 on-the-fly
+- `CompetitionDataset`: already scaffolded in `data.py`, needs to actually load competition embeddings and generate ordinal pairs. If distillation: also loads teacher labels and confidence weight per sample.
+- `CrossPerformerDataset`: new class for MAESTRO same-piece contrastive pairs. If distillation: also loads teacher labels.
+- `AugmentedEmbeddingDataset`: already exists, needs to use T4 clean+augmented pairs instead of just augmenting T1 on-the-fly. If distillation: also loads teacher labels for the clean version.
 
 ### Multi-Task Collation
 
-Update `multi_task_collate_fn` to handle mixed batches from different data tiers. Each sample has a `tier` field indicating which loss terms apply.
+Update `multi_task_collate_fn` to handle mixed batches from different data tiers. Each sample has a `tier` field indicating which loss terms apply and a `confidence` field (1.0 for T1 composite labels, lower for teacher-scored tiers).
 
 ### Metrics
 
@@ -452,13 +490,14 @@ model/src/model_improvement/
 
 New modules needed:
 
-- `taxonomy.py` -- composite label loading, PercePiano bridge (produced by taxonomy work)
-- Update `data.py` -- add CrossPerformerDataset for T3, update collation for tier-mixed batches
+- `taxonomy.py` -- composite label loading, PercePiano bridge, teacher label loading + calibration (if distillation)
+- Update `data.py` -- add CrossPerformerDataset for T3, update collation for tier-mixed batches with confidence weights
 
 ## What This Design Does NOT Cover
 
 - Teacher-grounded taxonomy derivation (separate plan, prerequisite)
 - Data collection pipeline (separate plan, prerequisite)
+- LLM teacher model selection or prompt engineering (covered in taxonomy pilot, prerequisite)
 - Production serving or inference optimization
 - Real-time streaming inference
 - Web app integration

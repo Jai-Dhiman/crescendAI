@@ -171,6 +171,7 @@ Re-run the STOP prediction experiment from the audit using new composite dimensi
 3. **PercePiano bridge** -- Weighted mapping producing composite labels for all 1,202 training segments
 4. **Quote bank** -- 5-10 real teacher quotes per dimension, organized by severity and feedback type
 5. **Validation report** -- STOP prediction AUC, independence checks, coverage analysis
+6. **Distillation pilot report** -- Go/no-go decision for LLM teacher scoring, calibration results per dimension
 
 ## Validation Gates
 
@@ -184,6 +185,75 @@ All must pass before Part 2 (training plan rewrite) begins.
 | Actionability | Every dim maps to >= 5 real teacher quotes | Must be explainable |
 | Coverage | Final dims cover >= 80% of teacher moments | Taxonomy shouldn't orphan most feedback |
 
+## LLM Distillation Pilot
+
+### Motivation
+
+The PercePiano bridge provides composite labels for T1 (1,202 segments), but only T1 has dense regression labels. T2 has ordinal placement, T3/T4 have no labels at all. LLM distillation (inspired by Pinterest's teacher-student pattern for search relevance) could generate dense quality labels for all tiers, expanding the regression training set from 1,202 to 60,000+ segments.
+
+This pilot determines whether the approach is viable before committing to scale. It runs after all five validation gates pass and costs ~$40.
+
+### Pilot Protocol
+
+**Step 1: Build scoring rubric**
+
+Convert the validated N-dimension taxonomy into a structured LLM rubric. Each dimension gets 1-5 scale anchor descriptions grounded in teacher quotes from the quote bank. Example:
+
+```
+Dimension: [taxonomy dimension name]
+1 - [description anchored to negative teacher feedback patterns]
+3 - [description anchored to neutral/mixed feedback]
+5 - [description anchored to positive teacher feedback patterns]
+
+Score this 30-second piano performance segment on the above dimension.
+```
+
+**Step 2: Score T1 segments with LLM teacher**
+
+Send all 1,202 T1 (PercePiano) audio segments through the teacher model (GPT-4o or Claude with audio input) with the rubric. Estimated cost: ~$36 at $0.03/segment.
+
+**Step 3: Calibration analysis**
+
+Compare teacher scores to PercePiano composite labels (the ground truth):
+
+| Check | Criterion | Action if fails |
+|-------|-----------|-----------------|
+| Per-dimension Pearson r | > 0.5 | Drop that dimension from teacher labels |
+| Systematic bias | Mean offset < 0.5 on 1-5 scale | Apply linear recalibration |
+| STOP prediction AUC using teacher labels | >= 0.80 | Teacher labels not useful for STOP-relevant dims |
+
+**Step 4: Score 100 masterclass segments**
+
+Score ~100 masterclass teaching moments (segments where teachers stopped) as a second validation. These have qualitative ground truth (we know *what* the teacher commented on). Check whether the teacher's lowest-scoring dimension matches the teacher's actual feedback category for each moment.
+
+### Pilot Deliverables
+
+- Teacher rubric document (N dimensions, 1-5 scale with anchors)
+- Per-dimension calibration report: Pearson r, bias, recalibration function
+- Go/no-go decision for scaling distillation to T2/T3/T4
+
+### Go/No-Go Criteria
+
+**Go** (proceed to T2 scoring in data collection phase):
+- At least 60% of taxonomy dimensions achieve teacher-vs-composite Pearson r > 0.5
+- Teacher-label STOP AUC >= 0.75 (can be slightly below bridge baseline since labels are noisier)
+- Masterclass spot-check: teacher's lowest dimension matches actual feedback category >= 50% of the time
+
+**No-go** (distillation is too noisy for musical quality):
+- Fewer than 40% of dimensions achieve r > 0.5
+- Teacher labels show no STOP prediction signal
+- Fall back to bridge-only labels for T1, original plan unchanged
+
+### Risks and Mitigations
+
+**Circular reasoning:** The taxonomy was derived from LLM-extracted moments, and now an LLM scores performances on that taxonomy. Mitigation: T1 calibration against human annotations and T2 validation against competition placement (both independent of LLMs) serve as reality checks.
+
+**Correlated label noise:** Unlike random noise, systematic LLM biases don't average out with more data. Mitigation: per-dimension bias detection during calibration, and confidence weighting ensures human-annotated T1 labels always dominate.
+
+**Scoring beyond MuQ's hearing:** The LLM may score dimensions (e.g., structural coherence) that MuQ frame-level embeddings can't detect. Mitigation: only use teacher labels for dimensions where MuQ probing R2 > 0.15 (from the audit). Low-R2 dimensions rely on symbolic encoders or sparse masterclass signal.
+
 ## What Part 2 Receives
 
 A spec: "Train your model to predict these N dimensions. Here are composite labels for PercePiano. Here are the aggregation weights. Here's what each modality should own. Here's the STOP AUC to beat."
+
+If the distillation pilot passes go/no-go: also a teacher rubric, calibration functions, and a green light to score T2/T3/T4 segments during model training data prep.

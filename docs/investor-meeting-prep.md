@@ -66,16 +66,16 @@ I published the research as a first-author paper -- our approach is 55% more acc
 "I've been playing piano since I was 8. I went to Berklee for percussion, toured internationally with orchestras, and I still play in local orchestras and practice piano every day."
 
 **The Problem You Lived (~30s):**
-"When you're practicing alone -- which is most of the time -- you don't have a teacher's ear. You can hear something is off, but you can't always pinpoint what. Is it your pedaling? Your dynamics? Your phrasing? A great teacher can tell you in seconds. But access to that level of feedback is expensive, infrequent, and gatekept."
+"When you're practicing alone -- which is most of the time -- there's no one to help shape your sound. You can hear something is off, but you can't pinpoint what. Is it how you're pedaling? Your dynamics? Your phrasing? A great teacher can tell you in seconds. But that kind of feedback is expensive, infrequent, and hard to access."
 
 **The Insight (~30s):**
-"I taught myself ML engineering and discovered something: new audio foundation models -- trained on millions of hours of music -- can actually hear the things that matter. Not just right notes and wrong notes like MIDI-based apps, but tone quality, pedal clarity, dynamic shaping. The stuff that separates a good performance from a great one. I proved it: 55% better than existing approaches, published as a first-author paper."
+"I taught myself ML engineering and discovered something: AI models trained on millions of hours of music can actually hear the things that matter -- not just whether you played the right notes, but how you sound. Your tone, your dynamics, your phrasing. I proved it works -- 55% more accurate than existing approaches, published as a first-author paper."
 
 **Demo Transition (~20s):**
 "Let me show you what it actually does."
 
 **Vision (~20s):**
-"Right now it evaluates curated performances across 19 dimensions and gives you feedback like a warm, knowledgeable teacher. Next step: any pianist uploads a recording and gets that feedback in under 15 seconds."
+"Right now it analyzes curated performances and gives you feedback like a great teacher would. Next step: any pianist records themselves on their phone and gets that feedback in seconds. A teacher for every pianist."
 
 **Principles:**
 
@@ -95,7 +95,7 @@ I published the research as a first-author paper -- our approach is 55% more acc
 3. Run the analysis -- Let them watch the 5-15s loading state.
 4. Walk through radar chart -- Pick 2-3 interesting dimensions. "It rated his dynamics and timbre extremely high, which is exactly what Horowitz is known for. But pedal clarity is lower, consistent with his heavy pedaling style."
 5. Show teacher feedback -- Read a sentence or two aloud. Point out it's specific and actionable.
-6. Closer -- "This is what a $200/hour masterclass teacher gives you, available to anyone with a recording, in 15 seconds."
+6. Closer -- "This is the kind of feedback a great teacher gives you -- available to anyone with a phone, in seconds."
 
 **Fallback plan:**
 
@@ -119,22 +119,22 @@ I published the research as a first-author paper -- our approach is 55% more acc
 
 **Slide 2: The Problem**
 
-- Students practice alone most of the time
-- Feedback is expensive ($50-200/hr), infrequent, gatekept
-- Existing apps only check note accuracy (MIDI) -- miss what matters
+- Students practice alone most of the time -- no one to help shape their sound
+- Quality feedback is expensive ($50-200/hr), infrequent, and hard to access
+- Existing apps can tell you if you played the right notes, but none help you sound better
 - 30+ educator interviews confirmed this gap
 
 **Slide 3: The Insight**
 
-- Audio foundation models hear what MIDI can't
-- Trained on millions of hours of music
-- Timing moment: these models only became capable in last 1-2 years
+- AI trained on millions of hours of music can hear what matters -- tone, dynamics, phrasing
+- 55% more accurate than existing approaches (published, first-author paper)
+- Timing: these models only became capable in last 1-2 years
 
 **Slide 4: The Product**
 
 - Demo screenshot or embed
-- Upload/select performance -> 19-dimension analysis in <15 seconds
-- Radar chart + teacher feedback + practice tips
+- Record yourself playing -> get the feedback a great teacher would give you, in seconds
+- Specific, actionable feedback on pedaling, dynamics, tone, phrasing
 - Runs on Cloudflare edge, costs <$20/month
 
 **Slide 5: The Results**
@@ -227,10 +227,10 @@ I published the research as a first-author paper -- our approach is 55% more acc
 ### Product
 
 **"How does this actually work?"**
-A recording goes in. An audio foundation model extracts deep understanding. A prediction head maps to 19 dimensions. A RAG pipeline generates teacher-like feedback. Under 15 seconds.
+A recording goes in. AI trained on millions of hours of music analyzes how you sound -- your tone, dynamics, phrasing, pedaling. Then it generates specific, actionable feedback like a great teacher would. Under 15 seconds.
 
-**"Why audio instead of MIDI?"**
-MIDI captures notes and timing. Misses tone, pedal resonance, dynamic shading. Audio approach is 55% more accurate because it hears what a human hears.
+**"Why can't existing apps do this?"**
+Existing apps check note accuracy -- did you hit the right key at the right time? That's a solved problem. What makes a performance actually sound good -- tone, dynamics, phrasing -- requires understanding audio the way a trained ear does. That's what our AI does, and it's only been possible in the last 1-2 years.
 
 **"What stops someone from copying this?"**
 Proprietary masterclass dataset, published research advantage, non-trivial training pipeline.
@@ -241,7 +241,7 @@ Proprietary masterclass dataset, published research advantage, non-trivial train
 ~40M piano students globally. Even a fraction at $15/month is meaningful. Tech generalizes to other instruments.
 
 **"Who's your competition?"**
-Piano apps teach what to play, check note accuracy via MIDI. Nobody evaluates how you play from audio.
+Piano apps teach you what to play and check if you played the right notes. Nobody helps you shape how you sound. That's the gap -- it's always required a human teacher.
 
 **"Have you talked to users?"**
 30+ structured educator interviews. Consistent feedback: want expression and musicality evaluation, not just note accuracy.
@@ -364,10 +364,10 @@ Niche they're unlikely to prioritize. Head start on research, data, and domain e
 
 ### Positioning
 
-Everyone else: "Did you play the right notes at the right time?"
-CrescendAI: "How did it sound? Was your tone warm? Were your dynamics compelling?"
+Everyone else: "Did you play the right notes?"
+CrescendAI: "How do you sound? Let's shape your tone, your dynamics, your phrasing."
 
-The difference between a metronome and a teacher.
+Any app can check your notes. Nobody helps you shape your sound. That's always needed a teacher -- until now.
 
 ### Threats
 
