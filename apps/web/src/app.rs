@@ -26,7 +26,7 @@ pub fn App() -> impl IntoView {
         <Meta name="description" content="Upload a piano recording and get detailed, personalized feedback on your sound quality, musical shaping, technique, and interpretation."/>
 
         <Router>
-            <div class="min-h-screen bg-gradient-page flex flex-col texture-paper">
+            <div class="min-h-screen bg-gradient-hero flex flex-col">
                 <Header />
                 <main class="flex-1">
                     <Routes fallback=|| view! { <NotFound /> }>

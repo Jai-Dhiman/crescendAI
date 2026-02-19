@@ -278,6 +278,10 @@ module.exports = {
         'gradient-warm': 'linear-gradient(180deg, #fbf9f5 0%, #ede6d9 100%)',
         'gradient-page': 'linear-gradient(180deg, #fefdfb 0%, #f5f1e8 100%)',
         'gradient-cta': 'linear-gradient(135deg, #8b7355 0%, #6e5a43 100%)',
+        'gradient-hero': 'linear-gradient(180deg, #fdf8f0 0%, #f6e9d5 50%, #f0dfc4 100%)',
+        'gradient-warm-mid': 'linear-gradient(180deg, #f6e9d5 0%, #eedcca 100%)',
+        'gradient-warm-deep': 'linear-gradient(180deg, #eedcca 0%, #e8d5b8 100%)',
+        'gradient-warm-rich': 'linear-gradient(180deg, #e8d5b8 0%, #dfc9a8 100%)',
         'noise': "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E\")",
       },
       backdropBlur: {
