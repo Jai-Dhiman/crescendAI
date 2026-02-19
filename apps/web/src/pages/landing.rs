@@ -6,11 +6,48 @@ pub fn LandingPage() -> impl IntoView {
     view! {
         <div>
             <HeroSection />
+            <WaveDivider />
             <ProblemSection />
+            <WaveDivider />
             <FeedbackShowcase />
+            <WaveDivider />
             <HowItWorksStrip />
+            <WaveDivider />
             <MissionSection />
+            <WaveDivider />
             <FinalCtaSection />
+        </div>
+    }
+}
+
+#[component]
+fn WaveDivider() -> impl IntoView {
+    view! {
+        <div class="wave-divider" aria-hidden="true">
+            <svg viewBox="0 0 1440 24" preserveAspectRatio="none" fill="none">
+                <path
+                    d="M0 12 C240 4, 480 20, 720 12 S1200 4, 1440 12"
+                    stroke="#c9bab0"
+                    stroke-width="1"
+                    fill="none"
+                />
+            </svg>
+        </div>
+    }
+}
+
+#[component]
+fn StaffLines() -> impl IntoView {
+    view! {
+        <div class="absolute inset-0 flex flex-col justify-center pointer-events-none" aria-hidden="true"
+             style="opacity: 0.035">
+            <div class="space-y-3 max-w-4xl mx-auto w-full px-8">
+                <div class="h-px bg-clay-400"></div>
+                <div class="h-px bg-clay-400"></div>
+                <div class="h-px bg-clay-400"></div>
+                <div class="h-px bg-clay-400"></div>
+                <div class="h-px bg-clay-400"></div>
+            </div>
         </div>
     }
 }
@@ -21,7 +58,8 @@ pub fn LandingPage() -> impl IntoView {
 fn HeroSection() -> impl IntoView {
     view! {
         <section class="relative overflow-hidden">
-            <div class="container-wide py-16 md:py-24 lg:py-32">
+            <StaffLines />
+            <div class="container-wide py-16 md:py-24 lg:py-32 relative z-10">
                 <div class="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
                     // Left: Copy
                     <div class="max-w-xl animate-fade-in">
