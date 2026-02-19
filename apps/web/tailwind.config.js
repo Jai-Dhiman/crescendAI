@@ -90,8 +90,8 @@ module.exports = {
 
       // TYPOGRAPHY - Scholarly + Modern
       fontFamily: {
-        display: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
-        serif: ['"Source Serif 4"', 'Georgia', 'serif'],
+        display: ['"Lora"', 'Georgia', 'serif'],
+        serif: ['"Lora"', 'Georgia', 'serif'],
         sans: ['"Inter"', 'system-ui', 'sans-serif'],
         mono: ['"JetBrains Mono"', 'Consolas', 'monospace'],
       },

@@ -40,8 +40,8 @@
     --color-info: #0284c7;
 
     /* Typography */
-    --font-display: "Plus Jakarta Sans", system-ui, sans-serif;
-    --font-serif: "Source Serif 4", Georgia, serif;
+    --font-display: "Lora", Georgia, serif;
+    --font-serif: "Lora", Georgia, serif;
     --font-sans: "Inter", system-ui, sans-serif;
     --font-mono: "JetBrains Mono", Consolas, monospace;
 
