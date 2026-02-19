@@ -225,6 +225,486 @@ All assets use placeholder frames in the initial build. Replace later:
 3. **Slide 8:** Founder headshot
 4. **Slide 1 (optional):** CrescendAI logo mark
 
+## Visual Techniques
+
+### Spacing System (8px grid)
+
+All spacing uses multiples of 8px:
+
+| Element | Value |
+|---------|-------|
+| Slide outer margin | 120px left/right, 80px top/bottom |
+| Content max width | 1680px (1920 - 2x120) |
+| Content max height | 920px (1080 - 2x80) |
+| Section gap (vertical) | 48px |
+| Element gap (within section) | 24px |
+| Card internal padding | 40px |
+| Card gap (horizontal) | 32px |
+| Title to content gap | 40px |
+
+### Layout Grid (apply in Design Mode)
+
+12-column grid: Margin 120px, Gutter 32px. Toggle Design Mode with Shift+D.
+
+### Background Depth Layering
+
+For dark slides (2 and 10), add visual depth:
+
+1. Base: slide background set to linear gradient (`#2d2926` -> `#1a1816`, 180deg)
+2. Layer 1: large ellipse (600x400px) in gold `#c9a227` at 4% opacity, Layer Blur 200px, placed off-center for ambient warmth
+3. Layer 2 (optional): Noise texture rectangle (1920x1080), Overlay blend mode, 3% opacity (via Noise & Texture plugin)
+
+For light slides, keep backgrounds clean -- the gradient alone is enough.
+
+### Card Style
+
+- Rectangle: corner radius 16px
+- Fill: `#fefdfb` at 80% opacity
+- Border: 1px stroke, `#e3d5c0` at 40% opacity
+- Shadow: X:0 Y:4 Blur:16 Spread:-2, `rgba(37,31,26,0.06)`
+- Internal padding: 40px (auto layout)
+
+### Accent Line Style
+
+- Width: 60-120px
+- Height: 3px
+- Fill: gold `#c9a227`
+- Corner radius: 2px
+
+### Gradient Text (for hero numbers)
+
+Select text layer -> Fill section -> switch from Solid to Linear Gradient -> set stops: `#c9a227` (gold) to `#9a7b1a` (gold-dark), 135deg angle.
+
 ## Implementation Approach
 
-Build in Figma Slides directly. Since the Figma MCP tools are read-only and the Figma Slides API requires a plugin context, the deck will be built manually in Figma following this spec. An implementation plan will detail the step-by-step build order.
+Build in Figma Slides directly using Design Mode (Shift+D) for full design control. Follow the build guide below slide by slide.
+
+---
+
+## Build Guide
+
+### Prerequisites
+
+1. Open Figma and create a new **Figma Slides** file (File > New Figma Slides file)
+2. Name it "CrescendAI Pitch Deck"
+3. Press **Shift+D** to enter Design Mode
+4. Set up a 12-column layout grid: click the empty slide, right sidebar > Layout guides > add Columns, Count: 12, Margin: 120, Gutter: 32
+
+### Global Setup
+
+**Fonts:** All are Google Fonts (available by default in Figma):
+- Plus Jakarta Sans: Bold (700), SemiBold (600)
+- Inter: Regular (400), Medium (500)
+- Source Serif 4: Italic (400)
+
+**Create Color Styles** (right sidebar > Local styles > + Color):
+- `bg/cream`: `#fdf8f0`
+- `bg/amber-light`: `#f6e9d5`
+- `bg/amber-mid`: `#f0dfc4`
+- `bg/amber-warm`: `#eedcca`
+- `bg/amber-deep`: `#e8d5b8`
+- `bg/ink-dark`: `#2d2926`
+- `bg/ink-darkest`: `#1a1816`
+- `text/heading`: `#2d2926`
+- `text/body`: `#5a524a`
+- `text/secondary`: `#746a5c`
+- `text/light`: `#fefdfb`
+- `text/muted-light`: `#c9b89a`
+- `accent/gold`: `#c9a227`
+- `accent/gold-dark`: `#9a7b1a`
+- `accent/sepia`: `#a69276`
+- `border/light`: `#e3d5c0`
+
+**Create Text Styles** (right sidebar > Local styles > + Text):
+- `display/hero`: Plus Jakarta Sans Bold, 120px, line-height 100%, letter-spacing -3%
+- `display/title`: Plus Jakarta Sans Bold, 72px, line-height 110%, letter-spacing -2%
+- `display/h1`: Plus Jakarta Sans Bold, 48px, line-height 120%, letter-spacing -1%
+- `display/h2`: Plus Jakarta Sans Bold, 42px, line-height 120%, letter-spacing -1%
+- `display/h3`: Plus Jakarta Sans SemiBold, 36px, line-height 130%
+- `body/large`: Inter Regular, 28px, line-height 150%
+- `body/medium`: Inter Regular, 24px, line-height 150%
+- `body/small`: Inter Medium, 20px, line-height 140%
+- `caption`: Inter Medium, 18px, line-height 140%, letter-spacing 2%
+- `tagline`: Source Serif 4 Italic, 36px, line-height 140%
+
+---
+
+### Slide 1: Title
+
+**Background:** Click the slide (deselect all), right sidebar > Background > Gradient (Linear). Set angle to 180deg. Stop 1: `#fdf8f0` at 0%. Stop 2: `#f6e9d5` at 100%.
+
+**Build (all centered on slide):**
+
+1. Text: "CrescendAI"
+   - Style: `display/title` (Plus Jakarta Sans Bold, 72px)
+   - Fill: `#2d2926`
+   - Position: center horizontally, Y ~360px
+
+2. Accent line below:
+   - Rectangle: 80px wide, 3px tall
+   - Fill: `#c9a227`
+   - Corner radius: 2px
+   - Position: centered, 24px below the title text
+
+3. Text: "A teacher for every pianist."
+   - Style: `tagline` (Source Serif 4 Italic, 36px)
+   - Fill: `#5a524a`
+   - Position: centered, 24px below the accent line
+
+4. Bottom info block:
+   - Text: "Your Name | crescend.ai | email@example.com"
+   - Style: `caption` (Inter Medium, 18px)
+   - Fill: `#746a5c`
+   - Position: centered, Y ~960px (80px from bottom edge)
+
+**Transition:** Dissolve, 400ms, ease-out
+
+**Presenter note:** Paste your 30-second pitch from the investor prep doc.
+
+---
+
+### Slide 2: The Problem
+
+**Background:** Gradient (Linear), 180deg. Stop 1: `#2d2926` at 0%. Stop 2: `#1a1816` at 100%.
+
+**Depth layer (optional):**
+- Ellipse: 600x400px, fill `#c9a227` at 4% opacity
+- Apply Layer Blur: 200px
+- Position: X 1200, Y 600 (lower-right, off-center)
+
+**Build:**
+
+1. Create a vertical auto layout frame (the content container):
+   - Padding: 0
+   - Gap between items: 48px
+   - Position: X 120, Y ~240 (left-aligned, vertically centered)
+   - Width: constrain to ~1200px
+
+2. Three bullet rows (each is a horizontal auto layout frame):
+   - Left element: Rectangle 3px wide, 100% height of text, fill `#c9a227`, corner radius 2px
+   - Gap: 24px
+   - Right element: Text
+   - Row 1 text: "Students practice alone most of the time -- no one to help shape their sound"
+   - Row 2 text: "Quality feedback costs $50-200/hr, is infrequent, and hard to access"
+   - Row 3 text: "Existing apps check note accuracy. None help you sound better."
+   - All text: `body/large` (Inter Regular 28px), fill `#fefdfb`
+
+3. Bottom proof point:
+   - Text: "30+ educator interviews confirmed this gap"
+   - Style: `body/small` (Inter Medium, 20px)
+   - Fill: `#c9b89a`
+   - Position: X 120, Y ~920 (bottom-left)
+
+**Transition:** Dissolve, 500ms, ease-out (slightly slower for the dark mood shift)
+
+**Object animation:** Fade in on each bullet row, staggered (row 1 on click, rows 2-3 sequential after)
+
+**Presenter note:** Problem narrative from founder story arc: "When you're practicing alone..."
+
+---
+
+### Slide 3: The Insight
+
+**Background:** Gradient (Linear), 180deg. Stop 1: `#f6e9d5` at 0%. Stop 2: `#eedcca` at 100%.
+
+**Build:**
+
+1. Create a horizontal auto layout frame spanning the content area:
+   - Padding: 0
+   - Gap: 64px
+
+2. Left column (55% width, ~880px):
+   - Vertical auto layout, gap 24px
+   - Text: "AI trained on millions of hours of music can hear what matters"
+     - Style: `display/h2` (Plus Jakarta Sans Bold 42px)
+     - Fill: `#2d2926`
+     - Max width: 880px
+   - Text: "55% more accurate than existing approaches. Published, first-author paper."
+     - Style: `body/medium` (Inter Regular 24px)
+     - Fill: `#5a524a`
+   - Text: "These models only became capable in the last 1-2 years"
+     - Style: `body/small` (Inter Medium 20px)
+     - Fill: `#746a5c`
+
+3. Right column (45% width, ~680px):
+   - Placeholder frame: 680x560px rectangle
+   - Fill: `#fefdfb` at 60% opacity
+   - Corner radius: 16px
+   - Border: 1px `#e3d5c0` at 40% opacity
+   - Shadow: X:0 Y:4 Blur:16 Spread:-2, `rgba(37,31,26,0.06)`
+   - Center text inside: "[ Waveform visualization ]" in Inter Medium 20px, `#a69276`
+
+**Transition:** Dissolve, 400ms, ease-out
+
+**Presenter note:** Insight section from 2-minute pitch: "Any app can tell you if you're playing the right notes..."
+
+---
+
+### Slide 4: The Product
+
+**Background:** Gradient (Linear), 180deg. Stop 1: `#fefdfb` at 0%. Stop 2: `#f5f1e8` at 100%.
+
+**Build:**
+
+1. Title (centered):
+   - Text: "Record yourself playing. Get the feedback a great teacher would give you, in seconds."
+   - Style: `display/h3` (Plus Jakarta Sans SemiBold 36px)
+   - Fill: `#2d2926`
+   - Max width: 1200px, center-aligned
+   - Position: centered, Y ~120px
+
+2. Product screenshot placeholder (centered):
+   - Rectangle: 1100x560px
+   - Fill: `#fefdfb` at 80% opacity
+   - Corner radius: 16px
+   - Border: 1px `#e3d5c0`
+   - Shadow: X:0 Y:8 Blur:24 Spread:-4, `rgba(37,31,26,0.08)`
+   - Center text: "[ Product screenshot: radar chart + feedback cards ]" in Inter Medium 20px, `#a69276`
+   - Position: centered, Y ~260px
+
+3. Bottom feature strip (centered, horizontal auto layout):
+   - Gap: 0px (use pipe separators)
+   - Three text segments with gold pipe characters between:
+     - "Specific, actionable feedback" | "Pedaling, dynamics, tone, phrasing" | "Runs on Cloudflare edge, <$20/month"
+   - Text style: `body/small` (Inter Medium 20px), fill `#5a524a`
+   - Pipe "|" characters: fill `#c9a227`
+   - Gaps: 24px between text and pipe on each side
+   - Position: centered, Y ~880px
+
+**Transition:** Dissolve, 400ms, ease-out
+
+**Presenter note:** Demo runbook cues: "Here are performances from some of the greatest pianists..."
+
+---
+
+### Slide 5: The Results
+
+**Background:** Gradient (Linear), 180deg. Stop 1: `#f6e9d5` at 0%. Stop 2: `#f0dfc4` at 100%.
+
+**Build (vertical auto layout, centered, gap 32px):**
+
+1. Hero number:
+   - Text: "55%"
+   - Style: `display/hero` (Plus Jakarta Sans Bold 120px)
+   - Fill: **Gradient** -- linear 135deg, stop 1 `#c9a227`, stop 2 `#9a7b1a`
+   - Center-aligned
+
+2. Label:
+   - Text: "improvement over symbolic approaches"
+   - Style: `body/medium` (Inter Regular 24px)
+   - Fill: `#433d38`
+   - Center-aligned
+
+3. Data row (horizontal auto layout, gap 64px, centered):
+   - Left: "R^2 = 0.537 vs 0.347" -- Inter Regular 28px, `#2d2926`
+   - Right: "p < 10^-25" -- Inter Regular 28px, `#2d2926`
+
+4. Validation text:
+   - Text: "Validated across soundfonts, difficulty levels, multiple performers"
+   - Style: `body/small` (Inter Medium 20px)
+   - Fill: `#5a524a`
+   - Center-aligned
+
+5. Source text:
+   - Text: "arXiv paper  |  ISMIR 2026 submission"
+   - Style: `caption` (Inter Medium 18px)
+   - Fill: `#a69276`
+   - Center-aligned
+
+**Transition:** Dissolve, 400ms, ease-out
+
+**Object animation:** Fade in on the "55%" number (first, on click), then remaining text (sequential)
+
+**Presenter note:** "Our approach is 55% more accurate than symbolic-only methods. This was validated rigorously..."
+
+---
+
+### Slide 6: Market
+
+**Background:** Gradient (Linear), 180deg. Stop 1: `#eedcca` at 0%. Stop 2: `#e8d5b8` at 100%.
+
+**Build:**
+
+1. Top section (centered, vertical auto layout, gap 16px):
+   - Text: "~40M"
+     - Style: `display/hero` but at 96px (Plus Jakarta Sans Bold)
+     - Fill: gradient `#c9a227` -> `#9a7b1a`
+   - Text: "piano students globally"
+     - Style: `body/large` (Inter Regular 28px)
+     - Fill: `#433d38`
+   - Position: centered, Y ~160px
+
+2. Supporting text:
+   - Text: "Online music education growing post-COVID"
+   - Style: `body/medium` (Inter Regular 24px)
+   - Fill: `#5a524a`
+   - Position: centered, Y ~360px
+
+3. Revenue path (horizontal auto layout, centered, Y ~560px):
+   - Three cards in a row with arrows between:
+   - Each card: auto layout frame, 380x160px, padding 32px
+     - Fill: `#fefdfb` at 70% opacity, corner radius 16px, border 1px `#e3d5c0` at 30% opacity
+     - Card 1 title: "B2C Subscription" (Plus Jakarta Sans SemiBold 20px, `#2d2926`)
+     - Card 1 detail: "$10-30/month" (Inter Regular 18px, `#5a524a`)
+     - Card 2: "Institutional Licenses" / "Schools + Conservatories"
+     - Card 3: "API Licensing" / "Manufacturers + Apps"
+   - Between cards: arrow shape or ">" text in `#c9a227`, vertically centered
+   - Gap between card and arrow: 16px
+
+**Transition:** Dissolve, 400ms, ease-out
+
+**Presenter note:** "There are about 40 million piano students globally. Online music education has been growing steadily post-COVID..."
+
+---
+
+### Slide 7: Traction & Validation
+
+**Background:** Gradient (Linear), 180deg. Stop 1: `#fefdfb` at 0%. Stop 2: `#f5f1e8` at 100%.
+
+**Build:**
+
+1. Title:
+   - Text: "Traction & Validation"
+   - Style: `display/h2` (Plus Jakarta Sans Bold 42px)
+   - Fill: `#2d2926`
+   - Position: centered, Y ~100px
+
+2. Grid of 6 proof points (3 columns x 2 rows):
+   - Use auto layout: wrap in a grid-like structure
+   - Outer frame: horizontal auto layout, gap 32px, centered
+   - Each row: 3 cards side by side
+   - Each card: vertical auto layout frame, ~480x200px, padding 32px
+     - Fill: `#fefdfb` at 70% opacity, corner radius 16px
+     - Border: 1px `#e3d5c0` at 30% opacity
+     - Number/keyword: Plus Jakarta Sans Bold 48px, `#c9a227`
+     - Description: Inter Regular 20px, `#5a524a`, 8px gap below number
+
+   Card contents:
+   - "30+" / "Educator interviews"
+   - "Published" / "arXiv + ISMIR 2026"
+   - "3x" / "Hackathon winner"
+   - "890K+" / "Lines shipped"
+   - "0 -> 50" / "Users at Capture (founding engineer)"
+   - "Cited by" / "Researchers at OpenAI & Google"
+
+**Transition:** Dissolve, 400ms, ease-out
+
+**Object animation:** Fade in on each row of cards (row 1 on click, row 2 sequential)
+
+**Presenter note:** Key talking points for each proof point, plus FAQ answers if questioned.
+
+---
+
+### Slide 8: Founder
+
+**Background:** Gradient (Linear), 180deg. Stop 1: `#f6e9d5` at 0%. Stop 2: `#eedcca` at 100%.
+
+**Build (horizontal auto layout, gap 80px):**
+
+1. Left: Photo placeholder (40% width, ~640px):
+   - Rectangle: 520x600px
+   - Fill: `#eedcca` at 80%
+   - Corner radius: 24px
+   - Shadow: X:0 Y:8 Blur:24 Spread:-4, `rgba(166,146,118,0.15)` (sepia shadow)
+   - Center text: "[ Founder headshot ]" in Inter Medium 20px, `#a69276`
+   - Position: left-aligned at X 120, vertically centered
+
+2. Right: Bio (60% width):
+   - Vertical auto layout, gap 32px
+   - Name: Plus Jakarta Sans Bold 42px, `#2d2926`
+   - Role: Inter Medium 20px, `#746a5c` -- "Founder & CEO"
+   - Accent line: 60px x 3px, `#c9a227`, corner radius 2px
+   - Bio points (vertical auto layout, gap 20px):
+     - Each point is a horizontal auto layout: gold circle (8px diameter, `#c9a227`) + 16px gap + text
+     - "Berklee College of Music (percussion, 5x Dean's List)"
+     - "Pianist since age 8, active orchestral musician"
+     - "Self-taught ML engineer -> founding engineer -> founder"
+     - "Deep domain expertise + builds the whole stack alone"
+     - Text: Inter Regular 24px, `#5a524a`
+
+**Transition:** Dissolve, 400ms, ease-out
+
+**Presenter note:** Team section from 2-minute pitch: "I'm a solo technical founder..."
+
+---
+
+### Slide 9: Roadmap
+
+**Background:** Gradient (Linear), 180deg. Stop 1: `#fefdfb` at 0%. Stop 2: `#f5f1e8` at 100%.
+
+**Build:**
+
+1. Title:
+   - Text: "Roadmap"
+   - Style: `display/h2` (Plus Jakarta Sans Bold 42px)
+   - Fill: `#2d2926`
+   - Position: centered, Y ~100px
+
+2. Timeline (centered, Y ~400px):
+   - Horizontal line: 1200px wide, 2px tall, fill `#e3d5c0`
+   - Position: centered
+
+   - Four node groups evenly spaced along the line (each ~300px apart):
+     - Circle marker: 16px diameter, fill `#c9a227` for "Now", stroke-only `#c9a227` 2px for future nodes
+     - Position: centered on the line
+
+   - Below each circle (vertical auto layout, gap 8px, center-aligned):
+     - Label: Plus Jakarta Sans SemiBold 20px
+       - "Now" in `#c9a227`
+       - "3 Months", "6 Months", "Research" in `#2d2926`
+     - Description: Inter Regular 18px, `#5a524a`, max width 240px, center-aligned
+       - "Curated gallery with AI feedback"
+       - "User uploads, accounts, progress tracking"
+       - "Mobile app, real-time analysis, instrument expansion"
+       - "Dual-encoder (audio + score), large-scale data"
+
+**Transition:** Dissolve, 400ms, ease-out
+
+**Presenter note:** Brief expansion on each milestone and what "done" looks like.
+
+---
+
+### Slide 10: The Ask
+
+**Background:** Gradient (Linear), 180deg. Stop 1: `#2d2926` at 0%. Stop 2: `#1a1816` at 100%.
+
+**Depth layer (same as Slide 2):**
+- Ellipse: 600x400px, fill `#c9a227` at 4% opacity, Layer Blur 200px
+- Position: X 200, Y 300 (upper-left this time, mirroring Slide 2)
+
+**Build (centered vertically and horizontally):**
+
+1. Text: "Let's talk."
+   - Style: `display/title` (Plus Jakarta Sans Bold, 72px)
+   - Fill: `#fefdfb`
+   - Center-aligned
+
+2. Text (24px gap below):
+   - "Pre-seed to accelerate: first hire, GPU credits, user research."
+   - Style: `body/medium` (Inter Regular 24px)
+   - Fill: `#e3d5c0`
+   - Center-aligned
+
+3. Accent line (48px gap below):
+   - Rectangle: 80px x 2px, fill `#c9a227`, corner radius 1px
+   - Centered
+
+4. Contact info (24px gap below accent):
+   - Text: "Your Name | crescend.ai | email@example.com"
+   - Style: `body/small` (Inter Medium 20px)
+   - Fill: `#c9b89a`
+   - Center-aligned
+
+**Transition:** Dissolve, 500ms, ease-out
+
+**Presenter note:** The ask language + natural close questions: "I'd love to keep you in the loop. What's the best way to do that?"
+
+---
+
+### Final Steps
+
+1. **Review all slides** in Present mode (click Present button) -- check flow, transitions, readability
+2. **Add presenter notes** to each slide from `docs/investor-meeting-prep.md`
+3. **Replace placeholders** with actual assets (product screenshot, founder photo, waveform graphic)
+4. **Export PDF** for the leave-behind version (File > Export as PDF)
+5. **Share link** for remote viewing (Share > Anyone with link > Can view)
