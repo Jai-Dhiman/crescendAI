@@ -1,15 +1,15 @@
 use leptos::prelude::*;
 
-/// Product-first landing page for Crescend.
+/// Conversational landing page for Crescend.
 #[component]
 pub fn LandingPage() -> impl IntoView {
     view! {
         <div>
             <HeroSection />
             <ProblemSection />
-            <HowItWorksSection />
-            <WhatYouLearnSection />
-            <CredibilitySection />
+            <FeedbackShowcase />
+            <HowItWorksStrip />
+            <MissionSection />
             <FinalCtaSection />
         </div>
     }
@@ -20,29 +20,20 @@ pub fn LandingPage() -> impl IntoView {
 #[component]
 fn HeroSection() -> impl IntoView {
     view! {
-        <section class="relative overflow-hidden">
+        <section class="relative overflow-hidden bg-gradient-hero">
             <div class="container-wide py-16 md:py-24 lg:py-32">
                 <div class="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
                     // Left: Copy
                     <div class="max-w-xl animate-fade-in">
                         <h1 class="font-display text-display-xl md:text-display-2xl text-ink-900 tracking-tight mb-6">
-                            "The feedback between lessons"
+                            "A teacher for every pianist."
                         </h1>
                         <p class="text-body-lg text-ink-600 mb-8 max-w-md">
-                            "Upload a recording. Get detailed, personalized feedback on your sound, musical shaping, technique, and interpretation."
+                            "Record yourself playing. Get the feedback a great teacher would give you -- on your tone, your dynamics, your phrasing."
                         </p>
                         <a href="/analyze" class="btn-primary text-lg px-8 py-4">
-                            "Analyze Your Playing"
+                            "Try It Free"
                         </a>
-
-                        // Social proof strip
-                        <div class="flex flex-wrap items-center gap-x-4 gap-y-2 mt-10 text-body-sm text-ink-500">
-                            <span>"Backed by published research"</span>
-                            <span class="hidden sm:inline text-paper-400" aria-hidden="true">"|"</span>
-                            <span>"55% more accurate than note-based approaches"</span>
-                            <span class="hidden sm:inline text-paper-400" aria-hidden="true">"|"</span>
-                            <span>"Built by a Berklee-trained musician"</span>
-                        </div>
                     </div>
 
                     // Right: Animated product preview
@@ -153,57 +144,96 @@ fn HeroMockCard(
     }
 }
 
-// -- Problem (PAS Framework) ------------------------------------------------
+// -- Problem ----------------------------------------------------------------
 
 #[component]
 fn ProblemSection() -> impl IntoView {
     view! {
-        <section class="section-sm">
-            <div class="container-narrow text-center">
+        <section class="bg-gradient-warm-mid">
+            <div class="container-narrow text-center py-16 md:py-24">
                 <p class="font-display text-heading-xl md:text-display-sm text-ink-800 leading-relaxed">
-                    "You practice for hours. But without a teacher's ear, you don't know what to fix."
-                </p>
-                <p class="text-body-lg text-ink-600 mt-6 max-w-2xl mx-auto">
-                    "Is it your pedaling? Your dynamics? Your phrasing? Existing apps check note accuracy -- but that's not what separates good playing from great playing."
+                    "Any app can tell you if you played the right notes. But that's not what separates good playing from great playing."
                 </p>
                 <p class="text-body-lg text-ink-700 font-medium mt-6 max-w-2xl mx-auto">
-                    "Crescend listens to the things that matter. Not just the right notes -- but how they sound."
+                    "Your tone. Your dynamics. Your phrasing. That's always needed a teacher."
                 </p>
             </div>
         </section>
     }
 }
 
-// -- How It Works -----------------------------------------------------------
+// -- Feedback Showcase ------------------------------------------------------
 
 #[component]
-fn HowItWorksSection() -> impl IntoView {
+fn FeedbackShowcase() -> impl IntoView {
     view! {
-        <section id="how-it-works" class="section bg-paper-100 scroll-mt-20">
-            <div class="container-wide">
-                <div class="text-center mb-16">
-                    <span class="section-label">"How It Works"</span>
-                    <h2 class="font-display text-display-md text-ink-900">"Three steps to better practice"</h2>
-                </div>
+        <section class="bg-gradient-warm-deep">
+            <div class="container-wide py-16 md:py-24">
+                <h2 class="font-display text-display-sm md:text-display-md text-ink-900 text-center mb-12">
+                    "Here's what Crescend hears"
+                </h2>
 
-                <div class="grid md:grid-cols-3 gap-8 max-w-4xl mx-auto stagger">
-                    <StepCard
-                        number=1
-                        title="Record"
-                        description="Play your piece and record with any device"
+                <div class="max-w-2xl mx-auto">
+                    <div class="card p-6 md:p-8 bg-paper-50/80 backdrop-blur-sm">
+                        <div class="mb-4">
+                            <p class="text-label-sm uppercase tracking-wider text-sepia-600 mb-1">
+                                "Chopin -- Ballade No. 1 in G minor"
+                            </p>
+                            <p class="text-body-sm text-ink-500">"Performed by Krystian Zimerman"</p>
+                        </div>
+
+                        <div class="space-y-4">
+                            <FeedbackPoint
+                                label="Sound Quality"
+                                text="Your dynamic range in measures 24-31 stays mostly at mezzo-forte where Chopin's marking calls for a gradual crescendo to fortissimo. Try exaggerating the build -- start softer, arrive louder."
+                            />
+                            <FeedbackPoint
+                                label="Technical Control"
+                                text="Pedal changes in the lyrical section are clean, but running passages in bars 56-64 accumulate harmonic blur. Try half-pedaling through the chromatic descent."
+                            />
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    }
+}
+
+#[component]
+fn FeedbackPoint(label: &'static str, text: &'static str) -> impl IntoView {
+    view! {
+        <div class="border-l-2 border-sepia-400 pl-4">
+            <p class="text-label-sm font-medium text-sepia-700 mb-1">{label}</p>
+            <p class="text-body-sm text-ink-600 leading-relaxed">{text}</p>
+        </div>
+    }
+}
+
+// -- How It Works (compact) -------------------------------------------------
+
+#[component]
+fn HowItWorksStrip() -> impl IntoView {
+    view! {
+        <section id="how-it-works" class="bg-gradient-warm-mid scroll-mt-20">
+            <div class="container-wide py-10 md:py-14">
+                <div class="flex flex-col sm:flex-row items-center justify-center gap-6 sm:gap-12 text-center">
+                    <StripStep
                         icon_path="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4M12 15a3 3 0 003-3V6a3 3 0 00-6 0v6a3 3 0 003 3z"
+                        text="Record yourself"
                     />
-                    <StepCard
-                        number=2
-                        title="Upload"
-                        description="Upload your recording in seconds"
+                    <svg class="hidden sm:block w-5 h-5 text-sepia-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+                    </svg>
+                    <StripStep
                         icon_path="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                        text="Upload"
                     />
-                    <StepCard
-                        number=3
-                        title="Get Feedback"
-                        description="Receive detailed feedback across four dimensions of your playing"
+                    <svg class="hidden sm:block w-5 h-5 text-sepia-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+                    </svg>
+                    <StripStep
                         icon_path="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                        text="Get feedback"
                     />
                 </div>
             </div>
@@ -212,135 +242,42 @@ fn HowItWorksSection() -> impl IntoView {
 }
 
 #[component]
-fn StepCard(
-    number: u32,
-    title: &'static str,
-    description: &'static str,
-    icon_path: &'static str,
-) -> impl IntoView {
+fn StripStep(icon_path: &'static str, text: &'static str) -> impl IntoView {
     view! {
-        <div class="text-center">
-            <div class="w-16 h-16 mx-auto mb-6 rounded-xl bg-sepia-100 flex items-center justify-center">
-                <svg class="w-8 h-8 text-sepia-600" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+        <div class="flex items-center gap-2">
+            <div class="w-8 h-8 rounded-lg bg-sepia-100 flex items-center justify-center flex-shrink-0">
+                <svg class="w-4 h-4 text-sepia-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" d=icon_path />
                 </svg>
             </div>
-            <div class="step-indicator mb-4 mx-auto w-fit">
-                <span class="step-number">{number}</span>
-                <span class="font-medium">{title}</span>
-            </div>
-            <p class="text-body-md text-ink-600">{description}</p>
+            <span class="text-body-md font-medium text-ink-700">{text}</span>
         </div>
     }
 }
 
-// -- What You'll Learn (4 Categories) ---------------------------------------
+// -- Mission + Credibility --------------------------------------------------
 
 #[component]
-fn WhatYouLearnSection() -> impl IntoView {
+fn MissionSection() -> impl IntoView {
     view! {
-        <section class="section">
-            <div class="container-wide">
-                <div class="text-center mb-16">
-                    <span class="section-label">"What You'll Learn"</span>
-                    <h2 class="font-display text-display-md text-ink-900">"Feedback across four dimensions"</h2>
-                </div>
+        <section class="bg-gradient-warm-rich">
+            <div class="container-narrow text-center py-16 md:py-24">
+                <p class="font-display text-display-sm text-ink-900 mb-8">
+                    "Quality feedback shouldn't cost $200 an hour."
+                </p>
+                <p class="text-body-lg text-ink-600 max-w-2xl mx-auto mb-12">
+                    "We built Crescend on published research so that every pianist can practice smarter -- not just those who can afford weekly lessons."
+                </p>
 
-                <div class="grid md:grid-cols-2 gap-6 max-w-4xl mx-auto stagger">
-                    <CategoryPreviewCard
-                        name="Sound Quality"
-                        description="How does your playing sound? Dynamics, tone, projection."
-                        sample="Your dynamic range in measures 24-31 stays mostly at mezzo-forte where Chopin's marking calls for a gradual crescendo to fortissimo."
-                        icon_path="M12 6v12M8 8v8M16 8v8M4 10v4M20 10v4"
-                    />
-                    <CategoryPreviewCard
-                        name="Musical Shaping"
-                        description="How do you shape the music? Phrasing, timing, flow."
-                        sample="The phrasing through the second theme has a natural arc, but the transition at bar 40 feels rushed. Try lingering on the dominant before resolving."
-                        icon_path="M3 12c3-6 6-6 9 0s6 6 9 0"
-                    />
-                    <CategoryPreviewCard
-                        name="Technical Control"
-                        description="How clean is your technique? Pedaling, articulation, clarity."
-                        sample="Pedal changes in the lyrical section are clean, but running passages in bars 56-64 accumulate harmonic blur. Try half-pedaling through the chromatic descent."
-                        icon_path="M2 6h20v12H2zM7 6v7M12 6v7M17 6v7"
-                    />
-                    <CategoryPreviewCard
-                        name="Interpretive Choices"
-                        description="What story are you telling? Musical decisions, character, expression."
-                        sample="The middle section calls for more dramatic contrast -- Chopin marked it agitato for a reason. Let the left hand drive more urgency."
-                        icon_path="M9 18V5l8-3v13"
-                    />
-                </div>
-            </div>
-        </section>
-    }
-}
-
-#[component]
-fn CategoryPreviewCard(
-    name: &'static str,
-    description: &'static str,
-    sample: &'static str,
-    icon_path: &'static str,
-) -> impl IntoView {
-    view! {
-        <div class="card p-6 hover-lift">
-            <div class="flex items-start gap-4">
-                <div class="flex-shrink-0 w-10 h-10 rounded-lg bg-sepia-100 flex items-center justify-center">
-                    <svg class="w-5 h-5 text-sepia-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-                        <path d=icon_path />
-                    </svg>
-                </div>
-                <div>
-                    <h3 class="font-display text-heading-sm text-ink-800 mb-1">{name}</h3>
-                    <p class="text-body-sm text-ink-500 mb-3">{description}</p>
-                    <div class="bg-paper-100 rounded-md p-3 border border-paper-200">
-                        <p class="text-body-xs text-ink-600 italic leading-relaxed">
-                            {sample}
-                        </p>
-                    </div>
-                </div>
-            </div>
-        </div>
-    }
-}
-
-// -- Credibility ------------------------------------------------------------
-
-#[component]
-fn CredibilitySection() -> impl IntoView {
-    view! {
-        <section class="section-sm bg-paper-100">
-            <div class="container-narrow">
-                <div class="text-center mb-12">
-                    <span class="section-label">"Credibility"</span>
-                    <h2 class="font-display text-display-sm text-ink-900">"Built on published research"</h2>
-                </div>
-
-                <div class="grid sm:grid-cols-3 gap-6 mb-12 stagger">
-                    <div class="text-center">
-                        <div class="font-display text-display-md text-sepia-700 mb-2">"55%"</div>
-                        <p class="text-body-sm text-ink-500">"more accurate than note-based approaches"</p>
-                    </div>
-                    <div class="text-center">
-                        <div class="font-display text-display-md text-sepia-700 mb-2">"30+"</div>
-                        <p class="text-body-sm text-ink-500">"educator interviews informed the approach"</p>
-                    </div>
-                    <div class="text-center">
-                        <div class="font-display text-display-md text-sepia-700 mb-2">"2026"</div>
-                        <p class="text-body-sm text-ink-500">
-                            "Published on "
-                            <a href="https://arxiv.org/abs/2601.19029" target="_blank" rel="noopener" class="underline underline-offset-2">"arXiv"</a>
-                            ", submitted to ISMIR"
-                        </p>
-                    </div>
-                </div>
-
-                <div class="text-center">
-                    <p class="text-body-md text-ink-600 max-w-lg mx-auto">
-                        "Built by Jai Dhiman -- Berklee-trained musician, pianist since age 8, and the engineer behind the research."
-                    </p>
+                <div class="flex flex-wrap justify-center gap-x-8 gap-y-3 text-body-sm text-ink-500">
+                    <span>"55% more accurate than note-based approaches"</span>
+                    <span class="hidden sm:inline text-paper-400" aria-hidden="true">"|"</span>
+                    <span>"Informed by 30+ educator interviews"</span>
+                    <span class="hidden sm:inline text-paper-400" aria-hidden="true">"|"</span>
+                    <span>
+                        "Published on "
+                        <a href="https://arxiv.org/abs/2601.19029" target="_blank" rel="noopener" class="underline underline-offset-2">"arXiv"</a>
+                    </span>
                 </div>
             </div>
         </section>
@@ -352,13 +289,13 @@ fn CredibilitySection() -> impl IntoView {
 #[component]
 fn FinalCtaSection() -> impl IntoView {
     view! {
-        <section class="section">
-            <div class="container-narrow text-center">
+        <section class="bg-gradient-hero">
+            <div class="container-narrow text-center py-16 md:py-24">
                 <h2 class="font-display text-display-md text-ink-900 mb-6">
                     "Ready to hear what your playing really sounds like?"
                 </h2>
                 <a href="/analyze" class="btn-primary text-lg px-8 py-4">
-                    "Analyze Your Playing"
+                    "Try It Free"
                 </a>
             </div>
         </section>

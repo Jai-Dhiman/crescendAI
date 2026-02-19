@@ -22,8 +22,8 @@ pub fn App() -> impl IntoView {
             rel="stylesheet"
         />
 
-        <Title text="Crescend -- Detailed Piano Feedback in Seconds"/>
-        <Meta name="description" content="Upload a piano recording and get detailed, personalized feedback on your sound quality, musical shaping, technique, and interpretation."/>
+        <Title text="Crescend -- A Teacher for Every Pianist"/>
+        <Meta name="description" content="Record yourself playing piano. Get the feedback a great teacher would give you -- on your tone, your dynamics, your phrasing."/>
 
         <Router>
             <div class="min-h-screen bg-gradient-hero flex flex-col">
