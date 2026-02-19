@@ -24,7 +24,7 @@ struct Cli {
     command: Commands,
 
     /// Data directory path
-    #[arg(long, default_value = "./data", global = true)]
+    #[arg(long, default_value = "../../data/masterclass_pipeline", global = true)]
     data_dir: PathBuf,
 
     /// Whisper model name

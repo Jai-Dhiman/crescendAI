@@ -26,6 +26,40 @@
 
 ---
 
+## One-Liner
+
+**"A teacher for every pianist."**
+
+---
+
+## 30-Second Pitch (Seibel Framework)
+
+"CrescendAI is a teacher for every pianist. Record yourself playing with your phone and get the feedback a great teacher would give you -- how to clean up your pedaling, shape your dynamics, warm your tone.
+
+There are 40 million piano students globally. We're making quality music education accessible and affordable.
+
+I published the research as a first-author paper -- our approach is 55% more accurate than anything else -- and the product is live at crescend.ai."
+
+---
+
+## 2-Minute Pitch (Seibel Framework)
+
+**1. 30-second pitch** (above)
+
+**2. Unique insight:**
+"Any app can tell you if you are playing the right notes, but none can help shape your sound, your tone, and your phrasing. That's always needed a teacher. Our AI, trained on millions of hours of music, can finally do it."
+
+**3. How do you make money:**
+"Freemium subscription -- $15-30 a month for individual pianists. Longer term, institutional licenses for schools and conservatories."
+
+**4. Team:**
+"I'm a solo technical founder. I studied at Berklee, I've been playing piano since I was 8, and I taught myself ML engineering. I published the research, built the full stack, and shipped the product alone. My first hire will be an ML engineer to accelerate the model work."
+
+**5. The ask:**
+"I'm raising a pre-seed on a SAFE to accelerate -- first hire, GPU credits, and user research. I'd love to talk more about that if it's interesting to you."
+
+---
+
 ## 1. Founder Story Arc (2 minutes)
 
 **Hook (~20s):**
@@ -80,7 +114,7 @@
 
 **Slide 1: Title**
 
-- CrescendAI -- "Expert-level piano feedback, powered by AI"
+- CrescendAI -- "A teacher for every pianist."
 - Name, crescend.ai, contact
 
 **Slide 2: The Problem**
@@ -149,8 +183,8 @@
 
 **Top third: Headline**
 
-- CrescendAI: AI-powered piano performance analysis
-- "We use audio foundation models to deliver expert-level feedback on piano performances across 19 musical dimensions."
+- CrescendAI: A teacher for every pianist.
+- "Any app can tell you if you are playing the right notes, but none can help shape your sound, your tone, and your phrasing. That's always needed a teacher. Our AI, trained on millions of hours of music, can finally do it."
 
 **Middle third: Three proof points**
 

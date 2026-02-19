@@ -1,0 +1,5 @@
+# Keep sources.yaml and all_moments.jsonl, ignore everything else
+*
+!.gitignore
+!sources.yaml
+!all_moments.jsonl
