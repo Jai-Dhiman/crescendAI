@@ -30,7 +30,7 @@ pub fn ChatInput(
         <div class="flex items-center gap-2 p-3 bg-paper-50 border-t border-paper-200">
             <input
                 type="text"
-                class="flex-1 px-4 py-2.5 text-body-md text-ink-700 bg-white border border-paper-300 rounded-lg placeholder-ink-400 focus:outline-none focus:ring-2 focus:ring-sepia-200 focus:border-sepia-400 transition-colors disabled:bg-paper-100 disabled:cursor-not-allowed"
+                class="flex-1 px-4 py-2.5 text-body-md text-ink-700 bg-white border border-paper-300 rounded-lg placeholder-ink-400 focus:outline-none focus:ring-2 focus:ring-clay-200 focus:border-clay-400 transition-colors disabled:bg-paper-100 disabled:cursor-not-allowed"
                 placeholder=placeholder
                 prop:value=move || input_value.get()
                 on:input=move |ev| {
@@ -46,7 +46,7 @@ pub fn ChatInput(
             />
             <button
                 type="button"
-                class="flex items-center justify-center w-10 h-10 bg-sepia-600 text-white rounded-lg hover:bg-sepia-700 focus:outline-none focus:ring-2 focus:ring-sepia-200 transition-colors disabled:bg-sepia-300 disabled:cursor-not-allowed"
+                class="flex items-center justify-center w-10 h-10 bg-clay-600 text-white rounded-lg hover:bg-clay-700 focus:outline-none focus:ring-2 focus:ring-clay-200 transition-colors disabled:bg-clay-300 disabled:cursor-not-allowed"
                 on:click=move |_| handle_submit_click()
                 disabled=disabled
                 aria-label="Send message"

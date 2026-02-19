@@ -7,16 +7,16 @@
 @layer base {
   :root {
     /* Color Tokens - Academic Paper Palette */
-    --color-sepia-50: #fdfcfa;
-    --color-sepia-100: #f9f6f0;
-    --color-sepia-200: #f0e9dc;
-    --color-sepia-300: #e3d5c0;
-    --color-sepia-400: #c9b89a;
-    --color-sepia-500: #a69276;
-    --color-sepia-600: #8b7355;
-    --color-sepia-700: #6e5a43;
-    --color-sepia-800: #554535;
-    --color-sepia-900: #3d3228;
+    --color-clay-50: #faf7f5;
+    --color-clay-100: #f0ebe7;
+    --color-clay-200: #e0d6cf;
+    --color-clay-300: #c9bab0;
+    --color-clay-400: #a89386;
+    --color-clay-500: #8b7668;
+    --color-clay-600: #72604f;
+    --color-clay-700: #5a4b3e;
+    --color-clay-800: #433830;
+    --color-clay-900: #2d2824;
 
     --color-paper-50: #fefdfb;
     --color-paper-100: #fbf9f5;
@@ -69,7 +69,7 @@
     --shadow-sm: 0 1px 2px 0 rgba(37, 31, 26, 0.04);
     --shadow-md: 0 4px 6px -1px rgba(37, 31, 26, 0.06), 0 2px 4px -2px rgba(37, 31, 26, 0.04);
     --shadow-lg: 0 10px 15px -3px rgba(37, 31, 26, 0.06), 0 4px 6px -4px rgba(37, 31, 26, 0.04);
-    --shadow-sepia: 0 4px 14px -2px rgba(166, 146, 118, 0.20);
+    --shadow-clay: 0 4px 14px -2px rgba(139, 118, 104, 0.20);
 
     /* Transitions */
     --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
@@ -111,19 +111,19 @@
 
   /* Academic link styling */
   a {
-    @apply text-sepia-600 transition-colors duration-200;
+    @apply text-clay-600 transition-colors duration-200;
   }
 
   a:hover {
-    @apply text-sepia-700;
+    @apply text-clay-700;
   }
 
   :focus-visible {
-    @apply outline-none ring-2 ring-sepia-500 ring-offset-2 ring-offset-paper-50;
+    @apply outline-none ring-2 ring-clay-500 ring-offset-2 ring-offset-paper-50;
   }
 
   ::selection {
-    @apply bg-sepia-200 text-ink-900;
+    @apply bg-clay-200 text-ink-900;
   }
 
   /* Elegant scrollbar */
@@ -137,13 +137,13 @@
   }
 
   ::-webkit-scrollbar-thumb {
-    @apply bg-sepia-300 rounded-full;
+    @apply bg-clay-300 rounded-full;
     border: 2px solid transparent;
     background-clip: content-box;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    @apply bg-sepia-400;
+    @apply bg-clay-400;
   }
 }
 
@@ -157,7 +157,7 @@
            transition-all duration-300
            hover:shadow-button-hover hover:brightness-105
            active:shadow-button-active active:scale-[0.98]
-           focus-visible:ring-2 focus-visible:ring-sepia-500 focus-visible:ring-offset-2;
+           focus-visible:ring-2 focus-visible:ring-clay-500 focus-visible:ring-offset-2;
     transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
   }
 
@@ -169,9 +169,9 @@
            border border-paper-400
            rounded-md shadow-button
            transition-all duration-300
-           hover:bg-paper-100 hover:border-sepia-400 hover:shadow-button-hover
+           hover:bg-paper-100 hover:border-clay-400 hover:shadow-button-hover
            active:bg-paper-200 active:shadow-button-active active:scale-[0.98]
-           focus-visible:ring-2 focus-visible:ring-sepia-500 focus-visible:ring-offset-2;
+           focus-visible:ring-2 focus-visible:ring-clay-500 focus-visible:ring-offset-2;
     transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
   }
 
@@ -184,7 +184,7 @@
            transition-all duration-200
            hover:bg-paper-200 hover:text-ink-800
            active:bg-paper-300
-           focus-visible:ring-2 focus-visible:ring-sepia-500 focus-visible:ring-offset-2;
+           focus-visible:ring-2 focus-visible:ring-clay-500 focus-visible:ring-offset-2;
     transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
   }
 
@@ -197,7 +197,7 @@
            transition-all duration-200
            hover:bg-paper-200 hover:text-ink-700
            active:bg-paper-300
-           focus-visible:ring-2 focus-visible:ring-sepia-500 focus-visible:ring-offset-2;
+           focus-visible:ring-2 focus-visible:ring-clay-500 focus-visible:ring-offset-2;
     transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
   }
 
@@ -210,7 +210,7 @@
 
   .card-interactive {
     @apply card cursor-pointer
-           hover:shadow-card-hover hover:border-sepia-300 hover:-translate-y-0.5;
+           hover:shadow-card-hover hover:border-clay-300 hover:-translate-y-0.5;
   }
 
   .card-elevated {
@@ -219,7 +219,7 @@
 
   /* Academic callout box */
   .callout {
-    @apply bg-paper-200 border-l-4 border-sepia-500 p-6 md:p-8 rounded-r-lg;
+    @apply bg-paper-200 border-l-4 border-clay-500 p-6 md:p-8 rounded-r-lg;
   }
 
   /* Metric highlight (for R-squared values) */
@@ -234,11 +234,11 @@
   }
 
   .model-card-active {
-    @apply border-sepia-500 bg-sepia-50 shadow-sepia;
+    @apply border-clay-500 bg-clay-50 shadow-clay;
   }
 
   .model-card-audio {
-    @apply border-sepia-400 ring-1 ring-sepia-200;
+    @apply border-clay-400 ring-1 ring-clay-200;
   }
 
   /* Inputs */
@@ -247,8 +247,8 @@
            bg-paper-50 text-ink-800 placeholder:text-ink-400
            border border-paper-300 rounded-md
            transition-all duration-200
-           hover:border-sepia-400
-           focus:border-sepia-500 focus:ring-2 focus:ring-sepia-100 focus:outline-none;
+           hover:border-clay-400
+           focus:border-clay-500 focus:ring-2 focus:ring-clay-100 focus:outline-none;
   }
 
   .input-label {
@@ -263,23 +263,23 @@
            rounded;
   }
 
-  .badge-sepia { @apply badge bg-sepia-100 text-sepia-700; }
+  .badge-clay { @apply badge bg-clay-100 text-clay-700; }
   .badge-neutral { @apply badge bg-paper-200 text-ink-600; }
   .badge-highlight { @apply badge bg-highlight-light text-highlight-dark; }
   .badge-success { @apply badge bg-success-light text-success-dark; }
   .badge-error { @apply badge bg-error-light text-error-dark; }
 
   /* Legacy badge aliases */
-  .badge-gold { @apply badge-sepia; }
+  .badge-gold { @apply badge-clay; }
 
   /* Step indicator */
   .step-indicator {
     @apply inline-flex items-center gap-2 px-3 py-1.5 rounded-full
-           bg-paper-200 text-sepia-700 text-label-sm;
+           bg-paper-200 text-clay-700 text-label-sm;
   }
 
   .step-number {
-    @apply w-5 h-5 rounded-full bg-sepia-600 text-paper-50
+    @apply w-5 h-5 rounded-full bg-clay-600 text-paper-50
            flex items-center justify-center text-xs font-semibold;
   }
 
@@ -295,15 +295,15 @@
 
   /* Decorative */
   .accent-line {
-    @apply h-px bg-gradient-to-r from-transparent via-sepia-400 to-transparent;
+    @apply h-px bg-gradient-to-r from-transparent via-clay-400 to-transparent;
   }
 
   .accent-line-vertical {
-    @apply w-px bg-gradient-to-b from-transparent via-sepia-400 to-transparent;
+    @apply w-px bg-gradient-to-b from-transparent via-clay-400 to-transparent;
   }
 
   /* Text utilities */
-  .text-gradient-sepia { @apply bg-gradient-sepia bg-clip-text text-transparent; }
+  .text-gradient-clay { @apply bg-gradient-clay bg-clip-text text-transparent; }
   .text-balance { text-wrap: balance; }
   .text-pretty { text-wrap: pretty; }
 
@@ -344,11 +344,11 @@
   }
 
   .recording-card:hover {
-    @apply border-sepia-400 shadow-card-hover -translate-y-1;
+    @apply border-clay-400 shadow-card-hover -translate-y-1;
   }
 
   .recording-card:focus-visible {
-    @apply ring-2 ring-sepia-500 ring-offset-2 outline-none;
+    @apply ring-2 ring-clay-500 ring-offset-2 outline-none;
   }
 
   /* Navigation link */
@@ -356,12 +356,12 @@
     @apply px-4 py-2 text-body-sm font-medium text-ink-600 rounded-md
            transition-all duration-200
            hover:bg-paper-200 hover:text-ink-800
-           focus-visible:ring-2 focus-visible:ring-sepia-500 focus-visible:ring-offset-2;
+           focus-visible:ring-2 focus-visible:ring-clay-500 focus-visible:ring-offset-2;
   }
 
   /* Section label */
   .section-label {
-    @apply text-label-sm uppercase tracking-[0.15em] text-sepia-600 mb-3 block;
+    @apply text-label-sm uppercase tracking-[0.15em] text-clay-600 mb-3 block;
   }
 
   /* Prose styling for longer text */
@@ -378,8 +378,8 @@
   }
 
   .prose a {
-    @apply text-sepia-600 underline underline-offset-2 decoration-sepia-300
-           hover:text-sepia-700 hover:decoration-sepia-500 transition-colors;
+    @apply text-clay-600 underline underline-offset-2 decoration-clay-300
+           hover:text-clay-700 hover:decoration-clay-500 transition-colors;
   }
 
   /* Hero product preview animation */
@@ -444,8 +444,8 @@
   /* Background patterns */
   .bg-grid {
     background-image:
-      linear-gradient(rgba(166, 146, 118, 0.03) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(166, 146, 118, 0.03) 1px, transparent 1px);
+      linear-gradient(rgba(139, 118, 104, 0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(139, 118, 104, 0.03) 1px, transparent 1px);
     background-size: 40px 40px;
   }
 }

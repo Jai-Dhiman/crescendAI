@@ -88,7 +88,7 @@ fn HeroProductPreview() -> impl IntoView {
                                     width="6"
                                     height=format!("{}", clamped)
                                     rx="1"
-                                    class="fill-sepia-300/70 hero-waveform-bar"
+                                    class="fill-clay-300/70 hero-waveform-bar"
                                     style=format!("animation-delay: {}ms", i * 80)
                                 />
                             }
@@ -132,8 +132,8 @@ fn HeroMockCard(
     view! {
         <div class="hero-card rounded-lg border border-paper-200 p-3" style=format!("animation-delay: {}", delay)>
             <div class="flex items-center gap-2 mb-1">
-                <div class="w-6 h-6 rounded bg-sepia-100 flex items-center justify-center">
-                    <svg class="w-3.5 h-3.5 text-sepia-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <div class="w-6 h-6 rounded bg-clay-100 flex items-center justify-center">
+                    <svg class="w-3.5 h-3.5 text-clay-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
                         <path d=icon_path />
                     </svg>
                 </div>
@@ -176,7 +176,7 @@ fn FeedbackShowcase() -> impl IntoView {
                 <div class="max-w-2xl mx-auto">
                     <div class="card p-6 md:p-8 bg-paper-50/80 backdrop-blur-sm">
                         <div class="mb-4">
-                            <p class="text-label-sm uppercase tracking-wider text-sepia-600 mb-1">
+                            <p class="text-label-sm uppercase tracking-wider text-clay-600 mb-1">
                                 "Chopin -- Ballade No. 1 in G minor"
                             </p>
                             <p class="text-body-sm text-ink-500">"Performed by Krystian Zimerman"</p>
@@ -202,8 +202,8 @@ fn FeedbackShowcase() -> impl IntoView {
 #[component]
 fn FeedbackPoint(label: &'static str, text: &'static str) -> impl IntoView {
     view! {
-        <div class="border-l-2 border-sepia-400 pl-4">
-            <p class="text-label-sm font-medium text-sepia-700 mb-1">{label}</p>
+        <div class="border-l-2 border-clay-400 pl-4">
+            <p class="text-label-sm font-medium text-clay-700 mb-1">{label}</p>
             <p class="text-body-sm text-ink-600 leading-relaxed">{text}</p>
         </div>
     }
@@ -221,14 +221,14 @@ fn HowItWorksStrip() -> impl IntoView {
                         icon_path="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4M12 15a3 3 0 003-3V6a3 3 0 00-6 0v6a3 3 0 003 3z"
                         text="Record yourself"
                     />
-                    <svg class="hidden sm:block w-5 h-5 text-sepia-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <svg class="hidden sm:block w-5 h-5 text-clay-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
                     </svg>
                     <StripStep
                         icon_path="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
                         text="Upload"
                     />
-                    <svg class="hidden sm:block w-5 h-5 text-sepia-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <svg class="hidden sm:block w-5 h-5 text-clay-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
                     </svg>
                     <StripStep
@@ -245,8 +245,8 @@ fn HowItWorksStrip() -> impl IntoView {
 fn StripStep(icon_path: &'static str, text: &'static str) -> impl IntoView {
     view! {
         <div class="flex items-center gap-2">
-            <div class="w-8 h-8 rounded-lg bg-sepia-100 flex items-center justify-center flex-shrink-0">
-                <svg class="w-4 h-4 text-sepia-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <div class="w-8 h-8 rounded-lg bg-clay-100 flex items-center justify-center flex-shrink-0">
+                <svg class="w-4 h-4 text-clay-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" d=icon_path />
                 </svg>
             </div>

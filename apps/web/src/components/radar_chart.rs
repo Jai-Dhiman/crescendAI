@@ -28,15 +28,15 @@ pub fn RadarChart(
             aria-label="Radar chart showing performance analysis across 19 dimensions"
         >
             <defs>
-                // Sepia gradient for the data polygon stroke
-                <linearGradient id="sepiaGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stop-color="#a69276" />
-                    <stop offset="100%" stop-color="#8b7355" />
+                // Clay gradient for the data polygon stroke
+                <linearGradient id="clayGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stop-color="#8b7668" />
+                    <stop offset="100%" stop-color="#72604f" />
                 </linearGradient>
-                // Sepia fill with transparency
-                <linearGradient id="sepiaFill" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stop-color="#a69276" stop-opacity="0.25" />
-                    <stop offset="100%" stop-color="#8b7355" stop-opacity="0.15" />
+                // Clay fill with transparency
+                <linearGradient id="clayFill" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stop-color="#8b7668" stop-opacity="0.25" />
+                    <stop offset="100%" stop-color="#72604f" stop-opacity="0.15" />
                 </linearGradient>
             </defs>
 
@@ -102,8 +102,8 @@ pub fn RadarChart(
                 view! {
                     <polygon
                         points=polygon_points
-                        fill="url(#sepiaFill)"
-                        stroke="url(#sepiaGradient)"
+                        fill="url(#clayFill)"
+                        stroke="url(#clayGradient)"
                         stroke-width="2.5"
                         stroke-linejoin="round"
                     />
@@ -124,7 +124,7 @@ pub fn RadarChart(
                             cx=x
                             cy=y
                             r="5"
-                            fill="#a69276"
+                            fill="#8b7668"
                             stroke="#fefdfb"
                             stroke-width="2"
                         />
@@ -238,8 +238,8 @@ pub fn CollapsibleRadarChart(
                        hover:bg-paper-100 transition-colors"
             >
                 <div class="flex items-center gap-3">
-                    <div class="w-8 h-8 rounded-lg bg-sepia-100 flex items-center justify-center">
-                        <svg class="w-4 h-4 text-sepia-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <div class="w-8 h-8 rounded-lg bg-clay-100 flex items-center justify-center">
+                        <svg class="w-4 h-4 text-clay-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                         </svg>
                     </div>

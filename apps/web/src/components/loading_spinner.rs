@@ -42,8 +42,8 @@ pub fn LoadingSpinner(
                     />
                     <defs>
                         <linearGradient id="loadingGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                            <stop offset="0%" stop-color="#8b7355" />
-                            <stop offset="100%" stop-color="#6e5a43" />
+                            <stop offset="0%" stop-color="#72604f" />
+                            <stop offset="100%" stop-color="#5a4b3e" />
                         </linearGradient>
                     </defs>
                 </svg>
@@ -60,9 +60,9 @@ pub fn LoadingSpinner(
             </p>
 
             <div class="flex gap-1.5" aria-hidden="true">
-                <div class="w-2 h-2 rounded-full bg-sepia-400 animate-bounce" style="animation-delay: 0ms"></div>
-                <div class="w-2 h-2 rounded-full bg-sepia-500 animate-bounce" style="animation-delay: 150ms"></div>
-                <div class="w-2 h-2 rounded-full bg-sepia-600 animate-bounce" style="animation-delay: 300ms"></div>
+                <div class="w-2 h-2 rounded-full bg-clay-400 animate-bounce" style="animation-delay: 0ms"></div>
+                <div class="w-2 h-2 rounded-full bg-clay-500 animate-bounce" style="animation-delay: 150ms"></div>
+                <div class="w-2 h-2 rounded-full bg-clay-600 animate-bounce" style="animation-delay: 300ms"></div>
             </div>
 
             <span class="sr-only">

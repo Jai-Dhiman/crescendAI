@@ -71,7 +71,7 @@ pub fn AnalyzePage() -> impl IntoView {
             <section class="border-b border-paper-200 bg-white py-6">
                 <div class="container-wide">
                     <div class="flex items-center justify-between mb-4">
-                        <h2 class="text-label-sm uppercase tracking-wider text-sepia-600">
+                        <h2 class="text-label-sm uppercase tracking-wider text-clay-600">
                             "Upload your recording"
                         </h2>
                     </div>
@@ -84,7 +84,7 @@ pub fn AnalyzePage() -> impl IntoView {
             <section class="border-b border-paper-200 bg-paper-50 py-6">
                 <div class="container-wide">
                     <div class="flex items-center justify-between mb-4">
-                        <h2 class="text-label-sm uppercase tracking-wider text-sepia-600">
+                        <h2 class="text-label-sm uppercase tracking-wider text-clay-600">
                             "Don't have a recording? Try one of these:"
                         </h2>
                     </div>
@@ -133,8 +133,8 @@ pub fn AnalyzePage() -> impl IntoView {
                     when=move || selected_id.get().is_some()
                     fallback=|| view! {
                         <div class="text-center py-20">
-                            <div class="w-16 h-16 mx-auto mb-6 rounded-full bg-sepia-50 flex items-center justify-center">
-                                <svg class="w-8 h-8 text-sepia-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                            <div class="w-16 h-16 mx-auto mb-6 rounded-full bg-clay-50 flex items-center justify-center">
+                                <svg class="w-8 h-8 text-clay-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M9 9l10.5-3m0 6.553v3.75a2.25 2.25 0 01-1.632 2.163l-1.32.377a1.803 1.803 0 11-.99-3.467l2.31-.66a2.25 2.25 0 001.632-2.163zm0 0V2.25L9 5.25v10.303m0 0v3.75a2.25 2.25 0 01-1.632 2.163l-1.32.377a1.803 1.803 0 01-.99-3.467l2.31-.66A2.25 2.25 0 009 15.553z" />
                                 </svg>
                             </div>
@@ -187,9 +187,9 @@ fn CompactRecordingCard(
             class=move || {
                 let base = "flex-1 p-4 rounded-xl border-2 text-left transition-all duration-200 group";
                 if is_selected.get() {
-                    format!("{} border-sepia-500 bg-sepia-50 shadow-md", base)
+                    format!("{} border-clay-500 bg-clay-50 shadow-md", base)
                 } else {
-                    format!("{} border-paper-200 bg-white hover:border-sepia-300 hover:shadow-sm", base)
+                    format!("{} border-paper-200 bg-white hover:border-clay-300 hover:shadow-sm", base)
                 }
             }
         >
@@ -198,9 +198,9 @@ fn CompactRecordingCard(
                 <div class=move || {
                     let base = "w-10 h-10 rounded-full flex items-center justify-center transition-colors";
                     if is_selected.get() {
-                        format!("{} bg-sepia-600", base)
+                        format!("{} bg-clay-600", base)
                     } else {
-                        format!("{} bg-paper-200 group-hover:bg-sepia-100", base)
+                        format!("{} bg-paper-200 group-hover:bg-clay-100", base)
                     }
                 }>
                     <svg
@@ -209,7 +209,7 @@ fn CompactRecordingCard(
                             if is_selected.get() {
                                 format!("{} text-white", base)
                             } else {
-                                format!("{} text-sepia-600", base)
+                                format!("{} text-clay-600", base)
                             }
                         }
                         fill="currentColor"
@@ -221,7 +221,7 @@ fn CompactRecordingCard(
 
                 // Info
                 <div class="flex-1 min-w-0">
-                    <p class="text-label-sm text-sepia-600 uppercase tracking-wider truncate">
+                    <p class="text-label-sm text-clay-600 uppercase tracking-wider truncate">
                         {performance.composer.clone()}
                     </p>
                     <p class="font-display text-heading-sm text-ink-800 truncate">
@@ -428,8 +428,8 @@ fn AnalysisContent(
                 AnalysisState::Idle => {
                     view! {
                         <div class="card p-8 text-center">
-                            <div class="w-14 h-14 mx-auto mb-5 rounded-xl bg-sepia-100 flex items-center justify-center">
-                                <svg class="w-7 h-7 text-sepia-600" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                            <div class="w-14 h-14 mx-auto mb-5 rounded-xl bg-clay-100 flex items-center justify-center">
+                                <svg class="w-7 h-7 text-clay-600" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round"
                                         d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                                 </svg>
@@ -681,9 +681,9 @@ fn SimpleAudioPlayer(
                 // Play/Pause button
                 <button
                     on:click=toggle_play
-                    class="w-12 h-12 rounded-full bg-sepia-600 flex items-center justify-center
+                    class="w-12 h-12 rounded-full bg-clay-600 flex items-center justify-center
                            shadow-md transition-all duration-200 flex-shrink-0
-                           hover:scale-105 hover:bg-sepia-700 hover:shadow-lg
+                           hover:scale-105 hover:bg-clay-700 hover:shadow-lg
                            active:scale-95"
                 >
                     <Show
@@ -705,7 +705,7 @@ fn SimpleAudioPlayer(
                     // Progress bar
                     <div class="h-2 bg-paper-200 rounded-full overflow-hidden">
                         <div
-                            class="h-full bg-sepia-500 rounded-full transition-all duration-150"
+                            class="h-full bg-clay-500 rounded-full transition-all duration-150"
                             style=move || {
                                 let d = duration.get();
                                 let progress = if d > 0.0 {

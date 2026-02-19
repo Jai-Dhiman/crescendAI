@@ -8,19 +8,19 @@ module.exports = {
     extend: {
       // COLOR PALETTE - Academic Paper Aesthetic
       colors: {
-        // Primary: Sepia/Brown spectrum (scholarly accent)
-        sepia: {
-          50:  '#fdfcfa',
-          100: '#f9f6f0',
-          200: '#f0e9dc',
-          300: '#e3d5c0',
-          400: '#c9b89a',
-          500: '#a69276',  // Primary accent
-          600: '#8b7355',  // Darker sepia
-          700: '#6e5a43',
-          800: '#554535',
-          900: '#3d3228',
-          950: '#251f1a',
+        // Primary: Clay/Terracotta spectrum (warm accent)
+        clay: {
+          50:  '#faf7f5',
+          100: '#f0ebe7',
+          200: '#e0d6cf',
+          300: '#c9bab0',
+          400: '#a89386',
+          500: '#8b7668',  // Primary accent
+          600: '#72604f',  // Buttons, links
+          700: '#5a4b3e',
+          800: '#433830',
+          900: '#2d2824',
+          950: '#1e1a17',
         },
         // Paper backgrounds (warm whites, parchment)
         paper: {
@@ -176,11 +176,11 @@ module.exports = {
         'button-active': '0 1px 2px 0 rgba(37, 31, 26, 0.06)',
         'card': '0 1px 3px 0 rgba(37, 31, 26, 0.04), 0 1px 2px -1px rgba(37, 31, 26, 0.04)',
         'card-hover': '0 8px 16px -4px rgba(37, 31, 26, 0.08), 0 4px 6px -2px rgba(37, 31, 26, 0.04)',
-        'sepia': '0 4px 14px -2px rgba(166, 146, 118, 0.20)',
-        'sepia-lg': '0 8px 24px -4px rgba(166, 146, 118, 0.25)',
+        'clay': '0 4px 14px -2px rgba(139, 118, 104, 0.20)',
+        'clay-lg': '0 8px 24px -4px rgba(139, 118, 104, 0.25)',
         'inner-sm': 'inset 0 1px 2px 0 rgba(37, 31, 26, 0.04)',
         'inner': 'inset 0 2px 4px 0 rgba(37, 31, 26, 0.06)',
-        'glow': '0 0 20px rgba(201, 162, 39, 0.15)',
+        'glow': '0 0 20px rgba(139, 118, 104, 0.15)',
       },
 
       // TRANSITIONS & ANIMATIONS
@@ -272,12 +272,12 @@ module.exports = {
 
       // BACKGROUND IMAGES
       backgroundImage: {
-        'gradient-sepia': 'linear-gradient(135deg, #a69276 0%, #8b7355 100%)',
-        'gradient-sepia-subtle': 'linear-gradient(135deg, #f0e9dc 0%, #e3d5c0 100%)',
+        'gradient-clay': 'linear-gradient(135deg, #8b7668 0%, #72604f 100%)',
+        'gradient-clay-subtle': 'linear-gradient(135deg, #e0d6cf 0%, #c9bab0 100%)',
         'gradient-paper': 'linear-gradient(180deg, #fefdfb 0%, #f5f1e8 100%)',
         'gradient-warm': 'linear-gradient(180deg, #fbf9f5 0%, #ede6d9 100%)',
         'gradient-page': 'linear-gradient(180deg, #fefdfb 0%, #f5f1e8 100%)',
-        'gradient-cta': 'linear-gradient(135deg, #8b7355 0%, #6e5a43 100%)',
+        'gradient-cta': 'linear-gradient(135deg, #72604f 0%, #5a4b3e 100%)',
         'gradient-hero': 'linear-gradient(180deg, #fdf8f0 0%, #f6e9d5 50%, #f0dfc4 100%)',
         'gradient-warm-mid': 'linear-gradient(180deg, #f6e9d5 0%, #eedcca 100%)',
         'gradient-warm-deep': 'linear-gradient(180deg, #eedcca 0%, #e8d5b8 100%)',

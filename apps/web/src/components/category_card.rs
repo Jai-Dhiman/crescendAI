@@ -5,10 +5,10 @@ use crate::models::CategoryScore;
 pub fn CategoryCard(category: CategoryScore) -> impl IntoView {
     let bar_width = format!("{}%", (category.score * 100.0).min(100.0));
     let bar_color = match category.label.as_str() {
-        "Strong" => "bg-sepia-500",
-        "Good" => "bg-sepia-400",
-        "Developing" => "bg-sepia-300",
-        _ => "bg-sepia-200",
+        "Strong" => "bg-clay-500",
+        "Good" => "bg-clay-400",
+        "Developing" => "bg-clay-300",
+        _ => "bg-clay-200",
     };
 
     let name = category.name.clone();
@@ -20,7 +20,7 @@ pub fn CategoryCard(category: CategoryScore) -> impl IntoView {
         <div class="card p-6">
             <div class="flex items-start gap-4">
                 // Category icon
-                <div class="flex-shrink-0 w-10 h-10 rounded-lg bg-sepia-100 flex items-center justify-center text-sepia-600">
+                <div class="flex-shrink-0 w-10 h-10 rounded-lg bg-clay-100 flex items-center justify-center text-clay-600">
                     <CategoryIcon name=category.name />
                 </div>
 
@@ -31,7 +31,7 @@ pub fn CategoryCard(category: CategoryScore) -> impl IntoView {
                         <h3 class="font-display text-heading-sm text-ink-800">
                             {name}
                         </h3>
-                        <span class="text-label-sm text-sepia-600 font-medium">
+                        <span class="text-label-sm text-clay-600 font-medium">
                             {label}
                         </span>
                     </div>
@@ -51,7 +51,7 @@ pub fn CategoryCard(category: CategoryScore) -> impl IntoView {
 
                     // Practice tip
                     <div class="bg-paper-100 rounded-md p-3 border border-paper-200">
-                        <p class="text-label-sm text-sepia-600 mb-1">"Practice tip"</p>
+                        <p class="text-label-sm text-clay-600 mb-1">"Practice tip"</p>
                         <p class="text-body-sm text-ink-600">{practice_tip}</p>
                     </div>
                 </div>

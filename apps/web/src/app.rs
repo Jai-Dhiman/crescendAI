@@ -116,10 +116,10 @@ fn Footer() -> impl IntoView {
 
                     // Links
                     <div class="flex items-center gap-6 text-body-sm">
-                        <a href="https://arxiv.org/abs/2601.19029" target="_blank" rel="noopener" class="text-sepia-600 hover:text-sepia-700 underline underline-offset-2">
+                        <a href="https://arxiv.org/abs/2601.19029" target="_blank" rel="noopener" class="text-clay-600 hover:text-clay-700 underline underline-offset-2">
                             "Paper"
                         </a>
-                        <a href="mailto:jai@crescend.ai" class="text-sepia-600 hover:text-sepia-700 underline underline-offset-2">
+                        <a href="mailto:jai@crescend.ai" class="text-clay-600 hover:text-clay-700 underline underline-offset-2">
                             "Contact"
                         </a>
                     </div>

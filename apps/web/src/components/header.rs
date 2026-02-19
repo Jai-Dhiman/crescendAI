@@ -9,7 +9,7 @@ pub fn Header() -> impl IntoView {
                     // Logo and brand
                     <a
                         href="/"
-                        class="group flex items-center gap-3 text-ink-800 hover:text-sepia-600 transition-colors duration-200"
+                        class="group flex items-center gap-3 text-ink-800 hover:text-clay-600 transition-colors duration-200"
                         aria-label="Crescend Home"
                     >
                         <div class="relative w-10 h-10 rounded-md overflow-hidden transition-transform duration-200 group-hover:scale-105">
@@ -50,7 +50,7 @@ pub fn Header() -> impl IntoView {
                             class="inline-flex items-center gap-1.5 px-4 py-2 text-body-sm font-medium text-ink-600 rounded-md
                                    transition-all duration-200
                                    hover:bg-paper-200 hover:text-ink-800
-                                   focus-visible:ring-2 focus-visible:ring-sepia-500 focus-visible:ring-offset-2"
+                                   focus-visible:ring-2 focus-visible:ring-clay-500 focus-visible:ring-offset-2"
                             title="Read the research paper on arXiv"
                         >
                             "Paper"

@@ -74,8 +74,8 @@ pub fn ChatPanel(
         <div class="card flex flex-col h-[400px]">
             // Header
             <div class="flex items-center gap-3 p-4 border-b border-paper-200">
-                <div class="w-8 h-8 rounded-lg bg-sepia-100 flex items-center justify-center">
-                    <svg class="w-4 h-4 text-sepia-600" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                <div class="w-8 h-8 rounded-lg bg-clay-100 flex items-center justify-center">
+                    <svg class="w-4 h-4 text-clay-600" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z" />
                     </svg>
                 </div>
@@ -83,7 +83,7 @@ pub fn ChatPanel(
                     <h3 class="font-display text-heading-md text-ink-800">
                         "Ask Your Teacher"
                     </h3>
-                    <p class="text-label-sm text-sepia-500">
+                    <p class="text-label-sm text-clay-500">
                         "Get personalized advice grounded in pedagogy"
                     </p>
                 </div>
@@ -124,8 +124,8 @@ pub fn ChatPanel(
 fn EmptyState() -> impl IntoView {
     view! {
         <div class="flex flex-col items-center justify-center h-full text-center py-8">
-            <div class="w-12 h-12 rounded-full bg-sepia-50 flex items-center justify-center mb-4">
-                <svg class="w-6 h-6 text-sepia-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+            <div class="w-12 h-12 rounded-full bg-clay-50 flex items-center justify-center mb-4">
+                <svg class="w-6 h-6 text-clay-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z" />
                 </svg>
             </div>
@@ -148,7 +148,7 @@ fn EmptyState() -> impl IntoView {
 #[component]
 fn SuggestionChip(text: &'static str) -> impl IntoView {
     view! {
-        <span class="px-3 py-1.5 text-label-sm text-sepia-600 bg-sepia-50 rounded-full border border-sepia-200 hover:bg-sepia-100 cursor-pointer transition-colors">
+        <span class="px-3 py-1.5 text-label-sm text-clay-600 bg-clay-50 rounded-full border border-clay-200 hover:bg-clay-100 cursor-pointer transition-colors">
             {text}
         </span>
     }

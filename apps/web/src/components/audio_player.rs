@@ -96,7 +96,7 @@ pub fn AudioPlayer(
                         view! {
                             <div
                                 class="w-1 rounded-full transition-all duration-200"
-                                class:bg-sepia-500={move || {
+                                class:bg-clay-500={move || {
                                     let d = duration.get();
                                     if d > 0.0 {
                                         let progress = current_time.get() / d;
@@ -124,11 +124,11 @@ pub fn AudioPlayer(
             <div class="flex items-center gap-5">
                 <button
                     on:click=toggle_play
-                    class="w-12 h-12 rounded-full bg-sepia-600 flex items-center justify-center
+                    class="w-12 h-12 rounded-full bg-clay-600 flex items-center justify-center
                            shadow-md transition-all duration-200
-                           hover:scale-105 hover:bg-sepia-700 hover:shadow-lg
+                           hover:scale-105 hover:bg-clay-700 hover:shadow-lg
                            active:scale-95
-                           focus-visible:ring-2 focus-visible:ring-sepia-500 focus-visible:ring-offset-2"
+                           focus-visible:ring-2 focus-visible:ring-clay-500 focus-visible:ring-offset-2"
                     aria-label={move || if is_playing.get() { "Pause" } else { "Play" }}
                 >
                     <Show
@@ -154,7 +154,7 @@ pub fn AudioPlayer(
                         aria-valuemax={move || duration.get() as u32}
                     >
                         <div
-                            class="h-full bg-sepia-500 rounded-full transition-all duration-100"
+                            class="h-full bg-clay-500 rounded-full transition-all duration-100"
                             style=move || {
                                 let d = duration.get();
                                 let progress = if d > 0.0 {

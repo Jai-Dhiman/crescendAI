@@ -32,7 +32,7 @@ pub fn ChatMessage(message: ChatMessageData) -> impl IntoView {
             <div class=format!(
                 "max-w-[85%] rounded-2xl px-4 py-3 {}",
                 if is_user {
-                    "bg-sepia-600 text-white rounded-br-sm"
+                    "bg-clay-600 text-white rounded-br-sm"
                 } else {
                     "bg-paper-100 text-ink-700 rounded-bl-sm border border-paper-200"
                 }
@@ -150,9 +150,9 @@ pub fn TypingIndicator() -> impl IntoView {
         <div class="flex justify-start">
             <div class="bg-paper-100 rounded-2xl rounded-bl-sm px-4 py-3 border border-paper-200">
                 <div class="flex items-center gap-1.5">
-                    <div class="w-2 h-2 bg-sepia-400 rounded-full animate-bounce" style="animation-delay: 0ms" />
-                    <div class="w-2 h-2 bg-sepia-400 rounded-full animate-bounce" style="animation-delay: 150ms" />
-                    <div class="w-2 h-2 bg-sepia-400 rounded-full animate-bounce" style="animation-delay: 300ms" />
+                    <div class="w-2 h-2 bg-clay-400 rounded-full animate-bounce" style="animation-delay: 0ms" />
+                    <div class="w-2 h-2 bg-clay-400 rounded-full animate-bounce" style="animation-delay: 150ms" />
+                    <div class="w-2 h-2 bg-clay-400 rounded-full animate-bounce" style="animation-delay: 300ms" />
                 </div>
             </div>
         </div>

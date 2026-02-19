@@ -23,8 +23,8 @@ pub fn TeacherFeedback(feedback: CitedFeedback) -> impl IntoView {
     view! {
         <div class="card p-6">
             <div class="flex items-center gap-3 mb-5 pb-5 border-b border-paper-200">
-                <div class="w-10 h-10 rounded-lg bg-sepia-100 flex items-center justify-center">
-                    <svg class="w-5 h-5 text-sepia-600" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                <div class="w-10 h-10 rounded-lg bg-clay-100 flex items-center justify-center">
+                    <svg class="w-5 h-5 text-clay-600" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M4.26 10.147a60.436 60.436 0 00-.491 6.347A48.627 48.627 0 0112 20.904a48.627 48.627 0 018.232-4.41 60.46 60.46 0 00-.491-6.347m-15.482 0a50.57 50.57 0 00-2.658-.813A59.905 59.905 0 0112 3.493a59.902 59.902 0 0110.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.697 50.697 0 0112 13.489a50.702 50.702 0 017.74-3.342M6.75 15a.75.75 0 100-1.5.75.75 0 000 1.5zm0 0v-3.675A55.378 55.378 0 0112 8.443m-7.007 11.55A5.981 5.981 0 006.75 15.75v-1.5" />
                     </svg>
                 </div>
@@ -32,7 +32,7 @@ pub fn TeacherFeedback(feedback: CitedFeedback) -> impl IntoView {
                     <h3 class="font-display text-heading-lg text-ink-800">
                         "AI Teacher Feedback"
                     </h3>
-                    <p class="text-label-sm text-sepia-500 uppercase tracking-wider">
+                    <p class="text-label-sm text-clay-500 uppercase tracking-wider">
                         {if has_citations { "Grounded in Pedagogy Sources" } else { "Example Application" }}
                     </p>
                 </div>
@@ -155,7 +155,7 @@ fn SourcesFooter(citations: Vec<Citation>) -> impl IntoView {
         <div class="mt-6 pt-4 border-t border-paper-200">
             <button
                 type="button"
-                class="flex items-center gap-2 text-label-sm text-sepia-600 uppercase tracking-wider mb-3 hover:text-sepia-800 transition-colors"
+                class="flex items-center gap-2 text-label-sm text-clay-600 uppercase tracking-wider mb-3 hover:text-clay-800 transition-colors"
                 on:click=move |_| set_collapsed.update(|c| *c = !*c)
             >
                 <svg
@@ -169,7 +169,7 @@ fn SourcesFooter(citations: Vec<Citation>) -> impl IntoView {
                     <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
                 </svg>
                 "Sources"
-                <span class="text-sepia-400 normal-case">
+                <span class="text-clay-400 normal-case">
                     {format!("({})", citations.len())}
                 </span>
             </button>
@@ -192,17 +192,17 @@ fn CitationFootnote(citation: Citation) -> impl IntoView {
 
     let icon = match citation.source_type {
         SourceType::Book => view! {
-            <svg class="w-4 h-4 text-sepia-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+            <svg class="w-4 h-4 text-clay-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
             </svg>
         }.into_any(),
         SourceType::Masterclass => view! {
-            <svg class="w-4 h-4 text-sepia-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+            <svg class="w-4 h-4 text-clay-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.971l-11.54 6.347a1.125 1.125 0 01-1.667-.985V5.653z" />
             </svg>
         }.into_any(),
         SourceType::Letter | SourceType::Journal => view! {
-            <svg class="w-4 h-4 text-sepia-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+            <svg class="w-4 h-4 text-clay-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
             </svg>
         }.into_any(),
@@ -217,7 +217,7 @@ fn CitationFootnote(citation: Citation) -> impl IntoView {
                         href={link}
                         target="_blank"
                         rel="noopener noreferrer"
-                        class="hover:text-sepia-600 hover:underline transition-colors"
+                        class="hover:text-clay-600 hover:underline transition-colors"
                     >
                         {footnote_text}
                     </a>
