@@ -148,15 +148,15 @@
 }
 
 @layer components {
-  /* Primary Button - Sepia Academic */
+  /* Primary Button - Solid Clay */
   .btn-primary {
     @apply inline-flex items-center justify-center gap-2
            px-6 py-3
-           bg-gradient-cta text-paper-50 font-medium
+           bg-clay-700 text-paper-50 font-medium
            rounded-md shadow-button
            transition-all duration-300
-           hover:shadow-button-hover hover:brightness-105
-           active:shadow-button-active active:scale-[0.98]
+           hover:bg-clay-800 hover:shadow-button-hover
+           active:bg-clay-900 active:shadow-button-active active:scale-[0.98]
            focus-visible:ring-2 focus-visible:ring-clay-500 focus-visible:ring-offset-2;
     transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
   }
