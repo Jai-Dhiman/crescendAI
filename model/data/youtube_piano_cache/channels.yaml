@@ -1,0 +1,49 @@
+# Curated list of YouTube channels with professional piano performances.
+# Categories: recital (solo recitals), conservatory (student/faculty),
+# competition (other competitions), misc (mixed classical content).
+channels:
+  - url: https://www.youtube.com/@taborpiano
+    name: Tabor Piano
+    category: recital
+  - url: https://www.youtube.com/@Medici.tv
+    name: medici.tv
+    category: recital
+  - url: https://www.youtube.com/@ClassicalMusicOnly
+    name: Classical Music Only
+    category: recital
+  - url: https://www.youtube.com/@BerlinPhil
+    name: Berliner Philharmoniker
+    category: recital
+  - url: https://www.youtube.com/@wigaborehall
+    name: Wigmore Hall
+    category: recital
+  - url: https://www.youtube.com/@CarnegieHall
+    name: Carnegie Hall
+    category: recital
+  - url: https://www.youtube.com/@royalalberthall
+    name: Royal Albert Hall
+    category: recital
+  - url: https://www.youtube.com/@JuilliardSchool
+    name: Juilliard School
+    category: conservatory
+  - url: https://www.youtube.com/@CurtisInstitute
+    name: Curtis Institute of Music
+    category: conservatory
+  - url: https://www.youtube.com/@RoyalAcademyofMusic
+    name: Royal Academy of Music
+    category: conservatory
+  - url: https://www.youtube.com/@colaborapiano
+    name: Colabora Piano
+    category: conservatory
+  - url: https://www.youtube.com/@CliburnCompetition
+    name: Cliburn Competition
+    category: competition
+  - url: https://www.youtube.com/@LeedsCompetition
+    name: Leeds International Piano Competition
+    category: competition
+  - url: https://www.youtube.com/@QueenElisabethCompetition
+    name: Queen Elisabeth Competition
+    category: competition
+  - url: https://www.youtube.com/@ChopinInstitute
+    name: Chopin Institute
+    category: competition

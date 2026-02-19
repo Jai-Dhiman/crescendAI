@@ -15,6 +15,7 @@ dependencies = [
     # Audio processing
     "librosa>=0.10.0",
     "soundfile>=0.12.0",
+    "pedalboard>=0.9.0",
     "audioread>=3.0.0",
     "resampy>=0.4.2",
     "pydub>=0.25.0",

@@ -24,6 +24,7 @@ from model_improvement.competition import (
     extract_competition_embeddings,
     load_competition_metadata,
     scrape_chopin_results,
+    segment_and_embed_competition,
 )
 from model_improvement.data import CompetitionPairSampler
 
@@ -92,15 +93,22 @@ def main() -> None:
         )
         logger.info("Downloaded %d new recordings", len(records))
 
-    # Step 4: Extract MuQ embeddings
+    # Step 3b: Rename metadata.jsonl to recordings.jsonl if needed
+    # (backward compat: old pipeline wrote metadata.jsonl at recording level)
+    recordings_path = cache_dir / "recordings.jsonl"
+    old_metadata = cache_dir / "metadata.jsonl"
+    if old_metadata.exists() and not recordings_path.exists():
+        old_metadata.rename(recordings_path)
+
+    # Step 4: Segment and extract per-segment embeddings
     if args.skip_embeddings:
         logger.info("=" * 60)
         logger.info("Step 4: SKIPPED (--skip-embeddings)")
     else:
         logger.info("=" * 60)
-        logger.info("Step 4: Extracting MuQ embeddings...")
-        n_extracted = extract_competition_embeddings(cache_dir)
-        logger.info("Extracted %d new embeddings", n_extracted)
+        logger.info("Step 4: Segmenting audio and extracting MuQ embeddings...")
+        n_segments = segment_and_embed_competition(cache_dir)
+        logger.info("Processed %d new segments", n_segments)
 
     # Step 5: Summary statistics
     logger.info("=" * 60)
