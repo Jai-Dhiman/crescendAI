@@ -337,7 +337,8 @@ def create_augmentation_chain(seed: int | None = None):
     - Compression (dynamic range reduction)
     - Low-pass filter (phone mic simulation)
     - Pitch shift (slight tuning variation)
-    - Gain (volume variation)
+    - Parametric EQ (3-band: 80-300, 300-3000, 3000-10000 Hz)
+    - Noise mixing (pink noise at 10-30 dB SNR)
 
     Args:
         seed: Random seed for reproducible augmentation.
@@ -347,8 +348,8 @@ def create_augmentation_chain(seed: int | None = None):
     """
     from pedalboard import (
         Compressor,
-        Gain,
         LowpassFilter,
+        PeakFilter,
         Pedalboard,
         PitchShift,
         Reverb,
@@ -387,21 +388,80 @@ def create_augmentation_chain(seed: int | None = None):
             semitones=rng.uniform(-0.5, 0.5),
         ))
 
-    # Gain (70% chance) -- volume variation
+    # Parametric EQ (70% chance) -- 3-band EQ matching torchaudio implementation
     if rng.random() < 0.7:
-        effects.append(Gain(
-            gain_db=rng.uniform(-6, 3),
-        ))
+        bands = [
+            (80.0, 300.0),     # low
+            (300.0, 3000.0),   # mid
+            (3000.0, 10000.0), # high
+        ]
+        for low_f, high_f in bands:
+            effects.append(PeakFilter(
+                cutoff_frequency_hz=rng.uniform(low_f, high_f),
+                gain_db=rng.uniform(-6.0, 6.0),
+                q=rng.uniform(0.5, 2.0),
+            ))
 
     board = Pedalboard(effects)
+
+    # Pre-generate noise mixing parameters
+    apply_noise = rng.random() < 0.5
+    noise_snr_db = rng.uniform(10.0, 30.0)
+    noise_seed = int(rng.randint(0, 2**31))
 
     def augment(audio: "np.ndarray", sample_rate: int) -> "np.ndarray":
         # Pedalboard expects (channels, samples)
         audio_2d = audio.reshape(1, -1).astype(np.float32)
         result = board(audio_2d, sample_rate=sample_rate)
-        return result.squeeze(0).astype(np.float32)
+        result = result.squeeze(0).astype(np.float32)
+
+        # Noise mixing (post-Pedalboard, since Pedalboard has no noise plugin)
+        if apply_noise:
+            result = _mix_noise(result, snr_db=noise_snr_db, seed=noise_seed)
+
+        return result
 
     return augment
+
+
+def _mix_noise(
+    audio: "np.ndarray",
+    snr_db: float = 20.0,
+    seed: int = 0,
+) -> "np.ndarray":
+    """Mix pink noise into audio at a target SNR.
+
+    Args:
+        audio: 1D float32 audio array.
+        snr_db: Target signal-to-noise ratio in dB.
+        seed: Random seed for noise generation.
+
+    Returns:
+        Noisy audio as 1D float32 ndarray.
+    """
+    import numpy as np
+
+    rng = np.random.RandomState(seed)
+
+    # Generate pink noise via spectral shaping of white noise
+    white = rng.randn(len(audio)).astype(np.float32)
+    fft = np.fft.rfft(white)
+    freqs = np.fft.rfftfreq(len(white))
+    # Avoid division by zero at DC
+    freqs[0] = 1.0
+    # Pink noise: 1/sqrt(f) power spectrum
+    fft *= 1.0 / np.sqrt(freqs)
+    noise = np.fft.irfft(fft, n=len(audio)).astype(np.float32)
+
+    signal_power = np.mean(audio ** 2)
+    noise_power = np.mean(noise ** 2)
+
+    if noise_power == 0:
+        return audio
+
+    # Scale noise to achieve target SNR
+    scale = np.sqrt(signal_power / (noise_power * 10 ** (snr_db / 10)))
+    return (audio + scale * noise).astype(np.float32)
 
 
 def augment_audio(

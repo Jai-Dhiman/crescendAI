@@ -47,3 +47,24 @@ channels:
   - url: https://www.youtube.com/@ChopinInstitute
     name: Chopin Institute
     category: competition
+  - url: https://www.youtube.com/@SteinwayAndSons
+    name: Steinway & Sons
+    category: recital
+  - url: https://www.youtube.com/@DeutscheGrammophon
+    name: Deutsche Grammophon
+    category: recital
+  - url: https://www.youtube.com/@WarnerClassics
+    name: Warner Classics
+    category: recital
+  - url: https://www.youtube.com/@VerbierFestival
+    name: Verbier Festival
+    category: recital
+  - url: https://www.youtube.com/@PaulBarton
+    name: Paul Barton
+    category: recital
+  - url: https://www.youtube.com/@FazioliPianoforti
+    name: Fazioli Pianoforti
+    category: recital
+  - url: https://www.youtube.com/@Bachtrack
+    name: Bachtrack
+    category: competition
