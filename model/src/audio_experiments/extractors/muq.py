@@ -92,7 +92,7 @@ class MuQExtractor:
         # MPS Metal shaders fail with torch.compile on many ops
         if hasattr(torch, "compile") and self.device.type == "cuda":
             try:
-                self.model = torch.compile(self.model, mode="reduce-overhead")
+                self.model = torch.compile(self.model, mode="default")
                 print("Model compiled with torch.compile()")
             except Exception:
                 pass  # Compilation not supported for this model/device

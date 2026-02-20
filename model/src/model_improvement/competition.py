@@ -86,7 +86,7 @@ def scrape_chopin_results(cache_dir: Path) -> dict:
         timeout=30,
     )
     resp.raise_for_status()
-    soup = BeautifulSoup(resp.text, "lxml")
+    soup = BeautifulSoup(resp.text, "html.parser")
 
     results: dict[str, dict] = {}
 
