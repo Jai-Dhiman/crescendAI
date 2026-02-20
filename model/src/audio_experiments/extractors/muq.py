@@ -88,14 +88,8 @@ class MuQExtractor:
 
         self.model.eval()
 
-        # Compile model for additional speedup (PyTorch 2.x, CUDA only)
-        # MPS Metal shaders fail with torch.compile on many ops
-        if hasattr(torch, "compile") and self.device.type == "cuda":
-            try:
-                self.model = torch.compile(self.model, mode="default")
-                print("Model compiled with torch.compile()")
-            except Exception:
-                pass  # Compilation not supported for this model/device
+        # torch.compile disabled: MuQ's conformer uses cached rotary
+        # position embeddings that conflict with CUDA graph replay.
 
         # Get hidden size from model config
         self.hidden_size = getattr(self.model.config, "hidden_size", 1024)
