@@ -28,17 +28,15 @@
 
 ## One-Liner
 
-**"A teacher for every pianist."**
+**A teacher for every pianist.**
 
 ---
 
 ## 30-Second Pitch (Seibel Framework)
 
-"CrescendAI is a teacher for every pianist. Record yourself playing with your phone and get the feedback a great teacher would give you -- how to clean up your pedaling, shape your dynamics, warm your tone.
-
+CrescendAI is a teacher for every pianist. Record yourself playing with your phone and get the feedback a great teacher would give you: how to clean up your pedaling, shape your dynamics, warm your tone.
 There are 40 million piano students globally. We're making quality music education accessible and affordable.
-
-I published the research as a first-author paper -- our approach is 55% more accurate than anything else -- and the product is live at crescend.ai."
+I published the research as a first-author paper, and our approach is 55% more accurate than anything else.
 
 ---
 

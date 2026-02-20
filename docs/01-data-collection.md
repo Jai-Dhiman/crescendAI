@@ -1,175 +1,243 @@
-# Data Collection Design
+# Data Reference
 
-## Goal
+Complete inventory of data required for piano performance evaluation training. All heavy data processing (audio download, segmentation, MuQ extraction) runs on Thunder Compute (A100, 500GB storage). Only embeddings and metadata come back.
 
-Collect the data tiers (T2-T4) that the original model improvement design planned but never implemented. The audio training pipeline only uses PercePiano (T1: 1,202 segments). The symbolic side has a 14K+ pretraining corpus; the audio side has nothing comparable.
+## Storage Strategy
 
-This work can run in parallel with the teacher-grounded taxonomy effort. The post-taxonomy model improvement plan depends on this being complete.
+| Location | Capacity | Purpose |
+|---|---|---|
+| Local (Mac) | 50GB free | Code, existing caches, composite labels |
+| GDrive | 80GB total | Checkpoints, results, final embeddings |
+| Thunder Compute | 500GB | Raw audio download, processing, MuQ extraction |
 
-## Non-Goals
+**Principle:** Raw audio lives and dies on the remote. Only `.pt` embeddings (~380KB each) and `.jsonl` metadata return.
 
-- Changing any model architecture or training code
-- Running any experiments
+## What Training Loads
 
-## Data Directory Layout
+The training code (`src/model_improvement/data.py`) loads only embeddings and metadata -- never raw audio. At training time, every tier must resolve to:
 
-```
-model/data/
-  percepiano_cache/            # T1: MuQ embeddings + labels + folds
-  percepiano_midi/             # T1: MIDI files for symbolic finetuning
-  pretrain_cache/              # Symbolic pretraining: tokens, graphs, features
-    tokens/all_tokens.pt
-    graphs/all_graphs.pt
-    graphs/all_hetero_graphs.pt
-    features/all_features.pt
-  asap_cache/                  # Raw MIDI source for pretraining
-  maestro_cache/               # Raw MIDI + NEW: MuQ embeddings (extend)
-  atepp_cache/                 # Raw MIDI source for pretraining
-  masterclass_pipeline/        # Pipeline raw outputs
-    sources.yaml
-    videos.jsonl
-    audio/
-    transcripts/
-    segments/
-    teaching_moments/
-    state/
-  masterclass_cache/           # ML-ready masterclass data
-    segments/
-    muq_embeddings/
-    quality_scores/
-  competition_cache/           # NEW: rebuilt properly (T2 collection)
-    chopin2021/
-      metadata.jsonl
-      muq_embeddings/
-  youtube_piano_cache/         # NEW: unlabeled piano audio (T4 collection)
-    metadata.jsonl
-    muq_embeddings/
-  composite_labels/            # NEW: output from taxonomy bridge (post-taxonomy)
-    taxonomy.json
-    labels.json
-    quote_bank.json
-  checkpoints/                 # Model checkpoints
-```
+- MuQ embeddings: `{cache_dir}/muq_embeddings/{segment_id}.pt` (93x1024 float32, ~380KB)
+- Segment metadata: `{cache_dir}/metadata.jsonl`
+- Tier-specific signals: labels, placements, contrastive mappings, augmented pairs
 
-## T2: Competition Recordings (Ordinal Ranking Signal)
+## T1: PercePiano (Labeled Regression + Ranking)
 
-**Why:** PercePiano crowdworker labels are noisy and poorly calibrated for interpretive dimensions. Competition placements provide an independent, expert-validated ranking signal. The audit showed "interpretation" had the strongest competition correlation (rho=-0.341, p=0.052) despite the weak overall signal -- suggesting competition data helps exactly where PercePiano is weakest.
+**Status: READY (on disk)**
 
-**Source:** International Chopin Piano Competition 2021 -- all performances freely available on YouTube with published round-by-round results.
+| Item | Path | Size |
+|---|---|---|
+| MuQ embeddings | `percepiano_cache/muq_embeddings.pt` + `_muq_file_cache/` | 4.4GB |
+| Labels | `percepiano_cache/labels.json` | - |
+| CV folds | `percepiano_cache/folds.json` | - |
+| Piece mapping | `percepiano_cache/piece_mapping.json` | - |
 
-**Pipeline:**
+**Segments:** 1,202 with 19-dimension perceptual annotations.
+**Signal:** Regression (MSE on composite labels), ranking (within-piece pairs).
+**Composite labels** (`composite_labels/`) are produced by the taxonomy work (doc 02) and map the 19 raw dims to N teacher-grounded dims.
 
-1. Scrape metadata from chopin2021.pl (performer name, piece, round, placement)
-2. Match to YouTube URLs (competition channel publishes all performances)
-3. Download audio via yt-dlp, resample to 24kHz mono WAV using Pedalboard (4x faster I/O than librosa)
-4. Segment into 30s clips (matching PercePiano segment length)
-5. Extract MuQ embeddings per segment using the existing `extract_percepiano_muq.py` pattern
-6. Store metadata as `competition_cache/chopin2021/metadata.jsonl` with schema: `{recording_id, performer, piece, round, placement, segment_start, segment_end}`
+**Training class:** `CompetitionPairSampler` generates within-piece ranking pairs from T1 data.
 
-**Ordinal signal:** Placement encodes a strict ordering within each round. For training: 1st place > 2nd > 3rd > semifinalist > first round eliminated. Cross-round comparisons (finalist vs first-round) are noisier but still directional.
+## T2: Competition Recordings (Ordinal Ranking)
 
-**Estimated yield:** ~100 performers across 3 rounds, ~2,000 segments.
+**Status: CODE READY, data not collected**
 
-**Optional extension:** Add Cliburn, Leeds, or Van Cliburn Junior competitions if more data is needed. Same pipeline, different metadata source.
+| Item | Path | Est. Size |
+|---|---|---|
+| Segment metadata | `competition_cache/chopin2021/metadata.jsonl` | <1MB |
+| MuQ embeddings | `competition_cache/chopin2021/muq_embeddings/` | ~760MB |
+| Teacher labels (conditional) | `competition_cache/chopin2021/teacher_labels.json` | <1MB |
 
-## T3: Cross-Performer Audio Embeddings (Contrastive Signal)
+**Source:** XVIII International Chopin Piano Competition 2021 (YouTube, free).
+**Segments:** ~2,000 from ~100 performers across Stage 2, 3, Final.
+**Signal:** Ordinal placement within each round (1st > 2nd > ... > eliminated).
+**Raw audio (remote only):** ~50GB WAV at 24kHz mono.
 
-**Why:** The symbolic encoders pretrain on a 14K+ MIDI corpus from MAESTRO + ATEPP + ASAP. The audio encoders have no equivalent -- they only see PercePiano's 1,202 segments. Cross-performer contrastive learning (same piece, different performers -> positive pairs) gives the audio encoder a sense of what varies between performances of the same piece, without requiring any labels.
-
-**Source:** MAESTRO v3 audio. We already have the MIDI and metadata; we need the audio files and MuQ embeddings.
-
-**Pipeline:**
-
-1. Download MAESTRO v3 audio (~200GB WAV) on Thunder Compute
-2. Resample and segment each recording into 30s clips with piece and performer metadata using Pedalboard (4x faster I/O than librosa, critical at 200GB scale)
-3. Extract MuQ embeddings per segment (batch processing on A100)
-4. Cache embeddings to GDrive: `maestro_cache/muq_embeddings/`
-5. Build piece-to-performer mapping for contrastive pair generation
-
-**Contrastive signal:** For each piece with 2+ performers, generate positive pairs (same piece, different performer) and negative pairs (different pieces). InfoNCE loss on MuQ embeddings teaches the model what's shared (the piece) vs what varies (the performance quality).
-
-**Estimated yield:** ~1,276 recordings across ~300 pieces, ~10,000+ segments. ~150 pieces have multiple performers.
-
-## T4: Unlabeled Piano Audio at Scale (Augmentation Invariance Signal)
-
-**Why:** Robustness. The model must work on phone recordings, noisy environments, different pianos, and different acoustics. Augmentation invariance training (clean embedding should match augmented embedding) requires a large corpus of diverse piano audio.
-
-**Source:** YouTube piano channels with professional recitals and conservatory uploads.
-
-**Pipeline:**
-
-1. Curate list of high-quality piano channels (20-30 channels)
-2. Download audio via yt-dlp, resample to 24kHz mono WAV using Pedalboard
-3. Segment into 30s clips
-4. Extract MuQ embeddings (clean)
-5. Generate augmented versions using AudioAugmentor backed by Pedalboard (room IR convolution, noise mixing, low-pass + compression for phone sim, pitch shift, parametric EQ -- up to 300x faster than torchaudio for effect chains)
-6. Extract MuQ embeddings (augmented)
-7. Store clean + augmented embedding pairs
-
-**Invariance signal:** MSE between clean and augmented embeddings. The model learns that recording conditions don't change musical quality.
-
-**Estimated yield:** 5,000-10,000 recordings, ~50,000 segments.
-
-**Priority:** Lower than T2 and T3. Start experiments with T1+T2+T3 and add T4 if robustness metrics are below target (augmented pairwise accuracy drop > 10% or cross-condition Pearson r < 0.9).
-
-## LLM Distillation Scaling (Conditional)
-
-If the distillation pilot (run during taxonomy work) returns **go**, score T2 segments with the LLM teacher before model training begins. This is the decisive experiment: T2 has an independent validation signal (competition placement) that lets us measure whether teacher labels actually help.
-
-**T2 scoring protocol:**
-
-1. Score all ~2,000 T2 segments using the calibrated teacher rubric (~$60)
-2. Store as `competition_cache/chopin2021/teacher_labels.json` with schema: `{segment_id, dimension_scores: {dim: score}, teacher_model, rubric_version}`
-3. Validate: within each round, teacher-scored quality should correlate with placement (Spearman rho > 0.2 on at least 60% of dimensions)
-
-**If T2 validation passes** -- proceed to score T3 and T4:
-
-- T3 (~10,000 segments, ~$300): store as `maestro_cache/teacher_labels.json`
-- T4 (~50,000 segments, ~$1,500): store as `youtube_piano_cache/teacher_labels.json`
-- Total distillation cost: ~$1,860
-
-**If T2 validation fails** -- teacher labels don't correlate with competition placement. Stop. Use the original plan (bridge-only labels for T1, ordinal for T2, contrastive for T3, invariance for T4). Cost sunk: ~$100 total ($40 pilot + $60 T2).
-
-**Confidence weights** (used in model training):
-
-```
-T1 (PercePiano composite labels):  1.0  -- human-annotated ground truth
-T2 (teacher-scored + placement):   0.6  -- validated against ordinal signal
-T3 (teacher-scored, no external):  0.4  -- no independent validation
-T4 (teacher-scored, no external):  0.3  -- lowest confidence, most diverse
+**metadata.jsonl schema:**
+```json
+{
+  "segment_id": "chopin2021_performer_seg001",
+  "recording_id": "chopin2021_performer",
+  "performer": "Bruce Liu",
+  "piece": "Ballade No. 4",
+  "round": "final",
+  "placement": 1,
+  "competition": "chopin",
+  "edition": "2021",
+  "country": "CA",
+  "source_url": "https://youtube.com/...",
+  "segment_start": 0.0,
+  "segment_end": 30.0
+}
 ```
 
-## Data Dependency Summary
+**Collection script:** `scripts/collect_competition_data.py`
+**Training classes:** `CompetitionDataset`, `CompetitionPairSampler` (cross-round ordinal pairs).
 
-```
-T1 (PercePiano)    -- exists, 1,202 segments with labels + MuQ embeddings
-T2 (Competition)   -- collect: ~2,000 segments with ordinal placement
-T3 (MAESTRO audio) -- collect: ~10,000+ segments with piece-performer metadata
-T4 (YouTube piano) -- collect: ~50,000 segments (lower priority)
-```
+### Remote execution plan
 
-Without distillation, the multi-task objective is:
+```bash
+# On Thunder Compute (A100)
+cd crescendai/model
+uv run python scripts/collect_competition_data.py
 
-```
-L_total = L_regression(T1 composite) + lambda_rank * L_ranking(T1+T2)
-        + lambda_contrastive * L_contrastive(T3) + lambda_invariance * L_invariance(T4)
-```
-
-With distillation (if pilot and T2 validation pass):
-
-```
-L_total = L_regression(T1+T2+T3+T4, confidence-weighted) + lambda_rank * L_ranking(T1+T2)
-        + lambda_contrastive * L_contrastive(T3) + lambda_invariance * L_invariance(T4)
+# Downloads audio -> segments -> extracts MuQ -> writes metadata.jsonl
+# Output: competition_cache/chopin2021/{metadata.jsonl, muq_embeddings/*.pt}
+# Copy embeddings + metadata back (~760MB)
 ```
 
-The regression loss expands from 1,202 to 60,000+ segments. All other loss terms remain unchanged.
+## T3: MAESTRO Audio (Contrastive Learning)
 
-## Validation
+**Status: CODE READY, needs audio download**
 
-Before marking this work complete:
+| Item | Path | Est. Size |
+|---|---|---|
+| MAESTRO metadata | `maestro_cache/maestro-v3.0.0.json` | 83MB (on disk) |
+| MIDI files | `maestro_cache/2013-2018/` | on disk |
+| Segment metadata | `maestro_cache/metadata.jsonl` | <1MB |
+| MuQ embeddings | `maestro_cache/muq_embeddings/` | ~3.8GB |
+| Contrastive mapping | `maestro_cache/contrastive_mapping.json` | <1MB |
+| Teacher labels (conditional) | `maestro_cache/teacher_labels.json` | <1MB |
 
-1. T2 competition metadata is scraped and MuQ embeddings are extracted
-2. T3 MAESTRO MuQ embeddings are extracted and piece-performer mapping is built
-3. If distillation pilot passed: T2 teacher labels scored and validated against placement
+**Source:** MAESTRO v3.0.0 audio (magenta.tensorflow.org/datasets/maestro).
+**Segments:** ~10,000+ from 1,276 recordings across ~300 pieces, ~150 with 2+ performers.
+**Signal:** Contrastive pairs (same piece, different performer = positive; different piece = negative). InfoNCE loss.
+**Raw audio (remote only):** ~200GB WAV.
 
-T4 is not a gate for completion -- it's additive and can be collected later. T3/T4 teacher scoring (if applicable) can happen in parallel with early model training.
+**Collection script:** `scripts/collect_maestro_audio.py`
+**Training class:** `PairedPerformanceDataset` (contrastive pairs from `contrastive_mapping.json`).
+
+### Remote execution plan
+
+```bash
+# On Thunder Compute (A100)
+cd crescendai/model
+
+# 1. Download MAESTRO v3 audio (~200GB)
+wget https://storage.googleapis.com/magentadata/datasets/maestro/v3.0.0/maestro-v3.0.0.zip
+unzip maestro-v3.0.0.zip -d data/maestro_raw/
+
+# 2. Process: segment + extract MuQ embeddings
+uv run python scripts/collect_maestro_audio.py --maestro-dir data/maestro_raw/maestro-v3.0.0
+
+# Output: maestro_cache/{metadata.jsonl, muq_embeddings/*.pt, contrastive_mapping.json}
+# Copy embeddings + metadata + mapping back (~3.8GB)
+# Discard raw audio
+```
+
+## T4: YouTube Piano (Augmentation Invariance)
+
+**Status: CODE READY, lower priority**
+
+| Item | Path | Est. Size |
+|---|---|---|
+| Channel list | `youtube_piano_cache/channels.yaml` | on disk (22 channels) |
+| Recordings metadata | `youtube_piano_cache/recordings.jsonl` | <1MB |
+| Segment metadata | `youtube_piano_cache/metadata.jsonl` | <5MB |
+| Clean MuQ embeddings | `youtube_piano_cache/muq_embeddings/` | ~19GB |
+| Augmented MuQ embeddings | `youtube_piano_cache/muq_embeddings_augmented/` | ~19GB |
+| Teacher labels (conditional) | `youtube_piano_cache/teacher_labels.json` | <1MB |
+
+**Source:** 22 curated YouTube channels (recital, conservatory, competition).
+**Segments:** ~50,000 from 5,000-10,000 recordings.
+**Signal:** Invariance -- MSE between clean and augmented MuQ embeddings. Augmentation chain: reverb, compression, low-pass, pitch shift, parametric EQ (3-band PeakFilter), pink noise mixing (10-30 dB SNR).
+**Raw audio (remote only):** ~100GB+ WAV.
+
+**Priority:** Add only if robustness metrics fall below target (augmented pairwise accuracy drop > 10% or cross-condition Pearson r < 0.9). Start experiments with T1+T2+T3 first.
+
+**Collection script:** `scripts/collect_youtube_piano.py`
+**Training class:** `AugmentedEmbeddingDataset` (clean + augmented embedding pairs).
+
+### Remote execution plan
+
+```bash
+# On Thunder Compute (A100) -- only if needed
+cd crescendai/model
+uv run python scripts/collect_youtube_piano.py
+
+# Output: youtube_piano_cache/{recordings.jsonl, metadata.jsonl,
+#          muq_embeddings/*.pt, muq_embeddings_augmented/*.pt}
+# Copy embeddings + metadata back (~38GB)
+# Discard raw audio
+```
+
+## Symbolic Pretraining Corpus
+
+**Status: READY (on disk)**
+
+| Item | Path | Size |
+|---|---|---|
+| Tokenized MIDI | `pretrain_cache/tokens/all_tokens.pt` | 55MB |
+| Score graphs | `pretrain_cache/graphs/all_graphs.pt` + shards | 29GB |
+| Hetero graphs | `pretrain_cache/graphs/all_hetero_graphs.pt` + shards | (in 29GB) |
+| Continuous features | `pretrain_cache/features/all_features.pt` + shards | 8.3GB |
+
+**Source:** 14K+ MIDI files from MAESTRO + ATEPP + ASAP.
+**Training classes:** `MIDIPretrainingDataset`, `ScoreGraphPretrainingDataset`, `ContinuousPretrainDataset`, `HeteroPretrainDataset`.
+
+## Composite Labels (from Taxonomy Work)
+
+**Status: NOT YET PRODUCED (doc 02 prerequisite)**
+
+| Item | Path | Est. Size |
+|---|---|---|
+| Dimension definitions | `composite_labels/taxonomy.json` | <100KB |
+| Mapped labels | `composite_labels/labels.json` | <1MB |
+| Teacher quote bank | `composite_labels/quote_bank.json` | <1MB |
+
+Produced by the teacher-grounded taxonomy work (doc 02). Maps the 19 raw PercePiano dimensions to N teacher-grounded dimensions (expected 5-8). Training cannot start without these.
+
+## LLM Distillation (Conditional)
+
+If the distillation pilot (during taxonomy work) returns **go**, score T2 segments with the LLM teacher to test whether teacher labels correlate with competition placement.
+
+| Step | Segments | Cost | Validation |
+|---|---|---|---|
+| T2 scoring | ~2,000 | ~$60 | Spearman rho > 0.2 vs placement on 60%+ dims |
+| T3 scoring (if T2 passes) | ~10,000 | ~$300 | None (no external signal) |
+| T4 scoring (if T2 passes) | ~50,000 | ~$1,500 | None |
+
+**Confidence weights for training:** T1=1.0, T2=0.6, T3=0.4, T4=0.3.
+
+## Storage Budget
+
+### What returns from Thunder Compute
+
+| Tier | Artifact | Est. Size |
+|---|---|---|
+| T2 | embeddings + metadata | ~760MB |
+| T3 | embeddings + metadata + mapping | ~3.8GB |
+| T4 (if needed) | clean + augmented embeddings + metadata | ~38GB |
+| **Total (T2+T3)** | | **~4.6GB** |
+| **Total (T2+T3+T4)** | | **~42.6GB** |
+
+### Local disk after collection (T2+T3 only)
+
+```
+model/data/                     current    + T2/T3
+  pretrain_cache/               38 GB      38 GB
+  masterclass_pipeline/         5.9 GB     5.9 GB
+  percepiano_cache/             4.4 GB     4.4 GB
+  competition_cache/            0          0.8 GB
+  maestro_cache/                83 MB      3.9 GB
+  masterclass_cache/            907 MB     907 MB
+  atepp_cache/                  525 MB     525 MB
+  other                         220 MB     220 MB
+  TOTAL                         ~50 GB     ~54.6 GB
+```
+
+T4 embeddings (38GB) should go to GDrive or stay on Thunder Compute if local disk is tight.
+
+## Readiness Checklist
+
+```
+[x] T1 PercePiano embeddings + labels
+[x] Symbolic pretraining corpus (tokens, graphs, features)
+[ ] Composite labels (blocked on doc 02 taxonomy work)
+[ ] T2 competition embeddings (run on Thunder Compute)
+[ ] T3 MAESTRO embeddings (run on Thunder Compute)
+[ ] T4 YouTube embeddings (lower priority, run if needed)
+```
+
+**Minimum viable for first training run:** T1 + composite labels + symbolic corpus.
+**Full multi-task training:** T1 + T2 + T3 + composite labels + symbolic corpus.
+**With robustness:** Add T4.
