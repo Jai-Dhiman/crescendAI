@@ -27,6 +27,7 @@ class Moment:
     severity: str
     piece: str
     confidence: float
+    open_description: str | None = None
 
 
 def load_moments(jsonl_path: Path) -> list[Moment]:
@@ -50,6 +51,7 @@ def load_moments(jsonl_path: Path) -> list[Moment]:
                     severity=raw["severity"],
                     piece=raw["piece"],
                     confidence=raw["confidence"],
+                    open_description=raw.get("open_description"),
                 )
             )
     moments.sort(key=lambda m: (m.video_id, m.stop_timestamp))

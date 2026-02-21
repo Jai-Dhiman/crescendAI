@@ -122,6 +122,9 @@ pub struct TeachingMoment {
     pub extracted_at: String,
     pub extraction_model: String,
     pub confidence: f32,
+
+    #[serde(default)]
+    pub open_description: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]

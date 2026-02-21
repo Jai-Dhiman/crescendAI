@@ -121,6 +121,8 @@ pub async fn extract_teaching_moments(
                 extracted_at: chrono::Utc::now().to_rfc3339(),
                 extraction_model: client.model().to_string(),
                 confidence: extracted.confidence,
+
+                open_description: None,
             };
 
             all_moments.push(moment);

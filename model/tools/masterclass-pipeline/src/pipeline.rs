@@ -19,6 +19,7 @@ pub struct Pipeline {
     openai_api_key: Option<String>,
     local: bool,
     no_transcript: bool,
+    open_ended: bool,
 }
 
 pub struct PipelineReport {
@@ -62,6 +63,7 @@ impl Pipeline {
         openai_api_key: Option<String>,
         local: bool,
         no_transcript: bool,
+        open_ended: bool,
     ) -> Self {
         Self {
             store,
@@ -76,6 +78,7 @@ impl Pipeline {
             openai_api_key,
             local,
             no_transcript,
+            open_ended,
         }
     }
 
@@ -371,7 +374,7 @@ impl Pipeline {
                 tracing::info!("[dry-run] Would identify moments in {}", video_id);
                 continue;
             }
-            match identify::identify_teaching_moments(&client, &self.store, video_id).await {
+            match identify::identify_teaching_moments(&client, &self.store, video_id, self.open_ended).await {
                 Ok(moments) => {
                     tracing::info!("Identified {} moments in {}", moments.len(), video_id);
                     self.store.mark_stage_complete(video_id, &PipelineStage::Identify)?;

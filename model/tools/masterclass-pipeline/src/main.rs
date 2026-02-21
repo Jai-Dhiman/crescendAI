@@ -66,6 +66,10 @@ struct Cli {
     /// Run segmentation using audio features only (no transcript required)
     #[arg(long, global = true)]
     no_transcript: bool,
+
+    /// Use open-ended extraction (free-text description instead of 10 categories)
+    #[arg(long, global = true)]
+    open_ended: bool,
 }
 
 #[derive(Subcommand)]
@@ -245,7 +249,7 @@ async fn main() -> Result<()> {
                         tracing::info!("[dry-run] Would identify moments in {}", video_id);
                         continue;
                     }
-                    match identify::identify_teaching_moments(&client, &store, video_id).await {
+                    match identify::identify_teaching_moments(&client, &store, video_id, cli.open_ended).await {
                         Ok(moments) => {
                             tracing::info!("Identified {} moments in {}", moments.len(), video_id);
                             store.mark_stage_complete(video_id, &schemas::PipelineStage::Identify)?;
@@ -272,6 +276,7 @@ async fn main() -> Result<()> {
                 cli.openai_api_key.clone(),
                 cli.local,
                 cli.no_transcript,
+                cli.open_ended,
             );
             let report = pipe.run().await?;
             tracing::info!("{}", report);

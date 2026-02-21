@@ -14,6 +14,7 @@ pub async fn identify_teaching_moments(
     client: &LlmClient,
     store: &MasterclassStore,
     video_id: &str,
+    open_ended: bool,
 ) -> Result<Vec<TeachingMoment>> {
     let video = store
         .get_video(video_id)?
@@ -86,7 +87,7 @@ pub async fn identify_teaching_moments(
         let (playing_start, playing_end) =
             estimate_playing_bounds(&transcript, detection.timestamp);
 
-        let raw = match extract_moment(client, &video, &context_window, detection, total_stops)
+        let raw = match extract_moment(client, &video, &context_window, detection, total_stops, open_ended)
             .await
         {
             Ok(r) => r,
@@ -119,12 +120,19 @@ pub async fn identify_teaching_moments(
 
             transcript_text: context_window.clone(),
             feedback_summary: raw.feedback_summary,
-            musical_dimension: config::normalize_dimension(&raw.musical_dimension),
-            secondary_dimensions: raw
-                .secondary_dimensions
-                .iter()
-                .map(|d| config::normalize_dimension(d))
-                .collect(),
+            musical_dimension: if open_ended {
+                "uncategorized".to_string()
+            } else {
+                config::normalize_dimension(&raw.musical_dimension)
+            },
+            secondary_dimensions: if open_ended {
+                vec![]
+            } else {
+                raw.secondary_dimensions
+                    .iter()
+                    .map(|d| config::normalize_dimension(d))
+                    .collect()
+            },
             severity: raw.severity,
             feedback_type: raw.feedback_type,
 
@@ -141,6 +149,8 @@ pub async fn identify_teaching_moments(
             extracted_at: chrono::Utc::now().to_rfc3339(),
             extraction_model: client.model().to_string(),
             confidence: raw.confidence,
+
+            open_description: raw.open_description,
         };
 
         all_moments.push(moment);
@@ -355,6 +365,7 @@ fn find_json_array(s: &str) -> Result<&str> {
 #[derive(Deserialize)]
 struct RawExtraction {
     feedback_summary: String,
+    #[serde(default)]
     musical_dimension: String,
     #[serde(default)]
     secondary_dimensions: Vec<String>,
@@ -370,6 +381,8 @@ struct RawExtraction {
     confidence: f32,
     #[serde(default)]
     duration_estimate: Option<f64>,
+    #[serde(default)]
+    open_description: Option<String>,
 }
 
 fn default_confidence() -> f32 {
@@ -382,8 +395,13 @@ async fn extract_moment(
     context_window: &str,
     detection: &DetectedMoment,
     total_stops: u32,
+    open_ended: bool,
 ) -> Result<RawExtraction> {
-    let system_prompt = build_extraction_system_prompt();
+    let system_prompt = if open_ended {
+        build_open_extraction_system_prompt()
+    } else {
+        build_extraction_system_prompt()
+    };
     let user_prompt = format!(
         r#"Video: {}
 Teacher: {}
@@ -469,6 +487,32 @@ Dimension definitions:
 - structure: form, sections, development
 
 The "duration_estimate" field should be your estimate of how many seconds the teacher spends on this teaching moment (typically 10-120 seconds)."#
+        .to_string()
+}
+
+fn build_open_extraction_system_prompt() -> String {
+    r#"You analyze piano masterclass transcripts. When given a moment where a teacher stopped a student to give feedback, you extract structured information as JSON.
+
+You MUST respond with ONLY a single JSON object. No explanation, no markdown fences.
+
+{
+  "open_description": "2-5 word description of the musical aspect being addressed",
+  "feedback_summary": "1-2 sentence summary of what the teacher said",
+  "severity": "one of: minor, moderate, significant, critical",
+  "feedback_type": "one of: correction, suggestion, demonstration, praise, explanation, comparison",
+  "piece": null,
+  "composer": null,
+  "passage_description": null,
+  "student_level": null,
+  "demonstrated": false,
+  "confidence": 0.7,
+  "duration_estimate": 30.0
+}
+
+Be specific and concrete in open_description. Describe what the teacher is actually addressing.
+
+Good examples: "left hand voicing balance", "pedal muddying the bass", "rubato timing in melody", "crescendo shape too abrupt", "legato finger connection"
+Bad examples: "dynamics", "interpretation", "technique" (too abstract -- describe the specific issue)"#
         .to_string()
 }
 
@@ -894,5 +938,37 @@ mod tests {
     fn deduplicate_moments_empty() {
         let result = deduplicate_moments(vec![]);
         assert!(result.is_empty());
+    }
+
+    // -- open-ended extraction --
+
+    #[test]
+    fn open_extraction_prompt_has_no_categories() {
+        let prompt = build_open_extraction_system_prompt();
+        // Must NOT contain the constrained dimension list
+        assert!(!prompt.contains("one of: dynamics"));
+        assert!(prompt.contains("open_description"));
+        assert!(prompt.contains("2-5 word"));
+    }
+
+    #[test]
+    fn parse_extraction_with_open_description() {
+        let response = r#"{"open_description": "left hand voicing", "feedback_summary": "Balance hands", "severity": "moderate", "feedback_type": "correction", "piece": null, "composer": null, "passage_description": null, "student_level": null, "demonstrated": false, "confidence": 0.8, "duration_estimate": 25.0}"#;
+        let raw: RawExtraction = serde_json::from_str(
+            find_json_object(response).unwrap()
+        ).unwrap();
+        assert_eq!(raw.open_description.unwrap(), "left hand voicing");
+        assert_eq!(raw.feedback_summary, "Balance hands");
+    }
+
+    #[test]
+    fn parse_extraction_without_open_description() {
+        // Backward compat: existing format without open_description
+        let response = r#"{"feedback_summary": "Too loud", "musical_dimension": "dynamics", "secondary_dimensions": [], "severity": "minor", "feedback_type": "correction", "piece": null, "composer": null, "passage_description": null, "student_level": null, "demonstrated": false, "confidence": 0.7, "duration_estimate": 30.0}"#;
+        let raw: RawExtraction = serde_json::from_str(
+            find_json_object(response).unwrap()
+        ).unwrap();
+        assert!(raw.open_description.is_none());
+        assert_eq!(raw.musical_dimension, "dynamics");
     }
 }
