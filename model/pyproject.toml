@@ -57,6 +57,10 @@ dependencies = [
     "torch-geometric>=2.4.0",
     "statsmodels>=0.14.6",
     "umap-learn>=0.5.11",
+    # Taxonomy analysis
+    "sentence-transformers>=2.2.0",
+    "hdbscan>=0.8.33",
+    "openai>=1.0.0",
 ]
 
 [project.optional-dependencies]
