@@ -878,6 +878,312 @@ async fn transcribe_chunk_api(
     }))
 }
 
+// ---------------------------------------------------------------------------
+// AssemblyAI transcription
+// ---------------------------------------------------------------------------
+
+#[derive(serde::Deserialize)]
+struct AssemblyAiUploadResponse {
+    upload_url: String,
+}
+
+#[derive(serde::Deserialize)]
+struct AssemblyAiTranscriptResponse {
+    id: String,
+    status: String,
+    #[allow(dead_code)]
+    text: Option<String>,
+    words: Option<Vec<AssemblyAiWord>>,
+    utterances: Option<Vec<AssemblyAiUtterance>>,
+    error: Option<String>,
+}
+
+#[derive(serde::Deserialize, Clone)]
+struct AssemblyAiWord {
+    text: String,
+    start: u64,
+    end: u64,
+    confidence: f64,
+}
+
+#[derive(serde::Deserialize)]
+struct AssemblyAiUtterance {
+    text: String,
+    start: u64,
+    end: u64,
+    words: Vec<AssemblyAiWord>,
+}
+
+#[derive(serde::Serialize)]
+struct AssemblyAiSpeechModel {
+    model: String,
+}
+
+#[derive(serde::Serialize)]
+struct AssemblyAiTranscriptRequest {
+    audio_url: String,
+    speech_models: Vec<AssemblyAiSpeechModel>,
+    language_code: String,
+}
+
+pub const ASSEMBLYAI_BASE_URL: &str = "https://api.assemblyai.com/v2";
+#[cfg(not(test))]
+const ASSEMBLYAI_POLL_INTERVAL_SECS: u64 = 5;
+#[cfg(test)]
+const ASSEMBLYAI_POLL_INTERVAL_SECS: u64 = 0;
+
+/// Transcribe a video using AssemblyAI Universal-3 Pro.
+///
+/// No chunking needed -- AssemblyAI handles long audio natively.
+pub async fn transcribe_video_assemblyai(
+    client: &reqwest::Client,
+    api_key: &str,
+    base_url: &str,
+    store: &MasterclassStore,
+    video_id: &str,
+) -> Result<Transcript> {
+    let audio_path = store.audio_path(video_id);
+    anyhow::ensure!(
+        audio_path.exists(),
+        "Audio file not found for {}. Run download first.",
+        video_id
+    );
+
+    tracing::info!("Transcribing {} via AssemblyAI", video_id);
+
+    let samples = read_wav_samples(&audio_path)?;
+    let sample_rate = config::SAMPLE_RATE;
+    let total_duration = samples.len() as f64 / sample_rate as f64;
+    tracing::info!(
+        "Loaded {:.1}s of audio ({} samples)",
+        total_duration,
+        samples.len()
+    );
+
+    // Write WAV to temp file for upload
+    let temp_wav = write_temp_wav(&samples, sample_rate)?;
+    let wav_bytes = std::fs::read(temp_wav.path())
+        .with_context(|| "Failed to read temp WAV file for upload")?;
+
+    // Step 1: Upload file
+    tracing::info!("Uploading audio to AssemblyAI...");
+    let upload_url = format!("{}/upload", base_url);
+    let upload_response = client
+        .post(&upload_url)
+        .header("Authorization", api_key)
+        .header("content-type", "application/octet-stream")
+        .body(wav_bytes)
+        .send()
+        .await
+        .with_context(|| "Failed to upload audio to AssemblyAI")?;
+
+    anyhow::ensure!(
+        upload_response.status().is_success(),
+        "AssemblyAI upload failed: HTTP {}",
+        upload_response.status()
+    );
+
+    let upload_resp: AssemblyAiUploadResponse = upload_response
+        .json()
+        .await
+        .with_context(|| "Failed to parse AssemblyAI upload response")?;
+
+    tracing::info!("Upload complete, submitting transcription request...");
+
+    // Step 2: Submit transcript request
+    let transcript_url = format!("{}/transcript", base_url);
+    let request_body = AssemblyAiTranscriptRequest {
+        audio_url: upload_resp.upload_url,
+        speech_models: vec![AssemblyAiSpeechModel {
+            model: "universal-3-pro".to_string(),
+        }],
+        language_code: "en".to_string(),
+    };
+
+    let submit_response = client
+        .post(&transcript_url)
+        .header("Authorization", api_key)
+        .json(&request_body)
+        .send()
+        .await
+        .with_context(|| "Failed to submit AssemblyAI transcript request")?;
+
+    anyhow::ensure!(
+        submit_response.status().is_success(),
+        "AssemblyAI transcript submit failed: HTTP {}",
+        submit_response.status()
+    );
+
+    let submit_resp: AssemblyAiTranscriptResponse = submit_response
+        .json()
+        .await
+        .with_context(|| "Failed to parse AssemblyAI submit response")?;
+
+    let transcript_id = submit_resp.id;
+    tracing::info!("Transcript ID: {}, polling for completion...", transcript_id);
+
+    // Step 3: Poll until completed
+    let poll_url = format!("{}/transcript/{}", base_url, transcript_id);
+    let result = loop {
+        tokio::time::sleep(std::time::Duration::from_secs(ASSEMBLYAI_POLL_INTERVAL_SECS)).await;
+
+        let poll_response = client
+            .get(&poll_url)
+            .header("Authorization", api_key)
+            .send()
+            .await
+            .with_context(|| "Failed to poll AssemblyAI transcript status")?;
+
+        anyhow::ensure!(
+            poll_response.status().is_success(),
+            "AssemblyAI poll failed: HTTP {}",
+            poll_response.status()
+        );
+
+        let resp: AssemblyAiTranscriptResponse = poll_response
+            .json()
+            .await
+            .with_context(|| "Failed to parse AssemblyAI poll response")?;
+
+        match resp.status.as_str() {
+            "completed" => break resp,
+            "error" => {
+                anyhow::bail!(
+                    "AssemblyAI transcription failed: {}",
+                    resp.error.unwrap_or_else(|| "unknown error".to_string())
+                );
+            }
+            status => {
+                tracing::debug!("AssemblyAI status: {}", status);
+            }
+        }
+    };
+
+    // Step 4: Parse response into our TranscriptSegment format
+    let segments = parse_assemblyai_response(result);
+
+    tracing::info!(
+        "Transcribed {} segments from {} via AssemblyAI",
+        segments.len(),
+        video_id
+    );
+
+    let transcript = Transcript {
+        video_id: video_id.to_string(),
+        model: "assemblyai-universal-3-pro".to_string(),
+        language: "en".to_string(),
+        transcribed_at: chrono::Utc::now().to_rfc3339(),
+        segments,
+    };
+
+    store.save_transcript(&transcript)?;
+    Ok(transcript)
+}
+
+fn parse_assemblyai_response(resp: AssemblyAiTranscriptResponse) -> Vec<TranscriptSegment> {
+    // Prefer utterances (sentence-level segments) if available
+    if let Some(utterances) = resp.utterances {
+        return utterances
+            .into_iter()
+            .enumerate()
+            .map(|(i, utt)| {
+                let tokens: Vec<TranscriptToken> = utt
+                    .words
+                    .iter()
+                    .map(|w| TranscriptToken {
+                        text: w.text.clone(),
+                        start: w.start as f64 / 1000.0,
+                        end: w.end as f64 / 1000.0,
+                        probability: w.confidence as f32,
+                    })
+                    .collect();
+
+                let corrected_text = apply_corrections(&utt.text);
+
+                TranscriptSegment {
+                    id: i as u32,
+                    text: corrected_text,
+                    start: utt.start as f64 / 1000.0,
+                    end: utt.end as f64 / 1000.0,
+                    tokens,
+                }
+            })
+            .collect();
+    }
+
+    // Fall back to grouping words by sentence boundaries or time gaps
+    let words = resp.words.unwrap_or_default();
+    if words.is_empty() {
+        return Vec::new();
+    }
+
+    let mut segments: Vec<TranscriptSegment> = Vec::new();
+    let mut current_words: Vec<AssemblyAiWord> = Vec::new();
+    let mut seg_start: u64 = words[0].start;
+
+    for word in &words {
+        if !current_words.is_empty() {
+            let last = current_words.last().unwrap();
+            let gap_ms = word.start.saturating_sub(last.end);
+            let ends_sentence = last.text.ends_with('.')
+                || last.text.ends_with('?')
+                || last.text.ends_with('!');
+
+            // Split on sentence boundaries or >1s gaps
+            if ends_sentence || gap_ms > 1000 {
+                let seg_end = last.end;
+                let text: String = current_words.iter().map(|w| w.text.as_str()).collect::<Vec<_>>().join(" ");
+                let tokens: Vec<TranscriptToken> = current_words
+                    .iter()
+                    .map(|w| TranscriptToken {
+                        text: w.text.clone(),
+                        start: w.start as f64 / 1000.0,
+                        end: w.end as f64 / 1000.0,
+                        probability: w.confidence as f32,
+                    })
+                    .collect();
+
+                segments.push(TranscriptSegment {
+                    id: segments.len() as u32,
+                    text: apply_corrections(&text),
+                    start: seg_start as f64 / 1000.0,
+                    end: seg_end as f64 / 1000.0,
+                    tokens,
+                });
+
+                current_words.clear();
+                seg_start = word.start;
+            }
+        }
+        current_words.push(word.clone());
+    }
+
+    // Flush remaining words
+    if !current_words.is_empty() {
+        let seg_end = current_words.last().unwrap().end;
+        let text: String = current_words.iter().map(|w| w.text.as_str()).collect::<Vec<_>>().join(" ");
+        let tokens: Vec<TranscriptToken> = current_words
+            .iter()
+            .map(|w| TranscriptToken {
+                text: w.text.clone(),
+                start: w.start as f64 / 1000.0,
+                end: w.end as f64 / 1000.0,
+                probability: w.confidence as f32,
+            })
+            .collect();
+
+        segments.push(TranscriptSegment {
+            id: segments.len() as u32,
+            text: apply_corrections(&text),
+            start: seg_start as f64 / 1000.0,
+            end: seg_end as f64 / 1000.0,
+            tokens,
+        });
+    }
+
+    segments
+}
+
 fn parse_whisper_response(api_response: WhisperApiResponse) -> Vec<TranscriptSegment> {
     let api_segments = api_response.segments.unwrap_or_default();
     let api_words = api_response.words.unwrap_or_default();
@@ -1184,5 +1490,157 @@ mod tests {
         assert!(result.is_err());
         let err = result.unwrap_err().to_string();
         assert!(err.contains("400"), "error should mention 400: {}", err);
+    }
+
+    // -- AssemblyAI --
+
+    #[test]
+    fn parse_assemblyai_response_with_utterances() {
+        let resp = AssemblyAiTranscriptResponse {
+            id: "test".to_string(),
+            status: "completed".to_string(),
+            text: Some("Hello world".to_string()),
+            words: None,
+            utterances: Some(vec![AssemblyAiUtterance {
+                text: "Hello world".to_string(),
+                start: 0,
+                end: 1500,
+                words: vec![
+                    AssemblyAiWord { text: "Hello".to_string(), start: 0, end: 500, confidence: 0.99 },
+                    AssemblyAiWord { text: "world".to_string(), start: 600, end: 1500, confidence: 0.98 },
+                ],
+            }]),
+            error: None,
+        };
+        let segments = parse_assemblyai_response(resp);
+        assert_eq!(segments.len(), 1);
+        assert!(segments[0].text.contains("Hello world"));
+        assert!((segments[0].start - 0.0).abs() < 0.01);
+        assert!((segments[0].end - 1.5).abs() < 0.01);
+        assert_eq!(segments[0].tokens.len(), 2);
+    }
+
+    #[test]
+    fn parse_assemblyai_response_words_only() {
+        let resp = AssemblyAiTranscriptResponse {
+            id: "test".to_string(),
+            status: "completed".to_string(),
+            text: Some("Hello world. How are you".to_string()),
+            words: Some(vec![
+                AssemblyAiWord { text: "Hello".to_string(), start: 0, end: 400, confidence: 0.99 },
+                AssemblyAiWord { text: "world.".to_string(), start: 500, end: 900, confidence: 0.98 },
+                AssemblyAiWord { text: "How".to_string(), start: 1000, end: 1200, confidence: 0.97 },
+                AssemblyAiWord { text: "are".to_string(), start: 1300, end: 1500, confidence: 0.96 },
+                AssemblyAiWord { text: "you".to_string(), start: 1600, end: 1800, confidence: 0.95 },
+            ]),
+            utterances: None,
+            error: None,
+        };
+        let segments = parse_assemblyai_response(resp);
+        assert_eq!(segments.len(), 2);
+        assert!(segments[0].text.contains("Hello"));
+        assert!(segments[1].text.contains("How"));
+    }
+
+    #[test]
+    fn parse_assemblyai_response_empty_words() {
+        let resp = AssemblyAiTranscriptResponse {
+            id: "test".to_string(),
+            status: "completed".to_string(),
+            text: None,
+            words: Some(vec![]),
+            utterances: None,
+            error: None,
+        };
+        let segments = parse_assemblyai_response(resp);
+        assert!(segments.is_empty());
+    }
+
+    #[tokio::test]
+    async fn assemblyai_upload_poll_success() {
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+        use wiremock::matchers::{method, path};
+
+        let server = MockServer::start().await;
+
+        // Upload endpoint
+        Mock::given(method("POST"))
+            .and(path("/upload"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(
+                serde_json::json!({"upload_url": "https://cdn.assemblyai.com/test.wav"})
+            ))
+            .mount(&server)
+            .await;
+
+        // Submit transcript endpoint
+        Mock::given(method("POST"))
+            .and(path("/transcript"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(
+                serde_json::json!({"id": "txn_123", "status": "queued", "text": null, "words": null, "utterances": null, "error": null})
+            ))
+            .mount(&server)
+            .await;
+
+        // Poll endpoint -- return completed immediately
+        Mock::given(method("GET"))
+            .and(path("/transcript/txn_123"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(
+                serde_json::json!({
+                    "id": "txn_123",
+                    "status": "completed",
+                    "text": "Hello world",
+                    "words": [
+                        {"text": "Hello", "start": 0, "end": 500, "confidence": 0.99},
+                        {"text": "world", "start": 600, "end": 1500, "confidence": 0.98}
+                    ],
+                    "utterances": [
+                        {"text": "Hello world", "start": 0, "end": 1500, "words": [
+                            {"text": "Hello", "start": 0, "end": 500, "confidence": 0.99},
+                            {"text": "world", "start": 600, "end": 1500, "confidence": 0.98}
+                        ]}
+                    ],
+                    "error": null
+                })
+            ))
+            .mount(&server)
+            .await;
+
+        // Create a temporary store with test audio
+        let tmp = tempfile::TempDir::new().unwrap();
+        let store = MasterclassStore::new(tmp.path()).unwrap();
+
+        // Create a minimal video entry and audio file
+        let video = crate::schemas::VideoMetadata {
+            video_id: "test_vid".to_string(),
+            url: "https://example.com".to_string(),
+            title: "Test".to_string(),
+            channel: "test".to_string(),
+            duration_seconds: 60.0,
+            upload_date: None,
+            description: None,
+            teacher: None,
+            pieces: vec![],
+            composers: vec![],
+            source: "test".to_string(),
+            discovered_at: "now".to_string(),
+        };
+        store.save_video(&video).unwrap();
+
+        // Write a tiny WAV file
+        let audio_path = store.audio_path("test_vid");
+        std::fs::create_dir_all(audio_path.parent().unwrap()).unwrap();
+        let spec = hound::WavSpec { channels: 1, sample_rate: 16000, bits_per_sample: 16, sample_format: hound::SampleFormat::Int };
+        let mut writer = hound::WavWriter::create(&audio_path, spec).unwrap();
+        for _ in 0..1600 { writer.write_sample(0i16).unwrap(); }
+        writer.finalize().unwrap();
+
+        let client = reqwest::Client::new();
+        let result = transcribe_video_assemblyai(
+            &client, "test-key", &server.uri(), &store, "test_vid",
+        ).await.unwrap();
+
+        assert_eq!(result.segments.len(), 1);
+        assert!(result.segments[0].text.contains("Hello world"));
+        assert_eq!(result.model, "assemblyai-universal-3-pro");
     }
 }

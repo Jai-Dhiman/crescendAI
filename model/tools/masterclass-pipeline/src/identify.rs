@@ -14,7 +14,6 @@ pub async fn identify_teaching_moments(
     client: &LlmClient,
     store: &MasterclassStore,
     video_id: &str,
-    open_ended: bool,
 ) -> Result<Vec<TeachingMoment>> {
     let video = store
         .get_video(video_id)?
@@ -87,7 +86,7 @@ pub async fn identify_teaching_moments(
         let (playing_start, playing_end) =
             estimate_playing_bounds(&transcript, detection.timestamp);
 
-        let raw = match extract_moment(client, &video, &context_window, detection, total_stops, open_ended)
+        let raw = match extract_moment(client, &video, &context_window, detection, total_stops)
             .await
         {
             Ok(r) => r,
@@ -120,19 +119,11 @@ pub async fn identify_teaching_moments(
 
             transcript_text: context_window.clone(),
             feedback_summary: raw.feedback_summary,
-            musical_dimension: if open_ended {
-                "uncategorized".to_string()
-            } else {
-                config::normalize_dimension(&raw.musical_dimension)
-            },
-            secondary_dimensions: if open_ended {
-                vec![]
-            } else {
-                raw.secondary_dimensions
-                    .iter()
-                    .map(|d| config::normalize_dimension(d))
-                    .collect()
-            },
+            musical_dimension: config::normalize_dimension(&raw.musical_dimension),
+            secondary_dimensions: raw.secondary_dimensions
+                .iter()
+                .map(|d| config::normalize_dimension(d))
+                .collect(),
             severity: raw.severity,
             feedback_type: raw.feedback_type,
 
@@ -395,13 +386,8 @@ async fn extract_moment(
     context_window: &str,
     detection: &DetectedMoment,
     total_stops: u32,
-    open_ended: bool,
 ) -> Result<RawExtraction> {
-    let system_prompt = if open_ended {
-        build_open_extraction_system_prompt()
-    } else {
-        build_extraction_system_prompt()
-    };
+    let system_prompt = build_extraction_system_prompt();
     let user_prompt = format!(
         r#"Video: {}
 Teacher: {}
@@ -460,6 +446,7 @@ You MUST respond with ONLY a single JSON object (not an array). No explanation, 
 The JSON object must have exactly these fields:
 
 {
+  "open_description": "2-5 word description of the specific musical aspect",
   "feedback_summary": "1-2 sentence summary of what the teacher said",
   "musical_dimension": "one of: dynamics, timing, articulation, pedaling, tone_color, phrasing, voicing, interpretation, technique, structure",
   "secondary_dimensions": [],
@@ -474,7 +461,11 @@ The JSON object must have exactly these fields:
   "duration_estimate": 30.0
 }
 
-Dimension definitions:
+The "open_description" should be specific and concrete -- describe what the teacher is actually addressing.
+Good examples: "left hand voicing balance", "pedal muddying the bass", "rubato timing in melody", "crescendo shape too abrupt", "legato finger connection"
+Bad examples: "dynamics", "interpretation", "technique" (too abstract -- describe the specific issue)
+
+The "musical_dimension" is the broad category. Definitions:
 - dynamics: volume, loud/soft, crescendo, forte, piano
 - timing: tempo, rhythm, rubato, rushing, dragging
 - articulation: legato, staccato, accents, note connection
@@ -487,32 +478,6 @@ Dimension definitions:
 - structure: form, sections, development
 
 The "duration_estimate" field should be your estimate of how many seconds the teacher spends on this teaching moment (typically 10-120 seconds)."#
-        .to_string()
-}
-
-fn build_open_extraction_system_prompt() -> String {
-    r#"You analyze piano masterclass transcripts. When given a moment where a teacher stopped a student to give feedback, you extract structured information as JSON.
-
-You MUST respond with ONLY a single JSON object. No explanation, no markdown fences.
-
-{
-  "open_description": "2-5 word description of the musical aspect being addressed",
-  "feedback_summary": "1-2 sentence summary of what the teacher said",
-  "severity": "one of: minor, moderate, significant, critical",
-  "feedback_type": "one of: correction, suggestion, demonstration, praise, explanation, comparison",
-  "piece": null,
-  "composer": null,
-  "passage_description": null,
-  "student_level": null,
-  "demonstrated": false,
-  "confidence": 0.7,
-  "duration_estimate": 30.0
-}
-
-Be specific and concrete in open_description. Describe what the teacher is actually addressing.
-
-Good examples: "left hand voicing balance", "pedal muddying the bass", "rubato timing in melody", "crescendo shape too abrupt", "legato finger connection"
-Bad examples: "dynamics", "interpretation", "technique" (too abstract -- describe the specific issue)"#
         .to_string()
 }
 
@@ -940,15 +905,15 @@ mod tests {
         assert!(result.is_empty());
     }
 
-    // -- open-ended extraction --
+    // -- combined extraction prompt --
 
     #[test]
-    fn open_extraction_prompt_has_no_categories() {
-        let prompt = build_open_extraction_system_prompt();
-        // Must NOT contain the constrained dimension list
-        assert!(!prompt.contains("one of: dynamics"));
+    fn combined_prompt_has_both_fields() {
+        let prompt = build_extraction_system_prompt();
         assert!(prompt.contains("open_description"));
+        assert!(prompt.contains("musical_dimension"));
         assert!(prompt.contains("2-5 word"));
+        assert!(prompt.contains("one of: dynamics"));
     }
 
     #[test]

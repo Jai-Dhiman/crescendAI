@@ -31,12 +31,12 @@ struct Cli {
     #[arg(long, default_value = "large-v3", global = true)]
     whisper_model: String,
 
-    /// LLM model name (Ollama model, e.g. qwen2.5:32b, llama3.1, mistral)
-    #[arg(long, default_value = "qwen2.5:32b", global = true)]
+    /// LLM model name
+    #[arg(long, default_value = "x-ai/grok-4.1-fast", global = true)]
     llm_model: String,
 
     /// LLM server URL (OpenAI-compatible endpoint)
-    #[arg(long, default_value = "http://localhost:11434", global = true)]
+    #[arg(long, default_value = "https://openrouter.ai/api/v1", global = true)]
     llm_url: String,
 
     /// Re-run even if cached results exist
@@ -55,21 +55,29 @@ struct Cli {
     #[arg(long, global = true)]
     piece: Option<String>,
 
-    /// OpenAI API key (for Whisper API and cloud LLMs). Also reads OPENAI_API_KEY env var.
+    /// OpenAI API key (for Whisper API). Also reads OPENAI_API_KEY env var.
     #[arg(long, env = "OPENAI_API_KEY", global = true)]
     openai_api_key: Option<String>,
+
+    /// OpenRouter API key (for LLM extraction). Also reads OPENROUTER_API_KEY env var.
+    #[arg(long, env = "OPENROUTER_API_KEY", global = true)]
+    openrouter_api_key: Option<String>,
+
+    /// AssemblyAI API key (for transcription). Also reads ASSEMBLYAI_API_KEY env var.
+    #[arg(long, env = "ASSEMBLYAI_API_KEY", global = true)]
+    assemblyai_api_key: Option<String>,
 
     /// Use local Whisper model instead of API
     #[arg(long, global = true)]
     local: bool,
 
+    /// Use AssemblyAI for transcription instead of Whisper
+    #[arg(long, global = true)]
+    assemblyai: bool,
+
     /// Run segmentation using audio features only (no transcript required)
     #[arg(long, global = true)]
     no_transcript: bool,
-
-    /// Use open-ended extraction (free-text description instead of 10 categories)
-    #[arg(long, global = true)]
-    open_ended: bool,
 }
 
 #[derive(Subcommand)]
@@ -166,9 +174,28 @@ async fn main() -> Result<()> {
                             }
                         }
                     }
+                } else if cli.assemblyai {
+                    let api_key = cli.assemblyai_api_key.as_deref()
+                        .ok_or_else(|| anyhow::anyhow!("AssemblyAI API key required. Set --assemblyai-api-key or ASSEMBLYAI_API_KEY env var."))?;
+                    let http_client = reqwest::Client::builder()
+                        .timeout(std::time::Duration::from_secs(600))
+                        .build()?;
+                    for video_id in &videos {
+                        if cli.dry_run {
+                            tracing::info!("[dry-run] Would transcribe {} (AssemblyAI)", video_id);
+                            continue;
+                        }
+                        match transcribe::transcribe_video_assemblyai(&http_client, api_key, transcribe::ASSEMBLYAI_BASE_URL, &store, video_id).await {
+                            Ok(_) => store.mark_stage_complete(video_id, &schemas::PipelineStage::Transcribe)?,
+                            Err(e) => {
+                                tracing::error!("Failed to transcribe {}: {}", video_id, e);
+                                store.mark_stage_failed(video_id, &schemas::PipelineStage::Transcribe, &e.to_string())?;
+                            }
+                        }
+                    }
                 } else {
                     let api_key = cli.openai_api_key.as_deref()
-                        .ok_or_else(|| anyhow::anyhow!("OpenAI API key required for Whisper API. Set --openai-api-key or OPENAI_API_KEY env var. Use --local for local Whisper."))?;
+                        .ok_or_else(|| anyhow::anyhow!("OpenAI API key required for Whisper API. Set --openai-api-key or OPENAI_API_KEY env var. Use --local for local Whisper or --assemblyai for AssemblyAI."))?;
                     let http_client = reqwest::Client::builder()
                         .timeout(std::time::Duration::from_secs(600))
                         .build()?;
@@ -218,7 +245,7 @@ async fn main() -> Result<()> {
             let videos = get_videos(&store, &schemas::PipelineStage::Extract, cli.force, cli.max_videos, cli.piece.as_deref())?;
             tracing::info!("Extracting teaching moments from {} videos", videos.len());
             if !videos.is_empty() {
-                let client = llm_client::LlmClient::new(Some(&cli.llm_url), &cli.llm_model, None)?;
+                let client = llm_client::LlmClient::new(Some(&cli.llm_url), &cli.llm_model, cli.openrouter_api_key.clone())?;
                 for video_id in &videos {
                     if cli.dry_run {
                         tracing::info!("[dry-run] Would extract from {}", video_id);
@@ -238,8 +265,8 @@ async fn main() -> Result<()> {
             }
         }
         Commands::Identify => {
-            let api_key = cli.openai_api_key.as_deref()
-                .ok_or_else(|| anyhow::anyhow!("OpenAI API key required. Set --openai-api-key or OPENAI_API_KEY env var."))?;
+            let api_key = cli.openrouter_api_key.as_deref()
+                .ok_or_else(|| anyhow::anyhow!("OpenRouter API key required. Set --openrouter-api-key or OPENROUTER_API_KEY env var."))?;
             let videos = get_videos(&store, &schemas::PipelineStage::Identify, cli.force, cli.max_videos, cli.piece.as_deref())?;
             tracing::info!("Identifying teaching moments in {} videos", videos.len());
             if !videos.is_empty() {
@@ -249,7 +276,7 @@ async fn main() -> Result<()> {
                         tracing::info!("[dry-run] Would identify moments in {}", video_id);
                         continue;
                     }
-                    match identify::identify_teaching_moments(&client, &store, video_id, cli.open_ended).await {
+                    match identify::identify_teaching_moments(&client, &store, video_id).await {
                         Ok(moments) => {
                             tracing::info!("Identified {} moments in {}", moments.len(), video_id);
                             store.mark_stage_complete(video_id, &schemas::PipelineStage::Identify)?;
@@ -274,9 +301,11 @@ async fn main() -> Result<()> {
                 cli.dry_run,
                 cli.piece.clone(),
                 cli.openai_api_key.clone(),
+                cli.openrouter_api_key.clone(),
+                cli.assemblyai_api_key.clone(),
                 cli.local,
+                cli.assemblyai,
                 cli.no_transcript,
-                cli.open_ended,
             );
             let report = pipe.run().await?;
             tracing::info!("{}", report);

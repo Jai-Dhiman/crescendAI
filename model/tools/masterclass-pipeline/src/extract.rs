@@ -122,7 +122,7 @@ pub async fn extract_teaching_moments(
                 extraction_model: client.model().to_string(),
                 confidence: extracted.confidence,
 
-                open_description: None,
+                open_description: extracted.open_description,
             };
 
             all_moments.push(moment);
@@ -187,6 +187,7 @@ You MUST respond with ONLY a single JSON object (not an array). No explanation, 
 The JSON object must have exactly these fields:
 
 {
+  "open_description": "2-5 word description of the specific musical aspect",
   "feedback_summary": "1-2 sentence summary of what the teacher said",
   "musical_dimension": "one of: dynamics, timing, articulation, pedaling, tone_color, phrasing, voicing, interpretation, technique, structure",
   "secondary_dimensions": [],
@@ -200,7 +201,11 @@ The JSON object must have exactly these fields:
   "confidence": 0.7
 }
 
-Dimension definitions:
+The "open_description" should be specific and concrete -- describe what the teacher is actually addressing.
+Good examples: "left hand voicing balance", "pedal muddying the bass", "rubato timing in melody", "crescendo shape too abrupt", "legato finger connection"
+Bad examples: "dynamics", "interpretation", "technique" (too abstract -- describe the specific issue)
+
+The "musical_dimension" is the broad category. Definitions:
 - dynamics: volume, loud/soft, crescendo, forte, piano
 - timing: tempo, rhythm, rubato, rushing, dragging
 - articulation: legato, staccato, accents, note connection
@@ -251,6 +256,8 @@ struct RawExtraction {
     demonstrated: bool,
     #[serde(default = "default_confidence")]
     confidence: f32,
+    #[serde(default)]
+    open_description: Option<String>,
 }
 
 fn default_confidence() -> f32 {

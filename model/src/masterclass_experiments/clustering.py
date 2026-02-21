@@ -11,7 +11,10 @@ from sentence_transformers import SentenceTransformer
 
 
 def load_open_descriptions(jsonl_path: Path) -> tuple[list[str], list[str]]:
-    """Load moment IDs and open descriptions from open_moments.jsonl.
+    """Load moment IDs and open descriptions from moments JSONL.
+
+    Falls back to feedback_summary when open_description is missing
+    (backward compat with moments extracted before the A+C merge).
 
     Returns:
         (moment_ids, descriptions) -- parallel lists.
@@ -24,8 +27,11 @@ def load_open_descriptions(jsonl_path: Path) -> tuple[list[str], list[str]]:
             if not line:
                 continue
             record = json.loads(line)
+            desc = record.get("open_description") or record.get("feedback_summary")
+            if not desc:
+                continue
             ids.append(record["moment_id"])
-            descriptions.append(record["open_description"])
+            descriptions.append(desc)
     return ids, descriptions
 
 

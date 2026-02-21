@@ -17,9 +17,11 @@ pub struct Pipeline {
     dry_run: bool,
     piece_filter: Option<String>,
     openai_api_key: Option<String>,
+    openrouter_api_key: Option<String>,
+    assemblyai_api_key: Option<String>,
     local: bool,
+    assemblyai: bool,
     no_transcript: bool,
-    open_ended: bool,
 }
 
 pub struct PipelineReport {
@@ -61,9 +63,11 @@ impl Pipeline {
         dry_run: bool,
         piece_filter: Option<String>,
         openai_api_key: Option<String>,
+        openrouter_api_key: Option<String>,
+        assemblyai_api_key: Option<String>,
         local: bool,
+        assemblyai: bool,
         no_transcript: bool,
-        open_ended: bool,
     ) -> Self {
         Self {
             store,
@@ -76,9 +80,11 @@ impl Pipeline {
             dry_run,
             piece_filter,
             openai_api_key,
+            openrouter_api_key,
+            assemblyai_api_key,
             local,
+            assemblyai,
             no_transcript,
-            open_ended,
         }
     }
 
@@ -104,6 +110,8 @@ impl Pipeline {
             tracing::info!("=== Stage: Transcribe ===");
             if self.local {
                 stages.push(self.run_transcribe_local()?);
+            } else if self.assemblyai {
+                stages.push(self.run_transcribe_assemblyai().await?);
             } else {
                 stages.push(self.run_transcribe_api().await?);
             }
@@ -275,6 +283,48 @@ impl Pipeline {
         })
     }
 
+    async fn run_transcribe_assemblyai(&self) -> Result<StageReport> {
+        let videos = self.get_stage_videos(&PipelineStage::Transcribe)?;
+        if videos.is_empty() {
+            return Ok(StageReport {
+                stage: "transcribe".to_string(),
+                processed: 0, succeeded: 0, failed: 0, skipped: 0,
+            });
+        }
+
+        let api_key = self.assemblyai_api_key.as_deref()
+            .ok_or_else(|| anyhow::anyhow!("AssemblyAI API key required. Set --assemblyai-api-key or ASSEMBLYAI_API_KEY env var."))?;
+        let http_client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(600))
+            .build()?;
+
+        let mut succeeded = 0;
+        let mut failed = 0;
+
+        for video_id in &videos {
+            if self.dry_run {
+                tracing::info!("[dry-run] Would transcribe {} (AssemblyAI)", video_id);
+                continue;
+            }
+            match transcribe::transcribe_video_assemblyai(&http_client, api_key, transcribe::ASSEMBLYAI_BASE_URL, &self.store, video_id).await {
+                Ok(_) => {
+                    self.store.mark_stage_complete(video_id, &PipelineStage::Transcribe)?;
+                    succeeded += 1;
+                }
+                Err(e) => {
+                    tracing::error!("Transcription (AssemblyAI) failed for {}: {}", video_id, e);
+                    self.store.mark_stage_failed(video_id, &PipelineStage::Transcribe, &e.to_string())?;
+                    failed += 1;
+                }
+            }
+        }
+
+        Ok(StageReport {
+            stage: "transcribe".to_string(),
+            processed: videos.len(), succeeded, failed, skipped: 0,
+        })
+    }
+
     fn run_segment(&self) -> Result<StageReport> {
         let videos = if self.no_transcript {
             self.get_stage_videos_with_prereq(&PipelineStage::Segment, &PipelineStage::Download)?
@@ -323,7 +373,8 @@ impl Pipeline {
             });
         }
 
-        let client = llm_client::LlmClient::new(Some(&self.llm_url), &self.llm_model, None)?;
+        let api_key = self.openrouter_api_key.as_ref().cloned();
+        let client = llm_client::LlmClient::new(Some(&self.llm_url), &self.llm_model, api_key)?;
         let mut succeeded = 0;
         let mut failed = 0;
 
@@ -364,7 +415,7 @@ impl Pipeline {
             });
         }
 
-        let api_key = self.openai_api_key.as_ref().cloned();
+        let api_key = self.openrouter_api_key.as_ref().cloned();
         let client = llm_client::LlmClient::new(Some(&self.llm_url), &self.llm_model, api_key)?;
         let mut succeeded = 0;
         let mut failed = 0;
@@ -374,7 +425,7 @@ impl Pipeline {
                 tracing::info!("[dry-run] Would identify moments in {}", video_id);
                 continue;
             }
-            match identify::identify_teaching_moments(&client, &self.store, video_id, self.open_ended).await {
+            match identify::identify_teaching_moments(&client, &self.store, video_id).await {
                 Ok(moments) => {
                     tracing::info!("Identified {} moments in {}", moments.len(), video_id);
                     self.store.mark_stage_complete(video_id, &PipelineStage::Identify)?;
