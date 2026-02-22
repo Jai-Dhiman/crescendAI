@@ -1,0 +1,19 @@
+[package]
+name = "crescendai-shared"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "crescendai_shared"
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+uniffi = { version = "0.28", features = ["cli"], optional = true }
+
+[build-dependencies]
+uniffi = { version = "0.28", features = ["build"], optional = true }
+
+[features]
+default = []
+uniffi = ["dep:uniffi"]

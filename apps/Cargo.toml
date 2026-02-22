@@ -1,0 +1,3 @@
+[workspace]
+members = ["web", "shared"]
+resolver = "2"
