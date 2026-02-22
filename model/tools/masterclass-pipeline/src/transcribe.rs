@@ -915,15 +915,10 @@ struct AssemblyAiUtterance {
 }
 
 #[derive(serde::Serialize)]
-struct AssemblyAiSpeechModel {
-    model: String,
-}
-
-#[derive(serde::Serialize)]
 struct AssemblyAiTranscriptRequest {
     audio_url: String,
-    speech_models: Vec<AssemblyAiSpeechModel>,
-    language_code: String,
+    speech_models: Vec<String>,
+    language_detection: bool,
 }
 
 pub const ASSEMBLYAI_BASE_URL: &str = "https://api.assemblyai.com/v2";
@@ -994,10 +989,8 @@ pub async fn transcribe_video_assemblyai(
     let transcript_url = format!("{}/transcript", base_url);
     let request_body = AssemblyAiTranscriptRequest {
         audio_url: upload_resp.upload_url,
-        speech_models: vec![AssemblyAiSpeechModel {
-            model: "universal-3-pro".to_string(),
-        }],
-        language_code: "en".to_string(),
+        speech_models: vec!["universal-3-pro".to_string()],
+        language_detection: true,
     };
 
     let submit_response = client
@@ -1008,11 +1001,15 @@ pub async fn transcribe_video_assemblyai(
         .await
         .with_context(|| "Failed to submit AssemblyAI transcript request")?;
 
-    anyhow::ensure!(
-        submit_response.status().is_success(),
-        "AssemblyAI transcript submit failed: HTTP {}",
-        submit_response.status()
-    );
+    if !submit_response.status().is_success() {
+        let status = submit_response.status();
+        let body = submit_response.text().await.unwrap_or_default();
+        anyhow::bail!(
+            "AssemblyAI transcript submit failed: HTTP {} - {}",
+            status,
+            &body[..body.len().min(500)]
+        );
+    }
 
     let submit_resp: AssemblyAiTranscriptResponse = submit_response
         .json()
@@ -1060,7 +1057,45 @@ pub async fn transcribe_video_assemblyai(
     };
 
     // Step 4: Parse response into our TranscriptSegment format
-    let segments = parse_assemblyai_response(result);
+    let raw_segments = parse_assemblyai_response(result);
+    let raw_count = raw_segments.len();
+
+    // Step 5: Filter hallucinated segments
+    let segments = filter_low_confidence_segments(raw_segments);
+    let segments = filter_intra_segment_hallucinations(segments);
+
+    // Cross-segment repetition detection (same as Whisper path)
+    let hallucinated_ranges = detect_repetition(&segments);
+    let segments = if hallucinated_ranges.is_empty() {
+        segments
+    } else {
+        let hall_count: usize = hallucinated_ranges.iter().map(|&(s, e)| e - s).sum();
+        tracing::warn!(
+            "AssemblyAI: dropping {} cross-segment hallucinated segments",
+            hall_count
+        );
+        drop_hallucinated(segments, &hallucinated_ranges)
+    };
+
+    // Renumber segment IDs after filtering
+    let segments: Vec<TranscriptSegment> = segments
+        .into_iter()
+        .enumerate()
+        .map(|(i, mut seg)| {
+            seg.id = i as u32;
+            seg
+        })
+        .collect();
+
+    let filtered_count = raw_count - segments.len();
+    if filtered_count > 0 {
+        tracing::info!(
+            "AssemblyAI: filtered {} hallucinated segments ({} -> {})",
+            filtered_count,
+            raw_count,
+            segments.len()
+        );
+    }
 
     tracing::info!(
         "Transcribed {} segments from {} via AssemblyAI",
@@ -1078,6 +1113,98 @@ pub async fn transcribe_video_assemblyai(
 
     store.save_transcript(&transcript)?;
     Ok(transcript)
+}
+
+/// Detect repeating character patterns (length 2-4) occurring 5+ consecutive times.
+/// Returns the repeating unit if found, None otherwise.
+fn detect_char_repetition(text: &str) -> Option<String> {
+    let text_lower = text.to_lowercase();
+    let bytes = text_lower.as_bytes();
+    if bytes.len() < 10 {
+        return None;
+    }
+    for pat_len in 2..=4 {
+        if bytes.len() < pat_len * 5 {
+            continue;
+        }
+        for start in 0..bytes.len().saturating_sub(pat_len * 5 - 1) {
+            let pattern = &bytes[start..start + pat_len];
+            let mut count = 1u32;
+            let mut pos = start + pat_len;
+            while pos + pat_len <= bytes.len() && &bytes[pos..pos + pat_len] == pattern {
+                count += 1;
+                pos += pat_len;
+            }
+            if count >= 5 {
+                return Some(String::from_utf8_lossy(pattern).to_string());
+            }
+        }
+    }
+    None
+}
+
+/// Detect intra-segment hallucination in an AssemblyAI segment.
+///
+/// Two-layer check:
+/// 1. Max token confidence < ASSEMBLYAI_MIN_CONFIDENCE -> hallucination
+/// 2. Character-level repetition pattern (.{2,4})\1{4,} with low confidence
+///    and no space in the repeating unit (to avoid false positives on vocal demos
+///    like "da da da da" which have high confidence and spaces).
+fn detect_intra_segment_hallucination(segment: &TranscriptSegment) -> bool {
+    if segment.tokens.is_empty() {
+        return false;
+    }
+
+    let max_confidence = segment
+        .tokens
+        .iter()
+        .map(|t| t.probability)
+        .fold(0.0f32, f32::max);
+
+    // Layer 1: extremely low confidence
+    if max_confidence < config::ASSEMBLYAI_MIN_CONFIDENCE {
+        return true;
+    }
+
+    // Layer 2: character-level repetition with low confidence
+    // Check for repeating character patterns of length 2-4 occurring 5+ times
+    if max_confidence < 0.3 {
+        if let Some(pattern) = detect_char_repetition(&segment.text) {
+            // Vocal demos have spaces in the repeating unit ("da " repeats)
+            if !pattern.contains(' ') {
+                return true;
+            }
+        }
+    }
+
+    false
+}
+
+/// Drop segments where max token confidence is below the threshold.
+/// Segments with no tokens are kept (no confidence data to judge).
+fn filter_low_confidence_segments(
+    segments: Vec<TranscriptSegment>,
+) -> Vec<TranscriptSegment> {
+    segments
+        .into_iter()
+        .filter(|seg| {
+            if seg.tokens.is_empty() {
+                return true;
+            }
+            let max_conf = seg.tokens.iter().map(|t| t.probability).fold(0.0f32, f32::max);
+            max_conf >= config::ASSEMBLYAI_MIN_CONFIDENCE
+        })
+        .collect()
+}
+
+/// Drop segments flagged by detect_intra_segment_hallucination.
+fn filter_intra_segment_hallucinations(
+    segments: Vec<TranscriptSegment>,
+) -> Vec<TranscriptSegment> {
+    segments
+        .into_iter()
+        .filter(|seg| !detect_intra_segment_hallucination(seg))
+        .collect()
 }
 
 fn parse_assemblyai_response(resp: AssemblyAiTranscriptResponse) -> Vec<TranscriptSegment> {
@@ -1623,6 +1750,7 @@ mod tests {
             composers: vec![],
             source: "test".to_string(),
             discovered_at: "now".to_string(),
+            student_level: None,
         };
         store.save_video(&video).unwrap();
 
@@ -1642,5 +1770,74 @@ mod tests {
         assert_eq!(result.segments.len(), 1);
         assert!(result.segments[0].text.contains("Hello world"));
         assert_eq!(result.model, "assemblyai-universal-3-pro");
+    }
+
+    // -- detect_intra_segment_hallucination --
+
+    fn make_seg_with_tokens(id: u32, text: &str, confidence: f32) -> TranscriptSegment {
+        let tokens: Vec<TranscriptToken> = text
+            .split_whitespace()
+            .map(|w| TranscriptToken {
+                text: w.to_string(),
+                start: 0.0,
+                end: 1.0,
+                probability: confidence,
+            })
+            .collect();
+        TranscriptSegment {
+            id,
+            text: text.to_string(),
+            start: id as f64,
+            end: id as f64 + 1.0,
+            tokens,
+        }
+    }
+
+    #[test]
+    fn hallucination_repetitive_low_confidence() {
+        // "Delelelelele..." pattern with extremely low confidence
+        let seg = make_seg_with_tokens(0, "Delelelelelelele", 0.0000000002);
+        assert!(detect_intra_segment_hallucination(&seg));
+    }
+
+    #[test]
+    fn hallucination_vocal_demo_high_confidence_not_flagged() {
+        // "da da da da da da" -- legitimate vocal demo with high confidence
+        let seg = make_seg_with_tokens(0, "da da da da da da", 0.95);
+        assert!(!detect_intra_segment_hallucination(&seg));
+    }
+
+    #[test]
+    fn hallucination_low_confidence_normal_text() {
+        // Normal text but confidence below threshold
+        let seg = make_seg_with_tokens(0, "some normal words here", 0.005);
+        assert!(detect_intra_segment_hallucination(&seg));
+    }
+
+    #[test]
+    fn hallucination_normal_segment_not_flagged() {
+        let seg = make_seg_with_tokens(0, "Now play it again with more feeling", 0.92);
+        assert!(!detect_intra_segment_hallucination(&seg));
+    }
+
+    #[test]
+    fn hallucination_no_tokens_not_flagged() {
+        let seg = make_seg(0, "text without tokens");
+        assert!(!detect_intra_segment_hallucination(&seg));
+    }
+
+    // -- filter_low_confidence_segments --
+
+    #[test]
+    fn filter_low_confidence_drops_bad_keeps_tokenless() {
+        let segments = vec![
+            make_seg_with_tokens(0, "good text", 0.9),
+            make_seg_with_tokens(1, "bad text", 0.005),
+            make_seg(2, "no tokens"),
+        ];
+        let filtered = filter_low_confidence_segments(segments);
+        assert_eq!(filtered.len(), 2);
+        assert_eq!(filtered[0].text, "good text");
+        assert_eq!(filtered[1].text, "no tokens");
     }
 }

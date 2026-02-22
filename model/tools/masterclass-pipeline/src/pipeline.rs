@@ -95,6 +95,11 @@ impl Pipeline {
             tracing::info!("=== Piece filter: {} ===", piece);
         }
 
+        // Refresh metadata from sources.yaml so existing videos get updated fields
+        if let Err(e) = discovery::refresh_metadata_from_sources(&self.store, &self.data_dir) {
+            tracing::warn!("Failed to refresh metadata from sources: {}", e);
+        }
+
         tracing::info!("=== Stage: Discover ===");
         stages.push(self.run_discover().await?);
 
@@ -295,7 +300,7 @@ impl Pipeline {
         let api_key = self.assemblyai_api_key.as_deref()
             .ok_or_else(|| anyhow::anyhow!("AssemblyAI API key required. Set --assemblyai-api-key or ASSEMBLYAI_API_KEY env var."))?;
         let http_client = reqwest::Client::builder()
-            .timeout(std::time::Duration::from_secs(600))
+            .timeout(std::time::Duration::from_secs(1800))
             .build()?;
 
         let mut succeeded = 0;

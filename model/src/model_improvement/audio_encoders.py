@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from disentanglement.losses import DimensionWiseRankingLoss, piece_based_infonce_loss
+from model_improvement.losses import DimensionWiseRankingLoss, piece_based_infonce_loss
 
 
 class MuQLoRAModel(pl.LightningModule):

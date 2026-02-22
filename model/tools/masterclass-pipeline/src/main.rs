@@ -36,7 +36,7 @@ struct Cli {
     llm_model: String,
 
     /// LLM server URL (OpenAI-compatible endpoint)
-    #[arg(long, default_value = "https://openrouter.ai/api/v1", global = true)]
+    #[arg(long, default_value = "https://openrouter.ai/api", global = true)]
     llm_url: String,
 
     /// Re-run even if cached results exist
@@ -119,6 +119,9 @@ enum Commands {
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    // Load .env before clap parses env vars
+    dotenvy::dotenv().ok();
+
     tracing_subscriber::fmt()
         .with_env_filter(
             EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
@@ -136,6 +139,10 @@ async fn main() -> Result<()> {
         Commands::Discover => {
             let videos = discovery::discover(&store, &cli.data_dir).await?;
             tracing::info!("Discovered {} videos", videos.len());
+            // Refresh metadata from sources.yaml for already-known videos
+            if let Err(e) = discovery::refresh_metadata_from_sources(&store, &cli.data_dir) {
+                tracing::warn!("Failed to refresh metadata from sources: {}", e);
+            }
         }
         Commands::Download => {
             let videos = get_videos(&store, &schemas::PipelineStage::Download, cli.force, cli.max_videos, cli.piece.as_deref())?;
@@ -178,7 +185,7 @@ async fn main() -> Result<()> {
                     let api_key = cli.assemblyai_api_key.as_deref()
                         .ok_or_else(|| anyhow::anyhow!("AssemblyAI API key required. Set --assemblyai-api-key or ASSEMBLYAI_API_KEY env var."))?;
                     let http_client = reqwest::Client::builder()
-                        .timeout(std::time::Duration::from_secs(600))
+                        .timeout(std::time::Duration::from_secs(1800))
                         .build()?;
                     for video_id in &videos {
                         if cli.dry_run {

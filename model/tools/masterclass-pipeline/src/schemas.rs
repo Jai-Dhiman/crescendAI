@@ -14,6 +14,8 @@ pub struct VideoMetadata {
     pub composers: Vec<String>,
     pub source: String,
     pub discovered_at: String,
+    #[serde(default)]
+    pub student_level: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -116,6 +118,9 @@ pub struct TeachingMoment {
 
     pub stop_order: u32,
     pub total_stops: u32,
+    pub stop_group: u32,
+    pub stop_in_group: u32,
+    pub group_size: u32,
     pub time_spent_seconds: f64,
     pub demonstrated: bool,
 
@@ -195,4 +200,5 @@ pub struct VideoSource {
     pub teacher: Option<String>,
     pub piece: Option<String>,
     pub composer: Option<String>,
+    pub student_level: Option<String>,
 }

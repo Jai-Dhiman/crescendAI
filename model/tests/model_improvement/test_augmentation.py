@@ -5,31 +5,29 @@ import pytest
 from model_improvement.augmentation import AudioAugmentor
 
 
-def test_augmentor_returns_same_length():
-    aug = AudioAugmentor(room_irs_dir=None, noise_dir=None)
+def test_augmentor_returns_same_shape():
+    aug = AudioAugmentor(augment_prob=1.0)
     waveform = torch.randn(1, 24000)  # 1 second at 24kHz
     result = aug(waveform, sample_rate=24000)
     assert result.shape == waveform.shape
 
 
 def test_augmentor_no_augmentation_when_prob_zero():
-    aug = AudioAugmentor(room_irs_dir=None, noise_dir=None, augment_prob=0.0)
+    aug = AudioAugmentor(augment_prob=0.0)
     waveform = torch.randn(1, 24000)
     result = aug(waveform, sample_rate=24000)
     assert torch.allclose(result, waveform)
 
 
 def test_augmentor_always_augments_when_prob_one():
-    aug = AudioAugmentor(room_irs_dir=None, noise_dir=None, augment_prob=1.0)
+    aug = AudioAugmentor(augment_prob=1.0)
     waveform = torch.randn(1, 48000)
-    # Seed both Python random and torch to get deterministic augmentation.
-    # With room_irs_dir=None and noise_dir=None, only phone_sim (p=0.2),
-    # pitch_shift (p=0.1), and EQ (p=0.2) can fire. Run multiple attempts
-    # to confirm that the pipeline can modify the waveform when active.
+    # With augment_prob=1.0, at least one of the augmentations
+    # (reverb, phone_sim, pitch_shift, eq, noise) should fire
+    # across multiple random seeds.
     modified = False
     for seed in range(20):
         random.seed(seed)
-        torch.manual_seed(seed)
         result = aug(waveform, sample_rate=24000)
         if not torch.allclose(result, waveform):
             modified = True
@@ -37,15 +35,23 @@ def test_augmentor_always_augments_when_prob_one():
     assert modified, "Augmentor with augment_prob=1.0 should modify waveform for at least one seed"
 
 
-def test_phone_simulation():
-    aug = AudioAugmentor(room_irs_dir=None, noise_dir=None, augment_prob=1.0)
-    waveform = torch.randn(1, 24000)
-    result = aug._apply_phone_simulation(waveform, sample_rate=24000)
+def test_augmentor_stereo():
+    aug = AudioAugmentor(augment_prob=1.0)
+    waveform = torch.randn(2, 24000)  # stereo
+    random.seed(0)
+    result = aug(waveform, sample_rate=24000)
     assert result.shape == waveform.shape
 
 
-def test_eq_variation():
-    aug = AudioAugmentor(room_irs_dir=None, noise_dir=None, augment_prob=1.0)
-    waveform = torch.randn(1, 24000)
-    result = aug._apply_eq_variation(waveform, sample_rate=24000)
-    assert result.shape == waveform.shape
+def test_augmentor_invalid_prob():
+    with pytest.raises(ValueError, match="augment_prob must be in"):
+        AudioAugmentor(augment_prob=1.5)
+    with pytest.raises(ValueError, match="augment_prob must be in"):
+        AudioAugmentor(augment_prob=-0.1)
+
+
+def test_augmentor_rejects_1d_input():
+    aug = AudioAugmentor(augment_prob=1.0)
+    waveform = torch.randn(24000)  # 1D -- invalid
+    with pytest.raises(ValueError, match="Expected waveform of shape"):
+        aug(waveform, sample_rate=24000)

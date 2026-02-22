@@ -2,9 +2,55 @@ use anyhow::{Context, Result};
 use serde::Deserialize;
 
 use crate::config;
-use crate::llm_client::LlmClient;
+use crate::llm_client::{LlmClient, ResponseFormat};
 use crate::schemas::*;
 use crate::store::MasterclassStore;
+
+/// Check if text contains any forbidden physical-mechanism vocabulary.
+///
+/// Uses word-boundary-aware matching: the characters immediately before and after
+/// the match must be non-alphanumeric (or string boundaries). This prevents
+/// "warm" from matching "arm" or "fingertip" from matching "finger".
+///
+/// Returns the first matching forbidden term, or None if clean.
+pub fn contains_forbidden_vocabulary(text: &str) -> Option<&'static str> {
+    let text_lower = text.to_lowercase();
+    for &forbidden in config::FORBIDDEN_OPEN_DESCRIPTION_WORDS {
+        let forbidden_lower = forbidden.to_lowercase();
+        let mut search_from = 0;
+        while let Some(pos) = text_lower[search_from..].find(&forbidden_lower) {
+            let abs_pos = search_from + pos;
+            let end_pos = abs_pos + forbidden_lower.len();
+
+            // Check word boundary before match
+            let before_ok = abs_pos == 0
+                || !text_lower.as_bytes()[abs_pos - 1].is_ascii_alphanumeric();
+            // Check word boundary after match
+            let after_ok = end_pos >= text_lower.len()
+                || !text_lower.as_bytes()[end_pos].is_ascii_alphanumeric();
+
+            if before_ok && after_ok {
+                return Some(forbidden);
+            }
+
+            search_from = abs_pos + 1;
+        }
+    }
+    None
+}
+
+/// Build a short correction prompt for a forbidden vocabulary violation.
+pub fn build_forbidden_word_correction_prompt(
+    original: &str,
+    forbidden_term: &str,
+) -> String {
+    format!(
+        "Your open_description '{}' contains forbidden physical term '{}'. \
+         Rewrite to name the AUDIBLE MUSICAL QUALITY a listener would hear. \
+         2-5 words. No physical terms. Respond with ONLY the corrected string.",
+        original, forbidden_term
+    )
+}
 
 pub async fn extract_teaching_moments(
     client: &LlmClient,
@@ -37,16 +83,67 @@ pub async fn extract_teaching_moments(
     );
 
     let system_prompt = build_system_prompt();
+    let response_format = build_response_format();
     let mut all_moments = Vec::new();
 
-    // Process one stop at a time -- much more reliable for local models
+    // Compute stop groups (shared playing_before windows)
+    let group_ids = compute_stop_groups(&segmentation.stopping_points);
+    let group_sizes = compute_group_sizes(&group_ids);
+    let group_positions = compute_group_positions(&group_ids);
+
+    // Track extracted feedback summaries for group context
+    let mut extracted_summaries: Vec<Option<String>> = vec![None; total_stops as usize];
+
+    // Process one stop at a time
     for (idx, stop) in segmentation.stopping_points.iter().enumerate() {
         let stop_order = idx as u32;
-        let ctx = build_stop_context(stop, stop_order, &transcript);
+        let group_id = group_ids[idx];
+        let group_size = group_sizes[idx];
+        let stop_in_group = group_positions[idx];
 
-        tracing::info!("  Stop {}/{}", idx + 1, total_stops);
+        // Build group context from previously extracted stops in same group
+        let group_context = if stop_in_group > 1 {
+            let mut prior_summaries = Vec::new();
+            for prev_idx in 0..idx {
+                if group_ids[prev_idx] == group_id {
+                    if let Some(ref summary) = extracted_summaries[prev_idx] {
+                        prior_summaries.push(format!(
+                            "- Point {}: {}",
+                            group_positions[prev_idx],
+                            summary
+                        ));
+                    }
+                }
+            }
+            if prior_summaries.is_empty() {
+                None
+            } else {
+                Some(format!(
+                    "This is teaching point {} of {} from the same interruption.\n\
+                     Previous points from this interruption:\n\
+                     {}\n\n\
+                     Focus on what NEW aspect the teacher is addressing in this specific point.",
+                    stop_in_group,
+                    group_size,
+                    prior_summaries.join("\n")
+                ))
+            }
+        } else {
+            None
+        };
 
-        let user_prompt = build_single_stop_prompt(&video, &ctx, total_stops);
+        let ctx = build_stop_context(stop, &transcript, group_context.as_deref());
+
+        tracing::info!(
+            "  Stop {}/{} (group {}, {}/{})",
+            idx + 1,
+            total_stops,
+            group_id,
+            stop_in_group,
+            group_size
+        );
+
+        let user_prompt = build_single_stop_prompt(&video, &ctx, stop_order + 1, total_stops);
 
         let mut raw: Option<RawExtraction> = None;
 
@@ -61,7 +158,15 @@ pub async fn extract_teaching_moments(
                 )
             };
 
-            match client.message(&system_prompt, &prompt).await {
+            match client
+                .message_structured(
+                    &system_prompt,
+                    &prompt,
+                    Some(response_format.clone()),
+                    Some(0.0),
+                )
+                .await
+            {
                 Ok(response) => {
                     match parse_single_extraction(&response) {
                         Ok(extracted) => {
@@ -84,7 +189,58 @@ pub async fn extract_teaching_moments(
             }
         }
 
-        if let Some(extracted) = raw {
+        if let Some(mut extracted) = raw {
+            // Check open_description for forbidden vocabulary and attempt correction
+            if let Some(ref desc) = extracted.open_description {
+                if let Some(forbidden_term) = contains_forbidden_vocabulary(desc) {
+                    tracing::warn!(
+                        "  Stop {}: open_description '{}' contains forbidden term '{}'",
+                        idx + 1,
+                        desc,
+                        forbidden_term
+                    );
+                    let correction_prompt =
+                        build_forbidden_word_correction_prompt(desc, forbidden_term);
+                    match client
+                        .message_structured(
+                            "You rewrite descriptions to name audible musical qualities only.",
+                            &correction_prompt,
+                            None,
+                            Some(0.0),
+                        )
+                        .await
+                    {
+                        Ok(corrected) => {
+                            let corrected = corrected.trim().trim_matches('"').to_string();
+                            if contains_forbidden_vocabulary(&corrected).is_none() {
+                                tracing::info!(
+                                    "  Stop {}: corrected '{}' -> '{}'",
+                                    idx + 1,
+                                    desc,
+                                    corrected
+                                );
+                                extracted.open_description = Some(corrected);
+                            } else {
+                                tracing::warn!(
+                                    "  Stop {}: correction '{}' still forbidden, keeping original",
+                                    idx + 1,
+                                    corrected
+                                );
+                            }
+                        }
+                        Err(e) => {
+                            tracing::warn!(
+                                "  Stop {}: correction LLM call failed: {}, keeping original",
+                                idx + 1,
+                                e
+                            );
+                        }
+                    }
+                }
+            }
+
+            extracted_summaries[idx] = Some(extracted.feedback_summary.clone());
+
             let moment = TeachingMoment {
                 moment_id: uuid::Uuid::new_v4().to_string(),
                 video_id: video_id.to_string(),
@@ -111,10 +267,14 @@ pub async fn extract_teaching_moments(
                 piece: extracted.piece.or_else(|| video.pieces.first().cloned()),
                 composer: extracted.composer.or_else(|| video.composers.first().cloned()),
                 passage_description: extracted.passage_description,
-                student_level: extracted.student_level,
+                student_level: extracted.student_level
+                    .or_else(|| video.student_level.clone()),
 
                 stop_order: stop_order + 1,
                 total_stops,
+                stop_group: group_id,
+                stop_in_group,
+                group_size,
                 time_spent_seconds: stop.talking_end - stop.talking_start,
                 demonstrated: extracted.demonstrated,
 
@@ -144,99 +304,239 @@ pub async fn extract_teaching_moments(
 
 struct StopContext {
     transcript_text: String,
+    group_context: Option<String>,
 }
 
 fn build_stop_context(
     stop: &StoppingPoint,
-    _stop_order: u32,
     transcript: &Transcript,
+    group_context: Option<&str>,
 ) -> StopContext {
-    let mut text_parts = Vec::new();
+    // Teacher feedback window
+    let mut feedback_parts = Vec::new();
     for seg in &transcript.segments {
         if seg.end >= stop.talking_start && seg.start <= stop.talking_end {
-            text_parts.push(seg.text.trim().to_string());
+            feedback_parts.push(seg.text.trim().to_string());
         }
     }
 
-    let context_start = (stop.playing_start - 30.0).max(0.0);
-    let mut pre_context = Vec::new();
+    // Earlier context: 120s before playing_start (broader teaching flow)
+    let earlier_start = (stop.playing_start - config::PRE_CONTEXT_SECS).max(0.0);
+    let before_start = (stop.playing_start - 30.0).max(0.0);
+    let mut earlier_context = Vec::new();
     for seg in &transcript.segments {
-        if seg.end >= context_start && seg.start <= stop.playing_start {
-            pre_context.push(seg.text.trim().to_string());
+        if seg.end >= earlier_start && seg.start < before_start {
+            earlier_context.push(seg.text.trim().to_string());
         }
     }
 
-    let transcript_text = if pre_context.is_empty() {
-        text_parts.join(" ")
-    } else {
-        format!(
-            "[Before stop] {} [Teacher feedback] {}",
-            pre_context.join(" "),
-            text_parts.join(" ")
-        )
-    };
+    // Immediate pre-context: 30s before playing_start
+    let mut before_context = Vec::new();
+    for seg in &transcript.segments {
+        if seg.end >= before_start && seg.start <= stop.playing_start {
+            before_context.push(seg.text.trim().to_string());
+        }
+    }
 
-    StopContext { transcript_text }
+    // Post-context: 30s after talking_end
+    let post_end = stop.talking_end + config::POST_CONTEXT_SECS;
+    let mut after_context = Vec::new();
+    for seg in &transcript.segments {
+        if seg.start >= stop.talking_end && seg.end <= post_end {
+            after_context.push(seg.text.trim().to_string());
+        }
+    }
+
+    // Build labeled transcript
+    let mut parts = Vec::new();
+    if !earlier_context.is_empty() {
+        parts.push(format!("[Earlier context] {}", earlier_context.join(" ")));
+    }
+    if !before_context.is_empty() {
+        parts.push(format!("[Before stop] {}", before_context.join(" ")));
+    }
+    parts.push(format!("[Teacher feedback] {}", feedback_parts.join(" ")));
+    if !after_context.is_empty() {
+        parts.push(format!("[After feedback] {}", after_context.join(" ")));
+    }
+
+    StopContext {
+        transcript_text: parts.join("\n"),
+        group_context: group_context.map(|s| s.to_string()),
+    }
+}
+
+fn compute_stop_groups(stops: &[StoppingPoint]) -> Vec<u32> {
+    let mut groups = Vec::with_capacity(stops.len());
+    let mut current_group = 1u32;
+
+    for (i, stop) in stops.iter().enumerate() {
+        if i == 0 {
+            groups.push(current_group);
+            continue;
+        }
+        let prev = &stops[i - 1];
+        // Same playing window = same group
+        if (stop.playing_start - prev.playing_start).abs() < 1.0
+            && (stop.playing_end - prev.playing_end).abs() < 1.0
+        {
+            groups.push(current_group);
+        } else {
+            current_group += 1;
+            groups.push(current_group);
+        }
+    }
+    groups
+}
+
+fn compute_group_sizes(group_ids: &[u32]) -> Vec<u32> {
+    let mut sizes = vec![0u32; group_ids.len()];
+    for (i, &gid) in group_ids.iter().enumerate() {
+        let count = group_ids.iter().filter(|&&g| g == gid).count() as u32;
+        sizes[i] = count;
+    }
+    sizes
+}
+
+fn compute_group_positions(group_ids: &[u32]) -> Vec<u32> {
+    let mut positions = Vec::with_capacity(group_ids.len());
+    for (i, &gid) in group_ids.iter().enumerate() {
+        let pos = group_ids[..i].iter().filter(|&&g| g == gid).count() as u32 + 1;
+        positions.push(pos);
+    }
+    positions
 }
 
 fn build_system_prompt() -> String {
-    r#"You analyze piano masterclass transcripts. When given a moment where a teacher stopped a student to give feedback, you extract structured information as JSON.
+    r#"You are a musicologist specializing in piano pedagogy research. You analyze masterclass transcripts to identify what MUSICAL QUALITY a teacher is addressing when they stop a student.
 
-You MUST respond with ONLY a single JSON object (not an array). No explanation, no markdown fences, just the JSON.
+Teachers often explain through physical metaphor (arm weight, finger position, wrist rotation). Your expertise is translating these into the AUDIBLE MUSICAL QUALITY the teacher wants to change in the sound.
 
-The JSON object must have exactly these fields:
+Respond with ONLY a single JSON object. No explanation, no markdown fences, just the JSON.
 
+Required JSON fields:
 {
-  "open_description": "2-5 word description of the specific musical aspect",
-  "feedback_summary": "1-2 sentence summary of what the teacher said",
+  "open_description": "2-5 word description of the musical quality being addressed",
+  "feedback_summary": "1-2 sentence summary of the teacher's feedback and its musical purpose",
   "musical_dimension": "one of: dynamics, timing, articulation, pedaling, tone_color, phrasing, voicing, interpretation, technique, structure",
   "secondary_dimensions": [],
   "severity": "one of: minor, moderate, significant, critical",
   "feedback_type": "one of: correction, suggestion, demonstration, praise, explanation, comparison",
   "piece": null,
   "composer": null,
-  "passage_description": null,
+  "passage_description": "specific passage, measure, or section being addressed",
   "student_level": null,
   "demonstrated": false,
-  "confidence": 0.7
+  "confidence": 0.85
 }
 
-The "open_description" should be specific and concrete -- describe what the teacher is actually addressing.
-Good examples: "left hand voicing balance", "pedal muddying the bass", "rubato timing in melody", "crescendo shape too abrupt", "legato finger connection"
-Bad examples: "dynamics", "interpretation", "technique" (too abstract -- describe the specific issue)
+## OPEN_DESCRIPTION RULES (most important field)
 
-The "musical_dimension" is the broad category. Definitions:
-- dynamics: volume, loud/soft, crescendo, forte, piano
-- timing: tempo, rhythm, rubato, rushing, dragging
-- articulation: legato, staccato, accents, note connection
-- pedaling: sustain pedal, damper, una corda
-- tone_color: timbre, sound quality, bright/dark/warm
-- phrasing: musical line, breathing, shape, direction
-- voicing: balance between hands, bringing out melody
-- interpretation: expression, emotion, style, character
-- technique: finger/hand/arm position, physical approach
-- structure: form, sections, development"#
+This field names the AUDIBLE QUALITY a listener would perceive in the recording.
+
+CONSTRAINT: Could a blind listener identify this quality from the recording alone?
+If yes, the description is correct. If it describes something visible or physical, rewrite to name the sonic result.
+
+Before writing open_description, determine:
+1. Is the teacher describing a physical action or a musical result?
+2. If physical, what change in SOUND is the physical action intended to produce?
+3. Name that sonic change in 2-5 words.
+
+PREFERRED VOCABULARY: singing, resonant, percussive, bright, dark, warm, round, legato, connected, flowing, smooth, choppy, arc, direction, climax, contour, line, projection, prominence, blend, separation, layering, momentum, rubato, flexibility, steadiness, urgency, clarity, muddy, distinct, transparent, gradient, contrast, shaping, tapering, depth, warmth, brilliance, evenness
+
+FORBIDDEN in open_description: finger, hand, arm, wrist, elbow, shoulder, weight, rotation, movement, position, posture, key depth, key speed, sliding, knuckle, pad, tip, bench, sitting, body
+
+EXAMPLES (showing physical-to-musical translation):
+  Teacher: "Use more arm weight, let gravity do the work"
+  -> open_description: "singing tone depth"
+  (NOT "arm weight transfer" -- that describes the mechanism, not the sound)
+
+  Teacher: "Slide the finger pad across, don't strike from above"
+  -> open_description: "smooth connected tone"
+  (NOT "finger pad sliding motion" -- not audible)
+
+  Teacher: "Your left hand is drowning out the melody"
+  -> open_description: "melodic voice projection"
+
+  Teacher: "Don't wait before the C, carry through"
+  -> open_description: "phrase continuity at resolution"
+
+  Teacher: "The syncopations should have suppressed excitement"
+  -> open_description: "restrained syncopation intensity"
+
+## DIMENSION DEFINITIONS
+- dynamics: Volume level, crescendo/diminuendo, dynamic contrast, projection
+- timing: Tempo, rhythm, rubato, rushing, dragging, pulse consistency
+- articulation: Legato, staccato, accents, note connection, attack character
+- pedaling: Sustain pedal usage, clarity vs blur, damper timing
+- tone_color: Timbre quality, brightness/darkness, warmth, resonance
+- phrasing: Musical line shape, direction, breathing, arc, continuity
+- voicing: Balance between voices/hands, melodic prominence, inner voice clarity
+- interpretation: Expressive character, emotion, stylistic authenticity, musical intent
+- technique: Physical approach serving a musical goal (use when the musical result is inseparable from the physical method)
+- structure: Formal awareness, section transitions, thematic connections
+
+## SEVERITY CALIBRATION
+- minor: Polishing refinement. Student is close. Brief comment, <20 seconds.
+- moderate: Noticeable issue affecting the musical result. Teacher explains but moves on. 20-60 seconds.
+- significant: Meaningfully compromises the passage. Teacher dwells on it, may demonstrate. 60+ seconds.
+- critical: Fundamental misunderstanding. Teacher stops immediately and spends extended time re-teaching.
+
+## FEEDBACK_TYPE GUIDANCE
+- correction: Teacher identifies something wrong and asks for change
+- suggestion: Teacher proposes an alternative approach, student choice implied
+- demonstration: Teacher plays or sings to show the desired result
+- praise: Teacher affirms something done well
+- explanation: Teacher explains a concept without requesting immediate change
+- comparison: Teacher contrasts two approaches (better/worse, different interpretations)"#
         .to_string()
 }
 
 fn build_single_stop_prompt(
     video: &VideoMetadata,
     ctx: &StopContext,
+    stop_order: u32,
     total_stops: u32,
 ) -> String {
-    format!(
-        r#"Video: {}
-Teacher: {}
-Total stops in this masterclass: {}
+    let piece_info = video
+        .pieces
+        .first()
+        .map(|p| format!("Piece: {}\n", p))
+        .unwrap_or_default();
+    let composer_info = video
+        .composers
+        .first()
+        .map(|c| format!("Composer: {}\n", c))
+        .unwrap_or_default();
+    let level_info = video
+        .student_level
+        .as_ref()
+        .map(|l| format!("Student level: {}\n", l))
+        .unwrap_or_default();
+    let group_info = ctx
+        .group_context
+        .as_ref()
+        .map(|g| format!("\n{}\n", g))
+        .unwrap_or_default();
 
+    format!(
+        r#"Video: {title}
+Teacher: {teacher}
+{piece}{composer}{level}This is stop {stop_order} of {total_stops} in this masterclass.
+{group}
 Transcript of this teaching moment:
-{}
+{transcript}
 
 Respond with a single JSON object describing this teaching moment."#,
-        video.title,
-        video.teacher.as_deref().unwrap_or("Unknown"),
-        total_stops,
-        ctx.transcript_text,
+        title = video.title,
+        teacher = video.teacher.as_deref().unwrap_or("Unknown"),
+        piece = piece_info,
+        composer = composer_info,
+        level = level_info,
+        stop_order = stop_order,
+        total_stops = total_stops,
+        group = group_info,
+        transcript = ctx.transcript_text,
     )
 }
 
@@ -262,6 +562,66 @@ struct RawExtraction {
 
 fn default_confidence() -> f32 {
     0.7
+}
+
+fn build_response_format() -> ResponseFormat {
+    ResponseFormat {
+        format_type: "json_schema".to_string(),
+        json_schema: Some(serde_json::json!({
+            "name": "teaching_moment_extraction",
+            "strict": true,
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "open_description": { "type": "string" },
+                    "feedback_summary": { "type": "string" },
+                    "musical_dimension": {
+                        "type": "string",
+                        "enum": [
+                            "dynamics", "timing", "articulation", "pedaling",
+                            "tone_color", "phrasing", "voicing", "interpretation",
+                            "technique", "structure"
+                        ]
+                    },
+                    "secondary_dimensions": {
+                        "type": "array",
+                        "items": {
+                            "type": "string",
+                            "enum": [
+                                "dynamics", "timing", "articulation", "pedaling",
+                                "tone_color", "phrasing", "voicing", "interpretation",
+                                "technique", "structure"
+                            ]
+                        }
+                    },
+                    "severity": {
+                        "type": "string",
+                        "enum": ["minor", "moderate", "significant", "critical"]
+                    },
+                    "feedback_type": {
+                        "type": "string",
+                        "enum": [
+                            "correction", "suggestion", "demonstration",
+                            "praise", "explanation", "comparison"
+                        ]
+                    },
+                    "piece": { "type": ["string", "null"] },
+                    "composer": { "type": ["string", "null"] },
+                    "passage_description": { "type": ["string", "null"] },
+                    "student_level": { "type": ["string", "null"] },
+                    "demonstrated": { "type": "boolean" },
+                    "confidence": { "type": "number" }
+                },
+                "required": [
+                    "open_description", "feedback_summary", "musical_dimension",
+                    "secondary_dimensions", "severity", "feedback_type",
+                    "piece", "composer", "passage_description", "student_level",
+                    "demonstrated", "confidence"
+                ],
+                "additionalProperties": false
+            }
+        })),
+    }
 }
 
 fn parse_single_extraction(response: &str) -> Result<RawExtraction> {
@@ -384,5 +744,132 @@ mod tests {
     fn parse_single_extraction_missing_fields() {
         let input = r#"{"feedback_summary": "test"}"#;
         assert!(parse_single_extraction(input).is_err());
+    }
+
+    // -- compute_stop_groups --
+
+    fn make_stop(playing_start: f64, playing_end: f64, talking_start: f64) -> StoppingPoint {
+        StoppingPoint {
+            timestamp: talking_start,
+            playing_start,
+            playing_end,
+            talking_start,
+            talking_end: talking_start + 30.0,
+        }
+    }
+
+    #[test]
+    fn stop_groups_all_different() {
+        let stops = vec![
+            make_stop(10.0, 20.0, 25.0),
+            make_stop(50.0, 60.0, 65.0),
+            make_stop(100.0, 110.0, 115.0),
+        ];
+        let groups = compute_stop_groups(&stops);
+        assert_eq!(groups, vec![1, 2, 3]);
+    }
+
+    #[test]
+    fn stop_groups_shared_window() {
+        let stops = vec![
+            make_stop(10.0, 20.0, 25.0),
+            make_stop(10.0, 20.0, 55.0),
+            make_stop(10.0, 20.0, 85.0),
+            make_stop(50.0, 60.0, 65.0),
+        ];
+        let groups = compute_stop_groups(&stops);
+        assert_eq!(groups, vec![1, 1, 1, 2]);
+    }
+
+    #[test]
+    fn stop_groups_sizes_and_positions() {
+        let stops = vec![
+            make_stop(10.0, 20.0, 25.0),
+            make_stop(10.0, 20.0, 55.0),
+            make_stop(50.0, 60.0, 65.0),
+        ];
+        let groups = compute_stop_groups(&stops);
+        let sizes = compute_group_sizes(&groups);
+        let positions = compute_group_positions(&groups);
+        assert_eq!(sizes, vec![2, 2, 1]);
+        assert_eq!(positions, vec![1, 2, 1]);
+    }
+
+    #[test]
+    fn stop_groups_near_threshold() {
+        // 0.5s difference should still be same group (< 1.0 threshold)
+        let stops = vec![
+            make_stop(10.0, 20.0, 25.0),
+            make_stop(10.5, 20.5, 55.0),
+        ];
+        let groups = compute_stop_groups(&stops);
+        assert_eq!(groups, vec![1, 1]);
+    }
+
+    #[test]
+    fn stop_groups_empty() {
+        let stops: Vec<StoppingPoint> = vec![];
+        let groups = compute_stop_groups(&stops);
+        assert!(groups.is_empty());
+    }
+
+    // -- contains_forbidden_vocabulary --
+
+    #[test]
+    fn forbidden_vocab_clean_description() {
+        assert!(contains_forbidden_vocabulary("singing tone depth").is_none());
+    }
+
+    #[test]
+    fn forbidden_vocab_arm_detected() {
+        assert_eq!(
+            contains_forbidden_vocabulary("arm weight transfer"),
+            Some("arm")
+        );
+    }
+
+    #[test]
+    fn forbidden_vocab_warm_does_not_match_arm() {
+        assert!(contains_forbidden_vocabulary("warm resonance").is_none());
+    }
+
+    #[test]
+    fn forbidden_vocab_key_depth_multi_word() {
+        assert_eq!(
+            contains_forbidden_vocabulary("key depth adjustment"),
+            Some("key depth")
+        );
+    }
+
+    #[test]
+    fn forbidden_vocab_hand_detected() {
+        assert_eq!(
+            contains_forbidden_vocabulary("left hand evenness"),
+            Some("hand")
+        );
+    }
+
+    #[test]
+    fn forbidden_vocab_fingertip_does_not_match_finger() {
+        // "fingertip" has no word boundary after "finger" -- 't' follows
+        assert!(contains_forbidden_vocabulary("fingertip precision").is_none());
+    }
+
+    #[test]
+    fn forbidden_vocab_case_insensitive() {
+        assert_eq!(
+            contains_forbidden_vocabulary("Arm Weight"),
+            Some("arm")
+        );
+    }
+
+    // -- build_forbidden_word_correction_prompt --
+
+    #[test]
+    fn correction_prompt_contains_terms() {
+        let prompt = build_forbidden_word_correction_prompt("arm weight transfer", "arm");
+        assert!(prompt.contains("arm weight transfer"));
+        assert!(prompt.contains("arm"));
+        assert!(prompt.contains("AUDIBLE MUSICAL QUALITY"));
     }
 }

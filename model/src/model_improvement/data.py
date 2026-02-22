@@ -250,8 +250,8 @@ class PairedPerformanceDataset(Dataset):
     def __getitem__(self, idx: int) -> dict:
         key_a, key_b, piece_id = self.pairs[idx]
 
-        labels_a = torch.tensor(self.labels[key_a][:19], dtype=torch.float32)
-        labels_b = torch.tensor(self.labels[key_b][:19], dtype=torch.float32)
+        labels_a = torch.tensor(self.labels[key_a], dtype=torch.float32)
+        labels_b = torch.tensor(self.labels[key_b], dtype=torch.float32)
 
         return {
             "key_a": key_a,

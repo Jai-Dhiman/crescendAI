@@ -27,6 +27,8 @@ def train_model(
     max_epochs: int = 200,
     monitor: str = "val_loss",
     upload_remote: str | None = None,
+    precision: str = "bf16-mixed",
+    gradient_clip_val: float = 1.0,
 ) -> pl.Trainer:
     """Train a model with standard callbacks.
 
@@ -41,6 +43,8 @@ def train_model(
         monitor: Metric to monitor for checkpointing/early stopping.
         upload_remote: If not None, the remote base path for rclone upload.
             Checkpoints are uploaded to ``{upload_remote}/{model_name}/fold_{fold_idx}``.
+        precision: Training precision. Default ``"bf16-mixed"`` per Doc 3 spec.
+        gradient_clip_val: Max gradient norm for clipping. Default ``1.0``.
 
     Returns:
         The fitted Trainer instance.
@@ -67,6 +71,8 @@ def train_model(
         max_epochs=max_epochs,
         accelerator="auto",
         devices=1,
+        precision=precision,
+        gradient_clip_val=gradient_clip_val,
         callbacks=callbacks,
         enable_progress_bar=True,
         log_every_n_steps=10,

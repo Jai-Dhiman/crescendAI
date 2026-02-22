@@ -44,6 +44,9 @@ pub async fn discover(store: &MasterclassStore, data_dir: &Path) -> Result<Vec<V
                 if let Some(ref composer) = video_src.composer {
                     meta.composers = vec![composer.clone()];
                 }
+                if let Some(ref level) = video_src.student_level {
+                    meta.student_level = Some(level.clone());
+                }
                 seen_ids.insert(video_id);
                 store.save_video(&meta)?;
                 store.mark_stage_complete(&meta.video_id, &PipelineStage::Discover)?;
@@ -116,6 +119,58 @@ pub async fn discover(store: &MasterclassStore, data_dir: &Path) -> Result<Vec<V
     Ok(new_videos)
 }
 
+/// Refresh existing video metadata from sources.yaml.
+///
+/// Matches each VideoSource to existing videos by video_id (extracted from URL),
+/// and patches teacher/piece/composer/student_level using store.update_video().
+/// This makes sources.yaml the permanent source of truth for curated metadata.
+pub fn refresh_metadata_from_sources(store: &MasterclassStore, data_dir: &Path) -> Result<()> {
+    let sources_path = data_dir.join("sources.yaml");
+    if !sources_path.exists() {
+        tracing::debug!("No sources.yaml found, skipping metadata refresh");
+        return Ok(());
+    }
+
+    let content = std::fs::read_to_string(&sources_path)
+        .with_context(|| format!("Failed to read {}", sources_path.display()))?;
+    let sources: SourcesConfig = serde_yaml::from_str(&content)
+        .with_context(|| "Failed to parse sources.yaml")?;
+
+    let mut refreshed = 0u32;
+
+    for video_src in &sources.videos {
+        let video_id = match extract_video_id(&video_src.url) {
+            Ok(id) => id,
+            Err(_) => continue,
+        };
+
+        let updated = store.update_video(&video_id, |video| {
+            if let Some(ref teacher) = video_src.teacher {
+                video.teacher = Some(teacher.clone());
+            }
+            if let Some(ref piece) = video_src.piece {
+                video.pieces = vec![piece.clone()];
+            }
+            if let Some(ref composer) = video_src.composer {
+                video.composers = vec![composer.clone()];
+            }
+            if let Some(ref level) = video_src.student_level {
+                video.student_level = Some(level.clone());
+            }
+        })?;
+
+        if updated {
+            refreshed += 1;
+        }
+    }
+
+    if refreshed > 0 {
+        tracing::info!("Refreshed metadata for {} videos from sources.yaml", refreshed);
+    }
+
+    Ok(())
+}
+
 fn extract_video_id(url: &str) -> Result<String> {
     // Handle various YouTube URL formats
     if let Some(id) = url.strip_prefix("https://www.youtube.com/watch?v=") {
@@ -158,6 +213,7 @@ async fn fetch_video_metadata(video_id: &str, url: &str) -> Result<VideoMetadata
         composers: Vec::new(),
         source: String::new(),
         discovered_at: chrono::Utc::now().to_rfc3339(),
+        student_level: None,
     })
 }
 
@@ -212,6 +268,7 @@ async fn discover_from_channel(channel_url: &str, max_videos: u32) -> Result<Vec
                     composers: Vec::new(),
                     source: String::new(),
                     discovered_at: chrono::Utc::now().to_rfc3339(),
+                    student_level: None,
                 });
             }
             Err(e) => {
@@ -265,6 +322,7 @@ async fn search_videos(query: &str) -> Result<Vec<VideoMetadata>> {
                 composers: Vec::new(),
                 source: String::new(),
                 discovered_at: chrono::Utc::now().to_rfc3339(),
+                student_level: None,
             });
         }
     }
@@ -299,4 +357,147 @@ fn passes_filters(video: &VideoMetadata) -> bool {
     }
 
     true
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_video(id: &str) -> VideoMetadata {
+        VideoMetadata {
+            video_id: id.to_string(),
+            url: format!("https://www.youtube.com/watch?v={}", id),
+            title: format!("Video {}", id),
+            channel: "test".to_string(),
+            duration_seconds: 60.0,
+            upload_date: None,
+            description: None,
+            teacher: None,
+            pieces: vec![],
+            composers: vec![],
+            source: "test".to_string(),
+            discovered_at: "now".to_string(),
+            student_level: None,
+        }
+    }
+
+    #[test]
+    fn extract_video_id_standard() {
+        assert_eq!(
+            extract_video_id("https://www.youtube.com/watch?v=abc123").unwrap(),
+            "abc123"
+        );
+    }
+
+    #[test]
+    fn extract_video_id_with_params() {
+        assert_eq!(
+            extract_video_id("https://www.youtube.com/watch?v=abc123&t=10").unwrap(),
+            "abc123"
+        );
+    }
+
+    #[test]
+    fn extract_video_id_short_url() {
+        assert_eq!(
+            extract_video_id("https://youtu.be/abc123").unwrap(),
+            "abc123"
+        );
+    }
+
+    #[test]
+    fn extract_video_id_invalid() {
+        assert!(extract_video_id("https://example.com/video").is_err());
+    }
+
+    #[test]
+    fn refresh_metadata_patches_student_level() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let store = MasterclassStore::new(tmp.path()).unwrap();
+
+        // Save a video without student_level
+        let video = make_video("IsE7XOmTwjQ");
+        store.save_video(&video).unwrap();
+
+        // Write sources.yaml with student_level
+        let sources_yaml = r#"
+channels: []
+videos:
+  - url: "https://www.youtube.com/watch?v=IsE7XOmTwjQ"
+    teacher: "Leon Fleisher"
+    piece: "Beethoven Pathetique"
+    composer: "Beethoven"
+    student_level: "advanced"
+search_queries: []
+"#;
+        std::fs::write(tmp.path().join("sources.yaml"), sources_yaml).unwrap();
+
+        refresh_metadata_from_sources(&store, tmp.path()).unwrap();
+
+        let updated = store.get_video("IsE7XOmTwjQ").unwrap().unwrap();
+        assert_eq!(updated.student_level.as_deref(), Some("advanced"));
+        assert_eq!(updated.teacher.as_deref(), Some("Leon Fleisher"));
+        assert_eq!(updated.pieces, vec!["Beethoven Pathetique"]);
+        assert_eq!(updated.composers, vec!["Beethoven"]);
+    }
+
+    #[test]
+    fn refresh_metadata_unknown_video_id_no_error() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let store = MasterclassStore::new(tmp.path()).unwrap();
+
+        let sources_yaml = r#"
+channels: []
+videos:
+  - url: "https://www.youtube.com/watch?v=nonexistent"
+    teacher: "Nobody"
+    student_level: "beginner"
+search_queries: []
+"#;
+        std::fs::write(tmp.path().join("sources.yaml"), sources_yaml).unwrap();
+
+        // Should not error, just skip unknown IDs
+        refresh_metadata_from_sources(&store, tmp.path()).unwrap();
+    }
+
+    #[test]
+    fn refresh_metadata_no_sources_file() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let store = MasterclassStore::new(tmp.path()).unwrap();
+
+        // No sources.yaml -- should succeed silently
+        refresh_metadata_from_sources(&store, tmp.path()).unwrap();
+    }
+
+    #[test]
+    fn refresh_metadata_does_not_overwrite_unset_fields() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let store = MasterclassStore::new(tmp.path()).unwrap();
+
+        // Save a video with existing teacher
+        let mut video = make_video("abc123");
+        video.teacher = Some("Original Teacher".to_string());
+        video.pieces = vec!["Original Piece".to_string()];
+        store.save_video(&video).unwrap();
+
+        // Sources.yaml only has student_level, no teacher/piece/composer
+        let sources_yaml = r#"
+channels: []
+videos:
+  - url: "https://www.youtube.com/watch?v=abc123"
+    student_level: "intermediate"
+search_queries: []
+"#;
+        std::fs::write(tmp.path().join("sources.yaml"), sources_yaml).unwrap();
+
+        refresh_metadata_from_sources(&store, tmp.path()).unwrap();
+
+        let updated = store.get_video("abc123").unwrap().unwrap();
+        // student_level should be set
+        assert_eq!(updated.student_level.as_deref(), Some("intermediate"));
+        // teacher should be preserved (source didn't set it)
+        assert_eq!(updated.teacher.as_deref(), Some("Original Teacher"));
+        // pieces should be preserved
+        assert_eq!(updated.pieces, vec!["Original Piece"]);
+    }
 }

@@ -139,6 +139,44 @@ impl MasterclassStore {
         Ok(map.get(video_id).cloned())
     }
 
+    /// Update a video in-place by applying `update_fn` to its metadata.
+    ///
+    /// Loads all entries, deduplicates (last-entry-wins to match `load_video_map`),
+    /// applies the update, and writes back. Returns `false` if `video_id` not found.
+    pub fn update_video<F>(&self, video_id: &str, update_fn: F) -> Result<bool>
+    where
+        F: FnOnce(&mut VideoMetadata),
+    {
+        let all_entries: Vec<VideoMetadata> = Self::read_jsonl(&self.videos_path())?;
+
+        // Deduplicate: last entry wins (same semantics as load_video_map)
+        let mut seen = std::collections::HashMap::new();
+        let mut deduped: Vec<VideoMetadata> = Vec::new();
+        for entry in all_entries {
+            if let Some(idx) = seen.get(&entry.video_id) {
+                deduped[*idx] = entry.clone();
+            } else {
+                seen.insert(entry.video_id.clone(), deduped.len());
+                deduped.push(entry);
+            }
+        }
+
+        let mut found = false;
+        for video in &mut deduped {
+            if video.video_id == video_id {
+                update_fn(video);
+                found = true;
+                break;
+            }
+        }
+
+        if found {
+            Self::write_jsonl(&self.videos_path(), &deduped)?;
+        }
+
+        Ok(found)
+    }
+
     // --- Pipeline state ---
 
     fn state_path(&self) -> PathBuf {
@@ -430,5 +468,83 @@ impl std::fmt::Display for StatusSummary {
             }
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_video(id: &str) -> VideoMetadata {
+        VideoMetadata {
+            video_id: id.to_string(),
+            url: format!("https://example.com/{}", id),
+            title: format!("Video {}", id),
+            channel: "test".to_string(),
+            duration_seconds: 60.0,
+            upload_date: None,
+            description: None,
+            teacher: None,
+            pieces: vec![],
+            composers: vec![],
+            source: "test".to_string(),
+            discovered_at: "now".to_string(),
+            student_level: None,
+        }
+    }
+
+    #[test]
+    fn update_video_roundtrip() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let store = MasterclassStore::new(tmp.path()).unwrap();
+        let video = make_video("v1");
+        store.save_video(&video).unwrap();
+
+        let updated = store.update_video("v1", |v| {
+            v.student_level = Some("advanced".to_string());
+        }).unwrap();
+        assert!(updated);
+
+        let loaded = store.get_video("v1").unwrap().unwrap();
+        assert_eq!(loaded.student_level.as_deref(), Some("advanced"));
+    }
+
+    #[test]
+    fn update_video_missing_returns_false() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let store = MasterclassStore::new(tmp.path()).unwrap();
+        let video = make_video("v1");
+        store.save_video(&video).unwrap();
+
+        let updated = store.update_video("v999", |v| {
+            v.student_level = Some("beginner".to_string());
+        }).unwrap();
+        assert!(!updated);
+    }
+
+    #[test]
+    fn update_video_deduplicates_entries() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let store = MasterclassStore::new(tmp.path()).unwrap();
+
+        // Append same video twice (simulating re-discovery)
+        let mut v1 = make_video("v1");
+        store.save_video(&v1).unwrap();
+        v1.title = "Video v1 updated".to_string();
+        store.save_video(&v1).unwrap();
+
+        // Should have 2 lines before update
+        let before: Vec<VideoMetadata> = MasterclassStore::read_jsonl(&store.videos_path()).unwrap();
+        assert_eq!(before.len(), 2);
+
+        store.update_video("v1", |v| {
+            v.student_level = Some("advanced".to_string());
+        }).unwrap();
+
+        // After update, should be deduplicated to 1 entry
+        let after: Vec<VideoMetadata> = MasterclassStore::read_jsonl(&store.videos_path()).unwrap();
+        assert_eq!(after.len(), 1);
+        assert_eq!(after[0].title, "Video v1 updated");
+        assert_eq!(after[0].student_level.as_deref(), Some("advanced"));
     }
 }

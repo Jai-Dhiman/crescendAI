@@ -167,6 +167,19 @@ pub const HOP_SIZE: usize = 512;
 
 pub const MOMENT_DEDUP_THRESHOLD_SECS: f64 = 10.0;
 
+pub const ASSEMBLYAI_MIN_CONFIDENCE: f32 = 0.01;
+
+pub const FORBIDDEN_OPEN_DESCRIPTION_WORDS: &[&str] = &[
+    "finger", "fingers", "hand", "hands", "arm", "arms",
+    "wrist", "elbow", "shoulder", "weight", "rotation",
+    "movement", "position", "posture", "key depth", "key speed",
+    "sliding", "knuckle", "knuckles", "pad", "tip",
+    "bench", "sitting", "body",
+];
+
+pub const PRE_CONTEXT_SECS: f64 = 120.0;
+pub const POST_CONTEXT_SECS: f64 = 30.0;
+
 pub const VALID_DIMENSIONS: &[&str] = &[
     "dynamics",
     "timing",

@@ -12,14 +12,26 @@ pub struct LlmClient {
     api_key: Option<String>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 struct ChatRequest {
     model: String,
     messages: Vec<ChatMessage>,
     stream: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    temperature: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    response_format: Option<ResponseFormat>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
+pub struct ResponseFormat {
+    #[serde(rename = "type")]
+    pub format_type: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub json_schema: Option<serde_json::Value>,
+}
+
+#[derive(Serialize, Clone)]
 struct ChatMessage {
     role: String,
     content: String,
@@ -80,9 +92,21 @@ impl LlmClient {
     }
 
     pub async fn message(&self, system: &str, user: &str) -> Result<String> {
+        self.message_structured(system, user, None, None).await
+    }
+
+    pub async fn message_structured(
+        &self,
+        system: &str,
+        user: &str,
+        response_format: Option<ResponseFormat>,
+        temperature: Option<f32>,
+    ) -> Result<String> {
         let request = ChatRequest {
             model: self.model.clone(),
             stream: false,
+            temperature,
+            response_format,
             messages: vec![
                 ChatMessage {
                     role: "system".to_string(),

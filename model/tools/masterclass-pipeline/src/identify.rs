@@ -2,6 +2,7 @@ use anyhow::{Context, Result};
 use serde::Deserialize;
 
 use crate::config;
+use crate::extract::{build_forbidden_word_correction_prompt, contains_forbidden_vocabulary};
 use crate::llm_client::LlmClient;
 use crate::schemas::*;
 use crate::store::MasterclassStore;
@@ -86,7 +87,7 @@ pub async fn identify_teaching_moments(
         let (playing_start, playing_end) =
             estimate_playing_bounds(&transcript, detection.timestamp);
 
-        let raw = match extract_moment(client, &video, &context_window, detection, total_stops)
+        let mut raw = match extract_moment(client, &video, &context_window, detection, total_stops)
             .await
         {
             Ok(r) => r,
@@ -99,6 +100,55 @@ pub async fn identify_teaching_moments(
                 continue;
             }
         };
+
+        // Check open_description for forbidden vocabulary and attempt correction
+        if let Some(ref desc) = raw.open_description {
+            if let Some(forbidden_term) = contains_forbidden_vocabulary(desc) {
+                tracing::warn!(
+                    "  Moment {}: open_description '{}' contains forbidden term '{}'",
+                    idx + 1,
+                    desc,
+                    forbidden_term
+                );
+                let correction_prompt =
+                    build_forbidden_word_correction_prompt(desc, forbidden_term);
+                match client
+                    .message_structured(
+                        "You rewrite descriptions to name audible musical qualities only.",
+                        &correction_prompt,
+                        None,
+                        Some(0.0),
+                    )
+                    .await
+                {
+                    Ok(corrected) => {
+                        let corrected = corrected.trim().trim_matches('"').to_string();
+                        if contains_forbidden_vocabulary(&corrected).is_none() {
+                            tracing::info!(
+                                "  Moment {}: corrected '{}' -> '{}'",
+                                idx + 1,
+                                desc,
+                                corrected
+                            );
+                            raw.open_description = Some(corrected);
+                        } else {
+                            tracing::warn!(
+                                "  Moment {}: correction '{}' still forbidden, keeping original",
+                                idx + 1,
+                                corrected
+                            );
+                        }
+                    }
+                    Err(e) => {
+                        tracing::warn!(
+                            "  Moment {}: correction LLM call failed: {}, keeping original",
+                            idx + 1,
+                            e
+                        );
+                    }
+                }
+            }
+        }
 
         let duration = raw.duration_estimate.unwrap_or(30.0).clamp(5.0, 300.0);
 
@@ -130,10 +180,14 @@ pub async fn identify_teaching_moments(
             piece: raw.piece.or_else(|| video.pieces.first().cloned()),
             composer: raw.composer.or_else(|| video.composers.first().cloned()),
             passage_description: raw.passage_description,
-            student_level: raw.student_level,
+            student_level: raw.student_level
+                .or_else(|| video.student_level.clone()),
 
             stop_order: (idx + 1) as u32,
             total_stops,
+            stop_group: (idx + 1) as u32,
+            stop_in_group: 1,
+            group_size: 1,
             time_spent_seconds: duration,
             demonstrated: raw.demonstrated,
 
