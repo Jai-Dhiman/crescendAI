@@ -6,66 +6,51 @@ module.exports = {
   ],
   theme: {
     extend: {
-      // COLOR PALETTE - Academic Paper Aesthetic
+      // COLOR PALETTE - Two-tone monochrome (#FDF8F0 + #2D2926)
       colors: {
-        // Primary: Clay/Terracotta spectrum (warm accent)
+        // Clay mapped to ink monochrome (preserves class names)
         clay: {
-          50:  '#faf7f5',
-          100: '#f0ebe7',
-          200: '#e0d6cf',
-          300: '#c9bab0',
-          400: '#a89386',
-          500: '#8b7668',  // Primary accent
-          600: '#72604f',  // Buttons, links
-          700: '#5a4b3e',
-          800: '#433830',
-          900: '#2d2824',
-          950: '#1e1a17',
+          50:  '#F5F3F1',
+          100: '#E5E2DF',
+          200: '#CCC9C5',
+          300: '#A9A5A0',
+          400: '#827D78',
+          500: '#605B56',
+          600: '#4B4743',
+          700: '#3B3835',
+          800: '#2D2926',
+          900: '#1C1A18',
+          950: '#0F0E0D',
         },
-        // Paper backgrounds (warm whites, parchment)
+        // Paper backgrounds (light tone)
         paper: {
-          50:  '#FDF8F0',  // Main background
-          100: '#f7f3ec',  // Slightly deeper
-          200: '#ede8e0',  // Light warm
-          300: '#e2dbd3',  // Borders
-          400: '#d4cbc0',  // Aged paper
-          500: '#c4b9ab',  // Darker
+          50:  '#FDF8F0',  // Primary light
+          100: '#F7F2EB',
+          200: '#EDE9E2',
+          300: '#E0DCD5',
+          400: '#D2CDC6',
+          500: '#C2BCB5',
         },
-        // Ink tones (text colors)
+        // Ink tones (dark tone)
         ink: {
-          50:  '#f8f7f6',
-          100: '#edeae6',
-          200: '#d9d4cc',
-          300: '#b8b0a3',
-          400: '#968c7d',
-          500: '#746a5c',  // Secondary text
-          600: '#5a524a',  // Body text
-          700: '#433d38',  // Primary text
-          800: '#2d2926',  // Headings
-          900: '#1a1816',  // Darkest
+          50:  '#F5F3F1',
+          100: '#E5E2DF',
+          200: '#CCC9C5',
+          300: '#A9A5A0',
+          400: '#827D78',
+          500: '#605B56',
+          600: '#4B4743',
+          700: '#3B3835',
+          800: '#2D2926',  // Primary dark
+          900: '#1C1A18',
         },
-        // Highlight colors (for metrics, accents)
+        // Highlight mapped to monochrome (preserves class names)
         highlight: {
-          light: '#fcf8e8',
-          DEFAULT: '#c9a227',  // Scholarly gold
-          dark: '#9a7b1a',
+          light: '#F5F3F1',
+          DEFAULT: '#2D2926',
+          dark: '#1C1A18',
         },
-        // Legacy stone (keeping for compatibility during transition)
-        stone: {
-          50:  '#fafaf9',
-          100: '#f5f5f4',
-          150: '#eeede9',
-          200: '#e7e5e4',
-          300: '#d6d3d1',
-          400: '#a8a29e',
-          500: '#78716c',
-          600: '#57534e',
-          700: '#44403c',
-          800: '#292524',
-          900: '#1c1917',
-          950: '#0c0a09',
-        },
-        // Semantic colors with warm undertones
+        // Semantic colors (functional, used on analyze page)
         success: {
           light: '#ecfdf5',
           DEFAULT: '#059669',
@@ -92,11 +77,12 @@ module.exports = {
       fontFamily: {
         display: ['"Lora"', 'Georgia', 'serif'],
         serif: ['"Lora"', 'Georgia', 'serif'],
-        sans: ['"Inter"', 'system-ui', 'sans-serif'],
+        sans: ['"Lora"', 'Georgia', 'serif'],
         mono: ['"JetBrains Mono"', 'Consolas', 'monospace'],
       },
       fontSize: {
         // Display sizes for hero sections
+        'display-3xl': ['6rem', { lineHeight: '1', letterSpacing: '-0.03em', fontWeight: '400' }],
         'display-2xl': ['4.5rem', { lineHeight: '1', letterSpacing: '-0.02em', fontWeight: '500' }],
         'display-xl': ['3.75rem', { lineHeight: '1.05', letterSpacing: '-0.02em', fontWeight: '500' }],
         'display-lg': ['3rem', { lineHeight: '1.1', letterSpacing: '-0.01em', fontWeight: '500' }],
@@ -150,16 +136,16 @@ module.exports = {
         '64': '16rem',
       },
 
-      // BORDER RADIUS - Slightly more rounded for warmth
+      // BORDER RADIUS - Sharp edges (editorial)
       borderRadius: {
         'none': '0',
-        'xs': '0.125rem',
-        'sm': '0.1875rem',
-        'DEFAULT': '0.25rem',
-        'md': '0.375rem',
-        'lg': '0.5rem',
-        'xl': '0.75rem',
-        '2xl': '1rem',
+        'xs': '0',
+        'sm': '0',
+        'DEFAULT': '0',
+        'md': '0',
+        'lg': '0',
+        'xl': '0',
+        '2xl': '0',
         'full': '9999px',
       },
 
@@ -176,11 +162,11 @@ module.exports = {
         'button-active': '0 1px 2px 0 rgba(37, 31, 26, 0.06)',
         'card': '0 1px 3px 0 rgba(37, 31, 26, 0.04), 0 1px 2px -1px rgba(37, 31, 26, 0.04)',
         'card-hover': '0 8px 16px -4px rgba(37, 31, 26, 0.08), 0 4px 6px -2px rgba(37, 31, 26, 0.04)',
-        'clay': '0 4px 14px -2px rgba(139, 118, 104, 0.20)',
-        'clay-lg': '0 8px 24px -4px rgba(139, 118, 104, 0.25)',
+        'clay': '0 4px 14px -2px rgba(45, 41, 38, 0.15)',
+        'clay-lg': '0 8px 24px -4px rgba(45, 41, 38, 0.20)',
         'inner-sm': 'inset 0 1px 2px 0 rgba(37, 31, 26, 0.04)',
         'inner': 'inset 0 2px 4px 0 rgba(37, 31, 26, 0.06)',
-        'glow': '0 0 20px rgba(139, 118, 104, 0.15)',
+        'glow': '0 0 20px rgba(45, 41, 38, 0.10)',
       },
 
       // TRANSITIONS & ANIMATIONS
@@ -272,9 +258,9 @@ module.exports = {
 
       // BACKGROUND IMAGES
       backgroundImage: {
-        'gradient-clay': 'linear-gradient(135deg, #8b7668 0%, #72604f 100%)',
-        'gradient-clay-subtle': 'linear-gradient(135deg, #e0d6cf 0%, #c9bab0 100%)',
-        'gradient-cta': 'linear-gradient(135deg, #72604f 0%, #5a4b3e 100%)',
+        'gradient-clay': 'linear-gradient(135deg, #3B3835 0%, #2D2926 100%)',
+        'gradient-clay-subtle': 'linear-gradient(135deg, #CCC9C5 0%, #A9A5A0 100%)',
+        'gradient-cta': 'linear-gradient(135deg, #4B4743 0%, #3B3835 100%)',
         'noise': "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E\")",
       },
       backdropBlur: {

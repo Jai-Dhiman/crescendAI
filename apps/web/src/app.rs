@@ -18,7 +18,7 @@ pub fn App() -> impl IntoView {
         <Link rel="preconnect" href="https://fonts.googleapis.com"/>
         <Link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous"/>
         <Link
-            href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap"
+            href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;500&display=swap"
             rel="stylesheet"
         />
 
@@ -99,33 +99,31 @@ fn NotFound() -> impl IntoView {
 #[component]
 fn Footer() -> impl IntoView {
     view! {
-        <footer class="border-t border-paper-300 mt-auto bg-paper-100">
-            <div class="container-wide py-10">
-                <div class="flex flex-col md:flex-row items-center justify-between gap-6">
-                    // Logo and name
-                    <div class="flex items-center gap-3">
-                        <img
-                            src="/crescendai.png"
-                            alt="Crescend Logo"
-                            class="w-8 h-8 rounded-md"
-                        />
-                        <span class="font-display text-lg font-medium text-ink-800">
-                            "Crescend"
-                        </span>
-                    </div>
+        <footer class="mt-auto py-12 lg:py-16">
+            <div class="container-editorial">
+                <hr class="editorial-rule mb-12 lg:mb-16" />
 
-                    // Links
-                    <div class="flex items-center gap-6 text-body-sm">
-                        <a href="https://arxiv.org/abs/2601.19029" target="_blank" rel="noopener" class="text-clay-600 hover:text-clay-700 underline underline-offset-2">
+                <div class="grid grid-cols-1 lg:grid-cols-[1fr_auto_1fr] gap-8 items-start text-center lg:text-left">
+                    // Left: large brand name
+                    <a href="/" class="font-display text-display-md text-ink-900 tracking-tight">
+                        "Crescend"
+                    </a>
+
+                    // Center: page links
+                    <nav class="flex flex-row lg:flex-col items-center lg:items-start gap-3 justify-center text-body-sm">
+                        <a href="https://arxiv.org/abs/2601.19029" target="_blank" rel="noopener" class="editorial-nav-link">
                             "Paper"
                         </a>
-                        <a href="mailto:jai@crescend.ai" class="text-clay-600 hover:text-clay-700 underline underline-offset-2">
-                            "Contact"
+                        <a href="/#how-it-works" class="editorial-nav-link">
+                            "How It Works"
                         </a>
-                    </div>
+                        <a href="/analyze" class="editorial-nav-link">
+                            "Analyze"
+                        </a>
+                    </nav>
 
-                    // Privacy + Copyright
-                    <div class="text-right">
+                    // Right: privacy + copyright
+                    <div class="lg:text-right">
                         <p class="text-body-xs text-ink-500 mb-1">
                             "Your recordings are yours. We don't store or train on your data."
                         </p>
