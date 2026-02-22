@@ -16,7 +16,6 @@ pub fn LandingPage() -> impl IntoView {
             <FeedbackSection />
             <hr class="editorial-rule" />
             <ResearchSection />
-            <hr class="editorial-rule" />
             <FinalCtaSection />
         </div>
     }
@@ -47,9 +46,12 @@ fn HeroSection() -> impl IntoView {
                 </div>
 
                 <div class="editorial-bleed-image">
-                    <div class="editorial-placeholder">
-                        "Product UI screenshot: radar chart + feedback"
-                    </div>
+                    <img
+                        src="/Image1.jpg"
+                        alt="Grand piano seen from above"
+                        class="w-full object-cover"
+                        style="aspect-ratio: 7/8;"
+                    />
                 </div>
             </div>
         </section>
@@ -61,14 +63,21 @@ fn HeroSection() -> impl IntoView {
 #[component]
 fn SocialProofBar() -> impl IntoView {
     view! {
-        <section class="py-6 md:py-8">
+        <section class="py-10 md:py-14">
             <div class="container-editorial">
-                <div class="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-0 text-body-sm text-ink-500">
-                    <span>"Published research"</span>
-                    <span class="hidden sm:block w-px h-4 bg-paper-300 mx-6" aria-hidden="true"></span>
-                    <span>"30+ educator interviews"</span>
-                    <span class="hidden sm:block w-px h-4 bg-paper-300 mx-6" aria-hidden="true"></span>
-                    <span>"55% more accurate than note-based approaches"</span>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-8 text-center">
+                    <div>
+                        <p class="font-display text-display-md text-ink-900">"55%"</p>
+                        <p class="text-label-sm uppercase tracking-wider text-clay-600 mt-1">"More accurate"</p>
+                    </div>
+                    <div>
+                        <p class="font-display text-display-md text-ink-900">"30+"</p>
+                        <p class="text-label-sm uppercase tracking-wider text-clay-600 mt-1">"Educator interviews"</p>
+                    </div>
+                    <div>
+                        <p class="font-display text-display-md text-ink-900">"15s"</p>
+                        <p class="text-label-sm uppercase tracking-wider text-clay-600 mt-1">"To get feedback"</p>
+                    </div>
                 </div>
             </div>
         </section>
@@ -82,19 +91,13 @@ fn ProblemSection() -> impl IntoView {
     view! {
         <section class="py-16 md:py-24">
             <div class="container-editorial">
-                <div class="editorial-grid">
-                    // Left column: punchy copy
-                    <div>
-                        <h2 class="font-display text-display-sm md:text-display-md text-ink-900 mb-6">
-                            "Any app can check your notes."
-                        </h2>
-                        <p class="text-body-lg text-ink-600 max-w-md">
-                            "But that's not what separates good playing from great playing. Your tone. Your dynamics. Your phrasing. That's always needed a teacher."
-                        </p>
-                    </div>
-
-                    // Right column: deliberate whitespace
-                    <div></div>
+                <div class="max-w-2xl mx-auto text-center">
+                    <h2 class="font-display text-display-sm md:text-display-lg text-ink-900 mb-6">
+                        "Any app can check your notes."
+                    </h2>
+                    <p class="text-body-lg text-ink-600">
+                        "But that's not what separates good playing from great playing. Your tone. Your dynamics. Your phrasing. That's always needed a teacher."
+                    </p>
                 </div>
             </div>
         </section>
@@ -106,35 +109,40 @@ fn ProblemSection() -> impl IntoView {
 #[component]
 fn HowItWorksSection() -> impl IntoView {
     view! {
-        <section id="how-it-works" class="scroll-mt-20">
-            <div class="editorial-bleed">
-                <div class="editorial-bleed-text">
-                    <h2 class="font-display text-display-sm md:text-display-md text-ink-900 mb-4">
-                        "How It Works"
-                    </h2>
-                    <p class="text-body-lg text-ink-600">
-                        "Under 15 seconds from recording to feedback."
-                    </p>
-                </div>
-
-                <div class="editorial-bleed-image">
-                    <div class="editorial-placeholder">
-                        "Product UI: upload to analysis flow"
+        <section id="how-it-works" class="scroll-mt-20 py-16 md:py-24">
+            <div class="container-editorial">
+                <div class="grid grid-cols-1 lg:grid-cols-[2fr_3fr] gap-8 lg:gap-16 items-start">
+                    // Left column: image
+                    <div>
+                        <img
+                            src="/Image2.jpg"
+                            alt="Sheet music resting on vintage piano keys"
+                            class="w-full object-cover rounded"
+                            style="aspect-ratio: 4/5;"
+                        />
                     </div>
 
-                    <div class="px-6 sm:px-8 lg:pr-12 mt-8">
-                        <ol class="space-y-4">
-                            <li class="flex gap-4 items-baseline">
-                                <span class="font-display text-display-sm text-paper-400">"1"</span>
-                                <span class="text-body-md text-ink-700">"Record yourself playing"</span>
+                    // Right column: heading + steps
+                    <div>
+                        <h2 class="font-display text-display-sm md:text-display-md text-ink-900 mb-4">
+                            "How It Works"
+                        </h2>
+                        <p class="text-body-lg text-ink-600 mb-10">
+                            "Under 15 seconds from recording to feedback."
+                        </p>
+
+                        <ol class="space-y-8">
+                            <li>
+                                <span class="font-display text-display-xl text-paper-300 block leading-none">"01"</span>
+                                <p class="text-body-md text-ink-700 mt-1">"Record yourself playing"</p>
                             </li>
-                            <li class="flex gap-4 items-baseline">
-                                <span class="font-display text-display-sm text-paper-400">"2"</span>
-                                <span class="text-body-md text-ink-700">"Upload your recording"</span>
+                            <li>
+                                <span class="font-display text-display-xl text-paper-300 block leading-none">"02"</span>
+                                <p class="text-body-md text-ink-700 mt-1">"Upload your recording"</p>
                             </li>
-                            <li class="flex gap-4 items-baseline">
-                                <span class="font-display text-display-sm text-paper-400">"3"</span>
-                                <span class="text-body-md text-ink-700">"Get detailed feedback on what to improve"</span>
+                            <li>
+                                <span class="font-display text-display-xl text-paper-300 block leading-none">"03"</span>
+                                <p class="text-body-md text-ink-700 mt-1">"Get detailed feedback on what to improve"</p>
                             </li>
                         </ol>
                     </div>
@@ -149,27 +157,19 @@ fn HowItWorksSection() -> impl IntoView {
 #[component]
 fn FeedbackSection() -> impl IntoView {
     view! {
-        <section>
-            <div class="editorial-bleed">
-                <div class="editorial-bleed-text">
-                    <h2 class="font-display text-display-sm md:text-display-md text-ink-900 mb-3">
-                        "Real Feedback"
-                    </h2>
-                    <p class="text-label-sm uppercase tracking-wider text-clay-600 mb-4">
-                        "Chopin -- Ballade No. 1 in G minor"
-                    </p>
-                    <p class="text-body-md text-ink-600 max-w-sm">
-                        "Not 'good job' or a letter grade. Specific, actionable feedback on exactly what to practice."
-                    </p>
-                </div>
+        <section class="py-16 md:py-24">
+            <div class="container-editorial">
+                <div class="grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-8 lg:gap-16 items-start">
+                    // Left column: image + feedback cards (first on mobile)
+                    <div class="order-2 lg:order-1">
+                        <img
+                            src="/Image3.jpg"
+                            alt="Close-up of classical piano score with dynamic markings"
+                            class="w-full object-cover rounded"
+                            style="aspect-ratio: 3/2;"
+                        />
 
-                <div class="editorial-bleed-image">
-                    <div class="editorial-placeholder">
-                        "Zoomed screenshot of feedback card"
-                    </div>
-
-                    <div class="px-6 sm:px-8 lg:pr-12 mt-8">
-                        <div class="space-y-4">
+                        <div class="mt-8 space-y-4">
                             <div class="border-l-2 border-clay-400 pl-4">
                                 <p class="text-label-sm font-medium text-clay-700 mb-1">"Sound Quality"</p>
                                 <p class="text-body-sm text-ink-600 leading-relaxed">
@@ -184,6 +184,19 @@ fn FeedbackSection() -> impl IntoView {
                             </div>
                         </div>
                     </div>
+
+                    // Right column: heading + context (second on mobile)
+                    <div class="order-1 lg:order-2">
+                        <h2 class="font-display text-display-sm md:text-display-md text-ink-900 mb-3">
+                            "Real Feedback"
+                        </h2>
+                        <p class="text-label-sm uppercase tracking-wider text-clay-600 mb-4">
+                            "Chopin -- Ballade No. 1 in G minor"
+                        </p>
+                        <p class="text-body-md text-ink-600 max-w-sm">
+                            "Not 'good job' or a letter grade. Specific, actionable feedback on exactly what to practice."
+                        </p>
+                    </div>
                 </div>
             </div>
         </section>
@@ -195,30 +208,50 @@ fn FeedbackSection() -> impl IntoView {
 #[component]
 fn ResearchSection() -> impl IntoView {
     view! {
-        <section>
-            <div class="editorial-bleed">
-                <div class="editorial-bleed-text">
-                    <h2 class="font-display text-display-sm md:text-display-md text-ink-900 mb-6">
-                        "Built on Research"
-                    </h2>
-                    <p class="text-body-lg text-ink-600 mb-8 max-w-md">
-                        "Trained on thousands of hours of professional performances to hear what a great teacher hears. Published, peer-reviewed, and validated against real educator assessments."
-                    </p>
+        <section class="py-16 md:py-24">
+            <div class="container-editorial">
+                <div class="grid grid-cols-1 lg:grid-cols-[2fr_3fr] gap-8 lg:gap-16 items-start">
+                    // Left column: text + stats
+                    <div>
+                        <h2 class="font-display text-display-sm md:text-display-md text-ink-900 mb-6">
+                            "Built on Research"
+                        </h2>
+                        <p class="text-body-lg text-ink-600 mb-8">
+                            "Trained on thousands of hours of professional performances to hear what a great teacher hears. Published, peer-reviewed, and validated against real educator assessments."
+                        </p>
 
-                    <div class="flex flex-wrap gap-x-6 gap-y-2 text-body-sm text-ink-500">
-                        <span>"55% more accurate"</span>
-                        <span class="text-paper-400" aria-hidden="true">"|"</span>
-                        <span>"30+ educator interviews"</span>
-                        <span class="text-paper-400" aria-hidden="true">"|"</span>
-                        <a href="https://arxiv.org/abs/2601.19029" target="_blank" rel="noopener" class="underline underline-offset-2">
+                        <div class="grid grid-cols-2 gap-6 mb-8">
+                            <div>
+                                <p class="font-display text-display-md text-ink-900">"55%"</p>
+                                <p class="text-label-sm uppercase tracking-wider text-clay-600 mt-1">"More accurate"</p>
+                            </div>
+                            <div>
+                                <p class="font-display text-display-md text-ink-900">"30+"</p>
+                                <p class="text-label-sm uppercase tracking-wider text-clay-600 mt-1">"Educator interviews"</p>
+                            </div>
+                        </div>
+
+                        <a
+                            href="https://arxiv.org/abs/2601.19029"
+                            target="_blank"
+                            rel="noopener"
+                            class="inline-flex items-center gap-2 text-body-sm text-clay-600 underline underline-offset-2 hover:text-clay-700"
+                        >
                             "Published on arXiv"
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                            </svg>
                         </a>
                     </div>
-                </div>
 
-                <div class="editorial-bleed-image">
-                    <div class="editorial-placeholder">
-                        "Photo: hands on piano keys"
+                    // Right column: image
+                    <div>
+                        <img
+                            src="/Image4.jpg"
+                            alt="Hands playing piano in dramatic light"
+                            class="w-full object-cover rounded"
+                            style="aspect-ratio: 1/1;"
+                        />
                     </div>
                 </div>
             </div>
@@ -231,24 +264,14 @@ fn ResearchSection() -> impl IntoView {
 #[component]
 fn FinalCtaSection() -> impl IntoView {
     view! {
-        <section class="py-16 md:py-24">
-            <div class="container-editorial">
-                <div class="grid grid-cols-1 lg:grid-cols-[1fr_2fr] gap-8 lg:gap-16 items-center">
-                    // Left: label
-                    <p class="text-label-sm uppercase tracking-wider text-clay-600">
-                        "Free to use"
-                    </p>
-
-                    // Right: heading + CTA
-                    <div>
-                        <h2 class="font-display text-display-sm md:text-display-md text-ink-900 mb-6">
-                            "Ready to hear what your playing really sounds like?"
-                        </h2>
-                        <a href="/analyze" class="btn-primary text-lg px-8 py-4">
-                            "Start Free"
-                        </a>
-                    </div>
-                </div>
+        <section class="bg-clay-800 text-paper-50 py-20 md:py-32">
+            <div class="container-editorial text-center">
+                <h2 class="font-display text-display-md md:text-display-xl text-paper-50 mb-8">
+                    "Ready to hear what your playing really sounds like?"
+                </h2>
+                <a href="/analyze" class="btn-primary-inverted text-lg px-8 py-4">
+                    "Start Free"
+                </a>
             </div>
         </section>
     }

@@ -429,9 +429,16 @@
     @apply w-full px-6 sm:px-8 lg:px-0;
   }
 
-  .editorial-placeholder {
-    @apply w-full bg-paper-200 flex items-center justify-center text-ink-400 text-body-sm;
-    aspect-ratio: 4 / 5;
+  .btn-primary-inverted {
+    @apply inline-flex items-center justify-center gap-2
+           px-6 py-3
+           bg-paper-50 text-clay-800 font-medium
+           rounded-md shadow-button
+           transition-all duration-300
+           hover:bg-paper-100 hover:shadow-button-hover
+           active:bg-paper-200 active:shadow-button-active active:scale-[0.98]
+           focus-visible:ring-2 focus-visible:ring-paper-300 focus-visible:ring-offset-2 focus-visible:ring-offset-clay-800;
+    transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
   }
 }
 
