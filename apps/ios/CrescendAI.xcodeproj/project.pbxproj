@@ -29,6 +29,7 @@
 		A100000020 /* APIEndpoints.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000020; };
 		A100000021 /* APIModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000021; };
 		A100000022 /* AudioMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000023; };
+		A100000023 /* PulseView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000024; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -56,6 +57,7 @@
 		B100000021 /* APIModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIModels.swift; sourceTree = "<group>"; };
 		B100000022 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		B100000023 /* AudioMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioMonitor.swift; sourceTree = "<group>"; };
+		B100000024 /* PulseView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PulseView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -144,6 +146,7 @@
 			isa = PBXGroup;
 			children = (
 				B100000023 /* AudioMonitor.swift */,
+				B100000024 /* PulseView.swift */,
 			);
 			path = Listening;
 			sourceTree = "<group>";
@@ -317,6 +320,7 @@
 				A100000020 /* APIEndpoints.swift in Sources */,
 				A100000021 /* APIModels.swift in Sources */,
 				A100000022 /* AudioMonitor.swift in Sources */,
+				A100000023 /* PulseView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
