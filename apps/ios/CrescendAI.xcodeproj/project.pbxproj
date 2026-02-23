@@ -35,6 +35,7 @@
 		A100000026 /* ChatBlockViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000027; };
 		A100000027 /* ChatMessageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000028; };
 		A100000028 /* SuggestionChipsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000029; };
+		A100000029 /* FeedbackChatViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000030; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -68,6 +69,7 @@
 		B100000027 /* ChatBlockViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatBlockViews.swift; sourceTree = "<group>"; };
 		B100000028 /* ChatMessageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatMessageView.swift; sourceTree = "<group>"; };
 		B100000029 /* SuggestionChipsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuggestionChipsView.swift; sourceTree = "<group>"; };
+		B100000030 /* FeedbackChatViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedbackChatViewModel.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -161,6 +163,7 @@
 				B100000027 /* ChatBlockViews.swift */,
 				B100000028 /* ChatMessageView.swift */,
 				B100000029 /* SuggestionChipsView.swift */,
+				B100000030 /* FeedbackChatViewModel.swift */,
 			);
 			path = Chat;
 			sourceTree = "<group>";
@@ -349,6 +352,7 @@
 				A100000026 /* ChatBlockViews.swift in Sources */,
 				A100000027 /* ChatMessageView.swift in Sources */,
 				A100000028 /* SuggestionChipsView.swift in Sources */,
+				A100000029 /* FeedbackChatViewModel.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
