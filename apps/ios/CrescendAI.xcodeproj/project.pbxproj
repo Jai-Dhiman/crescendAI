@@ -28,6 +28,7 @@
 		A100000019 /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000019; };
 		A100000020 /* APIEndpoints.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000020; };
 		A100000021 /* APIModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000021; };
+		A100000022 /* AudioMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000023; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -54,6 +55,7 @@
 		B100000020 /* APIEndpoints.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIEndpoints.swift; sourceTree = "<group>"; };
 		B100000021 /* APIModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIModels.swift; sourceTree = "<group>"; };
 		B100000022 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		B100000023 /* AudioMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioMonitor.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -130,11 +132,20 @@
 			isa = PBXGroup;
 			children = (
 				E100000009 /* Home */,
+				E100000021 /* Listening */,
 				E100000010 /* Recording */,
 				E100000011 /* Analysis */,
 				E100000012 /* MIDI */,
 			);
 			path = Features;
+			sourceTree = "<group>";
+		};
+		E100000021 /* Listening */ = {
+			isa = PBXGroup;
+			children = (
+				B100000023 /* AudioMonitor.swift */,
+			);
+			path = Listening;
 			sourceTree = "<group>";
 		};
 		E100000009 /* Home */ = {
@@ -305,6 +316,7 @@
 				A100000019 /* APIClient.swift in Sources */,
 				A100000020 /* APIEndpoints.swift in Sources */,
 				A100000021 /* APIModels.swift in Sources */,
+				A100000022 /* AudioMonitor.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
