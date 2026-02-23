@@ -37,6 +37,8 @@
 		A100000028 /* SuggestionChipsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000029; };
 		A100000029 /* FeedbackChatViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000030; };
 		A100000030 /* FeedbackChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000031; };
+		A100000031 /* ListeningViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000032; };
+		A100000032 /* ListeningView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000033; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -72,6 +74,8 @@
 		B100000029 /* SuggestionChipsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuggestionChipsView.swift; sourceTree = "<group>"; };
 		B100000030 /* FeedbackChatViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedbackChatViewModel.swift; sourceTree = "<group>"; };
 		B100000031 /* FeedbackChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedbackChatView.swift; sourceTree = "<group>"; };
+		B100000032 /* ListeningViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListeningViewModel.swift; sourceTree = "<group>"; };
+		B100000033 /* ListeningView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListeningView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -176,6 +180,8 @@
 			children = (
 				B100000023 /* AudioMonitor.swift */,
 				B100000024 /* PulseView.swift */,
+				B100000032 /* ListeningViewModel.swift */,
+				B100000033 /* ListeningView.swift */,
 			);
 			path = Listening;
 			sourceTree = "<group>";
@@ -357,6 +363,8 @@
 				A100000028 /* SuggestionChipsView.swift in Sources */,
 				A100000029 /* FeedbackChatViewModel.swift in Sources */,
 				A100000030 /* FeedbackChatView.swift in Sources */,
+				A100000031 /* ListeningViewModel.swift in Sources */,
+				A100000032 /* ListeningView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
