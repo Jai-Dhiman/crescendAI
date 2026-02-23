@@ -78,32 +78,33 @@ def select_dimensions(
     candidates: dict[int, dict],
     freq_threshold: float = 0.05,
     freq_drop_threshold: float = 0.03,
-) -> tuple[dict[int, dict], dict[int, dict]]:
+) -> tuple[dict[int, dict], dict[int, dict], dict[int, dict]]:
     """Apply selection criteria from the spec.
 
     Keep if: frequency > freq_threshold AND at least one soft signal > 0.
     Drop if: frequency < freq_drop_threshold AND no soft signal.
+    Marginal: everything else (borderline frequency or missing soft signals).
 
     Args:
         candidates: {cluster_id: {frequency, muq_r2, stop_delta_auc}}.
 
     Returns:
-        (kept, dropped) dicts.
+        (kept, dropped, marginal) dicts.
     """
     kept = {}
     dropped = {}
+    marginal = {}
     for cid, scores in candidates.items():
         freq = scores["frequency"]
         has_soft = scores.get("muq_r2", 0) > 0 or scores.get("stop_delta_auc", 0) > 0
 
-        if freq >= freq_threshold and has_soft:
+        if freq > freq_threshold and has_soft:
             kept[cid] = scores
         elif freq < freq_drop_threshold and not has_soft:
             dropped[cid] = scores
         else:
-            # Marginal: freq >= drop_threshold but < threshold, or no soft signal
-            dropped[cid] = scores
-    return kept, dropped
+            marginal[cid] = scores
+    return kept, dropped, marginal
 
 
 def build_hierarchy(

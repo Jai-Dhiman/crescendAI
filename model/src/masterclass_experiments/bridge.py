@@ -57,6 +57,18 @@ def compute_composite_labels(
     Returns:
         {segment_key: {teacher_dim: composite_score}}.
     """
+    # Validate all PercePiano dimensions in weights exist in dim_index
+    missing = []
+    for teacher_dim, dim_weights in weights.items():
+        for pp_dim in dim_weights:
+            if pp_dim not in dim_index:
+                missing.append((teacher_dim, pp_dim))
+    if missing:
+        details = ", ".join(f"{td}->{pp}" for td, pp in missing)
+        raise ValueError(
+            f"PercePiano dimensions not found in dim_index: {details}"
+        )
+
     composites: dict[str, dict[str, float]] = {}
 
     for seg_key, label_vec in percepiano_labels.items():
@@ -64,8 +76,8 @@ def compute_composite_labels(
         for teacher_dim, dim_weights in weights.items():
             score = 0.0
             for pp_dim, w in dim_weights.items():
-                idx = dim_index.get(pp_dim)
-                if idx is not None and idx < len(label_vec):
+                idx = dim_index[pp_dim]
+                if idx < len(label_vec):
                     score += w * float(label_vec[idx])
             seg_composites[teacher_dim] = score
         composites[seg_key] = seg_composites

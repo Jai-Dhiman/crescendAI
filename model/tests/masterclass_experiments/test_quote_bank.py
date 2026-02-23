@@ -94,3 +94,37 @@ def test_build_quote_bank_sorted_by_severity():
     # Critical should come before minor
     assert bank["dynamics"][0]["severity"] == "critical"
     assert bank["dynamics"][1]["severity"] == "minor"
+
+
+def test_build_quote_bank_sorted_by_severity_then_feedback_type():
+    from masterclass_experiments.quote_bank import build_quote_bank
+
+    moments = [
+        {
+            "moment_id": "a",
+            "feedback_summary": "Suggestion.",
+            "transcript_text": "[1s] Text.",
+            "teacher": "T",
+            "severity": "moderate",
+            "feedback_type": "suggestion",
+            "piece": None,
+            "composer": None,
+        },
+        {
+            "moment_id": "b",
+            "feedback_summary": "Correction.",
+            "transcript_text": "[2s] Text.",
+            "teacher": "T",
+            "severity": "moderate",
+            "feedback_type": "correction",
+            "piece": None,
+            "composer": None,
+        },
+    ]
+    assignments = {"a": "dynamics", "b": "dynamics"}
+
+    bank = build_quote_bank(moments, assignments)
+
+    # Same severity -> sorted by feedback_type alphabetically
+    assert bank["dynamics"][0]["feedback_type"] == "correction"
+    assert bank["dynamics"][1]["feedback_type"] == "suggestion"

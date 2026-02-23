@@ -72,6 +72,17 @@ def test_compute_composite_labels():
     assert composites["seg_b"]["sound"] == pytest.approx(0.48, abs=0.01)
 
 
+def test_compute_composite_labels_missing_dim_raises():
+    from masterclass_experiments.bridge import compute_composite_labels
+
+    labels = {"seg_a": np.array([0.5] * 19)}
+    weights = {"sound": {"nonexistent_dim": 1.0}}
+    dim_index = {"timing": 0}
+
+    with pytest.raises(ValueError, match="not found in dim_index"):
+        compute_composite_labels(labels, weights, dim_index)
+
+
 def test_save_and_load_composite_labels():
     from masterclass_experiments.bridge import save_composite_labels, load_composite_labels
 

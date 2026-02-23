@@ -35,6 +35,40 @@ def test_build_rubric():
     assert len(rubric["dynamics"]["anchors"]) == 5
 
 
+def test_build_rubric_positive_uses_praise():
+    """Positive anchor should use praise quotes, not require minor+praise."""
+    from masterclass_experiments.distillation import build_rubric
+
+    taxonomy = {"dynamics": {"description": "Dynamic control"}}
+    quote_bank = {
+        "dynamics": [
+            {"feedback_summary": "Wonderful crescendo", "severity": "moderate", "feedback_type": "praise"},
+            {"feedback_summary": "Needs work", "severity": "significant", "feedback_type": "correction"},
+        ],
+    }
+
+    rubric = build_rubric(taxonomy, quote_bank)
+    # Should pick the praise quote, not fall back to "Excellent quality"
+    assert "Wonderful crescendo" in rubric["dynamics"]["anchors"][5]
+
+
+def test_build_rubric_positive_uses_minor_severity():
+    """Positive anchor should also accept minor/moderate severity even without praise type."""
+    from masterclass_experiments.distillation import build_rubric
+
+    taxonomy = {"dynamics": {"description": "Dynamic control"}}
+    quote_bank = {
+        "dynamics": [
+            {"feedback_summary": "Slight timing issue", "severity": "minor", "feedback_type": "suggestion"},
+            {"feedback_summary": "Very poor dynamics", "severity": "critical", "feedback_type": "correction"},
+        ],
+    }
+
+    rubric = build_rubric(taxonomy, quote_bank)
+    # Minor severity should qualify as positive (dimension done relatively well)
+    assert "Slight timing issue" in rubric["dynamics"]["anchors"][5]
+
+
 def test_build_scoring_prompt():
     from masterclass_experiments.distillation import build_scoring_prompt
 

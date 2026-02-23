@@ -71,11 +71,11 @@ def test_select_dimensions_keeps_frequent():
         1: {"frequency": 0.08, "muq_r2": 0.0, "stop_delta_auc": 0.0},
         2: {"frequency": 0.02, "muq_r2": 0.0, "stop_delta_auc": 0.0},
     }
-    kept, dropped = select_dimensions(candidates)
+    kept, dropped, marginal = select_dimensions(candidates)
     # Cluster 0: freq > 5% AND muq_r2 > 0 -> KEEP
     assert 0 in kept
-    # Cluster 1: freq > 5% but no soft signal -> DROP
-    assert 1 in dropped
+    # Cluster 1: freq > 5% but no soft signal -> MARGINAL
+    assert 1 in marginal
     # Cluster 2: freq < 3% and no soft signal -> DROP
     assert 2 in dropped
 
@@ -86,9 +86,21 @@ def test_select_dimensions_keeps_with_stop_signal():
     candidates = {
         0: {"frequency": 0.06, "muq_r2": 0.0, "stop_delta_auc": 0.03},
     }
-    kept, _ = select_dimensions(candidates)
+    kept, _, _ = select_dimensions(candidates)
     # freq > 5% AND stop_delta_auc > 0 -> KEEP
     assert 0 in kept
+
+
+def test_select_dimensions_exact_boundary_is_marginal():
+    from masterclass_experiments.scoring import select_dimensions
+
+    candidates = {
+        0: {"frequency": 0.05, "muq_r2": 0.5, "stop_delta_auc": 0.0},
+    }
+    kept, dropped, marginal = select_dimensions(candidates)
+    # freq == 5% (not strictly >) -> MARGINAL, not kept
+    assert 0 not in kept
+    assert 0 in marginal
 
 
 def test_build_hierarchy():

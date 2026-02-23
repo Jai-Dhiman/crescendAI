@@ -27,7 +27,10 @@ def build_rubric(
 
         # Extract negative and positive examples from quotes
         negative = [q["feedback_summary"] for q in quotes if q.get("severity") in ("critical", "significant")]
-        positive = [q["feedback_summary"] for q in quotes if q.get("severity") == "minor" and q.get("feedback_type") == "praise"]
+        positive = [
+            q["feedback_summary"] for q in quotes
+            if q.get("feedback_type") == "praise" or q.get("severity") in ("minor", "moderate")
+        ]
 
         neg_example = negative[0] if negative else "Poor quality"
         pos_example = positive[0] if positive else "Excellent quality"

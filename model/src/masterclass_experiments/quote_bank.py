@@ -42,7 +42,7 @@ def build_quote_bank(
 
     # Sort by severity (critical first) then feedback_type
     for dim in by_dim:
-        by_dim[dim].sort(key=lambda e: SEVERITY_ORDER.get(e["severity"], 99))
+        by_dim[dim].sort(key=lambda e: (SEVERITY_ORDER.get(e["severity"], 99), e.get("feedback_type", "")))
         by_dim[dim] = by_dim[dim][:max_per_dim]
 
     return by_dim
