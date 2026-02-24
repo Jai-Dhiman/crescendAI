@@ -137,3 +137,12 @@ class TestMuQFullUnfreezeModel:
         loss = model.training_step(batch, 0)
         assert loss.ndim == 0
         assert loss.item() > 0
+
+
+def test_default_num_labels_is_taxonomy():
+    from model_improvement.taxonomy import NUM_DIMS
+    model = MuQLoRAModel(
+        input_dim=1024, hidden_dim=512,
+        use_pretrained_muq=False,
+    )
+    assert model.num_labels == NUM_DIMS

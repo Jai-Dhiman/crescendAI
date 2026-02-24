@@ -8,6 +8,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from disentanglement.losses import DimensionWiseRankingLoss, piece_based_infonce_loss
+from model_improvement.taxonomy import NUM_DIMS
 
 
 class TransformerSymbolicEncoder(pl.LightningModule):
@@ -343,7 +344,7 @@ class GNNSymbolicEncoder(pl.LightningModule):
         node_features: int = 6,
         hidden_dim: int = 512,
         num_layers: int = 4,
-        num_labels: int = 19,
+        num_labels: int = NUM_DIMS,
         heads: int = 4,
         dropout: float = 0.1,
         stage: str = "finetune",
@@ -658,7 +659,7 @@ class GNNHeteroSymbolicEncoder(pl.LightningModule):
         node_features: int = 6,
         hidden_dim: int = 512,
         num_layers: int = 3,
-        num_labels: int = 19,
+        num_labels: int = NUM_DIMS,
         dropout: float = 0.1,
         stage: str = "finetune",
         learning_rate: float = 1e-4,
@@ -1038,7 +1039,7 @@ class ContinuousSymbolicEncoder(pl.LightningModule):
         self,
         input_channels: int = 5,
         hidden_dim: int = 512,
-        num_labels: int = 19,
+        num_labels: int = NUM_DIMS,
         cnn_kernel_sizes: tuple[int, ...] = (3, 7, 15),
         nhead: int = 8,
         num_transformer_layers: int = 4,

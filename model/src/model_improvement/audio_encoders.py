@@ -6,6 +6,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from model_improvement.losses import DimensionWiseRankingLoss, piece_based_infonce_loss
+from model_improvement.taxonomy import NUM_DIMS
 
 
 class MuQLoRAModel(pl.LightningModule):
@@ -29,7 +30,7 @@ class MuQLoRAModel(pl.LightningModule):
         input_dim: int = 1024,
         hidden_dim: int = 512,
         projection_dim: int = 256,
-        num_labels: int = 19,
+        num_labels: int = NUM_DIMS,
         dropout: float = 0.2,
         learning_rate: float = 1e-4,
         weight_decay: float = 1e-5,
@@ -317,7 +318,7 @@ class MuQFullUnfreezeModel(pl.LightningModule):
         input_dim: int = 1024,
         hidden_dim: int = 512,
         projection_dim: int = 256,
-        num_labels: int = 19,
+        num_labels: int = NUM_DIMS,
         dropout: float = 0.2,
         learning_rate: float = 1e-4,
         weight_decay: float = 1e-5,
@@ -644,7 +645,7 @@ class MuQStagedModel(pl.LightningModule):
         input_dim: int = 1024,
         hidden_dim: int = 512,
         projection_dim: int = 256,
-        num_labels: int = 19,
+        num_labels: int = NUM_DIMS,
         dropout: float = 0.2,
         learning_rate: float = 1e-4,
         weight_decay: float = 1e-5,

@@ -202,3 +202,13 @@ class TestContinuousSymbolicEncoder:
         batch["masked_positions"][:, 50:70] = True
         loss = model.training_step(batch, 0)
         assert loss.ndim == 0
+
+
+def test_gnn_default_num_labels_is_taxonomy():
+    from model_improvement.taxonomy import NUM_DIMS
+    model = GNNSymbolicEncoder(
+        node_features=6,
+        hidden_dim=512,
+        num_layers=4,
+    )
+    assert model.num_labels == NUM_DIMS
