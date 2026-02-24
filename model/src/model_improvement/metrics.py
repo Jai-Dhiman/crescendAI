@@ -309,3 +309,90 @@ def _format_metric_value(value: object) -> str:
     if isinstance(value, float):
         return f"{value:.4f}"
     return str(value)
+
+
+def stop_auc(
+    embeddings: torch.Tensor,
+    is_stop: torch.Tensor,
+    video_ids: list[str],
+) -> dict:
+    """LOVO-CV AUC for STOP prediction using logistic regression.
+
+    Args:
+        embeddings: Feature vectors, shape (n_samples, dim).
+        is_stop: Binary labels (1=STOP, 0=CONTINUE), shape (n_samples,).
+        video_ids: Video ID per sample for leave-one-video-out CV.
+
+    Returns:
+        Dict with "auc" (float) and "per_video_auc" (dict).
+    """
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.metrics import roc_auc_score
+
+    X = embeddings.detach().cpu().numpy()
+    y = is_stop.detach().cpu().numpy()
+    unique_videos = sorted(set(video_ids))
+
+    all_probs = np.zeros(len(y))
+    per_video: Dict[str, float] = {}
+
+    for held_out in unique_videos:
+        test_mask = np.array([v == held_out for v in video_ids])
+        train_mask = ~test_mask
+
+        if y[train_mask].sum() == 0 or y[train_mask].sum() == train_mask.sum():
+            continue
+        if y[test_mask].sum() == 0 or y[test_mask].sum() == test_mask.sum():
+            continue
+
+        clf = LogisticRegression(max_iter=1000, solver="lbfgs")
+        clf.fit(X[train_mask], y[train_mask])
+        probs = clf.predict_proba(X[test_mask])[:, 1]
+        all_probs[test_mask] = probs
+
+        try:
+            per_video[held_out] = float(roc_auc_score(y[test_mask], probs))
+        except ValueError:
+            pass
+
+    try:
+        overall_auc = float(roc_auc_score(y, all_probs))
+    except ValueError:
+        overall_auc = 0.5
+
+    return {"auc": overall_auc, "per_video_auc": per_video}
+
+
+def competition_spearman(
+    predictions: torch.Tensor | None,
+    placements: torch.Tensor | None,
+) -> dict | None:
+    """Spearman rho of mean prediction vs competition placement.
+
+    Returns None if inputs are None (graceful skip when no T2 data).
+    """
+    if predictions is None or placements is None:
+        return None
+
+    pred_np = predictions.detach().cpu().numpy()
+    place_np = placements.detach().cpu().numpy()
+    mean_pred = pred_np.mean(axis=1)
+    rho, p_value = stats.spearmanr(mean_pred, place_np)
+    return {"rho": float(rho), "p_value": float(p_value)}
+
+
+def per_dimension_breakdown(
+    suite: MetricsSuite,
+    logits: torch.Tensor,
+    labels_a: torch.Tensor,
+    labels_b: torch.Tensor,
+) -> dict[str, float]:
+    """Per-dimension pairwise accuracy using taxonomy dimension names.
+
+    Returns dict mapping dimension name to pairwise accuracy.
+    """
+    from model_improvement.taxonomy import DIMENSIONS
+
+    pw = suite.pairwise_accuracy(logits, labels_a, labels_b)
+    per_dim = pw["per_dimension"]
+    return {DIMENSIONS[d]: acc for d, acc in per_dim.items() if d < len(DIMENSIONS)}

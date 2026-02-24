@@ -5,6 +5,9 @@ from model_improvement.metrics import (
     MetricsSuite,
     compute_robustness_metrics,
     format_comparison_table,
+    stop_auc,
+    competition_spearman,
+    per_dimension_breakdown,
 )
 
 
@@ -53,3 +56,35 @@ def test_format_comparison_table():
     assert isinstance(table, str)
     assert "A1" in table
     assert "A2" in table
+
+
+def test_stop_auc():
+    embeddings = torch.randn(50, 1024)
+    is_stop = torch.tensor([1] * 25 + [0] * 25)
+    video_ids = [f"v{i % 5}" for i in range(50)]
+    result = stop_auc(embeddings, is_stop, video_ids)
+    assert "auc" in result
+    assert 0.0 <= result["auc"] <= 1.0
+
+
+def test_competition_spearman():
+    predictions = torch.randn(20, 6)
+    placements = torch.arange(1, 21, dtype=torch.float32)
+    result = competition_spearman(predictions, placements)
+    assert "rho" in result
+    assert "p_value" in result
+
+
+def test_competition_spearman_empty():
+    result = competition_spearman(None, None)
+    assert result is None
+
+
+def test_per_dimension_breakdown():
+    suite = MetricsSuite()
+    logits = torch.randn(100, 6)
+    labels_a = torch.rand(100, 6)
+    labels_b = torch.rand(100, 6)
+    result = per_dimension_breakdown(suite, logits, labels_a, labels_b)
+    assert len(result) == 6
+    assert "dynamics" in result
