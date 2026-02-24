@@ -14,6 +14,8 @@ This plan starts after both prerequisites are complete:
 - Teacher-grounded taxonomy validated (all 5 gates pass)
 - Repo cleanup and data collection done (T2-T4 available)
 
+> **Status (2026-02-23):** Taxonomy COMPLETE (all 5 gates pass, 6 dimensions). Distillation pilot NO-GO (0/6 dims pass r > 0.5). Data collection COMPLETE (T1-T3 in GDrive, T4 deferred). Training proceeds on baseline path with composite labels only.
+
 ## Prerequisites: What This Plan Receives
 
 From the taxonomy work:
@@ -216,7 +218,9 @@ Applied on-the-fly during training via AudioAugmentor (implemented in `src/model
 
 ## Staged Elimination Protocol
 
-### Round 0: Distillation A/B (conditional, only if pilot passed)
+### Round 0: Distillation A/B -- SKIPPED
+
+> **Decision (2026-02-23):** Distillation pilot returned NO-GO (per-dimension Pearson r all near zero, 0/6 pass r > 0.5). L_regression uses T1 composite labels only (1,202 segments, 6 dims). T2/T3/T4 contribute via ranking/contrastive/invariance without regression labels. Round 1 is the effective starting point.
 
 **Purpose:** Determine whether teacher labels improve training before running full experiments. Run once with the best-understood audio encoder (A1 LoRA) to isolate the effect of distillation from architecture choice.
 
@@ -343,6 +347,8 @@ num_labels = len(taxonomy['dimensions'])
 ```
 
 All model configs change `num_labels=19` to `num_labels=N`.
+
+> **Resolved:** N = 6. Labels loaded from `composite_labels/composite_labels.json`. Default in all encoders updated via `taxonomy.NUM_DIMS`.
 
 ### Data Pipeline
 
