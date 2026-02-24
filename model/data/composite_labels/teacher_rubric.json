@@ -1,0 +1,62 @@
+{
+  "dynamics": {
+    "description": "Volume control, dynamic contrast, crescendo/diminuendo shaping",
+    "anchors": {
+      "1": "Severely lacking in dynamics. E.g.: The teacher compares the student's dramatic interpretation to Boris Godunov's sinister character who says 'Begone, Satan!', calling it totally unnatural and criminal to the music.",
+      "2": "Below average dynamics; noticeable issues.",
+      "3": "Adequate dynamics; competent but not distinctive.",
+      "4": "Good dynamics; shows musical awareness.",
+      "5": "Excellent dynamics. E.g.: Excellent quality"
+    }
+  },
+  "timing": {
+    "description": "Tempo, rubato, ritardando, fermata, rhythmic patterns, syncopation, and pulse",
+    "anchors": {
+      "1": "Severely lacking in timing. E.g.: Teacher warns that playing too fast makes notes inaudible to the listener and references mature Arrau and Horowitz who slowed down for clarity without losing virtuosity. Advises a speed that allows everything to be heard, stimulating the audience more effectively.",
+      "2": "Below average timing; noticeable issues.",
+      "3": "Adequate timing; competent but not distinctive.",
+      "4": "Good timing; shows musical awareness.",
+      "5": "Excellent timing. E.g.: Excellent quality"
+    }
+  },
+  "pedaling": {
+    "description": "Sustain and una corda pedal usage, clarity, and textural effects",
+    "anchors": {
+      "1": "Severely lacking in pedaling. E.g.: All these little ornaments are not nice because you put the pedal on them, making the sound dirty. It has to sound clean.",
+      "2": "Below average pedaling; noticeable issues.",
+      "3": "Adequate pedaling; competent but not distinctive.",
+      "4": "Good pedaling; shows musical awareness.",
+      "5": "Excellent pedaling. E.g.: Excellent quality"
+    }
+  },
+  "articulation": {
+    "description": "Note attack/release, staccato, legato, accents, and touch variety",
+    "anchors": {
+      "1": "Severely lacking in articulation. E.g.: Teacher instructs that each note must start with a consonant attack like 'pam, pam, pam', with proper key contact akin to a string player's bow on string, not surface hitting, emphasizing piano playing should never be percussive due to abrupt attacks.",
+      "2": "Below average articulation; noticeable issues.",
+      "3": "Adequate articulation; competent but not distinctive.",
+      "4": "Good articulation; shows musical awareness.",
+      "5": "Excellent articulation. E.g.: Excellent quality"
+    }
+  },
+  "phrasing": {
+    "description": "Melodic line shaping, phrase arcs, breathing, and structural direction",
+    "anchors": {
+      "1": "Severely lacking in phrasing. E.g.: Teacher instructs to produce a different sound for the 'Pom' like deep, dark trombones with sordino, deaf and funeral-like, emphasizing tense silence with fermata on the silence.",
+      "2": "Below average phrasing; noticeable issues.",
+      "3": "Adequate phrasing; competent but not distinctive.",
+      "4": "Good phrasing; shows musical awareness.",
+      "5": "Excellent phrasing. E.g.: Excellent quality"
+    }
+  },
+  "interpretation": {
+    "description": "Tone quality, voicing, timbre, expression, character, ornamentation, and interpretive choices",
+    "anchors": {
+      "1": "Severely lacking in interpretation. E.g.: The playing is too weak and too fingery; play more legato and in one motion rather than separate finger articulations, as this motive returns later.",
+      "2": "Below average interpretation; noticeable issues.",
+      "3": "Adequate interpretation; competent but not distinctive.",
+      "4": "Good interpretation; shows musical awareness.",
+      "5": "Excellent interpretation. E.g.: Excellent quality"
+    }
+  }
+}

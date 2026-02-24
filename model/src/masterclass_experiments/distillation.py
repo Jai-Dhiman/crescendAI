@@ -48,12 +48,16 @@ def build_rubric(
     return rubric
 
 
-def build_scoring_prompt(rubric: dict[str, dict], segment_id: str) -> str:
+def build_scoring_prompt(rubric: dict[str, dict], segment_id: str, context: str = "") -> str:
     """Build the user prompt for LLM scoring of a segment."""
     lines = [
         f"Score this piano performance segment: {segment_id}\n",
-        "Rate each dimension on a 1-5 scale:\n",
     ]
+    if context:
+        lines.append("Performance context:")
+        lines.append(context)
+        lines.append("")
+    lines.append("Rate each dimension on a 1-5 scale:\n")
     for dim_name, entry in rubric.items():
         lines.append(f"## {dim_name}: {entry['description']}")
         for score, anchor in entry["anchors"].items():
@@ -162,3 +166,99 @@ def go_no_go(
         "stop_auc": stop_auc,
         "spot_check_accuracy": spot_check_accuracy,
     }
+
+
+def build_moment_context(moments: list[dict]) -> str:
+    """Format raw moment dicts into a context string for LLM scoring.
+
+    Args:
+        moments: List of raw moment dicts (from JSONL, not Moment dataclass).
+            Must have keys: piece, composer, musical_dimension, severity,
+            feedback_summary.
+
+    Returns:
+        Multi-line context string with piece/composer header and numbered
+        feedback items.
+    """
+    if not moments:
+        return ""
+
+    first = moments[0]
+    piece = first.get("piece", "Unknown")
+    composer = first.get("composer", "Unknown")
+    lines = [f"Piece: {piece} by {composer}", "Teacher feedback for this segment:"]
+
+    for i, m in enumerate(moments, 1):
+        dim = m.get("musical_dimension", "unknown")
+        severity = m.get("severity", "unknown")
+        summary = m.get("feedback_summary", "")
+        lines.append(f"  {i}. [{dim}, {severity}] {summary}")
+
+    return "\n".join(lines)
+
+
+# Mapping from raw extraction dimensions to taxonomy dimensions.
+# technique is excluded (not capturable from audio alone).
+RAW_TO_TAXONOMY: dict[str, str] = {
+    "dynamics": "dynamics",
+    "timing": "timing",
+    "pedaling": "pedaling",
+    "articulation": "articulation",
+    "phrasing": "phrasing",
+    "interpretation": "interpretation",
+    "tone_color": "interpretation",
+    "voicing": "interpretation",
+    "structure": "phrasing",
+}
+
+
+def compute_spot_check(
+    llm_scores: dict[str, dict[str, int]],
+    segment_moments: dict[str, list[dict]],
+    raw_to_taxonomy: dict[str, str] | None = None,
+) -> float:
+    """Spot-check: does the LLM's lowest-scoring dimension match teacher feedback?
+
+    For each scored segment, finds the dimension the LLM rated lowest, then
+    checks if any of the segment's moments have a musical_dimension that maps
+    to that same taxonomy dimension.
+
+    Args:
+        llm_scores: {segment_id: {dim_name: score (1-5)}}.
+        segment_moments: {segment_id: [raw moment dicts]}.
+        raw_to_taxonomy: Mapping from raw dim names to taxonomy dims.
+            Defaults to RAW_TO_TAXONOMY.
+
+    Returns:
+        Fraction of scored segments where lowest LLM dim matches a moment dim.
+    """
+    if raw_to_taxonomy is None:
+        raw_to_taxonomy = RAW_TO_TAXONOMY
+
+    n_checked = 0
+    n_matched = 0
+
+    for seg_id, scores in llm_scores.items():
+        moments = segment_moments.get(seg_id, [])
+        if not moments or not scores:
+            continue
+
+        # Find LLM's lowest-scoring dimension
+        lowest_dim = min(scores, key=lambda d: scores[d])
+
+        # Collect taxonomy dimensions from this segment's moments
+        moment_taxonomy_dims = set()
+        for m in moments:
+            raw_dim = m.get("musical_dimension", "")
+            mapped = raw_to_taxonomy.get(raw_dim)
+            if mapped is not None:
+                moment_taxonomy_dims.add(mapped)
+
+        if not moment_taxonomy_dims:
+            continue
+
+        n_checked += 1
+        if lowest_dim in moment_taxonomy_dims:
+            n_matched += 1
+
+    return n_matched / n_checked if n_checked > 0 else 0.0

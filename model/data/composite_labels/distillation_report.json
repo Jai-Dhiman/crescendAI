@@ -1,0 +1,8 @@
+{
+  "per_dim": {
+    "dynamics": {
+      "dimension": "dynamics",
+      "pearson_r": -0.06735809642867525,
+      "p_value": 0.011292424165525502,
+      "mean_offset": 0.03005599797598102,
+      "passed_correlation": 

@@ -2,4 +2,4 @@
 *
 !.gitignore
 !sources.yaml
-!all_moments.jsonl
+all_moments.jsonl

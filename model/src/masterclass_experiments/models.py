@@ -14,6 +14,7 @@ def train_classifier(
     test_idx: list[int],
     C: float = 1.0,
     max_iter: int = 1000,
+    class_weight: dict | str | None = None,
 ) -> dict:
     """Train logistic regression and return predictions on test set.
 
@@ -24,6 +25,7 @@ def train_classifier(
         test_idx: Indices for testing.
         C: Regularization strength (inverse).
         max_iter: Maximum iterations.
+        class_weight: Weights for classes (e.g. "balanced" or {0: w0, 1: w1}).
 
     Returns:
         Dict with y_true, y_pred, y_pred_proba, coefficients.
@@ -35,7 +37,9 @@ def train_classifier(
     X_train = scaler.fit_transform(X_train)
     X_test = scaler.transform(X_test)
 
-    clf = LogisticRegression(C=C, max_iter=max_iter, random_state=42)
+    clf = LogisticRegression(
+        C=C, max_iter=max_iter, random_state=42, class_weight=class_weight,
+    )
     clf.fit(X_train, y_train)
 
     return {

@@ -13,6 +13,7 @@ def leave_one_video_out_cv(
     y: np.ndarray,
     video_ids: np.ndarray,
     segment_ids: np.ndarray | None = None,
+    class_weight: dict | str | None = None,
 ) -> dict:
     """Leave-one-video-out cross-validation.
 
@@ -21,6 +22,7 @@ def leave_one_video_out_cv(
         y: Binary labels [N].
         video_ids: Video ID per sample [N].
         segment_ids: Optional segment IDs for qualitative analysis [N].
+        class_weight: Weights for classes (e.g. "balanced" or {0: w0, 1: w1}).
 
     Returns:
         Dict with aggregate metrics and per-segment predictions.
@@ -45,7 +47,7 @@ def leave_one_video_out_cv(
         if len(np.unique(y[train_mask])) < 2:
             continue
 
-        result = train_classifier(X, y, train_idx, test_idx)
+        result = train_classifier(X, y, train_idx, test_idx, class_weight=class_weight)
 
         all_y_true.extend(result["y_true"])
         all_y_pred.extend(result["y_pred"])

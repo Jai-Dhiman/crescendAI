@@ -94,6 +94,42 @@ def test_build_scoring_prompt():
     assert segment_id in prompt
 
 
+def test_build_scoring_prompt_with_context():
+    from masterclass_experiments.distillation import build_scoring_prompt
+
+    rubric = {
+        "dynamics": {
+            "description": "Volume control",
+            "anchors": {1: "Poor", 2: "Below avg", 3: "Adequate", 4: "Good", 5: "Excellent"},
+        },
+    }
+    context = "Piece: Ballade No.1 by Chopin\nTeacher feedback for this segment:\n  1. [dynamics, significant] Too loud"
+
+    prompt = build_scoring_prompt(rubric, "seg_1", context=context)
+
+    assert "Performance context:" in prompt
+    assert "Ballade No.1 by Chopin" in prompt
+    assert "Too loud" in prompt
+    # Context should appear before the rubric dimensions
+    ctx_pos = prompt.index("Performance context:")
+    dim_pos = prompt.index("## dynamics")
+    assert ctx_pos < dim_pos
+
+
+def test_build_scoring_prompt_empty_context():
+    """Empty context string should not add context section."""
+    from masterclass_experiments.distillation import build_scoring_prompt
+
+    rubric = {
+        "dynamics": {
+            "description": "Volume control",
+            "anchors": {1: "Poor", 2: "Below avg", 3: "Adequate", 4: "Good", 5: "Excellent"},
+        },
+    }
+    prompt = build_scoring_prompt(rubric, "seg_1", context="")
+    assert "Performance context:" not in prompt
+
+
 def test_parse_scores_valid():
     from masterclass_experiments.distillation import parse_scores
 
@@ -150,3 +186,90 @@ def test_go_no_go_decision():
     assert decision["go"] is True
     assert decision["dims_passing"] == 3
     assert decision["dims_total"] == 5
+
+
+def test_build_moment_context():
+    from masterclass_experiments.distillation import build_moment_context
+
+    moments = [
+        {
+            "piece": "Ballade No.1",
+            "composer": "Chopin",
+            "musical_dimension": "dynamics",
+            "severity": "significant",
+            "feedback_summary": "Too loud in the climax",
+        },
+        {
+            "piece": "Ballade No.1",
+            "composer": "Chopin",
+            "musical_dimension": "phrasing",
+            "severity": "minor",
+            "feedback_summary": "Good overall line",
+        },
+    ]
+
+    ctx = build_moment_context(moments)
+
+    assert "Ballade No.1" in ctx
+    assert "Chopin" in ctx
+    assert "1. [dynamics, significant] Too loud in the climax" in ctx
+    assert "2. [phrasing, minor] Good overall line" in ctx
+
+
+def test_build_moment_context_empty():
+    from masterclass_experiments.distillation import build_moment_context
+
+    assert build_moment_context([]) == ""
+
+
+def test_compute_spot_check():
+    from masterclass_experiments.distillation import compute_spot_check
+
+    # LLM gave dynamics the lowest score for seg_1
+    llm_scores = {
+        "seg_1": {"dynamics": 1, "timing": 3, "phrasing": 4},
+        "seg_2": {"dynamics": 4, "timing": 2, "phrasing": 3},
+    }
+    # seg_1 has a dynamics moment -> match; seg_2 has articulation -> no match
+    segment_moments = {
+        "seg_1": [{"musical_dimension": "dynamics"}],
+        "seg_2": [{"musical_dimension": "articulation"}],
+    }
+    raw_to_taxonomy = {
+        "dynamics": "dynamics",
+        "timing": "timing",
+        "articulation": "articulation",
+    }
+
+    accuracy = compute_spot_check(llm_scores, segment_moments, raw_to_taxonomy)
+    assert accuracy == 0.5  # 1 match out of 2
+
+
+def test_compute_spot_check_technique_excluded():
+    """Moments with technique-only dims should be skipped (no taxonomy mapping)."""
+    from masterclass_experiments.distillation import compute_spot_check
+
+    llm_scores = {"seg_1": {"dynamics": 2, "timing": 3}}
+    segment_moments = {"seg_1": [{"musical_dimension": "technique"}]}
+    raw_to_taxonomy = {"dynamics": "dynamics", "timing": "timing"}
+
+    # No valid taxonomy dims -> segment skipped, 0 checked
+    accuracy = compute_spot_check(llm_scores, segment_moments, raw_to_taxonomy)
+    assert accuracy == 0.0
+
+
+def test_compute_spot_check_multi_moment_match():
+    """Segment with multiple moments: match if any moment's dim matches lowest."""
+    from masterclass_experiments.distillation import compute_spot_check
+
+    llm_scores = {"seg_1": {"dynamics": 1, "timing": 4, "phrasing": 3}}
+    segment_moments = {
+        "seg_1": [
+            {"musical_dimension": "timing"},
+            {"musical_dimension": "dynamics"},
+        ],
+    }
+    raw_to_taxonomy = {"dynamics": "dynamics", "timing": "timing"}
+
+    accuracy = compute_spot_check(llm_scores, segment_moments, raw_to_taxonomy)
+    assert accuracy == 1.0

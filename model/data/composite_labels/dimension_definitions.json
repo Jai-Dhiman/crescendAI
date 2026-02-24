@@ -1,0 +1,976 @@
+{
+  "dimensions": {
+    "dynamics": {
+      "description": "Volume control, dynamic contrast, crescendo/diminuendo shaping"
+    },
+    "timing": {
+      "description": "Tempo, rubato, ritardando, fermata, rhythmic patterns, syncopation, and pulse"
+    },
+    "pedaling": {
+      "description": "Sustain and una corda pedal usage, clarity, and textural effects"
+    },
+    "articulation": {
+      "description": "Note attack/release, staccato, legato, accents, and touch variety"
+    },
+    "phrasing": {
+      "description": "Melodic line shaping, phrase arcs, breathing, and structural direction"
+    },
+    "interpretation": {
+      "description": "Tone quality, voicing, timbre, expression, character, ornamentation, and interpretive choices"
+    }
+  },
+  "hierarchy": [
+    {
+      "group_name": "group_1",
+      "dimensions": [
+        "dynamics",
+        "articulation",
+        "phrasing",
+        "interpretation"
+      ]
+    },
+    {
+      "group_name": "group_2",
+      "dimensions": [
+        "timing"
+      ]
+    },
+    {
+      "group_name": "group_3",
+      "dimensions": [
+        "pedaling"
+      ]
+    }
+  ],
+  "cluster_summary": [
+    {
+      "cluster_id": 0,
+      "size": 13,
+      "frequency": 0.007615700058582308,
+      "examples": [
+        "fermata halting theme momentum",
+        "fermata sustain with imagined motion",
+        "unsteady e-flat fermata hold",
+        "missing fermata on last note",
+        "fermata too busy",
+        "questioning tonality with fermatas",
+        "varying fermata lengths",
+        "rushing through fermata",
+        "irregular fermata length for surprise",
+        "extreme softness after fermata"
+      ]
+    },
+    {
+      "cluster_id": 1,
+      "size": 19,
+      "frequency": 0.011130638547158758,
+      "examples": [
+        "appoggiatura dissonance tension",
+        "softest entry with post-appoggiatura crescendo",
+        "sing appoggiatura with tension",
+        "appoggiaturas on second syllable",
+        "appoggiatura second syllable execution",
+        "appoggiatura timing at phrase start",
+        "appoggiatura disrupting joyful music",
+        "appoggiatura resolution audibility",
+        "G# appoggiatura on dissonants",
+        "apologetic dissonant appoggiaturas"
+      ]
+    },
+    {
+      "cluster_id": 2,
+      "size": 35,
+      "frequency": 0.020503807850029292,
+      "examples": [
+        "freer rubato evoking distant star",
+        "excessive rubato causing fussiness",
+        "excessive rubato in upper voice",
+        "stretch and rubato to fortissimo",
+        "slightly more rubato",
+        "rubato on A-sharp",
+        "roll rubato within rhythm",
+        "rubato for smooth major transition",
+        "rubato limited to one beat",
+        "pi\u00f9 passionato in middle variation"
+      ]
+    },
+    {
+      "cluster_id": 3,
+      "size": 17,
+      "frequency": 0.00995899238429994,
+      "examples": [
+        "ritardando with sustained pedal",
+        "motive continuity without ritardando",
+        "extreme ritardando with orchestra",
+        "ritardando placement flexibility",
+        "open legato with ritardito",
+        "no ritardando, steady tempo",
+        "ritardando tendency and tempo changes",
+        "excessive ritardando in transition",
+        "ritardando despite tempo primo",
+        "overly complex ritardando"
+      ]
+    },
+    {
+      "cluster_id": 4,
+      "size": 116,
+      "frequency": 0.06795547744581136,
+      "examples": [
+        "left pedal for richer sound",
+        "staccato with pedal travel",
+        "staccato with less pedal",
+        "clean pedal for textural contrast",
+        "play without pedal",
+        "subtle pedaling for sonority",
+        "pedal muddying ornaments",
+        "frequent half-pedal changes",
+        "suspensions and dominant pedal point",
+        "pedaling on doubled melody"
+      ]
+    },
+    {
+      "cluster_id": 5,
+      "size": 19,
+      "frequency": 0.011130638547158758,
+      "examples": [
+        "exaggerated percussive staccato",
+        "lazy staccato in keybed",
+        "low notes too staccato",
+        "staccato on first 16th after eighth",
+        "staccato too dry",
+        "staccato too short",
+        "sharper staccato articulation",
+        "staccato note articulation",
+        "staccato vs portato distinction",
+        "staccato ti-ti articulation"
+      ]
+    },
+    {
+      "cluster_id": 6,
+      "size": 65,
+      "frequency": 0.038078500292911543,
+      "examples": [
+        "staccato, sustain shifts, accents",
+        "accents on grace note and arpeggiated chord top note",
+        "diminuendo shaping with accentuation",
+        "missing 'and pam' accent",
+        "overly strong accents",
+        "excessive accents obscuring E-flat F G",
+        "accented high pitches",
+        "accent on wrong beat",
+        "forzando accent on piano",
+        "accent on B-flat preparation note"
+      ]
+    },
+    {
+      "cluster_id": 7,
+      "size": 21,
+      "frequency": 0.012302284710017574,
+      "examples": [
+        "trill for shock effect",
+        "trill played prestissimo",
+        "extend trill before huge pause",
+        "manuscript trill just G",
+        "trill as decoration",
+        "trill execution with quarter notes",
+        "trill not doppelschlag",
+        "Adagio trills too presto",
+        "pause before trill",
+        "undulating trill"
+      ]
+    },
+    {
+      "cluster_id": 8,
+      "size": 10,
+      "frequency": 0.005858230814294083,
+      "examples": [
+        "taking 6 steps per 3/4 bar",
+        "excessive lengthening of empty bar",
+        "two bars doing nothing",
+        "modulating bars eventfulness",
+        "first bar as 5-bar upward build",
+        "bar 6 texture change",
+        "strong versus weak bars",
+        "Viennese strong-weak bar pattern",
+        "maximum time on final bar",
+        "rushing uncomfortable bars"
+      ]
+    },
+    {
+      "cluster_id": 9,
+      "size": 65,
+      "frequency": 0.038078500292911543,
+      "examples": [
+        "upper register chords lacking ring",
+        "playful handling of massive chords",
+        "precise staccato chords",
+        "generous arpeggiation of first chord",
+        "preceding chord not full enough",
+        "fuller resolving chord",
+        "lingering time on G chord",
+        "reducing to basic chords for harmonic direction",
+        "chord as beginning or ending",
+        "forward-moving violinistic chord direction"
+      ]
+    },
+    {
+      "cluster_id": 10,
+      "size": 90,
+      "frequency": 0.05272407732864675,
+      "examples": [
+        "bass emphasis and singer-like timing",
+        "bass overpowering melody climax",
+        "quiet early inner bass notes",
+        "steady ostinato bass establishment",
+        "Baroque bass articulation",
+        "bass chord fullness",
+        "bass melodic importance for variation",
+        "lacking bass",
+        "bassoon-like accompanied bass",
+        "rough basses on modern piano"
+      ]
+    },
+    {
+      "cluster_id": 11,
+      "size": 11,
+      "frequency": 0.006444053895723492,
+      "examples": [
+        "black and white playing",
+        "weak fingery playing",
+        "noddy fingery playing lacking atmosphere",
+        "play more quietly",
+        "scalelike playing lacking love",
+        "play more freely",
+        "playing too softly",
+        "playing too softly lacking power",
+        "unclean playing execution",
+        "one buttock playing for freedom"
+      ]
+    },
+    {
+      "cluster_id": 12,
+      "size": 13,
+      "frequency": 0.007615700058582308,
+      "examples": [
+        "take time on diminuendo phrases",
+        "diminuendo starting too early",
+        "diminuendo too early",
+        "diminuendo sound too weak",
+        "diminuendo and ritardando to A-flat",
+        "not resolving too early",
+        "diminuendo too soft each time",
+        "diminuendo between D and C",
+        "diminuendo more pronounced",
+        "rise more eventful despite diminuendo"
+      ]
+    },
+    {
+      "cluster_id": 13,
+      "size": 17,
+      "frequency": 0.00995899238429994,
+      "examples": [
+        "hypnotic bell timbre",
+        "different timbre via key attack",
+        "bell-like timbre emergence",
+        "nuanced timbre projection",
+        "strained motive timbre",
+        "high-pitched string timbre",
+        "bright melodic timbre",
+        "resonant authoritative timbre",
+        "timpani-like spooky dominant emphasis",
+        "bell-like orchestral harmony"
+      ]
+    },
+    {
+      "cluster_id": 14,
+      "size": 50,
+      "frequency": 0.029291154071470416,
+      "examples": [
+        "passage volume too loud",
+        "new entry without volume change",
+        "too loud from the D",
+        "too loud ordinary sound",
+        "too loud spooked touch",
+        "hearing intervals unfold linearly",
+        "hearing third interval unfold",
+        "E minor second half tone volume",
+        "softer pads for louder dynamics",
+        "dropping sound too early"
+      ]
+    },
+    {
+      "cluster_id": 15,
+      "size": 13,
+      "frequency": 0.007615700058582308,
+      "examples": [
+        "glissando-like gradual ascent",
+        "slippery bass glissando",
+        "expressive glissando descent",
+        "smooth glissando",
+        "quick glissando attack",
+        "rapid glissando",
+        "soft violin glissando",
+        "more glissando between notes",
+        "glissando for Mephisto entrance",
+        "portamento glissando for 9th leap"
+      ]
+    },
+    {
+      "cluster_id": 16,
+      "size": 23,
+      "frequency": 0.013473930872876391,
+      "examples": [
+        "Presto lacking joyful character",
+        "percussive sonority lacking joy",
+        "new paragraph character shift",
+        "tragic character expression",
+        "sudden dangerous character bite",
+        "lazy waking-up character",
+        "more embellishments and outrageous character",
+        "menacing not poetic character",
+        "minimal emotion in tragedy",
+        "jumping character in new section"
+      ]
+    },
+    {
+      "cluster_id": 17,
+      "size": 41,
+      "frequency": 0.02401874633860574,
+      "examples": [
+        "reserve deeper pianissimo for later",
+        "written-out Italian ornamentation",
+        "revealing pianissimo too early",
+        "lack of una corda in pianissimo",
+        "una corda in pianissimos",
+        "pianissimo accompaniment, prominent sensual melody",
+        "general piano pianissimo dynamics",
+        "telegraphed pianissimo transition",
+        "pianissimo without accent",
+        "hesitation before pianissimo"
+      ]
+    },
+    {
+      "cluster_id": 18,
+      "size": 57,
+      "frequency": 0.033391915641476276,
+      "examples": [
+        "crescendo peaking at augmented 6th",
+        "crescendo on single C note",
+        "bass crescendo to end",
+        "rising third in fughetta",
+        "crescendo to important E",
+        "premature peaking in crescendo",
+        "crescendo without stringendo",
+        "narrative crescendo execution",
+        "crescendo only on tenor",
+        "crescendo only on tenor"
+      ]
+    },
+    {
+      "cluster_id": 19,
+      "size": 19,
+      "frequency": 0.011130638547158758,
+      "examples": [
+        "losing tension before resolution",
+        "tension to E minor harmony",
+        "tension in third interval",
+        "tension leading to neighbor",
+        "excess tension before neighbor",
+        "accelerating in E minor tension",
+        "suspension holds until resolution",
+        "salto mortale tension",
+        "B-flat consonance surprise tension",
+        "tension in pre-crescendo chord"
+      ]
+    },
+    {
+      "cluster_id": 20,
+      "size": 43,
+      "frequency": 0.025190392501464556,
+      "examples": [
+        "forte too loud pre-crescendo",
+        "aggressive forte on fourth",
+        "refined forte touch",
+        "lean into sforzando; portato space",
+        "sforzando too forte",
+        "piano sforzando to fortissimo explosion",
+        "forte to diminuendo",
+        "second note sforzando",
+        "bigger forte sound projection",
+        "opening sforzandi expressiveness"
+      ]
+    },
+    {
+      "cluster_id": 21,
+      "size": 36,
+      "frequency": 0.0210896309314587,
+      "examples": [
+        "pianistic effects disrupting courante rhythm",
+        "unwanted subito piano",
+        "rushing into early subito piano",
+        "always playing piano dynamic",
+        "crescendo cutoff for subito piano",
+        "subito piano missing comma",
+        "gradual piano not sudden subito",
+        "phrase structure with piano drop",
+        "piano dynamic with tension",
+        "piano at first high point"
+      ]
+    },
+    {
+      "cluster_id": 22,
+      "size": 24,
+      "frequency": 0.014059753954305799,
+      "examples": [
+        "horn call motif color differentiation",
+        "change the color here",
+        "gray tone lacking color",
+        "tone color shift",
+        "emerging color in first note",
+        "mid-register chromatic blend",
+        "more distant beautiful color",
+        "distinct colors for key areas",
+        "upper octave woodwind orchestral color",
+        "multiple colors in colorful section"
+      ]
+    },
+    {
+      "cluster_id": 23,
+      "size": 23,
+      "frequency": 0.013473930872876391,
+      "examples": [
+        "omit ornaments on first repetition",
+        "transparent voicing of E#/C#",
+        "identical voicing in repetition",
+        "voicing role reversal",
+        "inventive elements before repeat",
+        "reversing importance of two elements",
+        "simplify intro simply and evenly",
+        "subtle repeat variations",
+        "multiple sounds in repeated figures",
+        "upbeat treble voicing"
+      ]
+    },
+    {
+      "cluster_id": 24,
+      "size": 21,
+      "frequency": 0.012302284710017574,
+      "examples": [
+        "abrupt percussive key attacks",
+        "percussive key attacks",
+        "attack and release",
+        "immediate vs gradual attack",
+        "weak lower octave, strong second note",
+        "opposite-side chord notes in octaves",
+        "upward key attack direction",
+        "deep key entry for octave connection",
+        "deep key penetration for octaves",
+        "powerful relaxed octave attacks"
+      ]
+    },
+    {
+      "cluster_id": 25,
+      "size": 37,
+      "frequency": 0.021675454012888107,
+      "examples": [
+        "even softer with forward motion",
+        "subtle shimmering swell",
+        "sudden crystalline clarity",
+        "light touch for double escapement",
+        "flexible knee-initiated positioning",
+        "vary dynamics avoid flatness",
+        "flat dynamic levels",
+        "impulsive vs reflective forces",
+        "following exact dynamics",
+        "soften dynamically to build"
+      ]
+    },
+    {
+      "cluster_id": 26,
+      "size": 17,
+      "frequency": 0.00995899238429994,
+      "examples": [
+        "right thumb not projecting",
+        "fingering and holding for octaves",
+        "alternative to 5-5 fingering",
+        "5-5 fingering on consecutive notes",
+        "5-2 fingering for trill passage",
+        "1-3-4-5 trill preparation fingering",
+        "1-2-5 fingering recommendation",
+        "ii-V fingering avoiding thumb",
+        "thumb or 3 fingering preference",
+        "thumb on black key fingering"
+      ]
+    },
+    {
+      "cluster_id": 27,
+      "size": 57,
+      "frequency": 0.033391915641476276,
+      "examples": [
+        "smooth legato phrasing",
+        "smooth legato chords",
+        "soprano entry over ostinato",
+        "legato tension resolution",
+        "legato bound without sound holes",
+        "otherworldly cantabile e legato",
+        "hitting in legato acceleration",
+        "smooth legato phrasing",
+        "short notes lacking legato",
+        "Italian galloping lips character"
+      ]
+    },
+    {
+      "cluster_id": 28,
+      "size": 29,
+      "frequency": 0.01698886936145284,
+      "examples": [
+        "extended sustain",
+        "lower harmony too soft",
+        "muddy low harmonies",
+        "playing notes not harmonies",
+        "textural balance issues",
+        "awareness and finality in harmonies",
+        "stronger D supporting two harmonies",
+        "lower harmony during sustains",
+        "build from dominant to tonic",
+        "uneven sustain"
+      ]
+    },
+    {
+      "cluster_id": 29,
+      "size": 22,
+      "frequency": 0.012888107791446984,
+      "examples": [
+        "breathier less solid tone",
+        "single note resonance duration",
+        "light resonant A arpeggio",
+        "gentle resonant decay",
+        "resonant fullness",
+        "triple forte resonance",
+        "flowing resonant power",
+        "weak tone",
+        "warm rounded tone",
+        "sustained tonal resonance"
+      ]
+    },
+    {
+      "cluster_id": 30,
+      "size": 10,
+      "frequency": 0.005858230814294083,
+      "examples": [
+        "triplet motion with pathos",
+        "playing triplets not sextuplets",
+        "phrasing quaver thirds",
+        "spreading triplet in small climax",
+        "rushing through triplets",
+        "triplet phrasing as triola di di",
+        "equal triplets lacking hierarchy",
+        "stasis in middle canon triplets",
+        "rushing triplet rhythms",
+        "swift triplet rolls"
+      ]
+    },
+    {
+      "cluster_id": 31,
+      "size": 93,
+      "frequency": 0.054481546572934976,
+      "examples": [
+        "dynamic shaping of melodic groups",
+        "7th melodic vs. harmonic phrasing",
+        "over-singing in chords",
+        "over-singing upper line suppressing chords",
+        "singing the melody line",
+        "singing quality in the sound",
+        "melody line getting stuck",
+        "accompaniment overpowering melody",
+        "louder melody softer accompaniment",
+        "overactive accompaniment in con anima"
+      ]
+    },
+    {
+      "cluster_id": 32,
+      "size": 51,
+      "frequency": 0.029876977152899824,
+      "examples": [
+        "treble inner voices 2-3",
+        "top voice cantabile bel canto",
+        "molto cantabile voice balance",
+        "alto voice takeover timing",
+        "following middle and lower voices",
+        "chorale voice leading direction",
+        "chorale concept for phrasing",
+        "linear progression from G alto",
+        "voice leading fourth",
+        "singing the top voice"
+      ]
+    },
+    {
+      "cluster_id": 33,
+      "size": 22,
+      "frequency": 0.012888107791446984,
+      "examples": [
+        "separate articulations in fast figures",
+        "passagework shape via bowing",
+        "lacking clear articulation",
+        "violin-like bow stroke",
+        "indefinite secco articulation contrast",
+        "sprightly spring-like articulation",
+        "articulation variety",
+        "uncontrolled up-bows",
+        "too little articulation here",
+        "imitate violin articulation"
+      ]
+    },
+    {
+      "cluster_id": 34,
+      "size": 16,
+      "frequency": 0.009373169302870533,
+      "examples": [
+        "developing sonata themes",
+        "sense of nature from rests",
+        "synthesizing two themes per period",
+        "themes as dual personalities",
+        "relaxed French-style interpretation",
+        "leggiero mood in soulful passage",
+        "theme as question mark",
+        "romantic style in passage",
+        "title origin informing style",
+        "sensuality in single note"
+      ]
+    },
+    {
+      "cluster_id": 35,
+      "size": 15,
+      "frequency": 0.008787346221441126,
+      "examples": [
+        "discontinuous G-F-E-A line",
+        "neglecting inner line",
+        "neglecting inner line",
+        "overemphasis on inside line",
+        "hesitation disrupting beautiful line",
+        "top principal over secondary lines",
+        "line continuity despite 2-note phrases",
+        "crashing tata tata passage",
+        "cutting phrase line continuity",
+        "breaking phrase continuity"
+      ]
+    },
+    {
+      "cluster_id": 36,
+      "size": 20,
+      "frequency": 0.011716461628588167,
+      "examples": [
+        "breathing point in phrasing",
+        "breath between phrases",
+        "breaths between phrases",
+        "breathe before phrases",
+        "breathing at retard transition",
+        "cadence before varied reprise",
+        "spacious breathy phrasing",
+        "deceptive cadence lacking magic",
+        "singer's breath at end of bar 8",
+        "cadences spelling Clara's name"
+      ]
+    },
+    {
+      "cluster_id": 37,
+      "size": 82,
+      "frequency": 0.04803749267721148,
+      "examples": [
+        "phrasing as question and answer",
+        "planning entire phrase arc",
+        "phrase start too loud",
+        "Allemande first phrase phrasing",
+        "slight sostenuto for 8-bar phrase",
+        "new phrase shape",
+        "insufficient phrasing cuts",
+        "phrasing direction too uniform",
+        "improvisatory freedom in opening",
+        "more swing and open phrasing"
+      ]
+    },
+    {
+      "cluster_id": 38,
+      "size": 30,
+      "frequency": 0.01757469244288225,
+      "examples": [
+        "B major cadential surprise",
+        "unusual G major second subject",
+        "G corresponding to prior E-flat",
+        "recurring G-flat as piece motto",
+        "E sharp too fat",
+        "surprise shift to minor",
+        "stark G-sharp dominance",
+        "higher G-flat for semitone",
+        "enharmonic Ab minor to G# minor",
+        "G-sharp instead of G natural"
+      ]
+    },
+    {
+      "cluster_id": 39,
+      "size": 13,
+      "frequency": 0.007615700058582308,
+      "examples": [
+        "structuring tense passage transitions",
+        "minor-to-major transition preparation",
+        "slightly slower for heartfelt effect",
+        "time transitioning emotions",
+        "gradual buildup across progressions",
+        "transition too agonizing",
+        "broaden transition keeping flow",
+        "rushing beautiful transition",
+        "slowing and losing excitement at end",
+        "transition slowed excessively to largo"
+      ]
+    },
+    {
+      "cluster_id": 40,
+      "size": 20,
+      "frequency": 0.011716461628588167,
+      "examples": [
+        "rushing erratic rhythm",
+        "rushing and complicating tempo",
+        "rushing the motive tempo",
+        "unsteady rhythm taking then rushing",
+        "rushing percussive flurry",
+        "rushing against preparation",
+        "rushing walking section tempo",
+        "rushing in slow practice",
+        "rushing in slow tempo",
+        "excessive rhythmic rushing"
+      ]
+    },
+    {
+      "cluster_id": 41,
+      "size": 21,
+      "frequency": 0.012302284710017574,
+      "examples": [
+        "rushed approach to tenth",
+        "rushed descending after arrival",
+        "rushed timing on F-C dyad",
+        "astonished timing on landing",
+        "descent too fast before clash",
+        "ample time in Mannheim rockets",
+        "rushed flat passage",
+        "passage more dangerous",
+        "stopping the river flow",
+        "more time in cold section"
+      ]
+    },
+    {
+      "cluster_id": 42,
+      "size": 16,
+      "frequency": 0.009373169302870533,
+      "examples": [
+        "equal eighth notes lacking pulse",
+        "equal eighth notes",
+        "building expectation to the 7th",
+        "rhythm as eighth notes",
+        "broaden triplet and eighth notes",
+        "lilt and articulation in eighth notes",
+        "rushed eighth notes",
+        "two eighth notes timing",
+        "eighth notes grouping with quarters",
+        "subdividing by eighth notes"
+      ]
+    },
+    {
+      "cluster_id": 43,
+      "size": 81,
+      "frequency": 0.04745166959578207,
+      "examples": [
+        "Andante walking tempo too slow",
+        "steady ostinato tempo",
+        "steady tempo at fortissimo",
+        "dry diminuendo no tempo change",
+        "tempo stability in two-voice passage",
+        "slowing tempo in fugue",
+        "idyllic G-flat tempo change",
+        "tempo slowing on repetition",
+        "gradual entry into cantabile legato tempo",
+        "Allemande tempo too forward"
+      ]
+    },
+    {
+      "cluster_id": 44,
+      "size": 17,
+      "frequency": 0.00995899238429994,
+      "examples": [
+        "strict pulse for syncopations",
+        "pulse wave length via harmonic rhythm",
+        "low bom-bom pulses",
+        "counting steady four-beat pulse",
+        "overly strict pulse",
+        "pulse connections for flow",
+        "steady rhythmic pulse",
+        "steady pulse like snake charmer",
+        "metronomic rhythmic pulse",
+        "diabolique piano heartbeat pulse"
+      ]
+    },
+    {
+      "cluster_id": 45,
+      "size": 10,
+      "frequency": 0.005858230814294083,
+      "examples": [
+        "last four notes articulation",
+        "articulation of last four notes",
+        "second and third notes beauty",
+        "every note as spoken word vowel",
+        "emphasize harmony, beautify last three notes",
+        "sixteenth notes fiery character",
+        "significance of final three notes",
+        "doppelschlag ornament four notes",
+        "sixteenth notes starting too early",
+        "four notes as melodic fragments"
+      ]
+    },
+    {
+      "cluster_id": 46,
+      "size": 99,
+      "frequency": 0.05799648506151142,
+      "examples": [
+        "extend long notes for resolution",
+        "rapid note tremolo",
+        "long note decay awareness",
+        "decay of long notes",
+        "sustaining long notes",
+        "short notes louder than long",
+        "repeated notes drier",
+        "repeated notes in diminuendo",
+        "sustaining high notes mentally",
+        "first note descent too fast"
+      ]
+    },
+    {
+      "cluster_id": 47,
+      "size": 13,
+      "frequency": 0.007615700058582308,
+      "examples": [
+        "downward third in motive on beats 3-4",
+        "rhythm change from three",
+        "second beat stronger than first",
+        "counting 4 beats in alla breve",
+        "link on beats 1 and 4",
+        "opening rhythm inequality",
+        "rhythm as 4 beats then 3-3",
+        "high point placement on beats",
+        "rhythmic 2 against 3 clash",
+        "B to C downbeat change"
+      ]
+    },
+    {
+      "cluster_id": 48,
+      "size": 55,
+      "frequency": 0.03222026947861746,
+      "examples": [
+        "sweeping gesture for longer dotted rhythm",
+        "syncopated rhythm in lower voices",
+        "forward tension before rhythm change",
+        "legato with hemiola rhythm",
+        "rhythmic syncopation",
+        "emphasized motor rhythm",
+        "ornament disrupting rhythm continuity",
+        "rhythm in difficult section",
+        "rhythmic sharpness without pedal",
+        "rhythm not ta-ta-ta-ta-ti"
+      ]
+    }
+  ],
+  "dimension_groups": {
+    "dynamics": [
+      12,
+      14,
+      17,
+      18,
+      20,
+      21
+    ],
+    "timing": [
+      0,
+      2,
+      3,
+      8,
+      30,
+      40,
+      41,
+      42,
+      43,
+      44,
+      47,
+      48
+    ],
+    "pedaling": [
+      4
+    ],
+    "articulation": [
+      5,
+      6,
+      24,
+      27,
+      33,
+      45
+    ],
+    "phrasing": [
+      31,
+      35,
+      36,
+      37,
+      39
+    ],
+    "interpretation": [
+      1,
+      7,
+      9,
+      10,
+      11,
+      13,
+      15,
+      16,
+      19,
+      22,
+      23,
+      25,
+      26,
+      28,
+      29,
+      32,
+      34,
+      38,
+      46
+    ],
+    "energy": []
+  },
+  "selection_scores": {
+    "dynamics": {
+      "frequency": 0.140597539543058,
+      "muq_r2": 0.587,
+      "stop_delta_auc": 0.0
+    },
+    "timing": {
+      "frequency": 0.18043350908025776,
+      "muq_r2": 0.3315,
+      "stop_delta_auc": 0.0
+    },
+    "pedaling": {
+      "frequency": 0.06795547744581136,
+      "muq_r2": 0.513,
+      "stop_delta_auc": 0.0
+    },
+    "articulation": {
+      "frequency": 0.11364967779730521,
+      "muq_r2": 0.6065,
+      "stop_delta_auc": 0.0
+    },
+    "phrasing": {
+      "frequency": 0.13063854715875806,
+      "muq_r2": 0.569,
+      "stop_delta_auc": 0.0
+    },
+    "interpretation": {
+      "frequency": 0.3667252489748096,
+      "muq_r2": 0.5238333333333333,
+      "stop_delta_auc": 0.0
+    }
+  }
+}
