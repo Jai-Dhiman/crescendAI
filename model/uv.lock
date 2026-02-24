@@ -3730,6 +3730,12 @@ gpu = [
     { name = "nnaudio" },
 ]
 
+[package.dev-dependencies]
+dev = [
+    { name = "pytest" },
+    { name = "pytest-cov" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "accelerate", specifier = ">=0.20.0" },
@@ -3788,6 +3794,12 @@ requires-dist = [
     { name = "yt-dlp", specifier = ">=2024.0.0" },
 ]
 provides-extras = ["dev", "gpu"]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "pytest", specifier = ">=8.4.2" },
+    { name = "pytest-cov", specifier = ">=7.0.0" },
+]
 
 [[package]]
 name = "pillow"
