@@ -114,6 +114,32 @@ class TestMuQStagedModel:
         assert hasattr(scheduler, '_schedulers')
         assert len(scheduler._schedulers) == 2
 
+    def test_stage1_validation_logs_contrastive_loss(self):
+        """Stage 1 val_loss should include contrastive loss, not just invariance MSE."""
+        model = MuQStagedModel(
+            input_dim=1024, hidden_dim=512, num_labels=6,
+            use_pretrained_muq=False, stage="self_supervised",
+            temperature=0.07, lambda_contrastive=0.3, lambda_invariance=0.5,
+        )
+        model.set_eval_mode = True
+        emb = torch.randn(4, 50, 1024)
+        batch = {
+            "embeddings_clean": emb,
+            "embeddings_augmented": emb.clone(),  # Identical -> MSE = 0
+            "mask": torch.ones(4, 50, dtype=torch.bool),
+            "piece_ids": torch.tensor([0, 0, 1, 1]),
+        }
+        logged = {}
+        model.log = lambda name, value, **kw: logged.update({name: value})
+        # Run in inference mode so dropout is off and identical inputs yield MSE=0
+        model.freeze()
+        model.validation_step(batch, 0)
+        assert "val_loss" in logged
+        # With contrastive component, val_loss > 0 even when MSE = 0
+        assert logged["val_loss"].item() > 0
+        # Also verify contrastive sub-metric is logged
+        assert "val_contrast_loss" in logged
+
     def test_switch_stage(self):
         model = MuQStagedModel(
             input_dim=1024, hidden_dim=512, num_labels=19,

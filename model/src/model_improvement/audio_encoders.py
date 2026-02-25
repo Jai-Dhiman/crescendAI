@@ -852,8 +852,23 @@ class MuQStagedModel(pl.LightningModule):
         if self.stage == "self_supervised":
             z_clean = self.encode(batch["embeddings_clean"], batch.get("mask"))
             z_aug = self.encode(batch["embeddings_augmented"], batch.get("mask"))
+
+            # Contrastive loss (same as training)
+            proj_clean = self.projection(z_clean)
+            proj_aug = self.projection(z_aug)
+            all_proj = torch.cat([proj_clean, proj_aug], dim=0)
+            all_pieces = torch.cat([batch["piece_ids"], batch["piece_ids"]], dim=0)
+            l_contrast = piece_based_infonce_loss(
+                all_proj, all_pieces, temperature=self.temperature
+            )
+
+            # Invariance loss
             l_inv = F.mse_loss(z_clean, z_aug)
-            self.log("val_loss", l_inv, prog_bar=True)
+
+            val_loss = l_contrast + self.lambda_invariance * l_inv
+            self.log("val_loss", val_loss, prog_bar=True)
+            self.log("val_contrast_loss", l_contrast)
+            self.log("val_inv_loss", l_inv)
         else:
             z_a = self.encode(batch["embeddings_a"], batch.get("mask_a"))
             z_b = self.encode(batch["embeddings_b"], batch.get("mask_b"))
