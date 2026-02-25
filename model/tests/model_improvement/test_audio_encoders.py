@@ -29,6 +29,25 @@ class TestMuQLoRAModel:
         assert scores.shape == (4, 19)
         assert (scores >= 0).all() and (scores <= 1).all()
 
+    def test_warmup_lr_schedule(self):
+        model = MuQLoRAModel(
+            input_dim=1024, hidden_dim=512, num_labels=6,
+            use_pretrained_muq=False,
+            learning_rate=3e-5,
+            warmup_epochs=5,
+            max_epochs=200,
+        )
+        optim_config = model.configure_optimizers()
+        scheduler = optim_config["lr_scheduler"]["scheduler"]
+        # SequentialLR wraps two sub-schedulers
+        assert hasattr(scheduler, '_schedulers')
+        assert len(scheduler._schedulers) == 2
+
+        # First step should be near start_factor * lr (warmup beginning)
+        opt = optim_config["optimizer"]
+        initial_lr = opt.param_groups[0]["lr"]
+        assert initial_lr < 3e-5  # Should be start_factor * lr = 0.01 * 3e-5
+
     def test_training_step_returns_loss(self):
         model = MuQLoRAModel(
             input_dim=1024, hidden_dim=512, num_labels=19,
