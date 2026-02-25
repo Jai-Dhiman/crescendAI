@@ -154,7 +154,7 @@ class TransformerSymbolicEncoder(pl.LightningModule):
         """Run transformer encoder, returning per-token hidden states [B, T, d_model]."""
         x = self._embed(input_ids)
         # TransformerEncoder expects src_key_padding_mask with True for padded positions
-        padding_mask = ~attention_mask
+        padding_mask = ~attention_mask.bool()
         return self.transformer(x, src_key_padding_mask=padding_mask)
 
     def _attention_pool(
