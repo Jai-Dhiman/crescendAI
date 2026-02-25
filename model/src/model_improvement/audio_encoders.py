@@ -665,6 +665,7 @@ class MuQStagedModel(pl.LightningModule):
         ambiguous_threshold: float = 0.05,
         label_smoothing: float = 0.0,
         max_epochs: int = 200,
+        warmup_epochs: int = 5,
         use_pretrained_muq: bool = False,
         stage: str = "self_supervised",
     ):
@@ -677,6 +678,7 @@ class MuQStagedModel(pl.LightningModule):
         self.lambda_regression = lambda_regression
         self.lambda_invariance = lambda_invariance
         self.max_epochs = max_epochs
+        self.warmup_epochs = warmup_epochs
         self.num_labels = num_labels
         self.stage = stage
 
@@ -885,7 +887,13 @@ class MuQStagedModel(pl.LightningModule):
 
     def configure_optimizers(self) -> dict:
         opt = torch.optim.AdamW(self.parameters(), lr=self.lr, weight_decay=self.wd)
-        sch = torch.optim.lr_scheduler.CosineAnnealingLR(
-            opt, T_max=self.max_epochs, eta_min=1e-6
+        warmup = torch.optim.lr_scheduler.LinearLR(
+            opt, start_factor=0.01, total_iters=self.warmup_epochs
         )
-        return {"optimizer": opt, "lr_scheduler": {"scheduler": sch, "interval": "epoch"}}
+        cosine = torch.optim.lr_scheduler.CosineAnnealingLR(
+            opt, T_max=self.max_epochs - self.warmup_epochs, eta_min=1e-6
+        )
+        scheduler = torch.optim.lr_scheduler.SequentialLR(
+            opt, schedulers=[warmup, cosine], milestones=[self.warmup_epochs]
+        )
+        return {"optimizer": opt, "lr_scheduler": {"scheduler": scheduler, "interval": "epoch"}}

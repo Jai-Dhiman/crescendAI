@@ -101,6 +101,19 @@ class TestMuQStagedModel:
         loss = model.training_step(batch, 0)
         assert loss.ndim == 0
 
+    def test_warmup_lr_schedule(self):
+        model = MuQStagedModel(
+            input_dim=1024, hidden_dim=512, num_labels=6,
+            use_pretrained_muq=False,
+            learning_rate=3e-5,
+            warmup_epochs=5,
+            max_epochs=200,
+        )
+        optim_config = model.configure_optimizers()
+        scheduler = optim_config["lr_scheduler"]["scheduler"]
+        assert hasattr(scheduler, '_schedulers')
+        assert len(scheduler._schedulers) == 2
+
     def test_switch_stage(self):
         model = MuQStagedModel(
             input_dim=1024, hidden_dim=512, num_labels=19,
