@@ -148,6 +148,22 @@ class TestMuQFullUnfreezeModel:
         param_groups = optim_config["optimizer"].param_groups
         assert len(param_groups) > 1
 
+    def test_warmup_lr_schedule(self):
+        model = MuQFullUnfreezeModel(
+            input_dim=256, hidden_dim=128, num_labels=6,
+            use_pretrained_muq=False,
+            learning_rate=3e-5,
+            warmup_epochs=5,
+            max_epochs=200,
+            unfreeze_schedule={0: [3]},
+            mock_num_layers=4,
+        )
+        model.unfreeze_for_epoch(0)
+        optim_config = model.configure_optimizers()
+        scheduler = optim_config["lr_scheduler"]["scheduler"]
+        assert hasattr(scheduler, '_schedulers')
+        assert len(scheduler._schedulers) == 2
+
     def test_training_step_returns_loss(self):
         model = MuQFullUnfreezeModel(
             input_dim=256, hidden_dim=128, num_labels=19,

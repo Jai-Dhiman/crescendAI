@@ -337,6 +337,7 @@ class MuQFullUnfreezeModel(pl.LightningModule):
         ambiguous_threshold: float = 0.05,
         label_smoothing: float = 0.0,
         max_epochs: int = 200,
+        warmup_epochs: int = 5,
         use_pretrained_muq: bool = False,
         unfreeze_schedule: dict[int, list[int]] | None = None,
         lr_decay_factor: float = 0.8,
@@ -350,6 +351,7 @@ class MuQFullUnfreezeModel(pl.LightningModule):
         self.lambda_contrastive = lambda_contrastive
         self.lambda_regression = lambda_regression
         self.max_epochs = max_epochs
+        self.warmup_epochs = warmup_epochs
         self.num_labels = num_labels
         self.lr_decay_factor = lr_decay_factor
         self.unfreeze_schedule = unfreeze_schedule or {}
@@ -630,10 +632,16 @@ class MuQFullUnfreezeModel(pl.LightningModule):
             param_groups = [{"params": [p for p in self.parameters() if p.requires_grad], "lr": self.lr}]
 
         opt = torch.optim.AdamW(param_groups, weight_decay=self.wd)
-        sch = torch.optim.lr_scheduler.CosineAnnealingLR(
-            opt, T_max=self.max_epochs, eta_min=1e-6
+        warmup = torch.optim.lr_scheduler.LinearLR(
+            opt, start_factor=0.01, total_iters=self.warmup_epochs
         )
-        return {"optimizer": opt, "lr_scheduler": {"scheduler": sch, "interval": "epoch"}}
+        cosine = torch.optim.lr_scheduler.CosineAnnealingLR(
+            opt, T_max=self.max_epochs - self.warmup_epochs, eta_min=1e-6
+        )
+        scheduler = torch.optim.lr_scheduler.SequentialLR(
+            opt, schedulers=[warmup, cosine], milestones=[self.warmup_epochs]
+        )
+        return {"optimizer": opt, "lr_scheduler": {"scheduler": scheduler, "interval": "epoch"}}
 
 
 class MuQStagedModel(pl.LightningModule):
