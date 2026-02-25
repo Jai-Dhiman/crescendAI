@@ -6,7 +6,45 @@ import subprocess
 from pathlib import Path
 
 import pytorch_lightning as pl
+import torch
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
+
+
+def detect_accelerator_config() -> dict:
+    """Auto-detect hardware and return appropriate trainer kwargs."""
+    if torch.cuda.is_available():
+        return {
+            "accelerator": "auto",
+            "precision": "bf16-mixed",
+            "deterministic": True,
+        }
+    if torch.backends.mps.is_available():
+        return {
+            "accelerator": "auto",
+            "precision": "32-true",
+            "deterministic": False,
+        }
+    return {
+        "accelerator": "cpu",
+        "precision": "32-true",
+        "deterministic": False,
+    }
+
+
+def find_checkpoint(
+    checkpoint_dir: str | Path, model_name: str, fold_idx: int
+) -> Path | None:
+    """Find an existing best checkpoint for a model/fold.
+
+    Returns the path to the .ckpt file if found, None otherwise.
+    """
+    ckpt_dir = Path(checkpoint_dir) / model_name / f"fold_{fold_idx}"
+    if not ckpt_dir.exists():
+        return None
+    ckpts = sorted(ckpt_dir.glob("*.ckpt"))
+    if not ckpts:
+        return None
+    return ckpts[0]
 
 
 def upload_checkpoint(local_path: str | Path, remote_subdir: str) -> None:
@@ -27,8 +65,9 @@ def train_model(
     max_epochs: int = 200,
     monitor: str = "val_loss",
     upload_remote: str | None = None,
-    precision: str = "bf16-mixed",
+    precision: str | None = None,
     gradient_clip_val: float = 1.0,
+    patience: int = 10,
 ) -> pl.Trainer:
     """Train a model with standard callbacks.
 
@@ -43,14 +82,19 @@ def train_model(
         monitor: Metric to monitor for checkpointing/early stopping.
         upload_remote: If not None, the remote base path for rclone upload.
             Checkpoints are uploaded to ``{upload_remote}/{model_name}/fold_{fold_idx}``.
-        precision: Training precision. Default ``"bf16-mixed"`` per Doc 3 spec.
+        precision: Training precision override. If None, auto-detected.
         gradient_clip_val: Max gradient norm for clipping. Default ``1.0``.
+        patience: Early stopping patience in epochs. Default ``10``.
 
     Returns:
         The fitted Trainer instance.
     """
     ckpt_dir = Path(checkpoint_dir) / model_name / f"fold_{fold_idx}"
     ckpt_dir.mkdir(parents=True, exist_ok=True)
+
+    hw = detect_accelerator_config()
+    if precision is not None:
+        hw["precision"] = precision
 
     callbacks = [
         ModelCheckpoint(
@@ -62,21 +106,21 @@ def train_model(
         ),
         EarlyStopping(
             monitor=monitor,
-            patience=20,
+            patience=patience,
             mode="min",
         ),
     ]
 
     trainer = pl.Trainer(
         max_epochs=max_epochs,
-        accelerator="auto",
+        accelerator=hw["accelerator"],
         devices=1,
-        precision=precision,
+        precision=hw["precision"],
         gradient_clip_val=gradient_clip_val,
         callbacks=callbacks,
         enable_progress_bar=True,
         log_every_n_steps=10,
-        deterministic=True,
+        deterministic=hw["deterministic"],
     )
 
     trainer.fit(model, train_loader, val_loader)
