@@ -262,6 +262,50 @@ class PairedPerformanceDataset(Dataset):
         }
 
 
+class AudioSegmentDataset(Dataset):
+    """Per-segment dataset for self-supervised audio training (A2 Stage 1).
+
+    Returns individual segments with clean + augmented embeddings and piece IDs.
+    Used for contrastive cross-performer learning and augmentation invariance.
+    """
+
+    def __init__(
+        self,
+        embeddings: dict,
+        piece_to_keys: dict,
+        keys: list[str],
+        noise_std: float = 0.01,
+    ):
+        self.embeddings = embeddings
+        self.noise_std = noise_std
+
+        # Build key -> piece_id mapping
+        key_to_piece_id: Dict[str, int] = {}
+        for pid_idx, (pid, pkeys) in enumerate(sorted(piece_to_keys.items())):
+            for k in pkeys:
+                key_to_piece_id[k] = pid_idx
+
+        # Keep only keys that have both embeddings and piece membership
+        self.samples = [
+            (k, key_to_piece_id[k])
+            for k in keys
+            if k in embeddings and k in key_to_piece_id
+        ]
+
+    def __len__(self) -> int:
+        return len(self.samples)
+
+    def __getitem__(self, idx: int) -> dict:
+        key, piece_id = self.samples[idx]
+        emb = self.embeddings[key]
+        aug = emb + torch.randn_like(emb) * self.noise_std
+        return {
+            "embeddings_clean": emb,
+            "embeddings_augmented": aug,
+            "piece_ids": torch.tensor(piece_id),
+        }
+
+
 class AugmentedEmbeddingDataset(Dataset):
     """T4: Returns clean + augmented embedding pairs for invariance training.
 
@@ -511,6 +555,77 @@ class ScoreGraphPretrainingDataset(Dataset):
             "pos_edges": pos_edges,
             "neg_edges": neg_edges,
         }
+
+
+def audio_pair_collate_fn(
+    batch: list[dict],
+    embeddings: dict,
+) -> dict | None:
+    """Collate paired performance data with pre-computed audio embeddings.
+
+    Attaches pre-extracted MuQ embeddings to paired data from PairedPerformanceDataset.
+    Used with functools.partial to bind embeddings.
+
+    Args:
+        batch: List of dicts from PairedPerformanceDataset.
+        embeddings: Dict mapping performance keys to [T, D] embedding tensors.
+
+    Returns:
+        Collated batch for MuQ audio encoders, or None if no valid pairs found.
+    """
+    embs_a, embs_b = [], []
+    labels_a_list, labels_b_list = [], []
+    piece_ids_a, piece_ids_b = [], []
+
+    for item in batch:
+        key_a, key_b = item["key_a"], item["key_b"]
+        if key_a not in embeddings or key_b not in embeddings:
+            continue
+
+        embs_a.append(embeddings[key_a])
+        embs_b.append(embeddings[key_b])
+        labels_a_list.append(item["labels_a"])
+        labels_b_list.append(item["labels_b"])
+        piece_ids_a.append(item["piece_id"])
+        piece_ids_b.append(item["piece_id"])
+
+    if not embs_a:
+        return None
+
+    # Pad variable-length sequences to batch max
+    def _pad_and_stack(tensors):
+        if tensors[0].dim() < 2:
+            return torch.stack(tensors), None
+        max_len = max(t.shape[0] for t in tensors)
+        D = tensors[0].shape[-1]
+        padded, masks = [], []
+        for t in tensors:
+            T = t.shape[0]
+            mask = torch.ones(max_len, dtype=torch.bool)
+            if T < max_len:
+                t = torch.cat([t, torch.zeros(max_len - T, D)], dim=0)
+                mask[T:] = False
+            padded.append(t)
+            masks.append(mask)
+        return torch.stack(padded), torch.stack(masks)
+
+    stacked_a, masks_a = _pad_and_stack(embs_a)
+    stacked_b, masks_b = _pad_and_stack(embs_b)
+
+    result = {
+        "embeddings_a": stacked_a,
+        "embeddings_b": stacked_b,
+        "labels_a": torch.stack(labels_a_list),
+        "labels_b": torch.stack(labels_b_list),
+        "piece_ids_a": torch.tensor(piece_ids_a),
+        "piece_ids_b": torch.tensor(piece_ids_b),
+    }
+    if masks_a is not None:
+        result["mask_a"] = masks_a
+    if masks_b is not None:
+        result["mask_b"] = masks_b
+
+    return result
 
 
 def graph_pair_collate_fn(
