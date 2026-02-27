@@ -306,6 +306,53 @@ class AudioSegmentDataset(Dataset):
         }
 
 
+class MaestroContrastiveDataset(Dataset):
+    """Lazy-loading MAESTRO dataset for Stage 1 contrastive + invariance training.
+
+    Loads .pt embedding files from disk per __getitem__ to avoid OOM
+    when the full dataset (~34GB) exceeds available RAM.
+    """
+
+    def __init__(
+        self,
+        emb_dir: str | Path,
+        contrastive_mapping: dict,
+        piece_id_offset: int = 0,
+        noise_std: float = 0.01,
+    ):
+        self.emb_dir = Path(emb_dir)
+        self.noise_std = noise_std
+        self.samples: List[Tuple[str, int]] = []
+        pid = piece_id_offset
+        for piece, keys in sorted(contrastive_mapping.items()):
+            valid = [k for k in keys if (self.emb_dir / f"{k}.pt").exists()]
+            if len(valid) >= 2:
+                for k in valid:
+                    self.samples.append((k, pid))
+                pid += 1
+        print(
+            f"MaestroContrastiveDataset: {len(self.samples)} segments, "
+            f"{pid - piece_id_offset} pieces (offset={piece_id_offset})"
+        )
+
+    def __len__(self) -> int:
+        return len(self.samples)
+
+    def __getitem__(self, idx: int) -> dict:
+        key, piece_id = self.samples[idx]
+        emb = torch.load(
+            self.emb_dir / f"{key}.pt",
+            map_location="cpu",
+            weights_only=True,
+        )
+        aug = emb + torch.randn_like(emb) * self.noise_std
+        return {
+            "embeddings_clean": emb,
+            "embeddings_augmented": aug,
+            "piece_ids": torch.tensor(piece_id),
+        }
+
+
 class AugmentedEmbeddingDataset(Dataset):
     """T4: Returns clean + augmented embedding pairs for invariance training.
 
@@ -500,6 +547,18 @@ def multi_task_collate_fn(batch: list[dict]) -> dict:
             # Strings, ints, or other non-tensor types: collect into a list
             collated[key] = values
 
+    return collated
+
+
+def stage1_collate_fn(batch: list[dict]) -> dict:
+    """Collate for Stage 1 self-supervised training.
+
+    Wraps multi_task_collate_fn and renames embeddings_clean_mask -> mask
+    to match _self_supervised_step expectations.
+    """
+    collated = multi_task_collate_fn(batch)
+    if "embeddings_clean_mask" in collated:
+        collated["mask"] = collated["embeddings_clean_mask"]
     return collated
 
 
@@ -897,6 +956,43 @@ def hetero_graph_collate_fn(
         "labels_b": torch.stack(labels_b_list),
         "piece_ids_a": torch.tensor(piece_ids_a),
         "piece_ids_b": torch.tensor(piece_ids_b),
+    }
+
+
+def hetero_pretrain_collate_fn(batch: list[dict]) -> dict:
+    """Collate HeteroPretrainDataset items into a single batched dict.
+
+    Concatenates node features with node offsets applied to all edge indices,
+    pos_edges, and neg_edges so that node IDs remain consistent across the
+    merged graph.
+    """
+    all_x = []
+    all_edge_indices: dict[tuple, list[torch.Tensor]] = {}
+    all_pos_edges = []
+    all_neg_edges = []
+    offset = 0
+
+    for item in batch:
+        x = item["x_dict"]["note"]
+        num_nodes = x.size(0)
+        all_x.append(x)
+
+        for et, ei in item["edge_index_dict"].items():
+            if et not in all_edge_indices:
+                all_edge_indices[et] = []
+            all_edge_indices[et].append(ei + offset)
+
+        all_pos_edges.append(item["pos_edges"] + offset)
+        all_neg_edges.append(item["neg_edges"] + offset)
+        offset += num_nodes
+
+    merged_ei = {et: torch.cat(eis, dim=1) for et, eis in all_edge_indices.items()}
+
+    return {
+        "x_dict": {"note": torch.cat(all_x, dim=0)},
+        "edge_index_dict": merged_ei,
+        "pos_edges": torch.cat(all_pos_edges, dim=1),
+        "neg_edges": torch.cat(all_neg_edges, dim=1),
     }
 
 

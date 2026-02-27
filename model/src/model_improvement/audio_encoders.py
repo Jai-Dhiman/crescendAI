@@ -342,6 +342,7 @@ class MuQFullUnfreezeModel(pl.LightningModule):
         unfreeze_schedule: dict[int, list[int]] | None = None,
         lr_decay_factor: float = 0.8,
         mock_num_layers: int = 12,
+        use_gradient_checkpointing: bool = False,
     ):
         super().__init__()
         self.save_hyperparameters()
@@ -356,6 +357,7 @@ class MuQFullUnfreezeModel(pl.LightningModule):
         self.lr_decay_factor = lr_decay_factor
         self.unfreeze_schedule = unfreeze_schedule or {}
         self._unfrozen_layers: set[int] = set()
+        self.use_gradient_checkpointing = use_gradient_checkpointing
 
         # Backbone (MuQ or mock encoder for testing)
         if use_pretrained_muq:
@@ -461,7 +463,15 @@ class MuQFullUnfreezeModel(pl.LightningModule):
         return (x * w).sum(1)
 
     def encode(self, x: torch.Tensor, mask: torch.Tensor | None = None) -> torch.Tensor:
-        backbone_out = self.backbone(x)
+        if self.use_gradient_checkpointing and self.training:
+            hidden = x
+            for layer in self.backbone.layers:
+                hidden = torch.utils.checkpoint.checkpoint(
+                    layer, hidden, use_reentrant=False
+                )
+            backbone_out = hidden
+        else:
+            backbone_out = self.backbone(x)
         pooled = self.pool(backbone_out, mask)
         return self.encoder(pooled)
 

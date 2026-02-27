@@ -212,6 +212,41 @@ class TestMuQFullUnfreezeModel:
         assert loss.ndim == 0
         assert loss.item() > 0
 
+    def test_gradient_checkpointing_produces_valid_gradients(self):
+        model = MuQFullUnfreezeModel(
+            input_dim=256, hidden_dim=128, num_labels=19,
+            use_pretrained_muq=False,
+            unfreeze_schedule={0: [3, 2, 1, 0]},
+            mock_num_layers=4,
+            use_gradient_checkpointing=True,
+        )
+        model.unfreeze_for_epoch(0)
+        model.train()
+
+        batch = {
+            "embeddings_a": torch.randn(4, 50, 256),
+            "embeddings_b": torch.randn(4, 50, 256),
+            "mask_a": torch.ones(4, 50, dtype=torch.bool),
+            "mask_b": torch.ones(4, 50, dtype=torch.bool),
+            "labels_a": torch.rand(4, 19),
+            "labels_b": torch.rand(4, 19),
+            "piece_ids_a": torch.tensor([0, 0, 1, 1]),
+            "piece_ids_b": torch.tensor([0, 0, 1, 1]),
+        }
+        loss = model.training_step(batch, 0)
+        loss.backward()
+
+        # Verify unfrozen backbone layers received gradients
+        for layer_idx in [0, 1, 2, 3]:
+            layer = model.backbone.layers[layer_idx]
+            for name, param in layer.named_parameters():
+                assert param.grad is not None, (
+                    f"backbone.layers[{layer_idx}].{name} has no gradient"
+                )
+                assert param.grad.abs().sum() > 0, (
+                    f"backbone.layers[{layer_idx}].{name} has zero gradient"
+                )
+
 
 def test_default_num_labels_is_taxonomy():
     from model_improvement.taxonomy import NUM_DIMS

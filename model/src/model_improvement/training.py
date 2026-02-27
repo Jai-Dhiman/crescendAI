@@ -68,6 +68,7 @@ def train_model(
     precision: str | None = None,
     gradient_clip_val: float = 1.0,
     patience: int = 10,
+    accumulate_grad_batches: int = 1,
 ) -> pl.Trainer:
     """Train a model with standard callbacks.
 
@@ -85,6 +86,8 @@ def train_model(
         precision: Training precision override. If None, auto-detected.
         gradient_clip_val: Max gradient norm for clipping. Default ``1.0``.
         patience: Early stopping patience in epochs. Default ``10``.
+        accumulate_grad_batches: Accumulate gradients over N batches before
+            stepping. Default ``1`` (no accumulation).
 
     Returns:
         The fitted Trainer instance.
@@ -117,6 +120,7 @@ def train_model(
         devices=1,
         precision=hw["precision"],
         gradient_clip_val=gradient_clip_val,
+        accumulate_grad_batches=accumulate_grad_batches,
         callbacks=callbacks,
         enable_progress_bar=True,
         log_every_n_steps=10,
