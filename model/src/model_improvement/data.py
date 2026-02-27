@@ -616,6 +616,31 @@ class ScoreGraphPretrainingDataset(Dataset):
         }
 
 
+def graph_pretrain_collate_fn(batch: list[dict]) -> dict:
+    """Collate ScoreGraphPretrainingDataset items into a single batched graph."""
+    all_x = []
+    all_edge_indices = []
+    all_pos_edges = []
+    all_neg_edges = []
+    offset = 0
+
+    for item in batch:
+        x = item["x"]
+        num_nodes = x.size(0)
+        all_x.append(x)
+        all_edge_indices.append(item["edge_index"] + offset)
+        all_pos_edges.append(item["pos_edges"] + offset)
+        all_neg_edges.append(item["neg_edges"] + offset)
+        offset += num_nodes
+
+    return {
+        "x": torch.cat(all_x, dim=0),
+        "edge_index": torch.cat(all_edge_indices, dim=1),
+        "pos_edges": torch.cat(all_pos_edges, dim=1),
+        "neg_edges": torch.cat(all_neg_edges, dim=1),
+    }
+
+
 def audio_pair_collate_fn(
     batch: list[dict],
     embeddings: dict,

@@ -373,7 +373,7 @@ class GNNSymbolicEncoder(pl.LightningModule):
         if stage not in ("pretrain", "finetune"):
             raise ValueError(f"stage must be 'pretrain' or 'finetune', got '{stage}'")
 
-        from torch_geometric.nn import GATConv, GlobalAttention
+        from torch_geometric.nn import GATConv, AttentionalAggregation
 
         # Node feature projection
         self.node_embed = nn.Sequential(
@@ -399,7 +399,7 @@ class GNNSymbolicEncoder(pl.LightningModule):
 
         # Global attention pooling (learned gate)
         gate_nn = nn.Sequential(nn.Linear(hidden_dim, 1))
-        self.global_pool = GlobalAttention(gate_nn=gate_nn)
+        self.global_pool = AttentionalAggregation(gate_nn=gate_nn)
 
         # Projection to hidden_dim
         self.projection = nn.Sequential(
