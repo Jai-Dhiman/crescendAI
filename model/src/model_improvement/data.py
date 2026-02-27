@@ -644,7 +644,7 @@ def graph_pretrain_collate_fn(batch: list[dict]) -> dict:
 def audio_pair_collate_fn(
     batch: list[dict],
     embeddings: dict,
-) -> dict | None:
+) -> dict:
     """Collate paired performance data with pre-computed audio embeddings.
 
     Attaches pre-extracted MuQ embeddings to paired data from PairedPerformanceDataset.
@@ -655,7 +655,10 @@ def audio_pair_collate_fn(
         embeddings: Dict mapping performance keys to [T, D] embedding tensors.
 
     Returns:
-        Collated batch for MuQ audio encoders, or None if no valid pairs found.
+        Collated batch for MuQ audio encoders.
+
+    Raises:
+        RuntimeError: If no valid pairs are found in the batch.
     """
     embs_a, embs_b = [], []
     labels_a_list, labels_b_list = [], []
@@ -674,7 +677,10 @@ def audio_pair_collate_fn(
         piece_ids_b.append(item["piece_id"])
 
     if not embs_a:
-        return None
+        raise RuntimeError(
+            "audio_pair_collate_fn: no valid pairs in batch -- "
+            "check that all dataset keys exist in embeddings dict"
+        )
 
     # Pad variable-length sequences to batch max
     def _pad_and_stack(tensors):
@@ -715,7 +721,7 @@ def audio_pair_collate_fn(
 def graph_pair_collate_fn(
     batch: list[dict],
     graphs: dict,
-) -> dict | None:
+) -> dict:
     """Collate paired performance data with pre-computed score graphs.
 
     Takes output from PairedPerformanceDataset and attaches graph data
@@ -728,8 +734,10 @@ def graph_pair_collate_fn(
         graphs: Dict mapping performance keys to PyG Data objects.
 
     Returns:
-        Collated batch matching GNNSymbolicEncoder._finetune_step() format,
-        or None if no valid pairs found.
+        Collated batch matching GNNSymbolicEncoder._finetune_step() format.
+
+    Raises:
+        RuntimeError: If no valid pairs are found in the batch.
     """
     from torch_geometric.data import Batch
 
@@ -753,7 +761,10 @@ def graph_pair_collate_fn(
         piece_ids_b.append(item["piece_id"])
 
     if not graphs_a:
-        return None
+        raise RuntimeError(
+            "graph_pair_collate_fn: no valid pairs in batch -- "
+            "check that all dataset keys exist in graphs dict"
+        )
 
     batch_a = Batch.from_data_list(graphs_a)
     batch_b = Batch.from_data_list(graphs_b)
@@ -776,7 +787,7 @@ def symbolic_collate_fn(
     batch: list[dict],
     token_sequences: dict,
     max_len: int = 2048,
-) -> dict | None:
+) -> dict:
     """Collate paired performance data with tokenized MIDI sequences.
 
     Attaches tokenized MIDI to paired data from PairedPerformanceDataset.
@@ -788,8 +799,10 @@ def symbolic_collate_fn(
         max_len: Maximum sequence length for padding/truncation.
 
     Returns:
-        Collated batch for TransformerSymbolicEncoder._finetune_step(),
-        or None if no valid pairs found.
+        Collated batch for TransformerSymbolicEncoder._finetune_step().
+
+    Raises:
+        RuntimeError: If no valid pairs are found in the batch.
     """
     ids_a, ids_b, masks_a, masks_b = [], [], [], []
     labels_a_list, labels_b_list = [], []
@@ -823,7 +836,10 @@ def symbolic_collate_fn(
         piece_ids_b.append(item["piece_id"])
 
     if not ids_a:
-        return None
+        raise RuntimeError(
+            "symbolic_collate_fn: no valid pairs in batch -- "
+            "check that all dataset keys exist in token_sequences dict"
+        )
 
     return {
         "input_ids_a": torch.stack(ids_a),
@@ -841,7 +857,7 @@ def continuous_collate_fn(
     batch: list[dict],
     features_dict: dict,
     max_len: int = 2000,
-) -> dict | None:
+) -> dict:
     """Collate paired performance data with continuous features.
 
     Attaches continuous features to paired data from PairedPerformanceDataset.
@@ -853,8 +869,10 @@ def continuous_collate_fn(
         max_len: Maximum sequence length for padding/truncation.
 
     Returns:
-        Collated batch for ContinuousSymbolicEncoder._finetune_step(),
-        or None if no valid pairs found.
+        Collated batch for ContinuousSymbolicEncoder._finetune_step().
+
+    Raises:
+        RuntimeError: If no valid pairs are found in the batch.
     """
     feats_a, feats_b = [], []
     masks_a, masks_b = [], []
@@ -891,7 +909,10 @@ def continuous_collate_fn(
         piece_ids_b.append(item["piece_id"])
 
     if not feats_a:
-        return None
+        raise RuntimeError(
+            "continuous_collate_fn: no valid pairs in batch -- "
+            "check that all dataset keys exist in features_dict"
+        )
 
     return {
         "features_a": torch.stack(feats_a),
@@ -908,7 +929,7 @@ def continuous_collate_fn(
 def hetero_graph_collate_fn(
     batch: list[dict],
     hetero_graphs: dict,
-) -> dict | None:
+) -> dict:
     """Collate paired performance data with heterogeneous score graphs.
 
     Manually tracks node offsets and merges edge_index_dict across batch items.
@@ -920,7 +941,8 @@ def hetero_graph_collate_fn(
 
     Returns:
         Collated batch for GNNHeteroSymbolicEncoder._finetune_step(),
-        or None if no valid pairs found.
+    Raises:
+        RuntimeError: If no valid pairs are found in the batch.
     """
     x_dicts_a, ei_dicts_a, batches_a = [], [], []
     x_dicts_b, ei_dicts_b, batches_b = [], [], []
@@ -961,7 +983,10 @@ def hetero_graph_collate_fn(
         piece_ids_b.append(item["piece_id"])
 
     if not x_dicts_a:
-        return None
+        raise RuntimeError(
+            "hetero_graph_collate_fn: no valid pairs in batch -- "
+            "check that all dataset keys exist in hetero_graphs dict"
+        )
 
     merged_ei_a = {}
     merged_ei_b = {}

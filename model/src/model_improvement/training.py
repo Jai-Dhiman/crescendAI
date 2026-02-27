@@ -125,6 +125,7 @@ def train_model(
         enable_progress_bar=True,
         log_every_n_steps=10,
         deterministic=hw["deterministic"],
+        num_sanity_val_steps=0,
     )
 
     trainer.fit(model, train_loader, val_loader)
