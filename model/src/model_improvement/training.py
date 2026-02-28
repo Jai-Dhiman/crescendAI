@@ -10,8 +10,20 @@ import torch
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 
 
+def _log_msg(msg: str, log_file: str | None = None) -> None:
+    """Print to stdout and optionally append to a log file."""
+    print(msg, flush=True)
+    if log_file:
+        with open(log_file, "a") as f:
+            f.write(f"{msg}\n")
+
+
 class PrintEpochCallback(pl.Callback):
     """Print epoch metrics + memory to stdout (useful when tqdm doesn't render over SSH)."""
+
+    def __init__(self, log_file: str | None = None):
+        super().__init__()
+        self.log_file = log_file
 
     def on_train_epoch_end(self, trainer, pl_module):
         metrics = {
@@ -30,15 +42,16 @@ class PrintEpochCallback(pl.Callback):
             mem += f" | RAM: {ram:.1f}GB"
         except ImportError:
             pass
-        print(f"Epoch {trainer.current_epoch}: {metrics}{mem}", flush=True)
+        _log_msg(f"Epoch {trainer.current_epoch}: {metrics}{mem}", self.log_file)
 
 
 class BatchProgressCallback(pl.Callback):
     """Print progress every N training batches so long epochs aren't silent."""
 
-    def __init__(self, log_every: int = 50):
+    def __init__(self, log_every: int = 50, log_file: str | None = None):
         super().__init__()
         self.log_every = log_every
+        self.log_file = log_file
 
     def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
         if (batch_idx + 1) % self.log_every == 0:
@@ -48,9 +61,9 @@ class BatchProgressCallback(pl.Callback):
             if torch.cuda.is_available():
                 alloc = torch.cuda.memory_allocated() / 1024**3
                 mem = f" | GPU: {alloc:.1f}GB"
-            print(
+            _log_msg(
                 f"  batch {batch_idx + 1}/{total} loss={loss:.4f}{mem}",
-                flush=True,
+                self.log_file,
             )
 
 
@@ -113,6 +126,7 @@ def train_model(
     gradient_clip_val: float = 1.0,
     patience: int = 10,
     accumulate_grad_batches: int = 1,
+    log_file: str | None = None,
 ) -> pl.Trainer:
     """Train a model with standard callbacks.
 
@@ -132,6 +146,9 @@ def train_model(
         patience: Early stopping patience in epochs. Default ``10``.
         accumulate_grad_batches: Accumulate gradients over N batches before
             stepping. Default ``1`` (no accumulation).
+        log_file: Optional path to a log file. Callbacks will append progress
+            messages here in addition to stdout. Useful for ``tail -f`` when
+            Jupyter buffers stdout.
 
     Returns:
         The fitted Trainer instance.
@@ -156,8 +173,8 @@ def train_model(
             patience=patience,
             mode="min",
         ),
-        PrintEpochCallback(),
-        BatchProgressCallback(log_every=50),
+        PrintEpochCallback(log_file=log_file),
+        BatchProgressCallback(log_every=50, log_file=log_file),
     ]
 
     trainer = pl.Trainer(

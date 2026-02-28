@@ -104,13 +104,13 @@ class TestSymbolicCollateFn:
         assert result["mask_b"][0, :30].all()
         assert not result["mask_b"][0, 30:].any()
 
-    def test_missing_keys_returns_none(self):
-        result = symbolic_collate_fn(
-            [{"key_a": "missing", "key_b": "also_missing",
-              "labels_a": torch.rand(19), "labels_b": torch.rand(19), "piece_id": 0}],
-            {},
-        )
-        assert result is None
+    def test_missing_keys_raises(self):
+        with pytest.raises(RuntimeError, match="no valid pairs in batch"):
+            symbolic_collate_fn(
+                [{"key_a": "missing", "key_b": "also_missing",
+                  "labels_a": torch.rand(19), "labels_b": torch.rand(19), "piece_id": 0}],
+                {},
+            )
 
 
 class TestContinuousCollateFn:
@@ -154,13 +154,13 @@ class TestContinuousCollateFn:
         assert result["mask_a"][0, :50].all()
         assert not result["mask_a"][0, 50:].any()
 
-    def test_missing_keys_returns_none(self):
-        result = continuous_collate_fn(
-            [{"key_a": "missing", "key_b": "also_missing",
-              "labels_a": torch.rand(19), "labels_b": torch.rand(19), "piece_id": 0}],
-            {},
-        )
-        assert result is None
+    def test_missing_keys_raises(self):
+        with pytest.raises(RuntimeError, match="no valid pairs in batch"):
+            continuous_collate_fn(
+                [{"key_a": "missing", "key_b": "also_missing",
+                  "labels_a": torch.rand(19), "labels_b": torch.rand(19), "piece_id": 0}],
+                {},
+            )
 
 
 class TestContinuousPretrainDataset:
