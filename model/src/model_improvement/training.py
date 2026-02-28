@@ -33,6 +33,27 @@ class PrintEpochCallback(pl.Callback):
         print(f"Epoch {trainer.current_epoch}: {metrics}{mem}", flush=True)
 
 
+class BatchProgressCallback(pl.Callback):
+    """Print progress every N training batches so long epochs aren't silent."""
+
+    def __init__(self, log_every: int = 50):
+        super().__init__()
+        self.log_every = log_every
+
+    def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
+        if (batch_idx + 1) % self.log_every == 0:
+            total = trainer.num_training_batches
+            loss = outputs["loss"].item() if isinstance(outputs, dict) else float("nan")
+            mem = ""
+            if torch.cuda.is_available():
+                alloc = torch.cuda.memory_allocated() / 1024**3
+                mem = f" | GPU: {alloc:.1f}GB"
+            print(
+                f"  batch {batch_idx + 1}/{total} loss={loss:.4f}{mem}",
+                flush=True,
+            )
+
+
 def detect_accelerator_config() -> dict:
     """Auto-detect hardware and return appropriate trainer kwargs."""
     if torch.cuda.is_available():
@@ -136,6 +157,7 @@ def train_model(
             mode="min",
         ),
         PrintEpochCallback(),
+        BatchProgressCallback(log_every=50),
     ]
 
     trainer = pl.Trainer(

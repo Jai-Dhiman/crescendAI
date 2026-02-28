@@ -371,7 +371,7 @@ class TestGraphPairCollateFn:
         }
         assert set(result.keys()) == expected_keys
 
-    def test_missing_graphs_returns_none(self):
+    def test_missing_graphs_raises(self):
         batch = [
             {
                 "key_a": "missing1",
@@ -381,8 +381,8 @@ class TestGraphPairCollateFn:
                 "piece_id": 0,
             }
         ]
-        result = graph_pair_collate_fn(batch, {})
-        assert result is None
+        with pytest.raises(RuntimeError, match="no valid pairs in batch"):
+            graph_pair_collate_fn(batch, {})
 
 
 class TestGNNIntegration:
@@ -501,7 +501,7 @@ class TestHeteroGraphCollateFn:
         n1 = h1["note"].x.shape[0]
         assert result["x_dict_a"]["note"].shape[0] == n1 * 2
 
-    def test_missing_graphs_returns_none(self):
+    def test_missing_graphs_raises(self):
         batch = [
             {
                 "key_a": "missing1",
@@ -511,8 +511,8 @@ class TestHeteroGraphCollateFn:
                 "piece_id": 0,
             }
         ]
-        result = hetero_graph_collate_fn(batch, {})
-        assert result is None
+        with pytest.raises(RuntimeError, match="no valid pairs in batch"):
+            hetero_graph_collate_fn(batch, {})
 
 
 class TestHeteroPretrainDataset:

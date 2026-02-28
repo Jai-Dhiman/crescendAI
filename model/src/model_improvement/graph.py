@@ -334,15 +334,38 @@ def midi_to_hetero_graph(
     return homo_to_hetero_graph(homo)
 
 
+def build_edge_set(data: Data) -> set[tuple[int, int]]:
+    """Build a set of (src, dst) tuples from a graph's edge_index.
+
+    Pre-computing this once per graph avoids rebuilding it on every call to
+    ``sample_negative_edges`` (which is called once per ``__getitem__``).
+
+    Args:
+        data: PyG Data object with edge_index.
+
+    Returns:
+        Set of (src, dst) edge tuples.
+    """
+    if data.edge_index.size(1) == 0:
+        return set()
+    return set(zip(data.edge_index[0].tolist(), data.edge_index[1].tolist()))
+
+
 def sample_negative_edges(
     data: Data,
     num_neg: int,
+    edge_set: set[tuple[int, int]] | None = None,
 ) -> torch.Tensor:
     """Sample random negative edges (node pairs with no existing edge).
+
+    Uses batch sampling to avoid slow single-sample Python loops on large
+    graphs (e.g. 23K nodes / 126K edges).
 
     Args:
         data: PyG Data object with edge_index.
         num_neg: Number of negative edges to sample.
+        edge_set: Optional pre-computed edge set from ``build_edge_set``.
+            If None, built on-the-fly (slow for large graphs called repeatedly).
 
     Returns:
         Tensor of shape [2, num_neg] with negative edge pairs.
@@ -351,27 +374,33 @@ def sample_negative_edges(
     if num_nodes < 2:
         return torch.zeros((2, 0), dtype=torch.long)
 
-    # Build set of existing edges for O(1) lookup
-    edge_set: set[tuple[int, int]] = set()
-    if data.edge_index.size(1) > 0:
-        src = data.edge_index[0].tolist()
-        dst = data.edge_index[1].tolist()
-        for s, d in zip(src, dst):
-            edge_set.add((s, d))
+    if edge_set is None:
+        edge_set = build_edge_set(data)
+    # Copy so we can add sampled pairs without mutating the cached set
+    working_set = set(edge_set)
 
     neg_edges: list[tuple[int, int]] = []
-    max_attempts = num_neg * 10
-    attempts = 0
+    max_rounds = 20
+    chunk_size = max(num_neg * 2, 1024)
 
-    while len(neg_edges) < num_neg and attempts < max_attempts:
-        u = torch.randint(0, num_nodes, (1,)).item()
-        v = torch.randint(0, num_nodes, (1,)).item()
-        attempts += 1
-        if u == v:
-            continue
-        if (u, v) not in edge_set and (v, u) not in edge_set:
-            neg_edges.append((u, v))
-            edge_set.add((u, v))  # prevent duplicates
+    for _ in range(max_rounds):
+        if len(neg_edges) >= num_neg:
+            break
+
+        u_batch = torch.randint(0, num_nodes, (chunk_size,))
+        v_batch = torch.randint(0, num_nodes, (chunk_size,))
+
+        # Vectorized self-loop filter
+        mask = u_batch != v_batch
+        u_filtered = u_batch[mask].tolist()
+        v_filtered = v_batch[mask].tolist()
+
+        for u, v in zip(u_filtered, v_filtered):
+            if (u, v) not in working_set and (v, u) not in working_set:
+                neg_edges.append((u, v))
+                working_set.add((u, v))
+                if len(neg_edges) >= num_neg:
+                    break
 
     if not neg_edges:
         return torch.zeros((2, 0), dtype=torch.long)

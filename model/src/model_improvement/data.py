@@ -568,6 +568,9 @@ class ScoreGraphPretrainingDataset(Dataset):
     For each graph, randomly masks a fraction of edges as positive targets
     and samples negative edges. Returns the format expected by
     GNNSymbolicEncoder._pretrain_step().
+
+    Pre-computes edge sets at init time so that ``sample_negative_edges``
+    does not rebuild them on every ``__getitem__`` call.
     """
 
     def __init__(
@@ -575,6 +578,8 @@ class ScoreGraphPretrainingDataset(Dataset):
         graphs: list,
         mask_fraction: float = 0.15,
         neg_ratio: float = 1.0,
+        edge_sets: list | None = None,
+        log_every: int = 500,
     ):
         if not graphs:
             raise ValueError("graphs must be a non-empty list")
@@ -584,12 +589,28 @@ class ScoreGraphPretrainingDataset(Dataset):
         self.graphs = graphs
         self.mask_fraction = mask_fraction
         self.neg_ratio = neg_ratio
+        self._fetch_count = 0
+        self._log_every = log_every
+
+        if edge_sets is not None:
+            self._edge_sets = edge_sets
+        else:
+            from model_improvement.graph import build_edge_set
+
+            self._edge_sets = [build_edge_set(g) for g in graphs]
 
     def __len__(self) -> int:
         return len(self.graphs)
 
     def __getitem__(self, idx: int) -> dict:
         from model_improvement.graph import sample_negative_edges
+
+        self._fetch_count += 1
+        if self._fetch_count % self._log_every == 0:
+            print(
+                f"  [ScoreGraphPretrain] {self._fetch_count} items fetched",
+                flush=True,
+            )
 
         data = self.graphs[idx]
         edge_index = data.edge_index
@@ -604,9 +625,9 @@ class ScoreGraphPretrainingDataset(Dataset):
         pos_edges = edge_index[:, mask_idx]
         remaining_edges = edge_index[:, keep_idx]
 
-        # Sample negative edges
+        # Sample negative edges (using pre-computed edge set)
         num_neg = max(1, int(num_mask * self.neg_ratio))
-        neg_edges = sample_negative_edges(data, num_neg)
+        neg_edges = sample_negative_edges(data, num_neg, edge_set=self._edge_sets[idx])
 
         return {
             "x": data.x,
@@ -1102,6 +1123,9 @@ class HeteroPretrainDataset(Dataset):
 
     For each key, builds edge masking from the homogeneous graph and returns
     the heterogeneous graph structure for the hetero GNN.
+
+    Pre-computes edge sets at init time so that ``sample_negative_edges``
+    does not rebuild them on every ``__getitem__`` call.
     """
 
     def __init__(
@@ -1110,6 +1134,8 @@ class HeteroPretrainDataset(Dataset):
         homo_graphs: dict,
         hetero_graphs: dict,
         mask_fraction: float = 0.15,
+        edge_sets: dict | None = None,
+        log_every: int = 500,
     ):
         self.keys = [k for k in keys if k in homo_graphs and k in hetero_graphs]
         if not self.keys:
@@ -1117,12 +1143,28 @@ class HeteroPretrainDataset(Dataset):
         self.homo = homo_graphs
         self.hetero = hetero_graphs
         self.mask_fraction = mask_fraction
+        self._fetch_count = 0
+        self._log_every = log_every
+
+        if edge_sets is not None:
+            self._edge_sets = edge_sets
+        else:
+            from model_improvement.graph import build_edge_set
+
+            self._edge_sets = {k: build_edge_set(homo_graphs[k]) for k in self.keys}
 
     def __len__(self) -> int:
         return len(self.keys)
 
     def __getitem__(self, idx: int) -> dict:
         from model_improvement.graph import sample_negative_edges
+
+        self._fetch_count += 1
+        if self._fetch_count % self._log_every == 0:
+            print(
+                f"  [HeteroPretrain] {self._fetch_count} items fetched",
+                flush=True,
+            )
 
         key = self.keys[idx]
         homo = self.homo[key]
@@ -1133,7 +1175,7 @@ class HeteroPretrainDataset(Dataset):
         num_mask = max(1, int(num_edges * self.mask_fraction))
         perm = torch.randperm(num_edges)
         pos_edges = edge_index[:, perm[:num_mask]]
-        neg_edges = sample_negative_edges(homo, num_mask)
+        neg_edges = sample_negative_edges(homo, num_mask, edge_set=self._edge_sets[key])
 
         x_dict = {"note": hetero["note"].x}
         edge_index_dict = {}
