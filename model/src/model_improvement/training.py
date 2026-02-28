@@ -10,6 +10,29 @@ import torch
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 
 
+class PrintEpochCallback(pl.Callback):
+    """Print epoch metrics + memory to stdout (useful when tqdm doesn't render over SSH)."""
+
+    def on_train_epoch_end(self, trainer, pl_module):
+        metrics = {
+            k: f"{v:.4f}"
+            for k, v in trainer.callback_metrics.items()
+            if isinstance(v, (int, float, torch.Tensor))
+        }
+        mem = ""
+        if torch.cuda.is_available():
+            alloc = torch.cuda.memory_allocated() / 1024**3
+            reserved = torch.cuda.memory_reserved() / 1024**3
+            mem = f" | GPU: {alloc:.1f}GB alloc, {reserved:.1f}GB reserved"
+        try:
+            import psutil
+            ram = psutil.Process().memory_info().rss / 1024**3
+            mem += f" | RAM: {ram:.1f}GB"
+        except ImportError:
+            pass
+        print(f"Epoch {trainer.current_epoch}: {metrics}{mem}", flush=True)
+
+
 def detect_accelerator_config() -> dict:
     """Auto-detect hardware and return appropriate trainer kwargs."""
     if torch.cuda.is_available():
@@ -112,6 +135,7 @@ def train_model(
             patience=patience,
             mode="min",
         ),
+        PrintEpochCallback(),
     ]
 
     trainer = pl.Trainer(

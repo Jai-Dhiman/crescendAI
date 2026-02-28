@@ -270,9 +270,9 @@ class TransformerSymbolicEncoder(pl.LightningModule):
             self.log("val_loss", l_rank, prog_bar=True)
 
             self.val_outputs.append({
-                "logits": ranking_logits.cpu(),
-                "labels_a": batch["labels_a"].cpu(),
-                "labels_b": batch["labels_b"].cpu(),
+                "logits": ranking_logits.detach(),
+                "labels_a": batch["labels_a"].detach(),
+                "labels_b": batch["labels_b"].detach(),
             })
 
     def on_validation_epoch_end(self) -> None:
@@ -596,9 +596,9 @@ class GNNSymbolicEncoder(pl.LightningModule):
             self.log("val_loss", l_rank, prog_bar=True)
 
             self.val_outputs.append({
-                "logits": ranking_logits.cpu(),
-                "labels_a": batch["labels_a"].cpu(),
-                "labels_b": batch["labels_b"].cpu(),
+                "logits": ranking_logits.detach(),
+                "labels_a": batch["labels_a"].detach(),
+                "labels_b": batch["labels_b"].detach(),
             })
 
     def on_validation_epoch_end(self) -> None:
@@ -902,9 +902,9 @@ class GNNHeteroSymbolicEncoder(pl.LightningModule):
             self.log("val_loss", l_rank, prog_bar=True)
 
             self.val_outputs.append({
-                "logits": ranking_logits.cpu(),
-                "labels_a": batch["labels_a"].cpu(),
-                "labels_b": batch["labels_b"].cpu(),
+                "logits": ranking_logits.detach(),
+                "labels_a": batch["labels_a"].detach(),
+                "labels_b": batch["labels_b"].detach(),
             })
 
     def on_validation_epoch_end(self) -> None:
@@ -1205,8 +1205,9 @@ class ContinuousSymbolicEncoder(pl.LightningModule):
 
         context = self._cnn_transformer_forward(masked_features, mask)
 
-        original_hidden = self._cnn_transformer_forward(features, mask)
-        quantized, diversity_loss = self.codebook(original_hidden.detach())
+        with torch.no_grad():
+            original_hidden = self._cnn_transformer_forward(features, mask)
+        quantized, diversity_loss = self.codebook(original_hidden)
 
         context_proj = self.contrastive_head(context)
 
@@ -1275,8 +1276,9 @@ class ContinuousSymbolicEncoder(pl.LightningModule):
             masked_positions = batch["masked_positions"]
 
             context = self._cnn_transformer_forward(masked_features, mask)
-            original_hidden = self._cnn_transformer_forward(features, mask)
-            quantized, _ = self.codebook(original_hidden.detach())
+            with torch.no_grad():
+                original_hidden = self._cnn_transformer_forward(features, mask)
+            quantized, _ = self.codebook(original_hidden)
             context_proj = self.contrastive_head(context)
 
             if masked_positions.any():
@@ -1300,9 +1302,9 @@ class ContinuousSymbolicEncoder(pl.LightningModule):
             self.log("val_loss", l_rank, prog_bar=True)
 
             self.val_outputs.append({
-                "logits": ranking_logits.cpu(),
-                "labels_a": batch["labels_a"].cpu(),
-                "labels_b": batch["labels_b"].cpu(),
+                "logits": ranking_logits.detach(),
+                "labels_a": batch["labels_a"].detach(),
+                "labels_b": batch["labels_b"].detach(),
             })
 
     def on_validation_epoch_end(self) -> None:
