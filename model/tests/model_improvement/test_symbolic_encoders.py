@@ -212,3 +212,72 @@ def test_gnn_default_num_labels_is_taxonomy():
         num_layers=4,
     )
     assert model.num_labels == NUM_DIMS
+
+
+class TestGNNGradientCheckpointing:
+    def test_gnn_gradient_checkpointing(self):
+        model = GNNSymbolicEncoder(
+            node_features=6,
+            hidden_dim=512,
+            num_layers=4,
+            num_labels=19,
+            stage="pretrain",
+            use_gradient_checkpointing=True,
+        )
+        model.train()
+
+        batch = {
+            "x": torch.randn(20, 6),
+            "edge_index": torch.randint(0, 20, (2, 40)),
+            "batch": torch.zeros(20, dtype=torch.long),
+            "pos_edges": torch.randint(0, 20, (2, 10)),
+            "neg_edges": torch.randint(0, 20, (2, 10)),
+        }
+        loss = model.training_step(batch, 0)
+        loss.backward()
+
+        for layer_idx, gat in enumerate(model.gat_layers):
+            for name, param in gat.named_parameters():
+                assert param.grad is not None, (
+                    f"gat_layers[{layer_idx}].{name} has no gradient"
+                )
+                assert param.grad.abs().sum() > 0, (
+                    f"gat_layers[{layer_idx}].{name} has zero gradient"
+                )
+
+    def test_hetero_gnn_gradient_checkpointing(self):
+        model = GNNHeteroSymbolicEncoder(
+            node_features=6,
+            hidden_dim=64,
+            num_layers=3,
+            num_labels=19,
+            stage="pretrain",
+            use_gradient_checkpointing=True,
+        )
+        model.train()
+
+        x_dict = {"note": torch.randn(20, 6)}
+        edge_index_dict = {
+            ("note", "onset", "note"): torch.randint(0, 20, (2, 10)),
+            ("note", "during", "note"): torch.randint(0, 20, (2, 8)),
+            ("note", "follow", "note"): torch.randint(0, 20, (2, 12)),
+            ("note", "silence", "note"): torch.randint(0, 20, (2, 5)),
+        }
+        batch = {
+            "x_dict": x_dict,
+            "edge_index_dict": edge_index_dict,
+            "batch": torch.zeros(20, dtype=torch.long),
+            "pos_edges": torch.randint(0, 20, (2, 10)),
+            "neg_edges": torch.randint(0, 20, (2, 10)),
+        }
+        loss = model.training_step(batch, 0)
+        loss.backward()
+
+        for layer_idx, conv in enumerate(model.conv_layers):
+            for name, param in conv.named_parameters():
+                assert param.grad is not None, (
+                    f"conv_layers[{layer_idx}].{name} has no gradient"
+                )
+                assert param.grad.abs().sum() > 0, (
+                    f"conv_layers[{layer_idx}].{name} has zero gradient"
+                )

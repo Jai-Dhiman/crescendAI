@@ -357,6 +357,7 @@ class GNNSymbolicEncoder(pl.LightningModule):
         ambiguous_threshold: float = 0.05,
         label_smoothing: float = 0.0,
         max_epochs: int = 200,
+        use_gradient_checkpointing: bool = False,
     ):
         super().__init__()
         self.save_hyperparameters()
@@ -369,6 +370,7 @@ class GNNSymbolicEncoder(pl.LightningModule):
         self.num_labels = num_labels
         self.hidden_dim = hidden_dim
         self.stage = stage
+        self.use_gradient_checkpointing = use_gradient_checkpointing
 
         if stage not in ("pretrain", "finetune"):
             raise ValueError(f"stage must be 'pretrain' or 'finetune', got '{stage}'")
@@ -462,10 +464,20 @@ class GNNSymbolicEncoder(pl.LightningModule):
         """Run GAT layers, returning node embeddings [N, hidden_dim]."""
         h = self.node_embed(x)
         for gat, norm in zip(self.gat_layers, self.gat_norms):
-            h_new = gat(h, edge_index)
-            h_new = norm(h_new)
-            h_new = F.gelu(h_new)
-            h = h + h_new  # residual
+            if self.use_gradient_checkpointing and self.training:
+                def _block(h_in, _gat=gat, _norm=norm):
+                    h_new = _gat(h_in, edge_index)
+                    h_new = _norm(h_new)
+                    h_new = F.gelu(h_new)
+                    return h_in + h_new
+                h = torch.utils.checkpoint.checkpoint(
+                    _block, h, use_reentrant=False
+                )
+            else:
+                h_new = gat(h, edge_index)
+                h_new = norm(h_new)
+                h_new = F.gelu(h_new)
+                h = h + h_new  # residual
         return h
 
     def encode_graph(
@@ -671,6 +683,7 @@ class GNNHeteroSymbolicEncoder(pl.LightningModule):
         ambiguous_threshold: float = 0.05,
         label_smoothing: float = 0.0,
         max_epochs: int = 200,
+        use_gradient_checkpointing: bool = False,
     ):
         super().__init__()
         self.save_hyperparameters()
@@ -683,6 +696,7 @@ class GNNHeteroSymbolicEncoder(pl.LightningModule):
         self.num_labels = num_labels
         self.hidden_dim = hidden_dim
         self.stage = stage
+        self.use_gradient_checkpointing = use_gradient_checkpointing
 
         if stage not in ("pretrain", "finetune"):
             raise ValueError(f"stage must be 'pretrain' or 'finetune', got '{stage}'")
@@ -767,11 +781,22 @@ class GNNHeteroSymbolicEncoder(pl.LightningModule):
         h = self.node_embed(x_dict["note"])
         h_dict = {"note": h}
         for conv, norm in zip(self.conv_layers, self.conv_norms):
-            h_new_dict = conv(h_dict, edge_index_dict)
-            h_new = h_new_dict["note"]
-            h_new = norm(h_new)
-            h_new = F.gelu(h_new)
-            h_dict = {"note": h_dict["note"] + h_new}  # residual
+            if self.use_gradient_checkpointing and self.training:
+                def _block(h_in, _conv=conv, _norm=norm):
+                    h_new_dict = _conv({"note": h_in}, edge_index_dict)
+                    h_new = h_new_dict["note"]
+                    h_new = _norm(h_new)
+                    h_new = F.gelu(h_new)
+                    return h_in + h_new
+                h_dict = {"note": torch.utils.checkpoint.checkpoint(
+                    _block, h_dict["note"], use_reentrant=False
+                )}
+            else:
+                h_new_dict = conv(h_dict, edge_index_dict)
+                h_new = h_new_dict["note"]
+                h_new = norm(h_new)
+                h_new = F.gelu(h_new)
+                h_dict = {"note": h_dict["note"] + h_new}  # residual
         return h_dict["note"]
 
     def encode_graph(
