@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Callable
 
 import numpy as np
 import torch
+
+logger = logging.getLogger(__name__)
 
 from model_improvement.metrics import (
     MetricsSuite,
@@ -48,15 +51,34 @@ def evaluate_model(
     model.eval()
 
     with torch.no_grad():
+        # Pre-encode all keys once (O(n) instead of O(n^2) encode calls)
+        print(f"  encoding {len(valid_keys)} keys...", flush=True)
+        z_cache = {}
+        _enc_warned = False
+        for idx, key in enumerate(valid_keys):
+            if (idx + 1) % 50 == 0:
+                print(f"  encode: {idx + 1}/{len(valid_keys)}", flush=True)
+            try:
+                inp, mask = get_input_fn(key)
+                z_cache[key] = encode_fn(model, inp, mask)
+            except Exception as exc:
+                if not _enc_warned:
+                    logger.warning("evaluate_model encode: %s (suppressing further)", exc)
+                    _enc_warned = True
+
+        # Pairwise comparisons using cached encodings
+        encoded_keys = [k for k in valid_keys if k in z_cache]
         all_logits, all_la, all_lb = [], [], []
-        for i, key_a in enumerate(valid_keys):
-            for key_b in valid_keys[i + 1:]:
+        total_pairs = len(encoded_keys) * (len(encoded_keys) - 1) // 2
+        pair_count = 0
+        _pw_warned = False
+        for i, key_a in enumerate(encoded_keys):
+            for key_b in encoded_keys[i + 1:]:
+                pair_count += 1
+                if pair_count % 5000 == 0:
+                    print(f"  pairwise: {pair_count}/{total_pairs} pairs ({100 * pair_count / total_pairs:.0f}%)", flush=True)
                 try:
-                    inp_a, mask_a = get_input_fn(key_a)
-                    inp_b, mask_b = get_input_fn(key_b)
-                    z_a = encode_fn(model, inp_a, mask_a)
-                    z_b = encode_fn(model, inp_b, mask_b)
-                    logits = compare_fn(model, z_a, z_b)
+                    logits = compare_fn(model, z_cache[key_a], z_cache[key_b])
                     lab_a = torch.tensor(
                         labels[key_a][:num_dims], dtype=torch.float32
                     )
@@ -66,7 +88,10 @@ def evaluate_model(
                     all_logits.append(logits)
                     all_la.append(lab_a.unsqueeze(0))
                     all_lb.append(lab_b.unsqueeze(0))
-                except Exception:
+                except Exception as exc:
+                    if not _pw_warned:
+                        logger.warning("evaluate_model pairwise: %s (suppressing further)", exc)
+                        _pw_warned = True
                     continue
 
         if all_logits:
@@ -76,8 +101,12 @@ def evaluate_model(
             results["pairwise"] = pw["overall"]
             results["pairwise_detail"] = pw
 
+        # R2 regression using predict_fn (also benefits from being O(n))
+        _r2_warned = False
         all_preds, all_targets = [], []
-        for key in valid_keys:
+        for idx, key in enumerate(valid_keys):
+            if idx % 100 == 0 and idx > 0:
+                print(f"  r2: {idx}/{len(valid_keys)} keys", flush=True)
             try:
                 inp, mask = get_input_fn(key)
                 pred = predict_fn(model, inp, mask)
@@ -86,7 +115,10 @@ def evaluate_model(
                 ).unsqueeze(0)
                 all_preds.append(pred)
                 all_targets.append(target)
-            except Exception:
+            except Exception as exc:
+                if not _r2_warned:
+                    logger.warning("evaluate_model r2: %s (suppressing further)", exc)
+                    _r2_warned = True
                 continue
 
         if all_preds:
@@ -139,6 +171,7 @@ def run_robustness_check(
     """
     clean_scores, aug_scores = [], []
     model.eval()
+    _rob_warned = False
 
     with torch.no_grad():
         for key in val_keys:
@@ -150,7 +183,10 @@ def run_robustness_check(
                 inp_aug = inp + torch.randn_like(inp) * noise_std
                 pred_aug = predict_fn(model, inp_aug, mask)
                 aug_scores.append(pred_aug)
-            except Exception:
+            except Exception as exc:
+                if not _rob_warned:
+                    logger.warning("run_robustness_check: %s (suppressing further)", exc)
+                    _rob_warned = True
                 continue
 
     if not clean_scores:

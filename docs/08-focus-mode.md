@@ -1,10 +1,12 @@
 # Slice 8: Focus Mode
 
+See `docs/architecture.md` for the full system architecture.
+
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** A guided practice mode where the system identifies a weak dimension, presents targeted exercises (from the student's own music), evaluates each attempt, and closes the feedback loop.
 
-**Architecture:** Focus mode is triggered by the system (after identifying a persistent weakness) or by the student ("I want to work on dynamics"). It draws from the exercise database (Slice 7), presents exercises, and uses MuQ to evaluate attempts on the target dimension specifically.
+**Architecture:** Focus mode is triggered by the system (after identifying a persistent weakness) or by the student ("I want to work on dynamics"). It draws from the exercise database (Slice 7), presents exercises, and uses MuQ to evaluate attempts on the target dimension specifically. MuQ inference during focus mode exercises runs on-device via Core ML, same as regular practice.
 
 **Tech Stack:** Existing MuQ inference, Exercise DB (Slice 7), Teacher LLM (Slice 6), iOS UI (Slice 9)
 
@@ -19,11 +21,13 @@ Focus mode is the teaching loop: observe -> identify -> diagnose -> prescribe ->
 ### Entry Points
 
 **System-initiated (after sessions 5+):**
+
 - System detects a dimension that has been the top teaching moment in 3+ of the last 5 sessions
 - At the end of a session: "I've noticed {dimension} keeps coming up. Want to do a focused session on it next time?"
 - Student can accept, dismiss, or say "later"
 
 **Student-initiated:**
+
 - Student says or taps: "I want to work on my dynamics" / "Let's focus on pedaling"
 - System enters focus mode for that dimension immediately
 
@@ -60,7 +64,7 @@ Focus mode is the teaching loop: observe -> identify -> diagnose -> prescribe ->
 
 ### Evaluation During Focus Mode
 
-MuQ inference runs on each exercise attempt, but feedback is weighted toward the TARGET DIMENSION only.
+MuQ inference runs on-device (Core ML) on each exercise attempt -- no cloud call needed for scoring. Feedback is weighted toward the TARGET DIMENSION only.
 
 - If the student is working on pedaling, don't comment on timing even if it's worse than usual
 - Only surface non-target observations if something is severely off (STOP probability > 0.95 on a different dimension)
@@ -108,25 +112,30 @@ MuQ inference runs on each exercise attempt, but feedback is weighted toward the
 ### Tasks
 
 **Task 1: Focus mode trigger logic**
+
 - Detect persistent weak dimensions from student session history
 - Generate focus suggestion at session end
 - Handle student acceptance/dismissal
 
 **Task 2: Focus session orchestration**
+
 - State machine: introduction -> exercise 1 -> feedback -> exercise 2 -> feedback -> integration -> wrap-up
 - Handle student wanting to skip an exercise or end early
 - Track attempts and scores per exercise
 
 **Task 3: Custom exercise generation for focus mode**
+
 - LLM prompt that generates passage-specific exercises
 - Grounded in the teaching moment that triggered focus (which chunk, what dimension, what piece)
 
 **Task 4: Focused evaluation**
+
 - MuQ inference on exercise attempts
 - Weight feedback to target dimension
 - Compare before/after scores
 
 **Task 5: Wrap-up and student model update**
+
 - Record improvement (or lack thereof)
 - Update student_exercises table
 - Update dimension baseline if improvement is significant

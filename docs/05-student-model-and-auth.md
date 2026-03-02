@@ -1,12 +1,14 @@
 # Slice 5: Student Model + Auth
 
+See `docs/architecture.md` for the full system architecture.
+
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Add user authentication and a persistent student model that tracks dimension profiles, repertoire, goals, and session history across practice sessions.
 
-**Architecture:** Email magic link auth via Cloudflare Workers + D1. Student model stored in D1, updated after each session. No onboarding form -- the model builds from observation and occasional check-ins.
+**Architecture:** Sign in with Apple for auth. Student model stored locally in SwiftData, synced to Cloudflare D1 for backup and cross-platform readiness. No onboarding form -- the model builds from observation and occasional check-ins.
 
-**Tech Stack:** Cloudflare Workers (auth endpoints), D1 (student model storage), iOS Keychain (token storage)
+**Tech Stack:** Swift, SwiftData, Sign in with Apple, Cloudflare Workers (sync API), D1
 
 ---
 
@@ -18,88 +20,130 @@ The practice companion needs persistent identity to build a student model over t
 
 ### Authentication
 
-**Email magic link** (simplest, no password management):
-1. Student enters email
-2. Backend generates a one-time token, stores it in KV with 15-min TTL
-3. Sends email with login link (via Cloudflare Email Workers or a third-party like Resend)
-4. Student clicks link, backend validates token, issues a session JWT
-5. JWT stored in iOS Keychain, sent with all API requests
-6. JWT expires after 30 days, refresh on each session start
+**Sign in with Apple** (one-tap, zero friction):
 
-**Why magic link:**
-- No password to manage
-- Works on mobile (student checks email, taps link, returns to app)
-- Simple to implement
-- Appropriate for a practice tool (not handling sensitive data)
+1. Student taps "Sign in with Apple" on first launch (one tap)
+2. Apple provides a stable user ID + relay email
+3. iOS sends Apple identity token to Workers: `POST /api/auth/apple`
+4. Worker validates the token with Apple's servers, creates/finds student record in D1
+5. Worker issues a session JWT, stored in iOS Keychain
+6. JWT sent with all API requests (sync, ask)
+7. JWT expires after 30 days, refreshed on each app launch
 
-### D1 Schema
+**Why Sign in with Apple:**
+
+- Zero friction (one tap, no email entry, no password)
+- Required by App Store for apps that offer account-based features
+- Provides stable cross-device identity
+- Relay email captured for future communication
+
+### SwiftData Models (Local, On-Device)
+
+The student model lives on-device as the source of truth. See `docs/architecture.md` for the full SwiftData model definitions.
+
+```swift
+@Model class Student {
+    var appleUserId: String
+    var email: String?
+    var inferredLevel: String?    // beginner / intermediate / advanced
+    var baselineDynamics: Double?
+    var baselineTiming: Double?
+    var baselinePedaling: Double?
+    var baselineArticulation: Double?
+    var baselinePhrasing: Double?
+    var baselineInterpretation: Double?
+    var baselineSessionCount: Int
+    var explicitGoals: String?    // JSON
+    var lastSyncedAt: Date?
+    var sessions: [PracticeSession]
+}
+
+@Model class PracticeSession {
+    var id: UUID
+    var startedAt: Date
+    var endedAt: Date?
+    var chunks: [ChunkResult]
+    var observations: [Observation]
+    var synced: Bool
+}
+
+@Model class ChunkResult {
+    var index: Int
+    var startOffset: TimeInterval
+    var duration: TimeInterval
+    var dynamics: Double
+    var timing: Double
+    var pedaling: Double
+    var articulation: Double
+    var phrasing: Double
+    var interpretation: Double
+    var stopProbability: Double
+}
+
+@Model class Observation {
+    var chunkIndex: Int
+    var dimension: String
+    var text: String
+    var elaboration: String?
+    var createdAt: Date
+}
+```
+
+### D1 Schema (Cloud Sync)
+
+Same structure as SwiftData, stored in SQL. Uses `apple_user_id` as primary key. D1 stores copies for backup and future cross-platform access.
 
 ```sql
 CREATE TABLE students (
-    id TEXT PRIMARY KEY,
-    email TEXT UNIQUE NOT NULL,
-    created_at TEXT NOT NULL,
-    last_session_at TEXT,
-
-    -- Inferred profile (updated after each session)
-    inferred_level TEXT,              -- beginner / intermediate / advanced
-    primary_repertoire_tags TEXT,     -- JSON array: ["Chopin", "Bach", "romantic"]
-
-    -- Dimension baselines (rolling averages)
+    apple_user_id TEXT PRIMARY KEY,
+    email TEXT,
+    inferred_level TEXT,
     baseline_dynamics REAL,
     baseline_timing REAL,
     baseline_pedaling REAL,
     baseline_articulation REAL,
     baseline_phrasing REAL,
     baseline_interpretation REAL,
-    baseline_session_count INTEGER DEFAULT 0,  -- how many sessions feed the baseline
-
-    -- Explicit context (student-provided)
-    explicit_goals TEXT,              -- JSON: {"recital_date": "2026-06-15", "focus": "Chopin interpretation"}
-    explicit_level TEXT,              -- overrides inferred_level if set
-    explicit_notes TEXT               -- free-form notes from check-in answers
+    baseline_session_count INTEGER DEFAULT 0,
+    explicit_goals TEXT,
+    updated_at TEXT NOT NULL
 );
 
-CREATE TABLE student_sessions (
+CREATE TABLE sessions (
     id TEXT PRIMARY KEY,
-    student_id TEXT NOT NULL REFERENCES students(id),
+    student_id TEXT NOT NULL REFERENCES students(apple_user_id),
     started_at TEXT NOT NULL,
     ended_at TEXT,
-    duration_min REAL,
-    total_chunks INTEGER,
-    -- Session-level dimension averages
     avg_dynamics REAL,
     avg_timing REAL,
     avg_pedaling REAL,
     avg_articulation REAL,
     avg_phrasing REAL,
     avg_interpretation REAL,
-    -- Teaching moments surfaced
-    moments_surfaced INTEGER DEFAULT 0,
-    -- Pieces worked on (inferred or stated)
-    pieces_json TEXT,                 -- JSON array
-    notes TEXT                        -- session-level notes
+    observations_json TEXT,
+    chunks_summary_json TEXT
 );
 
 CREATE TABLE student_check_ins (
     id TEXT PRIMARY KEY,
-    student_id TEXT NOT NULL REFERENCES students(id),
-    session_id TEXT REFERENCES student_sessions(id),
-    question TEXT NOT NULL,           -- what the system asked
-    answer TEXT,                      -- what the student said (null if skipped)
+    student_id TEXT NOT NULL REFERENCES students(apple_user_id),
+    session_id TEXT REFERENCES sessions(id),
+    question TEXT NOT NULL,
+    answer TEXT,
     created_at TEXT NOT NULL
 );
 
-CREATE INDEX idx_sessions_student ON student_sessions(student_id, started_at);
+CREATE INDEX idx_sessions_student ON sessions(student_id, started_at);
 CREATE INDEX idx_checkins_student ON student_check_ins(student_id);
 ```
 
 ### Baseline Update Logic
 
-After each session ends:
+Runs on-device in Swift after each session ends (not in a backend service). The updated baselines are synced to D1 afterward.
 
 ```python
 # Exponential moving average with configurable alpha
+# (pseudocode -- implemented in Swift on-device)
 alpha = 0.3  # weight of new session vs. history (higher = more responsive)
 
 for dim in ['dynamics', 'timing', 'pedaling', 'articulation', 'phrasing', 'interpretation']:
@@ -113,6 +157,7 @@ student.baseline_session_count += 1
 ```
 
 The alpha value means:
+
 - Recent sessions weigh more (captures improvement)
 - Old patterns still influence (stable baseline)
 - After ~5 sessions, the baseline is reliable
@@ -120,11 +165,13 @@ The alpha value means:
 ### Level Inference
 
 Infer student level from:
+
 - **Repertoire difficulty**: Pieces mapped to approximate grade levels (RCM, ABRSM, Henle)
 - **Dimension scores**: Average across dimensions correlates with skill level
 - **Session behavior**: Advanced students drill specific passages; beginners play through more
 
 Simple heuristic for V1:
+
 - Score < 0.3 average AND beginner repertoire -> beginner
 - Score 0.3-0.6 AND intermediate repertoire -> intermediate
 - Score > 0.6 AND advanced repertoire -> advanced
@@ -132,16 +179,19 @@ Simple heuristic for V1:
 ### Check-In Logic
 
 Triggered at session end (not during practice -- never interrupt):
+
 - Only after session 3+ (let the system observe first)
 - Max one check-in per session
 - Only when the system has a genuine observation to ground the question
 
 **Check-in templates:**
+
 - "I've noticed you've been working on [piece] a lot -- are you preparing for something?"
 - "Your [dimension] has been improving over the last few sessions. Is that something you've been focusing on?"
 - "Is there anything specific you'd like me to pay attention to in your playing?"
 
 **Trigger rules:**
+
 - Repertoire check-in: triggered when same piece appears in 3+ sessions
 - Progress check-in: triggered when a dimension improves by >0.1 over 3 sessions
 - Open-ended: triggered randomly (10% chance) after session 5+
@@ -149,6 +199,7 @@ Triggered at session end (not during practice -- never interrupt):
 ### Explicit Input Handling
 
 Student can tell the teacher things via the chat interface:
+
 - "I have a recital on June 15"
 - "I'm working on Chopin Ballade No. 1"
 - "I want to focus on my pedaling"
@@ -164,40 +215,56 @@ These are parsed by the LLM and stored in `explicit_goals` JSON. Explicit contex
 
 ### Tasks
 
-**Task 1: D1 migration for student tables**
-- Create students, student_sessions, student_check_ins tables
-- Run migration
+**Task 1: SwiftData model definitions**
 
-**Task 2: Magic link auth endpoints**
-- `POST /api/auth/request` - send magic link email
-- `GET /api/auth/verify?token=...` - validate token, issue JWT
-- JWT middleware for protected endpoints
-- Email sending via Resend or Cloudflare Email Workers
+- Define `Student`, `PracticeSession`, `ChunkResult`, `Observation` @Model classes
+- Set up SwiftData container and migration strategy
+- Verify persistence across app launches
 
-**Task 3: iOS auth flow**
-- Login screen with email input
-- Deep link handler for magic link callback
-- JWT storage in Keychain
+**Task 2: Sign in with Apple integration**
+
+- Add Sign in with Apple capability to the Xcode project
+- Implement `ASAuthorizationController` flow
+- Send Apple identity token to Workers for validation
+- Store session JWT in iOS Keychain
 - Auto-attach JWT to all API requests
 
-**Task 4: Baseline update logic**
-- After session ends, compute session averages per dimension
+**Task 3: Workers auth endpoint**
+
+- `POST /api/auth/apple` - validate Apple identity token with Apple's servers
+- Create or find student record in D1 by `apple_user_id`
+- Issue session JWT (30-day expiry)
+- JWT middleware for protected endpoints
+
+**Task 4: Sync protocol implementation**
+
+- iOS sends student model deltas to `POST /api/sync` after each session
+- Worker upserts student and session data to D1
+- Worker returns exercise updates in response
+- Handle offline gracefully (queue syncs, retry on connectivity)
+
+**Task 5: Baseline update logic in Swift**
+
+- After session ends, compute session averages per dimension on-device
 - Update student baseline with exponential moving average
 - Update inferred_level
+- Trigger sync to D1 in background
 
-**Task 5: Check-in system**
+**Task 6: Check-in system**
+
 - Implement trigger rules (repertoire, progress, open-ended)
 - Generate check-in question at session end
 - Store question + answer in student_check_ins
 - Surface check-in in iOS app post-session
 
-**Task 6: Explicit input parsing**
+**Task 7: Explicit input parsing**
+
 - When student sends a message via chat that contains goals/context
 - LLM extracts structured data (date, piece, focus area)
 - Store in explicit_goals JSON on student record
 
 ### Open Questions
 
-1. Email service: Resend ($0/month for <100 emails) vs. Cloudflare Email Workers (free but more setup)?
+1. Should the sync endpoint be called after every session, or batched (e.g., on app launch + every N sessions)?
 2. Should JWT be a Cloudflare Workers JWT or a standard JWT library? Workers has built-in crypto.
 3. How to handle the student telling the system something vs. asking "how was that?" -- same input channel, different intent. LLM-based intent classification?

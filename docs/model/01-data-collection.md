@@ -55,6 +55,7 @@ The training code (`src/model_improvement/data.py`) loads only embeddings and me
 **Raw audio (remote only):** ~50GB WAV at 24kHz mono.
 
 **metadata.jsonl schema:**
+
 ```json
 {
   "segment_id": "chopin2021_performer_seg001",

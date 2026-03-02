@@ -1,5 +1,7 @@
 # Slice 7: Exercise Database
 
+See `docs/architecture.md` for the full system architecture.
+
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Build a structured, queryable database of piano exercises that can be filtered by dimension, difficulty, and repertoire context. Supports both curated exercises (human-authored) and LLM-generated custom exercises adapted from the student's music.
@@ -13,6 +15,8 @@
 ## Context
 
 The exercise database replaces RAG. Instead of retrieving book quotes, the system draws from exercises that the student can actually do. This powers Focus Mode (Slice 8) and enriches the "Tell me more" responses (Slice 6).
+
+Exercises are stored in D1 and synced to the iOS device via the sync protocol. The iOS app caches exercises in SwiftData for offline access.
 
 ## Design
 
@@ -84,6 +88,7 @@ LIMIT 3;
 Jai seeds the database with exercises from standard methods + custom exercises. Examples:
 
 **Dynamics exercise (intermediate):**
+
 ```json
 {
     "title": "Dynamic Contrast Scales",
@@ -98,6 +103,7 @@ Jai seeds the database with exercises from standard methods + custom exercises. 
 ```
 
 **Pedaling exercise (intermediate, Chopin-specific):**
+
 ```json
 {
     "title": "Legato Pedal Harmonic Changes",
@@ -111,6 +117,7 @@ Jai seeds the database with exercises from standard methods + custom exercises. 
 ```
 
 **Voicing exercise (advanced):**
+
 ```json
 {
     "title": "Melody Extraction",
@@ -128,6 +135,7 @@ Jai seeds the database with exercises from standard methods + custom exercises. 
 When the curated DB doesn't have a close match, or when an exercise should reference the student's specific passage:
 
 **Input to LLM:**
+
 ```
 The student is working on {piece} by {composer}. Their {dimension} needs attention, specifically around {chunk_time_description}.
 
@@ -155,26 +163,34 @@ Do NOT generate musical notation -- reference the score they already have.
 ### Tasks
 
 **Task 1: D1 migration for exercise tables**
+
 - Create exercises and student_exercises tables
 - Run migration
 
 **Task 2: Seed curated exercises**
+
 - Write 20-30 exercises across all 6 dimensions and 3 difficulty levels
 - Cover common repertoire contexts (Chopin, Bach, Beethoven, scales/arpeggios)
 - Insert via seed migration or script
 
 **Task 3: Implement exercise query API**
-- `GET /api/exercises?dimension=dynamics&level=intermediate&student_id=...`
-- Filters by dimension, difficulty, not-previously-assigned
-- Prefers matching repertoire tags
-- Returns top 3 candidates
+
+- Server-side: `GET /api/exercises?dimension=dynamics&level=intermediate&student_id=...`
+  - Filters by dimension, difficulty, not-previously-assigned
+  - Prefers matching repertoire tags
+  - Returns top 3 candidates
+- On-device: SwiftData query for cached exercises (same filter logic in Swift)
+  - iOS queries locally first, falls back to API if cache is stale
+- New exercises added to D1 are delivered to iOS devices via the sync protocol (`POST /api/sync` response includes `exerciseUpdates`)
 
 **Task 4: Implement LLM custom exercise generation**
+
 - Endpoint or internal function that generates a custom exercise given piece + dimension + context
 - Stores generated exercise in DB with source="generated"
 - Post-processing: reject if too long (>1000 chars) or if it tries to include notation
 
 **Task 5: Implement student-exercise tracking**
+
 - Record when exercises are assigned, completed, skipped
 - Record student response (positive/negative)
 - Record dimension scores before/after (for effectiveness measurement later)

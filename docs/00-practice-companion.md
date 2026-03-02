@@ -3,6 +3,8 @@
 **Date:** 2026-03-01
 **Status:** Design approved, pending implementation plan
 
+See `docs/architecture.md` for the full system architecture.
+
 ## The Problem
 
 The current product is transactional: upload a recording, receive a report card (19-dimension radar chart, LLM-generated paragraphs with pedagogy citations, category scores). This does not match how pianists actually want feedback. The RAG pipeline retrieves from a 7-chunk pedagogy database -- decorative, not useful.
@@ -41,14 +43,16 @@ No radar charts. No 19-dimension breakdowns. No citation footnotes. No "Sound Qu
 ### 1. Audio Pipeline
 
 **During practice:**
-- Continuous audio capture via MediaRecorder API (mobile web) or AVAudioRecorder (iOS later)
+
+- Continuous audio capture via AVAudioEngine (iOS native)
 - Audio chunked into 15-30s segments
-- Each chunk sent to MuQ inference endpoint in the background
-- Returns 6-dimension scores per chunk (dynamics, timing, pedaling, articulation, phrasing, interpretation)
+- Each chunk processed by on-device Core ML MuQ model
+- Returns 6-dimension scores per chunk (dynamics, timing, pedaling, articulation, phrasing, interpretation) (on-device, no network required)
 - Teaching moment model scores each chunk: "would a teacher stop here?"
 - Results accumulate in a session analysis buffer
 
 **When asked "how was that?":**
+
 - System reviews the full session buffer (all chunks since session start or last query)
 - Identifies top teaching moments across the entire session
 - Does NOT grab just the last 30 seconds -- analyzes everything played
@@ -60,11 +64,13 @@ No radar charts. No 19-dimension breakdowns. No citation footnotes. No "Sound Qu
 The model hears many things. It picks ONE to say.
 
 **Teaching moment scoring:**
+
 - Draws from masterclass "stop moment" research (masterclass_experiments/)
 - Each chunk gets a "would a teacher stop here?" score
 - Scoring considers: deviation from student's baseline, dimension salience for the piece, perceptual blind-spot probability
 
 **Blind spot detection:**
+
 - Compares dimension scores against the student's historical pattern
 - A dimension that is consistently weak is KNOWN to the student (not a blind spot)
 - A dimension that is normally fine but dipped today IS a blind spot
@@ -77,6 +83,7 @@ The model hears many things. It picks ONE to say.
 Built through observation and conversation. No onboarding form.
 
 **What the model tracks:**
+
 - **Repertoire history:** Pieces worked on, frequency, inferred from audio or student input
 - **Dimension profile:** 6-dimension trajectory over time. Not a single score -- a trend.
 - **Practice habits:** Session length, repetition patterns, warm-up behavior
@@ -89,6 +96,7 @@ Built through observation and conversation. No onboarding form.
   - Explicit context overrides inferred context when they conflict
 
 **Learning curve:**
+
 - **Session 1:** No history. Infers level from repertoire difficulty and dimension scores. Useful from day one but generic.
 - **Sessions 3-5:** Dimension patterns emerge. Blind spot detection improves. System starts distinguishing "always weak" from "new problem."
 - **Ongoing:** Occasional check-ins (max once per session, only with genuine observation): "I notice you've been spending a lot of time on the development section -- is there something specific you're working through?"
@@ -98,12 +106,14 @@ Built through observation and conversation. No onboarding form.
 ### 4. Teacher LLM
 
 **What it receives (structured context):**
+
 - Top teaching moment(s): chunk location, dimension, score, surprise factor
 - Student model: level, dimension trajectory, explicit goals, session history
 - Piece context (if identified): composer, style, what the score demands at that point
 - Session context: duration, what was worked on, repetition patterns
 
 **What it outputs:**
+
 - One observation in natural language. Specific, localized, actionable.
 - NOT: "Your dynamics could use work."
 - YES: "In that last run-through, the crescendo in the second phrase fell flat -- it peaked too early and the sforzando didn't land. Try holding back the build longer."
@@ -142,6 +152,7 @@ Built through observation and conversation. No onboarding form.
 | times_assigned | INT | Prevent repetition fatigue |
 
 **Focus mode flow:**
+
 1. System identifies a dimension consistently flagged across sessions (e.g., dynamics)
 2. Suggests: "I've noticed dynamics keep coming up. Want to do a focused session?"
 3. Student agrees
@@ -151,26 +162,40 @@ Built through observation and conversation. No onboarding form.
 7. Student attempts. MuQ evaluates on the focus dimension. Feedback loop.
 
 **Exercise sources:**
+
 - **Curated (foundation):** Seeded by Jai from standard methods (Hanon, Czerny, Burgmuller) + custom exercises. Quality controlled, correct notation.
 - **LLM-generated (adaptive):** Custom exercises that reference the student's specific passage. The LLM generates instructions and context; it does not hallucinate notation. Notation for custom exercises references existing score content or uses simple patterns.
 
 ### 6. Infrastructure
 
-**Reused from current system:**
-- MuQ inference endpoint on HuggingFace (same model, called more frequently per session)
+**On-device (iOS):**
+
+- Core ML MuQ inference (primary inference path)
+- STOP classifier (teaching moment scoring)
+- Teaching moment selection and priority/filtering logic
+- SwiftData for local persistence (student model, session data, exercise tracking)
+- Continuous audio capture via AVAudioEngine + chunked inference pipeline
+- Practice companion UI (native iOS)
+
+**Cloud:**
+
+- Cloudflare Workers (thin API layer for LLM proxy + data sync)
+- D1 (student/session/exercise sync -- cloud mirror of local data)
+- R2 (session audio storage)
+- OpenRouter (model-agnostic LLM for teacher responses)
+- HuggingFace MuQ inference endpoint (fallback only, if Core ML conversion fails or device lacks capability)
+
+**Auth:**
+
+- Sign in with Apple
+
+**Carried forward:**
+
 - 6-dimension composite labels (already built)
 - Teaching moment concepts from masterclass experiments
-- Cloudflare infrastructure: D1 (student model, exercise DB), R2 (session audio), Workers (API)
-
-**New components:**
-- Continuous audio capture + chunked inference pipeline
-- Teaching moment scoring model
-- Priority/filtering logic
-- Student model schema + persistence layer
 - Exercise database schema + seed data
 - Exercise rendering (MusicXML/Lilypond to notation display)
 - Focus mode API flow
-- New frontend (practice companion UI)
 
 ## What This Replaces
 
@@ -178,17 +203,20 @@ Built through observation and conversation. No onboarding form.
 |---|---|
 | File upload (async) | Continuous capture (streaming) |
 | Single MuQ call per recording | Pipelined, chunked, background inference |
+| Cloud-only inference | On-device Core ML (cloud fallback) |
 | 19 raw dimensions | 6 teacher-grounded dimensions |
 | RAG + LLM report card with citations | Priority filter + LLM, one observation |
 | Anonymous, ephemeral sessions | Persistent student model per user |
 | No exercises | Curated DB + LLM-generated exercises |
+| Cloudflare-only persistence | SwiftData local-first + D1 cloud sync |
 | Radar chart + paragraphs | Minimal, premium practice companion UI |
 
 ## Open Questions for Implementation
 
-1. **Phone audio validation:** MuQ was trained on Pianoteq. Does it produce meaningful results on phone recordings? Must validate before building the full companion around it.
+1. **Phone audio validation:** MuQ was trained on Pianoteq. Does it produce meaningful results on phone recordings? Must validate before building the full companion around it. Also validate Core ML conversion quality.
 2. **Teaching moment model:** The masterclass stop-moment research provides the concept. What's the simplest scoring function to start with? Rules-based (dimension outlier detection) vs. learned model?
 3. **Piece identification:** How does the system know what piece is being played? User-assisted first (student says what they're working on), automatic later.
 4. **Exercise rendering:** MusicXML to notation in a mobile web browser. What library? (VexFlow, OpenSheetMusicDisplay, OSMD?)
 5. **Continuous inference cost:** Background MuQ inference on every 15-30s chunk. What's the per-session cost on HF endpoints? Is this sustainable at scale?
-6. **Auth:** User accounts are now required (student model needs persistence). Simplest approach for V1?
+6. **Auth:** Resolved: Sign in with Apple.
+7. **Core ML conversion:** Can MuQ be converted to Core ML with acceptable quality loss? INT8 vs FP16 quantization trade-offs?
