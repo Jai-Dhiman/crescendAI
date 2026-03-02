@@ -275,9 +275,11 @@ class AudioSegmentDataset(Dataset):
         piece_to_keys: dict,
         keys: list[str],
         noise_std: float = 0.01,
+        max_frames: int | None = None,
     ):
         self.embeddings = embeddings
         self.noise_std = noise_std
+        self.max_frames = max_frames
 
         # Build key -> piece_id mapping
         key_to_piece_id: Dict[str, int] = {}
@@ -298,6 +300,9 @@ class AudioSegmentDataset(Dataset):
     def __getitem__(self, idx: int) -> dict:
         key, piece_id = self.samples[idx]
         emb = self.embeddings[key]
+        if self.max_frames is not None and emb.shape[0] > self.max_frames:
+            emb = emb[: self.max_frames]
+        emb = emb.float()
         aug = emb + torch.randn_like(emb) * self.noise_std
         return {
             "embeddings_clean": emb,
@@ -319,9 +324,11 @@ class MaestroContrastiveDataset(Dataset):
         contrastive_mapping: dict,
         piece_id_offset: int = 0,
         noise_std: float = 0.01,
+        max_frames: int | None = None,
     ):
         self.emb_dir = Path(emb_dir)
         self.noise_std = noise_std
+        self.max_frames = max_frames
         self.samples: List[Tuple[str, int]] = []
         pid = piece_id_offset
         for piece, keys in sorted(contrastive_mapping.items()):
@@ -345,6 +352,9 @@ class MaestroContrastiveDataset(Dataset):
             map_location="cpu",
             weights_only=True,
         )
+        if self.max_frames is not None and emb.shape[0] > self.max_frames:
+            emb = emb[: self.max_frames]
+        emb = emb.float()
         aug = emb + torch.randn_like(emb) * self.noise_std
         return {
             "embeddings_clean": emb,
@@ -532,6 +542,10 @@ def multi_task_collate_fn(batch: list[dict]) -> dict:
                     mask = torch.zeros(max_len, dtype=torch.bool)
                     mask[:length] = True
                     masks.append(mask)
+
+                dtypes = {p.dtype for p in padded}
+                if len(dtypes) > 1:
+                    padded = [p.to(torch.float32) for p in padded]
 
                 collated[key] = torch.stack(padded)
                 collated[key + "_mask"] = torch.stack(masks)
