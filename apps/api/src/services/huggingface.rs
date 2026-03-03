@@ -5,7 +5,6 @@
 use crate::models::PerformanceDimensions;
 use serde::{Deserialize, Serialize};
 
-#[cfg(feature = "ssr")]
 use worker::{Env, Fetch, Headers, Method, Request, RequestInit, Url};
 
 /// Request to HuggingFace Inference Endpoint
@@ -105,7 +104,6 @@ impl From<HFPredictions> for PerformanceDimensions {
 }
 
 /// Result from HuggingFace inference including both raw and calibrated predictions
-#[cfg(feature = "ssr")]
 pub struct HFInferenceResult {
     /// Raw model predictions (0-1 scale)
     pub raw_dimensions: PerformanceDimensions,
@@ -119,7 +117,6 @@ pub struct HFInferenceResult {
 ///
 /// Requires HF_API_TOKEN and HF_INFERENCE_ENDPOINT environment variables.
 /// Returns both raw and calibrated predictions.
-#[cfg(feature = "ssr")]
 pub async fn get_performance_dimensions_from_hf(
     env: &Env,
     audio_url: &str,

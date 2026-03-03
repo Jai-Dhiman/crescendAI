@@ -42,7 +42,6 @@ impl UploadedPerformance {
     }
 }
 
-#[cfg(feature = "ssr")]
 impl Performance {
     /// Get the 3 demo performances (Horowitz, Argerich, Gould)
     pub fn get_demo_performances() -> Vec<Performance> {

@@ -1,17 +1,13 @@
 use crate::models::{Citation, CitedFeedback, Performance, PerformanceDimensions, RetrievalResult, SourceType};
 use regex::Regex;
 
-#[cfg(feature = "ssr")]
 use serde::Deserialize;
-#[cfg(feature = "ssr")]
 use worker::Env;
 
 /// The LLM model to use for feedback generation
-#[cfg(feature = "ssr")]
 const LLM_MODEL: &str = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
 
 /// Response format from Workers AI text generation
-#[cfg(feature = "ssr")]
 #[derive(Deserialize)]
 struct TextGenerationResponse {
     response: String,
@@ -149,7 +145,6 @@ fn text_to_html_with_citations(text: &str) -> String {
 /// 2. Calls Workers AI Llama 3.3 70B for feedback generation
 /// 3. Parses citation markers from the response
 /// 4. Returns structured CitedFeedback with HTML, plain text, and citation metadata
-#[cfg(feature = "ssr")]
 pub async fn generate_cited_feedback(
     env: &Env,
     performance: &Performance,
@@ -230,7 +225,6 @@ pub fn generate_fallback_feedback(
 /// 2. Calls Workers AI Llama 3.3 70B for answer generation
 /// 3. Parses citation markers from the response
 /// 4. Returns structured CitedFeedback with answer and citations
-#[cfg(feature = "ssr")]
 pub async fn generate_chat_response(
     env: &Env,
     question: &str,

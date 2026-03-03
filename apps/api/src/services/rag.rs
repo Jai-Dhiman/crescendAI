@@ -3,9 +3,7 @@ use std::collections::HashMap;
 use worker::d1::D1Database;
 use worker::Env;
 
-#[cfg(feature = "ssr")]
 use super::embedding::generate_embedding;
-#[cfg(feature = "ssr")]
 use super::vectorize_binding::{get_vectorize_index, query_vectors, VectorMetadata};
 
 /// RRF constant that dampens high-rank dominance
@@ -258,7 +256,6 @@ fn parse_chunk_from_json(value: &serde_json::Value) -> Result<PedagogyChunk, &'s
 ///
 /// Queries the Vectorize index with the provided embedding and returns
 /// matching chunk IDs with their ranks.
-#[cfg(feature = "ssr")]
 pub async fn vector_search(
     env: &Env,
     query_embedding: &[f32],
@@ -282,17 +279,6 @@ pub async fn vector_search(
         .collect();
 
     Ok(results)
-}
-
-/// Fallback vector search when SSR feature is not enabled
-#[cfg(not(feature = "ssr"))]
-pub async fn vector_search(
-    _env: &Env,
-    _query_embedding: &[f32],
-    _limit: usize,
-    _filter: Option<()>,
-) -> Result<Vec<(String, usize, f32)>, worker::Error> {
-    Ok(Vec::new())
 }
 
 /// Compute RRF score for a document appearing in multiple rankings
@@ -327,7 +313,6 @@ async fn fetch_chunk_by_id(
 /// Otherwise, falls back to BM25-only search.
 ///
 /// Both BM25 and vector searches run concurrently for improved latency.
-#[cfg(feature = "ssr")]
 pub async fn hybrid_retrieve(
     env: &Env,
     db: &D1Database,
@@ -406,34 +391,6 @@ pub async fn hybrid_retrieve(
     Ok(results)
 }
 
-/// BM25-only hybrid retrieve for non-SSR contexts
-#[cfg(not(feature = "ssr"))]
-pub async fn hybrid_retrieve(
-    _env: &Env,
-    db: &D1Database,
-    query: &str,
-    _query_embedding: Option<&[f32]>,
-    top_k: usize,
-) -> Result<Vec<RetrievalResult>, worker::Error> {
-    let bm25_results = bm25_search(db, query, 20).await?;
-
-    let mut results: Vec<RetrievalResult> = bm25_results
-        .into_iter()
-        .map(|(chunk, bm25_rank)| {
-            let rrf_score = compute_rrf_score(&[Some(bm25_rank), None]);
-            RetrievalResult {
-                chunk,
-                bm25_rank: Some(bm25_rank),
-                vector_rank: None,
-                rrf_score,
-            }
-        })
-        .collect();
-
-    results.truncate(top_k);
-    Ok(results)
-}
-
 /// Retrieve pedagogy chunks for a performance analysis
 ///
 /// Pipeline:
@@ -442,7 +399,6 @@ pub async fn hybrid_retrieve(
 /// 3. Hybrid retrieve: BM25 + vector search with RRF fusion
 /// 4. Cross-encoder reranking using BGE-reranker-base
 /// 5. Return top-k reranked results
-#[cfg(feature = "ssr")]
 pub async fn retrieve_for_analysis(
     env: &Env,
     db: &D1Database,
@@ -512,25 +468,11 @@ pub async fn retrieve_for_analysis(
     Ok(results)
 }
 
-/// BM25-only retrieve_for_analysis for non-SSR contexts
-#[cfg(not(feature = "ssr"))]
-pub async fn retrieve_for_analysis(
-    env: &Env,
-    db: &D1Database,
-    performance: &Performance,
-    dimensions: &PerformanceDimensions,
-) -> Result<Vec<RetrievalResult>, worker::Error> {
-    let query = build_retrieval_query(performance, dimensions, 0.5);
-    hybrid_retrieve(env, db, &query, None, 5).await
-}
-
 // ============================================================================
 // Ingestion Functions
 // ============================================================================
 
-#[cfg(feature = "ssr")]
 use super::vectorize_binding::{upsert_vectors, VectorRecord};
-#[cfg(feature = "ssr")]
 use super::embedding::generate_embeddings;
 
 /// Ingest a pedagogy chunk into both D1 (for BM25) and Vectorize (for semantic search)
@@ -539,7 +481,6 @@ use super::embedding::generate_embeddings;
 /// 1. Inserts the chunk into D1 (pedagogy_chunks table)
 /// 2. Generates an embedding for the text_with_context
 /// 3. Upserts the vector into Vectorize with metadata
-#[cfg(feature = "ssr")]
 pub async fn ingest_chunk(
     env: &Env,
     db: &D1Database,
@@ -611,7 +552,6 @@ pub async fn ingest_chunk(
 ///
 /// More efficient than calling ingest_chunk multiple times as it batches
 /// the embedding generation and vector upserts.
-#[cfg(feature = "ssr")]
 pub async fn ingest_chunks_batch(
     env: &Env,
     db: &D1Database,
@@ -695,7 +635,6 @@ pub async fn ingest_chunks_batch(
 ///
 /// Simpler query construction than retrieve_for_analysis - uses the question directly
 /// with optional performance context.
-#[cfg(feature = "ssr")]
 pub async fn retrieve_for_chat(
     env: &Env,
     db: &D1Database,
@@ -762,22 +701,6 @@ pub async fn retrieve_for_chat(
         .collect();
 
     Ok(results)
-}
-
-/// BM25-only retrieve_for_chat for non-SSR contexts
-#[cfg(not(feature = "ssr"))]
-pub async fn retrieve_for_chat(
-    env: &Env,
-    db: &D1Database,
-    question: &str,
-    performance: Option<&Performance>,
-) -> Result<Vec<RetrievalResult>, worker::Error> {
-    let query = if let Some(perf) = performance {
-        format!("{} {} {}", perf.composer, perf.piece_title, question)
-    } else {
-        question.to_string()
-    };
-    hybrid_retrieve(env, db, &query, None, 3).await
 }
 
 #[cfg(test)]
