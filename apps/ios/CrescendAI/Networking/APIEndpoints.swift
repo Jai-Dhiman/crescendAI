@@ -2,9 +2,9 @@ import Foundation
 
 enum APIEndpoints {
     #if DEBUG
-    static let baseURL = URL(string: "https://crescend.ai")!
+    static let baseURL = URL(string: "https://api.crescend.ai")!
     #else
-    static let baseURL = URL(string: "https://crescend.ai")!
+    static let baseURL = URL(string: "https://api.crescend.ai")!
     #endif
 
     static func upload() -> URL {
