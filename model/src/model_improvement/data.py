@@ -1189,3 +1189,206 @@ class HeteroPretrainDataset(Dataset):
             "pos_edges": pos_edges,
             "neg_edges": neg_edges,
         }
+
+
+class ShardedScoreGraphPretrainDataset(Dataset):
+    """Lazy-loads graph shards with a single-shard LRU cache (~44MB per shard).
+
+    Replaces ScoreGraphPretrainingDataset when LOW_MEMORY=True.
+    Returns the same dict format expected by graph_pretrain_collate_fn.
+    """
+
+    def __init__(
+        self,
+        keys: list[str],
+        shard_index: dict,
+        mask_fraction: float = 0.15,
+        neg_ratio: float = 1.0,
+    ):
+        self.keys = keys
+        self.shard_index = shard_index
+        self.mask_fraction = mask_fraction
+        self.neg_ratio = neg_ratio
+        self._cached_shard_path = None
+        self._cached_shard = None
+
+    def __len__(self) -> int:
+        return len(self.keys)
+
+    def _load_shard(self, shard_path):
+        if self._cached_shard_path != shard_path:
+            del self._cached_shard
+            self._cached_shard = torch.load(
+                shard_path, map_location="cpu", weights_only=False
+            )
+            self._cached_shard_path = shard_path
+        return self._cached_shard
+
+    def __getitem__(self, idx: int) -> dict:
+        from model_improvement.graph import build_edge_set, sample_negative_edges
+
+        key = self.keys[idx]
+        shard_path = self.shard_index[key]
+        shard = self._load_shard(shard_path)
+        data = shard[key]
+
+        edge_index = data.edge_index
+        num_edges = edge_index.size(1)
+        num_mask = max(1, int(num_edges * self.mask_fraction))
+        perm = torch.randperm(num_edges)
+        pos_edges = edge_index[:, perm[:num_mask]]
+        remaining_edges = edge_index[:, perm[num_mask:]]
+
+        num_neg = max(1, int(num_mask * self.neg_ratio))
+        edge_set = build_edge_set(data)
+        neg_edges = sample_negative_edges(data, num_neg, edge_set=edge_set)
+
+        return {
+            "x": data.x,
+            "edge_index": remaining_edges,
+            "pos_edges": pos_edges,
+            "neg_edges": neg_edges,
+        }
+
+
+class ShardedHeteroPretrainDataset(Dataset):
+    """Lazy-loads both graph + hetero shards (~76MB per pair).
+
+    Replaces HeteroPretrainDataset when LOW_MEMORY=True.
+    Returns the same dict format expected by hetero_pretrain_collate_fn.
+    """
+
+    def __init__(
+        self,
+        keys: list[str],
+        graph_shard_index: dict,
+        hetero_shard_index: dict,
+        mask_fraction: float = 0.15,
+    ):
+        self.keys = [
+            k for k in keys if k in graph_shard_index and k in hetero_shard_index
+        ]
+        self.graph_shard_index = graph_shard_index
+        self.hetero_shard_index = hetero_shard_index
+        self.mask_fraction = mask_fraction
+        self._cached_graph_path = None
+        self._cached_graph_shard = None
+        self._cached_hetero_path = None
+        self._cached_hetero_shard = None
+
+    def __len__(self) -> int:
+        return len(self.keys)
+
+    def _load_graph_shard(self, shard_path):
+        if self._cached_graph_path != shard_path:
+            del self._cached_graph_shard
+            self._cached_graph_shard = torch.load(
+                shard_path, map_location="cpu", weights_only=False
+            )
+            self._cached_graph_path = shard_path
+        return self._cached_graph_shard
+
+    def _load_hetero_shard(self, shard_path):
+        if self._cached_hetero_path != shard_path:
+            del self._cached_hetero_shard
+            self._cached_hetero_shard = torch.load(
+                shard_path, map_location="cpu", weights_only=False
+            )
+            self._cached_hetero_path = shard_path
+        return self._cached_hetero_shard
+
+    def __getitem__(self, idx: int) -> dict:
+        from model_improvement.graph import build_edge_set, sample_negative_edges
+
+        key = self.keys[idx]
+        graph_shard = self._load_graph_shard(self.graph_shard_index[key])
+        hetero_shard = self._load_hetero_shard(self.hetero_shard_index[key])
+
+        homo = graph_shard[key]
+        hetero = hetero_shard[key]
+
+        edge_index = homo.edge_index
+        num_edges = edge_index.size(1)
+        num_mask = max(1, int(num_edges * self.mask_fraction))
+        perm = torch.randperm(num_edges)
+        pos_edges = edge_index[:, perm[:num_mask]]
+
+        edge_set = build_edge_set(homo)
+        neg_edges = sample_negative_edges(homo, num_mask, edge_set=edge_set)
+
+        x_dict = {"note": hetero["note"].x}
+        edge_index_dict = {}
+        for etype in _HETERO_EDGE_TYPES:
+            edge_index_dict[("note", etype, "note")] = hetero[
+                "note", etype, "note"
+            ].edge_index
+
+        return {
+            "x_dict": x_dict,
+            "edge_index_dict": edge_index_dict,
+            "pos_edges": pos_edges,
+            "neg_edges": neg_edges,
+        }
+
+
+class ShardedContinuousPretrainDataset(Dataset):
+    """Lazy-loads feature shards (~152MB per shard).
+
+    Replaces ContinuousPretrainDataset when LOW_MEMORY=True.
+    Returns the same dict format expected by the default collate.
+    """
+
+    def __init__(
+        self,
+        keys: list[str],
+        shard_index: dict,
+        max_len: int = 2000,
+        mask_prob: float = 0.15,
+    ):
+        self.keys = keys
+        self.shard_index = shard_index
+        self.max_len = max_len
+        self.mask_prob = mask_prob
+        self._cached_shard_path = None
+        self._cached_shard = None
+
+    def __len__(self) -> int:
+        return len(self.keys)
+
+    def _load_shard(self, shard_path):
+        if self._cached_shard_path != shard_path:
+            del self._cached_shard
+            self._cached_shard = torch.load(
+                shard_path, map_location="cpu", weights_only=False
+            )
+            self._cached_shard_path = shard_path
+        return self._cached_shard
+
+    def __getitem__(self, idx: int) -> dict:
+        key = self.keys[idx]
+        shard_path = self.shard_index[key]
+        shard = self._load_shard(shard_path)
+        feat = shard[key]  # [T, C]
+        T, C = feat.shape
+
+        if T > self.max_len:
+            feat = feat[: self.max_len]
+            T = self.max_len
+
+        mask = torch.ones(self.max_len, dtype=torch.bool)
+        if T < self.max_len:
+            padding = torch.zeros(self.max_len - T, C)
+            feat = torch.cat([feat, padding], dim=0)
+            mask[T:] = False
+
+        masked_feat = feat.clone()
+        rand = torch.rand(self.max_len)
+        masked_positions = mask.clone() & (rand < self.mask_prob)
+        masked_feat[masked_positions] = 0.0
+
+        return {
+            "features": feat,
+            "mask": mask,
+            "masked_features": masked_feat,
+            "masked_positions": masked_positions,
+        }
