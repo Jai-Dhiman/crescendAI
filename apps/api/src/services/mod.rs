@@ -1,9 +1,11 @@
 mod embedding;
 mod feedback;
+pub mod goals;
 mod huggingface;
 mod r2;
 mod rag;
 mod reranker;
+pub mod sync;
 mod vectorize;
 mod vectorize_binding;
 

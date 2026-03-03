@@ -668,6 +668,45 @@ async fn fetch(
 
     // Handle API endpoints directly (bypasses Send requirement for Workers bindings)
 
+    // Apple auth endpoint
+    if path == "/api/auth/apple" && method == http::Method::POST {
+        let body = req
+            .into_body()
+            .collect()
+            .await
+            .map(|b| b.to_bytes().to_vec())
+            .unwrap_or_default();
+        return Ok(with_cors(crate::auth::handle_apple_auth(&env, &body).await));
+    }
+
+    // Goal extraction endpoint (authenticated)
+    if path == "/api/extract-goals" && method == http::Method::POST {
+        let headers = req.headers().clone();
+        let body = req
+            .into_body()
+            .collect()
+            .await
+            .map(|b| b.to_bytes().to_vec())
+            .unwrap_or_default();
+        return Ok(with_cors(
+            crate::services::goals::handle_extract_goals(&env, &headers, &body).await,
+        ));
+    }
+
+    // Sync endpoint (authenticated)
+    if path == "/api/sync" && method == http::Method::POST {
+        let headers = req.headers().clone();
+        let body = req
+            .into_body()
+            .collect()
+            .await
+            .map(|b| b.to_bytes().to_vec())
+            .unwrap_or_default();
+        return Ok(with_cors(
+            crate::services::sync::handle_sync(&env, &headers, &body).await,
+        ));
+    }
+
     // Full analysis endpoint with RAG feedback
     if path.starts_with("/api/analyze/") && method == http::Method::POST {
         let performance_id = path.trim_start_matches("/api/analyze/");

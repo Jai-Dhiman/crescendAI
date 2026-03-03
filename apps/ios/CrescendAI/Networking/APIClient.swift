@@ -31,6 +31,16 @@ actor APIClient {
         self.decoder = JSONDecoder()
     }
 
+    private func attachAuth(_ request: inout URLRequest) {
+        do {
+            if let jwt = try KeychainService.read(.sessionJWT) {
+                request.setValue("Bearer \(jwt)", forHTTPHeaderField: "Authorization")
+            }
+        } catch {
+            print("[APIClient] Failed to read JWT from Keychain: \(error)")
+        }
+    }
+
     /// Upload an audio recording. Returns the upload metadata.
     func upload(audioData: Data, title: String) async throws -> UploadedPerformance {
         let url = APIEndpoints.upload()

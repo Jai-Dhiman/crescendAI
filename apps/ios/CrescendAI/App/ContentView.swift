@@ -1,13 +1,23 @@
 import SwiftUI
 
 struct ContentView: View {
+    @State private var authService = AuthService()
+
     var body: some View {
-        PracticeView()
+        if authService.isAuthenticated {
+            PracticeView()
+                .environment(authService)
+        } else {
+            SignInView(authService: authService)
+        }
     }
 }
 
 #Preview {
     ContentView()
         .crescendTheme()
-        .modelContainer(for: [PracticeSessionRecord.self, ChunkResultRecord.self], inMemory: true)
+        .modelContainer(
+            for: [Student.self, PracticeSessionRecord.self, ChunkResultRecord.self, ObservationRecord.self],
+            inMemory: true
+        )
 }

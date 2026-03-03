@@ -7,7 +7,13 @@ struct CrescendAIApp: App {
 
     init() {
         do {
-            let schema = Schema([PracticeSessionRecord.self, ChunkResultRecord.self])
+            let schema = Schema([
+                Student.self,
+                PracticeSessionRecord.self,
+                ChunkResultRecord.self,
+                ObservationRecord.self,
+                CheckInRecord.self,
+            ])
             let config = ModelConfiguration(schema: schema)
             modelContainer = try ModelContainer(for: schema, configurations: [config])
         } catch {

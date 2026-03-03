@@ -22,4 +22,16 @@ enum APIEndpoints {
     static func performance(id: String) -> URL {
         baseURL.appendingPathComponent("/api/performances/\(id)")
     }
+
+    static func authApple() -> URL {
+        baseURL.appendingPathComponent("/api/auth/apple")
+    }
+
+    static func sync() -> URL {
+        baseURL.appendingPathComponent("/api/sync")
+    }
+
+    static func extractGoals() -> URL {
+        baseURL.appendingPathComponent("/api/extract-goals")
+    }
 }
