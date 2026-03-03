@@ -1,0 +1,11 @@
+@import 'tailwindcss' source('../');
+
+@theme {
+  --color-cream: #FDF8F0;
+  --color-ink: #2D2926;
+  --color-ink-60: rgba(45, 41, 38, 0.6);
+  --color-ink-12: rgba(45, 41, 38, 0.12);
+  --color-ink-5: rgba(45, 41, 38, 0.05);
+
+  --font-display: 'Lora', serif;
+}
