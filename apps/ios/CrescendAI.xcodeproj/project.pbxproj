@@ -48,6 +48,11 @@
 		A100000039 /* PracticeSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000040; };
 		A100000040 /* AudioChunk.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000041; };
 		A200000001 /* RingBufferTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B200000001; };
+		A300000001 /* PracticeSessionRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = B300000001; };
+		A300000002 /* ChunkResultRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = B300000002; };
+		A300000003 /* CoreMLInferenceProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = B300000003; };
+		A300000004 /* InferenceProviderFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = B300000004; };
+		A300000005 /* PracticeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B300000005; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -105,6 +110,11 @@
 		B100000041 /* AudioChunk.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioChunk.swift; sourceTree = "<group>"; };
 		B200000001 /* RingBufferTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RingBufferTests.swift; sourceTree = "<group>"; };
 		C200000001 /* CrescendAITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CrescendAITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		B300000001 /* PracticeSessionRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PracticeSessionRecord.swift; sourceTree = "<group>"; };
+		B300000002 /* ChunkResultRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChunkResultRecord.swift; sourceTree = "<group>"; };
+		B300000003 /* CoreMLInferenceProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreMLInferenceProvider.swift; sourceTree = "<group>"; };
+		B300000004 /* InferenceProviderFactory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InferenceProviderFactory.swift; sourceTree = "<group>"; };
+		B300000005 /* PracticeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PracticeView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -191,6 +201,7 @@
 			isa = PBXGroup;
 			children = (
 				E100000009 /* Home */,
+				E300000001 /* Practice */,
 				E100000021 /* Listening */,
 				E100000022 /* Chat */,
 				E100000010 /* Recording */,
@@ -198,6 +209,14 @@
 				E100000012 /* MIDI */,
 			);
 			path = Features;
+			sourceTree = "<group>";
+		};
+		E300000001 /* Practice */ = {
+			isa = PBXGroup;
+			children = (
+				B300000005 /* PracticeView.swift */,
+			);
+			path = Practice;
 			sourceTree = "<group>";
 		};
 		E100000022 /* Chat */ = {
@@ -330,6 +349,8 @@
 			isa = PBXGroup;
 			children = (
 				B100000038 /* InferenceProvider.swift */,
+				B300000003 /* CoreMLInferenceProvider.swift */,
+				B300000004 /* InferenceProviderFactory.swift */,
 			);
 			path = Inference;
 			sourceTree = "<group>";
@@ -339,6 +360,8 @@
 			children = (
 				B100000040 /* PracticeSession.swift */,
 				B100000041 /* AudioChunk.swift */,
+				B300000001 /* PracticeSessionRecord.swift */,
+				B300000002 /* ChunkResultRecord.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -481,6 +504,11 @@
 				A100000038 /* PracticeSessionManager.swift in Sources */,
 				A100000039 /* PracticeSession.swift in Sources */,
 				A100000040 /* AudioChunk.swift in Sources */,
+				A300000001 /* PracticeSessionRecord.swift in Sources */,
+				A300000002 /* ChunkResultRecord.swift in Sources */,
+				A300000003 /* CoreMLInferenceProvider.swift in Sources */,
+				A300000004 /* InferenceProviderFactory.swift in Sources */,
+				A300000005 /* PracticeView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -1,8 +1,9 @@
 import Foundation
 import Observation
+import SwiftData
 
 /// Coordinates the full practice session lifecycle: audio session setup,
-/// continuous capture, chunk production, and inference.
+/// continuous capture, chunk production, inference, and SwiftData persistence.
 @MainActor
 @Observable
 final class PracticeSessionManager {
@@ -15,15 +16,21 @@ final class PracticeSessionManager {
 
     private(set) var state: SessionState = .idle
     private(set) var currentSession: PracticeSession?
+    private(set) var currentSessionRecord: PracticeSessionRecord?
 
     var currentLevel: Float { captureEngine.currentLevel }
 
+    private let modelContext: ModelContext
     private let audioSessionManager = AudioSessionManager()
     private let ringBuffer = RingBuffer(capacity: 24_000 * 300) // 5 minutes at 24kHz
     @ObservationIgnored private lazy var captureEngine = AudioCaptureEngine(ringBuffer: ringBuffer)
     private var chunkProducer: ChunkProducer?
     private var interruptionTask: Task<Void, Never>?
     private var chunkObservationTask: Task<Void, Never>?
+
+    init(modelContext: ModelContext) {
+        self.modelContext = modelContext
+    }
 
     func startSession(inferenceProvider: (any InferenceProvider)? = nil) async throws {
         guard state == .idle || state == .ended else { return }
@@ -36,7 +43,21 @@ final class PracticeSessionManager {
         let session = PracticeSession()
         currentSession = session
 
-        let producer = ChunkProducer(ringBuffer: ringBuffer, inferenceProvider: inferenceProvider)
+        // Persist session record
+        let record = PracticeSessionRecord(id: session.id, startedAt: session.startedAt)
+        modelContext.insert(record)
+        try modelContext.save()
+        currentSessionRecord = record
+
+        // Use factory default if no explicit provider
+        let provider: any InferenceProvider
+        if let inferenceProvider {
+            provider = inferenceProvider
+        } else {
+            provider = await InferenceProviderFactory.create()
+        }
+
+        let producer = ChunkProducer(ringBuffer: ringBuffer, inferenceProvider: provider)
         producer.start(sessionId: session.id, startDate: session.startedAt)
         chunkProducer = producer
 
@@ -56,7 +77,17 @@ final class PracticeSessionManager {
         chunkObservationTask?.cancel()
         chunkObservationTask = nil
 
-        currentSession?.endedAt = Date()
+        let endDate = Date()
+        currentSession?.endedAt = endDate
+
+        // Persist end timestamp
+        currentSessionRecord?.endedAt = endDate
+        do {
+            try modelContext.save()
+        } catch {
+            print("[PracticeSessionManager] Failed to save session end: \(error)")
+        }
+
         state = .ended
     }
 
@@ -97,7 +128,21 @@ final class PracticeSessionManager {
             for await chunk in producer.chunkStream {
                 guard !Task.isCancelled else { break }
                 currentSession?.chunks.append(chunk)
+                persistChunk(chunk)
             }
+        }
+    }
+
+    // MARK: - Persistence
+
+    private func persistChunk(_ chunk: AudioChunk) {
+        guard let sessionRecord = currentSessionRecord else { return }
+        let record = chunk.toRecord(session: sessionRecord)
+        modelContext.insert(record)
+        do {
+            try modelContext.save()
+        } catch {
+            print("[PracticeSessionManager] Failed to save chunk \(chunk.index): \(error)")
         }
     }
 }

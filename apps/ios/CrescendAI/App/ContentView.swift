@@ -2,11 +2,12 @@ import SwiftUI
 
 struct ContentView: View {
     var body: some View {
-        ListeningView()
+        PracticeView()
     }
 }
 
 #Preview {
     ContentView()
         .crescendTheme()
+        .modelContainer(for: [PracticeSessionRecord.self, ChunkResultRecord.self], inMemory: true)
 }
