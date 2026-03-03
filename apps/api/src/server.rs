@@ -1,7 +1,6 @@
-use axum::{routing::get, Router};
+use axum::routing::get;
+use axum::Router;
 use http_body_util::BodyExt;
-use leptos::prelude::*;
-use leptos_axum::{generate_route_list, LeptosRoutes};
 use tower::ServiceExt;
 use worker::{event, console_log, Context, Env, HttpRequest, Result};
 
@@ -11,38 +10,24 @@ use crate::services::{
     get_performance_dimensions_from_hf, get_practice_tips, retrieve_for_analysis, retrieve_for_chat,
     upload_audio, get_audio, validate_content_type, MAX_FILE_SIZE,
 };
-use crate::{api, shell::shell, state::AppState, App};
+use crate::api;
 
-fn router(app_state: AppState) -> Router {
-    let leptos_options = app_state.leptos_options.clone();
-    let routes = generate_route_list(App);
-
-    // API routes with our AppState
-    // Note: /api/analyze/:id is handled directly in the event handler for Workers bindings
-    let api_router = Router::new()
-        .route("/api/performances", get(api::list_performances))
-        .route("/api/performances/:id", get(api::get_performance))
-        .route("/health", get(|| async { "OK" }))
-        .with_state(app_state.clone());
-
-    // Leptos SSR routes - the context provides our state to components
-    let leptos_router = Router::new()
-        .leptos_routes_with_context(
-            &leptos_options,
-            routes,
-            {
-                let state = app_state.clone();
-                move || provide_context(state.clone())
-            },
-            {
-                let leptos_options = leptos_options.clone();
-                move || shell(leptos_options.clone())
-            },
-        )
-        .with_state(leptos_options);
-
-    // Merge API routes first (so they take priority), then Leptos routes
-    api_router.merge(leptos_router)
+/// Add CORS headers to a response.
+fn with_cors(response: http::Response<axum::body::Body>) -> http::Response<axum::body::Body> {
+    let (mut parts, body) = response.into_parts();
+    parts.headers.insert(
+        http::header::ACCESS_CONTROL_ALLOW_ORIGIN,
+        "*".parse().unwrap(),
+    );
+    parts.headers.insert(
+        http::header::ACCESS_CONTROL_ALLOW_METHODS,
+        "GET, POST, OPTIONS".parse().unwrap(),
+    );
+    parts.headers.insert(
+        http::header::ACCESS_CONTROL_ALLOW_HEADERS,
+        "Content-Type, Authorization".parse().unwrap(),
+    );
+    http::Response::from_parts(parts, body)
 }
 
 /// Generate model variants for the analysis result.
@@ -198,7 +183,7 @@ async fn handle_full_analyze(
         let public_url = env
             .var("PUBLIC_URL")
             .map(|v| v.to_string())
-            .unwrap_or_else(|_| "https://crescend.ai".to_string());
+            .unwrap_or_else(|_| "https://api.crescend.ai".to_string());
         format!("{}{}", public_url.trim_end_matches('/'), performance.audio_url)
     };
 
@@ -668,15 +653,26 @@ async fn fetch(
 ) -> Result<http::Response<axum::body::Body>> {
     console_error_panic_hook::set_once();
 
+    let path = req.uri().path().to_string();
+    let method = req.method().clone();
+
+    // Handle CORS preflight
+    if method == http::Method::OPTIONS {
+        return Ok(with_cors(
+            http::Response::builder()
+                .status(http::StatusCode::NO_CONTENT)
+                .body(axum::body::Body::empty())
+                .unwrap(),
+        ));
+    }
+
     // Handle API endpoints directly (bypasses Send requirement for Workers bindings)
-    let path = req.uri().path();
-    let method = req.method();
 
     // Full analysis endpoint with RAG feedback
     if path.starts_with("/api/analyze/") && method == http::Method::POST {
         let performance_id = path.trim_start_matches("/api/analyze/");
         if !performance_id.is_empty() {
-            return Ok(handle_full_analyze(&env, performance_id).await);
+            return Ok(with_cors(handle_full_analyze(&env, performance_id).await));
         }
     }
 
@@ -689,29 +685,37 @@ async fn fetch(
             .await
             .map(|b| b.to_bytes().to_vec())
             .unwrap_or_default();
-        return Ok(handle_chat(&env, &body).await);
+        return Ok(with_cors(handle_chat(&env, &body).await));
     }
 
     // Audio upload endpoint
     if path == "/api/upload" && method == http::Method::POST {
-        return Ok(handle_upload(&env, req).await);
+        return Ok(with_cors(handle_upload(&env, req).await));
     }
 
     // Serve R2 uploaded audio files
     if path.starts_with("/r2/") {
         let key = path.trim_start_matches("/r2/");
         if !key.is_empty() {
-            return Ok(handle_r2_serve(&env, key).await);
+            return Ok(with_cors(handle_r2_serve(&env, key).await));
         }
     }
 
-    let leptos_options = LeptosOptions::builder()
-        .output_name("crescendai")
-        .site_pkg_dir("pkg")
-        .build();
+    // Health check
+    if path == "/health" {
+        return Ok(with_cors(
+            http::Response::builder()
+                .status(http::StatusCode::OK)
+                .body(axum::body::Body::from("OK"))
+                .unwrap(),
+        ));
+    }
 
-    let state = AppState::new(env, leptos_options);
-    let app = router(state);
+    // Remaining routes via axum router (performances list/detail)
+    let app = Router::new()
+        .route("/api/performances", get(api::list_performances))
+        .route("/api/performances/:id", get(api::get_performance));
 
-    Ok(app.oneshot(req).await?)
+    let response = app.oneshot(req).await?;
+    Ok(with_cors(response))
 }
