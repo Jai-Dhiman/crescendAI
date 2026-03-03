@@ -1,0 +1,272 @@
+/** @type {import('tailwindcss').Config} */
+module.exports = {
+  content: [
+    "./src/**/*.rs",
+    "./dist/client/**/*.html",
+  ],
+  theme: {
+    extend: {
+      // COLOR PALETTE - Two-tone monochrome (#FDF8F0 + #2D2926)
+      colors: {
+        // Clay mapped to ink monochrome (preserves class names)
+        clay: {
+          50:  '#F5F3F1',
+          100: '#E5E2DF',
+          200: '#CCC9C5',
+          300: '#A9A5A0',
+          400: '#827D78',
+          500: '#605B56',
+          600: '#4B4743',
+          700: '#3B3835',
+          800: '#2D2926',
+          900: '#1C1A18',
+          950: '#0F0E0D',
+        },
+        // Paper backgrounds (light tone)
+        paper: {
+          50:  '#FDF8F0',  // Primary light
+          100: '#F7F2EB',
+          200: '#EDE9E2',
+          300: '#E0DCD5',
+          400: '#D2CDC6',
+          500: '#C2BCB5',
+        },
+        // Ink tones (dark tone)
+        ink: {
+          50:  '#F5F3F1',
+          100: '#E5E2DF',
+          200: '#CCC9C5',
+          300: '#A9A5A0',
+          400: '#827D78',
+          500: '#605B56',
+          600: '#4B4743',
+          700: '#3B3835',
+          800: '#2D2926',  // Primary dark
+          900: '#1C1A18',
+        },
+        // Highlight mapped to monochrome (preserves class names)
+        highlight: {
+          light: '#F5F3F1',
+          DEFAULT: '#2D2926',
+          dark: '#1C1A18',
+        },
+        // Semantic colors (functional, used on analyze page)
+        success: {
+          light: '#ecfdf5',
+          DEFAULT: '#059669',
+          dark: '#047857',
+        },
+        warning: {
+          light: '#fffbeb',
+          DEFAULT: '#d97706',
+          dark: '#b45309',
+        },
+        error: {
+          light: '#fef2f2',
+          DEFAULT: '#dc2626',
+          dark: '#b91c1c',
+        },
+        info: {
+          light: '#f0f9ff',
+          DEFAULT: '#0284c7',
+          dark: '#0369a1',
+        },
+      },
+
+      // TYPOGRAPHY - Scholarly + Modern
+      fontFamily: {
+        display: ['"Lora"', 'Georgia', 'serif'],
+        serif: ['"Lora"', 'Georgia', 'serif'],
+        sans: ['"Lora"', 'Georgia', 'serif'],
+        mono: ['"JetBrains Mono"', 'Consolas', 'monospace'],
+      },
+      fontSize: {
+        // Display sizes for hero sections
+        'display-3xl': ['6rem', { lineHeight: '1', letterSpacing: '-0.03em', fontWeight: '400' }],
+        'display-2xl': ['4.5rem', { lineHeight: '1', letterSpacing: '-0.02em', fontWeight: '500' }],
+        'display-xl': ['3.75rem', { lineHeight: '1.05', letterSpacing: '-0.02em', fontWeight: '500' }],
+        'display-lg': ['3rem', { lineHeight: '1.1', letterSpacing: '-0.01em', fontWeight: '500' }],
+        'display-md': ['2.25rem', { lineHeight: '1.15', letterSpacing: '-0.01em', fontWeight: '500' }],
+        'display-sm': ['1.875rem', { lineHeight: '1.2', letterSpacing: '0', fontWeight: '500' }],
+        // Heading sizes
+        'heading-xl': ['1.5rem', { lineHeight: '1.3', fontWeight: '600' }],
+        'heading-lg': ['1.25rem', { lineHeight: '1.4', fontWeight: '600' }],
+        'heading-md': ['1.125rem', { lineHeight: '1.4', fontWeight: '600' }],
+        'heading-sm': ['1rem', { lineHeight: '1.5', fontWeight: '600' }],
+        // Body sizes
+        'body-lg': ['1.125rem', { lineHeight: '1.75' }],
+        'body-md': ['1rem', { lineHeight: '1.75' }],
+        'body-sm': ['0.875rem', { lineHeight: '1.6' }],
+        'body-xs': ['0.75rem', { lineHeight: '1.5' }],
+        // Label/caption
+        'label-lg': ['0.875rem', { lineHeight: '1.4', fontWeight: '500', letterSpacing: '0.025em' }],
+        'label-md': ['0.75rem', { lineHeight: '1.4', fontWeight: '500', letterSpacing: '0.05em' }],
+        'label-sm': ['0.6875rem', { lineHeight: '1.4', fontWeight: '500', letterSpacing: '0.075em' }],
+      },
+
+      // SPACING SCALE
+      spacing: {
+        '0.5': '0.125rem',
+        '1': '0.25rem',
+        '1.5': '0.375rem',
+        '2': '0.5rem',
+        '2.5': '0.625rem',
+        '3': '0.75rem',
+        '3.5': '0.875rem',
+        '4': '1rem',
+        '5': '1.25rem',
+        '6': '1.5rem',
+        '7': '1.75rem',
+        '8': '2rem',
+        '9': '2.25rem',
+        '10': '2.5rem',
+        '11': '2.75rem',
+        '12': '3rem',
+        '14': '3.5rem',
+        '16': '4rem',
+        '18': '4.5rem',
+        '20': '5rem',
+        '24': '6rem',
+        '28': '7rem',
+        '32': '8rem',
+        '36': '9rem',
+        '40': '10rem',
+        '48': '12rem',
+        '56': '14rem',
+        '64': '16rem',
+      },
+
+      // BORDER RADIUS - Sharp edges (editorial)
+      borderRadius: {
+        'none': '0',
+        'xs': '0',
+        'sm': '0',
+        'DEFAULT': '0',
+        'md': '0',
+        'lg': '0',
+        'xl': '0',
+        '2xl': '0',
+        'full': '9999px',
+      },
+
+      // SHADOWS & ELEVATION - Warmer shadows
+      boxShadow: {
+        'elevation-1': '0 1px 2px 0 rgba(37, 31, 26, 0.04)',
+        'elevation-2': '0 1px 3px 0 rgba(37, 31, 26, 0.06), 0 1px 2px -1px rgba(37, 31, 26, 0.06)',
+        'elevation-3': '0 4px 6px -1px rgba(37, 31, 26, 0.06), 0 2px 4px -2px rgba(37, 31, 26, 0.04)',
+        'elevation-4': '0 10px 15px -3px rgba(37, 31, 26, 0.06), 0 4px 6px -4px rgba(37, 31, 26, 0.04)',
+        'elevation-5': '0 20px 25px -5px rgba(37, 31, 26, 0.08), 0 8px 10px -6px rgba(37, 31, 26, 0.04)',
+        'elevation-6': '0 25px 50px -12px rgba(37, 31, 26, 0.15)',
+        'button': '0 1px 2px 0 rgba(37, 31, 26, 0.04), 0 1px 3px 0 rgba(37, 31, 26, 0.08)',
+        'button-hover': '0 4px 8px -2px rgba(37, 31, 26, 0.10), 0 2px 4px -2px rgba(37, 31, 26, 0.06)',
+        'button-active': '0 1px 2px 0 rgba(37, 31, 26, 0.06)',
+        'card': '0 1px 3px 0 rgba(37, 31, 26, 0.04), 0 1px 2px -1px rgba(37, 31, 26, 0.04)',
+        'card-hover': '0 8px 16px -4px rgba(37, 31, 26, 0.08), 0 4px 6px -2px rgba(37, 31, 26, 0.04)',
+        'clay': '0 4px 14px -2px rgba(45, 41, 38, 0.15)',
+        'clay-lg': '0 8px 24px -4px rgba(45, 41, 38, 0.20)',
+        'inner-sm': 'inset 0 1px 2px 0 rgba(37, 31, 26, 0.04)',
+        'inner': 'inset 0 2px 4px 0 rgba(37, 31, 26, 0.06)',
+        'glow': '0 0 20px rgba(45, 41, 38, 0.10)',
+      },
+
+      // TRANSITIONS & ANIMATIONS
+      transitionDuration: {
+        '75': '75ms',
+        '100': '100ms',
+        '150': '150ms',
+        '200': '200ms',
+        '250': '250ms',
+        '300': '300ms',
+        '400': '400ms',
+        '500': '500ms',
+        '600': '600ms',
+        '700': '700ms',
+      },
+      transitionTimingFunction: {
+        'ease-out-expo': 'cubic-bezier(0.16, 1, 0.3, 1)',
+        'ease-out-quart': 'cubic-bezier(0.25, 1, 0.5, 1)',
+        'ease-in-out-quart': 'cubic-bezier(0.76, 0, 0.24, 1)',
+        'spring': 'cubic-bezier(0.34, 1.56, 0.64, 1)',
+        'smooth': 'cubic-bezier(0.4, 0, 0.2, 1)',
+      },
+      animation: {
+        'fade-in': 'fadeIn 500ms cubic-bezier(0.16, 1, 0.3, 1)',
+        'fade-in-up': 'fadeInUp 600ms cubic-bezier(0.16, 1, 0.3, 1)',
+        'fade-in-down': 'fadeInDown 500ms cubic-bezier(0.16, 1, 0.3, 1)',
+        'scale-in': 'scaleIn 300ms cubic-bezier(0.34, 1.56, 0.64, 1)',
+        'scale-out': 'scaleOut 200ms cubic-bezier(0.4, 0, 0.2, 1)',
+        'slide-in-right': 'slideInRight 400ms cubic-bezier(0.16, 1, 0.3, 1)',
+        'slide-in-left': 'slideInLeft 400ms cubic-bezier(0.16, 1, 0.3, 1)',
+        'slide-in-up': 'slideInUp 400ms cubic-bezier(0.16, 1, 0.3, 1)',
+        'stagger-1': 'fadeInUp 600ms cubic-bezier(0.16, 1, 0.3, 1) 100ms both',
+        'stagger-2': 'fadeInUp 600ms cubic-bezier(0.16, 1, 0.3, 1) 200ms both',
+        'stagger-3': 'fadeInUp 600ms cubic-bezier(0.16, 1, 0.3, 1) 300ms both',
+        'stagger-4': 'fadeInUp 600ms cubic-bezier(0.16, 1, 0.3, 1) 400ms both',
+        'stagger-5': 'fadeInUp 600ms cubic-bezier(0.16, 1, 0.3, 1) 500ms both',
+        'stagger-6': 'fadeInUp 600ms cubic-bezier(0.16, 1, 0.3, 1) 600ms both',
+        'spin-slow': 'spin 2s linear infinite',
+        'pulse-subtle': 'pulseSubtle 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+        'shimmer': 'shimmer 2s infinite',
+        'float': 'float 6s ease-in-out infinite',
+      },
+      keyframes: {
+        fadeIn: {
+          '0%': { opacity: '0' },
+          '100%': { opacity: '1' },
+        },
+        fadeInUp: {
+          '0%': { opacity: '0', transform: 'translateY(20px)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' },
+        },
+        fadeInDown: {
+          '0%': { opacity: '0', transform: 'translateY(-16px)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' },
+        },
+        scaleIn: {
+          '0%': { opacity: '0', transform: 'scale(0.95)' },
+          '100%': { opacity: '1', transform: 'scale(1)' },
+        },
+        scaleOut: {
+          '0%': { opacity: '1', transform: 'scale(1)' },
+          '100%': { opacity: '0', transform: 'scale(0.95)' },
+        },
+        slideInRight: {
+          '0%': { opacity: '0', transform: 'translateX(24px)' },
+          '100%': { opacity: '1', transform: 'translateX(0)' },
+        },
+        slideInLeft: {
+          '0%': { opacity: '0', transform: 'translateX(-24px)' },
+          '100%': { opacity: '1', transform: 'translateX(0)' },
+        },
+        slideInUp: {
+          '0%': { opacity: '0', transform: 'translateY(24px)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' },
+        },
+        pulseSubtle: {
+          '0%, 100%': { opacity: '1' },
+          '50%': { opacity: '0.6' },
+        },
+        shimmer: {
+          '0%': { backgroundPosition: '-200% 0' },
+          '100%': { backgroundPosition: '200% 0' },
+        },
+        float: {
+          '0%, 100%': { transform: 'translateY(0)' },
+          '50%': { transform: 'translateY(-10px)' },
+        },
+      },
+
+      // BACKGROUND IMAGES
+      backgroundImage: {
+        'gradient-clay': 'linear-gradient(135deg, #3B3835 0%, #2D2926 100%)',
+        'gradient-clay-subtle': 'linear-gradient(135deg, #CCC9C5 0%, #A9A5A0 100%)',
+        'gradient-cta': 'linear-gradient(135deg, #4B4743 0%, #3B3835 100%)',
+        'noise': "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E\")",
+      },
+      backdropBlur: {
+        xs: '2px',
+      },
+    },
+  },
+  plugins: [],
+}
