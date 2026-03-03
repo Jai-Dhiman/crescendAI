@@ -8,6 +8,7 @@ final class AudioMonitor: ObservableObject {
 
     private var audioEngine: AVAudioEngine?
     private var silenceTimer: Timer?
+    private var levelTask: Task<Void, Never>?
 
     /// How many seconds of silence before `isSilent` becomes true.
     var silenceThreshold: TimeInterval = 3.0
@@ -24,7 +25,13 @@ final class AudioMonitor: ObservableObject {
         let inputNode = engine.inputNode
         let format = inputNode.outputFormat(forBus: 0)
 
-        inputNode.installTap(onBus: 0, bufferSize: 1024, format: format) { [weak self] buffer, _ in
+        // AsyncStream bridges audio levels from the real-time tap thread
+        // to MainActor. The tap handler must be nonisolated (@Sendable)
+        // because AVAudioEngine calls it on its real-time audio thread,
+        // not on MainActor (Swift 6 enforces this at runtime).
+        let (stream, continuation) = AsyncStream.makeStream(of: Float.self)
+
+        let tapHandler: @Sendable (AVAudioPCMBuffer, AVAudioTime) -> Void = { buffer, _ in
             guard let channelData = buffer.floatChannelData?[0] else { return }
             let frameLength = Int(buffer.frameLength)
             var sum: Float = 0
@@ -33,19 +40,26 @@ final class AudioMonitor: ObservableObject {
             }
             let rms = sqrtf(sum / Float(frameLength))
             let level = max(0, min(1, rms * 5))
-
-            Task { @MainActor [weak self] in
-                self?.updateLevel(level)
-            }
+            continuation.yield(level)
         }
+        inputNode.installTap(onBus: 0, bufferSize: 1024, format: format, block: tapHandler)
 
         try engine.start()
         self.audioEngine = engine
         self.isRunning = true
         self.isSilent = true
+
+        levelTask = Task {
+            for await level in stream {
+                guard !Task.isCancelled else { break }
+                updateLevel(level)
+            }
+        }
     }
 
     func stop() {
+        levelTask?.cancel()
+        levelTask = nil
         audioEngine?.inputNode.removeTap(onBus: 0)
         audioEngine?.stop()
         audioEngine = nil

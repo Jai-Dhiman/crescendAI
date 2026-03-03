@@ -127,6 +127,7 @@ def train_model(
     patience: int = 10,
     accumulate_grad_batches: int = 1,
     log_file: str | None = None,
+    accelerator: str | None = None,
 ) -> pl.Trainer:
     """Train a model with standard callbacks.
 
@@ -149,6 +150,8 @@ def train_model(
         log_file: Optional path to a log file. Callbacks will append progress
             messages here in addition to stdout. Useful for ``tail -f`` when
             Jupyter buffers stdout.
+        accelerator: Override the auto-detected accelerator (e.g. ``"cpu"``
+            to force CPU training when MPS scatter kernels cause overhead).
 
     Returns:
         The fitted Trainer instance.
@@ -159,6 +162,8 @@ def train_model(
     hw = detect_accelerator_config()
     if precision is not None:
         hw["precision"] = precision
+    if accelerator is not None:
+        hw["accelerator"] = accelerator
 
     callbacks = [
         ModelCheckpoint(

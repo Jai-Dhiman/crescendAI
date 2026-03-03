@@ -39,7 +39,26 @@
 		A100000030 /* FeedbackChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000031; };
 		A100000031 /* ListeningViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000032; };
 		A100000032 /* ListeningView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000033; };
+		A100000033 /* AudioSessionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000034; };
+		A100000034 /* RingBuffer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000035; };
+		A100000035 /* AudioCaptureEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000036; };
+		A100000036 /* ChunkProducer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000037; };
+		A100000037 /* InferenceProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000038; };
+		A100000038 /* PracticeSessionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000039; };
+		A100000039 /* PracticeSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000040; };
+		A100000040 /* AudioChunk.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000041; };
+		A200000001 /* RingBufferTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B200000001; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		G100000001 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = F100000010 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = F100000001;
+			remoteInfo = CrescendAI;
+		};
+/* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		C100000001 /* CrescendAI.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CrescendAI.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -76,10 +95,27 @@
 		B100000031 /* FeedbackChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedbackChatView.swift; sourceTree = "<group>"; };
 		B100000032 /* ListeningViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListeningViewModel.swift; sourceTree = "<group>"; };
 		B100000033 /* ListeningView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListeningView.swift; sourceTree = "<group>"; };
+		B100000034 /* AudioSessionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioSessionManager.swift; sourceTree = "<group>"; };
+		B100000035 /* RingBuffer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RingBuffer.swift; sourceTree = "<group>"; };
+		B100000036 /* AudioCaptureEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioCaptureEngine.swift; sourceTree = "<group>"; };
+		B100000037 /* ChunkProducer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChunkProducer.swift; sourceTree = "<group>"; };
+		B100000038 /* InferenceProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InferenceProvider.swift; sourceTree = "<group>"; };
+		B100000039 /* PracticeSessionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PracticeSessionManager.swift; sourceTree = "<group>"; };
+		B100000040 /* PracticeSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PracticeSession.swift; sourceTree = "<group>"; };
+		B100000041 /* AudioChunk.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioChunk.swift; sourceTree = "<group>"; };
+		B200000001 /* RingBufferTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RingBufferTests.swift; sourceTree = "<group>"; };
+		C200000001 /* CrescendAITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CrescendAITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		D100000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D200000001 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -93,6 +129,7 @@
 			isa = PBXGroup;
 			children = (
 				E100000002 /* CrescendAI */,
+				E200000001 /* CrescendAITests */,
 				E100000020 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -103,6 +140,8 @@
 				E100000003 /* App */,
 				E100000004 /* DesignSystem */,
 				E100000008 /* Features */,
+				E100000026 /* Models */,
+				E100000023 /* Services */,
 				E100000013 /* Networking */,
 				E100000014 /* Resources */,
 				B100000022 /* Info.plist */,
@@ -261,8 +300,55 @@
 			isa = PBXGroup;
 			children = (
 				C100000001 /* CrescendAI.app */,
+				C200000001 /* CrescendAITests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		E100000023 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				E100000024 /* AudioEngine */,
+				E100000025 /* Inference */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		E100000024 /* AudioEngine */ = {
+			isa = PBXGroup;
+			children = (
+				B100000034 /* AudioSessionManager.swift */,
+				B100000035 /* RingBuffer.swift */,
+				B100000036 /* AudioCaptureEngine.swift */,
+				B100000037 /* ChunkProducer.swift */,
+				B100000039 /* PracticeSessionManager.swift */,
+			);
+			path = AudioEngine;
+			sourceTree = "<group>";
+		};
+		E100000025 /* Inference */ = {
+			isa = PBXGroup;
+			children = (
+				B100000038 /* InferenceProvider.swift */,
+			);
+			path = Inference;
+			sourceTree = "<group>";
+		};
+		E100000026 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				B100000040 /* PracticeSession.swift */,
+				B100000041 /* AudioChunk.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		E200000001 /* CrescendAITests */ = {
+			isa = PBXGroup;
+			children = (
+				B200000001 /* RingBufferTests.swift */,
+			);
+			path = CrescendAITests;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -285,6 +371,23 @@
 			productReference = C100000001 /* CrescendAI.app */;
 			productType = "com.apple.product-type.application";
 		};
+		F300000001 /* CrescendAITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F400000001 /* Build configuration list for PBXNativeTarget "CrescendAITests" */;
+			buildPhases = (
+				F300000002 /* Sources */,
+				D200000001 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				G200000001 /* PBXTargetDependency */,
+			);
+			name = CrescendAITests;
+			productName = CrescendAITests;
+			productReference = C200000001 /* CrescendAITests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -297,6 +400,10 @@
 				TargetAttributes = {
 					F100000001 = {
 						CreatedOnToolsVersion = 16.0;
+					};
+					F300000001 = {
+						CreatedOnToolsVersion = 16.0;
+						TestTargetID = F100000001;
 					};
 				};
 			};
@@ -314,6 +421,7 @@
 			projectRoot = "";
 			targets = (
 				F100000001 /* CrescendAI */,
+				F300000001 /* CrescendAITests */,
 			);
 		};
 /* End PBXProject section */
@@ -365,10 +473,34 @@
 				A100000030 /* FeedbackChatView.swift in Sources */,
 				A100000031 /* ListeningViewModel.swift in Sources */,
 				A100000032 /* ListeningView.swift in Sources */,
+				A100000033 /* AudioSessionManager.swift in Sources */,
+				A100000034 /* RingBuffer.swift in Sources */,
+				A100000035 /* AudioCaptureEngine.swift in Sources */,
+				A100000036 /* ChunkProducer.swift in Sources */,
+				A100000037 /* InferenceProvider.swift in Sources */,
+				A100000038 /* PracticeSessionManager.swift in Sources */,
+				A100000039 /* PracticeSession.swift in Sources */,
+				A100000040 /* AudioChunk.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F300000002 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A200000001 /* RingBufferTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		G200000001 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = F100000001 /* CrescendAI */;
+			targetProxy = G100000001 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		F200000010 /* Debug */ = {
@@ -552,6 +684,46 @@
 			};
 			name = Release;
 		};
+		F400000002 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = ai.crescend.CrescendAITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/CrescendAI.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/CrescendAI";
+			};
+			name = Debug;
+		};
+		F400000003 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = ai.crescend.CrescendAITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/CrescendAI.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/CrescendAI";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -569,6 +741,15 @@
 			buildConfigurations = (
 				F200000012 /* Debug */,
 				F200000013 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		F400000001 /* Build configuration list for PBXNativeTarget "CrescendAITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F400000002 /* Debug */,
+				F400000003 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
