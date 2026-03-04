@@ -24,7 +24,12 @@ function HeroSection() {
       />
 
       {/* Gradient overlay for text legibility */}
-      <div className="absolute inset-0 bg-gradient-to-t from-espresso/80 via-espresso/30 to-espresso/10" />
+      <div
+        className="absolute inset-0"
+        style={{
+          background: 'linear-gradient(to top, #2D2926 0%, #2D2926 5%, rgba(45,41,38,0.7) 30%, rgba(45,41,38,0.2) 60%, rgba(45,41,38,0.05) 100%)',
+        }}
+      />
 
       {/* Content */}
       <div className="relative z-10 text-center px-6">
@@ -37,8 +42,8 @@ function HeroSection() {
 
         <div className="mt-10">
           <a
-            href="/analyze"
-            className="bg-cream text-espresso rounded-full px-8 py-3.5 text-body-sm font-medium hover:brightness-110 transition inline-block"
+            href="/app"
+            className="bg-cream text-espresso px-8 py-3.5 text-body-sm font-medium hover:brightness-110 transition inline-block"
           >
             Start Practicing
           </a>
@@ -102,24 +107,24 @@ function CascadingQuoteSection() {
       <div className="max-w-7xl mx-auto px-6 lg:px-12">
         <div className="grid grid-cols-1 lg:grid-cols-[5fr_6fr] gap-12 lg:gap-16 items-center">
           {/* Cascading photos */}
-          <div className="relative h-[500px] lg:h-[600px]">
+          <div className="relative h-[700px] lg:h-[850px]">
             <img
               src="/Image2.jpg"
               alt="Sheet music resting on piano keys"
-              className="absolute top-0 left-0 w-3/5 rounded-lg object-cover shadow-2xl"
+              className="absolute top-0 left-0 w-[55%] object-cover"
               style={{ aspectRatio: '4/5' }}
             />
             <img
               src="/Image3.jpg"
               alt="Piano score with dynamic markings"
-              className="absolute top-[20%] left-[25%] w-3/5 rounded-lg object-cover shadow-2xl"
+              className="absolute top-[28%] left-[20%] w-[55%] object-cover"
               style={{ aspectRatio: '4/5' }}
             />
             <img
               src="/Image4.jpg"
               alt="Hands playing piano in warm light"
-              className="absolute top-[40%] left-[10%] w-1/2 rounded-lg object-cover shadow-2xl"
-              style={{ aspectRatio: '1/1' }}
+              className="absolute top-[56%] left-[40%] w-[55%] object-cover"
+              style={{ aspectRatio: '4/5' }}
             />
           </div>
 
@@ -128,9 +133,6 @@ function CascadingQuoteSection() {
             <blockquote className="font-display italic text-display-md lg:text-display-lg text-cream leading-snug">
               "What's the one thing that sounds off that I can't hear myself?"
             </blockquote>
-            <p className="mt-6 text-body-md text-text-secondary">
-              The question every pianist asks.
-            </p>
           </div>
         </div>
       </div>
@@ -148,14 +150,11 @@ function FinalCtaSection() {
 
         <div className="mt-10">
           <a
-            href="/analyze"
-            className="bg-cream text-espresso rounded-full px-8 py-3.5 text-body-sm font-medium hover:brightness-110 transition inline-block"
+            href="/app"
+            className="bg-cream text-espresso px-8 py-3.5 text-body-sm font-medium hover:brightness-110 transition inline-block"
           >
             Start Practicing
           </a>
-          <p className="mt-4 text-body-xs text-text-tertiary">
-            Free on iPhone.
-          </p>
         </div>
       </div>
     </section>
