@@ -8,6 +8,7 @@ function LandingPage() {
       <HeroSection />
       <FeatureCardsSection />
       <CascadingQuoteSection />
+      <FinalCtaSection />
     </div>
   )
 }
@@ -131,6 +132,30 @@ function CascadingQuoteSection() {
               The question every pianist asks.
             </p>
           </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function FinalCtaSection() {
+  return (
+    <section className="py-32 lg:py-40">
+      <div className="max-w-4xl mx-auto px-6 lg:px-12 text-center">
+        <h2 className="font-display text-display-md lg:text-display-xl text-cream">
+          Start practicing with a teacher who's always listening.
+        </h2>
+
+        <div className="mt-10">
+          <a
+            href="/analyze"
+            className="bg-cream text-espresso rounded-full px-8 py-3.5 text-body-sm font-medium hover:brightness-110 transition inline-block"
+          >
+            Start Practicing
+          </a>
+          <p className="mt-4 text-body-xs text-text-tertiary">
+            Free on iPhone.
+          </p>
         </div>
       </div>
     </section>
