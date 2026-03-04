@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createFileRoute, useNavigate, redirect } from '@tanstack/react-router'
 import { MessageSquare, Mic, Plus } from 'lucide-react'
 import { getAuth, clearAuth, isAuthenticated } from '../lib/auth'
@@ -16,6 +16,18 @@ function AppPage() {
   const user = getAuth()
   const navigate = useNavigate()
   const [showProfile, setShowProfile] = useState(false)
+  const profileRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!showProfile) return
+    function handleClick(e: MouseEvent) {
+      if (profileRef.current && !profileRef.current.contains(e.target as Node)) {
+        setShowProfile(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [showProfile])
 
   function handleSignOut() {
     clearAuth()
@@ -40,7 +52,7 @@ function AppPage() {
       {/* Main content area */}
       <div className="flex-1 relative flex flex-col">
         {/* Profile button -- top right */}
-        <div className="absolute top-4 right-4 z-20">
+        <div ref={profileRef} className="absolute top-4 right-4 z-20">
           <button
             type="button"
             onClick={() => setShowProfile(!showProfile)}
