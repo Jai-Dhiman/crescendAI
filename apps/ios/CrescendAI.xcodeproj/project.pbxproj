@@ -15,30 +15,9 @@
 		A100000006 /* CrescendButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000006; };
 		A100000007 /* CrescendCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000007; };
 		A100000008 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000008; };
-		A100000009 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000009; };
-		A100000010 /* RecordingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000010; };
-		A100000011 /* RecordingViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000011; };
-		A100000012 /* AudioRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000012; };
-		A100000013 /* AudioPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000013; };
-		A100000014 /* AnalysisView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000014; };
-		A100000015 /* AnalysisViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000015; };
-		A100000016 /* MIDIPlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000016; };
-		A100000017 /* MIDIPlayerViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000017; };
-		A100000018 /* MIDIEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000018; };
 		A100000019 /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000019; };
 		A100000020 /* APIEndpoints.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000020; };
 		A100000021 /* APIModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000021; };
-		A100000022 /* AudioMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000023; };
-		A100000023 /* PulseView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000024; };
-		A100000024 /* ChatModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000025; };
-		A100000025 /* DemoScenarios.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000026; };
-		A100000026 /* ChatBlockViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000027; };
-		A100000027 /* ChatMessageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000028; };
-		A100000028 /* SuggestionChipsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000029; };
-		A100000029 /* FeedbackChatViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000030; };
-		A100000030 /* FeedbackChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000031; };
-		A100000031 /* ListeningViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000032; };
-		A100000032 /* ListeningView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000033; };
 		A100000033 /* AudioSessionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000034; };
 		A100000034 /* RingBuffer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000035; };
 		A100000035 /* AudioCaptureEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000036; };
@@ -75,31 +54,10 @@
 		B100000006 /* CrescendButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrescendButton.swift; sourceTree = "<group>"; };
 		B100000007 /* CrescendCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrescendCard.swift; sourceTree = "<group>"; };
 		B100000008 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
-		B100000009 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
-		B100000010 /* RecordingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingView.swift; sourceTree = "<group>"; };
-		B100000011 /* RecordingViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingViewModel.swift; sourceTree = "<group>"; };
-		B100000012 /* AudioRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioRecorder.swift; sourceTree = "<group>"; };
-		B100000013 /* AudioPlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioPlayer.swift; sourceTree = "<group>"; };
-		B100000014 /* AnalysisView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalysisView.swift; sourceTree = "<group>"; };
-		B100000015 /* AnalysisViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalysisViewModel.swift; sourceTree = "<group>"; };
-		B100000016 /* MIDIPlayerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MIDIPlayerView.swift; sourceTree = "<group>"; };
-		B100000017 /* MIDIPlayerViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MIDIPlayerViewModel.swift; sourceTree = "<group>"; };
-		B100000018 /* MIDIEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MIDIEngine.swift; sourceTree = "<group>"; };
 		B100000019 /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
 		B100000020 /* APIEndpoints.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIEndpoints.swift; sourceTree = "<group>"; };
 		B100000021 /* APIModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIModels.swift; sourceTree = "<group>"; };
 		B100000022 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		B100000023 /* AudioMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioMonitor.swift; sourceTree = "<group>"; };
-		B100000024 /* PulseView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PulseView.swift; sourceTree = "<group>"; };
-		B100000025 /* ChatModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatModels.swift; sourceTree = "<group>"; };
-		B100000026 /* DemoScenarios.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoScenarios.swift; sourceTree = "<group>"; };
-		B100000027 /* ChatBlockViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatBlockViews.swift; sourceTree = "<group>"; };
-		B100000028 /* ChatMessageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatMessageView.swift; sourceTree = "<group>"; };
-		B100000029 /* SuggestionChipsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuggestionChipsView.swift; sourceTree = "<group>"; };
-		B100000030 /* FeedbackChatViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedbackChatViewModel.swift; sourceTree = "<group>"; };
-		B100000031 /* FeedbackChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedbackChatView.swift; sourceTree = "<group>"; };
-		B100000032 /* ListeningViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListeningViewModel.swift; sourceTree = "<group>"; };
-		B100000033 /* ListeningView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListeningView.swift; sourceTree = "<group>"; };
 		B100000034 /* AudioSessionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioSessionManager.swift; sourceTree = "<group>"; };
 		B100000035 /* RingBuffer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RingBuffer.swift; sourceTree = "<group>"; };
 		B100000036 /* AudioCaptureEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioCaptureEngine.swift; sourceTree = "<group>"; };
@@ -200,13 +158,7 @@
 		E100000008 /* Features */ = {
 			isa = PBXGroup;
 			children = (
-				E100000009 /* Home */,
 				E300000001 /* Practice */,
-				E100000021 /* Listening */,
-				E100000022 /* Chat */,
-				E100000010 /* Recording */,
-				E100000011 /* Analysis */,
-				E100000012 /* MIDI */,
 			);
 			path = Features;
 			sourceTree = "<group>";
@@ -217,69 +169,6 @@
 				B300000005 /* PracticeView.swift */,
 			);
 			path = Practice;
-			sourceTree = "<group>";
-		};
-		E100000022 /* Chat */ = {
-			isa = PBXGroup;
-			children = (
-				B100000025 /* ChatModels.swift */,
-				B100000026 /* DemoScenarios.swift */,
-				B100000027 /* ChatBlockViews.swift */,
-				B100000028 /* ChatMessageView.swift */,
-				B100000029 /* SuggestionChipsView.swift */,
-				B100000030 /* FeedbackChatViewModel.swift */,
-				B100000031 /* FeedbackChatView.swift */,
-			);
-			path = Chat;
-			sourceTree = "<group>";
-		};
-		E100000021 /* Listening */ = {
-			isa = PBXGroup;
-			children = (
-				B100000023 /* AudioMonitor.swift */,
-				B100000024 /* PulseView.swift */,
-				B100000032 /* ListeningViewModel.swift */,
-				B100000033 /* ListeningView.swift */,
-			);
-			path = Listening;
-			sourceTree = "<group>";
-		};
-		E100000009 /* Home */ = {
-			isa = PBXGroup;
-			children = (
-				B100000009 /* HomeView.swift */,
-			);
-			path = Home;
-			sourceTree = "<group>";
-		};
-		E100000010 /* Recording */ = {
-			isa = PBXGroup;
-			children = (
-				B100000010 /* RecordingView.swift */,
-				B100000011 /* RecordingViewModel.swift */,
-				B100000012 /* AudioRecorder.swift */,
-				B100000013 /* AudioPlayer.swift */,
-			);
-			path = Recording;
-			sourceTree = "<group>";
-		};
-		E100000011 /* Analysis */ = {
-			isa = PBXGroup;
-			children = (
-				B100000014 /* AnalysisView.swift */,
-				B100000015 /* AnalysisViewModel.swift */,
-			);
-			path = Analysis;
-			sourceTree = "<group>";
-		};
-		E100000012 /* MIDI */ = {
-			isa = PBXGroup;
-			children = (
-				B100000016 /* MIDIPlayerView.swift */,
-				B100000017 /* MIDIPlayerViewModel.swift */,
-				B100000018 /* MIDIEngine.swift */,
-			);
-			path = MIDI;
 			sourceTree = "<group>";
 		};
 		E100000013 /* Networking */ = {
@@ -472,30 +361,9 @@
 				A100000006 /* CrescendButton.swift in Sources */,
 				A100000007 /* CrescendCard.swift in Sources */,
 				A100000008 /* Theme.swift in Sources */,
-				A100000009 /* HomeView.swift in Sources */,
-				A100000010 /* RecordingView.swift in Sources */,
-				A100000011 /* RecordingViewModel.swift in Sources */,
-				A100000012 /* AudioRecorder.swift in Sources */,
-				A100000013 /* AudioPlayer.swift in Sources */,
-				A100000014 /* AnalysisView.swift in Sources */,
-				A100000015 /* AnalysisViewModel.swift in Sources */,
-				A100000016 /* MIDIPlayerView.swift in Sources */,
-				A100000017 /* MIDIPlayerViewModel.swift in Sources */,
-				A100000018 /* MIDIEngine.swift in Sources */,
 				A100000019 /* APIClient.swift in Sources */,
 				A100000020 /* APIEndpoints.swift in Sources */,
 				A100000021 /* APIModels.swift in Sources */,
-				A100000022 /* AudioMonitor.swift in Sources */,
-				A100000023 /* PulseView.swift in Sources */,
-				A100000024 /* ChatModels.swift in Sources */,
-				A100000025 /* DemoScenarios.swift in Sources */,
-				A100000026 /* ChatBlockViews.swift in Sources */,
-				A100000027 /* ChatMessageView.swift in Sources */,
-				A100000028 /* SuggestionChipsView.swift in Sources */,
-				A100000029 /* FeedbackChatViewModel.swift in Sources */,
-				A100000030 /* FeedbackChatView.swift in Sources */,
-				A100000031 /* ListeningViewModel.swift in Sources */,
-				A100000032 /* ListeningView.swift in Sources */,
 				A100000033 /* AudioSessionManager.swift in Sources */,
 				A100000034 /* RingBuffer.swift in Sources */,
 				A100000035 /* AudioCaptureEngine.swift in Sources */,

@@ -20,7 +20,7 @@ See `ios/CLAUDE.md` for iOS-specific conventions.
 
 - `ios/CrescendAI/App/` - Application entry point
 - `ios/CrescendAI/DesignSystem/` - Tokens and reusable components
-- `ios/CrescendAI/Features/` - Feature modules (Listening, Recording, Analysis, Chat)
+- `ios/CrescendAI/Features/` - Feature modules (Practice, Auth)
 - `ios/CrescendAI/Networking/` - API client and models
 
 ## API Worker (`api/`)
@@ -66,4 +66,4 @@ TanStack Start landing page deployed to Cloudflare Workers at `crescend.ai`.
 
 ## Feedback Tone (Both Platforms)
 
-Warm and encouraging, specific to actual musical elements, actionable practice strategies. Celebrate strengths before suggesting improvements. Frame as observations, not absolute judgments.
+Warm and encouraging, specific to actual musical elements, actionable practice strategies. Celebrate strengths before suggesting improvements. Frame as observations, not absolute judgments. Feedback framing (correction/recognition/encouragement/question) adapts to learning arc position and session context. See `docs/06a-subagent-architecture.md`.

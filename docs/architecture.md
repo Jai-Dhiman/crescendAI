@@ -140,6 +140,10 @@ The teacher LLM call goes through OpenRouter, which provides a unified API to Cl
 - Single API key manages multiple providers
 - Fallback routing: if one provider is down, try another
 
+### Model Accuracy
+
+The finetuned MuQ model is approximately 80% accurate on pairwise rankings (R2 ~0.5) with current training data. Even expert piano teachers disagree roughly 20% of the time on what constitutes better playing. The 6 dimension scores are useful signals, not ground truth. The system's value is in the subagent analysis and teacher delivery, not raw scores. This shapes how prompts treat dimension scores: as evidence to reason over, not verdicts to report.
+
 ### Cloudflare Workers (Thin Backend)
 
 The backend is a single Cloudflare Workers application. It handles:
@@ -374,15 +378,13 @@ The core interaction, end to end:
 7. Worker returns observation to iOS
 8. iOS displays 1-3 sentences on screen
 
-**Latency target:** <3 seconds from tap to observation. Teaching moment selection is instant (on-device). LLM call is 1-2 seconds.
+**Latency target:** <3 seconds from tap to observation. Teaching moment selection is instant (on-device). LLM call is ~2 seconds total.
 
 ## Teacher LLM Prompt
 
-The prompt template lives in the Worker code (or KV for hot-swapping). It consists of:
-- **System prompt:** Teacher persona -- specific, warm, actionable, one observation only
-- **User prompt:** Structured context (teaching moment, student model, session summary)
+The "Ask" flow uses a two-stage subagent pipeline (see `docs/06a-subagent-architecture.md`): a fast analysis subagent (Haiku/Flash-class) reasons about which moment matters most and why, then a quality teacher LLM (Sonnet/GPT-4o-class) generates the observation. The prompt templates are in `docs/06-teacher-llm-prompt.md`.
 
-Using OpenRouter, the model can be changed per-request. Start with Claude Sonnet for quality, test Haiku for speed, experiment with others.
+Using OpenRouter, models can be changed per-request and per-stage. The subagent and teacher LLM are separate API calls with independent model selection.
 
 ## Implementation Slices
 
@@ -393,17 +395,19 @@ The 00-09 docs in `docs/` define the implementation slices. Updated to reflect t
 | 00 | 00-practice-companion.md | Product spec (updated) |
 | 01 | 01-phone-audio-validation.md | Validate MuQ on phone audio + Core ML feasibility |
 | 02 | 02-ios-audio-capture.md | AVAudioEngine, ring buffer, chunking, background mode |
-| 03 | 03-on-device-inference.md | Core ML MuQ conversion, on-device pipeline, session buffer |
+| 03 | 03-chunked-inference-pipeline.md | Core ML MuQ conversion, on-device pipeline, session buffer |
 | 04 | 04-teaching-moment-detection.md | STOP classifier in Swift, blind spot detection |
 | 05 | 05-student-model-and-auth.md | Sign in with Apple, SwiftData, D1 sync |
-| 06 | 06-teacher-llm-prompt.md | OpenRouter integration, prompt design, Worker endpoint |
+| 06 | 06-teacher-llm-prompt.md | Teacher persona prompt, output handling (stage 2 of pipeline) |
+| 06a | 06a-subagent-architecture.md | Two-stage subagent, synthesized facts, reasoning framework |
 | 07 | 07-exercise-database.md | D1 exercises, sync to device, LLM-generated exercises |
 | 08 | 08-focus-mode.md | Guided practice mode with targeted exercises |
 | 09 | 09-ios-frontend.md | SwiftUI screens: Practice, Observation, Review, Focus |
+| 10 | 10-on-demand-ui.md | Chat-first interface with on-demand interactive components |
 
 ## Future Considerations
 
 - **Android:** D1 sync layer is platform-agnostic. Add Android client that talks to the same Workers API. Auth: add Google sign-in alongside Apple.
-- **Web dashboard:** D1 data is accessible from Workers. Build a Leptos or simple HTML dashboard for session review on desktop.
+- **Web dashboard:** D1 data is accessible from Workers. Build a simple HTML dashboard for session review on desktop.
 - **On-device LLM:** Apple Foundation Models (iOS 18.2+) or bundled Llama 3.2 3B could replace the cloud LLM call for fully offline operation.
 - **Audio storage:** If needed (playback, cloud fallback inference), store chunks in R2 via the sync endpoint.
