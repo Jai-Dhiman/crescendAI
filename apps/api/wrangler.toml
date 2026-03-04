@@ -32,6 +32,7 @@ pattern = "api.crescend.ai"
 custom_domain = true
 
 [vars]
+APPLE_WEB_SERVICES_ID = "ai.crescend.web"
 ENVIRONMENT = "production"
 HF_INFERENCE_ENDPOINT = "https://u1oxy7egvq7rnm8z.us-east-1.aws.endpoints.huggingface.cloud"
 PUBLIC_URL = "https://api.crescend.ai"
