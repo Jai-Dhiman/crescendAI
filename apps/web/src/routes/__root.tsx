@@ -38,14 +38,12 @@ function RootDocument() {
       <head>
         <HeadContent />
       </head>
-      <body>
-        <div className="min-h-screen bg-paper-50 flex flex-col texture-grain">
-          <Header />
-          <main className="flex-1">
-            <Outlet />
-          </main>
-          <Footer />
-        </div>
+      <body className="bg-espresso text-text-primary font-sans">
+        <Header />
+        <main>
+          <Outlet />
+        </main>
+        <Footer />
         <Scripts />
       </body>
     </html>
@@ -54,65 +52,17 @@ function RootDocument() {
 
 function Header() {
   return (
-    <header className="py-10 lg:py-16">
-      <div className="container-editorial">
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto_1fr] gap-6 lg:gap-8 items-start text-center lg:text-left">
-          <nav
-            className="flex flex-row lg:flex-col items-center lg:items-start justify-center lg:justify-start gap-4 lg:gap-1"
-            role="navigation"
-            aria-label="Main navigation"
-          >
-            <a
-              href="/#how-it-works"
-              className="text-body-sm text-ink-600 hover:text-ink-900 transition-colors duration-200"
-            >
-              How It Works
-            </a>
-            <a
-              href="/analyze"
-              className="text-body-sm text-ink-600 hover:text-ink-900 transition-colors duration-200"
-            >
-              Analyze
-            </a>
-            <a
-              href="https://arxiv.org/abs/2601.19029"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 text-body-sm text-ink-600 hover:text-ink-900 transition-colors duration-200"
-            >
-              Paper
-              <svg
-                className="w-3 h-3"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
-                />
-              </svg>
-            </a>
-          </nav>
-
-          <a
-            href="/"
-            className="font-display text-display-xl lg:text-display-3xl text-ink-900 tracking-tight"
-          >
-            Crescend
-          </a>
-
-          <p className="text-body-sm text-ink-500 lg:text-right max-w-xs mx-auto lg:mx-0 lg:ml-auto">
-            Record yourself playing. Get the feedback a great teacher would give
-            you.
-          </p>
-        </div>
-      </div>
-
-      <div className="container-editorial mt-10 lg:mt-16">
-        <hr className="editorial-rule" />
+    <header className="fixed top-0 left-0 right-0 z-50 backdrop-blur-xl bg-espresso/80">
+      <div className="max-w-7xl mx-auto px-6 lg:px-12 flex items-center justify-between h-16">
+        <a href="/" className="font-display text-lg text-cream tracking-tight">
+          crescend
+        </a>
+        <a
+          href="/analyze"
+          className="bg-cream text-espresso rounded-full px-6 py-2 text-body-sm font-medium hover:brightness-110 transition"
+        >
+          Start Practicing
+        </a>
       </div>
     </header>
   )
@@ -120,47 +70,24 @@ function Header() {
 
 function Footer() {
   return (
-    <footer className="mt-auto py-12 lg:py-16">
-      <div className="container-editorial">
-        <hr className="editorial-rule mb-12 lg:mb-16" />
-
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto_1fr] gap-8 items-start text-center lg:text-left">
-          <a
-            href="/"
-            className="font-display text-display-md text-ink-900 tracking-tight"
-          >
-            Crescend
+    <footer className="py-12 lg:py-16">
+      <div className="max-w-7xl mx-auto px-6 lg:px-12">
+        <div className="flex flex-col md:flex-row items-center justify-between gap-6 text-body-xs text-text-tertiary">
+          <a href="/" className="font-display text-sm text-cream tracking-tight">
+            crescend
           </a>
-
-          <nav className="flex flex-row lg:flex-col items-center lg:items-start gap-3 justify-center text-body-sm">
+          <p>
+            Built on published research.{' '}
             <a
               href="https://arxiv.org/abs/2601.19029"
               target="_blank"
               rel="noopener"
-              className="text-body-sm text-ink-600 hover:text-ink-900 transition-colors duration-200"
+              className="text-text-secondary underline underline-offset-2 hover:text-cream transition-colors"
             >
-              Paper
+              Read the paper
             </a>
-            <a
-              href="/#how-it-works"
-              className="text-body-sm text-ink-600 hover:text-ink-900 transition-colors duration-200"
-            >
-              How It Works
-            </a>
-            <a
-              href="/analyze"
-              className="text-body-sm text-ink-600 hover:text-ink-900 transition-colors duration-200"
-            >
-              Analyze
-            </a>
-          </nav>
-
-          <div className="lg:text-right">
-            <p className="text-body-xs text-ink-500 mb-1">
-              Your recordings are yours. We don't store or train on your data.
-            </p>
-            <p className="text-label-sm text-ink-400">2026 Crescend</p>
-          </div>
+          </p>
+          <p>2026</p>
         </div>
       </div>
     </footer>
