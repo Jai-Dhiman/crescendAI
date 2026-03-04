@@ -1,6 +1,7 @@
 pub mod jwt;
 
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
+use wasm_bindgen::JsValue;
 use worker::{console_log, Env};
 
 use self::jwt::Claims;
@@ -13,13 +14,14 @@ pub struct AppleAuthRequest {
     pub identity_token: String,
     pub user_id: String,
     pub email: Option<String>,
+    pub display_name: Option<String>,
 }
 
 #[derive(serde::Serialize)]
 pub struct AuthResponse {
-    pub jwt: String,
-    pub apple_user_id: String,
+    pub student_id: String,
     pub email: Option<String>,
+    pub display_name: Option<String>,
     pub is_new_user: bool,
 }
 
@@ -29,6 +31,24 @@ struct AppleTokenClaims {
     sub: Option<String>,
     aud: Option<String>,
     exp: Option<u64>,
+}
+
+/// Generate a UUID v4 using getrandom (js feature for WASM).
+fn generate_uuid_v4() -> String {
+    let mut bytes = [0u8; 16];
+    getrandom::getrandom(&mut bytes).expect("Failed to generate random bytes");
+    // Set version 4
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    // Set variant 1
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    format!(
+        "{:02x}{:02x}{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}",
+        bytes[0], bytes[1], bytes[2], bytes[3],
+        bytes[4], bytes[5],
+        bytes[6], bytes[7],
+        bytes[8], bytes[9],
+        bytes[10], bytes[11], bytes[12], bytes[13], bytes[14], bytes[15]
+    )
 }
 
 fn parse_apple_token_claims(token: &str) -> Result<AppleTokenClaims, String> {
@@ -57,7 +77,7 @@ fn parse_apple_token_claims(token: &str) -> Result<AppleTokenClaims, String> {
 fn validate_apple_claims(
     claims: &AppleTokenClaims,
     expected_user_id: &str,
-    bundle_id: &str,
+    allowed_audiences: &[String],
 ) -> Result<(), String> {
     // Verify issuer
     match &claims.iss {
@@ -66,11 +86,11 @@ fn validate_apple_claims(
         None => return Err("Missing issuer claim".to_string()),
     }
 
-    // Verify audience matches our bundle ID
+    // Verify audience matches one of our allowed audiences
     match &claims.aud {
-        Some(aud) if aud == bundle_id => {}
+        Some(aud) if allowed_audiences.iter().any(|a| a == aud) => {}
         Some(aud) => {
-            console_log!("Token audience '{}' does not match bundle ID '{}'", aud, bundle_id);
+            console_log!("Token audience '{}' not in allowed audiences", aud);
             return Err("Invalid audience".to_string());
         }
         None => return Err("Missing audience claim".to_string()),
@@ -80,7 +100,11 @@ fn validate_apple_claims(
     match &claims.sub {
         Some(sub) if sub == expected_user_id => {}
         Some(sub) => {
-            console_log!("Token subject '{}' does not match user_id '{}'", sub, expected_user_id);
+            console_log!(
+                "Token subject '{}' does not match user_id '{}'",
+                sub,
+                expected_user_id
+            );
             return Err("Token subject mismatch".to_string());
         }
         None => return Err("Missing subject claim".to_string()),
@@ -116,12 +140,18 @@ pub async fn handle_apple_auth(
         }
     };
 
-    // Parse and validate Apple identity token claims
+    // Build allowed audiences from env vars
     let bundle_id = env
         .var("APPLE_BUNDLE_ID")
         .map(|v| v.to_string())
         .unwrap_or_else(|_| "ai.crescend.ios".to_string());
 
+    let mut allowed_audiences = vec![bundle_id];
+    if let Ok(web_services_id) = env.var("APPLE_WEB_SERVICES_ID") {
+        allowed_audiences.push(web_services_id.to_string());
+    }
+
+    // Parse and validate Apple identity token claims
     let apple_claims = match parse_apple_token_claims(&request.identity_token) {
         Ok(c) => c,
         Err(e) => {
@@ -134,7 +164,7 @@ pub async fn handle_apple_auth(
         }
     };
 
-    if let Err(e) = validate_apple_claims(&apple_claims, &request.user_id, &bundle_id) {
+    if let Err(e) = validate_apple_claims(&apple_claims, &request.user_id, &allowed_audiences) {
         console_log!("Apple token validation failed: {}", e);
         return Response::builder()
             .status(StatusCode::UNAUTHORIZED)
@@ -156,12 +186,25 @@ pub async fn handle_apple_auth(
         }
     };
 
-    // Upsert student record in D1
-    let now = js_sys::Date::new_0().to_iso_string().as_string().unwrap_or_default();
-    let is_new_user = match upsert_student(&db, &request.user_id, request.email.as_deref(), &now).await {
-        Ok(is_new) => is_new,
+    // Find or create student via auth_identities
+    let now = js_sys::Date::new_0()
+        .to_iso_string()
+        .as_string()
+        .unwrap_or_default();
+
+    let (student_id, display_name, is_new_user) = match find_or_create_student(
+        &db,
+        "apple",
+        &request.user_id,
+        request.email.as_deref(),
+        request.display_name.as_deref(),
+        &now,
+    )
+    .await
+    {
+        Ok(result) => result,
         Err(e) => {
-            console_log!("Failed to upsert student: {}", e);
+            console_log!("Failed to find/create student: {}", e);
             return Response::builder()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
                 .header("Content-Type", "application/json")
@@ -170,7 +213,7 @@ pub async fn handle_apple_auth(
         }
     };
 
-    // Issue JWT
+    // Issue JWT with student_id as subject
     let jwt_secret = match env.secret("JWT_SECRET") {
         Ok(s) => s.to_string(),
         Err(e) => {
@@ -185,7 +228,7 @@ pub async fn handle_apple_auth(
 
     let now_epoch = js_sys::Date::now() as u64 / 1000;
     let claims = Claims {
-        sub: request.user_id.clone(),
+        sub: student_id.clone(),
         iat: now_epoch,
         exp: now_epoch + JWT_EXPIRY_SECONDS,
     };
@@ -203,9 +246,9 @@ pub async fn handle_apple_auth(
     };
 
     let response = AuthResponse {
-        jwt: token,
-        apple_user_id: request.user_id,
+        student_id,
         email: request.email,
+        display_name,
         is_new_user,
     };
 
@@ -213,80 +256,134 @@ pub async fn handle_apple_auth(
 
     console_log!("Auth successful for user (new={})", is_new_user);
 
+    let cookie = format!(
+        "token={}; HttpOnly; Secure; SameSite=None; Path=/; Max-Age=2592000",
+        token
+    );
+
     Response::builder()
         .status(StatusCode::OK)
         .header("Content-Type", "application/json")
+        .header("Set-Cookie", cookie)
         .body(Body::from(json))
         .unwrap()
 }
 
-async fn upsert_student(
+/// Look up a student by provider identity, or create a new one.
+/// Returns (student_id, display_name, is_new_user).
+async fn find_or_create_student(
     db: &worker::D1Database,
-    apple_user_id: &str,
+    provider: &str,
+    provider_user_id: &str,
     email: Option<&str>,
-    updated_at: &str,
-) -> Result<bool, String> {
-    // Check if student exists
-    let check = db
-        .prepare("SELECT apple_user_id FROM students WHERE apple_user_id = ?1")
-        .bind(&[apple_user_id.into()])
-        .map_err(|e| format!("Failed to bind query: {:?}", e))?
+    display_name: Option<&str>,
+    now: &str,
+) -> Result<(String, Option<String>, bool), String> {
+    // Check auth_identities for existing mapping
+    let existing = db
+        .prepare("SELECT student_id FROM auth_identities WHERE provider = ?1 AND provider_user_id = ?2")
+        .bind(&[JsValue::from_str(provider), JsValue::from_str(provider_user_id)])
+        .map_err(|e| format!("Failed to bind identity query: {:?}", e))?
         .first::<serde_json::Value>(None)
         .await
-        .map_err(|e| format!("Failed to query student: {:?}", e))?;
+        .map_err(|e| format!("Failed to query auth_identities: {:?}", e))?;
 
-    if check.is_some() {
-        // Update existing student (only update email if provided, keep existing data)
+    if let Some(row) = existing {
+        // Existing user -- get student_id
+        let student_id = row
+            .get("student_id")
+            .and_then(|v| v.as_str().map(|s| s.to_string()))
+            .ok_or_else(|| "Missing student_id in auth_identities row".to_string())?;
+
+        // Update email on students table if provided
         if let Some(email) = email {
-            db.prepare("UPDATE students SET email = ?1, updated_at = ?2 WHERE apple_user_id = ?3")
-                .bind(&[email.into(), updated_at.into(), apple_user_id.into()])
-                .map_err(|e| format!("Failed to bind update: {:?}", e))?
+            db.prepare("UPDATE students SET email = ?1, updated_at = ?2 WHERE student_id = ?3")
+                .bind(&[
+                    JsValue::from_str(email),
+                    JsValue::from_str(now),
+                    JsValue::from_str(&student_id),
+                ])
+                .map_err(|e| format!("Failed to bind email update: {:?}", e))?
                 .run()
                 .await
-                .map_err(|e| format!("Failed to update student: {:?}", e))?;
+                .map_err(|e| format!("Failed to update email: {:?}", e))?;
         }
-        Ok(false)
+
+        // Fetch display_name from students
+        let student_row = db
+            .prepare("SELECT display_name FROM students WHERE student_id = ?1")
+            .bind(&[JsValue::from_str(&student_id)])
+            .map_err(|e| format!("Failed to bind student query: {:?}", e))?
+            .first::<serde_json::Value>(None)
+            .await
+            .map_err(|e| format!("Failed to query student: {:?}", e))?;
+
+        let existing_display_name = student_row
+            .and_then(|r| r.get("display_name").and_then(|v| v.as_str().map(|s| s.to_string())));
+
+        Ok((student_id, existing_display_name, false))
     } else {
-        // Insert new student
+        // New user -- generate UUID and insert
+        let student_id = generate_uuid_v4();
+
         db.prepare(
-            "INSERT INTO students (apple_user_id, email, baseline_session_count, updated_at) VALUES (?1, ?2, 0, ?3)",
+            "INSERT INTO students (student_id, email, display_name, baseline_session_count, updated_at) \
+             VALUES (?1, ?2, ?3, 0, ?4)",
         )
         .bind(&[
-            apple_user_id.into(),
-            email.unwrap_or("").into(),
-            updated_at.into(),
+            JsValue::from_str(&student_id),
+            JsValue::from_str(email.unwrap_or("")),
+            match display_name {
+                Some(name) => JsValue::from_str(name),
+                None => JsValue::NULL,
+            },
+            JsValue::from_str(now),
         ])
-        .map_err(|e| format!("Failed to bind insert: {:?}", e))?
+        .map_err(|e| format!("Failed to bind student insert: {:?}", e))?
         .run()
         .await
         .map_err(|e| format!("Failed to insert student: {:?}", e))?;
-        Ok(true)
+
+        db.prepare(
+            "INSERT INTO auth_identities (student_id, provider, provider_user_id, created_at) \
+             VALUES (?1, ?2, ?3, ?4)",
+        )
+        .bind(&[
+            JsValue::from_str(&student_id),
+            JsValue::from_str(provider),
+            JsValue::from_str(provider_user_id),
+            JsValue::from_str(now),
+        ])
+        .map_err(|e| format!("Failed to bind identity insert: {:?}", e))?
+        .run()
+        .await
+        .map_err(|e| format!("Failed to insert auth_identity: {:?}", e))?;
+
+        Ok((student_id, display_name.map(|s| s.to_string()), true))
     }
 }
 
-/// Extract and verify JWT from Authorization header.
-/// Returns the apple_user_id (subject claim) on success.
-pub fn verify_auth_header(
+/// Extract and verify JWT from cookie or Authorization header.
+/// Returns the student_id (subject claim) on success.
+pub fn verify_auth(
     headers: &http::HeaderMap,
     env: &Env,
 ) -> Result<String, http::Response<axum::body::Body>> {
     use axum::body::Body;
     use http::{Response, StatusCode};
 
-    let auth_header = headers
-        .get("authorization")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("");
+    let token = extract_token_from_cookie(headers)
+        .or_else(|| extract_token_from_bearer(headers));
 
-    let token = auth_header
-        .strip_prefix("Bearer ")
-        .ok_or_else(|| {
-            Response::builder()
-                .status(StatusCode::UNAUTHORIZED)
-                .header("Content-Type", "application/json")
-                .body(Body::from(r#"{"error":"Missing or invalid Authorization header"}"#))
-                .unwrap()
-        })?;
+    let token = token.ok_or_else(|| {
+        Response::builder()
+            .status(StatusCode::UNAUTHORIZED)
+            .header("Content-Type", "application/json")
+            .body(Body::from(
+                r#"{"error":"Missing or invalid Authorization header"}"#,
+            ))
+            .unwrap()
+    })?;
 
     let jwt_secret = env
         .secret("JWT_SECRET")
@@ -299,7 +396,7 @@ pub fn verify_auth_header(
                 .unwrap()
         })?;
 
-    let claims = jwt::verify(token, jwt_secret.as_bytes()).map_err(|e| {
+    let claims = jwt::verify(&token, jwt_secret.as_bytes()).map_err(|e| {
         console_log!("JWT verification failed: {}", e);
         Response::builder()
             .status(StatusCode::UNAUTHORIZED)
@@ -309,4 +406,128 @@ pub fn verify_auth_header(
     })?;
 
     Ok(claims.sub)
+}
+
+/// Alias for backward compatibility.
+pub fn verify_auth_header(
+    headers: &http::HeaderMap,
+    env: &Env,
+) -> Result<String, http::Response<axum::body::Body>> {
+    verify_auth(headers, env)
+}
+
+fn extract_token_from_cookie(headers: &http::HeaderMap) -> Option<String> {
+    headers
+        .get("cookie")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|cookies| {
+            cookies
+                .split(';')
+                .find_map(|c| c.trim().strip_prefix("token=").map(|t| t.to_string()))
+        })
+}
+
+fn extract_token_from_bearer(headers: &http::HeaderMap) -> Option<String> {
+    headers
+        .get("authorization")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|auth| auth.strip_prefix("Bearer ").map(|t| t.to_string()))
+}
+
+/// Handle GET /api/auth/me -- return current user info from JWT.
+pub async fn handle_auth_me(
+    env: &Env,
+    headers: &http::HeaderMap,
+) -> http::Response<axum::body::Body> {
+    use axum::body::Body;
+    use http::{Response, StatusCode};
+
+    let student_id = match verify_auth(headers, env) {
+        Ok(id) => id,
+        Err(err_response) => return err_response,
+    };
+
+    let db = match env.d1("DB") {
+        Ok(db) => db,
+        Err(e) => {
+            console_log!("D1 binding failed: {:?}", e);
+            return Response::builder()
+                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                .header("Content-Type", "application/json")
+                .body(Body::from(r#"{"error":"Database connection failed"}"#))
+                .unwrap();
+        }
+    };
+
+    let row = match db
+        .prepare("SELECT student_id, email, display_name FROM students WHERE student_id = ?1")
+        .bind(&[JsValue::from_str(&student_id)])
+        .map_err(|e| format!("{:?}", e))
+        .and_then(|stmt| Ok(stmt))
+    {
+        Ok(stmt) => match stmt.first::<serde_json::Value>(None).await {
+            Ok(Some(row)) => row,
+            Ok(None) => {
+                return Response::builder()
+                    .status(StatusCode::UNAUTHORIZED)
+                    .header("Content-Type", "application/json")
+                    .body(Body::from(r#"{"error":"User not found"}"#))
+                    .unwrap();
+            }
+            Err(e) => {
+                console_log!("Failed to query student: {:?}", e);
+                return Response::builder()
+                    .status(StatusCode::INTERNAL_SERVER_ERROR)
+                    .header("Content-Type", "application/json")
+                    .body(Body::from(r#"{"error":"Database query failed"}"#))
+                    .unwrap();
+            }
+        },
+        Err(e) => {
+            console_log!("Failed to bind query: {}", e);
+            return Response::builder()
+                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                .header("Content-Type", "application/json")
+                .body(Body::from(r#"{"error":"Database query failed"}"#))
+                .unwrap();
+        }
+    };
+
+    let response = AuthResponse {
+        student_id: row
+            .get("student_id")
+            .and_then(|v| v.as_str().map(|s| s.to_string()))
+            .unwrap_or_default(),
+        email: row
+            .get("email")
+            .and_then(|v| v.as_str().map(|s| s.to_string())),
+        display_name: row
+            .get("display_name")
+            .and_then(|v| v.as_str().map(|s| s.to_string())),
+        is_new_user: false,
+    };
+
+    let json = serde_json::to_string(&response).unwrap_or_else(|_| "{}".to_string());
+
+    Response::builder()
+        .status(StatusCode::OK)
+        .header("Content-Type", "application/json")
+        .body(Body::from(json))
+        .unwrap()
+}
+
+/// Handle POST /api/auth/signout -- clear the auth cookie.
+pub fn handle_signout() -> http::Response<axum::body::Body> {
+    use axum::body::Body;
+    use http::{Response, StatusCode};
+
+    Response::builder()
+        .status(StatusCode::OK)
+        .header("Content-Type", "application/json")
+        .header(
+            "Set-Cookie",
+            "token=; HttpOnly; Secure; SameSite=None; Path=/; Max-Age=0",
+        )
+        .body(Body::from(r#"{"ok":true}"#))
+        .unwrap()
 }

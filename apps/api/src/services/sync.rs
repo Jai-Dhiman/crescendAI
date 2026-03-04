@@ -150,7 +150,7 @@ pub async fn handle_sync(
 
 async fn upsert_student_baselines(
     db: &D1Database,
-    apple_user_id: &str,
+    student_id: &str,
     delta: &StudentDelta,
 ) -> Result<(), String> {
     let now = js_sys::Date::new_0()
@@ -170,7 +170,7 @@ async fn upsert_student_baselines(
          baseline_session_count = COALESCE(?8, baseline_session_count), \
          explicit_goals = COALESCE(?9, explicit_goals), \
          updated_at = ?10 \
-         WHERE apple_user_id = ?11",
+         WHERE student_id = ?11",
     )
     .bind(&[
         opt_str(delta.inferred_level.as_deref()),
@@ -183,7 +183,7 @@ async fn upsert_student_baselines(
         opt_i32(delta.baseline_session_count),
         opt_str(delta.explicit_goals.as_deref()),
         JsValue::from_str(&now),
-        JsValue::from_str(apple_user_id),
+        JsValue::from_str(student_id),
     ])
     .map_err(|e| format!("Failed to bind update: {:?}", e))?
     .run()

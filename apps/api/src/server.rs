@@ -12,12 +12,16 @@ use crate::services::{
 };
 use crate::api;
 
-/// Add CORS headers to a response.
-fn with_cors(response: http::Response<axum::body::Body>) -> http::Response<axum::body::Body> {
+/// Add CORS headers to a response with origin allowlist.
+fn with_cors(response: http::Response<axum::body::Body>, origin: Option<&str>) -> http::Response<axum::body::Body> {
     let (mut parts, body) = response.into_parts();
+    let allowed_origin = match origin {
+        Some(o) if o == "https://crescend.ai" || o == "http://localhost:3000" => o,
+        _ => "https://crescend.ai",
+    };
     parts.headers.insert(
         http::header::ACCESS_CONTROL_ALLOW_ORIGIN,
-        "*".parse().unwrap(),
+        allowed_origin.parse().unwrap(),
     );
     parts.headers.insert(
         http::header::ACCESS_CONTROL_ALLOW_METHODS,
@@ -25,7 +29,11 @@ fn with_cors(response: http::Response<axum::body::Body>) -> http::Response<axum:
     );
     parts.headers.insert(
         http::header::ACCESS_CONTROL_ALLOW_HEADERS,
-        "Content-Type, Authorization".parse().unwrap(),
+        "Content-Type, Authorization, Cookie".parse().unwrap(),
+    );
+    parts.headers.insert(
+        http::header::HeaderName::from_static("access-control-allow-credentials"),
+        "true".parse().unwrap(),
     );
     http::Response::from_parts(parts, body)
 }
@@ -655,6 +663,11 @@ async fn fetch(
 
     let path = req.uri().path().to_string();
     let method = req.method().clone();
+    let origin = req
+        .headers()
+        .get("origin")
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.to_string());
 
     // Handle CORS preflight
     if method == http::Method::OPTIONS {
@@ -663,6 +676,7 @@ async fn fetch(
                 .status(http::StatusCode::NO_CONTENT)
                 .body(axum::body::Body::empty())
                 .unwrap(),
+            origin.as_deref(),
         ));
     }
 
@@ -676,7 +690,27 @@ async fn fetch(
             .await
             .map(|b| b.to_bytes().to_vec())
             .unwrap_or_default();
-        return Ok(with_cors(crate::auth::handle_apple_auth(&env, &body).await));
+        return Ok(with_cors(
+            crate::auth::handle_apple_auth(&env, &body).await,
+            origin.as_deref(),
+        ));
+    }
+
+    // Auth me endpoint (authenticated)
+    if path == "/api/auth/me" && method == http::Method::GET {
+        let headers = req.headers().clone();
+        return Ok(with_cors(
+            crate::auth::handle_auth_me(&env, &headers).await,
+            origin.as_deref(),
+        ));
+    }
+
+    // Auth signout endpoint
+    if path == "/api/auth/signout" && method == http::Method::POST {
+        return Ok(with_cors(
+            crate::auth::handle_signout(),
+            origin.as_deref(),
+        ));
     }
 
     // Goal extraction endpoint (authenticated)
@@ -690,6 +724,7 @@ async fn fetch(
             .unwrap_or_default();
         return Ok(with_cors(
             crate::services::goals::handle_extract_goals(&env, &headers, &body).await,
+            origin.as_deref(),
         ));
     }
 
@@ -704,6 +739,7 @@ async fn fetch(
             .unwrap_or_default();
         return Ok(with_cors(
             crate::services::sync::handle_sync(&env, &headers, &body).await,
+            origin.as_deref(),
         ));
     }
 
@@ -711,7 +747,10 @@ async fn fetch(
     if path.starts_with("/api/analyze/") && method == http::Method::POST {
         let performance_id = path.trim_start_matches("/api/analyze/");
         if !performance_id.is_empty() {
-            return Ok(with_cors(handle_full_analyze(&env, performance_id).await));
+            return Ok(with_cors(
+                handle_full_analyze(&env, performance_id).await,
+                origin.as_deref(),
+            ));
         }
     }
 
@@ -724,19 +763,25 @@ async fn fetch(
             .await
             .map(|b| b.to_bytes().to_vec())
             .unwrap_or_default();
-        return Ok(with_cors(handle_chat(&env, &body).await));
+        return Ok(with_cors(handle_chat(&env, &body).await, origin.as_deref()));
     }
 
     // Audio upload endpoint
     if path == "/api/upload" && method == http::Method::POST {
-        return Ok(with_cors(handle_upload(&env, req).await));
+        return Ok(with_cors(
+            handle_upload(&env, req).await,
+            origin.as_deref(),
+        ));
     }
 
     // Serve R2 uploaded audio files
     if path.starts_with("/r2/") {
         let key = path.trim_start_matches("/r2/");
         if !key.is_empty() {
-            return Ok(with_cors(handle_r2_serve(&env, key).await));
+            return Ok(with_cors(
+                handle_r2_serve(&env, key).await,
+                origin.as_deref(),
+            ));
         }
     }
 
@@ -747,6 +792,7 @@ async fn fetch(
                 .status(http::StatusCode::OK)
                 .body(axum::body::Body::from("OK"))
                 .unwrap(),
+            origin.as_deref(),
         ));
     }
 
@@ -756,5 +802,5 @@ async fn fetch(
         .route("/api/performances/:id", get(api::get_performance));
 
     let response = app.oneshot(req).await?;
-    Ok(with_cors(response))
+    Ok(with_cors(response, origin.as_deref()))
 }

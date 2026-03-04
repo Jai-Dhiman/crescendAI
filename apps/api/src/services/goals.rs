@@ -150,7 +150,7 @@ async fn merge_goals(
 ) -> Result<(), String> {
     // Fetch existing goals
     let existing_row = db
-        .prepare("SELECT explicit_goals FROM students WHERE apple_user_id = ?1")
+        .prepare("SELECT explicit_goals FROM students WHERE student_id = ?1")
         .bind(&[JsValue::from_str(student_id)])
         .map_err(|e| format!("Failed to bind query: {:?}", e))?
         .first::<serde_json::Value>(None)
@@ -195,7 +195,7 @@ async fn merge_goals(
         .as_string()
         .unwrap_or_default();
 
-    db.prepare("UPDATE students SET explicit_goals = ?1, updated_at = ?2 WHERE apple_user_id = ?3")
+    db.prepare("UPDATE students SET explicit_goals = ?1, updated_at = ?2 WHERE student_id = ?3")
         .bind(&[
             JsValue::from_str(&merged_json),
             JsValue::from_str(&now),
