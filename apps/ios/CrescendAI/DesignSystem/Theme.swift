@@ -12,12 +12,11 @@ extension EnvironmentValues {
 }
 
 extension View {
-    /// Apply the CrescendAI theme to the view hierarchy.
-    /// Sets background color, preferred color scheme, and tint.
+    /// Apply the CrescendAI dark theme to the view hierarchy.
     func crescendTheme() -> some View {
         self
             .environment(\.isCrescendThemed, true)
-            .preferredColorScheme(.light)
+            .preferredColorScheme(.dark)
             .tint(CrescendColor.foreground)
     }
 }

@@ -72,7 +72,7 @@ struct CrescendButton: View {
     private var backgroundColor: Color {
         switch style {
         case .primary: CrescendColor.foreground
-        case .secondary: .clear
+        case .secondary: CrescendColor.surface
         case .ghost: .clear
         }
     }
@@ -101,14 +101,14 @@ struct CrescendIconButton: View {
                 .font(.system(size: 18, weight: .medium))
                 .foregroundStyle(CrescendColor.foreground)
                 .frame(width: 44, height: 44)
-                .background(CrescendColor.subtleFill)
+                .background(CrescendColor.surface)
                 .clipShape(RoundedRectangle(cornerRadius: 8))
         }
         .buttonStyle(CrescendPressStyle())
     }
 }
 
-private struct CrescendPressStyle: ButtonStyle {
+struct CrescendPressStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
@@ -130,4 +130,5 @@ private struct CrescendPressStyle: ButtonStyle {
     }
     .padding(CrescendSpacing.space6)
     .background(CrescendColor.background)
+    .crescendTheme()
 }

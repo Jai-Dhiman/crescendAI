@@ -38,7 +38,7 @@ struct CrescendCard<Content: View>: View {
         content()
             .padding(CrescendSpacing.space4)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(CrescendColor.background)
+            .background(CrescendColor.surface)
             .clipShape(RoundedRectangle(cornerRadius: 12))
             .overlay(
                 RoundedRectangle(cornerRadius: 12)
@@ -56,9 +56,9 @@ struct CrescendCard<Content: View>: View {
 
     private var shadowColor: Color {
         switch style {
-        case .base: CrescendColor.foreground.opacity(0.04)
-        case .interactive: CrescendColor.foreground.opacity(0.04)
-        case .elevated: CrescendColor.foreground.opacity(0.08)
+        case .base: Color.black.opacity(0.15)
+        case .interactive: Color.black.opacity(0.15)
+        case .elevated: Color.black.opacity(0.3)
         }
     }
 
@@ -84,7 +84,7 @@ private struct CardPressStyle: ButtonStyle {
         configuration.label
             .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
             .shadow(
-                color: CrescendColor.foreground.opacity(configuration.isPressed ? 0.02 : 0.04),
+                color: Color.black.opacity(configuration.isPressed ? 0.1 : 0.15),
                 radius: configuration.isPressed ? 1 : 4,
                 y: configuration.isPressed ? 0 : 2
             )
@@ -129,4 +129,5 @@ private struct CardPressStyle: ButtonStyle {
     }
     .padding(CrescendSpacing.space6)
     .background(CrescendColor.background)
+    .crescendTheme()
 }

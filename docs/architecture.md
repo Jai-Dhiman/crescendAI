@@ -67,13 +67,20 @@ The architecture is on-device-first: audio inference, teaching moment detection,
            |    D1 -> students, sessions, exercises|
            |    KV -> JWTs, rate limits            |
            |                                     |
-           +----------------+-------------------+
-                            | HTTPS
-                            v
-                   +------------------+
-                   |   OpenRouter     |
-                   |   (any LLM)      |
-                   +------------------+
+           +-------+----------------+----------+
+                   | HTTPS           | HTTPS
+                   v                 v
+          +----------------+  +----------------+
+          |   Groq API     |  | Anthropic API  |
+          |  (Llama 70B)   |  | (Sonnet 4.6)   |
+          |  Subagent +    |  | Teacher LLM    |
+          |  UI subagent   |  |                |
+          +----------------+  +----------------+
+                   |
+          +----------------+
+          | OpenRouter     |
+          | (fallback)     |
+          +----------------+
 ```
 
 ## What Runs Where
@@ -131,14 +138,23 @@ Native one-tap auth. Apple provides a stable user ID and relay email. The Worker
 - Provides stable cross-device identity
 - Captures relay email for future communication
 
-### OpenRouter for LLM
+### LLM Providers (Multi-Provider)
 
-The teacher LLM call goes through OpenRouter, which provides a unified API to Claude, GPT-4, Llama, Gemini, and others. Switching models is a string change.
+The pipeline uses direct provider APIs optimized per stage rather than routing everything through a single gateway. See `docs/apps/11-teacher-voice-finetuning.md` for the full provider rationale and future fine-tuning strategy.
 
-**Why OpenRouter:**
-- Model-agnostic: A/B test any model without code changes
-- Single API key manages multiple providers
-- Fallback routing: if one provider is down, try another
+**Stage 1 (Subagent):** Groq direct API, Llama 3.3 70B or Llama 4 Maverick. Groq's LPU runs Llama 70B at 450-800 tok/s -- the subagent completes in ~0.3s. Cost: ~$0.50-0.60/M tokens.
+
+**Stage 2 (Teacher):** Anthropic direct API, Claude Sonnet 4.6. Eliminates the OpenRouter routing hop. Prompt caching keeps the teacher persona prefix cached across all requests. Cost: $3.00 input / $15.00 output per M tokens.
+
+**Stage 3 (UI Subagent, optional):** Same as Stage 1 (Groq).
+
+**Fallback:** OpenRouter as a fallback gateway if either direct provider is down. Emergency fallback: Cloudflare Workers AI (Llama 3.1 70B), co-located with Workers.
+
+**Why multi-provider over OpenRouter-only:**
+- ~0.3-0.5s latency savings (no routing hop)
+- Native prompt caching with Anthropic API
+- Groq's LPU gives 3-5x faster subagent inference vs. GPU-based providers
+- OpenRouter remains available as fallback routing layer
 
 ### Model Accuracy
 
@@ -401,6 +417,7 @@ The 00-09 docs in `docs/` define the implementation slices. Updated to reflect t
 | 06 | 06-teacher-llm-prompt.md | Teacher persona prompt, output handling (stage 2 of pipeline) |
 | 06a | 06a-subagent-architecture.md | Two-stage subagent, synthesized facts, reasoning framework |
 | 07 | 07-exercise-database.md | D1 exercises, sync to device, LLM-generated exercises |
+| 11 | 11-teacher-voice-finetuning.md | Teacher voice fine-tuning strategy, provider architecture (Groq + Anthropic) |
 | 08 | 08-focus-mode.md | Guided practice mode with targeted exercises |
 | 09 | 09-ios-frontend.md | SwiftUI screens: Practice, Observation, Review, Focus |
 | 10 | 10-on-demand-ui.md | Chat-first interface with on-demand interactive components |

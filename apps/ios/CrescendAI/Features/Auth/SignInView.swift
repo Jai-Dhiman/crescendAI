@@ -5,16 +5,29 @@ struct SignInView: View {
     let authService: AuthService
     @State private var error: String?
     @State private var isLoading = false
+    @State private var cardOpacity = 0.0
 
     var body: some View {
         ZStack {
+            // Full-bleed background
             CrescendColor.background
                 .ignoresSafeArea()
 
-            VStack(spacing: CrescendSpacing.space8) {
-                Spacer()
+            // Piano photography placeholder (gradient simulates warm photo)
+            RadialGradient(
+                colors: [
+                    Color(red: 0x3A / 255.0, green: 0x33 / 255.0, blue: 0x2E / 255.0),
+                    CrescendColor.background,
+                ],
+                center: .center,
+                startRadius: 50,
+                endRadius: 400
+            )
+            .ignoresSafeArea()
 
-                VStack(spacing: CrescendSpacing.space4) {
+            // Floating sign-in card
+            VStack(spacing: CrescendSpacing.space6) {
+                VStack(spacing: CrescendSpacing.space3) {
                     Text("CrescendAI")
                         .font(CrescendFont.displayXL())
                         .foregroundStyle(CrescendColor.foreground)
@@ -23,8 +36,6 @@ struct SignInView: View {
                         .font(CrescendFont.bodyLG())
                         .foregroundStyle(CrescendColor.secondaryText)
                 }
-
-                Spacer()
 
                 VStack(spacing: CrescendSpacing.space3) {
                     SignInWithAppleButton(.signIn) { request in
@@ -41,7 +52,7 @@ struct SignInView: View {
                             isLoading = false
                         }
                     }
-                    .signInWithAppleButtonStyle(.black)
+                    .signInWithAppleButtonStyle(.white)
                     .frame(height: 50)
                     .clipShape(RoundedRectangle(cornerRadius: 8))
                     .disabled(isLoading)
@@ -58,10 +69,20 @@ struct SignInView: View {
                             .multilineTextAlignment(.center)
                     }
                 }
-                .padding(.horizontal, CrescendSpacing.space6)
-
-                Spacer()
-                    .frame(height: CrescendSpacing.space12)
+            }
+            .padding(CrescendSpacing.space8)
+            .background(.ultraThinMaterial)
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+            .overlay(
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(CrescendColor.border, lineWidth: 1)
+            )
+            .padding(.horizontal, CrescendSpacing.space6)
+            .opacity(cardOpacity)
+        }
+        .onAppear {
+            withAnimation(.easeOut(duration: 0.6).delay(0.2)) {
+                cardOpacity = 1.0
             }
         }
     }

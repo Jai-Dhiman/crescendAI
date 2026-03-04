@@ -38,6 +38,7 @@ iOS-first practice companion that evaluates *how* a piano performance sounds -- 
 | 08 | [Focus Mode](apps/08-focus-mode.md) | NOT STARTED | Guided practice targeting weak dimensions. Depends on 04 + 07 |
 | 09 | [iOS Frontend](apps/09-ios-frontend.md) | IN PROGRESS | SwiftUI screens: Practice, Observation, Review, Focus, Profile |
 | 10 | [On-Demand UI](apps/10-on-demand-ui.md) | DESIGNED | Chat-first interface with inline interactive component cards |
+| 11 | [Teacher Voice Fine-Tuning](apps/11-teacher-voice-finetuning.md) | RESEARCH | Fine-tuning strategy, provider architecture (Groq + Anthropic), dataset plan |
 
 ### Model / ML
 

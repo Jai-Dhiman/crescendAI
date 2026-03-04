@@ -32,6 +32,33 @@
 		A300000003 /* CoreMLInferenceProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = B300000003; };
 		A300000004 /* InferenceProviderFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = B300000004; };
 		A300000005 /* PracticeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B300000005; };
+		A400000001 /* MainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000001; };
+		A400000002 /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000002; };
+		A400000003 /* SignInView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000003; };
+		A400000004 /* AuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000004; };
+		A400000005 /* KeychainService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000005; };
+		A400000006 /* SyncService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000006; };
+		A400000007 /* Student.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000007; };
+		A400000008 /* ObservationRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000008; };
+		A400000009 /* CheckInRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000009; };
+		A400000010 /* StudentModelService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000010; };
+		A400000011 /* CheckInService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000011; };
+		A400000012 /* GoalExtractionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000012; };
+		A400000013 /* ChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000013; };
+		A400000014 /* ChatViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000014; };
+		A400000015 /* ChatInputBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000015; };
+		A400000016 /* MessageBubble.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000016; };
+		A400000017 /* ObservationCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000017; };
+		A400000018 /* DimensionPill.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000018; };
+		A400000019 /* WaveformView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000019; };
+		A400000020 /* PracticeControlBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000020; };
+		A400000021 /* SessionReviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000021; };
+		A400000022 /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000022; };
+		A400000023 /* SparklineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000023; };
+		A400000024 /* FocusModeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000024; };
+		A400000025 /* ScoreHighlightCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000025; };
+		A400000026 /* KeyboardGuideCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000026; };
+		A400000027 /* ExerciseSetCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000027; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -73,6 +100,33 @@
 		B300000003 /* CoreMLInferenceProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreMLInferenceProvider.swift; sourceTree = "<group>"; };
 		B300000004 /* InferenceProviderFactory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InferenceProviderFactory.swift; sourceTree = "<group>"; };
 		B300000005 /* PracticeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PracticeView.swift; sourceTree = "<group>"; };
+		B400000001 /* MainView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainView.swift; sourceTree = "<group>"; };
+		B400000002 /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
+		B400000003 /* SignInView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignInView.swift; sourceTree = "<group>"; };
+		B400000004 /* AuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthService.swift; sourceTree = "<group>"; };
+		B400000005 /* KeychainService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainService.swift; sourceTree = "<group>"; };
+		B400000006 /* SyncService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncService.swift; sourceTree = "<group>"; };
+		B400000007 /* Student.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Student.swift; sourceTree = "<group>"; };
+		B400000008 /* ObservationRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ObservationRecord.swift; sourceTree = "<group>"; };
+		B400000009 /* CheckInRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CheckInRecord.swift; sourceTree = "<group>"; };
+		B400000010 /* StudentModelService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudentModelService.swift; sourceTree = "<group>"; };
+		B400000011 /* CheckInService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CheckInService.swift; sourceTree = "<group>"; };
+		B400000012 /* GoalExtractionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoalExtractionService.swift; sourceTree = "<group>"; };
+		B400000013 /* ChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatView.swift; sourceTree = "<group>"; };
+		B400000014 /* ChatViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatViewModel.swift; sourceTree = "<group>"; };
+		B400000015 /* ChatInputBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatInputBar.swift; sourceTree = "<group>"; };
+		B400000016 /* MessageBubble.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageBubble.swift; sourceTree = "<group>"; };
+		B400000017 /* ObservationCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ObservationCard.swift; sourceTree = "<group>"; };
+		B400000018 /* DimensionPill.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DimensionPill.swift; sourceTree = "<group>"; };
+		B400000019 /* WaveformView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WaveformView.swift; sourceTree = "<group>"; };
+		B400000020 /* PracticeControlBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PracticeControlBar.swift; sourceTree = "<group>"; };
+		B400000021 /* SessionReviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionReviewView.swift; sourceTree = "<group>"; };
+		B400000022 /* ProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileView.swift; sourceTree = "<group>"; };
+		B400000023 /* SparklineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SparklineView.swift; sourceTree = "<group>"; };
+		B400000024 /* FocusModeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusModeView.swift; sourceTree = "<group>"; };
+		B400000025 /* ScoreHighlightCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScoreHighlightCard.swift; sourceTree = "<group>"; };
+		B400000026 /* KeyboardGuideCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardGuideCard.swift; sourceTree = "<group>"; };
+		B400000027 /* ExerciseSetCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExerciseSetCard.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -122,6 +176,8 @@
 			children = (
 				B100000001 /* CrescendAIApp.swift */,
 				B100000002 /* ContentView.swift */,
+				B400000001 /* MainView.swift */,
+				B400000002 /* SidebarView.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -158,17 +214,81 @@
 		E100000008 /* Features */ = {
 			isa = PBXGroup;
 			children = (
+				E400000001 /* Auth */,
+				E400000002 /* Chat */,
 				E300000001 /* Practice */,
+				E400000004 /* SessionReview */,
+				E400000005 /* Profile */,
+				E400000006 /* FocusMode */,
 			);
 			path = Features;
+			sourceTree = "<group>";
+		};
+		E400000001 /* Auth */ = {
+			isa = PBXGroup;
+			children = (
+				B400000003 /* SignInView.swift */,
+			);
+			path = Auth;
+			sourceTree = "<group>";
+		};
+		E400000002 /* Chat */ = {
+			isa = PBXGroup;
+			children = (
+				B400000013 /* ChatView.swift */,
+				B400000014 /* ChatViewModel.swift */,
+				B400000015 /* ChatInputBar.swift */,
+				B400000016 /* MessageBubble.swift */,
+				B400000017 /* ObservationCard.swift */,
+				B400000018 /* DimensionPill.swift */,
+				E400000003 /* ComponentCards */,
+			);
+			path = Chat;
+			sourceTree = "<group>";
+		};
+		E400000003 /* ComponentCards */ = {
+			isa = PBXGroup;
+			children = (
+				B400000025 /* ScoreHighlightCard.swift */,
+				B400000026 /* KeyboardGuideCard.swift */,
+				B400000027 /* ExerciseSetCard.swift */,
+			);
+			path = ComponentCards;
 			sourceTree = "<group>";
 		};
 		E300000001 /* Practice */ = {
 			isa = PBXGroup;
 			children = (
 				B300000005 /* PracticeView.swift */,
+				B400000019 /* WaveformView.swift */,
+				B400000020 /* PracticeControlBar.swift */,
 			);
 			path = Practice;
+			sourceTree = "<group>";
+		};
+		E400000004 /* SessionReview */ = {
+			isa = PBXGroup;
+			children = (
+				B400000021 /* SessionReviewView.swift */,
+			);
+			path = SessionReview;
+			sourceTree = "<group>";
+		};
+		E400000005 /* Profile */ = {
+			isa = PBXGroup;
+			children = (
+				B400000022 /* ProfileView.swift */,
+				B400000023 /* SparklineView.swift */,
+			);
+			path = Profile;
+			sourceTree = "<group>";
+		};
+		E400000006 /* FocusMode */ = {
+			isa = PBXGroup;
+			children = (
+				B400000024 /* FocusModeView.swift */,
+			);
+			path = FocusMode;
 			sourceTree = "<group>";
 		};
 		E100000013 /* Networking */ = {
@@ -216,10 +336,24 @@
 		E100000023 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				E400000007 /* Auth */,
 				E100000024 /* AudioEngine */,
 				E100000025 /* Inference */,
+				B400000010 /* StudentModelService.swift */,
+				B400000011 /* CheckInService.swift */,
+				B400000012 /* GoalExtractionService.swift */,
 			);
 			path = Services;
+			sourceTree = "<group>";
+		};
+		E400000007 /* Auth */ = {
+			isa = PBXGroup;
+			children = (
+				B400000004 /* AuthService.swift */,
+				B400000005 /* KeychainService.swift */,
+				B400000006 /* SyncService.swift */,
+			);
+			path = Auth;
 			sourceTree = "<group>";
 		};
 		E100000024 /* AudioEngine */ = {
@@ -247,10 +381,13 @@
 		E100000026 /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				B400000007 /* Student.swift */,
 				B100000040 /* PracticeSession.swift */,
 				B100000041 /* AudioChunk.swift */,
 				B300000001 /* PracticeSessionRecord.swift */,
 				B300000002 /* ChunkResultRecord.swift */,
+				B400000008 /* ObservationRecord.swift */,
+				B400000009 /* CheckInRecord.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -355,6 +492,8 @@
 			files = (
 				A100000001 /* CrescendAIApp.swift in Sources */,
 				A100000002 /* ContentView.swift in Sources */,
+				A400000001 /* MainView.swift in Sources */,
+				A400000002 /* SidebarView.swift in Sources */,
 				A100000003 /* Colors.swift in Sources */,
 				A100000004 /* Typography.swift in Sources */,
 				A100000005 /* Spacing.swift in Sources */,
@@ -377,6 +516,31 @@
 				A300000003 /* CoreMLInferenceProvider.swift in Sources */,
 				A300000004 /* InferenceProviderFactory.swift in Sources */,
 				A300000005 /* PracticeView.swift in Sources */,
+				A400000003 /* SignInView.swift in Sources */,
+				A400000004 /* AuthService.swift in Sources */,
+				A400000005 /* KeychainService.swift in Sources */,
+				A400000006 /* SyncService.swift in Sources */,
+				A400000007 /* Student.swift in Sources */,
+				A400000008 /* ObservationRecord.swift in Sources */,
+				A400000009 /* CheckInRecord.swift in Sources */,
+				A400000010 /* StudentModelService.swift in Sources */,
+				A400000011 /* CheckInService.swift in Sources */,
+				A400000012 /* GoalExtractionService.swift in Sources */,
+				A400000013 /* ChatView.swift in Sources */,
+				A400000014 /* ChatViewModel.swift in Sources */,
+				A400000015 /* ChatInputBar.swift in Sources */,
+				A400000016 /* MessageBubble.swift in Sources */,
+				A400000017 /* ObservationCard.swift in Sources */,
+				A400000018 /* DimensionPill.swift in Sources */,
+				A400000019 /* WaveformView.swift in Sources */,
+				A400000020 /* PracticeControlBar.swift in Sources */,
+				A400000021 /* SessionReviewView.swift in Sources */,
+				A400000022 /* ProfileView.swift in Sources */,
+				A400000023 /* SparklineView.swift in Sources */,
+				A400000024 /* FocusModeView.swift in Sources */,
+				A400000025 /* ScoreHighlightCard.swift in Sources */,
+				A400000026 /* KeyboardGuideCard.swift in Sources */,
+				A400000027 /* ExerciseSetCard.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

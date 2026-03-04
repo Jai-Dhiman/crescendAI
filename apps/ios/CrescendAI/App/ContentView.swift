@@ -5,7 +5,7 @@ struct ContentView: View {
 
     var body: some View {
         if authService.isAuthenticated {
-            PracticeView()
+            MainView()
                 .environment(authService)
         } else {
             SignInView(authService: authService)
