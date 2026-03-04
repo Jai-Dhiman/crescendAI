@@ -9,55 +9,45 @@ Dark, focused, still. The space where a serious pianist sits alone with their in
 
 | Surface | Mode | Background | Use |
 |---------|------|------------|-----|
-| Landing page | Dark | #1C1A18 (charcoal) | Marketing, first impression |
-| Web app | Light | #FDF8F0 (warm cream paper) | Daily-use product interface |
+| Landing page | Dark | #2D2926 (espresso) | Marketing, first impression |
+| Web app | Light | #FDF8F0 (warm cream) | Daily-use product interface |
 | iOS app | Light | systemBackground (warm-tinted) | Daily-use product interface |
 
 The landing page is cinematic and emotional. The product is comfortable and functional.
-They share typography, accent color, spacing rhythm, and signature patterns.
+They share typography, spacing rhythm, and signature patterns.
 
 ---
 
 ## Color Tokens
 
-### Accent color: Warm Cream
+### Espresso/Cream palette
 
-The accent is Warm Cream (#F0E6D3) -- the color of aged paper and ivory keys. On dark surfaces, it serves as the primary highlight. On light surfaces, it recedes and the charcoal text carries authority.
-
-```
---accent:             #F0E6D3    /* warm cream, ivory keys */
---accent-hover:       #FFF5E6    /* lighter on hover (dark mode) */
---accent-muted:       rgba(240, 230, 211, 0.12) /* for backgrounds/highlights */
---accent-on-light:    #1C1A18    /* charcoal used as accent on light backgrounds */
-```
+The system uses two anchors: Espresso (#2D2926) and Cream (#FDF8F0). On dark surfaces, cream is the primary text and CTA background. On light surfaces, espresso carries authority. No additional accent color -- richness comes from photography, typography, and light.
 
 ### Dark palette (landing page)
 
 ```
---dark-bg:            #1C1A18    /* charcoal */
---dark-surface:       #262422    /* elevated cards/panels */
---dark-surface-2:     #302E2B    /* secondary elevation */
---dark-border:        #3A3836    /* subtle dividers */
---dark-text-primary:  #F0E6D3    /* warm cream -- accent IS the text */
---dark-text-secondary: #9A9590   /* muted caption text */
---dark-text-tertiary:  #6B6560   /* disabled/hint text */
+--color-espresso:       #2D2926    /* page background */
+--color-cream:          #FDF8F0    /* primary text + CTA background */
+--color-surface:        #3A3633    /* elevated cards/panels */
+--color-surface-2:      #454140    /* secondary elevation */
+--color-border:         #504B48    /* subtle dividers, card borders */
+--color-text-primary:   #FDF8F0    /* cream -- primary text on dark */
+--color-text-secondary: #A8A29E    /* muted body text, descriptions */
+--color-text-tertiary:  #78716C    /* disabled text, hints, timestamps */
 ```
 
 ### Light palette (web app, iOS app)
 
 ```
---light-bg:           #FDF8F0    /* warm cream paper */
---light-surface:      #F7F2EB    /* cards, panels */
---light-surface-2:    #EDE9E2    /* secondary elevation */
---light-border:       #E0DCD5    /* subtle dividers */
---light-text-primary: #1C1A18    /* charcoal */
---light-text-secondary: #605B56  /* muted body text */
---light-text-tertiary:  #9A9590  /* disabled/hint text */
+--light-bg:             #FDF8F0    /* warm cream */
+--light-surface:        #F7F2EB    /* cards, panels */
+--light-surface-2:      #EDE9E2    /* secondary elevation */
+--light-border:         #E0DCD5    /* subtle dividers */
+--light-text-primary:   #2D2926    /* espresso */
+--light-text-secondary: #605B56    /* muted body text */
+--light-text-tertiary:  #A8A29E    /* disabled/hint text */
 ```
-
-### No second accent color
-
-Richness comes from photography, typography, and light -- not from additional colors. The only "color" in the system is the interplay between warm cream and charcoal.
 
 ---
 
@@ -67,8 +57,10 @@ Richness comes from photography, typography, and light -- not from additional co
 
 | Role | Family | Use |
 |------|--------|-----|
-| Display | Lora | Headlines, hero text, section titles |
+| Display | Lora | Headlines, hero text, section titles, pull quotes |
 | Body/UI | DM Sans | Navigation, body text, buttons, labels, app UI |
+
+Body text uses DM Sans. Previously Lora was used for both display and body.
 
 ### Display scale (serif)
 
@@ -125,9 +117,9 @@ Generous negative space. Confidence is communicated through what you leave out.
 
 ## Signature Design Patterns
 
-### 1. Typography-as-hero
+### 1. Full-bleed photography hero
 
-The landing page hero uses the headline as the visual centerpiece. "A teacher for every pianist." at display-3xl fills the viewport width. Piano photography visible behind/through the text as a subtle overlay. No competing elements above the fold.
+The landing page hero uses a full-viewport piano photograph with a gradient overlay (espresso, bottom-heavy) for text legibility. The headline "A teacher for every pianist." is centered over the image in massive Lora serif. A pill CTA sits below. No subhead, no feature text -- the image and headline do the work.
 
 ### 2. The vinyl shelf
 
@@ -151,7 +143,7 @@ On the landing page: striking, full-bleed piano photography. Not decorative -- c
 
 ### 5. Understated research
 
-Research credibility communicated through restraint, not statistics. A quiet line near the footer: "Built on published research. Validated by 30+ educators." with a link to the paper. No stats section, no percentage callouts, no social proof bar.
+Research credibility communicated through restraint, not statistics. A quiet line in the footer: "Built on published research." with a link to the paper. No stats section, no percentage callouts, no social proof bar.
 
 ---
 
@@ -159,48 +151,50 @@ Research credibility communicated through restraint, not statistics. A quiet lin
 
 ### Buttons
 
-Primary CTA (dark mode): warm cream background, charcoal text, no border-radius (or very subtle 2px).
+Primary CTA: pill shape, cream background on dark, espresso text.
 ```
-bg: var(--accent)        /* #F0E6D3 */
-text: var(--dark-bg)     /* #1C1A18 */
-hover: var(--accent-hover) /* #FFF5E6 */
-padding: 12px 24px
+bg: var(--color-cream)       /* #FDF8F0 */
+text: var(--color-espresso)  /* #2D2926 */
+hover: brightness(1.1)
+padding: 14px 32px
+border-radius: 100px         /* full pill */
 font: body-sm, weight 500
 ```
 
-Primary CTA (light mode): charcoal background, cream text.
+Primary CTA (light mode): espresso background, cream text, pill shape.
 ```
-bg: var(--accent-on-light) /* #1C1A18 */
-text: var(--light-bg)      /* #FDF8F0 */
-hover: #2A2826
-padding: 12px 24px
+bg: var(--color-espresso)    /* #2D2926 */
+text: var(--color-cream)     /* #FDF8F0 */
+hover: #3A3633
+padding: 14px 32px
+border-radius: 100px
 font: body-sm, weight 500
 ```
 
 Secondary: ghost style, border only.
 ```
-border: 1px solid var(--dark-border) or var(--light-border)
+border: 1px solid var(--color-border)
 text: current text color
 hover: slight background fill
+border-radius: 100px
 ```
 
 ### Chat bubbles (product interface)
 
 Teacher messages: left-aligned, light surface background, sans-serif body text.
-Student messages: right-aligned, subtle charcoal background, cream text.
+Student messages: right-aligned, subtle espresso background, cream text.
 Inline exercises: full-width card within the chat flow, rendered notation with instructions below.
 
 ### Cards
 
-Dark surface cards on landing page. Light surface cards in product.
-Subtle border (1px, low-opacity). No heavy shadows.
-Content-forward: the card disappears, the content speaks.
+Dark surface cards on landing page: `bg-surface` with `border border-border rounded-xl`. Content-forward: the card disappears, the content speaks.
+Light surface cards in product.
 
 ### Navigation
 
-Landing page: minimal. Logo left, 2-3 text links right. Fixed on scroll with subtle backdrop blur.
-Web app: sidebar or top bar with sans-serif labels, charcoal active indicator.
-iOS app: tab bar with simple icons, charcoal tint for active state.
+Landing page: fixed top bar. Logo (Lora, left) + pill CTA (right). Backdrop blur on scroll. No center content, no nav links.
+Web app: sidebar or top bar with sans-serif labels, espresso active indicator.
+iOS app: tab bar with simple icons, espresso tint for active state.
 
 ---
 
