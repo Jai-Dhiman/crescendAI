@@ -382,7 +382,7 @@ The core interaction, end to end:
 
 ## Teacher LLM Prompt
 
-The "Ask" flow uses a two-stage subagent pipeline (see `docs/06a-subagent-architecture.md`): a fast analysis subagent (Haiku/Flash-class) reasons about which moment matters most and why, then a quality teacher LLM (Sonnet/GPT-4o-class) generates the observation. The prompt templates are in `docs/06-teacher-llm-prompt.md`.
+The "Ask" flow uses a two-stage subagent pipeline (see `docs/apps/06a-subagent-architecture.md`): a fast analysis subagent (Haiku/Flash-class) reasons about which moment matters most and why, then a quality teacher LLM (Sonnet/GPT-4o-class) generates the observation. The prompt templates are in `docs/apps/06-teacher-llm-prompt.md`.
 
 Using OpenRouter, models can be changed per-request and per-stage. The subagent and teacher LLM are separate API calls with independent model selection.
 

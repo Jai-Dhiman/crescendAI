@@ -1,7 +1,7 @@
 # Practice Companion -- Product Redesign
 
 **Date:** 2026-03-01
-**Status:** Design approved, pending implementation plan
+**Status:** COMPLETE (design) -- Product spec approved. Serves as design reference for all implementation slices.
 
 See `docs/architecture.md` for the full system architecture.
 
@@ -101,16 +101,20 @@ Built through observation and conversation. No onboarding form.
 - **Sessions 3-5:** Dimension patterns emerge. Blind spot detection improves. System starts distinguishing "always weak" from "new problem."
 - **Ongoing:** Occasional check-ins (max once per session, only with genuine observation): "I notice you've been spending a lot of time on the development section -- is there something specific you're working through?"
 
+**Learning arc per piece:** The student model tracks where the student is with each specific piece (new/mid-learning/polishing). Feedback intensity adapts: encouragement early, precision feedback later. See `docs/apps/06a-subagent-architecture.md`.
+
 **Not included:** No gamification, no streaks, no user-to-user comparison, no unsolicited progress reports.
 
 ### 4. Teacher LLM
 
-**What it receives (structured context):**
+**Two-stage pipeline (see `docs/apps/06a-subagent-architecture.md`):** A fast analysis subagent reasons about which teaching moment matters most and why (considering learning arc, musical context, student history). It produces a structured handoff. A quality teacher LLM then converts that analysis into the observation the student sees. Model scores (~80% pairwise accuracy) are treated as reasoning inputs, not ground truth -- the system's value is in the subagent's reasoning and the teacher's delivery.
 
-- Top teaching moment(s): chunk location, dimension, score, surprise factor
-- Student model: level, dimension trajectory, explicit goals, session history
-- Piece context (if identified): composer, style, what the score demands at that point
-- Session context: duration, what was worked on, repetition patterns
+**What it receives (structured context via subagent handoff):**
+
+- Selected teaching moment: dimension, score, bar range, section label, why this moment was chosen
+- Framing decision: correction, recognition, encouragement, or question
+- Student model: level, learning arc for this piece, synthesized facts, explicit goals
+- Musical context: composer, style, what this music demands
 
 **What it outputs:**
 
@@ -118,9 +122,9 @@ Built through observation and conversation. No onboarding form.
 - NOT: "Your dynamics could use work."
 - YES: "In that last run-through, the crescendo in the second phrase fell flat -- it peaked too early and the sforzando didn't land. Try holding back the build longer."
 
-**No RAG.** The teacher's pedagogical knowledge comes from the LLM's training data. The value is in the structured input and prompt design, not retrieval from a small database. RAG may be revisited later if feedback quality plateaus.
+**No RAG.** The teacher's pedagogical knowledge comes from the LLM's training data. The value is in the subagent analysis and prompt design, not retrieval from a small database. RAG may be revisited later if feedback quality plateaus.
 
-**Model choice:** General-purpose LLM (Claude, GPT-4) with a carefully crafted teacher system prompt. Intelligence lives in prompt design + structured input.
+**Model choice:** Two-tier via OpenRouter. Fast model (Haiku/Flash) for subagent analysis, quality model (Sonnet/GPT-4o) for teacher voice. Intelligence lives in the subagent reasoning framework + teacher persona prompt.
 
 ### 5. Exercise Database + Focus Mode
 

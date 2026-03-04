@@ -1,5 +1,10 @@
 # Slice 3: On-Device Inference Pipeline
 
+**Status:** IN PROGRESS (stub)
+**Last verified:** 2026-03-03
+**What's done:** CoreMLInferenceProvider with model loading, prediction, and 6-dim output parsing. InferenceProvider protocol and factory. See `apps/ios/CrescendAI/Services/Inference/`.
+**What remains:** No `.mlmodelc` file -- Core ML conversion from PyTorch not started. Provider code ready but untested against a real model.
+
 See `docs/architecture.md` for the full system architecture.
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.

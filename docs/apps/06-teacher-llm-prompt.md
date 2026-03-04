@@ -1,5 +1,9 @@
 # Slice 6: Teacher LLM Prompt Design
 
+**Status:** DESIGNED (not implemented)
+**Last verified:** 2026-03-03
+**Notes:** Superseded as standalone design by `06a-subagent-architecture.md`. This doc remains relevant as the **stage-2 teacher persona prompt** of the two-stage pipeline. No Workers endpoint for `/api/ask` exists yet.
+
 See `docs/architecture.md` for the full system architecture.
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
@@ -130,6 +134,8 @@ This session's {dimension} ({dimension_score:.2f}) is {deviation_description} th
 
 **Primary:** OpenRouter API, which provides access to Claude, GPT-4, Llama, Gemini, and others via a single API. Switch models by changing a string -- no code changes needed.
 
+**Model tiering (decided 2026-03-03):** The teacher LLM (this stage) uses a quality model (Sonnet/GPT-4o-class) for natural tone and persona following. The analysis subagent (stage 1) uses a fast/cheap model (Haiku/Flash-class). See `docs/apps/06a-subagent-architecture.md` for the full tiering rationale.
+
 **Starting plan:**
 - Claude Sonnet for quality (best at following nuanced persona instructions, natural tone)
 - Test Haiku for speed (lower latency, lower cost)
@@ -201,6 +207,7 @@ Still conversational. 2-4 sentences.
 
 ### Open Questions
 
-1. Which OpenRouter model performs best for the teacher persona? A/B test Claude Sonnet, Haiku, GPT-4o, Gemini.
-2. Should the teacher's tone adapt to student level? (more encouraging for beginners, more direct for advanced?)
+1. ~~Which OpenRouter model performs best for the teacher persona?~~ Partially resolved: model tiering decided (Haiku for subagent, Sonnet for teacher). A/B testing within each tier remains open.
+2. Should the teacher's tone adapt to student level? (more encouraging for beginners, more direct for advanced?) -- Partially addressed by the subagent reasoning framework's encouragement calibration. See `docs/apps/06a-subagent-architecture.md`.
 3. How to handle the case where all chunks score low on STOP probability (the student played well)? "Sounded good" with no observation? Or find something constructive anyway?
+4. How should the teacher prompt template change now that it receives pre-analyzed reasoning from the subagent instead of raw scores? The user prompt template above was designed for raw data input -- it will need adaptation for the handoff format.

@@ -37,6 +37,10 @@ model/             PyTorch Lightning training pipeline
 docs/              Architecture and implementation slices
 ```
 
+## Documentation
+
+See [docs/index.md](docs/index.md) for the full documentation hub -- architecture, implementation slices with status, model training docs, and getting-started guides.
+
 ## Setup
 
 ### Training Pipeline

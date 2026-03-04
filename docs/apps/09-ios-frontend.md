@@ -1,5 +1,10 @@
 # Slice 9: iOS Practice Companion Frontend
 
+**Status:** IN PROGRESS
+**Last verified:** 2026-03-03
+**What's done:** PracticeView with basic session UI. DesignSystem with tokens (Colors, Typography, Spacing) and components (CrescendButton, CrescendCard). SignInView.
+**What remains:** Observation view, session review, focus mode UI, profile/settings. Old feature directories (Chat, Analysis, MIDI, Recording, Listening, Home) deleted in cleanup.
+
 See `docs/architecture.md` for the full system architecture.
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.

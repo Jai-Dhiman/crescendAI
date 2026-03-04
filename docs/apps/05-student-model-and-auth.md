@@ -1,5 +1,9 @@
 # Slice 5: Student Model + Auth
 
+**Status:** COMPLETE
+**Last verified:** 2026-03-03
+**What's done:** Sign in with Apple (AuthService, SignInView), JWT/Keychain (KeychainService), SwiftData models (Student, PracticeSession, ChunkResult, Observation, CheckIn), D1 sync (SyncService, sync.rs), D1 schema (migration 0003), goal extraction (GoalExtractionService, goals.rs), StudentModelService, CheckInService. API auth endpoint (auth/mod.rs, jwt.rs).
+
 See `docs/architecture.md` for the full system architecture.
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
@@ -79,6 +83,11 @@ The student model lives on-device as the source of truth. See `docs/architecture
     var interpretation: Double
     var stopProbability: Double
 }
+
+// Future fields (see docs/apps/06a-subagent-architecture.md):
+// - Observation gains a `reasoningTrace` field (condensed JSON: dimension, insight, confidence, framing)
+// - New model or field for synthesized facts (temporal assertions with validAt/invalidAt)
+// - PracticeSession or new join model tracks learning arc per piece (new/mid-learning/polishing)
 
 @Model class Observation {
     var chunkIndex: Int
@@ -176,6 +185,10 @@ Simple heuristic for V1:
 - Score 0.3-0.6 AND intermediate repertoire -> intermediate
 - Score > 0.6 AND advanced repertoire -> advanced
 
+### Learning Arc Per Piece
+
+Track where the student is with each specific piece: **new** (sessions 1-3), **mid-learning** (sessions 4-10), **polishing** (sessions 10+). Inferred from session count where the same piece appears. Student can also declare it explicitly ("I just started this piece" vs "preparing for a recital"). The learning arc affects feedback framing -- encouragement early, precision later. See `docs/apps/06a-subagent-architecture.md` for how the subagent uses this.
+
 ### Check-In Logic
 
 Triggered at session end (not during practice -- never interrupt):
@@ -195,6 +208,15 @@ Triggered at session end (not during practice -- never interrupt):
 - Repertoire check-in: triggered when same piece appears in 3+ sessions
 - Progress check-in: triggered when a dimension improves by >0.1 over 3 sessions
 - Open-ended: triggered randomly (10% chance) after session 5+
+
+### Two Clocks and Synthesized Facts
+
+The student model tracks two temporal dimensions (see `docs/apps/06a-subagent-architecture.md` for the full design):
+
+- **State clock:** Baselines, inferred level, explicit goals -- what is true right now. Updated after each session via exponential moving average (above).
+- **Event clock:** Condensed reasoning traces stored per observation -- what happened and why. Each trace captures: dimension, key insight, confidence, framing decision. These are the raw material for synthesized facts.
+
+**Synthesized facts** are temporal assertions derived from accumulated traces: "Pedaling has been a persistent area for growth but is improving (+0.10 over 5 sessions)." They have `validAt` and `invalidAt` timestamps. The analysis subagent consumes synthesized facts (not raw traces) when reasoning about what feedback to give. This is the student's event clock -- it enables compounding intelligence across sessions.
 
 ### Explicit Input Handling
 

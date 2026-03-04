@@ -1,5 +1,9 @@
 # Slice 7: Exercise Database
 
+**Status:** NOT STARTED
+**Last verified:** 2026-03-03
+**Notes:** D1 exercise tables defined in architecture.md but not migrated. No exercise data seeded. No endpoint implemented.
+
 See `docs/architecture.md` for the full system architecture.
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.

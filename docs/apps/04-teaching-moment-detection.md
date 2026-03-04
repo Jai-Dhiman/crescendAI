@@ -1,5 +1,9 @@
 # Slice 4: Teaching Moment / Priority Logic
 
+**Status:** NOT STARTED
+**Last verified:** 2026-03-03
+**Notes:** No STOP classifier service in iOS codebase. Masterclass data pipeline exists in `model/` but Swift classifier extraction hasn't been done.
+
 See `docs/architecture.md` for the full system architecture.
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
@@ -94,6 +98,10 @@ For the selected teaching moment chunk, determine WHICH dimension to talk about:
 - Blind-spot prior: voicing/balance > pedaling > phrasing > timing > dynamics > articulation
 - (Dynamics and articulation are easier to feel while playing; voicing and pedaling effects are harder to hear from the bench)
 
+### Positive Teaching Moments
+
+Teaching moment detection can also flag improvements and breakthroughs -- not just problems. When a dimension score is significantly above the student's baseline, or a previously flagged weakness shows measurable improvement, the system can surface a positive moment. Positive observations are real teaching: "Your pedaling in the second phrase has gotten much smoother." The on-device pipeline tags chunks where `dimension_score > baseline + threshold` as positive candidates alongside STOP-flagged chunks. The analysis subagent (see `docs/apps/06a-subagent-architecture.md`) decides whether to use a positive or corrective framing.
+
 ### Output to Teacher LLM (Slice 6)
 
 The priority logic passes to the LLM:
@@ -108,7 +116,10 @@ The priority logic passes to the LLM:
         "dimension_score": 0.35,
         "student_baseline": 0.62,
         "deviation": -0.27,
-        "context": "This chunk had the highest teaching moment probability in the session. Pedaling deviated significantly below the student's typical level."
+        "context": "This chunk had the highest teaching moment probability in the session. Pedaling deviated significantly below the student's typical level.",
+        "section_label": "second phrase",
+        "bar_range": "bars 20-24",
+        "is_positive": false
     },
     "session_summary": {
         "total_chunks": 12,
@@ -118,6 +129,10 @@ The priority logic passes to the LLM:
     }
 }
 ```
+
+### Section/Passage Awareness
+
+When the student reports what piece and section they are working on, the output to the subagent should include musical structure context. Instead of just chunk index and timestamp, include section labels ("A section", "transition", "coda") and approximate bar ranges ("bars 7-12"). This lets the teacher say "at bar 7" instead of "at 0:04." See `docs/apps/06a-subagent-architecture.md` for score alignment details. The `section_label`, `bar_range`, and `is_positive` fields in the JSON output above are optional -- populated when piece/section info is available.
 
 ### What This Slice Does NOT Include
 

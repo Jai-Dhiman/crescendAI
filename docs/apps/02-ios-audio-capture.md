@@ -1,5 +1,9 @@
 # Slice 2: Continuous Audio Capture (iOS)
 
+**Status:** COMPLETE
+**Last verified:** 2026-03-03
+**What's done:** AudioCaptureEngine (24kHz mono), RingBuffer, ChunkProducer, AudioSessionManager, PracticeSessionManager. All in `apps/ios/CrescendAI/Services/AudioEngine/`.
+
 See `docs/architecture.md` for the full system architecture.
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.

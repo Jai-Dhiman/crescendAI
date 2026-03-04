@@ -1,0 +1,168 @@
+# CrescendAI Documentation
+
+**"A teacher for every pianist."**
+
+iOS-first practice companion that evaluates *how* a piano performance sounds -- tone, dynamics, phrasing, pedaling -- not just note accuracy. On-device audio inference via a finetuned MuQ foundation model, with a thin Cloudflare Workers backend for LLM feedback and data sync.
+
+**Target user:** Sarah -- 3 years playing, no teacher, records on her phone, wants direction on what to work on next.
+
+**North star:** Give Sarah one piece of useful feedback on one passage she's working on. Not perfect. Not comprehensive. One thing a teacher would actually say after hearing her play.
+
+**Architecture:** On-device Core ML inference produces 6-dimension scores per audio chunk. A STOP classifier identifies teaching moments. A two-stage LLM pipeline (fast subagent + quality teacher) generates one natural observation. Local-first SwiftData with D1 cloud sync. See [architecture.md](architecture.md) for the full system design.
+
+---
+
+## Documentation Map
+
+### Architecture & Product
+
+| Doc | Description |
+|-----|-------------|
+| [architecture.md](architecture.md) | Full system architecture -- on-device pipeline, cloud API, data models, sync protocol (source of truth) |
+| [00-practice-companion.md](apps/00-practice-companion.md) | Product spec -- core interaction model, student model, exercise database, infrastructure |
+| [design-system.md](design-system.md) | Visual design system -- colors, typography, spacing, component patterns for iOS and web |
+| [landing-page-design.md](landing-page-design.md) | Landing page design spec for crescend.ai |
+
+### Implementation Slices
+
+| Slice | Doc | Status | Description |
+|-------|-----|--------|-------------|
+| 01 | [Phone Audio Validation](apps/01-phone-audio-validation.md) | NOT STARTED | Validate MuQ on phone-recorded piano audio |
+| 02 | [iOS Audio Capture](apps/02-ios-audio-capture.md) | COMPLETE | AVAudioEngine, ring buffer, chunking, background mode |
+| 03 | [Chunked Inference Pipeline](apps/03-chunked-inference-pipeline.md) | IN PROGRESS | Core ML MuQ inference provider (stub -- no model file yet) |
+| 04 | [Teaching Moment Detection](apps/04-teaching-moment-detection.md) | NOT STARTED | STOP classifier, blind spot detection, teaching moment selection |
+| 05 | [Student Model + Auth](apps/05-student-model-and-auth.md) | COMPLETE | Sign in with Apple, SwiftData models, D1 sync, goals, check-ins |
+| 06 | [Teacher LLM Prompt](apps/06-teacher-llm-prompt.md) | DESIGNED | Teacher persona prompt (stage 2 of pipeline). Superseded as standalone by 06a |
+| 06a | [Subagent Architecture](apps/06a-subagent-architecture.md) | DESIGNED | Two-stage pipeline: fast subagent + quality teacher LLM |
+| 07 | [Exercise Database](apps/07-exercise-database.md) | NOT STARTED | D1 exercises, curated + LLM-generated |
+| 08 | [Focus Mode](apps/08-focus-mode.md) | NOT STARTED | Guided practice targeting weak dimensions. Depends on 04 + 07 |
+| 09 | [iOS Frontend](apps/09-ios-frontend.md) | IN PROGRESS | SwiftUI screens: Practice, Observation, Review, Focus, Profile |
+| 10 | [On-Demand UI](apps/10-on-demand-ui.md) | DESIGNED | Chat-first interface with inline interactive component cards |
+
+### Model / ML
+
+| Doc | Description |
+|-----|-------------|
+| [model/00-research-timeline.md](model/00-research-timeline.md) | Research history -- original phase structure, failed experiments, open questions, data needs |
+| [model/01-data-collection.md](model/01-data-collection.md) | Data tiers (T1-T4), storage strategy, collection pipeline |
+| [model/02-teacher-grounded-taxonomy.md](model/02-teacher-grounded-taxonomy.md) | 6-dimension derivation from masterclass data (COMPLETE -- all gates pass) |
+| [model/03-model-improvement.md](model/03-model-improvement.md) | Training plan -- audio/symbolic/fusion experiments, staged elimination |
+| [model/04-audio-training-results.md](model/04-audio-training-results.md) | Audio encoder results -- A1 LoRA winner, 73.9% pairwise accuracy (COMPLETE) |
+
+### Agent Instructions (CLAUDE.md files)
+
+| File | Scope |
+|------|-------|
+| [/CLAUDE.md](../CLAUDE.md) | Project-wide conventions, architecture summary, package managers |
+| [apps/CLAUDE.md](../apps/CLAUDE.md) | Apps layer -- iOS stack, API endpoints, web stack, feedback tone |
+| [apps/ios/CLAUDE.md](../apps/ios/CLAUDE.md) | iOS-specific conventions, directory structure, patterns |
+| [model/CLAUDE.md](../model/CLAUDE.md) | ML pipeline -- stack, datasets, training infrastructure, research thesis |
+
+---
+
+## Implementation Status
+
+*Last verified: 2026-03-03*
+
+### iOS App (`apps/ios/`)
+
+| Component | Status | Key Files | Notes |
+|-----------|--------|-----------|-------|
+| Design system | COMPLETE | `DesignSystem/Tokens/`, `Components/`, `Theme.swift` | Colors, typography, spacing tokens + CrescendButton, CrescendCard |
+| Audio capture | COMPLETE | `Services/AudioEngine/` (5 files) | AVAudioEngine 24kHz mono, ring buffer, chunk producer |
+| Core ML inference | STUB | `Services/Inference/` (3 files) | Provider code ready, no `.mlmodelc` model file |
+| Auth (Sign in with Apple) | COMPLETE | `Services/Auth/AuthService.swift`, `Features/Auth/SignInView.swift` | JWT stored in Keychain |
+| SwiftData models | COMPLETE | `Models/` (7 files) | Student, PracticeSession, ChunkResult, Observation, CheckIn, AudioChunk |
+| D1 sync | COMPLETE | `Services/Auth/SyncService.swift` | Post-session + launch sync |
+| Student model service | COMPLETE | `Services/StudentModelService.swift`, `CheckInService.swift` | Baselines, goals, check-ins |
+| Goal extraction | COMPLETE | `Services/GoalExtractionService.swift` | Workers AI-powered |
+| STOP classifier | NOT STARTED | -- | Needs masterclass model extraction |
+| Teaching moment selection | NOT STARTED | -- | Depends on STOP classifier |
+| Practice UI | PARTIAL | `Features/Practice/PracticeView.swift` | Basic session screen |
+| Observation/Review UI | NOT STARTED | -- | |
+| Focus mode UI | NOT STARTED | -- | Depends on Slices 4, 7, 8 |
+
+### API Worker (`apps/api/`)
+
+| Component | Status | Key Files | Notes |
+|-----------|--------|-----------|-------|
+| Auth endpoint | COMPLETE | `src/auth/mod.rs`, `jwt.rs` | `POST /api/auth/apple` |
+| Sync endpoint | COMPLETE | `src/services/sync.rs` | `POST /api/sync` |
+| Goal extraction | COMPLETE | `src/services/goals.rs` | `POST /api/extract-goals` (Workers AI) |
+| D1 schema | COMPLETE | `migrations/0003_student_model.sql` | students, sessions, check_ins tables |
+| Teacher LLM endpoint | NOT STARTED | -- | `POST /api/ask` (needs OpenRouter) |
+| Exercise tables/endpoint | NOT STARTED | -- | Schema defined but not migrated |
+| Legacy v1 endpoints | PRESENT | `src/server.rs`, `src/services/` | analyze, chat, upload, performances -- to be removed |
+
+### Model (`model/`)
+
+| Component | Status | Key Files | Notes |
+|-----------|--------|-----------|-------|
+| Taxonomy (6 dims) | COMPLETE | `data/composite_labels/` | Validated via 5-gate process |
+| Audio training | COMPLETE | `notebooks/model_improvement/01_audio_training.ipynb` | A1 LoRA winner, R²=0.537 |
+| Symbolic training | IN PROGRESS | `notebooks/model_improvement/02_symbolic_training.ipynb` | |
+| Fusion experiments | NOT STARTED | -- | Planned in `03_fusion.ipynb` |
+| Core ML conversion | NOT STARTED | -- | Critical gate for on-device inference |
+
+### Web (`apps/web/`)
+
+| Component | Status | Notes |
+|-----------|--------|-------|
+| Landing page | COMPLETE | TanStack Start + Tailwind CSS v4, deployed to crescend.ai |
+
+### HF Inference (`apps/inference/`)
+
+| Component | Status | Notes |
+|-----------|--------|-------|
+| Cloud inference endpoint | DEPLOYED | Still outputs 19 dims; needs update to 6-dim model |
+
+---
+
+## Critical Path
+
+The end-to-end feedback loop (record -> infer -> detect teaching moment -> generate observation) is not yet connected. The critical gates are:
+
+1. **Core ML conversion** -- Convert PyTorch MuQ checkpoint to `.mlmodelc`. Blocks on-device inference (Slice 3).
+2. **STOP classifier extraction** -- Extract from masterclass data, implement in Swift. Blocks teaching moment detection (Slice 4).
+3. **Teacher LLM endpoint** -- Build `POST /api/ask` with OpenRouter. Blocks observation generation (Slices 6/6a).
+4. **Observation UI** -- Display teacher's observation in-app. Part of Slice 9.
+
+---
+
+## Getting Started
+
+### iOS App
+```bash
+# Open in Xcode
+open apps/ios/CrescendAI.xcodeproj
+# See apps/ios/CLAUDE.md for conventions
+```
+
+### API Worker
+```bash
+cd apps/api
+npx wrangler dev
+# See apps/CLAUDE.md for endpoint documentation
+```
+
+### Landing Page
+```bash
+cd apps/web
+bun install
+bun run dev
+```
+
+### ML Training Pipeline
+```bash
+cd model
+uv sync
+# See model/CLAUDE.md for training instructions
+# Notebooks in model/notebooks/model_improvement/
+```
+
+### HF Inference Endpoint
+```bash
+cd apps/inference
+# See handler.py for the endpoint implementation
+# Deployed as a HuggingFace Inference Endpoint
+```

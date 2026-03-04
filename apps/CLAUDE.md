@@ -31,27 +31,40 @@ Rust API backend deployed to Cloudflare Workers at `api.crescend.ai`.
 
 - Runtime: Cloudflare Workers (Rust compiled to WASM)
 - Routing: Axum (path matching in `#[event(fetch)]` handler)
-- Storage: R2 (audio uploads), D1 (SQLite), KV (cache)
-- AI: Workers AI (embeddings, reranking, LLM), HuggingFace Inference Endpoint (MuQ model)
-- Search: Hybrid BM25 (D1 FTS5) + Vectorize + cross-encoder reranking
+- Storage: D1 (SQLite), R2 (audio uploads), KV (cache)
+- Auth: Sign in with Apple (JWT via HMAC-SHA256)
+- Sync: D1 student/session delta sync
+- AI: Workers AI (goal extraction via Llama 3.3), HuggingFace Inference Endpoint (MuQ cloud fallback)
 - Config: `wrangler.toml` defines all bindings
 
-### API Endpoints
+### API Endpoints (current)
 
-- `POST /api/analyze/:id` - Full performance analysis with RAG feedback
+- `POST /api/auth/apple` - Validate Apple identity token, issue JWT
+- `POST /api/sync` - Receive student/session deltas from iOS, return exercise updates
+- `POST /api/extract-goals` - Extract goals from student message (Workers AI)
+- `GET /health` - Health check
+
+### API Endpoints (legacy v1 -- to be removed)
+
+- `POST /api/analyze/:id` - Performance analysis with RAG feedback
 - `POST /api/chat` - Chat Q&A with RAG
 - `POST /api/upload` - Audio file upload to R2
 - `GET /api/performances` - List demo performances
 - `GET /api/performances/:id` - Get single performance
 - `GET /r2/:key` - Serve R2 audio files
-- `GET /health` - Health check
+
+### API Endpoints (planned -- not yet implemented)
+
+- `POST /api/ask` - Send teaching moment context, receive LLM observation (two-stage pipeline via OpenRouter)
+- `GET /api/exercises` - Fetch exercise catalog
 
 ### Key Directories
 
 - `api/src/server.rs` - Entry point and route handling
-- `api/src/api/` - Axum route handlers (performances)
-- `api/src/services/` - Business logic (HF inference, RAG, R2, feedback)
-- `api/src/models/` - Data models (performance, analysis, pedagogy)
+- `api/src/auth/` - Apple Sign in auth, JWT generation/verification
+- `api/src/api/` - Axum route handlers
+- `api/src/services/` - Business logic (sync, goals, HF inference, legacy RAG services)
+- `api/src/models/` - Data models (student, performance, analysis, pedagogy)
 
 ## Landing Page (`web/`)
 
@@ -66,4 +79,4 @@ TanStack Start landing page deployed to Cloudflare Workers at `crescend.ai`.
 
 ## Feedback Tone (Both Platforms)
 
-Warm and encouraging, specific to actual musical elements, actionable practice strategies. Celebrate strengths before suggesting improvements. Frame as observations, not absolute judgments. Feedback framing (correction/recognition/encouragement/question) adapts to learning arc position and session context. See `docs/06a-subagent-architecture.md`.
+Warm and encouraging, specific to actual musical elements, actionable practice strategies. Celebrate strengths before suggesting improvements. Frame as observations, not absolute judgments. Feedback framing (correction/recognition/encouragement/question) adapts to learning arc position and session context. See `docs/apps/06a-subagent-architecture.md`.
