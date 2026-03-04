@@ -32,14 +32,17 @@ Rust API backend deployed to Cloudflare Workers at `api.crescend.ai`.
 - Runtime: Cloudflare Workers (Rust compiled to WASM)
 - Routing: Axum (path matching in `#[event(fetch)]` handler)
 - Storage: D1 (SQLite), R2 (audio uploads), KV (cache)
-- Auth: Sign in with Apple (JWT via HMAC-SHA256)
+- Auth: Sign in with Apple (JWT via HMAC-SHA256, HttpOnly cookies for web, Bearer header for iOS)
+- Schema: Provider-agnostic (student_id UUID + auth_identities table)
 - Sync: D1 student/session delta sync
 - AI: Workers AI (goal extraction via Llama 3.3), HuggingFace Inference Endpoint (MuQ cloud fallback)
 - Config: `wrangler.toml` defines all bindings
 
 ### API Endpoints (current)
 
-- `POST /api/auth/apple` - Validate Apple identity token, issue JWT
+- `POST /api/auth/apple` - Validate Apple identity token, issue JWT (HttpOnly cookie + response body)
+- `GET /api/auth/me` - Validate JWT (cookie or Bearer), return user profile
+- `POST /api/auth/signout` - Clear auth cookie
 - `POST /api/sync` - Receive student/session deltas from iOS, return exercise updates
 - `POST /api/extract-goals` - Extract goals from student message (Workers AI)
 - `GET /health` - Health check
@@ -68,14 +71,23 @@ Rust API backend deployed to Cloudflare Workers at `api.crescend.ai`.
 
 ## Landing Page (`web/`)
 
-TanStack Start landing page deployed to Cloudflare Workers at `crescend.ai`.
+TanStack Start web app deployed to Cloudflare Workers at `crescend.ai`.
 
 ### Stack
 
 - Framework: TanStack Start (React, SSR)
 - Styling: Tailwind CSS v4
+- Auth: Sign in with Apple (Apple JS SDK popup flow, HttpOnly cookie JWT)
 - Package manager: bun
 - Deployment: Cloudflare Workers via `@cloudflare/vite-plugin`
+
+### Key Files
+
+- `web/src/lib/api.ts` - API client (credentials: include, typed auth methods)
+- `web/src/lib/auth.tsx` - Auth context (AuthProvider, useAuth hook)
+- `web/src/routes/signin.tsx` - Sign in with Apple page
+- `web/src/routes/app.tsx` - Protected app shell
+- `web/src/types/apple.d.ts` - Apple JS SDK type declarations
 
 ## Feedback Tone (Both Platforms)
 
