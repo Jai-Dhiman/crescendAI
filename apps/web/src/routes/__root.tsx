@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { HeadContent, Outlet, Scripts, createRootRoute, useRouterState } from '@tanstack/react-router'
+import { AuthProvider } from '../lib/auth'
 
 import appCss from '../styles/app.css?url'
 
@@ -41,13 +42,19 @@ function RootDocument() {
     <html lang="en">
       <head>
         <HeadContent />
+        <script
+          type="text/javascript"
+          src="https://appleid.cdn-apple.com/appleauth/static/jsapi/appleid/1/en_US/appleid.auth.js"
+        />
       </head>
       <body className="bg-espresso text-text-primary font-sans">
-        {!isAppShell && <Header />}
-        <main>
-          <Outlet />
-        </main>
-        {!isAppShell && <Footer />}
+        <AuthProvider>
+          {!isAppShell && <Header />}
+          <main>
+            <Outlet />
+          </main>
+          {!isAppShell && <Footer />}
+        </AuthProvider>
         <Scripts />
       </body>
     </html>

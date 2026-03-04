@@ -1,23 +1,25 @@
 import { useEffect, useRef, useState } from 'react'
-import { createFileRoute, useNavigate, redirect } from '@tanstack/react-router'
-import { ChevronLeft, ChevronRight, MessageSquare, Mic, Plus } from 'lucide-react'
-import { getAuth, clearAuth, isAuthenticated } from '../lib/auth'
+import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { SidebarSimple, PlusCircle, ChatCircle, Metronome } from '@phosphor-icons/react'
+import { useAuth } from '../lib/auth'
 
 export const Route = createFileRoute('/app')({
-  beforeLoad: () => {
-    if (!isAuthenticated()) {
-      throw redirect({ to: '/signin' })
-    }
-  },
   component: AppPage,
 })
 
 function AppPage() {
-  const user = getAuth()
+  const { user, isLoading, isAuthenticated, signOut } = useAuth()
   const navigate = useNavigate()
   const [showProfile, setShowProfile] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const profileRef = useRef<HTMLDivElement>(null)
+
+  // Redirect if not authenticated
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      navigate({ to: '/signin' })
+    }
+  }, [isLoading, isAuthenticated, navigate])
 
   useEffect(() => {
     if (!showProfile) return
@@ -30,9 +32,17 @@ function AppPage() {
     return () => document.removeEventListener('mousedown', handleClick)
   }, [showProfile])
 
-  function handleSignOut() {
-    clearAuth()
+  async function handleSignOut() {
+    await signOut()
     navigate({ to: '/' })
+  }
+
+  if (isLoading) {
+    return (
+      <div className="h-screen flex items-center justify-center">
+        <p className="text-text-secondary text-body-md">Loading...</p>
+      </div>
+    )
   }
 
   // Time-aware greeting
@@ -51,16 +61,16 @@ function AppPage() {
       >
         {/* Toggle button */}
         <SidebarButton
-          icon={sidebarOpen ? <ChevronLeft size={18} /> : <ChevronRight size={18} />}
+          icon={<SidebarSimple size={20} />}
           label={sidebarOpen ? 'Collapse' : 'Expand'}
           expanded={sidebarOpen}
           onClick={() => setSidebarOpen(!sidebarOpen)}
         />
 
         <div className="mt-2 flex flex-col gap-1 w-full items-center">
-          <SidebarButton icon={<Plus size={18} />} label="New Chat" expanded={sidebarOpen} />
-          <SidebarButton icon={<MessageSquare size={18} />} label="Chats" expanded={sidebarOpen} />
-          <SidebarButton icon={<MetronomeIcon />} label="Metronome" expanded={sidebarOpen} />
+          <SidebarButton icon={<PlusCircle size={20} />} label="New Chat" expanded={sidebarOpen} />
+          <SidebarButton icon={<ChatCircle size={20} />} label="Chats" expanded={sidebarOpen} />
+          <SidebarButton icon={<Metronome size={20} />} label="Metronome" expanded={sidebarOpen} />
         </div>
       </aside>
 
@@ -73,7 +83,7 @@ function AppPage() {
             onClick={() => setShowProfile(!showProfile)}
             className="w-8 h-8 bg-surface border border-border rounded-full flex items-center justify-center text-body-sm text-cream font-medium hover:bg-surface-2 transition"
           >
-            {user?.name?.charAt(0).toUpperCase() ?? '?'}
+            {user?.display_name?.charAt(0).toUpperCase() ?? user?.email?.charAt(0).toUpperCase() ?? '?'}
           </button>
 
           {showProfile && (
@@ -90,14 +100,14 @@ function AppPage() {
         </div>
 
         {/* Content positioned upper-third */}
-        <div className="flex-1 flex flex-col justify-start pt-[20vh] px-6">
+        <div className="flex-1 flex flex-col justify-start pt-[28vh] px-6">
           <div className="w-full max-w-2xl mx-auto text-center">
             <h1 className="font-display text-display-md text-cream">
-              {greeting}, {user?.name ?? 'there'}.
+              {greeting}.
             </h1>
 
             {/* Input box */}
-            <div className="mt-8 bg-surface border border-border rounded-2xl flex items-center">
+            <div className="mt-10 bg-surface border border-border rounded-2xl flex items-center">
               <input
                 type="text"
                 placeholder="What are you practicing today?"
@@ -106,12 +116,11 @@ function AppPage() {
             </div>
 
             {/* Action button */}
-            <div className="mt-5">
+            <div className="mt-6">
               <button
                 type="button"
-                className="bg-cream text-espresso px-6 py-3 text-body-sm font-medium rounded-full hover:brightness-110 transition inline-flex items-center gap-2.5"
+                className="bg-cream text-espresso px-6 py-3 text-body-sm font-medium rounded-full hover:brightness-110 transition"
               >
-                <Mic size={16} />
                 Start Recording
               </button>
             </div>
@@ -153,16 +162,5 @@ function SidebarButton({
         </span>
       )}
     </button>
-  )
-}
-
-function MetronomeIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 2v10" />
-      <path d="M5 21h14" />
-      <path d="M7.5 21L10 6h4l2.5 15" />
-      <path d="M12 12l4-4" />
-    </svg>
   )
 }
