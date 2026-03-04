@@ -45,13 +45,14 @@ export interface AuthResult {
 
 export const api = {
   auth: {
-    apple(identityToken: string, userId: string, email?: string): Promise<AuthResult> {
+    apple(identityToken: string, userId: string, email?: string, displayName?: string): Promise<AuthResult> {
       return request('/api/auth/apple', {
         method: 'POST',
         body: JSON.stringify({
           identity_token: identityToken,
           user_id: userId,
           email,
+          display_name: displayName,
         }),
       })
     },

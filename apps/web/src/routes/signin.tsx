@@ -45,8 +45,11 @@ function SignInPage() {
       const userId = payload.sub
 
       const email = appleResponse.user?.email ?? undefined
+      const firstName = appleResponse.user?.name?.firstName
+      const lastName = appleResponse.user?.name?.lastName
+      const displayName = firstName ? [firstName, lastName].filter(Boolean).join(' ') : undefined
 
-      const result = await api.auth.apple(idToken, userId, email)
+      const result = await api.auth.apple(idToken, userId, email, displayName)
 
       setUser({
         student_id: result.student_id,

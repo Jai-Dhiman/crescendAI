@@ -327,8 +327,8 @@ async fn find_or_create_student(
         let student_id = generate_uuid_v4();
 
         db.prepare(
-            "INSERT INTO students (student_id, email, display_name, baseline_session_count, updated_at) \
-             VALUES (?1, ?2, ?3, 0, ?4)",
+            "INSERT INTO students (student_id, email, display_name, baseline_session_count, created_at, updated_at) \
+             VALUES (?1, ?2, ?3, 0, ?4, ?5)",
         )
         .bind(&[
             JsValue::from_str(&student_id),
@@ -337,6 +337,7 @@ async fn find_or_create_student(
                 Some(name) => JsValue::from_str(name),
                 None => JsValue::NULL,
             },
+            JsValue::from_str(now),
             JsValue::from_str(now),
         ])
         .map_err(|e| format!("Failed to bind student insert: {:?}", e))?
