@@ -6,6 +6,7 @@ function LandingPage() {
   return (
     <div>
       <HeroSection />
+      <FeatureCardsSection />
     </div>
   )
 }
@@ -39,6 +40,54 @@ function HeroSection() {
           >
             Start Practicing
           </a>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function FeatureCardsSection() {
+  const cards = [
+    {
+      title: 'Your teacher is listening',
+      description:
+        'Your phone listens while you play. When you pause and ask, your teacher is ready with the one thing that matters most.',
+    },
+    {
+      title: 'Exercises built for you',
+      description:
+        'Not generic drills. Targeted practice for the specific passage and skill your teacher identified.',
+    },
+    {
+      title: 'See what you hear',
+      description:
+        'The score lights up on a piano keyboard. See the notes, the fingering, the dynamics -- then play along.',
+    },
+  ]
+
+  return (
+    <section className="py-24 lg:py-32">
+      <div className="max-w-7xl mx-auto px-6 lg:px-12">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {cards.map((card) => (
+            <div
+              key={card.title}
+              className="bg-surface border border-border rounded-xl overflow-hidden"
+            >
+              {/* Placeholder visual area */}
+              <div className="aspect-[4/3] bg-surface-2" />
+
+              {/* Text content */}
+              <div className="p-6 lg:p-8">
+                <h3 className="font-display text-display-sm text-cream mb-3">
+                  {card.title}
+                </h3>
+                <p className="text-body-md text-text-secondary">
+                  {card.description}
+                </p>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     </section>
