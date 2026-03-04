@@ -41,7 +41,8 @@ function SignInPage() {
       const idToken = appleResponse.authorization.id_token
 
       // Decode the JWT to extract the subject (Apple user ID)
-      const payload = JSON.parse(atob(idToken.split('.')[1]))
+      const base64 = idToken.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')
+      const payload = JSON.parse(atob(base64))
       const userId = payload.sub
 
       const email = appleResponse.user?.email ?? undefined

@@ -257,8 +257,8 @@ pub async fn handle_apple_auth(
     console_log!("Auth successful for user (new={})", is_new_user);
 
     let cookie = format!(
-        "token={}; HttpOnly; Secure; SameSite=None; Path=/; Max-Age=2592000",
-        token
+        "token={}; HttpOnly; Secure; SameSite=None; Path=/; Max-Age={}",
+        token, JWT_EXPIRY_SECONDS
     );
 
     Response::builder()
@@ -323,16 +323,19 @@ async fn find_or_create_student(
 
         Ok((student_id, existing_display_name, false))
     } else {
-        // New user -- generate UUID and insert
+        // New user -- generate UUID and insert atomically
         let student_id = generate_uuid_v4();
 
-        db.prepare(
+        let student_stmt = db.prepare(
             "INSERT INTO students (student_id, email, display_name, baseline_session_count, created_at, updated_at) \
              VALUES (?1, ?2, ?3, 0, ?4, ?5)",
         )
         .bind(&[
             JsValue::from_str(&student_id),
-            JsValue::from_str(email.unwrap_or("")),
+            match email {
+                Some(e) => JsValue::from_str(e),
+                None => JsValue::NULL,
+            },
             match display_name {
                 Some(name) => JsValue::from_str(name),
                 None => JsValue::NULL,
@@ -340,12 +343,9 @@ async fn find_or_create_student(
             JsValue::from_str(now),
             JsValue::from_str(now),
         ])
-        .map_err(|e| format!("Failed to bind student insert: {:?}", e))?
-        .run()
-        .await
-        .map_err(|e| format!("Failed to insert student: {:?}", e))?;
+        .map_err(|e| format!("Failed to bind student insert: {:?}", e))?;
 
-        db.prepare(
+        let identity_stmt = db.prepare(
             "INSERT INTO auth_identities (student_id, provider, provider_user_id, created_at) \
              VALUES (?1, ?2, ?3, ?4)",
         )
@@ -355,10 +355,12 @@ async fn find_or_create_student(
             JsValue::from_str(provider_user_id),
             JsValue::from_str(now),
         ])
-        .map_err(|e| format!("Failed to bind identity insert: {:?}", e))?
-        .run()
-        .await
-        .map_err(|e| format!("Failed to insert auth_identity: {:?}", e))?;
+        .map_err(|e| format!("Failed to bind identity insert: {:?}", e))?;
+
+        // Batch executes both inserts atomically
+        db.batch(vec![student_stmt, identity_stmt])
+            .await
+            .map_err(|e| format!("Failed to create student: {:?}", e))?;
 
         Ok((student_id, display_name.map(|s| s.to_string()), true))
     }
