@@ -7,6 +7,7 @@ function LandingPage() {
     <div>
       <HeroSection />
       <FeatureCardsSection />
+      <CascadingQuoteSection />
     </div>
   )
 }
@@ -88,6 +89,48 @@ function FeatureCardsSection() {
               </div>
             </div>
           ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function CascadingQuoteSection() {
+  return (
+    <section className="py-24 lg:py-32">
+      <div className="max-w-7xl mx-auto px-6 lg:px-12">
+        <div className="grid grid-cols-1 lg:grid-cols-[5fr_6fr] gap-12 lg:gap-16 items-center">
+          {/* Cascading photos */}
+          <div className="relative h-[500px] lg:h-[600px]">
+            <img
+              src="/Image2.jpg"
+              alt="Sheet music resting on piano keys"
+              className="absolute top-0 left-0 w-3/5 rounded-lg object-cover shadow-2xl"
+              style={{ aspectRatio: '4/5' }}
+            />
+            <img
+              src="/Image3.jpg"
+              alt="Piano score with dynamic markings"
+              className="absolute top-[20%] left-[25%] w-3/5 rounded-lg object-cover shadow-2xl"
+              style={{ aspectRatio: '4/5' }}
+            />
+            <img
+              src="/Image4.jpg"
+              alt="Hands playing piano in warm light"
+              className="absolute top-[40%] left-[10%] w-1/2 rounded-lg object-cover shadow-2xl"
+              style={{ aspectRatio: '1/1' }}
+            />
+          </div>
+
+          {/* Pull quote */}
+          <div>
+            <blockquote className="font-display italic text-display-md lg:text-display-lg text-cream leading-snug">
+              "What's the one thing that sounds off that I can't hear myself?"
+            </blockquote>
+            <p className="mt-6 text-body-md text-text-secondary">
+              The question every pianist asks.
+            </p>
+          </div>
         </div>
       </div>
     </section>
