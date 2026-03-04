@@ -1,4 +1,5 @@
-import { HeadContent, Outlet, Scripts, createRootRoute } from '@tanstack/react-router'
+import { useEffect, useRef, useState } from 'react'
+import { HeadContent, Outlet, Scripts, createRootRoute, useRouterState } from '@tanstack/react-router'
 
 import appCss from '../styles/app.css?url'
 
@@ -33,17 +34,20 @@ export const Route = createRootRoute({
 })
 
 function RootDocument() {
+  const pathname = useRouterState({ select: (s) => s.location.pathname })
+  const isAppShell = pathname === '/signin' || pathname.startsWith('/app')
+
   return (
     <html lang="en">
       <head>
         <HeadContent />
       </head>
       <body className="bg-espresso text-text-primary font-sans">
-        <Header />
+        {!isAppShell && <Header />}
         <main>
           <Outlet />
         </main>
-        <Footer />
+        {!isAppShell && <Footer />}
         <Scripts />
       </body>
     </html>
@@ -51,17 +55,30 @@ function RootDocument() {
 }
 
 function Header() {
+  const [hidden, setHidden] = useState(false)
+  const lastScrollY = useRef(0)
+
+  useEffect(() => {
+    function onScroll() {
+      const y = window.scrollY
+      setHidden(y > 64 && y > lastScrollY.current)
+      lastScrollY.current = y
+    }
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
+
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 backdrop-blur-xl bg-espresso/80">
+    <header
+      className="fixed top-0 left-0 right-0 z-50 transition-transform duration-300"
+      style={{ transform: hidden ? 'translateY(-100%)' : 'translateY(0)' }}
+    >
       <div className="max-w-7xl mx-auto px-6 lg:px-12 flex items-center justify-between h-16">
         <a href="/" className="font-display text-lg text-cream tracking-tight">
           crescend
         </a>
-        <a
-          href="/analyze"
-          className="bg-cream text-espresso rounded-full px-6 py-2 text-body-sm font-medium hover:brightness-110 transition"
-        >
-          Start Practicing
+        <a href="/signin" className="font-display text-body-sm text-cream hover:text-text-secondary transition-colors">
+          Sign In
         </a>
       </div>
     </header>
