@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1200">
+<title>CrescendAI Desktop Chat Mockup</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #2D2926;
+    --surface: #3A3633;
+    --surface-2: #454140;
+    --text: #FDF8F0;
+    --text-secondary: #A8A29E;
+    --border: #504B48;
+    --accent: #C87F5A;
+    --accent-soft: rgba(200, 127, 90, 0.15);
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  .app-shell {
+    display: flex;
+    width: 1200px;
+    height: 800px;
+    margin: 40px auto;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+
+  /* Collapsed sidebar */
+  .sidebar {
+    width: 56px;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 16px 0;
+    gap: 20px;
+    flex-shrink: 0;
+  }
+
+  .sidebar-icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .sidebar-icon.active {
+    background: var(--surface-2);
+  }
+
+  .sidebar-icon svg {
+    width: 18px;
+    height: 18px;
+    stroke: var(--text-secondary);
+    fill: none;
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .sidebar-icon.active svg {
+    stroke: var(--text);
+  }
+
+  .sidebar-spacer { flex: 1; }
+
+  /* Chat area */
+  .chat-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg);
+  }
+
+  .chat-header {
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .chat-header h2 {
+    font-family: 'Lora', 'Georgia', 'Times New Roman', serif;
+    font-size: 16px;
+    font-weight: 500;
+    color: var(--text);
+  }
+
+  .chat-header .subtitle {
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+
+  .chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+
+  /* Messages */
+  .message {
+    max-width: 640px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .message.user {
+    align-self: flex-end;
+  }
+
+  .message-label {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .message-bubble {
+    padding: 14px 18px;
+    border-radius: 12px;
+    line-height: 1.6;
+  }
+
+  .message.user .message-bubble {
+    background: var(--surface-2);
+    border-bottom-right-radius: 4px;
+  }
+
+  .message.teacher .message-bubble {
+    background: var(--surface);
+    border-bottom-left-radius: 4px;
+  }
+
+  /* Score highlight card */
+  .score-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    max-width: 520px;
+    margin-top: 4px;
+  }
+
+  .score-card-header {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .score-card-header h4 {
+    font-family: 'Lora', 'Georgia', 'Times New Roman', serif;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .score-card-header span {
+    font-size: 11px;
+    color: var(--text-secondary);
+  }
+
+  .score-card-body {
+    padding: 20px 16px;
+    position: relative;
+  }
+
+  /* Staff lines */
+  .staff {
+    position: relative;
+    height: 120px;
+    margin-bottom: 12px;
+  }
+
+  .staff-line {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: var(--border);
+  }
+
+  .staff-line:nth-child(1) { top: 10px; }
+  .staff-line:nth-child(2) { top: 30px; }
+  .staff-line:nth-child(3) { top: 50px; }
+  .staff-line:nth-child(4) { top: 70px; }
+  .staff-line:nth-child(5) { top: 90px; }
+
+  /* Second staff (LH) */
+  .staff-line:nth-child(6) { top: 10px; }
+  .staff-line:nth-child(7) { top: 30px; }
+  .staff-line:nth-child(8) { top: 50px; }
+  .staff-line:nth-child(9) { top: 70px; }
+  .staff-line:nth-child(10) { top: 90px; }
+
+  .staff-group {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .staff-rh, .staff-lh {
+    position: relative;
+    height: 56px;
+  }
+
+  .staff-rh .staff-line, .staff-lh .staff-line {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: var(--border);
+  }
+
+  .staff-rh .staff-line:nth-child(1), .staff-lh .staff-line:nth-child(1) { top: 0; }
+  .staff-rh .staff-line:nth-child(2), .staff-lh .staff-line:nth-child(2) { top: 14px; }
+  .staff-rh .staff-line:nth-child(3), .staff-lh .staff-line:nth-child(3) { top: 28px; }
+  .staff-rh .staff-line:nth-child(4), .staff-lh .staff-line:nth-child(4) { top: 42px; }
+  .staff-rh .staff-line:nth-child(5), .staff-lh .staff-line:nth-child(5) { top: 56px; }
+
+  /* Note blocks */
+  .note-block {
+    position: absolute;
+    height: 8px;
+    border-radius: 3px;
+    opacity: 0.7;
+  }
+
+  .note-block.rh {
+    background: var(--text-secondary);
+  }
+
+  .note-block.lh {
+    background: var(--accent);
+    opacity: 0.85;
+  }
+
+  /* Highlight region */
+  .highlight-region {
+    position: absolute;
+    top: -4px;
+    bottom: -4px;
+    background: var(--accent-soft);
+    border-left: 2px solid var(--accent);
+    border-right: 2px solid var(--accent);
+    border-radius: 4px;
+  }
+
+  /* Bar numbers */
+  .bar-numbers {
+    display: flex;
+    justify-content: space-between;
+    padding: 0 4px;
+    margin-top: 8px;
+  }
+
+  .bar-numbers span {
+    font-size: 10px;
+    color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .bar-numbers span.highlighted {
+    color: var(--accent);
+    font-weight: 600;
+  }
+
+  /* Annotation */
+  .score-annotation {
+    margin-top: 12px;
+    padding: 10px 12px;
+    background: var(--accent-soft);
+    border-radius: 6px;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .score-annotation .icon {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  .score-annotation p {
+    font-size: 12px;
+    color: var(--text);
+    line-height: 1.5;
+  }
+
+  /* Legend */
+  .score-legend {
+    display: flex;
+    gap: 16px;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border);
+  }
+
+  .score-legend .item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--text-secondary);
+  }
+
+  .score-legend .swatch {
+    width: 12px;
+    height: 6px;
+    border-radius: 2px;
+  }
+
+  .score-legend .swatch.rh { background: var(--text-secondary); opacity: 0.7; }
+  .score-legend .swatch.lh { background: var(--accent); }
+
+  /* Chat input */
+  .chat-input {
+    padding: 16px 24px;
+    border-top: 1px solid var(--border);
+  }
+
+  .chat-input-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .chat-input-box span {
+    color: var(--text-secondary);
+    font-size: 13px;
+    flex: 1;
+  }
+
+  .chat-input-box .send-btn {
+    width: 28px;
+    height: 28px;
+    background: var(--surface-2);
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .chat-input-box .send-btn svg {
+    width: 14px;
+    height: 14px;
+    stroke: var(--text-secondary);
+    fill: none;
+    stroke-width: 1.5;
+  }
+
+  /* Right panel */
+  .right-panel {
+    width: 240px;
+    background: var(--surface);
+    border-left: 1px solid var(--border);
+    padding: 20px 16px;
+    flex-shrink: 0;
+  }
+
+  .panel-section {
+    margin-bottom: 24px;
+  }
+
+  .panel-section h4 {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 12px;
+  }
+
+  .panel-item {
+    padding: 8px 10px;
+    border-radius: 6px;
+    font-size: 13px;
+    color: var(--text);
+    margin-bottom: 4px;
+  }
+
+  .panel-item.active {
+    background: var(--surface-2);
+  }
+
+  .panel-tag {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    background: var(--surface-2);
+    color: var(--text-secondary);
+    margin: 2px 4px 2px 0;
+  }
+</style>
+</head>
+<body>
+
+<div class="app-shell">
+  <!-- Sidebar -->
+  <nav class="sidebar">
+    <div class="sidebar-icon active">
+      <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/></svg>
+    </div>
+    <div class="sidebar-icon">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/></svg>
+    </div>
+    <div class="sidebar-icon">
+      <svg viewBox="0 0 24 24"><rect x="4" y="6" width="16" height="12" rx="2"/></svg>
+    </div>
+    <div class="sidebar-icon">
+      <svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
+    </div>
+    <div class="sidebar-spacer"></div>
+    <div class="sidebar-icon">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+    </div>
+  </nav>
+
+  <!-- Chat area -->
+  <main class="chat-area">
+    <div class="chat-header">
+      <div>
+        <h2>Practice Session</h2>
+        <span class="subtitle">Bach -- Invention No. 8 in F major, BWV 779</span>
+      </div>
+    </div>
+
+    <div class="chat-messages">
+      <!-- User message -->
+      <div class="message user">
+        <span class="message-label">You</span>
+        <div class="message-bubble">
+          I just played through Invention No. 8 -- the F major one. Something feels off in the middle section but I can't tell what.
+        </div>
+      </div>
+
+      <!-- Teacher message -->
+      <div class="message teacher">
+        <span class="message-label">Teacher</span>
+        <div class="message-bubble">
+          <p>Good ear -- you're right that something shifts in the middle section. What I'm hearing is that the left hand voice starts to lose its independence around bars 15-20. The two voices converge rhythmically, and the left hand ends up shadowing the right instead of maintaining its own melodic line.</p>
+          <br>
+          <p>This is one of the trickiest spots in this invention. Bach wrote the left hand as a true equal voice here, but it's natural for it to get pulled into the right hand's rhythm. Let me highlight exactly where it happens:</p>
+        </div>
+
+        <!-- Score highlight card -->
+        <div class="score-card">
+          <div class="score-card-header">
+            <h4>Score Highlight -- Bars 15-20</h4>
+            <span>Invention No. 8 in F major</span>
+          </div>
+          <div class="score-card-body">
+            <div class="staff-group">
+              <!-- RH staff -->
+              <div class="staff-rh">
+                <div class="staff-line"></div>
+                <div class="staff-line"></div>
+                <div class="staff-line"></div>
+                <div class="staff-line"></div>
+                <div class="staff-line"></div>
+                <!-- RH notes -->
+                <div class="note-block rh" style="left: 8%; width: 6%; top: 18px;"></div>
+                <div class="note-block rh" style="left: 16%; width: 5%; top: 12px;"></div>
+                <div class="note-block rh" style="left: 23%; width: 7%; top: 24px;"></div>
+                <div class="note-block rh" style="left: 32%; width: 5%; top: 8px;"></div>
+                <div class="note-block rh" style="left: 39%; width: 6%; top: 18px;"></div>
+                <div class="note-block rh" style="left: 47%; width: 5%; top: 12px;"></div>
+                <div class="note-block rh" style="left: 55%; width: 7%; top: 22px;"></div>
+                <div class="note-block rh" style="left: 64%; width: 5%; top: 8px;"></div>
+                <div class="note-block rh" style="left: 71%; width: 6%; top: 16px;"></div>
+                <div class="note-block rh" style="left: 79%; width: 5%; top: 10px;"></div>
+                <div class="note-block rh" style="left: 86%; width: 7%; top: 20px;"></div>
+                <div class="note-block rh" style="left: 95%; width: 3%; top: 14px;"></div>
+                <!-- Highlight region for bars 16-19 -->
+                <div class="highlight-region" style="left: 28%; right: 22%;"></div>
+              </div>
+              <!-- LH staff -->
+              <div class="staff-lh">
+                <div class="staff-line"></div>
+                <div class="staff-line"></div>
+                <div class="staff-line"></div>
+                <div class="staff-line"></div>
+                <div class="staff-line"></div>
+                <!-- LH notes - showing convergence in highlighted area -->
+                <div class="note-block lh" style="left: 8%; width: 6%; top: 32px;"></div>
+                <div class="note-block lh" style="left: 16%; width: 5%; top: 38px;"></div>
+                <div class="note-block lh" style="left: 23%; width: 7%; top: 26px;"></div>
+                <div class="note-block lh" style="left: 32%; width: 5%; top: 18px;"></div>
+                <div class="note-block lh" style="left: 39%; width: 6%; top: 20px;"></div>
+                <div class="note-block lh" style="left: 47%; width: 5%; top: 16px;"></div>
+                <div class="note-block lh" style="left: 55%; width: 7%; top: 22px;"></div>
+                <div class="note-block lh" style="left: 64%; width: 5%; top: 30px;"></div>
+                <div class="note-block lh" style="left: 71%; width: 6%; top: 36px;"></div>
+                <div class="note-block lh" style="left: 79%; width: 5%; top: 40px;"></div>
+                <div class="note-block lh" style="left: 86%; width: 7%; top: 34px;"></div>
+                <div class="note-block lh" style="left: 95%; width: 3%; top: 28px;"></div>
+                <!-- Highlight region -->
+                <div class="highlight-region" style="left: 28%; right: 22%;"></div>
+              </div>
+            </div>
+
+            <!-- Bar numbers -->
+            <div class="bar-numbers">
+              <span>15</span>
+              <span class="highlighted">16</span>
+              <span class="highlighted">17</span>
+              <span class="highlighted">18</span>
+              <span class="highlighted">19</span>
+              <span>20</span>
+            </div>
+
+            <!-- Annotation -->
+            <div class="score-annotation">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="#C87F5A" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              <p>The left hand (orange) moves toward the same register and rhythm as the right hand in bars 16-19, losing its independent voice. Listen for the LH to maintain its own melodic contour.</p>
+            </div>
+
+            <!-- Legend -->
+            <div class="score-legend">
+              <div class="item"><div class="swatch rh"></div> Right hand</div>
+              <div class="item"><div class="swatch lh"></div> Left hand</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Chat input -->
+    <div class="chat-input">
+      <div class="chat-input-box">
+        <span>Ask about your practice...</span>
+        <div class="send-btn">
+          <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Right panel -->
+  <aside class="right-panel">
+    <div class="panel-section">
+      <h4>Current Piece</h4>
+      <div class="panel-item active">Invention No. 8 in F major</div>
+      <div class="panel-item">Prelude in C minor</div>
+      <div class="panel-item">Nocturne Op. 9 No. 2</div>
+    </div>
+    <div class="panel-section">
+      <h4>Focus Areas</h4>
+      <div class="panel-tag">Voice independence</div>
+      <div class="panel-tag">LH strength</div>
+      <div class="panel-tag">Counterpoint</div>
+    </div>
+  </aside>
+</div>
+
+</body>
+</html>
