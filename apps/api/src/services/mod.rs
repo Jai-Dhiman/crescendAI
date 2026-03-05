@@ -2,6 +2,8 @@ mod embedding;
 mod feedback;
 pub mod goals;
 mod huggingface;
+pub mod llm;
+pub mod prompts;
 mod r2;
 mod rag;
 mod reranker;
