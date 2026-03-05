@@ -133,6 +133,7 @@ The end-to-end feedback loop (record -> infer -> detect teaching moment -> gener
 ## Getting Started
 
 ### iOS App
+
 ```bash
 # Open in Xcode
 open apps/ios/CrescendAI.xcodeproj
@@ -140,6 +141,7 @@ open apps/ios/CrescendAI.xcodeproj
 ```
 
 ### API Worker
+
 ```bash
 cd apps/api
 npx wrangler dev
@@ -147,6 +149,7 @@ npx wrangler dev
 ```
 
 ### Landing Page
+
 ```bash
 cd apps/web
 bun install
@@ -154,6 +157,7 @@ bun run dev
 ```
 
 ### ML Training Pipeline
+
 ```bash
 cd model
 uv sync
@@ -162,6 +166,7 @@ uv sync
 ```
 
 ### HF Inference Endpoint
+
 ```bash
 cd apps/inference
 # See handler.py for the endpoint implementation
