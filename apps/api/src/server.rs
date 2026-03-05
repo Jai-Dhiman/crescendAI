@@ -705,6 +705,14 @@ async fn fetch(
         ));
     }
 
+    // Debug auth endpoint (dev only -- returns 404 in production)
+    if path == "/api/auth/debug" && method == http::Method::POST {
+        return Ok(with_cors(
+            crate::auth::handle_debug_auth(&env).await,
+            origin.as_deref(),
+        ));
+    }
+
     // Auth signout endpoint
     if path == "/api/auth/signout" && method == http::Method::POST {
         return Ok(with_cors(

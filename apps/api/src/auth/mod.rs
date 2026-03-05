@@ -519,6 +519,119 @@ pub async fn handle_auth_me(
         .unwrap()
 }
 
+/// Handle POST /api/auth/debug -- dev-only login that bypasses Apple Sign In.
+/// Only works when ENVIRONMENT is not "production".
+pub async fn handle_debug_auth(
+    env: &Env,
+) -> http::Response<axum::body::Body> {
+    use axum::body::Body;
+    use http::{Response, StatusCode};
+
+    // Block in production
+    let environment = env
+        .var("ENVIRONMENT")
+        .map(|v| v.to_string())
+        .unwrap_or_default();
+    if environment == "production" {
+        return Response::builder()
+            .status(StatusCode::NOT_FOUND)
+            .header("Content-Type", "application/json")
+            .body(Body::from(r#"{"error":"Not found"}"#))
+            .unwrap();
+    }
+
+    let db = match env.d1("DB") {
+        Ok(db) => db,
+        Err(e) => {
+            console_log!("D1 binding failed: {:?}", e);
+            return Response::builder()
+                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                .header("Content-Type", "application/json")
+                .body(Body::from(r#"{"error":"Database connection failed"}"#))
+                .unwrap();
+        }
+    };
+
+    let now = js_sys::Date::new_0()
+        .to_iso_string()
+        .as_string()
+        .unwrap_or_default();
+
+    let (student_id, display_name, is_new_user) = match find_or_create_student(
+        &db,
+        "debug",
+        "debug-local-dev",
+        Some("dev@localhost"),
+        Some("Debug User"),
+        &now,
+    )
+    .await
+    {
+        Ok(result) => result,
+        Err(e) => {
+            console_log!("Failed to find/create debug student: {}", e);
+            return Response::builder()
+                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                .header("Content-Type", "application/json")
+                .body(Body::from(r#"{"error":"Failed to create debug user"}"#))
+                .unwrap();
+        }
+    };
+
+    let jwt_secret = match env.secret("JWT_SECRET") {
+        Ok(s) => s.to_string(),
+        Err(e) => {
+            console_log!("JWT_SECRET not configured: {:?}", e);
+            return Response::builder()
+                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                .header("Content-Type", "application/json")
+                .body(Body::from(r#"{"error":"Server configuration error"}"#))
+                .unwrap();
+        }
+    };
+
+    let now_epoch = js_sys::Date::now() as u64 / 1000;
+    let claims = Claims {
+        sub: student_id.clone(),
+        iat: now_epoch,
+        exp: now_epoch + JWT_EXPIRY_SECONDS,
+    };
+
+    let token = match jwt::sign(&claims, jwt_secret.as_bytes()) {
+        Ok(t) => t,
+        Err(e) => {
+            console_log!("Failed to sign JWT: {}", e);
+            return Response::builder()
+                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                .header("Content-Type", "application/json")
+                .body(Body::from(r#"{"error":"Failed to generate token"}"#))
+                .unwrap();
+        }
+    };
+
+    let response_body = serde_json::json!({
+        "student_id": student_id,
+        "email": "dev@localhost",
+        "display_name": display_name,
+        "is_new_user": is_new_user,
+        "token": token,
+    });
+
+    let cookie = format!(
+        "token={}; HttpOnly; SameSite=Lax; Path=/; Max-Age={}",
+        token, JWT_EXPIRY_SECONDS
+    );
+
+    console_log!("Debug auth: student_id={}, new={}", student_id, is_new_user);
+
+    Response::builder()
+        .status(StatusCode::OK)
+        .header("Content-Type", "application/json")
+        .header("Set-Cookie", cookie)
+        .body(Body::from(response_body.to_string()))
+        .unwrap()
+}
+
 /// Handle POST /api/auth/signout -- clear the auth cookie.
 pub fn handle_signout() -> http::Response<axum::body::Body> {
     use axum::body::Body;
