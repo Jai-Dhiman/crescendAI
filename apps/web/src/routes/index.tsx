@@ -106,26 +106,32 @@ function CascadingQuoteSection() {
     <section className="py-24 lg:py-32">
       <div className="max-w-7xl mx-auto px-6 lg:px-12">
         <div className="grid grid-cols-1 lg:grid-cols-[5fr_6fr] gap-12 lg:gap-16 items-center">
-          {/* Cascading photos */}
-          <div className="relative h-[700px] lg:h-[850px]">
-            <img
-              src="/Image2.jpg"
-              alt="Sheet music resting on piano keys"
-              className="absolute top-0 left-0 w-[55%] object-cover"
-              style={{ aspectRatio: '4/5' }}
-            />
-            <img
-              src="/Image3.jpg"
-              alt="Piano score with dynamic markings"
-              className="absolute top-[28%] left-[20%] w-[55%] object-cover"
-              style={{ aspectRatio: '4/5' }}
-            />
-            <img
-              src="/Image4.jpg"
-              alt="Hands playing piano in warm light"
-              className="absolute top-[56%] left-[40%] w-[55%] object-cover"
-              style={{ aspectRatio: '4/5' }}
-            />
+          {/* Staircase photos */}
+          <div className="flex flex-col">
+            <div className="w-[55%] self-start">
+              <img
+                src="/Image2.jpg"
+                alt="Practicing alone -- the struggle of hearing your own mistakes"
+                className="w-full object-cover"
+                style={{ aspectRatio: '4/5' }}
+              />
+            </div>
+            <div className="w-[55%] self-center">
+              <img
+                src="/Image3.jpg"
+                alt="A moment of guidance -- focused attention on the score"
+                className="w-full object-cover"
+                style={{ aspectRatio: '4/5' }}
+              />
+            </div>
+            <div className="w-[55%] self-end">
+              <img
+                src="/Image4.jpg"
+                alt="The breakthrough -- playing with confidence"
+                className="w-full object-cover"
+                style={{ aspectRatio: '4/5' }}
+              />
+            </div>
           </div>
 
           {/* Pull quote */}
