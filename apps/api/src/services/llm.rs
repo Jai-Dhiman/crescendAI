@@ -142,7 +142,7 @@ pub async fn call_anthropic(
         .to_string();
 
     let request_body = AnthropicRequest {
-        model: "claude-sonnet-4-6-20250514".to_string(),
+        model: "claude-sonnet-4-6".to_string(),
         max_tokens,
         system: system_prompt.to_string(),
         messages: vec![LlmMessage {
