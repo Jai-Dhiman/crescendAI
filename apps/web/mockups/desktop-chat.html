@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=1200">
 <title>CrescendAI Desktop Chat Mockup</title>
+<link rel="stylesheet" type="text/css" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css">
+<link rel="stylesheet" type="text/css" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/bold/style.css">
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -16,6 +18,11 @@
     --border: #504B48;
     --accent: #C87F5A;
     --accent-soft: rgba(200, 127, 90, 0.15);
+    --score-bg: #F5F0E8;
+    --score-staff: #B8B0A4;
+    --score-note: #2D2926;
+    --score-highlight-note: #A8522A;
+    --score-highlight-bg: rgba(200, 127, 90, 0.12);
   }
 
   body {
@@ -45,7 +52,7 @@
     flex-direction: column;
     align-items: center;
     padding: 16px 0;
-    gap: 20px;
+    gap: 4px;
     flex-shrink: 0;
   }
 
@@ -55,17 +62,19 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    margin-bottom: 8px;
+    margin-bottom: 12px;
   }
 
   .sidebar-icon {
-    width: 32px;
-    height: 32px;
+    width: 36px;
+    height: 36px;
     border-radius: 8px;
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
+    color: var(--text-secondary);
+    font-size: 20px;
   }
 
   .sidebar-icon:hover {
@@ -74,20 +83,7 @@
 
   .sidebar-icon.active {
     background: var(--surface-2);
-  }
-
-  .sidebar-icon svg {
-    width: 18px;
-    height: 18px;
-    stroke: var(--text-secondary);
-    fill: none;
-    stroke-width: 1.5;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-  }
-
-  .sidebar-icon.active svg {
-    stroke: var(--text);
+    color: var(--text);
   }
 
   .sidebar-spacer { flex: 1; }
@@ -188,6 +184,9 @@
     font-size: 13px;
     font-weight: 600;
     color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 6px;
   }
 
   .score-card-header span {
@@ -196,8 +195,14 @@
   }
 
   .score-card-body {
-    padding: 20px 16px;
+    padding: 0;
     position: relative;
+  }
+
+  .score-svg-wrap {
+    background: var(--score-bg);
+    padding: 16px 12px;
+    border-radius: 0;
   }
 
   .score-svg {
@@ -207,7 +212,7 @@
 
   /* Annotation */
   .score-annotation {
-    margin-top: 14px;
+    margin: 12px 16px;
     padding: 10px 12px;
     background: var(--accent-soft);
     border-radius: 6px;
@@ -216,9 +221,9 @@
     gap: 8px;
   }
 
-  .score-annotation .ann-icon {
-    width: 16px;
-    height: 16px;
+  .score-annotation i {
+    font-size: 16px;
+    color: var(--accent);
     flex-shrink: 0;
     margin-top: 1px;
   }
@@ -233,8 +238,8 @@
   .score-legend {
     display: flex;
     gap: 16px;
-    margin-top: 10px;
-    padding-top: 10px;
+    margin: 0 16px 12px;
+    padding-top: 8px;
     border-top: 1px solid var(--border);
   }
 
@@ -252,8 +257,8 @@
     border-radius: 2px;
   }
 
-  .score-legend .swatch.rh { background: var(--text-secondary); opacity: 0.7; }
-  .score-legend .swatch.lh { background: var(--accent); }
+  .score-legend .swatch.rh { background: #2D2926; }
+  .score-legend .swatch.lh { background: #A8522A; }
 
   /* Chat input */
   .chat-input {
@@ -285,14 +290,8 @@
     display: flex;
     align-items: center;
     justify-content: center;
-  }
-
-  .chat-input-box .send-btn svg {
-    width: 14px;
-    height: 14px;
-    stroke: var(--text-secondary);
-    fill: none;
-    stroke-width: 1.5;
+    color: var(--text-secondary);
+    font-size: 16px;
   }
 
   /* Right panel */
@@ -323,10 +322,22 @@
     font-size: 13px;
     color: var(--text);
     margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .panel-item i {
+    font-size: 16px;
+    color: var(--text-secondary);
   }
 
   .panel-item.active {
     background: var(--surface-2);
+  }
+
+  .panel-item.active i {
+    color: var(--accent);
   }
 
   .panel-tag {
@@ -352,20 +363,20 @@
       </svg>
     </div>
     <div class="sidebar-icon active">
-      <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      <i class="ph ph-chat-circle"></i>
     </div>
     <div class="sidebar-icon">
-      <svg viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+      <i class="ph ph-music-notes"></i>
     </div>
     <div class="sidebar-icon">
-      <svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+      <i class="ph ph-metronome"></i>
     </div>
     <div class="sidebar-icon">
-      <svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+      <i class="ph ph-chart-line-up"></i>
     </div>
     <div class="sidebar-spacer"></div>
     <div class="sidebar-icon">
-      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      <i class="ph ph-gear"></i>
     </div>
   </nav>
 
@@ -396,291 +407,284 @@
           <p>This is one of the trickiest spots in this invention. Bach wrote the left hand as a true equal voice here, but it's natural for it to get pulled into the right hand's rhythm. Let me highlight exactly where it happens:</p>
         </div>
 
-        <!-- Score highlight card with real notation -->
+        <!-- Score highlight card -->
         <div class="score-card">
           <div class="score-card-header">
-            <h4>Score Highlight -- Bars 15-20</h4>
+            <h4><i class="ph ph-music-notes" style="font-size: 15px; color: var(--accent);"></i> Score Highlight -- Bars 15-20</h4>
             <span>Invention No. 8 in F major</span>
           </div>
           <div class="score-card-body">
-            <svg class="score-svg" viewBox="0 0 520 200" xmlns="http://www.w3.org/2000/svg">
-              <!-- Highlight region spanning bars 16-19 -->
-              <rect x="110" y="0" width="310" height="200" fill="rgba(200,127,90,0.08)" rx="4"/>
-              <line x1="110" y1="0" x2="110" y2="200" stroke="#C87F5A" stroke-width="1.5" stroke-dasharray="4,3" opacity="0.5"/>
-              <line x1="420" y1="0" x2="420" y2="200" stroke="#C87F5A" stroke-width="1.5" stroke-dasharray="4,3" opacity="0.5"/>
+            <div class="score-svg-wrap">
+              <svg class="score-svg" viewBox="0 0 520 200" xmlns="http://www.w3.org/2000/svg">
+                <!-- Highlight region spanning bars 16-19 -->
+                <rect x="110" y="0" width="310" height="200" fill="rgba(200,127,90,0.1)" rx="4"/>
+                <line x1="110" y1="0" x2="110" y2="200" stroke="#C87F5A" stroke-width="1.5" stroke-dasharray="4,3" opacity="0.4"/>
+                <line x1="420" y1="0" x2="420" y2="200" stroke="#C87F5A" stroke-width="1.5" stroke-dasharray="4,3" opacity="0.4"/>
 
-              <!-- === TREBLE STAFF (RH) === -->
-              <!-- Staff lines -->
-              <line x1="30" y1="25" x2="510" y2="25" stroke="#504B48" stroke-width="0.8"/>
-              <line x1="30" y1="33" x2="510" y2="33" stroke="#504B48" stroke-width="0.8"/>
-              <line x1="30" y1="41" x2="510" y2="41" stroke="#504B48" stroke-width="0.8"/>
-              <line x1="30" y1="49" x2="510" y2="49" stroke="#504B48" stroke-width="0.8"/>
-              <line x1="30" y1="57" x2="510" y2="57" stroke="#504B48" stroke-width="0.8"/>
+                <!-- === TREBLE STAFF (RH) === -->
+                <line x1="30" y1="25" x2="510" y2="25" stroke="#B8B0A4" stroke-width="0.8"/>
+                <line x1="30" y1="33" x2="510" y2="33" stroke="#B8B0A4" stroke-width="0.8"/>
+                <line x1="30" y1="41" x2="510" y2="41" stroke="#B8B0A4" stroke-width="0.8"/>
+                <line x1="30" y1="49" x2="510" y2="49" stroke="#B8B0A4" stroke-width="0.8"/>
+                <line x1="30" y1="57" x2="510" y2="57" stroke="#B8B0A4" stroke-width="0.8"/>
 
-              <!-- Treble clef (simplified) -->
-              <text x="34" y="52" font-family="serif" font-size="36" fill="#A8A29E">&#119070;</text>
+                <!-- Treble clef -->
+                <text x="34" y="52" font-family="serif" font-size="36" fill="#5C554E">&#119070;</text>
 
-              <!-- Barlines -->
-              <line x1="85" y1="25" x2="85" y2="57" stroke="#504B48" stroke-width="0.8"/>
-              <line x1="195" y1="25" x2="195" y2="57" stroke="#504B48" stroke-width="0.8"/>
-              <line x1="285" y1="25" x2="285" y2="57" stroke="#504B48" stroke-width="0.8"/>
-              <line x1="375" y1="25" x2="375" y2="57" stroke="#504B48" stroke-width="0.8"/>
-              <line x1="460" y1="25" x2="460" y2="57" stroke="#504B48" stroke-width="0.8"/>
+                <!-- Barlines -->
+                <line x1="85" y1="25" x2="85" y2="57" stroke="#B8B0A4" stroke-width="0.8"/>
+                <line x1="195" y1="25" x2="195" y2="57" stroke="#B8B0A4" stroke-width="0.8"/>
+                <line x1="285" y1="25" x2="285" y2="57" stroke="#B8B0A4" stroke-width="0.8"/>
+                <line x1="375" y1="25" x2="375" y2="57" stroke="#B8B0A4" stroke-width="0.8"/>
+                <line x1="460" y1="25" x2="460" y2="57" stroke="#B8B0A4" stroke-width="0.8"/>
 
-              <!-- Bar numbers -->
-              <text x="56" y="18" font-family="sans-serif" font-size="9" fill="#A8A29E">15</text>
-              <text x="132" y="18" font-family="sans-serif" font-size="9" fill="#C87F5A" font-weight="600">16</text>
-              <text x="232" y="18" font-family="sans-serif" font-size="9" fill="#C87F5A" font-weight="600">17</text>
-              <text x="322" y="18" font-family="sans-serif" font-size="9" fill="#C87F5A" font-weight="600">18</text>
-              <text x="410" y="18" font-family="sans-serif" font-size="9" fill="#C87F5A" font-weight="600">19</text>
-              <text x="475" y="18" font-family="sans-serif" font-size="9" fill="#A8A29E">20</text>
+                <!-- Bar numbers -->
+                <text x="56" y="18" font-family="sans-serif" font-size="9" fill="#8C857D">15</text>
+                <text x="132" y="18" font-family="sans-serif" font-size="9" fill="#A8522A" font-weight="600">16</text>
+                <text x="232" y="18" font-family="sans-serif" font-size="9" fill="#A8522A" font-weight="600">17</text>
+                <text x="322" y="18" font-family="sans-serif" font-size="9" fill="#A8522A" font-weight="600">18</text>
+                <text x="410" y="18" font-family="sans-serif" font-size="9" fill="#A8522A" font-weight="600">19</text>
+                <text x="475" y="18" font-family="sans-serif" font-size="9" fill="#8C857D">20</text>
 
-              <!-- RH notes - bar 15 (before highlight) -->
-              <!-- Sixteenth note group: beamed -->
-              <g fill="#A8A29E" stroke="#A8A29E">
-                <ellipse cx="62" cy="37" rx="4" ry="3" transform="rotate(-15,62,37)"/>
-                <line x1="66" y1="37" x2="66" y2="17" stroke-width="1"/>
-                <ellipse cx="72" cy="33" rx="4" ry="3" transform="rotate(-15,72,33)"/>
-                <line x1="76" y1="33" x2="76" y2="13" stroke-width="1"/>
-                <ellipse cx="82" cy="41" rx="4" ry="3" transform="rotate(-15,82,41)"/>
-                <line x1="86" y1="41" x2="86" y2="21" stroke-width="1"/>
-                <!-- Beam -->
-                <line x1="66" y1="17" x2="86" y2="21" stroke-width="2"/>
-                <line x1="66" y1="20" x2="86" y2="24" stroke-width="1.5"/>
-              </g>
+                <!-- RH notes - bar 15 -->
+                <g fill="#2D2926" stroke="#2D2926">
+                  <ellipse cx="62" cy="37" rx="4" ry="3" transform="rotate(-15,62,37)"/>
+                  <line x1="66" y1="37" x2="66" y2="17" stroke-width="1"/>
+                  <ellipse cx="72" cy="33" rx="4" ry="3" transform="rotate(-15,72,33)"/>
+                  <line x1="76" y1="33" x2="76" y2="13" stroke-width="1"/>
+                  <ellipse cx="82" cy="41" rx="4" ry="3" transform="rotate(-15,82,41)"/>
+                  <line x1="86" y1="41" x2="86" y2="21" stroke-width="1"/>
+                  <line x1="66" y1="17" x2="86" y2="21" stroke-width="2"/>
+                  <line x1="66" y1="20" x2="86" y2="24" stroke-width="1.5"/>
+                </g>
 
-              <!-- RH notes - bar 16 (highlighted) -->
-              <g fill="#A8A29E" stroke="#A8A29E">
-                <ellipse cx="100" cy="45" rx="4" ry="3" transform="rotate(-15,100,45)"/>
-                <line x1="104" y1="45" x2="104" y2="25" stroke-width="1"/>
-                <ellipse cx="115" cy="37" rx="4" ry="3" transform="rotate(-15,115,37)"/>
-                <line x1="119" y1="37" x2="119" y2="17" stroke-width="1"/>
-                <ellipse cx="130" cy="33" rx="4" ry="3" transform="rotate(-15,130,33)"/>
-                <line x1="134" y1="33" x2="134" y2="13" stroke-width="1"/>
-                <ellipse cx="145" cy="29" rx="4" ry="3" transform="rotate(-15,145,29)"/>
-                <line x1="149" y1="29" x2="149" y2="9" stroke-width="1"/>
-                <ellipse cx="160" cy="33" rx="4" ry="3" transform="rotate(-15,160,33)"/>
-                <line x1="164" y1="33" x2="164" y2="13" stroke-width="1"/>
-                <ellipse cx="175" cy="37" rx="4" ry="3" transform="rotate(-15,175,37)"/>
-                <line x1="179" y1="37" x2="179" y2="17" stroke-width="1"/>
-                <ellipse cx="190" cy="41" rx="4" ry="3" transform="rotate(-15,190,41)"/>
-                <line x1="194" y1="41" x2="194" y2="21" stroke-width="1"/>
-                <!-- Beams -->
-                <line x1="104" y1="25" x2="134" y2="13" stroke-width="2"/>
-                <line x1="104" y1="28" x2="134" y2="16" stroke-width="1.5"/>
-                <line x1="149" y1="9" x2="194" y2="21" stroke-width="2"/>
-                <line x1="149" y1="12" x2="194" y2="24" stroke-width="1.5"/>
-              </g>
+                <!-- RH notes - bar 16 -->
+                <g fill="#2D2926" stroke="#2D2926">
+                  <ellipse cx="100" cy="45" rx="4" ry="3" transform="rotate(-15,100,45)"/>
+                  <line x1="104" y1="45" x2="104" y2="25" stroke-width="1"/>
+                  <ellipse cx="115" cy="37" rx="4" ry="3" transform="rotate(-15,115,37)"/>
+                  <line x1="119" y1="37" x2="119" y2="17" stroke-width="1"/>
+                  <ellipse cx="130" cy="33" rx="4" ry="3" transform="rotate(-15,130,33)"/>
+                  <line x1="134" y1="33" x2="134" y2="13" stroke-width="1"/>
+                  <ellipse cx="145" cy="29" rx="4" ry="3" transform="rotate(-15,145,29)"/>
+                  <line x1="149" y1="29" x2="149" y2="9" stroke-width="1"/>
+                  <ellipse cx="160" cy="33" rx="4" ry="3" transform="rotate(-15,160,33)"/>
+                  <line x1="164" y1="33" x2="164" y2="13" stroke-width="1"/>
+                  <ellipse cx="175" cy="37" rx="4" ry="3" transform="rotate(-15,175,37)"/>
+                  <line x1="179" y1="37" x2="179" y2="17" stroke-width="1"/>
+                  <ellipse cx="190" cy="41" rx="4" ry="3" transform="rotate(-15,190,41)"/>
+                  <line x1="194" y1="41" x2="194" y2="21" stroke-width="1"/>
+                  <line x1="104" y1="25" x2="134" y2="13" stroke-width="2"/>
+                  <line x1="104" y1="28" x2="134" y2="16" stroke-width="1.5"/>
+                  <line x1="149" y1="9" x2="194" y2="21" stroke-width="2"/>
+                  <line x1="149" y1="12" x2="194" y2="24" stroke-width="1.5"/>
+                </g>
 
-              <!-- RH notes - bar 17 -->
-              <g fill="#A8A29E" stroke="#A8A29E">
-                <ellipse cx="205" cy="45" rx="4" ry="3" transform="rotate(-15,205,45)"/>
-                <line x1="209" y1="45" x2="209" y2="25" stroke-width="1"/>
-                <ellipse cx="218" cy="41" rx="4" ry="3" transform="rotate(-15,218,41)"/>
-                <line x1="222" y1="41" x2="222" y2="21" stroke-width="1"/>
-                <ellipse cx="231" cy="37" rx="4" ry="3" transform="rotate(-15,231,37)"/>
-                <line x1="235" y1="37" x2="235" y2="17" stroke-width="1"/>
-                <ellipse cx="244" cy="33" rx="4" ry="3" transform="rotate(-15,244,33)"/>
-                <line x1="248" y1="33" x2="248" y2="13" stroke-width="1"/>
-                <ellipse cx="257" cy="29" rx="4" ry="3" transform="rotate(-15,257,29)"/>
-                <line x1="261" y1="29" x2="261" y2="9" stroke-width="1"/>
-                <ellipse cx="270" cy="33" rx="4" ry="3" transform="rotate(-15,270,33)"/>
-                <line x1="274" y1="33" x2="274" y2="13" stroke-width="1"/>
-                <!-- Beams -->
-                <line x1="209" y1="25" x2="248" y2="13" stroke-width="2"/>
-                <line x1="209" y1="28" x2="248" y2="16" stroke-width="1.5"/>
-                <line x1="261" y1="9" x2="274" y2="13" stroke-width="2"/>
-              </g>
+                <!-- RH notes - bar 17 -->
+                <g fill="#2D2926" stroke="#2D2926">
+                  <ellipse cx="205" cy="45" rx="4" ry="3" transform="rotate(-15,205,45)"/>
+                  <line x1="209" y1="45" x2="209" y2="25" stroke-width="1"/>
+                  <ellipse cx="218" cy="41" rx="4" ry="3" transform="rotate(-15,218,41)"/>
+                  <line x1="222" y1="41" x2="222" y2="21" stroke-width="1"/>
+                  <ellipse cx="231" cy="37" rx="4" ry="3" transform="rotate(-15,231,37)"/>
+                  <line x1="235" y1="37" x2="235" y2="17" stroke-width="1"/>
+                  <ellipse cx="244" cy="33" rx="4" ry="3" transform="rotate(-15,244,33)"/>
+                  <line x1="248" y1="33" x2="248" y2="13" stroke-width="1"/>
+                  <ellipse cx="257" cy="29" rx="4" ry="3" transform="rotate(-15,257,29)"/>
+                  <line x1="261" y1="29" x2="261" y2="9" stroke-width="1"/>
+                  <ellipse cx="270" cy="33" rx="4" ry="3" transform="rotate(-15,270,33)"/>
+                  <line x1="274" y1="33" x2="274" y2="13" stroke-width="1"/>
+                  <line x1="209" y1="25" x2="248" y2="13" stroke-width="2"/>
+                  <line x1="209" y1="28" x2="248" y2="16" stroke-width="1.5"/>
+                  <line x1="261" y1="9" x2="274" y2="13" stroke-width="2"/>
+                </g>
 
-              <!-- RH notes - bar 18 -->
-              <g fill="#A8A29E" stroke="#A8A29E">
-                <ellipse cx="295" cy="37" rx="4" ry="3" transform="rotate(-15,295,37)"/>
-                <line x1="299" y1="37" x2="299" y2="17" stroke-width="1"/>
-                <ellipse cx="308" cy="41" rx="4" ry="3" transform="rotate(-15,308,41)"/>
-                <line x1="312" y1="41" x2="312" y2="21" stroke-width="1"/>
-                <ellipse cx="321" cy="37" rx="4" ry="3" transform="rotate(-15,321,37)"/>
-                <line x1="325" y1="37" x2="325" y2="17" stroke-width="1"/>
-                <ellipse cx="335" cy="33" rx="4" ry="3" transform="rotate(-15,335,33)"/>
-                <line x1="339" y1="33" x2="339" y2="13" stroke-width="1"/>
-                <ellipse cx="348" cy="29" rx="4" ry="3" transform="rotate(-15,348,29)"/>
-                <line x1="352" y1="29" x2="352" y2="9" stroke-width="1"/>
-                <ellipse cx="362" cy="33" rx="4" ry="3" transform="rotate(-15,362,33)"/>
-                <line x1="366" y1="33" x2="366" y2="13" stroke-width="1"/>
-                <!-- Beams -->
-                <line x1="299" y1="17" x2="325" y2="17" stroke-width="2"/>
-                <line x1="299" y1="20" x2="325" y2="20" stroke-width="1.5"/>
-                <line x1="339" y1="13" x2="366" y2="13" stroke-width="2"/>
-                <line x1="339" y1="16" x2="366" y2="16" stroke-width="1.5"/>
-              </g>
+                <!-- RH notes - bar 18 -->
+                <g fill="#2D2926" stroke="#2D2926">
+                  <ellipse cx="295" cy="37" rx="4" ry="3" transform="rotate(-15,295,37)"/>
+                  <line x1="299" y1="37" x2="299" y2="17" stroke-width="1"/>
+                  <ellipse cx="308" cy="41" rx="4" ry="3" transform="rotate(-15,308,41)"/>
+                  <line x1="312" y1="41" x2="312" y2="21" stroke-width="1"/>
+                  <ellipse cx="321" cy="37" rx="4" ry="3" transform="rotate(-15,321,37)"/>
+                  <line x1="325" y1="37" x2="325" y2="17" stroke-width="1"/>
+                  <ellipse cx="335" cy="33" rx="4" ry="3" transform="rotate(-15,335,33)"/>
+                  <line x1="339" y1="33" x2="339" y2="13" stroke-width="1"/>
+                  <ellipse cx="348" cy="29" rx="4" ry="3" transform="rotate(-15,348,29)"/>
+                  <line x1="352" y1="29" x2="352" y2="9" stroke-width="1"/>
+                  <ellipse cx="362" cy="33" rx="4" ry="3" transform="rotate(-15,362,33)"/>
+                  <line x1="366" y1="33" x2="366" y2="13" stroke-width="1"/>
+                  <line x1="299" y1="17" x2="325" y2="17" stroke-width="2"/>
+                  <line x1="299" y1="20" x2="325" y2="20" stroke-width="1.5"/>
+                  <line x1="339" y1="13" x2="366" y2="13" stroke-width="2"/>
+                  <line x1="339" y1="16" x2="366" y2="16" stroke-width="1.5"/>
+                </g>
 
-              <!-- RH notes - bar 19 -->
-              <g fill="#A8A29E" stroke="#A8A29E">
-                <ellipse cx="385" cy="37" rx="4" ry="3" transform="rotate(-15,385,37)"/>
-                <line x1="389" y1="37" x2="389" y2="17" stroke-width="1"/>
-                <ellipse cx="398" cy="33" rx="4" ry="3" transform="rotate(-15,398,33)"/>
-                <line x1="402" y1="33" x2="402" y2="13" stroke-width="1"/>
-                <ellipse cx="411" cy="37" rx="4" ry="3" transform="rotate(-15,411,37)"/>
-                <line x1="415" y1="37" x2="415" y2="17" stroke-width="1"/>
-                <ellipse cx="424" cy="41" rx="4" ry="3" transform="rotate(-15,424,41)"/>
-                <line x1="428" y1="41" x2="428" y2="21" stroke-width="1"/>
-                <ellipse cx="437" cy="45" rx="4" ry="3" transform="rotate(-15,437,45)"/>
-                <line x1="441" y1="45" x2="441" y2="25" stroke-width="1"/>
-                <ellipse cx="450" cy="49" rx="4" ry="3" transform="rotate(-15,450,49)"/>
-                <line x1="454" y1="49" x2="454" y2="29" stroke-width="1"/>
-                <!-- Beams -->
-                <line x1="389" y1="17" x2="415" y2="17" stroke-width="2"/>
-                <line x1="389" y1="20" x2="415" y2="20" stroke-width="1.5"/>
-                <line x1="428" y1="21" x2="454" y2="29" stroke-width="2"/>
-              </g>
+                <!-- RH notes - bar 19 -->
+                <g fill="#2D2926" stroke="#2D2926">
+                  <ellipse cx="385" cy="37" rx="4" ry="3" transform="rotate(-15,385,37)"/>
+                  <line x1="389" y1="37" x2="389" y2="17" stroke-width="1"/>
+                  <ellipse cx="398" cy="33" rx="4" ry="3" transform="rotate(-15,398,33)"/>
+                  <line x1="402" y1="33" x2="402" y2="13" stroke-width="1"/>
+                  <ellipse cx="411" cy="37" rx="4" ry="3" transform="rotate(-15,411,37)"/>
+                  <line x1="415" y1="37" x2="415" y2="17" stroke-width="1"/>
+                  <ellipse cx="424" cy="41" rx="4" ry="3" transform="rotate(-15,424,41)"/>
+                  <line x1="428" y1="41" x2="428" y2="21" stroke-width="1"/>
+                  <ellipse cx="437" cy="45" rx="4" ry="3" transform="rotate(-15,437,45)"/>
+                  <line x1="441" y1="45" x2="441" y2="25" stroke-width="1"/>
+                  <ellipse cx="450" cy="49" rx="4" ry="3" transform="rotate(-15,450,49)"/>
+                  <line x1="454" y1="49" x2="454" y2="29" stroke-width="1"/>
+                  <line x1="389" y1="17" x2="415" y2="17" stroke-width="2"/>
+                  <line x1="389" y1="20" x2="415" y2="20" stroke-width="1.5"/>
+                  <line x1="428" y1="21" x2="454" y2="29" stroke-width="2"/>
+                </g>
 
-              <!-- RH notes - bar 20 (after highlight) -->
-              <g fill="#A8A29E" stroke="#A8A29E">
-                <ellipse cx="472" cy="41" rx="4" ry="3" transform="rotate(-15,472,41)"/>
-                <line x1="476" y1="41" x2="476" y2="21" stroke-width="1"/>
-                <ellipse cx="488" cy="37" rx="4" ry="3" transform="rotate(-15,488,37)"/>
-                <line x1="492" y1="37" x2="492" y2="17" stroke-width="1"/>
-                <ellipse cx="504" cy="33" rx="4" ry="3" transform="rotate(-15,504,33)"/>
-                <line x1="508" y1="33" x2="508" y2="13" stroke-width="1"/>
-                <line x1="476" y1="21" x2="508" y2="13" stroke-width="2"/>
-              </g>
+                <!-- RH notes - bar 20 -->
+                <g fill="#2D2926" stroke="#2D2926">
+                  <ellipse cx="472" cy="41" rx="4" ry="3" transform="rotate(-15,472,41)"/>
+                  <line x1="476" y1="41" x2="476" y2="21" stroke-width="1"/>
+                  <ellipse cx="488" cy="37" rx="4" ry="3" transform="rotate(-15,488,37)"/>
+                  <line x1="492" y1="37" x2="492" y2="17" stroke-width="1"/>
+                  <ellipse cx="504" cy="33" rx="4" ry="3" transform="rotate(-15,504,33)"/>
+                  <line x1="508" y1="33" x2="508" y2="13" stroke-width="1"/>
+                  <line x1="476" y1="21" x2="508" y2="13" stroke-width="2"/>
+                </g>
 
-              <!-- Brace connecting staves -->
-              <path d="M28 25 Q22 90, 28 95 Q22 100, 28 165" stroke="#A8A29E" stroke-width="1.5" fill="none"/>
+                <!-- Brace connecting staves -->
+                <path d="M28 25 Q22 90, 28 95 Q22 100, 28 165" stroke="#8C857D" stroke-width="1.5" fill="none"/>
 
-              <!-- === BASS STAFF (LH) === -->
-              <!-- Staff lines -->
-              <line x1="30" y1="105" x2="510" y2="105" stroke="#504B48" stroke-width="0.8"/>
-              <line x1="30" y1="113" x2="510" y2="113" stroke="#504B48" stroke-width="0.8"/>
-              <line x1="30" y1="121" x2="510" y2="121" stroke="#504B48" stroke-width="0.8"/>
-              <line x1="30" y1="129" x2="510" y2="129" stroke="#504B48" stroke-width="0.8"/>
-              <line x1="30" y1="137" x2="510" y2="137" stroke="#504B48" stroke-width="0.8"/>
+                <!-- === BASS STAFF (LH) === -->
+                <line x1="30" y1="105" x2="510" y2="105" stroke="#B8B0A4" stroke-width="0.8"/>
+                <line x1="30" y1="113" x2="510" y2="113" stroke="#B8B0A4" stroke-width="0.8"/>
+                <line x1="30" y1="121" x2="510" y2="121" stroke="#B8B0A4" stroke-width="0.8"/>
+                <line x1="30" y1="129" x2="510" y2="129" stroke="#B8B0A4" stroke-width="0.8"/>
+                <line x1="30" y1="137" x2="510" y2="137" stroke="#B8B0A4" stroke-width="0.8"/>
 
-              <!-- Bass clef (simplified) -->
-              <text x="34" y="130" font-family="serif" font-size="32" fill="#A8A29E">&#119074;</text>
+                <!-- Bass clef -->
+                <text x="34" y="130" font-family="serif" font-size="32" fill="#5C554E">&#119074;</text>
 
-              <!-- Barlines -->
-              <line x1="85" y1="105" x2="85" y2="137" stroke="#504B48" stroke-width="0.8"/>
-              <line x1="195" y1="105" x2="195" y2="137" stroke="#504B48" stroke-width="0.8"/>
-              <line x1="285" y1="105" x2="285" y2="137" stroke="#504B48" stroke-width="0.8"/>
-              <line x1="375" y1="105" x2="375" y2="137" stroke="#504B48" stroke-width="0.8"/>
-              <line x1="460" y1="105" x2="460" y2="137" stroke="#504B48" stroke-width="0.8"/>
+                <!-- Barlines -->
+                <line x1="85" y1="105" x2="85" y2="137" stroke="#B8B0A4" stroke-width="0.8"/>
+                <line x1="195" y1="105" x2="195" y2="137" stroke="#B8B0A4" stroke-width="0.8"/>
+                <line x1="285" y1="105" x2="285" y2="137" stroke="#B8B0A4" stroke-width="0.8"/>
+                <line x1="375" y1="105" x2="375" y2="137" stroke="#B8B0A4" stroke-width="0.8"/>
+                <line x1="460" y1="105" x2="460" y2="137" stroke="#B8B0A4" stroke-width="0.8"/>
 
-              <!-- LH notes - bar 15 (independent voice - wide intervals) -->
-              <g fill="#C87F5A" stroke="#C87F5A">
-                <ellipse cx="62" cy="125" rx="4" ry="3" transform="rotate(-15,62,125)"/>
-                <line x1="58" y1="125" x2="58" y2="145" stroke-width="1"/>
-                <ellipse cx="72" cy="117" rx="4" ry="3" transform="rotate(-15,72,117)"/>
-                <line x1="68" y1="117" x2="68" y2="137" stroke-width="1"/>
-                <ellipse cx="82" cy="129" rx="4" ry="3" transform="rotate(-15,82,129)"/>
-                <line x1="78" y1="129" x2="78" y2="149" stroke-width="1"/>
-                <line x1="58" y1="145" x2="78" y2="149" stroke-width="2"/>
-                <line x1="58" y1="142" x2="78" y2="146" stroke-width="1.5"/>
-              </g>
+                <!-- LH notes - bar 15 -->
+                <g fill="#A8522A" stroke="#A8522A">
+                  <ellipse cx="62" cy="125" rx="4" ry="3" transform="rotate(-15,62,125)"/>
+                  <line x1="58" y1="125" x2="58" y2="145" stroke-width="1"/>
+                  <ellipse cx="72" cy="117" rx="4" ry="3" transform="rotate(-15,72,117)"/>
+                  <line x1="68" y1="117" x2="68" y2="137" stroke-width="1"/>
+                  <ellipse cx="82" cy="129" rx="4" ry="3" transform="rotate(-15,82,129)"/>
+                  <line x1="78" y1="129" x2="78" y2="149" stroke-width="1"/>
+                  <line x1="58" y1="145" x2="78" y2="149" stroke-width="2"/>
+                  <line x1="58" y1="142" x2="78" y2="146" stroke-width="1.5"/>
+                </g>
 
-              <!-- LH notes - bar 16 (starts converging with RH rhythm) -->
-              <g fill="#C87F5A" stroke="#C87F5A">
-                <ellipse cx="100" cy="121" rx="4" ry="3" transform="rotate(-15,100,121)"/>
-                <line x1="96" y1="121" x2="96" y2="141" stroke-width="1"/>
-                <ellipse cx="115" cy="117" rx="4" ry="3" transform="rotate(-15,115,117)"/>
-                <line x1="111" y1="117" x2="111" y2="137" stroke-width="1"/>
-                <ellipse cx="130" cy="113" rx="4" ry="3" transform="rotate(-15,130,113)"/>
-                <line x1="126" y1="113" x2="126" y2="133" stroke-width="1"/>
-                <ellipse cx="145" cy="109" rx="4" ry="3" transform="rotate(-15,145,109)"/>
-                <line x1="141" y1="109" x2="141" y2="129" stroke-width="1"/>
-                <ellipse cx="160" cy="113" rx="4" ry="3" transform="rotate(-15,160,113)"/>
-                <line x1="156" y1="113" x2="156" y2="133" stroke-width="1"/>
-                <ellipse cx="175" cy="117" rx="4" ry="3" transform="rotate(-15,175,117)"/>
-                <line x1="171" y1="117" x2="171" y2="137" stroke-width="1"/>
-                <ellipse cx="190" cy="121" rx="4" ry="3" transform="rotate(-15,190,121)"/>
-                <line x1="186" y1="121" x2="186" y2="141" stroke-width="1"/>
-                <!-- Beams (stems go down) -->
-                <line x1="96" y1="141" x2="126" y2="133" stroke-width="2"/>
-                <line x1="96" y1="138" x2="126" y2="130" stroke-width="1.5"/>
-                <line x1="141" y1="129" x2="186" y2="141" stroke-width="2"/>
-                <line x1="141" y1="126" x2="186" y2="138" stroke-width="1.5"/>
-              </g>
+                <!-- LH notes - bar 16 -->
+                <g fill="#A8522A" stroke="#A8522A">
+                  <ellipse cx="100" cy="121" rx="4" ry="3" transform="rotate(-15,100,121)"/>
+                  <line x1="96" y1="121" x2="96" y2="141" stroke-width="1"/>
+                  <ellipse cx="115" cy="117" rx="4" ry="3" transform="rotate(-15,115,117)"/>
+                  <line x1="111" y1="117" x2="111" y2="137" stroke-width="1"/>
+                  <ellipse cx="130" cy="113" rx="4" ry="3" transform="rotate(-15,130,113)"/>
+                  <line x1="126" y1="113" x2="126" y2="133" stroke-width="1"/>
+                  <ellipse cx="145" cy="109" rx="4" ry="3" transform="rotate(-15,145,109)"/>
+                  <line x1="141" y1="109" x2="141" y2="129" stroke-width="1"/>
+                  <ellipse cx="160" cy="113" rx="4" ry="3" transform="rotate(-15,160,113)"/>
+                  <line x1="156" y1="113" x2="156" y2="133" stroke-width="1"/>
+                  <ellipse cx="175" cy="117" rx="4" ry="3" transform="rotate(-15,175,117)"/>
+                  <line x1="171" y1="117" x2="171" y2="137" stroke-width="1"/>
+                  <ellipse cx="190" cy="121" rx="4" ry="3" transform="rotate(-15,190,121)"/>
+                  <line x1="186" y1="121" x2="186" y2="141" stroke-width="1"/>
+                  <line x1="96" y1="141" x2="126" y2="133" stroke-width="2"/>
+                  <line x1="96" y1="138" x2="126" y2="130" stroke-width="1.5"/>
+                  <line x1="141" y1="129" x2="186" y2="141" stroke-width="2"/>
+                  <line x1="141" y1="126" x2="186" y2="138" stroke-width="1.5"/>
+                </g>
 
-              <!-- LH notes - bar 17 (converged - mirroring RH contour) -->
-              <g fill="#C87F5A" stroke="#C87F5A">
-                <ellipse cx="205" cy="121" rx="4" ry="3" transform="rotate(-15,205,121)"/>
-                <line x1="201" y1="121" x2="201" y2="141" stroke-width="1"/>
-                <ellipse cx="218" cy="117" rx="4" ry="3" transform="rotate(-15,218,117)"/>
-                <line x1="214" y1="117" x2="214" y2="137" stroke-width="1"/>
-                <ellipse cx="231" cy="113" rx="4" ry="3" transform="rotate(-15,231,113)"/>
-                <line x1="227" y1="113" x2="227" y2="133" stroke-width="1"/>
-                <ellipse cx="244" cy="113" rx="4" ry="3" transform="rotate(-15,244,113)"/>
-                <line x1="240" y1="113" x2="240" y2="133" stroke-width="1"/>
-                <ellipse cx="257" cy="109" rx="4" ry="3" transform="rotate(-15,257,109)"/>
-                <line x1="253" y1="109" x2="253" y2="129" stroke-width="1"/>
-                <ellipse cx="270" cy="113" rx="4" ry="3" transform="rotate(-15,270,113)"/>
-                <line x1="266" y1="113" x2="266" y2="133" stroke-width="1"/>
-                <line x1="201" y1="141" x2="240" y2="133" stroke-width="2"/>
-                <line x1="201" y1="138" x2="240" y2="130" stroke-width="1.5"/>
-                <line x1="253" y1="129" x2="266" y2="133" stroke-width="2"/>
-              </g>
+                <!-- LH notes - bar 17 -->
+                <g fill="#A8522A" stroke="#A8522A">
+                  <ellipse cx="205" cy="121" rx="4" ry="3" transform="rotate(-15,205,121)"/>
+                  <line x1="201" y1="121" x2="201" y2="141" stroke-width="1"/>
+                  <ellipse cx="218" cy="117" rx="4" ry="3" transform="rotate(-15,218,117)"/>
+                  <line x1="214" y1="117" x2="214" y2="137" stroke-width="1"/>
+                  <ellipse cx="231" cy="113" rx="4" ry="3" transform="rotate(-15,231,113)"/>
+                  <line x1="227" y1="113" x2="227" y2="133" stroke-width="1"/>
+                  <ellipse cx="244" cy="113" rx="4" ry="3" transform="rotate(-15,244,113)"/>
+                  <line x1="240" y1="113" x2="240" y2="133" stroke-width="1"/>
+                  <ellipse cx="257" cy="109" rx="4" ry="3" transform="rotate(-15,257,109)"/>
+                  <line x1="253" y1="109" x2="253" y2="129" stroke-width="1"/>
+                  <ellipse cx="270" cy="113" rx="4" ry="3" transform="rotate(-15,270,113)"/>
+                  <line x1="266" y1="113" x2="266" y2="133" stroke-width="1"/>
+                  <line x1="201" y1="141" x2="240" y2="133" stroke-width="2"/>
+                  <line x1="201" y1="138" x2="240" y2="130" stroke-width="1.5"/>
+                  <line x1="253" y1="129" x2="266" y2="133" stroke-width="2"/>
+                </g>
 
-              <!-- LH notes - bar 18 -->
-              <g fill="#C87F5A" stroke="#C87F5A">
-                <ellipse cx="295" cy="117" rx="4" ry="3" transform="rotate(-15,295,117)"/>
-                <line x1="291" y1="117" x2="291" y2="137" stroke-width="1"/>
-                <ellipse cx="308" cy="121" rx="4" ry="3" transform="rotate(-15,308,121)"/>
-                <line x1="304" y1="121" x2="304" y2="141" stroke-width="1"/>
-                <ellipse cx="321" cy="117" rx="4" ry="3" transform="rotate(-15,321,117)"/>
-                <line x1="317" y1="117" x2="317" y2="137" stroke-width="1"/>
-                <ellipse cx="335" cy="113" rx="4" ry="3" transform="rotate(-15,335,113)"/>
-                <line x1="331" y1="113" x2="331" y2="133" stroke-width="1"/>
-                <ellipse cx="348" cy="109" rx="4" ry="3" transform="rotate(-15,348,109)"/>
-                <line x1="344" y1="109" x2="344" y2="129" stroke-width="1"/>
-                <ellipse cx="362" cy="113" rx="4" ry="3" transform="rotate(-15,362,113)"/>
-                <line x1="358" y1="113" x2="358" y2="133" stroke-width="1"/>
-                <line x1="291" y1="137" x2="317" y2="137" stroke-width="2"/>
-                <line x1="291" y1="134" x2="317" y2="134" stroke-width="1.5"/>
-                <line x1="331" y1="133" x2="358" y2="133" stroke-width="2"/>
-                <line x1="331" y1="130" x2="358" y2="130" stroke-width="1.5"/>
-              </g>
+                <!-- LH notes - bar 18 -->
+                <g fill="#A8522A" stroke="#A8522A">
+                  <ellipse cx="295" cy="117" rx="4" ry="3" transform="rotate(-15,295,117)"/>
+                  <line x1="291" y1="117" x2="291" y2="137" stroke-width="1"/>
+                  <ellipse cx="308" cy="121" rx="4" ry="3" transform="rotate(-15,308,121)"/>
+                  <line x1="304" y1="121" x2="304" y2="141" stroke-width="1"/>
+                  <ellipse cx="321" cy="117" rx="4" ry="3" transform="rotate(-15,321,117)"/>
+                  <line x1="317" y1="117" x2="317" y2="137" stroke-width="1"/>
+                  <ellipse cx="335" cy="113" rx="4" ry="3" transform="rotate(-15,335,113)"/>
+                  <line x1="331" y1="113" x2="331" y2="133" stroke-width="1"/>
+                  <ellipse cx="348" cy="109" rx="4" ry="3" transform="rotate(-15,348,109)"/>
+                  <line x1="344" y1="109" x2="344" y2="129" stroke-width="1"/>
+                  <ellipse cx="362" cy="113" rx="4" ry="3" transform="rotate(-15,362,113)"/>
+                  <line x1="358" y1="113" x2="358" y2="133" stroke-width="1"/>
+                  <line x1="291" y1="137" x2="317" y2="137" stroke-width="2"/>
+                  <line x1="291" y1="134" x2="317" y2="134" stroke-width="1.5"/>
+                  <line x1="331" y1="133" x2="358" y2="133" stroke-width="2"/>
+                  <line x1="331" y1="130" x2="358" y2="130" stroke-width="1.5"/>
+                </g>
 
-              <!-- LH notes - bar 19 -->
-              <g fill="#C87F5A" stroke="#C87F5A">
-                <ellipse cx="385" cy="117" rx="4" ry="3" transform="rotate(-15,385,117)"/>
-                <line x1="381" y1="117" x2="381" y2="137" stroke-width="1"/>
-                <ellipse cx="398" cy="113" rx="4" ry="3" transform="rotate(-15,398,113)"/>
-                <line x1="394" y1="113" x2="394" y2="133" stroke-width="1"/>
-                <ellipse cx="411" cy="117" rx="4" ry="3" transform="rotate(-15,411,117)"/>
-                <line x1="407" y1="117" x2="407" y2="137" stroke-width="1"/>
-                <ellipse cx="424" cy="121" rx="4" ry="3" transform="rotate(-15,424,121)"/>
-                <line x1="420" y1="121" x2="420" y2="141" stroke-width="1"/>
-                <ellipse cx="437" cy="125" rx="4" ry="3" transform="rotate(-15,437,125)"/>
-                <line x1="433" y1="125" x2="433" y2="145" stroke-width="1"/>
-                <ellipse cx="450" cy="129" rx="4" ry="3" transform="rotate(-15,450,129)"/>
-                <line x1="446" y1="129" x2="446" y2="149" stroke-width="1"/>
-                <line x1="381" y1="137" x2="407" y2="137" stroke-width="2"/>
-                <line x1="381" y1="134" x2="407" y2="134" stroke-width="1.5"/>
-                <line x1="420" y1="141" x2="446" y2="149" stroke-width="2"/>
-              </g>
+                <!-- LH notes - bar 19 -->
+                <g fill="#A8522A" stroke="#A8522A">
+                  <ellipse cx="385" cy="117" rx="4" ry="3" transform="rotate(-15,385,117)"/>
+                  <line x1="381" y1="117" x2="381" y2="137" stroke-width="1"/>
+                  <ellipse cx="398" cy="113" rx="4" ry="3" transform="rotate(-15,398,113)"/>
+                  <line x1="394" y1="113" x2="394" y2="133" stroke-width="1"/>
+                  <ellipse cx="411" cy="117" rx="4" ry="3" transform="rotate(-15,411,117)"/>
+                  <line x1="407" y1="117" x2="407" y2="137" stroke-width="1"/>
+                  <ellipse cx="424" cy="121" rx="4" ry="3" transform="rotate(-15,424,121)"/>
+                  <line x1="420" y1="121" x2="420" y2="141" stroke-width="1"/>
+                  <ellipse cx="437" cy="125" rx="4" ry="3" transform="rotate(-15,437,125)"/>
+                  <line x1="433" y1="125" x2="433" y2="145" stroke-width="1"/>
+                  <ellipse cx="450" cy="129" rx="4" ry="3" transform="rotate(-15,450,129)"/>
+                  <line x1="446" y1="129" x2="446" y2="149" stroke-width="1"/>
+                  <line x1="381" y1="137" x2="407" y2="137" stroke-width="2"/>
+                  <line x1="381" y1="134" x2="407" y2="134" stroke-width="1.5"/>
+                  <line x1="420" y1="141" x2="446" y2="149" stroke-width="2"/>
+                </g>
 
-              <!-- LH notes - bar 20 -->
-              <g fill="#C87F5A" stroke="#C87F5A">
-                <ellipse cx="472" cy="121" rx="4" ry="3" transform="rotate(-15,472,121)"/>
-                <line x1="468" y1="121" x2="468" y2="141" stroke-width="1"/>
-                <ellipse cx="488" cy="125" rx="4" ry="3" transform="rotate(-15,488,125)"/>
-                <line x1="484" y1="125" x2="484" y2="145" stroke-width="1"/>
-                <ellipse cx="504" cy="129" rx="4" ry="3" transform="rotate(-15,504,129)"/>
-                <line x1="500" y1="129" x2="500" y2="149" stroke-width="1"/>
-                <line x1="468" y1="141" x2="500" y2="149" stroke-width="2"/>
-              </g>
+                <!-- LH notes - bar 20 -->
+                <g fill="#A8522A" stroke="#A8522A">
+                  <ellipse cx="472" cy="121" rx="4" ry="3" transform="rotate(-15,472,121)"/>
+                  <line x1="468" y1="121" x2="468" y2="141" stroke-width="1"/>
+                  <ellipse cx="488" cy="125" rx="4" ry="3" transform="rotate(-15,488,125)"/>
+                  <line x1="484" y1="125" x2="484" y2="145" stroke-width="1"/>
+                  <ellipse cx="504" cy="129" rx="4" ry="3" transform="rotate(-15,504,129)"/>
+                  <line x1="500" y1="129" x2="500" y2="149" stroke-width="1"/>
+                  <line x1="468" y1="141" x2="500" y2="149" stroke-width="2"/>
+                </g>
 
-              <!-- Dynamic marking -->
-              <text x="90" y="175" font-family="serif" font-style="italic" font-size="14" fill="#A8A29E">mf</text>
-              <text x="290" y="175" font-family="serif" font-style="italic" font-size="14" fill="#A8A29E">mp</text>
+                <!-- Dynamic markings -->
+                <text x="90" y="175" font-family="serif" font-style="italic" font-size="14" fill="#8C857D">mf</text>
+                <text x="290" y="175" font-family="serif" font-style="italic" font-size="14" fill="#8C857D">mp</text>
 
-              <!-- Hairpin (diminuendo) in highlighted area -->
-              <line x1="320" y1="170" x2="370" y2="166" stroke="#A8A29E" stroke-width="1"/>
-              <line x1="320" y1="170" x2="370" y2="174" stroke="#A8A29E" stroke-width="1"/>
-            </svg>
+                <!-- Hairpin (diminuendo) -->
+                <line x1="320" y1="170" x2="370" y2="166" stroke="#8C857D" stroke-width="1"/>
+                <line x1="320" y1="170" x2="370" y2="174" stroke="#8C857D" stroke-width="1"/>
+              </svg>
+            </div>
 
             <!-- Annotation -->
             <div class="score-annotation">
-              <svg class="ann-icon" viewBox="0 0 24 24" fill="none" stroke="#C87F5A" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              <i class="ph ph-info"></i>
               <p>The left hand (orange) mirrors the right hand's contour in bars 16-19, losing its independent voice. Listen for the LH to maintain its own melodic line through this passage.</p>
             </div>
 
@@ -699,7 +703,7 @@
       <div class="chat-input-box">
         <span>Ask about your practice...</span>
         <div class="send-btn">
-          <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+          <i class="ph ph-arrow-right"></i>
         </div>
       </div>
     </div>
@@ -709,9 +713,9 @@
   <aside class="right-panel">
     <div class="panel-section">
       <h4>Current Piece</h4>
-      <div class="panel-item active">Invention No. 8 in F major</div>
-      <div class="panel-item">Prelude in C minor</div>
-      <div class="panel-item">Nocturne Op. 9 No. 2</div>
+      <div class="panel-item active"><i class="ph ph-music-notes"></i> Invention No. 8 in F major</div>
+      <div class="panel-item"><i class="ph ph-music-notes"></i> Prelude in C minor</div>
+      <div class="panel-item"><i class="ph ph-music-notes"></i> Nocturne Op. 9 No. 2</div>
     </div>
     <div class="panel-section">
       <h4>Focus Areas</h4>
