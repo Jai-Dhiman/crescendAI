@@ -88,7 +88,7 @@
     border-bottom: 1px solid var(--border);
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 10px;
     flex-shrink: 0;
   }
 
@@ -102,12 +102,20 @@
     stroke-linejoin: round;
   }
 
+  .nav-logo svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .nav-header .nav-text {
+    flex: 1;
+  }
+
   .nav-header h1 {
     font-family: 'Lora', 'Georgia', 'Times New Roman', serif;
     font-size: 17px;
     font-weight: 500;
     color: var(--text);
-    flex: 1;
   }
 
   .nav-header .piece-label {
@@ -162,12 +170,12 @@
     border-bottom-left-radius: 4px;
   }
 
-  /* Exercise cards */
+  /* Exercise cards with sheet music */
   .exercise-set {
     display: flex;
     flex-direction: column;
     gap: 8px;
-    max-width: 88%;
+    max-width: 92%;
     margin-top: 4px;
   }
 
@@ -175,46 +183,68 @@
     background: var(--surface-2);
     border: 1px solid var(--border);
     border-radius: 12px;
-    padding: 12px 14px;
-    display: flex;
-    gap: 12px;
-    align-items: flex-start;
+    overflow: hidden;
   }
 
-  .exercise-card .play-icon {
-    width: 32px;
-    height: 32px;
+  .exercise-card-header {
+    padding: 10px 14px 6px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .exercise-card-header .title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .exercise-card-header .tempo {
+    font-size: 10px;
+    color: var(--text-secondary);
+    background: var(--surface);
+    padding: 2px 7px;
+    border-radius: 4px;
+  }
+
+  .exercise-card-score {
+    padding: 4px 10px 6px;
+  }
+
+  .exercise-card-score svg {
+    width: 100%;
+    display: block;
+  }
+
+  .exercise-card-footer {
+    padding: 6px 14px 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .exercise-card-footer .play-btn {
+    width: 28px;
+    height: 28px;
     background: var(--accent-soft);
-    border-radius: 8px;
+    border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
-    margin-top: 2px;
   }
 
-  .exercise-card .play-icon svg {
-    width: 14px;
-    height: 14px;
+  .exercise-card-footer .play-btn svg {
+    width: 12px;
+    height: 12px;
     fill: var(--accent);
     stroke: none;
   }
 
-  .exercise-card .content {
-    flex: 1;
-  }
-
-  .exercise-card .title {
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--text);
-    margin-bottom: 3px;
-  }
-
-  .exercise-card .desc {
-    font-size: 12px;
+  .exercise-card-footer .desc {
+    font-size: 11px;
     color: var(--text-secondary);
-    line-height: 1.45;
+    line-height: 1.4;
   }
 
   /* Input bar */
@@ -278,7 +308,13 @@
     <div class="nav-back">
       <svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>
     </div>
-    <div>
+    <!-- CrescendAI logo -->
+    <div class="nav-logo">
+      <svg width="20" height="20" viewBox="0 0 100 100" fill="none">
+        <path d="M72 12 L18 50 L72 88" stroke="#FDF8F0" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+      </svg>
+    </div>
+    <div class="nav-text">
       <h1>Practice Session</h1>
       <span class="piece-label">Invention No. 8 in F major</span>
     </div>
@@ -303,37 +339,251 @@
         <p>Here are some exercises to help the left hand find its voice again:</p>
       </div>
 
-      <!-- Exercise set -->
+      <!-- Exercise set with rendered sheet music -->
       <div class="exercise-set">
+
+        <!-- Exercise 1: Slow LH alone -->
         <div class="exercise-card">
-          <div class="play-icon">
-            <svg viewBox="0 0 24 24"><polygon points="6,3 20,12 6,21"/></svg>
+          <div class="exercise-card-header">
+            <span class="title">Slow LH alone</span>
+            <span class="tempo">&#9833; = 40</span>
           </div>
-          <div class="content">
-            <div class="title">Slow LH alone</div>
-            <div class="desc">Play the left hand part of bars 15-20 at half tempo, focusing on even tone</div>
+          <div class="exercise-card-score">
+            <svg viewBox="0 0 300 55" xmlns="http://www.w3.org/2000/svg">
+              <!-- Staff lines -->
+              <line x1="8" y1="10" x2="292" y2="10" stroke="#504B48" stroke-width="0.6"/>
+              <line x1="8" y1="18" x2="292" y2="18" stroke="#504B48" stroke-width="0.6"/>
+              <line x1="8" y1="26" x2="292" y2="26" stroke="#504B48" stroke-width="0.6"/>
+              <line x1="8" y1="34" x2="292" y2="34" stroke="#504B48" stroke-width="0.6"/>
+              <line x1="8" y1="42" x2="292" y2="42" stroke="#504B48" stroke-width="0.6"/>
+              <!-- Bass clef -->
+              <text x="10" y="36" font-family="serif" font-size="24" fill="#A8A29E">&#119074;</text>
+              <!-- Barline -->
+              <line x1="148" y1="10" x2="148" y2="42" stroke="#504B48" stroke-width="0.6"/>
+              <!-- Final barline -->
+              <line x1="288" y1="10" x2="288" y2="42" stroke="#504B48" stroke-width="0.6"/>
+              <line x1="291" y1="10" x2="291" y2="42" stroke="#504B48" stroke-width="2"/>
+              <!-- LH notes bar 1 - quarter notes, wide intervals, even tone -->
+              <g fill="#C87F5A" stroke="#C87F5A">
+                <ellipse cx="48" cy="26" rx="4" ry="3" transform="rotate(-15,48,26)"/>
+                <line x1="44" y1="26" x2="44" y2="46" stroke-width="1"/>
+                <ellipse cx="72" cy="18" rx="4" ry="3" transform="rotate(-15,72,18)"/>
+                <line x1="76" y1="18" x2="76" y2="0" stroke-width="1"/>
+                <ellipse cx="96" cy="30" rx="4" ry="3" transform="rotate(-15,96,30)"/>
+                <line x1="92" y1="30" x2="92" y2="50" stroke-width="1"/>
+                <ellipse cx="120" cy="22" rx="4" ry="3" transform="rotate(-15,120,22)"/>
+                <line x1="124" y1="22" x2="124" y2="2" stroke-width="1"/>
+                <!-- Bar 2 -->
+                <ellipse cx="165" cy="34" rx="4" ry="3" transform="rotate(-15,165,34)"/>
+                <line x1="161" y1="34" x2="161" y2="54" stroke-width="1"/>
+                <ellipse cx="190" cy="26" rx="4" ry="3" transform="rotate(-15,190,26)"/>
+                <line x1="186" y1="26" x2="186" y2="46" stroke-width="1"/>
+                <ellipse cx="215" cy="18" rx="4" ry="3" transform="rotate(-15,215,18)"/>
+                <line x1="219" y1="18" x2="219" y2="0" stroke-width="1"/>
+                <ellipse cx="248" cy="26" rx="4" ry="3" transform="rotate(-15,248,26)"/>
+                <line x1="244" y1="26" x2="244" y2="46" stroke-width="1"/>
+              </g>
+              <!-- Dynamic marking -->
+              <text x="38" y="54" font-family="serif" font-style="italic" font-size="10" fill="#A8A29E">p</text>
+            </svg>
+          </div>
+          <div class="exercise-card-footer">
+            <div class="play-btn">
+              <svg viewBox="0 0 24 24"><polygon points="7,4 19,12 7,20"/></svg>
+            </div>
+            <span class="desc">Half tempo, even tone throughout</span>
           </div>
         </div>
 
+        <!-- Exercise 2: Alternating voices -->
         <div class="exercise-card">
-          <div class="play-icon">
-            <svg viewBox="0 0 24 24"><polygon points="6,3 20,12 6,21"/></svg>
+          <div class="exercise-card-header">
+            <span class="title">Alternating voices</span>
+            <span class="tempo">&#9833; = 60</span>
           </div>
-          <div class="content">
-            <div class="title">Alternating voices</div>
-            <div class="desc">Play bars 15-20 hands together, but accent the left hand while keeping the right hand pianissimo</div>
+          <div class="exercise-card-score">
+            <svg viewBox="0 0 300 100" xmlns="http://www.w3.org/2000/svg">
+              <!-- Treble staff -->
+              <line x1="8" y1="10" x2="292" y2="10" stroke="#504B48" stroke-width="0.6"/>
+              <line x1="8" y1="18" x2="292" y2="18" stroke="#504B48" stroke-width="0.6"/>
+              <line x1="8" y1="26" x2="292" y2="26" stroke="#504B48" stroke-width="0.6"/>
+              <line x1="8" y1="34" x2="292" y2="34" stroke="#504B48" stroke-width="0.6"/>
+              <line x1="8" y1="42" x2="292" y2="42" stroke="#504B48" stroke-width="0.6"/>
+              <!-- Treble clef -->
+              <text x="10" y="38" font-family="serif" font-size="28" fill="#A8A29E">&#119070;</text>
+              <!-- Bass staff -->
+              <line x1="8" y1="58" x2="292" y2="58" stroke="#504B48" stroke-width="0.6"/>
+              <line x1="8" y1="66" x2="292" y2="66" stroke="#504B48" stroke-width="0.6"/>
+              <line x1="8" y1="74" x2="292" y2="74" stroke="#504B48" stroke-width="0.6"/>
+              <line x1="8" y1="82" x2="292" y2="82" stroke="#504B48" stroke-width="0.6"/>
+              <line x1="8" y1="90" x2="292" y2="90" stroke="#504B48" stroke-width="0.6"/>
+              <!-- Bass clef -->
+              <text x="10" y="83" font-family="serif" font-size="22" fill="#A8A29E">&#119074;</text>
+              <!-- Brace -->
+              <path d="M7 10 Q2 50, 7 50 Q2 50, 7 90" stroke="#A8A29E" stroke-width="1" fill="none"/>
+              <!-- Barlines -->
+              <line x1="148" y1="10" x2="148" y2="90" stroke="#504B48" stroke-width="0.6"/>
+              <line x1="288" y1="10" x2="288" y2="90" stroke="#504B48" stroke-width="0.6"/>
+              <line x1="291" y1="10" x2="291" y2="90" stroke="#504B48" stroke-width="2"/>
+              <!-- RH notes (small, pp) -->
+              <g fill="#A8A29E" stroke="#A8A29E" opacity="0.45">
+                <ellipse cx="55" cy="30" rx="3.5" ry="2.5" transform="rotate(-15,55,30)"/>
+                <line x1="59" y1="30" x2="59" y2="12" stroke-width="0.8"/>
+                <ellipse cx="80" cy="26" rx="3.5" ry="2.5" transform="rotate(-15,80,26)"/>
+                <line x1="84" y1="26" x2="84" y2="8" stroke-width="0.8"/>
+                <ellipse cx="105" cy="34" rx="3.5" ry="2.5" transform="rotate(-15,105,34)"/>
+                <line x1="109" y1="34" x2="109" y2="16" stroke-width="0.8"/>
+                <ellipse cx="130" cy="30" rx="3.5" ry="2.5" transform="rotate(-15,130,30)"/>
+                <line x1="134" y1="30" x2="134" y2="12" stroke-width="0.8"/>
+                <ellipse cx="165" cy="26" rx="3.5" ry="2.5" transform="rotate(-15,165,26)"/>
+                <line x1="169" y1="26" x2="169" y2="8" stroke-width="0.8"/>
+                <ellipse cx="195" cy="30" rx="3.5" ry="2.5" transform="rotate(-15,195,30)"/>
+                <line x1="199" y1="30" x2="199" y2="12" stroke-width="0.8"/>
+                <ellipse cx="225" cy="26" rx="3.5" ry="2.5" transform="rotate(-15,225,26)"/>
+                <line x1="229" y1="26" x2="229" y2="8" stroke-width="0.8"/>
+                <ellipse cx="260" cy="22" rx="3.5" ry="2.5" transform="rotate(-15,260,22)"/>
+                <line x1="264" y1="22" x2="264" y2="4" stroke-width="0.8"/>
+              </g>
+              <!-- LH notes (accented, f) -->
+              <g fill="#C87F5A" stroke="#C87F5A">
+                <ellipse cx="55" cy="74" rx="4" ry="3" transform="rotate(-15,55,74)"/>
+                <line x1="51" y1="74" x2="51" y2="94" stroke-width="1"/>
+                <!-- Accent mark -->
+                <path d="M51 68 L55 64 L59 68" stroke="#C87F5A" stroke-width="1" fill="none"/>
+                <ellipse cx="80" cy="66" rx="4" ry="3" transform="rotate(-15,80,66)"/>
+                <line x1="84" y1="66" x2="84" y2="48" stroke-width="1"/>
+                <path d="M76 60 L80 56 L84 60" stroke="#C87F5A" stroke-width="1" fill="none"/>
+                <ellipse cx="105" cy="78" rx="4" ry="3" transform="rotate(-15,105,78)"/>
+                <line x1="101" y1="78" x2="101" y2="98" stroke-width="1"/>
+                <path d="M101 72 L105 68 L109 72" stroke="#C87F5A" stroke-width="1" fill="none"/>
+                <ellipse cx="130" cy="70" rx="4" ry="3" transform="rotate(-15,130,70)"/>
+                <line x1="134" y1="70" x2="134" y2="52" stroke-width="1"/>
+                <path d="M126 64 L130 60 L134 64" stroke="#C87F5A" stroke-width="1" fill="none"/>
+                <!-- Bar 2 -->
+                <ellipse cx="165" cy="82" rx="4" ry="3" transform="rotate(-15,165,82)"/>
+                <line x1="161" y1="82" x2="161" y2="100" stroke-width="1"/>
+                <path d="M161 76 L165 72 L169 76" stroke="#C87F5A" stroke-width="1" fill="none"/>
+                <ellipse cx="195" cy="74" rx="4" ry="3" transform="rotate(-15,195,74)"/>
+                <line x1="191" y1="74" x2="191" y2="94" stroke-width="1"/>
+                <path d="M191 68 L195 64 L199 68" stroke="#C87F5A" stroke-width="1" fill="none"/>
+                <ellipse cx="225" cy="66" rx="4" ry="3" transform="rotate(-15,225,66)"/>
+                <line x1="229" y1="66" x2="229" y2="48" stroke-width="1"/>
+                <path d="M221 60 L225 56 L229 60" stroke="#C87F5A" stroke-width="1" fill="none"/>
+                <ellipse cx="260" cy="74" rx="4" ry="3" transform="rotate(-15,260,74)"/>
+                <line x1="256" y1="74" x2="256" y2="94" stroke-width="1"/>
+                <path d="M256 68 L260 64 L264 68" stroke="#C87F5A" stroke-width="1" fill="none"/>
+              </g>
+              <!-- Dynamic markings -->
+              <text x="42" y="14" font-family="serif" font-style="italic" font-size="9" fill="#A8A29E" opacity="0.5">pp</text>
+              <text x="42" y="100" font-family="serif" font-style="italic" font-size="10" fill="#C87F5A">f</text>
+            </svg>
+          </div>
+          <div class="exercise-card-footer">
+            <div class="play-btn">
+              <svg viewBox="0 0 24 24"><polygon points="7,4 19,12 7,20"/></svg>
+            </div>
+            <span class="desc">Accent LH, RH pianissimo</span>
           </div>
         </div>
 
+        <!-- Exercise 3: Rhythmic variation -->
         <div class="exercise-card">
-          <div class="play-icon">
-            <svg viewBox="0 0 24 24"><polygon points="6,3 20,12 6,21"/></svg>
+          <div class="exercise-card-header">
+            <span class="title">Rhythmic variation</span>
+            <span class="tempo">&#9833; = 52</span>
           </div>
-          <div class="content">
-            <div class="title">Rhythmic variation</div>
-            <div class="desc">Play the left hand part with dotted rhythms to strengthen finger independence</div>
+          <div class="exercise-card-score">
+            <svg viewBox="0 0 300 55" xmlns="http://www.w3.org/2000/svg">
+              <!-- Staff lines -->
+              <line x1="8" y1="10" x2="292" y2="10" stroke="#504B48" stroke-width="0.6"/>
+              <line x1="8" y1="18" x2="292" y2="18" stroke="#504B48" stroke-width="0.6"/>
+              <line x1="8" y1="26" x2="292" y2="26" stroke="#504B48" stroke-width="0.6"/>
+              <line x1="8" y1="34" x2="292" y2="34" stroke="#504B48" stroke-width="0.6"/>
+              <line x1="8" y1="42" x2="292" y2="42" stroke="#504B48" stroke-width="0.6"/>
+              <!-- Bass clef -->
+              <text x="10" y="36" font-family="serif" font-size="24" fill="#A8A29E">&#119074;</text>
+              <!-- Barline -->
+              <line x1="148" y1="10" x2="148" y2="42" stroke="#504B48" stroke-width="0.6"/>
+              <!-- Final barline -->
+              <line x1="288" y1="10" x2="288" y2="42" stroke="#504B48" stroke-width="0.6"/>
+              <line x1="291" y1="10" x2="291" y2="42" stroke="#504B48" stroke-width="2"/>
+              <!-- Dotted rhythm pattern: dotted eighth + sixteenth -->
+              <g fill="#C87F5A" stroke="#C87F5A">
+                <!-- Dotted eighth -->
+                <ellipse cx="48" cy="26" rx="4" ry="3" transform="rotate(-15,48,26)"/>
+                <line x1="44" y1="26" x2="44" y2="46" stroke-width="1"/>
+                <!-- Flag -->
+                <path d="M44 46 Q50 42, 48 36" stroke="#C87F5A" stroke-width="1" fill="none"/>
+                <!-- Dot -->
+                <circle cx="56" cy="26" r="1.2" fill="#C87F5A"/>
+                <!-- Sixteenth -->
+                <ellipse cx="66" cy="18" rx="3.5" ry="2.5" transform="rotate(-15,66,18)"/>
+                <line x1="70" y1="18" x2="70" y2="0" stroke-width="1"/>
+                <path d="M70 0 Q76 4, 74 10" stroke="#C87F5A" stroke-width="1" fill="none"/>
+                <path d="M70 4 Q76 8, 74 14" stroke="#C87F5A" stroke-width="1" fill="none"/>
+
+                <!-- Dotted eighth -->
+                <ellipse cx="88" cy="30" rx="4" ry="3" transform="rotate(-15,88,30)"/>
+                <line x1="84" y1="30" x2="84" y2="50" stroke-width="1"/>
+                <path d="M84 50 Q90 46, 88 40" stroke="#C87F5A" stroke-width="1" fill="none"/>
+                <circle cx="96" cy="30" r="1.2" fill="#C87F5A"/>
+                <!-- Sixteenth -->
+                <ellipse cx="106" cy="22" rx="3.5" ry="2.5" transform="rotate(-15,106,22)"/>
+                <line x1="110" y1="22" x2="110" y2="4" stroke-width="1"/>
+                <path d="M110 4 Q116 8, 114 14" stroke="#C87F5A" stroke-width="1" fill="none"/>
+                <path d="M110 8 Q116 12, 114 18" stroke="#C87F5A" stroke-width="1" fill="none"/>
+
+                <!-- Dotted eighth -->
+                <ellipse cx="125" cy="34" rx="4" ry="3" transform="rotate(-15,125,34)"/>
+                <line x1="121" y1="34" x2="121" y2="52" stroke-width="1"/>
+                <path d="M121 52 Q127 48, 125 42" stroke="#C87F5A" stroke-width="1" fill="none"/>
+                <circle cx="133" cy="34" r="1.2" fill="#C87F5A"/>
+                <!-- Sixteenth -->
+                <ellipse cx="141" cy="26" rx="3.5" ry="2.5" transform="rotate(-15,141,26)"/>
+                <line x1="145" y1="26" x2="145" y2="8" stroke-width="1"/>
+                <path d="M145 8 Q151 12, 149 18" stroke="#C87F5A" stroke-width="1" fill="none"/>
+                <path d="M145 12 Q151 16, 149 22" stroke="#C87F5A" stroke-width="1" fill="none"/>
+
+                <!-- Bar 2 -->
+                <ellipse cx="165" cy="22" rx="4" ry="3" transform="rotate(-15,165,22)"/>
+                <line x1="169" y1="22" x2="169" y2="4" stroke-width="1"/>
+                <path d="M169 4 Q175 8, 173 14" stroke="#C87F5A" stroke-width="1" fill="none"/>
+                <circle cx="173" cy="22" r="1.2" fill="#C87F5A"/>
+                <ellipse cx="183" cy="30" rx="3.5" ry="2.5" transform="rotate(-15,183,30)"/>
+                <line x1="179" y1="30" x2="179" y2="50" stroke-width="1"/>
+                <path d="M179 50 Q185 46, 183 40" stroke="#C87F5A" stroke-width="1" fill="none"/>
+                <path d="M179 46 Q185 42, 183 36" stroke="#C87F5A" stroke-width="1" fill="none"/>
+
+                <ellipse cx="205" cy="26" rx="4" ry="3" transform="rotate(-15,205,26)"/>
+                <line x1="201" y1="26" x2="201" y2="46" stroke-width="1"/>
+                <path d="M201 46 Q207 42, 205 36" stroke="#C87F5A" stroke-width="1" fill="none"/>
+                <circle cx="213" cy="26" r="1.2" fill="#C87F5A"/>
+                <ellipse cx="223" cy="18" rx="3.5" ry="2.5" transform="rotate(-15,223,18)"/>
+                <line x1="227" y1="18" x2="227" y2="0" stroke-width="1"/>
+                <path d="M227 0 Q233 4, 231 10" stroke="#C87F5A" stroke-width="1" fill="none"/>
+                <path d="M227 4 Q233 8, 231 14" stroke="#C87F5A" stroke-width="1" fill="none"/>
+
+                <ellipse cx="248" cy="34" rx="4" ry="3" transform="rotate(-15,248,34)"/>
+                <line x1="244" y1="34" x2="244" y2="52" stroke-width="1"/>
+                <path d="M244 52 Q250 48, 248 42" stroke="#C87F5A" stroke-width="1" fill="none"/>
+                <circle cx="256" cy="34" r="1.2" fill="#C87F5A"/>
+                <ellipse cx="268" cy="26" rx="3.5" ry="2.5" transform="rotate(-15,268,26)"/>
+                <line x1="272" y1="26" x2="272" y2="8" stroke-width="1"/>
+                <path d="M272 8 Q278 12, 276 18" stroke="#C87F5A" stroke-width="1" fill="none"/>
+                <path d="M272 12 Q278 16, 276 22" stroke="#C87F5A" stroke-width="1" fill="none"/>
+              </g>
+              <!-- mf -->
+              <text x="38" y="54" font-family="serif" font-style="italic" font-size="10" fill="#A8A29E">mf</text>
+            </svg>
+          </div>
+          <div class="exercise-card-footer">
+            <div class="play-btn">
+              <svg viewBox="0 0 24 24"><polygon points="7,4 19,12 7,20"/></svg>
+            </div>
+            <span class="desc">Dotted rhythms for finger independence</span>
           </div>
         </div>
+
       </div>
     </div>
   </div>
