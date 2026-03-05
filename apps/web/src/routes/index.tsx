@@ -8,6 +8,7 @@ function LandingPage() {
       <HeroSection />
       <FeatureCardsSection />
       <CascadingQuoteSection />
+      <DeviceMockupSection />
       <FinalCtaSection />
     </div>
   )
@@ -56,16 +57,19 @@ function HeroSection() {
 function FeatureCardsSection() {
   const cards = [
     {
+      id: 'listen',
       title: 'Your teacher is listening',
       description:
         'Your phone listens while you play. When you pause and ask, your teacher is ready with the one thing that matters most.',
     },
     {
+      id: 'annotate',
       title: 'Exercises built for you',
       description:
         'Not generic drills. Targeted practice for the specific passage and skill your teacher identified.',
     },
     {
+      id: 'exercises',
       title: 'See what you hear',
       description:
         'The score lights up on a piano keyboard. See the notes, the fingering, the dynamics -- then play along.',
@@ -78,11 +82,15 @@ function FeatureCardsSection() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {cards.map((card) => (
             <div
-              key={card.title}
+              key={card.id}
               className="bg-surface border border-border rounded-xl overflow-hidden"
             >
-              {/* Placeholder visual area */}
-              <div className="aspect-[4/3] bg-surface-2" />
+              {/* Animation area -- replace with <video> or Lottie player */}
+              <div className="aspect-[4/3] bg-surface-2 flex items-center justify-center">
+                <span className="text-text-tertiary text-body-xs">
+                  Animation placeholder
+                </span>
+              </div>
 
               {/* Text content */}
               <div className="p-6 lg:p-8">
@@ -139,6 +147,47 @@ function CascadingQuoteSection() {
             <blockquote className="font-display italic text-display-md lg:text-display-lg text-cream leading-snug">
               "What's the one thing that sounds off that I can't hear myself?"
             </blockquote>
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function DeviceMockupSection() {
+  return (
+    <section className="py-24 lg:py-32">
+      <div className="max-w-7xl mx-auto px-6 lg:px-12">
+        {/* Device frames side by side */}
+        <div className="flex items-end justify-center gap-8 lg:gap-12">
+          {/* Laptop frame */}
+          <div className="w-full max-w-3xl">
+            <div className="bg-surface-2 rounded-t-xl p-2">
+              {/* Browser chrome dots */}
+              <div className="flex gap-1.5 px-2 py-1.5">
+                <div className="w-2.5 h-2.5 rounded-full bg-border" />
+                <div className="w-2.5 h-2.5 rounded-full bg-border" />
+                <div className="w-2.5 h-2.5 rounded-full bg-border" />
+              </div>
+              {/* Screenshot */}
+              <div className="aspect-[16/10] bg-surface rounded-sm overflow-hidden">
+                <img src="/mockup-desktop.png" alt="CrescendAI desktop chat with score highlight" className="w-full h-full object-cover" />
+              </div>
+            </div>
+            {/* Laptop base */}
+            <div className="h-3 bg-surface-2 rounded-b-sm mx-[-2%]" />
+          </div>
+
+          {/* Phone frame */}
+          <div className="w-[140px] lg:w-[180px] shrink-0">
+            <div className="bg-surface-2 rounded-2xl p-1.5">
+              {/* Notch */}
+              <div className="w-16 h-4 bg-surface-2 rounded-full mx-auto mb-1" />
+              {/* Screenshot */}
+              <div className="aspect-[9/19.5] bg-surface rounded-xl overflow-hidden">
+                <img src="/mockup-mobile.png" alt="CrescendAI mobile chat with exercises" className="w-full h-full object-cover" />
+              </div>
+            </div>
           </div>
         </div>
       </div>
