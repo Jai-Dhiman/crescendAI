@@ -1,8 +1,8 @@
 # Slice 6: Teacher LLM Prompt Design
 
-**Status:** DESIGNED (not implemented)
-**Last verified:** 2026-03-03
-**Notes:** Superseded as standalone design by `06a-subagent-architecture.md`. This doc remains relevant as the **stage-2 teacher persona prompt** of the two-stage pipeline. No Workers endpoint for `/api/ask` exists yet.
+**Status:** IMPLEMENTED
+**Last verified:** 2026-03-05
+**Notes:** Implemented as stage 2 of the two-stage pipeline. Teacher persona prompt in `apps/api/src/services/prompts.rs`. Provider: Anthropic API (Sonnet 4.6), not OpenRouter.
 
 See `docs/architecture.md` for the full system architecture.
 

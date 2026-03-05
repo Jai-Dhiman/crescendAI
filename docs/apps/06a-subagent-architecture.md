@@ -3,10 +3,10 @@
 See `docs/architecture.md` for the full system architecture.
 See `docs/apps/06-teacher-llm-prompt.md` for the teacher persona prompt and output handling (still used as stage 2).
 
-**Status:** DESIGNED (not implemented)
-**Last verified:** 2026-03-03
+**Status:** IMPLEMENTED (core pipeline)
+**Last verified:** 2026-03-05
 **Date:** 2026-03-03
-**Notes:** Design approved. Supersedes single-call design in Slice 06. No implementation started. Depends on OpenRouter integration and Workers endpoint.
+**Notes:** Core two-stage pipeline implemented in `apps/api/src/services/ask.rs`. Provider: Groq (Llama 3.3 70B) for subagent, Anthropic (Sonnet 4.6) for teacher. Synthesized facts and memory consolidation deferred to Slice 06c.
 
 **Goal:** Replace the single LLM call in the "Ask" flow with a two-stage pipeline: a fast analysis subagent that reasons about what to say, followed by a quality teacher LLM that says it.
 

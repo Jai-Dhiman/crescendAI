@@ -45,6 +45,9 @@ Rust API backend deployed to Cloudflare Workers at `api.crescend.ai`.
 - `POST /api/auth/signout` - Clear auth cookie
 - `POST /api/sync` - Receive student/session deltas from iOS, return exercise updates
 - `POST /api/extract-goals` - Extract goals from student message (Workers AI)
+- `POST /api/ask` - Two-stage teacher pipeline: send teaching moment context, receive LLM observation (Groq subagent + Anthropic teacher)
+- `POST /api/ask/elaborate` - "Tell me more" follow-up for a previous observation
+- `POST /api/auth/debug` - Dev-only login bypassing Apple Sign In (returns 404 in production)
 - `GET /health` - Health check
 
 ### API Endpoints (legacy v1 -- to be removed)
@@ -58,7 +61,6 @@ Rust API backend deployed to Cloudflare Workers at `api.crescend.ai`.
 
 ### API Endpoints (planned -- not yet implemented)
 
-- `POST /api/ask` - Send teaching moment context, receive LLM observation (two-stage pipeline via OpenRouter)
 - `GET /api/exercises` - Fetch exercise catalog
 
 ### Key Directories
