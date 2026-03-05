@@ -1,3 +1,4 @@
+pub mod ask;
 mod embedding;
 mod feedback;
 pub mod goals;
