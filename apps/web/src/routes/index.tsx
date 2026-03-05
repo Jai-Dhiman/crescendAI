@@ -85,11 +85,16 @@ function FeatureCardsSection() {
               key={card.id}
               className="bg-surface border border-border rounded-xl overflow-hidden"
             >
-              {/* Animation area -- replace with <video> or Lottie player */}
-              <div className="aspect-[4/3] bg-surface-2 flex items-center justify-center">
-                <span className="text-text-tertiary text-body-xs">
-                  Animation placeholder
-                </span>
+              {/* Animation area */}
+              <div className="aspect-[4/3] bg-surface-2 overflow-hidden">
+                <video
+                  src={`/anim-${card.id}.mp4`}
+                  autoPlay
+                  loop
+                  muted
+                  playsInline
+                  className="w-full h-full object-cover"
+                />
               </div>
 
               {/* Text content */}
@@ -121,7 +126,7 @@ function CascadingQuoteSection() {
                 src="/Image2.jpg"
                 alt="Practicing alone -- the struggle of hearing your own mistakes"
                 className="w-full object-cover"
-                style={{ aspectRatio: '4/5' }}
+                style={{ aspectRatio: '3/2' }}
               />
             </div>
             <div className="w-[55%] self-center">
@@ -129,7 +134,7 @@ function CascadingQuoteSection() {
                 src="/Image3.jpg"
                 alt="A moment of guidance -- focused attention on the score"
                 className="w-full object-cover"
-                style={{ aspectRatio: '4/5' }}
+                style={{ aspectRatio: '3/2' }}
               />
             </div>
             <div className="w-[55%] self-end">
@@ -137,7 +142,7 @@ function CascadingQuoteSection() {
                 src="/Image4.jpg"
                 alt="The breakthrough -- playing with confidence"
                 className="w-full object-cover"
-                style={{ aspectRatio: '4/5' }}
+                style={{ aspectRatio: '3/2' }}
               />
             </div>
           </div>
@@ -157,38 +162,20 @@ function CascadingQuoteSection() {
 function DeviceMockupSection() {
   return (
     <section className="py-24 lg:py-32">
-      <div className="max-w-7xl mx-auto px-6 lg:px-12">
-        {/* Device frames side by side */}
-        <div className="flex items-end justify-center gap-8 lg:gap-12">
-          {/* Laptop frame */}
-          <div className="w-full max-w-3xl">
-            <div className="bg-surface-2 rounded-t-xl p-2">
-              {/* Browser chrome dots */}
-              <div className="flex gap-1.5 px-2 py-1.5">
-                <div className="w-2.5 h-2.5 rounded-full bg-border" />
-                <div className="w-2.5 h-2.5 rounded-full bg-border" />
-                <div className="w-2.5 h-2.5 rounded-full bg-border" />
-              </div>
-              {/* Screenshot */}
-              <div className="aspect-[16/10] bg-surface rounded-sm overflow-hidden">
-                <img src="/mockup-desktop.png" alt="CrescendAI desktop chat with score highlight" className="w-full h-full object-cover" />
-              </div>
-            </div>
-            {/* Laptop base */}
-            <div className="h-3 bg-surface-2 rounded-b-sm mx-[-2%]" />
-          </div>
-
-          {/* Phone frame */}
-          <div className="w-[140px] lg:w-[180px] shrink-0">
-            <div className="bg-surface-2 rounded-2xl p-1.5">
-              {/* Notch */}
-              <div className="w-16 h-4 bg-surface-2 rounded-full mx-auto mb-1" />
-              {/* Screenshot */}
-              <div className="aspect-[9/19.5] bg-surface rounded-xl overflow-hidden">
-                <img src="/mockup-mobile.png" alt="CrescendAI mobile chat with exercises" className="w-full h-full object-cover" />
-              </div>
-            </div>
-          </div>
+      <div className="max-w-5xl mx-auto px-6 lg:px-12">
+        <div className="relative">
+          {/* Laptop */}
+          <img
+            src="/MacbookMockup.png"
+            alt="CrescendAI desktop app showing a practice session with score analysis"
+            className="w-full"
+          />
+          {/* Phone -- overlapping bottom-right */}
+          <img
+            src="/iphonemockup.png"
+            alt="CrescendAI mobile app showing exercise recommendations"
+            className="absolute bottom-[-8%] right-[-4%] w-[28%] lg:w-[25%]"
+          />
         </div>
       </div>
     </section>
