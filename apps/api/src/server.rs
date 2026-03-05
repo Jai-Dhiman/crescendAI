@@ -743,6 +743,36 @@ async fn fetch(
         ));
     }
 
+    // Ask endpoint -- two-stage teacher pipeline (authenticated)
+    if path == "/api/ask" && method == http::Method::POST {
+        let headers = req.headers().clone();
+        let body = req
+            .into_body()
+            .collect()
+            .await
+            .map(|b| b.to_bytes().to_vec())
+            .unwrap_or_default();
+        return Ok(with_cors(
+            crate::services::ask::handle_ask(&env, &headers, &body).await,
+            origin.as_deref(),
+        ));
+    }
+
+    // Ask elaborate endpoint -- "Tell me more" follow-up (authenticated)
+    if path == "/api/ask/elaborate" && method == http::Method::POST {
+        let headers = req.headers().clone();
+        let body = req
+            .into_body()
+            .collect()
+            .await
+            .map(|b| b.to_bytes().to_vec())
+            .unwrap_or_default();
+        return Ok(with_cors(
+            crate::services::ask::handle_elaborate(&env, &headers, &body).await,
+            origin.as_deref(),
+        ));
+    }
+
     // Full analysis endpoint with RAG feedback
     if path.starts_with("/api/analyze/") && method == http::Method::POST {
         let performance_id = path.trim_start_matches("/api/analyze/");
