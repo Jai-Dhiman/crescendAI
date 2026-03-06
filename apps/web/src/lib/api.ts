@@ -64,5 +64,9 @@ export const api = {
     signout(): Promise<void> {
       return request('/api/auth/signout', { method: 'POST' })
     },
+
+    debug(): Promise<AuthResult> {
+      return request('/api/auth/debug', { method: 'POST' })
+    },
   },
 }

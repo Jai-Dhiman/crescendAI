@@ -58,21 +58,21 @@ function FeatureCardsSection() {
   const cards = [
     {
       id: 'listen',
-      title: 'Your teacher is listening',
+      title: 'Record yourself playing.',
       description:
-        'Your phone listens while you play. When you pause and ask, your teacher is ready with the one thing that matters most.',
+        'When you pause, your teacher is ready with the one thing that matters most.',
     },
     {
       id: 'annotate',
-      title: 'Exercises built for you',
+      title: 'Exercises built for you.',
       description:
-        'Not generic drills. Targeted practice for the specific passage and skill your teacher identified.',
+        'Targeted practice for the specific passage and skill your teacher identified.',
     },
     {
       id: 'exercises',
-      title: 'See what you hear',
+      title: 'A teacher who knows your playing.',
       description:
-        'The score lights up on a piano keyboard. See the notes, the fingering, the dynamics -- then play along.',
+        'Your teacher remembers what you\'ve been working on, notices when you improve, and adapts.',
     },
   ]
 
@@ -187,7 +187,7 @@ function FinalCtaSection() {
     <section className="py-32 lg:py-40">
       <div className="max-w-4xl mx-auto px-6 lg:px-12 text-center">
         <h2 className="font-display text-display-md lg:text-display-xl text-cream">
-          Start practicing with a teacher who's always listening.
+          Every pianist deserves a great teacher.
         </h2>
 
         <div className="mt-10">

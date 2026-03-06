@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Loop Preview</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #1a1817;
+    color: #FDF8F0;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    padding: 40px;
+    display: flex;
+    flex-direction: column;
+    gap: 30px;
+  }
+  h2 {
+    font-size: 14px;
+    color: #A8A29E;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-weight: 500;
+  }
+  .card {
+    background: #2D2926;
+    border: 1px solid #504B48;
+    border-radius: 12px;
+    overflow: hidden;
+    width: 500px;
+  }
+  .card video {
+    width: 100%;
+    display: block;
+  }
+  .card-text {
+    padding: 16px 20px;
+    font-size: 13px;
+    color: #A8A29E;
+  }
+</style>
+</head>
+<body>
+
+<h2>Video 1 — Listen</h2>
+<div class="card">
+  <video src="../public/anim-listen.mp4" autoplay loop muted playsinline></video>
+  <div class="card-text">Check: does the loop restart feel seamless?</div>
+</div>
+
+<h2>Video 2 — Annotate</h2>
+<div class="card">
+  <video src="../public/anim-annotate.mp4" autoplay loop muted playsinline></video>
+  <div class="card-text">Check: does the loop restart feel seamless?</div>
+</div>
+
+<h2>Video 3 — Chat</h2>
+<div class="card">
+  <video src="../public/anim-exercises.mp4" autoplay loop muted playsinline></video>
+  <div class="card-text">Check: does the loop restart feel seamless?</div>
+</div>
+
+</body>
+</html>

@@ -73,7 +73,7 @@ function SignInPage() {
   return (
     <div className="relative h-screen w-full overflow-hidden">
       <img
-        src="/Image4.jpg"
+        src="/Image5.jpg"
         alt="Hands playing piano in warm light"
         className="absolute inset-0 w-full h-full object-cover"
       />
@@ -112,6 +112,34 @@ function SignInPage() {
             </svg>
             {loading ? 'Signing in...' : 'Sign in with Apple'}
           </button>
+
+          {!import.meta.env.PROD && (
+            <button
+              type="button"
+              onClick={async () => {
+                setLoading(true)
+                setError(null)
+                try {
+                  const result = await api.auth.debug()
+                  setUser({
+                    student_id: result.student_id,
+                    email: result.email,
+                    display_name: result.display_name,
+                  })
+                  navigate({ to: '/app' })
+                } catch (err) {
+                  console.error('Debug login failed:', err)
+                  setError('Debug login failed.')
+                } finally {
+                  setLoading(false)
+                }
+              }}
+              disabled={loading}
+              className="mt-3 w-full text-text-tertiary text-body-xs underline hover:text-text-secondary transition disabled:opacity-50"
+            >
+              Debug Login
+            </button>
+          )}
 
           <p className="mt-6 text-body-xs text-text-tertiary">
             By signing in, you agree to our Terms of Service
