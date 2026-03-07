@@ -23,7 +23,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   })
 
   if (!response.ok) {
-    const body = await response.json().catch(() => ({ error: response.statusText }))
+    const body = await response.json().catch(() => ({ error: response.statusText })) as Record<string, string>
     throw new ApiError(response.status, body.error ?? response.statusText)
   }
 
@@ -118,7 +118,7 @@ export const api = {
       })
 
       if (!response.ok) {
-        const body = await response.json().catch(() => ({ error: response.statusText }))
+        const body = await response.json().catch(() => ({ error: response.statusText })) as Record<string, string>
         throw new ApiError(response.status, body.error ?? response.statusText)
       }
 
