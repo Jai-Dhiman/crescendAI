@@ -88,6 +88,71 @@ pub async fn handle_extract_goals(
             .unwrap();
     }
 
+    // Store extracted goals as student-reported facts in synthesized_facts
+    let now = js_sys::Date::new_0()
+        .to_iso_string()
+        .as_string()
+        .unwrap_or_default();
+    let today = &now[..10.min(now.len())];
+
+    for piece in &extracted.pieces {
+        let fact_id = crate::services::memory::generate_fact_id();
+        let piece_ctx = serde_json::json!({"title": piece}).to_string();
+        let fact_text = format!("Working on {}", piece);
+        if let Ok(stmt) = db
+            .prepare(
+                "INSERT OR IGNORE INTO synthesized_facts \
+                 (id, student_id, fact_text, fact_type, dimension, piece_context, \
+                  valid_at, confidence, evidence, source_type, created_at) \
+                 VALUES (?1, ?2, ?3, ?4, NULL, ?5, ?6, ?7, ?8, ?9, ?10)",
+            )
+            .bind(&[
+                JsValue::from_str(&fact_id),
+                JsValue::from_str(&student_id),
+                JsValue::from_str(&fact_text),
+                JsValue::from_str("arc"),
+                JsValue::from_str(&piece_ctx),
+                JsValue::from_str(today),
+                JsValue::from_str("high"),
+                JsValue::from_str("[]"),
+                JsValue::from_str("student_reported"),
+                JsValue::from_str(&now),
+            ])
+        {
+            let _ = stmt.run().await;
+        }
+    }
+
+    for deadline in &extracted.deadlines {
+        let fact_id = crate::services::memory::generate_fact_id();
+        let invalid_at = deadline.date.as_deref();
+        if let Ok(stmt) = db
+            .prepare(
+                "INSERT OR IGNORE INTO synthesized_facts \
+                 (id, student_id, fact_text, fact_type, dimension, valid_at, invalid_at, \
+                  confidence, evidence, source_type, created_at) \
+                 VALUES (?1, ?2, ?3, ?4, NULL, ?5, ?6, ?7, ?8, ?9, ?10)",
+            )
+            .bind(&[
+                JsValue::from_str(&fact_id),
+                JsValue::from_str(&student_id),
+                JsValue::from_str(&deadline.description),
+                JsValue::from_str("arc"),
+                JsValue::from_str(today),
+                match invalid_at {
+                    Some(d) => JsValue::from_str(d),
+                    None => JsValue::NULL,
+                },
+                JsValue::from_str("high"),
+                JsValue::from_str("[]"),
+                JsValue::from_str("student_reported"),
+                JsValue::from_str(&now),
+            ])
+        {
+            let _ = stmt.run().await;
+        }
+    }
+
     let json = serde_json::to_string(&extracted).unwrap_or_else(|_| "{}".to_string());
 
     Response::builder()
