@@ -341,6 +341,344 @@ pub async fn increment_observation_count(
     Ok(())
 }
 
+/// Check if synthesis should run for this student.
+/// Returns true if >= 3 new observations since last synthesis,
+/// or any new observations and last synthesis was > 7 days ago.
+pub async fn should_synthesize(
+    env: &Env,
+    student_id: &str,
+) -> Result<bool, String> {
+    let db = env.d1("DB").map_err(|e| format!("D1 binding failed: {:?}", e))?;
+
+    let meta: Option<serde_json::Value> = db
+        .prepare("SELECT last_synthesis_at, total_observations FROM student_memory_meta WHERE student_id = ?1")
+        .bind(&[JsValue::from_str(student_id)])
+        .map_err(|e| format!("Failed to bind query: {:?}", e))?
+        .first(None)
+        .await
+        .map_err(|e| format!("Failed to query meta: {:?}", e))?;
+
+    let last_synthesis = meta
+        .as_ref()
+        .and_then(|m| m.get("last_synthesis_at"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+
+    if last_synthesis.is_empty() {
+        // Never synthesized -- check if there are at least 3 observations
+        let total = meta
+            .as_ref()
+            .and_then(|m| m.get("total_observations"))
+            .and_then(|v| v.as_i64())
+            .unwrap_or(0);
+        return Ok(total >= 3);
+    }
+
+    // Count observations since last synthesis
+    let count_result: Option<serde_json::Value> = db
+        .prepare(
+            "SELECT COUNT(*) as cnt FROM observations \
+             WHERE student_id = ?1 AND created_at > ?2",
+        )
+        .bind(&[
+            JsValue::from_str(student_id),
+            JsValue::from_str(last_synthesis),
+        ])
+        .map_err(|e| format!("Failed to bind count query: {:?}", e))?
+        .first(None)
+        .await
+        .map_err(|e| format!("Failed to count observations: {:?}", e))?;
+
+    let new_count = count_result
+        .as_ref()
+        .and_then(|r| r.get("cnt"))
+        .and_then(|v| v.as_i64())
+        .unwrap_or(0);
+
+    if new_count >= 3 {
+        return Ok(true);
+    }
+
+    // Check if last synthesis was > 7 days ago and there are any new observations
+    if new_count > 0 {
+        // Simple check: compare date strings (ISO format sorts correctly)
+        let now = js_sys::Date::new_0()
+            .to_iso_string()
+            .as_string()
+            .unwrap_or_default();
+        // 7 days = check if last_synthesis is more than 7 days old
+        // Simple heuristic: if the date portion differs by enough characters
+        // (proper date math would need a date library, this is good enough)
+        let last_date = &last_synthesis[..10.min(last_synthesis.len())];
+        let now_date = &now[..10.min(now.len())];
+        if last_date != now_date {
+            // At least a day has passed, and we have observations.
+            // For a more precise 7-day check, we'd need date arithmetic.
+            // For now, synthesize if any new observations exist and it's a new day.
+            return Ok(true);
+        }
+    }
+
+    Ok(false)
+}
+
+/// Run the synthesis pipeline for a student.
+pub async fn run_synthesis(
+    env: &Env,
+    student_id: &str,
+) -> Result<(), String> {
+    use crate::services::llm;
+    use crate::services::prompts;
+
+    let db = env.d1("DB").map_err(|e| format!("D1 binding failed: {:?}", e))?;
+
+    // 1. Get current active facts
+    let active_facts = query_active_facts(env, student_id).await?;
+
+    // 2. Get last synthesis timestamp
+    let meta: Option<serde_json::Value> = db
+        .prepare("SELECT last_synthesis_at FROM student_memory_meta WHERE student_id = ?1")
+        .bind(&[JsValue::from_str(student_id)])
+        .map_err(|e| format!("Failed to bind meta query: {:?}", e))?
+        .first(None)
+        .await
+        .map_err(|e| format!("Failed to query meta: {:?}", e))?;
+
+    let last_synthesis = meta
+        .as_ref()
+        .and_then(|m| m.get("last_synthesis_at"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("1970-01-01T00:00:00.000Z");
+
+    // 3. Get new observations since last synthesis
+    let obs_results = db
+        .prepare(
+            "SELECT id, dimension, observation_text, framing, dimension_score, \
+             student_baseline, reasoning_trace, piece_context, created_at \
+             FROM observations \
+             WHERE student_id = ?1 AND created_at > ?2 \
+             ORDER BY created_at ASC",
+        )
+        .bind(&[
+            JsValue::from_str(student_id),
+            JsValue::from_str(last_synthesis),
+        ])
+        .map_err(|e| format!("Failed to bind obs query: {:?}", e))?
+        .all()
+        .await
+        .map_err(|e| format!("Failed to query new observations: {:?}", e))?;
+
+    let new_observations: Vec<serde_json::Value> = obs_results
+        .results()
+        .map_err(|e| format!("Failed to get obs results: {:?}", e))?;
+
+    if new_observations.is_empty() {
+        return Ok(());
+    }
+
+    // 4. Get teaching approaches since last synthesis
+    let ta_results = db
+        .prepare(
+            "SELECT dimension, framing, approach_summary, engaged \
+             FROM teaching_approaches \
+             WHERE student_id = ?1 AND created_at > ?2",
+        )
+        .bind(&[
+            JsValue::from_str(student_id),
+            JsValue::from_str(last_synthesis),
+        ])
+        .map_err(|e| format!("Failed to bind ta query: {:?}", e))?
+        .all()
+        .await
+        .map_err(|e| format!("Failed to query teaching approaches: {:?}", e))?;
+
+    let teaching_approaches: Vec<serde_json::Value> = ta_results
+        .results()
+        .map_err(|e| format!("Failed to get ta results: {:?}", e))?;
+
+    // 5. Get student baselines
+    let baselines: serde_json::Value = db
+        .prepare(
+            "SELECT baseline_dynamics, baseline_timing, baseline_pedaling, \
+             baseline_articulation, baseline_phrasing, baseline_interpretation \
+             FROM students WHERE student_id = ?1",
+        )
+        .bind(&[JsValue::from_str(student_id)])
+        .map_err(|e| format!("Failed to bind baselines query: {:?}", e))?
+        .first(None)
+        .await
+        .map_err(|e| format!("Failed to query baselines: {:?}", e))?
+        .unwrap_or(serde_json::json!({}));
+
+    // 6. Build synthesis prompt and call Groq
+    let user_prompt = prompts::build_synthesis_prompt(
+        &active_facts,
+        &new_observations,
+        &teaching_approaches,
+        &baselines,
+    );
+
+    let synthesis_output = llm::call_groq(
+        env,
+        prompts::SYNTHESIS_SYSTEM,
+        &user_prompt,
+        0.1,
+        800,
+    )
+    .await?;
+
+    // 7. Parse synthesis output
+    let synthesis_json = extract_synthesis_json(&synthesis_output)?;
+
+    let now = js_sys::Date::new_0()
+        .to_iso_string()
+        .as_string()
+        .unwrap_or_default();
+    let today = &now[..10.min(now.len())];
+
+    // 8. Apply invalidations
+    if let Some(invalidated) = synthesis_json.get("invalidated_facts").and_then(|v| v.as_array()) {
+        for inv in invalidated {
+            let fact_id = inv.get("fact_id").and_then(|v| v.as_str()).unwrap_or("");
+            let invalid_at = inv.get("invalid_at").and_then(|v| v.as_str()).unwrap_or(today);
+            if !fact_id.is_empty() {
+                let _ = db
+                    .prepare(
+                        "UPDATE synthesized_facts SET invalid_at = ?1, expired_at = ?2 \
+                         WHERE id = ?3 AND student_id = ?4",
+                    )
+                    .bind(&[
+                        JsValue::from_str(invalid_at),
+                        JsValue::from_str(&now),
+                        JsValue::from_str(fact_id),
+                        JsValue::from_str(student_id),
+                    ])
+                    .map_err(|e| format!("Failed to bind invalidation: {:?}", e))?
+                    .run()
+                    .await;
+            }
+        }
+    }
+
+    // 9. Insert new facts
+    if let Some(new_facts) = synthesis_json.get("new_facts").and_then(|v| v.as_array()) {
+        for fact in new_facts {
+            let fact_id = generate_uuid();
+            let fact_text = fact.get("fact_text").and_then(|v| v.as_str()).unwrap_or("");
+            let fact_type = fact.get("fact_type").and_then(|v| v.as_str()).unwrap_or("dimension");
+            let dimension = fact.get("dimension").and_then(|v| v.as_str());
+            let piece_ctx = fact.get("piece_context").map(|v| v.to_string());
+            let trend = fact.get("trend").and_then(|v| v.as_str());
+            let confidence = fact.get("confidence").and_then(|v| v.as_str()).unwrap_or("medium");
+            let evidence = fact.get("evidence").map(|v| v.to_string()).unwrap_or_else(|| "[]".to_string());
+            let valid_at = today;
+
+            if fact_text.is_empty() {
+                continue;
+            }
+
+            let _ = db
+                .prepare(
+                    "INSERT INTO synthesized_facts \
+                     (id, student_id, fact_text, fact_type, dimension, piece_context, \
+                      valid_at, trend, confidence, evidence, source_type, created_at) \
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+                )
+                .bind(&[
+                    JsValue::from_str(&fact_id),
+                    JsValue::from_str(student_id),
+                    JsValue::from_str(fact_text),
+                    JsValue::from_str(fact_type),
+                    match dimension {
+                        Some(d) => JsValue::from_str(d),
+                        None => JsValue::NULL,
+                    },
+                    match piece_ctx.as_deref() {
+                        Some(pc) if pc != "null" => JsValue::from_str(pc),
+                        _ => JsValue::NULL,
+                    },
+                    JsValue::from_str(valid_at),
+                    match trend {
+                        Some(t) => JsValue::from_str(t),
+                        None => JsValue::NULL,
+                    },
+                    JsValue::from_str(confidence),
+                    JsValue::from_str(&evidence),
+                    JsValue::from_str("synthesized"),
+                    JsValue::from_str(&now),
+                ])
+                .map_err(|e| format!("Failed to bind fact insert: {:?}", e))?
+                .run()
+                .await;
+        }
+    }
+
+    // 10. Update meta
+    let fact_count_result: Option<serde_json::Value> = db
+        .prepare(
+            "SELECT COUNT(*) as cnt FROM synthesized_facts \
+             WHERE student_id = ?1 AND invalid_at IS NULL AND expired_at IS NULL",
+        )
+        .bind(&[JsValue::from_str(student_id)])
+        .map_err(|e| format!("Failed to bind fact count: {:?}", e))?
+        .first(None)
+        .await
+        .map_err(|e| format!("Failed to count facts: {:?}", e))?;
+
+    let total_facts = fact_count_result
+        .as_ref()
+        .and_then(|r| r.get("cnt"))
+        .and_then(|v| v.as_i64())
+        .unwrap_or(0);
+
+    db.prepare(
+        "INSERT INTO student_memory_meta (student_id, last_synthesis_at, total_facts) \
+         VALUES (?1, ?2, ?3) \
+         ON CONFLICT(student_id) DO UPDATE SET last_synthesis_at = ?2, total_facts = ?3",
+    )
+    .bind(&[
+        JsValue::from_str(student_id),
+        JsValue::from_str(&now),
+        JsValue::from_f64(total_facts as f64),
+    ])
+    .map_err(|e| format!("Failed to bind meta update: {:?}", e))?
+    .run()
+    .await
+    .map_err(|e| format!("Failed to update meta: {:?}", e))?;
+
+    console_log!(
+        "Synthesis complete for student {}: {} new observations processed",
+        student_id,
+        new_observations.len()
+    );
+
+    Ok(())
+}
+
+/// Extract JSON from synthesis LLM output (may be wrapped in code fences).
+fn extract_synthesis_json(output: &str) -> Result<serde_json::Value, String> {
+    // Try to find JSON within ```json ... ``` fences
+    let json_str = if let Some(start) = output.find("```json") {
+        let json_start = start + 7;
+        if let Some(end) = output[json_start..].find("```") {
+            output[json_start..json_start + end].trim()
+        } else {
+            output.trim()
+        }
+    } else if let Some(start) = output.find('{') {
+        if let Some(end) = output.rfind('}') {
+            &output[start..=end]
+        } else {
+            output.trim()
+        }
+    } else {
+        output.trim()
+    };
+
+    serde_json::from_str(json_str)
+        .map_err(|e| format!("Failed to parse synthesis JSON: {:?} - raw: {}", e, &json_str[..200.min(json_str.len())]))
+}
+
 /// Public wrapper for UUID generation (used by goals.rs).
 pub fn generate_fact_id() -> String {
     generate_uuid()

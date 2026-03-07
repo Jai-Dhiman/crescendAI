@@ -229,3 +229,123 @@ pub struct ObservationRow {
     pub framing: String,
     pub created_at: String,
 }
+
+/// Synthesis system prompt (Groq, Llama 70B)
+/// Called after session sync to update synthesized facts.
+pub const SYNTHESIS_SYSTEM: &str = r#"You are a memory consolidation system for a piano teaching app. You receive:
+1. Current active facts about a student (what the system currently believes)
+2. New observations since the last synthesis (what was recently observed)
+3. Teaching approach records (what feedback was given and whether the student engaged)
+4. Student baselines (current dimension scores)
+
+Your job is to update the student's fact base. Output ONLY valid JSON with three arrays:
+
+```json
+{
+  "new_facts": [
+    {
+      "fact_text": "One sentence describing the pattern or insight",
+      "fact_type": "dimension|approach|arc|student_reported",
+      "dimension": "dynamics|timing|pedaling|articulation|phrasing|interpretation|null",
+      "piece_context": {"composer": "...", "title": "..."} or null,
+      "trend": "improving|stable|declining|new|resolved",
+      "confidence": "high|medium|low",
+      "evidence": ["obs_id_1", "obs_id_2"]
+    }
+  ],
+  "invalidated_facts": [
+    {
+      "fact_id": "id of fact to invalidate",
+      "reason": "Why this fact is no longer true",
+      "invalid_at": "ISO date when it stopped being true"
+    }
+  ],
+  "unchanged_facts": ["fact_id_1", "fact_id_2"]
+}
+```
+
+Rules:
+- Every current active fact must appear in either invalidated_facts or unchanged_facts
+- Create approach facts when engagement patterns are clear (e.g., "student engages most with correction-framed feedback")
+- Invalidate facts that are contradicted by new evidence (e.g., a "persistent weakness" that has improved for 3+ sessions)
+- Set trend to "resolved" when a previously flagged issue is no longer appearing
+- Be conservative: only create high-confidence facts when supported by 3+ observations
+- Review student_reported facts for staleness (goals older than 90 days with no related observations)"#;
+
+/// Build the synthesis user prompt from student data.
+pub fn build_synthesis_prompt(
+    active_facts: &[super::memory::SynthesizedFact],
+    new_observations: &[serde_json::Value],
+    teaching_approaches: &[serde_json::Value],
+    baselines: &serde_json::Value,
+) -> String {
+    let mut prompt = String::with_capacity(3000);
+
+    prompt.push_str("## Current Active Facts\n\n");
+    if active_facts.is_empty() {
+        prompt.push_str("No facts yet (first synthesis).\n\n");
+    } else {
+        for fact in active_facts {
+            let dim = fact.dimension.as_deref().unwrap_or("general");
+            let trend = fact.trend.as_deref().unwrap_or("unknown");
+            prompt.push_str(&format!(
+                "- [id: {}, type: {}, dim: {}, trend: {}, confidence: {}, since: {}] {}\n",
+                fact.id, fact.fact_type, dim, trend, fact.confidence, fact.valid_at, fact.fact_text
+            ));
+        }
+        prompt.push('\n');
+    }
+
+    prompt.push_str("## New Observations Since Last Synthesis\n\n");
+    if new_observations.is_empty() {
+        prompt.push_str("No new observations.\n\n");
+    } else {
+        for obs in new_observations {
+            let id = obs.get("id").and_then(|v| v.as_str()).unwrap_or("");
+            let dim = obs.get("dimension").and_then(|v| v.as_str()).unwrap_or("");
+            let text = obs.get("observation_text").and_then(|v| v.as_str()).unwrap_or("");
+            let framing = obs.get("framing").and_then(|v| v.as_str()).unwrap_or("");
+            let score = obs.get("dimension_score").and_then(|v| v.as_f64());
+            let baseline = obs.get("student_baseline").and_then(|v| v.as_f64());
+            let created = obs.get("created_at").and_then(|v| v.as_str()).unwrap_or("");
+            let trace = obs.get("reasoning_trace").and_then(|v| v.as_str()).unwrap_or("");
+
+            prompt.push_str(&format!("- [id: {}, dim: {}, framing: {}, date: {}]\n", id, dim, framing, created));
+            prompt.push_str(&format!("  Text: \"{}\"\n", text));
+            if let (Some(s), Some(b)) = (score, baseline) {
+                prompt.push_str(&format!("  Score: {:.2} (baseline: {:.2}, delta: {:+.2})\n", s, b, s - b));
+            }
+            if !trace.is_empty() && trace != "{}" {
+                prompt.push_str(&format!("  Reasoning: {}\n", trace));
+            }
+        }
+        prompt.push('\n');
+    }
+
+    if !teaching_approaches.is_empty() {
+        prompt.push_str("## Teaching Approaches\n\n");
+        for ta in teaching_approaches {
+            let dim = ta.get("dimension").and_then(|v| v.as_str()).unwrap_or("");
+            let framing = ta.get("framing").and_then(|v| v.as_str()).unwrap_or("");
+            let summary = ta.get("approach_summary").and_then(|v| v.as_str()).unwrap_or("");
+            let engaged = ta.get("engaged").and_then(|v| v.as_i64()).unwrap_or(0) == 1;
+            prompt.push_str(&format!(
+                "- {}: {} (engaged: {})\n",
+                dim, summary, if engaged { "yes" } else { "no" }
+            ));
+        }
+        prompt.push('\n');
+    }
+
+    prompt.push_str("## Student Baselines\n\n");
+    for dim in &["dynamics", "timing", "pedaling", "articulation", "phrasing", "interpretation"] {
+        if let Some(val) = baselines.get(format!("baseline_{}", dim)).and_then(|v| v.as_f64()) {
+            prompt.push_str(&format!("- {}: {:.2}\n", dim, val));
+        }
+    }
+    prompt.push('\n');
+
+    prompt.push_str("## Task\n\nAnalyze the new observations against current facts and baselines. Output the JSON update.");
+
+    prompt
+}
