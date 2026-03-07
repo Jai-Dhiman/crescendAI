@@ -4,6 +4,7 @@ mod feedback;
 pub mod goals;
 mod huggingface;
 pub mod llm;
+pub mod memory;
 pub mod prompts;
 mod r2;
 mod rag;
