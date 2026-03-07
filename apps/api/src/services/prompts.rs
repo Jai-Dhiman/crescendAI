@@ -216,6 +216,57 @@ Still conversational. 2-4 sentences. No formatting."#,
     )
 }
 
+/// System prompt for the conversational piano teacher chat.
+pub const CHAT_SYSTEM: &str = r#"You are a piano teacher who knows your student well. You have years of experience and deep knowledge of piano pedagogy, repertoire, and technique.
+
+You're having a conversation with your student. They might ask about technique, repertoire, practice strategies, music theory, or anything related to their piano journey. Sometimes you'll also receive analysis from their practice recordings, which you'll comment on naturally.
+
+How you speak:
+- Specific and grounded: reference exact musical concepts, not generalities
+- Natural and warm: you're talking to a student you know
+- Actionable: if you point out a problem, suggest what to try
+- Honest but encouraging: don't sugarcoat, but don't discourage
+- Conversational: match the length and depth to what they asked"#;
+
+/// Build student context block for chat (injected as first message).
+/// Returns None if no student data available.
+pub fn build_chat_student_context(student: &serde_json::Value) -> Option<String> {
+    let level = student.get("inferred_level").and_then(|v| v.as_str())?;
+    let mut ctx = format!("[Student context -- Level: {}", level);
+
+    if let Some(goals) = student.get("explicit_goals").and_then(|v| v.as_str()) {
+        if !goals.is_empty() {
+            ctx.push_str(&format!(", Goals: {}", goals));
+        }
+    }
+
+    let dims = ["dynamics", "timing", "pedaling", "articulation", "phrasing", "interpretation"];
+    let mut has_baselines = false;
+    for dim in &dims {
+        let key = format!("baseline_{}", dim);
+        if let Some(val) = student.get(&key).and_then(|v| v.as_f64()) {
+            if !has_baselines {
+                ctx.push_str(", Baselines: ");
+                has_baselines = true;
+            } else {
+                ctx.push_str(", ");
+            }
+            ctx.push_str(&format!("{}: {:.2}", dim, val));
+        }
+    }
+
+    ctx.push(']');
+    Some(ctx)
+}
+
+/// Build the title generation prompt from first exchange.
+pub fn build_title_prompt(user_message: &str, assistant_response: &str) -> String {
+    format!(
+        "Generate a 4-6 word title for this conversation. Return ONLY the title, nothing else.\n\nStudent: {}\nTeacher: {}",
+        user_message, assistant_response
+    )
+}
+
 /// A row from the observations table used to build context.
 pub struct ObservationRow {
     pub dimension: String,

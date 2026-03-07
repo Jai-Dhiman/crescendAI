@@ -212,8 +212,100 @@ pub async fn call_anthropic(
 
 // --- Shared ---
 
-#[derive(Serialize, Deserialize)]
-struct LlmMessage {
-    role: String,
-    content: String,
+#[derive(Serialize, Deserialize, Clone)]
+pub struct LlmMessage {
+    pub role: String,
+    pub content: String,
+}
+
+// --- Anthropic Streaming ---
+
+#[derive(Serialize)]
+pub struct AnthropicStreamRequest {
+    pub model: String,
+    pub max_tokens: u32,
+    pub system: Vec<AnthropicSystemBlock>,
+    pub messages: Vec<LlmMessage>,
+    pub stream: bool,
+}
+
+#[derive(Serialize)]
+pub struct AnthropicSystemBlock {
+    #[serde(rename = "type")]
+    pub block_type: String,
+    pub text: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cache_control: Option<CacheControl>,
+}
+
+#[derive(Serialize)]
+pub struct CacheControl {
+    #[serde(rename = "type")]
+    pub control_type: String,
+}
+
+/// Make a streaming request to Anthropic. Returns the raw worker::Response
+/// so the caller can process the SSE stream.
+pub async fn call_anthropic_stream(
+    env: &Env,
+    system_prompt: &str,
+    messages: Vec<LlmMessage>,
+    max_tokens: u32,
+) -> Result<worker::Response, String> {
+    let api_key = env
+        .secret("ANTHROPIC_API_KEY")
+        .map_err(|_| "ANTHROPIC_API_KEY not configured".to_string())?
+        .to_string();
+
+    let request_body = AnthropicStreamRequest {
+        model: "claude-sonnet-4-6".to_string(),
+        max_tokens,
+        system: vec![AnthropicSystemBlock {
+            block_type: "text".to_string(),
+            text: system_prompt.to_string(),
+            cache_control: Some(CacheControl {
+                control_type: "ephemeral".to_string(),
+            }),
+        }],
+        messages,
+        stream: true,
+    };
+
+    let body_json = serde_json::to_string(&request_body)
+        .map_err(|e| format!("Failed to serialize Anthropic stream request: {:?}", e))?;
+
+    let headers = Headers::new();
+    headers
+        .set("x-api-key", &api_key)
+        .map_err(|e| format!("Failed to set api-key header: {:?}", e))?;
+    headers
+        .set("anthropic-version", "2023-06-01")
+        .map_err(|e| format!("Failed to set version header: {:?}", e))?;
+    headers
+        .set("Content-Type", "application/json")
+        .map_err(|e| format!("Failed to set content-type: {:?}", e))?;
+
+    let url: Url = "https://api.anthropic.com/v1/messages"
+        .parse()
+        .map_err(|e| format!("Invalid Anthropic URL: {:?}", e))?;
+
+    let mut init = RequestInit::new();
+    init.with_method(Method::Post);
+    init.with_headers(headers);
+    init.with_body(Some(body_json.into()));
+
+    let request = Request::new_with_init(url.as_str(), &init)
+        .map_err(|e| format!("Failed to create Anthropic stream request: {:?}", e))?;
+
+    let response = Fetch::Request(request)
+        .send()
+        .await
+        .map_err(|e| format!("Anthropic stream request failed: {:?}", e))?;
+
+    let status = response.status_code();
+    if status != 200 {
+        return Err(format!("Anthropic streaming returned status {}", status));
+    }
+
+    Ok(response)
 }

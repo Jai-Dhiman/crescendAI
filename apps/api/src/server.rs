@@ -825,16 +825,19 @@ async fn fetch(
         }
     }
 
-    // Chat endpoint with RAG-based Q&A
+    // Chat endpoint -- streaming teacher conversation (authenticated)
     if path == "/api/chat" && method == http::Method::POST {
-        // Read the request body using http_body_util
+        let headers = req.headers().clone();
         let body = req
             .into_body()
             .collect()
             .await
             .map(|b| b.to_bytes().to_vec())
             .unwrap_or_default();
-        return Ok(with_cors(handle_chat(&env, &body).await, origin.as_deref()));
+        return Ok(with_cors(
+            crate::services::chat::handle_chat_stream(&env, &headers, &body).await,
+            origin.as_deref(),
+        ));
     }
 
     // Audio upload endpoint
