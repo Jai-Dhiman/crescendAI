@@ -4,8 +4,8 @@ See `docs/architecture.md` for the full system architecture.
 See `docs/apps/06a-subagent-architecture.md` for the two-stage subagent pipeline (consumer of memory).
 See `docs/apps/06-teacher-llm-prompt.md` for the teacher persona prompt.
 
-**Status:** RESEARCH (not implemented)
-**Last verified:** 2026-03-04
+**Status:** IMPLEMENTED (core pipeline)
+**Last verified:** 2026-03-07
 **Date:** 2026-03-04
 **Notes:** Research and design document for the student memory consolidation system. Separate from the core `/api/ask` pipeline (Slice 06 + 06a). Build after the two-stage pipeline is live with real observations to consume.
 

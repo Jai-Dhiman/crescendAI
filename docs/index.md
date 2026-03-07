@@ -34,6 +34,7 @@ iOS-first practice companion that evaluates *how* a piano performance sounds -- 
 | 05 | [Student Model + Auth](apps/05-student-model-and-auth.md) | COMPLETE | Sign in with Apple, SwiftData models, D1 sync, goals, check-ins |
 | 06 | [Teacher LLM Prompt](apps/06-teacher-llm-prompt.md) | DESIGNED | Teacher persona prompt (stage 2 of pipeline). Superseded as standalone by 06a |
 | 06a | [Subagent Architecture](apps/06a-subagent-architecture.md) | DESIGNED | Two-stage pipeline: fast subagent + quality teacher LLM |
+| 06c | [Student Memory System](apps/06c-memory-system.md) | IMPLEMENTED | Bi-temporal synthesized facts, teaching approach tracking, memory retrieval |
 | 07 | [Exercise Database](apps/07-exercise-database.md) | NOT STARTED | D1 exercises, curated + LLM-generated |
 | 08 | [Focus Mode](apps/08-focus-mode.md) | NOT STARTED | Guided practice targeting weak dimensions. Depends on 04 + 07 |
 | 09 | [iOS Frontend](apps/09-ios-frontend.md) | IN PROGRESS | SwiftUI screens: Practice, Observation, Review, Focus, Profile |
