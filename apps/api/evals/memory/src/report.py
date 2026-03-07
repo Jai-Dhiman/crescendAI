@@ -10,7 +10,7 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
-DATA_DIR = Path(__file__).parents[2] / "data" / "memory_eval"
+DATA_DIR = Path(__file__).parents[1] / "data"
 
 # Industry benchmark scores for comparison
 INDUSTRY_BENCHMARKS = {

@@ -19,8 +19,8 @@ from .eval_synthesis import _load_groq_key
 from .memory_db import MemoryDB
 from .scenarios import MemoryEvalScenario, load_scenarios
 
-DATA_DIR = Path(__file__).parents[2] / "data" / "memory_eval"
-_DEV_VARS_PATH = Path(__file__).parents[3] / "apps" / "api" / ".dev.vars"
+DATA_DIR = Path(__file__).parents[1] / "data"
+_DEV_VARS_PATH = Path(__file__).parents[3] / ".dev.vars"
 
 # Simplified subagent prompt for downstream comparison
 SUBAGENT_SYSTEM = """You are a piano pedagogy analyst. You receive structured data about a student's practice session.

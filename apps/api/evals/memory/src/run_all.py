@@ -14,7 +14,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-DATA_DIR = Path(__file__).parents[2] / "data" / "memory_eval"
+DATA_DIR = Path(__file__).parents[1] / "data"
 SCENARIOS_PATH = DATA_DIR / "scenarios.jsonl"
 
 LAYERS = ["retrieval", "synthesis", "temporal", "downstream", "report"]

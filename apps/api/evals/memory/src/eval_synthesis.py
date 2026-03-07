@@ -17,8 +17,8 @@ from pathlib import Path
 from .memory_db import MemoryDB, SynthesizedFact
 from .scenarios import MemoryEvalScenario, load_scenarios
 
-DATA_DIR = Path(__file__).parents[2] / "data" / "memory_eval"
-_DEV_VARS_PATH = Path(__file__).parents[3] / "apps" / "api" / ".dev.vars"
+DATA_DIR = Path(__file__).parents[1] / "data"
+_DEV_VARS_PATH = Path(__file__).parents[3] / ".dev.vars"
 
 # Exact replica of prompts.rs SYNTHESIS_SYSTEM
 SYNTHESIS_SYSTEM = """You are a memory consolidation system for a piano teaching app. You receive:

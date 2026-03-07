@@ -22,7 +22,7 @@ from .eval_synthesis import SYNTHESIS_SYSTEM, _call_groq, _extract_json, build_s
 from .memory_db import MemoryDB
 from .scenarios import MemoryEvalScenario, load_scenarios
 
-DATA_DIR = Path(__file__).parents[2] / "data" / "memory_eval"
+DATA_DIR = Path(__file__).parents[1] / "data"
 
 CATEGORIES = ["extraction", "multi_session", "temporal", "knowledge_update", "abstention"]
 

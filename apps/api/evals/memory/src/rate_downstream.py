@@ -11,7 +11,7 @@ import random
 import sys
 from pathlib import Path
 
-DATA_DIR = Path(__file__).parents[2] / "data" / "memory_eval"
+DATA_DIR = Path(__file__).parents[1] / "data"
 
 AXES = ["continuity", "specificity", "non_repetition", "approach_fit", "accuracy"]
 

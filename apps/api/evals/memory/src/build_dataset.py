@@ -23,7 +23,7 @@ from .scenarios import (
     save_scenarios,
 )
 
-DATA_DIR = Path(__file__).parents[2] / "data" / "memory_eval"
+DATA_DIR = Path(__file__).parents[1] / "data"
 
 
 def _make_obs(

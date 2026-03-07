@@ -14,7 +14,7 @@ from pathlib import Path
 from .memory_db import MemoryDB
 from .scenarios import MemoryEvalScenario, load_scenarios
 
-DATA_DIR = Path(__file__).parents[2] / "data" / "memory_eval"
+DATA_DIR = Path(__file__).parents[1] / "data"
 
 
 @dataclass
