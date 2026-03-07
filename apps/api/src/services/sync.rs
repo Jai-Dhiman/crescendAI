@@ -121,6 +121,22 @@ pub async fn handle_sync(
         }
     }
 
+    // Memory synthesis: check if we should synthesize facts from accumulated observations
+    match crate::services::memory::should_synthesize(env, &student_id).await {
+        Ok(true) => {
+            console_log!("Triggering memory synthesis for student {}", student_id);
+            if let Err(e) = crate::services::memory::run_synthesis(env, &student_id).await {
+                console_log!("Memory synthesis failed (non-fatal): {}", e);
+            }
+        }
+        Ok(false) => {
+            console_log!("Synthesis not needed for student {}", student_id);
+        }
+        Err(e) => {
+            console_log!("Failed to check synthesis eligibility: {}", e);
+        }
+    }
+
     let sync_timestamp = js_sys::Date::new_0()
         .to_iso_string()
         .as_string()
