@@ -1,4 +1,5 @@
 pub mod ask;
+pub mod chat;
 mod embedding;
 mod feedback;
 pub mod goals;

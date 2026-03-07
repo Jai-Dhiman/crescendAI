@@ -23,7 +23,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   })
 
   if (!response.ok) {
-    const body = await response.json().catch(() => ({ error: response.statusText }))
+    const body = await response.json().catch(() => ({ error: response.statusText })) as Record<string, string>
     throw new ApiError(response.status, body.error ?? response.statusText)
   }
 
@@ -41,6 +41,37 @@ export interface AuthResult {
   email: string | null
   display_name: string | null
   is_new_user: boolean
+}
+
+// --- Chat types ---
+
+export interface ConversationSummary {
+  id: string
+  title: string | null
+  updated_at: string
+}
+
+export interface MessageRow {
+  id: string
+  role: 'user' | 'assistant'
+  content: string
+  created_at: string
+}
+
+export interface ConversationWithMessages {
+  conversation: {
+    id: string
+    title: string | null
+    created_at: string
+  }
+  messages: MessageRow[]
+}
+
+export interface ChatStreamEvent {
+  type: 'start' | 'delta' | 'done'
+  conversation_id?: string
+  message_id?: string
+  text?: string
 }
 
 export const api = {
@@ -67,6 +98,75 @@ export const api = {
 
     debug(): Promise<AuthResult> {
       return request('/api/auth/debug', { method: 'POST' })
+    },
+  },
+
+  chat: {
+    async send(
+      message: string,
+      conversationId: string | null,
+      onEvent: (event: ChatStreamEvent) => void,
+    ): Promise<void> {
+      const response = await fetch(`${API_BASE}/api/chat`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          conversation_id: conversationId,
+          message,
+        }),
+      })
+
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({ error: response.statusText })) as Record<string, string>
+        throw new ApiError(response.status, body.error ?? response.statusText)
+      }
+
+      if (!response.body) throw new Error('Response body is empty')
+
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+
+          const chunk = decoder.decode(value, { stream: true })
+          const lines = chunk.split('\n')
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              try {
+                const event: ChatStreamEvent = JSON.parse(line.slice(6))
+                onEvent(event)
+              } catch {
+                // Skip unparseable lines
+              }
+            }
+          }
+        }
+      } finally {
+        reader.releaseLock()
+      }
+    },
+
+    list(): Promise<{ conversations: ConversationSummary[] }> {
+      return request('/api/conversations')
+    },
+
+    get(conversationId: string): Promise<ConversationWithMessages> {
+      return request(`/api/conversations/${conversationId}`)
+    },
+
+    async delete(conversationId: string): Promise<void> {
+      const response = await fetch(`${API_BASE}/api/conversations/${conversationId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      })
+      if (!response.ok && response.status !== 204) {
+        throw new ApiError(response.status, 'Failed to delete conversation')
+      }
     },
   },
 }

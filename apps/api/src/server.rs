@@ -25,7 +25,7 @@ fn with_cors(response: http::Response<axum::body::Body>, origin: Option<&str>) -
     );
     parts.headers.insert(
         http::header::ACCESS_CONTROL_ALLOW_METHODS,
-        "GET, POST, OPTIONS".parse().unwrap(),
+        "GET, POST, DELETE, OPTIONS".parse().unwrap(),
     );
     parts.headers.insert(
         http::header::ACCESS_CONTROL_ALLOW_HEADERS,
@@ -781,6 +781,39 @@ async fn fetch(
         ));
     }
 
+    // List conversations (authenticated)
+    if path == "/api/conversations" && method == http::Method::GET {
+        let headers = req.headers().clone();
+        return Ok(with_cors(
+            crate::services::chat::handle_list_conversations(&env, &headers).await,
+            origin.as_deref(),
+        ));
+    }
+
+    // Get single conversation with messages (authenticated)
+    if path.starts_with("/api/conversations/") && method == http::Method::GET {
+        let conversation_id = path.trim_start_matches("/api/conversations/");
+        if !conversation_id.is_empty() && !conversation_id.contains('/') {
+            let headers = req.headers().clone();
+            return Ok(with_cors(
+                crate::services::chat::handle_get_conversation(&env, &headers, conversation_id).await,
+                origin.as_deref(),
+            ));
+        }
+    }
+
+    // Delete conversation (authenticated)
+    if path.starts_with("/api/conversations/") && method == http::Method::DELETE {
+        let conversation_id = path.trim_start_matches("/api/conversations/");
+        if !conversation_id.is_empty() && !conversation_id.contains('/') {
+            let headers = req.headers().clone();
+            return Ok(with_cors(
+                crate::services::chat::handle_delete_conversation(&env, &headers, conversation_id).await,
+                origin.as_deref(),
+            ));
+        }
+    }
+
     // Full analysis endpoint with RAG feedback
     if path.starts_with("/api/analyze/") && method == http::Method::POST {
         let performance_id = path.trim_start_matches("/api/analyze/");
@@ -792,16 +825,19 @@ async fn fetch(
         }
     }
 
-    // Chat endpoint with RAG-based Q&A
+    // Chat endpoint -- streaming teacher conversation (authenticated)
     if path == "/api/chat" && method == http::Method::POST {
-        // Read the request body using http_body_util
+        let headers = req.headers().clone();
         let body = req
             .into_body()
             .collect()
             .await
             .map(|b| b.to_bytes().to_vec())
             .unwrap_or_default();
-        return Ok(with_cors(handle_chat(&env, &body).await, origin.as_deref()));
+        return Ok(with_cors(
+            crate::services::chat::handle_chat_stream(&env, &headers, &body).await,
+            origin.as_deref(),
+        ));
     }
 
     // Audio upload endpoint

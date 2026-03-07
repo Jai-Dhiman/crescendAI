@@ -577,7 +577,7 @@ fn post_process_observation(text: &str) -> String {
 }
 
 /// Generate a UUID v4 (same pattern as auth module).
-fn generate_uuid() -> String {
+pub fn generate_uuid() -> String {
     let mut bytes = [0u8; 16];
     getrandom::getrandom(&mut bytes).expect("Failed to generate random bytes");
     bytes[6] = (bytes[6] & 0x0f) | 0x40;

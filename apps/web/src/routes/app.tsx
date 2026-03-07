@@ -1,7 +1,16 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { SidebarSimple, PlusCircle, ChatCircle, Metronome } from '@phosphor-icons/react'
+import {
+  SidebarSimple,
+  PlusCircle,
+  ChatCircle,
+  Trash,
+} from '@phosphor-icons/react'
 import { useAuth } from '../lib/auth'
+import { api } from '../lib/api'
+import type { ConversationSummary, MessageRow, ChatStreamEvent } from '../lib/api'
+import { ChatMessages } from '../components/ChatMessages'
+import { ChatInput } from '../components/ChatInput'
 
 export const Route = createFileRoute('/app')({
   component: AppPage,
@@ -14,6 +23,13 @@ function AppPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const profileRef = useRef<HTMLDivElement>(null)
 
+  // Chat state
+  const [conversations, setConversations] = useState<ConversationSummary[]>([])
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(null)
+  const [messages, setMessages] = useState<MessageRow[]>([])
+  const [streamingContent, setStreamingContent] = useState<string | null>(null)
+  const [isStreaming, setIsStreaming] = useState(false)
+
   // Redirect if not authenticated
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -21,6 +37,26 @@ function AppPage() {
     }
   }, [isLoading, isAuthenticated, navigate])
 
+  // Load conversations on mount
+  useEffect(() => {
+    if (!isAuthenticated) return
+    api.chat.list().then(({ conversations }) => {
+      setConversations(conversations)
+    }).catch((e) => {
+      console.error('Failed to load conversations:', e)
+    })
+  }, [isAuthenticated])
+
+  // Load conversation from URL on mount
+  useEffect(() => {
+    const path = window.location.pathname
+    const match = path.match(/^\/app\/c\/(.+)$/)
+    if (match) {
+      loadConversation(match[1])
+    }
+  }, [])
+
+  // Click outside to close profile dropdown
   useEffect(() => {
     if (!showProfile) return
     function handleClick(e: MouseEvent) {
@@ -37,6 +73,92 @@ function AppPage() {
     navigate({ to: '/' })
   }
 
+  const loadConversation = useCallback(async (id: string) => {
+    try {
+      const data = await api.chat.get(id)
+      setActiveConversationId(id)
+      setMessages(data.messages)
+      window.history.replaceState(null, '', `/app/c/${id}`)
+    } catch (e) {
+      console.error('Failed to load conversation:', e)
+    }
+  }, [])
+
+  function handleNewChat() {
+    setActiveConversationId(null)
+    setMessages([])
+    setStreamingContent(null)
+    window.history.replaceState(null, '', '/app')
+  }
+
+  async function handleDeleteConversation(id: string) {
+    try {
+      await api.chat.delete(id)
+      setConversations((prev) => prev.filter((c) => c.id !== id))
+      if (activeConversationId === id) {
+        handleNewChat()
+      }
+    } catch (e) {
+      console.error('Failed to delete conversation:', e)
+    }
+  }
+
+  async function handleSend(message: string) {
+    if (isStreaming) return
+
+    // Optimistically add user message
+    const tempUserMsg: MessageRow = {
+      id: `temp-${Date.now()}`,
+      role: 'user',
+      content: message,
+      created_at: new Date().toISOString(),
+    }
+    setMessages((prev) => [...prev, tempUserMsg])
+    setStreamingContent('')
+    setIsStreaming(true)
+
+    try {
+      await api.chat.send(message, activeConversationId, (event: ChatStreamEvent) => {
+        switch (event.type) {
+          case 'start':
+            if (event.conversation_id && !activeConversationId) {
+              setActiveConversationId(event.conversation_id)
+              window.history.replaceState(null, '', `/app/c/${event.conversation_id}`)
+            }
+            break
+          case 'delta':
+            if (event.text) {
+              setStreamingContent((prev) => (prev ?? '') + event.text)
+            }
+            break
+          case 'done':
+            setStreamingContent((current) => {
+              if (current !== null) {
+                const assistantMsg: MessageRow = {
+                  id: event.message_id ?? `msg-${Date.now()}`,
+                  role: 'assistant',
+                  content: current,
+                  created_at: new Date().toISOString(),
+                }
+                setMessages((prev) => [...prev, assistantMsg])
+              }
+              return null
+            })
+            setIsStreaming(false)
+            break
+        }
+      })
+
+      // Refresh conversation list (to get new/updated titles)
+      const { conversations: updated } = await api.chat.list()
+      setConversations(updated)
+    } catch (e) {
+      console.error('Chat send failed:', e)
+      setStreamingContent(null)
+      setIsStreaming(false)
+    }
+  }
+
   if (isLoading) {
     return (
       <div className="h-screen flex items-center justify-center">
@@ -51,32 +173,73 @@ function AppPage() {
   if (hour >= 12 && hour < 17) greeting = 'Good afternoon'
   else if (hour >= 17) greeting = 'Good evening'
 
+  const hasMessages = messages.length > 0 || streamingContent !== null
+
   return (
     <div className="h-screen flex overflow-hidden">
-      {/* Collapsible sidebar */}
+      {/* Sidebar */}
       <aside
-        className={`shrink-0 border-r border-border flex flex-col items-center py-4 transition-all duration-200 ${
+        className={`shrink-0 border-r border-border flex flex-col py-4 transition-all duration-200 ${
           sidebarOpen ? 'w-56' : 'w-12'
         }`}
       >
-        {/* Toggle button */}
-        <SidebarButton
-          icon={<SidebarSimple size={20} />}
-          label={sidebarOpen ? 'Collapse' : 'Expand'}
-          expanded={sidebarOpen}
-          onClick={() => setSidebarOpen(!sidebarOpen)}
-        />
-
-        <div className="mt-2 flex flex-col gap-1 w-full items-center">
-          <SidebarButton icon={<PlusCircle size={20} />} label="New Chat" expanded={sidebarOpen} />
-          <SidebarButton icon={<ChatCircle size={20} />} label="Chats" expanded={sidebarOpen} />
-          <SidebarButton icon={<Metronome size={20} />} label="Metronome" expanded={sidebarOpen} />
+        <div className="flex flex-col items-center">
+          <SidebarButton
+            icon={<SidebarSimple size={20} />}
+            label={sidebarOpen ? 'Collapse' : 'Expand'}
+            expanded={sidebarOpen}
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+          />
+          <div className="mt-2 w-full">
+            <SidebarButton
+              icon={<PlusCircle size={20} />}
+              label="New Chat"
+              expanded={sidebarOpen}
+              onClick={handleNewChat}
+            />
+          </div>
         </div>
+
+        {/* Conversation list */}
+        {sidebarOpen && (
+          <div className="mt-4 flex-1 overflow-y-auto px-2">
+            {conversations.map((conv) => (
+              <div
+                key={conv.id}
+                className={`group flex items-center gap-2 rounded-lg px-3 py-2 cursor-pointer text-body-sm transition ${
+                  conv.id === activeConversationId
+                    ? 'bg-surface text-cream'
+                    : 'text-text-secondary hover:text-cream hover:bg-surface'
+                }`}
+                onClick={() => loadConversation(conv.id)}
+                onKeyDown={(e) => e.key === 'Enter' && loadConversation(conv.id)}
+                role="button"
+                tabIndex={0}
+              >
+                <ChatCircle size={16} className="shrink-0" />
+                <span className="flex-1 truncate">
+                  {conv.title ?? 'New conversation'}
+                </span>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleDeleteConversation(conv.id)
+                  }}
+                  className="opacity-0 group-hover:opacity-100 shrink-0 text-text-tertiary hover:text-cream transition"
+                  aria-label="Delete conversation"
+                >
+                  <Trash size={14} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </aside>
 
-      {/* Main content area */}
+      {/* Main content */}
       <div className="flex-1 relative flex flex-col">
-        {/* Profile button -- top right */}
+        {/* Profile button */}
         <div ref={profileRef} className="absolute top-4 right-4 z-20">
           <button
             type="button"
@@ -99,33 +262,25 @@ function AppPage() {
           )}
         </div>
 
-        {/* Content positioned upper-third */}
-        <div className="flex-1 flex flex-col justify-start pt-[28vh] px-6">
-          <div className="w-full max-w-2xl mx-auto text-center">
-            <h1 className="font-display text-display-md text-cream">
-              {greeting}.
-            </h1>
-
-            {/* Input box */}
-            <div className="mt-10 bg-surface border border-border rounded-2xl flex items-center">
-              <input
-                type="text"
-                placeholder="What are you practicing today?"
-                className="flex-1 bg-transparent px-5 py-4 text-body-md text-cream placeholder:text-text-tertiary outline-none"
-              />
-            </div>
-
-            {/* Action button */}
-            <div className="mt-6">
-              <button
-                type="button"
-                className="bg-cream text-espresso px-6 py-3 text-body-sm font-medium rounded-full hover:brightness-110 transition"
-              >
-                Start Recording
-              </button>
+        {/* Empty state or chat messages */}
+        {!hasMessages ? (
+          <div className="flex-1 flex flex-col justify-start pt-[28vh] px-6">
+            <div className="w-full max-w-2xl mx-auto text-center">
+              <h1 className="font-display text-display-md text-cream">
+                {greeting}.
+              </h1>
             </div>
           </div>
-        </div>
+        ) : (
+          <ChatMessages messages={messages} streamingContent={streamingContent} />
+        )}
+
+        {/* Input bar */}
+        <ChatInput
+          onSend={handleSend}
+          disabled={isStreaming}
+          placeholder={hasMessages ? 'Message your teacher...' : 'What are you practicing today?'}
+        />
       </div>
     </div>
   )
@@ -147,7 +302,7 @@ function SidebarButton({
       type="button"
       onClick={onClick}
       className={`flex items-center text-text-secondary hover:text-cream hover:bg-surface transition group relative rounded-lg ${
-        expanded ? 'w-[calc(100%-16px)] mx-2 px-3 h-10 gap-3' : 'w-10 h-10 justify-center'
+        expanded ? 'w-[calc(100%-16px)] mx-2 px-3 h-10 gap-3' : 'w-10 h-10 justify-center mx-auto'
       }`}
       aria-label={label}
     >
@@ -155,7 +310,6 @@ function SidebarButton({
       {expanded && (
         <span className="text-body-sm whitespace-nowrap">{label}</span>
       )}
-      {/* Tooltip -- only when collapsed */}
       {!expanded && (
         <span className="absolute left-full ml-2 px-2 py-1 bg-surface-2 rounded text-body-xs text-cream whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity">
           {label}
