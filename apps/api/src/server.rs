@@ -25,7 +25,7 @@ fn with_cors(response: http::Response<axum::body::Body>, origin: Option<&str>) -
     );
     parts.headers.insert(
         http::header::ACCESS_CONTROL_ALLOW_METHODS,
-        "GET, POST, OPTIONS".parse().unwrap(),
+        "GET, POST, DELETE, OPTIONS".parse().unwrap(),
     );
     parts.headers.insert(
         http::header::ACCESS_CONTROL_ALLOW_HEADERS,
@@ -779,6 +779,39 @@ async fn fetch(
             crate::services::ask::handle_elaborate(&env, &headers, &body).await,
             origin.as_deref(),
         ));
+    }
+
+    // List conversations (authenticated)
+    if path == "/api/conversations" && method == http::Method::GET {
+        let headers = req.headers().clone();
+        return Ok(with_cors(
+            crate::services::chat::handle_list_conversations(&env, &headers).await,
+            origin.as_deref(),
+        ));
+    }
+
+    // Get single conversation with messages (authenticated)
+    if path.starts_with("/api/conversations/") && method == http::Method::GET {
+        let conversation_id = path.trim_start_matches("/api/conversations/");
+        if !conversation_id.is_empty() && !conversation_id.contains('/') {
+            let headers = req.headers().clone();
+            return Ok(with_cors(
+                crate::services::chat::handle_get_conversation(&env, &headers, conversation_id).await,
+                origin.as_deref(),
+            ));
+        }
+    }
+
+    // Delete conversation (authenticated)
+    if path.starts_with("/api/conversations/") && method == http::Method::DELETE {
+        let conversation_id = path.trim_start_matches("/api/conversations/");
+        if !conversation_id.is_empty() && !conversation_id.contains('/') {
+            let headers = req.headers().clone();
+            return Ok(with_cors(
+                crate::services::chat::handle_delete_conversation(&env, &headers, conversation_id).await,
+                origin.as_deref(),
+            ));
+        }
     }
 
     // Full analysis endpoint with RAG feedback
