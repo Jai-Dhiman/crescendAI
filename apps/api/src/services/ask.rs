@@ -6,8 +6,7 @@
 use wasm_bindgen::JsValue;
 use worker::{console_log, Env};
 
-use crate::services::llm;
-use crate::services::prompts;
+use crate::services::{llm, prompts};
 
 #[derive(serde::Deserialize)]
 pub struct AskRequest {
@@ -107,14 +106,32 @@ pub async fn handle_ask(
         .and_then(|b| b.get(&dimension))
         .and_then(|v| v.as_f64());
 
-    // Query D1 for recent observations
-    let recent_observations = match query_recent_observations(env, &student_id).await {
-        Ok(obs) => obs,
-        Err(e) => {
-            console_log!("Failed to query observations: {}", e);
-            vec![]
-        }
-    };
+    // Build memory context (replaces simple query_recent_observations)
+    let piece_title = request
+        .piece_context
+        .as_ref()
+        .and_then(|pc| pc.get("title"))
+        .and_then(|v| v.as_str());
+
+    let memory_ctx = crate::services::memory::build_memory_context(
+        env,
+        &student_id,
+        piece_title,
+    ).await;
+
+    let memory_text = crate::services::memory::format_memory_context(&memory_ctx);
+
+    // Convert recent observations for backward compat with prompt builder
+    let recent_observations: Vec<prompts::ObservationRow> = memory_ctx
+        .recent_observations
+        .iter()
+        .map(|obs| prompts::ObservationRow {
+            dimension: obs.dimension.clone(),
+            observation_text: obs.observation_text.clone(),
+            framing: obs.framing.clone(),
+            created_at: obs.created_at.clone(),
+        })
+        .collect();
 
     // Stage 1: Subagent (Groq)
     let subagent_user_prompt = prompts::build_subagent_user_prompt(
@@ -123,6 +140,7 @@ pub async fn handle_ask(
         &request.session,
         &request.piece_context,
         &recent_observations,
+        &memory_text,
     );
 
     let subagent_result = llm::call_groq(
@@ -239,6 +257,26 @@ pub async fn handle_ask(
         // Non-fatal: still return the observation
     }
 
+    // Store teaching approach record
+    let approach_id = generate_uuid();
+    let approach_summary = format!("{} on {}", framing, dimension);
+    if let Err(e) = crate::services::memory::store_teaching_approach(
+        env,
+        &approach_id,
+        &student_id,
+        &observation_id,
+        &dimension,
+        &framing,
+        &approach_summary,
+    ).await {
+        console_log!("Failed to store teaching approach: {}", e);
+    }
+
+    // Increment observation count for synthesis tracking
+    if let Err(e) = crate::services::memory::increment_observation_count(env, &student_id).await {
+        console_log!("Failed to increment observation count: {}", e);
+    }
+
     let response = AskResponse {
         observation: observation_text,
         observation_id,
@@ -326,6 +364,11 @@ pub async fn handle_elaborate(
         console_log!("Failed to store elaboration: {}", e);
     }
 
+    // Mark teaching approach as engaged
+    if let Err(e) = crate::services::memory::mark_approach_engaged(env, &request.observation_id).await {
+        console_log!("Failed to mark approach engaged: {}", e);
+    }
+
     let response = ElaborateResponse {
         elaboration,
         observation_id: request.observation_id,
@@ -341,59 +384,6 @@ pub async fn handle_elaborate(
 }
 
 // --- Helper functions ---
-
-async fn query_recent_observations(
-    env: &Env,
-    student_id: &str,
-) -> Result<Vec<prompts::ObservationRow>, String> {
-    let db = env.d1("DB").map_err(|e| format!("D1 binding failed: {:?}", e))?;
-
-    let stmt = db
-        .prepare(
-            "SELECT dimension, observation_text, framing, created_at \
-             FROM observations \
-             WHERE student_id = ?1 \
-             ORDER BY created_at DESC \
-             LIMIT 5",
-        )
-        .bind(&[JsValue::from_str(student_id)])
-        .map_err(|e| format!("Failed to bind query: {:?}", e))?;
-
-    let results = stmt
-        .all()
-        .await
-        .map_err(|e| format!("Failed to query observations: {:?}", e))?;
-
-    let rows: Vec<serde_json::Value> = results
-        .results()
-        .map_err(|e| format!("Failed to get results: {:?}", e))?;
-
-    Ok(rows
-        .iter()
-        .map(|row| prompts::ObservationRow {
-            dimension: row
-                .get("dimension")
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string(),
-            observation_text: row
-                .get("observation_text")
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string(),
-            framing: row
-                .get("framing")
-                .and_then(|v| v.as_str())
-                .unwrap_or("correction")
-                .to_string(),
-            created_at: row
-                .get("created_at")
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string(),
-        })
-        .collect())
-}
 
 #[allow(clippy::too_many_arguments)]
 async fn store_observation(

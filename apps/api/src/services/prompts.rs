@@ -60,13 +60,14 @@ What you DON'T do:
 - Use bullet points or structured formatting
 - Use markdown formatting of any kind"#;
 
-/// Build the subagent user prompt from request data and observation history.
+/// Build the subagent user prompt from request data, observation history, and memory context.
 pub fn build_subagent_user_prompt(
     teaching_moment: &serde_json::Value,
     student: &serde_json::Value,
     session: &serde_json::Value,
     piece_context: &Option<serde_json::Value>,
     recent_observations: &[ObservationRow],
+    memory_context: &str,
 ) -> String {
     let mut prompt = String::with_capacity(2000);
 
@@ -148,6 +149,11 @@ pub fn build_subagent_user_prompt(
         }
     }
     prompt.push('\n');
+
+    // Memory context (synthesized facts, engagement history, piece-specific)
+    if !memory_context.is_empty() {
+        prompt.push_str(memory_context);
+    }
 
     // Recent observation history
     if !recent_observations.is_empty() {
