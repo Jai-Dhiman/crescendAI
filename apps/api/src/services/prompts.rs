@@ -326,7 +326,6 @@ pub fn build_synthesis_prompt(
         prompt.push_str("## Teaching Approaches\n\n");
         for ta in teaching_approaches {
             let dim = ta.get("dimension").and_then(|v| v.as_str()).unwrap_or("");
-            let framing = ta.get("framing").and_then(|v| v.as_str()).unwrap_or("");
             let summary = ta.get("approach_summary").and_then(|v| v.as_str()).unwrap_or("");
             let engaged = ta.get("engaged").and_then(|v| v.as_i64()).unwrap_or(0) == 1;
             prompt.push_str(&format!(
