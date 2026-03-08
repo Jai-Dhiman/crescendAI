@@ -1,62 +1,154 @@
 import SwiftUI
 
 struct SidebarView: View {
+    @Binding var isOpen: Bool
     let onNewSession: () -> Void
-    let onShowSessions: () -> Void
-    let onShowMetronome: () -> Void
+    let onSelectSession: (UUID) -> Void
     let onShowProfile: () -> Void
 
+    // Placeholder session data (will connect to SwiftData later)
+    private let sessions: [(id: UUID, title: String, date: String)] = [
+        (UUID(), "Chopin Nocturne Op.9 No.2", "Today"),
+        (UUID(), "Bach Prelude in C", "Yesterday"),
+        (UUID(), "Debussy Clair de Lune", "Mar 5"),
+    ]
+
     var body: some View {
-        VStack(spacing: CrescendSpacing.space4) {
-            sidebarButton(icon: "plus.message", action: onNewSession)
+        ZStack(alignment: .leading) {
+            // Dimmed background overlay
+            if isOpen {
+                Color.black.opacity(0.4)
+                    .ignoresSafeArea()
+                    .onTapGesture { closeSidebar() }
+                    .transition(.opacity)
+            }
 
-            sidebarButton(icon: "clock", action: onShowSessions)
+            // Drawer panel
+            if isOpen {
+                drawerContent
+                    .frame(width: 280)
+                    .frame(maxHeight: .infinity)
+                    .background(CrescendColor.sidebarBackground)
+                    .transition(.move(edge: .leading))
+            }
+        }
+        .animation(.easeInOut(duration: 0.25), value: isOpen)
+        .gesture(
+            DragGesture()
+                .onEnded { value in
+                    if value.translation.width < -50 {
+                        closeSidebar()
+                    }
+                }
+        )
+    }
 
-            sidebarButton(icon: "metronome", action: onShowMetronome)
+    private var drawerContent: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Header
+            HStack {
+                Text("CrescendAI")
+                    .font(CrescendFont.displayMD())
+                    .foregroundStyle(CrescendColor.foreground)
+
+                Spacer()
+
+                Button(action: onNewSession) {
+                    Image(systemName: "square.and.pencil")
+                        .font(.system(size: 18, weight: .medium))
+                        .foregroundStyle(CrescendColor.foreground)
+                        .frame(width: 36, height: 36)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(CrescendPressStyle())
+            }
+            .padding(.horizontal, CrescendSpacing.space4)
+            .padding(.top, CrescendSpacing.space4)
+            .padding(.bottom, CrescendSpacing.space6)
+
+            // Session list
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: CrescendSpacing.space1) {
+                    Text("Recents")
+                        .font(CrescendFont.labelMD())
+                        .foregroundStyle(CrescendColor.tertiaryText)
+                        .padding(.horizontal, CrescendSpacing.space4)
+                        .padding(.bottom, CrescendSpacing.space2)
+
+                    ForEach(sessions, id: \.id) { session in
+                        Button {
+                            onSelectSession(session.id)
+                            closeSidebar()
+                        } label: {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(session.title)
+                                    .font(CrescendFont.bodyMD())
+                                    .foregroundStyle(CrescendColor.foreground)
+                                    .lineLimit(1)
+
+                                Text(session.date)
+                                    .font(CrescendFont.labelSM())
+                                    .foregroundStyle(CrescendColor.tertiaryText)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, CrescendSpacing.space4)
+                            .padding(.vertical, CrescendSpacing.space2)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(CrescendPressStyle())
+                    }
+                }
+            }
 
             Spacer()
 
-            Button(action: onShowProfile) {
-                Circle()
-                    .fill(CrescendColor.surface2)
-                    .frame(width: 32, height: 32)
-                    .overlay {
-                        Image(systemName: "person.fill")
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundStyle(CrescendColor.secondaryText)
-                    }
+            // Profile footer
+            Button(action: {
+                onShowProfile()
+                closeSidebar()
+            }) {
+                HStack(spacing: CrescendSpacing.space3) {
+                    Circle()
+                        .fill(CrescendColor.surface2)
+                        .frame(width: 32, height: 32)
+                        .overlay {
+                            Image(systemName: "person.fill")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundStyle(CrescendColor.secondaryText)
+                        }
+
+                    Text("Profile")
+                        .font(CrescendFont.bodyMD())
+                        .foregroundStyle(CrescendColor.foreground)
+
+                    Spacer()
+                }
+                .padding(.horizontal, CrescendSpacing.space4)
+                .padding(.vertical, CrescendSpacing.space3)
+                .contentShape(Rectangle())
             }
             .buttonStyle(CrescendPressStyle())
+
+            Divider()
+                .overlay(CrescendColor.border)
+                .padding(.horizontal, CrescendSpacing.space4)
         }
-        .padding(.vertical, CrescendSpacing.space4)
-        .padding(.horizontal, CrescendSpacing.space3)
-        .frame(width: 56)
-        .frame(maxHeight: .infinity)
-        .background(CrescendColor.sidebarBackground)
     }
 
-    private func sidebarButton(icon: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: icon)
-                .font(.system(size: 18, weight: .medium))
-                .foregroundStyle(CrescendColor.secondaryText)
-                .frame(width: 36, height: 36)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(CrescendPressStyle())
+    private func closeSidebar() {
+        isOpen = false
     }
 }
 
 #Preview {
-    HStack(spacing: 0) {
+    ZStack {
+        CrescendColor.background.ignoresSafeArea()
         SidebarView(
+            isOpen: .constant(true),
             onNewSession: {},
-            onShowSessions: {},
-            onShowMetronome: {},
+            onSelectSession: { _ in },
             onShowProfile: {}
         )
-        Spacer()
     }
-    .background(CrescendColor.background)
     .crescendTheme()
 }
