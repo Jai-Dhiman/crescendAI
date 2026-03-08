@@ -37,35 +37,35 @@ enum CrescendFont {
 
     // MARK: - Body
 
-    /// 18pt Lora Regular
+    /// 18pt SF Pro Regular
     static func bodyLG(_ weight: Font.Weight = .regular) -> Font {
-        .custom("Lora", size: 18).weight(weight)
+        .system(size: 18, weight: weight)
     }
 
-    /// 16pt Lora Regular
+    /// 16pt SF Pro Regular
     static func bodyMD(_ weight: Font.Weight = .regular) -> Font {
-        .custom("Lora", size: 16).weight(weight)
+        .system(size: 16, weight: weight)
     }
 
-    /// 14pt Lora Regular
+    /// 14pt SF Pro Regular
     static func bodySM(_ weight: Font.Weight = .regular) -> Font {
-        .custom("Lora", size: 14).weight(weight)
+        .system(size: 14, weight: weight)
     }
 
     // MARK: - Label
 
-    /// 14pt Lora Medium
+    /// 14pt SF Pro Medium
     static func labelLG(_ weight: Font.Weight = .medium) -> Font {
-        .custom("Lora", size: 14).weight(weight)
+        .system(size: 14, weight: weight)
     }
 
-    /// 12pt Lora Medium
+    /// 12pt SF Pro Medium
     static func labelMD(_ weight: Font.Weight = .medium) -> Font {
-        .custom("Lora", size: 12).weight(weight)
+        .system(size: 12, weight: weight)
     }
 
-    /// 11pt Lora Medium
+    /// 11pt SF Pro Medium
     static func labelSM(_ weight: Font.Weight = .medium) -> Font {
-        .custom("Lora", size: 11).weight(weight)
+        .system(size: 11, weight: weight)
     }
 }
