@@ -9,9 +9,7 @@ crate-type = ["cdylib"]
 [dependencies]
 # Worker runtime
 worker = { version = "0.7", features = ["http", "d1"] }
-axum = { version = "0.7", default-features = false, features = ["json"] }
-tower = { version = "0.4", features = ["util"] }
-tower-service = "0.3"
+axum = { version = "0.7", default-features = false }
 http = "1.0"
 http-body-util = "0.1"
 
@@ -33,8 +31,6 @@ base64 = "0.22"
 
 # Utilities
 console_error_panic_hook = "0.1"
-regex = "1.10"
-futures = "0.3"
 
 [profile.release]
 lto = true

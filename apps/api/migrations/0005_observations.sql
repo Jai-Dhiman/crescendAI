@@ -19,5 +19,5 @@ CREATE TABLE IF NOT EXISTS observations (
     created_at TEXT NOT NULL
 );
 
-CREATE INDEX idx_observations_student ON observations(student_id, created_at);
-CREATE INDEX idx_observations_session ON observations(session_id);
+CREATE INDEX IF NOT EXISTS idx_observations_student ON observations(student_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_observations_session ON observations(session_id);

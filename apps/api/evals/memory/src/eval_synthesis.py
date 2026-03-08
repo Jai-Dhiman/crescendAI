@@ -18,6 +18,35 @@ from .memory_db import MemoryDB, SynthesizedFact
 from .scenarios import MemoryEvalScenario, load_scenarios
 
 DATA_DIR = Path(__file__).parents[1] / "data"
+
+# Lazy-loaded sentence transformer for cosine similarity fallback
+_SENTENCE_MODEL = None
+
+
+def _get_sentence_model():
+    global _SENTENCE_MODEL
+    if _SENTENCE_MODEL is None:
+        from sentence_transformers import SentenceTransformer
+        _SENTENCE_MODEL = SentenceTransformer("all-MiniLM-L6-v2")
+    return _SENTENCE_MODEL
+
+
+def _strip_regex(pattern: str) -> str:
+    """Convert a regex pattern to plain text for embedding comparison."""
+    text = pattern
+    # Remove (?i) case-insensitive flag
+    text = text.replace("(?i)", "")
+    # Replace (a|b|c) groups with space-separated alternatives
+    text = re.sub(r"\(([^)]+)\)", lambda m: " ".join(m.group(1).split("|")), text)
+    # Remove .* wildcards
+    text = text.replace(".*", " ")
+    # Remove -? optional hyphens
+    text = text.replace("-?", "-")
+    # Strip remaining regex metacharacters
+    text = re.sub(r"[\\^$*+?\[\]{}|]", "", text)
+    # Collapse whitespace
+    text = re.sub(r"\s+", " ", text).strip()
+    return text
 _DEV_VARS_PATH = Path(__file__).parents[3] / ".dev.vars"
 
 # Exact replica of prompts.rs SYNTHESIS_SYSTEM
@@ -203,24 +232,82 @@ class SynthesisResult:
         return asdict(self)
 
 
-def _match_fact(produced: dict, expected_facts: list, observation_ids: set[str]) -> tuple[str | None, bool, bool]:
-    """Match a produced fact against expected facts.
+def _match_facts_batch(
+    produced_facts: list[dict],
+    expected_facts: list,
+) -> dict[int, tuple[str, bool, bool]]:
+    """Match produced facts against expected facts using regex then cosine similarity.
 
-    Returns (matched_expected_id, type_correct, trend_correct).
+    Returns dict mapping produced_fact_index -> (matched_expected_id, type_correct, trend_correct).
+    Uses optimal 1:1 assignment to prevent double-matching.
     """
-    fact_text = produced.get("fact_text", "")
-    fact_type = produced.get("fact_type", "")
+    results: dict[int, tuple[str, bool, bool]] = {}
+    matched_ef_ids: set[str] = set()
+    unmatched_produced_indices: list[int] = []
 
-    for ef in expected_facts:
-        try:
-            if re.search(ef.fact_text_pattern, fact_text, re.IGNORECASE):
-                type_ok = ef.fact_type == fact_type
-                trend_ok = ef.trend is None or ef.trend == produced.get("trend")
-                return ef.id, type_ok, trend_ok
-        except re.error:
-            continue
+    # Pass 1: regex matching (high confidence, do first)
+    for pi, pf in enumerate(produced_facts):
+        fact_text = pf.get("fact_text", "")
+        fact_type = pf.get("fact_type", "")
+        found = False
+        for ef in expected_facts:
+            if ef.id in matched_ef_ids:
+                continue
+            try:
+                if re.search(ef.fact_text_pattern, fact_text, re.IGNORECASE):
+                    type_ok = ef.fact_type == fact_type
+                    trend_ok = ef.trend is None or ef.trend == pf.get("trend")
+                    results[pi] = (ef.id, type_ok, trend_ok)
+                    matched_ef_ids.add(ef.id)
+                    found = True
+                    break
+            except re.error:
+                continue
+        if not found:
+            unmatched_produced_indices.append(pi)
 
-    return None, False, False
+    # Pass 2: cosine similarity for remaining unmatched pairs
+    remaining_efs = [ef for ef in expected_facts if ef.id not in matched_ef_ids]
+    if unmatched_produced_indices and remaining_efs:
+        model = _get_sentence_model()
+        produced_texts = [produced_facts[i].get("fact_text", "") for i in unmatched_produced_indices]
+        ref_texts = [
+            ef.gold_fact_text if ef.gold_fact_text else _strip_regex(ef.fact_text_pattern)
+            for ef in remaining_efs
+        ]
+
+        produced_embeddings = model.encode(produced_texts)
+        ref_embeddings = model.encode(ref_texts)
+
+        from sentence_transformers import util
+        sim_matrix = util.cos_sim(produced_embeddings, ref_embeddings)
+
+        # Greedy best-first 1:1 assignment
+        used_produced: set[int] = set()
+        used_ef: set[int] = set()
+
+        # Flatten all (score, pi_local, ei_local) pairs and sort by score descending
+        pairs = []
+        for pi_local in range(len(unmatched_produced_indices)):
+            for ei_local in range(len(remaining_efs)):
+                pairs.append((float(sim_matrix[pi_local][ei_local]), pi_local, ei_local))
+        pairs.sort(key=lambda x: x[0], reverse=True)
+
+        for score, pi_local, ei_local in pairs:
+            if score < 0.55:
+                break
+            if pi_local in used_produced or ei_local in used_ef:
+                continue
+            pi_global = unmatched_produced_indices[pi_local]
+            ef = remaining_efs[ei_local]
+            pf = produced_facts[pi_global]
+            type_ok = ef.fact_type == pf.get("fact_type", "")
+            trend_ok = ef.trend is None or ef.trend == pf.get("trend")
+            results[pi_global] = (ef.id, type_ok, trend_ok)
+            used_produced.add(pi_local)
+            used_ef.add(ei_local)
+
+    return results
 
 
 def _is_grounded(produced: dict, observation_ids: set[str]) -> bool:
@@ -315,16 +402,9 @@ def run_synthesis_assessment(
 
             cache_key = f"{scenario.id}_cp{cp_idx}"
 
-            if live or cache_key not in cache:
-                if not live:
-                    # Skip if not in cache and not live
-                    results.append(SynthesisResult(
-                        scenario_id=scenario.id,
-                        checkpoint_index=cp_idx,
-                        raw_output="[NOT CACHED]",
-                    ))
-                    continue
-
+            if cache_key in cache:
+                raw_output = cache[cache_key]["raw_output"]
+            elif live:
                 raw_output = _call_groq(SYNTHESIS_SYSTEM, user_prompt)
 
                 # Cache it
@@ -339,7 +419,13 @@ def run_synthesis_assessment(
                 with open(cache_path, "a") as f:
                     f.write(json.dumps(cache[cache_key], ensure_ascii=False) + "\n")
             else:
-                raw_output = cache[cache_key]["raw_output"]
+                # Skip if not in cache and not live
+                results.append(SynthesisResult(
+                    scenario_id=scenario.id,
+                    checkpoint_index=cp_idx,
+                    raw_output="[NOT CACHED]",
+                ))
+                continue
 
             # Parse JSON
             parsed = _extract_json(raw_output)
@@ -361,7 +447,9 @@ def run_synthesis_assessment(
             expected_facts = [ef for ef in scenario.expected_facts if ef.id in expected_fact_ids]
             expected_invalidation_ids = set(checkpoint.expected_invalidations)
 
-            # Match produced facts against expected
+            # Match produced facts against expected (batch with optimal assignment)
+            match_map = _match_facts_batch(produced_facts, expected_facts)
+
             matched = []
             unmatched_expected = list(expected_fact_ids)
             hallucinated = []
@@ -369,10 +457,11 @@ def run_synthesis_assessment(
             trend_correct_count = 0
             total_matched = 0
             all_grounded = True
+            n_approach_unmatched = 0
 
-            for pf in produced_facts:
-                match_id, type_ok, trend_ok = _match_fact(pf, expected_facts, observation_ids)
-                if match_id:
+            for pi, pf in enumerate(produced_facts):
+                if pi in match_map:
+                    match_id, type_ok, trend_ok = match_map[pi]
                     matched.append(match_id)
                     if match_id in unmatched_expected:
                         unmatched_expected.remove(match_id)
@@ -382,14 +471,18 @@ def run_synthesis_assessment(
                     if trend_ok:
                         trend_correct_count += 1
                 else:
-                    hallucinated.append(pf.get("fact_text", ""))
+                    # Exclude approach facts from hallucination count
+                    if pf.get("fact_type") == "approach":
+                        n_approach_unmatched += 1
+                    else:
+                        hallucinated.append(pf.get("fact_text", ""))
 
                 if not _is_grounded(pf, observation_ids):
                     all_grounded = False
 
             # Metrics
             n_expected = len(expected_facts)
-            n_produced = len(produced_facts)
+            n_produced = len(produced_facts) - n_approach_unmatched
 
             new_fact_recall = len(matched) / n_expected if n_expected > 0 else 1.0
             new_fact_precision = total_matched / n_produced if n_produced > 0 else 1.0

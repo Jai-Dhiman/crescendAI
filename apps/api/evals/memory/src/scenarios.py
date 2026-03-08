@@ -49,6 +49,7 @@ class ExpectedFact:
     trend: str | None = None
     confidence: str = "medium"
     valid_at: str = ""  # ISO date when this fact should become active
+    gold_fact_text: str = ""  # natural-language sentence for downstream eval
 
 
 @dataclass

@@ -72,7 +72,7 @@ def _single_dim_scenarios() -> list[MemoryEvalScenario]:
                 SynthesisCheckpoint(after_observation_index=4, expected_new_facts=["ef-sd01-1"]),
             ],
             expected_facts=[
-                ExpectedFact(id="ef-sd01-1", fact_text_pattern=r"(?i)(flat|uniform|limited|lack).*(dynamic|contrast)", fact_type="dimension", dimension="dynamics", trend="stable", confidence="high"),
+                ExpectedFact(id="ef-sd01-1", fact_text_pattern=r"(?i)(flat|uniform|limited|lack).*(dynamic|contrast)", fact_type="dimension", dimension="dynamics", trend="stable", confidence="high", gold_fact_text="Student shows limited dynamic contrast, playing with uniform volume across phrases."),
             ],
             retrieval_queries=[
                 RetrievalQuery(id="rq-sd01-1", query_type="active_facts", expected_fact_ids=["ef-sd01-1"]),
@@ -95,7 +95,7 @@ def _single_dim_scenarios() -> list[MemoryEvalScenario]:
                 SynthesisCheckpoint(after_observation_index=4, expected_new_facts=["ef-sd02-1"]),
             ],
             expected_facts=[
-                ExpectedFact(id="ef-sd02-1", fact_text_pattern=r"(?i)(rush|accelerat|tempo).*(fast|passage|dense|technic)", fact_type="dimension", dimension="timing", trend="stable", confidence="high"),
+                ExpectedFact(id="ef-sd02-1", fact_text_pattern=r"(?i)(rush|accelerat|tempo).*(fast|passage|dense|technic)", fact_type="dimension", dimension="timing", trend="stable", confidence="high", gold_fact_text="Student consistently rushes through fast and technically demanding passages."),
             ],
             retrieval_queries=[
                 RetrievalQuery(id="rq-sd02-1", query_type="active_facts", expected_fact_ids=["ef-sd02-1"]),
@@ -118,7 +118,7 @@ def _single_dim_scenarios() -> list[MemoryEvalScenario]:
                 SynthesisCheckpoint(after_observation_index=4, expected_new_facts=["ef-sd03-1"]),
             ],
             expected_facts=[
-                ExpectedFact(id="ef-sd03-1", fact_text_pattern=r"(?i)(over-?pedal|muddy|blur|sustain).*(harmony|chord|change)", fact_type="dimension", dimension="pedaling", trend="stable", confidence="high"),
+                ExpectedFact(id="ef-sd03-1", fact_text_pattern=r"(?i)(over-?pedal|muddy|blur|sustain).*(harmony|chord|change)", fact_type="dimension", dimension="pedaling", trend="stable", confidence="high", gold_fact_text="Student over-pedals through harmony changes, creating muddy and blurred sonority."),
             ],
             retrieval_queries=[
                 RetrievalQuery(id="rq-sd03-1", query_type="active_facts", expected_fact_ids=["ef-sd03-1"]),
@@ -141,7 +141,7 @@ def _single_dim_scenarios() -> list[MemoryEvalScenario]:
                 SynthesisCheckpoint(after_observation_index=4, expected_new_facts=["ef-sd04-1"]),
             ],
             expected_facts=[
-                ExpectedFact(id="ef-sd04-1", fact_text_pattern=r"(?i)legato.*(improv|better|progress)", fact_type="dimension", dimension="articulation", trend="improving", confidence="high"),
+                ExpectedFact(id="ef-sd04-1", fact_text_pattern=r"(?i)legato.*(improv|better|progress)", fact_type="dimension", dimension="articulation", trend="improving", confidence="high", gold_fact_text="Student's legato playing has improved significantly, now maintaining smooth connections throughout phrases."),
             ],
             retrieval_queries=[
                 RetrievalQuery(id="rq-sd04-1", query_type="active_facts", expected_fact_ids=["ef-sd04-1"]),
@@ -164,7 +164,7 @@ def _single_dim_scenarios() -> list[MemoryEvalScenario]:
                 SynthesisCheckpoint(after_observation_index=4, expected_new_facts=["ef-sd05-1"]),
             ],
             expected_facts=[
-                ExpectedFact(id="ef-sd05-1", fact_text_pattern=r"(?i)(phrase|breath|lift|pause|punctuat)", fact_type="dimension", dimension="phrasing", trend="stable", confidence="high"),
+                ExpectedFact(id="ef-sd05-1", fact_text_pattern=r"(?i)(phrase|breath|lift|pause|punctuat)", fact_type="dimension", dimension="phrasing", trend="stable", confidence="high", gold_fact_text="Student consistently runs phrases together without breathing points or natural pauses between musical sentences."),
             ],
             retrieval_queries=[
                 RetrievalQuery(id="rq-sd05-1", query_type="active_facts", expected_fact_ids=["ef-sd05-1"]),
@@ -187,7 +187,7 @@ def _single_dim_scenarios() -> list[MemoryEvalScenario]:
                 SynthesisCheckpoint(after_observation_index=4, expected_new_facts=["ef-sd06-1"]),
             ],
             expected_facts=[
-                ExpectedFact(id="ef-sd06-1", fact_text_pattern=r"(?i)(voic|melody|balanc).*(improv|progress|better|grow)", fact_type="dimension", dimension="interpretation", trend="improving", confidence="high"),
+                ExpectedFact(id="ef-sd06-1", fact_text_pattern=r"(?i)(voic|melody|balanc).*(improv|progress|better|grow)", fact_type="dimension", dimension="interpretation", trend="improving", confidence="high", gold_fact_text="Student's voicing balance has improved, with the melody now singing above the accompaniment texture."),
             ],
             retrieval_queries=[
                 RetrievalQuery(id="rq-sd06-1", query_type="active_facts", expected_fact_ids=["ef-sd06-1"]),
@@ -221,8 +221,8 @@ def _multi_dim_scenarios() -> list[MemoryEvalScenario]:
                 SynthesisCheckpoint(after_observation_index=6, expected_new_facts=["ef-md01-1", "ef-md01-2"]),
             ],
             expected_facts=[
-                ExpectedFact(id="ef-md01-1", fact_text_pattern=r"(?i)pedal.*(improv|clear|better)", fact_type="dimension", dimension="pedaling", trend="improving"),
-                ExpectedFact(id="ef-md01-2", fact_text_pattern=r"(?i)dynamic.*(declin|worsen|narrow|flat)", fact_type="dimension", dimension="dynamics", trend="declining"),
+                ExpectedFact(id="ef-md01-1", fact_text_pattern=r"(?i)pedal.*(improv|clear|better)", fact_type="dimension", dimension="pedaling", trend="improving", gold_fact_text="Student's pedaling has improved, with cleaner releases at harmonic changes."),
+                ExpectedFact(id="ef-md01-2", fact_text_pattern=r"(?i)dynamic.*(declin|worsen|narrow|flat)", fact_type="dimension", dimension="dynamics", trend="declining", gold_fact_text="Student's dynamic range has narrowed, with playing becoming increasingly flat and uniform."),
             ],
             retrieval_queries=[
                 RetrievalQuery(id="rq-md01-1", query_type="active_facts", expected_fact_ids=["ef-md01-1", "ef-md01-2"]),
@@ -248,8 +248,8 @@ def _multi_dim_scenarios() -> list[MemoryEvalScenario]:
                 SynthesisCheckpoint(after_observation_index=6, expected_new_facts=["ef-md02-1", "ef-md02-2"]),
             ],
             expected_facts=[
-                ExpectedFact(id="ef-md02-1", fact_text_pattern=r"(?i)(rush|tempo|timing).*(persist|consist|stable)", fact_type="dimension", dimension="timing", trend="stable"),
-                ExpectedFact(id="ef-md02-2", fact_text_pattern=r"(?i)(articulat|staccato|legato|touch).*(persist|undifferent|weak)", fact_type="dimension", dimension="articulation", trend="stable"),
+                ExpectedFact(id="ef-md02-1", fact_text_pattern=r"(?i)(rush|tempo|timing).*(persist|consist|stable)", fact_type="dimension", dimension="timing", trend="stable", gold_fact_text="Student has a persistent rushing tendency, especially when note density increases in fast passages."),
+                ExpectedFact(id="ef-md02-2", fact_text_pattern=r"(?i)(articulat|staccato|legato|touch).*(persist|undifferent|weak)", fact_type="dimension", dimension="articulation", trend="stable", gold_fact_text="Student's articulation remains undifferentiated, with touch persistently weak between legato and staccato."),
             ],
             retrieval_queries=[
                 RetrievalQuery(id="rq-md02-1", query_type="active_facts", expected_fact_ids=["ef-md02-1", "ef-md02-2"]),
@@ -274,8 +274,8 @@ def _multi_dim_scenarios() -> list[MemoryEvalScenario]:
                 SynthesisCheckpoint(after_observation_index=6, expected_new_facts=["ef-md03-1", "ef-md03-2"]),
             ],
             expected_facts=[
-                ExpectedFact(id="ef-md03-1", fact_text_pattern=r"(?i)phras.*(improv|better|progress)", fact_type="dimension", dimension="phrasing", trend="improving"),
-                ExpectedFact(id="ef-md03-2", fact_text_pattern=r"(?i)(interpret|express|music).*(improv|emerg|develop)", fact_type="dimension", dimension="interpretation", trend="improving"),
+                ExpectedFact(id="ef-md03-1", fact_text_pattern=r"(?i)phras.*(improv|better|progress)", fact_type="dimension", dimension="phrasing", trend="improving", gold_fact_text="Student's phrasing has improved with clearer direction, rise, and fall in musical lines."),
+                ExpectedFact(id="ef-md03-2", fact_text_pattern=r"(?i)(interpret|express|music).*(improv|emerg|develop)", fact_type="dimension", dimension="interpretation", trend="improving", gold_fact_text="Student's musical expression is developing, with interpretation becoming more personal and emerging character."),
             ],
             retrieval_queries=[
                 RetrievalQuery(id="rq-md03-1", query_type="active_facts", expected_fact_ids=["ef-md03-1", "ef-md03-2"]),
@@ -300,8 +300,8 @@ def _multi_dim_scenarios() -> list[MemoryEvalScenario]:
                 SynthesisCheckpoint(after_observation_index=6, expected_new_facts=["ef-md04-1", "ef-md04-2"]),
             ],
             expected_facts=[
-                ExpectedFact(id="ef-md04-1", fact_text_pattern=r"(?i)dynamic.*(strong|excell|strength)", fact_type="dimension", dimension="dynamics", trend="stable"),
-                ExpectedFact(id="ef-md04-2", fact_text_pattern=r"(?i)pedal.*(weak|persist|problem|issue)", fact_type="dimension", dimension="pedaling", trend="stable"),
+                ExpectedFact(id="ef-md04-1", fact_text_pattern=r"(?i)dynamic.*(strong|excell|strength)", fact_type="dimension", dimension="dynamics", trend="stable", gold_fact_text="Student demonstrates consistently strong dynamic control with excellent range and contrast."),
+                ExpectedFact(id="ef-md04-2", fact_text_pattern=r"(?i)pedal.*(weak|persist|problem|issue)", fact_type="dimension", dimension="pedaling", trend="stable", gold_fact_text="Student has a persistent pedaling problem, holding the pedal too long through key transitions."),
             ],
             retrieval_queries=[
                 RetrievalQuery(id="rq-md04-1", query_type="active_facts", expected_fact_ids=["ef-md04-1", "ef-md04-2"]),
@@ -326,7 +326,7 @@ def _multi_dim_scenarios() -> list[MemoryEvalScenario]:
                 SynthesisCheckpoint(after_observation_index=6, expected_new_facts=["ef-md05-1"]),
             ],
             expected_facts=[
-                ExpectedFact(id="ef-md05-1", fact_text_pattern=r"(?i)(overall|general|broad|across).*(improv|progress|growth)", fact_type="arc", trend="improving"),
+                ExpectedFact(id="ef-md05-1", fact_text_pattern=r"(?i)(overall|general|broad|across).*(improv|progress|growth)", fact_type="arc", trend="improving", gold_fact_text="Student is showing overall improvement across all dimensions with broad progress in their playing."),
             ],
             retrieval_queries=[
                 RetrievalQuery(id="rq-md05-1", query_type="active_facts", expected_fact_ids=["ef-md05-1"]),
@@ -351,8 +351,8 @@ def _multi_dim_scenarios() -> list[MemoryEvalScenario]:
                 SynthesisCheckpoint(after_observation_index=6, expected_new_facts=["ef-md06-1", "ef-md06-2"]),
             ],
             expected_facts=[
-                ExpectedFact(id="ef-md06-1", fact_text_pattern=r"(?i)(interpret|express).*(declin|regress|less|worsen)", fact_type="dimension", dimension="interpretation", trend="declining"),
-                ExpectedFact(id="ef-md06-2", fact_text_pattern=r"(?i)(timing|rhythm|tempo).*(improv|better|solid)", fact_type="dimension", dimension="timing", trend="improving"),
+                ExpectedFact(id="ef-md06-1", fact_text_pattern=r"(?i)(interpret|express).*(declin|regress|less|worsen)", fact_type="dimension", dimension="interpretation", trend="declining", gold_fact_text="Student's interpretive expression has declined, with playing becoming increasingly flat and mechanical."),
+                ExpectedFact(id="ef-md06-2", fact_text_pattern=r"(?i)(timing|rhythm|tempo).*(improv|better|solid)", fact_type="dimension", dimension="timing", trend="improving", gold_fact_text="Student's timing has improved with a solid rhythmic foundation and better tempo control throughout."),
             ],
             retrieval_queries=[
                 RetrievalQuery(id="rq-md06-1", query_type="active_facts", expected_fact_ids=["ef-md06-1", "ef-md06-2"]),
@@ -392,7 +392,7 @@ def _piece_lifecycle_scenarios() -> list[MemoryEvalScenario]:
                 SynthesisCheckpoint(after_observation_index=5, expected_new_facts=["ef-pl01-1"]),
             ],
             expected_facts=[
-                ExpectedFact(id="ef-pl01-1", fact_text_pattern=r"(?i)(nocturne|chopin).*(progress|learning|develop|mid)", fact_type="arc", dimension=None, confidence="medium"),
+                ExpectedFact(id="ef-pl01-1", fact_text_pattern=r"(?i)(nocturne|chopin).*(progress|learning|develop|mid)", fact_type="arc", dimension=None, confidence="medium", gold_fact_text="Student is progressing through the Chopin Nocturne, now in mid-learning phase with developing confidence."),
             ],
             retrieval_queries=[
                 RetrievalQuery(id="rq-pl01-1", query_type="piece_facts", piece_title="Nocturne Op.9 No.2"),
@@ -417,7 +417,7 @@ def _piece_lifecycle_scenarios() -> list[MemoryEvalScenario]:
                 SynthesisCheckpoint(after_observation_index=6, expected_new_facts=["ef-pl02-1"]),
             ],
             expected_facts=[
-                ExpectedFact(id="ef-pl02-1", fact_text_pattern=r"(?i)(beethoven|pathetique|sonata).*(polish|refin|advanc)", fact_type="arc", confidence="high"),
+                ExpectedFact(id="ef-pl02-1", fact_text_pattern=r"(?i)(beethoven|pathetique|sonata).*(polish|refin|advanc)", fact_type="arc", confidence="high", gold_fact_text="Student has advanced to the polishing stage on Beethoven's Pathetique Sonata, now refining character and phrasing details."),
             ],
             retrieval_queries=[
                 RetrievalQuery(id="rq-pl02-1", query_type="piece_facts", piece_title="Sonata Op.13 Pathetique"),
@@ -440,7 +440,7 @@ def _piece_lifecycle_scenarios() -> list[MemoryEvalScenario]:
                 SynthesisCheckpoint(after_observation_index=4, expected_new_facts=["ef-pl03-1"]),
             ],
             expected_facts=[
-                ExpectedFact(id="ef-pl03-1", fact_text_pattern=r"(?i)(bach|prelude).*(minimal|dry|clean|no).*(pedal)", fact_type="dimension", dimension="pedaling"),
+                ExpectedFact(id="ef-pl03-1", fact_text_pattern=r"(?i)(bach|prelude).*(minimal|dry|clean|no).*(pedal)", fact_type="dimension", dimension="pedaling", gold_fact_text="In the Bach Prelude, student should use minimal pedal to keep the counterpoint clean and dry."),
             ],
             retrieval_queries=[
                 RetrievalQuery(id="rq-pl03-1", query_type="piece_facts", piece_title="Prelude in C Major BWV 846"),
@@ -463,7 +463,7 @@ def _piece_lifecycle_scenarios() -> list[MemoryEvalScenario]:
                 SynthesisCheckpoint(after_observation_index=4, expected_new_facts=["ef-pl04-1"]),
             ],
             expected_facts=[
-                ExpectedFact(id="ef-pl04-1", fact_text_pattern=r"(?i)(debussy|clair).*(pedal|half-pedal|color)", fact_type="dimension", dimension="pedaling"),
+                ExpectedFact(id="ef-pl04-1", fact_text_pattern=r"(?i)(debussy|clair).*(pedal|half-pedal|color)", fact_type="dimension", dimension="pedaling", gold_fact_text="In Debussy's Clair de Lune, student is developing half-pedaling technique to create impressionistic color and shimmer."),
             ],
             retrieval_queries=[
                 RetrievalQuery(id="rq-pl04-1", query_type="piece_facts", piece_title="Clair de Lune"),
@@ -486,7 +486,7 @@ def _piece_lifecycle_scenarios() -> list[MemoryEvalScenario]:
                 SynthesisCheckpoint(after_observation_index=4, expected_new_facts=["ef-pl05-1"]),
             ],
             expected_facts=[
-                ExpectedFact(id="ef-pl05-1", fact_text_pattern=r"(?i)(mozart|classical).*(lighter|detach|touch|style)", fact_type="dimension", dimension="articulation"),
+                ExpectedFact(id="ef-pl05-1", fact_text_pattern=r"(?i)(mozart|classical).*(lighter|detach|touch|style)", fact_type="dimension", dimension="articulation", gold_fact_text="Student is adapting to Mozart's Classical style, developing a lighter and more detached touch."),
             ],
             retrieval_queries=[
                 RetrievalQuery(id="rq-pl05-1", query_type="piece_facts", piece_title="Sonata K.545"),
@@ -511,7 +511,7 @@ def _piece_lifecycle_scenarios() -> list[MemoryEvalScenario]:
                 SynthesisCheckpoint(after_observation_index=6, expected_new_facts=["ef-pl06-1"]),
             ],
             expected_facts=[
-                ExpectedFact(id="ef-pl06-1", fact_text_pattern=r"(?i)(schubert|impromptu).*(progress|improv|polish)", fact_type="arc", confidence="high"),
+                ExpectedFact(id="ef-pl06-1", fact_text_pattern=r"(?i)(schubert|impromptu).*(progress|improv|polish)", fact_type="arc", confidence="high", gold_fact_text="Student has made significant progress on the Schubert Impromptu, now polishing phrasing and achieving the singing quality."),
             ],
             retrieval_queries=[
                 RetrievalQuery(id="rq-pl06-1", query_type="piece_facts", piece_title="Impromptu Op.90 No.3"),
@@ -546,8 +546,8 @@ def _temporal_scenarios() -> list[MemoryEvalScenario]:
                 SynthesisCheckpoint(after_observation_index=6, expected_new_facts=["ef-te01-2"], expected_invalidations=["ef-te01-1"]),
             ],
             expected_facts=[
-                ExpectedFact(id="ef-te01-1", fact_text_pattern=r"(?i)(flat|limited|weak).*(dynamic)", fact_type="dimension", dimension="dynamics", trend="stable", confidence="high"),
-                ExpectedFact(id="ef-te01-2", fact_text_pattern=r"(?i)dynamic.*(resolv|improv|strong|master)", fact_type="dimension", dimension="dynamics", trend="resolved"),
+                ExpectedFact(id="ef-te01-1", fact_text_pattern=r"(?i)(flat|limited|weak).*(dynamic)", fact_type="dimension", dimension="dynamics", trend="stable", confidence="high", gold_fact_text="Student has limited and flat dynamic range, lacking contrast in their playing."),
+                ExpectedFact(id="ef-te01-2", fact_text_pattern=r"(?i)dynamic.*(resolv|improv|strong|master)", fact_type="dimension", dimension="dynamics", trend="resolved", gold_fact_text="Student's dynamic control has resolved, now showing strong and consistent contrast across repertoire."),
             ],
             retrieval_queries=[
                 RetrievalQuery(id="rq-te01-1", query_type="active_facts", expected_fact_ids=["ef-te01-2"], expected_absent_ids=["ef-te01-1"]),
@@ -574,8 +574,8 @@ def _temporal_scenarios() -> list[MemoryEvalScenario]:
                 SynthesisCheckpoint(after_observation_index=5, expected_new_facts=["ef-te02-2"], expected_invalidations=["ef-te02-1"]),
             ],
             expected_facts=[
-                ExpectedFact(id="ef-te02-1", fact_text_pattern=r"(?i)over-?pedal", fact_type="dimension", dimension="pedaling", trend="stable"),
-                ExpectedFact(id="ef-te02-2", fact_text_pattern=r"(?i)(under-?pedal|too little|too dry|insufficient)", fact_type="dimension", dimension="pedaling", trend="new"),
+                ExpectedFact(id="ef-te02-1", fact_text_pattern=r"(?i)over-?pedal", fact_type="dimension", dimension="pedaling", trend="stable", gold_fact_text="Student tends to over-pedal, holding the sustain pedal too long and creating muddy sound."),
+                ExpectedFact(id="ef-te02-2", fact_text_pattern=r"(?i)(under-?pedal|too little|too dry|insufficient)", fact_type="dimension", dimension="pedaling", trend="new", gold_fact_text="Student has overcorrected to under-pedaling, now using too little sustain and losing warmth and legato."),
             ],
             retrieval_queries=[
                 RetrievalQuery(id="rq-te02-1", query_type="active_facts", expected_fact_ids=["ef-te02-2"], expected_absent_ids=["ef-te02-1"]),
@@ -644,8 +644,8 @@ def _temporal_scenarios() -> list[MemoryEvalScenario]:
                 SynthesisCheckpoint(after_observation_index=6, expected_new_facts=["ef-te05-2"]),
             ],
             expected_facts=[
-                ExpectedFact(id="ef-te05-1", fact_text_pattern=r"(?i)staccato.*(heavy|crisp|weak)", fact_type="dimension", dimension="articulation", trend="stable", confidence="medium"),
-                ExpectedFact(id="ef-te05-2", fact_text_pattern=r"(?i)staccato.*(heavy|persist|consist)", fact_type="dimension", dimension="articulation", trend="stable", confidence="high"),
+                ExpectedFact(id="ef-te05-1", fact_text_pattern=r"(?i)staccato.*(heavy|crisp|weak)", fact_type="dimension", dimension="articulation", trend="stable", confidence="medium", gold_fact_text="Student's staccato is too heavy and lacks crispness across their playing."),
+                ExpectedFact(id="ef-te05-2", fact_text_pattern=r"(?i)staccato.*(heavy|persist|consist)", fact_type="dimension", dimension="articulation", trend="stable", confidence="high", gold_fact_text="Student has a persistent and consistent issue with heavy staccato, remaining the primary articulation weakness."),
             ],
             retrieval_queries=[
                 RetrievalQuery(id="rq-te05-1", query_type="active_facts", expected_fact_ids=["ef-te05-2"]),
@@ -669,7 +669,7 @@ def _temporal_scenarios() -> list[MemoryEvalScenario]:
                 SynthesisCheckpoint(after_observation_index=4, expected_new_facts=["ef-te06-1"]),
             ],
             expected_facts=[
-                ExpectedFact(id="ef-te06-1", fact_text_pattern=r"(?i)(rubato|excessive).*(timing|phrase|distort)", fact_type="dimension", dimension="timing", trend="stable", confidence="high"),
+                ExpectedFact(id="ef-te06-1", fact_text_pattern=r"(?i)(rubato|excessive).*(timing|phrase|distort)", fact_type="dimension", dimension="timing", trend="stable", confidence="high", gold_fact_text="Student uses excessive rubato that distorts phrase structure and timing across multiple sessions."),
             ],
             retrieval_queries=[
                 RetrievalQuery(id="rq-te06-1", query_type="active_facts", expected_fact_ids=["ef-te06-1"]),
@@ -703,7 +703,7 @@ def _engagement_scenarios() -> list[MemoryEvalScenario]:
                 SynthesisCheckpoint(after_observation_index=6, expected_new_facts=["ef-en01-1"]),
             ],
             expected_facts=[
-                ExpectedFact(id="ef-en01-1", fact_text_pattern=r"(?i)(engag|respond|prefer).*(correction|direct)", fact_type="approach"),
+                ExpectedFact(id="ef-en01-1", fact_text_pattern=r"(?i)(engag|respond|prefer).*(correction|direct)", fact_type="approach", gold_fact_text="Student engages most when given direct correction-framed feedback rather than suggestions."),
             ],
             retrieval_queries=[
                 RetrievalQuery(id="rq-en01-1", query_type="active_facts", expected_fact_ids=["ef-en01-1"]),
@@ -728,7 +728,7 @@ def _engagement_scenarios() -> list[MemoryEvalScenario]:
                 SynthesisCheckpoint(after_observation_index=6, expected_new_facts=["ef-en02-1"]),
             ],
             expected_facts=[
-                ExpectedFact(id="ef-en02-1", fact_text_pattern=r"(?i)(engag|respond|prefer).*(encouragement|positive|praise)", fact_type="approach"),
+                ExpectedFact(id="ef-en02-1", fact_text_pattern=r"(?i)(engag|respond|prefer).*(encouragement|positive|praise)", fact_type="approach", gold_fact_text="Student responds best to encouragement and positive framing, disengaging from correction-framed feedback."),
             ],
             retrieval_queries=[
                 RetrievalQuery(id="rq-en02-1", query_type="active_facts", expected_fact_ids=["ef-en02-1"]),
@@ -753,7 +753,7 @@ def _engagement_scenarios() -> list[MemoryEvalScenario]:
                 SynthesisCheckpoint(after_observation_index=6, expected_new_facts=["ef-en03-1"]),
             ],
             expected_facts=[
-                ExpectedFact(id="ef-en03-1", fact_text_pattern=r"(?i)(engag|respond|prefer).*(question|inquiry|socratic)", fact_type="approach"),
+                ExpectedFact(id="ef-en03-1", fact_text_pattern=r"(?i)(engag|respond|prefer).*(question|inquiry|socratic)", fact_type="approach", gold_fact_text="Student now prefers question-based Socratic inquiry framing over direct corrections."),
             ],
             retrieval_queries=[
                 RetrievalQuery(id="rq-en03-1", query_type="active_facts", expected_fact_ids=["ef-en03-1"]),
@@ -799,7 +799,7 @@ def _engagement_scenarios() -> list[MemoryEvalScenario]:
                 SynthesisCheckpoint(after_observation_index=6, expected_new_facts=["ef-en05-1"]),
             ],
             expected_facts=[
-                ExpectedFact(id="ef-en05-1", fact_text_pattern=r"(?i)(engag|respond|interest).*(dynamic)", fact_type="approach"),
+                ExpectedFact(id="ef-en05-1", fact_text_pattern=r"(?i)(engag|respond|interest).*(dynamic)", fact_type="approach", gold_fact_text="Student shows the most engagement and interest when feedback focuses on dynamics."),
             ],
             retrieval_queries=[
                 RetrievalQuery(id="rq-en05-1", query_type="active_facts", expected_fact_ids=["ef-en05-1"]),
@@ -824,7 +824,7 @@ def _engagement_scenarios() -> list[MemoryEvalScenario]:
                 SynthesisCheckpoint(after_observation_index=6, expected_new_facts=["ef-en06-1"]),
             ],
             expected_facts=[
-                ExpectedFact(id="ef-en06-1", fact_text_pattern=r"(?i)(shift|chang|prefer).*(correction|direct)", fact_type="approach"),
+                ExpectedFact(id="ef-en06-1", fact_text_pattern=r"(?i)(shift|chang|prefer).*(correction|direct)", fact_type="approach", gold_fact_text="Student's engagement pattern has shifted from suggestion framing to preferring direct correction."),
             ],
             retrieval_queries=[
                 RetrievalQuery(id="rq-en06-1", query_type="active_facts", expected_fact_ids=["ef-en06-1"]),

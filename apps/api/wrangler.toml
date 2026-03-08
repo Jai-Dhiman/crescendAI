@@ -7,25 +7,10 @@ command = "cargo install -q worker-build && worker-build --release"
 
 # No [assets] section -- API-only, no static files
 
-[[kv_namespaces]]
-binding = "KV"
-id = "a20cea1f48d9415da9d7ca6418563025"
-
-[[r2_buckets]]
-binding = "BUCKET"
-bucket_name = "crescendai-bucket"
-
 [[d1_databases]]
 binding = "DB"
 database_name = "crescendai-db"
 database_id = "659755a8-4e9e-4581-a2bd-d34b6f912c3a"
-
-[[vectorize]]
-binding = "VECTORIZE"
-index_name = "crescendai-piano-pedagogy"
-
-[ai]
-binding = "AI"
 
 [[routes]]
 pattern = "api.crescend.ai"
@@ -35,4 +20,3 @@ custom_domain = true
 APPLE_WEB_SERVICES_ID = "ai.crescend.web"
 ENVIRONMENT = "production"
 HF_INFERENCE_ENDPOINT = "https://u1oxy7egvq7rnm8z.us-east-1.aws.endpoints.huggingface.cloud"
-PUBLIC_URL = "https://api.crescend.ai"

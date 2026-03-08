@@ -31,11 +31,11 @@ Rust API backend deployed to Cloudflare Workers at `api.crescend.ai`.
 
 - Runtime: Cloudflare Workers (Rust compiled to WASM)
 - Routing: Axum (path matching in `#[event(fetch)]` handler)
-- Storage: D1 (SQLite), R2 (audio uploads), KV (cache)
+- Storage: D1 (SQLite)
 - Auth: Sign in with Apple (JWT via HMAC-SHA256, HttpOnly cookies for web, Bearer header for iOS)
 - Schema: Provider-agnostic (student_id UUID + auth_identities table)
 - Sync: D1 student/session delta sync
-- AI: Workers AI (goal extraction via Llama 3.3), HuggingFace Inference Endpoint (MuQ cloud fallback)
+- LLM: Groq (subagent), Anthropic (teacher) via HTTP
 - Config: `wrangler.toml` defines all bindings
 
 ### API Endpoints (current)
@@ -50,15 +50,6 @@ Rust API backend deployed to Cloudflare Workers at `api.crescend.ai`.
 - `POST /api/auth/debug` - Dev-only login bypassing Apple Sign In (returns 404 in production)
 - `GET /health` - Health check
 
-### API Endpoints (legacy v1 -- to be removed)
-
-- `POST /api/analyze/:id` - Performance analysis with RAG feedback
-- `POST /api/chat` - Chat Q&A with RAG
-- `POST /api/upload` - Audio file upload to R2
-- `GET /api/performances` - List demo performances
-- `GET /api/performances/:id` - Get single performance
-- `GET /r2/:key` - Serve R2 audio files
-
 ### API Endpoints (planned -- not yet implemented)
 
 - `GET /api/exercises` - Fetch exercise catalog
@@ -67,9 +58,7 @@ Rust API backend deployed to Cloudflare Workers at `api.crescend.ai`.
 
 - `api/src/server.rs` - Entry point and route handling
 - `api/src/auth/` - Apple Sign in auth, JWT generation/verification
-- `api/src/api/` - Axum route handlers
-- `api/src/services/` - Business logic (sync, goals, HF inference, legacy RAG services)
-- `api/src/models/` - Data models (student, performance, analysis, pedagogy)
+- `api/src/services/` - Business logic (ask, chat, goals, llm, memory, sync)
 
 ## Landing Page (`web/`)
 

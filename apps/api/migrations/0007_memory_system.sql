@@ -1,7 +1,7 @@
 -- Student memory system: synthesized facts, teaching approaches, memory meta
 -- See docs/plans/2026-03-06-memory-system-design.md
 
-CREATE TABLE synthesized_facts (
+CREATE TABLE IF NOT EXISTS synthesized_facts (
     id TEXT PRIMARY KEY,
     student_id TEXT NOT NULL,
     fact_text TEXT NOT NULL,
@@ -18,10 +18,10 @@ CREATE TABLE synthesized_facts (
     expired_at TEXT
 );
 
-CREATE INDEX idx_synthesized_facts_student ON synthesized_facts(student_id);
-CREATE INDEX idx_synthesized_facts_active ON synthesized_facts(student_id, invalid_at, expired_at);
+CREATE INDEX IF NOT EXISTS idx_synthesized_facts_student ON synthesized_facts(student_id);
+CREATE INDEX IF NOT EXISTS idx_synthesized_facts_active ON synthesized_facts(student_id, invalid_at, expired_at);
 
-CREATE TABLE teaching_approaches (
+CREATE TABLE IF NOT EXISTS teaching_approaches (
     id TEXT PRIMARY KEY,
     student_id TEXT NOT NULL,
     observation_id TEXT NOT NULL,
@@ -32,10 +32,10 @@ CREATE TABLE teaching_approaches (
     created_at TEXT NOT NULL
 );
 
-CREATE INDEX idx_teaching_approaches_student ON teaching_approaches(student_id);
-CREATE INDEX idx_teaching_approaches_observation ON teaching_approaches(observation_id);
+CREATE INDEX IF NOT EXISTS idx_teaching_approaches_student ON teaching_approaches(student_id);
+CREATE INDEX IF NOT EXISTS idx_teaching_approaches_observation ON teaching_approaches(observation_id);
 
-CREATE TABLE student_memory_meta (
+CREATE TABLE IF NOT EXISTS student_memory_meta (
     student_id TEXT PRIMARY KEY,
     last_synthesis_at TEXT,
     total_observations INTEGER DEFAULT 0,

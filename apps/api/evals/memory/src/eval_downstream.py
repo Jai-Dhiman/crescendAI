@@ -237,10 +237,10 @@ def run_downstream_assessment(
         for ef in scenario.expected_facts:
             if not ef.id:
                 continue
-            fact_text = ef.fact_text_pattern.replace(r"(?i)", "").replace("(", "").replace(")", "").replace("|", "/").replace(".*", " ")
+            fact_text = ef.gold_fact_text if ef.gold_fact_text else ef.fact_text_pattern
             db.insert_fact(
                 id=ef.id, student_id=scenario.student_id,
-                fact_text=f"[Pattern] {fact_text}",
+                fact_text=fact_text,
                 fact_type=ef.fact_type, dimension=ef.dimension,
                 valid_at=ef.valid_at or "2026-02-01", trend=ef.trend,
                 confidence=ef.confidence, created_at=ef.valid_at or "2026-02-01",
@@ -252,10 +252,10 @@ def run_downstream_assessment(
         cache_key_no = f"{scenario.id}_no_memory"
         cache_key_with = f"{scenario.id}_with_memory"
 
-        if live or cache_key_no not in response_cache:
-            if not live:
-                continue
-
+        if cache_key_no in response_cache and cache_key_with in response_cache:
+            no_memory_response = response_cache[cache_key_no]["response"]
+            with_memory_response = response_cache[cache_key_with]["response"]
+        elif live:
             prompt_no = _build_downstream_prompt(scenario, memory_context="")
             prompt_with = _build_downstream_prompt(scenario, memory_context=memory_text)
 
@@ -270,8 +270,7 @@ def run_downstream_assessment(
                 f.write(json.dumps(response_cache[cache_key_no], ensure_ascii=False) + "\n")
                 f.write(json.dumps(response_cache[cache_key_with], ensure_ascii=False) + "\n")
         else:
-            no_memory_response = response_cache[cache_key_no]["response"]
-            with_memory_response = response_cache[cache_key_with]["response"]
+            continue
 
         # A/B randomization
         flipped = rng.random() < 0.5
