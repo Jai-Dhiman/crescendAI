@@ -13,25 +13,22 @@ struct ChatView: View {
                 chatStream
             }
 
-            if viewModel.practiceState == .recording {
-                PracticeControlBar(
-                    onPause: { viewModel.pausePractice() },
-                    onStop: { Task { await viewModel.stopPractice() } },
-                    onAsk: { viewModel.askForFeedback() }
-                )
-            }
-
-            ChatInputBar(
+            DualModeBottomBar(
                 text: $viewModel.inputText,
+                isRecording: viewModel.practiceState == .recording,
+                waveformLevel: viewModel.currentLevel,
+                sessionDuration: viewModel.sessionDuration,
                 onSend: { viewModel.sendMessage() },
-                onMicTap: { Task { await viewModel.startPractice() } }
+                onStartPractice: { Task { await viewModel.startPractice() } },
+                onPause: { viewModel.pausePractice() },
+                onStop: { Task { await viewModel.stopPractice() } },
+                onAsk: { viewModel.askForFeedback() }
             )
         }
         .background(CrescendColor.background)
         .onAppear { viewModel.configure(modelContext: modelContext) }
-        .sheet(isPresented: $viewModel.showSessionReview) {
+        .navigationDestination(isPresented: $viewModel.showSessionReview) {
             SessionReviewView(messages: viewModel.messages.filter { $0.role == .observation })
-                .crescendTheme()
         }
     }
 
@@ -39,15 +36,33 @@ struct ChatView: View {
         VStack(spacing: CrescendSpacing.space6) {
             Spacer()
 
-            Text(viewModel.greeting)
-                .font(CrescendFont.displayLG())
-                .foregroundStyle(CrescendColor.foreground)
+            VStack(spacing: CrescendSpacing.space2) {
+                Text("How's practice going?")
+                    .font(CrescendFont.headingXL())
+                    .foregroundStyle(CrescendColor.foreground)
+                    .multilineTextAlignment(.center)
 
-            CrescendButton("Start Practice", style: .primary, icon: "music.note") {
-                Task { await viewModel.startPractice() }
+                Text(viewModel.greeting)
+                    .font(CrescendFont.bodyMD())
+                    .foregroundStyle(CrescendColor.secondaryText)
             }
-            .padding(.horizontal, CrescendSpacing.space16)
 
+            VStack(spacing: CrescendSpacing.space3) {
+                CrescendButton("Start practicing", style: .primary, icon: "music.note") {
+                    Task { await viewModel.startPractice() }
+                }
+
+                CrescendButton("Review last session", style: .secondary, icon: "clock") {
+                    viewModel.showSessionReview = true
+                }
+
+                CrescendButton("Ask a question", style: .secondary, icon: "bubble.left") {
+                    // Focus the text field -- handled by scrolling to bottom
+                }
+            }
+            .padding(.horizontal, CrescendSpacing.space8)
+
+            Spacer()
             Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -64,11 +79,6 @@ struct ChatView: View {
                                 insertion: .move(edge: .bottom).combined(with: .opacity),
                                 removal: .opacity
                             ))
-                    }
-
-                    if viewModel.practiceState == .recording {
-                        WaveformView(level: viewModel.currentLevel, duration: viewModel.sessionDuration)
-                            .padding(.vertical, CrescendSpacing.space6)
                     }
 
                     if viewModel.practiceState == .processing {
@@ -120,10 +130,12 @@ struct ChatView: View {
 }
 
 #Preview {
-    ChatView()
-        .crescendTheme()
-        .modelContainer(
-            for: [Student.self, PracticeSessionRecord.self, ChunkResultRecord.self, ObservationRecord.self],
-            inMemory: true
-        )
+    NavigationStack {
+        ChatView()
+    }
+    .crescendTheme()
+    .modelContainer(
+        for: [Student.self, PracticeSessionRecord.self, ChunkResultRecord.self, ObservationRecord.self],
+        inMemory: true
+    )
 }
