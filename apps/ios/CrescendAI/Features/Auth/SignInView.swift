@@ -9,15 +9,17 @@ struct SignInView: View {
 
     var body: some View {
         ZStack {
-            // Full-bleed background
-            CrescendColor.background
+            // Full-bleed photo background
+            Image("Image5")
+                .resizable()
+                .aspectRatio(contentMode: .fill)
                 .ignoresSafeArea()
 
-            // Piano photography placeholder (gradient simulates warm photo)
+            // Gradient overlay matching web app treatment
             RadialGradient(
                 colors: [
-                    Color(red: 0x3A / 255.0, green: 0x33 / 255.0, blue: 0x2E / 255.0),
-                    CrescendColor.background,
+                    Color(red: 0x2D / 255.0, green: 0x29 / 255.0, blue: 0x26 / 255.0, opacity: 0.4),
+                    Color(red: 0x2D / 255.0, green: 0x29 / 255.0, blue: 0x26 / 255.0, opacity: 0.85),
                 ],
                 center: .center,
                 startRadius: 50,
