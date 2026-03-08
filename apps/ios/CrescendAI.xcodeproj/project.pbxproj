@@ -46,12 +46,12 @@
 		A400000012 /* GoalExtractionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000012; };
 		A400000013 /* ChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000013; };
 		A400000014 /* ChatViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000014; };
-		A400000015 /* ChatInputBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000015; };
+
 		A400000016 /* MessageBubble.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000016; };
 		A400000017 /* ObservationCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000017; };
 		A400000018 /* DimensionPill.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000018; };
 		A400000019 /* WaveformView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000019; };
-		A400000020 /* PracticeControlBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000020; };
+
 		A400000021 /* SessionReviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000021; };
 		A400000022 /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000022; };
 		A400000023 /* SparklineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000023; };
@@ -115,12 +115,12 @@
 		B400000012 /* GoalExtractionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoalExtractionService.swift; sourceTree = "<group>"; };
 		B400000013 /* ChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatView.swift; sourceTree = "<group>"; };
 		B400000014 /* ChatViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatViewModel.swift; sourceTree = "<group>"; };
-		B400000015 /* ChatInputBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatInputBar.swift; sourceTree = "<group>"; };
+
 		B400000016 /* MessageBubble.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageBubble.swift; sourceTree = "<group>"; };
 		B400000017 /* ObservationCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ObservationCard.swift; sourceTree = "<group>"; };
 		B400000018 /* DimensionPill.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DimensionPill.swift; sourceTree = "<group>"; };
 		B400000019 /* WaveformView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WaveformView.swift; sourceTree = "<group>"; };
-		B400000020 /* PracticeControlBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PracticeControlBar.swift; sourceTree = "<group>"; };
+
 		B400000021 /* SessionReviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionReviewView.swift; sourceTree = "<group>"; };
 		B400000022 /* ProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileView.swift; sourceTree = "<group>"; };
 		B400000023 /* SparklineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SparklineView.swift; sourceTree = "<group>"; };
@@ -239,7 +239,6 @@
 			children = (
 				B400000013 /* ChatView.swift */,
 				B400000014 /* ChatViewModel.swift */,
-				B400000015 /* ChatInputBar.swift */,
 				B400000028 /* DualModeBottomBar.swift */,
 				B400000016 /* MessageBubble.swift */,
 				B400000017 /* ObservationCard.swift */,
@@ -264,8 +263,7 @@
 			children = (
 				B300000005 /* PracticeView.swift */,
 				B400000019 /* WaveformView.swift */,
-				B400000020 /* PracticeControlBar.swift */,
-			);
+				);
 			path = Practice;
 			sourceTree = "<group>";
 		};
@@ -531,12 +529,12 @@
 				A400000012 /* GoalExtractionService.swift in Sources */,
 				A400000013 /* ChatView.swift in Sources */,
 				A400000014 /* ChatViewModel.swift in Sources */,
-				A400000015 /* ChatInputBar.swift in Sources */,
+	
 				A400000016 /* MessageBubble.swift in Sources */,
 				A400000017 /* ObservationCard.swift in Sources */,
 				A400000018 /* DimensionPill.swift in Sources */,
 				A400000019 /* WaveformView.swift in Sources */,
-				A400000020 /* PracticeControlBar.swift in Sources */,
+	
 				A400000021 /* SessionReviewView.swift in Sources */,
 				A400000022 /* ProfileView.swift in Sources */,
 				A400000023 /* SparklineView.swift in Sources */,
