@@ -59,6 +59,7 @@
 		A400000025 /* ScoreHighlightCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000025; };
 		A400000026 /* KeyboardGuideCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000026; };
 		A400000027 /* ExerciseSetCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000027; };
+		A400000028 /* DualModeBottomBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000028; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -127,6 +128,7 @@
 		B400000025 /* ScoreHighlightCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScoreHighlightCard.swift; sourceTree = "<group>"; };
 		B400000026 /* KeyboardGuideCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardGuideCard.swift; sourceTree = "<group>"; };
 		B400000027 /* ExerciseSetCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExerciseSetCard.swift; sourceTree = "<group>"; };
+		B400000028 /* DualModeBottomBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DualModeBottomBar.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -238,6 +240,7 @@
 				B400000013 /* ChatView.swift */,
 				B400000014 /* ChatViewModel.swift */,
 				B400000015 /* ChatInputBar.swift */,
+				B400000028 /* DualModeBottomBar.swift */,
 				B400000016 /* MessageBubble.swift */,
 				B400000017 /* ObservationCard.swift */,
 				B400000018 /* DimensionPill.swift */,
@@ -541,6 +544,7 @@
 				A400000025 /* ScoreHighlightCard.swift in Sources */,
 				A400000026 /* KeyboardGuideCard.swift in Sources */,
 				A400000027 /* ExerciseSetCard.swift in Sources */,
+				A400000028 /* DualModeBottomBar.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

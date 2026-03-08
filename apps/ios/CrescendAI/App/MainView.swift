@@ -4,58 +4,48 @@ import SwiftUI
 struct MainView: View {
     @Environment(AuthService.self) private var authService
     @Environment(\.modelContext) private var modelContext
-    @State private var showProfile = false
-    @State private var showSessions = false
-
-    var body: some View {
-        HStack(spacing: 0) {
-            SidebarView(
-                onNewSession: { /* TODO: reset chat to new session */ },
-                onShowSessions: { showSessions = true },
-                onShowMetronome: { /* TODO: metronome sheet */ },
-                onShowProfile: { showProfile = true }
-            )
-
-            ChatView()
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
-        .background(CrescendColor.background)
-        .sheet(isPresented: $showProfile) {
-            ProfileView()
-                .crescendTheme()
-        }
-        .sheet(isPresented: $showSessions) {
-            SessionsListView()
-                .crescendTheme()
-        }
-    }
-}
-
-/// Placeholder for session history list
-struct SessionsListView: View {
-    @Environment(\.dismiss) private var dismiss
+    @State private var sidebarOpen = false
 
     var body: some View {
         NavigationStack {
             ZStack {
-                CrescendColor.background.ignoresSafeArea()
+                ChatView()
 
-                VStack(spacing: CrescendSpacing.space4) {
-                    Text("No sessions yet")
-                        .font(CrescendFont.bodyMD())
-                        .foregroundStyle(CrescendColor.secondaryText)
-                }
+                SidebarView(
+                    isOpen: $sidebarOpen,
+                    onNewSession: {
+                        // TODO: reset chat to new session
+                    },
+                    onSelectSession: { _ in
+                        // TODO: load selected session
+                    },
+                    onShowProfile: {
+                        // NavigationStack push handled via NavigationLink or path
+                    }
+                )
             }
-            .navigationTitle("Sessions")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") { dismiss() }
-                        .foregroundStyle(CrescendColor.foreground)
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        sidebarOpen.toggle()
+                    } label: {
+                        Image(systemName: "line.3.horizontal")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundStyle(CrescendColor.foreground)
+                    }
                 }
             }
-            .toolbarBackground(CrescendColor.surface, for: .navigationBar)
+            .toolbarBackground(CrescendColor.background, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
+            .navigationBarTitleDisplayMode(.inline)
+            .navigationDestination(for: String.self) { destination in
+                switch destination {
+                case "profile":
+                    ProfileView()
+                default:
+                    EmptyView()
+                }
+            }
         }
     }
 }
