@@ -114,3 +114,73 @@ def competition_correlation(
         }
 
     return results
+
+
+def amt_degradation_comparison(
+    pairwise_results: dict[str, dict],
+    baseline: str = "ground_truth",
+) -> dict[str, dict]:
+    """Compute per-dimension pairwise accuracy drop relative to baseline.
+
+    Args:
+        pairwise_results: {source_name: {overall: float, per_dimension: {int: float}}}.
+        baseline: Key in pairwise_results to use as reference.
+
+    Returns:
+        {source_name: {overall_drop_pct, per_dimension_drop_pct: {dim_name: float}}}.
+        Drop is expressed as percentage points (baseline - source).
+    """
+    base = pairwise_results[baseline]
+    results = {}
+
+    for source, pw in pairwise_results.items():
+        if source == baseline:
+            continue
+        overall_drop = (base["overall"] - pw["overall"]) * 100
+        per_dim_drop = {}
+        for d, dim_name in enumerate(DIMENSIONS):
+            base_acc = base["per_dimension"][d]
+            source_acc = pw["per_dimension"][d]
+            per_dim_drop[dim_name] = round((base_acc - source_acc) * 100, 2)
+
+        results[source] = {
+            "overall_drop_pct": round(overall_drop, 2),
+            "per_dimension_drop_pct": per_dim_drop,
+            "viable": overall_drop < 10.0,  # < 10% drop = viable
+        }
+
+    return results
+
+
+def select_maestro_subset(
+    contrastive_mapping: dict[str, list[str]],
+    n_recordings: int = 50,
+) -> list[str]:
+    """Select MAESTRO recordings from pieces with multiple performers.
+
+    Prioritizes pieces with the most performers to maximize contrastive pairs.
+
+    Args:
+        contrastive_mapping: {piece_name: [recording_key, ...]}.
+        n_recordings: Target number of recordings.
+
+    Returns:
+        List of recording keys.
+    """
+    multi = {
+        piece: perfs
+        for piece, perfs in contrastive_mapping.items()
+        if len(perfs) >= 2
+    }
+    sorted_pieces = sorted(multi.keys(), key=lambda p: len(multi[p]), reverse=True)
+
+    selected = []
+    for piece in sorted_pieces:
+        if len(selected) >= n_recordings:
+            break
+        for perf in multi[piece]:
+            if len(selected) >= n_recordings:
+                break
+            selected.append(perf)
+
+    return selected
