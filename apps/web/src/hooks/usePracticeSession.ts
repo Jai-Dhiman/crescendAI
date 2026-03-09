@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { practiceApi } from '../lib/practice-api'
 import type { PracticeWsEvent, ObservationEvent, DimScores } from '../lib/practice-api'
 
@@ -167,6 +167,15 @@ export function usePracticeSession(): UsePracticeSessionReturn {
 
   const stop = useCallback(() => {
     if (state !== 'recording') return
+
+    // If session is too short (no chunks recorded), skip inference
+    if (chunkIndexRef.current === 0) {
+      setError('Play for at least 15 seconds so I can listen.')
+      setState('idle')
+      cleanup()
+      return
+    }
+
     setState('summarizing')
 
     // Stop recording (triggers final ondataavailable)
@@ -184,7 +193,23 @@ export function usePracticeSession(): UsePracticeSessionReturn {
       clearInterval(timerRef.current)
       timerRef.current = null
     }
-  }, [state])
+  }, [state, cleanup])
+
+  // Graceful stop on page unload
+  useEffect(() => {
+    function handleBeforeUnload() {
+      if (wsRef.current?.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify({ type: 'end_session' }))
+        wsRef.current.close()
+      }
+      if (mediaRecorderRef.current?.state === 'recording') {
+        mediaRecorderRef.current.stop()
+      }
+      streamRef.current?.getTracks().forEach((t) => t.stop())
+    }
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+  }, [])
 
   return {
     state,

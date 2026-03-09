@@ -85,7 +85,14 @@ export function RecordingOverlay({
 
         {/* Error */}
         {error && (
-          <p className="text-body-sm text-red-400 text-center max-w-xs">{error}</p>
+          <div className="flex flex-col items-center gap-2">
+            <p className="text-body-sm text-red-400 text-center max-w-xs">{error}</p>
+            {error.includes('Microphone') && (
+              <p className="text-body-xs text-text-tertiary text-center max-w-xs">
+                Open browser settings to allow microphone access for this site.
+              </p>
+            )}
+          </div>
         )}
       </div>
 
