@@ -2,7 +2,7 @@
 
 **"A teacher for every pianist."**
 
-iOS-first practice companion that evaluates *how* a piano performance sounds -- tone, dynamics, phrasing, pedaling -- not just note accuracy. On-device audio inference via a finetuned MuQ foundation model, with a thin Cloudflare Workers backend for LLM feedback and data sync.
+Multi-platform (iOS + web) practice companion that evaluates *how* a piano performance sounds -- tone, dynamics, phrasing, pedaling -- not just note accuracy. On-device audio inference via a finetuned MuQ foundation model, with a Cloudflare Workers backend for LLM feedback and data sync.
 
 **Target user:** Sarah -- 3 years playing, no teacher, records on her phone, wants direction on what to work on next.
 

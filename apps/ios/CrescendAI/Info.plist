@@ -11,6 +11,7 @@
 	<key>UIAppFonts</key>
 	<array>
 		<string>Lora-VariableFont_wght.ttf</string>
+		<string>Figtree-VariableFont_wght.ttf</string>
 	</array>
 </dict>
 </plist>

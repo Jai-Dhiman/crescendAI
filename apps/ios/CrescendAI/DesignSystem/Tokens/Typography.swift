@@ -35,37 +35,37 @@ enum CrescendFont {
         .custom("Lora", fixedSize: 18).weight(.medium)
     }
 
-    // MARK: - Body
+    // MARK: - Body (Figtree)
 
-    /// 18pt Lora Regular
+    /// 18pt Figtree Regular
     static func bodyLG() -> Font {
-        .custom("Lora", fixedSize: 18)
+        .custom("Figtree", fixedSize: 18)
     }
 
-    /// 16pt Lora Regular
+    /// 16pt Figtree Regular
     static func bodyMD() -> Font {
-        .custom("Lora", fixedSize: 16)
+        .custom("Figtree", fixedSize: 16)
     }
 
-    /// 14pt Lora Regular
+    /// 14pt Figtree Regular
     static func bodySM() -> Font {
-        .custom("Lora", fixedSize: 14)
+        .custom("Figtree", fixedSize: 14)
     }
 
-    // MARK: - Label
+    // MARK: - Label (Figtree)
 
-    /// 14pt SF Pro Medium
+    /// 14pt Figtree Medium
     static func labelLG() -> Font {
-        .system(size: 14, weight: .medium)
+        .custom("Figtree", fixedSize: 14).weight(.medium)
     }
 
-    /// 12pt SF Pro Medium
+    /// 12pt Figtree Medium
     static func labelMD() -> Font {
-        .system(size: 12, weight: .medium)
+        .custom("Figtree", fixedSize: 12).weight(.medium)
     }
 
-    /// 11pt SF Pro Medium
+    /// 11pt Figtree Medium
     static func labelSM() -> Font {
-        .system(size: 11, weight: .medium)
+        .custom("Figtree", fixedSize: 11).weight(.medium)
     }
 }

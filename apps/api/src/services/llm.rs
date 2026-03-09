@@ -3,7 +3,7 @@
 //! Uses worker::Fetch for WASM-compatible HTTP requests.
 
 use serde::{Deserialize, Serialize};
-use worker::{console_log, Env, Fetch, Headers, Method, Request, RequestInit, Url};
+use worker::{Env, Fetch, Headers, Method, Request, RequestInit, Url};
 
 // --- Groq (Stage 1: Subagent) ---
 
@@ -95,11 +95,18 @@ pub async fn call_groq(
         .map_err(|e| format!("Failed to read Groq response: {:?}", e))?;
 
     if status != 200 {
-        return Err(format!("Groq returned status {}: {}", status, response_text));
+        return Err(format!(
+            "Groq returned status {}: {}",
+            status, response_text
+        ));
     }
 
-    let groq_response: GroqResponse = serde_json::from_str(&response_text)
-        .map_err(|e| format!("Failed to parse Groq response: {:?} - body: {}", e, response_text))?;
+    let groq_response: GroqResponse = serde_json::from_str(&response_text).map_err(|e| {
+        format!(
+            "Failed to parse Groq response: {:?} - body: {}",
+            e, response_text
+        )
+    })?;
 
     groq_response
         .choices
@@ -195,8 +202,8 @@ pub async fn call_anthropic(
         ));
     }
 
-    let anthropic_response: AnthropicResponse = serde_json::from_str(&response_text)
-        .map_err(|e| {
+    let anthropic_response: AnthropicResponse =
+        serde_json::from_str(&response_text).map_err(|e| {
             format!(
                 "Failed to parse Anthropic response: {:?} - body: {}",
                 e, response_text

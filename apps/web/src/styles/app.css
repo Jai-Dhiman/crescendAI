@@ -26,7 +26,7 @@
 
   /* Typography */
   --font-display: 'Lora', Georgia, serif;
-  --font-sans: 'Lora', Georgia, serif;
+  --font-sans: 'Figtree', system-ui, sans-serif;
 
   /* Display type scale */
   --text-display-3xl: 6rem;

@@ -5,7 +5,7 @@
 
 ## Overview
 
-CrescendAI is an iOS-first practice companion for pianists. The phone sits on the piano, listens continuously, and gives one specific teaching observation when the student asks "how was that?"
+CrescendAI is a multi-platform (iOS + web) practice companion for pianists. The phone sits on the piano, listens continuously, and gives one specific teaching observation when the student asks "how was that?"
 
 The architecture is on-device-first: audio inference, teaching moment detection, and the student model all run locally on the iPhone. The only cloud dependency is a thin API for the teacher LLM call and data sync.
 
