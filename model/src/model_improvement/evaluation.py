@@ -50,6 +50,8 @@ def evaluate_model(
     valid_keys = [k for k in val_keys if k in labels]
     model.eval()
 
+    device = next(model.parameters()).device
+
     with torch.no_grad():
         # Pre-encode all keys once (O(n) instead of O(n^2) encode calls)
         print(f"  encoding {len(valid_keys)} keys...", flush=True)
@@ -60,6 +62,8 @@ def evaluate_model(
                 print(f"  encode: {idx + 1}/{len(valid_keys)}", flush=True)
             try:
                 inp, mask = get_input_fn(key)
+                inp = inp.to(device) if inp is not None else inp
+                mask = mask.to(device) if mask is not None else mask
                 z_cache[key] = encode_fn(model, inp, mask)
             except Exception as exc:
                 if not _enc_warned:
@@ -109,6 +113,8 @@ def evaluate_model(
                 print(f"  r2: {idx}/{len(valid_keys)} keys", flush=True)
             try:
                 inp, mask = get_input_fn(key)
+                inp = inp.to(device) if inp is not None else inp
+                mask = mask.to(device) if mask is not None else mask
                 pred = predict_fn(model, inp, mask)
                 target = torch.tensor(
                     labels[key][:num_dims], dtype=torch.float32
@@ -173,10 +179,14 @@ def run_robustness_check(
     model.eval()
     _rob_warned = False
 
+    device = next(model.parameters()).device
+
     with torch.no_grad():
         for key in val_keys:
             try:
                 inp, mask = get_input_fn(key)
+                inp = inp.to(device) if inp is not None else inp
+                mask = mask.to(device) if mask is not None else mask
                 pred_clean = predict_fn(model, inp, mask)
                 clean_scores.append(pred_clean)
 

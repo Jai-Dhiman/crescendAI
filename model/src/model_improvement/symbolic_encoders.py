@@ -322,7 +322,19 @@ class SinusoidalPositionalEncoding(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Add positional encoding to input [B, T, D]."""
-        return x + self.pe[:, : x.size(1)]
+        seq_len = x.size(1)
+        if seq_len > self.pe.size(1):
+            d_model = self.pe.size(2)
+            pe = torch.zeros(seq_len, d_model, device=x.device)
+            position = torch.arange(0, seq_len, dtype=torch.float, device=x.device).unsqueeze(1)
+            div_term = torch.exp(
+                torch.arange(0, d_model, 2, dtype=torch.float, device=x.device)
+                * (-math.log(10000.0) / d_model)
+            )
+            pe[:, 0::2] = torch.sin(position * div_term)
+            pe[:, 1::2] = torch.cos(position * div_term)
+            self.pe = pe.unsqueeze(0)
+        return x + self.pe[:, :seq_len]
 
 
 class GNNSymbolicEncoder(pl.LightningModule):
