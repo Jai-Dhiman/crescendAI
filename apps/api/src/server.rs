@@ -78,6 +78,55 @@ async fn fetch(
         }
     }
 
+    // Practice session start (authenticated)
+    if path == "/api/practice/start" && method == http::Method::POST {
+        let headers = req.headers().clone();
+        return into_worker_response(with_cors(
+            crate::practice::start::handle_start(&env, &headers).await,
+            origin.as_deref(),
+        )).await;
+    }
+
+    // Upload audio chunk to R2 (authenticated)
+    if path == "/api/practice/chunk" && method == http::Method::POST {
+        let headers = req.headers().clone();
+        let query_string = req.uri().query().map(|q| q.to_string());
+        let body = req
+            .into_body()
+            .collect()
+            .await
+            .map(|b| b.to_bytes().to_vec())
+            .unwrap_or_default();
+
+        let query = query_string.unwrap_or_default();
+        let params: std::collections::HashMap<String, String> = query
+            .split('&')
+            .filter_map(|pair| {
+                let mut parts = pair.splitn(2, '=');
+                Some((parts.next()?.to_string(), parts.next()?.to_string()))
+            })
+            .collect();
+
+        let session_id = params.get("sessionId").map(|s| s.as_str()).unwrap_or("");
+        let chunk_index = params.get("chunkIndex").map(|s| s.as_str()).unwrap_or("0");
+
+        if session_id.is_empty() {
+            return into_worker_response(with_cors(
+                http::Response::builder()
+                    .status(http::StatusCode::BAD_REQUEST)
+                    .header("Content-Type", "application/json")
+                    .body(axum::body::Body::from(r#"{"error":"Missing sessionId"}"#))
+                    .unwrap(),
+                origin.as_deref(),
+            )).await;
+        }
+
+        return into_worker_response(with_cors(
+            crate::practice::upload::handle_upload_chunk(&env, &headers, body, session_id, chunk_index).await,
+            origin.as_deref(),
+        )).await;
+    }
+
     // Handle CORS preflight
     if method == http::Method::OPTIONS {
         return into_worker_response(with_cors(
