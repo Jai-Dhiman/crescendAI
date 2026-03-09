@@ -10,6 +10,10 @@
   --color-surface-2: #454140;
   --color-border: #504B48;
 
+  /* Floating card */
+  --color-surface-card: #3E3A37;
+  --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.2);
+
   /* Brand accent (muted sage) */
   --color-accent: #7A9A82;
   --color-accent-lighter: #A3BDA9;
@@ -73,6 +77,20 @@
   @keyframes fade-in-up {
     0% { opacity: 0; transform: translateY(20px); }
     100% { opacity: 1; transform: translateY(0); }
+  }
+
+  --animate-input-settle: input-settle 400ms cubic-bezier(0.16, 1, 0.3, 1) both;
+
+  @keyframes input-settle {
+    0% { opacity: 0; transform: translateY(-12px); }
+    100% { opacity: 1; transform: translateY(0); }
+  }
+
+  --animate-pop-in: pop-in 250ms cubic-bezier(0.16, 1, 0.3, 1) both;
+
+  @keyframes pop-in {
+    0% { opacity: 0; transform: scale(0.7); }
+    100% { opacity: 1; transform: scale(1); }
   }
 }
 

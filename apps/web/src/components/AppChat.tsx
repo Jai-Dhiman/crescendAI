@@ -5,6 +5,7 @@ import {
   PlusCircle,
   ChatCircle,
   Trash,
+  MagnifyingGlass,
 } from '@phosphor-icons/react'
 import { useAuth } from '../lib/auth'
 import { api } from '../lib/api'
@@ -110,7 +111,6 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
   async function handleSend(message: string) {
     if (isStreaming) return
 
-    // Optimistically add user message
     const tempUserMsg: MessageRow = {
       id: `temp-${Date.now()}`,
       role: 'user',
@@ -121,7 +121,6 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
     setStreamingContent('')
     setIsStreaming(true)
 
-    // Capture the conversation ID locally so we can update URL after streaming
     let newConversationId: string | null = null
 
     try {
@@ -156,7 +155,6 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
         }
       })
 
-      // Update URL after streaming completes (not during)
       if (newConversationId) {
         navigate({
           to: '/app/c/$conversationId',
@@ -165,7 +163,6 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
         })
       }
 
-      // Refresh conversation list (to get new/updated titles)
       const { conversations: updated } = await api.chat.list()
       setConversations(updated)
     } catch (e) {
@@ -183,35 +180,65 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
     )
   }
 
-  // Time-aware greeting
   const hour = new Date().getHours()
   let greeting = 'Good morning'
   if (hour >= 12 && hour < 17) greeting = 'Good afternoon'
   else if (hour >= 17) greeting = 'Good evening'
 
   const hasMessages = messages.length > 0 || streamingContent !== null
+  const userInitial = user?.display_name?.charAt(0).toUpperCase() ?? user?.email?.charAt(0).toUpperCase() ?? '?'
 
   return (
     <div className="h-screen flex overflow-hidden">
       {/* Sidebar */}
       <aside
-        className={`shrink-0 border-r border-border flex flex-col py-4 transition-all duration-200 ${
+        className={`shrink-0 border-r border-border flex flex-col py-4 transition-all duration-200 overflow-hidden ${
           sidebarOpen ? 'w-56' : 'w-12'
         }`}
       >
+        <div className="flex items-center h-10 px-2 mb-2">
+          {sidebarOpen ? (
+            <>
+              <div className="flex items-center gap-2 flex-1 min-w-0">
+                <img src="/icon_nobackground.png" alt="crescend" className="w-7 h-7 shrink-0" />
+                <span className="font-display text-body-md text-cream truncate">crescend</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSidebarOpen(false)}
+                className="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg text-text-secondary hover:text-cream hover:bg-surface transition"
+                aria-label="Collapse sidebar"
+              >
+                <SidebarSimple size={18} />
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setSidebarOpen(true)}
+              className="w-8 h-8 flex items-center justify-center rounded-lg text-text-secondary hover:text-cream hover:bg-surface transition mx-auto"
+              aria-label="Expand sidebar"
+            >
+              <SidebarSimple size={20} />
+            </button>
+          )}
+        </div>
+
         <div className="flex flex-col items-center">
-          <SidebarButton
-            icon={<SidebarSimple size={20} />}
-            label={sidebarOpen ? 'Collapse' : 'Expand'}
-            expanded={sidebarOpen}
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-          />
-          <div className="mt-2 w-full">
+          <div style={{ width: '100%' }}>
             <SidebarButton
-              icon={<PlusCircle size={20} />}
+              icon={<PlusCircle size={24} weight="fill" className="text-accent" />}
               label="New Chat"
               expanded={sidebarOpen}
               onClick={handleNewChat}
+            />
+          </div>
+          <div className="w-full">
+            <SidebarButton
+              icon={<MagnifyingGlass size={20} />}
+              label="Search"
+              expanded={sidebarOpen}
+              onClick={() => {}}
             />
           </div>
         </div>
@@ -251,22 +278,31 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
             ))}
           </div>
         )}
-      </aside>
 
-      {/* Main content */}
-      <div className="flex-1 relative flex flex-col">
-        {/* Profile button */}
-        <div ref={profileRef} className="absolute top-4 right-4 z-20">
+        {/* Profile at sidebar bottom */}
+        <div ref={profileRef} className="mt-auto pt-2 px-2 relative">
           <button
             type="button"
             onClick={() => setShowProfile(!showProfile)}
-            className="w-8 h-8 bg-surface border border-border rounded-full flex items-center justify-center text-body-sm text-cream font-medium hover:bg-surface-2 transition"
+            className={`flex items-center gap-3 h-10 rounded-lg transition hover:bg-surface ${
+              sidebarOpen ? 'w-full px-2' : 'justify-center mx-auto'
+            }`}
           >
-            {user?.display_name?.charAt(0).toUpperCase() ?? user?.email?.charAt(0).toUpperCase() ?? '?'}
+            <span className="shrink-0 w-8 h-8 bg-surface border border-border rounded-full flex items-center justify-center text-body-sm text-cream font-medium">
+              {userInitial}
+            </span>
+            {sidebarOpen && (
+              <div className="flex flex-col items-start min-w-0">
+                <span className="text-body-sm text-cream truncate">
+                  {user?.display_name ?? user?.email ?? 'User'}
+                </span>
+                <span className="text-body-xs text-text-tertiary">Pianist</span>
+              </div>
+            )}
           </button>
 
           {showProfile && (
-            <div className="absolute right-0 top-10 bg-surface border border-border rounded-lg py-1 min-w-[140px]">
+            <div className="absolute left-2 bottom-full mb-2 bg-surface border border-border rounded-lg py-1 min-w-[140px] z-20">
               <button
                 type="button"
                 onClick={handleSignOut}
@@ -277,26 +313,34 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
             </div>
           )}
         </div>
+      </aside>
 
-        {/* Empty state or chat messages */}
+      {/* Main content */}
+      <div className="flex-1 relative flex flex-col">
         {!hasMessages ? (
-          <div className="flex-1 flex flex-col justify-start pt-[28vh] px-6">
-            <div className="w-full max-w-2xl mx-auto text-center">
-              <h1 className="font-display text-display-md text-cream">
-                {greeting}.
-              </h1>
-            </div>
+          <div className="flex-1 flex flex-col items-center justify-center px-6 pb-[22vh]">
+            <img src="/icon_nobackground.png" alt="" className="w-20 h-20 opacity-50 mb-6" />
+            <h1 className="font-display text-display-md text-cream mb-8">
+              {greeting}.
+            </h1>
+            <ChatInput
+              onSend={handleSend}
+              disabled={isStreaming}
+              placeholder="What are you practicing today?"
+              centered={true}
+            />
           </div>
         ) : (
-          <ChatMessages messages={messages} streamingContent={streamingContent} />
+          <>
+            <ChatMessages messages={messages} streamingContent={streamingContent} />
+            <ChatInput
+              onSend={handleSend}
+              disabled={isStreaming}
+              placeholder="Message your teacher..."
+              centered={false}
+            />
+          </>
         )}
-
-        {/* Input bar */}
-        <ChatInput
-          onSend={handleSend}
-          disabled={isStreaming}
-          placeholder={hasMessages ? 'Message your teacher...' : 'What are you practicing today?'}
-        />
       </div>
     </div>
   )
@@ -322,7 +366,7 @@ function SidebarButton({
       }`}
       aria-label={label}
     >
-      <span className="shrink-0">{icon}</span>
+      <span className="shrink-0 w-6 flex items-center justify-center">{icon}</span>
       {expanded && (
         <span className="text-body-sm whitespace-nowrap">{label}</span>
       )}

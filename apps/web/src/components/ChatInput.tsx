@@ -1,17 +1,19 @@
 import { useState, useRef, useEffect } from 'react'
-import { PaperPlaneRight } from '@phosphor-icons/react'
+import { PaperPlaneTilt, Waveform } from '@phosphor-icons/react'
 
 interface ChatInputProps {
   onSend: (message: string) => void
   disabled: boolean
   placeholder?: string
+  centered?: boolean
 }
 
-export function ChatInput({ onSend, disabled, placeholder }: ChatInputProps) {
+export function ChatInput({ onSend, disabled, placeholder, centered }: ChatInputProps) {
   const [value, setValue] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
-  // Auto-resize textarea
+  const hasText = value.trim().length > 0
+
   useEffect(() => {
     const el = textareaRef.current
     if (!el) return
@@ -34,9 +36,9 @@ export function ChatInput({ onSend, disabled, placeholder }: ChatInputProps) {
   }
 
   return (
-    <div className="border-t border-border px-6 py-4">
-      <div className="max-w-2xl mx-auto flex items-end gap-3">
-        <div className="flex-1 bg-surface border border-border rounded-2xl flex items-end">
+    <div className={centered ? 'w-full max-w-2xl' : 'px-6 py-4 pb-6 animate-input-settle'}>
+      <div className={`flex items-center gap-3 ${centered ? '' : 'max-w-2xl mx-auto'}`}>
+        <div className="flex-1 bg-surface-card border border-border rounded-2xl shadow-card flex items-end px-4 py-2">
           <textarea
             ref={textareaRef}
             value={value}
@@ -44,18 +46,31 @@ export function ChatInput({ onSend, disabled, placeholder }: ChatInputProps) {
             onKeyDown={handleKeyDown}
             placeholder={placeholder ?? 'Message your teacher...'}
             disabled={disabled}
-            rows={1}
-            className="flex-1 bg-transparent px-5 py-3 text-body-md text-cream placeholder:text-text-tertiary outline-none resize-none"
+            rows={3}
+            className="flex-1 bg-transparent py-1.5 text-body-md text-cream placeholder:text-text-tertiary outline-none resize-none min-h-[4.5rem]"
           />
+
+          {hasText && (
+            <button
+              type="button"
+              onClick={handleSend}
+              disabled={disabled}
+              className="shrink-0 w-8 h-8 flex items-center justify-center rounded-full bg-accent text-cream hover:brightness-110 transition animate-pop-in"
+            >
+              <PaperPlaneTilt size={16} weight="fill" />
+            </button>
+          )}
         </div>
-        <button
-          type="button"
-          onClick={handleSend}
-          disabled={disabled || !value.trim()}
-          className="shrink-0 w-10 h-10 flex items-center justify-center rounded-full bg-accent text-cream hover:brightness-110 transition disabled:opacity-40 disabled:cursor-not-allowed"
-        >
-          <PaperPlaneRight size={18} weight="fill" />
-        </button>
+
+        {!hasText && (
+          <button
+            type="button"
+            className="shrink-0 w-16 h-16 flex items-center justify-center rounded-full bg-accent text-cream hover:brightness-110 transition animate-pop-in"
+            aria-label="Record audio"
+          >
+            <Waveform size={24} />
+          </button>
+        )}
       </div>
     </div>
   )
