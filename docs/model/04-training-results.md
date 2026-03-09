@@ -487,3 +487,27 @@ Audio wins timing decisively. Symbolic wins dynamics, articulation, and interpre
 3. STOP AUC >= 0.80
 4. Per-dimension breakdown reported
 5. Bootstrap CI on pairwise accuracy difference vs A1 baseline for significance
+
+## Layer 1 Validation Results
+
+*Status: EXPERIMENTS READY, awaiting execution*
+
+See `docs/plans/2026-03-09-layer1-validation-design.md` for experiment design.
+Code: `model/src/model_improvement/layer1_validation.py`, `midi_comparison.py`, `feedback_assessment.py`.
+Notebook: `model/notebooks/model_improvement/04_layer1_validation.ipynb`.
+
+### Experiment 1: Competition Correlation
+- Data: 2,293 segments from Chopin 2021 (synced from GDrive)
+- Gate: rho > 0.3 = signal is real
+
+### Experiment 2: AMT Degradation
+- Data: 50 MAESTRO recordings, GT vs YourMT3+ vs ByteDance MIDI
+- Gate: per-dimension pairwise drop < 10% = symbolic viable
+
+### Experiment 3: Dynamic Range
+- Data: intermediate YouTube recordings (to be collected)
+- Diagnostic only, no hard gate
+
+### Experiment 4: MIDI-as-Context Feedback
+- Data: 20 PercePiano Schubert D960 segments
+- Gate: MIDI-context wins > 65% of LLM judge pairs
