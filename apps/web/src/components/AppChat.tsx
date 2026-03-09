@@ -12,6 +12,8 @@ import { api } from '../lib/api'
 import type { ConversationSummary, MessageRow, ChatStreamEvent } from '../lib/api'
 import { ChatMessages } from './ChatMessages'
 import { ChatInput } from './ChatInput'
+import { RecordingOverlay } from './RecordingOverlay'
+import { usePracticeSession } from '../hooks/usePracticeSession'
 
 interface AppChatProps {
   initialConversationId?: string
@@ -32,6 +34,26 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
   const [messages, setMessages] = useState<MessageRow[]>([])
   const [streamingContent, setStreamingContent] = useState<string | null>(null)
   const [isStreaming, setIsStreaming] = useState(false)
+
+  // Practice recording
+  const practice = usePracticeSession()
+
+  function handleRecord() {
+    practice.start()
+  }
+
+  // When practice summary arrives, post it to chat
+  useEffect(() => {
+    if (practice.summary) {
+      const summaryMsg: MessageRow = {
+        id: `practice-${Date.now()}`,
+        role: 'assistant',
+        content: practice.summary,
+        created_at: new Date().toISOString(),
+      }
+      setMessages((prev) => [...prev, summaryMsg])
+    }
+  }, [practice.summary])
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -317,6 +339,16 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 
       {/* Main content */}
       <div className="flex-1 relative flex flex-col">
+        {practice.state !== 'idle' && (
+          <RecordingOverlay
+            state={practice.state}
+            elapsedSeconds={practice.elapsedSeconds}
+            observations={practice.observations}
+            analyserNode={practice.analyserNode}
+            error={practice.error}
+            onStop={practice.stop}
+          />
+        )}
         {!hasMessages ? (
           <div className="flex-1 flex flex-col items-center justify-center px-6 pb-[22vh]">
             <img src="/icon_nobackground.png" alt="" className="w-20 h-20 opacity-50 mb-6" />
@@ -325,7 +357,8 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
             </h1>
             <ChatInput
               onSend={handleSend}
-              disabled={isStreaming}
+              onRecord={handleRecord}
+              disabled={isStreaming || practice.state === 'recording'}
               placeholder="What are you practicing today?"
               centered={true}
             />
@@ -335,7 +368,8 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
             <ChatMessages messages={messages} streamingContent={streamingContent} />
             <ChatInput
               onSend={handleSend}
-              disabled={isStreaming}
+              onRecord={handleRecord}
+              disabled={isStreaming || practice.state === 'recording'}
               placeholder="Message your teacher..."
               centered={false}
             />
