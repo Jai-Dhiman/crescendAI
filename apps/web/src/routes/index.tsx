@@ -44,7 +44,7 @@ function HeroSection() {
         <div className="mt-10">
           <a
             href="/app"
-            className="bg-cream text-espresso px-8 py-3.5 text-body-sm font-medium hover:brightness-110 transition inline-block"
+            className="bg-accent text-cream px-8 py-3.5 text-body-sm font-medium hover:brightness-110 transition inline-block"
           >
             Start Practicing
           </a>
@@ -193,7 +193,7 @@ function FinalCtaSection() {
         <div className="mt-10">
           <a
             href="/app"
-            className="bg-cream text-espresso px-8 py-3.5 text-body-sm font-medium hover:brightness-110 transition inline-block"
+            className="bg-accent text-cream px-8 py-3.5 text-body-sm font-medium hover:brightness-110 transition inline-block"
           >
             Start Practicing
           </a>

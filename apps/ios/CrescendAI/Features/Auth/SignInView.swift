@@ -13,73 +13,78 @@ struct SignInView: View {
             Image("Image5")
                 .resizable()
                 .aspectRatio(contentMode: .fill)
+                .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
+                .clipped()
                 .ignoresSafeArea()
 
-            // Gradient overlay matching web app treatment
-            RadialGradient(
-                colors: [
-                    Color(red: 0x2D / 255.0, green: 0x29 / 255.0, blue: 0x26 / 255.0, opacity: 0.4),
-                    Color(red: 0x2D / 255.0, green: 0x29 / 255.0, blue: 0x26 / 255.0, opacity: 0.85),
-                ],
-                center: .center,
-                startRadius: 50,
-                endRadius: 400
-            )
-            .ignoresSafeArea()
+            // Centered sign-in card
+            VStack(spacing: 0) {
+                // App logo
+                Image("AppLogo")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 56, height: 56)
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
 
-            // Floating sign-in card
-            VStack(spacing: CrescendSpacing.space6) {
-                VStack(spacing: CrescendSpacing.space3) {
-                    Text("CrescendAI")
-                        .font(CrescendFont.displayXL())
-                        .foregroundStyle(CrescendColor.foreground)
+                // Title
+                Text("crescend")
+                    .font(CrescendFont.displayXL())
+                    .foregroundStyle(CrescendColor.foreground)
+                    .padding(.top, CrescendSpacing.space4)
 
-                    Text("A teacher for every pianist.")
-                        .font(CrescendFont.bodyLG())
-                        .foregroundStyle(CrescendColor.secondaryText)
+                // Tagline
+                Text("A teacher for every pianist.")
+                    .font(CrescendFont.bodyLG())
+                    .foregroundStyle(CrescendColor.secondaryText)
+                    .padding(.top, CrescendSpacing.space2)
+
+                // Error
+                if let error {
+                    Text(error)
+                        .font(CrescendFont.bodySM())
+                        .foregroundStyle(.red.opacity(0.8))
+                        .multilineTextAlignment(.center)
+                        .padding(.top, CrescendSpacing.space4)
                 }
 
-                VStack(spacing: CrescendSpacing.space3) {
-                    SignInWithAppleButton(.signIn) { request in
-                        request.requestedScopes = [.email]
-                    } onCompletion: { result in
-                        Task {
-                            isLoading = true
-                            error = nil
-                            do {
-                                try await authService.handleAuthorization(result: result)
-                            } catch {
-                                self.error = error.localizedDescription
-                            }
-                            isLoading = false
+                // Sign in with Apple button (cream-styled)
+                SignInWithAppleButton(.signIn) { request in
+                    request.requestedScopes = [.email]
+                } onCompletion: { result in
+                    Task {
+                        isLoading = true
+                        error = nil
+                        do {
+                            try await authService.handleAuthorization(result: result)
+                        } catch {
+                            self.error = error.localizedDescription
                         }
-                    }
-                    .signInWithAppleButtonStyle(.white)
-                    .frame(height: 50)
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                    .disabled(isLoading)
-
-                    if isLoading {
-                        ProgressView()
-                            .tint(CrescendColor.foreground)
-                    }
-
-                    if let error {
-                        Text(error)
-                            .font(CrescendFont.bodySM())
-                            .foregroundStyle(.red.opacity(0.8))
-                            .multilineTextAlignment(.center)
+                        isLoading = false
                     }
                 }
+                .signInWithAppleButtonStyle(.white)
+                .frame(maxWidth: 260, minHeight: 50, maxHeight: 50)
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .tint(CrescendColor.foreground)
+                .disabled(isLoading)
+                .padding(.top, CrescendSpacing.space8)
+
+                if isLoading {
+                    ProgressView()
+                        .tint(CrescendColor.foreground)
+                        .padding(.top, CrescendSpacing.space3)
+                }
+
+                // Terms disclaimer
+                Text("By signing in, you agree to our Terms of Service")
+                    .font(CrescendFont.labelSM())
+                    .foregroundStyle(CrescendColor.tertiaryText)
+                    .padding(.top, CrescendSpacing.space6)
             }
-            .padding(CrescendSpacing.space8)
-            .background(.ultraThinMaterial)
-            .clipShape(RoundedRectangle(cornerRadius: 16))
-            .overlay(
-                RoundedRectangle(cornerRadius: 16)
-                    .stroke(CrescendColor.border, lineWidth: 1)
-            )
-            .padding(.horizontal, CrescendSpacing.space6)
+            .padding(.horizontal, CrescendSpacing.space8)
+            .padding(.vertical, 48)
+            .frame(maxWidth: 340)
+            .background(Color.clear)
             .opacity(cardOpacity)
         }
         .onAppear {

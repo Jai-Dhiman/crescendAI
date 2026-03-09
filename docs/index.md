@@ -49,7 +49,7 @@ iOS-first practice companion that evaluates *how* a piano performance sounds -- 
 | [model/01-data-collection.md](model/01-data-collection.md) | Data tiers (T1-T4), storage strategy, collection pipeline |
 | [model/02-teacher-grounded-taxonomy.md](model/02-teacher-grounded-taxonomy.md) | 6-dimension derivation from masterclass data (COMPLETE -- all gates pass) |
 | [model/03-model-improvement.md](model/03-model-improvement.md) | Training plan -- audio/symbolic/fusion experiments, staged elimination |
-| [model/04-audio-training-results.md](model/04-audio-training-results.md) | Audio encoder results -- A1 LoRA winner, 73.9% pairwise accuracy (COMPLETE) |
+| [model/04-training-results.md](model/04-training-results.md) | Audio + symbolic encoder results -- A1 audio winner, S2 symbolic winner (COMPLETE) |
 
 ### Agent Instructions (CLAUDE.md files)
 

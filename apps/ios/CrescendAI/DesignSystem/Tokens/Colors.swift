@@ -45,6 +45,12 @@ enum CrescendColor {
     /// Waveform bars at rest (cream @ 20%)
     static let waveformInactive = foreground.opacity(0.2)
 
+    // MARK: - Brand accent (muted sage)
+
+    static let accent = Color(red: 0x7A / 255.0, green: 0x9A / 255.0, blue: 0x82 / 255.0)
+    static let accentLighter = Color(red: 0xA3 / 255.0, green: 0xBD / 255.0, blue: 0xA9 / 255.0)
+    static let accentDarker = Color(red: 0x5F / 255.0, green: 0x7D / 255.0, blue: 0x66 / 255.0)
+
     // MARK: - Dimension accent colors (muted, low-saturation)
 
     /// Warm gold for dynamics

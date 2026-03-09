@@ -104,6 +104,7 @@ struct ProfileView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") { dismiss() }
+                        .font(CrescendFont.labelLG())
                         .foregroundStyle(CrescendColor.foreground)
                 }
             }

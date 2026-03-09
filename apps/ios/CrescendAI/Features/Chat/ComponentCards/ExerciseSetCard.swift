@@ -31,7 +31,7 @@ struct ExerciseSetCard: View {
 
                         VStack(alignment: .leading, spacing: 2) {
                             Text(exercise.title)
-                                .font(CrescendFont.bodySM(.medium))
+                                .font(.custom("Lora", fixedSize: 14).weight(.medium))
                                 .foregroundStyle(CrescendColor.foreground)
                             Text(exercise.description)
                                 .font(CrescendFont.bodySM())

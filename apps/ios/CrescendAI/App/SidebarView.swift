@@ -29,6 +29,7 @@ struct SidebarView: View {
                     .frame(width: 280)
                     .frame(maxHeight: .infinity)
                     .background(CrescendColor.sidebarBackground)
+                    .ignoresSafeArea(edges: .bottom)
                     .transition(.move(edge: .leading))
             }
         }
@@ -47,7 +48,7 @@ struct SidebarView: View {
         VStack(alignment: .leading, spacing: 0) {
             // Header
             HStack {
-                Text("CrescendAI")
+                Text("crescend")
                     .font(CrescendFont.displayMD())
                     .foregroundStyle(CrescendColor.foreground)
 
@@ -63,7 +64,7 @@ struct SidebarView: View {
                 .buttonStyle(CrescendPressStyle())
             }
             .padding(.horizontal, CrescendSpacing.space4)
-            .padding(.top, CrescendSpacing.space4)
+            .padding(.top, CrescendSpacing.space2)
             .padding(.bottom, CrescendSpacing.space6)
 
             // Session list
@@ -128,6 +129,7 @@ struct SidebarView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(CrescendPressStyle())
+            .padding(.bottom, CrescendSpacing.space4)
 
             Divider()
                 .overlay(CrescendColor.border)

@@ -37,7 +37,6 @@ final class ChatViewModel {
     var messages: [ChatMessage] = []
     var inputText = ""
     var practiceState: PracticeState = .idle
-    var showSessionReview = false
 
     private(set) var manager: PracticeSessionManager?
     private var modelContext: ModelContext?
@@ -60,11 +59,7 @@ final class ChatViewModel {
         } else {
             period = "evening"
         }
-        return "Good \(period)."
-    }
-
-    var isIdle: Bool {
-        messages.isEmpty && practiceState == .idle
+        return "Good \(period)! Ready to practice?"
     }
 
     func configure(modelContext: ModelContext) {
@@ -87,9 +82,23 @@ final class ChatViewModel {
 
     func stopPractice() async {
         practiceState = .processing
+        addSystemMessage("Ending session and analyzing your practice...")
+        
         await manager?.endSession()
-        practiceState = .idle
-        showSessionReview = true
+        
+        // Simulate getting observations (will be replaced by real API call)
+        Task {
+            try? await Task.sleep(for: .seconds(1.5))
+            addObservation(
+                text: "Nice work! Your rhythm was steady throughout the session.",
+                dimension: "rhythm"
+            )
+            addObservation(
+                text: "Your dynamics showed good contrast. Try increasing the dynamic range even more.",
+                dimension: "dynamics"
+            )
+            practiceState = .idle
+        }
     }
 
     func pausePractice() {

@@ -10,10 +10,7 @@
 	</array>
 	<key>UIAppFonts</key>
 	<array>
-		<string>Lora-Regular.ttf</string>
-		<string>Lora-Medium.ttf</string>
-		<string>Lora-SemiBold.ttf</string>
-		<string>Lora-Bold.ttf</string>
+		<string>Lora-VariableFont_wght.ttf</string>
 	</array>
 </dict>
 </plist>

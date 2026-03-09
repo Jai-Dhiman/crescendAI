@@ -52,7 +52,7 @@ export function ChatInput({ onSend, disabled, placeholder }: ChatInputProps) {
           type="button"
           onClick={handleSend}
           disabled={disabled || !value.trim()}
-          className="shrink-0 w-10 h-10 flex items-center justify-center rounded-full bg-cream text-espresso hover:brightness-110 transition disabled:opacity-40 disabled:cursor-not-allowed"
+          className="shrink-0 w-10 h-10 flex items-center justify-center rounded-full bg-accent text-cream hover:brightness-110 transition disabled:opacity-40 disabled:cursor-not-allowed"
         >
           <PaperPlaneRight size={18} weight="fill" />
         </button>

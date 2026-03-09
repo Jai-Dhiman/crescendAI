@@ -44,7 +44,7 @@ struct ObservationCard: View {
                             Image(systemName: "arrow.right")
                                 .font(.system(size: 11, weight: .medium))
                         }
-                        .foregroundStyle(CrescendColor.secondaryText)
+                        .foregroundStyle(CrescendColor.accent)
                     }
                     .buttonStyle(CrescendPressStyle())
                 }

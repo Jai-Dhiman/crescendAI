@@ -7,59 +7,58 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		A100000001 /* CrescendAIApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000001; };
-		A100000002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000002; };
-		A100000003 /* Colors.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000003; };
-		A100000004 /* Typography.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000004; };
-		A100000005 /* Spacing.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000005; };
-		A100000006 /* CrescendButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000006; };
-		A100000007 /* CrescendCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000007; };
-		A100000008 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000008; };
-		A100000019 /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000019; };
-		A100000020 /* APIEndpoints.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000020; };
-		A100000021 /* APIModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000021; };
-		A100000033 /* AudioSessionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000034; };
-		A100000034 /* RingBuffer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000035; };
-		A100000035 /* AudioCaptureEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000036; };
-		A100000036 /* ChunkProducer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000037; };
-		A100000037 /* InferenceProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000038; };
-		A100000038 /* PracticeSessionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000039; };
-		A100000039 /* PracticeSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000040; };
-		A100000040 /* AudioChunk.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000041; };
-		A200000001 /* RingBufferTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B200000001; };
-		A300000001 /* PracticeSessionRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = B300000001; };
-		A300000002 /* ChunkResultRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = B300000002; };
-		A300000003 /* CoreMLInferenceProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = B300000003; };
-		A300000004 /* InferenceProviderFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = B300000004; };
-		A300000005 /* PracticeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B300000005; };
-		A400000001 /* MainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000001; };
-		A400000002 /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000002; };
-		A400000003 /* SignInView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000003; };
-		A400000004 /* AuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000004; };
-		A400000005 /* KeychainService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000005; };
-		A400000006 /* SyncService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000006; };
-		A400000007 /* Student.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000007; };
-		A400000008 /* ObservationRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000008; };
-		A400000009 /* CheckInRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000009; };
-		A400000010 /* StudentModelService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000010; };
-		A400000011 /* CheckInService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000011; };
-		A400000012 /* GoalExtractionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000012; };
-		A400000013 /* ChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000013; };
-		A400000014 /* ChatViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000014; };
-
-		A400000016 /* MessageBubble.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000016; };
-		A400000017 /* ObservationCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000017; };
-		A400000018 /* DimensionPill.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000018; };
-		A400000019 /* WaveformView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000019; };
-
-		A400000021 /* SessionReviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000021; };
-		A400000022 /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000022; };
-		A400000023 /* SparklineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000023; };
-		A400000024 /* FocusModeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000024; };
-		A400000025 /* ScoreHighlightCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000025; };
-		A400000026 /* KeyboardGuideCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000026; };
-		A400000027 /* ExerciseSetCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000027; };
-		A400000028 /* DualModeBottomBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000028; };
+		A100000001 /* CrescendAIApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000001 /* CrescendAIApp.swift */; };
+		A100000002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000002 /* ContentView.swift */; };
+		A100000003 /* Colors.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000003 /* Colors.swift */; };
+		A100000004 /* Typography.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000004 /* Typography.swift */; };
+		A100000005 /* Spacing.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000005 /* Spacing.swift */; };
+		A100000006 /* CrescendButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000006 /* CrescendButton.swift */; };
+		A100000007 /* CrescendCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000007 /* CrescendCard.swift */; };
+		A100000008 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000008 /* Theme.swift */; };
+		A100000019 /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000019 /* APIClient.swift */; };
+		A100000020 /* APIEndpoints.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000020 /* APIEndpoints.swift */; };
+		A100000021 /* APIModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000021 /* APIModels.swift */; };
+		A100000033 /* AudioSessionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000034 /* AudioSessionManager.swift */; };
+		A100000034 /* RingBuffer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000035 /* RingBuffer.swift */; };
+		A100000035 /* AudioCaptureEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000036 /* AudioCaptureEngine.swift */; };
+		A100000036 /* ChunkProducer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000037 /* ChunkProducer.swift */; };
+		A100000037 /* InferenceProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000038 /* InferenceProvider.swift */; };
+		A100000038 /* PracticeSessionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000039 /* PracticeSessionManager.swift */; };
+		A100000039 /* PracticeSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000040 /* PracticeSession.swift */; };
+		A100000040 /* AudioChunk.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000041 /* AudioChunk.swift */; };
+		A200000001 /* RingBufferTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B200000001 /* RingBufferTests.swift */; };
+		A300000001 /* PracticeSessionRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = B300000001 /* PracticeSessionRecord.swift */; };
+		A300000002 /* ChunkResultRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = B300000002 /* ChunkResultRecord.swift */; };
+		A300000003 /* CoreMLInferenceProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = B300000003 /* CoreMLInferenceProvider.swift */; };
+		A300000004 /* InferenceProviderFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = B300000004 /* InferenceProviderFactory.swift */; };
+		A300000005 /* PracticeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B300000005 /* PracticeView.swift */; };
+		A400000001 /* MainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000001 /* MainView.swift */; };
+		A400000002 /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000002 /* SidebarView.swift */; };
+		A400000003 /* SignInView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000003 /* SignInView.swift */; };
+		A400000004 /* AuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000004 /* AuthService.swift */; };
+		A400000005 /* KeychainService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000005 /* KeychainService.swift */; };
+		A400000006 /* SyncService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000006 /* SyncService.swift */; };
+		A400000007 /* Student.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000007 /* Student.swift */; };
+		A400000008 /* ObservationRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000008 /* ObservationRecord.swift */; };
+		A400000009 /* CheckInRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000009 /* CheckInRecord.swift */; };
+		A400000010 /* StudentModelService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000010 /* StudentModelService.swift */; };
+		A400000011 /* CheckInService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000011 /* CheckInService.swift */; };
+		A400000012 /* GoalExtractionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000012 /* GoalExtractionService.swift */; };
+		A400000013 /* ChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000013 /* ChatView.swift */; };
+		A400000014 /* ChatViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000014 /* ChatViewModel.swift */; };
+		A400000016 /* MessageBubble.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000016 /* MessageBubble.swift */; };
+		A400000017 /* ObservationCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000017 /* ObservationCard.swift */; };
+		A400000018 /* DimensionPill.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000018 /* DimensionPill.swift */; };
+		A400000019 /* WaveformView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000019 /* WaveformView.swift */; };
+		A400000021 /* SessionReviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000021 /* SessionReviewView.swift */; };
+		A400000022 /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000022 /* ProfileView.swift */; };
+		A400000023 /* SparklineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000023 /* SparklineView.swift */; };
+		A400000024 /* FocusModeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000024 /* FocusModeView.swift */; };
+		A400000025 /* ScoreHighlightCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000025 /* ScoreHighlightCard.swift */; };
+		A400000026 /* KeyboardGuideCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000026 /* KeyboardGuideCard.swift */; };
+		A400000027 /* ExerciseSetCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000027 /* ExerciseSetCard.swift */; };
+		A500000001 /* Lora-VariableFont_wght.ttf in Resources */ = {isa = PBXBuildFile; fileRef = B500000001 /* Lora-VariableFont_wght.ttf */; };
+		A500000002 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B500000002 /* Assets.xcassets */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -73,7 +72,6 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		C100000001 /* CrescendAI.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CrescendAI.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B100000001 /* CrescendAIApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrescendAIApp.swift; sourceTree = "<group>"; };
 		B100000002 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		B100000003 /* Colors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Colors.swift; sourceTree = "<group>"; };
@@ -95,7 +93,6 @@
 		B100000040 /* PracticeSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PracticeSession.swift; sourceTree = "<group>"; };
 		B100000041 /* AudioChunk.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioChunk.swift; sourceTree = "<group>"; };
 		B200000001 /* RingBufferTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RingBufferTests.swift; sourceTree = "<group>"; };
-		C200000001 /* CrescendAITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CrescendAITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		B300000001 /* PracticeSessionRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PracticeSessionRecord.swift; sourceTree = "<group>"; };
 		B300000002 /* ChunkResultRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChunkResultRecord.swift; sourceTree = "<group>"; };
 		B300000003 /* CoreMLInferenceProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreMLInferenceProvider.swift; sourceTree = "<group>"; };
@@ -115,12 +112,10 @@
 		B400000012 /* GoalExtractionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoalExtractionService.swift; sourceTree = "<group>"; };
 		B400000013 /* ChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatView.swift; sourceTree = "<group>"; };
 		B400000014 /* ChatViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatViewModel.swift; sourceTree = "<group>"; };
-
 		B400000016 /* MessageBubble.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageBubble.swift; sourceTree = "<group>"; };
 		B400000017 /* ObservationCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ObservationCard.swift; sourceTree = "<group>"; };
 		B400000018 /* DimensionPill.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DimensionPill.swift; sourceTree = "<group>"; };
 		B400000019 /* WaveformView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WaveformView.swift; sourceTree = "<group>"; };
-
 		B400000021 /* SessionReviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionReviewView.swift; sourceTree = "<group>"; };
 		B400000022 /* ProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileView.swift; sourceTree = "<group>"; };
 		B400000023 /* SparklineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SparklineView.swift; sourceTree = "<group>"; };
@@ -128,7 +123,10 @@
 		B400000025 /* ScoreHighlightCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScoreHighlightCard.swift; sourceTree = "<group>"; };
 		B400000026 /* KeyboardGuideCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardGuideCard.swift; sourceTree = "<group>"; };
 		B400000027 /* ExerciseSetCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExerciseSetCard.swift; sourceTree = "<group>"; };
-		B400000028 /* DualModeBottomBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DualModeBottomBar.swift; sourceTree = "<group>"; };
+		B500000001 /* Lora-VariableFont_wght.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Lora-VariableFont_wght.ttf"; sourceTree = "<group>"; };
+		B500000002 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		C100000001 /* CrescendAI.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CrescendAI.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		C200000001 /* CrescendAITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CrescendAITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -226,72 +224,6 @@
 			path = Features;
 			sourceTree = "<group>";
 		};
-		E400000001 /* Auth */ = {
-			isa = PBXGroup;
-			children = (
-				B400000003 /* SignInView.swift */,
-			);
-			path = Auth;
-			sourceTree = "<group>";
-		};
-		E400000002 /* Chat */ = {
-			isa = PBXGroup;
-			children = (
-				B400000013 /* ChatView.swift */,
-				B400000014 /* ChatViewModel.swift */,
-				B400000028 /* DualModeBottomBar.swift */,
-				B400000016 /* MessageBubble.swift */,
-				B400000017 /* ObservationCard.swift */,
-				B400000018 /* DimensionPill.swift */,
-				E400000003 /* ComponentCards */,
-			);
-			path = Chat;
-			sourceTree = "<group>";
-		};
-		E400000003 /* ComponentCards */ = {
-			isa = PBXGroup;
-			children = (
-				B400000025 /* ScoreHighlightCard.swift */,
-				B400000026 /* KeyboardGuideCard.swift */,
-				B400000027 /* ExerciseSetCard.swift */,
-			);
-			path = ComponentCards;
-			sourceTree = "<group>";
-		};
-		E300000001 /* Practice */ = {
-			isa = PBXGroup;
-			children = (
-				B300000005 /* PracticeView.swift */,
-				B400000019 /* WaveformView.swift */,
-				);
-			path = Practice;
-			sourceTree = "<group>";
-		};
-		E400000004 /* SessionReview */ = {
-			isa = PBXGroup;
-			children = (
-				B400000021 /* SessionReviewView.swift */,
-			);
-			path = SessionReview;
-			sourceTree = "<group>";
-		};
-		E400000005 /* Profile */ = {
-			isa = PBXGroup;
-			children = (
-				B400000022 /* ProfileView.swift */,
-				B400000023 /* SparklineView.swift */,
-			);
-			path = Profile;
-			sourceTree = "<group>";
-		};
-		E400000006 /* FocusMode */ = {
-			isa = PBXGroup;
-			children = (
-				B400000024 /* FocusModeView.swift */,
-			);
-			path = FocusMode;
-			sourceTree = "<group>";
-		};
 		E100000013 /* Networking */ = {
 			isa = PBXGroup;
 			children = (
@@ -305,6 +237,7 @@
 		E100000014 /* Resources */ = {
 			isa = PBXGroup;
 			children = (
+				B500000002 /* Assets.xcassets */,
 				E100000015 /* Fonts */,
 				E100000016 /* SoundFonts */,
 			);
@@ -314,6 +247,7 @@
 		E100000015 /* Fonts */ = {
 			isa = PBXGroup;
 			children = (
+				B500000001 /* Lora-VariableFont_wght.ttf */,
 			);
 			path = Fonts;
 			sourceTree = "<group>";
@@ -345,16 +279,6 @@
 				B400000012 /* GoalExtractionService.swift */,
 			);
 			path = Services;
-			sourceTree = "<group>";
-		};
-		E400000007 /* Auth */ = {
-			isa = PBXGroup;
-			children = (
-				B400000004 /* AuthService.swift */,
-				B400000005 /* KeychainService.swift */,
-				B400000006 /* SyncService.swift */,
-			);
-			path = Auth;
 			sourceTree = "<group>";
 		};
 		E100000024 /* AudioEngine */ = {
@@ -399,6 +323,81 @@
 				B200000001 /* RingBufferTests.swift */,
 			);
 			path = CrescendAITests;
+			sourceTree = "<group>";
+		};
+		E300000001 /* Practice */ = {
+			isa = PBXGroup;
+			children = (
+				B300000005 /* PracticeView.swift */,
+				B400000019 /* WaveformView.swift */,
+			);
+			path = Practice;
+			sourceTree = "<group>";
+		};
+		E400000001 /* Auth */ = {
+			isa = PBXGroup;
+			children = (
+				B400000003 /* SignInView.swift */,
+			);
+			path = Auth;
+			sourceTree = "<group>";
+		};
+		E400000002 /* Chat */ = {
+			isa = PBXGroup;
+			children = (
+				B400000013 /* ChatView.swift */,
+				B400000014 /* ChatViewModel.swift */,
+				B400000016 /* MessageBubble.swift */,
+				B400000017 /* ObservationCard.swift */,
+				B400000018 /* DimensionPill.swift */,
+				E400000003 /* ComponentCards */,
+			);
+			path = Chat;
+			sourceTree = "<group>";
+		};
+		E400000003 /* ComponentCards */ = {
+			isa = PBXGroup;
+			children = (
+				B400000025 /* ScoreHighlightCard.swift */,
+				B400000026 /* KeyboardGuideCard.swift */,
+				B400000027 /* ExerciseSetCard.swift */,
+			);
+			path = ComponentCards;
+			sourceTree = "<group>";
+		};
+		E400000004 /* SessionReview */ = {
+			isa = PBXGroup;
+			children = (
+				B400000021 /* SessionReviewView.swift */,
+			);
+			path = SessionReview;
+			sourceTree = "<group>";
+		};
+		E400000005 /* Profile */ = {
+			isa = PBXGroup;
+			children = (
+				B400000022 /* ProfileView.swift */,
+				B400000023 /* SparklineView.swift */,
+			);
+			path = Profile;
+			sourceTree = "<group>";
+		};
+		E400000006 /* FocusMode */ = {
+			isa = PBXGroup;
+			children = (
+				B400000024 /* FocusModeView.swift */,
+			);
+			path = FocusMode;
+			sourceTree = "<group>";
+		};
+		E400000007 /* Auth */ = {
+			isa = PBXGroup;
+			children = (
+				B400000004 /* AuthService.swift */,
+				B400000005 /* KeychainService.swift */,
+				B400000006 /* SyncService.swift */,
+			);
+			path = Auth;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -481,6 +480,8 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A500000001 /* Lora-VariableFont_wght.ttf in Resources */,
+				A500000002 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -529,12 +530,10 @@
 				A400000012 /* GoalExtractionService.swift in Sources */,
 				A400000013 /* ChatView.swift in Sources */,
 				A400000014 /* ChatViewModel.swift in Sources */,
-	
 				A400000016 /* MessageBubble.swift in Sources */,
 				A400000017 /* ObservationCard.swift in Sources */,
 				A400000018 /* DimensionPill.swift in Sources */,
 				A400000019 /* WaveformView.swift in Sources */,
-	
 				A400000021 /* SessionReviewView.swift in Sources */,
 				A400000022 /* ProfileView.swift in Sources */,
 				A400000023 /* SparklineView.swift in Sources */,
@@ -542,7 +541,6 @@
 				A400000025 /* ScoreHighlightCard.swift in Sources */,
 				A400000026 /* KeyboardGuideCard.swift in Sources */,
 				A400000027 /* ExerciseSetCard.swift in Sources */,
-				A400000028 /* DualModeBottomBar.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -817,7 +815,6 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
-
 	};
 	rootObject = F100000010 /* Project object */;
 }

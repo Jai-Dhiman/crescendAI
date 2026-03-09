@@ -10,6 +10,11 @@
   --color-surface-2: #454140;
   --color-border: #504B48;
 
+  /* Brand accent (muted sage) */
+  --color-accent: #7A9A82;
+  --color-accent-lighter: #A3BDA9;
+  --color-accent-darker: #5F7D66;
+
   /* Text on dark */
   --color-text-primary: #FDF8F0;
   --color-text-secondary: #A8A29E;
@@ -96,7 +101,7 @@
   }
 
   ::selection {
-    background-color: var(--color-surface-2);
+    background-color: var(--color-accent);
     color: var(--color-cream);
   }
 }

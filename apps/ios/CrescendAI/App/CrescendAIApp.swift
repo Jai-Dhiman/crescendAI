@@ -1,3 +1,4 @@
+import CoreText
 import SwiftData
 import SwiftUI
 
@@ -19,6 +20,15 @@ struct CrescendAIApp: App {
         } catch {
             fatalError("Failed to create ModelContainer: \(error)")
         }
+        Self.registerFonts()
+    }
+
+    static func registerFonts() {
+        guard let fontURL = Bundle.main.url(forResource: "Lora-VariableFont_wght", withExtension: "ttf") else {
+            return
+        }
+        var error: Unmanaged<CFError>?
+        CTFontManagerRegisterFontsForURL(fontURL as CFURL, .process, &error)
     }
 
     var body: some Scene {

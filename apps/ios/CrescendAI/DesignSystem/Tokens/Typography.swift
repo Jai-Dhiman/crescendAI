@@ -4,68 +4,68 @@ enum CrescendFont {
     // MARK: - Display
 
     /// 40pt Lora Bold - hero headlines
-    static func displayXL(_ weight: Font.Weight = .bold) -> Font {
-        .custom("Lora", size: 40).weight(weight)
+    static func displayXL() -> Font {
+        .custom("Lora", fixedSize: 40).weight(.bold)
     }
 
     /// 32pt Lora Bold - section headlines
-    static func displayLG(_ weight: Font.Weight = .bold) -> Font {
-        .custom("Lora", size: 32).weight(weight)
+    static func displayLG() -> Font {
+        .custom("Lora", fixedSize: 32).weight(.bold)
     }
 
     /// 28pt Lora SemiBold - subsection headlines
-    static func displayMD(_ weight: Font.Weight = .semibold) -> Font {
-        .custom("Lora", size: 28).weight(weight)
+    static func displayMD() -> Font {
+        .custom("Lora", fixedSize: 28).weight(.semibold)
     }
 
     // MARK: - Heading
 
     /// 24pt Lora SemiBold
-    static func headingXL(_ weight: Font.Weight = .semibold) -> Font {
-        .custom("Lora", size: 24).weight(weight)
+    static func headingXL() -> Font {
+        .custom("Lora", fixedSize: 24).weight(.semibold)
     }
 
     /// 20pt Lora SemiBold
-    static func headingLG(_ weight: Font.Weight = .semibold) -> Font {
-        .custom("Lora", size: 20).weight(weight)
+    static func headingLG() -> Font {
+        .custom("Lora", fixedSize: 20).weight(.semibold)
     }
 
     /// 18pt Lora Medium
-    static func headingMD(_ weight: Font.Weight = .medium) -> Font {
-        .custom("Lora", size: 18).weight(weight)
+    static func headingMD() -> Font {
+        .custom("Lora", fixedSize: 18).weight(.medium)
     }
 
     // MARK: - Body
 
-    /// 18pt SF Pro Regular
-    static func bodyLG(_ weight: Font.Weight = .regular) -> Font {
-        .system(size: 18, weight: weight)
+    /// 18pt Lora Regular
+    static func bodyLG() -> Font {
+        .custom("Lora", fixedSize: 18)
     }
 
-    /// 16pt SF Pro Regular
-    static func bodyMD(_ weight: Font.Weight = .regular) -> Font {
-        .system(size: 16, weight: weight)
+    /// 16pt Lora Regular
+    static func bodyMD() -> Font {
+        .custom("Lora", fixedSize: 16)
     }
 
-    /// 14pt SF Pro Regular
-    static func bodySM(_ weight: Font.Weight = .regular) -> Font {
-        .system(size: 14, weight: weight)
+    /// 14pt Lora Regular
+    static func bodySM() -> Font {
+        .custom("Lora", fixedSize: 14)
     }
 
     // MARK: - Label
 
     /// 14pt SF Pro Medium
-    static func labelLG(_ weight: Font.Weight = .medium) -> Font {
-        .system(size: 14, weight: weight)
+    static func labelLG() -> Font {
+        .system(size: 14, weight: .medium)
     }
 
     /// 12pt SF Pro Medium
-    static func labelMD(_ weight: Font.Weight = .medium) -> Font {
-        .system(size: 12, weight: weight)
+    static func labelMD() -> Font {
+        .system(size: 12, weight: .medium)
     }
 
     /// 11pt SF Pro Medium
-    static func labelSM(_ weight: Font.Weight = .medium) -> Font {
-        .system(size: 11, weight: weight)
+    static func labelSM() -> Font {
+        .system(size: 11, weight: .medium)
     }
 }
