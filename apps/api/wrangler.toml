@@ -20,3 +20,16 @@ custom_domain = true
 APPLE_WEB_SERVICES_ID = "ai.crescend.web"
 ENVIRONMENT = "production"
 HF_INFERENCE_ENDPOINT = "https://u1oxy7egvq7rnm8z.us-east-1.aws.endpoints.huggingface.cloud"
+
+[[r2_buckets]]
+binding = "CHUNKS"
+bucket_name = "crescendai-chunks"
+
+[durable_objects]
+bindings = [
+  { name = "PRACTICE_SESSION", class_name = "PracticeSession" }
+]
+
+[[migrations]]
+tag = "v1"
+new_classes = ["PracticeSession"]

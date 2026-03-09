@@ -1,6 +1,27 @@
 use http_body_util::BodyExt;
 use worker::{event, Context, Env, HttpRequest, Result};
 
+/// Convert an http::Response<axum::body::Body> into a worker::Response.
+/// This collects the body into bytes and rebuilds the response for the Workers runtime.
+async fn into_worker_response(resp: http::Response<axum::body::Body>) -> Result<worker::Response> {
+    let (parts, body) = resp.into_parts();
+    let bytes = body
+        .collect()
+        .await
+        .map(|b| b.to_bytes().to_vec())
+        .unwrap_or_default();
+
+    let headers = worker::Headers::new();
+    for (name, value) in parts.headers.iter() {
+        if let Ok(v) = value.to_str() {
+            let _ = headers.set(name.as_str(), v);
+        }
+    }
+
+    worker::Response::from_bytes(bytes)
+        .map(|r| r.with_status(parts.status.as_u16()).with_headers(headers))
+}
+
 /// Add CORS headers to a response with origin allowlist.
 fn with_cors(response: http::Response<axum::body::Body>, origin: Option<&str>) -> http::Response<axum::body::Body> {
     let (mut parts, body) = response.into_parts();
@@ -32,7 +53,7 @@ async fn fetch(
     req: HttpRequest,
     env: Env,
     _ctx: Context,
-) -> Result<http::Response<axum::body::Body>> {
+) -> Result<worker::Response> {
     console_error_panic_hook::set_once();
 
     let path = req.uri().path().to_string();
@@ -43,15 +64,78 @@ async fn fetch(
         .and_then(|v| v.to_str().ok())
         .map(|s| s.to_string());
 
+    // WebSocket upgrade for practice sessions -- forward to Durable Object.
+    // Must return worker::Response directly (not http::Response) to preserve
+    // the webSocket property on the JS Response object.
+    if path.starts_with("/api/practice/ws/") && method == http::Method::GET {
+        let session_id = path.trim_start_matches("/api/practice/ws/");
+        if !session_id.is_empty() && !session_id.contains('/') {
+            let namespace = env.durable_object("PRACTICE_SESSION")?;
+            let stub = namespace.id_from_name(session_id)?.get_stub()?;
+            let url = format!("https://do.internal/ws/{}", session_id);
+            let worker_req = worker::Request::new(&url, worker::Method::Get)?;
+            return stub.fetch_with_request(worker_req).await;
+        }
+    }
+
+    // Practice session start (authenticated)
+    if path == "/api/practice/start" && method == http::Method::POST {
+        let headers = req.headers().clone();
+        return into_worker_response(with_cors(
+            crate::practice::start::handle_start(&env, &headers).await,
+            origin.as_deref(),
+        )).await;
+    }
+
+    // Upload audio chunk to R2 (authenticated)
+    if path == "/api/practice/chunk" && method == http::Method::POST {
+        let headers = req.headers().clone();
+        let query_string = req.uri().query().map(|q| q.to_string());
+        let body = req
+            .into_body()
+            .collect()
+            .await
+            .map(|b| b.to_bytes().to_vec())
+            .unwrap_or_default();
+
+        let query = query_string.unwrap_or_default();
+        let params: std::collections::HashMap<String, String> = query
+            .split('&')
+            .filter_map(|pair| {
+                let mut parts = pair.splitn(2, '=');
+                Some((parts.next()?.to_string(), parts.next()?.to_string()))
+            })
+            .collect();
+
+        let session_id = params.get("sessionId").map(|s| s.as_str()).unwrap_or("");
+        let chunk_index = params.get("chunkIndex").map(|s| s.as_str()).unwrap_or("0");
+
+        if session_id.is_empty() {
+            return into_worker_response(with_cors(
+                http::Response::builder()
+                    .status(http::StatusCode::BAD_REQUEST)
+                    .header("Content-Type", "application/json")
+                    .body(axum::body::Body::from(r#"{"error":"Missing sessionId"}"#))
+                    .unwrap(),
+                origin.as_deref(),
+            )).await;
+        }
+
+        return into_worker_response(with_cors(
+            crate::practice::upload::handle_upload_chunk(&env, &headers, body, session_id, chunk_index).await,
+            origin.as_deref(),
+        )).await;
+    }
+
     // Handle CORS preflight
     if method == http::Method::OPTIONS {
-        return Ok(with_cors(
+        return into_worker_response(with_cors(
             http::Response::builder()
                 .status(http::StatusCode::NO_CONTENT)
                 .body(axum::body::Body::empty())
                 .unwrap(),
             origin.as_deref(),
-        ));
+        )).await;
     }
 
     // Apple auth endpoint
@@ -62,35 +146,35 @@ async fn fetch(
             .await
             .map(|b| b.to_bytes().to_vec())
             .unwrap_or_default();
-        return Ok(with_cors(
+        return into_worker_response(with_cors(
             crate::auth::handle_apple_auth(&env, &body).await,
             origin.as_deref(),
-        ));
+        )).await;
     }
 
     // Auth me endpoint (authenticated)
     if path == "/api/auth/me" && method == http::Method::GET {
         let headers = req.headers().clone();
-        return Ok(with_cors(
+        return into_worker_response(with_cors(
             crate::auth::handle_auth_me(&env, &headers).await,
             origin.as_deref(),
-        ));
+        )).await;
     }
 
     // Debug auth endpoint (dev only -- returns 404 in production)
     if path == "/api/auth/debug" && method == http::Method::POST {
-        return Ok(with_cors(
+        return into_worker_response(with_cors(
             crate::auth::handle_debug_auth(&env).await,
             origin.as_deref(),
-        ));
+        )).await;
     }
 
     // Auth signout endpoint
     if path == "/api/auth/signout" && method == http::Method::POST {
-        return Ok(with_cors(
+        return into_worker_response(with_cors(
             crate::auth::handle_signout(),
             origin.as_deref(),
-        ));
+        )).await;
     }
 
     // Goal extraction endpoint (authenticated)
@@ -102,10 +186,10 @@ async fn fetch(
             .await
             .map(|b| b.to_bytes().to_vec())
             .unwrap_or_default();
-        return Ok(with_cors(
+        return into_worker_response(with_cors(
             crate::services::goals::handle_extract_goals(&env, &headers, &body).await,
             origin.as_deref(),
-        ));
+        )).await;
     }
 
     // Sync endpoint (authenticated)
@@ -117,10 +201,10 @@ async fn fetch(
             .await
             .map(|b| b.to_bytes().to_vec())
             .unwrap_or_default();
-        return Ok(with_cors(
+        return into_worker_response(with_cors(
             crate::services::sync::handle_sync(&env, &headers, &body).await,
             origin.as_deref(),
-        ));
+        )).await;
     }
 
     // Ask endpoint -- two-stage teacher pipeline (authenticated)
@@ -132,10 +216,10 @@ async fn fetch(
             .await
             .map(|b| b.to_bytes().to_vec())
             .unwrap_or_default();
-        return Ok(with_cors(
+        return into_worker_response(with_cors(
             crate::services::ask::handle_ask(&env, &headers, &body).await,
             origin.as_deref(),
-        ));
+        )).await;
     }
 
     // Ask elaborate endpoint -- "Tell me more" follow-up (authenticated)
@@ -147,19 +231,19 @@ async fn fetch(
             .await
             .map(|b| b.to_bytes().to_vec())
             .unwrap_or_default();
-        return Ok(with_cors(
+        return into_worker_response(with_cors(
             crate::services::ask::handle_elaborate(&env, &headers, &body).await,
             origin.as_deref(),
-        ));
+        )).await;
     }
 
     // List conversations (authenticated)
     if path == "/api/conversations" && method == http::Method::GET {
         let headers = req.headers().clone();
-        return Ok(with_cors(
+        return into_worker_response(with_cors(
             crate::services::chat::handle_list_conversations(&env, &headers).await,
             origin.as_deref(),
-        ));
+        )).await;
     }
 
     // Get single conversation with messages (authenticated)
@@ -167,10 +251,10 @@ async fn fetch(
         let conversation_id = path.trim_start_matches("/api/conversations/");
         if !conversation_id.is_empty() && !conversation_id.contains('/') {
             let headers = req.headers().clone();
-            return Ok(with_cors(
+            return into_worker_response(with_cors(
                 crate::services::chat::handle_get_conversation(&env, &headers, conversation_id).await,
                 origin.as_deref(),
-            ));
+            )).await;
         }
     }
 
@@ -179,10 +263,10 @@ async fn fetch(
         let conversation_id = path.trim_start_matches("/api/conversations/");
         if !conversation_id.is_empty() && !conversation_id.contains('/') {
             let headers = req.headers().clone();
-            return Ok(with_cors(
+            return into_worker_response(with_cors(
                 crate::services::chat::handle_delete_conversation(&env, &headers, conversation_id).await,
                 origin.as_deref(),
-            ));
+            )).await;
         }
     }
 
@@ -195,30 +279,30 @@ async fn fetch(
             .await
             .map(|b| b.to_bytes().to_vec())
             .unwrap_or_default();
-        return Ok(with_cors(
+        return into_worker_response(with_cors(
             crate::services::chat::handle_chat_stream(&env, &headers, &body).await,
             origin.as_deref(),
-        ));
+        )).await;
     }
 
     // Health check
     if path == "/health" {
-        return Ok(with_cors(
+        return into_worker_response(with_cors(
             http::Response::builder()
                 .status(http::StatusCode::OK)
                 .body(axum::body::Body::from("OK"))
                 .unwrap(),
             origin.as_deref(),
-        ));
+        )).await;
     }
 
     // All other routes return 404
-    Ok(with_cors(
+    into_worker_response(with_cors(
         http::Response::builder()
             .status(http::StatusCode::NOT_FOUND)
             .header("Content-Type", "application/json")
             .body(axum::body::Body::from(r#"{"error":"Not found"}"#))
             .unwrap(),
         origin.as_deref(),
-    ))
+    )).await
 }
