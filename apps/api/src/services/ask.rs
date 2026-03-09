@@ -304,7 +304,7 @@ pub async fn handle_elaborate(
     use http::{Response, StatusCode};
 
     // Auth
-    let _student_id = match crate::auth::verify_auth_header(headers, env) {
+    let student_id = match crate::auth::verify_auth_header(headers, env) {
         Ok(id) => id,
         Err(err_response) => return err_response,
     };
@@ -336,9 +336,13 @@ pub async fn handle_elaborate(
             }
         };
 
+    // Fetch memory context for richer elaboration
+    let memory_ctx = crate::services::memory::build_memory_context(env, &student_id, None).await;
+    let memory_text = crate::services::memory::format_chat_memory_patterns(&memory_ctx);
+
     // Call teacher LLM for elaboration
     let elaboration_prompt =
-        prompts::build_elaboration_prompt(&observation_text, &reasoning_trace);
+        prompts::build_elaboration_prompt(&observation_text, &reasoning_trace, &memory_text);
 
     let elaboration = match llm::call_anthropic(
         env,

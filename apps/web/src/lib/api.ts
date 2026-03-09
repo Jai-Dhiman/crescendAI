@@ -139,14 +139,17 @@ export const api = {
 
 			const reader = response.body.getReader();
 			const decoder = new TextDecoder();
+			let lineBuffer = "";
 
 			try {
 				while (true) {
 					const { done, value } = await reader.read();
 					if (done) break;
 
-					const chunk = decoder.decode(value, { stream: true });
-					const lines = chunk.split("\n");
+					lineBuffer += decoder.decode(value, { stream: true });
+					const lines = lineBuffer.split("\n");
+					// Keep the last (possibly incomplete) line in the buffer
+					lineBuffer = lines.pop() ?? "";
 
 					for (const line of lines) {
 						if (line.startsWith("data: ")) {
@@ -157,6 +160,16 @@ export const api = {
 								// Skip unparseable lines
 							}
 						}
+					}
+				}
+
+				// Process any remaining data in the buffer
+				if (lineBuffer.startsWith("data: ")) {
+					try {
+						const event: ChatStreamEvent = JSON.parse(lineBuffer.slice(6));
+						onEvent(event);
+					} catch {
+						// Skip unparseable lines
 					}
 				}
 			} finally {

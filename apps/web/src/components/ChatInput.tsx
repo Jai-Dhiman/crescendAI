@@ -51,7 +51,7 @@ export function ChatInput({
 			<div
 				className={`flex items-center gap-3 ${centered ? "" : "max-w-2xl mx-auto"}`}
 			>
-				<div className="flex-1 bg-surface-card border border-border rounded-2xl shadow-card flex items-end px-4 py-2">
+				<div className="flex-1 bg-surface-card/70 backdrop-blur-md border border-border/50 rounded-2xl shadow-card flex items-end px-4 py-2">
 					<textarea
 						ref={textareaRef}
 						value={value}

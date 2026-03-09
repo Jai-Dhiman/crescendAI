@@ -219,10 +219,9 @@ pub fn format_memory_context(ctx: &StudentMemoryContext) -> String {
     }
 
     let mut out = String::with_capacity(1500);
-    out.push_str("## Student Memory\n\n");
 
     if !ctx.active_facts.is_empty() {
-        out.push_str("### Active Patterns\n");
+        out.push_str("Active patterns:\n");
         for fact in &ctx.active_facts {
             let dim_label = fact
                 .dimension
@@ -244,7 +243,7 @@ pub fn format_memory_context(ctx: &StudentMemoryContext) -> String {
     }
 
     if !ctx.recent_observations.is_empty() {
-        out.push_str("### Recent Feedback\n");
+        out.push_str("Recent feedback:\n");
         for obs in &ctx.recent_observations {
             let engaged_label = if obs.engaged { ", student asked for elaboration" } else { "" };
             out.push_str(&format!(
@@ -256,13 +255,43 @@ pub fn format_memory_context(ctx: &StudentMemoryContext) -> String {
     }
 
     if !ctx.piece_facts.is_empty() {
-        out.push_str("### Current Piece History\n");
+        out.push_str("Current piece history:\n");
         for fact in &ctx.piece_facts {
             out.push_str(&format!("- {} (since {})\n", fact.fact_text, fact.valid_at));
         }
         out.push('\n');
     }
 
+    out
+}
+
+/// Format memory patterns for chat context (concise, no metadata).
+pub fn format_chat_memory_patterns(ctx: &StudentMemoryContext) -> String {
+    if ctx.active_facts.is_empty() {
+        return String::new();
+    }
+
+    let mut out = String::new();
+    for fact in &ctx.active_facts {
+        let trend_label = fact.trend.as_deref().unwrap_or("stable");
+        out.push_str(&format!("- {} ({})\n", fact.fact_text, trend_label));
+    }
+    out
+}
+
+/// Format recent observations for chat context.
+pub fn format_chat_recent_observations(ctx: &StudentMemoryContext) -> String {
+    if ctx.recent_observations.is_empty() {
+        return String::new();
+    }
+
+    let mut out = String::new();
+    for obs in &ctx.recent_observations {
+        out.push_str(&format!(
+            "- [{}] {}: \"{}\"\n",
+            obs.created_at, obs.dimension, obs.observation_text,
+        ));
+    }
     out
 }
 
@@ -401,20 +430,10 @@ pub async fn should_synthesize(
 
     // Check if last synthesis was > 7 days ago and there are any new observations
     if new_count > 0 {
-        // Simple check: compare date strings (ISO format sorts correctly)
-        let now = js_sys::Date::new_0()
-            .to_iso_string()
-            .as_string()
-            .unwrap_or_default();
-        // 7 days = check if last_synthesis is more than 7 days old
-        // Simple heuristic: if the date portion differs by enough characters
-        // (proper date math would need a date library, this is good enough)
-        let last_date = &last_synthesis[..10.min(last_synthesis.len())];
-        let now_date = &now[..10.min(now.len())];
-        if last_date != now_date {
-            // At least a day has passed, and we have observations.
-            // For a more precise 7-day check, we'd need date arithmetic.
-            // For now, synthesize if any new observations exist and it's a new day.
+        let last_ms = js_sys::Date::parse(last_synthesis);
+        let now_ms = js_sys::Date::now();
+        let days_diff = (now_ms - last_ms) / (1000.0 * 60.0 * 60.0 * 24.0);
+        if days_diff >= 7.0 {
             return Ok(true);
         }
     }

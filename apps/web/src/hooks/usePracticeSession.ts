@@ -97,6 +97,7 @@ export function usePracticeSession(): UsePracticeSessionReturn {
 				setSummary(data.summary);
 				setObservations(data.observations);
 				setState("idle");
+				cleanup();
 				break;
 			case "error":
 				setError(data.message);
@@ -257,11 +258,19 @@ export function usePracticeSession(): UsePracticeSessionReturn {
 			wsRef.current.send(JSON.stringify({ type: "end_session" }));
 		}
 
-		// Timer cleanup (WS stays open until summary arrives)
+		// Release mic immediately (stop tracks + close audio context)
+		// WS stays open to receive session_summary
 		if (timerRef.current) {
 			clearInterval(timerRef.current);
 			timerRef.current = null;
 		}
+		if (audioContextRef.current?.state !== "closed") {
+			audioContextRef.current?.close();
+		}
+		audioContextRef.current = null;
+		streamRef.current?.getTracks().forEach((t) => t.stop());
+		streamRef.current = null;
+		mediaRecorderRef.current = null;
 	}, [state, cleanup]);
 
 	// Graceful stop on page unload

@@ -52,7 +52,7 @@ export function MessageSkeleton({ align }: { align: "left" | "right" }) {
 export function ChatSkeleton() {
 	return (
 		<div className="flex-1 overflow-hidden px-6 py-8">
-			<div className="max-w-2xl mx-auto space-y-6">
+			<div className="max-w-3xl mx-auto space-y-6">
 				<MessageSkeleton align="right" />
 				<MessageSkeleton align="left" />
 				<MessageSkeleton align="right" />

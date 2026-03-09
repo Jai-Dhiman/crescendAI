@@ -13,17 +13,17 @@ from model_improvement.layer1_validation import (
 )
 
 
+class FakeModel(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.linear = torch.nn.Linear(1024, 6)
+
+    def predict_scores(self, x, mask=None):
+        return torch.tensor([[0.5, 0.6, 0.7, 0.4, 0.3, 0.8]])
+
+
 def test_score_competition_segments_returns_dict():
     """score_competition_segments returns {segment_id: scores_array}."""
-
-    class FakeModel(torch.nn.Module):
-        def __init__(self):
-            super().__init__()
-            self.linear = torch.nn.Linear(1024, 6)
-
-        def predict_scores(self, x, mask=None):
-            return torch.tensor([[0.5, 0.6, 0.7, 0.4, 0.3, 0.8]])
-
     model = FakeModel()
     embeddings = {
         "seg_001": torch.randn(10, 1024),
@@ -32,6 +32,20 @@ def test_score_competition_segments_returns_dict():
     result = score_competition_segments(model, embeddings)
     assert isinstance(result, dict)
     assert set(result.keys()) == {"seg_001", "seg_002"}
+    for scores in result.values():
+        assert isinstance(scores, np.ndarray)
+        assert scores.shape == (6,)
+
+
+def test_score_competition_segments_from_directory(tmp_path):
+    """score_competition_segments loads .pt files lazily from a directory."""
+    model = FakeModel()
+    torch.save(torch.randn(10, 1024), tmp_path / "seg_a.pt")
+    torch.save(torch.randn(15, 1024), tmp_path / "seg_b.pt")
+
+    result = score_competition_segments(model, tmp_path)
+    assert isinstance(result, dict)
+    assert set(result.keys()) == {"seg_a", "seg_b"}
     for scores in result.values():
         assert isinstance(scores, np.ndarray)
         assert scores.shape == (6,)
@@ -107,6 +121,24 @@ def test_select_maestro_subset():
                 found = True
                 break
         assert found, f"{key} not from multi-performer piece"
+
+
+def test_select_maestro_subset_deduplicates_segments():
+    """select_maestro_subset deduplicates segment IDs to unique recordings."""
+    contrastive_mapping = {
+        "piece_a": [
+            "maestro_rec1_seg000", "maestro_rec1_seg001",  # same recording
+            "maestro_rec2_seg000", "maestro_rec2_seg001",  # different recording
+        ],
+        "piece_b": [
+            "maestro_rec3_seg000",
+            "maestro_rec4_seg000",
+        ],
+    }
+    result = select_maestro_subset(contrastive_mapping, n_recordings=10)
+    # Should return 4 unique recordings, not 6 segments
+    assert len(result) == 4
+    assert set(result) == {"maestro_rec1", "maestro_rec2", "maestro_rec3", "maestro_rec4"}
 
 
 def test_dynamic_range_analysis():

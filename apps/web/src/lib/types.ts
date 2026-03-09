@@ -5,6 +5,7 @@ export interface RichMessage {
 	role: "user" | "assistant";
 	content: string;
 	created_at: string;
+	streaming?: boolean;
 	components?: InlineComponent[];
 }
 

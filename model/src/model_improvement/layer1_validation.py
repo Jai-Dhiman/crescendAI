@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import logging
 from collections import defaultdict
+from pathlib import Path
+from typing import Iterator
 
 import numpy as np
 import torch
@@ -19,34 +21,56 @@ from model_improvement.taxonomy import DIMENSIONS
 logger = logging.getLogger(__name__)
 
 
+def _iter_embeddings(
+    source: dict[str, torch.Tensor] | str | Path,
+) -> Iterator[tuple[str, torch.Tensor]]:
+    """Yield (segment_id, tensor) from a dict or a directory of .pt files.
+
+    When source is a directory, loads one file at a time to avoid OOM.
+    """
+    if isinstance(source, dict):
+        yield from source.items()
+    else:
+        emb_dir = Path(source)
+        for pt_file in sorted(emb_dir.glob("*.pt")):
+            tensor = torch.load(pt_file, map_location="cpu", weights_only=True)
+            yield pt_file.stem, tensor
+
+
 def score_competition_segments(
     model: torch.nn.Module,
-    embeddings: dict[str, torch.Tensor],
+    embeddings: dict[str, torch.Tensor] | str | Path,
     max_frames: int = 1000,
 ) -> dict[str, np.ndarray]:
     """Score competition segments using A1 model's predict_scores.
 
     Args:
         model: A1 model with predict_scores(x, mask) -> [1, 6].
-        embeddings: {segment_id: tensor [T, 1024]}.
+        embeddings: {segment_id: tensor [T, 1024]} or path to directory
+            of .pt files (lazy one-at-a-time loading).
         max_frames: Truncate embeddings longer than this.
 
     Returns:
         {segment_id: np.ndarray [6]} with per-dimension scores.
     """
     model.eval()
-    device = next(model.parameters()).device
+    orig_device = next(model.parameters()).device
+    model.cpu()
     results = {}
 
     with torch.no_grad():
-        for seg_id, emb in embeddings.items():
+        for i, (seg_id, emb) in enumerate(_iter_embeddings(embeddings)):
             if emb.shape[0] > max_frames:
                 emb = emb[:max_frames]
-            x = emb.unsqueeze(0).to(device)  # [1, T, 1024]
-            mask = torch.ones(1, x.shape[1], dtype=torch.bool, device=device)
+            x = emb.float().unsqueeze(0)  # [1, T, 1024], CPU float32
+            mask = torch.ones(1, x.shape[1], dtype=torch.bool)
             scores = model.predict_scores(x, mask)  # [1, 6]
-            results[seg_id] = scores.squeeze(0).cpu().numpy()
+            results[seg_id] = scores.squeeze(0).numpy()
+            if (i + 1) % 500 == 0:
+                logger.info("Scored %d segments so far", i + 1)
 
+    logger.info("Scored %d segments total", len(results))
+    model.to(orig_device)
     return results
 
 
@@ -158,30 +182,43 @@ def select_maestro_subset(
 ) -> list[str]:
     """Select MAESTRO recordings from pieces with multiple performers.
 
-    Prioritizes pieces with the most performers to maximize contrastive pairs.
+    Prioritizes pieces with the most unique recordings to maximize
+    contrastive pairs. When the mapping contains segment IDs (with _segNNN
+    suffixes), deduplicates to unique recordings first.
 
     Args:
-        contrastive_mapping: {piece_name: [recording_key, ...]}.
-        n_recordings: Target number of recordings.
+        contrastive_mapping: {piece_name: [segment_or_recording_key, ...]}.
+        n_recordings: Target number of unique recordings.
 
     Returns:
-        List of recording keys.
+        List of unique recording base keys (without _segNNN suffix).
     """
-    multi = {
-        piece: perfs
-        for piece, perfs in contrastive_mapping.items()
-        if len(perfs) >= 2
-    }
+    def _to_recording_id(key: str) -> str:
+        idx = key.rfind("_seg")
+        if idx >= 0 and key[idx + 4:].isdigit():
+            return key[:idx]
+        return key
+
+    # Deduplicate segments to unique recordings per piece
+    multi = {}
+    for piece, keys in contrastive_mapping.items():
+        recordings = list(dict.fromkeys(_to_recording_id(k) for k in keys))
+        if len(recordings) >= 2:
+            multi[piece] = recordings
+
     sorted_pieces = sorted(multi.keys(), key=lambda p: len(multi[p]), reverse=True)
 
     selected = []
+    seen = set()
     for piece in sorted_pieces:
         if len(selected) >= n_recordings:
             break
-        for perf in multi[piece]:
+        for rec in multi[piece]:
             if len(selected) >= n_recordings:
                 break
-            selected.append(perf)
+            if rec not in seen:
+                seen.add(rec)
+                selected.append(rec)
 
     return selected
 

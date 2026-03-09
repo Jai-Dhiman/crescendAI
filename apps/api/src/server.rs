@@ -272,6 +272,7 @@ async fn fetch(
     }
 
     // Chat endpoint -- streaming teacher conversation (authenticated)
+    // Returns worker::Response directly (not axum) to enable true token-by-token streaming.
     if path == "/api/chat" && method == http::Method::POST {
         let headers = req.headers().clone();
         let body = req
@@ -280,10 +281,16 @@ async fn fetch(
             .await
             .map(|b| b.to_bytes().to_vec())
             .unwrap_or_default();
-        return into_worker_response(with_cors(
-            crate::services::chat::handle_chat_stream(&env, &headers, &body).await,
-            origin.as_deref(),
-        )).await;
+        let mut resp = crate::services::chat::handle_chat_stream(&env, &headers, &body).await;
+        let allowed_origin = match origin.as_deref() {
+            Some(o) if o == "https://crescend.ai" || o == "http://localhost:3000" => o,
+            _ => "https://crescend.ai",
+        };
+        let _ = resp.headers_mut().set("Access-Control-Allow-Origin", allowed_origin);
+        let _ = resp.headers_mut().set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
+        let _ = resp.headers_mut().set("Access-Control-Allow-Headers", "Content-Type, Authorization, Cookie");
+        let _ = resp.headers_mut().set("Access-Control-Allow-Credentials", "true");
+        return Ok(resp);
     }
 
     // Health check

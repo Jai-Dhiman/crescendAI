@@ -8,7 +8,7 @@ import {
 } from "@phosphor-icons/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
 	useConversation,
 	useConversations,
@@ -34,10 +34,69 @@ interface AppChatProps {
 	initialConversationId?: string;
 }
 
+const GREETINGS = [
+	// Warm / encouraging
+	"Let's make some music.",
+	"Your piano misses you.",
+	"Ready when you are.",
+	"Every session counts.",
+	"Time to play.",
+	"The keys are waiting.",
+	"Pick up where you left off.",
+	"Another day, another phrase.",
+	"Let's hear what you've got.",
+	"Music starts here.",
+	"Let's turn practice into progress.",
+	"Sound check: you're going to be great.",
+	"Your fingers remember more than you think.",
+	"One phrase at a time.",
+	"Make it sing.",
+	"Trust the process.",
+	"Play something beautiful.",
+	"You showed up. That's half the battle.",
+	"Small steps, big music.",
+	"Listen closely. You're getting better.",
+	"The best practice is the one you do.",
+	"Start slow. Finish strong.",
+	"Today's the day it clicks.",
+	"Your sound is yours alone.",
+	"There's music in you.",
+	"Just you and the keys.",
+	"Let the music breathe.",
+	"Feel it before you play it.",
+	"Sit down. Breathe. Begin.",
+	"Progress hides in repetition.",
+	"You're closer than you think.",
+	"The piano doesn't judge. Neither do we.",
+	"This is your time.",
+	"Play like nobody's listening.",
+	"Welcome back.",
+	// Witty / playful
+	"Chopin never had an app this good.",
+	"Scales won't practice themselves.",
+	"Your future self will thank you.",
+	"Beethoven practiced. So should you.",
+	"Plot twist: practice is fun.",
+	"Your neighbors called. They want an encore.",
+	"No metronome judgment here.",
+	"Rubato is not an excuse for wrong notes.",
+	"One more rep. Of that tricky passage.",
+	"Fingers warmed up? Didn't think so.",
+	"Tempo: whatever you can handle.",
+	"The sustain pedal forgives, but it doesn't forget.",
+	"Debussy would be impressed. Probably.",
+	"Somewhere, a metronome is ticking for you.",
+	"Practice makes permanent.",
+];
+
 export default function AppChat({ initialConversationId }: AppChatProps) {
 	const { user, isLoading, isAuthenticated, signOut } = useAuth();
 	const navigate = useNavigate();
 	const [showProfile, setShowProfile] = useState(false);
+	const [dropdownPos, setDropdownPos] = useState<{
+		bottom: number;
+		left: number;
+	} | null>(null);
 	const { sidebarOpen, setSidebarOpen } = useUIStore();
 	const profileRef = useRef<HTMLDivElement>(null);
 	const addToast = useToastStore((s) => s.addToast);
@@ -47,16 +106,45 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 		string | null
 	>(initialConversationId ?? null);
 	const [messages, setMessages] = useState<RichMessage[]>([]);
-	const [streamingContent, setStreamingContent] = useState<string | null>(null);
 	const [isStreaming, setIsStreaming] = useState(false);
 
-	// Ref to track streaming content without nesting setState calls
-	const streamingContentRef = useRef<string | null>(null);
+	// RAF-batched streaming refs
+	const streamingIndexRef = useRef(-1);
+	const deltaBufferRef = useRef("");
+	const rafIdRef = useRef(0);
 
-	// Keep ref in sync with state
-	useEffect(() => {
-		streamingContentRef.current = streamingContent;
-	}, [streamingContent]);
+	const flushDeltas = useCallback(() => {
+		rafIdRef.current = 0;
+		const idx = streamingIndexRef.current;
+		if (idx < 0) {
+			// Streaming message not yet committed by React; retry next frame
+			if (deltaBufferRef.current) {
+				rafIdRef.current = requestAnimationFrame(flushDeltas);
+			}
+			return;
+		}
+		const buffered = deltaBufferRef.current;
+		if (!buffered) return;
+		deltaBufferRef.current = "";
+		setMessages((prev) => {
+			const updated = [...prev];
+			const msg = updated[idx];
+			if (msg) {
+				updated[idx] = { ...msg, content: msg.content + buffered };
+			}
+			return updated;
+		});
+	}, []);
+
+	const appendDelta = useCallback(
+		(text: string) => {
+			deltaBufferRef.current += text;
+			if (!rafIdRef.current) {
+				rafIdRef.current = requestAnimationFrame(flushDeltas);
+			}
+		},
+		[flushDeltas],
+	);
 
 	// TanStack Query
 	const queryClient = useQueryClient();
@@ -135,7 +223,6 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 	function handleNewChat() {
 		setActiveConversationId(null);
 		setMessages([]);
-		setStreamingContent(null);
 		setSidebarOpen(false);
 		navigate({ to: "/app", replace: true });
 	}
@@ -161,7 +248,6 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 			created_at: new Date().toISOString(),
 		};
 		setMessages((prev) => [...prev, tempUserMsg]);
-		setStreamingContent("");
 		setIsStreaming(true);
 
 		let newConversationId: string | null = null;
@@ -172,29 +258,55 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 				activeConversationId,
 				(event: ChatStreamEvent) => {
 					switch (event.type) {
-						case "start":
+						case "start": {
 							if (event.conversation_id && !activeConversationId) {
 								newConversationId = event.conversation_id;
 								setActiveConversationId(event.conversation_id);
 							}
+							// Append streaming placeholder to the messages array
+							setMessages((prev) => {
+								streamingIndexRef.current = prev.length;
+								return [
+									...prev,
+									{
+										id: `streaming-${Date.now()}`,
+										role: "assistant" as const,
+										content: "",
+										created_at: new Date().toISOString(),
+										streaming: true,
+									},
+								];
+							});
 							break;
+						}
 						case "delta":
 							if (event.text) {
-								setStreamingContent((prev) => (prev ?? "") + event.text);
+								appendDelta(event.text);
 							}
 							break;
 						case "done": {
-							const finalContent = streamingContentRef.current;
-							if (finalContent !== null) {
-								const assistantMsg: RichMessage = {
-									id: event.message_id ?? `msg-${Date.now()}`,
-									role: "assistant",
-									content: finalContent,
-									created_at: new Date().toISOString(),
-								};
-								setMessages((prev) => [...prev, assistantMsg]);
+							// Cancel pending RAF and flush remaining buffer
+							if (rafIdRef.current) {
+								cancelAnimationFrame(rafIdRef.current);
+								rafIdRef.current = 0;
 							}
-							setStreamingContent(null);
+							const remaining = deltaBufferRef.current;
+							deltaBufferRef.current = "";
+							const idx = streamingIndexRef.current;
+							streamingIndexRef.current = -1;
+
+							setMessages((prev) => {
+								const updated = [...prev];
+								const msg = updated[idx];
+								if (msg) {
+									updated[idx] = {
+										...msg,
+										content: msg.content + remaining,
+										streaming: false,
+									};
+								}
+								return updated;
+							});
 							setIsStreaming(false);
 							break;
 						}
@@ -202,34 +314,62 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 				},
 			);
 
-			if (newConversationId) {
-				navigate({
-					to: "/app/c/$conversationId",
-					params: { conversationId: newConversationId },
-					replace: true,
-				});
+			// Defer post-stream side effects so they don't interfere with
+			// the "done" render commit (URL update, cache sync, refetch).
+			const convId = newConversationId ?? activeConversationId;
+			setTimeout(() => {
+				if (newConversationId) {
+					window.history.replaceState(
+						window.history.state,
+						"",
+						`/app/c/${newConversationId}`,
+					);
+				}
+				if (convId) {
+					setMessages((currentMessages) => {
+						queryClient.setQueryData(["conversation", convId], {
+							conversation: {
+								id: convId,
+								title: null,
+								created_at: new Date().toISOString(),
+							},
+							messages: currentMessages,
+						});
+						return currentMessages;
+					});
+				}
+				queryClient.invalidateQueries({ queryKey: ["conversations"] });
+			}, 0);
+		} catch (e) {
+			// Cancel pending RAF and clean up streaming message
+			if (rafIdRef.current) {
+				cancelAnimationFrame(rafIdRef.current);
+				rafIdRef.current = 0;
+			}
+			deltaBufferRef.current = "";
+			const idx = streamingIndexRef.current;
+			streamingIndexRef.current = -1;
+			if (idx >= 0) {
+				setMessages((prev) => prev.filter((_, i) => i !== idx));
 			}
 
-			queryClient.invalidateQueries({ queryKey: ["conversations"] });
-		} catch (e) {
 			const errorMessage =
 				e instanceof Error ? e.message : "Failed to send message";
 			addToast({ type: "error", message: errorMessage });
-			setStreamingContent(null);
 			setIsStreaming(false);
 		}
 	}
+
+	const greeting = useMemo(
+		() => GREETINGS[Math.floor(Math.random() * GREETINGS.length)],
+		[],
+	);
 
 	if (isLoading) {
 		return <FullPageSkeleton />;
 	}
 
-	const hour = new Date().getHours();
-	let greeting = "Good morning";
-	if (hour >= 12 && hour < 17) greeting = "Good afternoon";
-	else if (hour >= 17) greeting = "Good evening";
-
-	const hasMessages = messages.length > 0 || streamingContent !== null;
+	const hasMessages = messages.length > 0;
 	const showConversationSkeleton =
 		initialConversationId && isConversationLoading && messages.length === 0;
 	const userInitial =
@@ -320,8 +460,9 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 							<ConversationSkeleton />
 						) : (
 							conversations.map((conv) => (
-								<button
-									type="button"
+								<div
+									role="button"
+									tabIndex={0}
 									key={conv.id}
 									className={`group flex w-full items-center gap-2 rounded-lg px-3 py-2 cursor-pointer text-body-sm transition min-h-[44px] text-left ${
 										conv.id === activeConversationId
@@ -329,6 +470,12 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 											: "text-text-secondary hover:text-cream hover:bg-surface"
 									}`}
 									onClick={() => loadConversation(conv.id)}
+									onKeyDown={(e) => {
+										if (e.key === "Enter" || e.key === " ") {
+											e.preventDefault();
+											loadConversation(conv.id);
+										}
+									}}
 								>
 									<ChatCircle size={16} className="shrink-0" />
 									<span className="flex-1 truncate">
@@ -345,7 +492,7 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 									>
 										<Trash size={14} />
 									</button>
-								</button>
+								</div>
 							))
 						)}
 					</div>
@@ -355,7 +502,17 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 				<div ref={profileRef} className="mt-auto pt-2 px-2 relative">
 					<button
 						type="button"
-						onClick={() => setShowProfile(!showProfile)}
+						onClick={() => {
+							if (!showProfile && profileRef.current) {
+								const rect =
+									profileRef.current.getBoundingClientRect();
+								setDropdownPos({
+									bottom: window.innerHeight - rect.top + 8,
+									left: rect.left,
+								});
+							}
+							setShowProfile(!showProfile);
+						}}
 						className={`flex items-center gap-3 min-h-[44px] rounded-lg transition hover:bg-surface ${
 							sidebarOpen ? "w-full px-2" : "justify-center mx-auto"
 						}`}
@@ -373,8 +530,14 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 						)}
 					</button>
 
-					{showProfile && (
-						<div className="absolute left-2 bottom-full mb-2 bg-surface border border-border rounded-lg py-1 min-w-[140px] z-20">
+					{showProfile && dropdownPos && (
+						<div
+							className="fixed bg-surface border border-border rounded-lg py-1 min-w-[140px] z-50"
+							style={{
+								bottom: dropdownPos.bottom,
+								left: dropdownPos.left,
+							}}
+						>
 							<button
 								type="button"
 								onClick={handleSignOut}
@@ -422,7 +585,7 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 							className="w-20 h-20 opacity-50 mb-6"
 						/>
 						<h1 className="font-display text-display-md text-cream mb-8">
-							{greeting}.
+							{greeting}
 						</h1>
 						<ChatInput
 							onSend={handleSend}
@@ -433,12 +596,8 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 						/>
 					</div>
 				) : (
-					<>
-						<ChatMessages
-							messages={messages}
-							streamingContent={streamingContent}
-						/>
-						<div className="sticky bottom-0 bg-espresso">
+					<ChatMessages messages={messages}>
+						<div className="sticky bottom-0">
 							<ChatInput
 								onSend={handleSend}
 								onRecord={handleRecord}
@@ -447,7 +606,7 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 								centered={false}
 							/>
 						</div>
-					</>
+					</ChatMessages>
 				)}
 			</div>
 		</div>

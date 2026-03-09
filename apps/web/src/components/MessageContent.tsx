@@ -1,3 +1,4 @@
+import { memo } from "react";
 import type { Components } from "react-markdown";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -18,7 +19,7 @@ const components: Components = {
 			return <code className="text-body-sm text-cream">{children}</code>;
 		}
 		return (
-			<code className="bg-surface px-1.5 py-0.5 rounded text-body-sm text-cream">
+			<code className="bg-accent/15 px-1.5 py-0.5 rounded text-body-sm text-accent-lighter">
 				{children}
 			</code>
 		);
@@ -32,14 +33,14 @@ const components: Components = {
 	},
 	ul({ children }) {
 		return (
-			<ul className="list-disc list-outside ml-5 mb-3 last:mb-0 space-y-1 text-body-md text-cream">
+			<ul className="list-disc list-outside ml-5 mb-3 last:mb-0 space-y-1 text-body-md text-cream marker:text-accent">
 				{children}
 			</ul>
 		);
 	},
 	ol({ children }) {
 		return (
-			<ol className="list-decimal list-outside ml-5 mb-3 last:mb-0 space-y-1 text-body-md text-cream">
+			<ol className="list-decimal list-outside ml-5 mb-3 last:mb-0 space-y-1 text-body-md text-cream marker:text-accent">
 				{children}
 			</ol>
 		);
@@ -87,16 +88,22 @@ const components: Components = {
 			</h3>
 		);
 	},
+	hr() {
+		return <hr className="border-accent/30 my-4" />;
+	},
 };
 
 interface MessageContentProps {
 	content: string;
 }
 
-export function MessageContent({ content }: MessageContentProps) {
+export const MessageContent = memo(function MessageContent({
+	content,
+}: MessageContentProps) {
+	const processed = content.replace(/(?<!-)--(?!-)/g, "\u2014");
 	return (
 		<Markdown remarkPlugins={[remarkGfm]} components={components}>
-			{content}
+			{processed}
 		</Markdown>
 	);
-}
+});

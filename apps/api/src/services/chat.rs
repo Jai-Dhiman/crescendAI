@@ -293,34 +293,42 @@ pub async fn handle_delete_conversation(
 
 use crate::services::llm;
 use crate::services::prompts;
+use futures_util::StreamExt;
 
-/// POST /api/chat -- streaming chat with the piano teacher
+fn format_sse(data: &serde_json::Value) -> Vec<u8> {
+    format!("event: message\ndata: {}\n\n", data).into_bytes()
+}
+
+fn error_worker_response(status: u16, msg: &str) -> worker::Response {
+    let body = format!(r#"{{"error":"{}"}}"#, msg);
+    let mut resp = worker::Response::from_bytes(body.into_bytes()).unwrap();
+    resp = resp.with_status(status);
+    let _ = resp.headers_mut().set("Content-Type", "application/json");
+    resp
+}
+
+/// POST /api/chat -- streaming chat with the piano teacher.
 ///
-/// Strategy: We consume the full Anthropic response, then return it as SSE.
-/// True token-by-token streaming (TransformStream) is a v2 enhancement.
-/// The SSE format is correct either way, so the frontend won't need to change.
+/// True token-by-token streaming: reads the Anthropic SSE stream chunk by chunk
+/// and forwards each text delta to the client immediately.
 pub async fn handle_chat_stream(
     env: &Env,
     headers: &http::HeaderMap,
     body: &[u8],
-) -> http::Response<axum::body::Body> {
-    use axum::body::Body;
-    use http::{Response, StatusCode};
-
+) -> worker::Response {
     let student_id = match crate::auth::verify_auth_header(headers, env) {
         Ok(id) => id,
-        Err(err_response) => return err_response,
+        Err(err_response) => {
+            let status = err_response.status().as_u16();
+            return error_worker_response(status, "Authentication failed");
+        }
     };
 
     let request: ChatRequest = match serde_json::from_slice(body) {
         Ok(r) => r,
         Err(e) => {
             console_log!("Failed to parse chat request: {:?}", e);
-            return Response::builder()
-                .status(StatusCode::BAD_REQUEST)
-                .header("Content-Type", "application/json")
-                .body(Body::from(r#"{"error":"Invalid request body"}"#))
-                .unwrap();
+            return error_worker_response(400, "Invalid request body");
         }
     };
 
@@ -328,11 +336,7 @@ pub async fn handle_chat_stream(
         Ok(db) => db,
         Err(e) => {
             console_log!("D1 binding failed: {:?}", e);
-            return Response::builder()
-                .status(StatusCode::INTERNAL_SERVER_ERROR)
-                .header("Content-Type", "application/json")
-                .body(Body::from(r#"{"error":"Database connection failed"}"#))
-                .unwrap();
+            return error_worker_response(500, "Database connection failed");
         }
     };
 
@@ -341,16 +345,10 @@ pub async fn handle_chat_stream(
     // Create or validate conversation
     let conversation_id = match &request.conversation_id {
         Some(id) => {
-            // Verify ownership
             let exists = verify_conversation_ownership(&db, id, &student_id).await;
             if !exists {
-                return Response::builder()
-                    .status(StatusCode::NOT_FOUND)
-                    .header("Content-Type", "application/json")
-                    .body(Body::from(r#"{"error":"Conversation not found"}"#))
-                    .unwrap();
+                return error_worker_response(404, "Conversation not found");
             }
-            // Update updated_at
             if let Ok(stmt) = db
                 .prepare("UPDATE conversations SET updated_at = ?1 WHERE id = ?2")
                 .bind(&[JsValue::from_str(&now), JsValue::from_str(id)])
@@ -363,11 +361,7 @@ pub async fn handle_chat_stream(
             let id = crate::services::ask::generate_uuid();
             if let Err(e) = create_conversation(&db, &id, &student_id, &now).await {
                 console_log!("Failed to create conversation: {}", e);
-                return Response::builder()
-                    .status(StatusCode::INTERNAL_SERVER_ERROR)
-                    .header("Content-Type", "application/json")
-                    .body(Body::from(r#"{"error":"Failed to create conversation"}"#))
-                    .unwrap();
+                return error_worker_response(500, "Failed to create conversation");
             }
             id
         }
@@ -379,16 +373,19 @@ pub async fn handle_chat_stream(
         console_log!("Failed to store user message: {}", e);
     }
 
-    // Fetch conversation history
+    // Fetch conversation history, student context, and memory
     let history = fetch_messages(&db, &conversation_id).await.unwrap_or_default();
-
-    // Fetch student context
-    let student_context = fetch_student_context(&db, &student_id).await;
+    let student_row = fetch_student_row(&db, &student_id).await;
+    let memory_ctx = crate::services::memory::build_memory_context(env, &student_id, None).await;
+    let memory_patterns = crate::services::memory::format_chat_memory_patterns(&memory_ctx);
+    let recent_obs = crate::services::memory::format_chat_recent_observations(&memory_ctx);
+    let student_context = student_row.as_ref().and_then(|row| {
+        prompts::build_chat_student_context(row, &memory_patterns, &recent_obs)
+    });
 
     // Build messages array for Anthropic
     let mut llm_messages: Vec<llm::LlmMessage> = Vec::new();
 
-    // Inject student context as first user+assistant exchange if available
     if let Some(ctx) = student_context {
         llm_messages.push(llm::LlmMessage {
             role: "user".to_string(),
@@ -400,7 +397,6 @@ pub async fn handle_chat_stream(
         });
     }
 
-    // Add conversation history
     for msg in &history {
         llm_messages.push(llm::LlmMessage {
             role: msg.role.clone(),
@@ -424,96 +420,121 @@ pub async fn handle_chat_stream(
             let fallback = "I'm having trouble responding right now. Could you try again?";
             let _ = store_message(&db, &assistant_msg_id, &conversation_id, "assistant", fallback, &now).await;
 
-            let sse = format!(
-                "event: message\ndata: {}\n\nevent: message\ndata: {}\n\nevent: message\ndata: {}\n\n",
-                serde_json::json!({"type": "start", "conversation_id": conversation_id, "message_id": assistant_msg_id}),
-                serde_json::json!({"type": "delta", "text": fallback}),
-                serde_json::json!({"type": "done", "message_id": assistant_msg_id}),
-            );
-            return Response::builder()
-                .status(StatusCode::OK)
-                .header("Content-Type", "text/event-stream")
-                .header("Cache-Control", "no-cache")
-                .body(Body::from(sse))
-                .unwrap();
+            let mut sse = Vec::new();
+            sse.extend_from_slice(&format_sse(&serde_json::json!({"type": "start", "conversation_id": conversation_id, "message_id": assistant_msg_id})));
+            sse.extend_from_slice(&format_sse(&serde_json::json!({"type": "delta", "text": fallback})));
+            sse.extend_from_slice(&format_sse(&serde_json::json!({"type": "done", "message_id": assistant_msg_id})));
+
+            let mut resp = worker::Response::from_bytes(sse).unwrap();
+            resp = resp.with_status(200);
+            let _ = resp.headers_mut().set("Content-Type", "text/event-stream");
+            let _ = resp.headers_mut().set("Cache-Control", "no-cache");
+            return resp;
         }
     };
 
-    // Parse the Anthropic SSE stream and extract text
-    let stream_body = match anthropic_response.text().await {
-        Ok(text) => text,
+    // Get the Anthropic response as a byte stream
+    let byte_stream = match anthropic_response.stream() {
+        Ok(s) => s,
         Err(e) => {
-            console_log!("Failed to read Anthropic stream: {:?}", e);
-            return Response::builder()
-                .status(StatusCode::INTERNAL_SERVER_ERROR)
-                .header("Content-Type", "application/json")
-                .body(Body::from(r#"{"error":"Stream read failed"}"#))
-                .unwrap();
+            console_log!("Failed to get Anthropic stream: {:?}", e);
+            return error_worker_response(500, "Stream read failed");
         }
     };
 
-    // Parse Anthropic SSE events to extract text deltas
-    let mut full_text = String::new();
-    for line in stream_body.lines() {
-        if let Some(data) = line.strip_prefix("data: ") {
-            if data == "[DONE]" {
-                break;
-            }
-            if let Ok(event) = serde_json::from_str::<serde_json::Value>(data) {
-                if event.get("type").and_then(|t| t.as_str()) == Some("content_block_delta") {
-                    if let Some(text) = event
-                        .get("delta")
-                        .and_then(|d| d.get("text"))
-                        .and_then(|t| t.as_str())
-                    {
-                        full_text.push_str(text);
+    // Set up a channel to feed our SSE events to the response stream
+    let (tx, rx) = futures_channel::mpsc::unbounded::<Result<Vec<u8>, worker::Error>>();
+
+    let assistant_msg_id = crate::services::ask::generate_uuid();
+    let is_first_exchange = history.len() <= 1;
+    let user_message = request.message.clone();
+
+    // Send the start event immediately
+    let _ = tx.unbounded_send(Ok(format_sse(&serde_json::json!({
+        "type": "start",
+        "conversation_id": conversation_id,
+        "message_id": assistant_msg_id
+    }))));
+
+    // Spawn background task to consume Anthropic stream and forward deltas
+    let env_clone = env.clone();
+    wasm_bindgen_futures::spawn_local(async move {
+        let mut line_buffer = String::new();
+        let mut full_text = String::new();
+        let mut stream = byte_stream;
+
+        while let Some(chunk_result) = stream.next().await {
+            let chunk = match chunk_result {
+                Ok(c) => c,
+                Err(e) => {
+                    console_log!("Stream chunk error: {:?}", e);
+                    break;
+                }
+            };
+
+            let text = String::from_utf8_lossy(&chunk);
+            line_buffer.push_str(&text);
+
+            // Process complete lines
+            while let Some(newline_pos) = line_buffer.find('\n') {
+                let line = line_buffer[..newline_pos].trim_end().to_string();
+                line_buffer = line_buffer[newline_pos + 1..].to_string();
+
+                if let Some(data) = line.strip_prefix("data: ") {
+                    if data == "[DONE]" {
+                        continue;
+                    }
+                    if let Ok(event) = serde_json::from_str::<serde_json::Value>(data) {
+                        if event.get("type").and_then(|t| t.as_str()) == Some("content_block_delta") {
+                            if let Some(delta_text) = event
+                                .get("delta")
+                                .and_then(|d| d.get("text"))
+                                .and_then(|t| t.as_str())
+                            {
+                                full_text.push_str(delta_text);
+                                let _ = tx.unbounded_send(Ok(format_sse(
+                                    &serde_json::json!({"type": "delta", "text": delta_text}),
+                                )));
+                            }
+                        }
                     }
                 }
             }
         }
-    }
 
-    if full_text.is_empty() {
-        full_text = "I'm having trouble responding right now. Could you try again?".to_string();
-    }
+        if full_text.is_empty() {
+            full_text = "I'm having trouble responding right now. Could you try again?".to_string();
+            let _ = tx.unbounded_send(Ok(format_sse(
+                &serde_json::json!({"type": "delta", "text": &full_text}),
+            )));
+        }
 
-    // Store assistant message
-    let assistant_msg_id = crate::services::ask::generate_uuid();
-    let assistant_now = js_sys::Date::new_0().to_iso_string().as_string().unwrap_or_default();
-    if let Err(e) = store_message(&db, &assistant_msg_id, &conversation_id, "assistant", &full_text, &assistant_now).await {
-        console_log!("Failed to store assistant message: {}", e);
-    }
+        // Send done event
+        let _ = tx.unbounded_send(Ok(format_sse(
+            &serde_json::json!({"type": "done", "message_id": assistant_msg_id}),
+        )));
 
-    // Generate title if this is the first exchange
-    let is_first_exchange = history.len() <= 1;
-    if is_first_exchange {
-        generate_title(env, &db, &conversation_id, &request.message, &full_text).await;
-    }
+        // Close the channel (drop tx)
+        drop(tx);
 
-    // Build SSE response with our event format
-    let mut sse = String::new();
-    sse.push_str(&format!(
-        "event: message\ndata: {}\n\n",
-        serde_json::json!({"type": "start", "conversation_id": conversation_id, "message_id": assistant_msg_id})
-    ));
+        // Store assistant message in D1
+        let assistant_now = js_sys::Date::new_0().to_iso_string().as_string().unwrap_or_default();
+        if let Err(e) = store_message(&db, &assistant_msg_id, &conversation_id, "assistant", &full_text, &assistant_now).await {
+            console_log!("Failed to store assistant message: {}", e);
+        }
 
-    // Send full text as a single delta (v1 -- true streaming in v2)
-    sse.push_str(&format!(
-        "event: message\ndata: {}\n\n",
-        serde_json::json!({"type": "delta", "text": full_text})
-    ));
+        // Generate title if first exchange (fire-and-forget)
+        if is_first_exchange {
+            generate_title(&env_clone, &db, &conversation_id, &user_message, &full_text).await;
+        }
+    });
 
-    sse.push_str(&format!(
-        "event: message\ndata: {}\n\n",
-        serde_json::json!({"type": "done", "message_id": assistant_msg_id})
-    ));
-
-    Response::builder()
-        .status(StatusCode::OK)
-        .header("Content-Type", "text/event-stream")
-        .header("Cache-Control", "no-cache")
-        .body(Body::from(sse))
-        .unwrap()
+    // Return streaming response immediately
+    let mut resp = worker::Response::from_stream(rx).unwrap();
+    resp = resp.with_status(200);
+    let _ = resp.headers_mut().set("Content-Type", "text/event-stream");
+    let _ = resp.headers_mut().set("Cache-Control", "no-cache");
+    resp
 }
 
 // --- Helper functions ---
@@ -596,16 +617,13 @@ async fn fetch_messages(db: &worker::D1Database, conversation_id: &str) -> Resul
         .collect())
 }
 
-async fn fetch_student_context(db: &worker::D1Database, student_id: &str) -> Option<String> {
-    let row: serde_json::Value = db
-        .prepare("SELECT inferred_level, explicit_goals, baseline_dynamics, baseline_timing, baseline_pedaling, baseline_articulation, baseline_phrasing, baseline_interpretation FROM students WHERE student_id = ?1")
+async fn fetch_student_row(db: &worker::D1Database, student_id: &str) -> Option<serde_json::Value> {
+    db.prepare("SELECT inferred_level, explicit_goals, baseline_dynamics, baseline_timing, baseline_pedaling, baseline_articulation, baseline_phrasing, baseline_interpretation FROM students WHERE student_id = ?1")
         .bind(&[JsValue::from_str(student_id)])
         .ok()?
         .first(None)
         .await
-        .ok()??;
-
-    prompts::build_chat_student_context(&row)
+        .ok()?
 }
 
 async fn generate_title(env: &Env, db: &worker::D1Database, conversation_id: &str, user_msg: &str, assistant_msg: &str) {

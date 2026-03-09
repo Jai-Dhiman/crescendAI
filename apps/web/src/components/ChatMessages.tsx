@@ -1,64 +1,95 @@
-import { useThrottledCallback } from "@tanstack/react-pacer";
-import { useEffect, useRef } from "react";
+import { memo, useCallback, useEffect, useRef } from "react";
 import type { RichMessage } from "../lib/types";
 import { InlineCard } from "./InlineCard";
 import { MessageContent } from "./MessageContent";
 
 interface ChatMessagesProps {
 	messages: RichMessage[];
-	streamingContent: string | null;
+	children?: React.ReactNode;
 }
 
-export function ChatMessages({
-	messages,
-	streamingContent,
-}: ChatMessagesProps) {
-	const bottomRef = useRef<HTMLDivElement>(null);
-	const contentLengthRef = useRef(0);
+export function ChatMessages({ messages, children }: ChatMessagesProps) {
+	const scrollContainerRef = useRef<HTMLDivElement>(null);
+	const isNearBottomRef = useRef(true);
+	const prevMessageCountRef = useRef(0);
 
-	const scrollToBottom = useThrottledCallback(
-		() => {
-			bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+	const scrollToBottom = useCallback(
+		(behavior: ScrollBehavior = "instant") => {
+			const container = scrollContainerRef.current;
+			if (!container) return;
+			if (behavior === "smooth") {
+				container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
+			} else {
+				container.scrollTop = container.scrollHeight;
+			}
 		},
-		{ wait: 16 },
+		[],
 	);
 
-	// Scroll when content changes
-	const currentLength = messages.length + (streamingContent?.length ?? 0);
-	if (currentLength !== contentLengthRef.current) {
-		contentLengthRef.current = currentLength;
-		scrollToBottom();
-	}
-
-	// Also scroll on mount
+	// Track whether user is near the bottom
 	useEffect(() => {
-		scrollToBottom();
+		const container = scrollContainerRef.current;
+		if (!container) return;
+
+		function handleScroll() {
+			if (!container) return;
+			const threshold = 150;
+			const distanceFromBottom =
+				container.scrollHeight - container.scrollTop - container.clientHeight;
+			isNearBottomRef.current = distanceFromBottom <= threshold;
+		}
+
+		container.addEventListener("scroll", handleScroll, { passive: true });
+		return () => container.removeEventListener("scroll", handleScroll);
+	}, []);
+
+	// Auto-scroll on content changes
+	useEffect(() => {
+		if (!isNearBottomRef.current) return;
+
+		const isNewMessage = messages.length > prevMessageCountRef.current;
+		prevMessageCountRef.current = messages.length;
+
+		// Instant scroll for streaming-related changes (avoids jerk);
+		// smooth only for new non-streaming message additions
+		const lastMsg = messages[messages.length - 1];
+		const behavior =
+			lastMsg?.streaming
+				? "instant"
+				: isNewMessage
+					? "smooth"
+					: "instant";
+		scrollToBottom(behavior);
+	}, [messages, scrollToBottom]);
+
+	// Scroll on mount
+	useEffect(() => {
+		scrollToBottom("instant");
 	}, [scrollToBottom]);
 
-	if (messages.length === 0 && !streamingContent) {
+	if (messages.length === 0) {
 		return null;
 	}
 
 	return (
-		<div className="flex-1 overflow-y-auto px-6 py-8">
-			<div className="max-w-2xl mx-auto space-y-6">
+		<div
+			ref={scrollContainerRef}
+			className="flex-1 overflow-y-auto px-6 pt-8 flex flex-col"
+			style={{ scrollBehavior: "auto" }}
+		>
+			<div className="flex-1 max-w-3xl mx-auto space-y-6 w-full">
 				{messages.map((msg) => (
 					<MessageBubble key={msg.id} message={msg} />
 				))}
-				{streamingContent !== null && (
-					<div className="flex justify-start">
-						<div className="max-w-[80%]">
-							<MessageContent content={streamingContent} />
-						</div>
-					</div>
-				)}
-				<div ref={bottomRef} />
 			</div>
+			{children}
 		</div>
 	);
 }
 
-function MessageBubble({ message }: { message: RichMessage }) {
+const MessageBubble = memo(function MessageBubble({
+	message,
+}: { message: RichMessage }) {
 	if (message.role === "user") {
 		return (
 			<div className="flex justify-end">
@@ -72,7 +103,7 @@ function MessageBubble({ message }: { message: RichMessage }) {
 	}
 
 	return (
-		<div className="flex justify-start">
+		<div className="flex justify-start animate-fade-in">
 			<div className="max-w-[80%]">
 				<MessageContent content={message.content} />
 				{message.components?.map((component, i) => (
@@ -82,4 +113,4 @@ function MessageBubble({ message }: { message: RichMessage }) {
 			</div>
 		</div>
 	);
-}
+});

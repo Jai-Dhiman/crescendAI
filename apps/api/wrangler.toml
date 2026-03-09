@@ -23,7 +23,7 @@ HF_INFERENCE_ENDPOINT = "https://u1oxy7egvq7rnm8z.us-east-1.aws.endpoints.huggin
 
 [[r2_buckets]]
 binding = "CHUNKS"
-bucket_name = "crescendai-chunks"
+bucket_name = "crescendai-bucket"
 
 [durable_objects]
 bindings = [

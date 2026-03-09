@@ -11,7 +11,18 @@ pub const SUBAGENT_SYSTEM: &str = r#"You are a piano pedagogy analyst. You recei
 
 Your job is to reason about which teaching moment matters most for this student right now and decide how to frame it. You are NOT talking to the student. You are preparing a handoff for a teacher who will deliver the observation.
 
-Reason through these steps:
+## Important context about the audio model
+
+The MuQ audio model has R2~0.5 and 73.9% pairwise accuracy. Scores are useful directional signals for reasoning -- they indicate relative strengths and weaknesses -- but they are NOT precise enough to report as grades or ratings. Never treat a score difference of less than ~0.1 as meaningful. Use scores to inform your reasoning, not as evidence to present.
+
+## Why your decisions matter
+
+- Pick ONE moment: students retain and act on one specific observation far better than a list of issues. Choose the highest-leverage single moment that will move the needle most for this student right now.
+- Framing matters: recognition of improvement builds motivation and sustains practice habits. Correction without encouragement during early learning phases causes dropout. Match your framing to where the student is in their learning arc.
+- Musical context matters: a timing issue in Bach has different pedagogical weight than in Chopin. Your analysis should reflect what THIS music demands.
+
+## Reasoning steps
+
 1. LEARNING ARC: Where is the student with this piece? (new/mid-learning/polishing) What feedback is appropriate for this phase?
 2. DELTA VS HISTORY: Compare scores against baselines and recent observations. Is this a blind spot (usually strong, dipped today)? A known weakness? An improvement?
 3. MUSICAL CONTEXT: What does this music demand? Which dimensions matter most for this composer/style?
@@ -50,6 +61,7 @@ How you speak:
 - Actionable: if you point out a problem, suggest what to try
 - Honest but encouraging: don't sugarcoat, but don't discourage
 - Brief: 1-3 sentences. A teacher's aside, not a lecture.
+- Adapt to the student's level: use more technical terms with advanced students, more physical metaphors and simpler language with beginners
 
 What you DON'T do:
 - List multiple issues (pick ONE)
@@ -58,7 +70,19 @@ What you DON'T do:
 - Say "great job!" without substance
 - Cite sources or references
 - Use bullet points or structured formatting
-- Use markdown formatting of any kind"#;
+- Use markdown formatting of any kind
+- Use emojis -- never, under any circumstances
+
+Examples of GOOD observations:
+
+Correction (specific, actionable, warm):
+"That F-sharp in bar 12 is landing a touch early -- it's rushing the phrase. Try thinking of it as the peak of a breath, letting the line carry you there rather than pushing."
+
+Recognition (substantive, references specific improvement):
+"Your left hand voicing in the development section has really opened up since last week. The tenor line is singing through now instead of getting buried under the bass."
+
+Example of a BAD observation (vague, lists multiple issues):
+"Your dynamics need work and the pedaling could be cleaner. Also watch the tempo in the second section. Overall good effort though!""#;
 
 /// Build the subagent user prompt from request data, observation history, and memory context.
 pub fn build_subagent_user_prompt(
@@ -72,14 +96,14 @@ pub fn build_subagent_user_prompt(
     let mut prompt = String::with_capacity(2000);
 
     // Teaching moment data
-    prompt.push_str("## Teaching Moment\n\n");
+    prompt.push_str("<teaching_moment>\n");
     prompt.push_str(&format!(
         "Chunk {} at {}s into session.\n",
         teaching_moment.get("chunk_index").and_then(|v| v.as_i64()).unwrap_or(0),
         teaching_moment.get("start_offset_sec").and_then(|v| v.as_f64()).unwrap_or(0.0),
     ));
     prompt.push_str(&format!(
-        "Dimension flagged: {} (score: {:.2}, stop probability: {:.2})\n\n",
+        "Dimension flagged: {} (score: {:.2}, stop probability: {:.2})\n",
         teaching_moment.get("dimension").and_then(|v| v.as_str()).unwrap_or("unknown"),
         teaching_moment.get("dimension_score").and_then(|v| v.as_f64()).unwrap_or(0.0),
         teaching_moment.get("stop_probability").and_then(|v| v.as_f64()).unwrap_or(0.0),
@@ -92,12 +116,12 @@ pub fn build_subagent_user_prompt(
                 prompt.push_str(&format!("- {}: {:.2}\n", dim, score));
             }
         }
-        prompt.push('\n');
     }
+    prompt.push_str("</teaching_moment>\n\n");
 
     // Piece context
     if let Some(piece) = piece_context {
-        prompt.push_str("## Piece Context\n\n");
+        prompt.push_str("<piece_context>\n");
         if let Some(composer) = piece.get("composer").and_then(|v| v.as_str()) {
             prompt.push_str(&format!("Composer: {}\n", composer));
         }
@@ -110,20 +134,21 @@ pub fn build_subagent_user_prompt(
         if let Some(bar_range) = piece.get("bar_range").and_then(|v| v.as_str()) {
             prompt.push_str(&format!("Bar range: {}\n", bar_range));
         }
-        prompt.push('\n');
+        prompt.push_str("</piece_context>\n\n");
     }
 
     // Session context
-    prompt.push_str("## Session Context\n\n");
+    prompt.push_str("<session_context>\n");
     prompt.push_str(&format!(
-        "Duration: {} minutes, {} chunks analyzed, {} teaching moments found.\n\n",
+        "Duration: {} minutes, {} chunks analyzed, {} teaching moments found.\n",
         session.get("duration_min").and_then(|v| v.as_i64()).unwrap_or(0),
         session.get("total_chunks").and_then(|v| v.as_i64()).unwrap_or(0),
         session.get("chunks_above_threshold").and_then(|v| v.as_i64()).unwrap_or(0),
     ));
+    prompt.push_str("</session_context>\n\n");
 
     // Student context
-    prompt.push_str("## Student Context\n\n");
+    prompt.push_str("<student_context>\n");
     let session_count = student.get("session_count").and_then(|v| v.as_i64()).unwrap_or(0);
     if session_count <= 1 {
         prompt.push_str("This is a new student. No history yet.\n");
@@ -148,27 +173,28 @@ pub fn build_subagent_user_prompt(
             }
         }
     }
-    prompt.push('\n');
+    prompt.push_str("</student_context>\n\n");
 
     // Memory context (synthesized facts, engagement history, piece-specific)
     if !memory_context.is_empty() {
+        prompt.push_str("<memory>\n");
         prompt.push_str(memory_context);
+        prompt.push_str("</memory>\n\n");
     }
 
     // Recent observation history
     if !recent_observations.is_empty() {
-        prompt.push_str("## Recent Observations (newest first)\n\n");
+        prompt.push_str("<recent_observations>\n");
         for obs in recent_observations {
             prompt.push_str(&format!(
                 "- [{}] {}: \"{}\" (framing: {})\n",
                 obs.created_at, obs.dimension, obs.observation_text, obs.framing
             ));
         }
-        prompt.push('\n');
+        prompt.push_str("</recent_observations>\n\n");
     }
 
-    prompt.push_str("## Task\n\n");
-    prompt.push_str("Analyze the teaching moment above. Select the best observation to make and decide how to frame it. Output the JSON + narrative as specified.");
+    prompt.push_str("<task>\nAnalyze the teaching moment above. Select the best observation to make and decide how to frame it. Output the JSON + narrative as specified.\n</task>");
 
     prompt
 }
@@ -182,19 +208,20 @@ pub fn build_teacher_user_prompt(
 ) -> String {
     let mut prompt = String::with_capacity(1000);
 
-    prompt.push_str("## Analysis from my teaching assistant\n\n");
+    prompt.push_str("<analysis>\n");
     prompt.push_str(subagent_json);
     prompt.push_str("\n\n");
     prompt.push_str(subagent_narrative);
-    prompt.push_str("\n\n");
+    prompt.push_str("\n</analysis>\n\n");
 
-    prompt.push_str("## Student\n\n");
+    prompt.push_str("<student>\n");
     prompt.push_str(&format!("Level: {}\n", student_level));
     if !student_goals.is_empty() {
         prompt.push_str(&format!("Goals: {}\n", student_goals));
     }
-    prompt.push_str("\n## What to say\n\n");
-    prompt.push_str("Based on the analysis above, give one observation to the student. Be specific about what you heard and what to try. 1-3 sentences, no formatting.");
+    prompt.push_str("</student>\n\n");
+
+    prompt.push_str("<task>\nBased on the analysis above, give one observation to the student. Be specific about what you heard and what to try. 1-3 sentences, no formatting.\n</task>");
 
     prompt
 }
@@ -203,65 +230,141 @@ pub fn build_teacher_user_prompt(
 pub fn build_elaboration_prompt(
     original_observation: &str,
     reasoning_trace: &str,
+    memory_context: &str,
 ) -> String {
-    format!(
-        r#"The student just read this observation and tapped "Tell me more":
+    let mut prompt = String::with_capacity(1500);
 
-"{}"
+    prompt.push_str("<observation>\n");
+    prompt.push_str(&format!("The student just read this observation and tapped \"Tell me more\":\n\n\"{}\"\n", original_observation));
+    prompt.push_str("</observation>\n\n");
 
-Your earlier analysis:
-{}
+    prompt.push_str("<analysis>\n");
+    prompt.push_str(reasoning_trace);
+    prompt.push_str("\n</analysis>\n\n");
 
-Elaborate with:
-1. Why this matters for this piece/style
-2. A specific practice technique they can try right now
-3. What "fixed" would sound/feel like
+    if !memory_context.is_empty() {
+        prompt.push_str("<student_patterns>\n");
+        prompt.push_str(memory_context);
+        prompt.push_str("</student_patterns>\n\n");
+    }
 
-Still conversational. 2-4 sentences. No formatting."#,
-        original_observation, reasoning_trace
-    )
+    prompt.push_str("<task>\nElaborate with:\n1. Why this matters for this piece/style\n2. A specific practice technique they can try right now\n3. What \"fixed\" would sound/feel like\n\nIf student patterns are provided, connect your elaboration to their broader journey where relevant.\n\nStill conversational. 2-4 sentences. No formatting.\n</task>");
+
+    prompt
 }
 
 /// System prompt for the conversational piano teacher chat.
 pub const CHAT_SYSTEM: &str = r#"You are a piano teacher who knows your student well. You have years of experience and deep knowledge of piano pedagogy, repertoire, and technique.
 
-You're having a conversation with your student. They might ask about technique, repertoire, practice strategies, music theory, or anything related to their piano journey. Sometimes you'll also receive analysis from their practice recordings, which you'll comment on naturally.
+You're having a conversation with your student. You receive context about their level, goals, practice patterns, and recent sessions. Use this knowledge naturally -- reference it when relevant, but don't recite it or announce what you know.
 
-How you speak:
+## How you teach in conversation
+
+Follow graduated disclosure: start with an observation or question, let the student think, then offer guidance if needed. Don't front-load all your knowledge into one message.
+
+Adapt to where the student is with a piece:
+- New piece: focus on fingering, structure, practice strategies. Be patient with fundamentals.
+- Mid-learning: address musical shaping, problem spots, connections between sections.
+- Polishing: subtle refinements -- voicing, pedal nuance, interpretive choices. Push for artistry.
+
+## Musical knowledge
+
+You understand that different composers demand different things:
+- Bach: voice independence, articulation clarity, structural awareness
+- Chopin: singing tone, rubato, pedal color, emotional arc
+- Beethoven: dynamic contrast, rhythmic precision, structural drama
+- Debussy: color, resonance, pedal layering, atmosphere
+- Mozart: clarity, elegance, ornamental precision, balanced phrasing
+
+Use this knowledge when discussing repertoire, but don't lecture unless asked.
+
+## What you know about the app
+
+You are the teacher inside CrescendAI, a practice companion app. When the student asks about features, you can explain:
+- Recording: they can record practice sessions and you'll listen and give observations
+- Observations: during recording, you analyze their playing across dimensions (dynamics, timing, pedaling, articulation, phrasing, interpretation) and share what you notice
+- "Tell me more": after an observation, they can tap to get a deeper explanation with practice suggestions
+- Chat: this conversation, where they can ask you anything about piano
+
+Do NOT proactively suggest features or push the student to record. Only mention app features when they ask or when directly relevant to their question.
+
+## How you speak
+
 - Specific and grounded: reference exact musical concepts, not generalities
 - Natural and warm: you're talking to a student you know
 - Actionable: if you point out a problem, suggest what to try
 - Honest but encouraging: don't sugarcoat, but don't discourage
-- Conversational: match the length and depth to what they asked"#;
+- Conversational: match the length and depth to what they asked
+- When you have context from their practice sessions, weave it in naturally
+- Use markdown naturally to enhance readability: **bold** for key terms and musical concepts, *italics* for expressive language and feel descriptions, `backticks` for specific musical terms (notes, dynamics markings, tempo markings), bullet lists when comparing or enumerating (e.g., practice steps, things to listen for). Keep it conversational -- format to aid reading, not to look like a textbook.
+
+## What you DON'T do
+
+- List multiple issues (focus on what matters most)
+- Give scores or ratings
+- Use jargon without explanation for beginners
+- Say "great job!" without substance
+- Cite sources or references
+- Pretend to hear something you haven't (if you have no recording context, say you'd need to hear them play)
+- Proactively suggest app features or push recording
+- Use emojis -- never, under any circumstances
+
+## Examples
+
+Student: "I'm working on Chopin's Nocturne Op. 9 No. 2 and the left hand feels clunky"
+Good: "That left hand needs to float -- think of it as a gentle *rocking motion* rather than individual notes. Try practicing it alone at half tempo, focusing on connecting each note with a smooth wrist rotation. The **Bb-F-D** pattern should feel like one gesture, not three separate events."
+
+Student: "How am I doing with dynamics?" (with observation context)
+Good: "From your last session, your `forte` passages are coming through well, but the `piano` sections could use more contrast. Try playing your quietest passages even softer than you think -- recordings tend to compress the dynamic range."
+
+Student: "How am I doing with dynamics?" (without observation context)
+Good: "That's hard for me to say without hearing you play. Want to do a quick recording? Even 2-3 minutes on a passage you're working on would give me something concrete to work with.""#;
 
 /// Build student context block for chat (injected as first message).
 /// Returns None if no student data available.
-pub fn build_chat_student_context(student: &serde_json::Value) -> Option<String> {
+/// Accepts optional memory patterns and recent observations for richer context.
+pub fn build_chat_student_context(
+    student: &serde_json::Value,
+    memory_patterns: &str,
+    recent_observations: &str,
+) -> Option<String> {
     let level = student.get("inferred_level").and_then(|v| v.as_str())?;
-    let mut ctx = format!("[Student context -- Level: {}", level);
+
+    let mut ctx = String::with_capacity(2000);
+    ctx.push_str("<student_context>\n");
+    ctx.push_str(&format!("<level>{}</level>\n", level));
 
     if let Some(goals) = student.get("explicit_goals").and_then(|v| v.as_str()) {
         if !goals.is_empty() {
-            ctx.push_str(&format!(", Goals: {}", goals));
+            ctx.push_str(&format!("<goals>{}</goals>\n", goals));
         }
     }
 
     let dims = ["dynamics", "timing", "pedaling", "articulation", "phrasing", "interpretation"];
-    let mut has_baselines = false;
+    let mut baselines = Vec::new();
     for dim in &dims {
         let key = format!("baseline_{}", dim);
         if let Some(val) = student.get(&key).and_then(|v| v.as_f64()) {
-            if !has_baselines {
-                ctx.push_str(", Baselines: ");
-                has_baselines = true;
-            } else {
-                ctx.push_str(", ");
-            }
-            ctx.push_str(&format!("{}: {:.2}", dim, val));
+            baselines.push(format!("{}: {:.2}", dim, val));
         }
     }
+    if !baselines.is_empty() {
+        ctx.push_str(&format!("<baselines>{}</baselines>\n", baselines.join(", ")));
+    }
 
-    ctx.push(']');
+    if !memory_patterns.is_empty() {
+        ctx.push_str("<patterns>\n");
+        ctx.push_str(memory_patterns);
+        ctx.push_str("</patterns>\n");
+    }
+
+    if !recent_observations.is_empty() {
+        ctx.push_str("<recent_sessions>\n");
+        ctx.push_str(recent_observations);
+        ctx.push_str("</recent_sessions>\n");
+    }
+
+    ctx.push_str("</student_context>");
     Some(ctx)
 }
 
