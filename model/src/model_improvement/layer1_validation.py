@@ -184,3 +184,75 @@ def select_maestro_subset(
             selected.append(perf)
 
     return selected
+
+
+def dynamic_range_analysis(
+    scores_by_group: dict[str, dict[str, np.ndarray]],
+) -> dict:
+    """Analyze score distributions across skill groups.
+
+    Args:
+        scores_by_group: {group_name: {segment_id: np.ndarray [6]}}.
+
+    Returns:
+        Dict with separation metrics, within-group variance, per-dimension breakdown.
+    """
+    group_stats = {}
+    for group, segments in scores_by_group.items():
+        all_scores = np.array(list(segments.values()))  # [N, 6]
+        group_stats[group] = {
+            "mean": all_scores.mean(axis=0),      # [6]
+            "std": all_scores.std(axis=0),         # [6]
+            "overall_mean": float(all_scores.mean()),
+            "overall_std": float(all_scores.std()),
+            "n_segments": len(segments),
+        }
+
+    # Separation between groups (if >= 2 groups, compute Cohen's d)
+    groups = sorted(scores_by_group.keys())
+    separation = {}
+    if len(groups) >= 2:
+        for i, g1 in enumerate(groups):
+            for g2 in groups[i + 1:]:
+                key = f"{g1}_vs_{g2}"
+                diff = group_stats[g2]["overall_mean"] - group_stats[g1]["overall_mean"]
+                pooled_std = np.sqrt(
+                    (group_stats[g1]["overall_std"] ** 2 + group_stats[g2]["overall_std"] ** 2) / 2
+                )
+                cohens_d = diff / pooled_std if pooled_std > 0 else 0.0
+                separation[key] = {"mean_diff": float(diff), "cohens_d": float(cohens_d)}
+        means = [group_stats[g]["overall_mean"] for g in groups]
+        separation["overall"] = float(max(means) - min(means))
+    else:
+        separation["overall"] = 0.0
+
+    # Within-group variance
+    within_var = {}
+    for group in groups:
+        within_var[group] = {
+            "overall": float(group_stats[group]["overall_std"]),
+            "per_dimension": {
+                DIMENSIONS[d]: float(group_stats[group]["std"][d])
+                for d in range(len(DIMENSIONS))
+            },
+        }
+
+    # Per-dimension separation
+    per_dim = {}
+    if len(groups) >= 2:
+        # Use group with highest/lowest overall mean for per-dim separation
+        g_high = max(groups, key=lambda g: group_stats[g]["overall_mean"])
+        g_low = min(groups, key=lambda g: group_stats[g]["overall_mean"])
+        for d, dim_name in enumerate(DIMENSIONS):
+            diff = float(group_stats[g_high]["mean"][d] - group_stats[g_low]["mean"][d])
+            per_dim[dim_name] = {"mean_diff": diff}
+    else:
+        for dim_name in DIMENSIONS:
+            per_dim[dim_name] = {"mean_diff": 0.0}
+
+    return {
+        "group_stats": group_stats,
+        "separation": separation,
+        "within_group_variance": within_var,
+        "per_dimension": per_dim,
+    }

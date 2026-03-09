@@ -9,6 +9,7 @@ from model_improvement.layer1_validation import (
     competition_correlation,
     amt_degradation_comparison,
     select_maestro_subset,
+    dynamic_range_analysis,
 )
 
 
@@ -106,3 +107,26 @@ def test_select_maestro_subset():
                 found = True
                 break
         assert found, f"{key} not from multi-performer piece"
+
+
+def test_dynamic_range_analysis():
+    """dynamic_range_analysis returns separation and variance stats."""
+    scores_by_group = {
+        "intermediate": {
+            "player1_seg0": np.array([0.4, 0.5, 0.3, 0.4, 0.3, 0.4]),
+            "player1_seg1": np.array([0.5, 0.4, 0.4, 0.5, 0.4, 0.3]),
+            "player2_seg0": np.array([0.3, 0.3, 0.2, 0.3, 0.2, 0.3]),
+        },
+        "advanced": {
+            "adv1_seg0": np.array([0.7, 0.8, 0.6, 0.7, 0.6, 0.8]),
+            "adv1_seg1": np.array([0.8, 0.7, 0.7, 0.8, 0.7, 0.7]),
+        },
+    }
+    result = dynamic_range_analysis(scores_by_group)
+    assert "separation" in result
+    assert "within_group_variance" in result
+    assert "per_dimension" in result
+    # Separation should be positive (advanced > intermediate)
+    assert result["separation"]["overall"] > 0
+    # Per-dimension should have 6 entries
+    assert len(result["per_dimension"]) == 6
