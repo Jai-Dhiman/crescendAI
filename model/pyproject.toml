@@ -84,7 +84,7 @@ gpu = ["nnAudio>=0.3.2"]
 # Note: YourMT3+ is not on PyPI -- install from GitHub:
 #   pip install git+https://github.com/mimbres/YourMT3.git
 layer1 = [
-    "piano-transcription-inference>=0.1.0",
+    "piano-transcription-inference",
 ]
 
 [build-system]
