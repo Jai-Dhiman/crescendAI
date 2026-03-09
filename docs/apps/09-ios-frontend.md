@@ -19,9 +19,7 @@ See `docs/architecture.md` for the full system architecture.
 
 ## Context
 
-The current web app (Leptos/WASM) serves a different product -- the upload-and-analyze report card. The practice companion is a fundamentally different interaction model and benefits from native iOS for: background audio, reliable performance, platform-native feel, and the trust that comes with a dedicated app.
-
-The web app (crescend.ai) continues to exist as the landing page and demo gallery. The iOS app is the practice companion.
+The web app (crescend.ai) is now a full practice companion with chat, recording, and real-time observations via cloud inference. The iOS app benefits from native capabilities: background audio, on-device Core ML inference, and platform-native feel. Both platforms share the same API backend and teacher pipeline.
 
 ## Design Principles
 

@@ -2,7 +2,7 @@
 
 ## iOS App (`ios/`)
 
-The primary product. Native iOS practice companion built with SwiftUI.
+Native iOS practice companion built with SwiftUI. On-device inference via Core ML.
 
 See `docs/architecture.md` for the full system design.
 See `ios/CLAUDE.md` for iOS-specific conventions.
@@ -60,14 +60,17 @@ Rust API backend deployed to Cloudflare Workers at `api.crescend.ai`.
 - `api/src/auth/` - Apple Sign in auth, JWT generation/verification
 - `api/src/services/` - Business logic (ask, chat, goals, llm, memory, sync)
 
-## Landing Page (`web/`)
+## Web App (`web/`)
 
-TanStack Start web app deployed to Cloudflare Workers at `crescend.ai`.
+Web practice companion deployed to Cloudflare Workers at `crescend.ai`. Chat-first teacher interface with live recording, real-time observations, and session summaries.
 
 ### Stack
 
-- Framework: TanStack Start (React, SSR)
+- Framework: TanStack Start (React 19, SSR)
 - Styling: Tailwind CSS v4
+- Audio: MediaRecorder (15s Opus/WebM chunks), Web Audio API (waveform visualization)
+- Real-time: WebSocket for practice session observations
+- State: TanStack React Query + Zustand stores
 - Auth: Sign in with Apple (Apple JS SDK popup flow, HttpOnly cookie JWT)
 - Package manager: bun
 - Deployment: Cloudflare Workers via `@cloudflare/vite-plugin`
@@ -76,8 +79,14 @@ TanStack Start web app deployed to Cloudflare Workers at `crescend.ai`.
 
 - `web/src/lib/api.ts` - API client (credentials: include, typed auth methods)
 - `web/src/lib/auth.tsx` - Auth context (AuthProvider, useAuth hook)
+- `web/src/hooks/usePracticeSession.ts` - Recording state machine, WebSocket, chunk upload
+- `web/src/components/AppChat.tsx` - Chat interface with streaming LLM responses
+- `web/src/components/ChatInput.tsx` - Text input + record button
+- `web/src/components/RecordingBar.tsx` - Recording overlay (waveform, timer, observation toasts)
+- `web/src/components/WaveformVisualizer.tsx` - Real-time audio waveform
+- `web/src/stores/` - Zustand stores (sidebar, toasts)
 - `web/src/routes/signin.tsx` - Sign in with Apple page
-- `web/src/routes/app.tsx` - Protected app shell
+- `web/src/routes/app.tsx` - Protected app shell with sidebar and conversation history
 - `web/src/types/apple.d.ts` - Apple JS SDK type declarations
 
 ## Feedback Tone (Both Platforms)

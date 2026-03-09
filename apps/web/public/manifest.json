@@ -1,20 +1,20 @@
 {
-  "short_name": "CrescendAI",
-  "name": "CrescendAI - A Teacher for Every Pianist",
-  "icons": [
-    {
-      "src": "favicon.ico",
-      "sizes": "64x64 32x32 24x24 16x16",
-      "type": "image/x-icon"
-    },
-    {
-      "src": "crescendai.png",
-      "type": "image/png",
-      "sizes": "512x512"
-    }
-  ],
-  "start_url": ".",
-  "display": "standalone",
-  "theme_color": "#2D2926",
-  "background_color": "#2D2926"
+	"short_name": "CrescendAI",
+	"name": "CrescendAI - A Teacher for Every Pianist",
+	"icons": [
+		{
+			"src": "favicon.ico",
+			"sizes": "64x64 32x32 24x24 16x16",
+			"type": "image/x-icon"
+		},
+		{
+			"src": "crescendai.png",
+			"type": "image/png",
+			"sizes": "512x512"
+		}
+	],
+	"start_url": ".",
+	"display": "standalone",
+	"theme_color": "#2D2926",
+	"background_color": "#2D2926"
 }

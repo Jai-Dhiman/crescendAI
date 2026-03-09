@@ -73,7 +73,8 @@ async fn fetch(
             let namespace = env.durable_object("PRACTICE_SESSION")?;
             let stub = namespace.id_from_name(session_id)?.get_stub()?;
             let url = format!("https://do.internal/ws/{}", session_id);
-            let worker_req = worker::Request::new(&url, worker::Method::Get)?;
+            let mut worker_req = worker::Request::new(&url, worker::Method::Get)?;
+            worker_req.headers_mut()?.set("Upgrade", "websocket")?;
             return stub.fetch_with_request(worker_req).await;
         }
     }

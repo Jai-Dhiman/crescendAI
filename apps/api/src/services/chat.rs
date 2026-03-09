@@ -598,7 +598,7 @@ async fn fetch_messages(db: &worker::D1Database, conversation_id: &str) -> Resul
 
 async fn fetch_student_context(db: &worker::D1Database, student_id: &str) -> Option<String> {
     let row: serde_json::Value = db
-        .prepare("SELECT inferred_level, explicit_goals, baseline_dynamics, baseline_timing, baseline_pedaling, baseline_articulation, baseline_phrasing, baseline_interpretation FROM students WHERE apple_user_id = ?1")
+        .prepare("SELECT inferred_level, explicit_goals, baseline_dynamics, baseline_timing, baseline_pedaling, baseline_articulation, baseline_phrasing, baseline_interpretation FROM students WHERE student_id = ?1")
         .bind(&[JsValue::from_str(student_id)])
         .ok()?
         .first(None)

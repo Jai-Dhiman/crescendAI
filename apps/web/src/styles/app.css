@@ -1,152 +1,219 @@
-@import 'tailwindcss' source('../');
+@import "tailwindcss" source('../');
 
 @theme {
-  /* Espresso/Cream palette */
-  --color-espresso: #2D2926;
-  --color-cream: #FDF8F0;
+	/* Espresso/Cream palette */
+	--color-espresso: #2d2926;
+	--color-cream: #fdf8f0;
 
-  /* Dark surface scale (landing page) */
-  --color-surface: #3A3633;
-  --color-surface-2: #454140;
-  --color-border: #504B48;
+	/* Dark surface scale (landing page) */
+	--color-surface: #3a3633;
+	--color-surface-2: #454140;
+	--color-border: #504b48;
 
-  /* Floating card */
-  --color-surface-card: #3E3A37;
-  --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.2);
+	/* Floating card */
+	--color-surface-card: #3e3a37;
+	--shadow-card: 0 2px 8px rgba(0, 0, 0, 0.2);
 
-  /* Brand accent (muted sage) */
-  --color-accent: #7A9A82;
-  --color-accent-lighter: #A3BDA9;
-  --color-accent-darker: #5F7D66;
+	/* Brand accent (muted sage) */
+	--color-accent: #7a9a82;
+	--color-accent-lighter: #a3bda9;
+	--color-accent-darker: #5f7d66;
 
-  /* Text on dark */
-  --color-text-primary: #FDF8F0;
-  --color-text-secondary: #A8A29E;
-  --color-text-tertiary: #78716C;
+	/* Text on dark */
+	--color-text-primary: #fdf8f0;
+	--color-text-secondary: #a8a29e;
+	--color-text-tertiary: #78716c;
 
-  /* Typography */
-  --font-display: 'Lora', Georgia, serif;
-  --font-sans: 'Figtree', system-ui, sans-serif;
+	/* Typography */
+	--font-display: "Lora", Georgia, serif;
+	--font-sans: "Figtree", system-ui, sans-serif;
 
-  /* Display type scale */
-  --text-display-3xl: 6rem;
-  --text-display-3xl--line-height: 1;
-  --text-display-3xl--letter-spacing: -0.03em;
-  --text-display-3xl--font-weight: 400;
+	/* Display type scale */
+	--text-display-3xl: 6rem;
+	--text-display-3xl--line-height: 1;
+	--text-display-3xl--letter-spacing: -0.03em;
+	--text-display-3xl--font-weight: 400;
 
-  --text-display-xl: 3.75rem;
-  --text-display-xl--line-height: 1.05;
-  --text-display-xl--letter-spacing: -0.02em;
-  --text-display-xl--font-weight: 500;
+	--text-display-xl: 3.75rem;
+	--text-display-xl--line-height: 1.05;
+	--text-display-xl--letter-spacing: -0.02em;
+	--text-display-xl--font-weight: 500;
 
-  --text-display-lg: 3rem;
-  --text-display-lg--line-height: 1.1;
-  --text-display-lg--letter-spacing: -0.01em;
-  --text-display-lg--font-weight: 500;
+	--text-display-lg: 3rem;
+	--text-display-lg--line-height: 1.1;
+	--text-display-lg--letter-spacing: -0.01em;
+	--text-display-lg--font-weight: 500;
 
-  --text-display-md: 2.25rem;
-  --text-display-md--line-height: 1.15;
-  --text-display-md--letter-spacing: -0.01em;
-  --text-display-md--font-weight: 500;
+	--text-display-md: 2.25rem;
+	--text-display-md--line-height: 1.15;
+	--text-display-md--letter-spacing: -0.01em;
+	--text-display-md--font-weight: 500;
 
-  --text-display-sm: 1.875rem;
-  --text-display-sm--line-height: 1.2;
-  --text-display-sm--font-weight: 500;
+	--text-display-sm: 1.875rem;
+	--text-display-sm--line-height: 1.2;
+	--text-display-sm--font-weight: 500;
 
-  /* Body type scale */
-  --text-body-lg: 1.125rem;
-  --text-body-lg--line-height: 1.75;
+	/* Body type scale */
+	--text-body-lg: 1.125rem;
+	--text-body-lg--line-height: 1.75;
 
-  --text-body-md: 1rem;
-  --text-body-md--line-height: 1.75;
+	--text-body-md: 1rem;
+	--text-body-md--line-height: 1.75;
 
-  --text-body-sm: 0.875rem;
-  --text-body-sm--line-height: 1.6;
+	--text-body-sm: 0.875rem;
+	--text-body-sm--line-height: 1.6;
 
-  --text-body-xs: 0.75rem;
-  --text-body-xs--line-height: 1.5;
+	--text-body-xs: 0.75rem;
+	--text-body-xs--line-height: 1.5;
 
-  --text-label-sm: 0.6875rem;
-  --text-label-sm--line-height: 1.4;
-  --text-label-sm--font-weight: 500;
-  --text-label-sm--letter-spacing: 0.075em;
+	--text-label-sm: 0.6875rem;
+	--text-label-sm--line-height: 1.4;
+	--text-label-sm--font-weight: 500;
+	--text-label-sm--letter-spacing: 0.075em;
 
-  /* Animations */
-  --animate-fade-in-up: fade-in-up 600ms cubic-bezier(0.16, 1, 0.3, 1) both;
+	/* Animations */
+	--animate-fade-in-up: fade-in-up 600ms cubic-bezier(0.16, 1, 0.3, 1) both;
 
-  @keyframes fade-in-up {
-    0% { opacity: 0; transform: translateY(20px); }
-    100% { opacity: 1; transform: translateY(0); }
-  }
+	@keyframes fade-in-up {
+		0% {
+			opacity: 0;
+			transform: translateY(20px);
+		}
+		100% {
+			opacity: 1;
+			transform: translateY(0);
+		}
+	}
 
-  --animate-input-settle: input-settle 400ms cubic-bezier(0.16, 1, 0.3, 1) both;
+	--animate-input-settle: input-settle 400ms cubic-bezier(0.16, 1, 0.3, 1) both;
 
-  @keyframes input-settle {
-    0% { opacity: 0; transform: translateY(-12px); }
-    100% { opacity: 1; transform: translateY(0); }
-  }
+	@keyframes input-settle {
+		0% {
+			opacity: 0;
+			transform: translateY(-12px);
+		}
+		100% {
+			opacity: 1;
+			transform: translateY(0);
+		}
+	}
 
-  --animate-pop-in: pop-in 250ms cubic-bezier(0.16, 1, 0.3, 1) both;
+	--animate-pop-in: pop-in 250ms cubic-bezier(0.16, 1, 0.3, 1) both;
 
-  @keyframes pop-in {
-    0% { opacity: 0; transform: scale(0.7); }
-    100% { opacity: 1; transform: scale(1); }
-  }
+	@keyframes pop-in {
+		0% {
+			opacity: 0;
+			transform: scale(0.7);
+		}
+		100% {
+			opacity: 1;
+			transform: scale(1);
+		}
+	}
+
+	--animate-shimmer: shimmer 1.5s ease-in-out infinite;
+
+	@keyframes shimmer {
+		0% {
+			background-position: -200% 0;
+		}
+		100% {
+			background-position: 200% 0;
+		}
+	}
 }
 
 @layer base {
-  html {
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-    text-rendering: optimizeLegibility;
-    scroll-behavior: smooth;
-  }
+	html {
+		-webkit-font-smoothing: antialiased;
+		-moz-osx-font-smoothing: grayscale;
+		text-rendering: optimizeLegibility;
+		scroll-behavior: smooth;
+	}
 
-  body {
-    background-color: var(--color-espresso);
-    color: var(--color-text-primary);
-    font-family: var(--font-sans);
-    line-height: 1.75;
-  }
+	body {
+		background-color: var(--color-espresso);
+		color: var(--color-text-primary);
+		font-family: var(--font-sans);
+		line-height: 1.75;
+	}
 
-  h1, h2, h3, h4, h5, h6 {
-    font-family: var(--font-display);
-    text-wrap: balance;
-  }
+	h1,
+	h2,
+	h3,
+	h4,
+	h5,
+	h6 {
+		font-family: var(--font-display);
+		text-wrap: balance;
+	}
 
-  p {
-    text-wrap: pretty;
-  }
+	p {
+		text-wrap: pretty;
+	}
 
-  ::selection {
-    background-color: var(--color-accent);
-    color: var(--color-cream);
-  }
+	::selection {
+		background-color: var(--color-accent);
+		color: var(--color-cream);
+	}
 }
 
 @keyframes slide-in-right {
-  from { opacity: 0; transform: translateX(20px); }
-  to { opacity: 1; transform: translateX(0); }
+	from {
+		opacity: 0;
+		transform: translateX(20px);
+	}
+	to {
+		opacity: 1;
+		transform: translateX(0);
+	}
 }
 
 @keyframes slide-out-right {
-  from { opacity: 1; transform: translateX(0); }
-  to { opacity: 0; transform: translateX(20px); }
+	from {
+		opacity: 1;
+		transform: translateX(0);
+	}
+	to {
+		opacity: 0;
+		transform: translateX(20px);
+	}
 }
 
 @keyframes overlay-in {
-  from { opacity: 0; transform: translateY(20px) scale(0.95); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
+	from {
+		opacity: 0;
+		transform: translateY(20px) scale(0.95);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0) scale(1);
+	}
 }
 
 .animate-slide-in-right {
-  animation: slide-in-right 400ms cubic-bezier(0.16, 1, 0.3, 1) both;
+	animation: slide-in-right 400ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 .animate-slide-out-right {
-  animation: slide-out-right 300ms ease-in both;
+	animation: slide-out-right 300ms ease-in both;
 }
 
 .animate-overlay-in {
-  animation: overlay-in 500ms cubic-bezier(0.16, 1, 0.3, 1) both;
+	animation: overlay-in 500ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes bar-slide-down {
+	from {
+		opacity: 0;
+		transform: translateY(-100%);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+.animate-bar-slide-down {
+	animation: bar-slide-down 400ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }

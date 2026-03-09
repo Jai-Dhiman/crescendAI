@@ -1,6 +1,5 @@
-import { createFileRoute } from '@tanstack/react-router'
-import AppChat from '../components/AppChat'
+import { createFileRoute, Outlet } from "@tanstack/react-router";
 
-export const Route = createFileRoute('/app')({
-  component: () => <AppChat />,
-})
+export const Route = createFileRoute("/app")({
+	component: () => <Outlet />,
+});

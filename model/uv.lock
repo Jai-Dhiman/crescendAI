@@ -3730,6 +3730,9 @@ dev = [
 gpu = [
     { name = "nnaudio" },
 ]
+layer1 = [
+    { name = "piano-transcription-inference" },
+]
 
 [package.dev-dependencies]
 dev = [
@@ -3768,6 +3771,7 @@ requires-dist = [
     { name = "pandas", specifier = ">=2.0.0" },
     { name = "pedalboard", specifier = ">=0.9.0" },
     { name = "peft", specifier = ">=0.7.0" },
+    { name = "piano-transcription-inference", marker = "extra == 'layer1'" },
     { name = "pretty-midi", specifier = ">=0.2.10" },
     { name = "psutil", specifier = ">=5.9.0" },
     { name = "pydub", specifier = ">=0.25.0" },
@@ -3795,12 +3799,27 @@ requires-dist = [
     { name = "youtube-transcript-api", specifier = ">=0.6.0" },
     { name = "yt-dlp", specifier = ">=2024.0.0" },
 ]
-provides-extras = ["dev", "gpu"]
+provides-extras = ["dev", "gpu", "layer1"]
 
 [package.metadata.requires-dev]
 dev = [
     { name = "pytest", specifier = ">=8.4.2" },
     { name = "pytest-cov", specifier = ">=7.0.0" },
+]
+
+[[package]]
+name = "piano-transcription-inference"
+version = "0.0.6"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "librosa" },
+    { name = "matplotlib" },
+    { name = "mido" },
+    { name = "torchlibrosa" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/15/d8/8b2d1f2f9dba01c122686e2b7910ced8dfe14fc246099d44607c6fa460f1/piano_transcription_inference-0.0.6.tar.gz", hash = "sha256:b6dd00f9b4bcacb6140725f03b4139a5e0f4acd35a69e492a5d1f734ecfbd231", size = 13881, upload-time = "2025-01-26T02:30:41.129Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a0/64/2360ab1eecf4c01a6c5d1bfb308f08a196236a559bcc135ca203e6742a5b/piano_transcription_inference-0.0.6-py3-none-any.whl", hash = "sha256:64348200b700a0ee792aa62386803fb2a638e378b3835b9a7ccff4701f0612f5", size = 14988, upload-time = "2025-01-26T02:30:39.045Z" },
 ]
 
 [[package]]
@@ -5732,6 +5751,20 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/ab/65/a35a182519b40dcd2cedaf5fdcac6f724ae2451c534dfcece6ff5f85f983/torchaudio-2.9.0-cp314-cp314t-manylinux_2_28_aarch64.whl", hash = "sha256:742143d9d62769bc4b9a2977ca4f4720e0a5e922bdc5df585c155e0a1f545461", size = 477752, upload-time = "2025-10-15T15:52:18.14Z" },
     { url = "https://files.pythonhosted.org/packages/6f/1c/30272b71ae08817eaca00bb856ebef25dd44041329579903c1915b57f0c9/torchaudio-2.9.0-cp314-cp314t-manylinux_2_28_x86_64.whl", hash = "sha256:0a234634e1142fb2652c49e935a98b4d9656fd0af9e4aa14b1b05a80c3cf8e78", size = 2062173, upload-time = "2025-10-15T15:52:22.724Z" },
     { url = "https://files.pythonhosted.org/packages/b9/d6/d007f6bc55a16a86e64e9bba295b90485011cc6a113d8f56b503b4f34a7d/torchaudio-2.9.0-cp314-cp314t-win_amd64.whl", hash = "sha256:cbf5d6da8fd2ed545c78218b39fd6aacaa4dd5e265c5f85b248a2fac223f0bd6", size = 669272, upload-time = "2025-10-15T15:52:21.696Z" },
+]
+
+[[package]]
+name = "torchlibrosa"
+version = "0.1.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "librosa" },
+    { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "numpy", version = "2.3.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/a4/67/e4c79da3f15777b9bc2b655d47dac553fc31e40360500fef5e66d6877ce8/torchlibrosa-0.1.0.tar.gz", hash = "sha256:62a8beedf9c9b4141a06234df3f10229f7ba86e67678ccee02489ec4ef044028", size = 11719, upload-time = "2023-02-21T09:40:54.968Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/3e/af/ccf007edf442c3c0cd3a98be2c82bc99edc957c04436a759b6e1e01077e0/torchlibrosa-0.1.0-py3-none-any.whl", hash = "sha256:89b65fd28b833ceb6bc74a3d0d87e2924ddc5a845d0a246b194952a4e12a38cb", size = 11741, upload-time = "2023-02-21T09:40:52.58Z" },
 ]
 
 [[package]]

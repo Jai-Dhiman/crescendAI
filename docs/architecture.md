@@ -5,11 +5,15 @@
 
 ## Overview
 
-CrescendAI is a multi-platform (iOS + web) practice companion for pianists. The phone sits on the piano, listens continuously, and gives one specific teaching observation when the student asks "how was that?"
+CrescendAI is a multi-platform (iOS + web) practice companion for pianists. It listens to the student play, identifies teaching moments, and gives specific observations -- the kind a teacher would make after hearing them play.
 
-The architecture is on-device-first: audio inference, teaching moment detection, and the student model all run locally on the iPhone. The only cloud dependency is a thin API for the teacher LLM call and data sync.
+Two platform paths share one backend:
+- **iOS (on-device-first):** Audio inference, teaching moment detection, and the student model all run locally on the iPhone. The only cloud dependency is the teacher LLM call and data sync.
+- **Web (cloud-based):** Browser captures audio via MediaRecorder, uploads 15s chunks to the API, which runs inference via the HF endpoint and pushes real-time observations back over WebSocket. A chat interface lets the student discuss sessions with the teacher.
 
 ## System Diagram
+
+### iOS Path (on-device inference)
 
 ```
 +--------------------------------------------------------------+
@@ -42,13 +46,61 @@ The architecture is on-device-first: audio inference, teaching moment detection,
 +---------------------------+----------------------------------+
                             | HTTPS
                             v
+                    [Shared Backend]
+```
+
+### Web Path (cloud inference)
+
+```
++--------------------------------------------------------------+
+|                    Browser (crescend.ai)                      |
+|                                                              |
+|  +-------------+   +---------------+   +----------------+   |
+|  | MediaRec-   |-->| 15s Opus/WebM |-->| Upload to      |   |
+|  | order       |   | chunks        |   | POST /api/     |   |
+|  | (getUserMe- |   |               |   | practice/chunk |   |
+|  |  dia)       |   +---------------+   +-------+--------+   |
+|  +-------------+                                |            |
+|                                                 |            |
+|  +-------------+   +---------------+            |            |
+|  | AudioContext|-->| Waveform      |            |            |
+|  | AnalyserNode|   | Visualizer    |            |            |
+|  +-------------+   +---------------+            |            |
+|                                                 |            |
+|  +----------------------------------------------------+     |
+|  |  Chat Interface (TanStack Start)               |     |
+|  |  - Streaming LLM responses                     |     |
+|  |  - Recording overlay with observation toasts    |     |
+|  |  - Session summary posted to chat               |     |
+|  |  - Conversation history                         |     |
+|  +------------------------+---------------------------+     |
+|                           | WebSocket + HTTPS                |
++---------------------------+----------------------------------+
+                            |
+                            v
+                    [Shared Backend]
+```
+
+### Shared Backend
+
+```
            +------------------------------------+
            |   Cloudflare Workers (single app)   |
            |                                     |
            |  POST /api/ask                      |
            |    -> builds teacher prompt          |
-           |    -> calls OpenRouter (any LLM)     |
+           |    -> calls LLM providers            |
            |    -> returns observation text        |
+           |                                     |
+           |  POST /api/practice/start           |
+           |    -> creates Durable Object session |
+           |  POST /api/practice/chunk            |
+           |    -> uploads audio, triggers infer  |
+           |  WS /api/practice/ws/:sessionId      |
+           |    -> real-time observations          |
+           |                                     |
+           |  POST /api/chat/send                 |
+           |    -> streaming teacher chat          |
            |                                     |
            |  POST /api/sync                      |
            |    -> receives student model delta    |
@@ -59,13 +111,11 @@ The architecture is on-device-first: audio inference, teaching moment detection,
            |    -> validates Apple ID token        |
            |    -> issues session JWT              |
            |                                     |
-           |  GET /api/exercises                  |
-           |    -> serves from D1                  |
-           |    -> versioned, iOS caches locally   |
-           |                                     |
            |  Bindings:                           |
            |    D1 -> students, sessions, exercises|
            |    KV -> JWTs, rate limits            |
+           |    R2 -> audio chunks (web)           |
+           |    DO -> practice sessions (web)      |
            |                                     |
            +-------+----------------+----------+
                    | HTTPS           | HTTPS
@@ -77,26 +127,27 @@ The architecture is on-device-first: audio inference, teaching moment detection,
           |  UI subagent   |  |                |
           +----------------+  +----------------+
                    |
-          +----------------+
-          | OpenRouter     |
-          | (fallback)     |
-          +----------------+
+          +----------------+  +----------------+
+          | OpenRouter     |  | HF Inference   |
+          | (fallback)     |  | (MuQ, web path)|
+          +----------------+  +----------------+
 ```
 
 ## What Runs Where
 
-| Component | Location | Network Required? |
+| Component | iOS | Web |
 |---|---|---|
-| Audio capture + chunking | iPhone (AVAudioEngine) | No |
-| MuQ inference (6 dims) | iPhone (Core ML) | No |
-| STOP classifier | iPhone (6 floats + bias) | No |
-| Teaching moment selection | iPhone | No |
-| Blind spot detection | iPhone | No |
-| Student model + history | iPhone (SwiftData) | No |
-| Exercise database | iPhone (cached from D1) | Initial download only |
-| Data sync/backup | Cloudflare Workers + D1 | Background, async |
-| Auth | Sign in with Apple + Workers JWT | On login only |
-| Teacher LLM observation | Workers -> OpenRouter | Yes (only on "ask") |
+| Audio capture + chunking | AVAudioEngine (on-device, no network) | MediaRecorder + chunk upload (network) |
+| MuQ inference (6 dims) | Core ML (on-device, no network) | HF Inference Endpoint (cloud) |
+| STOP classifier | On-device (6 floats + bias) | Heuristic in Durable Object (cloud) |
+| Teaching moment selection | On-device | Durable Object (cloud) |
+| Blind spot detection | On-device | Durable Object (cloud) |
+| Student model + history | SwiftData (local-first) | D1 (cloud) |
+| Real-time observations | N/A (on-demand "how was that?") | WebSocket push during recording |
+| Chat interface | N/A (planned) | TanStack Start (streaming SSE) |
+| Data sync/backup | Background async to D1 | Direct D1 access |
+| Auth | Sign in with Apple (native) | Sign in with Apple (JS SDK popup) |
+| Teacher LLM observation | Workers -> LLM providers | Workers -> LLM providers |
 
 ## Key Design Decisions
 
@@ -105,12 +156,14 @@ The architecture is on-device-first: audio inference, teaching moment detection,
 MuQ runs on the iPhone's Neural Engine via Core ML. The finetuned model outputs 6 dimensions directly (dynamics, timing, pedaling, articulation, phrasing, interpretation).
 
 **Why on-device:**
+
 - Zero inference cost at any scale
 - Zero network dependency during practice
 - Lower latency (no upload, no round-trip)
 - Privacy: audio never leaves the device for scoring
 
 **Model delivery:**
+
 - ~315MB quantized (INT8) or ~630MB (FP16)
 - Downloaded on first launch (too large for App Store binary)
 - Apple's On Demand Resources (ODR) or direct download from R2
@@ -119,12 +172,13 @@ MuQ runs on the iPhone's Neural Engine via Core ML. The finetuned model outputs 
 
 ### Local-First Data (SwiftData + D1 Sync)
 
-All data lives on-device first in SwiftData. The phone is the source of truth for student data and sessions. D1 stores copies for backup and future cross-platform access.
+On iOS, all data lives on-device first in SwiftData. The phone is the source of truth for student data and sessions. D1 stores copies for backup and cross-platform access. On web, D1 is the primary data store -- the web app reads and writes directly through the API.
 
-**Why local-first:**
+**Why local-first (iOS):**
+
 - Practice sessions work without internet (except LLM call)
 - Fast reads (no network latency for student model lookups)
-- D1 enables future Android/web access to the same data
+- D1 enables cross-platform access to the same data (web, future Android)
 
 **Sync protocol:** Simple, conflict-free. The phone pushes deltas (new sessions, updated baselines) to D1 after each session. The only server-to-client data is exercise updates. No conflict resolution needed because the phone is authoritative.
 
@@ -133,6 +187,7 @@ All data lives on-device first in SwiftData. The phone is the source of truth fo
 Native one-tap auth. Apple provides a stable user ID and relay email. The Workers backend validates the Apple ID token and issues a session JWT stored in iOS Keychain.
 
 **Why Sign in with Apple:**
+
 - Zero-friction auth (one tap)
 - Required by App Store if you offer account-based features
 - Provides stable cross-device identity
@@ -151,6 +206,7 @@ The pipeline uses direct provider APIs optimized per stage rather than routing e
 **Fallback:** OpenRouter as a fallback gateway if either direct provider is down. Emergency fallback: Cloudflare Workers AI (Llama 3.1 70B), co-located with Workers.
 
 **Why multi-provider over OpenRouter-only:**
+
 - ~0.3-0.5s latency savings (no routing hop)
 - Native prompt caching with Anthropic API
 - Groq's LPU gives 3-5x faster subagent inference vs. GPU-based providers
@@ -163,12 +219,14 @@ The finetuned MuQ model is approximately 80% accurate on pairwise rankings (R2 ~
 ### Cloudflare Workers (Thin Backend)
 
 The backend is a single Cloudflare Workers application. It handles:
+
 - Auth (Apple ID token validation, JWT issuance)
 - LLM proxy (holds OpenRouter API key, builds prompts, calls LLM)
 - Data sync (receives student/session data from iOS, stores in D1)
 - Exercise serving (serves curated exercises from D1)
 
 **Why Cloudflare Workers:**
+
 - Free tier covers everything at early scale ($0-5/mo)
 - D1 (SQLite) is sufficient for the data model
 - KV for JWT storage and rate limiting
@@ -186,6 +244,7 @@ Background audio mode (`UIBackgroundModes: audio`) keeps recording when the scre
 ### Inference
 
 Each 15-second chunk is processed by the Core ML MuQ model:
+
 - Input: raw waveform or mel spectrogram (depending on conversion approach)
 - Output: 6 dimension scores (Float, 0-1 range)
 - Latency: ~1-2 seconds on A16+ (iPhone 14+)
@@ -199,6 +258,7 @@ A logistic regression with 6 weights + bias, hardcoded in Swift. Extracts from t
 ### Teaching Moment Selection
 
 When "how was that?" is triggered:
+
 1. Collect all chunks from the current session (or since last query)
 2. Filter: STOP probability > 0.5
 3. Rank by STOP probability descending
@@ -208,6 +268,7 @@ When "how was that?" is triggered:
 ### Student Model Update
 
 After each session ends:
+
 - Compute session averages per dimension
 - Update baselines via exponential moving average (alpha=0.3)
 - Infer level from scores + repertoire
@@ -351,6 +412,7 @@ iOS App                              Workers + D1
 ```
 
 **When sync happens:**
+
 - After each session ends
 - On app launch (if last sync > 1 hour ago)
 - Piggybacked on "ask" calls
@@ -389,10 +451,10 @@ The core interaction, end to end:
 }
 ```
 
-5. Worker builds teacher prompt (system + user), calls OpenRouter
-6. OpenRouter returns observation text
-7. Worker returns observation to iOS
-8. iOS displays 1-3 sentences on screen
+1. Worker builds teacher prompt (system + user), calls OpenRouter
+2. OpenRouter returns observation text
+3. Worker returns observation to iOS
+4. iOS displays 1-3 sentences on screen
 
 **Latency target:** <3 seconds from tap to observation. Teaching moment selection is instant (on-device). LLM call is ~2 seconds total.
 
@@ -425,6 +487,5 @@ The 00-09 docs in `docs/` define the implementation slices. Updated to reflect t
 ## Future Considerations
 
 - **Android:** D1 sync layer is platform-agnostic. Add Android client that talks to the same Workers API. Auth: add Google sign-in alongside Apple.
-- **Web dashboard:** D1 data is accessible from Workers. Build a simple HTML dashboard for session review on desktop.
 - **On-device LLM:** Apple Foundation Models (iOS 18.2+) or bundled Llama 3.2 3B could replace the cloud LLM call for fully offline operation.
-- **Audio storage:** If needed (playback, cloud fallback inference), store chunks in R2 via the sync endpoint.
+- **Audio playback:** R2-stored chunks (web path) could enable session playback and re-analysis.

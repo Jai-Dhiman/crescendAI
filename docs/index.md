@@ -8,7 +8,7 @@ Multi-platform (iOS + web) practice companion that evaluates *how* a piano perfo
 
 **North star:** Give Sarah one piece of useful feedback on one passage she's working on. Not perfect. Not comprehensive. One thing a teacher would actually say after hearing her play.
 
-**Architecture:** On-device Core ML inference produces 6-dimension scores per audio chunk. A STOP classifier identifies teaching moments. A two-stage LLM pipeline (fast subagent + quality teacher) generates one natural observation. Local-first SwiftData with D1 cloud sync. See [architecture.md](architecture.md) for the full system design.
+**Architecture:** Two platforms, shared backend. iOS: on-device Core ML inference, STOP classifier, SwiftData local-first. Web: browser audio capture, cloud inference (HF endpoint), real-time observations via WebSocket. Both feed a two-stage LLM pipeline (fast subagent + quality teacher) that generates one natural observation. See [architecture.md](architecture.md) for the full system design.
 
 ---
 
@@ -22,6 +22,7 @@ Multi-platform (iOS + web) practice companion that evaluates *how* a piano perfo
 | [00-practice-companion.md](apps/00-practice-companion.md) | Product spec -- core interaction model, student model, exercise database, infrastructure |
 | [design-system.md](design-system.md) | Visual design system -- colors, typography, spacing, component patterns for iOS and web |
 | [landing-page-design.md](landing-page-design.md) | Landing page design spec for crescend.ai |
+| [plans/2026-03-09-web-recording-mode-design.md](plans/2026-03-09-web-recording-mode-design.md) | Web practice companion design -- recording, real-time observations, Durable Objects architecture |
 
 ### Implementation Slices
 
@@ -106,11 +107,16 @@ Multi-platform (iOS + web) practice companion that evaluates *how* a piano perfo
 | Fusion experiments | NOT STARTED | -- | Planned in `03_fusion.ipynb` |
 | Core ML conversion | NOT STARTED | -- | Critical gate for on-device inference |
 
-### Web (`apps/web/`)
+### Web App (`apps/web/`)
 
 | Component | Status | Notes |
 |-----------|--------|-------|
 | Landing page | COMPLETE | TanStack Start + Tailwind CSS v4, deployed to crescend.ai |
+| Auth (Sign in with Apple) | COMPLETE | Apple JS SDK popup flow, HttpOnly cookie JWT |
+| Chat interface | IN PROGRESS | Streaming LLM responses, conversation history, markdown rendering |
+| Practice recording | IN PROGRESS | MediaRecorder 15s Opus/WebM chunks, Web Audio API waveform |
+| Real-time observations | IN PROGRESS | WebSocket connection, observation toasts during recording |
+| Session summaries | IN PROGRESS | Post-recording summary posted to chat |
 
 ### HF Inference (`apps/inference/`)
 
@@ -149,7 +155,7 @@ npx wrangler dev
 # See apps/CLAUDE.md for endpoint documentation
 ```
 
-### Landing Page
+### Web App
 
 ```bash
 cd apps/web
