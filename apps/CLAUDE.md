@@ -15,6 +15,7 @@ See `ios/CLAUDE.md` for iOS-specific conventions.
 - Persistence: SwiftData (local-first)
 - Auth: Sign in with Apple
 - Networking: URLSession (sync to Workers, LLM calls)
+- Observability: Sentry (`sentry-cocoa` SPM) -- crash handler, error capture, breadcrumbs
 
 ### Key Directories
 
@@ -37,6 +38,7 @@ Rust API backend deployed to Cloudflare Workers at `api.crescend.ai`.
 - Sync: D1 student/session delta sync
 - LLM: Groq (subagent), Anthropic (teacher) via HTTP
 - Config: `wrangler.toml` defines all bindings
+- Observability: Cloudflare Workers OTLP drain to Sentry, `console_error!` for error paths
 
 ### API Endpoints (current)
 
@@ -74,6 +76,7 @@ Web practice companion deployed to Cloudflare Workers at `crescend.ai`. Chat-fir
 - Auth: Sign in with Apple (Apple JS SDK popup flow, HttpOnly cookie JWT)
 - Package manager: bun
 - Deployment: Cloudflare Workers via `@cloudflare/vite-plugin`
+- Observability: `@sentry/react` client SDK, OTLP drain for SSR, sourcemaps via `@sentry/vite-plugin`
 
 ### Key Files
 

@@ -18,7 +18,7 @@ Multi-platform (iOS + web) practice companion that evaluates *how* a piano perfo
 
 | Doc | Description |
 |-----|-------------|
-| [architecture.md](architecture.md) | Full system architecture -- on-device pipeline, cloud API, data models, sync protocol (source of truth) |
+| [architecture.md](architecture.md) | Full system architecture -- on-device pipeline, cloud API, data models, sync protocol, observability (source of truth) |
 | [00-practice-companion.md](apps/00-practice-companion.md) | Product spec -- core interaction model, student model, exercise database, infrastructure |
 | [design-system.md](design-system.md) | Visual design system -- colors, typography, spacing, component patterns for iOS and web |
 | [landing-page-design.md](landing-page-design.md) | Landing page design spec for crescend.ai |

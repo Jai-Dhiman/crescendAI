@@ -2,7 +2,7 @@ pub mod jwt;
 
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use wasm_bindgen::JsValue;
-use worker::{console_log, Env};
+use worker::{console_error, console_log, Env};
 
 use self::jwt::Claims;
 
@@ -90,7 +90,7 @@ fn validate_apple_claims(
     match &claims.aud {
         Some(aud) if allowed_audiences.iter().any(|a| a == aud) => {}
         Some(aud) => {
-            console_log!("Token audience '{}' not in allowed audiences", aud);
+            console_error!("Token audience '{}' not in allowed audiences", aud);
             return Err("Invalid audience".to_string());
         }
         None => return Err("Missing audience claim".to_string()),
@@ -100,7 +100,7 @@ fn validate_apple_claims(
     match &claims.sub {
         Some(sub) if sub == expected_user_id => {}
         Some(sub) => {
-            console_log!(
+            console_error!(
                 "Token subject '{}' does not match user_id '{}'",
                 sub,
                 expected_user_id
@@ -131,7 +131,7 @@ pub async fn handle_apple_auth(
     let request: AppleAuthRequest = match serde_json::from_slice(body) {
         Ok(r) => r,
         Err(e) => {
-            console_log!("Failed to parse auth request: {:?}", e);
+            console_error!("Failed to parse auth request: {:?}", e);
             return Response::builder()
                 .status(StatusCode::BAD_REQUEST)
                 .header("Content-Type", "application/json")
@@ -155,7 +155,7 @@ pub async fn handle_apple_auth(
     let apple_claims = match parse_apple_token_claims(&request.identity_token) {
         Ok(c) => c,
         Err(e) => {
-            console_log!("Failed to parse Apple token: {}", e);
+            console_error!("Failed to parse Apple token: {}", e);
             return Response::builder()
                 .status(StatusCode::UNAUTHORIZED)
                 .header("Content-Type", "application/json")
@@ -165,7 +165,7 @@ pub async fn handle_apple_auth(
     };
 
     if let Err(e) = validate_apple_claims(&apple_claims, &request.user_id, &allowed_audiences) {
-        console_log!("Apple token validation failed: {}", e);
+        console_error!("Apple token validation failed: {}", e);
         return Response::builder()
             .status(StatusCode::UNAUTHORIZED)
             .header("Content-Type", "application/json")
@@ -177,7 +177,7 @@ pub async fn handle_apple_auth(
     let db = match env.d1("DB") {
         Ok(db) => db,
         Err(e) => {
-            console_log!("D1 binding failed: {:?}", e);
+            console_error!("D1 binding failed: {:?}", e);
             return Response::builder()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
                 .header("Content-Type", "application/json")
@@ -204,7 +204,7 @@ pub async fn handle_apple_auth(
     {
         Ok(result) => result,
         Err(e) => {
-            console_log!("Failed to find/create student: {}", e);
+            console_error!("Failed to find/create student: {}", e);
             return Response::builder()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
                 .header("Content-Type", "application/json")
@@ -217,7 +217,7 @@ pub async fn handle_apple_auth(
     let jwt_secret = match env.secret("JWT_SECRET") {
         Ok(s) => s.to_string(),
         Err(e) => {
-            console_log!("JWT_SECRET not configured: {:?}", e);
+            console_error!("JWT_SECRET not configured: {:?}", e);
             return Response::builder()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
                 .header("Content-Type", "application/json")
@@ -236,7 +236,7 @@ pub async fn handle_apple_auth(
     let token = match jwt::sign(&claims, jwt_secret.as_bytes()) {
         Ok(t) => t,
         Err(e) => {
-            console_log!("Failed to sign JWT: {}", e);
+            console_error!("Failed to sign JWT: {}", e);
             return Response::builder()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
                 .header("Content-Type", "application/json")
@@ -400,7 +400,7 @@ pub fn verify_auth(
         })?;
 
     let claims = jwt::verify(&token, jwt_secret.as_bytes()).map_err(|e| {
-        console_log!("JWT verification failed: {}", e);
+        console_error!("JWT verification failed: {}", e);
         Response::builder()
             .status(StatusCode::UNAUTHORIZED)
             .header("Content-Type", "application/json")
@@ -453,7 +453,7 @@ pub async fn handle_auth_me(
     let db = match env.d1("DB") {
         Ok(db) => db,
         Err(e) => {
-            console_log!("D1 binding failed: {:?}", e);
+            console_error!("D1 binding failed: {:?}", e);
             return Response::builder()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
                 .header("Content-Type", "application/json")
@@ -478,7 +478,7 @@ pub async fn handle_auth_me(
                     .unwrap();
             }
             Err(e) => {
-                console_log!("Failed to query student: {:?}", e);
+                console_error!("Failed to query student: {:?}", e);
                 return Response::builder()
                     .status(StatusCode::INTERNAL_SERVER_ERROR)
                     .header("Content-Type", "application/json")
@@ -487,7 +487,7 @@ pub async fn handle_auth_me(
             }
         },
         Err(e) => {
-            console_log!("Failed to bind query: {}", e);
+            console_error!("Failed to bind query: {}", e);
             return Response::builder()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
                 .header("Content-Type", "application/json")
@@ -543,7 +543,7 @@ pub async fn handle_debug_auth(
     let db = match env.d1("DB") {
         Ok(db) => db,
         Err(e) => {
-            console_log!("D1 binding failed: {:?}", e);
+            console_error!("D1 binding failed: {:?}", e);
             return Response::builder()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
                 .header("Content-Type", "application/json")
@@ -569,7 +569,7 @@ pub async fn handle_debug_auth(
     {
         Ok(result) => result,
         Err(e) => {
-            console_log!("Failed to find/create debug student: {}", e);
+            console_error!("Failed to find/create debug student: {}", e);
             return Response::builder()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
                 .header("Content-Type", "application/json")
@@ -581,7 +581,7 @@ pub async fn handle_debug_auth(
     let jwt_secret = match env.secret("JWT_SECRET") {
         Ok(s) => s.to_string(),
         Err(e) => {
-            console_log!("JWT_SECRET not configured: {:?}", e);
+            console_error!("JWT_SECRET not configured: {:?}", e);
             return Response::builder()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
                 .header("Content-Type", "application/json")
@@ -600,7 +600,7 @@ pub async fn handle_debug_auth(
     let token = match jwt::sign(&claims, jwt_secret.as_bytes()) {
         Ok(t) => t,
         Err(e) => {
-            console_log!("Failed to sign JWT: {}", e);
+            console_error!("Failed to sign JWT: {}", e);
             return Response::builder()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
                 .header("Content-Type", "application/json")

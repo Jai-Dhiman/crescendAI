@@ -1,4 +1,5 @@
 import CoreText
+import Sentry
 import SwiftData
 import SwiftUI
 
@@ -7,6 +8,20 @@ struct CrescendAIApp: App {
     let modelContainer: ModelContainer
 
     init() {
+        SentrySDK.start { options in
+            options.dsn = "https://d7fc0b7e8d2663a2bad41faa86dbfa1b@o4511017227321344.ingest.us.sentry.io/4511017237217280"
+            #if DEBUG
+            options.environment = "development"
+            #else
+            options.environment = "production"
+            #endif
+            options.tracesSampleRate = 0.1
+            options.enableCrashHandler = true
+            options.enableAutoSessionTracking = true
+            options.attachScreenshot = true
+            options.enableMetricKit = true
+        }
+
         do {
             let schema = Schema([
                 Student.self,

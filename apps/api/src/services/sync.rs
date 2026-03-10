@@ -1,5 +1,5 @@
 use wasm_bindgen::JsValue;
-use worker::{console_log, D1Database, Env};
+use worker::{console_error, console_log, D1Database, Env};
 
 #[derive(serde::Deserialize)]
 pub struct SyncRequest {
@@ -83,7 +83,7 @@ pub async fn handle_sync(
     let request: SyncRequest = match serde_json::from_slice(body) {
         Ok(r) => r,
         Err(e) => {
-            console_log!("Failed to parse sync request: {:?}", e);
+            console_error!("Failed to parse sync request: {:?}", e);
             return Response::builder()
                 .status(StatusCode::BAD_REQUEST)
                 .header("Content-Type", "application/json")
@@ -95,7 +95,7 @@ pub async fn handle_sync(
     let db = match env.d1("DB") {
         Ok(db) => db,
         Err(e) => {
-            console_log!("D1 binding failed: {:?}", e);
+            console_error!("D1 binding failed: {:?}", e);
             return Response::builder()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
                 .header("Content-Type", "application/json")
@@ -106,7 +106,7 @@ pub async fn handle_sync(
 
     // Upsert student baselines
     if let Err(e) = upsert_student_baselines(&db, &student_id, &request.student).await {
-        console_log!("Failed to upsert student baselines: {}", e);
+        console_error!("Failed to upsert student baselines: {}", e);
         return Response::builder()
             .status(StatusCode::INTERNAL_SERVER_ERROR)
             .header("Content-Type", "application/json")
@@ -117,7 +117,7 @@ pub async fn handle_sync(
     // Insert new sessions
     for session in &request.new_sessions {
         if let Err(e) = insert_session(&db, &student_id, session).await {
-            console_log!("Failed to insert session {}: {}", session.id, e);
+            console_error!("Failed to insert session {}: {}", session.id, e);
         }
     }
 
@@ -126,14 +126,14 @@ pub async fn handle_sync(
         Ok(true) => {
             console_log!("Triggering memory synthesis for student {}", student_id);
             if let Err(e) = crate::services::memory::run_synthesis(env, &student_id).await {
-                console_log!("Memory synthesis failed (non-fatal): {}", e);
+                console_error!("Memory synthesis failed (non-fatal): {}", e);
             }
         }
         Ok(false) => {
             console_log!("Synthesis not needed for student {}", student_id);
         }
         Err(e) => {
-            console_log!("Failed to check synthesis eligibility: {}", e);
+            console_error!("Failed to check synthesis eligibility: {}", e);
         }
     }
 

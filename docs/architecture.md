@@ -484,6 +484,16 @@ The 00-09 docs in `docs/` define the implementation slices. Updated to reflect t
 | 09 | 09-ios-frontend.md | SwiftUI screens: Practice, Observation, Review, Focus |
 | 10 | 10-on-demand-ui.md | Chat-first interface with on-demand interactive components |
 
+## Observability
+
+Error tracking via Sentry across all three surfaces:
+
+- **iOS:** `sentry-cocoa` SPM -- crash reporting, error capture with breadcrumbs, MetricKit integration
+- **Web (client):** `@sentry/react` -- React ErrorBoundary integration, API error capture, WebSocket error capture
+- **Web (SSR) + API Worker:** Cloudflare Workers Observability OTLP drain to Sentry -- captures invocation traces, `console_error!` output, and panics without any SDK in the Rust/WASM binary
+
+Cloudflare Workers built-in analytics covers API health and latency metrics. Performance monitoring via Sentry at 10% sample rate for beta.
+
 ## Future Considerations
 
 - **Android:** D1 sync layer is platform-agnostic. Add Android client that talks to the same Workers API. Auth: add Google sign-in alongside Apple.

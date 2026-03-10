@@ -1,3 +1,4 @@
+import "../lib/sentry";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
 	createRootRoute,
@@ -129,17 +130,20 @@ function Footer() {
 					>
 						crescend
 					</a>
-					<p>
-						Built on published research.{" "}
+					<div className="flex items-center gap-6">
 						<a
-							href="https://arxiv.org/abs/2601.19029"
-							target="_blank"
-							rel="noopener"
-							className="text-text-secondary underline underline-offset-2 hover:text-cream transition-colors"
+							href="/terms"
+							className="hover:text-text-secondary transition-colors"
 						>
-							Read the paper
+							Terms of Service
 						</a>
-					</p>
+						<a
+							href="/privacy"
+							className="hover:text-text-secondary transition-colors"
+						>
+							Privacy Policy
+						</a>
+					</div>
 					<p>2026</p>
 				</div>
 			</div>

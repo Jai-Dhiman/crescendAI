@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import Sentry
 import SwiftData
 
 /// Coordinates the full practice session lifecycle: audio session setup,
@@ -63,6 +64,8 @@ final class PracticeSessionManager {
 
         state = .recording
 
+        SentrySDK.addBreadcrumb(Breadcrumb(level: .info, category: "practice", message: "Session started: \(session.id)"))
+
         observeInterruptions()
         observeChunks()
     }
@@ -86,9 +89,12 @@ final class PracticeSessionManager {
             try modelContext.save()
         } catch {
             print("[PracticeSessionManager] Failed to save session end: \(error)")
+            SentrySDK.capture(error: error)
         }
 
         state = .ended
+
+        SentrySDK.addBreadcrumb(Breadcrumb(level: .info, category: "practice", message: "Session ended"))
     }
 
     // MARK: - Interruption Handling
@@ -143,6 +149,7 @@ final class PracticeSessionManager {
             try modelContext.save()
         } catch {
             print("[PracticeSessionManager] Failed to save chunk \(chunk.index): \(error)")
+            SentrySDK.capture(error: error)
         }
     }
 }

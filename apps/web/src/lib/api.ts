@@ -1,3 +1,5 @@
+import { Sentry } from "./sentry";
+
 const API_BASE = import.meta.env.PROD
 	? "https://api.crescend.ai"
 	: "http://localhost:8787";
@@ -26,8 +28,18 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 		const body = (await response
 			.json()
 			.catch(() => ({ error: response.statusText }))) as Record<string, string>;
-		throw new ApiError(response.status, body.error ?? response.statusText);
+		const err = new ApiError(response.status, body.error ?? response.statusText);
+		Sentry.captureException(err, {
+			extra: { status: response.status, path },
+		});
+		throw err;
 	}
+
+	Sentry.addBreadcrumb({
+		category: "api",
+		message: `${options.method ?? "GET"} ${path}`,
+		level: "info",
+	});
 
 	return response.json();
 }
@@ -132,7 +144,11 @@ export const api = {
 					string,
 					string
 				>;
-				throw new ApiError(response.status, body.error ?? response.statusText);
+				const err = new ApiError(response.status, body.error ?? response.statusText);
+				Sentry.captureException(err, {
+					extra: { status: response.status, path: "/api/chat" },
+				});
+				throw err;
 			}
 
 			if (!response.body) throw new Error("Response body is empty");
@@ -194,7 +210,11 @@ export const api = {
 				},
 			);
 			if (!response.ok && response.status !== 204) {
-				throw new ApiError(response.status, "Failed to delete conversation");
+				const err = new ApiError(response.status, "Failed to delete conversation");
+				Sentry.captureException(err, {
+					extra: { status: response.status, conversationId },
+				});
+				throw err;
 			}
 		},
 	},

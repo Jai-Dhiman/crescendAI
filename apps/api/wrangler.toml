@@ -26,10 +26,16 @@ binding = "CHUNKS"
 bucket_name = "crescendai-bucket"
 
 [durable_objects]
-bindings = [
-  { name = "PRACTICE_SESSION", class_name = "PracticeSession" }
-]
+bindings = [{ name = "PRACTICE_SESSION", class_name = "PracticeSession" }]
 
 [[migrations]]
 tag = "v1"
 new_classes = ["PracticeSession"]
+
+[observability]
+enabled = true
+
+[observability.logs]
+enabled = true
+invocation_logs = true
+head_sampling_rate = 1.0

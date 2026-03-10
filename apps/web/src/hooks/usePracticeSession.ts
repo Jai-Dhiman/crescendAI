@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Sentry } from "../lib/sentry";
 import type {
 	DimScores,
 	ObservationEvent,
@@ -119,6 +120,9 @@ export function usePracticeSession(): UsePracticeSessionReturn {
 				};
 
 				ws.onerror = () => {
+					Sentry.captureException(new Error("WebSocket failed to connect"), {
+						extra: { sessionId },
+					});
 					reject(new Error("WebSocket failed to connect"));
 				};
 
@@ -132,6 +136,10 @@ export function usePracticeSession(): UsePracticeSessionReturn {
 						setTimeout(() => {
 							if (stateRef.current === "recording" && sessionIdRef.current) {
 								connectWebSocket(sessionIdRef.current).catch(() => {
+									Sentry.captureMessage("WebSocket reconnection failed", {
+										level: "error",
+										extra: { attempts: reconnectAttemptsRef.current },
+									});
 									setError("Connection lost. Please try again.");
 									setState("error");
 									cleanup();
@@ -159,7 +167,10 @@ export function usePracticeSession(): UsePracticeSessionReturn {
 		try {
 			stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 			streamRef.current = stream;
-		} catch (_e) {
+		} catch (e) {
+			Sentry.captureException(e, {
+				extra: { context: "microphone-access" },
+			});
 			setState("error");
 			setError(
 				"Microphone access denied. Please allow mic access and try again.",
@@ -183,7 +194,10 @@ export function usePracticeSession(): UsePracticeSessionReturn {
 			const { sessionId: sid } = await practiceApi.start();
 			sessionId = sid;
 			sessionIdRef.current = sid;
-		} catch (_e) {
+		} catch (e) {
+			Sentry.captureException(e, {
+				extra: { context: "session-start" },
+			});
 			cleanup();
 			setState("error");
 			setError("Failed to start practice session. Please try again.");
@@ -193,7 +207,10 @@ export function usePracticeSession(): UsePracticeSessionReturn {
 		// 4. Connect WebSocket
 		try {
 			await connectWebSocket(sessionId);
-		} catch (_e) {
+		} catch (e) {
+			Sentry.captureException(e, {
+				extra: { context: "websocket-connect", sessionId },
+			});
 			cleanup();
 			setState("error");
 			setError("Failed to connect. Please try again.");
@@ -221,6 +238,9 @@ export function usePracticeSession(): UsePracticeSessionReturn {
 					ws.send(JSON.stringify({ type: "chunk_ready", index: idx, r2Key }));
 				}
 			} catch (e) {
+				Sentry.captureException(e, {
+					extra: { chunkIndex: idx, sessionId },
+				});
 				console.error("Chunk upload failed:", e);
 			}
 		};

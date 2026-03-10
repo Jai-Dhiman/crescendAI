@@ -1,5 +1,6 @@
 import AuthenticationServices
 import Foundation
+import Sentry
 import SwiftData
 
 enum AuthError: LocalizedError {
@@ -77,6 +78,10 @@ final class AuthService {
         self.jwt = response.jwt
         self.appleUserId = response.apple_user_id
         self.isAuthenticated = true
+
+        let sentryUser = Sentry.User()
+        sentryUser.userId = response.apple_user_id
+        SentrySDK.setUser(sentryUser)
     }
 
     func signOut() throws {
@@ -84,6 +89,7 @@ final class AuthService {
         self.jwt = nil
         self.appleUserId = nil
         self.isAuthenticated = false
+        SentrySDK.setUser(nil)
     }
 
     func ensureOrCreateStudent(in modelContext: ModelContext) throws -> Student {

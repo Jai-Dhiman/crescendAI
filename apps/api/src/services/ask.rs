@@ -4,7 +4,7 @@
 //! Stage 2: Anthropic (Sonnet 4.6) teacher generates the observation.
 
 use wasm_bindgen::JsValue;
-use worker::{console_log, Env};
+use worker::{console_error, console_log, Env};
 
 use crate::services::{llm, prompts};
 
@@ -79,7 +79,7 @@ pub async fn handle_ask(
     let request: AskRequest = match serde_json::from_slice(body) {
         Ok(r) => r,
         Err(e) => {
-            console_log!("Failed to parse ask request: {:?}", e);
+            console_error!("Failed to parse ask request: {:?}", e);
             return Response::builder()
                 .status(StatusCode::BAD_REQUEST)
                 .header("Content-Type", "application/json")
@@ -158,7 +158,7 @@ pub async fn handle_ask(
             (output, framing)
         }
         Err(e) => {
-            console_log!("Subagent failed: {}", e);
+            console_error!("Subagent failed: {}", e);
             // Fallback: skip subagent, go directly to fallback template
             return build_fallback_response(
                 env,
@@ -208,7 +208,7 @@ pub async fn handle_ask(
             (cleaned, false)
         }
         Err(e) => {
-            console_log!("Teacher LLM failed: {}", e);
+            console_error!("Teacher LLM failed: {}", e);
             (fallback_observation(&dimension), true)
         }
     };
@@ -253,7 +253,7 @@ pub async fn handle_ask(
     )
     .await
     {
-        console_log!("Failed to store observation: {}", e);
+        console_error!("Failed to store observation: {}", e);
         // Non-fatal: still return the observation
     }
 
@@ -269,12 +269,12 @@ pub async fn handle_ask(
         &framing,
         &approach_summary,
     ).await {
-        console_log!("Failed to store teaching approach: {}", e);
+        console_error!("Failed to store teaching approach: {}", e);
     }
 
     // Increment observation count for synthesis tracking
     if let Err(e) = crate::services::memory::increment_observation_count(env, &student_id).await {
-        console_log!("Failed to increment observation count: {}", e);
+        console_error!("Failed to increment observation count: {}", e);
     }
 
     let response = AskResponse {
@@ -313,7 +313,7 @@ pub async fn handle_elaborate(
     let request: ElaborateRequest = match serde_json::from_slice(body) {
         Ok(r) => r,
         Err(e) => {
-            console_log!("Failed to parse elaborate request: {:?}", e);
+            console_error!("Failed to parse elaborate request: {:?}", e);
             return Response::builder()
                 .status(StatusCode::BAD_REQUEST)
                 .header("Content-Type", "application/json")
@@ -327,7 +327,7 @@ pub async fn handle_elaborate(
         match fetch_observation(env, &request.observation_id).await {
             Ok(obs) => obs,
             Err(e) => {
-                console_log!("Failed to fetch observation: {}", e);
+                console_error!("Failed to fetch observation: {}", e);
                 return Response::builder()
                     .status(StatusCode::NOT_FOUND)
                     .header("Content-Type", "application/json")
@@ -354,7 +354,7 @@ pub async fn handle_elaborate(
     {
         Ok(text) => post_process_observation(&text),
         Err(e) => {
-            console_log!("Elaboration LLM failed: {}", e);
+            console_error!("Elaboration LLM failed: {}", e);
             return Response::builder()
                 .status(StatusCode::SERVICE_UNAVAILABLE)
                 .header("Content-Type", "application/json")
@@ -365,12 +365,12 @@ pub async fn handle_elaborate(
 
     // Store elaboration
     if let Err(e) = store_elaboration(env, &request.observation_id, &elaboration).await {
-        console_log!("Failed to store elaboration: {}", e);
+        console_error!("Failed to store elaboration: {}", e);
     }
 
     // Mark teaching approach as engaged
     if let Err(e) = crate::services::memory::mark_approach_engaged(env, &request.observation_id).await {
-        console_log!("Failed to mark approach engaged: {}", e);
+        console_error!("Failed to mark approach engaged: {}", e);
     }
 
     let response = ElaborateResponse {
