@@ -1,4 +1,9 @@
-import { Metronome as MetronomeIcon, Minus, Plus, Stop } from "@phosphor-icons/react";
+import {
+	Metronome as MetronomeIcon,
+	Minus,
+	Plus,
+	Stop,
+} from "@phosphor-icons/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useMetronome } from "../hooks/useMetronome";
@@ -43,7 +48,9 @@ export function ListeningMode({
 	const notes = sessionNotes ?? "";
 	const setNotes = onNotesChange ?? (() => {});
 	const [showNotepad, setShowNotepad] = useState(false);
-	const [pieceName, setPieceName] = useState(pieceContext?.piece ?? "Unknown piece");
+	const [pieceName, setPieceName] = useState(
+		pieceContext?.piece ?? "Unknown piece",
+	);
 	const [sectionName, setSectionName] = useState(pieceContext?.section ?? "");
 	const [isEditingPiece, setIsEditingPiece] = useState(false);
 	const metronome = useMetronome();
@@ -151,17 +158,23 @@ export function ListeningMode({
 	}, []);
 
 	const transitionAttr =
-		phase === "collapsing" ? "collapsed" : phase === "expanding" ? "expanding" : phase;
+		phase === "collapsing"
+			? "collapsed"
+			: phase === "expanding"
+				? "expanding"
+				: phase;
 
 	return createPortal(
 		<div
 			ref={overlayRef}
 			className="listening-overlay"
 			data-transition={transitionAttr}
-			style={{
-				"--origin-x": `${originX}%`,
-				"--origin-y": `${originY}%`,
-			} as React.CSSProperties}
+			style={
+				{
+					"--origin-x": `${originX}%`,
+					"--origin-y": `${originY}%`,
+				} as React.CSSProperties
+			}
 		>
 			{contentVisible && (
 				<div className="h-dvh flex flex-col animate-listening-content-in">
@@ -169,33 +182,35 @@ export function ListeningMode({
 					<div className="shrink-0 flex items-center justify-between px-6 py-4 border-b border-border">
 						<div className="flex items-center gap-3">
 							<div className="relative">
-							<button
-								type="button"
-								onClick={() => setShowMetronome(!showMetronome)}
-								className={`flex items-center gap-2 px-3 py-2 rounded-lg transition ${
-									metronome.isPlaying
-										? "bg-accent/20 text-accent"
-										: "bg-surface text-text-secondary hover:text-cream"
-								}`}
-								aria-label="Toggle metronome"
-							>
-								<MetronomeIcon
-									size={20}
-									weight="fill"
-									className={metronome.isPlaying ? "animate-pulse" : ""}
-								/>
-								{metronome.isPlaying && (
-									<span className="text-body-sm tabular-nums">{metronome.bpm}</span>
-								)}
-							</button>
+								<button
+									type="button"
+									onClick={() => setShowMetronome(!showMetronome)}
+									className={`flex items-center gap-2 px-3 py-2 rounded-lg transition ${
+										metronome.isPlaying
+											? "bg-accent/20 text-accent"
+											: "bg-surface text-text-secondary hover:text-cream"
+									}`}
+									aria-label="Toggle metronome"
+								>
+									<MetronomeIcon
+										size={20}
+										weight="fill"
+										className={metronome.isPlaying ? "animate-pulse" : ""}
+									/>
+									{metronome.isPlaying && (
+										<span className="text-body-sm tabular-nums">
+											{metronome.bpm}
+										</span>
+									)}
+								</button>
 
-							{showMetronome && (
-								<MetronomePanel
-									metronome={metronome}
-									onClose={() => setShowMetronome(false)}
-								/>
-							)}
-						</div>
+								{showMetronome && (
+									<MetronomePanel
+										metronome={metronome}
+										onClose={() => setShowMetronome(false)}
+									/>
+								)}
+							</div>
 						</div>
 						<div className="text-right">
 							{isEditingPiece ? (
@@ -206,6 +221,7 @@ export function ListeningMode({
 										onChange={(e) => setPieceName(e.target.value)}
 										placeholder="Piece name"
 										className="bg-surface border border-border rounded-lg px-3 py-1 text-body-sm text-cream outline-none w-56"
+										// biome-ignore lint/a11y/noAutofocus: intentional UX for inline editor
 										autoFocus
 									/>
 									<input
@@ -236,7 +252,9 @@ export function ListeningMode({
 										{pieceName}
 									</span>
 									{sectionName && (
-										<span className="text-body-xs text-accent ml-2">{sectionName}</span>
+										<span className="text-body-xs text-accent ml-2">
+											{sectionName}
+										</span>
 									)}
 								</button>
 							)}
@@ -410,7 +428,10 @@ function NotepadDrawer({
 				aria-label="Close notepad"
 			/>
 			{/* Drawer */}
-			<div className="fixed bottom-0 left-0 right-0 z-50 bg-espresso border-t border-border rounded-t-2xl max-h-[60vh] sm:max-h-[40vh] flex flex-col animate-overlay-in" style={{ bottom: bottomOffset }}>
+			<div
+				className="fixed bottom-0 left-0 right-0 z-50 bg-espresso border-t border-border rounded-t-2xl max-h-[60vh] sm:max-h-[40vh] flex flex-col animate-overlay-in"
+				style={{ bottom: bottomOffset }}
+			>
 				<div className="flex items-center justify-between px-5 py-3 border-b border-border">
 					<span className="text-label-sm text-text-tertiary uppercase tracking-wider">
 						Notes

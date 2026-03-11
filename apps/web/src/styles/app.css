@@ -237,13 +237,24 @@ html[data-theme="light"] {
 }
 
 @keyframes fade-in {
-	from { opacity: 0; transform: translateY(4px); }
-	to { opacity: 1; transform: translateY(0); }
+	from {
+		opacity: 0;
+		transform: translateY(4px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
 }
 
 @keyframes blink {
-	0%, 100% { opacity: 1; }
-	50% { opacity: 0; }
+	0%,
+	100% {
+		opacity: 1;
+	}
+	50% {
+		opacity: 0;
+	}
 }
 
 .animate-fade-in {
@@ -256,8 +267,12 @@ html[data-theme="light"] {
 
 /* Listening mode transitions */
 @keyframes listening-content-in {
-	from { opacity: 0; }
-	to { opacity: 1; }
+	from {
+		opacity: 0;
+	}
+	to {
+		opacity: 1;
+	}
 }
 
 .animate-listening-content-in {
@@ -288,8 +303,12 @@ html[data-theme="light"] {
 
 /* Dim scores pulse on update */
 @keyframes score-pulse {
-	0% { color: var(--color-accent-lighter); }
-	100% { color: var(--color-accent); }
+	0% {
+		color: var(--color-accent-lighter);
+	}
+	100% {
+		color: var(--color-accent);
+	}
 }
 
 .animate-score-pulse {

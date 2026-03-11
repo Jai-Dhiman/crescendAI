@@ -27,7 +27,9 @@ const MIN_TAPS = 2;
 export function useMetronome(): UseMetronomeReturn {
 	const [isPlaying, setIsPlaying] = useState(false);
 	const [bpm, setBpmState] = useState(120);
-	const [timeSignature, setTimeSignature] = useState<"4/4" | "3/4" | "6/8">("4/4");
+	const [timeSignature, setTimeSignature] = useState<"4/4" | "3/4" | "6/8">(
+		"4/4",
+	);
 	const [accentFirstBeat, setAccentFirstBeat] = useState(true);
 	const [currentBeat, setCurrentBeat] = useState(0);
 
@@ -42,12 +44,19 @@ export function useMetronome(): UseMetronomeReturn {
 	const accentRef = useRef(accentFirstBeat);
 	const beatsRef = useRef(4);
 
-	const beatsPerMeasure = timeSignature === "6/8" ? 6 : timeSignature === "3/4" ? 3 : 4;
+	const beatsPerMeasure =
+		timeSignature === "6/8" ? 6 : timeSignature === "3/4" ? 3 : 4;
 
 	// Keep refs in sync
-	useEffect(() => { bpmRef.current = bpm; }, [bpm]);
-	useEffect(() => { accentRef.current = accentFirstBeat; }, [accentFirstBeat]);
-	useEffect(() => { beatsRef.current = beatsPerMeasure; }, [beatsPerMeasure]);
+	useEffect(() => {
+		bpmRef.current = bpm;
+	}, [bpm]);
+	useEffect(() => {
+		accentRef.current = accentFirstBeat;
+	}, [accentFirstBeat]);
+	useEffect(() => {
+		beatsRef.current = beatsPerMeasure;
+	}, [beatsPerMeasure]);
 
 	function getOrCreateAudioCtx(): AudioContext {
 		if (!audioCtxRef.current || audioCtxRef.current.state === "closed") {
@@ -92,6 +101,7 @@ export function useMetronome(): UseMetronomeReturn {
 		}
 	}
 
+	// biome-ignore lint/correctness/useExhaustiveDependencies: getOrCreateAudioCtx and scheduleBeats are stable (only read refs)
 	const start = useCallback(() => {
 		const ctx = getOrCreateAudioCtx();
 		if (ctx.state === "suspended") {
@@ -148,7 +158,8 @@ export function useMetronome(): UseMetronomeReturn {
 			for (let i = 1; i < taps.length; i++) {
 				intervals.push(taps[i] - taps[i - 1]);
 			}
-			const avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+			const avgInterval =
+				intervals.reduce((a, b) => a + b, 0) / intervals.length;
 			const newBpm = Math.round(60000 / avgInterval);
 			setBpm(newBpm);
 		}

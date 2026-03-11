@@ -108,9 +108,14 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 
 	const recordButtonRef = useRef<HTMLButtonElement>(null);
 	const [showListeningMode, setShowListeningMode] = useState(false);
-	const [recordButtonRect, setRecordButtonRect] = useState<DOMRect | null>(null);
+	const [recordButtonRect, setRecordButtonRect] = useState<DOMRect | null>(
+		null,
+	);
 	const [sessionNotes, setSessionNotes] = useState("");
-	const [pieceContext, setPieceContext] = useState<{ piece: string; section?: string } | null>(null);
+	const [pieceContext, setPieceContext] = useState<{
+		piece: string;
+		section?: string;
+	} | null>(null);
 
 	// Chat state
 	const [activeConversationId, setActiveConversationId] = useState<
@@ -229,6 +234,7 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 	}
 
 	// When practice summary arrives, post it to chat
+	// biome-ignore lint/correctness/useExhaustiveDependencies: reads sessionNotes at fire time, must not re-run on notes change
 	useEffect(() => {
 		if (practice.summary) {
 			let content = practice.summary;
@@ -604,8 +610,7 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 						type="button"
 						onClick={() => {
 							if (!showProfile && profileRef.current) {
-								const rect =
-									profileRef.current.getBoundingClientRect();
+								const rect = profileRef.current.getBoundingClientRect();
 								setDropdownPos({
 									bottom: window.innerHeight - rect.top + 8,
 									left: rect.left,
@@ -643,14 +648,8 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 								onClick={toggleTheme}
 								className="w-full text-left px-4 py-2 text-body-sm text-text-secondary hover:text-cream hover:bg-surface-2 transition rounded-lg flex items-center gap-2"
 							>
-								{theme === "light" ? (
-									<Moon size={16} />
-								) : (
-									<Sun size={16} />
-								)}
-								<span>
-									{theme === "light" ? "Dark Mode" : "Light Mode"}
-								</span>
+								{theme === "light" ? <Moon size={16} /> : <Sun size={16} />}
+								<span>{theme === "light" ? "Dark Mode" : "Light Mode"}</span>
 							</button>
 							<button
 								type="button"
