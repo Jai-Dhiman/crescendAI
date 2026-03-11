@@ -20,6 +20,8 @@ Replace the current recording top-bar (`RecordingBar`) with a full-screen listen
 3. Chat fades back in
 4. Session summary arrives as a normal chat message (includes notes taken during the session)
 
+**No elapsed time display.** Intentional decision to reduce performance pressure during practice.
+
 ## Layout (Centered Stage)
 
 ```
@@ -29,6 +31,7 @@ Replace the current recording top-bar (`RecordingBar`) with a full-screen listen
 |               bars 1-16                   [edit] |
 +--------------------------------------------------+
 |                                                  |
+|         [observation toasts overlay here]        |
 |                                                  |
 |         ~~~ Waveform Visualization ~~~           |
 |         (FlowingWaves canvas, full width)        |
@@ -47,6 +50,7 @@ Replace the current recording top-bar (`RecordingBar`) with a full-screen listen
 
 ### Center
 - **Waveform:** Existing `FlowingWaves` canvas component, expanded to fill available space.
+- **Observation toasts:** Real-time observations from the teacher appear as brief toasts overlaid on the waveform area. Same auto-dismiss behavior as current `ObservationToast` (8 seconds). Max 3 visible at once.
 - **Dimension scores:** 6 scores in a horizontal row below the waveform. Update in-place with a subtle color pulse on change (no animated counting, no trend lines).
 
 ### Bottom Bar
@@ -72,7 +76,7 @@ Clicking outside or the icon again collapses the panel.
 
 ### Notepad Drawer
 
-Tapping the Notes icon slides a drawer up from the bottom (~40% screen height). Contains a textarea that auto-focuses. Dismiss via tapping outside or a "Done" button. Notes persist for the session duration and are included in the session summary chat message.
+Tapping the Notes icon slides a drawer up from the bottom (~40% screen height). Contains a textarea that auto-focuses. Dismiss via tapping outside or a "Done" button. Notes persist for the session duration and are injected client-side into the summary chat message (no backend change required).
 
 ### Dimension Scores
 
@@ -80,7 +84,7 @@ Six dimensions displayed: Dynamics, Timing, Pedaling, Articulation, Phrasing, In
 
 ### Piece/Section Selector
 
-**Current implementation (v1):** Chat context extraction only. Before entering listening mode, scan the conversation for piece/composer/section mentions via an LLM call (runs in parallel with mic setup). Manual edit always available.
+**Current implementation (v1):** Chat context extraction only. Before entering listening mode, scan the current conversation messages client-side for piece/composer/section mentions via an LLM call to the existing API. Runs in parallel with mic setup. If the call fails or is slow, show "Unknown piece" immediately and update asynchronously if a result arrives. Manual edit always available.
 
 **Future:** Audio recognition model (Shazam-style) to identify the piece from the first audio chunks. Separate project.
 
@@ -93,14 +97,26 @@ Six dimensions displayed: Dynamics, Timing, Pedaling, Articulation, Phrasing, In
 - Rendered as a portal (full viewport overlay, z-50)
 
 ### Transition orchestration in `AppChat.tsx`
+- `ChatInput` forwards a ref to the record button so `AppChat` can call `getBoundingClientRect()` on it
 - On `practice.start()`, capture button rect, pass to `ListeningMode` as radial origin
+- Fallback origin: center-bottom of viewport if ref is unavailable
 - Chat stays mounted but hidden during listening mode (no remount on return)
 
 ### Recording pipeline
 No changes to `usePracticeSession` hook. ListeningMode consumes its output the same way RecordingBar did.
 
 ### Notepad data
-Notes stored in component state. On stop, included in WebSocket `stop` message so they appear in session summary.
+Notes stored in component state. On stop, injected client-side into the summary chat message. No backend changes needed.
+
+### Error handling
+- WebSocket disconnection or hook error state: exit listening mode immediately (reverse radial animation), return to chat, show an error message in the chat area.
+- Mic permission denied: exit before transition completes, show error in chat.
+
+### Summarizing state
+When the user hits Stop, the reverse radial animation plays immediately (does not wait for summary). Chat shows a loading indicator while the `session_summary` WebSocket message arrives. Notes are appended to the summary message once it appears.
+
+### Metronome audio isolation
+The metronome uses its own `AudioContext` separate from the recording pipeline's context. Output goes to speakers only. The mic may still pick up click sounds -- this is acknowledged and acceptable. Users can turn off the metronome if it affects inference quality.
 
 ### Removed
 `RecordingBar.tsx` becomes unused. `ListeningMode` fully replaces it.
@@ -112,5 +128,5 @@ Notes stored in component state. On stop, included in WebSocket `stop` message s
 - Metronome expanded panel renders as a bottom sheet overlay
 - Notepad drawer takes ~60% height (vs ~40% desktop)
 - Stop button: minimum 48px touch target
-- Screen wake lock (`navigator.wakeLock`) requested on entry, released on exit
+- Screen wake lock (`navigator.wakeLock`) requested on entry, released on exit. Progressive enhancement -- fails silently if unsupported.
 - Notepad respects virtual keyboard via `visualViewport` handling
