@@ -55,6 +55,106 @@ CATEGORY_NAMES = {
     5: "Adversarial",
 }
 
+QA_SYSTEM_PROMPT = """\
+You are answering questions about a person based on extracted memory facts.
+
+Steps:
+1. Identify which facts are relevant to the question
+2. If the question requires combining multiple facts, trace the reasoning chain
+3. If the question asks about time ("when", "how long ago"), use the dates in the facts and the current date provided
+4. Answer concisely -- typically 1-5 words for factual questions, 1-2 sentences for open-ended
+
+If the facts don't contain enough information, say "I don't know".
+Do NOT guess or infer beyond what the facts state."""
+
+
+def _group_facts_for_context(facts: list[dict], current_date: str = "") -> str:
+    """Group accumulated facts by category for structured QA context."""
+    groups: dict[str, list[str]] = {}
+    for fact in facts:
+        cat = fact.get("category", "general")
+        text = fact.get("fact_text", "")
+        if not text:
+            continue
+        heading = {
+            "identity": "Identity",
+            "background": "Background",
+            "goals": "Goals & Plans",
+            "preferences": "Preferences & Habits",
+            "repertoire": "Repertoire",
+            "events": "Events & Milestones",
+        }.get(cat, "Other")
+        groups.setdefault(heading, []).append(text)
+
+    if not groups:
+        return "(No facts extracted)"
+
+    lines = []
+    if current_date:
+        lines.append(f"Current date: {current_date}")
+        lines.append("")
+    for heading in ["Identity", "Background", "Goals & Plans", "Preferences & Habits",
+                     "Repertoire", "Events & Milestones", "Other"]:
+        if heading in groups:
+            lines.append(f"## {heading}")
+            for text in groups[heading]:
+                lines.append(f"- {text}")
+            lines.append("")
+
+    return "\n".join(lines)
+
+
+def _filter_relevant_facts(
+    question: str,
+    facts: list[dict],
+    max_facts: int = 20,
+) -> list[dict]:
+    """Filter facts to those most relevant to the question.
+
+    Two-stage: keyword pre-filter, then cosine similarity re-rank if needed.
+    """
+    if len(facts) <= max_facts:
+        return facts
+
+    # Stage 1: keyword pre-filter
+    q_lower = question.lower()
+    q_words = set(re.sub(r"[^\w\s]", "", q_lower).split())
+    stopwords = {"a", "an", "the", "is", "was", "were", "are", "do", "does", "did",
+                 "what", "when", "where", "who", "how", "which", "that", "this",
+                 "to", "of", "in", "for", "on", "with", "at", "by", "from", "and",
+                 "or", "not", "but", "if", "about", "has", "had", "have", "be", "been"}
+    q_keywords = q_words - stopwords
+
+    scored: list[tuple[int, dict]] = []
+    for fact in facts:
+        fact_lower = fact.get("fact_text", "").lower()
+        hits = sum(1 for kw in q_keywords if kw in fact_lower)
+        scored.append((hits, fact))
+
+    keyword_matches = [fact for hits, fact in scored if hits > 0]
+
+    if len(keyword_matches) <= max_facts:
+        if len(keyword_matches) < max_facts:
+            remaining = [fact for hits, fact in scored if hits == 0]
+            keyword_matches.extend(remaining[: max_facts - len(keyword_matches)])
+        return keyword_matches
+
+    # Stage 2: cosine similarity re-rank
+    from sentence_transformers import SentenceTransformer, util
+
+    model = SentenceTransformer("all-MiniLM-L6-v2")
+    q_emb = model.encode([question])
+    fact_texts = [f.get("fact_text", "") for f in keyword_matches]
+    fact_embs = model.encode(fact_texts)
+    sims = util.cos_sim(q_emb, fact_embs)[0]
+
+    ranked = sorted(
+        zip(keyword_matches, sims.tolist()),
+        key=lambda x: x[1],
+        reverse=True,
+    )
+    return [fact for fact, _ in ranked[:max_facts]]
+
 
 # ---------------------------------------------------------------------------
 # Token-level F1 (official LoCoMo metric)
@@ -144,10 +244,7 @@ def _answer_question(question: str, context: str, groq_client) -> str:
             messages=[
                 {
                     "role": "system",
-                    "content": (
-                        "Answer the question concisely based on the provided context. "
-                        "If the context doesn't contain enough information, say 'I don't know'."
-                    ),
+                    "content": QA_SYSTEM_PROMPT,
                 },
                 {"role": "user", "content": f"Context:\n{context}\n\nQuestion: {question}\n\nAnswer:"},
             ],
@@ -359,12 +456,16 @@ def run_locomo_assessment(
         result.extraction_count = len(accumulated_facts)
 
         # Phase 2: Answer QA pairs using accumulated facts as context
-        context_lines = []
-        for fact in accumulated_facts:
-            cat = fact.get("category", "general")
-            text = fact.get("fact_text", "")
-            context_lines.append(f"- [{cat}] {text}")
-        context = "\n".join(context_lines) if context_lines else "(No facts extracted)"
+        # Determine latest date from dialogue for temporal reasoning
+        last_date = "2024-01-01"
+        conversation = conv.get("conversation", {})
+        for sn in range(1, 100):
+            dk = f"session_{sn}_date_time"
+            ds = conversation.get(dk, "")
+            if ds:
+                parsed = _parse_locomo_date(ds)
+                if parsed > last_date:
+                    last_date = parsed
 
         qa_pairs = conv.get("qa", [])
         category_scores: dict[int, list[float]] = {}
@@ -383,6 +484,10 @@ def run_locomo_assessment(
                 if groq_client is None:
                     import groq
                     groq_client = groq.Groq(api_key=_load_groq_key())
+                # Filter facts relevant to this question
+                relevant_facts = _filter_relevant_facts(question, accumulated_facts)
+                context = _group_facts_for_context(relevant_facts, current_date=last_date)
+
                 prediction = _answer_question(question, context, groq_client)
                 entry = {
                     "key": qa_cache_key,
@@ -392,6 +497,8 @@ def run_locomo_assessment(
                     "gold_answer": gold_answer,
                     "category": category,
                     "prediction": prediction,
+                    "n_facts_total": len(accumulated_facts),
+                    "n_facts_filtered": len(relevant_facts),
                 }
                 qa_cache[qa_cache_key] = entry
                 _save_cache_entry(qa_cache_path, entry)
