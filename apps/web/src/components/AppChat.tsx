@@ -242,6 +242,25 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 		}
 	}, [practice.summary]);
 
+	// Show loading indicator in chat while session is summarizing
+	useEffect(() => {
+		if (practice.state === "summarizing" && !showListeningMode) {
+			setMessages((prev) => {
+				if (prev.some((m) => m.id === "summarizing-placeholder")) return prev;
+				return [
+					...prev,
+					{
+						id: "summarizing-placeholder",
+						role: "assistant" as const,
+						content: "Reviewing your practice session...",
+						created_at: new Date().toISOString(),
+						streaming: true,
+					},
+				];
+			});
+		}
+	}, [practice.state, showListeningMode]);
+
 	// Redirect if not authenticated
 	useEffect(() => {
 		if (!isLoading && !isAuthenticated) {
