@@ -2,7 +2,7 @@ import torch
 import pytest
 import numpy as np
 from pathlib import Path
-from model_improvement.data import HardNegativePairSampler, PairedPerformanceDataset
+from model_improvement.data import HardNegativePairSampler, PairedPerformanceDataset, apply_mixup
 
 
 class TestHardNegativePairSampler:
@@ -54,3 +54,28 @@ class TestHardNegativePairSampler:
         early = sampler.get_indices(epoch=3)
         late = sampler.get_indices(epoch=50)
         assert len(late) >= len(early)
+
+
+class TestMixup:
+    def test_output_shapes_match_input(self):
+        emb = torch.randn(4, 50, 1024)
+        labels = torch.rand(4, 6)
+        mixed_emb, mixed_labels = apply_mixup(emb, labels, alpha=0.2)
+        assert mixed_emb.shape == emb.shape
+        assert mixed_labels.shape == labels.shape
+
+    def test_alpha_zero_returns_original(self):
+        """Alpha=0 means no mixup, output equals input."""
+        emb = torch.randn(4, 50, 1024)
+        labels = torch.rand(4, 6)
+        mixed_emb, mixed_labels = apply_mixup(emb, labels, alpha=0.0)
+        assert torch.allclose(mixed_emb, emb)
+        assert torch.allclose(mixed_labels, labels)
+
+    def test_mixup_changes_values(self):
+        """With alpha > 0, output should differ from input."""
+        torch.manual_seed(42)
+        emb = torch.randn(8, 50, 1024)
+        labels = torch.rand(8, 6)
+        mixed_emb, mixed_labels = apply_mixup(emb, labels, alpha=0.4)
+        assert not torch.allclose(mixed_emb, emb)

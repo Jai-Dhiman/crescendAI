@@ -344,6 +344,41 @@ class HardNegativePairSampler:
         return indices if indices else all_indices
 
 
+def apply_mixup(
+    embeddings: torch.Tensor,
+    labels: torch.Tensor,
+    alpha: float = 0.2,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Apply mixup augmentation on embeddings and labels.
+
+    Randomly shuffles the batch and interpolates:
+        mixed = lambda * original + (1 - lambda) * shuffled
+    where lambda ~ Beta(alpha, alpha).
+
+    Args:
+        embeddings: [B, T, D] frame embeddings.
+        labels: [B, num_dims] label scores.
+        alpha: Beta distribution parameter. 0 = no mixup.
+
+    Returns:
+        (mixed_embeddings, mixed_labels) with same shapes as inputs.
+    """
+    if alpha <= 0.0:
+        return embeddings, labels
+
+    batch_size = embeddings.size(0)
+    lam = torch.distributions.Beta(alpha, alpha).sample().item()
+    # Ensure lambda >= 0.5 so the "original" sample dominates
+    lam = max(lam, 1.0 - lam)
+
+    perm = torch.randperm(batch_size, device=embeddings.device)
+
+    mixed_emb = lam * embeddings + (1.0 - lam) * embeddings[perm]
+    mixed_labels = lam * labels + (1.0 - lam) * labels[perm]
+
+    return mixed_emb, mixed_labels
+
+
 class AudioSegmentDataset(Dataset):
     """Per-segment dataset for self-supervised audio training (A2 Stage 1).
 
