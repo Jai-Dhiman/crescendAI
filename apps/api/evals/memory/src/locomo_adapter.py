@@ -289,32 +289,34 @@ def run_locomo_assessment(
                     turn_idx += 1
                     continue
 
-                # Process ADD/UPDATE results to maintain accumulated_facts
-                actions = extract_result.get("actions", [])
-                for action in actions:
-                    op = action.get("operation", "add")
-                    if op == "add":
-                        accumulated_facts.append({
-                            "fact_text": action.get("fact_text", ""),
-                            "category": action.get("category", ""),
-                            "permanent": action.get("permanent", True),
-                        })
-                    elif op == "update":
-                        # Find and replace the superseded fact
-                        supersedes = action.get("supersedes_fact_id")
-                        if supersedes is not None:
-                            # Remove by index if it's an integer reference
-                            try:
-                                idx_to_remove = int(supersedes)
-                                if 0 <= idx_to_remove < len(accumulated_facts):
-                                    accumulated_facts.pop(idx_to_remove)
-                            except (ValueError, TypeError):
-                                pass
-                        accumulated_facts.append({
-                            "fact_text": action.get("fact_text", ""),
-                            "category": action.get("category", ""),
-                            "permanent": action.get("permanent", True),
-                        })
+                # Process ADD operations
+                for fact in extract_result.get("add", []):
+                    fact_id = f"fact_{conv_id}_{turn_idx}_{len(accumulated_facts)}"
+                    accumulated_facts.append({
+                        "id": fact_id,
+                        "fact_text": fact.get("fact_text", ""),
+                        "category": fact.get("category", ""),
+                        "permanent": fact.get("permanent", True),
+                        "entities": fact.get("entities", []),
+                        "relations": fact.get("relations", []),
+                    })
+
+                # Process UPDATE operations
+                for fact in extract_result.get("update", []):
+                    old_id = fact.get("existing_fact_id", "")
+                    accumulated_facts = [
+                        f for f in accumulated_facts if f.get("id") != old_id
+                    ]
+                    fact_id = f"fact_{conv_id}_{turn_idx}_{len(accumulated_facts)}"
+                    fact_text = fact.get("new_fact_text", "") or fact.get("fact_text", "")
+                    accumulated_facts.append({
+                        "id": fact_id,
+                        "fact_text": fact_text,
+                        "category": fact.get("category", ""),
+                        "permanent": fact.get("permanent", True),
+                        "entities": fact.get("entities", []),
+                        "relations": fact.get("relations", []),
+                    })
 
                 turn_idx += 1
 
