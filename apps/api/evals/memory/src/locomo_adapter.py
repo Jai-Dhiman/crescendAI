@@ -264,8 +264,8 @@ def normalize_text(text: str) -> str:
 
 
 def token_f1(prediction: str, gold: str) -> float:
-    pred_tokens = normalize_text(prediction).split()
-    gold_tokens = normalize_text(gold).split()
+    pred_tokens = normalize_text(str(prediction)).split()
+    gold_tokens = normalize_text(str(gold)).split()
     common = Counter(pred_tokens) & Counter(gold_tokens)
     num_common = sum(common.values())
     if num_common == 0:
