@@ -120,6 +120,7 @@ def _download_audio_yt_dlp(url: str, output_path: Path) -> None:
             "--output", str(output_path.with_suffix(".%(ext)s")),
             "--no-playlist",
             "--quiet",
+            url,
         ],
         capture_output=True,
         text=True,

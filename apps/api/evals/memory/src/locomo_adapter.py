@@ -83,6 +83,10 @@ def _group_facts_for_context(facts: list[dict], current_date: str = "") -> str:
             "preferences": "Preferences & Habits",
             "repertoire": "Repertoire",
             "events": "Events & Milestones",
+            "relationships": "Relationships & People",
+            "activities": "Activities & Projects",
+            "opinions": "Opinions & Views",
+            "context": "Context & Circumstances",
         }.get(cat, "Other")
         groups.setdefault(heading, []).append(text)
 
@@ -94,7 +98,9 @@ def _group_facts_for_context(facts: list[dict], current_date: str = "") -> str:
         lines.append(f"Current date: {current_date}")
         lines.append("")
     for heading in ["Identity", "Background", "Goals & Plans", "Preferences & Habits",
-                     "Repertoire", "Events & Milestones", "Other"]:
+                     "Repertoire", "Events & Milestones", "Relationships & People",
+                     "Activities & Projects", "Opinions & Views", "Context & Circumstances",
+                     "Other"]:
         if heading in groups:
             lines.append(f"## {heading}")
             for text in groups[heading]:

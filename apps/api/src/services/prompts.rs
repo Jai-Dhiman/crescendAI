@@ -452,35 +452,44 @@ Rules:
 
 /// Chat memory extraction system prompt (Groq, Llama 70B).
 /// Extracts rememberable facts from chat exchanges.
-pub const CHAT_EXTRACTION_SYSTEM: &str = r#"You are a memory extraction system for a piano teaching app. You receive a student-teacher chat exchange and a list of facts the system already knows about this student.
+pub const CHAT_EXTRACTION_SYSTEM: &str = r#"You are a memory extraction system for a personal companion app. You receive a user-assistant chat exchange and a list of facts the system already knows about this user.
+
+Note: This app is primarily a piano teaching companion, but users share all kinds of personal details. Extract everything worth remembering, not just music-related facts.
 
 Your job is to identify new or updated personal information worth remembering across conversations. Most messages contain nothing worth remembering -- return empty arrays in that case.
 
 ## What to extract
 
-Six categories (stored as the fact's category):
+Extract facts about the user AND any people they mention. Attribution goes in fact text for third parties: "Student's friend Sarah just returned from Bali", "Student's teacher Mrs. Chen specializes in Baroque".
+
+Ten categories (stored as the fact's category):
 - **identity**: Name, age, occupation, location (permanent)
 - **background**: Musical training, years playing, teachers, instruments (long-lived)
 - **goals**: Aspirations, upcoming deadlines (may expire)
 - **preferences**: Learning style, favorite composers, practice habits (updated on contradiction)
 - **repertoire**: Pieces being worked on, history with pieces (long-lived)
 - **events**: Recitals, performances, milestones (timestamped, expires after event)
+- **relationships**: People mentioned -- family, friends, colleagues, teachers, their connections
+- **activities**: Hobbies, non-music projects, ongoing work, sports
+- **opinions**: Views, likes/dislikes about non-learning topics
+- **context**: Living situation, work details, schedule, logistics, health
 
 ## Rules
 
-- Be SELECTIVE: cap at 3 new facts per exchange. Only extract facts that would be useful in future conversations.
-- Do NOT extract: musical advice the teacher gave, general piano knowledge, conversational pleasantries, or information already captured in existing facts.
-- Extract ONLY facts the student directly stated. Do not infer, assume, or generalize.
-  BAD: Student says "I'm working on Chopin" -> "Student plays piano" (inferred, not stated)
-  GOOD: Student says "I'm working on Chopin" -> "Working on a Chopin piece" (directly stated)
+- Be SELECTIVE: cap at 5 new facts per exchange. Only extract facts that would be useful in future conversations.
+- Do NOT extract: bare greetings, filler acknowledgments, or information already captured in existing facts.
+- DO extract: personal details mentioned in passing, even during casual conversation.
+- Extract ONLY facts the user directly stated. Do not infer, assume, or generalize.
+  BAD: User says "I'm working on Chopin" -> "Student plays piano" (inferred, not stated)
+  GOOD: User says "I'm working on Chopin" -> "Working on a Chopin piece" (directly stated)
 - When in doubt, omit. Missing a fact is better than inventing one.
 - For temporal facts ("recital in 3 weeks"), calculate the actual date using today's date (provided) and set invalid_at.
-- For UPDATE: Read each existing fact listed above. If the student's new statement DIRECTLY CONTRADICTS an existing fact, use UPDATE with that fact's exact id. Common patterns:
+- For UPDATE: Read each existing fact listed above. If the user's new statement DIRECTLY CONTRADICTS an existing fact, use UPDATE with that fact's exact id. Common patterns:
   - Name correction: "call me X" contradicts existing name fact
   - Level change: "I passed Grade X" supersedes existing level
   - Goal shift: "I've decided to focus on X" supersedes existing goal
   If no existing fact is contradicted, use ADD.
-- Fact text should be concise, third-person statements: "Student's name is Jai", "Has been playing piano for 3 years", "Preparing for a recital on 2026-03-28".
+- Fact text should be concise, third-person statements: "Student's name is Jai", "Has been playing piano for 3 years", "Student's friend Sarah is a painter who recently visited Bali".
 
 ## Output
 
@@ -489,7 +498,8 @@ Return ONLY valid JSON:
 ```json
 {
   "add": [
-    {"fact_text": "...", "category": "identity", "permanent": true, "invalid_at": null, "entities": ["Person1", "Place1"], "relations": [{"s": "Person1", "r": "lives_in", "o": "Place1"}]}
+    {"fact_text": "Student's friend Sarah is a painter", "category": "relationships", "permanent": true, "invalid_at": null, "entities": ["Student", "Sarah"], "relations": [{"s": "Student", "r": "friend_of", "o": "Sarah"}, {"s": "Sarah", "r": "occupation", "o": "painter"}]},
+    {"fact_text": "Student just moved to Portland", "category": "context", "permanent": true, "invalid_at": null, "entities": ["Student", "Portland"], "relations": [{"s": "Student", "r": "lives_in", "o": "Portland"}]}
   ],
   "update": [
     {"existing_fact_id": "...", "new_fact_text": "...", "category": "identity", "permanent": true, "invalid_at": null, "entities": [], "relations": []}
@@ -521,7 +531,7 @@ pub fn build_chat_extraction_prompt(
         prompt.push_str("No facts yet (new student).\n\n");
     } else {
         // Group facts by category for easier comparison during UPDATE detection
-        let categories = ["identity", "background", "goals", "preferences", "repertoire", "events"];
+        let categories = ["identity", "background", "goals", "preferences", "repertoire", "events", "relationships", "activities", "opinions", "context"];
         for cat in &categories {
             let cat_facts: Vec<_> = existing_facts
                 .iter()

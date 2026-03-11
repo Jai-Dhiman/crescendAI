@@ -147,3 +147,5 @@ model/data/maestro-v3.0.0.csv
 
 *.ckpt.worktrees/
 .playwright-mcp/
+
+lightning_logs/

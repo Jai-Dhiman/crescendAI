@@ -715,7 +715,199 @@ def _build_selectivity() -> list[ChatExtractionScenario]:
 
 
 # ---------------------------------------------------------------------------
-# E. End-to-end (4 scenarios)
+# E. General-purpose extraction (8 scenarios)
+# ---------------------------------------------------------------------------
+
+def _build_general() -> list[ChatExtractionScenario]:
+    return [
+        ChatExtractionScenario(
+            id="ce-rel-01",
+            name="Relationships - friend with details",
+            category="general",
+            exchanges=[
+                ChatExchange(
+                    id="ce-rel-01-x1",
+                    user_message="My friend Sarah just got back from Bali, she's a painter. She brought me this beautiful watercolor of rice terraces.",
+                    assistant_response="That sounds lovely! Having artistic friends can be so inspiring. Are you finding any connections between visual art and your piano playing?",
+                    session_date="2026-03-10",
+                ),
+            ],
+            expected_facts=[
+                ExpectedChatFact(
+                    id="ce-rel-01-f1",
+                    fact_text_pattern=r"(?i)(friend|knows).*Sarah.*(paint|artist|Bali)",
+                    gold_fact_text="Student's friend Sarah is a painter who recently returned from Bali.",
+                    category="relationships",
+                    operation="add",
+                ),
+            ],
+        ),
+        ChatExtractionScenario(
+            id="ce-rel-02",
+            name="Relationships - family member",
+            category="general",
+            exchanges=[
+                ChatExchange(
+                    id="ce-rel-02-x1",
+                    user_message="My sister also plays piano, she's 12 and just started Grade 2. We sometimes practice together on weekends.",
+                    assistant_response="That's wonderful that you share music with your sister! Playing together can be really motivating for both of you.",
+                    session_date="2026-03-10",
+                ),
+            ],
+            expected_facts=[
+                ExpectedChatFact(
+                    id="ce-rel-02-f1",
+                    fact_text_pattern=r"(?i)sister.*(12|twelve|piano|Grade\s*2)",
+                    gold_fact_text="Student's sister is 12 years old and plays piano, currently at Grade 2.",
+                    category="relationships",
+                    operation="add",
+                ),
+            ],
+        ),
+        ChatExtractionScenario(
+            id="ce-act-01",
+            name="Activities - non-piano hobby",
+            category="general",
+            exchanges=[
+                ChatExchange(
+                    id="ce-act-01-x1",
+                    user_message="I've been running a lot lately, training for a half marathon in April. It's hard to find time for both running and piano practice.",
+                    assistant_response="Balancing multiple passions is always tricky! Maybe shorter, focused practice sessions could help you maintain progress on both fronts.",
+                    session_date="2026-03-10",
+                ),
+            ],
+            expected_facts=[
+                ExpectedChatFact(
+                    id="ce-act-01-f1",
+                    fact_text_pattern=r"(?i)(run|train|marathon).*(half\s*marathon|April)",
+                    gold_fact_text="Student is training for a half marathon in April.",
+                    category="activities",
+                    operation="add",
+                    permanent=False,
+                    invalid_at="2026-04-30",
+                ),
+            ],
+        ),
+        ChatExtractionScenario(
+            id="ce-op-01",
+            name="Opinions - musical preference",
+            category="general",
+            exchanges=[
+                ChatExchange(
+                    id="ce-op-01-x1",
+                    user_message="I think Debussy is overrated honestly, I much prefer Ravel. His precision and orchestration are just on another level.",
+                    assistant_response="That's an interesting perspective! Ravel's craftsmanship is indeed remarkable. His piano works have a clarity that's very rewarding to play.",
+                    session_date="2026-03-10",
+                ),
+            ],
+            expected_facts=[
+                ExpectedChatFact(
+                    id="ce-op-01-f1",
+                    fact_text_pattern=r"(?i)(prefer|like|favor).*Ravel|Debussy.*(overrat|less)",
+                    gold_fact_text="Student prefers Ravel over Debussy, considers Debussy overrated.",
+                    category="opinions",
+                    operation="add",
+                ),
+            ],
+        ),
+        ChatExtractionScenario(
+            id="ce-ctx-01",
+            name="Context - living situation",
+            category="general",
+            exchanges=[
+                ChatExchange(
+                    id="ce-ctx-01-x1",
+                    user_message="I just moved to Portland, still setting up my practice room. The neighbors seem cool with the piano noise so far at least!",
+                    assistant_response="Congrats on the move! Having understanding neighbors is a huge plus for a pianist. What kind of setup are you going for in the practice room?",
+                    session_date="2026-03-10",
+                ),
+            ],
+            expected_facts=[
+                ExpectedChatFact(
+                    id="ce-ctx-01-f1",
+                    fact_text_pattern=r"(?i)(mov|relocat|live).*Portland",
+                    gold_fact_text="Student recently moved to Portland, setting up a practice room.",
+                    category="context",
+                    operation="add",
+                ),
+            ],
+        ),
+        ChatExtractionScenario(
+            id="ce-ms-01",
+            name="Multi-subject - another person's piano journey",
+            category="general",
+            exchanges=[
+                ChatExchange(
+                    id="ce-ms-01-x1",
+                    user_message="My daughter Emma is also learning piano, she's working on her Grade 3 exam next month. I'm helping her practice scales every evening.",
+                    assistant_response="That's great that you're supporting Emma's piano journey! Practicing together can make it more enjoyable for both of you.",
+                    session_date="2026-03-10",
+                ),
+            ],
+            expected_facts=[
+                ExpectedChatFact(
+                    id="ce-ms-01-f1",
+                    fact_text_pattern=r"(?i)daughter.*Emma.*(Grade\s*3|piano|exam)",
+                    gold_fact_text="Student's daughter Emma is learning piano and preparing for Grade 3 exam next month.",
+                    category="relationships",
+                    operation="add",
+                ),
+            ],
+        ),
+        ChatExtractionScenario(
+            id="ce-se-05",
+            name="Selectivity - general pleasantries zero extraction",
+            category="selectivity",
+            exchanges=[
+                ChatExchange(
+                    id="ce-se-05-x1",
+                    user_message="Sure, sounds good! See you next week.",
+                    assistant_response="See you then! Keep up the great practice.",
+                    session_date="2026-03-10",
+                ),
+            ],
+            expected_facts=[],
+        ),
+        ChatExtractionScenario(
+            id="ce-e2e-05",
+            name="E2E - mixed domain and general conversation",
+            category="e2e",
+            exchanges=[
+                ChatExchange(
+                    id="ce-e2e-05-x1",
+                    user_message=(
+                        "The Chopin Ballade is coming along nicely, I can play the exposition without stopping now. "
+                        "Oh also, my best friend Marco is getting married next month -- I might play something at the reception!"
+                    ),
+                    assistant_response=(
+                        "That's great progress on the exposition! And how exciting about Marco's wedding. "
+                        "Playing at the reception would be a wonderful gift. Do you have a piece in mind?"
+                    ),
+                    session_date="2026-03-10",
+                ),
+            ],
+            expected_facts=[
+                ExpectedChatFact(
+                    id="ce-e2e-05-f1",
+                    fact_text_pattern=r"(?i)(Chopin|Ballade).*(exposition|progress|play.*without)",
+                    gold_fact_text="Student can now play the exposition of Chopin Ballade without stopping.",
+                    category="repertoire",
+                    operation="add",
+                ),
+                ExpectedChatFact(
+                    id="ce-e2e-05-f2",
+                    fact_text_pattern=r"(?i)(friend|Marco).*(marry|wedding)",
+                    gold_fact_text="Student's best friend Marco is getting married next month; student may play at the reception.",
+                    category="relationships",
+                    operation="add",
+                ),
+            ],
+        ),
+    ]
+
+
+# ---------------------------------------------------------------------------
+# F. End-to-end (4 scenarios)
 # ---------------------------------------------------------------------------
 
 def _build_e2e() -> list[ChatExtractionScenario]:
@@ -865,6 +1057,7 @@ def build_all_scenarios() -> list[ChatExtractionScenario]:
     scenarios.extend(_build_update())
     scenarios.extend(_build_temporal())
     scenarios.extend(_build_selectivity())
+    scenarios.extend(_build_general())
     scenarios.extend(_build_e2e())
     return scenarios
 
