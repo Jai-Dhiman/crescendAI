@@ -106,19 +106,25 @@ export function ListeningMode({
 	// Screen wake lock
 	useEffect(() => {
 		let wakeLock: WakeLockSentinel | null = null;
+		let cancelled = false;
 
-		async function requestWakeLock() {
+		(async () => {
 			try {
 				if ("wakeLock" in navigator) {
-					wakeLock = await navigator.wakeLock.request("screen");
+					const sentinel = await navigator.wakeLock.request("screen");
+					if (cancelled) {
+						sentinel.release();
+					} else {
+						wakeLock = sentinel;
+					}
 				}
 			} catch {
 				// Progressive enhancement -- fail silently
 			}
-		}
+		})();
 
-		requestWakeLock();
 		return () => {
+			cancelled = true;
 			wakeLock?.release();
 		};
 	}, []);
