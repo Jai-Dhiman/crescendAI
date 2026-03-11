@@ -110,6 +110,7 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 	const [showListeningMode, setShowListeningMode] = useState(false);
 	const [recordButtonRect, setRecordButtonRect] = useState<DOMRect | null>(null);
 	const [sessionNotes, setSessionNotes] = useState("");
+	const [pieceContext, setPieceContext] = useState<{ piece: string; section?: string } | null>(null);
 
 	// Chat state
 	const [activeConversationId, setActiveConversationId] = useState<
@@ -175,11 +176,41 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 	// Practice recording
 	const practice = usePracticeSession();
 
+	async function extractPieceContext(msgs: RichMessage[]) {
+		if (msgs.length === 0) return;
+		try {
+			const conversationText = msgs
+				.slice(-10)
+				.map((m) => `${m.role}: ${m.content}`)
+				.join("\n");
+
+			const res = await fetch(`${import.meta.env.PROD ? "https://api.crescend.ai" : "http://localhost:8787"}/api/extract-goals`, {
+				method: "POST",
+				credentials: "include",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					message: `Extract the piece name, composer, and section/bars being discussed from this conversation. Return JSON: {"piece": "Composer - Title", "section": "bars X-Y"} or null if no piece is mentioned.\n\n${conversationText}`,
+				}),
+			});
+
+			if (res.ok) {
+				const data = await res.json() as { piece?: string; section?: string } | null;
+				if (data?.piece) {
+					setPieceContext({ piece: data.piece, section: data.section });
+				}
+			}
+		} catch {
+			// Non-critical -- fail silently, user can edit manually
+		}
+	}
+
 	function handleRecord() {
 		const rect = recordButtonRef.current?.getBoundingClientRect() ?? null;
 		setRecordButtonRect(rect);
+		setPieceContext(null);
 		setShowListeningMode(true);
 		practice.start();
+		extractPieceContext(messages);
 	}
 
 	function handleExitListeningMode() {
@@ -634,6 +665,7 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 						onExit={handleExitListeningMode}
 						sessionNotes={sessionNotes}
 						onNotesChange={setSessionNotes}
+						pieceContext={pieceContext}
 					/>
 				)}
 				{showConversationSkeleton ? (
