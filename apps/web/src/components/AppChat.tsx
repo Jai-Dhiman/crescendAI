@@ -179,12 +179,15 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 	async function extractPieceContext(msgs: RichMessage[]) {
 		if (msgs.length === 0) return;
 		try {
+			const apiBase = import.meta.env.PROD
+				? "https://api.crescend.ai"
+				: "http://localhost:8787";
 			const conversationText = msgs
 				.slice(-10)
 				.map((m) => `${m.role}: ${m.content}`)
 				.join("\n");
 
-			const res = await fetch(`${import.meta.env.PROD ? "https://api.crescend.ai" : "http://localhost:8787"}/api/extract-goals`, {
+			const res = await fetch(`${apiBase}/api/extract-goals`, {
 				method: "POST",
 				credentials: "include",
 				headers: { "Content-Type": "application/json" },
@@ -194,13 +197,17 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 			});
 
 			if (res.ok) {
-				const data = await res.json() as { piece?: string; section?: string } | null;
+				const data = (await res.json()) as {
+					piece?: string;
+					section?: string;
+				} | null;
 				if (data?.piece) {
 					setPieceContext({ piece: data.piece, section: data.section });
 				}
 			}
-		} catch {
-			// Non-critical -- fail silently, user can edit manually
+		} catch (e) {
+			// Non-critical -- user can edit piece name manually
+			console.error("Piece context extraction failed:", e);
 		}
 	}
 
