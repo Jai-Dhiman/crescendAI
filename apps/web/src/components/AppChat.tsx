@@ -109,6 +109,7 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 	const recordButtonRef = useRef<HTMLButtonElement>(null);
 	const [showListeningMode, setShowListeningMode] = useState(false);
 	const [recordButtonRect, setRecordButtonRect] = useState<DOMRect | null>(null);
+	const [sessionNotes, setSessionNotes] = useState("");
 
 	// Chat state
 	const [activeConversationId, setActiveConversationId] = useState<
@@ -184,18 +185,29 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 	function handleExitListeningMode() {
 		setShowListeningMode(false);
 		setRecordButtonRect(null);
+		if (practice.error) {
+			addToast({ type: "error", message: practice.error, duration: 5000 });
+		}
 	}
 
 	// When practice summary arrives, post it to chat
 	useEffect(() => {
 		if (practice.summary) {
+			let content = practice.summary;
+			if (sessionNotes.trim()) {
+				content += `\n\n**Your notes:**\n${sessionNotes.trim()}`;
+			}
 			const summaryMsg: RichMessage = {
 				id: `practice-${Date.now()}`,
 				role: "assistant",
-				content: practice.summary,
+				content,
 				created_at: new Date().toISOString(),
 			};
-			setMessages((prev) => [...prev, summaryMsg]);
+			setMessages((prev) => [
+				...prev.filter((m) => m.id !== "summarizing-placeholder"),
+				summaryMsg,
+			]);
+			setSessionNotes("");
 		}
 	}, [practice.summary]);
 
@@ -620,6 +632,8 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 						onStop={practice.stop}
 						originRect={recordButtonRect}
 						onExit={handleExitListeningMode}
+						sessionNotes={sessionNotes}
+						onNotesChange={setSessionNotes}
 					/>
 				)}
 				{showConversationSkeleton ? (
