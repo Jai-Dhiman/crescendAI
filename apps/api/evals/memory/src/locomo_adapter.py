@@ -155,6 +155,89 @@ def _filter_relevant_facts(
     )
     return [fact for fact, _ in ranked[:max_facts]]
 
+def _entity_hop_retrieval(
+    question: str,
+    facts: list[dict],
+    max_hops: int = 1,
+    max_facts: int = 25,
+) -> list[dict]:
+    """Retrieve facts using entity-based graph traversal.
+
+    1. Extract entities from question (keyword match against fact entities)
+    2. Find seed facts mentioning those entities
+    3. Expand by following entity links (up to max_hops)
+    4. Fall back to keyword filter if no entity matches
+    """
+    q_lower = question.lower()
+
+    # Build entity index: entity_name_lower -> list of fact indices
+    entity_index: dict[str, list[int]] = {}
+    for i, fact in enumerate(facts):
+        for entity in fact.get("entities", []):
+            entity_index.setdefault(entity.lower(), []).append(i)
+
+    if not entity_index:
+        # No entities extracted -- fall back to keyword filtering
+        return _filter_relevant_facts(question, facts, max_facts=max_facts)
+
+    # Step 1: Find entities mentioned in the question
+    seed_entities: set[str] = set()
+    for entity_name in entity_index:
+        if entity_name in q_lower:
+            seed_entities.add(entity_name)
+
+    if not seed_entities:
+        # No entity match -- fall back to keyword filtering
+        return _filter_relevant_facts(question, facts, max_facts=max_facts)
+
+    # Step 2: Collect seed facts
+    seen_indices: set[int] = set()
+    for entity in seed_entities:
+        for idx in entity_index.get(entity, []):
+            seen_indices.add(idx)
+
+    # Step 3: Hop expansion
+    current_entities = seed_entities.copy()
+    for _hop in range(max_hops):
+        # Collect new entities from current facts
+        new_entities: set[str] = set()
+        for idx in seen_indices:
+            for entity in facts[idx].get("entities", []):
+                ent_lower = entity.lower()
+                if ent_lower not in current_entities:
+                    new_entities.add(ent_lower)
+
+        if not new_entities:
+            break
+
+        # Find facts mentioning new entities
+        new_indices: set[int] = set()
+        for entity in new_entities:
+            for idx in entity_index.get(entity, []):
+                if idx not in seen_indices:
+                    new_indices.add(idx)
+
+        seen_indices.update(new_indices)
+        current_entities.update(new_entities)
+
+    result = [facts[i] for i in sorted(seen_indices)]
+
+    # If we got too many, apply relevance ranking
+    if len(result) > max_facts:
+        result = _filter_relevant_facts(question, result, max_facts=max_facts)
+
+    # If entity hop found very few, supplement with keyword matches
+    if len(result) < 5:
+        keyword_results = _filter_relevant_facts(question, facts, max_facts=max_facts - len(result))
+        seen_ids = {f.get("id") for f in result}
+        for f in keyword_results:
+            if f.get("id") not in seen_ids:
+                result.append(f)
+                if len(result) >= max_facts:
+                    break
+
+    return result
+
 
 # ---------------------------------------------------------------------------
 # Token-level F1 (official LoCoMo metric)
@@ -484,8 +567,8 @@ def run_locomo_assessment(
                 if groq_client is None:
                     import groq
                     groq_client = groq.Groq(api_key=_load_groq_key())
-                # Filter facts relevant to this question
-                relevant_facts = _filter_relevant_facts(question, accumulated_facts)
+                # Filter facts relevant to this question (entity-hop + keyword fallback)
+                relevant_facts = _entity_hop_retrieval(question, accumulated_facts)
                 context = _group_facts_for_context(relevant_facts, current_date=last_date)
 
                 prediction = _answer_question(question, context, groq_client)
