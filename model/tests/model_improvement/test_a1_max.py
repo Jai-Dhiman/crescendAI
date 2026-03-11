@@ -79,3 +79,101 @@ class TestMixup:
         labels = torch.rand(8, 6)
         mixed_emb, mixed_labels = apply_mixup(emb, labels, alpha=0.4)
         assert not torch.allclose(mixed_emb, emb)
+
+
+from model_improvement.audio_encoders import MuQLoRAMaxModel
+
+
+class TestMuQLoRAMaxModel:
+    def _make_batch(self, batch_size=4, seq_len=50, input_dim=1024, num_dims=6):
+        return {
+            "embeddings_a": torch.randn(batch_size, seq_len, input_dim),
+            "embeddings_b": torch.randn(batch_size, seq_len, input_dim),
+            "mask_a": torch.ones(batch_size, seq_len, dtype=torch.bool),
+            "mask_b": torch.ones(batch_size, seq_len, dtype=torch.bool),
+            "labels_a": torch.rand(batch_size, num_dims),
+            "labels_b": torch.rand(batch_size, num_dims),
+            "piece_ids_a": torch.tensor([0, 0, 1, 1]),
+            "piece_ids_b": torch.tensor([0, 0, 1, 1]),
+        }
+
+    def test_training_step_returns_loss(self):
+        model = MuQLoRAMaxModel(
+            input_dim=1024, hidden_dim=512, num_labels=6,
+            use_pretrained_muq=False,
+        )
+        batch = self._make_batch()
+        loss = model.training_step(batch, 0)
+        assert loss.ndim == 0
+        assert loss.item() > 0
+
+    def test_listmle_loss_included(self):
+        """With lambda_listmle > 0, ListMLE should contribute to loss."""
+        model = MuQLoRAMaxModel(
+            input_dim=1024, hidden_dim=512, num_labels=6,
+            use_pretrained_muq=False, lambda_listmle=1.5,
+        )
+        logged = {}
+        model.log = lambda name, value, **kw: logged.update({name: value})
+        batch = self._make_batch()
+        model.training_step(batch, 0)
+        assert "train_listmle_loss" in logged
+
+    def test_ccc_loss_included(self):
+        """With use_ccc=True, CCC loss should replace MSE."""
+        model = MuQLoRAMaxModel(
+            input_dim=1024, hidden_dim=512, num_labels=6,
+            use_pretrained_muq=False, use_ccc=True,
+        )
+        logged = {}
+        model.log = lambda name, value, **kw: logged.update({name: value})
+        batch = self._make_batch()
+        model.training_step(batch, 0)
+        assert "train_ccc_loss" in logged
+
+    def test_mixup_changes_loss(self):
+        """With mixup_alpha > 0, loss should differ from no-mixup."""
+        torch.manual_seed(42)
+        model_no_mix = MuQLoRAMaxModel(
+            input_dim=256, hidden_dim=128, num_labels=6,
+            use_pretrained_muq=False, mixup_alpha=0.0,
+        )
+        torch.manual_seed(42)
+        model_mix = MuQLoRAMaxModel(
+            input_dim=256, hidden_dim=128, num_labels=6,
+            use_pretrained_muq=False, mixup_alpha=0.4,
+        )
+        model_mix.load_state_dict(model_no_mix.state_dict())
+
+        batch = self._make_batch(input_dim=256)
+        torch.manual_seed(0)
+        loss_no_mix = model_no_mix.training_step(batch, 0)
+        torch.manual_seed(0)
+        loss_mix = model_mix.training_step(batch, 0)
+        assert not torch.isclose(loss_no_mix, loss_mix)
+
+    def test_forward_compatible_with_parent(self):
+        """forward() and predict_scores() should work identically."""
+        model = MuQLoRAMaxModel(
+            input_dim=1024, hidden_dim=512, num_labels=6,
+            use_pretrained_muq=False,
+        )
+        x_a = torch.randn(2, 50, 1024)
+        x_b = torch.randn(2, 50, 1024)
+        out = model(x_a, x_b)
+        assert out["ranking_logits"].shape == (2, 6)
+
+        scores = model.predict_scores(x_a)
+        assert scores.shape == (2, 6)
+
+    def test_default_params_match_spec(self):
+        """Default loss weights should match spec."""
+        model = MuQLoRAMaxModel(
+            input_dim=1024, hidden_dim=512, use_pretrained_muq=False,
+        )
+        assert model.hparams.lambda_listmle == 1.5
+        assert model.hparams.lambda_contrastive == 0.3
+        assert model.hparams.lambda_regression == 0.3
+        assert model.hparams.lambda_invariance == 0.1
+        assert model.hparams.use_ccc is True
+        assert model.hparams.mixup_alpha == 0.2

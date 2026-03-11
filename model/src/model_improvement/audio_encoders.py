@@ -303,6 +303,144 @@ class MuQLoRAModel(pl.LightningModule):
         return {"optimizer": opt, "lr_scheduler": {"scheduler": scheduler, "interval": "epoch"}}
 
 
+class MuQLoRAMaxModel(MuQLoRAModel):
+    """A1-Max: MuQ + LoRA with all Tier 1 improvements.
+
+    Extends MuQLoRAModel with:
+    - ListMLE ranking loss (per-dimension, grouped by piece within batch)
+    - CCC regression loss (replaces MSE)
+    - Embedding mixup (Beta distribution)
+    - Configurable loss weights (ranking-dominant by default)
+
+    Architecture is identical to MuQLoRAModel. Only training_step differs.
+    """
+
+    def __init__(
+        self,
+        *,
+        lambda_listmle: float = 1.5,
+        use_ccc: bool = True,
+        mixup_alpha: float = 0.2,
+        lambda_contrastive: float = 0.3,
+        lambda_regression: float = 0.3,
+        lambda_invariance: float = 0.1,
+        **kwargs,
+    ):
+        # NOTE: Do NOT call self.save_hyperparameters() here -- parent
+        # already calls it, and a second call overwrites parent hparams.
+        super().__init__(
+            lambda_contrastive=lambda_contrastive,
+            lambda_regression=lambda_regression,
+            lambda_invariance=lambda_invariance,
+            **kwargs,
+        )
+        # Manually store extra hparams that parent doesn't know about
+        self.hparams.update({
+            "lambda_listmle": lambda_listmle,
+            "use_ccc": use_ccc,
+            "mixup_alpha": mixup_alpha,
+        })
+        self.lambda_listmle = lambda_listmle
+        self.use_ccc = use_ccc
+        self.mixup_alpha = mixup_alpha
+
+        from model_improvement.losses import ListMLELoss, ccc_loss
+        self._listmle = ListMLELoss()
+        self._ccc_loss_fn = ccc_loss
+
+    def training_step(self, batch: dict, idx: int) -> torch.Tensor:
+        emb_a = batch["embeddings_a"]
+        emb_b = batch["embeddings_b"]
+        labels_a = batch["labels_a"]
+        labels_b = batch["labels_b"]
+
+        # Apply mixup on embeddings + labels (before encoding)
+        if self.mixup_alpha > 0 and self.training:
+            from model_improvement.data import apply_mixup
+            emb_a, labels_a = apply_mixup(emb_a, labels_a, self.mixup_alpha)
+            emb_b, labels_b = apply_mixup(emb_b, labels_b, self.mixup_alpha)
+
+        outputs = self(
+            emb_a, emb_b,
+            batch.get("mask_a"), batch.get("mask_b"),
+        )
+
+        # 1. Pairwise ranking loss (BCE, from parent)
+        l_rank = self.ranking_loss(
+            outputs["ranking_logits"], labels_a, labels_b,
+        )
+
+        # 2. Contrastive loss
+        all_proj = torch.cat([outputs["proj_a"], outputs["proj_b"]], dim=0)
+        all_pieces = torch.cat([batch["piece_ids_a"], batch["piece_ids_b"]], dim=0)
+        l_contrast = piece_based_infonce_loss(
+            all_proj, all_pieces, temperature=self.temperature
+        )
+
+        # 3. Regression loss (CCC or MSE)
+        scores_a = self.regression_head(outputs["z_a"])
+        scores_b = self.regression_head(outputs["z_b"])
+        if self.use_ccc:
+            l_reg = (
+                self._ccc_loss_fn(scores_a, labels_a)
+                + self._ccc_loss_fn(scores_b, labels_b)
+            ) / 2.0
+        else:
+            l_reg = (
+                F.mse_loss(scores_a, labels_a)
+                + F.mse_loss(scores_b, labels_b)
+            ) / 2.0
+
+        # 4. ListMLE on regression scores grouped by piece
+        l_listmle = torch.tensor(0.0, device=self.device)
+        if self.lambda_listmle > 0:
+            all_scores = torch.cat([scores_a, scores_b], dim=0)
+            all_labels = torch.cat([labels_a, labels_b], dim=0)
+            piece_ids = torch.cat(
+                [batch["piece_ids_a"], batch["piece_ids_b"]], dim=0
+            )
+
+            unique_pieces = piece_ids.unique()
+            listmle_count = 0
+            for pid in unique_pieces:
+                pmask = piece_ids == pid
+                if pmask.sum() < 2:
+                    continue
+                l_listmle = l_listmle + self._listmle(
+                    all_scores[pmask], all_labels[pmask]
+                )
+                listmle_count += 1
+            if listmle_count > 0:
+                l_listmle = l_listmle / listmle_count
+
+        # 5. Augmentation invariance loss
+        l_inv = torch.tensor(0.0, device=self.device)
+        if "embeddings_aug_a" in batch:
+            z_aug_a = self.encode(
+                batch["embeddings_aug_a"], batch.get("mask_a")
+            )
+            l_inv = F.mse_loss(outputs["z_a"], z_aug_a)
+
+        # Total loss (ranking-dominant)
+        loss = (
+            l_rank
+            + self.lambda_listmle * l_listmle
+            + self.lambda_contrastive * l_contrast
+            + self.lambda_regression * l_reg
+            + self.lambda_invariance * l_inv
+        )
+
+        self.log("train_loss", loss, prog_bar=True)
+        self.log("train_rank_loss", l_rank)
+        self.log("train_listmle_loss", l_listmle)
+        self.log("train_contrast_loss", l_contrast)
+        reg_name = "train_ccc_loss" if self.use_ccc else "train_reg_loss"
+        self.log(reg_name, l_reg)
+        self.log("train_inv_loss", l_inv)
+
+        return loss
+
+
 class MuQFullUnfreezeModel(pl.LightningModule):
     """A3: Full unfreeze with gradual layer unfreezing and discriminative LR.
 
