@@ -198,6 +198,21 @@ class LoCoMoResult:
 
 
 # ---------------------------------------------------------------------------
+# Date parsing helper
+# ---------------------------------------------------------------------------
+
+def _parse_locomo_date(date_str: str) -> str:
+    """Parse LoCoMo date format '1:56 pm on 8 May, 2023' to 'YYYY-MM-DD'."""
+    from datetime import datetime
+    try:
+        date_part = date_str.split(" on ", 1)[1] if " on " in date_str else date_str
+        dt = datetime.strptime(date_part.strip(), "%d %B, %Y")
+        return dt.strftime("%Y-%m-%d")
+    except (ValueError, IndexError):
+        return "2024-01-01"
+
+
+# ---------------------------------------------------------------------------
 # Main assessment flow
 # ---------------------------------------------------------------------------
 
@@ -242,29 +257,46 @@ def run_locomo_assessment(
     results: list[LoCoMoResult] = []
 
     for conv in conversations[:max_samples]:
-        conv_id = conv["conversation_id"]
+        conv_id = conv.get("sample_id") or conv.get("conversation_id", "unknown")
         result = LoCoMoResult(conversation_id=conv_id)
 
         # Phase 1: Extract facts from dialogue turns
         accumulated_facts: list[dict] = []
         turn_idx = 0
 
-        for session in conv.get("dialogue", []):
-            turns = session.get("turns", [])
-            # Pair consecutive turns as (user_msg, assistant_msg)
-            for i in range(0, len(turns) - 1, 2):
-                user_turn = turns[i]
-                assistant_turn = turns[i + 1] if i + 1 < len(turns) else None
+        conversation = conv.get("conversation", {})
+        speaker_a = conversation.get("speaker_a", "User")
 
-                if assistant_turn is None:
-                    continue
+        # Iterate over sessions in order (session_1, session_2, ...)
+        session_num = 1
+        while True:
+            session_key = f"session_{session_num}"
+            session_turns = conversation.get(session_key)
+            if session_turns is None:
+                break
+            if not isinstance(session_turns, list):
+                session_num += 1
+                continue
 
-                user_msg = user_turn.get("text", "")
-                assistant_msg = assistant_turn.get("text", "")
+            # Get date for this session
+            date_key = f"session_{session_num}_date_time"
+            date_str = conversation.get(date_key, "")
+            session_date = _parse_locomo_date(date_str) if date_str else "2024-01-01"
 
-                # Parse timestamp to YYYY-MM-DD
-                timestamp = user_turn.get("timestamp", "")
-                today = timestamp[:10] if len(timestamp) >= 10 else "2024-01-01"
+            # Pair consecutive turns: speaker_a = user, speaker_b = assistant
+            i = 0
+            while i < len(session_turns) - 1:
+                turn_a = session_turns[i]
+                turn_b = session_turns[i + 1]
+
+                if turn_a.get("speaker") == speaker_a:
+                    user_msg = turn_a.get("text", "")
+                    assistant_msg = turn_b.get("text", "")
+                else:
+                    user_msg = turn_b.get("text", "")
+                    assistant_msg = turn_a.get("text", "")
+
+                today = session_date
 
                 cache_key = f"{conv_id}_turn_{turn_idx}"
 
@@ -287,6 +319,7 @@ def run_locomo_assessment(
                     _save_cache_entry(extraction_cache_path, entry)
                 else:
                     turn_idx += 1
+                    i += 2
                     continue
 
                 # Process ADD operations
@@ -319,6 +352,9 @@ def run_locomo_assessment(
                     })
 
                 turn_idx += 1
+                i += 2
+
+            session_num += 1
 
         result.extraction_count = len(accumulated_facts)
 
@@ -330,7 +366,7 @@ def run_locomo_assessment(
             context_lines.append(f"- [{cat}] {text}")
         context = "\n".join(context_lines) if context_lines else "(No facts extracted)"
 
-        qa_pairs = conv.get("qa_pairs", [])
+        qa_pairs = conv.get("qa", [])
         category_scores: dict[int, list[float]] = {}
         all_scores: list[float] = []
 
