@@ -121,17 +121,8 @@ export function useMetronome(): UseMetronomeReturn {
 		else start();
 	}, [isPlaying, start, stop]);
 
-	// Restart scheduler when bpm/timeSignature/accent changes while playing
-	useEffect(() => {
-		if (!isPlaying) return;
-		// Clear old scheduler and restart
-		if (schedulerRef.current) {
-			clearInterval(schedulerRef.current);
-		}
-		const ctx = getOrCreateAudioCtx();
-		nextBeatTimeRef.current = ctx.currentTime;
-		schedulerRef.current = setInterval(scheduleBeats, 25);
-	}, [bpm, beatsPerMeasure, accentFirstBeat, isPlaying]);
+	// No restart effect needed -- bpmRef/accentRef/beatsRef are synced above,
+	// so the existing 25ms scheduler loop picks up changes on the next tick.
 
 	const setBpm = useCallback((value: number) => {
 		setBpmState(Math.max(MIN_BPM, Math.min(MAX_BPM, Math.round(value))));
