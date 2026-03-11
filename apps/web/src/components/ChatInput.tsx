@@ -7,6 +7,7 @@ interface ChatInputProps {
 	disabled: boolean;
 	placeholder?: string;
 	centered?: boolean;
+	recordButtonRef?: React.RefObject<HTMLButtonElement | null>;
 }
 
 export function ChatInput({
@@ -15,6 +16,7 @@ export function ChatInput({
 	disabled,
 	placeholder,
 	centered,
+	recordButtonRef,
 }: ChatInputProps) {
 	const [value, setValue] = useState("");
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -77,6 +79,7 @@ export function ChatInput({
 
 				{!hasText && (
 					<button
+						ref={recordButtonRef}
 						type="button"
 						onClick={onRecord}
 						className="shrink-0 w-16 h-16 flex items-center justify-center rounded-full bg-accent text-on-accent hover:brightness-110 transition animate-pop-in"
