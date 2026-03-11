@@ -14,9 +14,33 @@ import json
 import os
 import re
 import sys
+import time
 from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
+
+
+def _retry_on_rate_limit(fn, max_retries: int = 3, base_delay: float = 2.0):
+    """Retry a callable on 429/503 with exponential backoff.
+
+    Handles both requests.HTTPError (API calls) and Groq SDK exceptions (groq.RateLimitError).
+    """
+    for attempt in range(max_retries + 1):
+        try:
+            return fn()
+        except Exception as exc:
+            # Extract status code from either requests or Groq SDK exceptions
+            status = getattr(getattr(exc, "response", None), "status_code", 0)
+            if status == 0:
+                status = getattr(exc, "status_code", 0)
+            if status in (429, 503) and attempt < max_retries:
+                retry_after = getattr(getattr(exc, "response", None), "headers", {}).get("retry-after")
+                delay = float(retry_after) if retry_after else base_delay * (2 ** attempt)
+                print(f"    Rate limited ({status}), retrying in {delay:.1f}s (attempt {attempt + 1}/{max_retries})...")
+                time.sleep(delay)
+                continue
+            raise
+
 
 DATA_DIR = Path(__file__).parents[1] / "data"
 _DEV_VARS_PATH = Path(__file__).parents[3] / ".dev.vars"
@@ -80,18 +104,21 @@ def _call_extract_chat(
 ) -> dict:
     import requests
 
-    resp = requests.post(
-        f"{API_BASE}/api/memory/extract-chat",
-        headers={"Authorization": f"Bearer {token}"},
-        json={
-            "user_message": user_message,
-            "assistant_response": assistant_response,
-            "existing_facts": existing_facts,
-            "today": today,
-        },
-    )
-    resp.raise_for_status()
-    return resp.json()
+    def _do_call():
+        resp = requests.post(
+            f"{API_BASE}/api/memory/extract-chat",
+            headers={"Authorization": f"Bearer {token}"},
+            json={
+                "user_message": user_message,
+                "assistant_response": assistant_response,
+                "existing_facts": existing_facts,
+                "today": today,
+            },
+        )
+        resp.raise_for_status()
+        return resp.json()
+
+    return _retry_on_rate_limit(_do_call)
 
 
 # ---------------------------------------------------------------------------
@@ -110,22 +137,30 @@ def _load_groq_key() -> str:
 
 
 def _answer_question(question: str, context: str, groq_client) -> str:
-    """Answer a question given memory context."""
-    system = (
-        "Answer the question concisely based on the provided context. "
-        "If the context doesn't contain enough information, say 'I don't know'."
-    )
-    user = f"Context:\n{context}\n\nQuestion: {question}\n\nAnswer:"
-    response = groq_client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
-        messages=[
-            {"role": "system", "content": system},
-            {"role": "user", "content": user},
-        ],
-        temperature=0.0,
-        max_tokens=100,
-    )
-    return response.choices[0].message.content or ""
+    """Answer a question given memory context, with rate-limit retry."""
+    def _do_call():
+        response = groq_client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "Answer the question concisely based on the provided context. "
+                        "If the context doesn't contain enough information, say 'I don't know'."
+                    ),
+                },
+                {"role": "user", "content": f"Context:\n{context}\n\nQuestion: {question}\n\nAnswer:"},
+            ],
+            temperature=0.0,
+            max_tokens=150,
+        )
+        return response.choices[0].message.content or ""
+
+    try:
+        return _retry_on_rate_limit(_do_call)
+    except Exception as exc:
+        print(f"    QA call failed after retries: {exc}")
+        return ""
 
 
 # ---------------------------------------------------------------------------
