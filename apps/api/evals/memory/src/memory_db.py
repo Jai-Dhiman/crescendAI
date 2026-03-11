@@ -235,8 +235,9 @@ class MemoryDB:
                       trend, confidence, source_type
                FROM synthesized_facts
                WHERE student_id = ? AND invalid_at IS NULL AND expired_at IS NULL
+               AND source_type != 'student_reported'
                ORDER BY fact_type, valid_at DESC
-               LIMIT 15""",
+               LIMIT 12""",
             (student_id,),
         ).fetchall()
         return [
@@ -298,8 +299,67 @@ class MemoryDB:
             for r in rows
         ]
 
+    def query_student_reported_facts(
+        self, student_id: str, today: str,
+    ) -> list[SynthesizedFact]:
+        """Query student-reported facts (chat-derived). Mirrors memory.rs."""
+        rows = self.conn.execute(
+            """SELECT id, fact_text, fact_type, dimension, piece_context, valid_at,
+                      trend, confidence, source_type
+               FROM synthesized_facts
+               WHERE student_id = ? AND source_type = 'student_reported'
+               AND (invalid_at IS NULL OR invalid_at > ?) AND expired_at IS NULL
+               ORDER BY created_at DESC
+               LIMIT 10""",
+            (student_id, today),
+        ).fetchall()
+        return [
+            SynthesizedFact(
+                id=r["id"], fact_text=r["fact_text"], fact_type=r["fact_type"],
+                dimension=r["dimension"], piece_context=r["piece_context"],
+                valid_at=r["valid_at"], trend=r["trend"],
+                confidence=r["confidence"] or "medium",
+                source_type=r["source_type"] or "student_reported",
+            )
+            for r in rows
+        ]
+
+    def insert_student_reported_fact(
+        self,
+        id: str,
+        student_id: str,
+        fact_text: str,
+        category: str,
+        valid_at: str = "",
+        invalid_at: str | None = None,
+        created_at: str = "",
+    ) -> None:
+        """Insert a student_reported fact."""
+        self.conn.execute(
+            """INSERT INTO synthesized_facts
+               (id, student_id, fact_text, fact_type, dimension, piece_context,
+                valid_at, invalid_at, trend, confidence, evidence, source_type, created_at, expired_at)
+               VALUES (?, ?, ?, ?, ?, NULL, ?, ?, NULL, ?, '[]', ?, ?, NULL)""",
+            (id, student_id, fact_text, "student_reported", category,
+             valid_at, invalid_at, "high", "student_reported", created_at),
+        )
+        self.conn.commit()
+
+    def format_student_reported_context(
+        self, student_id: str, today: str,
+    ) -> str:
+        """Format student-reported facts as bullets. Mirrors memory.rs."""
+        facts = self.query_student_reported_facts(student_id, today)
+        if not facts:
+            return ""
+        out = ""
+        for fact in facts:
+            category = fact.dimension or "general"
+            out += f"- [{category}] {fact.fact_text}\n"
+        return out
+
     def build_memory_context(
-        self, student_id: str, piece_title: str | None = None,
+        self, student_id: str, piece_title: str | None = None, today: str = "",
     ) -> dict:
         """Build full memory context, mirroring memory.rs build_memory_context."""
         active_facts = self.query_active_facts(student_id)
@@ -311,23 +371,38 @@ class MemoryDB:
             active_ids = {f.id for f in active_facts}
             piece_facts = [f for f in raw_piece_facts if f.id not in active_ids]
 
+        student_facts: list[SynthesizedFact] = []
+        if today:
+            student_facts = self.query_student_reported_facts(student_id, today)
+
         return {
             "active_facts": active_facts,
             "recent_observations": recent_obs,
             "piece_facts": piece_facts,
+            "student_facts": student_facts,
         }
 
-    def format_memory_context(self, student_id: str, piece_title: str | None = None) -> str:
+    def format_memory_context(
+        self, student_id: str, piece_title: str | None = None, today: str = "",
+    ) -> str:
         """Format memory context as plain text. Mirrors memory.rs format_memory_context."""
-        ctx = self.build_memory_context(student_id, piece_title)
+        ctx = self.build_memory_context(student_id, piece_title, today=today)
         active_facts: list[SynthesizedFact] = ctx["active_facts"]
         recent_obs: list[RecentObservationWithEngagement] = ctx["recent_observations"]
         piece_facts: list[SynthesizedFact] = ctx["piece_facts"]
+        student_facts: list[SynthesizedFact] = ctx.get("student_facts", [])
 
-        if not active_facts and not recent_obs:
+        if not active_facts and not recent_obs and not student_facts:
             return ""
 
         out = "## Student Memory\n\n"
+
+        if student_facts:
+            out += "### About Student\n"
+            for fact in student_facts:
+                category = fact.dimension or "general"
+                out += f"- [{category}] {fact.fact_text}\n"
+            out += "\n"
 
         if active_facts:
             out += "### Active Patterns\n"

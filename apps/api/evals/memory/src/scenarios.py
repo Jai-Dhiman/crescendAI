@@ -136,6 +136,67 @@ class MemoryEvalScenario:
         )
 
 
+@dataclass
+class ChatExchange:
+    id: str
+    user_message: str
+    assistant_response: str
+    session_date: str  # ISO date, used as "today" for extraction
+
+
+@dataclass
+class ExpectedChatFact:
+    id: str
+    fact_text_pattern: str  # regex
+    gold_fact_text: str     # natural language for downstream eval
+    category: str           # identity|background|goals|preferences|repertoire|events
+    operation: str          # "add" or "update"
+    supersedes_fact_id: str | None = None  # for UPDATE ops
+    permanent: bool = True
+    invalid_at: str | None = None  # for temporal facts
+
+
+@dataclass
+class ChatExtractionScenario:
+    id: str
+    name: str
+    category: str  # per_category|update|temporal|selectivity|e2e
+    student_id: str = "chat-test-student-001"
+    pre_existing_facts: list[ExpectedChatFact] = field(default_factory=list)
+    exchanges: list[ChatExchange] = field(default_factory=list)
+    expected_facts: list[ExpectedChatFact] = field(default_factory=list)
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, d: dict) -> ChatExtractionScenario:
+        pre_existing = [ExpectedChatFact(**f) for f in d.pop("pre_existing_facts", [])]
+        exchanges = [ChatExchange(**e) for e in d.pop("exchanges", [])]
+        expected_facts = [ExpectedChatFact(**f) for f in d.pop("expected_facts", [])]
+        return cls(
+            pre_existing_facts=pre_existing,
+            exchanges=exchanges,
+            expected_facts=expected_facts,
+            **{k: v for k, v in d.items() if k in cls.__dataclass_fields__},
+        )
+
+
+def save_chat_scenarios(scenarios: list[ChatExtractionScenario], path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w") as f:
+        for s in scenarios:
+            f.write(json.dumps(s.to_dict(), ensure_ascii=False) + "\n")
+
+
+def load_chat_scenarios(path: Path) -> list[ChatExtractionScenario]:
+    scenarios = []
+    with open(path) as f:
+        for line in f:
+            scenarios.append(ChatExtractionScenario.from_dict(json.loads(line)))
+    return scenarios
+
+
 def save_scenarios(scenarios: list[MemoryEvalScenario], path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w") as f:

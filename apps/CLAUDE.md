@@ -43,6 +43,7 @@ Rust API backend deployed to Cloudflare Workers at `api.crescend.ai`.
 ### API Endpoints (current)
 
 - `POST /api/auth/apple` - Validate Apple identity token, issue JWT (HttpOnly cookie + response body)
+- `POST /api/auth/google` - Validate Google ID token via tokeninfo, issue JWT (HttpOnly cookie + response body)
 - `GET /api/auth/me` - Validate JWT (cookie or Bearer), return user profile
 - `POST /api/auth/signout` - Clear auth cookie
 - `POST /api/sync` - Receive student/session deltas from iOS, return exercise updates

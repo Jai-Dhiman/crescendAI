@@ -327,17 +327,35 @@ pub fn build_chat_student_context(
     student: &serde_json::Value,
     memory_patterns: &str,
     recent_observations: &str,
+    student_facts: &str,
 ) -> Option<String> {
-    let level = student.get("inferred_level").and_then(|v| v.as_str())?;
+    let level = student.get("inferred_level").and_then(|v| v.as_str());
+
+    // Return None only if there's truly no context to inject
+    let has_any_context = level.is_some()
+        || !student_facts.is_empty()
+        || !memory_patterns.is_empty()
+        || !recent_observations.is_empty();
+    if !has_any_context {
+        return None;
+    }
 
     let mut ctx = String::with_capacity(2000);
     ctx.push_str("<student_context>\n");
-    ctx.push_str(&format!("<level>{}</level>\n", level));
+    if let Some(level) = level {
+        ctx.push_str(&format!("<level>{}</level>\n", level));
+    }
 
     if let Some(goals) = student.get("explicit_goals").and_then(|v| v.as_str()) {
         if !goals.is_empty() {
             ctx.push_str(&format!("<goals>{}</goals>\n", goals));
         }
+    }
+
+    if !student_facts.is_empty() {
+        ctx.push_str("<about_student>\n");
+        ctx.push_str(student_facts);
+        ctx.push_str("</about_student>\n");
     }
 
     let dims = ["dynamics", "timing", "pedaling", "articulation", "phrasing", "interpretation"];
@@ -425,6 +443,84 @@ Rules:
 - Set trend to "resolved" when a previously flagged issue is no longer appearing
 - Be conservative: only create high-confidence facts when supported by 3+ observations
 - Review student_reported facts for staleness (goals older than 90 days with no related observations)"#;
+
+/// Chat memory extraction system prompt (Groq, Llama 70B).
+/// Extracts rememberable facts from chat exchanges.
+pub const CHAT_EXTRACTION_SYSTEM: &str = r#"You are a memory extraction system for a piano teaching app. You receive a student-teacher chat exchange and a list of facts the system already knows about this student.
+
+Your job is to identify new or updated personal information worth remembering across conversations. Most messages contain nothing worth remembering -- return empty arrays in that case.
+
+## What to extract
+
+Six categories (stored as the fact's category):
+- **identity**: Name, age, occupation, location (permanent)
+- **background**: Musical training, years playing, teachers, instruments (long-lived)
+- **goals**: Aspirations, upcoming deadlines (may expire)
+- **preferences**: Learning style, favorite composers, practice habits (updated on contradiction)
+- **repertoire**: Pieces being worked on, history with pieces (long-lived)
+- **events**: Recitals, performances, milestones (timestamped, expires after event)
+
+## Rules
+
+- Be SELECTIVE: cap at 3 new facts per exchange. Only extract facts that would be useful in future conversations.
+- Do NOT extract: musical advice the teacher gave, general piano knowledge, conversational pleasantries, or information already captured in existing facts.
+- For temporal facts ("recital in 3 weeks"), calculate the actual date using today's date (provided) and set invalid_at.
+- For UPDATE: only update when the new information contradicts or supersedes an existing fact. Reference the existing fact's ID.
+- Fact text should be concise, third-person statements: "Student's name is Jai", "Has been playing piano for 3 years", "Preparing for a recital on 2026-03-28".
+
+## Output
+
+Return ONLY valid JSON:
+
+```json
+{
+  "add": [
+    {"fact_text": "...", "category": "identity", "permanent": true, "invalid_at": null}
+  ],
+  "update": [
+    {"existing_fact_id": "...", "new_fact_text": "...", "category": "identity", "permanent": true, "invalid_at": null}
+  ]
+}
+```
+
+If nothing worth remembering, return: {"add": [], "update": []}
+
+- permanent: true for facts unlikely to change (name, background), false for time-bound facts
+- invalid_at: ISO date string (YYYY-MM-DD) for facts that expire, null for permanent facts"#;
+
+/// Build the user prompt for chat memory extraction.
+pub fn build_chat_extraction_prompt(
+    user_message: &str,
+    assistant_response: &str,
+    existing_facts: &[super::memory::SynthesizedFact],
+    today: &str,
+) -> String {
+    let mut prompt = String::with_capacity(1500);
+
+    prompt.push_str(&format!("Today's date: {}\n\n", today));
+
+    prompt.push_str("## Existing known facts about this student\n\n");
+    if existing_facts.is_empty() {
+        prompt.push_str("No facts yet (new student).\n\n");
+    } else {
+        for fact in existing_facts {
+            let category = fact.dimension.as_deref().unwrap_or("general");
+            prompt.push_str(&format!(
+                "- [id: {}] [{}] {}\n",
+                fact.id, category, fact.fact_text
+            ));
+        }
+        prompt.push('\n');
+    }
+
+    prompt.push_str("## Chat exchange\n\n");
+    prompt.push_str(&format!("Student: {}\n\n", user_message));
+    prompt.push_str(&format!("Teacher: {}\n\n", assistant_response));
+
+    prompt.push_str("## Task\n\nExtract any new or updated facts from this exchange. Return JSON only.");
+
+    prompt
+}
 
 /// Build the synthesis user prompt from student data.
 pub fn build_synthesis_prompt(

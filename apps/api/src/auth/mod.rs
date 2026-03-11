@@ -17,6 +17,25 @@ pub struct AppleAuthRequest {
     pub display_name: Option<String>,
 }
 
+#[derive(serde::Deserialize)]
+pub struct GoogleAuthRequest {
+    pub credential: String,
+}
+
+#[derive(serde::Deserialize)]
+struct GoogleTokenClaims {
+    #[allow(dead_code)]
+    iss: Option<String>,
+    sub: Option<String>,
+    aud: Option<String>,
+    email: Option<String>,
+    /// Google's tokeninfo returns this as a string "true"/"false".
+    email_verified: Option<String>,
+    name: Option<String>,
+    #[allow(dead_code)]
+    exp: Option<u64>,
+}
+
 #[derive(serde::Serialize)]
 pub struct AuthResponse {
     pub student_id: String,
@@ -119,6 +138,259 @@ fn validate_apple_claims(
     }
 
     Ok(())
+}
+
+pub async fn handle_google_auth(
+    env: &Env,
+    body: &[u8],
+) -> http::Response<axum::body::Body> {
+    use axum::body::Body;
+    use http::{Response, StatusCode};
+
+    let request: GoogleAuthRequest = match serde_json::from_slice(body) {
+        Ok(r) => r,
+        Err(e) => {
+            console_error!("Failed to parse Google auth request: {:?}", e);
+            return Response::builder()
+                .status(StatusCode::BAD_REQUEST)
+                .header("Content-Type", "application/json")
+                .body(Body::from(r#"{"error":"Invalid request body"}"#))
+                .unwrap();
+        }
+    };
+
+    // Validate GOOGLE_CLIENT_ID is configured
+    let expected_client_id = match env.var("GOOGLE_CLIENT_ID") {
+        Ok(v) => {
+            let id = v.to_string();
+            if id.is_empty() {
+                console_error!("GOOGLE_CLIENT_ID is empty");
+                return Response::builder()
+                    .status(StatusCode::INTERNAL_SERVER_ERROR)
+                    .header("Content-Type", "application/json")
+                    .body(Body::from(r#"{"error":"Server configuration error"}"#))
+                    .unwrap();
+            }
+            id
+        }
+        Err(_) => {
+            console_error!("GOOGLE_CLIENT_ID not configured");
+            return Response::builder()
+                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                .header("Content-Type", "application/json")
+                .body(Body::from(r#"{"error":"Server configuration error"}"#))
+                .unwrap();
+        }
+    };
+
+    // Verify Google ID token via Google's tokeninfo endpoint.
+    // This validates the cryptographic signature server-side without needing
+    // to fetch and cache Google's JWKS keys in WASM.
+    let tokeninfo_url = format!(
+        "https://oauth2.googleapis.com/tokeninfo?id_token={}",
+        request.credential
+    );
+    let tokeninfo_resp = match worker::Fetch::Url(tokeninfo_url.parse().unwrap())
+        .send()
+        .await
+    {
+        Ok(mut resp) => {
+            if resp.status_code() != 200 {
+                console_error!("Google tokeninfo returned status {}", resp.status_code());
+                return Response::builder()
+                    .status(StatusCode::UNAUTHORIZED)
+                    .header("Content-Type", "application/json")
+                    .body(Body::from(r#"{"error":"Invalid Google token"}"#))
+                    .unwrap();
+            }
+            match resp.text().await {
+                Ok(text) => text,
+                Err(e) => {
+                    console_error!("Failed to read Google tokeninfo response: {:?}", e);
+                    return Response::builder()
+                        .status(StatusCode::INTERNAL_SERVER_ERROR)
+                        .header("Content-Type", "application/json")
+                        .body(Body::from(r#"{"error":"Token verification failed"}"#))
+                        .unwrap();
+                }
+            }
+        }
+        Err(e) => {
+            console_error!("Failed to call Google tokeninfo: {:?}", e);
+            return Response::builder()
+                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                .header("Content-Type", "application/json")
+                .body(Body::from(r#"{"error":"Token verification failed"}"#))
+                .unwrap();
+        }
+    };
+
+    let claims: GoogleTokenClaims = match serde_json::from_str(&tokeninfo_resp) {
+        Ok(c) => c,
+        Err(e) => {
+            console_error!("Failed to parse Google tokeninfo response: {:?}", e);
+            return Response::builder()
+                .status(StatusCode::UNAUTHORIZED)
+                .header("Content-Type", "application/json")
+                .body(Body::from(r#"{"error":"Invalid Google token"}"#))
+                .unwrap();
+        }
+    };
+
+    // Validate audience matches our client ID
+    match &claims.aud {
+        Some(aud) if aud == &expected_client_id => {}
+        Some(aud) => {
+            console_error!("Google token audience '{}' does not match expected '{}'", aud, expected_client_id);
+            return Response::builder()
+                .status(StatusCode::UNAUTHORIZED)
+                .header("Content-Type", "application/json")
+                .body(Body::from(r#"{"error":"Invalid audience"}"#))
+                .unwrap();
+        }
+        None => {
+            return Response::builder()
+                .status(StatusCode::UNAUTHORIZED)
+                .header("Content-Type", "application/json")
+                .body(Body::from(r#"{"error":"Missing audience claim"}"#))
+                .unwrap();
+        }
+    }
+
+    // Validate email is verified
+    if claims.email_verified.as_deref() != Some("true") {
+        return Response::builder()
+            .status(StatusCode::UNAUTHORIZED)
+            .header("Content-Type", "application/json")
+            .body(Body::from(r#"{"error":"Email not verified"}"#))
+            .unwrap();
+    }
+
+    let google_user_id = match &claims.sub {
+        Some(sub) => sub.clone(),
+        None => {
+            return Response::builder()
+                .status(StatusCode::UNAUTHORIZED)
+                .header("Content-Type", "application/json")
+                .body(Body::from(r#"{"error":"Missing subject claim"}"#))
+                .unwrap();
+        }
+    };
+
+    // Get D1 database
+    let db = match env.d1("DB") {
+        Ok(db) => db,
+        Err(e) => {
+            console_error!("D1 binding failed: {:?}", e);
+            return Response::builder()
+                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                .header("Content-Type", "application/json")
+                .body(Body::from(r#"{"error":"Database connection failed"}"#))
+                .unwrap();
+        }
+    };
+
+    let now_iso = js_sys::Date::new_0()
+        .to_iso_string()
+        .as_string()
+        .unwrap_or_default();
+
+    let (student_id, display_name, is_new_user) = match find_or_create_student(
+        &db,
+        "google",
+        &google_user_id,
+        claims.email.as_deref(),
+        claims.name.as_deref(),
+        &now_iso,
+    )
+    .await
+    {
+        Ok(result) => result,
+        Err(e) => {
+            console_error!("Failed to find/create student: {}", e);
+            return Response::builder()
+                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                .header("Content-Type", "application/json")
+                .body(Body::from(r#"{"error":"Failed to create user record"}"#))
+                .unwrap();
+        }
+    };
+
+    // Issue JWT
+    let jwt_secret = match env.secret("JWT_SECRET") {
+        Ok(s) => s.to_string(),
+        Err(e) => {
+            console_error!("JWT_SECRET not configured: {:?}", e);
+            return Response::builder()
+                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                .header("Content-Type", "application/json")
+                .body(Body::from(r#"{"error":"Server configuration error"}"#))
+                .unwrap();
+        }
+    };
+
+    let now_epoch = js_sys::Date::now() as u64 / 1000;
+    let jwt_claims = Claims {
+        sub: student_id.clone(),
+        iat: now_epoch,
+        exp: now_epoch + JWT_EXPIRY_SECONDS,
+    };
+
+    let token = match jwt::sign(&jwt_claims, jwt_secret.as_bytes()) {
+        Ok(t) => t,
+        Err(e) => {
+            console_error!("Failed to sign JWT: {}", e);
+            return Response::builder()
+                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                .header("Content-Type", "application/json")
+                .body(Body::from(r#"{"error":"Failed to generate token"}"#))
+                .unwrap();
+        }
+    };
+
+    let response = AuthResponse {
+        student_id,
+        email: claims.email,
+        display_name,
+        is_new_user,
+    };
+
+    let json = serde_json::to_string(&response).unwrap_or_else(|_| "{}".to_string());
+
+    console_log!("Google auth successful for user (new={})", is_new_user);
+
+    let cookie = build_auth_cookie(&token, JWT_EXPIRY_SECONDS, env);
+
+    Response::builder()
+        .status(StatusCode::OK)
+        .header("Content-Type", "application/json")
+        .header("Set-Cookie", cookie)
+        .body(Body::from(json))
+        .unwrap()
+}
+
+fn build_auth_cookie(token: &str, max_age: u64, env: &Env) -> String {
+    let domain_part = env
+        .var("COOKIE_DOMAIN")
+        .ok()
+        .map(|v| format!("; Domain={}", v.to_string()))
+        .unwrap_or_default();
+    format!(
+        "token={}; HttpOnly; Secure; SameSite=None; Path=/; Max-Age={}{}",
+        token, max_age, domain_part
+    )
+}
+
+fn build_clear_cookie(env: &Env) -> String {
+    let domain_part = env
+        .var("COOKIE_DOMAIN")
+        .ok()
+        .map(|v| format!("; Domain={}", v.to_string()))
+        .unwrap_or_default();
+    format!(
+        "token=; HttpOnly; Secure; SameSite=None; Path=/; Max-Age=0{}",
+        domain_part
+    )
 }
 
 pub async fn handle_apple_auth(
@@ -256,10 +528,7 @@ pub async fn handle_apple_auth(
 
     console_log!("Auth successful for user (new={})", is_new_user);
 
-    let cookie = format!(
-        "token={}; HttpOnly; Secure; SameSite=None; Path=/; Max-Age={}",
-        token, JWT_EXPIRY_SECONDS
-    );
+    let cookie = build_auth_cookie(&token, JWT_EXPIRY_SECONDS, env);
 
     Response::builder()
         .status(StatusCode::OK)
@@ -323,6 +592,44 @@ async fn find_or_create_student(
 
         Ok((student_id, existing_display_name, false))
     } else {
+        // Check if a student with the same email already exists (account linking)
+        if let Some(email) = email {
+            let existing_by_email = db
+                .prepare("SELECT student_id, display_name FROM students WHERE email = ?1")
+                .bind(&[JsValue::from_str(email)])
+                .map_err(|e| format!("Failed to bind email lookup: {:?}", e))?
+                .first::<serde_json::Value>(None)
+                .await
+                .map_err(|e| format!("Failed to query students by email: {:?}", e))?;
+
+            if let Some(row) = existing_by_email {
+                let student_id = row
+                    .get("student_id")
+                    .and_then(|v| v.as_str().map(|s| s.to_string()))
+                    .ok_or_else(|| "Missing student_id in email lookup".to_string())?;
+                let existing_display_name = row
+                    .get("display_name")
+                    .and_then(|v| v.as_str().map(|s| s.to_string()));
+
+                // Link this provider identity to the existing student
+                db.prepare(
+                    "INSERT INTO auth_identities (student_id, provider, provider_user_id, created_at) VALUES (?1, ?2, ?3, ?4)",
+                )
+                .bind(&[
+                    JsValue::from_str(&student_id),
+                    JsValue::from_str(provider),
+                    JsValue::from_str(provider_user_id),
+                    JsValue::from_str(now),
+                ])
+                .map_err(|e| format!("Failed to bind identity insert for linking: {:?}", e))?
+                .run()
+                .await
+                .map_err(|e| format!("Failed to link identity: {:?}", e))?;
+
+                return Ok((student_id, existing_display_name, false));
+            }
+        }
+
         // New user -- generate UUID and insert atomically
         let student_id = generate_uuid_v4();
 
@@ -633,17 +940,14 @@ pub async fn handle_debug_auth(
 }
 
 /// Handle POST /api/auth/signout -- clear the auth cookie.
-pub fn handle_signout() -> http::Response<axum::body::Body> {
+pub fn handle_signout(env: &Env) -> http::Response<axum::body::Body> {
     use axum::body::Body;
     use http::{Response, StatusCode};
 
     Response::builder()
         .status(StatusCode::OK)
         .header("Content-Type", "application/json")
-        .header(
-            "Set-Cookie",
-            "token=; HttpOnly; Secure; SameSite=None; Path=/; Max-Age=0",
-        )
+        .header("Set-Cookie", build_clear_cookie(env))
         .body(Body::from(r#"{"ok":true}"#))
         .unwrap()
 }

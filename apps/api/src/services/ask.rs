@@ -113,10 +113,13 @@ pub async fn handle_ask(
         .and_then(|pc| pc.get("title"))
         .and_then(|v| v.as_str());
 
+    let now_ask = js_sys::Date::new_0().to_iso_string().as_string().unwrap_or_default();
+    let today_ask = &now_ask[..10.min(now_ask.len())];
     let memory_ctx = crate::services::memory::build_memory_context(
         env,
         &student_id,
         piece_title,
+        today_ask,
     ).await;
 
     let memory_text = crate::services::memory::format_memory_context(&memory_ctx);
@@ -337,7 +340,9 @@ pub async fn handle_elaborate(
         };
 
     // Fetch memory context for richer elaboration
-    let memory_ctx = crate::services::memory::build_memory_context(env, &student_id, None).await;
+    let elab_now = js_sys::Date::new_0().to_iso_string().as_string().unwrap_or_default();
+    let elab_today = &elab_now[..10.min(elab_now.len())];
+    let memory_ctx = crate::services::memory::build_memory_context(env, &student_id, None, elab_today).await;
     let memory_text = crate::services::memory::format_chat_memory_patterns(&memory_ctx);
 
     // Call teacher LLM for elaboration

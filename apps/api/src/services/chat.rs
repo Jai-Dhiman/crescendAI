@@ -376,11 +376,13 @@ pub async fn handle_chat_stream(
     // Fetch conversation history, student context, and memory
     let history = fetch_messages(&db, &conversation_id).await.unwrap_or_default();
     let student_row = fetch_student_row(&db, &student_id).await;
-    let memory_ctx = crate::services::memory::build_memory_context(env, &student_id, None).await;
+    let today = &now[..10.min(now.len())];
+    let memory_ctx = crate::services::memory::build_memory_context(env, &student_id, None, today).await;
     let memory_patterns = crate::services::memory::format_chat_memory_patterns(&memory_ctx);
     let recent_obs = crate::services::memory::format_chat_recent_observations(&memory_ctx);
+    let student_facts = crate::services::memory::format_student_reported_context(&memory_ctx);
     let student_context = student_row.as_ref().and_then(|row| {
-        prompts::build_chat_student_context(row, &memory_patterns, &recent_obs)
+        prompts::build_chat_student_context(row, &memory_patterns, &recent_obs, &student_facts)
     });
 
     // Build messages array for Anthropic
@@ -458,6 +460,8 @@ pub async fn handle_chat_stream(
 
     // Spawn background task to consume Anthropic stream and forward deltas
     let env_clone = env.clone();
+    let student_id_clone = student_id.clone();
+    let user_message_clone = user_message.clone();
     wasm_bindgen_futures::spawn_local(async move {
         let mut line_buffer = String::new();
         let mut full_text = String::new();
@@ -514,19 +518,28 @@ pub async fn handle_chat_stream(
             &serde_json::json!({"type": "done", "message_id": assistant_msg_id}),
         )));
 
-        // Close the channel (drop tx)
-        drop(tx);
-
-        // Store assistant message in D1
+        // Store assistant message in D1 (before closing stream -- Workers
+        // runtime may terminate outbound fetches after the response ends)
         let assistant_now = js_sys::Date::new_0().to_iso_string().as_string().unwrap_or_default();
         if let Err(e) = store_message(&db, &assistant_msg_id, &conversation_id, "assistant", &full_text, &assistant_now).await {
             console_log!("Failed to store assistant message: {}", e);
         }
 
-        // Generate title if first exchange (fire-and-forget)
+        // Generate title if first exchange
         if is_first_exchange {
             generate_title(&env_clone, &db, &conversation_id, &user_message, &full_text).await;
         }
+
+        // Extract and store chat memory facts
+        if let Err(e) = crate::services::memory::extract_and_store_chat_facts(
+            &env_clone, &student_id_clone, &user_message_clone, &full_text,
+        ).await {
+            console_log!("Chat memory extraction failed (non-fatal): {}", e);
+        }
+
+        // Close the channel last -- Workers runtime may kill outbound
+        // fetches once the response stream ends
+        drop(tx);
     });
 
     // Return streaming response immediately

@@ -153,6 +153,20 @@ async fn fetch(
         )).await;
     }
 
+    // Google auth endpoint
+    if path == "/api/auth/google" && method == http::Method::POST {
+        let body = req
+            .into_body()
+            .collect()
+            .await
+            .map(|b| b.to_bytes().to_vec())
+            .unwrap_or_default();
+        return into_worker_response(with_cors(
+            crate::auth::handle_google_auth(&env, &body).await,
+            origin.as_deref(),
+        )).await;
+    }
+
     // Auth me endpoint (authenticated)
     if path == "/api/auth/me" && method == http::Method::GET {
         let headers = req.headers().clone();
@@ -173,7 +187,7 @@ async fn fetch(
     // Auth signout endpoint
     if path == "/api/auth/signout" && method == http::Method::POST {
         return into_worker_response(with_cors(
-            crate::auth::handle_signout(),
+            crate::auth::handle_signout(&env),
             origin.as_deref(),
         )).await;
     }
@@ -269,6 +283,21 @@ async fn fetch(
                 origin.as_deref(),
             )).await;
         }
+    }
+
+    // Memory extraction eval endpoint (authenticated)
+    if path == "/api/memory/extract-chat" && method == http::Method::POST {
+        let headers = req.headers().clone();
+        let body = req
+            .into_body()
+            .collect()
+            .await
+            .map(|b| b.to_bytes().to_vec())
+            .unwrap_or_default();
+        return into_worker_response(with_cors(
+            crate::services::memory::handle_extract_chat(&env, &headers, &body).await,
+            origin.as_deref(),
+        )).await;
     }
 
     // Chat endpoint -- streaming teacher conversation (authenticated)

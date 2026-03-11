@@ -1,7 +1,8 @@
 """Benchmark comparison report.
 
 Maps CrescendAI metrics to LongMemEval's 5 dimensions and outputs
-a comparison table with caveats.
+a comparison table with caveats. Also includes LoCoMo leaderboard
+and chat memory extraction metrics.
 """
 
 from __future__ import annotations
@@ -46,6 +47,13 @@ INDUSTRY_BENCHMARKS = {
         "temporal": None,
         "knowledge_update": None,
         "abstention": None,
+    },
+    "LoCoMo": {
+        "source": "ACL 2024 benchmark",
+        "MemMachine": 84.87,
+        "Mem0": 58.44,
+        "GPT-4_baseline": 32.1,
+        "Llama-2-70B_baseline": 19.4,
     },
 }
 
@@ -95,6 +103,21 @@ class CrescendAIScores:
     trend_accuracy: float | None = None
     downstream_memory_lift: float | None = None
     downstream_win_rate: float | None = None
+
+    # LoCoMo
+    locomo_f1: float | None = None
+    locomo_single_hop_f1: float | None = None
+    locomo_multi_hop_f1: float | None = None
+    locomo_temporal_f1: float | None = None
+    locomo_adversarial_f1: float | None = None
+
+    # Chat extraction
+    chat_extraction_recall: float | None = None
+    chat_extraction_precision: float | None = None
+    chat_category_accuracy: float | None = None
+    chat_update_accuracy: float | None = None
+    chat_temporal_accuracy: float | None = None
+    chat_selectivity_rate: float | None = None
 
 
 def load_retrieval_results() -> dict:
@@ -234,6 +257,81 @@ def load_downstream_results() -> dict:
     }
 
 
+def load_locomo_results() -> dict:
+    """Load LoCoMo QA results from cache."""
+    qa_cache = DATA_DIR / "locomo_qa_cache.jsonl"
+    if not qa_cache.exists():
+        return {}
+
+    entries = []
+    with open(qa_cache) as f:
+        for line in f:
+            entries.append(json.loads(line))
+
+    if not entries:
+        return {}
+
+    from .locomo_adapter import token_f1
+
+    all_scores: list[float] = []
+    category_scores: dict[int, list[float]] = {}
+
+    for e in entries:
+        prediction = e.get("prediction", "")
+        gold = e.get("gold_answer", "")
+        category = e.get("category", 0)
+
+        f1 = token_f1(prediction, gold)
+        all_scores.append(f1)
+
+        if category not in category_scores:
+            category_scores[category] = []
+        category_scores[category].append(f1)
+
+    result = {
+        "overall_f1": sum(all_scores) / len(all_scores) if all_scores else 0.0,
+    }
+
+    per_cat = {}
+    for cat_id, scores in category_scores.items():
+        per_cat[cat_id] = sum(scores) / len(scores) if scores else 0.0
+    result["per_category_f1"] = per_cat
+
+    return result
+
+
+def load_chat_extraction_results() -> dict:
+    """Load chat extraction results from cache."""
+    cache_path = DATA_DIR / "chat_extraction_cache.jsonl"
+    if not cache_path.exists():
+        return {}
+
+    from .eval_chat_extraction import run_chat_extraction_assessment
+    from .scenarios import load_chat_scenarios
+
+    scenarios_path = DATA_DIR / "chat_scenarios.jsonl"
+    if not scenarios_path.exists():
+        return {}
+
+    scenarios = load_chat_scenarios(scenarios_path)
+    results = run_chat_extraction_assessment(scenarios, live=False)
+
+    assessed = [r for r in results if r.raw_outputs and r.raw_outputs[0] != "[NOT CACHED]"]
+    if not assessed:
+        return {}
+
+    n = len(assessed)
+    temporal_assessed = [r for r in assessed if r.temporal_accuracy > 0]
+    return {
+        "extraction_recall": sum(r.extraction_recall for r in assessed) / n,
+        "extraction_precision": sum(r.extraction_precision for r in assessed) / n,
+        "category_accuracy": sum(r.category_accuracy for r in assessed) / n,
+        "update_accuracy": sum(r.operation_accuracy for r in assessed) / n,
+        "temporal_accuracy": sum(r.temporal_accuracy for r in temporal_assessed) / max(1, len(temporal_assessed)),
+        "selectivity_rate": sum(1 for r in assessed if r.selectivity_pass) / n,
+    }
+
+
 def build_scores() -> CrescendAIScores:
     """Aggregate all available results into CrescendAI benchmark scores."""
     scores = CrescendAIScores()
@@ -242,6 +340,8 @@ def build_scores() -> CrescendAIScores:
     synthesis = load_synthesis_results()
     temporal = load_temporal_results()
     downstream = load_downstream_results()
+    locomo = load_locomo_results()
+    chat_extraction = load_chat_extraction_results()
 
     if retrieval:
         scores.retrieval_f1 = retrieval["mean_f1"]
@@ -269,6 +369,22 @@ def build_scores() -> CrescendAIScores:
     if downstream:
         scores.downstream_memory_lift = downstream["memory_lift"]
         scores.downstream_win_rate = downstream["win_rate"]
+
+    if locomo:
+        scores.locomo_f1 = locomo.get("overall_f1")
+        per_cat_f1 = locomo.get("per_category_f1", {})
+        scores.locomo_single_hop_f1 = per_cat_f1.get(1)
+        scores.locomo_multi_hop_f1 = per_cat_f1.get(2)
+        scores.locomo_temporal_f1 = per_cat_f1.get(3)
+        scores.locomo_adversarial_f1 = per_cat_f1.get(5)
+
+    if chat_extraction:
+        scores.chat_extraction_recall = chat_extraction.get("extraction_recall")
+        scores.chat_extraction_precision = chat_extraction.get("extraction_precision")
+        scores.chat_category_accuracy = chat_extraction.get("category_accuracy")
+        scores.chat_update_accuracy = chat_extraction.get("update_accuracy")
+        scores.chat_temporal_accuracy = chat_extraction.get("temporal_accuracy")
+        scores.chat_selectivity_rate = chat_extraction.get("selectivity_rate")
 
     return scores
 
@@ -336,6 +452,41 @@ def print_report(scores: CrescendAIScores) -> None:
         print(f"    Memory lift (judge):  {scores.downstream_memory_lift:+.3f}")
         print(f"    Win rate:             {scores.downstream_win_rate:.1%}")
 
+    # LoCoMo leaderboard
+    locomo_bench = INDUSTRY_BENCHMARKS["LoCoMo"]
+    print(f"\n--- LoCoMo Leaderboard Comparison ---\n")
+    print(f"  {'System':<22} {'Overall F1':<13} {'Single-hop':<13} {'Multi-hop':<12} {'Temporal':<12} {'Adversarial':<12}")
+    print(f"  {'-'*22} {'-'*12} {'-'*12} {'-'*11} {'-'*11} {'-'*11}")
+
+    def _fmt(v: float | None) -> str:
+        return f"{v:.2f}" if v is not None else "--"
+
+    print(f"  {'MemMachine':<22} {locomo_bench['MemMachine']:<13.2f} {'--':<13} {'--':<12} {'--':<12} {'--':<12}")
+    print(f"  {'Mem0':<22} {locomo_bench['Mem0']:<13.2f} {'--':<13} {'--':<12} {'--':<12} {'--':<12}")
+
+    # CrescendAI row (scale to 0-100 for comparison)
+    crescend_f1_str = _fmt(scores.locomo_f1 * 100 if scores.locomo_f1 is not None else None)
+    crescend_sh_str = _fmt(scores.locomo_single_hop_f1 * 100 if scores.locomo_single_hop_f1 is not None else None)
+    crescend_mh_str = _fmt(scores.locomo_multi_hop_f1 * 100 if scores.locomo_multi_hop_f1 is not None else None)
+    crescend_t_str = _fmt(scores.locomo_temporal_f1 * 100 if scores.locomo_temporal_f1 is not None else None)
+    crescend_a_str = _fmt(scores.locomo_adversarial_f1 * 100 if scores.locomo_adversarial_f1 is not None else None)
+    print(f"  {'CrescendAI':<22} {crescend_f1_str:<13} {crescend_sh_str:<13} {crescend_mh_str:<12} {crescend_t_str:<12} {crescend_a_str:<12}")
+
+    print(f"  {'GPT-4 baseline':<22} {locomo_bench['GPT-4_baseline']:<13.2f} {'--':<13} {'--':<12} {'--':<12} {'--':<12}")
+    print(f"  {'Llama-2-70B baseline':<22} {locomo_bench['Llama-2-70B_baseline']:<13.2f} {'--':<13} {'--':<12} {'--':<12} {'--':<12}")
+
+    # Chat memory extraction
+    print(f"\n--- Chat Memory Extraction ---\n")
+    if scores.chat_extraction_recall is not None:
+        print(f"  Extraction recall:    {scores.chat_extraction_recall:.3f}")
+        print(f"  Extraction precision: {scores.chat_extraction_precision:.3f}")
+        print(f"  Category accuracy:    {scores.chat_category_accuracy:.3f}")
+        print(f"  Update accuracy:      {scores.chat_update_accuracy:.3f}")
+        print(f"  Temporal accuracy:    {scores.chat_temporal_accuracy:.3f}")
+        print(f"  Selectivity rate:     {scores.chat_selectivity_rate:.1%}")
+    else:
+        print("  No chat extraction results. Run with --layer chat_extraction --live first.")
+
     # Caveats
     print(f"\n--- Caveats ---\n")
     print("  1. CrescendAI domain is narrower (6 dims, known ontology) -- easier than open-domain")
@@ -343,6 +494,7 @@ def print_report(scores: CrescendAIScores) -> None:
     print("  3. Different LLM for synthesis (Llama 3.3 70B vs GPT-4/Claude in competitors)")
     print("  4. Scores test equivalent cognitive abilities, not identical tasks")
     print("  5. Industry scores from published papers; CrescendAI scores from internal eval")
+    print("  6. LoCoMo F1 scaled to 0-100 for comparison with published results")
     print()
 
 

@@ -32,6 +32,7 @@ pub struct StudentMemoryContext {
     pub active_facts: Vec<SynthesizedFact>,
     pub recent_observations: Vec<RecentObservationWithEngagement>,
     pub piece_facts: Vec<SynthesizedFact>,
+    pub student_facts: Vec<SynthesizedFact>,
 }
 
 /// Query active synthesized facts for a student.
@@ -47,8 +48,9 @@ pub async fn query_active_facts(
              trend, confidence, source_type \
              FROM synthesized_facts \
              WHERE student_id = ?1 AND invalid_at IS NULL AND expired_at IS NULL \
+             AND source_type != 'student_reported' \
              ORDER BY fact_type, valid_at DESC \
-             LIMIT 15",
+             LIMIT 12",
         )
         .bind(&[JsValue::from_str(student_id)])
         .map_err(|e| format!("Failed to bind query: {:?}", e))?
@@ -72,6 +74,52 @@ pub async fn query_active_facts(
             trend: row.get("trend").and_then(|v| v.as_str()).map(|s| s.to_string()),
             confidence: row.get("confidence").and_then(|v| v.as_str()).unwrap_or("medium").to_string(),
             source_type: row.get("source_type").and_then(|v| v.as_str()).unwrap_or("synthesized").to_string(),
+        })
+        .collect())
+}
+
+/// Query student-reported facts (chat-derived personal info).
+pub async fn query_student_reported_facts(
+    env: &Env,
+    student_id: &str,
+    today: &str,
+) -> Result<Vec<SynthesizedFact>, String> {
+    let db = env.d1("DB").map_err(|e| format!("D1 binding failed: {:?}", e))?;
+
+    let results = db
+        .prepare(
+            "SELECT id, fact_text, fact_type, dimension, piece_context, valid_at, \
+             trend, confidence, source_type \
+             FROM synthesized_facts \
+             WHERE student_id = ?1 \
+             AND source_type = 'student_reported' \
+             AND (invalid_at IS NULL OR invalid_at > ?2) \
+             AND expired_at IS NULL \
+             ORDER BY created_at DESC \
+             LIMIT 10",
+        )
+        .bind(&[JsValue::from_str(student_id), JsValue::from_str(today)])
+        .map_err(|e| format!("Failed to bind query: {:?}", e))?
+        .all()
+        .await
+        .map_err(|e| format!("Failed to query student reported facts: {:?}", e))?;
+
+    let rows: Vec<serde_json::Value> = results
+        .results()
+        .map_err(|e| format!("Failed to get results: {:?}", e))?;
+
+    Ok(rows
+        .iter()
+        .map(|row| SynthesizedFact {
+            id: row.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+            fact_text: row.get("fact_text").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+            fact_type: row.get("fact_type").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+            dimension: row.get("dimension").and_then(|v| v.as_str()).map(|s| s.to_string()),
+            piece_context: row.get("piece_context").and_then(|v| v.as_str()).map(|s| s.to_string()),
+            valid_at: row.get("valid_at").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+            trend: row.get("trend").and_then(|v| v.as_str()).map(|s| s.to_string()),
+            confidence: row.get("confidence").and_then(|v| v.as_str()).unwrap_or("medium").to_string(),
+            source_type: row.get("source_type").and_then(|v| v.as_str()).unwrap_or("student_reported").to_string(),
         })
         .collect())
 }
@@ -168,6 +216,7 @@ pub async fn build_memory_context(
     env: &Env,
     student_id: &str,
     piece_title: Option<&str>,
+    today: &str,
 ) -> StudentMemoryContext {
     let active_facts = match query_active_facts(env, student_id).await {
         Ok(facts) => facts,
@@ -205,10 +254,19 @@ pub async fn build_memory_context(
         vec![]
     };
 
+    let student_facts = match query_student_reported_facts(env, student_id, today).await {
+        Ok(facts) => facts,
+        Err(e) => {
+            console_log!("Failed to query student reported facts: {}", e);
+            vec![]
+        }
+    };
+
     StudentMemoryContext {
         active_facts,
         recent_observations,
         piece_facts,
+        student_facts,
     }
 }
 
@@ -293,6 +351,173 @@ pub fn format_chat_recent_observations(ctx: &StudentMemoryContext) -> String {
         ));
     }
     out
+}
+
+/// Format student-reported facts for chat context (simple natural-language bullets).
+pub fn format_student_reported_context(ctx: &StudentMemoryContext) -> String {
+    if ctx.student_facts.is_empty() {
+        return String::new();
+    }
+
+    let mut out = String::new();
+    for fact in &ctx.student_facts {
+        let category = fact.dimension.as_deref().unwrap_or("general");
+        out.push_str(&format!("- [{}] {}\n", category, fact.fact_text));
+    }
+    out
+}
+
+/// Extract and store personal facts from a chat exchange (fire-and-forget).
+pub async fn extract_and_store_chat_facts(
+    env: &Env,
+    student_id: &str,
+    user_message: &str,
+    assistant_response: &str,
+) -> Result<(), String> {
+    use crate::services::{llm, prompts};
+
+    let now = js_sys::Date::new_0()
+        .to_iso_string()
+        .as_string()
+        .unwrap_or_default();
+    let today = &now[..10.min(now.len())];
+
+    // 1. Query existing student_reported facts
+    let existing_facts = query_student_reported_facts(env, student_id, today).await?;
+
+    // 2. Build extraction prompt
+    let user_prompt = prompts::build_chat_extraction_prompt(
+        user_message,
+        assistant_response,
+        &existing_facts,
+        today,
+    );
+
+    // 3. Call Groq
+    let output = llm::call_groq(
+        env,
+        prompts::CHAT_EXTRACTION_SYSTEM,
+        &user_prompt,
+        0.0,
+        500,
+    )
+    .await?;
+
+    // 4. Parse JSON
+    let extraction_json = extract_synthesis_json(&output)?;
+
+    let db = env.d1("DB").map_err(|e| format!("D1 binding failed: {:?}", e))?;
+
+    // 5. Process ADD operations
+    if let Some(adds) = extraction_json.get("add").and_then(|v| v.as_array()) {
+        for fact in adds {
+            let fact_text = fact.get("fact_text").and_then(|v| v.as_str()).unwrap_or("");
+            let category = fact.get("category").and_then(|v| v.as_str()).unwrap_or("general");
+            let invalid_at = fact.get("invalid_at").and_then(|v| v.as_str());
+
+            if fact_text.is_empty() {
+                continue;
+            }
+
+            let fact_id = generate_fact_id();
+            let _ = db
+                .prepare(
+                    "INSERT OR IGNORE INTO synthesized_facts \
+                     (id, student_id, fact_text, fact_type, dimension, valid_at, invalid_at, \
+                      confidence, evidence, source_type, created_at) \
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+                )
+                .bind(&[
+                    JsValue::from_str(&fact_id),
+                    JsValue::from_str(student_id),
+                    JsValue::from_str(fact_text),
+                    JsValue::from_str("student_reported"),
+                    JsValue::from_str(category),
+                    JsValue::from_str(today),
+                    match invalid_at {
+                        Some(d) => JsValue::from_str(d),
+                        None => JsValue::NULL,
+                    },
+                    JsValue::from_str("high"),
+                    JsValue::from_str("[]"),
+                    JsValue::from_str("student_reported"),
+                    JsValue::from_str(&now),
+                ])
+                .map_err(|e| format!("Failed to bind fact insert: {:?}", e))?
+                .run()
+                .await;
+        }
+    }
+
+    // 6. Process UPDATE operations (invalidate old, insert new)
+    if let Some(updates) = extraction_json.get("update").and_then(|v| v.as_array()) {
+        for update in updates {
+            let existing_id = update.get("existing_fact_id").and_then(|v| v.as_str()).unwrap_or("");
+            let new_text = update.get("new_fact_text").and_then(|v| v.as_str()).unwrap_or("");
+            let category = update.get("category").and_then(|v| v.as_str()).unwrap_or("general");
+            let invalid_at = update.get("invalid_at").and_then(|v| v.as_str());
+
+            if existing_id.is_empty() || new_text.is_empty() {
+                continue;
+            }
+
+            // Invalidate old fact
+            let _ = db
+                .prepare(
+                    "UPDATE synthesized_facts SET invalid_at = ?1, expired_at = ?2 \
+                     WHERE id = ?3 AND student_id = ?4",
+                )
+                .bind(&[
+                    JsValue::from_str(today),
+                    JsValue::from_str(&now),
+                    JsValue::from_str(existing_id),
+                    JsValue::from_str(student_id),
+                ])
+                .map_err(|e| format!("Failed to bind invalidation: {:?}", e))?
+                .run()
+                .await;
+
+            // Insert replacement fact
+            let fact_id = generate_fact_id();
+            let _ = db
+                .prepare(
+                    "INSERT OR IGNORE INTO synthesized_facts \
+                     (id, student_id, fact_text, fact_type, dimension, valid_at, invalid_at, \
+                      confidence, evidence, source_type, created_at) \
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+                )
+                .bind(&[
+                    JsValue::from_str(&fact_id),
+                    JsValue::from_str(student_id),
+                    JsValue::from_str(new_text),
+                    JsValue::from_str("student_reported"),
+                    JsValue::from_str(category),
+                    JsValue::from_str(today),
+                    match invalid_at {
+                        Some(d) => JsValue::from_str(d),
+                        None => JsValue::NULL,
+                    },
+                    JsValue::from_str("high"),
+                    JsValue::from_str("[]"),
+                    JsValue::from_str("student_reported"),
+                    JsValue::from_str(&now),
+                ])
+                .map_err(|e| format!("Failed to bind replacement insert: {:?}", e))?
+                .run()
+                .await;
+        }
+    }
+
+    let add_count = extraction_json.get("add").and_then(|v| v.as_array()).map(|a| a.len()).unwrap_or(0);
+    let update_count = extraction_json.get("update").and_then(|v| v.as_array()).map(|a| a.len()).unwrap_or(0);
+    if add_count > 0 || update_count > 0 {
+        console_log!(
+            "Chat memory extraction for student {}: {} added, {} updated",
+            student_id, add_count, update_count
+        );
+    }
+
+    Ok(())
 }
 
 /// Store a teaching approach record after an /api/ask call.
@@ -672,6 +897,125 @@ pub async fn run_synthesis(
     );
 
     Ok(())
+}
+
+/// POST /api/memory/extract-chat -- eval endpoint for chat memory extraction.
+/// Accepts existing facts as input, calls Groq with production prompt, returns extraction JSON.
+/// Does NOT write to D1 -- the caller manages state.
+pub async fn handle_extract_chat(
+    env: &Env,
+    headers: &http::HeaderMap,
+    body: &[u8],
+) -> http::Response<axum::body::Body> {
+    use axum::body::Body;
+    use http::{Response, StatusCode};
+
+    // Auth
+    let _student_id = match crate::auth::verify_auth_header(headers, env) {
+        Ok(id) => id,
+        Err(err_response) => return err_response,
+    };
+
+    // Parse request
+    let request: ExtractChatRequest = match serde_json::from_slice(body) {
+        Ok(r) => r,
+        Err(e) => {
+            console_log!("Failed to parse extract-chat request: {:?}", e);
+            return Response::builder()
+                .status(StatusCode::BAD_REQUEST)
+                .header("Content-Type", "application/json")
+                .body(Body::from(r#"{"error":"Invalid request body"}"#))
+                .unwrap();
+        }
+    };
+
+    // Convert ExistingFactInput items to SynthesizedFact structs
+    let synthesized_facts: Vec<SynthesizedFact> = request
+        .existing_facts
+        .iter()
+        .map(|f| SynthesizedFact {
+            id: f.id.clone(),
+            fact_text: f.fact_text.clone(),
+            fact_type: "student_reported".to_string(),
+            dimension: Some(f.category.clone()),
+            piece_context: None,
+            valid_at: String::new(),
+            trend: None,
+            confidence: "high".to_string(),
+            source_type: "student_reported".to_string(),
+        })
+        .collect();
+
+    // Build extraction prompt
+    let user_prompt = crate::services::prompts::build_chat_extraction_prompt(
+        &request.user_message,
+        &request.assistant_response,
+        &synthesized_facts,
+        &request.today,
+    );
+
+    // Call Groq
+    let output = match crate::services::llm::call_groq(
+        env,
+        crate::services::prompts::CHAT_EXTRACTION_SYSTEM,
+        &user_prompt,
+        0.0,
+        500,
+    )
+    .await
+    {
+        Ok(output) => output,
+        Err(e) => {
+            console_log!("Groq call failed for extract-chat: {}", e);
+            return Response::builder()
+                .status(StatusCode::SERVICE_UNAVAILABLE)
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::json!({"error": format!("LLM call failed: {}", e)}).to_string(),
+                ))
+                .unwrap();
+        }
+    };
+
+    // Parse JSON from LLM output
+    let extraction_json = match extract_synthesis_json(&output) {
+        Ok(json) => json,
+        Err(e) => {
+            console_log!("Failed to parse extraction JSON: {}", e);
+            return Response::builder()
+                .status(StatusCode::UNPROCESSABLE_ENTITY)
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::json!({"error": format!("Failed to parse LLM output: {}", e)}).to_string(),
+                ))
+                .unwrap();
+        }
+    };
+
+    // Return parsed JSON
+    let json = serde_json::to_string(&extraction_json)
+        .unwrap_or_else(|_| r#"{"error":"Serialization failed"}"#.to_string());
+
+    Response::builder()
+        .status(StatusCode::OK)
+        .header("Content-Type", "application/json")
+        .body(Body::from(json))
+        .unwrap()
+}
+
+#[derive(serde::Deserialize)]
+pub struct ExtractChatRequest {
+    pub user_message: String,
+    pub assistant_response: String,
+    pub existing_facts: Vec<ExistingFactInput>,
+    pub today: String,
+}
+
+#[derive(serde::Deserialize)]
+pub struct ExistingFactInput {
+    pub id: String,
+    pub fact_text: String,
+    pub category: String,
 }
 
 /// Extract JSON from synthesis LLM output (may be wrapped in code fences).
