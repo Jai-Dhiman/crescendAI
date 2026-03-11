@@ -10,6 +10,12 @@
 
 **Spec:** `docs/superpowers/specs/2026-03-10-a1-max-training-design.md`
 
+**Deviations from spec:**
+- **Loss weights fixed, not swept.** The spec mentions "loss weight tuning" but the weights (1.5/0.3/0.3/0.1) are fixed in `BASE_CONFIG` by design. Sweeping loss weights multiplicatively with LoRA/label_smoothing would explode the grid. If the fixed weights underperform, a follow-up sweep can tune them.
+- **Batch size 4 (effective 16).** Spec says "batch size 32, fall back to 16." MPS memory limits us to batch_size=4 with accumulate_grad_batches=4 = effective 16. This is the practical maximum on a 32GB Mac for 1024-dim variable-length embeddings.
+- **ListMLE works on 2-item lists.** Spec says "falls back to pairwise BCE for pieces with 2 performances." ListMLE is mathematically valid for n=2 (equivalent to pairwise logistic loss), so no fallback is needed.
+- **Web app 6-dim update is out of scope.** The web app observation pipeline change is a separate task after the model ships.
+
 ---
 
 ## File Structure
@@ -356,9 +362,12 @@ Expected: FAIL with ImportError
 
 - [ ] **Step 3: Implement HardNegativePairSampler**
 
-Add to `model/src/model_improvement/data.py` after `PairedPerformanceDataset` (line ~263). Also add `import numpy as np` at top if not present.
+Add `import numpy as np` at the top of `model/src/model_improvement/data.py` (after existing imports), then add after `PairedPerformanceDataset` (line ~263):
 
 ```python
+import numpy as np  # Add this at top of file if not already present
+
+
 class HardNegativePairSampler:
     """Curriculum-based pair sampler that progressively adds harder pairs.
 
@@ -698,13 +707,20 @@ class MuQLoRAMaxModel(MuQLoRAModel):
         lambda_invariance: float = 0.1,
         **kwargs,
     ):
+        # NOTE: Do NOT call self.save_hyperparameters() here -- parent
+        # already calls it, and a second call overwrites parent hparams.
         super().__init__(
             lambda_contrastive=lambda_contrastive,
             lambda_regression=lambda_regression,
             lambda_invariance=lambda_invariance,
             **kwargs,
         )
-        self.save_hyperparameters()
+        # Manually store extra hparams that parent doesn't know about
+        self.hparams.update({
+            "lambda_listmle": lambda_listmle,
+            "use_ccc": use_ccc,
+            "mixup_alpha": mixup_alpha,
+        })
         self.lambda_listmle = lambda_listmle
         self.use_ccc = use_ccc
         self.mixup_alpha = mixup_alpha
@@ -1101,7 +1117,33 @@ After sweep completes, check:
 - Score drop < 15% (robustness -- run manually on best config)
 - STOP AUC >= 0.80 (run manually on best config)
 
-- [ ] **Step 3: Commit results**
+- [ ] **Step 3: Evaluate 4-fold ensemble of best config**
+
+Load all 4 fold checkpoints of the winning config, average their `predict_scores()` outputs, and evaluate ensemble pairwise accuracy + R2. This is what ships.
+
+```bash
+cd /Users/jdhiman/Documents/crescendai/model && uv run python -c "
+import json, torch
+from model_improvement.a1_max_sweep import _config_name
+from model_improvement.audio_encoders import MuQLoRAMaxModel
+from model_improvement.taxonomy import load_composite_labels
+from model_improvement.metrics import MetricsSuite
+from pathlib import Path
+
+# Load best config from sweep results
+with open('data/a1_max_sweep_results.json') as f:
+    results = json.load(f)
+best = max(results.items(), key=lambda x: x[1]['pairwise_mean'])
+print(f'Best config: {best[0]} (pairwise={best[1][\"pairwise_mean\"]:.4f})')
+# Ensemble evaluation code here -- average predictions across 4 fold models
+"
+```
+
+- [ ] **Step 4: Run robustness check + STOP AUC on ensemble**
+
+Must pass: robustness score_drop < 15%, STOP AUC >= 0.80.
+
+- [ ] **Step 5: Commit results**
 
 ```bash
 cd /Users/jdhiman/Documents/crescendai && git add model/data/a1_max_sweep_results.json && git commit -m "results: A1-max sweep complete"
