@@ -1,6 +1,7 @@
-import { Stop } from "@phosphor-icons/react";
+import { Metronome as MetronomeIcon, Minus, Plus, Stop } from "@phosphor-icons/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useMetronome } from "../hooks/useMetronome";
 import type { PracticeState } from "../hooks/usePracticeSession";
 import type { DimScores, ObservationEvent } from "../lib/practice-api";
 import { FlowingWaves } from "./FlowingWaves";
@@ -35,6 +36,8 @@ export function ListeningMode({
 	const [dismissedIds, setDismissedIds] = useState<Set<number>>(new Set());
 	const [notes, setNotes] = useState("");
 	const [showNotepad, setShowNotepad] = useState(false);
+	const metronome = useMetronome();
+	const [showMetronome, setShowMetronome] = useState(false);
 
 	// Compute origin point for clip-path (center of record button, or fallback)
 	const originX = originRect
@@ -147,10 +150,34 @@ export function ListeningMode({
 					{/* Top bar: piece info */}
 					<div className="shrink-0 flex items-center justify-between px-6 py-4 border-b border-border">
 						<div className="flex items-center gap-3">
-							{/* Metronome placeholder -- Task 6 */}
-							<div className="w-10 h-10 rounded-lg bg-surface flex items-center justify-center text-text-secondary text-body-sm">
-								M
-							</div>
+							<div className="relative">
+							<button
+								type="button"
+								onClick={() => setShowMetronome(!showMetronome)}
+								className={`flex items-center gap-2 px-3 py-2 rounded-lg transition ${
+									metronome.isPlaying
+										? "bg-accent/20 text-accent"
+										: "bg-surface text-text-secondary hover:text-cream"
+								}`}
+								aria-label="Toggle metronome"
+							>
+								<MetronomeIcon
+									size={20}
+									weight="fill"
+									className={metronome.isPlaying ? "animate-pulse" : ""}
+								/>
+								{metronome.isPlaying && (
+									<span className="text-body-sm tabular-nums">{metronome.bpm}</span>
+								)}
+							</button>
+
+							{showMetronome && (
+								<MetronomePanel
+									metronome={metronome}
+									onClose={() => setShowMetronome(false)}
+								/>
+							)}
+						</div>
 						</div>
 						<div className="text-right">
 							<span className="text-label-sm text-text-tertiary uppercase tracking-wider">
@@ -331,6 +358,103 @@ function NotepadDrawer({
 						placeholder="Jot down thoughts while you play..."
 						className="w-full h-full min-h-[120px] bg-transparent text-body-sm text-cream placeholder:text-text-tertiary outline-none resize-none"
 					/>
+				</div>
+			</div>
+		</>
+	);
+}
+
+function MetronomePanel({
+	metronome,
+	onClose,
+}: {
+	metronome: import("../hooks/useMetronome").UseMetronomeReturn;
+	onClose: () => void;
+}) {
+	return (
+		<>
+			<button
+				type="button"
+				className="fixed inset-0 z-40"
+				onClick={onClose}
+				aria-label="Close metronome"
+			/>
+			<div className="absolute top-full left-0 mt-2 z-50 bg-surface border border-border rounded-xl p-4 min-w-[220px] shadow-card animate-overlay-in">
+				{/* BPM display + controls */}
+				<div className="flex items-center justify-center gap-3 mb-4">
+					<button
+						type="button"
+						onClick={() => metronome.adjustBpm(-1)}
+						className="w-8 h-8 rounded-full bg-surface-2 flex items-center justify-center text-text-secondary hover:text-cream transition"
+						aria-label="Decrease BPM"
+					>
+						<Minus size={14} />
+					</button>
+					<div className="text-center">
+						<span className="text-display-sm text-cream tabular-nums">
+							{metronome.bpm}
+						</span>
+						<span className="block text-body-xs text-text-tertiary">BPM</span>
+					</div>
+					<button
+						type="button"
+						onClick={() => metronome.adjustBpm(1)}
+						className="w-8 h-8 rounded-full bg-surface-2 flex items-center justify-center text-text-secondary hover:text-cream transition"
+						aria-label="Increase BPM"
+					>
+						<Plus size={14} />
+					</button>
+				</div>
+
+				{/* Tap tempo */}
+				<button
+					type="button"
+					onClick={metronome.tapTempo}
+					className="w-full py-2 rounded-lg bg-surface-2 text-body-sm text-text-secondary hover:text-cream transition mb-3"
+				>
+					Tap Tempo
+				</button>
+
+				{/* Time signature */}
+				<div className="flex gap-2 mb-3">
+					{(["4/4", "3/4", "6/8"] as const).map((ts) => (
+						<button
+							key={ts}
+							type="button"
+							onClick={() => metronome.setTimeSignature(ts)}
+							className={`flex-1 py-1.5 rounded-lg text-body-sm transition ${
+								metronome.timeSignature === ts
+									? "bg-accent text-on-accent"
+									: "bg-surface-2 text-text-secondary hover:text-cream"
+							}`}
+						>
+							{ts}
+						</button>
+					))}
+				</div>
+
+				{/* Accent + On/Off */}
+				<div className="flex items-center justify-between">
+					<label className="flex items-center gap-2 text-body-sm text-text-secondary cursor-pointer">
+						<input
+							type="checkbox"
+							checked={metronome.accentFirstBeat}
+							onChange={(e) => metronome.setAccentFirstBeat(e.target.checked)}
+							className="accent-accent"
+						/>
+						Accent beat 1
+					</label>
+					<button
+						type="button"
+						onClick={metronome.toggle}
+						className={`px-3 py-1.5 rounded-lg text-body-sm transition ${
+							metronome.isPlaying
+								? "bg-red-600 text-on-accent hover:bg-red-500"
+								: "bg-accent text-on-accent hover:brightness-110"
+						}`}
+					>
+						{metronome.isPlaying ? "Stop" : "Start"}
+					</button>
 				</div>
 			</div>
 		</>
