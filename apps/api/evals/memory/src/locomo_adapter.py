@@ -104,6 +104,17 @@ def _group_facts_for_context(facts: list[dict], current_date: str = "") -> str:
     return "\n".join(lines)
 
 
+_sentence_model = None
+
+
+def _get_sentence_model():
+    global _sentence_model
+    if _sentence_model is None:
+        from sentence_transformers import SentenceTransformer
+        _sentence_model = SentenceTransformer("all-MiniLM-L6-v2")
+    return _sentence_model
+
+
 def _filter_relevant_facts(
     question: str,
     facts: list[dict],
@@ -140,9 +151,9 @@ def _filter_relevant_facts(
         return keyword_matches
 
     # Stage 2: cosine similarity re-rank
-    from sentence_transformers import SentenceTransformer, util
+    model = _get_sentence_model()
+    from sentence_transformers import util
 
-    model = SentenceTransformer("all-MiniLM-L6-v2")
     q_emb = model.encode([question])
     fact_texts = [f.get("fact_text", "") for f in keyword_matches]
     fact_embs = model.encode(fact_texts)
