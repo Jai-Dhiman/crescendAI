@@ -68,7 +68,7 @@ export function ChatInput({
 							type="button"
 							onClick={handleSend}
 							disabled={disabled}
-							className="shrink-0 w-8 h-8 flex items-center justify-center rounded-full bg-accent text-cream hover:brightness-110 transition animate-pop-in"
+							className="shrink-0 w-8 h-8 flex items-center justify-center rounded-full bg-accent text-on-accent hover:brightness-110 transition animate-pop-in"
 						>
 							<PaperPlaneTilt size={16} weight="fill" />
 						</button>
@@ -79,7 +79,7 @@ export function ChatInput({
 					<button
 						type="button"
 						onClick={onRecord}
-						className="shrink-0 w-16 h-16 flex items-center justify-center rounded-full bg-accent text-cream hover:brightness-110 transition animate-pop-in"
+						className="shrink-0 w-16 h-16 flex items-center justify-center rounded-full bg-accent text-on-accent hover:brightness-110 transition animate-pop-in"
 						aria-label="Record audio"
 					>
 						<Waveform size={24} />

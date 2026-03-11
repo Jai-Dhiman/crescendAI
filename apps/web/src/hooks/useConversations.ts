@@ -42,6 +42,33 @@ export function useDeleteConversation() {
 	});
 }
 
+export function useDeleteConversations() {
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationFn: async (ids: string[]) => {
+			await Promise.all(ids.map((id) => api.chat.delete(id)));
+		},
+		onMutate: async (ids) => {
+			await queryClient.cancelQueries({ queryKey: ["conversations"] });
+			const previous = queryClient.getQueryData<ConversationSummary[]>([
+				"conversations",
+			]);
+			const idSet = new Set(ids);
+			queryClient.setQueryData<ConversationSummary[]>(
+				["conversations"],
+				(old) => old?.filter((c) => !idSet.has(c.id)),
+			);
+			return { previous };
+		},
+		onError: (_err, _ids, context) => {
+			queryClient.setQueryData(["conversations"], context?.previous);
+		},
+		onSettled: () => {
+			queryClient.invalidateQueries({ queryKey: ["conversations"] });
+		},
+	});
+}
+
 export function useInvalidateConversations() {
 	const queryClient = useQueryClient();
 	return () => queryClient.invalidateQueries({ queryKey: ["conversations"] });

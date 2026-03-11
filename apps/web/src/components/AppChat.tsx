@@ -1,8 +1,11 @@
 import {
 	ChatCircle,
 	MagnifyingGlass,
+	Moon,
 	PlusCircle,
 	SidebarSimple,
+	SignOut,
+	Sun,
 	Trash,
 	X,
 } from "@phosphor-icons/react";
@@ -19,6 +22,7 @@ import type { ChatStreamEvent } from "../lib/api";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import type { RichMessage } from "../lib/types";
+import { useThemeStore } from "../stores/theme";
 import { useToastStore } from "../stores/toast";
 import { useUIStore } from "../stores/ui";
 import { ChatInput } from "./ChatInput";
@@ -98,6 +102,7 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 		left: number;
 	} | null>(null);
 	const { sidebarOpen, setSidebarOpen } = useUIStore();
+	const { theme, toggleTheme } = useThemeStore();
 	const profileRef = useRef<HTMLDivElement>(null);
 	const addToast = useToastStore((s) => s.addToast);
 
@@ -456,44 +461,58 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 				{/* Conversation list */}
 				{sidebarOpen && (
 					<div className="mt-4 flex-1 overflow-y-auto px-2">
+						<span className="px-3 text-body-xs text-text-tertiary uppercase tracking-wider">
+							Recent
+						</span>
 						{isConversationsPending ? (
 							<ConversationSkeleton />
 						) : (
-							conversations.map((conv) => (
-								<div
-									role="button"
-									tabIndex={0}
-									key={conv.id}
-									className={`group flex w-full items-center gap-2 rounded-lg px-3 py-2 cursor-pointer text-body-sm transition min-h-[44px] text-left ${
-										conv.id === activeConversationId
-											? "bg-surface text-cream"
-											: "text-text-secondary hover:text-cream hover:bg-surface"
-									}`}
-									onClick={() => loadConversation(conv.id)}
-									onKeyDown={(e) => {
-										if (e.key === "Enter" || e.key === " ") {
-											e.preventDefault();
-											loadConversation(conv.id);
-										}
-									}}
-								>
-									<ChatCircle size={16} className="shrink-0" />
-									<span className="flex-1 truncate">
-										{conv.title ?? "New conversation"}
-									</span>
+							<>
+								{conversations.slice(0, 8).map((conv) => (
+									<div
+										role="button"
+										tabIndex={0}
+										key={conv.id}
+										className={`group flex w-full items-center gap-2 rounded-lg px-3 py-1.5 cursor-pointer text-body-sm transition min-h-[36px] text-left ${
+											conv.id === activeConversationId
+												? "bg-surface text-cream"
+												: "text-text-secondary hover:text-cream hover:bg-surface"
+										}`}
+										onClick={() => loadConversation(conv.id)}
+										onKeyDown={(e) => {
+											if (e.key === "Enter" || e.key === " ") {
+												e.preventDefault();
+												loadConversation(conv.id);
+											}
+										}}
+									>
+										<ChatCircle size={14} className="shrink-0" />
+										<span className="flex-1 truncate">
+											{conv.title ?? "New conversation"}
+										</span>
+										<button
+											type="button"
+											onClick={(e) => {
+												e.stopPropagation();
+												handleDeleteConversation(conv.id);
+											}}
+											className="opacity-0 group-hover:opacity-100 shrink-0 w-7 h-7 flex items-center justify-center text-text-tertiary hover:text-cream transition"
+											aria-label="Delete conversation"
+										>
+											<Trash size={14} />
+										</button>
+									</div>
+								))}
+								{conversations.length > 8 && (
 									<button
 										type="button"
-										onClick={(e) => {
-											e.stopPropagation();
-											handleDeleteConversation(conv.id);
-										}}
-										className="opacity-0 group-hover:opacity-100 shrink-0 w-8 h-8 flex items-center justify-center text-text-tertiary hover:text-cream transition"
-										aria-label="Delete conversation"
+										className="w-full mt-1 px-3 py-2 text-body-xs text-text-tertiary hover:text-cream transition text-left"
+										onClick={() => navigate({ to: "/app/chats" })}
 									>
-										<Trash size={14} />
+										See All Chats
 									</button>
-								</div>
-							))
+								)}
+							</>
 						)}
 					</div>
 				)}
@@ -532,18 +551,33 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 
 					{showProfile && dropdownPos && (
 						<div
-							className="fixed bg-surface border border-border rounded-lg py-1 min-w-[140px] z-50"
+							className="fixed bg-surface border border-border rounded-lg py-1 min-w-[160px] z-50"
 							style={{
 								bottom: dropdownPos.bottom,
-								left: dropdownPos.left,
+								left: dropdownPos.left + 8,
 							}}
 						>
 							<button
 								type="button"
-								onClick={handleSignOut}
-								className="w-full text-left px-4 py-2 text-body-sm text-text-secondary hover:text-cream hover:bg-surface-2 transition rounded-lg"
+								onClick={toggleTheme}
+								className="w-full text-left px-4 py-2 text-body-sm text-text-secondary hover:text-cream hover:bg-surface-2 transition rounded-lg flex items-center gap-2"
 							>
-								Sign Out
+								{theme === "light" ? (
+									<Moon size={16} />
+								) : (
+									<Sun size={16} />
+								)}
+								<span>
+									{theme === "light" ? "Dark Mode" : "Light Mode"}
+								</span>
+							</button>
+							<button
+								type="button"
+								onClick={handleSignOut}
+								className="w-full text-left px-4 py-2 text-body-sm text-text-secondary hover:text-cream hover:bg-surface-2 transition rounded-lg flex items-center gap-2"
+							>
+								<SignOut size={16} />
+								<span>Sign Out</span>
 							</button>
 						</div>
 					)}

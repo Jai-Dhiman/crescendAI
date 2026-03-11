@@ -11,6 +11,7 @@ import { useEffect, useRef, useState } from "react";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { ToastContainer } from "../components/ToastContainer";
 import { AuthProvider } from "../lib/auth";
+import { useThemeStore } from "../stores/theme";
 
 import appCss from "../styles/app.css?url";
 
@@ -53,13 +54,29 @@ export const Route = createRootRoute({
 	component: RootDocument,
 });
 
+const THEME_FLASH_SCRIPT = `(function(){var path=location.pathname;if(path==="/"||path==="/signin")return;var p=localStorage.getItem("crescend-theme");var t=p==="light"||p==="dark"?p:window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";if(t==="light")document.documentElement.dataset.theme="light"})();`;
+
 function RootDocument() {
 	const pathname = useRouterState({ select: (s) => s.location.pathname });
 	const isAppShell = pathname === "/signin" || pathname.startsWith("/app");
+	const theme = useThemeStore((s) => s.theme);
+
+	useEffect(() => {
+		const isAlwaysDark = pathname === "/" || pathname === "/signin";
+		if (isAlwaysDark) {
+			delete document.documentElement.dataset.theme;
+		} else if (theme === "light") {
+			document.documentElement.dataset.theme = "light";
+		} else {
+			delete document.documentElement.dataset.theme;
+		}
+	}, [pathname, theme]);
 
 	return (
 		<html lang="en">
 			<head>
+				{/* Static script to prevent theme flash - content is hardcoded, not user input */}
+				<script dangerouslySetInnerHTML={{ __html: THEME_FLASH_SCRIPT }} />
 				<HeadContent />
 				<script
 					type="text/javascript"

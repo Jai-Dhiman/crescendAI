@@ -1,8 +1,19 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useEffect } from "react";
+import { useAuth } from "../lib/auth";
 
 export const Route = createFileRoute("/")({ component: LandingPage });
 
 function LandingPage() {
+	const { isAuthenticated, isLoading } = useAuth();
+	const navigate = useNavigate();
+
+	useEffect(() => {
+		if (!isLoading && isAuthenticated) {
+			navigate({ to: "/app" });
+		}
+	}, [isLoading, isAuthenticated, navigate]);
+
 	return (
 		<div>
 			<HeroSection />

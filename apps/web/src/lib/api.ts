@@ -116,6 +116,15 @@ export const api = {
 			return request("/api/auth/signout", { method: "POST" });
 		},
 
+		google: (credential: string) =>
+			request<AuthResult>(
+				"/api/auth/google",
+				{
+					method: "POST",
+					body: JSON.stringify({ credential }),
+				},
+			),
+
 		debug(): Promise<AuthResult> {
 			return request("/api/auth/debug", { method: "POST" });
 		},

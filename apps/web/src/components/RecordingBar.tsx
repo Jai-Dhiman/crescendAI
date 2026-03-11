@@ -102,7 +102,7 @@ export function RecordingBar({
 							<button
 								type="button"
 								onClick={onStop}
-								className="w-9 h-9 flex items-center justify-center rounded-full bg-red-600 hover:bg-red-500 text-cream transition-colors"
+								className="w-9 h-9 flex items-center justify-center rounded-full bg-red-600 hover:bg-red-500 text-on-accent transition-colors"
 								aria-label="Stop recording"
 							>
 								<Stop size={16} weight="fill" />
