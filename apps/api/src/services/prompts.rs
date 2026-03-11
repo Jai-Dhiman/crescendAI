@@ -489,18 +489,21 @@ Return ONLY valid JSON:
 ```json
 {
   "add": [
-    {"fact_text": "...", "category": "identity", "permanent": true, "invalid_at": null}
+    {"fact_text": "...", "category": "identity", "permanent": true, "invalid_at": null, "entities": ["Person1", "Place1"], "relations": [{"s": "Person1", "r": "lives_in", "o": "Place1"}]}
   ],
   "update": [
-    {"existing_fact_id": "...", "new_fact_text": "...", "category": "identity", "permanent": true, "invalid_at": null}
+    {"existing_fact_id": "...", "new_fact_text": "...", "category": "identity", "permanent": true, "invalid_at": null, "entities": [], "relations": []}
   ]
 }
 ```
 
 If nothing worth remembering, return: {"add": [], "update": []}
 
+Field reference:
 - permanent: true for facts unlikely to change (name, background), false for time-bound facts
-- invalid_at: ISO date string (YYYY-MM-DD) for facts that expire, null for permanent facts"#;
+- invalid_at: ISO date string (YYYY-MM-DD) for facts that expire, null for permanent facts
+- entities: list of key people, places, or things mentioned in the fact (optional, can be empty)
+- relations: list of subject-relation-object triples connecting entities (optional, can be empty). Each has "s" (subject), "r" (relation verb), "o" (object)"#;
 
 /// Build the user prompt for chat memory extraction.
 pub fn build_chat_extraction_prompt(
