@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 
-def _retry_on_rate_limit(fn, max_retries: int = 3, base_delay: float = 2.0):
+def _retry_on_rate_limit(fn, max_retries: int = 5, base_delay: float = 5.0):
     """Retry a callable on 429/503 with exponential backoff.
 
     Handles both requests.HTTPError (API calls) and Groq SDK exceptions (groq.RateLimitError).
@@ -45,7 +45,7 @@ def _retry_on_rate_limit(fn, max_retries: int = 3, base_delay: float = 2.0):
 DATA_DIR = Path(__file__).parents[1] / "data"
 _DEV_VARS_PATH = Path(__file__).parents[3] / ".dev.vars"
 
-API_BASE = "http://localhost:8787"
+API_BASE = os.environ.get("API_BASE", "http://localhost:8787")
 
 CATEGORY_NAMES = {
     1: "Single-hop",
@@ -56,16 +56,20 @@ CATEGORY_NAMES = {
 }
 
 QA_SYSTEM_PROMPT = """\
-You are answering questions about a person based on extracted memory facts.
+You are answering questions about people based on extracted memory facts from their conversations.
 
 Steps:
-1. Identify which facts are relevant to the question
-2. If the question requires combining multiple facts, trace the reasoning chain
-3. If the question asks about time ("when", "how long ago"), use the dates in the facts and the current date provided
-4. Answer concisely -- typically 1-5 words for factual questions, 1-2 sentences for open-ended
+1. Read ALL provided facts carefully before answering
+2. If the question requires combining multiple facts, trace the reasoning chain step by step
+3. If the question asks about time ("when", "how long ago"), use the dates in the facts and the current date provided. Facts include [date] prefixes -- use these exact dates in your answer.
+4. For open-ended questions ("what does X think about...", "how does X feel..."), synthesize relevant facts into a natural answer
+5. Answer concisely -- typically 1-5 words for factual questions, 1-2 sentences for open-ended
 
-If the facts don't contain enough information, say "I don't know".
-Do NOT guess or infer beyond what the facts state."""
+IMPORTANT:
+- You MUST ground every answer in specific facts provided. If you cannot point to a specific fact that supports your answer, say "I don't know".
+- Combine multiple facts to reach an answer, but never fabricate details not present in any fact.
+- For temporal questions, use the [date] prefix on facts to determine when events happened. Give specific dates, not relative terms like "recently".
+- Say "I don't know" when: the question asks about something not covered by any fact, or the facts are about a different topic than what's asked."""
 
 
 def _group_facts_for_context(facts: list[dict], current_date: str = "") -> str:
@@ -88,7 +92,9 @@ def _group_facts_for_context(facts: list[dict], current_date: str = "") -> str:
             "opinions": "Opinions & Views",
             "context": "Context & Circumstances",
         }.get(cat, "Other")
-        groups.setdefault(heading, []).append(text)
+        date = fact.get("date", "")
+        entry = f"[{date}] {text}" if date else text
+        groups.setdefault(heading, []).append(entry)
 
     if not groups:
         return "(No facts extracted)"
@@ -176,7 +182,7 @@ def _entity_hop_retrieval(
     question: str,
     facts: list[dict],
     max_hops: int = 1,
-    max_facts: int = 25,
+    max_facts: int = 50,
 ) -> list[dict]:
     """Retrieve facts using entity-based graph traversal.
 
@@ -260,8 +266,42 @@ def _entity_hop_retrieval(
 # Token-level F1 (official LoCoMo metric)
 # ---------------------------------------------------------------------------
 
+_MONTH_NAMES = {
+    "january": "01", "february": "02", "march": "03", "april": "04",
+    "may": "05", "june": "06", "july": "07", "august": "08",
+    "september": "09", "october": "10", "november": "11", "december": "12",
+    "jan": "01", "feb": "02", "mar": "03", "apr": "04",
+    "jun": "06", "jul": "07", "aug": "08", "sep": "09",
+    "oct": "10", "nov": "11", "dec": "12",
+}
+_MONTH_TO_NAME = {
+    "01": "january", "02": "february", "03": "march", "04": "april",
+    "05": "may", "06": "june", "07": "july", "08": "august",
+    "09": "september", "10": "october", "11": "november", "12": "december",
+}
+
+
+def _normalize_dates(text: str) -> str:
+    """Convert ISO dates (2023-05-08) to natural language (8 may 2023) for token matching."""
+    def _iso_to_natural(m: re.Match) -> str:
+        y, mo, d = m.group(1), m.group(2), m.group(3)
+        month_name = _MONTH_TO_NAME.get(mo, mo)
+        day = str(int(d))  # remove leading zero
+        return f"{day} {month_name} {y}"
+
+    # Also convert "[2023-05-08]" bracket-wrapped dates
+    text = re.sub(r"\[?(\d{4})-(\d{2})-(\d{2})\]?", _iso_to_natural, text)
+
+    # Convert "May 2023" / "7 May 2023" month names to lowercase for matching
+    for month in _MONTH_NAMES:
+        text = re.sub(rf"\b{month}\b", month, text, flags=re.IGNORECASE)
+
+    return text
+
+
 def normalize_text(text: str) -> str:
-    """Lowercase, remove articles, punctuation, extra whitespace."""
+    """Lowercase, normalize dates, remove articles, punctuation, extra whitespace."""
+    text = _normalize_dates(text)
     text = text.lower()
     text = re.sub(r"\b(a|an|the)\b", " ", text)
     text = re.sub(r"[^\w\s]", "", text)
@@ -463,6 +503,31 @@ def run_locomo_assessment(
 
         conversation = conv.get("conversation", {})
         speaker_a = conversation.get("speaker_a", "User")
+        speaker_b = conversation.get("speaker_b", "Assistant")
+
+        def _replace_speaker_labels(text: str, user_name: str, asst_name: str) -> str:
+            """Replace generic 'Student'/'Teacher' labels with actual speaker names."""
+            text = re.sub(r"\bStudent(?:'s)?\b", lambda m: f"{user_name}'s" if "'s" in m.group() else user_name, text)
+            text = re.sub(r"\bTeacher(?:'s)?\b", lambda m: f"{asst_name}'s" if "'s" in m.group() else asst_name, text)
+            return text
+
+        def _fixup_fact_text(fact: dict, user_name: str, asst_name: str) -> dict:
+            """Replace Student/Teacher with actual names in fact text and entities."""
+            fact = dict(fact)
+            fact["fact_text"] = _replace_speaker_labels(fact.get("fact_text", ""), user_name, asst_name)
+            fact["entities"] = [
+                user_name if e == "Student" else (asst_name if e == "Teacher" else e)
+                for e in fact.get("entities", [])
+            ]
+            fact["relations"] = [
+                {
+                    "s": user_name if r.get("s") == "Student" else (asst_name if r.get("s") == "Teacher" else r.get("s", "")),
+                    "r": r.get("r", ""),
+                    "o": user_name if r.get("o") == "Student" else (asst_name if r.get("o") == "Teacher" else r.get("o", "")),
+                }
+                for r in fact.get("relations", [])
+            ]
+            return fact
 
         # Iterate over sessions in order (session_1, session_2, ...)
         session_num = 1
@@ -480,78 +545,145 @@ def run_locomo_assessment(
             date_str = conversation.get(date_key, "")
             session_date = _parse_locomo_date(date_str) if date_str else "2024-01-01"
 
-            # Pair consecutive turns: speaker_a = user, speaker_b = assistant
+            # Pair consecutive turns and extract from BOTH directions
+            # so facts about both speakers are captured with correct names.
             i = 0
             while i < len(session_turns) - 1:
                 turn_a = session_turns[i]
                 turn_b = session_turns[i + 1]
 
                 if turn_a.get("speaker") == speaker_a:
-                    user_msg = turn_a.get("text", "")
-                    assistant_msg = turn_b.get("text", "")
+                    msg_a = turn_a.get("text", "")
+                    msg_b = turn_b.get("text", "")
                 else:
-                    user_msg = turn_b.get("text", "")
-                    assistant_msg = turn_a.get("text", "")
+                    msg_a = turn_b.get("text", "")
+                    msg_b = turn_a.get("text", "")
 
                 today = session_date
 
+                # Direction 1: speaker_a as user, speaker_b as assistant
                 cache_key = f"{conv_id}_turn_{turn_idx}"
-
                 if cache_key in extraction_cache:
                     extract_result = extraction_cache[cache_key].get("result", {})
                 elif live:
                     assert token is not None
                     extract_result = _call_extract_chat(
-                        token, user_msg, assistant_msg, accumulated_facts, today
+                        token, msg_a, msg_b, accumulated_facts, today
                     )
                     entry = {
                         "key": cache_key,
                         "conversation_id": conv_id,
                         "turn_idx": turn_idx,
-                        "user_message": user_msg,
-                        "assistant_response": assistant_msg,
+                        "user_message": msg_a,
+                        "assistant_response": msg_b,
                         "result": extract_result,
                     }
                     extraction_cache[cache_key] = entry
                     _save_cache_entry(extraction_cache_path, entry)
                 else:
-                    turn_idx += 1
-                    i += 2
-                    continue
+                    extract_result = {"add": [], "update": []}
 
-                # Process ADD operations
+                # Process direction 1 (Student -> speaker_a, Teacher -> speaker_b)
                 for fact in extract_result.get("add", []):
+                    fixed = _fixup_fact_text(fact, speaker_a, speaker_b)
                     fact_id = f"fact_{conv_id}_{turn_idx}_{len(accumulated_facts)}"
                     accumulated_facts.append({
                         "id": fact_id,
-                        "fact_text": fact.get("fact_text", ""),
-                        "category": fact.get("category", ""),
-                        "permanent": fact.get("permanent", True),
-                        "entities": fact.get("entities", []),
-                        "relations": fact.get("relations", []),
+                        "fact_text": fixed["fact_text"],
+                        "category": fixed.get("category", ""),
+                        "permanent": fixed.get("permanent", True),
+                        "entities": fixed.get("entities", []),
+                        "relations": fixed.get("relations", []),
+                        "date": today,
                     })
-
-                # Process UPDATE operations
                 for fact in extract_result.get("update", []):
                     old_id = fact.get("existing_fact_id", "")
                     accumulated_facts = [
                         f for f in accumulated_facts if f.get("id") != old_id
                     ]
-                    fact_id = f"fact_{conv_id}_{turn_idx}_{len(accumulated_facts)}"
                     fact_text = fact.get("new_fact_text", "") or fact.get("fact_text", "")
+                    fixed = _fixup_fact_text({**fact, "fact_text": fact_text}, speaker_a, speaker_b)
+                    fact_id = f"fact_{conv_id}_{turn_idx}_{len(accumulated_facts)}"
                     accumulated_facts.append({
                         "id": fact_id,
-                        "fact_text": fact_text,
-                        "category": fact.get("category", ""),
-                        "permanent": fact.get("permanent", True),
-                        "entities": fact.get("entities", []),
-                        "relations": fact.get("relations", []),
+                        "fact_text": fixed["fact_text"],
+                        "category": fixed.get("category", ""),
+                        "permanent": fixed.get("permanent", True),
+                        "entities": fixed.get("entities", []),
+                        "relations": fixed.get("relations", []),
+                        "date": today,
+                    })
+
+                # Direction 2: speaker_b as user, speaker_a as assistant (swap)
+                cache_key_rev = f"{conv_id}_turn_{turn_idx}_rev"
+                if cache_key_rev in extraction_cache:
+                    extract_result_rev = extraction_cache[cache_key_rev].get("result", {})
+                elif live:
+                    assert token is not None
+                    extract_result_rev = _call_extract_chat(
+                        token, msg_b, msg_a, accumulated_facts, today
+                    )
+                    entry = {
+                        "key": cache_key_rev,
+                        "conversation_id": conv_id,
+                        "turn_idx": turn_idx,
+                        "user_message": msg_b,
+                        "assistant_response": msg_a,
+                        "result": extract_result_rev,
+                    }
+                    extraction_cache[cache_key_rev] = entry
+                    _save_cache_entry(extraction_cache_path, entry)
+                else:
+                    extract_result_rev = {"add": [], "update": []}
+
+                # Process direction 2 (Student -> speaker_b, Teacher -> speaker_a)
+                for fact in extract_result_rev.get("add", []):
+                    fixed = _fixup_fact_text(fact, speaker_b, speaker_a)
+                    fact_id = f"fact_{conv_id}_{turn_idx}_r_{len(accumulated_facts)}"
+                    accumulated_facts.append({
+                        "id": fact_id,
+                        "fact_text": fixed["fact_text"],
+                        "category": fixed.get("category", ""),
+                        "permanent": fixed.get("permanent", True),
+                        "entities": fixed.get("entities", []),
+                        "relations": fixed.get("relations", []),
+                        "date": today,
+                    })
+                for fact in extract_result_rev.get("update", []):
+                    old_id = fact.get("existing_fact_id", "")
+                    accumulated_facts = [
+                        f for f in accumulated_facts if f.get("id") != old_id
+                    ]
+                    fact_text = fact.get("new_fact_text", "") or fact.get("fact_text", "")
+                    fixed = _fixup_fact_text({**fact, "fact_text": fact_text}, speaker_b, speaker_a)
+                    fact_id = f"fact_{conv_id}_{turn_idx}_r_{len(accumulated_facts)}"
+                    accumulated_facts.append({
+                        "id": fact_id,
+                        "fact_text": fixed["fact_text"],
+                        "category": fixed.get("category", ""),
+                        "permanent": fixed.get("permanent", True),
+                        "entities": fixed.get("entities", []),
+                        "relations": fixed.get("relations", []),
+                        "date": today,
                     })
 
                 turn_idx += 1
                 i += 2
 
             session_num += 1
+
+        result.extraction_count = len(accumulated_facts)
+
+        # Deduplicate facts before QA (bidirectional extraction creates near-dupes)
+        seen_texts: set[str] = set()
+        deduped_facts: list[dict] = []
+        for fact in accumulated_facts:
+            # Normalize for dedup: lowercase, strip punctuation
+            norm = re.sub(r"[^\w\s]", "", fact["fact_text"].lower()).strip()
+            if norm not in seen_texts:
+                seen_texts.add(norm)
+                deduped_facts.append(fact)
+        accumulated_facts = deduped_facts
 
         result.extraction_count = len(accumulated_facts)
 
