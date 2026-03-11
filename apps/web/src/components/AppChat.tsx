@@ -27,7 +27,7 @@ import { useToastStore } from "../stores/toast";
 import { useUIStore } from "../stores/ui";
 import { ChatInput } from "./ChatInput";
 import { ChatMessages } from "./ChatMessages";
-import { RecordingBar } from "./RecordingBar";
+import { ListeningMode } from "./ListeningMode";
 import {
 	ChatSkeleton,
 	ConversationSkeleton,
@@ -106,6 +106,10 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 	const profileRef = useRef<HTMLDivElement>(null);
 	const addToast = useToastStore((s) => s.addToast);
 
+	const recordButtonRef = useRef<HTMLButtonElement>(null);
+	const [showListeningMode, setShowListeningMode] = useState(false);
+	const [recordButtonRect, setRecordButtonRect] = useState<DOMRect | null>(null);
+
 	// Chat state
 	const [activeConversationId, setActiveConversationId] = useState<
 		string | null
@@ -171,7 +175,15 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 	const practice = usePracticeSession();
 
 	function handleRecord() {
+		const rect = recordButtonRef.current?.getBoundingClientRect() ?? null;
+		setRecordButtonRect(rect);
+		setShowListeningMode(true);
 		practice.start();
+	}
+
+	function handleExitListeningMode() {
+		setShowListeningMode(false);
+		setRecordButtonRect(null);
 	}
 
 	// When practice summary arrives, post it to chat
@@ -598,15 +610,16 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 
 			{/* Main content */}
 			<div className="flex-1 relative flex flex-col min-w-0">
-				{practice.state !== "idle" && (
-					<RecordingBar
+				{showListeningMode && (
+					<ListeningMode
 						state={practice.state}
-						elapsedSeconds={practice.elapsedSeconds}
 						observations={practice.observations}
 						analyserNode={practice.analyserNode}
+						latestScores={practice.latestScores}
 						error={practice.error}
-						chunksProcessed={practice.chunksProcessed}
 						onStop={practice.stop}
+						originRect={recordButtonRect}
+						onExit={handleExitListeningMode}
 					/>
 				)}
 				{showConversationSkeleton ? (
@@ -627,6 +640,7 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 							disabled={isStreaming || practice.state === "recording"}
 							placeholder="What are you practicing today?"
 							centered={true}
+							recordButtonRef={recordButtonRef}
 						/>
 					</div>
 				) : (
@@ -638,6 +652,7 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 								disabled={isStreaming || practice.state === "recording"}
 								placeholder="Message your teacher..."
 								centered={false}
+								recordButtonRef={recordButtonRef}
 							/>
 						</div>
 					</ChatMessages>
