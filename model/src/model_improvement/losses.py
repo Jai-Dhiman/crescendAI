@@ -126,6 +126,38 @@ class ListMLELoss(nn.Module):
         return total_loss / n_dims
 
 
+def ccc_loss(
+    predictions: torch.Tensor,
+    targets: torch.Tensor,
+    eps: float = 1e-8,
+) -> torch.Tensor:
+    """Concordance Correlation Coefficient loss (1 - CCC).
+
+    CCC measures agreement between predictions and targets, penalizing
+    both correlation and mean/variance shift. CCC = 1 is perfect agreement.
+
+    Args:
+        predictions: Predicted scores, any shape (flattened internally).
+        targets: Ground-truth scores, same shape as predictions.
+        eps: Small constant for numerical stability.
+
+    Returns:
+        Scalar loss in [0, 2]. 0 = perfect concordance, 2 = anti-concordance.
+    """
+    predictions = predictions.flatten()
+    targets = targets.flatten()
+
+    mean_pred = predictions.mean()
+    mean_targ = targets.mean()
+    var_pred = predictions.var(correction=0)
+    var_targ = targets.var(correction=0)
+    covar = ((predictions - mean_pred) * (targets - mean_targ)).mean()
+
+    ccc = (2 * covar) / (var_pred + var_targ + (mean_pred - mean_targ) ** 2 + eps)
+
+    return 1.0 - ccc
+
+
 class DimensionWiseRankingLoss(nn.Module):
     """Per-dimension binary cross-entropy ranking loss with ambiguity filtering.
 
