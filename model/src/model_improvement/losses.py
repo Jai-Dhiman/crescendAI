@@ -74,6 +74,58 @@ def piece_based_infonce_loss(
     return loss
 
 
+class ListMLELoss(nn.Module):
+    """ListMLE ranking loss (Xia et al. 2008).
+
+    Computes the negative log-likelihood of the ground-truth permutation
+    under the Plackett-Luce model. Applied independently per dimension.
+
+    For lists of length 1, returns 0. For length 2, equivalent to pairwise
+    logistic loss.
+    """
+
+    def __init__(self, eps: float = 1e-10):
+        super().__init__()
+        self.eps = eps
+
+    def forward(
+        self,
+        predictions: torch.Tensor,
+        labels: torch.Tensor,
+    ) -> torch.Tensor:
+        """Compute ListMLE loss.
+
+        Args:
+            predictions: Model scores [n_items, n_dims].
+            labels: Ground-truth scores [n_items, n_dims].
+
+        Returns:
+            Scalar loss averaged across dimensions.
+        """
+        n_items, n_dims = predictions.shape
+
+        if n_items <= 1:
+            return torch.tensor(0.0, device=predictions.device, requires_grad=True)
+
+        total_loss = torch.tensor(0.0, device=predictions.device)
+
+        for d in range(n_dims):
+            # Sort by ground-truth label descending
+            sorted_indices = torch.argsort(labels[:, d], descending=True)
+            sorted_preds = predictions[sorted_indices, d]
+
+            # ListMLE: sum of (pred_i - log(sum(exp(pred_j) for j >= i)))
+            # Use reverse cumulative logsumexp for numerical stability
+            max_pred = sorted_preds.max().detach()
+            shifted = sorted_preds - max_pred
+            rev_cumsumexp = torch.logcumsumexp(shifted.flip(0), dim=0).flip(0)
+            loss_d = -(shifted - rev_cumsumexp).sum()
+
+            total_loss = total_loss + loss_d
+
+        return total_loss / n_dims
+
+
 class DimensionWiseRankingLoss(nn.Module):
     """Per-dimension binary cross-entropy ranking loss with ambiguity filtering.
 
