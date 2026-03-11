@@ -442,7 +442,13 @@ Rules:
 - Invalidate facts that are contradicted by new evidence (e.g., a "persistent weakness" that has improved for 3+ sessions)
 - Set trend to "resolved" when a previously flagged issue is no longer appearing
 - Be conservative: only create high-confidence facts when supported by 3+ observations
-- Review student_reported facts for staleness (goals older than 90 days with no related observations)"#;
+- Review student_reported facts for staleness (goals older than 90 days with no related observations)
+- Before creating a new_fact, verify it is directly supported by observation text:
+  - The fact_text must be a reasonable summary of 2+ observations
+  - The evidence array must contain observation IDs that support this fact
+  - If you cannot point to specific observation text that supports a fact, do NOT create it
+- Do NOT create facts about topics not mentioned in observations. If observations only mention dynamics and timing, do not create facts about pedaling or interpretation.
+- Do NOT generalize beyond what the data shows. "dynamics improved in one session" is NOT "student has strong dynamics"."#;
 
 /// Chat memory extraction system prompt (Groq, Llama 70B).
 /// Extracts rememberable facts from chat exchanges.
@@ -464,8 +470,16 @@ Six categories (stored as the fact's category):
 
 - Be SELECTIVE: cap at 3 new facts per exchange. Only extract facts that would be useful in future conversations.
 - Do NOT extract: musical advice the teacher gave, general piano knowledge, conversational pleasantries, or information already captured in existing facts.
+- Extract ONLY facts the student directly stated. Do not infer, assume, or generalize.
+  BAD: Student says "I'm working on Chopin" -> "Student plays piano" (inferred, not stated)
+  GOOD: Student says "I'm working on Chopin" -> "Working on a Chopin piece" (directly stated)
+- When in doubt, omit. Missing a fact is better than inventing one.
 - For temporal facts ("recital in 3 weeks"), calculate the actual date using today's date (provided) and set invalid_at.
-- For UPDATE: only update when the new information contradicts or supersedes an existing fact. Reference the existing fact's ID.
+- For UPDATE: Read each existing fact listed above. If the student's new statement DIRECTLY CONTRADICTS an existing fact, use UPDATE with that fact's exact id. Common patterns:
+  - Name correction: "call me X" contradicts existing name fact
+  - Level change: "I passed Grade X" supersedes existing level
+  - Goal shift: "I've decided to focus on X" supersedes existing goal
+  If no existing fact is contradicted, use ADD.
 - Fact text should be concise, third-person statements: "Student's name is Jai", "Has been playing piano for 3 years", "Preparing for a recital on 2026-03-28".
 
 ## Output
@@ -503,12 +517,40 @@ pub fn build_chat_extraction_prompt(
     if existing_facts.is_empty() {
         prompt.push_str("No facts yet (new student).\n\n");
     } else {
-        for fact in existing_facts {
-            let category = fact.dimension.as_deref().unwrap_or("general");
-            prompt.push_str(&format!(
-                "- [id: {}] [{}] {}\n",
-                fact.id, category, fact.fact_text
-            ));
+        // Group facts by category for easier comparison during UPDATE detection
+        let categories = ["identity", "background", "goals", "preferences", "repertoire", "events"];
+        for cat in &categories {
+            let cat_facts: Vec<_> = existing_facts
+                .iter()
+                .filter(|f| f.dimension.as_deref().unwrap_or("general") == *cat)
+                .collect();
+            if !cat_facts.is_empty() {
+                prompt.push_str(&format!("### {}\n", cat));
+                for fact in cat_facts {
+                    prompt.push_str(&format!(
+                        "- [id: {}] {}\n",
+                        fact.id, fact.fact_text
+                    ));
+                }
+            }
+        }
+        // Any facts with categories not in the standard list
+        let other_facts: Vec<_> = existing_facts
+            .iter()
+            .filter(|f| {
+                let cat = f.dimension.as_deref().unwrap_or("general");
+                !categories.contains(&cat)
+            })
+            .collect();
+        if !other_facts.is_empty() {
+            prompt.push_str("### other\n");
+            for fact in other_facts {
+                let category = fact.dimension.as_deref().unwrap_or("general");
+                prompt.push_str(&format!(
+                    "- [id: {}] [{}] {}\n",
+                    fact.id, category, fact.fact_text
+                ));
+            }
         }
         prompt.push('\n');
     }

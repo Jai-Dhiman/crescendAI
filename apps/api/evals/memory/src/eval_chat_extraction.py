@@ -375,21 +375,22 @@ def run_chat_extraction_assessment(
 
             # Process UPDATE operations
             for fact in api_response.get("update", []):
-                old_id = fact.get("old_fact_id", "")
+                old_id = fact.get("existing_fact_id", "")
                 # Remove old fact from accumulated list
                 accumulated_facts = [
                     f for f in accumulated_facts if f.get("id") != old_id
                 ]
                 # Add new version
                 fact_id = str(uuid.uuid4())
+                fact_text = fact.get("new_fact_text", "") or fact.get("fact_text", "")
                 new_fact = {
                     "id": fact_id,
-                    "fact_text": fact.get("fact_text", ""),
+                    "fact_text": fact_text,
                     "category": fact.get("category", ""),
                 }
                 accumulated_facts.append(new_fact)
                 all_extracted.append({
-                    "fact_text": fact.get("fact_text", ""),
+                    "fact_text": fact_text,
                     "category": fact.get("category", ""),
                     "operation": "update",
                     "invalid_at": fact.get("invalid_at"),

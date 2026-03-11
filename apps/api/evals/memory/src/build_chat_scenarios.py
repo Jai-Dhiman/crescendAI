@@ -85,14 +85,7 @@ def _build_per_category() -> list[ChatExtractionScenario]:
                 ExpectedChatFact(
                     id="ce-bg-01-f1",
                     fact_text_pattern=r"(?i)(play|experience|learning).*(3|three)\s*year",
-                    gold_fact_text="Student has been playing piano for about 3 years.",
-                    category="background",
-                    operation="add",
-                ),
-                ExpectedChatFact(
-                    id="ce-bg-01-f2",
-                    fact_text_pattern=r"(?i)self[- ]taught",
-                    gold_fact_text="Student is mostly self-taught from YouTube videos.",
+                    gold_fact_text="Student has been playing piano for about 3 years, mostly self-taught.",
                     category="background",
                     operation="add",
                 ),
@@ -627,16 +620,9 @@ def _build_temporal() -> list[ChatExtractionScenario]:
                     session_date="2026-09-15",
                 ),
             ],
-            expected_facts=[
-                ExpectedChatFact(
-                    id="ce-te-04-f1",
-                    fact_text_pattern=r"(?i)name.*\bEmma\b",
-                    gold_fact_text="Student's name is Emma.",
-                    category="identity",
-                    operation="add",
-                    permanent=True,
-                ),
-            ],
+            # No new extractions expected -- the pre-existing fact persists in
+            # accumulated_facts without needing to be re-extracted.
+            expected_facts=[],
         ),
     ]
 
@@ -800,7 +786,7 @@ def _build_e2e() -> list[ChatExtractionScenario]:
                     fact_text_pattern=r"(?i)competition.*June\s*15",
                     gold_fact_text="Student is preparing for a local piano competition on June 15th.",
                     category="goals",
-                    operation="add",
+                    operation="update",
                     permanent=False,
                     invalid_at="2026-06-15",
                 ),

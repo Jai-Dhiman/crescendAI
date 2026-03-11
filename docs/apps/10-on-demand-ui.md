@@ -30,9 +30,11 @@ The student scrolls through a conversation that naturally mixes text observation
 The existing two-stage pipeline (analysis subagent + teacher LLM) extends to three stages when a visual component is needed:
 
 ### Stage 1: Analysis Subagent (Haiku/Flash) -- unchanged
+
 Reasons about which moment matters, why, and what framing to use. Outputs structured handoff.
 
 ### Stage 2: Teacher LLM (Sonnet/GPT-4o) -- extended output
+
 Generates the observation text AND declares a **modality**:
 
 ```json
@@ -44,6 +46,7 @@ Generates the observation text AND declares a **modality**:
 ```
 
 Possible modality values:
+
 - `text_only` -- no component needed (default, skips stage 3)
 - `score_highlight` -- show the passage with annotations
 - `keyboard_guide` -- light up keys with timing (beginner-oriented)
@@ -53,6 +56,7 @@ Possible modality values:
 The teacher thinks pedagogically: "they need to *see* this" or "they need to *practice* this" or "they need to *hear* how someone else does this." It doesn't think about UI configuration -- that's stage 3.
 
 ### Stage 3: UI Subagent (Haiku/Flash) -- new
+
 Takes the teacher's modality declaration + the analysis context and produces a **component configuration** -- the JSON payload that iOS uses to render the inline card.
 
 The UI subagent thinks like a designer: which component, what data to show, how to configure it, what annotations to add. It has access to the component schema definitions (what fields each component accepts) as its tool/context.
@@ -74,6 +78,7 @@ Scrolling sheet music with annotations. Shows the student *where* in the music t
 **Triggers when:** The teacher observation references a specific passage, bar range, or musical moment. Most common for dynamics, phrasing, and articulation feedback.
 
 **Configuration schema:**
+
 ```json
 {
     "type": "score_highlight",
@@ -92,6 +97,7 @@ Scrolling sheet music with annotations. Shows the student *where* in the music t
 ```
 
 **Prerequisites:**
+
 - Score alignment (chunk timestamps to bar numbers, see `docs/apps/06a-subagent-architecture.md`)
 - Score rendering engine (MusicXML/Lilypond to notation -- see Slice 7 exercise rendering)
 - Score data for the student's piece (initially from a curated library, later user-uploaded)
@@ -105,6 +111,7 @@ Piano keyboard with lit keys, optionally synchronized to scrolling notation. For
 **Triggers when:** The student is in early learning arc with a piece, or the teacher identifies a fingering/note-reading issue. More common for beginners.
 
 **Configuration schema:**
+
 ```json
 {
     "type": "keyboard_guide",
@@ -123,6 +130,7 @@ Piano keyboard with lit keys, optionally synchronized to scrolling notation. For
 ```
 
 **Prerequisites:**
+
 - Score alignment
 - MIDI data or note-level score data for the piece (MusicXML provides this)
 - Piano keyboard SwiftUI component (88-key scrollable, with highlight state per key)
@@ -136,6 +144,7 @@ Takes the specific passage and skill the teacher identified, generates 2-3 targe
 **Triggers when:** The teacher observation includes a corrective framing and the student would benefit from structured practice, not just awareness.
 
 **Configuration schema:**
+
 ```json
 {
     "type": "exercise_set",
@@ -167,6 +176,7 @@ Takes the specific passage and skill the teacher identified, generates 2-3 targe
 ```
 
 **Connects to existing architecture:**
+
 - Exercises can be saved to the exercise database (Slice 7) and tracked for completion
 - The condensed reasoning trace records that exercises were generated for this skill
 - Synthesized facts can note "student was given dynamics exercises for Nocturne bars 20-24"
@@ -181,6 +191,7 @@ Surfaces professional recordings of the same passage so the student can hear dif
 **Triggers when:** The teacher observation involves interpretation, phrasing, or pedaling -- dimensions where *hearing* the target sound is more useful than *describing* it. Also when the student explicitly asks "what should this sound like?"
 
 **Configuration schema:**
+
 ```json
 {
     "type": "reference_browser",
@@ -247,6 +258,7 @@ Components are inline cards in the chat scroll, similar to iMessage rich content
 ```
 
 **Interaction model:**
+
 - Cards are scrollable within the chat (the chat scroll is primary)
 - Cards can be expanded to full-screen for detail (tap to expand, swipe to dismiss)
 - Cards have action buttons that trigger follow-up: "Try exercises for this" generates an exercise set, "Tell me more" triggers the existing elaboration flow

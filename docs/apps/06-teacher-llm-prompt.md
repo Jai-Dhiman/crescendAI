@@ -137,6 +137,7 @@ This session's {dimension} ({dimension_score:.2f}) is {deviation_description} th
 **Model tiering (decided 2026-03-03):** The teacher LLM (this stage) uses a quality model (Sonnet/GPT-4o-class) for natural tone and persona following. The analysis subagent (stage 1) uses a fast/cheap model (Haiku/Flash-class). See `docs/apps/06a-subagent-architecture.md` for the full tiering rationale.
 
 **Starting plan:**
+
 - Claude Sonnet for quality (best at following nuanced persona instructions, natural tone)
 - Test Haiku for speed (lower latency, lower cost)
 - Experiment with GPT-4o, Gemini, and others via A/B testing

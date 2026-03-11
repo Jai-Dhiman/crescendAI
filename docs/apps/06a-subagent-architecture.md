@@ -38,11 +38,13 @@ The system's differentiator is not the raw scores. It is the subagent's reasonin
 The student model tracks two temporal dimensions, a concept drawn from context graph theory (see `docs/references/Howtobuildacontextgraph.md` and `docs/references/BuildingTheEventClock.md`):
 
 **State clock** -- what is true right now:
+
 - Baselines per dimension (exponential moving average)
 - Inferred level (beginner/intermediate/advanced)
 - Explicit goals, current repertoire
 
 **Event clock** -- what happened, and why:
+
 - Condensed reasoning traces per observation (dimension + key insight + confidence)
 - Synthesized facts derived from accumulated traces
 - Learning arc per piece
@@ -52,6 +54,7 @@ Most student model systems only build the state clock. The event clock is what e
 ### Synthesized Facts
 
 Raw condensed traces accumulate per observation:
+
 - "Session 3: pedaling flagged (0.35), blind spot, high confidence"
 - "Session 5: pedaling flagged (0.38), blind spot, medium confidence"
 - "Session 8: pedaling improved (0.52), positive moment"
@@ -131,18 +134,21 @@ This prevents the teacher LLM from defaulting to critique mode (which it will if
 The Worker builds the subagent's context from three sources:
 
 ### From iOS (per request)
+
 - Filtered teaching moments (top 3-5 chunks with STOP > threshold)
 - Each chunk: 6 dimension scores, STOP probability, chunk index, start offset
 - Current piece (if student-reported): composer, title, section label, approximate bar range
 - Session metadata: duration, total chunks, chunks above threshold
 
 ### From SwiftData (via iOS request payload)
+
 - Student baselines per dimension
 - Inferred level
 - Explicit goals
 - Learning arc for current piece (session count on this piece)
 
 ### From D1 (Worker queries before subagent call)
+
 - Last 5-10 synthesized facts for this student
 - Recent observation history (last 3-5 observations with condensed traces)
 
@@ -171,12 +177,14 @@ Connect MuQ chunk timestamps to bar/measure numbers in the score. This lets the 
 The STOP classifier and blind-spot detection are designed to find problems. But a real teacher notices both what's wrong and what's improved. The Fantaisie-Impromptu learner's most motivating moments were breakthroughs -- "that moment where something actually lands is just incredibly satisfying."
 
 The subagent can flag positive moments when:
+
 - A dimension score is significantly above baseline for the first time
 - A previously flagged weakness shows measurable improvement
 - A passage that was problematic last session is now clean
 - Overall session quality is notably higher than recent history
 
 Positive observations are real teaching, not participation trophies:
+
 - "Your pedaling in the second phrase has gotten much smoother -- you're catching the harmonic changes now."
 - "The polyrhythm in the opening is landing consistently. That's a big step."
 
