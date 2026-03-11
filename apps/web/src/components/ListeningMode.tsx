@@ -16,6 +16,9 @@ interface ListeningModeProps {
 	onStop: () => void;
 	originRect: DOMRect | null;
 	onExit: () => void;
+	pieceContext?: { piece: string; section?: string } | null;
+	sessionNotes?: string;
+	onNotesChange?: (notes: string) => void;
 }
 
 type TransitionPhase = "collapsed" | "expanding" | "open" | "collapsing";
@@ -29,15 +32,30 @@ export function ListeningMode({
 	onStop,
 	originRect,
 	onExit,
+	pieceContext,
+	sessionNotes,
+	onNotesChange,
 }: ListeningModeProps) {
 	const [phase, setPhase] = useState<TransitionPhase>("collapsed");
 	const [contentVisible, setContentVisible] = useState(false);
 	const overlayRef = useRef<HTMLDivElement>(null);
 	const [dismissedIds, setDismissedIds] = useState<Set<number>>(new Set());
-	const [notes, setNotes] = useState("");
+	const notes = sessionNotes ?? "";
+	const setNotes = onNotesChange ?? (() => {});
 	const [showNotepad, setShowNotepad] = useState(false);
+	const [pieceName, setPieceName] = useState(pieceContext?.piece ?? "Unknown piece");
+	const [sectionName, setSectionName] = useState(pieceContext?.section ?? "");
+	const [isEditingPiece, setIsEditingPiece] = useState(false);
 	const metronome = useMetronome();
 	const [showMetronome, setShowMetronome] = useState(false);
+
+	// Update piece/section when pieceContext arrives asynchronously
+	useEffect(() => {
+		if (pieceContext) {
+			setPieceName(pieceContext.piece);
+			if (pieceContext.section) setSectionName(pieceContext.section);
+		}
+	}, [pieceContext]);
 
 	// Compute origin point for clip-path (center of record button, or fallback)
 	const originX = originRect
@@ -180,12 +198,48 @@ export function ListeningMode({
 						</div>
 						</div>
 						<div className="text-right">
-							<span className="text-label-sm text-text-tertiary uppercase tracking-wider">
-								Now practicing
-							</span>
-							<div className="text-body-sm text-cream">
-								Unknown piece
-							</div>
+							{isEditingPiece ? (
+								<div className="flex flex-col gap-1 items-end">
+									<input
+										type="text"
+										value={pieceName}
+										onChange={(e) => setPieceName(e.target.value)}
+										placeholder="Piece name"
+										className="bg-surface border border-border rounded-lg px-3 py-1 text-body-sm text-cream outline-none w-56"
+										autoFocus
+									/>
+									<input
+										type="text"
+										value={sectionName}
+										onChange={(e) => setSectionName(e.target.value)}
+										placeholder="Section (e.g., bars 1-16)"
+										className="bg-surface border border-border rounded-lg px-3 py-1 text-body-xs text-cream outline-none w-56"
+									/>
+									<button
+										type="button"
+										onClick={() => setIsEditingPiece(false)}
+										className="text-body-xs text-accent hover:text-accent-lighter transition mt-1"
+									>
+										Done
+									</button>
+								</div>
+							) : (
+								<button
+									type="button"
+									onClick={() => setIsEditingPiece(true)}
+									className="text-right group"
+								>
+									<span className="text-label-sm text-text-tertiary uppercase tracking-wider block">
+										Now practicing
+									</span>
+									<span className="text-body-sm text-cream group-hover:text-accent transition">
+										{pieceName}
+									</span>
+									{sectionName && (
+										<span className="text-body-xs text-accent ml-2">{sectionName}</span>
+									)}
+								</button>
+							)}
 						</div>
 					</div>
 
