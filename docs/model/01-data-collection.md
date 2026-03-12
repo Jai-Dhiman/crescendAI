@@ -2,7 +2,7 @@
 
 Complete inventory of data required for piano performance evaluation training. All heavy data processing (audio download, segmentation, MuQ extraction) runs on Thunder Compute (A100, 500GB storage). Only embeddings and metadata come back.
 
-> **Status (2026-03-11):** T1 COMPLETE (4.4 GB), T2 COMPLETE (2,293 Chopin 2021 segments, used in Layer 1 validation), T3 PARTIAL (50 recordings for AMT test, contrastive mapping ready), T4 DEFERRED. Composite labels COMPLETE (`model/data/composite_labels/`).
+> **Status (2026-03-12):** T1 COMPLETE (4.4 GB), T2 COMPLETE (2,293 Chopin 2021 segments, used in Layer 1 validation), T3 COMPLETE (24,321 MuQ embeddings, metadata.jsonl, per-recording graphs, contrastive mapping), T4 DEFERRED. Composite labels COMPLETE (`model/data/composite_labels/`).
 
 ## Storage Strategy
 
@@ -41,7 +41,7 @@ The training code (`src/model_improvement/data.py`) loads only embeddings and me
 
 ## T2: Competition Recordings (Ordinal Ranking)
 
-**Status: CODE READY, data not collected**
+**Status: COMPLETE (2,293 segments collected, used in Layer 1 validation)**
 
 | Item | Path | Est. Size |
 |---|---|---|
@@ -90,23 +90,25 @@ uv run python scripts/collect_competition_data.py
 
 ## T3: MAESTRO Audio (Contrastive Learning)
 
-**Status: CODE READY, needs audio download**
+**Status: COMPLETE (24,321 MuQ embeddings, metadata.jsonl, per-recording graphs, contrastive mapping)**
 
-| Item | Path | Est. Size |
+| Item | Path | Size |
 |---|---|---|
 | MAESTRO metadata | `maestro_cache/maestro-v3.0.0.json` | 83MB (on disk) |
-| MIDI files | `maestro_cache/2013-2018/` | on disk |
-| Segment metadata | `maestro_cache/metadata.jsonl` | <1MB |
-| MuQ embeddings | `maestro_cache/muq_embeddings/` | ~3.8GB |
-| Contrastive mapping | `maestro_cache/contrastive_mapping.json` | <1MB |
+| MIDI files | `maestro_cache/2004-2018/` | on disk (1,276 files) |
+| Segment metadata | `maestro_cache/metadata.jsonl` | <1MB (24,321 segments) |
+| MuQ embeddings | `maestro_cache/muq_embeddings/` | ~34GB (24,321 .pt files) |
+| Per-recording graphs | `pretrain_cache/graphs/shards/graphs_0241-0263.pt` | ~1GB (1,123 graphs) |
+| Contrastive mapping | `maestro_cache/contrastive_mapping.json` | <1MB (204 pieces, 12,181 segments) |
 | Teacher labels (conditional) | `maestro_cache/teacher_labels.json` | <1MB |
 
 **Source:** MAESTRO v3.0.0 audio (magenta.tensorflow.org/datasets/maestro).
-**Segments:** ~10,000+ from 1,276 recordings across ~300 pieces, ~150 with 2+ performers.
+**Segments:** 24,321 from 1,276 recordings across ~300 pieces, 204 with 2+ performers.
 **Signal:** Contrastive pairs (same piece, different performer = positive; different piece = negative). InfoNCE loss.
-**Raw audio (remote only):** ~200GB WAV.
+**Per-recording graphs:** 1,123 graphs with `maestro_rec/` keys (153 skipped for >10K notes). Distinct from existing `maestro__` score-level graphs.
 
-**Collection script:** `scripts/collect_maestro_audio.py`
+**Metadata script:** `scripts/generate_maestro_metadata.py`
+**Graph script:** `scripts/process_maestro_recording_graphs.py`
 **Training class:** `PairedPerformanceDataset` (contrastive pairs from `contrastive_mapping.json`).
 
 ### Remote execution plan
@@ -170,12 +172,12 @@ uv run python scripts/collect_youtube_piano.py
 | Item | Path | Size |
 |---|---|---|
 | Tokenized MIDI | `pretrain_cache/tokens/all_tokens.pt` | 55MB |
-| Score graphs | `pretrain_cache/graphs/all_graphs.pt` + shards | 29GB |
+| Score graphs | `pretrain_cache/graphs/all_graphs.pt` + shards (0000-0263) | 29GB |
 | Hetero graphs | `pretrain_cache/graphs/all_hetero_graphs.pt` + shards | (in 29GB) |
 | Continuous features | `pretrain_cache/features/all_features.pt` + shards | 8.3GB |
 
-**Source:** 14K+ MIDI files from MAESTRO + ATEPP + ASAP.
-**Training classes:** `MIDIPretrainingDataset`, `ScoreGraphPretrainingDataset`, `ContinuousPretrainDataset`, `HeteroPretrainDataset`.
+**Source:** 24,220 graphs from ASAP (1,066) + ATEPP (11,697) + MAESTRO score (824) + MAESTRO recording (1,123) + PercePiano (1,202) + GIANTMIDI (8,278). Shard range: 0000-0263.
+**Training classes:** `MIDIPretrainingDataset`, `ScoreGraphPretrainingDataset`, `ShardedScoreGraphPretrainDataset`, `ContinuousPretrainDataset`, `HeteroPretrainDataset`.
 
 ## Composite Labels (from Taxonomy Work)
 
@@ -234,10 +236,11 @@ T4 embeddings (38GB) should go to GDrive or stay on Thunder Compute if local dis
 
 ```
 [x] T1 PercePiano embeddings + labels
-[x] Symbolic pretraining corpus (tokens, graphs, features)
-[ ] Composite labels (blocked on doc 02 taxonomy work)
-[ ] T2 competition embeddings (run on Thunder Compute)
-[ ] T3 MAESTRO embeddings (run on Thunder Compute)
+[x] Symbolic pretraining corpus (tokens, graphs, features) -- 24,220 graphs
+[x] Composite labels (6 teacher-grounded dimensions)
+[x] T2 competition embeddings (2,293 segments from Chopin 2021)
+[x] T3 MAESTRO embeddings (24,321 segments) + metadata.jsonl + per-recording graphs (1,123)
+[x] T3 MAESTRO contrastive mapping (204 pieces, 12,181 segments)
 [ ] T4 YouTube embeddings (lower priority, run if needed)
 ```
 
