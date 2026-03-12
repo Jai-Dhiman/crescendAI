@@ -13,8 +13,10 @@ from model_improvement.graph import (
     EDGE_TYPE_ONSET,
     EDGE_TYPE_SILENCE,
     assign_voices,
+    count_midi_notes,
     midi_to_graph,
     midi_to_hetero_graph,
+    parsed_midi_to_graph,
     sample_negative_edges,
 )
 from model_improvement.data import (
@@ -205,6 +207,69 @@ class TestMidiToGraph:
 
         with pytest.raises(ValueError, match="No notes found"):
             midi_to_graph(tmp.name)
+
+
+class TestCountMidiNotes:
+    def test_counts_notes_across_instruments(self):
+        midi = pretty_midi.PrettyMIDI(initial_tempo=120.0)
+        piano = pretty_midi.Instrument(program=0)
+        piano.notes.append(pretty_midi.Note(velocity=80, pitch=60, start=0.0, end=1.0))
+        piano.notes.append(pretty_midi.Note(velocity=80, pitch=64, start=0.0, end=1.0))
+        midi.instruments.append(piano)
+        assert count_midi_notes(midi) == 2
+
+    def test_excludes_drum_instruments(self):
+        midi = pretty_midi.PrettyMIDI(initial_tempo=120.0)
+        piano = pretty_midi.Instrument(program=0)
+        piano.notes.append(pretty_midi.Note(velocity=80, pitch=60, start=0.0, end=1.0))
+        drums = pretty_midi.Instrument(program=0, is_drum=True)
+        drums.notes.append(pretty_midi.Note(velocity=80, pitch=36, start=0.0, end=1.0))
+        midi.instruments.append(piano)
+        midi.instruments.append(drums)
+        assert count_midi_notes(midi) == 1
+
+    def test_empty_midi_returns_zero(self):
+        midi = pretty_midi.PrettyMIDI(initial_tempo=120.0)
+        midi.instruments.append(pretty_midi.Instrument(program=0))
+        assert count_midi_notes(midi) == 0
+
+
+class TestParsedMidiToGraph:
+    def test_matches_midi_to_graph_output(self):
+        """parsed_midi_to_graph should produce identical output to midi_to_graph."""
+        path = _make_midi([
+            (60, 80, 0.0, 1.0),
+            (64, 80, 0.0, 1.0),
+            (67, 80, 1.0, 2.0),
+            (72, 80, 2.0, 3.0),
+        ])
+        graph_from_path = midi_to_graph(path)
+        midi_obj = pretty_midi.PrettyMIDI(str(path))
+        graph_from_parsed = parsed_midi_to_graph(midi_obj)
+
+        assert torch.allclose(graph_from_path.x, graph_from_parsed.x)
+        assert torch.equal(graph_from_path.edge_index, graph_from_parsed.edge_index)
+        assert torch.equal(graph_from_path.edge_type, graph_from_parsed.edge_type)
+
+    def test_empty_midi_raises(self):
+        midi = pretty_midi.PrettyMIDI()
+        midi.instruments.append(pretty_midi.Instrument(program=0))
+        with pytest.raises(ValueError, match="No notes found"):
+            parsed_midi_to_graph(midi)
+
+    def test_pedal_feature_preserved(self):
+        """Pedal CC64 should be captured from parsed MIDI object."""
+        midi = pretty_midi.PrettyMIDI(initial_tempo=120.0)
+        piano = pretty_midi.Instrument(program=0)
+        piano.notes.append(pretty_midi.Note(velocity=80, pitch=60, start=0.0, end=1.0))
+        piano.notes.append(pretty_midi.Note(velocity=80, pitch=64, start=1.0, end=2.0))
+        piano.control_changes.append(
+            pretty_midi.ControlChange(number=64, value=127, time=0.5)
+        )
+        midi.instruments.append(piano)
+
+        data = parsed_midi_to_graph(midi)
+        assert data.x[1, 4].item() == 1.0  # second note has pedal on
 
 
 class TestSampleNegativeEdges:

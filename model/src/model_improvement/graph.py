@@ -161,6 +161,20 @@ def _build_edges(
     return edges, edge_types
 
 
+def count_midi_notes(midi: pretty_midi.PrettyMIDI) -> int:
+    """Count non-drum notes in a parsed PrettyMIDI object.
+
+    Args:
+        midi: Already-parsed PrettyMIDI object.
+
+    Returns:
+        Total number of non-drum notes across all instruments.
+    """
+    return sum(
+        len(inst.notes) for inst in midi.instruments if not inst.is_drum
+    )
+
+
 def midi_to_graph(
     midi_path: str | Path,
     max_voices: int = 8,
@@ -186,7 +200,34 @@ def midi_to_graph(
         ValueError: If the MIDI file contains no notes.
     """
     midi = pretty_midi.PrettyMIDI(str(midi_path))
+    try:
+        return parsed_midi_to_graph(midi, max_voices, follow_tolerance)
+    except ValueError:
+        raise ValueError(f"No notes found in {midi_path}")
 
+
+def parsed_midi_to_graph(
+    midi: pretty_midi.PrettyMIDI,
+    max_voices: int = 8,
+    follow_tolerance: float = 0.05,
+) -> Data:
+    """Build a homogeneous graph from an already-parsed PrettyMIDI object.
+
+    Same output contract as midi_to_graph(). Use this when you already
+    have a parsed PrettyMIDI object (e.g., after checking note count)
+    to avoid double-parsing.
+
+    Args:
+        midi: Already-parsed PrettyMIDI object.
+        max_voices: Maximum voices for voice assignment.
+        follow_tolerance: Time tolerance (seconds) for follow edges.
+
+    Returns:
+        PyG Data object with x, edge_index, edge_type attributes.
+
+    Raises:
+        ValueError: If the MIDI contains no non-drum notes.
+    """
     # Collect all notes across instruments
     all_notes: list[pretty_midi.Note] = []
     for instrument in midi.instruments:
@@ -194,7 +235,7 @@ def midi_to_graph(
             all_notes.extend(instrument.notes)
 
     if not all_notes:
-        raise ValueError(f"No notes found in {midi_path}")
+        raise ValueError("No notes found in MIDI")
 
     # Sort by onset then pitch
     all_notes.sort(key=lambda n: (n.start, n.pitch))
