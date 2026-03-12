@@ -118,7 +118,7 @@ def build_judge_prompt(
     observation_a: str,
     observation_b: str,
     randomize: bool = True,
-) -> str:
+) -> tuple[str, dict[str, str]]:
     """Build LLM judge prompt comparing two observations.
 
     Presents observations in randomized order to avoid position bias.
@@ -129,14 +129,16 @@ def build_judge_prompt(
         randomize: Whether to randomize presentation order.
 
     Returns:
-        Judge prompt string. The caller tracks which is which.
+        Tuple of (judge prompt string, mapping from X/Y to A/B).
     """
     if randomize and random.random() < 0.5:
         first, second = observation_b, observation_a
+        xy_to_ab = {"X": "B", "Y": "A"}
     else:
         first, second = observation_a, observation_b
+        xy_to_ab = {"X": "A", "Y": "B"}
 
-    return f"""You are judging two piano teaching observations for the same practice moment.
+    prompt = f"""You are judging two piano teaching observations for the same practice moment.
 Rate which observation is better on three criteria:
 
 1. **Specificity**: Does it reference particular passages, bars, or musical details?
@@ -157,6 +159,8 @@ Respond with JSON only:
     "accuracy": "Which sounds more accurate and why (1 sentence)",
     "confidence": "high" or "medium" or "low"
 }}"""
+
+    return prompt, xy_to_ab
 
 
 def parse_judge_response(response: str) -> dict:

@@ -41,10 +41,12 @@ def test_build_judge_prompt():
     """Judge prompt presents two observations in randomized order."""
     obs_a = "Your pedaling could use some work in this passage."
     obs_b = "In bars 5-8, the sustain pedal is held through the harmonic change at beat 3."
-    prompt = build_judge_prompt(obs_a, obs_b)
+    prompt, xy_to_ab = build_judge_prompt(obs_a, obs_b)
     # Both observations must appear
     assert obs_a in prompt or obs_b in prompt
     assert "specificity" in prompt.lower() or "actionability" in prompt.lower()
+    assert set(xy_to_ab.keys()) == {"X", "Y"}
+    assert set(xy_to_ab.values()) == {"A", "B"}
 
 
 def test_parse_judge_response():

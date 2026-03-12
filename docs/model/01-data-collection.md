@@ -2,7 +2,7 @@
 
 Complete inventory of data required for piano performance evaluation training. All heavy data processing (audio download, segmentation, MuQ extraction) runs on Thunder Compute (A100, 500GB storage). Only embeddings and metadata come back.
 
-> **Status (2026-02-23):** T1 COMPLETE (4.4 GB), T2 COMPLETE (3.3 GB), T3 COMPLETE (34.2 GB), T4 DEFERRED. Composite labels COMPLETE (`model/data/composite_labels/`). All data cached in `gdrive:crescendai_data/model_improvement/data/`.
+> **Status (2026-03-11):** T1 COMPLETE (4.4 GB), T2 COMPLETE (2,293 Chopin 2021 segments, used in Layer 1 validation), T3 PARTIAL (50 recordings for AMT test, contrastive mapping ready), T4 DEFERRED. Composite labels COMPLETE (`model/data/composite_labels/`).
 
 ## Storage Strategy
 

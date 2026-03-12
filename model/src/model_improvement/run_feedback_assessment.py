@@ -132,7 +132,10 @@ def main():
         import pretty_midi
         for key in selected:
             perf_midi_path = midi_dir / f"{key}.mid"
-            score_key = key.rsplit("_", 1)[0] + "_Score"
+            # Key format: {piece}_{bars}_{performer}_{segment}
+            # Score format: {piece}_{bars}_Score_{segment}
+            parts = key.rsplit("_", 2)
+            score_key = f"{parts[0]}_Score_{parts[2]}"
             score_midi_path = midi_dir / f"{score_key}.mid"
 
             if perf_midi_path.exists() and score_midi_path.exists():
@@ -179,12 +182,16 @@ def main():
 
         obs_b = _call_llm(client, prompt_b)
 
-        # Judge
-        judge_prompt = build_judge_prompt(obs_a, obs_b)
+        # Judge (randomized X/Y presentation)
+        judge_prompt, xy_to_ab = build_judge_prompt(obs_a, obs_b)
         judge_response = _call_llm(client, judge_prompt)
 
         try:
             judgment = parse_judge_response(judge_response)
+            # Map X/Y back to A/B
+            xy_winner = judgment["winner"]
+            judgment["winner"] = xy_to_ab.get(xy_winner, xy_winner)
+            judgment["xy_mapping"] = xy_to_ab
         except (json.JSONDecodeError, ValueError) as e:
             logger.warning("Failed to parse judge response for %s: %s", key, e)
             judgment = {"winner": "unknown", "error": str(e)}
@@ -199,7 +206,10 @@ def main():
         }
         results.append(result)
         logger.info(
-            "  %s: winner=%s", key, judgment.get("winner", "unknown")
+            "  %s: winner=%s (condition %s)",
+            key,
+            judgment.get("winner", "unknown"),
+            "MIDI" if judgment.get("winner") == "B" else "scores-only",
         )
 
     # Save results

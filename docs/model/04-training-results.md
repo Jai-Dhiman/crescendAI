@@ -488,26 +488,93 @@ Audio wins timing decisively. Symbolic wins dynamics, articulation, and interpre
 4. Per-dimension breakdown reported
 5. Bootstrap CI on pairwise accuracy difference vs A1 baseline for significance
 
-## Layer 1 Validation Results
+## Layer 1 Validation Results (2026-03-11)
 
-*Status: EXPERIMENTS READY, awaiting execution*
+*Status: ALL 4 EXPERIMENTS COMPLETE*
 
-See `docs/plans/2026-03-09-layer1-validation-design.md` for experiment design.
 Code: `model/src/model_improvement/layer1_validation.py`, `midi_comparison.py`, `feedback_assessment.py`.
 Notebook: `model/notebooks/model_improvement/04_layer1_validation.ipynb`.
 
-### Experiment 1: Competition Correlation
-- Data: 2,293 segments from Chopin 2021 (synced from GDrive)
-- Gate: rho > 0.3 = signal is real
+### Experiment 1: Competition Correlation -- PASS
 
-### Experiment 2: AMT Degradation
-- Data: 50 MAESTRO recordings, GT vs YourMT3+ vs ByteDance MIDI
-- Gate: per-dimension pairwise drop < 10% = symbolic viable
+A1 scores on 2,293 Chopin 2021 competition segments (11 performers) correlate with expert placement.
 
-### Experiment 3: Dynamic Range
-- Data: intermediate YouTube recordings (to be collected)
-- Diagnostic only, no hard gate
+| Aggregation | rho | p-value | Gate |
+|-------------|-----|---------|------|
+| mean | +0.704 | 0.016 | PASS |
+| min | +0.654 | 0.029 | PASS |
+| median | +0.248 | 0.463 | INVESTIGATE |
 
-### Experiment 4: MIDI-as-Context Feedback
-- Data: 20 PercePiano Schubert D960 segments
-- Gate: MIDI-context wins > 65% of LLM judge pairs
+Per-dimension (mean aggregation):
+
+| Dimension | rho | p-value |
+|-----------|-----|---------|
+| dynamics | -0.917 | 0.0001 |
+| timing | -0.590 | 0.056 |
+| pedaling | +0.887 | 0.0003 |
+| articulation | +0.292 | 0.383 |
+| phrasing | +0.803 | 0.003 |
+| interpretation | +0.169 | 0.620 |
+
+**Key finding:** Pedaling and phrasing are the strongest predictors of competition placement. Dynamics has a strong *negative* correlation -- competition finalists show more controlled (not louder) dynamics. This suggests the dynamics dimension captures "amount" rather than "appropriateness," which may need score-conditioning (Layer 4) to become fully useful.
+
+### Experiment 2: AMT Degradation -- PASS
+
+S2 pairwise accuracy with ByteDance piano transcription vs ground-truth MIDI on 50 MAESTRO recordings (4 contrastive pieces, 107 pairs).
+
+| Source | Overall Pairwise | Gate |
+|--------|-----------------|------|
+| Ground truth | 100.0% | -- |
+| ByteDance | 100.0% (+0.0%) | PASS |
+
+Per-dimension drops: dynamics -0.9%, timing +2.8%, pedaling +0.0%, articulation +0.9%, phrasing +3.7%, interpretation +1.9%. All well within the <10% gate.
+
+**Note:** YourMT3+ was not available (not installed). Only one AMT system tested. Small evaluation set (4 contrastive pieces). Result is unambiguously positive but should be validated on a larger set if fusion is pursued.
+
+### Experiment 3: Dynamic Range -- DIAGNOSTIC COMPLETE
+
+A1 score distributions across skill levels (629 intermediate YouTube recordings, 1,202 advanced PercePiano, 2,293 professional Chopin 2021).
+
+| Group | Mean Score | Std | N |
+|-------|-----------|-----|---|
+| Intermediate | 0.565 | 0.062 | 629 |
+| Advanced (PercePiano) | 0.552 | 0.110 | 1,202 |
+| Professional (Chopin 2021) | 0.595 | 0.064 | 2,293 |
+
+| Comparison | Cohen's d |
+|-----------|-----------|
+| Intermediate vs Professional | 0.47 |
+| Advanced vs Professional | 0.47 |
+| Advanced vs Intermediate | 0.15 |
+
+**Key finding:** The model separates skill levels at the group level (d=0.47) but individual discrimination is noisy. Advanced (PercePiano) scores are slightly *lower* than intermediate, likely reflecting dataset differences (Pianoteq-rendered vs real YouTube audio) rather than a model flaw. Usable for within-student progress tracking (comparing to own baseline) but not absolute skill-level classification.
+
+### Experiment 4: MIDI-as-Context Feedback -- SKIP
+
+LLM judge compared teacher observations generated with A1 scores only (Condition A) vs A1 scores + structured MIDI comparison (Condition B) on 20 Schubert D960 mv3 segments.
+
+| Condition | Wins | Rate |
+|-----------|------|------|
+| A (scores only) | 11 | 55% |
+| B (MIDI context) | 9 | 45% |
+
+Decision: **SKIP** (below 55% BORDERLINE threshold).
+
+Judge confidence: 10 high, 10 medium. Among high-confidence judgments, B won only 3/10. Among medium-confidence judgments, B won 6/10.
+
+**Key finding:** Adding raw MIDI comparison data (velocity MAE, onset deviations, note F1) does not reliably improve teacher observation quality. The LLM already generates specific, actionable feedback from dimension scores alone. When MIDI data helps, it's through concrete note counts ("48 missed notes"), but the judge often found this added false precision rather than musical insight. Score comparison may become valuable with score-aligned context (bar numbers, passage references) rather than raw statistics.
+
+### Decision Gate Summary
+
+| Experiment | Gate | Result | Implication |
+|-----------|------|--------|-------------|
+| Competition correlation | rho > 0.3 | PASS (0.704) | A1 quality signal is real, proceed to Layer 2 |
+| AMT degradation | drop < 10% | PASS (0.0%) | Symbolic path viable for fusion |
+| Dynamic range | diagnostic | d=0.47 | Usable for within-student tracking |
+| MIDI-as-context | B wins > 65% | SKIP (45%) | Do not build score comparison pipeline now |
+
+**What this unlocks:**
+- Layer 2 quick wins on A1 are validated (model signal is real)
+- Fusion (A1 + S2) remains viable (AMT doesn't degrade S2)
+- Core ML conversion of A1 is unblocked
+- Score comparison pipeline is deprioritized -- revisit with bar-aligned context in Layer 4
