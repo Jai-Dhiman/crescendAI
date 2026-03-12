@@ -1,5 +1,6 @@
 """Tests for MIDI-to-graph conversion pipeline and graph dataset classes."""
 
+import json
 import tempfile
 from pathlib import Path
 
@@ -621,3 +622,73 @@ class TestHeteroPretrainDataset:
                 homo_graphs={},
                 hetero_graphs={},
             )
+
+
+class TestMaestroRecordingGraphs:
+    """Tests for per-recording MAESTRO graph processing."""
+
+    _MAESTRO_JSON = (
+        Path(__file__).parent.parent.parent
+        / "data/maestro_cache/maestro-v3.0.0.json"
+    )
+    _MAESTRO_CACHE = Path(__file__).parent.parent.parent / "data/maestro_cache"
+
+    def test_maestro_midi_to_graph(self):
+        """Loading a real MAESTRO MIDI file should produce a valid graph."""
+        if not self._MAESTRO_JSON.exists():
+            pytest.skip("MAESTRO data not available")
+
+        with open(self._MAESTRO_JSON) as f:
+            d = json.load(f)
+
+        # Pick first entry
+        first_idx = list(d["midi_filename"].keys())[0]
+        midi_filename = d["midi_filename"][first_idx]
+        midi_path = self._MAESTRO_CACHE / midi_filename
+
+        if not midi_path.exists():
+            pytest.skip(f"MAESTRO MIDI file not found: {midi_path}")
+
+        midi = pretty_midi.PrettyMIDI(str(midi_path))
+        note_count = count_midi_notes(midi)
+        assert note_count > 0, "Expected non-zero notes in MAESTRO MIDI"
+
+        graph = parsed_midi_to_graph(midi)
+
+        # Node features: shape (N, 6) with N >= note_count
+        assert graph.x.ndim == 2
+        assert graph.x.shape[1] == 6
+        assert graph.x.shape[0] > 0
+
+        # All features normalized to [0, 1]
+        assert graph.x.min() >= 0.0
+        assert graph.x.max() <= 1.0
+
+        # Edge index must exist
+        assert graph.edge_index.ndim == 2
+        assert graph.edge_index.shape[0] == 2
+
+    def test_key_scheme_no_collision(self):
+        """maestro_rec/ keys must not collide with existing maestro__ keys."""
+        if not self._MAESTRO_JSON.exists():
+            pytest.skip("MAESTRO data not available")
+
+        with open(self._MAESTRO_JSON) as f:
+            d = json.load(f)
+
+        # Build both key sets
+        rec_keys = set()
+        for idx, midi_filename in d["midi_filename"].items():
+            stem = Path(midi_filename).stem
+            rec_keys.add(f"maestro_rec/{stem}")
+
+        # Existing maestro__ keys use canonical_title with double underscore prefix
+        existing_keys = set()
+        for idx, title in d["canonical_title"].items():
+            canonical = title.lower().replace(" ", "_")
+            existing_keys.add(f"maestro__{canonical}")
+
+        collision = rec_keys & existing_keys
+        assert len(collision) == 0, (
+            f"Key collision between maestro_rec/ and maestro__ schemes: {collision}"
+        )
