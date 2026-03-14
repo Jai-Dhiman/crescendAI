@@ -212,11 +212,15 @@ pub async fn query_piece_facts(
 
 /// Build the full memory context for the subagent.
 /// Runs queries 1, 2, and optionally 4 (piece-specific).
+///
+/// When `query` is provided, uses hybrid search to find the most relevant
+/// student-reported facts instead of the generic LIMIT 10 query.
 pub async fn build_memory_context(
     env: &Env,
     student_id: &str,
     piece_title: Option<&str>,
     today: &str,
+    query: Option<&str>,
 ) -> StudentMemoryContext {
     let active_facts = match query_active_facts(env, student_id).await {
         Ok(facts) => facts,
@@ -254,11 +258,32 @@ pub async fn build_memory_context(
         vec![]
     };
 
-    let student_facts = match query_student_reported_facts(env, student_id, today).await {
-        Ok(facts) => facts,
-        Err(e) => {
-            console_log!("Failed to query student reported facts: {}", e);
-            vec![]
+    let student_facts = if let Some(q) = query {
+        // Use hybrid search to find relevant student-reported facts
+        match search_relevant_facts(env, student_id, q, 15, true).await {
+            Ok(result) => result.facts.into_iter().map(|f| SynthesizedFact {
+                id: f.id,
+                fact_text: f.fact_text,
+                fact_type: "student_reported".to_string(),
+                dimension: Some(f.category),
+                piece_context: None,
+                valid_at: f.date,
+                trend: None,
+                confidence: "high".to_string(),
+                source_type: "student_reported".to_string(),
+            }).collect(),
+            Err(e) => {
+                console_log!("Search failed, falling back to generic query: {}", e);
+                query_student_reported_facts(env, student_id, today).await.unwrap_or_default()
+            }
+        }
+    } else {
+        match query_student_reported_facts(env, student_id, today).await {
+            Ok(facts) => facts,
+            Err(e) => {
+                console_log!("Failed to query student reported facts: {}", e);
+                vec![]
+            }
         }
     };
 
@@ -1016,6 +1041,584 @@ pub struct ExistingFactInput {
     pub id: String,
     pub fact_text: String,
     pub category: String,
+}
+
+// ---------------------------------------------------------------------------
+// POST /api/memory/store-facts -- store benchmark facts in D1
+// ---------------------------------------------------------------------------
+
+#[derive(serde::Deserialize)]
+pub struct StoreFactsRequest {
+    pub student_id: String,
+    pub facts: Vec<StoredFactInput>,
+}
+
+#[derive(serde::Deserialize)]
+pub struct StoredFactInput {
+    pub fact_text: String,
+    pub category: String,
+    #[serde(default)]
+    pub entities: Vec<String>,
+    #[serde(default)]
+    pub date: String,
+}
+
+/// POST /api/memory/store-facts -- persist eval/benchmark facts into D1.
+pub async fn handle_store_facts(
+    env: &Env,
+    headers: &http::HeaderMap,
+    body: &[u8],
+) -> http::Response<axum::body::Body> {
+    use axum::body::Body;
+    use http::{Response, StatusCode};
+
+    // Auth
+    let _caller = match crate::auth::verify_auth_header(headers, env) {
+        Ok(id) => id,
+        Err(err_response) => return err_response,
+    };
+
+    let request: StoreFactsRequest = match serde_json::from_slice(body) {
+        Ok(r) => r,
+        Err(e) => {
+            console_log!("Failed to parse store-facts request: {:?}", e);
+            return Response::builder()
+                .status(StatusCode::BAD_REQUEST)
+                .header("Content-Type", "application/json")
+                .body(Body::from(r#"{"error":"Invalid request body"}"#))
+                .unwrap();
+        }
+    };
+
+    let db = match env.d1("DB") {
+        Ok(db) => db,
+        Err(e) => {
+            console_log!("D1 binding failed: {:?}", e);
+            return Response::builder()
+                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                .header("Content-Type", "application/json")
+                .body(Body::from(r#"{"error":"Database unavailable"}"#))
+                .unwrap();
+        }
+    };
+
+    let now = js_sys::Date::new_0()
+        .to_iso_string()
+        .as_string()
+        .unwrap_or_default();
+
+    let mut stored = 0u32;
+    for fact in &request.facts {
+        if fact.fact_text.is_empty() {
+            continue;
+        }
+        let fact_id = generate_uuid();
+        let valid_at = if fact.date.is_empty() { &now[..10.min(now.len())] } else { &fact.date };
+        let entities_json = serde_json::to_string(&fact.entities).unwrap_or_else(|_| "[]".to_string());
+
+        let result = db
+            .prepare(
+                "INSERT OR IGNORE INTO synthesized_facts \
+                 (id, student_id, fact_text, fact_type, dimension, valid_at, \
+                  confidence, evidence, source_type, entities, created_at) \
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+            )
+            .bind(&[
+                JsValue::from_str(&fact_id),
+                JsValue::from_str(&request.student_id),
+                JsValue::from_str(&fact.fact_text),
+                JsValue::from_str("student_reported"),
+                JsValue::from_str(&fact.category),
+                JsValue::from_str(valid_at),
+                JsValue::from_str("high"),
+                JsValue::from_str("[]"),
+                JsValue::from_str("benchmark"),
+                JsValue::from_str(&entities_json),
+                JsValue::from_str(&now),
+            ]);
+
+        match result {
+            Ok(stmt) => {
+                if let Err(e) = stmt.run().await {
+                    console_log!("Failed to insert fact: {:?}", e);
+                } else {
+                    stored += 1;
+                }
+            }
+            Err(e) => {
+                console_log!("Failed to bind fact insert: {:?}", e);
+            }
+        }
+    }
+
+    let resp = serde_json::json!({ "stored": stored });
+    Response::builder()
+        .status(StatusCode::OK)
+        .header("Content-Type", "application/json")
+        .body(Body::from(resp.to_string()))
+        .unwrap()
+}
+
+// ---------------------------------------------------------------------------
+// POST /api/memory/search -- hybrid retrieval (entity + keyword + dimension + recency)
+// ---------------------------------------------------------------------------
+
+#[derive(serde::Deserialize)]
+pub struct SearchFactsRequest {
+    pub query: String,
+    pub student_id: String,
+    #[serde(default = "default_max_facts")]
+    pub max_facts: usize,
+}
+
+fn default_max_facts() -> usize { 50 }
+
+#[derive(serde::Serialize)]
+pub struct SearchFactResult {
+    pub id: String,
+    pub fact_text: String,
+    pub category: String,
+    pub date: String,
+    pub entities: Vec<String>,
+    pub score: f64,
+}
+
+/// Aggregated search results from hybrid retrieval.
+pub struct SearchResult {
+    pub facts: Vec<SearchFactResult>,
+    pub total_facts: usize,
+    pub query_entities: Vec<String>,
+    pub is_temporal: bool,
+    pub is_adversarial: bool,
+}
+
+/// Detect if query is temporal (asks about when, time, duration).
+fn is_temporal_query(query_lower: &str) -> bool {
+    let temporal_keywords = [
+        "when", "how long", "how many years", "how many months",
+        "how many days", "how many weeks", "since when", "last time",
+        "first time", "recently", "ago", "before", "after",
+        "date", "year", "month", "started", "began", "ended",
+        "how old", "birthday", "anniversary",
+    ];
+    temporal_keywords.iter().any(|kw| query_lower.contains(kw))
+}
+
+/// Detect if query is adversarial/unanswerable (asks about non-existent info).
+fn is_likely_adversarial(query_lower: &str) -> bool {
+    let adversarial_patterns = [
+        "never mentioned", "not mentioned", "didn't say", "didn't mention",
+        "did not say", "did not mention", "never said", "never told",
+    ];
+    adversarial_patterns.iter().any(|p| query_lower.contains(p))
+}
+
+/// Parse a date string (YYYY-MM-DD or ISO) to days-since-epoch for comparison.
+fn date_to_days(date_str: &str) -> Option<f64> {
+    // Extract YYYY-MM-DD portion
+    let date_part = if date_str.len() >= 10 { &date_str[..10] } else { return None };
+    let parts: Vec<&str> = date_part.split('-').collect();
+    if parts.len() != 3 { return None; }
+    let year: f64 = parts[0].parse().ok()?;
+    let month: f64 = parts[1].parse().ok()?;
+    let day: f64 = parts[2].parse().ok()?;
+    Some(year * 365.25 + month * 30.44 + day)
+}
+
+const ENTITY_EXTRACTION_PROMPT: &str = "\
+Extract ALL named entities and key topics from this query. Include:
+- People's names (first names, full names, nicknames)
+- Places, organizations, institutions
+- Activities, hobbies, sports, subjects
+- Key topics being asked about
+- For possessive chains like \"X's Y's Z\", extract EACH entity separately
+
+Return ONLY a JSON array of strings. No explanation.
+
+Examples:
+Query: \"What are Caroline's hobbies?\"
+[\"Caroline\", \"hobbies\"]
+
+Query: \"Where did John and Mary go on vacation?\"
+[\"John\", \"Mary\", \"vacation\"]
+
+Query: \"What does the user think about climate change?\"
+[\"climate change\"]
+
+Query: \"Who is Sarah's brother and where does he work?\"
+[\"Sarah\", \"brother\", \"work\"]
+
+Query: \"When did they move to Portland?\"
+[\"Portland\"]
+
+Query: \"What happened at the birthday party?\"
+[\"birthday party\"]
+
+Query: \"Has Caroline's opinion about yoga changed over time?\"
+[\"Caroline\", \"yoga\", \"opinion\"]
+
+Query: ";
+
+/// Reusable hybrid search: fetch facts, score, and rank.
+///
+/// Used by both the `/api/memory/search` endpoint and `build_memory_context`.
+/// When `active_only` is true, only non-invalidated/non-expired facts are searched.
+pub async fn search_relevant_facts(
+    env: &Env,
+    student_id: &str,
+    query: &str,
+    max_facts: usize,
+    active_only: bool,
+) -> Result<SearchResult, String> {
+    let db = env.d1("DB").map_err(|e| format!("D1 binding failed: {:?}", e))?;
+
+    let sql = if active_only {
+        "SELECT id, fact_text, fact_type, dimension, valid_at, invalid_at, \
+         source_type, entities \
+         FROM synthesized_facts \
+         WHERE student_id = ?1 AND invalid_at IS NULL AND expired_at IS NULL \
+         ORDER BY valid_at DESC"
+    } else {
+        "SELECT id, fact_text, fact_type, dimension, valid_at, invalid_at, \
+         source_type, entities \
+         FROM synthesized_facts \
+         WHERE student_id = ?1 \
+         ORDER BY valid_at DESC"
+    };
+
+    let all_facts: Vec<serde_json::Value> = db
+        .prepare(sql)
+        .bind(&[JsValue::from_str(student_id)])
+        .map_err(|e| format!("bind failed: {:?}", e))?
+        .all()
+        .await
+        .map_err(|e| format!("query failed: {:?}", e))?
+        .results()
+        .unwrap_or_default();
+
+    let total_facts = all_facts.len();
+
+    // Extract entities from query via Groq
+    let query_entities = extract_query_entities(env, query).await;
+
+    // Analyze query characteristics
+    let query_lower = query.to_lowercase();
+    let query_keywords = extract_keywords(&query_lower);
+    let query_dimension = detect_dimension(&query_lower);
+    let temporal = is_temporal_query(&query_lower);
+    let adversarial = is_likely_adversarial(&query_lower);
+
+    // Score each fact with hybrid signals
+    let mut scored: Vec<(f64, &serde_json::Value)> = all_facts
+        .iter()
+        .map(|row| {
+            let fact_text = row.get("fact_text").and_then(|v| v.as_str()).unwrap_or("");
+            let dimension = row.get("dimension").and_then(|v| v.as_str());
+            let invalid_at = row.get("invalid_at").and_then(|v| v.as_str());
+            let valid_at = row.get("valid_at").and_then(|v| v.as_str()).unwrap_or("");
+            let entities_str = row.get("entities").and_then(|v| v.as_str()).unwrap_or("[]");
+
+            let fact_entities: Vec<String> = serde_json::from_str(entities_str).unwrap_or_default();
+            let fact_lower = fact_text.to_lowercase();
+
+            // 1. Entity match score (2.0 per matching entity)
+            let entity_score = if !query_entities.is_empty() {
+                let matches = query_entities.iter().filter(|qe| {
+                    let qe_lower = qe.to_lowercase();
+                    fact_entities.iter().any(|fe| {
+                        let fe_lower = fe.to_lowercase();
+                        fe_lower == qe_lower
+                            || fe_lower.contains(&qe_lower)
+                            || qe_lower.contains(&fe_lower)
+                    }) || fact_lower.contains(&qe_lower)
+                }).count();
+                (matches as f64) * 2.0
+            } else {
+                0.0
+            };
+
+            // 2. Keyword score (1.0 per hit, not normalized by length)
+            let keyword_hits = keyword_hit_count(&query_keywords, fact_text);
+            let keyword_score = keyword_hits as f64;
+
+            // 3. Multi-keyword bonus (1.5 if 2+ keywords match)
+            let multi_kw_bonus = if keyword_hits >= 2 { 1.5 } else { 0.0 };
+
+            // 4. Dimension match score (2.0 weight)
+            let dimension_score = match (&query_dimension, dimension) {
+                (Some(qd), Some(fd)) if qd == fd => 2.0,
+                _ => 0.0,
+            };
+
+            // 5. Active fact bonus
+            let active_bonus = if invalid_at.is_none() { 0.5 } else { 0.0 };
+
+            // 6. Temporal boost
+            let temporal_score = if temporal && !valid_at.is_empty() {
+                let has_date_in_text = fact_lower.contains("202")
+                    || fact_lower.contains("january") || fact_lower.contains("february")
+                    || fact_lower.contains("march") || fact_lower.contains("april")
+                    || fact_lower.contains("may") || fact_lower.contains("june")
+                    || fact_lower.contains("july") || fact_lower.contains("august")
+                    || fact_lower.contains("september") || fact_lower.contains("october")
+                    || fact_lower.contains("november") || fact_lower.contains("december");
+                if has_date_in_text { 1.5 } else { 0.5 }
+            } else {
+                0.0
+            };
+
+            // 7. Length bonus (0.3 for facts >10 words -- more specific facts are more useful)
+            let word_count = fact_text.split_whitespace().count();
+            let length_bonus = if word_count > 10 { 0.3 } else { 0.0 };
+
+            let total = entity_score + keyword_score + multi_kw_bonus + dimension_score
+                + active_bonus + temporal_score + length_bonus;
+            (total, row)
+        })
+        .collect();
+
+    scored.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
+
+    let results: Vec<SearchFactResult> = scored
+        .iter()
+        .filter(|(score, _)| *score > 0.0)
+        .take(max_facts)
+        .map(|(score, row)| {
+            let entities_str = row.get("entities").and_then(|v| v.as_str()).unwrap_or("[]");
+            let entities: Vec<String> = serde_json::from_str(entities_str).unwrap_or_default();
+            SearchFactResult {
+                id: row.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                fact_text: row.get("fact_text").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                category: row.get("dimension").and_then(|v| v.as_str()).unwrap_or("general").to_string(),
+                date: row.get("valid_at").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                entities,
+                score: *score,
+            }
+        })
+        .collect();
+
+    Ok(SearchResult {
+        facts: results,
+        total_facts,
+        query_entities,
+        is_temporal: temporal,
+        is_adversarial: adversarial,
+    })
+}
+
+/// POST /api/memory/search -- hybrid retrieval for memory facts.
+pub async fn handle_search_facts(
+    env: &Env,
+    headers: &http::HeaderMap,
+    body: &[u8],
+) -> http::Response<axum::body::Body> {
+    use axum::body::Body;
+    use http::{Response, StatusCode};
+
+    // Auth
+    let _caller = match crate::auth::verify_auth_header(headers, env) {
+        Ok(id) => id,
+        Err(err_response) => return err_response,
+    };
+
+    let request: SearchFactsRequest = match serde_json::from_slice(body) {
+        Ok(r) => r,
+        Err(e) => {
+            console_log!("Failed to parse search request: {:?}", e);
+            return Response::builder()
+                .status(StatusCode::BAD_REQUEST)
+                .header("Content-Type", "application/json")
+                .body(Body::from(r#"{"error":"Invalid request body"}"#))
+                .unwrap();
+        }
+    };
+
+    // Delegate to reusable search (active_only=false for benchmark compatibility)
+    let search = match search_relevant_facts(
+        env, &request.student_id, &request.query, request.max_facts, false,
+    ).await {
+        Ok(s) => s,
+        Err(e) => {
+            console_log!("Search failed: {}", e);
+            return Response::builder()
+                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                .header("Content-Type", "application/json")
+                .body(Body::from(r#"{"error":"Search failed"}"#))
+                .unwrap();
+        }
+    };
+
+    let max_score = search.facts.first().map(|r| r.score).unwrap_or(0.0);
+    let avg_score = if search.facts.is_empty() {
+        0.0
+    } else {
+        search.facts.iter().map(|r| r.score).sum::<f64>() / search.facts.len() as f64
+    };
+
+    let resp = serde_json::json!({
+        "facts": search.facts,
+        "total_facts": search.total_facts,
+        "max_score": max_score,
+        "avg_score": avg_score,
+        "query_entities": search.query_entities,
+        "is_temporal": search.is_temporal,
+        "is_adversarial": search.is_adversarial,
+    });
+
+    Response::builder()
+        .status(StatusCode::OK)
+        .header("Content-Type", "application/json")
+        .body(Body::from(resp.to_string()))
+        .unwrap()
+}
+
+/// Extract entities from a query using Groq (Llama 70B).
+async fn extract_query_entities(env: &Env, query: &str) -> Vec<String> {
+    let prompt = format!("{}\"{}\"\n", ENTITY_EXTRACTION_PROMPT, query);
+
+    let output = match crate::services::llm::call_groq(
+        env,
+        "You extract entities from text. Return only a JSON array of strings.",
+        &prompt,
+        0.0,
+        100,
+    )
+    .await
+    {
+        Ok(o) => o,
+        Err(e) => {
+            console_log!("Entity extraction failed: {}", e);
+            return vec![];
+        }
+    };
+
+    // Parse JSON array from output
+    let trimmed = output.trim();
+    let json_str = if let Some(start) = trimmed.find('[') {
+        if let Some(end) = trimmed.rfind(']') {
+            &trimmed[start..=end]
+        } else {
+            trimmed
+        }
+    } else {
+        trimmed
+    };
+
+    serde_json::from_str::<Vec<String>>(json_str).unwrap_or_default()
+}
+
+/// Extract keywords from a query (lowercase, stopwords removed).
+fn extract_keywords(query_lower: &str) -> Vec<String> {
+    let stopwords: std::collections::HashSet<&str> = [
+        "a", "an", "the", "is", "was", "were", "are", "do", "does", "did",
+        "what", "when", "where", "who", "how", "which", "that", "this",
+        "to", "of", "in", "for", "on", "with", "at", "by", "from", "and",
+        "or", "not", "but", "if", "about", "has", "had", "have", "be", "been",
+        "it", "its", "they", "their", "them", "she", "her", "he", "his",
+    ].iter().copied().collect();
+
+    query_lower
+        .split(|c: char| !c.is_alphanumeric())
+        .filter(|w| !w.is_empty() && w.len() > 1 && !stopwords.contains(w))
+        .map(|w| w.to_string())
+        .collect()
+}
+
+/// Detect if the query mentions a specific musical dimension.
+fn detect_dimension(query_lower: &str) -> Option<String> {
+    let dims = [
+        ("dynamics", "dynamics"),
+        ("timing", "timing"),
+        ("pedaling", "pedaling"),
+        ("pedal", "pedaling"),
+        ("articulation", "articulation"),
+        ("phrasing", "phrasing"),
+        ("interpretation", "interpretation"),
+    ];
+    for (keyword, dim) in &dims {
+        if query_lower.contains(keyword) {
+            return Some(dim.to_string());
+        }
+    }
+    None
+}
+
+/// Count keyword hits in a fact (1.0 per hit, no length normalization).
+fn keyword_hit_count(keywords: &[String], fact_text: &str) -> usize {
+    if keywords.is_empty() {
+        return 0;
+    }
+    let fact_lower = fact_text.to_lowercase();
+    keywords.iter().filter(|kw| fact_lower.contains(kw.as_str())).count()
+}
+
+// ---------------------------------------------------------------------------
+// POST /api/memory/clear-benchmark -- clear benchmark facts for a student
+// ---------------------------------------------------------------------------
+
+#[derive(serde::Deserialize)]
+pub struct ClearBenchmarkRequest {
+    pub student_id: String,
+}
+
+/// POST /api/memory/clear-benchmark -- remove all benchmark-sourced facts for a student.
+pub async fn handle_clear_benchmark(
+    env: &Env,
+    headers: &http::HeaderMap,
+    body: &[u8],
+) -> http::Response<axum::body::Body> {
+    use axum::body::Body;
+    use http::{Response, StatusCode};
+
+    let _caller = match crate::auth::verify_auth_header(headers, env) {
+        Ok(id) => id,
+        Err(err_response) => return err_response,
+    };
+
+    let request: ClearBenchmarkRequest = match serde_json::from_slice(body) {
+        Ok(r) => r,
+        Err(e) => {
+            console_log!("Failed to parse clear-benchmark request: {:?}", e);
+            return Response::builder()
+                .status(StatusCode::BAD_REQUEST)
+                .header("Content-Type", "application/json")
+                .body(Body::from(r#"{"error":"Invalid request body"}"#))
+                .unwrap();
+        }
+    };
+
+    let db = match env.d1("DB") {
+        Ok(db) => db,
+        Err(e) => {
+            console_log!("D1 binding failed: {:?}", e);
+            return Response::builder()
+                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                .header("Content-Type", "application/json")
+                .body(Body::from(r#"{"error":"Database unavailable"}"#))
+                .unwrap();
+        }
+    };
+
+    let result = db
+        .prepare("DELETE FROM synthesized_facts WHERE student_id = ?1 AND source_type = 'benchmark'")
+        .bind(&[JsValue::from_str(&request.student_id)]);
+
+    match result {
+        Ok(stmt) => {
+            if let Err(e) = stmt.run().await {
+                console_log!("Failed to clear benchmark facts: {:?}", e);
+            }
+        }
+        Err(e) => {
+            console_log!("Failed to bind delete: {:?}", e);
+        }
+    }
+
+    Response::builder()
+        .status(StatusCode::OK)
+        .header("Content-Type", "application/json")
+        .body(Body::from(r#"{"ok":true}"#))
+        .unwrap()
 }
 
 /// Extract JSON from synthesis LLM output (may be wrapped in code fences).

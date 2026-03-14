@@ -259,7 +259,9 @@ def load_downstream_results() -> dict:
 
 def load_locomo_results() -> dict:
     """Load LoCoMo QA results from cache."""
-    qa_cache = DATA_DIR / "locomo_qa_cache.jsonl"
+    qa_cache = DATA_DIR / "locomo_qa_cache_v7.jsonl"
+    if not qa_cache.exists():
+        qa_cache = DATA_DIR / "locomo_qa_cache.jsonl"
     if not qa_cache.exists():
         return {}
 

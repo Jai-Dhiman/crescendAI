@@ -377,7 +377,7 @@ pub async fn handle_chat_stream(
     let history = fetch_messages(&db, &conversation_id).await.unwrap_or_default();
     let student_row = fetch_student_row(&db, &student_id).await;
     let today = &now[..10.min(now.len())];
-    let memory_ctx = crate::services::memory::build_memory_context(env, &student_id, None, today).await;
+    let memory_ctx = crate::services::memory::build_memory_context(env, &student_id, None, today, Some(&request.message)).await;
     let memory_patterns = crate::services::memory::format_chat_memory_patterns(&memory_ctx);
     let recent_obs = crate::services::memory::format_chat_recent_observations(&memory_ctx);
     let student_facts = crate::services::memory::format_student_reported_context(&memory_ctx);

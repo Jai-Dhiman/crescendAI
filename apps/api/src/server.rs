@@ -300,6 +300,51 @@ async fn fetch(
         )).await;
     }
 
+    // Memory store-facts endpoint (authenticated, benchmark/eval)
+    if path == "/api/memory/store-facts" && method == http::Method::POST {
+        let headers = req.headers().clone();
+        let body = req
+            .into_body()
+            .collect()
+            .await
+            .map(|b| b.to_bytes().to_vec())
+            .unwrap_or_default();
+        return into_worker_response(with_cors(
+            crate::services::memory::handle_store_facts(&env, &headers, &body).await,
+            origin.as_deref(),
+        )).await;
+    }
+
+    // Memory search endpoint (authenticated, hybrid retrieval)
+    if path == "/api/memory/search" && method == http::Method::POST {
+        let headers = req.headers().clone();
+        let body = req
+            .into_body()
+            .collect()
+            .await
+            .map(|b| b.to_bytes().to_vec())
+            .unwrap_or_default();
+        return into_worker_response(with_cors(
+            crate::services::memory::handle_search_facts(&env, &headers, &body).await,
+            origin.as_deref(),
+        )).await;
+    }
+
+    // Memory clear-benchmark endpoint (authenticated, cleanup)
+    if path == "/api/memory/clear-benchmark" && method == http::Method::POST {
+        let headers = req.headers().clone();
+        let body = req
+            .into_body()
+            .collect()
+            .await
+            .map(|b| b.to_bytes().to_vec())
+            .unwrap_or_default();
+        return into_worker_response(with_cors(
+            crate::services::memory::handle_clear_benchmark(&env, &headers, &body).await,
+            origin.as_deref(),
+        )).await;
+    }
+
     // Chat endpoint -- streaming teacher conversation (authenticated)
     // Returns worker::Response directly (not axum) to enable true token-by-token streaming.
     if path == "/api/chat" && method == http::Method::POST {
