@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Sentry } from "../lib/sentry";
+import { generateMockSession, type MockSessionData } from "../lib/mock-session";
 import type {
 	DimScores,
 	ObservationEvent,
 	PracticeWsEvent,
 } from "../lib/practice-api";
 import { practiceApi } from "../lib/practice-api";
+import { Sentry } from "../lib/sentry";
+
+const MOCK_MODE = true; // Set to false when real inference is available
 
 export type PracticeState =
 	| "idle"
@@ -27,6 +30,7 @@ export interface UsePracticeSessionReturn {
 	error: string | null;
 	analyserNode: AnalyserNode | null;
 	chunksProcessed: number;
+	mockSessionData: MockSessionData | null;
 	start: () => Promise<void>;
 	stop: () => void;
 }
@@ -40,6 +44,8 @@ export function usePracticeSession(): UsePracticeSessionReturn {
 	const [error, setError] = useState<string | null>(null);
 	const [analyserNode, setAnalyserNode] = useState<AnalyserNode | null>(null);
 	const [chunksProcessed, setChunksProcessed] = useState(0);
+	const [mockSessionData, setMockSessionData] =
+		useState<MockSessionData | null>(null);
 
 	const sessionIdRef = useRef<string | null>(null);
 	const wsRef = useRef<WebSocket | null>(null);
@@ -161,6 +167,7 @@ export function usePracticeSession(): UsePracticeSessionReturn {
 		setSummary(null);
 		setError(null);
 		setChunksProcessed(0);
+		setMockSessionData(null);
 
 		// 1. Request mic
 		let stream: MediaStream;
@@ -186,6 +193,17 @@ export function usePracticeSession(): UsePracticeSessionReturn {
 		analyser.fftSize = 256;
 		source.connect(analyser);
 		setAnalyserNode(analyser);
+
+		if (MOCK_MODE) {
+			// Mock mode: skip server connection, go straight to recording
+			chunkIndexRef.current = 1; // Pretend we have chunks so stop() works
+			setState("recording");
+			const startTime = Date.now();
+			timerRef.current = setInterval(() => {
+				setElapsedSeconds(Math.floor((Date.now() - startTime) / 1000));
+			}, 1000);
+			return;
+		}
 
 		// 3. Start session on server
 		setState("connecting");
@@ -268,6 +286,43 @@ export function usePracticeSession(): UsePracticeSessionReturn {
 
 		setState("summarizing");
 
+		// Release mic and timer immediately
+		if (timerRef.current) {
+			clearInterval(timerRef.current);
+			timerRef.current = null;
+		}
+		if (audioContextRef.current?.state !== "closed") {
+			audioContextRef.current?.close();
+		}
+		audioContextRef.current = null;
+		streamRef.current?.getTracks().forEach((t) => {
+			t.stop();
+		});
+		streamRef.current = null;
+
+		if (MOCK_MODE) {
+			// Generate mock session data and complete immediately
+			const mockData = generateMockSession();
+			mockData.durationSeconds = elapsedSeconds;
+			setMockSessionData(mockData);
+			setObservations(mockData.observations);
+			setLatestScores(mockData.scores);
+
+			// Build a summary string from observations for the chat
+			const obsText = mockData.observations
+				.map(
+					(o) =>
+						`[${o.dimension}, bars ${o.barRange?.[0]}-${o.barRange?.[1]}, ${o.framing}]: ${o.text}`,
+				)
+				.join("\n");
+			setSummary(
+				`Session complete: ${mockData.piece} (${mockData.section})\n\n${obsText}`,
+			);
+			setState("idle");
+			mediaRecorderRef.current = null;
+			return;
+		}
+
 		// Stop recording (triggers final ondataavailable)
 		if (mediaRecorderRef.current?.state === "recording") {
 			mediaRecorderRef.current.stop();
@@ -278,20 +333,9 @@ export function usePracticeSession(): UsePracticeSessionReturn {
 			wsRef.current.send(JSON.stringify({ type: "end_session" }));
 		}
 
-		// Release mic immediately (stop tracks + close audio context)
 		// WS stays open to receive session_summary
-		if (timerRef.current) {
-			clearInterval(timerRef.current);
-			timerRef.current = null;
-		}
-		if (audioContextRef.current?.state !== "closed") {
-			audioContextRef.current?.close();
-		}
-		audioContextRef.current = null;
-		streamRef.current?.getTracks().forEach((t) => t.stop());
-		streamRef.current = null;
 		mediaRecorderRef.current = null;
-	}, [state, cleanup]);
+	}, [state, cleanup, elapsedSeconds]);
 
 	// Graceful stop on page unload
 	useEffect(() => {
@@ -320,6 +364,7 @@ export function usePracticeSession(): UsePracticeSessionReturn {
 		error,
 		analyserNode,
 		chunksProcessed,
+		mockSessionData,
 		start,
 		stop,
 	};

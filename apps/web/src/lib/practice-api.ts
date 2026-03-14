@@ -29,6 +29,7 @@ export interface ObservationEvent {
 	text: string;
 	dimension: string;
 	framing: string;
+	barRange?: [number, number];
 }
 
 export interface SessionSummary {

@@ -2,6 +2,7 @@ import {
 	ChatCircle,
 	MagnifyingGlass,
 	Moon,
+	MusicNote,
 	PlusCircle,
 	SidebarSimple,
 	SignOut,
@@ -22,12 +23,14 @@ import type { ChatStreamEvent } from "../lib/api";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import type { RichMessage } from "../lib/types";
+import { useScorePanelStore } from "../stores/score-panel";
 import { useThemeStore } from "../stores/theme";
 import { useToastStore } from "../stores/toast";
 import { useUIStore } from "../stores/ui";
 import { ChatInput } from "./ChatInput";
 import { ChatMessages } from "./ChatMessages";
 import { ListeningMode } from "./ListeningMode";
+import { ScorePanel } from "./ScorePanel";
 import {
 	ChatSkeleton,
 	ConversationSkeleton,
@@ -105,6 +108,7 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 	const { theme, toggleTheme } = useThemeStore();
 	const profileRef = useRef<HTMLDivElement>(null);
 	const addToast = useToastStore((s) => s.addToast);
+	const scorePanel = useScorePanelStore();
 
 	const recordButtonRef = useRef<HTMLButtonElement>(null);
 	const [showListeningMode, setShowListeningMode] = useState(false);
@@ -254,6 +258,18 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 			setSessionNotes("");
 		}
 	}, [practice.summary]);
+
+	// Clear score panel when conversation changes
+	useEffect(() => {
+		scorePanel.clear();
+	}, [initialConversationId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+	// Auto-open score panel when mock session data arrives
+	useEffect(() => {
+		if (practice.mockSessionData && !showListeningMode) {
+			scorePanel.open(practice.mockSessionData);
+		}
+	}, [practice.mockSessionData, showListeningMode, scorePanel.open]);
 
 	// Show loading indicator in chat while session is summarizing
 	useEffect(() => {
@@ -693,6 +709,20 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 						pieceContext={pieceContext}
 					/>
 				)}
+
+				{/* Score panel toggle button */}
+				{scorePanel.sessionData && !scorePanel.isOpen && (
+					<button
+						type="button"
+						onClick={scorePanel.toggle}
+						className="absolute top-3 right-3 z-20 flex items-center gap-2 px-3 py-2 rounded-lg bg-surface border border-border text-text-secondary hover:text-cream hover:bg-surface-2 transition text-body-sm"
+						aria-label="Open score panel"
+					>
+						<MusicNote size={16} className="text-accent" />
+						<span className="hidden sm:inline">View Score</span>
+					</button>
+				)}
+
 				{showConversationSkeleton ? (
 					<ChatSkeleton />
 				) : !hasMessages ? (
@@ -729,6 +759,9 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 					</ChatMessages>
 				)}
 			</div>
+
+			{/* Score panel (artifacts-style right sidebar) */}
+			<ScorePanel />
 		</div>
 	);
 }

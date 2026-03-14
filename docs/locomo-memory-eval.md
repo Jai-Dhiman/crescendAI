@@ -1,7 +1,7 @@
 # LoCoMo Memory Evaluation -- Extraction Pipeline Iteration
 
-**Date:** 2026-03-11
-**Status:** In progress (v5, F1=0.435 adjusted, target >0.65)
+**Date:** 2026-03-12
+**Status:** In progress (v6, F1=0.280 raw / ~0.45 adjusted, target >0.65)
 **Benchmark:** LoCoMo (ACL 2024) -- long-conversation memory via QA pairs
 
 ## Background
@@ -56,16 +56,38 @@ The LoCoMo benchmark tests memory systems by feeding multi-session dialogues bet
 | v2: +speaker fix | 982 | 0.213 | 0.349 | 0.344 | 0.084 | 0.201 | 0.339 | 0.617 |
 | v3: +date norm | 982 | 0.175 | 0.429 | 0.321 | 0.474 | 0.150 | 0.282 | 0.766 |
 | v4: +retrieval 50 | 982 | 0.257 | 0.423 | 0.305 | 0.446 | 0.150 | 0.315 | 0.723 |
-| **v5: +dedup** | **818** | **0.264** | **0.435** | **0.355** | **0.420** | **0.147** | **0.326** | **0.745** |
+| v5: +dedup | 818 | 0.264 | 0.435 | 0.355 | 0.420 | 0.147 | 0.326 | 0.745 |
+| **v6: semantic dedup + retrieval + QA prompt** | **637** | **0.280** | **~0.45** | **0.315** | **0.460** | **0.273** | **0.328** | **~0.62** |
 
 - **Raw F1:** Standard token-level F1 (LoCoMo official metric)
 - **Adj F1:** Adversarial questions with empty gold answers scored as 1.0 if model abstains (45/47 have empty gold)
+- **v6 note:** ~0.02-0.03 run-to-run variance observed (Groq Llama 70B, temperature=0). Best single run: raw=0.292, multi=0.504, temp=0.273.
 
 ### Chat Extraction Eval (38 scenarios)
 
 - Recall: 1.000 (all expected facts found)
 - Precision: 0.722 (model extracts more than expected, acceptable for LoCoMo)
 - All 30 original + 8 new scenarios pass
+
+## v6 Changes (2026-03-12)
+
+### 1. Semantic Dedup (`locomo_adapter.py`)
+
+Added cosine similarity dedup (threshold >0.90) after exact-match dedup. Uses `all-MiniLM-L6-v2` to encode all facts, then greedily removes near-duplicates. Reduced facts from 818 to 637 (-22%).
+
+### 2. Adaptive Retrieval (`locomo_adapter.py`)
+
+Question-aware retrieval limits. Synthesis-like questions (containing "what does", "describe", "how does", etc.) get `max_facts=200`. Focused lookup questions get `max_facts=50`. Balances the retrieval-synthesis tension.
+
+### 3. QA Prompt with Few-Shot Examples (`locomo_adapter.py`)
+
+- Softened grounding instruction: "combine and synthesize" instead of "point to specific facts"
+- Added "never say I don't know if relevant facts exist"
+- Added 2 few-shot examples: synthesis (hobbies from multiple facts) and abstention (no facts about movies)
+
+### 4. Lazy Auth Token (`locomo_adapter.py`)
+
+Auth token for extract-chat API is now fetched lazily on first cache miss, not eagerly. Allows running eval from cache without the local API server.
 
 ## Key Findings
 
@@ -75,24 +97,33 @@ The LoCoMo benchmark tests memory systems by feeding multi-session dialogues bet
 
 3. **Date format mismatch inflated multi-hop failures.** The model correctly answered "2023-05-08" but gold was "7 May 2023" -- token F1 gave 0. Date normalization boosted multi-hop from 0.052 to 0.420.
 
-4. **Adversarial scoring anomaly.** 45/47 adversarial questions have empty gold answers. The standard metric penalizes correct abstention. With adjusted scoring, adversarial is 0.745.
+4. **Adversarial scoring anomaly.** 45/47 adversarial questions have empty gold answers. The standard metric penalizes correct abstention. With adjusted scoring, adversarial is ~0.62-0.75.
 
 5. **Retrieval bottleneck.** With 818 facts, the entity-hop + cosine retriever struggles to surface niche facts (e.g., "grandma from Sweden") when hundreds of facts share the same entity.
 
+6. **Semantic dedup reduces noise.** (v6) Cosine >0.90 dedup reduced 818 -> 637 facts, removing near-duplicates from bidirectional extraction. This directly helped multi-hop and temporal reasoning by reducing noise in the fact context.
+
+7. **Retrieval-synthesis tension.** (v6) Tighter retrieval (max_facts=50) helps focused questions (single-hop, multi-hop). Looser retrieval (max_facts=150+) helps synthesis questions (open-ended). No single limit is optimal for all categories. Adaptive per-question limits based on question keywords partially addresses this.
+
+8. **QA prompt sensitivity.** (v6) Few-shot examples and softer grounding instructions improved temporal (+0.13) and multi-hop (+0.04-0.08), but small wording changes caused large swings. The QA model (Llama 70B via Groq) shows ~0.02-0.03 run-to-run variance even at temperature=0.
+
+9. **Single-hop plateau at ~0.33.** Most single-hop failures are list-recall (gold="pottery, camping, painting" vs. model gives different-but-related activities) and paraphrasing (gold="Single" vs. model says "tough breakup"). These are token-F1 measurement limitations, not retrieval failures.
+
 ## Remaining Gaps to F1 > 0.65
 
-- **Single-hop (0.355):** Retrieval crowding -- too many facts per entity, niche facts get pushed out of top-50
-- **Open-ended (0.326):** QA model says "I don't know" on synthesis questions where facts exist but require combining
-- **Temporal (0.147):** These are actually counterfactual/inference questions ("Would Caroline pursue writing?"), not date questions -- require reasoning beyond stored facts
-- **Adversarial (0.745):** QA model occasionally fabricates answers when it should abstain
+- **Single-hop (0.315-0.355):** Plateau -- failures are mostly list-recall and paraphrasing, not retrieval misses. Unlikely to improve much with current token-F1 metric.
+- **Open-ended (0.321-0.395):** Highly variable. Needs more consistent synthesis behavior from QA model. Consider stronger model or chain-of-thought.
+- **Temporal (0.215-0.273):** Improved from v5. Some questions are counterfactual/inference ("Would Caroline pursue writing?") that require reasoning beyond stored facts.
+- **Adversarial (~0.62 adj):** Abstention rate varies with prompt wording. Hard to optimize without hurting open-ended.
+- **Run-to-run variance:** ~0.02-0.03 makes it hard to distinguish real improvements from noise on 1-sample eval.
 
 ## Next Steps
 
-1. **Retrieval:** Try passing all facts (no filtering) for small fact sets, or improve entity-hop to weigh keyword matches more heavily
-2. **QA prompt:** Add few-shot examples showing synthesis from multiple facts, and clear abstention examples
-3. **Extraction:** Some facts still missed entirely (e.g., "Melanie has 3 children") -- consider raising cap beyond 5
-4. **Full benchmark:** Run 10-sample evaluation once 1-sample F1 stabilizes above 0.50
-5. **Dedup quality:** Current exact-match dedup; consider semantic dedup to further reduce fact count
+1. **Multi-sample eval:** Run 3-5 sample eval to get stable numbers and reduce variance
+2. **Stronger QA model:** Try Claude Haiku or GPT-4o-mini instead of Llama 70B for QA answering -- may reduce variance and improve synthesis
+3. **Chain-of-thought QA:** Add explicit reasoning step before answering open-ended questions
+4. **Extraction cap:** Raise from 5 to 8 per exchange to catch missed facts (e.g., "Melanie has 3 children")
+5. **Semantic dedup threshold tuning:** Current 0.90 threshold is conservative. Try 0.85 to reduce facts further without losing distinct information
 
 ## Files Modified
 
@@ -100,4 +131,4 @@ The LoCoMo benchmark tests memory systems by feeding multi-session dialogues bet
 |------|---------|
 | `apps/api/src/services/prompts.rs` | Broadened extraction prompt, expanded categories |
 | `apps/api/evals/memory/src/build_chat_scenarios.py` | Added 8 general-purpose scenarios |
-| `apps/api/evals/memory/src/locomo_adapter.py` | Bidirectional extraction, speaker fixup, date handling, dedup, retrieval tuning |
+| `apps/api/evals/memory/src/locomo_adapter.py` | Bidirectional extraction, speaker fixup, date handling, dedup, retrieval tuning, v6: semantic dedup, adaptive retrieval, QA prompt with few-shot examples |

@@ -1,6 +1,6 @@
 # Encoder Training Results & Experiment Roadmap
 
-> **Status (2026-03-08):** Audio training COMPLETE (A1 LoRA winner). Symbolic training COMPLETE (S2 GNN winner). Fusion (03_fusion.ipynb) not started.
+> **Status (2026-03-13):** Audio training COMPLETE (A1 LoRA winner). A1-Max COMPLETE (best: 80.8% ensemble pairwise, +6.8pp vs A1). Symbolic training COMPLETE (S2 GNN winner). Layer 1 validation COMPLETE (all gates pass). Fusion (03_fusion.ipynb) next after S2-max.
 
 **Notebooks:** `model/notebooks/model_improvement/01_audio_training.ipynb`, `02_symbolic_training.ipynb`
 **Training plan:** `docs/model/03-model-improvement.md`
@@ -82,6 +82,43 @@ Adding 24K MAESTRO segments (204 pieces) to A2's Stage 1 contrastive pretraining
 *Val loss values shown; pairwise accuracy not separately computed for ablation in the notebook.
 
 No clear improvement from more unlabeled piano audio. MuQ was pretrained on 160K hours of music -- more piano audio doesn't help its representations. The bottleneck is labeled data quantity, not representation quality.
+
+### A1-Max: Stacked Tier 1 Improvements
+
+A1-Max extends A1 with ListMLE ranking loss, CCC regression loss, embedding mixup, hard negative mining with curriculum, and configurable loss weights. Swept 18 configs (3 LoRA ranks x 2 layer ranges x 3 label smoothing values) x 4 folds = 72 runs.
+
+Loss: `L = L_ranking + 1.5 * L_ListMLE + 0.3 * L_contrastive + 0.3 * L_CCC + 0.1 * L_invariance`
+
+#### A1-Max Top 5 Configs (by mean pairwise accuracy)
+
+| Config | LoRA Rank | Layers | Label Smooth | Pairwise | R2 |
+|--------|-----------|--------|-------------|----------|-----|
+| **A1max_r32_L7-12_ls0.1** | **32** | **7-12** | **0.1** | **0.7872** | **0.1553** |
+| A1max_r8_L7-12_ls0.1 | 8 | 7-12 | 0.1 | 0.7866 | 0.1514 |
+| A1max_r32_L7-12_ls0.05 | 32 | 7-12 | 0.05 | 0.7861 | 0.0974 |
+| A1max_r8_L9-12_ls0.0 | 8 | 9-12 | 0.0 | 0.7859 | 0.1616 |
+| A1max_r16_L9-12_ls0.1 | 16 | 9-12 | 0.1 | 0.7852 | 0.1393 |
+
+All 18 configs beat the A1 baseline (73.9%). The winning config uses wider LoRA adaptation (layers 7-12 vs 9-12) and label smoothing (0.1).
+
+#### A1-Max 4-Fold Ensemble (Deployed)
+
+| Metric | Value | vs A1 Baseline |
+|--------|-------|---------------|
+| **Pairwise accuracy** | **80.77%** | +6.84pp |
+| **R2** | **0.5021** | +0.0989 |
+| **Robustness (score drop)** | **0.08%** | Same |
+| **Robustness (Pearson r)** | **1.0000** | Same |
+
+Ensembling the 4 fold models boosts pairwise from 78.7% (single fold mean) to 80.8% (+2.1pp). All deployment gates pass: pairwise > 73.9%, score drop < 15%.
+
+#### A1-Max Interpretation
+
+**ListMLE is the biggest contributor.** The ranking-dominant loss weighting (lambda_listmle=1.5) explicitly optimizes the Plackett-Luce ranking likelihood per piece, aligning the loss directly with the pairwise accuracy metric.
+
+**Wider LoRA (layers 7-12) helps.** The top 3 configs all use layers 7-12 instead of 9-12. With ListMLE and CCC providing better learning signals, more adapted parameters can be utilized without overfitting.
+
+**R2 dropped per-fold but recovered in ensemble.** Individual fold R2 (~0.15) is lower than A1 (~0.40) because the ranking-dominant loss de-emphasizes regression. However, the 4-fold ensemble R2 (0.50) recovers to baseline levels, suggesting the regression heads learn complementary patterns across folds.
 
 ## Audio Interpretation
 
@@ -177,15 +214,17 @@ S3 is a close second on pairwise (0.7001 vs 0.7133) and leads on R2 (0.3721). S2
 
 ### Cross-Modality Comparison
 
-| Rank | Model | Modality | Pairwise | R2 |
-|------|-------|----------|----------|-----|
-| 1 | A1 (LoRA) | Audio | 0.7393 | 0.4032 |
-| 2 | A2 (Staged) | Audio | 0.7142 | 0.4206 |
-| 3 | S2 (GNN) | Symbolic | 0.7133 | 0.3153 |
-| 4 | S2H (Hetero GNN) | Symbolic | 0.7016 | 0.3595 |
-| 5 | S3 (CNN+Trans) | Symbolic | 0.7001 | 0.3721 |
-| 6 | A3 (Full Unfreeze) | Audio | 0.6985 | 0.2829 |
-| 7 | S1 (Transformer) | Symbolic | 0.6840 | 0.3282 |
+| Rank | Model | Modality | Pairwise | R2 | Notes |
+|------|-------|----------|----------|-----|-------|
+| 1 | **A1-Max (ensemble)** | **Audio** | **0.8077** | **0.5021** | **Deployed** |
+| 2 | A1-Max (single fold mean) | Audio | 0.7872 | 0.1553 | Best config |
+| 3 | A1 (LoRA) | Audio | 0.7393 | 0.4032 | Previous best |
+| 4 | A2 (Staged) | Audio | 0.7142 | 0.4206 | |
+| 5 | S2 (GNN) | Symbolic | 0.7133 | 0.3153 | |
+| 6 | S2H (Hetero GNN) | Symbolic | 0.7016 | 0.3595 | |
+| 7 | S3 (CNN+Trans) | Symbolic | 0.7001 | 0.3721 | |
+| 8 | A3 (Full Unfreeze) | Audio | 0.6985 | 0.2829 | |
+| 9 | S1 (Transformer) | Symbolic | 0.6840 | 0.3282 | |
 
 S2 and S2H outperform A3 (full unfreeze), which suffered catastrophic forgetting. The best symbolic encoders are competitive with audio when the audio model isn't well-adapted.
 
@@ -193,7 +232,7 @@ S2 and S2H outperform A3 (full unfreeze), which suffered catastrophic forgetting
 
 ### STOP Classifier / Teaching Moment Selection -- Workable
 
-The STOP classifier is a 6-weight logistic regression on dimension scores (current AUC: 0.845 on composite labels). Pairwise accuracy of 74% means the model can meaningfully rank chunks within a session. Teaching moment selection picks the top chunk, not a precise threshold, so ranking quality matters more than absolute accuracy.
+The STOP classifier is a 6-weight logistic regression on dimension scores (current AUC: 0.845 on composite labels). With A1-Max ensemble pairwise accuracy of 80.8%, the model can reliably rank chunks within a session. Teaching moment selection picks the top chunk, not a precise threshold, so ranking quality matters more than absolute accuracy.
 
 ### Student Model / Blind Spot Detection -- Workable With Smoothing
 
@@ -377,13 +416,11 @@ Add domain classifier ("phone or studio?") with gradient reversal layer. Encoder
 
 Prerequisites: 4a.
 
-## Next Steps: Layered Roadmap
+## Next Steps
 
-Each layer validates the assumptions of the next. Do not invest in later layers until earlier layers confirm the approach is viable.
+See `docs/model/00-research-timeline.md` for the full training roadmap (Waves 1-3).
 
-### Per-Dimension Findings (2026-03-09)
-
-The symbolic and audio encoders have complementary strengths across dimensions (fold 3 evaluation):
+### Per-Dimension Complementarity
 
 | Dimension | A1 (Audio) | S2 (GNN) | Winner |
 |---|---|---|---|
@@ -394,91 +431,13 @@ The symbolic and audio encoders have complementary strengths across dimensions (
 | phrasing | ~0.63 | ~0.63 | Tie |
 | interpretation | ~0.74 | ~0.77 | S2 |
 
-Audio wins timing decisively. Symbolic wins dynamics, articulation, and interpretation. This validates gated per-dimension fusion (F3) but raises a critical caveat: all symbolic results use ground-truth MIDI. In production, symbolic input comes from automatic music transcription (AMT) of phone audio, which introduces velocity estimation errors, onset jitter, missed notes, and pedal detection failures. The symbolic advantage may not survive the AMT bridge.
+Audio wins timing decisively. Symbolic wins dynamics, articulation, and interpretation. AMT degradation test (0% drop) confirms the symbolic advantage survives transcription. This validates gated per-dimension fusion (F3).
 
-### Layer 1: Validate What We Have (weeks)
+### Summary
 
-**Goal:** Determine whether the model's quality signal is real, whether symbolic input survives transcription, and whether MIDI-as-context improves teacher feedback.
-
-1. **Competition correlation.** Run A1 on Chopin 2021 competition recordings (`competition_cache/`). Compute Spearman rho of model scores vs placement. If rho < 0.2, the model's quality signal may be a PercePiano artifact. Infrastructure exists: `CompetitionPairSampler`, `CompetitionDataset` in `data.py`.
-
-2. **AMT degradation test.** Take MAESTRO recordings (real audio + ground-truth MIDI). Transcribe audio via MT3 or Onsets-and-Frames. Run ground-truth MIDI through S2, transcribed MIDI through S2. Measure pairwise accuracy drop per dimension. This determines whether the symbolic path is viable in production. If dynamics pairwise drops from 0.77 to < 0.60 on transcribed MIDI, the symbolic advantage is illusory.
-
-3. **Dynamic range at intermediate level.** Find or synthesize intermediate-level performances of pieces in the training set. Run through A1. Check whether scores show meaningful variance across dimensions or collapse to a flat "low" signal. If variance is too narrow, the model cannot distinguish Sarah's good sessions from bad ones.
-
-4. **MIDI-as-context feedback test.** Take 10-20 PercePiano segments (two known pieces with multiple performances). Generate teacher observations two ways: (a) A1 scores alone, (b) A1 scores + structured MIDI comparison (velocity curves vs score dynamics markings, onset deviations, note accuracy, pedal events). Judge which produces more specific, actionable feedback. This validates whether LLM-side fusion (Option A) is worth building before model-level fusion (Option B).
-
-**Decision gates:**
-- Competition rho > 0.3 -> model quality signal is real, proceed to Layer 2
-- AMT pairwise drop < 10% -> symbolic path viable, include in fusion plans
-- AMT pairwise drop > 20% -> symbolic path compromised, focus on audio-only + MIDI-as-context
-- MIDI-as-context produces measurably better feedback -> build score comparison pipeline for teacher subagent
-- Intermediate dynamic range adequate -> model is usable across skill levels without retraining
-
-### Layer 2: Push A1 With Existing Data (weeks-months)
-
-**Goal:** Maximize A1 pairwise accuracy on current data. Conditionally pursue fusion if Layer 1 validates symbolic input.
-
-1. **Tier 1 quick wins on A1 baseline:**
-   - Hard negative mining for pair sampling (expected +3-5% pairwise)
-   - Listwise ranking loss (ListMLE/LambdaRank, expected +2-4%)
-   - LoRA rank and layer ablation ({4, 8, 16, 32, 64} x layer ranges)
-   - Label smoothing ({0.05, 0.1, 0.15})
-   - Mixup on embeddings (regularizer for small dataset)
-   - Fold ensemble at inference (free +2-3%, 4x cost -- can distill back)
-   - Loss weight tuning (increase ranking weight since pairwise is north star)
-
-2. **GIANTMIDI symbolic pretraining** (if AMT test passes): Pretrain S2 on 10K+ pieces from GIANTMIDI-Piano. Re-evaluate per-dimension breakdown. If S2 improves enough on dynamics/articulation/interpretation to justify fusion complexity, proceed to F3.
-
-3. **F3: Gated per-dimension fusion** (if GIANTMIDI pretraining helps): Route each dimension to its best modality via learned gates. Per-dimension findings above provide strong prior for gate initialization. Freeze encoders initially, train fusion module on PercePiano.
-
-4. **Core ML conversion:** A1 is the simplest path (mostly frozen MuQ + small LoRA adapters). Convert regardless of fusion outcome -- A1 alone is sufficient for MVP. If F3 proves valuable, convert the fused model as a second step (adds complexity: two encoder paths + MIDI transcription on device).
-
-5. **Score alignment as LLM context** (if Layer 1 feedback test passes): Build deterministic MIDI comparison pipeline. User selects piece from curated library. Chroma DTW for measure-level alignment. Extract structured features (velocity curves, onset deviations, note accuracy). Feed alongside A1 scores to teacher subagent. This gives the teacher richer context without requiring model-level fusion.
-
-### Layer 3: New Data Collection (months)
-
-**Goal:** Break through the data bottleneck. Address skill level bias, recording condition bias, and label quality.
-
-1. **Real recording dataset:**
-   - Recruit pianists across skill levels (beginner through advanced)
-   - Record on phones in real practice conditions (apartments, studios, various pianos)
-   - Start with PercePiano's pieces for cross-validation against existing labels
-   - Expand to non-classical repertoire (pop, jazz standards, method book pieces)
-   - Target: 2,000-5,000 annotated segments across 200+ pieces
-
-2. **Expert annotation:**
-   - 3-5 piano teachers annotate 6 dimensions using rubric from `composite_labels/teacher_rubric.json`
-   - Inter-rater reliability measurement (currently unknown -- PercePiano uses crowdsourced IRT)
-   - Include negative examples: "nothing worth mentioning" annotations for STOP classifier training
-
-3. **Active learning loop:**
-   - Use A1 to score all new recordings
-   - Identify segments where model is most uncertain (high prediction variance, regression/ranking disagreement)
-   - Prioritize uncertain segments for expert annotation -- maximizes signal per annotation dollar
-
-4. **Phone audio domain adaptation:**
-   - With real phone recordings + labels, directly measure synthetic-to-real gap
-   - If gap > 10% pairwise: phone simulation augmentation during training, or domain-adversarial training with gradient reversal
-   - Paired recordings (same performance on studio mic + phone) for calibration
-
-### Layer 4: Score-Conditioned Model (months-year)
-
-**Goal:** The highest-ceiling architecture. Model learns quality relative to what the score asks for.
-
-**Prerequisites:** Layer 1 validates MIDI signal survives AMT. Layer 3 provides sufficient labeled data (2K+ segments). Score alignment pipeline from Layer 2 is operational.
-
-1. **Architecture:** `quality = f(z_performance_audio, z_score_midi)`. Performance audio embedding from A1 (or fused model). Score MIDI embedding from S2 or a dedicated score encoder. Cross-attention or gated fusion between performance and score representations.
-
-2. **Training data:** Score-aligned performance recordings with quality labels. Each training sample is a (performance_audio, score_midi, quality_labels) triple. Requires measure-level alignment between performance and score.
-
-3. **What this enables:**
-   - "The dynamics are correct for this passage" vs "the dynamics don't match what Chopin wrote"
-   - Rubato detection: deviation from score timing + compensatory pattern = intentional expression
-   - Difficulty-aware feedback: "this passage is technically demanding, focus on X" from score analysis
-   - Open-ended piece support (any piece with available MIDI score)
-
-4. **Risk:** This is the most complex and data-hungry path. Only worth pursuing if Layers 1-3 confirm both the model signal and the data pipeline. The LLM-side fusion from Layer 2 may provide 80% of the benefit at 20% of the cost.
+- **Wave 1 (current):** A1-max quick wins (IN PROGRESS), S2-max pretraining expansion + multi-source finetuning, F3 fusion, Core ML conversion
+- **Wave 2 (months):** Phone audio paired recordings, diverse skill-level data, expert annotation campaign (2K+ segments), retrain on expanded data
+- **Wave 3 (months-year):** Score alignment pipeline, score-conditioned model `quality = f(z_performance, z_score)`, bar-aligned LLM context
 
 ## Verification Criteria (for any future experiment)
 

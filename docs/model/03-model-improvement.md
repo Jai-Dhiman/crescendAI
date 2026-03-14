@@ -14,7 +14,7 @@ This plan starts after both prerequisites are complete:
 - Teacher-grounded taxonomy validated (all 5 gates pass)
 - Repo cleanup and data collection done (T2-T4 available)
 
-> **Status (2026-02-23):** Taxonomy COMPLETE (all 5 gates pass, 6 dimensions). Distillation pilot NO-GO (0/6 dims pass r > 0.5). Data collection COMPLETE (T1-T3 in GDrive, T4 deferred). Training proceeds on baseline path with composite labels only.
+> **Status (2026-03-11):** Taxonomy COMPLETE (all 5 gates pass, 6 dimensions). Distillation pilot NO-GO (0/6 dims pass r > 0.5). Audio training COMPLETE (A1 LoRA winner, 73.9% pairwise). Symbolic training COMPLETE (S2 GNN winner, 71.3% pairwise). Fusion experiments next.
 
 ## Prerequisites: What This Plan Receives
 

@@ -314,3 +314,42 @@ html[data-theme="light"] {
 .animate-score-pulse {
 	animation: score-pulse 600ms ease-out;
 }
+
+/* Dimension colors */
+:root {
+	--dim-dynamics: #b0816a;
+	--dim-timing: #9a8a7a;
+	--dim-pedaling: #7a8a9a;
+	--dim-articulation: #9a7a8a;
+	--dim-phrasing: #8a9a7a;
+	--dim-interpretation: #9a917a;
+}
+
+/* OSMD container styling */
+.osmd-container svg {
+	width: 100% !important;
+	height: auto !important;
+}
+
+.osmd-container {
+	min-height: 200px;
+	background: white;
+	border-radius: 0.5rem;
+	padding: 1rem;
+}
+
+/* Score panel slide animation */
+@keyframes panel-slide-in {
+	from {
+		transform: translateX(100%);
+		opacity: 0;
+	}
+	to {
+		transform: translateX(0);
+		opacity: 1;
+	}
+}
+
+.animate-panel-slide-in {
+	animation: panel-slide-in 300ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}

@@ -65,7 +65,7 @@ Multi-platform (iOS + web) practice companion that evaluates *how* a piano perfo
 
 ## Implementation Status
 
-*Last verified: 2026-03-03*
+*Last verified: 2026-03-11*
 
 ### iOS App (`apps/ios/`)
 
@@ -102,9 +102,10 @@ Multi-platform (iOS + web) practice companion that evaluates *how* a piano perfo
 | Component | Status | Key Files | Notes |
 |-----------|--------|-----------|-------|
 | Taxonomy (6 dims) | COMPLETE | `data/composite_labels/` | Validated via 5-gate process |
-| Audio training | COMPLETE | `notebooks/model_improvement/01_audio_training.ipynb` | A1 LoRA winner, R²=0.537 |
-| Symbolic training | IN PROGRESS | `notebooks/model_improvement/02_symbolic_training.ipynb` | |
-| Fusion experiments | NOT STARTED | -- | Planned in `03_fusion.ipynb` |
+| Audio training | COMPLETE | `notebooks/model_improvement/01_audio_training.ipynb` | A1 LoRA winner, 73.9% pairwise, R2=0.40 |
+| Symbolic training | COMPLETE | `notebooks/model_improvement/02_symbolic_training.ipynb` | S2 GNN winner, 71.3% pairwise |
+| Fusion experiments | NEXT | -- | Blocked on S2-max, then F3 gated per-dimension |
+| Layer 1 validation | COMPLETE | `notebooks/model_improvement/04_layer1_validation.ipynb` | All gates pass, see 04-training-results.md |
 | Core ML conversion | NOT STARTED | -- | Critical gate for on-device inference |
 
 ### Web App (`apps/web/`)
@@ -122,7 +123,7 @@ Multi-platform (iOS + web) practice companion that evaluates *how* a piano perfo
 
 | Component | Status | Notes |
 |-----------|--------|-------|
-| Cloud inference endpoint | DEPLOYED | Still outputs 19 dims; needs update to 6-dim model |
+| Cloud inference endpoint | DEPLOYED | A1-Max 4-fold ensemble, 6-dim output (80.8% pairwise) |
 
 ---
 

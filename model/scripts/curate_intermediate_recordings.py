@@ -28,8 +28,10 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Search queries targeting intermediate-level piano performances
+# Search queries targeting piano performances at various skill levels
+# and recording conditions. Grouped by purpose.
 SEARCH_QUERIES = [
+    # --- Original: intermediate/exam level ---
     "piano student recital performance",
     "intermediate piano recital",
     "piano diploma exam performance",
@@ -40,17 +42,43 @@ SEARCH_QUERIES = [
     "university piano student recital",
     "ABRSM piano performance",
     "RCM piano exam performance",
+    # --- Adult beginner/early intermediate ---
+    "adult beginner piano performance",
+    "adult piano student recital",
+    "adult piano recital performance",
+    "self taught piano performance",
+    "piano progress 1 year adult",
+    "adult learning piano performance",
+    "late starter piano recital",
+    # --- Home/practice recordings (natural conditions) ---
+    "piano practice session recording",
+    "learning piano progress video",
+    "piano progress update",
+    # --- Digital keyboard / non-grand piano ---
+    "digital piano performance",
+    "keyboard recital performance",
+    "upright piano recital",
+    "yamaha piano performance student",
+    # --- Non-classical repertoire ---
+    "pop song piano cover performance",
+    "jazz piano student performance",
+    "piano bar cover performance",
+    "church piano performance",
 ]
 
 # Title substrings that indicate non-performance content
 EXCLUDE_KEYWORDS = [
-    "lesson", "tutorial", "how to", "learn to", "beginner",
+    "lesson", "tutorial", "how to", "learn to",
     "practice tips", "technique", "exercises", "scales",
     "review", "unboxing", "reaction", "analysis", "masterclass",
     "sheet music", "synthesia", "midi", "karaoke",
+    "asmr", "relaxing music", "sleep", "study music",
+    "compilation", "1 hour", "2 hours", "3 hours",
+    "child", "kids", "toddler", "4 year old", "5 year old",
+    "6 year old", "7 year old", "8 year old",
 ]
 
-MIN_DURATION = 120   # 2 minutes
+MIN_DURATION = 60    # 1 minute (beginner pieces are short)
 MAX_DURATION = 900   # 15 minutes
 MAX_RESULTS_PER_QUERY = 20
 
