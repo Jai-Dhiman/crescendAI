@@ -1,0 +1,96 @@
+{
+  "n_recordings": 50,
+  "n_pairs": 1225,
+  "tie_threshold": 0.01,
+  "overall": {
+    "agree": 4067,
+    "total": 5093,
+    "agreement_pct": 79.85
+  },
+  "gate_threshold": 60.0,
+  "gate_pass": true,
+  "per_dimension": {
+    "dynamics": {
+      "agree": 783,
+      "total": 944,
+      "agreement_pct": 82.94
+    },
+    "timing": {
+      "agree": 592,
+      "total": 772,
+      "agreement_pct": 76.68
+    },
+    "pedaling": {
+      "agree": 823,
+      "total": 1048,
+      "agreement_pct": 78.53
+    },
+    "articulation": {
+      "agree": 501,
+      "total": 692,
+      "agreement_pct": 72.4
+    },
+    "phrasing": {
+      "agree": 605,
+      "total": 736,
+      "agreement_pct": 82.2
+    },
+    "interpretation": {
+      "agree": 763,
+      "total": 901,
+      "agreement_pct": 84.68
+    }
+  },
+  "recording_ids": [
+    "-Bxpm0EmOMU",
+    "0NC0ca1rLpE",
+    "0s60_AoMHM0",
+    "1KSzkx86eyU",
+    "262NkSNosg0",
+    "2GuHebuElok",
+    "2IOJBILVEhY",
+    "2Lmn4I_Tbl0",
+    "3k5ra-YFCUA",
+    "4rnEtMkZ68g",
+    "5tSeDy0BJJE",
+    "7ZuHQaD62Fg",
+    "7oeGflOpmvM",
+    "7pwRjv4cdLA",
+    "B0OyrsmPTlU",
+    "BbgEbWaLNAE",
+    "Eg7zvFIS9WM",
+    "G8cOZdu9C5I",
+    "HkOC3zLOIaA",
+    "IhFY_VBrhos",
+    "JSg4D0Nwio4",
+    "JnXqNRVLUvg",
+    "LXCHC1XqFRg",
+    "LqoV4ZW7xTA",
+    "MmEJlEpNTq0",
+    "NsOXM8tTBM4",
+    "PGQ-Ls42cRU",
+    "PjyDsANceSU",
+    "QlMKTAXOQA0",
+    "Qn2S8tt-geI",
+    "R2fAz_H9Cck",
+    "RuGl4Jnbv7A",
+    "WxsXGvkQMo0",
+    "bfoqeJZn5AI",
+    "ckNuyscRSQo",
+    "e4gyr2Pjc7Y",
+    "gSxFmQnhsyg",
+    "gsvav4WXo_c",
+    "he98w0WCGIg",
+    "mZdBzID0kVI",
+    "oZv1kDbVC90",
+    "ouYT5OEPfRI",
+    "pJS89obbxIw",
+    "pff5ksXK8C0",
+    "qatfFYipRhQ",
+    "rZk1HkgTxL4",
+    "sBQXzKKfhAQ",
+    "tMEtqTd0jVQ",
+    "tRwrXkomOA4",
+    "uswSdYdNRyU"
+  ]
+}
