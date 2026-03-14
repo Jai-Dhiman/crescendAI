@@ -1,40 +1,31 @@
 # CrescendAI System Architecture
 
-**Date:** 2026-03-02
-**Status:** Approved, pending implementation plan
+**Date:** 2026-03-14
+**Status:** Approved, updated for cloud-only inference
 
 ## Overview
 
 CrescendAI is a multi-platform (iOS + web) practice companion for pianists. It listens to the student play, identifies teaching moments, and gives specific observations -- the kind a teacher would make after hearing them play.
 
 Two platform paths share one backend:
-- **iOS (on-device-first):** Audio inference, teaching moment detection, and the student model all run locally on the iPhone. The only cloud dependency is the teacher LLM call and data sync.
-- **Web (cloud-based):** Browser captures audio via MediaRecorder, uploads 15s chunks to the API, which runs inference via the HF endpoint and pushes real-time observations back over WebSocket. A chat interface lets the student discuss sessions with the teacher.
+- **iOS:** Audio capture on-device via AVAudioEngine, 15s chunks uploaded to the API. Cloud inference (HF endpoint) returns scores. STOP classifier and teaching moment selection run in the cloud worker. Student model in SwiftData (local-first), synced to D1.
+- **Web:** Browser captures audio via MediaRecorder, uploads 15s chunks to the API, which runs inference via the HF endpoint and pushes real-time observations back over WebSocket. A chat interface lets the student discuss sessions with the teacher.
 
 ## System Diagram
 
-### iOS Path (on-device inference)
+### iOS Path (cloud inference)
 
 ```
 +--------------------------------------------------------------+
 |                    iPhone (iOS 17+)                           |
 |                                                              |
 |  +----------+   +----------+   +------------------------+   |
-|  | AVAudio  |-->| Ring     |-->| Core ML MuQ            |   |
-|  | Engine   |   | Buffer   |   | (6-dim scores per      |   |
-|  | (24kHz   |   | (15s     |   |  15s chunk, ~1-2s)     |   |
+|  | AVAudio  |-->| Ring     |-->| Upload 15s chunk to    |   |
+|  | Engine   |   | Buffer   |   | POST /api/practice/    |   |
+|  | (24kHz   |   | (15s     |   | chunk                  |   |
 |  |  mono)   |   |  chunks) |   +----------+-------------+   |
 |  +----------+   +----------+              |                  |
-|                                           v                  |
-|                              +---------------------+         |
-|                              | On-Device Pipeline   |         |
-|                              |  - STOP classifier   |         |
-|                              |    (6-weight LR)     |         |
-|                              |  - Teaching moment   |         |
-|                              |    selection          |         |
-|                              |  - Blind spot detect  |         |
-|                              +----------+----------+         |
-|                                         |                    |
+|                                           | HTTPS            |
 |  +----------------------------------------------------+     |
 |  |                    SwiftData (local)                 |     |
 |  |  Student { baselines, level, goals, repertoire }    |     |
@@ -47,6 +38,8 @@ Two platform paths share one backend:
                             | HTTPS
                             v
                     [Shared Backend]
+                    (HF inference + STOP classifier +
+                     teaching moment selection)
 ```
 
 ### Web Path (cloud inference)
@@ -137,11 +130,11 @@ Two platform paths share one backend:
 
 | Component | iOS | Web |
 |---|---|---|
-| Audio capture + chunking | AVAudioEngine (on-device, no network) | MediaRecorder + chunk upload (network) |
-| MuQ inference (6 dims) | Core ML (on-device, no network) | HF Inference Endpoint (cloud) |
-| STOP classifier | On-device (6 floats + bias) | Heuristic in Durable Object (cloud) |
-| Teaching moment selection | On-device | Durable Object (cloud) |
-| Blind spot detection | On-device | Durable Object (cloud) |
+| Audio capture + chunking | AVAudioEngine (on-device) | MediaRecorder + chunk upload |
+| MuQ inference (6 dims) | Cloud (HF Inference Endpoint via API) | Cloud (HF Inference Endpoint via API) |
+| STOP classifier | Cloud worker | Cloud worker / Durable Object |
+| Teaching moment selection | Cloud worker | Cloud worker / Durable Object |
+| Blind spot detection | Cloud worker | Cloud worker / Durable Object |
 | Student model + history | SwiftData (local-first) | D1 (cloud) |
 | Real-time observations | N/A (on-demand "how was that?") | WebSocket push during recording |
 | Chat interface | N/A (planned) | TanStack Start (streaming SSE) |
@@ -151,24 +144,22 @@ Two platform paths share one backend:
 
 ## Key Design Decisions
 
-### On-Device Inference (Core ML)
+### Cloud Inference (HF Endpoint)
 
-MuQ runs on the iPhone's Neural Engine via Core ML. The finetuned model outputs 6 dimensions directly (dynamics, timing, pedaling, articulation, phrasing, interpretation).
+All MuQ inference runs on the HuggingFace inference endpoint. Both iOS and web upload 15-second audio chunks to the API worker, which forwards them to the HF endpoint and returns 6 dimension scores. The STOP classifier and teaching moment selection also run in the cloud worker.
 
-**Why on-device:**
+**Why cloud-only:**
 
-- Zero inference cost at any scale
-- Zero network dependency during practice
-- Lower latency (no upload, no round-trip)
-- Privacy: audio never leaves the device for scoring
+- Eliminates Core ML conversion complexity
+- Single model deployment path (HF endpoint) for both platforms
+- Model updates deploy instantly without app updates
+- Simplifies iOS architecture (no model download, no Neural Engine scheduling)
 
-**Model delivery:**
+**Trade-offs:**
 
-- ~315MB quantized (INT8) or ~630MB (FP16)
-- Downloaded on first launch (too large for App Store binary)
-- Apple's On Demand Resources (ODR) or direct download from R2
-
-**Fallback:** If Core ML conversion fails or quality degrades, the existing HuggingFace inference endpoint remains available. The iOS app has a feature flag (`useOnDeviceInference`) that switches between Core ML and cloud inference. Cloud path: upload chunk to `POST /api/inference`, Worker forwards to HF endpoint, returns scores.
+- Requires network for scoring (audio capture still works offline, but scores arrive when reconnected)
+- Inference cost scales with usage (HF endpoint pricing)
+- Higher latency than on-device (~1-2s round-trip vs ~1s on-device)
 
 ### Local-First Data (SwiftData + D1 Sync)
 
@@ -233,37 +224,38 @@ The backend is a single Cloudflare Workers application. It handles:
 - R2 available if audio storage is needed later
 - Already have a Cloudflare account and domain (crescend.ai)
 
-## On-Device Pipeline Detail
+## iOS Audio Capture
 
-### Audio Capture
-
-AVAudioEngine captures audio at 24kHz mono (MuQ's native sample rate). A circular ring buffer holds the last 5 minutes of PCM samples (~29MB). A background timer fires every 15 seconds, extracts the latest chunk, and feeds it to Core ML.
+AVAudioEngine captures audio at 24kHz mono (MuQ's native sample rate). A circular ring buffer holds the last 5 minutes of PCM samples (~29MB). A background timer fires every 15 seconds, extracts the latest chunk, and uploads it to the API.
 
 Background audio mode (`UIBackgroundModes: audio`) keeps recording when the screen is off.
 
+## Cloud Pipeline Detail
+
 ### Inference
 
-Each 15-second chunk is processed by the Core ML MuQ model:
+Each 15-second audio chunk is uploaded to the API worker (`POST /api/practice/chunk`), which forwards to the HF inference endpoint:
 
-- Input: raw waveform or mel spectrogram (depending on conversion approach)
+- Input: raw audio (Opus/WebM from web, or PCM from iOS)
+- Processing: HF endpoint runs MuQ + A1-Max LoRA adapters
 - Output: 6 dimension scores (Float, 0-1 range)
-- Latency: ~1-2 seconds on A16+ (iPhone 14+)
-
-The Core ML model package includes MuQ's audio preprocessing (resampling, feature extraction), either baked into the model via coremltools tracing or reimplemented in Swift using Accelerate.
+- Latency: ~1-2 seconds (HF inference + network round-trip)
 
 ### STOP Classification
 
-A logistic regression with 6 weights + bias, hardcoded in Swift. Extracts from the trained sklearn model in `model/src/masterclass_experiments/`. Predicts "would a teacher stop here?" for each chunk.
+A logistic regression with 6 weights + bias, running in the cloud worker. Extracts from the trained sklearn model in `model/src/masterclass_experiments/`. Predicts "would a teacher stop here?" for each chunk based on dimension scores.
 
 ### Teaching Moment Selection
 
-When "how was that?" is triggered:
+When "how was that?" is triggered, the cloud worker:
 
-1. Collect all chunks from the current session (or since last query)
-2. Filter: STOP probability > 0.5
-3. Rank by STOP probability descending
-4. Select top-1 chunk
-5. Identify blind-spot dimension (deviation from student baseline, or lowest score on cold start)
+1. Collects all chunk scores from the current session (or since last query)
+2. Filters: STOP probability > 0.5
+3. Ranks by STOP probability descending
+4. Selects top-1 chunk
+5. Identifies blind-spot dimension (deviation from student baseline, or lowest score on cold start)
+
+The selected teaching moment is returned to the client, which can then request a teacher observation via `POST /api/ask`.
 
 ### Student Model Update
 
@@ -272,7 +264,8 @@ After each session ends:
 - Compute session averages per dimension
 - Update baselines via exponential moving average (alpha=0.3)
 - Infer level from scores + repertoire
-- Sync to D1 in background
+- iOS: update SwiftData locally, sync to D1 in background
+- Web: update D1 directly
 
 ## Data Model
 
@@ -424,9 +417,9 @@ iOS App                              Workers + D1
 The core interaction, end to end:
 
 1. Student taps "How was that?"
-2. iOS collects all chunks since session start (or last query)
-3. On-device: filters by STOP > 0.5, picks top teaching moment, identifies dimension
-4. iOS sends structured context to `POST /api/ask`:
+2. Client requests teaching moment from cloud worker (all chunk scores already available server-side)
+3. Cloud worker: filters by STOP > 0.5, picks top teaching moment, identifies dimension
+4. Client sends structured context to `POST /api/ask`:
 
 ```json
 {
@@ -451,12 +444,12 @@ The core interaction, end to end:
 }
 ```
 
-1. Worker builds teacher prompt (system + user), calls OpenRouter
-2. OpenRouter returns observation text
-3. Worker returns observation to iOS
-4. iOS displays 1-3 sentences on screen
+1. Worker builds teacher prompt (system + user), calls LLM provider
+2. LLM returns observation text
+3. Worker returns observation to client
+4. Client displays 1-3 sentences on screen
 
-**Latency target:** <3 seconds from tap to observation. Teaching moment selection is instant (on-device). LLM call is ~2 seconds total.
+**Latency target:** <3 seconds from tap to observation. Teaching moment selection runs server-side (~instant). LLM call is ~2 seconds total.
 
 ## Teacher LLM Prompt
 
@@ -471,10 +464,10 @@ The 00-09 docs in `docs/` define the implementation slices. Updated to reflect t
 | Slice | Doc | What It Covers |
 |---|---|---|
 | 00 | 00-practice-companion.md | Product spec (updated) |
-| 01 | 01-phone-audio-validation.md | Validate MuQ on phone audio + Core ML feasibility |
+| 01 | 01-phone-audio-validation.md | Validate MuQ on phone audio (pseudo-validated via YouTube AMT) |
 | 02 | 02-ios-audio-capture.md | AVAudioEngine, ring buffer, chunking, background mode |
-| 03 | 03-chunked-inference-pipeline.md | Core ML MuQ conversion, on-device pipeline, session buffer |
-| 04 | 04-teaching-moment-detection.md | STOP classifier in Swift, blind spot detection |
+| 03 | 03-chunked-inference-pipeline.md | Cloud inference pipeline, chunk upload, score retrieval |
+| 04 | 04-teaching-moment-detection.md | STOP classifier in cloud worker, blind spot detection |
 | 05 | 05-student-model-and-auth.md | Sign in with Apple, SwiftData, D1 sync |
 | 06 | 06-teacher-llm-prompt.md | Teacher persona prompt, output handling (stage 2 of pipeline) |
 | 06a | 06a-subagent-architecture.md | Two-stage subagent, synthesized facts, reasoning framework |
@@ -497,5 +490,6 @@ Cloudflare Workers built-in analytics covers API health and latency metrics. Per
 ## Future Considerations
 
 - **Android:** D1 sync layer is platform-agnostic. Add Android client that talks to the same Workers API. Auth: add Google sign-in alongside Apple.
-- **On-device LLM:** Apple Foundation Models (iOS 18.2+) or bundled Llama 3.2 3B could replace the cloud LLM call for fully offline operation.
+- **On-device LLM:** Apple Foundation Models (iOS 18.2+) or bundled Llama 3.2 3B could replace the cloud LLM call for fully offline teacher observations.
+- **On-device inference:** If latency or cost becomes an issue at scale, Core ML conversion of A1-Max remains a future option. See `docs/model/04-north-star.md`.
 - **Audio playback:** R2-stored chunks (web path) could enable session playback and re-analysis.

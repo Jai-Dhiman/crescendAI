@@ -10,7 +10,7 @@ See `docs/architecture.md` for the full system architecture.
 
 **Goal:** A guided practice mode where the system identifies a weak dimension, presents targeted exercises (from the student's own music), evaluates each attempt, and closes the feedback loop.
 
-**Architecture:** Focus mode is triggered by the system (after identifying a persistent weakness) or by the student ("I want to work on dynamics"). It draws from the exercise database (Slice 7), presents exercises, and uses MuQ to evaluate attempts on the target dimension specifically. MuQ inference during focus mode exercises runs on-device via Core ML, same as regular practice.
+**Architecture:** Focus mode is triggered by the system (after identifying a persistent weakness) or by the student ("I want to work on dynamics"). It draws from the exercise database (Slice 7), presents exercises, and uses MuQ to evaluate attempts on the target dimension specifically. MuQ inference during focus mode uses the same cloud inference path as regular practice (HF endpoint via API).
 
 **Tech Stack:** Existing MuQ inference, Exercise DB (Slice 7), Teacher LLM (Slice 6), iOS UI (Slice 9)
 
@@ -68,7 +68,7 @@ Focus mode is the teaching loop: observe -> identify -> diagnose -> prescribe ->
 
 ### Evaluation During Focus Mode
 
-MuQ inference runs on-device (Core ML) on each exercise attempt -- no cloud call needed for scoring. Feedback is weighted toward the TARGET DIMENSION only.
+MuQ inference runs via cloud (HF endpoint) on each exercise attempt. Feedback is weighted toward the TARGET DIMENSION only.
 
 - If the student is working on pedaling, don't comment on timing even if it's worse than usual
 - Only surface non-target observations if something is severely off (STOP probability > 0.95 on a different dimension)

@@ -21,7 +21,7 @@ APPLE_WEB_SERVICES_ID = "ai.crescend.web"
 COOKIE_DOMAIN = ".crescend.ai"
 ENVIRONMENT = "production"
 GOOGLE_CLIENT_ID = "726399246264-lkq6jl4khal8gagn65j9t2a8bg52i7ie.apps.googleusercontent.com"
-HF_INFERENCE_ENDPOINT = "https://u1oxy7egvq7rnm8z.us-east-1.aws.endpoints.huggingface.cloud"
+HF_INFERENCE_ENDPOINT = "https://mxcyiqltad84v9w1.us-east4.gcp.endpoints.huggingface.cloud"
 
 [[r2_buckets]]
 binding = "CHUNKS"

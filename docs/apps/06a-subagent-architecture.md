@@ -79,7 +79,7 @@ The subagent consumes synthesized facts, not raw traces. This is the map-first p
 
 ## Subagent Reasoning Framework
 
-When "how was that?" is triggered, the subagent receives the on-device filtered moments (top 3-5 with STOP > threshold) plus the student's context map (baselines, synthesized facts, learning arc, goals). It reasons through five steps:
+When "how was that?" is triggered, the subagent receives the cloud-filtered moments (top 3-5 with STOP > threshold) plus the student's context map (baselines, synthesized facts, learning arc, goals). It reasons through five steps:
 
 ### 1. Where are they? (Learning Arc)
 
@@ -114,7 +114,7 @@ Piece, composer, and style weight which dimensions matter most:
 
 Re-rank the filtered moments considering all of the above: learning arc, delta, musical context, blind-spot prior. Pick the moment with the highest leverage -- what will move the needle most for this student right now.
 
-The subagent may select differently from the on-device ranking. On-device uses STOP probability alone. The subagent adds student history, musical context, and learning arc.
+The subagent may select differently from the initial cloud worker ranking. The cloud worker uses STOP probability alone. The subagent adds student history, musical context, and learning arc.
 
 ### 5. What's the framing? (Correction / Recognition / Encouragement / Question)
 

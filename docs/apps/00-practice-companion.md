@@ -44,12 +44,12 @@ No radar charts. No 19-dimension breakdowns. No citation footnotes. No "Sound Qu
 
 **During practice:**
 
-- Continuous audio capture via AVAudioEngine (iOS native)
-- Audio chunked into 15-30s segments
-- Each chunk processed by on-device Core ML MuQ model
-- Returns 6-dimension scores per chunk (dynamics, timing, pedaling, articulation, phrasing, interpretation) (on-device, no network required)
-- Teaching moment model scores each chunk: "would a teacher stop here?"
-- Results accumulate in a session analysis buffer
+- Continuous audio capture via AVAudioEngine (iOS) or MediaRecorder (web)
+- Audio chunked into 15s segments
+- Each chunk uploaded to the API, which runs MuQ inference via HF endpoint (cloud)
+- Returns 6-dimension scores per chunk (dynamics, timing, pedaling, articulation, phrasing, interpretation)
+- STOP classifier in cloud worker scores each chunk: "would a teacher stop here?"
+- Results accumulate in a session analysis buffer (server-side)
 
 **When asked "how was that?":**
 
@@ -174,20 +174,17 @@ Built through observation and conversation. No onboarding form.
 
 **On-device (iOS):**
 
-- Core ML MuQ inference (primary inference path)
-- STOP classifier (teaching moment scoring)
-- Teaching moment selection and priority/filtering logic
+- Audio capture via AVAudioEngine + chunk upload to API
 - SwiftData for local persistence (student model, session data, exercise tracking)
-- Continuous audio capture via AVAudioEngine + chunked inference pipeline
 - Practice companion UI (native iOS)
 
 **Cloud:**
 
-- Cloudflare Workers (thin API layer for LLM proxy + data sync)
+- HuggingFace MuQ inference endpoint (A1-Max 4-fold ensemble, 6-dim scores)
+- Cloudflare Workers (HF inference proxy + STOP classifier + teaching moment selection + LLM proxy + data sync)
 - D1 (student/session/exercise sync -- cloud mirror of local data)
 - R2 (session audio storage)
-- OpenRouter (model-agnostic LLM for teacher responses)
-- HuggingFace MuQ inference endpoint (fallback only, if Core ML conversion fails or device lacks capability)
+- Groq + Anthropic direct APIs for LLM (subagent + teacher), OpenRouter as fallback
 
 **Auth:**
 
@@ -207,7 +204,7 @@ Built through observation and conversation. No onboarding form.
 |---|---|
 | File upload (async) | Continuous capture (streaming) |
 | Single MuQ call per recording | Pipelined, chunked, background inference |
-| Cloud-only inference | On-device Core ML (cloud fallback) |
+| Cloud-only inference | Cloud inference (HF endpoint) for both platforms |
 | 19 raw dimensions | 6 teacher-grounded dimensions |
 | RAG + LLM report card with citations | Priority filter + LLM, one observation |
 | Anonymous, ephemeral sessions | Persistent student model per user |
@@ -217,10 +214,9 @@ Built through observation and conversation. No onboarding form.
 
 ## Open Questions for Implementation
 
-1. **Phone audio validation:** MuQ was trained on Pianoteq. Does it produce meaningful results on phone recordings? Must validate before building the full companion around it. Also validate Core ML conversion quality.
+1. **Phone audio validation:** PSEUDO-VALIDATED. YouTube AMT test (79.9% agreement on 50 mediocre recordings) serves as proxy. Formal paired recordings remain a nice-to-have.
 2. **Teaching moment model:** The masterclass stop-moment research provides the concept. What's the simplest scoring function to start with? Rules-based (dimension outlier detection) vs. learned model?
 3. **Piece identification:** How does the system know what piece is being played? User-assisted first (student says what they're working on), automatic later.
 4. **Exercise rendering:** MusicXML to notation in a mobile web browser. What library? (VexFlow, OpenSheetMusicDisplay, OSMD?)
 5. **Continuous inference cost:** Background MuQ inference on every 15-30s chunk. What's the per-session cost on HF endpoints? Is this sustainable at scale?
 6. **Auth:** Resolved: Sign in with Apple.
-7. **Core ML conversion:** Can MuQ be converted to Core ML with acceptable quality loss? INT8 vs FP16 quantization trade-offs?

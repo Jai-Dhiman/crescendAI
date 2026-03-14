@@ -2,13 +2,13 @@
 
 **"A teacher for every pianist."**
 
-Multi-platform (iOS + web) practice companion that evaluates *how* a piano performance sounds -- tone, dynamics, phrasing, pedaling -- not just note accuracy. On-device audio inference via a finetuned MuQ foundation model, with a Cloudflare Workers backend for LLM feedback and data sync.
+Multi-platform (iOS + web) practice companion that evaluates *how* a piano performance sounds -- tone, dynamics, phrasing, pedaling -- not just note accuracy. Cloud audio inference via a finetuned MuQ foundation model (HF endpoint), with a Cloudflare Workers backend for STOP classification, teaching moment selection, LLM feedback, and data sync.
 
 **Target user:** Sarah -- 3 years playing, no teacher, records on her phone, wants direction on what to work on next.
 
 **North star:** Give Sarah one piece of useful feedback on one passage she's working on. Not perfect. Not comprehensive. One thing a teacher would actually say after hearing her play.
 
-**Architecture:** Two platforms, shared backend. iOS: on-device Core ML inference, STOP classifier, SwiftData local-first. Web: browser audio capture, cloud inference (HF endpoint), real-time observations via WebSocket. Both feed a two-stage LLM pipeline (fast subagent + quality teacher) that generates one natural observation. See [architecture.md](architecture.md) for the full system design.
+**Architecture:** Two platforms, shared backend. Both iOS and web upload audio chunks to the API, which runs cloud inference (HF endpoint), STOP classification, and teaching moment selection. Student data is local-first on iOS (SwiftData) with D1 sync. Web uses real-time observations via WebSocket. Both feed a two-stage LLM pipeline (fast subagent + quality teacher) that generates one natural observation. See [architecture.md](architecture.md) for the full system design.
 
 ---
 
@@ -18,7 +18,7 @@ Multi-platform (iOS + web) practice companion that evaluates *how* a piano perfo
 
 | Doc | Description |
 |-----|-------------|
-| [architecture.md](architecture.md) | Full system architecture -- on-device pipeline, cloud API, data models, sync protocol, observability (source of truth) |
+| [architecture.md](architecture.md) | Full system architecture -- cloud inference pipeline, API, data models, sync protocol, observability (source of truth) |
 | [00-practice-companion.md](apps/00-practice-companion.md) | Product spec -- core interaction model, student model, exercise database, infrastructure |
 | [design-system.md](design-system.md) | Visual design system -- colors, typography, spacing, component patterns for iOS and web |
 | [landing-page-design.md](landing-page-design.md) | Landing page design spec for crescend.ai |
@@ -30,7 +30,7 @@ Multi-platform (iOS + web) practice companion that evaluates *how* a piano perfo
 |-------|-----|--------|-------------|
 | 01 | [Phone Audio Validation](apps/01-phone-audio-validation.md) | NOT STARTED | Validate MuQ on phone-recorded piano audio |
 | 02 | [iOS Audio Capture](apps/02-ios-audio-capture.md) | COMPLETE | AVAudioEngine, ring buffer, chunking, background mode |
-| 03 | [Chunked Inference Pipeline](apps/03-chunked-inference-pipeline.md) | IN PROGRESS | Core ML MuQ inference provider (stub -- no model file yet) |
+| 03 | [Chunked Inference Pipeline](apps/03-chunked-inference-pipeline.md) | IN PROGRESS | Cloud inference pipeline (stub -- needs API integration) |
 | 04 | [Teaching Moment Detection](apps/04-teaching-moment-detection.md) | NOT STARTED | STOP classifier, blind spot detection, teaching moment selection |
 | 05 | [Student Model + Auth](apps/05-student-model-and-auth.md) | COMPLETE | Sign in with Apple, SwiftData models, D1 sync, goals, check-ins |
 | 06 | [Teacher LLM Prompt](apps/06-teacher-llm-prompt.md) | DESIGNED | Teacher persona prompt (stage 2 of pipeline). Superseded as standalone by 06a |
@@ -46,11 +46,11 @@ Multi-platform (iOS + web) practice companion that evaluates *how* a piano perfo
 
 | Doc | Description |
 |-----|-------------|
-| [model/00-research-timeline.md](model/00-research-timeline.md) | Research history -- original phase structure, failed experiments, open questions, data needs |
-| [model/01-data-collection.md](model/01-data-collection.md) | Data tiers (T1-T4), storage strategy, collection pipeline |
+| [model/00-research-timeline.md](model/00-research-timeline.md) | Research roadmap, decision log, current status (evolving) |
+| [model/01-data.md](model/01-data.md) | Dataset inventory -- what exists, paths, sizes (reference) |
 | [model/02-teacher-grounded-taxonomy.md](model/02-teacher-grounded-taxonomy.md) | 6-dimension derivation from masterclass data (COMPLETE -- all gates pass) |
-| [model/03-model-improvement.md](model/03-model-improvement.md) | Training plan -- audio/symbolic/fusion experiments, staged elimination |
-| [model/04-training-results.md](model/04-training-results.md) | Audio + symbolic encoder results -- A1 audio winner, S2 symbolic winner (COMPLETE) |
+| [model/03-encoders.md](model/03-encoders.md) | Audio (A1-Max) + Symbolic (S2 GNN) encoder status, results, next experiments (evolving) |
+| [model/04-north-star.md](model/04-north-star.md) | Perfect model vision -- fusion rationale, score conditioning, long-term research (evolving) |
 
 ### Agent Instructions (CLAUDE.md files)
 
@@ -65,7 +65,7 @@ Multi-platform (iOS + web) practice companion that evaluates *how* a piano perfo
 
 ## Implementation Status
 
-*Last verified: 2026-03-11*
+*Last verified: 2026-03-14*
 
 ### iOS App (`apps/ios/`)
 
@@ -73,7 +73,7 @@ Multi-platform (iOS + web) practice companion that evaluates *how* a piano perfo
 |-----------|--------|-----------|-------|
 | Design system | COMPLETE | `DesignSystem/Tokens/`, `Components/`, `Theme.swift` | Colors, typography, spacing tokens + CrescendButton, CrescendCard |
 | Audio capture | COMPLETE | `Services/AudioEngine/` (5 files) | AVAudioEngine 24kHz mono, ring buffer, chunk producer |
-| Core ML inference | STUB | `Services/Inference/` (3 files) | Provider code ready, no `.mlmodelc` model file |
+| Cloud inference client | STUB | `Services/Inference/` (3 files) | Provider code ready, needs API integration for cloud inference |
 | Auth (Sign in with Apple) | COMPLETE | `Services/Auth/AuthService.swift`, `Features/Auth/SignInView.swift` | JWT stored in Keychain |
 | SwiftData models | COMPLETE | `Models/` (7 files) | Student, PracticeSession, ChunkResult, Observation, CheckIn, AudioChunk |
 | D1 sync | COMPLETE | `Services/Auth/SyncService.swift` | Post-session + launch sync |
@@ -102,11 +102,11 @@ Multi-platform (iOS + web) practice companion that evaluates *how* a piano perfo
 | Component | Status | Key Files | Notes |
 |-----------|--------|-----------|-------|
 | Taxonomy (6 dims) | COMPLETE | `data/composite_labels/` | Validated via 5-gate process |
-| Audio training | COMPLETE | `notebooks/model_improvement/01_audio_training.ipynb` | A1 LoRA winner, 73.9% pairwise, R2=0.40 |
+| Audio training | COMPLETE | `notebooks/model_improvement/01_audio_training.ipynb` | A1-Max deployed, 80.8% ensemble pairwise |
 | Symbolic training | COMPLETE | `notebooks/model_improvement/02_symbolic_training.ipynb` | S2 GNN winner, 71.3% pairwise |
-| Fusion experiments | NEXT | -- | Blocked on S2-max, then F3 gated per-dimension |
-| Layer 1 validation | COMPLETE | `notebooks/model_improvement/04_layer1_validation.ipynb` | All gates pass, see 04-training-results.md |
-| Core ML conversion | NOT STARTED | -- | Critical gate for on-device inference |
+| Fusion experiments | DEFERRED | -- | Failed in ISMIR paper (r=0.738 error correlation). See 04-north-star.md |
+| Layer 1 validation | COMPLETE | `notebooks/model_improvement/04_layer1_validation.ipynb` | All gates pass. YouTube AMT: 79.9% agreement |
+| Cloud inference | DEPLOYED | `apps/inference/handler.py` | A1-Max 4-fold ensemble on HF endpoint |
 
 ### Web App (`apps/web/`)
 
@@ -131,9 +131,9 @@ Multi-platform (iOS + web) practice companion that evaluates *how* a piano perfo
 
 The end-to-end feedback loop (record -> infer -> detect teaching moment -> generate observation) is not yet connected. The critical gates are:
 
-1. **Core ML conversion** -- Convert PyTorch MuQ checkpoint to `.mlmodelc`. Blocks on-device inference (Slice 3).
-2. **STOP classifier extraction** -- Extract from masterclass data, implement in Swift. Blocks teaching moment detection (Slice 4).
-3. **Teacher LLM endpoint** -- Build `POST /api/ask` with OpenRouter. Blocks observation generation (Slices 6/6a).
+1. **Cloud inference integration** -- Connect iOS/web chunk upload to HF endpoint via API worker. Cloud inference is deployed; needs API plumbing (Slice 3).
+2. **STOP classifier in cloud worker** -- Extract from masterclass data, implement in API worker. Blocks teaching moment detection (Slice 4).
+3. **Teacher LLM endpoint** -- Build `POST /api/ask` with LLM providers. Blocks observation generation (Slices 6/6a).
 4. **Observation UI** -- Display teacher's observation in-app. Part of Slice 9.
 
 ---

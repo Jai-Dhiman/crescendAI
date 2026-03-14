@@ -10,9 +10,9 @@ See `docs/architecture.md` for the full system architecture.
 
 **Goal:** Given a session of analyzed audio chunks, identify which chunks are "teaching moments" (where a teacher would intervene) and which dimension to surface as the blind spot.
 
-**Architecture:** Run the STOP classifier on-device in Swift. Each chunk's 6-dim scores are scored for STOP probability. When the student asks "how was that?", rank chunks by STOP probability, select the top moment, and identify the most relevant dimension.
+**Architecture:** Run the STOP classifier in the cloud worker (API). Each chunk's 6-dim scores (returned from HF inference) are scored for STOP probability. When the student asks "how was that?", the cloud worker ranks chunks by STOP probability, selects the top moment, identifies the most relevant dimension, and returns the pre-selected teaching moment to the client.
 
-**Tech Stack:** Existing STOP classifier (logistic regression), Swift, SwiftData
+**Tech Stack:** Existing STOP classifier (logistic regression), Cloudflare Workers (Rust/WASM)
 
 ---
 
@@ -33,21 +33,20 @@ The task is to deploy this in the practice companion context: scoring each chunk
 
 Two options, in order of preference:
 
-**Option A: Score on MuQ embeddings directly (AUC 0.936)**
+**Option A: Score on MuQ embeddings in HF endpoint (AUC 0.936)**
 
-- The Core ML model already extracts MuQ embeddings internally
-- Bake the STOP classifier weights into the Core ML model (additional output head)
+- Add STOP classifier as an additional output head in the HF inference endpoint
 - Return STOP probability alongside dimension scores per chunk
-- Pro: highest accuracy. Con: requires modifying the Core ML model conversion.
+- Pro: highest accuracy. Con: requires modifying the inference endpoint.
 
-**Option B: Score on 6-dim composite scores (AUC 0.845)**
+**Option B: Score on 6-dim composite scores in cloud worker (AUC 0.845)**
 
-- The 6 dimension scores are already returned by the Core ML model
-- Run STOP classifier on-device in Swift
-- Logistic regression is trivial to implement: `sigmoid(dot(weights, scores) + bias)`
-- Pro: no changes to Core ML model. Con: lower accuracy.
+- The 6 dimension scores are returned by the HF endpoint
+- Run STOP classifier in the cloud worker (Rust/WASM)
+- Logistic regression is trivial: `sigmoid(dot(weights, scores) + bias)`
+- Pro: no changes to HF endpoint. Con: lower accuracy.
 
-**Recommendation: Start with Option B** (simple, no Core ML changes), upgrade to Option A if needed.
+**Recommendation: Start with Option B** (simple, runs in cloud worker on returned scores), upgrade to Option A if the 9% AUC gap matters in practice.
 
 ### Logistic Regression in Swift
 
@@ -67,7 +66,7 @@ struct StopClassifier {
 
 Weights are extracted from the trained sklearn model in `model/src/masterclass_experiments/models.py` and hardcoded (6 floats + 1 bias).
 
-### Teaching Moment Selection (called on-device when student taps "How was that?")
+### Teaching Moment Selection (cloud worker, triggered when student taps "How was that?")
 
 1. Collect all chunks from the current session (or since last query)
 2. Each chunk has: 6-dim scores + STOP probability
@@ -100,7 +99,7 @@ For the selected teaching moment chunk, determine WHICH dimension to talk about:
 
 ### Positive Teaching Moments
 
-Teaching moment detection can also flag improvements and breakthroughs -- not just problems. When a dimension score is significantly above the student's baseline, or a previously flagged weakness shows measurable improvement, the system can surface a positive moment. Positive observations are real teaching: "Your pedaling in the second phrase has gotten much smoother." The on-device pipeline tags chunks where `dimension_score > baseline + threshold` as positive candidates alongside STOP-flagged chunks. The analysis subagent (see `docs/apps/06a-subagent-architecture.md`) decides whether to use a positive or corrective framing.
+Teaching moment detection can also flag improvements and breakthroughs -- not just problems. When a dimension score is significantly above the student's baseline, or a previously flagged weakness shows measurable improvement, the system can surface a positive moment. Positive observations are real teaching: "Your pedaling in the second phrase has gotten much smoother." The cloud pipeline tags chunks where `dimension_score > baseline + threshold` as positive candidates alongside STOP-flagged chunks. The analysis subagent (see `docs/apps/06a-subagent-architecture.md`) decides whether to use a positive or corrective framing.
 
 ### Output to Teacher LLM (Slice 6)
 
@@ -159,8 +158,8 @@ When the student reports what piece and section they are working on, the output 
 
 **Task 3: Implement teaching moment selection**
 
-- On-device function called when student taps "How was that?"
-- Collects all chunks from the SwiftData ChunkResult model, filters by STOP threshold, ranks, selects top-1
+- Cloud worker function called when student taps "How was that?"
+- Collects all chunk scores from the session, filters by STOP threshold, ranks, selects top-1
 - Identifies the blind-spot dimension (cold start logic first)
 - Returns structured teaching moment data for the LLM prompt (Slice 6)
 
