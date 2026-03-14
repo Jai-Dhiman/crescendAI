@@ -1,4 +1,4 @@
-"""M1c MuQ L9-12 inference - MuQ embedding extraction and prediction."""
+"""A1-Max MuQ inference - MuQ embedding extraction and prediction."""
 
 import numpy as np
 import torch
@@ -17,7 +17,7 @@ def extract_muq_embeddings(
 ) -> torch.Tensor:
     """Extract MuQ embeddings from audio waveform.
 
-    Averages hidden states from layers 9-12 (best performing range for M1c).
+    Averages hidden states from layers 9-12 (best performing range).
 
     Args:
         audio: Audio waveform at 24kHz
@@ -51,44 +51,29 @@ def extract_muq_embeddings(
 
 
 @torch.no_grad()
-def stats_pool(embeddings: torch.Tensor) -> torch.Tensor:
-    """Apply statistical pooling (mean + std) to frame embeddings.
-
-    Args:
-        embeddings: Frame embeddings [T, D]
-
-    Returns:
-        Pooled representation [D*2] (mean concatenated with std)
-    """
-    mean = embeddings.mean(dim=0)
-    std = embeddings.std(dim=0, unbiased=False)
-    return torch.cat([mean, std], dim=0)
-
-
-@torch.no_grad()
 def predict_with_ensemble(
     embeddings: torch.Tensor,
     cache: ModelCache,
 ) -> np.ndarray:
-    """Get predictions from 4-fold ensemble of MuQ heads.
+    """Get predictions from 4-fold ensemble of A1-Max heads.
+
+    Each head uses attention pooling on frame-level embeddings,
+    then encoder + regression head to predict 6-dim scores.
 
     Args:
         embeddings: Frame embeddings [T, D] from MuQ
         cache: Model cache with loaded heads
 
     Returns:
-        Averaged predictions [19] across all folds
+        Averaged predictions [6] across all folds
     """
     if not cache.muq_heads:
-        raise RuntimeError("No MuQ heads loaded in cache")
+        raise RuntimeError("No A1-Max heads loaded in cache")
 
-    # Apply stats pooling
-    pooled = stats_pool(embeddings)
-
-    # Get predictions from each fold
+    # Get predictions from each fold head
     predictions = []
     for head in cache.muq_heads:
-        pred = head(pooled).cpu().numpy()
+        pred = head(embeddings).cpu().numpy()
         predictions.append(pred)
 
     return np.mean(predictions, axis=0)
