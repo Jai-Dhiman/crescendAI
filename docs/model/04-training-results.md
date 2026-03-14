@@ -537,3 +537,42 @@ Judge confidence: 10 high, 10 medium. Among high-confidence judgments, B won onl
 - Fusion (A1 + S2) remains viable (AMT doesn't degrade S2)
 - Core ML conversion of A1 is unblocked
 - Score comparison pipeline is deprioritized -- revisit with bar-aligned context in Layer 4
+
+### YouTube AMT Validation (2026-03-13)
+
+**Goal:** Test whether ByteDance AMT produces usable MIDI from mediocre YouTube audio and whether S2 pairwise ranking still works. The MAESTRO AMT test (Experiment 2) used studio-quality audio -- this tests the hardest case: phone recordings, home pianos, digital keyboards, varying room acoustics.
+
+**Method:** 51 YouTube recordings downloaded (56 approved, 5 failed due to yt-dlp issues). Audio -> MuQ embeddings -> A1 scores (reference). Audio -> ByteDance AMT -> MIDI -> `parsed_midi_to_graph()` -> S2 scores. Compare A1 vs S2 pairwise agreement at the recording level.
+
+**Gate:** A1-vs-S2 agreement > 60% overall (random = 50%).
+
+Code: `model/scripts/validate_youtube_amt.py`
+
+| Metric | Value |
+|--------|-------|
+| Recordings | 50 (1 skipped: >10K notes) |
+| Pairs evaluated | 1,225 |
+| Overall agreement | **79.9%** (4,067/5,093) |
+
+Per-dimension agreement:
+
+| Dimension | Agreement | Pairs |
+|-----------|-----------|-------|
+| dynamics | 82.9% | 944 |
+| timing | 76.7% | 772 |
+| pedaling | 78.5% | 1,048 |
+| articulation | 72.4% | 692 |
+| phrasing | 82.2% | 736 |
+| interpretation | 84.7% | 901 |
+
+**Gate: PASS (79.9% >> 60%)**
+
+**Key findings:**
+- ByteDance AMT transcribed all 51 recordings successfully (0 failures, note counts 526-14,627 per file). AMT is robust to mediocre audio quality.
+- All 6 dimensions exceed the 60% gate individually. Articulation is weakest (72.4%) -- likely because AMT velocity estimation is noisiest, and articulation depends on precise attack/release detection.
+- Interpretation and dynamics are strongest (84.7%, 82.9%) -- these depend more on overall musical structure than note-level precision, which AMT preserves well.
+- This validates the full production path: phone audio -> ByteDance AMT -> MIDI graph -> S2 scoring. The symbolic encoder provides meaningful signal even from non-studio recordings.
+
+**Comparison with MAESTRO AMT test:** The MAESTRO test showed 0% pairwise accuracy drop (studio audio, ground-truth MIDI available for comparison). YouTube test shows ~80% A1-vs-S2 agreement. These aren't directly comparable (different metric: accuracy-vs-ground-truth vs cross-encoder agreement), but both confirm AMT viability.
+
+**Decision:** Proceed with A1+S2 fusion. The symbolic path survives real-world audio conditions across all dimensions.

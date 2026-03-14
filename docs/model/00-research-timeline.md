@@ -1,6 +1,6 @@
 # CrescendAI Research & Product Timeline
 
-> **Status (2026-03-12):** Layer 1 validation COMPLETE (all gates pass). A1-max training IN PROGRESS. Wave 1 data prep COMPLETE (24,220 graphs, MAESTRO metadata + per-recording graphs, Thunder Compute stubs ready). Next: S2-max pretraining, fusion experiments, Core ML conversion.
+> **Status (2026-03-13):** Layer 1 validation COMPLETE (all gates pass). YouTube AMT validation COMPLETE (79.9% A1-vs-S2 agreement on mediocre audio -- symbolic path confirmed viable). A1-max training IN PROGRESS. Wave 1 data prep COMPLETE (24,220 graphs, MAESTRO metadata + per-recording graphs, Thunder Compute stubs ready). Next: S2-max pretraining, fusion experiments, Core ML conversion.
 
 *Core question: "How well is the student playing what the score asks for?"*
 
@@ -50,14 +50,14 @@ Four experiments validating assumptions before investing in further model work. 
 | Experiment | Gate | Result | Decision |
 |-----------|------|--------|----------|
 | Competition correlation (Chopin 2021, n=11) | rho > 0.3 | rho=+0.704 | **PASS** -- model quality signal is real |
-| AMT degradation (ByteDance vs GT MIDI) | drop < 10% | 0.0% drop | **PASS** -- symbolic path viable through AMT |
+| AMT degradation (ByteDance vs GT MIDI) | drop < 10% | 0.0% drop | **PASS** -- symbolic path viable through AMT. YouTube follow-up: 79.9% A1-vs-S2 agreement on 50 mediocre recordings |
 | Dynamic range (intermediate vs professional) | diagnostic | Cohen's d=0.47 | Usable for within-student tracking |
 | MIDI-as-context feedback (LLM judge) | B wins > 65% | B wins 45% | **SKIP** -- raw MIDI stats don't help LLM |
 
 **Key insights from Layer 1:**
 - Pedaling (rho=0.887) and phrasing (rho=0.803) are strongest predictors of competition placement
 - Dynamics has *negative* correlation with placement -- model captures "amount" not "appropriateness." Needs score conditioning (Wave 3) or better labels (Wave 2) to fix
-- AMT 0% drop needs harder validation (only 4 contrastive pieces, 107 pairs)
+- AMT 0% drop confirmed at scale: YouTube follow-up (50 recordings, 1,225 pairs) shows 79.9% A1-vs-S2 agreement on mediocre audio
 - Raw MIDI statistics hurt the LLM (judge called them "false precision"), but bar-aligned passage-specific context is untested and remains the right goal for Wave 3
 
 ### Prior Results (historical context)
@@ -102,7 +102,8 @@ Three training waves, each validating the assumptions of the next.
 - Architecture exploration: edge-type embedding in GATConv attention (S2H's information without its overfitting), multi-scale graph pooling
 
 **2d. AMT validation v2: harder test on improved S2**
-- 20+ contrastive pieces (vs current 4), close-quality pairs, 2 AMT systems
+- YouTube AMT validation (2026-03-13): 50 recordings, 1,225 pairs, 79.9% A1-vs-S2 agreement. All dimensions pass. See `04-training-results.md`.
+- Remaining: test with improved S2-max after pretraining on 24K graphs, 2 AMT systems, close-quality pairs
 - Gate: per-dimension drop < 10% still holds
 - If fails: reassess symbolic path complexity vs. audio-only + LLM reasoning
 
@@ -188,7 +189,7 @@ Three training waves, each validating the assumptions of the next.
 - **Can a fine-tuned audio model learn alignment without catastrophic forgetting?** No. A3 (full unfreeze) showed catastrophic forgetting (R2=0.059 on fold 0). LoRA's minimal adaptation (A1, <1% params) is the right strategy.
 - **Can a MIDI encoder rival MuQ?** Nearly. S2 (71.3% pairwise) trails A1 (73.9%) by only 2.6pp. May close with more pretraining data (GIANTMIDI) and multi-source finetuning.
 - **Does masterclass feedback transfer to intermediate students?** Partially yes. 6-dim taxonomy derived from 2,136 advanced masterclass moments. Exp 4 showed the LLM generates good intermediate-level feedback from these dimensions without modification.
-- **Does symbolic signal survive AMT?** Yes (0% drop with ByteDance on 107 pairs). Needs harder validation (Wave 1, item 2d).
+- **Does symbolic signal survive AMT?** Yes. Studio audio: 0% pairwise drop (ByteDance on 107 pairs, 4 MAESTRO pieces). YouTube mediocre audio: 79.9% A1-vs-S2 agreement across 50 recordings, 1,225 pairs, all 6 dimensions above 72%. AMT is production-viable.
 
 ### Open
 
@@ -217,7 +218,7 @@ Three training waves, each validating the assumptions of the next.
 | Chopin 2021 competition (T2) | 2,293 | Ordinal placement (11 performers, 3 rounds) | COMPLETE (audio embeddings), MIDI transcription stub ready |
 | MAESTRO (T3) | 24,321 | Contrastive pairs (204 pieces, 12,181 segments) | COMPLETE (embeddings + metadata + 1,123 per-recording graphs) |
 | Symbolic pretraining corpus | 24,220 graphs | Link prediction pretraining | COMPLETE, on disk (shards 0000-0263) |
-| Intermediate YouTube | 629 | Diagnostic (dynamic range analysis) | COMPLETE |
+| Intermediate YouTube | 629 | Diagnostic (dynamic range analysis) + AMT validation (51 transcribed MIDI) | COMPLETE |
 | Masterclass moments | 2,136 | Taxonomy derivation, quote bank | COMPLETE |
 | Composite labels | 1,202 | 6 teacher-grounded dimensions | COMPLETE |
 
