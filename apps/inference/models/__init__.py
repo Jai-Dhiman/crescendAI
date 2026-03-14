@@ -1,13 +1,12 @@
-"""Model loading and inference for M1c MuQ L9-12."""
+"""Model loading and inference for A1-Max MuQ LoRA."""
 
 from models.loader import (
-    MuQStatsHead,
+    A1MaxInferenceHead,
     ModelCache,
     get_model_cache,
 )
 from models.inference import (
     extract_muq_embeddings,
-    stats_pool,
     predict_with_ensemble,
 )
 from models.calibration import (
@@ -17,11 +16,10 @@ from models.calibration import (
 )
 
 __all__ = [
-    "MuQStatsHead",
+    "A1MaxInferenceHead",
     "ModelCache",
     "get_model_cache",
     "extract_muq_embeddings",
-    "stats_pool",
     "predict_with_ensemble",
     "calibrate_predictions",
     "predictions_to_calibrated_dict",
