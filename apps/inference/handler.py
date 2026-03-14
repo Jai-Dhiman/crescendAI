@@ -1,7 +1,8 @@
 """HuggingFace Inference Endpoints handler for piano performance analysis.
 
-M1c MuQ L9-12 model using MuQ layers 9-12 with stats pooling.
-Returns 19-dimension performance evaluation scores.
+A1-Max MuQ LoRA model using MuQ layers 9-12 with attention pooling.
+Returns 6-dimension performance evaluation scores:
+dynamics, timing, pedaling, articulation, phrasing, interpretation.
 
 Compatible with HuggingFace Inference Endpoints custom handler pattern.
 """
@@ -19,10 +20,6 @@ from models.loader import get_model_cache
 from models.inference import (
     extract_muq_embeddings,
     predict_with_ensemble,
-)
-from models.calibration import (
-    calibrate_predictions,
-    get_calibration_context,
 )
 from preprocessing.audio import (
     AudioDownloadError,
@@ -44,7 +41,7 @@ class EndpointHandler:
             path: Path to the model repository (provided by HF Inference Endpoints).
                   Contains the checkpoints/ directory with model weights.
         """
-        print(f"Initializing M1c EndpointHandler with path: {path}")
+        print(f"Initializing A1-Max EndpointHandler with path: {path}")
 
         # Determine checkpoint directory
         # HF Inference Endpoints mount the repo at the provided path
@@ -67,7 +64,7 @@ class EndpointHandler:
         self._cache = get_model_cache()
         self._cache.initialize(device="cuda", checkpoint_dir=checkpoint_dir)
 
-        print("M1c EndpointHandler initialization complete!")
+        print("A1-Max EndpointHandler initialization complete!")
 
     def __call__(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """Process inference request.
@@ -132,24 +129,19 @@ class EndpointHandler:
             embeddings = extract_muq_embeddings(audio, self._cache)
             print(f"MuQ embeddings shape: {embeddings.shape}")
 
-            # Get ensemble predictions (4-fold)
-            print("Running M1c ensemble inference...")
+            # Get ensemble predictions (4-fold A1-Max)
+            print("Running A1-Max ensemble inference...")
             predictions = predict_with_ensemble(embeddings, self._cache)
-
-            # Calibrate predictions against MAESTRO professional benchmarks
-            calibrated = calibrate_predictions(predictions, method="percentile")
 
             # Build response
             processing_time_ms = int((time.time() - start_time) * 1000)
 
             result = {
                 "predictions": self._predictions_to_dict(predictions),
-                "calibrated_predictions": self._predictions_to_dict(calibrated),
-                "calibration_context": get_calibration_context(),
                 "model_info": {
                     "name": MODEL_INFO["name"],
                     "type": MODEL_INFO["type"],
-                    "r2": MODEL_INFO["r2"],
+                    "pairwise": MODEL_INFO["pairwise"],
                     "architecture": MODEL_INFO["architecture"],
                     "ensemble_folds": len(self._cache.muq_heads),
                 },

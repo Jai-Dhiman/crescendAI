@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
+import numpy as np
 import torch
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import Dataset
@@ -260,6 +261,122 @@ class PairedPerformanceDataset(Dataset):
             "labels_b": labels_b,
             "piece_id": self.piece_to_id[piece_id],
         }
+
+
+class HardNegativePairSampler:
+    """Curriculum-based pair sampler that progressively adds harder pairs.
+
+    During warmup, returns all pairs uniformly. After warmup, filters by
+    label difficulty: starts with easy pairs (large label gap), progressively
+    adds harder pairs (smaller gap) as training continues.
+
+    Optionally accepts model prediction errors to oversample pairs where the
+    model is wrong or uncertain.
+    """
+
+    def __init__(
+        self,
+        dataset: PairedPerformanceDataset,
+        warmup_epochs: int = 5,
+        easy_threshold: float = 0.3,
+        hard_oversample: float = 2.0,
+    ):
+        self.dataset = dataset
+        self.warmup_epochs = warmup_epochs
+        self.easy_threshold = easy_threshold
+        self.hard_oversample = hard_oversample
+
+        # Pre-compute mean absolute label differences per pair
+        self.pair_diffs = []
+        for key_a, key_b, _pid in dataset.pairs:
+            labels_a = np.array(dataset.labels[key_a])
+            labels_b = np.array(dataset.labels[key_b])
+            mean_diff = float(np.abs(labels_a - labels_b).mean())
+            self.pair_diffs.append(mean_diff)
+        self.pair_diffs = np.array(self.pair_diffs)
+
+        self._model_errors: np.ndarray | None = None
+
+    def update_model_errors(self, errors: np.ndarray) -> None:
+        """Update pair-level model errors for hard negative mining.
+
+        Args:
+            errors: Array of shape (n_pairs,) with error magnitude per pair.
+                Higher values = model struggled more on this pair.
+        """
+        self._model_errors = errors
+
+    def get_indices(self, epoch: int) -> list[int]:
+        """Get pair indices for the given epoch.
+
+        During warmup: all indices shuffled.
+        After warmup: curriculum + optional hard negative oversampling.
+        """
+        n = len(self.dataset)
+        all_indices = list(range(n))
+
+        if epoch < self.warmup_epochs:
+            return all_indices
+
+        # Curriculum: threshold decreases over time
+        # At warmup_epochs: only easy pairs (diff > easy_threshold)
+        # By epoch 50+: all pairs included
+        progress = min(1.0, (epoch - self.warmup_epochs) / 45.0)
+        min_diff = self.easy_threshold * (1.0 - progress)
+
+        # Filter by difficulty
+        mask = self.pair_diffs >= min_diff
+        indices = [i for i in all_indices if mask[i]]
+
+        # Oversample hard pairs if model errors available
+        if self._model_errors is not None and len(indices) > 0:
+            error_threshold = np.percentile(self._model_errors, 75)
+            hard_indices = [
+                i for i in indices
+                if self._model_errors[i] > error_threshold
+            ]
+            oversample_count = int(len(hard_indices) * (self.hard_oversample - 1))
+            if oversample_count > 0 and hard_indices:
+                rng = np.random.default_rng(epoch)
+                extra = rng.choice(hard_indices, size=oversample_count, replace=True)
+                indices.extend(extra.tolist())
+
+        return indices if indices else all_indices
+
+
+def apply_mixup(
+    embeddings: torch.Tensor,
+    labels: torch.Tensor,
+    alpha: float = 0.2,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Apply mixup augmentation on embeddings and labels.
+
+    Randomly shuffles the batch and interpolates:
+        mixed = lambda * original + (1 - lambda) * shuffled
+    where lambda ~ Beta(alpha, alpha).
+
+    Args:
+        embeddings: [B, T, D] frame embeddings.
+        labels: [B, num_dims] label scores.
+        alpha: Beta distribution parameter. 0 = no mixup.
+
+    Returns:
+        (mixed_embeddings, mixed_labels) with same shapes as inputs.
+    """
+    if alpha <= 0.0:
+        return embeddings, labels
+
+    batch_size = embeddings.size(0)
+    lam = torch.distributions.Beta(alpha, alpha).sample().item()
+    # Ensure lambda >= 0.5 so the "original" sample dominates
+    lam = max(lam, 1.0 - lam)
+
+    perm = torch.randperm(batch_size, device=embeddings.device)
+
+    mixed_emb = lam * embeddings + (1.0 - lam) * embeddings[perm]
+    mixed_labels = lam * labels + (1.0 - lam) * labels[perm]
+
+    return mixed_emb, mixed_labels
 
 
 class AudioSegmentDataset(Dataset):
