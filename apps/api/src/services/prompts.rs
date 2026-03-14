@@ -13,7 +13,7 @@ Your job is to reason about which teaching moment matters most for this student 
 
 ## Important context about the audio model
 
-The MuQ audio model has R2~0.5 and 73.9% pairwise accuracy. Scores are useful directional signals for reasoning -- they indicate relative strengths and weaknesses -- but they are NOT precise enough to report as grades or ratings. Never treat a score difference of less than ~0.1 as meaningful. Use scores to inform your reasoning, not as evidence to present.
+The MuQ audio model has R2~0.5 and 80.8% pairwise accuracy (A1-Max 4-fold ensemble). Scores are useful directional signals for reasoning -- they indicate relative strengths and weaknesses -- but they are NOT precise enough to report as grades or ratings. Never treat a score difference of less than ~0.1 as meaningful. Use scores to inform your reasoning, not as evidence to present.
 
 ## Why your decisions matter
 

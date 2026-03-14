@@ -1,64 +1,23 @@
 import Foundation
 
-/// 19-dimensional piano performance evaluation.
-/// Mirrors the Rust `PerformanceDimensions` struct from the web backend.
+/// 6-dimensional piano performance evaluation (A1-Max model).
+/// Mirrors the teacher-grounded taxonomy dimensions.
 struct PerformanceDimensions: Codable, Equatable {
-    // Timing
+    let dynamics: Double
     let timing: Double
-
-    // Articulation
-    let articulation_length: Double
-    let articulation_touch: Double
-
-    // Pedal
-    let pedal_amount: Double
-    let pedal_clarity: Double
-
-    // Timbre
-    let timbre_variety: Double
-    let timbre_depth: Double
-    let timbre_brightness: Double
-    let timbre_loudness: Double
-
-    // Dynamics
-    let dynamics_range: Double
-
-    // Performance qualities
-    let tempo: Double
-    let space: Double
-    let balance: Double
-    let drama: Double
-
-    // Mood
-    let mood_valence: Double
-    let mood_energy: Double
-    let mood_imagination: Double
-
-    // Interpretation
-    let interpretation_sophistication: Double
-    let interpretation_overall: Double
+    let pedaling: Double
+    let articulation: Double
+    let phrasing: Double
+    let interpretation: Double
 
     func toLabeledPairs() -> [(String, Double)] {
         [
+            ("Dynamics", dynamics),
             ("Timing", timing),
-            ("Art. Length", articulation_length),
-            ("Art. Touch", articulation_touch),
-            ("Pedal Amt", pedal_amount),
-            ("Pedal Clarity", pedal_clarity),
-            ("Timbre Var.", timbre_variety),
-            ("Timbre Depth", timbre_depth),
-            ("Brightness", timbre_brightness),
-            ("Loudness", timbre_loudness),
-            ("Dyn. Range", dynamics_range),
-            ("Tempo", tempo),
-            ("Space", space),
-            ("Balance", balance),
-            ("Drama", drama),
-            ("Valence", mood_valence),
-            ("Energy", mood_energy),
-            ("Imagination", mood_imagination),
-            ("Sophistication", interpretation_sophistication),
-            ("Interpretation", interpretation_overall),
+            ("Pedaling", pedaling),
+            ("Articulation", articulation),
+            ("Phrasing", phrasing),
+            ("Interpretation", interpretation),
         ]
     }
 }
@@ -71,7 +30,7 @@ struct PracticeTip: Codable, Equatable {
 struct ModelResult: Codable, Equatable {
     let model_name: String
     let model_type: String
-    let r_squared: Double
+    let pairwise_accuracy: Double
     let dimensions: PerformanceDimensions
 }
 
@@ -89,8 +48,6 @@ struct CitedFeedback: Codable, Equatable {
 struct AnalysisResult: Codable, Equatable {
     let performance_id: String
     let dimensions: PerformanceDimensions
-    let calibrated_dimensions: PerformanceDimensions
-    let calibration_context: String?
     let models: [ModelResult]
     let teacher_feedback: CitedFeedback
     let practice_tips: [PracticeTip]

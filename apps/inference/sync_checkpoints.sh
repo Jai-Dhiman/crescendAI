@@ -1,31 +1,31 @@
 #!/bin/bash
-# Sync M1c MuQ L9-12 checkpoints from Google Drive
+# Sync A1-Max MuQ LoRA checkpoints from Google Drive
 # Run this before building the Docker image or uploading to HuggingFace
 
 set -e
 
 CHECKPOINT_DIR="./checkpoints"
-GDRIVE_PATH="gdrive:crescendai_data/checkpoints/definitive_experiments/checkpoints/M1c_muq_L9-12"
+GDRIVE_PATH="gdrive:crescendai_data/checkpoints/a1_max_sweep/A1max_r32_L7-12_ls0.1"
 
-echo "M1c MuQ L9-12 Checkpoint Sync"
-echo "=============================="
+echo "A1-Max MuQ LoRA Checkpoint Sync"
+echo "================================"
 echo ""
 
 echo "Creating checkpoint directories..."
-mkdir -p "$CHECKPOINT_DIR/fold0"
-mkdir -p "$CHECKPOINT_DIR/fold1"
-mkdir -p "$CHECKPOINT_DIR/fold2"
-mkdir -p "$CHECKPOINT_DIR/fold3"
+mkdir -p "$CHECKPOINT_DIR/fold_0"
+mkdir -p "$CHECKPOINT_DIR/fold_1"
+mkdir -p "$CHECKPOINT_DIR/fold_2"
+mkdir -p "$CHECKPOINT_DIR/fold_3"
 
 echo ""
-echo "Syncing M1c checkpoints (4-fold ensemble)..."
+echo "Syncing A1-Max checkpoints (4-fold ensemble, 80.8% pairwise)..."
 echo "Source: $GDRIVE_PATH"
 echo ""
 
-# Sync each fold (GDrive has foldX_best.ckpt, we need foldX/best.ckpt)
+# Sync each fold's best checkpoint
 for fold in 0 1 2 3; do
-    echo "Syncing fold$fold..."
-    rclone copyto "$GDRIVE_PATH/fold${fold}_best.ckpt" "$CHECKPOINT_DIR/fold$fold/best.ckpt" --progress
+    echo "Syncing fold_$fold..."
+    rclone copyto "$GDRIVE_PATH/fold_${fold}/best.ckpt" "$CHECKPOINT_DIR/fold_$fold/best.ckpt" --progress
 done
 
 echo ""
@@ -36,16 +36,16 @@ ls -la "$CHECKPOINT_DIR"
 echo ""
 
 for fold in 0 1 2 3; do
-    echo "fold$fold:"
-    ls -la "$CHECKPOINT_DIR/fold$fold"
+    echo "fold_$fold:"
+    ls -la "$CHECKPOINT_DIR/fold_$fold"
 done
 
 echo ""
 echo "Expected HuggingFace repository structure:"
 echo "  checkpoints/"
-echo "    fold0/best.ckpt"
-echo "    fold1/best.ckpt"
-echo "    fold2/best.ckpt"
-echo "    fold3/best.ckpt"
+echo "    fold_0/best.ckpt"
+echo "    fold_1/best.ckpt"
+echo "    fold_2/best.ckpt"
+echo "    fold_3/best.ckpt"
 echo ""
-echo "Model: M1c MuQ L9-12 (MuQ-only, R2=0.539)"
+echo "Model: A1-Max MuQ LoRA r32 L7-12 (6-dim, 80.8% pairwise, R2=0.50)"

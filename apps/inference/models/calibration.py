@@ -17,7 +17,7 @@ def calibrate_predictions(
     """Calibrate raw predictions using MAESTRO professional benchmarks.
 
     Args:
-        raw_predictions: Raw model outputs [19] in range ~[0, 1]
+        raw_predictions: Raw model outputs [6] in range ~[0, 1]
         method: Calibration method:
             - "percentile": Scale to [0, 1] where 0 = MAESTRO 5th percentile,
               1 = MAESTRO 95th percentile. Scores can exceed [0, 1] for
@@ -25,7 +25,7 @@ def calibrate_predictions(
             - "zscore": Convert to z-scores relative to MAESTRO distribution.
 
     Returns:
-        Calibrated predictions [19]. For "percentile" method, ~0.5 means
+        Calibrated predictions [6]. For "percentile" method, ~0.5 means
         comparable to average MAESTRO professional performance.
     """
     calibrated = np.zeros_like(raw_predictions)
@@ -75,7 +75,7 @@ def predictions_to_calibrated_dict(
     """Convert raw predictions to a dict with both raw and calibrated scores.
 
     Args:
-        raw_predictions: Raw model outputs [19]
+        raw_predictions: Raw model outputs [6]
 
     Returns:
         Dict with structure:
