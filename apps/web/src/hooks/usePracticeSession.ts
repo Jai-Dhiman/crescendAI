@@ -96,20 +96,17 @@ export function usePracticeSession(): UsePracticeSessionReturn {
 		};
 	}, []);
 
-	const updateChunkState = useCallback(
-		(index: number, status: ChunkStatus) => {
-			setChunkStates((prev) => {
-				const existing = prev.findIndex((c) => c.index === index);
-				if (existing >= 0) {
-					const updated = [...prev];
-					updated[existing] = { index, status };
-					return updated;
-				}
-				return [...prev, { index, status }];
-			});
-		},
-		[],
-	);
+	const updateChunkState = useCallback((index: number, status: ChunkStatus) => {
+		setChunkStates((prev) => {
+			const existing = prev.findIndex((c) => c.index === index);
+			if (existing >= 0) {
+				const updated = [...prev];
+				updated[existing] = { index, status };
+				return updated;
+			}
+			return [...prev, { index, status }];
+		});
+	}, []);
 
 	const cleanup = useCallback(() => {
 		if (timerRef.current) clearInterval(timerRef.current);
@@ -333,9 +330,7 @@ export function usePracticeSession(): UsePracticeSessionReturn {
 					updateChunkState(idx, "complete");
 					const ws = wsRef.current;
 					if (ws?.readyState === WebSocket.OPEN) {
-						ws.send(
-							JSON.stringify({ type: "chunk_ready", index: idx, r2Key }),
-						);
+						ws.send(JSON.stringify({ type: "chunk_ready", index: idx, r2Key }));
 					}
 					return;
 				} catch (e) {
@@ -406,9 +401,7 @@ export function usePracticeSession(): UsePracticeSessionReturn {
 					updateChunkState(index, "complete");
 					const ws = wsRef.current;
 					if (ws?.readyState === WebSocket.OPEN) {
-						ws.send(
-							JSON.stringify({ type: "chunk_ready", index, r2Key }),
-						);
+						ws.send(JSON.stringify({ type: "chunk_ready", index, r2Key }));
 					}
 				} catch (e) {
 					updateChunkState(index, "failed");
