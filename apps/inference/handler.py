@@ -21,6 +21,7 @@ from models.inference import (
     extract_muq_embeddings,
     predict_with_ensemble,
 )
+from models.transcription import TranscriptionModel, TranscriptionError
 from preprocessing.audio import (
     AudioDownloadError,
     AudioProcessingError,
@@ -63,6 +64,10 @@ class EndpointHandler:
         # Initialize model cache (loads MuQ and prediction heads)
         self._cache = get_model_cache()
         self._cache.initialize(device="cuda", checkpoint_dir=checkpoint_dir)
+
+        # Initialize AMT transcription model
+        print("Loading ByteDance AMT model...")
+        self._transcription = TranscriptionModel(device="cuda")
 
         print("A1-Max EndpointHandler initialization complete!")
 
@@ -133,11 +138,34 @@ class EndpointHandler:
             print("Running A1-Max ensemble inference...")
             predictions = predict_with_ensemble(embeddings, self._cache)
 
-            # Build response
+            # Run AMT transcription (after MuQ scoring, sequential)
+            midi_notes = None
+            transcription_info = None
+            amt_error = None
+
+            try:
+                print("Running AMT transcription...")
+                amt_start = time.time()
+                midi_notes = self._transcription.transcribe(audio, 24000)
+                amt_elapsed_ms = int((time.time() - amt_start) * 1000)
+
+                pitches = [n["pitch"] for n in midi_notes]
+                transcription_info = {
+                    "note_count": len(midi_notes),
+                    "pitch_range": [min(pitches), max(pitches)] if pitches else [0, 0],
+                    "transcription_time_ms": amt_elapsed_ms,
+                }
+            except TranscriptionError as e:
+                print(f"AMT failed (graceful degradation): {e}")
+                amt_error = str(e)
+
+            # Build combined response
             processing_time_ms = int((time.time() - start_time) * 1000)
 
             result = {
                 "predictions": self._predictions_to_dict(predictions),
+                "midi_notes": midi_notes,
+                "transcription_info": transcription_info,
                 "model_info": {
                     "name": MODEL_INFO["name"],
                     "type": MODEL_INFO["type"],
@@ -148,6 +176,9 @@ class EndpointHandler:
                 "audio_duration_seconds": duration,
                 "processing_time_ms": processing_time_ms,
             }
+
+            if amt_error:
+                result["amt_error"] = amt_error
 
             print(f"Inference complete in {processing_time_ms}ms")
             return result
