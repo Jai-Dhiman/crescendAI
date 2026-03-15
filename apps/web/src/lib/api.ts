@@ -89,6 +89,31 @@ export interface ChatStreamEvent {
 	text?: string;
 }
 
+// --- Exercise types ---
+
+export interface Exercise {
+	id: string;
+	title: string;
+	description: string;
+	instructions: string;
+	difficulty: string;
+	category: string;
+	repertoire_tags: string | null;
+	source: string;
+	dimensions: string[];
+}
+
+export interface StudentExercise {
+	id: string;
+	student_id: string;
+	exercise_id: string;
+	session_id: string | null;
+	assigned_at: string;
+	completed: boolean;
+	response: string | null;
+	times_assigned: number;
+}
+
 export const api = {
 	auth: {
 		apple(
@@ -225,6 +250,44 @@ export const api = {
 				});
 				throw err;
 			}
+		},
+	},
+
+	exercises: {
+		fetch(params?: {
+			dimension?: string;
+			level?: string;
+			repertoire?: string;
+		}): Promise<{ exercises: Exercise[] }> {
+			const searchParams = new URLSearchParams();
+			if (params?.dimension) searchParams.set("dimension", params.dimension);
+			if (params?.level) searchParams.set("level", params.level);
+			if (params?.repertoire) searchParams.set("repertoire", params.repertoire);
+			const qs = searchParams.toString();
+			return request(`/api/exercises${qs ? `?${qs}` : ""}`);
+		},
+
+		assign(body: {
+			exercise_id: string;
+			session_id?: string;
+		}): Promise<StudentExercise> {
+			return request("/api/exercises/assign", {
+				method: "POST",
+				body: JSON.stringify(body),
+			});
+		},
+
+		complete(body: {
+			student_exercise_id: string;
+			response?: string;
+			dimension_before_json?: string;
+			dimension_after_json?: string;
+			notes?: string;
+		}): Promise<StudentExercise> {
+			return request("/api/exercises/complete", {
+				method: "POST",
+				body: JSON.stringify(body),
+			});
 		},
 	},
 };

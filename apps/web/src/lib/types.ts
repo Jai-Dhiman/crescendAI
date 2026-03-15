@@ -7,6 +7,7 @@ export interface RichMessage {
 	created_at: string;
 	streaming?: boolean;
 	components?: InlineComponent[];
+	dimension?: string;
 }
 
 export type InlineComponent =
@@ -22,6 +23,8 @@ export interface ExerciseSetConfig {
 		title: string;
 		instruction: string;
 		focus_dimension: string;
+		hands?: "left" | "right" | "both";
+		exercise_id?: string;
 	}>;
 }
 

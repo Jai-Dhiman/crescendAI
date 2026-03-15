@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useRef } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import type { RichMessage } from "../lib/types";
 import { InlineCard } from "./InlineCard";
 import { MessageContent } from "./MessageContent";
@@ -6,9 +6,10 @@ import { MessageContent } from "./MessageContent";
 interface ChatMessagesProps {
 	messages: RichMessage[];
 	children?: React.ReactNode;
+	onTryExercises?: (dimension: string) => Promise<void>;
 }
 
-export function ChatMessages({ messages, children }: ChatMessagesProps) {
+export function ChatMessages({ messages, children, onTryExercises }: ChatMessagesProps) {
 	const scrollContainerRef = useRef<HTMLDivElement>(null);
 	const isNearBottomRef = useRef(true);
 	const prevMessageCountRef = useRef(0);
@@ -79,7 +80,11 @@ export function ChatMessages({ messages, children }: ChatMessagesProps) {
 		>
 			<div className="flex-1 max-w-3xl mx-auto space-y-6 w-full">
 				{messages.map((msg) => (
-					<MessageBubble key={msg.id} message={msg} />
+					<MessageBubble
+						key={msg.id}
+						message={msg}
+						onTryExercises={onTryExercises}
+					/>
 				))}
 			</div>
 			{children}
@@ -89,7 +94,10 @@ export function ChatMessages({ messages, children }: ChatMessagesProps) {
 
 const MessageBubble = memo(function MessageBubble({
 	message,
-}: { message: RichMessage }) {
+	onTryExercises,
+}: { message: RichMessage; onTryExercises?: (dimension: string) => Promise<void> }) {
+	const [tryState, setTryState] = useState<"idle" | "loading" | "error">("idle");
+
 	if (message.role === "user") {
 		return (
 			<div className="flex justify-end">
@@ -102,6 +110,20 @@ const MessageBubble = memo(function MessageBubble({
 		);
 	}
 
+	async function handleTryExercises() {
+		if (!message.dimension || !onTryExercises) return;
+		setTryState("loading");
+		try {
+			await onTryExercises(message.dimension);
+			setTryState("idle");
+		} catch (err) {
+			setTryState("error");
+		}
+	}
+
+	const showTryButton =
+		message.dimension && !message.streaming && onTryExercises;
+
 	return (
 		<div className="flex justify-start animate-fade-in">
 			<div className="max-w-[80%]">
@@ -110,6 +132,24 @@ const MessageBubble = memo(function MessageBubble({
 					// biome-ignore lint/suspicious/noArrayIndexKey: components have no stable id
 					<InlineCard key={`${message.id}-card-${i}`} component={component} />
 				))}
+				{showTryButton && (
+					<button
+						type="button"
+						onClick={handleTryExercises}
+						disabled={tryState === "loading"}
+						className={`mt-2 text-body-xs px-3 py-1.5 rounded-lg border transition ${
+							tryState === "error"
+								? "border-red-500 text-red-400 hover:bg-red-500/10"
+								: "border-border text-text-tertiary hover:text-cream hover:border-accent hover:bg-surface disabled:opacity-50"
+						}`}
+					>
+						{tryState === "loading"
+							? "Loading exercises..."
+							: tryState === "error"
+								? "Try again"
+								: "Try exercises for this"}
+					</button>
+				)}
 			</div>
 		</div>
 	);
