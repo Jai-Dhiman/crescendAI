@@ -7,6 +7,12 @@ import type {
 } from "../lib/practice-api";
 import { practiceApi } from "../lib/practice-api";
 import { Sentry } from "../lib/sentry";
+import { useAudioActivity } from "./useAudioActivity";
+import { createLogger } from "../lib/logger";
+
+const chunkLog = createLogger("ChunkGate");
+
+type ChunkGateState = "waiting" | "buffering";
 
 export type PracticeState =
 	| "idle"
@@ -39,6 +45,8 @@ export interface UsePracticeSessionReturn {
 	chunkStates: ChunkState[];
 	wsStatus: WsStatus;
 	isOnline: boolean;
+	isPlaying: boolean;
+	energy: number;
 	start: () => Promise<void>;
 	stop: () => void;
 	setPiece: (query: string) => void;
@@ -71,6 +79,9 @@ export function usePracticeSession(): UsePracticeSessionReturn {
 	const throttleRef = useRef(new ObservationThrottle());
 	const isOnlineRef = useRef(isOnline);
 	const offlineQueueRef = useRef<Array<{ index: number; blob: Blob }>>([]);
+	const analyserRef = useRef<AnalyserNode | null>(null);
+	const chunkGateRef = useRef<ChunkGateState>("waiting");
+	const chunkTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
 	// Keep stateRef in sync
 	useEffect(() => {
@@ -80,6 +91,14 @@ export function usePracticeSession(): UsePracticeSessionReturn {
 	useEffect(() => {
 		isOnlineRef.current = isOnline;
 	}, [isOnline]);
+
+	// Audio activity detection (spectral energy + debounced play/silence)
+	const { isPlaying, energy } = useAudioActivity(analyserRef);
+	const isPlayingRef = useRef(false);
+
+	useEffect(() => {
+		isPlayingRef.current = isPlaying;
+	}, [isPlaying]);
 
 	// Network online/offline detection
 	useEffect(() => {
@@ -96,6 +115,47 @@ export function usePracticeSession(): UsePracticeSessionReturn {
 			window.removeEventListener("offline", handleOffline);
 		};
 	}, []);
+
+	// Chunk gating: start/stop uploading based on piano activity
+	useEffect(() => {
+		// Only gate when actively recording
+		if (state !== "recording") return;
+		const recorder = mediaRecorderRef.current;
+		const sessionId = sessionIdRef.current;
+		if (!recorder || !sessionId) return;
+
+		if (isPlaying && chunkGateRef.current === "waiting") {
+			// Transition: WAITING -> BUFFERING
+			chunkGateRef.current = "buffering";
+			chunkLog.log("State: WAITING -> BUFFERING");
+
+			// Start 15s interval timer. First requestData() includes accumulated
+			// silence -- that's fine per spec (no discard mechanism needed).
+			chunkLog.log("Chunk timer started (15s)");
+			chunkTimerRef.current = setInterval(() => {
+				if (recorder.state === "recording") {
+					recorder.requestData();
+				}
+			}, 15000);
+		} else if (!isPlaying && chunkGateRef.current === "buffering") {
+			// Transition: BUFFERING -> WAITING
+			chunkLog.log("State: BUFFERING -> WAITING (silence offset)");
+
+			// Clear the chunk timer
+			if (chunkTimerRef.current) {
+				clearInterval(chunkTimerRef.current);
+				chunkTimerRef.current = null;
+			}
+
+			// Flush partial chunk
+			if (recorder.state === "recording") {
+				recorder.requestData();
+				chunkLog.log("Partial chunk flushed on silence offset");
+			}
+
+			chunkGateRef.current = "waiting";
+		}
+	}, [isPlaying, state]);
 
 	const updateChunkState = useCallback((index: number, status: ChunkStatus) => {
 		setChunkStates((prev) => {
@@ -130,6 +190,12 @@ export function usePracticeSession(): UsePracticeSessionReturn {
 		reconnectAttemptsRef.current = 0;
 		throttleRef.current.reset();
 		offlineQueueRef.current = [];
+		if (chunkTimerRef.current) {
+			clearInterval(chunkTimerRef.current);
+			chunkTimerRef.current = null;
+		}
+		chunkGateRef.current = "waiting";
+		analyserRef.current = null;
 	}, []);
 
 	const handleWsMessage = useCallback(
@@ -284,6 +350,7 @@ export function usePracticeSession(): UsePracticeSessionReturn {
 		analyser.fftSize = 256;
 		source.connect(analyser);
 		setAnalyserNode(analyser);
+		analyserRef.current = analyser;
 
 		// 3. Start session on server
 		setState("connecting");
@@ -332,9 +399,11 @@ export function usePracticeSession(): UsePracticeSessionReturn {
 				try {
 					const { r2Key } = await practiceApi.uploadChunk(sid, idx, blob);
 					updateChunkState(idx, "complete");
+					chunkLog.log(`Upload complete: chunk #${idx} -> r2Key=${r2Key}`);
 					const ws = wsRef.current;
 					if (ws?.readyState === WebSocket.OPEN) {
 						ws.send(JSON.stringify({ type: "chunk_ready", index: idx, r2Key }));
+						chunkLog.log(`WS sent: chunk_ready #${idx}`);
 					}
 					return;
 				} catch (e) {
@@ -361,6 +430,9 @@ export function usePracticeSession(): UsePracticeSessionReturn {
 		recorder.ondataavailable = async (event) => {
 			if (event.data.size === 0) return;
 			const idx = chunkIndexRef.current++;
+			chunkLog.log(
+				`Chunk #${idx} cut: ${(event.data.size / 1024).toFixed(1)}KB -- uploading to R2`,
+			);
 
 			if (!isOnlineRef.current) {
 				offlineQueueRef.current.push({ index: idx, blob: event.data });
@@ -371,7 +443,9 @@ export function usePracticeSession(): UsePracticeSessionReturn {
 			await uploadWithRetry(sessionId, idx, event.data);
 		};
 
-		recorder.start(15000); // 15-second timeslice
+		recorder.start(); // Continuous mode -- chunks cut manually via requestData()
+		chunkGateRef.current = "waiting";
+		chunkLog.log("MediaRecorder started in continuous mode (gated by audio activity)");
 		setState("recording");
 
 		// 6. Start elapsed timer + throttle tick
@@ -421,10 +495,49 @@ export function usePracticeSession(): UsePracticeSessionReturn {
 		if (state !== "recording") return;
 
 		// If session is too short (no chunks recorded), skip inference
+		// Minimum blob size to consider as real audio (~1s of Opus audio)
+		const MIN_FLUSH_BLOB_SIZE = 10_000; // ~10KB
+
 		if (chunkIndexRef.current === 0) {
-			setError("Play for at least 15 seconds so I can listen.");
-			setState("idle");
-			cleanup();
+			// No chunks sent -- flush buffer as last resort
+			const recorder = mediaRecorderRef.current;
+			if (recorder?.state === "recording") {
+				// Temporarily override ondataavailable to check blob size
+				const origHandler = recorder.ondataavailable;
+				recorder.ondataavailable = async (event) => {
+					recorder.ondataavailable = origHandler; // restore
+					if (event.data.size < MIN_FLUSH_BLOB_SIZE) {
+						// Too small -- likely just silence
+						chunkLog.log(
+							`Flush blob too small: ${(event.data.size / 1024).toFixed(1)}KB < ${(MIN_FLUSH_BLOB_SIZE / 1024).toFixed(0)}KB threshold`,
+						);
+						setError(
+							"I couldn't hear any playing. Make sure your microphone is picking up the piano.",
+						);
+						setState("idle");
+						cleanup();
+					} else {
+						// Blob has content -- upload and proceed normally
+						chunkLog.log(
+							`Flush blob accepted: ${(event.data.size / 1024).toFixed(1)}KB -- uploading`,
+						);
+						if (origHandler) {
+							origHandler.call(recorder, event);
+						}
+						setState("summarizing");
+						if (wsRef.current?.readyState === WebSocket.OPEN) {
+							wsRef.current.send(JSON.stringify({ type: "end_session" }));
+						}
+					}
+				};
+				recorder.requestData();
+			} else {
+				setError(
+					"I couldn't hear any playing. Make sure your microphone is picking up the piano.",
+				);
+				setState("idle");
+				cleanup();
+			}
 			return;
 		}
 
@@ -497,6 +610,8 @@ export function usePracticeSession(): UsePracticeSessionReturn {
 		chunkStates,
 		wsStatus,
 		isOnline,
+		isPlaying,
+		energy,
 		start,
 		stop,
 		setPiece,
