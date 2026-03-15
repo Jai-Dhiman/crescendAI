@@ -145,6 +145,10 @@ WARP.md
 model/data/maestro-v3.0.0.zip
 model/data/maestro-v3.0.0.csv
 
+# Score library parsed data (189MB, deployed to R2 -- keep seed.sql)
+model/data/score_library/*.json
+!model/data/score_library/titles.json
+
 *.ckpt.worktrees/
 .playwright-mcp/
 
