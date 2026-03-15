@@ -264,13 +264,6 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 		scorePanel.clear();
 	}, [initialConversationId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-	// Auto-open score panel when mock session data arrives
-	useEffect(() => {
-		if (practice.mockSessionData && !showListeningMode) {
-			scorePanel.open(practice.mockSessionData);
-		}
-	}, [practice.mockSessionData, showListeningMode, scorePanel.open]);
-
 	// Show loading indicator in chat while session is summarizing
 	useEffect(() => {
 		if (practice.state === "summarizing" && !showListeningMode) {
@@ -701,6 +694,7 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 						analyserNode={practice.analyserNode}
 						latestScores={practice.latestScores}
 						error={practice.error}
+						wsStatus={practice.wsStatus}
 						onStop={practice.stop}
 						originRect={recordButtonRect}
 						onExit={handleExitListeningMode}
