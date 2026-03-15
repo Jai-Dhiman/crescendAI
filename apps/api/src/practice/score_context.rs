@@ -224,7 +224,7 @@ pub async fn log_piece_request(
     };
 
     let stmt = db.prepare(
-        "INSERT INTO piece_requests (id, student_id, query, matched_piece_id, confidence, created_at) \
+        "INSERT INTO piece_requests (id, student_id, query, matched_piece_id, match_confidence, created_at) \
          VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
     );
 
