@@ -28,12 +28,13 @@ Wire the CrescendAI web practice companion from mock mode to the real inference 
 
 | File | Change |
 |------|--------|
-| `src/hooks/usePracticeSession.ts` | Remove MOCK_MODE flag and all mock branches. Add chunk upload state tracking (`ChunkState[]`). Add `wsStatus` state. Add `askHowWasThat()` method. Remove `mockSessionData` from return type. Increase max reconnect attempts from 3 to 5. |
-| `src/lib/practice-api.ts` | Add `ask()` streaming method for `POST /api/ask`. Add `AskStreamEvent` type. |
+| `src/hooks/usePracticeSession.ts` | Remove MOCK_MODE flag and all mock branches. Add chunk upload state tracking (`ChunkState[]`). Add `wsStatus` state (`useState`, see WebSocket Status section). Add `isOnline` state for network awareness. Add `askHowWasThat()` method. Remove `mockSessionData` from return type. Remove `elapsedSeconds` from `stop()` dependency array (no longer needed without mock). Increase max reconnect attempts from 3 to 5. Restructure `ws.onclose` handler for exponential backoff with `wsStatus` transitions. |
+| `src/lib/practice-api.ts` | Add `ask()` streaming method for `POST /api/ask`. Reuse `ChatStreamEvent` type from `api.ts` (identical wire format, no new type needed). |
 | `src/lib/observation-throttle.ts` | **New file.** Pure TypeScript class for 3-minute observation delivery window. No React dependencies. |
-| `src/components/AppChat.tsx` | Remove `mockSessionData` references. Wire "How was that?" to `practice.askHowWasThat()`. Build session summary from real observations. Gate ScorePanel auto-open behind `import.meta.env.DEV`. |
+| `src/components/AppChat.tsx` | Remove `mockSessionData` references. Add `handleAskHowWasThat()` function that calls `practice.askHowWasThat()` with an `onEvent` callback wired to the existing `appendDelta`/`streamingIndexRef`/`flushDeltas` machinery (same pattern as `handleSend`). Build session summary from real observations in the `practice.summary` useEffect. Gate ScorePanel auto-open behind `import.meta.env.DEV`. |
+| `src/components/ChatInput.tsx` | Add optional props: `onAskHowWasThat?: () => void` and `showHowWasThat?: boolean`. When `showHowWasThat` is true, render a "How was that?" button alongside the record button. |
 | `src/components/RecordingBar.tsx` | Add upload progress indicator (spinner/count). Add WebSocket reconnection indicator. Accept new props: `wsStatus`, `chunkStates`. |
-| `src/components/ListeningMode.tsx` | Add reconnection indicator. Accept `wsStatus` prop. |
+| `src/components/ListeningMode.tsx` | Add `wsStatus` prop. Show "Reconnecting..." indicator when `wsStatus === "reconnecting"` while `state` is still `"recording"` (these are independent -- `wsStatus` tracks connection health, `PracticeState` tracks the session lifecycle). The existing `state === "error"` close trigger is unchanged. |
 | `src/stores/score-panel.ts` | Gate `open()` behind `import.meta.env.DEV` -- no-op in production. |
 
 ### Data Flow
@@ -124,10 +125,11 @@ interface ChunkState { index: number; status: ChunkStatus; }
 
 Exposed as `chunkStates: ChunkState[]` on the hook return.
 
-Upload flow per chunk:
-1. Push `{ index, status: "uploading" }`
-2. On success: update to `"complete"`
-3. On failure: wait 2s, retry once. If retry fails: update to `"failed"`, `Sentry.captureException`, continue to next chunk
+Upload flow per chunk (encapsulated in `uploadChunkWithRetry`):
+1. Set chunk state to `{ index, status: "uploading" }`
+2. Call `practiceApi.uploadChunk(sessionId, idx, blob)` -> `{ r2Key }`
+3. On success: update state to `"complete"`, send WS `{ type: "chunk_ready", index, r2Key }`
+4. On failure: wait 2s, retry the full sequence (upload + WS notify). If retry also fails: update state to `"failed"`, `Sentry.captureException`, continue to next chunk. Do not send `chunk_ready` on failure -- the server never processes an unfulfilled chunk.
 
 ### RecordingBar Upload Indicator
 
@@ -138,19 +140,53 @@ Minimal visual disruption (student is playing piano):
 
 ### WebSocket Status
 
-New state: `wsStatus: "connected" | "reconnecting" | "disconnected"`
+New `useState` in `usePracticeSession`: `wsStatus: "connected" | "reconnecting" | "disconnected"`.
 
-- **Connected:** normal operation
-- **Reconnecting:** subtle text in RecordingBar ("Reconnecting...") with spinner. Exponential backoff: 1s, 2s, 4s, 8s, 16s, 30s cap. Max 5 attempts.
-- **Disconnected:** after max attempts, show "Connection lost" error, transition to error state, cleanup.
+State transitions managed in the `ws.onclose` handler (restructured from current flat-delay approach):
+
+```
+ws.onopen  -> setWsStatus("connected"), reset attempt counter
+ws.onclose -> if state === "recording" && attempts < 5:
+                setWsStatus("reconnecting")
+                delay = min(1000 * 2^attempt, 30000)  // 1s, 2s, 4s, 8s, 16s, 30s cap
+                setTimeout -> reconnect
+              else:
+                setWsStatus("disconnected")
+                setError("Connection lost"), setState("error"), cleanup()
+```
+
+The current `RECONNECT_DELAY_MS = 2000` constant and flat retry are replaced by the exponential calculation inline in `onclose`.
+
+- **Connected:** normal operation, indicator hidden
+- **Reconnecting:** subtle "Reconnecting..." text with spinner in RecordingBar/ListeningMode. `PracticeState` stays `"recording"` (session is still active, just the WS pipe is down). Chunk uploads continue independently.
+- **Disconnected:** after 5 attempts, transition to error state and cleanup.
 
 ### Network Offline Handling
 
-Listen to `online`/`offline` browser events:
-- **Offline:** pause chunk uploads (queue blobs in memory ref), show "Offline" indicator. Recording continues.
-- **Online:** flush queued chunks in order, resume normal flow.
+New `useState<boolean>` in `usePracticeSession`, initialized from `navigator.onLine`. Updated via `online`/`offline` event listeners (registered in a `useEffect`).
 
-Lightweight: `useState<boolean>` + event listeners + blob queue ref.
+Integration with chunk uploads in `recorder.ondataavailable`:
+
+```typescript
+recorder.ondataavailable = async (event) => {
+  if (event.data.size === 0) return;
+  const idx = chunkIndexRef.current++;
+
+  if (!isOnlineRef.current) {
+    // Queue blob for later upload
+    offlineQueueRef.current.push({ index: idx, blob: event.data });
+    updateChunkState(idx, "uploading"); // visually queued
+    return;
+  }
+
+  await uploadChunkWithRetry(sessionId, idx, event.data);
+};
+```
+
+`offlineQueueRef` is a `useRef<Array<{ index: number; blob: Blob }>>([])`. When the `online` event fires, the handler flushes the queue sequentially (in index order) via `uploadChunkWithRetry`, then clears it.
+
+- **Offline:** queue blobs, show "Offline" indicator in RecordingBar. MediaRecorder continues capturing audio.
+- **Online:** flush queued chunks in order, resume normal flow. Each flushed chunk follows the same upload-then-notify-WS sequence.
 
 ### Auth Token Expiry
 
@@ -172,11 +208,11 @@ Added to `practice-api.ts`:
 async ask(
   sessionId: string,
   conversationId: string | null,
-  onEvent: (event: AskStreamEvent) => void,
+  onEvent: (event: ChatStreamEvent) => void,
 ): Promise<void>
 ```
 
-Uses SSE streaming from `POST /api/ask`, same `data: {json}\n` wire format as `api.chat.send()`. Event types: `start`, `delta`, `done`.
+Uses SSE streaming from `POST /api/ask`, same `data: {json}\n` wire format as `api.chat.send()`. Reuses the `ChatStreamEvent` type from `api.ts` (identical `start`/`delta`/`done` event structure). No new type needed.
 
 ### Hook Method
 
@@ -185,18 +221,28 @@ Uses SSE streaming from `POST /api/ask`, same `data: {json}\n` wire format as `a
 ```typescript
 askHowWasThat(
   conversationId: string | null,
-  onEvent: (event: AskStreamEvent) => void,
+  onEvent: (event: ChatStreamEvent) => void,
 ): Promise<void>
 ```
 
-Delegates to `practiceApi.ask()` with the current `sessionIdRef`.
+Delegates to `practiceApi.ask()` with the current `sessionIdRef`. Throws if no active session.
 
 ### UI Integration
 
-A "How was that?" button appears in `ChatInput` only while `practice.state === "recording"` (or within a brief window after stopping, before summary arrives). Tapping it:
-1. Calls `practice.askHowWasThat(activeConversationId, onEvent)`
-2. `AppChat` handles the streaming response identically to `handleSend` -- reuses `appendDelta`, `streamingIndexRef`, `flushDeltas`
-3. Response appears as an assistant message in the chat
+**ChatInput changes:** `ChatInput.tsx` receives two new optional props:
+- `onAskHowWasThat?: () => void` -- callback when "How was that?" is tapped
+- `showHowWasThat?: boolean` -- controls visibility (true when `practice.state === "recording"` or `"summarizing"`)
+
+When `showHowWasThat` is true, ChatInput renders a "How was that?" button alongside the existing record button.
+
+**AppChat wiring:** `AppChat.tsx` defines a `handleAskHowWasThat()` function that:
+1. Sets `isStreaming = true`
+2. Appends a streaming placeholder message (same pattern as `handleSend`)
+3. Calls `practice.askHowWasThat(activeConversationId, onEvent)` where `onEvent` is a callback that uses the existing `appendDelta`/`streamingIndexRef`/`flushDeltas` refs -- identical to the `api.chat.send` callback in `handleSend`
+4. On `done`: finalize message, set `isStreaming = false`
+5. On error: remove placeholder, toast error, do not crash session
+
+This function is passed to `ChatInput` via the `onAskHowWasThat` prop.
 
 Independent of WebSocket observations. Server bypasses throttle for explicit asks.
 
@@ -204,23 +250,31 @@ Independent of WebSocket observations. Server bypasses throttle for explicit ask
 
 ## Session Summary
 
-When the server sends `{ type: "session_summary" }` via WebSocket after recording ends:
+The summary is built in `usePracticeSession`'s `handleWsMessage` (replacing the current mock summary logic), not in `AppChat`. This keeps the hook as the single source of truth for session state.
 
-1. Collect delivered observations from session state
-2. Call `throttle.drain()` for any undelivered queued observations
-3. Build assistant chat message:
-   ```
-   I listened to {chunksProcessed} sections of your playing.
+When the server sends `{ type: "session_summary", observations, summary }` via WebSocket:
 
-   During the session, I noticed:
-   - {observation 1 text}
-   - {observation 2 text}
-   ...
+1. In `handleWsMessage` `session_summary` case:
+   a. Call `throttle.drain()` to get any undelivered queued observations
+   b. Merge server observations with drained observations (deduplicate by text)
+   c. Set `observations` state with the merged list
+   d. Build summary string:
+      ```
+      I listened to {chunksProcessed} sections of your playing.
 
-   Want to hear more about any of these?
-   ```
-4. Append student's notepad notes if any (same as current behavior)
-5. Insert as assistant message via `setMessages`
+      During the session, I noticed:
+      - {observation 1 text}
+      - {observation 2 text}
+      ...
+
+      Want to hear more about any of these?
+      ```
+   e. Call `setSummary(builtSummary)`
+   f. Set state to `"idle"`, cleanup
+
+2. In `AppChat`, the existing `useEffect` on `practice.summary` appends the summary + any notepad notes as a chat message (same as current behavior, no change needed).
+
+State machine confirmation: `recording -> summarizing -> (wait for session_summary WS) -> idle`. The `"summarizing"` state is set in `stop()`, the `"idle"` transition happens in the WS handler.
 
 ---
 
