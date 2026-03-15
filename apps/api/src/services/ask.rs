@@ -37,6 +37,23 @@ pub struct ElaborateResponse {
     pub observation_id: String,
 }
 
+/// Input for the core LLM pipeline (used by both HTTP handler and DO).
+pub struct AskInnerRequest {
+    pub teaching_moment: serde_json::Value,
+    pub student_id: String,
+    pub session_id: String,
+    pub piece_context: Option<serde_json::Value>,
+}
+
+/// Output from the core LLM pipeline (no D1 side effects).
+pub struct AskInnerResponse {
+    pub observation_text: String,
+    pub dimension: String,
+    pub framing: String,
+    pub reasoning_trace: String,
+    pub is_fallback: bool,
+}
+
 /// Dimension descriptions for fallback templates.
 fn dimension_description(dimension: &str) -> &str {
     match dimension {
@@ -58,6 +75,124 @@ fn fallback_observation(dimension: &str) -> String {
         dimension,
         dimension_description(dimension),
     )
+}
+
+/// Core two-stage LLM pipeline. No D1 persistence, no HTTP.
+/// Called by both the HTTP handler (handle_ask) and the DO (PracticeSession).
+pub async fn handle_ask_inner(
+    env: &Env,
+    req: &AskInnerRequest,
+) -> AskInnerResponse {
+    let dimension = req.teaching_moment
+        .get("dimension")
+        .and_then(|v| v.as_str())
+        .unwrap_or("unknown")
+        .to_string();
+
+    // Build memory context
+    let piece_title = req.piece_context
+        .as_ref()
+        .and_then(|pc| pc.get("title"))
+        .and_then(|v| v.as_str());
+
+    let now = js_sys::Date::new_0().to_iso_string().as_string().unwrap_or_default();
+    let today = &now[..10.min(now.len())];
+    let memory_ctx = crate::services::memory::build_memory_context(
+        env, &req.student_id, piece_title, today, piece_title,
+    ).await;
+    let memory_text = crate::services::memory::format_memory_context(&memory_ctx);
+
+    let recent_observations: Vec<prompts::ObservationRow> = memory_ctx
+        .recent_observations
+        .iter()
+        .map(|obs| prompts::ObservationRow {
+            dimension: obs.dimension.clone(),
+            observation_text: obs.observation_text.clone(),
+            framing: obs.framing.clone(),
+            created_at: obs.created_at.clone(),
+        })
+        .collect();
+
+    // Build student/session context for subagent prompt
+    let student_json = serde_json::json!({
+        "level": "intermediate",
+        "goals": "",
+    });
+    let session_json = serde_json::json!({
+        "id": req.session_id,
+    });
+
+    // Stage 1: Subagent (Groq)
+    let subagent_user_prompt = prompts::build_subagent_user_prompt(
+        &req.teaching_moment,
+        &student_json,
+        &session_json,
+        &req.piece_context,
+        &recent_observations,
+        &memory_text,
+    );
+
+    let subagent_result = llm::call_groq(
+        env,
+        prompts::SUBAGENT_SYSTEM,
+        &subagent_user_prompt,
+        0.3,
+        800,
+    ).await;
+
+    let (subagent_output, framing) = match subagent_result {
+        Ok(output) => {
+            let framing = extract_framing(&output).unwrap_or_else(|| "correction".to_string());
+            (output, framing)
+        }
+        Err(e) => {
+            console_error!("Subagent failed: {}", e);
+            return AskInnerResponse {
+                observation_text: fallback_observation(&dimension),
+                dimension,
+                framing: "correction".to_string(),
+                reasoning_trace: "{}".to_string(),
+                is_fallback: true,
+            };
+        }
+    };
+
+    let (subagent_json, subagent_narrative) = split_subagent_output(&subagent_output);
+
+    // Stage 2: Teacher (Anthropic)
+    let teacher_user_prompt = prompts::build_teacher_user_prompt(
+        &subagent_json,
+        &subagent_narrative,
+        "intermediate",
+        "",
+    );
+
+    let teacher_result = llm::call_anthropic(
+        env,
+        prompts::TEACHER_SYSTEM,
+        &teacher_user_prompt,
+        300,
+    ).await;
+
+    let (observation_text, is_fallback) = match teacher_result {
+        Ok(text) => (post_process_observation(&text), false),
+        Err(e) => {
+            console_error!("Teacher LLM failed: {}", e);
+            (fallback_observation(&dimension), true)
+        }
+    };
+
+    let reasoning_trace = serde_json::json!({
+        "subagent_output": subagent_output,
+    }).to_string();
+
+    AskInnerResponse {
+        observation_text,
+        dimension,
+        framing,
+        reasoning_trace,
+        is_fallback,
+    }
 }
 
 /// Handle POST /api/ask
@@ -88,6 +223,11 @@ pub async fn handle_ask(
         }
     };
 
+    let dimension_score = request
+        .teaching_moment
+        .get("dimension_score")
+        .and_then(|v| v.as_f64());
+
     let dimension = request
         .teaching_moment
         .get("dimension")
@@ -95,134 +235,35 @@ pub async fn handle_ask(
         .unwrap_or("unknown")
         .to_string();
 
-    let dimension_score = request
-        .teaching_moment
-        .get("dimension_score")
-        .and_then(|v| v.as_f64());
-
     let student_baseline = request
         .student
         .get("baselines")
         .and_then(|b| b.get(&dimension))
         .and_then(|v| v.as_f64());
 
-    // Build memory context (replaces simple query_recent_observations)
-    let piece_title = request
-        .piece_context
-        .as_ref()
-        .and_then(|pc| pc.get("title"))
-        .and_then(|v| v.as_str());
-
-    let now_ask = js_sys::Date::new_0().to_iso_string().as_string().unwrap_or_default();
-    let today_ask = &now_ask[..10.min(now_ask.len())];
-    let memory_ctx = crate::services::memory::build_memory_context(
-        env,
-        &student_id,
-        piece_title,
-        today_ask,
-        piece_title,
-    ).await;
-
-    let memory_text = crate::services::memory::format_memory_context(&memory_ctx);
-
-    // Convert recent observations for backward compat with prompt builder
-    let recent_observations: Vec<prompts::ObservationRow> = memory_ctx
-        .recent_observations
-        .iter()
-        .map(|obs| prompts::ObservationRow {
-            dimension: obs.dimension.clone(),
-            observation_text: obs.observation_text.clone(),
-            framing: obs.framing.clone(),
-            created_at: obs.created_at.clone(),
-        })
-        .collect();
-
-    // Stage 1: Subagent (Groq)
-    let subagent_user_prompt = prompts::build_subagent_user_prompt(
-        &request.teaching_moment,
-        &request.student,
-        &request.session,
-        &request.piece_context,
-        &recent_observations,
-        &memory_text,
-    );
-
-    let subagent_result = llm::call_groq(
-        env,
-        prompts::SUBAGENT_SYSTEM,
-        &subagent_user_prompt,
-        0.3,
-        800,
-    )
-    .await;
-
-    let (subagent_output, framing) = match subagent_result {
-        Ok(output) => {
-            let framing = extract_framing(&output).unwrap_or_else(|| "correction".to_string());
-            (output, framing)
-        }
-        Err(e) => {
-            console_error!("Subagent failed: {}", e);
-            // Fallback: skip subagent, go directly to fallback template
-            return build_fallback_response(
-                env,
-                &student_id,
-                &request,
-                &dimension,
-                dimension_score,
-                student_baseline,
-            )
-            .await;
-        }
+    // Call the core LLM pipeline
+    let inner_req = AskInnerRequest {
+        teaching_moment: request.teaching_moment.clone(),
+        student_id: student_id.clone(),
+        session_id: request.session.get("id")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string(),
+        piece_context: request.piece_context.clone(),
     };
 
-    // Parse subagent JSON and narrative
-    let (subagent_json, subagent_narrative) = split_subagent_output(&subagent_output);
+    let inner_resp = handle_ask_inner(env, &inner_req).await;
 
-    // Stage 2: Teacher (Anthropic)
-    let student_level = request
-        .student
-        .get("level")
-        .and_then(|v| v.as_str())
-        .unwrap_or("unknown");
-    let student_goals = request
-        .student
-        .get("goals")
-        .and_then(|v| v.as_str())
-        .unwrap_or("");
-
-    let teacher_user_prompt = prompts::build_teacher_user_prompt(
-        &subagent_json,
-        &subagent_narrative,
-        student_level,
-        student_goals,
-    );
-
-    let teacher_result = llm::call_anthropic(
-        env,
-        prompts::TEACHER_SYSTEM,
-        &teacher_user_prompt,
-        300,
-    )
-    .await;
-
-    let (observation_text, is_fallback) = match teacher_result {
-        Ok(text) => {
-            let cleaned = post_process_observation(&text);
-            (cleaned, false)
-        }
-        Err(e) => {
-            console_error!("Teacher LLM failed: {}", e);
-            (fallback_observation(&dimension), true)
-        }
-    };
+    let observation_text = inner_resp.observation_text;
+    let framing = inner_resp.framing;
+    let is_fallback = inner_resp.is_fallback;
 
     // Generate observation ID
     let observation_id = generate_uuid();
 
     // Build reasoning trace
     let reasoning_trace = serde_json::json!({
-        "subagent_output": subagent_output,
+        "reasoning_trace": inner_resp.reasoning_trace,
     });
 
     // Store observation in D1
