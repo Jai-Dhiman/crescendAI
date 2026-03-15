@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { generateMockSession, type MockSessionData } from "../lib/mock-session";
+import { ObservationThrottle } from "../lib/observation-throttle";
 import type {
 	DimScores,
 	ObservationEvent,
@@ -7,8 +7,6 @@ import type {
 } from "../lib/practice-api";
 import { practiceApi } from "../lib/practice-api";
 import { Sentry } from "../lib/sentry";
-
-const MOCK_MODE = true; // Set to false when real inference is available
 
 export type PracticeState =
 	| "idle"
@@ -18,8 +16,16 @@ export type PracticeState =
 	| "summarizing"
 	| "error";
 
-const MAX_RECONNECTS = 3;
-const RECONNECT_DELAY_MS = 2000;
+const MAX_RECONNECTS = 5;
+const RECONNECT_BASE_DELAY_MS = 1000;
+const RECONNECT_MAX_DELAY_MS = 30_000;
+
+export type WsStatus = "connected" | "reconnecting" | "disconnected";
+type ChunkStatus = "uploading" | "complete" | "failed";
+export interface ChunkState {
+	index: number;
+	status: ChunkStatus;
+}
 
 export interface UsePracticeSessionReturn {
 	state: PracticeState;
@@ -30,7 +36,9 @@ export interface UsePracticeSessionReturn {
 	error: string | null;
 	analyserNode: AnalyserNode | null;
 	chunksProcessed: number;
-	mockSessionData: MockSessionData | null;
+	chunkStates: ChunkState[];
+	wsStatus: WsStatus;
+	isOnline: boolean;
 	start: () => Promise<void>;
 	stop: () => void;
 }
@@ -44,8 +52,11 @@ export function usePracticeSession(): UsePracticeSessionReturn {
 	const [error, setError] = useState<string | null>(null);
 	const [analyserNode, setAnalyserNode] = useState<AnalyserNode | null>(null);
 	const [chunksProcessed, setChunksProcessed] = useState(0);
-	const [mockSessionData, setMockSessionData] =
-		useState<MockSessionData | null>(null);
+	const [chunkStates, setChunkStates] = useState<ChunkState[]>([]);
+	const [wsStatus, setWsStatus] = useState<WsStatus>("disconnected");
+	const [isOnline, setIsOnline] = useState(
+		typeof navigator !== "undefined" ? navigator.onLine : true,
+	);
 
 	const sessionIdRef = useRef<string | null>(null);
 	const wsRef = useRef<WebSocket | null>(null);
@@ -56,11 +67,49 @@ export function usePracticeSession(): UsePracticeSessionReturn {
 	const chunkIndexRef = useRef(0);
 	const reconnectAttemptsRef = useRef(0);
 	const stateRef = useRef<PracticeState>("idle");
+	const throttleRef = useRef(new ObservationThrottle());
+	const isOnlineRef = useRef(isOnline);
+	const offlineQueueRef = useRef<Array<{ index: number; blob: Blob }>>([]);
 
 	// Keep stateRef in sync
 	useEffect(() => {
 		stateRef.current = state;
 	}, [state]);
+
+	useEffect(() => {
+		isOnlineRef.current = isOnline;
+	}, [isOnline]);
+
+	// Network online/offline detection
+	useEffect(() => {
+		function handleOnline() {
+			setIsOnline(true);
+		}
+		function handleOffline() {
+			setIsOnline(false);
+		}
+		window.addEventListener("online", handleOnline);
+		window.addEventListener("offline", handleOffline);
+		return () => {
+			window.removeEventListener("online", handleOnline);
+			window.removeEventListener("offline", handleOffline);
+		};
+	}, []);
+
+	const updateChunkState = useCallback(
+		(index: number, status: ChunkStatus) => {
+			setChunkStates((prev) => {
+				const existing = prev.findIndex((c) => c.index === index);
+				if (existing >= 0) {
+					const updated = [...prev];
+					updated[existing] = { index, status };
+					return updated;
+				}
+				return [...prev, { index, status }];
+			});
+		},
+		[],
+	);
 
 	const cleanup = useCallback(() => {
 		if (timerRef.current) clearInterval(timerRef.current);
@@ -81,36 +130,65 @@ export function usePracticeSession(): UsePracticeSessionReturn {
 		sessionIdRef.current = null;
 		chunkIndexRef.current = 0;
 		reconnectAttemptsRef.current = 0;
+		throttleRef.current.reset();
+		offlineQueueRef.current = [];
 	}, []);
 
-	const handleWsMessage = useCallback((event: MessageEvent) => {
-		const data: PracticeWsEvent = JSON.parse(event.data);
-		switch (data.type) {
-			case "chunk_processed":
-				setLatestScores(data.scores);
-				setChunksProcessed((prev) => prev + 1);
-				break;
-			case "observation":
-				setObservations((prev) => [
-					...prev,
-					{
+	const handleWsMessage = useCallback(
+		(event: MessageEvent) => {
+			const data: PracticeWsEvent = JSON.parse(event.data);
+			switch (data.type) {
+				case "chunk_processed": {
+					setLatestScores(data.scores);
+					setChunksProcessed((prev) => prev + 1);
+					// Check if throttle can release a queued observation
+					const released = throttleRef.current.onChunkProcessed();
+					if (released) {
+						setObservations((prev) => [...prev, released]);
+					}
+					break;
+				}
+				case "observation": {
+					const obs: ObservationEvent = {
 						text: data.text,
 						dimension: data.dimension,
 						framing: data.framing,
-					},
-				]);
-				break;
-			case "session_summary":
-				setSummary(data.summary);
-				setObservations(data.observations);
-				setState("idle");
-				cleanup();
-				break;
-			case "error":
-				setError(data.message);
-				break;
-		}
-	}, []);
+					};
+					const immediate = throttleRef.current.enqueue(obs);
+					if (immediate) {
+						setObservations((prev) => [...prev, immediate]);
+					}
+					break;
+				}
+				case "session_summary": {
+					// Drain any undelivered queued observations
+					const drained = throttleRef.current.drain();
+					const allObs = [...data.observations];
+					for (const obs of drained) {
+						if (!allObs.some((o) => o.text === obs.text)) {
+							allObs.push(obs);
+						}
+					}
+					setObservations(allObs);
+
+					// Build summary string
+					const obsLines = allObs.map((o) => `- ${o.text}`).join("\n");
+					const chunksCount = chunkIndexRef.current;
+					const builtSummary = obsLines
+						? `I listened to ${chunksCount} sections of your playing.\n\nDuring the session, I noticed:\n${obsLines}\n\nWant to hear more about any of these?`
+						: `I listened to ${chunksCount} sections of your playing.\n\nI didn't notice anything specific to flag this time. Want to talk about how it felt?`;
+					setSummary(builtSummary);
+					setState("idle");
+					cleanup();
+					break;
+				}
+				case "error":
+					setError(data.message);
+					break;
+			}
+		},
+		[cleanup],
+	);
 
 	const connectWebSocket = useCallback(
 		(sessionId: string): Promise<WebSocket> => {
@@ -122,6 +200,7 @@ export function usePracticeSession(): UsePracticeSessionReturn {
 
 				ws.onopen = () => {
 					reconnectAttemptsRef.current = 0;
+					setWsStatus("connected");
 					resolve(ws);
 				};
 
@@ -133,12 +212,16 @@ export function usePracticeSession(): UsePracticeSessionReturn {
 				};
 
 				ws.onclose = () => {
-					// Only attempt reconnect if still recording
 					if (
 						stateRef.current === "recording" &&
 						reconnectAttemptsRef.current < MAX_RECONNECTS
 					) {
-						reconnectAttemptsRef.current++;
+						setWsStatus("reconnecting");
+						const attempt = reconnectAttemptsRef.current++;
+						const delay = Math.min(
+							RECONNECT_BASE_DELAY_MS * 2 ** attempt,
+							RECONNECT_MAX_DELAY_MS,
+						);
 						setTimeout(() => {
 							if (stateRef.current === "recording" && sessionIdRef.current) {
 								connectWebSocket(sessionIdRef.current).catch(() => {
@@ -146,12 +229,18 @@ export function usePracticeSession(): UsePracticeSessionReturn {
 										level: "error",
 										extra: { attempts: reconnectAttemptsRef.current },
 									});
+									setWsStatus("disconnected");
 									setError("Connection lost. Please try again.");
 									setState("error");
 									cleanup();
 								});
 							}
-						}, RECONNECT_DELAY_MS);
+						}, delay);
+					} else if (stateRef.current === "recording") {
+						setWsStatus("disconnected");
+						setError("Connection lost. Please try again.");
+						setState("error");
+						cleanup();
 					}
 				};
 			});
@@ -167,7 +256,8 @@ export function usePracticeSession(): UsePracticeSessionReturn {
 		setSummary(null);
 		setError(null);
 		setChunksProcessed(0);
-		setMockSessionData(null);
+		setChunkStates([]);
+		setWsStatus("disconnected");
 
 		// 1. Request mic
 		let stream: MediaStream;
@@ -193,17 +283,6 @@ export function usePracticeSession(): UsePracticeSessionReturn {
 		analyser.fftSize = 256;
 		source.connect(analyser);
 		setAnalyserNode(analyser);
-
-		if (MOCK_MODE) {
-			// Mock mode: skip server connection, go straight to recording
-			chunkIndexRef.current = 1; // Pretend we have chunks so stop() works
-			setState("recording");
-			const startTime = Date.now();
-			timerRef.current = setInterval(() => {
-				setElapsedSeconds(Math.floor((Date.now() - startTime) / 1000));
-			}, 1000);
-			return;
-		}
 
 		// 3. Start session on server
 		setState("connecting");
@@ -242,36 +321,104 @@ export function usePracticeSession(): UsePracticeSessionReturn {
 		mediaRecorderRef.current = recorder;
 		chunkIndexRef.current = 0;
 
+		async function uploadWithRetry(
+			sid: string,
+			idx: number,
+			blob: Blob,
+		): Promise<void> {
+			updateChunkState(idx, "uploading");
+			for (let attempt = 0; attempt < 2; attempt++) {
+				try {
+					const { r2Key } = await practiceApi.uploadChunk(sid, idx, blob);
+					updateChunkState(idx, "complete");
+					const ws = wsRef.current;
+					if (ws?.readyState === WebSocket.OPEN) {
+						ws.send(
+							JSON.stringify({ type: "chunk_ready", index: idx, r2Key }),
+						);
+					}
+					return;
+				} catch (e) {
+					// Auth expiry: surface immediately, do not retry
+					if (e instanceof Error && e.message.includes("401")) {
+						updateChunkState(idx, "failed");
+						setError("Session expired. Please sign in again.");
+						setState("error");
+						cleanup();
+						return;
+					}
+					if (attempt === 0) {
+						await new Promise((r) => setTimeout(r, 2000));
+					} else {
+						updateChunkState(idx, "failed");
+						Sentry.captureException(e, {
+							extra: { chunkIndex: idx, sessionId: sid },
+						});
+					}
+				}
+			}
+		}
+
 		recorder.ondataavailable = async (event) => {
 			if (event.data.size === 0) return;
 			const idx = chunkIndexRef.current++;
-			try {
-				const { r2Key } = await practiceApi.uploadChunk(
-					sessionId,
-					idx,
-					event.data,
-				);
-				const ws = wsRef.current;
-				if (ws?.readyState === WebSocket.OPEN) {
-					ws.send(JSON.stringify({ type: "chunk_ready", index: idx, r2Key }));
-				}
-			} catch (e) {
-				Sentry.captureException(e, {
-					extra: { chunkIndex: idx, sessionId },
-				});
-				console.error("Chunk upload failed:", e);
+
+			if (!isOnlineRef.current) {
+				offlineQueueRef.current.push({ index: idx, blob: event.data });
+				updateChunkState(idx, "uploading");
+				return;
 			}
+
+			await uploadWithRetry(sessionId, idx, event.data);
 		};
 
 		recorder.start(15000); // 15-second timeslice
 		setState("recording");
 
-		// 6. Start elapsed timer
+		// 6. Start elapsed timer + throttle tick
 		const startTime = Date.now();
 		timerRef.current = setInterval(() => {
 			setElapsedSeconds(Math.floor((Date.now() - startTime) / 1000));
+			const released = throttleRef.current.tick();
+			if (released) {
+				setObservations((prev) => [...prev, released]);
+			}
 		}, 1000);
-	}, [cleanup, connectWebSocket]);
+	}, [cleanup, connectWebSocket, updateChunkState]);
+
+	// Flush offline queue when back online
+	useEffect(() => {
+		if (!isOnline || !sessionIdRef.current) return;
+		const queue = offlineQueueRef.current;
+		if (queue.length === 0) return;
+
+		const sessionId = sessionIdRef.current;
+		offlineQueueRef.current = [];
+
+		(async () => {
+			for (const { index, blob } of queue) {
+				try {
+					const { r2Key } = await practiceApi.uploadChunk(
+						sessionId,
+						index,
+						blob,
+					);
+					updateChunkState(index, "complete");
+					const ws = wsRef.current;
+					if (ws?.readyState === WebSocket.OPEN) {
+						ws.send(
+							JSON.stringify({ type: "chunk_ready", index, r2Key }),
+						);
+					}
+				} catch (e) {
+					updateChunkState(index, "failed");
+					Sentry.captureException(e, {
+						extra: { chunkIndex: index, sessionId },
+					});
+				}
+			}
+		})();
+	}, [isOnline, updateChunkState]);
 
 	const stop = useCallback(() => {
 		if (state !== "recording") return;
@@ -300,29 +447,6 @@ export function usePracticeSession(): UsePracticeSessionReturn {
 		});
 		streamRef.current = null;
 
-		if (MOCK_MODE) {
-			// Generate mock session data and complete immediately
-			const mockData = generateMockSession();
-			mockData.durationSeconds = elapsedSeconds;
-			setMockSessionData(mockData);
-			setObservations(mockData.observations);
-			setLatestScores(mockData.scores);
-
-			// Build a summary string from observations for the chat
-			const obsText = mockData.observations
-				.map(
-					(o) =>
-						`[${o.dimension}, bars ${o.barRange?.[0]}-${o.barRange?.[1]}, ${o.framing}]: ${o.text}`,
-				)
-				.join("\n");
-			setSummary(
-				`Session complete: ${mockData.piece} (${mockData.section})\n\n${obsText}`,
-			);
-			setState("idle");
-			mediaRecorderRef.current = null;
-			return;
-		}
-
 		// Stop recording (triggers final ondataavailable)
 		if (mediaRecorderRef.current?.state === "recording") {
 			mediaRecorderRef.current.stop();
@@ -335,7 +459,7 @@ export function usePracticeSession(): UsePracticeSessionReturn {
 
 		// WS stays open to receive session_summary
 		mediaRecorderRef.current = null;
-	}, [state, cleanup, elapsedSeconds]);
+	}, [state, cleanup]);
 
 	// Graceful stop on page unload
 	useEffect(() => {
@@ -364,7 +488,9 @@ export function usePracticeSession(): UsePracticeSessionReturn {
 		error,
 		analyserNode,
 		chunksProcessed,
-		mockSessionData,
+		chunkStates,
+		wsStatus,
+		isOnline,
 		start,
 		stop,
 	};
