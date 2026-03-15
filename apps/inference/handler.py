@@ -140,19 +140,21 @@ class EndpointHandler:
 
             # Run AMT transcription (after MuQ scoring, sequential)
             midi_notes = None
+            pedal_events = None
             transcription_info = None
             amt_error = None
 
             try:
                 print("Running AMT transcription...")
                 amt_start = time.time()
-                midi_notes = self._transcription.transcribe(audio, 24000)
+                midi_notes, pedal_events = self._transcription.transcribe(audio, 24000)
                 amt_elapsed_ms = int((time.time() - amt_start) * 1000)
 
                 pitches = [n["pitch"] for n in midi_notes]
                 transcription_info = {
                     "note_count": len(midi_notes),
                     "pitch_range": [min(pitches), max(pitches)] if pitches else [0, 0],
+                    "pedal_event_count": len(pedal_events),
                     "transcription_time_ms": amt_elapsed_ms,
                 }
             except TranscriptionError as e:
@@ -165,6 +167,7 @@ class EndpointHandler:
             result = {
                 "predictions": self._predictions_to_dict(predictions),
                 "midi_notes": midi_notes,
+                "pedal_events": pedal_events,
                 "transcription_info": transcription_info,
                 "model_info": {
                     "name": MODEL_INFO["name"],

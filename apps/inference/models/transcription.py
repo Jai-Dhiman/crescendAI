@@ -51,8 +51,10 @@ class TranscriptionModel:
         self._transcriber = PianoTranscription(device=device)
         print(f"PianoTranscription loaded in {time.time() - load_start:.1f}s")
 
-    def transcribe(self, audio: np.ndarray, sample_rate: int) -> list[dict[str, Any]]:
-        """Transcribe audio to a sorted list of MIDI notes.
+    def transcribe(
+        self, audio: np.ndarray, sample_rate: int
+    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+        """Transcribe audio to a sorted list of MIDI notes and pedal events.
 
         Args:
             audio: Mono float32 audio array (any sample rate -- ByteDance
@@ -60,9 +62,13 @@ class TranscriptionModel:
             sample_rate: Sample rate of the input audio.
 
         Returns:
-            List of notes sorted by onset time:
-            [{"pitch": 60, "onset": 0.12, "offset": 0.45, "velocity": 78}, ...]
-            Returns [] for silent audio (no notes detected).
+            Tuple of (notes, pedal_events):
+            - notes: List of notes sorted by onset time:
+              [{"pitch": 60, "onset": 0.12, "offset": 0.45, "velocity": 78}, ...]
+              Returns [] for silent audio (no notes detected).
+            - pedal_events: List of CC64 sustain pedal events sorted by time:
+              [{"time": 0.10, "value": 127}, {"time": 0.85, "value": 0}, ...]
+              Returns [] if no pedal events are present.
 
         Raises:
             TranscriptionError: If transcription or MIDI parsing fails.
@@ -84,6 +90,7 @@ class TranscriptionModel:
             midi = pretty_midi.PrettyMIDI(str(midi_path))
 
             notes = []
+            pedal_events = []
             for instrument in midi.instruments:
                 for note in instrument.notes:
                     notes.append({
@@ -92,14 +99,21 @@ class TranscriptionModel:
                         "offset": round(float(note.end), 4),
                         "velocity": int(note.velocity),
                     })
+                for cc in instrument.control_changes:
+                    if cc.number == 64:  # Sustain pedal only
+                        pedal_events.append({
+                            "time": round(float(cc.time), 4),
+                            "value": int(cc.value),
+                        })
 
             # Sort by onset time, then by pitch for simultaneous notes
             notes.sort(key=lambda n: (n["onset"], n["pitch"]))
+            pedal_events.sort(key=lambda e: e["time"])
 
             elapsed_ms = int((time.time() - transcribe_start) * 1000)
-            print(f"AMT complete: {len(notes)} notes in {elapsed_ms}ms")
+            print(f"AMT complete: {len(notes)} notes, {len(pedal_events)} pedal events in {elapsed_ms}ms")
 
-            return notes
+            return notes, pedal_events
 
         except TranscriptionError:
             raise
