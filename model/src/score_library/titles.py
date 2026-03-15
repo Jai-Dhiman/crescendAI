@@ -33,15 +33,25 @@ _ABBREVIATION_PATTERNS: list[tuple[re.Pattern[str], str]] = [
 ]
 
 
+_PRESERVE_CASE = {"BWV", "Op.", "No.", "WTC", "S145"}
+
+
 def _clean_segment(segment: str) -> str:
     """Clean a single path segment: underscores to spaces, apply abbreviations, capitalize."""
     text = segment.replace("_", " ")
     for pattern, replacement in _ABBREVIATION_PATTERNS:
         text = pattern.sub(replacement, text)
     words = text.split()
-    capitalized = [
-        w.capitalize() if w and not w[0].isdigit() else w for w in words
-    ]
+    capitalized = []
+    for w in words:
+        if not w:
+            continue
+        if w in _PRESERVE_CASE or w.rstrip(".") in {"BWV", "Op", "No", "WTC", "S145"}:
+            capitalized.append(w)
+        elif w[0].isdigit():
+            capitalized.append(w)
+        else:
+            capitalized.append(w.capitalize())
     return " ".join(capitalized)
 
 
