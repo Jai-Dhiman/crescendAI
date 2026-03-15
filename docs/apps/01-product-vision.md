@@ -86,6 +86,8 @@ The system hears many things. It picks ONE to say. This is the hardest design co
 
 The student initiates. The system does not interrupt practice with unsolicited feedback. The sole exception is rare, genuine check-ins ("I notice you've been repeating bars 12-16 for a while -- is there something specific you're working through?"), limited to at most once per session, and only when the system has a real observation to offer.
 
+**Platform interaction models differ.** On iOS, the student taps "How was that?" to request feedback on-demand -- the phone sits on the music stand and the student's attention is on the music. On web, observations are pushed via WebSocket during recording, throttled to at most one observation per 3-minute window (see `02-pipeline.md`). The web model is semi-continuous: the system accumulates candidates and surfaces the top-1 per window, but the student can also ask "how was that?" at any time to get an immediate response. Both platforms share the same backend pipeline and the same "one observation at a time" discipline.
+
 ### Progressive disclosure
 
 Default: one sentence of text. Tap for more: additional context, a score view, an exercise. The student controls the depth. Power users who want to see dimension trajectories over time can find them, but they are never the default view.
@@ -137,7 +139,7 @@ Three stages, one principle: the system does significant work to produce minimal
 | Cloud inference (MuQ) | DEPLOYED | A1-Max 4-fold ensemble, HF endpoint |
 | STOP classifier | DESIGNED | Cloud worker, not yet deployed |
 | Teaching moment selection | DESIGNED | Rules-based first, learned model later |
-| Two-stage subagent | IMPLEMENTED | Haiku/Flash analysis + Sonnet teacher |
+| Two-stage subagent | IMPLEMENTED | Groq/Llama analysis + Anthropic/Sonnet teacher |
 | Student model | PARTIAL | SwiftData models built, synthesis not yet live |
 | Chat interface (iOS) | PARTIAL | Basic session screen |
 | Chat interface (web) | IN PROGRESS | Chat + recording + real-time observations |

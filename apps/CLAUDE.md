@@ -2,7 +2,7 @@
 
 ## iOS App (`ios/`)
 
-Native iOS practice companion built with SwiftUI. On-device inference via Core ML.
+Native iOS practice companion built with SwiftUI. Cloud inference via HF endpoint.
 
 See `docs/architecture.md` for the full system design.
 See `ios/CLAUDE.md` for iOS-specific conventions.
@@ -11,7 +11,7 @@ See `ios/CLAUDE.md` for iOS-specific conventions.
 
 - UI: SwiftUI (iOS 17+)
 - Audio: AVAudioEngine (24kHz mono, ring buffer, background mode)
-- Inference: Core ML (finetuned MuQ, 6-dimension output)
+- Inference: Cloud via HF endpoint (A1-Max 4-fold ensemble, 6-dim output)
 - Persistence: SwiftData (local-first)
 - Auth: Sign in with Apple
 - Networking: URLSession (sync to Workers, LLM calls)

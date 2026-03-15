@@ -31,7 +31,6 @@ Two D1 tables store exercises and student-exercise tracking.
 | `title` | TEXT NOT NULL | Exercise name |
 | `description` | TEXT NOT NULL | What this exercise trains, why it matters |
 | `instructions` | TEXT NOT NULL | Step-by-step how to practice it |
-| `target_dimensions` | TEXT NOT NULL | JSON array, e.g. `["dynamics", "pedaling"]` |
 | `difficulty` | TEXT NOT NULL | `beginner` / `intermediate` / `advanced` |
 | `category` | TEXT NOT NULL | `technique` / `musicality` / `ear-training` / `warmup` |
 | `repertoire_tags` | TEXT | JSON array, e.g. `["Chopin", "nocturne", "romantic"]` |
@@ -42,13 +41,32 @@ Two D1 tables store exercises and student-exercise tracking.
 | `variants_json` | TEXT | JSON: alternate versions (different keys, tempos, dynamics) |
 | `created_at` | TEXT NOT NULL | ISO 8601 timestamp |
 
-Indexes: `idx_exercises_dimension` on `target_dimensions`, `idx_exercises_difficulty` on `difficulty`.
+Index: `idx_exercises_difficulty` on `difficulty`.
+
+**`exercise_dimensions` junction table:**
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `exercise_id` | TEXT NOT NULL | FK to `exercises(id)` |
+| `dimension` | TEXT NOT NULL | One of: dynamics, timing, pedaling, articulation, phrasing, interpretation |
+
+Primary key: `(exercise_id, dimension)`.
+Index: `idx_exercise_dimensions_dim` on `dimension`.
+
+```sql
+CREATE TABLE exercise_dimensions (
+    exercise_id TEXT NOT NULL REFERENCES exercises(id),
+    dimension TEXT NOT NULL,
+    PRIMARY KEY (exercise_id, dimension)
+);
+CREATE INDEX idx_exercise_dimensions_dim ON exercise_dimensions(dimension);
+```
 
 ### Exercise Properties
 
 Each exercise carries enough metadata to support filtering and pedagogical context:
 
-- **target_dimensions** -- which of the 6 dimensions this exercise trains. Most exercises target 1-2 dimensions.
+- **target dimensions** -- stored in the `exercise_dimensions` junction table. Most exercises target 1-2 dimensions.
 - **difficulty** -- coarse difficulty level. Maps roughly to student proficiency, not piece difficulty.
 - **category** -- the type of practice activity. `technique` covers mechanical drills (scales, arpeggios, Hanon). `musicality` covers expressive work (voicing, phrasing). `ear-training` covers listening exercises. `warmup` covers session openers.
 - **notation** -- optional MusicXML or Lilypond source. Many exercises are text-only (especially LLM-generated ones). Notation rendering is handled by `05-ui-system.md`.
@@ -107,9 +125,10 @@ Exercise selection filters by dimension, difficulty, and novelty (not previously
 
 ```sql
 SELECT e.* FROM exercises e
+JOIN exercise_dimensions ed ON ed.exercise_id = e.id
 LEFT JOIN student_exercises se
     ON se.exercise_id = e.id AND se.student_id = ?
-WHERE e.target_dimensions LIKE '%dynamics%'
+WHERE ed.dimension = 'dynamics'
     AND e.difficulty = 'intermediate'
     AND se.id IS NULL  -- not previously assigned
 ORDER BY
@@ -214,7 +233,7 @@ States per exercise: `pending` -> `in_progress` -> `completed` (or `skipped`). T
 | `id` | TEXT PK | Unique record identifier |
 | `student_id` | TEXT NOT NULL | FK to `students` |
 | `exercise_id` | TEXT NOT NULL | FK to `exercises` |
-| `session_id` | TEXT | FK to `student_sessions` (nullable for standalone assignments) |
+| `session_id` | TEXT | FK to `sessions` (nullable for standalone assignments) |
 | `assigned_at` | TEXT NOT NULL | ISO 8601 timestamp |
 | `completed` | BOOLEAN | Default FALSE |
 | `response` | TEXT | `positive` / `neutral` / `negative` / `skipped` |

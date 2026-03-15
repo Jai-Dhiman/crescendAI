@@ -80,6 +80,24 @@ Sign in with Apple on both platforms. The API worker validates the Apple ID toke
 
 Local-first on iOS: all student data and sessions live in SwiftData on-device. The phone is authoritative. D1 stores copies for cross-platform backup and web access. Sync is conflict-free -- the phone pushes deltas (new sessions, updated baselines) to D1 after each session. The server is authoritative only for exercise updates. On web, D1 is the primary data store.
 
+**Sync response payload:** The `POST /api/sync` response includes server-to-client updates:
+
+```json
+{
+    "status": "ok",
+    "exerciseUpdates": [
+        {
+            "id": "ex-ped-003",
+            "title": "Legato Pedal Harmonic Changes",
+            "action": "upsert"
+        }
+    ],
+    "exerciseUpdates_since": "2026-03-14T00:00:00Z"
+}
+```
+
+The `exerciseUpdates` array contains exercises added or modified since the client's last sync. iOS caches exercises in SwiftData and queries locally first; new exercises arrive via this response. The server is authoritative for exercise content. See `04-exercises.md` for the exercise schema.
+
 ### Observability
 
 Error tracking via Sentry across all three surfaces. iOS uses `sentry-cocoa` SPM (crash reporting, error capture, breadcrumbs). Web uses `@sentry/react` (React ErrorBoundary, API errors, WebSocket errors). The API worker uses Cloudflare Workers Observability with OTLP drain to Sentry -- no SDK in the Rust/WASM binary, just `console_error!` capture and invocation traces. Cloudflare Workers built-in analytics covers API health and latency. Sentry org: `crescendai`, projects: `crescendai-api`, `crescendai-web`, `crescendai-ios`.

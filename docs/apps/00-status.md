@@ -50,6 +50,7 @@ Stack: TanStack Start, Tailwind CSS v4, Web Audio API, MediaRecorder, WebSocket.
 | `WS /api/practice/ws/:sessionId` | IN PROGRESS | `apps/api/src/` | Real-time observation delivery (web path) |
 | `POST /api/chat/send` | IN PROGRESS | `apps/api/src/` | Streaming teacher chat (web path) |
 | D1 schema (students, sessions) | COMPLETE | `apps/api/` | Students, sessions, observations tables |
+| D1 schema (observations) | COMPLETE | `apps/api/` | Observations table ships with /api/ask pipeline |
 | D1 schema (exercises) | DEFINED | `apps/api/` | Tables defined in architecture, not migrated |
 | STOP classifier | NOT STARTED | -- | 6-weight logistic regression, weights extracted from sklearn |
 | Teaching moment selection | NOT STARTED | -- | STOP filter + blind-spot detection + ranking |

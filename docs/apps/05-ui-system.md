@@ -35,11 +35,11 @@ Start conservative (~20%) and increase based on engagement data.
 
 The two-stage pipeline from `02-pipeline.md` (analysis subagent + teacher LLM) extends to three stages when a visual component is needed.
 
-### Stage 1: Analysis Subagent (Haiku/Flash) -- unchanged
+### Stage 4a: Analysis Subagent (Groq / Llama 3.3 70B) -- unchanged
 
 Reasons about which moment matters, why, and what framing to use. Outputs structured handoff. See `02-pipeline.md` for details.
 
-### Stage 2: Teacher LLM (Sonnet/GPT-4o) -- extended output
+### Stage 4b: Teacher LLM (Anthropic / Sonnet 4.6) -- extended output
 
 Generates the observation text AND declares a **modality**:
 
@@ -70,23 +70,23 @@ The teacher thinks pedagogically: "they need to *see* this" or "they need to *pr
 | General encouragement or simple correction | `text_only` |
 | No score alignment available (piece not identified) | `text_only` (cannot show score) |
 
-### Stage 3: UI Subagent (Haiku/Flash) -- new
+### Stage 4c: UI Subagent (Groq / Llama 3.3 70B) -- new
 
 Takes the teacher's modality declaration + analysis context and produces a **component configuration** -- the JSON payload that the client uses to render the inline card.
 
 The UI subagent thinks like a designer: which component, what data to show, how to configure it, what annotations to add. It has access to the component schema definitions (what fields each component accepts) as its tool/context.
 
-**When stage 3 is skipped:** If `modality` is `text_only`, the Worker returns the observation immediately. No extra latency.
+**When stage 4c is skipped:** If `modality` is `text_only`, the Worker returns the observation immediately. No extra latency.
 
 ### Latency Budget
 
 | Stage | Latency |
 |-------|---------|
-| 1: Analysis subagent | ~0.5s |
-| 2: Teacher LLM | ~1.5s |
-| 3: UI subagent (when needed) | ~0.3-0.5s |
-| **Total (with component)** | **~2.4s** |
-| **Total (text-only)** | **~2.0s** |
+| 4a: Analysis subagent | ~0.3s |
+| 4b: Teacher LLM | ~1.5s |
+| 4c: UI subagent (when needed) | ~0.3-0.5s |
+| **Total (with component)** | **~2.1s** |
+| **Total (text-only)** | **~1.8s** |
 
 Within the <3s target for both paths.
 
@@ -382,6 +382,6 @@ Start simple, iterate:
 
 5. **Offline behavior:** Score highlight and exercise set can work offline (data is local or cached). Reference browser requires network. Keyboard guide depends on whether score data is cached. Should offline components degrade or simply not appear?
 
-6. **Chat history storage:** Component configurations are larger than text observations. How much does this bloat storage (SwiftData on iOS, session state on web)? Should component configs be stored separately and referenced by ID?
+6. ~~**Chat history storage:**~~ Resolved: component configs stored as nullable `component_config` JSON column in the `observations` table (see `03-memory-system.md`). Co-located with the observation they belong to.
 
 7. **Component as conversation turn:** When the student interacts with a component (taps "Try it" on an exercise, listens to a reference), should that interaction feed back into the conversation? E.g., "I see you tried the crescendo isolation exercise -- how did it feel?"
