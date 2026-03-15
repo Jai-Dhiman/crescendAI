@@ -1,6 +1,6 @@
 # Apps & Delivery System Status
 
-> **Status (2026-03-14):** Two-stage LLM pipeline IMPLEMENTED (subagent + teacher, Groq + Anthropic). HF inference endpoint DEPLOYED (A1-Max 4-fold ensemble, 80.8% pairwise, 6-dim). iOS audio capture COMPLETE. Web practice companion IN PROGRESS (chat, recording, auth). Auth + sync COMPLETE. STOP classifier NOT STARTED. Teaching moment selection NOT STARTED. Exercise system NOT STARTED. UI components DESIGNED.
+> **Status (2026-03-15):** Two-stage LLM pipeline IMPLEMENTED with bar-aligned musical analysis (subagent + teacher, Groq + Anthropic). HF inference endpoint DEPLOYED (A1-Max 4-fold ensemble + AMT + pedal CC64). STOP classifier IMPLEMENTED. Teaching moment selection IMPLEMENTED. Score following (DTW) IMPLEMENTED. Bar-aligned analysis engine IMPLEMENTED (all 6 dims, Tier 1/2/3). Durable Object practice sessions IMPLEMENTED. Web practice companion IN PROGRESS. Exercise system IMPLEMENTED. iOS audio capture COMPLETE. Auth + sync COMPLETE.
 
 *Core loop: student plays, cloud inference scores 6 dimensions, STOP classifier identifies teaching moments, two-stage subagent pipeline reasons about what matters, teacher LLM delivers one specific observation.*
 
@@ -52,10 +52,15 @@ Stack: TanStack Start, Tailwind CSS v4, Web Audio API, MediaRecorder, WebSocket.
 | D1 schema (students, sessions) | COMPLETE | `apps/api/` | Students, sessions, observations tables |
 | D1 schema (observations) | COMPLETE | `apps/api/` | Observations table ships with /api/ask pipeline |
 | D1 schema (exercises) | DEFINED | `apps/api/` | Tables defined in architecture, not migrated |
-| STOP classifier | NOT STARTED | -- | 6-weight logistic regression, weights extracted from sklearn |
-| Teaching moment selection | NOT STARTED | -- | STOP filter + blind-spot detection + ranking |
+| STOP classifier | IMPLEMENTED | `apps/api/src/services/stop.rs` | 6-weight logistic regression, AUC 0.845 |
+| Teaching moment selection | IMPLEMENTED | `apps/api/src/services/teaching_moments.rs` | STOP filter + blind-spot detection + positive moments + dedup |
+| Score following (DTW) | IMPLEMENTED | `apps/api/src/practice/score_follower.rs` | Onset+pitch subsequence DTW, cross-chunk continuity, re-anchoring |
+| Bar-aligned analysis engine | IMPLEMENTED | `apps/api/src/practice/analysis.rs` | All 6 dims, Tier 1/2/3 degradation, reference comparison |
+| Fuzzy piece matching | IMPLEMENTED | `apps/api/src/practice/piece_match.rs` | Bigram Dice against 242-piece catalog, demand tracking |
+| Score context loading | IMPLEMENTED | `apps/api/src/practice/score_context.rs` | R2 score + reference fetch, D1 catalog, piece request logging |
+| D1 schema (piece_requests) | COMPLETE | `apps/api/migrations/0005_piece_requests.sql` | Demand tracking for catalog expansion |
 | Synthesized facts | NOT STARTED | -- | Background synthesis from observation traces |
-| Exercise endpoints | NOT STARTED | -- | `GET /api/exercises`, exercise tracking |
+| Exercise endpoints | IMPLEMENTED | `apps/api/src/services/exercises.rs` | `GET /api/exercises`, exercise tracking |
 
 Bindings: D1 (students, sessions, exercises), KV (JWTs, rate limits), R2 (audio chunks), DO (practice sessions).
 
@@ -64,24 +69,28 @@ Bindings: D1 (students, sessions, exercises), KV (JWTs, rate limits), R2 (audio 
 | Component | Status | Notes |
 |---|---|---|
 | A1-Max 4-fold ensemble | DEPLOYED | 80.8% pairwise accuracy, R2=0.50, 6 dimensions |
-| Inference latency | ~1-2s | HF endpoint round-trip |
-| Handler | DEPLOYED | `apps/inference/handler.py` |
+| ByteDance AMT transcription | DEPLOYED | Notes + pedal CC64 events, sequential after MuQ |
+| Inference latency | ~1-2s | HF endpoint round-trip (MuQ + AMT sequential) |
+| Handler | DEPLOYED | `apps/inference/handler.py` (returns predictions + midi_notes + pedal_events) |
 | MAESTRO calibration | COMPLETE | `model/data/maestro_cache/calibration_stats.json` |
 
 ---
 
 ## Critical Path: End-to-End Feedback Loop
 
-The feedback loop is not yet closed. Four gates block the path from "student plays" to "student hears useful feedback" in production.
+The core feedback loop is now wired end-to-end on the web platform. The pipeline: student plays -> HF scores + AMT -> DO runs STOP classifier -> teaching moment selection -> score following (DTW) -> bar-aligned analysis -> enriched subagent prompt -> teacher observation delivered via WebSocket.
 
-| Gate | Component | Status | Blocks | Effort |
-|---|---|---|---|---|
-| 1 | STOP classifier in cloud worker | NOT STARTED | Teaching moment selection cannot trigger without it | Small (6-weight logistic regression, ~1 day) |
-| 2 | Teaching moment selection | NOT STARTED | Subagent receives no filtered moments to reason over | Medium (selection algorithm, blind-spot detection, ~1 week) |
-| 3 | Web real-time observations | IN PROGRESS | Web users cannot receive feedback during practice | Medium (WebSocket plumbing, DO state, ~2 weeks) |
-| 4 | Exercise system | NOT STARTED | System can observe problems but cannot prescribe fixes | Large (DB migration, seed data, endpoints, focus mode, ~3-4 weeks) |
+| Gate | Component | Status | Notes |
+|---|---|---|---|
+| 1 | STOP classifier | COMPLETE | 6-weight logistic regression, AUC 0.845 |
+| 2 | Teaching moment selection | COMPLETE | STOP + blind-spot + positive moments + dedup |
+| 3 | Web real-time observations | COMPLETE | DO orchestration, WebSocket delivery, bar-aligned analysis |
+| 4 | Score following + analysis | COMPLETE | DTW + Tier 1/2/3 analysis, all 6 dimensions |
+| 5 | Exercise system | PARTIAL | DB + endpoints implemented, focus mode NOT STARTED |
 
-**What works today:** The `/api/ask` endpoint accepts a pre-built teaching moment payload and returns a teacher observation via the two-stage pipeline. The inference endpoint scores audio chunks. Auth and sync are complete. The gap is the middle: nothing in production selects which chunk matters and why.
+**What works today:** A student can record on the web, chunks are scored by MuQ + transcribed by AMT, the DO runs STOP classification and teaching moment selection, score following maps to bar numbers (if piece is identified), the analysis engine produces per-dimension musical facts, and the enriched subagent prompt generates a bar-specific teacher observation delivered via WebSocket. Three-tier degradation: Tier 1 (full bar-aligned with score+reference), Tier 2 (absolute MIDI for unknown pieces), Tier 3 (scores only if AMT fails).
+
+**Remaining gaps:** Synthesized facts (memory consolidation), focus mode (exercise-driven practice), iOS cloud inference wiring, reference performance data generation (script exists, data not yet computed).
 
 ---
 
@@ -102,17 +111,21 @@ For system architecture, see `docs/architecture.md`.
 
 ## Development Roadmap
 
-### Phase 1: Close the Feedback Loop
+### Phase 1: Close the Feedback Loop -- COMPLETE (2026-03-15)
 
 **Goal:** A student can play, and the system tells them the one thing that matters. End-to-end on at least one platform.
 
-| Task | Depends On | Effort | Priority |
-|---|---|---|---|
-| Deploy STOP classifier in cloud worker | Trained weights from `model/src/masterclass_experiments/` | 1-2 days | P0 |
-| Implement teaching moment selection | STOP classifier | 1 week | P0 |
-| Wire iOS cloud inference client | HF endpoint (deployed) | 1 week | P0 |
-| Complete web recording + WebSocket observation flow | Teaching moment selection, DO sessions | 2 weeks | P0 |
-| Score alignment V1 (student-reported piece + bar) | Teaching moment selection | 1 week | P1 |
+| Task | Status | Notes |
+|---|---|---|
+| Deploy STOP classifier in cloud worker | COMPLETE | `stop.rs`, 6-weight logistic regression, AUC 0.845 |
+| Implement teaching moment selection | COMPLETE | `teaching_moments.rs`, STOP + blind-spot + positive + dedup |
+| Complete web recording + WebSocket observation flow | COMPLETE | DO orchestration, chunk upload, WebSocket delivery |
+| Score following (Phase 1c) | COMPLETE | `score_follower.rs`, onset+pitch DTW, cross-chunk continuity |
+| Bar-aligned analysis engine (Phase 1d) | COMPLETE | `analysis.rs`, all 6 dims, Tier 1/2/3 degradation |
+| Reference cache script (Phase 1e) | COMPLETE | `reference_cache.py`, data generation pending |
+| Fuzzy piece matching + demand tracking | COMPLETE | `piece_match.rs`, `score_context.rs`, `piece_requests` table |
+| Enrich subagent prompt with musical analysis | COMPLETE | `prompts.rs`, `<musical_analysis>` per-dimension facts |
+| Wire iOS cloud inference client | NOT STARTED | HF endpoint deployed, iOS code needs API integration |
 
 ### Phase 2: Memory and Exercises
 

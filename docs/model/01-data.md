@@ -140,12 +140,13 @@ model/data/                     Size
 
 See `04-north-star.md` for full pipeline vision and phase details.
 
-**Phase 1: Score Infrastructure (engineering, no new training data)**
+**Phase 1: Score Infrastructure (COMPLETE except reference data generation)**
 
 ```
-[ ] Score MIDI library V1 (ASAP = 242 pieces, MIDI parsing for bar structure/notes/pedal/time+key sigs)
+[x] Score MIDI library V1 (ASAP = 242 pieces, deployed to D1 + R2, bar-centric JSON)
 [ ] Score MIDI library V2 (expand to MAESTRO + external sources, MusicXML for richer annotations)
-[ ] Reference performance cache (per-bar statistics from MAESTRO professional recordings)
+[x] Reference performance cache script (model/src/score_library/reference_cache.py)
+[ ] Reference performance data (run script on MAESTRO recordings, upload to R2)
 ```
 
 Sources: ASAP score MIDIs (242 pieces, V1). MAESTRO score MIDIs require external sourcing (performances exist, scores don't). IMSLP/MuseScore for expansion. MusicXML import for dynamics text, articulation marks, section labels (future enrichment).

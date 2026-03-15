@@ -1,6 +1,6 @@
 # CrescendAI Research & Product Timeline
 
-> **Status (2026-03-14):** Audio encoder COMPLETE (A1-Max deployed, 80.8% ensemble pairwise). Symbolic encoder COMPLETE (S2 GNN, 71.3% pairwise). Layer 1 validation COMPLETE (all gates pass). YouTube AMT validation COMPLETE (79.9% agreement on mediocre audio). Fusion DEFERRED (failed in ISMIR paper). All inference cloud-only via HF endpoint.
+> **Status (2026-03-15):** Audio encoder COMPLETE (A1-Max deployed, 80.8% ensemble pairwise). Symbolic encoder COMPLETE (S2 GNN, 71.3% pairwise). Layer 1 validation COMPLETE (all gates pass). YouTube AMT validation COMPLETE (79.9% agreement on mediocre audio). Fusion DEFERRED (failed in ISMIR paper). All inference cloud-only via HF endpoint. **Phase 1 score infrastructure COMPLETE:** score MIDI library (242 pieces), cloud AMT with pedal extraction, score following (DTW), bar-aligned analysis engine (all 6 dims), reference cache generation script.
 
 *Core question: "How well is the student playing what the score asks for?"*
 
@@ -130,31 +130,34 @@ See `04-north-star.md` for the full 8-stage pipeline vision and detailed design 
 
 **Goal:** Transform LLM input quality. Same A1-Max model, dramatically better feedback. This delivers 80% of the user-facing improvement.
 
-**1a. Score MIDI library** ([design spec](../superpowers/specs/2026-03-14-score-midi-library-design.md))
-- V1: ASAP score MIDIs (242 pieces, MIDI-only parsing)
-- V2: Expand to MAESTRO (external score sourcing), IMSLP/MuseScore, MusicXML for richer annotations
-- Graceful degradation to absolute scoring for unknown pieces
+**1a. Score MIDI library -- COMPLETE**
+- V1: 242 ASAP score MIDIs deployed to D1 + R2, bar-centric JSON with notes/pedal/time sigs
+- V2: Expand to MAESTRO (external score sourcing), IMSLP/MuseScore, MusicXML for richer annotations (future)
+- Graceful degradation to absolute scoring (Tier 2) for unknown pieces
 
-**1b. Cloud AMT service**
+**1b. Cloud AMT service -- COMPLETE**
 - ByteDance piano transcription alongside MuQ on HF endpoint
-- Single upload, two outputs (scores + MIDI)
-- Already validated: 0% pairwise drop (MAESTRO), 79.9% agreement (YouTube)
+- Single upload, two outputs (scores + MIDI + pedal CC64 events)
+- Validated: 0% pairwise drop (MAESTRO), 79.9% agreement (YouTube)
 
-**1c. Score following**
-- Onset-based DTW between AMT output and score MIDI
-- Bar map: `[{chunk_offset, bar, beat}]`
-- Re-anchoring when student skips ahead or restarts
+**1c. Score following -- COMPLETE**
+- Onset+pitch subsequence DTW between AMT output and score MIDI (`apps/api/src/practice/score_follower.rs`)
+- Cross-chunk continuity via FollowerState (last_known_bar)
+- Re-anchoring when cost > threshold (student skips ahead or restarts)
+- Median onset offset correction isolates true timing deviations from alignment artifacts
+- Fuzzy piece matching against catalog (bigram Dice coefficient) with demand tracking for unmatched pieces
 
-**1d. Bar-aligned musical analysis engine**
-- Transforms model scores + AMT + score into structured musical facts
-- Dynamics: "crescendo bars 12-16 reaches 70% of reference"
-- Pedaling: "pedal held 3.2 beats, harmony changes every 2 beats"
-- Replaces raw scores as subagent input
+**1d. Bar-aligned musical analysis engine -- COMPLETE**
+- All 6 dimensions analyzed per chunk (`apps/api/src/practice/analysis.rs`)
+- Tier 1 (score context): bar-aligned facts with score + reference comparison
+- Tier 2 (no score): absolute MIDI statistics (velocity, IOI, pedal events, note duration)
+- Tier 3 (no AMT): scores only (current behavior, graceful degradation)
+- Enriched piece_context flows to subagent prompt with `<musical_analysis>` per-dimension facts
 
-**1e. Reference performance cache**
-- Per-bar statistics from MAESTRO professional recordings
-- Velocity curves, onset deviation patterns, pedal usage
-- Enables "compared to professional recordings" context
+**1e. Reference performance cache -- SCRIPT COMPLETE, DATA PENDING**
+- Generation script: `model/src/score_library/reference_cache.py` (full DTW alignment, per-bar stats)
+- Per-bar statistics: velocity, onset deviation, pedal duration, note duration ratio, performer count
+- Requires running on MAESTRO recordings and uploading profiles to R2 (offline job, not yet executed)
 
 ### Phase 2: Temporal + Practice Intelligence (2-3 months, depends on Phase 1)
 

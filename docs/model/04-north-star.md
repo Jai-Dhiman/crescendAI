@@ -2,7 +2,7 @@
 
 Vision document for the ideal piano performance evaluation system, from recording to actionable feedback. Captures the complete 8-stage pipeline, phased implementation roadmap, and the rationale behind every architectural decision.
 
-> **Status (2026-03-14):** Vision document. Phase 1 (score infrastructure) is the recommended next focus. See `03-encoders.md` for current model status.
+> **Status (2026-03-15):** Vision document. **Phase 1 (score infrastructure) is COMPLETE:** score library (242 pieces), cloud AMT with pedal, score following (DTW), bar-aligned analysis (all 6 dims), reference cache script. Phase 2 (temporal + practice intelligence) is the recommended next focus. See `03-encoders.md` for model status, `00-research-timeline.md` for Phase 1 details.
 
 ---
 
