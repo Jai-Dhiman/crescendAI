@@ -4,7 +4,7 @@
 
 **Goal:** Wire the CrescendAI web practice companion from mock mode to the real inference and observation pipeline.
 
-**Architecture:** Remove the `MOCK_MODE` flag in `usePracticeSession.ts` and let the existing real code paths run. Add a client-side observation throttle (3-minute window), chunk upload tracking with retry, "How was that?" streaming via `/api/ask`, and robust error handling (reconnection, offline, auth expiry). ScorePanel gated to dev-only.
+**Architecture:** Remove the `MOCK_MODE` flag in `usePracticeSession.ts` and let the existing real code paths run. Add a client-side observation throttle (3-minute window), chunk upload tracking with retry, and robust error handling (reconnection, offline, auth expiry). ScorePanel gated to dev-only. The session summary (pushed via WebSocket on stop) IS the automatic "how was that?" -- no explicit ask button needed. Follow-up questions ("tell me more about my pedaling") go through the existing `api.chat.send()`.
 
 **Tech Stack:** TanStack Start (React 19), TypeScript, Zustand, Vitest, Tailwind CSS v4, @sentry/react
 
@@ -20,13 +20,13 @@
 |------|--------|----------------|
 | `src/lib/observation-throttle.ts` | Create | Pure TS class: 3-min delivery window, queue size 1, no React deps |
 | `src/lib/observation-throttle.test.ts` | Create | Unit tests for throttle logic |
-| `src/lib/practice-api.ts` | Modify | Add `ask()` streaming method for `POST /api/ask` |
-| `src/hooks/usePracticeSession.ts` | Modify | Remove mock mode, add chunk tracking, wsStatus, offline handling, throttle integration, askHowWasThat |
-| `src/components/ChatInput.tsx` | Modify | Add `onAskHowWasThat` + `showHowWasThat` props (for post-recording use) |
-| `src/components/AppChat.tsx` | Modify | Wire handleAskHowWasThat, remove mock refs, gate ScorePanel |
-| `src/components/ListeningMode.tsx` | Modify | Add wsStatus reconnection indicator, add "How was that?" button, add onAskHowWasThat prop |
+| `src/hooks/usePracticeSession.ts` | Modify | Remove mock mode, add chunk tracking, wsStatus, offline handling, throttle integration |
+| `src/components/AppChat.tsx` | Modify | Remove mock refs, gate ScorePanel |
+| `src/components/ListeningMode.tsx` | Modify | Add wsStatus reconnection indicator |
 | `src/stores/score-panel.ts` | Modify | Gate `open()` behind `import.meta.env.DEV` |
 | `vite.config.ts` | Modify | Add vitest `test` config block |
+
+**Not modified:** `src/lib/practice-api.ts` (no `ask()` needed -- follow-ups go through existing `api.chat.send()`), `src/components/ChatInput.tsx` (no "How was that?" button).
 
 ---
 
@@ -312,103 +312,7 @@ size 1, driven externally by the hook's 1-second timer."
 
 ## Chunk 2: practice-api.ts + ScorePanel Gate + Mock Removal
 
-### Task 3: Add `ask()` streaming method to practice-api.ts
-
-**Files:**
-- Modify: `apps/web/src/lib/practice-api.ts`
-
-**Context:** The `ask()` method streams from `POST /api/ask` using SSE, same wire format as `api.chat.send()` in `api.ts`. It reuses the `ChatStreamEvent` type from `api.ts`.
-
-- [ ] **Step 1: Add the ask() method**
-
-Add to the `practiceApi` object in `apps/web/src/lib/practice-api.ts`, after the `connectWebSocket` method. Also add the import for `ChatStreamEvent` at the top.
-
-```typescript
-// At top of file, add import:
-import type { ChatStreamEvent } from "./api";
-
-// Add to practiceApi object, after connectWebSocket():
-	async ask(
-		sessionId: string,
-		conversationId: string | null,
-		onEvent: (event: ChatStreamEvent) => void,
-	): Promise<void> {
-		const res = await fetch(`${API_BASE}/api/ask`, {
-			method: "POST",
-			credentials: "include",
-			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify({
-				session_id: sessionId,
-				conversation_id: conversationId,
-			}),
-		});
-
-		if (!res.ok) {
-			if (res.status === 401) {
-				throw new Error("Session expired. Please sign in again.");
-			}
-			throw new Error(`Failed to ask: ${res.status}`);
-		}
-
-		if (!res.body) throw new Error("Response body is empty");
-
-		const reader = res.body.getReader();
-		const decoder = new TextDecoder();
-		let lineBuffer = "";
-
-		try {
-			while (true) {
-				const { done, value } = await reader.read();
-				if (done) break;
-
-				lineBuffer += decoder.decode(value, { stream: true });
-				const lines = lineBuffer.split("\n");
-				lineBuffer = lines.pop() ?? "";
-
-				for (const line of lines) {
-					if (line.startsWith("data: ")) {
-						try {
-							const event: ChatStreamEvent = JSON.parse(line.slice(6));
-							onEvent(event);
-						} catch {
-							// Skip unparseable lines
-						}
-					}
-				}
-			}
-
-			if (lineBuffer.startsWith("data: ")) {
-				try {
-					const event: ChatStreamEvent = JSON.parse(lineBuffer.slice(6));
-					onEvent(event);
-				} catch {
-					// Skip unparseable lines
-				}
-			}
-		} finally {
-			reader.releaseLock();
-		}
-	},
-```
-
-- [ ] **Step 2: Verify TypeScript compiles**
-
-Run: `cd apps/web && bunx tsc --noEmit`
-Expected: No type errors.
-
-- [ ] **Step 3: Commit**
-
-```bash
-git add apps/web/src/lib/practice-api.ts
-git commit -m "add ask() streaming method to practice-api
-
-Streams from POST /api/ask using SSE, reuses ChatStreamEvent type.
-Same wire format as api.chat.send()."
-```
-
----
-
-### Task 4: Gate ScorePanel behind import.meta.env.DEV
+### Task 3: Gate ScorePanel behind import.meta.env.DEV
 
 **Files:**
 - Modify: `apps/web/src/stores/score-panel.ts`
@@ -450,12 +354,12 @@ ScorePanel stays functional in dev for testing with mock data."
 
 ---
 
-### Task 5: Remove MOCK_MODE and rewrite usePracticeSession
+### Task 4: Remove MOCK_MODE and rewrite usePracticeSession
 
 **Files:**
 - Modify: `apps/web/src/hooks/usePracticeSession.ts`
 
-**Context:** This is the largest change. Remove the mock flag, add chunk upload tracking with retry, WebSocket status with exponential backoff, network offline handling, observation throttle integration, and the `askHowWasThat` method. The existing real code paths are mostly intact -- we're removing the mock gates around them and adding the missing pieces.
+**Context:** This is the largest change. Remove the mock flag, add chunk upload tracking with retry, WebSocket status with exponential backoff, network offline handling, and observation throttle integration. The existing real code paths are mostly intact -- we're removing the mock gates around them and adding the missing pieces.
 
 - [ ] **Step 1: Remove mock imports and MOCK_MODE flag**
 
@@ -479,7 +383,6 @@ const MOCK_MODE = true; // Set to false when real inference is available
 With:
 ```typescript
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { ChatStreamEvent } from "../lib/api";
 import { ObservationThrottle } from "../lib/observation-throttle";
 import type {
 	DimScores,
@@ -547,10 +450,6 @@ export interface UsePracticeSessionReturn {
 	isOnline: boolean;
 	start: () => Promise<void>;
 	stop: () => void;
-	askHowWasThat: (
-		conversationId: string | null,
-		onEvent: (event: ChatStreamEvent) => void,
-	) => Promise<void>;
 }
 ```
 
@@ -941,27 +840,7 @@ With:
 	}, [state, cleanup]);
 ```
 
-- [ ] **Step 17: Add askHowWasThat method**
-
-After the `stop` callback, add:
-
-```typescript
-	const askHowWasThat = useCallback(
-		async (
-			conversationId: string | null,
-			onEvent: (event: ChatStreamEvent) => void,
-		): Promise<void> => {
-			const sessionId = sessionIdRef.current;
-			if (!sessionId) {
-				throw new Error("No active practice session");
-			}
-			await practiceApi.ask(sessionId, conversationId, onEvent);
-		},
-		[],
-	);
-```
-
-- [ ] **Step 18: Update return object**
+- [ ] **Step 17: Update return object**
 
 Replace the return block:
 
@@ -997,16 +876,15 @@ With:
 		isOnline,
 		start,
 		stop,
-		askHowWasThat,
 	};
 ```
 
-- [ ] **Step 19: Verify TypeScript compiles**
+- [ ] **Step 18: Verify TypeScript compiles**
 
 Run: `cd apps/web && bunx tsc --noEmit`
-Expected: Errors in `AppChat.tsx` (references to removed `mockSessionData`) and `ListeningMode.tsx` (new `onAskHowWasThat` prop) -- these are expected and will be fixed in Tasks 7-8.
+Expected: Errors in `AppChat.tsx` (references to removed `mockSessionData`) and `ListeningMode.tsx` (new `wsStatus` prop) -- these are expected and will be fixed in Tasks 5-6.
 
-- [ ] **Step 20: Commit**
+- [ ] **Step 19: Commit**
 
 ```bash
 git add apps/web/src/hooks/usePracticeSession.ts
@@ -1017,83 +895,25 @@ git commit -m "remove mock mode, add real pipeline integration to usePracticeSes
 - Add WebSocket status with exponential backoff (1s-30s, 5 attempts)
 - Add network offline detection and chunk queuing
 - Integrate ObservationThrottle for 3-minute delivery window
-- Add askHowWasThat() for explicit observation requests
 - Build session summary from real WebSocket data"
 ```
 
 ---
 
-## Chunk 3: UI Components (ChatInput, ListeningMode, AppChat)
+## Chunk 3: UI Components (ListeningMode, AppChat)
 
-Note: `RecordingBar.tsx` exists but is never imported or rendered anywhere in the codebase. `ListeningMode` is the active recording UI. RecordingBar is left unchanged.
+Note: `RecordingBar.tsx` exists but is never imported or rendered anywhere in the codebase. `ListeningMode` is the active recording UI. RecordingBar and ChatInput are left unchanged.
 
-### Task 6: Add "How was that?" to ChatInput
+No "How was that?" button is needed. The session summary (pushed via WebSocket when recording stops) IS the automatic feedback. Follow-up questions ("tell me more about my pedaling") go through the existing `api.chat.send()` in the chat input.
 
-**Files:**
-- Modify: `apps/web/src/components/ChatInput.tsx`
-
-**Context:** Add two optional props: `onAskHowWasThat` and `showHowWasThat`. When `showHowWasThat` is true, render a "How was that?" button alongside the record button. This button is visible in the chat when the user is NOT in ListeningMode fullscreen (e.g., after stopping recording while summary is pending, or if they dismiss ListeningMode early).
-
-- [ ] **Step 1: Add new props to ChatInputProps**
-
-In `apps/web/src/components/ChatInput.tsx`, update the interface:
-
-```typescript
-interface ChatInputProps {
-	onSend: (message: string) => void;
-	onRecord?: () => void;
-	onAskHowWasThat?: () => void;
-	showHowWasThat?: boolean;
-	disabled: boolean;
-	placeholder?: string;
-	centered?: boolean;
-	recordButtonRef?: React.RefObject<HTMLButtonElement | null>;
-}
-```
-
-Add `onAskHowWasThat` and `showHowWasThat` to the destructured props.
-
-- [ ] **Step 2: Add the "How was that?" button**
-
-In the JSX, after the record button block (`{!hasText && ( ... )}`) but inside the same container div, add:
-
-```tsx
-				{showHowWasThat && !hasText && (
-					<button
-						type="button"
-						onClick={onAskHowWasThat}
-						className="shrink-0 px-4 h-10 flex items-center justify-center rounded-full bg-surface border border-border text-body-sm text-cream hover:bg-surface-2 transition animate-pop-in"
-					>
-						How was that?
-					</button>
-				)}
-```
-
-- [ ] **Step 3: Verify TypeScript compiles**
-
-Run: `cd apps/web && bunx tsc --noEmit`
-Expected: No new errors from ChatInput (existing errors from AppChat are expected).
-
-- [ ] **Step 4: Commit**
-
-```bash
-git add apps/web/src/components/ChatInput.tsx
-git commit -m "add 'How was that?' button to ChatInput
-
-Optional props: onAskHowWasThat and showHowWasThat. Button appears
-alongside the record button when showHowWasThat is true."
-```
-
----
-
-### Task 7: Update ListeningMode for wsStatus + "How was that?"
+### Task 5: Update ListeningMode for wsStatus
 
 **Files:**
 - Modify: `apps/web/src/components/ListeningMode.tsx`
 
-**Context:** Add `wsStatus` prop for reconnection indicator. Add `onAskHowWasThat` prop so the student can ask "How was that?" while in the fullscreen ListeningMode overlay (this is the primary recording UI -- ChatInput is hidden behind it).
+**Context:** Add `wsStatus` prop for reconnection indicator during recording.
 
-- [ ] **Step 1: Add wsStatus and onAskHowWasThat to props**
+- [ ] **Step 1: Add wsStatus to props**
 
 In `apps/web/src/components/ListeningMode.tsx`, update the interface:
 
@@ -1108,7 +928,6 @@ interface ListeningModeProps {
 	error: string | null;
 	wsStatus: WsStatus;
 	onStop: () => void;
-	onAskHowWasThat?: () => void;
 	originRect: DOMRect | null;
 	onExit: () => void;
 	pieceContext?: { piece: string; section?: string } | null;
@@ -1117,7 +936,7 @@ interface ListeningModeProps {
 }
 ```
 
-Add `wsStatus` and `onAskHowWasThat` to the destructured props.
+Add `wsStatus` to the destructured props.
 
 - [ ] **Step 2: Add reconnection indicator**
 
@@ -1143,58 +962,35 @@ import {
 } from "@phosphor-icons/react";
 ```
 
-- [ ] **Step 3: Add "How was that?" button to the bottom bar**
-
-In the bottom bar section, add a "How was that?" button to the left of the notepad toggle:
-
-```tsx
-						<div className="flex items-center gap-4">
-							{/* "How was that?" button */}
-							{isRecording && onAskHowWasThat && (
-								<button
-									type="button"
-									onClick={onAskHowWasThat}
-									className="px-4 h-10 rounded-lg bg-surface border border-border text-body-sm text-cream hover:bg-surface-2 transition"
-								>
-									How was that?
-								</button>
-							)}
-							{/* Notepad toggle */}
-							<button
-```
-
-This replaces the existing `<div className="flex items-center gap-4">` section in the bottom bar, inserting the new button before the existing notepad and stop buttons.
-
-- [ ] **Step 4: Verify TypeScript compiles**
+- [ ] **Step 3: Verify TypeScript compiles**
 
 Run: `cd apps/web && bunx tsc --noEmit`
-Expected: Errors in AppChat (caller for new `onAskHowWasThat` prop) -- expected, fixed next.
+Expected: Errors in AppChat (caller for new `wsStatus` prop) -- expected, fixed next.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 4: Commit**
 
 ```bash
 git add apps/web/src/components/ListeningMode.tsx
-git commit -m "add reconnection indicator and 'How was that?' to ListeningMode
+git commit -m "add WebSocket reconnection indicator to ListeningMode
 
-Shows 'Reconnecting...' during WebSocket reconnection. Adds 'How
-was that?' button to the bottom bar for explicit feedback requests
+Shows 'Reconnecting...' with spinner when wsStatus is reconnecting
 during recording."
 ```
 
 ---
 
-### Task 8: Update AppChat to wire everything together
+### Task 6: Update AppChat to wire everything together
 
 **Files:**
 - Modify: `apps/web/src/components/AppChat.tsx`
 
-**Context:** Remove `mockSessionData` references, wire `handleAskHowWasThat`, pass new props to child components, gate ScorePanel auto-open.
+**Context:** Remove `mockSessionData` references, pass `wsStatus` to ListeningMode, gate ScorePanel auto-open.
 
 - [ ] **Step 1: Remove mock-related code**
 
 In `apps/web/src/components/AppChat.tsx`:
 
-Remove the `useEffect` that auto-opens ScorePanel from `practice.mockSessionData`. This also eliminates the last reference to `practice.mockSessionData` (which no longer exists on the hook return type after Task 5).
+Remove the `useEffect` that auto-opens ScorePanel from `practice.mockSessionData`. This also eliminates the last reference to `practice.mockSessionData` (which no longer exists on the hook return type after Task 4).
 
 ```typescript
 	// Auto-open score panel when mock session data arrives
@@ -1205,93 +1001,7 @@ Remove the `useEffect` that auto-opens ScorePanel from `practice.mockSessionData
 	}, [practice.mockSessionData, showListeningMode, scorePanel.open]);
 ```
 
-- [ ] **Step 2: Add handleAskHowWasThat function**
-
-After the `handleExitListeningMode` function, add:
-
-```typescript
-	async function handleAskHowWasThat() {
-		if (isStreaming) return;
-
-		setIsStreaming(true);
-		try {
-			await practice.askHowWasThat(
-				activeConversationId,
-				(event: ChatStreamEvent) => {
-					switch (event.type) {
-						case "start": {
-							if (event.conversation_id && !activeConversationId) {
-								setActiveConversationId(event.conversation_id);
-							}
-							setMessages((prev) => {
-								streamingIndexRef.current = prev.length;
-								return [
-									...prev,
-									{
-										id: `ask-${Date.now()}`,
-										role: "assistant" as const,
-										content: "",
-										created_at: new Date().toISOString(),
-										streaming: true,
-									},
-								];
-							});
-							break;
-						}
-						case "delta":
-							if (event.text) {
-								appendDelta(event.text);
-							}
-							break;
-						case "done": {
-							if (rafIdRef.current) {
-								cancelAnimationFrame(rafIdRef.current);
-								rafIdRef.current = 0;
-							}
-							const remaining = deltaBufferRef.current;
-							deltaBufferRef.current = "";
-							const idx = streamingIndexRef.current;
-							streamingIndexRef.current = -1;
-
-							setMessages((prev) => {
-								const updated = [...prev];
-								const msg = updated[idx];
-								if (msg) {
-									updated[idx] = {
-										...msg,
-										content: msg.content + remaining,
-										streaming: false,
-									};
-								}
-								return updated;
-							});
-							setIsStreaming(false);
-							break;
-						}
-					}
-				},
-			);
-		} catch (e) {
-			if (rafIdRef.current) {
-				cancelAnimationFrame(rafIdRef.current);
-				rafIdRef.current = 0;
-			}
-			deltaBufferRef.current = "";
-			const idx = streamingIndexRef.current;
-			streamingIndexRef.current = -1;
-			if (idx >= 0) {
-				setMessages((prev) => prev.filter((_, i) => i !== idx));
-			}
-
-			const errorMessage =
-				e instanceof Error ? e.message : "Failed to get feedback";
-			addToast({ type: "error", message: errorMessage });
-			setIsStreaming(false);
-		}
-	}
-```
-
-- [ ] **Step 3: Pass new props to ListeningMode**
+- [ ] **Step 2: Pass wsStatus to ListeningMode**
 
 Update the `<ListeningMode>` JSX to include `wsStatus`:
 
@@ -1305,7 +1015,6 @@ Update the `<ListeningMode>` JSX to include `wsStatus`:
 						error={practice.error}
 						wsStatus={practice.wsStatus}
 						onStop={practice.stop}
-						onAskHowWasThat={handleAskHowWasThat}
 						originRect={recordButtonRect}
 						onExit={handleExitListeningMode}
 						sessionNotes={sessionNotes}
@@ -1315,43 +1024,29 @@ Update the `<ListeningMode>` JSX to include `wsStatus`:
 				)}
 ```
 
-- [ ] **Step 4: Pass new props to ChatInput**
-
-Update both `<ChatInput>` instances (empty state and messages state) to include:
-
-```tsx
-							onAskHowWasThat={handleAskHowWasThat}
-							showHowWasThat={
-								practice.state === "recording" ||
-								practice.state === "summarizing"
-							}
-```
-
-- [ ] **Step 5: Verify TypeScript compiles cleanly**
+- [ ] **Step 3: Verify TypeScript compiles cleanly**
 
 Run: `cd apps/web && bunx tsc --noEmit`
-Expected: No type errors. All removed `mockSessionData` references are gone, all new props are wired.
+Expected: No type errors. All removed `mockSessionData` references are gone, `wsStatus` is wired.
 
-- [ ] **Step 6: Run all tests**
+- [ ] **Step 4: Run all tests**
 
 Run: `cd apps/web && bun run test`
 Expected: All ObservationThrottle tests pass.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
 git add apps/web/src/components/AppChat.tsx
 git commit -m "wire real pipeline integration in AppChat
 
 - Remove mockSessionData references and ScorePanel auto-open
-- Add handleAskHowWasThat with streaming response handling
-- Pass wsStatus to ListeningMode
-- Pass showHowWasThat and onAskHowWasThat to ChatInput"
+- Pass wsStatus to ListeningMode"
 ```
 
 ---
 
-### Task 9: Verify build and lint
+### Task 7: Verify build and lint
 
 **Files:** None (verification only)
 

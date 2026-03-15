@@ -7,8 +7,8 @@ Wire the CrescendAI web practice companion from mock mode to the real inference 
 - Remove `MOCK_MODE` flag from `usePracticeSession.ts`
 - Real session lifecycle (start, chunk upload, WebSocket, stop)
 - Observation throttle (3-minute window, client-side)
-- "How was that?" explicit ask via `/api/ask`
-- Session summary in chat
+- Session summary in chat (automatic "how was that?" -- no explicit button needed)
+- Follow-up questions via existing `api.chat.send()` (no new `/api/ask` client method)
 - Error handling (reconnection, offline, auth expiry)
 - ScorePanel gated to dev-only (real score alignment not yet available)
 
