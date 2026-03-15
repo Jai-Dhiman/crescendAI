@@ -1,5 +1,6 @@
 pub mod ask;
 pub mod chat;
+pub mod exercises;
 pub mod goals;
 pub mod llm;
 pub mod memory;

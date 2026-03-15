@@ -440,6 +440,46 @@ async fn fetch(
         )).await;
     }
 
+    // Exercise catalog (authenticated)
+    if path == "/api/exercises" && method == http::Method::GET {
+        let headers = req.headers().clone();
+        let query_string = req.uri().query().unwrap_or_default().to_string();
+        return into_worker_response(with_cors(
+            crate::services::exercises::handle_exercises(&env, &headers, &query_string).await,
+            origin.as_deref(),
+        )).await;
+    }
+
+    // Assign exercise to student (authenticated)
+    if path == "/api/exercises/assign" && method == http::Method::POST {
+        let headers = req.headers().clone();
+        let body = req
+            .into_body()
+            .collect()
+            .await
+            .map(|b| b.to_bytes().to_vec())
+            .unwrap_or_default();
+        return into_worker_response(with_cors(
+            crate::services::exercises::handle_assign_exercise(&env, &headers, &body).await,
+            origin.as_deref(),
+        )).await;
+    }
+
+    // Complete exercise (authenticated)
+    if path == "/api/exercises/complete" && method == http::Method::POST {
+        let headers = req.headers().clone();
+        let body = req
+            .into_body()
+            .collect()
+            .await
+            .map(|b| b.to_bytes().to_vec())
+            .unwrap_or_default();
+        return into_worker_response(with_cors(
+            crate::services::exercises::handle_complete_exercise(&env, &headers, &body).await,
+            origin.as_deref(),
+        )).await;
+    }
+
     // Health check
     if path == "/health" {
         return into_worker_response(with_cors(
