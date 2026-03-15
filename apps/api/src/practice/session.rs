@@ -1,26 +1,62 @@
+use std::cell::RefCell;
 use std::collections::HashMap;
+use wasm_bindgen::JsValue;
 use worker::*;
 
+use crate::practice::dims::DIMS_6;
 use crate::practice::teaching_moment::DimStats;
+use crate::services::stop;
+use crate::services::teaching_moments::{
+    RecentObservation, ScoredChunk, StudentBaselines,
+};
+
+const ALARM_DURATION_MS: i64 = 30 * 60 * 1000; // 30 minutes
+const OBSERVATION_THROTTLE_MS: u64 = 180_000; // 3 minutes
 
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub struct ObservationRecord {
+    pub id: String,
     pub text: String,
     pub dimension: String,
     pub framing: String,
     pub chunk_index: usize,
-    pub z_score: f64,
+    pub score: f64,
+    pub baseline: f64,
+    pub reasoning_trace: String,
+    pub is_fallback: bool,
+}
+
+struct SessionState {
+    session_id: String,
+    student_id: String,
+    baselines: Option<StudentBaselines>,
+    baselines_loaded: bool,
+    scored_chunks: Vec<ScoredChunk>,
+    observations: Vec<ObservationRecord>,
+    dim_stats: DimStats,
+    last_observation_at: Option<u64>,
+}
+
+impl Default for SessionState {
+    fn default() -> Self {
+        Self {
+            session_id: String::new(),
+            student_id: String::new(),
+            baselines: None,
+            baselines_loaded: false,
+            scored_chunks: Vec::new(),
+            observations: Vec::new(),
+            dim_stats: DimStats::default(),
+            last_observation_at: None,
+        }
+    }
 }
 
 #[durable_object]
 pub struct PracticeSession {
     state: State,
     env: Env,
-    session_id: String,
-    student_id: String,
-    scores: Vec<HashMap<String, f64>>,
-    observations: Vec<ObservationRecord>,
-    dim_stats: DimStats,
+    inner: RefCell<SessionState>,
 }
 
 impl DurableObject for PracticeSession {
@@ -28,34 +64,45 @@ impl DurableObject for PracticeSession {
         Self {
             state,
             env,
-            session_id: String::new(),
-            student_id: String::new(),
-            scores: Vec::new(),
-            observations: Vec::new(),
-            dim_stats: DimStats::default(),
+            inner: RefCell::new(SessionState::default()),
         }
     }
 
     async fn fetch(&self, req: Request) -> Result<Response> {
-        // Extract session_id from URL path
         let url = req.url()?;
         let path = url.path();
-        let session_id = path
-            .strip_prefix("/ws/")
-            .unwrap_or("")
-            .to_string();
+        let session_id = path.strip_prefix("/ws/").unwrap_or("").to_string();
 
-        // TODO: Extract auth token from query param and validate JWT
-        // For now, accept all connections
+        // Extract student_id from query param (set by server.rs after auth validation)
+        let student_id = url.query_pairs()
+            .find(|(k, _)| k == "student_id")
+            .map(|(_, v)| v.to_string())
+            .unwrap_or_default();
+
+        // Store session info (on first connect only; reconnections keep existing state)
+        {
+            let mut s = self.inner.borrow_mut();
+            if s.session_id.is_empty() {
+                s.session_id = session_id.clone();
+                s.student_id = student_id;
+            }
+        }
+
+        // Close any existing WebSocket connections (reconnection case)
+        let existing_sockets = self.state.get_websockets();
+        for old_ws in existing_sockets {
+            let _ = old_ws.close(Some(1000), Some(String::from("New connection replacing old one")));
+        }
 
         // Accept WebSocket upgrade
         let pair = WebSocketPair::new()?;
         let server = pair.server;
-
-        // Tag the WebSocket with session info for later retrieval
         self.state.accept_web_socket(&server);
 
-        // Send welcome message
+        // Set 30-minute alarm
+        self.state.storage().set_alarm(ALARM_DURATION_MS).await?;
+
+        // Send welcome
         let welcome = serde_json::json!({
             "type": "connected",
             "sessionId": session_id,
@@ -81,44 +128,13 @@ impl DurableObject for PracticeSession {
         match msg_type {
             "chunk_ready" => {
                 let index = parsed.get("index").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
-                let _r2_key = parsed.get("r2Key").and_then(|v| v.as_str()).unwrap_or("");
-
-                // For now, send a placeholder chunk_processed event.
-                // Real inference integration happens in Task 5/6.
-                let placeholder_scores = serde_json::json!({
-                    "dynamics": 0.0,
-                    "timing": 0.0,
-                    "pedaling": 0.0,
-                    "articulation": 0.0,
-                    "phrasing": 0.0,
-                    "interpretation": 0.0,
-                });
-
-                let response = serde_json::json!({
-                    "type": "chunk_processed",
-                    "index": index,
-                    "scores": placeholder_scores,
-                });
-                ws.send_with_str(&response.to_string())?;
+                let r2_key = parsed.get("r2Key").and_then(|v| v.as_str()).unwrap_or("");
+                self.handle_chunk_ready(&ws, index, r2_key).await?;
             }
             "end_session" => {
-                // For now, send a placeholder summary.
-                // Real summary generation happens in Task 6.
-                let summary = serde_json::json!({
-                    "type": "session_summary",
-                    "observations": [],
-                    "summary": "Practice session complete. Detailed analysis will be available soon.",
-                });
-                ws.send_with_str(&summary.to_string())?;
+                self.finalize_session(Some(&ws)).await;
             }
-            _ => {
-                // Unknown message type, echo it back for debugging
-                let echo = serde_json::json!({
-                    "type": "echo",
-                    "data": parsed,
-                });
-                ws.send_with_str(&echo.to_string())?;
-            }
+            _ => {}
         }
 
         Ok(())
@@ -131,6 +147,431 @@ impl DurableObject for PracticeSession {
         _reason: String,
         _was_clean: bool,
     ) -> Result<()> {
+        // Client disconnected -- finalize if we have data
+        let has_chunks = !self.inner.borrow().scored_chunks.is_empty();
+        if has_chunks {
+            self.finalize_session(None).await;
+        }
+        Ok(())
+    }
+
+    async fn alarm(&self) -> Result<Response> {
+        // Alarm fired: session timed out (30 min inactivity)
+        let sockets = self.state.get_websockets();
+        let ws = sockets.first();
+        self.finalize_session(ws).await;
+        Response::ok("alarm handled")
+    }
+}
+
+// --- Pipeline methods ---
+
+impl PracticeSession {
+    async fn handle_chunk_ready(&self, ws: &WebSocket, index: usize, r2_key: &str) -> Result<()> {
+        // 1. Fetch audio from R2
+        let audio_bytes = match self.fetch_audio_from_r2(r2_key).await {
+            Ok(bytes) => bytes,
+            Err(e) => {
+                console_error!("R2 fetch failed for {}: {}", r2_key, e);
+                self.send_zeroed_chunk_processed(ws, index)?;
+                return Ok(());
+            }
+        };
+
+        // 2. Call HF inference
+        let scores_map = match self.call_hf_inference(&audio_bytes).await {
+            Ok(scores) => scores,
+            Err(e) => {
+                console_error!("HF inference failed for chunk {}: {}", index, e);
+                self.send_zeroed_chunk_processed(ws, index)?;
+                return Ok(());
+            }
+        };
+
+        // 3. Convert scores: HashMap -> [f64; 6] for STOP classifier
+        let scores_array: [f64; 6] = DIMS_6.map(|dim| {
+            scores_map.get(dim).copied().unwrap_or(0.0)
+        });
+
+        // 4. Send chunk_processed immediately
+        let scores_json = serde_json::json!({
+            "dynamics": scores_array[0],
+            "timing": scores_array[1],
+            "pedaling": scores_array[2],
+            "articulation": scores_array[3],
+            "phrasing": scores_array[4],
+            "interpretation": scores_array[5],
+        });
+        let response = serde_json::json!({
+            "type": "chunk_processed",
+            "index": index,
+            "scores": scores_json,
+        });
+        ws.send_with_str(&response.to_string())?;
+
+        // 5-6. Update DimStats and store ScoredChunk
+        {
+            let mut s = self.inner.borrow_mut();
+            s.dim_stats.update(&scores_map);
+            s.scored_chunks.push(ScoredChunk {
+                chunk_index: index,
+                scores: scores_array,
+            });
+        }
+
+        // 7. Load baselines (one-time)
+        {
+            let needs_load = !self.inner.borrow().baselines_loaded;
+            if needs_load {
+                let student_id = self.inner.borrow().student_id.clone();
+                let baselines = self.load_baselines(&student_id).await;
+                let mut s = self.inner.borrow_mut();
+                s.baselines = Some(baselines);
+                s.baselines_loaded = true;
+            }
+        }
+
+        // 8. Run STOP classifier on current chunk
+        let stop_result = stop::classify(&scores_array);
+
+        // 9. Check if we should generate an observation
+        let should_generate = {
+            let s = self.inner.borrow();
+            stop_result.triggered
+                && s.baselines.is_some()
+                && self.throttle_allows(&s)
+        };
+
+        if should_generate {
+            self.generate_observation(ws).await;
+        }
+
+        // 10. Reset alarm
+        let _ = self.state.storage().set_alarm(ALARM_DURATION_MS).await;
+
+        Ok(())
+    }
+
+    fn throttle_allows(&self, s: &SessionState) -> bool {
+        match s.last_observation_at {
+            None => true,
+            Some(last) => {
+                let now = js_sys::Date::now() as u64;
+                now - last >= OBSERVATION_THROTTLE_MS
+            }
+        }
+    }
+
+    fn send_zeroed_chunk_processed(&self, ws: &WebSocket, index: usize) -> Result<()> {
+        let response = serde_json::json!({
+            "type": "chunk_processed",
+            "index": index,
+            "scores": {
+                "dynamics": 0.0, "timing": 0.0, "pedaling": 0.0,
+                "articulation": 0.0, "phrasing": 0.0, "interpretation": 0.0,
+            },
+        });
+        ws.send_with_str(&response.to_string())
+    }
+
+    async fn generate_observation(&self, ws: &WebSocket) {
+        let (scored_chunks, baselines, recent_obs, student_id, session_id) = {
+            let s = self.inner.borrow();
+            let recent: Vec<RecentObservation> = s.observations
+                .iter()
+                .rev()
+                .take(3)
+                .map(|o| RecentObservation { dimension: o.dimension.clone() })
+                .collect();
+            (
+                s.scored_chunks.clone(),
+                s.baselines.clone().unwrap(),
+                recent,
+                s.student_id.clone(),
+                s.session_id.clone(),
+            )
+        };
+
+        // Run teaching moment selection
+        let moment = match crate::services::teaching_moments::select_teaching_moment(
+            &scored_chunks,
+            &baselines,
+            &recent_obs,
+        ) {
+            Some(m) => m,
+            None => return,
+        };
+
+        // Build teaching moment JSON for handle_ask_inner
+        let tm_json = serde_json::json!({
+            "dimension": moment.dimension,
+            "dimension_score": moment.score,
+            "chunk_index": moment.chunk_index,
+            "deviation": moment.deviation,
+            "stop_probability": moment.stop_probability,
+            "is_positive": moment.is_positive,
+            "reasoning": moment.reasoning,
+        });
+
+        let inner_req = crate::services::ask::AskInnerRequest {
+            teaching_moment: tm_json,
+            student_id: student_id.clone(),
+            session_id: session_id.clone(),
+            piece_context: None,
+        };
+
+        let inner_resp = crate::services::ask::handle_ask_inner(&self.env, &inner_req).await;
+
+        // Push observation to client
+        let obs_event = serde_json::json!({
+            "type": "observation",
+            "text": inner_resp.observation_text,
+            "dimension": inner_resp.dimension,
+            "framing": inner_resp.framing,
+        });
+        let _ = ws.send_with_str(&obs_event.to_string());
+
+        // Store in session state
+        {
+            let mut s = self.inner.borrow_mut();
+            s.observations.push(ObservationRecord {
+                id: crate::services::ask::generate_uuid(),
+                text: inner_resp.observation_text,
+                dimension: inner_resp.dimension,
+                framing: inner_resp.framing,
+                chunk_index: moment.chunk_index,
+                score: moment.score,
+                baseline: moment.baseline,
+                reasoning_trace: inner_resp.reasoning_trace,
+                is_fallback: inner_resp.is_fallback,
+            });
+            s.last_observation_at = Some(js_sys::Date::now() as u64);
+        }
+    }
+
+    // --- External service calls ---
+
+    async fn fetch_audio_from_r2(&self, r2_key: &str) -> std::result::Result<Vec<u8>, String> {
+        let bucket = self.env.bucket("CHUNKS")
+            .map_err(|e| format!("R2 binding failed: {:?}", e))?;
+        let object = bucket.get(r2_key).execute().await
+            .map_err(|e| format!("R2 get failed: {:?}", e))?;
+        let object = object.ok_or_else(|| format!("R2 object not found: {}", r2_key))?;
+        let bytes = object.body()
+            .ok_or_else(|| "R2 object has no body".to_string())?
+            .bytes().await
+            .map_err(|e| format!("R2 read failed: {:?}", e))?;
+        Ok(bytes)
+    }
+
+    async fn call_hf_inference(
+        &self,
+        audio_bytes: &[u8],
+    ) -> std::result::Result<HashMap<String, f64>, String> {
+        let endpoint = self.env.var("HF_INFERENCE_ENDPOINT")
+            .map_err(|e| format!("HF_INFERENCE_ENDPOINT not set: {:?}", e))?
+            .to_string();
+        let token = self.env.secret("HF_TOKEN")
+            .map_err(|e| format!("HF_TOKEN not set: {:?}", e))?
+            .to_string();
+
+        let headers = worker::Headers::new();
+        headers.set("Content-Type", "application/octet-stream").map_err(|e| format!("{:?}", e))?;
+        headers.set("Authorization", &format!("Bearer {}", token)).map_err(|e| format!("{:?}", e))?;
+
+        let mut init = worker::RequestInit::new();
+        init.with_method(worker::Method::Post);
+        init.with_headers(headers);
+        init.with_body(Some(JsValue::from(js_sys::Uint8Array::from(audio_bytes))));
+
+        let request = worker::Request::new_with_init(&endpoint, &init)
+            .map_err(|e| format!("Failed to create request: {:?}", e))?;
+
+        let mut response = worker::Fetch::Request(request)
+            .send()
+            .await
+            .map_err(|e| format!("HF fetch failed: {:?}", e))?;
+
+        if response.status_code() != 200 {
+            let body = response.text().await.unwrap_or_default();
+            return Err(format!("HF returned {}: {}", response.status_code(), body));
+        }
+
+        let body: serde_json::Value = response.json().await
+            .map_err(|e| format!("HF response parse failed: {:?}", e))?;
+
+        // Extract predictions from nested response
+        let predictions = body.get("predictions")
+            .unwrap_or(&body); // Fallback: try top-level if no predictions key
+
+        let mut scores = HashMap::new();
+        for dim in DIMS_6 {
+            if let Some(val) = predictions.get(dim).and_then(|v| v.as_f64()) {
+                scores.insert(dim.to_string(), val);
+            }
+        }
+
+        if scores.len() < 6 {
+            return Err(format!("HF returned only {} dimensions", scores.len()));
+        }
+
+        Ok(scores)
+    }
+
+    // --- Baselines ---
+
+    async fn load_baselines(&self, student_id: &str) -> StudentBaselines {
+        let defaults = crate::services::stop::SCALER_MEAN;
+
+        let db = match self.env.d1("DB") {
+            Ok(db) => db,
+            Err(e) => {
+                console_error!("D1 binding failed for baselines: {:?}", e);
+                return Self::baselines_from_defaults(&defaults);
+            }
+        };
+
+        let stmt = match db
+            .prepare(
+                "SELECT dimension, AVG(dimension_score) as avg_score \
+                 FROM observations WHERE student_id = ?1 \
+                 AND created_at > datetime('now', '-30 days') \
+                 GROUP BY dimension",
+            )
+            .bind(&[JsValue::from_str(student_id)])
+        {
+            Ok(s) => s,
+            Err(e) => {
+                console_error!("Baselines bind failed: {:?}", e);
+                return Self::baselines_from_defaults(&defaults);
+            }
+        };
+
+        let rows = match stmt.all().await {
+            Ok(r) => r,
+            Err(e) => {
+                console_error!("Baselines query failed: {:?}", e);
+                return Self::baselines_from_defaults(&defaults);
+            }
+        };
+
+        let results: Vec<serde_json::Value> = rows.results().unwrap_or_default();
+        let mut dim_map: HashMap<String, f64> = HashMap::new();
+        for row in &results {
+            if let (Some(dim), Some(avg)) = (
+                row.get("dimension").and_then(|v| v.as_str()),
+                row.get("avg_score").and_then(|v| v.as_f64()),
+            ) {
+                dim_map.insert(dim.to_string(), avg);
+            }
+        }
+
+        StudentBaselines {
+            dynamics: dim_map.get("dynamics").copied().unwrap_or(defaults[0]),
+            timing: dim_map.get("timing").copied().unwrap_or(defaults[1]),
+            pedaling: dim_map.get("pedaling").copied().unwrap_or(defaults[2]),
+            articulation: dim_map.get("articulation").copied().unwrap_or(defaults[3]),
+            phrasing: dim_map.get("phrasing").copied().unwrap_or(defaults[4]),
+            interpretation: dim_map.get("interpretation").copied().unwrap_or(defaults[5]),
+        }
+    }
+
+    fn baselines_from_defaults(defaults: &[f64; 6]) -> StudentBaselines {
+        StudentBaselines {
+            dynamics: defaults[0],
+            timing: defaults[1],
+            pedaling: defaults[2],
+            articulation: defaults[3],
+            phrasing: defaults[4],
+            interpretation: defaults[5],
+        }
+    }
+
+    // --- Session finalization ---
+
+    async fn finalize_session(&self, ws: Option<&WebSocket>) {
+        let (observations, session_id, student_id) = {
+            let s = self.inner.borrow();
+            (s.observations.clone(), s.session_id.clone(), s.student_id.clone())
+        };
+
+        // 1. Persist observations to D1
+        if !observations.is_empty() {
+            if let Err(e) = self.persist_observations(&student_id, &session_id, &observations).await {
+                console_error!("Failed to persist observations: {}", e);
+            }
+        }
+
+        // 2. Send session_summary via WebSocket
+        if let Some(ws) = ws {
+            let obs_json: Vec<serde_json::Value> = observations
+                .iter()
+                .map(|o| serde_json::json!({
+                    "text": o.text,
+                    "dimension": o.dimension,
+                    "framing": o.framing,
+                }))
+                .collect();
+
+            let summary = serde_json::json!({
+                "type": "session_summary",
+                "observations": obs_json,
+                "summary": "",
+            });
+            let _ = ws.send_with_str(&summary.to_string());
+        }
+
+        // 3. Close all WebSockets
+        for ws in self.state.get_websockets() {
+            let _ = ws.close(Some(1000), Some(String::from("Session ended")));
+        }
+    }
+
+    async fn persist_observations(
+        &self,
+        student_id: &str,
+        session_id: &str,
+        observations: &[ObservationRecord],
+    ) -> std::result::Result<(), String> {
+        let db = self.env.d1("DB").map_err(|e| format!("D1 binding: {:?}", e))?;
+        let now = js_sys::Date::new_0().to_iso_string().as_string().unwrap_or_default();
+
+        for obs in observations {
+            let stmt = db
+                .prepare(
+                    "INSERT INTO observations (id, student_id, session_id, chunk_index, \
+                     dimension, observation_text, reasoning_trace, framing, dimension_score, \
+                     student_baseline, piece_context, is_fallback, created_at) \
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
+                )
+                .bind(&[
+                    JsValue::from_str(&obs.id),
+                    JsValue::from_str(student_id),
+                    JsValue::from_str(session_id),
+                    JsValue::from_f64(obs.chunk_index as f64),
+                    JsValue::from_str(&obs.dimension),
+                    JsValue::from_str(&obs.text),
+                    JsValue::from_str(&obs.reasoning_trace),
+                    JsValue::from_str(&obs.framing),
+                    JsValue::from_f64(obs.score),
+                    JsValue::from_f64(obs.baseline),
+                    JsValue::NULL, // piece_context (deferred)
+                    JsValue::from_bool(obs.is_fallback),
+                    JsValue::from_str(&now),
+                ]);
+
+            match stmt {
+                Ok(s) => {
+                    if let Err(e) = s.run().await {
+                        console_error!("Failed to insert observation {}: {:?}", obs.id, e);
+                    }
+                }
+                Err(e) => {
+                    console_error!("Failed to bind observation {}: {:?}", obs.id, e);
+                }
+            }
+        }
+
         Ok(())
     }
 }

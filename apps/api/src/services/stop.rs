@@ -16,7 +16,7 @@ use crate::practice::dims::DIMS_6;
 
 /// Dimension order must match the training pipeline.
 /// [dynamics, timing, pedaling, articulation, phrasing, interpretation]
-const SCALER_MEAN: [f64; 6] = [0.5450, 0.4848, 0.4594, 0.5369, 0.5188, 0.5064];
+pub const SCALER_MEAN: [f64; 6] = [0.5450, 0.4848, 0.4594, 0.5369, 0.5188, 0.5064];
 const SCALER_STD: [f64; 6] = [0.0689, 0.0388, 0.0791, 0.0154, 0.0186, 0.0555];
 
 /// Balanced logistic regression coefficients.
