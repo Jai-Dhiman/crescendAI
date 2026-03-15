@@ -35,8 +35,10 @@ export const useScorePanelStore = create<ScorePanelState>((set) => ({
 	sessionData: null,
 	activeAnnotationIndex: null,
 	panelWidth: loadPersistedWidth(),
-	open: (data) =>
-		set({ isOpen: true, sessionData: data, activeAnnotationIndex: null }),
+	open: (data) => {
+		if (!import.meta.env.DEV) return;
+		set({ isOpen: true, sessionData: data, activeAnnotationIndex: null });
+	},
 	close: () => set({ isOpen: false }),
 	toggle: () => set((s) => ({ isOpen: !s.isOpen })),
 	setActiveAnnotation: (index) => set({ activeAnnotationIndex: index }),

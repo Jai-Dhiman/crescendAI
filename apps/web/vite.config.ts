@@ -8,19 +8,26 @@ import viteReact from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 import tsconfigPaths from "vite-tsconfig-paths";
 
+const isTest = process.env.VITEST === "true";
+
 const config = defineConfig({
 	build: { sourcemap: true },
+	test: {
+		environment: "jsdom",
+		include: ["src/**/*.test.ts"],
+	},
 	plugins: [
 		tailwindcss(),
 		tsconfigPaths({ projects: ["./tsconfig.json"] }),
-		cloudflare({ viteEnvironment: { name: "ssr" } }),
-		tanstackStart(),
+		!isTest && cloudflare({ viteEnvironment: { name: "ssr" } }),
+		!isTest && tanstackStart(),
 		viteReact(),
-		sentryVitePlugin({
-			org: "crescendai",
-			project: "crescendai-web",
-			sourcemaps: { assets: "./dist/**" },
-		}),
+		!isTest &&
+			sentryVitePlugin({
+				org: "crescendai",
+				project: "crescendai-web",
+				sourcemaps: { assets: "./dist/**" },
+			}),
 	],
 });
 

@@ -16,7 +16,7 @@ Exercise database, API endpoints, seed data, and web UI integration for the Cres
 
 - Working in `apps/api/` (Rust, D1 migrations) and `apps/web/src/` (React)
 - NOT touching `model/`, `usePracticeSession.ts`, `ListeningMode.tsx`, `stop.rs`, `teaching_moments.rs`
-- D1 migration numbered 0004 (0003 reserved for Score MIDI Library)
+- D1 migration numbered 0004 (0003 already exists for Score MIDI Library pieces table; 0004 is the next available slot)
 
 ---
 
@@ -128,17 +128,19 @@ CompleteRequest { student_exercise_id: String, response: Option<String>,
 
 ### Endpoints
 
-**`GET /api/exercises?dimension=&level=`** -- `handle_exercises`
+**`GET /api/exercises?dimension=&level=&repertoire=`** -- `handle_exercises`
 - Auth required, `student_id` from JWT
-- Both query params optional; if neither, returns 3 random exercises
-- Query: JOIN `exercise_dimensions`, LEFT JOIN `student_exercises` (WHERE `se.id IS NULL`), filter by dimension/level, soft-prefer repertoire match via `ORDER BY CASE`, `LIMIT 3`
-- Returns `{ exercises: Vec<Exercise> }` with dimensions populated per exercise
+- All query params optional; if none provided, returns 3 random exercises
+- `repertoire` is an optional string (e.g., `"Chopin"`) used for soft-preference ordering. If provided, exercises with matching `repertoire_tags` sort first. If not provided, no repertoire preference is applied (random order among matches).
+- Query: JOIN `exercise_dimensions`, LEFT JOIN `student_exercises` (WHERE `se.id IS NULL`), filter by dimension/level, `ORDER BY CASE WHEN e.repertoire_tags LIKE '%' || ? || '%' THEN 0 ELSE 1 END, RANDOM()`, `LIMIT 3`
+- Returns `{ exercises: Vec<Exercise> }` with dimensions populated per exercise. The `Exercise` response type intentionally omits `notation_content`, `notation_format`, and `midi_content` (unused in V1, avoids sending large blobs).
+- The limit of 3 is intentional for both pipeline-generated and user-initiated exercise requests, matching the `exercise_set` component pattern (2-3 exercises per card).
 - Parse query string manually (matching existing `practice/chunk` pattern)
 
 **`POST /api/exercises/assign`** -- `handle_assign_exercise`
 - Auth required, `student_id` from JWT
 - Generates `id` as `se-{uuid}`
-- Checks if (student, exercise) pair exists across any session; if yes, increments `times_assigned` on new record
+- Before INSERT, queries `SELECT MAX(times_assigned) FROM student_exercises WHERE student_id = ? AND exercise_id = ?`. If a record exists, the new record's `times_assigned` = that value + 1. If no record exists, `times_assigned` defaults to 1.
 - INSERT into `student_exercises`, returns created record
 
 **`POST /api/exercises/complete`** -- `handle_complete_exercise`
@@ -164,7 +166,7 @@ File: `apps/web/src/components/cards/ExerciseSetCard.tsx` (existing, modify)
 
 Changes:
 - Add `hands` indicator badge ("LH" / "RH" / "Both") next to dimension badge, only when `hands` is present
-- Add "Try this" button at bottom of each expanded exercise. On click: calls `api.exercises.assign()`. Transitions to "Assigned" (disabled, checkmark) on success. Only renders when `exercise_id` is present in the exercise object.
+- Add "Try this" button at bottom of each expanded exercise. On click: calls `api.exercises.assign()`. Three states: default ("Try this"), loading (spinner), success ("Assigned", disabled). On error: show brief inline error text. Only renders when `exercise_id` is present in the exercise object (pipeline-generated exercises without DB records do not show the button).
 
 ### Types Update
 
@@ -173,6 +175,9 @@ File: `apps/web/src/lib/types.ts`
 Add to `ExerciseSetConfig.exercises` array type:
 - `hands?: "left" | "right" | "both"`
 - `exercise_id?: string` (present when from DB, absent when pipeline-generated)
+
+Add to `RichMessage`:
+- `dimension?: string` -- the primary dimension this observation targets (populated by the pipeline when an observation targets a specific dimension, e.g. `"dynamics"`). Used by the "Try exercises" button to know which dimension to fetch exercises for.
 
 ### API Client
 
@@ -187,12 +192,20 @@ All use the existing `request()` helper with `credentials: "include"`.
 
 ### "Try exercises for this" Action
 
+The "Try exercises" button needs to append a new message to the chat. `ChatMessages` receives messages as a read-only prop, so:
+
+- Add an `onTryExercises?: (dimension: string) => void` callback prop to `ChatMessages` and `MessageBubble`
+- `AppChat.tsx` (which owns message state) provides the callback. When invoked, it:
+  1. Calls `api.exercises.fetch({ dimension })`
+  2. Transforms the API response into an `ExerciseSetConfig` (mapping DB exercises to the config shape, including `exercise_id`)
+  3. Appends a new assistant `RichMessage` with the `exercise_set` component to the messages array
+
 In `ChatMessages.tsx` `MessageBubble`, after `InlineCard` components for assistant messages:
 - Small text button: "Try exercises for this" (accent color, no border)
-- Only shows when message has a `dimension` field in metadata
-- On click: calls `api.exercises.fetch({ dimension })`, transforms response into `ExerciseSetConfig`, appends a new assistant `RichMessage` with the `exercise_set` component
-
-The `dimension` field comes from an optional `dimension` property on the `RichMessage` type (populated by the pipeline when an observation targets a specific dimension).
+- Only renders when `message.dimension` is present (i.e., this observation targets a specific dimension)
+- On click: calls `onTryExercises(message.dimension)`
+- Shows loading spinner while the fetch is in progress
+- On error: shows a brief inline error message (e.g., "Could not load exercises") rather than failing silently
 
 ---
 
@@ -225,10 +238,13 @@ Tests:
 
 File: `apps/api/tests/run.sh`
 
-1. Start `wrangler dev --local --port 8787` in background
-2. Poll `/health` until ready (timeout 60s)
-3. Run `bun test apps/api/tests/exercises.test.ts`
-4. Kill wrangler dev, exit with test exit code
+1. Apply all D1 migrations to the local database: `wrangler d1 execute crescendai-db --local --file=migrations/0001_init.sql` through `0004_exercises.sql`
+2. Start `wrangler dev --local --port 8787` in background
+3. Poll `/health` until ready (timeout 60s)
+4. Run `bun test apps/api/tests/exercises.test.ts`
+5. Kill wrangler dev, exit with test exit code
+
+Note: `wrangler dev --local` uses Miniflare with a local SQLite database. Migrations are not auto-applied; the script must apply them explicitly before starting the dev server.
 
 ---
 
@@ -240,9 +256,10 @@ File: `apps/api/tests/run.sh`
 | `apps/api/src/services/exercises.rs` | Create | Exercise service (3 handlers) |
 | `apps/api/src/services/mod.rs` | Edit | Add `pub mod exercises;` |
 | `apps/api/src/server.rs` | Edit | Add 3 route blocks |
-| `apps/web/src/lib/types.ts` | Edit | Add `hands`, `exercise_id` to ExerciseSetConfig |
+| `apps/web/src/lib/types.ts` | Edit | Add `hands`, `exercise_id` to ExerciseSetConfig; add `dimension` to RichMessage |
 | `apps/web/src/lib/api.ts` | Edit | Add `exercises` namespace |
 | `apps/web/src/components/cards/ExerciseSetCard.tsx` | Edit | Hands badge, "Try this" button |
-| `apps/web/src/components/ChatMessages.tsx` | Edit | "Try exercises" action button |
+| `apps/web/src/components/ChatMessages.tsx` | Edit | "Try exercises" action button, `onTryExercises` prop |
+| `apps/web/src/components/AppChat.tsx` | Edit | Provide `onTryExercises` callback (fetch + append message) |
 | `apps/api/tests/exercises.test.ts` | Create | Integration tests |
 | `apps/api/tests/run.sh` | Create | Test runner script |
