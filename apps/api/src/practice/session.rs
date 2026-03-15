@@ -3,7 +3,10 @@ use std::collections::HashMap;
 use wasm_bindgen::JsValue;
 use worker::*;
 
+use crate::practice::analysis;
 use crate::practice::dims::DIMS_6;
+use crate::practice::score_context::ScoreContext;
+use crate::practice::score_follower::{FollowerState, PerfNote, PerfPedalEvent};
 use crate::practice::teaching_moment::DimStats;
 use crate::services::stop;
 use crate::services::teaching_moments::{
@@ -35,6 +38,10 @@ struct SessionState {
     observations: Vec<ObservationRecord>,
     dim_stats: DimStats,
     last_observation_at: Option<u64>,
+    piece_query: Option<String>,
+    score_context: Option<ScoreContext>,
+    score_context_loaded: bool,
+    follower_state: FollowerState,
 }
 
 impl Default for SessionState {
@@ -48,6 +55,10 @@ impl Default for SessionState {
             observations: Vec::new(),
             dim_stats: DimStats::default(),
             last_observation_at: None,
+            piece_query: None,
+            score_context: None,
+            score_context_loaded: false,
+            follower_state: FollowerState::default(),
         }
     }
 }
@@ -134,6 +145,18 @@ impl DurableObject for PracticeSession {
             "end_session" => {
                 self.finalize_session(Some(&ws)).await;
             }
+            "set_piece" => {
+                let query = parsed.get("query").and_then(|v| v.as_str()).unwrap_or("");
+                if !query.is_empty() {
+                    let mut s = self.inner.borrow_mut();
+                    s.piece_query = Some(query.to_string());
+                    s.score_context = None;
+                    s.score_context_loaded = false;
+                    s.follower_state = FollowerState::default();
+                }
+                let ack = serde_json::json!({"type": "piece_set", "query": query});
+                let _ = ws.send_with_str(&ack.to_string());
+            }
             _ => {}
         }
 
@@ -178,9 +201,9 @@ impl PracticeSession {
             }
         };
 
-        // 2. Call HF inference
-        let scores_map = match self.call_hf_inference(&audio_bytes).await {
-            Ok(scores) => scores,
+        // 2. Call HF inference (returns full response body)
+        let hf_response = match self.call_hf_inference(&audio_bytes).await {
+            Ok(resp) => resp,
             Err(e) => {
                 console_error!("HF inference failed for chunk {}: {}", index, e);
                 self.send_zeroed_chunk_processed(ws, index)?;
@@ -188,12 +211,52 @@ impl PracticeSession {
             }
         };
 
-        // 3. Convert scores: HashMap -> [f64; 6] for STOP classifier
+        // 3. Extract scores from predictions
+        let predictions = hf_response.get("predictions").unwrap_or(&hf_response);
+        let scores_map: HashMap<String, f64> = DIMS_6
+            .iter()
+            .filter_map(|&dim| {
+                predictions.get(dim).and_then(|v| v.as_f64()).map(|val| (dim.to_string(), val))
+            })
+            .collect();
         let scores_array: [f64; 6] = DIMS_6.map(|dim| {
             scores_map.get(dim).copied().unwrap_or(0.0)
         });
 
-        // 4. Send chunk_processed immediately
+        // 4. Extract midi_notes and pedal_events from HF response
+        let perf_notes: Vec<PerfNote> = hf_response
+            .get("midi_notes")
+            .and_then(|v| v.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|n| {
+                        Some(PerfNote {
+                            pitch: n.get("pitch")?.as_u64()? as u8,
+                            onset: n.get("onset")?.as_f64()?,
+                            offset: n.get("offset")?.as_f64()?,
+                            velocity: n.get("velocity")?.as_u64()? as u8,
+                        })
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        let perf_pedal: Vec<PerfPedalEvent> = hf_response
+            .get("pedal_events")
+            .and_then(|v| v.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|e| {
+                        Some(PerfPedalEvent {
+                            time: e.get("time")?.as_f64()?,
+                            value: e.get("value")?.as_u64()? as u8,
+                        })
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        // 5. Send chunk_processed immediately
         let scores_json = serde_json::json!({
             "dynamics": scores_array[0],
             "timing": scores_array[1],
@@ -209,7 +272,7 @@ impl PracticeSession {
         });
         ws.send_with_str(&response.to_string())?;
 
-        // 5-6. Update DimStats and store ScoredChunk
+        // 6. Update DimStats and store ScoredChunk
         {
             let mut s = self.inner.borrow_mut();
             s.dim_stats.update(&scores_map);
@@ -231,10 +294,81 @@ impl PracticeSession {
             }
         }
 
-        // 8. Run STOP classifier on current chunk
+        // 8. Load score context (one-time, if piece_query is set)
+        {
+            let needs_load = {
+                let s = self.inner.borrow();
+                !s.score_context_loaded && s.piece_query.is_some()
+            };
+            if needs_load {
+                let (query, student_id) = {
+                    let s = self.inner.borrow();
+                    (s.piece_query.clone().unwrap_or_default(), s.student_id.clone())
+                };
+                let ctx = crate::practice::score_context::resolve_piece(
+                    &self.env,
+                    &query,
+                    &student_id,
+                ).await;
+                let mut s = self.inner.borrow_mut();
+                s.score_context = ctx;
+                s.score_context_loaded = true;
+            }
+        }
+
+        // 9. Run score following + analysis
+        let chunk_analysis: Option<analysis::ChunkAnalysis> = {
+            // Extract what we need from state, then drop the borrow
+            let (score_data_clone, follower_state_clone) = {
+                let s = self.inner.borrow();
+                (
+                    s.score_context.as_ref().map(|ctx| ctx.score.clone()),
+                    s.follower_state.clone(),
+                )
+            };
+
+            if !perf_notes.is_empty() {
+                if let Some(score_data) = score_data_clone {
+                    // Run alignment with a mutable copy, then store updated state
+                    let mut fs = follower_state_clone;
+                    let bar_map = crate::practice::score_follower::align_chunk(
+                        index,
+                        0.0,
+                        &perf_notes,
+                        &score_data,
+                        &mut fs,
+                    );
+                    // Store updated follower state
+                    self.inner.borrow_mut().follower_state = fs;
+
+                    if let Some(ref bm) = bar_map {
+                        // Tier 1: full bar-aligned analysis
+                        let score_ctx = self.inner.borrow().score_context.clone().unwrap();
+                        Some(analysis::analyze_tier1(
+                            bm,
+                            &perf_notes,
+                            &perf_pedal,
+                            &scores_array,
+                            &score_ctx,
+                        ))
+                    } else {
+                        // Score context exists but alignment failed -> Tier 2
+                        Some(analysis::analyze_tier2(&perf_notes, &perf_pedal, &scores_array))
+                    }
+                } else {
+                    // No score context but have perf notes -> Tier 2
+                    Some(analysis::analyze_tier2(&perf_notes, &perf_pedal, &scores_array))
+                }
+            } else {
+                // No perf notes -> Tier 3 (no analysis, current behavior)
+                None
+            }
+        };
+
+        // 10. Run STOP classifier on current chunk
         let stop_result = stop::classify(&scores_array);
 
-        // 9. Check if we should generate an observation
+        // 11. Check if we should generate an observation
         let should_generate = {
             let s = self.inner.borrow();
             stop_result.triggered
@@ -243,10 +377,10 @@ impl PracticeSession {
         };
 
         if should_generate {
-            self.generate_observation(ws).await;
+            self.generate_observation(ws, chunk_analysis.as_ref()).await;
         }
 
-        // 10. Reset alarm
+        // 12. Reset alarm
         let _ = self.state.storage().set_alarm(ALARM_DURATION_MS).await;
 
         Ok(())
@@ -274,7 +408,7 @@ impl PracticeSession {
         ws.send_with_str(&response.to_string())
     }
 
-    async fn generate_observation(&self, ws: &WebSocket) {
+    async fn generate_observation(&self, ws: &WebSocket, chunk_analysis: Option<&analysis::ChunkAnalysis>) {
         let (scored_chunks, baselines, recent_obs, student_id, session_id) = {
             let s = self.inner.borrow();
             let recent: Vec<RecentObservation> = s.observations
@@ -313,22 +447,44 @@ impl PracticeSession {
             "reasoning": moment.reasoning,
         });
 
+        // Build enriched piece_context from score context + analysis
+        let piece_context = {
+            let s = self.inner.borrow();
+            let mut ctx = serde_json::Map::new();
+            if let Some(score_ctx) = &s.score_context {
+                ctx.insert("composer".into(), serde_json::json!(score_ctx.composer));
+                ctx.insert("title".into(), serde_json::json!(score_ctx.title));
+                ctx.insert("piece_id".into(), serde_json::json!(score_ctx.piece_id));
+            }
+            if let Some(ca) = chunk_analysis {
+                if let Some(bar_range) = &ca.bar_range {
+                    ctx.insert("bar_range".into(), serde_json::json!(bar_range));
+                }
+                ctx.insert("analysis_tier".into(), serde_json::json!(ca.tier));
+                ctx.insert("musical_analysis".into(), serde_json::to_value(&ca.dimensions).unwrap_or_default());
+            }
+            if ctx.is_empty() { None } else { Some(serde_json::Value::Object(ctx)) }
+        };
+
         let inner_req = crate::services::ask::AskInnerRequest {
             teaching_moment: tm_json,
             student_id: student_id.clone(),
             session_id: session_id.clone(),
-            piece_context: None,
+            piece_context,
         };
 
         let inner_resp = crate::services::ask::handle_ask_inner(&self.env, &inner_req).await;
 
         // Push observation to client
-        let obs_event = serde_json::json!({
+        let mut obs_event = serde_json::json!({
             "type": "observation",
             "text": inner_resp.observation_text,
             "dimension": inner_resp.dimension,
             "framing": inner_resp.framing,
         });
+        if let Some(br) = chunk_analysis.and_then(|a| a.bar_range.as_ref()) {
+            obs_event["barRange"] = serde_json::json!(br);
+        }
         let _ = ws.send_with_str(&obs_event.to_string());
 
         // Store in session state
@@ -367,7 +523,7 @@ impl PracticeSession {
     async fn call_hf_inference(
         &self,
         audio_bytes: &[u8],
-    ) -> std::result::Result<HashMap<String, f64>, String> {
+    ) -> std::result::Result<serde_json::Value, String> {
         let endpoint = self.env.var("HF_INFERENCE_ENDPOINT")
             .map_err(|e| format!("HF_INFERENCE_ENDPOINT not set: {:?}", e))?
             .to_string();
@@ -400,22 +556,14 @@ impl PracticeSession {
         let body: serde_json::Value = response.json().await
             .map_err(|e| format!("HF response parse failed: {:?}", e))?;
 
-        // Extract predictions from nested response
-        let predictions = body.get("predictions")
-            .unwrap_or(&body); // Fallback: try top-level if no predictions key
-
-        let mut scores = HashMap::new();
-        for dim in DIMS_6 {
-            if let Some(val) = predictions.get(dim).and_then(|v| v.as_f64()) {
-                scores.insert(dim.to_string(), val);
-            }
+        // Validate that predictions contain all 6 dimensions
+        let predictions = body.get("predictions").unwrap_or(&body);
+        let dim_count = DIMS_6.iter().filter(|dim| predictions.get(*dim).and_then(|v| v.as_f64()).is_some()).count();
+        if dim_count < 6 {
+            return Err(format!("HF returned only {} dimensions", dim_count));
         }
 
-        if scores.len() < 6 {
-            return Err(format!("HF returned only {} dimensions", scores.len()));
-        }
-
-        Ok(scores)
+        Ok(body)
     }
 
     // --- Baselines ---
