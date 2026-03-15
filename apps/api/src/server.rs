@@ -18,8 +18,13 @@ async fn into_worker_response(resp: http::Response<axum::body::Body>) -> Result<
         }
     }
 
-    worker::Response::from_bytes(bytes)
-        .map(|r| r.with_status(parts.status.as_u16()).with_headers(headers))
+    let status = parts.status.as_u16();
+    let response = if status == 204 || status == 304 {
+        worker::Response::empty()?
+    } else {
+        worker::Response::from_bytes(bytes)?
+    };
+    Ok(response.with_status(status).with_headers(headers))
 }
 
 /// Add CORS headers to a response with origin allowlist.

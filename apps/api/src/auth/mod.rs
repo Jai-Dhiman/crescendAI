@@ -33,7 +33,7 @@ struct GoogleTokenClaims {
     email_verified: Option<String>,
     name: Option<String>,
     #[allow(dead_code)]
-    exp: Option<u64>,
+    exp: Option<String>,
 }
 
 #[derive(serde::Serialize)]
@@ -370,27 +370,36 @@ pub async fn handle_google_auth(
 }
 
 fn build_auth_cookie(token: &str, max_age: u64, env: &Env) -> String {
-    let domain_part = env
+    let cookie_domain = env
         .var("COOKIE_DOMAIN")
         .ok()
-        .map(|v| format!("; Domain={}", v.to_string()))
-        .unwrap_or_default();
-    format!(
-        "token={}; HttpOnly; Secure; SameSite=None; Path=/; Max-Age={}{}",
-        token, max_age, domain_part
-    )
+        .map(|v| v.to_string())
+        .filter(|v| !v.is_empty());
+    match cookie_domain {
+        Some(domain) => format!(
+            "token={}; HttpOnly; Secure; SameSite=None; Path=/; Max-Age={}; Domain={}",
+            token, max_age, domain
+        ),
+        None => format!(
+            "token={}; HttpOnly; SameSite=Lax; Path=/; Max-Age={}",
+            token, max_age
+        ),
+    }
 }
 
 fn build_clear_cookie(env: &Env) -> String {
-    let domain_part = env
+    let cookie_domain = env
         .var("COOKIE_DOMAIN")
         .ok()
-        .map(|v| format!("; Domain={}", v.to_string()))
-        .unwrap_or_default();
-    format!(
-        "token=; HttpOnly; Secure; SameSite=None; Path=/; Max-Age=0{}",
-        domain_part
-    )
+        .map(|v| v.to_string())
+        .filter(|v| !v.is_empty());
+    match cookie_domain {
+        Some(domain) => format!(
+            "token=; HttpOnly; Secure; SameSite=None; Path=/; Max-Age=0; Domain={}",
+            domain
+        ),
+        None => "token=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0".to_string(),
+    }
 }
 
 pub async fn handle_apple_auth(
