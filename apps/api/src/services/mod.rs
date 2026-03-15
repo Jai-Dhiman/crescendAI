@@ -5,4 +5,7 @@ pub mod llm;
 pub mod memory;
 pub mod prompts;
 pub mod scores;
+pub mod stop;
 pub mod sync;
+pub mod teaching_moment_handler;
+pub mod teaching_moments;

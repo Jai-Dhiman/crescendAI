@@ -345,6 +345,21 @@ async fn fetch(
         )).await;
     }
 
+    // Teaching moment selection endpoint (authenticated)
+    if path == "/api/practice/teaching-moment" && method == http::Method::POST {
+        let headers = req.headers().clone();
+        let body = req
+            .into_body()
+            .collect()
+            .await
+            .map(|b| b.to_bytes().to_vec())
+            .unwrap_or_default();
+        return into_worker_response(with_cors(
+            crate::services::teaching_moment_handler::handle_teaching_moment(&env, &headers, &body).await,
+            origin.as_deref(),
+        )).await;
+    }
+
     // Chat endpoint -- streaming teacher conversation (authenticated)
     // Returns worker::Response directly (not axum) to enable true token-by-token streaming.
     if path == "/api/chat" && method == http::Method::POST {
