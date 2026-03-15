@@ -92,7 +92,8 @@ Design choices:
 - **`midi_notes` is always present.** List of notes on success, `null` on failure. Distinguishes from `[]` (silence -- no notes detected in audio).
 - **Notes sorted by `onset`.** Each note: `pitch` (MIDI 0-127), `onset`/`offset` (seconds from chunk start), `velocity` (0-127).
 - **`transcription_info` provides summary stats.** `note_count` and `pitch_range` for quick validation without scanning notes.
-- **`processing_time_ms` reflects total.** Individual timing in `transcription_info.transcription_time_ms`.
+- **`processing_time_ms` reflects total wall time** from request start, including any failed AMT attempt. Individual AMT timing in `transcription_info.transcription_time_ms`.
+- **Note count is bounded.** For a 15s chunk, even the densest piano passage produces ~200-300 notes. No explicit cap needed (the validation script uses 10,000 for full recordings, but chunks are 15s).
 - **Existing consumers unaffected.** The new fields are additive -- anything reading only `predictions` works unchanged.
 
 ## Implementation Architecture
@@ -134,21 +135,33 @@ AMT runs in a try/except block after MuQ scoring completes. If AMT raises any ex
 
 Isolates all AMT logic from the handler:
 
-```
+```python
 class TranscriptionError(Exception): ...
 
 class TranscriptionModel:
     def __init__(self, device: str):
         # Load ByteDance PianoTranscription model
-        # ~200MB weights, downloads on first init
+        # Weights pre-downloaded in Dockerfile (REQUIRED -- see Deployment)
+        self._transcriber = PianoTranscription(device=device)
 
     def transcribe(self, audio: np.ndarray, sample_rate: int) -> list[dict]:
-        # 1. Write audio to temp WAV (ByteDance API requires file path)
-        # 2. Run PianoTranscription.transcribe(wav_path, midi_path)
-        # 3. Parse MIDI with pretty_midi
-        # 4. Extract notes: [{pitch, onset, offset, velocity}]
-        # 5. Clean up temp files
-        # 6. Return sorted note list
+        # Audio comes in at 24kHz (MuQ pipeline SR). ByteDance resamples
+        # internally to 16kHz. Onset/offset timestamps are returned in
+        # seconds relative to the original audio duration -- verified in
+        # validation scripts (validate_youtube_amt.py line 151).
+        #
+        # API: transcriber.transcribe(audio_array, midi_output_path)
+        #   - Input: numpy float32 array (any sample rate, resampled internally)
+        #   - Output: writes MIDI file to midi_output_path
+        #
+        # 1. Create temp dir (context manager for cleanup on success OR exception)
+        # 2. Run PianoTranscription.transcribe(audio, midi_path)
+        # 3. Parse MIDI with pretty_midi:
+        #      midi = pretty_midi.PrettyMIDI(midi_path)
+        #      notes = [{pitch: n.pitch, onset: n.start, offset: n.end, velocity: n.velocity}
+        #               for inst in midi.instruments for n in inst.notes]
+        # 4. Return sorted by onset
+        # Temp dir auto-cleaned by context manager (handles exceptions)
         # Raises TranscriptionError on any failure
 ```
 
@@ -158,7 +171,7 @@ Minimal changes:
 
 - Import `TranscriptionModel` and `TranscriptionError`
 - In `__init__`: initialize `self._transcription_model = TranscriptionModel(device="cuda")`
-- In `__call__`: after MuQ scoring, call `self._transcription_model.transcribe(audio, 24000)` wrapped in try/except
+- In `__call__`: after MuQ scoring, call `self._transcription_model.transcribe(audio, 24000)` wrapped in try/except. Print log lines for transcription start/complete/failure and note count (matching existing handler logging pattern).
 - Build response with new fields
 
 **Modified: `apps/inference/requirements.txt`**
@@ -171,8 +184,10 @@ pretty-midi>=0.2.10
 
 **Modified: `apps/inference/Dockerfile`**
 
-Add dependency installation. Optionally pre-download ByteDance model weights at build time for faster cold starts:
+Add dependency installation. **REQUIRED:** Pre-download ByteDance model weights at build time. Without this, the first inference request would trigger a ~200MB download and likely timeout on HF Inference Endpoints. The `device='cpu'` is correct for the build step (no GPU during Docker build) -- the constructor only downloads weights, it does not run inference.
+
 ```dockerfile
+RUN pip install piano-transcription-inference pretty-midi
 RUN python -c "from piano_transcription_inference import PianoTranscription; PianoTranscription(device='cpu')"
 ```
 
@@ -223,7 +238,6 @@ Rollback: if AMT causes issues, the graceful degradation means scores continue w
 
 | Enhancement | When | Notes |
 |-------------|------|-------|
-| AMT model caching | If cold start > 15s | Pre-download weights in Dockerfile (described above) |
 | Note confidence scores | When score following needs it | ByteDance outputs per-note probabilities, currently discarded |
 | Pedal event transcription | When pedal analysis (1d) needs it | ByteDance also transcribes pedal events, can add to response |
 | Alternative AMT models | If ByteDance accuracy insufficient | Kong et al. (2021) or newer transformer-based transcribers |
