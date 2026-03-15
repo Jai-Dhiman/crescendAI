@@ -40,12 +40,19 @@ export interface SessionSummary {
 export type PracticeWsEvent =
 	| { type: "connected" }
 	| { type: "chunk_processed"; index: number; scores: DimScores }
-	| { type: "observation"; text: string; dimension: string; framing: string }
+	| {
+			type: "observation";
+			text: string;
+			dimension: string;
+			framing: string;
+			barRange?: string;
+	  }
 	| {
 			type: "session_summary";
 			observations: ObservationEvent[];
 			summary: string;
 	  }
+	| { type: "piece_set"; query: string }
 	| { type: "error"; message: string };
 
 export const practiceApi = {

@@ -41,6 +41,7 @@ export interface UsePracticeSessionReturn {
 	isOnline: boolean;
 	start: () => Promise<void>;
 	stop: () => void;
+	setPiece: (query: string) => void;
 }
 
 export function usePracticeSession(): UsePracticeSessionReturn {
@@ -179,6 +180,9 @@ export function usePracticeSession(): UsePracticeSessionReturn {
 					cleanup();
 					break;
 				}
+				case "piece_set":
+					console.log("Piece context set:", data.query);
+					break;
 				case "error":
 					setError(data.message);
 					break;
@@ -454,6 +458,15 @@ export function usePracticeSession(): UsePracticeSessionReturn {
 		mediaRecorderRef.current = null;
 	}, [state, cleanup]);
 
+	const setPiece = useCallback((query: string) => {
+		if (wsRef.current?.readyState === WebSocket.OPEN) {
+			wsRef.current.send(JSON.stringify({
+				type: "set_piece",
+				query,
+			}));
+		}
+	}, []);
+
 	// Graceful stop on page unload
 	useEffect(() => {
 		function handleBeforeUnload() {
@@ -486,5 +499,6 @@ export function usePracticeSession(): UsePracticeSessionReturn {
 		isOnline,
 		start,
 		stop,
+		setPiece,
 	};
 }
