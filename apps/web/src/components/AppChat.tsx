@@ -723,7 +723,8 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 					<ListeningMode
 						state={practice.state}
 						observations={practice.observations}
-						analyserNode={practice.analyserNode}
+						energy={practice.energy}
+					isPlaying={practice.isPlaying}
 						latestScores={practice.latestScores}
 						error={practice.error}
 						wsStatus={practice.wsStatus}

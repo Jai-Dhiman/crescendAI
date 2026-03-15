@@ -40,7 +40,6 @@ export interface UsePracticeSessionReturn {
 	latestScores: DimScores | null;
 	summary: string | null;
 	error: string | null;
-	analyserNode: AnalyserNode | null;
 	chunksProcessed: number;
 	chunkStates: ChunkState[];
 	wsStatus: WsStatus;
@@ -59,7 +58,6 @@ export function usePracticeSession(): UsePracticeSessionReturn {
 	const [latestScores, setLatestScores] = useState<DimScores | null>(null);
 	const [summary, setSummary] = useState<string | null>(null);
 	const [error, setError] = useState<string | null>(null);
-	const [analyserNode, setAnalyserNode] = useState<AnalyserNode | null>(null);
 	const [chunksProcessed, setChunksProcessed] = useState(0);
 	const [chunkStates, setChunkStates] = useState<ChunkState[]>([]);
 	const [wsStatus, setWsStatus] = useState<WsStatus>("disconnected");
@@ -349,7 +347,6 @@ export function usePracticeSession(): UsePracticeSessionReturn {
 		const analyser = audioCtx.createAnalyser();
 		analyser.fftSize = 256;
 		source.connect(analyser);
-		setAnalyserNode(analyser);
 		analyserRef.current = analyser;
 
 		// 3. Start session on server
@@ -605,7 +602,6 @@ export function usePracticeSession(): UsePracticeSessionReturn {
 		latestScores,
 		summary,
 		error,
-		analyserNode,
 		chunksProcessed,
 		chunkStates,
 		wsStatus,

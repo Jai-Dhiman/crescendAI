@@ -10,13 +10,14 @@ import { createPortal } from "react-dom";
 import { useMetronome } from "../hooks/useMetronome";
 import type { PracticeState, WsStatus } from "../hooks/usePracticeSession";
 import type { DimScores, ObservationEvent } from "../lib/practice-api";
-import { FlowingWaves } from "./FlowingWaves";
+import { ResonanceRipples } from "./ResonanceRipples";
 import { ObservationToast } from "./ObservationToast";
 
 interface ListeningModeProps {
 	state: PracticeState;
 	observations: ObservationEvent[];
-	analyserNode: AnalyserNode | null;
+	energy: number;
+	isPlaying: boolean;
 	latestScores: DimScores | null;
 	error: string | null;
 	wsStatus: WsStatus;
@@ -33,7 +34,8 @@ type TransitionPhase = "collapsed" | "expanding" | "open" | "collapsing";
 export function ListeningMode({
 	state,
 	observations,
-	analyserNode,
+	energy,
+	isPlaying,
 	latestScores,
 	error: _error,
 	wsStatus,
@@ -286,7 +288,7 @@ export function ListeningMode({
 
 						{/* Waveform */}
 						<div className="w-full max-w-3xl h-32 sm:h-40 md:h-48">
-							<FlowingWaves analyserNode={analyserNode} active={isRecording} />
+							<ResonanceRipples energy={energy} isPlaying={isPlaying} active={isRecording} />
 						</div>
 
 						{/* Dimension scores */}
