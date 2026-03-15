@@ -367,6 +367,64 @@ async fn fetch(
         return Ok(resp);
     }
 
+    // Score library: GET /api/scores/:piece_id/data
+    if path.starts_with("/api/scores/") && path.ends_with("/data") && method == http::Method::GET {
+        let piece_id = path.trim_start_matches("/api/scores/").trim_end_matches("/data");
+        if !piece_id.is_empty() && !piece_id.contains('/') {
+            return into_worker_response(with_cors(
+                crate::services::scores::handle_get_piece_data(&env, piece_id).await,
+                origin.as_deref(),
+            )).await;
+        }
+    }
+
+    // Score library: GET /api/scores/:piece_id
+    if path.starts_with("/api/scores/") && method == http::Method::GET {
+        let piece_id = path.trim_start_matches("/api/scores/");
+        if !piece_id.is_empty() && !piece_id.contains('/') {
+            return into_worker_response(with_cors(
+                crate::services::scores::handle_get_piece(&env, piece_id).await,
+                origin.as_deref(),
+            )).await;
+        }
+    }
+
+    // Score library: GET /api/scores?composer=X (list)
+    if path == "/api/scores" && method == http::Method::GET {
+        let query = req.uri().query().unwrap_or("");
+        let composer = query.split('&').find_map(|pair| {
+            let mut parts = pair.splitn(2, '=');
+            if parts.next() == Some("composer") {
+                parts.next().map(|v| {
+                    // Basic percent-decoding for composer names
+                    let replaced = v.replace('+', " ");
+                    let mut result = String::new();
+                    let mut chars = replaced.chars();
+                    while let Some(c) = chars.next() {
+                        if c == '%' {
+                            let hex: String = chars.by_ref().take(2).collect();
+                            if let Ok(byte) = u8::from_str_radix(&hex, 16) {
+                                result.push(byte as char);
+                            } else {
+                                result.push('%');
+                                result.push_str(&hex);
+                            }
+                        } else {
+                            result.push(c);
+                        }
+                    }
+                    result
+                })
+            } else {
+                None
+            }
+        });
+        return into_worker_response(with_cors(
+            crate::services::scores::handle_list_pieces(&env, composer.as_deref()).await,
+            origin.as_deref(),
+        )).await;
+    }
+
     // Health check
     if path == "/health" {
         return into_worker_response(with_cors(

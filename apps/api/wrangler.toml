@@ -27,6 +27,10 @@ HF_INFERENCE_ENDPOINT = "https://mxcyiqltad84v9w1.us-east4.gcp.endpoints.hugging
 binding = "CHUNKS"
 bucket_name = "crescendai-bucket"
 
+[[r2_buckets]]
+binding = "SCORES"
+bucket_name = "crescendai-bucket"
+
 [durable_objects]
 bindings = [{ name = "PRACTICE_SESSION", class_name = "PracticeSession" }]
 
