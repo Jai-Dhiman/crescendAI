@@ -87,7 +87,7 @@ def generate_d1_seed(source_dir: Path, output_path: Path | None = None) -> Path:
         rows.append(row)
 
     sql = (
-        "INSERT OR REPLACE INTO scores (\n"
+        "INSERT OR REPLACE INTO pieces (\n"
         "  piece_id, composer, title, key_signature,\n"
         "  time_signature, tempo_bpm, bar_count, duration_seconds,\n"
         "  note_count, pitch_range_low, pitch_range_high,\n"
