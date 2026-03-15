@@ -32,13 +32,18 @@ Build a searchable library of parsed score MIDIs that downstream pipeline compon
 
 The ASAP dataset in `model/data/asap_cache/` contains:
 - **1,066 score MIDI files** across **242 unique pieces** and **16 composers**
-- Directory structure: `{Composer}/{Collection}/{Piece}/score_{performer}.mid`
+- **Variable-depth directory structure:**
+  - 2-level (17 pieces): `{Composer}/{Piece}/score_{performer}.mid` (e.g., `Balakirev/Islamey/`, `Chopin/Barcarolle/`, `Liszt/Sonata/`)
+  - 3-level (225 pieces): `{Composer}/{Collection}/{Number}/score_{performer}.mid` (e.g., `Chopin/Etudes_op_10/3/`, `Bach/Fugue/bwv_846/`)
+- A "piece directory" is any directory that directly contains `score_*.mid` files
 - Score files for the same piece are identical in note content across performers (verified via MD5)
 - One canonical score per piece: pick the first `score_*.mid` in each piece directory
 
 Composers: Bach, Balakirev, Beethoven, Brahms, Chopin, Debussy, Glinka, Haydn, Liszt, Mozart, Prokofiev, Rachmaninoff, Ravel, Schubert, Schumann, Scriabin.
 
 MIDI files contain: time signatures, key signatures, tempo markings, note data (pitch, velocity, onset, duration) across 2 tracks (RH/LH), pedal CC events. No annotation files (beat positions, etc.) are present in the current cache -- bar structure is derived from time signature events in the MIDI.
+
+**Key signature limitation:** MIDI key signature events in the ASAP dataset do not reliably encode major/minor mode (all report as major). Store the MIDI-reported value as-is (e.g., `"E"`, `"Ab"`). Accurate major/minor requires MusicXML (future enhancement).
 
 ## Data Model
 
@@ -59,22 +64,25 @@ CREATE TABLE pieces (
   note_count INTEGER NOT NULL,
   pitch_range_low INTEGER,
   pitch_range_high INTEGER,
+  has_time_sig_changes INTEGER NOT NULL DEFAULT 0,
+  has_tempo_changes INTEGER NOT NULL DEFAULT 0,
   source TEXT NOT NULL DEFAULT 'asap',
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 ```
 
-- `piece_id` derived from ASAP directory path, normalized to lowercase: `chopin/etudes_op_10/3`
-- `time_signature` and `tempo_bpm` reflect the initial values; pieces with changes are noted in the full score data
+- `piece_id` uses dot-separated path derived from ASAP directory structure, normalized to lowercase: `chopin.etudes_op_10.3`, `balakirev.islamey`. Dots instead of forward slashes avoid URL routing issues (Axum path params don't match across `/` boundaries).
+- `time_signature` and `tempo_bpm` reflect the initial values; `has_time_sig_changes` and `has_tempo_changes` flag pieces with mid-piece changes
+- `key_signature` is the MIDI-reported value (major/minor unreliable -- see Data Source section)
 - `source` tracks provenance for when additional sources are added
 
-### Per-Piece Score Data (R2: `scores/{piece_id}.json`)
+### Per-Piece Score Data (R2: `scores/v1/{piece_id}.json`)
 
 Full parsed score, bar-centric structure. This is what downstream consumers (score following, bar-aligned analysis engine) use.
 
 ```json
 {
-  "piece_id": "chopin/etudes_op_10/3",
+  "piece_id": "chopin.etudes_op_10.3",
   "composer": "Chopin",
   "title": "Etude Op. 10 No. 3",
   "key_signature": "E",
@@ -114,9 +122,11 @@ Full parsed score, bar-centric structure. This is what downstream consumers (sco
 
 Design choices:
 - **Bar-centric structure.** Everything indexed by bar number -- the natural unit for score following and teacher feedback ("bars 12-16").
+- **Bar numbering:** 1-indexed. Pickup bars (anacrusis) are bar 0. Empty bars are included with `note_count: 0`. This matches conventional music notation numbering.
 - **Both ticks and seconds.** Ticks for score following alignment, seconds for mapping to audio chunks.
 - **Per-bar summary stats** (note_count, pitch_range, mean_velocity) pre-computed for the analysis engine.
 - **Track preserved.** ASAP scores use 2 tracks (RH/LH). Enables future hand-separation analysis.
+- **Schema validation.** A Pydantic model defines the JSON structure. The integration test validates all output against this schema to catch regressions.
 
 ## Pipeline Architecture
 
@@ -135,10 +145,11 @@ Generate piece_id          Extract notes per bar
 
 ### Stage 1: Discovery
 
-- Walk `asap_cache/{Composer}/{Collection}/{Piece}/`
-- For each unique piece directory, pick the first `score_*.mid` file
-- Derive `piece_id` from path: lowercase, forward-slash separated (e.g., `chopin/etudes_op_10/3`)
-- Derive human-readable `title` from directory names (e.g., `Etude Op. 10 No. 3`)
+- Recursively walk `asap_cache/` and find all directories that directly contain `score_*.mid` files (handles both 2-level and 3-level paths)
+- For each piece directory, pick the first `score_*.mid` file (all are identical)
+- Derive `piece_id` from the relative path under `asap_cache/`, lowercased, dots as separators (e.g., `chopin.etudes_op_10.3`, `balakirev.islamey`)
+- Composer is the first path component
+- Look up human-readable `title` from a static `titles.json` mapping file (one-time manual curation of 242 entries). Fall back to cleaned directory name if not found. The ASAP directory names are machine-formatted (`Etudes_op_10/3`, `Annees_de_pelerinage_2`) and algorithmic title derivation is brittle -- a static mapping avoids embarrassing catalog entries.
 - Output: list of `(piece_id, title, composer, score_midi_path)`
 
 ### Stage 2: Parse
@@ -156,9 +167,12 @@ Error handling: if a MIDI file fails to parse, log the error and skip. Report su
 
 ### Stage 3: Upload
 
-- Generate D1 seed SQL from parsed metadata
-- Upload per-piece JSONs to R2 bucket at `scores/{piece_id}.json`
+- Generate D1 seed SQL from parsed metadata (batch INSERT for all 242 pieces)
+- Upload per-piece JSONs to R2 at `scores/v1/{piece_id}.json` (version prefix for cache-busting on rebuild -- bump to `v2` when parsing logic changes)
+- R2 bucket: use the existing `crescendai-bucket` with a `scores/` prefix. Add a separate `SCORES` binding in `wrangler.toml` pointing to the same bucket for semantic clarity.
+- Upload via Cloudflare S3-compatible API using `boto3` (more natural from Python than shelling out to wrangler for 242 files)
 - Verify upload count matches parsed count
+- On rebuild: bump version prefix, update D1 rows, purge Cloudflare cache via API
 
 ### CLI Interface
 
@@ -179,8 +193,8 @@ uv run python -m score_library.cli stats --source data/score_library
 ### Dependencies
 
 - `mido` -- already in the project for MIDI parsing
-- `wrangler` -- for D1 seeding and R2 upload (already configured in `apps/api/wrangler.toml`)
-- No new Python dependencies needed
+- `boto3` -- for R2 upload via S3-compatible API (new dependency)
+- `wrangler` -- for D1 seeding only (already configured in `apps/api/wrangler.toml`)
 
 ## API Worker Integration
 
@@ -203,7 +217,9 @@ GET /api/scores/:piece_id/data
   -> 404: { error: "piece_not_found" }
 ```
 
-The worker fetches from R2 and caches using the Cloudflare Cache API. Score data is immutable -- cache indefinitely until a library rebuild.
+The `piece_id` uses dots as separators (e.g., `chopin.etudes_op_10.3`), so standard `:piece_id` path params work without wildcard routing.
+
+The worker fetches from R2 (versioned path `scores/v1/{piece_id}.json`) and caches using the Cloudflare Cache API. On library rebuild (version bump), purge the cache via Cloudflare API.
 
 ### Graceful Degradation
 
