@@ -147,6 +147,8 @@ Response (nested):
 
 The DO extracts `response.predictions` for the 6-dim scores. The `midi_notes` and `transcription_info` fields are available for future score-following (Phase 1c) but are not used in this iteration.
 
+The HF Inference Endpoints infrastructure wraps raw bytes into `{"inputs": <bytes>}` before passing to the handler's `__call__` method. The DO sends raw `application/octet-stream`; the HF infrastructure handles the JSON envelope.
+
 The HF handler (`apps/inference/handler.py`) accepts any audio format and resamples to 24kHz mono internally. The model outputs 6 dimensions directly (not 19) -- the `map_19_to_6` function in `dims.rs` is NOT needed in this path.
 
 ### Server-Side Observation Throttle
@@ -159,7 +161,27 @@ The DO calls `ask::handle_ask_inner()` directly as a Rust function, not via inte
 - **Auth:** The HTTP endpoint (`handle_ask`) validates JWT. The DO does not have the student's JWT token, only the `student_id` (passed by the Worker). A direct function call bypasses auth entirely since the caller is trusted.
 - **Overhead:** Eliminates ~50ms HTTP round-trip overhead.
 
-This requires extracting the core logic of `handle_ask` into a public `handle_ask_inner(env, student_id, teaching_moment) -> AskResult` function that the HTTP handler and the DO can both call.
+This requires extracting the core LLM logic of `handle_ask` into a public function:
+
+```rust
+pub async fn handle_ask_inner(
+    env: &Env,
+    student_id: &str,
+    teaching_moment: &TeachingMoment,
+    piece_context: Option<&serde_json::Value>,  // None for now (deferred)
+) -> Result<AskResponse, AskError>
+```
+
+**Scope of `handle_ask_inner`:** Pure LLM function only.
+- Builds memory context (queries D1 for recent observations)
+- Runs two-stage pipeline (Groq subagent + Anthropic teacher)
+- Returns `AskResponse { text, dimension, framing, reasoning_trace }`
+- Does NOT persist observations to D1 (the DO handles this in `finalize_session`)
+- Does NOT increment observation counts or store teaching approaches
+
+The existing `handle_ask` HTTP handler calls `handle_ask_inner` and then handles D1 persistence itself. The DO calls `handle_ask_inner` and batches D1 persistence to `finalize_session`. This avoids double-writes.
+
+**`piece_context`:** Passed as `None` until the client sends piece context via WebSocket (deferred). Memory queries still work without it -- they just can't filter by piece.
 
 ---
 
