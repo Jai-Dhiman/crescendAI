@@ -1,4 +1,5 @@
 import {
+	CircleNotch,
 	Metronome as MetronomeIcon,
 	Minus,
 	Plus,
@@ -7,7 +8,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useMetronome } from "../hooks/useMetronome";
-import type { PracticeState } from "../hooks/usePracticeSession";
+import type { PracticeState, WsStatus } from "../hooks/usePracticeSession";
 import type { DimScores, ObservationEvent } from "../lib/practice-api";
 import { FlowingWaves } from "./FlowingWaves";
 import { ObservationToast } from "./ObservationToast";
@@ -18,6 +19,7 @@ interface ListeningModeProps {
 	analyserNode: AnalyserNode | null;
 	latestScores: DimScores | null;
 	error: string | null;
+	wsStatus: WsStatus;
 	onStop: () => void;
 	originRect: DOMRect | null;
 	onExit: () => void;
@@ -34,6 +36,7 @@ export function ListeningMode({
 	analyserNode,
 	latestScores,
 	error: _error,
+	wsStatus,
 	onStop,
 	originRect,
 	onExit,
@@ -263,6 +266,12 @@ export function ListeningMode({
 
 					{/* Center: waveform + scores */}
 					<div className="flex-1 flex flex-col items-center justify-center px-6 relative">
+						{wsStatus === "reconnecting" && isRecording && (
+							<div className="absolute top-4 left-4 flex items-center gap-2 text-amber-400 z-10">
+								<CircleNotch size={14} className="animate-spin" />
+								<span className="text-body-xs">Reconnecting...</span>
+							</div>
+						)}
 						{/* Observation toasts */}
 						<div className="absolute top-4 right-4 flex flex-col gap-3 z-10">
 							{visibleObservations.map(({ idx, text, dimension }) => (
