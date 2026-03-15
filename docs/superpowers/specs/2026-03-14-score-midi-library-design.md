@@ -16,6 +16,7 @@ Build a searchable library of parsed score MIDIs that downstream pipeline compon
 ## Scope
 
 **In scope:**
+
 - Parse ASAP dataset score MIDIs (242 unique pieces, 16 composers)
 - Extract bar structure, time/key signatures, tempo markings, notes per bar, pedal events
 - Store piece catalog in D1 (searchable index) and full per-piece score data in R2 (JSON)
@@ -23,6 +24,7 @@ Build a searchable library of parsed score MIDIs that downstream pipeline compon
 - Graceful degradation: pieces not in the library fall back to absolute scoring (current behavior)
 
 **Out of scope (with future notes):**
+
 - MAESTRO/IMSLP/MuseScore piece expansion (future: add sources as library grows)
 - MusicXML import for richer annotations (dynamics text like pp/ff/cresc., articulation marks, section labels) -- MIDI doesn't encode these reliably; MusicXML is the right future path
 - Piece identification/matching UX -- future options: AMT-based pitch sequence matching or audio fingerprinting (Shazam-style). The library provides a clean `piece_id -> score_data` lookup API; how the student selects a piece is a product/UX concern for the app layer
@@ -31,6 +33,7 @@ Build a searchable library of parsed score MIDIs that downstream pipeline compon
 ## Data Source: ASAP Dataset
 
 The ASAP dataset in `model/data/asap_cache/` contains:
+
 - **1,066 score MIDI files** across **242 unique pieces** and **16 composers**
 - **Variable-depth directory structure:**
   - 2-level (17 pieces): `{Composer}/{Piece}/score_{performer}.mid` (e.g., `Balakirev/Islamey/`, `Chopin/Barcarolle/`, `Liszt/Sonata/`)
@@ -121,6 +124,7 @@ Full parsed score, bar-centric structure. This is what downstream consumers (sco
 ```
 
 Design choices:
+
 - **Bar-centric structure.** Everything indexed by bar number -- the natural unit for score following and teacher feedback ("bars 12-16").
 - **Bar numbering:** 1-indexed. Pickup bars (anacrusis) are bar 0. Empty bars are included with `note_count: 0`. This matches conventional music notation numbering.
 - **Both ticks and seconds.** Ticks for score following alignment, seconds for mapping to audio chunks.
@@ -149,12 +153,13 @@ Generate piece_id          Extract notes per bar
 - For each piece directory, pick the first `score_*.mid` file (all are identical)
 - Derive `piece_id` from the relative path under `asap_cache/`, lowercased, dots as separators (e.g., `chopin.etudes_op_10.3`, `balakirev.islamey`)
 - Composer is the first path component
-- Look up human-readable `title` from a static `titles.json` mapping file (one-time manual curation of 242 entries). Fall back to cleaned directory name if not found. The ASAP directory names are machine-formatted (`Etudes_op_10/3`, `Annees_de_pelerinage_2`) and algorithmic title derivation is brittle -- a static mapping avoids embarrassing catalog entries.
+- Look up human-readable `title` from a static `titles.json` mapping file. Bootstrapping strategy: auto-generate titles algorithmically (underscores to spaces, `op_10` to `Op. 10`, `bwv_846` to `BWV 846`, common patterns), then manually review and fix the ~20-30 that look wrong. Fall back to cleaned directory name if not found in the mapping.
 - Output: list of `(piece_id, title, composer, score_midi_path)`
 
 ### Stage 2: Parse
 
 For each piece, using `mido`:
+
 1. Read time signatures, key signatures, tempo changes from track 0
 2. Build a bar grid from time signature events (tick positions of each bar boundary)
 3. Assign each note to a bar by onset tick
@@ -201,6 +206,7 @@ uv run python -m score_library.cli stats --source data/score_library
 ### Endpoints
 
 **Piece lookup (D1):**
+
 ```
 GET /api/scores/:piece_id
   -> 200: { piece_id, composer, title, key_signature, bar_count, ... }
@@ -211,6 +217,7 @@ GET /api/scores?composer=Chopin
 ```
 
 **Full score data (R2):**
+
 ```
 GET /api/scores/:piece_id/data
   -> 200: full JSON from R2 (bar-centric score data)
@@ -221,9 +228,12 @@ The `piece_id` uses dots as separators (e.g., `chopin.etudes_op_10.3`), so stand
 
 The worker fetches from R2 (versioned path `scores/v1/{piece_id}.json`) and caches using the Cloudflare Cache API. On library rebuild (version bump), purge the cache via Cloudflare API.
 
+R2 fetch error handling: 5-second timeout on R2 fetch. On timeout or R2 error, return 503 with `Retry-After` header. Do not let R2 failures cascade to the subagent pipeline -- graceful degradation to absolute scoring (same as "piece not found").
+
 ### Graceful Degradation
 
 When `piece_id` is not found in D1:
+
 - Score following, bar-aligned analysis, and reference comparison are skipped
 - System falls back to current behavior: absolute scoring with raw dimension scores fed to the subagent
 - Track "piece not found" events via `console_error!` for prioritizing library expansion
@@ -246,17 +256,20 @@ New migration in `apps/api/migrations/` adding the `pieces` table. No changes to
   - Per-bar summary stats correct
 - **JSON schema:** Output JSON validates against defined schema (all required fields present, types correct)
 - **Edge cases:** Tempo changes mid-piece, time signature changes, anacrusis (pickup bars), empty bars
+- **Golden file tests (bar grid):** Pick 5 pieces with known time signature changes, manually verify bar counts and bar boundaries, store as golden test data. The bar grid builder must match exactly. This is the highest-risk codepath -- wrong bar numbers propagate silently to all downstream consumers (score following, bar-aligned analysis, teacher feedback).
 
 ### Integration Test
 
 Run the full parse pipeline on the actual ASAP cache:
+
 - All 242 pieces parsed without errors (or document which fail and why)
-- Spot-check 5-10 pieces across different composers against manual inspection
+- Spot-check 5-10 pieces across different composers against manual inspection, specifically targeting pieces with time signature changes
 - Total JSON output size is reasonable (~5-50KB per piece)
 
 ### Validation Metrics
 
 After initial build, report:
+
 - Pieces parsed: X / 242
 - Composer distribution (table)
 - Bar count range (min/median/max)
