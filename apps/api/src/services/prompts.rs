@@ -119,7 +119,7 @@ pub fn build_subagent_user_prompt(
     }
     prompt.push_str("</teaching_moment>\n\n");
 
-    // Piece context
+    // Piece context + musical analysis
     if let Some(piece) = piece_context {
         prompt.push_str("<piece_context>\n");
         if let Some(composer) = piece.get("composer").and_then(|v| v.as_str()) {
@@ -128,11 +128,32 @@ pub fn build_subagent_user_prompt(
         if let Some(title) = piece.get("title").and_then(|v| v.as_str()) {
             prompt.push_str(&format!("Title: {}\n", title));
         }
-        if let Some(section) = piece.get("section").and_then(|v| v.as_str()) {
-            prompt.push_str(&format!("Section: {}\n", section));
-        }
         if let Some(bar_range) = piece.get("bar_range").and_then(|v| v.as_str()) {
             prompt.push_str(&format!("Bar range: {}\n", bar_range));
+        }
+        if let Some(tier) = piece.get("analysis_tier").and_then(|v| v.as_u64()) {
+            prompt.push_str(&format!("Analysis tier: {} (1=full score context, 2=absolute, 3=scores only)\n", tier));
+        }
+
+        // Per-dimension musical analysis
+        if let Some(analysis) = piece.get("musical_analysis").and_then(|v| v.as_array()) {
+            prompt.push_str("\n<musical_analysis>\n");
+            for dim_analysis in analysis {
+                if let Some(dim) = dim_analysis.get("dimension").and_then(|v| v.as_str()) {
+                    prompt.push_str(&format!("<{}>\n", dim));
+                    if let Some(a) = dim_analysis.get("analysis").and_then(|v| v.as_str()) {
+                        prompt.push_str(&format!("  {}\n", a));
+                    }
+                    if let Some(sm) = dim_analysis.get("score_marking").and_then(|v| v.as_str()) {
+                        prompt.push_str(&format!("  Score marking: {}\n", sm));
+                    }
+                    if let Some(rc) = dim_analysis.get("reference_comparison").and_then(|v| v.as_str()) {
+                        prompt.push_str(&format!("  Reference: {}\n", rc));
+                    }
+                    prompt.push_str(&format!("</{}>\n", dim));
+                }
+            }
+            prompt.push_str("</musical_analysis>\n");
         }
         prompt.push_str("</piece_context>\n\n");
     }
