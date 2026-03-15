@@ -476,7 +476,7 @@ def clean_title_from_path(piece_dir: Path, base_dir: Path) -> str:
         # no N -> No. N (but not at the start of a bare number)
         s = re.sub(r"\bno (\d+)", r"No. \1", s, flags=re.IGNORECASE)
         # Capitalize first letter of each word
-        s = " ".join(w.capitalize() if not w[0].isdigit() else w for w in s.split())
+        s = " ".join(w.capitalize() if w and not w[0].isdigit() else w for w in s.split() if w)
         cleaned.append(s)
 
     if len(cleaned) == 1:
@@ -1283,8 +1283,16 @@ def cmd_upload(args: argparse.Namespace) -> None:
     # Implemented in Task 7
     from score_library.upload import upload_to_r2, generate_d1_seed
     source_dir = Path(args.source)
-    upload_to_r2(source_dir, version=args.version)
-    generate_d1_seed(source_dir, output_path=Path(args.seed_output or "data/score_library/seed.sql"))
+    seed_path = Path(args.seed_output or "data/score_library/seed.sql")
+
+    # Always generate seed SQL (works offline)
+    generate_d1_seed(source_dir, output_path=seed_path)
+
+    # R2 upload requires credentials -- skip gracefully if not set
+    if args.skip_r2:
+        print("Skipping R2 upload (--skip-r2 flag)")
+    else:
+        upload_to_r2(source_dir, version=args.version)
 
 
 def cmd_build(args: argparse.Namespace) -> None:
@@ -1308,6 +1316,7 @@ def main() -> None:
     p_upload.add_argument("--source", required=True, help="Path to parsed score library")
     p_upload.add_argument("--version", default="v1", help="Version prefix for R2 path")
     p_upload.add_argument("--seed-output", help="Output path for D1 seed SQL")
+    p_upload.add_argument("--skip-r2", action="store_true", help="Skip R2 upload (generate seed SQL only)")
 
     p_build = sub.add_parser("build", help="Full pipeline: parse + upload")
     p_build.add_argument("--asap-dir", required=True, help="Path to ASAP cache directory")
@@ -1664,8 +1673,13 @@ git commit -m "feat(api): add pieces table migration and SCORES R2 binding"
 //! GET /api/scores/:piece_id      -> D1 piece catalog lookup
 //! GET /api/scores/:piece_id/data -> R2 full score data (cached)
 //! GET /api/scores?composer=X     -> D1 filtered list
+//!
+//! Uses the same D1/R2 patterns as memory.rs and practice/upload.rs:
+//!   D1: db.prepare(...).bind(&[JsValue::from_str(...)]).all().await -> results.results::<serde_json::Value>()
+//!   R2: bucket.get(&key).execute().await -> Option<Object>
 
-use worker::Env;
+use wasm_bindgen::JsValue;
+use worker::{console_error, Env};
 
 /// Fetch piece catalog entry from D1.
 pub async fn handle_get_piece(
@@ -1677,25 +1691,47 @@ pub async fn handle_get_piece(
         Err(_) => return json_error(500, "Database unavailable"),
     };
 
-    let stmt = db
-        .prepare("SELECT piece_id, composer, title, key_signature, time_signature, tempo_bpm, bar_count, duration_seconds, note_count, pitch_range_low, pitch_range_high, has_time_sig_changes, has_tempo_changes, source FROM pieces WHERE piece_id = ?1")
-        .bind(&[piece_id.into()])
-        .unwrap();
-
-    match stmt.first::<worker::d1::D1Result>(None).await {
-        Ok(Some(row)) => {
-            let json = row.to_json().unwrap_or_default();
-            http::Response::builder()
-                .status(200)
-                .header("Content-Type", "application/json")
-                .body(axum::body::Body::from(json))
-                .unwrap()
-        }
-        Ok(None) => json_error(404, "piece_not_found"),
+    let results = match db
+        .prepare(
+            "SELECT piece_id, composer, title, key_signature, time_signature, tempo_bpm, \
+             bar_count, duration_seconds, note_count, pitch_range_low, pitch_range_high, \
+             has_time_sig_changes, has_tempo_changes, source \
+             FROM pieces WHERE piece_id = ?1",
+        )
+        .bind(&[JsValue::from_str(piece_id)])
+        .map_err(|e| format!("{:?}", e))
+        .and_then(|stmt| Ok(stmt))
+    {
+        Ok(stmt) => match stmt.all().await {
+            Ok(r) => r,
+            Err(e) => {
+                console_error!("D1 query failed for piece {}: {:?}", piece_id, e);
+                return json_error(500, "database_error");
+            }
+        },
         Err(e) => {
-            worker::console_error!("D1 query failed for piece {}: {:?}", piece_id, e);
-            json_error(500, "database_error")
+            console_error!("D1 bind failed: {}", e);
+            return json_error(500, "database_error");
         }
+    };
+
+    let rows: Vec<serde_json::Value> = match results.results() {
+        Ok(r) => r,
+        Err(e) => {
+            console_error!("D1 results parse failed: {:?}", e);
+            return json_error(500, "database_error");
+        }
+    };
+
+    if let Some(row) = rows.into_iter().next() {
+        let json = serde_json::to_string(&row).unwrap_or_default();
+        http::Response::builder()
+            .status(200)
+            .header("Content-Type", "application/json")
+            .body(axum::body::Body::from(json))
+            .unwrap()
+    } else {
+        json_error(404, "piece_not_found")
     }
 }
 
@@ -1712,7 +1748,10 @@ pub async fn handle_get_piece_data(
     let key = format!("scores/v1/{}.json", piece_id);
     match bucket.get(&key).execute().await {
         Ok(Some(obj)) => {
-            let bytes = obj.body().unwrap().bytes().await.unwrap_or_default();
+            let bytes = match obj.body() {
+                Some(body) => body.bytes().await.unwrap_or_default(),
+                None => return json_error(500, "Empty R2 object"),
+            };
             http::Response::builder()
                 .status(200)
                 .header("Content-Type", "application/json")
@@ -1722,7 +1761,7 @@ pub async fn handle_get_piece_data(
         }
         Ok(None) => json_error(404, "piece_not_found"),
         Err(e) => {
-            worker::console_error!("R2 fetch failed for {}: {:?}", key, e);
+            console_error!("R2 fetch failed for {}: {:?}", key, e);
             http::Response::builder()
                 .status(503)
                 .header("Content-Type", "application/json")
@@ -1743,21 +1782,34 @@ pub async fn handle_list_pieces(
         Err(_) => return json_error(500, "Database unavailable"),
     };
 
-    let result = if let Some(c) = composer {
-        db.prepare("SELECT piece_id, composer, title, key_signature, bar_count, note_count FROM pieces WHERE composer = ?1 ORDER BY title")
-            .bind(&[c.into()])
-            .unwrap()
-            .all()
-            .await
+    let results = if let Some(c) = composer {
+        match db
+            .prepare(
+                "SELECT piece_id, composer, title, key_signature, bar_count, note_count \
+                 FROM pieces WHERE composer = ?1 ORDER BY title",
+            )
+            .bind(&[JsValue::from_str(c)])
+            .map_err(|e| format!("{:?}", e))
+        {
+            Ok(stmt) => stmt.all().await,
+            Err(e) => {
+                console_error!("D1 bind failed: {}", e);
+                return json_error(500, "database_error");
+            }
+        }
     } else {
-        db.prepare("SELECT piece_id, composer, title, key_signature, bar_count, note_count FROM pieces ORDER BY composer, title")
-            .all()
-            .await
+        db.prepare(
+            "SELECT piece_id, composer, title, key_signature, bar_count, note_count \
+             FROM pieces ORDER BY composer, title",
+        )
+        .all()
+        .await
     };
 
-    match result {
-        Ok(rows) => {
-            let json = rows.to_json().unwrap_or_default();
+    match results {
+        Ok(r) => {
+            let rows: Vec<serde_json::Value> = r.results().unwrap_or_default();
+            let json = serde_json::to_string(&rows).unwrap_or_default();
             http::Response::builder()
                 .status(200)
                 .header("Content-Type", "application/json")
@@ -1765,7 +1817,7 @@ pub async fn handle_list_pieces(
                 .unwrap()
         }
         Err(e) => {
-            worker::console_error!("D1 list query failed: {:?}", e);
+            console_error!("D1 list query failed: {:?}", e);
             json_error(500, "database_error")
         }
     }
