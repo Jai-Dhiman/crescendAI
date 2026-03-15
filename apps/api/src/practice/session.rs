@@ -13,8 +13,21 @@ use crate::services::teaching_moments::{
     RecentObservation, ScoredChunk, StudentBaselines,
 };
 
+/// JS setTimeout-based sleep for Cloudflare Workers WASM
+async fn sleep_ms(ms: u64) {
+    let promise = js_sys::Promise::new(&mut |resolve, _| {
+        let global = js_sys::global();
+        let set_timeout = js_sys::Reflect::get(&global, &JsValue::from_str("setTimeout"))
+            .expect("setTimeout not found on global");
+        let set_timeout_fn: js_sys::Function = set_timeout.into();
+        let _ = set_timeout_fn.call2(&JsValue::NULL, &resolve, &JsValue::from(ms as f64));
+    });
+    let _ = wasm_bindgen_futures::JsFuture::from(promise).await;
+}
+
 const ALARM_DURATION_MS: i64 = 30 * 60 * 1000; // 30 minutes
 const OBSERVATION_THROTTLE_MS: u64 = 180_000; // 3 minutes
+const HF_RETRY_DELAYS_MS: &[u64] = &[5_000, 15_000, 30_000]; // retry 503s with backoff
 
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub struct ObservationRecord {
@@ -36,6 +49,7 @@ struct SessionState {
     baselines_loaded: bool,
     scored_chunks: Vec<ScoredChunk>,
     observations: Vec<ObservationRecord>,
+    inference_failures: usize,
     dim_stats: DimStats,
     last_observation_at: Option<u64>,
     piece_query: Option<String>,
@@ -53,6 +67,7 @@ impl Default for SessionState {
             baselines_loaded: false,
             scored_chunks: Vec::new(),
             observations: Vec::new(),
+            inference_failures: 0,
             dim_stats: DimStats::default(),
             last_observation_at: None,
             piece_query: None,
@@ -206,6 +221,7 @@ impl PracticeSession {
             Ok(resp) => resp,
             Err(e) => {
                 console_error!("HF inference failed for chunk {}: {}", index, e);
+                self.inner.borrow_mut().inference_failures += 1;
                 self.send_zeroed_chunk_processed(ws, index)?;
                 return Ok(());
             }
@@ -531,39 +547,72 @@ impl PracticeSession {
             .map_err(|e| format!("HF_TOKEN not set: {:?}", e))?
             .to_string();
 
-        let headers = worker::Headers::new();
-        headers.set("Content-Type", "application/octet-stream").map_err(|e| format!("{:?}", e))?;
-        headers.set("Authorization", &format!("Bearer {}", token)).map_err(|e| format!("{:?}", e))?;
+        let mut last_err = String::new();
 
-        let mut init = worker::RequestInit::new();
-        init.with_method(worker::Method::Post);
-        init.with_headers(headers);
-        init.with_body(Some(JsValue::from(js_sys::Uint8Array::from(audio_bytes))));
+        // Try once, then retry on 503 (HF cold start) with backoff
+        for attempt in 0..=HF_RETRY_DELAYS_MS.len() {
+            let headers = worker::Headers::new();
+            headers.set("Content-Type", "application/octet-stream").map_err(|e| format!("{:?}", e))?;
+            headers.set("Authorization", &format!("Bearer {}", token)).map_err(|e| format!("{:?}", e))?;
 
-        let request = worker::Request::new_with_init(&endpoint, &init)
-            .map_err(|e| format!("Failed to create request: {:?}", e))?;
+            let mut init = worker::RequestInit::new();
+            init.with_method(worker::Method::Post);
+            init.with_headers(headers);
+            init.with_body(Some(JsValue::from(js_sys::Uint8Array::from(audio_bytes))));
 
-        let mut response = worker::Fetch::Request(request)
-            .send()
-            .await
-            .map_err(|e| format!("HF fetch failed: {:?}", e))?;
+            let request = worker::Request::new_with_init(&endpoint, &init)
+                .map_err(|e| format!("Failed to create request: {:?}", e))?;
 
-        if response.status_code() != 200 {
-            let body = response.text().await.unwrap_or_default();
-            return Err(format!("HF returned {}: {}", response.status_code(), body));
+            let mut response = match worker::Fetch::Request(request).send().await {
+                Ok(r) => r,
+                Err(e) => {
+                    last_err = format!("HF fetch failed: {:?}", e);
+                    if attempt < HF_RETRY_DELAYS_MS.len() {
+                        let delay = HF_RETRY_DELAYS_MS[attempt];
+                        console_log!("HF fetch failed (attempt {}), retrying in {}s: {}", attempt + 1, delay / 1000, last_err);
+                        sleep_ms(delay).await;
+                        continue;
+                    }
+                    return Err(last_err);
+                }
+            };
+
+            let status = response.status_code();
+            if status == 503 || status == 429 {
+                let body = response.text().await.unwrap_or_default();
+                last_err = format!("HF returned {}: {}", status, body);
+                if attempt < HF_RETRY_DELAYS_MS.len() {
+                    let delay = HF_RETRY_DELAYS_MS[attempt];
+                    console_log!("HF {} (attempt {}), endpoint likely cold-starting, retrying in {}s", status, attempt + 1, delay / 1000);
+                    sleep_ms(delay).await;
+                    continue;
+                }
+                return Err(last_err);
+            }
+
+            if status != 200 {
+                let body = response.text().await.unwrap_or_default();
+                return Err(format!("HF returned {}: {}", status, body));
+            }
+
+            let body: serde_json::Value = response.json().await
+                .map_err(|e| format!("HF response parse failed: {:?}", e))?;
+
+            // Validate that predictions contain all 6 dimensions
+            let predictions = body.get("predictions").unwrap_or(&body);
+            let dim_count = DIMS_6.iter().filter(|dim| predictions.get(*dim).and_then(|v| v.as_f64()).is_some()).count();
+            if dim_count < 6 {
+                return Err(format!("HF returned only {} dimensions", dim_count));
+            }
+
+            if attempt > 0 {
+                console_log!("HF inference succeeded after {} retries", attempt);
+            }
+
+            return Ok(body);
         }
 
-        let body: serde_json::Value = response.json().await
-            .map_err(|e| format!("HF response parse failed: {:?}", e))?;
-
-        // Validate that predictions contain all 6 dimensions
-        let predictions = body.get("predictions").unwrap_or(&body);
-        let dim_count = DIMS_6.iter().filter(|dim| predictions.get(*dim).and_then(|v| v.as_f64()).is_some()).count();
-        if dim_count < 6 {
-            return Err(format!("HF returned only {} dimensions", dim_count));
-        }
-
-        Ok(body)
+        Err(last_err)
     }
 
     // --- Baselines ---
@@ -638,9 +687,15 @@ impl PracticeSession {
     // --- Session finalization ---
 
     async fn finalize_session(&self, ws: Option<&WebSocket>) {
-        let (observations, session_id, student_id) = {
+        let (observations, session_id, student_id, inference_failures, total_chunks) = {
             let s = self.inner.borrow();
-            (s.observations.clone(), s.session_id.clone(), s.student_id.clone())
+            (
+                s.observations.clone(),
+                s.session_id.clone(),
+                s.student_id.clone(),
+                s.inference_failures,
+                s.scored_chunks.len() + s.inference_failures,
+            )
         };
 
         // 1. Persist observations to D1
@@ -665,6 +720,8 @@ impl PracticeSession {
                 "type": "session_summary",
                 "observations": obs_json,
                 "summary": "",
+                "inference_failures": inference_failures,
+                "total_chunks": total_chunks,
             });
             let _ = ws.send_with_str(&summary.to_string());
         }

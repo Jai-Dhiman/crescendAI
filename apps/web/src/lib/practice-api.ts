@@ -51,6 +51,8 @@ export type PracticeWsEvent =
 			type: "session_summary";
 			observations: ObservationEvent[];
 			summary: string;
+			inference_failures?: number;
+			total_chunks?: number;
 	  }
 	| { type: "piece_set"; query: string }
 	| { type: "error"; message: string };

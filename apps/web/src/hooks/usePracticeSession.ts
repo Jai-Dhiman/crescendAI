@@ -236,9 +236,20 @@ export function usePracticeSession(): UsePracticeSessionReturn {
 					// Build summary string
 					const obsLines = allObs.map((o) => `- ${o.text}`).join("\n");
 					const chunksCount = chunkIndexRef.current;
-					const builtSummary = obsLines
-						? `I listened to ${chunksCount} sections of your playing.\n\nDuring the session, I noticed:\n${obsLines}\n\nWant to hear more about any of these?`
-						: `I listened to ${chunksCount} sections of your playing.\n\nI didn't notice anything specific to flag this time. Want to talk about how it felt?`;
+					const inferenceFailures = data.inference_failures;
+					const totalChunks = data.total_chunks;
+
+					let builtSummary: string;
+					if (inferenceFailures && totalChunks && inferenceFailures === totalChunks) {
+						// All inference failed (e.g., HF endpoint cold/down)
+						builtSummary = "I wasn't able to analyze your playing this time -- the analysis service is still warming up. Try again in about a minute.";
+					} else if (inferenceFailures && inferenceFailures > 0 && obsLines) {
+						builtSummary = `I listened to ${chunksCount} sections of your playing (${inferenceFailures} couldn't be analyzed).\n\nDuring the session, I noticed:\n${obsLines}\n\nWant to hear more about any of these?`;
+					} else if (obsLines) {
+						builtSummary = `I listened to ${chunksCount} sections of your playing.\n\nDuring the session, I noticed:\n${obsLines}\n\nWant to hear more about any of these?`;
+					} else {
+						builtSummary = `I listened to ${chunksCount} sections of your playing.\n\nI didn't notice anything specific to flag this time. Want to talk about how it felt?`;
+					}
 					setSummary(builtSummary);
 					setState("idle");
 					cleanup();

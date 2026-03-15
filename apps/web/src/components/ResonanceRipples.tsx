@@ -124,7 +124,7 @@ export function ResonanceRipples({
 						maxRadius: maxRadius * 0.5,
 						wobblePhase1: Math.random() * Math.PI * 2,
 						wobblePhase2: Math.random() * Math.PI * 2,
-						baseOpacity: 0.1,
+						baseOpacity: 0.25,
 					});
 					lastRippleTimeRef.current = timestamp;
 				}
