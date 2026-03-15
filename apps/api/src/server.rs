@@ -70,9 +70,20 @@ async fn fetch(
     if path.starts_with("/api/practice/ws/") && method == http::Method::GET {
         let session_id = path.trim_start_matches("/api/practice/ws/");
         if !session_id.is_empty() && !session_id.contains('/') {
+            // Validate auth before routing to DO
+            let student_id = match crate::auth::verify_auth(req.headers(), &env) {
+                Ok(id) => id,
+                Err(_) => {
+                    return worker::Response::error("Unauthorized", 401);
+                }
+            };
+
             let namespace = env.durable_object("PRACTICE_SESSION")?;
             let stub = namespace.id_from_name(session_id)?.get_stub()?;
-            let url = format!("https://do.internal/ws/{}", session_id);
+            let url = format!(
+                "https://do.internal/ws/{}?student_id={}",
+                session_id, student_id
+            );
             let mut worker_req = worker::Request::new(&url, worker::Method::Get)?;
             worker_req.headers_mut()?.set("Upgrade", "websocket")?;
             return stub.fetch_with_request(worker_req).await;
