@@ -13,6 +13,10 @@ muq  # MuQ - Music Understanding Quantized from ByteDance/OpenMuQ
 librosa>=0.10.0
 soundfile>=0.12.0
 
+# AMT (Automatic Music Transcription)
+piano-transcription-inference
+pretty-midi>=0.2.10
+
 # Utilities
 numpy>=1.24.0
 scipy>=1.10.0

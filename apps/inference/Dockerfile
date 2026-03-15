@@ -39,6 +39,15 @@ MuQ.from_pretrained('OpenMuQ/MuQ-large-msd-iter'); \
 print('Done!'); \
 "
 
+# Pre-download ByteDance AMT model weights (REQUIRED for cold start performance)
+# device='cpu' is correct -- no GPU during Docker build. Constructor downloads weights only.
+RUN python3 -c "\
+print('Downloading ByteDance piano transcription model...'); \
+from piano_transcription_inference import PianoTranscription; \
+PianoTranscription(device='cpu'); \
+print('Done!'); \
+"
+
 # Copy application code
 COPY constants.py .
 COPY handler.py .

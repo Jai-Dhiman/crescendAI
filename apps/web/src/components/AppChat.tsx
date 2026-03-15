@@ -461,6 +461,38 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 		}
 	}
 
+	const handleTryExercises = useCallback(
+		async (dimension: string) => {
+			const { exercises } = await api.exercises.fetch({ dimension });
+			if (exercises.length === 0) return;
+
+			const exerciseMsg: RichMessage = {
+				id: `exercises-${Date.now()}`,
+				role: "assistant",
+				content: `Here are some exercises to work on your ${dimension}:`,
+				created_at: new Date().toISOString(),
+				components: [
+					{
+						type: "exercise_set" as const,
+						config: {
+							source_passage: "Based on your recent practice",
+							target_skill: `${dimension} improvement`,
+							exercises: exercises.map((e) => ({
+								title: e.title,
+								instruction: e.instructions,
+								focus_dimension: e.dimensions[0] ?? dimension,
+								exercise_id: e.id,
+							})),
+						},
+					},
+				],
+			};
+
+			setMessages((prev) => [...prev, exerciseMsg]);
+		},
+		[],
+	);
+
 	const greeting = useMemo(
 		() => GREETINGS[Math.floor(Math.random() * GREETINGS.length)],
 		[],
@@ -739,7 +771,7 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 						/>
 					</div>
 				) : (
-					<ChatMessages messages={messages}>
+					<ChatMessages messages={messages} onTryExercises={handleTryExercises}>
 						<div className="sticky bottom-0">
 							<ChatInput
 								onSend={handleSend}
