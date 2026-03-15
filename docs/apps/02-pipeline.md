@@ -94,6 +94,36 @@ The web path uses Cloudflare Durable Objects to manage practice session state. `
 
 **Status:** IN PROGRESS (recording, chunk upload, WebSocket connection, chat interface).
 
+#### Durable Object Session Lifecycle
+
+Each web practice session is backed by a Cloudflare Durable Object that manages session state. The DO holds scored chunks, teaching moment candidates, and WebSocket connections.
+
+**Creation:** `POST /api/practice/start` creates a DO with a deterministic ID: `session:{student_id}:{timestamp_ms}`. Initial state:
+
+```json
+{
+    "session_id": "...",
+    "student_id": "...",
+    "mode": "regular",
+    "target_dimension": null,
+    "started_at": "...",
+    "chunks": [],
+    "candidates": [],
+    "observations_delivered": 0,
+    "last_observation_at": null
+}
+```
+
+**Chunk accumulation:** When `POST /api/practice/chunk` arrives, the worker forwards audio to HF inference, runs STOP classification on the returned scores, and sends the scored chunk to the DO via internal fetch. The DO appends to its `chunks` array and updates `candidates` if STOP > threshold.
+
+**WebSocket:** `WS /api/practice/ws/:sessionId` opens a WebSocket connection to the DO. The DO pushes observations to connected clients when the throttle window allows. Multiple WebSocket connections to the same DO are supported (e.g., reconnection before old connection times out).
+
+**Reconnection:** If the WebSocket drops, the client reconnects to the same session ID. The DO preserves all state. On reconnect, the DO sends any observations that were generated while disconnected.
+
+**Cleanup:** DOs are cleaned up via an alarm. When a session receives no new chunks for 30 minutes, the DO writes session summary data to D1 and deletes its in-memory state. Cloudflare garbage-collects DOs with no stored state.
+
+**Cost:** DOs are billed per request + per 128MB-second of wall-clock duration. A 30-minute session with 120 chunk events + WebSocket keepalives costs approximately $0.001-0.005 in DO charges.
+
 ### Platform Comparison
 
 | Capability | iOS | Web |
@@ -103,6 +133,15 @@ The web path uses Cloudflare Durable Objects to manage practice session state. `
 | Session state | SwiftData (local-first) | Durable Object (cloud) |
 | Observation trigger | On-demand ("How was that?") | Real-time (WebSocket push) |
 | Offline recording | Yes (scores arrive on reconnect) | No |
+
+### Silence Detection
+
+Both platforms apply a silence gate before uploading chunks. If a chunk's RMS energy falls below a threshold (e.g., -40dB), the chunk is skipped -- no upload, no inference cost.
+
+- **iOS:** Computed from the PCM ring buffer. Trivial RMS check on raw samples.
+- **Web:** The `AnalyserNode` (already running for the waveform visualizer) provides frequency data. RMS computed from time-domain data.
+
+Silence detection reduces inference cost by ~20-30% in a typical session (page turns, pauses, adjustments). It also prevents nonsensical MuQ scores on silent chunks from entering the STOP classifier.
 
 ---
 
@@ -137,6 +176,8 @@ The deployed model averages predictions across all 4 fold models (piece-stratifi
 | Latency | ~1-2s (inference + network round-trip) |
 
 **Model accuracy context:** Even expert piano teachers disagree roughly 20% of the time on what constitutes better playing. The 6 dimension scores are useful signals, not ground truth. The system's differentiator is the analysis pipeline's reasoning about what those scores mean for *this student at this moment*, not the raw numbers. Scores are inputs to a reasoning pipeline, not a report card.
+
+**Audio format handling:** The HF inference handler uses `librosa.load()` which accepts any common audio format (PCM, WAV, Opus/WebM, MP3). The API worker forwards raw audio bytes from either platform without conversion. No format normalization is needed in the worker.
 
 For full architecture details, training results, and per-dimension breakdown, see `model/03-encoders.md`.
 
@@ -178,6 +219,20 @@ Triggered when the student asks "how was that?" (iOS) or continuously during rec
 5. **Select:** Take the top-1 chunk as the teaching moment
 6. **Identify dimension:** Within the selected chunk, find the blind-spot dimension
 
+### Web Observation Throttle
+
+On the web path, teaching moment selection runs continuously as chunks arrive. Without rate limiting, a 3-minute passage could generate multiple unsolicited observations -- violating the "one observation at a time" principle from `01-product-vision.md`.
+
+**Throttle rule:** Accumulate teaching moment candidates during recording. Push the top-1 observation per time window (default: 3 minutes). Between windows, new candidates replace lower-ranked ones in the buffer but are not delivered until the next window opens.
+
+**Configuration:**
+- `observation_window_sec`: minimum seconds between WebSocket observation pushes (default: 180)
+- `min_chunks_before_first`: minimum chunks scored before first observation can fire (default: 4, i.e., 1 minute of playing)
+
+**"How was that?" override:** If the student explicitly asks (via the chat interface on web), the throttle is bypassed and the current top candidate is delivered immediately, same as the iOS on-demand path.
+
+The iOS path is inherently throttled: the student must tap "How was that?" to receive an observation. No additional rate limiting is needed.
+
 ### Blind-Spot Dimension Selection
 
 Determines *which* dimension to talk about within the selected chunk.
@@ -212,6 +267,19 @@ The pipeline also flags improvements and breakthroughs, not just problems. A chu
 - Overall session quality is notably higher than recent history
 
 The pipeline tags positive candidates alongside STOP-flagged chunks. The subagent (Stage 4a) decides whether to use a positive or corrective framing.
+
+### No-Candidates Fallback
+
+When no chunks pass the STOP threshold (probability > 0.5), the student played well and there is nothing to correct. Rather than returning silence or a generic "sounded good," the pipeline falls back to positive moment detection:
+
+1. Find the dimension with the highest score across all session chunks
+2. If a student baseline exists, find the dimension with the largest positive deviation from baseline
+3. Construct a positive teaching moment with `is_positive: true`
+4. The subagent runs with positive framing context, producing recognition or encouragement
+
+This ensures the student always receives a meaningful response when they ask "how was that?" -- either a corrective observation (STOP fired) or a genuine positive observation (nothing to correct, but something good to acknowledge).
+
+If the session has fewer than 2 scored chunks (e.g., student asked after 15 seconds), return a brief "I need a bit more to listen to -- keep playing and ask me again" message without invoking the subagent.
 
 ### Output to Stage 4
 
@@ -506,6 +574,29 @@ Connect MuQ chunk timestamps to bar/measure numbers in the score. This lets the 
 
 **V2 (automated):** Score-following via audio fingerprinting or onset detection aligned to a reference score. Future work.
 
+### Pipeline Modes
+
+The pipeline operates in two modes. The mode is set by the client at session start and determines how teaching moment selection and feedback delivery behave.
+
+#### Regular Mode (default)
+
+Standard pipeline behavior as described above. All 6 dimensions are considered. Teaching moment selection picks the top-1 chunk and the blind-spot dimension. The subagent reasons across the full context.
+
+#### Focus Mode
+
+Activated when the student enters a focused practice session targeting a specific dimension (see `04-exercises.md`). The pipeline changes in three ways:
+
+1. **Dimension weighting:** Only the target dimension is considered for teaching moment selection. Non-target dimensions are suppressed from the subagent context.
+
+2. **Non-target exception:** If a non-target dimension has STOP probability > 0.95, it is surfaced anyway. This prevents ignoring severe issues (e.g., wildly wrong notes while working on pedaling).
+
+3. **Before/after tracking:** Each exercise attempt records the target dimension score. The pipeline maintains a per-exercise score history in the session state, enabling the teacher to compare improvement across attempts.
+
+The mode is communicated via the `/api/ask` request payload (`mode: "regular" | "focus"`) or via the Durable Object session state on the web path. The subagent system prompt includes a mode-specific preamble:
+
+- **Regular:** "Consider all dimensions. Pick the one that matters most."
+- **Focus:** "The student is focused on {target_dimension}. Evaluate their progress on this dimension. Only mention other dimensions if something is severely off."
+
 ---
 
 ## Provider Architecture
@@ -608,6 +699,66 @@ Client                           Worker (/api/ask)                   LLM Provide
  |  <-------------------------------- |                                   |
 ```
 
+### Request Payload Schema
+
+**`POST /api/ask`**
+
+```json
+{
+    "teaching_moments": [
+        {
+            "chunk_index": 7,
+            "start_offset_sec": 105.0,
+            "stop_probability": 0.87,
+            "scores": {
+                "dynamics": 0.72,
+                "timing": 0.65,
+                "pedaling": 0.35,
+                "articulation": 0.58,
+                "phrasing": 0.61,
+                "interpretation": 0.49
+            }
+        }
+    ],
+    "student_context": {
+        "student_id": "apple_user_id_here",
+        "level": "intermediate",
+        "goals": ["Improve pedaling transitions", "Prepare for recital"],
+        "baselines": {
+            "dynamics": 0.68,
+            "timing": 0.71,
+            "pedaling": 0.62,
+            "articulation": 0.60,
+            "phrasing": 0.55,
+            "interpretation": 0.58
+        },
+        "session_count": 12
+    },
+    "piece_context": {
+        "piece_id": "chopin.nocturnes_op_9.2",
+        "composer": "Chopin",
+        "title": "Nocturne Op. 9 No. 2",
+        "section": "second phrase",
+        "bar_range": "bars 20-24",
+        "learning_arc": "polishing"
+    },
+    "session": {
+        "session_id": "sess_abc123",
+        "duration_min": 3.0,
+        "total_chunks": 12,
+        "chunks_above_threshold": 3
+    },
+    "mode": "regular",
+    "target_dimension": null
+}
+```
+
+**Required fields:** `teaching_moments` (at least 1), `student_context.student_id`, `session.session_id`.
+
+**Optional fields:** `piece_context` (omitted if student hasn't identified what they're playing), `student_context.baselines` (omitted for cold-start students), `mode` (defaults to `"regular"`), `target_dimension` (required when `mode` is `"focus"`).
+
+The Worker enriches this payload with D1 data (synthesized facts, recent observations, exercise history) before constructing the subagent prompt.
+
 ---
 
 ## Deployment and Operations
@@ -660,9 +811,90 @@ The backend is a single Cloudflare Workers application (Rust/WASM). Bindings:
 
 7. **Score alignment accuracy.** With student-reported piece and bar range, how accurate can timestamp-to-bar mapping be? Tempo changes, rubato, and pauses introduce error.
 
-8. **Subagent prompt iteration.** The five-step reasoning framework needs testing with synthetic teaching moment data. Haiku-class models need concise prompts.
+8. **Subagent prompt iteration.** The five-step reasoning framework needs testing with synthetic teaching moment data. Llama 70B on Groq needs concise prompts.
 
 9. **A/B testing within model tiers.** Groq/Llama for subagent and Anthropic/Sonnet for teacher are decided, but A/B testing across alternative models within each tier remains open.
+
+---
+
+## Pipeline Evaluation
+
+The pipeline layer (STOP classification, teaching moment selection, subagent reasoning, teacher output) requires its own eval framework, parallel to the memory system eval in `apps/api/evals/memory/`.
+
+### Teaching Moment Selection Eval
+
+**Goal:** Given a synthetic session (sequence of scored chunks), does the selection algorithm pick the right chunk and dimension?
+
+**Approach:**
+- Construct 20-30 synthetic sessions with known "best teaching moment" (human-labeled or expert-authored)
+- Each session: 8-15 chunks with realistic 6-dim score patterns (some with STOP-worthy drops, some clean)
+- Measure: selection accuracy (did it pick the right chunk?), dimension accuracy (did it pick the right dimension?), positive detection rate (did it correctly identify improvements?)
+
+**Metrics:**
+- Selection accuracy >= 80% (correct chunk in top-1)
+- Dimension accuracy >= 70% (correct blind-spot dimension)
+- Positive detection: recall >= 90% (don't miss genuine improvements)
+
+### Subagent Reasoning Eval
+
+**Goal:** Given a teaching moment + student context, does the subagent produce appropriate analysis?
+
+**Approach:**
+- 15-20 scenario-based test cases covering the 5-step reasoning framework
+- Test each step independently: learning arc classification, delta detection, musical context weighting, moment selection, framing decision
+- Use an LLM judge (Claude) to evaluate subagent output against expected reasoning
+
+**Key scenarios:**
+- Cold start (no history) vs warm (10+ sessions)
+- Positive framing when scores improve
+- Stable weakness (pedaling flagged 3 times) -> "progress check" framing, not "discovery"
+- Musical context: pedaling in Chopin vs Bach (different weights)
+- No-candidates fallback: positive moment generation
+
+### Teacher Output Post-Processing
+
+**Goal:** Verify that post-processing rules catch invalid outputs.
+
+**Approach:** Unit tests (no LLM needed):
+- Input > 500 chars -> rejected, re-prompted
+- Input contains numbers/scores (e.g., "your pedaling is 0.35") -> rejected, re-prompted
+- Input contains markdown formatting -> stripped
+- LLM call failure -> template fallback produced
+
+### Provider Failover Eval
+
+**Goal:** Verify that the fallback chain (Groq -> OpenRouter -> Workers AI) produces acceptable output.
+
+**Approach:**
+- Mock primary provider failure (Groq timeout, Anthropic 429)
+- Verify fallback activates within 2s
+- Verify fallback output passes the same post-processing rules
+- Measure quality degradation: LLM judge comparison of primary vs fallback output on 10 scenarios
+
+---
+
+## Cost Budget
+
+Per-session cost estimates for a 30-minute practice session (120 chunks at 15s intervals, assuming ~20% silence skipped = 96 scored chunks, 3-5 observations delivered).
+
+| Component | Per-unit cost | Units/session | Session cost |
+|---|---|---|---|
+| HF inference (A1-Max endpoint) | ~$0.003-0.005/call | 96 chunks | $0.29-0.48 |
+| STOP classification | $0 (in-worker computation) | 96 chunks | $0 |
+| Groq subagent (Llama 70B) | ~$0.0004/call (~500 input + 200 output tokens) | 3-5 observations | $0.001-0.002 |
+| Anthropic teacher (Sonnet 4.6) | ~$0.004/call (~700 input + 100 output tokens) | 3-5 observations | $0.01-0.02 |
+| Durable Object (web path) | ~$0.001-0.005/session | 1 | $0.001-0.005 |
+| D1 reads/writes | ~$0.001/session | ~10 queries | $0.001 |
+| **Total per session** | | | **$0.30-0.51** |
+
+**HF inference dominates** (~90% of cost). Key optimizations:
+- **Silence detection** (Issue: already specified in Stage 1) reduces chunks by ~20%
+- **Adaptive chunk frequency** (e.g., 30s chunks during warm-up, 15s during focused playing) could halve inference cost for long sessions
+- **HF endpoint autoscaling** (scale-to-zero when no sessions active) eliminates idle cost
+
+At 1,000 daily sessions: ~$300-510/day ($9K-15K/month) in inference costs. LLM costs are negligible by comparison (~$15-20/day).
+
+These estimates are rough and depend on HF endpoint instance type (GPU-hours pricing varies). Measure with real traffic before optimizing.
 
 ---
 

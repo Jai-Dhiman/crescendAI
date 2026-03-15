@@ -130,9 +130,9 @@ See `04-north-star.md` for the full 8-stage pipeline vision and detailed design 
 
 **Goal:** Transform LLM input quality. Same A1-Max model, dramatically better feedback. This delivers 80% of the user-facing improvement.
 
-**1a. Score MIDI library**
-- Start with MAESTRO + ASAP (~500 pieces, already have)
-- Expand via IMSLP/MuseScore for popular student pieces
+**1a. Score MIDI library** ([design spec](../superpowers/specs/2026-03-14-score-midi-library-design.md))
+- V1: ASAP score MIDIs (242 pieces, MIDI-only parsing)
+- V2: Expand to MAESTRO (external score sourcing), IMSLP/MuseScore, MusicXML for richer annotations
 - Graceful degradation to absolute scoring for unknown pieces
 
 **1b. Cloud AMT service**

@@ -208,11 +208,13 @@ Transformer over GNN for the foundation model because self-attention can learn g
 
 ### Score MIDI Library
 
-Sources (by priority): MAESTRO + ASAP (~500 pieces, already have), IMSLP MIDI collection (~5K), MuseScore corpus (~100K+), Kern Scores (~3K).
+Sources (by priority): ASAP (242 pieces, V1), MAESTRO (~300 pieces, needs external score sourcing), IMSLP MIDI collection (~5K), MuseScore corpus (~100K+), Kern Scores (~3K).
 
-Start with MAESTRO + ASAP (covers standard classical repertoire). Graceful degradation to absolute scoring for unknown pieces. Track "piece not found" events to prioritize additions.
+Start with ASAP score MIDIs (242 pieces, covers standard classical repertoire). Expand to MAESTRO and external sources after V1 proves useful. Graceful degradation to absolute scoring for unknown pieces. Track "piece not found" events to prioritize additions.
 
-Per-score data model: bar structure, tempo markings, dynamics markings, articulation markings, pedal markings, section labels, key/time signatures, difficulty annotations per bar.
+Per-score data model (V1, MIDI-only): bar structure, tempo markings, pedal events (CC64), key/time signatures, per-bar note data (pitch, velocity, onset, duration, track). Richer annotations (explicit dynamics text like pp/ff/cresc., articulation marks, section labels, difficulty annotations per bar) require MusicXML import -- deferred to a future enrichment pass.
+
+Design spec: `docs/superpowers/specs/2026-03-14-score-midi-library-design.md`
 
 ### Cloud AMT Service
 

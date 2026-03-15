@@ -65,8 +65,10 @@ Episode capture -- built with the `/api/ask` pipeline. Each row is one teaching 
 | `framing` | TEXT | One of: correction, recognition, encouragement, question |
 | `dimension_score` | REAL | MuQ score for this dimension on this chunk |
 | `student_baseline` | REAL | Student's baseline for this dimension at time of observation |
-| `piece_context` | TEXT (JSON) | `{composer, title, section, bar_range}` |
+| `piece_id` | TEXT | Score Library piece ID (e.g., `chopin.etudes_op_10.3`). Nullable -- omitted when piece not identified. Enables efficient per-piece filtering. |
+| `piece_context` | TEXT (JSON) | `{piece_id, composer, title, section, bar_range}` |
 | `learning_arc` | TEXT | One of: new, mid-learning, polishing |
+| `component_config` | TEXT (JSON) | UI component configuration (nullable, see `05-ui-system.md`) |
 | `created_at` | TEXT NOT NULL | Timestamp |
 
 ```sql
@@ -82,8 +84,10 @@ CREATE TABLE observations (
     framing TEXT,
     dimension_score REAL,
     student_baseline REAL,
+    piece_id TEXT,
     piece_context TEXT,
     learning_arc TEXT,
+    component_config TEXT,
     created_at TEXT NOT NULL
 );
 ```
@@ -153,12 +157,13 @@ This separation matters because contradictions are handled by invalidation, not 
 
 ### What Gets Fed to the Subagent
 
-When `/api/ask` is called, the Worker builds the subagent's context map with three D1 queries:
+When `/api/ask` is called, the Worker builds the subagent's context map with four D1 queries:
 
 | Query | SQL | Purpose |
 |---|---|---|
 | Active facts | `SELECT * FROM synthesized_facts WHERE student_id = ? AND invalid_at IS NULL ORDER BY valid_at DESC LIMIT 10` | What the system knows about this student right now |
 | Recent observations | `SELECT * FROM observations WHERE student_id = ? ORDER BY created_at DESC LIMIT 5` | What happened recently (short-term context) |
+| Recent exercises | `SELECT se.*, e.title, e.target_dimensions FROM student_exercises se JOIN exercises e ON e.id = se.exercise_id WHERE se.student_id = ? ORDER BY se.assigned_at DESC LIMIT 5` | What exercises were assigned and how the student responded |
 | Student baselines | Already in the `/api/ask` request payload from client | Current dimension scores |
 
 ### Why No Vector Search
@@ -180,10 +185,11 @@ The subagent receives a structured context map. Approximate token counts:
 |---|---|---|
 | Active synthesized facts (up to 10) | ~300 | D1 query |
 | Recent observations (up to 5) | ~250 | D1 query |
+| Recent exercise history (up to 5) | ~150 | D1 query |
 | Student baselines (6 dimensions) | ~100 | Request payload |
 | Current teaching moment | ~200 | Pipeline output |
 | System prompt + instructions | ~500 | Static |
-| **Total subagent context** | **~1,350** | Well within Groq limits |
+| **Total subagent context** | **~1,500** | Well within Groq limits |
 
 The teacher LLM (stage 2) receives the subagent's output (~200 tokens) plus the system prompt (~500 tokens). Total context stays small.
 

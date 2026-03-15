@@ -143,12 +143,14 @@ See `04-north-star.md` for full pipeline vision and phase details.
 **Phase 1: Score Infrastructure (engineering, no new training data)**
 
 ```
-[ ] Score MIDI library (MAESTRO + ASAP = ~500 pieces to start)
+[ ] Score MIDI library V1 (ASAP = 242 pieces, MIDI parsing for bar structure/notes/pedal/time+key sigs)
+[ ] Score MIDI library V2 (expand to MAESTRO + external sources, MusicXML for richer annotations)
 [ ] Reference performance cache (per-bar statistics from MAESTRO professional recordings)
-[ ] Score MIDI parsing pipeline (extract dynamics/articulation/pedal markings from MusicXML)
 ```
 
-Sources: MAESTRO score MIDIs (already have), ASAP score MIDIs (already have), IMSLP/MuseScore (for expansion).
+Sources: ASAP score MIDIs (242 pieces, V1). MAESTRO score MIDIs require external sourcing (performances exist, scores don't). IMSLP/MuseScore for expansion. MusicXML import for dynamics text, articulation marks, section labels (future enrichment).
+
+Design spec: `docs/superpowers/specs/2026-03-14-score-midi-library-design.md`
 
 **Phase 3: Symbolic Foundation Model (research)**
 
