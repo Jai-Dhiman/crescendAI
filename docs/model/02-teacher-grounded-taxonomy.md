@@ -1,6 +1,8 @@
 # Teacher-Grounded Feedback Taxonomy Design
 
 > **Status (2026-02-23):** COMPLETE. All deliverables produced: 6 dimensions, composite labels (1,202 segments), quote bank (60 quotes), validation report (all 5 gates PASS). Distillation pilot NO-GO. Outputs in `model/data/composite_labels/`.
+>
+> **Pipeline context:** The 6 dimensions defined here remain the target dimensions across all pipeline phases (see `04-north-star.md`). Score conditioning (Phase 3) evaluates these dimensions relative to the score rather than in absolute terms, but the dimensions themselves don't change. The quote bank is used in the teacher voice (Stage 7) and musical priority weighting (Stage 5: Chopin -> pedaling/phrasing 2x, Bach -> articulation/timing 2x).
 
 ## Motivation
 

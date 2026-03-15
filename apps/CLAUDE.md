@@ -95,4 +95,4 @@ Web practice companion deployed to Cloudflare Workers at `crescend.ai`. Chat-fir
 
 ## Feedback Tone (Both Platforms)
 
-Warm and encouraging, specific to actual musical elements, actionable practice strategies. Celebrate strengths before suggesting improvements. Frame as observations, not absolute judgments. Feedback framing (correction/recognition/encouragement/question) adapts to learning arc position and session context. See `docs/apps/06a-subagent-architecture.md`.
+Warm and encouraging, specific to actual musical elements, actionable practice strategies. Celebrate strengths before suggesting improvements. Frame as observations, not absolute judgments. Feedback framing (correction/recognition/encouragement/question) adapts to learning arc position and session context. See `docs/apps/02-pipeline.md`.

@@ -124,6 +124,8 @@ model/data/                     Size
 
 ## Readiness Checklist
 
+### Current (Wave 1 -- complete)
+
 ```
 [x] T1 PercePiano embeddings + labels
 [x] Symbolic pretraining corpus (24,220 graphs)
@@ -132,4 +134,40 @@ model/data/                     Size
 [x] T3 MAESTRO embeddings (24,321 segments) + per-recording graphs (1,123)
 [x] T3 MAESTRO contrastive mapping (204 pieces)
 [ ] T4 YouTube embeddings (deferred)
+```
+
+### Pipeline Roadmap Data Needs
+
+See `04-north-star.md` for full pipeline vision and phase details.
+
+**Phase 1: Score Infrastructure (engineering, no new training data)**
+
+```
+[ ] Score MIDI library (MAESTRO + ASAP = ~500 pieces to start)
+[ ] Reference performance cache (per-bar statistics from MAESTRO professional recordings)
+[ ] Score MIDI parsing pipeline (extract dynamics/articulation/pedal markings from MusicXML)
+```
+
+Sources: MAESTRO score MIDIs (already have), ASAP score MIDIs (already have), IMSLP/MuseScore (for expansion).
+
+**Phase 3: Symbolic Foundation Model (research)**
+
+```
+[ ] Expanded MIDI pretraining corpus (~370K+ performances)
+    - PianoMIDI (~100K performances)
+    - Lakh MIDI piano tracks (~50K)
+    - MuseScore piano exports (~200K)
+[ ] Reference-anchored training triples from MAESTRO
+    (performance audio + performance MIDI + score MIDI, ranked by A1-Max)
+```
+
+**Phase 4: Real Audio + Expert Labels**
+
+```
+[ ] Real piano recordings (2K-5K segments)
+    - University partnerships (~500), user opt-in (~1K+), YouTube (~500), commissioned (~200)
+    - 3+ skill levels, 5+ piano types, 5+ environments
+[ ] Expert annotations (3-5 piano teachers, 6-dim rubric with score context)
+    - Active learning: prioritize uncertain segments
+    - Estimated cost: ~$50-100K
 ```

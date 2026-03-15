@@ -98,7 +98,7 @@ The YouTube AMT validation (79.9% agreement on 50 mediocre recordings) serves as
 
 ## Training Roadmap
 
-### Wave 1: Push Encoders (current)
+### Wave 1: Push Encoders (complete)
 
 **Goal:** Maximize both encoders independently.
 
@@ -120,43 +120,105 @@ The YouTube AMT validation (79.9% agreement on 50 mediocre recordings) serves as
 - YouTube AMT: COMPLETE (79.9% agreement). MAESTRO AMT: COMPLETE (0% drop).
 - Remaining: test improved S2-Max after pretraining on 24K graphs
 
-### Wave 2: New Data + Robustness (months)
+---
 
-**Goal:** Break through the data bottleneck. Address skill level bias, recording condition bias, and label quality.
+## Perfect Pipeline Roadmap
 
-**3a. Diverse skill-level recordings**
-- Beginner through advanced, real practice conditions (apartments, studios, various pianos)
-- Addresses dynamic range narrowness (d=0.47 between intermediate and professional)
-- Addresses PercePiano advanced-level bias
+See `04-north-star.md` for the full 8-stage pipeline vision and detailed design per phase.
 
-**3b. Expert annotation campaign**
-- 3-5 piano teachers annotate 6 dimensions using rubric from `composite_labels/teacher_rubric.json`
-- Target: 2,000-5,000 annotated segments across 200+ pieces
-- Active learning: use A1/S2 uncertainty to prioritize annotation
+### Phase 1: Score Infrastructure (3-4 months, engineering)
 
-**3c. Retrain both encoders on expanded data**
-- Should fix dynamics inversion (negative competition correlation)
-- Should fix label quality issues (PercePiano's crowdsourced IRT vs expert annotation)
+**Goal:** Transform LLM input quality. Same A1-Max model, dramatically better feedback. This delivers 80% of the user-facing improvement.
 
-### Wave 3: Score-Conditioned Model (months-year)
+**1a. Score MIDI library**
+- Start with MAESTRO + ASAP (~500 pieces, already have)
+- Expand via IMSLP/MuseScore for popular student pieces
+- Graceful degradation to absolute scoring for unknown pieces
 
-**Goal:** The highest-ceiling architecture. Model learns quality relative to what the score asks for. See `04-north-star.md` for the full vision.
+**1b. Cloud AMT service**
+- ByteDance piano transcription alongside MuQ on HF endpoint
+- Single upload, two outputs (scores + MIDI)
+- Already validated: 0% pairwise drop (MAESTRO), 79.9% agreement (YouTube)
 
-**Prerequisites:** Score alignment pipeline operational. 2K+ labeled (performance, score, quality) triples.
+**1c. Score following**
+- Onset-based DTW between AMT output and score MIDI
+- Bar map: `[{chunk_offset, bar, beat}]`
+- Re-anchoring when student skips ahead or restarts
 
-**4a. Score alignment pipeline**
-- Chroma DTW for measure-level alignment
-- Bar-number mapping for teacher context
+**1d. Bar-aligned musical analysis engine**
+- Transforms model scores + AMT + score into structured musical facts
+- Dynamics: "crescendo bars 12-16 reaches 70% of reference"
+- Pedaling: "pedal held 3.2 beats, harmony changes every 2 beats"
+- Replaces raw scores as subagent input
 
-**4b. Timing direction as cheap teacher context win**
-- Extract systematic rushing/dragging from onset deviations
-- Single flag in teacher prompt -- implementable without full score alignment
+**1e. Reference performance cache**
+- Per-bar statistics from MAESTRO professional recordings
+- Velocity curves, onset deviation patterns, pedal usage
+- Enables "compared to professional recordings" context
 
-**4c. Score-conditioned architecture**
-- `quality = f(z_performance_audio, z_score_midi)`
+### Phase 2: Temporal + Practice Intelligence (2-3 months, depends on Phase 1)
 
-**4d. Bar-aligned LLM context**
-- Passage-specific, musically grounded feedback: "In bars 12-16, velocity drops to pp but the score asks for mf crescendo"
+**Goal:** System becomes a practice partner, not just a judge.
+
+**2a. Rubato detection**
+- Onset deviation analysis with compensatory return check
+- Confidence threshold: only flag timing when clearly NOT rubato (ratio > 0.7, deviation > 100ms, persists 2+ phrases)
+- Otherwise: silence on timing (trust preservation)
+
+**2b. Passage repetition tracking**
+- Detect overlapping bar ranges across chunks (>60% overlap = repetition)
+- Track per-attempt scores and improvement trajectory
+- "Your pedaling improved from 0.28 to 0.38 across 5 attempts"
+
+**2c. Practice mode auto-detection**
+- One-hand (>80% notes above/below C4), slow practice (<60% marked tempo), section drill (same bars 3x+)
+- Auto-detect with subtle UI confirmation badge
+
+**2d. Within-session trajectory**
+- Warm-up detection (first 3-5 min), fatigue detection (after ~40 min)
+- "Consider taking a break -- your articulation is getting less precise"
+
+**2e. Teaching moment upgrades**
+- Positive moment detection (breakthroughs, recoveries, passage mastery)
+- Novelty constraint (recency penalty per dimension)
+- Musical priority weighting (Chopin -> pedaling 2x, Bach -> articulation 2x)
+
+### Phase 3: Symbolic Foundation Model (6-12 months, research, can parallel Phases 1-2)
+
+**Goal:** Fix dynamics inversion. True multi-modal scoring relative to score.
+
+**3a. Symbolic foundation model pretraining**
+- Transformer encoder (12-24 layers) on 370K+ MIDI performances (~7.4M segments)
+- Objectives: masked note prediction, contrastive same-piece, next-bar prediction
+- Same architecture encodes score MIDI (z_score) and performance MIDI (z_perf)
+
+**3b. Score-conditioned gated fusion**
+- `quality_d = f(z_audio, z_perf, z_score, delta_d)` where `delta = z_perf - z_score`
+- Per-dimension learned gates: audio for timing, symbolic for dynamics/structure
+- Reference-anchored training on MAESTRO (ranking signal from multiple performers)
+
+**Research risk: HIGH.** Symbolic FM doesn't exist yet. If pretraining fails, Phase 1 + Phase 2 still deliver most of the product value.
+
+### Phase 4: Real Audio + Expert Labels (6+ months, depends on Phase 3)
+
+**Goal:** Model hears real pianos, not synthesized audio.
+
+**4a. Recording collection**
+- 2K-5K segments: university partnerships, user opt-in, YouTube, commissioned
+- 3+ skill levels, 5+ piano types, 5+ acoustic environments
+
+**4b. Expert annotation campaign**
+- 3-5 piano teachers, 6-dim rubric with score context
+- Active learning: prioritize uncertain segments
+- Cost: ~$50-100K
+
+**4c. Retrain with acoustic diversity**
+- Fixes Pianoteq domain gap, calibrates across skill levels
+- Unlocks pedal resonance, piano character, room acoustics
+
+### Legacy Waves (superseded by Phase roadmap)
+
+The original Wave 2 (new data + robustness) and Wave 3 (score-conditioned model) have been incorporated into the Phase roadmap above. Wave 2's data collection maps to Phase 4. Wave 3's score conditioning maps to Phases 1 (infrastructure) and 3 (model).
 
 ---
 
@@ -174,17 +236,21 @@ The YouTube AMT validation (79.9% agreement on 50 mediocre recordings) serves as
 
 ### Open
 
-- **Rubato detection:** Compensatory timing structure vs uncontrolled fluctuation. Requires score context. Wave 3.
-- **Dynamics "amount" vs "appropriateness":** Competition correlation is inverted. Score conditioning (Wave 3) or better labels (Wave 2) needed.
-- **Annotation noise ceiling:** PercePiano uses crowdsourced IRT. Expert annotation (Wave 2) may reveal model is near label quality ceiling.
-- **Edge-type information without overfitting:** Can edge-type embeddings in GATConv attention capture S2H's information without parameter explosion?
+- **Rubato detection algorithm:** Compensatory return analysis designed (see `04-north-star.md`). Decision: confidence threshold + silence (only flag timing when clearly NOT rubato). Needs validation on real student recordings. Phase 2.
+- **Dynamics "amount" vs "appropriateness":** Competition correlation is inverted (rho=-0.917). Score conditioning (Phase 3) fixes this at the model level. Phase 1's bar-aligned analysis partially addresses via LLM reasoning ("score says pp").
+- **Annotation noise ceiling:** PercePiano uses crowdsourced IRT. Expert annotation (Phase 4) may reveal model is already near label quality ceiling.
+- **Edge-type information without overfitting:** Can edge-type embeddings in GATConv attention capture S2H's information without parameter explosion? Potentially superseded by Transformer-based symbolic FM (Phase 3).
 - **Fold variance:** A1 pairwise ranges 70.3-77.7% across folds (~7pp spread). More labeled pieces should stabilize.
+- **Symbolic foundation model viability:** Can a Transformer pretrained on 370K+ MIDI performances match MuQ's representation quality? This is the highest research risk in the roadmap. Phase 3.
+- **Real-time AMT quality:** ByteDance AMT validated on pre-recorded audio. Streaming inference at phone-audio quality untested. Phase 1.
+- **Score following robustness:** How well does onset-based DTW handle section skips, restarts, and out-of-order practice? Phase 1.
+- **Practice mode detection accuracy:** Can AMT reliably distinguish one-hand practice, slow practice, and section drilling? Phase 2.
 
-### Product & UX
+### Product & UX (answered or addressed)
 
-- What does Sarah actually want to hear? "Your dynamics are flat" vs "try exaggerating the crescendo" vs "listen to how Horowitz shapes this phrase"?
-- Curated piece library vs open-ended? (Score-conditioned model in Wave 3 enables open-ended.)
-- What's the right feedback cadence?
+- **What does Sarah want to hear?** Bar-aligned musical facts, not numbers. "The crescendo in bars 12-16 doesn't reach the forte Chopin marked" over "dynamics score 0.35." Phase 1.
+- **Curated piece library vs open-ended?** Start with curated (~500 pieces from MAESTRO + ASAP). Degrade gracefully to absolute scoring for unknown pieces. Score-conditioned model (Phase 3) enables fully open-ended.
+- **What's the right feedback cadence?** Novelty constraint prevents repeating the same dimension. Positive/corrective ratio target: 25-35% positive. Phase 2.
 
 ---
 
@@ -204,12 +270,16 @@ For detailed dataset specs, see `01-data.md`.
 | Masterclass moments | 2,136 | Taxonomy derivation, quote bank | COMPLETE |
 | Composite labels | 1,202 | 6 teacher-grounded dimensions | COMPLETE |
 
-### Need (ordered by training wave)
+### Need (ordered by phase)
 
-**Wave 2 (new recordings, months):**
-1. Diverse skill-level recordings (beginner through advanced, real conditions)
-2. Expert annotations (3-5 teachers, 2K+ segments, 6-dim rubric)
+**Phase 1 (score infrastructure):**
+1. Score MIDI library (MAESTRO + ASAP = ~500 pieces, expand via IMSLP/MuseScore)
+2. Reference performance cache (per-bar statistics from MAESTRO professional recordings)
 
-**Wave 3 (score alignment, months):**
-1. Score alignment pipeline (chroma DTW, bar-level mapping)
-2. Score-performance-quality triples (audio + score MIDI + labels)
+**Phase 3 (symbolic FM):**
+1. Expanded MIDI corpus for pretraining: PianoMIDI (~100K), Lakh MIDI piano tracks (~50K), MuseScore exports (~200K)
+2. Reference-anchored training data: MAESTRO pieces with 3+ performers and score MIDIs
+
+**Phase 4 (real audio):**
+1. Diverse skill-level recordings (beginner through advanced, 5+ piano types, 5+ environments)
+2. Expert annotations (3-5 teachers, 2K-5K segments, 6-dim rubric with score context)

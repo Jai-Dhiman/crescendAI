@@ -230,9 +230,26 @@ The LLM receives structured context like `"pedaling": 0.35, baseline: 0.62`. Whe
 
 R2=0.50 means model explains half the variance. Individual sessions noisy, but averaging across sessions and trend detection makes this usable by sessions 5-10.
 
-### MIDI as LLM Context -- Alternative to Model Fusion
+### MIDI as LLM Context -- Phase 1 Strategy
 
 Rather than fusing at the model level, structured MIDI comparison (velocity curves, onset deviations) can be fed to the teacher subagent alongside A1 scores. More robust to AMT noise, fully interpretable, and sidesteps the fusion problem by letting the LLM reason about complementary signals.
+
+Phase 1 of the pipeline roadmap (see `04-north-star.md`) builds this as bar-aligned musical facts: "crescendo bars 12-16 reaches 70% of reference" instead of raw MIDI stats. This transforms LLM input quality without changing the model, delivering 80% of the user-facing improvement.
+
+### Score-Conditioned Architecture -- Phase 3 Vision
+
+The current encoders evaluate quality in absolute terms. Phase 3 introduces score conditioning:
+
+```
+quality_d = f(z_audio, z_perf_symbolic, z_score, delta_d)
+where delta_d = z_perf - z_score (difference between what was played and written)
+```
+
+This requires a symbolic foundation model (Transformer pretrained on 370K+ MIDI performances) to encode both score and performance MIDI. Per-dimension gated fusion routes each dimension to the modality with most signal (audio for timing, symbolic for dynamics/structure). See `04-north-star.md` for full architecture.
+
+Score conditioning fixes the dynamics inversion (rho=-0.917) because quality becomes relative: pp when score says pp = HIGH quality. pp when score says ff = LOW quality.
+
+Training data: reference-anchored on MAESTRO (ranking signal from multiple performers of the same piece, no new annotation needed).
 
 ---
 
@@ -280,9 +297,11 @@ YouTube follow-up (50 mediocre recordings, 1,225 pairs): **79.9% A1-vs-S2 agreem
 
 Separates skill levels at group level. Usable for within-student tracking, not absolute classification.
 
-### Experiment 4: MIDI-as-Context -- SKIP
+### Experiment 4: MIDI-as-Context -- SKIP (raw stats), REVISIT (bar-aligned facts)
 
-LLM judge: A wins 55%, B wins 45% (below 55% BORDERLINE threshold). Raw MIDI stats add "false precision." Bar-aligned passage-specific context may help (Wave 3), but raw statistics do not.
+LLM judge: A wins 55%, B wins 45% (below 55% BORDERLINE threshold). Raw MIDI stats add "false precision." But bar-aligned passage-specific context is a fundamentally different input. "Velocity MAE = 15" is noise. "Crescendo in bars 12-16 only reaches mf, score asks for ff" is teacher-language.
+
+Phase 1 of the pipeline roadmap (see `04-north-star.md`) builds the correct version: a bar-aligned musical analysis engine that produces structured facts per passage, combining AMT output with score comparison and reference performance statistics. This is the highest-leverage improvement in the entire roadmap.
 
 ---
 
