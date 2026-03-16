@@ -6,7 +6,6 @@ from typing import List, Optional
 
 import torch
 import torch.nn as nn
-
 from constants import MODEL_CONFIG, N_FOLDS
 
 
@@ -30,7 +29,9 @@ def _resolve_device(requested: str) -> torch.device:
             dev = "mps"
         else:
             dev = "cpu"
-    elif dev == "mps" and not (hasattr(torch.backends, "mps") and torch.backends.mps.is_available()):
+    elif dev == "mps" and not (
+        hasattr(torch.backends, "mps") and torch.backends.mps.is_available()
+    ):
         dev = "cpu"
     return torch.device(dev)
 
@@ -141,6 +142,7 @@ class ModelCache:
         print("Loading MuQ-large-msd-iter...")
         try:
             from muq import MuQ
+
             self.muq_model = MuQ.from_pretrained("OpenMuQ/MuQ-large-msd-iter")
             self.muq_model = self.muq_model.to(self.device)
             self.muq_model.eval()
@@ -194,7 +196,11 @@ class ModelCache:
         # Lightning saves as: attn.0.weight, encoder.0.weight, regression_head.0.weight, etc.
         head_state = {}
         for key, value in state_dict.items():
-            if key.startswith("attn.") or key.startswith("encoder.") or key.startswith("regression_head."):
+            if (
+                key.startswith("attn.")
+                or key.startswith("encoder.")
+                or key.startswith("regression_head.")
+            ):
                 head_state[key] = value
 
         head.load_state_dict(head_state, strict=True)

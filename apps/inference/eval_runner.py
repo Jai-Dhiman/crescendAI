@@ -25,15 +25,24 @@ os.environ.setdefault("CRESCEND_DEVICE", "auto")
 
 from audio_chunker import chunk_audio_file
 from constants import MODEL_INFO, PERCEPIANO_DIMENSIONS
-from models.loader import get_model_cache
 from models.inference import extract_muq_embeddings, predict_with_ensemble
-from models.transcription import TranscriptionModel, TranscriptionError
+from models.loader import get_model_cache
+from models.transcription import TranscriptionError, TranscriptionModel
 
 DEFAULT_CHECKPOINT_DIR = str(
-    Path(__file__).parents[1].parent / "model" / "data" / "checkpoints" / "model_improvement" / "A1"
+    Path(__file__).parents[1].parent
+    / "model"
+    / "data"
+    / "checkpoints"
+    / "model_improvement"
+    / "A1"
 )
-DEFAULT_AUDIO_DIR = str(Path(__file__).parents[1].parent / "model" / "data" / "eval" / "youtube_amt")
-DEFAULT_CACHE_DIR = str(Path(__file__).parents[1].parent / "model" / "data" / "eval" / "inference_cache")
+DEFAULT_AUDIO_DIR = str(
+    Path(__file__).parents[1].parent / "model" / "data" / "eval" / "youtube_amt"
+)
+DEFAULT_CACHE_DIR = str(
+    Path(__file__).parents[1].parent / "model" / "data" / "eval" / "inference_cache"
+)
 
 
 def get_git_sha() -> tuple[str, bool]:
@@ -68,7 +77,9 @@ def run_inference_on_chunk(
 
     # Ensemble predictions
     predictions = predict_with_ensemble(embeddings, cache)
-    pred_dict = {dim: float(predictions[i]) for i, dim in enumerate(PERCEPIANO_DIMENSIONS)}
+    pred_dict = {
+        dim: float(predictions[i]) for i, dim in enumerate(PERCEPIANO_DIMENSIONS)
+    }
 
     # AMT transcription
     midi_notes = None
@@ -111,8 +122,10 @@ def run(
         raise FileNotFoundError(f"Audio directory not found: {audio_dir}")
 
     audio_files = sorted(
-        p for p in audio_path.iterdir()
-        if p.suffix.lower() in {".wav", ".mp3", ".flac", ".ogg", ".webm", ".m4a", ".opus"}
+        p
+        for p in audio_path.iterdir()
+        if p.suffix.lower()
+        in {".wav", ".mp3", ".flac", ".ogg", ".webm", ".m4a", ".opus"}
     )
     if not audio_files:
         raise FileNotFoundError(f"No audio files found in {audio_dir}")
@@ -158,7 +171,7 @@ def run(
         cache_file = versioned_cache / f"{recording_id}.json"
 
         if cache_file.exists():
-            print(f"[{i+1}/{len(audio_files)}] {recording_id} -- cached, skipping")
+            print(f"[{i + 1}/{len(audio_files)}] {recording_id} -- cached, skipping")
             continue
 
         start = time.time()
@@ -167,7 +180,9 @@ def run(
         try:
             chunks = chunk_audio_file(str(audio_file))
         except Exception as e:
-            print(f"[{i+1}/{len(audio_files)}] {recording_id} -- SKIP (audio error: {e})")
+            print(
+                f"[{i + 1}/{len(audio_files)}] {recording_id} -- SKIP (audio error: {e})"
+            )
             continue
 
         # Run inference on each chunk
@@ -178,15 +193,17 @@ def run(
                 result = run_inference_on_chunk(chunk_audio, model_cache, transcription)
                 chunk_ms = int((time.time() - chunk_start) * 1000)
 
-                chunk_results.append({
-                    "chunk_index": ci,
-                    "predictions": result["predictions"],
-                    "midi_notes": result.get("midi_notes", []),
-                    "pedal_events": result.get("pedal_events", []),
-                    "transcription_info": result.get("transcription_info"),
-                    "audio_duration_seconds": len(chunk_audio) / 24000,
-                    "processing_time_ms": chunk_ms,
-                })
+                chunk_results.append(
+                    {
+                        "chunk_index": ci,
+                        "predictions": result["predictions"],
+                        "midi_notes": result.get("midi_notes", []),
+                        "pedal_events": result.get("pedal_events", []),
+                        "transcription_info": result.get("transcription_info"),
+                        "audio_duration_seconds": len(chunk_audio) / 24000,
+                        "processing_time_ms": chunk_ms,
+                    }
+                )
             except Exception as e:
                 print(f"  chunk {ci} failed: {e}")
                 continue
@@ -199,7 +216,9 @@ def run(
             "model_fingerprint": fingerprint,
             "git_sha": git_sha,
             "chunks": chunk_results,
-            "total_duration_seconds": sum(c["audio_duration_seconds"] for c in chunk_results),
+            "total_duration_seconds": sum(
+                c["audio_duration_seconds"] for c in chunk_results
+            ),
             "total_chunks": len(chunk_results),
             "cached_at": datetime.now(timezone.utc).isoformat(),
         }
@@ -207,7 +226,9 @@ def run(
         with open(cache_file, "w") as f:
             json.dump(cache_data, f, indent=2)
 
-        print(f"[{i+1}/{len(audio_files)}] {recording_id} ({elapsed:.1f}s, {len(chunk_results)} chunks)")
+        print(
+            f"[{i + 1}/{len(audio_files)}] {recording_id} ({elapsed:.1f}s, {len(chunk_results)} chunks)"
+        )
 
     print(f"\nDone. Cache: {versioned_cache}")
 

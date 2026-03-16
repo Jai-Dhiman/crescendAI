@@ -14,11 +14,13 @@ TARGET_SR = 24000
 
 class AudioDownloadError(Exception):
     """Raised when audio download fails."""
+
     pass
 
 
 class AudioProcessingError(Exception):
     """Raised when audio processing fails."""
+
     pass
 
 

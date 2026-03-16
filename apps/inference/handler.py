@@ -15,14 +15,13 @@ from pathlib import Path
 from typing import Any, Dict, Union
 
 import numpy as np
-
 from constants import MODEL_INFO, PERCEPIANO_DIMENSIONS
-from models.loader import get_model_cache
 from models.inference import (
     extract_muq_embeddings,
     predict_with_ensemble,
 )
-from models.transcription import TranscriptionModel, TranscriptionError
+from models.loader import get_model_cache
+from models.transcription import TranscriptionError, TranscriptionModel
 from preprocessing.audio import (
     AudioDownloadError,
     AudioProcessingError,
@@ -265,11 +264,15 @@ class EndpointHandler:
             # Base64-encoded audio
             try:
                 audio_bytes = base64.b64decode(inputs)
-                return preprocess_audio_from_bytes(audio_bytes, max_duration=max_duration)
+                return preprocess_audio_from_bytes(
+                    audio_bytes, max_duration=max_duration
+                )
             except Exception:
                 # Maybe it's a URL string
                 if inputs.startswith("http"):
-                    return download_and_preprocess_audio(inputs, max_duration=max_duration)
+                    return download_and_preprocess_audio(
+                        inputs, max_duration=max_duration
+                    )
                 raise AudioProcessingError("Invalid input string: not base64 or URL")
 
         elif isinstance(inputs, bytes):

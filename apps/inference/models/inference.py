@@ -2,8 +2,8 @@
 
 import numpy as np
 import torch
-
 from constants import MODEL_CONFIG
+
 from models.loader import ModelCache
 
 

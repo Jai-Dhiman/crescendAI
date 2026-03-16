@@ -9,7 +9,7 @@ crate-type = ["cdylib"]
 [dependencies]
 # Worker runtime
 worker = { version = "0.7", features = ["http", "d1"] }
-axum = { version = "0.7", default-features = false }
+axum = { version = "0.8.8", default-features = false }
 http = "1.0"
 http-body-util = "0.1"
 

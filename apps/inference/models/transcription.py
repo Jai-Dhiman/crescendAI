@@ -33,6 +33,7 @@ from piano_transcription_inference import PianoTranscription
 
 class TranscriptionError(Exception):
     """Raised when AMT transcription fails."""
+
     pass
 
 
@@ -93,25 +94,31 @@ class TranscriptionModel:
             pedal_events = []
             for instrument in midi.instruments:
                 for note in instrument.notes:
-                    notes.append({
-                        "pitch": int(note.pitch),
-                        "onset": round(float(note.start), 4),
-                        "offset": round(float(note.end), 4),
-                        "velocity": int(note.velocity),
-                    })
+                    notes.append(
+                        {
+                            "pitch": int(note.pitch),
+                            "onset": round(float(note.start), 4),
+                            "offset": round(float(note.end), 4),
+                            "velocity": int(note.velocity),
+                        }
+                    )
                 for cc in instrument.control_changes:
                     if cc.number == 64:  # Sustain pedal only
-                        pedal_events.append({
-                            "time": round(float(cc.time), 4),
-                            "value": int(cc.value),
-                        })
+                        pedal_events.append(
+                            {
+                                "time": round(float(cc.time), 4),
+                                "value": int(cc.value),
+                            }
+                        )
 
             # Sort by onset time, then by pitch for simultaneous notes
             notes.sort(key=lambda n: (n["onset"], n["pitch"]))
             pedal_events.sort(key=lambda e: e["time"])
 
             elapsed_ms = int((time.time() - transcribe_start) * 1000)
-            print(f"AMT complete: {len(notes)} notes, {len(pedal_events)} pedal events in {elapsed_ms}ms")
+            print(
+                f"AMT complete: {len(notes)} notes, {len(pedal_events)} pedal events in {elapsed_ms}ms"
+            )
 
             return notes, pedal_events
 

@@ -4,9 +4,9 @@ Normalizes raw model predictions relative to professional MAESTRO recordings,
 making scores more interpretable for end users.
 """
 
-import numpy as np
 from typing import Dict
 
+import numpy as np
 from constants import MAESTRO_CALIBRATION, PERCEPIANO_DIMENSIONS
 
 
