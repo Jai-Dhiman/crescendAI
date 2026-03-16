@@ -180,65 +180,74 @@ HTML_PAGE = r"""<!DOCTYPE html>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@tonejs/midi@2/build/Midi.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/soundfont-player@0.12.0/dist/soundfont-player.min.js"></script>
 <script>
-// -- Audio engine (dynamic import of smplr to avoid module scoping issues) --
-const audioCtx = new AudioContext();
+// -- Audio engine using soundfont-player (UMD, no CORS issues) --
+let audioCtx = null;
 let piano = null;
-let pianoReady = false;
-let Soundfont = null;
+let activeNodes = []; // AudioBufferSourceNodes for stopping
+
+function getAudioCtx() {
+  if (!audioCtx) audioCtx = new AudioContext();
+  return audioCtx;
+}
 
 async function ensurePiano() {
-  if (piano && pianoReady) return piano;
-  if (!Soundfont) {
-    const mod = await import('https://cdn.jsdelivr.net/npm/smplr@0.15.2/+esm');
-    Soundfont = mod.Soundfont;
-  }
-  piano = new Soundfont(audioCtx, { instrument: 'acoustic_grand_piano' });
-  await piano.loaded;
-  pianoReady = true;
+  if (piano) return piano;
+  const ctx = getAudioCtx();
+  if (ctx.state === 'suspended') await ctx.resume();
+  piano = await Soundfont.instrument(ctx, 'acoustic_grand_piano', {
+    soundfont: 'MusyngKite',
+    gain: 2.0,
+  });
   return piano;
+}
+
+function playNote(midi, when, dur, vel) {
+  if (!piano) return;
+  const ctx = getAudioCtx();
+  const node = piano.play(midi, when, { duration: Math.min(dur, 3), gain: vel });
+  if (node) activeNodes.push(node);
+}
+
+function stopAllNotes() {
+  activeNodes.forEach(n => { try { n.stop(); } catch(e) {} });
+  activeNodes = [];
 }
 
 // Playback state
 let playback = {
   active: false,
-  source: null,    // 'maestro' | 'score'
-  notes: [],       // sorted [{time, midi, dur, vel}]
-  startCtxTime: 0, // audioCtx.currentTime when playback started
-  offset: 0,       // seek offset in seconds
-  duration: 30,    // max playback duration
-  nextIdx: 0,      // next note to schedule
-  handles: [],     // active note handles for stopping
+  source: null,
+  notes: [],
+  startCtxTime: 0,
+  offset: 0,
+  duration: 30,
+  nextIdx: 0,
   loopId: null,
 };
 
 function scheduleAhead() {
-  if (!playback.active || !piano) return;
-  const now = audioCtx.currentTime;
+  if (!playback.active) return;
+  const ctx = getAudioCtx();
+  const now = ctx.currentTime;
   const pos = (now - playback.startCtxTime) + playback.offset;
-  const lookAhead = 0.15; // schedule 150ms ahead
+  const lookAhead = 0.2;
 
   while (playback.nextIdx < playback.notes.length) {
     const n = playback.notes[playback.nextIdx];
-    if (n.time < pos - 0.05) { playback.nextIdx++; continue; } // skip past notes
-    if (n.time > pos + lookAhead) break; // too far ahead
+    if (n.time < pos - 0.05) { playback.nextIdx++; continue; }
+    if (n.time > pos + lookAhead) break;
 
-    const when = now + (n.time - pos);
-    const h = piano.start({
-      note: n.midi,
-      velocity: Math.round(Math.max(5, Math.min(127, n.vel * 127))),
-      time: Math.max(when, now),
-      duration: Math.max(0.05, Math.min(n.dur, 3.0)),
-    });
-    playback.handles.push(h);
+    const when = Math.max(now + (n.time - pos), now);
+    playNote(n.midi, when, n.dur, n.vel);
     playback.nextIdx++;
   }
 
-  // Update UI
   updateScrub(pos);
 
   if (pos >= playback.duration) { stopPlayback(); return; }
-  playback.loopId = setTimeout(scheduleAhead, 50);
+  playback.loopId = setTimeout(scheduleAhead, 80);
 }
 
 function updateScrub(pos) {
@@ -257,10 +266,7 @@ function stopPlayback() {
   const src = playback.source;
   playback.active = false;
   if (playback.loopId) { clearTimeout(playback.loopId); playback.loopId = null; }
-  // Stop all active notes
-  playback.handles.forEach(h => { try { h.stop(); } catch(e) {} });
-  playback.handles = [];
-  // Reset UI
+  stopAllNotes();
   const btn = document.getElementById('btn_' + src);
   if (btn) { btn.textContent = '\u25B6'; btn.classList.remove('playing'); }
 }
@@ -279,7 +285,6 @@ async function startPlayback(source, seekTo) {
 
   try {
     await ensurePiano();
-    if (audioCtx.state === 'suspended') await audioCtx.resume();
 
     let notes = [];
     if (source === 'maestro') {
@@ -326,11 +331,10 @@ async function startPlayback(source, seekTo) {
       active: true,
       source: source,
       notes: notes,
-      startCtxTime: audioCtx.currentTime,
+      startCtxTime: getAudioCtx().currentTime,
       offset: offset,
       duration: maxDur,
       nextIdx: startIdx,
-      handles: [],
       loopId: null,
     };
 
