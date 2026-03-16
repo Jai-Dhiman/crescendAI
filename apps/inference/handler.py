@@ -8,6 +8,7 @@ Compatible with HuggingFace Inference Endpoints custom handler pattern.
 """
 
 import base64
+import os
 import time
 import traceback
 from pathlib import Path
@@ -62,12 +63,21 @@ class EndpointHandler:
         print(f"Using checkpoint directory: {checkpoint_dir}")
 
         # Initialize model cache (loads MuQ and prediction heads)
+        device = os.environ.get("CRESCEND_DEVICE", "cuda")
+
         self._cache = get_model_cache()
-        self._cache.initialize(device="cuda", checkpoint_dir=checkpoint_dir)
+        self._cache.initialize(device=device, checkpoint_dir=checkpoint_dir)
 
         # Initialize AMT transcription model
         print("Loading ByteDance AMT model...")
-        self._transcription = TranscriptionModel(device="cuda")
+        try:
+            self._transcription = TranscriptionModel(device=device)
+        except RuntimeError as e:
+            if "mps" in str(e).lower() or "MPS" in str(e):
+                print(f"AMT failed on {device}, falling back to CPU: {e}")
+                self._transcription = TranscriptionModel(device="cpu")
+            else:
+                raise
 
         print("A1-Max EndpointHandler initialization complete!")
 
