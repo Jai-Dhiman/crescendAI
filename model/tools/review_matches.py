@@ -12,7 +12,8 @@ Usage:
     cd model
     uv run python tools/review_matches.py \
         --csv data/reference_profiles/maestro_asap_matches.csv \
-        --maestro-dir data/maestro_cache
+        --maestro-dir data/maestro_cache \
+        --score-dir data/score_library
 
     Then open http://localhost:8765 in your browser.
 """
@@ -29,6 +30,7 @@ from urllib.parse import parse_qs, unquote, urlparse
 # Globals set by CLI args
 CSV_PATH: Path = Path()
 MAESTRO_DIR: Path = Path()
+SCORE_DIR: Path = Path()
 MATCHES: list[dict] = []
 FIELDNAMES: list[str] = []
 
@@ -170,8 +172,8 @@ HTML_PAGE = r"""<!DOCTYPE html>
 
 <div class="shortcuts">
   Keyboard: <strong>A</strong> = Approve &nbsp; <strong>R</strong> = Reject &nbsp;
-  <strong>S</strong> = Skip &nbsp; <strong>Space</strong> = Play/Stop &nbsp;
-  <strong>Arrow keys</strong> = Prev/Next
+  <strong>S</strong> = Skip &nbsp; <strong>1</strong> = Play MAESTRO &nbsp; <strong>2</strong> = Play Score &nbsp;
+  <strong>Space</strong> = Play/Stop &nbsp; <strong>Arrow keys</strong> = Prev/Next
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/tone@14/build/Tone.js"></script>
@@ -202,8 +204,9 @@ let filtered = [];
 let currentIdx = 0;
 let currentFilter = 'pending';
 let synth = null;
-let playing = false;
-let scheduledEvents = [];
+let activeSource = null; // 'maestro' or 'score'
+let playbackTimer = null;
+let playbackStart = 0;
 
 async function loadMatches() {
   const resp = await fetch('/api/matches');
@@ -314,12 +317,25 @@ function render() {
   info.appendChild(createEl('div', {className: 'midi-filename', textContent: m.midi_filename + ' (' + durMin + ' min)'}));
   container.appendChild(info);
 
-  // Player
-  const player = createEl('div', {className: 'player'}, [
-    createEl('button', {className: 'play-btn', id: 'playBtn', textContent: '\u25B6', onClick: togglePlay}),
-    createEl('span', {className: 'time-display', id: 'timeDisplay', textContent: '0:00'}),
+  // Dual players
+  const playerRow = createEl('div', {style: 'display:flex;gap:12px;margin-bottom:8px'});
+
+  const mPlayer = createEl('div', {className: 'player', style: 'flex:1'}, [
+    createEl('button', {className: 'play-btn', id: 'playMaestro', textContent: '\u25B6', onClick: () => playMidi('maestro')}),
+    createEl('span', {style: 'flex:1'}),
+    createEl('span', {className: 'time-display', textContent: 'MAESTRO', style: 'color:#6af'}),
+    createEl('span', {className: 'time-display', id: 'timeMaestro', textContent: '0:00'}),
   ]);
-  container.appendChild(player);
+  playerRow.appendChild(mPlayer);
+
+  const sPlayer = createEl('div', {className: 'player', style: 'flex:1'}, [
+    createEl('button', {className: 'play-btn', id: 'playScore', textContent: '\u25B6', onClick: () => playMidi('score')}),
+    createEl('span', {style: 'flex:1'}),
+    createEl('span', {className: 'time-display', textContent: 'SCORE', style: 'color:#fa6'}),
+    createEl('span', {className: 'time-display', id: 'timeScore', textContent: '0:00'}),
+  ]);
+  playerRow.appendChild(sPlayer);
+  container.appendChild(playerRow);
 
   // Action buttons
   const actions = createEl('div', {className: 'actions'}, [
@@ -367,80 +383,114 @@ function advance(delta) {
   render();
 }
 
-async function togglePlay() {
-  if (playing) { stopPlayback(); return; }
+function ensureSynth() {
+  if (!synth) {
+    synth = new Tone.PolySynth(Tone.Synth, {
+      maxPolyphony: 64,
+      voice: Tone.Synth,
+      options: {
+        envelope: { attack: 0.01, decay: 0.2, sustain: 0.3, release: 0.6 },
+        oscillator: { type: 'triangle8' },
+      }
+    }).toDestination();
+    synth.volume.value = -6;
+  }
+  return synth;
+}
+
+async function playMidi(source) {
+  // If already playing this source, stop it
+  if (activeSource === source) { stopPlayback(); return; }
+  // If playing something else, stop first
+  if (activeSource) stopPlayback();
+
   if (filtered.length === 0) return;
   const m = filtered[currentIdx];
-  const btn = document.getElementById('playBtn');
-  btn.textContent = '...';
+
+  const btnId = source === 'maestro' ? 'playMaestro' : 'playScore';
+  const timeId = source === 'maestro' ? 'timeMaestro' : 'timeScore';
+  const btn = document.getElementById(btnId);
+  if (btn) btn.textContent = '...';
 
   try {
     await Tone.start();
-    if (!synth) {
-      synth = new Tone.PolySynth(Tone.Synth, {
-        maxPolyphony: 32,
-        voice: Tone.Synth,
-        options: {
-          envelope: { attack: 0.005, decay: 0.3, sustain: 0.4, release: 0.8 },
-          oscillator: { type: 'triangle8' },
-        }
-      }).toDestination();
-      synth.volume.value = -8;
+    const s = ensureSynth();
+
+    let notes = [];
+    if (source === 'maestro') {
+      // Load MIDI file via @tonejs/midi
+      const resp = await fetch('/midi/' + encodeURIComponent(m.midi_filename));
+      if (!resp.ok) throw new Error('MIDI fetch failed: ' + resp.status);
+      const buf = await resp.arrayBuffer();
+      const midi = new Midi(buf);
+      midi.tracks.forEach(track => {
+        track.notes.forEach(note => {
+          notes.push({ time: note.time, midi: note.midi, dur: note.duration, vel: note.velocity });
+        });
+      });
+    } else {
+      // Load score JSON and extract notes
+      const resp = await fetch('/score/' + encodeURIComponent(m.asap_piece_id + '.json'));
+      if (!resp.ok) throw new Error('Score fetch failed: ' + resp.status);
+      const score = await resp.json();
+      (score.bars || []).forEach(bar => {
+        (bar.notes || []).forEach(n => {
+          notes.push({
+            time: n.onset_seconds,
+            midi: n.pitch,
+            dur: n.duration_seconds,
+            vel: (n.velocity || 80) / 127,
+          });
+        });
+      });
     }
 
-    const resp = await fetch('/midi/' + encodeURIComponent(m.midi_filename));
-    const buf = await resp.arrayBuffer();
-    const midi = new Midi(buf);
+    // Sort by time
+    notes.sort((a, b) => a.time - b.time);
 
-    const now = Tone.now() + 0.1;
-    scheduledEvents = [];
+    // Schedule first 30 seconds using direct triggerAttackRelease
+    // This avoids the Transport.schedule bug
+    const now = Tone.now() + 0.15;
+    const maxTime = 30;
+    for (const n of notes) {
+      if (n.time > maxTime) break;
+      const noteName = Tone.Frequency(n.midi, 'midi').toNote();
+      const dur = Math.max(0.05, Math.min(n.dur, 2.0));
+      const vel = Math.max(0.05, Math.min(n.vel, 1.0));
+      s.triggerAttackRelease(noteName, dur, now + n.time, vel);
+    }
 
-    // Only schedule first 30 seconds for quick preview
-    midi.tracks.forEach(track => {
-      track.notes.forEach(note => {
-        if (note.time > 30) return;
-        const id = Tone.Transport.schedule(time => {
-          synth.triggerAttackRelease(
-            Tone.Frequency(note.midi, 'midi').toNote(),
-            Math.min(note.duration, 2),
-            time,
-            note.velocity
-          );
-        }, now + note.time);
-        scheduledEvents.push(id);
-      });
-    });
+    activeSource = source;
+    playbackStart = Tone.now();
+    if (btn) { btn.textContent = '\u25A0'; btn.classList.add('playing'); }
 
-    playing = true;
-    btn.textContent = '\u25A0';
-    btn.classList.add('playing');
-
-    const startTime = Tone.now();
-    const timer = setInterval(() => {
-      if (!playing) { clearInterval(timer); return; }
-      const elapsed = Tone.now() - startTime;
-      if (elapsed > 30) { stopPlayback(); clearInterval(timer); return; }
+    // Update time display
+    playbackTimer = setInterval(() => {
+      if (!activeSource) { clearInterval(playbackTimer); return; }
+      const elapsed = Tone.now() - playbackStart;
+      if (elapsed > maxTime) { stopPlayback(); return; }
       const mins = Math.floor(elapsed / 60);
       const secs = Math.floor(elapsed % 60);
-      const td = document.getElementById('timeDisplay');
+      const td = document.getElementById(timeId);
       if (td) td.textContent = mins + ':' + String(secs).padStart(2, '0');
     }, 250);
 
   } catch (e) {
     console.error('Playback error:', e);
-    btn.textContent = '\u25B6';
+    if (btn) btn.textContent = '\u25B6';
   }
 }
 
 function stopPlayback() {
-  if (!playing) return;
-  playing = false;
-  scheduledEvents.forEach(id => Tone.Transport.clear(id));
-  scheduledEvents = [];
+  if (!activeSource) return;
+  const btnId = activeSource === 'maestro' ? 'playMaestro' : 'playScore';
+  const timeId = activeSource === 'maestro' ? 'timeMaestro' : 'timeScore';
+  activeSource = null;
+  if (playbackTimer) { clearInterval(playbackTimer); playbackTimer = null; }
   if (synth) synth.releaseAll();
-  const btn = document.getElementById('playBtn');
+  const btn = document.getElementById(btnId);
   if (btn) { btn.textContent = '\u25B6'; btn.classList.remove('playing'); }
-  const td = document.getElementById('timeDisplay');
+  const td = document.getElementById(timeId);
   if (td) td.textContent = '0:00';
 }
 
@@ -449,7 +499,9 @@ document.addEventListener('keydown', e => {
   if (e.key === 'a' || e.key === 'A') setStatus('approved');
   else if (e.key === 'r' || e.key === 'R') setStatus('rejected');
   else if (e.key === 's' || e.key === 'S') advance(1);
-  else if (e.key === ' ') { e.preventDefault(); togglePlay(); }
+  else if (e.key === '1') playMidi('maestro');
+  else if (e.key === '2') playMidi('score');
+  else if (e.key === ' ') { e.preventDefault(); if (activeSource) stopPlayback(); else playMidi('maestro'); }
   else if (e.key === 'ArrowLeft') advance(-1);
   else if (e.key === 'ArrowRight') advance(1);
 });
@@ -499,6 +551,26 @@ class ReviewHandler(SimpleHTTPRequestHandler):
                 self.end_headers()
                 self.wfile.write(b"MIDI file not found")
 
+        elif parsed.path.startswith("/score/"):
+            # Serve score JSON from score_dir
+            score_name = unquote(parsed.path[7:])  # strip "/score/"
+            score_path = (SCORE_DIR / score_name).resolve()
+            if not str(score_path).startswith(str(SCORE_DIR)):
+                self.send_response(403)
+                self.end_headers()
+                self.wfile.write(b"Forbidden")
+                return
+            if score_path.exists() and score_path.is_file():
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                with open(score_path, "rb") as f:
+                    self.wfile.write(f.read())
+            else:
+                self.send_response(404)
+                self.end_headers()
+                self.wfile.write(b"Score file not found")
+
         else:
             self.send_response(404)
             self.end_headers()
@@ -544,23 +616,28 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Review MAESTRO-to-ASAP matches in a browser UI")
     parser.add_argument("--csv", type=Path, required=True, help="Path to maestro_asap_matches.csv")
     parser.add_argument("--maestro-dir", type=Path, required=True, help="Root directory of MAESTRO MIDI cache")
+    parser.add_argument("--score-dir", type=Path, required=True, help="Directory containing score JSON files")
     parser.add_argument("--port", type=int, default=8765, help="Port to serve on (default: 8765)")
     args = parser.parse_args()
 
-    global CSV_PATH, MAESTRO_DIR
+    global CSV_PATH, MAESTRO_DIR, SCORE_DIR
     CSV_PATH = args.csv.resolve()
     MAESTRO_DIR = args.maestro_dir.resolve()
+    SCORE_DIR = args.score_dir.resolve()
 
     if not CSV_PATH.exists():
         raise FileNotFoundError(f"CSV not found: {CSV_PATH}")
     if not MAESTRO_DIR.exists():
         raise FileNotFoundError(f"MAESTRO directory not found: {MAESTRO_DIR}")
+    if not SCORE_DIR.exists():
+        raise FileNotFoundError(f"Score directory not found: {SCORE_DIR}")
 
     load_csv()
     pending = sum(1 for m in MATCHES if not m.get("status", "").strip())
     reviewed = len(MATCHES) - pending
     print(f"Loaded {len(MATCHES)} matches ({reviewed} reviewed, {pending} pending)")
     print(f"MAESTRO dir: {MAESTRO_DIR}")
+    print(f"Score dir: {SCORE_DIR}")
     print(f"")
     print(f"  Open http://localhost:{args.port} in your browser")
     print(f"  Press Ctrl+C to stop")
