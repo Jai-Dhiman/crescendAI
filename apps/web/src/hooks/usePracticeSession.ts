@@ -551,7 +551,12 @@ export function usePracticeSession(): UsePracticeSessionReturn {
 
 		setState("summarizing");
 
-		// Release mic and timer immediately
+		// Release mic, audio analysis, and timer immediately
+		analyserRef.current = null; // Stop useAudioActivity rAF from reading
+		if (chunkTimerRef.current) {
+			clearInterval(chunkTimerRef.current);
+			chunkTimerRef.current = null;
+		}
 		if (timerRef.current) {
 			clearInterval(timerRef.current);
 			timerRef.current = null;
