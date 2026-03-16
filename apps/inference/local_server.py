@@ -42,7 +42,7 @@ from fastapi.responses import JSONResponse
 
 from constants import MODEL_INFO, PERCEPIANO_DIMENSIONS
 from models.inference import extract_muq_embeddings, predict_with_ensemble
-from models.loader import ModelCache, get_model_cache
+from models.loader import ModelCache, _resolve_device, get_model_cache
 from models.transcription import TranscriptionError, TranscriptionModel
 from preprocessing.audio import preprocess_audio_from_bytes
 
@@ -82,13 +82,16 @@ def _init_models(checkpoint_dir: str) -> None:
         )
     print(f"Loaded {len(_model_cache.muq_heads)} prediction heads")
 
+    # Resolve "auto" to actual device for AMT (PianoTranscription doesn't understand "auto")
+    resolved_device = str(_resolve_device(device))
+
     # AMT (with MPS fallback to CPU)
     print("Loading ByteDance AMT model...")
     try:
-        _transcription = TranscriptionModel(device=device)
+        _transcription = TranscriptionModel(device=resolved_device)
     except RuntimeError as e:
         if "mps" in str(e).lower():
-            print(f"AMT failed on {device}, falling back to CPU: {e}")
+            print(f"AMT failed on {resolved_device}, falling back to CPU: {e}")
             _transcription = TranscriptionModel(device="cpu")
         else:
             raise
@@ -109,6 +112,12 @@ async def inference(request: Request):
     HF endpoint: raw audio bytes in the body with Content-Type audio/*.
     Returns the same JSON response shape as EndpointHandler.__call__.
     """
+    if _model_cache is None or _transcription is None:
+        return JSONResponse(
+            content={"error": {"code": "NOT_READY", "message": "Models not loaded. Start server via __main__."}},
+            status_code=503,
+        )
+
     start_time = time.time()
 
     try:
