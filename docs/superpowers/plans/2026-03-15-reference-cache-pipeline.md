@@ -124,7 +124,7 @@ Expected: FAIL (module not found)
 """MAESTRO-to-ASAP fuzzy matching engine.
 
 Maps MAESTRO CSV entries (canonical_composer, canonical_title) to ASAP piece IDs
-using composer normalization, title normalization, and bigram Dice similarity.
+using composer normalization, title normalization, and token Dice similarity.
 """
 from __future__ import annotations
 
