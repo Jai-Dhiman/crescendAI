@@ -79,8 +79,8 @@ Secondary: `unmatched_maestro.csv` listing entries below minimum confidence thre
    - Extract note onsets (pitch, time, velocity) and pedal CC64 events
    - Run onset+pitch DTW alignment against the score
    - **Validation gate:**
-     - **Coverage (primary):** Fraction of score bars with at least one aligned note onset. Reject if < 75%.
-     - **DTW cost (logged, not enforced on first run):** Normalized cost per alignment step. Log the value for all recordings. After first run, review the distribution and set an absolute ceiling for subsequent runs.
+     - **Coverage (primary):** `len(aligned_bars) / len(score["bars"])` where `aligned_bars` is the set of score bar numbers that received at least one aligned note onset from the DTW output. Empty bars in the score (bars with only rests) count toward the denominator -- this is conservative and acceptable because MAESTRO pieces are complete performances. Reject if coverage < 75%.
+     - **DTW cost (logged, not enforced on first run):** The `dtw-python` library's `normalizedDistance` (total cost divided by path length). Log the value for all recordings. After first run, review the distribution and set an absolute ceiling for subsequent runs.
    - If passed: compute per-bar `BarStats` (velocity mean/std, onset deviation mean/std, pedal duration, pedal changes, note duration ratio)
 4. Aggregate across performers: for each bar, average per-performer stats, track performer_count.
 5. Write `ReferenceProfile` JSON to `data/reference_profiles/references/v1/{piece_id}.json`.
@@ -202,7 +202,7 @@ The `generate` command overwrites existing JSON files for a given piece_id. Re-r
 
 ## Files Modified
 
-- `model/src/score_library/reference_cache.py` -- add `match` subcommand, update `_find_maestro_midis_for_piece` to read approved CSV, add `upload` subcommand, add validation gates and reporting
+- `model/src/score_library/reference_cache.py` -- near-complete rewrite. The existing code has a flat `main()` with no subcommands, a scaffold `_find_maestro_midis_for_piece` that prints "not yet implemented", no validation gates, and no CSV workflow. The rewrite replaces the CLI with three subcommands (`match`, `generate`, `upload`), adds the fuzzy matching engine, CSV-based workflow, validation gates, and generation reporting. The existing DTW alignment logic (`align_to_score`) and `BarStats`/`ReferenceProfile` dataclasses are preserved as-is.
 
 ## Output Artifacts
 
