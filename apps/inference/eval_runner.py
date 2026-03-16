@@ -1,18 +1,16 @@
 """Local inference batch runner for pipeline evaluation.
 
-Loads EndpointHandler with auto-detected device, processes audio files
-in a directory, and writes versioned JSON cache.
+Directly initializes ModelCache + TranscriptionModel (bypassing EndpointHandler's
+HF Inference Endpoint path conventions) to run MuQ + AMT locally.
 
 Usage:
+    CRESCEND_DEVICE=mps python eval_runner.py
     CRESCEND_DEVICE=cpu python eval_runner.py --audio-dir ../../data/eval/youtube_amt/
-    CRESCEND_DEVICE=mps python eval_runner.py  # uses defaults
 """
 
 from __future__ import annotations
 
 import argparse
-import base64
-import io
 import json
 import os
 import subprocess
@@ -20,13 +18,16 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-import soundfile as sf
+import numpy as np
 
 # Set device before any torch imports (auto = CUDA > MPS > CPU)
 os.environ.setdefault("CRESCEND_DEVICE", "auto")
 
 from audio_chunker import chunk_audio_file
-from handler import EndpointHandler
+from constants import MODEL_INFO, PERCEPIANO_DIMENSIONS
+from models.loader import get_model_cache
+from models.inference import extract_muq_embeddings, predict_with_ensemble
+from models.transcription import TranscriptionModel, TranscriptionError
 
 DEFAULT_CHECKPOINT_DIR = str(
     Path(__file__).parents[1].parent / "model" / "data" / "checkpoints" / "model_improvement" / "A1"
@@ -50,13 +51,53 @@ def get_git_sha() -> tuple[str, bool]:
 
 
 def build_model_fingerprint(model_info: dict) -> str:
-    """Build a cache directory name from model info.
-
-    Format: {name}_{architecture} matching spec convention (e.g., "a1-max_muq-l9-12").
-    """
+    """Build a cache directory name from model info."""
     name = model_info.get("name", "unknown").lower().replace(" ", "-")
     arch = model_info.get("architecture", "unknown").lower().replace(" ", "-")
     return f"{name}_{arch}"
+
+
+def run_inference_on_chunk(
+    audio: np.ndarray,
+    cache,
+    transcription: TranscriptionModel,
+) -> dict:
+    """Run MuQ + AMT on a single audio chunk. Returns result dict."""
+    # MuQ embeddings
+    embeddings = extract_muq_embeddings(audio, cache)
+
+    # Ensemble predictions
+    predictions = predict_with_ensemble(embeddings, cache)
+    pred_dict = {dim: float(predictions[i]) for i, dim in enumerate(PERCEPIANO_DIMENSIONS)}
+
+    # AMT transcription
+    midi_notes = None
+    pedal_events = None
+    transcription_info = None
+    amt_error = None
+
+    try:
+        midi_notes, pedal_events = transcription.transcribe(audio, 24000)
+        pitches = [n["pitch"] for n in midi_notes]
+        transcription_info = {
+            "note_count": len(midi_notes),
+            "pitch_range": [min(pitches), max(pitches)] if pitches else [0, 0],
+            "pedal_event_count": len(pedal_events),
+        }
+    except TranscriptionError as e:
+        print(f"    AMT failed (graceful degradation): {e}")
+        amt_error = str(e)
+
+    result = {
+        "predictions": pred_dict,
+        "midi_notes": midi_notes,
+        "pedal_events": pedal_events,
+        "transcription_info": transcription_info,
+    }
+    if amt_error:
+        result["amt_error"] = amt_error
+
+    return result
 
 
 def run(
@@ -76,21 +117,36 @@ def run(
     if not audio_files:
         raise FileNotFoundError(f"No audio files found in {audio_dir}")
 
+    device = os.environ.get("CRESCEND_DEVICE", "auto")
     print(f"Found {len(audio_files)} audio files in {audio_dir}")
     print(f"Checkpoint dir: {checkpoint_dir}")
-    print(f"Device: {os.environ.get('CRESCEND_DEVICE', 'auto')}")
+    print(f"Device: {device}")
 
-    # Initialize handler
+    # Initialize models directly (bypass EndpointHandler's HF path conventions)
     print("Loading models...")
-    handler = EndpointHandler(path=checkpoint_dir)
+    model_cache = get_model_cache()
+    model_cache.initialize(device=device, checkpoint_dir=Path(checkpoint_dir))
 
-    # Determine cache directory from model fingerprint
-    # Run a tiny inference to get model_info
-    test_result = handler({"inputs": audio_files[0].read_bytes(), "parameters": {"max_duration_seconds": 5}})
-    if "error" in test_result:
-        raise RuntimeError(f"Test inference failed: {test_result['error']}")
+    if not model_cache.muq_heads:
+        raise RuntimeError(
+            f"No prediction heads loaded from {checkpoint_dir}. "
+            f"Expected fold_{{0-3}}/ subdirectories with .ckpt files."
+        )
 
-    fingerprint = build_model_fingerprint(test_result.get("model_info", {}))
+    print(f"Loaded {len(model_cache.muq_heads)} prediction heads")
+
+    # Initialize AMT (with MPS fallback to CPU)
+    try:
+        transcription = TranscriptionModel(device=device)
+    except RuntimeError as e:
+        if "mps" in str(e).lower():
+            print(f"AMT failed on {device}, falling back to CPU: {e}")
+            transcription = TranscriptionModel(device="cpu")
+        else:
+            raise
+
+    # Build fingerprint from model info
+    fingerprint = build_model_fingerprint(MODEL_INFO)
     versioned_cache = Path(cache_dir) / fingerprint
     versioned_cache.mkdir(parents=True, exist_ok=True)
     print(f"Cache directory: {versioned_cache}")
@@ -117,24 +173,23 @@ def run(
         # Run inference on each chunk
         chunk_results = []
         for ci, chunk_audio in enumerate(chunks):
-            buf = io.BytesIO()
-            sf.write(buf, chunk_audio, 24000, format="WAV")
-            audio_b64 = base64.b64encode(buf.getvalue()).decode()
+            chunk_start = time.time()
+            try:
+                result = run_inference_on_chunk(chunk_audio, model_cache, transcription)
+                chunk_ms = int((time.time() - chunk_start) * 1000)
 
-            result = handler({"inputs": audio_b64})
-            if "error" in result:
-                print(f"  chunk {ci} failed: {result['error']}")
+                chunk_results.append({
+                    "chunk_index": ci,
+                    "predictions": result["predictions"],
+                    "midi_notes": result.get("midi_notes", []),
+                    "pedal_events": result.get("pedal_events", []),
+                    "transcription_info": result.get("transcription_info"),
+                    "audio_duration_seconds": len(chunk_audio) / 24000,
+                    "processing_time_ms": chunk_ms,
+                })
+            except Exception as e:
+                print(f"  chunk {ci} failed: {e}")
                 continue
-
-            chunk_results.append({
-                "chunk_index": ci,
-                "predictions": result.get("predictions", {}),
-                "midi_notes": result.get("midi_notes", []),
-                "pedal_events": result.get("pedal_events", []),
-                "transcription_info": result.get("transcription_info"),
-                "audio_duration_seconds": result.get("audio_duration_seconds", 0),
-                "processing_time_ms": result.get("processing_time_ms", 0),
-            })
 
         elapsed = time.time() - start
 
