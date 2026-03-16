@@ -135,6 +135,7 @@ def main(reports_dir: Path) -> EvalReport:
         eval_name="subagent_reasoning",
         eval_version="1.0",
         dataset=f"scenarios_{len(scenarios)}",
+        metrics={},
     )
 
     if dimension_correct:
