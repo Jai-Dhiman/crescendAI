@@ -27,7 +27,7 @@ Phased rollout: Phase 1 establishes the baseline, Phase 2 adds diagnostics, Phas
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| Rust boundary bridge | `wrangler dev` local worker | Evaluates actual production code, no reimplementation drift |
+| Rust boundary bridge | `wrangler dev` + eval-mode endpoint | Evaluates actual production code; eval endpoint accepts pre-computed inference, bypassing HF call |
 | Inference cache | Versioned with model fingerprint | Prevents silent staleness when model changes |
 | Checkpoint weights | Local path (`model/data/checkpoints/model_improvement/A1/fold_{0-3}/`) | Already on disk from training |
 | LLM judge format | Binary rubrics (YES/NO) with evidence quotes | Forces grounded decisions; avoids Likert clustering |
@@ -92,6 +92,63 @@ Phased rollout: Phase 1 establishes the baseline, Phase 2 adds diagnostics, Phas
   └─────────────────────────────────────────────────────────────────────┘
 ```
 
+## Rust Bridge: Eval-Mode Endpoint
+
+In production, `handle_chunk_ready` in `session.rs` fetches audio from R2 and calls the HF inference endpoint. For evals, we need to bypass those two steps and inject pre-computed inference results directly into the downstream pipeline (STOP -> teaching moments -> score following -> analysis -> subagent -> teacher).
+
+**Solution: `POST /api/practice/eval-chunk`** -- A new endpoint on the DO, gated behind a `#[cfg(feature = "eval")]` flag (or an env-var check), that accepts pre-computed inference results as JSON instead of an R2 key:
+
+```json
+{
+  "chunk_index": 2,
+  "predictions": {"dynamics": 0.42, "timing": 0.71, ...},
+  "midi_notes": [...],
+  "pedal_events": [...]
+}
+```
+
+This endpoint calls the same downstream code path as `handle_chunk_ready` starting from step 3 (extract scores), skipping steps 1-2 (R2 fetch + HF call). The downstream pipeline is identical to production.
+
+**Why not mock the HF endpoint?** Mocking requires intercepting HTTP inside the WASM worker, which is fragile. The eval endpoint is a clean seam: it's 10-15 lines of Rust that call the same functions, and it only exists in dev builds.
+
+**Wrangler dev setup for evals:**
+1. Start `wrangler dev` (serves the worker locally with Miniflare D1)
+2. Seed D1 with score catalog + test student records
+3. Python eval harness creates a practice session via `POST /api/practice/start`
+4. For each cached chunk, POST to `/api/practice/eval-chunk` with inference results
+5. Collect observations from the WebSocket connection
+
+**LLM keys in wrangler dev:** The worker needs `GROQ_API_KEY` and `ANTHROPIC_API_KEY` to call the subagent and teacher LLMs. These go in `.dev.vars` (wrangler's local secrets file, already gitignored). The preflight check verifies LLM key availability by making a test call through the worker, not just checking Python env vars.
+
+## Inference Cache Schema
+
+Each YouTube recording is chunked into 15-second segments (matching production) before inference. The cache stores one JSON file per recording containing an array of chunk results:
+
+```json
+{
+  "recording_id": "yt_017",
+  "model_fingerprint": "a1max_v1.0_amt_v1.0",
+  "git_sha": "a1b2c3d",
+  "chunks": [
+    {
+      "chunk_index": 0,
+      "predictions": {"dynamics": 0.42, "timing": 0.71, "pedaling": 0.55, "articulation": 0.63, "phrasing": 0.48, "interpretation": 0.51},
+      "midi_notes": [{"pitch": 60, "onset": 0.1, "offset": 0.5, "velocity": 80}, ...],
+      "pedal_events": [{"time": 0.3, "value": 127}, ...],
+      "transcription_info": {"note_count": 45, "pitch_range": [48, 84], "pedal_event_count": 3},
+      "audio_duration_seconds": 15.0,
+      "processing_time_ms": 12400
+    },
+    ...
+  ],
+  "total_duration_seconds": 180.5,
+  "total_chunks": 12,
+  "cached_at": "2026-03-15T14:30:00Z"
+}
+```
+
+The eval runner chunks audio into 15s segments before calling the handler, matching the production `MediaRecorder.start(15000)` behavior. This means each recording produces multiple cache entries (one per chunk), grouped in a single file.
+
 ## Data Flow
 
 The most expensive operation is model inference (~10-30s per chunk on CPU). All downstream evals consume cached inference output rather than re-running the model.
@@ -134,9 +191,11 @@ Every data flow node has defined behavior for nil, empty, and error inputs:
 
 Loads `EndpointHandler` with auto-detected device (CUDA > MPS > CPU). Accepts a directory of audio files, runs batch inference, writes versioned JSON cache.
 
-Changes to `handler.py`:
-- Parameterize `device` in `EndpointHandler.__init__` (currently hardcoded `"cuda"`)
+Changes to inference code:
+- Parameterize `device` in `EndpointHandler.__init__` (currently hardcoded `"cuda"` on line 66)
 - Auto-detect: `"cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"`
+- Same change for `TranscriptionModel.__init__` (also hardcoded `"cuda"` on line 70)
+- **ModelCache singleton guard:** `ModelCache.initialize()` has an early-return guard (`if self.muq_model is not None: return`). The eval runner must pass `device` before the first `initialize()` call, or bypass the singleton by constructing a fresh `ModelCache` instance directly. The runner will set `device` via environment variable (`CRESCEND_DEVICE`) read before any model loading.
 
 The runner:
 - Accepts `--checkpoint-dir` (default: `model/data/checkpoints/model_improvement/A1/`)
@@ -192,8 +251,9 @@ Before running any eval suite, verify:
 - Audio manifest/directory is present with expected file count
 - `wrangler dev` is responding on localhost:8787 (HTTP GET /health)
 - D1 is seeded: query a known piece from the score catalog via the worker
-- `ANTHROPIC_API_KEY` environment variable is set
-- `GROQ_API_KEY` environment variable is set
+- `ANTHROPIC_API_KEY` environment variable is set (for LLM judge)
+- `GROQ_API_KEY` environment variable is set (for subagent reasoning eval)
+- Worker has LLM access: verify `.dev.vars` contains `GROQ_API_KEY` and `ANTHROPIC_API_KEY` (these are the worker's keys for the subagent and teacher LLM calls, separate from the Python env vars used by the judge)
 - Git SHA + dirty flag captured for metadata
 
 If any check fails, print a clear error message with the fix and exit.
@@ -203,11 +263,12 @@ If any check fails, print a clear error message with the fix and exit.
 **Input:** YouTube recordings run through the full pipeline via wrangler dev.
 
 For each recording:
-1. Read cached inference output (predictions + midi_notes + pedal_events)
-2. POST chunks to `localhost:8787/api/practice/chunk` (simulating a practice session)
-3. Collect observations from the WebSocket or response
-4. Write pipeline trace (full state at each stage)
-5. Send observation + context to LLM judge
+1. Read cached inference output (predictions + midi_notes + pedal_events per chunk)
+2. Create a practice session via `POST localhost:8787/api/practice/start`
+3. For each chunk, POST to `localhost:8787/api/practice/eval-chunk` with pre-computed inference results (bypasses R2 fetch + HF call, runs STOP → teaching moments → score following → analysis → subagent → teacher)
+4. Collect observations from the WebSocket connection
+5. Write pipeline trace (full state at each stage)
+6. Send observation + context to LLM judge
 
 **LLM Judge Rubric (5 binary criteria with evidence):**
 
@@ -272,9 +333,11 @@ Scenarios cover:
 
 **Output:** No pass/fail gate. The sweep informs the optimal threshold choice.
 
-### 9. Score Follower Robustness Eval (`apps/api/evals/score_follower/`) -- Phase 3a
+### 9. Score Follower Robustness Eval -- Phase 3a
 
-**Language:** Rust (colocated with `score_follower.rs`, runs via `cargo test --features eval`).
+**Language:** Rust. Lives alongside the score follower code in `apps/api/src/practice/`, not in the Python eval directory. Runs via `cargo test --features eval` in the `apps/api/` crate.
+
+**Integration with `run_all.py`:** The Python runner shells out to `cargo test --features eval --message-format json` in `apps/api/`, parses the JSON test output, and converts it to the shared report envelope format. This is the one eval that crosses the language boundary.
 
 **Input:** Synthetic MIDI perturbations of ASAP scores: section skips, restarts, out-of-order practice, long sessions (>10 chunks).
 
@@ -287,9 +350,9 @@ Scenarios cover:
 **Input:** Simulated 5-10 consecutive sessions for the same student/piece.
 
 **Measures:**
-- Dimension repetition rate (target: <= 40% over 5 sessions)
-- Observation text similarity via embedding cosine distance
-- Framing variety (correction/recognition/encouragement/question distribution)
+- Dimension repetition rate: fraction of consecutive observation pairs that target the same dimension across the session sequence. Target: <= 40% over 5 sessions. Example: if 10 observations are generated and 4 consecutive pairs share a dimension, repetition rate = 4/9 = 0.44.
+- Observation text similarity: mean pairwise cosine distance of sentence embeddings across all observations in the sequence. Higher = more diverse.
+- Framing variety: entropy of the framing distribution (correction/recognition/encouragement/question). Higher entropy = more balanced.
 
 ### 11. Teacher Voice Consistency Eval (`apps/api/evals/teacher_voice/`) -- Phase 3c
 
@@ -336,7 +399,7 @@ apps/api/evals/
   ├── teaching_moments/         <-- Phase 2a
   ├── analysis_accuracy/        <-- Phase 2b
   ├── stop_sensitivity/         <-- Phase 2c
-  ├── score_follower/           <-- Phase 3a (Rust, cargo test --features eval)
+  ├── # score_follower lives in apps/api/src/practice/ (Rust, Phase 3a)
   ├── observation_diversity/    <-- Phase 3b
   ├── teacher_voice/            <-- Phase 3c
   ├── pyproject.toml
