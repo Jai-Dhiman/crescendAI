@@ -814,7 +814,39 @@ impl PracticeSession {
             }
         }
 
-        // 2. Send session_summary via WebSocket
+        // 2. Update observation count and run synthesis
+        if !observations.is_empty() {
+            // Fix: DO-originated observations were not incrementing the meta counter.
+            // This ensures should_synthesize() has an accurate count.
+            if let Err(e) = crate::services::memory::increment_observation_count_by(
+                &self.env, &student_id, observations.len()
+            ).await {
+                console_error!("Failed to increment observation count: {}", e);
+            }
+
+            // Run synthesis if enough observations have accumulated
+            match crate::services::memory::should_synthesize(&self.env, &student_id).await {
+                Ok(true) => {
+                    match crate::services::memory::run_synthesis(&self.env, &student_id).await {
+                        Ok(result) => {
+                            console_log!(
+                                "Synthesis for {}: {} new, {} invalidated, {} unchanged",
+                                student_id, result.new_facts, result.invalidated, result.unchanged
+                            );
+                        }
+                        Err(e) => {
+                            console_error!("Synthesis failed for {}: {}", student_id, e);
+                        }
+                    }
+                }
+                Ok(false) => {}
+                Err(e) => {
+                    console_error!("Synthesis check failed: {}", e);
+                }
+            }
+        }
+
+        // 3. Send session_summary via WebSocket
         if let Some(ws) = ws {
             let obs_json: Vec<serde_json::Value> = observations
                 .iter()
@@ -835,7 +867,7 @@ impl PracticeSession {
             let _ = ws.send_with_str(&summary.to_string());
         }
 
-        // 3. Close all WebSockets
+        // 4. Close all WebSockets
         for ws in self.state.get_websockets() {
             let _ = ws.close(Some(1000), Some(String::from("Session ended")));
         }

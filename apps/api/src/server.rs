@@ -361,6 +361,36 @@ async fn fetch(
         )).await;
     }
 
+    // Memory synthesis endpoint (authenticated)
+    if path == "/api/memory/synthesize" && method == http::Method::POST {
+        let headers = req.headers().clone();
+        let body = req
+            .into_body()
+            .collect()
+            .await
+            .map(|b| b.to_bytes().to_vec())
+            .unwrap_or_default();
+        return into_worker_response(with_cors(
+            crate::services::memory::handle_synthesize(&env, &headers, &body).await,
+            origin.as_deref(),
+        )).await;
+    }
+
+    // Memory seed-observations endpoint (dev-only, for testing)
+    if path == "/api/memory/seed-observations" && method == http::Method::POST {
+        let headers = req.headers().clone();
+        let body = req
+            .into_body()
+            .collect()
+            .await
+            .map(|b| b.to_bytes().to_vec())
+            .unwrap_or_default();
+        return into_worker_response(with_cors(
+            crate::services::memory::handle_seed_observations(&env, &headers, &body).await,
+            origin.as_deref(),
+        )).await;
+    }
+
     // Teaching moment selection endpoint (authenticated)
     if path == "/api/practice/teaching-moment" && method == http::Method::POST {
         let headers = req.headers().clone();

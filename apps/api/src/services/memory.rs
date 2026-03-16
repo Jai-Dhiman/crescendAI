@@ -620,6 +620,33 @@ pub async fn increment_observation_count(
     Ok(())
 }
 
+/// Increment observation count by N (batched version for DO session finalization).
+pub async fn increment_observation_count_by(
+    env: &Env,
+    student_id: &str,
+    count: usize,
+) -> Result<(), String> {
+    if count == 0 {
+        return Ok(());
+    }
+    let db = env.d1("DB").map_err(|e| format!("D1 binding failed: {:?}", e))?;
+
+    db.prepare(
+        "INSERT INTO student_memory_meta (student_id, total_observations) VALUES (?1, ?2) \
+         ON CONFLICT(student_id) DO UPDATE SET total_observations = total_observations + ?2",
+    )
+    .bind(&[
+        JsValue::from_str(student_id),
+        JsValue::from_f64(count as f64),
+    ])
+    .map_err(|e| format!("Failed to bind upsert: {:?}", e))?
+    .run()
+    .await
+    .map_err(|e| format!("Failed to update observation count: {:?}", e))?;
+
+    Ok(())
+}
+
 /// Check if synthesis should run for this student.
 /// Returns true if >= 3 new observations since last synthesis,
 /// or any new observations and last synthesis was > 7 days ago.
@@ -691,11 +718,19 @@ pub async fn should_synthesize(
     Ok(false)
 }
 
+/// Result of a synthesis run, for observability.
+pub struct SynthesisResult {
+    pub new_facts: usize,
+    pub invalidated: usize,
+    pub unchanged: usize,
+    pub observations_processed: usize,
+}
+
 /// Run the synthesis pipeline for a student.
 pub async fn run_synthesis(
     env: &Env,
     student_id: &str,
-) -> Result<(), String> {
+) -> Result<SynthesisResult, String> {
     use crate::services::llm;
     use crate::services::prompts;
 
@@ -742,7 +777,12 @@ pub async fn run_synthesis(
         .map_err(|e| format!("Failed to get obs results: {:?}", e))?;
 
     if new_observations.is_empty() {
-        return Ok(());
+        return Ok(SynthesisResult {
+            new_facts: 0,
+            invalidated: 0,
+            unchanged: active_facts.len(),
+            observations_processed: 0,
+        });
     }
 
     // 4. Get teaching approaches since last synthesis
@@ -804,7 +844,10 @@ pub async fn run_synthesis(
         .as_string()
         .unwrap_or_default();
     let today = &now[..10.min(now.len())];
+    let active_facts_count = active_facts.len();
+    let observations_count = new_observations.len();
 
+    let mut invalidated_count = 0usize;
     // 8. Apply invalidations
     if let Some(invalidated) = synthesis_json.get("invalidated_facts").and_then(|v| v.as_array()) {
         for inv in invalidated {
@@ -825,10 +868,12 @@ pub async fn run_synthesis(
                     .map_err(|e| format!("Failed to bind invalidation: {:?}", e))?
                     .run()
                     .await;
+                invalidated_count += 1;
             }
         }
     }
 
+    let mut new_facts_count = 0usize;
     // 9. Insert new facts
     if let Some(new_facts) = synthesis_json.get("new_facts").and_then(|v| v.as_array()) {
         for fact in new_facts {
@@ -879,6 +924,7 @@ pub async fn run_synthesis(
                 .map_err(|e| format!("Failed to bind fact insert: {:?}", e))?
                 .run()
                 .await;
+            new_facts_count += 1;
         }
     }
 
@@ -916,12 +962,16 @@ pub async fn run_synthesis(
     .map_err(|e| format!("Failed to update meta: {:?}", e))?;
 
     console_log!(
-        "Synthesis complete for student {}: {} new observations processed",
-        student_id,
-        new_observations.len()
+        "Synthesis complete for student {}: {} new, {} invalidated, {} observations",
+        student_id, new_facts_count, invalidated_count, observations_count
     );
 
-    Ok(())
+    Ok(SynthesisResult {
+        new_facts: new_facts_count,
+        invalidated: invalidated_count,
+        unchanged: active_facts_count.saturating_sub(invalidated_count),
+        observations_processed: observations_count,
+    })
 }
 
 /// POST /api/memory/extract-chat -- eval endpoint for chat memory extraction.
@@ -1618,6 +1668,236 @@ pub async fn handle_clear_benchmark(
         .status(StatusCode::OK)
         .header("Content-Type", "application/json")
         .body(Body::from(r#"{"ok":true}"#))
+        .unwrap()
+}
+
+// ---------------------------------------------------------------------------
+// POST /api/memory/synthesize -- trigger synthesis for a student
+// ---------------------------------------------------------------------------
+
+#[derive(serde::Deserialize)]
+pub struct SynthesizeRequest {
+    pub student_id: String,
+}
+
+/// POST /api/memory/synthesize -- manually trigger synthesis.
+pub async fn handle_synthesize(
+    env: &Env,
+    headers: &http::HeaderMap,
+    body: &[u8],
+) -> http::Response<axum::body::Body> {
+    use axum::body::Body;
+    use http::{Response, StatusCode};
+
+    // Auth
+    let _caller = match crate::auth::verify_auth_header(headers, env) {
+        Ok(id) => id,
+        Err(err_response) => return err_response,
+    };
+
+    // Parse request
+    let request: SynthesizeRequest = match serde_json::from_slice(body) {
+        Ok(r) => r,
+        Err(e) => {
+            console_log!("Failed to parse synthesize request: {:?}", e);
+            return Response::builder()
+                .status(StatusCode::BAD_REQUEST)
+                .header("Content-Type", "application/json")
+                .body(Body::from(r#"{"error":"Invalid request body"}"#))
+                .unwrap();
+        }
+    };
+
+    // Check if synthesis is needed
+    let should = match should_synthesize(env, &request.student_id).await {
+        Ok(s) => s,
+        Err(e) => {
+            console_log!("Synthesis check failed: {}", e);
+            return Response::builder()
+                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::json!({"error": format!("Synthesis check failed: {}", e)}).to_string(),
+                ))
+                .unwrap();
+        }
+    };
+
+    if !should {
+        let resp = serde_json::json!({"skipped": true, "reason": "Not enough new observations"});
+        return Response::builder()
+            .status(StatusCode::OK)
+            .header("Content-Type", "application/json")
+            .body(Body::from(resp.to_string()))
+            .unwrap();
+    }
+
+    // Run synthesis
+    match run_synthesis(env, &request.student_id).await {
+        Ok(result) => {
+            let resp = serde_json::json!({
+                "new_facts": result.new_facts,
+                "invalidated": result.invalidated,
+                "unchanged": result.unchanged,
+                "observations_processed": result.observations_processed,
+            });
+            Response::builder()
+                .status(StatusCode::OK)
+                .header("Content-Type", "application/json")
+                .body(Body::from(resp.to_string()))
+                .unwrap()
+        }
+        Err(e) => {
+            console_log!("Synthesis failed: {}", e);
+            Response::builder()
+                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::json!({"error": format!("Synthesis failed: {}", e)}).to_string(),
+                ))
+                .unwrap()
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// POST /api/memory/seed-observations -- dev-only observation seeding for tests
+// ---------------------------------------------------------------------------
+
+#[derive(serde::Deserialize)]
+pub struct SeedObservationsRequest {
+    pub student_id: String,
+    pub observations: Vec<SeedObservation>,
+}
+
+#[derive(serde::Deserialize)]
+pub struct SeedObservation {
+    pub dimension: String,
+    pub observation_text: String,
+    pub framing: String,
+    pub dimension_score: f64,
+    pub student_baseline: f64,
+    #[serde(default)]
+    pub reasoning_trace: String,
+}
+
+/// POST /api/memory/seed-observations -- insert test observations directly into D1.
+/// Dev-only: returns 404 in production.
+pub async fn handle_seed_observations(
+    env: &Env,
+    headers: &http::HeaderMap,
+    body: &[u8],
+) -> http::Response<axum::body::Body> {
+    use axum::body::Body;
+    use http::{Response, StatusCode};
+
+    // Block in production
+    let environment = env
+        .var("ENVIRONMENT")
+        .map(|v| v.to_string())
+        .unwrap_or_default();
+    if environment == "production" {
+        return Response::builder()
+            .status(StatusCode::NOT_FOUND)
+            .header("Content-Type", "application/json")
+            .body(Body::from(r#"{"error":"Not found"}"#))
+            .unwrap();
+    }
+
+    // Auth
+    let _caller = match crate::auth::verify_auth_header(headers, env) {
+        Ok(id) => id,
+        Err(err_response) => return err_response,
+    };
+
+    // Parse request
+    let request: SeedObservationsRequest = match serde_json::from_slice(body) {
+        Ok(r) => r,
+        Err(e) => {
+            console_log!("Failed to parse seed-observations request: {:?}", e);
+            return Response::builder()
+                .status(StatusCode::BAD_REQUEST)
+                .header("Content-Type", "application/json")
+                .body(Body::from(r#"{"error":"Invalid request body"}"#))
+                .unwrap();
+        }
+    };
+
+    let db = match env.d1("DB") {
+        Ok(db) => db,
+        Err(e) => {
+            console_log!("D1 binding failed: {:?}", e);
+            return Response::builder()
+                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                .header("Content-Type", "application/json")
+                .body(Body::from(r#"{"error":"Database unavailable"}"#))
+                .unwrap();
+        }
+    };
+
+    let now = js_sys::Date::new_0()
+        .to_iso_string()
+        .as_string()
+        .unwrap_or_default();
+
+    let mut seeded = 0u32;
+    let session_id = format!("seed-{}", &generate_uuid()[..8]);
+
+    for obs in &request.observations {
+        let obs_id = generate_uuid();
+        let trace = if obs.reasoning_trace.is_empty() {
+            "{}".to_string()
+        } else {
+            obs.reasoning_trace.clone()
+        };
+
+        let result = db
+            .prepare(
+                "INSERT INTO observations (id, student_id, session_id, dimension, \
+                 observation_text, reasoning_trace, framing, dimension_score, \
+                 student_baseline, is_fallback, created_at) \
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+            )
+            .bind(&[
+                JsValue::from_str(&obs_id),
+                JsValue::from_str(&request.student_id),
+                JsValue::from_str(&session_id),
+                JsValue::from_str(&obs.dimension),
+                JsValue::from_str(&obs.observation_text),
+                JsValue::from_str(&trace),
+                JsValue::from_str(&obs.framing),
+                JsValue::from_f64(obs.dimension_score),
+                JsValue::from_f64(obs.student_baseline),
+                JsValue::from_bool(false),
+                JsValue::from_str(&now),
+            ]);
+
+        match result {
+            Ok(stmt) => {
+                if let Err(e) = stmt.run().await {
+                    console_log!("Failed to insert seeded observation: {:?}", e);
+                } else {
+                    seeded += 1;
+                }
+            }
+            Err(e) => {
+                console_log!("Failed to bind seeded observation: {:?}", e);
+            }
+        }
+    }
+
+    // Update meta counter so should_synthesize() works correctly
+    if seeded > 0 {
+        if let Err(e) = increment_observation_count_by(env, &request.student_id, seeded as usize).await {
+            console_log!("Failed to update observation count after seeding: {}", e);
+        }
+    }
+
+    let resp = serde_json::json!({"seeded": seeded});
+    Response::builder()
+        .status(StatusCode::OK)
+        .header("Content-Type", "application/json")
+        .body(Body::from(resp.to_string()))
         .unwrap()
 }
 
