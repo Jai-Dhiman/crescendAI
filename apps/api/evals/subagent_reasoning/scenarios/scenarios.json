@@ -1,0 +1,92 @@
+[
+  {
+    "id": "obvious_dynamics_decline",
+    "description": "Dynamics clearly worst dimension, large negative deviation",
+    "predictions": {"dynamics": 0.30, "timing": 0.65, "pedaling": 0.60, "articulation": 0.70, "phrasing": 0.55, "interpretation": 0.50},
+    "baselines": {"dynamics": 0.55, "timing": 0.60, "pedaling": 0.58, "articulation": 0.65, "phrasing": 0.52, "interpretation": 0.48},
+    "recent_observations": [],
+    "expected_dimension": "dynamics",
+    "expected_framing": "correction"
+  },
+  {
+    "id": "all_improving",
+    "description": "All dimensions above baseline, should pick positive recognition",
+    "predictions": {"dynamics": 0.70, "timing": 0.72, "pedaling": 0.68, "articulation": 0.75, "phrasing": 0.65, "interpretation": 0.60},
+    "baselines": {"dynamics": 0.55, "timing": 0.60, "pedaling": 0.58, "articulation": 0.65, "phrasing": 0.52, "interpretation": 0.48},
+    "recent_observations": [],
+    "expected_dimension": null,
+    "expected_framing": "recognition"
+  },
+  {
+    "id": "dedup_dynamics_repeated",
+    "description": "Dynamics worst but already covered 3 times, should pick next worst",
+    "predictions": {"dynamics": 0.30, "timing": 0.65, "pedaling": 0.40, "articulation": 0.70, "phrasing": 0.55, "interpretation": 0.50},
+    "baselines": {"dynamics": 0.55, "timing": 0.60, "pedaling": 0.58, "articulation": 0.65, "phrasing": 0.52, "interpretation": 0.48},
+    "recent_observations": [{"dimension": "dynamics"}, {"dimension": "dynamics"}, {"dimension": "dynamics"}],
+    "expected_dimension": "pedaling",
+    "expected_framing": "correction"
+  },
+  {
+    "id": "borderline_stop",
+    "description": "Scores very close to baseline, borderline STOP",
+    "predictions": {"dynamics": 0.52, "timing": 0.58, "pedaling": 0.56, "articulation": 0.63, "phrasing": 0.50, "interpretation": 0.46},
+    "baselines": {"dynamics": 0.55, "timing": 0.60, "pedaling": 0.58, "articulation": 0.65, "phrasing": 0.52, "interpretation": 0.48},
+    "recent_observations": [],
+    "expected_dimension": "articulation",
+    "expected_framing": "correction"
+  },
+  {
+    "id": "mixed_signals",
+    "description": "One dimension declining sharply, another improving sharply",
+    "predictions": {"dynamics": 0.30, "timing": 0.80, "pedaling": 0.60, "articulation": 0.70, "phrasing": 0.55, "interpretation": 0.50},
+    "baselines": {"dynamics": 0.55, "timing": 0.60, "pedaling": 0.58, "articulation": 0.65, "phrasing": 0.52, "interpretation": 0.48},
+    "recent_observations": [],
+    "expected_dimension": "dynamics",
+    "expected_framing": "correction"
+  },
+  {
+    "id": "no_baseline_first_session",
+    "description": "No baseline data, first session ever",
+    "predictions": {"dynamics": 0.45, "timing": 0.55, "pedaling": 0.50, "articulation": 0.60, "phrasing": 0.40, "interpretation": 0.35},
+    "baselines": {},
+    "recent_observations": [],
+    "expected_dimension": null,
+    "expected_framing": "encouragement"
+  },
+  {
+    "id": "phrasing_declining_after_recognition",
+    "description": "Phrasing was recognized last time but now declining",
+    "predictions": {"dynamics": 0.55, "timing": 0.60, "pedaling": 0.58, "articulation": 0.65, "phrasing": 0.35, "interpretation": 0.48},
+    "baselines": {"dynamics": 0.55, "timing": 0.60, "pedaling": 0.58, "articulation": 0.65, "phrasing": 0.52, "interpretation": 0.48},
+    "recent_observations": [{"dimension": "phrasing"}],
+    "expected_dimension": "phrasing",
+    "expected_framing": "correction"
+  },
+  {
+    "id": "interpretation_consistently_low",
+    "description": "Interpretation always low, never addressed",
+    "predictions": {"dynamics": 0.55, "timing": 0.60, "pedaling": 0.58, "articulation": 0.65, "phrasing": 0.52, "interpretation": 0.25},
+    "baselines": {"dynamics": 0.55, "timing": 0.60, "pedaling": 0.58, "articulation": 0.65, "phrasing": 0.52, "interpretation": 0.30},
+    "recent_observations": [{"dimension": "dynamics"}, {"dimension": "pedaling"}, {"dimension": "timing"}],
+    "expected_dimension": "interpretation",
+    "expected_framing": "correction"
+  },
+  {
+    "id": "all_stable",
+    "description": "Everything near baseline, no strong signal",
+    "predictions": {"dynamics": 0.54, "timing": 0.59, "pedaling": 0.57, "articulation": 0.64, "phrasing": 0.51, "interpretation": 0.47},
+    "baselines": {"dynamics": 0.55, "timing": 0.60, "pedaling": 0.58, "articulation": 0.65, "phrasing": 0.52, "interpretation": 0.48},
+    "recent_observations": [],
+    "expected_dimension": null,
+    "expected_framing": "encouragement"
+  },
+  {
+    "id": "timing_worst_but_recently_covered",
+    "description": "Timing worst deviation, covered once recently but not 3 times",
+    "predictions": {"dynamics": 0.50, "timing": 0.35, "pedaling": 0.55, "articulation": 0.60, "phrasing": 0.50, "interpretation": 0.45},
+    "baselines": {"dynamics": 0.55, "timing": 0.60, "pedaling": 0.58, "articulation": 0.65, "phrasing": 0.52, "interpretation": 0.48},
+    "recent_observations": [{"dimension": "timing"}],
+    "expected_dimension": "timing",
+    "expected_framing": "correction"
+  }
+]
