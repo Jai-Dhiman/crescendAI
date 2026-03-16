@@ -356,7 +356,6 @@ git commit -m "feat(inference): add local eval runner with audio chunking and ve
 
 **Files:**
 - Modify: `apps/api/src/practice/session.rs:248-443`
-- Modify: `apps/api/src/server.rs` (route registration)
 
 - [ ] **Step 1: Extract downstream pipeline from handle_chunk_ready**
 
