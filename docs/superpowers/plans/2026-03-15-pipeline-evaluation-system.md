@@ -33,9 +33,21 @@ This ignores MPS and overrides the passed `device` argument when CUDA is unavail
 import os
 
 def _resolve_device(requested: str) -> torch.device:
-    """Resolve device with env override and auto-detection."""
+    """Resolve device with env override and auto-detection.
+
+    Supports: "cuda", "mps", "cpu", "auto".
+    "auto" runs the full cascade: CUDA > MPS > CPU.
+    CRESCEND_DEVICE env var overrides the requested device.
+    """
     dev = os.environ.get("CRESCEND_DEVICE", requested)
-    if dev == "cuda" and not torch.cuda.is_available():
+    if dev == "auto":
+        if torch.cuda.is_available():
+            dev = "cuda"
+        elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+            dev = "mps"
+        else:
+            dev = "cpu"
+    elif dev == "cuda" and not torch.cuda.is_available():
         if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
             dev = "mps"
         else:
@@ -165,6 +177,8 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import base64
+import io
 import json
 import os
 import subprocess
@@ -172,8 +186,10 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-# Set device before any torch imports
-os.environ.setdefault("CRESCEND_DEVICE", "cpu")
+import soundfile as sf
+
+# Set device before any torch imports (auto = CUDA > MPS > CPU)
+os.environ.setdefault("CRESCEND_DEVICE", "auto")
 
 from audio_chunker import chunk_audio_file
 from handler import EndpointHandler
@@ -200,10 +216,13 @@ def get_git_sha() -> tuple[str, bool]:
 
 
 def build_model_fingerprint(model_info: dict) -> str:
-    """Build a cache directory name from model info."""
-    name = model_info.get("name", "unknown").lower().replace(" ", "_")
-    pairwise = model_info.get("pairwise", "unknown")
-    return f"{name}_pw{pairwise}"
+    """Build a cache directory name from model info.
+
+    Format: {name}_{architecture} matching spec convention (e.g., "a1-max_muq-l9-12").
+    """
+    name = model_info.get("name", "unknown").lower().replace(" ", "-")
+    arch = model_info.get("architecture", "unknown").lower().replace(" ", "-")
+    return f"{name}_{arch}"
 
 
 def run(
@@ -264,10 +283,6 @@ def run(
         # Run inference on each chunk
         chunk_results = []
         for ci, chunk_audio in enumerate(chunks):
-            import base64
-            import io
-            import soundfile as sf
-
             buf = io.BytesIO()
             sf.write(buf, chunk_audio, 24000, format="WAV")
             audio_b64 = base64.b64encode(buf.getvalue()).decode()
@@ -436,6 +451,32 @@ In the WebSocket message handler (wherever WS messages are dispatched in session
 
 This uses WebSocket messages (not HTTP POST) since the practice session DO already uses WS for all chunk communication. The eval harness connects via WS, sends `eval_chunk` messages, and receives observations on the same connection.
 
+**Note:** This is a deliberate deviation from the spec, which describes `POST /api/practice/eval-chunk`. Using WS messages is simpler because the DO already dispatches everything via WS, and it avoids adding a second HTTP entrypoint.
+
+Additionally, mark the session as an eval session when the first `eval_chunk` is received:
+
+```rust
+// At the top of the eval_chunk handler:
+self.inner.borrow_mut().is_eval_session = true;
+```
+
+Add `is_eval_session: bool` to `SessionState` (default `false`). When `is_eval_session` is true, the `generate_observation` method includes an `eval_context` field in the observation WS message containing the full context the teacher LLM saw:
+
+```rust
+// In generate_observation, after building the observation response JSON:
+if self.inner.borrow().is_eval_session {
+    response["eval_context"] = serde_json::json!({
+        "predictions": &scores_json,
+        "baselines": &baselines_json,
+        "recent_observations": &recent_obs_json,
+        "analysis_facts": &analysis_json,
+        "piece_name": &self.inner.borrow().piece_query,
+    });
+}
+```
+
+This gives the eval judge the same context the teacher LLM received, enabling meaningful accuracy and appropriateness assessment. The field costs nothing in production (flag is always false).
+
 - [ ] **Step 4: Test with wrangler dev**
 
 ```bash
@@ -451,7 +492,7 @@ In another terminal, use websocat or a quick Python script to:
 - [ ] **Step 5: Commit**
 
 ```bash
-git add apps/api/src/practice/session.rs apps/api/src/server.rs
+git add apps/api/src/practice/session.rs
 git commit -m "feat(api): add eval-chunk WS message and extract process_inference_result"
 ```
 
@@ -880,6 +921,7 @@ def _call_with_retry(client: anthropic.Anthropic, model: str, user_message: str)
             response = client.messages.create(
                 model=model,
                 max_tokens=2000,
+                system="You are an evaluation judge. For each criterion, you MUST format your response exactly as:\n\n**[Criterion Name]:** YES or NO\nEvidence: \"your evidence here\"\n\nDo not deviate from this format.",
                 messages=[{"role": "user", "content": user_message}],
             )
             return response.content[0].text
@@ -1176,6 +1218,7 @@ def preflight() -> bool:
                     "Set" if has_groq else "Missing. Export GROQ_API_KEY"))
 
     # 4. Wrangler dev responding (only needed for observation quality)
+    wrangler_ok = False
     try:
         resp = requests.get(f"{WRANGLER_URL}/health", timeout=3)
         wrangler_ok = resp.status_code == 200
@@ -1183,6 +1226,30 @@ def preflight() -> bool:
     except requests.ConnectionError:
         checks.append(("wrangler dev", False,
                         "Not running. Start with: cd apps/api && npx wrangler dev"))
+
+    # 5. D1 seeded with score catalog (query a known piece via worker)
+    if wrangler_ok:
+        try:
+            # Use the exercises endpoint as a proxy for D1 seeding
+            resp = requests.get(f"{WRANGLER_URL}/api/exercises", timeout=5)
+            d1_ok = resp.status_code == 200
+            checks.append(("D1 score catalog", d1_ok,
+                            "Seeded" if d1_ok else "Empty. Seed with: cd apps/api && npx wrangler d1 execute ..."))
+        except requests.ConnectionError:
+            checks.append(("D1 score catalog", False, "Could not verify"))
+    else:
+        checks.append(("D1 score catalog", False, "Skipped (wrangler not running)"))
+
+    # 6. Worker LLM keys (.dev.vars)
+    dev_vars_path = Path(__file__).parents[1] / ".dev.vars"
+    if dev_vars_path.exists():
+        dev_vars_content = dev_vars_path.read_text()
+        has_worker_keys = "GROQ_API_KEY" in dev_vars_content and "ANTHROPIC_API_KEY" in dev_vars_content
+        checks.append(("Worker LLM keys (.dev.vars)", has_worker_keys,
+                        "Both keys present" if has_worker_keys else "Missing GROQ_API_KEY or ANTHROPIC_API_KEY in apps/api/.dev.vars"))
+    else:
+        checks.append(("Worker LLM keys (.dev.vars)", False,
+                        f"File not found: {dev_vars_path}. Create with GROQ_API_KEY and ANTHROPIC_API_KEY"))
 
     # Print results
     print("\nPreflight Checks:")
@@ -1545,15 +1612,17 @@ def main(
 
         # Judge each observation
         for obs in result.observations:
+            # Use the eval_context echoed back by the Rust pipeline.
+            # This contains the exact context the teacher LLM saw:
+            # predictions, baselines, recent_observations, analysis_facts, piece_name.
+            eval_ctx = obs.raw_message.get("eval_context", {})
             context = {
-                "predictions": result.chunk_responses[obs.chunk_index]["scores"]
-                    if obs.chunk_index < len(result.chunk_responses)
-                    else {},
-                "baselines": {},  # populated from obs metadata if available
-                "recent_observations": [],
-                "analysis_facts": {},
-                "piece_name": recording_id,
-                "bar_range": "full recording",
+                "predictions": eval_ctx.get("predictions", {}),
+                "baselines": eval_ctx.get("baselines", {}),
+                "recent_observations": eval_ctx.get("recent_observations", []),
+                "analysis_facts": eval_ctx.get("analysis_facts", {}),
+                "piece_name": eval_ctx.get("piece_name", recording_id),
+                "bar_range": eval_ctx.get("bar_range", "full recording"),
             }
 
             judge_result = judge_observation(obs.text, context)
