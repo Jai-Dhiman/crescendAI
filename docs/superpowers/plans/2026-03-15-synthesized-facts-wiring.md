@@ -966,7 +966,7 @@ This requires the dev server to be running. If it fails with a connection error,
 Run: `cd apps/api/evals/memory && uv run pytest src/test_synthesis.py -v`
 Expected: `test_synthesis_full_cycle` PASS. The test may need 1-2 retries due to LLM non-determinism (Groq Llama 70B at temperature 0.1).
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 4: Commit**
 
 ```bash
 git add apps/api/evals/memory/src/test_synthesis.py apps/api/evals/memory/pyproject.toml
