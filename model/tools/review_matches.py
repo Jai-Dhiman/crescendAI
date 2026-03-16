@@ -180,15 +180,19 @@ HTML_PAGE = r"""<!DOCTYPE html>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@tonejs/midi@2/build/Midi.js"></script>
-<script type="module">
-import { Soundfont } from 'https://cdn.jsdelivr.net/npm/smplr@0.15.2/+esm';
-
-// -- Audio engine --
+<script>
+// -- Audio engine (dynamic import of smplr to avoid module scoping issues) --
 const audioCtx = new AudioContext();
 let piano = null;
 let pianoReady = false;
+let Soundfont = null;
+
 async function ensurePiano() {
   if (piano && pianoReady) return piano;
+  if (!Soundfont) {
+    const mod = await import('https://cdn.jsdelivr.net/npm/smplr@0.15.2/+esm');
+    Soundfont = mod.Soundfont;
+  }
   piano = new Soundfont(audioCtx, { instrument: 'acoustic_grand_piano' });
   await piano.loaded;
   pianoReady = true;
