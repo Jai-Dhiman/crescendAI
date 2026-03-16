@@ -102,16 +102,21 @@ def preflight() -> bool:
 
 def run_observation_quality() -> None:
     """Run the observation quality eval suite."""
-    from observation_quality.run import main as obs_main  # type: ignore[import-not-found]
+    from observation_quality.eval_observation_quality import main as obs_main
 
-    obs_main()
+    obs_main(
+        cache_dir=CACHE_ROOT,
+        traces_dir=Path(__file__).parent.parent.parent.parent / "data" / "eval" / "traces",
+        reports_dir=Path(__file__).parent / "reports",
+        wrangler_url=WORKER_BASE,
+    )
 
 
 def run_subagent_reasoning() -> None:
     """Run the subagent reasoning eval suite."""
-    from subagent_reasoning.run import main as sub_main  # type: ignore[import-not-found]
+    from subagent_reasoning.eval_subagent_reasoning import main as sub_main
 
-    sub_main()
+    sub_main(reports_dir=Path(__file__).parent / "reports")
 
 
 def main() -> None:

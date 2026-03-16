@@ -11,23 +11,24 @@ class StaleCacheError(Exception):
 
 
 def find_cache_dir(cache_root: str | Path) -> Path:
-    """Find the most recent versioned cache directory under cache_root.
+    """Find the most recent cache directory under cache_root.
 
-    Expects directories named like v001/, v002/, etc. Returns the one
-    with the highest version number.
+    Returns the subdirectory with the most recent modification time.
+    Cache directories are named by model fingerprint (e.g., "a1-max_muq-l9-12").
     """
     cache_root = Path(cache_root)
     if not cache_root.exists():
         raise FileNotFoundError(f"Cache root does not exist: {cache_root}")
 
-    versioned = sorted(
-        [d for d in cache_root.iterdir() if d.is_dir() and d.name.startswith("v")],
-        key=lambda d: d.name,
+    subdirs = sorted(
+        [d for d in cache_root.iterdir() if d.is_dir()],
+        key=lambda d: d.stat().st_mtime,
+        reverse=True,
     )
-    if not versioned:
-        raise FileNotFoundError(f"No versioned cache directories found in: {cache_root}")
+    if not subdirs:
+        raise FileNotFoundError(f"No cache directories found in: {cache_root}")
 
-    return versioned[-1]
+    return subdirs[0]
 
 
 def load_recording(cache_dir: str | Path, recording_id: str) -> dict[str, Any]:
