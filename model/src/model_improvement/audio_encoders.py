@@ -441,6 +441,58 @@ class MuQLoRAMaxModel(MuQLoRAModel):
         return loss
 
 
+class MuQFrozenProbeModel(MuQLoRAMaxModel):
+    """Frozen MuQ backbone + MLP probe for ablation baseline.
+
+    Same head architecture as A1-Max (attention pooling, 2-layer MLP,
+    regression head) but with all backbone parameters frozen and MSE-only
+    loss. Provides a fair baseline for measuring the contribution of
+    LoRA adaptation and ranking losses.
+    """
+
+    def __init__(self, **kwargs):
+        # Force MSE-only loss config
+        kwargs.setdefault("lora_rank", 1)  # Minimal, will be frozen
+        kwargs["lambda_listmle"] = 0.0
+        kwargs["lambda_contrastive"] = 0.0
+        kwargs["lambda_regression"] = 1.0
+        kwargs["lambda_invariance"] = 0.0
+        kwargs["use_ccc"] = False
+        kwargs["mixup_alpha"] = 0.0
+        super().__init__(**kwargs)
+
+        # Freeze everything except the MLP heads
+        # (attn, encoder, regression_head remain trainable)
+        for name, param in self.named_parameters():
+            if "lora" in name.lower():
+                param.requires_grad = False
+        # Freeze comparator and ranking heads (not used in MSE-only)
+        for param in self.comparator.parameters():
+            param.requires_grad = False
+        for param in self.ranking_heads.parameters():
+            param.requires_grad = False
+        for param in self.projection.parameters():
+            param.requires_grad = False
+
+    def training_step(self, batch: dict, idx: int) -> torch.Tensor:
+        """MSE regression only -- no ranking or contrastive losses."""
+        emb_a = batch["embeddings_a"]
+        emb_b = batch["embeddings_b"]
+        labels_a = batch["labels_a"]
+        labels_b = batch["labels_b"]
+
+        z_a = self.encode(emb_a, batch.get("mask_a"))
+        z_b = self.encode(emb_b, batch.get("mask_b"))
+
+        scores_a = self.regression_head(z_a)
+        scores_b = self.regression_head(z_b)
+
+        loss = (F.mse_loss(scores_a, labels_a) + F.mse_loss(scores_b, labels_b)) / 2.0
+
+        self.log("train_loss", loss, prog_bar=True)
+        return loss
+
+
 class MuQFullUnfreezeModel(pl.LightningModule):
     """A3: Full unfreeze with gradual layer unfreezing and discriminative LR.
 
