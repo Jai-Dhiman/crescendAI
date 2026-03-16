@@ -48,14 +48,14 @@ Insert between `persist_observations()` and the WS summary send in `finalize_ses
 
 **Avoid stale-read issue:** `should_synthesize()` uses the meta counter (not a date-windowed count query) for never-synthesized students. Since `increment_observation_count()` is called before `should_synthesize()`, the counter reflects the just-persisted observations. For previously-synthesized students, `should_synthesize()` uses a `COUNT(*)` query against `observations WHERE created_at > last_synthesis_at`. The observations were just written by `persist_observations()` in the same DO invocation -- D1 read-after-write consistency within a single Worker invocation is guaranteed (D1 uses a single HTTP connection per binding).
 
+Also add `increment_observation_count_by(env, student_id, count)` -- a single D1 query using `SET total_observations = total_observations + ?2` rather than calling `increment_observation_count()` in a loop (avoids N separate D1 writes for N observations).
+
 ```rust
-// Update observation count for synthesis tracking
-for _ in &observations {
-    if let Err(e) = crate::services::memory::increment_observation_count(
-        &self.env, &student_id
-    ).await {
-        console_error!("Failed to increment observation count: {}", e);
-    }
+// Update observation count for synthesis tracking (single D1 query)
+if let Err(e) = crate::services::memory::increment_observation_count_by(
+    &self.env, &student_id, observations.len()
+).await {
+    console_error!("Failed to increment observation count: {}", e);
 }
 
 // Run synthesis if enough observations have accumulated
@@ -147,7 +147,7 @@ Request: `{"student_id": "...", "observations": [{"dimension": "dynamics", "obse
 
 Response: `{"seeded": N}`
 
-This follows the `store-facts` pattern. Gated behind `AUTH_DEBUG_ENABLED` (same guard as `/api/auth/debug`) to prevent production users from injecting arbitrary observations. Returns 404 in production.
+This follows the `store-facts` pattern. Gated behind `ENVIRONMENT != "production"` (same guard as `/api/auth/debug`) to prevent production users from injecting arbitrary observations. Returns 404 in production.
 
 The seed endpoint must also call `increment_observation_count()` for each seeded observation, so that `should_synthesize()` returns correct results when the test subsequently calls `/api/memory/synthesize`.
 
@@ -155,7 +155,7 @@ The seed endpoint must also call `increment_observation_count()` for each seeded
 
 | File | Change |
 |---|---|
-| `apps/api/src/services/memory.rs` | Add `SynthesisResult` struct, refactor `run_synthesis()` return type, add `handle_synthesize()`, add `handle_seed_observations()` |
+| `apps/api/src/services/memory.rs` | Add `SynthesisResult` struct, refactor `run_synthesis()` return type, add `increment_observation_count_by()`, add `handle_synthesize()`, add `handle_seed_observations()` |
 | `apps/api/src/practice/session.rs` | Add synthesis trigger in `finalize_session()` |
 | `apps/api/src/server.rs` | Add `POST /api/memory/synthesize` and `POST /api/memory/seed-observations` routes |
 | `apps/api/evals/memory/src/test_synthesis.py` | Integration test |
