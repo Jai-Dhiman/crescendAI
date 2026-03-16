@@ -245,7 +245,7 @@ Ships with the `/api/ask` pipeline (see `02-pipeline.md`).
 [x] Observation counting fix for DO-originated sessions
 [x] SynthesisResult observability (new_facts, invalidated, unchanged, observations_processed)
 [x] Seed-observations dev-only endpoint for testing
-[x] Integration test (apps/api/evals/memory/src/test_synthesis.py)
+[x] Integration test (apps/evals/memory/src/test_synthesis.py)
 ```
 
 ### Phase 3: Retrieval Optimization
@@ -261,7 +261,7 @@ Ships with the `/api/ask` pipeline (see `02-pipeline.md`).
 
 ## Evaluation
 
-The memory system eval framework lives at `apps/api/evals/memory/` (own pyproject.toml, run with `uv run python -m src.run_all`).
+The memory system eval framework lives at `apps/evals/memory/` (own pyproject.toml, run with `uv run python -m src.run_all`).
 
 ### Two Eval Tracks
 
@@ -322,9 +322,9 @@ External benchmark: long-conversation memory via QA pairs. Tests whether the ext
 
 | File | Purpose |
 |---|---|
-| `apps/api/evals/memory/src/run_all.py` | Run all eval layers |
-| `apps/api/evals/memory/src/build_chat_scenarios.py` | 38 chat extraction scenarios |
-| `apps/api/evals/memory/src/locomo_adapter.py` | LoCoMo benchmark adapter (bidirectional extraction, speaker fixup, date normalization, semantic dedup, adaptive retrieval) |
+| `apps/evals/memory/src/run_all.py` | Run all eval layers |
+| `apps/evals/memory/src/build_chat_scenarios.py` | 38 chat extraction scenarios |
+| `apps/evals/memory/src/locomo_adapter.py` | LoCoMo benchmark adapter (bidirectional extraction, speaker fixup, date normalization, semantic dedup, adaptive retrieval) |
 | `apps/api/src/services/prompts.rs` | Extraction prompt (broadened from piano-specific to general, 10 categories, 5 facts per exchange) |
 
 ---

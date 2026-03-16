@@ -85,7 +85,7 @@ recordings:
     label_rationale: "known concert pianist, professional label channel"
 ```
 
-**Script:** `model/src/skill_eval/collect.py`
+**Script:** `apps/evals/model/skill_eval/collect.py`
 - Uses `yt-dlp --dump-json` for metadata search and keyword-based skill labeling
 - Downloads audio via `yt-dlp -x --audio-format wav`
 - Stores audio at `model/data/skill_eval/{piece_id}/audio/{video_id}.wav`
@@ -154,7 +154,7 @@ Quality variants run on the full 100 recordings. Latency-only variants run on a 
 }
 ```
 
-**Script:** `model/src/skill_eval/run_inference.py`
+**Script:** `apps/evals/model/skill_eval/run_inference.py`
 - Takes `--config` and `--piece` flags
 - Caches results per recording (skip if already inferred for this config)
 - Can run all configs sequentially or a single config for quick iteration
@@ -184,7 +184,7 @@ All metrics reported with 95% bootstrap confidence intervals (1000 resamples) to
 
 **Visualization:** Summary plot per piece -- mean score (y-axis) vs skill bucket (x-axis) with error bars, one line per config. Saved to `model/data/skill_eval/figures/`.
 
-**Script:** `model/src/skill_eval/analyze.py`
+**Script:** `apps/evals/model/skill_eval/analyze.py`
 - Reads results JSONs from all configs
 - Prints metrics table to stdout
 - Saves plots to figures directory
@@ -223,9 +223,9 @@ Latency summary (10-recording subset):
 
 | File | Purpose | Type |
 |------|---------|------|
-| `model/src/skill_eval/collect.py` | YouTube search, metadata parsing, audio download, manifest generation | New |
-| `model/src/skill_eval/run_inference.py` | Run inference configs on downloaded audio, cache results | New |
-| `model/src/skill_eval/analyze.py` | Compute metrics, generate plots | New |
+| `apps/evals/model/skill_eval/collect.py` | YouTube search, metadata parsing, audio download, manifest generation | New |
+| `apps/evals/model/skill_eval/run_inference.py` | Run inference configs on downloaded audio, cache results | New |
+| `apps/evals/model/skill_eval/analyze.py` | Compute metrics, generate plots | New |
 | `model/data/skill_eval/fur_elise/manifest.yaml` | Recording manifest for Fur Elise | Generated |
 | `model/data/skill_eval/nocturne_op9no2/manifest.yaml` | Recording manifest for Op. 9 No. 2 | Generated |
 | `model/data/skill_eval/{config}/{piece}/results.json` | Inference results per config per piece | Generated |

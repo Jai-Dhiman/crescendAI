@@ -819,7 +819,7 @@ The backend is a single Cloudflare Workers application (Rust/WASM). Bindings:
 
 ## Pipeline Evaluation
 
-The pipeline layer (STOP classification, teaching moment selection, subagent reasoning, teacher output) requires its own eval framework, parallel to the memory system eval in `apps/api/evals/memory/`.
+The pipeline layer (STOP classification, teaching moment selection, subagent reasoning, teacher output) requires its own eval framework. All evals live in `apps/evals/` -- pipeline evals in `apps/evals/pipeline/`, memory evals in `apps/evals/memory/`, model quality evals in `apps/evals/model/`.
 
 ### Teaching Moment Selection Eval
 
