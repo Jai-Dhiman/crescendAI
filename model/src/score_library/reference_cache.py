@@ -172,21 +172,20 @@ def _extract_pedal_events(midi_path: str | Path) -> list[dict]:
 def align_to_score(
     perf_notes: list[dict],
     score_data: dict,
-) -> dict[int, list[dict]]:
+) -> tuple[dict[int, list[dict]], float]:
     """Align performance notes to score bars via onset-based full DTW.
 
     Uses 1D arrays of note onset times (in seconds) for both the performance
     and the score, runs full DTW, then maps performance notes to score bars
     using the warping path.
 
-    Returns a dict mapping bar_number -> list of performance note dicts, each
-    augmented with:
-        score_onset_s   -- expected onset from score
-        deviation_ms    -- onset deviation in milliseconds
-        score_duration_s -- expected note duration from score
+    Returns a tuple of:
+        - dict mapping bar_number -> list of performance note dicts, each
+          augmented with score_onset_s, deviation_ms, score_duration_s
+        - normalized DTW distance (total cost / path length)
     """
     if not perf_notes:
-        return {}
+        return {}, 0.0
 
     # Collect all score notes across bars, sorted by onset.
     score_notes: list[dict] = []
@@ -203,7 +202,7 @@ def align_to_score(
     score_notes.sort(key=lambda n: n["onset_s"])
 
     if not score_notes:
-        return {}
+        return {}, 0.0
 
     # Build 1D onset arrays for DTW.
     perf_onsets = np.array([n["onset_s"] for n in perf_notes], dtype=np.float64)
@@ -221,6 +220,8 @@ def align_to_score(
         score_norm.reshape(-1, 1),
         keep_internals=True,
     )
+
+    normalized_distance = float(alignment.normalizedDistance)
 
     # alignment.index1 and alignment.index2 are the warping path indices
     # (performance index -> score index).
@@ -255,7 +256,7 @@ def align_to_score(
             bar_to_perf[bar_num] = []
         bar_to_perf[bar_num].append(augmented)
 
-    return bar_to_perf
+    return bar_to_perf, normalized_distance
 
 
 # ---------------------------------------------------------------------------
@@ -496,7 +497,7 @@ def build_reference_for_piece(
         try:
             perf_notes = load_performance_midi(midi_path)
             pedal_events = _extract_pedal_events(midi_path)
-            bar_to_notes = align_to_score(perf_notes, score_data)
+            bar_to_notes, _ = align_to_score(perf_notes, score_data)
 
             perf_bar_stats: list[BarStats] = []
             for bar_num, notes in bar_to_notes.items():
@@ -527,141 +528,317 @@ def build_reference_for_piece(
 # ---------------------------------------------------------------------------
 
 
-def _find_maestro_midis_for_piece(
-    piece_id: str,
-    maestro_dir: Path,
-    maestro_meta: Path | None,
-) -> list[Path]:
-    """Find MAESTRO MIDI files for a given piece_id.
+def _cmd_match(args: argparse.Namespace) -> None:
+    """Run the match subcommand."""
+    import csv as csv_mod
+    from .maestro_matcher import run_match_pipeline
 
-    This is a scaffold. When a MAESTRO metadata CSV / JSON is provided,
-    match piece_id against it. Otherwise, fall back to directory scan.
+    maestro_csv = Path(args.maestro_csv)
+    score_dir = Path(args.score_dir)
+    output_path = Path(args.output)
 
-    The MAESTRO dataset uses filenames like:
-        MIDI-Unprocessed_01_R1_2006_01-05_ORIG_MID--AUDIO_01_R1_2006_F_MIDI.midi
+    if not maestro_csv.exists():
+        raise FileNotFoundError(f"MAESTRO CSV not found: {maestro_csv}")
+    if not score_dir.exists():
+        raise FileNotFoundError(f"Score directory not found: {score_dir}")
 
-    Piece matching against MAESTRO metadata is dataset-specific and will be
-    filled in when the metadata mapping is available.
-    """
-    if maestro_meta is not None and maestro_meta.exists():
-        # Future: parse maestro_meta (CSV or JSON) to find matching MIDIs.
-        # For now, log that metadata-based matching is not yet implemented.
-        print(
-            f"    NOTE: MAESTRO metadata matching not yet implemented for piece '{piece_id}'. "
-            "Skipping metadata lookup."
-        )
+    # Load titles.json from score_dir
+    titles_path = score_dir / "titles.json"
+    if not titles_path.exists():
+        raise FileNotFoundError(f"titles.json not found in {score_dir}")
+    with open(titles_path, encoding="utf-8") as fh:
+        titles_map: dict[str, str] = json.load(fh)
 
-    # Fallback: look for a subdirectory named after the piece_id.
-    piece_dir = maestro_dir / piece_id
-    if piece_dir.is_dir():
-        return sorted(piece_dir.glob("*.midi")) + sorted(piece_dir.glob("*.mid"))
+    # Extract known ASAP composers from score filenames
+    asap_composers = sorted(
+        {f.stem.split(".")[0] for f in score_dir.glob("*.json") if f.stem != "titles"}
+    )
 
-    return []
+    print(f"MAESTRO CSV: {maestro_csv}")
+    print(f"Score dir: {score_dir} ({len(titles_map)} pieces)")
+    print(f"ASAP composers: {', '.join(asap_composers)}")
+    print()
+
+    maestro_content = maestro_csv.read_text(encoding="utf-8")
+    matches, unmatched = run_match_pipeline(
+        maestro_content, titles_map, asap_composers
+    )
+
+    # Write matches CSV
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    fieldnames = [
+        "maestro_composer", "maestro_title", "midi_filename", "duration_s",
+        "asap_piece_id", "asap_title", "confidence", "multi_piece", "status",
+    ]
+    with open(output_path, "w", newline="", encoding="utf-8") as fh:
+        writer = csv_mod.DictWriter(fh, fieldnames=fieldnames)
+        writer.writeheader()
+        # Sort by confidence descending for easier review
+        for row in sorted(matches, key=lambda r: float(r["confidence"]), reverse=True):
+            writer.writerow(row)
+
+    # Write unmatched CSV
+    unmatched_path = output_path.parent / "unmatched_maestro.csv"
+    unmatched_fields = ["maestro_composer", "maestro_title", "midi_filename", "reason"]
+    with open(unmatched_path, "w", newline="", encoding="utf-8") as fh:
+        writer = csv_mod.DictWriter(fh, fieldnames=unmatched_fields)
+        writer.writeheader()
+        for row in unmatched:
+            writer.writerow(row)
+
+    # Summary
+    unique_pieces = {r["asap_piece_id"] for r in matches}
+    print(f"Matched: {len(matches)} recordings -> {len(unique_pieces)} unique pieces")
+    print(f"Unmatched: {len(unmatched)} recordings")
+    print(f"Output: {output_path}")
+    print(f"Unmatched: {unmatched_path}")
+
+
+def _cmd_generate(args: argparse.Namespace) -> None:
+    """Run the generate subcommand."""
+    import csv as csv_mod
+
+    matches_path = Path(args.matches)
+    maestro_dir = Path(args.maestro_dir)
+    score_dir = Path(args.score_dir)
+    output_dir = Path(args.output_dir)
+
+    if not matches_path.exists():
+        raise FileNotFoundError(f"Matches CSV not found: {matches_path}")
+    if not maestro_dir.exists():
+        raise FileNotFoundError(f"MAESTRO directory not found: {maestro_dir}")
+    if not score_dir.exists():
+        raise FileNotFoundError(f"Score directory not found: {score_dir}")
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Read approved matches
+    with open(matches_path, encoding="utf-8") as fh:
+        reader = csv_mod.DictReader(fh)
+        all_rows = list(reader)
+
+    approved = [r for r in all_rows if r.get("status", "").strip().lower() == "approved"]
+    if not approved:
+        raise ValueError("No approved rows in matches CSV. Review and mark rows as 'approved' first.")
+
+    # Group by piece_id
+    by_piece: dict[str, list[str]] = {}
+    for row in approved:
+        piece_id = row["asap_piece_id"]
+        midi_filename = row["midi_filename"]
+        if piece_id not in by_piece:
+            by_piece[piece_id] = []
+        by_piece[piece_id].append(midi_filename)
+
+    print(f"Processing {len(by_piece)} pieces from {len(approved)} approved recordings")
+    print()
+
+    # Generation report rows
+    report_rows: list[dict] = []
+    min_coverage = args.min_coverage
+
+    for piece_id, midi_filenames in sorted(by_piece.items()):
+        print(f"[{piece_id}] ({len(midi_filenames)} recording(s))")
+
+        score_path = score_dir / f"{piece_id}.json"
+        if not score_path.exists():
+            print(f"  Score not found: {score_path} -- skipping")
+            report_rows.append({
+                "piece_id": piece_id,
+                "total_recordings": len(midi_filenames),
+                "passed_validation": 0,
+                "rejected_coverage": 0,
+                "rejected_dtw_cost": 0,
+                "performer_count": 0,
+                "mean_coverage": "",
+                "mean_dtw_cost": "",
+                "errors": "score_not_found",
+            })
+            continue
+
+        score_data = load_score(score_path)
+        total_bars = len(score_data.get("bars", []))
+        bar_lookup: dict[int, dict] = {}
+        for bar in score_data.get("bars", []):
+            bar_lookup[bar["bar_number"]] = bar
+
+        all_bar_stats: list[list[BarStats]] = []
+        coverages: list[float] = []
+        dtw_costs: list[float] = []
+        rejected_coverage_count = 0
+        errors: list[str] = []
+
+        for midi_filename in midi_filenames:
+            midi_path = maestro_dir / midi_filename
+            if not midi_path.exists():
+                errors.append(f"{midi_filename}: file_not_found")
+                print(f"  MIDI not found: {midi_path}")
+                continue
+
+            try:
+                perf_notes = load_performance_midi(midi_path)
+                pedal_events = _extract_pedal_events(midi_path)
+
+                # Single DTW call: align_to_score returns (bar_mapping, dtw_cost)
+                bar_to_notes, dtw_cost = align_to_score(perf_notes, score_data)
+                dtw_costs.append(dtw_cost)
+
+                # Coverage check
+                if total_bars > 0:
+                    coverage = len(bar_to_notes) / total_bars
+                else:
+                    coverage = 0.0
+                coverages.append(coverage)
+
+                if coverage < min_coverage:
+                    rejected_coverage_count += 1
+                    print(f"  {Path(midi_filename).name}: coverage {coverage:.1%} < {min_coverage:.0%} -- rejected")
+                    continue
+
+                # Compute per-bar stats
+                perf_bar_stats: list[BarStats] = []
+                for bar_num, notes in bar_to_notes.items():
+                    score_bar = bar_lookup.get(bar_num, {})
+                    bs = compute_bar_stats(bar_num, notes, score_bar, pedal_events)
+                    perf_bar_stats.append(bs)
+
+                if perf_bar_stats:
+                    all_bar_stats.append(perf_bar_stats)
+                    print(f"  {Path(midi_filename).name}: coverage {coverage:.1%}, dtw_cost {dtw_cost:.4f} -- OK")
+
+            except Exception as exc:
+                errors.append(f"{midi_filename}: {exc}")
+                print(f"  {Path(midi_filename).name}: ERROR -- {exc}")
+
+        # Aggregate and write
+        performer_count = len(all_bar_stats)
+        if performer_count == 0:
+            print(f"  No valid recordings for {piece_id}")
+        else:
+            if performer_count == 1:
+                print(f"  WARNING: single-performer reference for {piece_id}")
+
+            aggregated_bars = aggregate_bar_stats(all_bar_stats)
+
+            # Validate non-negative values before serialization
+            for bar in aggregated_bars:
+                if bar.pedal_changes is not None and bar.pedal_changes < 0:
+                    bar.pedal_changes = 0
+
+            profile = ReferenceProfile(
+                piece_id=piece_id,
+                performer_count=performer_count,
+                bars=aggregated_bars,
+            )
+
+            out_path = output_dir / f"{piece_id}.json"
+            with open(out_path, "w", encoding="utf-8") as fh:
+                json.dump(asdict(profile), fh, indent=2)
+            print(f"  Saved: {out_path.name} ({performer_count} performer(s), {len(aggregated_bars)} bars)")
+
+        report_rows.append({
+            "piece_id": piece_id,
+            "total_recordings": len(midi_filenames),
+            "passed_validation": performer_count,
+            "rejected_coverage": rejected_coverage_count,
+            "rejected_dtw_cost": 0,  # Not enforced on first run
+            "performer_count": performer_count,
+            "mean_coverage": f"{statistics.mean(coverages):.3f}" if coverages else "",
+            "mean_dtw_cost": f"{statistics.mean(dtw_costs):.4f}" if dtw_costs else "",
+            "errors": "; ".join(errors) if errors else "",
+        })
+
+    # Write generation report
+    report_path = matches_path.parent / "generation_report.csv"
+    report_fields = [
+        "piece_id", "total_recordings", "passed_validation", "rejected_coverage",
+        "rejected_dtw_cost", "performer_count", "mean_coverage", "mean_dtw_cost", "errors",
+    ]
+    with open(report_path, "w", newline="", encoding="utf-8") as fh:
+        writer = csv_mod.DictWriter(fh, fieldnames=report_fields)
+        writer.writeheader()
+        for row in report_rows:
+            writer.writerow(row)
+
+    total_generated = sum(1 for r in report_rows if int(r["performer_count"]) > 0)
+    print()
+    print(f"Generated {total_generated} reference profiles")
+    print(f"Report: {report_path}")
+
+
+def _cmd_upload(args: argparse.Namespace) -> None:
+    """Run the upload subcommand."""
+    import subprocess
+
+    source_dir = Path(args.source_dir)
+    bucket = args.bucket
+    prefix = args.prefix
+
+    if not source_dir.exists():
+        raise FileNotFoundError(f"Source directory not found: {source_dir}")
+
+    json_files = sorted(source_dir.glob("*.json"))
+    if not json_files:
+        print(f"No JSON files found in {source_dir}")
+        return
+
+    print(f"Uploading {len(json_files)} files to {bucket}/{prefix}/")
+
+    uploaded = 0
+    for json_file in json_files:
+        r2_key = f"{prefix}/{json_file.name}"
+        cmd = [
+            "wrangler", "r2", "object", "put",
+            f"{bucket}/{r2_key}",
+            f"--file={json_file}",
+            "--content-type=application/json",
+        ]
+        print(f"  {r2_key}")
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            raise RuntimeError(
+                f"Upload failed for {json_file.name}: {result.stderr.strip()}"
+            )
+        uploaded += 1
+
+    print(f"\nUploaded {uploaded} files")
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Generate reference performance profiles from MAESTRO recordings."
+        description="Reference cache pipeline: match, generate, upload."
     )
-    parser.add_argument(
-        "--score-dir",
-        type=Path,
-        required=True,
-        help="Directory containing score JSON files (one per piece).",
-    )
-    parser.add_argument(
-        "--maestro-dir",
-        type=Path,
-        required=True,
-        help="Root directory of the MAESTRO MIDI cache.",
-    )
-    parser.add_argument(
-        "--maestro-meta",
-        type=Path,
-        default=None,
-        help="MAESTRO metadata file (CSV or JSON) for piece matching. Optional.",
-    )
-    parser.add_argument(
-        "--output-dir",
-        type=Path,
-        required=True,
-        help="Output directory for reference profile JSON files.",
-    )
-    parser.add_argument(
-        "--piece-ids",
-        nargs="*",
-        default=None,
-        help="Specific piece IDs to process. Defaults to all pieces in score-dir.",
-    )
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    # match
+    match_parser = subparsers.add_parser("match", help="Match MAESTRO recordings to ASAP pieces")
+    match_parser.add_argument("--maestro-csv", type=str, required=True)
+    match_parser.add_argument("--score-dir", type=str, required=True)
+    match_parser.add_argument("--output", type=str, required=True)
+
+    # generate
+    gen_parser = subparsers.add_parser("generate", help="Generate reference profiles from approved matches")
+    gen_parser.add_argument("--matches", type=str, required=True)
+    gen_parser.add_argument("--maestro-dir", type=str, required=True)
+    gen_parser.add_argument("--score-dir", type=str, required=True)
+    gen_parser.add_argument("--output-dir", type=str, required=True)
+    gen_parser.add_argument("--min-coverage", type=float, default=0.75,
+                            help="Minimum bar coverage to accept a recording (default: 0.75)")
+
+    # upload
+    upload_parser = subparsers.add_parser("upload", help="Upload reference profiles to R2")
+    upload_parser.add_argument("--source-dir", type=str, required=True)
+    upload_parser.add_argument("--bucket", type=str, required=True)
+    upload_parser.add_argument("--prefix", type=str, required=True)
+
     args = parser.parse_args()
 
-    output_dir = args.output_dir / "references" / "v1"
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    # Discover score files.
-    score_dir: Path = args.score_dir
-    if not score_dir.exists():
-        raise FileNotFoundError(f"Score directory not found: {score_dir}")
-
-    score_files = sorted(score_dir.glob("*.json"))
-    if not score_files:
-        print(f"No score JSON files found in {score_dir}")
-        return
-
-    if args.piece_ids:
-        piece_id_set = set(args.piece_ids)
-        score_files = [f for f in score_files if f.stem in piece_id_set]
-        print(f"Filtered to {len(score_files)} pieces by --piece-ids")
-
-    maestro_dir: Path = args.maestro_dir
-    if not maestro_dir.exists():
-        raise FileNotFoundError(f"MAESTRO directory not found: {maestro_dir}")
-
-    print(f"Processing {len(score_files)} pieces")
-    print(f"Score dir:  {score_dir}")
-    print(f"MAESTRO dir: {maestro_dir}")
-    print(f"Output dir: {output_dir}")
-    if args.maestro_meta:
-        print(f"MAESTRO meta: {args.maestro_meta}")
-    print()
-
-    processed = 0
-    skipped = 0
-
-    for score_path in score_files:
-        piece_id = score_path.stem
-        print(f"[{piece_id}]")
-
-        midi_paths = _find_maestro_midis_for_piece(
-            piece_id, maestro_dir, args.maestro_meta
-        )
-
-        if not midi_paths:
-            print(f"  No MAESTRO MIDIs found for {piece_id} -- skipping")
-            skipped += 1
-            continue
-
-        print(f"  Found {len(midi_paths)} MAESTRO recording(s)")
-
-        profile = build_reference_for_piece(piece_id, score_path, midi_paths)
-
-        if profile is None:
-            print(f"  Failed to build profile for {piece_id}")
-            skipped += 1
-            continue
-
-        out_path = output_dir / f"{piece_id}.json"
-        with open(out_path, "w", encoding="utf-8") as fh:
-            json.dump(asdict(profile), fh, indent=2)
-
-        print(
-            f"  Saved: {out_path.name} "
-            f"({profile.performer_count} performer(s), {len(profile.bars)} bars)"
-        )
-        processed += 1
-
-    print()
-    print(f"Done. Processed: {processed}, Skipped: {skipped}")
+    if args.command == "match":
+        _cmd_match(args)
+    elif args.command == "generate":
+        _cmd_generate(args)
+    elif args.command == "upload":
+        _cmd_upload(args)
 
 
 if __name__ == "__main__":
