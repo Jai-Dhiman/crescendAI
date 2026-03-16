@@ -27,7 +27,8 @@ async fn sleep_ms(ms: u64) {
 
 const ALARM_DURATION_MS: i64 = 30 * 60 * 1000; // 30 minutes
 const OBSERVATION_THROTTLE_MS: u64 = 180_000; // 3 minutes
-const HF_RETRY_DELAYS_MS: &[u64] = &[5_000, 15_000, 30_000]; // retry 503s with backoff
+const HF_RETRY_DELAYS_MS: &[u64] = &[10_000, 20_000, 40_000]; // retry 503s with backoff (70s total)
+const HF_RETRY_DELAYS_ENDING_MS: &[u64] = &[3_000, 5_000]; // shorter retries when session is ending
 
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub struct ObservationRecord {
@@ -50,6 +51,8 @@ struct SessionState {
     scored_chunks: Vec<ScoredChunk>,
     observations: Vec<ObservationRecord>,
     inference_failures: usize,
+    chunks_in_flight: usize,
+    session_ending: bool,
     dim_stats: DimStats,
     last_observation_at: Option<u64>,
     piece_query: Option<String>,
@@ -68,6 +71,8 @@ impl Default for SessionState {
             scored_chunks: Vec::new(),
             observations: Vec::new(),
             inference_failures: 0,
+            chunks_in_flight: 0,
+            session_ending: false,
             dim_stats: DimStats::default(),
             last_observation_at: None,
             piece_query: None,
@@ -153,12 +158,42 @@ impl DurableObject for PracticeSession {
 
         match msg_type {
             "chunk_ready" => {
+                // Skip new chunks if session is ending
+                if self.inner.borrow().session_ending {
+                    return Ok(());
+                }
                 let index = parsed.get("index").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
                 let r2_key = parsed.get("r2Key").and_then(|v| v.as_str()).unwrap_or("");
-                self.handle_chunk_ready(&ws, index, r2_key).await?;
+
+                // Track in-flight for deferred finalization
+                self.inner.borrow_mut().chunks_in_flight += 1;
+                let result = self.handle_chunk_ready(&ws, index, r2_key).await;
+
+                // Decrement and check if we should finalize
+                let should_finalize = {
+                    let mut s = self.inner.borrow_mut();
+                    s.chunks_in_flight -= 1;
+                    s.session_ending && s.chunks_in_flight == 0
+                };
+                if should_finalize {
+                    console_log!("Last in-flight chunk completed, finalizing session");
+                    self.finalize_session(Some(&ws)).await;
+                }
+
+                result?;
             }
             "end_session" => {
-                self.finalize_session(Some(&ws)).await;
+                let in_flight = {
+                    let mut s = self.inner.borrow_mut();
+                    s.session_ending = true;
+                    s.chunks_in_flight
+                };
+                if in_flight == 0 {
+                    self.finalize_session(Some(&ws)).await;
+                } else {
+                    console_log!("end_session received, waiting for {} in-flight chunks", in_flight);
+                    // finalize_session will be called by the last completing chunk handler
+                }
             }
             "set_piece" => {
                 let query = parsed.get("query").and_then(|v| v.as_str()).unwrap_or("");
@@ -185,11 +220,16 @@ impl DurableObject for PracticeSession {
         _reason: String,
         _was_clean: bool,
     ) -> Result<()> {
-        // Client disconnected -- finalize if we have data
-        let has_chunks = !self.inner.borrow().scored_chunks.is_empty();
-        if has_chunks {
+        // Client disconnected -- mark session as ending
+        let (has_chunks, in_flight) = {
+            let mut s = self.inner.borrow_mut();
+            s.session_ending = true;
+            (!s.scored_chunks.is_empty() || s.inference_failures > 0, s.chunks_in_flight)
+        };
+        if has_chunks && in_flight == 0 {
             self.finalize_session(None).await;
         }
+        // If in_flight > 0, last completing chunk will finalize
         Ok(())
     }
 
@@ -272,7 +312,7 @@ impl PracticeSession {
             })
             .unwrap_or_default();
 
-        // 5. Send chunk_processed immediately
+        // 5. Send chunk_processed immediately (skip if session is ending)
         let scores_json = serde_json::json!({
             "dynamics": scores_array[0],
             "timing": scores_array[1],
@@ -286,7 +326,7 @@ impl PracticeSession {
             "index": index,
             "scores": scores_json,
         });
-        ws.send_with_str(&response.to_string())?;
+        let _ = ws.send_with_str(&response.to_string());
 
         // 6. Update DimStats and store ScoredChunk
         {
@@ -421,7 +461,9 @@ impl PracticeSession {
                 "articulation": 0.0, "phrasing": 0.0, "interpretation": 0.0,
             },
         });
-        ws.send_with_str(&response.to_string())
+        // Swallow errors -- WS may be closed if session is ending
+        let _ = ws.send_with_str(&response.to_string());
+        Ok(())
     }
 
     async fn generate_observation(&self, ws: &WebSocket, chunk_analysis: Option<&analysis::ChunkAnalysis>) {
@@ -549,8 +591,15 @@ impl PracticeSession {
 
         let mut last_err = String::new();
 
+        // Use shorter retries if session is ending (user is waiting)
+        let delays = if self.inner.borrow().session_ending {
+            HF_RETRY_DELAYS_ENDING_MS
+        } else {
+            HF_RETRY_DELAYS_MS
+        };
+
         // Try once, then retry on 503 (HF cold start) with backoff
-        for attempt in 0..=HF_RETRY_DELAYS_MS.len() {
+        for attempt in 0..=delays.len() {
             let headers = worker::Headers::new();
             headers.set("Content-Type", "application/octet-stream").map_err(|e| format!("{:?}", e))?;
             headers.set("Authorization", &format!("Bearer {}", token)).map_err(|e| format!("{:?}", e))?;
@@ -567,8 +616,8 @@ impl PracticeSession {
                 Ok(r) => r,
                 Err(e) => {
                     last_err = format!("HF fetch failed: {:?}", e);
-                    if attempt < HF_RETRY_DELAYS_MS.len() {
-                        let delay = HF_RETRY_DELAYS_MS[attempt];
+                    if attempt < delays.len() {
+                        let delay = delays[attempt];
                         console_log!("HF fetch failed (attempt {}), retrying in {}s: {}", attempt + 1, delay / 1000, last_err);
                         sleep_ms(delay).await;
                         continue;

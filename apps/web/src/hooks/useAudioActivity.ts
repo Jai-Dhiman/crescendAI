@@ -9,8 +9,9 @@ export const ENERGY_THRESHOLD = 0.04;
 /** Frames above threshold before onset triggers (~150ms at 60fps) */
 const ONSET_FRAMES = 4;
 
-/** Milliseconds below threshold before offset triggers */
-const OFFSET_MS = 2000;
+/** Milliseconds below threshold before offset triggers.
+ * Piano has natural 2-3s gaps between phrases -- 5s avoids false offsets. */
+const OFFSET_MS = 5000;
 
 export interface AudioActivityState {
 	isPlaying: boolean;
