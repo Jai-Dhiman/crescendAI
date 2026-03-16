@@ -1,7 +1,7 @@
 # Reference Cache Data Pipeline Design
 
 **Date:** 2026-03-15
-**Goal:** Generate reference performance profiles from MAESTRO recordings for all matched pieces in the 242-piece score library, and upload them to R2 so the API analysis engine can use them.
+**Goal:** Generate reference performance profiles from MAESTRO recordings for all matched pieces in the score library (244 pieces in score_library/), and upload them to R2 so the API analysis engine can use them.
 
 ## Pipeline Overview
 
@@ -147,6 +147,48 @@ uv run python -m src.score_library.reference_cache upload \
 After upload, spot-check 3-5 known pieces:
 1. Download from R2: `wrangler r2 object get crescendai-bucket/references/v1/{piece_id}.json`
 2. Verify: performer_count > 1, velocity ranges plausible (40-120 MIDI velocity), pedal patterns exist for Romantic pieces, bar count matches score total_bars
+
+## JSON Schema Contract
+
+The output JSON must match the Rust consumer's `ReferenceProfile` / `ReferenceBar` structs exactly. Field names, types, and nullability:
+
+```json
+{
+  "piece_id": "string",
+  "performer_count": "u32 (>= 1)",
+  "bars": [
+    {
+      "bar_number": "u32 (>= 1)",
+      "velocity_mean": "f64",
+      "velocity_std": "f64",
+      "onset_deviation_mean_ms": "f64",
+      "onset_deviation_std_ms": "f64",
+      "pedal_duration_mean_beats": "f64 | null",
+      "pedal_changes": "u32 | null (non-negative)",
+      "note_duration_ratio_mean": "f64",
+      "performer_count": "u32 (>= 1)"
+    }
+  ]
+}
+```
+
+All numeric values must be non-negative (the Python generation step must validate this before serialization). The Rust consumer deserializes `pedal_changes` as `Option<u32>`, so a negative value would cause a deserialization failure.
+
+## Single-Performer References
+
+Pieces with only 1 validated MAESTRO recording still get a reference profile (performer_count=1). The consumer analysis engine does not gate on performer_count, so these profiles will produce reference comparisons. However, the `velocity_std` for a single performer represents intra-bar variance, not inter-performer consensus -- the "reference range" will be tighter than it would be with multiple performers.
+
+Mitigation: the generation_report.csv flags these pieces. During manual validation, decide whether to keep or exclude single-performer references. For the first run, include them (some reference data is better than none), but log a warning.
+
+## Error Handling Policy
+
+- **match command:** Raise on malformed CSV or missing score files. Log and skip individual MAESTRO entries that fail normalization (with a count in stdout summary).
+- **generate command:** Per-recording exceptions (MIDI parse failure, DTW failure) are logged to generation_report.csv with the specific error, not silently swallowed. The piece continues processing with remaining recordings. If ALL recordings for a piece fail, no JSON is written and the piece appears in the report with `passed_validation=0`.
+- **upload command:** Raise on first wrangler failure. No silent skips.
+
+## Idempotency
+
+The `generate` command overwrites existing JSON files for a given piece_id. Re-running with a corrected CSV produces fresh output. This is intentional -- the CSV is the source of truth, and the JSONs are derived artifacts.
 
 ## Key Decisions
 
