@@ -109,11 +109,10 @@ def main(reports_dir: Path) -> EvalReport:
 
         # Dimension selection (deterministic check)
         expected_dim = scenario.get("expected_dimension")
+        dim_match = True  # default for null expected_dimension (any is acceptable)
         if expected_dim is not None:
             dim_match = output.get("dimension") == expected_dim
-            dimension_correct.append(dim_match)
-        else:
-            dimension_correct.append(True)
+        dimension_correct.append(dim_match)
 
         # Framing match (deterministic check)
         expected_framing = scenario.get("expected_framing")
