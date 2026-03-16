@@ -234,17 +234,19 @@ Across the literature, the same architecture keeps winning: episodic capture, st
 
 Ships with the `/api/ask` pipeline (see `02-pipeline.md`).
 
-### Phase 2: Synthesis -- DEFERRED
+### Phase 2: Synthesis -- COMPLETE
 
 ```
-[ ] synthesized_facts table in D1 schema
-[ ] Background synthesis trigger (POST /api/synthesize or via /api/sync)
-[ ] Synthesis prompt (Groq, Llama 70B)
-[ ] Active facts integrated into subagent context map
-[ ] Contradiction handling (invalidation, not deletion)
+[x] synthesized_facts table in D1 schema
+[x] Background synthesis trigger (DO session finalization + POST /api/memory/synthesize)
+[x] Synthesis prompt (Groq, Llama 70B)
+[x] Active facts integrated into subagent context map
+[x] Contradiction handling (invalidation, not deletion)
+[x] Observation counting fix for DO-originated sessions
+[x] SynthesisResult observability (new_facts, invalidated, unchanged, observations_processed)
+[x] Seed-observations dev-only endpoint for testing
+[x] Integration test (apps/api/evals/memory/src/test_synthesis.py)
 ```
-
-Deferred until the pipeline has real observation data. Premature synthesis on synthetic or sparse data would produce misleading facts.
 
 ### Phase 3: Retrieval Optimization
 
