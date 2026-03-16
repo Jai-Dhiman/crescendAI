@@ -1671,6 +1671,236 @@ pub async fn handle_clear_benchmark(
         .unwrap()
 }
 
+// ---------------------------------------------------------------------------
+// POST /api/memory/synthesize -- trigger synthesis for a student
+// ---------------------------------------------------------------------------
+
+#[derive(serde::Deserialize)]
+pub struct SynthesizeRequest {
+    pub student_id: String,
+}
+
+/// POST /api/memory/synthesize -- manually trigger synthesis.
+pub async fn handle_synthesize(
+    env: &Env,
+    headers: &http::HeaderMap,
+    body: &[u8],
+) -> http::Response<axum::body::Body> {
+    use axum::body::Body;
+    use http::{Response, StatusCode};
+
+    // Auth
+    let _caller = match crate::auth::verify_auth_header(headers, env) {
+        Ok(id) => id,
+        Err(err_response) => return err_response,
+    };
+
+    // Parse request
+    let request: SynthesizeRequest = match serde_json::from_slice(body) {
+        Ok(r) => r,
+        Err(e) => {
+            console_log!("Failed to parse synthesize request: {:?}", e);
+            return Response::builder()
+                .status(StatusCode::BAD_REQUEST)
+                .header("Content-Type", "application/json")
+                .body(Body::from(r#"{"error":"Invalid request body"}"#))
+                .unwrap();
+        }
+    };
+
+    // Check if synthesis is needed
+    let should = match should_synthesize(env, &request.student_id).await {
+        Ok(s) => s,
+        Err(e) => {
+            console_log!("Synthesis check failed: {}", e);
+            return Response::builder()
+                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::json!({"error": format!("Synthesis check failed: {}", e)}).to_string(),
+                ))
+                .unwrap();
+        }
+    };
+
+    if !should {
+        let resp = serde_json::json!({"skipped": true, "reason": "Not enough new observations"});
+        return Response::builder()
+            .status(StatusCode::OK)
+            .header("Content-Type", "application/json")
+            .body(Body::from(resp.to_string()))
+            .unwrap();
+    }
+
+    // Run synthesis
+    match run_synthesis(env, &request.student_id).await {
+        Ok(result) => {
+            let resp = serde_json::json!({
+                "new_facts": result.new_facts,
+                "invalidated": result.invalidated,
+                "unchanged": result.unchanged,
+                "observations_processed": result.observations_processed,
+            });
+            Response::builder()
+                .status(StatusCode::OK)
+                .header("Content-Type", "application/json")
+                .body(Body::from(resp.to_string()))
+                .unwrap()
+        }
+        Err(e) => {
+            console_log!("Synthesis failed: {}", e);
+            Response::builder()
+                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::json!({"error": format!("Synthesis failed: {}", e)}).to_string(),
+                ))
+                .unwrap()
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// POST /api/memory/seed-observations -- dev-only observation seeding for tests
+// ---------------------------------------------------------------------------
+
+#[derive(serde::Deserialize)]
+pub struct SeedObservationsRequest {
+    pub student_id: String,
+    pub observations: Vec<SeedObservation>,
+}
+
+#[derive(serde::Deserialize)]
+pub struct SeedObservation {
+    pub dimension: String,
+    pub observation_text: String,
+    pub framing: String,
+    pub dimension_score: f64,
+    pub student_baseline: f64,
+    #[serde(default)]
+    pub reasoning_trace: String,
+}
+
+/// POST /api/memory/seed-observations -- insert test observations directly into D1.
+/// Dev-only: returns 404 in production.
+pub async fn handle_seed_observations(
+    env: &Env,
+    headers: &http::HeaderMap,
+    body: &[u8],
+) -> http::Response<axum::body::Body> {
+    use axum::body::Body;
+    use http::{Response, StatusCode};
+
+    // Block in production
+    let environment = env
+        .var("ENVIRONMENT")
+        .map(|v| v.to_string())
+        .unwrap_or_default();
+    if environment == "production" {
+        return Response::builder()
+            .status(StatusCode::NOT_FOUND)
+            .header("Content-Type", "application/json")
+            .body(Body::from(r#"{"error":"Not found"}"#))
+            .unwrap();
+    }
+
+    // Auth
+    let _caller = match crate::auth::verify_auth_header(headers, env) {
+        Ok(id) => id,
+        Err(err_response) => return err_response,
+    };
+
+    // Parse request
+    let request: SeedObservationsRequest = match serde_json::from_slice(body) {
+        Ok(r) => r,
+        Err(e) => {
+            console_log!("Failed to parse seed-observations request: {:?}", e);
+            return Response::builder()
+                .status(StatusCode::BAD_REQUEST)
+                .header("Content-Type", "application/json")
+                .body(Body::from(r#"{"error":"Invalid request body"}"#))
+                .unwrap();
+        }
+    };
+
+    let db = match env.d1("DB") {
+        Ok(db) => db,
+        Err(e) => {
+            console_log!("D1 binding failed: {:?}", e);
+            return Response::builder()
+                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                .header("Content-Type", "application/json")
+                .body(Body::from(r#"{"error":"Database unavailable"}"#))
+                .unwrap();
+        }
+    };
+
+    let now = js_sys::Date::new_0()
+        .to_iso_string()
+        .as_string()
+        .unwrap_or_default();
+
+    let mut seeded = 0u32;
+    let session_id = format!("seed-{}", &generate_uuid()[..8]);
+
+    for obs in &request.observations {
+        let obs_id = generate_uuid();
+        let trace = if obs.reasoning_trace.is_empty() {
+            "{}".to_string()
+        } else {
+            obs.reasoning_trace.clone()
+        };
+
+        let result = db
+            .prepare(
+                "INSERT INTO observations (id, student_id, session_id, dimension, \
+                 observation_text, reasoning_trace, framing, dimension_score, \
+                 student_baseline, is_fallback, created_at) \
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+            )
+            .bind(&[
+                JsValue::from_str(&obs_id),
+                JsValue::from_str(&request.student_id),
+                JsValue::from_str(&session_id),
+                JsValue::from_str(&obs.dimension),
+                JsValue::from_str(&obs.observation_text),
+                JsValue::from_str(&trace),
+                JsValue::from_str(&obs.framing),
+                JsValue::from_f64(obs.dimension_score),
+                JsValue::from_f64(obs.student_baseline),
+                JsValue::from_bool(false),
+                JsValue::from_str(&now),
+            ]);
+
+        match result {
+            Ok(stmt) => {
+                if let Err(e) = stmt.run().await {
+                    console_log!("Failed to insert seeded observation: {:?}", e);
+                } else {
+                    seeded += 1;
+                }
+            }
+            Err(e) => {
+                console_log!("Failed to bind seeded observation: {:?}", e);
+            }
+        }
+    }
+
+    // Update meta counter so should_synthesize() works correctly
+    if seeded > 0 {
+        if let Err(e) = increment_observation_count_by(env, &request.student_id, seeded as usize).await {
+            console_log!("Failed to update observation count after seeding: {}", e);
+        }
+    }
+
+    let resp = serde_json::json!({"seeded": seeded});
+    Response::builder()
+        .status(StatusCode::OK)
+        .header("Content-Type", "application/json")
+        .body(Body::from(resp.to_string()))
+        .unwrap()
+}
+
 /// Extract JSON from synthesis LLM output (may be wrapped in code fences).
 fn extract_synthesis_json(output: &str) -> Result<serde_json::Value, String> {
     // Try to find JSON within ```json ... ``` fences
