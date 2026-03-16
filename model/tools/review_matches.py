@@ -120,7 +120,10 @@ HTML_PAGE = r"""<!DOCTYPE html>
   }
   .play-btn:hover { background: #3a3a3a; }
   .play-btn.playing { background: #4a9; color: #000; }
+  .play-btn.loading { background: #553; color: #aa8; }
   .time-display { font-size: 13px; color: #888; font-variant-numeric: tabular-nums; }
+  .scrub { width: 100%; margin: 0; cursor: pointer; accent-color: #4a9; height: 4px; }
+  .player-label { font-size: 11px; font-weight: 600; min-width: 70px; }
   .actions {
     display: flex; gap: 12px; margin-top: 20px;
   }
@@ -176,10 +179,166 @@ HTML_PAGE = r"""<!DOCTYPE html>
   <strong>Space</strong> = Play/Stop &nbsp; <strong>Arrow keys</strong> = Prev/Next
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/tone@14/build/Tone.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@tonejs/midi@2/build/Midi.js"></script>
-<script>
-// -- Safe DOM helpers (no innerHTML with untrusted data) --
+<script type="module">
+import { Soundfont } from 'https://cdn.jsdelivr.net/npm/smplr@0.15.2/+esm';
+
+// -- Audio engine --
+const audioCtx = new AudioContext();
+let piano = null;
+let pianoReady = false;
+async function ensurePiano() {
+  if (piano && pianoReady) return piano;
+  piano = new Soundfont(audioCtx, { instrument: 'acoustic_grand_piano' });
+  await piano.loaded;
+  pianoReady = true;
+  return piano;
+}
+
+// Playback state
+let playback = {
+  active: false,
+  source: null,    // 'maestro' | 'score'
+  notes: [],       // sorted [{time, midi, dur, vel}]
+  startCtxTime: 0, // audioCtx.currentTime when playback started
+  offset: 0,       // seek offset in seconds
+  duration: 30,    // max playback duration
+  nextIdx: 0,      // next note to schedule
+  handles: [],     // active note handles for stopping
+  loopId: null,
+};
+
+function scheduleAhead() {
+  if (!playback.active || !piano) return;
+  const now = audioCtx.currentTime;
+  const pos = (now - playback.startCtxTime) + playback.offset;
+  const lookAhead = 0.15; // schedule 150ms ahead
+
+  while (playback.nextIdx < playback.notes.length) {
+    const n = playback.notes[playback.nextIdx];
+    if (n.time < pos - 0.05) { playback.nextIdx++; continue; } // skip past notes
+    if (n.time > pos + lookAhead) break; // too far ahead
+
+    const when = now + (n.time - pos);
+    const h = piano.start({
+      note: n.midi,
+      velocity: Math.round(Math.max(5, Math.min(127, n.vel * 127))),
+      time: Math.max(when, now),
+      duration: Math.max(0.05, Math.min(n.dur, 3.0)),
+    });
+    playback.handles.push(h);
+    playback.nextIdx++;
+  }
+
+  // Update UI
+  updateScrub(pos);
+
+  if (pos >= playback.duration) { stopPlayback(); return; }
+  playback.loopId = setTimeout(scheduleAhead, 50);
+}
+
+function updateScrub(pos) {
+  const scrub = document.getElementById('scrub_' + playback.source);
+  if (scrub) scrub.value = Math.min(pos, playback.duration);
+  const td = document.getElementById('time_' + playback.source);
+  if (td) {
+    const m = Math.floor(pos / 60);
+    const s = Math.floor(pos % 60);
+    td.textContent = m + ':' + String(s).padStart(2, '0');
+  }
+}
+
+function stopPlayback() {
+  if (!playback.active) return;
+  const src = playback.source;
+  playback.active = false;
+  if (playback.loopId) { clearTimeout(playback.loopId); playback.loopId = null; }
+  // Stop all active notes
+  playback.handles.forEach(h => { try { h.stop(); } catch(e) {} });
+  playback.handles = [];
+  // Reset UI
+  const btn = document.getElementById('btn_' + src);
+  if (btn) { btn.textContent = '\u25B6'; btn.classList.remove('playing'); }
+}
+
+async function startPlayback(source, seekTo) {
+  if (playback.active && playback.source === source && seekTo === undefined) {
+    stopPlayback(); return;
+  }
+  if (playback.active) stopPlayback();
+
+  if (filtered.length === 0) return;
+  const m = filtered[currentIdx];
+
+  const btn = document.getElementById('btn_' + source);
+  if (btn) { btn.textContent = '...'; btn.className = 'play-btn loading'; }
+
+  try {
+    await ensurePiano();
+    if (audioCtx.state === 'suspended') await audioCtx.resume();
+
+    let notes = [];
+    if (source === 'maestro') {
+      const resp = await fetch('/midi/' + encodeURIComponent(m.midi_filename));
+      if (!resp.ok) throw new Error('MIDI fetch failed: ' + resp.status);
+      const buf = await resp.arrayBuffer();
+      const midi = new Midi(buf);
+      midi.tracks.forEach(track => {
+        track.notes.forEach(note => {
+          notes.push({ time: note.time, midi: note.midi, dur: note.duration, vel: note.velocity });
+        });
+      });
+    } else {
+      const resp = await fetch('/score/' + encodeURIComponent(m.asap_piece_id + '.json'));
+      if (!resp.ok) throw new Error('Score fetch failed: ' + resp.status);
+      const score = await resp.json();
+      (score.bars || []).forEach(bar => {
+        (bar.notes || []).forEach(n => {
+          notes.push({
+            time: n.onset_seconds,
+            midi: n.pitch,
+            dur: n.duration_seconds,
+            vel: (n.velocity || 80) / 127,
+          });
+        });
+      });
+    }
+
+    notes.sort((a, b) => a.time - b.time);
+    const maxDur = notes.length > 0 ? Math.min(notes[notes.length - 1].time + 2, 60) : 30;
+
+    // Set scrub max
+    const scrub = document.getElementById('scrub_' + source);
+    if (scrub) { scrub.max = maxDur; scrub.value = seekTo || 0; }
+
+    const offset = seekTo || 0;
+    // Find first note at or after offset
+    let startIdx = 0;
+    for (let i = 0; i < notes.length; i++) {
+      if (notes[i].time >= offset - 0.1) { startIdx = i; break; }
+    }
+
+    playback = {
+      active: true,
+      source: source,
+      notes: notes,
+      startCtxTime: audioCtx.currentTime,
+      offset: offset,
+      duration: maxDur,
+      nextIdx: startIdx,
+      handles: [],
+      loopId: null,
+    };
+
+    if (btn) { btn.textContent = '\u25A0'; btn.className = 'play-btn playing'; }
+    scheduleAhead();
+  } catch (e) {
+    console.error('Playback error:', e);
+    if (btn) { btn.textContent = '\u25B6'; btn.className = 'play-btn'; }
+  }
+}
+
+// -- Safe DOM helpers --
 function createEl(tag, attrs, children) {
   const el = document.createElement(tag);
   if (attrs) {
@@ -203,10 +362,6 @@ let matches = [];
 let filtered = [];
 let currentIdx = 0;
 let currentFilter = 'pending';
-let synth = null;
-let activeSource = null; // 'maestro' or 'score'
-let playbackTimer = null;
-let playbackStart = 0;
 
 async function loadMatches() {
   const resp = await fetch('/api/matches');
@@ -317,24 +472,30 @@ function render() {
   info.appendChild(createEl('div', {className: 'midi-filename', textContent: m.midi_filename + ' (' + durMin + ' min)'}));
   container.appendChild(info);
 
-  // Dual players
+  // Dual players with scrub bars
+  function makePlayer(label, labelColor, source) {
+    const scrub = createEl('input', {
+      className: 'scrub', type: 'range', id: 'scrub_' + source,
+      min: '0', max: '60', step: '0.1', value: '0',
+    });
+    scrub.addEventListener('input', () => {
+      startPlayback(source, parseFloat(scrub.value));
+    });
+    return createEl('div', {className: 'player', style: 'flex:1;flex-direction:column;align-items:stretch;gap:6px'}, [
+      createEl('div', {style: 'display:flex;align-items:center;gap:10px'}, [
+        createEl('button', {className: 'play-btn', id: 'btn_' + source, textContent: '\u25B6',
+          onClick: () => startPlayback(source)}),
+        createEl('span', {className: 'player-label', textContent: label, style: 'color:' + labelColor}),
+        createEl('span', {style: 'flex:1'}),
+        createEl('span', {className: 'time-display', id: 'time_' + source, textContent: '0:00'}),
+      ]),
+      scrub,
+    ]);
+  }
+
   const playerRow = createEl('div', {style: 'display:flex;gap:12px;margin-bottom:8px'});
-
-  const mPlayer = createEl('div', {className: 'player', style: 'flex:1'}, [
-    createEl('button', {className: 'play-btn', id: 'playMaestro', textContent: '\u25B6', onClick: () => playMidi('maestro')}),
-    createEl('span', {style: 'flex:1'}),
-    createEl('span', {className: 'time-display', textContent: 'MAESTRO', style: 'color:#6af'}),
-    createEl('span', {className: 'time-display', id: 'timeMaestro', textContent: '0:00'}),
-  ]);
-  playerRow.appendChild(mPlayer);
-
-  const sPlayer = createEl('div', {className: 'player', style: 'flex:1'}, [
-    createEl('button', {className: 'play-btn', id: 'playScore', textContent: '\u25B6', onClick: () => playMidi('score')}),
-    createEl('span', {style: 'flex:1'}),
-    createEl('span', {className: 'time-display', textContent: 'SCORE', style: 'color:#fa6'}),
-    createEl('span', {className: 'time-display', id: 'timeScore', textContent: '0:00'}),
-  ]);
-  playerRow.appendChild(sPlayer);
+  playerRow.appendChild(makePlayer('MAESTRO', '#6af', 'maestro'));
+  playerRow.appendChild(makePlayer('SCORE', '#fa6', 'score'));
   container.appendChild(playerRow);
 
   // Action buttons
@@ -383,125 +544,14 @@ function advance(delta) {
   render();
 }
 
-function ensureSynth() {
-  if (!synth) {
-    synth = new Tone.PolySynth(Tone.Synth, {
-      maxPolyphony: 64,
-      voice: Tone.Synth,
-      options: {
-        envelope: { attack: 0.01, decay: 0.2, sustain: 0.3, release: 0.6 },
-        oscillator: { type: 'triangle8' },
-      }
-    }).toDestination();
-    synth.volume.value = -6;
-  }
-  return synth;
-}
-
-async function playMidi(source) {
-  // If already playing this source, stop it
-  if (activeSource === source) { stopPlayback(); return; }
-  // If playing something else, stop first
-  if (activeSource) stopPlayback();
-
-  if (filtered.length === 0) return;
-  const m = filtered[currentIdx];
-
-  const btnId = source === 'maestro' ? 'playMaestro' : 'playScore';
-  const timeId = source === 'maestro' ? 'timeMaestro' : 'timeScore';
-  const btn = document.getElementById(btnId);
-  if (btn) btn.textContent = '...';
-
-  try {
-    await Tone.start();
-    const s = ensureSynth();
-
-    let notes = [];
-    if (source === 'maestro') {
-      // Load MIDI file via @tonejs/midi
-      const resp = await fetch('/midi/' + encodeURIComponent(m.midi_filename));
-      if (!resp.ok) throw new Error('MIDI fetch failed: ' + resp.status);
-      const buf = await resp.arrayBuffer();
-      const midi = new Midi(buf);
-      midi.tracks.forEach(track => {
-        track.notes.forEach(note => {
-          notes.push({ time: note.time, midi: note.midi, dur: note.duration, vel: note.velocity });
-        });
-      });
-    } else {
-      // Load score JSON and extract notes
-      const resp = await fetch('/score/' + encodeURIComponent(m.asap_piece_id + '.json'));
-      if (!resp.ok) throw new Error('Score fetch failed: ' + resp.status);
-      const score = await resp.json();
-      (score.bars || []).forEach(bar => {
-        (bar.notes || []).forEach(n => {
-          notes.push({
-            time: n.onset_seconds,
-            midi: n.pitch,
-            dur: n.duration_seconds,
-            vel: (n.velocity || 80) / 127,
-          });
-        });
-      });
-    }
-
-    // Sort by time
-    notes.sort((a, b) => a.time - b.time);
-
-    // Schedule first 30 seconds using direct triggerAttackRelease
-    // This avoids the Transport.schedule bug
-    const now = Tone.now() + 0.15;
-    const maxTime = 30;
-    for (const n of notes) {
-      if (n.time > maxTime) break;
-      const noteName = Tone.Frequency(n.midi, 'midi').toNote();
-      const dur = Math.max(0.05, Math.min(n.dur, 2.0));
-      const vel = Math.max(0.05, Math.min(n.vel, 1.0));
-      s.triggerAttackRelease(noteName, dur, now + n.time, vel);
-    }
-
-    activeSource = source;
-    playbackStart = Tone.now();
-    if (btn) { btn.textContent = '\u25A0'; btn.classList.add('playing'); }
-
-    // Update time display
-    playbackTimer = setInterval(() => {
-      if (!activeSource) { clearInterval(playbackTimer); return; }
-      const elapsed = Tone.now() - playbackStart;
-      if (elapsed > maxTime) { stopPlayback(); return; }
-      const mins = Math.floor(elapsed / 60);
-      const secs = Math.floor(elapsed % 60);
-      const td = document.getElementById(timeId);
-      if (td) td.textContent = mins + ':' + String(secs).padStart(2, '0');
-    }, 250);
-
-  } catch (e) {
-    console.error('Playback error:', e);
-    if (btn) btn.textContent = '\u25B6';
-  }
-}
-
-function stopPlayback() {
-  if (!activeSource) return;
-  const btnId = activeSource === 'maestro' ? 'playMaestro' : 'playScore';
-  const timeId = activeSource === 'maestro' ? 'timeMaestro' : 'timeScore';
-  activeSource = null;
-  if (playbackTimer) { clearInterval(playbackTimer); playbackTimer = null; }
-  if (synth) synth.releaseAll();
-  const btn = document.getElementById(btnId);
-  if (btn) { btn.textContent = '\u25B6'; btn.classList.remove('playing'); }
-  const td = document.getElementById(timeId);
-  if (td) td.textContent = '0:00';
-}
-
 document.addEventListener('keydown', e => {
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
   if (e.key === 'a' || e.key === 'A') setStatus('approved');
   else if (e.key === 'r' || e.key === 'R') setStatus('rejected');
   else if (e.key === 's' || e.key === 'S') advance(1);
-  else if (e.key === '1') playMidi('maestro');
-  else if (e.key === '2') playMidi('score');
-  else if (e.key === ' ') { e.preventDefault(); if (activeSource) stopPlayback(); else playMidi('maestro'); }
+  else if (e.key === '1') startPlayback('maestro');
+  else if (e.key === '2') startPlayback('score');
+  else if (e.key === ' ') { e.preventDefault(); if (playback.active) stopPlayback(); else startPlayback('maestro'); }
   else if (e.key === 'ArrowLeft') advance(-1);
   else if (e.key === 'ArrowRight') advance(1);
 });
