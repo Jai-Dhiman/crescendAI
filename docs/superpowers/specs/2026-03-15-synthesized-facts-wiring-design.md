@@ -9,8 +9,8 @@ The synthesis pipeline converts raw practice observations into temporal facts ab
 ### What already exists
 
 - `run_synthesis(env, student_id)` -- full pipeline: fetch active facts + new observations + teaching approaches + baselines, call Groq (Llama 70B) with `SYNTHESIS_SYSTEM` prompt, parse JSON, apply invalidations, insert new facts, update `student_memory_meta`
-- `should_synthesize(env, student_id)` -- trigger check: true when >= 3 new observations since last synthesis, or > 7 days with any new observations
-- `increment_observation_count(env, student_id)` -- called from `handle_ask()` after each observation is stored
+- `should_synthesize(env, student_id)` -- trigger check with three branches: (a) never synthesized before: true when `total_observations >= 3` from `student_memory_meta`; (b) previously synthesized, >= 3 new observations since `last_synthesis_at` (date-windowed COUNT query); (c) previously synthesized, > 7 days since last synthesis with any new observations
+- `increment_observation_count(env, student_id)` -- called from `handle_ask()` after each observation is stored. **Bug:** NOT called from DO-originated observations (WebSocket practice sessions), so the `student_memory_meta.total_observations` counter is only accurate for HTTP `/api/ask` observations
 - `SYNTHESIS_SYSTEM` prompt + `build_synthesis_prompt()` -- complete prompt with JSON schema for new/invalidated/unchanged facts
 - `synthesized_facts` table + `student_memory_meta` table -- in `0001_init.sql`
 - Active facts already wired into subagent context via `build_memory_context()` -> `format_memory_context()` in `handle_ask_inner()`
@@ -21,6 +21,7 @@ The synthesis pipeline converts raw practice observations into temporal facts ab
 2. `run_synthesis()` returns `Result<(), String>` -- no observability into what changed
 3. No HTTP endpoint for manual/eval triggering
 4. No integration test
+5. DO-originated observations (WebSocket sessions) never call `increment_observation_count()`, so the meta counter is inaccurate for the most common user flow
 
 ## Design
 
@@ -37,32 +38,44 @@ pub struct SynthesisResult {
 }
 ```
 
-Count new facts, invalidated facts, and unchanged facts from the parsed Groq response. Return `observations_processed` from `new_observations.len()`. Early return when no new observations returns a zeroed result.
+Count `new_facts` and `invalidated` from the parsed Groq response arrays. Derive `unchanged` arithmetically as `active_facts.len() - invalidated` (do not trust the LLM's `unchanged_facts` array -- it may omit or hallucinate IDs). Return `observations_processed` from `new_observations.len()`. Early return when no new observations returns a zeroed result. The JSON parsing uses the existing `extract_synthesis_json()` helper (memory.rs line 1625).
 
 ### 2. DO session finalization trigger (session.rs)
 
-Insert between `persist_observations()` and the WS summary send in `finalize_session()`:
+Insert between `persist_observations()` and the WS summary send in `finalize_session()`.
+
+**Fix observation counting bug:** DO-originated observations (WebSocket sessions) currently never call `increment_observation_count()`. Add a loop in `finalize_session()` after `persist_observations()` to call `increment_observation_count()` for each persisted observation. This ensures the `student_memory_meta.total_observations` counter is accurate for both HTTP and WebSocket flows.
+
+**Avoid stale-read issue:** `should_synthesize()` uses the meta counter (not a date-windowed count query) for never-synthesized students. Since `increment_observation_count()` is called before `should_synthesize()`, the counter reflects the just-persisted observations. For previously-synthesized students, `should_synthesize()` uses a `COUNT(*)` query against `observations WHERE created_at > last_synthesis_at`. The observations were just written by `persist_observations()` in the same DO invocation -- D1 read-after-write consistency within a single Worker invocation is guaranteed (D1 uses a single HTTP connection per binding).
 
 ```rust
-if !observations.is_empty() {
-    match crate::services::memory::should_synthesize(&self.env, &student_id).await {
-        Ok(true) => {
-            match crate::services::memory::run_synthesis(&self.env, &student_id).await {
-                Ok(result) => {
-                    console_log!(
-                        "Synthesis for {}: {} new, {} invalidated, {} unchanged",
-                        student_id, result.new_facts, result.invalidated, result.unchanged
-                    );
-                }
-                Err(e) => {
-                    console_error!("Synthesis failed for {}: {}", student_id, e);
-                }
+// Update observation count for synthesis tracking
+for _ in &observations {
+    if let Err(e) = crate::services::memory::increment_observation_count(
+        &self.env, &student_id
+    ).await {
+        console_error!("Failed to increment observation count: {}", e);
+    }
+}
+
+// Run synthesis if enough observations have accumulated
+match crate::services::memory::should_synthesize(&self.env, &student_id).await {
+    Ok(true) => {
+        match crate::services::memory::run_synthesis(&self.env, &student_id).await {
+            Ok(result) => {
+                console_log!(
+                    "Synthesis for {}: {} new, {} invalidated, {} unchanged",
+                    student_id, result.new_facts, result.invalidated, result.unchanged
+                );
+            }
+            Err(e) => {
+                console_error!("Synthesis failed for {}: {}", student_id, e);
             }
         }
-        Ok(false) => {}
-        Err(e) => {
-            console_error!("Synthesis check failed: {}", e);
-        }
+    }
+    Ok(false) => {}
+    Err(e) => {
+        console_error!("Synthesis check failed: {}", e);
     }
 }
 ```
@@ -93,7 +106,7 @@ All errors are non-fatal. Synthesis failure never blocks the user experience.
 | `run_synthesis()` Groq call fails | DO finalization | `console_error!`, proceed to WS summary. Meta NOT updated, so next session retries |
 | Groq returns unparseable JSON | `run_synthesis()` | Returns `Err`. Observation count preserved for next attempt |
 | Groq hallucinates a fact_id for invalidation | `run_synthesis()` | UPDATE with `WHERE id = ? AND student_id = ?` matches zero rows. No damage |
-| D1 write fails mid-synthesis | `run_synthesis()` | Partial facts written, meta updated. Missing facts re-derived in next cycle |
+| D1 write fails mid-synthesis | `run_synthesis()` | Partial facts written, meta NOT updated (meta update is the last step). Next synthesis re-processes the same observations. Duplicate prevention: the synthesis prompt receives current active facts, so the LLM sees already-created facts and places them in `unchanged_facts` rather than re-creating them |
 | HTTP endpoint with invalid student_id | `handle_synthesize()` | `should_synthesize()` returns `Ok(false)`, response is `{"skipped": true}` |
 
 ### 5. Integration test (apps/api/evals/memory/src/test_synthesis.py)
@@ -119,6 +132,8 @@ Python test using existing eval infrastructure. Hits production API endpoints ag
 7. **Verify invalidation** -- old dynamics weakness fact has `invalid_at` set, new improvement fact exists
 8. **Cleanup** -- clear test data
 
+9. **Threshold not met** -- seed 1 observation only, call `POST /api/memory/synthesize`, assert response is `{"skipped": true, ...}`
+
 **Non-determinism management:**
 - Temperature 0.1 (matching production config)
 - Assert structural properties (counts > 0) not exact text
@@ -132,7 +147,9 @@ Request: `{"student_id": "...", "observations": [{"dimension": "dynamics", "obse
 
 Response: `{"seeded": N}`
 
-This follows the `store-facts` pattern. Behind auth, used only by eval code.
+This follows the `store-facts` pattern. Gated behind `AUTH_DEBUG_ENABLED` (same guard as `/api/auth/debug`) to prevent production users from injecting arbitrary observations. Returns 404 in production.
+
+The seed endpoint must also call `increment_observation_count()` for each seeded observation, so that `should_synthesize()` returns correct results when the test subsequently calls `/api/memory/synthesize`.
 
 ## Files changed
 
