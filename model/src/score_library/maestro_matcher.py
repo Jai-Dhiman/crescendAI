@@ -151,3 +151,90 @@ def normalize_title(title: str) -> list[str]:
         tokens.append(word)
 
     return sorted(set(tokens))
+
+
+# ---------------------------------------------------------------------------
+# Dice similarity + piece matching
+# ---------------------------------------------------------------------------
+
+from dataclasses import dataclass
+
+
+@dataclass
+class MatchResult:
+    """Result of matching a MAESTRO entry to an ASAP piece."""
+    piece_id: str
+    asap_title: str
+    confidence: float
+    multi_piece: bool
+
+
+def dice_similarity(tokens_a: list[str], tokens_b: list[str]) -> float:
+    """Compute Dice coefficient over token sets."""
+    if not tokens_a or not tokens_b:
+        return 0.0
+    set_a = set(tokens_a)
+    set_b = set(tokens_b)
+    intersection = len(set_a & set_b)
+    return (2.0 * intersection) / (len(set_a) + len(set_b))
+
+
+def match_piece(
+    asap_composer: str,
+    maestro_title: str,
+    titles_map: dict[str, str],
+    min_confidence: float = 0.2,
+) -> MatchResult | None:
+    """Match a MAESTRO title to the best ASAP piece within a composer.
+
+    Args:
+        asap_composer: The ASAP composer prefix (e.g., "chopin").
+        maestro_title: The MAESTRO canonical_title string.
+        titles_map: Dict mapping piece_id -> human-readable title
+                     (from titles.json).
+        min_confidence: Minimum Dice similarity to return a match.
+
+    Returns:
+        MatchResult or None if no match above threshold.
+    """
+    maestro_tokens = normalize_title(maestro_title)
+    multi_piece = detect_multi_piece(maestro_title)
+
+    best_score = 0.0
+    best_piece_id = ""
+    best_title = ""
+
+    for piece_id, title in titles_map.items():
+        # Only consider pieces from the matching composer
+        if not piece_id.startswith(asap_composer + "."):
+            continue
+
+        # Normalize the ASAP title for comparison
+        asap_tokens = normalize_title(title)
+
+        # Also include tokens from the piece_id itself (e.g., "op_10", "3")
+        # The piece_id segments after composer contain structured info
+        id_parts = piece_id.split(".")[1:]  # drop composer
+        for part in id_parts:
+            # Split underscored segments and add as tokens
+            for sub in part.split("_"):
+                if sub and len(sub) > 1:
+                    asap_tokens.append(sub.lower())
+            asap_tokens.append(part.lower())
+        asap_tokens = sorted(set(asap_tokens))
+
+        score = dice_similarity(maestro_tokens, asap_tokens)
+        if score > best_score:
+            best_score = score
+            best_piece_id = piece_id
+            best_title = title
+
+    if best_score < min_confidence or not best_piece_id:
+        return None
+
+    return MatchResult(
+        piece_id=best_piece_id,
+        asap_title=best_title,
+        confidence=round(best_score, 3),
+        multi_piece=multi_piece,
+    )
