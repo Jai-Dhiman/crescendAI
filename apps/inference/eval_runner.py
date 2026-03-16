@@ -32,8 +32,8 @@ from models.transcription import TranscriptionModel, TranscriptionError
 DEFAULT_CHECKPOINT_DIR = str(
     Path(__file__).parents[1].parent / "model" / "data" / "checkpoints" / "model_improvement" / "A1"
 )
-DEFAULT_AUDIO_DIR = str(Path(__file__).parents[1].parent / "data" / "eval" / "youtube_amt")
-DEFAULT_CACHE_DIR = str(Path(__file__).parents[1].parent / "data" / "eval" / "inference_cache")
+DEFAULT_AUDIO_DIR = str(Path(__file__).parents[1].parent / "model" / "data" / "eval" / "youtube_amt")
+DEFAULT_CACHE_DIR = str(Path(__file__).parents[1].parent / "model" / "data" / "eval" / "inference_cache")
 
 
 def get_git_sha() -> tuple[str, bool]:

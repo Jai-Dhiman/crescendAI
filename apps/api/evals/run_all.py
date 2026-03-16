@@ -10,7 +10,7 @@ import requests
 from shared.inference_cache import find_cache_dir
 
 
-CACHE_ROOT = Path(__file__).parent.parent.parent.parent / "data" / "eval" / "inference_cache"
+CACHE_ROOT = Path(__file__).parent.parent.parent.parent / "model" / "data" / "eval" / "inference_cache"
 DEV_VARS_PATH = Path(__file__).parent.parent / ".dev.vars"
 WORKER_BASE = "http://localhost:8787"
 
@@ -102,7 +102,7 @@ def run_observation_quality() -> None:
 
     obs_main(
         cache_dir=CACHE_ROOT,
-        traces_dir=Path(__file__).parent.parent.parent.parent / "data" / "eval" / "traces",
+        traces_dir=Path(__file__).parent.parent.parent.parent / "model" / "data" / "eval" / "traces",
         reports_dir=Path(__file__).parent / "reports",
         wrangler_url=WORKER_BASE,
     )

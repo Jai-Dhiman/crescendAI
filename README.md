@@ -2,60 +2,103 @@
 
 **A teacher for every pianist.**
 
-Multi-platform (iOS + web) practice companion that evaluates *how* a piano performance sounds -- tone, dynamics, phrasing, pedaling -- not just note accuracy. iOS uses on-device Core ML inference; web captures audio in the browser and runs inference in the cloud. Both share a Cloudflare Workers backend for LLM feedback and data sync.
+Multi-platform (iOS + web) practice companion that evaluates *how* a piano performance sounds -- dynamics, timing, pedaling, articulation, phrasing, interpretation -- not just note accuracy like MIDI-based apps. A finetuned MuQ audio foundation model scores 6 teacher-grounded dimensions from audio alone. A two-stage LLM pipeline (fast subagent analysis + quality teacher delivery) turns those scores into one actionable observation per practice moment.
 
 ## Key Result
 
-**R² = 0.537** on PercePiano benchmark (55% improvement over symbolic baselines)
+**80.8% pairwise accuracy** on PercePiano benchmark (A1-Max 4-fold ensemble)
 
-![Model Pipeline](model/figures/excalidraw_model_pipeline.png)
+| Encoder | Type | Pairwise Accuracy | Notes |
+|---------|------|-------------------|-------|
+| A1-Max (ensemble) | Audio | 80.8% | MuQ + LoRA rank-32, ListMLE, CCC. Deployed on HF endpoint |
+| S2 (GNN) | Symbolic | 71.3% | GATConv on score graphs, link prediction pretraining |
 
-| Model | R² | 95% CI | MAE |
-|-------|-----|--------|-----|
-| MuQ L9-12 (ours) | 0.537 | [0.465, 0.575] | 0.067 |
-| Symbolic baseline | 0.347 | [0.315, 0.375] | 0.095 |
+6 output dimensions: **dynamics**, **timing**, **pedaling**, **articulation**, **phrasing**, **interpretation**
 
 ## Architecture
 
+```
++-------------------+       +-------------------+
+|    iOS App        |       |    Web App         |
+|  (SwiftUI,        |       |  (TanStack Start,  |
+|   AVAudioEngine)  |       |   MediaRecorder)   |
++--------+----------+       +---------+----------+
+         |                             |
+         |  15s audio chunks (HTTPS)   |
+         +----------+    +------------+
+                    |    |
+                    v    v
+         +----------------------------+
+         |  Cloudflare Workers         |
+         |  api.crescend.ai            |
+         |  (Rust/Axum on WASM)        |
+         |                             |
+         |  /api/practice/chunk        |
+         |  /api/ask                   |
+         |  /api/chat/send             |
+         |  /api/auth/apple            |
+         |  /api/sync                  |
+         +--+------+------+------+----+
+            |      |      |      |
+            v      v      v      v
+      +-------+ +-----+ +------+ +----+
+      | HF    | | Groq| | Anth-| | D1 |
+      | Endpt | | API | | ropic| |    |
+      | (MuQ  | | sub-| | teach| | KV |
+      | A1-Max)| | agent| | er  | | R2 |
+      +-------+ +-----+ +------+ | DO |
+                                  +----+
+```
+
 | Component | Details |
 |-----------|---------|
-| On-device inference | Core ML MuQ (~300M params), 6-dimension output |
+| Cloud inference | HF Inference Endpoint -- A1-Max 4-fold ensemble + AMT + pedal CC64 extraction |
 | iOS app | SwiftUI, AVAudioEngine, SwiftData (local-first) |
-| API backend | Rust Axum on Cloudflare Workers (`api.crescend.ai`) |
-| Web app | TanStack Start practice companion (`crescend.ai`) -- chat, recording, real-time observations |
-| Storage | D1 (SQLite), R2 (audio), KV (cache) |
-| Auth | Sign in with Apple |
+| Web app | TanStack Start practice companion (`crescend.ai`) -- chat, recording, real-time observations via WebSocket |
+| API backend | Rust Axum on Cloudflare Workers (`api.crescend.ai`) -- inference proxy, STOP classifier, two-stage LLM pipeline, score following |
+| LLM pipeline | Groq (fast subagent analysis) + Anthropic (teacher delivery), OpenRouter fallback |
+| Score following | Onset+pitch DTW aligning AMT output to score MIDI -- feedback references bar numbers, not timestamps |
+| Storage | D1 (SQLite), R2 (audio chunks), KV (cache), Durable Objects (practice sessions + WebSocket) |
+| Auth | Sign in with Apple + Google |
 
 ## Project Structure
 
 ```
-apps/ios/          Native iOS app (SwiftUI, Core ML, AVAudioEngine)
+apps/ios/          Native iOS app (SwiftUI, AVAudioEngine, cloud inference)
 apps/api/          Rust API Worker (Axum on Cloudflare Workers)
 apps/web/          TanStack Start web practice companion (React, Tailwind CSS v4)
-apps/inference/    HuggingFace inference endpoint (cloud fallback)
+apps/inference/    HuggingFace inference endpoint handler (primary inference path)
 model/             PyTorch Lightning training pipeline
-docs/              Architecture and implementation slices
+docs/              Architecture and documentation
+  docs/apps/       Apps layer (status, product vision, pipeline, memory, exercises, UI)
+  docs/model/      ML layer (research timeline, data, taxonomy, encoders, north star)
 ```
 
 ## Documentation
 
-See [docs/architecture.md](docs/architecture.md) for the system architecture and documentation map.
+See [docs/architecture.md](docs/architecture.md) for the full system diagram and documentation map.
+
+| Area | Entry Point | Contents |
+|------|-------------|----------|
+| Architecture | [docs/architecture.md](docs/architecture.md) | System diagram, cross-cutting concerns (auth, sync, observability) |
+| Apps status | [docs/apps/00-status.md](docs/apps/00-status.md) | Implementation dashboard for iOS, web, API, inference |
+| Product vision | [docs/apps/01-product-vision.md](docs/apps/01-product-vision.md) | Target user, interaction model, UX principles |
+| Pipeline | [docs/apps/02-pipeline.md](docs/apps/02-pipeline.md) | Full audio-to-observation pipeline (STOP, subagent, teacher, score following) |
+| Student memory | [docs/apps/03-memory-system.md](docs/apps/03-memory-system.md) | Two-clock model, observations, synthesized facts |
+| Exercises | [docs/apps/04-exercises.md](docs/apps/04-exercises.md) | Exercise database, focus mode |
+| UI system | [docs/apps/05-ui-system.md](docs/apps/05-ui-system.md) | Chat interface, on-demand components |
+| ML research | [docs/model/00-research-timeline.md](docs/model/00-research-timeline.md) | Research roadmap, encoder results, key decisions |
+| Training data | [docs/model/01-data.md](docs/model/01-data.md) | PercePiano, Competition, MAESTRO datasets |
+| Taxonomy | [docs/model/02-teacher-grounded-taxonomy.md](docs/model/02-teacher-grounded-taxonomy.md) | 19 PercePiano dims to 6 teacher-grounded dims |
+| Encoders | [docs/model/03-encoders.md](docs/model/03-encoders.md) | A1-Max audio encoder, S2 symbolic encoder |
+| North star | [docs/model/04-north-star.md](docs/model/04-north-star.md) | 8-stage perfect pipeline vision |
 
 ## Setup
 
-### Training Pipeline
+### iOS App
 
 ```bash
-cd model
-uv sync
-uv run python -m audio_experiments.training.runner
-```
-
-### API Worker
-
-```bash
-cd apps/api
-npx wrangler dev
+open apps/ios/CrescendAI.xcodeproj
 ```
 
 ### Web App
@@ -66,6 +109,21 @@ bun install
 bun run dev
 ```
 
+### API Worker
+
+```bash
+cd apps/api
+npx wrangler dev
+```
+
+### Training Pipeline
+
+```bash
+cd model
+uv sync
+uv run python -m audio_experiments.training.runner
+```
+
 ## Paper
 
-For technical details, see the [paper on arXiv](https://arxiv.org/abs/2601.19029).
+For technical details on the audio encoder, see the [paper on arXiv](https://arxiv.org/abs/2601.19029).
