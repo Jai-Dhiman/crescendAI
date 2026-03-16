@@ -4,10 +4,10 @@ Processes all recordings in a piece manifest through the specified
 inference config and caches results.
 
 Usage:
-    cd model/
-    uv run python -m skill_eval.run_inference --config ensemble_4fold --piece fur_elise
-    uv run python -m skill_eval.run_inference --config single_fold_0 --piece nocturne_op9no2
-    uv run python -m skill_eval.run_inference --config no_amt --piece fur_elise --subset 10
+    cd apps/evals/
+    uv run python -m model.skill_eval.run_inference --config ensemble_4fold --piece fur_elise
+    uv run python -m model.skill_eval.run_inference --config single_fold_0 --piece nocturne_op9no2
+    uv run python -m model.skill_eval.run_inference --config no_amt --piece fur_elise --subset 10
 """
 
 from __future__ import annotations
@@ -19,25 +19,26 @@ import sys
 import time
 from pathlib import Path
 
-import yaml
+# Add apps/evals/ to path for paths import, then apps/inference/ for model imports
+sys.path.insert(0, str(Path(__file__).parents[2]))
 
-# Add apps/inference to path for model imports
-INFERENCE_DIR = str(Path(__file__).parents[2].parent / "apps" / "inference")
-sys.path.insert(0, INFERENCE_DIR)
+from paths import INFERENCE_DIR, MODEL_DATA
+
+sys.path.insert(0, str(INFERENCE_DIR))
 
 # Set device before torch imports
 os.environ.setdefault("CRESCEND_DEVICE", "auto")
 
 import numpy as np
+import yaml
 from audio_chunker import chunk_audio_file
 from constants import MODEL_INFO, PERCEPIANO_DIMENSIONS
 from models.inference import extract_muq_embeddings, predict_with_ensemble
-from models.loader import ModelCache, get_model_cache
+from models.loader import ModelCache, _resolve_device, get_model_cache
 from models.transcription import TranscriptionError, TranscriptionModel
-from models.loader import _resolve_device
 
-DATA_DIR = Path(__file__).parents[1].parent / "data" / "skill_eval"
-CHECKPOINT_DIR = Path(__file__).parents[1].parent / "data" / "checkpoints" / "model_improvement" / "A1"
+DATA_DIR = MODEL_DATA / "skill_eval"
+CHECKPOINT_DIR = MODEL_DATA / "checkpoints" / "model_improvement" / "A1"
 
 MIN_CHUNKS = 2
 

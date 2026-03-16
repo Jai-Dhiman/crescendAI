@@ -4,22 +4,28 @@ Computes Spearman correlations, bucket separation, confusion rates,
 and config comparisons. Generates summary plots.
 
 Usage:
-    cd model/
-    uv run python -m skill_eval.analyze --piece fur_elise
-    uv run python -m skill_eval.analyze --piece all
-    uv run python -m skill_eval.analyze --piece fur_elise --config ensemble_4fold
+    cd apps/evals/
+    uv run python -m model.skill_eval.analyze --piece fur_elise
+    uv run python -m model.skill_eval.analyze --piece all
+    uv run python -m model.skill_eval.analyze --piece fur_elise --config ensemble_4fold
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
+
+# Add apps/evals/ to path for paths import
+sys.path.insert(0, str(Path(__file__).parents[2]))
 
 import numpy as np
 from scipy import stats
 
-DATA_DIR = Path(__file__).parents[1].parent / "data" / "skill_eval"
+from paths import MODEL_DATA
+
+DATA_DIR = MODEL_DATA / "skill_eval"
 FIGURES_DIR = DATA_DIR / "figures"
 DIMENSIONS = ["dynamics", "timing", "pedaling", "articulation", "phrasing", "interpretation"]
 

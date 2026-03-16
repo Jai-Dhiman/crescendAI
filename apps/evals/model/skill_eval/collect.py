@@ -5,10 +5,10 @@ downloads audio, and builds a YAML manifest with metadata-derived
 skill labels.
 
 Usage:
-    cd model/
-    uv run python -m skill_eval.collect --piece fur_elise
-    uv run python -m skill_eval.collect --piece nocturne_op9no2
-    uv run python -m skill_eval.collect --piece fur_elise --search-only  # manifest only, no download
+    cd apps/evals/
+    uv run python -m model.skill_eval.collect --piece fur_elise
+    uv run python -m model.skill_eval.collect --piece nocturne_op9no2
+    uv run python -m model.skill_eval.collect --piece fur_elise --search-only
 """
 
 from __future__ import annotations
@@ -16,12 +16,18 @@ from __future__ import annotations
 import argparse
 import json
 import subprocess
+import sys
 import time
 from pathlib import Path
 
+# Add apps/evals/ to path for paths import
+sys.path.insert(0, str(Path(__file__).parents[2]))
+
 import yaml
 
-DATA_DIR = Path(__file__).parents[1].parent / "data" / "skill_eval"
+from paths import MODEL_DATA
+
+DATA_DIR = MODEL_DATA / "skill_eval"
 
 PIECES = {
     "fur_elise": {

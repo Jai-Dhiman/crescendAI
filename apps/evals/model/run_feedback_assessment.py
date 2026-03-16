@@ -1,8 +1,8 @@
 """Run Experiment 4: MIDI-as-context feedback assessment.
 
 Usage:
-    cd model
-    uv run python -m model_improvement.run_feedback_assessment
+    cd apps/evals/
+    uv run python -m model.run_feedback_assessment
 
 Requires ANTHROPIC_API_KEY environment variable.
 """
@@ -12,29 +12,38 @@ from __future__ import annotations
 import json
 import logging
 import os
+import sys
 from pathlib import Path
+
+# Add apps/evals/ for paths, model/src/ for model_improvement imports
+sys.path.insert(0, str(Path(__file__).parents[1]))
+
+from paths import MODEL_DATA, MODEL_SRC
+
+sys.path.insert(0, str(MODEL_SRC))
 
 import numpy as np
 import torch
 from dotenv import load_dotenv
 
 from model_improvement.audio_encoders import MuQLoRAModel
-from model_improvement.feedback_assessment import (
+from model_improvement.layer1_validation import score_competition_segments
+from model_improvement.taxonomy import DIMENSIONS
+
+from .feedback_assessment import (
     build_condition_a_prompt,
     build_condition_b_prompt,
     build_judge_prompt,
     parse_judge_response,
 )
-from model_improvement.layer1_validation import score_competition_segments
-from model_improvement.midi_comparison import structured_midi_comparison
-from model_improvement.taxonomy import DIMENSIONS
+from .midi_comparison import structured_midi_comparison
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
 
 load_dotenv()
 
-DATA_DIR = Path(__file__).parent.parent.parent / "data"
+DATA_DIR = MODEL_DATA
 CHECKPOINT_DIR = DATA_DIR / "checkpoints/model_improvement"
 PERCEPIANO_DIR = DATA_DIR / "percepiano_cache"
 RESULTS_DIR = DATA_DIR / "experiment4_results"

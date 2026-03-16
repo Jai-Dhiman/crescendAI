@@ -1,0 +1,37 @@
+{
+  "eval_name": "subagent_reasoning",
+  "eval_version": "1.0",
+  "dataset": "scenarios_10",
+  "metrics": {
+    "dimension_selection": {
+      "mean": 0.8,
+      "std": 0.4216370213557839,
+      "n": 10,
+      "pass_threshold": 0.8,
+      "passed": true
+    },
+    "framing_match": {
+      "mean": 0.9,
+      "std": 0.31622776601683794,
+      "n": 10,
+      "pass_threshold": 0.75,
+      "passed": true
+    },
+    "reasoning_coherence": {
+      "mean": 0.4,
+      "std": 0.5163977794943223,
+      "n": 10,
+      "pass_threshold": 0.7,
+      "passed": false
+    }
+  },
+  "worst_cases": [],
+  "cost": {
+    "judge_calls": 10,
+    "estimated_usd": 0.03
+  },
+  "metadata": {
+    "git_sha": "9dd83ae8e52047678889246a3466ad38971bbe18",
+    "git_dirty": false
+  }
+}

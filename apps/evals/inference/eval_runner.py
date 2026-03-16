@@ -4,8 +4,9 @@ Directly initializes ModelCache + TranscriptionModel (bypassing EndpointHandler'
 HF Inference Endpoint path conventions) to run MuQ + AMT locally.
 
 Usage:
-    CRESCEND_DEVICE=mps python eval_runner.py
-    CRESCEND_DEVICE=cpu python eval_runner.py --audio-dir ../../data/eval/youtube_amt/
+    cd apps/evals/
+    CRESCEND_DEVICE=mps uv run python -m inference.eval_runner
+    CRESCEND_DEVICE=cpu uv run python -m inference.eval_runner --audio-dir /path/to/audio
 """
 
 from __future__ import annotations
@@ -14,9 +15,17 @@ import argparse
 import json
 import os
 import subprocess
+import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+
+# Add apps/evals/ to path for paths import, then apps/inference/ for model imports
+sys.path.insert(0, str(Path(__file__).parents[1]))
+
+from paths import INFERENCE_DIR, MODEL_DATA
+
+sys.path.insert(0, str(INFERENCE_DIR))
 
 import numpy as np
 
@@ -29,20 +38,9 @@ from models.inference import extract_muq_embeddings, predict_with_ensemble
 from models.loader import get_model_cache
 from models.transcription import TranscriptionError, TranscriptionModel
 
-DEFAULT_CHECKPOINT_DIR = str(
-    Path(__file__).parents[1].parent
-    / "model"
-    / "data"
-    / "checkpoints"
-    / "model_improvement"
-    / "A1"
-)
-DEFAULT_AUDIO_DIR = str(
-    Path(__file__).parents[1].parent / "model" / "data" / "eval" / "youtube_amt"
-)
-DEFAULT_CACHE_DIR = str(
-    Path(__file__).parents[1].parent / "model" / "data" / "eval" / "inference_cache"
-)
+DEFAULT_CHECKPOINT_DIR = str(MODEL_DATA / "checkpoints" / "model_improvement" / "A1")
+DEFAULT_AUDIO_DIR = str(MODEL_DATA / "eval" / "youtube_amt")
+DEFAULT_CACHE_DIR = str(MODEL_DATA / "eval" / "inference_cache")
 
 
 def get_git_sha() -> tuple[str, bool]:

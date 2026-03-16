@@ -1,0 +1,1041 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CrescendAI Eval Viewer</title>
+<script src="https://unpkg.com/soundfont-player@0.11.0/dist/soundfont-player.min.js" integrity="sha384-SNuzpwQ3s9bSYhEQUguCQqrGl1dWASFOhU8dqrz1HH3VOdO2ULZeFGrVovhw0FKm" crossorigin="anonymous"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #1a1714;
+  --surface: #2d2926;
+  --surface-2: #3d3936;
+  --text: #fdf8f0;
+  --text-secondary: #a09890;
+  --border: #4d4946;
+  --accent: #7a9a82;
+  --dynamics: #b0816a;
+  --timing: #9a8a7a;
+  --pedaling: #7a8a9a;
+  --articulation: #9a7a8a;
+  --phrasing: #8a9a7a;
+  --interpretation: #9a917a;
+}
+
+body {
+  font-family: system-ui, -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  display: flex;
+  min-width: 900px;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* -- Sidebar -- */
+.sidebar {
+  width: 250px;
+  min-width: 250px;
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+.sidebar-header {
+  padding: 12px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.sidebar-header h2 {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+
+.search-input {
+  width: 100%;
+  padding: 6px 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  font-size: 13px;
+  outline: none;
+}
+.search-input:focus { border-color: var(--accent); }
+.search-input::placeholder { color: var(--text-secondary); }
+
+.sort-controls {
+  display: flex;
+  gap: 4px;
+  margin-top: 6px;
+}
+.sort-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  padding: 2px 6px;
+  cursor: pointer;
+}
+.sort-btn.active { background: var(--surface-2); color: var(--text); border-color: var(--accent); }
+
+.sidebar-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+
+.rec-item {
+  padding: 8px 12px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border);
+}
+.rec-item:hover { background: var(--surface); }
+.rec-item.selected { background: var(--surface-2); border-left: 3px solid var(--accent); }
+
+.rec-title {
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rec-channel {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+.rec-badges {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+}
+.badge {
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--surface-2);
+  color: var(--text-secondary);
+}
+.badge.obs { background: rgba(122, 154, 130, 0.25); color: var(--accent); }
+
+/* -- Main -- */
+.main {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.empty-state {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  font-size: 15px;
+}
+
+.header-bar {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  flex-shrink: 0;
+}
+.header-bar h1 {
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.header-meta {
+  font-size: 13px;
+  color: var(--text-secondary);
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+.header-meta a {
+  color: var(--accent);
+  text-decoration: none;
+  font-size: 12px;
+}
+.header-meta a:hover { text-decoration: underline; }
+
+/* -- Audio section -- */
+.audio-section {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.audio-section audio {
+  width: 100%;
+  height: 36px;
+  border-radius: 4px;
+}
+
+.chunk-timeline {
+  display: flex;
+  height: 28px;
+  margin-top: 8px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.chunk-seg {
+  position: relative;
+  height: 100%;
+  border-right: 1px solid var(--bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  color: var(--text-secondary);
+  transition: opacity 0.15s;
+}
+.chunk-seg.gray { background: var(--surface-2); }
+.chunk-seg.green { background: rgba(122, 154, 130, 0.35); }
+.chunk-seg.active { outline: 2px solid var(--accent); outline-offset: -2px; z-index: 1; }
+.chunk-seg:hover { opacity: 0.8; }
+
+/* -- Chunk detail -- */
+.chunk-detail {
+  padding: 16px 20px;
+  display: flex;
+  gap: 20px;
+  flex-shrink: 0;
+}
+
+.chunk-left { flex: 6; min-width: 0; }
+.chunk-right { flex: 4; min-width: 0; }
+
+.section-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+
+/* Dimension bars */
+.dim-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 6px;
+  gap: 8px;
+}
+.dim-name {
+  width: 90px;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+.dim-bar-bg {
+  flex: 1;
+  height: 14px;
+  background: var(--surface);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.dim-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s;
+}
+.dim-value {
+  width: 36px;
+  text-align: right;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+}
+
+/* MIDI info */
+.midi-info {
+  margin-top: 12px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  display: flex;
+  gap: 16px;
+}
+
+.midi-controls {
+  margin-top: 8px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.midi-btn {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  font-size: 12px;
+  padding: 4px 12px;
+  cursor: pointer;
+}
+.midi-btn:hover { border-color: var(--accent); }
+.midi-btn:disabled { opacity: 0.4; cursor: default; }
+.midi-loading {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+/* Observation panel */
+.obs-panel {
+  background: var(--surface);
+  border-radius: 6px;
+  padding: 12px;
+}
+
+.obs-badges {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.obs-badge {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-weight: 500;
+}
+
+.obs-text {
+  font-size: 13px;
+  line-height: 1.5;
+  margin-bottom: 12px;
+}
+
+.judge-section { margin-top: 8px; }
+.judge-criterion {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: 12px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border);
+}
+.judge-pass { color: var(--accent); }
+.judge-fail { color: #c07070; }
+.judge-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.judge-indicator.pass { background: var(--accent); }
+.judge-indicator.fail { background: #c07070; }
+.judge-evidence {
+  display: none;
+  padding: 6px 0 6px 16px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+.judge-evidence.open { display: block; }
+
+.no-obs {
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-style: italic;
+  padding: 12px;
+  text-align: center;
+}
+
+.no-chunk-selected {
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-style: italic;
+  padding: 20px;
+  text-align: center;
+}
+
+/* -- Pipeline context -- */
+.pipeline-section {
+  padding: 0 20px 20px;
+}
+.pipeline-toggle {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  padding: 4px 12px;
+  cursor: pointer;
+  margin-bottom: 8px;
+}
+.pipeline-toggle:hover { color: var(--text); border-color: var(--accent); }
+
+.pipeline-json {
+  display: none;
+  background: var(--surface);
+  border-radius: 6px;
+  padding: 12px;
+  overflow-x: auto;
+  max-height: 400px;
+  overflow-y: auto;
+}
+.pipeline-json.open { display: block; }
+.pipeline-json pre {
+  font-size: 12px;
+  font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* JSON syntax colors */
+.json-key { color: #b0816a; }
+.json-string { color: #8a9a7a; }
+.json-number { color: #9a8a7a; }
+.json-bool { color: #7a8a9a; }
+.json-null { color: #9a7a8a; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-secondary); }
+</style>
+</head>
+<body>
+
+<div class="sidebar">
+  <div class="sidebar-header">
+    <h2>Eval Recordings</h2>
+    <input type="text" class="search-input" id="searchInput" placeholder="Filter recordings...">
+    <div class="sort-controls">
+      <button class="sort-btn active" data-sort="title">Title</button>
+      <button class="sort-btn" data-sort="observations">Obs</button>
+      <button class="sort-btn" data-sort="duration">Duration</button>
+    </div>
+  </div>
+  <div class="sidebar-list" id="sidebarList"></div>
+</div>
+
+<div class="main" id="mainArea">
+  <div class="empty-state" id="emptyState">Select a recording from the sidebar</div>
+</div>
+
+<script>
+// -- State --
+const state = {
+  recordings: [],
+  selectedRecording: null,
+  selectedChunk: null,
+  cache: {},
+  traces: {},
+  sortBy: 'title',
+  filter: '',
+};
+
+const DIM_COLORS = {
+  dynamics: '#b0816a',
+  timing: '#9a8a7a',
+  pedaling: '#7a8a9a',
+  articulation: '#9a7a8a',
+  phrasing: '#8a9a7a',
+  interpretation: '#9a917a',
+};
+
+const DIMS = ['dynamics', 'timing', 'pedaling', 'articulation', 'phrasing', 'interpretation'];
+
+// -- Helpers --
+function escapeHtml(s) {
+  if (s == null) return '';
+  const div = document.createElement('div');
+  div.textContent = String(s);
+  return div.innerHTML;
+}
+
+function formatDuration(seconds) {
+  if (!seconds) return '0:00';
+  const m = Math.floor(seconds / 60);
+  const s2 = Math.floor(seconds % 60);
+  return m + ':' + String(s2).padStart(2, '0');
+}
+
+function syntaxHighlight(json) {
+  const str = JSON.stringify(json, null, 2);
+  return str.replace(/("(\\u[\da-fA-F]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false)\b|-?\d+(\.\d+)?([eE][+-]?\d+)?|\bnull\b)/g, function(match) {
+    let cls = 'json-number';
+    if (/^"/.test(match)) {
+      if (/:$/.test(match)) {
+        return '<span class="json-key">' + escapeHtml(match) + '</span>';
+      }
+      cls = 'json-string';
+    } else if (/true|false/.test(match)) {
+      cls = 'json-bool';
+    } else if (/null/.test(match)) {
+      cls = 'json-null';
+    }
+    return '<span class="' + cls + '">' + escapeHtml(match) + '</span>';
+  });
+}
+
+// -- MIDI Playback --
+let piano = null;
+let midiLoading = false;
+
+async function loadPiano() {
+  if (piano) return piano;
+  midiLoading = true;
+  updateMidiControls();
+  const ac = new AudioContext();
+  piano = await Soundfont.instrument(ac, 'acoustic_grand_piano');
+  midiLoading = false;
+  updateMidiControls();
+  return piano;
+}
+
+async function playMidiNotes(notes) {
+  const p = await loadPiano();
+  stopMidi();
+  for (const note of notes) {
+    p.play(note.pitch, note.onset, {
+      gain: note.velocity / 127,
+      duration: note.offset - note.onset,
+    });
+  }
+}
+
+function stopMidi() {
+  if (piano) piano.stop();
+}
+
+function updateMidiControls() {
+  const el = document.getElementById('midiLoading');
+  if (el) el.textContent = midiLoading ? 'Loading soundfont...' : '';
+}
+
+// Store current chunk notes for button click
+let currentChunkNotes = [];
+
+// -- API --
+async function fetchRecordings() {
+  const resp = await fetch('/api/recordings');
+  state.recordings = await resp.json();
+  renderSidebar();
+}
+
+async function fetchCache(videoId) {
+  if (state.cache[videoId]) return state.cache[videoId];
+  const resp = await fetch('/api/recording/' + encodeURIComponent(videoId));
+  if (!resp.ok) return null;
+  const data = await resp.json();
+  state.cache[videoId] = data;
+  return data;
+}
+
+async function fetchTraces(videoId) {
+  if (state.traces[videoId]) return state.traces[videoId];
+  const resp = await fetch('/api/traces/' + encodeURIComponent(videoId));
+  const data = await resp.json();
+  state.traces[videoId] = data;
+  return data;
+}
+
+// -- Render Sidebar --
+function renderSidebar() {
+  const list = document.getElementById('sidebarList');
+  let recs = state.recordings.slice();
+
+  if (state.filter) {
+    const q = state.filter.toLowerCase();
+    recs = recs.filter(function(r) {
+      return r.title.toLowerCase().indexOf(q) !== -1 || r.channel.toLowerCase().indexOf(q) !== -1;
+    });
+  }
+
+  if (state.sortBy === 'title') {
+    recs.sort(function(a, b) { return a.title.localeCompare(b.title); });
+  } else if (state.sortBy === 'observations') {
+    recs.sort(function(a, b) { return b.observation_count - a.observation_count; });
+  } else if (state.sortBy === 'duration') {
+    recs.sort(function(a, b) { return b.duration_seconds - a.duration_seconds; });
+  }
+
+  // Build DOM safely
+  list.textContent = '';
+  recs.forEach(function(r) {
+    var item = document.createElement('div');
+    item.className = 'rec-item' + (state.selectedRecording === r.video_id ? ' selected' : '');
+    item.addEventListener('click', function() { selectRecording(r.video_id); });
+
+    var titleEl = document.createElement('div');
+    titleEl.className = 'rec-title';
+    titleEl.title = r.title;
+    titleEl.textContent = r.title;
+    item.appendChild(titleEl);
+
+    var channelEl = document.createElement('div');
+    channelEl.className = 'rec-channel';
+    channelEl.textContent = r.channel;
+    item.appendChild(channelEl);
+
+    var badges = document.createElement('div');
+    badges.className = 'rec-badges';
+    if (r.chunk_count != null) {
+      var cb = document.createElement('span');
+      cb.className = 'badge';
+      cb.textContent = r.chunk_count + ' chunks';
+      badges.appendChild(cb);
+    }
+    if (r.observation_count > 0) {
+      var ob = document.createElement('span');
+      ob.className = 'badge obs';
+      ob.textContent = r.observation_count + ' obs';
+      badges.appendChild(ob);
+    }
+    item.appendChild(badges);
+    list.appendChild(item);
+  });
+}
+
+// -- Select Recording --
+async function selectRecording(videoId) {
+  state.selectedRecording = videoId;
+  state.selectedChunk = null;
+  renderSidebar();
+
+  var main = document.getElementById('mainArea');
+  main.textContent = '';
+  var loadingDiv = document.createElement('div');
+  loadingDiv.className = 'empty-state';
+  loadingDiv.textContent = 'Loading...';
+  main.appendChild(loadingDiv);
+
+  var results = await Promise.all([fetchCache(videoId), fetchTraces(videoId)]);
+  var cache = results[0];
+  var traces = results[1];
+  var rec = state.recordings.find(function(r) { return r.video_id === videoId; });
+
+  if (!cache || !rec) {
+    main.textContent = '';
+    var errDiv = document.createElement('div');
+    errDiv.className = 'empty-state';
+    errDiv.textContent = 'No cache data available for this recording.';
+    main.appendChild(errDiv);
+    return;
+  }
+
+  // Build trace map: chunk_index -> trace
+  var traceMap = {};
+  traces.forEach(function(t) { traceMap[t.chunk_index] = t; });
+
+  var chunks = cache.chunks || [];
+
+  // Build main area with DOM methods
+  main.textContent = '';
+
+  // Header bar
+  var header = document.createElement('div');
+  header.className = 'header-bar';
+  var h1 = document.createElement('h1');
+  h1.textContent = rec.title;
+  header.appendChild(h1);
+  var meta = document.createElement('div');
+  meta.className = 'header-meta';
+  var chanSpan = document.createElement('span');
+  chanSpan.textContent = rec.channel;
+  meta.appendChild(chanSpan);
+  var durSpan = document.createElement('span');
+  durSpan.textContent = formatDuration(rec.duration_seconds);
+  meta.appendChild(durSpan);
+  var ytLink = document.createElement('a');
+  ytLink.href = rec.source_url;
+  ytLink.target = '_blank';
+  ytLink.rel = 'noopener';
+  ytLink.textContent = 'YouTube';
+  meta.appendChild(ytLink);
+  header.appendChild(meta);
+  main.appendChild(header);
+
+  // Audio section
+  var audioSection = document.createElement('div');
+  audioSection.className = 'audio-section';
+  var audio = document.createElement('audio');
+  audio.id = 'audioPlayer';
+  audio.controls = true;
+  audio.preload = 'metadata';
+  audio.src = '/audio/' + encodeURIComponent(videoId) + '.wav';
+  audioSection.appendChild(audio);
+
+  var timeline = document.createElement('div');
+  timeline.className = 'chunk-timeline';
+  timeline.id = 'chunkTimeline';
+  audioSection.appendChild(timeline);
+  main.appendChild(audioSection);
+
+  // Chunk detail area
+  var detailArea = document.createElement('div');
+  detailArea.id = 'chunkDetailArea';
+  var noChunk = document.createElement('div');
+  noChunk.className = 'no-chunk-selected';
+  noChunk.textContent = 'Click a chunk in the timeline or start playback';
+  detailArea.appendChild(noChunk);
+  main.appendChild(detailArea);
+
+  // Pipeline section
+  var pipelineSection = document.createElement('div');
+  pipelineSection.className = 'pipeline-section';
+  pipelineSection.id = 'pipelineSection';
+  pipelineSection.style.display = 'none';
+  var pipelineToggle = document.createElement('button');
+  pipelineToggle.className = 'pipeline-toggle';
+  pipelineToggle.id = 'pipelineToggle';
+  pipelineToggle.textContent = 'Show pipeline context';
+  pipelineSection.appendChild(pipelineToggle);
+  var pipelineJson = document.createElement('div');
+  pipelineJson.className = 'pipeline-json';
+  pipelineJson.id = 'pipelineJson';
+  pipelineSection.appendChild(pipelineJson);
+  main.appendChild(pipelineSection);
+
+  pipelineToggle.addEventListener('click', function() {
+    pipelineJson.classList.toggle('open');
+    pipelineToggle.textContent = pipelineJson.classList.contains('open') ? 'Hide pipeline context' : 'Show pipeline context';
+  });
+
+  // Build timeline
+  renderTimeline(chunks, traceMap, cache.total_duration_seconds || rec.duration_seconds || 0);
+
+  // Audio timeupdate
+  var lastAutoChunk = -1;
+  audio.addEventListener('timeupdate', function() {
+    var t = audio.currentTime;
+    var chunkStart = 0;
+    for (var i = 0; i < chunks.length; i++) {
+      var dur = chunks[i].audio_duration_seconds || 0;
+      if (t >= chunkStart && t < chunkStart + dur) {
+        if (lastAutoChunk !== i) {
+          lastAutoChunk = i;
+          selectChunk(i, chunks, traceMap);
+        }
+        break;
+      }
+      chunkStart += dur;
+    }
+    // Highlight active segment
+    var segs = document.querySelectorAll('.chunk-seg');
+    var segStart2 = 0;
+    for (var j = 0; j < segs.length; j++) {
+      var segDur = chunks[j] ? (chunks[j].audio_duration_seconds || 0) : 0;
+      var isActive = t >= segStart2 && t < segStart2 + segDur;
+      if (isActive) {
+        segs[j].classList.add('active');
+      } else {
+        segs[j].classList.remove('active');
+      }
+      segStart2 += segDur;
+    }
+  });
+}
+
+function renderTimeline(chunks, traceMap, totalDur) {
+  var timeline = document.getElementById('chunkTimeline');
+  timeline.textContent = '';
+  if (!chunks.length) {
+    var span = document.createElement('span');
+    span.style.cssText = 'padding:6px;color:var(--text-secondary);font-size:11px';
+    span.textContent = 'No chunks';
+    timeline.appendChild(span);
+    return;
+  }
+
+  var effectiveTotal = totalDur || chunks.reduce(function(s, c) { return s + (c.audio_duration_seconds || 0); }, 0);
+
+  chunks.forEach(function(c, i) {
+    var pct = effectiveTotal > 0 ? ((c.audio_duration_seconds || 0) / effectiveTotal * 100) : (100 / chunks.length);
+    var hasObs = traceMap[i] != null;
+    var seg = document.createElement('div');
+    seg.className = 'chunk-seg ' + (hasObs ? 'green' : 'gray');
+    seg.style.width = pct + '%';
+    seg.title = 'Chunk ' + i + ' (' + (c.audio_duration_seconds || 0).toFixed(1) + 's)';
+    seg.textContent = String(i);
+    seg.addEventListener('click', function() { onChunkClick(i); });
+    timeline.appendChild(seg);
+  });
+}
+
+function onChunkClick(index) {
+  var videoId = state.selectedRecording;
+  var cache = state.cache[videoId];
+  var traces = state.traces[videoId] || [];
+  var traceMap = {};
+  traces.forEach(function(t) { traceMap[t.chunk_index] = t; });
+  var chunks = cache.chunks || [];
+
+  // Seek audio
+  var seekTime = 0;
+  for (var i = 0; i < index; i++) seekTime += (chunks[i].audio_duration_seconds || 0);
+  var audio = document.getElementById('audioPlayer');
+  if (audio) audio.currentTime = seekTime;
+
+  selectChunk(index, chunks, traceMap);
+}
+
+// -- Select Chunk --
+function selectChunk(index, chunks, traceMap) {
+  state.selectedChunk = index;
+  var chunk = chunks[index];
+  if (!chunk) return;
+
+  var trace = traceMap[index];
+  var preds = chunk.predictions || {};
+  var notes = chunk.midi_notes || [];
+  var pedals = chunk.pedal_events || [];
+  currentChunkNotes = notes;
+
+  // Pitch range
+  var pitchMin = Infinity, pitchMax = -Infinity;
+  notes.forEach(function(n) {
+    if (n.pitch < pitchMin) pitchMin = n.pitch;
+    if (n.pitch > pitchMax) pitchMax = n.pitch;
+  });
+
+  var area = document.getElementById('chunkDetailArea');
+  area.textContent = '';
+
+  var detail = document.createElement('div');
+  detail.className = 'chunk-detail';
+
+  // Left column
+  var left = document.createElement('div');
+  left.className = 'chunk-left';
+
+  var label = document.createElement('div');
+  label.className = 'section-label';
+  label.textContent = 'Dimension Scores -- Chunk ' + index;
+  left.appendChild(label);
+
+  DIMS.forEach(function(d) {
+    var val = preds[d] != null ? preds[d] : 0;
+    var row = document.createElement('div');
+    row.className = 'dim-row';
+
+    var name = document.createElement('span');
+    name.className = 'dim-name';
+    name.style.color = DIM_COLORS[d];
+    name.textContent = d;
+    row.appendChild(name);
+
+    var barBg = document.createElement('div');
+    barBg.className = 'dim-bar-bg';
+    var barFill = document.createElement('div');
+    barFill.className = 'dim-bar-fill';
+    barFill.style.width = (val * 100).toFixed(1) + '%';
+    barFill.style.background = DIM_COLORS[d];
+    barBg.appendChild(barFill);
+    row.appendChild(barBg);
+
+    var valSpan = document.createElement('span');
+    valSpan.className = 'dim-value';
+    valSpan.textContent = val.toFixed(3);
+    row.appendChild(valSpan);
+
+    left.appendChild(row);
+  });
+
+  // MIDI info
+  var midiInfo = document.createElement('div');
+  midiInfo.className = 'midi-info';
+  var noteCount = document.createElement('span');
+  noteCount.textContent = notes.length + ' notes';
+  midiInfo.appendChild(noteCount);
+  var pitchRange = document.createElement('span');
+  pitchRange.textContent = 'Pitch: ' + (notes.length ? (pitchMin + '-' + pitchMax) : '--');
+  midiInfo.appendChild(pitchRange);
+  var pedalCount = document.createElement('span');
+  pedalCount.textContent = pedals.length + ' pedal events';
+  midiInfo.appendChild(pedalCount);
+  left.appendChild(midiInfo);
+
+  // MIDI controls
+  var midiControls = document.createElement('div');
+  midiControls.className = 'midi-controls';
+  var playBtn = document.createElement('button');
+  playBtn.className = 'midi-btn';
+  playBtn.textContent = 'Play MIDI';
+  playBtn.addEventListener('click', function() { playMidiNotes(currentChunkNotes); });
+  midiControls.appendChild(playBtn);
+  var stopBtn = document.createElement('button');
+  stopBtn.className = 'midi-btn';
+  stopBtn.textContent = 'Stop';
+  stopBtn.addEventListener('click', stopMidi);
+  midiControls.appendChild(stopBtn);
+  var loadingSpan = document.createElement('span');
+  loadingSpan.className = 'midi-loading';
+  loadingSpan.id = 'midiLoading';
+  midiControls.appendChild(loadingSpan);
+  left.appendChild(midiControls);
+
+  detail.appendChild(left);
+
+  // Right column
+  var right = document.createElement('div');
+  right.className = 'chunk-right';
+  renderObservation(right, trace);
+  detail.appendChild(right);
+
+  area.appendChild(detail);
+
+  // Pipeline context
+  var pipelineSection = document.getElementById('pipelineSection');
+  if (trace) {
+    pipelineSection.style.display = 'block';
+    var ctx = {
+      analysis_facts: trace.analysis_facts || null,
+      teaching_moment: trace.teaching_moment || null,
+      subagent_output: trace.subagent_output || null,
+      stop_score: trace.stop_score,
+      stop_triggered: trace.stop_triggered,
+    };
+    var pipelineJsonEl = document.getElementById('pipelineJson');
+    pipelineJsonEl.textContent = '';
+    var pre = document.createElement('pre');
+    // syntaxHighlight returns safe HTML (all values go through escapeHtml)
+    pre.innerHTML = syntaxHighlight(ctx);
+    pipelineJsonEl.appendChild(pre);
+  } else {
+    pipelineSection.style.display = 'none';
+  }
+
+  // Highlight active timeline segment
+  document.querySelectorAll('.chunk-seg').forEach(function(seg, i) {
+    if (i === index) {
+      seg.classList.add('active');
+    } else {
+      seg.classList.remove('active');
+    }
+  });
+}
+
+function renderObservation(container, trace) {
+  if (!trace) {
+    var noObs = document.createElement('div');
+    noObs.className = 'no-obs';
+    noObs.textContent = 'No observation for this chunk';
+    container.appendChild(noObs);
+    return;
+  }
+
+  var obs = trace.teacher_observation;
+  var judgeScores = trace.judge_scores || [];
+  var tm = trace.teaching_moment || {};
+
+  var dimension = tm.dimension || '';
+  var framing = tm.framing || '';
+
+  var panel = document.createElement('div');
+  panel.className = 'obs-panel';
+
+  var sLabel = document.createElement('div');
+  sLabel.className = 'section-label';
+  sLabel.textContent = 'Observation';
+  panel.appendChild(sLabel);
+
+  var badges = document.createElement('div');
+  badges.className = 'obs-badges';
+  if (dimension) {
+    var dimBadge = document.createElement('span');
+    dimBadge.className = 'obs-badge';
+    dimBadge.style.background = DIM_COLORS[dimension] || 'var(--surface-2)';
+    dimBadge.style.color = 'var(--bg)';
+    dimBadge.textContent = dimension;
+    badges.appendChild(dimBadge);
+  }
+  if (framing) {
+    var frameBadge = document.createElement('span');
+    frameBadge.className = 'obs-badge';
+    frameBadge.style.background = 'var(--surface-2)';
+    frameBadge.textContent = framing;
+    badges.appendChild(frameBadge);
+  }
+  panel.appendChild(badges);
+
+  var obsText = document.createElement('div');
+  obsText.className = 'obs-text';
+  if (obs) {
+    obsText.textContent = typeof obs === 'string' ? obs : JSON.stringify(obs);
+  } else {
+    obsText.style.color = 'var(--text-secondary)';
+    obsText.textContent = 'No teacher observation text';
+  }
+  panel.appendChild(obsText);
+
+  if (judgeScores.length > 0) {
+    var jLabel = document.createElement('div');
+    jLabel.className = 'section-label';
+    jLabel.style.marginTop = '12px';
+    jLabel.textContent = 'Judge Scores';
+    panel.appendChild(jLabel);
+
+    var judgeSection = document.createElement('div');
+    judgeSection.className = 'judge-section';
+
+    judgeScores.forEach(function(j, idx) {
+      var wrapper = document.createElement('div');
+
+      var crit = document.createElement('div');
+      crit.className = 'judge-criterion';
+
+      var indicator = document.createElement('div');
+      indicator.className = 'judge-indicator ' + (j.passed ? 'pass' : 'fail');
+      crit.appendChild(indicator);
+
+      var critName = document.createElement('span');
+      critName.className = j.passed ? 'judge-pass' : 'judge-fail';
+      critName.textContent = j.criterion;
+      crit.appendChild(critName);
+
+      var evidence = document.createElement('div');
+      evidence.className = 'judge-evidence';
+      evidence.textContent = j.evidence || '';
+
+      crit.addEventListener('click', function() {
+        evidence.classList.toggle('open');
+      });
+
+      wrapper.appendChild(crit);
+      wrapper.appendChild(evidence);
+      judgeSection.appendChild(wrapper);
+    });
+
+    panel.appendChild(judgeSection);
+  }
+
+  container.appendChild(panel);
+}
+
+// -- Init --
+document.getElementById('searchInput').addEventListener('input', function(e) {
+  state.filter = e.target.value;
+  renderSidebar();
+});
+
+document.querySelectorAll('.sort-btn').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    document.querySelectorAll('.sort-btn').forEach(function(b) { b.classList.remove('active'); });
+    btn.classList.add('active');
+    state.sortBy = btn.dataset.sort;
+    renderSidebar();
+  });
+});
+
+fetchRecordings();
+</script>
+</body>
+</html>

@@ -1,0 +1,215 @@
+{
+  "eval_name": "observation_quality",
+  "eval_version": "1.0",
+  "dataset": "youtube_amt_26",
+  "metrics": {
+    "Musical Accuracy": {
+      "mean": 0.20704845814977973,
+      "std": 0.40608601505557707,
+      "n": 227,
+      "pass_threshold": 0.7,
+      "passed": false
+    },
+    "Specificity": {
+      "mean": 0.004405286343612335,
+      "std": 0.0663723311599972,
+      "n": 227,
+      "pass_threshold": 0.6,
+      "passed": false
+    },
+    "Actionability": {
+      "mean": 0.6123348017621145,
+      "std": 0.48829422507710984,
+      "n": 227,
+      "pass_threshold": 0.6,
+      "passed": true
+    },
+    "Tone": {
+      "mean": 0.9559471365638766,
+      "std": 0.20566610286009276,
+      "n": 227,
+      "pass_threshold": 0.8,
+      "passed": true
+    },
+    "Dimension Appropriateness": {
+      "mean": 0.00881057268722467,
+      "std": 0.09365675550821438,
+      "n": 227,
+      "pass_threshold": 0.6,
+      "passed": false
+    }
+  },
+  "worst_cases": [
+    {
+      "recording_id": "0NC0ca1rLpE",
+      "chunk_index": 0,
+      "criterion": "Actionability",
+      "observation": "There are moments in your playing where the phrases genuinely breathe -- you have a natural sense of when to lift and let the music speak. Trust that instinct and let it guide every phrase, not just t",
+      "evidence": "The suggested action is \"Trust that instinct and let it guide every phrase.\" This is abstract motivational language with no concrete instruction the student can act on in their next attempt. It does n",
+      "trace_file": "0NC0ca1rLpE_chunk0.json"
+    },
+    {
+      "recording_id": "0NC0ca1rLpE",
+      "chunk_index": 0,
+      "criterion": "Actionability",
+      "observation": "There's something really natural happening in the way you're lifting off at the ends of phrases -- you've got a good instinct for letting the music breathe there, and that's genuinely hard to teach. K",
+      "evidence": "The only suggested action is \"Keep trusting that impulse\" \u2014 this is affirmative reinforcement of an unverified behavior, not a concrete instruction. There is nothing the student can specifically chang",
+      "trace_file": "0NC0ca1rLpE_chunk0.json"
+    },
+    {
+      "recording_id": "0s60_AoMHM0",
+      "chunk_index": 0,
+      "criterion": "Actionability",
+      "observation": "There's a real sense of shape coming through in how you're touching those phrases -- you're naturally lifting where the music wants to breathe, and that's not something every player does instinctively",
+      "evidence": "The suggested action \u2014 \"let the articulation tell the story rather than just marking the notes\" \u2014 is abstract and metaphorical. It does not tell the student what to physically do differently (e.g., ad",
+      "trace_file": "0s60_AoMHM0_chunk0.json"
+    },
+    {
+      "recording_id": "0s60_AoMHM0",
+      "chunk_index": 0,
+      "criterion": "Actionability",
+      "observation": "What's striking me is that you already have a real feel for where these phrases want to go -- you're not just playing notes, you're shaping them, and that's not something I can just hand someone. Trus",
+      "evidence": "The suggested action is \"let it guide how much weight you put into the line\" and \"trust that instinct.\" These are abstract encouragements with no concrete instruction the student can apply in their ne",
+      "trace_file": "0s60_AoMHM0_chunk0.json"
+    },
+    {
+      "recording_id": "1KSzkx86eyU",
+      "chunk_index": 0,
+      "criterion": "Actionability",
+      "observation": "Something I noticed in that middle section -- you're already starting to shape the phrases naturally, letting them lift and settle instead of just playing the notes evenly. That instinct is real, and ",
+      "evidence": "The suggested action is \"Keep leaning into it as you go through the rest of the piece.\" This is generic encouragement with no specific technique, exercise, or concrete change the student can implement",
+      "trace_file": "1KSzkx86eyU_chunk0.json"
+    },
+    {
+      "recording_id": "1KSzkx86eyU",
+      "chunk_index": 0,
+      "criterion": "Actionability",
+      "observation": "There's something already working in how you're lifting off at the ends of phrases -- you're giving the melody room to breathe, and that's not something everyone does naturally. Hold onto that instinc",
+      "evidence": "The observation says \"Hold onto that instinct as the piece gets harder\" \u2014 this is encouragement to maintain a behavior, not a directive to change or attempt something specific in the next practice ses",
+      "trace_file": "1KSzkx86eyU_chunk0.json"
+    },
+    {
+      "recording_id": "1KSzkx86eyU",
+      "chunk_index": 0,
+      "criterion": "Actionability",
+      "observation": "The way you're lifting off at the ends of those phrases is actually doing a lot of good work -- it gives the melody room to breathe and keeps the line from feeling heavy. Trust that instinct as you ke",
+      "evidence": "The only suggested action is \"Trust that instinct as you keep going,\" which is generic encouragement rather than a specific, reproducible instruction. The student cannot translate \"trust that instinct",
+      "trace_file": "1KSzkx86eyU_chunk0.json"
+    },
+    {
+      "recording_id": "1KSzkx86eyU",
+      "chunk_index": 0,
+      "criterion": "Actionability",
+      "observation": "You've got a real instinct for where the phrases want to breathe -- I can hear you naturally lifting off at the ends of lines instead of just stopping, and that's actually harder to teach than most te",
+      "evidence": "The suggested action is \"Trust that feeling and let it carry you through the longer melodic stretches too\" \u2014 this is too vague to act upon. The student cannot identify which \"longer melodic stretches\"",
+      "trace_file": "1KSzkx86eyU_chunk0.json"
+    },
+    {
+      "recording_id": "1KSzkx86eyU",
+      "chunk_index": 0,
+      "criterion": "Actionability",
+      "observation": "There's something natural happening in the way you're shaping those phrases -- you're already leaning into the melodic peaks and easing off the other side, which a lot of players have to work hard to ",
+      "evidence": "The suggested action is \"let it get even bolder\" and \"trust that instinct,\" which are too vague to guide a specific change in the next attempt. There is no instruction about where, how much, or which ",
+      "trace_file": "1KSzkx86eyU_chunk0.json"
+    },
+    {
+      "recording_id": "1KSzkx86eyU",
+      "chunk_index": 0,
+      "criterion": "Actionability",
+      "observation": "You have a really natural instinct for lifting off at the ends of phrases -- it's giving the melody room to breathe in a way a lot of players have to work hard to find. Trust that feeling and let it g",
+      "evidence": "The suggested action is \"Trust that feeling and let it guide you through the longer lines too, not just the cadences.\" This is vague encouragement rather than a concrete instruction. The student is no",
+      "trace_file": "1KSzkx86eyU_chunk0.json"
+    },
+    {
+      "recording_id": "2IOJBILVEhY",
+      "chunk_index": 0,
+      "criterion": "Actionability",
+      "observation": "The way you're letting those phrases breathe feels really natural -- you're not cramming the notes together, and that's actually harder to teach than most people think. Trust that instinct as you keep",
+      "evidence": "The observation says \"Trust that instinct as you keep going,\" which is encouragement rather than a concrete action. There is no specific instruction the student can act on in their next attempt \u2014 no a",
+      "trace_file": "2IOJBILVEhY_chunk0.json"
+    },
+    {
+      "recording_id": "2IOJBILVEhY",
+      "chunk_index": 0,
+      "criterion": "Actionability",
+      "observation": "Something that stood out to me was how naturally you're lifting off at the ends of those phrases -- you're not clinging to the notes, you're letting them breathe, and that's giving the music a real se",
+      "evidence": "The observation tells the student to \"trust it\" \u2014 which is affirmation, not instruction. There is no suggested action the student can take in their next attempt. \"Trust your instinct\" is not a concret",
+      "trace_file": "2IOJBILVEhY_chunk0.json"
+    },
+    {
+      "recording_id": "2Lmn4I_Tbl0",
+      "chunk_index": 0,
+      "criterion": "Actionability",
+      "observation": "I'm not seeing enough detail about the specific musical moment to give you something genuinely useful -- I'd rather not point vaguely at \"the timing\" when what you need is to know exactly where it sli",
+      "evidence": "The only suggested action is \"Play through that middle section again for me,\" which is a request to re-perform rather than an instruction the student can use to change their playing. There is no guida",
+      "trace_file": "2Lmn4I_Tbl0_chunk0.json"
+    },
+    {
+      "recording_id": "7ZuHQaD62Fg",
+      "chunk_index": 0,
+      "criterion": "Actionability",
+      "observation": "There's something in the way you're shaping those phrases that already shows real musical instinct -- you're not just playing notes, you're thinking in lines. Keep leaning into that. The articulation ",
+      "evidence": "The suggested action \u2014 \"Keep leaning into that\" and \"trust what you're already hearing\" \u2014 is entirely non-actionable. The student is given no concrete change to make in their next attempt. \"The articu",
+      "trace_file": "7ZuHQaD62Fg_chunk0.json"
+    },
+    {
+      "recording_id": "7ZuHQaD62Fg",
+      "chunk_index": 0,
+      "criterion": "Actionability",
+      "observation": "I'm noticing that the way you're shaping those phrases already shows a real musical ear -- there are moments where the touch lifts and breathes in a way that feels genuinely intentional. Keep leaning ",
+      "evidence": "The only suggested action is \"Keep leaning into that instinct\" \u2014 this is entirely generic encouragement with no specific technique, passage, or concrete change the student can implement in their next ",
+      "trace_file": "7ZuHQaD62Fg_chunk0.json"
+    },
+    {
+      "recording_id": "7ZuHQaD62Fg",
+      "chunk_index": 0,
+      "criterion": "Actionability",
+      "observation": "I notice the analysis asks me to give recognition framing, but it's also flagging articulation as a weak spot with a score of 0.55 \u2014 so I want to be honest with you rather than just offer empty praise",
+      "evidence": "The observation tells the student their staccato notes \"blur together\" and were \"suggestions rather than commitments,\" but provides no concrete action for correction \u2014 no instruction on finger techniq",
+      "trace_file": "7ZuHQaD62Fg_chunk0.json"
+    },
+    {
+      "recording_id": "7pwRjv4cdLA",
+      "chunk_index": 0,
+      "criterion": "Actionability",
+      "observation": "There's something I want you to hold onto -- the way you naturally pulled back in that quieter phrase and let it breathe, that wasn't an accident, that was real musical instinct. Keep trusting that im",
+      "evidence": "The suggested action is \"Keep trusting that impulse as you work through the rest of the piece.\" This is entirely generic encouragement with no specific instruction \u2014 it does not tell the student what ",
+      "trace_file": "7pwRjv4cdLA_chunk0.json"
+    },
+    {
+      "recording_id": "7pwRjv4cdLA",
+      "chunk_index": 0,
+      "criterion": "Actionability",
+      "observation": "There's something really natural happening in the way you're shaping those phrases -- you're instinctively lifting at the ends rather than just dropping off, and that's giving the music a lot more lif",
+      "evidence": "The only directive offered is \"Hold onto that instinct as the piece gets harder\" \u2014 this is affirmatory rather than actionable. There is no concrete instruction for what the student should do different",
+      "trace_file": "7pwRjv4cdLA_chunk0.json"
+    },
+    {
+      "recording_id": "B0OyrsmPTlU",
+      "chunk_index": 0,
+      "criterion": "Actionability",
+      "observation": "The way you're lifting at the ends of those phrases already feels really musical -- you have a natural instinct for where the line needs to breathe, and that's not something I can teach easily. Trust ",
+      "evidence": "The only suggested action is \"Trust that feeling as you get deeper into the piece,\" which is entirely non-specific encouragement. There is nothing the student can concretely change or attempt differen",
+      "trace_file": "B0OyrsmPTlU_chunk0.json"
+    },
+    {
+      "recording_id": "B0OyrsmPTlU",
+      "chunk_index": 0,
+      "criterion": "Actionability",
+      "observation": "There's a real instinct coming through in how you're shaping those phrases -- you're not just playing the notes, you're letting them breathe and lean into each other naturally. Trust that feeling as y",
+      "evidence": "The only suggestion is \"Trust that feeling as you get deeper into the piece\" \u2014 this is purely affirmational and gives the student nothing concrete to change or attempt differently in their next practi",
+      "trace_file": "B0OyrsmPTlU_chunk0.json"
+    }
+  ],
+  "cost": {
+    "judge_calls": 227,
+    "estimated_usd": 0.681
+  },
+  "metadata": {
+    "git_sha": "9dd83ae8e52047678889246a3466ad38971bbe18",
+    "git_dirty": false,
+    "model_fingerprint": "19899e9c5b48181c",
+    "total_observations": 227,
+    "no_observation_recordings": 2
+  }
+}
