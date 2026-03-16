@@ -42,6 +42,31 @@ class SessionResult:
     duration_ms: int
 
 
+def _get_debug_auth(wrangler_url: str) -> requests.Session:
+    """Authenticate via debug endpoint, return a session with auth cookie."""
+    session = requests.Session()
+    resp = session.post(f"{wrangler_url}/api/auth/debug", timeout=10)
+    if resp.status_code != 200:
+        raise RuntimeError(f"Debug auth failed: {resp.status_code} {resp.text}")
+    # The debug endpoint sets an HttpOnly cookie + returns token in body
+    data = resp.json()
+    token = data.get("token", "")
+    if token:
+        session.headers["Authorization"] = f"Bearer {token}"
+    return session
+
+
+# Cache auth session across recordings (re-auth once per eval run)
+_auth_session: requests.Session | None = None
+
+
+def _get_auth_session(wrangler_url: str) -> requests.Session:
+    global _auth_session
+    if _auth_session is None:
+        _auth_session = _get_debug_auth(wrangler_url)
+    return _auth_session
+
+
 async def run_recording(
     wrangler_url: str,
     recording_cache: dict,
@@ -53,9 +78,12 @@ async def run_recording(
     chunks = recording_cache["chunks"]
     start = time.time()
 
+    # 0. Get authenticated session
+    auth = _get_auth_session(wrangler_url)
+
     # 1. Create practice session via HTTP
     session_id = str(uuid.uuid4())
-    resp = requests.post(
+    resp = auth.post(
         f"{wrangler_url}/api/practice/start",
         json={"session_id": session_id, "student_id": student_id, "piece_query": piece_query},
         timeout=10,
@@ -82,8 +110,18 @@ async def run_recording(
     chunk_responses: list[dict] = []
     errors: list[str] = []
 
+    # Pass auth token to WebSocket via cookie header
+    ws_headers = {}
+    token = auth.headers.get("Authorization", "")
+    if token:
+        ws_headers["Authorization"] = token
+    # Also forward cookies (HttpOnly auth cookie)
+    cookie_str = "; ".join(f"{k}={v}" for k, v in auth.cookies.items())
+    if cookie_str:
+        ws_headers["Cookie"] = cookie_str
+
     try:
-        async with websockets.connect(ws_url) as ws:
+        async with websockets.connect(ws_url, additional_headers=ws_headers) as ws:
             # 3. Send each chunk as eval_chunk
             for chunk in chunks:
                 msg = {
