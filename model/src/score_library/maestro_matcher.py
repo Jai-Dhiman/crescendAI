@@ -5,6 +5,8 @@ using composer normalization, title normalization, and token Dice similarity.
 """
 from __future__ import annotations
 
+import csv
+import io
 import re
 import unicodedata
 
@@ -238,3 +240,89 @@ def match_piece(
         confidence=round(best_score, 3),
         multi_piece=multi_piece,
     )
+
+
+# ---------------------------------------------------------------------------
+# Full match pipeline
+# ---------------------------------------------------------------------------
+
+
+def run_match_pipeline(
+    maestro_csv_content: str,
+    titles_map: dict[str, str],
+    asap_composers: list[str],
+    min_confidence: float = 0.2,
+) -> tuple[list[dict], list[dict]]:
+    """Run the full matching pipeline.
+
+    Args:
+        maestro_csv_content: Content of the MAESTRO CSV file.
+        titles_map: Dict mapping piece_id -> human-readable title.
+        asap_composers: List of known ASAP composer prefixes.
+        min_confidence: Minimum score to include in matches.
+
+    Returns:
+        (matches, unmatched) where each is a list of dicts.
+
+    Raises:
+        ValueError: If CSV is empty or missing required columns.
+    """
+    reader = csv.DictReader(io.StringIO(maestro_csv_content))
+
+    # Validate required CSV headers
+    required_headers = {"canonical_composer", "canonical_title", "midi_filename", "duration"}
+    if reader.fieldnames is None:
+        raise ValueError("MAESTRO CSV is empty or has no header row")
+    missing = required_headers - set(reader.fieldnames)
+    if missing:
+        raise ValueError(f"MAESTRO CSV missing required columns: {missing}")
+
+    matches: list[dict] = []
+    unmatched: list[dict] = []
+    skipped_normalization = 0
+
+    for row in reader:
+        maestro_composer = row.get("canonical_composer", "").strip()
+        maestro_title = row.get("canonical_title", "").strip()
+        midi_filename = row.get("midi_filename", "").strip()
+        duration = row.get("duration", "0")
+
+        if not maestro_composer or not maestro_title:
+            skipped_normalization += 1
+            continue
+
+        # Match composer
+        asap_composer = match_composer(maestro_composer, asap_composers)
+        if asap_composer is None:
+            unmatched.append({
+                "maestro_composer": maestro_composer,
+                "maestro_title": maestro_title,
+                "midi_filename": midi_filename,
+                "reason": "no_composer_match",
+            })
+            continue
+
+        # Match piece
+        result = match_piece(asap_composer, maestro_title, titles_map, min_confidence)
+        if result is None:
+            unmatched.append({
+                "maestro_composer": maestro_composer,
+                "maestro_title": maestro_title,
+                "midi_filename": midi_filename,
+                "reason": "below_confidence_threshold",
+            })
+            continue
+
+        matches.append({
+            "maestro_composer": maestro_composer,
+            "maestro_title": maestro_title,
+            "midi_filename": midi_filename,
+            "duration_s": duration,
+            "asap_piece_id": result.piece_id,
+            "asap_title": result.asap_title,
+            "confidence": str(result.confidence),
+            "multi_piece": str(result.multi_piece),
+            "status": "",
+        })
+
+    return matches, unmatched

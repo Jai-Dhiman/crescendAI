@@ -8,6 +8,7 @@ from src.score_library.maestro_matcher import (
     detect_multi_piece,
     dice_similarity,
     match_piece,
+    run_match_pipeline,
 )
 
 
@@ -207,3 +208,65 @@ class TestMatchPiece:
         # Should not match chopin.ballades.1 -- wrong composer
         if result is not None:
             assert result.piece_id.startswith("bach")
+
+
+class TestRunMatchPipeline:
+    """Integration test: CSV in -> match results out."""
+
+    MAESTRO_CSV = (
+        "canonical_composer,canonical_title,split,year,midi_filename,audio_filename,duration\n"
+        'Frédéric Chopin,"Ballade No. 1 in G Minor",train,2018,2018/file1.midi,2018/file1.wav,500.0\n'
+        'Frédéric Chopin,"Ballade No. 1 in G Minor",train,2011,2011/file2.midi,2011/file2.wav,520.0\n'
+        'Johann Sebastian Bach,"Prelude in C Major, BWV 846",train,2009,2009/file3.midi,2009/file3.wav,200.0\n'
+        'Alban Berg,"Sonata Op. 1",train,2018,2018/file4.midi,2018/file4.wav,700.0\n'
+    )
+
+    TITLES_MAP = {
+        "chopin.ballades.1": "Ballade No. 1",
+        "chopin.ballades.2": "Ballade No. 2",
+        "bach.prelude.bwv_846": "Prelude - BWV 846",
+        "bach.fugue.bwv_846": "Fugue - BWV 846",
+    }
+
+    ASAP_COMPOSERS = ["chopin", "bach"]
+
+    def test_produces_matches_and_unmatched(self):
+        matches, unmatched = run_match_pipeline(
+            maestro_csv_content=self.MAESTRO_CSV,
+            titles_map=self.TITLES_MAP,
+            asap_composers=self.ASAP_COMPOSERS,
+        )
+        # Chopin Ballade 1 should match twice (2 recordings)
+        chopin_matches = [m for m in matches if m["asap_piece_id"] == "chopin.ballades.1"]
+        assert len(chopin_matches) == 2
+
+        # Bach prelude should match
+        bach_matches = [m for m in matches if m["asap_piece_id"] == "bach.prelude.bwv_846"]
+        assert len(bach_matches) == 1
+
+        # Alban Berg has no ASAP pieces -> unmatched
+        assert len(unmatched) >= 1
+        assert any("Berg" in u["maestro_composer"] for u in unmatched)
+
+    def test_match_row_has_required_fields(self):
+        matches, _ = run_match_pipeline(
+            maestro_csv_content=self.MAESTRO_CSV,
+            titles_map=self.TITLES_MAP,
+            asap_composers=self.ASAP_COMPOSERS,
+        )
+        required = {
+            "maestro_composer", "maestro_title", "midi_filename", "duration_s",
+            "asap_piece_id", "asap_title", "confidence", "multi_piece", "status",
+        }
+        for row in matches:
+            assert required.issubset(row.keys()), f"Missing fields: {required - row.keys()}"
+            assert row["status"] == ""  # starts blank for review
+
+    def test_malformed_csv_raises(self):
+        bad_csv = "wrong_col1,wrong_col2\nfoo,bar\n"
+        with pytest.raises(ValueError, match="missing required columns"):
+            run_match_pipeline(
+                maestro_csv_content=bad_csv,
+                titles_map=self.TITLES_MAP,
+                asap_composers=self.ASAP_COMPOSERS,
+            )
