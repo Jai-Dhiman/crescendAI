@@ -59,6 +59,7 @@ struct SessionState {
     score_context: Option<ScoreContext>,
     score_context_loaded: bool,
     follower_state: FollowerState,
+    is_eval_session: bool,
 }
 
 impl Default for SessionState {
@@ -79,6 +80,7 @@ impl Default for SessionState {
             score_context: None,
             score_context_loaded: false,
             follower_state: FollowerState::default(),
+            is_eval_session: false,
         }
     }
 }
@@ -195,6 +197,32 @@ impl DurableObject for PracticeSession {
                     // finalize_session will be called by the last completing chunk handler
                 }
             }
+            "eval_chunk" => {
+                // Only available in dev mode
+                let is_dev = self.env.var("ENVIRONMENT")
+                    .map(|v| v.to_string() == "development")
+                    .unwrap_or(false);
+                if !is_dev {
+                    let _ = ws.send_with_str(r#"{"type":"error","message":"eval_chunk only available in dev"}"#);
+                    return Ok(());
+                }
+
+                // Mark session as eval session on first eval_chunk
+                self.inner.borrow_mut().is_eval_session = true;
+
+                let chunk_index = parsed.get("chunk_index")
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(0) as usize;
+
+                // Build HF-response-shaped JSON from the eval payload
+                let hf_response = serde_json::json!({
+                    "predictions": parsed.get("predictions").cloned().unwrap_or_default(),
+                    "midi_notes": parsed.get("midi_notes").cloned().unwrap_or_default(),
+                    "pedal_events": parsed.get("pedal_events").cloned().unwrap_or_default(),
+                });
+
+                self.process_inference_result(&ws, chunk_index, hf_response).await?;
+            }
             "set_piece" => {
                 let query = parsed.get("query").and_then(|v| v.as_str()).unwrap_or("");
                 if !query.is_empty() {
@@ -267,6 +295,16 @@ impl PracticeSession {
             }
         };
 
+        // 3-12. Process inference result through the pipeline
+        self.process_inference_result(ws, index, hf_response).await
+    }
+
+    async fn process_inference_result(
+        &self,
+        ws: &WebSocket,
+        index: usize,
+        hf_response: serde_json::Value,
+    ) -> Result<()> {
         // 3. Extract scores from predictions
         let predictions = hf_response.get("predictions").unwrap_or(&hf_response);
         let scores_map: HashMap<String, f64> = DIMS_6
@@ -524,6 +562,7 @@ impl PracticeSession {
             if ctx.is_empty() { None } else { Some(serde_json::Value::Object(ctx)) }
         };
 
+        let tm_json_clone = tm_json.clone();
         let inner_req = crate::services::ask::AskInnerRequest {
             teaching_moment: tm_json,
             student_id: student_id.clone(),
@@ -543,6 +582,27 @@ impl PracticeSession {
         if let Some(br) = chunk_analysis.and_then(|a| a.bar_range.as_ref()) {
             obs_event["barRange"] = serde_json::json!(br);
         }
+
+        // For eval sessions, include the context the teacher LLM saw
+        {
+            let is_eval = self.inner.borrow().is_eval_session;
+            if is_eval {
+                let piece_name = self.inner.borrow().piece_query.clone();
+                let baselines_json = serde_json::to_value(&baselines).unwrap_or_default();
+                let recent_obs_json = serde_json::to_value(&recent_obs).unwrap_or_default();
+                let analysis_json = chunk_analysis
+                    .map(|ca| serde_json::to_value(ca).unwrap_or_default())
+                    .unwrap_or_default();
+                obs_event["eval_context"] = serde_json::json!({
+                    "teaching_moment": &tm_json_clone,
+                    "baselines": baselines_json,
+                    "recent_observations": recent_obs_json,
+                    "analysis_facts": analysis_json,
+                    "piece_name": piece_name,
+                });
+            }
+        }
+
         let _ = ws.send_with_str(&obs_event.to_string());
 
         // Store in session state

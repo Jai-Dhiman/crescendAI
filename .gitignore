@@ -153,3 +153,18 @@ model/data/score_library/*.json
 .playwright-mcp/
 
 lightning_logs/
+
+# Eval data (large files, cached inference, traces)
+data/eval/inference_cache/
+data/eval/traces/
+data/eval/calibration/
+data/eval/youtube_amt/*.wav
+data/eval/youtube_amt/*.mp3
+data/eval/youtube_amt/*.flac
+data/eval/youtube_amt/*.ogg
+data/eval/youtube_amt/*.webm
+data/eval/youtube_amt/*.m4a
+data/eval/youtube_amt/*.opus
+
+# Eval reports (regenerated)
+apps/api/evals/reports/

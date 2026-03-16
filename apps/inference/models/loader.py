@@ -1,5 +1,6 @@
 """Model loading and caching for A1-Max MuQ LoRA inference."""
 
+import os
 from pathlib import Path
 from typing import List, Optional
 
@@ -7,6 +8,31 @@ import torch
 import torch.nn as nn
 
 from constants import MODEL_CONFIG, N_FOLDS
+
+
+def _resolve_device(requested: str) -> torch.device:
+    """Resolve device with env override and auto-detection.
+
+    Supports: "cuda", "mps", "cpu", "auto".
+    "auto" runs the full cascade: CUDA > MPS > CPU.
+    CRESCEND_DEVICE env var overrides the requested device.
+    """
+    dev = os.environ.get("CRESCEND_DEVICE", requested)
+    if dev == "auto":
+        if torch.cuda.is_available():
+            dev = "cuda"
+        elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+            dev = "mps"
+        else:
+            dev = "cpu"
+    elif dev == "cuda" and not torch.cuda.is_available():
+        if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+            dev = "mps"
+        else:
+            dev = "cpu"
+    elif dev == "mps" and not (hasattr(torch.backends, "mps") and torch.backends.mps.is_available()):
+        dev = "cpu"
+    return torch.device(dev)
 
 
 class A1MaxInferenceHead(nn.Module):
@@ -108,7 +134,7 @@ class ModelCache:
         if self.muq_model is not None:
             return
 
-        self.device = torch.device(device if torch.cuda.is_available() else "cpu")
+        self.device = _resolve_device(device)
         print(f"Initializing A1-Max models on {self.device}...")
 
         # Load MuQ from HuggingFace
