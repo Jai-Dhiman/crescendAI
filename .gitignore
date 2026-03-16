@@ -155,16 +155,16 @@ model/data/score_library/*.json
 lightning_logs/
 
 # Eval data (large files, cached inference, traces)
-data/eval/inference_cache/
-data/eval/traces/
-data/eval/calibration/
-data/eval/youtube_amt/*.wav
-data/eval/youtube_amt/*.mp3
-data/eval/youtube_amt/*.flac
-data/eval/youtube_amt/*.ogg
-data/eval/youtube_amt/*.webm
-data/eval/youtube_amt/*.m4a
-data/eval/youtube_amt/*.opus
+model/data/eval/inference_cache/
+model/data/eval/traces/
+model/data/eval/calibration/
+model/data/eval/youtube_amt/*.wav
+model/data/eval/youtube_amt/*.mp3
+model/data/eval/youtube_amt/*.flac
+model/data/eval/youtube_amt/*.ogg
+model/data/eval/youtube_amt/*.webm
+model/data/eval/youtube_amt/*.m4a
+model/data/eval/youtube_amt/*.opus
 
 # Eval reports (regenerated)
 apps/api/evals/reports/
