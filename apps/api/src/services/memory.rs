@@ -1907,9 +1907,21 @@ fn extract_synthesis_json(output: &str) -> Result<serde_json::Value, String> {
     let json_str = if let Some(start) = output.find("```json") {
         let json_start = start + 7;
         if let Some(end) = output[json_start..].find("```") {
+            // Happy path: both opening and closing fences present
             output[json_start..json_start + end].trim()
         } else {
-            output.trim()
+            // Opening fence but no closing fence (LLM output truncated).
+            // Strip the fence prefix and find JSON in the remainder.
+            let remainder = &output[json_start..];
+            if let Some(brace) = remainder.find('{') {
+                if let Some(end_brace) = remainder.rfind('}') {
+                    &remainder[brace..=end_brace]
+                } else {
+                    remainder.trim()
+                }
+            } else {
+                remainder.trim()
+            }
         }
     } else if let Some(start) = output.find('{') {
         if let Some(end) = output.rfind('}') {

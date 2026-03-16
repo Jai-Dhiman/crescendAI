@@ -53,6 +53,12 @@ def _get_debug_auth(wrangler_url: str) -> requests.Session:
     token = data.get("token", "")
     if token:
         session.headers["Authorization"] = f"Bearer {token}"
+
+    # Verify the token actually works before returning
+    verify = session.get(f"{wrangler_url}/api/auth/me", timeout=5)
+    if verify.status_code != 200:
+        raise RuntimeError(f"Auth verification failed: {verify.status_code} {verify.text}")
+
     return session
 
 
@@ -65,6 +71,12 @@ def _get_auth_session(wrangler_url: str) -> requests.Session:
     if _auth_session is None:
         _auth_session = _get_debug_auth(wrangler_url)
     return _auth_session
+
+
+def _reset_auth_session() -> None:
+    """Reset cached auth session (e.g., on 401 response)."""
+    global _auth_session
+    _auth_session = None
 
 
 async def run_recording(
@@ -82,21 +94,32 @@ async def run_recording(
     auth = _get_auth_session(wrangler_url)
 
     # 1. Create practice session via HTTP
-    session_id = str(uuid.uuid4())
     resp = auth.post(
         f"{wrangler_url}/api/practice/start",
-        json={"session_id": session_id, "student_id": student_id, "piece_query": piece_query},
+        json={},
         timeout=10,
     )
+    if resp.status_code == 401:
+        # Token may have expired -- re-auth and retry once
+        _reset_auth_session()
+        auth = _get_auth_session(wrangler_url)
+        resp = auth.post(
+            f"{wrangler_url}/api/practice/start",
+            json={},
+            timeout=10,
+        )
     if resp.status_code != 200:
         return SessionResult(
-            session_id=session_id,
+            session_id="",
             recording_id=recording_id,
             observations=[],
             chunk_responses=[],
             errors=[f"Failed to start session: {resp.status_code} {resp.text}"],
             duration_ms=0,
         )
+
+    # Use the server-generated session ID (not a client UUID)
+    session_id = resp.json().get("sessionId", str(uuid.uuid4()))
 
     # 2. Connect WebSocket (localhost only -- eval never targets remote)
     if "localhost" not in wrangler_url and "127.0.0.1" not in wrangler_url:
@@ -122,6 +145,10 @@ async def run_recording(
 
     try:
         async with websockets.connect(ws_url, additional_headers=ws_headers) as ws:
+            # 2.5. Set piece query if provided (via WS message, matching web client)
+            if piece_query:
+                await ws.send(json.dumps({"type": "set_piece", "query": piece_query}))
+
             # 3. Send each chunk as eval_chunk
             for chunk in chunks:
                 msg = {
