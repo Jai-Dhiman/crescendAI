@@ -620,6 +620,33 @@ pub async fn increment_observation_count(
     Ok(())
 }
 
+/// Increment observation count by N (batched version for DO session finalization).
+pub async fn increment_observation_count_by(
+    env: &Env,
+    student_id: &str,
+    count: usize,
+) -> Result<(), String> {
+    if count == 0 {
+        return Ok(());
+    }
+    let db = env.d1("DB").map_err(|e| format!("D1 binding failed: {:?}", e))?;
+
+    db.prepare(
+        "INSERT INTO student_memory_meta (student_id, total_observations) VALUES (?1, ?2) \
+         ON CONFLICT(student_id) DO UPDATE SET total_observations = total_observations + ?2",
+    )
+    .bind(&[
+        JsValue::from_str(student_id),
+        JsValue::from_f64(count as f64),
+    ])
+    .map_err(|e| format!("Failed to bind upsert: {:?}", e))?
+    .run()
+    .await
+    .map_err(|e| format!("Failed to update observation count: {:?}", e))?;
+
+    Ok(())
+}
+
 /// Check if synthesis should run for this student.
 /// Returns true if >= 3 new observations since last synthesis,
 /// or any new observations and last synthesis was > 7 days ago.
@@ -691,11 +718,19 @@ pub async fn should_synthesize(
     Ok(false)
 }
 
+/// Result of a synthesis run, for observability.
+pub struct SynthesisResult {
+    pub new_facts: usize,
+    pub invalidated: usize,
+    pub unchanged: usize,
+    pub observations_processed: usize,
+}
+
 /// Run the synthesis pipeline for a student.
 pub async fn run_synthesis(
     env: &Env,
     student_id: &str,
-) -> Result<(), String> {
+) -> Result<SynthesisResult, String> {
     use crate::services::llm;
     use crate::services::prompts;
 
@@ -742,7 +777,12 @@ pub async fn run_synthesis(
         .map_err(|e| format!("Failed to get obs results: {:?}", e))?;
 
     if new_observations.is_empty() {
-        return Ok(());
+        return Ok(SynthesisResult {
+            new_facts: 0,
+            invalidated: 0,
+            unchanged: active_facts.len(),
+            observations_processed: 0,
+        });
     }
 
     // 4. Get teaching approaches since last synthesis
@@ -804,7 +844,10 @@ pub async fn run_synthesis(
         .as_string()
         .unwrap_or_default();
     let today = &now[..10.min(now.len())];
+    let active_facts_count = active_facts.len();
+    let observations_count = new_observations.len();
 
+    let mut invalidated_count = 0usize;
     // 8. Apply invalidations
     if let Some(invalidated) = synthesis_json.get("invalidated_facts").and_then(|v| v.as_array()) {
         for inv in invalidated {
@@ -825,10 +868,12 @@ pub async fn run_synthesis(
                     .map_err(|e| format!("Failed to bind invalidation: {:?}", e))?
                     .run()
                     .await;
+                invalidated_count += 1;
             }
         }
     }
 
+    let mut new_facts_count = 0usize;
     // 9. Insert new facts
     if let Some(new_facts) = synthesis_json.get("new_facts").and_then(|v| v.as_array()) {
         for fact in new_facts {
@@ -879,6 +924,7 @@ pub async fn run_synthesis(
                 .map_err(|e| format!("Failed to bind fact insert: {:?}", e))?
                 .run()
                 .await;
+            new_facts_count += 1;
         }
     }
 
@@ -916,12 +962,16 @@ pub async fn run_synthesis(
     .map_err(|e| format!("Failed to update meta: {:?}", e))?;
 
     console_log!(
-        "Synthesis complete for student {}: {} new observations processed",
-        student_id,
-        new_observations.len()
+        "Synthesis complete for student {}: {} new, {} invalidated, {} observations",
+        student_id, new_facts_count, invalidated_count, observations_count
     );
 
-    Ok(())
+    Ok(SynthesisResult {
+        new_facts: new_facts_count,
+        invalidated: invalidated_count,
+        unchanged: active_facts_count.saturating_sub(invalidated_count),
+        observations_processed: observations_count,
+    })
 }
 
 /// POST /api/memory/extract-chat -- eval endpoint for chat memory extraction.
