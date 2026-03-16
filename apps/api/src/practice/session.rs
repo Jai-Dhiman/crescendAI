@@ -601,7 +601,7 @@ impl PracticeSession {
         // Try once, then retry on 503 (HF cold start) with backoff
         for attempt in 0..=delays.len() {
             let headers = worker::Headers::new();
-            headers.set("Content-Type", "application/octet-stream").map_err(|e| format!("{:?}", e))?;
+            headers.set("Content-Type", "audio/webm;codecs=opus").map_err(|e| format!("{:?}", e))?;
             headers.set("Authorization", &format!("Bearer {}", token)).map_err(|e| format!("{:?}", e))?;
 
             let mut init = worker::RequestInit::new();
