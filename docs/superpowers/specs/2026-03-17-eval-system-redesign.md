@@ -213,7 +213,7 @@ Validate that the full pipeline produces useful feedback when a real student pra
 
 ### Inference Step
 
-Practice recordings follow the same pattern as the current eval: audio is first sent through the HF inference endpoint (or local server) to get predictions, midi_notes, and pedal_events. These are cached as `{video_id}.json` in the inference cache directory. The pipeline client then sends pre-computed results via `eval_chunk` WebSocket messages. This avoids re-running inference on every eval iteration and ensures reproducibility.
+Practice recordings follow the same pattern as the current eval: audio is first run through local inference (`apps/evals/inference/eval_runner.py` on MPS) to get predictions, midi_notes, and pedal_events. Results are cached as `{video_id}.json` in the inference cache directory. The pipeline client then sends pre-computed results via `eval_chunk` WebSocket messages to `wrangler dev`. This avoids re-running inference on every eval iteration and ensures reproducibility. Only the LLM stages (Groq subagent + Anthropic teacher) require API calls during the pipeline run.
 
 ### Annotation: Two-Pass
 
@@ -297,20 +297,36 @@ To catch systematic LLM judge bias, hand-score 10-15 observations from the first
 | `apps/evals/pipeline/practice_eval/` (2 scripts + scenarios) | Eval 2: practice collection + runner |
 | `apps/evals/shared/prompts/observation_quality_judge_v2.txt` | Derived criteria judge prompt |
 
+## Inference: Local Only
+
+All inference runs locally on Jai's M4 Air (32GB) via MPS. No HF endpoint costs.
+
+Two local inference paths exist:
+- **`apps/inference/local_server.py`** -- HTTP server (~31s/chunk on MPS), used by pointing the Worker at `localhost:8000` via `HF_INFERENCE_ENDPOINT=http://localhost:8000` in `apps/api/.dev.vars`
+- **`apps/evals/inference/eval_runner.py`** -- batch runner that loads models directly, caches results to JSON files. Does not require the Worker or local server running.
+
+**For Eval 1 (skill eval):** Use the batch runner (`eval_runner.py`). It caches per-chunk predictions + MIDI + pedal to `model/data/evals/inference_cache/`. Run once, reuse cache across analysis iterations. The existing `run_inference.py` in the skill eval module should call the batch runner or load from its cache.
+
+**For Eval 2 (practice eval):** Same batch runner to generate the inference cache for practice recordings. The pipeline client then sends cached results via `eval_chunk` WebSocket messages to `wrangler dev` (which still needs Groq + Anthropic API keys for the LLM stages).
+
+**Latency budget:** ~31s per 15s chunk on MPS. A typical recording (3-5 min = 12-20 chunks) takes ~6-10 minutes for inference. 63 skill eval recordings: ~6-10 hours total. 20 practice recordings: ~2-3 hours. Run overnight or in batches.
+
 ## Dependencies
 
 - Phase 1: existing masterclass data, Anthropic API, sentence-transformers, hdbscan
-- Eval 1: yt-dlp, HF endpoint or local inference server
-- Eval 2: Phase 1 output, yt-dlp, wrangler dev, Groq + Anthropic APIs
+- Eval 1: yt-dlp, local inference (MuQ + AMT models on MPS)
+- Eval 2: Phase 1 output, yt-dlp, local inference, wrangler dev, Groq + Anthropic APIs (LLM stages only)
 
 ## Cost Estimate
 
 | Component | Cost |
 |---|---|
 | Phase 1 LLM extraction (2,136 calls) | ~$5 |
-| Eval 1 inference (63 recordings) | ~$3 (HF) or free (local) |
-| Eval 2 pipeline (20 recordings) | ~$5 (Groq + Anthropic + judge) |
-| **Total** | **~$13** |
+| Eval 1 inference (63 recordings) | $0 (local MPS) |
+| Eval 2 inference (20 recordings) | $0 (local MPS) |
+| Eval 2 LLM pipeline (20 recordings) | ~$2 (Groq subagent + Anthropic teacher) |
+| Eval 2 judge (20 recordings) | ~$0.60 |
+| **Total** | **~$8** |
 
 ## Timeline
 
