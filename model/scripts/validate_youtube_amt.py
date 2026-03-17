@@ -33,6 +33,7 @@ import torch
 MODEL_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(MODEL_ROOT / "src"))
 
+from src.paths import Evals, Checkpoints
 from model_improvement.audio_encoders import MuQLoRAModel
 from model_improvement.graph import count_midi_notes, parsed_midi_to_graph
 from model_improvement.layer1_validation import score_competition_segments
@@ -47,10 +48,10 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # --- Defaults ---
-DEFAULT_CACHE_DIR = MODEL_ROOT / "data" / "intermediate_cache"
+DEFAULT_CACHE_DIR = Evals.intermediate
 
-A1_CKPT = MODEL_ROOT / "data/checkpoints/model_improvement/A1/fold_0/epoch=8-val_loss=0.4879.ckpt"
-S2_CKPT = MODEL_ROOT / "data/checkpoints/model_improvement/S2/fold_3/epoch=6-val_loss=0.4949.ckpt"
+A1_CKPT = Checkpoints.model_improvement / "A1" / "fold_0" / "epoch=8-val_loss=0.4879.ckpt"
+S2_CKPT = Checkpoints.model_improvement / "S2" / "fold_3" / "epoch=6-val_loss=0.4949.ckpt"
 
 MAX_NOTES = 10_000
 

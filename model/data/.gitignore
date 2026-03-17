@@ -1,2 +1,39 @@
-eval/
-inference_cache/
+# Entirely gitignored stages (large, regenerable)
+/raw/
+/embeddings/
+/midi/
+/pretraining/
+/checkpoints/
+/references/
+
+# Scores: generated piece JSONs are gitignored, titles.json and seed.sql are tracked
+/scores/*.json
+!/scores/titles.json
+
+# Eval outputs (manifests/metadata tracked separately)
+/evals/inference_cache/
+/evals/traces/
+/evals/youtube_amt/
+/evals/skill_eval/*/audio/
+/evals/skill_eval/*/results.json
+
+# === Legacy (will be removed after migration completes) ===
+/eval/
+/inference_cache/
+/maestro_cache/
+/asap_cache/
+/atepp_cache/
+/giantmidi_raw/
+/percepiano_midi/
+/pretrain_cache/
+/masterclass_cache/
+/amt_cache/
+/youtube_piano_cache/
+/reference_profiles/
+/percepiano_cache/_muq_file_cache/
+/percepiano_cache/muq_embeddings.pt
+/competition_cache/chopin2021/muq_embeddings/
+/score_library/*.json
+!/score_library/titles.json
+/teacher_voice_eval/
+/lightning_logs/

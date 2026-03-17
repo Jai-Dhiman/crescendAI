@@ -298,8 +298,9 @@ def generate_synthetic_records(
 
 
 if __name__ == "__main__":
-    data_dir = Path(__file__).parents[2] / "data"
-    output_path = data_dir / "teacher_voice_eval" / "synthetic_records.jsonl"
+    from src.paths import Results
+
+    output_path = Results.root / "teacher_voice" / "synthetic_records.jsonl"
 
     print(f"Generating {len(SCENARIO_TEMPLATES)} synthetic scenarios...\n")
     records = generate_synthetic_records(output_path=output_path)

@@ -6,10 +6,10 @@ Run on Thunder Compute (GPU required):
 
 Expects:
     data/percepiano_pianoteq_rendered/pianoteq/HB_Steinway_Model_D/*.wav
-    data/percepiano_cache/labels.json (for key list)
+    data/labels/percepiano/labels.json (for key list)
 
 Produces:
-    data/percepiano_cache/muq_embeddings.pt
+    data/embeddings/percepiano/muq_embeddings.pt
 """
 
 import gc
@@ -24,6 +24,7 @@ MODEL_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(MODEL_ROOT / "src"))
 
 from audio_experiments.extractors.muq import MuQExtractor
+from src.paths import Embeddings, Labels
 
 
 def log(msg: str) -> None:
@@ -34,11 +35,11 @@ def log(msg: str) -> None:
 def main() -> None:
     data_dir = MODEL_ROOT / "data"
     audio_dir = data_dir / "percepiano_pianoteq_rendered" / "pianoteq" / "HB_Steinway_Model_D"
-    cache_dir = data_dir / "percepiano_cache"
+    cache_dir = Embeddings.percepiano
     per_file_cache = cache_dir / "_muq_file_cache"
     output_path = cache_dir / "muq_embeddings.pt"
 
-    with open(cache_dir / "labels.json") as f:
+    with open(Labels.percepiano / "labels.json") as f:
         labels = json.load(f)
     keys = sorted(labels.keys())
     log(f"Extracting MuQ embeddings for {len(keys)} segments")

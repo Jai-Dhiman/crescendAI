@@ -267,10 +267,12 @@ if __name__ == "__main__":
     import random
     import sys
 
+    from src.paths import Results
+
     data_dir = Path(__file__).parents[2] / "data"
-    records_path = data_dir / "teacher_voice_eval" / "masterclass_records.jsonl"
+    records_path = Results.root / "teacher_voice" / "masterclass_records.jsonl"
     quote_bank_path = data_dir / "composite_labels" / "quote_bank.json"
-    output_path = data_dir / "teacher_voice_eval" / "benchmark_results.jsonl"
+    output_path = Results.root / "teacher_voice" / "benchmark_results.jsonl"
 
     if not records_path.exists():
         print(f"Run converters.py first to generate {records_path}")

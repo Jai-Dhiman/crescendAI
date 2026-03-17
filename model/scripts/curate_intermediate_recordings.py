@@ -19,6 +19,7 @@ from pathlib import Path
 MODEL_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(MODEL_ROOT / "src"))
 
+from src.paths import Evals
 import jsonlines
 
 logging.basicConfig(
@@ -269,7 +270,7 @@ def main() -> None:
     parser.add_argument(
         "--cache-dir",
         type=Path,
-        default=MODEL_ROOT / "data" / "intermediate_cache",
+        default=Evals.intermediate,
         help="Output directory",
     )
     parser.add_argument(

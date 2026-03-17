@@ -22,6 +22,8 @@ import torch
 import pytorch_lightning as pl
 from torch.utils.data import DataLoader
 
+from src.paths import Checkpoints, Embeddings, Labels, Results
+
 from model_improvement.audio_encoders import MuQLoRAMaxModel, MuQFrozenProbeModel
 from model_improvement.data import (
     PairedPerformanceDataset,

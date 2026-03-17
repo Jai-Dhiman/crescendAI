@@ -20,6 +20,7 @@ from pathlib import Path
 MODEL_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(MODEL_ROOT / "src"))
 
+from src.paths import Embeddings
 from model_improvement.layer1_validation import select_maestro_subset
 from model_improvement.maestro import parse_maestro_audio_metadata
 
@@ -70,7 +71,7 @@ def main() -> None:
     parser.add_argument(
         "--maestro-dir",
         type=Path,
-        default=MODEL_ROOT / "data" / "maestro_cache",
+        default=Embeddings.maestro,
         help="MAESTRO cache directory (contains maestro-v3.0.0.json)",
     )
     parser.add_argument(

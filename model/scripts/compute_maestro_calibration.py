@@ -8,8 +8,8 @@ Run from model/ directory:
     uv run python scripts/compute_maestro_calibration.py
 
 Outputs:
-    data/maestro_cache/calibration_stats.json   -- aggregate stats per dimension
-    data/maestro_cache/calibration_scores.jsonl  -- per-segment scores
+    data/calibration/calibration_stats.json   -- aggregate stats per dimension
+    data/calibration/calibration_scores.jsonl  -- per-segment scores
 """
 
 import argparse
@@ -27,11 +27,15 @@ import torch.nn as nn
 DIMENSIONS = ["dynamics", "timing", "pedaling", "articulation", "phrasing", "interpretation"]
 
 MODEL_ROOT = Path(__file__).resolve().parent.parent
-EMBEDDINGS_DIR = MODEL_ROOT / "data" / "maestro_cache" / "muq_embeddings"
-CHECKPOINT_DIR = MODEL_ROOT / "data" / "checkpoints" / "model_improvement" / "A3"
-METADATA_PATH = MODEL_ROOT / "data" / "maestro_cache" / "metadata.jsonl"
-OUTPUT_STATS = MODEL_ROOT / "data" / "maestro_cache" / "calibration_stats.json"
-OUTPUT_SCORES = MODEL_ROOT / "data" / "maestro_cache" / "calibration_scores.jsonl"
+sys.path.insert(0, str(MODEL_ROOT / "src"))
+
+from src.paths import Embeddings, Checkpoints, Calibration
+
+EMBEDDINGS_DIR = Embeddings.maestro / "muq_embeddings"
+CHECKPOINT_DIR = Checkpoints.model_improvement / "A3"
+METADATA_PATH = Embeddings.maestro / "metadata.jsonl"
+OUTPUT_STATS = Calibration.root / "calibration_stats.json"
+OUTPUT_SCORES = Calibration.root / "calibration_scores.jsonl"
 
 N_FOLDS = 4
 

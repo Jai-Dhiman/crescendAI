@@ -24,6 +24,7 @@ import pretty_midi
 import torch
 
 from model_improvement.graph import count_midi_notes, parsed_midi_to_graph
+from src.paths import Raw, Pretraining
 
 logging.basicConfig(
     level=logging.INFO,
@@ -33,9 +34,9 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # --- Configuration ---
-MIDI_DIR = Path(__file__).parent.parent / "data/giantmidi_raw/GiantMIDI-PIano/midis"
-SHARD_DIR = Path(__file__).parent.parent / "data/pretrain_cache/graphs/shards"
-MANIFEST_PATH = Path(__file__).parent.parent / "data/giantmidi_raw/giantmidi_manifest.json"
+MIDI_DIR = Raw.giantmidi / "GiantMIDI-PIano" / "midis"
+SHARD_DIR = Pretraining.graphs / "shards"
+MANIFEST_PATH = Raw.giantmidi / "giantmidi_manifest.json"
 
 MAX_NOTES = 5_000
 SHARD_SIZE = 50

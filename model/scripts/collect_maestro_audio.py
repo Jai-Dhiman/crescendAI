@@ -20,6 +20,7 @@ from pathlib import Path
 MODEL_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(MODEL_ROOT / "src"))
 
+from src.paths import Raw, Embeddings
 from model_improvement.maestro import (
     build_piece_performer_mapping,
     parse_maestro_audio_metadata,
@@ -41,13 +42,13 @@ def main() -> None:
     parser.add_argument(
         "--maestro-dir",
         type=Path,
-        default=MODEL_ROOT / "data" / "maestro-v3.0.0",
+        default=Raw.maestro,
         help="Path to MAESTRO v3 root directory",
     )
     parser.add_argument(
         "--cache-dir",
         type=Path,
-        default=MODEL_ROOT / "data" / "maestro_cache",
+        default=Embeddings.maestro,
         help="Output directory for cached segments and embeddings",
     )
     parser.add_argument(

@@ -28,6 +28,7 @@ from model_improvement.competition import (
     load_competition_metadata,
 )
 from model_improvement.graph import count_midi_notes, parsed_midi_to_graph
+from src.paths import Manifests, Pretraining
 
 logging.basicConfig(
     level=logging.INFO,
@@ -37,10 +38,10 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # --- Configuration ---
-CACHE_DIR = Path(__file__).parent.parent / "data/competition_cache/chopin2021"
+CACHE_DIR = Manifests.competition / "chopin2021"
 AUDIO_DIR = CACHE_DIR / "audio"
 MIDI_DIR = CACHE_DIR / "transcribed_midi"
-SHARD_DIR = Path(__file__).parent.parent / "data/pretrain_cache/graphs/shards"
+SHARD_DIR = Pretraining.graphs / "shards"
 RECORDINGS_PATH = CACHE_DIR / "recordings.jsonl"
 
 SHARD_SIZE = 50

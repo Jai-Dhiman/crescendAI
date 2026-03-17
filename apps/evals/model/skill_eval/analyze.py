@@ -14,18 +14,14 @@ from __future__ import annotations
 
 import argparse
 import json
-import sys
 from pathlib import Path
-
-# Add apps/evals/ to path for paths import
-sys.path.insert(0, str(Path(__file__).parents[2]))
 
 import numpy as np
 from scipy import stats
 
 from paths import MODEL_DATA
 
-DATA_DIR = MODEL_DATA / "skill_eval"
+DATA_DIR = MODEL_DATA / "evals" / "skill_eval"
 FIGURES_DIR = DATA_DIR / "figures"
 DIMENSIONS = ["dynamics", "timing", "pedaling", "articulation", "phrasing", "interpretation"]
 

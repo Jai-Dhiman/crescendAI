@@ -19,12 +19,15 @@ import sys
 import time
 from pathlib import Path
 
-# Add apps/evals/ to path for paths import, then apps/inference/ for model imports
-sys.path.insert(0, str(Path(__file__).parents[2]))
+# Add apps/evals/ to path for inference module imports
+EVALS_DIR = Path(__file__).parents[2]
+sys.path.insert(0, str(EVALS_DIR))
 
-from paths import INFERENCE_DIR, MODEL_DATA
+from paths import INFERENCE_DIR
 
 sys.path.insert(0, str(INFERENCE_DIR))
+
+from paths import MODEL_DATA
 
 # Set device before torch imports
 os.environ.setdefault("CRESCEND_DEVICE", "auto")
@@ -37,7 +40,7 @@ from models.inference import extract_muq_embeddings, predict_with_ensemble
 from models.loader import ModelCache, _resolve_device, get_model_cache
 from models.transcription import TranscriptionError, TranscriptionModel
 
-DATA_DIR = MODEL_DATA / "skill_eval"
+DATA_DIR = MODEL_DATA / "evals" / "skill_eval"
 CHECKPOINT_DIR = MODEL_DATA / "checkpoints" / "model_improvement" / "A1"
 
 MIN_CHUNKS = 2

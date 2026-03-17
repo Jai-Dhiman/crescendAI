@@ -21,6 +21,8 @@ import pytorch_lightning as pl
 from functools import partial
 from torch.utils.data import DataLoader
 
+from src.paths import Checkpoints, Embeddings, Labels, Results
+
 from model_improvement.audio_encoders import MuQLoRAMaxModel
 from model_improvement.data import (
     PairedPerformanceDataset,
@@ -72,25 +74,23 @@ def _config_name(lora_rank, lora_layers, label_smoothing):
 
 
 def run_sweep(
-    data_dir: Path = Path("data"),
-    checkpoint_dir: Path = Path("data/checkpoints/a1_max_sweep"),
-    results_path: Path = Path("data/a1_max_sweep_results.json"),
+    checkpoint_dir: Path = Checkpoints.root / "a1_max_sweep",
+    results_path: Path = Results.root / "a1_max_sweep_results.json",
 ):
     """Run the full 18x4 sweep."""
     pl.seed_everything(42, workers=True)
 
     # Load data
-    cache_dir = data_dir / "percepiano_cache"
-    composite_path = data_dir / "composite_labels" / "composite_labels.json"
+    composite_path = Labels.composite / "composite_labels.json"
     labels_raw = load_composite_labels(composite_path)
     labels = {k: v.tolist() for k, v in labels_raw.items()}
 
-    emb_path = cache_dir / "muq_embeddings.pt"
+    emb_path = Embeddings.percepiano / "muq_embeddings.pt"
     embeddings = torch.load(emb_path, map_location="cpu", weights_only=True)
 
-    with open(cache_dir / "folds.json") as f:
+    with open(Labels.percepiano / "folds.json") as f:
         folds = json.load(f)
-    with open(cache_dir / "piece_mapping.json") as f:
+    with open(Labels.percepiano / "piece_mapping.json") as f:
         piece_to_keys = json.load(f)
 
     print(f"Loaded {len(labels)} labels, {len(embeddings)} embeddings, {len(folds)} folds")
@@ -138,11 +138,11 @@ def run_sweep(
             _cleanup_memory()
 
             train_ds = PairedPerformanceDataset(
-                cache_dir=cache_dir, labels=labels,
+                cache_dir=Embeddings.percepiano, labels=labels,
                 piece_to_keys=piece_to_keys, keys=fold["train"],
             )
             val_ds = PairedPerformanceDataset(
-                cache_dir=cache_dir, labels=labels,
+                cache_dir=Embeddings.percepiano, labels=labels,
                 piece_to_keys=piece_to_keys, keys=fold["val"],
             )
 

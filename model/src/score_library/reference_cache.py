@@ -11,9 +11,9 @@ For each piece in the score library that has MAESTRO recordings:
 
 Usage:
     uv run python -m src.score_library.reference_cache \
-        --score-dir data/score_library \
-        --maestro-dir data/maestro_cache \
-        --output-dir data/reference_profiles
+        --score-dir data/scores \
+        --maestro-dir data/raw/maestro \
+        --output-dir data/references
 """
 
 from __future__ import annotations

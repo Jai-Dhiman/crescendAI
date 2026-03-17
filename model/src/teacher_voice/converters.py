@@ -238,9 +238,11 @@ def print_conversion_stats(records: list[TeachingRecord]) -> None:
 
 
 if __name__ == "__main__":
+    from src.paths import Results
+
     data_dir = Path(__file__).parents[2] / "data"
     jsonl_path = data_dir / "masterclass_pipeline" / "all_moments.jsonl"
-    output_path = data_dir / "teacher_voice_eval" / "masterclass_records.jsonl"
+    output_path = Results.root / "teacher_voice" / "masterclass_records.jsonl"
 
     records = convert_masterclass_moments(jsonl_path)
     print_conversion_stats(records)

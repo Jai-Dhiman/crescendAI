@@ -28,6 +28,7 @@ from model_improvement.layer1_validation import (
     amt_degradation_comparison,
     select_maestro_subset,
 )
+from src.paths import Embeddings, Checkpoints
 
 logging.basicConfig(
     level=logging.INFO,
@@ -37,7 +38,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # --- Configuration ---
-MAESTRO_CACHE_DIR = Path(__file__).parent.parent / "data/maestro_cache"
+MAESTRO_CACHE_DIR = Embeddings.maestro
 EMBEDDINGS_DIR = MAESTRO_CACHE_DIR / "muq_embeddings"
 CONTRASTIVE_MAPPING_PATH = MAESTRO_CACHE_DIR / "contrastive_mapping.json"
 SELECTION_PATH = MAESTRO_CACHE_DIR / "amt_test_selection.json"
@@ -506,11 +507,11 @@ def main() -> None:
     import os
     a1_checkpoint = os.environ.get(
         "A1_CHECKPOINT",
-        str(Path(__file__).parent.parent / "checkpoints/a1_best.ckpt"),
+        str(Checkpoints.root / "a1_best.ckpt"),
     )
     s2_checkpoint = os.environ.get(
         "S2_CHECKPOINT",
-        str(Path(__file__).parent.parent / "checkpoints/s2_best.ckpt"),
+        str(Checkpoints.root / "s2_best.ckpt"),
     )
 
     # Step 1: Piece selection (can run locally)

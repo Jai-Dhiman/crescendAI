@@ -1,19 +1,20 @@
 """CLI entry point for the score library pipeline.
 
 Usage:
-    uv run python -m score_library.cli parse --asap-dir data/asap_cache
-    uv run python -m score_library.cli stats --source data/score_library
-    uv run python -m score_library.cli upload --source data/score_library
-    uv run python -m score_library.cli build --asap-dir data/asap_cache
+    uv run python -m score_library.cli parse --asap-dir data/raw/asap
+    uv run python -m score_library.cli stats --source data/scores
+    uv run python -m score_library.cli upload --source data/scores
+    uv run python -m score_library.cli build --asap-dir data/raw/asap
 """
 from __future__ import annotations
 
 import argparse
 import json
 import logging
-import sys
 from collections import Counter
 from pathlib import Path
+
+from src.paths import Scores
 
 from score_library.discover import discover_pieces
 from score_library.parse import parse_score_midi
@@ -24,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 def cmd_parse(args):
     asap_dir = Path(args.asap_dir)
-    output_dir = Path(args.output or "data/score_library")
+    output_dir = Path(args.output) if args.output else Scores.root
     titles_path = output_dir / "titles.json"
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -94,7 +95,7 @@ def cmd_stats(args):
 def cmd_upload(args):
     from score_library.upload import upload_to_r2, generate_d1_seed
     source_dir = Path(args.source)
-    seed_path = Path(args.seed_output or "data/score_library/seed.sql")
+    seed_path = Path(args.seed_output) if args.seed_output else Scores.root / "seed.sql"
     generate_d1_seed(source_dir, output_path=seed_path)
     if args.skip_r2:
         print("Skipping R2 upload (--skip-r2 flag)")
@@ -105,7 +106,7 @@ def cmd_upload(args):
 def cmd_build(args):
     cmd_parse(args)
     # Set defaults for upload args
-    args.source = args.output or "data/score_library"
+    args.source = args.output or str(Scores.root)
     args.version = getattr(args, "version", "v1")
     args.seed_output = getattr(args, "seed_output", None)
     args.skip_r2 = getattr(args, "skip_r2", False)
@@ -118,7 +119,7 @@ def main():
 
     p_parse = sub.add_parser("parse", help="Parse ASAP score MIDIs to local JSON")
     p_parse.add_argument("--asap-dir", required=True)
-    p_parse.add_argument("--output", help="Output directory (default: data/score_library)")
+    p_parse.add_argument("--output", help=f"Output directory (default: {Scores.root})")
 
     p_stats = sub.add_parser("stats", help="Print score library statistics")
     p_stats.add_argument("--source", required=True)
@@ -131,7 +132,7 @@ def main():
 
     p_build = sub.add_parser("build", help="Full pipeline: parse + upload")
     p_build.add_argument("--asap-dir", required=True)
-    p_build.add_argument("--output", help="Output directory (default: data/score_library)")
+    p_build.add_argument("--output", help=f"Output directory (default: {Scores.root})")
     p_build.add_argument("--version", default="v1")
     p_build.add_argument("--seed-output")
     p_build.add_argument("--skip-r2", action="store_true")

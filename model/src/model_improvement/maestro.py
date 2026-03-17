@@ -13,6 +13,8 @@ from pathlib import Path
 
 import jsonlines
 
+from src.paths import Embeddings, Raw
+
 logger = logging.getLogger(__name__)
 
 
@@ -74,8 +76,8 @@ def parse_maestro_audio_metadata(maestro_dir: Path) -> list[dict]:
 
 
 def segment_and_embed_maestro(
-    maestro_dir: Path,
-    cache_dir: Path,
+    maestro_dir: Path = Raw.maestro,
+    cache_dir: Path = Embeddings.maestro,
     segment_duration: float = 30.0,
     min_segment_duration: float = 5.0,
 ) -> int:
@@ -174,7 +176,7 @@ def segment_and_embed_maestro(
     return new_count
 
 
-def build_piece_performer_mapping(cache_dir: Path) -> dict:
+def build_piece_performer_mapping(cache_dir: Path = Embeddings.maestro) -> dict:
     """Build piece-to-segment mapping for contrastive pair generation.
 
     Groups segments by canonical_title. Pieces with 2+ distinct source

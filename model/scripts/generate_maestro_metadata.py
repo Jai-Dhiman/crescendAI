@@ -92,9 +92,9 @@ def derive_recording_id(audio_filename: str) -> str:
 
 
 def main() -> None:
-    script_dir = Path(__file__).parent
-    model_dir = script_dir.parent
-    cache_dir = model_dir / "data" / "maestro_cache"
+    from src.paths import Embeddings
+
+    cache_dir = Embeddings.maestro
     embeddings_dir = cache_dir / "muq_embeddings"
     json_path = cache_dir / "maestro-v3.0.0.json"
     output_path = cache_dir / "metadata.jsonl"

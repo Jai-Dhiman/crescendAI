@@ -146,8 +146,9 @@ def print_summary(results_path: Path) -> None:
 
 
 if __name__ == "__main__":
-    data_dir = Path(__file__).parents[2] / "data"
-    results_path = data_dir / "teacher_voice_eval" / "benchmark_results.jsonl"
+    from src.paths import Results
+
+    results_path = Results.root / "teacher_voice" / "benchmark_results.jsonl"
 
     if len(sys.argv) > 1 and sys.argv[1] == "summary":
         print_summary(results_path)

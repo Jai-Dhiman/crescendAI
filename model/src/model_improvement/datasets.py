@@ -13,6 +13,8 @@ import warnings
 from dataclasses import dataclass
 from pathlib import Path
 
+from src.paths import Midi, Raw
+
 logger = logging.getLogger(__name__)
 
 
@@ -251,28 +253,24 @@ def load_percepiano_midi_files(midi_dir: Path) -> list[MIDIFileEntry]:
     return entries
 
 
-def load_all_midi_files(data_dir: Path) -> list[MIDIFileEntry]:
+def load_all_midi_files() -> list[MIDIFileEntry]:
     """Discover MIDI files from all available datasets.
 
     Calls all individual loaders, skipping sources whose directories
     don't exist (with a warning). Raises errors for missing expected
     metadata files within existing directories.
 
-    Args:
-        data_dir: Base data directory containing subdirectories for each source.
-
     Returns:
         Combined list of MIDIFileEntry objects from all available sources.
     """
-    data_dir = Path(data_dir)
     all_entries: list[MIDIFileEntry] = []
     source_counts: dict[str, int] = {}
 
     loaders = [
-        ("asap", data_dir / "asap_cache", load_asap_midi_files),
-        ("maestro", data_dir / "maestro_cache", load_maestro_midi_files),
-        ("atepp", data_dir / "atepp_cache", load_atepp_midi_files),
-        ("percepiano", data_dir / "percepiano_midi", load_percepiano_midi_files),
+        ("asap", Raw.asap, load_asap_midi_files),
+        ("maestro", Raw.maestro, load_maestro_midi_files),
+        ("atepp", Raw.atepp, load_atepp_midi_files),
+        ("percepiano", Midi.percepiano, load_percepiano_midi_files),
     ]
 
     for source_name, source_dir, loader_fn in loaders:

@@ -16,18 +16,14 @@ from __future__ import annotations
 import argparse
 import json
 import subprocess
-import sys
 import time
 from pathlib import Path
-
-# Add apps/evals/ to path for paths import
-sys.path.insert(0, str(Path(__file__).parents[2]))
 
 import yaml
 
 from paths import MODEL_DATA
 
-DATA_DIR = MODEL_DATA / "skill_eval"
+DATA_DIR = MODEL_DATA / "evals" / "skill_eval"
 
 PIECES = {
     "fur_elise": {

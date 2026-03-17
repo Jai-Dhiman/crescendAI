@@ -18,6 +18,7 @@ from pathlib import Path
 MODEL_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(MODEL_ROOT / "src"))
 
+from src.paths import Manifests
 from model_improvement.competition import (
     download_competition_audio,
     discover_youtube_urls,
@@ -54,7 +55,7 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    cache_dir = MODEL_ROOT / "data" / "competition_cache" / f"chopin{args.edition}"
+    cache_dir = Manifests.competition / f"chopin{args.edition}"
     metadata_path = cache_dir / "metadata.jsonl"
 
     logger.info("Competition data pipeline: Chopin %d", args.edition)
