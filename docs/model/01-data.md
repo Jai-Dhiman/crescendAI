@@ -2,7 +2,27 @@
 
 Dataset inventory for piano performance evaluation training. All heavy data processing (audio download, segmentation, MuQ extraction) runs on Thunder Compute (A100). Only embeddings and metadata come back.
 
-> **Status (2026-03-14):** T1 COMPLETE, T2 COMPLETE, T3 COMPLETE, T4 DEFERRED. Symbolic pretrain corpus COMPLETE (24,220 graphs). Composite labels COMPLETE.
+> **Status (2026-03-16):** T1 COMPLETE, T2 COMPLETE, T3 COMPLETE, T4 DEFERRED. Symbolic pretrain corpus COMPLETE (24,220 graphs). Composite labels COMPLETE. Data directory reorganized to pipeline-stage-first layout.
+
+## Directory Structure
+
+All paths defined in `model/src/paths.py`. Organization by pipeline stage:
+
+```
+model/data/
+  raw/          - Downloaded datasets (gitignored, re-downloadable)
+  embeddings/   - Extracted MuQ embeddings (gitignored, regenerable)
+  midi/         - Small MIDI collections (gitignored)
+  pretraining/  - Symbolic pretraining corpus (gitignored)
+  labels/       - Annotations and derived labels (tracked)
+  manifests/    - Data source configs (tracked)
+  scores/       - Score library JSON, deployed to R2 (partially tracked)
+  references/   - Reference performance profiles, deployed to R2 (gitignored)
+  evals/        - Evaluation data (partially tracked)
+  checkpoints/  - Trained model weights (gitignored)
+  results/      - Experiment results (tracked)
+  calibration/  - MAESTRO calibration stats (tracked)
+```
 
 ## What Training Loads
 
@@ -18,22 +38,22 @@ The training code (`src/model_improvement/data.py`) loads only embeddings and me
 
 | Item | Path | Size |
 |---|---|---|
-| MuQ embeddings | `percepiano_cache/muq_embeddings.pt` + `_muq_file_cache/` | 4.4GB |
-| Labels | `percepiano_cache/labels.json` | <1MB |
-| CV folds | `percepiano_cache/folds.json` | <1MB |
-| Piece mapping | `percepiano_cache/piece_mapping.json` | <1MB |
+| MuQ embeddings | `embeddings/percepiano/muq_embeddings.pt` + `_muq_file_cache/` | 4.4GB |
+| Labels | `labels/percepiano/labels.json` | <1MB |
+| CV folds | `labels/percepiano/folds.json` | <1MB |
+| Piece mapping | `labels/percepiano/piece_mapping.json` | <1MB |
 
 - **Segments:** 1,202 with 19-dimension perceptual annotations
 - **Signal:** Regression (MSE on composite labels), ranking (within-piece pairs)
-- **Composite labels** in `composite_labels/` map 19 raw dims to 6 teacher-grounded dims
+- **Composite labels** in `labels/composite/` map 19 raw dims to 6 teacher-grounded dims
 - **Training class:** `CompetitionPairSampler`
 
 ### T2: Competition Recordings (Ordinal Ranking)
 
 | Item | Path | Size |
 |---|---|---|
-| Segment metadata | `competition_cache/chopin2021/metadata.jsonl` | <1MB |
-| MuQ embeddings | `competition_cache/chopin2021/muq_embeddings/` | ~760MB |
+| Segment metadata | `manifests/competition/metadata.jsonl` | <1MB |
+| MuQ embeddings | `embeddings/competition/muq_embeddings/` | ~760MB |
 
 - **Source:** XVIII International Chopin Piano Competition 2021 (YouTube)
 - **Segments:** 2,293 from 11 performers across Stage 2, 3, Final
@@ -45,12 +65,12 @@ The training code (`src/model_improvement/data.py`) loads only embeddings and me
 
 | Item | Path | Size |
 |---|---|---|
-| MAESTRO metadata | `maestro_cache/maestro-v3.0.0.json` | 83MB |
-| MIDI files | `maestro_cache/2004-2018/` | on disk |
-| Segment metadata | `maestro_cache/metadata.jsonl` | <1MB |
-| MuQ embeddings | `maestro_cache/muq_embeddings/` | ~34GB |
-| Per-recording graphs | `pretrain_cache/graphs/shards/graphs_0241-0263.pt` | ~1GB |
-| Contrastive mapping | `maestro_cache/contrastive_mapping.json` | <1MB |
+| MAESTRO metadata | `raw/maestro/maestro-v3.0.0.json` | 83MB |
+| MIDI files | `raw/maestro/2004-2018/` | on disk |
+| Segment metadata | `embeddings/maestro/metadata.jsonl` | <1MB |
+| MuQ embeddings | `embeddings/maestro/muq_embeddings/` | ~34GB |
+| Per-recording graphs | `pretraining/graphs/shards/graphs_0241-0263.pt` | ~1GB |
+| Contrastive mapping | `embeddings/maestro/contrastive_mapping.json` | <1MB |
 
 - **Source:** MAESTRO v3.0.0 (1,276 recordings, ~300 pieces, 204 with 2+ performers)
 - **Segments:** 24,321
@@ -61,7 +81,7 @@ The training code (`src/model_improvement/data.py`) loads only embeddings and me
 
 | Item | Path | Size |
 |---|---|---|
-| Channel list | `youtube_piano_cache/channels.yaml` | on disk |
+| Channel list | `manifests/youtube/channels.yaml` | on disk |
 
 - **Source:** 22 curated YouTube channels
 - **Signal:** MSE between clean and augmented MuQ embeddings
@@ -72,10 +92,10 @@ The training code (`src/model_improvement/data.py`) loads only embeddings and me
 
 | Item | Path | Size |
 |---|---|---|
-| Tokenized MIDI | `pretrain_cache/tokens/all_tokens.pt` | 55MB |
-| Score graphs | `pretrain_cache/graphs/all_graphs.pt` + shards (0000-0263) | 29GB |
-| Hetero graphs | `pretrain_cache/graphs/all_hetero_graphs.pt` + shards | (in 29GB) |
-| Continuous features | `pretrain_cache/features/all_features.pt` + shards | 8.3GB |
+| Tokenized MIDI | `pretraining/tokens/all_tokens.pt` | 55MB |
+| Score graphs | `pretraining/graphs/all_graphs.pt` + shards (0000-0263) | 29GB |
+| Hetero graphs | `pretraining/graphs/all_hetero_graphs.pt` + shards | (in 29GB) |
+| Continuous features | `pretraining/features/all_features.pt` + shards | 8.3GB |
 
 - **Sources:** 24,220 graphs from ASAP (1,066) + ATEPP (11,697) + MAESTRO score (824) + MAESTRO recording (1,123) + PercePiano (1,202) + GIANTMIDI (8,278)
 - **Training classes:** `MIDIPretrainingDataset`, `ScoreGraphPretrainingDataset`, `ShardedScoreGraphPretrainDataset`, `ContinuousPretrainDataset`, `HeteroPretrainDataset`
@@ -84,18 +104,19 @@ The training code (`src/model_improvement/data.py`) loads only embeddings and me
 
 | Item | Path | Size |
 |---|---|---|
-| Dimension definitions | `composite_labels/taxonomy.json` | <100KB |
-| Mapped labels | `composite_labels/labels.json` | <1MB |
-| Teacher quote bank | `composite_labels/quote_bank.json` | <1MB |
+| Dimension definitions | `labels/composite/dimension_definitions.json` | <100KB |
+| Mapped labels | `labels/composite/composite_labels.json` | <1MB |
+| Teacher quote bank | `labels/composite/quote_bank.json` | <1MB |
 
 Produced by the teacher-grounded taxonomy work (doc 02). Maps 19 raw PercePiano dimensions to 6 teacher-grounded dimensions.
 
-### Other Caches
+### Other Data
 
 | Item | Path | Purpose |
 |---|---|---|
-| Intermediate YouTube | `intermediate_cache/` | 629 segments for dynamic range analysis + AMT validation |
-| Masterclass moments | `masterclass_cache/` | 2,136 teaching moments for taxonomy derivation |
+| Intermediate YouTube | `evals/intermediate/` | 629 segments for dynamic range analysis + AMT validation |
+| Masterclass moments | `embeddings/masterclass/` | 2,136 teaching moments for taxonomy derivation |
+| MAESTRO calibration | `calibration/maestro_stats.json` | Calibration reference stats |
 
 ## Storage
 
@@ -111,15 +132,17 @@ Produced by the teacher-grounded taxonomy work (doc 02). Maps 19 raw PercePiano 
 
 ```
 model/data/                     Size
-  pretrain_cache/               38 GB
-  masterclass_pipeline/         5.9 GB
-  percepiano_cache/             4.4 GB
-  maestro_cache/                3.9 GB
-  competition_cache/            0.8 GB
-  masterclass_cache/            907 MB
-  atepp_cache/                  525 MB
+  raw/maestro/                  ~35 GB
+  pretraining/                  38 GB
+  embeddings/masterclass/       7.3 GB
+  embeddings/percepiano/        4.4 GB
+  embeddings/competition/       3.3 GB
+  raw/atepp/                    525 MB
+  raw/giantmidi/                488 MB
+  evals/                        850 MB
+  scores/                       189 MB
   other                         220 MB
-  TOTAL                         ~55 GB
+  TOTAL                         ~90 GB
 ```
 
 ## Readiness Checklist
