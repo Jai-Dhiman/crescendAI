@@ -1,0 +1,38 @@
+{
+  "frozen_probe": {
+    "config": {
+      "input_dim": 1024,
+      "hidden_dim": 512,
+      "num_labels": 6,
+      "learning_rate": 0.0001,
+      "weight_decay": 1e-05,
+      "temperature": 0.07,
+      "lora_target_layers": [
+        7,
+        8,
+        9,
+        10,
+        11,
+        12
+      ],
+      "label_smoothing": 0.0,
+      "warmup_epochs": 5,
+      "max_epochs": 200,
+      "use_pretrained_muq": false
+    },
+    "pairwise_mean": 0.5342069590187009,
+    "pairwise_per_fold": [
+      0.4981357720717552,
+      0.6130215123859192,
+      0.5134718336234055,
+      0.5121987179937234
+    ],
+    "r2_mean": 0.46139517426490784,
+    "r2_per_fold": [
+      0.541472315788269,
+      0.5304746627807617,
+      0.47737693786621094,
+      0.29625678062438965
+    ]
+  }
+}
