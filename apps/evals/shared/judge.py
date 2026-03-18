@@ -61,15 +61,23 @@ def judge_observation(
 ) -> JudgeResult:
     """Judge a teacher observation using the specified prompt and model."""
     template = load_prompt(prompt_file)
-    user_message = template.format(
-        piece_name=context.get("piece_name", "Unknown"),
-        bar_range=context.get("bar_range", "Unknown"),
-        predictions=context.get("predictions", "{}"),
-        baselines=context.get("baselines", "{}"),
-        recent_observations=context.get("recent_observations", "[]"),
-        analysis_facts=context.get("analysis_facts", "None"),
-        observation_text=observation_text,
-    )
+
+    # Build format kwargs from context, with defaults for standard fields
+    format_kwargs = {
+        "piece_name": context.get("piece_name", "Unknown"),
+        "bar_range": context.get("bar_range", "Unknown"),
+        "predictions": context.get("predictions", "{}"),
+        "baselines": context.get("baselines", "{}"),
+        "recent_observations": context.get("recent_observations", "[]"),
+        "analysis_facts": context.get("analysis_facts", "None"),
+        "observation_text": observation_text,
+    }
+    # Forward any additional context keys (for v2 prompts)
+    for key, value in context.items():
+        if key not in format_kwargs:
+            format_kwargs[key] = value
+
+    user_message = template.format(**format_kwargs)
 
     client = anthropic.Anthropic()
     start = time.monotonic()
