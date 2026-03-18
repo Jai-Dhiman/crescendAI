@@ -1263,17 +1263,6 @@ fn is_likely_adversarial(query_lower: &str) -> bool {
     adversarial_patterns.iter().any(|p| query_lower.contains(p))
 }
 
-/// Parse a date string (YYYY-MM-DD or ISO) to days-since-epoch for comparison.
-fn date_to_days(date_str: &str) -> Option<f64> {
-    // Extract YYYY-MM-DD portion
-    let date_part = if date_str.len() >= 10 { &date_str[..10] } else { return None };
-    let parts: Vec<&str> = date_part.split('-').collect();
-    if parts.len() != 3 { return None; }
-    let year: f64 = parts[0].parse().ok()?;
-    let month: f64 = parts[1].parse().ok()?;
-    let day: f64 = parts[2].parse().ok()?;
-    Some(year * 365.25 + month * 30.44 + day)
-}
 
 const ENTITY_EXTRACTION_PROMPT: &str = "\
 Extract ALL named entities and key topics from this query. Include:

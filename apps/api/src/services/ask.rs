@@ -4,7 +4,7 @@
 //! Stage 2: Anthropic (Sonnet 4.6) teacher generates the observation.
 
 use wasm_bindgen::JsValue;
-use worker::{console_error, console_log, Env};
+use worker::{console_error, Env};
 
 use crate::services::{llm, prompts};
 
@@ -642,61 +642,3 @@ pub fn generate_uuid() -> String {
     )
 }
 
-/// Build a fallback response when the subagent fails.
-async fn build_fallback_response(
-    env: &Env,
-    student_id: &str,
-    request: &AskRequest,
-    dimension: &str,
-    dimension_score: Option<f64>,
-    student_baseline: Option<f64>,
-) -> http::Response<axum::body::Body> {
-    use axum::body::Body;
-    use http::{Response, StatusCode};
-
-    let observation_text = fallback_observation(dimension);
-    let observation_id = generate_uuid();
-    let session_id = request
-        .session
-        .get("id")
-        .and_then(|v| v.as_str())
-        .unwrap_or("");
-    let chunk_index = request
-        .teaching_moment
-        .get("chunk_index")
-        .and_then(|v| v.as_i64());
-
-    let _ = store_observation(
-        env,
-        &observation_id,
-        student_id,
-        session_id,
-        chunk_index,
-        dimension,
-        &observation_text,
-        "{}",
-        "correction",
-        dimension_score,
-        student_baseline,
-        None,
-        true,
-    )
-    .await;
-
-    let response = AskResponse {
-        observation: observation_text,
-        observation_id,
-        dimension: dimension.to_string(),
-        framing: "correction".to_string(),
-        is_fallback: true,
-    };
-
-    let json = serde_json::to_string(&response)
-        .unwrap_or_else(|_| r#"{"error":"Serialization failed"}"#.to_string());
-
-    Response::builder()
-        .status(StatusCode::OK)
-        .header("Content-Type", "application/json")
-        .body(Body::from(json))
-        .unwrap()
-}
