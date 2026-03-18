@@ -4,70 +4,228 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Cluster Review &amp; Merge Tool</title>
-  <!-- Tailwind CDN for local dev tool only - not production code -->
-  <script src="https://cdn.tailwindcss.com" crossorigin="anonymous" integrity="sha384-OLBgp1GsljhM2TJ+sbHjaiH9txEUvgdDTAzHv2P24donTt6/529l+9Ua0vFImLlb"></script>
-  <script>
-    tailwind.config = {
-      darkMode: 'class',
-      theme: {
-        extend: {
-          colors: {
-            surface: { 0: '#0f1117', 1: '#171923', 2: '#1e2130', 3: '#262a3a' },
-            accent: { DEFAULT: '#6366f1', light: '#818cf8', dim: '#4f46e5' },
-            signal: { green: '#22c55e', gray: '#6b7280', amber: '#f59e0b', red: '#ef4444' }
-          }
-        }
-      }
-    }
-  </script>
   <style>
-    body { background: #0f1117; color: #e2e8f0; font-family: 'Inter', system-ui, -apple-system, sans-serif; }
-    .card { transition: transform 0.15s ease, box-shadow 0.15s ease; }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #0f1117;
+      color: #e2e8f0;
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      min-height: 100vh;
+      padding: 24px;
+      line-height: 1.5;
+    }
+
+    /* Layout */
+    .container { max-width: 1280px; margin: 0 auto; }
+    .header { margin-bottom: 32px; }
+    .header h1 { font-size: 1.5rem; font-weight: 700; color: #fff; margin-bottom: 4px; }
+    .header p { font-size: 0.875rem; color: #9ca3af; }
+
+    /* Grid */
+    .card-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 16px;
+      margin-bottom: 32px;
+    }
+    @media (min-width: 768px) {
+      .card-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (min-width: 1280px) {
+      .card-grid { grid-template-columns: repeat(3, 1fr); }
+    }
+
+    /* Cards */
+    .card {
+      border-radius: 12px;
+      padding: 16px;
+      border: 1px solid #2d3348;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
     .card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.3); }
-    .freq-bar { transition: width 0.4s ease; }
+    .card-selected { background: #1e2130; border-color: rgba(99,102,241,0.4); }
+    .card-default { background: #171923; border-color: rgba(55,65,81,0.3); }
+
+    /* Header row */
+    .card-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 8px; }
+    .card-header-left { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
+    .cluster-id { font-size: 0.75rem; font-family: monospace; color: #6b7280; }
+    .cluster-size { margin-left: 8px; font-size: 0.75rem; color: #9ca3af; }
+
+    /* Badge */
     .badge { display: inline-block; padding: 2px 8px; border-radius: 9999px; font-size: 0.7rem; font-weight: 500; }
-    select, input, textarea { background: #1e2130; border: 1px solid #2d3348; color: #e2e8f0; }
-    select:focus, input:focus, textarea:focus { outline: none; border-color: #6366f1; box-shadow: 0 0 0 2px rgba(99,102,241,0.2); }
-    details summary { cursor: pointer; }
-    details summary::-webkit-details-marker { display: none; }
-    .signal-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 10px; border-radius: 9999px; font-size: 0.72rem; font-weight: 500; }
+    .badge-selected { background: rgba(49,46,129,0.5); color: #a5b4fc; margin-left: 8px; }
+    .badge-correction { background: rgba(127,29,29,0.4); color: #f87171; }
+    .badge-suggestion { background: rgba(30,58,138,0.4); color: #60a5fa; }
+    .badge-explanation { background: rgba(120,53,15,0.4); color: #fbbf24; }
+    .badge-demonstration { background: rgba(88,28,135,0.4); color: #c084fc; }
+    .badge-praise { background: rgba(20,83,45,0.4); color: #4ade80; }
+    .badge-comparison { background: rgba(22,78,99,0.4); color: #22d3ee; }
+    .badge-default { background: #1f2937; color: #9ca3af; }
+
+    /* Select / inputs */
+    select, input, textarea {
+      background: #1e2130;
+      border: 1px solid #2d3348;
+      color: #e2e8f0;
+      font-family: inherit;
+    }
+    select:focus, input:focus, textarea:focus {
+      outline: none;
+      border-color: #6366f1;
+      box-shadow: 0 0 0 2px rgba(99,102,241,0.2);
+    }
+    .group-select { font-size: 0.75rem; border-radius: 6px; padding: 4px 8px; width: 64px; }
+    .group-select-active { border-color: #6366f1; }
+
+    /* Frequency bar */
+    .freq-section { margin-bottom: 12px; }
+    .freq-label-row { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+    .freq-label { font-size: 0.75rem; color: #9ca3af; }
+    .freq-value { font-size: 0.75rem; font-family: monospace; color: #fff; }
+    .freq-bar-track { width: 100%; height: 6px; background: #1f2937; border-radius: 9999px; overflow: hidden; }
+    .freq-bar-fill { height: 100%; border-radius: 9999px; transition: width 0.4s ease; }
+    .freq-bar-fill-selected { background: #6366f1; }
+    .freq-bar-fill-default { background: #4b5563; }
+
+    /* Signal chips */
+    .signal-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+    .signal-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 10px;
+      border-radius: 9999px;
+      font-size: 0.72rem;
+      font-weight: 500;
+    }
+    .signal-active { background: rgba(20,83,45,0.4); color: #4ade80; border: 1px solid rgba(21,128,61,0.5); }
+    .signal-inactive { background: rgba(31,41,55,0.4); color: #6b7280; border: 1px solid rgba(55,65,81,0.3); }
+
+    /* Badge row */
+    .badge-row { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 12px; }
+
+    /* Descriptor section */
+    .desc-section { margin-bottom: 12px; }
+    .desc-label { font-size: 0.75rem; color: #6b7280; margin-bottom: 4px; }
+    .desc-list { font-size: 0.75rem; color: #cbd5e1; list-style: disc; list-style-position: inside; }
+    .desc-list li { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-bottom: 2px; }
+    .desc-badge { display: inline-block; padding: 2px 8px; border-radius: 9999px; font-size: 0.7rem; font-weight: 500; background: #1f2937; color: #cbd5e1; }
+
+    /* Name input */
+    .name-input { width: 100%; font-size: 0.75rem; border-radius: 6px; padding: 4px 8px; margin-top: 4px; }
+
+    /* Details / collapsible */
+    .collapsible-section { margin-bottom: 40px; border-radius: 8px; background: #171923; border: 1px solid rgba(55,65,81,0.5); }
+    .collapsible-summary {
+      padding: 12px 20px;
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: #d1d5db;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .collapsible-summary:hover { color: #fff; }
+    .collapsible-summary::-webkit-details-marker { display: none; }
+    .collapsible-summary svg { width: 16px; height: 16px; transition: transform 0.2s; }
+    details[open] .collapsible-summary svg { transform: rotate(90deg); }
+    .collapsible-body { padding: 16px; }
+
+    /* Merge panel */
+    .merge-panel-wrapper {
+      background: #171923;
+      border: 1px solid rgba(55,65,81,0.5);
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 32px;
+    }
+    .merge-panel-wrapper h2 { font-size: 1.125rem; font-weight: 700; color: #fff; margin-bottom: 16px; }
+    .merge-panel-wrapper > p { font-size: 0.75rem; color: #9ca3af; margin-bottom: 16px; }
+    .merge-groups-list { display: flex; flex-direction: column; gap: 16px; }
+    .merge-empty { margin-top: 24px; text-align: center; font-size: 0.875rem; color: #6b7280; }
+
+    /* Merge group card */
+    .merge-group { background: #1e2130; border: 1px solid rgba(55,65,81,0.5); border-radius: 8px; padding: 16px; }
+    .merge-header { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+    .letter-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: rgba(49,46,129,0.5);
+      color: #a5b4fc;
+      font-weight: 700;
+      font-size: 0.875rem;
+    }
+    .merge-name-input { flex: 1; font-size: 0.875rem; font-weight: 500; border-radius: 6px; padding: 4px 12px; }
+    .merge-count { font-size: 0.75rem; color: #9ca3af; }
+    .merge-stats { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; font-size: 0.75rem; color: #9ca3af; align-items: center; }
+    .merge-stats .separator { color: #4b5563; }
+    .merge-stats .freq-mono { font-family: monospace; color: #fff; }
+    .merge-desc-section { margin-bottom: 12px; }
+    .merge-desc-badges { display: flex; flex-wrap: wrap; gap: 4px; }
+    .merge-form { display: flex; flex-direction: column; gap: 8px; }
+    .merge-form label { font-size: 0.75rem; color: #6b7280; }
+    .merge-form textarea { width: 100%; font-size: 0.75rem; border-radius: 6px; padding: 8px 12px; margin-top: 4px; resize: vertical; }
+
+    /* Export */
+    .export-row { display: flex; align-items: center; gap: 16px; margin-bottom: 48px; }
+    .export-btn {
+      padding: 10px 24px;
+      background: #6366f1;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-weight: 500;
+      font-size: 0.875rem;
+      cursor: pointer;
+      transition: background 0.15s;
+      font-family: inherit;
+    }
+    .export-btn:hover { background: #4f46e5; }
+    .export-hint { font-size: 0.75rem; color: #6b7280; }
   </style>
 </head>
-<body class="min-h-screen p-6">
+<body>
 
-<div class="max-w-7xl mx-auto">
+<div class="container">
   <!-- Header -->
-  <div class="mb-8">
-    <h1 class="text-2xl font-bold text-white mb-1">Cluster Review &amp; Merge</h1>
-    <p class="text-sm text-gray-400">13 selected clusters from 46 total (2,149 moments). Assign groups, name criteria, then export.</p>
+  <div class="header">
+    <h1>Cluster Review &amp; Merge</h1>
+    <p>13 selected clusters from 46 total (2,149 moments). Assign groups, name criteria, then export.</p>
   </div>
 
   <!-- Selected Clusters -->
-  <div id="selected-grid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 mb-8"></div>
+  <div id="selected-grid" class="card-grid"></div>
 
   <!-- Non-selected clusters -->
-  <details class="mb-10 rounded-lg bg-surface-1 border border-gray-700/50">
-    <summary class="px-5 py-3 text-sm font-medium text-gray-300 hover:text-white flex items-center gap-2">
-      <svg class="w-4 h-4 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+  <details class="collapsible-section">
+    <summary class="collapsible-summary">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
       Other clusters (33 non-selected)
     </summary>
-    <div id="other-grid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 p-4"></div>
+    <div id="other-grid" class="card-grid collapsible-body"></div>
   </details>
 
   <!-- Merge Panel -->
-  <div class="bg-surface-1 border border-gray-700/50 rounded-xl p-6 mb-8">
-    <h2 class="text-lg font-bold text-white mb-4">Merge Panel</h2>
-    <p class="text-xs text-gray-400 mb-4">Groups are formed by assigning the same letter to multiple cluster cards above. Name each group and define its pass/fail rubric below.</p>
-    <div id="merge-panel" class="space-y-4"></div>
-    <div class="mt-6 text-center text-sm text-gray-500" id="merge-empty">Assign groups to clusters above to see merged criteria here.</div>
+  <div class="merge-panel-wrapper">
+    <h2>Merge Panel</h2>
+    <p>Groups are formed by assigning the same letter to multiple cluster cards above. Name each group and define its pass/fail rubric below.</p>
+    <div id="merge-panel" class="merge-groups-list"></div>
+    <div class="merge-empty" id="merge-empty">Assign groups to clusters above to see merged criteria here.</div>
   </div>
 
   <!-- Export -->
-  <div class="flex items-center gap-4 mb-12">
-    <button id="export-btn" onclick="exportJSON()" class="px-6 py-2.5 bg-accent hover:bg-accent-dim text-white rounded-lg font-medium text-sm transition-colors">
+  <div class="export-row">
+    <button id="export-btn" onclick="exportJSON()" class="export-btn">
       Export JSON
     </button>
-    <span class="text-xs text-gray-500">Downloads criteria definition file with merged groups, frequencies, and rubrics.</span>
+    <span class="export-hint">Downloads criteria definition file with merged groups, frequencies, and rubrics.</span>
   </div>
 </div>
 
@@ -122,24 +280,24 @@ function el(tag, attrs, children) {
 }
 
 function signalChipEl(label, value, active) {
-  const bg = active ? 'signal-chip bg-green-900/40 text-green-400 border border-green-700/50' : 'signal-chip bg-gray-800/40 text-gray-500 border border-gray-700/30';
+  const cls = active ? 'signal-chip signal-active' : 'signal-chip signal-inactive';
   const formatted = typeof value === 'number' ? ((value >= 0 ? '+' : '') + value.toFixed(3)) : value;
-  return el('span', { className: bg, textContent: label + ': ' + formatted });
+  return el('span', { className: cls, textContent: label + ': ' + formatted });
 }
 
 function feedbackBadgeEls(dist) {
   const colors = {
-    correction: 'badge bg-red-900/40 text-red-400',
-    suggestion: 'badge bg-blue-900/40 text-blue-400',
-    explanation: 'badge bg-amber-900/40 text-amber-400',
-    demonstration: 'badge bg-purple-900/40 text-purple-400',
-    praise: 'badge bg-green-900/40 text-green-400',
-    comparison: 'badge bg-cyan-900/40 text-cyan-400'
+    correction: 'badge badge-correction',
+    suggestion: 'badge badge-suggestion',
+    explanation: 'badge badge-explanation',
+    demonstration: 'badge badge-demonstration',
+    praise: 'badge badge-praise',
+    comparison: 'badge badge-comparison'
   };
   const total = Object.values(dist).reduce((a, b) => a + b, 0);
   return Object.entries(dist)
     .sort((a, b) => b[1] - a[1])
-    .map(([k, v]) => el('span', { className: colors[k] || 'badge bg-gray-800 text-gray-400', textContent: k + ' ' + Math.round(v / total * 100) + '%' }));
+    .map(([k, v]) => el('span', { className: colors[k] || 'badge badge-default', textContent: k + ' ' + Math.round(v / total * 100) + '%' }));
 }
 
 function buildCard(c, isSelected) {
@@ -147,11 +305,11 @@ function buildCard(c, isSelected) {
   const maxFreq = 10.1;
   const barWidth = Math.min(100, (c.frequency / (maxFreq / 100)));
   const currentGroup = groupAssignments[c.cluster_id] || '';
-  const borderColor = isSelected ? 'border-indigo-500/40' : 'border-gray-700/30';
-  const bgColor = isSelected ? 'bg-surface-2' : 'bg-surface-1';
+  const cardClass = isSelected ? 'card card-selected' : 'card card-default';
 
   // Group select
-  const selectEl = el('select', { className: 'text-xs rounded px-2 py-1 w-16', title: 'Assign merge group' });
+  const selectCls = currentGroup ? 'group-select group-select-active' : 'group-select';
+  const selectEl = el('select', { className: selectCls, title: 'Assign merge group' });
   GROUP_LETTERS.forEach(l => {
     const opt = el('option', { value: l, textContent: l || '--' });
     if (l === currentGroup) opt.selected = true;
@@ -160,54 +318,55 @@ function buildCard(c, isSelected) {
   selectEl.addEventListener('change', function() { setGroup(c.cluster_id, this.value); });
 
   // Header
-  const idSpan = el('span', { className: 'text-xs font-mono text-gray-500', textContent: 'C-' + c.cluster_id });
-  const sizeSpan = el('span', { className: 'ml-2 text-xs text-gray-400', textContent: c.size + ' desc / ' + c.unique_moments + ' moments' });
-  const headerLeft = el('div', {}, [idSpan, sizeSpan]);
+  const idSpan = el('span', { className: 'cluster-id', textContent: 'C-' + c.cluster_id });
+  const sizeSpan = el('span', { className: 'cluster-size', textContent: c.size + ' desc / ' + c.unique_moments + ' moments' });
+  const headerLeft = el('div', { className: 'card-header-left' }, [idSpan, sizeSpan]);
   if (isSelected) {
-    headerLeft.appendChild(el('span', { className: 'ml-2 badge bg-indigo-900/50 text-indigo-300', textContent: 'selected' }));
+    headerLeft.appendChild(el('span', { className: 'badge badge-selected', textContent: 'selected' }));
   }
-  const headerRow = el('div', { className: 'flex items-start justify-between mb-2' }, [headerLeft, selectEl]);
+  const headerRow = el('div', { className: 'card-header' }, [headerLeft, selectEl]);
 
   // Frequency bar
-  const freqLabel = el('span', { className: 'text-xs text-gray-400', textContent: 'Frequency' });
-  const freqValue = el('span', { className: 'text-xs font-mono text-white', textContent: freqPct + '%' });
-  const freqLabelRow = el('div', { className: 'flex items-center gap-2 mb-1' }, [freqLabel, freqValue]);
-  const freqBarInner = el('div', { className: 'freq-bar h-full rounded-full ' + (isSelected ? 'bg-indigo-500' : 'bg-gray-600'), style: 'width:' + barWidth + '%' });
-  const freqBarOuter = el('div', { className: 'w-full h-1.5 bg-gray-800 rounded-full overflow-hidden' }, [freqBarInner]);
-  const freqSection = el('div', { className: 'mb-3' }, [freqLabelRow, freqBarOuter]);
+  const freqLabel = el('span', { className: 'freq-label', textContent: 'Frequency' });
+  const freqValue = el('span', { className: 'freq-value', textContent: freqPct + '%' });
+  const freqLabelRow = el('div', { className: 'freq-label-row' }, [freqLabel, freqValue]);
+  const barFillCls = isSelected ? 'freq-bar-fill freq-bar-fill-selected' : 'freq-bar-fill freq-bar-fill-default';
+  const freqBarInner = el('div', { className: barFillCls, style: 'width:' + barWidth + '%' });
+  const freqBarOuter = el('div', { className: 'freq-bar-track' }, [freqBarInner]);
+  const freqSection = el('div', { className: 'freq-section' }, [freqLabelRow, freqBarOuter]);
 
   // Signals
-  const signalRow = el('div', { className: 'flex flex-wrap gap-1.5 mb-3' }, [
+  const signalRow = el('div', { className: 'signal-row' }, [
     signalChipEl('time', c.time_ratio, c.has_time_signal),
     signalChipEl('severity', c.severity_lift, c.has_severity_signal),
     signalChipEl('repeat', c.repetition_lift, c.has_repetition_signal),
   ]);
 
   // Feedback badges
-  const badgeRow = el('div', { className: 'flex flex-wrap gap-1 mb-3' }, feedbackBadgeEls(c.feedback_type_distribution));
+  const badgeRow = el('div', { className: 'badge-row' }, feedbackBadgeEls(c.feedback_type_distribution));
 
   // Example descriptors
-  const descLabel = el('p', { className: 'text-xs text-gray-500 mb-1', textContent: 'Example descriptors:' });
-  const descList = el('ul', { className: 'text-xs text-gray-300 space-y-0.5 list-disc list-inside' },
+  const descLabel = el('p', { className: 'desc-label', textContent: 'Example descriptors:' });
+  const descList = el('ul', { className: 'desc-list' },
     c.example_descriptors.slice(0, 5).map(d => {
-      const li = el('li', { className: 'truncate', title: d, textContent: d });
+      const li = el('li', { title: d, textContent: d });
       return li;
     })
   );
-  const descSection = el('div', { className: 'mb-3' }, [descLabel, descList]);
+  const descSection = el('div', { className: 'desc-section' }, [descLabel, descList]);
 
   // Name input
   const nameInput = el('input', {
     type: 'text',
     placeholder: 'Criterion name...',
-    className: 'w-full text-xs rounded px-2 py-1.5 mt-1',
+    className: 'name-input',
     value: c.name || '',
   });
   nameInput.dataset.nameInput = c.cluster_id;
   nameInput.addEventListener('input', function() { setClusterName(c.cluster_id, this.value); });
 
   // Card container
-  return el('div', { className: 'card ' + bgColor + ' ' + borderColor + ' border rounded-xl p-4', 'data-cluster-id': c.cluster_id },
+  return el('div', { className: cardClass, 'data-cluster-id': c.cluster_id },
     [headerRow, freqSection, signalRow, badgeRow, descSection, nameInput]);
 }
 
@@ -223,55 +382,55 @@ function buildMergeGroup(letter, clusterIds) {
   const anyRepetition = clusters.some(c => c.has_repetition_signal);
 
   // Letter badge
-  const letterBadge = el('span', { className: 'inline-flex items-center justify-center w-8 h-8 rounded-lg bg-indigo-900/50 text-indigo-300 font-bold text-sm', textContent: letter });
+  const letterBadge = el('span', { className: 'letter-badge', textContent: letter });
 
   // Name input
   const nameInput = el('input', {
     type: 'text', placeholder: 'Group name...',
-    className: 'flex-1 text-sm font-medium rounded px-3 py-1.5',
+    className: 'merge-name-input',
     value: meta.name,
   });
   nameInput.addEventListener('input', function() { setGroupMeta(letter, 'name', this.value); });
 
-  const countSpan = el('span', { className: 'text-xs text-gray-400', textContent: clusterIds.length + ' clusters' });
-  const headerRow = el('div', { className: 'flex items-center gap-3 mb-3' }, [letterBadge, nameInput, countSpan]);
+  const countSpan = el('span', { className: 'merge-count', textContent: clusterIds.length + ' clusters' });
+  const headerRow = el('div', { className: 'merge-header' }, [letterBadge, nameInput, countSpan]);
 
   // Stats row
-  const statsRow = el('div', { className: 'flex flex-wrap gap-2 mb-3 text-xs text-gray-400' }, [
+  const statsRow = el('div', { className: 'merge-stats' }, [
     el('span', { textContent: 'Clusters: ' + clusterIds.map(id => 'C-' + id).join(', ') }),
-    el('span', { className: 'text-gray-600', textContent: '|' }),
+    el('span', { className: 'separator', textContent: '|' }),
     el('span', { textContent: combinedSize + ' descriptors / ' + combinedMoments + ' moments' }),
-    el('span', { className: 'text-gray-600', textContent: '|' }),
-    el('span', { className: 'font-mono text-white', textContent: (combinedFreq * 100).toFixed(1) + '%' }),
-    el('span', { className: 'text-gray-600', textContent: '|' }),
+    el('span', { className: 'separator', textContent: '|' }),
+    el('span', { className: 'freq-mono', textContent: (combinedFreq * 100).toFixed(1) + '%' }),
+    el('span', { className: 'separator', textContent: '|' }),
     signalChipEl('time', anyTime ? 'yes' : 'no', anyTime),
     signalChipEl('severity', anySeverity ? 'yes' : 'no', anySeverity),
     signalChipEl('repeat', anyRepetition ? 'yes' : 'no', anyRepetition),
   ]);
 
   // Example descriptors
-  const descLabel = el('p', { className: 'text-xs text-gray-500 mb-1', textContent: 'Combined example descriptors (first 6):' });
-  const descBadges = el('div', { className: 'flex flex-wrap gap-1' },
-    allDescriptors.slice(0, 6).map(d => el('span', { className: 'badge bg-gray-800 text-gray-300', textContent: d })));
-  const descSection = el('div', { className: 'mb-3' }, [descLabel, descBadges]);
+  const descLabel = el('p', { className: 'desc-label', textContent: 'Combined example descriptors (first 6):' });
+  const descBadges = el('div', { className: 'merge-desc-badges' },
+    allDescriptors.slice(0, 6).map(d => el('span', { className: 'desc-badge', textContent: d })));
+  const descSection = el('div', { className: 'merge-desc-section' }, [descLabel, descBadges]);
 
   // Definition textarea
-  const defLabel = el('label', { className: 'text-xs text-gray-500', textContent: 'Pass/fail rubric definition' });
-  const defTextarea = el('textarea', { rows: '2', placeholder: 'What makes this criterion pass or fail...', className: 'w-full text-xs rounded px-3 py-2 mt-1' });
+  const defLabel = el('label', { className: 'merge-form label', textContent: 'Pass/fail rubric definition' });
+  const defTextarea = el('textarea', { rows: '2', placeholder: 'What makes this criterion pass or fail...', className: 'merge-form textarea' });
   defTextarea.textContent = meta.definition;
   defTextarea.addEventListener('input', function() { setGroupMeta(letter, 'definition', this.value); });
   const defBlock = el('div', {}, [defLabel, defTextarea]);
 
   // Pass boundary textarea
-  const passLabel = el('label', { className: 'text-xs text-gray-500', textContent: 'Pass boundary (threshold description)' });
-  const passTextarea = el('textarea', { rows: '2', placeholder: 'The observation passes if...', className: 'w-full text-xs rounded px-3 py-2 mt-1' });
+  const passLabel = el('label', { className: 'merge-form label', textContent: 'Pass boundary (threshold description)' });
+  const passTextarea = el('textarea', { rows: '2', placeholder: 'The observation passes if...', className: 'merge-form textarea' });
   passTextarea.textContent = meta.pass_boundary;
   passTextarea.addEventListener('input', function() { setGroupMeta(letter, 'pass_boundary', this.value); });
   const passBlock = el('div', {}, [passLabel, passTextarea]);
 
-  const formSection = el('div', { className: 'space-y-2' }, [defBlock, passBlock]);
+  const formSection = el('div', { className: 'merge-form' }, [defBlock, passBlock]);
 
-  return el('div', { className: 'bg-surface-2 border border-gray-700/50 rounded-lg p-4' },
+  return el('div', { className: 'merge-group' },
     [headerRow, statsRow, descSection, formSection]);
 }
 
