@@ -217,6 +217,73 @@ pub async fn call_anthropic(
         .ok_or_else(|| "No content in Anthropic response".to_string())
 }
 
+// --- Workers AI (cheap background tasks) ---
+
+#[derive(Serialize)]
+struct WorkersAiRequest {
+    messages: Vec<WorkersAiMessage>,
+    max_tokens: u32,
+    temperature: f64,
+}
+
+#[derive(Serialize)]
+struct WorkersAiMessage {
+    role: String,
+    content: String,
+}
+
+/// Call Cloudflare Workers AI with a system prompt and user prompt.
+/// Uses Llama 3.3 70B (FP8) -- cheap, no external API call, runs in the same runtime.
+/// Best for background/fire-and-forget tasks where speed is not critical.
+pub async fn call_workers_ai(
+    env: &Env,
+    system_prompt: &str,
+    user_prompt: &str,
+    temperature: f64,
+    max_tokens: u32,
+) -> Result<String, String> {
+    let ai = env
+        .ai("AI")
+        .map_err(|e| format!("AI binding failed: {:?}", e))?;
+
+    let request = WorkersAiRequest {
+        messages: vec![
+            WorkersAiMessage {
+                role: "system".to_string(),
+                content: system_prompt.to_string(),
+            },
+            WorkersAiMessage {
+                role: "user".to_string(),
+                content: user_prompt.to_string(),
+            },
+        ],
+        max_tokens,
+        temperature,
+    };
+
+    let result: serde_json::Value = ai
+        .run("@cf/meta/llama-3.3-70b-instruct-fp8-fast", request)
+        .await
+        .map_err(|e| format!("Workers AI inference failed: {:?}", e))?;
+
+    // Workers AI returns {"response": "..."} for text generation models.
+    // When the model outputs valid JSON, serde_wasm_bindgen may deserialize
+    // the response field as an object instead of a string.
+    match result.get("response") {
+        Some(serde_json::Value::String(text)) => Ok(text.clone()),
+        Some(value) => {
+            // Response came back as parsed object -- re-serialize to string
+            Ok(serde_json::to_string(value)
+                .unwrap_or_else(|_| format!("{:?}", value)))
+        }
+        None => {
+            // No response field -- return the whole thing
+            Ok(serde_json::to_string(&result)
+                .unwrap_or_else(|_| format!("{:?}", result)))
+        }
+    }
+}
+
 // --- Shared ---
 
 #[derive(Serialize, Deserialize, Clone)]

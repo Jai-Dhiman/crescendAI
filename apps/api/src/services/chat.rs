@@ -641,7 +641,7 @@ async fn fetch_student_row(db: &worker::D1Database, student_id: &str) -> Option<
 
 async fn generate_title(env: &Env, db: &worker::D1Database, conversation_id: &str, user_msg: &str, assistant_msg: &str) {
     let prompt = prompts::build_title_prompt(user_msg, assistant_msg);
-    match llm::call_anthropic(env, "Generate a short title.", &prompt, 30).await {
+    match llm::call_workers_ai(env, "Generate a short title.", &prompt, 0.3, 30).await {
         Ok(title) => {
             let title = title.trim().trim_matches('"').to_string();
             if let Ok(stmt) = db

@@ -1,6 +1,6 @@
 # CrescendAI Research & Product Timeline
 
-> **Status (2026-03-15):** Audio encoder COMPLETE (A1-Max deployed, 80.8% ensemble pairwise). Symbolic encoder COMPLETE (S2 GNN, 71.3% pairwise). Layer 1 validation COMPLETE (all gates pass). YouTube AMT validation COMPLETE (79.9% agreement on mediocre audio). Fusion DEFERRED (failed in ISMIR paper). All inference cloud-only via HF endpoint. **Phase 1 score infrastructure COMPLETE:** score MIDI library (242 pieces), cloud AMT with pedal extraction, score following (DTW), bar-aligned analysis engine (all 6 dims), reference cache generation script.
+> **Status (2026-03-18):** A1-Max deployed (80.8% ensemble pairwise on PercePiano). **CRITICAL FINDING: model has zero skill-level discrimination** -- beginner and professional score identically (0.558 vs 0.565). PercePiano training data is all advanced-level; model never learned the quality spectrum. **Next model (A2) will train on multi-tier data** spanning beginner through professional via YouTube Skill Corpus (T5). Phase 1 score infrastructure COMPLETE. Symbolic encoder S2 COMPLETE (71.3%). Fusion DEFERRED.
 
 *Core question: "How well is the student playing what the score asks for?"*
 
@@ -14,9 +14,9 @@ North star: Give Sarah one piece of useful feedback on one passage she's working
 
 For full encoder details, see `docs/model/03-encoders.md`.
 
-### Encoder Training (complete)
+### Encoder Training (complete, but insufficient for product)
 
-Trained on 1,202 PercePiano segments with 6 teacher-grounded composite dimensions (dynamics, timing, pedaling, articulation, phrasing, interpretation). 4-fold piece-stratified CV.
+Trained on 1,202 PercePiano segments with 6 teacher-grounded composite dimensions (dynamics, timing, pedaling, articulation, phrasing, interpretation). PercePiano contains only 3 works and ~22 advanced-level performers -- no skill-level diversity.
 
 | Model | Modality | Strategy | Pairwise Acc | R2 |
 |-------|----------|----------|-------------|-----|
@@ -30,6 +30,25 @@ Trained on 1,202 PercePiano segments with 6 teacher-grounded composite dimension
 | S1 | Symbolic | Transformer on REMI tokens | 68.4% | 0.33 |
 
 **Deployed:** A1-Max 4-fold ensemble on HF inference endpoint (cloud-only). **Winners:** A1-Max (audio), S2 (symbolic).
+
+### Skill-Level Evaluation (2026-03-18) -- FAIL
+
+Evaluated A1-Max on 26 YouTube Fur Elise recordings across 5 human-labeled skill buckets (beginner through professional). **The model shows zero skill-level discrimination:**
+
+```
+Overall mean by bucket:
+  Bucket 1 (beginner):      0.558 (n=4)
+  Bucket 2 (early intermed): 0.566 (n=6)
+  Bucket 3 (intermediate):   0.560 (n=5)
+  Bucket 4 (advanced):       0.561 (n=5)
+  Bucket 5 (professional):   0.565 (n=6)
+```
+
+Total range: 0.008. No dimension shows monotonic skill-level trend. The model cannot distinguish a 1-year beginner from Lang Lang.
+
+**Root cause:** Training data (PercePiano) is 100% advanced-level performers. The regression head is calibrated to a narrow quality band (~0.4-0.7). Beginner audio features are out-of-distribution, so the head defaults to the mean.
+
+**Fix:** Multi-tier training with YouTube Skill Corpus (T5) that spans the full quality spectrum. See "Next Model: A2" section below.
 
 ### Per-Dimension Complementarity
 
@@ -120,11 +139,68 @@ The YouTube AMT validation (79.9% agreement on 50 mediocre recordings) serves as
 - YouTube AMT: COMPLETE (79.9% agreement). MAESTRO AMT: COMPLETE (0% drop).
 - Remaining: test improved S2-Max after pretraining on 24K graphs
 
+### Next Model: A2 (Multi-Tier Training)
+
+**Goal:** Teach the model the full quality spectrum, from beginner to professional.
+
+A1-Max was trained on PercePiano only (1,202 segments, all advanced). A2 trains on all available data tiers simultaneously:
+
+| Tier | Segments | Signal | Loss |
+|------|----------|--------|------|
+| T1: PercePiano | 1,202 | 6-dim regression + ranking | BCE + ListMLE + CCC |
+| T2: Competition (expanded) | ~11,000 | Ordinal placement ranking | ListMLE |
+| T3: MAESTRO | 24,321 | Contrastive pairs (same piece, diff performer) | InfoNCE |
+| T5: YouTube Skill (NEW) | ~3,100 | Ordinal skill-level ranking (5 buckets) | ListMLE |
+
+**Architecture:** Same MuQ + LoRA backbone, attention pooling, shared encoder, per-dimension heads. Multi-task loss with tier-specific weights.
+
+**Evaluation framework:**
+1. **Skill discrimination (primary):** Spearman rho between skill bucket and predicted score. Must be monotonically increasing from Bucket 1 to 5.
+2. **Within-level pairwise (secondary):** Pairwise accuracy on PercePiano (performer-stratified folds) and within-bucket YouTube pairs.
+3. **Per-dimension skill sensitivity:** Which dims show strongest skill-level signal?
+4. **Cross-piece generalization:** Hold out entire pieces from training -- does skill discrimination transfer?
+
+**T5: YouTube Skill Corpus (new)**
+- ~775 recordings across 16 pieces, 5 skill buckets (beginner through professional)
+- 8 core pieces (deep: 10-15 recordings/bucket): Fur Elise, Nocturne Op.9/2, Moonlight Sonata mvt 1, Clair de Lune, Bach Prelude C WTC1, Mozart K.545 mvt 1, Chopin Waltz C#m, Liszt Liebestraum 3
+- 8 breadth pieces (5-8 recordings/bucket): Chopin Etude Op.10/4, Pathetique mvt 2, Debussy Arabesque 1, Chopin Ballade 1, Rachmaninoff Prelude C#m, Schumann Traumerei, Bach Invention 1, Fantaisie-Impromptu
+- Labels: human-curated 5-bucket skill level per recording
+- Split: 80% training, 20% held-out eval
+- Manifests: `model/data/evals/skill_eval/{piece}/manifest.yaml`
+- Existing: Fur Elise (28 recordings, curated) + Nocturne (27 recordings, curated)
+
+**T2 expansion (competition):**
+- Chopin 2015 (same pipeline, low effort)
+- Cliburn 2022 (~30 performers)
+- Cliburn Amateur (bridges L3-L4 gap)
+- Queen Elisabeth 2024 (~24 performers)
+- Target: ~11,000 segments (up from 2,293)
+
+**Validation checkpoint:** After first A2 training run, do scores increase monotonically from Bucket 1 to 5? If yes, multi-tier approach is validated. If no, investigate whether the MuQ representation itself lacks skill-level features.
+
 ---
 
 ## Perfect Pipeline Roadmap
 
 See `04-north-star.md` for the full 8-stage pipeline vision and detailed design per phase.
+
+### Phase 0: Skill-Level Training Data + A2 Model (2-4 weeks)
+
+**Goal:** Fix the model's most fundamental failure -- it cannot distinguish skill levels.
+
+**0a. YouTube Skill Corpus collection**
+- Collect ~775 recordings across 16 pieces, 5 skill buckets
+- Human curation pass (~6.5 hours): 5-bucket classification per recording
+- Download audio, extract MuQ embeddings (Thunder Compute or local MPS)
+
+**0b. Competition expansion**
+- Add Chopin 2015, Cliburn 2022, Cliburn Amateur to T2 pipeline
+- Target ~11,000 competition segments
+
+**0c. A2 multi-tier training**
+- Train on T1 + T2 + T3 + T5 simultaneously
+- Performer-stratified CV on PercePiano, held-out YouTube skill recordings for eval
+- Primary metric: skill-level Spearman rho (must be positive and significant)
 
 ### Phase 1: Score Infrastructure (3-4 months, engineering)
 

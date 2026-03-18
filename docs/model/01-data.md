@@ -2,7 +2,7 @@
 
 Dataset inventory for piano performance evaluation training. All heavy data processing (audio download, segmentation, MuQ extraction) runs on Thunder Compute (A100). Only embeddings and metadata come back.
 
-> **Status (2026-03-16):** T1 COMPLETE, T2 COMPLETE, T3 COMPLETE, T4 DEFERRED. Symbolic pretrain corpus COMPLETE (24,220 graphs). Composite labels COMPLETE. Data directory reorganized to pipeline-stage-first layout.
+> **Status (2026-03-18):** T1 COMPLETE, T2 COMPLETE (Chopin 2021, expansion planned), T3 COMPLETE, T5 IN PROGRESS (YouTube Skill Corpus -- 2 pieces curated, 14 remaining). Symbolic pretrain corpus COMPLETE (24,220 graphs). Composite labels COMPLETE. T4 (augmentation invariance) REPLACED by T5 (skill-level ranking).
 
 ## Directory Structure
 
@@ -77,16 +77,31 @@ The training code (`src/model_improvement/data.py`) loads only embeddings and me
 - **Signal:** Contrastive pairs (same piece, different performer = positive). InfoNCE loss.
 - **Training class:** `PairedPerformanceDataset`
 
-### T4: YouTube Piano (Augmentation Invariance) -- DEFERRED
+### T4: YouTube Piano (Augmentation Invariance) -- REPLACED BY T5
+
+Replaced by T5 (YouTube Skill Corpus). Original T4 purpose (augmentation invariance) is lower priority than skill-level discrimination. Channel list retained at `manifests/youtube/channels.yaml`.
+
+### T5: YouTube Skill Corpus (Ordinal Skill-Level Ranking) -- IN PROGRESS
 
 | Item | Path | Size |
 |---|---|---|
+| Skill eval manifests | `evals/skill_eval/{piece}/manifest.yaml` | <1MB each |
+| Collection script | `apps/evals/model/skill_eval/collect.py` | on disk |
 | Channel list | `manifests/youtube/channels.yaml` | on disk |
 
-- **Source:** 22 curated YouTube channels
-- **Signal:** MSE between clean and augmented MuQ embeddings
-- **Priority:** Add only if robustness drops > 10% or cross-condition Pearson r < 0.9
-- **Collection script:** `scripts/collect_youtube_piano.py`
+- **Source:** YouTube recordings across 5 skill levels, human-curated labels
+- **Segments:** Target ~3,100 (from ~775 recordings at ~4 segments each)
+- **Signal:** Ordinal skill-level ranking (5 buckets: beginner, early intermediate, intermediate, advanced, professional)
+- **Pieces:** 16 target (8 core deep + 8 breadth). 2 curated: Fur Elise (28 recordings), Nocturne Op.9/2 (27 recordings)
+- **Labels:** Human-curated 5-bucket classification per recording via curation UI
+- **Split:** 80% training, 20% held-out eval, stratified by piece and bucket
+- **Training loss:** ListMLE ranking (same as T2 competition), grouped by piece
+
+**Why T5 exists:** A1-Max skill-level evaluation (2026-03-18) showed zero discrimination -- beginner and professional score identically (0.558 vs 0.565). PercePiano training data is 100% advanced-level. The model never learned that quality has a spectrum.
+
+**Core pieces (10-15 recordings/bucket target):** Fur Elise, Nocturne Op.9/2, Moonlight Sonata mvt 1, Clair de Lune, Bach Prelude C WTC1, Mozart K.545 mvt 1, Chopin Waltz C#m, Liszt Liebestraum 3
+
+**Breadth pieces (5-8 recordings/bucket target):** Chopin Etude Op.10/4, Pathetique mvt 2, Debussy Arabesque 1, Chopin Ballade 1, Rachmaninoff Prelude C#m, Schumann Traumerei, Bach Invention 1, Fantaisie-Impromptu
 
 ### Symbolic Pretraining Corpus
 
@@ -153,10 +168,22 @@ model/data/                     Size
 [x] T1 PercePiano embeddings + labels
 [x] Symbolic pretraining corpus (24,220 graphs)
 [x] Composite labels (6 teacher-grounded dimensions)
-[x] T2 competition embeddings (2,293 segments)
+[x] T2 competition embeddings (2,293 segments, Chopin 2021)
 [x] T3 MAESTRO embeddings (24,321 segments) + per-recording graphs (1,123)
 [x] T3 MAESTRO contrastive mapping (204 pieces)
-[ ] T4 YouTube embeddings (deferred)
+```
+
+### Phase 0: A2 Multi-Tier Training Data
+
+```
+[x] T5 YouTube Skill manifests: Fur Elise (28 recordings, curated)
+[x] T5 YouTube Skill manifests: Nocturne Op.9/2 (27 recordings, curated)
+[ ] T5 YouTube Skill: collect + curate remaining 14 pieces (~720 recordings)
+[ ] T5 YouTube Skill: download audio + extract MuQ embeddings
+[ ] T2 expansion: Chopin 2015 competition (~2,000 segments)
+[ ] T2 expansion: Cliburn 2022 competition (~3,000 segments)
+[ ] T2 expansion: Cliburn Amateur competition (~2,000 segments)
+[ ] T2 expansion: Queen Elisabeth 2024 (~2,000 segments)
 ```
 
 ### Pipeline Roadmap Data Needs

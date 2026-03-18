@@ -1,8 +1,6 @@
 use wasm_bindgen::JsValue;
 use worker::{console_log, Env};
 
-const LLM_MODEL: &str = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
-
 #[derive(serde::Deserialize)]
 pub struct ExtractGoalsRequest {
     pub message: String,
@@ -22,10 +20,6 @@ pub struct GoalDeadline {
     pub date: Option<String>,
 }
 
-#[derive(serde::Deserialize)]
-struct TextGenerationResponse {
-    response: String,
-}
 
 pub async fn handle_extract_goals(
     env: &Env,
@@ -58,10 +52,11 @@ pub async fn handle_extract_goals(
         Ok(goals) => goals,
         Err(e) => {
             console_log!("Goal extraction failed: {}", e);
+            let error_json = serde_json::json!({"error": format!("Goal extraction failed: {}", e)});
             return Response::builder()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
                 .header("Content-Type", "application/json")
-                .body(Body::from(r#"{"error":"Goal extraction failed"}"#))
+                .body(Body::from(error_json.to_string()))
                 .unwrap();
         }
     };
@@ -163,8 +158,6 @@ pub async fn handle_extract_goals(
 }
 
 async fn extract_goals_with_llm(env: &Env, message: &str) -> Result<ExtractedGoals, String> {
-    let ai = env.ai("AI").map_err(|e| format!("AI binding failed: {:?}", e))?;
-
     let prompt = format!(
         r#"Extract structured practice goals from this pianist's message. Return ONLY valid JSON with no other text.
 
@@ -182,26 +175,18 @@ If a field has no matches, use an empty array. Always include raw_text."#,
         message
     );
 
-    let request = serde_json::json!({
-        "messages": [
-            {"role": "system", "content": "You extract structured data from pianist messages. Return only valid JSON."},
-            {"role": "user", "content": prompt}
-        ],
-        "max_tokens": 500,
-        "temperature": 0.1
-    });
-
-    let result: serde_json::Value = ai
-        .run(LLM_MODEL, request)
-        .await
-        .map_err(|e| format!("AI inference failed: {:?}", e))?;
-
-    let response: TextGenerationResponse = serde_json::from_value(result)
-        .map_err(|e| format!("Failed to parse AI response: {:?}", e))?;
+    let response = crate::services::llm::call_workers_ai(
+        env,
+        "You extract structured data from pianist messages. Return only valid JSON.",
+        &prompt,
+        0.1,
+        500,
+    )
+    .await?;
 
     // Parse the LLM's JSON response
-    let extracted: ExtractedGoals = serde_json::from_str(&response.response).map_err(|e| {
-        console_log!("LLM returned invalid JSON: {}", response.response);
+    let extracted: ExtractedGoals = serde_json::from_str(&response).map_err(|e| {
+        console_log!("LLM returned invalid JSON: {}", response);
         format!("Failed to parse extracted goals: {}", e)
     })?;
 

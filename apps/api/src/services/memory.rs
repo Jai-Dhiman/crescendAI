@@ -418,8 +418,8 @@ pub async fn extract_and_store_chat_facts(
         today,
     );
 
-    // 3. Call Groq
-    let output = llm::call_groq(
+    // 3. Call Workers AI (cheap, background task)
+    let output = llm::call_workers_ai(
         env,
         prompts::CHAT_EXTRACTION_SYSTEM,
         &user_prompt,
@@ -1029,8 +1029,8 @@ pub async fn handle_extract_chat(
         &request.today,
     );
 
-    // Call Groq
-    let output = match crate::services::llm::call_groq(
+    // Call Workers AI (cheap, background task)
+    let output = match crate::services::llm::call_workers_ai(
         env,
         crate::services::prompts::CHAT_EXTRACTION_SYSTEM,
         &user_prompt,
@@ -1041,7 +1041,7 @@ pub async fn handle_extract_chat(
     {
         Ok(output) => output,
         Err(e) => {
-            console_log!("Groq call failed for extract-chat: {}", e);
+            console_log!("Workers AI call failed for extract-chat: {}", e);
             return Response::builder()
                 .status(StatusCode::SERVICE_UNAVAILABLE)
                 .header("Content-Type", "application/json")
@@ -1522,11 +1522,11 @@ pub async fn handle_search_facts(
         .unwrap()
 }
 
-/// Extract entities from a query using Groq (Llama 70B).
+/// Extract entities from a query using Workers AI (cheap, background).
 async fn extract_query_entities(env: &Env, query: &str) -> Vec<String> {
     let prompt = format!("{}\"{}\"\n", ENTITY_EXTRACTION_PROMPT, query);
 
-    let output = match crate::services::llm::call_groq(
+    let output = match crate::services::llm::call_workers_ai(
         env,
         "You extract entities from text. Return only a JSON array of strings.",
         &prompt,

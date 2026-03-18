@@ -16,7 +16,6 @@ import gc
 import json
 import time
 from functools import partial
-from pathlib import Path
 
 import torch
 import pytorch_lightning as pl
@@ -33,9 +32,8 @@ from model_improvement.evaluation import evaluate_model
 from model_improvement.taxonomy import load_composite_labels, NUM_DIMS
 from model_improvement.training import train_model
 
-RESULTS_PATH = Path("data/ablation_sweep_results.json")
-CHECKPOINT_DIR = Path("data/checkpoints/ablation")
-DATA_DIR = Path("data")
+RESULTS_PATH = Results.root / "ablation_sweep.json"
+CHECKPOINT_DIR = Checkpoints.root / "ablation"
 
 BATCH_SIZE = 4
 ACCUM_BATCHES = 4
@@ -56,7 +54,7 @@ ABLATION_CONFIGS = {
         "input_dim": 1024,
         "hidden_dim": 512,
         "num_labels": NUM_DIMS,
-        "learning_rate": 1e-4,  # Higher LR: only MLP head trains
+        "learning_rate": 3e-5,  # Match other configs for fair comparison
         "weight_decay": 1e-5,
         "temperature": 0.07,
         "lora_target_layers": (7, 8, 9, 10, 11, 12),
@@ -170,19 +168,18 @@ def run_ablation_sweep(
     """Run ablation sweep with resume support."""
     pl.seed_everything(42, workers=True)
 
-    # Load data (same pattern as a1_max_sweep.py)
-    cache_dir = DATA_DIR / "percepiano_cache"
-    composite_path = DATA_DIR / "composite_labels" / "composite_labels.json"
+    # Load data (paths from src.paths)
+    composite_path = Labels.composite / "composite_labels.json"
     labels_raw = load_composite_labels(composite_path)
     labels = {k: v.tolist() for k, v in labels_raw.items()}
 
-    emb_path = cache_dir / "muq_embeddings.pt"
+    emb_path = Embeddings.percepiano / "muq_embeddings.pt"
     # Safe: weights_only=True prevents arbitrary code execution
     embeddings = torch.load(emb_path, map_location="cpu", weights_only=True)  # nosemgrep
 
-    with open(cache_dir / "folds.json") as f:
+    with open(Labels.percepiano / "folds.json") as f:
         folds = json.load(f)
-    with open(cache_dir / "piece_mapping.json") as f:
+    with open(Labels.percepiano / "piece_mapping.json") as f:
         piece_to_keys = json.load(f)
 
     print(f"Loaded {len(labels)} labels, {len(embeddings)} embeddings, {len(folds)} folds")
@@ -230,11 +227,11 @@ def run_ablation_sweep(
             _cleanup_memory()
 
             train_ds = PairedPerformanceDataset(
-                cache_dir=cache_dir, labels=labels,
+                cache_dir=Embeddings.percepiano, labels=labels,
                 piece_to_keys=piece_to_keys, keys=fold["train"],
             )
             val_ds = PairedPerformanceDataset(
-                cache_dir=cache_dir, labels=labels,
+                cache_dir=Embeddings.percepiano, labels=labels,
                 piece_to_keys=piece_to_keys, keys=fold["val"],
             )
             train_loader = DataLoader(  # nosemgrep
