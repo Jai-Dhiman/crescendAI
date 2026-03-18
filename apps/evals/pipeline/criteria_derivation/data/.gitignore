@@ -1,0 +1,7 @@
+# Large intermediate files
+qualities_raw.jsonl
+embeddings.npy
+
+# Track final outputs
+!clusters.json
+!validation_report.json

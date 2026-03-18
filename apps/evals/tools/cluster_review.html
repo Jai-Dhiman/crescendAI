@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cluster Review &amp; Merge Tool</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #0f1117;
+      color: #e2e8f0;
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      min-height: 100vh;
+      padding: 24px;
+      line-height: 1.5;
+    }
+
+    /* Layout */
+    .container { max-width: 1280px; margin: 0 auto; }
+    .header { margin-bottom: 32px; }
+    .header h1 { font-size: 1.5rem; font-weight: 700; color: #fff; margin-bottom: 4px; }
+    .header p { font-size: 0.875rem; color: #9ca3af; }
+
+    /* Grid */
+    .card-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 16px;
+      margin-bottom: 32px;
+    }
+    @media (min-width: 768px) {
+      .card-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (min-width: 1280px) {
+      .card-grid { grid-template-columns: repeat(3, 1fr); }
+    }
+
+    /* Cards */
+    .card {
+      border-radius: 12px;
+      padding: 16px;
+      border: 1px solid #2d3348;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+    .card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.3); }
+    .card-selected { background: #1e2130; border-color: rgba(99,102,241,0.4); }
+    .card-default { background: #171923; border-color: rgba(55,65,81,0.3); }
+
+    /* Header row */
+    .card-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 8px; }
+    .card-header-left { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
+    .cluster-id { font-size: 0.75rem; font-family: monospace; color: #6b7280; }
+    .cluster-size { margin-left: 8px; font-size: 0.75rem; color: #9ca3af; }
+
+    /* Badge */
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 9999px; font-size: 0.7rem; font-weight: 500; }
+    .badge-selected { background: rgba(49,46,129,0.5); color: #a5b4fc; margin-left: 8px; }
+    .badge-correction { background: rgba(127,29,29,0.4); color: #f87171; }
+    .badge-suggestion { background: rgba(30,58,138,0.4); color: #60a5fa; }
+    .badge-explanation { background: rgba(120,53,15,0.4); color: #fbbf24; }
+    .badge-demonstration { background: rgba(88,28,135,0.4); color: #c084fc; }
+    .badge-praise { background: rgba(20,83,45,0.4); color: #4ade80; }
+    .badge-comparison { background: rgba(22,78,99,0.4); color: #22d3ee; }
+    .badge-default { background: #1f2937; color: #9ca3af; }
+
+    /* Select / inputs */
+    select, input, textarea {
+      background: #1e2130;
+      border: 1px solid #2d3348;
+      color: #e2e8f0;
+      font-family: inherit;
+    }
+    select:focus, input:focus, textarea:focus {
+      outline: none;
+      border-color: #6366f1;
+      box-shadow: 0 0 0 2px rgba(99,102,241,0.2);
+    }
+    .group-select { font-size: 0.75rem; border-radius: 6px; padding: 4px 8px; width: 64px; }
+    .group-select-active { border-color: #6366f1; }
+
+    /* Frequency bar */
+    .freq-section { margin-bottom: 12px; }
+    .freq-label-row { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+    .freq-label { font-size: 0.75rem; color: #9ca3af; }
+    .freq-value { font-size: 0.75rem; font-family: monospace; color: #fff; }
+    .freq-bar-track { width: 100%; height: 6px; background: #1f2937; border-radius: 9999px; overflow: hidden; }
+    .freq-bar-fill { height: 100%; border-radius: 9999px; transition: width 0.4s ease; }
+    .freq-bar-fill-selected { background: #6366f1; }
+    .freq-bar-fill-default { background: #4b5563; }
+
+    /* Signal chips */
+    .signal-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+    .signal-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 10px;
+      border-radius: 9999px;
+      font-size: 0.72rem;
+      font-weight: 500;
+    }
+    .signal-active { background: rgba(20,83,45,0.4); color: #4ade80; border: 1px solid rgba(21,128,61,0.5); }
+    .signal-inactive { background: rgba(31,41,55,0.4); color: #6b7280; border: 1px solid rgba(55,65,81,0.3); }
+
+    /* Badge row */
+    .badge-row { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 12px; }
+
+    /* Descriptor section */
+    .desc-section { margin-bottom: 12px; }
+    .desc-label { font-size: 0.75rem; color: #6b7280; margin-bottom: 4px; }
+    .desc-list { font-size: 0.75rem; color: #cbd5e1; list-style: disc; list-style-position: inside; }
+    .desc-list li { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-bottom: 2px; }
+    .desc-badge { display: inline-block; padding: 2px 8px; border-radius: 9999px; font-size: 0.7rem; font-weight: 500; background: #1f2937; color: #cbd5e1; }
+
+    /* Name input */
+    .name-input { width: 100%; font-size: 0.75rem; border-radius: 6px; padding: 4px 8px; margin-top: 4px; }
+
+    /* Details / collapsible */
+    .collapsible-section { margin-bottom: 40px; border-radius: 8px; background: #171923; border: 1px solid rgba(55,65,81,0.5); }
+    .collapsible-summary {
+      padding: 12px 20px;
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: #d1d5db;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .collapsible-summary:hover { color: #fff; }
+    .collapsible-summary::-webkit-details-marker { display: none; }
+    .collapsible-summary svg { width: 16px; height: 16px; transition: transform 0.2s; }
+    details[open] .collapsible-summary svg { transform: rotate(90deg); }
+    .collapsible-body { padding: 16px; }
+
+    /* Merge panel */
+    .merge-panel-wrapper {
+      background: #171923;
+      border: 1px solid rgba(55,65,81,0.5);
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 32px;
+    }
+    .merge-panel-wrapper h2 { font-size: 1.125rem; font-weight: 700; color: #fff; margin-bottom: 16px; }
+    .merge-panel-wrapper > p { font-size: 0.75rem; color: #9ca3af; margin-bottom: 16px; }
+    .merge-groups-list { display: flex; flex-direction: column; gap: 16px; }
+    .merge-empty { margin-top: 24px; text-align: center; font-size: 0.875rem; color: #6b7280; }
+
+    /* Merge group card */
+    .merge-group { background: #1e2130; border: 1px solid rgba(55,65,81,0.5); border-radius: 8px; padding: 16px; }
+    .merge-header { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+    .letter-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: rgba(49,46,129,0.5);
+      color: #a5b4fc;
+      font-weight: 700;
+      font-size: 0.875rem;
+    }
+    .merge-name-input { flex: 1; font-size: 0.875rem; font-weight: 500; border-radius: 6px; padding: 4px 12px; }
+    .merge-count { font-size: 0.75rem; color: #9ca3af; }
+    .merge-stats { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; font-size: 0.75rem; color: #9ca3af; align-items: center; }
+    .merge-stats .separator { color: #4b5563; }
+    .merge-stats .freq-mono { font-family: monospace; color: #fff; }
+    .merge-desc-section { margin-bottom: 12px; }
+    .merge-desc-badges { display: flex; flex-wrap: wrap; gap: 4px; }
+    .merge-form { display: flex; flex-direction: column; gap: 8px; }
+    .merge-form label { font-size: 0.75rem; color: #6b7280; }
+    .merge-form textarea { width: 100%; font-size: 0.75rem; border-radius: 6px; padding: 8px 12px; margin-top: 4px; resize: vertical; }
+
+    /* Export */
+    .export-row { display: flex; align-items: center; gap: 16px; margin-bottom: 48px; }
+    .export-btn {
+      padding: 10px 24px;
+      background: #6366f1;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-weight: 500;
+      font-size: 0.875rem;
+      cursor: pointer;
+      transition: background 0.15s;
+      font-family: inherit;
+    }
+    .export-btn:hover { background: #4f46e5; }
+    .export-hint { font-size: 0.75rem; color: #6b7280; }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <!-- Header -->
+  <div class="header">
+    <h1>Cluster Review &amp; Merge</h1>
+    <p>13 selected clusters from 46 total (2,149 moments). Assign groups, name criteria, then export.</p>
+  </div>
+
+  <!-- Selected Clusters -->
+  <div id="selected-grid" class="card-grid"></div>
+
+  <!-- Non-selected clusters -->
+  <details class="collapsible-section">
+    <summary class="collapsible-summary">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+      Other clusters (33 non-selected)
+    </summary>
+    <div id="other-grid" class="card-grid collapsible-body"></div>
+  </details>
+
+  <!-- Merge Panel -->
+  <div class="merge-panel-wrapper">
+    <h2>Merge Panel</h2>
+    <p>Groups are formed by assigning the same letter to multiple cluster cards above. Name each group and define its pass/fail rubric below.</p>
+    <div id="merge-panel" class="merge-groups-list"></div>
+    <div class="merge-empty" id="merge-empty">Assign groups to clusters above to see merged criteria here.</div>
+  </div>
+
+  <!-- Export -->
+  <div class="export-row">
+    <button id="export-btn" onclick="exportJSON()" class="export-btn">
+      Export JSON
+    </button>
+    <span class="export-hint">Downloads criteria definition file with merged groups, frequencies, and rubrics.</span>
+  </div>
+</div>
+
+<script>
+// ---------- DATA ----------
+const ALL_CLUSTERS = [{"cluster_id":0,"name":"","size":28,"unique_moments":28,"frequency":0.013,"mean_time_seconds":44.3,"time_ratio":0.94,"has_time_signal":false,"significant_ratio":0.071,"severity_lift":-0.131,"has_severity_signal":false,"non_repeated_ratio":0.571,"repetition_lift":-0.067,"has_repetition_signal":false,"feedback_type_distribution":{"correction":18,"suggestion":6,"explanation":4},"passes_frequency":false,"selected":false,"example_descriptors":["Missing demonstration of desired sound","Lacks demonstration of desired sound","No demonstration of desired sound","Missing demonstration of desired sound","No demonstration of desired sound"]},{"cluster_id":1,"name":"","size":93,"unique_moments":91,"frequency":0.0423,"mean_time_seconds":46.9,"time_ratio":1.0,"has_time_signal":false,"significant_ratio":0.187,"severity_lift":-0.016,"has_severity_signal":false,"non_repeated_ratio":0.725,"repetition_lift":0.087,"has_repetition_signal":true,"feedback_type_distribution":{"demonstration":15,"correction":43,"explanation":16,"suggestion":17},"passes_frequency":true,"selected":true,"example_descriptors":["Asks guiding questions strategically","Inviting student participation (questioning)","Engages student through dialogue","Engaging student participation actively","Engages student through rhetorical questions"]},{"cluster_id":2,"name":"","size":31,"unique_moments":31,"frequency":0.0144,"mean_time_seconds":44.0,"time_ratio":0.93,"has_time_signal":false,"significant_ratio":0.226,"severity_lift":0.023,"has_severity_signal":false,"non_repeated_ratio":0.516,"repetition_lift":-0.122,"has_repetition_signal":false,"feedback_type_distribution":{"correction":18,"demonstration":6,"suggestion":3,"explanation":4},"passes_frequency":false,"selected":false,"example_descriptors":["Contrasts wrong and right versions","Contrasts with common practice","Specific dynamic contrast instruction","Specific dynamic contrast instructions","Specific dynamic contrast instruction"]},{"cluster_id":3,"name":"","size":27,"unique_moments":27,"frequency":0.0126,"mean_time_seconds":40.1,"time_ratio":0.85,"has_time_signal":false,"significant_ratio":0.074,"severity_lift":-0.128,"has_severity_signal":false,"non_repeated_ratio":0.852,"repetition_lift":0.213,"has_repetition_signal":true,"feedback_type_distribution":{"explanation":6,"suggestion":9,"correction":10,"demonstration":2},"passes_frequency":false,"selected":false,"example_descriptors":["Conversational tone builds rapport","Engaging conversational tone maintained","Conversational tone encouraging engagement","Employs conversational, encouraging tone","Engaging conversational tone"]},{"cluster_id":4,"name":"","size":62,"unique_moments":62,"frequency":0.0289,"mean_time_seconds":50.5,"time_ratio":1.07,"has_time_signal":false,"significant_ratio":0.226,"severity_lift":0.023,"has_severity_signal":false,"non_repeated_ratio":0.645,"repetition_lift":0.007,"has_repetition_signal":false,"feedback_type_distribution":{"correction":35,"suggestion":12,"explanation":9,"demonstration":5,"praise":1},"passes_frequency":true,"selected":false,"example_descriptors":["Explains pedal mechanics clearly","Pedal technique specificity","Vague dynamic and pedal guidance","Pedal technique clearly articulated","Nuanced pedal use explanation"]},{"cluster_id":5,"name":"","size":60,"unique_moments":60,"frequency":0.0279,"mean_time_seconds":43.8,"time_ratio":0.93,"has_time_signal":false,"significant_ratio":0.05,"severity_lift":-0.152,"has_severity_signal":false,"non_repeated_ratio":0.617,"repetition_lift":-0.022,"has_repetition_signal":false,"feedback_type_distribution":{"demonstration":7,"suggestion":22,"explanation":4,"correction":25,"comparison":1,"praise":1},"passes_frequency":true,"selected":false,"example_descriptors":["Balanced criticism with praise","Balanced praise before criticism","Balances praise with constructive critique","Balances praise with constructive suggestion","Balances practical concern with genuine praise"]},{"cluster_id":6,"name":"","size":171,"unique_moments":170,"frequency":0.0791,"mean_time_seconds":50.3,"time_ratio":1.07,"has_time_signal":false,"significant_ratio":0.165,"severity_lift":-0.038,"has_severity_signal":false,"non_repeated_ratio":0.665,"repetition_lift":0.026,"has_repetition_signal":false,"feedback_type_distribution":{"explanation":22,"correction":77,"suggestion":57,"demonstration":14},"passes_frequency":true,"selected":false,"example_descriptors":["Acknowledges student's interpretive restraint","Encourages interpretive freedom boldly","Validates student's musical instincts","Encourages interpretive freedom","Encouragement of varied interpretive choices"]},{"cluster_id":7,"name":"","size":27,"unique_moments":27,"frequency":0.0126,"mean_time_seconds":41.9,"time_ratio":0.89,"has_time_signal":false,"significant_ratio":0.111,"severity_lift":-0.091,"has_severity_signal":false,"non_repeated_ratio":0.481,"repetition_lift":-0.157,"has_repetition_signal":false,"feedback_type_distribution":{"correction":13,"explanation":3,"demonstration":5,"comparison":1,"suggestion":5},"passes_frequency":false,"selected":false,"example_descriptors":["Provides corrective feedback gradually","Immediate, direct feedback","Immediate corrective feedback provided","Immediate corrective feedback with specificity","Incomplete feedback articulation"]},{"cluster_id":8,"name":"","size":22,"unique_moments":22,"frequency":0.0102,"mean_time_seconds":51.5,"time_ratio":1.09,"has_time_signal":false,"significant_ratio":0.136,"severity_lift":-0.066,"has_severity_signal":false,"non_repeated_ratio":0.636,"repetition_lift":-0.002,"has_repetition_signal":false,"feedback_type_distribution":{"explanation":7,"correction":7,"praise":1,"suggestion":6,"demonstration":1},"passes_frequency":false,"selected":false,"example_descriptors":["Clear structural guidance (establish ostinato first)","Clear structural guidance provided","Actionable structural guidance offered","Specific structural guidance provided","Specific structural guidance provided"]},{"cluster_id":9,"name":"","size":42,"unique_moments":42,"frequency":0.0195,"mean_time_seconds":30.1,"time_ratio":0.64,"has_time_signal":false,"significant_ratio":0.167,"severity_lift":-0.036,"has_severity_signal":false,"non_repeated_ratio":0.429,"repetition_lift":-0.21,"has_repetition_signal":false,"feedback_type_distribution":{"correction":29,"explanation":4,"suggestion":7,"demonstration":1,"praise":1},"passes_frequency":false,"selected":false,"example_descriptors":["Mixes languages without clarity","Mixed language may confuse understanding","Mixed language potentially confusing","Mixing languages creates clarity gaps","Mixed language creates confusion"]},{"cluster_id":10,"name":"","size":25,"unique_moments":25,"frequency":0.0116,"mean_time_seconds":48.0,"time_ratio":1.02,"has_time_signal":false,"significant_ratio":0.08,"severity_lift":-0.122,"has_severity_signal":false,"non_repeated_ratio":0.64,"repetition_lift":0.002,"has_repetition_signal":false,"feedback_type_distribution":{"correction":20,"demonstration":3,"suggestion":2},"passes_frequency":false,"selected":false,"example_descriptors":["Multilingual code-switching confuses message clarity","Use of native language for clarity","Code-switching between languages creates confusion","Multiple language switches may confuse","Uses native language for clarity"]},{"cluster_id":11,"name":"","size":51,"unique_moments":51,"frequency":0.0237,"mean_time_seconds":47.9,"time_ratio":1.02,"has_time_signal":false,"significant_ratio":0.275,"severity_lift":0.072,"has_severity_signal":true,"non_repeated_ratio":0.686,"repetition_lift":0.048,"has_repetition_signal":true,"feedback_type_distribution":{"suggestion":8,"correction":33,"comparison":1,"explanation":5,"demonstration":4},"passes_frequency":true,"selected":true,"example_descriptors":["References composer's structural intent","Connects technique to composer's intent","Appeals to composer's authority","Connects technique to composer's intent","Invokes composer's intent meaningfully"]},{"cluster_id":12,"name":"","size":145,"unique_moments":144,"frequency":0.067,"mean_time_seconds":45.6,"time_ratio":0.97,"has_time_signal":false,"significant_ratio":0.139,"severity_lift":-0.064,"has_severity_signal":false,"non_repeated_ratio":0.722,"repetition_lift":0.084,"has_repetition_signal":true,"feedback_type_distribution":{"explanation":29,"correction":69,"suggestion":36,"demonstration":9,"praise":1},"passes_frequency":true,"selected":true,"example_descriptors":["Harmonic analysis framework provided","Vague harmonic explanation incomplete","Specific harmonic guidance provided","Specific harmonic detail identification","Incomplete explanation of harmonic significance"]},{"cluster_id":13,"name":"","size":61,"unique_moments":61,"frequency":0.0284,"mean_time_seconds":42.9,"time_ratio":0.91,"has_time_signal":false,"significant_ratio":0.115,"severity_lift":-0.088,"has_severity_signal":false,"non_repeated_ratio":0.705,"repetition_lift":0.066,"has_repetition_signal":true,"feedback_type_distribution":{"correction":39,"explanation":9,"suggestion":8,"demonstration":5},"passes_frequency":true,"selected":true,"example_descriptors":["Addresses repetitive interpretive choices","Addresses interpretive intention directly","Addresses both interpretation and execution","Addresses both technique and character","Addresses common interpretive misconception"]},{"cluster_id":14,"name":"","size":25,"unique_moments":25,"frequency":0.0116,"mean_time_seconds":38.5,"time_ratio":0.82,"has_time_signal":false,"significant_ratio":0.28,"severity_lift":0.078,"has_severity_signal":true,"non_repeated_ratio":0.68,"repetition_lift":0.042,"has_repetition_signal":true,"feedback_type_distribution":{"correction":14,"demonstration":1,"suggestion":4,"explanation":5,"comparison":1},"passes_frequency":false,"selected":false,"example_descriptors":["Language barrier complicates instruction","Language barrier obscures clarity","Language barrier interrupting instruction","Language barrier creating ambiguity","Language barrier creates confusion"]},{"cluster_id":15,"name":"","size":141,"unique_moments":141,"frequency":0.0656,"mean_time_seconds":46.8,"time_ratio":0.99,"has_time_signal":false,"significant_ratio":0.284,"severity_lift":0.081,"has_severity_signal":true,"non_repeated_ratio":0.674,"repetition_lift":0.035,"has_repetition_signal":true,"feedback_type_distribution":{"suggestion":27,"correction":88,"demonstration":14,"explanation":10,"comparison":2},"passes_frequency":true,"selected":true,"example_descriptors":["Addresses specific technical problem","Direct identification of problem areas","Clear identification of specific problem","Identifies specific technical problem clearly","Identifies specific technical problem"]},{"cluster_id":16,"name":"","size":31,"unique_moments":31,"frequency":0.0144,"mean_time_seconds":59.2,"time_ratio":1.26,"has_time_signal":true,"significant_ratio":0.484,"severity_lift":0.281,"has_severity_signal":true,"non_repeated_ratio":0.516,"repetition_lift":-0.122,"has_repetition_signal":false,"feedback_type_distribution":{"correction":22,"suggestion":5,"demonstration":3,"explanation":1},"passes_frequency":false,"selected":false,"example_descriptors":["Addresses root cause rather than symptom","Addresses root cause, not symptom","Addresses root cause of problem","Addresses root cause rather than symptom","Addresses root cause, not symptom"]},{"cluster_id":17,"name":"","size":77,"unique_moments":77,"frequency":0.0358,"mean_time_seconds":53.7,"time_ratio":1.14,"has_time_signal":true,"significant_ratio":0.221,"severity_lift":0.018,"has_severity_signal":false,"non_repeated_ratio":0.636,"repetition_lift":-0.002,"has_repetition_signal":false,"feedback_type_distribution":{"correction":34,"demonstration":19,"suggestion":16,"explanation":7,"praise":1},"passes_frequency":true,"selected":true,"example_descriptors":["Incomplete transcript clarity hampers instruction","Fragmented transcript obscures full instruction clarity","Incomplete verbal explanations in transcript","Fragmented transcript obscures complete instructional logic","Incomplete transcript limits clarity"]},{"cluster_id":18,"name":"","size":46,"unique_moments":46,"frequency":0.0214,"mean_time_seconds":44.3,"time_ratio":0.94,"has_time_signal":false,"significant_ratio":0.239,"severity_lift":0.037,"has_severity_signal":true,"non_repeated_ratio":0.696,"repetition_lift":0.057,"has_repetition_signal":true,"feedback_type_distribution":{"suggestion":11,"demonstration":6,"correction":24,"explanation":5},"passes_frequency":true,"selected":true,"example_descriptors":["Uses onomatopoeia effectively","Vivid rhythmic onomatopoeia used","Relies on onomatopoeia instead of precise language","Verbal onomatopoeia for rhythm clarity","Onomatopoeia mimics desired sound"]},{"cluster_id":19,"name":"","size":29,"unique_moments":29,"frequency":0.0135,"mean_time_seconds":50.0,"time_ratio":1.06,"has_time_signal":false,"significant_ratio":0.31,"severity_lift":0.108,"has_severity_signal":true,"non_repeated_ratio":0.724,"repetition_lift":0.086,"has_repetition_signal":true,"feedback_type_distribution":{"correction":20,"explanation":2,"demonstration":3,"suggestion":4},"passes_frequency":false,"selected":false,"example_descriptors":["Tempo consistency principle articulated","Lacks specific tempo marking guidance","Emphasis on tempo consistency","Vague tempo guidance without clarity","Tempo guidance offered explicitly"]},{"cluster_id":20,"name":"","size":124,"unique_moments":122,"frequency":0.0568,"mean_time_seconds":39.9,"time_ratio":0.85,"has_time_signal":false,"significant_ratio":0.164,"severity_lift":-0.038,"has_severity_signal":false,"non_repeated_ratio":0.59,"repetition_lift":-0.048,"has_repetition_signal":false,"feedback_type_distribution":{"correction":67,"demonstration":13,"suggestion":29,"explanation":11,"comparison":2},"passes_frequency":true,"selected":false,"example_descriptors":["Verbal repetition for emphasis","Repetition emphasizes pedagogical point","Repetition reinforces the central concept","Specific dynamic instruction (don't relax)","Uses repetition to reinforce concept"]},{"cluster_id":21,"name":"","size":50,"unique_moments":50,"frequency":0.0233,"mean_time_seconds":37.8,"time_ratio":0.8,"has_time_signal":false,"significant_ratio":0.18,"severity_lift":-0.022,"has_severity_signal":false,"non_repeated_ratio":0.52,"repetition_lift":-0.118,"has_repetition_signal":false,"feedback_type_distribution":{"explanation":4,"correction":26,"demonstration":6,"praise":1,"suggestion":13},"passes_frequency":true,"selected":false,"example_descriptors":["Immediate positive reinforcement given","Immediate positive reinforcement given","Provides immediate verbal reinforcement","Positive reinforcement after attempt","Immediate positive reinforcement after correction"]},{"cluster_id":22,"name":"","size":114,"unique_moments":113,"frequency":0.0526,"mean_time_seconds":47.5,"time_ratio":1.01,"has_time_signal":false,"significant_ratio":0.071,"severity_lift":-0.132,"has_severity_signal":false,"non_repeated_ratio":0.611,"repetition_lift":-0.028,"has_repetition_signal":false,"feedback_type_distribution":{"explanation":21,"correction":54,"suggestion":27,"demonstration":10,"praise":1},"passes_frequency":true,"selected":false,"example_descriptors":["Poetic language evokes emotional imagery","Vivid metaphorical language used","Vivid metaphorical language used","Unclear metaphorical language used","Vivid metaphorical language used"]},{"cluster_id":23,"name":"","size":60,"unique_moments":59,"frequency":0.0275,"mean_time_seconds":51.6,"time_ratio":1.1,"has_time_signal":false,"significant_ratio":0.153,"severity_lift":-0.05,"has_severity_signal":false,"non_repeated_ratio":0.627,"repetition_lift":-0.011,"has_repetition_signal":false,"feedback_type_distribution":{"correction":29,"explanation":8,"demonstration":10,"suggestion":10,"comparison":1,"praise":1},"passes_frequency":true,"selected":false,"example_descriptors":["Contextualizes technique with narrative","Connects technique to emotional intent (joy versus sadness)","Emotional intent clarified explicitly","Connects musical architecture to emotional character","Connects musical architecture to narrative"]},{"cluster_id":24,"name":"","size":51,"unique_moments":51,"frequency":0.0237,"mean_time_seconds":42.2,"time_ratio":0.9,"has_time_signal":false,"significant_ratio":0.176,"severity_lift":-0.026,"has_severity_signal":false,"non_repeated_ratio":0.667,"repetition_lift":0.028,"has_repetition_signal":false,"feedback_type_distribution":{"correction":20,"explanation":10,"suggestion":18,"demonstration":3},"passes_frequency":true,"selected":false,"example_descriptors":["Insufficient structural explanation provided","Somewhat unclear structural explanation","Emphasizes structural relationship clearly","Emphasizes structural awareness explicitly","Lacks structural context explanation"]},{"cluster_id":25,"name":"","size":30,"unique_moments":30,"frequency":0.014,"mean_time_seconds":49.1,"time_ratio":1.04,"has_time_signal":false,"significant_ratio":0.233,"severity_lift":0.031,"has_severity_signal":true,"non_repeated_ratio":0.833,"repetition_lift":0.195,"has_repetition_signal":true,"feedback_type_distribution":{"correction":11,"suggestion":10,"demonstration":5,"explanation":4},"passes_frequency":false,"selected":false,"example_descriptors":["Contextual analysis of compositional intent","Connects technical instruction to compositional intent","Connects interpretation to compositional intent","Connects technical choices to artistic intent","Connects technique to compositional intent"]},{"cluster_id":26,"name":"","size":20,"unique_moments":20,"frequency":0.0093,"mean_time_seconds":45.2,"time_ratio":0.96,"has_time_signal":false,"significant_ratio":0.4,"severity_lift":0.198,"has_severity_signal":true,"non_repeated_ratio":0.75,"repetition_lift":0.112,"has_repetition_signal":true,"feedback_type_distribution":{"correction":7,"explanation":3,"suggestion":6,"comparison":2,"demonstration":2},"passes_frequency":false,"selected":false,"example_descriptors":["Poetic imagery for musical interpretation","Orchestral imagery provides clear concept","Vivid orchestral imagery used","Orchestral texture analogy clear","Orchestral texture analogy provided"]},{"cluster_id":27,"name":"","size":134,"unique_moments":128,"frequency":0.0596,"mean_time_seconds":44.8,"time_ratio":0.95,"has_time_signal":false,"significant_ratio":0.148,"severity_lift":-0.054,"has_severity_signal":false,"non_repeated_ratio":0.625,"repetition_lift":-0.013,"has_repetition_signal":false,"feedback_type_distribution":{"correction":73,"explanation":14,"demonstration":18,"suggestion":21,"comparison":2},"passes_frequency":true,"selected":false,"example_descriptors":["Uses rhythmic syllables strategically","Employs rhythmic syllables for clarity","Emphasis on musical phrasing","Provides specific rhythmic pattern vocalization","Vivid rhythmic vocalization"]},{"cluster_id":28,"name":"","size":71,"unique_moments":70,"frequency":0.0326,"mean_time_seconds":43.9,"time_ratio":0.93,"has_time_signal":false,"significant_ratio":0.143,"severity_lift":-0.06,"has_severity_signal":false,"non_repeated_ratio":0.7,"repetition_lift":0.062,"has_repetition_signal":true,"feedback_type_distribution":{"demonstration":6,"correction":36,"suggestion":21,"explanation":7},"passes_frequency":true,"selected":true,"example_descriptors":["Lacks explanation of musical reasoning","References historical musical context","Emphasizes musical thinking over mechanics","Emphasis on musical expression over mechanics","Explains reasoning through musical logic"]},{"cluster_id":29,"name":"","size":27,"unique_moments":27,"frequency":0.0126,"mean_time_seconds":42.9,"time_ratio":0.91,"has_time_signal":false,"significant_ratio":0.148,"severity_lift":-0.054,"has_severity_signal":false,"non_repeated_ratio":0.667,"repetition_lift":0.028,"has_repetition_signal":false,"feedback_type_distribution":{"correction":12,"suggestion":9,"demonstration":6},"passes_frequency":false,"selected":false,"example_descriptors":["Connects technique to musical purpose","Connects technique to musical expression","Connects to broader musical concept","Connects technique to musicality","Connects technique to musical intent"]},{"cluster_id":30,"name":"","size":32,"unique_moments":32,"frequency":0.0149,"mean_time_seconds":35.8,"time_ratio":0.76,"has_time_signal":false,"significant_ratio":0.188,"severity_lift":-0.015,"has_severity_signal":false,"non_repeated_ratio":0.594,"repetition_lift":-0.045,"has_repetition_signal":false,"feedback_type_distribution":{"correction":25,"suggestion":4,"explanation":2,"comparison":1},"passes_frequency":false,"selected":false,"example_descriptors":["Lack of specific technical correction","Lacks specific technical corrections","Lacks specific technical correction","Specific technical corrections provided","Specific technical correction provided"]},{"cluster_id":31,"name":"","size":21,"unique_moments":21,"frequency":0.0098,"mean_time_seconds":42.6,"time_ratio":0.91,"has_time_signal":false,"significant_ratio":0.333,"severity_lift":0.131,"has_severity_signal":true,"non_repeated_ratio":0.667,"repetition_lift":0.028,"has_repetition_signal":false,"feedback_type_distribution":{"correction":17,"explanation":3,"suggestion":1},"passes_frequency":false,"selected":false,"example_descriptors":["Absence of demonstrated correction","Corrects without demonstrating alternative","Lacks demonstration of correction","No demonstration of correction","Absence of demonstrated correction"]},{"cluster_id":32,"name":"","size":22,"unique_moments":22,"frequency":0.0102,"mean_time_seconds":38.8,"time_ratio":0.82,"has_time_signal":false,"significant_ratio":0.273,"severity_lift":0.07,"has_severity_signal":true,"non_repeated_ratio":0.636,"repetition_lift":-0.002,"has_repetition_signal":false,"feedback_type_distribution":{"explanation":2,"correction":15,"suggestion":5},"passes_frequency":false,"selected":false,"example_descriptors":["Incomplete explanation of reasoning","Explains reasoning beyond mere correction","Explains reasoning behind correction","Explains reasoning behind correction","Insufficient explanation of corrections"]},{"cluster_id":33,"name":"","size":111,"unique_moments":111,"frequency":0.0517,"mean_time_seconds":49.2,"time_ratio":1.04,"has_time_signal":false,"significant_ratio":0.216,"severity_lift":0.014,"has_severity_signal":false,"non_repeated_ratio":0.622,"repetition_lift":-0.017,"has_repetition_signal":false,"feedback_type_distribution":{"correction":68,"suggestion":18,"demonstration":13,"explanation":12},"passes_frequency":true,"selected":false,"example_descriptors":["Lack of direct technical demonstration","Lacks concrete technical demonstration","Demonstrating rather than explaining clearly","Lacks demonstration despite complex technical request","Relies heavily on demonstration"]},{"cluster_id":34,"name":"","size":47,"unique_moments":47,"frequency":0.0219,"mean_time_seconds":49.6,"time_ratio":1.05,"has_time_signal":false,"significant_ratio":0.234,"severity_lift":0.032,"has_severity_signal":true,"non_repeated_ratio":0.553,"repetition_lift":-0.085,"has_repetition_signal":false,"feedback_type_distribution":{"explanation":8,"correction":22,"suggestion":12,"demonstration":5},"passes_frequency":true,"selected":true,"example_descriptors":["Precise technical vocabulary usage","Specific technical vocabulary employed","Specific technical vocabulary used","Introduces specialized technical terminology","Specific technical vocabulary used"]},{"cluster_id":35,"name":"","size":21,"unique_moments":21,"frequency":0.0098,"mean_time_seconds":50.1,"time_ratio":1.06,"has_time_signal":false,"significant_ratio":0.19,"severity_lift":-0.012,"has_severity_signal":false,"non_repeated_ratio":0.762,"repetition_lift":0.123,"has_repetition_signal":true,"feedback_type_distribution":{"correction":7,"suggestion":9,"explanation":4,"demonstration":1},"passes_frequency":false,"selected":false,"example_descriptors":["Lack of concrete practice method","Lacks concrete practice strategy","Lacks concrete practice strategy","Lacks concrete practice strategy offered","Offers concrete practice method"]},{"cluster_id":36,"name":"","size":220,"unique_moments":217,"frequency":0.101,"mean_time_seconds":48.6,"time_ratio":1.03,"has_time_signal":false,"significant_ratio":0.171,"severity_lift":-0.032,"has_severity_signal":false,"non_repeated_ratio":0.636,"repetition_lift":-0.002,"has_repetition_signal":false,"feedback_type_distribution":{"correction":98,"suggestion":55,"explanation":33,"demonstration":30,"comparison":1},"passes_frequency":true,"selected":false,"example_descriptors":["Incomplete thought interrupts flow","Interrupts explanation mid-thought awkwardly","Incomplete sentences lack clarity","Fragmented explanation disrupts understanding","Incomplete thought completion mid-instruction"]},{"cluster_id":37,"name":"","size":35,"unique_moments":35,"frequency":0.0163,"mean_time_seconds":42.3,"time_ratio":0.9,"has_time_signal":false,"significant_ratio":0.086,"severity_lift":-0.117,"has_severity_signal":false,"non_repeated_ratio":0.486,"repetition_lift":-0.153,"has_repetition_signal":false,"feedback_type_distribution":{"explanation":4,"demonstration":3,"suggestion":7,"correction":21},"passes_frequency":false,"selected":false,"example_descriptors":["Lacks clear technical explanation","Lacks specific technical explanation","Unclear technical explanation provided","Incomplete technical explanation provided","Incomplete technical explanation provided"]},{"cluster_id":38,"name":"","size":23,"unique_moments":23,"frequency":0.0107,"mean_time_seconds":50.6,"time_ratio":1.07,"has_time_signal":false,"significant_ratio":0.13,"severity_lift":-0.072,"has_severity_signal":false,"non_repeated_ratio":0.652,"repetition_lift":0.014,"has_repetition_signal":false,"feedback_type_distribution":{"demonstration":1,"correction":11,"suggestion":8,"explanation":3},"passes_frequency":false,"selected":false,"example_descriptors":["Specific technical guidance provided","Specific technical guidance provided","Specific technical guidance provided","Specific technical guidance provided","Specific technical guidance provided"]},{"cluster_id":39,"name":"","size":65,"unique_moments":65,"frequency":0.0302,"mean_time_seconds":46.5,"time_ratio":0.99,"has_time_signal":false,"significant_ratio":0.246,"severity_lift":0.044,"has_severity_signal":true,"non_repeated_ratio":0.677,"repetition_lift":0.038,"has_repetition_signal":true,"feedback_type_distribution":{"correction":34,"suggestion":16,"explanation":13,"comparison":1,"demonstration":1},"passes_frequency":true,"selected":true,"example_descriptors":["Lacks specific technical guidance or solutions","Lacks specific technical guidance","Lacks concrete technical guidance","Lacks specific technical guidance","Lacks concrete technical guidance"]},{"cluster_id":40,"name":"","size":51,"unique_moments":51,"frequency":0.0237,"mean_time_seconds":43.8,"time_ratio":0.93,"has_time_signal":false,"significant_ratio":0.157,"severity_lift":-0.046,"has_severity_signal":false,"non_repeated_ratio":0.725,"repetition_lift":0.087,"has_repetition_signal":true,"feedback_type_distribution":{"correction":29,"suggestion":14,"comparison":2,"explanation":6},"passes_frequency":true,"selected":true,"example_descriptors":["Lacks clear technical specificity","Lacks concrete technical solution","Lack of concrete technical solutions","Lacks concrete technical solution","Insufficient technical specificity"]},{"cluster_id":41,"name":"","size":37,"unique_moments":37,"frequency":0.0172,"mean_time_seconds":48.6,"time_ratio":1.03,"has_time_signal":false,"significant_ratio":0.162,"severity_lift":-0.04,"has_severity_signal":false,"non_repeated_ratio":0.595,"repetition_lift":-0.044,"has_repetition_signal":false,"feedback_type_distribution":{"suggestion":15,"correction":20,"explanation":1,"demonstration":1},"passes_frequency":false,"selected":false,"example_descriptors":["Vague execution instructions","Vague instruction on execution method","Vague about execution method","Incomplete guidance on execution","Vague about specific execution details"]},{"cluster_id":42,"name":"","size":44,"unique_moments":44,"frequency":0.0205,"mean_time_seconds":52.9,"time_ratio":1.12,"has_time_signal":true,"significant_ratio":0.364,"severity_lift":0.161,"has_severity_signal":true,"non_repeated_ratio":0.5,"repetition_lift":-0.138,"has_repetition_signal":false,"feedback_type_distribution":{"correction":20,"demonstration":7,"explanation":11,"suggestion":6},"passes_frequency":true,"selected":true,"example_descriptors":["Incomplete verbal articulation present","Incomplete verbal instruction articulation","Incomplete verbal instruction given","Verbal instruction lacks clarity","Unclear verbal articulation"]},{"cluster_id":43,"name":"","size":85,"unique_moments":85,"frequency":0.0396,"mean_time_seconds":43.1,"time_ratio":0.92,"has_time_signal":false,"significant_ratio":0.129,"severity_lift":-0.073,"has_severity_signal":false,"non_repeated_ratio":0.765,"repetition_lift":0.126,"has_repetition_signal":true,"feedback_type_distribution":{"correction":38,"suggestion":32,"demonstration":2,"explanation":13},"passes_frequency":true,"selected":true,"example_descriptors":["Lacks concrete technical instruction","Lacks concrete technical instruction","Lacks specific corrective instruction","Lacks concrete alternative instruction","Lacks concrete corrective instruction offered"]},{"cluster_id":44,"name":"","size":67,"unique_moments":67,"frequency":0.0312,"mean_time_seconds":43.4,"time_ratio":0.92,"has_time_signal":false,"significant_ratio":0.119,"severity_lift":-0.083,"has_severity_signal":false,"non_repeated_ratio":0.642,"repetition_lift":0.003,"has_repetition_signal":false,"feedback_type_distribution":{"correction":28,"suggestion":26,"demonstration":5,"explanation":8},"passes_frequency":true,"selected":false,"example_descriptors":["Lacks specific technical instruction detail","Lacks specific technical instruction","Lacks explicit technical instruction","Lacks specific technical instruction","Lacks specific technical instruction"]},{"cluster_id":45,"name":"","size":40,"unique_moments":40,"frequency":0.0186,"mean_time_seconds":38.5,"time_ratio":0.82,"has_time_signal":false,"significant_ratio":0.15,"severity_lift":-0.052,"has_severity_signal":false,"non_repeated_ratio":0.65,"repetition_lift":0.012,"has_repetition_signal":false,"feedback_type_distribution":{"correction":27,"demonstration":2,"suggestion":10,"explanation":1},"passes_frequency":false,"selected":false,"example_descriptors":["Specific technical instruction provided","Specific technical instruction provided","Specific technical instruction","Specific technical instruction provided","Specific technical instruction provided"]}];
+
+const TOTAL_MOMENTS = 2149;
+
+// Pre-suggested merge groups
+const PRE_SUGGESTED = {
+  'A': { name: 'Technical Specificity', clusters: [15, 34] },
+  'B': { name: 'Lacks Specificity', clusters: [43, 39, 40] },
+  'C': { name: 'Musical Grounding', clusters: [12, 11, 28] },
+  'D': { name: 'Engagement', clusters: [1, 13] },
+  'E': { name: 'Transcript Artifacts (exclude)', clusters: [17, 42] },
+  'F': { name: 'Onomatopoeia', clusters: [18] },
+};
+
+// State
+const groupAssignments = {};
+const groupMeta = {};
+const GROUP_LETTERS = ['', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+
+// Initialize from pre-suggested
+for (const [letter, info] of Object.entries(PRE_SUGGESTED)) {
+  groupMeta[letter] = { name: info.name, definition: '', pass_boundary: '' };
+  for (const cid of info.clusters) {
+    groupAssignments[cid] = letter;
+  }
+}
+
+// ---------- SAFE DOM HELPERS ----------
+
+function el(tag, attrs, children) {
+  const node = document.createElement(tag);
+  if (attrs) {
+    for (const [k, v] of Object.entries(attrs)) {
+      if (k === 'className') node.className = v;
+      else if (k === 'textContent') node.textContent = v;
+      else if (k.startsWith('on')) node.addEventListener(k.slice(2).toLowerCase(), v);
+      else node.setAttribute(k, v);
+    }
+  }
+  if (children) {
+    for (const child of (Array.isArray(children) ? children : [children])) {
+      if (typeof child === 'string') node.appendChild(document.createTextNode(child));
+      else if (child) node.appendChild(child);
+    }
+  }
+  return node;
+}
+
+function signalChipEl(label, value, active) {
+  const cls = active ? 'signal-chip signal-active' : 'signal-chip signal-inactive';
+  const formatted = typeof value === 'number' ? ((value >= 0 ? '+' : '') + value.toFixed(3)) : value;
+  return el('span', { className: cls, textContent: label + ': ' + formatted });
+}
+
+function feedbackBadgeEls(dist) {
+  const colors = {
+    correction: 'badge badge-correction',
+    suggestion: 'badge badge-suggestion',
+    explanation: 'badge badge-explanation',
+    demonstration: 'badge badge-demonstration',
+    praise: 'badge badge-praise',
+    comparison: 'badge badge-comparison'
+  };
+  const total = Object.values(dist).reduce((a, b) => a + b, 0);
+  return Object.entries(dist)
+    .sort((a, b) => b[1] - a[1])
+    .map(([k, v]) => el('span', { className: colors[k] || 'badge badge-default', textContent: k + ' ' + Math.round(v / total * 100) + '%' }));
+}
+
+function buildCard(c, isSelected) {
+  const freqPct = (c.frequency * 100).toFixed(1);
+  const maxFreq = 10.1;
+  const barWidth = Math.min(100, (c.frequency / (maxFreq / 100)));
+  const currentGroup = groupAssignments[c.cluster_id] || '';
+  const cardClass = isSelected ? 'card card-selected' : 'card card-default';
+
+  // Group select
+  const selectCls = currentGroup ? 'group-select group-select-active' : 'group-select';
+  const selectEl = el('select', { className: selectCls, title: 'Assign merge group' });
+  GROUP_LETTERS.forEach(l => {
+    const opt = el('option', { value: l, textContent: l || '--' });
+    if (l === currentGroup) opt.selected = true;
+    selectEl.appendChild(opt);
+  });
+  selectEl.addEventListener('change', function() { setGroup(c.cluster_id, this.value); });
+
+  // Header
+  const idSpan = el('span', { className: 'cluster-id', textContent: 'C-' + c.cluster_id });
+  const sizeSpan = el('span', { className: 'cluster-size', textContent: c.size + ' desc / ' + c.unique_moments + ' moments' });
+  const headerLeft = el('div', { className: 'card-header-left' }, [idSpan, sizeSpan]);
+  if (isSelected) {
+    headerLeft.appendChild(el('span', { className: 'badge badge-selected', textContent: 'selected' }));
+  }
+  const headerRow = el('div', { className: 'card-header' }, [headerLeft, selectEl]);
+
+  // Frequency bar
+  const freqLabel = el('span', { className: 'freq-label', textContent: 'Frequency' });
+  const freqValue = el('span', { className: 'freq-value', textContent: freqPct + '%' });
+  const freqLabelRow = el('div', { className: 'freq-label-row' }, [freqLabel, freqValue]);
+  const barFillCls = isSelected ? 'freq-bar-fill freq-bar-fill-selected' : 'freq-bar-fill freq-bar-fill-default';
+  const freqBarInner = el('div', { className: barFillCls, style: 'width:' + barWidth + '%' });
+  const freqBarOuter = el('div', { className: 'freq-bar-track' }, [freqBarInner]);
+  const freqSection = el('div', { className: 'freq-section' }, [freqLabelRow, freqBarOuter]);
+
+  // Signals
+  const signalRow = el('div', { className: 'signal-row' }, [
+    signalChipEl('time', c.time_ratio, c.has_time_signal),
+    signalChipEl('severity', c.severity_lift, c.has_severity_signal),
+    signalChipEl('repeat', c.repetition_lift, c.has_repetition_signal),
+  ]);
+
+  // Feedback badges
+  const badgeRow = el('div', { className: 'badge-row' }, feedbackBadgeEls(c.feedback_type_distribution));
+
+  // Example descriptors
+  const descLabel = el('p', { className: 'desc-label', textContent: 'Example descriptors:' });
+  const descList = el('ul', { className: 'desc-list' },
+    c.example_descriptors.slice(0, 5).map(d => {
+      const li = el('li', { title: d, textContent: d });
+      return li;
+    })
+  );
+  const descSection = el('div', { className: 'desc-section' }, [descLabel, descList]);
+
+  // Name input
+  const nameInput = el('input', {
+    type: 'text',
+    placeholder: 'Criterion name...',
+    className: 'name-input',
+    value: c.name || '',
+  });
+  nameInput.dataset.nameInput = c.cluster_id;
+  nameInput.addEventListener('input', function() { setClusterName(c.cluster_id, this.value); });
+
+  // Card container
+  return el('div', { className: cardClass, 'data-cluster-id': c.cluster_id },
+    [headerRow, freqSection, signalRow, badgeRow, descSection, nameInput]);
+}
+
+function buildMergeGroup(letter, clusterIds) {
+  const clusters = clusterIds.map(id => ALL_CLUSTERS.find(c => c.cluster_id === id)).filter(Boolean);
+  const combinedFreq = clusters.reduce((s, c) => s + c.frequency, 0);
+  const combinedSize = clusters.reduce((s, c) => s + c.size, 0);
+  const combinedMoments = clusters.reduce((s, c) => s + c.unique_moments, 0);
+  const allDescriptors = clusters.flatMap(c => c.example_descriptors);
+  const meta = groupMeta[letter] || { name: '', definition: '', pass_boundary: '' };
+  const anyTime = clusters.some(c => c.has_time_signal);
+  const anySeverity = clusters.some(c => c.has_severity_signal);
+  const anyRepetition = clusters.some(c => c.has_repetition_signal);
+
+  // Letter badge
+  const letterBadge = el('span', { className: 'letter-badge', textContent: letter });
+
+  // Name input
+  const nameInput = el('input', {
+    type: 'text', placeholder: 'Group name...',
+    className: 'merge-name-input',
+    value: meta.name,
+  });
+  nameInput.addEventListener('input', function() { setGroupMeta(letter, 'name', this.value); });
+
+  const countSpan = el('span', { className: 'merge-count', textContent: clusterIds.length + ' clusters' });
+  const headerRow = el('div', { className: 'merge-header' }, [letterBadge, nameInput, countSpan]);
+
+  // Stats row
+  const statsRow = el('div', { className: 'merge-stats' }, [
+    el('span', { textContent: 'Clusters: ' + clusterIds.map(id => 'C-' + id).join(', ') }),
+    el('span', { className: 'separator', textContent: '|' }),
+    el('span', { textContent: combinedSize + ' descriptors / ' + combinedMoments + ' moments' }),
+    el('span', { className: 'separator', textContent: '|' }),
+    el('span', { className: 'freq-mono', textContent: (combinedFreq * 100).toFixed(1) + '%' }),
+    el('span', { className: 'separator', textContent: '|' }),
+    signalChipEl('time', anyTime ? 'yes' : 'no', anyTime),
+    signalChipEl('severity', anySeverity ? 'yes' : 'no', anySeverity),
+    signalChipEl('repeat', anyRepetition ? 'yes' : 'no', anyRepetition),
+  ]);
+
+  // Example descriptors
+  const descLabel = el('p', { className: 'desc-label', textContent: 'Combined example descriptors (first 6):' });
+  const descBadges = el('div', { className: 'merge-desc-badges' },
+    allDescriptors.slice(0, 6).map(d => el('span', { className: 'desc-badge', textContent: d })));
+  const descSection = el('div', { className: 'merge-desc-section' }, [descLabel, descBadges]);
+
+  // Definition textarea
+  const defLabel = el('label', { className: 'merge-form label', textContent: 'Pass/fail rubric definition' });
+  const defTextarea = el('textarea', { rows: '2', placeholder: 'What makes this criterion pass or fail...', className: 'merge-form textarea' });
+  defTextarea.textContent = meta.definition;
+  defTextarea.addEventListener('input', function() { setGroupMeta(letter, 'definition', this.value); });
+  const defBlock = el('div', {}, [defLabel, defTextarea]);
+
+  // Pass boundary textarea
+  const passLabel = el('label', { className: 'merge-form label', textContent: 'Pass boundary (threshold description)' });
+  const passTextarea = el('textarea', { rows: '2', placeholder: 'The observation passes if...', className: 'merge-form textarea' });
+  passTextarea.textContent = meta.pass_boundary;
+  passTextarea.addEventListener('input', function() { setGroupMeta(letter, 'pass_boundary', this.value); });
+  const passBlock = el('div', {}, [passLabel, passTextarea]);
+
+  const formSection = el('div', { className: 'merge-form' }, [defBlock, passBlock]);
+
+  return el('div', { className: 'merge-group' },
+    [headerRow, statsRow, descSection, formSection]);
+}
+
+// ---------- RENDER ----------
+
+function renderAll() {
+  const selected = ALL_CLUSTERS.filter(c => c.selected).sort((a, b) => b.frequency - a.frequency);
+  const other = ALL_CLUSTERS.filter(c => !c.selected).sort((a, b) => b.frequency - a.frequency);
+
+  const selectedGrid = document.getElementById('selected-grid');
+  selectedGrid.textContent = '';
+  selected.forEach(c => selectedGrid.appendChild(buildCard(c, true)));
+
+  const otherGrid = document.getElementById('other-grid');
+  otherGrid.textContent = '';
+  other.forEach(c => otherGrid.appendChild(buildCard(c, false)));
+
+  renderMergePanel();
+}
+
+function renderMergePanel() {
+  const groups = {};
+  for (const [cidStr, letter] of Object.entries(groupAssignments)) {
+    if (!letter) continue;
+    if (!groups[letter]) groups[letter] = [];
+    groups[letter].push(parseInt(cidStr));
+  }
+
+  const sortedLetters = Object.keys(groups).sort();
+  const panel = document.getElementById('merge-panel');
+  const emptyMsg = document.getElementById('merge-empty');
+
+  if (sortedLetters.length === 0) {
+    panel.textContent = '';
+    emptyMsg.style.display = 'block';
+    return;
+  }
+  emptyMsg.style.display = 'none';
+
+  panel.textContent = '';
+  sortedLetters.forEach(letter => {
+    panel.appendChild(buildMergeGroup(letter, groups[letter]));
+  });
+}
+
+// ---------- ACTIONS ----------
+
+function setGroup(clusterId, letter) {
+  if (letter) {
+    groupAssignments[clusterId] = letter;
+  } else {
+    delete groupAssignments[clusterId];
+  }
+  renderMergePanel();
+}
+
+function setClusterName(clusterId, name) {
+  const c = ALL_CLUSTERS.find(c => c.cluster_id === clusterId);
+  if (c) c.name = name;
+}
+
+function setGroupMeta(letter, field, value) {
+  if (!groupMeta[letter]) groupMeta[letter] = { name: '', definition: '', pass_boundary: '' };
+  groupMeta[letter][field] = value;
+}
+
+function exportJSON() {
+  const groups = {};
+  for (const [cidStr, letter] of Object.entries(groupAssignments)) {
+    if (!letter) continue;
+    if (!groups[letter]) groups[letter] = [];
+    groups[letter].push(parseInt(cidStr));
+  }
+
+  const criteria = Object.entries(groups).sort(([a],[b]) => a.localeCompare(b)).map(([letter, clusterIds]) => {
+    const clusters = clusterIds.map(id => ALL_CLUSTERS.find(c => c.cluster_id === id)).filter(Boolean);
+    const meta = groupMeta[letter] || {};
+    const combinedFreq = clusters.reduce((s, c) => s + c.frequency, 0);
+
+    const signals = {
+      has_time_signal: clusters.some(c => c.has_time_signal),
+      has_severity_signal: clusters.some(c => c.has_severity_signal),
+      has_repetition_signal: clusters.some(c => c.has_repetition_signal),
+      avg_time_ratio: clusters.reduce((s, c) => s + c.time_ratio, 0) / clusters.length,
+      avg_severity_lift: clusters.reduce((s, c) => s + c.severity_lift, 0) / clusters.length,
+      avg_repetition_lift: clusters.reduce((s, c) => s + c.repetition_lift, 0) / clusters.length,
+    };
+
+    const feedback_distribution = {};
+    for (const c of clusters) {
+      for (const [k, v] of Object.entries(c.feedback_type_distribution)) {
+        feedback_distribution[k] = (feedback_distribution[k] || 0) + v;
+      }
+    }
+
+    return {
+      name: meta.name || 'Group ' + letter,
+      definition: meta.definition || '',
+      pass_boundary: meta.pass_boundary || '',
+      source_cluster_ids: clusterIds.sort((a,b) => a - b),
+      combined_frequency: Math.round(combinedFreq * 10000) / 10000,
+      combined_size: clusters.reduce((s, c) => s + c.size, 0),
+      combined_unique_moments: clusters.reduce((s, c) => s + c.unique_moments, 0),
+      signals: signals,
+      feedback_distribution: feedback_distribution,
+      example_descriptors: clusters.flatMap(c => c.example_descriptors).slice(0, 10)
+    };
+  });
+
+  const output = {
+    exported_at: new Date().toISOString(),
+    total_moments: TOTAL_MOMENTS,
+    criteria: criteria
+  };
+
+  const blob = new Blob([JSON.stringify(output, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'criteria_definitions.json';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ---------- INIT ----------
+renderAll();
+</script>
+
+</body>
+</html>
