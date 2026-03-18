@@ -134,11 +134,11 @@ def validate_clusters(
             ft = m["feedback_type"]
             type_counts[ft] = type_counts.get(ft, 0) + 1
 
-        # Selection
-        passes_frequency = freq > 0.05
-        has_time_signal = time_ratio > 1.2
-        has_severity_signal = severity_lift > 0.05
-        has_repetition_signal = repetition_lift > 0.05
+        # Selection (relaxed thresholds -- manual review merges related clusters)
+        passes_frequency = freq > 0.02
+        has_time_signal = time_ratio > 1.1
+        has_severity_signal = severity_lift > 0.03
+        has_repetition_signal = repetition_lift > 0.03
         selected = passes_frequency and (has_time_signal or has_severity_signal or has_repetition_signal)
 
         results.append({
