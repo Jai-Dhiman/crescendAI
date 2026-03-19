@@ -10,3 +10,4 @@ pub mod stop;
 pub mod sync;
 pub mod teaching_moment_handler;
 pub mod teaching_moments;
+pub mod waitlist;

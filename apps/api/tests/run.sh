@@ -34,7 +34,7 @@ for i in $(seq 1 60); do
 done
 
 echo "Running tests..."
-bun test tests/exercises.test.ts
+bun test tests/
 EXIT_CODE=$?
 
 exit $EXIT_CODE

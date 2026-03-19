@@ -432,6 +432,20 @@ async fn fetch(
         )).await;
     }
 
+    // Waitlist signup (unauthenticated)
+    if path == "/api/waitlist" && method == http::Method::POST {
+        let body = req
+            .into_body()
+            .collect()
+            .await
+            .map(|b| b.to_bytes().to_vec())
+            .unwrap_or_default();
+        return into_worker_response(with_cors(
+            crate::services::waitlist::handle_waitlist(&env, &body).await,
+            origin.as_deref(),
+        )).await;
+    }
+
     // Health check
     if path == "/health" {
         return into_worker_response(with_cors(
