@@ -27,6 +27,7 @@ import { useScorePanelStore } from "../stores/score-panel";
 import { useThemeStore } from "../stores/theme";
 import { useToastStore } from "../stores/toast";
 import { useUIStore } from "../stores/ui";
+import { ArtifactOverlay } from "./ArtifactOverlay";
 import { ChatInput } from "./ChatInput";
 import { ChatMessages } from "./ChatMessages";
 import { ListeningMode } from "./ListeningMode";
@@ -786,6 +787,9 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 					</ChatMessages>
 				)}
 			</div>
+
+			{/* Artifact expanded overlay */}
+			<ArtifactOverlay />
 
 			{/* Score panel (artifacts-style right sidebar) */}
 			<ScorePanel />
