@@ -281,6 +281,7 @@ Added to `practice-api.ts`:
 ```typescript
 type PracticeMode = "warming" | "drilling" | "running" | "winding" | "regular";
 
+// ModeChangeContext is discriminated by the parent ModeChangeEvent.mode field
 type ModeChangeContext =
     | { bars?: [number, number]; repetition: number } // drilling
     | { piece?: string }                               // running
@@ -330,9 +331,9 @@ Pure state machine with no IO dependencies. Test with synthetic `ChunkSignal` se
 12. Two-step silence transition: send chunk after 65s gap from Running. Assert `update()` returns two transitions: [Winding, Running/Regular]. Assert the chunk is evaluated under the resumed mode's policy, NOT Winding's suppress.
 
 **Pacing tests:**
-12. Suppression in Warming/Winding: `observation_policy().suppress == true`
-13. Interval per mode: correct `min_interval_ms` for each mode
-14. Comparative flag: `comparative == true` only in Drilling
+13. Suppression in Warming/Winding: `observation_policy().suppress == true`
+14. Interval per mode: correct `min_interval_ms` for each mode
+15. Comparative flag: `comparative == true` only in Drilling
 
 ### Integration Test
 
