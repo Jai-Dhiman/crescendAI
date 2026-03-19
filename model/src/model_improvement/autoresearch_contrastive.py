@@ -8,13 +8,14 @@ Architecture mirrors MuQLoRAModel exactly (attn, encoder, projection)
 so that pretrained weights can be loaded directly.
 """
 
+import random as _random
 from pathlib import Path
 
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, Sampler
 
 
 class MuQContrastiveEncoder(nn.Module):

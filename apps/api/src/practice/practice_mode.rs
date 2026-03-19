@@ -337,14 +337,18 @@ impl ModeDetector {
         None
     }
 
-    fn eval_from_drilling(&self, _signal: &ChunkSignal) -> Option<PracticeMode> {
-        if !self.dwell_elapsed(DRILLING_DWELL_MS, _signal.timestamp_ms) {
+    fn eval_from_drilling(&self, signal: &ChunkSignal) -> Option<PracticeMode> {
+        if !self.dwell_elapsed(DRILLING_DWELL_MS, signal.timestamp_ms) {
+            // Still increment repetition count during dwell
+            if detect_repetition(&self.recent_signals) {
+                return Some(PracticeMode::Drilling); // signals "stay + increment"
+            }
             return None;
         }
 
         // Transition to Running when new material appears (no recent repetition + piece match + bar progress)
         if no_recent_repetition(&self.recent_signals)
-            && _signal.has_piece_match
+            && signal.has_piece_match
             && bars_progressing(&self.recent_signals)
         {
             return Some(PracticeMode::Running);
@@ -358,12 +362,17 @@ impl ModeDetector {
         None
     }
 
-    fn eval_from_regular(&self, _signal: &ChunkSignal) -> Option<PracticeMode> {
-        if !self.dwell_elapsed(REGULAR_DWELL_MS, _signal.timestamp_ms) {
+    fn eval_from_regular(&self, signal: &ChunkSignal) -> Option<PracticeMode> {
+        if !self.dwell_elapsed(REGULAR_DWELL_MS, signal.timestamp_ms) {
             return None;
         }
 
-        // Transition to Drilling on repetition
+        // Piece match + forward progress -> Running
+        if signal.has_piece_match && bars_progressing(&self.recent_signals) {
+            return Some(PracticeMode::Running);
+        }
+
+        // Repetition -> Drilling
         if detect_repetition(&self.recent_signals) {
             return Some(PracticeMode::Drilling);
         }
