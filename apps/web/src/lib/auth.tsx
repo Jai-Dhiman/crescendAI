@@ -23,6 +23,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 	const [isLoading, setIsLoading] = useState(true);
 
 	useEffect(() => {
+		// In waitlist mode, nobody can authenticate -- skip the API call
+		// to avoid 401 Sentry noise on every visitor page load.
+		if (import.meta.env.VITE_AUTH_MODE !== "live") {
+			setIsLoading(false);
+			return;
+		}
+
 		api.auth
 			.me()
 			.then(setUser)
