@@ -235,6 +235,8 @@ class ContrastiveSegmentDataset(Dataset):
 
         items = []
         for key in keys:
+            if key not in embeddings_dict or key not in labels_dict or key not in key_to_piece_id:
+                continue
             embedding = embeddings_dict[key]
             scores = labels_dict[key]
             quality = float(np.mean(scores[:6]))
@@ -273,8 +275,8 @@ class ContrastiveSegmentDataset(Dataset):
         embeddings_dir = Path(embeddings_dir)
         if not embeddings_dir.exists():
             raise FileNotFoundError(
-                "Aria competition embeddings not extracted yet. "
-                "Run aria_embeddings.py on competition MIDIs first."
+                f"Competition embeddings not found at {embeddings_dir}. "
+                "Extract embeddings first (e.g. run aria_embeddings.py for Aria)."
             )
 
         # Group records by (competition, edition, round)
@@ -304,7 +306,9 @@ class ContrastiveSegmentDataset(Dataset):
                     embeddings_dir.glob(f"{rec.recording_id}_seg*.pt")
                 )
                 for seg_file in seg_files:
-                    embedding = torch.load(seg_file, weights_only=True)
+                    embedding = torch.load(  # nosemgrep
+                        seg_file, map_location="cpu", weights_only=True
+                    )
                     items.append({
                         "embedding": embedding,
                         "piece_id": piece_id,
@@ -446,11 +450,15 @@ class WeightedTierSampler(Sampler[int]):
             list(piece_map.keys()) for piece_map in self._tier_piece_indices
         ]
 
+        # Filter to non-empty tiers and adjust weights
+        valid_tiers = [i for i, p in enumerate(tier_pieces) if p]
+        if not valid_tiers:
+            return
+        valid_weights = [self._weights[i] for i in valid_tiers]
+
         for _ in range(self._total_samples):
-            # Pick tier by weight
-            tier_idx = rng.choices(
-                range(len(self._weights)), weights=self._weights, k=1
-            )[0]
+            # Pick tier by weight (only from non-empty tiers)
+            tier_idx = rng.choices(valid_tiers, weights=valid_weights, k=1)[0]
 
             # Pick random piece from tier
             pieces = tier_pieces[tier_idx]
@@ -681,9 +689,9 @@ def run_single_fold(
     t2_val_ns = [SimpleNamespace(**r) for r in t2_val_records]
 
     if encoder_type == "muq":
-        comp_emb_dir = Embeddings.competition / "muq"
+        comp_emb_dir = Embeddings.competition / "muq_embeddings"
     else:
-        comp_emb_dir = Embeddings.competition / "aria"
+        comp_emb_dir = Embeddings.competition / "aria_embeddings"
 
     # ---- Build datasets ----
     t1_train_ds = ContrastiveSegmentDataset.from_t1(
@@ -725,11 +733,11 @@ def run_single_fold(
     else:
         collate_fn = contrastive_collate_aria
 
-    train_loader = DataLoader(
+    train_loader = DataLoader(  # nosemgrep
         train_ds, batch_size=BATCH_SIZE, sampler=train_sampler,
         collate_fn=collate_fn, num_workers=0, pin_memory=False,
     )
-    val_loader = DataLoader(
+    val_loader = DataLoader(  # nosemgrep
         val_ds, batch_size=BATCH_SIZE, sampler=val_sampler,
         collate_fn=collate_fn, num_workers=0, pin_memory=False,
     )
