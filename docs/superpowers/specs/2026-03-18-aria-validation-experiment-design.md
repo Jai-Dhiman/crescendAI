@@ -29,6 +29,8 @@ Secondary goal: compare ByteDance AMT vs Aria-AMT on real YouTube recordings to 
 
 Plus a separate AMT comparison on 51 YouTube recordings (descriptive, no quality labels).
 
+**Parallelism:** Stage 0 (AMT comparison on YouTube) and Stages 1-3 (PercePiano embedding extraction + probe) are independent and can run in parallel.
+
 ### Stage 0: AMT Comparison on YouTube Audio
 
 **Input:** 51 YouTube wav files in `data/evals/youtube_amt/`
@@ -40,7 +42,7 @@ Plus a separate AMT comparison on 51 YouTube recordings (descriptive, no quality
 4. Extract Aria-embedding (512-dim) from both AMT outputs per recording
 5. Compute cosine similarity per recording between the two AMT-derived embeddings
 
-**Output:** Descriptive statistics table. Flag any recordings where cosine sim < 0.8 (major transcription disagreement).
+**Output:** Descriptive statistics table with per-recording cosine similarity distribution (mean, std, min, max). No hard threshold -- report the full distribution and qualitatively inspect outliers at the low end.
 
 ### Stage 1: Embedding Extraction
 
@@ -52,7 +54,7 @@ Plus a separate AMT comparison on 51 YouTube recordings (descriptive, no quality
 3. Run forward pass through aria-medium-base -> 1536-dim from last token
 4. Save as `data/embeddings/percepiano/aria_embedding.pt` and `aria_base.pt`
 
-**Format:** `{segment_id: tensor}` dict, matching existing `muq_embeddings.pt` convention.
+**Format:** `{segment_id: tensor}` dict. Segment ID derived by stripping `.mid` extension from filename (e.g., `Beethoven_WoO80_thema_8bars_1_1.mid` -> key `Beethoven_WoO80_thema_8bars_1_1`), matching composite label keys exactly.
 
 ### Stage 2: Linear Probe Evaluation
 
@@ -68,11 +70,16 @@ Input: frozen embedding (512 or 1536-dim)
 **Training:**
 - Optimizer: Adam, lr=1e-3, weight_decay=1e-4
 - Loss: MSE
-- Epochs: 100, early stopping (patience=10, monitor val pairwise accuracy)
-- Batch size: full dataset
+- Epochs: 100, early stopping (patience=10, monitor val MSE loss)
+- Batch size: full-batch gradient descent (all ~900 training samples in one forward pass per epoch)
 - No data augmentation
+- Random seed: 42 (via `torch.manual_seed(42)`)
 
-**Metrics per fold (reusing existing MetricsSuite):**
+**Pairwise accuracy from regression predictions:** The probe outputs pointwise scores per sample. To compute pairwise accuracy, enumerate all within-fold validation pairs (for ~300 val samples, ~45K pairs). For each pair (A, B), compute `pred_A - pred_B` per dimension, average across dimensions to get a scalar logit. A pair is correct if `sign(logit) == sign(label_A - label_B)`. Exclude ambiguous pairs where `|label_A - label_B| < 0.05` (mean across dims). This matches `MetricsSuite.pairwise_accuracy()` semantics.
+
+**MuQ baseline probe:** Train an identical linear probe on mean-pooled MuQ embeddings using the same 4 folds and hyperparameters. MuQ embeddings in `muq_embeddings.pt` are frame-level (93 frames x 1024-dim per segment); mean-pool across frames to get a fixed 1024-dim vector, then `Linear(1024, 6)`. This ensures a fair apples-to-apples comparison (all three probes: same architecture, same folds, same training).
+
+**Metrics per fold:**
 - `pairwise_accuracy()` -- primary, excludes ambiguous pairs (|diff| < 0.05)
 - `regression_r2()` -- secondary
 - `per_dimension_breakdown()` -- 6-dim pairwise breakdown
@@ -89,6 +96,7 @@ Input: frozen embedding (512 or 1536-dim)
 
 **Interpretation:**
 - phi < 0.50: models make different mistakes, fusion is promising
+- phi 0.50-0.70: moderate overlap, fusion may help but gains are uncertain
 - phi > 0.70: models are redundant, fusion adds little value
 
 ## Decision Thresholds
@@ -123,7 +131,7 @@ model/data/midi/amt/
 ## Dependencies
 
 **New (via `uv add`):**
-- `aria` (git clone from EleutherAI) -- AbsTokenizer + model architecture
+- `aria` via `uv add git+https://github.com/EleutherAI/aria.git` -- AbsTokenizer + model architecture. Pin to a specific commit at install time for reproducibility.
 - `safetensors` -- explicit (may already be transitive)
 
 **Model weights (via `huggingface-cli download` to `data/weights/`):**
