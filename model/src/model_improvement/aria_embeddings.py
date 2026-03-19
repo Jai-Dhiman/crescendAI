@@ -21,8 +21,16 @@ from paths import Weights
 
 logger = logging.getLogger(__name__)
 
-# Lazy-loaded model cache to avoid reloading the 632M param model per file.
+# Lazy-loaded caches to avoid reloading per file.
 _model_cache: dict[str, object] = {}
+_tokenizer_cache: dict[str, AbsTokenizer] = {}
+
+
+def _get_tokenizer() -> AbsTokenizer:
+    """Get or create a cached AbsTokenizer instance."""
+    if "abs" not in _tokenizer_cache:
+        _tokenizer_cache["abs"] = AbsTokenizer()
+    return _tokenizer_cache["abs"]
 
 EMBEDDING_WEIGHTS = Weights.root / "aria-medium-embedding"
 BASE_WEIGHTS = Weights.root / "aria-medium-base"
@@ -114,7 +122,7 @@ def tokenize_midi(midi_path: Path) -> list:
         raise FileNotFoundError(f"MIDI file not found: {midi_path}")
 
     midi_dict = MidiDict.from_midi(str(midi_path))
-    tokenizer = AbsTokenizer()
+    tokenizer = _get_tokenizer()
     tokens = tokenizer.tokenize(midi_dict)
     return tokens
 
@@ -147,7 +155,7 @@ def extract_embedding(midi_path: Path, variant: str = "embedding") -> torch.Tens
     elif variant == "base":
         model = _load_base_model()
         tokens = tokenize_midi(midi_path)
-        tokenizer = AbsTokenizer()
+        tokenizer = _get_tokenizer()
         token_ids = tokenizer.encode(tokens)
 
         # Limit sequence length for consistency with embedding variant
@@ -183,8 +191,7 @@ def extract_all_embeddings(
     midi_files = sorted(midi_dir.glob("*.mid"))
 
     if not midi_files:
-        logger.warning("No .mid files found in %s", midi_dir)
-        return {}
+        raise FileNotFoundError(f"No .mid files found in {midi_dir}")
 
     results: dict[str, torch.Tensor] = {}
     for i, midi_path in enumerate(midi_files):
