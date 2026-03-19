@@ -185,3 +185,60 @@ class TestWeightedTierSampler:
         ds = ContrastiveSegmentDataset(items)
         sampler = WeightedTierSampler(datasets=[ds], weights=[1.0], total_samples=20, seed=42)
         assert len(sampler) == 20
+
+
+class TestContrastivePretrainModel:
+    def _make_batch(self, encoder_type="muq"):
+        if encoder_type == "muq":
+            return {
+                "embeddings": torch.randn(4, 20, 1024),
+                "mask": torch.ones(4, 20, dtype=torch.bool),
+                "piece_ids": torch.tensor([0, 0, 1, 1]),
+                "quality_scores": torch.tensor([0.9, 0.1, 0.8, 0.2]),
+            }
+        else:
+            return {
+                "embeddings": torch.randn(4, 512),
+                "piece_ids": torch.tensor([0, 0, 1, 1]),
+                "quality_scores": torch.tensor([0.9, 0.1, 0.8, 0.2]),
+            }
+
+    def test_training_step_returns_loss(self):
+        from model_improvement.autoresearch_contrastive import (
+            ContrastivePretrainModel, MuQContrastiveEncoder,
+        )
+        encoder = MuQContrastiveEncoder()
+        model = ContrastivePretrainModel(encoder=encoder)
+        batch = self._make_batch("muq")
+        loss = model.training_step(batch, 0)
+        assert loss.ndim == 0
+        assert loss.requires_grad
+
+    def test_training_step_aria(self):
+        from model_improvement.autoresearch_contrastive import (
+            ContrastivePretrainModel, AriaContrastiveEncoder,
+        )
+        encoder = AriaContrastiveEncoder()
+        model = ContrastivePretrainModel(encoder=encoder)
+        batch = self._make_batch("aria")
+        loss = model.training_step(batch, 0)
+        assert loss.ndim == 0
+
+    def test_validation_step_logs(self):
+        from model_improvement.autoresearch_contrastive import (
+            ContrastivePretrainModel, MuQContrastiveEncoder,
+        )
+        encoder = MuQContrastiveEncoder()
+        model = ContrastivePretrainModel(encoder=encoder)
+        batch = self._make_batch("muq")
+        model.validation_step(batch, 0)
+
+    def test_configure_optimizers(self):
+        from model_improvement.autoresearch_contrastive import (
+            ContrastivePretrainModel, MuQContrastiveEncoder,
+        )
+        encoder = MuQContrastiveEncoder()
+        model = ContrastivePretrainModel(encoder=encoder)
+        opt_config = model.configure_optimizers()
+        assert "optimizer" in opt_config
+        assert "lr_scheduler" in opt_config

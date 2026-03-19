@@ -12,10 +12,13 @@ import random as _random
 from pathlib import Path
 
 import numpy as np
+import pytorch_lightning as pl
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import Dataset, Sampler
+
+from model_improvement.losses import ordinal_margin_loss, piece_based_infonce_loss
 
 
 class MuQContrastiveEncoder(nn.Module):
@@ -436,3 +439,92 @@ class WeightedTierSampler(Sampler[int]):
 
     def __len__(self) -> int:
         return self._total_samples
+
+
+# ---------------------------------------------------------------------------
+# Lightning Module
+# ---------------------------------------------------------------------------
+
+
+class ContrastivePretrainModel(pl.LightningModule):
+    """Quality-aware contrastive pretraining for MuQ or Aria encoders.
+
+    Combines piece-based InfoNCE (same piece = positive) with ordinal margin
+    loss (higher quality should be closer to cross-piece anchors).
+
+    Uses LinearLR warmup followed by cosine annealing.
+    """
+
+    def __init__(
+        self,
+        encoder: nn.Module,
+        lambda_infonce: float = 1.0,
+        lambda_ordinal: float = 0.5,
+        temperature: float = 0.07,
+        margin_scale: float = 0.1,
+        learning_rate: float = 1e-4,
+        weight_decay: float = 1e-4,
+        warmup_epochs: int = 5,
+        max_epochs: int = 30,
+    ):
+        super().__init__()
+        self.save_hyperparameters(ignore=["encoder"])
+        self.encoder = encoder
+        self.lambda_infonce = lambda_infonce
+        self.lambda_ordinal = lambda_ordinal
+        self.temperature = temperature
+        self.margin_scale = margin_scale
+        self.lr = learning_rate
+        self.wd = weight_decay
+        self.warmup_epochs = warmup_epochs
+        self.max_epochs = max_epochs
+
+    def _shared_step(self, batch: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
+        z = self.encoder.encode(batch["embeddings"], batch.get("mask"))
+        proj = self.encoder.project(z)
+
+        l_infonce = piece_based_infonce_loss(
+            proj, batch["piece_ids"], temperature=self.temperature
+        )
+        l_ordinal = ordinal_margin_loss(
+            proj, batch["piece_ids"], batch["quality_scores"],
+            margin_scale=self.margin_scale,
+        )
+
+        loss = self.lambda_infonce * l_infonce + self.lambda_ordinal * l_ordinal
+        return {"loss": loss, "infonce": l_infonce, "ordinal": l_ordinal}
+
+    def training_step(self, batch: dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:
+        out = self._shared_step(batch)
+        self.log("train_loss", out["loss"], prog_bar=True)
+        self.log("train_infonce", out["infonce"])
+        self.log("train_ordinal", out["ordinal"])
+        return out["loss"]
+
+    def validation_step(self, batch: dict[str, torch.Tensor], batch_idx: int) -> None:
+        out = self._shared_step(batch)
+        self.log("val_loss", out["loss"], prog_bar=True)
+        self.log("val_infonce", out["infonce"])
+        self.log("val_ordinal", out["ordinal"])
+
+    def configure_optimizers(self) -> dict:
+        opt = torch.optim.AdamW(
+            self.parameters(), lr=self.lr, weight_decay=self.wd
+        )
+        warmup = torch.optim.lr_scheduler.LinearLR(
+            opt, start_factor=0.01, total_iters=self.warmup_epochs
+        )
+        cosine = torch.optim.lr_scheduler.CosineAnnealingLR(
+            opt,
+            T_max=self.max_epochs - self.warmup_epochs,
+            eta_min=1e-6,
+        )
+        scheduler = torch.optim.lr_scheduler.SequentialLR(
+            opt,
+            schedulers=[warmup, cosine],
+            milestones=[self.warmup_epochs],
+        )
+        return {
+            "optimizer": opt,
+            "lr_scheduler": {"scheduler": scheduler, "interval": "epoch"},
+        }
