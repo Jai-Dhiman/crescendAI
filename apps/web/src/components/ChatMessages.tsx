@@ -1,6 +1,7 @@
 import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { ArtifactScrollContext } from "../contexts/artifact-scroll";
 import type { RichMessage } from "../lib/types";
-import { InlineCard } from "./InlineCard";
+import { Artifact } from "./Artifact";
 import { MessageContent } from "./MessageContent";
 
 interface ChatMessagesProps {
@@ -73,22 +74,24 @@ export function ChatMessages({ messages, children, onTryExercises }: ChatMessage
 	}
 
 	return (
-		<div
-			ref={scrollContainerRef}
-			className="flex-1 overflow-y-auto px-6 pt-8 flex flex-col"
-			style={{ scrollBehavior: "auto" }}
-		>
-			<div className="flex-1 max-w-3xl mx-auto space-y-6 w-full">
-				{messages.map((msg) => (
-					<MessageBubble
-						key={msg.id}
-						message={msg}
-						onTryExercises={onTryExercises}
-					/>
-				))}
+		<ArtifactScrollContext.Provider value={scrollContainerRef}>
+			<div
+				ref={scrollContainerRef}
+				className="flex-1 overflow-y-auto px-6 pt-8 flex flex-col"
+				style={{ scrollBehavior: "auto" }}
+			>
+				<div className="flex-1 max-w-3xl mx-auto space-y-6 w-full">
+					{messages.map((msg) => (
+						<MessageBubble
+							key={msg.id}
+							message={msg}
+							onTryExercises={onTryExercises}
+						/>
+					))}
+				</div>
+				{children}
 			</div>
-			{children}
-		</div>
+		</ArtifactScrollContext.Provider>
 	);
 }
 
@@ -128,10 +131,15 @@ const MessageBubble = memo(function MessageBubble({
 		<div className="flex justify-start animate-fade-in">
 			<div className="max-w-[80%]">
 				<MessageContent content={message.content} />
-				{message.components?.map((component, i) => (
-					// biome-ignore lint/suspicious/noArrayIndexKey: components have no stable id
-					<InlineCard key={`${message.id}-card-${i}`} component={component} />
-				))}
+				{!message.streaming &&
+					message.components?.map((component, i) => (
+						<Artifact
+							// biome-ignore lint/suspicious/noArrayIndexKey: components have no stable id
+							key={`${message.id}-artifact-${i}`}
+							artifactId={`${message.id}-artifact-${i}`}
+							component={component}
+						/>
+					))}
 				{showTryButton && (
 					<button
 						type="button"
