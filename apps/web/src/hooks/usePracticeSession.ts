@@ -3,6 +3,7 @@ import { ObservationThrottle } from "../lib/observation-throttle";
 import type {
 	DimScores,
 	ObservationEvent,
+	PracticeMode,
 	PracticeWsEvent,
 } from "../lib/practice-api";
 import { practiceApi } from "../lib/practice-api";
@@ -46,6 +47,7 @@ export interface UsePracticeSessionReturn {
 	isOnline: boolean;
 	isPlaying: boolean;
 	energy: number;
+	practiceMode: PracticeMode | null;
 	start: () => Promise<void>;
 	stop: () => void;
 	setPiece: (query: string) => void;
@@ -61,6 +63,7 @@ export function usePracticeSession(): UsePracticeSessionReturn {
 	const [chunksProcessed, setChunksProcessed] = useState(0);
 	const [chunkStates, setChunkStates] = useState<ChunkState[]>([]);
 	const [wsStatus, setWsStatus] = useState<WsStatus>("disconnected");
+	const [practiceMode, setPracticeMode] = useState<PracticeMode | null>(null);
 	const [isOnline, setIsOnline] = useState(
 		typeof navigator !== "undefined" ? navigator.onLine : true,
 	);
@@ -203,11 +206,10 @@ export function usePracticeSession(): UsePracticeSessionReturn {
 				case "chunk_processed": {
 					setLatestScores(data.scores);
 					setChunksProcessed((prev) => prev + 1);
-					// Check if throttle can release a queued observation
-					const released = throttleRef.current.onChunkProcessed();
-					if (released) {
-						setObservations((prev) => [...prev, released]);
-					}
+					break;
+				}
+				case "mode_change": {
+					setPracticeMode(data.mode);
 					break;
 				}
 				case "observation": {
@@ -217,9 +219,7 @@ export function usePracticeSession(): UsePracticeSessionReturn {
 						framing: data.framing,
 					};
 					const immediate = throttleRef.current.enqueue(obs);
-					if (immediate) {
-						setObservations((prev) => [...prev, immediate]);
-					}
+					setObservations((prev) => [...prev, immediate]);
 					break;
 				}
 				case "session_summary": {
@@ -456,14 +456,10 @@ export function usePracticeSession(): UsePracticeSessionReturn {
 		chunkLog.log("MediaRecorder started in continuous mode (gated by audio activity)");
 		setState("recording");
 
-		// 6. Start elapsed timer + throttle tick
+		// 6. Start elapsed timer
 		const startTime = Date.now();
 		timerRef.current = setInterval(() => {
 			setElapsedSeconds(Math.floor((Date.now() - startTime) / 1000));
-			const released = throttleRef.current.tick();
-			if (released) {
-				setObservations((prev) => [...prev, released]);
-			}
 		}, 1000);
 	}, [cleanup, connectWebSocket, updateChunkState]);
 
@@ -624,6 +620,7 @@ export function usePracticeSession(): UsePracticeSessionReturn {
 		isOnline,
 		isPlaying,
 		energy,
+		practiceMode,
 		start,
 		stop,
 		setPiece,

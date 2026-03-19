@@ -37,6 +37,26 @@ export interface SessionSummary {
 	summary: string;
 }
 
+export type PracticeMode =
+	| "warming"
+	| "drilling"
+	| "running"
+	| "winding"
+	| "regular";
+
+// ModeChangeContext is discriminated by the parent ModeChangeEvent.mode field
+export type ModeChangeContext =
+	| { bars?: [number, number]; repetition: number }
+	| { piece?: string }
+	| Record<string, never>;
+
+export interface ModeChangeEvent {
+	type: "mode_change";
+	mode: PracticeMode;
+	chunkIndex: number;
+	context: ModeChangeContext;
+}
+
 export type PracticeWsEvent =
 	| { type: "connected" }
 	| { type: "chunk_processed"; index: number; scores: DimScores }
@@ -55,6 +75,7 @@ export type PracticeWsEvent =
 			total_chunks?: number;
 	  }
 	| { type: "piece_set"; query: string }
+	| ModeChangeEvent
 	| { type: "error"; message: string };
 
 export const practiceApi = {
