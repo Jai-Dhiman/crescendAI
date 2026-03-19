@@ -2,7 +2,7 @@
 
 Vision document for the ideal piano performance evaluation system, from recording to actionable feedback. Captures the complete 8-stage pipeline, phased implementation roadmap, and the rationale behind every architectural decision.
 
-> **Status (2026-03-15):** Vision document. **Phase 1 (score infrastructure) is COMPLETE:** score library (242 pieces), cloud AMT with pedal, score following (DTW), bar-aligned analysis (all 6 dims), reference cache script. Phase 2 (temporal + practice intelligence) is the recommended next focus. See `03-encoders.md` for model status, `00-research-timeline.md` for Phase 1 details.
+> **Status (2026-03-18):** Vision document. **Phase 1 (score infrastructure) COMPLETE.** Phase 0+3 collapsed into "Model v2" (Aria + MuQ + gated fusion). Score conditioning is IMMEDIATE via Aria. ALL previous pairwise numbers INVALID (fold leak). See `03-encoders.md` for encoder details and Aria architecture.
 
 ---
 
@@ -10,7 +10,7 @@ Vision document for the ideal piano performance evaluation system, from recordin
 
 The current system evaluates performance quality in absolute terms. The perfect system evaluates quality *relative to what the score asks for.* This single shift fixes the dynamics inversion (rho=-0.917 in competition -- the model captures "amount" not "appropriateness"), enables rubato detection, and transforms feedback from "dynamics score 0.35" to "the crescendo in bars 12-16 doesn't reach the forte Chopin marked."
 
-80% of the user-facing improvement comes from giving the LLM better context (bar-aligned musical facts, reference comparisons), not from changing the model itself. The remaining 20% comes from a score-conditioned scoring model that evaluates relative to the score at the architecture level.
+80% of the user-facing improvement comes from giving the LLM better context (bar-aligned musical facts, reference comparisons), not from changing the model itself. The remaining 20% comes from Aria + MuQ gated fusion with score conditioning that evaluates relative to the score at the architecture level.
 
 ---
 
@@ -32,10 +32,12 @@ USER PRESSES RECORD
    Phrase-aware segmentation (musical units, not fixed 15s)
         |
         v
- STAGE 2: MULTI-MODAL SCORING
-   z_audio (MuQ + LoRA) + z_perf (Symbolic FM) + z_score (Symbolic FM)
-   Score-conditioned gated fusion
-   Per-dimension routing: audio for timing, symbolic for dynamics/structure
+ STAGE 2: MULTI-MODAL SCORING (Aria + MuQ)
+   z_audio  = MuQ + LoRA (audio quality embedding)
+   z_perf   = Aria (performance MIDI embedding)
+   z_score  = Aria (score MIDI embedding)
+   delta    = z_perf - z_score (deviation from written intent)
+   Per-dimension gated fusion with learned routing
    Output: 6 relative dimension assessments (quality vs. what was written)
         |
         v
@@ -81,63 +83,42 @@ USER PRESSES RECORD
 
 ---
 
-## Why Fusion Failed (and When It Becomes Viable)
+## The Complete Perception System (8 Capabilities)
 
-The ISMIR paper (`paper/ismir_v2/main.tex`) tested audio-symbolic fusion:
+The model v2 system targets 8 perceptual capabilities, from immediate inference outputs to downstream reasoning:
 
-| Model | R2 |
-|-------|-----|
-| Audio only (MuQ + LoRA) | 0.537 |
-| **Audio-symbolic fusion (concat)** | **0.524** |
-| Symbolic only (baseline) | 0.347 |
-
-Fusion *underperformed* audio-only. Error correlation between modalities: **r = 0.738** -- both fail on the same samples.
-
-### Root Cause: Pretraining Asymmetry
-
-Both modalities derive from identical MIDI source data (PercePiano uses Pianoteq-rendered audio). MuQ was pretrained on 160K hours; the symbolic encoder was trained from scratch on ~24K graphs. The gap reflects pretraining scale, not modality choice.
-
-### When Fusion Becomes Viable
-
-Fusion requires:
-- A symbolic foundation model (pretrained on millions of MIDI files) that matches MuQ's representation quality
-- Error correlation below ~0.5 (genuinely different failure modes)
-- Per-dimension gated fusion that exploits real complementarity: audio for timing/resonance, symbolic for structure/dynamics
+| # | Capability | Description | Encoder | Status |
+|---|-----------|-------------|---------|--------|
+| 1 | **AMT** | Automatic music transcription (audio -> MIDI) | ByteDance piano transcription | DEPLOYED |
+| 2 | **Piece identification** | Fuzzy matching against score library | Score following (DTW) | COMPLETE |
+| 3 | **Quality assessment** | 6-dimension relative quality scoring | MuQ + Aria (gated fusion) | RETRAINING (clean folds) |
+| 4 | **Skill level** | Beginner/intermediate/advanced classification | MuQ + Aria (ordinal training) | NOT STARTED (A1-Max has zero discrimination) |
+| 5 | **STOP detection** | "Would a teacher stop here?" | Logistic regression on scores | COMPLETE (needs retrain on clean folds) |
+| 6 | **Difficulty estimation** | Per-passage technical difficulty | Score analysis + reference stats | COMPLETE (score infrastructure) |
+| 7 | **Temporal reasoning** | Rubato, repetition tracking, trajectory | Score following + onset analysis | NOT STARTED |
+| 8 | **Robustness** | Stable scores across audio conditions | AMT validation + calibration | VALIDATED |
 
 ---
 
-## Score-Conditioned Scoring Model
+## Aria + MuQ Gated Fusion (Stage 2 Detail)
 
 ### Architecture
 
 ```
-                   Score MIDI
-                      |
-                      v
-                   [Symbolic Foundation Model]
-                      |
-                      v
-                   z_score [512]
-                      |
-AUDIO -> [MuQ+LoRA] -> z_audio [512]      |
-                      |                     |
-PERF MIDI -> [Symb FM] -> z_perf [512]     |
-                      |                     |
-                      v                     v
-            SCORE-CONDITIONED GATED FUSION
+AUDIO -> [MuQ + LoRA] -> z_audio [512]
 
-            Per-dimension learned gates:
-              timing:         audio 0.7 | symb 0.3
-              dynamics:       audio 0.3 | symb 0.7
-              pedaling:       audio 0.5 | symb 0.5
-              articulation:   audio 0.4 | symb 0.6
-              phrasing:       audio 0.5 | symb 0.5
-              interpretation: cross-attention over all 3
+PERF MIDI  -> [Aria] -> z_perf [512]
+SCORE MIDI -> [Aria] -> z_score [512]
+                         delta = z_perf - z_score
 
-            delta_d = z_perf - z_score  (what's different)
-            quality_d = MLP_d(fused_d, delta_d)
+                    GATED FUSION (per-dimension)
 
-            Output: 6 scores (0-1) relative to score
+  For each dimension d:
+    gate_d = sigmoid(W_d * [z_audio; z_perf; delta])
+    fused_d = gate_d * z_audio + (1 - gate_d) * z_perf
+    quality_d = MLP_d(fused_d, delta)
+
+  Output: 6 scores (0-1) relative to score
 ```
 
 The `delta = z_perf - z_score` vector directly encodes "what's different between what was played and what was written." The quality head learns which deltas are good (rubato, dynamic shading) and which are bad (wrong notes, missed dynamics).
@@ -157,54 +138,43 @@ Instead of expensive expert annotation, use professional recordings as implicit 
 
 - MAESTRO has 204 pieces with 2+ performers and paired score MIDIs
 - Multiple recordings of the same piece = relative quality ordering
-- A1-Max ensemble scores provide ranking signal (already computed)
 - Training triple: (performance_audio, performance_midi, score_midi) with relative ranking label
 - Loss: ListMLE ranking (same as A1-Max), conditioned on score
+- Data mix: PercePiano as anchor (20%), ordinal competition data (80%)
 
-This fixes dynamics inversion naturally: when the score says pp and the best performer plays pp, the model learns pp + score_says_pp = HIGH quality.
+### Separate-Then-Fuse Protocol
 
----
-
-## Symbolic Foundation Model
-
-### Why
-
-The current S2 GNN (71.3% pairwise) is trained from scratch on ~24K graphs. Pretraining on millions of MIDI performances would develop rich representations of voice leading, harmonic progression, and rhythmic patterns -- complementary to MuQ's audio representations.
-
-### Pretraining Data (~370K+ performances)
-
-| Source | Pieces | Performances |
-|--------|--------|-------------|
-| MAESTRO v3 | ~300 | 1,276 |
-| GiantMIDI-Piano | ~10,800 | 10,800 |
-| ATEPP | ~11,000 | 11,697 |
-| ASAP | ~222 | 1,066 |
-| PianoMIDI | ~100,000+ | ~100,000+ |
-| Lakh MIDI (piano) | ~50,000+ | ~50,000+ |
-| MuseScore exports | ~200,000+ | ~200,000+ |
-
-~7.4M training segments at 20 segments per performance. Comparable to MuQ's pretraining scale.
-
-### Pretraining Objectives
-
-1. **Masked note prediction (BERT-style):** Mask 15% of notes, predict pitch/velocity/duration/onset. Forces harmonic and voice-leading understanding.
-2. **Contrastive same-piece learning:** Same piece, different performer = positive pair. Separates piece identity from performance quality.
-3. **Next-bar prediction (autoregressive):** Given bars 1-N, predict bar N+1. Forces understanding of musical form and phrase structure.
-4. **Score-performance alignment (optional):** Learn to align performance MIDI to score MIDI. Directly trains for score conditioning.
-
-### Architecture
-
-Transformer encoder (12-24 layers) with:
-- Note tokenizer: pitch, velocity (32 bins), onset (64 bins), duration (16 bins), voice, pedal_state
-- Relative position encoding (bar-aware)
-- Voice-aware attention mask
-- Hierarchical pooling: note -> beat -> bar -> phrase -> z_symbolic [512]
-
-Transformer over GNN for the foundation model because self-attention can learn graph-like relationships from data without hardcoding edge types. Same architecture encodes both score MIDI (z_score) and performance MIDI (z_perf).
+1. **Independent training:** Fine-tune MuQ and Aria separately on PercePiano with clean folds
+2. **Quality-aware contrastive pretraining:** Symmetric contrastive training for both encoders (MuQ: NT-Xent on quality pairs; Aria: SimCSE already done, extend with quality pairs)
+3. **Error correlation measurement:** Both models on validation sets, per-dimension error correlation. Target: r < 0.5
+4. **Gated fusion training:** Freeze encoders, train fusion gates + quality MLPs
+5. **End-to-end fine-tuning (optional):** Unfreeze top layers, very low LR (1e-6)
 
 ---
 
-## Score Infrastructure (Phase 1 Components)
+## Eval Tier Requirements
+
+### Training Evaluation (E1-E3)
+
+| Tier | Metric | Requirement | Purpose |
+|------|--------|-------------|---------|
+| **E1** | Pairwise accuracy (clean folds) | > 75% (audio), > 70% (symbolic), > 80% (fused) | Core ranking quality |
+| **E2** | Per-dimension error correlation | r < 0.5 between audio and symbolic | Fusion viability gate |
+| **E3** | Skill-level discrimination | Cohen's d > 0.8 between adjacent levels | Multi-tier training validation |
+
+### Deployment Validation (E4-E6)
+
+| Tier | Metric | Requirement | Purpose |
+|------|--------|-------------|---------|
+| **E4** | Competition correlation (Spearman rho) | > 0.6 on held-out competition | External validity |
+| **E5** | STOP classifier AUC | > 0.80 on retrained scores | Teaching moment quality |
+| **E6** | AMT robustness (pairwise drop) | < 5% across audio conditions | Production reliability |
+
+All evaluation on clean piece-stratified folds. Bootstrap CIs required for all comparisons. See `03-encoders.md` Verification Criteria.
+
+---
+
+## Score Infrastructure (Phase 1 -- COMPLETE)
 
 ### Score MIDI Library
 
@@ -227,6 +197,7 @@ Onset-based DTW between AMT output and score MIDI. Produces bar map: `[{chunk_of
 ### Bar-Aligned Musical Analysis Engine
 
 Transforms model scores + AMT + score into structured musical facts per passage:
+
 - Dynamics: score marking, performance velocity, reference velocity, analysis sentence
 - Timing: score tempo, performance tempo, onset deviation pattern, rubato classification
 - Pedaling: score marking, pedal durations, harmony change intervals, bleed analysis
@@ -239,7 +210,7 @@ For each piece in the library with MAESTRO recordings: run A1-Max, align to scor
 
 ---
 
-## Temporal Reasoning
+## Temporal Reasoning (Phase 2)
 
 ### Rubato Detection
 
@@ -297,7 +268,7 @@ Positive/corrective ratio target: 25-35% positive. Track per student, adjust if 
 
 ---
 
-## Real Audio + Expert Labels
+## Real Audio + Expert Labels (Phase 4)
 
 ### Recording Collection
 
@@ -319,13 +290,28 @@ Pedal resonance subtlety (sympathetic vibration, half-pedaling), piano character
 
 ## Phased Implementation Roadmap
 
-### Phase 1: Score Infrastructure (3-4 months, engineering)
+### Phase 1: Score Infrastructure (COMPLETE)
 
-Build: score MIDI library, cloud AMT service, score following, bar-aligned analysis engine, reference performance cache, structured musical facts as subagent input.
+Built: score MIDI library (242 pieces), cloud AMT service, score following (DTW), bar-aligned analysis engine (all 6 dims), reference cache script.
 
 Result: Same A1-Max scores, but teacher says "In bars 12-16, the crescendo is timid" instead of "dynamics score 0.35."
 
-Ships independently. Rollback: disable score context, revert to current pipeline.
+### Model v2: Aria + MuQ + Gated Fusion (2-4 months, engineering + ML)
+
+*Collapses previous Phase 0 (A2 multi-tier) and Phase 3 (Symbolic FM) into a single effort.*
+
+Build:
+
+- Retrain A1-Max on clean piece-stratified folds (establish valid baselines)
+- Fine-tune Aria on PercePiano (performance MIDI + score MIDI)
+- Quality-aware contrastive pretraining for both encoders
+- Per-dimension gated fusion with score conditioning (delta = z_perf - z_score)
+- Ordinal-dominated training (80% competition data, 20% PercePiano)
+- Skill-level discrimination via multi-tier training data
+
+Result: Score-conditioned dual-encoder scoring. Dynamics inversion fixed. Skill-level separation. Fusion viable because both encoders now have comparable pretraining scale.
+
+Eval gates: E1-E3 (see Eval Tier Requirements above). Error correlation r < 0.5 required before fusion ships. **Phase A validation (2026-03-19): phi=0.043 -- gate passed. Frozen Aria 59.6% pairwise (marginal), frozen MuQ 62.2% (confirmed). Proceed to contrastive pretraining + LoRA fine-tuning.**
 
 ### Phase 2: Temporal + Practice Intelligence (2-3 months, engineering)
 
@@ -333,15 +319,7 @@ Build: rubato detection, passage repetition tracking, practice mode auto-detect,
 
 Result: System becomes a practice partner, not just a judge.
 
-Depends on Phase 1 (score alignment). Ships independently.
-
-### Phase 3: Symbolic Foundation Model (6-12 months, research)
-
-Build: pretrain symbolic FM on 370K+ MIDI performances, score-conditioned gated fusion architecture, reference-anchored training on MAESTRO.
-
-Result: Dynamics inversion fixed. True multi-modal scoring relative to score.
-
-Research risk: HIGH (symbolic FM doesn't exist yet). Can start in parallel with Phases 1-2.
+Depends on Phase 1 (score alignment). Ships independently from Model v2.
 
 ### Phase 4: Real Audio + Expert Labels (6+ months)
 
@@ -349,7 +327,7 @@ Build: collect expert-annotated real piano recordings, retrain with acoustic div
 
 Result: Model hears real pianos, not synthesized audio.
 
-Depends on Phase 3 (architecture to retrain). Cost: ~$50-100K for annotation campaign.
+Depends on Model v2 (architecture to retrain). Cost: ~$50-100K for annotation campaign.
 
 ---
 
@@ -357,10 +335,11 @@ Depends on Phase 3 (architecture to retrain). Cost: ~$50-100K for annotation cam
 
 | Stage | Failure Mode | Severity | Handling |
 |-------|-------------|----------|---------|
-| 0 | Piece not in library | Medium | Absolute scoring (current mode) |
+| 0 | Piece not in library | Medium | Absolute scoring (current mode), Aria processes perf MIDI only |
 | 1 | AMT fails (noisy audio) | High | Skip symbolic path, audio-only |
 | 1 | Score following lost | High | Re-anchor on next clear onset match |
 | 2 | HF endpoint timeout | High | Retry 2x, degrade to "feedback when online" |
+| 2 | Aria inference fails | Medium | Fall back to audio-only scoring |
 | 3 | Rubato false positive | High | Confidence threshold + silence |
 | 4 | Score parsing error | Medium | Skip score comparison for that passage |
 | 5 | No teaching moment | Low | "Sounded good, keep going" |
@@ -375,11 +354,15 @@ Depends on Phase 3 (architecture to retrain). Cost: ~$50-100K for annotation cam
 |-------|---------|-----------|
 | 0: Context preload | <500ms | Negligible |
 | 1: AMT | <1s (parallel with MuQ) | ~$0.01 |
-| 2: Multi-modal scoring | <2s | ~$0.02 (MuQ) + ~$0.01 (Symb FM) |
+| 2: MuQ scoring | <2s | ~$0.02 |
+| 2: Aria scoring (perf + score) | <1s (parallel with MuQ) | ~$0.01 |
+| 2: Gated fusion | <100ms | Negligible |
 | 3-5: Analysis + selection | <500ms total | Negligible |
 | 6: Subagent | <500ms | ~$0.001 |
 | 7: Teacher | <1.5s | ~$0.01 |
-| **Total** | **<5s** | **~$5/session (30 min)** |
+| **Total** | **<5s** | **~$6/session (30 min)** |
+
+Aria inference runs in parallel with MuQ on the same HF endpoint (or a separate lightweight endpoint -- Aria's 650M params are smaller than MuQ). The dual-encoder adds ~$0.01/chunk (~$1/session) over the current single-encoder pipeline.
 
 ---
 
@@ -387,12 +370,17 @@ Depends on Phase 3 (architecture to retrain). Cost: ~$50-100K for annotation cam
 
 | Decision | Chosen | Rationale |
 |----------|--------|-----------|
+| Symbolic encoder | Aria (EleutherAI, 650M) | SOTA on 6 benchmarks, 820K MIDI pretraining, Apache 2.0, eliminates 6-12mo custom FM research |
+| Score conditioning | Immediate (via Aria delta) | Aria encodes both perf and score MIDI natively; no reason to defer |
+| Fusion strategy | Separate-then-fuse with learned gates | Measure error correlation before committing; per-dimension routing |
+| Training data mix | 20% PercePiano + 80% ordinal | Expert annotations as anchor, competition data for scale |
+| Contrastive pretraining | Symmetric (both MuQ and Aria) | Both encoders get quality-aware embeddings before fusion |
 | Data strategy | Reference-anchored (MAESTRO) | No new annotation needed; ranking signal from multiple performers of same piece |
 | Temporal focus | Rubato + passage repetition | Highest user value; concrete, testable; skip harder narrative-arc problem |
-| Sequencing | Score infrastructure first | 80% of user-facing improvement from better LLM context, not better model |
+| Sequencing | Score infrastructure first, then Model v2 | 80% of user-facing improvement from better LLM context |
 | Rubato safety | Confidence threshold + silence | Trust preservation; better to miss than to falsely flag expression |
 | Practice modes | Auto-detect with confirmation | AMT enables detection; confirmation keeps student in the loop |
-| Symbolic FM arch. | Transformer (not GNN) | Self-attention learns graph relationships from data; same arch for score + perf |
+| Fold leak response | Retrain everything on clean folds | All prior numbers invalid; no shortcuts |
 
 ---
 
@@ -400,20 +388,25 @@ Depends on Phase 3 (architecture to retrain). Cost: ~$50-100K for annotation cam
 
 | Component | Status | Role in Perfect Pipeline |
 |-----------|--------|-------------------------|
-| A1-Max (80.8% pairwise) | DEPLOYED | Audio encoder, unchanged |
+| A1-Max (deployed, numbers invalid) | DEPLOYED (needs retrain) | Audio encoder for gated fusion |
 | MuQ backbone (160K hrs) | DEPLOYED | Pretrained audio foundation |
-| STOP classifier (AUC 0.845) | COMPLETE | Upgraded with score context |
+| Aria base + embedding | AVAILABLE (HuggingFace) | Symbolic encoder, score encoder |
+| STOP classifier (AUC 0.845) | COMPLETE (needs retrain) | Upgraded with score context |
 | Two-stage subagent | IMPLEMENTED | Same architecture, richer inputs |
-| ByteDance AMT | VALIDATED | Needs real-time cloud deployment |
+| ByteDance AMT | VALIDATED | Cloud-deployed, production-ready |
+| Score following (DTW) | COMPLETE | Bar alignment for score conditioning |
+| Bar-aligned analysis (6 dims) | COMPLETE | Structured musical facts |
+| Score MIDI library (242 pieces) | COMPLETE | Score conditioning input |
 | MAESTRO contrastive (24K segs) | COMPLETE | Reference-anchored training data |
-| Symbolic pretrain corpus (24K graphs) | COMPLETE | Seed for symbolic FM pretraining |
 | Composite labels (6 dims) | COMPLETE | Target dimensions unchanged |
 | Quote bank (60 quotes) | COMPLETE | Teacher voice grounding |
+| Clean piece-stratified folds | VERIFIED | All future training/eval |
 
 ## Not In Scope
 
 | Item | Rationale |
 |------|-----------|
+| Custom symbolic FM (pretrain from scratch) | Aria eliminates the need; 820K MIDI pretraining already done |
 | Full hierarchical temporal model (phrase -> section -> piece) | Requires labeled data that doesn't exist; rubato + repetition covers highest value |
 | Automatic piece identification (audio fingerprinting) | Separate ML problem, limited ROI |
 | On-device inference (Core ML) | Cloud-only is correct for foreseeable future |
