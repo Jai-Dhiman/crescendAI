@@ -27,7 +27,15 @@ ChatMessages
 
 ### `<Artifact>`
 
-Wraps each `InlineComponent` in `MessageBubble`. Receives `artifactId` (derived from `messageId + component index`) and the `InlineComponent` config. Reads display state from Zustand store. Renders one of three views based on state. Attaches IntersectionObserver for auto-collapse.
+Wraps each `InlineComponent` in `MessageBubble`. Receives `artifactId` and the `InlineComponent` config. Reads display state from Zustand store. Renders one of three views based on state. Attaches IntersectionObserver for auto-collapse.
+
+**artifactId format:** `${messageId}-artifact-${index}` where `messageId` is the stable `RichMessage.id` and `index` is the component's position in the `components[]` array. This ID must be stable across re-renders -- `messageId` is assigned once when the message is created (not derived from timestamps that could change).
+
+**Lifecycle:** `register(id, component)` is called on mount. `unregister(id)` on unmount. Re-mount (React strict mode, key changes) always starts as `inline` -- no state persistence across mount cycles.
+
+**Collapsed props mapping:** `Artifact` maps `InlineComponent` configs to generic `CollapsedPreview` props via a `getCollapsedProps()` helper:
+- `exercise_set` -> `{ title: config.target_skill, subtitle: config.source_passage, badge: "${N} exercises" }`
+- Future types define their own mapping in the same function.
 
 Only renders when `message.streaming === false` to prevent layout shifts during streaming.
 
@@ -77,31 +85,79 @@ Workspace view for exercises:
 - Per-exercise state: `idle | loading | assigned | completing | completed | error`
 - Progress indicator at bottom: "1 of 3 completed"
 
-## Zustand Store (`useArtifactStore`)
+**Exercise state sync between inline and expanded views:**
+
+The existing `ExerciseSetCard` (inline) tracks assign state locally (`idle | loading | assigned | error`). The `ExerciseSetExpanded` (overlay) adds `completing | completed` states for the full assign+complete flow. These are independent local states -- they do NOT sync automatically.
+
+To keep them consistent, exercise completion state is lifted into the Zustand store alongside the display state:
 
 ```typescript
 interface ArtifactEntry {
   state: 'collapsed' | 'inline' | 'expanded';
   component: InlineComponent;
+  exerciseStates?: Record<string, ExerciseState>;  // keyed by exercise_id
+}
+
+type ExerciseState = {
+  status: 'idle' | 'loading' | 'assigned' | 'completing' | 'completed' | 'error';
+  studentExerciseId?: string;  // returned by assign(), needed by complete()
+};
+```
+
+Both `ExerciseSetCard` (inline) and `ExerciseSetExpanded` (overlay) read/write from this shared state via `useArtifactStore`. When you assign in the inline card, the overlay sees it. When you complete in the overlay, the inline card reflects it on close.
+
+Actions added to store:
+- `setExerciseStatus(artifactId, exerciseId, status, studentExerciseId?)` -- updates a single exercise's state
+- Exercises without `exercise_id` are not tracked in the store (they have no actionable state)
+
+## Zustand Store (`useArtifactStore`)
+
+```typescript
+type ExerciseStatus = 'idle' | 'loading' | 'assigned' | 'completing' | 'completed' | 'error';
+
+interface ExerciseState {
+  status: ExerciseStatus;
+  studentExerciseId?: string;
+}
+
+interface ArtifactEntry {
+  state: 'collapsed' | 'inline' | 'expanded';
+  component: InlineComponent;
+  exerciseStates?: Record<string, ExerciseState>;  // keyed by exercise_id
 }
 
 interface ArtifactStore {
   states: Record<string, ArtifactEntry>;
 
+  // Display state actions
   register(id: string, component: InlineComponent): void;
   collapse(id: string): void;
   expand(id: string): void;
   restore(id: string): void;
   closeOverlay(id: string): void;
   unregister(id: string): void;
+
+  // Exercise state actions
+  setExerciseStatus(
+    artifactId: string,
+    exerciseId: string,
+    status: ExerciseStatus,
+    studentExerciseId?: string,
+  ): void;
 }
 ```
 
 Constraints:
 - Only one artifact expanded at a time. `expand(id)` sets any currently expanded artifact back to `inline`.
-- `collapse()` only transitions from `inline` (not from `expanded`).
+- **Guard conditions:** All actions are no-ops if the artifact is already in the target state or in an incompatible source state:
+  - `collapse(id)` -- only transitions from `inline`. No-op if already `collapsed` or `expanded`.
+  - `restore(id)` -- only transitions from `collapsed`. No-op if already `inline` or `expanded`.
+  - `closeOverlay(id)` -- only transitions from `expanded`. No-op if not `expanded`.
+  - `expand(id)` -- transitions from any state to `expanded`.
 - Derived selector: `expandedId` returns the ID of the currently expanded artifact (or null).
 - `unregister()` removes the entry on unmount.
+
+**Note:** The `05-ui-system.md` design doc uses `"type": "exercise"` with a flat single-exercise config in its example JSON. The codebase uses `"type": "exercise_set"` with an array of exercises. The codebase is authoritative -- `05-ui-system.md` example is illustrative, not a schema definition.
 
 ## IntersectionObserver
 
@@ -169,7 +225,7 @@ New CSS addition to `app.css`:
 2. **Multiple components per message:** Each gets its own `<Artifact>` with independent state.
 3. **Overlay open during new message:** Overlay stays open. New messages scroll behind backdrop.
 4. **Escape key:** Listener registered only when overlay is open. No conflicts.
-5. **Body scroll lock:** `overflow: hidden` on chat scroll container (not `document.body`) while overlay open.
+5. **Body scroll lock:** `overflow: hidden` on chat scroll container while overlay open. The `ArtifactOverlay` component reads the scroll container ref from `ArtifactScrollContext` (the same context used by IntersectionObserver). On expand: sets `overflow: hidden` on the ref's element. On close/unmount: restores original overflow. This keeps the scroll lock logic co-located with the overlay that needs it.
 6. **Missing exercise_id:** Expanded view disables Start/Complete buttons with explanation text.
 
 ## Not in Scope
