@@ -25,7 +25,6 @@ from pathlib import Path
 
 import yaml
 
-
 SKILL_EVAL_DIR = Path(__file__).resolve().parents[2] / "data" / "evals" / "skill_eval"
 
 SKILL_LABELS = {
@@ -40,6 +39,7 @@ SKILL_LABELS = {
 # ---------------------------------------------------------------------------
 # Load candidates
 # ---------------------------------------------------------------------------
+
 
 def load_all_candidates(base_dir: Path, piece_filter: str | None = None) -> dict:
     """Load all candidates.yaml files. Returns {piece_slug: data_dict}."""
@@ -59,6 +59,7 @@ def load_all_candidates(base_dir: Path, piece_filter: str | None = None) -> dict
 # HTML generation
 # ---------------------------------------------------------------------------
 
+
 def generate_html(pieces: dict, base_dir: Path) -> str:
     """Generate the full review dashboard HTML."""
     total_recordings = sum(len(p["recordings"]) for p in pieces.values())
@@ -77,9 +78,9 @@ def generate_html(pieces: dict, base_dir: Path) -> str:
         piece_tabs_html.append(
             f'<button class="tab {active}" onclick="showPiece(\'{slug}\')" '
             f'id="tab-{slug}">'
-            f'{data.get("title", slug)} '
+            f"{data.get('title', slug)} "
             f'<span class="badge">{n_curated}/{n_total}</span>'
-            f'</button>'
+            f"</button>"
         )
 
         # Panel
@@ -95,15 +96,15 @@ def generate_html(pieces: dict, base_dir: Path) -> str:
                 selected = "selected" if bucket_val == b else ""
                 bucket_buttons.append(
                     f'<button class="bucket-btn {selected}" '
-                    f'onclick="setBucket(\'{slug}\', {ri}, {b})">'
-                    f'{b}'
-                    f'</button>'
+                    f"onclick=\"setBucket('{slug}', {ri}, {b})\">"
+                    f"{b}"
+                    f"</button>"
                 )
 
             skip_class = "selected" if is_skipped else ""
             card_class = "skipped" if is_skipped else ("curated" if bucket_val else "")
 
-            cards_html.append(f'''
+            cards_html.append(f"""
             <div class="card {card_class}" id="card-{slug}-{ri}">
                 <div class="card-header">
                     <span class="card-index">#{ri + 1}</span>
@@ -134,18 +135,18 @@ def generate_html(pieces: dict, base_dir: Path) -> str:
                     </div>
                 </div>
             </div>
-            ''')
+            """)
 
         display = "block" if idx == 0 else "none"
         piece_panels_html.append(
             f'<div class="piece-panel" id="panel-{slug}" style="display:{display}">'
             f'<div class="piece-header">'
-            f'<h2>{data.get("title", slug)}</h2>'
+            f"<h2>{data.get('title', slug)}</h2>"
             f'<span class="piece-meta">{data.get("composer", "")} '
-            f'| {n_total} candidates | {n_curated} curated | {n_skipped} skipped</span>'
-            f'</div>'
+            f"| {n_total} candidates | {n_curated} curated | {n_skipped} skipped</span>"
+            f"</div>"
             f'<div class="cards">{"".join(cards_html)}</div>'
-            f'</div>'
+            f"</div>"
         )
 
     # Build the initial state JSON
@@ -171,7 +172,7 @@ def generate_html(pieces: dict, base_dir: Path) -> str:
             ],
         }
 
-    return f'''<!DOCTYPE html>
+    return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -505,7 +506,7 @@ function saveAll() {{
 updateProgress();
 </script>
 </body>
-</html>'''
+</html>"""
 
 
 def _escape_html(text: str) -> str:
@@ -532,15 +533,13 @@ def _format_views(count: int | None) -> str:
 # Save handler -- writes manifest.yaml from curated state
 # ---------------------------------------------------------------------------
 
+
 def save_curated_manifests(state: dict, base_dir: Path) -> int:
     """Write manifest.yaml for each piece that has curated recordings."""
     saved = 0
     for slug, data in state.items():
         # Only create manifest for recordings with assigned skill buckets
-        curated = [
-            r for r in data["recordings"]
-            if r.get("skill_bucket") is not None
-        ]
+        curated = [r for r in data["recordings"] if r.get("skill_bucket") is not None]
         if not curated:
             continue
 
@@ -567,7 +566,13 @@ def save_curated_manifests(state: dict, base_dir: Path) -> int:
         piece_dir.mkdir(parents=True, exist_ok=True)
         out_path = piece_dir / "manifest.yaml"
         with open(out_path, "w") as f:
-            yaml.dump(manifest, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
+            yaml.dump(
+                manifest,
+                f,
+                default_flow_style=False,
+                allow_unicode=True,
+                sort_keys=False,
+            )
         saved += 1
         print(f"  Saved {out_path} ({len(curated)} recordings)")
 
@@ -577,6 +582,7 @@ def save_curated_manifests(state: dict, base_dir: Path) -> int:
 # ---------------------------------------------------------------------------
 # Local HTTP server for review
 # ---------------------------------------------------------------------------
+
 
 class ReviewHandler(http.server.BaseHTTPRequestHandler):
     """Simple HTTP handler that serves the review dashboard and handles saves."""
@@ -635,13 +641,16 @@ def make_handler(base_dir: Path, pieces: dict):
 # CLI
 # ---------------------------------------------------------------------------
 
+
 def main():
     parser = argparse.ArgumentParser(
         description="T5 Skill Corpus candidate review dashboard"
     )
     parser.add_argument("--piece", type=str, help="Filter to a single piece")
     parser.add_argument("--serve", action="store_true", help="Start local HTTP server")
-    parser.add_argument("--port", type=int, default=8765, help="Server port (default: 8765)")
+    parser.add_argument(
+        "--port", type=int, default=8765, help="Server port (default: 8765)"
+    )
     parser.add_argument(
         "--output-html",
         type=Path,
