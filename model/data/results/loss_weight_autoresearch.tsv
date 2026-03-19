@@ -6,4 +6,5 @@ iter	commit	pairwise	r2	delta_pw	status	lambda_listmle	lambda_contrastive	lambda
 4	6b83908	0.7715	0.2038	+0.0068	keep	1.5	0.6	0.6	0.1	0.2	Boost contrastive (0.3->0.6). Both metrics improved
 5	10ea80f	0.7538	0.1630	-0.0177	revert	1.5	0.6	0.6	0.1	0.0	Ablate mixup (0.2->0.0). Hurts both -- mixup provides valuable regularization
 6	565a718	0.7651	0.2616	-0.0064	revert	1.5	0.6	1.0	0.1	0.2	Boost regression (0.6->1.0). R2 improved but pairwise dropped slightly
-7	pending	0.7715	0.2399	+0.0000	keep	1.5	0.6	0.8	0.1	0.2	Regression midpoint (0.6->0.8). Same pairwise, R2 improved +0.036
+7	ad1e4ec	0.7715	0.2399	+0.0000	keep	1.5	0.6	0.8	0.1	0.2	Regression midpoint (0.6->0.8). Same pairwise, R2 improved +0.036
+8	pending	0.7694	0.2687	-0.0021	revert	1.0	0.6	0.8	0.1	0.2	Reduce ListMLE (1.5->1.0). R2 improved but pairwise dropped slightly
