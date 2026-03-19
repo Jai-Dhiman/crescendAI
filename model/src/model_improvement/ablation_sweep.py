@@ -247,13 +247,21 @@ def run_ablation_sweep(
             start_time = time.time()
             _cleanup_memory()
 
+            # Filter keys to only those present in embeddings
+            emb_keys = set(embeddings.keys())
+            train_keys = [k for k in fold["train"] if k in emb_keys]
+            val_keys = [k for k in fold["val"] if k in emb_keys]
+            if len(train_keys) < len(fold["train"]) or len(val_keys) < len(fold["val"]):
+                print(f"    Filtered: train {len(fold['train'])}->{len(train_keys)}, "
+                      f"val {len(fold['val'])}->{len(val_keys)}")
+
             train_ds = PairedPerformanceDataset(
                 cache_dir=Embeddings.percepiano, labels=labels,
-                piece_to_keys=piece_to_keys, keys=fold["train"],
+                piece_to_keys=piece_to_keys, keys=train_keys,
             )
             val_ds = PairedPerformanceDataset(
                 cache_dir=Embeddings.percepiano, labels=labels,
-                piece_to_keys=piece_to_keys, keys=fold["val"],
+                piece_to_keys=piece_to_keys, keys=val_keys,
             )
             train_loader = DataLoader(  # nosemgrep
                 train_ds, batch_size=BATCH_SIZE, shuffle=True,
