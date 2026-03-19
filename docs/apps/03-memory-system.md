@@ -2,7 +2,7 @@
 
 How CrescendAI remembers what it knows about a student across sessions. This is the data inventory for the apps layer -- parallel to how `model/01-data.md` catalogs training data, this doc catalogs the runtime data structures that accumulate as a student practices.
 
-> **Status (2026-03-19):** Observations table COMPLETE. Synthesized facts COMPLETE (synthesis trigger, prompt, contradiction handling, observability). Memory retrieval wired but needs E2E validation with real sessions (CEO review 2026-03-19 flagged as beta P0). Session opening context ('Welcome back, last time you...') depends on memory retrieval.
+> **Status (2026-03-19):** Observations table COMPLETE. Synthesized facts COMPLETE. Session arc COMPLETE (LLM-generated session summary with memory context, client fallback). Memory retrieval wired for both chat and practice session paths. Phase 3 retrieval optimization remains.
 
 See `02-pipeline.md` for the teacher pipeline that produces observations.
 See `model/02-teacher-grounded-taxonomy.md` for the 6 dimensions that define the baseline schema.
@@ -246,6 +246,17 @@ Ships with the `/api/ask` pipeline (see `02-pipeline.md`).
 [x] SynthesisResult observability (new_facts, invalidated, unchanged, observations_processed)
 [x] Seed-observations dev-only endpoint for testing
 [x] Integration test (apps/evals/memory/src/test_synthesis.py)
+```
+
+### Phase 2.5: Session Arc -- COMPLETE
+
+```
+[x] Memory context loaded in finalize_session for summary generation
+[x] LLM-generated session summary (Anthropic Sonnet, 2-4 sentences)
+[x] Client-built fallback on LLM failure
+[x] Eval session bypass
+[x] CF Workers 30s subrequest limit as timeout backstop
+[x] handle_ask_inner already loads memory per observation (no DO changes needed)
 ```
 
 ### Phase 3: Retrieval Optimization
