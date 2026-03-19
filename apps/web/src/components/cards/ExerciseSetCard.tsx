@@ -1,36 +1,57 @@
 import { useState } from "react";
+import { ArrowsOut } from "@phosphor-icons/react";
 import { api } from "../../lib/api";
 import type { ExerciseSetConfig } from "../../lib/types";
+import { useArtifactStore } from "../../stores/artifact";
+import { handsLabel } from "../../lib/exercise-utils";
 
 interface ExerciseSetCardProps {
 	config: ExerciseSetConfig;
+	onExpand?: () => void;
+	artifactId?: string;
 }
 
-type AssignState = "idle" | "loading" | "assigned" | "error";
+type LocalAssignState = "idle" | "loading" | "assigned" | "error";
 
 interface ExerciseItemProps {
 	exercise: ExerciseSetConfig["exercises"][number];
 	isExpanded: boolean;
 	onToggle: () => void;
+	artifactId?: string;
 }
 
-function handsLabel(hands: "left" | "right" | "both"): string {
-	if (hands === "left") return "LH";
-	if (hands === "right") return "RH";
-	return "Both";
-}
+function ExerciseItem({ exercise, isExpanded, onToggle, artifactId }: ExerciseItemProps) {
+	const [localState, setLocalState] = useState<LocalAssignState>("idle");
 
-function ExerciseItem({ exercise, isExpanded, onToggle }: ExerciseItemProps) {
-	const [assignState, setAssignState] = useState<AssignState>("idle");
+	const exerciseState = useArtifactStore((s) => {
+		if (!artifactId || !exercise.exercise_id) return undefined;
+		return s.states[artifactId]?.exerciseStates?.[exercise.exercise_id];
+	});
+
+	const setExerciseStatus = useArtifactStore((s) => s.setExerciseStatus);
+
+	const useStore = Boolean(artifactId);
+	const status = useStore ? (exerciseState?.status ?? "idle") : localState;
 
 	async function handleAssign() {
 		if (!exercise.exercise_id) return;
-		setAssignState("loading");
-		try {
-			await api.exercises.assign({ exercise_id: exercise.exercise_id });
-			setAssignState("assigned");
-		} catch (err) {
-			setAssignState("error");
+
+		if (useStore && artifactId) {
+			setExerciseStatus(artifactId, exercise.exercise_id, "loading");
+			try {
+				await api.exercises.assign({ exercise_id: exercise.exercise_id });
+				setExerciseStatus(artifactId, exercise.exercise_id, "assigned");
+			} catch (err) {
+				setExerciseStatus(artifactId, exercise.exercise_id, "error");
+			}
+		} else {
+			setLocalState("loading");
+			try {
+				await api.exercises.assign({ exercise_id: exercise.exercise_id });
+				setLocalState("assigned");
+			} catch (err) {
+				setLocalState("error");
+			}
 		}
 	}
 
@@ -64,22 +85,28 @@ function ExerciseItem({ exercise, isExpanded, onToggle }: ExerciseItemProps) {
 						<button
 							type="button"
 							onClick={handleAssign}
-							disabled={assignState === "loading" || assignState === "assigned"}
+							disabled={
+								status === "loading" ||
+								status === "assigned" ||
+								status === "completed"
+							}
 							className={`text-body-xs px-3 py-1.5 rounded-lg border transition ${
-								assignState === "assigned"
+								status === "assigned" || status === "completed"
 									? "border-accent text-accent cursor-default"
-									: assignState === "error"
+									: status === "error"
 										? "border-red-500 text-red-400 hover:bg-red-500/10"
 										: "border-border text-text-secondary hover:text-cream hover:border-accent hover:bg-surface disabled:opacity-50"
 							}`}
 						>
-							{assignState === "loading"
+							{status === "loading"
 								? "Assigning..."
-								: assignState === "assigned"
+								: status === "assigned"
 									? "Added to practice"
-									: assignState === "error"
-										? "Try again"
-										: "Try this"}
+									: status === "completed"
+										? "Completed"
+										: status === "error"
+											? "Try again"
+											: "Try this"}
 						</button>
 					)}
 				</div>
@@ -88,14 +115,26 @@ function ExerciseItem({ exercise, isExpanded, onToggle }: ExerciseItemProps) {
 	);
 }
 
-export function ExerciseSetCard({ config }: ExerciseSetCardProps) {
+export function ExerciseSetCard({ config, onExpand, artifactId }: ExerciseSetCardProps) {
 	const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
 
 	return (
 		<div className="bg-surface-card border border-border rounded-xl p-4 mt-3">
-			<h4 className="text-body-sm font-medium text-accent mb-1">
-				{config.target_skill}
-			</h4>
+			<div className="flex items-center justify-between mb-1">
+				<h4 className="text-body-sm font-medium text-accent">
+					{config.target_skill}
+				</h4>
+				{onExpand && (
+					<button
+						type="button"
+						onClick={onExpand}
+						className="text-text-tertiary hover:text-cream transition p-0.5 -mr-0.5"
+						aria-label="Expand exercise set"
+					>
+						<ArrowsOut size={14} />
+					</button>
+				)}
+			</div>
 			<p className="text-body-xs text-text-secondary mb-3">
 				{config.source_passage}
 			</p>
@@ -106,6 +145,7 @@ export function ExerciseSetCard({ config }: ExerciseSetCardProps) {
 						exercise={exercise}
 						isExpanded={expandedIndex === i}
 						onToggle={() => setExpandedIndex(expandedIndex === i ? null : i)}
+						artifactId={artifactId}
 					/>
 				))}
 			</div>
