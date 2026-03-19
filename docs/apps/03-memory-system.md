@@ -2,7 +2,7 @@
 
 How CrescendAI remembers what it knows about a student across sessions. This is the data inventory for the apps layer -- parallel to how `model/01-data.md` catalogs training data, this doc catalogs the runtime data structures that accumulate as a student practices.
 
-> **Status (2026-03-14):** Observations table COMPLETE (ships with the `/api/ask` pipeline). Synthesized facts DEFERRED until the pipeline has enough real observation data to validate synthesis quality.
+> **Status (2026-03-19):** Observations table COMPLETE. Synthesized facts COMPLETE (synthesis trigger, prompt, contradiction handling, observability). Memory retrieval wired but needs E2E validation with real sessions (CEO review 2026-03-19 flagged as beta P0). Session opening context ('Welcome back, last time you...') depends on memory retrieval.
 
 See `02-pipeline.md` for the teacher pipeline that produces observations.
 See `model/02-teacher-grounded-taxonomy.md` for the 6 dimensions that define the baseline schema.
@@ -256,6 +256,8 @@ Ships with the `/api/ask` pipeline (see `02-pipeline.md`).
 [ ] Dimension-specific fact retrieval for targeted feedback
 [ ] Evaluate whether synthesis measurably improves subagent output vs. raw observations alone
 ```
+
+**CEO review (2026-03-19):** Memory retrieval E2E validation is a beta P0 task. The session opening context ("Welcome back. Last time you worked on Clair de Lune, focusing on pedaling.") depends on active facts retrieval working correctly in real sessions. Session closing synthesis also queries memory to compare current session to prior baselines.
 
 ---
 

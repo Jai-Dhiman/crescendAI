@@ -1,4 +1,12 @@
 [![sloprank](https://sloprank.io/badge/jai-dhiman/crescendai.svg)](https://sloprank.io/repo/jai-dhiman/crescendai)
+[![arXiv](https://img.shields.io/badge/arXiv-2601.19029-b31b1b.svg)](https://arxiv.org/abs/2601.19029)
+![PyTorch](https://img.shields.io/badge/PyTorch-orange?logo=pytorch&logoColor=white)
+![Rust](https://img.shields.io/badge/Rust-black?logo=rust&logoColor=white)
+![Cloudflare Workers](https://img.shields.io/badge/Cloudflare_Workers-F38020?logo=cloudflare&logoColor=white)
+![HuggingFace](https://img.shields.io/badge/HuggingFace-yellow?logo=huggingface)
+[![MuQ](https://img.shields.io/badge/MuQ-6366f1)](https://github.com/tencent-ailab/MuQ)
+[![Aria](https://img.shields.io/badge/Aria_650M-8b5cf6)](https://github.com/EleutherAI/aria)
+![License](https://img.shields.io/badge/license-CC--BY--NC--4.0-blue)
 
 # CrescendAI
 

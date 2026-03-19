@@ -49,8 +49,9 @@ def segment_audio(
     sr: int,
     segment_duration: float = 30.0,
     min_duration: float = 5.0,
+    min_rms: float | None = 0.002,
 ) -> list[dict]:
-    """Split audio into fixed-duration segments.
+    """Split audio into fixed-duration segments, optionally filtering silence.
 
     Args:
         audio: 1D audio array.
@@ -58,6 +59,11 @@ def segment_audio(
         segment_duration: Duration of each segment in seconds.
         min_duration: Minimum duration for the last segment. Shorter tails
             are dropped.
+        min_rms: Minimum RMS energy to keep a segment. Segments below
+            this threshold are dropped (silence, dead air, very quiet
+            non-music content). Set to None to disable filtering.
+            Default 0.002 is below the quietest piano playing (~0.005)
+            but above digital silence + room noise (~0.0001).
 
     Returns:
         List of dicts with keys: audio (np.ndarray), start_sec (float),
@@ -69,6 +75,7 @@ def segment_audio(
 
     segments = []
     offset = 0
+    dropped = 0
 
     while offset < total_samples:
         end = min(offset + segment_samples, total_samples)
@@ -80,6 +87,14 @@ def segment_audio(
         start_sec = offset / sr
         end_sec = end / sr
 
+        # RMS energy gate: skip silence / dead air
+        if min_rms is not None:
+            rms = float(np.sqrt(np.mean(chunk ** 2)))
+            if rms < min_rms:
+                dropped += 1
+                offset = end
+                continue
+
         segments.append({
             "audio": chunk,
             "start_sec": round(start_sec, 3),
@@ -87,6 +102,12 @@ def segment_audio(
         })
 
         offset = end
+
+    if dropped > 0:
+        logger.info(
+            "Dropped %d/%d segments below RMS threshold %.4f",
+            dropped, dropped + len(segments), min_rms,
+        )
 
     return segments
 

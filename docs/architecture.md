@@ -41,6 +41,16 @@
 
 Both platforms upload 15-second audio chunks to the shared API worker. The worker orchestrates cloud inference (HF endpoint), STOP classification, teaching moment selection, and a two-stage LLM pipeline (Groq subagent for analysis, Anthropic for teacher delivery). iOS receives observations on-demand ("How was that?"); web pushes them in real time via WebSocket.
 
+### Platform Strategy (CEO Review 2026-03-19)
+
+**Web-first.** The web app ships to beta users first -- it's ~90% complete, fastest to iterate (no App Store review), and shareable via URL for growth. iOS follows after web beta validates the product.
+
+**Session intelligence.** The Durable Object that manages web practice sessions is extended to serve as the "session brain" -- a practice mode state machine (warming up / drilling / running through / winding down) with mode-aware observation pacing.
+
+**Unified artifact system.** Rich components (exercises, score highlights, references) render as artifacts in the chat -- inline by default, expandable to viewport on demand. Teacher LLM declares artifacts via tool use. See `docs/apps/05-ui-system.md`.
+
+**Tiered monetization.** Free (daily/weekly limits) / $5 Plus / $20 Pro / $50 Max. Free tier is the growth engine. Inference cost reduction to ~$1/session is part of the model v2 track.
+
 ---
 
 ## Two Systems
@@ -63,8 +73,8 @@ Entry point: [`docs/apps/00-status.md`](apps/00-status.md) | Pipeline: [`docs/ap
 
 | Platform | Stack | Key Paths | Notes |
 |----------|-------|-----------|-------|
-| iOS | SwiftUI, AVAudioEngine, SwiftData | `apps/ios/` | On-demand observations, local-first persistence |
-| Web | TanStack Start, React, Tailwind CSS v4 | `apps/web/` | Real-time observations via WebSocket, chat interface |
+| iOS | SwiftUI, AVAudioEngine, SwiftData | `apps/ios/` | On-demand observations, local-first persistence. **Follows web beta.** |
+| Web | TanStack Start, React, Tailwind CSS v4 | `apps/web/` | Real-time observations via WebSocket, chat interface. **Beta-first platform.** |
 | API | Rust/Axum on Cloudflare Workers (WASM) | `apps/api/` | Single worker: inference proxy, LLM pipeline, auth, sync |
 | Inference | PyTorch, HF Inference Endpoint | `apps/inference/`, `model/` | A1-Max 4-fold ensemble, 6-dim scores |
 
@@ -74,7 +84,7 @@ Entry point: [`docs/apps/00-status.md`](apps/00-status.md) | Pipeline: [`docs/ap
 
 ### Auth
 
-Sign in with Apple on both platforms. The API worker validates the Apple ID token and issues a session JWT stored in iOS Keychain (native) or cookies (web). Apple provides a stable user ID and relay email for future communication. Required by App Store for account-based features.
+Sign in with Apple and Google Sign In on both platforms. The API worker validates the Apple ID token and issues a session JWT stored in iOS Keychain (native) or cookies (web). Apple provides a stable user ID and relay email for future communication. Required by App Store for account-based features.
 
 ### Sync
 

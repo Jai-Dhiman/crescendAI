@@ -202,34 +202,10 @@ recordings:
   label_rationale: 'known professional: rubinstein'
   downloaded: true
   download_error: null
-- video_id: s_ST3hzMsVE
-  title: 'Bruce Liu - Chopin: Nocturne in C Sharp Minor'
-  channel: Deutsche Grammophon
-  duration_seconds: 280
-  skill_bucket: 5
-  label_rationale: 'known professional: deutsche grammophon'
-  downloaded: true
-  download_error: null
-- video_id: cDVBtuWkMS8
-  title: HOROWITZ AT CARNEGIE HALL - Chopin Nocturne in Fm Op.55
-  channel: hubanj
-  duration_seconds: 353
-  skill_bucket: 5
-  label_rationale: 'known professional: horowitz'
-  downloaded: true
-  download_error: null
 - video_id: EvNsPyp5O2I
   title: 'Lang Lang - Chopin: Nocturne No. 2 in E-Flat Major, Op. 9 No. 2'
   channel: Lang Lang
   duration_seconds: 283
-  skill_bucket: 5
-  label_rationale: 'known professional: lang lang'
-  downloaded: true
-  download_error: null
-- video_id: OORWoYSO8D8
-  title: 'Lang Lang: Chopin - Nocturne in D flat major, Op. 27 No. 2'
-  channel: LOFTmusic
-  duration_seconds: 419
   skill_bucket: 5
   label_rationale: 'known professional: lang lang'
   downloaded: true

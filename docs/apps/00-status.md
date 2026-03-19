@@ -1,6 +1,6 @@
 # Apps & Delivery System Status
 
-> **Status (2026-03-15):** Two-stage LLM pipeline IMPLEMENTED with bar-aligned musical analysis (subagent + teacher, Groq + Anthropic). HF inference endpoint DEPLOYED (A1-Max 4-fold ensemble + AMT + pedal CC64). STOP classifier IMPLEMENTED. Teaching moment selection IMPLEMENTED. Score following (DTW) IMPLEMENTED. Bar-aligned analysis engine IMPLEMENTED (all 6 dims, Tier 1/2/3). Durable Object practice sessions IMPLEMENTED. Web practice companion IN PROGRESS. Exercise system IMPLEMENTED. iOS audio capture COMPLETE. Auth + sync COMPLETE.
+> **Status (2026-03-19):** Two-stage LLM pipeline IMPLEMENTED with bar-aligned musical analysis (subagent + teacher, Groq + Anthropic). HF inference endpoint DEPLOYED (A1-Max 4-fold ensemble + AMT + pedal CC64). STOP classifier IMPLEMENTED. Teaching moment selection IMPLEMENTED. Score following (DTW) IMPLEMENTED. Bar-aligned analysis engine IMPLEMENTED (all 6 dims, Tier 1/2/3). Durable Object practice sessions IMPLEMENTED. Web practice companion IN PROGRESS. Exercise system IMPLEMENTED. iOS audio capture COMPLETE. Auth + sync COMPLETE. Web Beta roadmap defined (CEO review). Platform strategy: web-first. Session brain (DO state machine), unified artifact container, zero-config first session, tiered monetization (Free/$5/$20/$50) decided.
 
 *Core loop: student plays, cloud inference scores 6 dimensions, STOP classifier identifies teaching moments, two-stage subagent pipeline reasons about what matters, teacher LLM delivers one specific observation.*
 
@@ -28,12 +28,12 @@ Target user: Sarah -- intermediate self-learner, no teacher, wants to know the o
 
 | Component | Status | Key Files | Notes |
 |---|---|---|---|
-| Chat interface | IN PROGRESS | `apps/web/` | TanStack Start + React, streaming LLM responses |
-| Audio recording | IN PROGRESS | `apps/web/` | MediaRecorder, Opus/WebM, 15s chunks, waveform visualizer |
-| WebSocket observations | IN PROGRESS | `apps/web/` | Real-time observation push during recording |
-| Sign in with Apple (web) | IN PROGRESS | `apps/web/` | JS SDK popup flow |
-| Durable Object sessions | IN PROGRESS | `apps/api/` | Practice session state management |
-| On-demand UI components | DESIGNED | -- | Score highlight, keyboard guide, exercise set, reference browser |
+| Chat interface | COMPLETE | `apps/web/` | TanStack Start + React, streaming LLM responses |
+| Audio recording | COMPLETE | `apps/web/` | MediaRecorder, Opus/WebM, 15s chunks, waveform visualizer |
+| WebSocket observations | COMPLETE | `apps/web/` | Real-time observation push during recording |
+| Sign in with Apple (web) | COMPLETE | `apps/web/` | JS SDK popup flow |
+| Durable Object sessions | COMPLETE | `apps/api/` | Practice session state management |
+| On-demand UI components | DESIGNED | -- | Artifact container system DESIGNED (unified inline-to-expanded pattern). Exercise artifact type for beta. |
 
 Stack: TanStack Start, Tailwind CSS v4, Web Audio API, MediaRecorder, WebSocket.
 
@@ -45,10 +45,10 @@ Stack: TanStack Start, Tailwind CSS v4, Web Audio API, MediaRecorder, WebSocket.
 | `POST /api/sync` | COMPLETE | `apps/api/src/` | Receives student model delta from iOS, upserts to D1 |
 | `POST /api/extract-goals` | COMPLETE | `apps/api/src/` | Extracts student goals from conversation |
 | `POST /api/ask` | IMPLEMENTED | `apps/api/src/services/ask.rs` | Two-stage pipeline (subagent + teacher), provider routing |
-| `POST /api/practice/start` | IN PROGRESS | `apps/api/src/` | Creates Durable Object session (web path) |
-| `POST /api/practice/chunk` | IN PROGRESS | `apps/api/src/` | Uploads audio, triggers HF inference |
-| `WS /api/practice/ws/:sessionId` | IN PROGRESS | `apps/api/src/` | Real-time observation delivery (web path) |
-| `POST /api/chat/send` | IN PROGRESS | `apps/api/src/` | Streaming teacher chat (web path) |
+| `POST /api/practice/start` | COMPLETE | `apps/api/src/` | Creates Durable Object session (web path) |
+| `POST /api/practice/chunk` | COMPLETE | `apps/api/src/` | Uploads audio, triggers HF inference |
+| `WS /api/practice/ws/:sessionId` | COMPLETE | `apps/api/src/` | Real-time observation delivery (web path) |
+| `POST /api/chat/send` | COMPLETE | `apps/api/src/` | Streaming teacher chat (web path) |
 | D1 schema (students, sessions) | COMPLETE | `apps/api/` | Students, sessions, observations tables |
 | D1 schema (observations) | COMPLETE | `apps/api/` | Observations table ships with /api/ask pipeline |
 | D1 schema (exercises) | DEFINED | `apps/api/` | Tables defined in architecture, not migrated |
@@ -90,7 +90,7 @@ The core feedback loop is now wired end-to-end on the web platform. The pipeline
 
 **What works today:** A student can record on the web, chunks are scored by MuQ + transcribed by AMT, the DO runs STOP classification and teaching moment selection, score following maps to bar numbers (if piece is identified), the analysis engine produces per-dimension musical facts, and the enriched subagent prompt generates a bar-specific teacher observation delivered via WebSocket. Three-tier degradation: Tier 1 (full bar-aligned with score+reference), Tier 2 (absolute MIDI for unknown pieces), Tier 3 (scores only if AMT fails).
 
-**Remaining gaps:** Synthesized facts (memory consolidation), focus mode (exercise-driven practice), iOS cloud inference wiring, reference performance data generation (script exists, data not yet computed).
+**Remaining gaps:** Session brain state machine (DO practice mode detection), artifact container system, first-session zero-config flow, session arc (opening/closing), free tier gating, landing page.
 
 ---
 
@@ -127,31 +127,39 @@ For system architecture, see `docs/architecture.md`.
 | Enrich subagent prompt with musical analysis | COMPLETE | `prompts.rs`, `<musical_analysis>` per-dimension facts |
 | Wire iOS cloud inference client | NOT STARTED | HF endpoint deployed, iOS code needs API integration |
 
-### Phase 2: Memory and Exercises
+### Phase 2: Web Beta -- Core Loop + First Session Magic (~4 weeks)
 
-**Goal:** The system remembers what it has said and can prescribe fixes, not just observations.
-
-| Task | Depends On | Effort | Priority |
-|---|---|---|---|
-| Migrate exercise tables to D1 | D1 schema (complete) | 1-2 days | P1 |
-| Seed 20-30 curated exercises | Exercise schema | 1-2 weeks | P1 |
-| Build `GET /api/exercises` endpoint | Exercise tables | 3-5 days | P1 |
-| Implement synthesized facts (background synthesis) | Observation data from Phase 1 | 1-2 weeks | P2 |
-| Focus mode session flow | Exercises, teaching moment selection | 2-3 weeks | P2 |
-| Exercise sync to iOS (via `/api/sync` response) | Exercise endpoints | 3-5 days | P2 |
-
-### Phase 3: Rich UI and Polish
-
-**Goal:** The teacher can show, not just tell. Components render inline in the chat.
+**Goal:** A pianist opens crescend.ai, plays anything, gets their first useful observation in under 60 seconds. Session intelligence makes observations feel like a teacher in the room.
 
 | Task | Depends On | Effort | Priority |
 |---|---|---|---|
-| UI subagent (stage 3, Groq) | Teacher LLM modality output | 1 week | P2 |
-| Score highlight component (V1, static) | Score alignment, notation library | 2-3 weeks | P2 |
-| Exercise set component | Exercise DB | 1 week | P2 |
-| Reference browser component | YouTube/Apple Music search | 1-2 weeks | P3 |
-| Keyboard guide component (V1, static) | Score data | 2 weeks | P3 |
-| iOS chat interface | Web chat (share learnings) | 3-4 weeks | P3 |
+| Session brain state machine in DO | Existing DO session code | 1 week | P0 |
+| Observation pacing (mode-aware throttle) | Session brain | 3 days | P0 |
+| First-session zero-config flow (AMT piece ID) | Existing AMT + fuzzy match | 1 week | P0 |
+| Artifact container component (inline/expanded) | -- | 1 week | P0 |
+| Exercise artifact renderer | Artifact container | 3 days | P0 |
+| Session opening context (memory retrieval) | Existing memory system | 3 days | P0 |
+| Session closing synthesis | Session brain | 3 days | P0 |
+| Memory retrieval wired E2E | Existing D1 queries | 3 days | P0 |
+| Free tier cap (hardcoded session limit) | -- | 1 day | P1 |
+| Landing page with value prop | -- | 3 days | P1 |
+| Google Sign In on web | Existing API endpoint | 1 day | P1 |
+
+### Phase 3: iOS + Payment + Rich Artifacts
+
+**Goal:** iOS goes end-to-end. Stripe enables paid tiers. Additional artifact types ship.
+
+| Task | Depends On | Effort | Priority |
+|---|---|---|---|
+| iOS cloud inference wiring (stub to real API) | Phase 2 API stability | 1-2 weeks | P1 |
+| Stripe integration (subscription management) | -- | 1-2 weeks | P1 |
+| Usage tracking + tier enforcement | Stripe | 1 week | P1 |
+| Score highlight artifact renderer | Artifact container, score rendering lib | 2 weeks | P2 |
+| Reference browser artifact renderer | Artifact container | 1 week | P2 |
+| Session review artifact | Artifact container | 1 week | P2 |
+| Passage repetition comparison | Session brain DTW | 2 weeks | P2 |
+| Focus mode (multi-exercise sequences) | Exercise artifact | 2-3 weeks | P2 |
+| Analytics dashboard | Usage tracking | 1 week | P3 |
 
 ---
 
@@ -167,8 +175,13 @@ For system architecture, see `docs/architecture.md`.
 | Scores as reasoning inputs | Not a report card | Model is ~80% pairwise accurate. Value is in the subagent analysis and teacher delivery, not raw numbers. |
 | STOP classifier Option B first | 6-dim scores in worker (0.845 AUC) | Simplest to deploy. Upgrade to Option A (MuQ embeddings, 0.936 AUC) if accuracy gap matters. |
 | Chat-first UI | Text default, components on-demand (~30%) | Mirrors real teaching. Most observations are conversational. Rich components only when visual/interactive aid adds pedagogical value. |
-| Student-reported piece context V1 | No automatic piece identification | Simple, no infrastructure. Auto-identification is a separate ML problem with limited ROI. |
+| Piece identification | AMT fingerprint + graceful unknown | Auto-detect via AMT MIDI fingerprint against 242-piece score library. Unknown pieces get audio-quality feedback without bar numbers. Ask piece identity AFTER first observation, not before. |
 | Memory without vector search | Structured D1 queries, bi-temporal facts | Domain is narrow (6 dimensions, known ontology, low volume). No graph DB, no embeddings needed. |
+| Platform strategy | Web-first, iOS follows | Web is ~90% complete, fastest to iterate, shareable URL for growth. iOS catches up after beta validation. |
+| Session intelligence | Durable Object as session brain | Practice mode state machine (warming/drilling/running/winding) with mode-aware observation pacing. Single-threaded DO holds all session state. |
+| Artifact system | Unified container (inline to expanded) | One `<Artifact>` component renders all rich content types. Lives in chat, expands to viewport on demand. Teacher LLM declares artifacts via tool use (pattern TBD). |
+| First session | Zero-config magic | Sign in, play anything, first observation in <60s. AMT fingerprint for piece ID; graceful degradation if unknown. Piece ID enriches but never gates. |
+| Monetization | Tiered: Free / $5 Plus / $20 Pro / $50 Max | Free tier with daily/weekly limits as growth engine. Inference cost reduction to ~$1/session via model v2. |
 
 ---
 
@@ -190,10 +203,10 @@ For system architecture, see `docs/architecture.md`.
 6. **Notation rendering library.** VexFlow (lightweight) vs. OpenSheetMusicDisplay (most capable, heaviest) vs. native Swift renderer. WebView adds latency but notation rendering is hard. See `05-ui-system.md`.
 7. **Curated exercise count for V1.** 20-30 is the target. When does the LLM-generated path become more important than expanding the curated set?
 
-### Cross-Platform
+### Architecture
 
-8. **iOS vs. web parity.** Web has real-time WebSocket observations; iOS has on-demand "how was that?" trigger. Are these fundamentally different products or converging interaction models?
-9. **Continuous inference cost.** Background MuQ inference on every 15s chunk. Per-session cost at scale needs measurement.
+8. **Artifact tool use pattern.** Should teacher LLM use Anthropic tool_use, a self-hosted MCP server, or a separate UI subagent for artifact generation? Needs research.
+9. **Inference cost reduction path.** Current $6/session must reach ~$1/session for tiered pricing to work. Optimization via single fused model, passage caching, serverless inference.
 
 ---
 

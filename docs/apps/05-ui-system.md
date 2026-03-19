@@ -2,7 +2,7 @@
 
 How observations are presented to the user. Covers the chat-first interface, on-demand rich components, and the three-stage pipeline extension that configures them.
 
-> **Status (2026-03-14):** DESIGNED (not implemented). Web chat interface IN PROGRESS. Depends on teacher LLM pipeline (`02-pipeline.md`), component rendering infrastructure, and score alignment.
+> **Status (2026-03-19):** Unified artifact container system DESIGNED (CEO review 2026-03-19). Replaces the three-stage UI subagent pipeline with a single artifact system. Artifacts live inline in chat and expand to viewport on demand. Beta ships with exercise artifact type only. Web chat interface COMPLETE. Score panel PARTIAL.
 
 ---
 
@@ -31,72 +31,91 @@ Start conservative (~20%) and increase based on engagement data.
 
 ---
 
-## Three-Stage Pipeline Extension
+## Artifact System (Unified Container)
 
-The two-stage pipeline from `02-pipeline.md` (analysis subagent + teacher LLM) extends to three stages when a visual component is needed.
+The CEO review (2026-03-19) replaced the three-stage UI subagent pipeline with a unified artifact container system. Instead of a separate LLM stage to configure UI components, the teacher LLM declares artifacts directly via tool use or MCP (pattern TBD -- needs research).
 
-### Stage 4a: Analysis Subagent (Groq / Llama 3.3 70B) -- unchanged
+### How It Works
 
-Reasons about which moment matters, why, and what framing to use. Outputs structured handoff. See `02-pipeline.md` for details.
+1. The teacher LLM (Anthropic / Sonnet 4.6) generates the observation text
+2. When a rich component is warranted, the teacher calls a tool (e.g., `generate_exercise`, `highlight_score`) that produces a structured artifact config
+3. The API returns both the text and the artifact config to the client
+4. The client renders the artifact via the unified `<Artifact>` container component
 
-### Stage 4b: Teacher LLM (Anthropic / Sonnet 4.6) -- extended output
+### Artifact States
 
-Generates the observation text AND declares a **modality**:
+Every artifact has three visual states:
+
+```
+COLLAPSED (preview)  -->  INLINE (rich card in chat)  -->  EXPANDED (viewport takeover)
+```
+
+- **Collapsed:** Minimal preview in chat (title + one-line summary). Default for returned-to observations.
+- **Inline:** Rich card in the chat thread. Shows full content. Default for new observations with artifacts.
+- **Expanded:** Takes over the viewport. Chat slides away or becomes a sidebar. Triggered by tapping "Expand" or by starting to play an exercise.
+
+### Artifact Config Schema
 
 ```json
 {
-    "observation": "The crescendo in the second phrase peaked too early...",
-    "modality": "score_highlight",
-    "modality_context": "Show bars 20-24 with the dynamics curve. Highlight where the crescendo should peak vs. where it actually peaked."
+  "text": "Your LH is burying the melody in bars 12-16...",
+  "artifact": {
+    "type": "exercise",
+    "config": {
+      "title": "Voice the melody",
+      "bars": [12, 16],
+      "target_dim": "dynamics",
+      "instruction": "Play bars 12-16. Top voice at mf, LH accompaniment at pp.",
+      "difficulty": "intermediate"
+    }
+  }
 }
 ```
 
-Possible modality values:
+When no artifact is warranted:
 
-- `text_only` -- no component needed (default, skips stage 3)
-- `score_highlight` -- show the passage with annotations
-- `keyboard_guide` -- light up keys with timing (beginner-oriented)
-- `exercise_set` -- generate targeted practice exercises
-- `reference_browser` -- surface professional recordings for comparison
+```json
+{
+  "text": "Nice phrasing through that transition. The rubato felt natural.",
+  "artifact": null
+}
+```
 
-The teacher thinks pedagogically: "they need to *see* this" or "they need to *practice* this" or "they need to *hear* how someone else does this." It does not think about UI configuration -- that is stage 3's job.
+### Artifact Types
 
-| Scenario | Likely modality |
-|---|---|
-| Observation about a specific bar range with score alignment available | `score_highlight` |
-| Beginner learning notes for a new piece | `keyboard_guide` |
-| Corrective feedback where structured practice would help | `exercise_set` |
-| Interpretation/phrasing/pedaling where hearing is better than reading | `reference_browser` |
-| General encouragement or simple correction | `text_only` |
-| No score alignment available (piece not identified) | `text_only` (cannot show score) |
+| Type | Beta? | Triggers When | Prerequisites |
+|------|-------|---------------|---------------|
+| `exercise` | Yes | Corrective feedback where structured practice helps | None (text-based) |
+| `score_highlight` | Phase 3 | Observation references specific bars with score available | Score rendering lib, score data |
+| `reference_browser` | Phase 3 | Interpretation/phrasing feedback, "what should this sound like?" | Network access |
+| `session_review` | Phase 3 | Session ends, synthesis ready | Session brain data |
 
-### Stage 4c: UI Subagent (Groq / Llama 3.3 70B) -- new
+### Latency Budget (Revised)
 
-Takes the teacher's modality declaration + analysis context and produces a **component configuration** -- the JSON payload that the client uses to render the inline card.
+| Path | Latency |
+|------|---------|
+| Text-only observation | ~1.8s (subagent 0.3s + teacher 1.5s) |
+| Observation with artifact | ~2.0-2.5s (subagent 0.3s + teacher with tool use 1.7-2.2s) |
 
-The UI subagent thinks like a designer: which component, what data to show, how to configure it, what annotations to add. It has access to the component schema definitions (what fields each component accepts) as its tool/context.
+The UI subagent stage (previously ~0.3-0.5s) is eliminated. Tool use adds ~0.2-0.5s to the teacher call but removes an entire LLM round-trip.
 
-**When stage 4c is skipped:** If `modality` is `text_only`, the Worker returns the observation immediately. No extra latency.
+### Tool Use vs MCP (Open Decision)
 
-### Latency Budget
+The exact pattern for artifact declaration needs research:
 
-| Stage | Latency |
-|-------|---------|
-| 4a: Analysis subagent | ~0.3s |
-| 4b: Teacher LLM | ~1.5s |
-| 4c: UI subagent (when needed) | ~0.3-0.5s |
-| **Total (with component)** | **~2.1s** |
-| **Total (text-only)** | **~1.8s** |
+- **Option A: Anthropic tool_use** -- Teacher LLM has tools like `generate_exercise(bars, dimension, instruction)`. Schema enforces valid configs. Native to the Anthropic API.
+- **Option B: Self-hosted MCP server** -- Artifact types registered as MCP tools. Decouples artifact definitions from the teacher prompt. New types added by registering new tools.
+- **Option C: Structured output** -- Teacher outputs JSON with artifact field via JSON mode. Simplest but least reliable.
 
-Within the <3s target for both paths.
+Decision deferred to implementation phase after research.
 
 ---
 
 ## Component Library
 
-Four pre-built components that render from JSON configuration. The LLM selects and configures; it does not generate UI code.
+Four pre-built components render from JSON artifact configs. The unified `<Artifact>` container accepts any type and delegates to the appropriate renderer. Beta ships with `exercise_set` only; other types ship in Phase 3.
 
-### 1. Score Highlight (`score_highlight`)
+### 1. Score Highlight (`score_highlight`) (Phase 3)
 
 Scrolling sheet music with annotations. Shows the student *where* in the music the observation applies.
 
@@ -129,7 +148,7 @@ Scrolling sheet music with annotations. Shows the student *where* in the music t
 
 **Graceful degradation:** If no score data is available for the piece, `score_highlight` is unavailable. The teacher falls back to `text_only`. The observation text still carries the full insight -- the student just does not see the annotated notation.
 
-### 2. Keyboard Guide (`keyboard_guide`)
+### 2. Keyboard Guide (`keyboard_guide`) (Phase 3)
 
 Piano keyboard with lit keys, optionally synchronized to scrolling notation. For beginners learning to read music or for anyone learning a new passage.
 
@@ -162,7 +181,7 @@ Piano keyboard with lit keys, optionally synchronized to scrolling notation. For
 
 **Graceful degradation:** If score data is unavailable, `keyboard_guide` is unavailable. Falls back to `text_only` or `exercise_set` (text-based exercises do not need notation).
 
-### 3. Exercise Set (`exercise_set`)
+### 3. Exercise Set (`exercise_set`) (Beta)
 
 Takes the specific passage and skill the teacher identified, generates 2-3 targeted practice variations as interactive cards with instructions. Cross-references `04-exercises.md` for the exercise database schema.
 
@@ -209,7 +228,7 @@ Takes the specific passage and skill the teacher identified, generates 2-3 targe
 
 **Graceful degradation:** Exercise sets are text-based and do not require score data. Always available. If score rendering is unavailable, exercises still render with title and instruction text.
 
-### 4. Reference Browser (`reference_browser`)
+### 4. Reference Browser (`reference_browser`) (Phase 3)
 
 Surfaces professional recordings of the same passage so the student can hear different interpretations. YouTube embeds and Apple Music links.
 
@@ -326,6 +345,7 @@ Components appear as inline cards in the chat scroll, similar to iMessage rich c
 
 - Cards are scrollable within the chat (the chat scroll is primary)
 - Cards can be expanded to full-screen for detail (tap to expand, swipe/click to dismiss)
+- When expanded, the artifact takes over the viewport. The chat thread remains accessible via a sidebar or back gesture. This is the "expandable artifact" pattern: the object lives in chat but can grow to fill the screen without leaving the conversation context.
 - Cards have action buttons that trigger follow-up conversation turns
 - Past cards remain in the chat history for reference
 
@@ -358,6 +378,7 @@ Components in the chat history are snapshots -- they do not update retroactively
 | Chat persistence | Session state (server-backed) | SwiftData local-first |
 | Real-time observations | WebSocket | Chunk upload + response polling |
 | Offline components | Limited (no service worker yet) | Score highlight + exercise set (cached data) |
+| Artifact container | `<Artifact>` React component | `ArtifactView` SwiftUI view |
 
 ### V1 vs V2 Component Complexity
 
@@ -372,7 +393,7 @@ Start simple, iterate:
 
 ## Open Questions
 
-1. **Component frequency:** How often should the teacher generate a component vs. text-only? Too many cards could feel noisy. Too few and the feature is invisible. Hypothesis: start conservative (~20% of observations include a component), increase based on engagement data.
+1. **Component frequency:** How often should the teacher generate a component vs. text-only? Too many cards could feel noisy. Too few and the feature is invisible. The ~30% target from the design philosophy section is confirmed as the right starting point (CEO review 2026-03-19). Increase or decrease based on engagement data.
 
 2. **Score rendering library:** VexFlow (JS, lightweight), OpenSheetMusicDisplay (JS, most capable but heaviest), or a native Swift renderer for iOS? WebView adds latency and feels less native, but notation rendering is hard.
 
@@ -382,6 +403,6 @@ Start simple, iterate:
 
 5. **Offline behavior:** Score highlight and exercise set can work offline (data is local or cached). Reference browser requires network. Keyboard guide depends on whether score data is cached. Should offline components degrade or simply not appear?
 
-6. ~~**Chat history storage:**~~ Resolved: component configs stored as nullable `component_config` JSON column in the `observations` table (see `03-memory-system.md`). Co-located with the observation they belong to.
+6. **Component as conversation turn:** When the student interacts with a component (taps "Try it" on an exercise, listens to a reference), should that interaction feed back into the conversation? E.g., "I see you tried the crescendo isolation exercise -- how did it feel?"
 
-7. **Component as conversation turn:** When the student interacts with a component (taps "Try it" on an exercise, listens to a reference), should that interaction feed back into the conversation? E.g., "I see you tried the crescendo isolation exercise -- how did it feel?"
+7. **Artifact tool use pattern:** Anthropic tool_use vs self-hosted MCP vs structured JSON output. Needs research before implementation.

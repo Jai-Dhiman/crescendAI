@@ -1,0 +1,210 @@
+{
+  "frozen_probe": {
+    "config": {
+      "input_dim": 1024,
+      "hidden_dim": 512,
+      "num_labels": 6,
+      "learning_rate": 0.0001,
+      "weight_decay": 1e-05,
+      "temperature": 0.07,
+      "lora_target_layers": [
+        7,
+        8,
+        9,
+        10,
+        11,
+        12
+      ],
+      "label_smoothing": 0.0,
+      "warmup_epochs": 5,
+      "max_epochs": 200,
+      "use_pretrained_muq": false
+    },
+    "pairwise_mean": 0.5342069590187009,
+    "pairwise_per_fold": [
+      0.4981357720717552,
+      0.6130215123859192,
+      0.5134718336234055,
+      0.5121987179937234
+    ],
+    "r2_mean": 0.46139517426490784,
+    "r2_per_fold": [
+      0.541472315788269,
+      0.5304746627807617,
+      0.47737693786621094,
+      0.29625678062438965
+    ]
+  },
+  "bce_ranking_only": {
+    "config": {
+      "input_dim": 1024,
+      "hidden_dim": 512,
+      "num_labels": 6,
+      "learning_rate": 3e-05,
+      "weight_decay": 1e-05,
+      "temperature": 0.07,
+      "lambda_listmle": 0.0,
+      "lambda_contrastive": 0.0,
+      "lambda_regression": 0.0,
+      "lambda_invariance": 0.0,
+      "use_ccc": false,
+      "mixup_alpha": 0.0,
+      "warmup_epochs": 5,
+      "max_epochs": 200,
+      "use_pretrained_muq": false,
+      "lora_rank": 32,
+      "lora_target_layers": [
+        7,
+        8,
+        9,
+        10,
+        11,
+        12
+      ],
+      "label_smoothing": 0.1
+    },
+    "pairwise_mean": 0.7301707839063852,
+    "pairwise_per_fold": [
+      0.7828115840075038,
+      0.7085777922642329,
+      0.7357185345112467,
+      0.6935752248425575
+    ],
+    "r2_mean": -0.25834664702415466,
+    "r2_per_fold": [
+      -0.227120041847229,
+      -0.37750840187072754,
+      -0.2189105749130249,
+      -0.2098475694656372
+    ]
+  },
+  "bce_plus_listmle": {
+    "config": {
+      "input_dim": 1024,
+      "hidden_dim": 512,
+      "num_labels": 6,
+      "learning_rate": 3e-05,
+      "weight_decay": 1e-05,
+      "temperature": 0.07,
+      "lambda_listmle": 1.5,
+      "lambda_contrastive": 0.0,
+      "lambda_regression": 0.0,
+      "lambda_invariance": 0.0,
+      "use_ccc": false,
+      "mixup_alpha": 0.0,
+      "warmup_epochs": 5,
+      "max_epochs": 200,
+      "use_pretrained_muq": false,
+      "lora_rank": 32,
+      "lora_target_layers": [
+        7,
+        8,
+        9,
+        10,
+        11,
+        12
+      ],
+      "label_smoothing": 0.1
+    },
+    "pairwise_mean": 0.6973291889717017,
+    "pairwise_per_fold": [
+      0.7341306132020167,
+      0.6887404027234536,
+      0.6937645495068773,
+      0.6726811904544593
+    ],
+    "r2_mean": -11.138193607330322,
+    "r2_per_fold": [
+      -11.208632469177246,
+      -13.892837524414062,
+      -8.41630744934082,
+      -11.03499698638916
+    ]
+  },
+  "bce_listmle_ccc": {
+    "config": {
+      "input_dim": 1024,
+      "hidden_dim": 512,
+      "num_labels": 6,
+      "learning_rate": 3e-05,
+      "weight_decay": 1e-05,
+      "temperature": 0.07,
+      "lambda_listmle": 1.5,
+      "lambda_contrastive": 0.0,
+      "lambda_regression": 0.3,
+      "lambda_invariance": 0.0,
+      "use_ccc": true,
+      "mixup_alpha": 0.0,
+      "warmup_epochs": 5,
+      "max_epochs": 200,
+      "use_pretrained_muq": false,
+      "lora_rank": 32,
+      "lora_target_layers": [
+        7,
+        8,
+        9,
+        10,
+        11,
+        12
+      ],
+      "label_smoothing": 0.1
+    },
+    "pairwise_mean": 0.7543443770378541,
+    "pairwise_per_fold": [
+      0.7867510845351154,
+      0.7308869332174417,
+      0.7729065233196007,
+      0.7268329670792583
+    ],
+    "r2_mean": -1.0869175642728806,
+    "r2_per_fold": [
+      -0.14047598838806152,
+      -3.948343276977539,
+      0.13644546270370483,
+      -0.39529645442962646
+    ]
+  },
+  "full_a1max_repro": {
+    "config": {
+      "input_dim": 1024,
+      "hidden_dim": 512,
+      "num_labels": 6,
+      "learning_rate": 3e-05,
+      "weight_decay": 1e-05,
+      "temperature": 0.07,
+      "lambda_listmle": 1.5,
+      "lambda_contrastive": 0.3,
+      "lambda_regression": 0.3,
+      "lambda_invariance": 0.1,
+      "use_ccc": true,
+      "mixup_alpha": 0.2,
+      "warmup_epochs": 5,
+      "max_epochs": 200,
+      "use_pretrained_muq": false,
+      "lora_rank": 32,
+      "lora_target_layers": [
+        7,
+        8,
+        9,
+        10,
+        11,
+        12
+      ],
+      "label_smoothing": 0.1
+    },
+    "pairwise_mean": 0.7750047434008623,
+    "pairwise_per_fold": [
+      0.8168054089967561,
+      0.7551970157902361,
+      0.7728404309224296,
+      0.7551761178940274
+    ],
+    "r2_mean": 0.11895577609539032,
+    "r2_per_fold": [
+      0.18989384174346924,
+      -0.0689162015914917,
+      0.26137155294418335,
+      0.09347391128540039
+    ]
+  }
+}

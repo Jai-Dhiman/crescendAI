@@ -32,6 +32,11 @@ their own licenses:
 - MuQ (OpenMuQ): <https://github.com/tencent-ailab/MuQ>
   Please refer to their repository for licensing terms.
 
+- Aria: <https://github.com/EleutherAI/aria>
+  Licensed under Apache 2.0. A 650M-parameter symbolic music foundation model
+  pretrained on 820K piano MIDIs. Please cite the original paper when using
+  this code with Aria.
+
 - PercePiano dataset: <https://github.com/JonghoKimSNU/PercePiano>
   Licensed under CC-BY-NC-ND 4.0. Please cite the original paper when using
   this code with PercePiano data.

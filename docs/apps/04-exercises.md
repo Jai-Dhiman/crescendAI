@@ -1,6 +1,6 @@
 # Exercises and Focused Practice
 
-> **Status (2026-03-14):** NOT STARTED. Exercise DB tables defined in architecture.md but not migrated. No exercise data seeded. No endpoint implemented. Focus mode depends on exercise DB and teaching moment detection (02-pipeline.md).
+> **Status (2026-03-19):** Exercise DB schema DEFINED. Endpoints IMPLEMENTED (`GET /api/exercises`, exercise tracking). CEO review (2026-03-19): Exercises ship as artifacts in the unified container system (see `05-ui-system.md`). Exercise artifact is the only artifact type in the web beta. Focus mode DEFERRED to Phase 3.
 
 ## Why Exercises Matter
 
@@ -143,6 +143,8 @@ The API exposes this as `GET /api/exercises?dimension=dynamics&level=intermediat
 
 ## Focus Mode (Guided Practice)
 
+> **Deferred to Phase 3.** The CEO review (2026-03-19) scoped focus mode out of the web beta. Beta ships with inline exercise artifacts in chat. Focus mode (multi-exercise guided sequences) ships after the core observe-prescribe loop is validated with real users.
+
 Focus mode transforms the app from a passive listener into an active teacher. It is the teaching loop: observe, identify, diagnose, prescribe, evaluate.
 
 ### Entry Points
@@ -265,6 +267,7 @@ The two-stage subagent pipeline (02-pipeline.md) uses exercise history as contex
 | 6-dimension taxonomy | `model/02-teacher-grounded-taxonomy.md` | All exercises and evaluations use these 6 dimensions |
 | D1 sync protocol | `docs/architecture.md` (Sync section) | Exercise data syncs to iOS via `POST /api/sync` |
 | MuQ cloud inference | `02-pipeline.md` | Focus mode evaluation uses the same HF endpoint inference path |
+| Unified artifact container | `05-ui-system.md` | Exercise artifact renders via the `<Artifact>` container system (inline in chat, expandable to viewport) |
 
 ---
 

@@ -1,0 +1,198 @@
+piece: bach_invention_1
+title: Bach Invention No. 1
+composer: Bach
+recordings:
+- video_id: E1M_jEHJtrE
+  title: 'Bach: Invention 1 in C Major, BWV 772 (Urtext Edition)'
+  channel: Bach Piano Scores
+  duration_seconds: 85
+  skill_bucket: 4
+  label_rationale: human curation
+  downloaded: false
+  download_error: null
+- video_id: tiNGOF0J9Mo
+  title: J. S. Bach - Invention No.1 in C Major (BWV 772)
+  channel: Voltaire
+  duration_seconds: 121
+  skill_bucket: 3
+  label_rationale: human curation
+  downloaded: false
+  download_error: null
+- video_id: sQIVQ3ZirPA
+  title: Bach 2 Part Invention No.1 - P. Barton, FEURICH Harmonic Pedal piano
+  channel: Paul Barton
+  duration_seconds: 87
+  skill_bucket: 4
+  label_rationale: human curation
+  downloaded: false
+  download_error: null
+- video_id: yOboor7zz5U
+  title: Johann Sebastian Bach, Invention No 1 in C major
+  channel: UIPianoPed
+  duration_seconds: 86
+  skill_bucket: 4
+  label_rationale: human curation
+  downloaded: false
+  download_error: null
+- video_id: xzU7xQmmXGE
+  title: Invention 1 Bach by Glenn Gould
+  channel: Jastermereel18
+  duration_seconds: 92
+  skill_bucket: 5
+  label_rationale: human curation
+  downloaded: false
+  download_error: null
+- video_id: eVkNc3LSgOo
+  title: Bach - Invention No. 1 in C major BWV 772 - Anna Kuvshinov | Netherlands
+    Bach Society
+  channel: Netherlands Bach Society
+  duration_seconds: 103
+  skill_bucket: 3
+  label_rationale: human curation
+  downloaded: false
+  download_error: null
+- video_id: GKvqNvK4xlU
+  title: 'J.S.Bach: Two-Part Invention No.1, in C major BWV 772'
+  channel: Kawaz
+  duration_seconds: 82
+  skill_bucket: 4
+  label_rationale: human curation
+  downloaded: false
+  download_error: null
+- video_id: fgv76VwrnIQ
+  title: J. S. Bach - Invention No. 1 in C Major, BWV 772 | Cathleen Kwok
+  channel: Cathleen Kwok
+  duration_seconds: 88
+  skill_bucket: 3
+  label_rationale: human curation
+  downloaded: false
+  download_error: null
+- video_id: jE4oU2QbirM
+  title: Bach - Invention No. 1 in C Major, BWV 772 | Pf. Misato Takeda
+  channel: Music School SYMPHONIA
+  duration_seconds: 81
+  skill_bucket: 4
+  label_rationale: human curation
+  downloaded: false
+  download_error: null
+- video_id: Xyv_omOahRA
+  title: Invention No. 1 in C Major, BWV 772 by Johann Sebastian Bach - Magdalena
+    Haubs
+  channel: Magdalena Haubs
+  duration_seconds: 70
+  skill_bucket: 4
+  label_rationale: human curation
+  downloaded: false
+  download_error: null
+- video_id: E8EvUmq0Zao
+  title: Invention No. 1 in C Major, BWV 772
+  channel: Simone Dinnerstein - Topic
+  duration_seconds: 89
+  skill_bucket: 4
+  label_rationale: human curation
+  downloaded: false
+  download_error: null
+- video_id: qhRYNDpln2o
+  title: 'J.S. BACH: Invention No. 1 (BWV 772) | Cory Hall, pianist'
+  channel: BachScholar
+  duration_seconds: 80
+  skill_bucket: 3
+  label_rationale: human curation
+  downloaded: false
+  download_error: null
+- video_id: dQkv_WmibqU
+  title: Bach - Invention No. 1 in C-major BWV 772
+  channel: Penny Johnson
+  duration_seconds: 82
+  skill_bucket: 3
+  label_rationale: human curation
+  downloaded: false
+  download_error: null
+- video_id: 3jcI0EGJjZo
+  title: Invention No. 1 in C Major, BWV 772 (2015 Remastered Version)
+  channel: Glenn Gould
+  duration_seconds: 92
+  skill_bucket: 5
+  label_rationale: human curation
+  downloaded: false
+  download_error: null
+- video_id: PpgEPdidSfE
+  title: 'Bach: Invention 1 in C major (older version) | Cory Hall, pianist-composer'
+  channel: BachScholar
+  duration_seconds: 87
+  skill_bucket: 3
+  label_rationale: human curation
+  downloaded: false
+  download_error: null
+- video_id: wem_mJA7iks
+  title: 'J.S. Bach: Invention No. 1 in C major, BWV 772 (Anna Nadiryan)'
+  channel: Anna Nadiryan
+  duration_seconds: 64
+  skill_bucket: 3
+  label_rationale: human curation
+  downloaded: false
+  download_error: null
+- video_id: tt0-ZhgqMC8
+  title: 'Bach: Invention 1 in C major (newer version) | Cory Hall, pianist-composer'
+  channel: BachScholar
+  duration_seconds: 73
+  skill_bucket: 3
+  label_rationale: human curation
+  downloaded: false
+  download_error: null
+- video_id: 3Pllid4KqLo
+  title: J. S. Bach Invention No.1 BWV 772
+  channel: TheFleok
+  duration_seconds: 123
+  skill_bucket: 2
+  label_rationale: human curation
+  downloaded: false
+  download_error: null
+- video_id: bqqQdg73TII
+  title: 'Bach: Invention 1 in C Major, BWV 772 (Student Edition)'
+  channel: Bach Piano Scores
+  duration_seconds: 85
+  skill_bucket: 3
+  label_rationale: human curation
+  downloaded: false
+  download_error: null
+- video_id: x2o_pNu42Wk
+  title: 'Bach. Invention # 1'
+  channel: Irina Gorin Piano Teaching
+  duration_seconds: 89
+  skill_bucket: 2
+  label_rationale: human curation
+  downloaded: false
+  download_error: null
+- video_id: QWQTBu46K00
+  title: Bach - Invention No. 1 in C Major, BWV 772
+  channel: Lu Yang
+  duration_seconds: 84
+  skill_bucket: 2
+  label_rationale: human curation
+  downloaded: false
+  download_error: null
+- video_id: AC9TcrYE0BE
+  title: 'J.S. BACH: Invention No. 1 in C Major | Cory Hall, pianist'
+  channel: BachScholar
+  duration_seconds: 86
+  skill_bucket: 3
+  label_rationale: human curation
+  downloaded: false
+  download_error: null
+- video_id: zMwecKu4mR0
+  title: Bach, 15 Inventions, Invention in C major, BWV 772, Piano
+  channel: The Great Repertoire
+  duration_seconds: 73
+  skill_bucket: 3
+  label_rationale: human curation
+  downloaded: false
+  download_error: null
+- video_id: 22gThwfcKWc
+  title: Bach 2 Part Inventions No.1 Paul Barton, piano
+  channel: Paul Barton
+  duration_seconds: 98
+  skill_bucket: 3
+  label_rationale: human curation
+  downloaded: false
+  download_error: null

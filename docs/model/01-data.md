@@ -2,7 +2,7 @@
 
 Dataset inventory for piano performance evaluation training. All heavy data processing (audio download, segmentation, MuQ extraction) runs on Thunder Compute (A100). Only embeddings and metadata come back.
 
-> **Status (2026-03-18):** T1 COMPLETE, T2 COMPLETE (Chopin 2021, expansion planned), T3 COMPLETE, T5 IN PROGRESS (YouTube Skill Corpus -- 2 pieces curated, 14 remaining). Symbolic pretrain corpus COMPLETE (24,220 graphs). Composite labels COMPLETE. T4 (augmentation invariance) REPLACED by T5 (skill-level ranking).
+> **Status (2026-03-18):** T1 COMPLETE, T2 COMPLETE (Chopin 2021, expansion planned), T3 COMPLETE, T5 IN PROGRESS (YouTube Skill Corpus -- 2 of 16 pieces curated: Fur Elise 28 recordings, Nocturne Op.9/2 27 recordings, 3 wrong entries removed). Graph pretraining corpus LEGACY (24,220 graphs -- replaced by Aria). Composite labels COMPLETE. T4 REPLACED by T5. **Aria-MIDI (820K piano MIDIs) available for continued pretraining.** Disk: 12 GB cleaned, 68 GB available.
 
 ## Directory Structure
 
@@ -13,7 +13,7 @@ model/data/
   raw/          - Downloaded datasets (gitignored, re-downloadable)
   embeddings/   - Extracted MuQ embeddings (gitignored, regenerable)
   midi/         - Small MIDI collections (gitignored)
-  pretraining/  - Symbolic pretraining corpus (gitignored)
+  pretraining/  - Symbolic pretraining corpus (gitignored, LEGACY)
   labels/       - Annotations and derived labels (tracked)
   manifests/    - Data source configs (tracked)
   scores/       - Score library JSON, deployed to R2 (partially tracked)
@@ -32,6 +32,10 @@ The training code (`src/model_improvement/data.py`) loads only embeddings and me
 - Segment metadata: `{cache_dir}/metadata.jsonl`
 - Tier-specific signals: labels, placements, contrastive mappings, augmented pairs
 
+For Aria (symbolic path), training also loads:
+- AMT MIDI: performance MIDI transcribed from audio (via ByteDance AMT on HF endpoint)
+- Score MIDI: from score library (242 ASAP pieces deployed to D1 + R2)
+
 ## Datasets
 
 ### T1: PercePiano (Labeled Regression + Ranking)
@@ -47,19 +51,33 @@ The training code (`src/model_improvement/data.py`) loads only embeddings and me
 - **Signal:** Regression (MSE on composite labels), ranking (within-piece pairs)
 - **Composite labels** in `labels/composite/` map 19 raw dims to 6 teacher-grounded dims
 - **Training class:** `CompetitionPairSampler`
+- **Folds:** Piece-stratified (verified 2026-03-18, previous segment-level folds had leak)
 
 ### T2: Competition Recordings (Ordinal Ranking)
 
 | Item | Path | Size |
 |---|---|---|
-| Segment metadata | `manifests/competition/metadata.jsonl` | <1MB |
-| MuQ embeddings | `embeddings/competition/muq_embeddings/` | ~760MB |
+| Chopin 2021 metadata | `manifests/competition/metadata.jsonl` | <1MB |
+| Chopin 2021 embeddings | `embeddings/competition/muq_embeddings/` | ~760MB |
+| Cliburn 2022 metadata | `manifests/competition/cliburn_2022/metadata.jsonl` | <1MB |
+| Cliburn 2022 embeddings | `manifests/competition/cliburn_2022/muq_embeddings/` | 20 GB |
 
-- **Source:** XVIII International Chopin Piano Competition 2021 (YouTube)
-- **Segments:** 2,293 from 11 performers across Stage 2, 3, Final
+- **Sources:** Chopin 2021 (11 performers) + Cliburn 2022 (30 performers)
+- **Segments:** 9,059 total (2,293 Chopin 2021 + 6,766 Cliburn 2022)
 - **Signal:** Ordinal placement within each round
-- **Collection script:** `scripts/collect_competition_data.py`
+- **RMS silence filter:** Segments with RMS < 0.002 dropped at segmentation time (1.4% of Cliburn 2022)
+- **Collection scripts:** `scripts/collect_competition_data.py` (Chopin-specific), `scripts/collect_generic_competition.py` (any competition)
 - **Training classes:** `CompetitionDataset`, `CompetitionPairSampler`
+
+**T2 expansion plan (current: 9,059 segments):**
+
+| Competition | Performers | Recordings | YouTube URLs | Est. Segments | Status |
+|---|---|---|---|---|---|
+| Chopin 2021 (current) | 11 | 33 | 33/33 | 2,293 | COMPLETE |
+| Cliburn 2022 | 30 | 82 | 82/82 | 6,766 | COMPLETE (downloaded + embedded locally on M4 MPS) |
+| Chopin 2015 | 43 | 73 | 10/73 | ~5,100 | MANIFEST READY (stage2/3 need timestamp extraction from session videos) |
+| Cliburn Amateur 2022 | 39 | 65 | 0/65 | ~4,550 | MANIFEST READY (videos offline -- was on cliburn.org, now removed) |
+| Queen Elisabeth 2025 | 24 | 36 | 0/36 | ~2,500 | MANIFEST READY (no YouTube -- performances on queenelisabethcompetition.be only) |
 
 ### T3: MAESTRO Audio (Contrastive Learning)
 
@@ -92,7 +110,9 @@ Replaced by T5 (YouTube Skill Corpus). Original T4 purpose (augmentation invaria
 - **Source:** YouTube recordings across 5 skill levels, human-curated labels
 - **Segments:** Target ~3,100 (from ~775 recordings at ~4 segments each)
 - **Signal:** Ordinal skill-level ranking (5 buckets: beginner, early intermediate, intermediate, advanced, professional)
-- **Pieces:** 16 target (8 core deep + 8 breadth). 2 curated: Fur Elise (28 recordings), Nocturne Op.9/2 (27 recordings)
+- **Pieces:** 16 target (8 core deep + 8 breadth). **2 of 16 curated:**
+  - Fur Elise: 28 recordings (curated, verified)
+  - Nocturne Op.9/2: 27 recordings (curated, 3 wrong entries removed)
 - **Labels:** Human-curated 5-bucket classification per recording via curation UI
 - **Split:** 80% training, 20% held-out eval, stratified by piece and bucket
 - **Training loss:** ListMLE ranking (same as T2 competition), grouped by piece
@@ -103,17 +123,40 @@ Replaced by T5 (YouTube Skill Corpus). Original T4 purpose (augmentation invaria
 
 **Breadth pieces (5-8 recordings/bucket target):** Chopin Etude Op.10/4, Pathetique mvt 2, Debussy Arabesque 1, Chopin Ballade 1, Rachmaninoff Prelude C#m, Schumann Traumerei, Bach Invention 1, Fantaisie-Impromptu
 
-### Symbolic Pretraining Corpus
+### Aria-MIDI Dataset (Available for Continued Pretraining)
+
+| Item | Source | Size |
+|---|---|---|
+| Aria-MIDI | HuggingFace (EleutherAI) | 820K piano MIDI performances (~60K hours) |
+
+- **License:** Apache 2.0
+- **What it is:** The pretraining corpus for Aria, EleutherAI's 650M-param LLaMA-architecture symbolic music model. SOTA on 6 MIR benchmarks.
+- **CrescendAI use:** Aria is pretrained. We fine-tune Aria on our task-specific data (T1+T2+T3+T5). The Aria-MIDI dataset is available if continued pretraining proves beneficial (e.g., piano-specific domain adaptation beyond the general pretraining).
+- **Not needed for initial model v2:** Aria's existing pretraining should suffice. Only download if experiments show benefit from continued pretraining on piano-specific subset.
+
+### Additional MIDI Expansion Sources (Available)
+
+| Dataset | Est. Piano MIDIs | Source | License | Status |
+|---|---|---|---|---|
+| ADL Piano MIDI | ~11,000 | Academic dataset | Research | Available, not downloaded |
+| Lakh MIDI (piano filtered) | ~50,000 | Lakh MIDI Dataset | Research | Available, requires filtering |
+
+These are available for continued Aria pretraining or contrastive training if needed. Lower priority than task-specific fine-tuning data (T2 expansion, T5 curation).
+
+### LEGACY: Symbolic Pretraining Corpus (Replaced by Aria)
+
+> **LEGACY:** This graph pretraining corpus was built for CrescendAI's custom GNN symbolic encoders (S1, S2, S2H, S3). These encoders are replaced by Aria (650M params, pretrained on 820K MIDIs). The graph data is no longer needed for CrescendAI's own pretraining. Kept on disk for reference.
 
 | Item | Path | Size |
 |---|---|---|
 | Tokenized MIDI | `pretraining/tokens/all_tokens.pt` | 55MB |
 | Score graphs | `pretraining/graphs/all_graphs.pt` + shards (0000-0263) | 29GB |
 | Hetero graphs | `pretraining/graphs/all_hetero_graphs.pt` + shards | (in 29GB) |
-| Continuous features | `pretraining/features/all_features.pt` + shards | 8.3GB |
+| Continuous features | `pretraining/features/all_features.pt` | 8.3GB |
 
 - **Sources:** 24,220 graphs from ASAP (1,066) + ATEPP (11,697) + MAESTRO score (824) + MAESTRO recording (1,123) + PercePiano (1,202) + GIANTMIDI (8,278)
 - **Training classes:** `MIDIPretrainingDataset`, `ScoreGraphPretrainingDataset`, `ShardedScoreGraphPretrainDataset`, `ContinuousPretrainDataset`, `HeteroPretrainDataset`
+- **Candidate for cleanup:** 38 GB of disk. Can be deleted once Aria integration is validated.
 
 ### Composite Labels
 
@@ -133,11 +176,29 @@ Produced by the teacher-grounded taxonomy work (doc 02). Maps 19 raw PercePiano 
 | Masterclass moments | `embeddings/masterclass/` | 2,136 teaching moments for taxonomy derivation |
 | MAESTRO calibration | `calibration/maestro_stats.json` | Calibration reference stats |
 
+## Evaluation Tiers
+
+### Current
+
+| Tier | Description | Status |
+|---|---|---|
+| E1: PercePiano pairwise | Within-piece pairwise accuracy on piece-stratified folds | Active (clean folds verified) |
+| E2: Competition ranking | Spearman rho with competition placement | Active |
+| E3: Skill discrimination | Monotonic score increase across 5 skill buckets (T5) | Active (primary metric for model v2) |
+
+### Future (needed for production readiness)
+
+| Tier | Description | Status |
+|---|---|---|
+| E4: Recording conditions | Model robustness across phone mic, room acoustics, piano types | NOT STARTED -- needs paired recordings (same piece, same performer, different conditions) |
+| E5: Repertoire breadth | Generalization beyond PercePiano's 3 works and competition Chopin | NOT STARTED -- needs labeled recordings across 20+ composers |
+| E6: Real user recordings | Accuracy on actual practice sessions from beta users | NOT STARTED -- needs opt-in user data collection pipeline |
+
 ## Storage
 
 | Location | Capacity | Purpose |
 |---|---|---|
-| Local (Mac) | 50GB free | Code, caches, composite labels |
+| Local (Mac) | 68GB available (12 GB cleaned) | Code, caches, composite labels |
 | GDrive | 80GB total | Checkpoints, results, final embeddings |
 | Thunder Compute | 500GB | Raw audio download, processing, MuQ extraction |
 
@@ -148,7 +209,7 @@ Produced by the teacher-grounded taxonomy work (doc 02). Maps 19 raw PercePiano 
 ```
 model/data/                     Size
   raw/maestro/                  ~35 GB
-  pretraining/                  38 GB
+  pretraining/ (LEGACY)         38 GB  -- candidate for cleanup after Aria validation
   embeddings/masterclass/       7.3 GB
   embeddings/percepiano/        4.4 GB
   embeddings/competition/       3.3 GB
@@ -157,7 +218,7 @@ model/data/                     Size
   evals/                        850 MB
   scores/                       189 MB
   other                         220 MB
-  TOTAL                         ~90 GB
+  TOTAL                         ~90 GB (~52 GB if pretraining cleaned)
 ```
 
 ## Readiness Checklist
@@ -166,24 +227,29 @@ model/data/                     Size
 
 ```
 [x] T1 PercePiano embeddings + labels
-[x] Symbolic pretraining corpus (24,220 graphs)
+[x] T1 Piece-stratified CV folds (verified, leak-free)
 [x] Composite labels (6 teacher-grounded dimensions)
 [x] T2 competition embeddings (2,293 segments, Chopin 2021)
 [x] T3 MAESTRO embeddings (24,321 segments) + per-recording graphs (1,123)
 [x] T3 MAESTRO contrastive mapping (204 pieces)
+[x] LEGACY: Symbolic pretraining corpus (24,220 graphs -- replaced by Aria)
 ```
 
-### Phase 0: A2 Multi-Tier Training Data
+### Phase 0+3: Model v2 (Aria + Multi-Tier Training)
 
 ```
 [x] T5 YouTube Skill manifests: Fur Elise (28 recordings, curated)
-[x] T5 YouTube Skill manifests: Nocturne Op.9/2 (27 recordings, curated)
+[x] T5 YouTube Skill manifests: Nocturne Op.9/2 (27 recordings, curated, 3 wrong entries removed)
 [ ] T5 YouTube Skill: collect + curate remaining 14 pieces (~720 recordings)
-[ ] T5 YouTube Skill: download audio + extract MuQ embeddings
-[ ] T2 expansion: Chopin 2015 competition (~2,000 segments)
-[ ] T2 expansion: Cliburn 2022 competition (~3,000 segments)
-[ ] T2 expansion: Cliburn Amateur competition (~2,000 segments)
-[ ] T2 expansion: Queen Elisabeth 2024 (~2,000 segments)
+[ ] T5 YouTube Skill: download audio + extract MuQ embeddings + AMT MIDI
+[x] T2 expansion: manifests collected (Cliburn 2022, Chopin 2015, Cliburn Amateur 2022, QE 2025)
+[x] T2 expansion: Cliburn 2022 download + embed (6,766 segments from 82 recordings, 20 GB embeddings)
+[ ] T2 expansion: Chopin 2015 download + embed (~700 segments from 10 final URLs; stage2/3 need timestamp work)
+[ ] T2 expansion: Cliburn Amateur 2022 (videos offline, need alternative source)
+[ ] T2 expansion: Queen Elisabeth 2025 (no YouTube, need queenelisabethcompetition.be access)
+[ ] Aria model: download weights from HuggingFace
+[ ] Aria integration: LoRA fine-tune pipeline for Aria
+[ ] Contrastive pretraining: MuQ + Aria on T2+T5
 ```
 
 ### Pipeline Roadmap Data Needs
@@ -202,17 +268,6 @@ See `04-north-star.md` for full pipeline vision and phase details.
 Sources: ASAP score MIDIs (242 pieces, V1). MAESTRO score MIDIs require external sourcing (performances exist, scores don't). IMSLP/MuseScore for expansion. MusicXML import for dynamics text, articulation marks, section labels (future enrichment).
 
 Design spec: `docs/superpowers/specs/2026-03-14-score-midi-library-design.md`
-
-**Phase 3: Symbolic Foundation Model (research)**
-
-```
-[ ] Expanded MIDI pretraining corpus (~370K+ performances)
-    - PianoMIDI (~100K performances)
-    - Lakh MIDI piano tracks (~50K)
-    - MuseScore piano exports (~200K)
-[ ] Reference-anchored training triples from MAESTRO
-    (performance audio + performance MIDI + score MIDI, ranked by A1-Max)
-```
 
 **Phase 4: Real Audio + Expert Labels**
 

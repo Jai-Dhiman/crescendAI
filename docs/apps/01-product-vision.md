@@ -2,7 +2,7 @@
 
 What CrescendAI is building, for whom, and what the ideal experience feels like. This is the product north star for the apps and delivery layer -- the "why" and "what," not the "how." For the technical pipeline, see `02-pipeline.md`. For UI component details, see `05-ui-system.md`.
 
-> **Status (2026-03-14):** Vision document. Core interaction loop is implemented on both platforms (iOS and web). Chat interface, continuous audio capture, cloud inference, and two-stage subagent pipeline are functional. Student model, exercise database, focus mode, and on-demand UI components are designed but not yet shipped.
+> **Status (2026-03-19):** Vision document. CEO review (2026-03-19) established: web-first platform strategy, zero-config first session, unified artifact system, session intelligence via DO state machine, tiered monetization. Core interaction loop IMPLEMENTED on web. Web beta scope defined (~4 weeks).
 
 ---
 
@@ -48,25 +48,24 @@ Conservatories and university music programs that need scalable practice monitor
 
 What it feels like from the student's perspective:
 
-**1. Sit down, open the app, start practicing.**
-The screen is minimal. Maybe a session timer. The app is listening, but the student's attention is on the music, not the screen. The phone sits on the music stand or beside the piano.
+**1. Open the app, sign in, play anything.**
+No onboarding form. No piece selection. "Play anything. I'm listening." The screen shows the chat and a record button. The student taps record and plays.
 
-**2. Play for a while.**
-Behind the scenes, audio streams to the cloud in 15-second chunks. Each chunk gets MuQ inference (6 dimensions) and a STOP classifier score. Results accumulate in a session buffer. The student sees none of this.
+**2. The system listens and identifies.**
+Behind the scenes: 15-second chunks stream to the cloud. AMT transcribes MIDI. The system fingerprints against the 242-piece score library. If matched, score context activates silently. If not, the system delivers audio-quality observations without bar numbers and asks "What piece is this?" after the first observation.
 
-**3. Pause. "How was that?"**
-The student taps a button or asks aloud. The system reviews *everything* played since the session started (or since the last query) -- not just the last 30 seconds. It identifies the top teaching moments across the full session.
+**3. First observation in under 60 seconds.**
+The session brain (Durable Object) detects the student is warming up and waits for enough material. After 2-3 chunks, the first observation appears as a toast during recording and as a message in chat:
+> "I notice you're playing Clair de Lune. In the opening measures, your pedaling is creating a nice wash but blurring the bass line changes. Try lifting briefly at each bass note."
 
-**4. One observation appears.**
-> "In that last run-through of the Nocturne, the left hand crescendo in bars 20-24 swallowed the right hand melody. Try bringing the LH down to pp and letting the RH sing above it."
+**4. Session adapts to practice mode.**
+The session brain detects what the student is doing: warming up (sparse observations), drilling a passage (compare repetitions), running through (observe at phrase boundaries), winding down (no new observations). Observation pacing adapts automatically.
 
-Specific. Localized (bars 20-24). Actionable (bring LH down to pp). Grounded in what the model actually heard.
+**5. Exercises as artifacts in chat.**
+When the teacher observes something worth practicing, an exercise artifact appears inline in the chat. The student can expand it to full screen, play the exercise, and the system evaluates their attempt -- all without leaving the conversation.
 
-**5. Optionally, go deeper.**
-The student can tap "Tell me more" for additional context -- a score highlight showing the passage, a reference recording comparison, or a targeted exercise. Or they can just go back to practicing.
-
-**6. Session ends.**
-Observations accumulate as a session log. The student can review them later. Over multiple sessions, the system builds a picture of the student's tendencies, tracks dimension trajectories, and adapts what it chooses to say.
+**6. Session closes with synthesis.**
+When the student stops recording (or after extended silence), the system synthesizes: "Today you worked on Clair de Lune for 22 minutes. 4 observations. Your pedaling improved. Next time, try the left hand voicing in bars 40-48." Memory persists for the next session.
 
 **Latency target:** Under 5 seconds from "how was that?" to observation on screen. Because inference runs in the background during playing, most analysis is already done when the student asks.
 
@@ -84,9 +83,7 @@ The system hears many things. It picks ONE to say. This is the hardest design co
 
 ### "How was that?"
 
-The student initiates. The system does not interrupt practice with unsolicited feedback. The sole exception is rare, genuine check-ins ("I notice you've been repeating bars 12-16 for a while -- is there something specific you're working through?"), limited to at most once per session, and only when the system has a real observation to offer.
-
-**Platform interaction models differ.** On iOS, the student taps "How was that?" to request feedback on-demand -- the phone sits on the music stand and the student's attention is on the music. On web, observations are pushed via WebSocket during recording, throttled to at most one observation per 3-minute window (see `02-pipeline.md`). The web model is semi-continuous: the system accumulates candidates and surfaces the top-1 per window, but the student can also ask "how was that?" at any time to get an immediate response. Both platforms share the same backend pipeline and the same "one observation at a time" discipline.
+The system observes during practice, paced by the session brain's practice mode detection (warming up: sparse, drilling: comparative, running through: at phrase boundaries, winding down: silent). The student can also ask "how was that?" at any time for an immediate response. Observation pacing replaces the old "student initiates only" model -- but the discipline of "one observation at a time" remains.
 
 ### Progressive disclosure
 
@@ -148,17 +145,13 @@ Three stages, one principle: the system does significant work to produce minimal
 
 ## Platform Strategy
 
-### iOS: The Primary Practice Companion
+### Web: The Primary Practice Companion (Beta First)
 
-Native app (SwiftUI). Phone on the music stand. Optimized for the practice session use case -- minimal interaction during playing, quick "how was that?" between runs. SwiftData for local-first persistence; D1 sync for cross-device backup.
+TanStack Start app at crescend.ai. Web ships first because it's ~90% complete, fastest to iterate (no App Store review), and shareable via URL (growth). Full practice companion: audio capture, real-time observations via WebSocket, chat with artifacts, session arc. Laptop on music stand or desk beside piano.
 
-iOS is the primary platform because that is where the phone-on-the-piano use case lives. Audio capture via AVAudioEngine gives precise control over the recording pipeline.
+### iOS: The Native Experience (Follows Web Beta)
 
-### Web: The Accessible Companion
-
-TanStack Start app at crescend.ai. Same cloud inference pipeline, same teacher, same student model (synced via D1). Lower barrier to entry -- no app install required. Better for post-session review and longer chat interactions.
-
-The web app is a full practice companion, not a stripped-down dashboard. It captures audio via the browser (MediaRecorder API), streams to the same inference endpoint, and delivers observations in the same chat interface.
+Native app (SwiftUI). Phone on the music stand. Audio capture and auth are complete; inference client needs cloud wiring. iOS ships after web beta validates the product. Better audio quality (AVAudioEngine vs MediaRecorder), App Store discovery, push notifications.
 
 ### Cloud Inference for Both
 
@@ -166,7 +159,7 @@ All MuQ inference runs on the HF endpoint (A1-Max 4-fold ensemble). No on-device
 
 ### Auth
 
-Sign in with Apple across both platforms. Single identity, synced student model.
+Sign in with Apple and Google Sign In across both platforms. Both auth flows are complete on the API. Web uses Apple JS SDK and Google Identity Services.
 
 ---
 
@@ -201,10 +194,11 @@ The student model is what turns CrescendAI from a stateless evaluator into a pra
 |----------|---------------|-------|
 | Phone audio quality | PSEUDO-VALIDATED | YouTube AMT test (79.9% agreement on mediocre recordings) serves as proxy. Formal paired recordings remain nice-to-have. |
 | Teaching moment scoring | DESIGNED | Start rules-based (dimension outlier detection + STOP classifier). Learned model later when we have engagement data. |
-| Piece identification | USER-ASSISTED | Student says what they are working on. Automatic identification (audio fingerprinting) is explicitly out of scope. |
+| Piece identification | AMT FINGERPRINT | Auto-detect via AMT MIDI fingerprint against 242-piece score library. Graceful degradation for unknown pieces. |
 | Exercise rendering | OPEN | MusicXML to notation in mobile browser. Candidates: VexFlow, OpenSheetMusicDisplay. |
 | Continuous inference cost | OPEN | Background MuQ inference on every 15s chunk. Per-session cost on HF endpoints needs measurement at scale. |
-| Voice input | DEFERRED | "How was that?" via voice is natural but adds speech recognition complexity. Tap-first, voice later. |
+| Artifact tool use pattern | OPEN | Teacher LLM declares artifacts via tool use or self-hosted MCP. Pattern needs research. |
+| Session brain tuning | OPEN | Practice mode detection thresholds (DTW similarity for drilling, silence duration for winding down) need calibration with real sessions. |
 
 ---
 
@@ -218,5 +212,4 @@ The student model is what turns CrescendAI from a stateless evaluator into a pra
 | Gamification / social features | Streaks, badges, leaderboards. Incompatible with the serious, adult design language. |
 | Multi-instrument support | Entire pipeline is piano-specific (MuQ, taxonomy, exercises). |
 | Video analysis (hand position, posture) | Separate modality, separate research problem. |
-| Automatic piece identification | Separate ML problem, limited ROI. User-assisted is sufficient. |
-| Unsolicited real-time interruptions | The student initiates feedback. The system does not stop the student mid-phrase. |
+| Excessive observation frequency | Observation pacing via session brain prevents overload. System observes at natural boundaries, not continuously. |

@@ -2,13 +2,14 @@
 
 The complete path from microphone to teaching observation. This is the technical heart of the system -- how audio becomes actionable feedback.
 
-> **Status (2026-03-14):**
-> - IMPLEMENTED: Two-stage LLM pipeline (subagent + teacher), HF inference endpoint (A1-Max 4-fold ensemble), teacher persona prompt, provider routing (Groq + Anthropic)
-> - NOT STARTED: STOP classifier service, teaching moment selection, blind-spot detection, score alignment, synthesized facts
-> - **Code:** `apps/api/src/services/ask.rs` (pipeline), `apps/api/src/services/prompts.rs` (teacher persona)
+> **Status (2026-03-19):**
+> - IMPLEMENTED: Two-stage LLM pipeline (subagent + teacher), HF inference endpoint (A1-Max 4-fold ensemble + AMT + pedal CC64), STOP classifier, teaching moment selection, blind-spot detection, score following (DTW), bar-aligned analysis, synthesized facts, exercise endpoints
+> - NEW (CEO review 2026-03-19): Session brain state machine in DO, observation pacing (mode-aware), zero-config first session (AMT piece fingerprint), artifact declaration via tool use (pattern TBD)
+> - NOT STARTED: Session brain implementation, artifact tool use integration, passage repetition detection
+> - **Code:** `apps/api/src/services/ask.rs` (pipeline), `apps/api/src/services/prompts.rs` (teacher persona), `apps/api/src/practice/session.rs` (DO session)
 > - **Model details:** `model/03-encoders.md`
 > - **Student context:** `03-memory-system.md`
-> - **UI delivery:** `05-ui-system.md`
+> - **UI delivery:** `05-ui-system.md` (unified artifact system)
 
 ---
 
@@ -558,21 +559,21 @@ Still conversational. 2-4 sentences.
 
 3. Keep the same teacher model -- the system prompt prefix stays cached across turns.
 
-#### On-Demand UI Extension
+#### Artifact Declaration
 
-The two-stage pipeline extends to three stages when the teacher decides the student needs more than text. See `05-ui-system.md` for the full design:
+The teacher LLM declares artifacts via tool use when a rich component would add pedagogical value. See `05-ui-system.md` for the unified artifact container system. The API returns both observation text and artifact config (if any) to the client.
 
-- **Stage 4b extended:** Teacher also declares a modality -- `text_only`, `score_highlight`, `keyboard_guide`, `exercise_set`, or `reference_browser`.
-- **Stage 4c (UI Subagent, Groq):** Configures the specific component from a pre-built SwiftUI library. Only invoked for non-text modalities.
-- **Components render as inline cards** in the chat interface, like iMessage rich content.
+The old three-stage pipeline (analysis subagent + teacher + UI subagent) is replaced by a two-stage pipeline where the teacher LLM has artifact tools available. This eliminates the UI subagent stage and ~0.3-0.5s of latency.
 
 ### Score Alignment
 
-Connect MuQ chunk timestamps to bar/measure numbers in the score. This lets the teacher say "at bar 7, the dynamics have no range" instead of "at 0:04, the dynamics have no range." The former sounds like a teacher; the latter sounds like a machine.
+Connect MuQ chunk timestamps to bar/measure numbers in the score. This lets the teacher say "at bar 7, the dynamics have no range" instead of "at 0:04, the dynamics have no range."
 
-**V1 (student-reported):** Student selects piece and starting bar. System maps chunk timestamps to approximate bar numbers using the piece's tempo. May need "approximately bars 20-24" rather than precise numbers, given rubato and tempo changes.
+**Current approach (CEO review 2026-03-19):** AMT transcribes each chunk to MIDI. The MIDI fingerprint is matched against the 242-piece score library via `piece_match.rs` (bigram Dice similarity). If matched, `score_follower.rs` aligns the performance MIDI to the score via onset+pitch DTW, producing bar numbers. This runs automatically -- no student input required.
 
-**V2 (automated):** Score-following via audio fingerprinting or onset detection aligned to a reference score. Future work.
+**Graceful degradation:** If no piece match is found, observations use audio-quality language without bar numbers ("your pedaling is blurring harmonic changes" instead of "in bars 5-8, your pedaling..."). The system asks "What piece is this?" AFTER the first observation, not before. Piece identification enriches but never gates.
+
+**Score library:** 242 ASAP pieces. Demand tracking via `piece_requests` table logs unmatched fingerprints for catalog expansion.
 
 ### Pipeline Modes
 
@@ -896,6 +897,8 @@ At 1,000 daily sessions: ~$300-510/day ($9K-15K/month) in inference costs. LLM c
 
 These estimates are rough and depend on HF endpoint instance type (GPU-hours pricing varies). Measure with real traffic before optimizing.
 
+**Inference cost reduction target (CEO review):** Current ~$6/session (at dedicated endpoint pricing) must reach ~$1/session for tiered pricing (Free/$5/$20/$50) to work. Optimization path: silence gating (-25%), single fused model v2 (-50%), passage-level caching (-20%), serverless inference (-40%). This is part of the model v2 track, not the apps beta.
+
 ---
 
 ## Key Decisions Log
@@ -907,8 +910,12 @@ These estimates are rough and depend on HF endpoint instance type (GPU-hours pri
 | Subagent provider | Groq (Llama 3.3 70B) | LPU runs Llama 70B at 450-800 tok/s. Subagent completes in ~0.3s. |
 | Teacher provider | Anthropic (Sonnet 4.6) | Best at following nuanced persona instructions. Native prompt caching for system prompt. |
 | Fallback chain | OpenRouter, then Workers AI | OpenRouter as routing fallback, Workers AI (Llama 3.1 70B) as zero-dependency emergency fallback. |
-| Score alignment V1 | Student-reported piece + bar | Simple, no infrastructure. System maps timestamps to approximate bar numbers via tempo. |
+| Score alignment | AMT fingerprint + DTW (automated) | Replaces student-reported. AMT transcribes, fingerprint matches, DTW aligns to score. No student input required. Graceful degradation for unknown pieces. |
 | Framing as subagent output | Explicit framing decision in JSON | Prevents teacher LLM from defaulting to critique mode when only given problems. |
 | Scores as reasoning inputs | Not a report card | Model is ~80% pairwise accurate. Value is in analysis + delivery, not raw scores. |
 | Blind-spot prior | voicing > pedaling > phrasing > timing > dynamics > articulation | Dimensions harder to self-diagnose from the bench get priority in tie-breaking. |
 | Positive teaching moments | Subagent decides framing | Pipeline flags both improvements and problems. Positive observations are real teaching. |
+| Session brain | DO as session intelligence host | Practice mode state machine (warming/drilling/running/winding). Observation pacing adapts to mode. Single-threaded DO is ideal for temporal session state. |
+| Artifact declaration | Teacher LLM tool use (replacing UI subagent) | Eliminates the third LLM stage. Teacher decides when artifacts are warranted and calls tools to generate configs. Pattern (Anthropic tool_use vs MCP) TBD. |
+| Piece identification | AMT fingerprint (replacing student-reported) | Zero-config first session. Auto-detect via MIDI fingerprint against 242-piece library. Graceful degradation for unknown pieces. |
+| Platform priority | Web-first | Web beta ships first (~4 weeks). iOS follows after validation. |
