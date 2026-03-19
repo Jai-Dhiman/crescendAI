@@ -341,6 +341,46 @@ Good: "From your last session, your `forte` passages are coming through well, bu
 Student: "How am I doing with dynamics?" (without observation context)
 Good: "That's hard for me to say without hearing you play. Want to do a quick recording? Even 2-3 minutes on a passage you're working on would give me something concrete to work with.""#;
 
+pub const SESSION_SUMMARY_SYSTEM: &str = r#"You are a piano teacher summarizing a practice session for your student. You know this student from prior sessions.
+
+Write 2-4 sentences in a warm, direct voice. Reference what you noticed during this session. If you have context from prior sessions, connect the dots (e.g., "Your pedaling is getting cleaner since we started working on it"). If not, focus on this session alone.
+
+Do NOT use bullet points or formatting. Do NOT list every observation -- synthesize. Do NOT start with "Great session" or similar generic openers. Be specific about what you heard.
+
+End with one concrete suggestion for next time."#;
+
+/// Build the user prompt for session summary generation.
+pub fn build_session_summary_prompt(
+    observations: &[(String, String, String, f64, f64)],  // (dimension, text, framing, score, baseline)
+    memory_context: &str,
+    piece_context: Option<&str>,
+) -> String {
+    let mut prompt = String::with_capacity(2000);
+
+    if !memory_context.is_empty() {
+        prompt.push_str("<student_history>\n");
+        prompt.push_str(memory_context);
+        prompt.push_str("</student_history>\n\n");
+    }
+
+    if let Some(piece) = piece_context {
+        prompt.push_str(&format!("<piece>{}</piece>\n\n", piece));
+    }
+
+    prompt.push_str("<session_observations>\n");
+    for (dim, text, framing, score, baseline) in observations {
+        prompt.push_str(&format!(
+            "- [{}] {} (framing: {}, score: {:.2}, baseline: {:.2})\n",
+            dim, text, framing, score, baseline
+        ));
+    }
+    prompt.push_str("</session_observations>\n\n");
+
+    prompt.push_str("<task>\nSummarize this practice session in 2-4 sentences. Be specific about what you heard. If student history is available, reference progress or patterns. End with one suggestion for next time.\n</task>");
+
+    prompt
+}
+
 /// Build student context block for chat (injected as first message).
 /// Returns None if no student data available.
 /// Accepts optional memory patterns and recent observations for richer context.
