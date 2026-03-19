@@ -94,3 +94,7 @@ class Results:
 
 class Calibration:
     root = DATA_ROOT / "calibration"
+
+
+class Weights:
+    root = DATA_ROOT / "weights"
