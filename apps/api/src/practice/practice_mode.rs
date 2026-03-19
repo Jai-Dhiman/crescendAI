@@ -158,6 +158,238 @@ pub(crate) fn bars_progressing(signals: &VecDeque<ChunkSignal>) -> bool {
     }
 }
 
+// --- ModeDetector implementation ---
+
+impl ModeDetector {
+    pub fn new() -> Self {
+        ModeDetector {
+            mode: PracticeMode::Warming,
+            entered_at_ms: 0,
+            chunk_count: 0,
+            recent_signals: VecDeque::new(),
+            last_chunk_at_ms: 0,
+            drilling_passage: None,
+        }
+    }
+
+    pub fn update(&mut self, signal: &ChunkSignal) -> Vec<ModeTransition> {
+        let mut transitions: Vec<ModeTransition> = Vec::new();
+
+        // Two-step silence detection: if gap > 60s and not already Winding,
+        // transition to Winding first, then evaluate resume from Winding.
+        let gap_ms = if self.last_chunk_at_ms == 0 {
+            0
+        } else {
+            signal.timestamp_ms.saturating_sub(self.last_chunk_at_ms)
+        };
+
+        if gap_ms > SILENCE_GAP_MS && self.mode != PracticeMode::Winding {
+            self.set_mode(PracticeMode::Winding, signal.timestamp_ms);
+            transitions.push(ModeTransition {
+                mode: PracticeMode::Winding,
+                chunk_index: signal.chunk_index,
+            });
+            // Now evaluate from Winding using the current signal directly
+            let resume_mode = self.eval_from_winding(signal);
+            if let Some(next) = resume_mode {
+                self.set_mode(next, signal.timestamp_ms);
+                transitions.push(ModeTransition {
+                    mode: next,
+                    chunk_index: signal.chunk_index,
+                });
+            }
+            self.last_chunk_at_ms = signal.timestamp_ms;
+            self.chunk_count += 1;
+            self.recent_signals.push_back(signal.clone());
+            if self.recent_signals.len() > RECENT_WINDOW {
+                self.recent_signals.pop_front();
+            }
+            return transitions;
+        }
+
+        // Push signal into sliding window before evaluating transitions
+        self.recent_signals.push_back(signal.clone());
+        if self.recent_signals.len() > RECENT_WINDOW {
+            self.recent_signals.pop_front();
+        }
+        self.last_chunk_at_ms = signal.timestamp_ms;
+        self.chunk_count += 1;
+
+        // Evaluate transitions
+        if let Some(next) = self.evaluate_transitions(signal) {
+            // Handle drilling entry vs stay
+            if next == PracticeMode::Drilling {
+                if self.mode == PracticeMode::Drilling {
+                    // Already drilling: increment repetition count
+                    if let Some(ref mut dp) = self.drilling_passage {
+                        dp.repetition_count += 1;
+                    }
+                } else {
+                    // Entering drilling: initialize passage
+                    self.drilling_passage = Some(DrillingPassage {
+                        bar_range: signal.bar_range,
+                        repetition_count: 1,
+                        first_scores: signal.scores,
+                    });
+                    self.set_mode(PracticeMode::Drilling, signal.timestamp_ms);
+                    transitions.push(ModeTransition {
+                        mode: PracticeMode::Drilling,
+                        chunk_index: signal.chunk_index,
+                    });
+                }
+            } else {
+                if self.mode == PracticeMode::Drilling {
+                    self.drilling_passage = None;
+                }
+                self.set_mode(next, signal.timestamp_ms);
+                transitions.push(ModeTransition {
+                    mode: next,
+                    chunk_index: signal.chunk_index,
+                });
+            }
+        }
+
+        transitions
+    }
+
+    pub fn observation_policy(&self) -> ObservationPolicy {
+        match self.mode {
+            PracticeMode::Warming => ObservationPolicy {
+                suppress: true,
+                min_interval_ms: 0,
+                comparative: false,
+            },
+            PracticeMode::Drilling => ObservationPolicy {
+                suppress: false,
+                min_interval_ms: 90_000,
+                comparative: true,
+            },
+            PracticeMode::Running => ObservationPolicy {
+                suppress: false,
+                min_interval_ms: 150_000,
+                comparative: false,
+            },
+            PracticeMode::Regular => ObservationPolicy {
+                suppress: false,
+                min_interval_ms: 180_000,
+                comparative: false,
+            },
+            PracticeMode::Winding => ObservationPolicy {
+                suppress: true,
+                min_interval_ms: 0,
+                comparative: false,
+            },
+        }
+    }
+
+    fn evaluate_transitions(&self, signal: &ChunkSignal) -> Option<PracticeMode> {
+        match self.mode {
+            PracticeMode::Warming => self.eval_from_warming(signal),
+            PracticeMode::Running => self.eval_from_running(signal),
+            PracticeMode::Drilling => self.eval_from_drilling(signal),
+            PracticeMode::Regular => self.eval_from_regular(signal),
+            PracticeMode::Winding => self.eval_from_winding(signal),
+        }
+    }
+
+    fn eval_from_warming(&self, signal: &ChunkSignal) -> Option<PracticeMode> {
+        // Transition to Running: piece match + bar progress
+        if signal.has_piece_match && bars_progressing(&self.recent_signals) {
+            return Some(PracticeMode::Running);
+        }
+
+        // Transition to Drilling: repetition detected across at least 3 signals
+        // with a substantive passage (>= 3 bigrams per chunk) to avoid false triggers
+        // on trivial single-bigram patterns.
+        if self.recent_signals.len() >= 3 && self.passage_has_substance() && detect_repetition(&self.recent_signals) {
+            return Some(PracticeMode::Drilling);
+        }
+
+        // Fallback to Regular after WARMING_CHUNK_LIMIT ambiguous chunks
+        if self.chunk_count >= WARMING_CHUNK_LIMIT {
+            return Some(PracticeMode::Regular);
+        }
+
+        None
+    }
+
+    /// Returns true if recent signals contain substantive passages (>= 3 bigrams)
+    /// to avoid false drilling triggers on short/trivial patterns.
+    fn passage_has_substance(&self) -> bool {
+        const MIN_BIGRAMS: usize = 3;
+        self.recent_signals
+            .iter()
+            .rev()
+            .take(3)
+            .all(|s| s.pitch_bigrams.len() >= MIN_BIGRAMS)
+    }
+
+    fn eval_from_running(&self, signal: &ChunkSignal) -> Option<PracticeMode> {
+        if !self.dwell_elapsed(RUNNING_DWELL_MS, signal.timestamp_ms) {
+            return None;
+        }
+
+        // Transition to Drilling on repetition
+        if detect_repetition(&self.recent_signals) {
+            return Some(PracticeMode::Drilling);
+        }
+
+        None
+    }
+
+    fn eval_from_drilling(&self, _signal: &ChunkSignal) -> Option<PracticeMode> {
+        if !self.dwell_elapsed(DRILLING_DWELL_MS, _signal.timestamp_ms) {
+            return None;
+        }
+
+        // Transition to Running when new material appears (no recent repetition + piece match + bar progress)
+        if no_recent_repetition(&self.recent_signals)
+            && _signal.has_piece_match
+            && bars_progressing(&self.recent_signals)
+        {
+            return Some(PracticeMode::Running);
+        }
+
+        // Stay in drilling if still repeating
+        if detect_repetition(&self.recent_signals) {
+            return Some(PracticeMode::Drilling);
+        }
+
+        None
+    }
+
+    fn eval_from_regular(&self, _signal: &ChunkSignal) -> Option<PracticeMode> {
+        if !self.dwell_elapsed(REGULAR_DWELL_MS, _signal.timestamp_ms) {
+            return None;
+        }
+
+        // Transition to Drilling on repetition
+        if detect_repetition(&self.recent_signals) {
+            return Some(PracticeMode::Drilling);
+        }
+
+        None
+    }
+
+    fn eval_from_winding(&self, signal: &ChunkSignal) -> Option<PracticeMode> {
+        // Resume: piece match -> Running, else -> Regular
+        if signal.has_piece_match {
+            Some(PracticeMode::Running)
+        } else {
+            Some(PracticeMode::Regular)
+        }
+    }
+
+    fn set_mode(&mut self, mode: PracticeMode, timestamp_ms: u64) {
+        self.mode = mode;
+        self.entered_at_ms = timestamp_ms;
+    }
+
+    fn dwell_elapsed(&self, dwell_ms: u64, current_ts_ms: u64) -> bool {
+        current_ts_ms.saturating_sub(self.entered_at_ms) >= dwell_ms
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -265,5 +497,190 @@ mod tests {
         let mut signals = VecDeque::new();
         signals.push_back(make_signal(0, 0, vec![(60, 62)], None, false));
         assert!(!detect_repetition(&signals));
+    }
+
+    // --- ModeDetector transition tests ---
+
+    fn make_detector() -> ModeDetector {
+        ModeDetector::new()
+    }
+
+    fn signal_at(
+        index: usize,
+        ts: u64,
+        bigrams: Vec<(u8, u8)>,
+        bar_range: Option<(u32, u32)>,
+        piece: bool,
+    ) -> ChunkSignal {
+        make_signal(index, ts, bigrams, bar_range, piece)
+    }
+
+    #[test]
+    fn starts_in_warming() {
+        let det = make_detector();
+        assert_eq!(det.mode, PracticeMode::Warming);
+    }
+
+    #[test]
+    fn warming_to_running_on_piece_match_with_progress() {
+        let mut det = make_detector();
+        let s1 = signal_at(0, 1000, vec![], Some((1, 4)), true);
+        det.update(&s1);
+        assert_eq!(det.mode, PracticeMode::Warming);
+
+        let s2 = signal_at(1, 16000, vec![], Some((5, 8)), true);
+        let transitions = det.update(&s2);
+        assert_eq!(det.mode, PracticeMode::Running);
+        assert_eq!(transitions.len(), 1);
+        assert_eq!(transitions[0].mode, PracticeMode::Running);
+    }
+
+    #[test]
+    fn warming_to_drilling_on_repetition() {
+        let mut det = make_detector();
+        let bg = vec![(60, 62), (62, 64), (64, 65), (65, 67)];
+        det.update(&signal_at(0, 1000, bg.clone(), None, false));
+        det.update(&signal_at(1, 16000, bg.clone(), None, false));
+        let t = det.update(&signal_at(2, 31000, bg.clone(), None, false));
+        assert_eq!(det.mode, PracticeMode::Drilling);
+        assert!(t.iter().any(|t| t.mode == PracticeMode::Drilling));
+    }
+
+    #[test]
+    fn warming_to_regular_after_4_ambiguous_chunks() {
+        let mut det = make_detector();
+        for i in 0..4 {
+            det.update(&signal_at(i, (i as u64) * 15000 + 1000, vec![(60, 62)], None, false));
+        }
+        assert_eq!(det.mode, PracticeMode::Regular);
+    }
+
+    #[test]
+    fn running_to_drilling_on_repetition() {
+        let mut det = make_detector();
+        det.update(&signal_at(0, 1000, vec![], Some((1, 4)), true));
+        det.update(&signal_at(1, 16000, vec![], Some((5, 8)), true));
+        assert_eq!(det.mode, PracticeMode::Running);
+
+        let bg = vec![(60, 62), (62, 64), (64, 65)];
+        det.update(&signal_at(2, 50000, bg.clone(), Some((10, 14)), true));
+        det.update(&signal_at(3, 65000, bg.clone(), Some((10, 14)), true));
+        det.update(&signal_at(4, 80000, bg.clone(), Some((10, 14)), true));
+        assert_eq!(det.mode, PracticeMode::Drilling);
+    }
+
+    #[test]
+    fn running_to_winding_on_silence() {
+        let mut det = make_detector();
+        det.update(&signal_at(0, 1000, vec![], Some((1, 4)), true));
+        det.update(&signal_at(1, 16000, vec![], Some((5, 8)), true));
+        assert_eq!(det.mode, PracticeMode::Running);
+
+        let t = det.update(&signal_at(2, 81000, vec![], Some((9, 12)), true));
+        assert!(t.iter().any(|tr| tr.mode == PracticeMode::Winding));
+        assert_eq!(det.mode, PracticeMode::Running); // resumed via two-step
+    }
+
+    #[test]
+    fn drilling_to_running_on_new_material() {
+        let mut det = make_detector();
+        let bg = vec![(60, 62), (62, 64), (64, 65)];
+        det.update(&signal_at(0, 1000, bg.clone(), Some((10, 14)), true));
+        det.update(&signal_at(1, 16000, bg.clone(), Some((10, 14)), true));
+        det.update(&signal_at(2, 31000, bg.clone(), Some((10, 14)), true));
+        assert_eq!(det.mode, PracticeMode::Drilling);
+
+        let new_bg = vec![(72, 74), (74, 76), (76, 77)];
+        det.update(&signal_at(3, 65000, new_bg.clone(), Some((15, 18)), true));
+        det.update(&signal_at(4, 80000, vec![(77, 79), (79, 81)], Some((19, 22)), true));
+        assert_eq!(det.mode, PracticeMode::Running);
+    }
+
+    #[test]
+    fn winding_to_regular_on_resume_without_piece() {
+        let mut det = make_detector();
+        det.update(&signal_at(0, 1000, vec![(60, 62)], None, false));
+        det.update(&signal_at(1, 16000, vec![(60, 62)], None, false));
+        det.update(&signal_at(2, 31000, vec![(60, 62)], None, false));
+        det.update(&signal_at(3, 46000, vec![(60, 62)], None, false));
+        let t = det.update(&signal_at(4, 120000, vec![(70, 72)], None, false));
+        assert!(t.iter().any(|tr| tr.mode == PracticeMode::Winding));
+        assert_eq!(det.mode, PracticeMode::Regular);
+    }
+
+    #[test]
+    fn min_dwell_prevents_early_exit_from_drilling() {
+        let mut det = make_detector();
+        let bg = vec![(60, 62), (62, 64), (64, 65)];
+        det.update(&signal_at(0, 1000, bg.clone(), None, false));
+        det.update(&signal_at(1, 16000, bg.clone(), None, false));
+        det.update(&signal_at(2, 31000, bg.clone(), None, false));
+        assert_eq!(det.mode, PracticeMode::Drilling);
+
+        let new_bg = vec![(72, 74), (74, 76)];
+        det.update(&signal_at(3, 32000, new_bg.clone(), Some((20, 25)), true));
+        assert_eq!(det.mode, PracticeMode::Drilling);
+    }
+
+    #[test]
+    fn two_step_silence_transition_returns_two_events() {
+        let mut det = make_detector();
+        det.update(&signal_at(0, 1000, vec![], Some((1, 4)), true));
+        det.update(&signal_at(1, 16000, vec![], Some((5, 8)), true));
+        assert_eq!(det.mode, PracticeMode::Running);
+
+        let t = det.update(&signal_at(2, 81000, vec![], Some((9, 12)), true));
+        assert!(t.len() >= 2);
+        assert_eq!(t[0].mode, PracticeMode::Winding);
+    }
+
+    #[test]
+    fn empty_midi_no_crash() {
+        let mut det = make_detector();
+        let t = det.update(&signal_at(0, 1000, vec![], None, false));
+        assert_eq!(det.mode, PracticeMode::Warming);
+        assert!(t.is_empty());
+    }
+
+    // --- Pacing tests ---
+
+    #[test]
+    fn warming_suppresses() {
+        let det = make_detector();
+        let policy = det.observation_policy();
+        assert!(policy.suppress);
+    }
+
+    #[test]
+    fn drilling_comparative_90s() {
+        let mut det = make_detector();
+        let bg = vec![(60, 62), (62, 64), (64, 65)];
+        det.update(&signal_at(0, 1000, bg.clone(), None, false));
+        det.update(&signal_at(1, 16000, bg.clone(), None, false));
+        det.update(&signal_at(2, 31000, bg.clone(), None, false));
+        let policy = det.observation_policy();
+        assert!(!policy.suppress);
+        assert_eq!(policy.min_interval_ms, 90_000);
+        assert!(policy.comparative);
+    }
+
+    #[test]
+    fn running_150s() {
+        let mut det = make_detector();
+        det.update(&signal_at(0, 1000, vec![], Some((1, 4)), true));
+        det.update(&signal_at(1, 16000, vec![], Some((5, 8)), true));
+        let policy = det.observation_policy();
+        assert_eq!(policy.min_interval_ms, 150_000);
+        assert!(!policy.comparative);
+    }
+
+    #[test]
+    fn regular_180s() {
+        let mut det = make_detector();
+        for i in 0..4 {
+            det.update(&signal_at(i, (i as u64) * 15000 + 1000, vec![(60, 62)], None, false));
+        }
+        let policy = det.observation_policy();
+        assert_eq!(policy.min_interval_ms, 180_000);
     }
 }
