@@ -187,6 +187,26 @@ class TestWeightedTierSampler:
         assert len(sampler) == 20
 
 
+class TestLoadT2Records:
+    def test_train_excludes_cliburn_2022(self):
+        from model_improvement.autoresearch_contrastive import _load_t2_records
+        train = _load_t2_records("train")
+        for r in train:
+            assert not (r["competition"] == "cliburn" and r["edition"] == 2022)
+
+    def test_val_is_cliburn_2022_only(self):
+        from model_improvement.autoresearch_contrastive import _load_t2_records
+        val = _load_t2_records("val")
+        for r in val:
+            assert r["competition"] == "cliburn" and r["edition"] == 2022
+
+    def test_train_and_val_are_disjoint(self):
+        from model_improvement.autoresearch_contrastive import _load_t2_records
+        train_ids = {r["recording_id"] for r in _load_t2_records("train")}
+        val_ids = {r["recording_id"] for r in _load_t2_records("val")}
+        assert train_ids.isdisjoint(val_ids)
+
+
 class TestContrastivePretrainModel:
     def _make_batch(self, encoder_type="muq"):
         if encoder_type == "muq":
@@ -242,3 +262,76 @@ class TestContrastivePretrainModel:
         opt_config = model.configure_optimizers()
         assert "optimizer" in opt_config
         assert "lr_scheduler" in opt_config
+
+
+class TestIntegration:
+    def test_full_training_loop_muq(self):
+        """End-to-end: build dataset, train 2 epochs, verify loss is finite."""
+        from torch.utils.data import DataLoader
+        from model_improvement.autoresearch_contrastive import (
+            MuQContrastiveEncoder, ContrastivePretrainModel,
+            ContrastiveSegmentDataset, WeightedTierSampler,
+            contrastive_collate_muq,
+        )
+        import pytorch_lightning as pl
+
+        items = []
+        for piece in range(2):
+            for seg in range(4):
+                items.append({
+                    "embedding": torch.randn(20, 1024),
+                    "piece_id": piece,
+                    "quality_score": float(seg) / 3.0,
+                })
+        ds = ContrastiveSegmentDataset(items)
+        sampler = WeightedTierSampler([ds], [1.0], total_samples=8, seed=42)
+        loader = DataLoader(ds, batch_size=4, sampler=sampler, collate_fn=contrastive_collate_muq)
+
+        encoder = MuQContrastiveEncoder(input_dim=1024, hidden_dim=64, projection_dim=32)
+        model = ContrastivePretrainModel(
+            encoder=encoder, max_epochs=2, warmup_epochs=1,
+            lambda_infonce=1.0, lambda_ordinal=0.5,
+        )
+
+        trainer = pl.Trainer(
+            max_epochs=2, accelerator="cpu", devices=1,
+            enable_progress_bar=False, enable_model_summary=False,
+            num_sanity_val_steps=0,
+        )
+        trainer.fit(model, loader, loader)
+        assert trainer.callback_metrics["train_loss"].isfinite()
+
+    def test_full_training_loop_aria(self):
+        """End-to-end for Aria encoder."""
+        from torch.utils.data import DataLoader
+        from model_improvement.autoresearch_contrastive import (
+            AriaContrastiveEncoder, ContrastivePretrainModel,
+            ContrastiveSegmentDataset, WeightedTierSampler,
+            contrastive_collate_aria,
+        )
+        import pytorch_lightning as pl
+
+        items = []
+        for piece in range(2):
+            for seg in range(4):
+                items.append({
+                    "embedding": torch.randn(512),
+                    "piece_id": piece,
+                    "quality_score": float(seg) / 3.0,
+                })
+        ds = ContrastiveSegmentDataset(items)
+        sampler = WeightedTierSampler([ds], [1.0], total_samples=8, seed=42)
+        loader = DataLoader(ds, batch_size=4, sampler=sampler, collate_fn=contrastive_collate_aria)
+
+        encoder = AriaContrastiveEncoder(input_dim=512, hidden_dim=64, projection_dim=32)
+        model = ContrastivePretrainModel(
+            encoder=encoder, max_epochs=2, warmup_epochs=1,
+        )
+
+        trainer = pl.Trainer(
+            max_epochs=2, accelerator="cpu", devices=1,
+            enable_progress_bar=False, enable_model_summary=False,
+            num_sanity_val_steps=0,
+        )
+        trainer.fit(model, loader, loader)
+        assert trainer.callback_metrics["train_loss"].isfinite()

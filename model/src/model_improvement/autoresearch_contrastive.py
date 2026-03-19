@@ -6,19 +6,42 @@ can be transferred to the downstream multi-task model (Phase C).
 
 Architecture mirrors MuQLoRAModel exactly (attn, encoder, projection)
 so that pretrained weights can be loaded directly.
+
+Usage:
+    cd model/
+    uv run python -m model_improvement.autoresearch_contrastive --encoder muq
+    uv run python -m model_improvement.autoresearch_contrastive --encoder aria \
+        --lambda-infonce 1.0 --lambda-ordinal 0.5
+
+Exit code 0 on success, 1 on failure.
 """
 
+import argparse
+import gc
+import json
 import random as _random
+import sys
+import time
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pytorch_lightning as pl
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.utils.data import Dataset, Sampler
+from torch.utils.data import ConcatDataset, DataLoader, Dataset, Sampler
 
 from model_improvement.losses import ordinal_margin_loss, piece_based_infonce_loss
+from model_improvement.taxonomy import load_composite_labels, NUM_DIMS
+from model_improvement.training import train_model
+from model_improvement.aria_linear_probe import (
+    train_linear_probe,
+    compute_pairwise_from_regression,
+    load_embeddings_as_matrix,
+)
+from model_improvement.metrics import MetricsSuite
+from src.paths import Checkpoints, Embeddings, Labels, Manifests
 
 
 class MuQContrastiveEncoder(nn.Module):
@@ -528,3 +551,387 @@ class ContrastivePretrainModel(pl.LightningModule):
             "optimizer": opt,
             "lr_scheduler": {"scheduler": scheduler, "interval": "epoch"},
         }
+
+
+# ---------------------------------------------------------------------------
+# Data Loading
+# ---------------------------------------------------------------------------
+
+FOLD_IDX = 0
+BATCH_SIZE = 16
+ACCUM_BATCHES = 2
+CHECKPOINT_BASE = Checkpoints.root / "contrastive_pretrain"
+
+
+def _cleanup_memory():
+    gc.collect()
+    if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+        torch.mps.empty_cache()
+
+
+def _load_t2_records(split: str) -> list[dict]:
+    """Load T2 competition records from recordings.jsonl.
+
+    Args:
+        split: "train" (everything except Cliburn 2022) or "val" (Cliburn 2022 only).
+
+    Returns:
+        List of record dicts with keys: recording_id, competition, edition,
+        round, placement, performer, piece, audio_path, etc.
+
+    Raises:
+        ValueError: If split is not "train" or "val".
+        FileNotFoundError: If recordings.jsonl does not exist.
+    """
+    if split not in ("train", "val"):
+        raise ValueError(f"split must be 'train' or 'val', got {split!r}")
+
+    manifest_path = Manifests.competition / "recordings.jsonl"
+    if not manifest_path.exists():
+        raise FileNotFoundError(f"T2 manifest not found: {manifest_path}")
+
+    records = []
+    with open(manifest_path) as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            records.append(json.loads(line))
+
+    def _is_cliburn_2022(r: dict) -> bool:
+        return r["competition"] == "cliburn" and r["edition"] == 2022
+
+    if split == "val":
+        return [r for r in records if _is_cliburn_2022(r)]
+    else:
+        return [r for r in records if not _is_cliburn_2022(r)]
+
+
+# ---------------------------------------------------------------------------
+# Single-Fold Training
+# ---------------------------------------------------------------------------
+
+
+def run_single_fold(
+    encoder_type: str,
+    lambda_infonce: float = 1.0,
+    lambda_ordinal: float = 0.5,
+    temperature: float = 0.07,
+    ordinal_margin: float = 0.1,
+    t1_weight: float = 0.2,
+    t2_weight: float = 0.8,
+    learning_rate: float = 1e-4,
+    weight_decay: float = 1e-4,
+    max_epochs: int = 30,
+) -> dict:
+    """Train a single contrastive pretraining fold and run linear probe.
+
+    Args:
+        encoder_type: "muq" or "aria".
+        lambda_infonce: Weight for InfoNCE loss.
+        lambda_ordinal: Weight for ordinal margin loss.
+        temperature: InfoNCE temperature.
+        ordinal_margin: Margin scale for ordinal loss.
+        t1_weight: Sampling weight for T1 (PercePiano).
+        t2_weight: Sampling weight for T2 (competition).
+        learning_rate: AdamW learning rate.
+        weight_decay: AdamW weight decay.
+        max_epochs: Maximum training epochs.
+
+    Returns:
+        Dict with: contrastive_loss, ordinal_loss, probe_pairwise, probe_r2,
+        elapsed_seconds.
+
+    Raises:
+        ValueError: If encoder_type is not "muq" or "aria".
+        RuntimeError: If training fails.
+    """
+    if encoder_type not in ("muq", "aria"):
+        raise ValueError(f"encoder_type must be 'muq' or 'aria', got {encoder_type!r}")
+
+    pl.seed_everything(42, workers=True)
+
+    # ---- Load T1 (PercePiano) data ----
+    composite_path = Labels.composite / "composite_labels.json"
+    labels_raw = load_composite_labels(composite_path)
+    labels = {k: v.tolist() for k, v in labels_raw.items()}
+
+    with open(Labels.percepiano / "folds.json") as f:
+        folds = json.load(f)
+    with open(Labels.percepiano / "piece_mapping.json") as f:
+        piece_to_keys = json.load(f)
+
+    fold = folds[FOLD_IDX]
+
+    if encoder_type == "muq":
+        emb_path = Embeddings.percepiano / "muq_embeddings.pt"
+        t1_embeddings = torch.load(emb_path, map_location="cpu", weights_only=True)  # nosemgrep
+        input_dim = 1024
+    else:
+        emb_path = Embeddings.percepiano / "aria_embedding.pt"
+        t1_embeddings = torch.load(emb_path, map_location="cpu", weights_only=True)  # nosemgrep
+        input_dim = 512
+
+    # ---- Load T2 (competition) data ----
+    t2_train_records = _load_t2_records("train")
+    t2_val_records = _load_t2_records("val")
+
+    # Convert dicts to SimpleNamespace for from_t2 (expects attribute access)
+    t2_train_ns = [SimpleNamespace(**r) for r in t2_train_records]
+    t2_val_ns = [SimpleNamespace(**r) for r in t2_val_records]
+
+    if encoder_type == "muq":
+        comp_emb_dir = Embeddings.competition / "muq"
+    else:
+        comp_emb_dir = Embeddings.competition / "aria"
+
+    # ---- Build datasets ----
+    t1_train_ds = ContrastiveSegmentDataset.from_t1(
+        t1_embeddings, labels, piece_to_keys, fold["train"], piece_id_offset=0,
+    )
+    t1_val_ds = ContrastiveSegmentDataset.from_t1(
+        t1_embeddings, labels, piece_to_keys, fold["val"], piece_id_offset=0,
+    )
+
+    t2_piece_offset = t1_train_ds.num_pieces + t1_val_ds.num_pieces + 100
+
+    t2_train_ds = ContrastiveSegmentDataset.from_t2(
+        comp_emb_dir, t2_train_ns, piece_id_offset=t2_piece_offset,
+    )
+    t2_val_ds = ContrastiveSegmentDataset.from_t2(
+        comp_emb_dir, t2_val_ns, piece_id_offset=t2_piece_offset + 10000,
+    )
+
+    # Combined datasets for DataLoader (ConcatDataset)
+    train_ds = ConcatDataset([t1_train_ds, t2_train_ds])
+    val_ds = ConcatDataset([t1_val_ds, t2_val_ds])
+
+    # ---- Samplers ----
+    total_train = max(len(t1_train_ds) + len(t2_train_ds), BATCH_SIZE * 10)
+    total_val = max(len(t1_val_ds) + len(t2_val_ds), BATCH_SIZE * 4)
+
+    train_sampler = WeightedTierSampler(
+        [t1_train_ds, t2_train_ds], [t1_weight, t2_weight],
+        total_samples=total_train, seed=42,
+    )
+    val_sampler = WeightedTierSampler(
+        [t1_val_ds, t2_val_ds], [t1_weight, t2_weight],
+        total_samples=total_val, seed=123,
+    )
+
+    # ---- DataLoaders ----
+    if encoder_type == "muq":
+        collate_fn = contrastive_collate_muq
+    else:
+        collate_fn = contrastive_collate_aria
+
+    train_loader = DataLoader(
+        train_ds, batch_size=BATCH_SIZE, sampler=train_sampler,
+        collate_fn=collate_fn, num_workers=0, pin_memory=False,
+    )
+    val_loader = DataLoader(
+        val_ds, batch_size=BATCH_SIZE, sampler=val_sampler,
+        collate_fn=collate_fn, num_workers=0, pin_memory=False,
+    )
+
+    # ---- Build encoder and model ----
+    if encoder_type == "muq":
+        encoder = MuQContrastiveEncoder(input_dim=input_dim)
+    else:
+        encoder = AriaContrastiveEncoder(input_dim=input_dim)
+
+    model = ContrastivePretrainModel(
+        encoder=encoder,
+        lambda_infonce=lambda_infonce,
+        lambda_ordinal=lambda_ordinal,
+        temperature=temperature,
+        margin_scale=ordinal_margin,
+        learning_rate=learning_rate,
+        weight_decay=weight_decay,
+        warmup_epochs=5,
+        max_epochs=max_epochs,
+    )
+
+    # ---- Train ----
+    CHECKPOINT_BASE.mkdir(parents=True, exist_ok=True)
+
+    print(f"Contrastive pretrain: encoder={encoder_type}, "
+          f"lambda_infonce={lambda_infonce}, lambda_ordinal={lambda_ordinal}, "
+          f"temperature={temperature}, margin={ordinal_margin}")
+
+    _cleanup_memory()
+    start_time = time.time()
+
+    trainer = train_model(
+        model, train_loader, val_loader,
+        f"contrastive_{encoder_type}", FOLD_IDX,
+        checkpoint_dir=CHECKPOINT_BASE,
+        max_epochs=max_epochs,
+        patience=7,
+        accumulate_grad_batches=ACCUM_BATCHES,
+    )
+
+    # ---- Load best checkpoint ----
+    ckpt_callback = None
+    for cb in trainer.callbacks:
+        if isinstance(cb, pl.callbacks.ModelCheckpoint):
+            ckpt_callback = cb
+            break
+
+    if ckpt_callback is not None and ckpt_callback.best_model_path:
+        print(f"Loading best checkpoint: {ckpt_callback.best_model_path}")
+        best_model = ContrastivePretrainModel.load_from_checkpoint(
+            ckpt_callback.best_model_path, encoder=encoder,
+        )
+    else:
+        best_model = trainer.lightning_module
+
+    best_model.cpu()
+    best_model.eval()
+
+    # Extract final validation losses
+    metrics = trainer.callback_metrics
+    contrastive_loss = float(metrics.get("val_infonce", float("nan")))
+    ordinal_loss_val = float(metrics.get("val_ordinal", float("nan")))
+
+    # ---- Linear probe on T1 PercePiano ----
+    # Use encode() output (hidden_dim), NOT project() output
+    best_encoder = best_model.encoder
+    best_encoder.eval()
+
+    # Build probe embeddings from T1 data
+    probe_train_embs = []
+    probe_train_keys = []
+    probe_val_embs = []
+    probe_val_keys = []
+
+    with torch.no_grad():
+        for key in fold["train"]:
+            if key not in t1_embeddings:
+                continue
+            emb = t1_embeddings[key]
+            if encoder_type == "muq":
+                # [T, 1024] -> [1, T, 1024]
+                emb_in = emb.unsqueeze(0)
+                mask = torch.ones(1, emb.shape[0], dtype=torch.bool)
+                z = best_encoder.encode(emb_in, mask)  # [1, hidden_dim]
+            else:
+                # [512] -> [1, 512]
+                emb_in = emb.unsqueeze(0)
+                z = best_encoder.encode(emb_in)  # [1, hidden_dim]
+            probe_train_embs.append(z.squeeze(0))
+            probe_train_keys.append(key)
+
+        for key in fold["val"]:
+            if key not in t1_embeddings:
+                continue
+            emb = t1_embeddings[key]
+            if encoder_type == "muq":
+                emb_in = emb.unsqueeze(0)
+                mask = torch.ones(1, emb.shape[0], dtype=torch.bool)
+                z = best_encoder.encode(emb_in, mask)
+            else:
+                emb_in = emb.unsqueeze(0)
+                z = best_encoder.encode(emb_in)
+            probe_val_embs.append(z.squeeze(0))
+            probe_val_keys.append(key)
+
+    probe_train_matrix = torch.stack(probe_train_embs)
+    probe_val_matrix = torch.stack(probe_val_embs)
+
+    # Build label tensors
+    probe_train_labels = torch.tensor(
+        np.array([labels[k][:NUM_DIMS] for k in probe_train_keys]),
+        dtype=torch.float32,
+    )
+    probe_val_labels = torch.tensor(
+        np.array([labels[k][:NUM_DIMS] for k in probe_val_keys]),
+        dtype=torch.float32,
+    )
+
+    # Train linear probe
+    val_preds, _ = train_linear_probe(
+        probe_train_matrix, probe_train_labels,
+        probe_val_matrix, probe_val_labels,
+    )
+
+    # Compute pairwise accuracy
+    pw = compute_pairwise_from_regression(val_preds, probe_val_keys, labels)
+    probe_pairwise = pw["overall"]
+
+    # Compute R2
+    suite = MetricsSuite()
+    probe_r2 = suite.regression_r2(val_preds, probe_val_labels)
+
+    elapsed = time.time() - start_time
+
+    # Cleanup
+    del model, trainer, best_model, best_encoder
+    del train_ds, val_ds, train_loader, val_loader
+    del t1_embeddings
+    _cleanup_memory()
+
+    return {
+        "contrastive_loss": round(contrastive_loss, 6),
+        "ordinal_loss": round(ordinal_loss_val, 6),
+        "probe_pairwise": round(probe_pairwise, 6),
+        "probe_r2": round(probe_r2, 6),
+        "elapsed_seconds": round(elapsed, 1),
+    }
+
+
+# ---------------------------------------------------------------------------
+# CLI
+# ---------------------------------------------------------------------------
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Contrastive pretraining for autoresearch loop"
+    )
+    parser.add_argument(
+        "--encoder", required=True, choices=["muq", "aria"],
+        help="Encoder type to pretrain",
+    )
+    parser.add_argument("--lambda-infonce", type=float, default=1.0)
+    parser.add_argument("--lambda-ordinal", type=float, default=0.5)
+    parser.add_argument("--temperature", type=float, default=0.07)
+    parser.add_argument("--ordinal-margin", type=float, default=0.1)
+    parser.add_argument("--t1-weight", type=float, default=0.2)
+    parser.add_argument("--t2-weight", type=float, default=0.8)
+    parser.add_argument("--learning-rate", type=float, default=1e-4)
+    parser.add_argument("--weight-decay", type=float, default=1e-4)
+    parser.add_argument("--max-epochs", type=int, default=30)
+    args = parser.parse_args()
+
+    result = run_single_fold(
+        encoder_type=args.encoder,
+        lambda_infonce=args.lambda_infonce,
+        lambda_ordinal=args.lambda_ordinal,
+        temperature=args.temperature,
+        ordinal_margin=args.ordinal_margin,
+        t1_weight=args.t1_weight,
+        t2_weight=args.t2_weight,
+        learning_rate=args.learning_rate,
+        weight_decay=args.weight_decay,
+        max_epochs=args.max_epochs,
+    )
+
+    # Structured output for autoresearch parsing
+    print(f"\n{'='*60}")
+    print("AUTORESEARCH_RESULT")
+    print(f"contrastive_loss={result['contrastive_loss']:.6f}")
+    print(f"ordinal_loss={result['ordinal_loss']:.6f}")
+    print(f"probe_pairwise={result['probe_pairwise']:.6f}")
+    print(f"probe_r2={result['probe_r2']:.6f}")
+    print(f"elapsed={result['elapsed_seconds']}s")
+    print(f"{'='*60}")
+
+    # Also dump as JSON for machine parsing
+    print("AUTORESEARCH_JSON=" + json.dumps(result))
+
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
