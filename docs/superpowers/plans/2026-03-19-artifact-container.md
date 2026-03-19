@@ -18,15 +18,17 @@
 |------|--------|----------------|
 | `src/stores/artifact.ts` | Create | Zustand store: display state per artifact, exercise completion state, actions |
 | `src/stores/artifact.test.ts` | Create | Store unit tests: state transitions, guards, exercise state sync |
+| `src/contexts/artifact-scroll.ts` | Create | ArtifactScrollContext + useArtifactScrollContext hook (shared by Artifact + ArtifactOverlay) |
+| `src/lib/exercise-utils.ts` | Create | Shared `handsLabel()` utility used by ExerciseSetCard + ExerciseSetExpanded |
 | `src/components/Artifact.tsx` | Create | State machine wrapper, IntersectionObserver, renders collapsed/inline/expanded |
 | `src/components/ArtifactOverlay.tsx` | Create | React portal overlay with backdrop, Escape handler, scroll lock |
 | `src/components/cards/CollapsedPreview.tsx` | Create | Mini card (~56px): title, subtitle, badge, expand chevron |
 | `src/components/cards/ExerciseSetExpanded.tsx` | Create | Workspace view: all exercises expanded, assign+complete flow, progress |
-| `src/components/cards/ExerciseSetCard.tsx` | Modify | Add `onExpand` prop, expand icon in header, read exercise state from store |
+| `src/components/cards/ExerciseSetCard.tsx` | Modify | Add `onExpand` prop, expand icon in header, read exercise state from store (with local fallback) |
 | `src/components/InlineCard.tsx` | Modify | Accept and forward `onExpand` prop |
-| `src/components/ChatMessages.tsx` | Modify | Export `ArtifactScrollContext`, swap `InlineCard` for `Artifact` |
+| `src/components/ChatMessages.tsx` | Modify | Swap `InlineCard` for `Artifact`, wrap in ArtifactScrollContext provider |
 | `src/components/AppChat.tsx` | Modify | Add `<ArtifactOverlay />` as sibling to ChatMessages |
-| `src/styles/app.css` | Modify | Add artifact-collapse and backdrop animation keyframes |
+| `src/styles/app.css` | Modify | Add artifact-collapse, backdrop, and panel-out animation keyframes |
 
 All paths are relative to `apps/web/`.
 
@@ -43,7 +45,7 @@ All paths are relative to `apps/web/`.
 ```typescript
 // src/stores/artifact.test.ts
 import { afterEach, describe, expect, it } from "vitest";
-import { useArtifactStore } from "./artifact";
+import { useArtifactStore, getExpandedArtifact } from "./artifact";
 import type { InlineComponent } from "../lib/types";
 
 const mockComponent: InlineComponent = {
@@ -150,11 +152,19 @@ describe("useArtifactStore", () => {
     expect(getState().states.a1).toBeUndefined();
   });
 
-  it("expandedId returns the expanded artifact id", () => {
+  it("getExpandedArtifact returns null when nothing expanded", () => {
     getState().register("a1", mockComponent);
-    expect(getState().expandedId()).toBeNull();
+    const result = getExpandedArtifact(getState());
+    expect(result).toBeNull();
+  });
+
+  it("getExpandedArtifact returns expanded artifact", () => {
+    getState().register("a1", mockComponent);
     getState().expand("a1");
-    expect(getState().expandedId()).toBe("a1");
+    const result = getExpandedArtifact(getState());
+    expect(result).not.toBeNull();
+    expect(result?.id).toBe("a1");
+    expect(result?.entry.component).toBe(mockComponent);
   });
 
   it("setExerciseStatus tracks exercise state", () => {
@@ -218,7 +228,6 @@ interface ArtifactStore {
   restore(id: string): void;
   closeOverlay(id: string): void;
   unregister(id: string): void;
-  expandedId(): string | null;
 
   setExerciseStatus(
     artifactId: string,
@@ -228,7 +237,16 @@ interface ArtifactStore {
   ): void;
 }
 
-export const useArtifactStore = create<ArtifactStore>((set, get) => ({
+/** Atomic selector: returns the expanded artifact's id + entry, or null. */
+export function getExpandedArtifact(
+  state: Pick<ArtifactStore, "states">,
+): { id: string; entry: ArtifactEntry } | null {
+  const entries = Object.entries(state.states);
+  const expanded = entries.find(([_, e]) => e.state === "expanded");
+  return expanded ? { id: expanded[0], entry: expanded[1] } : null;
+}
+
+export const useArtifactStore = create<ArtifactStore>((set) => ({
   states: {},
 
   register(id, component) {
@@ -302,12 +320,6 @@ export const useArtifactStore = create<ArtifactStore>((set, get) => ({
     });
   },
 
-  expandedId() {
-    const entries = Object.entries(get().states);
-    const expanded = entries.find(([_, e]) => e.state === "expanded");
-    return expanded ? expanded[0] : null;
-  },
-
   setExerciseStatus(artifactId, exerciseId, status, studentExerciseId) {
     set((s) => {
       const entry = s.states[artifactId];
@@ -339,6 +351,52 @@ Expected: All 13 tests PASS
 ```bash
 git add apps/web/src/stores/artifact.ts apps/web/src/stores/artifact.test.ts
 git commit -m "feat(web): add artifact Zustand store with display and exercise state"
+```
+
+---
+
+### Task 1b: Shared Utilities (Scroll Context + handsLabel)
+
+**Files:**
+- Create: `src/contexts/artifact-scroll.ts`
+- Create: `src/lib/exercise-utils.ts`
+
+- [ ] **Step 1: Create the ArtifactScrollContext**
+
+This is extracted to its own file so that both `Artifact.tsx` and `ArtifactOverlay.tsx` can import it without depending on `ChatMessages.tsx` (which would create a circular dependency and break the build chain for parallel tasks).
+
+```typescript
+// src/contexts/artifact-scroll.ts
+import { createContext, useContext } from "react";
+
+export const ArtifactScrollContext = createContext<React.RefObject<HTMLDivElement | null> | null>(null);
+
+export function useArtifactScrollContext() {
+	return useContext(ArtifactScrollContext);
+}
+```
+
+- [ ] **Step 2: Create the shared handsLabel utility**
+
+```typescript
+// src/lib/exercise-utils.ts
+export function handsLabel(hands: "left" | "right" | "both"): string {
+	if (hands === "left") return "LH";
+	if (hands === "right") return "RH";
+	return "Both";
+}
+```
+
+- [ ] **Step 3: Verify the app builds**
+
+Run: `cd apps/web && bun run build`
+Expected: Build succeeds
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add apps/web/src/contexts/artifact-scroll.ts apps/web/src/lib/exercise-utils.ts
+git commit -m "feat(web): add ArtifactScrollContext and shared exercise utils"
 ```
 
 ---
@@ -404,6 +462,21 @@ Add after the existing `.animate-panel-slide-in` block (line 355 of `app.css`):
 
 .animate-backdrop-out {
 	animation: backdrop-out 200ms ease-in both;
+}
+
+@keyframes panel-out {
+	from {
+		opacity: 1;
+		transform: translateY(0) scale(1);
+	}
+	to {
+		opacity: 0;
+		transform: translateY(12px) scale(0.98);
+	}
+}
+
+.animate-panel-out {
+	animation: panel-out 150ms ease-in both;
 }
 ```
 
@@ -525,12 +598,15 @@ import { ArrowsOut } from "@phosphor-icons/react";
 import { api } from "../../lib/api";
 import type { ExerciseSetConfig } from "../../lib/types";
 import { useArtifactStore } from "../../stores/artifact";
+import { handsLabel } from "../../lib/exercise-utils";
 
 interface ExerciseSetCardProps {
 	config: ExerciseSetConfig;
 	onExpand?: () => void;
 	artifactId?: string;
 }
+
+type LocalAssignState = "idle" | "loading" | "assigned" | "error";
 
 interface ExerciseItemProps {
 	exercise: ExerciseSetConfig["exercises"][number];
@@ -539,41 +615,52 @@ interface ExerciseItemProps {
 	artifactId?: string;
 }
 
-function handsLabel(hands: "left" | "right" | "both"): string {
-	if (hands === "left") return "LH";
-	if (hands === "right") return "RH";
-	return "Both";
-}
-
 function ExerciseItem({
 	exercise,
 	isExpanded,
 	onToggle,
 	artifactId,
 }: ExerciseItemProps) {
+	// Store-backed state when artifactId is provided (inside Artifact wrapper)
 	const exerciseState = useArtifactStore((s) => {
 		if (!artifactId || !exercise.exercise_id) return undefined;
 		return s.states[artifactId]?.exerciseStates?.[exercise.exercise_id];
 	});
 	const setExerciseStatus = useArtifactStore((s) => s.setExerciseStatus);
 
-	const status = exerciseState?.status ?? "idle";
+	// Local fallback for standalone usage (without Artifact wrapper)
+	const [localState, setLocalState] = useState<LocalAssignState>("idle");
+	const useStore = Boolean(artifactId);
+
+	const status = useStore ? (exerciseState?.status ?? "idle") : localState;
 
 	async function handleAssign() {
-		if (!exercise.exercise_id || !artifactId) return;
-		setExerciseStatus(artifactId, exercise.exercise_id, "loading");
+		if (!exercise.exercise_id) return;
+		if (useStore && artifactId) {
+			setExerciseStatus(artifactId, exercise.exercise_id, "loading");
+		} else {
+			setLocalState("loading");
+		}
 		try {
 			const result = await api.exercises.assign({
 				exercise_id: exercise.exercise_id,
 			});
-			setExerciseStatus(
-				artifactId,
-				exercise.exercise_id,
-				"assigned",
-				result.id,
-			);
+			if (useStore && artifactId) {
+				setExerciseStatus(
+					artifactId,
+					exercise.exercise_id,
+					"assigned",
+					result.id,
+				);
+			} else {
+				setLocalState("assigned");
+			}
 		} catch {
-			setExerciseStatus(artifactId, exercise.exercise_id, "error");
+			if (useStore && artifactId) {
+				setExerciseStatus(artifactId, exercise.exercise_id, "error");
+			} else {
+				setLocalState("error");
+			}
 		}
 	}
 
@@ -755,16 +842,11 @@ import {
 	useArtifactStore,
 	type ExerciseStatus,
 } from "../../stores/artifact";
+import { handsLabel } from "../../lib/exercise-utils";
 
 interface ExerciseSetExpandedProps {
 	config: ExerciseSetConfig;
 	artifactId: string;
-}
-
-function handsLabel(hands: "left" | "right" | "both"): string {
-	if (hands === "left") return "LH";
-	if (hands === "right") return "RH";
-	return "Both";
 }
 
 interface ExpandedExerciseItemProps {
@@ -1013,15 +1095,15 @@ git commit -m "feat(web): add ExerciseSetExpanded workspace view with completion
 import { useCallback, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { X } from "@phosphor-icons/react";
-import { useArtifactStore } from "../stores/artifact";
+import { useArtifactStore, getExpandedArtifact } from "../stores/artifact";
 import { ExerciseSetExpanded } from "./cards/ExerciseSetExpanded";
-import { useArtifactScrollContext } from "./ChatMessages";
+import { useArtifactScrollContext } from "../contexts/artifact-scroll";
 
 function ArtifactOverlayContent() {
-	const expandedId = useArtifactStore((s) => s.expandedId());
-	const entry = useArtifactStore((s) =>
-		expandedId ? s.states[expandedId] : undefined,
-	);
+	// Atomic selector: both expandedId and entry come from a single subscription
+	const expanded = useArtifactStore((s) => getExpandedArtifact(s));
+	const expandedId = expanded?.id ?? null;
+	const entry = expanded?.entry ?? undefined;
 	const closeOverlay = useArtifactStore((s) => s.closeOverlay);
 	const scrollContainerRef = useArtifactScrollContext();
 	const isClosingRef = useRef(false);
@@ -1039,7 +1121,7 @@ function ArtifactOverlayContent() {
 			backdrop?.classList.remove("animate-backdrop-in");
 			backdrop?.classList.add("animate-backdrop-out");
 			panel?.classList.remove("animate-overlay-in");
-			panel?.classList.add("animate-backdrop-out");
+			panel?.classList.add("animate-panel-out");
 		}
 
 		setTimeout(() => {
@@ -1129,18 +1211,18 @@ function ArtifactOverlayContent() {
 }
 
 export function ArtifactOverlay() {
-	const expandedId = useArtifactStore((s) => s.expandedId());
-	if (!expandedId) return null;
+	const hasExpanded = useArtifactStore(
+		(s) => getExpandedArtifact(s) !== null,
+	);
+	if (!hasExpanded) return null;
 	return createPortal(<ArtifactOverlayContent />, document.body);
 }
 ```
 
-Note: `useArtifactScrollContext` will be exported from `ChatMessages.tsx` in Task 9. This component references it but won't be fully wired until then.
-
 - [ ] **Step 2: Verify the app builds**
 
 Run: `cd apps/web && bun run build`
-Expected: May show import error for `useArtifactScrollContext` -- that's expected until Task 9
+Expected: Build succeeds (imports resolve to `contexts/artifact-scroll.ts` from Task 1b)
 
 - [ ] **Step 3: Commit**
 
@@ -1165,7 +1247,7 @@ import type { InlineComponent, ExerciseSetConfig } from "../lib/types";
 import { useArtifactStore } from "../stores/artifact";
 import { InlineCard } from "./InlineCard";
 import { CollapsedPreview } from "./cards/CollapsedPreview";
-import { useArtifactScrollContext } from "./ChatMessages";
+import { useArtifactScrollContext } from "../contexts/artifact-scroll";
 
 interface ArtifactProps {
 	artifactId: string;
@@ -1206,12 +1288,23 @@ export function Artifact({ artifactId, component }: ArtifactProps) {
 
 	const elementRef = useRef<HTMLDivElement>(null);
 	const collapseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const mountedRef = useRef(false);
 	const scrollContainerRef = useArtifactScrollContext();
 
 	// Register on mount, unregister on unmount
 	useEffect(() => {
 		register(artifactId, component);
-		return () => unregister(artifactId);
+		// Delay enabling the observer so the initial intersection callback
+		// (which fires immediately with isIntersecting=false if off-screen)
+		// does not collapse the artifact before the user has seen it.
+		const timer = setTimeout(() => {
+			mountedRef.current = true;
+		}, 1000);
+		return () => {
+			clearTimeout(timer);
+			mountedRef.current = false;
+			unregister(artifactId);
+		};
 	}, [artifactId, component, register, unregister]);
 
 	// IntersectionObserver for auto-collapse
@@ -1222,6 +1315,8 @@ export function Artifact({ artifactId, component }: ArtifactProps) {
 
 		const observer = new IntersectionObserver(
 			([entry]) => {
+				// Skip callbacks until mount grace period expires
+				if (!mountedRef.current) return;
 				if (entry.isIntersecting) {
 					// Came back into view -- cancel pending collapse
 					if (collapseTimerRef.current) {
@@ -1305,10 +1400,8 @@ Replace the contents of `ChatMessages.tsx` with:
 ```tsx
 // src/components/ChatMessages.tsx
 import {
-	createContext,
 	memo,
 	useCallback,
-	useContext,
 	useEffect,
 	useRef,
 	useState,
@@ -1316,13 +1409,7 @@ import {
 import type { RichMessage } from "../lib/types";
 import { Artifact } from "./Artifact";
 import { MessageContent } from "./MessageContent";
-
-// Context for sharing the chat scroll container ref with Artifact + ArtifactOverlay
-const ArtifactScrollContext = createContext<React.RefObject<HTMLDivElement | null> | null>(null);
-
-export function useArtifactScrollContext() {
-	return useContext(ArtifactScrollContext);
-}
+import { ArtifactScrollContext } from "../contexts/artifact-scroll";
 
 interface ChatMessagesProps {
 	messages: RichMessage[];
@@ -1496,7 +1583,7 @@ const MessageBubble = memo(function MessageBubble({
 
 Key changes from the original:
 - Import `Artifact` instead of `InlineCard`
-- Create and export `ArtifactScrollContext` + `useArtifactScrollContext`
+- Import `ArtifactScrollContext` from `contexts/artifact-scroll` (extracted to its own file)
 - Wrap scroll container in `ArtifactScrollContext.Provider`
 - Replace `<InlineCard>` with `<Artifact>` in `MessageBubble`
 - Guard artifact rendering on `!message.streaming`
@@ -1606,22 +1693,23 @@ Assign an exercise in the inline card ("Try this"), then expand. Verify the expa
 ## Dependency Order
 
 ```
-Task 1 (store) ─────────────┐
-Task 2 (CSS)  ───────────┐  │
-Task 3 (CollapsedPreview) │  │
-                          ▼  ▼
+Task 1 (store) ──────────────┐
+Task 1b (scroll ctx + utils) ┤
+Task 2 (CSS) ────────────────┤
+Task 3 (CollapsedPreview) ───┤
+                             ▼
 Task 4 (ExerciseSetCard) ────┤
 Task 5 (InlineCard) ────────┤
 Task 6 (ExerciseSetExpanded) │
                              ▼
-Task 7 (ArtifactOverlay) ───┤
-Task 8 (Artifact wrapper) ──┤
+Task 7 (ArtifactOverlay) ───┤  (imports from contexts/artifact-scroll, not ChatMessages)
+Task 8 (Artifact wrapper) ──┤  (imports from contexts/artifact-scroll, not ChatMessages)
                              ▼
-Task 9 (ChatMessages wiring)
+Task 9 (ChatMessages wiring) ──── all components compile independently
                              │
 Task 10 (AppChat wiring) ───┘
                              │
 Task 11 (Smoke test) ───────┘
 ```
 
-Tasks 1, 2, 3 can run in parallel. Tasks 4, 5, 6 can run in parallel (after 1). Tasks 7, 8 depend on their respective components. Tasks 9, 10 are sequential wiring. Task 11 requires everything.
+Tasks 1, 1b, 2, 3 can run in parallel. Tasks 4, 5, 6 can run in parallel (after 1 + 1b). Tasks 7, 8 can run in parallel (all imports resolve). Tasks 9, 10 are sequential wiring. Task 11 requires everything. Every commit compiles.
