@@ -793,6 +793,84 @@ impl PracticeSession {
         }
     }
 
+    // --- Session summary ---
+
+    /// Generate an LLM session summary using Anthropic.
+    /// Returns the summary text, or None if generation fails or should be skipped.
+    async fn generate_session_summary(
+        &self,
+        observations: &[ObservationRecord],
+        student_id: &str,
+    ) -> Option<String> {
+        // Skip for eval sessions
+        if self.inner.borrow().is_eval_session {
+            return None;
+        }
+
+        // Skip if no observations
+        if observations.is_empty() {
+            return None;
+        }
+
+        // 1. Load memory context (D1 queries for cross-session facts)
+        let now = js_sys::Date::new_0()
+            .to_iso_string()
+            .as_string()
+            .unwrap_or_default();
+        let today = &now[..10.min(now.len())];
+        let memory_ctx = crate::services::memory::build_memory_context(
+            &self.env, student_id, None, today, None,
+        ).await;
+        let memory_text = crate::services::memory::format_memory_context(&memory_ctx);
+
+        // 2. Build piece context string
+        let piece_context = {
+            let s = self.inner.borrow();
+            s.score_context.as_ref().map(|ctx| {
+                format!("{} - {}", ctx.composer, ctx.title)
+            })
+        };
+
+        // 3. Build observation tuples for the prompt
+        let obs_tuples: Vec<(String, String, String, f64, f64)> = observations
+            .iter()
+            .map(|o| (
+                o.dimension.clone(),
+                o.text.clone(),
+                o.framing.clone(),
+                o.score,
+                o.baseline,
+            ))
+            .collect();
+
+        // 4. Build prompt
+        let user_prompt = crate::services::prompts::build_session_summary_prompt(
+            &obs_tuples,
+            &memory_text,
+            piece_context.as_deref(),
+        );
+
+        // 5. Call Anthropic (non-streaming, 300 max tokens)
+        // No explicit timeout needed: CF Workers enforces a 30s subrequest limit,
+        // and the 300 max_tokens cap keeps generation fast (~1-2s typical).
+        match crate::services::llm::call_anthropic(
+            &self.env,
+            crate::services::prompts::SESSION_SUMMARY_SYSTEM,
+            &user_prompt,
+            300,
+        ).await {
+            Ok(text) if !text.is_empty() => {
+                console_log!("Session summary generated for {}", student_id);
+                Some(text)
+            }
+            Ok(_) => None,
+            Err(e) => {
+                console_error!("Session summary generation failed: {}", e);
+                None
+            }
+        }
+    }
+
     // --- Session finalization ---
 
     async fn finalize_session(&self, ws: Option<&WebSocket>) {
@@ -846,7 +924,7 @@ impl PracticeSession {
             }
         }
 
-        // 3. Send session_summary via WebSocket
+        // 3. Generate LLM summary + send session_summary via WebSocket
         if let Some(ws) = ws {
             let obs_json: Vec<serde_json::Value> = observations
                 .iter()
@@ -857,10 +935,16 @@ impl PracticeSession {
                 }))
                 .collect();
 
+            // Generate LLM summary (skips for eval sessions, empty sessions, or on failure)
+            let summary_text = self
+                .generate_session_summary(&observations, &student_id)
+                .await
+                .unwrap_or_default();
+
             let summary = serde_json::json!({
                 "type": "session_summary",
                 "observations": obs_json,
-                "summary": "",
+                "summary": summary_text,
                 "inference_failures": inference_failures,
                 "total_chunks": total_chunks,
             });
