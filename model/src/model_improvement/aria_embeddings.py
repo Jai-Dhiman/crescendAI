@@ -147,6 +147,10 @@ def extract_embedding(midi_path: Path, variant: str = "embedding") -> torch.Tens
 
     if variant == "embedding":
         model = _load_embedding_model()
+        # get_global_embedding_from_midi chunks by notes_per_chunk (default 300),
+        # extracts EOS-position embedding per chunk, and averages across chunks.
+        # PercePiano segments have ~64 notes (< 300), so this produces a single
+        # chunk = pure EOS-position embedding matching the spec.
         emb = get_global_embedding_from_midi(
             model, midi_path=str(midi_path), device="cpu"
         )
