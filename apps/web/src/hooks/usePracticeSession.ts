@@ -250,7 +250,7 @@ export function usePracticeSession(): UsePracticeSessionReturn {
 					} else {
 						builtSummary = `I listened to ${chunksCount} sections of your playing.\n\nI didn't notice anything specific to flag this time. Want to talk about how it felt?`;
 					}
-					setSummary(builtSummary);
+					setSummary(data.summary || builtSummary);
 					setState("idle");
 					cleanup();
 					break;
