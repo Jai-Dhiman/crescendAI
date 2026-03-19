@@ -1,6 +1,6 @@
 # CrescendAI Research & Product Timeline
 
-> **Status (2026-03-19):** ALL PREVIOUS PAIRWISE ACCURACY NUMBERS ARE INVALID -- fold leaking confirmed. Clean piece-stratified folds verified. **Aria validation complete (Phase A):** Frozen Aria embeddings achieve 59.6% pairwise (marginal, above chance but below 60% threshold). Frozen mean-pooled MuQ achieves 62.2%. Error correlation phi=0.043 (near-zero -- fusion very promising). Next: Phase B (contrastive pretraining on T2+T5) + Phase C (LoRA fine-tuning).
+> **Status (2026-03-19):** Clean-fold baseline established. A1-Max on clean piece-stratified folds: **77.5% pairwise** (4-fold mean), down from inflated 80.8% on leaked folds. Loss weight autoresearch (8 iterations) found optimized weights: contrastive 0.3->0.6, regression 0.3->0.8. Fold-0 result: pairwise 76.4%->77.2%, R2 -0.055->+0.240 (from broken to meaningful). 4-fold validation running. **Aria validation complete (Phase A):** Frozen Aria 59.6% pairwise, frozen MuQ 62.2%. Error correlation phi=0.043. Next: Phase B (contrastive pretraining) + Phase C (LoRA fine-tuning).
 
 > **FOLD LEAK WARNING:** All pairwise accuracy numbers in the Legacy Results section below were computed with leaked folds (segments from the same piece appearing in both train and val splits). These numbers are INVALID for model comparison. Clean piece-stratified folds are now in place. All future results use piece-stratified CV only.
 
@@ -373,7 +373,7 @@ The original Wave 2 (new data + robustness) and Wave 3 (score-conditioned model)
 ### Open
 
 - **Aria error decorrelation:** Does Aria's pretrained representation produce errors decorrelated from MuQ? If correlation stays >0.6, fusion still won't help. Critical experiment in Week 5 of model v2 plan.
-- **Clean-fold baseline:** What are the actual pairwise accuracy numbers on piece-stratified folds? All current numbers are invalid. First priority after retraining.
+- ~~**Clean-fold baseline:**~~ **ANSWERED (2026-03-19).** A1-Max on clean piece-stratified folds: 77.5% pairwise (4-fold mean), R2=0.119 with original weights. Optimized loss weights (contrastive=0.6, regression=0.8) improve fold-0 to pairwise=77.2%, R2=+0.240. 4-fold ensemble validation in progress. ~3.3pp drop from leaked 80.8% confirms leak was real.
 - **Rubato detection algorithm:** Compensatory return analysis designed (see `04-north-star.md`). Decision: confidence threshold + silence (only flag timing when clearly NOT rubato). Needs validation on real student recordings. Phase 2.
 - **Dynamics "amount" vs "appropriateness":** Competition correlation is inverted (rho=-0.917). Aria's score conditioning (delta = z_perf - z_score) should fix this at the model level. Phase 1's bar-aligned analysis partially addresses via LLM reasoning ("score says pp").
 - **Annotation noise ceiling:** PercePiano uses crowdsourced IRT. Expert annotation (Phase 4) may reveal model is already near label quality ceiling.

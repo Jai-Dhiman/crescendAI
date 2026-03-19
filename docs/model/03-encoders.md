@@ -2,7 +2,7 @@
 
 Living document tracking audio and symbolic encoder architectures, training results, and next experiments.
 
-> **Status (2026-03-18):** A1-Max DEPLOYED but ALL previous pairwise accuracy numbers are INVALID due to fold leaking. Clean piece-stratified folds now verified. Aria (EleutherAI) selected as primary symbolic encoder, replacing all custom architectures. Score conditioning from day one. Fusion now viable.
+> **Status (2026-03-19):** A1-Max DEPLOYED. Clean-fold baseline established: **77.5% pairwise** (4-fold mean, original weights). Loss weight autoresearch found optimized config (contrastive 0.3->0.6, regression 0.3->0.8): fold-0 pairwise 77.2%, R2 +0.240 (from -0.055). 4-fold ensemble validation in progress. Aria (EleutherAI) selected as primary symbolic encoder. Fusion now viable (phi=0.043).
 
 **Notebooks:** `model/notebooks/model_improvement/01_audio_training.ipynb`, `02_symbolic_training.ipynb`
 **Code:** `model/src/model_improvement/`
@@ -33,7 +33,11 @@ MuQ embeddings [93, 1024]
   -> Regression head (6 dims, sigmoid output)
 ```
 
-**Loss:** `L = L_ranking + 1.5 * L_ListMLE + 0.3 * L_contrastive + 0.3 * L_CCC + 0.1 * L_invariance`
+**Loss (original):** `L = L_ranking + 1.5 * L_ListMLE + 0.3 * L_contrastive + 0.3 * L_CCC + 0.1 * L_invariance`
+
+**Loss (optimized, 2026-03-19):** `L = L_ranking + 1.5 * L_ListMLE + 0.6 * L_contrastive + 0.8 * L_CCC + 0.1 * L_invariance`
+
+Autoresearch (8 iterations) found that the original weights drastically underweighted regression -- producing a model that ranked well but gave meaningless absolute scores (R2 < 0). Doubling contrastive and nearly tripling regression weight recovers R2 to +0.24 without sacrificing pairwise accuracy. Key findings: contrastive provides crucial regularization even when near-converged; mixup is essential for PercePiano's small sample size (~900 training samples per fold).
 
 Key improvements over A1 baseline: ListMLE ranking loss (Plackett-Luce likelihood), CCC regression loss, embedding mixup, hard negative mining with curriculum, wider LoRA adaptation (layers 7-12 vs 9-12), label smoothing (0.1).
 
@@ -44,6 +48,31 @@ Key improvements over A1 baseline: ListMLE ranking loss (Plackett-Luce likelihoo
 - **Input:** 15-second audio chunks at 24kHz mono
 - **Output:** 6 dimension scores (0-1 range)
 - **Calibration:** MAESTRO calibration stats in `model/data/maestro_cache/calibration_stats.json`
+
+### Results: Clean Piece-Stratified Folds (2026-03-19)
+
+#### Ablation Sweep (original loss weights)
+
+| Config | Pairwise (4-fold mean) | R2 (4-fold mean) |
+|--------|----------------------|-----------------|
+| **full_a1max_repro** | **77.50%** | **0.119** |
+| bce_listmle_ccc | 75.43% | -1.087 |
+| bce_ranking_only | 73.02% | -0.258 |
+| bce_plus_listmle | 69.73% | -11.138 |
+| frozen_probe | 53.42% | 0.461 |
+
+The ~3.3pp drop from leaked 80.8% to clean 77.5% confirms the fold leak was real and inflated results. Ranking losses (ListMLE) are essential -- removing them drops pairwise by 4-8pp. Frozen probe (regression-only, no LoRA) gets the best absolute R2 (0.46) but terrible ranking (53.4%).
+
+#### Optimized Loss Weights (fold-0 results, 4-fold validation in progress)
+
+Loss weight autoresearch (8 iterations, single-fold): found that contrastive=0.6, regression=0.8 (vs original 0.3, 0.3) dramatically improves R2 without hurting pairwise.
+
+| Config | Pairwise (fold 0) | R2 (fold 0) |
+|--------|-------------------|-------------|
+| Original weights | 76.44% | -0.055 |
+| **Optimized weights** | **77.15%** | **+0.240** |
+
+R2 improvement from -0.055 to +0.240 means the model now produces meaningful absolute scores in addition to rankings. Full results: `model/data/results/loss_weight_autoresearch.tsv`, `model/data/results/loss_weight_changelog.md`.
 
 ### Results (INVALID -- fold leak, retained for relative comparison only)
 

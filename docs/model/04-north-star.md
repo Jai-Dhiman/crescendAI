@@ -2,7 +2,7 @@
 
 Vision document for the ideal piano performance evaluation system, from recording to actionable feedback. Captures the complete 8-stage pipeline, phased implementation roadmap, and the rationale behind every architectural decision.
 
-> **Status (2026-03-18):** Vision document. **Phase 1 (score infrastructure) COMPLETE.** Phase 0+3 collapsed into "Model v2" (Aria + MuQ + gated fusion). Score conditioning is IMMEDIATE via Aria. ALL previous pairwise numbers INVALID (fold leak). See `03-encoders.md` for encoder details and Aria architecture.
+> **Status (2026-03-19):** Vision document. **Phase 1 (score infrastructure) COMPLETE.** Phase 0+3 collapsed into "Model v2" (Aria + MuQ + gated fusion). Clean-fold baseline established: A1-Max 77.5% pairwise (4-fold). Loss weights optimized (contrastive 2x, regression 2.7x): fold-0 pairwise 77.2%, R2 +0.24. See `03-encoders.md` for encoder details and Aria architecture.
 
 ---
 
@@ -91,7 +91,7 @@ The model v2 system targets 8 perceptual capabilities, from immediate inference 
 |---|-----------|-------------|---------|--------|
 | 1 | **AMT** | Automatic music transcription (audio -> MIDI) | ByteDance piano transcription | DEPLOYED |
 | 2 | **Piece identification** | Fuzzy matching against score library | Score following (DTW) | COMPLETE |
-| 3 | **Quality assessment** | 6-dimension relative quality scoring | MuQ + Aria (gated fusion) | RETRAINING (clean folds) |
+| 3 | **Quality assessment** | 6-dimension relative quality scoring | MuQ + Aria (gated fusion) | BASELINE ESTABLISHED (clean folds: 77.5% pairwise, optimized weights found) |
 | 4 | **Skill level** | Beginner/intermediate/advanced classification | MuQ + Aria (ordinal training) | NOT STARTED (A1-Max has zero discrimination) |
 | 5 | **STOP detection** | "Would a teacher stop here?" | Logistic regression on scores | COMPLETE (needs retrain on clean folds) |
 | 6 | **Difficulty estimation** | Per-passage technical difficulty | Score analysis + reference stats | COMPLETE (score infrastructure) |
@@ -158,7 +158,7 @@ Instead of expensive expert annotation, use professional recordings as implicit 
 
 | Tier | Metric | Requirement | Purpose |
 |------|--------|-------------|---------|
-| **E1** | Pairwise accuracy (clean folds) | > 75% (audio), > 70% (symbolic), > 80% (fused) | Core ranking quality |
+| **E1** | Pairwise accuracy (clean folds) | > 75% (audio), > 70% (symbolic), > 80% (fused) | Core ranking quality. **Audio: 77.5% PASS (4-fold mean, original weights)** |
 | **E2** | Per-dimension error correlation | r < 0.5 between audio and symbolic | Fusion viability gate |
 | **E3** | Skill-level discrimination | Cohen's d > 0.8 between adjacent levels | Multi-tier training validation |
 
@@ -302,7 +302,7 @@ Result: Same A1-Max scores, but teacher says "In bars 12-16, the crescendo is ti
 
 Build:
 
-- Retrain A1-Max on clean piece-stratified folds (establish valid baselines)
+- ~~Retrain A1-Max on clean piece-stratified folds (establish valid baselines)~~ DONE (2026-03-19): 77.5% pairwise (4-fold, original weights). Loss weights optimized via autoresearch: contrastive=0.6, regression=0.8.
 - Fine-tune Aria on PercePiano (performance MIDI + score MIDI)
 - Quality-aware contrastive pretraining for both encoders
 - Per-dimension gated fusion with score conditioning (delta = z_perf - z_score)
