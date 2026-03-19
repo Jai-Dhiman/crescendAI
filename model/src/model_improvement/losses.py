@@ -158,6 +158,81 @@ def ccc_loss(
     return 1.0 - ccc
 
 
+def ordinal_margin_loss(
+    embeddings: torch.Tensor,
+    piece_ids: torch.Tensor,
+    quality_scores: torch.Tensor,
+    margin_scale: float = 0.1,
+    eps: float = 1e-8,
+) -> torch.Tensor:
+    """Ordinal margin loss using cross-piece anchors.
+
+    For each ordered pair (better, worse) within the same piece,
+    samples a random anchor from a different piece and enforces:
+        sim(anchor, better) > sim(anchor, worse) + margin
+
+    Args:
+        embeddings: L2-normalized projected embeddings [B, D].
+        piece_ids: Piece membership per segment [B].
+        quality_scores: Normalized quality in [0,1], higher=better [B].
+        margin_scale: Scales the quality gap into a similarity margin.
+        eps: Small constant for numerical stability.
+
+    Returns:
+        Scalar loss (0 if no valid pairs exist).
+    """
+    batch_size = embeddings.size(0)
+
+    if batch_size < 2:
+        return torch.tensor(0.0, device=embeddings.device, requires_grad=True)
+
+    # Pairwise cosine similarity [B, B]
+    sim = torch.matmul(embeddings, embeddings.T)
+
+    # Masks
+    same_piece = piece_ids.unsqueeze(0) == piece_ids.unsqueeze(1)
+    diff_piece = ~same_piece
+
+    if not diff_piece.any():
+        return torch.tensor(0.0, device=embeddings.device, requires_grad=True)
+
+    # Ordered pairs: (i, j) where quality_i > quality_j, same piece
+    quality_diff = quality_scores.unsqueeze(1) - quality_scores.unsqueeze(0)
+    ordered_mask = same_piece & (quality_diff > eps)
+
+    if not ordered_mask.any():
+        return torch.tensor(0.0, device=embeddings.device, requires_grad=True)
+
+    pair_indices = ordered_mask.nonzero(as_tuple=False)  # [N, 2]
+
+    # NOTE: Python for-loop over pairs is O(n^2) in same-piece segments.
+    # Acceptable for batch_size=16. Vectorize if batch sizes increase.
+    loss = torch.tensor(0.0, device=embeddings.device, requires_grad=True)
+    count = 0
+
+    for idx in range(pair_indices.size(0)):
+        i, j = pair_indices[idx]
+        anchor_mask = diff_piece[i]
+        if not anchor_mask.any():
+            continue
+
+        anchor_indices = anchor_mask.nonzero(as_tuple=True)[0]
+        k = anchor_indices[torch.randint(len(anchor_indices), (1,))]
+
+        margin = margin_scale * (quality_scores[i] - quality_scores[j])
+        sim_better = sim[k, i]
+        sim_worse = sim[k, j]
+
+        pair_loss = torch.clamp(margin - (sim_better - sim_worse), min=0.0)
+        loss = loss + pair_loss.squeeze()
+        count += 1
+
+    if count > 0:
+        loss = loss / count
+
+    return loss
+
+
 class DimensionWiseRankingLoss(nn.Module):
     """Per-dimension binary cross-entropy ranking loss with ambiguity filtering.
 
