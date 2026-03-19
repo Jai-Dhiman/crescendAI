@@ -147,6 +147,27 @@ ABLATION_CONFIGS = {
         "lora_target_layers": (7, 8, 9, 10, 11, 12),
         "label_smoothing": 0.1,
     },
+    "optimized_weights": {
+        "_model_class": "MuQLoRAMaxModel",
+        "input_dim": 1024,
+        "hidden_dim": 512,
+        "num_labels": NUM_DIMS,
+        "learning_rate": 3e-5,
+        "weight_decay": 1e-5,
+        "temperature": 0.07,
+        "lambda_listmle": 1.5,
+        "lambda_contrastive": 0.6,
+        "lambda_regression": 0.8,
+        "lambda_invariance": 0.1,
+        "use_ccc": True,
+        "mixup_alpha": 0.2,
+        "warmup_epochs": 5,
+        "max_epochs": 200,
+        "use_pretrained_muq": False,
+        "lora_rank": 32,
+        "lora_target_layers": (7, 8, 9, 10, 11, 12),
+        "label_smoothing": 0.1,
+    },
 }
 
 MODEL_CLASSES = {
@@ -253,7 +274,19 @@ def run_ablation_sweep(
                 accumulate_grad_batches=ACCUM_BATCHES,
             )
 
-            trained_model = trainer.lightning_module
+            # Load best checkpoint (not last epoch)
+            ckpt_cb = None
+            for cb in trainer.callbacks:
+                if isinstance(cb, pl.callbacks.ModelCheckpoint):
+                    ckpt_cb = cb
+                    break
+            if ckpt_cb is not None and ckpt_cb.best_model_path:
+                print(f"    Loading best: {ckpt_cb.best_model_path}")
+                trained_model = model_class.load_from_checkpoint(
+                    ckpt_cb.best_model_path
+                )
+            else:
+                trained_model = trainer.lightning_module
             trained_model.cpu()
             trained_model.eval()
 
