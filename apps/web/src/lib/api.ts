@@ -290,4 +290,17 @@ export const api = {
 			});
 		},
 	},
+
+	waitlist: {
+		join(
+			email: string,
+			context?: string,
+			name?: string,
+		): Promise<{ ok: boolean }> {
+			return request("/api/waitlist", {
+				method: "POST",
+				body: JSON.stringify({ email, context, name }),
+			});
+		},
+	},
 };
