@@ -1,3 +1,5 @@
+[![sloprank](https://sloprank.io/badge/jai-dhiman/crescendai.svg)](https://sloprank.io/repo/jai-dhiman/crescendai)
+
 # CrescendAI
 
 **A teacher for every pianist.**
