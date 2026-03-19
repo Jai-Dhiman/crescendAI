@@ -1,9 +1,155 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
 
-export const Route = createFileRoute("/signin")({ component: SignInPage });
+const isWaitlistMode = import.meta.env.VITE_AUTH_MODE !== "live";
+
+export const Route = createFileRoute("/signin")({
+	component: isWaitlistMode ? WaitlistPage : SignInPage,
+});
+
+function WaitlistPage() {
+	const [email, setEmail] = useState("");
+	const [context, setContext] = useState("");
+	const [honeypot, setHoneypot] = useState("");
+	const [loading, setLoading] = useState(false);
+	const [error, setError] = useState<string | null>(null);
+	const [submitted, setSubmitted] = useState(false);
+
+	const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+		e.preventDefault();
+		if (honeypot) {
+			setSubmitted(true);
+			return;
+		}
+		setLoading(true);
+		setError(null);
+		try {
+			await api.waitlist.join(email, context || undefined);
+			setSubmitted(true);
+		} catch {
+			setError("Something went wrong. Please try again.");
+		} finally {
+			setLoading(false);
+		}
+	};
+
+	return (
+		<div className="relative h-screen w-full overflow-hidden">
+			<img
+				src="/Image5.jpg"
+				alt="Hands playing piano in warm light"
+				className="absolute inset-0 w-full h-full object-cover"
+			/>
+
+			<div
+				className="absolute inset-0"
+				style={{
+					background:
+						"radial-gradient(ellipse at center, rgba(45,41,38,0.4) 0%, rgba(45,41,38,0.85) 100%)",
+				}}
+			/>
+
+			<div className="relative z-10 flex items-center justify-center h-full px-6">
+				<div
+					className="w-full max-w-sm bg-surface/80 backdrop-blur-xl border border-border px-8 py-14 text-center rounded-2xl"
+					style={{
+						animation:
+							"fade-in-up 600ms cubic-bezier(0.16, 1, 0.3, 1) both",
+					}}
+				>
+					<h1 className="font-display text-display-sm text-cream">
+						crescend
+					</h1>
+
+					<p className="mt-3 text-body-md text-text-secondary">
+						A teacher for every pianist.
+					</p>
+
+					{submitted ? (
+						<div
+							style={{
+								animation:
+									"fade-in-up 500ms cubic-bezier(0.16, 1, 0.3, 1) both",
+							}}
+						>
+							<p className="mt-8 font-display text-body-lg text-cream font-medium">
+								You're on the list.
+							</p>
+							<p className="mt-2 text-body-sm text-text-secondary">
+								We'll reach out when your spot is ready.
+							</p>
+							<Link
+								to="/"
+								className="mt-6 inline-block text-body-xs text-text-tertiary underline hover:text-text-secondary transition"
+							>
+								Back to homepage
+							</Link>
+						</div>
+					) : (
+						<form onSubmit={handleSubmit} className="mt-8">
+							<p className="text-body-sm text-text-secondary mb-6">
+								We're building something new. Join the beta
+								waitlist to be first in.
+							</p>
+
+							<input
+								type="email"
+								required
+								value={email}
+								onChange={(e) => setEmail(e.target.value)}
+								placeholder="Your email"
+								className="w-full bg-surface-2 text-cream border border-border rounded-lg px-4 py-3 text-body-sm placeholder:text-text-tertiary focus:outline-none focus:border-accent transition"
+							/>
+
+							{/* Honeypot */}
+							<input
+								name="name"
+								value={honeypot}
+								onChange={(e) => setHoneypot(e.target.value)}
+								style={{ position: "absolute", left: "-9999px" }}
+								tabIndex={-1}
+								autoComplete="off"
+							/>
+
+							<label className="block mt-4 text-left">
+								<span className="text-body-xs text-text-tertiary">
+									What do you play or practice?
+								</span>
+								<textarea
+									value={context}
+									onChange={(e) => setContext(e.target.value)}
+									rows={2}
+									placeholder="e.g., Working through Chopin Nocturnes, intermediate level"
+									className="mt-1.5 w-full bg-surface-2 text-cream border border-border rounded-lg px-4 py-3 text-body-sm placeholder:text-text-tertiary focus:outline-none focus:border-accent transition resize-none"
+								/>
+							</label>
+
+							{error && (
+								<p className="mt-4 text-body-sm text-red-400">
+									{error}
+								</p>
+							)}
+
+							<button
+								type="submit"
+								disabled={loading}
+								className="mt-6 w-full bg-accent text-cream px-6 py-3 text-body-sm font-medium rounded-lg hover:brightness-110 transition disabled:opacity-50"
+							>
+								{loading ? "Joining..." : "Join the Waitlist"}
+							</button>
+
+							<p className="mt-6 text-body-xs text-text-tertiary">
+								We'll only email you about beta access.
+							</p>
+						</form>
+					)}
+				</div>
+			</div>
+		</div>
+	);
+}
 
 let gsiInitialized = false;
 
