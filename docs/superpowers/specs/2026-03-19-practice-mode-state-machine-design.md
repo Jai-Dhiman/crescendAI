@@ -45,14 +45,17 @@ struct ChunkSignal {
     chunk_index: usize,
     timestamp_ms: u64,            // js_sys::Date::now()
     pitch_bigrams: Vec<(u8, u8)>, // consecutive pitch pairs from perf_notes
-    bar_range: Option<(u32, u32)>, // from score follower, if available
+    bar_range: Option<(u32, u32)>, // from BarMap (score_follower::align_chunk), NOT ChunkAnalysis
     has_piece_match: bool,         // score_context is Some
-    note_count: usize,             // perf_notes.len() -- proxy for activity
-    mean_score: f64,               // average of 6 dim scores
+    scores: [f64; 6],             // raw 6-dim scores for drilling comparison
 }
 ```
 
 `pitch_bigrams` are extracted from the `PerfNote` MIDI data that the HF endpoint already returns. No new inference cost. A 15s chunk with ~50 notes produces ~49 bigrams.
+
+**`bar_range` source:** Derived from the `BarMap` returned by `score_follower::align_chunk`, not from `ChunkAnalysis.bar_range` (which is a formatted `Option<String>`). `process_inference_result` must extract `(min_bar, max_bar)` from the `BarMap` before it is consumed by analysis. The `BarMap` contains `u32` bar numbers; the min and max of its keys give the chunk's bar range.
+
+**Transposition limitation:** Pitch bigrams use raw MIDI pitch values `(u8, u8)`. A passage practiced an octave higher would not match the original. This is acceptable for v1 -- pitch-class bigrams `(pitch % 12, pitch % 12)` can be added later if false negatives in drilling detection are observed.
 
 ### ModeDetector
 
@@ -71,6 +74,8 @@ struct DrillingPassage {
     repetition_count: usize,
     first_scores: [f64; 6],  // scores from first repetition (for comparison)
 }
+// When entering Drilling from any mode, drilling_passage is initialized fresh
+// from the current chunk's bar_range and scores. Previous drilling data is discarded.
 ```
 
 The `recent_signals` window of 4 chunks (~60 seconds) provides enough history for mode detection without unbounded growth.
@@ -94,6 +99,7 @@ Each chunk, `ModeDetector::update()` evaluates transitions based on explicit sig
 **From Warming (initial state):**
 - -> `Running`: piece match detected AND bar coverage progressing forward
 - -> `Drilling`: repetition detected in last 3 chunks
+- -> `Winding`: silence gap > 60s (via two-step transition, see Silence Gap Detection)
 - -> `Regular`: 4+ chunks processed without triggering Running or Drilling
 - Stays `Warming`: < 4 chunks AND no piece match AND no repetition
 
@@ -103,8 +109,8 @@ Each chunk, `ModeDetector::update()` evaluates transitions based on explicit sig
 - Stays `Running`: forward progress continues
 
 **From Drilling:**
-- -> `Running`: last 2 chunks show no repetition AND forward bar progress (or new pitch material)
-- -> `Winding`: silence gap > 60s
+- -> `Running`: the two most recent chunks (positions `[n]` and `[n-1]` only, not the full window) show no repetition AND forward bar progress (or new pitch material). This prevents stale drilling signals in the window from keeping the mode locked.
+- -> `Winding`: silence gap > 60s (via two-step transition)
 - Stays `Drilling`: repetition continues, increment `repetition_count`
 
 **From Regular (fallback):**
@@ -136,16 +142,40 @@ drilling = dice >= 0.6
 ```
 Dice coefficient on pitch bigrams. Threshold 0.6 catches passages played at different tempos or with minor corrections.
 
-### Silence Gap Detection
+### Silence Gap Detection (Two-Step Transition)
 
-Silence means no `chunk_ready` arrives (client's silence gate skips upload). Detected by comparing `last_chunk_at_ms` to current timestamp on each new chunk arrival:
+Silence means no `chunk_ready` arrives (client's silence gate skips upload). Detected by comparing `last_chunk_at_ms` to current timestamp on each new chunk arrival.
+
+**The problem with naive detection:** If we simply transition to Winding on gap detection, the first chunk after a break would be evaluated under Winding's suppress policy -- exactly backwards, since that chunk represents the student resuming play.
+
+**Solution: two-step transition within a single `update()` call.**
 
 ```
-gap_ms = current_chunk.timestamp_ms - last_chunk_at_ms
-if gap_ms > 60_000 { transition to Winding }
+fn update(&mut self, signal: &ChunkSignal) -> Vec<ModeTransition> {
+    let gap_ms = signal.timestamp_ms - self.last_chunk_at_ms;
+    let mut transitions = Vec::new();
+
+    // Step 1: If long silence detected, transition to Winding first
+    if gap_ms > 60_000 && self.mode != PracticeMode::Winding {
+        self.mode = PracticeMode::Winding;
+        transitions.push(ModeTransition::new(PracticeMode::Winding));
+    }
+
+    // Step 2: Evaluate the current chunk's signals against the (possibly new) mode
+    // If we just entered Winding, this immediately evaluates the resume transition
+    // (Winding -> Running or Winding -> Regular)
+    if let Some(t) = self.evaluate_transitions(signal) {
+        transitions.push(t);
+    }
+
+    self.last_chunk_at_ms = signal.timestamp_ms;
+    transitions
+}
 ```
 
-Winding detection has up to 60s latency (checked on chunk arrival only). Acceptable since the visible effect is just suppressing observations.
+This ensures: (1) the gap is recorded as a Winding period, (2) the new chunk is evaluated under the correct resume logic, and (3) two `mode_change` WebSocket messages fire in sequence (Winding, then Running/Regular) so the client sees the full transition history.
+
+**Note:** `update()` returns `Vec<ModeTransition>` (not `Option<PracticeMode>`) to support the two-step case. Most calls return 0 or 1 transitions; the silence gap case returns 2.
 
 ### Minimum Dwell Time
 
@@ -224,6 +254,7 @@ On mode transition, the DO sends:
 {
     "type": "mode_change",
     "mode": "drilling",
+    "chunkIndex": 7,
     "context": {
         "bars": [12, 16],
         "repetition": 3
@@ -239,9 +270,31 @@ Context varies by mode:
 ### Client-Side Throttle Simplification
 
 `observation-throttle.ts` changes:
-- **Remove:** `windowMs` logic, `canDeliver()` time check, `tick()` interval
-- **Keep:** `minChunksBeforeFirst` (UX safety net), `queued`/`drain()` for reconnection and session-end
+- **Remove:** `windowMs` logic, `canDeliver()` time check, `tick()` interval, `minChunksBeforeFirst` (the DO's Warming mode now handles early-session suppression -- keeping both would create dual authority)
+- **Keep:** `queued`/`drain()` for reconnection resilience and session-end flush, `chunksReceived` counter (useful for UI display)
 - **Add:** Handle `mode_change` messages in `usePracticeSession.ts` (store in state for future UI use)
+
+### TypeScript Types for Mode Events
+
+Added to `practice-api.ts`:
+
+```typescript
+type PracticeMode = "warming" | "drilling" | "running" | "winding" | "regular";
+
+type ModeChangeContext =
+    | { bars?: [number, number]; repetition: number } // drilling
+    | { piece?: string }                               // running
+    | Record<string, never>;                           // warming/winding/regular
+
+interface ModeChangeEvent {
+    type: "mode_change";
+    mode: PracticeMode;
+    chunkIndex: number;  // chunk that triggered the transition
+    context: ModeChangeContext;
+}
+```
+
+The `mode_change` event is added to the `PracticeWsEvent` discriminated union.
 
 ## File Changes
 
@@ -250,7 +303,7 @@ Context varies by mode:
 | `apps/api/src/practice/practice_mode.rs` | **NEW** -- PracticeMode enum, ChunkSignal, ModeDetector, ObservationPolicy, transition logic, repetition detection |
 | `apps/api/src/practice/mod.rs` | Add `pub mod practice_mode;` |
 | `apps/api/src/practice/session.rs` | Add `ModeDetector` to `SessionState`, build `ChunkSignal` in `process_inference_result`, call `mode_detector.update()`, replace `throttle_allows()` with mode-aware pacing, send `mode_change` WS messages, pass drilling context to `generate_observation` |
-| `apps/web/src/lib/observation-throttle.ts` | Remove window-based throttle logic, keep queue/drain and minChunksBeforeFirst |
+| `apps/web/src/lib/observation-throttle.ts` | Remove window-based throttle logic and minChunksBeforeFirst, keep queue/drain only |
 | `apps/web/src/hooks/usePracticeSession.ts` | Handle `mode_change` WS message, store practice mode in hook state |
 | `apps/web/src/lib/practice-api.ts` | Add `ModeChangeEvent` type, add `mode_change` to message union |
 
@@ -274,6 +327,7 @@ Pure state machine with no IO dependencies. Test with synthetic `ChunkSignal` se
 9. Empty MIDI: chunk with 0 perf_notes, no crash, no false repetition
 10. Bar range fallback: chunk with bar_range: None falls back to pitch bigram similarity
 11. Rapid mode cycling: Warming -> Running -> Drilling -> Running, verify clean transitions
+12. Two-step silence transition: send chunk after 65s gap from Running. Assert `update()` returns two transitions: [Winding, Running/Regular]. Assert the chunk is evaluated under the resumed mode's policy, NOT Winding's suppress.
 
 **Pacing tests:**
 12. Suppression in Warming/Winding: `observation_policy().suppress == true`
@@ -290,3 +344,7 @@ Use existing `eval_chunk` WebSocket message (dev-only path). Send a chunk sequen
 ### Not Tested (Tuning Parameters)
 
 Exact threshold values (0.6 Dice, 50% bar overlap, 60s silence) need calibration with real session data. Tests verify the mechanism, not the calibration.
+
+## Known Limitations
+
+**DO eviction:** Cloudflare DOs lose in-memory state on eviction (deploys, 30s inactivity without alarm). The `ModeDetector` would reset to `Warming`. This is acceptable -- sessions are short-lived, the alarm keeps the DO alive during active recording, and re-detection happens within 4 chunks (~60s). If eviction during active sessions becomes a real problem, persist `ModeDetector` state to DO storage (Approach 3 from the brainstorm).
