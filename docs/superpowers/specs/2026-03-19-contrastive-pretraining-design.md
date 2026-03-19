@@ -79,7 +79,9 @@ For each piece with 2+ segments in the batch:
 3. Compute: `loss = max(0, margin - (sim(k, i) - sim(k, j)))` where `margin = margin_scale * (quality_i - quality_j)` and `sim` is cosine similarity
 4. Average across all valid pairs
 
-If no valid pairs exist (all segments from unique pieces, or all same quality), returns 0.
+If no valid pairs exist (all segments from unique pieces, all same quality, or no cross-piece anchors available), returns 0. The same micro-batch constraint that applies to InfoNCE negatives applies here -- anchors are drawn from the micro-batch only.
+
+The `project()` head is a contrastive-only projection discarded after pretraining. Phase C initializes from `encode()` weights (attention pooling + MLP) only.
 
 **Combined loss:** `L = lambda_infonce * L_infonce + lambda_ordinal * L_ordinal`
 
@@ -106,7 +108,7 @@ A new dataset class in `autoresearch_contrastive.py` that yields individual segm
 | Tier | Source | Normalization |
 |------|--------|---------------|
 | T1 PercePiano | `composite_labels.json` (6-dim, each in [0,1]) | `mean(labels_across_6_dims)` -- already in [0,1] |
-| T2 Competition | `placement` (int, lower = better) | `1.0 - (placement - 1) / (max_placement_in_group - 1)` per (competition, edition, piece) group. Ties get same score. |
+| T2 Competition | `placement` (int, lower = better) | `1.0 - (placement - 1) / (max_placement_in_group - 1)` per (competition, edition, piece) group. Ties get same score. Single-competitor groups get score 1.0 (excluded from ordinal loss since no pairs exist). |
 | T5 YouTube Skill | `skill_bucket` (int 1-5) | `(bucket - 1) / 4.0` |
 
 **Embedding paths:**
@@ -121,7 +123,7 @@ A new dataset class in `autoresearch_contrastive.py` that yields individual segm
 
 #### Weighted Tier Sampling
 
-`WeightedTierSampler(Sampler)` draws indices from a concatenated dataset, biased by tier weights. Ensures each batch has a mix of tiers. To guarantee InfoNCE gets positive pairs, the sampler over-represents pieces with 2+ segments -- implemented by sampling piece groups (not individual segments) and then drawing segments within each group. This ensures most batches contain at least a few same-piece pairs.
+`WeightedTierSampler(Sampler)` draws indices from a concatenated dataset, biased by tier weights. Ensures each batch has a mix of tiers. To guarantee InfoNCE gets positive pairs, the sampler over-represents pieces with 2+ segments -- implemented by sampling piece groups (not individual segments) and then drawing segments within each group. The sampler guarantees at least 2 distinct pieces per batch (required for cross-piece anchor sampling in ordinal loss). If a tier has too few pieces, segments from other tiers fill the batch.
 
 #### Collation
 
