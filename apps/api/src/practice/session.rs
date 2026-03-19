@@ -5,6 +5,10 @@ use worker::*;
 
 use crate::practice::analysis;
 use crate::practice::dims::DIMS_6;
+use crate::practice::practice_mode::{
+    ChunkSignal, ModeDetector, ModeTransition, ObservationPolicy, PracticeMode,
+    pitch_bigrams_from_notes,
+};
 use crate::practice::score_context::ScoreContext;
 use crate::practice::score_follower::{FollowerState, PerfNote, PerfPedalEvent};
 use crate::practice::teaching_moment::DimStats;
@@ -26,7 +30,6 @@ async fn sleep_ms(ms: u64) {
 }
 
 const ALARM_DURATION_MS: i64 = 30 * 60 * 1000; // 30 minutes
-const OBSERVATION_THROTTLE_MS: u64 = 180_000; // 3 minutes
 const HF_RETRY_DELAYS_MS: &[u64] = &[10_000, 20_000, 40_000]; // retry 503s with backoff (70s total)
 const HF_RETRY_DELAYS_ENDING_MS: &[u64] = &[3_000, 5_000]; // shorter retries when session is ending
 
@@ -60,6 +63,7 @@ struct SessionState {
     score_context_loaded: bool,
     follower_state: FollowerState,
     is_eval_session: bool,
+    mode_detector: ModeDetector,
 }
 
 impl Default for SessionState {
@@ -81,6 +85,7 @@ impl Default for SessionState {
             score_context_loaded: false,
             follower_state: FollowerState::default(),
             is_eval_session: false,
+            mode_detector: ModeDetector::new(),
         }
     }
 }
@@ -410,8 +415,8 @@ impl PracticeSession {
             }
         }
 
-        // 9. Run score following + analysis
-        let chunk_analysis: Option<analysis::ChunkAnalysis> = {
+        // 9. Run score following + analysis (also extract raw bar range for mode detector)
+        let (chunk_analysis, chunk_bar_range): (Option<analysis::ChunkAnalysis>, Option<(u32, u32)>) = {
             // Extract what we need from state, then drop the borrow
             let (score_data_clone, follower_state_clone) = {
                 let s = self.inner.borrow();
@@ -436,38 +441,69 @@ impl PracticeSession {
                     self.inner.borrow_mut().follower_state = fs;
 
                     if let Some(ref bm) = bar_map {
+                        // Capture raw bar range before passing bm to analyze_tier1
+                        let bar_range = (bm.bar_start, bm.bar_end);
                         // Tier 1: full bar-aligned analysis
                         let score_ctx = self.inner.borrow().score_context.clone().unwrap();
-                        Some(analysis::analyze_tier1(
+                        let analysis = analysis::analyze_tier1(
                             bm,
                             &perf_notes,
                             &perf_pedal,
                             &scores_array,
                             &score_ctx,
-                        ))
+                        );
+                        (Some(analysis), Some(bar_range))
                     } else {
                         // Score context exists but alignment failed -> Tier 2
-                        Some(analysis::analyze_tier2(&perf_notes, &perf_pedal, &scores_array))
+                        (Some(analysis::analyze_tier2(&perf_notes, &perf_pedal, &scores_array)), None)
                     }
                 } else {
                     // No score context but have perf notes -> Tier 2
-                    Some(analysis::analyze_tier2(&perf_notes, &perf_pedal, &scores_array))
+                    (Some(analysis::analyze_tier2(&perf_notes, &perf_pedal, &scores_array)), None)
                 }
             } else {
                 // No perf notes -> Tier 3 (no analysis, current behavior)
-                None
+                (None, None)
             }
         };
+
+        // 9b. Build ChunkSignal and update practice mode
+        let perf_pitches: Vec<u8> = perf_notes.iter().map(|n| n.pitch).collect();
+        let has_piece_match = self.inner.borrow().score_context.is_some();
+        let chunk_signal = ChunkSignal {
+            chunk_index: index,
+            timestamp_ms: js_sys::Date::now() as u64,
+            pitch_bigrams: pitch_bigrams_from_notes(&perf_pitches),
+            bar_range: chunk_bar_range,
+            has_piece_match,
+            scores: scores_array,
+        };
+
+        let mode_transitions = self.inner.borrow_mut().mode_detector.update(&chunk_signal);
+
+        // Broadcast mode changes over WebSocket
+        for transition in &mode_transitions {
+            let context = self.build_mode_context(transition);
+            let msg = serde_json::json!({
+                "type": "mode_change",
+                "mode": transition.mode,
+                "chunkIndex": transition.chunk_index,
+                "context": context,
+            });
+            let _ = ws.send_with_str(&msg.to_string());
+        }
 
         // 10. Run STOP classifier on current chunk
         let stop_result = stop::classify(&scores_array);
 
-        // 11. Check if we should generate an observation
+        // 11. Check if we should generate an observation (mode-aware)
+        let policy = self.inner.borrow().mode_detector.observation_policy();
         let should_generate = {
             let s = self.inner.borrow();
-            stop_result.triggered
+            !policy.suppress
+                && stop_result.triggered
                 && s.baselines.is_some()
-                && self.throttle_allows(&s)
+                && self.mode_throttle_allows(&s, &policy)
         };
 
         if should_generate {
@@ -480,13 +516,37 @@ impl PracticeSession {
         Ok(())
     }
 
-    fn throttle_allows(&self, s: &SessionState) -> bool {
+    fn mode_throttle_allows(&self, s: &SessionState, policy: &ObservationPolicy) -> bool {
         match s.last_observation_at {
             None => true,
             Some(last) => {
                 let now = js_sys::Date::now() as u64;
-                now - last >= OBSERVATION_THROTTLE_MS
+                now - last >= policy.min_interval_ms
             }
+        }
+    }
+
+    fn build_mode_context(&self, transition: &ModeTransition) -> serde_json::Value {
+        let s = self.inner.borrow();
+        match transition.mode {
+            PracticeMode::Drilling => {
+                let mut ctx = serde_json::json!({});
+                if let Some(ref dp) = s.mode_detector.drilling_passage {
+                    if let Some(br) = dp.bar_range {
+                        ctx["bars"] = serde_json::json!([br.0, br.1]);
+                    }
+                    ctx["repetition"] = serde_json::json!(dp.repetition_count);
+                }
+                ctx
+            }
+            PracticeMode::Running => {
+                let mut ctx = serde_json::json!({});
+                if let Some(ref sc) = s.score_context {
+                    ctx["piece"] = serde_json::json!(format!("{} - {}", sc.composer, sc.title));
+                }
+                ctx
+            }
+            _ => serde_json::json!({}),
         }
     }
 
@@ -560,6 +620,47 @@ impl PracticeSession {
                 ctx.insert("musical_analysis".into(), serde_json::to_value(&ca.dimensions).unwrap_or_default());
             }
             if ctx.is_empty() { None } else { Some(serde_json::Value::Object(ctx)) }
+        };
+
+        // Inject drilling comparison context if in drilling mode
+        let piece_context = {
+            let mut pc = piece_context;
+            let s = self.inner.borrow();
+            if let Some(ref dp) = s.mode_detector.drilling_passage {
+                let current_scores = s.scored_chunks.last().map(|c| c.scores).unwrap_or([0.0; 6]);
+                let drilling_ctx = serde_json::json!({
+                    "repetition_count": dp.repetition_count,
+                    "first_attempt_scores": {
+                        "dynamics": dp.first_scores[0],
+                        "timing": dp.first_scores[1],
+                        "pedaling": dp.first_scores[2],
+                        "articulation": dp.first_scores[3],
+                        "phrasing": dp.first_scores[4],
+                        "interpretation": dp.first_scores[5],
+                    },
+                    "current_scores": {
+                        "dynamics": current_scores[0],
+                        "timing": current_scores[1],
+                        "pedaling": current_scores[2],
+                        "articulation": current_scores[3],
+                        "phrasing": current_scores[4],
+                        "interpretation": current_scores[5],
+                    },
+                    "bar_range": dp.bar_range,
+                });
+                match &mut pc {
+                    Some(serde_json::Value::Object(ref mut ctx)) => {
+                        ctx.insert("drilling_context".into(), drilling_ctx);
+                    }
+                    None => {
+                        let mut ctx = serde_json::Map::new();
+                        ctx.insert("drilling_context".into(), drilling_ctx);
+                        pc = Some(serde_json::Value::Object(ctx));
+                    }
+                    _ => {}
+                }
+            }
+            pc
         };
 
         let tm_json_clone = tm_json.clone();
