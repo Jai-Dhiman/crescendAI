@@ -148,3 +148,40 @@ class TestContrastiveCollate:
         assert out["embeddings"].shape == (2, 512)
         assert "mask" not in out
         assert out["piece_ids"].shape == (2,)
+
+
+class TestWeightedTierSampler:
+    def test_respects_tier_weights(self):
+        from model_improvement.autoresearch_contrastive import (
+            ContrastiveSegmentDataset, WeightedTierSampler,
+        )
+        t1_items = [{"embedding": torch.randn(8), "piece_id": i // 2, "quality_score": 0.5} for i in range(10)]
+        t2_items = [{"embedding": torch.randn(8), "piece_id": 100 + i // 2, "quality_score": 0.5} for i in range(40)]
+        ds_t1 = ContrastiveSegmentDataset(t1_items)
+        ds_t2 = ContrastiveSegmentDataset(t2_items)
+        sampler = WeightedTierSampler(
+            datasets=[ds_t1, ds_t2], weights=[0.5, 0.5], total_samples=100, seed=42,
+        )
+        indices = list(sampler)
+        t1_count = sum(1 for i in indices if i < 10)
+        assert 30 <= t1_count <= 70
+
+    def test_guarantees_multi_piece_batches(self):
+        from model_improvement.autoresearch_contrastive import (
+            ContrastiveSegmentDataset, WeightedTierSampler,
+        )
+        items = [{"embedding": torch.randn(8), "piece_id": i // 3, "quality_score": float(i % 3) / 2} for i in range(12)]
+        ds = ContrastiveSegmentDataset(items)
+        sampler = WeightedTierSampler(datasets=[ds], weights=[1.0], total_samples=12, seed=42)
+        indices = list(sampler)
+        piece_ids = {items[i]["piece_id"] for i in indices}
+        assert len(piece_ids) >= 2
+
+    def test_length(self):
+        from model_improvement.autoresearch_contrastive import (
+            ContrastiveSegmentDataset, WeightedTierSampler,
+        )
+        items = [{"embedding": torch.randn(8), "piece_id": 0, "quality_score": 0.5} for _ in range(10)]
+        ds = ContrastiveSegmentDataset(items)
+        sampler = WeightedTierSampler(datasets=[ds], weights=[1.0], total_samples=20, seed=42)
+        assert len(sampler) == 20

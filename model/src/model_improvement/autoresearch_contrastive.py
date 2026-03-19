@@ -358,3 +358,81 @@ def contrastive_collate_aria(batch: list[dict]) -> dict[str, torch.Tensor]:
         "piece_ids": piece_ids,
         "quality_scores": quality_scores,
     }
+
+
+# ---------------------------------------------------------------------------
+# Sampler
+# ---------------------------------------------------------------------------
+
+
+class WeightedTierSampler(Sampler[int]):
+    """Sampler that draws from multiple tier datasets with configurable weights.
+
+    For each sample, picks a tier by weight, then a random piece within that
+    tier, then a random segment within that piece. This ensures batches contain
+    segments from multiple pieces (required for contrastive loss).
+
+    Args:
+        datasets: List of ContrastiveSegmentDataset, one per tier.
+        weights: Sampling probability per tier (will be normalized).
+        total_samples: Number of indices to yield per epoch.
+        seed: Random seed for reproducibility.
+    """
+
+    def __init__(
+        self,
+        datasets: list[ContrastiveSegmentDataset],
+        weights: list[float],
+        total_samples: int,
+        seed: int = 42,
+    ):
+        if len(datasets) != len(weights):
+            raise ValueError(
+                f"datasets ({len(datasets)}) and weights ({len(weights)}) "
+                "must have the same length"
+            )
+
+        self._total_samples = total_samples
+        self._seed = seed
+
+        # Normalize weights
+        w_sum = sum(weights)
+        self._weights = [w / w_sum for w in weights]
+
+        # Build per-tier index: tier -> piece_id -> list of global indices
+        # Global index = offset + local index within tier dataset
+        self._tier_piece_indices: list[dict[int, list[int]]] = []
+        offset = 0
+        for ds in datasets:
+            piece_map: dict[int, list[int]] = {}
+            for local_idx in range(len(ds)):
+                item = ds[local_idx]
+                pid = item["piece_id"]
+                piece_map.setdefault(pid, []).append(offset + local_idx)
+            self._tier_piece_indices.append(piece_map)
+            offset += len(ds)
+
+    def __iter__(self):
+        rng = _random.Random(self._seed)
+
+        # Precompute piece lists per tier for fast random choice
+        tier_pieces = [
+            list(piece_map.keys()) for piece_map in self._tier_piece_indices
+        ]
+
+        for _ in range(self._total_samples):
+            # Pick tier by weight
+            tier_idx = rng.choices(
+                range(len(self._weights)), weights=self._weights, k=1
+            )[0]
+
+            # Pick random piece from tier
+            pieces = tier_pieces[tier_idx]
+            piece_id = rng.choice(pieces)
+
+            # Pick random segment from piece
+            segment_indices = self._tier_piece_indices[tier_idx][piece_id]
+            yield rng.choice(segment_indices)
+
+    def __len__(self) -> int:
+        return self._total_samples
