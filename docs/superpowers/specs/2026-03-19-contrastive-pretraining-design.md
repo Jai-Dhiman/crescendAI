@@ -108,7 +108,7 @@ A new dataset class in `autoresearch_contrastive.py` that yields individual segm
 | Tier | Source | Normalization |
 |------|--------|---------------|
 | T1 PercePiano | `composite_labels.json` (6-dim, each in [0,1]) | `mean(labels_across_6_dims)` -- already in [0,1] |
-| T2 Competition | `placement` (int, lower = better) | `1.0 - (placement - 1) / (max_placement_in_group - 1)` per (competition, edition, piece) group. Ties get same score. Single-competitor groups get score 1.0 (excluded from ordinal loss since no pairs exist). |
+| T2 Competition | `placement` (int, lower = better) | `1.0 - (placement - min_p) / (max_p - min_p)` per `(competition, edition, round)` group. The `piece` field is free-text per-performer, not canonical -- group by round instead. Ties get same score. Single-competitor groups get score 1.0 (excluded from ordinal loss since no pairs exist). |
 | T5 YouTube Skill | `skill_bucket` (int 1-5) | `(bucket - 1) / 4.0` |
 
 **Embedding paths:**
