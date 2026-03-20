@@ -8,6 +8,7 @@ import type {
 } from "../lib/practice-api";
 import { practiceApi } from "../lib/practice-api";
 import { Sentry } from "../lib/sentry";
+import type { RichMessage } from "../lib/types";
 import { useAudioActivity } from "./useAudioActivity";
 import { createLogger } from "../lib/logger";
 
@@ -48,9 +49,11 @@ export interface UsePracticeSessionReturn {
 	isPlaying: boolean;
 	energy: number;
 	practiceMode: PracticeMode | null;
-	start: () => Promise<void>;
+	start: (conversationId?: string) => Promise<void>;
 	stop: () => void;
 	setPiece: (query: string) => void;
+	observationMessages: RichMessage[];
+	conversationId: string | null;
 }
 
 export function usePracticeSession(): UsePracticeSessionReturn {
@@ -69,6 +72,7 @@ export function usePracticeSession(): UsePracticeSessionReturn {
 	);
 
 	const sessionIdRef = useRef<string | null>(null);
+	const conversationIdRef = useRef<string | null>(null);
 	const wsRef = useRef<WebSocket | null>(null);
 	const mediaRecorderRef = useRef<MediaRecorder | null>(null);
 	const audioContextRef = useRef<AudioContext | null>(null);
@@ -187,6 +191,7 @@ export function usePracticeSession(): UsePracticeSessionReturn {
 		streamRef.current = null;
 		wsRef.current = null;
 		sessionIdRef.current = null;
+		conversationIdRef.current = null;
 		chunkIndexRef.current = 0;
 		reconnectAttemptsRef.current = 0;
 		throttleRef.current.reset();
@@ -213,10 +218,12 @@ export function usePracticeSession(): UsePracticeSessionReturn {
 					break;
 				}
 				case "observation": {
-					const obs: ObservationEvent = {
+					const obs: ObservationEvent & { arrived_at?: string } = {
 						text: data.text,
 						dimension: data.dimension,
 						framing: data.framing,
+						components: data.components,
+						arrived_at: new Date().toISOString(),
 					};
 					const immediate = throttleRef.current.enqueue(obs);
 					setObservations((prev) => [...prev, immediate]);
@@ -269,7 +276,7 @@ export function usePracticeSession(): UsePracticeSessionReturn {
 	const connectWebSocket = useCallback(
 		(sessionId: string): Promise<WebSocket> => {
 			return new Promise((resolve, reject) => {
-				const ws = practiceApi.connectWebSocket(sessionId);
+				const ws = practiceApi.connectWebSocket(sessionId, conversationIdRef.current ?? undefined);
 				wsRef.current = ws;
 
 				ws.onmessage = handleWsMessage;
@@ -324,7 +331,7 @@ export function usePracticeSession(): UsePracticeSessionReturn {
 		[handleWsMessage, cleanup],
 	);
 
-	const start = useCallback(async () => {
+	const start = useCallback(async (conversationId?: string) => {
 		setState("requesting-mic");
 		setElapsedSeconds(0);
 		setObservations([]);
@@ -334,6 +341,7 @@ export function usePracticeSession(): UsePracticeSessionReturn {
 		setChunksProcessed(0);
 		setChunkStates([]);
 		setWsStatus("disconnected");
+		conversationIdRef.current = conversationId ?? null;
 
 		// 1. Request mic
 		let stream: MediaStream;
@@ -364,9 +372,10 @@ export function usePracticeSession(): UsePracticeSessionReturn {
 		setState("connecting");
 		let sessionId: string;
 		try {
-			const { sessionId: sid } = await practiceApi.start();
+			const { sessionId: sid, conversationId: convId } = await practiceApi.start(conversationId);
 			sessionId = sid;
 			sessionIdRef.current = sid;
+			conversationIdRef.current = convId;
 		} catch (e) {
 			Sentry.captureException(e, {
 				extra: { context: "session-start" },
@@ -607,6 +616,17 @@ export function usePracticeSession(): UsePracticeSessionReturn {
 		return () => window.removeEventListener("beforeunload", handleBeforeUnload);
 	}, []);
 
+	const observationMessages: RichMessage[] = observations.map((obs, i) => ({
+		id: `obs-${sessionIdRef.current}-${i}`,
+		role: "assistant" as const,
+		content: obs.text,
+		created_at: (obs as any).arrived_at || new Date().toISOString(),
+		message_type: "observation" as const,
+		dimension: obs.dimension,
+		framing: obs.framing,
+		components: obs.components,
+	}));
+
 	return {
 		state,
 		elapsedSeconds,
@@ -624,5 +644,7 @@ export function usePracticeSession(): UsePracticeSessionReturn {
 		start,
 		stop,
 		setPiece,
+		observationMessages,
+		conversationId: conversationIdRef.current,
 	};
 }
