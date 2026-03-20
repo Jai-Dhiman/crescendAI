@@ -1,3 +1,5 @@
+import type { InlineComponent } from "./types";
+
 const API_BASE = import.meta.env.PROD
 	? "https://api.crescend.ai"
 	: "http://localhost:8787";
@@ -8,6 +10,7 @@ const WS_BASE = import.meta.env.PROD
 
 export interface PracticeStartResponse {
 	sessionId: string;
+	conversationId: string;
 }
 
 export interface ChunkUploadResponse {
@@ -30,6 +33,7 @@ export interface ObservationEvent {
 	dimension: string;
 	framing: string;
 	barRange?: [number, number];
+	components?: InlineComponent[];
 }
 
 export interface SessionSummary {
@@ -66,6 +70,7 @@ export type PracticeWsEvent =
 			dimension: string;
 			framing: string;
 			barRange?: string;
+			components?: InlineComponent[];
 	  }
 	| {
 			type: "session_summary";
@@ -79,10 +84,12 @@ export type PracticeWsEvent =
 	| { type: "error"; message: string };
 
 export const practiceApi = {
-	async start(): Promise<PracticeStartResponse> {
+	async start(conversationId?: string): Promise<PracticeStartResponse> {
 		const res = await fetch(`${API_BASE}/api/practice/start`, {
 			method: "POST",
 			credentials: "include",
+			headers: conversationId ? { "Content-Type": "application/json" } : undefined,
+			body: conversationId ? JSON.stringify({ conversation_id: conversationId }) : undefined,
 		});
 		if (!res.ok) throw new Error(`Failed to start session: ${res.status}`);
 		return res.json();
@@ -105,7 +112,10 @@ export const practiceApi = {
 		return res.json();
 	},
 
-	connectWebSocket(sessionId: string): WebSocket {
-		return new WebSocket(`${WS_BASE}/api/practice/ws/${sessionId}`);
+	connectWebSocket(sessionId: string, conversationId?: string): WebSocket {
+		const url = conversationId
+			? `${WS_BASE}/api/practice/ws/${sessionId}?conversationId=${conversationId}`
+			: `${WS_BASE}/api/practice/ws/${sessionId}`;
+		return new WebSocket(url);
 	},
 };
