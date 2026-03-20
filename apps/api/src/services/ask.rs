@@ -795,10 +795,13 @@ async fn process_exercise_tool_call(
 
     let mut processed_exercises = Vec::new();
 
+    const VALID_DIMS: &[&str] = &["dynamics", "timing", "pedaling", "articulation", "phrasing", "interpretation"];
+
     for ex in exercises {
         let title = ex.get("title").and_then(|v| v.as_str()).unwrap_or("Practice Drill");
         let instruction = ex.get("instruction").and_then(|v| v.as_str()).unwrap_or("");
-        let focus_dim = ex.get("focus_dimension").and_then(|v| v.as_str()).unwrap_or("dynamics");
+        let raw_dim = ex.get("focus_dimension").and_then(|v| v.as_str()).unwrap_or("dynamics");
+        let focus_dim = if VALID_DIMS.contains(&raw_dim) { raw_dim } else { "dynamics" };
         let hands = ex.get("hands").and_then(|v| v.as_str());
 
         // Check if this references a catalog exercise by ID

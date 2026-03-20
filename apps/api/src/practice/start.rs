@@ -118,7 +118,7 @@ pub async fn handle_start(
         .bind(&[
             JsValue::from_str(&msg_id),
             JsValue::from_str(&conversation_id),
-            JsValue::from_str("system"),
+            JsValue::from_str("assistant"),
             JsValue::from_str("Practice session started"),
             JsValue::from_str(&now),
             JsValue::from_str("session_start"),
