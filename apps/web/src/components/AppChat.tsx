@@ -176,7 +176,7 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 	const { data: conversations = [], isPending: isConversationsPending } =
 		useConversations(isAuthenticated);
 	const { data: conversationData, isPending: isConversationLoading } =
-		useConversation(initialConversationId ?? null);
+		useConversation(activeConversationId);
 	const deleteConversation = useDeleteConversation();
 
 	// Sync active conversation ID when query data arrives
@@ -533,7 +533,7 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 
 	const hasMessages = messages.length > 0;
 	const showConversationSkeleton =
-		initialConversationId && isConversationLoading && messages.length === 0;
+		activeConversationId && isConversationLoading && messages.length === 0;
 	const userInitial =
 		user?.display_name?.charAt(0).toUpperCase() ??
 		user?.email?.charAt(0).toUpperCase() ??

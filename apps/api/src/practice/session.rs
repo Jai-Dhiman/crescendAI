@@ -125,6 +125,8 @@ impl DurableObject for PracticeSession {
             .map(|(_, v)| v.to_string())
             .filter(|s| !s.is_empty());
 
+        console_log!("DO fetch: session_id={}, student_id={}, conversation_id={:?}", session_id, student_id, conversation_id);
+
         // Store session info (on first connect only; reconnections keep existing state)
         {
             let mut s = self.inner.borrow_mut();
