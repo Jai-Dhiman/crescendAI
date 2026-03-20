@@ -18,6 +18,7 @@ import {
 	useConversations,
 	useDeleteConversation,
 } from "../hooks/useConversations";
+import { useClickOutside } from "../hooks/useDom";
 import { usePracticeSession } from "../hooks/usePracticeSession";
 import type { ChatStreamEvent } from "../lib/api";
 import { api } from "../lib/api";
@@ -124,7 +125,7 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 	const [activeConversationId, setActiveConversationId] = useState<
 		string | null
 	>(initialConversationId ?? null);
-	const [messages, setMessages] = useState<RichMessage[]>([]);
+	const [transientMessages, setTransientMessages] = useState<RichMessage[]>([]);
 	const [isStreaming, setIsStreaming] = useState(false);
 
 	// RAF-batched streaming refs
@@ -145,7 +146,7 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 		const buffered = deltaBufferRef.current;
 		if (!buffered) return;
 		deltaBufferRef.current = "";
-		setMessages((prev) => {
+		setTransientMessages((prev) => {
 			const updated = [...prev];
 			const msg = updated[idx];
 			if (msg) {
@@ -173,13 +174,18 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 		useConversation(initialConversationId ?? null);
 	const deleteConversation = useDeleteConversation();
 
-	// Sync conversation data from query into local messages state
-	useEffect(() => {
-		if (conversationData) {
-			setActiveConversationId(conversationData.conversation.id);
-			setMessages(conversationData.messages);
-		}
-	}, [conversationData]);
+	// Sync active conversation ID when query data arrives
+	const persistedConvId = conversationData?.conversation.id ?? null;
+	if (persistedConvId && persistedConvId !== activeConversationId) {
+		setActiveConversationId(persistedConvId);
+	}
+
+	// Derive messages: persisted (from query) + transient (streaming/placeholders)
+	const persistedMessages: RichMessage[] = conversationData?.messages ?? [];
+	const messages = useMemo(
+		() => [...persistedMessages, ...transientMessages],
+		[persistedMessages, transientMessages],
+	);
 
 	// Practice recording
 	const practice = usePracticeSession();
@@ -231,39 +237,58 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 	function handleExitListeningMode() {
 		setShowListeningMode(false);
 		setRecordButtonRect(null);
+
+		// If the practice session created a new conversation, navigate to it
+		// so the chat view loads persisted observations from D1.
+		const practiceConvId = practice.conversationId;
+		if (practiceConvId && practiceConvId !== activeConversationId) {
+			setActiveConversationId(practiceConvId);
+			window.history.replaceState(
+				window.history.state,
+				"",
+				`/app/c/${practiceConvId}`,
+			);
+			queryClient.invalidateQueries({
+				queryKey: ["conversation", practiceConvId],
+			});
+			queryClient.invalidateQueries({ queryKey: ["conversations"] });
+		}
 	}
 
-	// When practice summary arrives, post it to chat
+	// When practice summary arrives, the DO has already persisted it to D1.
+	// Close ListeningMode, navigate to the conversation, and refetch from D1.
 	// biome-ignore lint/correctness/useExhaustiveDependencies: reads sessionNotes at fire time, must not re-run on notes change
 	useEffect(() => {
 		if (practice.summary) {
-			let content = practice.summary;
-			if (sessionNotes.trim()) {
-				content += `\n\n**Your notes:**\n${sessionNotes.trim()}`;
-			}
-			const summaryMsg: RichMessage = {
-				id: `practice-${Date.now()}`,
-				role: "assistant",
-				content,
-				created_at: new Date().toISOString(),
-			};
-			setMessages((prev) => [
-				...prev.filter((m) => m.id !== "summarizing-placeholder"),
-				summaryMsg,
-			]);
 			setSessionNotes("");
+			setShowListeningMode(false);
+			setRecordButtonRect(null);
+
+			// Determine which conversation to navigate to
+			const convId = practice.conversationId ?? activeConversationId;
+			if (convId) {
+				if (convId !== activeConversationId) {
+					setActiveConversationId(convId);
+					window.history.replaceState(
+						window.history.state,
+						"",
+						`/app/c/${convId}`,
+					);
+				}
+				// Refetch from D1 to get all persisted observations + summary
+				queryClient.invalidateQueries({
+					queryKey: ["conversation", convId],
+				});
+				queryClient.invalidateQueries({ queryKey: ["conversations"] });
+			}
+			setTransientMessages([]);
 		}
 	}, [practice.summary]);
-
-	// Clear score panel when conversation changes
-	useEffect(() => {
-		scorePanel.clear();
-	}, [initialConversationId]); // eslint-disable-line react-hooks/exhaustive-deps
 
 	// Show loading indicator in chat while session is summarizing
 	useEffect(() => {
 		if (practice.state === "summarizing") {
-			setMessages((prev) => {
+			setTransientMessages((prev) => {
 				if (prev.some((m) => m.id === "summarizing-placeholder")) return prev;
 				return [
 					...prev,
@@ -296,27 +321,9 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 		return [...messages, ...newObs];
 	}, [messages, practice.observationMessages, practice.state]);
 
-	// Redirect if not authenticated
-	useEffect(() => {
-		if (!isLoading && !isAuthenticated) {
-			navigate({ to: "/signin" });
-		}
-	}, [isLoading, isAuthenticated, navigate]);
 
 	// Click outside to close profile dropdown
-	useEffect(() => {
-		if (!showProfile) return;
-		function handleClick(e: MouseEvent) {
-			if (
-				profileRef.current &&
-				!profileRef.current.contains(e.target as Node)
-			) {
-				setShowProfile(false);
-			}
-		}
-		document.addEventListener("mousedown", handleClick);
-		return () => document.removeEventListener("mousedown", handleClick);
-	}, [showProfile]);
+	useClickOutside(profileRef, () => setShowProfile(false), showProfile);
 
 	async function handleSignOut() {
 		await signOut();
@@ -325,18 +332,21 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 
 	const loadConversation = useCallback(
 		(id: string) => {
+			scorePanel.clear();
+			setTransientMessages([]);
 			setSidebarOpen(false);
 			navigate({
 				to: "/app/c/$conversationId",
 				params: { conversationId: id },
 			});
 		},
-		[navigate, setSidebarOpen],
+		[navigate, setSidebarOpen, scorePanel],
 	);
 
 	function handleNewChat() {
 		setActiveConversationId(null);
-		setMessages([]);
+		setTransientMessages([]);
+		scorePanel.clear();
 		setSidebarOpen(false);
 		navigate({ to: "/app", replace: true });
 	}
@@ -361,7 +371,7 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 			content: message,
 			created_at: new Date().toISOString(),
 		};
-		setMessages((prev) => [...prev, tempUserMsg]);
+		setTransientMessages((prev) => [...prev, tempUserMsg]);
 		setIsStreaming(true);
 
 		let newConversationId: string | null = null;
@@ -377,8 +387,8 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 								newConversationId = event.conversation_id;
 								setActiveConversationId(event.conversation_id);
 							}
-							// Append streaming placeholder to the messages array
-							setMessages((prev) => {
+							// Append streaming placeholder to the transient array
+							setTransientMessages((prev) => {
 								streamingIndexRef.current = prev.length;
 								return [
 									...prev,
@@ -409,7 +419,7 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 							const idx = streamingIndexRef.current;
 							streamingIndexRef.current = -1;
 
-							setMessages((prev) => {
+							setTransientMessages((prev) => {
 								const updated = [...prev];
 								const msg = updated[idx];
 								if (msg) {
@@ -431,7 +441,7 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 			// Defer post-stream side effects so they don't interfere with
 			// the "done" render commit (URL update, cache sync, refetch).
 			const convId = newConversationId ?? activeConversationId;
-			setTimeout(() => {
+			setTimeout(async () => {
 				if (newConversationId) {
 					window.history.replaceState(
 						window.history.state,
@@ -440,17 +450,12 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 					);
 				}
 				if (convId) {
-					setMessages((currentMessages) => {
-						queryClient.setQueryData(["conversation", convId], {
-							conversation: {
-								id: convId,
-								title: null,
-								created_at: new Date().toISOString(),
-							},
-							messages: currentMessages,
-						});
-						return currentMessages;
+					// Wait for the conversation query to refetch from D1 before
+					// clearing transient messages, to avoid a flash of missing content.
+					await queryClient.invalidateQueries({
+						queryKey: ["conversation", convId],
 					});
+					setTransientMessages([]);
 				}
 				queryClient.invalidateQueries({ queryKey: ["conversations"] });
 			}, 0);
@@ -464,7 +469,7 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 			const idx = streamingIndexRef.current;
 			streamingIndexRef.current = -1;
 			if (idx >= 0) {
-				setMessages((prev) => prev.filter((_, i) => i !== idx));
+				setTransientMessages((prev) => prev.filter((_, i) => i !== idx));
 			}
 
 			const errorMessage =
@@ -501,7 +506,7 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 				],
 			};
 
-			setMessages((prev) => [...prev, exerciseMsg]);
+			setTransientMessages((prev) => [...prev, exerciseMsg]);
 		},
 		[],
 	);
