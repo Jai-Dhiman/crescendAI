@@ -115,7 +115,7 @@ function WaitlistPage() {
 
 							<label className="block mt-4 text-left">
 								<span className="text-body-xs text-text-tertiary">
-									What do you play or practice?
+									What do you play or practice? (optional)
 								</span>
 								<textarea
 									value={context}
