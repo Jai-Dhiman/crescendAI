@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useMountEffect, useSyncRef } from "./useFoundation";
+import { useNetworkStatus } from "./useDom";
 import { ObservationThrottle } from "../lib/observation-throttle";
 import type {
 	DimScores,
@@ -67,9 +69,7 @@ export function usePracticeSession(): UsePracticeSessionReturn {
 	const [chunkStates, setChunkStates] = useState<ChunkState[]>([]);
 	const [wsStatus, setWsStatus] = useState<WsStatus>("disconnected");
 	const [practiceMode, setPracticeMode] = useState<PracticeMode | null>(null);
-	const [isOnline, setIsOnline] = useState(
-		typeof navigator !== "undefined" ? navigator.onLine : true,
-	);
+	const isOnline = useNetworkStatus();
 
 	const sessionIdRef = useRef<string | null>(null);
 	const conversationIdRef = useRef<string | null>(null);
@@ -80,46 +80,17 @@ export function usePracticeSession(): UsePracticeSessionReturn {
 	const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 	const chunkIndexRef = useRef(0);
 	const reconnectAttemptsRef = useRef(0);
-	const stateRef = useRef<PracticeState>("idle");
+	const stateRef = useSyncRef(state);
 	const throttleRef = useRef(new ObservationThrottle());
-	const isOnlineRef = useRef(isOnline);
+	const isOnlineRef = useSyncRef(isOnline);
 	const offlineQueueRef = useRef<Array<{ index: number; blob: Blob }>>([]);
 	const analyserRef = useRef<AnalyserNode | null>(null);
 	const chunkGateRef = useRef<ChunkGateState>("waiting");
 	const chunkTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-	// Keep stateRef in sync
-	useEffect(() => {
-		stateRef.current = state;
-	}, [state]);
-
-	useEffect(() => {
-		isOnlineRef.current = isOnline;
-	}, [isOnline]);
-
 	// Audio activity detection (spectral energy + debounced play/silence)
 	const { isPlaying, energy } = useAudioActivity(analyserRef);
-	const isPlayingRef = useRef(false);
-
-	useEffect(() => {
-		isPlayingRef.current = isPlaying;
-	}, [isPlaying]);
-
-	// Network online/offline detection
-	useEffect(() => {
-		function handleOnline() {
-			setIsOnline(true);
-		}
-		function handleOffline() {
-			setIsOnline(false);
-		}
-		window.addEventListener("online", handleOnline);
-		window.addEventListener("offline", handleOffline);
-		return () => {
-			window.removeEventListener("online", handleOnline);
-			window.removeEventListener("offline", handleOffline);
-		};
-	}, []);
+	const isPlayingRef = useSyncRef(isPlaying);
 
 	// Chunk gating: start/stop uploading based on piano activity
 	useEffect(() => {
@@ -225,11 +196,13 @@ export function usePracticeSession(): UsePracticeSessionReturn {
 						components: data.components,
 						arrived_at: new Date().toISOString(),
 					};
+					console.log(`[Practice] Observation received: ${data.dimension} (${data.framing})`);
 					const immediate = throttleRef.current.enqueue(obs);
 					setObservations((prev) => [...prev, immediate]);
 					break;
 				}
 				case "session_summary": {
+					console.log(`[Practice] Session summary received: ${data.observations?.length ?? 0} observations`);
 					// Drain any undelivered queued observations
 					const drained = throttleRef.current.drain();
 					const allObs = [...data.observations];
@@ -599,7 +572,7 @@ export function usePracticeSession(): UsePracticeSessionReturn {
 	}, []);
 
 	// Graceful stop on page unload
-	useEffect(() => {
+	useMountEffect(() => {
 		function handleBeforeUnload() {
 			if (wsRef.current?.readyState === WebSocket.OPEN) {
 				wsRef.current.send(JSON.stringify({ type: "end_session" }));
@@ -614,7 +587,7 @@ export function usePracticeSession(): UsePracticeSessionReturn {
 		}
 		window.addEventListener("beforeunload", handleBeforeUnload);
 		return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-	}, []);
+	});
 
 	const observationMessages: RichMessage[] = observations.map((obs, i) => ({
 		id: `obs-${sessionIdRef.current}-${i}`,

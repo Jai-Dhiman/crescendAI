@@ -70,7 +70,11 @@ export interface MessageRow {
 	role: "user" | "assistant";
 	content: string;
 	created_at: string;
-	components?: import("./types").InlineComponent[];
+	message_type?: string;
+	dimension?: string;
+	framing?: string;
+	components_json?: string;
+	session_id?: string;
 }
 
 export interface ConversationWithMessages {

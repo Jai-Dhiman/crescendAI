@@ -1,6 +1,30 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { ConversationSummary } from "../lib/api";
+import type { ConversationSummary, MessageRow } from "../lib/api";
 import { api } from "../lib/api";
+import type { InlineComponent } from "../lib/types";
+import type { RichMessage } from "../lib/types";
+
+function mapMessageRow(row: MessageRow): RichMessage {
+	let components: InlineComponent[] | undefined;
+	if (row.components_json) {
+		try {
+			components = JSON.parse(row.components_json);
+		} catch {
+			/* ignore malformed JSON */
+		}
+	}
+	return {
+		id: row.id,
+		role: row.role,
+		content: row.content,
+		created_at: row.created_at,
+		message_type: row.message_type as RichMessage["message_type"],
+		dimension: row.dimension,
+		framing: row.framing,
+		session_id: row.session_id,
+		components,
+	};
+}
 
 export function useConversations(enabled = true) {
 	return useQuery({
@@ -13,7 +37,13 @@ export function useConversations(enabled = true) {
 export function useConversation(id: string | null) {
 	return useQuery({
 		queryKey: ["conversation", id],
-		queryFn: () => api.chat.get(id as string),
+		queryFn: async () => {
+			const data = await api.chat.get(id as string);
+			return {
+				...data,
+				messages: data.messages.map(mapMessageRow),
+			};
+		},
 		enabled: !!id,
 	});
 }

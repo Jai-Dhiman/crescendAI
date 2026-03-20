@@ -106,11 +106,16 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 		bottom: number;
 		left: number;
 	} | null>(null);
-	const { sidebarOpen, setSidebarOpen } = useUIStore();
-	const { theme, toggleTheme } = useThemeStore();
+	const sidebarOpen = useUIStore((s) => s.sidebarOpen);
+	const setSidebarOpen = useUIStore((s) => s.setSidebarOpen);
+	const theme = useThemeStore((s) => s.theme);
+	const toggleTheme = useThemeStore((s) => s.toggleTheme);
 	const profileRef = useRef<HTMLDivElement>(null);
 	const addToast = useToastStore((s) => s.addToast);
-	const scorePanel = useScorePanelStore();
+	const scorePanelClear = useScorePanelStore((s) => s.clear);
+	const scorePanelToggle = useScorePanelStore((s) => s.toggle);
+	const scorePanelIsOpen = useScorePanelStore((s) => s.isOpen);
+	const scorePanelSessionData = useScorePanelStore((s) => s.sessionData);
 
 	const recordButtonRef = useRef<HTMLButtonElement>(null);
 	const [showListeningMode, setShowListeningMode] = useState(false);
@@ -275,13 +280,19 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 						`/app/c/${convId}`,
 					);
 				}
-				// Refetch from D1 to get all persisted observations + summary
-				queryClient.invalidateQueries({
-					queryKey: ["conversation", convId],
-				});
+				// Wait for refetch to complete BEFORE clearing transients
+				// (prevents flash of empty greeting screen)
+				queryClient
+					.invalidateQueries({
+						queryKey: ["conversation", convId],
+					})
+					.then(() => {
+						setTransientMessages([]);
+					});
 				queryClient.invalidateQueries({ queryKey: ["conversations"] });
+			} else {
+				setTransientMessages([]);
 			}
-			setTransientMessages([]);
 		}
 	}, [practice.summary]);
 
@@ -332,7 +343,7 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 
 	const loadConversation = useCallback(
 		(id: string) => {
-			scorePanel.clear();
+			scorePanelClear();
 			setTransientMessages([]);
 			setSidebarOpen(false);
 			navigate({
@@ -340,13 +351,13 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 				params: { conversationId: id },
 			});
 		},
-		[navigate, setSidebarOpen, scorePanel],
+		[navigate, setSidebarOpen, scorePanelClear],
 	);
 
 	function handleNewChat() {
 		setActiveConversationId(null);
 		setTransientMessages([]);
-		scorePanel.clear();
+		scorePanelClear();
 		setSidebarOpen(false);
 		navigate({ to: "/app", replace: true });
 	}
@@ -738,10 +749,10 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 			{/* Main content */}
 			<div className="flex-1 relative flex flex-col min-w-0">
 				{/* Score panel toggle button */}
-				{scorePanel.sessionData && !scorePanel.isOpen && (
+				{scorePanelSessionData && !scorePanelIsOpen && (
 					<button
 						type="button"
-						onClick={scorePanel.toggle}
+						onClick={scorePanelToggle}
 						className="absolute top-3 right-3 z-20 flex items-center gap-2 px-3 py-2 rounded-lg bg-surface border border-border text-text-secondary hover:text-cream hover:bg-surface-2 transition text-body-sm"
 						aria-label="Open score panel"
 					>
