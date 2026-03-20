@@ -32,8 +32,12 @@ function getCollapsedProps(component: InlineComponent): {
 }
 
 export function Artifact({ artifactId, component }: ArtifactProps) {
-	const { states, register, unregister, collapse, expand, restore } =
-		useArtifactStore();
+	const entry = useArtifactStore((s) => s.states[artifactId]);
+	const register = useArtifactStore((s) => s.register);
+	const unregister = useArtifactStore((s) => s.unregister);
+	const collapse = useArtifactStore((s) => s.collapse);
+	const expand = useArtifactStore((s) => s.expand);
+	const restore = useArtifactStore((s) => s.restore);
 	const scrollContainerRef = useArtifactScrollContext();
 
 	const elementRef = useRef<HTMLDivElement>(null);
@@ -106,7 +110,6 @@ export function Artifact({ artifactId, component }: ArtifactProps) {
 		};
 	}, [artifactId, collapse, scrollContainerRef]);
 
-	const entry = states[artifactId];
 	const artifactState = entry?.state ?? "inline";
 	const collapsedProps = getCollapsedProps(component);
 
