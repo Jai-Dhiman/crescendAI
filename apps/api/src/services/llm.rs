@@ -217,6 +217,153 @@ pub async fn call_anthropic(
         .ok_or_else(|| "No content in Anthropic response".to_string())
 }
 
+// --- Anthropic Tool Use ---
+
+#[derive(Serialize, Clone)]
+pub struct AnthropicTool {
+    pub name: String,
+    pub description: String,
+    pub input_schema: serde_json::Value,
+}
+
+#[derive(Serialize)]
+struct AnthropicToolRequest {
+    model: String,
+    max_tokens: u32,
+    system: String,
+    messages: Vec<LlmMessage>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    tools: Option<Vec<AnthropicTool>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    tool_choice: Option<serde_json::Value>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct AnthropicToolResponse {
+    pub content: Vec<AnthropicContentBlock>,
+    pub stop_reason: String,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+#[serde(tag = "type")]
+pub enum AnthropicContentBlock {
+    #[serde(rename = "text")]
+    Text { text: String },
+    #[serde(rename = "tool_use")]
+    ToolUse {
+        id: String,
+        name: String,
+        input: serde_json::Value,
+    },
+}
+
+/// Parsed result from a tool-enabled Anthropic call.
+pub struct AnthropicToolResult {
+    pub text: String,
+    pub tool_calls: Vec<ToolCall>,
+}
+
+pub struct ToolCall {
+    pub id: String,
+    pub name: String,
+    pub input: serde_json::Value,
+}
+
+pub async fn call_anthropic_with_tools(
+    env: &Env,
+    system_prompt: &str,
+    user_prompt: &str,
+    max_tokens: u32,
+    tools: Option<Vec<AnthropicTool>>,
+) -> Result<AnthropicToolResult, String> {
+    let api_key = env
+        .secret("ANTHROPIC_API_KEY")
+        .map_err(|_| "ANTHROPIC_API_KEY not configured".to_string())?
+        .to_string();
+
+    let tool_choice = tools.as_ref().map(|_| serde_json::json!({"type": "auto"}));
+
+    let request_body = AnthropicToolRequest {
+        model: "claude-sonnet-4-6".to_string(),
+        max_tokens,
+        system: system_prompt.to_string(),
+        messages: vec![LlmMessage {
+            role: "user".to_string(),
+            content: user_prompt.to_string(),
+        }],
+        tools,
+        tool_choice,
+    };
+
+    let body_json = serde_json::to_string(&request_body)
+        .map_err(|e| format!("Failed to serialize Anthropic tool request: {:?}", e))?;
+
+    let headers = Headers::new();
+    headers
+        .set("x-api-key", &api_key)
+        .map_err(|e| format!("Failed to set api-key header: {:?}", e))?;
+    headers
+        .set("anthropic-version", "2023-06-01")
+        .map_err(|e| format!("Failed to set version header: {:?}", e))?;
+    headers
+        .set("Content-Type", "application/json")
+        .map_err(|e| format!("Failed to set content-type: {:?}", e))?;
+
+    let url: Url = "https://api.anthropic.com/v1/messages"
+        .parse()
+        .map_err(|e| format!("Invalid Anthropic URL: {:?}", e))?;
+
+    let mut init = RequestInit::new();
+    init.with_method(Method::Post);
+    init.with_headers(headers);
+    init.with_body(Some(body_json.into()));
+
+    let request = Request::new_with_init(url.as_str(), &init)
+        .map_err(|e| format!("Failed to create Anthropic tool request: {:?}", e))?;
+
+    let mut response = Fetch::Request(request)
+        .send()
+        .await
+        .map_err(|e| format!("Anthropic tool request failed: {:?}", e))?;
+
+    let status = response.status_code();
+    let response_text = response
+        .text()
+        .await
+        .map_err(|e| format!("Failed to read Anthropic tool response: {:?}", e))?;
+
+    if status != 200 {
+        return Err(format!(
+            "Anthropic returned status {}: {}",
+            status, response_text
+        ));
+    }
+
+    let parsed: AnthropicToolResponse = serde_json::from_str(&response_text).map_err(|e| {
+        format!(
+            "Failed to parse Anthropic tool response: {:?} - body: {}",
+            e, response_text
+        )
+    })?;
+
+    let mut text_parts: Vec<String> = Vec::new();
+    let mut tool_calls: Vec<ToolCall> = Vec::new();
+
+    for block in parsed.content {
+        match block {
+            AnthropicContentBlock::Text { text } => text_parts.push(text),
+            AnthropicContentBlock::ToolUse { id, name, input } => {
+                tool_calls.push(ToolCall { id, name, input });
+            }
+        }
+    }
+
+    Ok(AnthropicToolResult {
+        text: text_parts.join(""),
+        tool_calls,
+    })
+}
+
 // --- Workers AI (cheap background tasks) ---
 
 #[derive(Serialize)]
