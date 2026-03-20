@@ -44,6 +44,7 @@ pub struct ObservationRecord {
     pub baseline: f64,
     pub reasoning_trace: String,
     pub is_fallback: bool,
+    pub components_json: Option<String>,
 }
 
 struct SessionState {
@@ -64,6 +65,7 @@ struct SessionState {
     follower_state: FollowerState,
     is_eval_session: bool,
     mode_detector: ModeDetector,
+    conversation_id: Option<String>,
 }
 
 impl Default for SessionState {
@@ -86,6 +88,7 @@ impl Default for SessionState {
             follower_state: FollowerState::default(),
             is_eval_session: false,
             mode_detector: ModeDetector::new(),
+            conversation_id: None,
         }
     }
 }
@@ -117,12 +120,18 @@ impl DurableObject for PracticeSession {
             .map(|(_, v)| v.to_string())
             .unwrap_or_default();
 
+        let conversation_id = url.query_pairs()
+            .find(|(k, _)| k == "conversation_id")
+            .map(|(_, v)| v.to_string())
+            .filter(|s| !s.is_empty());
+
         // Store session info (on first connect only; reconnections keep existing state)
         {
             let mut s = self.inner.borrow_mut();
             if s.session_id.is_empty() {
                 s.session_id = session_id.clone();
                 s.student_id = student_id;
+                s.conversation_id = conversation_id;
             }
         }
 
@@ -683,6 +692,11 @@ impl PracticeSession {
         if let Some(br) = chunk_analysis.and_then(|a| a.bar_range.as_ref()) {
             obs_event["barRange"] = serde_json::json!(br);
         }
+        if let Some(ref components) = inner_resp.components_json {
+            if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(components) {
+                obs_event["components"] = parsed;
+            }
+        }
 
         // For eval sessions, include the context the teacher LLM saw
         {
@@ -706,21 +720,62 @@ impl PracticeSession {
 
         let _ = ws.send_with_str(&obs_event.to_string());
 
+        // Generate observation ID and extract fields before borrowing
+        let obs_id = crate::services::ask::generate_uuid();
+        let observation_text = inner_resp.observation_text.clone();
+        let obs_dimension = inner_resp.dimension.clone();
+        let obs_framing = inner_resp.framing.clone();
+        let components_json = inner_resp.components_json.clone();
+
         // Store in session state
         {
             let mut s = self.inner.borrow_mut();
             s.observations.push(ObservationRecord {
-                id: crate::services::ask::generate_uuid(),
-                text: inner_resp.observation_text,
-                dimension: inner_resp.dimension,
-                framing: inner_resp.framing,
+                id: obs_id.clone(),
+                text: observation_text.clone(),
+                dimension: obs_dimension.clone(),
+                framing: obs_framing.clone(),
                 chunk_index: moment.chunk_index,
                 score: moment.score,
                 baseline: moment.baseline,
-                reasoning_trace: inner_resp.reasoning_trace,
+                reasoning_trace: inner_resp.reasoning_trace.clone(),
                 is_fallback: inner_resp.is_fallback,
+                components_json: components_json.clone(),
             });
             s.last_observation_at = Some(js_sys::Date::now() as u64);
+        }
+
+        // Persist as message in conversation (awaited to prevent data loss)
+        let conv_id = self.inner.borrow().conversation_id.clone();
+        if let Some(ref conv_id) = conv_id {
+            let msg_id = crate::services::ask::generate_uuid();
+            let now = js_sys::Date::new_0().to_iso_string().as_string().unwrap_or_default();
+            if let Ok(db) = self.env.d1("DB") {
+                let bind_result = db.prepare(
+                    "INSERT INTO messages (id, conversation_id, role, content, message_type, \
+                     dimension, framing, components_json, session_id, observation_id, created_at) \
+                     VALUES (?1, ?2, 'assistant', ?3, 'observation', ?4, ?5, ?6, ?7, ?8, ?9)"
+                )
+                .bind(&[
+                    JsValue::from_str(&msg_id),
+                    JsValue::from_str(conv_id),
+                    JsValue::from_str(&observation_text),
+                    JsValue::from_str(&obs_dimension),
+                    JsValue::from_str(&obs_framing),
+                    match components_json.as_deref() {
+                        Some(c) => JsValue::from_str(c),
+                        None => JsValue::NULL,
+                    },
+                    JsValue::from_str(&session_id),
+                    JsValue::from_str(&obs_id),
+                    JsValue::from_str(&now),
+                ]);
+                if let Ok(q) = bind_result {
+                    if let Err(e) = q.run().await {
+                        console_error!("Failed to persist observation message: {:?}", e);
+                    }
+                }
+            }
         }
     }
 
@@ -1050,6 +1105,53 @@ impl PracticeSession {
                 "total_chunks": total_chunks,
             });
             let _ = ws.send_with_str(&summary.to_string());
+
+            // Persist summary + session_end as messages in conversation
+            let conv_id = self.inner.borrow().conversation_id.clone();
+            if let Some(ref conv_id) = conv_id {
+                let now = js_sys::Date::new_0().to_iso_string().as_string().unwrap_or_default();
+
+                if !summary_text.is_empty() {
+                    if let Ok(db) = self.env.d1("DB") {
+                        let msg_id = crate::services::ask::generate_uuid();
+                        if let Ok(q) = db.prepare(
+                            "INSERT INTO messages (id, conversation_id, role, content, message_type, session_id, created_at) \
+                             VALUES (?1, ?2, 'assistant', ?3, 'summary', ?4, ?5)"
+                        )
+                        .bind(&[
+                            JsValue::from_str(&msg_id),
+                            JsValue::from_str(conv_id),
+                            JsValue::from_str(&summary_text),
+                            JsValue::from_str(&session_id),
+                            JsValue::from_str(&now),
+                        ]) {
+                            if let Err(e) = q.run().await {
+                                console_error!("Failed to persist summary message: {:?}", e);
+                            }
+                        }
+                    }
+                }
+
+                // Insert session_end message
+                if let Ok(db) = self.env.d1("DB") {
+                    let end_msg_id = crate::services::ask::generate_uuid();
+                    let end_now = js_sys::Date::new_0().to_iso_string().as_string().unwrap_or_default();
+                    if let Ok(q) = db.prepare(
+                        "INSERT INTO messages (id, conversation_id, role, content, message_type, session_id, created_at) \
+                         VALUES (?1, ?2, 'assistant', 'Recording ended', 'session_end', ?3, ?4)"
+                    )
+                    .bind(&[
+                        JsValue::from_str(&end_msg_id),
+                        JsValue::from_str(conv_id),
+                        JsValue::from_str(&session_id),
+                        JsValue::from_str(&end_now),
+                    ]) {
+                        if let Err(e) = q.run().await {
+                            console_error!("Failed to persist session_end message: {:?}", e);
+                        }
+                    }
+                }
+            }
         }
 
         // 4. Close all WebSockets
