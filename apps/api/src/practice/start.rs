@@ -4,11 +4,12 @@ use worker::Env;
 pub async fn handle_start(
     env: &Env,
     headers: &http::HeaderMap,
+    body: &[u8],
 ) -> http::Response<axum::body::Body> {
     use axum::body::Body;
     use http::{Response, StatusCode};
 
-    let _student_id = match crate::auth::verify_auth_header(headers, env) {
+    let student_id = match crate::auth::verify_auth_header(headers, env) {
         Ok(id) => id,
         Err(err_response) => return err_response,
     };
@@ -19,9 +20,125 @@ pub async fn handle_start(
     prewarm_hf_endpoint(env);
 
     let session_id = crate::services::ask::generate_uuid();
+    let now = js_sys::Date::new_0().to_iso_string().as_string().unwrap_or_default();
+
+    // Parse optional conversation_id from request body
+    let conversation_id = if body.is_empty() {
+        None
+    } else {
+        serde_json::from_slice::<serde_json::Value>(body)
+            .ok()
+            .and_then(|v| v.get("conversationId")?.as_str().map(|s| s.to_string()))
+    };
+
+    // Get D1 database binding
+    let db = match env.d1("DB") {
+        Ok(db) => db,
+        Err(e) => {
+            worker::console_error!("D1 binding failed: {:?}", e);
+            return Response::builder()
+                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                .header("Content-Type", "application/json")
+                .body(Body::from(r#"{"error":"Internal server error"}"#))
+                .unwrap();
+        }
+    };
+
+    // If no conversation_id provided, create a new conversation
+    let conversation_id = match conversation_id {
+        Some(id) => id,
+        None => {
+            let new_id = crate::services::ask::generate_uuid();
+            let conv_result = db
+                .prepare("INSERT INTO conversations (id, student_id, created_at, updated_at) VALUES (?1, ?2, ?3, ?4)")
+                .bind(&[
+                    JsValue::from_str(&new_id),
+                    JsValue::from_str(&student_id),
+                    JsValue::from_str(&now),
+                    JsValue::from_str(&now),
+                ]);
+            match conv_result {
+                Ok(stmt) => {
+                    if let Err(e) = stmt.run().await {
+                        worker::console_error!("Failed to insert conversation: {:?}", e);
+                        return Response::builder()
+                            .status(StatusCode::INTERNAL_SERVER_ERROR)
+                            .header("Content-Type", "application/json")
+                            .body(Body::from(r#"{"error":"Failed to create conversation"}"#))
+                            .unwrap();
+                    }
+                }
+                Err(e) => {
+                    worker::console_error!("Failed to bind conversation insert: {:?}", e);
+                    return Response::builder()
+                        .status(StatusCode::INTERNAL_SERVER_ERROR)
+                        .header("Content-Type", "application/json")
+                        .body(Body::from(r#"{"error":"Failed to create conversation"}"#))
+                        .unwrap();
+                }
+            }
+            new_id
+        }
+    };
+
+    // Insert session row linked to conversation
+    let session_result = db
+        .prepare("INSERT INTO sessions (id, student_id, started_at, conversation_id) VALUES (?1, ?2, ?3, ?4)")
+        .bind(&[
+            JsValue::from_str(&session_id),
+            JsValue::from_str(&student_id),
+            JsValue::from_str(&now),
+            JsValue::from_str(&conversation_id),
+        ]);
+    match session_result {
+        Ok(stmt) => {
+            if let Err(e) = stmt.run().await {
+                worker::console_error!("Failed to insert session: {:?}", e);
+                return Response::builder()
+                    .status(StatusCode::INTERNAL_SERVER_ERROR)
+                    .header("Content-Type", "application/json")
+                    .body(Body::from(r#"{"error":"Failed to create session"}"#))
+                    .unwrap();
+            }
+        }
+        Err(e) => {
+            worker::console_error!("Failed to bind session insert: {:?}", e);
+            return Response::builder()
+                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                .header("Content-Type", "application/json")
+                .body(Body::from(r#"{"error":"Failed to create session"}"#))
+                .unwrap();
+        }
+    }
+
+    // Insert a session_start message into the conversation
+    let msg_id = crate::services::ask::generate_uuid();
+    let msg_result = db
+        .prepare("INSERT INTO messages (id, conversation_id, role, content, created_at, message_type, session_id) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)")
+        .bind(&[
+            JsValue::from_str(&msg_id),
+            JsValue::from_str(&conversation_id),
+            JsValue::from_str("assistant"),
+            JsValue::from_str("Practice session started"),
+            JsValue::from_str(&now),
+            JsValue::from_str("session_start"),
+            JsValue::from_str(&session_id),
+        ]);
+    match msg_result {
+        Ok(stmt) => {
+            if let Err(e) = stmt.run().await {
+                worker::console_error!("Failed to insert session_start message: {:?}", e);
+                // Non-fatal: session and conversation already created
+            }
+        }
+        Err(e) => {
+            worker::console_error!("Failed to bind session_start message: {:?}", e);
+        }
+    }
 
     let resp = serde_json::json!({
         "sessionId": session_id,
+        "conversationId": conversation_id,
     });
 
     Response::builder()

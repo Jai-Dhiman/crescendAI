@@ -99,15 +99,17 @@ When no artifact is warranted:
 
 The UI subagent stage (previously ~0.3-0.5s) is eliminated. Tool use adds ~0.2-0.5s to the teacher call but removes an entire LLM round-trip.
 
-### Tool Use vs MCP (Open Decision)
+### Artifact Declaration Pattern (DECIDED)
 
-The exact pattern for artifact declaration needs research:
+**Decision:** Anthropic native tool_use with `tool_choice: "auto"`.
 
-- **Option A: Anthropic tool_use** -- Teacher LLM has tools like `generate_exercise(bars, dimension, instruction)`. Schema enforces valid configs. Native to the Anthropic API.
-- **Option B: Self-hosted MCP server** -- Artifact types registered as MCP tools. Decouples artifact definitions from the teacher prompt. New types added by registering new tools.
-- **Option C: Structured output** -- Teacher outputs JSON with artifact field via JSON mode. Simplest but least reliable.
-
-Decision deferred to implementation phase after research.
+- Teacher LLM decides autonomously when to create artifacts (no subagent signaling)
+- Tool definition: `create_exercise` with schema-enforced config (source_passage, target_skill, exercises[1-3])
+- Hybrid exercise sourcing: catalog lookup (20 curated exercises) + teacher-generated fallback
+- Generated exercises persisted to D1 with `source: "teacher_llm"`
+- Separate tools per artifact type: Phase 3 will add `create_score_highlight`, `create_keyboard_guide`, etc.
+- Latency: +0.2-0.5s over text-only (tool schema adds ~100 tokens, cached after first call)
+- Graceful degradation: if tool call fails, observation is text-only (artifact is optional)
 
 ---
 
@@ -404,5 +406,3 @@ Start simple, iterate:
 5. **Offline behavior:** Score highlight and exercise set can work offline (data is local or cached). Reference browser requires network. Keyboard guide depends on whether score data is cached. Should offline components degrade or simply not appear?
 
 6. **Component as conversation turn:** When the student interacts with a component (taps "Try it" on an exercise, listens to a reference), should that interaction feed back into the conversation? E.g., "I see you tried the crescendo isolation exercise -- how did it feel?"
-
-7. **Artifact tool use pattern:** Anthropic tool_use vs self-hosted MCP vs structured JSON output. Needs research before implementation.

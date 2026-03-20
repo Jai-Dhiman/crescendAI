@@ -7,122 +7,53 @@ function makeObs(text: string): ObservationEvent {
 }
 
 describe("ObservationThrottle", () => {
-	it("blocks observations before minChunks reached", () => {
-		const throttle = new ObservationThrottle({ minChunksBeforeFirst: 4 });
-		// Only 2 chunks processed
-		throttle.onChunkProcessed();
-		throttle.onChunkProcessed();
-		const result = throttle.enqueue(makeObs("too early"));
-		expect(result).toBeNull();
-	});
-
-	it("delivers first observation after minChunks reached", () => {
-		const throttle = new ObservationThrottle({ minChunksBeforeFirst: 4 });
-		for (let i = 0; i < 4; i++) throttle.onChunkProcessed();
-		const result = throttle.enqueue(makeObs("ready"));
+	it("enqueue delivers observation immediately (DO owns pacing)", () => {
+		const throttle = new ObservationThrottle();
+		const result = throttle.enqueue(makeObs("hello"));
 		expect(result).not.toBeNull();
-		expect(result?.text).toBe("ready");
+		expect(result.text).toBe("hello");
 	});
 
-	it("blocks second observation within throttle window", () => {
-		const throttle = new ObservationThrottle({
-			minChunksBeforeFirst: 1,
-			windowMs: 180_000,
-		});
-		throttle.onChunkProcessed();
-		// First one delivers
-		const first = throttle.enqueue(makeObs("first"));
-		expect(first).not.toBeNull();
-		// Second one is blocked (within window)
-		const second = throttle.enqueue(makeObs("second"));
-		expect(second).toBeNull();
+	it("enqueue increments chunk counter", () => {
+		const throttle = new ObservationThrottle();
+		expect(throttle.getChunksReceived()).toBe(0);
+		throttle.enqueue(makeObs("obs"));
+		expect(throttle.getChunksReceived()).toBe(1);
 	});
 
-	it("releases queued observation via tick() after window expires", () => {
-		const throttle = new ObservationThrottle({
-			minChunksBeforeFirst: 1,
-			windowMs: 100, // Short window for testing
-		});
-		throttle.onChunkProcessed();
-
-		throttle.enqueue(makeObs("first"));
-		throttle.enqueue(makeObs("queued"));
-
-		// tick() before window expires returns null
-		const tooEarly = throttle.tick();
-		expect(tooEarly).toBeNull();
-
-		// Wait for window to expire
-		return new Promise<void>((resolve) => {
-			setTimeout(() => {
-				const released = throttle.tick();
-				expect(released).not.toBeNull();
-				expect(released?.text).toBe("queued");
-				resolve();
-			}, 150);
-		});
+	it("onChunkProcessed increments chunk counter and returns null", () => {
+		const throttle = new ObservationThrottle();
+		const result = throttle.onChunkProcessed();
+		expect(result).toBeNull();
+		expect(throttle.getChunksReceived()).toBe(1);
 	});
 
-	it("replaces queued observation with newer one", () => {
-		const throttle = new ObservationThrottle({
-			minChunksBeforeFirst: 1,
-			windowMs: 180_000,
-		});
-		throttle.onChunkProcessed();
-
-		throttle.enqueue(makeObs("first"));
-		throttle.enqueue(makeObs("old queued"));
-		throttle.enqueue(makeObs("new queued"));
-
-		const drained = throttle.drain();
-		expect(drained).toHaveLength(1);
-		expect(drained[0].text).toBe("new queued");
-	});
-
-	it("onChunkProcessed releases queued observation when minChunks newly met", () => {
-		const throttle = new ObservationThrottle({
-			minChunksBeforeFirst: 3,
-			windowMs: 180_000,
-		});
-		// Enqueue before minChunks met
-		throttle.onChunkProcessed();
-		throttle.enqueue(makeObs("waiting"));
-
-		// Still not enough chunks
-		const r2 = throttle.onChunkProcessed();
-		expect(r2).toBeNull();
-
-		// Third chunk meets minimum
-		const r3 = throttle.onChunkProcessed();
-		expect(r3).not.toBeNull();
-		expect(r3?.text).toBe("waiting");
-	});
-
-	it("drain() returns queued observation and empties queue", () => {
-		const throttle = new ObservationThrottle({
-			minChunksBeforeFirst: 1,
-			windowMs: 180_000,
-		});
-		throttle.onChunkProcessed();
-		throttle.enqueue(makeObs("first"));
-		throttle.enqueue(makeObs("queued"));
-
-		const drained = throttle.drain();
-		expect(drained).toHaveLength(1);
-		expect(drained[0].text).toBe("queued");
-
-		// Drain again returns empty
+	it("drain() returns empty when nothing queued", () => {
+		const throttle = new ObservationThrottle();
 		expect(throttle.drain()).toHaveLength(0);
 	});
 
-	it("reset() clears all state", () => {
-		const throttle = new ObservationThrottle({ minChunksBeforeFirst: 1 });
-		throttle.onChunkProcessed();
-		throttle.enqueue(makeObs("obs"));
-		throttle.reset();
+	it("drain() returns queued observation and clears it", () => {
+		const throttle = new ObservationThrottle();
+		// Manually set queued state (simulating reconnection buffer)
+		throttle.enqueue(makeObs("first"));
+		// Since enqueue delivers immediately, queue stays empty
+		const drained = throttle.drain();
+		expect(drained).toHaveLength(0);
+	});
 
-		// After reset, minChunks not met again
-		const result = throttle.enqueue(makeObs("after reset"));
-		expect(result).toBeNull();
+	it("reset() clears chunk counter", () => {
+		const throttle = new ObservationThrottle();
+		throttle.onChunkProcessed();
+		throttle.onChunkProcessed();
+		expect(throttle.getChunksReceived()).toBe(2);
+		throttle.reset();
+		expect(throttle.getChunksReceived()).toBe(0);
+	});
+
+	it("reset() clears queued observation", () => {
+		const throttle = new ObservationThrottle();
+		throttle.reset();
+		expect(throttle.drain()).toHaveLength(0);
 	});
 });

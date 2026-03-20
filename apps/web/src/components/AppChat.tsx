@@ -30,7 +30,7 @@ import { useUIStore } from "../stores/ui";
 import { ArtifactOverlay } from "./ArtifactOverlay";
 import { ChatInput } from "./ChatInput";
 import { ChatMessages } from "./ChatMessages";
-import { ListeningMode } from "./ListeningMode";
+import { RecordingBanner } from "./RecordingBanner";
 import { ScorePanel } from "./ScorePanel";
 import {
 	ChatSkeleton,
@@ -112,15 +112,7 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 	const scorePanel = useScorePanelStore();
 
 	const recordButtonRef = useRef<HTMLButtonElement>(null);
-	const [showListeningMode, setShowListeningMode] = useState(false);
-	const [recordButtonRect, setRecordButtonRect] = useState<DOMRect | null>(
-		null,
-	);
 	const [sessionNotes, setSessionNotes] = useState("");
-	const [pieceContext, setPieceContext] = useState<{
-		piece: string;
-		section?: string;
-	} | null>(null);
 
 	// Chat state
 	const [activeConversationId, setActiveConversationId] = useState<
@@ -207,13 +199,8 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 			});
 
 			if (res.ok) {
-				const data = (await res.json()) as {
-					piece?: string;
-					section?: string;
-				} | null;
-				if (data?.piece) {
-					setPieceContext({ piece: data.piece, section: data.section });
-				}
+				// TODO: Use extracted piece context for score conditioning
+				await res.json();
 			}
 		} catch (e) {
 			// Non-critical -- user can edit piece name manually
@@ -222,20 +209,8 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 	}
 
 	function handleRecord() {
-		const rect = recordButtonRef.current?.getBoundingClientRect() ?? null;
-		setRecordButtonRect(rect);
-		setPieceContext(null);
-		setShowListeningMode(true);
-		practice.start();
+		practice.start(activeConversationId ?? undefined);
 		extractPieceContext(messages);
-	}
-
-	function handleExitListeningMode() {
-		setShowListeningMode(false);
-		setRecordButtonRect(null);
-		if (practice.error) {
-			addToast({ type: "error", message: practice.error, duration: 5000 });
-		}
 	}
 
 	// When practice summary arrives, post it to chat
@@ -267,7 +242,7 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 
 	// Show loading indicator in chat while session is summarizing
 	useEffect(() => {
-		if (practice.state === "summarizing" && !showListeningMode) {
+		if (practice.state === "summarizing") {
 			setMessages((prev) => {
 				if (prev.some((m) => m.id === "summarizing-placeholder")) return prev;
 				return [
@@ -282,7 +257,24 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 				];
 			});
 		}
-	}, [practice.state, showListeningMode]);
+	}, [practice.state]);
+
+	// Merge practice observation messages into the chat thread during recording
+	const displayMessages = useMemo(() => {
+		if (practice.state === "idle" || practice.observationMessages.length === 0) {
+			return messages;
+		}
+		// Deduplicate: don't show observations that are already in messages (from D1 reload)
+		const existingObsIds = new Set(
+			messages
+				.filter((m) => m.message_type === "observation")
+				.map((m) => m.content),
+		);
+		const newObs = practice.observationMessages.filter(
+			(m) => !existingObsIds.has(m.content),
+		);
+		return [...messages, ...newObs];
+	}, [messages, practice.observationMessages, practice.state]);
 
 	// Redirect if not authenticated
 	useEffect(() => {
@@ -720,24 +712,6 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 
 			{/* Main content */}
 			<div className="flex-1 relative flex flex-col min-w-0">
-				{showListeningMode && (
-					<ListeningMode
-						state={practice.state}
-						observations={practice.observations}
-						energy={practice.energy}
-					isPlaying={practice.isPlaying}
-						latestScores={practice.latestScores}
-						error={practice.error}
-						wsStatus={practice.wsStatus}
-						onStop={practice.stop}
-						originRect={recordButtonRect}
-						onExit={handleExitListeningMode}
-						sessionNotes={sessionNotes}
-						onNotesChange={setSessionNotes}
-						pieceContext={pieceContext}
-					/>
-				)}
-
 				{/* Score panel toggle button */}
 				{scorePanel.sessionData && !scorePanel.isOpen && (
 					<button
@@ -773,8 +747,17 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 						/>
 					</div>
 				) : (
-					<ChatMessages messages={messages} onTryExercises={handleTryExercises}>
+					<ChatMessages messages={displayMessages} onTryExercises={handleTryExercises}>
 						<div className="sticky bottom-0">
+							{practice.state === "recording" && (
+								<RecordingBanner
+									elapsedSeconds={practice.elapsedSeconds}
+									energy={practice.energy}
+									isPlaying={practice.isPlaying}
+									onStop={practice.stop}
+									practiceMode={practice.practiceMode}
+								/>
+							)}
 							<ChatInput
 								onSend={handleSend}
 								onRecord={handleRecord}

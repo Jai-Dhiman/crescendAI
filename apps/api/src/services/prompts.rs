@@ -6,6 +6,8 @@
 //! Stage 2 (Teacher): Converts subagent analysis into a natural 1-3 sentence
 //! observation in the teacher persona voice.
 
+use crate::services::llm;
+
 /// Subagent system prompt (Stage 1 -- Groq, Llama 70B)
 pub const SUBAGENT_SYSTEM: &str = r#"You are a piano pedagogy analyst. You receive structured data about a student's practice session -- teaching moments identified by an audio analysis model, the student's history, and musical context.
 
@@ -83,6 +85,59 @@ Recognition (substantive, references specific improvement):
 
 Example of a BAD observation (vague, lists multiple issues):
 "Your dynamics need work and the pedaling could be cleaner. Also watch the tempo in the second section. Overall good effort though!""#;
+
+/// Tool definition for teacher exercise creation (Anthropic tool_use).
+pub fn exercise_tool_definition() -> llm::AnthropicTool {
+    llm::AnthropicTool {
+        name: "create_exercise".to_string(),
+        description: "Create a focused practice exercise when the student would benefit from \
+            structured practice on a specific passage or technique. Use sparingly -- only when \
+            a concrete drill would be more helpful than verbal guidance alone. Most observations \
+            should be text-only."
+            .to_string(),
+        input_schema: serde_json::json!({
+            "type": "object",
+            "properties": {
+                "source_passage": {
+                    "type": "string",
+                    "description": "The passage this exercise targets (e.g., 'measures 12-16' or 'the opening phrase')"
+                },
+                "target_skill": {
+                    "type": "string",
+                    "description": "The specific skill being developed (e.g., 'Voice balancing between hands')"
+                },
+                "exercises": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "title": {
+                                "type": "string",
+                                "description": "Short exercise name"
+                            },
+                            "instruction": {
+                                "type": "string",
+                                "description": "Concrete steps the student should follow. 2-4 sentences."
+                            },
+                            "focus_dimension": {
+                                "type": "string",
+                                "enum": ["dynamics", "timing", "pedaling", "articulation", "phrasing", "interpretation"]
+                            },
+                            "hands": {
+                                "type": "string",
+                                "enum": ["left", "right", "both"]
+                            }
+                        },
+                        "required": ["title", "instruction", "focus_dimension"]
+                    },
+                    "minItems": 1,
+                    "maxItems": 3
+                }
+            },
+            "required": ["source_passage", "target_skill", "exercises"]
+        }),
+    }
+}
 
 /// Build the subagent user prompt from request data, observation history, and memory context.
 pub fn build_subagent_user_prompt(
@@ -243,6 +298,39 @@ pub fn build_teacher_user_prompt(
     prompt.push_str("</student>\n\n");
 
     prompt.push_str("<task>\nBased on the analysis above, give one observation to the student. Be specific about what you heard and what to try. 1-3 sentences, no formatting.\n</task>");
+
+    prompt
+}
+
+/// Build teacher user prompt with catalog exercises injected.
+/// When matching catalog exercises exist, the teacher can reference them by ID.
+pub fn build_teacher_user_prompt_with_catalog(
+    subagent_json: &str,
+    subagent_narrative: &str,
+    student_level: &str,
+    student_goals: &str,
+    catalog_exercises: &[(String, String, String, String)],  // (id, title, description, difficulty)
+) -> String {
+    let mut prompt = build_teacher_user_prompt(subagent_json, subagent_narrative, student_level, student_goals);
+
+    if !catalog_exercises.is_empty() {
+        // Insert catalog context before the <task> tag
+        let task_tag = "<task>\n";
+        if let Some(pos) = prompt.rfind(task_tag) {
+            let mut catalog_section = String::from("\n<available_exercises>\n");
+            catalog_section.push_str("These curated exercises are available. If one fits, you can reference it by ID in your exercise tool call.\n");
+            for (id, title, description, difficulty) in catalog_exercises {
+                catalog_section.push_str(&format!("- [{}] {} ({}): {}\n", id, title, difficulty, description));
+            }
+            catalog_section.push_str("</available_exercises>\n\n");
+            prompt.insert_str(pos, &catalog_section);
+        }
+    }
+
+    // Update the task instruction to mention tool availability
+    let old_task = "<task>\nBased on the analysis above, give one observation to the student. Be specific about what you heard and what to try. 1-3 sentences, no formatting.\n</task>";
+    let new_task = "<task>\nBased on the analysis above, give one observation to the student. Be specific about what you heard and what to try. 1-3 sentences, no formatting.\n\nIf the student would benefit from a concrete practice drill, use the create_exercise tool to attach one. Most observations should be text-only -- only create an exercise when structured practice would genuinely help more than verbal guidance.\n</task>";
+    prompt = prompt.replace(old_task, new_task);
 
     prompt
 }

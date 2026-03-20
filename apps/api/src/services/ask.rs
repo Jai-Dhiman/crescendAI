@@ -52,6 +52,8 @@ pub struct AskInnerResponse {
     pub framing: String,
     pub reasoning_trace: String,
     pub is_fallback: bool,
+    /// Optional exercise artifact from teacher tool use.
+    pub components_json: Option<String>,
 }
 
 /// Dimension descriptions for fallback templates.
@@ -153,32 +155,69 @@ pub async fn handle_ask_inner(
                 framing: "correction".to_string(),
                 reasoning_trace: "{}".to_string(),
                 is_fallback: true,
+                components_json: None,
             };
         }
     };
 
     let (subagent_json, subagent_narrative) = split_subagent_output(&subagent_output);
 
-    // Stage 2: Teacher (Anthropic)
-    let teacher_user_prompt = prompts::build_teacher_user_prompt(
-        &subagent_json,
-        &subagent_narrative,
-        "intermediate",
-        "",
-    );
+    // Stage 2: Teacher (Anthropic) with tool use
+    let catalog = lookup_catalog_exercises(env, &dimension).await;
 
-    let teacher_result = llm::call_anthropic(
+    let teacher_user_prompt = if catalog.is_empty() {
+        prompts::build_teacher_user_prompt(
+            &subagent_json,
+            &subagent_narrative,
+            "intermediate",
+            "",
+        )
+    } else {
+        prompts::build_teacher_user_prompt_with_catalog(
+            &subagent_json,
+            &subagent_narrative,
+            "intermediate",
+            "",
+            &catalog,
+        )
+    };
+
+    let tools = vec![prompts::exercise_tool_definition()];
+
+    let teacher_result = llm::call_anthropic_with_tools(
         env,
         prompts::TEACHER_SYSTEM,
         &teacher_user_prompt,
-        300,
+        500,
+        Some(tools),
     ).await;
 
-    let (observation_text, is_fallback) = match teacher_result {
-        Ok(text) => (post_process_observation(&text), false),
+    let (observation_text, is_fallback, components_json) = match teacher_result {
+        Ok(result) => {
+            let text = post_process_observation(&result.text);
+
+            // Process any exercise tool calls
+            let components = if let Some(tc) = result.tool_calls.first() {
+                if tc.name == "create_exercise" {
+                    match process_exercise_tool_call(env, &tc.input).await {
+                        Ok(json) => Some(json),
+                        Err(e) => {
+                            console_error!("Exercise tool call processing failed: {}", e);
+                            None
+                        }
+                    }
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+
+            (text, false, components)
+        }
         Err(e) => {
             console_error!("Teacher LLM failed: {}", e);
-            (fallback_observation(&dimension), true)
+            (fallback_observation(&dimension), true, None)
         }
     };
 
@@ -192,6 +231,7 @@ pub async fn handle_ask_inner(
         framing,
         reasoning_trace,
         is_fallback,
+        components_json,
     }
 }
 
@@ -257,6 +297,8 @@ pub async fn handle_ask(
     let observation_text = inner_resp.observation_text;
     let framing = inner_resp.framing;
     let is_fallback = inner_resp.is_fallback;
+    let _components_json = inner_resp.components_json;
+    // HTTP path does not use components yet (observations go through DO WebSocket)
 
     // Generate observation ID
     let observation_id = generate_uuid();
@@ -640,5 +682,158 @@ pub fn generate_uuid() -> String {
         bytes[8], bytes[9], bytes[10], bytes[11],
         bytes[12], bytes[13], bytes[14], bytes[15]
     )
+}
+
+/// Look up catalog exercises matching a dimension.
+/// Returns up to 5 matching exercises as (id, title, description, difficulty).
+async fn lookup_catalog_exercises(
+    env: &Env,
+    dimension: &str,
+) -> Vec<(String, String, String, String)> {
+    let db = match env.d1("DB") {
+        Ok(db) => db,
+        Err(e) => {
+            console_error!("D1 binding failed for catalog lookup: {:?}", e);
+            return Vec::new();
+        }
+    };
+
+    let query = match db
+        .prepare(
+            "SELECT e.id, e.title, e.description, e.difficulty \
+             FROM exercises e \
+             JOIN exercise_dimensions ed ON e.id = ed.exercise_id \
+             WHERE ed.dimension = ?1 AND e.source = 'curated' \
+             LIMIT 5",
+        )
+        .bind(&[JsValue::from_str(dimension)])
+    {
+        Ok(q) => q,
+        Err(e) => {
+            console_error!("Catalog query bind failed: {:?}", e);
+            return Vec::new();
+        }
+    };
+
+    match query.all().await {
+        Ok(result) => {
+            let rows: Vec<serde_json::Value> = result.results().unwrap_or_default();
+            rows.iter()
+                .filter_map(|row| {
+                    let id = row.get("id")?.as_str()?.to_string();
+                    let title = row.get("title")?.as_str()?.to_string();
+                    let desc = row.get("description")?.as_str()?.to_string();
+                    let diff = row.get("difficulty")?.as_str()?.to_string();
+                    Some((id, title, desc, diff))
+                })
+                .collect()
+        }
+        Err(e) => {
+            console_error!("Catalog query failed: {:?}", e);
+            Vec::new()
+        }
+    }
+}
+
+/// Persist a teacher-generated exercise to D1 and return the exercise_id.
+async fn persist_generated_exercise(
+    env: &Env,
+    title: &str,
+    instruction: &str,
+    focus_dimension: &str,
+    source_passage: &str,
+    target_skill: &str,
+) -> Result<String, String> {
+    let db = env.d1("DB").map_err(|e| format!("D1 binding failed: {:?}", e))?;
+    let exercise_id = generate_uuid();
+    let now = js_sys::Date::new_0().to_iso_string().as_string().unwrap_or_default();
+
+    db.prepare(
+        "INSERT INTO exercises (id, title, description, instructions, difficulty, category, source, created_at) \
+         VALUES (?1, ?2, ?3, ?4, 'intermediate', 'generated', 'teacher_llm', ?5)",
+    )
+    .bind(&[
+        JsValue::from_str(&exercise_id),
+        JsValue::from_str(title),
+        JsValue::from_str(&format!("{} -- {}", target_skill, source_passage)),
+        JsValue::from_str(instruction),
+        JsValue::from_str(&now),
+    ])
+    .map_err(|e| format!("Failed to bind exercise insert: {:?}", e))?
+    .run()
+    .await
+    .map_err(|e| format!("Failed to insert exercise: {:?}", e))?;
+
+    // Link to dimension
+    let _ = db
+        .prepare("INSERT INTO exercise_dimensions (exercise_id, dimension) VALUES (?1, ?2)")
+        .bind(&[
+            JsValue::from_str(&exercise_id),
+            JsValue::from_str(focus_dimension),
+        ])
+        .map_err(|e| format!("Failed to bind dimension insert: {:?}", e))?
+        .run()
+        .await;
+
+    Ok(exercise_id)
+}
+
+/// Process a create_exercise tool call: validate, persist each exercise, return components JSON.
+async fn process_exercise_tool_call(
+    env: &Env,
+    input: &serde_json::Value,
+) -> Result<String, String> {
+    let source_passage = input.get("source_passage")
+        .and_then(|v| v.as_str())
+        .ok_or("Missing source_passage")?;
+    let target_skill = input.get("target_skill")
+        .and_then(|v| v.as_str())
+        .ok_or("Missing target_skill")?;
+    let exercises = input.get("exercises")
+        .and_then(|v| v.as_array())
+        .ok_or("Missing exercises array")?;
+
+    let mut processed_exercises = Vec::new();
+
+    const VALID_DIMS: &[&str] = &["dynamics", "timing", "pedaling", "articulation", "phrasing", "interpretation"];
+
+    for ex in exercises {
+        let title = ex.get("title").and_then(|v| v.as_str()).unwrap_or("Practice Drill");
+        let instruction = ex.get("instruction").and_then(|v| v.as_str()).unwrap_or("");
+        let raw_dim = ex.get("focus_dimension").and_then(|v| v.as_str()).unwrap_or("dynamics");
+        let focus_dim = if VALID_DIMS.contains(&raw_dim) { raw_dim } else { "dynamics" };
+        let hands = ex.get("hands").and_then(|v| v.as_str());
+
+        // Check if this references a catalog exercise by ID
+        let exercise_id = if let Some(id) = ex.get("exercise_id").and_then(|v| v.as_str()) {
+            id.to_string()
+        } else {
+            // Generate and persist new exercise
+            persist_generated_exercise(env, title, instruction, focus_dim, source_passage, target_skill).await?
+        };
+
+        let mut ex_json = serde_json::json!({
+            "title": title,
+            "instruction": instruction,
+            "focus_dimension": focus_dim,
+            "exercise_id": exercise_id,
+        });
+        if let Some(h) = hands {
+            ex_json["hands"] = serde_json::json!(h);
+        }
+        processed_exercises.push(ex_json);
+    }
+
+    let component = serde_json::json!([{
+        "type": "exercise_set",
+        "config": {
+            "source_passage": source_passage,
+            "target_skill": target_skill,
+            "exercises": processed_exercises,
+        }
+    }]);
+
+    serde_json::to_string(&component)
+        .map_err(|e| format!("Failed to serialize components: {:?}", e))
 }
 

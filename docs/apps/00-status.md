@@ -33,7 +33,7 @@ Target user: Sarah -- intermediate self-learner, no teacher, wants to know the o
 | WebSocket observations | COMPLETE | `apps/web/` | Real-time observation push during recording |
 | Sign in with Apple (web) | COMPLETE | `apps/web/` | JS SDK popup flow |
 | Durable Object sessions | COMPLETE | `apps/api/` | Practice session state management |
-| On-demand UI components | DESIGNED | -- | Artifact container system DESIGNED (unified inline-to-expanded pattern). Exercise artifact type for beta. |
+| On-demand UI components | COMPLETE | -- | Artifact container system COMPLETE (unified inline-to-expanded pattern). Teacher LLM declares artifacts via Anthropic tool_use (tool_choice: auto). Hybrid catalog lookup + generated fallback. Exercise artifact type for beta. |
 
 Stack: TanStack Start, Tailwind CSS v4, Web Audio API, MediaRecorder, WebSocket.
 
@@ -179,7 +179,7 @@ For system architecture, see `docs/architecture.md`.
 | Memory without vector search | Structured D1 queries, bi-temporal facts | Domain is narrow (6 dimensions, known ontology, low volume). No graph DB, no embeddings needed. |
 | Platform strategy | Web-first, iOS follows | Web is ~90% complete, fastest to iterate, shareable URL for growth. iOS catches up after beta validation. |
 | Session intelligence | Durable Object as session brain | Practice mode state machine (warming/drilling/running/winding) with mode-aware observation pacing. Single-threaded DO holds all session state. |
-| Artifact system | Unified container (inline to expanded) | One `<Artifact>` component renders all rich content types. Lives in chat, expands to viewport on demand. Teacher LLM declares artifacts via tool use (pattern TBD). |
+| Artifact system | Unified container (inline to expanded) | One `<Artifact>` component renders all rich content types. Lives in chat, expands to viewport on demand. Teacher LLM declares artifacts via Anthropic tool_use (tool_choice: auto). Hybrid catalog lookup + generated fallback. COMPLETE. |
 | First session | Zero-config magic | Sign in, play anything, first observation in <60s. AMT fingerprint for piece ID; graceful degradation if unknown. Piece ID enriches but never gates. |
 | Monetization | Tiered: Free / $5 Plus / $20 Pro / $50 Max | Free tier with daily/weekly limits as growth engine. Inference cost reduction to ~$1/session via model v2. |
 
@@ -205,8 +205,7 @@ For system architecture, see `docs/architecture.md`.
 
 ### Architecture
 
-8. **Artifact tool use pattern.** Should teacher LLM use Anthropic tool_use, a self-hosted MCP server, or a separate UI subagent for artifact generation? Needs research.
-9. **Inference cost reduction path.** Current $6/session must reach ~$1/session for tiered pricing to work. Optimization via single fused model, passage caching, serverless inference.
+8. **Inference cost reduction path.** Current $6/session must reach ~$1/session for tiered pricing to work. Optimization via single fused model, passage caching, serverless inference.
 
 ---
 

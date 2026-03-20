@@ -25,12 +25,22 @@ pub struct ConversationDetail {
     pub created_at: String,
 }
 
-#[derive(serde::Serialize)]
+#[derive(serde::Serialize, serde::Deserialize)]
 pub struct MessageRow {
     pub id: String,
     pub role: String,
     pub content: String,
     pub created_at: String,
+    #[serde(default)]
+    pub message_type: Option<String>,
+    #[serde(default)]
+    pub dimension: Option<String>,
+    #[serde(default)]
+    pub framing: Option<String>,
+    #[serde(default)]
+    pub components_json: Option<String>,
+    #[serde(default)]
+    pub session_id: Option<String>,
 }
 
 #[derive(serde::Serialize)]
@@ -192,7 +202,7 @@ pub async fn handle_get_conversation(
 
     // Fetch messages
     let msg_stmt = match db
-        .prepare("SELECT id, role, content, created_at FROM messages WHERE conversation_id = ?1 ORDER BY created_at ASC")
+        .prepare("SELECT id, role, content, created_at, message_type, dimension, framing, components_json, session_id FROM messages WHERE conversation_id = ?1 ORDER BY created_at ASC")
         .bind(&[JsValue::from_str(conversation_id)])
     {
         Ok(s) => s,
@@ -227,6 +237,11 @@ pub async fn handle_get_conversation(
                 role: row.get("role")?.as_str()?.to_string(),
                 content: row.get("content")?.as_str()?.to_string(),
                 created_at: row.get("created_at")?.as_str()?.to_string(),
+                message_type: row.get("message_type").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                dimension: row.get("dimension").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                framing: row.get("framing").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                components_json: row.get("components_json").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                session_id: row.get("session_id").and_then(|v| v.as_str()).map(|s| s.to_string()),
             })
         })
         .collect();
@@ -400,9 +415,20 @@ pub async fn handle_chat_stream(
     }
 
     for msg in &history {
+        let llm_content = match msg.message_type.as_deref() {
+            Some("observation") => {
+                let dim = msg.dimension.as_deref().unwrap_or("unknown");
+                format!("[Practice observation on {}]: {}", dim, msg.content)
+            }
+            Some("session_start") | Some("session_end") => {
+                format!("[{}]", msg.content)
+            }
+            Some("summary") | Some("chat") | None => msg.content.clone(),
+            Some(_) => msg.content.clone(),
+        };
         llm_messages.push(llm::LlmMessage {
             role: msg.role.clone(),
-            content: msg.content.clone(),
+            content: llm_content,
         });
     }
 
@@ -610,7 +636,7 @@ async fn store_message(
 
 async fn fetch_messages(db: &worker::D1Database, conversation_id: &str) -> Result<Vec<MessageRow>, String> {
     let stmt = db
-        .prepare("SELECT id, role, content, created_at FROM messages WHERE conversation_id = ?1 ORDER BY created_at ASC")
+        .prepare("SELECT id, role, content, created_at, message_type, dimension, framing, components_json, session_id FROM messages WHERE conversation_id = ?1 ORDER BY created_at ASC")
         .bind(&[JsValue::from_str(conversation_id)])
         .map_err(|e| format!("Failed to bind fetch messages: {:?}", e))?;
 
@@ -625,6 +651,11 @@ async fn fetch_messages(db: &worker::D1Database, conversation_id: &str) -> Resul
                 role: row.get("role")?.as_str()?.to_string(),
                 content: row.get("content")?.as_str()?.to_string(),
                 created_at: row.get("created_at")?.as_str()?.to_string(),
+                message_type: row.get("message_type").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                dimension: row.get("dimension").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                framing: row.get("framing").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                components_json: row.get("components_json").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                session_id: row.get("session_id").and_then(|v| v.as_str()).map(|s| s.to_string()),
             })
         })
         .collect())

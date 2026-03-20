@@ -8,6 +8,9 @@ export interface RichMessage {
 	streaming?: boolean;
 	components?: InlineComponent[];
 	dimension?: string;
+	message_type?: "chat" | "observation" | "session_start" | "session_end" | "summary";
+	session_id?: string;
+	framing?: string;
 }
 
 export type InlineComponent =
