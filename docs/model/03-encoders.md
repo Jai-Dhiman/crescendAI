@@ -2,7 +2,7 @@
 
 Living document tracking audio and symbolic encoder architectures, training results, and next experiments.
 
-> **Status (2026-03-19):** A1-Max DEPLOYED. Clean-fold baseline established: **77.5% pairwise** (4-fold mean, original weights). Loss weight autoresearch found optimized config (contrastive 0.3->0.6, regression 0.3->0.8): fold-0 pairwise 77.2%, R2 +0.240 (from -0.055). 4-fold ensemble validation in progress. Aria (EleutherAI) selected as primary symbolic encoder. Fusion now viable (phi=0.043).
+> **Status (2026-03-19):** A1-Max DEPLOYED. Clean-fold optimized: **79.85% pairwise, R2=0.336** (4-fold mean). Loss weight autoresearch + best-checkpoint fix recovered nearly all leaked-fold performance (was 80.8% leaked, now 79.9% clean). Aria (EleutherAI) selected as primary symbolic encoder. Fusion now viable (phi=0.043).
 
 **Notebooks:** `model/notebooks/model_improvement/01_audio_training.ipynb`, `02_symbolic_training.ipynb`
 **Code:** `model/src/model_improvement/`
@@ -63,16 +63,18 @@ Key improvements over A1 baseline: ListMLE ranking loss (Plackett-Luce likelihoo
 
 The ~3.3pp drop from leaked 80.8% to clean 77.5% confirms the fold leak was real and inflated results. Ranking losses (ListMLE) are essential -- removing them drops pairwise by 4-8pp. Frozen probe (regression-only, no LoRA) gets the best absolute R2 (0.46) but terrible ranking (53.4%).
 
-#### Optimized Loss Weights (fold-0 results, 4-fold validation in progress)
+#### Optimized Loss Weights (4-fold validated)
 
-Loss weight autoresearch (8 iterations, single-fold): found that contrastive=0.6, regression=0.8 (vs original 0.3, 0.3) dramatically improves R2 without hurting pairwise.
+Loss weight autoresearch (8 iterations, single-fold search, then 4-fold validation): found that contrastive=0.6, regression=0.8 (vs original 0.3, 0.3) dramatically improves both metrics.
 
-| Config | Pairwise (fold 0) | R2 (fold 0) |
-|--------|-------------------|-------------|
-| Original weights | 76.44% | -0.055 |
-| **Optimized weights** | **77.15%** | **+0.240** |
+| Config | Pairwise (4-fold mean) | R2 (4-fold mean) |
+|--------|----------------------|-----------------|
+| Original weights | 77.50% | 0.119 |
+| **Optimized weights** | **79.85%** | **0.336** |
 
-R2 improvement from -0.055 to +0.240 means the model now produces meaningful absolute scores in addition to rankings. Full results: `model/data/results/loss_weight_autoresearch.tsv`, `model/data/results/loss_weight_changelog.md`.
+Per-fold optimized results: 76.7%, 78.9%, 81.2%, 82.5% pairwise. R2 per fold: 0.21, 0.24, 0.42, 0.48.
+
+The +2.35pp pairwise gain comes from two fixes: (1) optimized loss weights (contrastive 2x, regression 2.7x), and (2) evaluating the best checkpoint instead of the last epoch. R2 nearly tripled, meaning the model now produces meaningful absolute scores. Full autoresearch log: `model/data/results/loss_weight_autoresearch.tsv`, `model/data/results/loss_weight_changelog.md`.
 
 ### Results (INVALID -- fold leak, retained for relative comparison only)
 

@@ -2,7 +2,7 @@
 
 Vision document for the ideal piano performance evaluation system, from recording to actionable feedback. Captures the complete 8-stage pipeline, phased implementation roadmap, and the rationale behind every architectural decision.
 
-> **Status (2026-03-19):** Vision document. **Phase 1 (score infrastructure) COMPLETE.** Phase 0+3 collapsed into "Model v2" (Aria + MuQ + gated fusion). Clean-fold baseline established: A1-Max 77.5% pairwise (4-fold). Loss weights optimized (contrastive 2x, regression 2.7x): fold-0 pairwise 77.2%, R2 +0.24. See `03-encoders.md` for encoder details and Aria architecture.
+> **Status (2026-03-19):** Vision document. **Phase 1 (score infrastructure) COMPLETE.** Phase 0+3 collapsed into "Model v2" (Aria + MuQ + gated fusion). Clean-fold baseline optimized: **A1-Max 79.85% pairwise, R2=0.336** (4-fold mean, optimized weights). E1 audio gate PASSED (>75%). See `03-encoders.md` for encoder details and Aria architecture.
 
 ---
 
