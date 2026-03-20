@@ -83,11 +83,21 @@ async fn fetch(
                 }
             };
 
+            // Extract conversationId from query params to forward to DO
+            let conv_id = req.uri().query()
+                .unwrap_or("")
+                .split('&')
+                .find_map(|pair| {
+                    let (k, v) = pair.split_once('=')?;
+                    (k == "conversationId").then(|| v.to_string())
+                })
+                .unwrap_or_default();
+
             let namespace = env.durable_object("PRACTICE_SESSION")?;
             let stub = namespace.id_from_name(session_id)?.get_stub()?;
             let url = format!(
-                "https://do.internal/ws/{}?student_id={}",
-                session_id, student_id
+                "https://do.internal/ws/{}?student_id={}&conversation_id={}",
+                session_id, student_id, conv_id
             );
             let mut worker_req = worker::Request::new(&url, worker::Method::Get)?;
             worker_req.headers_mut()?.set("Upgrade", "websocket")?;
@@ -98,8 +108,14 @@ async fn fetch(
     // Practice session start (authenticated)
     if path == "/api/practice/start" && method == http::Method::POST {
         let headers = req.headers().clone();
+        let body = req
+            .into_body()
+            .collect()
+            .await
+            .map(|b| b.to_bytes().to_vec())
+            .unwrap_or_default();
         return into_worker_response(with_cors(
-            crate::practice::start::handle_start(&env, &headers).await,
+            crate::practice::start::handle_start(&env, &headers, &body).await,
             origin.as_deref(),
         )).await;
     }
