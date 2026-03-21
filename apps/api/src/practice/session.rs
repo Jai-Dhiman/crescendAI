@@ -1169,7 +1169,13 @@ impl PracticeSession {
             let summary_text = self
                 .generate_session_summary(&observations, &student_id)
                 .await
-                .unwrap_or_default();
+                .unwrap_or_else(|| {
+                    if observations.is_empty() {
+                        "I listened to your playing but didn't catch anything specific to comment on this time. Try a longer session, or ask me about a particular aspect of your playing.".to_string()
+                    } else {
+                        String::new()
+                    }
+                });
 
             let summary = serde_json::json!({
                 "type": "session_summary",
