@@ -1,5 +1,6 @@
 import { PaperPlaneTilt, Waveform } from "@phosphor-icons/react";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
+import { useMountEffect } from "../hooks/useFoundation";
 
 interface ChatInputProps {
 	onSend: (message: string) => void;
@@ -23,12 +24,12 @@ export function ChatInput({
 
 	const hasText = value.trim().length > 0;
 
-	useEffect(() => {
+	useMountEffect(() => {
 		const el = textareaRef.current;
 		if (!el) return;
 		el.style.height = "auto";
 		el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
-	}, []);
+	});
 
 	function handleKeyDown(e: React.KeyboardEvent) {
 		if (e.key === "Enter" && !e.shiftKey) {

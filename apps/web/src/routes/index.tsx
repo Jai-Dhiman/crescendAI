@@ -1,19 +1,19 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect } from "react";
-import { useAuth } from "../lib/auth";
+import { createFileRoute, redirect } from "@tanstack/react-router";
+import { queryClient } from "../lib/query-client";
+import { authQueryOptions } from "../hooks/useAuth";
 
-export const Route = createFileRoute("/")({ component: LandingPage });
+export const Route = createFileRoute("/")({
+	beforeLoad: async () => {
+		if (import.meta.env.VITE_AUTH_MODE !== "live") return;
+		const user = queryClient.getQueryData(authQueryOptions.queryKey);
+		if (user) {
+			throw redirect({ to: "/app" });
+		}
+	},
+	component: LandingPage,
+});
 
 function LandingPage() {
-	const { isAuthenticated, isLoading } = useAuth();
-	const navigate = useNavigate();
-
-	useEffect(() => {
-		if (!isLoading && isAuthenticated) {
-			navigate({ to: "/app" });
-		}
-	}, [isLoading, isAuthenticated, navigate]);
-
 	return (
 		<div>
 			<HeroSection />

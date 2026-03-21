@@ -204,6 +204,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Local inference server")
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument("--checkpoint-dir", default=DEFAULT_CHECKPOINT_DIR)
+    parser.add_argument("--skip-amt", action="store_true",
+                        help="Skip AMT transcription for faster local dev (scores only, no MIDI notes)")
     args = parser.parse_args()
 
     _init_models(args.checkpoint_dir)

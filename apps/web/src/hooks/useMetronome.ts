@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
+import { useMountEffect, useSyncRef } from "./useFoundation";
 
 interface MetronomeState {
 	isPlaying: boolean;
@@ -39,24 +40,13 @@ export function useMetronome(): UseMetronomeReturn {
 	const beatCountRef = useRef(0);
 	const tapTimesRef = useRef<number[]>([]);
 
-	// Refs for values accessed in the scheduler interval (avoids stale closures)
-	const bpmRef = useRef(bpm);
-	const accentRef = useRef(accentFirstBeat);
-	const beatsRef = useRef(4);
-
 	const beatsPerMeasure =
 		timeSignature === "6/8" ? 6 : timeSignature === "3/4" ? 3 : 4;
 
-	// Keep refs in sync
-	useEffect(() => {
-		bpmRef.current = bpm;
-	}, [bpm]);
-	useEffect(() => {
-		accentRef.current = accentFirstBeat;
-	}, [accentFirstBeat]);
-	useEffect(() => {
-		beatsRef.current = beatsPerMeasure;
-	}, [beatsPerMeasure]);
+	// Refs for values accessed in the scheduler interval (avoids stale closures)
+	const bpmRef = useSyncRef(bpm);
+	const accentRef = useSyncRef(accentFirstBeat);
+	const beatsRef = useSyncRef(beatsPerMeasure);
 
 	function getOrCreateAudioCtx(): AudioContext {
 		if (!audioCtxRef.current || audioCtxRef.current.state === "closed") {
@@ -166,14 +156,14 @@ export function useMetronome(): UseMetronomeReturn {
 	}, [setBpm]);
 
 	// Cleanup on unmount
-	useEffect(() => {
+	useMountEffect(() => {
 		return () => {
 			if (schedulerRef.current) clearInterval(schedulerRef.current);
 			if (audioCtxRef.current?.state !== "closed") {
 				audioCtxRef.current?.close();
 			}
 		};
-	}, []);
+	});
 
 	return {
 		isPlaying,

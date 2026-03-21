@@ -1,0 +1,53 @@
+piece: chopin_ballade_1
+title: Chopin Ballade No. 1
+composer: Chopin
+recordings:
+- video_id: Jt2f6yEGcP4
+  title: Chopin - Ballade No 1 - 1 month progress
+  channel: Connor Tobias
+  duration_seconds: 420
+  skill_bucket: 1
+  label_rationale: human curation
+  downloaded: false
+  download_error: null
+- video_id: 7HhIiJcpFFk
+  title: Chopin Ballade No.1 - Work in Progress
+  channel: Heart of the Keys
+  duration_seconds: 608
+  skill_bucket: 4
+  label_rationale: human curation
+  downloaded: false
+  download_error: null
+- video_id: e0E0K-qbbg8
+  title: Chopin - Ballade no 1 (piano progress 3 months)
+  channel: Infinite Piano
+  duration_seconds: 389
+  skill_bucket: 2
+  label_rationale: human curation
+  downloaded: false
+  download_error: null
+- video_id: jLwNzgpkFWo
+  title: Chopin Ballade no. 1 Progress (2 years, self taught)
+  channel: Kentaro
+  duration_seconds: 204
+  skill_bucket: 1
+  label_rationale: human curation
+  downloaded: false
+  download_error: null
+- video_id: _eU62wWUQSk
+  title: 1 Month Progress - Chopin Ballade no. 1 in G minor
+  channel: Donson Xie
+  duration_seconds: 199
+  skill_bucket: 2
+  label_rationale: human curation
+  downloaded: false
+  download_error: null
+- video_id: vTHPidr0JYQ
+  title: Self-taught beginner challenges Chopin Ballade No.1 in G minor Op. 23(6 months,
+    practice session)
+  channel: Rondog Vivace
+  duration_seconds: 695
+  skill_bucket: 2
+  label_rationale: human curation
+  downloaded: false
+  download_error: null

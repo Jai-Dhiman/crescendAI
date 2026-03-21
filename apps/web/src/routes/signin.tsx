@@ -1,11 +1,21 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
+import { authQueryOptions } from "../hooks/useAuth";
+import { useMountEffect } from "../hooks/useFoundation";
+import { queryClient } from "../lib/query-client";
 
 const isWaitlistMode = import.meta.env.VITE_AUTH_MODE !== "live";
 
 export const Route = createFileRoute("/signin")({
+	beforeLoad: async () => {
+		if (isWaitlistMode) return;
+		const user = queryClient.getQueryData(authQueryOptions.queryKey);
+		if (user) {
+			throw redirect({ to: "/app" });
+		}
+	},
 	component: isWaitlistMode ? WaitlistPage : SignInPage,
 });
 
@@ -160,18 +170,12 @@ const REDIRECT_URI = import.meta.env.PROD
 
 function SignInPage() {
 	const navigate = useNavigate();
-	const { setUser, isAuthenticated, isLoading: authLoading } = useAuth();
+	const { setUser } = useAuth();
 	const [error, setError] = useState<string | null>(null);
 	const [loading, setLoading] = useState(false);
 	const googleButtonRef = useRef<HTMLDivElement>(null);
 
 	const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-
-	useEffect(() => {
-		if (!authLoading && isAuthenticated) {
-			navigate({ to: "/app" });
-		}
-	}, [authLoading, isAuthenticated, navigate]);
 
 	const handleGoogleSignIn = useCallback(
 		async (response: google.accounts.id.CredentialResponse) => {
@@ -248,7 +252,7 @@ function SignInPage() {
 		document.head.appendChild(script);
 	}, [GOOGLE_CLIENT_ID]);
 
-	useEffect(() => {
+	useMountEffect(() => {
 		if (window.AppleID) {
 			window.AppleID.auth.init({
 				clientId: APPLE_CLIENT_ID,
@@ -257,7 +261,7 @@ function SignInPage() {
 				usePopup: true,
 			});
 		}
-	}, []);
+	});
 
 	async function handleSignIn() {
 		if (!window.AppleID) {

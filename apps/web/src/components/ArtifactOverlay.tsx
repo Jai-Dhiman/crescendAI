@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { X } from "@phosphor-icons/react";
+import { useEscapeKey } from "../hooks/useDom";
 import { useArtifactStore, getExpandedArtifact } from "../stores/artifact";
 import { useArtifactScrollContext } from "../contexts/artifact-scroll";
 import { ExerciseSetExpanded } from "./cards/ExerciseSetExpanded";
@@ -38,21 +39,7 @@ function ArtifactOverlayContent({ expandedId, entry }: ArtifactOverlayContentPro
 		}, 200);
 	}, [expandedId, closeOverlay]);
 
-	useEffect(() => {
-		function onKeyDown(e: KeyboardEvent) {
-			if (e.key === "Escape") {
-				handleClose();
-			}
-		}
-
-		if (expandedId) {
-			document.addEventListener("keydown", onKeyDown);
-		}
-
-		return () => {
-			document.removeEventListener("keydown", onKeyDown);
-		};
-	}, [expandedId, handleClose]);
+	useEscapeKey(handleClose, !!expandedId);
 
 	useEffect(() => {
 		const container = scrollContainer?.current;

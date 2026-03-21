@@ -1,5 +1,6 @@
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { ArtifactScrollContext } from "../contexts/artifact-scroll";
+import { useMountEffect } from "../hooks/useFoundation";
 import type { RichMessage } from "../lib/types";
 import { Artifact } from "./Artifact";
 import { MessageContent } from "./MessageContent";
@@ -65,9 +66,9 @@ export function ChatMessages({ messages, children, onTryExercises }: ChatMessage
 	}, [messages, scrollToBottom]);
 
 	// Scroll on mount
-	useEffect(() => {
+	useMountEffect(() => {
 		scrollToBottom("instant");
-	}, [scrollToBottom]);
+	});
 
 	if (messages.length === 0) {
 		return null;

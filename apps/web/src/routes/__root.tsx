@@ -1,5 +1,6 @@
 import "../lib/sentry";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { queryClient } from "../lib/query-client";
 import {
 	createRootRoute,
 	HeadContent,
@@ -9,20 +10,13 @@ import {
 } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { ErrorBoundary } from "../components/ErrorBoundary";
+import { useMountEffect } from "../hooks/useFoundation";
 import { ToastContainer } from "../components/ToastContainer";
 import { AuthProvider } from "../lib/auth";
 import { useThemeStore } from "../stores/theme";
 
 import appCss from "../styles/app.css?url";
 
-const queryClient = new QueryClient({
-	defaultOptions: {
-		queries: {
-			staleTime: 1000 * 60, // 1 minute
-			retry: 1,
-		},
-	},
-});
 
 export const Route = createRootRoute({
 	head: () => ({
@@ -106,7 +100,7 @@ function Header() {
 	const [hidden, setHidden] = useState(false);
 	const lastScrollY = useRef(0);
 
-	useEffect(() => {
+	useMountEffect(() => {
 		function onScroll() {
 			const y = window.scrollY;
 			setHidden(y > 64 && y > lastScrollY.current);
@@ -114,7 +108,7 @@ function Header() {
 		}
 		window.addEventListener("scroll", onScroll, { passive: true });
 		return () => window.removeEventListener("scroll", onScroll);
-	}, []);
+	});
 
 	return (
 		<header

@@ -3,10 +3,11 @@ import {
 	type ReactNode,
 	useCallback,
 	useContext,
-	useEffect,
-	useState,
 } from "react";
-import { ApiError, type AuthUser, api } from "./api";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import type { AuthUser } from "./api";
+import { api } from "./api";
+import { authQueryOptions } from "../hooks/useAuth";
 
 interface AuthContextValue {
 	user: AuthUser | null;
@@ -19,30 +20,24 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-	const [user, setUser] = useState<AuthUser | null>(null);
-	const [isLoading, setIsLoading] = useState(true);
+	const isLive = import.meta.env.VITE_AUTH_MODE === "live";
+	const queryClient = useQueryClient();
 
-	useEffect(() => {
-		// In waitlist mode, nobody can authenticate -- skip the API call
-		// to avoid 401 Sentry noise on every visitor page load.
-		if (import.meta.env.VITE_AUTH_MODE !== "live") {
-			setIsLoading(false);
-			return;
-		}
+	const query = useQuery({
+		...authQueryOptions,
+		enabled: isLive,
+	});
 
-		api.auth
-			.me()
-			.then(setUser)
-			.catch((err) => {
-				if (err instanceof ApiError && err.status === 401) {
-					setUser(null);
-				} else {
-					console.error("Auth check failed:", err);
-					setUser(null);
-				}
-			})
-			.finally(() => setIsLoading(false));
-	}, []);
+	// When auth is disabled (waitlist mode), skip query entirely
+	const user = isLive ? (query.data ?? null) : null;
+	const isLoading = isLive ? query.isLoading : false;
+
+	const setUser = useCallback(
+		(u: AuthUser | null) => {
+			queryClient.setQueryData(authQueryOptions.queryKey, u);
+		},
+		[queryClient],
+	);
 
 	const signOut = useCallback(async () => {
 		try {
@@ -50,8 +45,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 		} catch (err) {
 			console.error("Signout API call failed:", err);
 		}
-		setUser(null);
-	}, []);
+		queryClient.setQueryData(authQueryOptions.queryKey, null);
+	}, [queryClient]);
 
 	return (
 		<AuthContext

@@ -7,6 +7,8 @@ import {
 } from "@phosphor-icons/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useKeyboardOffset } from "../hooks/useDom";
+import { useMountEffect } from "../hooks/useFoundation";
 import { useMetronome } from "../hooks/useMetronome";
 import type { PracticeState, WsStatus } from "../hooks/usePracticeSession";
 import type { DimScores, ObservationEvent } from "../lib/practice-api";
@@ -78,7 +80,7 @@ export function ListeningMode({
 		: 90;
 
 	// Open transition sequence
-	useEffect(() => {
+	useMountEffect(() => {
 		// Start collapsed, then expand on next frame
 		requestAnimationFrame(() => {
 			setPhase("expanding");
@@ -90,7 +92,7 @@ export function ListeningMode({
 		}, 650); // slightly after 600ms transition
 
 		return () => clearTimeout(expandTimer);
-	}, []);
+	});
 
 	// Close transition sequence -- defined before the useEffect that references it
 	const handleClose = useCallback(() => {
@@ -137,7 +139,7 @@ export function ListeningMode({
 	const isRecording = state === "recording";
 
 	// Screen wake lock
-	useEffect(() => {
+	useMountEffect(() => {
 		let wakeLock: WakeLockSentinel | null = null;
 		let cancelled = false;
 
@@ -160,7 +162,7 @@ export function ListeningMode({
 			cancelled = true;
 			wakeLock?.release();
 		};
-	}, []);
+	});
 
 	const transitionAttr =
 		phase === "collapsing"
@@ -405,29 +407,11 @@ function NotepadDrawer({
 	onClose: () => void;
 }) {
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
-	const [bottomOffset, setBottomOffset] = useState(0);
+	const bottomOffset = useKeyboardOffset();
 
-	useEffect(() => {
+	useMountEffect(() => {
 		textareaRef.current?.focus();
-	}, []);
-
-	useEffect(() => {
-		const vv = window.visualViewport;
-		if (!vv) return;
-
-		function handleResize() {
-			if (!vv) return;
-			const offset = window.innerHeight - vv.height - vv.offsetTop;
-			setBottomOffset(Math.max(0, offset));
-		}
-
-		vv.addEventListener("resize", handleResize);
-		vv.addEventListener("scroll", handleResize);
-		return () => {
-			vv.removeEventListener("resize", handleResize);
-			vv.removeEventListener("scroll", handleResize);
-		};
-	}, []);
+	});
 
 	return (
 		<>

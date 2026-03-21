@@ -535,12 +535,55 @@ def _format_views(count: int | None) -> str:
 
 
 def save_curated_manifests(state: dict, base_dir: Path) -> int:
-    """Write manifest.yaml for each piece that has curated recordings."""
+    """Write labels back into candidates.yaml (persistence) and manifest.yaml (curated subset)."""
     saved = 0
     for slug, data in state.items():
-        # Only create manifest for recordings with assigned skill buckets
+        piece_dir = base_dir / slug
+        candidates_path = piece_dir / "candidates.yaml"
+
+        # Update candidates.yaml in-place with labels for persistence/resuming
+        if candidates_path.exists():
+            with open(candidates_path) as f:
+                candidates_data = yaml.safe_load(f)
+
+            if candidates_data and candidates_data.get("recordings"):
+                # Build lookup from state by video_id
+                state_by_vid = {
+                    r["video_id"]: r for r in data["recordings"]
+                }
+
+                for rec in candidates_data["recordings"]:
+                    vid = rec["video_id"]
+                    if vid in state_by_vid:
+                        rec["skill_bucket"] = state_by_vid[vid].get("skill_bucket")
+                        rec["label_rationale"] = state_by_vid[vid].get("label_rationale")
+
+                # Update status based on labeling progress
+                n_labeled = sum(
+                    1
+                    for r in candidates_data["recordings"]
+                    if r.get("skill_bucket") is not None
+                    or r.get("label_rationale") == "skip"
+                )
+                n_total = len(candidates_data["recordings"])
+                if n_labeled == n_total:
+                    candidates_data["status"] = "complete"
+                elif n_labeled > 0:
+                    candidates_data["status"] = "partial"
+
+                with open(candidates_path, "w") as f:
+                    yaml.dump(
+                        candidates_data,
+                        f,
+                        default_flow_style=False,
+                        allow_unicode=True,
+                        sort_keys=False,
+                    )
+
+        # Also write manifest.yaml with only curated recordings
         curated = [r for r in data["recordings"] if r.get("skill_bucket") is not None]
         if not curated:
+            saved += 1
             continue
 
         manifest = {
@@ -562,7 +605,6 @@ def save_curated_manifests(state: dict, base_dir: Path) -> int:
             ],
         }
 
-        piece_dir = base_dir / slug
         piece_dir.mkdir(parents=True, exist_ok=True)
         out_path = piece_dir / "manifest.yaml"
         with open(out_path, "w") as f:
@@ -574,7 +616,7 @@ def save_curated_manifests(state: dict, base_dir: Path) -> int:
                 sort_keys=False,
             )
         saved += 1
-        print(f"  Saved {out_path} ({len(curated)} recordings)")
+        print(f"  Saved {slug}: {len(curated)} curated, candidates.yaml updated")
 
     return saved
 
@@ -671,7 +713,21 @@ def main():
         sys.exit(1)
 
     total = sum(len(p["recordings"]) for p in pieces.values())
+    n_curated = sum(
+        1
+        for p in pieces.values()
+        for r in p["recordings"]
+        if r.get("skill_bucket") is not None
+    )
+    n_skipped = sum(
+        1
+        for p in pieces.values()
+        for r in p["recordings"]
+        if r.get("label_rationale") == "skip"
+    )
+    n_remaining = total - n_curated - n_skipped
     print(f"Loaded {total} candidates across {len(pieces)} pieces")
+    print(f"  {n_curated} curated, {n_skipped} skipped, {n_remaining} remaining")
 
     if args.output_html:
         html = generate_html(pieces, args.base_dir)

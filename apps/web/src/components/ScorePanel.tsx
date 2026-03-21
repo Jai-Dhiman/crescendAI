@@ -1,5 +1,7 @@
 import { ArrowLeft, MusicNote, X } from "@phosphor-icons/react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useIsMobile } from "../hooks/useDom";
+import { useMountEffect } from "../hooks/useFoundation";
 import { DIMENSION_COLORS } from "../lib/mock-session";
 import { useScorePanelStore } from "../stores/score-panel";
 import { ScoreAnnotation } from "./ScoreAnnotation";
@@ -13,38 +15,22 @@ interface AnnotationPosition {
 }
 
 export function ScorePanel() {
-	const {
-		isOpen,
-		sessionData,
-		activeAnnotationIndex,
-		panelWidth,
-		close,
-		setActiveAnnotation,
-		setPanelWidth,
-	} = useScorePanelStore();
-	const containerRef = useRef<HTMLDivElement>(null);
-	// biome-ignore lint/suspicious/noExplicitAny: OSMD has no exported type for the instance
-	const osmdRef = useRef<any>(null);
-	const [annotationPositions, setAnnotationPositions] = useState<
-		AnnotationPosition[]
-	>([]);
-	const [isRendered, setIsRendered] = useState(false);
-	const [isMobile, setIsMobile] = useState(false);
+	const isOpen = useScorePanelStore((s) => s.isOpen);
+	const sessionData = useScorePanelStore((s) => s.sessionData);
+	const activeAnnotationIndex = useScorePanelStore((s) => s.activeAnnotationIndex);
+	const panelWidth = useScorePanelStore((s) => s.panelWidth);
+	const close = useScorePanelStore((s) => s.close);
+	const setActiveAnnotation = useScorePanelStore((s) => s.setActiveAnnotation);
+	const setPanelWidth = useScorePanelStore((s) => s.setPanelWidth);
+	const isMobile = useIsMobile();
 	const isDraggingRef = useRef(false);
 	const dragWidthRef = useRef(panelWidth);
 
-	// Detect mobile
-	useEffect(() => {
-		function checkMobile() {
-			setIsMobile(window.innerWidth < 768);
-		}
-		checkMobile();
-		window.addEventListener("resize", checkMobile);
-		return () => window.removeEventListener("resize", checkMobile);
-	}, []);
-
 	// Drag handle for resizing
 	const asideRef = useRef<HTMLDivElement>(null);
+	// Shared ref for OSMD instance -- ScorePanelScore sets it, drag handler reads it
+	// biome-ignore lint/suspicious/noExplicitAny: OSMD has no exported type for the instance
+	const osmdRef = useRef<any>(null);
 
 	const handleDragStart = useCallback(
 		(e: React.MouseEvent) => {
@@ -94,122 +80,6 @@ export function ScorePanel() {
 		},
 		[isMobile, panelWidth, setPanelWidth],
 	);
-
-	// Initialize and render OSMD
-	useEffect(() => {
-		if (!isOpen || !sessionData || !containerRef.current) return;
-
-		let cancelled = false;
-
-		async function initOSMD() {
-			const osmdContainer = containerRef.current;
-			if (!osmdContainer || cancelled) return;
-
-			// Clear previous render safely
-			while (osmdContainer.firstChild) {
-				osmdContainer.removeChild(osmdContainer.firstChild);
-			}
-			setIsRendered(false);
-			setAnnotationPositions([]);
-
-			const { OpenSheetMusicDisplay } = await import("opensheetmusicdisplay");
-
-			if (cancelled) return;
-
-			const osmd = new OpenSheetMusicDisplay(osmdContainer, {
-				backend: "svg",
-				drawTitle: false,
-				drawSubtitle: false,
-				drawComposer: false,
-				drawLyricist: false,
-				drawPartNames: false,
-				drawPartAbbreviations: false,
-				drawMeasureNumbers: true,
-				drawCredits: false,
-			});
-
-			osmdRef.current = osmd;
-
-			try {
-				await osmd.load("/scores/chopin-nocturne-op9-no2.mxl");
-				if (cancelled) return;
-				osmd.render();
-				setIsRendered(true);
-			} catch (err) {
-				console.error("OSMD render failed:", err);
-			}
-		}
-
-		initOSMD();
-
-		return () => {
-			cancelled = true;
-			osmdRef.current = null;
-		};
-	}, [isOpen, sessionData]);
-
-	// Calculate annotation positions after OSMD renders
-	useEffect(() => {
-		if (
-			!isRendered ||
-			!sessionData ||
-			!osmdRef.current ||
-			!containerRef.current
-		)
-			return;
-
-		const osmd = osmdRef.current;
-		const containerRect = containerRef.current.getBoundingClientRect();
-		const positions: AnnotationPosition[] = [];
-
-		for (const obs of sessionData.observations) {
-			if (!obs.barRange) {
-				positions.push({ top: 0, left: 0 });
-				continue;
-			}
-
-			const measureIndex = obs.barRange[0] - 1; // 0-indexed
-			try {
-				const measureList = osmd.graphic?.measureList;
-				if (
-					measureList &&
-					measureIndex >= 0 &&
-					measureIndex < measureList.length
-				) {
-					const measure = measureList[measureIndex]?.[0];
-					if (measure?.stave?.SVGElement) {
-						const svgEl = measure.stave.SVGElement as SVGElement;
-						const bbox = svgEl.getBoundingClientRect();
-						positions.push({
-							top: bbox.top - containerRect.top - 28,
-							left: bbox.left - containerRect.left,
-						});
-						continue;
-					}
-					// Fallback: use bounding box from the measure
-					if (measure?.boundingBox) {
-						const absPos = measure.boundingBox.absolutePosition;
-						if (absPos) {
-							// OSMD units are ~10x pixels
-							positions.push({
-								top: absPos.y * 10 - 28,
-								left: absPos.x * 10,
-							});
-							continue;
-						}
-					}
-				}
-			} catch {
-				// Fallback positioning
-			}
-
-			// Last resort: distribute evenly
-			const fallbackTop = 60 + positions.length * 80;
-			positions.push({ top: fallbackTop, left: 20 });
-		}
-
-		setAnnotationPositions(positions);
-	}, [isRendered, sessionData]);
 
 	const handleAnnotationClick = useCallback(
 		(index: number) => {
@@ -292,50 +162,14 @@ export function ScorePanel() {
 				})}
 			</div>
 
-			{/* Score container */}
-			<div className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-4 relative">
-				{!isRendered && (
-					<div className="flex items-center justify-center h-32 text-text-tertiary text-body-sm">
-						Loading score...
-					</div>
-				)}
-				<div className="relative">
-					<div ref={containerRef} className="osmd-container" />
-					{/* Annotation markers */}
-					{isRendered &&
-						sessionData.observations.map((obs, i) => {
-							if (!obs.barRange || !annotationPositions[i]) return null;
-							return (
-								<ScoreAnnotation
-									key={`${obs.dimension}-${obs.barRange[0]}`}
-									dimension={obs.dimension}
-									barRange={obs.barRange}
-									index={i}
-									isActive={activeAnnotationIndex === i}
-									style={{
-										top: annotationPositions[i].top,
-										left: annotationPositions[i].left,
-									}}
-									onClick={handleAnnotationClick}
-								/>
-							);
-						})}
-				</div>
-
-				{/* Active observation detail */}
-				{activeAnnotationIndex !== null &&
-					sessionData.observations[activeAnnotationIndex] && (
-						<div className="sticky bottom-0 mt-4 p-3 bg-surface-2 border border-border rounded-lg animate-fade-in">
-							<p className="text-body-sm text-cream">
-								{sessionData.observations[activeAnnotationIndex].text}
-							</p>
-							<p className="text-body-xs text-text-tertiary mt-1 capitalize">
-								{sessionData.observations[activeAnnotationIndex].dimension} --{" "}
-								{sessionData.observations[activeAnnotationIndex].framing}
-							</p>
-						</div>
-					)}
-			</div>
+			{/* Score rendering -- keyed to remount cleanly when session data changes */}
+			<ScorePanelScore
+				key={`${sessionData.piece}-${sessionData.observations.length}`}
+				sessionData={sessionData}
+				activeAnnotationIndex={activeAnnotationIndex}
+				osmdRef={osmdRef}
+				onAnnotationClick={handleAnnotationClick}
+			/>
 		</>
 	);
 
@@ -375,5 +209,177 @@ export function ScorePanel() {
 				</>
 			)}
 		</aside>
+	);
+}
+
+/**
+ * Inner component that initializes OSMD and calculates annotation positions.
+ * Keyed by session data so React unmounts/remounts cleanly when the session changes,
+ * turning the init effect into a simple mount effect (Rule 5: reset with key).
+ */
+interface ScorePanelScoreProps {
+	sessionData: NonNullable<ReturnType<typeof useScorePanelStore>["sessionData"]>;
+	activeAnnotationIndex: number | null;
+	// biome-ignore lint/suspicious/noExplicitAny: OSMD has no exported type
+	osmdRef: React.MutableRefObject<any>;
+	onAnnotationClick: (index: number) => void;
+}
+
+function ScorePanelScore({
+	sessionData,
+	activeAnnotationIndex,
+	osmdRef,
+	onAnnotationClick,
+}: ScorePanelScoreProps) {
+	const containerRef = useRef<HTMLDivElement>(null);
+	const [isRendered, setIsRendered] = useState(false);
+	const [annotationPositions, setAnnotationPositions] = useState<
+		AnnotationPosition[]
+	>([]);
+
+	// Initialize OSMD on mount (component is keyed, so this runs once per session)
+	useMountEffect(() => {
+		let cancelled = false;
+
+		async function initOSMD() {
+			const osmdContainer = containerRef.current;
+			if (!osmdContainer || cancelled) return;
+
+			const { OpenSheetMusicDisplay } = await import("opensheetmusicdisplay");
+			if (cancelled) return;
+
+			const osmd = new OpenSheetMusicDisplay(osmdContainer, {
+				backend: "svg",
+				drawTitle: false,
+				drawSubtitle: false,
+				drawComposer: false,
+				drawLyricist: false,
+				drawPartNames: false,
+				drawPartAbbreviations: false,
+				drawMeasureNumbers: true,
+				drawCredits: false,
+			});
+
+			osmdRef.current = osmd;
+
+			try {
+				await osmd.load("/scores/chopin-nocturne-op9-no2.mxl");
+				if (cancelled) return;
+				osmd.render();
+				setIsRendered(true);
+			} catch (err) {
+				console.error("OSMD render failed:", err);
+			}
+		}
+
+		initOSMD();
+
+		return () => {
+			cancelled = true;
+			osmdRef.current = null;
+		};
+	});
+
+	// Calculate annotation positions after OSMD renders
+	useEffect(() => {
+		if (!isRendered || !osmdRef.current || !containerRef.current) return;
+
+		const osmd = osmdRef.current;
+		const containerRect = containerRef.current.getBoundingClientRect();
+		const positions: AnnotationPosition[] = [];
+
+		for (const obs of sessionData.observations) {
+			if (!obs.barRange) {
+				positions.push({ top: 0, left: 0 });
+				continue;
+			}
+
+			const measureIndex = obs.barRange[0] - 1; // 0-indexed
+			try {
+				const measureList = osmd.graphic?.measureList;
+				if (
+					measureList &&
+					measureIndex >= 0 &&
+					measureIndex < measureList.length
+				) {
+					const measure = measureList[measureIndex]?.[0];
+					if (measure?.stave?.SVGElement) {
+						const svgEl = measure.stave.SVGElement as SVGElement;
+						const bbox = svgEl.getBoundingClientRect();
+						positions.push({
+							top: bbox.top - containerRect.top - 28,
+							left: bbox.left - containerRect.left,
+						});
+						continue;
+					}
+					// Fallback: use bounding box from the measure
+					if (measure?.boundingBox) {
+						const absPos = measure.boundingBox.absolutePosition;
+						if (absPos) {
+							// OSMD units are ~10x pixels
+							positions.push({
+								top: absPos.y * 10 - 28,
+								left: absPos.x * 10,
+							});
+							continue;
+						}
+					}
+				}
+			} catch {
+				// Fallback positioning
+			}
+
+			// Last resort: distribute evenly
+			const fallbackTop = 60 + positions.length * 80;
+			positions.push({ top: fallbackTop, left: 20 });
+		}
+
+		setAnnotationPositions(positions);
+	}, [isRendered, sessionData, osmdRef]);
+
+	return (
+		<div className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-4 relative">
+			{!isRendered && (
+				<div className="flex items-center justify-center h-32 text-text-tertiary text-body-sm">
+					Loading score...
+				</div>
+			)}
+			<div className="relative">
+				<div ref={containerRef} className="osmd-container" />
+				{/* Annotation markers */}
+				{isRendered &&
+					sessionData.observations.map((obs, i) => {
+						if (!obs.barRange || !annotationPositions[i]) return null;
+						return (
+							<ScoreAnnotation
+								key={`${obs.dimension}-${obs.barRange[0]}`}
+								dimension={obs.dimension}
+								barRange={obs.barRange}
+								index={i}
+								isActive={activeAnnotationIndex === i}
+								style={{
+									top: annotationPositions[i].top,
+									left: annotationPositions[i].left,
+								}}
+								onClick={onAnnotationClick}
+							/>
+						);
+					})}
+			</div>
+
+			{/* Active observation detail */}
+			{activeAnnotationIndex !== null &&
+				sessionData.observations[activeAnnotationIndex] && (
+					<div className="sticky bottom-0 mt-4 p-3 bg-surface-2 border border-border rounded-lg animate-fade-in">
+						<p className="text-body-sm text-cream">
+							{sessionData.observations[activeAnnotationIndex].text}
+						</p>
+						<p className="text-body-xs text-text-tertiary mt-1 capitalize">
+							{sessionData.observations[activeAnnotationIndex].dimension} --{" "}
+							{sessionData.observations[activeAnnotationIndex].framing}
+						</p>
+					</div>
+				)}
+		</div>
 	);
 }

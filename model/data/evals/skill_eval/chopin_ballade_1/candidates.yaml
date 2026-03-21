@@ -1,7 +1,7 @@
 piece: chopin_ballade_1
 title: Chopin Ballade No. 1
 composer: Chopin
-status: uncurated
+status: partial
 target_per_bucket: 6
 recordings:
 - video_id: Jt2f6yEGcP4
@@ -9,8 +9,8 @@ recordings:
   channel: Connor Tobias
   duration_seconds: 420
   view_count: 328
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 1
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: EKU9yEIXHPQ
@@ -19,7 +19,7 @@ recordings:
   duration_seconds: 174
   view_count: 39
   skill_bucket: null
-  label_rationale: null
+  label_rationale: skip
   downloaded: false
   download_error: null
 - video_id: 7HhIiJcpFFk
@@ -27,8 +27,8 @@ recordings:
   channel: Heart of the Keys
   duration_seconds: 608
   view_count: 86504
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 4
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: 7H8rLN8iE4U
@@ -37,7 +37,7 @@ recordings:
   duration_seconds: 754
   view_count: 587780
   skill_bucket: null
-  label_rationale: null
+  label_rationale: skip
   downloaded: false
   download_error: null
 - video_id: e0E0K-qbbg8
@@ -45,8 +45,8 @@ recordings:
   channel: Infinite Piano
   duration_seconds: 389
   view_count: 295
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 2
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: jLwNzgpkFWo
@@ -54,8 +54,8 @@ recordings:
   channel: Kentaro
   duration_seconds: 204
   view_count: 7365
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 1
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: _eU62wWUQSk
@@ -63,8 +63,8 @@ recordings:
   channel: Donson Xie
   duration_seconds: 199
   view_count: 804
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 2
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: vTHPidr0JYQ
@@ -73,8 +73,8 @@ recordings:
   channel: Rondog Vivace
   duration_seconds: 695
   view_count: 689
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 2
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: qE_d3T4D3aI
