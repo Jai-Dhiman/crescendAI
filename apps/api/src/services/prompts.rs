@@ -442,6 +442,7 @@ pub fn build_session_summary_prompt(
     observations: &[(String, String, String, f64, f64)],  // (dimension, text, framing, score, baseline)
     memory_context: &str,
     piece_context: Option<&str>,
+    chunk_scores: Option<&[([f64; 6], usize)]>,  // Optional: (scores, note_count) per chunk
 ) -> String {
     let mut prompt = String::with_capacity(2000);
 
@@ -455,16 +456,41 @@ pub fn build_session_summary_prompt(
         prompt.push_str(&format!("<piece>{}</piece>\n\n", piece));
     }
 
-    prompt.push_str("<session_observations>\n");
-    for (dim, text, framing, score, baseline) in observations {
-        prompt.push_str(&format!(
-            "- [{}] {} (framing: {}, score: {:.2}, baseline: {:.2})\n",
-            dim, text, framing, score, baseline
-        ));
+    if !observations.is_empty() {
+        prompt.push_str("<session_observations>\n");
+        for (dim, text, framing, score, baseline) in observations {
+            prompt.push_str(&format!(
+                "- [{}] {} (framing: {}, score: {:.2}, baseline: {:.2})\n",
+                dim, text, framing, score, baseline
+            ));
+        }
+        prompt.push_str("</session_observations>\n\n");
     }
-    prompt.push_str("</session_observations>\n\n");
 
-    prompt.push_str("<task>\nSummarize this practice session in 2-4 sentences. Be specific about what you heard. If student history is available, reference progress or patterns. End with one suggestion for next time.\n</task>");
+    // Include raw chunk scores when no observations were generated
+    if observations.is_empty() {
+        if let Some(chunks) = chunk_scores {
+            let dims = ["dynamics", "timing", "pedaling", "articulation", "phrasing", "interpretation"];
+            prompt.push_str("<session_scores>\n");
+            prompt.push_str("No specific observations were triggered, but here are the dimension scores from each analyzed chunk:\n");
+            for (i, (scores, note_count)) in chunks.iter().enumerate() {
+                prompt.push_str(&format!("Chunk {}: ", i + 1));
+                for (j, dim) in dims.iter().enumerate() {
+                    prompt.push_str(&format!("{}={:.2}", dim, scores[j]));
+                    if j < 5 { prompt.push_str(", "); }
+                }
+                prompt.push_str(&format!(" ({} notes)\n", note_count));
+            }
+            prompt.push_str("</session_scores>\n\n");
+        }
+    }
+
+    let task = if observations.is_empty() {
+        "<task>\nThe student just finished a practice session. No specific teaching moments were flagged, but you have their dimension scores. Give a warm, specific 2-3 sentence response about their session based on the scores and any student history. Comment on what you noticed in the scores and suggest one thing to focus on. No formatting.\n</task>"
+    } else {
+        "<task>\nSummarize this practice session in 2-4 sentences. Be specific about what you heard. If student history is available, reference progress or patterns. End with one suggestion for next time.\n</task>"
+    };
+    prompt.push_str(task);
 
     prompt
 }

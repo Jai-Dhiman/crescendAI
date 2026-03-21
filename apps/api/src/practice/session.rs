@@ -1036,11 +1036,6 @@ impl PracticeSession {
             return None;
         }
 
-        // Skip if no observations
-        if observations.is_empty() {
-            return None;
-        }
-
         // 1. Load memory context (D1 queries for cross-session facts)
         let now = js_sys::Date::new_0()
             .to_iso_string()
@@ -1072,11 +1067,26 @@ impl PracticeSession {
             ))
             .collect();
 
+        // 3b. Collect chunk scores for context when no observations exist
+        let chunk_scores: Vec<([f64; 6], usize)> = {
+            let s = self.inner.borrow();
+            s.scored_chunks.iter().map(|c| {
+                // Count notes from the HF response (approximate via chunk index)
+                (c.scores, 0usize)  // note_count not tracked in ScoredChunk, use 0
+            }).collect()
+        };
+
         // 4. Build prompt
+        let chunk_scores_ref = if observations.is_empty() && !chunk_scores.is_empty() {
+            Some(chunk_scores.as_slice())
+        } else {
+            None
+        };
         let user_prompt = crate::services::prompts::build_session_summary_prompt(
             &obs_tuples,
             &memory_text,
             piece_context.as_deref(),
+            chunk_scores_ref,
         );
 
         // 5. Call Anthropic (non-streaming, 300 max tokens)
@@ -1165,17 +1175,11 @@ impl PracticeSession {
                 }))
                 .collect();
 
-            // Generate LLM summary (skips for eval sessions, empty sessions, or on failure)
+            // Generate LLM summary (always, even with 0 observations -- uses chunk scores)
             let summary_text = self
                 .generate_session_summary(&observations, &student_id)
                 .await
-                .unwrap_or_else(|| {
-                    if observations.is_empty() {
-                        "I listened to your playing but didn't catch anything specific to comment on this time. Try a longer session, or ask me about a particular aspect of your playing.".to_string()
-                    } else {
-                        String::new()
-                    }
-                });
+                .unwrap_or_default();
 
             let summary = serde_json::json!({
                 "type": "session_summary",
