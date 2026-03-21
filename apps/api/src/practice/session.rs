@@ -584,6 +584,7 @@ impl PracticeSession {
     }
 
     async fn generate_observation(&self, ws: &WebSocket, chunk_analysis: Option<&analysis::ChunkAnalysis>) {
+        console_log!("generate_observation: starting LLM pipeline");
         let (scored_chunks, baselines, recent_obs, student_id, session_id) = {
             let s = self.inner.borrow();
             let recent: Vec<RecentObservation> = s.observations
@@ -691,6 +692,7 @@ impl PracticeSession {
         };
 
         let inner_resp = crate::services::ask::handle_ask_inner(&self.env, &inner_req).await;
+        console_log!("generate_observation: LLM pipeline returned. text={}, fallback={}", &inner_resp.observation_text[..inner_resp.observation_text.len().min(80)], inner_resp.is_fallback);
 
         // Push observation to client
         let mut obs_event = serde_json::json!({
