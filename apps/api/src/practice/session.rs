@@ -757,35 +757,45 @@ impl PracticeSession {
 
         // Persist as message in conversation (awaited to prevent data loss)
         let conv_id = self.inner.borrow().conversation_id.clone();
+        console_log!("Persisting observation message: conv_id={:?}, obs_id={}", conv_id, obs_id);
         if let Some(ref conv_id) = conv_id {
             let msg_id = crate::services::ask::generate_uuid();
             let now = js_sys::Date::new_0().to_iso_string().as_string().unwrap_or_default();
-            if let Ok(db) = self.env.d1("DB") {
-                let bind_result = db.prepare(
-                    "INSERT INTO messages (id, conversation_id, role, content, message_type, \
-                     dimension, framing, components_json, session_id, observation_id, created_at) \
-                     VALUES (?1, ?2, 'assistant', ?3, 'observation', ?4, ?5, ?6, ?7, ?8, ?9)"
-                )
-                .bind(&[
-                    JsValue::from_str(&msg_id),
-                    JsValue::from_str(conv_id),
-                    JsValue::from_str(&observation_text),
-                    JsValue::from_str(&obs_dimension),
-                    JsValue::from_str(&obs_framing),
-                    match components_json.as_deref() {
-                        Some(c) => JsValue::from_str(c),
-                        None => JsValue::NULL,
-                    },
-                    JsValue::from_str(&session_id),
-                    JsValue::from_str(&obs_id),
-                    JsValue::from_str(&now),
-                ]);
-                if let Ok(q) = bind_result {
-                    if let Err(e) = q.run().await {
-                        console_error!("Failed to persist observation message: {:?}", e);
+            match self.env.d1("DB") {
+                Ok(db) => {
+                    let bind_result = db.prepare(
+                        "INSERT INTO messages (id, conversation_id, role, content, message_type, \
+                         dimension, framing, components_json, session_id, observation_id, created_at) \
+                         VALUES (?1, ?2, 'assistant', ?3, 'observation', ?4, ?5, ?6, ?7, ?8, ?9)"
+                    )
+                    .bind(&[
+                        JsValue::from_str(&msg_id),
+                        JsValue::from_str(conv_id),
+                        JsValue::from_str(&observation_text),
+                        JsValue::from_str(&obs_dimension),
+                        JsValue::from_str(&obs_framing),
+                        match components_json.as_deref() {
+                            Some(c) => JsValue::from_str(c),
+                            None => JsValue::NULL,
+                        },
+                        JsValue::from_str(&session_id),
+                        JsValue::from_str(&obs_id),
+                        JsValue::from_str(&now),
+                    ]);
+                    match bind_result {
+                        Ok(q) => {
+                            match q.run().await {
+                                Ok(_) => console_log!("Observation message persisted: msg_id={}", msg_id),
+                                Err(e) => console_error!("Failed to persist observation message: {:?}", e),
+                            }
+                        }
+                        Err(e) => console_error!("Failed to bind observation message insert: {:?}", e),
                     }
                 }
+                Err(e) => console_error!("D1 binding failed for observation message: {:?}", e),
             }
+        } else {
+            console_log!("No conversation_id, skipping observation message persist");
         }
     }
 
