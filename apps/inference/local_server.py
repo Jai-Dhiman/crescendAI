@@ -11,6 +11,8 @@
 #     "soundfile>=0.12.0",
 #     "piano-transcription-inference",
 #     "pretty-midi>=0.2.10",
+#     "torchaudio>=2.0.0",
+#     "torchcodec>=0.1.0",
 #     "numpy>=1.24.0",
 #     "scipy>=1.10.0",
 # ]
@@ -51,8 +53,8 @@ DEFAULT_CHECKPOINT_DIR = str(
     / "model"
     / "data"
     / "checkpoints"
-    / "model_improvement"
-    / "A1"
+    / "ablation"
+    / "optimized_weights"
 )
 
 app = FastAPI()

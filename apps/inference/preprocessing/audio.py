@@ -102,17 +102,50 @@ def load_audio_from_file(
     return audio, duration
 
 
+def _decode_with_torchaudio(audio_bytes: bytes, target_sr: int) -> np.ndarray:
+    """Decode audio bytes (WebM/Opus, etc.) to numpy via torchaudio.
+
+    torchaudio uses ffmpeg as a backend and handles WebM/Opus containers
+    that soundfile/libsndfile cannot decode.
+    """
+    import io
+
+    import torchaudio
+
+    buf = io.BytesIO(audio_bytes)
+    waveform, sr = torchaudio.load(buf)
+
+    # Convert to mono if stereo
+    if waveform.shape[0] > 1:
+        waveform = waveform.mean(dim=0, keepdim=True)
+
+    # Resample if needed
+    if sr != target_sr:
+        waveform = torchaudio.functional.resample(waveform, sr, target_sr)
+
+    return waveform.squeeze(0).numpy()
+
+
 def preprocess_audio_from_bytes(
     audio_bytes: bytes,
     target_sr: int = TARGET_SR,
     max_duration: int = 300,
 ) -> Tuple[np.ndarray, float]:
-    """Preprocess audio from raw bytes (e.g., base64 decoded)."""
+    """Preprocess audio from raw bytes (e.g., base64 decoded).
+
+    Tries librosa/soundfile first (WAV, FLAC, etc.).
+    Falls back to torchaudio for formats soundfile can't handle (WebM/Opus).
+    """
     import io
 
     try:
-        audio, sr = librosa.load(io.BytesIO(audio_bytes), sr=target_sr, mono=True)
-        duration = len(audio) / sr
+        try:
+            audio, sr = librosa.load(io.BytesIO(audio_bytes), sr=target_sr, mono=True)
+        except Exception:
+            # soundfile can't decode this format (e.g., WebM/Opus) -- use torchaudio
+            audio = _decode_with_torchaudio(audio_bytes, target_sr)
+
+        duration = len(audio) / target_sr
 
         if duration > max_duration:
             raise AudioProcessingError(
