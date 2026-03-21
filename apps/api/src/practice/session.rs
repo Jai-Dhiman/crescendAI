@@ -133,8 +133,16 @@ impl DurableObject for PracticeSession {
             if s.session_id.is_empty() {
                 s.session_id = session_id.clone();
                 s.student_id = student_id;
-                s.conversation_id = conversation_id;
+                s.conversation_id = conversation_id.clone();
             }
+        }
+
+        // Persist identity to durable storage (survives DO eviction during long async ops)
+        let storage = self.state.storage();
+        let _ = storage.put("session_id", &session_id).await;
+        let _ = storage.put("student_id", &self.inner.borrow().student_id).await;
+        if let Some(ref conv_id) = conversation_id {
+            let _ = storage.put("conversation_id", conv_id).await;
         }
 
         // Close any existing WebSocket connections (reconnection case)
@@ -289,6 +297,37 @@ impl DurableObject for PracticeSession {
 // --- Pipeline methods ---
 
 impl PracticeSession {
+    /// Reload session identity from durable storage if in-memory state was lost
+    /// (happens when the DO is evicted during long async operations like LLM calls).
+    async fn ensure_session_identity(&self) {
+        let needs_reload = self.inner.borrow().session_id.is_empty();
+        if !needs_reload {
+            return;
+        }
+
+        console_log!("DO state was evicted, reloading identity from storage");
+        let storage = self.state.storage();
+
+        if let Ok(Some(sid)) = storage.get::<String>("session_id").await {
+            let mut s = self.inner.borrow_mut();
+            s.session_id = sid;
+        }
+        if let Ok(Some(uid)) = storage.get::<String>("student_id").await {
+            let mut s = self.inner.borrow_mut();
+            s.student_id = uid;
+        }
+        if let Ok(Some(cid)) = storage.get::<String>("conversation_id").await {
+            let mut s = self.inner.borrow_mut();
+            s.conversation_id = Some(cid);
+        }
+
+        let state_debug = {
+            let s = self.inner.borrow();
+            format!("session_id={}, student_id={}, conv_id={:?}", s.session_id, s.student_id, s.conversation_id)
+        };
+        console_log!("DO identity reloaded: {}", state_debug);
+    }
+
     async fn handle_chunk_ready(&self, ws: &WebSocket, index: usize, r2_key: &str) -> Result<()> {
         // 1. Fetch audio from R2
         let audio_bytes = match self.fetch_audio_from_r2(r2_key).await {
@@ -321,6 +360,8 @@ impl PracticeSession {
         index: usize,
         hf_response: serde_json::Value,
     ) -> Result<()> {
+        // Reload identity if DO was evicted during inference
+        self.ensure_session_identity().await;
         // 3. Extract scores from predictions
         let predictions = hf_response.get("predictions").unwrap_or(&hf_response);
         let scores_map: HashMap<String, f64> = DIMS_6
@@ -585,6 +626,7 @@ impl PracticeSession {
 
     async fn generate_observation(&self, ws: &WebSocket, chunk_analysis: Option<&analysis::ChunkAnalysis>) {
         console_log!("generate_observation: starting LLM pipeline");
+        self.ensure_session_identity().await;
         let (scored_chunks, baselines, recent_obs, student_id, session_id) = {
             let s = self.inner.borrow();
             let recent: Vec<RecentObservation> = s.observations
@@ -1061,6 +1103,7 @@ impl PracticeSession {
     // --- Session finalization ---
 
     async fn finalize_session(&self, ws: Option<&WebSocket>) {
+        self.ensure_session_identity().await;
         let (observations, session_id, student_id, inference_failures, total_chunks) = {
             let s = self.inner.borrow();
             (
