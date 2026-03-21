@@ -255,8 +255,8 @@ impl ModeDetector {
     pub fn observation_policy(&self) -> ObservationPolicy {
         match self.mode {
             PracticeMode::Warming => ObservationPolicy {
-                suppress: true,
-                min_interval_ms: 0,
+                suppress: false,
+                min_interval_ms: 30_000,  // Allow observations after 30s, sparse during warm-up
                 comparative: false,
             },
             PracticeMode::Drilling => ObservationPolicy {
@@ -654,10 +654,11 @@ mod tests {
     // --- Pacing tests ---
 
     #[test]
-    fn warming_suppresses() {
+    fn warming_allows_sparse_observations() {
         let det = make_detector();
         let policy = det.observation_policy();
-        assert!(policy.suppress);
+        assert!(!policy.suppress);
+        assert_eq!(policy.min_interval_ms, 30_000);
     }
 
     #[test]

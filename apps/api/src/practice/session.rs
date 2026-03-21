@@ -509,13 +509,21 @@ impl PracticeSession {
 
         // 11. Check if we should generate an observation (mode-aware)
         let policy = self.inner.borrow().mode_detector.observation_policy();
-        let should_generate = {
+        let (should_generate, gate_debug) = {
             let s = self.inner.borrow();
-            !policy.suppress
-                && stop_result.triggered
-                && s.baselines.is_some()
-                && self.mode_throttle_allows(&s, &policy)
+            let suppress = policy.suppress;
+            let stop_triggered = stop_result.triggered;
+            let baselines_loaded = s.baselines.is_some();
+            let throttle_allows = self.mode_throttle_allows(&s, &policy);
+            let mode = format!("{:?}", s.mode_detector.mode);
+            let result = !suppress && stop_triggered && baselines_loaded && throttle_allows;
+            (result, format!(
+                "mode={}, suppress={}, stop={} (p={:.2}), baselines={}, throttle={}, chunks={}",
+                mode, suppress, stop_triggered, stop_result.probability,
+                baselines_loaded, throttle_allows, s.scored_chunks.len()
+            ))
         };
+        console_log!("Observation gate: {} -> generate={}", gate_debug, should_generate);
 
         if should_generate {
             self.generate_observation(ws, chunk_analysis.as_ref()).await;
@@ -862,13 +870,18 @@ impl PracticeSession {
                 return Err(format!("HF returned {}: {}", status, body));
             }
 
-            let body: serde_json::Value = response.json().await
-                .map_err(|e| format!("HF response parse failed: {:?}", e))?;
+            let body_text = response.text().await
+                .map_err(|e| format!("HF response read failed: {:?}", e))?;
+            console_log!("HF response body (first 500 chars): {}", &body_text[..body_text.len().min(500)]);
+
+            let body: serde_json::Value = serde_json::from_str(&body_text)
+                .map_err(|e| format!("HF response parse failed: {:?} - body: {}", e, &body_text[..body_text.len().min(200)]))?;
 
             // Validate that predictions contain all 6 dimensions
             let predictions = body.get("predictions").unwrap_or(&body);
             let dim_count = DIMS_6.iter().filter(|dim| predictions.get(*dim).and_then(|v| v.as_f64()).is_some()).count();
             if dim_count < 6 {
+                console_error!("HF dim validation failed: dim_count={}, predictions keys={:?}", dim_count, predictions);
                 return Err(format!("HF returned only {} dimensions", dim_count));
             }
 
