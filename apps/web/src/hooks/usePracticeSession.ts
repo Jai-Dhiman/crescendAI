@@ -162,7 +162,8 @@ export function usePracticeSession(): UsePracticeSessionReturn {
 		streamRef.current = null;
 		wsRef.current = null;
 		sessionIdRef.current = null;
-		conversationIdRef.current = null;
+		// NOTE: conversationIdRef is NOT reset here — AppChat reads it
+		// after cleanup to navigate to the conversation. It's reset in start().
 		chunkIndexRef.current = 0;
 		reconnectAttemptsRef.current = 0;
 		throttleRef.current.reset();
