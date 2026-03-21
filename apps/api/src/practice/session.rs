@@ -759,7 +759,11 @@ impl PracticeSession {
 
         // Persist as message in conversation (awaited to prevent data loss)
         let conv_id = self.inner.borrow().conversation_id.clone();
-        console_log!("Persisting observation message: conv_id={:?}, obs_id={}", conv_id, obs_id);
+        let session_state_debug = {
+            let s = self.inner.borrow();
+            format!("session_id={}, conv_id={:?}, obs_count={}", s.session_id, s.conversation_id, s.observations.len())
+        };
+        console_log!("Persisting observation message: state=[{}], obs_id={}", session_state_debug, obs_id);
         if let Some(ref conv_id) = conv_id {
             let msg_id = crate::services::ask::generate_uuid();
             let now = js_sys::Date::new_0().to_iso_string().as_string().unwrap_or_default();
