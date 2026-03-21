@@ -58,7 +58,16 @@ export interface UsePracticeSessionReturn {
 	conversationId: string | null;
 }
 
-export function usePracticeSession(): UsePracticeSessionReturn {
+export interface PracticeSessionOptions {
+	/** Called from the WS handler when session_summary arrives. */
+	onSummary?: (summary: string, conversationId: string | null) => void;
+	/** Called from stop() when state transitions to summarizing. */
+	onSummarizing?: () => void;
+}
+
+export function usePracticeSession(
+	options?: PracticeSessionOptions,
+): UsePracticeSessionReturn {
 	const [state, setState] = useState<PracticeState>("idle");
 	const [elapsedSeconds, setElapsedSeconds] = useState(0);
 	const [observations, setObservations] = useState<ObservationEvent[]>([]);
@@ -231,9 +240,11 @@ export function usePracticeSession(): UsePracticeSessionReturn {
 					} else {
 						builtSummary = `I listened to ${chunksCount} sections of your playing.\n\nI didn't notice anything specific to flag this time. Want to talk about how it felt?`;
 					}
-					setSummary(data.summary || builtSummary);
+					const finalSummary = data.summary || builtSummary;
+					setSummary(finalSummary);
 					setState("idle");
 					cleanup();
+					options?.onSummary?.(finalSummary, conversationIdRef.current);
 					break;
 				}
 				case "piece_set":
@@ -512,6 +523,7 @@ export function usePracticeSession(): UsePracticeSessionReturn {
 							origHandler.call(recorder, event);
 						}
 						setState("summarizing");
+						options?.onSummarizing?.();
 						if (wsRef.current?.readyState === WebSocket.OPEN) {
 							wsRef.current.send(JSON.stringify({ type: "end_session" }));
 						}
@@ -529,6 +541,7 @@ export function usePracticeSession(): UsePracticeSessionReturn {
 		}
 
 		setState("summarizing");
+		options?.onSummarizing?.();
 
 		// Release mic, audio analysis, and timer immediately
 		analyserRef.current = null; // Stop useAudioActivity rAF from reading

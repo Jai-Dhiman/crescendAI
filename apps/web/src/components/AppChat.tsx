@@ -12,7 +12,7 @@ import {
 } from "@phosphor-icons/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import {
 	useConversation,
 	useConversations,
@@ -192,8 +192,47 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 		[persistedMessages, transientMessages],
 	);
 
-	// Practice recording
-	const practice = usePracticeSession();
+	// Practice recording — event-driven callbacks, no useEffect
+	const practice = usePracticeSession({
+		onSummarizing: () => {
+			setTransientMessages((prev) => {
+				if (prev.some((m) => m.id === "summarizing-placeholder")) return prev;
+				return [
+					...prev,
+					{
+						id: "summarizing-placeholder",
+						role: "assistant" as const,
+						content: "Reviewing your practice session...",
+						created_at: new Date().toISOString(),
+						streaming: true,
+					},
+				];
+			});
+		},
+		onSummary: (_summary, conversationId) => {
+			setSessionNotes("");
+			setShowListeningMode(false);
+			setRecordButtonRect(null);
+
+			const convId = conversationId ?? activeConversationId;
+			if (convId) {
+				if (convId !== activeConversationId) {
+					setActiveConversationId(convId);
+					window.history.replaceState(
+						window.history.state,
+						"",
+						`/app/c/${convId}`,
+					);
+				}
+				queryClient
+					.invalidateQueries({ queryKey: ["conversation", convId] })
+					.then(() => setTransientMessages([]));
+				queryClient.invalidateQueries({ queryKey: ["conversations"] });
+			} else {
+				setTransientMessages([]);
+			}
+		},
+	});
 
 	async function extractPieceContext(msgs: RichMessage[]) {
 		if (msgs.length === 0) return;
@@ -259,61 +298,6 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 			queryClient.invalidateQueries({ queryKey: ["conversations"] });
 		}
 	}
-
-	// When practice summary arrives, the DO has already persisted it to D1.
-	// Close ListeningMode, navigate to the conversation, and refetch from D1.
-	// biome-ignore lint/correctness/useExhaustiveDependencies: reads sessionNotes at fire time, must not re-run on notes change
-	useEffect(() => {
-		if (practice.summary) {
-			setSessionNotes("");
-			setShowListeningMode(false);
-			setRecordButtonRect(null);
-
-			// Determine which conversation to navigate to
-			const convId = practice.conversationId ?? activeConversationId;
-			if (convId) {
-				if (convId !== activeConversationId) {
-					setActiveConversationId(convId);
-					window.history.replaceState(
-						window.history.state,
-						"",
-						`/app/c/${convId}`,
-					);
-				}
-				// Wait for refetch to complete BEFORE clearing transients
-				// (prevents flash of empty greeting screen)
-				queryClient
-					.invalidateQueries({
-						queryKey: ["conversation", convId],
-					})
-					.then(() => {
-						setTransientMessages([]);
-					});
-				queryClient.invalidateQueries({ queryKey: ["conversations"] });
-			} else {
-				setTransientMessages([]);
-			}
-		}
-	}, [practice.summary]);
-
-	// Show loading indicator in chat while session is summarizing
-	useEffect(() => {
-		if (practice.state === "summarizing") {
-			setTransientMessages((prev) => {
-				if (prev.some((m) => m.id === "summarizing-placeholder")) return prev;
-				return [
-					...prev,
-					{
-						id: "summarizing-placeholder",
-						role: "assistant" as const,
-						content: "Reviewing your practice session...",
-						created_at: new Date().toISOString(),
-						streaming: true,
-					},
-				];
-			});
-		}
-	}, [practice.state]);
 
 	// Merge practice observation messages into the chat thread during recording
 	const displayMessages = useMemo(() => {
