@@ -114,12 +114,13 @@ export function usePracticeSession(
 			chunkGateRef.current = "buffering";
 			chunkLog.log("State: WAITING -> BUFFERING");
 
-			// Start 15s interval timer. First requestData() includes accumulated
-			// silence -- that's fine per spec (no discard mechanism needed).
+			// Start 15s interval timer. Stop + restart MediaRecorder each cycle
+			// so every chunk gets a fresh WebM/EBML header (independently decodable).
 			chunkLog.log("Chunk timer started (15s)");
 			chunkTimerRef.current = setInterval(() => {
 				if (recorder.state === "recording") {
-					recorder.requestData();
+					recorder.stop();   // fires ondataavailable with complete WebM
+					recorder.start();  // new chunk with fresh headers
 				}
 			}, 15000);
 		} else if (!isPlaying && chunkGateRef.current === "buffering") {
@@ -132,9 +133,10 @@ export function usePracticeSession(
 				chunkTimerRef.current = null;
 			}
 
-			// Flush partial chunk
+			// Flush partial chunk with stop/start to get valid headers
 			if (recorder.state === "recording") {
-				recorder.requestData();
+				recorder.stop();
+				recorder.start();
 				chunkLog.log("Partial chunk flushed on silence offset");
 			}
 
@@ -529,7 +531,7 @@ export function usePracticeSession(
 						}
 					}
 				};
-				recorder.requestData();
+				recorder.stop();  // fires ondataavailable with complete WebM
 			} else {
 				setError(
 					"I couldn't hear any playing. Make sure your microphone is picking up the piano.",
