@@ -1187,7 +1187,7 @@ impl PracticeSession {
         for obs in observations {
             let stmt = db
                 .prepare(
-                    "INSERT INTO observations (id, student_id, session_id, chunk_index, \
+                    "INSERT OR IGNORE INTO observations (id, student_id, session_id, chunk_index, \
                      dimension, observation_text, reasoning_trace, framing, dimension_score, \
                      student_baseline, piece_context, is_fallback, created_at) \
                      VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
