@@ -8,9 +8,9 @@ Replace ByteDance AMT with Aria-AMT (Whisper-based, 49M params, SOTA accuracy), 
 |----------|--------|-----------|
 | AMT engine | Aria-AMT (EleutherAI) | MAESTRO F1 0.86 vs ByteDance 0.38. Offset F1 0.91 vs 0.56 (critical for pedaling). Robust to diverse recording environments via augmentation training. Same ecosystem as Aria symbolic encoder. |
 | Endpoint architecture | Split: MuQ (15s) + Aria-AMT (30s) | Independent scaling, independent deployment, parallel execution, failure isolation. Each model gets optimal input size. |
-| Audio buffering | DO ring buffer (previous chunk) | HF endpoints are stateless. DO already holds session state. Client stays simple (15s chunks unchanged). |
+| Audio buffering | DO stores previous chunk's encoded WebM bytes. AMT endpoint accepts two audio fields. | HF endpoints are stateless. DO already holds session state. Client stays simple (15s chunks unchanged). WebM files cannot be byte-concatenated (each has EBML headers), so the AMT handler decodes and concatenates in PCM space. |
 | Piece matching strategy | Multi-signal: N-gram recall -> embedding rerank -> DTW confirm+align | Mirrors RAG retrieval pattern. N-gram for recall (fast, structural), embedding for precision (semantic), DTW for confirmation and bar alignment. |
-| Embedding inference | Pre-computed vectors in R2. No live GPU cost. | 242 scores x 512-dim = ~500KB. Cosine similarity is trivial in the worker. |
+| Rerank features | Pre-computed pitch-class + interval histograms in R2. No live GPU cost. | 242 scores x 128-dim = ~125KB. Cosine similarity is trivial in the worker. Aria-Embedding vectors (512-dim) are a future upgrade path if proxy accuracy is insufficient. |
 | Temporal accumulation | Accumulated note buffer in DO | Not per-chunk. DO appends AMT notes across chunks. Confidence rises naturally as buffer grows. No weighting logic needed. |
 | Give-up policy | Hard cutoff at ~200 notes (~60-90s) | Student can name piece via chat (existing text matcher as fallback). Avoids wasting cycles on pieces not in library. |
 | Piece ID vs score following | Independent concerns | Piece ID locks in the "what." DTW handles the "where" and degrades independently to Tier 2 when alignment fails (drilling, jumping). |
@@ -65,13 +65,17 @@ Client --15s audio--> DO (session brain)
                   (AMT second --> piece ID + score following + analysis)
 ```
 
-### Audio Ring Buffer
+### Audio Buffer and WebM Handling
 
-The DO keeps raw audio bytes from the previous chunk (~1.4MB at 24kHz mono). When chunk N arrives:
+The DO stores the previous chunk's encoded WebM/Opus bytes (~200-400KB encoded). When chunk N arrives:
 
-1. Dispatch chunk N (15s) to MuQ immediately
-2. Concatenate chunk N-1 + chunk N (30s) and dispatch to Aria-AMT
-3. On chunk 1: skip AMT or send 15s degraded (benchmark during implementation)
+1. Dispatch chunk N (encoded WebM) to MuQ immediately
+2. Dispatch both chunk N-1 and chunk N as separate fields to Aria-AMT
+3. On chunk 1: skip AMT or send single chunk (benchmark during implementation)
+
+**Why two fields, not concatenation:** The browser sends WebM/Opus encoded audio. Each WebM file has its own EBML header and cluster structure -- simple byte concatenation produces an invalid file. The AMT endpoint accepts two audio fields (`context_audio` + `chunk_audio`), decodes both to PCM using ffmpeg/torchaudio, concatenates in sample space, and runs inference on the 30s combined PCM. This keeps the DO simple (just stores bytes) and puts decoding where the audio libraries already exist (Python handler).
+
+**DO eviction strategy:** `previous_chunk_audio` is NOT persisted to durable storage (too large, too transient). If the DO is evicted and recreated, the buffer is lost and the next AMT call runs on a single 15s chunk (degraded but functional). This is acceptable -- eviction during active playing is rare, and the quality impact is limited to one chunk's boundary accuracy.
 
 ### Response Processing Order
 
@@ -94,8 +98,9 @@ The DO keeps raw audio bytes from the previous chunk (~1.4MB at 24kHz mono). Whe
 New HF inference endpoint handler (`apps/inference/amt_handler.py`):
 
 - Model: `aria-amt` piano-medium-double checkpoint (49M params)
-- Input: raw audio bytes (24kHz mono, up to 30s)
-- Processing: Aria-AMT resamples to 16kHz, log-mel spectrogram, seq2seq decodes to MIDI tokens
+- Input: two audio fields — `context_audio` (previous chunk, optional) + `chunk_audio` (current chunk). Both WebM/Opus encoded.
+- Processing: decode both to PCM via ffmpeg/torchaudio, concatenate, resample to 16kHz, log-mel spectrogram, seq2seq decodes to MIDI tokens
+- Note deduplication: handler returns only notes with onset > context_duration (notes from the context window are used for boundary accuracy but not returned, avoiding double-counting in the DO's accumulated buffer)
 - Native output: `(on: pitch), (onset: ms), (velocity: v), (off: pitch), (onset: ms)` tokens
 - Handler decodes tokens into note-list format matching existing Rust structs
 
@@ -134,17 +139,19 @@ Simplify existing `apps/inference/handler.py`:
 Session state additions:
 
 ```rust
-previous_chunk_audio: Option<Vec<u8>>,  // raw audio from last chunk
+previous_chunk_audio: Option<Vec<u8>>,  // encoded WebM bytes from last chunk (NOT persisted to durable storage)
 ```
 
-Parallel dispatch on chunk arrival:
+Parallel dispatch on chunk arrival (using `futures::join!` -- tokio is not available in Workers WASM):
 
 ```rust
-let (muq_result, amt_result) = tokio::join!(
+let (muq_result, amt_result) = futures::join!(
     call_muq_endpoint(&chunk_audio),
-    call_amt_endpoint(&combined_audio),
+    call_amt_endpoint(previous_chunk_audio.as_deref(), &chunk_audio),
 );
 ```
+
+The AMT endpoint receives two separate audio fields. On chunk 1, `context_audio` is None and the endpoint processes a single chunk.
 
 Fallback: if AMT request fails or times out (3s), proceed with MuQ scores only (Tier 3).
 
@@ -172,13 +179,18 @@ One-time batch jobs, re-run when score library changes.
 - Store in R2 at `fingerprints/v1/ngram_index.json` (<5MB)
 - Load into DO memory on first use, cache for session lifetime
 
-**Aria-Embedding vectors:**
-- Run each score MIDI through existing `aria_embeddings.py` (TransformerEMB, 512-dim)
-- 242 vectors x 512 dims = ~500KB
-- Store in R2 at `fingerprints/v1/embeddings.bin`
+**Rerank feature vectors** (pitch-class + interval histograms):
+- For each of 242 score MIDIs, compute a fixed-size feature vector (~128 dims):
+  - Pitch-class histogram (12 dims): normalized distribution of pitch classes
+  - Interval histogram (25 dims): distribution of consecutive pitch intervals (-12 to +12 semitones)
+  - Pitch range features (4 dims): min, max, mean, std of pitches
+  - Rhythmic features (~87 dims): IOI histogram (inter-onset intervals bucketed), note density, velocity distribution
+- 242 vectors x 128 dims = ~125KB
+- Store in R2 at `fingerprints/v1/rerank_features.bin`
 - Load into DO memory alongside N-gram index
+- **Future upgrade:** Replace proxy features with 512-dim Aria-Embedding vectors by adding embedding extraction to the AMT endpoint (~50ms additional latency). This would use the same feature space for both performance and score, giving semantic similarity rather than statistical similarity.
 
-New CLI stage in `model/src/score_library/cli.py`: `fingerprint` generates both artifacts and uploads to R2.
+New CLI stage in `model/src/score_library/cli.py`: `fingerprint` generates both N-gram index and rerank features, uploads to R2.
 
 ### Piece Identification Pipeline
 
@@ -206,7 +218,7 @@ Match? --yes--> ScoreContext activated (Tier 1 analysis)
 Try again next chunk (or give up at 200 notes)
 ```
 
-**Stage 2 detail:** For beta, use a lightweight proxy rather than live Aria-Embedding inference (no GPU in worker). Compute pitch-class histogram + interval histogram from accumulated notes (~128-dim feature vector). Compare against pre-computed feature vectors for top-10 candidates. If retrieval accuracy is insufficient, add live embedding extraction to the AMT endpoint later (AMT and Embedding share the same tokenizer, ~50ms additional latency).
+**Stage 2 detail:** For beta, use statistical proxy features (pitch-class + interval + rhythmic histograms, ~128-dim). Both the performance notes and the 242 score MIDIs are projected into the same feature space, so cosine similarity is valid. Compare accumulated notes' feature vector against pre-computed score feature vectors for top-10 candidates. If retrieval accuracy is insufficient post-beta, upgrade to live Aria-Embedding (512-dim) by adding embedding extraction to the AMT endpoint (AMT and Embedding share the same tokenizer, ~50ms additional latency).
 
 ### DO Integration
 
@@ -218,7 +230,7 @@ piece_match: Option<PieceMatch>,
 piece_locked: bool,
 identification_attempts: u32,
 ngram_index: Option<Arc<NgramIndex>>,
-score_embeddings: Option<Arc<ScoreEmbeddings>>,
+rerank_features: Option<Arc<RerankFeatures>>,
 ```
 
 On each AMT response:
@@ -268,7 +280,7 @@ On each AMT response:
 | Aria-AMT timeout (>3s) | Same as above for this chunk | Retry next chunk. DO doesn't block on AMT. |
 | MuQ endpoint down | No scores, no STOP | Session cannot deliver observations. Surface error. |
 | N-gram index failed to load | No automatic piece ID | Fall back to text-based matching. Log error. |
-| Score embeddings failed to load | No embedding rerank | N-gram -> DTW directly (skip rerank). |
+| Rerank features failed to load | No rerank stage | N-gram -> DTW directly (skip rerank). |
 | R2 score JSON unavailable | Piece matched, can't load score | Tier 2 (know piece name, no bar analysis). |
 | DTW confirmation fails all candidates | N-gram/embedding disagreed with DTW | No lock-in. Try again next chunk with more notes. |
 
@@ -297,7 +309,8 @@ On each AMT response:
 | File | Change |
 |------|--------|
 | `model/src/score_library/cli.py` | Add `fingerprint` stage (N-gram index + embedding vectors). |
-| `model/src/score_library/fingerprint.py` | **New.** N-gram extraction + Aria-Embedding batch computation. |
+| `model/src/score_library/fingerprint.py` | **New.** N-gram extraction + rerank feature computation. |
+| `apps/api/migrations/0007_piece_requests_method.sql` | **New.** Add `match_method` and update `match_confidence` columns to `piece_requests`. |
 | `apps/api/src/practice/piece_identify.rs` | **New.** Multi-signal piece identification service. |
 | `apps/api/src/practice/session.rs` | Add accumulated_notes, piece_match state, identification loop. |
 | `apps/api/src/practice/piece_match.rs` | Preserved as text fallback. No changes. |
