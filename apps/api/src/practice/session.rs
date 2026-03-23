@@ -17,6 +17,40 @@ use crate::services::teaching_moments::{
     RecentObservation, ScoredChunk, StudentBaselines,
 };
 
+// --- Response types for split MuQ / AMT endpoints ---
+
+#[derive(serde::Deserialize)]
+struct MuqResponse {
+    predictions: HashMap<String, f64>,
+    #[allow(dead_code)]
+    processing_time_ms: Option<u64>,
+}
+
+#[derive(serde::Deserialize)]
+struct AmtResponse {
+    midi_notes: Vec<PerfNote>,
+    pedal_events: Vec<PerfPedalEvent>,
+    #[allow(dead_code)]
+    transcription_info: Option<TranscriptionInfo>,
+}
+
+#[derive(serde::Deserialize)]
+#[allow(dead_code)]
+struct TranscriptionInfo {
+    note_count: Option<u32>,
+    pitch_range: Option<Vec<u8>>,
+    pedal_event_count: Option<u32>,
+    transcription_time_ms: Option<u64>,
+    context_duration_s: Option<f64>,
+    chunk_duration_s: Option<f64>,
+}
+
+/// Base64-encode bytes using standard alphabet (for AMT endpoint JSON payloads).
+fn base64_encode(bytes: &[u8]) -> String {
+    use base64::{engine::general_purpose::STANDARD, Engine};
+    STANDARD.encode(bytes)
+}
+
 /// JS setTimeout-based sleep for Cloudflare Workers WASM
 async fn sleep_ms(ms: u64) {
     let promise = js_sys::Promise::new(&mut |resolve, _| {
@@ -66,6 +100,9 @@ struct SessionState {
     is_eval_session: bool,
     mode_detector: ModeDetector,
     conversation_id: Option<String>,
+    /// Encoded WebM bytes from previous chunk (NOT persisted to durable storage).
+    /// Used to provide 30s context window for Aria-AMT.
+    previous_chunk_audio: Option<Vec<u8>>,
 }
 
 impl Default for SessionState {
@@ -89,6 +126,7 @@ impl Default for SessionState {
             is_eval_session: false,
             mode_detector: ModeDetector::new(),
             conversation_id: None,
+            previous_chunk_audio: None,
         }
     }
 }
@@ -339,21 +377,248 @@ impl PracticeSession {
             }
         };
 
-        // 2. Call HF inference (returns full response body)
-        let hf_response = match self.call_hf_inference(&audio_bytes).await {
-            Ok(resp) => resp,
+        // 2. Dispatch MuQ and AMT in parallel
+        let context_audio = self.inner.borrow().previous_chunk_audio.clone();
+        let (muq_result, amt_result) = futures_util::future::join(
+            self.call_muq_endpoint(&audio_bytes),
+            self.call_amt_endpoint(context_audio.as_deref(), &audio_bytes),
+        ).await;
+
+        // Store current chunk as context for the next chunk (NOT persisted to durable storage)
+        self.inner.borrow_mut().previous_chunk_audio = Some(audio_bytes.to_vec());
+
+        // Reload identity if DO was evicted during inference
+        self.ensure_session_identity().await;
+
+        // 3. Process MuQ result
+        let scores_array = match muq_result {
+            Ok(muq) => {
+                let (scores_array, scores_map) = self.process_muq_result(&muq);
+
+                // Send chunk_processed immediately (UI needs scores)
+                let scores_json = serde_json::json!({
+                    "dynamics": scores_array[0],
+                    "timing": scores_array[1],
+                    "pedaling": scores_array[2],
+                    "articulation": scores_array[3],
+                    "phrasing": scores_array[4],
+                    "interpretation": scores_array[5],
+                });
+                let response = serde_json::json!({
+                    "type": "chunk_processed",
+                    "index": index,
+                    "scores": scores_json,
+                });
+                let _ = ws.send_with_str(&response.to_string());
+
+                // Update DimStats and store ScoredChunk
+                {
+                    let mut s = self.inner.borrow_mut();
+                    s.dim_stats.update(&scores_map);
+                    s.scored_chunks.push(ScoredChunk {
+                        chunk_index: index,
+                        scores: scores_array,
+                    });
+                }
+
+                scores_array
+            }
             Err(e) => {
-                console_error!("HF inference failed for chunk {}: {}", index, e);
+                console_error!("MuQ inference failed for chunk {}: {}", index, e);
                 self.inner.borrow_mut().inference_failures += 1;
                 self.send_zeroed_chunk_processed(ws, index)?;
                 return Ok(());
             }
         };
 
-        // 3-12. Process inference result through the pipeline
-        self.process_inference_result(ws, index, hf_response).await
+        // 4. Process AMT result (graceful degradation if AMT fails)
+        let (perf_notes, perf_pedal) = match amt_result {
+            Ok(amt) => {
+                console_log!("AMT returned {} notes, {} pedal events for chunk {}",
+                    amt.midi_notes.len(), amt.pedal_events.len(), index);
+                (amt.midi_notes, amt.pedal_events)
+            }
+            Err(e) => {
+                console_error!("AMT inference failed for chunk {} (proceeding with Tier 3): {}", index, e);
+                (Vec::new(), Vec::new())
+            }
+        };
+
+        // 5. Load baselines (one-time)
+        {
+            let needs_load = !self.inner.borrow().baselines_loaded;
+            if needs_load {
+                let student_id = self.inner.borrow().student_id.clone();
+                let baselines = self.load_baselines(&student_id).await;
+                let mut s = self.inner.borrow_mut();
+                s.baselines = Some(baselines);
+                s.baselines_loaded = true;
+            }
+        }
+
+        // 6. Load score context (one-time, if piece_query is set)
+        {
+            let needs_load = {
+                let s = self.inner.borrow();
+                !s.score_context_loaded && s.piece_query.is_some()
+            };
+            if needs_load {
+                let (query, student_id) = {
+                    let s = self.inner.borrow();
+                    (s.piece_query.clone().unwrap_or_default(), s.student_id.clone())
+                };
+                let ctx = crate::practice::score_context::resolve_piece(
+                    &self.env,
+                    &query,
+                    &student_id,
+                ).await;
+                let mut s = self.inner.borrow_mut();
+                s.score_context = ctx;
+                s.score_context_loaded = true;
+            }
+        }
+
+        // 7. Run score following + analysis using AMT result
+        let (chunk_analysis, chunk_bar_range) = self.process_amt_result(
+            index, &perf_notes, &perf_pedal, &scores_array,
+        );
+
+        // 8. Build ChunkSignal and update practice mode
+        let perf_pitches: Vec<u8> = perf_notes.iter().map(|n| n.pitch).collect();
+        let has_piece_match = self.inner.borrow().score_context.is_some();
+        let chunk_signal = ChunkSignal {
+            chunk_index: index,
+            timestamp_ms: js_sys::Date::now() as u64,
+            pitch_bigrams: pitch_bigrams_from_notes(&perf_pitches),
+            bar_range: chunk_bar_range,
+            has_piece_match,
+            scores: scores_array,
+        };
+
+        let mode_transitions = self.inner.borrow_mut().mode_detector.update(&chunk_signal);
+
+        // Broadcast mode changes over WebSocket
+        for transition in &mode_transitions {
+            let context = self.build_mode_context(transition);
+            let msg = serde_json::json!({
+                "type": "mode_change",
+                "mode": transition.mode,
+                "chunkIndex": transition.chunk_index,
+                "context": context,
+            });
+            let _ = ws.send_with_str(&msg.to_string());
+        }
+
+        // 9. Try to generate observation (STOP + throttle + mode check)
+        self.try_generate_observation(ws, chunk_analysis.as_ref(), &scores_array).await;
+
+        // 10. Reset alarm
+        let _ = self.state.storage().set_alarm(ALARM_DURATION_MS).await;
+
+        Ok(())
     }
 
+    /// Extract 6-dim scores from MuQ response. Returns (scores_array, scores_map).
+    fn process_muq_result(&self, muq: &MuqResponse) -> ([f64; 6], HashMap<String, f64>) {
+        let scores_map: HashMap<String, f64> = DIMS_6
+            .iter()
+            .filter_map(|&dim| {
+                muq.predictions.get(dim).copied().map(|val| (dim.to_string(), val))
+            })
+            .collect();
+        let scores_array: [f64; 6] = DIMS_6.map(|dim| {
+            scores_map.get(dim).copied().unwrap_or(0.0)
+        });
+        (scores_array, scores_map)
+    }
+
+    /// Run score following and bar-aligned analysis from AMT notes.
+    /// Returns (chunk_analysis, bar_range) -- both None if no perf notes.
+    fn process_amt_result(
+        &self,
+        index: usize,
+        perf_notes: &[PerfNote],
+        perf_pedal: &[PerfPedalEvent],
+        scores_array: &[f64; 6],
+    ) -> (Option<analysis::ChunkAnalysis>, Option<(u32, u32)>) {
+        // Extract what we need from state, then drop the borrow
+        let (score_data_clone, follower_state_clone) = {
+            let s = self.inner.borrow();
+            (
+                s.score_context.as_ref().map(|ctx| ctx.score.clone()),
+                s.follower_state.clone(),
+            )
+        };
+
+        if !perf_notes.is_empty() {
+            if let Some(score_data) = score_data_clone {
+                // Run alignment with a mutable copy, then store updated state
+                let mut fs = follower_state_clone;
+                let bar_map = crate::practice::score_follower::align_chunk(
+                    index,
+                    0.0,
+                    perf_notes,
+                    &score_data,
+                    &mut fs,
+                );
+                // Store updated follower state
+                self.inner.borrow_mut().follower_state = fs;
+
+                if let Some(ref bm) = bar_map {
+                    let bar_range = (bm.bar_start, bm.bar_end);
+                    let score_ctx = self.inner.borrow().score_context.clone().unwrap();
+                    let analysis_result = analysis::analyze_tier1(
+                        bm,
+                        perf_notes,
+                        perf_pedal,
+                        scores_array,
+                        &score_ctx,
+                    );
+                    (Some(analysis_result), Some(bar_range))
+                } else {
+                    (Some(analysis::analyze_tier2(perf_notes, perf_pedal, scores_array)), None)
+                }
+            } else {
+                (Some(analysis::analyze_tier2(perf_notes, perf_pedal, scores_array)), None)
+            }
+        } else {
+            // No perf notes -> Tier 3 (scores only)
+            (None, None)
+        }
+    }
+
+    /// Check observation gate (STOP + mode throttle) and generate if ready.
+    async fn try_generate_observation(
+        &self,
+        ws: &WebSocket,
+        chunk_analysis: Option<&analysis::ChunkAnalysis>,
+        scores_array: &[f64; 6],
+    ) {
+        let stop_result = stop::classify(scores_array);
+
+        let policy = self.inner.borrow().mode_detector.observation_policy();
+        let (should_generate, gate_debug) = {
+            let s = self.inner.borrow();
+            let suppress = policy.suppress;
+            let stop_triggered = stop_result.triggered;
+            let baselines_loaded = s.baselines.is_some();
+            let throttle_allows = self.mode_throttle_allows(&s, &policy);
+            let mode = format!("{:?}", s.mode_detector.mode);
+            let result = !suppress && stop_triggered && baselines_loaded && throttle_allows;
+            (result, format!(
+                "mode={}, suppress={}, stop={} (p={:.2}), baselines={}, throttle={}, chunks={}",
+                mode, suppress, stop_triggered, stop_result.probability,
+                baselines_loaded, throttle_allows, s.scored_chunks.len()
+            ))
+        };
+        console_log!("Observation gate: {} -> generate={}", gate_debug, should_generate);
+
+        if should_generate {
+            self.generate_observation(ws, chunk_analysis).await;
+        }
+    }
+
+    /// Legacy entry point for eval_chunk messages (combined MuQ+AMT response).
     async fn process_inference_result(
         &self,
         ws: &WebSocket,
@@ -362,7 +627,8 @@ impl PracticeSession {
     ) -> Result<()> {
         // Reload identity if DO was evicted during inference
         self.ensure_session_identity().await;
-        // 3. Extract scores from predictions
+
+        // Extract scores from predictions
         let predictions = hf_response.get("predictions").unwrap_or(&hf_response);
         let scores_map: HashMap<String, f64> = DIMS_6
             .iter()
@@ -374,7 +640,7 @@ impl PracticeSession {
             scores_map.get(dim).copied().unwrap_or(0.0)
         });
 
-        // 4. Extract midi_notes and pedal_events from HF response
+        // Extract midi_notes and pedal_events
         let perf_notes: Vec<PerfNote> = hf_response
             .get("midi_notes")
             .and_then(|v| v.as_array())
@@ -407,7 +673,7 @@ impl PracticeSession {
             })
             .unwrap_or_default();
 
-        // 5. Send chunk_processed immediately (skip if session is ending)
+        // Send chunk_processed
         let scores_json = serde_json::json!({
             "dynamics": scores_array[0],
             "timing": scores_array[1],
@@ -423,7 +689,7 @@ impl PracticeSession {
         });
         let _ = ws.send_with_str(&response.to_string());
 
-        // 6. Update DimStats and store ScoredChunk
+        // Update DimStats and store ScoredChunk
         {
             let mut s = self.inner.borrow_mut();
             s.dim_stats.update(&scores_map);
@@ -433,7 +699,7 @@ impl PracticeSession {
             });
         }
 
-        // 7. Load baselines (one-time)
+        // Load baselines (one-time)
         {
             let needs_load = !self.inner.borrow().baselines_loaded;
             if needs_load {
@@ -445,7 +711,7 @@ impl PracticeSession {
             }
         }
 
-        // 8. Load score context (one-time, if piece_query is set)
+        // Load score context (one-time)
         {
             let needs_load = {
                 let s = self.inner.borrow();
@@ -467,59 +733,12 @@ impl PracticeSession {
             }
         }
 
-        // 9. Run score following + analysis (also extract raw bar range for mode detector)
-        let (chunk_analysis, chunk_bar_range): (Option<analysis::ChunkAnalysis>, Option<(u32, u32)>) = {
-            // Extract what we need from state, then drop the borrow
-            let (score_data_clone, follower_state_clone) = {
-                let s = self.inner.borrow();
-                (
-                    s.score_context.as_ref().map(|ctx| ctx.score.clone()),
-                    s.follower_state.clone(),
-                )
-            };
+        // Score following + analysis
+        let (chunk_analysis, chunk_bar_range) = self.process_amt_result(
+            index, &perf_notes, &perf_pedal, &scores_array,
+        );
 
-            if !perf_notes.is_empty() {
-                if let Some(score_data) = score_data_clone {
-                    // Run alignment with a mutable copy, then store updated state
-                    let mut fs = follower_state_clone;
-                    let bar_map = crate::practice::score_follower::align_chunk(
-                        index,
-                        0.0,
-                        &perf_notes,
-                        &score_data,
-                        &mut fs,
-                    );
-                    // Store updated follower state
-                    self.inner.borrow_mut().follower_state = fs;
-
-                    if let Some(ref bm) = bar_map {
-                        // Capture raw bar range before passing bm to analyze_tier1
-                        let bar_range = (bm.bar_start, bm.bar_end);
-                        // Tier 1: full bar-aligned analysis
-                        let score_ctx = self.inner.borrow().score_context.clone().unwrap();
-                        let analysis = analysis::analyze_tier1(
-                            bm,
-                            &perf_notes,
-                            &perf_pedal,
-                            &scores_array,
-                            &score_ctx,
-                        );
-                        (Some(analysis), Some(bar_range))
-                    } else {
-                        // Score context exists but alignment failed -> Tier 2
-                        (Some(analysis::analyze_tier2(&perf_notes, &perf_pedal, &scores_array)), None)
-                    }
-                } else {
-                    // No score context but have perf notes -> Tier 2
-                    (Some(analysis::analyze_tier2(&perf_notes, &perf_pedal, &scores_array)), None)
-                }
-            } else {
-                // No perf notes -> Tier 3 (no analysis, current behavior)
-                (None, None)
-            }
-        };
-
-        // 9b. Build ChunkSignal and update practice mode
+        // Practice mode update
         let perf_pitches: Vec<u8> = perf_notes.iter().map(|n| n.pitch).collect();
         let has_piece_match = self.inner.borrow().score_context.is_some();
         let chunk_signal = ChunkSignal {
@@ -532,8 +751,6 @@ impl PracticeSession {
         };
 
         let mode_transitions = self.inner.borrow_mut().mode_detector.update(&chunk_signal);
-
-        // Broadcast mode changes over WebSocket
         for transition in &mode_transitions {
             let context = self.build_mode_context(transition);
             let msg = serde_json::json!({
@@ -545,32 +762,10 @@ impl PracticeSession {
             let _ = ws.send_with_str(&msg.to_string());
         }
 
-        // 10. Run STOP classifier on current chunk
-        let stop_result = stop::classify(&scores_array);
+        // Observation generation
+        self.try_generate_observation(ws, chunk_analysis.as_ref(), &scores_array).await;
 
-        // 11. Check if we should generate an observation (mode-aware)
-        let policy = self.inner.borrow().mode_detector.observation_policy();
-        let (should_generate, gate_debug) = {
-            let s = self.inner.borrow();
-            let suppress = policy.suppress;
-            let stop_triggered = stop_result.triggered;
-            let baselines_loaded = s.baselines.is_some();
-            let throttle_allows = self.mode_throttle_allows(&s, &policy);
-            let mode = format!("{:?}", s.mode_detector.mode);
-            let result = !suppress && stop_triggered && baselines_loaded && throttle_allows;
-            (result, format!(
-                "mode={}, suppress={}, stop={} (p={:.2}), baselines={}, throttle={}, chunks={}",
-                mode, suppress, stop_triggered, stop_result.probability,
-                baselines_loaded, throttle_allows, s.scored_chunks.len()
-            ))
-        };
-        console_log!("Observation gate: {} -> generate={}", gate_debug, should_generate);
-
-        if should_generate {
-            self.generate_observation(ws, chunk_analysis.as_ref()).await;
-        }
-
-        // 12. Reset alarm
+        // Reset alarm
         let _ = self.state.storage().set_alarm(ALARM_DURATION_MS).await;
 
         Ok(())
@@ -862,10 +1057,13 @@ impl PracticeSession {
         Ok(bytes)
     }
 
-    async fn call_hf_inference(
+    /// Call the MuQ-only endpoint. Sends raw WebM audio bytes, returns 6-dim predictions.
+    async fn call_muq_endpoint(
         &self,
         audio_bytes: &[u8],
-    ) -> std::result::Result<serde_json::Value, String> {
+    ) -> std::result::Result<MuqResponse, String> {
+        // MuQ endpoint uses the same transport as the existing HF inference endpoint:
+        // POST raw audio bytes with Content-Type: audio/webm;codecs=opus
         let endpoint = self.env.var("HF_INFERENCE_ENDPOINT")
             .map_err(|e| format!("HF_INFERENCE_ENDPOINT not set: {:?}", e))?
             .to_string();
@@ -874,15 +1072,12 @@ impl PracticeSession {
             .to_string();
 
         let mut last_err = String::new();
-
-        // Use shorter retries if session is ending (user is waiting)
         let delays = if self.inner.borrow().session_ending {
             HF_RETRY_DELAYS_ENDING_MS
         } else {
             HF_RETRY_DELAYS_MS
         };
 
-        // Try once, then retry on 503 (HF cold start) with backoff
         for attempt in 0..=delays.len() {
             let headers = worker::Headers::new();
             headers.set("Content-Type", "audio/webm;codecs=opus").map_err(|e| format!("{:?}", e))?;
@@ -894,15 +1089,15 @@ impl PracticeSession {
             init.with_body(Some(JsValue::from(js_sys::Uint8Array::from(audio_bytes))));
 
             let request = worker::Request::new_with_init(&endpoint, &init)
-                .map_err(|e| format!("Failed to create request: {:?}", e))?;
+                .map_err(|e| format!("MuQ request creation failed: {:?}", e))?;
 
             let mut response = match worker::Fetch::Request(request).send().await {
                 Ok(r) => r,
                 Err(e) => {
-                    last_err = format!("HF fetch failed: {:?}", e);
+                    last_err = format!("MuQ fetch failed: {:?}", e);
                     if attempt < delays.len() {
                         let delay = delays[attempt];
-                        console_log!("HF fetch failed (attempt {}), retrying in {}s: {}", attempt + 1, delay / 1000, last_err);
+                        console_log!("MuQ fetch failed (attempt {}), retrying in {}s: {}", attempt + 1, delay / 1000, last_err);
                         sleep_ms(delay).await;
                         continue;
                     }
@@ -913,10 +1108,10 @@ impl PracticeSession {
             let status = response.status_code();
             if status == 503 || status == 429 {
                 let body = response.text().await.unwrap_or_default();
-                last_err = format!("HF returned {}: {}", status, body);
-                if attempt < HF_RETRY_DELAYS_MS.len() {
-                    let delay = HF_RETRY_DELAYS_MS[attempt];
-                    console_log!("HF {} (attempt {}), endpoint likely cold-starting, retrying in {}s", status, attempt + 1, delay / 1000);
+                last_err = format!("MuQ returned {}: {}", status, body);
+                if attempt < delays.len() {
+                    let delay = delays[attempt];
+                    console_log!("MuQ {} (attempt {}), retrying in {}s", status, attempt + 1, delay / 1000);
                     sleep_ms(delay).await;
                     continue;
                 }
@@ -925,29 +1120,123 @@ impl PracticeSession {
 
             if status != 200 {
                 let body = response.text().await.unwrap_or_default();
-                return Err(format!("HF returned {}: {}", status, body));
+                return Err(format!("MuQ returned {}: {}", status, body));
             }
 
             let body_text = response.text().await
-                .map_err(|e| format!("HF response read failed: {:?}", e))?;
-            console_log!("HF response body (first 500 chars): {}", &body_text[..body_text.len().min(500)]);
+                .map_err(|e| format!("MuQ response read failed: {:?}", e))?;
 
-            let body: serde_json::Value = serde_json::from_str(&body_text)
-                .map_err(|e| format!("HF response parse failed: {:?} - body: {}", e, &body_text[..body_text.len().min(200)]))?;
+            let muq: MuqResponse = serde_json::from_str(&body_text)
+                .map_err(|e| format!("MuQ response parse failed: {:?} - body: {}", e, &body_text[..body_text.len().min(200)]))?;
 
-            // Validate that predictions contain all 6 dimensions
-            let predictions = body.get("predictions").unwrap_or(&body);
-            let dim_count = DIMS_6.iter().filter(|dim| predictions.get(*dim).and_then(|v| v.as_f64()).is_some()).count();
+            // Validate all 6 dimensions present
+            let dim_count = DIMS_6.iter().filter(|dim| muq.predictions.contains_key(**dim)).count();
             if dim_count < 6 {
-                console_error!("HF dim validation failed: dim_count={}, predictions keys={:?}", dim_count, predictions);
-                return Err(format!("HF returned only {} dimensions", dim_count));
+                return Err(format!("MuQ returned only {} dimensions", dim_count));
             }
 
             if attempt > 0 {
-                console_log!("HF inference succeeded after {} retries", attempt);
+                console_log!("MuQ inference succeeded after {} retries", attempt);
             }
 
-            return Ok(body);
+            return Ok(muq);
+        }
+
+        Err(last_err)
+    }
+
+    /// Call the Aria-AMT endpoint. Sends JSON with base64-encoded audio fields.
+    /// Returns transcribed MIDI notes and pedal events.
+    async fn call_amt_endpoint(
+        &self,
+        context_audio: Option<&[u8]>,
+        chunk_audio: &[u8],
+    ) -> std::result::Result<AmtResponse, String> {
+        let endpoint = self.env.var("HF_AMT_ENDPOINT")
+            .map_err(|e| format!("HF_AMT_ENDPOINT not set: {:?}", e))?
+            .to_string();
+
+        if endpoint.is_empty() {
+            return Err("HF_AMT_ENDPOINT is empty (not yet deployed)".to_string());
+        }
+
+        let token = self.env.secret("HF_TOKEN")
+            .map_err(|e| format!("HF_TOKEN not set: {:?}", e))?
+            .to_string();
+
+        // Build JSON payload with base64-encoded audio
+        let chunk_b64 = base64_encode(chunk_audio);
+        let context_b64 = context_audio.map(base64_encode);
+
+        let payload = serde_json::json!({
+            "chunk_audio": chunk_b64,
+            "context_audio": context_b64,
+        });
+        let payload_str = payload.to_string();
+
+        let mut last_err = String::new();
+        let delays = if self.inner.borrow().session_ending {
+            HF_RETRY_DELAYS_ENDING_MS
+        } else {
+            HF_RETRY_DELAYS_MS
+        };
+
+        for attempt in 0..=delays.len() {
+            let headers = worker::Headers::new();
+            headers.set("Content-Type", "application/json").map_err(|e| format!("{:?}", e))?;
+            headers.set("Authorization", &format!("Bearer {}", token)).map_err(|e| format!("{:?}", e))?;
+
+            let mut init = worker::RequestInit::new();
+            init.with_method(worker::Method::Post);
+            init.with_headers(headers);
+            init.with_body(Some(JsValue::from_str(&payload_str)));
+
+            let request = worker::Request::new_with_init(&endpoint, &init)
+                .map_err(|e| format!("AMT request creation failed: {:?}", e))?;
+
+            let mut response = match worker::Fetch::Request(request).send().await {
+                Ok(r) => r,
+                Err(e) => {
+                    last_err = format!("AMT fetch failed: {:?}", e);
+                    if attempt < delays.len() {
+                        let delay = delays[attempt];
+                        console_log!("AMT fetch failed (attempt {}), retrying in {}s: {}", attempt + 1, delay / 1000, last_err);
+                        sleep_ms(delay).await;
+                        continue;
+                    }
+                    return Err(last_err);
+                }
+            };
+
+            let status = response.status_code();
+            if status == 503 || status == 429 {
+                let body = response.text().await.unwrap_or_default();
+                last_err = format!("AMT returned {}: {}", status, body);
+                if attempt < delays.len() {
+                    let delay = delays[attempt];
+                    console_log!("AMT {} (attempt {}), retrying in {}s", status, attempt + 1, delay / 1000);
+                    sleep_ms(delay).await;
+                    continue;
+                }
+                return Err(last_err);
+            }
+
+            if status != 200 {
+                let body = response.text().await.unwrap_or_default();
+                return Err(format!("AMT returned {}: {}", status, body));
+            }
+
+            let body_text = response.text().await
+                .map_err(|e| format!("AMT response read failed: {:?}", e))?;
+
+            let amt: AmtResponse = serde_json::from_str(&body_text)
+                .map_err(|e| format!("AMT response parse failed: {:?} - body: {}", e, &body_text[..body_text.len().min(200)]))?;
+
+            if attempt > 0 {
+                console_log!("AMT inference succeeded after {} retries", attempt);
+            }
+
+            return Ok(amt);
         }
 
         Err(last_err)

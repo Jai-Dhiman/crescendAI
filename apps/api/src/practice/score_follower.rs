@@ -10,7 +10,7 @@ const REANCHOR_COST_THRESHOLD: f64 = 0.3;
 const MIN_PERF_NOTES: usize = 3;
 
 /// A performance note from AMT (subset of HF response).
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Deserialize)]
 pub struct PerfNote {
     pub pitch: u8,
     pub onset: f64,
@@ -19,7 +19,7 @@ pub struct PerfNote {
 }
 
 /// A pedal event from AMT.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Deserialize)]
 pub struct PerfPedalEvent {
     pub time: f64,
     pub value: u8,
