@@ -6,7 +6,8 @@
 #     "torch>=2.0.0",
 #     "numpy>=1.24.0",
 #     "safetensors>=0.4.0",
-#     "aria",
+#     "aria-amt @ git+https://github.com/EleutherAI/aria-amt.git",
+#     "aria @ git+https://github.com/EleutherAI/aria.git",
 # ]
 # ///
 """Local Aria-AMT inference server for dev testing.
@@ -28,9 +29,13 @@ from __future__ import annotations
 import argparse
 import base64
 import os
+import sys
 import time
 import traceback
 from pathlib import Path
+
+# Ensure the script's directory is on sys.path so amt_handler can be imported
+sys.path.insert(0, str(Path(__file__).parent))
 
 os.environ.setdefault("CRESCEND_DEVICE", "auto")
 
