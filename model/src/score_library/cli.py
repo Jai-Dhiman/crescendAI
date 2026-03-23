@@ -113,6 +113,37 @@ def cmd_build(args):
     cmd_upload(args)
 
 
+def cmd_fingerprint(args):
+    from score_library.fingerprint import build_ngram_index, build_rerank_features
+
+    scores_dir = Path(args.scores_dir)
+    output_dir = Path(args.output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    json_files = [f for f in scores_dir.glob("*.json") if f.name not in ("titles.json", "seed.sql")]
+    print(f"Building fingerprints for {len(json_files)} scores in {scores_dir}")
+
+    print(f"Building N-gram index (max_freq={args.max_freq})...")
+    ngram_index = build_ngram_index(scores_dir, max_freq=args.max_freq)
+    ngram_path = output_dir / "ngram_index.json"
+    with open(ngram_path, "w") as f:
+        json.dump(ngram_index, f)
+    ngram_size_kb = ngram_path.stat().st_size / 1024
+    print(f"  N-gram index: {len(ngram_index)} trigrams -> {ngram_path} ({ngram_size_kb:.1f} KB)")
+    if ngram_size_kb > 5120:
+        logger.warning("N-gram index exceeds 5MB (%.1f KB) -- lower --max-freq to reduce size", ngram_size_kb)
+
+    print("Building rerank features...")
+    rerank_features = build_rerank_features(scores_dir)
+    rerank_path = output_dir / "rerank_features.json"
+    with open(rerank_path, "w") as f:
+        json.dump(rerank_features, f)
+    rerank_size_kb = rerank_path.stat().st_size / 1024
+    print(f"  Rerank features: {len(rerank_features)} pieces -> {rerank_path} ({rerank_size_kb:.1f} KB)")
+
+    print("\nDone.")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Score MIDI Library pipeline")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -137,9 +168,19 @@ def main():
     p_build.add_argument("--seed-output")
     p_build.add_argument("--skip-r2", action="store_true")
 
+    p_fingerprint = sub.add_parser("fingerprint", help="Build N-gram index and rerank features")
+    p_fingerprint.add_argument("--scores-dir", required=True, help="Directory containing score JSON files")
+    p_fingerprint.add_argument("--output-dir", required=True, help="Output directory for fingerprint artifacts")
+    p_fingerprint.add_argument(
+        "--max-freq",
+        type=int,
+        default=3,
+        help="Prune trigrams appearing in more than N locations (default: 3, keeps index under 5MB)",
+    )
+
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
-    {"parse": cmd_parse, "stats": cmd_stats, "upload": cmd_upload, "build": cmd_build}[args.command](args)
+    {"parse": cmd_parse, "stats": cmd_stats, "upload": cmd_upload, "build": cmd_build, "fingerprint": cmd_fingerprint}[args.command](args)
 
 
 if __name__ == "__main__":
