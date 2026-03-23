@@ -4,6 +4,7 @@
 use wasm_bindgen::JsValue;
 use worker::{console_error, Env};
 
+use crate::practice::piece_identify::{NgramIndex, RerankFeatures};
 use crate::practice::piece_match::{CatalogPiece, MatchResult, match_piece};
 
 #[derive(Debug, Clone, serde::Deserialize)]
@@ -278,4 +279,96 @@ pub async fn resolve_piece(
         reference,
         match_confidence: matched.confidence,
     })
+}
+
+/// Load the N-gram inverted index from R2 at `fingerprints/v1/ngram_index.json`.
+pub async fn load_ngram_index(env: &Env) -> Result<NgramIndex, String> {
+    let bucket = env
+        .bucket("SCORES")
+        .map_err(|e| format!("SCORES R2 binding failed: {:?}", e))?;
+
+    let key = "fingerprints/v1/ngram_index.json";
+
+    let object = bucket
+        .get(key)
+        .execute()
+        .await
+        .map_err(|e| format!("R2 get failed for {}: {:?}", key, e))?
+        .ok_or_else(|| format!("N-gram index not found in R2: {}", key))?;
+
+    let bytes = object
+        .body()
+        .ok_or_else(|| format!("R2 object {} has no body", key))?
+        .bytes()
+        .await
+        .map_err(|e| format!("R2 body read failed for {}: {:?}", key, e))?;
+
+    serde_json::from_slice::<NgramIndex>(&bytes)
+        .map_err(|e| format!("N-gram index JSON parse failed: {:?}", e))
+}
+
+/// Load rerank feature vectors from R2 at `fingerprints/v1/rerank_features.json`.
+pub async fn load_rerank_features(env: &Env) -> Result<RerankFeatures, String> {
+    let bucket = env
+        .bucket("SCORES")
+        .map_err(|e| format!("SCORES R2 binding failed: {:?}", e))?;
+
+    let key = "fingerprints/v1/rerank_features.json";
+
+    let object = bucket
+        .get(key)
+        .execute()
+        .await
+        .map_err(|e| format!("R2 get failed for {}: {:?}", key, e))?
+        .ok_or_else(|| format!("Rerank features not found in R2: {}", key))?;
+
+    let bytes = object
+        .body()
+        .ok_or_else(|| format!("R2 object {} has no body", key))?
+        .bytes()
+        .await
+        .map_err(|e| format!("R2 body read failed for {}: {:?}", key, e))?;
+
+    serde_json::from_slice::<RerankFeatures>(&bytes)
+        .map_err(|e| format!("Rerank features JSON parse failed: {:?}", e))
+}
+
+/// Log a fingerprint-based piece identification to D1 for demand tracking.
+pub async fn log_fingerprint_piece_request(
+    env: &Env,
+    student_id: &str,
+    piece_id: &str,
+    confidence: f64,
+    method: &str,
+) {
+    let db = match env.d1("DB") {
+        Ok(db) => db,
+        Err(e) => {
+            console_error!("D1 binding failed for fingerprint piece_requests log: {:?}", e);
+            return;
+        }
+    };
+
+    let now = js_sys::Date::new_0().to_iso_string().as_string().unwrap_or_default();
+    let id = crate::services::ask::generate_uuid();
+    let query = format!("[fingerprint:{}]", method);
+
+    let stmt = db.prepare(
+        "INSERT INTO piece_requests (id, student_id, query, matched_piece_id, match_confidence, created_at) \
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+    );
+
+    let bound = match stmt.bind(&[
+        JsValue::from_str(&id),
+        JsValue::from_str(student_id),
+        JsValue::from_str(&query),
+        JsValue::from_str(piece_id),
+        JsValue::from_f64(confidence),
+        JsValue::from_str(&now),
+    ]) {
+        Ok(s) => s,
+        Err(_) => return,
+    };
+
+    let _ = bound.run().await;
 }
