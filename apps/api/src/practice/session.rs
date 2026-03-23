@@ -9,6 +9,9 @@ use crate::practice::practice_mode::{
     ChunkSignal, ModeDetector, ModeTransition, ObservationPolicy, PracticeMode,
     pitch_bigrams_from_notes,
 };
+use crate::practice::piece_identify::{
+    DTW_CONFIRM_THRESHOLD, NgramIndex, PieceIdentification, RerankFeatures,
+};
 use crate::practice::score_context::ScoreContext;
 use crate::practice::score_follower::{FollowerState, PerfNote, PerfPedalEvent};
 use crate::practice::teaching_moment::DimStats;
@@ -103,6 +106,18 @@ struct SessionState {
     /// Encoded WebM bytes from previous chunk (NOT persisted to durable storage).
     /// Used to provide 30s context window for Aria-AMT.
     previous_chunk_audio: Option<Vec<u8>>,
+    /// Accumulated AMT notes across chunks for piece fingerprinting.
+    accumulated_notes: Vec<PerfNote>,
+    /// Result of piece identification (fingerprint or text query).
+    piece_identification: Option<PieceIdentification>,
+    /// Whether piece identity is locked (confirmed via DTW or text query).
+    piece_locked: bool,
+    /// Running count of notes fed into identification attempts.
+    identification_note_count: u32,
+    /// Cached N-gram index from R2 (lazy-loaded on first identification attempt).
+    ngram_index: Option<NgramIndex>,
+    /// Cached rerank features from R2 (lazy-loaded on first identification attempt).
+    rerank_features: Option<RerankFeatures>,
 }
 
 impl Default for SessionState {
@@ -127,6 +142,12 @@ impl Default for SessionState {
             mode_detector: ModeDetector::new(),
             conversation_id: None,
             previous_chunk_audio: None,
+            accumulated_notes: Vec::new(),
+            piece_identification: None,
+            piece_locked: false,
+            identification_note_count: 0,
+            ngram_index: None,
+            rerank_features: None,
         }
     }
 }
@@ -293,6 +314,14 @@ impl DurableObject for PracticeSession {
                     s.score_context = None;
                     s.score_context_loaded = false;
                     s.follower_state = FollowerState::default();
+                    // Converge text query path with fingerprint path
+                    s.piece_identification = Some(PieceIdentification {
+                        piece_id: String::new(), // resolved during score_context load
+                        confidence: 1.0,
+                        method: "text_query".to_string(),
+                    });
+                    s.piece_locked = true;
+                    s.accumulated_notes.clear();
                 }
                 let ack = serde_json::json!({"type": "piece_set", "query": query});
                 let _ = ws.send_with_str(&ack.to_string());
@@ -444,6 +473,12 @@ impl PracticeSession {
             }
         };
 
+        // 4b. Accumulate notes and run piece identification (if not yet locked)
+        if !perf_notes.is_empty() {
+            self.inner.borrow_mut().accumulated_notes.extend(perf_notes.iter().cloned());
+            self.try_identify_piece(ws).await;
+        }
+
         // 5. Load baselines (one-time)
         {
             let needs_load = !self.inner.borrow().baselines_loaded;
@@ -585,6 +620,201 @@ impl PracticeSession {
             // No perf notes -> Tier 3 (scores only)
             (None, None)
         }
+    }
+
+    /// Attempt piece identification from accumulated AMT notes.
+    ///
+    /// Runs N-gram recall + rerank (Stage 1+2), then DTW confirmation (Stage 3)
+    /// against the top candidate's score data. If confirmed, locks in the piece and
+    /// loads the full ScoreContext for subsequent score following.
+    async fn try_identify_piece(&self, ws: &WebSocket) {
+        // Check if already locked or no notes to identify
+        let (piece_locked, note_count) = {
+            let s = self.inner.borrow();
+            (s.piece_locked, s.accumulated_notes.len())
+        };
+
+        if piece_locked {
+            return;
+        }
+
+        // Too many notes without a match -> give up
+        if note_count > 200 {
+            let student_id = self.inner.borrow().student_id.clone();
+            console_log!(
+                "piece_id_attempt: notes={} exceeded 200, giving up on identification",
+                note_count
+            );
+            self.inner.borrow_mut().piece_locked = true;
+            // Log the failed attempt
+            crate::practice::score_context::log_fingerprint_piece_request(
+                &self.env,
+                &student_id,
+                "",
+                0.0,
+                "exhausted",
+            ).await;
+            return;
+        }
+
+        // Lazy-load N-gram index from R2 (cached in session state)
+        {
+            let needs_index = self.inner.borrow().ngram_index.is_none();
+            if needs_index {
+                match crate::practice::score_context::load_ngram_index(&self.env).await {
+                    Ok(index) => {
+                        self.inner.borrow_mut().ngram_index = Some(index);
+                    }
+                    Err(e) => {
+                        console_error!("Failed to load N-gram index: {}", e);
+                        return;
+                    }
+                }
+            }
+        }
+        {
+            let needs_features = self.inner.borrow().rerank_features.is_none();
+            if needs_features {
+                match crate::practice::score_context::load_rerank_features(&self.env).await {
+                    Ok(features) => {
+                        self.inner.borrow_mut().rerank_features = Some(features);
+                    }
+                    Err(e) => {
+                        console_error!("Failed to load rerank features: {}", e);
+                        return;
+                    }
+                }
+            }
+        }
+
+        // Clone what we need before calling identify_piece (no borrows across await)
+        let (notes, ngram_index, rerank_features) = {
+            let s = self.inner.borrow();
+            (
+                s.accumulated_notes.clone(),
+                s.ngram_index.clone().unwrap(),
+                s.rerank_features.clone().unwrap(),
+            )
+        };
+
+        // Stage 1+2: N-gram recall + rerank
+        let identification = crate::practice::piece_identify::identify_piece(
+            &notes,
+            &ngram_index,
+            &rerank_features,
+        );
+
+        let candidate = match identification {
+            Some(id) => id,
+            None => {
+                console_log!(
+                    "piece_id_attempt: notes={} candidates=0 top_piece=none top_score=0.000 locked=false",
+                    notes.len()
+                );
+                self.inner.borrow_mut().identification_note_count = notes.len() as u32;
+                return;
+            }
+        };
+
+        console_log!(
+            "piece_id_attempt: notes={} top_piece={} top_score={:.3} method={} locked=false",
+            notes.len(),
+            candidate.piece_id,
+            candidate.confidence,
+            candidate.method
+        );
+
+        // Stage 3: DTW confirmation -- load the candidate's score and align
+        let score_data = match crate::practice::score_context::load_score(
+            &self.env,
+            &candidate.piece_id,
+        ).await {
+            Ok(s) => s,
+            Err(e) => {
+                console_error!(
+                    "Failed to load score for DTW confirmation of {}: {}",
+                    candidate.piece_id, e
+                );
+                return;
+            }
+        };
+
+        let mut dtw_state = FollowerState::default();
+        let bar_map = crate::practice::score_follower::align_chunk(
+            0,
+            0.0,
+            &notes,
+            &score_data,
+            &mut dtw_state,
+        );
+
+        let dtw_cost = bar_map.as_ref().map(|bm| 1.0 / bm.confidence - 1.0);
+        let dtw_confirmed = dtw_cost.map(|c| c < DTW_CONFIRM_THRESHOLD).unwrap_or(false);
+
+        console_log!(
+            "piece_id_dtw: piece={} cost={:.3} threshold={:.3} confirmed={}",
+            candidate.piece_id,
+            dtw_cost.unwrap_or(f64::MAX),
+            DTW_CONFIRM_THRESHOLD,
+            dtw_confirmed
+        );
+
+        if !dtw_confirmed {
+            self.inner.borrow_mut().identification_note_count = notes.len() as u32;
+            return;
+        }
+
+        // DTW confirmed -- lock in piece and load full ScoreContext
+        let reference = crate::practice::score_context::load_reference(
+            &self.env,
+            &candidate.piece_id,
+        ).await;
+
+        // Look up composer/title from the score data
+        let composer = score_data.composer.clone();
+        let title = score_data.title.clone();
+
+        {
+            let mut s = self.inner.borrow_mut();
+            s.piece_identification = Some(candidate.clone());
+            s.piece_locked = true;
+            s.score_context = Some(ScoreContext {
+                piece_id: candidate.piece_id.clone(),
+                composer: composer.clone(),
+                title: title.clone(),
+                score: score_data,
+                reference,
+                match_confidence: candidate.confidence,
+            });
+            s.score_context_loaded = true;
+            s.follower_state = FollowerState::default();
+        }
+
+        console_log!(
+            "piece_id_locked: piece={} ({} - {}) confidence={:.3} method={}",
+            candidate.piece_id, composer, title, candidate.confidence, candidate.method
+        );
+
+        // Notify client
+        let msg = serde_json::json!({
+            "type": "piece_identified",
+            "pieceId": candidate.piece_id,
+            "composer": composer,
+            "title": title,
+            "confidence": candidate.confidence,
+            "method": candidate.method,
+        });
+        let _ = ws.send_with_str(&msg.to_string());
+
+        // Log to piece_requests for demand tracking
+        let student_id = self.inner.borrow().student_id.clone();
+        crate::practice::score_context::log_fingerprint_piece_request(
+            &self.env,
+            &student_id,
+            &candidate.piece_id,
+            candidate.confidence,
+            &candidate.method,
+        ).await;
     }
 
     /// Check observation gate (STOP + mode throttle) and generate if ready.
