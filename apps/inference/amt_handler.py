@@ -55,6 +55,7 @@ from amt.audio import AudioTransform
 SAMPLE_RATE = 16000
 CHUNK_LEN_S = 30
 MAX_BLOCK_LEN = 4096
+FFMPEG_DECODE_TIMEOUT_S = 60
 
 
 def _load_weight(ckpt_path: str, device: str = "cpu") -> dict:
@@ -106,11 +107,11 @@ def decode_webm_to_pcm(audio_bytes: bytes) -> np.ndarray:
     Raises:
         RuntimeError: If ffmpeg decoding fails.
     """
-    with tempfile.NamedTemporaryFile(suffix=".webm", delete=False) as tmp_in:
+    with tempfile.NamedTemporaryFile(suffix=".webm", delete=True) as tmp_in:
         tmp_in.write(audio_bytes)
+        tmp_in.flush()
         tmp_in_path = tmp_in.name
 
-    try:
         result = subprocess.run(
             [
                 "ffmpeg",
@@ -123,23 +124,20 @@ def decode_webm_to_pcm(audio_bytes: bytes) -> np.ndarray:
                 "pipe:1",
             ],
             capture_output=True,
-            timeout=30,
+            timeout=FFMPEG_DECODE_TIMEOUT_S,
         )
 
-        if result.returncode != 0:
-            raise RuntimeError(
-                f"ffmpeg decoding failed (exit {result.returncode}): "
-                f"{result.stderr.decode('utf-8', errors='replace')}"
-            )
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"ffmpeg decoding failed (exit {result.returncode}): "
+            f"{result.stderr.decode('utf-8', errors='replace')}"
+        )
 
-        pcm_data = np.frombuffer(result.stdout, dtype=np.float32)
-        if len(pcm_data) == 0:
-            raise RuntimeError("ffmpeg produced empty output")
+    pcm_data = np.frombuffer(result.stdout, dtype=np.float32)
+    if len(pcm_data) == 0:
+        raise RuntimeError("ffmpeg produced empty output")
 
-        return pcm_data
-
-    finally:
-        os.unlink(tmp_in_path)
+    return pcm_data
 
 
 def midi_dict_to_notes_and_pedals(
@@ -276,12 +274,25 @@ class EndpointHandler:
         self._model.to(device)
         self._model.eval()
 
+        # Compute dtype once; reused for KV cache setup
+        self._cache_dtype = (
+            torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float32
+        )
+
         # Set up KV cache for decoder
         self._model.decoder.setup_cache(
             batch_size=1,
             max_seq_len=MAX_BLOCK_LEN,
-            dtype=torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float32,
+            dtype=self._cache_dtype,
         )
+
+        # Look up EOS token id once; raise if missing to catch tokenizer mismatches
+        eos_token_id = self._tokenizer.tok_to_id.get(self._tokenizer.eos_tok)
+        if eos_token_id is None:
+            raise RuntimeError(
+                f"EOS token '{self._tokenizer.eos_tok}' not found in tokenizer vocabulary"
+            )
+        self._eos_token_id = eos_token_id
 
         # Audio transform for log-mel spectrogram
         self._audio_transform = AudioTransform()
@@ -303,6 +314,7 @@ class EndpointHandler:
         for pattern in ["*.safetensors", "**/*.safetensors"]:
             candidates = list(model_path.glob(pattern))
             if candidates:
+                print(f"Checkpoint candidates ({pattern}): {[str(c) for c in candidates]}")
                 # Prefer files with 'amt' or 'piano' in name
                 for c in candidates:
                     if "amt" in c.name.lower() or "piano" in c.name.lower():
@@ -448,7 +460,7 @@ class EndpointHandler:
             padding = torch.zeros(chunk_samples - len(audio_tensor))
             audio_tensor = torch.cat([audio_tensor, padding])
         elif len(audio_tensor) > chunk_samples:
-            # Truncate (should not happen with 15s context + 15s chunk = 30s)
+            # Truncate to model's maximum input length
             audio_tensor = audio_tensor[:chunk_samples]
 
         # Compute log-mel spectrogram
@@ -471,9 +483,7 @@ class EndpointHandler:
         self._model.decoder.setup_cache(
             batch_size=1,
             max_seq_len=MAX_BLOCK_LEN,
-            dtype=torch.bfloat16
-            if torch.cuda.is_bf16_supported()
-            else torch.float32,
+            dtype=self._cache_dtype,
         )
 
         generated_ids = list(seq[0].tolist())
@@ -498,7 +508,7 @@ class EndpointHandler:
             generated_ids.append(next_token_id)
 
             # Check for EOS
-            if next_token_id == tokenizer.tok_to_id.get(tokenizer.eos_tok):
+            if next_token_id == self._eos_token_id:
                 break
 
             # Decode next token

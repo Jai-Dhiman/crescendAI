@@ -14,6 +14,7 @@ from __future__ import annotations
 import importlib
 import sys
 import types
+from pathlib import Path
 from unittest import mock
 
 import pytest
@@ -58,7 +59,7 @@ def _import_amt_handler():
         # Import with mocked dependencies
         spec = importlib.util.spec_from_file_location(
             "amt_handler",
-            "/Users/jdhiman/Documents/crescendai-zero-config/apps/inference/amt_handler.py",
+            Path(__file__).parent / "amt_handler.py",
         )
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
