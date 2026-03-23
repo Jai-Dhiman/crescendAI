@@ -47,6 +47,45 @@ import numpy as np
 import torch
 
 # aria-amt imports (EleutherAI/aria-amt package)
+#
+# When both aria-amt and aria are installed (local dev), ariautils overwrites
+# aria-amt's config/config.json, dropping the "audio" section entirely and
+# replacing "tokenizer" with an incompatible schema (no time_quantization).
+# Patch load_config before any amt.* module-level code runs.
+import amt.config as _amt_config
+
+_AMT_CONFIG = {
+    "tokenizer": {
+        "velocity_quantization": {"step": 5, "default": 60},
+        "time_quantization": {"num_steps": 3000, "step": 10},
+    },
+    "audio": {
+        "sample_rate": 16000,
+        "n_fft_large": 2048,
+        "n_fft_med": 2048,
+        "n_fft_small": 800,
+        "hop_len": 160,
+        "chunk_len": 30,
+        "n_mels_large": 384,
+        "n_mels_med": 256,
+        "n_mels_small": 128,
+    },
+    "data": {"stride_factor": 15, "max_seq_len": 4096},
+}
+
+_original_load_config = _amt_config.load_config
+
+
+def _patched_load_config():
+    cfg = _original_load_config()
+    # If ariautils overwrote aria-amt's config, restore the full aria-amt config
+    if "audio" not in cfg or "time_quantization" not in cfg.get("tokenizer", {}):
+        return _AMT_CONFIG
+    return cfg
+
+
+_amt_config.load_config = _patched_load_config
+
 from amt.config import load_model_config
 from amt.inference.model import AmtEncoderDecoder, ModelConfig
 from amt.tokenizer import AmtTokenizer
@@ -270,21 +309,28 @@ class EndpointHandler:
 
         # Move to device and set up for inference
         device = os.environ.get("CRESCEND_DEVICE", "cuda")
+        if device == "auto":
+            if torch.cuda.is_available():
+                device = "cuda"
+            elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+                device = "mps"
+            else:
+                device = "cpu"
         self._device = device
         self._model.to(device)
         self._model.eval()
 
         # Compute dtype once; reused for KV cache setup
         self._cache_dtype = (
-            torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float32
+            torch.bfloat16
+            if torch.cuda.is_available() and torch.cuda.is_bf16_supported()
+            else torch.float32
         )
 
-        # Set up KV cache for decoder
-        self._model.decoder.setup_cache(
-            batch_size=1,
-            max_seq_len=MAX_BLOCK_LEN,
-            dtype=self._cache_dtype,
-        )
+        # Set up KV cache for decoder.
+        # The upstream setup_cache() hardcodes .cuda() on KVCache objects.
+        # Monkey-patch to use the resolved device instead.
+        self._setup_kv_cache(MAX_BLOCK_LEN)
 
         # Look up EOS token id once; raise if missing to catch tokenizer mismatches
         eos_token_id = self._tokenizer.tok_to_id.get(self._tokenizer.eos_tok)
@@ -294,10 +340,40 @@ class EndpointHandler:
             )
         self._eos_token_id = eos_token_id
 
-        # Audio transform for log-mel spectrogram
-        self._audio_transform = AudioTransform()
+        # Audio transform for log-mel spectrogram (move to device for STFT buffers)
+        self._audio_transform = AudioTransform().to(device)
 
         print("Aria-AMT EndpointHandler initialization complete!")
+
+    def _setup_kv_cache(self, max_seq_len: int) -> None:
+        """Initialize KV caches on the correct device.
+
+        The upstream TextDecoder.setup_cache() hardcodes .cuda() on KVCache
+        objects. This reimplements it to use self._device instead, enabling
+        MPS and CPU inference for local dev.
+        """
+        from amt.inference.model import KVCache
+
+        decoder = self._model.decoder
+        decoder.causal_mask = torch.tril(
+            torch.ones(max_seq_len, max_seq_len, dtype=torch.bool, device=self._device)
+        )
+        for b in decoder.blocks:
+            head_dim = decoder.n_state // decoder.n_head
+            b.attn.kv_cache = KVCache(
+                max_batch_size=1,
+                max_seq_length=max_seq_len,
+                n_heads=decoder.n_head,
+                head_dim=head_dim,
+                dtype=self._cache_dtype,
+            ).to(self._device)
+            b.cross_attn.kv_cache = KVCache(
+                max_batch_size=1,
+                max_seq_length=1500,
+                n_heads=decoder.n_head,
+                head_dim=head_dim,
+                dtype=self._cache_dtype,
+            ).to(self._device)
 
     def _find_checkpoint(self, model_path: Path) -> Path:
         """Find the safetensors checkpoint file in the model directory.
@@ -480,23 +556,21 @@ class EndpointHandler:
         )
 
         # Reset KV cache for new sequence
-        self._model.decoder.setup_cache(
-            batch_size=1,
-            max_seq_len=MAX_BLOCK_LEN,
-            dtype=self._cache_dtype,
-        )
+        self._setup_kv_cache(MAX_BLOCK_LEN)
 
         generated_ids = list(seq[0].tolist())
-        input_pos = torch.arange(0, seq.shape[1], device=self._device)
+        idx = seq.shape[1]
+        xa_len = audio_features.shape[1]
 
         # Prefill with initial tokens
         logits = self._model.decoder(
-            xa=audio_features,
             x=seq,
-            input_pos=input_pos,
+            xa=audio_features,
+            x_input_pos=torch.arange(0, idx, device=self._device),
+            xa_input_pos=torch.arange(0, xa_len, device=self._device),
         )
 
-        for step in range(MAX_BLOCK_LEN - len(generated_ids)):
+        for _step in range(MAX_BLOCK_LEN - len(generated_ids)):
             next_token_logits = logits[:, -1, :]
 
             # Boost pedal-off probability slightly (from aria-amt source)
@@ -506,22 +580,25 @@ class EndpointHandler:
 
             next_token_id = torch.argmax(next_token_logits, dim=-1).item()
             generated_ids.append(next_token_id)
+            idx += 1
 
             # Check for EOS
             if next_token_id == self._eos_token_id:
                 break
 
-            # Decode next token
+            # Decode next token (empty xa_input_pos since encoder is cached)
             next_input = torch.tensor(
                 [[next_token_id]], dtype=torch.long, device=self._device
             )
-            next_pos = torch.tensor(
-                [len(generated_ids) - 1], device=self._device
-            )
             logits = self._model.decoder(
-                xa=audio_features,
                 x=next_input,
-                input_pos=next_pos,
+                xa=audio_features,
+                x_input_pos=torch.tensor(
+                    [idx - 1], device=self._device, dtype=torch.int
+                ),
+                xa_input_pos=torch.tensor(
+                    [], device=self._device, dtype=torch.int
+                ),
             )
 
         # Detokenize to MidiDict

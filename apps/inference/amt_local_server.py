@@ -92,15 +92,11 @@ async def inference(request: Request):
         if "json" in content_type or body[:1] == b"{":
             import json
 
+            # Pass JSON data through as-is; the handler decodes base64 itself
             data = json.loads(body)
-            # Decode base64 fields for the handler
-            if "chunk_audio" in data and isinstance(data["chunk_audio"], str):
-                data["chunk_audio"] = base64.b64decode(data["chunk_audio"])
-            if "context_audio" in data and isinstance(data["context_audio"], str):
-                data["context_audio"] = base64.b64decode(data["context_audio"])
         else:
-            # Raw audio bytes -- treat as chunk_audio with no context
-            data = {"chunk_audio": body}
+            # Raw audio bytes -- base64-encode for the handler's expected format
+            data = {"chunk_audio": base64.b64encode(body).decode()}
 
         # Delegate to the production handler
         result = _handler(data)
