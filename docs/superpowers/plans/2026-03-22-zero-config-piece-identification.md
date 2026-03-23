@@ -206,10 +206,27 @@ Follow existing pattern for `HF_INFERENCE_ENDPOINT` access. Add `HF_AMT_ENDPOINT
 
 Add two async functions:
 
-- `call_muq_endpoint(env, chunk_audio) -> Result<MuqResponse>`: POST 15s audio to MuQ endpoint, parse predictions.
-- `call_amt_endpoint(env, context_audio, chunk_audio) -> Result<AmtResponse>`: POST two audio fields to AMT endpoint, parse midi_notes + pedal_events.
+- `call_muq_endpoint(env, chunk_audio) -> Result<MuqResponse>`: POST WebM audio bytes to MuQ endpoint (same transport as current `call_hf_inference`), parse JSON response with `predictions` field.
+- `call_amt_endpoint(env, context_audio, chunk_audio) -> Result<AmtResponse>`: POST JSON with two base64-encoded audio fields: `{"chunk_audio": "<base64>", "context_audio": "<base64 or null>"}`. The AMT handler decodes both from base64, then decodes WebM to PCM. Parse JSON response with `midi_notes` + `pedal_events`.
 
-Define `MuqResponse` and `AmtResponse` structs matching each endpoint's JSON output.
+**Transport format decision:** Use JSON with base64 encoding (not multipart). This matches the existing HF Inference Endpoint convention (`_parse_request` in handler.py already handles base64 via the `inputs` field). The AMT handler's `__call__` method reads `data["chunk_audio"]` and `data.get("context_audio")`, base64-decodes both, then proceeds to PCM decoding.
+
+Define response structs:
+
+```rust
+#[derive(Deserialize)]
+struct MuqResponse {
+    predictions: HashMap<String, f64>,
+    processing_time_ms: u64,
+}
+
+#[derive(Deserialize)]
+struct AmtResponse {
+    midi_notes: Vec<PerfNote>,
+    pedal_events: Vec<PerfPedalEvent>,
+    transcription_info: TranscriptionInfo,
+}
+```
 
 - [ ] **Step 4: Refactor chunk processing to parallel dispatch**
 
@@ -231,7 +248,23 @@ Process MuQ result first (STOP classification, teaching moment candidate). Then 
 
 - [ ] **Step 5: Refactor response processing for split responses**
 
-Split existing `process_inference_result` into separate MuQ processing (STOP, teaching moments) and AMT processing (score following, analysis) methods.
+The current `process_inference_result` (session.rs lines 357-550+) is a monolithic function that handles scores, MIDI notes, score following, analysis, mode detection, STOP, teaching moments, and observation generation in sequence. Split into three methods:
+
+1. **`process_muq_result(muq: MuqResponse)`**: Extract 6-dim scores, run STOP classification, create a `TeachingMomentCandidate` (dimension, score, framing). Store the candidate in session state. Do NOT generate the observation yet -- wait for AMT to enrich it.
+
+2. **`process_amt_result(amt: AmtResponse)`**: Append notes to session's note buffer. Run score following (if piece matched). Run bar-aligned analysis. Enrich the pending `TeachingMomentCandidate` with bar-level context (bar numbers, score markings, reference comparisons). Update practice mode detector (pitch bigrams from AMT notes).
+
+3. **`try_generate_observation()`**: Called after both results are processed (or after MuQ-only if AMT failed). Checks observation throttle. If ready, fires subagent + teacher + WebSocket push. If AMT failed, the candidate has no bar context and generates a Tier 3 observation. If AMT succeeded but piece is unmatched, generates Tier 2.
+
+**Key flow:**
+```
+MuQ arrives  -> process_muq_result()  -> candidate created (Tier 3 minimum)
+AMT arrives  -> process_amt_result()  -> candidate enriched (Tier 1/2)
+Both done    -> try_generate_observation() -> throttle check -> subagent -> teacher -> WS push
+AMT failed   -> try_generate_observation() -> Tier 3 observation (scores only)
+```
+
+The `chunk_processed` WebSocket message (currently at line 411-424) should be sent after MuQ completes (it contains the 6-dim scores for the UI). AMT data doesn't affect this message.
 
 - [ ] **Step 6: Verify previous_chunk_audio is NOT persisted**
 
@@ -336,7 +369,7 @@ In `model/src/score_library/cli.py`, add subcommand that calls `build_ngram_inde
 cd model && python -m score_library.cli fingerprint --scores-dir data/scores --output-dir data/fingerprints
 ```
 
-Note actual file sizes. Validate N-gram index is < 20MB.
+Note actual file sizes. Validate N-gram index is < 5MB (spec estimate). If larger, consider binary format (MessagePack) or pruning common trigrams (e.g., C-E-G appears in nearly every piece and has low discriminative value).
 
 - [ ] **Step 7: Upload fingerprints to R2**
 
@@ -365,7 +398,7 @@ Create `apps/api/src/practice/piece_identify.rs` with:
 - `NgramIndex`: Deserialized from JSON. Map from trigram key ("p1,p2,p3") to Vec<(piece_id, bar_number)>.
 - `RerankFeatures`: Deserialized from JSON. Map from piece_id to Vec<f64> (128-dim).
 - `PieceIdentification`: Result struct with piece_id, confidence, method.
-- Constants: `LOCK_THRESHOLD = 0.3`, `MAX_CANDIDATES = 10`.
+- Constants: `DTW_CONFIRM_THRESHOLD = 0.3` (DTW cost below this = confirmed match, same as existing `REANCHOR_COST_THRESHOLD` in score_follower.rs), `MAX_CANDIDATES = 10`.
 
 - [ ] **Step 2: Implement N-gram recall (Stage 1)**
 
@@ -381,11 +414,33 @@ Create `apps/api/src/practice/piece_identify.rs` with:
 
 `identify_piece(notes, index, features) -> Option<PieceIdentification>`: Run Stage 1 + Stage 2. Return top candidate. DTW confirmation (Stage 3) happens in session.rs because it requires async R2 access.
 
-- [ ] **Step 5: Register module in mod.rs**
+- [ ] **Step 5: Write unit tests**
+
+Add `#[cfg(test)] mod tests` in `piece_identify.rs`:
+
+- `test_ngram_recall_finds_matching_piece`: Build a small NgramIndex with 2 pieces, feed notes that match one piece, verify it's returned as top candidate.
+- `test_ngram_recall_empty_on_few_notes`: < 3 notes returns empty candidates.
+- `test_cosine_similarity_identical_vectors`: Two identical vectors return 1.0.
+- `test_cosine_similarity_orthogonal_vectors`: Orthogonal vectors return 0.0.
+- `test_compute_rerank_features_length`: Output is exactly 128 elements.
+- `test_identify_piece_returns_none_on_insufficient_notes`: < 10 notes returns None.
+
+- [ ] **Step 6: Run tests**
+
+```bash
+cd apps/api && cargo test piece_identify -- --nocapture
+```
+Expected: PASS
+
+- [ ] **Step 7: Cross-validate feature parity with Python**
+
+After Task 6 is complete, create a small test: compute features for the same synthetic note sequence in both Python (`fingerprint.py`) and Rust (`piece_identify.rs`). Assert all 128 values match within epsilon (1e-6). This catches floating-point divergence between the two implementations. Add as a script in `model/scripts/validate_feature_parity.py` that reads Rust output from a test fixture file.
+
+- [ ] **Step 8: Register module in mod.rs**
 
 Add `pub mod piece_identify;` to `apps/api/src/practice/mod.rs`.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 9: Commit**
 
 ```bash
 git add apps/api/src/practice/piece_identify.rs apps/api/src/practice/mod.rs
@@ -402,7 +457,9 @@ git commit -m "feat: multi-signal piece identification (N-gram + rerank + DTW)"
 
 - [ ] **Step 1: Add piece identification state to SessionState**
 
-Add: `accumulated_notes: Vec<PerfNote>`, `piece_identification: Option<PieceIdentification>`, `piece_locked: bool`, `ngram_index: Option<Arc<NgramIndex>>`, `rerank_features: Option<Arc<RerankFeatures>>`.
+Add: `accumulated_notes: Vec<PerfNote>`, `piece_identification: Option<PieceIdentification>`, `piece_locked: bool`, `identification_note_count: u32` (tracks total notes processed for identification, used for cutoff and observability), `ngram_index: Option<Arc<NgramIndex>>`, `rerank_features: Option<Arc<RerankFeatures>>`.
+
+Note: `match_confidence` already exists in the `piece_requests` table (migration 0005) and does not need a new migration.
 
 - [ ] **Step 2: Add fingerprint loading functions to score_context.rs**
 
@@ -419,11 +476,29 @@ After appending AMT notes to `accumulated_notes`:
 6. If DTW confirms (cost < threshold): lock in piece, load full ScoreContext
 7. If no match: continue, try again next chunk
 
-- [ ] **Step 4: Preserve text fallback path**
+- [ ] **Step 4: Add observability logging**
+
+Log each identification attempt with structured data for diagnostics:
+
+```rust
+console_log!(
+    "piece_id_attempt: notes={} candidates={} top_piece={} top_score={:.3} dtw_cost={:.3} locked={}",
+    state.accumulated_notes.len(),
+    candidates.len(),
+    top_candidate_id,
+    top_rerank_score,
+    dtw_cost,
+    state.piece_locked,
+);
+```
+
+This satisfies the spec's observability requirements: piece identification rate, time-to-match, candidate lists, and outcomes. These logs feed into Cloudflare Workers Observability.
+
+- [ ] **Step 5: Preserve text fallback path**
 
 When student names a piece via chat, set `piece_identification` and `piece_locked` through the same mechanism. Both automatic (MIDI-based) and explicit (text-based) paths converge on the same lock-in state.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
 git add apps/api/src/practice/session.rs apps/api/src/practice/score_context.rs
