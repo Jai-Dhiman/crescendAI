@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use wasm_bindgen::JsValue;
 use worker::*;
 
+use crate::practice::accumulator::{SessionAccumulator, AccumulatedMoment, ModeTransitionRecord, TimelineEvent};
 use crate::practice::analysis;
 use crate::practice::dims::DIMS_6;
 use crate::practice::practice_mode::{
@@ -91,6 +92,7 @@ struct SessionState {
     baselines_loaded: bool,
     scored_chunks: Vec<ScoredChunk>,
     observations: Vec<ObservationRecord>,
+    accumulator: SessionAccumulator,
     inference_failures: usize,
     chunks_in_flight: usize,
     session_ending: bool,
@@ -129,6 +131,7 @@ impl Default for SessionState {
             baselines_loaded: false,
             scored_chunks: Vec::new(),
             observations: Vec::new(),
+            accumulator: SessionAccumulator::default(),
             inference_failures: 0,
             chunks_in_flight: 0,
             session_ending: false,
@@ -262,6 +265,9 @@ impl DurableObject for PracticeSession {
                 };
                 if should_finalize {
                     console_log!("Last in-flight chunk completed, finalizing session");
+                    if !self.inner.borrow().is_eval_session {
+                        self.run_synthesis_and_persist(&ws).await;
+                    }
                     self.finalize_session(Some(&ws)).await;
                 }
 
@@ -274,6 +280,10 @@ impl DurableObject for PracticeSession {
                     s.chunks_in_flight
                 };
                 if in_flight == 0 {
+                    // Synthesize before finalizing (keeps WS open for synthesis push)
+                    if !self.inner.borrow().is_eval_session {
+                        self.run_synthesis_and_persist(&ws).await;
+                    }
                     self.finalize_session(Some(&ws)).await;
                 } else {
                     console_log!("end_session received, waiting for {} in-flight chunks", in_flight);
@@ -364,9 +374,10 @@ impl DurableObject for PracticeSession {
 // --- Pipeline methods ---
 
 impl PracticeSession {
-    /// Reload session identity from durable storage if in-memory state was lost
-    /// (happens when the DO is evicted during long async operations like LLM calls).
-    async fn ensure_session_identity(&self) {
+    /// Reload session identity and accumulator from durable storage if in-memory
+    /// state was lost (happens when the DO is evicted during long async operations
+    /// like LLM calls).
+    async fn ensure_session_state(&self) {
         let needs_reload = self.inner.borrow().session_id.is_empty();
         if !needs_reload {
             return;
@@ -386,6 +397,17 @@ impl PracticeSession {
         if let Ok(Some(cid)) = storage.get::<String>("conversation_id").await {
             let mut s = self.inner.borrow_mut();
             s.conversation_id = Some(cid);
+        }
+
+        // Reload accumulator from durable storage
+        if let Ok(Some(acc_json)) = storage.get::<String>("accumulator").await {
+            if let Ok(acc) = serde_json::from_str::<SessionAccumulator>(&acc_json) {
+                let mut s = self.inner.borrow_mut();
+                s.accumulator = acc;
+                console_log!("DO accumulator reloaded: {} moments, {} transitions",
+                    s.accumulator.teaching_moments.len(),
+                    s.accumulator.mode_transitions.len());
+            }
         }
 
         let state_debug = {
@@ -417,7 +439,7 @@ impl PracticeSession {
         self.inner.borrow_mut().previous_chunk_audio = Some(audio_bytes.to_vec());
 
         // Reload identity if DO was evicted during inference
-        self.ensure_session_identity().await;
+        self.ensure_session_state().await;
 
         // 3. Process MuQ result
         let scores_array = match muq_result {
@@ -544,8 +566,89 @@ impl PracticeSession {
             let _ = ws.send_with_str(&msg.to_string());
         }
 
-        // 9. Try to generate observation (STOP + throttle + mode check)
-        self.try_generate_observation(ws, chunk_analysis.as_ref(), &scores_array).await;
+        // 9. Accumulate or generate observation (eval uses old path, production accumulates)
+        if self.inner.borrow().is_eval_session {
+            // Eval sessions preserve the per-chunk observation path
+            self.try_generate_observation(ws, chunk_analysis.as_ref(), &scores_array).await;
+        } else {
+            // Production: accumulate signals silently
+            let timestamp_ms = js_sys::Date::now() as u64;
+            let has_audio = !perf_notes.is_empty();
+
+            // Timeline event
+            self.inner.borrow_mut().accumulator.accumulate_timeline_event(TimelineEvent {
+                chunk_index: index,
+                timestamp_ms,
+                has_audio,
+            });
+
+            // Mode transitions
+            for transition in &mode_transitions {
+                let from_mode = {
+                    let s = self.inner.borrow();
+                    s.accumulator.mode_transitions.last()
+                        .map(|t| t.to)
+                        .unwrap_or(PracticeMode::Warming)
+                };
+                let dwell_ms = {
+                    let s = self.inner.borrow();
+                    let mc = s.mode_detector.mode_context();
+                    timestamp_ms.saturating_sub(mc.entered_at_ms)
+                };
+                self.inner.borrow_mut().accumulator.accumulate_mode_transition(ModeTransitionRecord {
+                    from: from_mode,
+                    to: transition.mode,
+                    chunk_index: transition.chunk_index,
+                    timestamp_ms,
+                    dwell_ms,
+                });
+            }
+
+            // Teaching moment accumulation (STOP-gated)
+            let stop_result = stop::classify(&scores_array);
+            if stop_result.triggered {
+                if let Some(baselines) = self.inner.borrow().baselines.clone() {
+                    let recent_obs: Vec<RecentObservation> = self.inner.borrow()
+                        .accumulator.teaching_moments.iter().rev().take(3)
+                        .map(|m| RecentObservation { dimension: m.dimension.clone() })
+                        .collect();
+                    let scored_chunks = self.inner.borrow().scored_chunks.clone();
+
+                    if let Some(moment) = crate::services::teaching_moments::select_teaching_moment(
+                        &scored_chunks, &baselines, &recent_obs,
+                    ) {
+                        let bar_range = chunk_bar_range;
+                        let tier = chunk_analysis.as_ref().map(|ca| ca.tier).unwrap_or(3);
+
+                        self.inner.borrow_mut().accumulator.accumulate_moment(AccumulatedMoment {
+                            chunk_index: moment.chunk_index,
+                            dimension: moment.dimension.clone(),
+                            score: moment.score,
+                            baseline: moment.baseline,
+                            deviation: moment.deviation,
+                            is_positive: moment.is_positive,
+                            reasoning: moment.reasoning.clone(),
+                            bar_range,
+                            analysis_tier: tier,
+                            timestamp_ms,
+                            llm_analysis: None,
+                        });
+                    }
+                }
+            }
+
+            // Drilling record on mode exit
+            {
+                let mut s = self.inner.borrow_mut();
+                if let Some(dr) = s.mode_detector.take_completed_drilling(scores_array, index) {
+                    s.accumulator.accumulate_drilling_record(dr);
+                }
+            }
+
+            // Persist accumulator to DO storage
+            let acc_json = serde_json::to_string(&self.inner.borrow().accumulator).unwrap_or_default();
+            let _ = self.state.storage().put("accumulator", &acc_json).await;
+        }
 
         // 10. Reset alarm
         let _ = self.state.storage().set_alarm(ALARM_DURATION_MS).await;
@@ -856,7 +959,7 @@ impl PracticeSession {
         hf_response: serde_json::Value,
     ) -> Result<()> {
         // Reload identity if DO was evicted during inference
-        self.ensure_session_identity().await;
+        self.ensure_session_state().await;
 
         // Extract scores from predictions
         let predictions = hf_response.get("predictions").unwrap_or(&hf_response);
@@ -1051,7 +1154,7 @@ impl PracticeSession {
 
     async fn generate_observation(&self, ws: &WebSocket, chunk_analysis: Option<&analysis::ChunkAnalysis>) {
         console_log!("generate_observation: starting LLM pipeline");
-        self.ensure_session_identity().await;
+        self.ensure_session_state().await;
         let (scored_chunks, baselines, recent_obs, student_id, session_id) = {
             let s = self.inner.borrow();
             let recent: Vec<RecentObservation> = s.observations
@@ -1629,125 +1732,153 @@ impl PracticeSession {
         }
     }
 
+    // --- Session synthesis ---
+
+    async fn run_synthesis_and_persist(&self, ws: &WebSocket) {
+        self.ensure_session_state().await;
+
+        let (acc, ctx) = {
+            let s = self.inner.borrow();
+            if !s.accumulator.has_teaching_content() && s.accumulator.timeline.iter().all(|t| !t.has_audio) {
+                console_log!("No teaching content and no audio detected, skipping synthesis");
+                return;
+            }
+
+            let session_duration_ms = s.accumulator.timeline.last()
+                .map(|t| t.timestamp_ms)
+                .unwrap_or(0)
+                .saturating_sub(s.accumulator.timeline.first().map(|t| t.timestamp_ms).unwrap_or(0));
+
+            let ctx = crate::practice::synthesis::SynthesisContext {
+                session_id: s.session_id.clone(),
+                student_id: s.student_id.clone(),
+                conversation_id: s.conversation_id.clone().unwrap_or_default(),
+                baselines: s.baselines.clone(),
+                piece_context: s.score_context.as_ref().map(|sc| serde_json::json!({
+                    "composer": sc.composer,
+                    "title": sc.title,
+                    "piece_id": sc.piece_id,
+                })),
+                student_memory: None,
+                total_chunks: s.scored_chunks.len(),
+                session_duration_ms,
+            };
+            (s.accumulator.clone(), ctx)
+        };
+
+        if ctx.conversation_id.is_empty() {
+            console_error!("No conversation_id at synthesis time -- cannot persist");
+            return;
+        }
+
+        console_log!("Starting synthesis: moments={}, transitions={}, drilling={}",
+            acc.teaching_moments.len(), acc.mode_transitions.len(), acc.drilling_records.len());
+
+        let prompt = crate::practice::synthesis::build_synthesis_prompt(&acc, &ctx);
+        let result = crate::practice::synthesis::call_synthesis_llm(&self.env, &prompt).await;
+
+        // Send to client via WS
+        let synthesis_event = serde_json::json!({
+            "type": "synthesis",
+            "text": result.text,
+            "is_fallback": result.is_fallback,
+        });
+        let _ = ws.send_with_str(&synthesis_event.to_string());
+
+        // Persist synthesis message to D1
+        match crate::practice::synthesis::persist_synthesis_message(
+            &self.env, &ctx.conversation_id, &ctx.session_id, &result.text
+        ).await {
+            Ok(msg_id) => console_log!("Synthesis message persisted: {}", msg_id),
+            Err(e) => console_error!("Failed to persist synthesis message: {}", e),
+        }
+
+        // Persist accumulated moments to observations table
+        if let Err(e) = crate::practice::synthesis::persist_accumulated_moments(
+            &self.env, &ctx.student_id, &ctx.session_id, &acc.teaching_moments
+        ).await {
+            console_error!("Failed to persist accumulated moments: {}", e);
+        }
+    }
+
     // --- Session finalization ---
 
     async fn finalize_session(&self, ws: Option<&WebSocket>) {
-        self.ensure_session_identity().await;
-        let (observations, session_id, student_id, inference_failures, total_chunks) = {
-            let s = self.inner.borrow();
-            (
-                s.observations.clone(),
-                s.session_id.clone(),
-                s.student_id.clone(),
-                s.inference_failures,
-                s.scored_chunks.len() + s.inference_failures,
-            )
-        };
+        self.ensure_session_state().await;
 
-        // 1. Persist observations to D1
-        if !observations.is_empty() {
-            if let Err(e) = self.persist_observations(&student_id, &session_id, &observations).await {
-                console_error!("Failed to persist observations: {}", e);
-            }
-        }
+        let is_eval = self.inner.borrow().is_eval_session;
 
-        // 2. Update observation count and run synthesis
-        if !observations.is_empty() {
-            // Fix: DO-originated observations were not incrementing the meta counter.
-            // This ensures should_synthesize() has an accurate count.
-            if let Err(e) = crate::services::memory::increment_observation_count_by(
-                &self.env, &student_id, observations.len()
-            ).await {
-                console_error!("Failed to increment observation count: {}", e);
+        if is_eval {
+            // Eval path: preserve old observation-based flow
+            let (observations, session_id, student_id, inference_failures, total_chunks) = {
+                let s = self.inner.borrow();
+                (s.observations.clone(), s.session_id.clone(), s.student_id.clone(),
+                 s.inference_failures, s.scored_chunks.len() + s.inference_failures)
+            };
+
+            if !observations.is_empty() {
+                if let Err(e) = self.persist_observations(&student_id, &session_id, &observations).await {
+                    console_error!("Failed to persist observations: {}", e);
+                }
             }
 
-            // Run synthesis if enough observations have accumulated
-            match crate::services::memory::should_synthesize(&self.env, &student_id).await {
-                Ok(true) => {
-                    match crate::services::memory::run_synthesis(&self.env, &student_id).await {
-                        Ok(result) => {
-                            console_log!(
-                                "Synthesis for {}: {} new, {} invalidated, {} unchanged",
-                                student_id, result.new_facts, result.invalidated, result.unchanged
-                            );
-                        }
-                        Err(e) => {
-                            console_error!("Synthesis failed for {}: {}", student_id, e);
+            // Send session_summary for eval
+            if let Some(ws) = ws {
+                let obs_json: Vec<serde_json::Value> = observations.iter()
+                    .map(|o| serde_json::json!({"text": o.text, "dimension": o.dimension, "framing": o.framing}))
+                    .collect();
+                let summary_text = self.generate_session_summary(&observations, &student_id).await.unwrap_or_default();
+                let summary = serde_json::json!({
+                    "type": "session_summary",
+                    "observations": obs_json,
+                    "summary": summary_text,
+                    "inference_failures": inference_failures,
+                    "total_chunks": total_chunks,
+                });
+                let _ = ws.send_with_str(&summary.to_string());
+            }
+        } else {
+            // Production path: accumulator-based
+            let (moment_count, session_id, student_id) = {
+                let s = self.inner.borrow();
+                (s.accumulator.teaching_moments.len(), s.session_id.clone(), s.student_id.clone())
+            };
+
+            // Update observation count for memory synthesis
+            if moment_count > 0 {
+                if let Err(e) = crate::services::memory::increment_observation_count_by(
+                    &self.env, &student_id, moment_count
+                ).await {
+                    console_error!("Failed to increment observation count: {}", e);
+                }
+
+                match crate::services::memory::should_synthesize(&self.env, &student_id).await {
+                    Ok(true) => {
+                        match crate::services::memory::run_synthesis(&self.env, &student_id).await {
+                            Ok(result) => console_log!("Memory synthesis for {}: {} new, {} invalidated, {} unchanged",
+                                student_id, result.new_facts, result.invalidated, result.unchanged),
+                            Err(e) => console_error!("Memory synthesis failed for {}: {}", student_id, e),
                         }
                     }
-                }
-                Ok(false) => {}
-                Err(e) => {
-                    console_error!("Synthesis check failed: {}", e);
+                    Ok(false) => {}
+                    Err(e) => console_error!("Memory synthesis check failed: {}", e),
                 }
             }
-        }
 
-        // 3. Generate LLM summary + send session_summary via WebSocket
-        if let Some(ws) = ws {
-            let obs_json: Vec<serde_json::Value> = observations
-                .iter()
-                .map(|o| serde_json::json!({
-                    "text": o.text,
-                    "dimension": o.dimension,
-                    "framing": o.framing,
-                }))
-                .collect();
-
-            // Generate LLM summary (always, even with 0 observations -- uses chunk scores)
-            let summary_text = self
-                .generate_session_summary(&observations, &student_id)
-                .await
-                .unwrap_or_default();
-
-            let summary = serde_json::json!({
-                "type": "session_summary",
-                "observations": obs_json,
-                "summary": summary_text,
-                "inference_failures": inference_failures,
-                "total_chunks": total_chunks,
-            });
-            let _ = ws.send_with_str(&summary.to_string());
-
-            // Persist summary + session_end as messages in conversation
+            // Persist session_end message
             let conv_id = self.inner.borrow().conversation_id.clone();
             if let Some(ref conv_id) = conv_id {
-                let now = js_sys::Date::new_0().to_iso_string().as_string().unwrap_or_default();
-
-                if !summary_text.is_empty() {
-                    if let Ok(db) = self.env.d1("DB") {
-                        let msg_id = crate::services::ask::generate_uuid();
-                        if let Ok(q) = db.prepare(
-                            "INSERT INTO messages (id, conversation_id, role, content, message_type, session_id, created_at) \
-                             VALUES (?1, ?2, 'assistant', ?3, 'summary', ?4, ?5)"
-                        )
-                        .bind(&[
-                            JsValue::from_str(&msg_id),
-                            JsValue::from_str(conv_id),
-                            JsValue::from_str(&summary_text),
-                            JsValue::from_str(&session_id),
-                            JsValue::from_str(&now),
-                        ]) {
-                            if let Err(e) = q.run().await {
-                                console_error!("Failed to persist summary message: {:?}", e);
-                            }
-                        }
-                    }
-                }
-
-                // Insert session_end message
                 if let Ok(db) = self.env.d1("DB") {
                     let end_msg_id = crate::services::ask::generate_uuid();
-                    let end_now = js_sys::Date::new_0().to_iso_string().as_string().unwrap_or_default();
+                    let now = js_sys::Date::new_0().to_iso_string().as_string().unwrap_or_default();
                     if let Ok(q) = db.prepare(
                         "INSERT INTO messages (id, conversation_id, role, content, message_type, session_id, created_at) \
                          VALUES (?1, ?2, 'assistant', 'Recording ended', 'session_end', ?3, ?4)"
-                    )
-                    .bind(&[
+                    ).bind(&[
                         JsValue::from_str(&end_msg_id),
                         JsValue::from_str(conv_id),
                         JsValue::from_str(&session_id),
-                        JsValue::from_str(&end_now),
+                        JsValue::from_str(&now),
                     ]) {
                         if let Err(e) = q.run().await {
                             console_error!("Failed to persist session_end message: {:?}", e);
@@ -1757,7 +1888,7 @@ impl PracticeSession {
             }
         }
 
-        // 4. Close all WebSockets
+        // Close all WebSockets
         for ws in self.state.get_websockets() {
             let _ = ws.close(Some(1000), Some(String::from("Session ended")));
         }
