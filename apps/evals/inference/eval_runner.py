@@ -35,10 +35,24 @@ import numpy as np
 os.environ.setdefault("CRESCEND_DEVICE", "auto")
 
 from audio_chunker import chunk_audio_file
-from constants import MODEL_INFO, PERCEPIANO_DIMENSIONS
-from models.inference import extract_muq_embeddings, predict_with_ensemble
-from models.loader import get_model_cache
-from models.transcription import TranscriptionError, TranscriptionModel
+
+# Model imports deferred -- only needed for in-process mode, not --auto-t5 HTTP mode.
+_model_imports_loaded = False
+
+
+def _load_model_imports():
+    global _model_imports_loaded
+    if _model_imports_loaded:
+        return
+    global MODEL_INFO, PERCEPIANO_DIMENSIONS
+    global extract_muq_embeddings, predict_with_ensemble
+    global get_model_cache
+    global TranscriptionError, TranscriptionModel
+    from constants import MODEL_INFO, PERCEPIANO_DIMENSIONS
+    from models.inference import extract_muq_embeddings, predict_with_ensemble
+    from models.loader import get_model_cache
+    from models.transcription import TranscriptionError, TranscriptionModel
+    _model_imports_loaded = True
 
 DEFAULT_CHECKPOINT_DIR = str(MODEL_DATA / "checkpoints" / "model_improvement" / "A1")
 DEFAULT_AUDIO_DIR = str(MODEL_DATA / "eval" / "youtube_amt")
@@ -117,6 +131,7 @@ def run(
     cache_dir: str,
 ) -> None:
     """Run batch inference on all audio files in audio_dir."""
+    _load_model_imports()
     audio_path = Path(audio_dir)
     if not audio_path.exists():
         raise FileNotFoundError(f"Audio directory not found: {audio_dir}")
