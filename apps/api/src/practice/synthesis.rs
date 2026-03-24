@@ -408,6 +408,372 @@ pub async fn persist_accumulated_moments(
     Ok(())
 }
 
+/// Load student baselines from D1 observations table.
+///
+/// Falls back to SCALER_MEAN defaults for any dimension with no data.
+pub async fn load_baselines_from_d1(
+    env: &Env,
+    student_id: &str,
+) -> Result<crate::services::teaching_moments::StudentBaselines, String> {
+    let defaults = crate::services::stop::SCALER_MEAN;
+
+    let db = env
+        .d1("DB")
+        .map_err(|e| format!("[synthesis] D1 binding failed: {:?}", e))?;
+
+    let stmt = db
+        .prepare(
+            "SELECT dimension, AVG(dimension_score) as avg_score \
+             FROM observations WHERE student_id = ?1 \
+             AND created_at > datetime('now', '-30 days') \
+             GROUP BY dimension",
+        )
+        .bind(&[JsValue::from_str(student_id)])
+        .map_err(|e| format!("[synthesis] Baselines bind failed: {:?}", e))?;
+
+    let rows = stmt
+        .all()
+        .await
+        .map_err(|e| format!("[synthesis] Baselines query failed: {:?}", e))?;
+
+    let results: Vec<serde_json::Value> = rows.results().unwrap_or_default();
+    let mut dim_map: std::collections::HashMap<String, f64> = std::collections::HashMap::new();
+    for row in &results {
+        if let (Some(dim), Some(avg)) = (
+            row.get("dimension").and_then(|v| v.as_str()),
+            row.get("avg_score").and_then(|v| v.as_f64()),
+        ) {
+            dim_map.insert(dim.to_string(), avg);
+        }
+    }
+
+    Ok(crate::services::teaching_moments::StudentBaselines {
+        dynamics: dim_map.get("dynamics").copied().unwrap_or(defaults[0]),
+        timing: dim_map.get("timing").copied().unwrap_or(defaults[1]),
+        pedaling: dim_map.get("pedaling").copied().unwrap_or(defaults[2]),
+        articulation: dim_map.get("articulation").copied().unwrap_or(defaults[3]),
+        phrasing: dim_map.get("phrasing").copied().unwrap_or(defaults[4]),
+        interpretation: dim_map.get("interpretation").copied().unwrap_or(defaults[5]),
+    })
+}
+
+/// Clear the needs_synthesis flag for a session after successful synthesis.
+pub async fn clear_needs_synthesis(env: &Env, session_id: &str) -> Result<(), String> {
+    let db = env
+        .d1("DB")
+        .map_err(|e| format!("[synthesis] D1 binding failed: {:?}", e))?;
+
+    db.prepare("UPDATE sessions SET needs_synthesis = 0 WHERE id = ?1")
+        .bind(&[JsValue::from_str(session_id)])
+        .map_err(|e| format!("[synthesis] clear_needs_synthesis bind failed: {:?}", e))?
+        .run()
+        .await
+        .map_err(|e| format!("[synthesis] clear_needs_synthesis UPDATE failed: {:?}", e))?;
+
+    Ok(())
+}
+
+/// GET /api/practice/needs-synthesis?conversation_id=...
+///
+/// Returns session IDs for a conversation that have needs_synthesis=1.
+pub async fn handle_check_needs_synthesis(
+    env: &Env,
+    headers: &http::HeaderMap,
+    conversation_id: &str,
+) -> http::Response<axum::body::Body> {
+    use axum::body::Body;
+    use http::{Response, StatusCode};
+
+    let student_id = match crate::auth::verify_auth_header(headers, env) {
+        Ok(id) => id,
+        Err(err_response) => return err_response,
+    };
+
+    if conversation_id.is_empty() {
+        return Response::builder()
+            .status(StatusCode::BAD_REQUEST)
+            .header("Content-Type", "application/json")
+            .body(Body::from(r#"{"error":"conversation_id is required"}"#))
+            .unwrap();
+    }
+
+    let db = match env.d1("DB") {
+        Ok(db) => db,
+        Err(e) => {
+            console_error!("[synthesis] D1 binding failed in needs-synthesis: {:?}", e);
+            return Response::builder()
+                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                .header("Content-Type", "application/json")
+                .body(Body::from(r#"{"error":"Database connection failed"}"#))
+                .unwrap();
+        }
+    };
+
+    let stmt = match db
+        .prepare(
+            "SELECT id FROM sessions WHERE conversation_id = ?1 AND student_id = ?2 AND needs_synthesis = 1",
+        )
+        .bind(&[
+            JsValue::from_str(conversation_id),
+            JsValue::from_str(&student_id),
+        ]) {
+        Ok(s) => s,
+        Err(e) => {
+            console_error!("[synthesis] needs-synthesis bind failed: {:?}", e);
+            return Response::builder()
+                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                .header("Content-Type", "application/json")
+                .body(Body::from(r#"{"error":"Query preparation failed"}"#))
+                .unwrap();
+        }
+    };
+
+    let results = match stmt.all().await {
+        Ok(r) => r,
+        Err(e) => {
+            console_error!("[synthesis] needs-synthesis query failed: {:?}", e);
+            return Response::builder()
+                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                .header("Content-Type", "application/json")
+                .body(Body::from(r#"{"error":"Query failed"}"#))
+                .unwrap();
+        }
+    };
+
+    let rows: Vec<serde_json::Value> = results.results().unwrap_or_default();
+    let session_ids: Vec<String> = rows
+        .iter()
+        .filter_map(|row| row.get("id").and_then(|v| v.as_str()).map(|s| s.to_string()))
+        .collect();
+
+    let body = serde_json::to_string(&serde_json::json!({ "session_ids": session_ids }))
+        .unwrap_or_else(|_| r#"{"session_ids":[]}"#.to_string());
+
+    Response::builder()
+        .status(StatusCode::OK)
+        .header("Content-Type", "application/json")
+        .body(Body::from(body))
+        .unwrap()
+}
+
+/// POST /api/practice/synthesize
+///
+/// Performs deferred synthesis for a session that has needs_synthesis=1.
+/// Body: `{ "session_id": "..." }`
+pub async fn handle_deferred_synthesis(
+    env: &Env,
+    headers: &http::HeaderMap,
+    body: &serde_json::Value,
+) -> http::Response<axum::body::Body> {
+    use axum::body::Body;
+    use http::{Response, StatusCode};
+
+    let student_id = match crate::auth::verify_auth_header(headers, env) {
+        Ok(id) => id,
+        Err(err_response) => return err_response,
+    };
+
+    let session_id = match body.get("session_id").and_then(|v| v.as_str()) {
+        Some(id) if !id.is_empty() => id.to_string(),
+        _ => {
+            return Response::builder()
+                .status(StatusCode::BAD_REQUEST)
+                .header("Content-Type", "application/json")
+                .body(Body::from(r#"{"error":"session_id is required"}"#))
+                .unwrap();
+        }
+    };
+
+    let db = match env.d1("DB") {
+        Ok(db) => db,
+        Err(e) => {
+            console_error!("[synthesis] D1 binding failed in deferred-synthesis: {:?}", e);
+            return Response::builder()
+                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                .header("Content-Type", "application/json")
+                .body(Body::from(r#"{"error":"Database connection failed"}"#))
+                .unwrap();
+        }
+    };
+
+    // Load session row
+    let stmt = match db
+        .prepare(
+            "SELECT student_id, conversation_id, accumulator_json, needs_synthesis FROM sessions WHERE id = ?1",
+        )
+        .bind(&[JsValue::from_str(&session_id)]) {
+        Ok(s) => s,
+        Err(e) => {
+            console_error!("[synthesis] deferred-synthesis bind failed: {:?}", e);
+            return Response::builder()
+                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                .header("Content-Type", "application/json")
+                .body(Body::from(r#"{"error":"Query preparation failed"}"#))
+                .unwrap();
+        }
+    };
+
+    let row = match stmt.first::<serde_json::Value>(None).await {
+        Ok(Some(r)) => r,
+        Ok(None) => {
+            return Response::builder()
+                .status(StatusCode::NOT_FOUND)
+                .header("Content-Type", "application/json")
+                .body(Body::from(r#"{"error":"Session not found"}"#))
+                .unwrap();
+        }
+        Err(e) => {
+            console_error!("[synthesis] deferred-synthesis query failed: {:?}", e);
+            return Response::builder()
+                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                .header("Content-Type", "application/json")
+                .body(Body::from(r#"{"error":"Query failed"}"#))
+                .unwrap();
+        }
+    };
+
+    // Verify ownership
+    let row_student_id = row
+        .get("student_id")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    if row_student_id != student_id {
+        return Response::builder()
+            .status(StatusCode::FORBIDDEN)
+            .header("Content-Type", "application/json")
+            .body(Body::from(r#"{"error":"Forbidden"}"#))
+            .unwrap();
+    }
+
+    let needs = row
+        .get("needs_synthesis")
+        .and_then(|v| v.as_i64())
+        .unwrap_or(0);
+    if needs != 1 {
+        let body = serde_json::to_string(&serde_json::json!({
+            "status": "no_synthesis_needed"
+        }))
+        .unwrap_or_default();
+        return Response::builder()
+            .status(StatusCode::OK)
+            .header("Content-Type", "application/json")
+            .body(Body::from(body))
+            .unwrap();
+    }
+
+    let conversation_id = row
+        .get("conversation_id")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+
+    let accumulator_json = match row.get("accumulator_json").and_then(|v| v.as_str()) {
+        Some(j) if !j.is_empty() => j.to_string(),
+        _ => {
+            console_error!("[synthesis] accumulator_json is null for session {}", session_id);
+            // Clear flag to avoid repeated attempts
+            if let Err(e) = clear_needs_synthesis(env, &session_id).await {
+                console_error!("[synthesis] Failed to clear needs_synthesis: {}", e);
+            }
+            return Response::builder()
+                .status(StatusCode::BAD_REQUEST)
+                .header("Content-Type", "application/json")
+                .body(Body::from(r#"{"error":"No accumulator data available for this session"}"#))
+                .unwrap();
+        }
+    };
+
+    // Deserialize accumulator
+    let acc: crate::practice::accumulator::SessionAccumulator =
+        match serde_json::from_str(&accumulator_json) {
+            Ok(a) => a,
+            Err(e) => {
+                console_error!(
+                    "[synthesis] Failed to deserialize accumulator for session {}: {:?}",
+                    session_id,
+                    e
+                );
+                // Clear flag -- schema mismatch, can't recover
+                if let Err(ce) = clear_needs_synthesis(env, &session_id).await {
+                    console_error!("[synthesis] Failed to clear needs_synthesis: {}", ce);
+                }
+                return Response::builder()
+                    .status(StatusCode::INTERNAL_SERVER_ERROR)
+                    .header("Content-Type", "application/json")
+                    .body(Body::from(r#"{"error":"Accumulator deserialization failed"}"#))
+                    .unwrap();
+            }
+        };
+
+    // Load baselines
+    let baselines = match load_baselines_from_d1(env, &student_id).await {
+        Ok(b) => Some(b),
+        Err(e) => {
+            console_error!("[synthesis] Failed to load baselines: {}", e);
+            None
+        }
+    };
+
+    let total_chunks = acc.timeline.len();
+    let session_duration_ms = acc
+        .timeline
+        .last()
+        .map(|e| e.timestamp_ms + 15_000)
+        .unwrap_or(0);
+
+    let ctx = SynthesisContext {
+        session_id: session_id.clone(),
+        student_id: student_id.clone(),
+        conversation_id: conversation_id.clone(),
+        baselines,
+        piece_context: None,
+        student_memory: None,
+        total_chunks,
+        session_duration_ms,
+    };
+
+    let prompt_context = build_synthesis_prompt(&acc, &ctx);
+    let result = call_synthesis_llm(env, &prompt_context).await;
+
+    // Persist synthesis message
+    if let Err(e) =
+        persist_synthesis_message(env, &conversation_id, &session_id, &result.text).await
+    {
+        console_error!("[synthesis] Failed to persist synthesis message: {}", e);
+        return Response::builder()
+            .status(StatusCode::INTERNAL_SERVER_ERROR)
+            .header("Content-Type", "application/json")
+            .body(Body::from(r#"{"error":"Failed to persist synthesis"}"#))
+            .unwrap();
+    }
+
+    // Persist accumulated moments
+    let moments: Vec<AccumulatedMoment> = acc.top_moments().into_iter().cloned().collect();
+    if let Err(e) = persist_accumulated_moments(env, &student_id, &session_id, &moments).await {
+        console_error!("[synthesis] Failed to persist accumulated moments: {}", e);
+        // Non-fatal -- synthesis message already saved
+    }
+
+    // Clear the deferred flag
+    if let Err(e) = clear_needs_synthesis(env, &session_id).await {
+        console_error!("[synthesis] Failed to clear needs_synthesis flag: {}", e);
+        // Non-fatal -- synthesis already persisted
+    }
+
+    let response_body = serde_json::to_string(&serde_json::json!({
+        "status": "synthesized",
+        "session_id": session_id,
+        "is_fallback": result.is_fallback,
+    }))
+    .unwrap_or_default();
+
+    Response::builder()
+        .status(StatusCode::OK)
+        .header("Content-Type", "application/json")
+        .body(Body::from(response_body))
+        .unwrap()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
