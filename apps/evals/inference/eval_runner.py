@@ -260,7 +260,7 @@ def _health_check_servers(muq_url: str, amt_url: str) -> None:
             resp = httpx.get(f"{url}/health", timeout=5.0)
             if resp.status_code != 200:
                 raise RuntimeError(f"{name} server at {url} returned {resp.status_code}")
-        except httpx.ConnectError:
+        except (httpx.ConnectError, httpx.ReadTimeout):
             raise RuntimeError(
                 f"{name} server not running at {url}. "
                 f"Start it with: just {'muq' if name == 'MuQ' else 'amt'}"
