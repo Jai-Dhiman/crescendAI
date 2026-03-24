@@ -102,7 +102,7 @@ def main() -> None:
             print(f"SKIP {piece_id}: no manifest at {manifest_path}")
             continue
 
-        output_path = SCENARIOS_DIR / f"{piece_id}.yaml"
+        output_path = SCENARIOS_DIR / f"t5_{piece_id}.yaml"
         generate_scenario_file(manifest_path, output_path)
 
         with open(output_path) as f:
