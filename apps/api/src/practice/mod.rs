@@ -1,3 +1,4 @@
+pub mod accumulator;
 pub mod analysis;
 pub mod practice_mode;
 pub mod dims;

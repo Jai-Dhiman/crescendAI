@@ -2,7 +2,7 @@ use std::collections::{HashSet, VecDeque};
 
 // --- Types ---
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum PracticeMode {
     Warming,
