@@ -349,15 +349,14 @@ def run_auto_t5(
 
             try:
                 # Chunk the audio file (reuse existing chunker)
-                audio_chunks = chunk_audio_file(str(audio_path), chunk_seconds=15.0)
+                audio_chunks = chunk_audio_file(str(audio_path))
+
+                import io
+                import soundfile as sf
 
                 chunks = []
                 for i, chunk_audio in enumerate(audio_chunks):
                     # Convert numpy array to WAV bytes for HTTP
-                    import io
-
-                    import soundfile as sf
-
                     buf = io.BytesIO()
                     sf.write(buf, chunk_audio, 24000, format="WAV")
                     wav_bytes = buf.getvalue()
