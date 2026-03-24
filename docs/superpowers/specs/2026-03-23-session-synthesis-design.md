@@ -80,15 +80,19 @@ struct DrillingRecord {
     bar_range: Option<(u32, u32)>,
     repetition_count: usize,
     first_scores: [f64; 6],
-    final_scores: [f64; 6],
+    final_scores: [f64; 6],  // NOTE: existing DrillingPassage only tracks first_scores.
+                               // New logic needed: snapshot scores on drilling mode exit.
     started_at_chunk: usize,
     ended_at_chunk: usize,
 }
 
+// TimelineEvent exists solely for gap detection (silence periods between playing).
+// Chunk-to-mode mapping is derived from mode_transitions (transition boundaries)
+// cross-referenced with scored_chunks (which carry chunk_index).
 struct TimelineEvent {
     chunk_index: usize,
     timestamp_ms: u64,
-    has_audio: bool,
+    has_audio: bool,  // false = silence/noise only (no AMT notes detected)
 }
 ```
 
@@ -103,16 +107,18 @@ After each chunk is processed, persist the full accumulator to `state.storage().
 
 ### Layer 2: D1 write (at synthesis time)
 When `synthesize_session()` completes:
-- `INSERT INTO messages` -- synthesis text, `message_type='synthesis'`, conversation_id, session_id
-- `INSERT INTO observations` -- batch write accumulated moments (raw structured data, for analytics/memory)
+- `INSERT INTO messages` -- synthesis text, `message_type='synthesis'` (new value, existing column), conversation_id, session_id
+- `INSERT INTO observations` -- batch write accumulated moments. Existing columns are repurposed: `observation_text` stores the deterministic `reasoning` string, `dimension_score` maps to `score`, `student_baseline` maps to `baseline`. No schema change needed for this table.
 - Update `student_memory_meta.total_observations`
 - Run memory synthesis if threshold met
 
 ### Layer 3: finalize_session() safety net
 If the session ends without synthesis (disconnect, alarm timeout):
-- Persist accumulator to D1 with `needs_synthesis` flag
+- Persist the full serialized accumulator JSON to a new `session_accumulator` column on the `sessions` table (`TEXT`, nullable). **Requires D1 migration:** `ALTER TABLE sessions ADD COLUMN accumulator_json TEXT; ALTER TABLE sessions ADD COLUMN needs_synthesis INTEGER DEFAULT 0;`
+- Set `needs_synthesis = 1` on the session row
 - No LLM call (client may be gone)
-- On next conversation load, web client detects unsynthesized data and triggers deferred synthesis via `POST /api/practice/synthesize`
+- On next conversation load, the web client queries `GET /api/practice/sessions?needs_synthesis=1&conversation_id=X`. If found, calls `POST /api/practice/synthesize` with the `session_id`. That endpoint reads `accumulator_json` from the `sessions` row, deserializes it into a `SessionAccumulator`, rebuilds the synthesis prompt (loading baselines and student memory from D1), calls the teacher LLM, persists the result to `messages`, and clears the `needs_synthesis` flag.
+- If the DO storage has already been cleaned up (DO garbage collected), the D1 `accumulator_json` is the sole recovery source.
 
 ### conversation_id requirement
 The current code silently skips persistence if `conversation_id` is None. Under the new model, missing `conversation_id` at synthesis time is a hard error -- log `console_error!`, persist accumulator to DO storage with error flag. The web client must always provide `conversation_id` on WS connect.
@@ -151,6 +157,9 @@ The synthesis prompt gives the teacher structured JSON context:
 ```
 
 The teacher interprets this into a natural, cohesive teaching response. No subagent stage -- the structured data IS the analysis; the teacher narrates.
+
+### LLM model and pipeline
+Synthesis uses the Anthropic teacher model directly (same model as the current teacher stage in `ask.rs`). The Groq subagent stage is eliminated -- there is no "fast analysis" step because the structured accumulator data already IS the analysis. This is a new `synthesize_session()` function in `session.rs` (or a new `synthesis.rs` module), NOT a reuse of `handle_ask_inner()` from `ask.rs`. The existing `ask.rs` pipeline remains for the chat path (user asks a question in conversation).
 
 ## What Changes
 
