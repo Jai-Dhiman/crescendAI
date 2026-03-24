@@ -109,6 +109,7 @@ T5 scenarios omit `piece_query`, so the session attempts automatic piece identif
 
 **Observation quality by bucket:**
 - All 6 judge criteria broken down by skill bucket (5x6 matrix)
+- Per-bucket N (sample size) alongside every metric -- flag cells where N < 5 as unreliable
 - Worst-performing criterion per bucket
 - Failure examples with full context
 
@@ -225,6 +226,27 @@ After the eval harness produces a baseline, set up autoresearch loops to iterati
 - **Verify:** `python eval_practice.py --pieces fur_elise --max-recordings 10`
 - **Guard:** actionability must not regress
 
+<!-- AUTONOMOUS DECISION LOG -->
+## Decision Audit Trail
+
+| # | Phase | Decision | Principle | Rationale | Rejected |
+|---|-------|----------|-----------|-----------|----------|
+| 1 | CEO-0A | Test current per-observation pipeline, not upcoming session synthesis | P6 (action) | Session synthesis spec approved same day but not implemented. Eval baseline on current pipeline informs synthesis transition. | Wait for synthesis to ship first |
+| 2 | CEO-0A | Add per-bucket N reporting to all metrics | P1 (completeness) | Fur_elise/nocturne have ~5 recordings per bucket. Statistics meaningless without sample size. | Report only aggregates |
+| 3 | CEO-0C | Choose three-layer composable over monolithic | P1+P4 (completeness+DRY) | Already validated in brainstorming. Composable layers enable cheap re-analysis. | Monolithic single script |
+| 4 | CEO-0D | Defer CI integration to TODOS | P3 (pragmatic) | Useful but separate concern. Get baseline first, then automate. | Add CI now |
+| 5 | CEO-0D | Defer historical tracking to TODOS | P3 (pragmatic) | Need at least 2 runs before tracking adds value. | Add tracking now |
+| 6 | CEO-0D | TASTE: Add bootstrap confidence intervals | P1 (completeness) | S effort, high value for sparse buckets. But could be deferred. Close call. | Defer to follow-up |
+| 7 | CEO-S2 | Skip unavailable recordings with warning | P5 (explicit) | YouTube videos get taken down. Eval should not crash on missing audio. Report skipped count. | Crash on missing audio |
+| 8 | CEO-S10 | Validate harness on existing 2 pieces first | P5 (explicit) | Compare fur_elise/nocturne results against existing practice_eval baseline before running on new bach pieces. | Run all 4 pieces immediately |
+| 9 | ENG-S0 | Use HTTP client to call local servers (not direct model loading) | P5 (explicit) | Tests same interface as production HF endpoints. eval_runner currently loads models in-process; --auto-t5 should call localhost:8000/8001 via HTTP instead. | Reuse in-process model loading |
+| 10 | ENG-S1 | SessionResult needs piece_identification field | P1 (completeness) | pipeline_client.py must capture piece_identified messages and expose them in SessionResult for metrics. | Parse from raw messages later |
+| 11 | ENG-S1 | Add model_fingerprint to report metadata | P5 (explicit) | If local MuQ loads different model version than HF endpoint, STOP analysis is invalid. Fingerprint provides auditability. | Omit fingerprint |
+| 12 | ENG-S2 | TASTE: Add per-recording checkpointing | P1 (completeness) | 312 recordings = hours of pipeline time. Wrangler crash loses all progress. But existing eval doesn't checkpoint either. | No checkpointing (match existing pattern) |
+| 13 | ENG-S3 | Unit tests for all new code + integration test on existing pieces | P1 (completeness) | Every new codepath (manifest scan, HTTP client, scenario gen, analysis metrics) gets unit tests. Integration test validates against existing fur_elise baseline. | Skip tests |
+| 14 | TASTE | Add bootstrap confidence intervals in analyze_e2e.py | P1 (completeness) | User approved. ~30 lines scipy, high value for sparse buckets. | Defer |
+| 15 | TASTE | Add per-recording checkpointing in eval_practice.py | P1 (completeness) | User approved. ~30 lines, prevents losing 50min of pipeline work. | No checkpoint |
+
 ## Key Files
 
 | File | Role |
@@ -238,3 +260,13 @@ After the eval harness produces a baseline, set up autoresearch loops to iterati
 | `apps/evals/shared/prompts/observation_quality_judge_v3.txt` | Judge prompt with skill-appropriateness (new) |
 | `apps/evals/shared/reporting.py` | Metric aggregation (extend for STOP + piece ID) |
 | `apps/api/src/services/stop.rs` | STOP classifier (target for autoresearch Loop 1) |
+
+## GSTACK REVIEW REPORT
+
+| Review | Trigger | Why | Runs | Status | Findings |
+|--------|---------|-----|------|--------|----------|
+| CEO Review | `/plan-ceo-review` | Scope & strategy | 1 | clean | Session synthesis transition noted. 3 expansions deferred. Per-bucket N reporting added. |
+| Eng Review | `/plan-eng-review` | Architecture & tests | 1 | clean | HTTP client gap found and resolved. Test plan with 7 unit + 1 integration. Bootstrap CIs + checkpointing approved. |
+| Design Review | `/plan-design-review` | UI/UX gaps | 0 | skipped | No UI scope (terminal-only eval) |
+
+**VERDICT:** APPROVED via /autoplan. 15 decisions total (13 auto, 2 taste approved by user). Ready for implementation planning.
