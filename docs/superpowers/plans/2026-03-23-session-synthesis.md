@@ -916,14 +916,20 @@ if self.inner.borrow().is_eval_session {
     // The existing code at line 533: `let mode_transitions = self.inner.borrow_mut().mode_detector.update(&chunk_signal);`
     // After the existing WS broadcast loop (lines 536-544), add:
     for transition in &mode_transitions {
-        let prev_mode = self.inner.borrow().mode_detector.mode; // mode BEFORE this transition
-        let dwell_ms = timestamp_ms.saturating_sub(
-            self.inner.borrow().mode_detector.entered_at_ms
-        );
+        // ModeTransition.mode is the NEW (target) mode. Derive `from` by looking at
+        // the last recorded transition's `to`, or default to Warming if none yet.
+        let from_mode = {
+            let s = self.inner.borrow();
+            s.accumulator.mode_transitions.last()
+                .map(|t| t.to)
+                .unwrap_or(PracticeMode::Warming)
+        };
+        let dwell_ms = {
+            let s = self.inner.borrow();
+            timestamp_ms.saturating_sub(s.mode_detector.entered_at_ms)
+        };
         self.inner.borrow_mut().accumulator.accumulate_mode_transition(ModeTransitionRecord {
-            from: transition.mode, // ModeTransition.mode is the NEW mode; we need to track from/to
-            // NOTE: ModeTransition struct only has .mode (the target). For `from`, use the
-            // accumulator's last transition's `to`, or PracticeMode::Warming if no transitions yet.
+            from: from_mode,
             to: transition.mode,
             chunk_index: transition.chunk_index,
             timestamp_ms,
@@ -1135,30 +1141,32 @@ git commit -m "feat: wire accumulation into chunk pipeline, replace per-observat
 
 - [ ] **Step 1: Add routes to server.rs**
 
-After the existing practice routes (around line 160), add both GET (check) and POST (trigger) routes:
+After the existing practice routes (around line 160), add both GET (check) and POST (trigger) routes. Follow the existing pattern: `http::HeaderMap` for headers, `req.uri().query()` for query params, and `into_worker_response(with_cors(...))` for response wrapping.
 
 ```rust
 // GET /api/practice/needs-synthesis?conversation_id=X -- check for sessions needing synthesis
 if path == "/api/practice/needs-synthesis" && method == http::Method::GET {
     let headers = req.headers().clone();
-    let conv_id = req.url()?.search_params().get("conversation_id").unwrap_or_default();
-    return match crate::practice::synthesis::handle_check_needs_synthesis(&env, &headers, &conv_id).await {
-        Ok(resp) => Ok(resp),
-        Err(e) => Response::error(format!("{}", e), 500),
-    };
+    let query_string = req.uri().query().map(|q| q.to_string()).unwrap_or_default();
+    let conv_id = query_string.split('&')
+        .find_map(|pair| pair.strip_prefix("conversation_id="))
+        .unwrap_or("");
+    return into_worker_response(with_cors(
+        crate::practice::synthesis::handle_check_needs_synthesis(&env, &headers, conv_id).await,
+        origin.as_deref(),
+    )).await;
 }
 
 // POST /api/practice/synthesize -- trigger deferred synthesis for a specific session
 if path == "/api/practice/synthesize" && method == http::Method::POST {
     let headers = req.headers().clone();
-    let body: serde_json::Value = match req.json().await {
-        Ok(v) => v,
-        Err(_) => return Response::error("Invalid JSON", 400),
-    };
-    return match crate::practice::synthesis::handle_deferred_synthesis(&env, &headers, &body).await {
-        Ok(resp) => Ok(resp),
-        Err(e) => Response::error(format!("Synthesis failed: {}", e), 500),
-    };
+    let body = req.into_body().collect().await
+        .map(|b| b.to_bytes().to_vec()).unwrap_or_default();
+    let body_json: serde_json::Value = serde_json::from_slice(&body).unwrap_or_default();
+    return into_worker_response(with_cors(
+        crate::practice::synthesis::handle_deferred_synthesis(&env, &headers, &body_json).await,
+        origin.as_deref(),
+    )).await;
 }
 ```
 ```
@@ -1172,9 +1180,9 @@ Add to `synthesis.rs`:
 /// Called by the web client when it detects a session with needs_synthesis=1.
 pub async fn handle_deferred_synthesis(
     env: &Env,
-    headers: &worker::Headers,
+    headers: &http::HeaderMap,
     body: &serde_json::Value,
-) -> Result<worker::Response, String> {
+) -> http::Response<axum::body::Body> {
     // Auth: verify JWT and extract student_id (same pattern as ask.rs line 248)
     let student_id = crate::auth::verify_auth_header(headers, env)
         .map_err(|e| format!("Auth failed: {}", e))?;
@@ -1187,7 +1195,7 @@ pub async fn handle_deferred_synthesis(
 
     // Load session and verify ownership
     let row = db.prepare(
-        "SELECT student_id, accumulator_json, needs_synthesis FROM sessions WHERE id = ?1"
+        "SELECT student_id, conversation_id, accumulator_json, needs_synthesis FROM sessions WHERE id = ?1"
     )
     .bind(&[JsValue::from_str(session_id)])
     .map_err(|e| format!("Bind: {:?}", e))?
@@ -1225,18 +1233,10 @@ pub async fn handle_deferred_synthesis(
     // For the deferred path, inline the D1 query (same SQL as session.rs:1488-1493).
     let baselines = load_baselines_from_d1(env, &student_id).await.ok();
 
-    // Load conversation_id for this session
-    let conv_row = db.prepare(
-        "SELECT conversation_id FROM sessions WHERE id = ?1"
-    )
-    .bind(&[JsValue::from_str(session_id)])
-    .map_err(|e| format!("Bind: {:?}", e))?
-    .first::<serde_json::Value>(None)
-    .await
-    .map_err(|e| format!("Query: {:?}", e))?;
-
-    let conversation_id = conv_row
-        .and_then(|r| r.get("conversation_id").and_then(|v| v.as_str().map(String::from)))
+    // conversation_id already loaded from the same row above
+    let conversation_id = row.get("conversation_id")
+        .and_then(|v| v.as_str())
+        .map(String::from)
         .ok_or("No conversation_id for session")?;
 
     let ctx = SynthesisContext {
@@ -1315,9 +1315,9 @@ pub async fn load_baselines_from_d1(
 /// Returns list of session_ids with needs_synthesis=1.
 pub async fn handle_check_needs_synthesis(
     env: &Env,
-    headers: &worker::Headers,
+    headers: &http::HeaderMap,
     conversation_id: &str,
-) -> Result<worker::Response, String> {
+) -> http::Response<axum::body::Body> {
     let student_id = crate::auth::verify_auth_header(headers, env)
         .map_err(|e| format!("Auth: {}", e))?;
     let db = env.d1("DB").map_err(|e| format!("D1: {:?}", e))?;
