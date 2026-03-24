@@ -1,3 +1,4 @@
+pub mod accumulator;
 pub mod analysis;
 pub mod practice_mode;
 pub mod dims;
@@ -6,6 +7,7 @@ pub mod score_context;
 pub mod score_follower;
 pub mod session;
 pub mod start;
+pub mod synthesis;
 pub mod teaching_moment;
 pub mod piece_identify;
 pub mod upload;

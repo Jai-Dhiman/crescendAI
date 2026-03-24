@@ -12,7 +12,7 @@ import {
 } from "@phosphor-icons/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
 	useConversation,
 	useConversations,
@@ -21,7 +21,7 @@ import {
 import { useClickOutside } from "../hooks/useDom";
 import { usePracticeSession } from "../hooks/usePracticeSession";
 import type { ChatStreamEvent } from "../lib/api";
-import { api } from "../lib/api";
+import { api, checkNeedsSynthesis, triggerDeferredSynthesis } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import type { RichMessage } from "../lib/types";
 import { useScorePanelStore } from "../stores/score-panel";
@@ -184,6 +184,25 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 	if (persistedConvId && persistedConvId !== activeConversationId) {
 		setActiveConversationId(persistedConvId);
 	}
+
+	// Check for deferred synthesis when a conversation loads
+	useEffect(() => {
+		if (!activeConversationId) return;
+
+		checkNeedsSynthesis(activeConversationId).then(async (sessionIds) => {
+			if (sessionIds.length === 0) return;
+
+			console.log(`[Deferred] Found ${sessionIds.length} sessions needing synthesis`);
+			for (const sid of sessionIds) {
+				const result = await triggerDeferredSynthesis(sid);
+				if (result?.status === "synthesized") {
+					console.log(`[Deferred] Synthesis completed for session ${sid}`);
+					// Refresh conversation messages to show the new synthesis
+					queryClient.invalidateQueries({ queryKey: ["conversation", activeConversationId] });
+				}
+			}
+		});
+	}, [activeConversationId]);
 
 	// Derive messages: persisted (from query) + transient (streaming/placeholders)
 	const persistedMessages: RichMessage[] = conversationData?.messages ?? [];
@@ -786,7 +805,6 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 			{showListeningMode && (
 				<ListeningMode
 					state={practice.state}
-					observations={practice.observations}
 					energy={practice.energy}
 					isPlaying={practice.isPlaying}
 					latestScores={practice.latestScores}

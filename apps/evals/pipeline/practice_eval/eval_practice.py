@@ -1,8 +1,11 @@
 """Practice recording evaluation.
 
 Runs practice recordings through the full pipeline (wrangler dev),
-judges each observation with derived criteria (v2 judge), produces
+judges each observation with derived criteria (v2/v3 judge), produces
 a segmented report by tier, framing, and skill level.
+
+Supports T5 scenarios (--scenarios t5), per-recording checkpointing,
+STOP/piece-ID metric extraction, and judge v3 prompt selection.
 
 Requires wrangler dev running at localhost:8787.
 
@@ -10,6 +13,7 @@ Usage:
     cd apps/evals/
     uv run python -m pipeline.practice_eval.eval_practice
     uv run python -m pipeline.practice_eval.eval_practice --piece fur_elise
+    uv run python -m pipeline.practice_eval.eval_practice --scenarios t5
 """
 
 from __future__ import annotations
@@ -36,7 +40,8 @@ REPORTS_DIR = Path(__file__).parents[2] / "reports"
 # eval_runner.py caches to model/data/eval/inference_cache/ (singular "eval")
 INFERENCE_CACHE_BASE = MODEL_DATA / "eval" / "inference_cache"
 
-JUDGE_PROMPT = "observation_quality_judge_v2.txt"
+JUDGE_PROMPT_V2 = "observation_quality_judge_v2.txt"
+JUDGE_PROMPT_V3 = "observation_quality_judge_v3.txt"
 
 
 def load_scenarios(piece_id: str) -> list[dict]:
@@ -72,13 +77,41 @@ def find_inference_cache() -> dict[str, dict]:
     return recordings
 
 
+def _resolve_pieces(args) -> list[tuple[str, str]]:
+    """Resolve piece list from args.
+
+    Returns list of (scenario_name, piece_id) tuples.
+    scenario_name is used to load the YAML file, piece_id is the canonical piece.
+    """
+    if args.scenarios:
+        prefix = args.scenarios
+        matches = sorted(SCENARIOS_DIR.glob(f"{prefix}_*.yaml"))
+        if not matches:
+            raise FileNotFoundError(
+                f"No scenario files matching {prefix}_*.yaml in {SCENARIOS_DIR}"
+            )
+        results = []
+        for m in matches:
+            scenario_name = m.stem  # e.g. "t5_fur_elise"
+            piece_id = scenario_name[len(prefix) + 1:]  # e.g. "fur_elise"
+            results.append((scenario_name, piece_id))
+        return results
+
+    if args.piece != "all":
+        return [(args.piece, args.piece)]
+
+    return [("fur_elise", "fur_elise"), ("nocturne_op9no2", "nocturne_op9no2")]
+
+
 def main():
     parser = argparse.ArgumentParser(description="Run practice recording eval")
     parser.add_argument("--wrangler-url", default="http://localhost:8787")
     parser.add_argument("--piece", default="all", choices=["fur_elise", "nocturne_op9no2", "all"])
+    parser.add_argument("--scenarios", default=None,
+                        help="Scenario prefix (e.g., 't5' matches t5_*.yaml)")
     args = parser.parse_args()
 
-    pieces = ["fur_elise", "nocturne_op9no2"] if args.piece == "all" else [args.piece]
+    pieces = _resolve_pieces(args)
 
     all_scores: dict[str, list[bool]] = {}
     all_observations: list[dict] = []
@@ -87,22 +120,44 @@ def main():
     recordings_with_obs = 0
     tier_counts: dict[str, int] = {}
     framing_counts: dict[str, int] = {}
+    stop_probabilities: list[tuple[float, int]] = []
+    piece_id_results: list[dict] = []
+
+    # Per-recording checkpointing
+    checkpoint_path = REPORTS_DIR / ".eval_checkpoint.json"
+    completed_ids: set[str] = set()
+    if checkpoint_path.exists():
+        with open(checkpoint_path) as f:
+            ckpt = json.load(f)
+        completed_ids = set(ckpt.get("completed", []))
+        all_observations = ckpt.get("observations", [])
+        total_recordings = ckpt.get("total_recordings", 0)
+        recordings_with_obs = ckpt.get("recordings_with_obs", 0)
+        total_judge_calls = ckpt.get("total_judge_calls", 0)
+        stop_probabilities = [(p, l) for p, l in ckpt.get("stop_probabilities", [])]
+        piece_id_results = ckpt.get("piece_id_results", [])
+        print(f"Resuming from checkpoint: {len(completed_ids)} recordings done")
 
     print("Loading inference cache...")
     cache = find_inference_cache()
     print(f"  {len(cache)} recordings in cache")
 
-    for piece_id in pieces:
-        scenarios = load_scenarios(piece_id)
-        print(f"\n=== {piece_id}: {len(scenarios)} practice recordings ===")
+    for scenario_name, piece_id in pieces:
+        scenarios = load_scenarios(scenario_name)
+        print(f"\n=== {scenario_name}: {len(scenarios)} practice recordings ===")
 
         for i, scenario in enumerate(scenarios):
             video_id = scenario["video_id"]
             total_recordings += 1
             print(f"  [{i+1}/{len(scenarios)}] {video_id}...", end=" ", flush=True)
 
+            if video_id in completed_ids:
+                print("checkpointed, skipping")
+                continue
+
             if video_id not in cache:
                 print("not in cache, skipping")
+                completed_ids.add(video_id)
                 continue
 
             recording = cache[video_id]
@@ -114,15 +169,28 @@ def main():
                 )
             )
 
+            # Track piece identification (only when no piece_query, i.e. zero-config)
+            if not scenario.get("piece_query") and result.piece_identification:
+                piece_id_results.append({
+                    "expected": piece_id,
+                    "actual": result.piece_identification.piece_id,
+                    "confidence": result.piece_identification.confidence,
+                    "notes_consumed": result.piece_identification.notes_consumed,
+                    "correct": piece_id == result.piece_identification.piece_id,
+                })
+
             if result.errors:
                 print(f"ERRORS: {result.errors}")
+                completed_ids.add(video_id)
                 continue
 
             if not result.observations:
                 print("no observations (STOP did not trigger)")
+                completed_ids.add(video_id)
                 continue
 
             recordings_with_obs += 1
+            skill_level = scenario.get("skill_level", 0)
 
             for obs in result.observations:
                 eval_ctx = obs.raw_message.get("eval_context", {})
@@ -130,6 +198,14 @@ def main():
                 framing = obs.framing or "unknown"
                 tier_counts[tier] = tier_counts.get(tier, 0) + 1
                 framing_counts[framing] = framing_counts.get(framing, 0) + 1
+
+                # Extract STOP data before building context dict
+                teaching_moment = eval_ctx.get("teaching_moment", {})
+                if isinstance(teaching_moment, str):
+                    teaching_moment = json.loads(teaching_moment) if teaching_moment else {}
+                stop_prob = teaching_moment.get("stop_probability")
+                if stop_prob is not None:
+                    stop_probabilities.append((stop_prob, skill_level))
 
                 context = {
                     "predictions": eval_ctx.get("predictions", {}),
@@ -143,10 +219,12 @@ def main():
                     "scenario_notes": scenario.get("general_notes", ""),
                 }
 
-                judge_result = judge_observation(obs.text, context, prompt_file=JUDGE_PROMPT)
+                # Select judge prompt based on skill_level
+                prompt = JUDGE_PROMPT_V3 if skill_level > 0 else JUDGE_PROMPT_V2
+                context["skill_level"] = str(skill_level) if skill_level > 0 else "unknown"
+                judge_result = judge_observation(obs.text, context, prompt_file=prompt)
                 total_judge_calls += 1
 
-                skill_level = scenario.get("skill_level", 0)
                 for score in judge_result.scores:
                     if score.passed is not None:
                         all_scores.setdefault(score.criterion, []).append(score.passed)
@@ -167,6 +245,20 @@ def main():
                 })
 
             print(f"{len(result.observations)} obs")
+
+            # Save checkpoint after each recording
+            completed_ids.add(video_id)
+            checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(checkpoint_path, "w") as f:
+                json.dump({
+                    "completed": list(completed_ids),
+                    "observations": all_observations,
+                    "total_recordings": total_recordings,
+                    "recordings_with_obs": recordings_with_obs,
+                    "total_judge_calls": total_judge_calls,
+                    "stop_probabilities": stop_probabilities,
+                    "piece_id_results": piece_id_results,
+                }, f)
 
     # Build report
     report = EvalReport(
@@ -194,6 +286,53 @@ def main():
         "estimated_usd": round(total_judge_calls * 0.003, 2),
     }
 
+    # STOP metrics
+    if stop_probabilities:
+        from scipy.stats import spearmanr
+        from collections import defaultdict
+        probs = [p for p, _ in stop_probabilities]
+        levels = [l for _, l in stop_probabilities]
+        rho, p_value = spearmanr(probs, levels)
+        report.metadata["stop_probability_skill_correlation"] = {
+            "spearman_rho": round(rho, 4),
+            "p_value": round(p_value, 4),
+            "n": len(stop_probabilities),
+        }
+        bucket_triggers = defaultdict(list)
+        bucket_probs = defaultdict(list)
+        for prob, level in stop_probabilities:
+            bucket_triggers[level].append(prob >= 0.5)
+            bucket_probs[level].append(prob)
+        report.metadata["stop_trigger_rate_by_bucket"] = {
+            str(k): {"rate": round(sum(v)/len(v), 3), "n": len(v)}
+            for k, v in sorted(bucket_triggers.items())
+        }
+        report.metadata["stop_probabilities_by_bucket"] = {
+            str(k): [round(p, 4) for p in v]
+            for k, v in sorted(bucket_probs.items())
+        }
+
+    # Piece ID metrics
+    if piece_id_results:
+        correct = sum(1 for r in piece_id_results if r["correct"])
+        report.metadata["piece_id"] = {
+            "top1_accuracy": round(correct / len(piece_id_results), 3),
+            "total": len(piece_id_results),
+            "correct": correct,
+            "mean_notes_to_identify": round(
+                sum(r["notes_consumed"] for r in piece_id_results) / len(piece_id_results)
+            ),
+            "false_positives": sum(
+                1 for r in piece_id_results
+                if not r["correct"] and r["confidence"] > 0.8
+            ),
+        }
+
+    # Inference cache fingerprints
+    if INFERENCE_CACHE_BASE.exists():
+        cache_subdirs = sorted(d.name for d in INFERENCE_CACHE_BASE.iterdir() if d.is_dir())
+        report.metadata["inference_cache_fingerprints"] = cache_subdirs
+
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
     report.save(REPORTS_DIR / "practice_eval.json")
     report.print_summary()
@@ -202,6 +341,10 @@ def main():
     with open(obs_path, "w") as f:
         json.dump(all_observations, f, indent=2)
     print(f"  Detailed observations: {obs_path}")
+
+    # Clean up checkpoint after successful completion
+    if checkpoint_path.exists():
+        checkpoint_path.unlink()
 
 
 if __name__ == "__main__":

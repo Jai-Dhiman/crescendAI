@@ -290,6 +290,36 @@ async fn fetch(
         }
     }
 
+    // Check for sessions needing deferred synthesis (authenticated)
+    if path == "/api/practice/needs-synthesis" && method == http::Method::GET {
+        let headers = req.headers().clone();
+        let query_string = req.uri().query().map(|q| q.to_string()).unwrap_or_default();
+        let conv_id = query_string.split('&')
+            .find_map(|pair| pair.strip_prefix("conversation_id="))
+            .unwrap_or("")
+            .to_string();
+        return into_worker_response(with_cors(
+            crate::practice::synthesis::handle_check_needs_synthesis(&env, &headers, &conv_id).await,
+            origin.as_deref(),
+        )).await;
+    }
+
+    // Trigger deferred synthesis for a session (authenticated)
+    if path == "/api/practice/synthesize" && method == http::Method::POST {
+        let headers = req.headers().clone();
+        let body = req
+            .into_body()
+            .collect()
+            .await
+            .map(|b| b.to_bytes().to_vec())
+            .unwrap_or_default();
+        let body_json: serde_json::Value = serde_json::from_slice(&body).unwrap_or_default();
+        return into_worker_response(with_cors(
+            crate::practice::synthesis::handle_deferred_synthesis(&env, &headers, &body_json).await,
+            origin.as_deref(),
+        )).await;
+    }
+
     // Memory extraction eval endpoint (authenticated)
     if path == "/api/memory/extract-chat" && method == http::Method::POST {
         let headers = req.headers().clone();
