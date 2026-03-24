@@ -138,7 +138,7 @@ For system architecture, see `docs/architecture.md`.
 | First-session zero-config flow (AMT piece ID) | Existing AMT + fuzzy match | 1 week | P0 |
 | Artifact container component (inline/expanded) | -- | 1 week | P0 |
 | Exercise artifact renderer | Artifact container | 3 days | P0 |
-| Session opening context (memory retrieval) | Existing memory system | 3 days | P0 |
+| ~~Session opening context (memory retrieval)~~ | ~~Existing memory system~~ | ~~3 days~~ | ~~P0~~ (NOT NEEDED -- memory already flows into every request via build_memory_context) |
 | Session closing synthesis | Session brain | 3 days | P0 |
 | Memory retrieval wired E2E | Existing D1 queries | 3 days | P0 |
 | Free tier cap (hardcoded session limit) | -- | 1 day | P1 |

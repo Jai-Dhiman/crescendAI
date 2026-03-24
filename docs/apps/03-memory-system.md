@@ -2,7 +2,7 @@
 
 How CrescendAI remembers what it knows about a student across sessions. This is the data inventory for the apps layer -- parallel to how `model/01-data.md` catalogs training data, this doc catalogs the runtime data structures that accumulate as a student practices.
 
-> **Status (2026-03-19):** Observations table COMPLETE. Synthesized facts COMPLETE. Session arc COMPLETE (LLM-generated session summary with memory context, client fallback). Memory retrieval wired for both chat and practice session paths. Phase 3 retrieval optimization remains.
+> **Status (2026-03-24):** Observations table COMPLETE. Synthesized facts COMPLETE. Session arc COMPLETE (LLM-generated session summary with memory context, client fallback). Memory retrieval wired for both chat and practice session paths. **Eval suite upgraded (2026-03-24):** 20 realistic scenarios added (50 total), JSON output, 3-run baseline (composite 0.735, synth_recall 0.813, temp_accuracy 0.639). Autoresearch found synthesis prompt already well-tuned. Phase 3 retrieval optimization remains.
 
 See `02-pipeline.md` for the teacher pipeline that produces observations.
 See `model/02-teacher-grounded-taxonomy.md` for the 6 dimensions that define the baseline schema.
@@ -268,29 +268,44 @@ Ships with the `/api/ask` pipeline (see `02-pipeline.md`).
 [ ] Evaluate whether synthesis measurably improves subagent output vs. raw observations alone
 ```
 
-**CEO review (2026-03-19):** Memory retrieval E2E validation is a beta P0 task. The session opening context ("Welcome back. Last time you worked on Clair de Lune, focusing on pedaling.") depends on active facts retrieval working correctly in real sessions. Session closing synthesis also queries memory to compare current session to prior baselines.
+**CEO review (2026-03-19):** Memory retrieval E2E validation is a beta P0 task. Session closing synthesis queries memory to compare current session to prior baselines.
+
+**Update (2026-03-24):** Session greeting is a non-issue -- memory already flows into every `/api/chat` and `/api/ask` request via `build_memory_context()`. The teacher naturally references prior work because it has the context. No separate greeting mechanism needed.
 
 ---
 
 ## Evaluation
 
-The memory system eval framework lives at `apps/evals/memory/` (own pyproject.toml, run with `uv run python -m src.run_all`).
+The memory system eval framework lives at `apps/evals/memory/`. Run with: `cd apps/evals/memory && uv run --extra memory python -m src --layer synthesis --layer temporal --live --json-output`
 
 ### Two Eval Tracks
 
-**Track 1: CrescendAI Chat Extraction Eval (38 scenarios)**
+**Track 1: CrescendAI Synthesis + Temporal Eval (50 scenarios)**
 
-Domain-specific scenarios testing fact extraction from piano practice conversations. Covers single-dimension, multi-dimension, piece lifecycle, temporal reasoning, engagement, relationships, activities, opinions, context, multi-subject, selectivity, and mixed-domain.
+30 synthetic + 20 realistic scenarios testing fact synthesis and temporal reasoning. Realistic scenarios simulate messy student behavior: incomplete sessions, piece switches, multi-session arcs, vague engagement, contradictory observations, sparse data, delayed pattern creation, cross-session invalidation, and abstention.
 
-Current results: Recall=1.000, Precision=0.722. All 38 scenarios pass. The lower precision is acceptable — the model extracts more facts than the minimum expected set, which is preferred over missing facts.
+Baseline (3-run average, 2026-03-24):
+- **Composite:** 0.735 (0.55 * synth_recall + 0.45 * temp_accuracy, without chat extraction)
+- **Synthesis recall:** 0.813 (system finds 81% of expected facts)
+- **Synthesis precision:** 0.554 (45% of produced facts not in expected set -- mix of hallucinations and matching artifacts)
+- **Temporal accuracy:** 0.639 (per-category: extraction 0.71, multi_session 0.50, temporal 1.00, knowledge_update 0.50, abstention 1.00)
+- **LLM variance:** sigma ~0.036 on composite across runs. Need delta > 0.05 to distinguish signal from noise.
 
-4 eval layers:
-- **Retrieval** (deterministic): F1=0.94 — does the system retrieve the right facts?
-- **Synthesis** (Groq): JSON parse=100%, invalidation=0.94 — does the LLM produce valid structured facts?
-- **Temporal** (chronological replay): 1.0 — does the system handle time correctly?
-- **Downstream** (A/B + Claude judge): win rate=60% — does memory improve feedback quality?
+Matching: regex (Pass 1) + sentence-transformer cosine similarity at threshold 0.55 (Pass 2).
 
-Key weakness: regex-only fact matching is too brittle for LLM output (recall=0.55, "hallucination"=0.87 are mostly matching failures). Next step: add sentence-transformer cosine similarity fallback (>0.85 threshold).
+6 eval layers:
+- **Retrieval** (deterministic): Does the system retrieve the right facts?
+- **Synthesis** (Groq): Does the LLM produce valid structured facts from observations?
+- **Temporal** (chronological replay): Does the system handle fact lifecycle (creation, invalidation, abstention)?
+- **Downstream** (A/B + Claude judge): Does memory improve feedback quality?
+- **Chat Extraction** (live API): Does the system extract personal facts from chat?
+- **LoCoMo** (ACL 2024 benchmark): External generalization test.
+
+**Autoresearch findings (2026-03-24):** Ran 3 experiments against the synthesis prompt and matching strategy. All reverted -- synthesis prompt is already well-tuned, and LLM output variance dominates small prompt changes. Remaining supermemory-inspired experiments (supersession chains, staleness decay, semantic dedup) deferred to real student data from web beta.
+
+**Track 2: Chat Extraction Eval (38 scenarios)**
+
+Domain-specific scenarios testing fact extraction from chat. Recall=1.000, Precision=0.722. All 38 pass.
 
 **Track 2: LoCoMo Benchmark (ACL 2024)**
 
@@ -335,10 +350,17 @@ External benchmark: long-conversation memory via QA pairs. Tests whether the ext
 
 | File | Purpose |
 |---|---|
-| `apps/evals/memory/src/run_all.py` | Run all eval layers |
+| `apps/evals/memory/src/run_all.py` | Orchestrator: `--layer`, `--live`, `--json-output`, composite metric |
+| `apps/evals/memory/src/eval_synthesis.py` | Synthesis eval (regex + cosine matching) |
+| `apps/evals/memory/src/eval_temporal.py` | Temporal eval (chronological replay + assertions) |
+| `apps/evals/memory/src/build_realistic_scenarios.py` | LLM-powered realistic scenario generator (25 types via Groq) |
 | `apps/evals/memory/src/build_chat_scenarios.py` | 38 chat extraction scenarios |
-| `apps/evals/memory/src/locomo_adapter.py` | LoCoMo benchmark adapter (bidirectional extraction, speaker fixup, date normalization, semantic dedup, adaptive retrieval) |
-| `apps/api/src/services/prompts.rs` | Extraction prompt (broadened from piano-specific to general, 10 categories, 5 facts per exchange) |
+| `apps/evals/memory/src/test_infrastructure.py` | Structural tests for eval infrastructure |
+| `apps/evals/memory/src/locomo_adapter.py` | LoCoMo benchmark adapter |
+| `apps/evals/memory/data/scenarios.jsonl` | 30 synthetic eval scenarios |
+| `apps/evals/memory/data/realistic_scenarios.jsonl` | 20 realistic eval scenarios (messy student behavior) |
+| `apps/evals/memory/results.tsv` | Autoresearch iteration tracking |
+| `apps/evals/memory/changelog.md` | Autoresearch experiment log |
 
 ---
 
