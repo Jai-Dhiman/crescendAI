@@ -105,3 +105,24 @@ migrate-local:
 # Apply D1 migrations (production)
 migrate-prod:
     cd apps/api && npx wrangler d1 migrations apply DB --remote
+
+# --- E2E Pipeline Eval ---
+
+# Run full E2E pipeline eval (cache -> pipeline -> analyze)
+eval-e2e: eval-cache eval-pipeline eval-analyze
+
+# Generate missing inference cache for T5 corpus (requires just muq + just amt running)
+eval-cache:
+    cd apps/evals && uv run python -m inference.eval_runner --auto-t5
+
+# Run pipeline eval on T5 corpus (requires just api running)
+eval-pipeline:
+    cd apps/evals && uv run python -m pipeline.practice_eval.eval_practice --scenarios t5
+
+# Analyze eval results
+eval-analyze:
+    cd apps/evals && uv run python -m pipeline.practice_eval.analyze_e2e --report reports/practice_eval.json
+
+# Generate T5 scenario files from manifests
+eval-scenarios:
+    cd apps/evals && uv run python -m pipeline.practice_eval.generate_t5_scenarios
