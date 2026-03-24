@@ -28,6 +28,13 @@ pub struct ObservationPolicy {
     pub comparative: bool,
 }
 
+pub struct ModeContext {
+    pub mode: PracticeMode,
+    pub comparative: bool,
+    pub entered_at_ms: u64,
+    pub chunk_count: usize,
+}
+
 pub struct DrillingPassage {
     pub bar_range: Option<(u32, u32)>,
     pub repetition_count: usize,
@@ -238,9 +245,6 @@ impl ModeDetector {
                     });
                 }
             } else {
-                if self.mode == PracticeMode::Drilling {
-                    self.drilling_passage = None;
-                }
                 self.set_mode(next, signal.timestamp_ms);
                 transitions.push(ModeTransition {
                     mode: next,
@@ -280,6 +284,31 @@ impl ModeDetector {
                 comparative: false,
             },
         }
+    }
+
+    /// Return mode metadata for synthesis context.
+    pub fn mode_context(&self) -> ModeContext {
+        ModeContext {
+            mode: self.mode,
+            comparative: matches!(self.mode, PracticeMode::Drilling),
+            entered_at_ms: self.entered_at_ms,
+            chunk_count: self.chunk_count,
+        }
+    }
+
+    /// If drilling mode was active, take the DrillingPassage and convert it to a
+    /// DrillingRecord with final_scores from the current chunk.
+    pub fn take_completed_drilling(&mut self, current_scores: [f64; 6], current_chunk: usize) -> Option<crate::practice::accumulator::DrillingRecord> {
+        self.drilling_passage.take().map(|dp| {
+            crate::practice::accumulator::DrillingRecord {
+                bar_range: dp.bar_range,
+                repetition_count: dp.repetition_count,
+                first_scores: dp.first_scores,
+                final_scores: current_scores,
+                started_at_chunk: current_chunk.saturating_sub(dp.repetition_count * 15),
+                ended_at_chunk: current_chunk,
+            }
+        })
     }
 
     fn evaluate_transitions(&self, signal: &ChunkSignal) -> Option<PracticeMode> {
