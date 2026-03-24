@@ -2,7 +2,7 @@
 # Memory System Eval Improvement + Supermemory-Inspired Experiments
 
 **Date:** 2026-03-23
-**Status:** Design approved
+**Status:** COMPLETE -- infrastructure merged, autoresearch found system already well-tuned (3 experiments, all reverted)
 **Scope:** Eval suite upgrade, autoresearch loop on memory system, supermemory pattern experiments
 
 ## Context
