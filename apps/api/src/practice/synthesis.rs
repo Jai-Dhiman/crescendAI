@@ -1,0 +1,596 @@
+use wasm_bindgen::JsValue;
+use worker::{console_error, console_log, Env};
+
+use crate::practice::accumulator::{AccumulatedMoment, SessionAccumulator};
+use crate::services::prompts::SESSION_SYNTHESIS_SYSTEM;
+use crate::services::teaching_moments::StudentBaselines;
+
+/// Input context for synthesis: identifiers + optional enrichment signals.
+pub struct SynthesisContext {
+    pub session_id: String,
+    pub student_id: String,
+    pub conversation_id: String,
+    pub baselines: Option<StudentBaselines>,
+    pub piece_context: Option<serde_json::Value>,
+    pub student_memory: Option<String>,
+    pub total_chunks: usize,
+    pub session_duration_ms: u64,
+}
+
+/// Output of the synthesis LLM call.
+pub struct SynthesisResult {
+    pub text: String,
+    pub is_fallback: bool,
+}
+
+/// Build the structured JSON prompt that is passed as the user message to the
+/// synthesis LLM call.
+pub fn build_synthesis_prompt(
+    acc: &SessionAccumulator,
+    ctx: &SynthesisContext,
+) -> serde_json::Value {
+    let duration_min = (ctx.session_duration_ms as f64 / 60_000.0 * 10.0).round() / 10.0;
+
+    let practice_pattern = build_practice_pattern(acc, ctx.session_duration_ms);
+    let top_moments: Vec<serde_json::Value> = acc
+        .top_moments()
+        .iter()
+        .map(|m| moment_to_json(m))
+        .collect();
+
+    let mut obj = serde_json::json!({
+        "session_duration_minutes": duration_min,
+        "chunks_processed": ctx.total_chunks,
+        "practice_pattern": practice_pattern,
+        "top_moments": top_moments,
+    });
+
+    // Baselines
+    if let Some(ref b) = ctx.baselines {
+        obj["baselines"] = serde_json::json!({
+            "dynamics": b.dynamics,
+            "timing": b.timing,
+            "pedaling": b.pedaling,
+            "articulation": b.articulation,
+            "phrasing": b.phrasing,
+            "interpretation": b.interpretation,
+        });
+    } else {
+        obj["baselines"] = serde_json::Value::Null;
+    }
+
+    // Optional piece context
+    if let Some(ref piece) = ctx.piece_context {
+        obj["piece"] = piece.clone();
+    }
+
+    // Optional student memory
+    if let Some(ref memory) = ctx.student_memory {
+        obj["student_memory"] = serde_json::Value::String(memory.clone());
+    }
+
+    // Drilling progress (if any drilling occurred)
+    if !acc.drilling_records.is_empty() {
+        let dims = [
+            "dynamics",
+            "timing",
+            "pedaling",
+            "articulation",
+            "phrasing",
+            "interpretation",
+        ];
+        let drilling_progress: Vec<serde_json::Value> = acc
+            .drilling_records
+            .iter()
+            .map(|dr| {
+                let first: std::collections::HashMap<&str, f64> = dims
+                    .iter()
+                    .enumerate()
+                    .map(|(i, d)| (*d, (dr.first_scores[i] * 1000.0).round() / 1000.0))
+                    .collect();
+                let last: std::collections::HashMap<&str, f64> = dims
+                    .iter()
+                    .enumerate()
+                    .map(|(i, d)| (*d, (dr.final_scores[i] * 1000.0).round() / 1000.0))
+                    .collect();
+                let mut entry = serde_json::json!({
+                    "repetitions": dr.repetition_count,
+                    "first_scores": first,
+                    "final_scores": last,
+                });
+                if let Some((start, end)) = dr.bar_range {
+                    entry["bar_range"] = serde_json::json!([start, end]);
+                }
+                entry
+            })
+            .collect();
+        obj["drilling_progress"] = serde_json::Value::Array(drilling_progress);
+    }
+
+    obj
+}
+
+/// Build the practice_pattern array from mode transitions.
+fn build_practice_pattern(acc: &SessionAccumulator, session_duration_ms: u64) -> serde_json::Value {
+    if acc.mode_transitions.is_empty() {
+        return serde_json::Value::Array(vec![]);
+    }
+
+    let mut entries: Vec<serde_json::Value> = Vec::new();
+
+    for (i, tr) in acc.mode_transitions.iter().enumerate() {
+        let end_ts = if i + 1 < acc.mode_transitions.len() {
+            acc.mode_transitions[i + 1].timestamp_ms
+        } else {
+            session_duration_ms
+        };
+
+        let duration_min =
+            ((end_ts.saturating_sub(tr.timestamp_ms)) as f64 / 60_000.0 * 10.0).round() / 10.0;
+
+        let mode_name = format!("{:?}", tr.to).to_lowercase();
+        let mut entry = serde_json::json!({
+            "mode": mode_name,
+            "duration_min": duration_min,
+        });
+
+        // If transitioning into drilling, include bar range and repetitions from
+        // a drilling record if one matches by chunk index.
+        if tr.to == crate::practice::practice_mode::PracticeMode::Drilling {
+            if let Some(dr) = acc
+                .drilling_records
+                .iter()
+                .find(|dr| dr.started_at_chunk == tr.chunk_index)
+            {
+                if let Some((start, end)) = dr.bar_range {
+                    entry["bar_range"] = serde_json::json!([start, end]);
+                }
+                entry["repetitions"] = serde_json::Value::Number(dr.repetition_count.into());
+            }
+        }
+
+        entries.push(entry);
+    }
+
+    serde_json::Value::Array(entries)
+}
+
+/// Serialize a single AccumulatedMoment to JSON for the synthesis prompt.
+fn moment_to_json(m: &AccumulatedMoment) -> serde_json::Value {
+    let deviation_rounded = (m.deviation * 1000.0).round() / 1000.0;
+    let mut obj = serde_json::json!({
+        "dimension": m.dimension,
+        "deviation": deviation_rounded,
+        "is_positive": m.is_positive,
+        "reasoning": m.reasoning,
+    });
+    if let Some((start, end)) = m.bar_range {
+        obj["bar_range"] = serde_json::json!([start, end]);
+    }
+    obj
+}
+
+/// Call the Anthropic API to synthesize a session summary.
+///
+/// On any error, returns a fallback message with is_fallback=true.
+pub async fn call_synthesis_llm(
+    env: &Env,
+    prompt_context: &serde_json::Value,
+) -> SynthesisResult {
+    let fallback = SynthesisResult {
+        text: "I had trouble preparing your feedback. Try playing again and I'll have more to say next time.".to_string(),
+        is_fallback: true,
+    };
+
+    let api_key = match env.secret("ANTHROPIC_API_KEY") {
+        Ok(s) => s.to_string(),
+        Err(e) => {
+            console_error!("[synthesis] ANTHROPIC_API_KEY not configured: {:?}", e);
+            return fallback;
+        }
+    };
+
+    let model = env
+        .var("ANTHROPIC_MODEL")
+        .map(|v| v.to_string())
+        .unwrap_or_else(|_| "claude-sonnet-4-20250514".to_string());
+
+    let user_content = match serde_json::to_string_pretty(prompt_context) {
+        Ok(s) => s,
+        Err(e) => {
+            console_error!("[synthesis] Failed to serialize prompt context: {:?}", e);
+            return fallback;
+        }
+    };
+
+    let request_body = serde_json::json!({
+        "model": model,
+        "max_tokens": 1024,
+        "system": SESSION_SYNTHESIS_SYSTEM,
+        "messages": [{"role": "user", "content": user_content}]
+    });
+
+    let body_str = match serde_json::to_string(&request_body) {
+        Ok(s) => s,
+        Err(e) => {
+            console_error!("[synthesis] Failed to serialize request body: {:?}", e);
+            return fallback;
+        }
+    };
+
+    let headers = worker::Headers::new();
+    if headers.set("Content-Type", "application/json").is_err()
+        || headers.set("x-api-key", &api_key).is_err()
+        || headers.set("anthropic-version", "2023-06-01").is_err()
+    {
+        console_error!("[synthesis] Failed to set request headers");
+        return fallback;
+    }
+
+    let mut init = worker::RequestInit::new();
+    init.with_method(worker::Method::Post);
+    init.with_headers(headers);
+    init.with_body(Some(body_str.into()));
+
+    let request = match worker::Request::new_with_init(
+        "https://api.anthropic.com/v1/messages",
+        &init,
+    ) {
+        Ok(r) => r,
+        Err(e) => {
+            console_error!("[synthesis] Failed to create request: {:?}", e);
+            return fallback;
+        }
+    };
+
+    let t0 = js_sys::Date::now();
+    let mut response = match worker::Fetch::Request(request).send().await {
+        Ok(r) => r,
+        Err(e) => {
+            console_error!("[synthesis] HTTP request failed: {:?}", e);
+            return fallback;
+        }
+    };
+    let latency_ms = js_sys::Date::now() - t0;
+
+    let status = response.status_code();
+    let response_text = match response.text().await {
+        Ok(t) => t,
+        Err(e) => {
+            console_error!("[synthesis] Failed to read response body: {:?}", e);
+            return fallback;
+        }
+    };
+
+    if status != 200 {
+        console_error!(
+            "[synthesis] Anthropic returned status {}: {}",
+            status,
+            &response_text[..response_text.len().min(200)]
+        );
+        return fallback;
+    }
+
+    #[derive(serde::Deserialize)]
+    struct AnthropicResponse {
+        content: Vec<AnthropicContent>,
+    }
+    #[derive(serde::Deserialize)]
+    struct AnthropicContent {
+        text: String,
+    }
+
+    let parsed: AnthropicResponse = match serde_json::from_str(&response_text) {
+        Ok(p) => p,
+        Err(e) => {
+            console_error!("[synthesis] Failed to parse Anthropic response: {:?}", e);
+            return fallback;
+        }
+    };
+
+    let text = match parsed.content.into_iter().next() {
+        Some(c) => c.text,
+        None => {
+            console_error!("[synthesis] No content in Anthropic response");
+            return fallback;
+        }
+    };
+
+    console_log!(
+        "[synthesis] LLM call complete in {:.0}ms ({} chars)",
+        latency_ms,
+        text.len()
+    );
+
+    SynthesisResult {
+        text,
+        is_fallback: false,
+    }
+}
+
+/// Persist the synthesis message to D1.
+///
+/// Inserts into messages with role='assistant', message_type='synthesis'.
+/// Returns the new message id.
+pub async fn persist_synthesis_message(
+    env: &Env,
+    conversation_id: &str,
+    session_id: &str,
+    synthesis_text: &str,
+) -> Result<String, String> {
+    let db = env
+        .d1("DB")
+        .map_err(|e| format!("[synthesis] Failed to get D1 binding: {:?}", e))?;
+
+    let msg_id = crate::services::ask::generate_uuid();
+    let now = js_sys::Date::new_0()
+        .to_iso_string()
+        .as_string()
+        .unwrap_or_default();
+
+    db.prepare(
+        "INSERT INTO messages (id, conversation_id, role, content, message_type, session_id, created_at) \
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+    )
+    .bind(&[
+        JsValue::from_str(&msg_id),
+        JsValue::from_str(conversation_id),
+        JsValue::from_str("assistant"),
+        JsValue::from_str(synthesis_text),
+        JsValue::from_str("synthesis"),
+        JsValue::from_str(session_id),
+        JsValue::from_str(&now),
+    ])
+    .map_err(|e| format!("[synthesis] Failed to bind INSERT message: {:?}", e))?
+    .run()
+    .await
+    .map_err(|e| format!("[synthesis] Failed to INSERT message: {:?}", e))?;
+
+    Ok(msg_id)
+}
+
+/// Persist accumulated teaching moments to the observations table.
+///
+/// Uses INSERT OR IGNORE to avoid duplicate rows if called more than once.
+pub async fn persist_accumulated_moments(
+    env: &Env,
+    student_id: &str,
+    session_id: &str,
+    moments: &[AccumulatedMoment],
+) -> Result<(), String> {
+    let db = env
+        .d1("DB")
+        .map_err(|e| format!("[synthesis] Failed to get D1 binding: {:?}", e))?;
+
+    for m in moments {
+        let obs_id = crate::services::ask::generate_uuid();
+        let framing = if m.is_positive {
+            "recognition"
+        } else {
+            "correction"
+        };
+        let now = js_sys::Date::new_0()
+            .to_iso_string()
+            .as_string()
+            .unwrap_or_default();
+
+        // reasoning is stored as observation_text; llm_analysis as reasoning_trace if present
+        let reasoning_trace = m
+            .llm_analysis
+            .clone()
+            .unwrap_or_else(|| m.reasoning.clone());
+
+        db.prepare(
+            "INSERT OR IGNORE INTO observations \
+             (id, student_id, session_id, dimension, observation_text, reasoning_trace, \
+              framing, dimension_score, student_baseline, is_fallback, created_at) \
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+        )
+        .bind(&[
+            JsValue::from_str(&obs_id),
+            JsValue::from_str(student_id),
+            JsValue::from_str(session_id),
+            JsValue::from_str(&m.dimension),
+            JsValue::from_str(&m.reasoning),
+            JsValue::from_str(&reasoning_trace),
+            JsValue::from_str(framing),
+            JsValue::from_f64(m.score),
+            JsValue::from_f64(m.baseline),
+            JsValue::from_f64(0.0),
+            JsValue::from_str(&now),
+        ])
+        .map_err(|e| format!("[synthesis] Failed to bind INSERT observation: {:?}", e))?
+        .run()
+        .await
+        .map_err(|e| format!("[synthesis] Failed to INSERT observation: {:?}", e))?;
+    }
+
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::practice::accumulator::{
+        DrillingRecord, ModeTransitionRecord, SessionAccumulator,
+    };
+    use crate::practice::practice_mode::PracticeMode;
+
+    fn make_moment(
+        chunk: usize,
+        dim: &str,
+        deviation: f64,
+        positive: bool,
+    ) -> AccumulatedMoment {
+        AccumulatedMoment {
+            chunk_index: chunk,
+            dimension: dim.to_string(),
+            score: 0.5 + deviation,
+            baseline: 0.5,
+            deviation,
+            is_positive: positive,
+            reasoning: format!("{} at chunk {}", dim, chunk),
+            bar_range: None,
+            analysis_tier: 1,
+            timestamp_ms: (chunk as u64) * 15_000,
+            llm_analysis: None,
+        }
+    }
+
+    #[test]
+    fn test_build_synthesis_prompt_minimal() {
+        let acc = SessionAccumulator::default();
+        let ctx = SynthesisContext {
+            session_id: "sess-1".to_string(),
+            student_id: "student-1".to_string(),
+            conversation_id: "conv-1".to_string(),
+            baselines: None,
+            piece_context: None,
+            student_memory: None,
+            total_chunks: 0,
+            session_duration_ms: 0,
+        };
+
+        let prompt = build_synthesis_prompt(&acc, &ctx);
+
+        assert!(prompt.is_object(), "prompt must be a JSON object");
+        assert!(
+            prompt.get("session_duration_minutes").is_some(),
+            "must have session_duration_minutes"
+        );
+        assert!(
+            prompt.get("chunks_processed").is_some(),
+            "must have chunks_processed"
+        );
+        assert!(
+            prompt.get("practice_pattern").is_some(),
+            "must have practice_pattern"
+        );
+        assert!(
+            prompt.get("top_moments").is_some(),
+            "must have top_moments"
+        );
+        assert_eq!(
+            prompt["baselines"],
+            serde_json::Value::Null,
+            "baselines should be null when not provided"
+        );
+        assert!(
+            prompt.get("piece").is_none(),
+            "piece should be absent when not provided"
+        );
+        assert!(
+            prompt.get("student_memory").is_none(),
+            "student_memory should be absent when not provided"
+        );
+
+        // top_moments should be an empty array
+        let moments = prompt["top_moments"].as_array().expect("top_moments must be array");
+        assert!(moments.is_empty(), "top_moments should be empty for empty accumulator");
+
+        // practice_pattern should be an empty array
+        let pattern = prompt["practice_pattern"].as_array().expect("practice_pattern must be array");
+        assert!(pattern.is_empty(), "practice_pattern should be empty for empty accumulator");
+    }
+
+    #[test]
+    fn test_build_synthesis_prompt_with_data() {
+        let mut acc = SessionAccumulator::default();
+
+        // Add a mode transition
+        acc.accumulate_mode_transition(ModeTransitionRecord {
+            from: PracticeMode::Warming,
+            to: PracticeMode::Running,
+            chunk_index: 2,
+            timestamp_ms: 30_000,
+            dwell_ms: 30_000,
+        });
+
+        // Add a drilling record
+        acc.accumulate_drilling_record(DrillingRecord {
+            bar_range: Some((5, 8)),
+            repetition_count: 4,
+            first_scores: [0.4, 0.5, 0.3, 0.6, 0.5, 0.4],
+            final_scores: [0.6, 0.7, 0.5, 0.7, 0.6, 0.6],
+            started_at_chunk: 5,
+            ended_at_chunk: 9,
+        });
+
+        // Add teaching moments
+        acc.accumulate_moment(make_moment(0, "dynamics", 0.3, false));
+        acc.accumulate_moment(make_moment(1, "timing", -0.25, false));
+        acc.accumulate_moment(make_moment(3, "phrasing", 0.4, true));
+
+        let baselines = StudentBaselines {
+            dynamics: 0.55,
+            timing: 0.48,
+            pedaling: 0.46,
+            articulation: 0.54,
+            phrasing: 0.52,
+            interpretation: 0.50,
+        };
+
+        let piece_context = serde_json::json!({
+            "title": "Prelude in C",
+            "composer": "Bach"
+        });
+
+        let ctx = SynthesisContext {
+            session_id: "sess-2".to_string(),
+            student_id: "student-2".to_string(),
+            conversation_id: "conv-2".to_string(),
+            baselines: Some(baselines),
+            piece_context: Some(piece_context),
+            student_memory: Some("Student has been working on dynamics control.".to_string()),
+            total_chunks: 10,
+            session_duration_ms: 150_000,
+        };
+
+        let prompt = build_synthesis_prompt(&acc, &ctx);
+
+        // Duration should be 2.5 minutes
+        let duration = prompt["session_duration_minutes"].as_f64().expect("duration must be f64");
+        assert!((duration - 2.5).abs() < 0.01, "duration should be 2.5 minutes, got {}", duration);
+
+        // chunks_processed should be 10
+        assert_eq!(prompt["chunks_processed"], 10);
+
+        // Baselines should be present
+        let baselines_val = &prompt["baselines"];
+        assert!(baselines_val.is_object(), "baselines should be an object");
+        assert!((baselines_val["dynamics"].as_f64().unwrap() - 0.55).abs() < 0.001);
+
+        // Piece should be present
+        assert_eq!(prompt["piece"]["title"], "Prelude in C");
+        assert_eq!(prompt["piece"]["composer"], "Bach");
+
+        // Student memory should be present
+        assert_eq!(
+            prompt["student_memory"].as_str().unwrap(),
+            "Student has been working on dynamics control."
+        );
+
+        // top_moments should be non-empty
+        let moments = prompt["top_moments"].as_array().expect("top_moments must be array");
+        assert!(!moments.is_empty(), "top_moments should not be empty");
+
+        // Each moment must have required fields
+        for m in moments {
+            assert!(m.get("dimension").is_some());
+            assert!(m.get("deviation").is_some());
+            assert!(m.get("is_positive").is_some());
+            assert!(m.get("reasoning").is_some());
+        }
+
+        // drilling_progress should be present
+        let drilling = prompt.get("drilling_progress").expect("drilling_progress should be present");
+        let drilling_arr = drilling.as_array().expect("drilling_progress must be array");
+        assert!(!drilling_arr.is_empty(), "drilling_progress should not be empty");
+        assert_eq!(drilling_arr[0]["repetitions"], 4);
+
+        // practice_pattern should have the transition we added
+        let pattern = prompt["practice_pattern"].as_array().expect("practice_pattern must be array");
+        assert!(!pattern.is_empty(), "practice_pattern should not be empty");
+        assert_eq!(pattern[0]["mode"].as_str().unwrap(), "running");
+    }
+}
