@@ -23,20 +23,38 @@ T5 YouTube Skill dataset, 4 pieces (312 recordings):
 | fur_elise | 28 | exists |
 | nocturne_op9no2 | 27 | exists |
 
-Each recording has a human-labeled skill bucket (1=beginner through 5=professional).
+Each recording has a human-labeled skill bucket (1=beginner through 5=professional). A 5th piece (chopin_ballade_1, 6 recordings) is excluded due to insufficient sample size for meaningful per-bucket analysis.
 
 ## Layer 1: Inference Cache Auto-Generation
 
-Extend `apps/evals/model/skill_eval/run_inference.py`.
+Extend `apps/evals/inference/eval_runner.py` to support T5 recordings.
 
-**Changes:**
-- Add `--auto` flag: scans all 4 target pieces, identifies recordings without cached results, runs inference only for uncached recordings
+The pipeline eval (`eval_practice.py`) reads inference cache from `model/data/eval/inference_cache/{fingerprint}/{recording_id}.json`, written by `eval_runner.py`. This is a different system from `run_inference.py` in skill_eval (which writes to `ensemble_4fold/` in a different format). Layer 1 uses `eval_runner.py` so cache is directly consumable by Layer 2.
+
+**Cache format per recording** (existing, unchanged):
+```json
+{
+  "recording_id": "str",
+  "model_fingerprint": "str",
+  "chunks": [
+    {
+      "chunk_index": 0,
+      "predictions": {"dynamics": 0.55, "timing": 0.50, ...},
+      "midi_notes": [{"pitch": 60, ...}],
+      "pedal_events": [{"start": 0.0, "end": 1.5, ...}]
+    }
+  ]
+}
+```
+
+**Changes to `eval_runner.py`:**
+- Add `--auto-t5` flag: scans all 4 target pieces' manifests, identifies recordings without cached results, runs inference only for uncached recordings
 - Targets local servers by default (`localhost:8000` for MuQ, `localhost:8001` for AMT)
 - Health-checks both servers before starting; fails fast with clear message if either is down (tells user to run `just muq` / `just amt`)
-- Generates cache in existing format: `{piece}/ensemble_4fold/{recording_id}/results.json` with `{chunks: [{chunk_index, predictions: {dims}, midi_notes, pedal_events}]}`
+- Reads T5 manifests from `model/data/evals/skill_eval/{piece}/manifest.yaml` for recording metadata (video_id, audio paths)
 - Progress bar per piece (tqdm), estimated time remaining
 
-**Existing behavior preserved:** Manual mode (`run_inference.py --piece fur_elise`) still works.
+**Existing behavior preserved:** Manual mode and other eval_runner workflows unchanged.
 
 ## Layer 2: Pipeline Eval Extension
 
@@ -44,19 +62,23 @@ Extend `apps/evals/pipeline/practice_eval/eval_practice.py` and supporting infra
 
 ### 2a. T5 Scenario Files
 
-New scenario YAML files in `apps/evals/pipeline/practice_eval/scenarios/`:
+New scenario YAML files in `apps/evals/pipeline/practice_eval/scenarios/`, using the format `load_scenarios()` expects:
 
 ```yaml
 # t5_bach_prelude_c_wtc1.yaml
-piece_id: bach_prelude_c_wtc1
-source: t5_skill_corpus
-recordings:
-  - id: "abc123"
-    skill_bucket: 3
-    channel: "Piano Student Videos"
+# NOTE: no piece_query -- omitting it forces automatic piece identification
+#       via the N-gram pipeline, which is what we want to test
+candidates:
+  - video_id: "abc123"
+    include: true
+    skill_level: 3
+    title: "Bach Prelude in C - Student Performance"
+    general_notes: "T5 skill corpus, bucket 3 (intermediate)"
 ```
 
-Generated from existing `manifest.yaml` files via a small script. Skill bucket travels with each recording through the eval.
+Key design choice: T5 scenarios deliberately omit `piece_query`. Existing scenarios (fur_elise, nocturne) include `piece_query` which sends a `set_piece` WebSocket message, bypassing automatic piece identification. T5 scenarios skip this so we can test piece ID accuracy. The field `skill_level` is already supported by the existing loader (extracted at eval_practice.py line 149).
+
+Generated from existing `manifest.yaml` files via a small script that maps `skill_bucket` to `skill_level` and `video_id` to the candidate format.
 
 ### 2b. Judge Prompt v3: Skill-Appropriateness Criterion
 
@@ -68,12 +90,18 @@ The judge receives the skill bucket as additional context alongside existing tea
 
 ### 2c. New Metrics in Report
 
-**STOP metrics** (extracted from pipeline traces):
+**STOP metrics** (from `eval_context.teaching_moment` in observation WebSocket messages):
+
+STOP probability is already surfaced in observation messages when `is_eval_session=true`. Each observation includes `eval_context.teaching_moment.stop_probability` and `eval_context.teaching_moment.is_positive`. No API changes needed -- we extract these from the existing trace data.
+
 - `stop_trigger_rate_by_bucket`: trigger rate per skill level
 - `stop_probability_skill_correlation`: Spearman rho between STOP probability and skill bucket (expect negative)
 - `stop_bucket_separation`: Cohen's d between adjacent bucket pairs
 
 **Piece ID metrics** (from WebSocket `piece_identified` messages):
+
+T5 scenarios omit `piece_query`, so the session attempts automatic piece identification via N-gram + rerank + DTW. Ground truth is the known piece from the scenario file.
+
 - `piece_id_top1_accuracy`: fraction correctly identified
 - `piece_id_top3_accuracy`: correct piece in top-3 candidates
 - `piece_id_mean_notes_to_identify`: average notes before lock-in
@@ -114,11 +142,11 @@ Layer 1: Inference Cache
   manifest.yaml (312 recordings)
        |
        v
-  run_inference.py --auto
+  eval_runner.py --auto-t5
   (local MuQ:8000 + AMT:8001)
        |
        v
-  {piece}/ensemble_4fold/{recording_id}/results.json
+  model/data/eval/inference_cache/{fingerprint}/{recording_id}.json
 
 Layer 2: Pipeline Eval
   scenario YAML + inference cache
@@ -154,7 +182,7 @@ eval-e2e: eval-cache eval-pipeline eval-analyze
 
 # Generate missing inference cache (requires just muq + just amt)
 eval-cache:
-    cd apps/evals && uv run model/skill_eval/run_inference.py --auto
+    cd apps/evals && uv run inference/eval_runner.py --auto-t5
 
 # Run pipeline eval on T5 corpus (requires just api)
 eval-pipeline:
@@ -201,7 +229,7 @@ After the eval harness produces a baseline, set up autoresearch loops to iterati
 
 | File | Role |
 |------|------|
-| `apps/evals/model/skill_eval/run_inference.py` | Layer 1: inference cache generation |
+| `apps/evals/inference/eval_runner.py` | Layer 1: inference cache generation (extend with --auto-t5) |
 | `model/data/evals/skill_eval/{piece}/manifest.yaml` | T5 recording manifests with skill labels |
 | `apps/evals/pipeline/practice_eval/eval_practice.py` | Layer 2: pipeline eval runner |
 | `apps/evals/pipeline/practice_eval/analyze_e2e.py` | Layer 3: analysis (new) |
