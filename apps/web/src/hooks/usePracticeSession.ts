@@ -59,8 +59,10 @@ export interface UsePracticeSessionReturn {
 }
 
 export interface PracticeSessionOptions {
-	/** Called from the WS handler when session_summary arrives. */
+	/** Called from the WS handler when session_summary arrives (eval path). */
 	onSummary?: (summary: string, conversationId: string | null) => void;
+	/** Called from the WS handler when synthesis arrives (production path). */
+	onSynthesis?: (text: string, isFallback: boolean, conversationId: string | null) => void;
 	/** Called from stop() when state transitions to summarizing. */
 	onSummarizing?: () => void;
 }
@@ -211,6 +213,15 @@ export function usePracticeSession(
 					console.log(`[Practice] Observation received: ${data.dimension} (${data.framing})`);
 					const immediate = throttleRef.current.enqueue(obs);
 					setObservations((prev) => [...prev, immediate]);
+					break;
+				}
+				case "synthesis": {
+					console.log(`[Practice] Session synthesis received (fallback=${data.is_fallback})`);
+					setSummary(data.text);
+					setState("idle");
+					cleanup();
+					options?.onSynthesis?.(data.text, data.is_fallback, conversationIdRef.current);
+					options?.onSummary?.(data.text, conversationIdRef.current);
 					break;
 				}
 				case "session_summary": {

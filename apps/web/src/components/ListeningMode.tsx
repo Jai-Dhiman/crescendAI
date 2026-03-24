@@ -11,13 +11,11 @@ import { useKeyboardOffset } from "../hooks/useDom";
 import { useMountEffect } from "../hooks/useFoundation";
 import { useMetronome } from "../hooks/useMetronome";
 import type { PracticeState, WsStatus } from "../hooks/usePracticeSession";
-import type { DimScores, ObservationEvent } from "../lib/practice-api";
+import type { DimScores } from "../lib/practice-api";
 import { ResonanceRipples } from "./ResonanceRipples";
-import { ObservationToast } from "./ObservationToast";
 
 interface ListeningModeProps {
 	state: PracticeState;
-	observations: ObservationEvent[];
 	energy: number;
 	isPlaying: boolean;
 	latestScores: DimScores | null;
@@ -35,7 +33,6 @@ type TransitionPhase = "collapsed" | "expanding" | "open" | "collapsing";
 
 export function ListeningMode({
 	state,
-	observations,
 	energy,
 	isPlaying,
 	latestScores,
@@ -51,7 +48,6 @@ export function ListeningMode({
 	const [phase, setPhase] = useState<TransitionPhase>("collapsed");
 	const [contentVisible, setContentVisible] = useState(false);
 	const overlayRef = useRef<HTMLDivElement>(null);
-	const [dismissedIds, setDismissedIds] = useState<Set<number>>(new Set());
 	const notes = sessionNotes ?? "";
 	const setNotes = onNotesChange ?? (() => {});
 	const [showNotepad, setShowNotepad] = useState(false);
@@ -126,15 +122,6 @@ export function ListeningMode({
 			setTimeout(onExit, 50);
 		}, 600);
 	}, [onStop, onExit]);
-
-	const handleDismiss = useCallback((idx: number) => {
-		setDismissedIds((prev) => new Set(prev).add(idx));
-	}, []);
-
-	const visibleObservations = observations
-		.map((obs, idx) => ({ ...obs, idx }))
-		.filter(({ idx }) => !dismissedIds.has(idx))
-		.slice(-3);
 
 	const isRecording = state === "recording";
 
@@ -276,18 +263,6 @@ export function ListeningMode({
 								<span className="text-body-xs">Reconnecting...</span>
 							</div>
 						)}
-						{/* Observation toasts */}
-						<div className="absolute top-4 right-4 flex flex-col gap-3 z-10">
-							{visibleObservations.map(({ idx, text, dimension }) => (
-								<ObservationToast
-									key={idx}
-									text={text}
-									dimension={dimension}
-									onDismiss={() => handleDismiss(idx)}
-								/>
-							))}
-						</div>
-
 						{/* Waveform */}
 						<div className="w-full max-w-3xl h-32 sm:h-40 md:h-48">
 							<ResonanceRipples energy={energy} isPlaying={isPlaying} active={isRecording} />

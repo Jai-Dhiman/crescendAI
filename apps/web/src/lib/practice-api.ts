@@ -73,6 +73,11 @@ export type PracticeWsEvent =
 			components?: InlineComponent[];
 	  }
 	| {
+			type: "synthesis";
+			text: string;
+			is_fallback: boolean;
+	  }
+	| {
 			type: "session_summary";
 			observations: ObservationEvent[];
 			summary: string;
