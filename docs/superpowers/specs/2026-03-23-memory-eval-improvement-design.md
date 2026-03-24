@@ -51,7 +51,7 @@ If tested, the judge would be a small model (Groq/Llama 8B) scoring semantic equ
 
 ### 1c. Machine-Readable Output
 
-Add `--json-output` flag to `run_all.py` that emits:
+Add `--json-output` flag to `run_all.py` that emits machine-readable scores. Also fix multi-layer CLI parsing (`--layer` flag currently only reads the first occurrence; update argparse to accept multiple `--layer` values):
 
 ```json
 {
@@ -63,6 +63,8 @@ Add `--json-output` flag to `run_all.py` that emits:
 ```
 
 Composite = `0.4 * synthesis_recall + 0.3 * temporal_assertion_accuracy + 0.3 * chat_extraction_precision`
+
+**Note:** New scenarios are added for synthesis and temporal layers only. Chat extraction uses the existing 38 scenarios as-is -- its 0.3 weight in the composite provides a regression signal, not a new optimization target.
 
 ## Phase 2: Autoresearch Loop
 
@@ -118,10 +120,11 @@ Ordered by expected impact. Autoresearch reviews failures after each iteration a
 ### Experiment 6: Semantic Dedup Before Synthesis
 
 - New function `dedup_facts_for_synthesis()` called before `build_synthesis_prompt()`
-- Loads active facts, computes pairwise cosine similarity via Workers AI embeddings
+- Loads active facts, computes pairwise cosine similarity via Workers AI embeddings (production) or sentence-transformers (eval/local)
 - Merges facts above 0.85 similarity (keeps more recent, combines evidence arrays)
 - In-memory only -- D1 facts untouched. Synthesis LLM sees cleaner fact list.
 - No schema changes, no permanent dedup
+- Eval testing: since `--live` runs against the local API (`wrangler dev`), Workers AI is available. For offline eval, fall back to sentence-transformers.
 
 ## Key Design Decisions
 
