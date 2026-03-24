@@ -96,6 +96,7 @@ struct SessionState {
     inference_failures: usize,
     chunks_in_flight: usize,
     session_ending: bool,
+    synthesis_completed: bool,
     dim_stats: DimStats,
     last_observation_at: Option<u64>,
     piece_query: Option<String>,
@@ -135,6 +136,7 @@ impl Default for SessionState {
             inference_failures: 0,
             chunks_in_flight: 0,
             session_ending: false,
+            synthesis_completed: false,
             dim_stats: DimStats::default(),
             last_observation_at: None,
             piece_query: None,
@@ -1799,6 +1801,8 @@ impl PracticeSession {
         ).await {
             console_error!("Failed to persist accumulated moments: {}", e);
         }
+
+        self.inner.borrow_mut().synthesis_completed = true;
     }
 
     // --- Session finalization ---
@@ -1862,6 +1866,35 @@ impl PracticeSession {
                     }
                     Ok(false) => {}
                     Err(e) => console_error!("Memory synthesis check failed: {}", e),
+                }
+            }
+
+            // Safety net: if synthesis didn't happen (disconnect, alarm timeout),
+            // persist the accumulator to D1 for deferred recovery
+            {
+                let (needs_deferred, acc, sid, conv) = {
+                    let s = self.inner.borrow();
+                    (!s.synthesis_completed && s.accumulator.has_teaching_content(),
+                     s.accumulator.clone(), s.session_id.clone(), s.conversation_id.clone())
+                };
+                if needs_deferred {
+                    if conv.is_some() {
+                        let acc_json = serde_json::to_string(&acc).unwrap_or_default();
+                        if let Ok(db) = self.env.d1("DB") {
+                            if let Ok(stmt) = db.prepare(
+                                "UPDATE sessions SET accumulator_json = ?1, needs_synthesis = 1 WHERE id = ?2"
+                            ).bind(&[
+                                JsValue::from_str(&acc_json),
+                                JsValue::from_str(&sid),
+                            ]) {
+                                if let Err(e) = stmt.run().await {
+                                    console_error!("Failed to persist accumulator for deferred synthesis: {:?}", e);
+                                } else {
+                                    console_log!("Accumulator persisted for deferred synthesis: session={}", sid);
+                                }
+                            }
+                        }
+                    }
                 }
             }
 
