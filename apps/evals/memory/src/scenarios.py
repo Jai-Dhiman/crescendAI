@@ -95,6 +95,7 @@ class MemoryEvalScenario:
     expected_facts: list[ExpectedFact] = field(default_factory=list)
     retrieval_queries: list[RetrievalQuery] = field(default_factory=list)
     temporal_assertions: list[TemporalAssertion] = field(default_factory=list)
+    version: str = "1.0"
 
     def validate(self) -> list[str]:
         errors = []
@@ -209,4 +210,28 @@ def load_scenarios(path: Path) -> list[MemoryEvalScenario]:
     with open(path) as f:
         for line in f:
             scenarios.append(MemoryEvalScenario.from_dict(json.loads(line)))
+    return scenarios
+
+
+SCENARIOS_PATH = Path(__file__).parents[1] / "data" / "scenarios.jsonl"
+REALISTIC_SCENARIOS_PATH = Path(__file__).parents[1] / "data" / "realistic_scenarios.jsonl"
+
+
+def load_all_scenarios(include_temporal: bool = False) -> list[MemoryEvalScenario]:
+    """Load both synthetic and realistic scenarios.
+
+    Args:
+        include_temporal: If True, filter realistic scenarios to those with
+            temporal_assertions instead of expected_facts.  Use this for the
+            temporal eval.  If False (default), keep scenarios that have
+            expected_facts annotated (for synthesis eval).
+    """
+    scenarios = load_scenarios(SCENARIOS_PATH)
+    if REALISTIC_SCENARIOS_PATH.exists():
+        realistic = load_scenarios(REALISTIC_SCENARIOS_PATH)
+        if include_temporal:
+            annotated = [s for s in realistic if s.temporal_assertions]
+        else:
+            annotated = [s for s in realistic if s.expected_facts]
+        scenarios.extend(annotated)
     return scenarios

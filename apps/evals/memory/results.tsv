@@ -1,0 +1,5 @@
+iter	commit	composite	synth_recall	synth_precision	temp_accuracy	chat_precision	delta	status	description
+0	0891fe0	0.771	0.833	0.554	0.694	--	--	baseline	Initial measurement: 30 synthetic + 15 realistic scenarios (synthesis), 36 temporal assertions. Chat extraction skipped (API not running).
+1	1126777	0.738	0.818	0.582	0.639	--	-0.033	revert	Multi-session + abstention + anti-hallucination prompt. Improved multi_session 0.50->0.62 and hallucination 0.446->0.418, but hurt extraction 0.71->0.59 and knowledge_update 0.50->0.25. Too conservative.
+2	7b14210	0.708	0.788	0.511	0.611	--	-0.063	revert	Multi-session awareness only (no abstention). All metrics worse. LLM variance may dominate small prompt changes.
+3	9bd7652	0.525	0.455	0.259	0.611	--	-0.210	revert	LLM-as-judge matching (Llama 8B). Recall halved 0.833->0.455. Judge too strict -- rejects valid matches.

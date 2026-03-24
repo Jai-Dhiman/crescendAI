@@ -15,7 +15,7 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 from .memory_db import MemoryDB, SynthesizedFact
-from .scenarios import MemoryEvalScenario, load_scenarios
+from .scenarios import MemoryEvalScenario, load_all_scenarios
 
 DATA_DIR = Path(__file__).parents[1] / "data"
 
@@ -602,8 +602,7 @@ def print_results(results: list[SynthesisResult]) -> None:
 def main() -> None:
     import sys
     live = "--live" in sys.argv
-    scenarios_path = DATA_DIR / "scenarios.jsonl"
-    scenarios = load_scenarios(scenarios_path)
+    scenarios = load_all_scenarios(include_temporal=False)
 
     if "--scenario" in sys.argv:
         idx = sys.argv.index("--scenario")

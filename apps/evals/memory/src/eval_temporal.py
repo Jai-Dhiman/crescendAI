@@ -20,7 +20,7 @@ from pathlib import Path
 
 from .eval_synthesis import SYNTHESIS_SYSTEM, _call_groq, _extract_json, build_synthesis_prompt
 from .memory_db import MemoryDB
-from .scenarios import MemoryEvalScenario, load_scenarios
+from .scenarios import MemoryEvalScenario, load_all_scenarios
 
 DATA_DIR = Path(__file__).parents[1] / "data"
 
@@ -247,8 +247,7 @@ def print_results(results: list[TemporalResult]) -> None:
 def main() -> None:
     import sys
     live = "--live" in sys.argv
-    scenarios_path = DATA_DIR / "scenarios.jsonl"
-    scenarios = load_scenarios(scenarios_path)
+    scenarios = load_all_scenarios(include_temporal=True)
     results = run_temporal_assessment(scenarios, live=live)
     print_results(results)
 
