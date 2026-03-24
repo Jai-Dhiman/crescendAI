@@ -33,7 +33,8 @@ Listening mode ON
   -> NO LLM calls, NO WS observation pushes
 
 Listening mode OFF (user exits)
-  -> Client sends { "type": "session_end" }
+  -> Client sends { "type": "end_session" } (existing WS protocol, line 270 of session.rs)
+  -> Existing end_session handler waits for in-flight chunks
   -> synthesize_session() builds structured prompt from accumulator
   -> Single teacher LLM call (Anthropic)
   -> Persist synthesis to D1 messages table
@@ -163,9 +164,10 @@ Synthesis uses the Anthropic teacher model directly (same model as the current t
 
 ## What Changes
 
-### Removed from hot path
+### Removed from hot path (production sessions only -- see Eval Sessions below)
 - `try_generate_observation()` -- per-chunk observation gate
 - `generate_observation()` -- per-chunk LLM pipeline
+- `generate_session_summary()` -- replaced by `synthesize_session()` (the synthesis IS the summary)
 - `mode_throttle_allows()` -- cooldown timer
 - `ObservationPolicy.suppress` / `min_interval_ms` -- no throttling
 - `last_observation_at` on `SessionState`
@@ -214,7 +216,28 @@ Each listening mode session gets its own accumulator. New session = new DO insta
 Synthesis works without piece context. Teacher gets scores, mode history, temporal patterns. Feedback is more general without bar-level specificity.
 
 ### Multiple moments on same dimension
-Accumulator may have 5 dynamics moments across 30 minutes. Synthesis prompt presents `top_moments` sorted by `|deviation|`, deduplicated by dimension (most significant per dimension, with temporal spread).
+Accumulator may have 5 dynamics moments across 30 minutes. Selection algorithm for `top_moments` in the synthesis prompt:
+1. Group moments by dimension
+2. Per dimension: keep the moment with highest `|deviation|` (most notable)
+3. If a dimension has both positive and negative moments, keep top-1 of each
+4. Cap total `top_moments` at 8 (across all dimensions)
+5. Sort final list by chunk_index (chronological order for narrative coherence)
+
+### DO eviction during accumulation (pipeline state loss)
+After DO eviction, only the accumulator and identity are reloaded from DO storage. The mode detector resets to Warming, baselines are unloaded, `scored_chunks` is empty, `follower_state` is reset. This means:
+- Mode transitions detected after eviction may be spurious (Warming -> X when the student was already in Running)
+- Teaching moment selection needs baselines (reloaded from D1 on next chunk, as today)
+- scored_chunks loss means teaching moment selection only sees post-eviction chunks
+Accept degraded accumulation post-eviction. The pre-eviction accumulator data (moments, transitions, drilling records) is preserved in DO storage. Post-eviction, new moments accumulate from the reconstructed pipeline state. The synthesis prompt will have a gap in mode history but the core teaching moments from before eviction are intact. This is acceptable for beta -- full pipeline state persistence (mode_detector, scored_chunks, follower_state) is deferred as a future improvement.
+
+### Eval sessions
+Eval sessions (`eval_chunk` messages, `is_eval_session=true`) depend on per-chunk observation responses with `eval_context` attached. **The per-chunk observation path (`generate_observation`) is preserved for eval sessions only.** Guard: `if self.inner.borrow().is_eval_session { /* old per-chunk path */ } else { /* accumulate */ }`. This keeps the eval infrastructure working while production sessions use the new synthesis model.
+
+### Deferred synthesis: dual execution context
+`synthesize_session()` logic must run in two contexts: inside the DO (normal path) and inside a Worker route handler (deferred recovery via `POST /api/practice/synthesize`). Extract the core synthesis logic (prompt building, Anthropic call, D1 persistence) into `synthesis.rs` as free functions that accept `&Env` + `SessionAccumulator` + student context. Both the DO and the Worker route call into the same functions.
+
+### Deployment sequencing
+D1 migration (`ALTER TABLE sessions ADD COLUMN accumulator_json TEXT; ADD COLUMN needs_synthesis INTEGER DEFAULT 0;`) must deploy BEFORE the Worker code update. If code deploys first, any disconnect during the rollout window hits a missing column. Sequence: 1) Apply migration (`just migrate-prod`), 2) Deploy Worker (`just deploy-api`).
 
 ## Future: Per-STOP LLM Enrichment (A/B Test)
 
@@ -225,6 +248,28 @@ The `llm_analysis: Option<String>` field on `AccumulatedMoment` is the hook. To 
 4. Compare synthesis quality: raw-only vs LLM-enriched via eval pipeline
 
 Build for raw-only now. The accumulator format supports enrichment without changing the synthesis interface.
+
+## Implementation Requirements (from autoplan review)
+
+### Error handling for synthesis LLM call
+- Timeout: persist accumulator to D1 with `needs_synthesis`, send "Preparing your feedback..." to client, deferred recovery on next load
+- Malformed/empty response: log full response, persist raw accumulator, send fallback message with key moments as structured data
+- Model refusal: same as malformed
+- DO storage write failure: log, continue with in-memory (non-fatal)
+- D1 accumulator_json write failure on disconnect: log as data loss event (Sentry), no recovery possible
+- Accumulator deserialization failure: clear `needs_synthesis` flag, log schema mismatch
+
+### Auth on deferred synthesis endpoint
+`POST /api/practice/synthesize` must verify student JWT and that `student_id` from JWT matches the session's `student_id`. Use existing auth middleware.
+
+### Module structure
+Extract synthesis logic into new `apps/api/src/practice/synthesis.rs` (prompt builder, LLM call, persistence). Keep `session.rs` focused on DO lifecycle and chunk processing.
+
+### Observability
+- Log accumulator size (moments, transitions, drilling records) at synthesis time
+- Log synthesis LLM latency
+- Log deferred recovery triggers (alarm, disconnect, reconnect)
+- Track via Cloudflare Workers OTLP drain to Sentry
 
 ## Testing
 
@@ -243,3 +288,73 @@ Build for raw-only now. The accumulator format supports enrichment without chang
 - Same recorded sessions through old (per-observation) vs new (synthesis) model
 - Human eval: coherence, actionability, musical specificity
 - Future: raw-only vs LLM-enriched A/B test
+
+---
+
+## Autoplan Review Outputs
+
+### NOT in scope
+- Cross-session synthesis (load previous session's synthesis for same piece) -- memory system supports this, wire later
+- Streaming synthesis response (SSE/chunked WS) -- synthesis is short, blocking wait is fine for beta
+- Per-STOP LLM enrichment A/B test infrastructure -- hook exists (`llm_analysis` field), defer test execution
+- Real-time chat tool_use during listening mode -- separate feature, unrelated to observation model
+- iOS client changes -- iOS follows web beta
+
+### What already exists
+| Sub-problem | Existing Code | Reused? |
+|---|---|---|
+| STOP classification | `stop::classify()` | Yes, unchanged |
+| Teaching moment selection | `teaching_moments::select_teaching_moment()` | Yes, accumulates |
+| Mode state machine | `practice_mode.rs` ModeDetector | Yes, output repurposed |
+| Score following + bar analysis | `analysis.rs`, `score_follower.rs` | Yes, unchanged |
+| Piece identification | `piece_identify.rs` | Yes, unchanged |
+| DO identity persistence | `ensure_session_identity()` | Yes, expanded |
+| Memory synthesis | `memory.rs` should_synthesize/run_synthesis | Yes, unchanged |
+| Anthropic teacher HTTP client | `ask.rs` call_anthropic_teacher() | Yes, reused in synthesis.rs |
+
+### Dream state delta
+This plan eliminates the notification-bot model and establishes the accumulate-then-synthesize pattern. After shipping, we are ~60% toward the 12-month ideal (multi-session arcs, adaptive practice plans). The remaining 40% builds directly on the accumulator infrastructure.
+
+### Error & Rescue Registry
+
+| Method/Codepath | Failure | Rescued? | Action | User Sees |
+|---|---|---|---|---|
+| DO storage put accumulator | Write fail | Y | Log, continue with in-memory | Nothing |
+| synthesize_session() Anthropic | Timeout | Y | D1 needs_synthesis, deferred recovery | "Preparing feedback..." then later delivery |
+| synthesize_session() Anthropic | Malformed response | Y | Log, fallback with raw moments | Structured key moments |
+| synthesize_session() Anthropic | Model refusal | Y | Same as malformed | Same |
+| D1 INSERT messages (synthesis) | Write fail | Y | console_error!, WS push already succeeded | Synthesis visible in session but missing from history |
+| D1 INSERT sessions (accumulator) | Write fail | N | console_error!, Sentry alert | No deferred recovery possible |
+| POST /api/practice/synthesize | Session not found | Y | 404 | "Session data not found" |
+| POST /api/practice/synthesize | accumulator_json NULL | Y | Clear flag, 400 | Silent (no feedback) |
+| Accumulator deserialization | Schema mismatch | Y | Clear flag, log | No feedback for that session |
+
+### Failure Modes Registry
+
+| Codepath | Failure Mode | Rescued? | Test? | User Sees? | Logged? |
+|---|---|---|---|---|---|
+| Per-chunk accumulation | DO storage write fail | Y | Needed | Nothing | Y |
+| Synthesis LLM call | Timeout (>10s) | Y | Needed | Deferred feedback | Y |
+| Synthesis LLM call | Empty/malformed response | Y | Needed | Fallback moments | Y |
+| D1 synthesis persist | Write fail | Y | Needed | Missing from history | Y |
+| D1 accumulator persist | Write fail on disconnect | N (CRITICAL) | Needed | Lost session data | Y |
+| Deferred synthesis | Deserialization fail | Y | Needed | No feedback | Y |
+| Deferred synthesis | Auth fail | Y | Needed | 401 | Y |
+
+**1 CRITICAL GAP:** D1 accumulator_json write failure on disconnect means total data loss for that session. Mitigation: this is the belt in a belt-and-suspenders setup (DO storage is primary). Only triggers when DO is already garbage-collected AND D1 write fails simultaneously. Probability: very low. Monitoring via Sentry alert is sufficient.
+
+<!-- AUTONOMOUS DECISION LOG -->
+## Decision Audit Trail
+
+| # | Phase | Decision | Principle | Rationale | Rejected |
+|---|-------|----------|-----------|-----------|----------|
+| 1 | CEO-S3 | Auth check on /api/practice/synthesize | P1 completeness | New endpoint needs JWT + student_id ownership check | Skip auth |
+| 2 | CEO-S2 | Add error handling for synthesis LLM failures | P1+P5 | 4 unhandled error paths (timeout, malformed, refusal, empty) need explicit rescue | Silent failures |
+| 3 | CEO-S3 | Rate limit deferred synthesis endpoint | P3 pragmatic | Reuse existing rate limiter, prevent abuse | No rate limit |
+| 4 | CEO-S5 | Extract synthesis.rs module | P5 explicit | session.rs at 1813 lines, adding synthesis would exceed 2000 | Keep in session.rs |
+| 5 | CEO-S6 | All 8 test gaps required | P1 completeness | New codepaths need unit + integration coverage | Defer tests |
+| 6 | CEO-S8 | Add observability (log accumulator size, LLM latency, recovery triggers) | P1 completeness | New codepaths need structured logging | Skip observability |
+| 7 | CEO-0bis | Choose Approach A (full rewrite) over B (hold+deliver) or C (hybrid flag) | P1+P5 | B doesn't fix durability/cost; C over-engineers A/B hook | Approach B, C |
+| 8 | CEO-0D | Defer cross-session synthesis to TODOS | P3 pragmatic | Memory system supports it, additive scope for later | Add to this plan |
+| 9 | CEO-0D | Defer streaming synthesis to TODOS | P3 pragmatic | Response short enough for blocking wait in beta | Add to this plan |
+| 10 | CEO-0D | Surface progress indicators as TASTE DECISION | -- | Close call: UX value vs scope creep | Auto-decide either way |
