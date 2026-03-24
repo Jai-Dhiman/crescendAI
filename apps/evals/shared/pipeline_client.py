@@ -32,6 +32,15 @@ class PipelineObservation:
 
 
 @dataclass
+class PieceIdentification:
+    """Result of automatic piece identification."""
+    piece_id: str
+    confidence: float
+    method: str
+    notes_consumed: int = 0
+
+
+@dataclass
 class SessionResult:
     """Result of running a full recording through the pipeline."""
     session_id: str
@@ -40,6 +49,7 @@ class SessionResult:
     chunk_responses: list[dict]
     errors: list[str]
     duration_ms: int
+    piece_identification: PieceIdentification | None = None
 
 
 def _get_debug_auth(wrangler_url: str) -> requests.Session:
@@ -143,6 +153,8 @@ async def run_recording(
     if cookie_str:
         ws_headers["Cookie"] = cookie_str
 
+    piece_id_result: PieceIdentification | None = None
+
     try:
         async with websockets.connect(ws_url, additional_headers=ws_headers) as ws:
             # 2.5. Set piece query if provided (via WS message, matching web client)
@@ -172,6 +184,13 @@ async def run_recording(
                             break
                         elif msg_type == "observation":
                             observations.append(_parse_observation(response))
+                        elif msg_type == "piece_identified":
+                            piece_id_result = PieceIdentification(
+                                piece_id=response.get("pieceId", ""),
+                                confidence=response.get("confidence", 0.0),
+                                method=response.get("method", ""),
+                                notes_consumed=response.get("notesConsumed", 0),
+                            )
                         elif msg_type == "error":
                             errors.append(response.get("message", "unknown error"))
                             break
@@ -185,6 +204,13 @@ async def run_recording(
                     response = json.loads(raw)
                     if response.get("type") == "observation":
                         observations.append(_parse_observation(response))
+                    elif response.get("type") == "piece_identified":
+                        piece_id_result = PieceIdentification(
+                            piece_id=response.get("pieceId", ""),
+                            confidence=response.get("confidence", 0.0),
+                            method=response.get("method", ""),
+                            notes_consumed=response.get("notesConsumed", 0),
+                        )
             except (asyncio.TimeoutError, websockets.exceptions.ConnectionClosed):
                 pass
 
@@ -199,6 +225,7 @@ async def run_recording(
         chunk_responses=chunk_responses,
         errors=errors,
         duration_ms=duration_ms,
+        piece_identification=piece_id_result,
     )
 
 
