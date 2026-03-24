@@ -308,3 +308,30 @@ export const api = {
 		},
 	},
 };
+
+/** Check if any sessions in this conversation need deferred synthesis. */
+export async function checkNeedsSynthesis(conversationId: string): Promise<string[]> {
+	try {
+		const data = await request<{ session_ids: string[] }>(
+			`/api/practice/needs-synthesis?conversation_id=${encodeURIComponent(conversationId)}`
+		);
+		return data.session_ids ?? [];
+	} catch {
+		return [];
+	}
+}
+
+/** Trigger deferred synthesis for a specific session. */
+export async function triggerDeferredSynthesis(sessionId: string): Promise<{ status: string; is_fallback?: boolean } | null> {
+	try {
+		return await request<{ status: string; is_fallback?: boolean }>(
+			'/api/practice/synthesize',
+			{
+				method: 'POST',
+				body: JSON.stringify({ session_id: sessionId }),
+			}
+		);
+	} catch {
+		return null;
+	}
+}
