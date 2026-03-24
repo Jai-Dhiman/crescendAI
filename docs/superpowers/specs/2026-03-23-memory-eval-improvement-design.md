@@ -1,3 +1,4 @@
+<!-- /autoplan restore point: /Users/jdhiman/.gstack/projects/Jai-Dhiman-crescendAI/main-autoplan-restore-20260323-215615.md -->
 # Memory System Eval Improvement + Supermemory-Inspired Experiments
 
 **Date:** 2026-03-23
@@ -149,6 +150,44 @@ Ordered by expected impact. Autoresearch reviews failures after each iteration a
 | `apps/evals/memory/results.tsv` | New: autoresearch tracking |
 | `apps/evals/memory/changelog.md` | New: autoresearch experiment log |
 
+## Review Findings (autoplan)
+
+### Accepted Expansion
+
+**Scenario versioning:** Track which scenario version was used in each autoresearch iteration. Add a `version` field to scenario JSONL metadata so adding scenarios mid-loop doesn't invalidate prior baselines.
+
+### Error Handling (from Error & Rescue Map)
+
+- `build_realistic_scenarios.py`: Validate LLM JSON output, retry once on parse error
+- `run_all.py --json-output`: Wrap each layer in try/except, emit partial results with error flags in JSON
+- LLM-as-judge (if tested): Fallback to cosine-only if Groq fails
+- `memory.rs` changes: All gracefully degrade (existing pattern -- log error + continue)
+
+### Verify Command Pre-check
+
+The autoresearch verify command requires a running local API for chat extraction. Add a pre-check:
+- `curl -sf localhost:8787/health` before running
+- If API unavailable: emit warning, compute composite from synthesis + temporal only (reweight to 0.55/0.45)
+
+### Temporal Interrogation Notes
+
+- Composite formula lives in `run_all.py` (single source of truth)
+- Observation count per scenario type should be explicit in generator config (sparse=2, incomplete=3, full=8+)
+- Expected fact annotation is a HUMAN step between scenario generation and first eval run (~3 hours for 20 scenarios)
+
+### Structural Tests (from Test Review)
+
+Add basic structural tests alongside new Python code:
+- `run_all.py`: test JSON output format, test multi-layer CLI parsing
+- `build_realistic_scenarios.py`: validate output schema matches `MemoryEvalScenario`
+- These prevent silent breakage of the eval infrastructure itself
+
+### Deferred to TODOS
+
+- Eval HTML dashboard (visual scenario-by-scenario report)
+- Chat extraction realistic scenarios (10 messy chat scenarios)
+- Stash cleanup: `feat/transcribe-first-pipeline` has stashed WIP
+
 ## Out of Scope
 
 - Session opening greeting / proactive first message
@@ -156,3 +195,30 @@ Ordered by expected impact. Autoresearch reviews failures after each iteration a
 - Graph-based entity relationships
 - Document chunking (supermemory pattern, not relevant)
 - Production deployment of memory system changes (this is eval + experiment only)
+
+<!-- AUTONOMOUS DECISION LOG -->
+## Decision Audit Trail
+
+| # | Phase | Decision | Principle | Rationale | Rejected |
+|---|-------|----------|-----------|-----------|----------|
+| 1 | CEO-0D | Mode: SELECTIVE EXPANSION | P3 pragmatic | Enhancement to existing system, not greenfield | EXPANSION (overkill), REDUCTION (loses experiments) |
+| 2 | CEO-0C-bis | Approach A (Eval-First + Autoresearch) | P1 completeness | Complete version with proper measurement sequencing | B (can't trust metrics), C (defers value) |
+| 3 | CEO-0D | ADD scenario versioning | P1 completeness | Without it, adding scenarios mid-loop invalidates baselines | — |
+| 4 | CEO-0D | DEFER eval dashboard | P3 pragmatic | JSON output sufficient for autoresearch; dashboard is polish | — |
+| 5 | CEO-0D | DEFER chat extraction scenarios | P3 pragmatic | Chat extraction already at recall=1.0, lower priority | — |
+| 6 | CEO-S1 | No architectural issues | P6 action | Eval-system-autoresearch pipeline is cleanly decoupled | — |
+| 7 | CEO-S2 | Add error handling notes | P1+P5 completeness+explicit | Silent failures in eval runner would corrupt metrics | — |
+| 8 | Eng-S1 | Add verify pre-check | P1 completeness | API down = broken composite = bad autoresearch decisions | — |
+| 9 | Eng-S3 | Add structural tests | P1 completeness | Prevent silent eval infra breakage; cheap (~15 min CC) | — |
+| 10 | CEO-Premises | All 3 premises valid | P6 action | Sound reasoning, minor risk on target handled by stop criteria | — |
+
+## GSTACK REVIEW REPORT
+
+| Review | Trigger | Why | Runs | Status | Findings |
+|--------|---------|-----|------|--------|----------|
+| CEO Review | `/plan-ceo-review` | Scope & strategy | 1 | Clean | 3 premises valid, 1 expansion accepted (scenario versioning), 2 deferred |
+| Eng Review | `/plan-eng-review` | Architecture & tests | 1 | Clean (3 issues) | Verify pre-check needed, error handling notes, structural tests |
+| Design Review | `/plan-design-review` | UI/UX gaps | 0 | Skipped | No UI scope |
+| Codex Review | `/codex review` | Independent 2nd opinion | 0 | Skipped | Not available |
+
+**VERDICT:** APPROVED via /autoplan. 10 auto-decisions, 0 taste decisions. All findings addressed in spec.
