@@ -3,226 +3,228 @@ title: Fur Elise
 composer: Beethoven
 recordings:
 - video_id: QAvNUkeLsIE
-  title: 'Beethoven - Fur Elise (After one year of learning piano)'
-  channel: 'Jeffrey Shield'
+  title: Beethoven - Fur Elise (After one year of learning piano)
+  channel: Jeffrey Shield
   duration_seconds: 194
   skill_bucket: 1
   label_rationale: 'keyword match: learning'
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: IDqVP5hNdME
-  title: 'Fur Elise - Adult Piano Beginner (1 year progress)'
-  channel: 'Nicks Gaming / Piano'
+  title: Fur Elise - Adult Piano Beginner (1 year progress)
+  channel: Nicks Gaming / Piano
   duration_seconds: 91
   skill_bucket: 1
   label_rationale: 'keyword match: beginner'
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: LM6FdrMd6Bo
-  title: 'Beethoven - Fur Elise [intro] (7 month piano progress)'
-  channel: 'Steven Kanik'
+  title: Beethoven - Fur Elise [intro] (7 month piano progress)
+  channel: Steven Kanik
   duration_seconds: 91
   skill_bucket: 1
-  label_rationale: 'human correction from 2 to 1'
-  downloaded: false
+  label_rationale: human correction from 2 to 1
+  downloaded: true
   download_error: null
 - video_id: J_VFCRhdaso
-  title: 'Beethoven - Fur Elise | Grade 3'
-  channel: 'Piano Easy Learn'
+  title: Beethoven - Fur Elise | Grade 3
+  channel: Piano Easy Learn
   duration_seconds: 155
   skill_bucket: 3
-  label_rationale: 'human correction from 2 to 3'
-  downloaded: false
+  label_rationale: human correction from 2 to 3
+  downloaded: true
   download_error: null
 - video_id: LpJLZVR2wSg
-  title: 'Beethoven Fur Elise - Self-taught Piano Progress'
-  channel: 'Yuki Music'
+  title: Beethoven Fur Elise - Self-taught Piano Progress
+  channel: Yuki Music
   duration_seconds: 220
   skill_bucket: 2
   label_rationale: 'keyword match: progress'
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: G8ozOkLMfrg
-  title: 'Fur Elise - 13 months of adult piano progress'
-  channel: 'ziobert learns the piano'
+  title: Fur Elise - 13 months of adult piano progress
+  channel: ziobert learns the piano
   duration_seconds: 228
   skill_bucket: 2
   label_rationale: 'keyword match: progress'
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: X0CQgtfnNRE
-  title: 'Fur Elise - Piano Progress'
-  channel: 'Max Piano Progress'
+  title: Fur Elise - Piano Progress
+  channel: Max Piano Progress
   duration_seconds: 91
   skill_bucket: 2
   label_rationale: 'keyword match: progress'
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: xyLEsQxNNfw
-  title: 'Piano Pieces for Children Grade 3 - Fur Elise'
-  channel: 'Alan Chan'
+  title: Piano Pieces for Children Grade 3 - Fur Elise
+  channel: Alan Chan
   duration_seconds: 131
   skill_bucket: 3
-  label_rationale: 'human correction from 2 to 3'
-  downloaded: false
+  label_rationale: human correction from 2 to 3
+  downloaded: true
   download_error: null
 - video_id: _ZaaeuE1sL8
-  title: 'Piano Progress 2 months, Fur Elise Cover'
-  channel: 'Iveta Piano Progress'
+  title: Piano Progress 2 months, Fur Elise Cover
+  channel: Iveta Piano Progress
   duration_seconds: 98
   skill_bucket: 2
   label_rationale: 'keyword match: progress'
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: 4246jI6XmoQ
-  title: 'Fur Elise - Ameb Piano For Leisure Grade 5'
-  channel: 'Legato school of music au'
+  title: Fur Elise - Ameb Piano For Leisure Grade 5
+  channel: Legato school of music au
   duration_seconds: 179
   skill_bucket: 3
-  label_rationale: 'defaulting to intermediate'
-  downloaded: false
+  label_rationale: defaulting to intermediate
+  downloaded: true
   download_error: null
 - video_id: wfF0zHeU3Zs
-  title: 'Beethoven - Fur Elise'
-  channel: 'Rousseau'
+  title: Beethoven - Fur Elise
+  channel: Rousseau
   duration_seconds: 175
   skill_bucket: 4
-  label_rationale: 'human correction from 3 to 4'
-  downloaded: false
+  label_rationale: human correction from 3 to 4
+  downloaded: true
   download_error: null
 - video_id: 2fcX2dWmR6g
-  title: 'Beethoven - Fur Elise'
-  channel: 'Brooklyn Classical'
+  title: Beethoven - Fur Elise
+  channel: Brooklyn Classical
   duration_seconds: 205
   skill_bucket: 4
-  label_rationale: 'human correction from 3 to 4'
-  downloaded: false
+  label_rationale: human correction from 3 to 4
+  downloaded: true
   download_error: null
 - video_id: q9bU12gXUyM
-  title: 'Beethoven - Fur Elise (Piano Version)'
-  channel: 'Ludwig van Beethoven'
+  title: Beethoven - Fur Elise (Piano Version)
+  channel: Ludwig van Beethoven
   duration_seconds: 173
   skill_bucket: 5
-  label_rationale: 'human correction from 3 to 5'
-  downloaded: false
+  label_rationale: human correction from 3 to 5
+  downloaded: true
   download_error: null
 - video_id: wKvKiN1wYHw
-  title: 'Beethoven Fur Elise - Paul Barton, FEURICH 218 piano'
-  channel: 'Paul Barton'
+  title: Beethoven Fur Elise - Paul Barton, FEURICH 218 piano
+  channel: Paul Barton
   duration_seconds: 234
   skill_bucket: 5
-  label_rationale: 'human correction from 3 to 5'
-  downloaded: false
+  label_rationale: human correction from 3 to 5
+  downloaded: true
   download_error: null
 - video_id: p2D56saO9bI
-  title: 'Beethoven, Fur Elise'
-  channel: 'The Great Repertoire'
+  title: Beethoven, Fur Elise
+  channel: The Great Repertoire
   duration_seconds: 222
   skill_bucket: 4
-  label_rationale: 'human correction from 3 to 4'
-  downloaded: false
+  label_rationale: human correction from 3 to 4
+  downloaded: true
   download_error: null
 - video_id: Mriq2rfgCz0
-  title: 'Fur Elise'
-  channel: 'Dr. Steve Warner'
+  title: Fur Elise
+  channel: Dr. Steve Warner
   duration_seconds: 179
   skill_bucket: 3
-  label_rationale: 'defaulting to intermediate'
-  downloaded: false
+  label_rationale: defaulting to intermediate
+  downloaded: true
   download_error: null
 - video_id: CWLRo1i9nF0
-  title: 'Fur Elise, Beethoven (Late-Intermediate Piano Solo)'
-  channel: '92PianoKeys'
+  title: Fur Elise, Beethoven (Late-Intermediate Piano Solo)
+  channel: 92PianoKeys
   duration_seconds: 212
   skill_bucket: 3
-  label_rationale: 'defaulting to intermediate'
-  downloaded: false
+  label_rationale: defaulting to intermediate
+  downloaded: true
   download_error: null
 - video_id: Xrkq-yBVcQQ
-  title: 'Fur Elise'
-  channel: 'Hailey Meng'
+  title: Fur Elise
+  channel: Hailey Meng
   duration_seconds: 146
   skill_bucket: 2
-  label_rationale: 'human correction from 3 to 2'
-  downloaded: false
+  label_rationale: human correction from 3 to 2
+  downloaded: true
   download_error: null
 - video_id: 50cvhSjdrPE
-  title: 'Fur Elise WoO 59 (RCM Level 7)'
-  channel: 'Lisa Tahara'
+  title: Fur Elise WoO 59 (RCM Level 7)
+  channel: Lisa Tahara
   duration_seconds: 165
   skill_bucket: 4
-  label_rationale: 'human correction from 3 to 4'
-  downloaded: false
+  label_rationale: human correction from 3 to 4
+  downloaded: true
   download_error: null
 - video_id: YMiib3IU-IE
-  title: 'Fur Elise - Piano Demo'
-  channel: 'Piano Demo'
+  title: Fur Elise - Piano Demo
+  channel: Piano Demo
   duration_seconds: 185
   skill_bucket: 4
-  label_rationale: 'human correction from 3 to 4'
-  downloaded: false
+  label_rationale: human correction from 3 to 4
+  downloaded: true
   download_error: null
 - video_id: 1KSzkx86eyU
-  title: '4 year old, Wins 1st place at World Competition with Fur Elise'
-  channel: 'Piano Fairytales'
+  title: 4 year old, Wins 1st place at World Competition with Fur Elise
+  channel: Piano Fairytales
   duration_seconds: 214
   skill_bucket: 2
-  label_rationale: 'human correction from 4 to 2'
-  downloaded: false
+  label_rationale: human correction from 4 to 2
+  downloaded: true
   download_error: null
 - video_id: 70XpmEIetbk
-  title: 'Fur Elise by Beethoven (piano recital)'
-  channel: 'Nedyo Nedev'
+  title: Fur Elise by Beethoven (piano recital)
+  channel: Nedyo Nedev
   duration_seconds: 202
   skill_bucket: 1
-  label_rationale: 'human correction from 4 to 1'
-  downloaded: false
+  label_rationale: human correction from 4 to 1
+  downloaded: true
   download_error: null
 - video_id: Wh8cVURpG2I
-  title: 'Fur Elise performed by Leanne Kwan (9 yo) - piano recital'
-  channel: 'Jannietheweiner'
+  title: Fur Elise performed by Leanne Kwan (9 yo) - piano recital
+  channel: Jannietheweiner
   duration_seconds: 210
   skill_bucket: 1
-  label_rationale: 'human correction from 4 to 1'
+  label_rationale: human correction from 4 to 1
   downloaded: false
-  download_error: null
+  download_error: "WARNING: [youtube] [jsc] Error solving n challenge request using\
+    \ \"deno\" provider: Error running deno process (returncode: 1): \e[0m\e[1m\e\
+    [31merror\e[0m: Uncaught (in promise) \"found 0 n function possibil"
 - video_id: IO9KVZZD0zY
-  title: 'Max Piano Recital 2022 - Fur Elise'
-  channel: 'nazzaromusic'
+  title: Max Piano Recital 2022 - Fur Elise
+  channel: nazzaromusic
   duration_seconds: 170
   skill_bucket: 3
-  label_rationale: 'human correction from 4 to 3'
-  downloaded: false
+  label_rationale: human correction from 4 to 3
+  downloaded: true
   download_error: null
 - video_id: s71I_EWJk7I
-  title: 'Fur Elise Performed by Lang Lang'
-  channel: 'Steinway & Sons'
+  title: Fur Elise Performed by Lang Lang
+  channel: Steinway & Sons
   duration_seconds: 230
   skill_bucket: 5
   label_rationale: 'known professional: lang lang'
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: k0eNzs6g_MU
   title: 'Alice Sara Ott - Beethoven: Fur Elise'
-  channel: 'Deutsche Grammophon - DG'
+  channel: Deutsche Grammophon - DG
   duration_seconds: 179
   skill_bucket: 5
   label_rationale: 'known professional: deutsche grammophon'
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: KzM7bOJ-tT0
-  title: 'Ivo Pogorelich plays Beethoven Fur Elise'
-  channel: 'ADGO'
+  title: Ivo Pogorelich plays Beethoven Fur Elise
+  channel: ADGO
   duration_seconds: 221
   skill_bucket: 5
   label_rationale: 'known professional: pogorelich'
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: q5oSa4itomE
-  title: 'Lang Lang performs Beethoven''s Fur Elise'
-  channel: 'WQXR'
+  title: Lang Lang performs Beethoven's Fur Elise
+  channel: WQXR
   duration_seconds: 225
   skill_bucket: 5
   label_rationale: 'known professional: lang lang'
-  downloaded: false
+  downloaded: true
   download_error: null

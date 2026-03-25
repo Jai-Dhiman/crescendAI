@@ -139,6 +139,7 @@ WARP.md
 
 # Git worktrees
 .worktrees/
+.gstack/
 
 # Training Audio
 *.wav
@@ -168,3 +169,4 @@ model/data/eval/youtube_amt/*.opus
 
 # Eval reports (regenerated)
 apps/api/evals/reports/
+
