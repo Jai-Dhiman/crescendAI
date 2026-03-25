@@ -11,14 +11,13 @@ import { useKeyboardOffset } from "../hooks/useDom";
 import { useMountEffect } from "../hooks/useFoundation";
 import { useMetronome } from "../hooks/useMetronome";
 import type { PracticeState, WsStatus } from "../hooks/usePracticeSession";
-import type { DimScores } from "../lib/practice-api";
+import { ObservationToast } from "./ObservationToast";
 import { ResonanceRipples } from "./ResonanceRipples";
 
 interface ListeningModeProps {
 	state: PracticeState;
 	energy: number;
 	isPlaying: boolean;
-	latestScores: DimScores | null;
 	error: string | null;
 	wsStatus: WsStatus;
 	onStop: () => void;
@@ -27,6 +26,7 @@ interface ListeningModeProps {
 	pieceContext?: { piece: string; section?: string } | null;
 	sessionNotes?: string;
 	onNotesChange?: (notes: string) => void;
+	observations: Array<{ text: string; dimension: string; id: string }>;
 }
 
 type TransitionPhase = "collapsed" | "expanding" | "open" | "collapsing";
@@ -35,7 +35,6 @@ export function ListeningMode({
 	state,
 	energy,
 	isPlaying,
-	latestScores,
 	error: _error,
 	wsStatus,
 	onStop,
@@ -44,8 +43,11 @@ export function ListeningMode({
 	pieceContext,
 	sessionNotes,
 	onNotesChange,
+	observations,
 }: ListeningModeProps) {
 	const [phase, setPhase] = useState<TransitionPhase>("collapsed");
+	const [dismissedObs, setDismissedObs] = useState<Set<string>>(new Set());
+	const activeObs = observations.filter((o) => !dismissedObs.has(o.id));
 	const [contentVisible, setContentVisible] = useState(false);
 	const overlayRef = useRef<HTMLDivElement>(null);
 	const notes = sessionNotes ?? "";
@@ -268,8 +270,19 @@ export function ListeningMode({
 							<ResonanceRipples energy={energy} isPlaying={isPlaying} active={isRecording} />
 						</div>
 
-						{/* Dimension scores */}
-						<DimensionScores scores={latestScores} />
+						{/* Observation toasts */}
+						{activeObs.length > 0 && (
+							<div className="absolute top-4 right-4 flex flex-col gap-2 z-10">
+								{activeObs.slice(-3).map((obs) => (
+									<ObservationToast
+										key={obs.id}
+										text={obs.text}
+										dimension={obs.dimension}
+										onDismiss={() => setDismissedObs((prev) => new Set(prev).add(obs.id))}
+									/>
+								))}
+							</div>
+						)}
 					</div>
 
 					{/* Bottom bar: notes + stop */}
@@ -314,63 +327,6 @@ export function ListeningMode({
 }
 
 // --- Sub-components ---
-
-function DimensionScores({ scores }: { scores: DimScores | null }) {
-	const prevScoresRef = useRef<DimScores | null>(null);
-	const [pulsing, setPulsing] = useState<Set<string>>(new Set());
-
-	useEffect(() => {
-		if (!scores || !prevScoresRef.current) {
-			prevScoresRef.current = scores;
-			return;
-		}
-
-		const changed = new Set<string>();
-		const prev = prevScoresRef.current;
-		for (const key of Object.keys(scores) as (keyof DimScores)[]) {
-			if (scores[key] !== prev[key]) {
-				changed.add(key);
-			}
-		}
-
-		if (changed.size > 0) {
-			setPulsing(changed);
-			const timer = setTimeout(() => setPulsing(new Set()), 600);
-			prevScoresRef.current = scores;
-			return () => clearTimeout(timer);
-		}
-
-		prevScoresRef.current = scores;
-	}, [scores]);
-
-	const dims: { key: keyof DimScores; label: string }[] = [
-		{ key: "dynamics", label: "DYN" },
-		{ key: "timing", label: "TIM" },
-		{ key: "pedaling", label: "PED" },
-		{ key: "articulation", label: "ART" },
-		{ key: "phrasing", label: "PHR" },
-		{ key: "interpretation", label: "INT" },
-	];
-
-	return (
-		<div className="flex flex-wrap justify-center gap-x-6 gap-y-3 mt-6">
-			{dims.map(({ key, label }) => (
-				<div key={key} className="text-center">
-					<div
-						className={`text-body-md font-semibold text-accent tabular-nums ${
-							pulsing.has(key) ? "animate-score-pulse" : ""
-						}`}
-					>
-						{scores ? scores[key].toFixed(1) : "--"}
-					</div>
-					<div className="text-body-xs text-text-tertiary uppercase tracking-wider">
-						{label}
-					</div>
-				</div>
-			))}
-		</div>
-	);
-}
 
 function NotepadDrawer({
 	notes,

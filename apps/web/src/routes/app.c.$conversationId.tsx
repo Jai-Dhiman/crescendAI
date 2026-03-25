@@ -1,9 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
-import AppChat from "../components/AppChat";
 
+// AppChat is rendered by the /app layout route (app.tsx).
+// This route exists for route matching and $conversationId param extraction.
 export const Route = createFileRoute("/app/c/$conversationId")({
-	component: () => {
-		const { conversationId } = Route.useParams();
-		return <AppChat initialConversationId={conversationId} />;
-	},
+	component: () => null,
 });

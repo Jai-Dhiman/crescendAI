@@ -11,7 +11,7 @@ import {
 	X,
 } from "@phosphor-icons/react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
 	useConversation,
@@ -38,10 +38,6 @@ import {
 	ConversationSkeleton,
 	FullPageSkeleton,
 } from "./Skeleton";
-
-interface AppChatProps {
-	initialConversationId?: string;
-}
 
 const GREETINGS = [
 	// Warm / encouraging
@@ -98,9 +94,19 @@ const GREETINGS = [
 	"Practice makes permanent.",
 ];
 
-export default function AppChat({ initialConversationId }: AppChatProps) {
+export default function AppChat() {
 	const { user, isLoading, isAuthenticated, signOut } = useAuth();
 	const navigate = useNavigate();
+
+	// Read conversationId reactively from URL params (survives route transitions)
+	const conversationIdFromUrl = useRouterState({
+		select: (s) => {
+			const match = s.matches.find(
+				(m) => m.routeId === "/app/c/$conversationId",
+			);
+			return (match?.params as Record<string, string>)?.conversationId ?? null;
+		},
+	});
 	const [showProfile, setShowProfile] = useState(false);
 	const [dropdownPos, setDropdownPos] = useState<{
 		bottom: number;
@@ -126,10 +132,14 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 		section?: string;
 	} | null>(null);
 
-	// Chat state
-	const [activeConversationId, setActiveConversationId] = useState<
+	// Chat state — URL is source of truth for conversation ID.
+	// Override allows immediate ID switch before navigate completes (e.g., chat
+	// stream returns a new conversation_id, we need useConversation to fetch it
+	// before the deferred navigate updates the URL).
+	const [conversationOverride, setConversationOverride] = useState<
 		string | null
-	>(initialConversationId ?? null);
+	>(null);
+	const activeConversationId = conversationOverride ?? conversationIdFromUrl;
 	const [transientMessages, setTransientMessages] = useState<RichMessage[]>([]);
 	const [isStreaming, setIsStreaming] = useState(false);
 
@@ -179,10 +189,9 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 		useConversation(activeConversationId);
 	const deleteConversation = useDeleteConversation();
 
-	// Sync active conversation ID when query data arrives
-	const persistedConvId = conversationData?.conversation.id ?? null;
-	if (persistedConvId && persistedConvId !== activeConversationId) {
-		setActiveConversationId(persistedConvId);
+	// Clear override once URL catches up (navigate completed)
+	if (conversationOverride && conversationOverride === conversationIdFromUrl) {
+		setConversationOverride(null);
 	}
 
 	// Check for deferred synthesis when a conversation loads
@@ -236,12 +245,11 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 			const convId = conversationId ?? activeConversationId;
 			if (convId) {
 				if (convId !== activeConversationId) {
-					setActiveConversationId(convId);
-					window.history.replaceState(
-						window.history.state,
-						"",
-						`/app/c/${convId}`,
-					);
+					navigate({
+						to: "/app/c/$conversationId",
+						params: { conversationId: convId },
+						replace: true,
+					});
 				}
 				queryClient
 					.invalidateQueries({ queryKey: ["conversation", convId] })
@@ -305,12 +313,11 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 		// so the chat view loads persisted observations from D1.
 		const practiceConvId = practice.conversationId;
 		if (practiceConvId && practiceConvId !== activeConversationId) {
-			setActiveConversationId(practiceConvId);
-			window.history.replaceState(
-				window.history.state,
-				"",
-				`/app/c/${practiceConvId}`,
-			);
+			navigate({
+				to: "/app/c/$conversationId",
+				params: { conversationId: practiceConvId },
+				replace: true,
+			});
 			queryClient.invalidateQueries({
 				queryKey: ["conversation", practiceConvId],
 			});
@@ -347,6 +354,7 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 	const loadConversation = useCallback(
 		(id: string) => {
 			scorePanelClear();
+			setConversationOverride(null);
 			setTransientMessages([]);
 			setSidebarOpen(false);
 			navigate({
@@ -358,7 +366,7 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 	);
 
 	function handleNewChat() {
-		setActiveConversationId(null);
+		setConversationOverride(null);
 		setTransientMessages([]);
 		scorePanelClear();
 		setSidebarOpen(false);
@@ -399,7 +407,10 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 						case "start": {
 							if (event.conversation_id && !activeConversationId) {
 								newConversationId = event.conversation_id;
-								setActiveConversationId(event.conversation_id);
+								// Don't setConversationOverride here — it would trigger
+								// useConversation to fetch persisted messages while transient
+								// messages are still showing, causing duplicates. The navigate
+								// in the post-stream setTimeout handles the switch cleanly.
 							}
 							// Append streaming placeholder to the transient array
 							setTransientMessages((prev) => {
@@ -456,21 +467,22 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 			// the "done" render commit (URL update, cache sync, refetch).
 			const convId = newConversationId ?? activeConversationId;
 			setTimeout(async () => {
-				if (newConversationId) {
-					window.history.replaceState(
-						window.history.state,
-						"",
-						`/app/c/${newConversationId}`,
-					);
-				}
 				if (convId) {
-					// Wait for the conversation query to refetch from D1 before
-					// clearing transient messages, to avoid a flash of missing content.
+					// Prime the query cache BEFORE navigating so the new route
+					// has data immediately (avoids flash of empty content).
 					await queryClient.invalidateQueries({
 						queryKey: ["conversation", convId],
 					});
-					setTransientMessages([]);
 				}
+				if (newConversationId) {
+					navigate({
+						to: "/app/c/$conversationId",
+						params: { conversationId: newConversationId },
+						replace: true,
+					});
+				}
+				// Clear transient messages after both query and navigation are done
+				setTransientMessages([]);
 				queryClient.invalidateQueries({ queryKey: ["conversations"] });
 			}, 0);
 		} catch (e) {
@@ -807,7 +819,6 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 					state={practice.state}
 					energy={practice.energy}
 					isPlaying={practice.isPlaying}
-					latestScores={practice.latestScores}
 					error={practice.error}
 					wsStatus={practice.wsStatus}
 					onStop={practice.stop}
@@ -816,6 +827,11 @@ export default function AppChat({ initialConversationId }: AppChatProps) {
 					pieceContext={pieceContext}
 					sessionNotes={sessionNotes}
 					onNotesChange={setSessionNotes}
+					observations={practice.observations.map((o, i) => ({
+						text: o.text,
+						dimension: o.dimension,
+						id: `obs-${i}`,
+					}))}
 				/>
 			)}
 

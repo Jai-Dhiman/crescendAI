@@ -67,6 +67,11 @@ impl PracticeSession {
                     "scores": scores_json,
                 });
                 let _ = ws.send_with_str(&response.to_string());
+                console_log!(
+                    "chunk_scores[{}]: dyn={:.2} tim={:.2} ped={:.2} art={:.2} phr={:.2} int={:.2}",
+                    index, scores_array[0], scores_array[1], scores_array[2],
+                    scores_array[3], scores_array[4], scores_array[5]
+                );
 
                 // Update DimStats and store ScoredChunk
                 {
@@ -287,6 +292,21 @@ impl PracticeSession {
                                 timestamp_ms,
                                 llm_analysis: None,
                             });
+
+                        // Send lightweight observation to client during recording
+                        let obs_text = if moment.is_positive {
+                            format!("Nice work on your {}.", moment.dimension)
+                        } else {
+                            format!("I'm noticing something in your {} -- let's talk after.", moment.dimension)
+                        };
+                        let framing = if moment.is_positive { "recognition" } else { "correction" };
+                        let obs_msg = serde_json::json!({
+                            "type": "observation",
+                            "text": obs_text,
+                            "dimension": moment.dimension,
+                            "framing": framing,
+                        });
+                        let _ = ws.send_with_str(&obs_msg.to_string());
                     }
                 }
             }
