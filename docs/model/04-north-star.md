@@ -158,7 +158,7 @@ Instead of expensive expert annotation, use professional recordings as implicit 
 
 | Tier | Metric | Requirement | Purpose |
 |------|--------|-------------|---------|
-| **E1** | Pairwise accuracy (clean folds) | > 75% (audio), > 70% (symbolic), > 80% (fused) | Core ranking quality. **Audio: 77.5% PASS (4-fold mean, original weights)** |
+| **E1** | T5 skill discrimination (pairwise, val split) | > 70% cross-bucket accuracy | Primary metric: can model rank skill levels? Single train/val/test split. |
 | **E2** | Per-dimension error correlation | r < 0.5 between audio and symbolic | Fusion viability gate |
 | **E3** | Skill-level discrimination | Cohen's d > 0.8 between adjacent levels | Multi-tier training validation |
 
@@ -170,7 +170,7 @@ Instead of expensive expert annotation, use professional recordings as implicit 
 | **E5** | STOP classifier AUC | > 0.80 on retrained scores | Teaching moment quality |
 | **E6** | AMT robustness (pairwise drop) | < 5% across audio conditions | Production reliability |
 
-All evaluation on clean piece-stratified folds. Bootstrap CIs required for all comparisons. See `03-encoders.md` Verification Criteria.
+Evaluation uses single train/val/test split. T5 val (10%) for autoresearch optimization. T5 test (10%) + T1 test (20%) + T2 test (15%) for final reporting only (never seen during optimization). Bootstrap 95% CIs on all reported metrics.
 
 ---
 

@@ -1,6 +1,6 @@
 # Data Inventory
 
-Dataset inventory for piano performance evaluation training. All heavy data processing (audio download, segmentation, MuQ extraction) runs on Thunder Compute (A100). Only embeddings and metadata come back.
+Dataset inventory for piano performance evaluation training. Heavy data processing (embedding extraction, full training runs) runs on HF Jobs (L4 $0.80/hr default, A100 $2.50/hr for Aria). Training data stored on HF Bucket.
 
 > **Status (2026-03-18):** T1 COMPLETE, T2 COMPLETE (Chopin 2021, expansion planned), T3 COMPLETE, T5 IN PROGRESS (YouTube Skill Corpus -- 2 of 16 pieces curated: Fur Elise 28 recordings, Nocturne Op.9/2 27 recordings, 3 wrong entries removed). Graph pretraining corpus LEGACY (24,220 graphs -- replaced by Aria). Composite labels COMPLETE. T4 REPLACED by T5. **Aria-MIDI (820K piano MIDIs) available for continued pretraining.** Disk: 12 GB cleaned, 68 GB available.
 
@@ -198,11 +198,12 @@ Produced by the teacher-grounded taxonomy work (doc 02). Maps 19 raw PercePiano 
 
 | Location | Capacity | Purpose |
 |---|---|---|
-| Local (Mac) | 68GB available (12 GB cleaned) | Code, caches, composite labels |
-| GDrive | 80GB total | Checkpoints, results, final embeddings |
-| Thunder Compute | 500GB | Raw audio download, processing, MuQ extraction |
+| Local (Mac) | 68GB available | Active working set (current experiment's embeddings + T5 data) |
+| HF Bucket (private) | ~92GB | Embeddings, manifests, checkpoints, T5 audio |
+| GDrive (via rclone) | 80GB total | Archival backup: results, labels, final weights |
+| HF Jobs (cloud) | On-demand | Full training runs, Aria fine-tuning, validation |
 
-**Principle:** Raw audio lives and dies on the remote. Only `.pt` embeddings and `.jsonl` metadata return.
+**Principle:** Training data lives on HF Bucket. Local disk holds only the active experiment's data. GDrive is archival backup only.
 
 ### Local Disk Usage
 

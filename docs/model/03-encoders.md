@@ -147,6 +147,8 @@ Linear probe on frozen embeddings, 4-fold piece-stratified CV (clean folds). The
 
 Error correlation (phi): **0.043** -- near-zero. Models make completely independent mistakes, making fusion highly viable.
 
+**Confound check (required on every experiment):** Aria-only skill discrimination on T5 val. If Aria discriminates skill buckets (above 50% chance), the signal is musical. If MuQ discriminates but Aria doesn't, MuQ may be exploiting audio quality as a shortcut.
+
 MuQ dominates all dimensions from frozen embeddings. This is expected: MuQ was pretrained on 160K hours of audio for music understanding tasks, while Aria was pretrained on MIDI for generation/identity tasks (not quality). The key finding is that Aria has quality signal (significantly above 50% chance) despite never being trained for quality, and its errors are independent from MuQ's.
 
 ### MuQ Continued Pretraining Plan: Quality-Aware Contrastive
