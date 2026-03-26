@@ -1,10 +1,20 @@
 from __future__ import annotations
 
+import os
 import re
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+
+# Auto-load ANTHROPIC_API_KEY from .dev.vars if not in environment
+if not os.environ.get("ANTHROPIC_API_KEY"):
+    _dev_vars = Path(__file__).parents[3] / "api" / ".dev.vars"
+    if _dev_vars.exists():
+        for line in _dev_vars.read_text().splitlines():
+            if line.startswith("ANTHROPIC_API_KEY="):
+                os.environ["ANTHROPIC_API_KEY"] = line.split("=", 1)[1].strip()
+                break
 
 import anthropic
 
