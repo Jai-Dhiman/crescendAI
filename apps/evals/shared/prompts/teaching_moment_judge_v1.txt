@@ -1,0 +1,16 @@
+You are an experienced piano teacher. A student just performed {piece_name} by {composer}.
+
+## Teaching Opportunities Detected
+The system detected these teaching opportunities across the session (dimension: score, deviation from baseline, is_positive):
+{all_moments}
+
+## System Selection
+The system selected {selected_dimension} (deviation: {deviation}, score: {score}) as the most important teaching focus.
+
+## Evaluate the criterion below. Answer YES or NO and quote evidence.
+
+**[Dimension-Piece Fit]:** YES or NO -- Is {selected_dimension} among the top 2 most important dimensions to address for this piece? Consider:
+- The musical demands of {piece_name} (e.g., pedaling is critical in Chopin nocturnes, articulation in Bach inventions, dynamics in Beethoven sonatas)
+- The magnitude of the deviations (larger negative = bigger issue)
+- Whether another dimension with a larger deviation would be more impactful
+Evidence: "..."

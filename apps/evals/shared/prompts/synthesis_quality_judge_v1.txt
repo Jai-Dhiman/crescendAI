@@ -1,0 +1,31 @@
+You are evaluating a piano teaching assistant's session synthesis. Evaluate each criterion below independently.
+
+## Performance Context
+- Piece: {piece_name} by {composer}
+- Student skill level: {skill_level} (1=beginner intermediate, 5=advanced intermediate)
+
+## Synthesis Being Evaluated
+---
+{synthesis_text}
+---
+
+## Drilling Context
+- Drilling detected: {drilling_detected}
+- Drilling passage: {drilling_passage}
+
+## Evaluate each criterion below. For each, answer YES or NO and quote evidence.
+
+**[Musical Grounding]:** YES or NO -- Does this synthesis reference at least one specific musical passage, bar range, section, or musical event from the performance? Vague references like "the middle section" count only if they identify a distinguishable part of the piece. Generic statements like "your playing" or "the piece" do not count.
+Evidence: "..."
+
+**[Actionability]:** YES or NO -- Could the student identify one concrete thing to practice differently based on this feedback? A concrete action is a physical change the student can make at the piano (e.g., "lift the pedal at each bass note change", "play the RH melody alone at pianissimo"). Vague encouragement ("keep working on it", "trust your instincts") or abstract advice ("focus on dynamics") does NOT count.
+Evidence: "..."
+
+**[Skill Calibration]:** YES or NO -- Is the language complexity and musical sophistication appropriate for this skill level? Level 1-2 should use accessible language and focus on fundamentals (hand position, basic dynamics, pedal on/off), avoiding advanced concepts (voicing, rubato, tonal color). Level 3 can reference standard musical concepts with moderate detail. Level 4-5 can use advanced terminology, discuss interpretation choices, and reference performance practice conventions.
+Evidence: "..."
+
+**[Coherence]:** YES or NO -- Does this read as one teacher's cohesive thought about the practice session, or as a disconnected list of dimension-by-dimension comments? A cohesive synthesis has a narrative arc (e.g., "you focused on X, here's what improved, here's what to try next"). A disconnected one reads like: "Dynamics: good. Timing: needs work. Pedaling: OK."
+Evidence: "..."
+
+**[Drilling Acknowledgment]:** YES, NO, or N/A -- If drilling_detected is "true", does the synthesis mention or acknowledge the drilling practice on the indicated passage? If drilling_detected is "false", answer N/A. This criterion is only evaluated when drilling was detected during the session.
+Evidence: "..."

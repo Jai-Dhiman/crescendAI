@@ -61,39 +61,22 @@ pub(crate) const ALARM_DURATION_MS: i64 = 30 * 60 * 1000; // 30 minutes
 pub(crate) const HF_RETRY_DELAYS_MS: &[u64] = &[10_000, 20_000, 40_000]; // retry 503s with backoff (70s total)
 pub(crate) const HF_RETRY_DELAYS_ENDING_MS: &[u64] = &[3_000, 5_000]; // shorter retries when session is ending
 
-#[derive(Clone, serde::Serialize, serde::Deserialize)]
-pub struct ObservationRecord {
-    pub id: String,
-    pub text: String,
-    pub dimension: String,
-    pub framing: String,
-    pub chunk_index: usize,
-    pub score: f64,
-    pub baseline: f64,
-    pub reasoning_trace: String,
-    pub is_fallback: bool,
-    pub components_json: Option<String>,
-}
-
 pub(crate) struct SessionState {
     pub(crate) session_id: String,
     pub(crate) student_id: String,
     pub(crate) baselines: Option<StudentBaselines>,
     pub(crate) baselines_loaded: bool,
     pub(crate) scored_chunks: Vec<ScoredChunk>,
-    pub(crate) observations: Vec<ObservationRecord>,
     pub(crate) accumulator: SessionAccumulator,
     pub(crate) inference_failures: usize,
     pub(crate) chunks_in_flight: usize,
     pub(crate) session_ending: bool,
     pub(crate) synthesis_completed: bool,
     pub(crate) dim_stats: DimStats,
-    pub(crate) last_observation_at: Option<u64>,
     pub(crate) piece_query: Option<String>,
     pub(crate) score_context: Option<ScoreContext>,
     pub(crate) score_context_loaded: bool,
     pub(crate) follower_state: FollowerState,
-    pub(crate) is_eval_session: bool,
     pub(crate) mode_detector: ModeDetector,
     pub(crate) conversation_id: Option<String>,
     /// Encoded WebM bytes from previous chunk (NOT persisted to durable storage).
@@ -121,19 +104,16 @@ impl Default for SessionState {
             baselines: None,
             baselines_loaded: false,
             scored_chunks: Vec::new(),
-            observations: Vec::new(),
             accumulator: SessionAccumulator::default(),
             inference_failures: 0,
             chunks_in_flight: 0,
             session_ending: false,
             synthesis_completed: false,
             dim_stats: DimStats::default(),
-            last_observation_at: None,
             piece_query: None,
             score_context: None,
             score_context_loaded: false,
             follower_state: FollowerState::default(),
-            is_eval_session: false,
             mode_detector: ModeDetector::new(),
             conversation_id: None,
             previous_chunk_audio: None,
@@ -269,9 +249,7 @@ impl DurableObject for PracticeSession {
                 };
                 if should_finalize {
                     console_log!("Last in-flight chunk completed, finalizing session");
-                    if !self.inner.borrow().is_eval_session {
-                        self.run_synthesis_and_persist(&ws).await;
-                    }
+                    self.run_synthesis_and_persist(&ws).await;
                     self.finalize_session(Some(&ws)).await;
                 }
 
@@ -285,9 +263,7 @@ impl DurableObject for PracticeSession {
                 };
                 if in_flight == 0 {
                     // Synthesize before finalizing (keeps WS open for synthesis push)
-                    if !self.inner.borrow().is_eval_session {
-                        self.run_synthesis_and_persist(&ws).await;
-                    }
+                    self.run_synthesis_and_persist(&ws).await;
                     self.finalize_session(Some(&ws)).await;
                 } else {
                     console_log!(
@@ -310,9 +286,6 @@ impl DurableObject for PracticeSession {
                     );
                     return Ok(());
                 }
-
-                // Mark session as eval session on first eval_chunk
-                self.inner.borrow_mut().is_eval_session = true;
 
                 let chunk_index = parsed
                     .get("chunk_index")

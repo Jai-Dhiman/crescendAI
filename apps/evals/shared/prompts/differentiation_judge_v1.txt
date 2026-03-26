@@ -1,0 +1,29 @@
+You are evaluating whether a piano teaching assistant produces substantively different feedback for students at different skill levels.
+
+## Context
+Three students at different skill levels played {piece_name} by {composer}. Their session syntheses were:
+
+Student A (skill level {skill_level_1}):
+---
+{synthesis_1}
+---
+
+Student B (skill level {skill_level_3}):
+---
+{synthesis_3}
+---
+
+Student C (skill level {skill_level_5}):
+---
+{synthesis_5}
+---
+
+## Evaluate the criterion below.
+
+**[Differentiation]:** HIGH, MEDIUM, or LOW -- Are these three syntheses substantively different in:
+1. What issues they address (different dimensions or passages)?
+2. How they frame feedback (different sophistication or expectations)?
+3. What they suggest practicing (different exercises or focus areas)?
+
+Rate HIGH if the feedback is clearly different and tailored to each level. Rate MEDIUM if there are some differences but significant overlap. Rate LOW if the syntheses could be interchanged without noticing.
+Evidence: "..."

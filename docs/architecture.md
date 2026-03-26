@@ -65,7 +65,7 @@ Entry point: [`docs/model/00-research-timeline.md`](model/00-research-timeline.m
 
 Everything from microphone to student-facing observation. Audio capture, the cloud inference pipeline, STOP classification, teaching moment selection, the two-stage subagent architecture, student memory, exercises, and UI components. Each implementation slice has a status header tracking what is built vs. planned.
 
-Entry point: [`docs/apps/00-status.md`](apps/00-status.md) | Pipeline: [`docs/apps/02-pipeline.md`](apps/02-pipeline.md) | Product vision: [`docs/apps/01-product-vision.md`](apps/01-product-vision.md)
+Entry point: [`docs/apps/00-status.md`](apps/00-status.md) | Pipeline: [`docs/apps/02-pipeline.md`](apps/02-pipeline.md) | Product vision: [`docs/apps/01-product-vision.md`](apps/01-product-vision.md) | Capabilities: [`docs/apps/06-capabilities.md`](apps/06-capabilities.md) | Evaluation: [`docs/apps/07-evaluation.md`](apps/07-evaluation.md)
 
 ---
 

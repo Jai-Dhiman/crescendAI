@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use wasm_bindgen::JsValue;
 use worker::*;
 
-use super::session::{ObservationRecord, PracticeSession};
+use super::session::PracticeSession;
 use crate::services::stop::SCALER_MEAN;
 use crate::services::teaching_moments::StudentBaselines;
 
@@ -76,101 +76,6 @@ impl PracticeSession {
             articulation: defaults[3],
             phrasing: defaults[4],
             interpretation: defaults[5],
-        }
-    }
-
-    // --- Session summary ---
-
-    /// Generate an LLM session summary using Anthropic.
-    /// Returns the summary text, or None if generation fails or should be skipped.
-    async fn generate_session_summary(
-        &self,
-        observations: &[ObservationRecord],
-        student_id: &str,
-    ) -> Option<String> {
-        // Skip for eval sessions
-        if self.inner.borrow().is_eval_session {
-            return None;
-        }
-
-        // 1. Load memory context (D1 queries for cross-session facts)
-        let now = js_sys::Date::new_0()
-            .to_iso_string()
-            .as_string()
-            .unwrap_or_default();
-        let today = &now[..10.min(now.len())];
-        let memory_ctx =
-            crate::services::memory::build_memory_context(&self.env, student_id, None, today, None)
-                .await;
-        let memory_text = crate::services::memory::format_memory_context(&memory_ctx);
-
-        // 2. Build piece context string
-        let piece_context = {
-            let s = self.inner.borrow();
-            s.score_context
-                .as_ref()
-                .map(|ctx| format!("{} - {}", ctx.composer, ctx.title))
-        };
-
-        // 3. Build observation tuples for the prompt
-        let obs_tuples: Vec<(String, String, String, f64, f64)> = observations
-            .iter()
-            .map(|o| {
-                (
-                    o.dimension.clone(),
-                    o.text.clone(),
-                    o.framing.clone(),
-                    o.score,
-                    o.baseline,
-                )
-            })
-            .collect();
-
-        // 3b. Collect chunk scores for context when no observations exist
-        let chunk_scores: Vec<([f64; 6], usize)> = {
-            let s = self.inner.borrow();
-            s.scored_chunks
-                .iter()
-                .map(|c| {
-                    // Count notes from the HF response (approximate via chunk index)
-                    (c.scores, 0usize) // note_count not tracked in ScoredChunk, use 0
-                })
-                .collect()
-        };
-
-        // 4. Build prompt
-        let chunk_scores_ref = if observations.is_empty() && !chunk_scores.is_empty() {
-            Some(chunk_scores.as_slice())
-        } else {
-            None
-        };
-        let user_prompt = crate::services::prompts::build_session_summary_prompt(
-            &obs_tuples,
-            &memory_text,
-            piece_context.as_deref(),
-            chunk_scores_ref,
-        );
-
-        // 5. Call Anthropic (non-streaming, 300 max tokens)
-        // No explicit timeout needed: CF Workers enforces a 30s subrequest limit,
-        // and the 300 max_tokens cap keeps generation fast (~1-2s typical).
-        match crate::services::llm::call_anthropic(
-            &self.env,
-            crate::services::prompts::SESSION_SUMMARY_SYSTEM,
-            &user_prompt,
-            300,
-        )
-        .await
-        {
-            Ok(text) if !text.is_empty() => {
-                console_log!("Session summary generated for {}", student_id);
-                Some(text)
-            }
-            Ok(_) => None,
-            Err(e) => {
-                console_error!("Session summary generation failed: {}", e);
-                None
-            }
         }
     }
 
@@ -249,11 +154,40 @@ impl PracticeSession {
         let result = crate::practice::synthesis::call_synthesis_llm(&self.env, &prompt).await;
 
         // Send to client via WS
-        let synthesis_event = serde_json::json!({
+        let mut synthesis_event = serde_json::json!({
             "type": "synthesis",
             "text": result.text,
             "is_fallback": result.is_fallback,
         });
+
+        // In dev mode, include accumulator snapshot for eval analysis
+        let is_dev = self
+            .env
+            .var("ENVIRONMENT")
+            .map(|v| v.to_string() == "development")
+            .unwrap_or(false);
+        if is_dev {
+            let s = self.inner.borrow();
+            synthesis_event["eval_context"] = serde_json::json!({
+                "teaching_moments": &s.accumulator.teaching_moments,
+                "mode_transitions": &s.accumulator.mode_transitions,
+                "drilling_records": &s.accumulator.drilling_records,
+                "timeline": &s.accumulator.timeline,
+                "scored_chunks": &s.scored_chunks,
+                "piece_identification": s.piece_identification.as_ref().map(|pi| serde_json::json!({
+                    "piece_id": &pi.piece_id,
+                    "confidence": pi.confidence,
+                    "method": &pi.method,
+                })),
+                "baselines": &s.baselines,
+                "piece_context": s.score_context.as_ref().map(|sc| serde_json::json!({
+                    "composer": &sc.composer,
+                    "title": &sc.title,
+                    "piece_id": &sc.piece_id,
+                })),
+            });
+        }
+
         let _ = ws.send_with_str(&synthesis_event.to_string());
 
         // Persist synthesis message to D1
@@ -287,7 +221,7 @@ impl PracticeSession {
 
     // --- Session finalization ---
 
-    pub(crate) async fn finalize_session(&self, ws: Option<&WebSocket>) {
+    pub(crate) async fn finalize_session(&self, _ws: Option<&WebSocket>) {
         self.ensure_session_state().await;
 
         // Idempotency guard: persisted to DO storage, survives eviction.
@@ -301,50 +235,7 @@ impl PracticeSession {
         }
         let _ = self.state.storage().put("finalized", &true).await;
 
-        let is_eval = self.inner.borrow().is_eval_session;
-
-        if is_eval {
-            // Eval path: preserve old observation-based flow
-            let (observations, session_id, student_id, inference_failures, total_chunks) = {
-                let s = self.inner.borrow();
-                (
-                    s.observations.clone(),
-                    s.session_id.clone(),
-                    s.student_id.clone(),
-                    s.inference_failures,
-                    s.scored_chunks.len() + s.inference_failures,
-                )
-            };
-
-            if !observations.is_empty() {
-                if let Err(e) = self
-                    .persist_observations(&student_id, &session_id, &observations)
-                    .await
-                {
-                    console_error!("Failed to persist observations: {}", e);
-                }
-            }
-
-            // Send session_summary for eval
-            if let Some(ws) = ws {
-                let obs_json: Vec<serde_json::Value> = observations.iter()
-                    .map(|o| serde_json::json!({"text": o.text, "dimension": o.dimension, "framing": o.framing}))
-                    .collect();
-                let summary_text = self
-                    .generate_session_summary(&observations, &student_id)
-                    .await
-                    .unwrap_or_default();
-                let summary = serde_json::json!({
-                    "type": "session_summary",
-                    "observations": obs_json,
-                    "summary": summary_text,
-                    "inference_failures": inference_failures,
-                    "total_chunks": total_chunks,
-                });
-                let _ = ws.send_with_str(&summary.to_string());
-            }
-        } else {
-            // Production path: accumulator-based
+        {
             let (moment_count, session_id, student_id) = {
                 let s = self.inner.borrow();
                 (
@@ -451,57 +342,4 @@ impl PracticeSession {
         }
     }
 
-    async fn persist_observations(
-        &self,
-        student_id: &str,
-        session_id: &str,
-        observations: &[ObservationRecord],
-    ) -> std::result::Result<(), String> {
-        let db = self
-            .env
-            .d1("DB")
-            .map_err(|e| format!("D1 binding: {:?}", e))?;
-        let now = js_sys::Date::new_0()
-            .to_iso_string()
-            .as_string()
-            .unwrap_or_default();
-
-        for obs in observations {
-            let stmt = db
-                .prepare(
-                    "INSERT OR IGNORE INTO observations (id, student_id, session_id, chunk_index, \
-                     dimension, observation_text, reasoning_trace, framing, dimension_score, \
-                     student_baseline, piece_context, is_fallback, created_at) \
-                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
-                )
-                .bind(&[
-                    JsValue::from_str(&obs.id),
-                    JsValue::from_str(student_id),
-                    JsValue::from_str(session_id),
-                    JsValue::from_f64(obs.chunk_index as f64),
-                    JsValue::from_str(&obs.dimension),
-                    JsValue::from_str(&obs.text),
-                    JsValue::from_str(&obs.reasoning_trace),
-                    JsValue::from_str(&obs.framing),
-                    JsValue::from_f64(obs.score),
-                    JsValue::from_f64(obs.baseline),
-                    JsValue::NULL, // piece_context (deferred)
-                    JsValue::from_bool(obs.is_fallback),
-                    JsValue::from_str(&now),
-                ]);
-
-            match stmt {
-                Ok(s) => {
-                    if let Err(e) = s.run().await {
-                        console_error!("Failed to insert observation {}: {:?}", obs.id, e);
-                    }
-                }
-                Err(e) => {
-                    console_error!("Failed to bind observation {}: {:?}", obs.id, e);
-                }
-            }
-        }
-
-        Ok(())
-    }
 }

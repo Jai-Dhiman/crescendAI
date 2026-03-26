@@ -1,20 +1,16 @@
 use std::collections::HashMap;
-use wasm_bindgen::JsValue;
 use worker::*;
 
 use crate::practice::accumulator::{AccumulatedMoment, ModeTransitionRecord, TimelineEvent};
 use crate::practice::analysis;
 use crate::practice::dims::DIMS_6;
 use crate::practice::practice_mode::{
-    pitch_bigrams_from_notes, ChunkSignal, ModeTransition, ObservationPolicy, PracticeMode,
+    pitch_bigrams_from_notes, ChunkSignal, ModeTransition, PracticeMode,
 };
 use crate::practice::score_follower::{PerfNote, PerfPedalEvent};
-use crate::services::stop;
 use crate::services::teaching_moments::{RecentObservation, ScoredChunk};
 
-use super::session::{
-    MuqResponse, ObservationRecord, PracticeSession, SessionState, ALARM_DURATION_MS,
-};
+use super::session::{MuqResponse, PracticeSession, ALARM_DURATION_MS};
 
 impl PracticeSession {
     pub(crate) async fn handle_chunk_ready(
@@ -194,13 +190,8 @@ impl PracticeSession {
             let _ = ws.send_with_str(&msg.to_string());
         }
 
-        // 9. Accumulate or generate observation (eval uses old path, production accumulates)
-        if self.inner.borrow().is_eval_session {
-            // Eval sessions preserve the per-chunk observation path
-            self.try_generate_observation(ws, chunk_analysis.as_ref(), &scores_array)
-                .await;
-        } else {
-            // Production: accumulate signals silently
+        // 9. Accumulate signals silently (synthesis happens on end_session)
+        {
             let timestamp_ms = js_sys::Date::now() as u64;
             let has_audio = !perf_notes.is_empty();
 
@@ -415,46 +406,7 @@ impl PracticeSession {
         }
     }
 
-    /// Check observation gate (STOP + mode throttle) and generate if ready.
-    pub(crate) async fn try_generate_observation(
-        &self,
-        ws: &WebSocket,
-        chunk_analysis: Option<&analysis::ChunkAnalysis>,
-        scores_array: &[f64; 6],
-    ) {
-        let stop_result = stop::classify(scores_array);
-
-        let policy = self.inner.borrow().mode_detector.observation_policy();
-        let (should_generate, gate_debug) =
-            {
-                let s = self.inner.borrow();
-                let suppress = policy.suppress;
-                let stop_triggered = stop_result.triggered;
-                let baselines_loaded = s.baselines.is_some();
-                let throttle_allows = self.mode_throttle_allows(&s, &policy);
-                let mode = format!("{:?}", s.mode_detector.mode);
-                let result = !suppress && stop_triggered && baselines_loaded && throttle_allows;
-                (
-                    result,
-                    format!(
-                "mode={}, suppress={}, stop={} (p={:.2}), baselines={}, throttle={}, chunks={}",
-                mode, suppress, stop_triggered, stop_result.probability,
-                baselines_loaded, throttle_allows, s.scored_chunks.len()
-            ),
-                )
-            };
-        console_log!(
-            "Observation gate: {} -> generate={}",
-            gate_debug,
-            should_generate
-        );
-
-        if should_generate {
-            self.generate_observation(ws, chunk_analysis).await;
-        }
-    }
-
-    /// Legacy entry point for eval_chunk messages (combined MuQ+AMT response).
+    /// Entry point for eval_chunk messages (combined MuQ+AMT response).
     pub(crate) async fn process_inference_result(
         &self,
         ws: &WebSocket,
@@ -536,6 +488,20 @@ impl PracticeSession {
             });
         }
 
+        // Accumulate notes and run piece identification (if not yet locked)
+        if !perf_notes.is_empty() {
+            {
+                let mut s = self.inner.borrow_mut();
+                s.accumulated_notes.extend(perf_notes.iter().cloned());
+                const MAX_ACCUMULATED_NOTES: usize = 800;
+                if s.accumulated_notes.len() > MAX_ACCUMULATED_NOTES {
+                    let drain_count = s.accumulated_notes.len() - MAX_ACCUMULATED_NOTES;
+                    s.accumulated_notes.drain(..drain_count);
+                }
+            }
+            self.try_identify_piece(ws).await;
+        }
+
         // Load baselines (one-time)
         {
             let needs_load = !self.inner.borrow().baselines_loaded;
@@ -599,28 +565,141 @@ impl PracticeSession {
             let _ = ws.send_with_str(&msg.to_string());
         }
 
-        // Observation generation
-        self.try_generate_observation(ws, chunk_analysis.as_ref(), &scores_array)
-            .await;
+        // Accumulate signals silently (synthesis happens on end_session)
+        {
+            let timestamp_ms = js_sys::Date::now() as u64;
+            let has_audio = !perf_notes.is_empty();
+
+            // Timeline event
+            self.inner
+                .borrow_mut()
+                .accumulator
+                .accumulate_timeline_event(TimelineEvent {
+                    chunk_index: index,
+                    timestamp_ms,
+                    has_audio,
+                });
+
+            // Mode transitions
+            for transition in &mode_transitions {
+                let from_mode = {
+                    let s = self.inner.borrow();
+                    s.accumulator
+                        .mode_transitions
+                        .last()
+                        .map(|t| t.to)
+                        .unwrap_or(PracticeMode::Warming)
+                };
+                let dwell_ms = {
+                    let s = self.inner.borrow();
+                    let mc = s.mode_detector.mode_context();
+                    timestamp_ms.saturating_sub(mc.entered_at_ms)
+                };
+                self.inner
+                    .borrow_mut()
+                    .accumulator
+                    .accumulate_mode_transition(ModeTransitionRecord {
+                        from: from_mode,
+                        to: transition.mode,
+                        chunk_index: transition.chunk_index,
+                        timestamp_ms,
+                        dwell_ms,
+                    });
+            }
+
+            // Teaching moment accumulation (every 2 chunks)
+            let chunk_count = self.inner.borrow().scored_chunks.len();
+            let should_attempt_moment = chunk_count >= 2 && chunk_count % 2 == 0;
+
+            if should_attempt_moment {
+                let baselines = self.inner.borrow().baselines.clone();
+                if let Some(baselines) = baselines {
+                    let (recent_obs, scored_chunks) = {
+                        let s = self.inner.borrow();
+                        let obs: Vec<RecentObservation> = s
+                            .accumulator
+                            .teaching_moments
+                            .iter()
+                            .rev()
+                            .take(3)
+                            .map(|m| RecentObservation {
+                                dimension: m.dimension.clone(),
+                            })
+                            .collect();
+                        let chunks = s.scored_chunks.clone();
+                        (obs, chunks)
+                    };
+
+                    if let Some(moment) =
+                        crate::services::teaching_moments::select_teaching_moment(
+                            &scored_chunks,
+                            &baselines,
+                            &recent_obs,
+                        )
+                    {
+                        let bar_range = chunk_bar_range;
+                        let tier = chunk_analysis.as_ref().map(|ca| ca.tier).unwrap_or(3);
+
+                        self.inner
+                            .borrow_mut()
+                            .accumulator
+                            .accumulate_moment(AccumulatedMoment {
+                                chunk_index: moment.chunk_index,
+                                dimension: moment.dimension.clone(),
+                                score: moment.score,
+                                baseline: moment.baseline,
+                                deviation: moment.deviation,
+                                is_positive: moment.is_positive,
+                                reasoning: moment.reasoning.clone(),
+                                bar_range,
+                                analysis_tier: tier,
+                                timestamp_ms,
+                                llm_analysis: None,
+                            });
+
+                        // Send lightweight observation to client during recording
+                        let obs_text = if moment.is_positive {
+                            format!("Nice work on your {}.", moment.dimension)
+                        } else {
+                            format!(
+                                "I'm noticing something in your {} -- let's talk after.",
+                                moment.dimension
+                            )
+                        };
+                        let framing = if moment.is_positive {
+                            "recognition"
+                        } else {
+                            "correction"
+                        };
+                        let obs_msg = serde_json::json!({
+                            "type": "observation",
+                            "text": obs_text,
+                            "dimension": moment.dimension,
+                            "framing": framing,
+                        });
+                        let _ = ws.send_with_str(&obs_msg.to_string());
+                    }
+                }
+            }
+
+            // Drilling record on mode exit
+            {
+                let mut s = self.inner.borrow_mut();
+                if let Some(dr) = s.mode_detector.take_completed_drilling(scores_array, index) {
+                    s.accumulator.accumulate_drilling_record(dr);
+                }
+            }
+
+            // Persist accumulator to DO storage
+            let acc_json =
+                serde_json::to_string(&self.inner.borrow().accumulator).unwrap_or_default();
+            let _ = self.state.storage().put("accumulator", &acc_json).await;
+        }
 
         // Reset alarm
         let _ = self.state.storage().set_alarm(ALARM_DURATION_MS).await;
 
         Ok(())
-    }
-
-    pub(crate) fn mode_throttle_allows(
-        &self,
-        s: &SessionState,
-        policy: &ObservationPolicy,
-    ) -> bool {
-        match s.last_observation_at {
-            None => true,
-            Some(last) => {
-                let now = js_sys::Date::now() as u64;
-                now - last >= policy.min_interval_ms
-            }
-        }
     }
 
     pub(crate) fn build_mode_context(&self, transition: &ModeTransition) -> serde_json::Value {
@@ -661,260 +740,4 @@ impl PracticeSession {
         Ok(())
     }
 
-    pub(crate) async fn generate_observation(
-        &self,
-        ws: &WebSocket,
-        chunk_analysis: Option<&analysis::ChunkAnalysis>,
-    ) {
-        console_log!("generate_observation: starting LLM pipeline");
-        self.ensure_session_state().await;
-        let (scored_chunks, baselines, recent_obs, student_id, session_id) = {
-            let s = self.inner.borrow();
-            let recent: Vec<RecentObservation> = s
-                .observations
-                .iter()
-                .rev()
-                .take(3)
-                .map(|o| RecentObservation {
-                    dimension: o.dimension.clone(),
-                })
-                .collect();
-            (
-                s.scored_chunks.clone(),
-                s.baselines.clone().unwrap(),
-                recent,
-                s.student_id.clone(),
-                s.session_id.clone(),
-            )
-        };
-
-        // Run teaching moment selection
-        let moment = match crate::services::teaching_moments::select_teaching_moment(
-            &scored_chunks,
-            &baselines,
-            &recent_obs,
-        ) {
-            Some(m) => m,
-            None => return,
-        };
-
-        // Build teaching moment JSON for handle_ask_inner
-        let tm_json = serde_json::json!({
-            "dimension": moment.dimension,
-            "dimension_score": moment.score,
-            "chunk_index": moment.chunk_index,
-            "deviation": moment.deviation,
-            "stop_probability": moment.stop_probability,
-            "is_positive": moment.is_positive,
-            "reasoning": moment.reasoning,
-        });
-
-        // Build enriched piece_context from score context + analysis
-        let piece_context = {
-            let s = self.inner.borrow();
-            let mut ctx = serde_json::Map::new();
-            if let Some(score_ctx) = &s.score_context {
-                ctx.insert("composer".into(), serde_json::json!(score_ctx.composer));
-                ctx.insert("title".into(), serde_json::json!(score_ctx.title));
-                ctx.insert("piece_id".into(), serde_json::json!(score_ctx.piece_id));
-            }
-            if let Some(ca) = chunk_analysis {
-                if let Some(bar_range) = &ca.bar_range {
-                    ctx.insert("bar_range".into(), serde_json::json!(bar_range));
-                }
-                ctx.insert("analysis_tier".into(), serde_json::json!(ca.tier));
-                ctx.insert(
-                    "musical_analysis".into(),
-                    serde_json::to_value(&ca.dimensions).unwrap_or_default(),
-                );
-            }
-            if ctx.is_empty() {
-                None
-            } else {
-                Some(serde_json::Value::Object(ctx))
-            }
-        };
-
-        // Inject drilling comparison context if in drilling mode
-        let piece_context = {
-            let mut pc = piece_context;
-            let s = self.inner.borrow();
-            if let Some(ref dp) = s.mode_detector.drilling_passage {
-                let current_scores = s.scored_chunks.last().map(|c| c.scores).unwrap_or([0.0; 6]);
-                let drilling_ctx = serde_json::json!({
-                    "repetition_count": dp.repetition_count,
-                    "first_attempt_scores": {
-                        "dynamics": dp.first_scores[0],
-                        "timing": dp.first_scores[1],
-                        "pedaling": dp.first_scores[2],
-                        "articulation": dp.first_scores[3],
-                        "phrasing": dp.first_scores[4],
-                        "interpretation": dp.first_scores[5],
-                    },
-                    "current_scores": {
-                        "dynamics": current_scores[0],
-                        "timing": current_scores[1],
-                        "pedaling": current_scores[2],
-                        "articulation": current_scores[3],
-                        "phrasing": current_scores[4],
-                        "interpretation": current_scores[5],
-                    },
-                    "bar_range": dp.bar_range,
-                });
-                match &mut pc {
-                    Some(serde_json::Value::Object(ref mut ctx)) => {
-                        ctx.insert("drilling_context".into(), drilling_ctx);
-                    }
-                    None => {
-                        let mut ctx = serde_json::Map::new();
-                        ctx.insert("drilling_context".into(), drilling_ctx);
-                        pc = Some(serde_json::Value::Object(ctx));
-                    }
-                    _ => {}
-                }
-            }
-            pc
-        };
-
-        let tm_json_clone = tm_json.clone();
-        let inner_req = crate::services::ask::AskInnerRequest {
-            teaching_moment: tm_json,
-            student_id: student_id.clone(),
-            session_id: session_id.clone(),
-            piece_context,
-        };
-
-        let inner_resp = crate::services::ask::handle_ask_inner(&self.env, &inner_req).await;
-        console_log!(
-            "generate_observation: LLM pipeline returned. text={}, fallback={}",
-            crate::truncate_str(&inner_resp.observation_text, 80),
-            inner_resp.is_fallback
-        );
-
-        // Push observation to client
-        let mut obs_event = serde_json::json!({
-            "type": "observation",
-            "text": inner_resp.observation_text,
-            "dimension": inner_resp.dimension,
-            "framing": inner_resp.framing,
-        });
-        if let Some(br) = chunk_analysis.and_then(|a| a.bar_range.as_ref()) {
-            obs_event["barRange"] = serde_json::json!(br);
-        }
-        if let Some(ref components) = inner_resp.components_json {
-            if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(components) {
-                obs_event["components"] = parsed;
-            }
-        }
-
-        // For eval sessions, include the context the teacher LLM saw
-        {
-            let is_eval = self.inner.borrow().is_eval_session;
-            if is_eval {
-                let piece_name = self.inner.borrow().piece_query.clone();
-                let baselines_json = serde_json::to_value(&baselines).unwrap_or_default();
-                let recent_obs_json = serde_json::to_value(&recent_obs).unwrap_or_default();
-                let analysis_json = chunk_analysis
-                    .map(|ca| serde_json::to_value(ca).unwrap_or_default())
-                    .unwrap_or_default();
-                obs_event["eval_context"] = serde_json::json!({
-                    "teaching_moment": &tm_json_clone,
-                    "baselines": baselines_json,
-                    "recent_observations": recent_obs_json,
-                    "analysis_facts": analysis_json,
-                    "piece_name": piece_name,
-                });
-            }
-        }
-
-        let _ = ws.send_with_str(&obs_event.to_string());
-
-        // Generate observation ID and extract fields before borrowing
-        let obs_id = crate::services::ask::generate_uuid();
-        let observation_text = inner_resp.observation_text.clone();
-        let obs_dimension = inner_resp.dimension.clone();
-        let obs_framing = inner_resp.framing.clone();
-        let components_json = inner_resp.components_json.clone();
-
-        // Store in session state
-        {
-            let mut s = self.inner.borrow_mut();
-            s.observations.push(ObservationRecord {
-                id: obs_id.clone(),
-                text: observation_text.clone(),
-                dimension: obs_dimension.clone(),
-                framing: obs_framing.clone(),
-                chunk_index: moment.chunk_index,
-                score: moment.score,
-                baseline: moment.baseline,
-                reasoning_trace: inner_resp.reasoning_trace.clone(),
-                is_fallback: inner_resp.is_fallback,
-                components_json: components_json.clone(),
-            });
-            s.last_observation_at = Some(js_sys::Date::now() as u64);
-        }
-
-        // Persist as message in conversation (awaited to prevent data loss)
-        let conv_id = self.inner.borrow().conversation_id.clone();
-        let session_state_debug = {
-            let s = self.inner.borrow();
-            format!(
-                "session_id={}, conv_id={:?}, obs_count={}",
-                s.session_id,
-                s.conversation_id,
-                s.observations.len()
-            )
-        };
-        console_log!(
-            "Persisting observation message: state=[{}], obs_id={}",
-            session_state_debug,
-            obs_id
-        );
-        if let Some(ref conv_id) = conv_id {
-            let msg_id = crate::services::ask::generate_uuid();
-            let now = js_sys::Date::new_0()
-                .to_iso_string()
-                .as_string()
-                .unwrap_or_default();
-            match self.env.d1("DB") {
-                Ok(db) => {
-                    let bind_result = db.prepare(
-                        "INSERT INTO messages (id, conversation_id, role, content, message_type, \
-                         dimension, framing, components_json, session_id, observation_id, created_at) \
-                         VALUES (?1, ?2, 'assistant', ?3, 'observation', ?4, ?5, ?6, ?7, ?8, ?9)"
-                    )
-                    .bind(&[
-                        JsValue::from_str(&msg_id),
-                        JsValue::from_str(conv_id),
-                        JsValue::from_str(&observation_text),
-                        JsValue::from_str(&obs_dimension),
-                        JsValue::from_str(&obs_framing),
-                        match components_json.as_deref() {
-                            Some(c) => JsValue::from_str(c),
-                            None => JsValue::NULL,
-                        },
-                        JsValue::from_str(&session_id),
-                        JsValue::from_str(&obs_id),
-                        JsValue::from_str(&now),
-                    ]);
-                    match bind_result {
-                        Ok(q) => match q.run().await {
-                            Ok(_) => {
-                                console_log!("Observation message persisted: msg_id={}", msg_id)
-                            }
-                            Err(e) => {
-                                console_error!("Failed to persist observation message: {:?}", e)
-                            }
-                        },
-                        Err(e) => {
-                            console_error!("Failed to bind observation message insert: {:?}", e)
-                        }
-                    }
-                }
-                Err(e) => console_error!("D1 binding failed for observation message: {:?}", e),
-            }
-        } else {
-            console_log!("No conversation_id, skipping observation message persist");
-        }
-    }
 }
