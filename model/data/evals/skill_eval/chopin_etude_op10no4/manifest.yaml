@@ -59,3 +59,108 @@ recordings:
   label_rationale: human curation
   downloaded: false
   download_error: null
+- video_id: iHC5G_vG5qw
+  title: Tiffany Poon – Etude in C sharp minor Op. 10 No. 4 (first stage)
+  channel: Chopin Institute
+  duration_seconds: 124
+  skill_bucket: 5
+  label_rationale: human curation
+  downloaded: false
+  download_error: null
+- video_id: wLo8peOJ70Y
+  title: Chopin - Etude Op. 10 No. 4 “Torrent”
+  channel: Kassia
+  duration_seconds: 116
+  skill_bucket: 5
+  label_rationale: human curation
+  downloaded: false
+  download_error: null
+- video_id: tTAl_6gw0h8
+  title: 'Chopin: 12 Études, Op. 10: No. 4 in C-Sharp Minor "Torrent"'
+  channel: Maurizio Pollini - Topic
+  duration_seconds: 122
+  skill_bucket: 5
+  label_rationale: human curation
+  downloaded: false
+  download_error: null
+- video_id: ZIAZ6_jbau4
+  title: Chopin - Etude Op.10 No.4  - 4K - piano - CANACANA
+  channel: CANACANA family
+  duration_seconds: 147
+  skill_bucket: 5
+  label_rationale: human curation
+  downloaded: false
+  download_error: null
+- video_id: 9JtIQzHqvcc
+  title: F. Chopin - Etude Op. 10 No. 4 "Torrent"
+  channel: a3 piano
+  duration_seconds: 124
+  skill_bucket: 5
+  label_rationale: human curation
+  downloaded: false
+  download_error: null
+- video_id: rkWvdLE8Nfc
+  title: Chopin - Etude Op. 10, No. 4 [Kevin Chen]
+  channel: Romantic Scores
+  duration_seconds: 106
+  skill_bucket: 5
+  label_rationale: human curation
+  downloaded: false
+  download_error: null
+- video_id: CRMOwaIkYSY
+  title: Chopin - Etude Op.10 No.4 "Torrent"
+  channel: Traum Piano
+  duration_seconds: 131
+  skill_bucket: 5
+  label_rationale: human curation
+  downloaded: false
+  download_error: null
+- video_id: dzwQz4z8O2I
+  title: 'Chopin: Étude Op. 10 No. 4 [Horowitz 1973]'
+  channel: 'HS: HorowitzScores™'
+  duration_seconds: 128
+  skill_bucket: 5
+  label_rationale: human curation
+  downloaded: false
+  download_error: null
+- video_id: Rkffm_6b3RE
+  title: MARTÍN GARCÍA GARCÍA – Etude in C sharp minor, Op. 10 No. 4 (18th Chopin
+    Competition, first stage)
+  channel: Chopin Institute
+  duration_seconds: 136
+  skill_bucket: 5
+  label_rationale: human curation
+  downloaded: false
+  download_error: null
+- video_id: kd0zgkvMNgk
+  title: Murray Perahia - Chopin - Etude No 4 in C-sharp minor, Op 10
+  channel: Classical Vault 3
+  duration_seconds: 127
+  skill_bucket: 5
+  label_rationale: human curation
+  downloaded: false
+  download_error: null
+- video_id: J8-36thdVEU
+  title: Chopin Etude Op. 10 No. 4 "Torrent" - Nathan Schaumann
+  channel: Nathan Schaumann
+  duration_seconds: 127
+  skill_bucket: 4
+  label_rationale: human curation
+  downloaded: false
+  download_error: null
+- video_id: R-rtqkd-5Og
+  title: 'Jan Lisiecki - Chopin: Étude No.4 in C sharp Minor (Official Video)'
+  channel: Deutsche Grammophon - DG
+  duration_seconds: 142
+  skill_bucket: 5
+  label_rationale: human curation
+  downloaded: false
+  download_error: null
+- video_id: -yauT_uaKZo
+  title: 77-year-old Barenboim plays Chopin Etude Op.10 No.4
+  channel: Classic BB
+  duration_seconds: 107
+  skill_bucket: 5
+  label_rationale: human curation
+  downloaded: false
+  download_error: null

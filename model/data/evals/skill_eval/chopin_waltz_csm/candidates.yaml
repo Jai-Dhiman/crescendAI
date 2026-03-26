@@ -1,7 +1,7 @@
 piece: chopin_waltz_csm
 title: Chopin Waltz in C-sharp Minor
 composer: Chopin
-status: uncurated
+status: partial
 target_per_bucket: 10
 recordings:
 - video_id: 2Ni9bD1M65E
@@ -19,7 +19,7 @@ recordings:
   duration_seconds: 183
   view_count: 2430
   skill_bucket: null
-  label_rationale: null
+  label_rationale: skip
   downloaded: false
   download_error: null
 - video_id: RfoBmP694m0
@@ -28,7 +28,7 @@ recordings:
   duration_seconds: 105
   view_count: 843
   skill_bucket: null
-  label_rationale: null
+  label_rationale: skip
   downloaded: false
   download_error: null
 - video_id: UfsPElJzZ8E
@@ -45,8 +45,8 @@ recordings:
   channel: MrOsomatsu
   duration_seconds: 261
   view_count: 1852934
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 5
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: wKHW9B6Wf1I
@@ -146,7 +146,7 @@ recordings:
   duration_seconds: 317
   view_count: 34
   skill_bucket: null
-  label_rationale: null
+  label_rationale: skip
   downloaded: false
   download_error: null
 - video_id: 0i9tHggVjbg
@@ -173,7 +173,7 @@ recordings:
   duration_seconds: 135
   view_count: 3076
   skill_bucket: null
-  label_rationale: null
+  label_rationale: skip
   downloaded: false
   download_error: null
 - video_id: Bg9B5aLTAsg
@@ -182,7 +182,7 @@ recordings:
   duration_seconds: 130
   view_count: 371
   skill_bucket: null
-  label_rationale: null
+  label_rationale: skip
   downloaded: false
   download_error: null
 - video_id: _DXieWqccaw
@@ -192,7 +192,7 @@ recordings:
   duration_seconds: 257
   view_count: 1103
   skill_bucket: null
-  label_rationale: null
+  label_rationale: skip
   downloaded: false
   download_error: null
 - video_id: d7jBACF-_9A
@@ -266,7 +266,7 @@ recordings:
   duration_seconds: 232
   view_count: 804
   skill_bucket: null
-  label_rationale: null
+  label_rationale: skip
   downloaded: false
   download_error: null
 - video_id: jsWHK1LiDAE
@@ -426,7 +426,7 @@ recordings:
   duration_seconds: 102
   view_count: 407346
   skill_bucket: null
-  label_rationale: null
+  label_rationale: skip
   downloaded: false
   download_error: null
 - video_id: RSnaHfm0d8Y
@@ -444,8 +444,8 @@ recordings:
   channel: pianistgeneration
   duration_seconds: 274
   view_count: 7601872
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 5
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: 5IyoNXLJaxg
@@ -454,7 +454,7 @@ recordings:
   duration_seconds: 273
   view_count: 52
   skill_bucket: null
-  label_rationale: null
+  label_rationale: skip
   downloaded: false
   download_error: null
 - video_id: 3bPFdSj3H60

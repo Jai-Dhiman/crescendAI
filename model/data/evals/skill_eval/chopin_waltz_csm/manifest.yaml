@@ -1,0 +1,20 @@
+piece: chopin_waltz_csm
+title: Chopin Waltz in C-sharp Minor
+composer: Chopin
+recordings:
+- video_id: b_E51SV0Zus
+  title: 'Yuja Wang plays Chopin : Waltz in C sharp minor, Opus 64 No. 2'
+  channel: MrOsomatsu
+  duration_seconds: 261
+  skill_bucket: 5
+  label_rationale: human curation
+  downloaded: false
+  download_error: null
+- video_id: WVsGf1ag6Us
+  title: EVGENY KISSIN plays CHOPIN Waltz Op.64 n.2
+  channel: pianistgeneration
+  duration_seconds: 274
+  skill_bucket: 5
+  label_rationale: human curation
+  downloaded: false
+  download_error: null

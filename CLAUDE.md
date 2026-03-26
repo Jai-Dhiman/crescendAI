@@ -107,7 +107,7 @@ Use the `/browse` skill from gstack for all web browsing. Never use `mcp__claude
 
 ## Superpowers
 
-### `/superpowers:brainstorm` -- Creative Exploration
+### `/superpowers:brainstorming` -- Creative Exploration
 
 **What:** Explores user intent, requirements, and design before implementation. Prevents jumping straight to code by forcing you to think through what you're actually building.
 **When:** Before any creative work: creating features, building components, adding functionality, modifying behavior. Use before `/superpowers:writing-plans`.
@@ -184,16 +184,6 @@ Use the `/browse` skill from gstack for all web browsing. Never use `mcp__claude
 **What:** Run workloads on HF Jobs infrastructure. UV scripts, Docker jobs, hardware selection, cost estimation.
 **When:** When running training, batch inference, data processing, or any GPU workload without local setup.
 
-### `/hugging-face-model-trainer` -- Model Training
-
-**What:** Train or fine-tune language models using TRL on HF Jobs. SFT, DPO, GRPO, reward modeling, plus GGUF conversion.
-**When:** When fine-tuning the teacher LLM, training reward models, or converting models for local deployment.
-
-### `/hugging-face-tool-builder` -- API Scripting
-
-**What:** Build reusable scripts that fetch, enrich, or process data from the HF API.
-**When:** When chaining API calls, automating tasks, or building tools that interact with HF Hub data.
-
 ## Autoresearch
 
 ### `/autoresearch` -- Autonomous Improvement Loop
@@ -204,22 +194,51 @@ Use the `/browse` skill from gstack for all web browsing. Never use `mcp__claude
 
 ## Recommended Workflow
 
-Typical feature development cycle:
+### Full Feature Cycle
 
 ```
-1. BRAINSTORM  (/superpowers:brainstorm)     -- explore the space
-2. PLAN        (/superpowers:writing-plans)   -- draft implementation plan
-3. REVIEW PLAN (/plan-eng-review)             -- stress-test the plan
-4. WORKTREE    (/superpowers:using-git-worktrees) -- isolate the work
-5. TDD         (/superpowers:test-driven-development) -- tests first
-6. EXECUTE     (/superpowers:executing-plans) -- build step by step
-7. VERIFY      (/superpowers:verification-before-completion) -- prove it works
-8. REVIEW DIFF (/review)                      -- structural review
-9. SHIP        (/ship)                        -- merge, PR, done
-10. QA         (/qa or /browse)               -- test in production
+ IDEATION
+   /office-hours                             -- new product bets only (e.g., "add sight-reading?")
+   /superpowers:brainstorming                -- every feature (always)
+
+ PLANNING
+   /superpowers:writing-plans                -- draft the plan
+   /autoplan                                 -- review gauntlet (CEO + design + eng, auto-decided)
+     OR pick individual reviews:
+       /plan-ceo-review                      -- when scope/ambition is in question
+       /plan-design-review                   -- when UI/UX is involved
+       /plan-eng-review                      -- always (architecture is never optional)
+
+ EXECUTION
+   /superpowers:using-git-worktrees          -- isolate the work
+   /superpowers:test-driven-development      -- tests first
+   /superpowers:executing-plans              -- step by step with checkpoints
+   /superpowers:dispatching-parallel-agents  -- when tasks are independent
+   /superpowers:verification-before-completion -- evidence before claims
+
+ REVIEW
+   /review                                   -- diff safety (always before PR)
+   /superpowers:requesting-code-review       -- requirements/intent check
+   /design-review                            -- UI work only (live site visual QA + auto-fix)
+   /cso                                      -- security-sensitive work (auth, API, data boundaries)
+
+ SHIP & VERIFY
+   /ship                                     -- merge, changelog, PR
+   /qa or /browse                            -- verify in production
+   /retro                                    -- end of sprint
+
+ CROSS-CUTTING (as needed)
+   /superpowers:systematic-debugging         -- code bugs
+   /investigate                              -- production incidents, deep root cause
+   /autoresearch                             -- measurable optimization loops (model, prompts, perf)
 ```
 
-For product-level visioning, start with `/plan-ceo-review` before step 1.
+### Shortcuts
+
+- **Small bugfix:** debug -> fix -> `/review` -> `/ship`
+- **UI-only change:** brainstorm -> plan -> `/plan-design-review` -> build -> `/design-review` -> `/ship`
+- **Model/ML work:** brainstorm -> plan -> `/plan-eng-review` -> TDD -> `/autoresearch` -> `/ship`
+- **Security-touching:** add `/cso` before `/ship`
 
 ## Project Structure
 
