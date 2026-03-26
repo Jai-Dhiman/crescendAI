@@ -447,20 +447,68 @@ def write_candidates_yaml(
     candidates: list[Candidate],
     output_dir: Path,
 ) -> Path:
-    """Write candidates.yaml for a piece."""
+    """Write candidates.yaml for a piece, merging with existing labels if present."""
     piece_dir = output_dir / spec.piece
     piece_dir.mkdir(parents=True, exist_ok=True)
+    out_path = piece_dir / "candidates.yaml"
+
+    # Preserve existing labels if candidates.yaml already has curated data
+    existing_labels: dict[str, dict] = {}
+    existing_status = "uncurated"
+    if out_path.exists():
+        with open(out_path) as f:
+            existing = yaml.safe_load(f)
+        if existing and existing.get("recordings"):
+            for rec in existing["recordings"]:
+                if rec.get("skill_bucket") is not None or rec.get("label_rationale") == "skip":
+                    existing_labels[rec["video_id"]] = {
+                        "skill_bucket": rec.get("skill_bucket"),
+                        "label_rationale": rec.get("label_rationale"),
+                        "downloaded": rec.get("downloaded", False),
+                        "download_error": rec.get("download_error"),
+                    }
+            existing_status = existing.get("status", "uncurated")
+
+    new_recordings = []
+    for c in candidates:
+        d = _candidate_to_dict(c)
+        if d["video_id"] in existing_labels:
+            d.update(existing_labels[d["video_id"]])
+        new_recordings.append(d)
+
+    # Preserve recordings that were in the old file but not in the new search
+    new_vids = {c.video_id for c in candidates}
+    if existing_labels:
+        with open(out_path) as f:
+            existing = yaml.safe_load(f)
+        for rec in existing["recordings"]:
+            if rec["video_id"] not in new_vids and rec["video_id"] in existing_labels:
+                new_recordings.append(rec)
+
+    # Recompute status
+    n_labeled = sum(
+        1 for r in new_recordings
+        if r.get("skill_bucket") is not None or r.get("label_rationale") == "skip"
+    )
+    if n_labeled == len(new_recordings) and n_labeled > 0:
+        status = "complete"
+    elif n_labeled > 0:
+        status = "partial"
+    else:
+        status = "uncurated"
+
+    if existing_labels:
+        print(f"  Preserved {len(existing_labels)} existing labels (was {existing_status})")
 
     data = {
         "piece": spec.piece,
         "title": spec.title,
         "composer": spec.composer,
-        "status": "uncurated",
+        "status": status,
         "target_per_bucket": 10 if spec.target >= 60 else 6,
-        "recordings": [_candidate_to_dict(c) for c in candidates],
+        "recordings": new_recordings,
     }
 
-    out_path = piece_dir / "candidates.yaml"
     with open(out_path, "w") as f:
         yaml.dump(data, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
 

@@ -1,1 +1,136 @@
-candidates: []
+candidates:
+- video_id: QAvNUkeLsIE
+  include: true
+  skill_level: 1
+  title: Beethoven - Fur Elise (After one year of learning piano)
+  general_notes: T5 skill corpus, bucket 1
+- video_id: IDqVP5hNdME
+  include: true
+  skill_level: 1
+  title: Fur Elise - Adult Piano Beginner (1 year progress)
+  general_notes: T5 skill corpus, bucket 1
+- video_id: LM6FdrMd6Bo
+  include: true
+  skill_level: 1
+  title: Beethoven - Fur Elise [intro] (7 month piano progress)
+  general_notes: T5 skill corpus, bucket 1
+- video_id: J_VFCRhdaso
+  include: true
+  skill_level: 3
+  title: Beethoven - Fur Elise | Grade 3
+  general_notes: T5 skill corpus, bucket 3
+- video_id: LpJLZVR2wSg
+  include: true
+  skill_level: 2
+  title: Beethoven Fur Elise - Self-taught Piano Progress
+  general_notes: T5 skill corpus, bucket 2
+- video_id: G8ozOkLMfrg
+  include: true
+  skill_level: 2
+  title: Fur Elise - 13 months of adult piano progress
+  general_notes: T5 skill corpus, bucket 2
+- video_id: X0CQgtfnNRE
+  include: true
+  skill_level: 2
+  title: Fur Elise - Piano Progress
+  general_notes: T5 skill corpus, bucket 2
+- video_id: xyLEsQxNNfw
+  include: true
+  skill_level: 3
+  title: Piano Pieces for Children Grade 3 - Fur Elise
+  general_notes: T5 skill corpus, bucket 3
+- video_id: _ZaaeuE1sL8
+  include: true
+  skill_level: 2
+  title: Piano Progress 2 months, Fur Elise Cover
+  general_notes: T5 skill corpus, bucket 2
+- video_id: 4246jI6XmoQ
+  include: true
+  skill_level: 3
+  title: Fur Elise - Ameb Piano For Leisure Grade 5
+  general_notes: T5 skill corpus, bucket 3
+- video_id: wfF0zHeU3Zs
+  include: true
+  skill_level: 4
+  title: Beethoven - Fur Elise
+  general_notes: T5 skill corpus, bucket 4
+- video_id: 2fcX2dWmR6g
+  include: true
+  skill_level: 4
+  title: Beethoven - Fur Elise
+  general_notes: T5 skill corpus, bucket 4
+- video_id: q9bU12gXUyM
+  include: true
+  skill_level: 5
+  title: Beethoven - Fur Elise (Piano Version)
+  general_notes: T5 skill corpus, bucket 5
+- video_id: wKvKiN1wYHw
+  include: true
+  skill_level: 5
+  title: Beethoven Fur Elise - Paul Barton, FEURICH 218 piano
+  general_notes: T5 skill corpus, bucket 5
+- video_id: p2D56saO9bI
+  include: true
+  skill_level: 4
+  title: Beethoven, Fur Elise
+  general_notes: T5 skill corpus, bucket 4
+- video_id: Mriq2rfgCz0
+  include: true
+  skill_level: 3
+  title: Fur Elise
+  general_notes: T5 skill corpus, bucket 3
+- video_id: CWLRo1i9nF0
+  include: true
+  skill_level: 3
+  title: Fur Elise, Beethoven (Late-Intermediate Piano Solo)
+  general_notes: T5 skill corpus, bucket 3
+- video_id: Xrkq-yBVcQQ
+  include: true
+  skill_level: 2
+  title: Fur Elise
+  general_notes: T5 skill corpus, bucket 2
+- video_id: 50cvhSjdrPE
+  include: true
+  skill_level: 4
+  title: Fur Elise WoO 59 (RCM Level 7)
+  general_notes: T5 skill corpus, bucket 4
+- video_id: YMiib3IU-IE
+  include: true
+  skill_level: 4
+  title: Fur Elise - Piano Demo
+  general_notes: T5 skill corpus, bucket 4
+- video_id: 1KSzkx86eyU
+  include: true
+  skill_level: 2
+  title: 4 year old, Wins 1st place at World Competition with Fur Elise
+  general_notes: T5 skill corpus, bucket 2
+- video_id: 70XpmEIetbk
+  include: true
+  skill_level: 1
+  title: Fur Elise by Beethoven (piano recital)
+  general_notes: T5 skill corpus, bucket 1
+- video_id: IO9KVZZD0zY
+  include: true
+  skill_level: 3
+  title: Max Piano Recital 2022 - Fur Elise
+  general_notes: T5 skill corpus, bucket 3
+- video_id: s71I_EWJk7I
+  include: true
+  skill_level: 5
+  title: Fur Elise Performed by Lang Lang
+  general_notes: T5 skill corpus, bucket 5
+- video_id: k0eNzs6g_MU
+  include: true
+  skill_level: 5
+  title: 'Alice Sara Ott - Beethoven: Fur Elise'
+  general_notes: T5 skill corpus, bucket 5
+- video_id: KzM7bOJ-tT0
+  include: true
+  skill_level: 5
+  title: Ivo Pogorelich plays Beethoven Fur Elise
+  general_notes: T5 skill corpus, bucket 5
+- video_id: q5oSa4itomE
+  include: true
+  skill_level: 5
+  title: Lang Lang performs Beethoven's Fur Elise
+  general_notes: T5 skill corpus, bucket 5

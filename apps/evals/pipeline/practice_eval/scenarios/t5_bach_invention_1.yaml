@@ -1,1 +1,585 @@
-candidates: []
+candidates:
+- video_id: E-MoLWi6aqo
+  include: true
+  skill_level: 1
+  title: '135: Bach - Invention 1 in C Major (Progress 1)'
+  general_notes: T5 skill corpus, bucket 1
+- video_id: AI8O7sGzdFw
+  include: true
+  skill_level: 1
+  title: Bach - Invention No. 1 (Harpsichord) | Piano Progress Week 57
+  general_notes: T5 skill corpus, bucket 1
+- video_id: cVj-WIe_dmI
+  include: true
+  skill_level: 2
+  title: '141: Bach - Invention 1 in C Major (Progress 3)'
+  general_notes: T5 skill corpus, bucket 2
+- video_id: kcChnkECgJI
+  include: true
+  skill_level: 2
+  title: 'Piano Progress 100 hours: Bach invention 1'
+  general_notes: T5 skill corpus, bucket 2
+- video_id: XJFNb9hHrNA
+  include: true
+  skill_level: 3
+  title: Bach - Invention No. 1 (ABRSM Grade 4 2015-2016 A4) | Piano Progress Week
+    60
+  general_notes: T5 skill corpus, bucket 3
+- video_id: ie_zY7vcU7k
+  include: true
+  skill_level: 2
+  title: Bach - Invention 1 (fast version) BWV 772 | Piano Progress Adult
+  general_notes: T5 skill corpus, bucket 2
+- video_id: F5Mf9k6hITU
+  include: true
+  skill_level: 3
+  title: Bach Invention no. 1 in C Major. Learning The Complete Bach Inventions.
+  general_notes: T5 skill corpus, bucket 3
+- video_id: yks23eLPl7E
+  include: true
+  skill_level: 1
+  title: Day 493 learning piano progress, Bach's Invention No. 1 in C Major BWV 772
+  general_notes: T5 skill corpus, bucket 1
+- video_id: QARjKofFUUM
+  include: true
+  skill_level: 2
+  title: Invention no. 1 in C - ABRSM grade 4 | PIANO PROGRESS DAY 547
+  general_notes: T5 skill corpus, bucket 2
+- video_id: sWjEEeLtlgk
+  include: true
+  skill_level: 1
+  title: Bach Invention No. 1 work in progress
+  general_notes: T5 skill corpus, bucket 1
+- video_id: KPFAJqv-cnU
+  include: true
+  skill_level: 2
+  title: Johann Sebastian Bach - Invention 1 in C major BWV 772 (ABRSM Piano 2015-2016
+    Grade 4)
+  general_notes: T5 skill corpus, bucket 2
+- video_id: Lh-3bkEZCwc
+  include: true
+  skill_level: 1
+  title: Bach - Invention 1 in C major BWV 772 | Petrisor Hontaru | Adult Beginner
+    Piano Progress
+  general_notes: T5 skill corpus, bucket 1
+- video_id: XbB95Sx4Ttg
+  include: true
+  skill_level: 1
+  title: Bach - Invention 1 in C major BWV 772
+  general_notes: T5 skill corpus, bucket 1
+- video_id: 6g8nkZy_lY0
+  include: true
+  skill_level: 3
+  title: J.S. Bach - Invention 1 - Digital Piano - 1 year adult beginner
+  general_notes: T5 skill corpus, bucket 3
+- video_id: _gnFNHng7p4
+  include: true
+  skill_level: 2
+  title: Piano Invention no 1 - J S  Bach (1 year)
+  general_notes: T5 skill corpus, bucket 2
+- video_id: kvgDWHn01pY
+  include: true
+  skill_level: 1
+  title: Bach Inventio no 1 in C major. Adult piano learning month 42.
+  general_notes: T5 skill corpus, bucket 1
+- video_id: eJWd9di5ovI
+  include: true
+  skill_level: 2
+  title: J.S.Bach Invention No.1 in C Major BWV 772
+  general_notes: T5 skill corpus, bucket 2
+- video_id: XxTn51cnDu8
+  include: true
+  skill_level: 3
+  title: 'J. S. Bach, Invention #1 in C Major, BWV 772'
+  general_notes: T5 skill corpus, bucket 3
+- video_id: MvoMZQVao0k
+  include: true
+  skill_level: 2
+  title: '[#49 Adult Piano Learner] Invention No  1 in C Major (Bach), 4 months progress'
+  general_notes: T5 skill corpus, bucket 2
+- video_id: nBCMMWaT6FA
+  include: true
+  skill_level: 3
+  title: Bach Invention no. 1, BWV 772.wmv
+  general_notes: T5 skill corpus, bucket 3
+- video_id: VNFVyBt9hkU
+  include: true
+  skill_level: 3
+  title: 'Edward Chang plays Bach: "Invention No.1" 2010 Spring Recital, New York
+    Conservatory of Music'
+  general_notes: T5 skill corpus, bucket 3
+- video_id: dQkv_WmibqU
+  include: true
+  skill_level: 4
+  title: Bach - Invention No. 1 in C-major BWV 772
+  general_notes: T5 skill corpus, bucket 4
+- video_id: yOboor7zz5U
+  include: true
+  skill_level: 4
+  title: Johann Sebastian Bach, Invention No 1 in C major
+  general_notes: T5 skill corpus, bucket 4
+- video_id: EJvv1BP0wjE
+  include: true
+  skill_level: 3
+  title: J.S. Bach Invention 1 by Audrey Huang ( 7 years old)
+  general_notes: T5 skill corpus, bucket 3
+- video_id: VpuCRJ2q1rc
+  include: true
+  skill_level: 3
+  title: 'Bach. Invention # 1'
+  general_notes: T5 skill corpus, bucket 3
+- video_id: jPbvGT-xqHg
+  include: true
+  skill_level: 2
+  title: 'Suchir, age 12, plays Bach: 2-Part Invention No. 1 in C Major'
+  general_notes: T5 skill corpus, bucket 2
+- video_id: yLfz7k63mTI
+  include: true
+  skill_level: 3
+  title: Suzuki Piano Book 5 - Invention No. 1, BWV 772, Bach
+  general_notes: T5 skill corpus, bucket 3
+- video_id: HEoq7PPUMyc
+  include: true
+  skill_level: 3
+  title: Invention No. 1 (J. S. Bach)
+  general_notes: T5 skill corpus, bucket 3
+- video_id: moPTDQEcSek
+  include: true
+  skill_level: 3
+  title: J.S Bach - 15 Invention No. 1, BWV 772 - Talia
+  general_notes: T5 skill corpus, bucket 3
+- video_id: zbIx63yHxJ4
+  include: true
+  skill_level: 2
+  title: Charles Siegler, Mannes Prep Piano Recital, 1/24/2015; JS Bach, two Part
+    Invention No. 1 in C Major
+  general_notes: T5 skill corpus, bucket 2
+- video_id: XuCtfZlNARM
+  include: true
+  skill_level: 1
+  title: '8 Yr. old Joe Mark performs Bach Invention #1 @Gallivan Recital'
+  general_notes: T5 skill corpus, bucket 1
+- video_id: 1RGE8tlDN7Q
+  include: true
+  skill_level: 3
+  title: 'Jongju Park: Two Part Invention No.1 - J.S. Bach'
+  general_notes: T5 skill corpus, bucket 3
+- video_id: kqnlHaNOlBc
+  include: true
+  skill_level: 1
+  title: "12. Two-Part Invention No.1\u2026J.S. Bach - Sarah (13, 6y4m)"
+  general_notes: T5 skill corpus, bucket 1
+- video_id: ehJWxeIt22o
+  include: true
+  skill_level: 3
+  title: 'Bach''s Invention #1'
+  general_notes: T5 skill corpus, bucket 3
+- video_id: G9oxXGd2a_8
+  include: true
+  skill_level: 2
+  title: 'Invention #1 in C by Bach'
+  general_notes: T5 skill corpus, bucket 2
+- video_id: T5SNv0SVVOo
+  include: true
+  skill_level: 3
+  title: J.S.Bach Invention No.1 playing by Hailey Kim
+  general_notes: T5 skill corpus, bucket 3
+- video_id: Fk4HnOyXl4A
+  include: true
+  skill_level: 3
+  title: 'Bach. Invention # 1 in C major'
+  general_notes: T5 skill corpus, bucket 3
+- video_id: Jl391khN5Es
+  include: true
+  skill_level: 3
+  title: Invention No 1 by J.S Bach - Honor Recital
+  general_notes: T5 skill corpus, bucket 3
+- video_id: 3Pllid4KqLo
+  include: true
+  skill_level: 2
+  title: J. S. Bach Invention No.1 BWV 772
+  general_notes: T5 skill corpus, bucket 2
+- video_id: yBKWaJAHqJs
+  include: true
+  skill_level: 3
+  title: "Bach \uBC14\uD750 - Invention No. 1"
+  general_notes: T5 skill corpus, bucket 3
+- video_id: SQ2ULpmkSXg
+  include: true
+  skill_level: 3
+  title: Bach - Invention No.1 in C Major (Amateur | Age 22)
+  general_notes: T5 skill corpus, bucket 3
+- video_id: WitcAsa4Cxk
+  include: true
+  skill_level: 3
+  title: Invention no.1 in C major (BWV 772) by J. S. Bach
+  general_notes: T5 skill corpus, bucket 3
+- video_id: viBvF_LUTEI
+  include: true
+  skill_level: 3
+  title: Invention No. 1 in C Major, BWV 772, Bach
+  general_notes: T5 skill corpus, bucket 3
+- video_id: Msr1YO7ebIY
+  include: true
+  skill_level: 2
+  title: Bach - Invention No.1 in C Major BWV 772
+  general_notes: T5 skill corpus, bucket 2
+- video_id: h9dhuKqTtgw
+  include: true
+  skill_level: 2
+  title: 'J.S. Bach: Two-part Invention No. 1 in C Major BWV 772'
+  general_notes: T5 skill corpus, bucket 2
+- video_id: Lb33S5Q4eBo
+  include: true
+  skill_level: 2
+  title: Invention 1 in C major, BWV 772
+  general_notes: T5 skill corpus, bucket 2
+- video_id: y19hvm248gM
+  include: true
+  skill_level: 2
+  title: Invention no  1 in C major, BWV 722, from 15 Two   part Inventions by Johann
+    Sebastian Bach
+  general_notes: T5 skill corpus, bucket 2
+- video_id: RTdvYRp4pA0
+  include: true
+  skill_level: 1
+  title: "J.S. Bach - Invention \u2116 1 C-Dur"
+  general_notes: T5 skill corpus, bucket 1
+- video_id: qHmhsRzprwM
+  include: true
+  skill_level: 3
+  title: Two parts Inventions Number 1 by J.S. Bach
+  general_notes: T5 skill corpus, bucket 3
+- video_id: VTljk4u8iyo
+  include: true
+  skill_level: 3
+  title: Invention in C Major - Bach
+  general_notes: T5 skill corpus, bucket 3
+- video_id: bDU2v34CH7w
+  include: true
+  skill_level: 3
+  title: Vivian Hu played Bach Invention No. 1
+  general_notes: T5 skill corpus, bucket 3
+- video_id: 1X69nSZVhbE
+  include: true
+  skill_level: 1
+  title: Bach - Invention no.1 in C major - BWV 772
+  general_notes: T5 skill corpus, bucket 1
+- video_id: uTU25JPEKBs
+  include: true
+  skill_level: 3
+  title: 'Christopher Palmer 2016 Piano Recital: Bach''s Invention in C Major (Invention
+    #1)'
+  general_notes: T5 skill corpus, bucket 3
+- video_id: dZm_jY0Bgfs
+  include: true
+  skill_level: 1
+  title: '136: Bach - Invention 1 in C Major (Progress 2)'
+  general_notes: T5 skill corpus, bucket 1
+- video_id: ihyaUZdJ9SY
+  include: true
+  skill_level: 3
+  title: 'JS Bach: Invention 1 in C major (BWV 772)'
+  general_notes: T5 skill corpus, bucket 3
+- video_id: 22gThwfcKWc
+  include: true
+  skill_level: 4
+  title: Bach 2 Part Inventions No.1 Paul Barton, piano
+  general_notes: T5 skill corpus, bucket 4
+- video_id: bOa0Y_7k-XI
+  include: true
+  skill_level: 4
+  title: Invention 1 BWV 772 in C major - Alberto Firrincieli, piano
+  general_notes: T5 skill corpus, bucket 4
+- video_id: NGMDQM7hdIk
+  include: true
+  skill_level: 3
+  title: J.S. Bach - Invention no.1 BWV 772 C Major, piano
+  general_notes: T5 skill corpus, bucket 3
+- video_id: 5dMIbsb8j7U
+  include: true
+  skill_level: 1
+  title: Bach Invention 1 in C, hands alone practice
+  general_notes: T5 skill corpus, bucket 1
+- video_id: 7dF_tnpNZd0
+  include: true
+  skill_level: 2
+  title: Bach - Invention no. 1 in C Major, BWV 772 (W/ Sheets)
+  general_notes: T5 skill corpus, bucket 2
+- video_id: Pt55MOkOPgw
+  include: true
+  skill_level: 3
+  title: Bach Invention 1 C major BWV 772
+  general_notes: T5 skill corpus, bucket 3
+- video_id: ygbKyz57ZIE
+  include: true
+  skill_level: 2
+  title: 'Alison Horton Piano: Bach Two-Part Invention no. 1 BWV 772'
+  general_notes: T5 skill corpus, bucket 2
+- video_id: Wy2zyCq5WYY
+  include: true
+  skill_level: 1
+  title: 'Iris plays two part invention #1 in C major by J.S. Bach'
+  general_notes: T5 skill corpus, bucket 1
+- video_id: cCSQ9M7Bcvw
+  include: true
+  skill_level: 1
+  title: 4 year old plays RCM Grade 7 piano Bach Invention No. 1 in C Major BWV 772
+  general_notes: T5 skill corpus, bucket 1
+- video_id: OidmHo8k8Vg
+  include: true
+  skill_level: 2
+  title: Bach- Invention 1 in C major --by Gavin Ye, Age of 8
+  general_notes: T5 skill corpus, bucket 2
+- video_id: Xl7HF2EmVEk
+  include: true
+  skill_level: 3
+  title: Invention No. 1 in C major by J.S. Bach
+  general_notes: T5 skill corpus, bucket 3
+- video_id: g3_nZwNw0yg
+  include: true
+  skill_level: 2
+  title: 'Bach 2 Part Invention #1 in C Major'
+  general_notes: T5 skill corpus, bucket 2
+- video_id: ioiuy_MW9Ho
+  include: true
+  skill_level: 3
+  title: J  S  Bach, Invention No 1 in C Major, BWV 772
+  general_notes: T5 skill corpus, bucket 3
+- video_id: nNWwPYiZQV0
+  include: true
+  skill_level: 1
+  title: Invention in C Major BWV 722 of J.S. Bach (Amateur performance)
+  general_notes: T5 skill corpus, bucket 1
+- video_id: 8iFI7brcUnI
+  include: true
+  skill_level: 2
+  title: Bach Invention No.1 in C Major, BWV 722
+  general_notes: T5 skill corpus, bucket 2
+- video_id: U-5he80Z7_g
+  include: true
+  skill_level: 3
+  title: Invention No.1 in C Major by Johann Sebastian Bach
+  general_notes: T5 skill corpus, bucket 3
+- video_id: VaUTKZSfZW4
+  include: true
+  skill_level: 3
+  title: 'Bach 2 part Invention #1 in C major'
+  general_notes: T5 skill corpus, bucket 3
+- video_id: WjyuxQHa0Uc
+  include: true
+  skill_level: 3
+  title: 'JS Bach: Two-Part Invention in C-Major BWV 772'
+  general_notes: T5 skill corpus, bucket 3
+- video_id: M6Wp6jpX-Qo
+  include: true
+  skill_level: 3
+  title: 'Practicing: Bach 2-part Invention no. 1'
+  general_notes: T5 skill corpus, bucket 3
+- video_id: YgfYguf-5lI
+  include: true
+  skill_level: 1
+  title: '[#41] Invention No  1 in C Major (Bach), 2 months progress'
+  general_notes: T5 skill corpus, bucket 1
+- video_id: x7EW0OeFnfI
+  include: true
+  skill_level: 2
+  title: 'J.S. Bach: Two-Part Invention No. 1'
+  general_notes: T5 skill corpus, bucket 2
+- video_id: hd9kWeA974U
+  include: true
+  skill_level: 3
+  title: J. S. Bach - C major two part invention No.1
+  general_notes: T5 skill corpus, bucket 3
+- video_id: DCupOPGFKfg
+  include: true
+  skill_level: 3
+  title: Raditya (7) plays Bach Invention C Major BWV 772 DEMTA Honors Recital
+  general_notes: T5 skill corpus, bucket 3
+- video_id: ZriRdOQlsxw
+  include: true
+  skill_level: 2
+  title: 'Bach :  Two-part Invention No.1'
+  general_notes: T5 skill corpus, bucket 2
+- video_id: CbSLQWVZamM
+  include: true
+  skill_level: 3
+  title: Elli Ray plays Bach's Invention No 1 in C major, BWV 772
+  general_notes: T5 skill corpus, bucket 3
+- video_id: qmGgS1MUY1k
+  include: true
+  skill_level: 3
+  title: J.S. Bach - 2-part invention nr. 1
+  general_notes: T5 skill corpus, bucket 3
+- video_id: R6rxByR7h40
+  include: true
+  skill_level: 1
+  title: "BACH Invention n\xB01 BWV 772"
+  general_notes: T5 skill corpus, bucket 1
+- video_id: qlNatH28c8c
+  include: true
+  skill_level: 1
+  title: '[#40] Invention No  1 in C Major (Bach), One month progress'
+  general_notes: T5 skill corpus, bucket 1
+- video_id: -Ni4Utqyc4Y
+  include: true
+  skill_level: 5
+  title: 'She transforms simple melodies into a masterpiece: Nikolayeva plays Bach
+    Invention No. 1 in C Major'
+  general_notes: T5 skill corpus, bucket 5
+- video_id: qD_Q1cjc0lY
+  include: true
+  skill_level: 3
+  title: Emma Xia (6 years old) performs J.S. Bach's Invention No. 1, BWV 772
+  general_notes: T5 skill corpus, bucket 3
+- video_id: kKHjurQe5H4
+  include: true
+  skill_level: 1
+  title: 7 Year Old Pianist Plays Bach's Invention No. 1
+  general_notes: T5 skill corpus, bucket 1
+- video_id: 4tRjC0gzatY
+  include: true
+  skill_level: 2
+  title: Michael Spring recital Bach Invention 1 in C major
+  general_notes: T5 skill corpus, bucket 2
+- video_id: nEUgVAP8mr4
+  include: true
+  skill_level: 2
+  title: 7 year old plays Bach's Invention No. 1
+  general_notes: T5 skill corpus, bucket 2
+- video_id: WgNhacSY_SM
+  include: true
+  skill_level: 3
+  title: 'Aaron W. performs "Invention #1" by J.S.Bach'
+  general_notes: T5 skill corpus, bucket 3
+- video_id: dk-llNZ-9r4
+  include: true
+  skill_level: 3
+  title: 'Julian Raheb Bach Invention #1'
+  general_notes: T5 skill corpus, bucket 3
+- video_id: gK4eEWyYrpM
+  include: true
+  skill_level: 3
+  title: 'Invention #1 by Bach'
+  general_notes: T5 skill corpus, bucket 3
+- video_id: dDqLij7VSis
+  include: true
+  skill_level: 3
+  title: Bach invention no  1
+  general_notes: T5 skill corpus, bucket 3
+- video_id: 2HxT2Bl8ecU
+  include: true
+  skill_level: 3
+  title: Bach Invention 1
+  general_notes: T5 skill corpus, bucket 3
+- video_id: Ptrv21aMNSU
+  include: true
+  skill_level: 3
+  title: Bach - Invention 1 by Pam Kampanya (11 years old)
+  general_notes: T5 skill corpus, bucket 3
+- video_id: Zi9sCDQ48l4
+  include: true
+  skill_level: 3
+  title: 'Invention #1 in C Major (Bach)'
+  general_notes: T5 skill corpus, bucket 3
+- video_id: mwSS_8TIt4Q
+  include: true
+  skill_level: 3
+  title: Bach Invention 1
+  general_notes: T5 skill corpus, bucket 3
+- video_id: x2o_pNu42Wk
+  include: true
+  skill_level: 2
+  title: 'Bach. Invention # 1'
+  general_notes: T5 skill corpus, bucket 2
+- video_id: 8f27za8J5Y0
+  include: true
+  skill_level: 3
+  title: 'Bach: Invention no 1'
+  general_notes: T5 skill corpus, bucket 3
+- video_id: DNmBC31n4UE
+  include: true
+  skill_level: 3
+  title: Meenakshi | Bach Invention No 1
+  general_notes: T5 skill corpus, bucket 3
+- video_id: tiNGOF0J9Mo
+  include: true
+  skill_level: 3
+  title: J. S. Bach - Invention No.1 in C Major (BWV 772)
+  general_notes: T5 skill corpus, bucket 3
+- video_id: E1M_jEHJtrE
+  include: true
+  skill_level: 4
+  title: 'Bach: Invention 1 in C Major, BWV 772 (Urtext Edition)'
+  general_notes: T5 skill corpus, bucket 4
+- video_id: sQIVQ3ZirPA
+  include: true
+  skill_level: 4
+  title: Bach 2 Part Invention No.1 - P. Barton, FEURICH Harmonic Pedal piano
+  general_notes: T5 skill corpus, bucket 4
+- video_id: tt0-ZhgqMC8
+  include: true
+  skill_level: 4
+  title: 'Bach: Invention 1 in C major (newer version) | Cory Hall, pianist-composer'
+  general_notes: T5 skill corpus, bucket 4
+- video_id: wem_mJA7iks
+  include: true
+  skill_level: 4
+  title: 'J.S. Bach: Invention No. 1 in C major, BWV 772 (Anna Nadiryan)'
+  general_notes: T5 skill corpus, bucket 4
+- video_id: GKvqNvK4xlU
+  include: true
+  skill_level: 4
+  title: 'J.S.Bach: Two-Part Invention No.1, in C major BWV 772'
+  general_notes: T5 skill corpus, bucket 4
+- video_id: xzU7xQmmXGE
+  include: true
+  skill_level: 5
+  title: Invention 1 Bach by Glenn Gould
+  general_notes: T5 skill corpus, bucket 5
+- video_id: fgv76VwrnIQ
+  include: true
+  skill_level: 4
+  title: J. S. Bach - Invention No. 1 in C Major, BWV 772 | Cathleen Kwok
+  general_notes: T5 skill corpus, bucket 4
+- video_id: jE4oU2QbirM
+  include: true
+  skill_level: 4
+  title: Bach - Invention No. 1 in C Major, BWV 772 | Pf. Misato Takeda
+  general_notes: T5 skill corpus, bucket 4
+- video_id: qhRYNDpln2o
+  include: true
+  skill_level: 3
+  title: 'J.S. BACH: Invention No. 1 (BWV 772) | Cory Hall, pianist'
+  general_notes: T5 skill corpus, bucket 3
+- video_id: E8EvUmq0Zao
+  include: true
+  skill_level: 5
+  title: Invention No. 1 in C Major, BWV 772
+  general_notes: T5 skill corpus, bucket 5
+- video_id: Xyv_omOahRA
+  include: true
+  skill_level: 4
+  title: Invention No. 1 in C Major, BWV 772 by Johann Sebastian Bach - Magdalena
+    Haubs
+  general_notes: T5 skill corpus, bucket 4
+- video_id: AC9TcrYE0BE
+  include: true
+  skill_level: 3
+  title: 'J.S. BACH: Invention No. 1 in C Major | Cory Hall, pianist'
+  general_notes: T5 skill corpus, bucket 3
+- video_id: bqqQdg73TII
+  include: true
+  skill_level: 4
+  title: 'Bach: Invention 1 in C Major, BWV 772 (Student Edition)'
+  general_notes: T5 skill corpus, bucket 4
+- video_id: zMwecKu4mR0
+  include: true
+  skill_level: 4
+  title: Bach, 15 Inventions, Invention in C major, BWV 772, Piano
+  general_notes: T5 skill corpus, bucket 4
+- video_id: PumHWfIbpO8
+  include: true
+  skill_level: 5
+  title: 'J.S. Bach: Invention No. 1 in C Major, BWV 772a'
+  general_notes: T5 skill corpus, bucket 5

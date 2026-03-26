@@ -1,0 +1,61 @@
+piece: chopin_etude_op10no4
+title: Chopin Etude Op. 10 No. 4
+composer: Chopin
+recordings:
+- video_id: flsRXWhmZV0
+  title: Chopin, Etude op. 10 no. 4 (Torrent), 3 years and 4 months piano progress
+  channel: Jakob Arnar
+  duration_seconds: 125
+  skill_bucket: 4
+  label_rationale: human curation
+  downloaded: false
+  download_error: null
+- video_id: 4OYW4lpRv5g
+  title: Chopin Etude Op.10 no.4 "Torrent" - 4 Years Piano Progress
+  channel: Liam Robinson
+  duration_seconds: 129
+  skill_bucket: 3
+  label_rationale: human curation
+  downloaded: false
+  download_error: null
+- video_id: m5AC0oPtQTs
+  title: Chopin Etude Op.10 No.4 (Torrent) 30-hour progress
+  channel: Kaige Liu
+  duration_seconds: 142
+  skill_bucket: 3
+  label_rationale: human curation
+  downloaded: false
+  download_error: null
+- video_id: DKCz7yhiPnQ
+  title: Chopin - Etude Op. 10 No. 4  - 4 months progress
+  channel: Lucas Barros
+  duration_seconds: 157
+  skill_bucket: 2
+  label_rationale: human curation
+  downloaded: false
+  download_error: null
+- video_id: oOOFxDbq3RE
+  title: BRUCE (XIAOYU) LIU – Etude in C sharp minor, Op. 10 No. 4 (18th Chopin Competition,
+    first stage)
+  channel: Chopin Institute
+  duration_seconds: 125
+  skill_bucket: 5
+  label_rationale: human curation
+  downloaded: false
+  download_error: null
+- video_id: qUsGZxCVMzI
+  title: Mediocre pianist plays Chopin 10-4 after a month of focused effort
+  channel: Marc Plays Piano
+  duration_seconds: 151
+  skill_bucket: 2
+  label_rationale: human curation
+  downloaded: false
+  download_error: null
+- video_id: HUnsxa-dBfY
+  title: Chopin Etude No. 4 Op. 10 Progress Report 1 (1/2)
+  channel: Carl Hopkinson
+  duration_seconds: 600
+  skill_bucket: 1
+  label_rationale: human curation
+  downloaded: false
+  download_error: null

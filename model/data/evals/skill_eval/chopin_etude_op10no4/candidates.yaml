@@ -1,7 +1,7 @@
 piece: chopin_etude_op10no4
 title: Chopin Etude Op. 10 No. 4
 composer: Chopin
-status: uncurated
+status: partial
 target_per_bucket: 6
 recordings:
 - video_id: flsRXWhmZV0
@@ -9,8 +9,8 @@ recordings:
   channel: Jakob Arnar
   duration_seconds: 125
   view_count: 871190
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 4
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: 4OYW4lpRv5g
@@ -18,8 +18,8 @@ recordings:
   channel: Liam Robinson
   duration_seconds: 129
   view_count: 433
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 3
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: m5AC0oPtQTs
@@ -27,8 +27,8 @@ recordings:
   channel: Kaige Liu
   duration_seconds: 142
   view_count: 1545
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 3
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: iRn2F2V1q4Q
@@ -37,7 +37,7 @@ recordings:
   duration_seconds: 407
   view_count: 101422
   skill_bucket: null
-  label_rationale: null
+  label_rationale: skip
   downloaded: false
   download_error: null
 - video_id: DKCz7yhiPnQ
@@ -45,8 +45,8 @@ recordings:
   channel: Lucas Barros
   duration_seconds: 157
   view_count: 6242
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 2
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: oOOFxDbq3RE
@@ -55,8 +55,8 @@ recordings:
   channel: Chopin Institute
   duration_seconds: 125
   view_count: 1727867
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 5
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: qUsGZxCVMzI
@@ -64,8 +64,8 @@ recordings:
   channel: Marc Plays Piano
   duration_seconds: 151
   view_count: 176
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 2
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: HUnsxa-dBfY
@@ -73,8 +73,8 @@ recordings:
   channel: Carl Hopkinson
   duration_seconds: 600
   view_count: 566
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 1
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: H3oXB3IynZU
@@ -83,7 +83,7 @@ recordings:
   duration_seconds: 305
   view_count: 243
   skill_bucket: null
-  label_rationale: null
+  label_rationale: skip
   downloaded: false
   download_error: null
 - video_id: aPSkn_STaFo

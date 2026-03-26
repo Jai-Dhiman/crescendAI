@@ -83,7 +83,7 @@ recordings:
   duration_seconds: 150
   view_count: 113820
   skill_bucket: null
-  label_rationale: null
+  label_rationale: skip
   downloaded: false
   download_error: null
 - video_id: 8ewtaeNwS7E
@@ -91,8 +91,8 @@ recordings:
   channel: Jusim Piano
   duration_seconds: 578
   view_count: 22467
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 4
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: zX7ABACcsi8
@@ -100,8 +100,8 @@ recordings:
   channel: みき
   duration_seconds: 714
   view_count: 27073
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 2
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: cXriWeGt3O8
@@ -109,8 +109,8 @@ recordings:
   channel: Heart of the Keys
   duration_seconds: 647
   view_count: 171916
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 4
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: I3-Eh1KN6QQ
@@ -118,8 +118,8 @@ recordings:
   channel: みき
   duration_seconds: 250
   view_count: 2438
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 1
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: Oozrq55Eg2I
@@ -128,8 +128,8 @@ recordings:
   channel: Matthew Cates
   duration_seconds: 567
   view_count: 4536
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 5
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: CFxq-VKdrv4
@@ -137,8 +137,8 @@ recordings:
   channel: Ronit Jha
   duration_seconds: 620
   view_count: 45
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 3
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: 2FCpmYwx6zA
@@ -146,8 +146,8 @@ recordings:
   channel: evilishies
   duration_seconds: 889
   view_count: 161
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 1
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: heTa6Ke8Aa0
@@ -155,8 +155,8 @@ recordings:
   channel: kelvino
   duration_seconds: 116
   view_count: 974
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 2
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: 9Ezs9HOYCAw
@@ -166,7 +166,7 @@ recordings:
   duration_seconds: 86
   view_count: 351
   skill_bucket: null
-  label_rationale: null
+  label_rationale: skip
   downloaded: false
   download_error: null
 - video_id: _WjhdtvMqMQ
@@ -176,7 +176,7 @@ recordings:
   duration_seconds: 131
   view_count: 381
   skill_bucket: null
-  label_rationale: null
+  label_rationale: skip
   downloaded: false
   download_error: null
 - video_id: CAe9HaSJwGA
@@ -185,8 +185,8 @@ recordings:
   channel: Piano with Beth
   duration_seconds: 82
   view_count: 3759
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 2
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: We-YXzljSBU
@@ -196,7 +196,7 @@ recordings:
   duration_seconds: 100
   view_count: 15717
   skill_bucket: null
-  label_rationale: null
+  label_rationale: skip
   downloaded: false
   download_error: null
 - video_id: 78u4GqFyMHY
@@ -204,8 +204,8 @@ recordings:
   channel: 최은찬
   duration_seconds: 68
   view_count: 263
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 2
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: 34nFqhE1ud0
@@ -213,8 +213,8 @@ recordings:
   channel: Piano Danielle - One Piece at a Time
   duration_seconds: 87
   view_count: 241
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 1
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: 2k1kDlFN_ps
@@ -222,8 +222,8 @@ recordings:
   channel: Josh Wright
   duration_seconds: 562
   view_count: 15426
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 4
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: rMPOww1qr2s
@@ -232,7 +232,7 @@ recordings:
   duration_seconds: 568
   view_count: 1588
   skill_bucket: null
-  label_rationale: null
+  label_rationale: skip
   downloaded: false
   download_error: null
 - video_id: bj-q0zSp35c
@@ -241,7 +241,7 @@ recordings:
   duration_seconds: 669
   view_count: 728
   skill_bucket: null
-  label_rationale: null
+  label_rationale: skip
   downloaded: false
   download_error: null
 - video_id: WK6HebBep5M
@@ -249,8 +249,8 @@ recordings:
   channel: PianOG
   duration_seconds: 163
   view_count: 716
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 3
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: Akx9qSZIMNQ
@@ -258,8 +258,8 @@ recordings:
   channel: sean rooney
   duration_seconds: 64
   view_count: 2502
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 3
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: 6olbStsaCjc
@@ -267,8 +267,8 @@ recordings:
   channel: VuHien2011
   duration_seconds: 545
   view_count: 161
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 3
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: f4SzWt2E-kQ
@@ -276,8 +276,8 @@ recordings:
   channel: Piano Marlon
   duration_seconds: 637
   view_count: 216
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 3
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: 20tDxcNRX7w
@@ -286,7 +286,7 @@ recordings:
   duration_seconds: 491
   view_count: 30863
   skill_bucket: null
-  label_rationale: null
+  label_rationale: skip
   downloaded: false
   download_error: null
 - video_id: g8C1f6Kzzo0
@@ -295,8 +295,8 @@ recordings:
   channel: SirSardonic
   duration_seconds: 559
   view_count: 17651
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 3
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: cmJ5iTUJO24
@@ -304,8 +304,8 @@ recordings:
   channel: Piano Man Sam
   duration_seconds: 288
   view_count: 1328
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 2
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: SnIRSf9Jrx8
@@ -314,8 +314,8 @@ recordings:
   channel: Young Jin Lee
   duration_seconds: 313
   view_count: 33
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 1
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: 7Jrq2rL7M8A
@@ -323,8 +323,8 @@ recordings:
   channel: Seongtaek Kwon
   duration_seconds: 686
   view_count: 565
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 2
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: 2WovOS2_SmI
@@ -332,8 +332,8 @@ recordings:
   channel: USSR GRU Dima
   duration_seconds: 273
   view_count: 19
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 1
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: lx9MlxMhk-4
@@ -341,8 +341,8 @@ recordings:
   channel: Lawrence Schubert
   duration_seconds: 589
   view_count: 282
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 3
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: RWTVaTHiTzE
@@ -350,8 +350,8 @@ recordings:
   channel: Piano Lessons in Bellevue
   duration_seconds: 593
   view_count: 295
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 4
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: H02nnC6l2Ok
@@ -359,8 +359,8 @@ recordings:
   channel: Joe Milner
   duration_seconds: 589
   view_count: 103
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 3
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: BqwqAirghtg
@@ -368,8 +368,8 @@ recordings:
   channel: Lawrence Schubert
   duration_seconds: 555
   view_count: 179
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 4
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: tx9dECRrQHo
@@ -378,8 +378,8 @@ recordings:
   channel: Piano Lessons in Bellevue
   duration_seconds: 565
   view_count: 44
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 4
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: yRufOtg0cNE
@@ -387,8 +387,8 @@ recordings:
   channel: Olga Scheps
   duration_seconds: 602
   view_count: 106490
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 5
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: 9n10-rkO8f8
@@ -396,8 +396,8 @@ recordings:
   channel: Music Fan
   duration_seconds: 766
   view_count: 194802
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 5
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: NA36cdTmG0k
@@ -405,8 +405,8 @@ recordings:
   channel: Mei Yin Piano Studio in San Diego
   duration_seconds: 665
   view_count: 128
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 3
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: covZLW2LssU
@@ -415,8 +415,8 @@ recordings:
   channel: Donald Nelson
   duration_seconds: 596
   view_count: 927
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 3
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: _jEYrfb9yw8
@@ -424,8 +424,8 @@ recordings:
   channel: Rebekah's Piano Studio
   duration_seconds: 546
   view_count: 75
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 4
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: fY5oueTBfLY
@@ -434,8 +434,8 @@ recordings:
   channel: Lillian Feng
   duration_seconds: 594
   view_count: 11676
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 4
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: q9KC30L11CU
@@ -443,8 +443,8 @@ recordings:
   channel: PepperLord Media
   duration_seconds: 614
   view_count: 1144
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 4
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: 3ba_utCVqy8
@@ -452,8 +452,8 @@ recordings:
   channel: Mark Kreider
   duration_seconds: 556
   view_count: 84
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 3
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: w84ARG12NUw
@@ -462,8 +462,8 @@ recordings:
   channel: Ross McKee Foundation
   duration_seconds: 602
   view_count: 498
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 4
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: UYMrX5tAMJw
@@ -471,8 +471,8 @@ recordings:
   channel: Harvard Piano
   duration_seconds: 584
   view_count: 923
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 4
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: gXblmnNx5Dg
@@ -480,8 +480,8 @@ recordings:
   channel: Rodney Leinberger
   duration_seconds: 585
   view_count: 395
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 4
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: MDNe0BXDz3k
@@ -489,8 +489,8 @@ recordings:
   channel: Sarah B
   duration_seconds: 601
   view_count: 215
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 3
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: KshW2D03oDs
@@ -498,8 +498,8 @@ recordings:
   channel: 'Shu-Yu Shen '
   duration_seconds: 656
   view_count: 212
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 4
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: oZLxA1KuQxQ
@@ -508,7 +508,7 @@ recordings:
   duration_seconds: 64
   view_count: 379
   skill_bucket: null
-  label_rationale: null
+  label_rationale: skip
   downloaded: false
   download_error: null
 - video_id: FbPabNqpN3k
@@ -516,8 +516,8 @@ recordings:
   channel: Alex Zhou
   duration_seconds: 662
   view_count: 74
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 3
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: BdqrNRqb9R0
@@ -525,8 +525,8 @@ recordings:
   channel: Ava Conway
   duration_seconds: 649
   view_count: 263
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 3
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: fjBiR7m9-MY
@@ -534,8 +534,8 @@ recordings:
   channel: Anh Le
   duration_seconds: 670
   view_count: 162
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 3
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: y9oQFw8QMLo
@@ -543,8 +543,8 @@ recordings:
   channel: UNCSAPiano
   duration_seconds: 547
   view_count: 421
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 3
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: rYLUqqQBfeE
@@ -552,8 +552,8 @@ recordings:
   channel: Edward Leung
   duration_seconds: 522
   view_count: 834
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 4
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: ZwJKGEWarAk
@@ -563,7 +563,7 @@ recordings:
   duration_seconds: 288
   view_count: 49317
   skill_bucket: null
-  label_rationale: null
+  label_rationale: skip
   downloaded: false
   download_error: null
 - video_id: Zidt_DcHvG0
@@ -571,8 +571,8 @@ recordings:
   channel: Birru
   duration_seconds: 591
   view_count: 364008
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 4
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: YD5mbtBJYu8
@@ -580,8 +580,8 @@ recordings:
   channel: Piano Life
   duration_seconds: 582
   view_count: 11806
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 4
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: HP1Fp75ECew
@@ -589,8 +589,8 @@ recordings:
   channel: Yoni Lechtman
   duration_seconds: 654
   view_count: 12539
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 3
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: NLkc7uLSKKs
@@ -598,8 +598,8 @@ recordings:
   channel: hilda very amateur pianist
   duration_seconds: 596
   view_count: 221
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 2
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: FVR5mL4ROTU
@@ -607,8 +607,8 @@ recordings:
   channel: Joey Zhu
   duration_seconds: 628
   view_count: 8586
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 2
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: 3EckEUektu8
@@ -616,8 +616,8 @@ recordings:
   channel: Taotao Zhang
   duration_seconds: 598
   view_count: 113
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 2
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: JbXkJOhvkMc
@@ -625,8 +625,8 @@ recordings:
   channel: Yiwei Huang Music
   duration_seconds: 553
   view_count: 18342
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 2
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: MQZYe6LYF7M
@@ -635,8 +635,8 @@ recordings:
   channel: Piano Real Interpretation
   duration_seconds: 584
   view_count: 36336
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 2
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: FnwDQ9BwhS0
@@ -644,8 +644,8 @@ recordings:
   channel: Nyatoth
   duration_seconds: 85
   view_count: 81540
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 3
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: Z6xtflx7TIo
@@ -654,7 +654,7 @@ recordings:
   duration_seconds: 500
   view_count: 609204
   skill_bucket: null
-  label_rationale: null
+  label_rationale: skip
   downloaded: false
   download_error: null
 - video_id: RoIGMYYcgpo
@@ -662,8 +662,8 @@ recordings:
   channel: linfa
   duration_seconds: 83
   view_count: 203631
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 4
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: Jq3NrJuTV8A
@@ -671,8 +671,8 @@ recordings:
   channel: s c liu
   duration_seconds: 562
   view_count: 449
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 3
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: 4XkbG0jxsYE
@@ -680,8 +680,8 @@ recordings:
   channel: VBerstis
   duration_seconds: 543
   view_count: 5738
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 3
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: MKRxYj7gumY
@@ -690,7 +690,7 @@ recordings:
   duration_seconds: 559
   view_count: 8648
   skill_bucket: null
-  label_rationale: null
+  label_rationale: skip
   downloaded: false
   download_error: null
 - video_id: 8VK5mREtVW8
@@ -698,8 +698,8 @@ recordings:
   channel: Leonard L.
   duration_seconds: 603
   view_count: 2959
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 2
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: ykgs5oI1Fuo
@@ -707,8 +707,8 @@ recordings:
   channel: Piano Life
   duration_seconds: 547
   view_count: 1347
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 3
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: aY2X4sbybSU
@@ -717,8 +717,8 @@ recordings:
   channel: Nicolas Terzani
   duration_seconds: 687
   view_count: 26900
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 3
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: WUUnAbS2zCM
@@ -726,8 +726,8 @@ recordings:
   channel: Classical Music
   duration_seconds: 616
   view_count: 559
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 4
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: 8s24HC9fR7E
@@ -736,7 +736,7 @@ recordings:
   duration_seconds: 539
   view_count: 108
   skill_bucket: null
-  label_rationale: null
+  label_rationale: skip
   downloaded: false
   download_error: null
 - video_id: QQyqKpwqd3Y
@@ -744,8 +744,8 @@ recordings:
   channel: Clyde Hidershaj
   duration_seconds: 486
   view_count: 23509
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 3
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: aowtz3RJfeE
@@ -754,7 +754,7 @@ recordings:
   duration_seconds: 135
   view_count: 1319
   skill_bucket: null
-  label_rationale: null
+  label_rationale: skip
   downloaded: false
   download_error: null
 - video_id: -mYOzzgETAM
@@ -764,7 +764,7 @@ recordings:
   duration_seconds: 70
   view_count: 586
   skill_bucket: null
-  label_rationale: null
+  label_rationale: skip
   downloaded: false
   download_error: null
 - video_id: CxnPioIcMaw
@@ -773,7 +773,7 @@ recordings:
   duration_seconds: 333
   view_count: 300
   skill_bucket: null
-  label_rationale: null
+  label_rationale: skip
   downloaded: false
   download_error: null
 - video_id: wMxi20POdq0
@@ -781,8 +781,8 @@ recordings:
   channel: Josh Wright
   duration_seconds: 554
   view_count: 17433
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 5
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: lpDrUhVXyNk
@@ -790,8 +790,8 @@ recordings:
   channel: Casual Pianist
   duration_seconds: 112
   view_count: 52
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 1
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: QMBGdKEWV1w
@@ -799,8 +799,8 @@ recordings:
   channel: jax
   duration_seconds: 354
   view_count: 590
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 1
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: 2QoE8RvvW_A
@@ -808,8 +808,8 @@ recordings:
   channel: Rachel Boykan
   duration_seconds: 557
   view_count: 157
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 3
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: iw6ZIqBStAY
@@ -817,8 +817,8 @@ recordings:
   channel: Armissimo Pianist 🎹
   duration_seconds: 586
   view_count: 1191
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 3
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: DuzWFEJHXWo
@@ -827,7 +827,7 @@ recordings:
   duration_seconds: 432
   view_count: 751
   skill_bucket: null
-  label_rationale: null
+  label_rationale: skip
   downloaded: false
   download_error: null
 - video_id: eQptH8uYGds
@@ -836,7 +836,7 @@ recordings:
   duration_seconds: 705
   view_count: 1210
   skill_bucket: null
-  label_rationale: null
+  label_rationale: skip
   downloaded: false
   download_error: null
 - video_id: kqjX25EUXCw
@@ -845,8 +845,8 @@ recordings:
   channel: Seongtaek Kwon
   duration_seconds: 643
   view_count: 395
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 2
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: wweHx5z2VH4
@@ -854,8 +854,8 @@ recordings:
   channel: Ryan Powers
   duration_seconds: 646
   view_count: 13
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 1
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: HjAf7YevPZQ
@@ -864,7 +864,7 @@ recordings:
   duration_seconds: 619
   view_count: 3170
   skill_bucket: null
-  label_rationale: null
+  label_rationale: skip
   downloaded: false
   download_error: null
 - video_id: Vpk8o0_6mes
@@ -872,8 +872,8 @@ recordings:
   channel: hypianist
   duration_seconds: 656
   view_count: 412
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 5
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: 3jKFMtTQ-Vk
@@ -882,7 +882,7 @@ recordings:
   duration_seconds: 74
   view_count: 1130
   skill_bucket: null
-  label_rationale: null
+  label_rationale: skip
   downloaded: false
   download_error: null
 - video_id: XtjKXXyZ5sU
@@ -890,8 +890,8 @@ recordings:
   channel: Ryan Chi
   duration_seconds: 531
   view_count: 104
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 3
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: 296yPoNSF8g
@@ -899,8 +899,8 @@ recordings:
   channel: Karine Vann
   duration_seconds: 511
   view_count: 344
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 3
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: Rzjvu5XvUrw
@@ -908,8 +908,8 @@ recordings:
   channel: Maria Gomez Piano Studio
   duration_seconds: 453
   view_count: 247
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 3
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: Am2QcYugDjA
@@ -917,8 +917,8 @@ recordings:
   channel: The Piano Studio Library
   duration_seconds: 580
   view_count: 7336
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 5
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: REsmd1TK7oc
@@ -926,8 +926,8 @@ recordings:
   channel: Lin Helen
   duration_seconds: 618
   view_count: 143
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 3
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: dn1PQ-rBnxA
@@ -935,8 +935,8 @@ recordings:
   channel: Minha Kang
   duration_seconds: 547
   view_count: 358
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 4
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: lGkhED-2ZF4
@@ -944,8 +944,8 @@ recordings:
   channel: Sir PianoPaws
   duration_seconds: 594
   view_count: 142
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 1
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: 0H3N8VAuGfs
@@ -953,8 +953,8 @@ recordings:
   channel: StMarysPerivale
   duration_seconds: 606
   view_count: 1065
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 5
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: xAyeApPjN5k
@@ -962,8 +962,8 @@ recordings:
   channel: Shaun Choo (MusicShaun)
   duration_seconds: 590
   view_count: 18777
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 5
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: RUW1mBqtb-4
@@ -972,7 +972,7 @@ recordings:
   duration_seconds: 203
   view_count: 5378
   skill_bucket: null
-  label_rationale: null
+  label_rationale: skip
   downloaded: false
   download_error: null
 - video_id: ACQ2mVzTs6U
@@ -980,8 +980,8 @@ recordings:
   channel: Gil
   duration_seconds: 604
   view_count: 56
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 3
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: Bg9B5aLTAsg
@@ -990,7 +990,7 @@ recordings:
   duration_seconds: 130
   view_count: 371
   skill_bucket: null
-  label_rationale: null
+  label_rationale: skip
   downloaded: false
   download_error: null
 - video_id: pHzipQWmXD4
@@ -999,7 +999,7 @@ recordings:
   duration_seconds: 66
   view_count: 583
   skill_bucket: null
-  label_rationale: null
+  label_rationale: skip
   downloaded: false
   download_error: null
 - video_id: flsRXWhmZV0
@@ -1008,7 +1008,7 @@ recordings:
   duration_seconds: 125
   view_count: 871190
   skill_bucket: null
-  label_rationale: null
+  label_rationale: skip
   downloaded: false
   download_error: null
 - video_id: zGGMG9RkTU0
@@ -1016,8 +1016,8 @@ recordings:
   channel: Roy Zhang
   duration_seconds: 556
   view_count: 486
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 4
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: 2GUZV4yv9Hw
@@ -1026,8 +1026,8 @@ recordings:
   channel: NotDeian
   duration_seconds: 96
   view_count: 6
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 2
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: F2ZbiNeHKcs
@@ -1036,7 +1036,7 @@ recordings:
   duration_seconds: 379
   view_count: 179
   skill_bucket: null
-  label_rationale: null
+  label_rationale: skip
   downloaded: false
   download_error: null
 - video_id: YGfJ1f-Glcc
@@ -1044,8 +1044,8 @@ recordings:
   channel: Donson Xie
   duration_seconds: 362
   view_count: 472
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 1
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: alzOCoX5QbM
@@ -1053,8 +1053,8 @@ recordings:
   channel: Eric Joseph
   duration_seconds: 361
   view_count: 171
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 1
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: fM94GPftQf0
@@ -1063,7 +1063,7 @@ recordings:
   duration_seconds: 696
   view_count: 122
   skill_bucket: null
-  label_rationale: null
+  label_rationale: skip
   downloaded: false
   download_error: null
 - video_id: Hz2uAiOYUGs
@@ -1072,7 +1072,7 @@ recordings:
   duration_seconds: 137
   view_count: 188
   skill_bucket: null
-  label_rationale: null
+  label_rationale: skip
   downloaded: false
   download_error: null
 - video_id: VTfnn457D1U
@@ -1081,8 +1081,8 @@ recordings:
   channel: Fitphile
   duration_seconds: 636
   view_count: 1324
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 2
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: JS7RWD2PZlk
@@ -1092,7 +1092,7 @@ recordings:
   duration_seconds: 72
   view_count: 92
   skill_bucket: null
-  label_rationale: null
+  label_rationale: skip
   downloaded: false
   download_error: null
 - video_id: tPP3eHLZ1_g
@@ -1101,7 +1101,7 @@ recordings:
   duration_seconds: 461
   view_count: 16601
   skill_bucket: null
-  label_rationale: null
+  label_rationale: skip
   downloaded: false
   download_error: null
 - video_id: VN3Ph8z2VI4
@@ -1109,8 +1109,8 @@ recordings:
   channel: Seongtaek Kwon
   duration_seconds: 642
   view_count: 433
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 1
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: A6Im8sEv4-I
@@ -1118,8 +1118,8 @@ recordings:
   channel: Things to Do
   duration_seconds: 208
   view_count: 1082
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 1
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: 3F70U2QAkZw
@@ -1127,8 +1127,8 @@ recordings:
   channel: Piano Individual
   duration_seconds: 306
   view_count: 10247
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 1
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: Qo2RDFBb_ic
@@ -1136,8 +1136,8 @@ recordings:
   channel: leo piano
   duration_seconds: 445
   view_count: 1258
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 3
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: we_HLVMtN4k
@@ -1154,8 +1154,8 @@ recordings:
   channel: sean rooney
   duration_seconds: 544
   view_count: 47763
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 3
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: tb2jInV7TRw
@@ -1163,8 +1163,8 @@ recordings:
   channel: Shuan Hern Lee
   duration_seconds: 572
   view_count: 21457
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 2
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: UKskGigdEhA
@@ -1172,8 +1172,8 @@ recordings:
   channel: hungariangypsy
   duration_seconds: 583
   view_count: 256139
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 4
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: JyO65fHarKI
@@ -1181,8 +1181,8 @@ recordings:
   channel: Harmony Zhu
   duration_seconds: 664
   view_count: 58684
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 3
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: XMNxllJWez8
@@ -1190,8 +1190,8 @@ recordings:
   channel: KidMusician
   duration_seconds: 625
   view_count: 1123
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 4
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: zttiJVZl2UY
@@ -1199,8 +1199,8 @@ recordings:
   channel: 林明諺 Ming-Yen Lin
   duration_seconds: 568
   view_count: 1654
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 3
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: KlYdXTWE3jg
@@ -1208,8 +1208,8 @@ recordings:
   channel: PIANIST ANGELINA
   duration_seconds: 567
   view_count: 29249
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 3
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: Uk3yU_mM6b0
@@ -1217,8 +1217,8 @@ recordings:
   channel: Su’s kitchen蘇的厨房
   duration_seconds: 572
   view_count: 509
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 4
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: lN9TC1ne4XM
@@ -1227,8 +1227,8 @@ recordings:
   channel: Shuan Hern Lee
   duration_seconds: 598
   view_count: 3600
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 3
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: 3MgPQ1kh4GE
@@ -1236,8 +1236,8 @@ recordings:
   channel: 'Zanellato '
   duration_seconds: 649
   view_count: 264052
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 5
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: XQdFiP35iNk
@@ -1245,8 +1245,8 @@ recordings:
   channel: vittamusic
   duration_seconds: 554
   view_count: 652
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 5
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: ePe3oJBWCm4
@@ -1254,8 +1254,8 @@ recordings:
   channel: Talent Music Master Courses
   duration_seconds: 594
   view_count: 417
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 4
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: 4xhVDdxTtu4
@@ -1263,8 +1263,8 @@ recordings:
   channel: Alponsina Lee
   duration_seconds: 617
   view_count: 1693
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 3
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: taY5oHleS4I
@@ -1272,8 +1272,8 @@ recordings:
   channel: Deutsche Grammophon - DG
   duration_seconds: 628
   view_count: 5249533
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 5
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: O6_9WtYAV_c
@@ -1281,8 +1281,8 @@ recordings:
   channel: August Baik
   duration_seconds: 570
   view_count: 2334
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 4
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: OmN_uWRaxuQ
@@ -1290,8 +1290,8 @@ recordings:
   channel: Chopin Institute
   duration_seconds: 555
   view_count: 1077888
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 5
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: BvZbv3-UW4A
@@ -1299,8 +1299,8 @@ recordings:
   channel: Klara Kukumi - Topic
   duration_seconds: 577
   view_count: 4400
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 5
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: QNjGpUiuVRA
@@ -1308,8 +1308,8 @@ recordings:
   channel: Ashley
   duration_seconds: 512
   view_count: 182
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 4
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: iwfTt46OqkE
@@ -1317,8 +1317,8 @@ recordings:
   channel: Committee of 100
   duration_seconds: 588
   view_count: 2962
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 4
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: BSFNl4roGlI
@@ -1326,8 +1326,8 @@ recordings:
   channel: Raindrop
   duration_seconds: 552
   view_count: 3428636
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 5
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: W5375yTVoao
@@ -1335,8 +1335,8 @@ recordings:
   channel: Voices of Flower Mound
   duration_seconds: 629
   view_count: 270
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 4
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: T1LwB2Ts3wY
@@ -1344,8 +1344,8 @@ recordings:
   channel: Sophia Liu
   duration_seconds: 567
   view_count: 9095
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 4
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: Icg_v7Xq8e0
@@ -1354,8 +1354,8 @@ recordings:
   channel: Grace Else
   duration_seconds: 630
   view_count: 50
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 3
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: kJ58Tun6WDw
@@ -1363,8 +1363,8 @@ recordings:
   channel: Henry Ang
   duration_seconds: 558
   view_count: 2145
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 4
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: M-35Bq88sPo
@@ -1372,8 +1372,8 @@ recordings:
   channel: Juliette Richards
   duration_seconds: 595
   view_count: 1452
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 3
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: GuE62Wp4NiA
@@ -1383,7 +1383,7 @@ recordings:
   duration_seconds: 782
   view_count: 359
   skill_bucket: null
-  label_rationale: null
+  label_rationale: skip
   downloaded: false
   download_error: null
 - video_id: ilmp6XofurM
@@ -1392,7 +1392,7 @@ recordings:
   duration_seconds: 504
   view_count: 740
   skill_bucket: null
-  label_rationale: null
+  label_rationale: skip
   downloaded: false
   download_error: null
 - video_id: wnfhlN1bOPA
@@ -1400,8 +1400,8 @@ recordings:
   channel: Kevin Jia Ling Zhou
   duration_seconds: 560
   view_count: 116
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 3
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: eOp33s0awwo
@@ -1409,8 +1409,8 @@ recordings:
   channel: VIVO Music Competition
   duration_seconds: 527
   view_count: 253
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 3
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: qH3cA2q5aPA
@@ -1418,8 +1418,8 @@ recordings:
   channel: Kevin Jia Ling Zhou
   duration_seconds: 518
   view_count: 61
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 3
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: NwofSa-xBDY
@@ -1427,8 +1427,8 @@ recordings:
   channel: Monica Schultz
   duration_seconds: 590
   view_count: 71
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 3
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: 8jrsdSzN6mg
@@ -1436,8 +1436,8 @@ recordings:
   channel: Lena Grozman Piano School(LGPS)
   duration_seconds: 551
   view_count: 324
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 3
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: F88SmgQYEyI
@@ -1445,8 +1445,8 @@ recordings:
   channel: ERCSutton
   duration_seconds: 598
   view_count: 521
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 4
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: O96Oszc3JnM
@@ -1454,8 +1454,8 @@ recordings:
   channel: Kirill Nazarov
   duration_seconds: 548
   view_count: 205
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 3
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: 6Eu7FEabAUQ
@@ -1463,8 +1463,8 @@ recordings:
   channel: BC Kids
   duration_seconds: 512
   view_count: 102
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 2
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: G2l2Ii-0yyA
@@ -1472,8 +1472,8 @@ recordings:
   channel: Schwinn Saereesitthipitak
   duration_seconds: 642
   view_count: 104
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 3
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: Wu_2NNP9lMQ
@@ -1481,8 +1481,8 @@ recordings:
   channel: Sung Yoon Jung
   duration_seconds: 605
   view_count: 255
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 3
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: Q1BJrTTVlEY
@@ -1490,8 +1490,8 @@ recordings:
   channel: Clay Dubberly
   duration_seconds: 536
   view_count: 1891
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 3
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: 7RPDjFkgR3w
@@ -1500,8 +1500,8 @@ recordings:
   channel: Ryan Wang Pianist
   duration_seconds: 596
   view_count: 4541
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 4
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: tKxHMsNmjD8
@@ -1510,7 +1510,7 @@ recordings:
   duration_seconds: 683
   view_count: 1225302
   skill_bucket: null
-  label_rationale: null
+  label_rationale: skip
   downloaded: false
   download_error: null
 - video_id: o0Aergw1fAY
@@ -1519,7 +1519,7 @@ recordings:
   duration_seconds: 665
   view_count: 45
   skill_bucket: null
-  label_rationale: null
+  label_rationale: skip
   downloaded: false
   download_error: null
 - video_id: fttXPqegoVI
@@ -1527,8 +1527,8 @@ recordings:
   channel: FranFranBurger
   duration_seconds: 674
   view_count: 1170
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 2
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: wjBWHv1m_-I
@@ -1537,7 +1537,7 @@ recordings:
   duration_seconds: 110
   view_count: 122997
   skill_bucket: null
-  label_rationale: null
+  label_rationale: skip
   downloaded: false
   download_error: null
 - video_id: Fn2-YG2LeII
@@ -1545,8 +1545,8 @@ recordings:
   channel: Paul Melcher
   duration_seconds: 537
   view_count: 373
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 3
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: CnQMmdj3rWA
@@ -1555,7 +1555,7 @@ recordings:
   duration_seconds: 575
   view_count: 20
   skill_bucket: null
-  label_rationale: null
+  label_rationale: skip
   downloaded: false
   download_error: null
 - video_id: pi7lxaLlYUA
@@ -1563,8 +1563,8 @@ recordings:
   channel: Jonathon Cheng
   duration_seconds: 601
   view_count: 112
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 4
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: 20AT0T1RuFQ
@@ -1573,7 +1573,7 @@ recordings:
   duration_seconds: 313
   view_count: 233
   skill_bucket: null
-  label_rationale: null
+  label_rationale: skip
   downloaded: false
   download_error: null
 - video_id: OSlzPPPWojg
@@ -1581,8 +1581,8 @@ recordings:
   channel: Hazel Nguyen Pianist
   duration_seconds: 537
   view_count: 3905
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 4
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: _TLyAacn0Gc
@@ -1590,8 +1590,8 @@ recordings:
   channel: Julian Stuart-Burns
   duration_seconds: 541
   view_count: 79
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 4
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: fwmLIo5LcBU
@@ -1601,7 +1601,7 @@ recordings:
   duration_seconds: 224
   view_count: 837
   skill_bucket: null
-  label_rationale: null
+  label_rationale: skip
   downloaded: false
   download_error: null
 - video_id: wr40xyqx3oc
@@ -1609,8 +1609,8 @@ recordings:
   channel: Intermezzo
   duration_seconds: 766
   view_count: 2974
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 5
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: Zj_psrTUW_w
@@ -1618,8 +1618,8 @@ recordings:
   channel: Rousseau
   duration_seconds: 586
   view_count: 17007113
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 4
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: 2q0lVTwJbqs
@@ -1627,8 +1627,8 @@ recordings:
   channel: Kassia
   duration_seconds: 565
   view_count: 6415566
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 4
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: Jj06KNWAtyY
@@ -1636,8 +1636,8 @@ recordings:
   channel: Rūta Kuzmickas
   duration_seconds: 586
   view_count: 135645
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 4
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: 06-puNWFuMQ
@@ -1645,8 +1645,8 @@ recordings:
   channel: Maurizio Pollini - Topic
   duration_seconds: 517
   view_count: 482423
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 5
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: 8YWXkmtRRlg
@@ -1655,7 +1655,7 @@ recordings:
   duration_seconds: 621
   view_count: 209818
   skill_bucket: null
-  label_rationale: null
+  label_rationale: skip
   downloaded: false
   download_error: null
 - video_id: 3Ag-a76PQFg
@@ -1663,8 +1663,8 @@ recordings:
   channel: Yeah
   duration_seconds: 584
   view_count: 295494
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 5
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: dIbeazAlxM4
@@ -1674,7 +1674,7 @@ recordings:
   duration_seconds: 542
   view_count: 3555381
   skill_bucket: null
-  label_rationale: null
+  label_rationale: skip
   downloaded: false
   download_error: null
 - video_id: IZpF7u5iYuo
@@ -1682,8 +1682,8 @@ recordings:
   channel: Traum Piano
   duration_seconds: 573
   view_count: 1694197
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 5
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: bvtdjIIcgWQ
@@ -1691,8 +1691,8 @@ recordings:
   channel: Valentina Lisitsa QOR Records Official channel
   duration_seconds: 611
   view_count: 1836325
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 5
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: VmFmAvwO1pE
@@ -1700,8 +1700,8 @@ recordings:
   channel: Yoonseok Lee
   duration_seconds: 552
   view_count: 1437081
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 5
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: 2uvAewYkEFU
@@ -1709,8 +1709,8 @@ recordings:
   channel: Natalie Schwamova
   duration_seconds: 557
   view_count: 868669
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 4
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: hyCPiRmDMmE
@@ -1719,8 +1719,8 @@ recordings:
   channel: Yundi fan
   duration_seconds: 578
   view_count: 138374
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 5
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: F63MSrdYx5w
@@ -1728,8 +1728,8 @@ recordings:
   channel: TzviErez
   duration_seconds: 575
   view_count: 1486455
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 5
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: ecC7fjnFiuk
@@ -1737,8 +1737,8 @@ recordings:
   channel: Olga Scheps
   duration_seconds: 584
   view_count: 2557277
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 5
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: G_uLCAZVh5Y
@@ -1746,8 +1746,8 @@ recordings:
   channel: Janusz Olejniczak - Topic
   duration_seconds: 533
   view_count: 1227927
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 5
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: ERnCo-2DP8o
@@ -1755,8 +1755,8 @@ recordings:
   channel: 이올린
   duration_seconds: 544
   view_count: 108976
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 5
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: 74uZ0tHfTjE
@@ -1764,8 +1764,8 @@ recordings:
   channel: Paul Barton
   duration_seconds: 691
   view_count: 556765
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 4
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: payc4PKtzQo
@@ -1773,8 +1773,8 @@ recordings:
   channel: Martha Argerich - Topic
   duration_seconds: 510
   view_count: 218619
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 5
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: jHfQCfUTlXE
@@ -1783,7 +1783,7 @@ recordings:
   duration_seconds: 267
   view_count: 7386529
   skill_bucket: null
-  label_rationale: null
+  label_rationale: skip
   downloaded: false
   download_error: null
 - video_id: iNB01Jc4CQc
@@ -1791,8 +1791,8 @@ recordings:
   channel: Olga Scheps
   duration_seconds: 608
   view_count: 33352
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 5
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: Oju-e6sPvDw
@@ -1800,8 +1800,8 @@ recordings:
   channel: Alejandro Cárdenas
   duration_seconds: 577
   view_count: 602755
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 5
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: HlHBUxlcWfk
@@ -1809,8 +1809,8 @@ recordings:
   channel: Fazioli Pianoforti
   duration_seconds: 625
   view_count: 24027
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 5
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: h-7rZ4G1f0w
@@ -1820,7 +1820,7 @@ recordings:
   duration_seconds: 423
   view_count: 8907624
   skill_bucket: null
-  label_rationale: null
+  label_rationale: skip
   downloaded: false
   download_error: null
 - video_id: 0Mlgjg2CqY8
@@ -1829,7 +1829,7 @@ recordings:
   duration_seconds: 543
   view_count: 26344
   skill_bucket: null
-  label_rationale: null
+  label_rationale: skip
   downloaded: false
   download_error: null
 - video_id: AhDKYJmfIVw
@@ -1838,8 +1838,8 @@ recordings:
   channel: Grzegorz (Greg) Niemczuk
   duration_seconds: 656
   view_count: 10173
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 5
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: xxCTtGiITK4
@@ -1847,8 +1847,8 @@ recordings:
   channel: Adam Gyorgy
   duration_seconds: 562
   view_count: 248883
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 5
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: xi_VQJ2Lj1M
@@ -1856,8 +1856,8 @@ recordings:
   channel: LeifOveAndsnesTV
   duration_seconds: 536
   view_count: 251826
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 5
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: 3L6ASlLTuks
@@ -1865,8 +1865,8 @@ recordings:
   channel: Peter Chen 2.0
   duration_seconds: 551
   view_count: 367074
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 5
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: BjZsTeSvwe4
@@ -1875,8 +1875,8 @@ recordings:
   channel: Chopin Institute
   duration_seconds: 572
   view_count: 163553
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 5
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: XzqE6FaLziU
@@ -1885,7 +1885,7 @@ recordings:
   channel: Wibi Soerjadi
   duration_seconds: 711
   view_count: 6768
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 5
+  label_rationale: human curation
   downloaded: false
   download_error: null
