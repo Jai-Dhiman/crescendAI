@@ -28,6 +28,8 @@ class Embeddings:
     maestro = root / "maestro"
     masterclass = root / "masterclass"
     competition = root / "competition"
+    t5_muq = root / "t5_muq"
+    t5_aria = root / "t5_aria"
 
 
 # --- MIDI (gitignored, regenerable) ---
@@ -80,6 +82,11 @@ class Evals:
     traces = root / "traces"
     youtube_amt = root / "youtube_amt"
     intermediate = root / "intermediate"
+
+
+# --- Train/val/test splits (tracked) ---
+class Splits:
+    root = DATA_ROOT / "splits"
 
 
 # --- Outputs ---
