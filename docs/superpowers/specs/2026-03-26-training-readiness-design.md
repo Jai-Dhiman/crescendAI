@@ -1,3 +1,4 @@
+<!-- /autoplan restore point: /Users/jdhiman/.gstack/projects/Jai-Dhiman-crescendAI/main-autoplan-restore-20260326-130015.md -->
 # Training Readiness Design
 
 **Date:** 2026-03-26
@@ -54,6 +55,10 @@ T5 is labeled by a single annotator. Known risks: middle buckets (2-4) are subje
 
 **Confound defense:** Aria encoder operates on MIDI (via AMT) with zero audio quality information. If Aria discriminates skill buckets, the signal is musical. If MuQ discriminates but Aria doesn't, MuQ may be exploiting audio quality as a shortcut. This check runs on every experiment automatically.
 
+**Audio quality annotation:** During T5 labeling, annotate each recording with a quick recording quality flag (lo/mid/hi) alongside the skill bucket. Enables confound stratification in eval (does the model discriminate skill within the same recording quality?).
+
+**Bootstrap CIs:** All reported metrics include bootstrap 95% confidence intervals. Makes results publishable and prevents over-interpreting small improvements during autoresearch.
+
 ## 2. Compute Strategy
 
 ### Local-First, Cloud for Validation
@@ -83,6 +88,10 @@ Thunder Compute A100 ($0.78/hr prototyping, $1.79/hr production) is cheaper per-
 | H200 141GB | 141 GB | $5.00 |
 
 Default: L4 ($0.80/hr) for runs that fit in 24GB. A100 only when VRAM requires it.
+
+**Fallback:** Thunder Compute A100 at $0.78/hr remains viable if A100 usage exceeds ~20 hrs/month (saves ~$34/mo vs HF Jobs). Not primary due to lack of native bucket mounting.
+
+**M4 memory note:** Aria 650M LoRA fine-tuning may exceed 32GB unified memory. Profile M4 memory usage before AR-2 and fall back to HF Jobs L4 ($0.80/hr, 24GB VRAM) for Aria LoRA sweeps if needed.
 
 ## 3. Storage Strategy
 
@@ -172,6 +181,10 @@ Each phase uses the winner from the previous phase as baseline. All sweeps run o
 
 **Total: ~60-80 experiments.** At ~20 min/run on M4, ~20-27 hours of local compute spread across phases.
 
+### Config-Driven Runner
+
+Instead of 6 separate autoresearch scripts (one per phase), create a single config-driven runner. Each phase is defined as a config dict (search space, eval function, baseline). The runner handles the sweep loop, Trackio logging, keep/revert logic, and phase winner validation. Extends the existing `autoresearch_loss_weights.py` pattern into a reusable framework.
+
 ### Dependencies
 
 - AR-1 through AR-3: can start as soon as T5 labeling completes and embeddings are extracted
@@ -236,7 +249,30 @@ The end-to-end pipeline from "T5 labeling complete" to "first autoresearch exper
 9. Begin AR-1 (LR + schedule sweep)
 ```
 
-Steps 2-6 should be automated in a single script so the transition is one command.
+Steps 2-6 should be automated in a single script (`model/scripts/prepare_training.py`) so the transition is one command.
+
+### Data Integrity Checks (runs as step 1.5, before split generation)
+
+- Verify all T5 recordings have audio files
+- Verify no corrupt/zero-length embeddings
+- Verify bucket balance (flag pieces where any bucket has <3 recordings)
+- Verify no duplicate recording IDs across pieces
+
+### Unit Tests
+
+8 mandatory tests (in `model/tests/model_improvement/test_training_readiness.py`):
+
+**Split generation (5 critical):**
+1. T5 stratification by piece+bucket
+2. No recording leak across splits
+3. T1 stratification by piece
+4. T2 holdout by entire rounds (no same-performer leakage)
+5. Edge case: piece+bucket with <3 recordings
+
+**New metric (3 important):**
+6. Skill discrimination pairwise accuracy on 5 buckets
+7. Edge case: bucket with 1 recording
+8. Per-dimension breakdown shape
 
 ## Cost Estimate
 
@@ -248,3 +284,30 @@ Steps 2-6 should be automated in a single script so the transition is one comman
 | GDrive | Free (existing) |
 | Local M4 | Free |
 | **Total** | **~$19-37/month** |
+
+<!-- AUTONOMOUS DECISION LOG -->
+## Decision Audit Trail
+
+| # | Phase | Decision | Principle | Rationale | Rejected |
+|---|-------|----------|-----------|-----------|----------|
+| 1 | CEO-0A | Keep HF Jobs primary, note Thunder as fallback for >20 A100-hrs/mo | P3 (pragmatic) | At low volume ($6-14/mo delta), convenience > savings | Thunder-only |
+| 2 | CEO-0A | Profile M4 memory before AR-2, fall back to HF Jobs L4 | P1 (completeness) | Aria 650M may exceed 32GB unified memory | Assume M4 fits |
+| 3 | CEO-0D | Mode: SELECTIVE EXPANSION | Autoplan override | Standard autoplan mode | N/A |
+| 4 | CEO-0D | Accept E1: audio quality annotation during labeling | P1 (completeness) | 2 extra seconds per recording, enables confound stratification | Skip |
+| 5 | CEO-0D | Accept E2: bootstrap CIs on all metrics | P1 (completeness) | 3 lines of code, makes results publishable | Skip |
+| 6 | CEO-0D | Accept E3: automated T5 data integrity checks | P2 (boil lakes) | Catches corrupt/missing data before training | Skip |
+| 7 | CEO-0D | Defer E4: HF Dataset publishing | P3 (pragmatic) | Nice for paper, not needed for training | Add to scope |
+| 8 | CEO-7 | Add unit tests for split generator | P1 (completeness) | Stratification bug silently corrupts all experiments | Skip tests |
+| 9 | ENG-2 | Extract autoresearch into config-driven runner | P4 (DRY) | 6 separate scripts = maintenance nightmare | 6 copies |
+| 10 | ENG-3 | Add 8 mandatory unit tests (5 splits + 3 metric) | P1 (completeness) | Split bugs are silent data corruption | Defer tests |
+
+## GSTACK REVIEW REPORT
+
+| Review | Trigger | Why | Runs | Status | Findings |
+|--------|---------|-----|------|--------|----------|
+| CEO Review | `/plan-ceo-review` | Scope & strategy | 1 | CLEAR (via /autoplan) | 6 premises, 2 challenged, 3 expansions accepted |
+| Eng Review | `/plan-eng-review` | Architecture & tests | 1 | CLEAR (via /autoplan) | 2 issues (DRY autoresearch, test coverage), resolved |
+| Design Review | `/plan-design-review` | UI/UX gaps | 0 | SKIPPED (no UI scope) | N/A |
+| Codex Review | `/codex review` | Independent 2nd opinion | 0 | -- | Not available |
+
+**VERDICT:** APPROVED -- CEO and Eng reviews complete. No critical gaps. Ready for implementation planning.
