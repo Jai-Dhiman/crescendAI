@@ -138,6 +138,128 @@ def judge_subagent(
     )
 
 
+def judge_synthesis(
+    synthesis_text: str,
+    context: dict[str, Any],
+    prompt_file: str = "synthesis_quality_judge_v1.txt",
+    model: str = DEFAULT_MODEL,
+) -> JudgeResult:
+    """Judge a post-session synthesis using the specified prompt and model."""
+    template = load_prompt(prompt_file)
+
+    format_kwargs = {
+        "piece_name": context.get("piece_name", "Unknown"),
+        "composer": context.get("composer", "Unknown"),
+        "skill_level": context.get("skill_level", "Unknown"),
+        "synthesis_text": synthesis_text,
+        "drilling_detected": context.get("drilling_detected", False),
+        "drilling_passage": context.get("drilling_passage", "None"),
+    }
+    for key, value in context.items():
+        if key not in format_kwargs:
+            format_kwargs[key] = value
+
+    user_message = template.format(**format_kwargs)
+
+    client = anthropic.Anthropic()
+    start = time.monotonic()
+    response_text = _call_with_retry(client, model, user_message)
+    latency_ms = (time.monotonic() - start) * 1000
+
+    scores = _parse_judge_response(response_text)
+    prompt_version = prompt_file.replace(".txt", "")
+
+    return JudgeResult(
+        scores=scores,
+        model=model,
+        prompt_version=prompt_version,
+        latency_ms=latency_ms,
+    )
+
+
+def judge_teaching_moment(
+    context: dict[str, Any],
+    prompt_file: str = "teaching_moment_judge_v1.txt",
+    model: str = DEFAULT_MODEL,
+) -> JudgeResult:
+    """Judge teaching moment selection using the specified prompt and model."""
+    template = load_prompt(prompt_file)
+
+    format_kwargs = {
+        "piece_name": context.get("piece_name", "Unknown"),
+        "composer": context.get("composer", "Unknown"),
+        "all_moments": context.get("all_moments", "[]"),
+        "selected_dimension": context.get("selected_dimension", "Unknown"),
+        "deviation": context.get("deviation", "Unknown"),
+        "score": context.get("score", "Unknown"),
+    }
+    for key, value in context.items():
+        if key not in format_kwargs:
+            format_kwargs[key] = value
+
+    user_message = template.format(**format_kwargs)
+
+    client = anthropic.Anthropic()
+    start = time.monotonic()
+    response_text = _call_with_retry(client, model, user_message)
+    latency_ms = (time.monotonic() - start) * 1000
+
+    scores = _parse_judge_response(response_text)
+    prompt_version = prompt_file.replace(".txt", "")
+
+    return JudgeResult(
+        scores=scores,
+        model=model,
+        prompt_version=prompt_version,
+        latency_ms=latency_ms,
+    )
+
+
+def judge_differentiation(
+    syntheses: list[tuple[int, str]],
+    piece_name: str,
+    composer: str,
+    prompt_file: str = "differentiation_judge_v1.txt",
+    model: str = DEFAULT_MODEL,
+) -> JudgeResult:
+    """Judge differentiation across skill levels using the specified prompt and model.
+
+    Args:
+        syntheses: List of (skill_level, synthesis_text) tuples, expected for levels 1, 3, 5.
+        piece_name: Name of the piece being evaluated.
+        composer: Composer of the piece.
+        prompt_file: Prompt template filename.
+        model: Anthropic model to use.
+    """
+    template = load_prompt(prompt_file)
+
+    # Build kwargs from the 3 expected skill levels
+    format_kwargs: dict[str, Any] = {
+        "piece_name": piece_name,
+        "composer": composer,
+    }
+    for skill_level, synthesis_text in syntheses:
+        format_kwargs[f"synthesis_{skill_level}"] = synthesis_text
+        format_kwargs[f"skill_level_{skill_level}"] = skill_level
+
+    user_message = template.format(**format_kwargs)
+
+    client = anthropic.Anthropic()
+    start = time.monotonic()
+    response_text = _call_with_retry(client, model, user_message)
+    latency_ms = (time.monotonic() - start) * 1000
+
+    scores = _parse_judge_response(response_text)
+    prompt_version = prompt_file.replace(".txt", "")
+
+    return JudgeResult(
+        scores=scores,
+        model=model,
+        prompt_version=prompt_version,
+        latency_ms=latency_ms,
+    )
+
+
 def _call_with_retry(
     client: anthropic.Anthropic,
     model: str,
@@ -178,9 +300,9 @@ def _parse_judge_response(response_text: str) -> list[CriterionScore]:
     """
     scores: list[CriterionScore] = []
 
-    # Match criterion blocks: **Name:** YES/NO followed by Evidence line
+    # Match criterion blocks: **Name:** YES/NO/HIGH/MEDIUM/LOW/N/A followed by Evidence line
     pattern = re.compile(
-        r"\*\*([^*]+?):\*\*\s*(YES|NO)\s*\n"
+        r"\*\*([^*]+?):\*\*\s*(YES|NO|HIGH|MEDIUM|LOW|N/A)\s*\n"
         r'(?:Evidence:\s*"?(.+?)"?\s*(?:\n|$))',
         re.IGNORECASE,
     )
@@ -199,10 +321,18 @@ def _parse_judge_response(response_text: str) -> list[CriterionScore]:
         return scores
 
     for criterion, verdict, evidence in matches:
+        upper_verdict = verdict.upper()
+        if upper_verdict in ("YES", "HIGH", "MEDIUM"):
+            passed = True
+        elif upper_verdict == "N/A":
+            passed = None
+        else:
+            # NO or LOW
+            passed = False
         scores.append(
             CriterionScore(
                 criterion=criterion.strip(),
-                passed=verdict.upper() == "YES",
+                passed=passed,
                 evidence=evidence.strip(),
                 raw_response=response_text,
             )

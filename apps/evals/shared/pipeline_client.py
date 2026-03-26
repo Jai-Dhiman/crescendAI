@@ -1,7 +1,8 @@
 """WebSocket client for sending eval chunks to the local Rust pipeline.
 
 Connects to wrangler dev, creates a practice session, sends pre-computed
-inference results via eval_chunk messages, and collects observations.
+inference results via eval_chunk messages, captures synthesis output and
+accumulator state for offline analysis.
 """
 
 from __future__ import annotations
@@ -19,7 +20,7 @@ import websockets
 
 @dataclass
 class PipelineObservation:
-    """An observation returned by the pipeline."""
+    """A lightweight observation returned during accumulation."""
     text: str
     dimension: str
     framing: str
@@ -41,6 +42,14 @@ class PieceIdentification:
 
 
 @dataclass
+class SynthesisResult:
+    """Session synthesis output from the teacher LLM."""
+    text: str
+    is_fallback: bool
+    eval_context: dict = field(default_factory=dict)
+
+
+@dataclass
 class SessionResult:
     """Result of running a full recording through the pipeline."""
     session_id: str
@@ -50,6 +59,10 @@ class SessionResult:
     errors: list[str]
     duration_ms: int
     piece_identification: PieceIdentification | None = None
+    synthesis: SynthesisResult | None = None
+    # Efficiency metadata
+    chunk_send_duration_ms: int = 0
+    synthesis_latency_ms: int = 0
 
 
 def _get_debug_auth(wrangler_url: str) -> requests.Session:
@@ -95,7 +108,12 @@ async def run_recording(
     student_id: str = "eval-student-001",
     piece_query: str | None = None,
 ) -> SessionResult:
-    """Run a cached recording through the full pipeline via wrangler dev."""
+    """Run a cached recording through the full pipeline via wrangler dev.
+
+    Sends all chunks as eval_chunk messages, then triggers end_session
+    to capture the synthesis output. The pipeline routes through the
+    production accumulation path (no legacy per-observation LLM calls).
+    """
     recording_id = recording_cache["recording_id"]
     chunks = recording_cache["chunks"]
     start = time.time()
@@ -154,6 +172,10 @@ async def run_recording(
         ws_headers["Cookie"] = cookie_str
 
     piece_id_result: PieceIdentification | None = None
+    synthesis_result: SynthesisResult | None = None
+    chunk_send_start = 0
+    chunk_send_end = 0
+    synthesis_request_time = 0
 
     try:
         async with websockets.connect(ws_url, additional_headers=ws_headers) as ws:
@@ -162,6 +184,7 @@ async def run_recording(
                 await ws.send(json.dumps({"type": "set_piece", "query": piece_query}))
 
             # 3. Send each chunk as eval_chunk
+            chunk_send_start = time.time()
             for chunk in chunks:
                 msg = {
                     "type": "eval_chunk",
@@ -185,39 +208,54 @@ async def run_recording(
                         elif msg_type == "observation":
                             observations.append(_parse_observation(response))
                         elif msg_type == "piece_identified":
-                            piece_id_result = PieceIdentification(
-                                piece_id=response.get("pieceId", ""),
-                                confidence=response.get("confidence", 0.0),
-                                method=response.get("method", ""),
-                                notes_consumed=response.get("notesConsumed", 0),
-                            )
+                            piece_id_result = _parse_piece_id(response)
+                        elif msg_type == "mode_change":
+                            pass  # captured in accumulator state
                         elif msg_type == "error":
                             errors.append(response.get("message", "unknown error"))
                             break
                 except asyncio.TimeoutError:
                     errors.append(f"Timeout waiting for chunk {chunk['chunk_index']}")
 
-            # 4. Wait for trailing observations (LLM pipeline takes 10-15s)
+            chunk_send_end = time.time()
+
+            # 4. Send end_session and wait for synthesis
+            synthesis_request_time = time.time()
+            await ws.send(json.dumps({"type": "end_session"}))
+
             try:
                 while True:
-                    raw = await asyncio.wait_for(ws.recv(), timeout=30.0)
+                    raw = await asyncio.wait_for(ws.recv(), timeout=60.0)
                     response = json.loads(raw)
-                    if response.get("type") == "observation":
-                        observations.append(_parse_observation(response))
-                    elif response.get("type") == "piece_identified":
-                        piece_id_result = PieceIdentification(
-                            piece_id=response.get("pieceId", ""),
-                            confidence=response.get("confidence", 0.0),
-                            method=response.get("method", ""),
-                            notes_consumed=response.get("notesConsumed", 0),
+                    msg_type = response.get("type", "")
+
+                    if msg_type == "synthesis":
+                        synthesis_result = SynthesisResult(
+                            text=response.get("text", ""),
+                            is_fallback=response.get("is_fallback", False),
+                            eval_context=response.get("eval_context", {}),
                         )
+                    elif msg_type == "observation":
+                        observations.append(_parse_observation(response))
+                    elif msg_type == "piece_identified":
+                        piece_id_result = _parse_piece_id(response)
             except (asyncio.TimeoutError, websockets.exceptions.ConnectionClosed):
                 pass
 
     except Exception as e:
         errors.append(f"WebSocket error: {e}")
 
+    if synthesis_result is None and not errors:
+        errors.append("No synthesis received before connection closed")
+
     duration_ms = int((time.time() - start) * 1000)
+    chunk_send_duration_ms = int((chunk_send_end - chunk_send_start) * 1000) if chunk_send_start else 0
+    synthesis_latency_ms = (
+        int((time.time() - synthesis_request_time) * 1000)
+        if synthesis_request_time and synthesis_result
+        else 0
+    )
+
     return SessionResult(
         session_id=session_id,
         recording_id=recording_id,
@@ -226,6 +264,9 @@ async def run_recording(
         errors=errors,
         duration_ms=duration_ms,
         piece_identification=piece_id_result,
+        synthesis=synthesis_result,
+        chunk_send_duration_ms=chunk_send_duration_ms,
+        synthesis_latency_ms=synthesis_latency_ms,
     )
 
 
@@ -241,4 +282,14 @@ def _parse_observation(response: dict) -> PipelineObservation:
         reasoning_trace=response.get("reasoning_trace", ""),
         is_fallback=response.get("is_fallback", False),
         raw_message=response,
+    )
+
+
+def _parse_piece_id(response: dict) -> PieceIdentification:
+    """Parse a piece_identified WebSocket message."""
+    return PieceIdentification(
+        piece_id=response.get("pieceId", ""),
+        confidence=response.get("confidence", 0.0),
+        method=response.get("method", ""),
+        notes_consumed=response.get("notesConsumed", 0),
     )
