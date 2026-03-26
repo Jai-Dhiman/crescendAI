@@ -126,7 +126,7 @@ impl PracticeSession {
                 format!(
                     "MuQ response parse failed: {:?} - body: {}",
                     e,
-                    &body_text[..body_text.len().min(200)]
+                    crate::truncate_str(&body_text, 200)
                 )
             })?;
 
@@ -257,7 +257,7 @@ impl PracticeSession {
                 format!(
                     "AMT response parse failed: {:?} - body: {}",
                     e,
-                    &body_text[..body_text.len().min(200)]
+                    crate::truncate_str(&body_text, 200)
                 )
             })?;
 

@@ -266,7 +266,7 @@ pub async fn call_synthesis_llm(
         console_error!(
             "[synthesis] Anthropic returned status {}: {}",
             status,
-            &response_text[..response_text.len().min(200)]
+            crate::truncate_str(&response_text, 200)
         );
         return fallback;
     }

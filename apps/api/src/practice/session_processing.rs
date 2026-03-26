@@ -787,7 +787,7 @@ impl PracticeSession {
         let inner_resp = crate::services::ask::handle_ask_inner(&self.env, &inner_req).await;
         console_log!(
             "generate_observation: LLM pipeline returned. text={}, fallback={}",
-            &inner_resp.observation_text[..inner_resp.observation_text.len().min(80)],
+            crate::truncate_str(&inner_resp.observation_text, 80),
             inner_resp.is_fallback
         );
 

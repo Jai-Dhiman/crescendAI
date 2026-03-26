@@ -197,10 +197,10 @@ async def run_recording(
                 except asyncio.TimeoutError:
                     errors.append(f"Timeout waiting for chunk {chunk['chunk_index']}")
 
-            # 4. Wait briefly for trailing observations
+            # 4. Wait for trailing observations (LLM pipeline takes 10-15s)
             try:
                 while True:
-                    raw = await asyncio.wait_for(ws.recv(), timeout=5.0)
+                    raw = await asyncio.wait_for(ws.recv(), timeout=30.0)
                     response = json.loads(raw)
                     if response.get("type") == "observation":
                         observations.append(_parse_observation(response))
