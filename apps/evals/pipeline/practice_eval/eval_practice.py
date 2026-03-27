@@ -333,13 +333,14 @@ def main():
             recording = cache[video_id]
             total_recordings += 1
             recording_count += 1
+            student_id = f"eval-{video_id[:12]}"
 
             # --- Pass A: with piece_query (full context) ---
             if pass_a_key not in completed_ids:
                 print(f"  [{i+1}/{len(scenarios)}] {video_id} Pass A (with context)...",
                       end=" ", flush=True)
                 result_a: SessionResult = asyncio.run(
-                    run_recording(args.wrangler_url, recording, piece_query=piece_query)
+                    run_recording(args.wrangler_url, recording, student_id=student_id, piece_query=piece_query)
                 )
 
                 if result_a.errors:
@@ -442,7 +443,7 @@ def main():
                 print(f"  [{i+1}/{len(scenarios)}] {video_id} Pass B (zero-config)...",
                       end=" ", flush=True)
                 result_b: SessionResult = asyncio.run(
-                    run_recording(args.wrangler_url, recording, piece_query=None)
+                    run_recording(args.wrangler_url, recording, student_id=student_id, piece_query=None)
                 )
 
                 if result_b.errors:
