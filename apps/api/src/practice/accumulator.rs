@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::practice::practice_mode::PracticeMode;
 
 /// A single teaching moment accumulated during a practice session.
@@ -85,7 +87,7 @@ impl SessionAccumulator {
     /// 2. For each dimension, also select the top-1 positive moment if it differs from step 1.
     /// 3. Cap total at 8 moments.
     /// 4. Sort the final set by chunk_index ascending.
-    pub fn top_moments(&self) -> Vec<&AccumulatedMoment> {
+    pub fn top_moments(&self, dimension_weights: Option<&HashMap<String, f64>>) -> Vec<&AccumulatedMoment> {
         let dimensions = ["dynamics", "timing", "pedaling", "articulation", "phrasing", "interpretation"];
         let mut selected: Vec<&AccumulatedMoment> = Vec::new();
 
@@ -137,6 +139,17 @@ impl SessionAccumulator {
             }
         }
 
+        // If dimension weights are provided, re-sort candidates by weighted deviation
+        // before capping. This ensures high-weight dimensions (e.g., pedaling for Chopin)
+        // are prioritized when more than 8 candidates exist.
+        if let Some(weights) = dimension_weights {
+            selected.sort_by(|a, b| {
+                let aw = a.deviation.abs() * weights.get(&a.dimension).copied().unwrap_or(1.0);
+                let bw = b.deviation.abs() * weights.get(&b.dimension).copied().unwrap_or(1.0);
+                bw.partial_cmp(&aw).unwrap_or(std::cmp::Ordering::Equal)
+            });
+        }
+
         // Cap at 8
         selected.truncate(8);
 
@@ -185,7 +198,7 @@ mod tests {
         acc.accumulate_moment(make_moment(1, "dynamics", 0.5, false));
         acc.accumulate_moment(make_moment(2, "dynamics", 0.3, false));
 
-        let top = acc.top_moments();
+        let top = acc.top_moments(None);
         // Should select only the highest |deviation| = 0.5 (chunk 1)
         assert_eq!(top.len(), 1);
         assert_eq!(top[0].chunk_index, 1);
@@ -202,7 +215,7 @@ mod tests {
             acc.accumulate_moment(make_moment(i * 2 + 1, dim, 0.3, true));
         }
 
-        let top = acc.top_moments();
+        let top = acc.top_moments(None);
         assert!(top.len() <= 8);
     }
 
@@ -214,7 +227,7 @@ mod tests {
         acc.accumulate_moment(make_moment(2, "dynamics", 0.4, false));
         acc.accumulate_moment(make_moment(8, "timing", 0.4, false));
 
-        let top = acc.top_moments();
+        let top = acc.top_moments(None);
         let indices: Vec<usize> = top.iter().map(|m| m.chunk_index).collect();
         let mut sorted = indices.clone();
         sorted.sort();
@@ -296,5 +309,48 @@ mod tests {
         let rest_trans = &restored.mode_transitions[0];
         assert_eq!(rest_trans.from, orig_trans.from);
         assert_eq!(rest_trans.to, orig_trans.to);
+    }
+
+    #[test]
+    fn test_top_moments_none_weights_unchanged() {
+        let mut acc = SessionAccumulator::default();
+        acc.accumulate_moment(make_moment(0, "dynamics", -0.4, false));
+        acc.accumulate_moment(make_moment(1, "timing", 0.3, true));
+        acc.accumulate_moment(make_moment(2, "pedaling", -0.5, false));
+
+        let top = acc.top_moments(None);
+        assert_eq!(top.len(), 3);
+        // Should be sorted by chunk_index
+        assert_eq!(top[0].chunk_index, 0);
+        assert_eq!(top[1].chunk_index, 1);
+        assert_eq!(top[2].chunk_index, 2);
+    }
+
+    #[test]
+    fn test_top_moments_with_weights() {
+        let mut acc = SessionAccumulator::default();
+        // 5 dimensions with 2 moments each = 10 candidates -> capped at 8
+        acc.accumulate_moment(make_moment(0, "dynamics", -0.4, false));
+        acc.accumulate_moment(make_moment(1, "dynamics", 0.2, true));
+        acc.accumulate_moment(make_moment(2, "timing", -0.3, false));
+        acc.accumulate_moment(make_moment(3, "timing", 0.2, true));
+        acc.accumulate_moment(make_moment(4, "pedaling", -0.3, false));
+        acc.accumulate_moment(make_moment(5, "pedaling", 0.2, true));
+        acc.accumulate_moment(make_moment(6, "articulation", -0.3, false));
+        acc.accumulate_moment(make_moment(7, "articulation", 0.2, true));
+        acc.accumulate_moment(make_moment(8, "phrasing", -0.3, false));
+        acc.accumulate_moment(make_moment(9, "phrasing", 0.2, true));
+
+        // Without weights: 10 candidates, capped to 8
+        let top_unweighted = acc.top_moments(None);
+        assert!(top_unweighted.len() <= 8);
+
+        // With high pedaling weight: pedaling moments should survive the cap
+        let mut weights = HashMap::new();
+        weights.insert("pedaling".to_string(), 3.0);
+        let top_weighted = acc.top_moments(Some(&weights));
+        assert!(top_weighted.len() <= 8);
+        // Pedaling moments should be present
+        assert!(top_weighted.iter().any(|m| m.dimension == "pedaling"));
     }
 }

@@ -33,7 +33,7 @@ pub fn build_synthesis_prompt(
 
     let practice_pattern = build_practice_pattern(acc, ctx.session_duration_ms);
     let top_moments: Vec<serde_json::Value> = acc
-        .top_moments()
+        .top_moments(None)
         .iter()
         .map(|m| moment_to_json(m))
         .collect();
@@ -748,7 +748,7 @@ pub async fn handle_deferred_synthesis(
     }
 
     // Persist accumulated moments
-    let moments: Vec<AccumulatedMoment> = acc.top_moments().into_iter().cloned().collect();
+    let moments: Vec<AccumulatedMoment> = acc.top_moments(None).into_iter().cloned().collect();
     if let Err(e) = persist_accumulated_moments(env, &student_id, &session_id, &moments).await {
         console_error!("[synthesis] Failed to persist accumulated moments: {}", e);
         // Non-fatal -- synthesis message already saved
