@@ -1,26 +1,25 @@
-//! STOP classifier: determines whether a scored audio chunk contains
-//! a teaching-worthy moment.
+//! STOP classifier: determines whether a scored audio chunk contains a teaching-worthy moment.
 //!
 //! Implements Option B from the pipeline design (02-pipeline.md):
-//! logistic regression on 6-dim composite scores, running in the
-//! cloud worker (Rust/WASM). LOVO CV AUC = 0.649 (balanced).
+//! logistic regression on 6-dim composite scores, running in the cloud worker (Rust/WASM). LOVO CV AUC = 0.649 (balanced).
 //!
-//! Weights extracted from sklearn LogisticRegression trained on 1,699
-//! labeled masterclass segments with class_weight='balanced'.
+//! Weights extracted from sklearn LogisticRegression trained on 1,699 labeled masterclass segments with class_weight='balanced'.
 //! Coefficient sign consistency = 1.0 across all 60 LOVO folds.
 //!
-//! The StandardScaler parameters (mean, std) are required because the
-//! logistic regression was trained on standardized features.
+//! The StandardScaler parameters (mean, std) are required because the logistic regression was trained on standardized features.
 
 use crate::practice::dims::DIMS_6;
 
+/// NOTE: These constants are also defined in config/stop_config.json (single source of truth).
+/// The Rust side reads from hardcoded values because WASM builds cannot read filesystem at compile time.
+/// If you update these values, update config/stop_config.json as well.
+///
 /// Dimension order must match the training pipeline.
 /// [dynamics, timing, pedaling, articulation, phrasing, interpretation]
 pub const SCALER_MEAN: [f64; 6] = [0.5450, 0.4848, 0.4594, 0.5369, 0.5188, 0.5064];
 const SCALER_STD: [f64; 6] = [0.0689, 0.0388, 0.0791, 0.0154, 0.0186, 0.0555];
 
 /// Balanced logistic regression coefficients.
-///
 /// Interpretation of signs:
 /// - Negative (dynamics, pedaling, interpretation): lower score -> more likely to stop.
 ///   These are the "musicality" dimensions where poor performance triggers intervention.
@@ -40,7 +39,6 @@ pub struct StopResult {
 }
 
 /// Compute STOP probability for a single chunk's 6-dim scores.
-///
 /// Applies StandardScaler normalization, then logistic regression.
 /// Input order: [dynamics, timing, pedaling, articulation, phrasing, interpretation]
 pub fn stop_probability(scores: &[f64; 6]) -> f64 {

@@ -40,13 +40,16 @@ REPORTS_DIR = Path(__file__).parents[2] / "reports"
 
 INFERENCE_CACHE_BASE = MODEL_DATA / "eval" / "inference_cache"
 
-# STOP classifier constants (mirrored from apps/api/src/services/stop.rs)
-STOP_SCALER_MEAN = [0.5450, 0.4848, 0.4594, 0.5369, 0.5188, 0.5064]
-STOP_SCALER_STD = [0.0689, 0.0388, 0.0791, 0.0154, 0.0186, 0.0555]
-STOP_WEIGHTS = [-0.5266, 0.3681, -0.5483, 0.4884, 0.2427, -0.1541]
-STOP_BIAS = 0.1147
-STOP_THRESHOLD = 0.5
-DIMS_6 = ["dynamics", "timing", "pedaling", "articulation", "phrasing", "interpretation"]
+# STOP classifier constants loaded from shared config
+_STOP_CONFIG_PATH = Path(__file__).resolve().parents[4] / "config" / "stop_config.json"
+with open(_STOP_CONFIG_PATH) as _f:
+    _STOP_CONFIG = json.load(_f)
+STOP_SCALER_MEAN = _STOP_CONFIG["scaler_mean"]
+STOP_SCALER_STD = _STOP_CONFIG["scaler_std"]
+STOP_WEIGHTS = _STOP_CONFIG["weights"]
+STOP_BIAS = _STOP_CONFIG["bias"]
+STOP_THRESHOLD = _STOP_CONFIG["threshold"]
+DIMS_6 = _STOP_CONFIG["dimensions"]
 
 ALL_CAPABILITIES = {"stop", "piece_id", "teaching_moments", "mode_detection",
                     "synthesis", "exercises", "score_following", "differentiation"}
