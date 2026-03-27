@@ -261,29 +261,29 @@ impl DurableObject for PracticeSession {
                     s.session_ending && s.chunks_in_flight == 0
                 };
                 if should_finalize {
-                    console_log!("Last in-flight chunk completed, finalizing session");
-                    self.run_synthesis_and_persist(&ws).await;
-                    self.finalize_session(Some(&ws)).await;
+                    console_log!("Last in-flight chunk completed, scheduling synthesis alarm");
+                    let _ = self.state.storage().set_alarm(1).await;
                 }
 
                 result?;
             }
             "end_session" => {
-                let in_flight = {
+                {
                     let mut s = self.inner.borrow_mut();
                     s.session_ending = true;
-                    s.chunks_in_flight
-                };
+                }
+                let _ = self.state.storage().put("session_ending", &true).await;
+
+                let in_flight = self.inner.borrow().chunks_in_flight;
                 if in_flight == 0 {
-                    // Synthesize before finalizing (keeps WS open for synthesis push)
-                    self.run_synthesis_and_persist(&ws).await;
-                    self.finalize_session(Some(&ws)).await;
+                    // Schedule immediate alarm for synthesis + finalization
+                    let _ = self.state.storage().set_alarm(1).await;
                 } else {
                     console_log!(
-                        "end_session received, waiting for {} in-flight chunks",
+                        "end_session: waiting for {} in-flight chunks",
                         in_flight
                     );
-                    // finalize_session will be called by the last completing chunk handler
+                    // Last completing chunk will set the alarm
                 }
             }
             "eval_chunk" => {
@@ -344,27 +344,32 @@ impl DurableObject for PracticeSession {
         _reason: String,
         _was_clean: bool,
     ) -> Result<()> {
-        // Client disconnected -- mark session as ending
-        let (has_chunks, in_flight) = {
+        // Client disconnected -- mark session as ending and schedule synthesis
+        {
             let mut s = self.inner.borrow_mut();
             s.session_ending = true;
-            (
-                !s.scored_chunks.is_empty() || s.inference_failures > 0,
-                s.chunks_in_flight,
-            )
-        };
-        if has_chunks && in_flight == 0 {
-            self.finalize_session(None).await;
         }
-        // If in_flight > 0, last completing chunk will finalize
+        let _ = self.state.storage().put("session_ending", &true).await;
+        // Always schedule alarm -- let alarm handler decide if there's content to synthesize.
+        // Avoids checking scored_chunks which may be empty after hibernation.
+        let _ = self.state.storage().set_alarm(1).await;
         Ok(())
     }
 
     async fn alarm(&self) -> Result<Response> {
-        // Alarm fired: session timed out (30 min inactivity)
+        // Single synthesis + finalization point for all exit paths:
+        // - end_session (0ms alarm), websocket_close (0ms alarm),
+        // - last in-flight chunk (0ms alarm), inactivity timeout (30min alarm)
+        self.ensure_session_state().await;
+
         let sockets = self.state.get_websockets();
         let ws = sockets.first();
+
+        // Run synthesis (idempotent -- synthesis_completed guard prevents double-run)
+        self.run_synthesis_and_persist(ws).await;
+        // Finalize (idempotent -- finalized guard prevents double-run)
         self.finalize_session(ws).await;
+
         Response::ok("alarm handled")
     }
 }
@@ -373,8 +378,7 @@ impl DurableObject for PracticeSession {
 
 impl PracticeSession {
     /// Reload session identity and accumulator from durable storage if in-memory
-    /// state was lost (happens when the DO is evicted during long async operations
-    /// like LLM calls).
+    /// state was lost (happens when the DO hibernates between WebSocket events).
     pub(crate) async fn ensure_session_state(&self) {
         let needs_reload = self.inner.borrow().session_id.is_empty();
         if !needs_reload {
@@ -413,6 +417,27 @@ impl PracticeSession {
                     s.accumulator.mode_transitions.len()
                 );
             }
+        }
+
+        // Reload baselines
+        if let Ok(Some(bl_json)) = storage.get::<String>("baselines").await {
+            if let Ok(baselines) = serde_json::from_str::<StudentBaselines>(&bl_json) {
+                let mut s = self.inner.borrow_mut();
+                s.baselines = Some(baselines);
+                s.baselines_loaded = true;
+            }
+        }
+
+        // Reload scored_chunks
+        if let Ok(Some(sc_json)) = storage.get::<String>("scored_chunks").await {
+            if let Ok(sc) = serde_json::from_str::<Vec<ScoredChunk>>(&sc_json) {
+                self.inner.borrow_mut().scored_chunks = sc;
+            }
+        }
+
+        // Reload session_ending flag
+        if let Ok(Some(true)) = storage.get::<bool>("session_ending").await {
+            self.inner.borrow_mut().session_ending = true;
         }
 
         // Reload synthesis_completed flag (survives DO eviction)

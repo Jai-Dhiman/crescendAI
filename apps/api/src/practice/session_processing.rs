@@ -314,6 +314,16 @@ impl PracticeSession {
             let acc_json =
                 serde_json::to_string(&self.inner.borrow().accumulator).unwrap_or_default();
             let _ = self.state.storage().put("accumulator", &acc_json).await;
+
+            // Persist baselines and scored_chunks for hibernation recovery
+            if let Some(ref baselines) = self.inner.borrow().baselines {
+                if let Ok(bl_json) = serde_json::to_string(baselines) {
+                    let _ = self.state.storage().put("baselines", &bl_json).await;
+                }
+            }
+            if let Ok(sc_json) = serde_json::to_string(&self.inner.borrow().scored_chunks) {
+                let _ = self.state.storage().put("scored_chunks", &sc_json).await;
+            }
         }
 
         // 10. Reset alarm
@@ -694,6 +704,16 @@ impl PracticeSession {
             let acc_json =
                 serde_json::to_string(&self.inner.borrow().accumulator).unwrap_or_default();
             let _ = self.state.storage().put("accumulator", &acc_json).await;
+
+            // Persist baselines and scored_chunks for hibernation recovery
+            if let Some(ref baselines) = self.inner.borrow().baselines {
+                if let Ok(bl_json) = serde_json::to_string(baselines) {
+                    let _ = self.state.storage().put("baselines", &bl_json).await;
+                }
+            }
+            if let Ok(sc_json) = serde_json::to_string(&self.inner.borrow().scored_chunks) {
+                let _ = self.state.storage().put("scored_chunks", &sc_json).await;
+            }
         }
 
         // Reset alarm

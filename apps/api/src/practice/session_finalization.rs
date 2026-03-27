@@ -81,7 +81,7 @@ impl PracticeSession {
 
     // --- Session synthesis ---
 
-    pub(crate) async fn run_synthesis_and_persist(&self, ws: &WebSocket) {
+    pub(crate) async fn run_synthesis_and_persist(&self, ws: Option<&WebSocket>) {
         self.ensure_session_state().await;
 
         // Idempotency guard: persisted to DO storage, survives eviction
@@ -161,12 +161,8 @@ impl PracticeSession {
         });
 
         // In dev mode, include accumulator snapshot for eval analysis
-        let is_dev = self
-            .env
-            .var("ENVIRONMENT")
-            .map(|v| v.to_string() == "development")
-            .unwrap_or(false);
-        if is_dev {
+        let is_eval = self.inner.borrow().is_eval;
+        if is_eval {
             let s = self.inner.borrow();
             synthesis_event["eval_context"] = serde_json::json!({
                 "teaching_moments": &s.accumulator.teaching_moments,
@@ -188,7 +184,9 @@ impl PracticeSession {
             });
         }
 
-        let _ = ws.send_with_str(&synthesis_event.to_string());
+        if let Some(ws) = ws {
+            let _ = ws.send_with_str(&synthesis_event.to_string());
+        }
 
         // Persist synthesis message to D1
         match crate::practice::synthesis::persist_synthesis_message(
