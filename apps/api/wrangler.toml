@@ -22,8 +22,8 @@ ENVIRONMENT = "production"
 GOOGLE_CLIENT_ID = "726399246264-lkq6jl4khal8gagn65j9t2a8bg52i7ie.apps.googleusercontent.com"
 HF_INFERENCE_ENDPOINT = "https://mxcyiqltad84v9w1.us-east4.gcp.endpoints.huggingface.cloud"
 HF_AMT_ENDPOINT = ""  # Set after deploying Aria-AMT HF endpoint
-CF_ACCOUNT_ID = ""  # Set via `wrangler secret put` or CF dashboard
-SHADOW_BENCHMARK_ENABLED = "false"
+CF_ACCOUNT_ID = "5df63f40beeab277db407f1ecbd6e1ec"
+SHADOW_BENCHMARK_ENABLED = "true"
 SHADOW_BENCHMARK_PCT = "10"
 
 [ai]
