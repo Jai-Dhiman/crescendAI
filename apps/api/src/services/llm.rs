@@ -200,10 +200,12 @@ pub async fn call_groq(
     let request = Request::new_with_init(url.as_str(), &init)
         .map_err(|e| format!("Failed to create Groq request: {:?}", e))?;
 
+    let groq_start = js_sys::Date::now();
     let mut response = Fetch::Request(request)
         .send()
         .await
         .map_err(|e| format!("Groq request failed: {:?}", e))?;
+    let groq_latency = js_sys::Date::now() - groq_start;
     gateway.log_response_metadata(&response, "groq");
 
     let status = response.status_code();
@@ -239,7 +241,11 @@ pub async fn call_groq(
         )
         .await;
         let shadow_elapsed = js_sys::Date::now() - shadow_start;
-        console_log!("shadow_benchmark: workers_ai_latency_ms={:.0}", shadow_elapsed);
+        console_log!(
+            "shadow_benchmark: groq_latency_ms={:.0}, workers_ai_latency_ms={:.0}",
+            groq_latency,
+            shadow_elapsed
+        );
     }
 
     groq_response
@@ -661,7 +667,7 @@ pub async fn call_anthropic_stream(
     headers
         .set("Content-Type", "application/json")
         .map_err(|e| format!("Failed to set content-type: {:?}", e))?;
-    gateway.attach_headers(&headers)?;
+    // Skip cache headers for streaming -- cached SSE replay may not behave correctly
 
     let url = gateway.provider_url("anthropic", "v1/messages")?;
 
