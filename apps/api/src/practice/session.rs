@@ -79,6 +79,8 @@ pub(crate) struct SessionState {
     pub(crate) follower_state: FollowerState,
     pub(crate) mode_detector: ModeDetector,
     pub(crate) conversation_id: Option<String>,
+    /// Whether this session is an eval session (export accumulator state in synthesis).
+    pub(crate) is_eval: bool,
     /// Encoded WebM bytes from previous chunk (NOT persisted to durable storage).
     /// Used to provide 30s context window for Aria-AMT.
     pub(crate) previous_chunk_audio: Option<Vec<u8>>,
@@ -116,6 +118,7 @@ impl Default for SessionState {
             follower_state: FollowerState::default(),
             mode_detector: ModeDetector::new(),
             conversation_id: None,
+            is_eval: false,
             previous_chunk_audio: None,
             accumulated_notes: Vec::new(),
             piece_identification: None,
@@ -161,6 +164,12 @@ impl DurableObject for PracticeSession {
             .map(|(_, v)| v.to_string())
             .filter(|s| !s.is_empty());
 
+        let is_eval = url
+            .query_pairs()
+            .find(|(k, _)| k == "eval")
+            .map(|(_, v)| v == "true")
+            .unwrap_or(false);
+
         console_log!(
             "DO fetch: session_id={}, student_id={}, conversation_id={:?}",
             session_id,
@@ -175,6 +184,7 @@ impl DurableObject for PracticeSession {
                 s.session_id = session_id.clone();
                 s.student_id = student_id;
                 s.conversation_id = conversation_id.clone();
+                s.is_eval = is_eval;
             }
         }
 
@@ -274,13 +284,9 @@ impl DurableObject for PracticeSession {
                 }
             }
             "eval_chunk" => {
-                // Only available in dev mode
-                let is_dev = self
-                    .env
-                    .var("ENVIRONMENT")
-                    .map(|v| v.to_string() == "development")
-                    .unwrap_or(false);
-                if !is_dev {
+                // Only available in eval sessions (matching eval_context export gate)
+                let is_eval = self.inner.borrow().is_eval;
+                if !is_eval {
                     let _ = ws.send_with_str(
                         r#"{"type":"error","message":"eval_chunk only available in dev"}"#,
                     );

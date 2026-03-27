@@ -15,6 +15,8 @@ from pathlib import Path
 
 import anthropic
 
+from apps.evals.teaching_knowledge.download_transcripts import parse_vtt
+
 DATA_DIR = Path(__file__).parent / "data"
 
 FILTER_PROMPT = """You are analyzing a transcript from a piano-related YouTube video.
@@ -132,8 +134,6 @@ def main():
             print("SKIP (file missing)")
             continue
 
-        # Read and parse transcript
-        from apps.evals.teaching_knowledge.download_transcripts import parse_vtt
         text = parse_vtt(transcript_path)
 
         # Pass 1: Filter
