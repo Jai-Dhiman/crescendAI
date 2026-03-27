@@ -3,7 +3,98 @@
 //! Uses worker::Fetch for WASM-compatible HTTP requests.
 
 use serde::{Deserialize, Serialize};
-use worker::{Env, Fetch, Headers, Method, Request, RequestInit, Url};
+use worker::{console_log, Env, Fetch, Headers, Method, Request, RequestInit, Url};
+
+// --- AI Gateway ---
+
+/// Gateway IDs (created in CF dashboard)
+const TEACHER_GATEWAY: &str = "crescendai-teacher";
+const BACKGROUND_GATEWAY: &str = "crescendai-background";
+
+/// Default cache TTL in seconds for all gateway requests
+const GATEWAY_CACHE_TTL: u32 = 60;
+
+/// Workers AI model for cheap background tasks (titles, goals, memory extraction)
+pub const WORKERS_AI_CHEAP_MODEL: &str = "@cf/qwen/qwen3-30b-a3b-fp8";
+
+/// Workers AI model matching Groq's Llama 3.3 70B (used as Groq fallback + shadow benchmark)
+const WORKERS_AI_GROQ_FALLBACK_MODEL: &str = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
+
+/// Thin client for routing LLM calls through Cloudflare AI Gateway.
+/// Constructs gateway URLs, attaches caching headers, logs response metadata.
+struct AiGateway {
+    account_id: String,
+    gateway_id: &'static str,
+}
+
+impl AiGateway {
+    /// Create a gateway client for the teacher path (Anthropic only).
+    fn teacher(env: &Env) -> Result<Self, String> {
+        let account_id = env
+            .var("CF_ACCOUNT_ID")
+            .map_err(|_| "CF_ACCOUNT_ID not configured".to_string())?
+            .to_string();
+        Ok(Self {
+            account_id,
+            gateway_id: TEACHER_GATEWAY,
+        })
+    }
+
+    /// Create a gateway client for background tasks (Groq + Workers AI).
+    fn background(env: &Env) -> Result<Self, String> {
+        let account_id = env
+            .var("CF_ACCOUNT_ID")
+            .map_err(|_| "CF_ACCOUNT_ID not configured".to_string())?
+            .to_string();
+        Ok(Self {
+            account_id,
+            gateway_id: BACKGROUND_GATEWAY,
+        })
+    }
+
+    /// Build a provider-specific gateway URL.
+    /// Example: https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}/anthropic/v1/messages
+    fn provider_url(&self, provider: &str, path: &str) -> Result<Url, String> {
+        let url_str = format!(
+            "https://gateway.ai.cloudflare.com/v1/{}/{}/{}/{}",
+            self.account_id, self.gateway_id, provider, path
+        );
+        url_str
+            .parse()
+            .map_err(|e| format!("Invalid gateway URL: {:?}", e))
+    }
+
+    /// Attach gateway-specific headers (caching) to an existing Headers object.
+    fn attach_headers(&self, headers: &Headers) -> Result<(), String> {
+        headers
+            .set("cf-aig-cache-ttl", &GATEWAY_CACHE_TTL.to_string())
+            .map_err(|e| format!("Failed to set cache TTL header: {:?}", e))?;
+        Ok(())
+    }
+
+    /// Log gateway response metadata (cache status, provider step).
+    fn log_response_metadata(&self, response: &worker::Response, label: &str) {
+        let cache_status = response
+            .headers()
+            .get("cf-aig-cache-status")
+            .ok()
+            .flatten()
+            .unwrap_or_else(|| "unknown".to_string());
+        let step = response
+            .headers()
+            .get("cf-aig-step")
+            .ok()
+            .flatten()
+            .unwrap_or_else(|| "0".to_string());
+        console_log!(
+            "gateway[{}] {}: cache={}, provider_step={}",
+            self.gateway_id,
+            label,
+            cache_status,
+            step
+        );
+    }
+}
 
 // --- Groq (Stage 1: Subagent) ---
 
