@@ -13,7 +13,6 @@ import json
 from pathlib import Path
 
 import anthropic
-import yaml
 
 RUBRIC_PROMPT = """You are designing an evaluation rubric for an AI piano teacher.
 
