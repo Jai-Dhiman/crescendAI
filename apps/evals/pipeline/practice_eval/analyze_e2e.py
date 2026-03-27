@@ -26,7 +26,7 @@ REPORTS_DIR = Path(__file__).parents[2] / "reports"
 
 CAPABILITIES = [
     "piece_id", "stop", "teaching_moments", "mode_detection",
-    "synthesis", "score_following", "differentiation",
+    "synthesis", "score_following", "differentiation", "failure_attribution",
 ]
 
 
@@ -82,6 +82,71 @@ def _percentile(vals: list[float], pct: float) -> float | None:
     idx = int(len(s) * pct)
     idx = min(idx, len(s) - 1)
     return s[idx]
+
+
+def attribute_failures(results: list[dict]) -> list[dict]:
+    """For each synthesis that scored poorly, trace the failure to a pipeline capability.
+
+    Rules-based attribution:
+    - Synthesis references wrong bars -> score_following
+    - Synthesis focuses on irrelevant dimension for piece style -> teaching_moment_selection
+    - Synthesis tone inappropriate for skill level -> tier_detection
+    - Synthesis is generic/undifferentiated -> synthesis_prompt
+    - Synthesis contradicts model scores -> model_accuracy
+    """
+    attributions = []
+    for r in results:
+        judge_scores = r.get("judge_scores", r.get("scores", {}))
+
+        # Handle both dict format {criterion: passed} and list format [{criterion, score, evidence}]
+        failed_criteria = []
+        if isinstance(judge_scores, dict):
+            # Check evidence dict for context
+            evidence_dict = r.get("evidence", {})
+            for criterion, passed in judge_scores.items():
+                if not passed:
+                    failed_criteria.append({
+                        "name": criterion,
+                        "score": 0,
+                        "evidence": evidence_dict.get(criterion, ""),
+                    })
+        elif isinstance(judge_scores, list):
+            failed_criteria = [
+                c for c in judge_scores
+                if c.get("score", 3) == 0
+            ]
+
+        for criterion in failed_criteria:
+            attribution = {
+                "recording_id": r.get("video_id", r.get("recording_id")),
+                "criterion": criterion.get("name", "unknown"),
+                "score": criterion.get("score", 0),
+                "evidence": criterion.get("evidence", ""),
+                "attributed_to": "unknown",
+                "reasoning": "",
+            }
+
+            evidence = str(criterion.get("evidence", "")).lower()
+
+            if "bar" in evidence and ("wrong" in evidence or "incorrect" in evidence):
+                attribution["attributed_to"] = "score_following"
+                attribution["reasoning"] = "Synthesis references incorrect bar numbers"
+            elif "dimension" in evidence and ("irrelevant" in evidence or "inappropriate" in evidence):
+                attribution["attributed_to"] = "teaching_moment_selection"
+                attribution["reasoning"] = "Selected dimension not relevant for this piece style"
+            elif "skill" in evidence or "level" in evidence or "tone" in evidence:
+                attribution["attributed_to"] = "tier_detection"
+                attribution["reasoning"] = "Teaching posture mismatched to student skill level"
+            elif "generic" in evidence or "any" in evidence or "differentiat" in evidence:
+                attribution["attributed_to"] = "synthesis_prompt"
+                attribution["reasoning"] = "Output not grounded in specific performance data"
+            else:
+                attribution["attributed_to"] = "unattributed"
+                attribution["reasoning"] = "Could not determine root capability from evidence"
+
+            attributions.append(attribution)
+
+    return attributions
 
 
 # ---------------------------------------------------------------------------
@@ -503,6 +568,48 @@ def print_differentiation(report: dict, details: dict) -> None:
                 print(f"    [{piece}] {c}: {str(ev)[:80]}")
 
 
+def print_failure_attribution(report: dict, details: dict) -> None:
+    """Failure attribution: trace synthesis failures to pipeline capabilities."""
+    print("\n" + "=" * 64)
+    print("FAILURE ATTRIBUTION")
+    print("=" * 64)
+
+    synth_results = details.get("synthesis_judge_results", [])
+    if not synth_results:
+        print("\n  No synthesis results to attribute.")
+        return
+
+    attributions = attribute_failures(synth_results)
+    if not attributions:
+        print("\n  No failures to attribute (all criteria passed).")
+        return
+
+    # Count by capability
+    by_capability: dict[str, int] = defaultdict(int)
+    for a in attributions:
+        by_capability[a["attributed_to"]] += 1
+
+    total = len(attributions)
+    print(f"\n  Total failures: {total}")
+    print(f"\n  {'Capability':<28} {'Failures':>9} {'%':>6}")
+    print("  " + "-" * 45)
+    for cap in sorted(by_capability, key=lambda c: by_capability[c], reverse=True):
+        count = by_capability[cap]
+        pct = count / total if total > 0 else 0
+        print(f"  {cap:<28} {count:>9} {pct:>5.0%}")
+
+    # Show example evidence for each capability
+    print(f"\n  Example evidence:")
+    shown: set[str] = set()
+    for a in attributions:
+        cap = a["attributed_to"]
+        if cap not in shown and a.get("evidence"):
+            shown.add(cap)
+            vid = a.get("recording_id", "?")[:16]
+            ev = str(a["evidence"])[:70]
+            print(f"    [{cap}] {vid}: {ev}")
+
+
 def print_efficiency(report: dict, details: dict) -> None:
     """Efficiency summary: synthesis latency p50/p90."""
     print("\n" + "=" * 64)
@@ -574,6 +681,7 @@ SECTION_MAP = {
     "synthesis": print_synthesis,
     "score_following": print_score_following,
     "differentiation": print_differentiation,
+    "failure_attribution": print_failure_attribution,
 }
 
 
