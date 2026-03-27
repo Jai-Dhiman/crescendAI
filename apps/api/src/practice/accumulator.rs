@@ -144,8 +144,10 @@ impl SessionAccumulator {
         // are prioritized when more than 8 candidates exist.
         if let Some(weights) = dimension_weights {
             selected.sort_by(|a, b| {
-                let aw = a.deviation.abs() * weights.get(&a.dimension).copied().unwrap_or(1.0);
-                let bw = b.deviation.abs() * weights.get(&b.dimension).copied().unwrap_or(1.0);
+                let ad = if a.deviation.is_nan() { 0.0 } else { a.deviation.abs() };
+                let bd = if b.deviation.is_nan() { 0.0 } else { b.deviation.abs() };
+                let aw = ad * weights.get(&a.dimension).copied().unwrap_or(1.0);
+                let bw = bd * weights.get(&b.dimension).copied().unwrap_or(1.0);
                 bw.partial_cmp(&aw).unwrap_or(std::cmp::Ordering::Equal)
             });
         }

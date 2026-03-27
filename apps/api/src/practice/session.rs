@@ -197,6 +197,9 @@ impl DurableObject for PracticeSession {
         if let Some(ref conv_id) = conversation_id {
             let _ = storage.put("conversation_id", conv_id).await;
         }
+        if is_eval {
+            let _ = storage.put("is_eval", &true).await;
+        }
 
         // Close any existing WebSocket connections (reconnection case)
         let existing_sockets = self.state.get_websockets();
@@ -392,6 +395,11 @@ impl PracticeSession {
         if let Ok(Some(cid)) = storage.get::<String>("conversation_id").await {
             let mut s = self.inner.borrow_mut();
             s.conversation_id = Some(cid);
+        }
+
+        if let Ok(Some(true)) = storage.get::<bool>("is_eval").await {
+            let mut s = self.inner.borrow_mut();
+            s.is_eval = true;
         }
 
         // Reload accumulator from durable storage
