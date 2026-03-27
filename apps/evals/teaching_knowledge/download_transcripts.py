@@ -14,7 +14,8 @@ import sys
 from pathlib import Path
 
 DATA_DIR = Path(__file__).parent / "data" / "transcripts"
-T2_MANIFEST_DIR = Path("model/data/evals/skill_eval")
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+T2_MANIFEST_DIR = PROJECT_ROOT / "model" / "data" / "evals" / "skill_eval"
 
 NOISE_TOKENS = re.compile(r"\[(?:inaudible|Music|Applause|Laughter)\]", re.IGNORECASE)
 
@@ -48,6 +49,8 @@ def download_transcript(video_id: str, output_dir: Path) -> Path | None:
         if result.returncode != 0:
             print(f"  SKIP {video_id}: yt-dlp error: {result.stderr[:200]}")
             return None
+    except FileNotFoundError:
+        raise FileNotFoundError("yt-dlp not found. Install with: brew install yt-dlp")
     except subprocess.TimeoutExpired:
         print(f"  SKIP {video_id}: download timeout")
         return None
@@ -117,8 +120,10 @@ def search_youtube(query: str, limit: int = 100) -> list[str]:
             capture_output=True, text=True, timeout=120,
         )
         return [line.strip() for line in result.stdout.splitlines() if line.strip()]
-    except (subprocess.TimeoutExpired, FileNotFoundError):
-        print(f"  WARNING: yt-dlp search failed for '{query}'")
+    except FileNotFoundError:
+        raise FileNotFoundError("yt-dlp not found. Install with: brew install yt-dlp")
+    except subprocess.TimeoutExpired:
+        print(f"  WARNING: yt-dlp search timed out for '{query}'")
         return []
 
 

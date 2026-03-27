@@ -1,0 +1,3 @@
+# Downloaded transcripts and manual annotations are local data
+transcripts/
+manual_annotations/*.json
