@@ -421,6 +421,7 @@ pub async fn extract_and_store_chat_facts(
     // 3. Call Workers AI (cheap, background task)
     let output = llm::call_workers_ai(
         env,
+        llm::WORKERS_AI_CHEAP_MODEL,
         prompts::CHAT_EXTRACTION_SYSTEM,
         &user_prompt,
         0.0,
@@ -1032,6 +1033,7 @@ pub async fn handle_extract_chat(
     // Call Workers AI (cheap, background task)
     let output = match crate::services::llm::call_workers_ai(
         env,
+        crate::services::llm::WORKERS_AI_CHEAP_MODEL,
         crate::services::prompts::CHAT_EXTRACTION_SYSTEM,
         &user_prompt,
         0.0,
@@ -1517,6 +1519,7 @@ async fn extract_query_entities(env: &Env, query: &str) -> Vec<String> {
 
     let output = match crate::services::llm::call_workers_ai(
         env,
+        crate::services::llm::WORKERS_AI_CHEAP_MODEL,
         "You extract entities from text. Return only a JSON array of strings.",
         &prompt,
         0.0,

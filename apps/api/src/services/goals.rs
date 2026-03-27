@@ -177,6 +177,7 @@ If a field has no matches, use an empty array. Always include raw_text."#,
 
     let response = crate::services::llm::call_workers_ai(
         env,
+        crate::services::llm::WORKERS_AI_CHEAP_MODEL,
         "You extract structured data from pianist messages. Return only valid JSON.",
         &prompt,
         0.1,
