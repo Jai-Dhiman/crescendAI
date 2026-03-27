@@ -458,71 +458,90 @@ pub async fn call_anthropic_with_tools(
     })
 }
 
-// --- Workers AI (cheap background tasks) ---
+// --- Workers AI (cheap background tasks, via HTTP gateway) ---
 
-#[derive(Serialize)]
-struct WorkersAiRequest {
-    messages: Vec<WorkersAiMessage>,
-    max_tokens: u32,
-    temperature: f64,
-}
-
-#[derive(Serialize)]
-struct WorkersAiMessage {
-    role: String,
-    content: String,
-}
-
-/// Call Cloudflare Workers AI with a system prompt and user prompt.
-/// Uses Llama 3.3 70B (FP8) -- cheap, no external API call, runs in the same runtime.
+/// Call Cloudflare Workers AI through the AI Gateway with a system prompt and user prompt.
+/// Uses an OpenAI-compatible format routed via the background gateway for unified observability.
 /// Best for background/fire-and-forget tasks where speed is not critical.
 pub async fn call_workers_ai(
     env: &Env,
+    model: &str,
     system_prompt: &str,
     user_prompt: &str,
     temperature: f64,
     max_tokens: u32,
 ) -> Result<String, String> {
-    let ai = env
-        .ai("AI")
-        .map_err(|e| format!("AI binding failed: {:?}", e))?;
+    let gateway = AiGateway::background(env)?;
 
-    let request = WorkersAiRequest {
+    // Workers AI through the gateway uses OpenAI-compatible format
+    let request_body = GroqRequest {
+        model: model.to_string(),
         messages: vec![
-            WorkersAiMessage {
+            LlmMessage {
                 role: "system".to_string(),
                 content: system_prompt.to_string(),
             },
-            WorkersAiMessage {
+            LlmMessage {
                 role: "user".to_string(),
                 content: user_prompt.to_string(),
             },
         ],
-        max_tokens,
         temperature,
+        max_tokens,
     };
 
-    let result: serde_json::Value = ai
-        .run("@cf/meta/llama-3.3-70b-instruct-fp8-fast", request)
-        .await
-        .map_err(|e| format!("Workers AI inference failed: {:?}", e))?;
+    let body_json = serde_json::to_string(&request_body)
+        .map_err(|e| format!("Failed to serialize Workers AI request: {:?}", e))?;
 
-    // Workers AI returns {"response": "..."} for text generation models.
-    // When the model outputs valid JSON, serde_wasm_bindgen may deserialize
-    // the response field as an object instead of a string.
-    match result.get("response") {
-        Some(serde_json::Value::String(text)) => Ok(text.clone()),
-        Some(value) => {
-            // Response came back as parsed object -- re-serialize to string
-            Ok(serde_json::to_string(value)
-                .unwrap_or_else(|_| format!("{:?}", value)))
-        }
-        None => {
-            // No response field -- return the whole thing
-            Ok(serde_json::to_string(&result)
-                .unwrap_or_else(|_| format!("{:?}", result)))
-        }
+    let headers = Headers::new();
+    headers
+        .set("Content-Type", "application/json")
+        .map_err(|e| format!("Failed to set content-type: {:?}", e))?;
+    gateway.attach_headers(&headers)?;
+
+    let url = gateway.provider_url("workers-ai", "v1/chat/completions")?;
+
+    let mut init = RequestInit::new();
+    init.with_method(Method::Post);
+    init.with_headers(headers);
+    init.with_body(Some(body_json.into()));
+
+    let request = Request::new_with_init(url.as_str(), &init)
+        .map_err(|e| format!("Failed to create Workers AI request: {:?}", e))?;
+
+    let mut response = Fetch::Request(request)
+        .send()
+        .await
+        .map_err(|e| format!("Workers AI request failed: {:?}", e))?;
+
+    gateway.log_response_metadata(&response, "workers-ai");
+
+    let status = response.status_code();
+    let response_text = response
+        .text()
+        .await
+        .map_err(|e| format!("Failed to read Workers AI response: {:?}", e))?;
+
+    if status != 200 {
+        return Err(format!(
+            "Workers AI returned status {}: {}",
+            status, response_text
+        ));
     }
+
+    // Workers AI through the gateway returns OpenAI-compatible format
+    let parsed: GroqResponse = serde_json::from_str(&response_text).map_err(|e| {
+        format!(
+            "Failed to parse Workers AI response: {:?} - body: {}",
+            e, response_text
+        )
+    })?;
+
+    parsed
+        .choices
+        .first()
+        .map(|c| c.message.content.clone())
+        .ok_or_else(|| "No choices in Workers AI response".to_string())
 }
 
 // --- Shared ---
