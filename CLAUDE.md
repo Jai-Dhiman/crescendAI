@@ -60,6 +60,7 @@ Uses `just` (justfile) for dev commands. Install: `brew install just`.
 - Explicit exception handling over silent fallbacks
 - No backup files when making fixes
 - No emojis unless explicitly requested
+- **Rust (API):** Follow `apps/api/RUST_STYLE.md` for all Rust code. Key rules: `thiserror` error enums (not `Result<T, String>`), `#[serde(rename_all = "camelCase")]` on API types, no `.unwrap()` in handlers, `RefCell` not `Mutex`, trait objects over generics in cold paths for binary size.
 
 ## Observability
 

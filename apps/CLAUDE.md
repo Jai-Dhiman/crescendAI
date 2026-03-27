@@ -28,6 +28,9 @@ See `ios/CLAUDE.md` for iOS-specific conventions.
 
 Rust API backend deployed to Cloudflare Workers at `api.crescend.ai`.
 
+**Rust Style Guide:** See `api/RUST_STYLE.md` for all Rust coding standards, patterns, and conventions.
+Always follow that guide when editing files under `api/src/`.
+
 ### Stack
 
 - Runtime: Cloudflare Workers (Rust compiled to WASM)
