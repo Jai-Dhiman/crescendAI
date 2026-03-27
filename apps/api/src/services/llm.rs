@@ -31,10 +31,7 @@ struct AiGateway {
 impl AiGateway {
     /// Create a gateway client for the teacher path (Anthropic only).
     fn teacher(env: &Env) -> Result<Self, String> {
-        let account_id = env
-            .var("CF_ACCOUNT_ID")
-            .map_err(|_| "CF_ACCOUNT_ID not configured".to_string())?
-            .to_string();
+        let account_id = Self::read_account_id(env)?;
         Ok(Self {
             account_id,
             gateway_id: TEACHER_GATEWAY,
@@ -43,14 +40,23 @@ impl AiGateway {
 
     /// Create a gateway client for background tasks (Groq + Workers AI).
     fn background(env: &Env) -> Result<Self, String> {
-        let account_id = env
-            .var("CF_ACCOUNT_ID")
-            .map_err(|_| "CF_ACCOUNT_ID not configured".to_string())?
-            .to_string();
+        let account_id = Self::read_account_id(env)?;
         Ok(Self {
             account_id,
             gateway_id: BACKGROUND_GATEWAY,
         })
+    }
+
+    /// Read and validate CF_ACCOUNT_ID from environment.
+    fn read_account_id(env: &Env) -> Result<String, String> {
+        let account_id = env
+            .var("CF_ACCOUNT_ID")
+            .map_err(|_| "CF_ACCOUNT_ID not configured".to_string())?
+            .to_string();
+        if account_id.is_empty() {
+            return Err("CF_ACCOUNT_ID is empty — set it via wrangler secret or CF dashboard".to_string());
+        }
+        Ok(account_id)
     }
 
     /// Build a provider-specific gateway URL.
