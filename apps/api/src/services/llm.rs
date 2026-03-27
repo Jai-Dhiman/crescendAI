@@ -234,6 +234,7 @@ pub async fn call_anthropic(
     user_prompt: &str,
     max_tokens: u32,
 ) -> Result<String, String> {
+    let gateway = AiGateway::teacher(env)?;
     let api_key = env
         .secret("ANTHROPIC_API_KEY")
         .map_err(|_| "ANTHROPIC_API_KEY not configured".to_string())?
@@ -262,10 +263,9 @@ pub async fn call_anthropic(
     headers
         .set("Content-Type", "application/json")
         .map_err(|e| format!("Failed to set content-type: {:?}", e))?;
+    gateway.attach_headers(&headers)?;
 
-    let url: Url = "https://api.anthropic.com/v1/messages"
-        .parse()
-        .map_err(|e| format!("Invalid Anthropic URL: {:?}", e))?;
+    let url = gateway.provider_url("anthropic", "v1/messages")?;
 
     let mut init = RequestInit::new();
     init.with_method(Method::Post);
@@ -279,6 +279,7 @@ pub async fn call_anthropic(
         .send()
         .await
         .map_err(|e| format!("Anthropic request failed: {:?}", e))?;
+    gateway.log_response_metadata(&response, "anthropic");
 
     let status = response.status_code();
     let response_text = response
@@ -367,6 +368,7 @@ pub async fn call_anthropic_with_tools(
     max_tokens: u32,
     tools: Option<Vec<AnthropicTool>>,
 ) -> Result<AnthropicToolResult, String> {
+    let gateway = AiGateway::teacher(env)?;
     let api_key = env
         .secret("ANTHROPIC_API_KEY")
         .map_err(|_| "ANTHROPIC_API_KEY not configured".to_string())?
@@ -399,10 +401,9 @@ pub async fn call_anthropic_with_tools(
     headers
         .set("Content-Type", "application/json")
         .map_err(|e| format!("Failed to set content-type: {:?}", e))?;
+    gateway.attach_headers(&headers)?;
 
-    let url: Url = "https://api.anthropic.com/v1/messages"
-        .parse()
-        .map_err(|e| format!("Invalid Anthropic URL: {:?}", e))?;
+    let url = gateway.provider_url("anthropic", "v1/messages")?;
 
     let mut init = RequestInit::new();
     init.with_method(Method::Post);
@@ -416,6 +417,7 @@ pub async fn call_anthropic_with_tools(
         .send()
         .await
         .map_err(|e| format!("Anthropic tool request failed: {:?}", e))?;
+    gateway.log_response_metadata(&response, "anthropic-tools");
 
     let status = response.status_code();
     let response_text = response
@@ -564,6 +566,7 @@ pub async fn call_anthropic_stream(
     messages: Vec<LlmMessage>,
     max_tokens: u32,
 ) -> Result<worker::Response, String> {
+    let gateway = AiGateway::teacher(env)?;
     let api_key = env
         .secret("ANTHROPIC_API_KEY")
         .map_err(|_| "ANTHROPIC_API_KEY not configured".to_string())?
@@ -596,10 +599,9 @@ pub async fn call_anthropic_stream(
     headers
         .set("Content-Type", "application/json")
         .map_err(|e| format!("Failed to set content-type: {:?}", e))?;
+    gateway.attach_headers(&headers)?;
 
-    let url: Url = "https://api.anthropic.com/v1/messages"
-        .parse()
-        .map_err(|e| format!("Invalid Anthropic URL: {:?}", e))?;
+    let url = gateway.provider_url("anthropic", "v1/messages")?;
 
     let mut init = RequestInit::new();
     init.with_method(Method::Post);
@@ -613,6 +615,7 @@ pub async fn call_anthropic_stream(
         .send()
         .await
         .map_err(|e| format!("Anthropic stream request failed: {:?}", e))?;
+    gateway.log_response_metadata(&response, "anthropic-stream");
 
     let status = response.status_code();
     if status != 200 {
