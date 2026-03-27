@@ -137,7 +137,7 @@ def attribute_failures(results: list[dict]) -> list[dict]:
             elif "skill" in evidence or "level" in evidence or "tone" in evidence:
                 attribution["attributed_to"] = "tier_detection"
                 attribution["reasoning"] = "Teaching posture mismatched to student skill level"
-            elif "generic" in evidence or "any" in evidence or "differentiat" in evidence:
+            elif "generic" in evidence or "undifferentiat" in evidence or "boilerplate" in evidence:
                 attribution["attributed_to"] = "synthesis_prompt"
                 attribution["reasoning"] = "Output not grounded in specific performance data"
             else:
