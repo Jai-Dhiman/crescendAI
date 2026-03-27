@@ -130,6 +130,7 @@ pub async fn call_groq(
     temperature: f64,
     max_tokens: u32,
 ) -> Result<String, String> {
+    let gateway = AiGateway::background(env)?;
     let api_key = env
         .secret("GROQ_API_KEY")
         .map_err(|_| "GROQ_API_KEY not configured".to_string())?
@@ -161,10 +162,9 @@ pub async fn call_groq(
     headers
         .set("Content-Type", "application/json")
         .map_err(|e| format!("Failed to set content-type: {:?}", e))?;
+    gateway.attach_headers(&headers)?;
 
-    let url: Url = "https://api.groq.com/openai/v1/chat/completions"
-        .parse()
-        .map_err(|e| format!("Invalid Groq URL: {:?}", e))?;
+    let url = gateway.provider_url("groq", "openai/v1/chat/completions")?;
 
     let mut init = RequestInit::new();
     init.with_method(Method::Post);
@@ -178,6 +178,7 @@ pub async fn call_groq(
         .send()
         .await
         .map_err(|e| format!("Groq request failed: {:?}", e))?;
+    gateway.log_response_metadata(&response, "groq");
 
     let status = response.status_code();
     let response_text = response
