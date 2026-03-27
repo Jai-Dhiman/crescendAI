@@ -2,6 +2,7 @@
 //!
 //! Uses worker::Fetch for WASM-compatible HTTP requests.
 
+use js_sys;
 use serde::{Deserialize, Serialize};
 use worker::{console_log, Env, Fetch, Headers, Method, Request, RequestInit, Url};
 
@@ -96,6 +97,30 @@ impl AiGateway {
     }
 }
 
+/// Check if shadow benchmarking should fire for this request.
+/// Returns true with probability = SHADOW_BENCHMARK_PCT / 100.
+fn should_shadow_benchmark(env: &Env) -> bool {
+    let enabled = env
+        .var("SHADOW_BENCHMARK_ENABLED")
+        .ok()
+        .map(|v| v.to_string() == "true")
+        .unwrap_or(false);
+    if !enabled {
+        return false;
+    }
+    let pct: u32 = env
+        .var("SHADOW_BENCHMARK_PCT")
+        .ok()
+        .and_then(|v| v.to_string().parse().ok())
+        .unwrap_or(10);
+    let mut buf = [0u8; 1];
+    if getrandom::getrandom(&mut buf).is_err() {
+        return false;
+    }
+    let roll = (buf[0] as u32 * 100) / 256;
+    roll < pct
+}
+
 // --- Groq (Stage 1: Subagent) ---
 
 #[derive(Serialize)]
@@ -131,6 +156,7 @@ pub async fn call_groq(
     max_tokens: u32,
 ) -> Result<String, String> {
     let gateway = AiGateway::background(env)?;
+    let run_shadow = should_shadow_benchmark(env);
     let api_key = env
         .secret("GROQ_API_KEY")
         .map_err(|_| "GROQ_API_KEY not configured".to_string())?
@@ -199,6 +225,22 @@ pub async fn call_groq(
             e, response_text
         )
     })?;
+
+    // Shadow benchmark: measure Workers AI latency for comparison
+    if run_shadow {
+        let shadow_start = js_sys::Date::now();
+        let _ = call_workers_ai(
+            env,
+            WORKERS_AI_GROQ_FALLBACK_MODEL,
+            system_prompt,
+            user_prompt,
+            temperature,
+            max_tokens,
+        )
+        .await;
+        let shadow_elapsed = js_sys::Date::now() - shadow_start;
+        console_log!("shadow_benchmark: workers_ai_latency_ms={:.0}", shadow_elapsed);
+    }
 
     groq_response
         .choices
