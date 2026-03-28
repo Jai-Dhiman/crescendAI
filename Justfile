@@ -98,6 +98,26 @@ check-web:
 deploy-api:
     cd apps/api && npx wrangler deploy
 
+# --- AMT Container ---
+
+# Start AMT container dev server (Cloudflare Containers)
+amt-container-dev:
+    cd apps/inference/amt && bun run dev
+
+# Deploy AMT container to production
+amt-container-deploy:
+    cd apps/inference/amt && bun run deploy
+
+# Build AMT container Docker image
+amt-container-build:
+    cd apps/inference/amt && docker build \
+      --build-arg CHECKPOINT_PATH=./checkpoint.safetensors \
+      -t crescendai-amt .
+
+# Check AMT container health via SSH into running container
+amt-container-health:
+    cd apps/inference/amt && wrangler containers ssh amt-0 -- curl -s http://localhost:8080/health
+
 # Apply D1 migrations (local)
 migrate-local:
     cd apps/api && npx wrangler d1 migrations apply DB --local
