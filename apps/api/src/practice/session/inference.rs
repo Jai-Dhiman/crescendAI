@@ -1,6 +1,7 @@
 use wasm_bindgen::JsValue;
 use worker::*;
 
+use super::error::PracticeError;
 use super::{
     base64_encode, sleep_ms, AmtResponse, MuqResponse, PracticeSession, HF_RETRY_DELAYS_ENDING_MS,
     HF_RETRY_DELAYS_MS,
@@ -13,23 +14,24 @@ impl PracticeSession {
     pub(crate) async fn fetch_audio_from_r2(
         &self,
         r2_key: &str,
-    ) -> std::result::Result<Vec<u8>, String> {
+    ) -> std::result::Result<Vec<u8>, PracticeError> {
         let bucket = self
             .env
             .bucket("CHUNKS")
-            .map_err(|e| format!("R2 binding failed: {:?}", e))?;
+            .map_err(|e| PracticeError::Storage(format!("R2 binding: {:?}", e)))?;
         let object = bucket
             .get(r2_key)
             .execute()
             .await
-            .map_err(|e| format!("R2 get failed: {:?}", e))?;
-        let object = object.ok_or_else(|| format!("R2 object not found: {}", r2_key))?;
+            .map_err(|e| PracticeError::Storage(format!("R2 get: {:?}", e)))?;
+        let object =
+            object.ok_or_else(|| PracticeError::Storage(format!("R2 object not found: {}", r2_key)))?;
         let bytes = object
             .body()
-            .ok_or_else(|| "R2 object has no body".to_string())?
+            .ok_or_else(|| PracticeError::Storage("R2 object has no body".into()))?
             .bytes()
             .await
-            .map_err(|e| format!("R2 read failed: {:?}", e))?;
+            .map_err(|e| PracticeError::Storage(format!("R2 read: {:?}", e)))?;
         Ok(bytes)
     }
 
@@ -37,18 +39,18 @@ impl PracticeSession {
     pub(crate) async fn call_muq_endpoint(
         &self,
         audio_bytes: &[u8],
-    ) -> std::result::Result<MuqResponse, String> {
+    ) -> std::result::Result<MuqResponse, PracticeError> {
         // MuQ endpoint uses the same transport as the existing HF inference endpoint:
         // POST raw audio bytes with Content-Type: audio/webm;codecs=opus
         let endpoint = self
             .env
             .var("HF_INFERENCE_ENDPOINT")
-            .map_err(|e| format!("HF_INFERENCE_ENDPOINT not set: {:?}", e))?
+            .map_err(|e| PracticeError::Inference(format!("HF_INFERENCE_ENDPOINT not set: {:?}", e)))?
             .to_string();
         let token = self
             .env
             .secret("HF_TOKEN")
-            .map_err(|e| format!("HF_TOKEN not set: {:?}", e))?
+            .map_err(|e| PracticeError::Inference(format!("HF_TOKEN not set: {:?}", e)))?
             .to_string();
 
         let mut last_err = String::new();
@@ -62,10 +64,10 @@ impl PracticeSession {
             let headers = worker::Headers::new();
             headers
                 .set("Content-Type", "audio/webm;codecs=opus")
-                .map_err(|e| format!("{:?}", e))?;
+                .map_err(|e| PracticeError::Inference(format!("{:?}", e)))?;
             headers
                 .set("Authorization", &format!("Bearer {}", token))
-                .map_err(|e| format!("{:?}", e))?;
+                .map_err(|e| PracticeError::Inference(format!("{:?}", e)))?;
 
             let mut init = worker::RequestInit::new();
             init.with_method(worker::Method::Post);
@@ -73,7 +75,7 @@ impl PracticeSession {
             init.with_body(Some(JsValue::from(js_sys::Uint8Array::from(audio_bytes))));
 
             let request = worker::Request::new_with_init(&endpoint, &init)
-                .map_err(|e| format!("MuQ request creation failed: {:?}", e))?;
+                .map_err(|e| PracticeError::Inference(format!("MuQ request creation: {:?}", e)))?;
 
             let mut response = match worker::Fetch::Request(request).send().await {
                 Ok(r) => r,
@@ -90,7 +92,7 @@ impl PracticeSession {
                         sleep_ms(delay).await;
                         continue;
                     }
-                    return Err(last_err);
+                    return Err(PracticeError::Inference(last_err));
                 }
             };
 
@@ -109,25 +111,25 @@ impl PracticeSession {
                     sleep_ms(delay).await;
                     continue;
                 }
-                return Err(last_err);
+                return Err(PracticeError::Inference(last_err));
             }
 
             if status != 200 {
                 let body = response.text().await.unwrap_or_default();
-                return Err(format!("MuQ returned {}: {}", status, body));
+                return Err(PracticeError::Inference(format!("MuQ returned {}: {}", status, body)));
             }
 
             let body_text = response
                 .text()
                 .await
-                .map_err(|e| format!("MuQ response read failed: {:?}", e))?;
+                .map_err(|e| PracticeError::Inference(format!("MuQ response read: {:?}", e)))?;
 
             let muq: MuqResponse = serde_json::from_str(&body_text).map_err(|e| {
-                format!(
-                    "MuQ response parse failed: {:?} - body: {}",
+                PracticeError::Inference(format!(
+                    "MuQ response parse: {:?} - body: {}",
                     e,
                     crate::truncate_str(&body_text, 200)
-                )
+                ))
             })?;
 
             // Validate all 6 dimensions present
@@ -136,7 +138,10 @@ impl PracticeSession {
                 .filter(|dim| muq.predictions.contains_key(**dim))
                 .count();
             if dim_count < 6 {
-                return Err(format!("MuQ returned only {} dimensions", dim_count));
+                return Err(PracticeError::Inference(format!(
+                    "MuQ returned only {} dimensions",
+                    dim_count
+                )));
             }
 
             if attempt > 0 {
@@ -146,7 +151,7 @@ impl PracticeSession {
             return Ok(muq);
         }
 
-        Err(last_err)
+        Err(PracticeError::Inference(last_err))
     }
 
     /// Call the Aria-AMT endpoint. Sends JSON with base64-encoded audio fields.
@@ -155,21 +160,23 @@ impl PracticeSession {
         &self,
         context_audio: Option<&[u8]>,
         chunk_audio: &[u8],
-    ) -> std::result::Result<AmtResponse, String> {
+    ) -> std::result::Result<AmtResponse, PracticeError> {
         let endpoint = self
             .env
             .var("HF_AMT_ENDPOINT")
-            .map_err(|e| format!("HF_AMT_ENDPOINT not set: {:?}", e))?
+            .map_err(|e| PracticeError::Inference(format!("HF_AMT_ENDPOINT not set: {:?}", e)))?
             .to_string();
 
         if endpoint.is_empty() {
-            return Err("HF_AMT_ENDPOINT is empty (not yet deployed)".to_string());
+            return Err(PracticeError::Inference(
+                "HF_AMT_ENDPOINT is empty (not yet deployed)".into(),
+            ));
         }
 
         let token = self
             .env
             .secret("HF_TOKEN")
-            .map_err(|e| format!("HF_TOKEN not set: {:?}", e))?
+            .map_err(|e| PracticeError::Inference(format!("HF_TOKEN not set: {:?}", e)))?
             .to_string();
 
         // Build JSON payload with base64-encoded audio
@@ -193,10 +200,10 @@ impl PracticeSession {
             let headers = worker::Headers::new();
             headers
                 .set("Content-Type", "application/json")
-                .map_err(|e| format!("{:?}", e))?;
+                .map_err(|e| PracticeError::Inference(format!("{:?}", e)))?;
             headers
                 .set("Authorization", &format!("Bearer {}", token))
-                .map_err(|e| format!("{:?}", e))?;
+                .map_err(|e| PracticeError::Inference(format!("{:?}", e)))?;
 
             let mut init = worker::RequestInit::new();
             init.with_method(worker::Method::Post);
@@ -204,7 +211,7 @@ impl PracticeSession {
             init.with_body(Some(JsValue::from_str(&payload_str)));
 
             let request = worker::Request::new_with_init(&endpoint, &init)
-                .map_err(|e| format!("AMT request creation failed: {:?}", e))?;
+                .map_err(|e| PracticeError::Inference(format!("AMT request creation: {:?}", e)))?;
 
             let mut response = match worker::Fetch::Request(request).send().await {
                 Ok(r) => r,
@@ -221,7 +228,7 @@ impl PracticeSession {
                         sleep_ms(delay).await;
                         continue;
                     }
-                    return Err(last_err);
+                    return Err(PracticeError::Inference(last_err));
                 }
             };
 
@@ -240,25 +247,25 @@ impl PracticeSession {
                     sleep_ms(delay).await;
                     continue;
                 }
-                return Err(last_err);
+                return Err(PracticeError::Inference(last_err));
             }
 
             if status != 200 {
                 let body = response.text().await.unwrap_or_default();
-                return Err(format!("AMT returned {}: {}", status, body));
+                return Err(PracticeError::Inference(format!("AMT returned {}: {}", status, body)));
             }
 
             let body_text = response
                 .text()
                 .await
-                .map_err(|e| format!("AMT response read failed: {:?}", e))?;
+                .map_err(|e| PracticeError::Inference(format!("AMT response read: {:?}", e)))?;
 
             let amt: AmtResponse = serde_json::from_str(&body_text).map_err(|e| {
-                format!(
-                    "AMT response parse failed: {:?} - body: {}",
+                PracticeError::Inference(format!(
+                    "AMT response parse: {:?} - body: {}",
                     e,
                     crate::truncate_str(&body_text, 200)
-                )
+                ))
             })?;
 
             if attempt > 0 {
@@ -268,6 +275,6 @@ impl PracticeSession {
             return Ok(amt);
         }
 
-        Err(last_err)
+        Err(PracticeError::Inference(last_err))
     }
 }

@@ -1,22 +1,36 @@
+use axum::extract::{Json, State};
 use wasm_bindgen::JsValue;
 use worker::Env;
 
-pub async fn handle_start(
-    env: &Env,
-    headers: &http::HeaderMap,
-    body: &[u8],
-) -> http::Response<axum::body::Body> {
-    use axum::body::Body;
-    use http::{Response, StatusCode};
+use crate::auth::extractor::AuthUser;
+use crate::error::{ApiError, Result};
+use crate::state::AppState;
 
-    let student_id = match crate::auth::verify_auth_header(headers, env) {
-        Ok(id) => id,
-        Err(err_response) => return err_response,
-    };
+/// Request body for POST /api/practice/start.
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StartRequest {
+    pub conversation_id: Option<String>,
+}
+
+/// Response body for POST /api/practice/start.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StartResponse {
+    pub session_id: String,
+    pub conversation_id: String,
+}
+
+#[worker::send]
+pub async fn handle_start(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    body: axum::body::Bytes,
+) -> Result<Json<StartResponse>> {
+    let student_id = auth.student_id.to_string();
+    let env = state.practice.env();
 
     // Pre-warm HF inference endpoint (fire-and-forget)
-    // This wakes the endpoint from scale-to-zero so it's ready by the time
-    // the first 15s audio chunk arrives.
     prewarm_hf_endpoint(env);
 
     let session_id = crate::services::ask::generate_uuid();
@@ -26,90 +40,58 @@ pub async fn handle_start(
     let conversation_id = if body.is_empty() {
         None
     } else {
-        serde_json::from_slice::<serde_json::Value>(body)
+        serde_json::from_slice::<StartRequest>(&body)
             .ok()
-            .and_then(|v| v.get("conversationId")?.as_str().map(|s| s.to_string()))
+            .and_then(|r| r.conversation_id)
     };
 
     // Get D1 database binding
-    let db = match env.d1("DB") {
-        Ok(db) => db,
-        Err(e) => {
-            worker::console_error!("D1 binding failed: {:?}", e);
-            return Response::builder()
-                .status(StatusCode::INTERNAL_SERVER_ERROR)
-                .header("Content-Type", "application/json")
-                .body(Body::from(r#"{"error":"Internal server error"}"#))
-                .unwrap();
-        }
-    };
+    let db = state.db.d1()?;
 
     // If no conversation_id provided, create a new conversation
     let conversation_id = match conversation_id {
         Some(id) => id,
         None => {
             let new_id = crate::services::ask::generate_uuid();
-            let conv_result = db
-                .prepare("INSERT INTO conversations (id, student_id, created_at, updated_at) VALUES (?1, ?2, ?3, ?4)")
+            db.prepare("INSERT INTO conversations (id, student_id, created_at, updated_at) VALUES (?1, ?2, ?3, ?4)")
                 .bind(&[
                     JsValue::from_str(&new_id),
                     JsValue::from_str(&student_id),
                     JsValue::from_str(&now),
                     JsValue::from_str(&now),
-                ]);
-            match conv_result {
-                Ok(stmt) => {
-                    if let Err(e) = stmt.run().await {
-                        worker::console_error!("Failed to insert conversation: {:?}", e);
-                        return Response::builder()
-                            .status(StatusCode::INTERNAL_SERVER_ERROR)
-                            .header("Content-Type", "application/json")
-                            .body(Body::from(r#"{"error":"Failed to create conversation"}"#))
-                            .unwrap();
-                    }
-                }
-                Err(e) => {
+                ])
+                .map_err(|e| {
                     worker::console_error!("Failed to bind conversation insert: {:?}", e);
-                    return Response::builder()
-                        .status(StatusCode::INTERNAL_SERVER_ERROR)
-                        .header("Content-Type", "application/json")
-                        .body(Body::from(r#"{"error":"Failed to create conversation"}"#))
-                        .unwrap();
-                }
-            }
+                    ApiError::Internal("Failed to create conversation".into())
+                })?
+                .run()
+                .await
+                .map_err(|e| {
+                    worker::console_error!("Failed to insert conversation: {:?}", e);
+                    ApiError::Internal("Failed to create conversation".into())
+                })?;
             new_id
         }
     };
 
     // Insert session row linked to conversation
-    let session_result = db
-        .prepare("INSERT INTO sessions (id, student_id, started_at, conversation_id) VALUES (?1, ?2, ?3, ?4)")
+    db.prepare("INSERT INTO sessions (id, student_id, started_at, conversation_id) VALUES (?1, ?2, ?3, ?4)")
         .bind(&[
             JsValue::from_str(&session_id),
             JsValue::from_str(&student_id),
             JsValue::from_str(&now),
             JsValue::from_str(&conversation_id),
-        ]);
-    match session_result {
-        Ok(stmt) => {
-            if let Err(e) = stmt.run().await {
-                worker::console_error!("Failed to insert session: {:?}", e);
-                return Response::builder()
-                    .status(StatusCode::INTERNAL_SERVER_ERROR)
-                    .header("Content-Type", "application/json")
-                    .body(Body::from(r#"{"error":"Failed to create session"}"#))
-                    .unwrap();
-            }
-        }
-        Err(e) => {
+        ])
+        .map_err(|e| {
             worker::console_error!("Failed to bind session insert: {:?}", e);
-            return Response::builder()
-                .status(StatusCode::INTERNAL_SERVER_ERROR)
-                .header("Content-Type", "application/json")
-                .body(Body::from(r#"{"error":"Failed to create session"}"#))
-                .unwrap();
-        }
-    }
+            ApiError::Internal("Failed to create session".into())
+        })?
+        .run()
+        .await
+        .map_err(|e| {
+            worker::console_error!("Failed to insert session: {:?}", e);
+            ApiError::Internal("Failed to create session".into())
+        })?;
 
     // Insert a session_start message into the conversation
     let msg_id = crate::services::ask::generate_uuid();
@@ -136,20 +118,14 @@ pub async fn handle_start(
         }
     }
 
-    let resp = serde_json::json!({
-        "sessionId": session_id,
-        "conversationId": conversation_id,
-    });
-
-    Response::builder()
-        .status(StatusCode::OK)
-        .header("Content-Type", "application/json")
-        .body(Body::from(serde_json::to_string(&resp).unwrap()))
-        .unwrap()
+    Ok(Json(StartResponse {
+        session_id,
+        conversation_id,
+    }))
 }
 
 /// Fire-and-forget ping to HF endpoint to trigger scale-up from zero.
-/// Does not block the response — the endpoint wakes in the background.
+/// Does not block the response -- the endpoint wakes in the background.
 fn prewarm_hf_endpoint(env: &Env) {
     let endpoint = match env.var("HF_INFERENCE_ENDPOINT") {
         Ok(v) => v.to_string(),
@@ -160,7 +136,7 @@ fn prewarm_hf_endpoint(env: &Env) {
         Err(_) => return,
     };
 
-    // Spawn a non-awaited fetch — we don't care about the response
+    // Spawn a non-awaited fetch -- we don't care about the response
     wasm_bindgen_futures::spawn_local(async move {
         let headers = worker::Headers::new();
         let _ = headers.set("Authorization", &format!("Bearer {}", token));
@@ -169,7 +145,7 @@ fn prewarm_hf_endpoint(env: &Env) {
         let mut init = worker::RequestInit::new();
         init.with_method(worker::Method::Post);
         init.with_headers(headers);
-        // Minimal JSON body — will get 400 but triggers the scale-up
+        // Minimal JSON body -- will get 400 but triggers the scale-up
         init.with_body(Some(JsValue::from_str("{}")));
 
         let req = match worker::Request::new_with_init(&endpoint, &init) {

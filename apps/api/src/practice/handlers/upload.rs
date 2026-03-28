@@ -1,65 +1,65 @@
-use worker::{console_log, Env};
+use axum::extract::{Json, Query, State};
+use worker::console_log;
+
+use crate::auth::extractor::AuthUser;
+use crate::error::{ApiError, Result};
+use crate::state::AppState;
+
+/// Query params for POST /api/practice/chunk.
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChunkParams {
+    pub session_id: Option<String>,
+    pub chunk_index: Option<String>,
+}
+
+/// Response body for POST /api/practice/chunk.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChunkResponse {
+    pub r2_key: String,
+    pub session_id: String,
+    pub chunk_index: String,
+}
 
 /// Handle POST /api/practice/chunk?sessionId=X&chunkIndex=N
 /// Body: raw audio bytes (WebM/Opus)
+#[worker::send]
 pub async fn handle_upload_chunk(
-    env: &Env,
-    headers: &http::HeaderMap,
-    body: Vec<u8>,
-    session_id: &str,
-    chunk_index: &str,
-) -> http::Response<axum::body::Body> {
-    use axum::body::Body;
-    use http::{Response, StatusCode};
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Query(params): Query<ChunkParams>,
+    body: axum::body::Bytes,
+) -> Result<Json<ChunkResponse>> {
+    let _student_id = auth.student_id;
 
-    // Auth
-    let _student_id = match crate::auth::verify_auth_header(headers, env) {
-        Ok(id) => id,
-        Err(err_response) => return err_response,
-    };
+    let session_id = params
+        .session_id
+        .filter(|s| !s.is_empty())
+        .ok_or_else(|| ApiError::BadRequest("Missing sessionId".into()))?;
+
+    let chunk_index = params.chunk_index.unwrap_or_else(|| "0".to_string());
 
     if body.is_empty() {
-        return Response::builder()
-            .status(StatusCode::BAD_REQUEST)
-            .header("Content-Type", "application/json")
-            .body(Body::from(r#"{"error":"Empty body"}"#))
-            .unwrap();
+        return Err(ApiError::BadRequest("Empty body".into()));
     }
 
     let r2_key = format!("sessions/{}/chunks/{}.webm", session_id, chunk_index);
 
-    let bucket = match env.bucket("CHUNKS") {
-        Ok(b) => b,
-        Err(e) => {
-            console_log!("Failed to get R2 bucket: {:?}", e);
-            return Response::builder()
-                .status(StatusCode::INTERNAL_SERVER_ERROR)
-                .header("Content-Type", "application/json")
-                .body(Body::from(r#"{"error":"Storage unavailable"}"#))
-                .unwrap();
-        }
-    };
+    let bucket = state.practice.chunks_bucket()?;
 
-    match bucket.put(&r2_key, body).execute().await {
-        Ok(_) => {
-            let resp = serde_json::json!({
-                "r2Key": r2_key,
-                "sessionId": session_id,
-                "chunkIndex": chunk_index,
-            });
-            Response::builder()
-                .status(StatusCode::OK)
-                .header("Content-Type", "application/json")
-                .body(Body::from(serde_json::to_string(&resp).unwrap()))
-                .unwrap()
-        }
-        Err(e) => {
+    bucket
+        .put(&r2_key, body.to_vec())
+        .execute()
+        .await
+        .map_err(|e| {
             console_log!("R2 put failed: {:?}", e);
-            Response::builder()
-                .status(StatusCode::INTERNAL_SERVER_ERROR)
-                .header("Content-Type", "application/json")
-                .body(Body::from(r#"{"error":"Failed to store chunk"}"#))
-                .unwrap()
-        }
-    }
+            ApiError::Internal("Failed to store chunk".into())
+        })?;
+
+    Ok(Json(ChunkResponse {
+        r2_key,
+        session_id,
+        chunk_index,
+    }))
 }
