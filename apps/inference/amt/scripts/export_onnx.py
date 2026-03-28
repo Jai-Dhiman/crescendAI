@@ -867,6 +867,10 @@ def export_all(
         "decoder_prefill": None,
         "decoder_step": None,
         "decoder_stateless": None,
+        "n_layers": None,
+        "n_heads": None,
+        "head_dim": None,
+        "max_audio_len": MAX_AUDIO_LEN,
     }
 
     # Load model
@@ -875,6 +879,12 @@ def export_all(
     model = load_model(checkpoint_path, config_name, device="cpu")
     model_config = ModelConfig(**load_model_config(config_name))
     print(f"Model loaded in {time.time() - start:.1f}s")
+
+    # Store decoder geometry for the manifest
+    decoder = model.decoder
+    result["n_layers"] = len(list(decoder.blocks))
+    result["n_heads"] = decoder.n_head
+    result["head_dim"] = decoder.n_state // decoder.n_head
 
     # Export encoder (same for all strategies)
     start = time.time()
@@ -947,6 +957,10 @@ def _write_manifest(result: dict, output_path: Path) -> None:
 
     manifest = {
         "strategy": result["strategy"],
+        "n_layers": result["n_layers"],
+        "n_heads": result["n_heads"],
+        "head_dim": result["head_dim"],
+        "max_audio_len": result["max_audio_len"],
         "files": {},
     }
     for key in ["encoder", "decoder_prefill", "decoder_step", "decoder_stateless"]:

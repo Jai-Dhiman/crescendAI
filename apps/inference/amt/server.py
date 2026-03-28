@@ -403,7 +403,7 @@ def load_models(model_dir: str) -> tuple[
     logger.info("Loading ONNX models (strategy %s) from %s", strategy, model_dir)
 
     # Encoder is always present
-    encoder_path = model_path / files["encoder"]
+    encoder_path = model_path / files["encoder"]["filename"]
     if not encoder_path.exists():
         raise FileNotFoundError(f"Encoder model not found: {encoder_path}")
 
@@ -417,7 +417,7 @@ def load_models(model_dir: str) -> tuple[
     if strategy == "A":
         # KV cache strategy: prefill + step sessions
         for key in ("decoder_prefill", "decoder_step"):
-            path = model_path / files[key]
+            path = model_path / files[key]["filename"]
             if not path.exists():
                 raise FileNotFoundError(f"Decoder model not found: {path}")
             decoder_sessions[key] = ort.InferenceSession(
@@ -427,7 +427,7 @@ def load_models(model_dir: str) -> tuple[
 
     elif strategy == "B":
         # Stateless decoder: re-processes all tokens each step
-        path = model_path / files["decoder_stateless"]
+        path = model_path / files["decoder_stateless"]["filename"]
         if not path.exists():
             raise FileNotFoundError(f"Decoder model not found: {path}")
         decoder_sessions["decoder_stateless"] = ort.InferenceSession(
@@ -484,29 +484,44 @@ def _transcribe_strategy_a(
     xa_input_pos = np.arange(audio_features.shape[1], dtype=np.int64)
 
     prefill_inputs = {
-        "input_ids": input_ids,
-        "audio_features": audio_features,
+        "x": input_ids,
+        "xa": audio_features,
         "x_input_pos": x_input_pos,
         "xa_input_pos": xa_input_pos,
     }
 
+    # Add empty KV cache tensors as prefill inputs
+    max_audio_len = manifest.get("max_audio_len", 1500)
+    for i in range(n_layers):
+        prefill_inputs[f"self_attn_k_cache_{i}"] = np.zeros(
+            (1, n_heads, MAX_BLOCK_LEN, head_dim), dtype=np.float32
+        )
+        prefill_inputs[f"self_attn_v_cache_{i}"] = np.zeros(
+            (1, n_heads, MAX_BLOCK_LEN, head_dim), dtype=np.float32
+        )
+        prefill_inputs[f"cross_attn_k_cache_{i}"] = np.zeros(
+            (1, n_heads, max_audio_len, head_dim), dtype=np.float32
+        )
+        prefill_inputs[f"cross_attn_v_cache_{i}"] = np.zeros(
+            (1, n_heads, max_audio_len, head_dim), dtype=np.float32
+        )
+
     prefill_outputs = prefill_session.run(None, prefill_inputs)
-    # Output order: logits, then self_attn KV pairs, then cross_attn KV pairs
     logits = prefill_outputs[0]
 
-    # Extract KV cache arrays from prefill output
-    # Convention: outputs[1..1+2*n_layers] = self-attention K,V per layer
-    #             outputs[1+2*n_layers..1+4*n_layers] = cross-attention K,V per layer
+    # Extract KV cache arrays from prefill output.
+    # Output order is per-layer interleaved (matches export_onnx.py):
+    #   self_attn_k_cache_0_out, self_attn_v_cache_0_out,
+    #   cross_attn_k_cache_0_out, cross_attn_v_cache_0_out,
+    #   self_attn_k_cache_1_out, ...
     self_kv = {}
     cross_kv = {}
-    offset = 1
     for i in range(n_layers):
-        self_kv[f"self_k_{i}"] = prefill_outputs[offset + 2 * i]
-        self_kv[f"self_v_{i}"] = prefill_outputs[offset + 2 * i + 1]
-    offset += 2 * n_layers
-    for i in range(n_layers):
-        cross_kv[f"cross_k_{i}"] = prefill_outputs[offset + 2 * i]
-        cross_kv[f"cross_v_{i}"] = prefill_outputs[offset + 2 * i + 1]
+        base = 1 + i * 4
+        self_kv[f"self_attn_k_cache_{i}"] = prefill_outputs[base]
+        self_kv[f"self_attn_v_cache_{i}"] = prefill_outputs[base + 1]
+        cross_kv[f"cross_attn_k_cache_{i}"] = prefill_outputs[base + 2]
+        cross_kv[f"cross_attn_v_cache_{i}"] = prefill_outputs[base + 3]
 
     generated_ids = [bos_id]
     idx = 1
@@ -526,9 +541,9 @@ def _transcribe_strategy_a(
 
         # Step with KV cache
         step_inputs = {
-            "input_ids": np.array([[next_token_id]], dtype=np.int64),
+            "x": np.array([[next_token_id]], dtype=np.int64),
+            "xa": audio_features,
             "x_input_pos": np.array([idx], dtype=np.int64),
-            "audio_features": audio_features,
         }
         # Add KV cache inputs
         step_inputs.update(self_kv)
@@ -537,12 +552,14 @@ def _transcribe_strategy_a(
         step_outputs = step_session.run(None, step_inputs)
         logits = step_outputs[0]
 
-        # Update self-attention KV cache from step outputs
-        offset = 1
+        # Update self-attention KV cache from step outputs.
+        # Per-layer interleaved: [self_k, self_v, cross_k, cross_v] per layer.
+        # Cross-attention cache does not change after prefill, but the ONNX
+        # graph still outputs them so we must index past them.
         for i in range(n_layers):
-            self_kv[f"self_k_{i}"] = step_outputs[offset + 2 * i]
-            self_kv[f"self_v_{i}"] = step_outputs[offset + 2 * i + 1]
-        # Cross-attention KV cache does not change after prefill
+            base = 1 + i * 4
+            self_kv[f"self_attn_k_cache_{i}"] = step_outputs[base]
+            self_kv[f"self_attn_v_cache_{i}"] = step_outputs[base + 1]
 
         idx += 1
 
@@ -572,8 +589,8 @@ def _transcribe_strategy_b(
         input_ids = np.array([generated_ids], dtype=np.int64)
 
         outputs = session.run(None, {
-            "input_ids": input_ids,
-            "audio_features": audio_features,
+            "x": input_ids,
+            "xa": audio_features,
         })
         logits = outputs[0]
         next_token_logits = logits[0, -1, :]
@@ -645,7 +662,7 @@ def transcribe(
     log_mels = compute_log_mel(combined_pcm)
 
     # Encode audio
-    encoder_outputs = _encoder_session.run(None, {"audio": log_mels})
+    encoder_outputs = _encoder_session.run(None, {"log_mels": log_mels})
     audio_features = encoder_outputs[0]  # (1, seq_len, d_model)
 
     if strategy == "A":
