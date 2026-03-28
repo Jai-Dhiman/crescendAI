@@ -25,6 +25,7 @@ pub struct ExtractedGoals {
 #[serde(rename_all = "camelCase")]
 pub struct GoalDeadline {
     pub description: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub date: Option<String>,
 }
 

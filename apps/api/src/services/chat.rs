@@ -11,21 +11,27 @@ use crate::state::AppState;
 // --- Request / Response types ---
 
 #[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ChatRequest {
+    #[serde(default)]
     pub conversation_id: Option<String>,
     pub message: String,
 }
 
 #[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ConversationSummary {
     pub id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub title: Option<String>,
     pub updated_at: String,
 }
 
 #[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ConversationDetail {
     pub id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub title: Option<String>,
     pub created_at: String,
 }
@@ -36,25 +42,27 @@ pub struct MessageRow {
     pub role: String,
     pub content: String,
     pub created_at: String,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub message_type: Option<String>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub dimension: Option<String>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub framing: Option<String>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub components_json: Option<String>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub session_id: Option<String>,
 }
 
 #[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ConversationWithMessages {
     pub conversation: ConversationDetail,
     pub messages: Vec<MessageRow>,
 }
 
 #[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ConversationList {
     pub conversations: Vec<ConversationSummary>,
 }

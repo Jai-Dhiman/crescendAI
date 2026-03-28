@@ -18,6 +18,7 @@ pub struct Exercise {
     pub instructions: String,
     pub difficulty: String,
     pub category: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub repertoire_tags: Option<String>,
     pub source: String,
     pub dimensions: Vec<String>,
@@ -29,9 +30,11 @@ pub struct StudentExercise {
     pub id: String,
     pub student_id: String,
     pub exercise_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub session_id: Option<String>,
     pub assigned_at: String,
     pub completed: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub response: Option<String>,
     pub times_assigned: i64,
 }
@@ -42,6 +45,7 @@ pub struct StudentExercise {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct AssignRequest {
     pub exercise_id: String,
+    #[serde(default)]
     pub session_id: Option<String>,
 }
 
@@ -49,18 +53,26 @@ pub struct AssignRequest {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct CompleteRequest {
     pub student_exercise_id: String,
+    #[serde(default)]
     pub response: Option<String>,
+    #[serde(default)]
     pub dimension_before_json: Option<String>,
+    #[serde(default)]
     pub dimension_after_json: Option<String>,
+    #[serde(default)]
     pub notes: Option<String>,
 }
 
 // Query param types
 
 #[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ExerciseQueryParams {
+    #[serde(default)]
     pub dimension: Option<String>,
+    #[serde(default)]
     pub level: Option<String>,
+    #[serde(default)]
     pub repertoire: Option<String>,
 }
 

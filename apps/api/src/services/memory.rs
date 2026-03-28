@@ -1085,6 +1085,7 @@ pub async fn handle_extract_chat(
 }
 
 #[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ExtractChatRequest {
     pub user_message: String,
     pub assistant_response: String,
@@ -1093,6 +1094,7 @@ pub struct ExtractChatRequest {
 }
 
 #[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ExistingFactInput {
     pub id: String,
     pub fact_text: String,
@@ -1104,12 +1106,14 @@ pub struct ExistingFactInput {
 // ---------------------------------------------------------------------------
 
 #[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct StoreFactsRequest {
     pub student_id: String,
     pub facts: Vec<StoredFactInput>,
 }
 
 #[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct StoredFactInput {
     pub fact_text: String,
     pub category: String,
@@ -1190,6 +1194,7 @@ pub async fn handle_store_facts(
 // ---------------------------------------------------------------------------
 
 #[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct SearchFactsRequest {
     pub query: String,
     pub student_id: String,
@@ -1202,6 +1207,7 @@ fn default_max_facts() -> usize {
 }
 
 #[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SearchFactResult {
     pub id: String,
     pub fact_text: String,
@@ -1609,6 +1615,7 @@ fn keyword_hit_count(keywords: &[String], fact_text: &str) -> usize {
 // ---------------------------------------------------------------------------
 
 #[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ClearBenchmarkRequest {
     pub student_id: String,
 }
@@ -1647,6 +1654,7 @@ pub async fn handle_clear_benchmark(
 // ---------------------------------------------------------------------------
 
 #[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct SynthesizeRequest {
     pub student_id: String,
 }
@@ -1685,12 +1693,14 @@ pub async fn handle_synthesize(
 // ---------------------------------------------------------------------------
 
 #[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct SeedObservationsRequest {
     pub student_id: String,
     pub observations: Vec<SeedObservation>,
 }
 
 #[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct SeedObservation {
     pub dimension: String,
     pub observation_text: String,

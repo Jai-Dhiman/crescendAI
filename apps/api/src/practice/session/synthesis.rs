@@ -478,7 +478,9 @@ pub async fn clear_needs_synthesis(env: &Env, session_id: &str) -> Result<(), Pr
 
 /// Query params for GET /api/practice/needs-synthesis.
 #[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct NeedsSynthesisParams {
+    #[serde(default)]
     pub conversation_id: Option<String>,
 }
 
@@ -539,7 +541,7 @@ pub async fn handle_check_needs_synthesis(
 
 /// Request body for POST /api/practice/synthesize.
 #[derive(serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct DeferredSynthesisRequest {
     pub session_id: String,
 }

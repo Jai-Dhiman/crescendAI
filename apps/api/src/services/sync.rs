@@ -11,20 +11,30 @@ use crate::state::AppState;
 pub struct SyncRequest {
     pub student: StudentDelta,
     pub new_sessions: Vec<SessionDelta>,
+    #[serde(default)]
     pub last_sync_timestamp: Option<String>,
 }
 
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StudentDelta {
+    #[serde(default)]
     pub inferred_level: Option<String>,
+    #[serde(default)]
     pub baseline_dynamics: Option<f64>,
+    #[serde(default)]
     pub baseline_timing: Option<f64>,
+    #[serde(default)]
     pub baseline_pedaling: Option<f64>,
+    #[serde(default)]
     pub baseline_articulation: Option<f64>,
+    #[serde(default)]
     pub baseline_phrasing: Option<f64>,
+    #[serde(default)]
     pub baseline_interpretation: Option<f64>,
+    #[serde(default)]
     pub baseline_session_count: Option<i32>,
+    #[serde(default)]
     pub explicit_goals: Option<String>,
 }
 
@@ -33,14 +43,23 @@ pub struct StudentDelta {
 pub struct SessionDelta {
     pub id: String,
     pub started_at: String,
+    #[serde(default)]
     pub ended_at: Option<String>,
+    #[serde(default)]
     pub avg_dynamics: Option<f64>,
+    #[serde(default)]
     pub avg_timing: Option<f64>,
+    #[serde(default)]
     pub avg_pedaling: Option<f64>,
+    #[serde(default)]
     pub avg_articulation: Option<f64>,
+    #[serde(default)]
     pub avg_phrasing: Option<f64>,
+    #[serde(default)]
     pub avg_interpretation: Option<f64>,
+    #[serde(default)]
     pub observations_json: Option<String>,
+    #[serde(default)]
     pub chunks_summary_json: Option<String>,
 }
 

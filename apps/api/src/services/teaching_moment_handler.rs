@@ -15,6 +15,7 @@ use crate::services::teaching_moments::{
 };
 
 #[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct TeachingMomentRequest {
     pub chunks: Vec<ChunkInput>,
     pub baselines: BaselinesInput,
@@ -23,12 +24,14 @@ pub struct TeachingMomentRequest {
 }
 
 #[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ChunkInput {
     pub chunk_index: usize,
     pub scores: ScoresInput,
 }
 
 #[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ScoresInput {
     pub dynamics: f64,
     pub timing: f64,
@@ -39,6 +42,7 @@ pub struct ScoresInput {
 }
 
 #[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct BaselinesInput {
     pub dynamics: f64,
     pub timing: f64,
@@ -49,11 +53,13 @@ pub struct BaselinesInput {
 }
 
 #[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct RecentObservationInput {
     pub dimension: String,
 }
 
 #[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TeachingMomentResponse {
     pub teaching_moment: Option<TeachingMoment>,
     /// "`need_more`" when too few chunks, "positive" when no issues found,

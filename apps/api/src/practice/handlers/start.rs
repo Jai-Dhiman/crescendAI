@@ -8,8 +8,9 @@ use crate::state::AppState;
 
 /// Request body for POST /api/practice/start.
 #[derive(serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct StartRequest {
+    #[serde(default)]
     pub conversation_id: Option<String>,
 }
 

@@ -9,7 +9,9 @@ use crate::state::AppState;
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ChunkParams {
+    #[serde(default)]
     pub session_id: Option<String>,
+    #[serde(default)]
     pub chunk_index: Option<String>,
 }
 

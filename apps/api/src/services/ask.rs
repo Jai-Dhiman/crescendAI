@@ -13,14 +13,17 @@ use crate::services::{llm, prompts};
 use crate::state::AppState;
 
 #[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct AskRequest {
     pub teaching_moment: serde_json::Value,
     pub student: serde_json::Value,
     pub session: serde_json::Value,
+    #[serde(default)]
     pub piece_context: Option<serde_json::Value>,
 }
 
 #[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AskResponse {
     pub observation: String,
     pub observation_id: String,
@@ -31,11 +34,13 @@ pub struct AskResponse {
 }
 
 #[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ElaborateRequest {
     pub observation_id: String,
 }
 
 #[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ElaborateResponse {
     pub elaboration: String,
     pub observation_id: String,

@@ -13,7 +13,9 @@ use crate::state::AppState;
 
 /// Query params for GET /api/scores
 #[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ListPiecesParams {
+    #[serde(default)]
     pub composer: Option<String>,
 }
 
