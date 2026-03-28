@@ -3,6 +3,7 @@ pub mod error;
 pub mod practice;
 pub mod server;
 pub mod services;
+pub mod state;
 pub mod types;
 
 pub use error::{ApiError, Result};

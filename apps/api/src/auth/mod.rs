@@ -336,7 +336,7 @@ pub async fn handle_google_auth(
         exp: now_epoch + JWT_EXPIRY_SECONDS,
     };
 
-    let token = match jwt::sign(&jwt_claims, jwt_secret.as_bytes()) {
+    let token = match jwt::sign_compat(&jwt_claims, jwt_secret.as_bytes()) {
         Ok(t) => t,
         Err(e) => {
             console_error!("Failed to sign JWT: {}", e);
@@ -514,7 +514,7 @@ pub async fn handle_apple_auth(
         exp: now_epoch + JWT_EXPIRY_SECONDS,
     };
 
-    let token = match jwt::sign(&claims, jwt_secret.as_bytes()) {
+    let token = match jwt::sign_compat(&claims, jwt_secret.as_bytes()) {
         Ok(t) => t,
         Err(e) => {
             console_error!("Failed to sign JWT: {}", e);
@@ -715,7 +715,7 @@ pub fn verify_auth(
                 .unwrap()
         })?;
 
-    let claims = jwt::verify(&token, jwt_secret.as_bytes()).map_err(|e| {
+    let claims = jwt::verify_compat(&token, jwt_secret.as_bytes()).map_err(|e| {
         console_error!("JWT verification failed: {}", e);
         Response::builder()
             .status(StatusCode::UNAUTHORIZED)
@@ -913,7 +913,7 @@ pub async fn handle_debug_auth(
         exp: now_epoch + JWT_EXPIRY_SECONDS,
     };
 
-    let token = match jwt::sign(&claims, jwt_secret.as_bytes()) {
+    let token = match jwt::sign_compat(&claims, jwt_secret.as_bytes()) {
         Ok(t) => t,
         Err(e) => {
             console_error!("Failed to sign JWT: {}", e);
