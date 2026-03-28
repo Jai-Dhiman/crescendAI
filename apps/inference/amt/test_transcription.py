@@ -41,6 +41,14 @@ def _import_amt_handler():
         mock_modules[mod_name] = types.ModuleType(mod_name)
 
     # Set up minimal attributes that amt_handler imports at module level
+    mock_modules["amt.config"].load_config = mock.MagicMock(return_value={
+        "tokenizer": {
+            "velocity_quantization": {"step": 5, "default": 60},
+            "time_quantization": {"num_steps": 3000, "step": 10},
+        },
+        "audio": {"sample_rate": 16000, "chunk_len": 30},
+        "data": {"stride_factor": 15, "max_seq_len": 4096},
+    })
     mock_modules["amt.config"].load_model_config = mock.MagicMock()
     mock_modules["amt.inference.model"].AmtEncoderDecoder = mock.MagicMock()
     mock_modules["amt.inference.model"].ModelConfig = mock.MagicMock()
@@ -59,7 +67,7 @@ def _import_amt_handler():
         # Import with mocked dependencies
         spec = importlib.util.spec_from_file_location(
             "amt_handler",
-            Path(__file__).parent / "amt_handler.py",
+            Path(__file__).parent / "transcription.py",
         )
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
