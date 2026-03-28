@@ -21,17 +21,20 @@ Quality scoring only (6 dimensions). No transcription.
 Mirrors the production MuQ-only HF endpoint (handler.py).
 
 Usage:
-    cd apps/inference && uv run python muq_local_server.py
-    cd apps/inference && uv run python muq_local_server.py --port 8000
+    cd apps/inference && uv run python muq/muq_local_server.py
+    cd apps/inference && uv run python muq/muq_local_server.py --port 8000
 """
 
 from __future__ import annotations
 
+import sys
 import argparse
 import os
 import time
 import traceback
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 os.environ.setdefault("CRESCEND_DEVICE", "auto")
 
