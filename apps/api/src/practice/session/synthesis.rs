@@ -1,7 +1,7 @@
 use wasm_bindgen::JsValue;
 use worker::{console_error, console_log, Env};
 
-use crate::practice::accumulator::{AccumulatedMoment, SessionAccumulator};
+use super::accumulator::{AccumulatedMoment, SessionAccumulator};
 use crate::services::prompts::SESSION_SYNTHESIS_SYSTEM;
 use crate::services::teaching_moments::StudentBaselines;
 
@@ -136,7 +136,7 @@ fn build_practice_pattern(acc: &SessionAccumulator, session_duration_ms: u64) ->
 
         // If transitioning into drilling, include bar range and repetitions from
         // a drilling record if one matches by chunk index.
-        if tr.to == crate::practice::practice_mode::PracticeMode::Drilling {
+        if tr.to == super::practice_mode::PracticeMode::Drilling {
             if let Some(dr) = acc
                 .drilling_records
                 .iter()
@@ -684,7 +684,7 @@ pub async fn handle_deferred_synthesis(
     };
 
     // Deserialize accumulator
-    let acc: crate::practice::accumulator::SessionAccumulator =
+    let acc: super::accumulator::SessionAccumulator =
         match serde_json::from_str(&accumulator_json) {
             Ok(a) => a,
             Err(e) => {
@@ -777,10 +777,10 @@ pub async fn handle_deferred_synthesis(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::practice::accumulator::{
+    use super::accumulator::{
         DrillingRecord, ModeTransitionRecord, SessionAccumulator,
     };
-    use crate::practice::practice_mode::PracticeMode;
+    use super::practice_mode::PracticeMode;
 
     fn make_moment(
         chunk: usize,

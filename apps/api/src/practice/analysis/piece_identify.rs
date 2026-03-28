@@ -5,7 +5,7 @@ use std::collections::HashMap;
 
 use serde::Deserialize;
 
-use crate::practice::score_follower::PerfNote;
+use super::score_follower::PerfNote;
 
 /// DTW confirmation threshold (Stage 3, used by session.rs).
 pub const DTW_CONFIRM_THRESHOLD: f64 = 0.3;

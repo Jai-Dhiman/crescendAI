@@ -1,13 +1,21 @@
+pub mod accumulator;
+pub mod error;
+pub mod finalization;
+pub mod inference;
+pub mod practice_mode;
+pub mod processing;
+pub mod synthesis;
+
 use std::cell::RefCell;
 use std::collections::HashMap;
 use wasm_bindgen::JsValue;
 use worker::*;
 
-use crate::practice::accumulator::SessionAccumulator;
-use crate::practice::piece_identify::{NgramIndex, PieceIdentification, RerankFeatures};
-use crate::practice::practice_mode::ModeDetector;
-use crate::practice::score_context::ScoreContext;
-use crate::practice::score_follower::{FollowerState, PerfNote, PerfPedalEvent};
+use self::accumulator::SessionAccumulator;
+use self::practice_mode::ModeDetector;
+use crate::practice::analysis::piece_identify::{NgramIndex, PieceIdentification, RerankFeatures};
+use crate::practice::analysis::score_context::ScoreContext;
+use crate::practice::analysis::score_follower::{FollowerState, PerfNote, PerfPedalEvent};
 use crate::practice::teaching_moment::DimStats;
 use crate::services::teaching_moments::{ScoredChunk, StudentBaselines};
 

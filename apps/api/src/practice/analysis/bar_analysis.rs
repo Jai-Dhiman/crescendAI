@@ -7,8 +7,8 @@
 
 use serde::Serialize;
 
-use crate::practice::score_context::{ScoreContext, ScoreBar};
-use crate::practice::score_follower::{BarMap, NoteAlignment, PerfNote, PerfPedalEvent};
+use super::score_context::{ScoreContext, ScoreBar};
+use super::score_follower::{BarMap, NoteAlignment, PerfNote, PerfPedalEvent};
 
 // Dimension index constants (matching model output order)
 const DIM_DYNAMICS: usize = 0;
@@ -640,7 +640,7 @@ pub fn analyze_tier2(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::practice::score_follower::{BarMap, NoteAlignment, PerfNote, PerfPedalEvent};
+    use super::score_follower::{BarMap, NoteAlignment, PerfNote, PerfPedalEvent};
 
     fn make_perf_note(pitch: u8, onset: f64, offset: f64, velocity: u8) -> PerfNote {
         PerfNote { pitch, onset, offset, velocity }
@@ -753,11 +753,11 @@ mod tests {
             &bar_map.alignments,
             // Construct a minimal ScoreContext-like struct by using a dummy score_ctx
             // We test with the internal function directly
-            &crate::practice::score_context::ScoreContext {
+            &super::score_context::ScoreContext {
                 piece_id: "test".to_string(),
                 composer: "Test".to_string(),
                 title: "Test".to_string(),
-                score: crate::practice::score_context::ScoreData {
+                score: super::score_context::ScoreData {
                     piece_id: "test".to_string(),
                     composer: "Test".to_string(),
                     title: "Test".to_string(),
@@ -783,7 +783,7 @@ mod tests {
 
     #[test]
     fn pedaling_detects_no_pedal_vs_score() {
-        use crate::practice::score_context::{ScoreBar, ScoreData, ScorePedalEvent};
+        use super::score_context::{ScoreBar, ScoreData, ScorePedalEvent};
 
         // Score has pedal events; performance has none
         let score_bar_with_pedal = ScoreBar {
@@ -809,7 +809,7 @@ mod tests {
             mean_velocity: 80,
         };
 
-        let score_ctx = crate::practice::score_context::ScoreContext {
+        let score_ctx = super::score_context::ScoreContext {
             piece_id: "test".to_string(),
             composer: "Test".to_string(),
             title: "Test".to_string(),

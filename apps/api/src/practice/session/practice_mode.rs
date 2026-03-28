@@ -298,9 +298,9 @@ impl ModeDetector {
 
     /// If drilling mode was active, take the DrillingPassage and convert it to a
     /// DrillingRecord with final_scores from the current chunk.
-    pub fn take_completed_drilling(&mut self, current_scores: [f64; 6], current_chunk: usize) -> Option<crate::practice::accumulator::DrillingRecord> {
+    pub fn take_completed_drilling(&mut self, current_scores: [f64; 6], current_chunk: usize) -> Option<super::accumulator::DrillingRecord> {
         self.drilling_passage.take().map(|dp| {
-            crate::practice::accumulator::DrillingRecord {
+            super::accumulator::DrillingRecord {
                 bar_range: dp.bar_range,
                 repetition_count: dp.repetition_count,
                 first_scores: dp.first_scores,

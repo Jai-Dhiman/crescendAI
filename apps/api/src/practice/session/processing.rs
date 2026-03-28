@@ -1,16 +1,15 @@
 use std::collections::HashMap;
 use worker::*;
 
-use crate::practice::accumulator::{AccumulatedMoment, ModeTransitionRecord, TimelineEvent};
-use crate::practice::analysis;
-use crate::practice::dims::DIMS_6;
-use crate::practice::practice_mode::{
+use super::accumulator::{AccumulatedMoment, ModeTransitionRecord, TimelineEvent};
+use super::practice_mode::{
     pitch_bigrams_from_notes, ChunkSignal, ModeTransition, PracticeMode,
 };
-use crate::practice::score_follower::{PerfNote, PerfPedalEvent};
+use super::{MuqResponse, PracticeSession, ALARM_DURATION_MS};
+use crate::practice::analysis::bar_analysis as analysis;
+use crate::practice::analysis::score_follower::{PerfNote, PerfPedalEvent};
+use crate::practice::dims::DIMS_6;
 use crate::services::teaching_moments::{RecentObservation, ScoredChunk};
-
-use super::session::{MuqResponse, PracticeSession, ALARM_DURATION_MS};
 
 impl PracticeSession {
     pub(crate) async fn handle_chunk_ready(
@@ -152,7 +151,7 @@ impl PracticeSession {
                     )
                 };
                 let ctx =
-                    crate::practice::score_context::resolve_piece(&self.env, &query, &student_id)
+                    crate::practice::analysis::score_context::resolve_piece(&self.env, &query, &student_id)
                         .await;
                 let mut s = self.inner.borrow_mut();
                 s.score_context = ctx;
@@ -369,7 +368,7 @@ impl PracticeSession {
             if let Some(score_data) = score_data_clone {
                 // Run alignment with a mutable copy, then store updated state
                 let mut fs = follower_state_clone;
-                let bar_map = crate::practice::score_follower::align_chunk(
+                let bar_map = crate::practice::analysis::score_follower::align_chunk(
                     index,
                     0.0,
                     perf_notes,
@@ -539,7 +538,7 @@ impl PracticeSession {
                     )
                 };
                 let ctx =
-                    crate::practice::score_context::resolve_piece(&self.env, &query, &student_id)
+                    crate::practice::analysis::score_context::resolve_piece(&self.env, &query, &student_id)
                         .await;
                 let mut s = self.inner.borrow_mut();
                 s.score_context = ctx;

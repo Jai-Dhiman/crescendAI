@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use wasm_bindgen::JsValue;
 use worker::*;
 
-use super::session::PracticeSession;
+use super::PracticeSession;
 use crate::services::stop::SCALER_MEAN;
 use crate::services::teaching_moments::StudentBaselines;
 
@@ -119,7 +119,7 @@ impl PracticeSession {
                         .unwrap_or(0),
                 );
 
-            let ctx = crate::practice::synthesis::SynthesisContext {
+            let ctx = super::synthesis::SynthesisContext {
                 session_id: s.session_id.clone(),
                 student_id: s.student_id.clone(),
                 conversation_id: s.conversation_id.clone().unwrap_or_default(),
@@ -150,8 +150,8 @@ impl PracticeSession {
             acc.drilling_records.len()
         );
 
-        let prompt = crate::practice::synthesis::build_synthesis_prompt(&acc, &ctx);
-        let result = crate::practice::synthesis::call_synthesis_llm(&self.env, &prompt).await;
+        let prompt = super::synthesis::build_synthesis_prompt(&acc, &ctx);
+        let result = super::synthesis::call_synthesis_llm(&self.env, &prompt).await;
 
         // Send to client via WS
         let mut synthesis_event = serde_json::json!({
@@ -189,7 +189,7 @@ impl PracticeSession {
         }
 
         // Persist synthesis message to D1
-        match crate::practice::synthesis::persist_synthesis_message(
+        match super::synthesis::persist_synthesis_message(
             &self.env,
             &ctx.conversation_id,
             &ctx.session_id,
@@ -202,7 +202,7 @@ impl PracticeSession {
         }
 
         // Persist accumulated moments to observations table
-        if let Err(e) = crate::practice::synthesis::persist_accumulated_moments(
+        if let Err(e) = super::synthesis::persist_accumulated_moments(
             &self.env,
             &ctx.student_id,
             &ctx.session_id,

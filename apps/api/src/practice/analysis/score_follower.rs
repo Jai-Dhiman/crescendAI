@@ -2,7 +2,7 @@
 //! to bar numbers in the score using onset+pitch alignment. Maintains cross-chunk
 //! continuity via FollowerState.
 
-use crate::practice::score_context::{ScoreBar, ScoreData};
+use super::score_context::{ScoreBar, ScoreData};
 
 const PITCH_MISMATCH_PENALTY: f64 = 0.5;
 const SEARCH_WINDOW_BARS: u32 = 30;
@@ -381,7 +381,7 @@ pub fn align_chunk(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::practice::score_context::{ScoreBar, ScoreData, ScoreNote};
+    use super::score_context::{ScoreBar, ScoreData, ScoreNote};
 
     fn make_score_note(pitch: u8, onset_seconds: f64) -> ScoreNote {
         ScoreNote {

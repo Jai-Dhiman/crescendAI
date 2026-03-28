@@ -4,8 +4,8 @@
 use wasm_bindgen::JsValue;
 use worker::{console_error, Env};
 
-use crate::practice::piece_identify::{NgramIndex, RerankFeatures};
-use crate::practice::piece_match::{CatalogPiece, MatchResult, match_piece};
+use super::piece_identify::{NgramIndex, RerankFeatures};
+use super::piece_match::{CatalogPiece, MatchResult, match_piece};
 
 #[derive(Debug, Clone, serde::Deserialize)]
 pub struct ScoreNote {

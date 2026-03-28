@@ -115,7 +115,7 @@ async fn fetch(
             .map(|b| b.to_bytes().to_vec())
             .unwrap_or_default();
         return into_worker_response(with_cors(
-            crate::practice::start::handle_start(&env, &headers, &body).await,
+            crate::practice::handlers::start::handle_start(&env, &headers, &body).await,
             origin.as_deref(),
         )).await;
     }
@@ -155,7 +155,7 @@ async fn fetch(
         }
 
         return into_worker_response(with_cors(
-            crate::practice::upload::handle_upload_chunk(&env, &headers, body, session_id, chunk_index).await,
+            crate::practice::handlers::upload::handle_upload_chunk(&env, &headers, body, session_id, chunk_index).await,
             origin.as_deref(),
         )).await;
     }
@@ -299,7 +299,7 @@ async fn fetch(
             .unwrap_or("")
             .to_string();
         return into_worker_response(with_cors(
-            crate::practice::synthesis::handle_check_needs_synthesis(&env, &headers, &conv_id).await,
+            crate::practice::session::synthesis::handle_check_needs_synthesis(&env, &headers, &conv_id).await,
             origin.as_deref(),
         )).await;
     }
@@ -315,7 +315,7 @@ async fn fetch(
             .unwrap_or_default();
         let body_json: serde_json::Value = serde_json::from_slice(&body).unwrap_or_default();
         return into_worker_response(with_cors(
-            crate::practice::synthesis::handle_deferred_synthesis(&env, &headers, &body_json).await,
+            crate::practice::session::synthesis::handle_deferred_synthesis(&env, &headers, &body_json).await,
             origin.as_deref(),
         )).await;
     }

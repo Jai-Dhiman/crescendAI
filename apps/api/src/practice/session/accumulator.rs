@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::practice::practice_mode::PracticeMode;
+use super::practice_mode::PracticeMode;
 
 /// A single teaching moment accumulated during a practice session.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]

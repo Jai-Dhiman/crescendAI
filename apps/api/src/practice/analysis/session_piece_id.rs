@@ -3,7 +3,7 @@ use worker::*;
 use super::piece_identify::DTW_CONFIRM_THRESHOLD;
 use super::score_context::ScoreContext;
 use super::score_follower::FollowerState;
-use super::session::PracticeSession;
+use crate::practice::session::PracticeSession;
 
 impl PracticeSession {
     /// Attempt piece identification from accumulated AMT notes using sliding windows.
@@ -53,7 +53,7 @@ impl PracticeSession {
         {
             let needs_index = self.inner.borrow().ngram_index.is_none();
             if needs_index {
-                match crate::practice::score_context::load_ngram_index(&self.env).await {
+                match super::score_context::load_ngram_index(&self.env).await {
                     Ok(index) => {
                         self.inner.borrow_mut().ngram_index = Some(index);
                     }
@@ -67,7 +67,7 @@ impl PracticeSession {
         {
             let needs_features = self.inner.borrow().rerank_features.is_none();
             if needs_features {
-                match crate::practice::score_context::load_rerank_features(&self.env).await {
+                match super::score_context::load_rerank_features(&self.env).await {
                     Ok(features) => {
                         self.inner.borrow_mut().rerank_features = Some(features);
                     }
@@ -97,7 +97,7 @@ impl PracticeSession {
             let window = &all_notes[all_notes.len() - window_size..];
 
             // Stage 1+2: N-gram recall + rerank on this window
-            let identification = crate::practice::piece_identify::identify_piece(
+            let identification = super::piece_identify::identify_piece(
                 window,
                 &ngram_index,
                 &rerank_features,
@@ -119,7 +119,7 @@ impl PracticeSession {
 
             // Stage 3: DTW confirmation -- load the candidate's score and align
             let score_data =
-                match crate::practice::score_context::load_score(&self.env, &candidate.piece_id)
+                match super::score_context::load_score(&self.env, &candidate.piece_id)
                     .await
                 {
                     Ok(s) => s,
@@ -134,7 +134,7 @@ impl PracticeSession {
                 };
 
             let mut dtw_state = FollowerState::default();
-            let bar_map = crate::practice::score_follower::align_chunk(
+            let bar_map = super::score_follower::align_chunk(
                 0,
                 0.0,
                 window,
@@ -160,7 +160,7 @@ impl PracticeSession {
 
             // DTW confirmed -- lock in piece and load full ScoreContext
             let reference =
-                crate::practice::score_context::load_reference(&self.env, &candidate.piece_id)
+                super::score_context::load_reference(&self.env, &candidate.piece_id)
                     .await;
 
             let composer = score_data.composer.clone();
@@ -205,7 +205,7 @@ impl PracticeSession {
 
             // Log to piece_requests for demand tracking
             let student_id = self.inner.borrow().student_id.clone();
-            crate::practice::score_context::log_fingerprint_piece_request(
+            super::score_context::log_fingerprint_piece_request(
                 &self.env,
                 &student_id,
                 &candidate.piece_id,
