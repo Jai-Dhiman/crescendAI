@@ -2,8 +2,13 @@
 //!
 //! See docs/plans/2026-03-06-memory-system-design.md for the full design.
 
+use axum::extract::{Json, State};
 use wasm_bindgen::JsValue;
 use worker::{console_log, Env};
+
+use crate::auth::AuthUser;
+use crate::error::{ApiError, Result};
+use crate::state::AppState;
 
 /// A synthesized fact from the event clock.
 pub struct SynthesizedFact {
@@ -39,8 +44,8 @@ pub struct StudentMemoryContext {
 pub async fn query_active_facts(
     env: &Env,
     student_id: &str,
-) -> Result<Vec<SynthesizedFact>, String> {
-    let db = env.d1("DB").map_err(|e| format!("D1 binding failed: {:?}", e))?;
+) -> Result<Vec<SynthesizedFact>> {
+    let db = env.d1("DB").map_err(|e| ApiError::Internal(format!("D1 binding failed: {:?}", e)))?;
 
     let results = db
         .prepare(
@@ -53,28 +58,18 @@ pub async fn query_active_facts(
              LIMIT 12",
         )
         .bind(&[JsValue::from_str(student_id)])
-        .map_err(|e| format!("Failed to bind query: {:?}", e))?
+        .map_err(|e| ApiError::Internal(format!("Failed to bind query: {:?}", e)))?
         .all()
         .await
-        .map_err(|e| format!("Failed to query facts: {:?}", e))?;
+        .map_err(|e| ApiError::Internal(format!("Failed to query facts: {:?}", e)))?;
 
     let rows: Vec<serde_json::Value> = results
         .results()
-        .map_err(|e| format!("Failed to get results: {:?}", e))?;
+        .map_err(|e| ApiError::Internal(format!("Failed to get results: {:?}", e)))?;
 
     Ok(rows
         .iter()
-        .map(|row| SynthesizedFact {
-            id: row.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-            fact_text: row.get("fact_text").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-            fact_type: row.get("fact_type").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-            dimension: row.get("dimension").and_then(|v| v.as_str()).map(|s| s.to_string()),
-            piece_context: row.get("piece_context").and_then(|v| v.as_str()).map(|s| s.to_string()),
-            valid_at: row.get("valid_at").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-            trend: row.get("trend").and_then(|v| v.as_str()).map(|s| s.to_string()),
-            confidence: row.get("confidence").and_then(|v| v.as_str()).unwrap_or("medium").to_string(),
-            source_type: row.get("source_type").and_then(|v| v.as_str()).unwrap_or("synthesized").to_string(),
-        })
+        .map(|row| parse_synthesized_fact(row))
         .collect())
 }
 
@@ -83,8 +78,8 @@ pub async fn query_student_reported_facts(
     env: &Env,
     student_id: &str,
     today: &str,
-) -> Result<Vec<SynthesizedFact>, String> {
-    let db = env.d1("DB").map_err(|e| format!("D1 binding failed: {:?}", e))?;
+) -> Result<Vec<SynthesizedFact>> {
+    let db = env.d1("DB").map_err(|e| ApiError::Internal(format!("D1 binding failed: {:?}", e)))?;
 
     let results = db
         .prepare(
@@ -99,28 +94,18 @@ pub async fn query_student_reported_facts(
              LIMIT 10",
         )
         .bind(&[JsValue::from_str(student_id), JsValue::from_str(today)])
-        .map_err(|e| format!("Failed to bind query: {:?}", e))?
+        .map_err(|e| ApiError::Internal(format!("Failed to bind query: {:?}", e)))?
         .all()
         .await
-        .map_err(|e| format!("Failed to query student reported facts: {:?}", e))?;
+        .map_err(|e| ApiError::Internal(format!("Failed to query student reported facts: {:?}", e)))?;
 
     let rows: Vec<serde_json::Value> = results
         .results()
-        .map_err(|e| format!("Failed to get results: {:?}", e))?;
+        .map_err(|e| ApiError::Internal(format!("Failed to get results: {:?}", e)))?;
 
     Ok(rows
         .iter()
-        .map(|row| SynthesizedFact {
-            id: row.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-            fact_text: row.get("fact_text").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-            fact_type: row.get("fact_type").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-            dimension: row.get("dimension").and_then(|v| v.as_str()).map(|s| s.to_string()),
-            piece_context: row.get("piece_context").and_then(|v| v.as_str()).map(|s| s.to_string()),
-            valid_at: row.get("valid_at").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-            trend: row.get("trend").and_then(|v| v.as_str()).map(|s| s.to_string()),
-            confidence: row.get("confidence").and_then(|v| v.as_str()).unwrap_or("medium").to_string(),
-            source_type: row.get("source_type").and_then(|v| v.as_str()).unwrap_or("student_reported").to_string(),
-        })
+        .map(|row| parse_synthesized_fact(row))
         .collect())
 }
 
@@ -128,8 +113,8 @@ pub async fn query_student_reported_facts(
 pub async fn query_recent_observations_with_engagement(
     env: &Env,
     student_id: &str,
-) -> Result<Vec<RecentObservationWithEngagement>, String> {
-    let db = env.d1("DB").map_err(|e| format!("D1 binding failed: {:?}", e))?;
+) -> Result<Vec<RecentObservationWithEngagement>> {
+    let db = env.d1("DB").map_err(|e| ApiError::Internal(format!("D1 binding failed: {:?}", e)))?;
 
     let results = db
         .prepare(
@@ -142,14 +127,14 @@ pub async fn query_recent_observations_with_engagement(
              LIMIT 5",
         )
         .bind(&[JsValue::from_str(student_id)])
-        .map_err(|e| format!("Failed to bind query: {:?}", e))?
+        .map_err(|e| ApiError::Internal(format!("Failed to bind query: {:?}", e)))?
         .all()
         .await
-        .map_err(|e| format!("Failed to query observations: {:?}", e))?;
+        .map_err(|e| ApiError::Internal(format!("Failed to query observations: {:?}", e)))?;
 
     let rows: Vec<serde_json::Value> = results
         .results()
-        .map_err(|e| format!("Failed to get results: {:?}", e))?;
+        .map_err(|e| ApiError::Internal(format!("Failed to get results: {:?}", e)))?;
 
     Ok(rows
         .iter()
@@ -168,8 +153,8 @@ pub async fn query_piece_facts(
     env: &Env,
     student_id: &str,
     piece_title: &str,
-) -> Result<Vec<SynthesizedFact>, String> {
-    let db = env.d1("DB").map_err(|e| format!("D1 binding failed: {:?}", e))?;
+) -> Result<Vec<SynthesizedFact>> {
+    let db = env.d1("DB").map_err(|e| ApiError::Internal(format!("D1 binding failed: {:?}", e)))?;
 
     let results = db
         .prepare(
@@ -185,28 +170,18 @@ pub async fn query_piece_facts(
             JsValue::from_str(student_id),
             JsValue::from_str(piece_title),
         ])
-        .map_err(|e| format!("Failed to bind query: {:?}", e))?
+        .map_err(|e| ApiError::Internal(format!("Failed to bind query: {:?}", e)))?
         .all()
         .await
-        .map_err(|e| format!("Failed to query piece facts: {:?}", e))?;
+        .map_err(|e| ApiError::Internal(format!("Failed to query piece facts: {:?}", e)))?;
 
     let rows: Vec<serde_json::Value> = results
         .results()
-        .map_err(|e| format!("Failed to get results: {:?}", e))?;
+        .map_err(|e| ApiError::Internal(format!("Failed to get results: {:?}", e)))?;
 
     Ok(rows
         .iter()
-        .map(|row| SynthesizedFact {
-            id: row.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-            fact_text: row.get("fact_text").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-            fact_type: row.get("fact_type").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-            dimension: row.get("dimension").and_then(|v| v.as_str()).map(|s| s.to_string()),
-            piece_context: row.get("piece_context").and_then(|v| v.as_str()).map(|s| s.to_string()),
-            valid_at: row.get("valid_at").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-            trend: row.get("trend").and_then(|v| v.as_str()).map(|s| s.to_string()),
-            confidence: row.get("confidence").and_then(|v| v.as_str()).unwrap_or("medium").to_string(),
-            source_type: row.get("source_type").and_then(|v| v.as_str()).unwrap_or("synthesized").to_string(),
-        })
+        .map(|row| parse_synthesized_fact(row))
         .collect())
 }
 
@@ -398,7 +373,7 @@ pub async fn extract_and_store_chat_facts(
     student_id: &str,
     user_message: &str,
     assistant_response: &str,
-) -> Result<(), String> {
+) -> Result<()> {
     use crate::services::{llm, prompts};
 
     let now = js_sys::Date::new_0()
@@ -432,7 +407,7 @@ pub async fn extract_and_store_chat_facts(
     // 4. Parse JSON
     let extraction_json = extract_synthesis_json(&output)?;
 
-    let db = env.d1("DB").map_err(|e| format!("D1 binding failed: {:?}", e))?;
+    let db = env.d1("DB").map_err(|e| ApiError::Internal(format!("D1 binding failed: {:?}", e)))?;
 
     // 5. Process ADD operations
     if let Some(adds) = extraction_json.get("add").and_then(|v| v.as_array()) {
@@ -469,7 +444,7 @@ pub async fn extract_and_store_chat_facts(
                     JsValue::from_str("student_reported"),
                     JsValue::from_str(&now),
                 ])
-                .map_err(|e| format!("Failed to bind fact insert: {:?}", e))?
+                .map_err(|e| ApiError::Internal(format!("Failed to bind fact insert: {:?}", e)))?
                 .run()
                 .await;
         }
@@ -499,7 +474,7 @@ pub async fn extract_and_store_chat_facts(
                     JsValue::from_str(existing_id),
                     JsValue::from_str(student_id),
                 ])
-                .map_err(|e| format!("Failed to bind invalidation: {:?}", e))?
+                .map_err(|e| ApiError::Internal(format!("Failed to bind invalidation: {:?}", e)))?
                 .run()
                 .await;
 
@@ -528,7 +503,7 @@ pub async fn extract_and_store_chat_facts(
                     JsValue::from_str("student_reported"),
                     JsValue::from_str(&now),
                 ])
-                .map_err(|e| format!("Failed to bind replacement insert: {:?}", e))?
+                .map_err(|e| ApiError::Internal(format!("Failed to bind replacement insert: {:?}", e)))?
                 .run()
                 .await;
         }
@@ -555,8 +530,8 @@ pub async fn store_teaching_approach(
     dimension: &str,
     framing: &str,
     approach_summary: &str,
-) -> Result<(), String> {
-    let db = env.d1("DB").map_err(|e| format!("D1 binding failed: {:?}", e))?;
+) -> Result<()> {
+    let db = env.d1("DB").map_err(|e| ApiError::Internal(format!("D1 binding failed: {:?}", e)))?;
     let now = js_sys::Date::new_0()
         .to_iso_string()
         .as_string()
@@ -576,10 +551,10 @@ pub async fn store_teaching_approach(
         JsValue::from_str(approach_summary),
         JsValue::from_str(&now),
     ])
-    .map_err(|e| format!("Failed to bind insert: {:?}", e))?
+    .map_err(|e| ApiError::Internal(format!("Failed to bind insert: {:?}", e)))?
     .run()
     .await
-    .map_err(|e| format!("Failed to insert teaching approach: {:?}", e))?;
+    .map_err(|e| ApiError::Internal(format!("Failed to insert teaching approach: {:?}", e)))?;
 
     Ok(())
 }
@@ -588,15 +563,15 @@ pub async fn store_teaching_approach(
 pub async fn mark_approach_engaged(
     env: &Env,
     observation_id: &str,
-) -> Result<(), String> {
-    let db = env.d1("DB").map_err(|e| format!("D1 binding failed: {:?}", e))?;
+) -> Result<()> {
+    let db = env.d1("DB").map_err(|e| ApiError::Internal(format!("D1 binding failed: {:?}", e)))?;
 
     db.prepare("UPDATE teaching_approaches SET engaged = 1 WHERE observation_id = ?1")
         .bind(&[JsValue::from_str(observation_id)])
-        .map_err(|e| format!("Failed to bind update: {:?}", e))?
+        .map_err(|e| ApiError::Internal(format!("Failed to bind update: {:?}", e)))?
         .run()
         .await
-        .map_err(|e| format!("Failed to update engagement: {:?}", e))?;
+        .map_err(|e| ApiError::Internal(format!("Failed to update engagement: {:?}", e)))?;
 
     Ok(())
 }
@@ -605,18 +580,18 @@ pub async fn mark_approach_engaged(
 pub async fn increment_observation_count(
     env: &Env,
     student_id: &str,
-) -> Result<(), String> {
-    let db = env.d1("DB").map_err(|e| format!("D1 binding failed: {:?}", e))?;
+) -> Result<()> {
+    let db = env.d1("DB").map_err(|e| ApiError::Internal(format!("D1 binding failed: {:?}", e)))?;
 
     db.prepare(
         "INSERT INTO student_memory_meta (student_id, total_observations) VALUES (?1, 1) \
          ON CONFLICT(student_id) DO UPDATE SET total_observations = total_observations + 1",
     )
     .bind(&[JsValue::from_str(student_id)])
-    .map_err(|e| format!("Failed to bind upsert: {:?}", e))?
+    .map_err(|e| ApiError::Internal(format!("Failed to bind upsert: {:?}", e)))?
     .run()
     .await
-    .map_err(|e| format!("Failed to update observation count: {:?}", e))?;
+    .map_err(|e| ApiError::Internal(format!("Failed to update observation count: {:?}", e)))?;
 
     Ok(())
 }
@@ -626,11 +601,11 @@ pub async fn increment_observation_count_by(
     env: &Env,
     student_id: &str,
     count: usize,
-) -> Result<(), String> {
+) -> Result<()> {
     if count == 0 {
         return Ok(());
     }
-    let db = env.d1("DB").map_err(|e| format!("D1 binding failed: {:?}", e))?;
+    let db = env.d1("DB").map_err(|e| ApiError::Internal(format!("D1 binding failed: {:?}", e)))?;
 
     db.prepare(
         "INSERT INTO student_memory_meta (student_id, total_observations) VALUES (?1, ?2) \
@@ -640,10 +615,10 @@ pub async fn increment_observation_count_by(
         JsValue::from_str(student_id),
         JsValue::from_f64(count as f64),
     ])
-    .map_err(|e| format!("Failed to bind upsert: {:?}", e))?
+    .map_err(|e| ApiError::Internal(format!("Failed to bind upsert: {:?}", e)))?
     .run()
     .await
-    .map_err(|e| format!("Failed to update observation count: {:?}", e))?;
+    .map_err(|e| ApiError::Internal(format!("Failed to update observation count: {:?}", e)))?;
 
     Ok(())
 }
@@ -654,16 +629,16 @@ pub async fn increment_observation_count_by(
 pub async fn should_synthesize(
     env: &Env,
     student_id: &str,
-) -> Result<bool, String> {
-    let db = env.d1("DB").map_err(|e| format!("D1 binding failed: {:?}", e))?;
+) -> Result<bool> {
+    let db = env.d1("DB").map_err(|e| ApiError::Internal(format!("D1 binding failed: {:?}", e)))?;
 
     let meta: Option<serde_json::Value> = db
         .prepare("SELECT last_synthesis_at, total_observations FROM student_memory_meta WHERE student_id = ?1")
         .bind(&[JsValue::from_str(student_id)])
-        .map_err(|e| format!("Failed to bind query: {:?}", e))?
+        .map_err(|e| ApiError::Internal(format!("Failed to bind query: {:?}", e)))?
         .first(None)
         .await
-        .map_err(|e| format!("Failed to query meta: {:?}", e))?;
+        .map_err(|e| ApiError::Internal(format!("Failed to query meta: {:?}", e)))?;
 
     let last_synthesis = meta
         .as_ref()
@@ -691,10 +666,10 @@ pub async fn should_synthesize(
             JsValue::from_str(student_id),
             JsValue::from_str(last_synthesis),
         ])
-        .map_err(|e| format!("Failed to bind count query: {:?}", e))?
+        .map_err(|e| ApiError::Internal(format!("Failed to bind count query: {:?}", e)))?
         .first(None)
         .await
-        .map_err(|e| format!("Failed to count observations: {:?}", e))?;
+        .map_err(|e| ApiError::Internal(format!("Failed to count observations: {:?}", e)))?;
 
     let new_count = count_result
         .as_ref()
@@ -731,11 +706,11 @@ pub struct SynthesisResult {
 pub async fn run_synthesis(
     env: &Env,
     student_id: &str,
-) -> Result<SynthesisResult, String> {
+) -> Result<SynthesisResult> {
     use crate::services::llm;
     use crate::services::prompts;
 
-    let db = env.d1("DB").map_err(|e| format!("D1 binding failed: {:?}", e))?;
+    let db = env.d1("DB").map_err(|e| ApiError::Internal(format!("D1 binding failed: {:?}", e)))?;
 
     // 1. Get current active facts
     let active_facts = query_active_facts(env, student_id).await?;
@@ -744,10 +719,10 @@ pub async fn run_synthesis(
     let meta: Option<serde_json::Value> = db
         .prepare("SELECT last_synthesis_at FROM student_memory_meta WHERE student_id = ?1")
         .bind(&[JsValue::from_str(student_id)])
-        .map_err(|e| format!("Failed to bind meta query: {:?}", e))?
+        .map_err(|e| ApiError::Internal(format!("Failed to bind meta query: {:?}", e)))?
         .first(None)
         .await
-        .map_err(|e| format!("Failed to query meta: {:?}", e))?;
+        .map_err(|e| ApiError::Internal(format!("Failed to query meta: {:?}", e)))?;
 
     let last_synthesis = meta
         .as_ref()
@@ -768,14 +743,14 @@ pub async fn run_synthesis(
             JsValue::from_str(student_id),
             JsValue::from_str(last_synthesis),
         ])
-        .map_err(|e| format!("Failed to bind obs query: {:?}", e))?
+        .map_err(|e| ApiError::Internal(format!("Failed to bind obs query: {:?}", e)))?
         .all()
         .await
-        .map_err(|e| format!("Failed to query new observations: {:?}", e))?;
+        .map_err(|e| ApiError::Internal(format!("Failed to query new observations: {:?}", e)))?;
 
     let new_observations: Vec<serde_json::Value> = obs_results
         .results()
-        .map_err(|e| format!("Failed to get obs results: {:?}", e))?;
+        .map_err(|e| ApiError::Internal(format!("Failed to get obs results: {:?}", e)))?;
 
     if new_observations.is_empty() {
         return Ok(SynthesisResult {
@@ -797,14 +772,14 @@ pub async fn run_synthesis(
             JsValue::from_str(student_id),
             JsValue::from_str(last_synthesis),
         ])
-        .map_err(|e| format!("Failed to bind ta query: {:?}", e))?
+        .map_err(|e| ApiError::Internal(format!("Failed to bind ta query: {:?}", e)))?
         .all()
         .await
-        .map_err(|e| format!("Failed to query teaching approaches: {:?}", e))?;
+        .map_err(|e| ApiError::Internal(format!("Failed to query teaching approaches: {:?}", e)))?;
 
     let teaching_approaches: Vec<serde_json::Value> = ta_results
         .results()
-        .map_err(|e| format!("Failed to get ta results: {:?}", e))?;
+        .map_err(|e| ApiError::Internal(format!("Failed to get ta results: {:?}", e)))?;
 
     // 5. Get student baselines
     let baselines: serde_json::Value = db
@@ -814,10 +789,10 @@ pub async fn run_synthesis(
              FROM students WHERE student_id = ?1",
         )
         .bind(&[JsValue::from_str(student_id)])
-        .map_err(|e| format!("Failed to bind baselines query: {:?}", e))?
+        .map_err(|e| ApiError::Internal(format!("Failed to bind baselines query: {:?}", e)))?
         .first(None)
         .await
-        .map_err(|e| format!("Failed to query baselines: {:?}", e))?
+        .map_err(|e| ApiError::Internal(format!("Failed to query baselines: {:?}", e)))?
         .unwrap_or(serde_json::json!({}));
 
     // 6. Build synthesis prompt and call Groq
@@ -866,7 +841,7 @@ pub async fn run_synthesis(
                         JsValue::from_str(fact_id),
                         JsValue::from_str(student_id),
                     ])
-                    .map_err(|e| format!("Failed to bind invalidation: {:?}", e))?
+                    .map_err(|e| ApiError::Internal(format!("Failed to bind invalidation: {:?}", e)))?
                     .run()
                     .await;
                 invalidated_count += 1;
@@ -922,7 +897,7 @@ pub async fn run_synthesis(
                     JsValue::from_str("synthesized"),
                     JsValue::from_str(&now),
                 ])
-                .map_err(|e| format!("Failed to bind fact insert: {:?}", e))?
+                .map_err(|e| ApiError::Internal(format!("Failed to bind fact insert: {:?}", e)))?
                 .run()
                 .await;
             new_facts_count += 1;
@@ -936,10 +911,10 @@ pub async fn run_synthesis(
              WHERE student_id = ?1 AND invalid_at IS NULL AND expired_at IS NULL",
         )
         .bind(&[JsValue::from_str(student_id)])
-        .map_err(|e| format!("Failed to bind fact count: {:?}", e))?
+        .map_err(|e| ApiError::Internal(format!("Failed to bind fact count: {:?}", e)))?
         .first(None)
         .await
-        .map_err(|e| format!("Failed to count facts: {:?}", e))?;
+        .map_err(|e| ApiError::Internal(format!("Failed to count facts: {:?}", e)))?;
 
     let total_facts = fact_count_result
         .as_ref()
@@ -957,10 +932,10 @@ pub async fn run_synthesis(
         JsValue::from_str(&now),
         JsValue::from_f64(total_facts as f64),
     ])
-    .map_err(|e| format!("Failed to bind meta update: {:?}", e))?
+    .map_err(|e| ApiError::Internal(format!("Failed to bind meta update: {:?}", e)))?
     .run()
     .await
-    .map_err(|e| format!("Failed to update meta: {:?}", e))?;
+    .map_err(|e| ApiError::Internal(format!("Failed to update meta: {:?}", e)))?;
 
     console_log!(
         "Synthesis complete for student {}: {} new, {} invalidated, {} observations",
@@ -975,35 +950,20 @@ pub async fn run_synthesis(
     })
 }
 
+// ===========================================================================
+// HTTP Handlers (Axum)
+// ===========================================================================
+
 /// POST /api/memory/extract-chat -- eval endpoint for chat memory extraction.
 /// Accepts existing facts as input, calls Groq with production prompt, returns extraction JSON.
 /// Does NOT write to D1 -- the caller manages state.
+#[worker::send]
 pub async fn handle_extract_chat(
-    env: &Env,
-    headers: &http::HeaderMap,
-    body: &[u8],
-) -> http::Response<axum::body::Body> {
-    use axum::body::Body;
-    use http::{Response, StatusCode};
-
-    // Auth
-    let _student_id = match crate::auth::verify_auth_header(headers, env) {
-        Ok(id) => id,
-        Err(err_response) => return err_response,
-    };
-
-    // Parse request
-    let request: ExtractChatRequest = match serde_json::from_slice(body) {
-        Ok(r) => r,
-        Err(e) => {
-            console_log!("Failed to parse extract-chat request: {:?}", e);
-            return Response::builder()
-                .status(StatusCode::BAD_REQUEST)
-                .header("Content-Type", "application/json")
-                .body(Body::from(r#"{"error":"Invalid request body"}"#))
-                .unwrap();
-        }
-    };
+    State(state): State<AppState>,
+    _auth: AuthUser,
+    Json(request): Json<ExtractChatRequest>,
+) -> Result<Json<serde_json::Value>> {
+    let env = state.db.env();
 
     // Convert ExistingFactInput items to SynthesizedFact structs
     let synthesized_facts: Vec<SynthesizedFact> = request
@@ -1031,7 +991,7 @@ pub async fn handle_extract_chat(
     );
 
     // Call Workers AI (cheap, background task)
-    let output = match crate::services::llm::call_workers_ai(
+    let output = crate::services::llm::call_workers_ai(
         env,
         crate::services::llm::WORKERS_AI_CHEAP_MODEL,
         crate::services::prompts::CHAT_EXTRACTION_SYSTEM,
@@ -1040,44 +1000,18 @@ pub async fn handle_extract_chat(
         500,
     )
     .await
-    {
-        Ok(output) => output,
-        Err(e) => {
-            console_log!("Workers AI call failed for extract-chat: {}", e);
-            return Response::builder()
-                .status(StatusCode::SERVICE_UNAVAILABLE)
-                .header("Content-Type", "application/json")
-                .body(Body::from(
-                    serde_json::json!({"error": format!("LLM call failed: {}", e)}).to_string(),
-                ))
-                .unwrap();
-        }
-    };
+    .map_err(|e| {
+        console_log!("Workers AI call failed for extract-chat: {}", e);
+        ApiError::ExternalService(format!("LLM call failed: {}", e))
+    })?;
 
     // Parse JSON from LLM output
-    let extraction_json = match extract_synthesis_json(&output) {
-        Ok(json) => json,
-        Err(e) => {
-            console_log!("Failed to parse extraction JSON: {}", e);
-            return Response::builder()
-                .status(StatusCode::UNPROCESSABLE_ENTITY)
-                .header("Content-Type", "application/json")
-                .body(Body::from(
-                    serde_json::json!({"error": format!("Failed to parse LLM output: {}", e)}).to_string(),
-                ))
-                .unwrap();
-        }
-    };
+    let extraction_json = extract_synthesis_json(&output).map_err(|e| {
+        console_log!("Failed to parse extraction JSON: {}", e);
+        e
+    })?;
 
-    // Return parsed JSON
-    let json = serde_json::to_string(&extraction_json)
-        .unwrap_or_else(|_| r#"{"error":"Serialization failed"}"#.to_string());
-
-    Response::builder()
-        .status(StatusCode::OK)
-        .header("Content-Type", "application/json")
-        .body(Body::from(json))
-        .unwrap()
+    Ok(Json(extraction_json))
 }
 
 #[derive(serde::Deserialize)]
@@ -1116,43 +1050,13 @@ pub struct StoredFactInput {
 }
 
 /// POST /api/memory/store-facts -- persist eval/benchmark facts into D1.
+#[worker::send]
 pub async fn handle_store_facts(
-    env: &Env,
-    headers: &http::HeaderMap,
-    body: &[u8],
-) -> http::Response<axum::body::Body> {
-    use axum::body::Body;
-    use http::{Response, StatusCode};
-
-    // Auth
-    let _caller = match crate::auth::verify_auth_header(headers, env) {
-        Ok(id) => id,
-        Err(err_response) => return err_response,
-    };
-
-    let request: StoreFactsRequest = match serde_json::from_slice(body) {
-        Ok(r) => r,
-        Err(e) => {
-            console_log!("Failed to parse store-facts request: {:?}", e);
-            return Response::builder()
-                .status(StatusCode::BAD_REQUEST)
-                .header("Content-Type", "application/json")
-                .body(Body::from(r#"{"error":"Invalid request body"}"#))
-                .unwrap();
-        }
-    };
-
-    let db = match env.d1("DB") {
-        Ok(db) => db,
-        Err(e) => {
-            console_log!("D1 binding failed: {:?}", e);
-            return Response::builder()
-                .status(StatusCode::INTERNAL_SERVER_ERROR)
-                .header("Content-Type", "application/json")
-                .body(Body::from(r#"{"error":"Database unavailable"}"#))
-                .unwrap();
-        }
-    };
+    State(state): State<AppState>,
+    _auth: AuthUser,
+    Json(request): Json<StoreFactsRequest>,
+) -> Result<Json<serde_json::Value>> {
+    let db = state.db.d1()?;
 
     let now = js_sys::Date::new_0()
         .to_iso_string()
@@ -1203,12 +1107,7 @@ pub async fn handle_store_facts(
         }
     }
 
-    let resp = serde_json::json!({ "stored": stored });
-    Response::builder()
-        .status(StatusCode::OK)
-        .header("Content-Type", "application/json")
-        .body(Body::from(resp.to_string()))
-        .unwrap()
+    Ok(Json(serde_json::json!({ "stored": stored })))
 }
 
 // ---------------------------------------------------------------------------
@@ -1310,8 +1209,8 @@ pub async fn search_relevant_facts(
     query: &str,
     max_facts: usize,
     active_only: bool,
-) -> Result<SearchResult, String> {
-    let db = env.d1("DB").map_err(|e| format!("D1 binding failed: {:?}", e))?;
+) -> Result<SearchResult> {
+    let db = env.d1("DB").map_err(|e| ApiError::Internal(format!("D1 binding failed: {:?}", e)))?;
 
     let sql = if active_only {
         "SELECT id, fact_text, fact_type, dimension, valid_at, invalid_at, \
@@ -1330,10 +1229,10 @@ pub async fn search_relevant_facts(
     let all_facts: Vec<serde_json::Value> = db
         .prepare(sql)
         .bind(&[JsValue::from_str(student_id)])
-        .map_err(|e| format!("bind failed: {:?}", e))?
+        .map_err(|e| ApiError::Internal(format!("bind failed: {:?}", e)))?
         .all()
         .await
-        .map_err(|e| format!("query failed: {:?}", e))?
+        .map_err(|e| ApiError::Internal(format!("query failed: {:?}", e)))?
         .results()
         .unwrap_or_default();
 
@@ -1448,46 +1347,18 @@ pub async fn search_relevant_facts(
 }
 
 /// POST /api/memory/search -- hybrid retrieval for memory facts.
+#[worker::send]
 pub async fn handle_search_facts(
-    env: &Env,
-    headers: &http::HeaderMap,
-    body: &[u8],
-) -> http::Response<axum::body::Body> {
-    use axum::body::Body;
-    use http::{Response, StatusCode};
-
-    // Auth
-    let _caller = match crate::auth::verify_auth_header(headers, env) {
-        Ok(id) => id,
-        Err(err_response) => return err_response,
-    };
-
-    let request: SearchFactsRequest = match serde_json::from_slice(body) {
-        Ok(r) => r,
-        Err(e) => {
-            console_log!("Failed to parse search request: {:?}", e);
-            return Response::builder()
-                .status(StatusCode::BAD_REQUEST)
-                .header("Content-Type", "application/json")
-                .body(Body::from(r#"{"error":"Invalid request body"}"#))
-                .unwrap();
-        }
-    };
+    State(state): State<AppState>,
+    _auth: AuthUser,
+    Json(request): Json<SearchFactsRequest>,
+) -> Result<Json<serde_json::Value>> {
+    let env = state.db.env();
 
     // Delegate to reusable search (active_only=false for benchmark compatibility)
-    let search = match search_relevant_facts(
+    let search = search_relevant_facts(
         env, &request.student_id, &request.query, request.max_facts, false,
-    ).await {
-        Ok(s) => s,
-        Err(e) => {
-            console_log!("Search failed: {}", e);
-            return Response::builder()
-                .status(StatusCode::INTERNAL_SERVER_ERROR)
-                .header("Content-Type", "application/json")
-                .body(Body::from(r#"{"error":"Search failed"}"#))
-                .unwrap();
-        }
-    };
+    ).await?;
 
     let max_score = search.facts.first().map(|r| r.score).unwrap_or(0.0);
     let avg_score = if search.facts.is_empty() {
@@ -1496,7 +1367,7 @@ pub async fn handle_search_facts(
         search.facts.iter().map(|r| r.score).sum::<f64>() / search.facts.len() as f64
     };
 
-    let resp = serde_json::json!({
+    Ok(Json(serde_json::json!({
         "facts": search.facts,
         "total_facts": search.total_facts,
         "max_score": max_score,
@@ -1504,13 +1375,7 @@ pub async fn handle_search_facts(
         "query_entities": search.query_entities,
         "is_temporal": search.is_temporal,
         "is_adversarial": search.is_adversarial,
-    });
-
-    Response::builder()
-        .status(StatusCode::OK)
-        .header("Content-Type", "application/json")
-        .body(Body::from(resp.to_string()))
-        .unwrap()
+    })))
 }
 
 /// Extract entities from a query using Workers AI (cheap, background).
@@ -1604,42 +1469,13 @@ pub struct ClearBenchmarkRequest {
 }
 
 /// POST /api/memory/clear-benchmark -- remove all benchmark-sourced facts for a student.
+#[worker::send]
 pub async fn handle_clear_benchmark(
-    env: &Env,
-    headers: &http::HeaderMap,
-    body: &[u8],
-) -> http::Response<axum::body::Body> {
-    use axum::body::Body;
-    use http::{Response, StatusCode};
-
-    let _caller = match crate::auth::verify_auth_header(headers, env) {
-        Ok(id) => id,
-        Err(err_response) => return err_response,
-    };
-
-    let request: ClearBenchmarkRequest = match serde_json::from_slice(body) {
-        Ok(r) => r,
-        Err(e) => {
-            console_log!("Failed to parse clear-benchmark request: {:?}", e);
-            return Response::builder()
-                .status(StatusCode::BAD_REQUEST)
-                .header("Content-Type", "application/json")
-                .body(Body::from(r#"{"error":"Invalid request body"}"#))
-                .unwrap();
-        }
-    };
-
-    let db = match env.d1("DB") {
-        Ok(db) => db,
-        Err(e) => {
-            console_log!("D1 binding failed: {:?}", e);
-            return Response::builder()
-                .status(StatusCode::INTERNAL_SERVER_ERROR)
-                .header("Content-Type", "application/json")
-                .body(Body::from(r#"{"error":"Database unavailable"}"#))
-                .unwrap();
-        }
-    };
+    State(state): State<AppState>,
+    _auth: AuthUser,
+    Json(request): Json<ClearBenchmarkRequest>,
+) -> Result<Json<serde_json::Value>> {
+    let db = state.db.d1()?;
 
     let result = db
         .prepare("DELETE FROM synthesized_facts WHERE student_id = ?1 AND source_type = 'benchmark'")
@@ -1656,11 +1492,7 @@ pub async fn handle_clear_benchmark(
         }
     }
 
-    Response::builder()
-        .status(StatusCode::OK)
-        .header("Content-Type", "application/json")
-        .body(Body::from(r#"{"ok":true}"#))
-        .unwrap()
+    Ok(Json(serde_json::json!({"ok": true})))
 }
 
 // ---------------------------------------------------------------------------
@@ -1673,83 +1505,30 @@ pub struct SynthesizeRequest {
 }
 
 /// POST /api/memory/synthesize -- manually trigger synthesis.
+#[worker::send]
 pub async fn handle_synthesize(
-    env: &Env,
-    headers: &http::HeaderMap,
-    body: &[u8],
-) -> http::Response<axum::body::Body> {
-    use axum::body::Body;
-    use http::{Response, StatusCode};
-
-    // Auth
-    let _caller = match crate::auth::verify_auth_header(headers, env) {
-        Ok(id) => id,
-        Err(err_response) => return err_response,
-    };
-
-    // Parse request
-    let request: SynthesizeRequest = match serde_json::from_slice(body) {
-        Ok(r) => r,
-        Err(e) => {
-            console_log!("Failed to parse synthesize request: {:?}", e);
-            return Response::builder()
-                .status(StatusCode::BAD_REQUEST)
-                .header("Content-Type", "application/json")
-                .body(Body::from(r#"{"error":"Invalid request body"}"#))
-                .unwrap();
-        }
-    };
+    State(state): State<AppState>,
+    _auth: AuthUser,
+    Json(request): Json<SynthesizeRequest>,
+) -> Result<Json<serde_json::Value>> {
+    let env = state.db.env();
 
     // Check if synthesis is needed
-    let should = match should_synthesize(env, &request.student_id).await {
-        Ok(s) => s,
-        Err(e) => {
-            console_log!("Synthesis check failed: {}", e);
-            return Response::builder()
-                .status(StatusCode::INTERNAL_SERVER_ERROR)
-                .header("Content-Type", "application/json")
-                .body(Body::from(
-                    serde_json::json!({"error": format!("Synthesis check failed: {}", e)}).to_string(),
-                ))
-                .unwrap();
-        }
-    };
+    let should = should_synthesize(env, &request.student_id).await?;
 
     if !should {
-        let resp = serde_json::json!({"skipped": true, "reason": "Not enough new observations"});
-        return Response::builder()
-            .status(StatusCode::OK)
-            .header("Content-Type", "application/json")
-            .body(Body::from(resp.to_string()))
-            .unwrap();
+        return Ok(Json(serde_json::json!({"skipped": true, "reason": "Not enough new observations"})));
     }
 
     // Run synthesis
-    match run_synthesis(env, &request.student_id).await {
-        Ok(result) => {
-            let resp = serde_json::json!({
-                "new_facts": result.new_facts,
-                "invalidated": result.invalidated,
-                "unchanged": result.unchanged,
-                "observations_processed": result.observations_processed,
-            });
-            Response::builder()
-                .status(StatusCode::OK)
-                .header("Content-Type", "application/json")
-                .body(Body::from(resp.to_string()))
-                .unwrap()
-        }
-        Err(e) => {
-            console_log!("Synthesis failed: {}", e);
-            Response::builder()
-                .status(StatusCode::INTERNAL_SERVER_ERROR)
-                .header("Content-Type", "application/json")
-                .body(Body::from(
-                    serde_json::json!({"error": format!("Synthesis failed: {}", e)}).to_string(),
-                ))
-                .unwrap()
-        }
-    }
+    let result = run_synthesis(env, &request.student_id).await?;
+
+    Ok(Json(serde_json::json!({
+        "new_facts": result.new_facts,
+        "invalidated": result.invalidated,
+        "unchanged": result.unchanged,
+        "observations_processed": result.observations_processed,
+    })))
 }
 
 // ---------------------------------------------------------------------------
@@ -1775,13 +1554,13 @@ pub struct SeedObservation {
 
 /// POST /api/memory/seed-observations -- insert test observations directly into D1.
 /// Dev-only: returns 404 in production.
+#[worker::send]
 pub async fn handle_seed_observations(
-    env: &Env,
-    headers: &http::HeaderMap,
-    body: &[u8],
-) -> http::Response<axum::body::Body> {
-    use axum::body::Body;
-    use http::{Response, StatusCode};
+    State(state): State<AppState>,
+    _auth: AuthUser,
+    Json(request): Json<SeedObservationsRequest>,
+) -> Result<Json<serde_json::Value>> {
+    let env = state.db.env();
 
     // Block in production
     let environment = env
@@ -1789,43 +1568,10 @@ pub async fn handle_seed_observations(
         .map(|v| v.to_string())
         .unwrap_or_default();
     if environment == "production" {
-        return Response::builder()
-            .status(StatusCode::NOT_FOUND)
-            .header("Content-Type", "application/json")
-            .body(Body::from(r#"{"error":"Not found"}"#))
-            .unwrap();
+        return Err(ApiError::NotFound("Not found".into()));
     }
 
-    // Auth
-    let _caller = match crate::auth::verify_auth_header(headers, env) {
-        Ok(id) => id,
-        Err(err_response) => return err_response,
-    };
-
-    // Parse request
-    let request: SeedObservationsRequest = match serde_json::from_slice(body) {
-        Ok(r) => r,
-        Err(e) => {
-            console_log!("Failed to parse seed-observations request: {:?}", e);
-            return Response::builder()
-                .status(StatusCode::BAD_REQUEST)
-                .header("Content-Type", "application/json")
-                .body(Body::from(r#"{"error":"Invalid request body"}"#))
-                .unwrap();
-        }
-    };
-
-    let db = match env.d1("DB") {
-        Ok(db) => db,
-        Err(e) => {
-            console_log!("D1 binding failed: {:?}", e);
-            return Response::builder()
-                .status(StatusCode::INTERNAL_SERVER_ERROR)
-                .header("Content-Type", "application/json")
-                .body(Body::from(r#"{"error":"Database unavailable"}"#))
-                .unwrap();
-        }
-    };
+    let db = state.db.d1()?;
 
     let now = js_sys::Date::new_0()
         .to_iso_string()
@@ -1885,16 +1631,30 @@ pub async fn handle_seed_observations(
         }
     }
 
-    let resp = serde_json::json!({"seeded": seeded});
-    Response::builder()
-        .status(StatusCode::OK)
-        .header("Content-Type", "application/json")
-        .body(Body::from(resp.to_string()))
-        .unwrap()
+    Ok(Json(serde_json::json!({"seeded": seeded})))
+}
+
+// ===========================================================================
+// Internal helpers
+// ===========================================================================
+
+/// Parse a SynthesizedFact from a D1 row.
+fn parse_synthesized_fact(row: &serde_json::Value) -> SynthesizedFact {
+    SynthesizedFact {
+        id: row.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+        fact_text: row.get("fact_text").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+        fact_type: row.get("fact_type").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+        dimension: row.get("dimension").and_then(|v| v.as_str()).map(|s| s.to_string()),
+        piece_context: row.get("piece_context").and_then(|v| v.as_str()).map(|s| s.to_string()),
+        valid_at: row.get("valid_at").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+        trend: row.get("trend").and_then(|v| v.as_str()).map(|s| s.to_string()),
+        confidence: row.get("confidence").and_then(|v| v.as_str()).unwrap_or("medium").to_string(),
+        source_type: row.get("source_type").and_then(|v| v.as_str()).unwrap_or("synthesized").to_string(),
+    }
 }
 
 /// Extract JSON from synthesis LLM output (may be wrapped in code fences).
-fn extract_synthesis_json(output: &str) -> Result<serde_json::Value, String> {
+fn extract_synthesis_json(output: &str) -> Result<serde_json::Value> {
     // Try to find JSON within ```json ... ``` fences
     let json_str = if let Some(start) = output.find("```json") {
         let json_start = start + 7;
@@ -1926,7 +1686,10 @@ fn extract_synthesis_json(output: &str) -> Result<serde_json::Value, String> {
     };
 
     serde_json::from_str(json_str)
-        .map_err(|e| format!("Failed to parse synthesis JSON: {:?} - raw: {}", e, &json_str[..200.min(json_str.len())]))
+        .map_err(|e| ApiError::Internal(format!(
+            "Failed to parse synthesis JSON: {:?} - raw: {}",
+            e, &json_str[..200.min(json_str.len())]
+        )))
 }
 
 /// Public wrapper for UUID generation (used by goals.rs).

@@ -1,7 +1,12 @@
 //! Handlers for conversation CRUD and streaming chat.
 
+use axum::extract::{Json, Path, State};
 use wasm_bindgen::JsValue;
 use worker::{console_log, Env};
+
+use crate::auth::AuthUser;
+use crate::error::{ApiError, Result};
+use crate::state::AppState;
 
 // --- Request / Response types ---
 
@@ -54,59 +59,24 @@ pub struct ConversationList {
     pub conversations: Vec<ConversationSummary>,
 }
 
-// --- Handlers ---
+// --- Axum Handlers ---
 
 /// GET /api/conversations -- list conversations for sidebar
+#[worker::send]
 pub async fn handle_list_conversations(
-    env: &Env,
-    headers: &http::HeaderMap,
-) -> http::Response<axum::body::Body> {
-    use axum::body::Body;
-    use http::{Response, StatusCode};
+    State(state): State<AppState>,
+    auth: AuthUser,
+) -> Result<Json<ConversationList>> {
+    let student_id = auth.student_id.as_str();
+    let db = state.db.d1()?;
 
-    let student_id = match crate::auth::verify_auth_header(headers, env) {
-        Ok(id) => id,
-        Err(err_response) => return err_response,
-    };
-
-    let db = match env.d1("DB") {
-        Ok(db) => db,
-        Err(e) => {
-            console_log!("D1 binding failed: {:?}", e);
-            return Response::builder()
-                .status(StatusCode::INTERNAL_SERVER_ERROR)
-                .header("Content-Type", "application/json")
-                .body(Body::from(r#"{"error":"Database connection failed"}"#))
-                .unwrap();
-        }
-    };
-
-    let stmt = match db
+    let results = db
         .prepare("SELECT id, title, updated_at FROM conversations WHERE student_id = ?1 ORDER BY updated_at DESC")
-        .bind(&[JsValue::from_str(&student_id)])
-    {
-        Ok(s) => s,
-        Err(e) => {
-            console_log!("Failed to bind list query: {:?}", e);
-            return Response::builder()
-                .status(StatusCode::INTERNAL_SERVER_ERROR)
-                .header("Content-Type", "application/json")
-                .body(Body::from(r#"{"error":"Query preparation failed"}"#))
-                .unwrap();
-        }
-    };
-
-    let results = match stmt.all().await {
-        Ok(r) => r,
-        Err(e) => {
-            console_log!("Failed to query conversations: {:?}", e);
-            return Response::builder()
-                .status(StatusCode::INTERNAL_SERVER_ERROR)
-                .header("Content-Type", "application/json")
-                .body(Body::from(r#"{"error":"Query failed"}"#))
-                .unwrap();
-        }
-    };
+        .bind(&[JsValue::from_str(student_id)])
+        .map_err(|e| ApiError::Internal(format!("Failed to bind list query: {:?}", e)))?
+        .all()
+        .await
+        .map_err(|e| ApiError::Internal(format!("Failed to query conversations: {:?}", e)))?;
 
     let rows: Vec<serde_json::Value> = results.results().unwrap_or_default();
     let conversations: Vec<ConversationSummary> = rows
@@ -120,79 +90,29 @@ pub async fn handle_list_conversations(
         })
         .collect();
 
-    let response = ConversationList { conversations };
-    let json = serde_json::to_string(&response)
-        .unwrap_or_else(|_| r#"{"conversations":[]}"#.to_string());
-
-    Response::builder()
-        .status(StatusCode::OK)
-        .header("Content-Type", "application/json")
-        .body(Body::from(json))
-        .unwrap()
+    Ok(Json(ConversationList { conversations }))
 }
 
 /// GET /api/conversations/:id -- load conversation with messages
+#[worker::send]
 pub async fn handle_get_conversation(
-    env: &Env,
-    headers: &http::HeaderMap,
-    conversation_id: &str,
-) -> http::Response<axum::body::Body> {
-    use axum::body::Body;
-    use http::{Response, StatusCode};
-
-    let student_id = match crate::auth::verify_auth_header(headers, env) {
-        Ok(id) => id,
-        Err(err_response) => return err_response,
-    };
-
-    let db = match env.d1("DB") {
-        Ok(db) => db,
-        Err(e) => {
-            console_log!("D1 binding failed: {:?}", e);
-            return Response::builder()
-                .status(StatusCode::INTERNAL_SERVER_ERROR)
-                .header("Content-Type", "application/json")
-                .body(Body::from(r#"{"error":"Database connection failed"}"#))
-                .unwrap();
-        }
-    };
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(conversation_id): Path<String>,
+) -> Result<Json<ConversationWithMessages>> {
+    let student_id = auth.student_id.as_str();
+    let db = state.db.d1()?;
 
     // Fetch conversation (verify ownership)
-    let conv_row: Option<serde_json::Value> = match db
+    let conv_row: Option<serde_json::Value> = db
         .prepare("SELECT id, title, created_at FROM conversations WHERE id = ?1 AND student_id = ?2")
-        .bind(&[JsValue::from_str(conversation_id), JsValue::from_str(&student_id)])
-    {
-        Ok(s) => match s.first(None).await {
-            Ok(r) => r,
-            Err(e) => {
-                console_log!("Failed to query conversation: {:?}", e);
-                return Response::builder()
-                    .status(StatusCode::INTERNAL_SERVER_ERROR)
-                    .header("Content-Type", "application/json")
-                    .body(Body::from(r#"{"error":"Query failed"}"#))
-                    .unwrap();
-            }
-        },
-        Err(e) => {
-            console_log!("Failed to bind conversation query: {:?}", e);
-            return Response::builder()
-                .status(StatusCode::INTERNAL_SERVER_ERROR)
-                .header("Content-Type", "application/json")
-                .body(Body::from(r#"{"error":"Query preparation failed"}"#))
-                .unwrap();
-        }
-    };
+        .bind(&[JsValue::from_str(&conversation_id), JsValue::from_str(student_id)])
+        .map_err(|e| ApiError::Internal(format!("Failed to bind conversation query: {:?}", e)))?
+        .first(None)
+        .await
+        .map_err(|e| ApiError::Internal(format!("Failed to query conversation: {:?}", e)))?;
 
-    let conv_row = match conv_row {
-        Some(r) => r,
-        None => {
-            return Response::builder()
-                .status(StatusCode::NOT_FOUND)
-                .header("Content-Type", "application/json")
-                .body(Body::from(r#"{"error":"Conversation not found"}"#))
-                .unwrap();
-        }
-    };
+    let conv_row = conv_row.ok_or_else(|| ApiError::NotFound("Conversation not found".into()))?;
 
     let conversation = ConversationDetail {
         id: conv_row.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string(),
@@ -201,32 +121,13 @@ pub async fn handle_get_conversation(
     };
 
     // Fetch messages
-    let msg_stmt = match db
+    let msg_results = db
         .prepare("SELECT id, role, content, created_at, message_type, dimension, framing, components_json, session_id FROM messages WHERE conversation_id = ?1 ORDER BY created_at ASC")
-        .bind(&[JsValue::from_str(conversation_id)])
-    {
-        Ok(s) => s,
-        Err(e) => {
-            console_log!("Failed to bind messages query: {:?}", e);
-            return Response::builder()
-                .status(StatusCode::INTERNAL_SERVER_ERROR)
-                .header("Content-Type", "application/json")
-                .body(Body::from(r#"{"error":"Query preparation failed"}"#))
-                .unwrap();
-        }
-    };
-
-    let msg_results = match msg_stmt.all().await {
-        Ok(r) => r,
-        Err(e) => {
-            console_log!("Failed to query messages: {:?}", e);
-            return Response::builder()
-                .status(StatusCode::INTERNAL_SERVER_ERROR)
-                .header("Content-Type", "application/json")
-                .body(Body::from(r#"{"error":"Query failed"}"#))
-                .unwrap();
-        }
-    };
+        .bind(&[JsValue::from_str(&conversation_id)])
+        .map_err(|e| ApiError::Internal(format!("Failed to bind messages query: {:?}", e)))?
+        .all()
+        .await
+        .map_err(|e| ApiError::Internal(format!("Failed to query messages: {:?}", e)))?;
 
     let msg_rows: Vec<serde_json::Value> = msg_results.results().unwrap_or_default();
     let messages: Vec<MessageRow> = msg_rows
@@ -246,65 +147,38 @@ pub async fn handle_get_conversation(
         })
         .collect();
 
-    let response = ConversationWithMessages { conversation, messages };
-    let json = serde_json::to_string(&response)
-        .unwrap_or_else(|_| r#"{"error":"Serialization failed"}"#.to_string());
-
-    Response::builder()
-        .status(StatusCode::OK)
-        .header("Content-Type", "application/json")
-        .body(Body::from(json))
-        .unwrap()
+    Ok(Json(ConversationWithMessages { conversation, messages }))
 }
 
 /// DELETE /api/conversations/:id -- delete conversation and its messages
+#[worker::send]
 pub async fn handle_delete_conversation(
-    env: &Env,
-    headers: &http::HeaderMap,
-    conversation_id: &str,
-) -> http::Response<axum::body::Body> {
-    use axum::body::Body;
-    use http::{Response, StatusCode};
-
-    let student_id = match crate::auth::verify_auth_header(headers, env) {
-        Ok(id) => id,
-        Err(err_response) => return err_response,
-    };
-
-    let db = match env.d1("DB") {
-        Ok(db) => db,
-        Err(e) => {
-            console_log!("D1 binding failed: {:?}", e);
-            return Response::builder()
-                .status(StatusCode::INTERNAL_SERVER_ERROR)
-                .header("Content-Type", "application/json")
-                .body(Body::from(r#"{"error":"Database connection failed"}"#))
-                .unwrap();
-        }
-    };
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(conversation_id): Path<String>,
+) -> Result<http::StatusCode> {
+    let student_id = auth.student_id.as_str();
+    let db = state.db.d1()?;
 
     // Delete messages first (FK), then conversation (verify ownership)
     if let Ok(stmt) = db
         .prepare("DELETE FROM messages WHERE conversation_id = ?1")
-        .bind(&[JsValue::from_str(conversation_id)])
+        .bind(&[JsValue::from_str(&conversation_id)])
     {
         let _ = stmt.run().await;
     }
 
     if let Ok(stmt) = db
         .prepare("DELETE FROM conversations WHERE id = ?1 AND student_id = ?2")
-        .bind(&[JsValue::from_str(conversation_id), JsValue::from_str(&student_id)])
+        .bind(&[JsValue::from_str(&conversation_id), JsValue::from_str(student_id)])
     {
         let _ = stmt.run().await;
     }
 
-    Response::builder()
-        .status(StatusCode::NO_CONTENT)
-        .body(Body::empty())
-        .unwrap()
+    Ok(http::StatusCode::NO_CONTENT)
 }
 
-// --- Streaming chat handler ---
+// --- Streaming chat handler (carve-out, NOT migrated to Axum) ---
 
 use crate::services::llm;
 use crate::services::prompts;
@@ -471,7 +345,7 @@ pub async fn handle_chat_stream(
     };
 
     // Set up a channel to feed our SSE events to the response stream
-    let (tx, rx) = futures_channel::mpsc::unbounded::<Result<Vec<u8>, worker::Error>>();
+    let (tx, rx) = futures_channel::mpsc::unbounded::<std::result::Result<Vec<u8>, worker::Error>>();
 
     let assistant_msg_id = crate::services::ask::generate_uuid();
     let is_first_exchange = history.len() <= 1;
@@ -596,7 +470,7 @@ async fn create_conversation(
     id: &str,
     student_id: &str,
     now: &str,
-) -> Result<(), String> {
+) -> std::result::Result<(), String> {
     db.prepare("INSERT INTO conversations (id, student_id, created_at, updated_at) VALUES (?1, ?2, ?3, ?4)")
         .bind(&[
             JsValue::from_str(id),
@@ -618,7 +492,7 @@ async fn store_message(
     role: &str,
     content: &str,
     now: &str,
-) -> Result<(), String> {
+) -> std::result::Result<(), String> {
     db.prepare("INSERT INTO messages (id, conversation_id, role, content, created_at) VALUES (?1, ?2, ?3, ?4, ?5)")
         .bind(&[
             JsValue::from_str(id),
@@ -634,7 +508,7 @@ async fn store_message(
     Ok(())
 }
 
-async fn fetch_messages(db: &worker::D1Database, conversation_id: &str) -> Result<Vec<MessageRow>, String> {
+async fn fetch_messages(db: &worker::D1Database, conversation_id: &str) -> std::result::Result<Vec<MessageRow>, String> {
     let stmt = db
         .prepare("SELECT id, role, content, created_at, message_type, dimension, framing, components_json, session_id FROM messages WHERE conversation_id = ?1 ORDER BY created_at ASC")
         .bind(&[JsValue::from_str(conversation_id)])

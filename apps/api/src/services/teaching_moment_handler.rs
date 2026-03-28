@@ -4,7 +4,11 @@
 //! and teaching moment selection, returns the top-1 moment (or positive
 //! fallback when no issues are detected).
 
-use worker::{console_error, Env};
+use axum::extract::{Json, State};
+
+use crate::auth::AuthUser;
+use crate::error::Result;
+use crate::state::AppState;
 
 use crate::services::teaching_moments::{
     RecentObservation, ScoredChunk, StudentBaselines, TeachingMoment,
@@ -61,33 +65,12 @@ pub struct TeachingMomentResponse {
 }
 
 /// Handle POST /api/practice/teaching-moment
+#[worker::send]
 pub async fn handle_teaching_moment(
-    env: &Env,
-    headers: &http::HeaderMap,
-    body: &[u8],
-) -> http::Response<axum::body::Body> {
-    use axum::body::Body;
-    use http::{Response, StatusCode};
-
-    // Auth
-    let _student_id = match crate::auth::verify_auth_header(headers, env) {
-        Ok(id) => id,
-        Err(err_response) => return err_response,
-    };
-
-    // Parse request
-    let request: TeachingMomentRequest = match serde_json::from_slice(body) {
-        Ok(r) => r,
-        Err(e) => {
-            console_error!("Failed to parse teaching-moment request: {:?}", e);
-            return Response::builder()
-                .status(StatusCode::BAD_REQUEST)
-                .header("Content-Type", "application/json")
-                .body(Body::from(r#"{"error":"Invalid request body"}"#))
-                .unwrap();
-        }
-    };
-
+    State(_state): State<AppState>,
+    _auth: AuthUser,
+    Json(request): Json<TeachingMomentRequest>,
+) -> Result<Json<TeachingMomentResponse>> {
     // Convert input types to domain types
     let chunks: Vec<ScoredChunk> = request
         .chunks
@@ -147,12 +130,5 @@ pub async fn handle_teaching_moment(
         },
     };
 
-    let json = serde_json::to_string(&response)
-        .unwrap_or_else(|_| r#"{"error":"Serialization failed"}"#.to_string());
-
-    Response::builder()
-        .status(StatusCode::OK)
-        .header("Content-Type", "application/json")
-        .body(Body::from(json))
-        .unwrap()
+    Ok(Json(response))
 }

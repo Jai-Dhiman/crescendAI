@@ -1,16 +1,16 @@
 //! Axum Router definition.
 //!
-//! Auth and service routes use native Axum-style handlers (Tasks 4, 7).
-//! Chat, memory, and practice routes still use thin wrappers -- Tasks 8-9 will migrate.
+//! Auth and service routes use native Axum-style handlers (Tasks 4, 7, 8).
+//! Practice routes still use thin wrappers -- Task 9 will migrate.
 
-use axum::extract::{Path, Query, State};
+use axum::extract::{Query, State};
 use axum::response::IntoResponse;
 use axum::routing::{get, post};
 use axum::Router;
 
 use crate::state::AppState;
 
-use crate::services::{exercises, goals, scores, sync, waitlist};
+use crate::services::{ask, chat, exercises, goals, memory, scores, sync, teaching_moment_handler, waitlist};
 
 // ---------------------------------------------------------------------------
 // Router
@@ -54,23 +54,31 @@ pub fn router(state: AppState) -> Router {
             "/api/exercises/complete",
             post(exercises::handle_complete_exercise),
         )
-        // Services -- temporary wrappers (Tasks 8-9 will replace)
-        .route("/api/conversations", get(wrap_list_conversations))
+        // Ask / Elaborate (Task 8)
+        .route("/api/ask", post(ask::handle_ask))
+        .route("/api/ask/elaborate", post(ask::handle_elaborate))
+        // Teaching moment (Task 8)
+        .route(
+            "/api/practice/teaching-moment",
+            post(teaching_moment_handler::handle_teaching_moment),
+        )
+        // Conversations (Task 8)
+        .route("/api/conversations", get(chat::handle_list_conversations))
         .route(
             "/api/conversations/{id}",
-            get(wrap_get_conversation).delete(wrap_delete_conversation),
+            get(chat::handle_get_conversation).delete(chat::handle_delete_conversation),
         )
-        // Memory
-        .route("/api/memory/extract-chat", post(wrap_extract_chat))
-        .route("/api/memory/store-facts", post(wrap_store_facts))
-        .route("/api/memory/search", post(wrap_search_facts))
-        .route("/api/memory/clear-benchmark", post(wrap_clear_benchmark))
-        .route("/api/memory/synthesize", post(wrap_memory_synthesize))
+        // Memory (Task 8)
+        .route("/api/memory/extract-chat", post(memory::handle_extract_chat))
+        .route("/api/memory/store-facts", post(memory::handle_store_facts))
+        .route("/api/memory/search", post(memory::handle_search_facts))
+        .route("/api/memory/clear-benchmark", post(memory::handle_clear_benchmark))
+        .route("/api/memory/synthesize", post(memory::handle_synthesize))
         .route(
             "/api/memory/seed-observations",
-            post(wrap_seed_observations),
+            post(memory::handle_seed_observations),
         )
-        // Practice
+        // Practice -- temporary wrappers (Task 9 will replace)
         .route("/api/practice/start", post(wrap_practice_start))
         .route("/api/practice/chunk", post(wrap_upload_chunk))
         .route(
@@ -94,104 +102,7 @@ async fn health() -> impl IntoResponse {
 }
 
 // ---------------------------------------------------------------------------
-// Wrapper helpers: remaining old-style handlers (Tasks 8-9 will remove)
-// ---------------------------------------------------------------------------
-
-/// Temporary wrapper -- will be removed when services/chat.rs is migrated (Task 8).
-#[worker::send]
-async fn wrap_list_conversations(
-    State(state): State<AppState>,
-    headers: http::HeaderMap,
-) -> http::Response<axum::body::Body> {
-    crate::services::chat::handle_list_conversations(state.db.env(), &headers).await
-}
-
-/// Temporary wrapper -- will be removed when services/chat.rs is migrated (Task 8).
-#[worker::send]
-async fn wrap_get_conversation(
-    State(state): State<AppState>,
-    Path(id): Path<String>,
-    headers: http::HeaderMap,
-) -> http::Response<axum::body::Body> {
-    crate::services::chat::handle_get_conversation(state.db.env(), &headers, &id).await
-}
-
-/// Temporary wrapper -- will be removed when services/chat.rs is migrated (Task 8).
-#[worker::send]
-async fn wrap_delete_conversation(
-    State(state): State<AppState>,
-    Path(id): Path<String>,
-    headers: http::HeaderMap,
-) -> http::Response<axum::body::Body> {
-    crate::services::chat::handle_delete_conversation(state.db.env(), &headers, &id).await
-}
-
-// ---------------------------------------------------------------------------
-// Memory wrappers (all env, headers, body)
-// ---------------------------------------------------------------------------
-
-/// Temporary wrapper -- will be removed when services/memory.rs is migrated (Task 8).
-#[worker::send]
-async fn wrap_extract_chat(
-    State(state): State<AppState>,
-    headers: http::HeaderMap,
-    body: axum::body::Bytes,
-) -> http::Response<axum::body::Body> {
-    crate::services::memory::handle_extract_chat(state.db.env(), &headers, &body).await
-}
-
-/// Temporary wrapper -- will be removed when services/memory.rs is migrated (Task 8).
-#[worker::send]
-async fn wrap_store_facts(
-    State(state): State<AppState>,
-    headers: http::HeaderMap,
-    body: axum::body::Bytes,
-) -> http::Response<axum::body::Body> {
-    crate::services::memory::handle_store_facts(state.db.env(), &headers, &body).await
-}
-
-/// Temporary wrapper -- will be removed when services/memory.rs is migrated (Task 8).
-#[worker::send]
-async fn wrap_search_facts(
-    State(state): State<AppState>,
-    headers: http::HeaderMap,
-    body: axum::body::Bytes,
-) -> http::Response<axum::body::Body> {
-    crate::services::memory::handle_search_facts(state.db.env(), &headers, &body).await
-}
-
-/// Temporary wrapper -- will be removed when services/memory.rs is migrated (Task 8).
-#[worker::send]
-async fn wrap_clear_benchmark(
-    State(state): State<AppState>,
-    headers: http::HeaderMap,
-    body: axum::body::Bytes,
-) -> http::Response<axum::body::Body> {
-    crate::services::memory::handle_clear_benchmark(state.db.env(), &headers, &body).await
-}
-
-/// Temporary wrapper -- will be removed when services/memory.rs is migrated (Task 8).
-#[worker::send]
-async fn wrap_memory_synthesize(
-    State(state): State<AppState>,
-    headers: http::HeaderMap,
-    body: axum::body::Bytes,
-) -> http::Response<axum::body::Body> {
-    crate::services::memory::handle_synthesize(state.db.env(), &headers, &body).await
-}
-
-/// Temporary wrapper -- will be removed when services/memory.rs is migrated (Task 8).
-#[worker::send]
-async fn wrap_seed_observations(
-    State(state): State<AppState>,
-    headers: http::HeaderMap,
-    body: axum::body::Bytes,
-) -> http::Response<axum::body::Body> {
-    crate::services::memory::handle_seed_observations(state.db.env(), &headers, &body).await
-}
-
-// ---------------------------------------------------------------------------
-// Practice wrappers
+// Practice wrappers (Task 9 will remove)
 // ---------------------------------------------------------------------------
 
 /// Temporary wrapper -- will be removed when practice handlers are migrated (Task 9).

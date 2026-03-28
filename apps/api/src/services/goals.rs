@@ -149,7 +149,8 @@ If a field has no matches, use an empty array. Always include raw_text."#,
         0.1,
         500,
     )
-    .await?;
+    .await
+    .map_err(|e| e.to_string())?;
 
     // Parse the LLM's JSON response
     let extracted: ExtractedGoals = serde_json::from_str(&response).map_err(|e| {

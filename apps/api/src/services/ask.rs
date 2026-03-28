@@ -3,10 +3,14 @@
 //! Stage 1: Groq (Llama 70B) subagent analyzes the teaching moment.
 //! Stage 2: Anthropic (Sonnet 4.6) teacher generates the observation.
 
+use axum::extract::{Json, State};
 use wasm_bindgen::JsValue;
 use worker::{console_error, Env};
 
+use crate::auth::AuthUser;
+use crate::error::{ApiError, Result};
 use crate::services::{llm, prompts};
+use crate::state::AppState;
 
 #[derive(serde::Deserialize)]
 pub struct AskRequest {
@@ -236,32 +240,14 @@ pub async fn handle_ask_inner(
 }
 
 /// Handle POST /api/ask
+#[worker::send]
 pub async fn handle_ask(
-    env: &Env,
-    headers: &http::HeaderMap,
-    body: &[u8],
-) -> http::Response<axum::body::Body> {
-    use axum::body::Body;
-    use http::{Response, StatusCode};
-
-    // Auth
-    let student_id = match crate::auth::verify_auth_header(headers, env) {
-        Ok(id) => id,
-        Err(err_response) => return err_response,
-    };
-
-    // Parse request
-    let request: AskRequest = match serde_json::from_slice(body) {
-        Ok(r) => r,
-        Err(e) => {
-            console_error!("Failed to parse ask request: {:?}", e);
-            return Response::builder()
-                .status(StatusCode::BAD_REQUEST)
-                .header("Content-Type", "application/json")
-                .body(Body::from(r#"{"error":"Invalid request body"}"#))
-                .unwrap();
-        }
-    };
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Json(request): Json<AskRequest>,
+) -> Result<Json<AskResponse>> {
+    let student_id = auth.student_id.as_str().to_string();
+    let env = state.db.env();
 
     let dimension_score = request
         .teaching_moment
@@ -364,64 +350,29 @@ pub async fn handle_ask(
         console_error!("Failed to increment observation count: {}", e);
     }
 
-    let response = AskResponse {
+    Ok(Json(AskResponse {
         observation: observation_text,
         observation_id,
         dimension,
         framing,
         is_fallback,
-    };
-
-    let json = serde_json::to_string(&response).unwrap_or_else(|_| r#"{"error":"Serialization failed"}"#.to_string());
-
-    Response::builder()
-        .status(StatusCode::OK)
-        .header("Content-Type", "application/json")
-        .body(Body::from(json))
-        .unwrap()
+    }))
 }
 
 /// Handle POST /api/ask/elaborate
+#[worker::send]
 pub async fn handle_elaborate(
-    env: &Env,
-    headers: &http::HeaderMap,
-    body: &[u8],
-) -> http::Response<axum::body::Body> {
-    use axum::body::Body;
-    use http::{Response, StatusCode};
-
-    // Auth
-    let student_id = match crate::auth::verify_auth_header(headers, env) {
-        Ok(id) => id,
-        Err(err_response) => return err_response,
-    };
-
-    // Parse request
-    let request: ElaborateRequest = match serde_json::from_slice(body) {
-        Ok(r) => r,
-        Err(e) => {
-            console_error!("Failed to parse elaborate request: {:?}", e);
-            return Response::builder()
-                .status(StatusCode::BAD_REQUEST)
-                .header("Content-Type", "application/json")
-                .body(Body::from(r#"{"error":"Invalid request body"}"#))
-                .unwrap();
-        }
-    };
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Json(request): Json<ElaborateRequest>,
+) -> Result<Json<ElaborateResponse>> {
+    let student_id = auth.student_id.as_str().to_string();
+    let env = state.db.env();
 
     // Fetch observation from D1
     let (observation_text, reasoning_trace) =
-        match fetch_observation(env, &request.observation_id).await {
-            Ok(obs) => obs,
-            Err(e) => {
-                console_error!("Failed to fetch observation: {}", e);
-                return Response::builder()
-                    .status(StatusCode::NOT_FOUND)
-                    .header("Content-Type", "application/json")
-                    .body(Body::from(r#"{"error":"Observation not found"}"#))
-                    .unwrap();
-            }
-        };
+        fetch_observation(env, &request.observation_id).await
+            .map_err(|e| ApiError::NotFound(format!("Observation not found: {}", e)))?;
 
     // Fetch memory context for richer elaboration
     let elab_now = js_sys::Date::new_0().to_iso_string().as_string().unwrap_or_default();
@@ -433,24 +384,18 @@ pub async fn handle_elaborate(
     let elaboration_prompt =
         prompts::build_elaboration_prompt(&observation_text, &reasoning_trace, &memory_text);
 
-    let elaboration = match llm::call_anthropic(
+    let elaboration = llm::call_anthropic(
         env,
         prompts::TEACHER_SYSTEM,
         &elaboration_prompt,
         500,
     )
     .await
-    {
-        Ok(text) => post_process_observation(&text),
-        Err(e) => {
-            console_error!("Elaboration LLM failed: {}", e);
-            return Response::builder()
-                .status(StatusCode::SERVICE_UNAVAILABLE)
-                .header("Content-Type", "application/json")
-                .body(Body::from(r#"{"error":"Unable to generate elaboration"}"#))
-                .unwrap();
-        }
-    };
+    .map(|text| post_process_observation(&text))
+    .map_err(|e| {
+        console_error!("Elaboration LLM failed: {}", e);
+        ApiError::ExternalService("Unable to generate elaboration".into())
+    })?;
 
     // Store elaboration
     if let Err(e) = store_elaboration(env, &request.observation_id, &elaboration).await {
@@ -462,18 +407,10 @@ pub async fn handle_elaborate(
         console_error!("Failed to mark approach engaged: {}", e);
     }
 
-    let response = ElaborateResponse {
+    Ok(Json(ElaborateResponse {
         elaboration,
         observation_id: request.observation_id,
-    };
-
-    let json = serde_json::to_string(&response).unwrap_or_else(|_| r#"{"error":"Serialization failed"}"#.to_string());
-
-    Response::builder()
-        .status(StatusCode::OK)
-        .header("Content-Type", "application/json")
-        .body(Body::from(json))
-        .unwrap()
+    }))
 }
 
 // --- Helper functions ---
@@ -493,8 +430,8 @@ async fn store_observation(
     student_baseline: Option<f64>,
     piece_context: Option<&str>,
     is_fallback: bool,
-) -> Result<(), String> {
-    let db = env.d1("DB").map_err(|e| format!("D1 binding failed: {:?}", e))?;
+) -> Result<()> {
+    let db = env.d1("DB").map_err(|e| ApiError::Internal(format!("D1 binding failed: {:?}", e)))?;
     let now = js_sys::Date::new_0()
         .to_iso_string()
         .as_string()
@@ -533,10 +470,10 @@ async fn store_observation(
         JsValue::from_bool(is_fallback),
         JsValue::from_str(&now),
     ])
-    .map_err(|e| format!("Failed to bind insert: {:?}", e))?
+    .map_err(|e| ApiError::Internal(format!("Failed to bind insert: {:?}", e)))?
     .run()
     .await
-    .map_err(|e| format!("Failed to insert observation: {:?}", e))?;
+    .map_err(|e| ApiError::Internal(format!("Failed to insert observation: {:?}", e)))?;
 
     Ok(())
 }
@@ -545,18 +482,18 @@ async fn store_elaboration(
     env: &Env,
     observation_id: &str,
     elaboration: &str,
-) -> Result<(), String> {
-    let db = env.d1("DB").map_err(|e| format!("D1 binding failed: {:?}", e))?;
+) -> Result<()> {
+    let db = env.d1("DB").map_err(|e| ApiError::Internal(format!("D1 binding failed: {:?}", e)))?;
 
     db.prepare("UPDATE observations SET elaboration_text = ?1 WHERE id = ?2")
         .bind(&[
             JsValue::from_str(elaboration),
             JsValue::from_str(observation_id),
         ])
-        .map_err(|e| format!("Failed to bind update: {:?}", e))?
+        .map_err(|e| ApiError::Internal(format!("Failed to bind update: {:?}", e)))?
         .run()
         .await
-        .map_err(|e| format!("Failed to update elaboration: {:?}", e))?;
+        .map_err(|e| ApiError::Internal(format!("Failed to update elaboration: {:?}", e)))?;
 
     Ok(())
 }
@@ -564,16 +501,16 @@ async fn store_elaboration(
 async fn fetch_observation(
     env: &Env,
     observation_id: &str,
-) -> Result<(String, String), String> {
-    let db = env.d1("DB").map_err(|e| format!("D1 binding failed: {:?}", e))?;
+) -> Result<(String, String)> {
+    let db = env.d1("DB").map_err(|e| ApiError::Internal(format!("D1 binding failed: {:?}", e)))?;
 
     let row: Option<serde_json::Value> = db
         .prepare("SELECT observation_text, reasoning_trace FROM observations WHERE id = ?1")
         .bind(&[JsValue::from_str(observation_id)])
-        .map_err(|e| format!("Failed to bind query: {:?}", e))?
+        .map_err(|e| ApiError::Internal(format!("Failed to bind query: {:?}", e)))?
         .first(None)
         .await
-        .map_err(|e| format!("Failed to query observation: {:?}", e))?;
+        .map_err(|e| ApiError::Internal(format!("Failed to query observation: {:?}", e)))?;
 
     match row {
         Some(r) => {
@@ -589,7 +526,7 @@ async fn fetch_observation(
                 .to_string();
             Ok((text, trace))
         }
-        None => Err("Observation not found".to_string()),
+        None => Err(ApiError::NotFound("Observation not found".to_string())),
     }
 }
 
@@ -743,8 +680,8 @@ async fn persist_generated_exercise(
     focus_dimension: &str,
     source_passage: &str,
     target_skill: &str,
-) -> Result<String, String> {
-    let db = env.d1("DB").map_err(|e| format!("D1 binding failed: {:?}", e))?;
+) -> Result<String> {
+    let db = env.d1("DB").map_err(|e| ApiError::Internal(format!("D1 binding failed: {:?}", e)))?;
     let exercise_id = generate_uuid();
     let now = js_sys::Date::new_0().to_iso_string().as_string().unwrap_or_default();
 
@@ -759,10 +696,10 @@ async fn persist_generated_exercise(
         JsValue::from_str(instruction),
         JsValue::from_str(&now),
     ])
-    .map_err(|e| format!("Failed to bind exercise insert: {:?}", e))?
+    .map_err(|e| ApiError::Internal(format!("Failed to bind exercise insert: {:?}", e)))?
     .run()
     .await
-    .map_err(|e| format!("Failed to insert exercise: {:?}", e))?;
+    .map_err(|e| ApiError::Internal(format!("Failed to insert exercise: {:?}", e)))?;
 
     // Link to dimension
     let _ = db
@@ -771,7 +708,7 @@ async fn persist_generated_exercise(
             JsValue::from_str(&exercise_id),
             JsValue::from_str(focus_dimension),
         ])
-        .map_err(|e| format!("Failed to bind dimension insert: {:?}", e))?
+        .map_err(|e| ApiError::Internal(format!("Failed to bind dimension insert: {:?}", e)))?
         .run()
         .await;
 
@@ -782,16 +719,16 @@ async fn persist_generated_exercise(
 async fn process_exercise_tool_call(
     env: &Env,
     input: &serde_json::Value,
-) -> Result<String, String> {
+) -> Result<String> {
     let source_passage = input.get("source_passage")
         .and_then(|v| v.as_str())
-        .ok_or("Missing source_passage")?;
+        .ok_or_else(|| ApiError::BadRequest("Missing source_passage".into()))?;
     let target_skill = input.get("target_skill")
         .and_then(|v| v.as_str())
-        .ok_or("Missing target_skill")?;
+        .ok_or_else(|| ApiError::BadRequest("Missing target_skill".into()))?;
     let exercises = input.get("exercises")
         .and_then(|v| v.as_array())
-        .ok_or("Missing exercises array")?;
+        .ok_or_else(|| ApiError::BadRequest("Missing exercises array".into()))?;
 
     let mut processed_exercises = Vec::new();
 
@@ -834,6 +771,5 @@ async fn process_exercise_tool_call(
     }]);
 
     serde_json::to_string(&component)
-        .map_err(|e| format!("Failed to serialize components: {:?}", e))
+        .map_err(|e| ApiError::Internal(format!("Failed to serialize components: {:?}", e)))
 }
-
