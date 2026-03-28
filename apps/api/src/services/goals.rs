@@ -5,6 +5,7 @@ use worker::console_log;
 use crate::auth::AuthUser;
 use crate::error::{ApiError, Result};
 use crate::state::AppState;
+use crate::types::StudentId;
 
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -35,7 +36,7 @@ pub async fn handle_extract_goals(
     auth: AuthUser,
     Json(request): Json<ExtractGoalsRequest>,
 ) -> Result<Json<ExtractedGoals>> {
-    let student_id = auth.student_id.as_str().to_string();
+    let student_id = auth.student_id;
 
     // Extract goals via LLM
     let extracted = extract_goals_with_llm(state.db.env(), &request.message)
@@ -75,7 +76,7 @@ pub async fn handle_extract_goals(
             )
             .bind(&[
                 JsValue::from_str(&fact_id),
-                JsValue::from_str(&student_id),
+                JsValue::from_str(student_id.as_str()),
                 JsValue::from_str(&fact_text),
                 JsValue::from_str("arc"),
                 JsValue::from_str(&piece_ctx),
@@ -102,7 +103,7 @@ pub async fn handle_extract_goals(
             )
             .bind(&[
                 JsValue::from_str(&fact_id),
-                JsValue::from_str(&student_id),
+                JsValue::from_str(student_id.as_str()),
                 JsValue::from_str(&deadline.description),
                 JsValue::from_str("arc"),
                 JsValue::from_str(today),
@@ -165,13 +166,13 @@ If a field has no matches, use an empty array. Always include raw_text."#
 
 async fn merge_goals(
     db: &worker::D1Database,
-    student_id: &str,
+    student_id: &StudentId,
     new_goals: &ExtractedGoals,
 ) -> std::result::Result<(), String> {
     // Fetch existing goals
     let existing_row = db
         .prepare("SELECT explicit_goals FROM students WHERE student_id = ?1")
-        .bind(&[JsValue::from_str(student_id)])
+        .bind(&[JsValue::from_str(student_id.as_str())])
         .map_err(|e| format!("Failed to bind query: {e:?}"))?
         .first::<serde_json::Value>(None)
         .await
@@ -219,7 +220,7 @@ async fn merge_goals(
         .bind(&[
             JsValue::from_str(&merged_json),
             JsValue::from_str(&now),
-            JsValue::from_str(student_id),
+            JsValue::from_str(student_id.as_str()),
         ])
         .map_err(|e| format!("Failed to bind update: {e:?}"))?
         .run()

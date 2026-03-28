@@ -7,6 +7,7 @@ use worker::{console_log, Env};
 use crate::auth::AuthUser;
 use crate::error::{ApiError, Result};
 use crate::state::AppState;
+use crate::types::StudentId;
 
 // --- Request / Response types ---
 
@@ -554,12 +555,14 @@ pub async fn handle_chat_stream(
 async fn verify_conversation_ownership(
     db: &worker::D1Database,
     id: &str,
-    student_id: &str,
+    student_id: &StudentId,
 ) -> bool {
     match db
         .prepare("SELECT id FROM conversations WHERE id = ?1 AND student_id = ?2")
-        .bind(&[JsValue::from_str(id), JsValue::from_str(student_id)])
-    {
+        .bind(&[
+            JsValue::from_str(id),
+            JsValue::from_str(student_id.as_str()),
+        ]) {
         Ok(stmt) => matches!(stmt.first::<serde_json::Value>(None).await, Ok(Some(_))),
         Err(_) => false,
     }
@@ -568,13 +571,13 @@ async fn verify_conversation_ownership(
 async fn create_conversation(
     db: &worker::D1Database,
     id: &str,
-    student_id: &str,
+    student_id: &StudentId,
     now: &str,
 ) -> std::result::Result<(), String> {
     db.prepare("INSERT INTO conversations (id, student_id, created_at, updated_at) VALUES (?1, ?2, ?3, ?4)")
         .bind(&[
             JsValue::from_str(id),
-            JsValue::from_str(student_id),
+            JsValue::from_str(student_id.as_str()),
             JsValue::from_str(now),
             JsValue::from_str(now),
         ])
@@ -656,9 +659,12 @@ async fn fetch_messages(
         .collect())
 }
 
-async fn fetch_student_row(db: &worker::D1Database, student_id: &str) -> Option<serde_json::Value> {
+async fn fetch_student_row(
+    db: &worker::D1Database,
+    student_id: &StudentId,
+) -> Option<serde_json::Value> {
     db.prepare("SELECT inferred_level, explicit_goals, baseline_dynamics, baseline_timing, baseline_pedaling, baseline_articulation, baseline_phrasing, baseline_interpretation FROM students WHERE student_id = ?1")
-        .bind(&[JsValue::from_str(student_id)])
+        .bind(&[JsValue::from_str(student_id.as_str())])
         .ok()?
         .first(None)
         .await

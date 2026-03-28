@@ -60,7 +60,7 @@ impl AuthService {
         crate::auth::jwt::verify(token, &secret)
     }
 
-    pub fn sign_jwt(&self, student_id: &str) -> Result<String> {
+    pub fn sign_jwt(&self, student_id: &crate::types::StudentId) -> Result<String> {
         let secret = self.jwt_secret()?;
         crate::auth::jwt::sign_for_student(student_id, &secret)
     }

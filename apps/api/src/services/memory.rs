@@ -9,6 +9,7 @@ use worker::{console_log, Env};
 use crate::auth::AuthUser;
 use crate::error::{ApiError, Result};
 use crate::state::AppState;
+use crate::types::StudentId;
 
 /// A synthesized fact from the event clock.
 pub struct SynthesizedFact {
@@ -41,7 +42,7 @@ pub struct StudentMemoryContext {
 }
 
 /// Query active synthesized facts for a student.
-pub async fn query_active_facts(env: &Env, student_id: &str) -> Result<Vec<SynthesizedFact>> {
+pub async fn query_active_facts(env: &Env, student_id: &StudentId) -> Result<Vec<SynthesizedFact>> {
     let db = env
         .d1("DB")
         .map_err(|e| ApiError::Internal(format!("D1 binding failed: {e:?}")))?;
@@ -56,7 +57,7 @@ pub async fn query_active_facts(env: &Env, student_id: &str) -> Result<Vec<Synth
              ORDER BY fact_type, valid_at DESC \
              LIMIT 12",
         )
-        .bind(&[JsValue::from_str(student_id)])
+        .bind(&[JsValue::from_str(student_id.as_str())])
         .map_err(|e| ApiError::Internal(format!("Failed to bind query: {e:?}")))?
         .all()
         .await
@@ -72,7 +73,7 @@ pub async fn query_active_facts(env: &Env, student_id: &str) -> Result<Vec<Synth
 /// Query student-reported facts (chat-derived personal info).
 pub async fn query_student_reported_facts(
     env: &Env,
-    student_id: &str,
+    student_id: &StudentId,
     today: &str,
 ) -> Result<Vec<SynthesizedFact>> {
     let db = env
@@ -91,7 +92,10 @@ pub async fn query_student_reported_facts(
              ORDER BY created_at DESC \
              LIMIT 10",
         )
-        .bind(&[JsValue::from_str(student_id), JsValue::from_str(today)])
+        .bind(&[
+            JsValue::from_str(student_id.as_str()),
+            JsValue::from_str(today),
+        ])
         .map_err(|e| ApiError::Internal(format!("Failed to bind query: {e:?}")))?
         .all()
         .await
@@ -109,7 +113,7 @@ pub async fn query_student_reported_facts(
 /// Query recent observations with engagement data from `teaching_approaches`.
 pub async fn query_recent_observations_with_engagement(
     env: &Env,
-    student_id: &str,
+    student_id: &StudentId,
 ) -> Result<Vec<RecentObservationWithEngagement>> {
     let db = env
         .d1("DB")
@@ -125,7 +129,7 @@ pub async fn query_recent_observations_with_engagement(
              ORDER BY o.created_at DESC \
              LIMIT 5",
         )
-        .bind(&[JsValue::from_str(student_id)])
+        .bind(&[JsValue::from_str(student_id.as_str())])
         .map_err(|e| ApiError::Internal(format!("Failed to bind query: {e:?}")))?
         .all()
         .await
@@ -170,7 +174,7 @@ pub async fn query_recent_observations_with_engagement(
 /// Query piece-specific facts for a student and piece title.
 pub async fn query_piece_facts(
     env: &Env,
-    student_id: &str,
+    student_id: &StudentId,
     piece_title: &str,
 ) -> Result<Vec<SynthesizedFact>> {
     let db = env
@@ -188,7 +192,7 @@ pub async fn query_piece_facts(
              AND invalid_at IS NULL AND expired_at IS NULL",
         )
         .bind(&[
-            JsValue::from_str(student_id),
+            JsValue::from_str(student_id.as_str()),
             JsValue::from_str(piece_title),
         ])
         .map_err(|e| ApiError::Internal(format!("Failed to bind query: {e:?}")))?
@@ -210,7 +214,7 @@ pub async fn query_piece_facts(
 /// student-reported facts instead of the generic LIMIT 10 query.
 pub async fn build_memory_context(
     env: &Env,
-    student_id: &str,
+    student_id: &StudentId,
     piece_title: Option<&str>,
     today: &str,
     query: Option<&str>,
@@ -403,7 +407,7 @@ pub fn format_student_reported_context(ctx: &StudentMemoryContext) -> String {
 /// Extract and store personal facts from a chat exchange (fire-and-forget).
 pub async fn extract_and_store_chat_facts(
     env: &Env,
-    student_id: &str,
+    student_id: &StudentId,
     user_message: &str,
     assistant_response: &str,
 ) -> Result<()> {
@@ -468,7 +472,7 @@ pub async fn extract_and_store_chat_facts(
                 )
                 .bind(&[
                     JsValue::from_str(&fact_id),
-                    JsValue::from_str(student_id),
+                    JsValue::from_str(student_id.as_str()),
                     JsValue::from_str(fact_text),
                     JsValue::from_str("student_reported"),
                     JsValue::from_str(category),
@@ -519,7 +523,7 @@ pub async fn extract_and_store_chat_facts(
                     JsValue::from_str(today),
                     JsValue::from_str(&now),
                     JsValue::from_str(existing_id),
-                    JsValue::from_str(student_id),
+                    JsValue::from_str(student_id.as_str()),
                 ])
                 .map_err(|e| ApiError::Internal(format!("Failed to bind invalidation: {e:?}")))?
                 .run()
@@ -536,7 +540,7 @@ pub async fn extract_and_store_chat_facts(
                 )
                 .bind(&[
                     JsValue::from_str(&fact_id),
-                    JsValue::from_str(student_id),
+                    JsValue::from_str(student_id.as_str()),
                     JsValue::from_str(new_text),
                     JsValue::from_str("student_reported"),
                     JsValue::from_str(category),
@@ -582,7 +586,7 @@ pub async fn extract_and_store_chat_facts(
 pub async fn store_teaching_approach(
     env: &Env,
     id: &str,
-    student_id: &str,
+    student_id: &StudentId,
     observation_id: &str,
     dimension: &str,
     framing: &str,
@@ -603,7 +607,7 @@ pub async fn store_teaching_approach(
     )
     .bind(&[
         JsValue::from_str(id),
-        JsValue::from_str(student_id),
+        JsValue::from_str(student_id.as_str()),
         JsValue::from_str(observation_id),
         JsValue::from_str(dimension),
         JsValue::from_str(framing),
@@ -635,7 +639,7 @@ pub async fn mark_approach_engaged(env: &Env, observation_id: &str) -> Result<()
 }
 
 /// Increment `total_observations` in `student_memory_meta`.
-pub async fn increment_observation_count(env: &Env, student_id: &str) -> Result<()> {
+pub async fn increment_observation_count(env: &Env, student_id: &StudentId) -> Result<()> {
     let db = env
         .d1("DB")
         .map_err(|e| ApiError::Internal(format!("D1 binding failed: {e:?}")))?;
@@ -644,7 +648,7 @@ pub async fn increment_observation_count(env: &Env, student_id: &str) -> Result<
         "INSERT INTO student_memory_meta (student_id, total_observations) VALUES (?1, 1) \
          ON CONFLICT(student_id) DO UPDATE SET total_observations = total_observations + 1",
     )
-    .bind(&[JsValue::from_str(student_id)])
+    .bind(&[JsValue::from_str(student_id.as_str())])
     .map_err(|e| ApiError::Internal(format!("Failed to bind upsert: {e:?}")))?
     .run()
     .await
@@ -656,7 +660,7 @@ pub async fn increment_observation_count(env: &Env, student_id: &str) -> Result<
 /// Increment observation count by N (batched version for DO session finalization).
 pub async fn increment_observation_count_by(
     env: &Env,
-    student_id: &str,
+    student_id: &StudentId,
     count: usize,
 ) -> Result<()> {
     if count == 0 {
@@ -671,7 +675,7 @@ pub async fn increment_observation_count_by(
          ON CONFLICT(student_id) DO UPDATE SET total_observations = total_observations + ?2",
     )
     .bind(&[
-        JsValue::from_str(student_id),
+        JsValue::from_str(student_id.as_str()),
         JsValue::from_f64(count as f64),
     ])
     .map_err(|e| ApiError::Internal(format!("Failed to bind upsert: {e:?}")))?
@@ -685,7 +689,8 @@ pub async fn increment_observation_count_by(
 /// Check if synthesis should run for this student.
 /// Returns true if >= 3 new observations since last synthesis,
 /// or any new observations and last synthesis was > 7 days ago.
-pub async fn should_synthesize(env: &Env, student_id: &str) -> Result<bool> {
+pub async fn should_synthesize(env: &Env, student_id: &StudentId) -> Result<bool> {
+    let student_id = student_id.as_str();
     let db = env
         .d1("DB")
         .map_err(|e| ApiError::Internal(format!("D1 binding failed: {e:?}")))?;
@@ -761,7 +766,7 @@ pub struct SynthesisResult {
 }
 
 /// Run the synthesis pipeline for a student.
-pub async fn run_synthesis(env: &Env, student_id: &str) -> Result<SynthesisResult> {
+pub async fn run_synthesis(env: &Env, student_id: &StudentId) -> Result<SynthesisResult> {
     use crate::services::llm;
     use crate::services::prompts;
 
@@ -775,7 +780,7 @@ pub async fn run_synthesis(env: &Env, student_id: &str) -> Result<SynthesisResul
     // 2. Get last synthesis timestamp
     let meta: Option<serde_json::Value> = db
         .prepare("SELECT last_synthesis_at FROM student_memory_meta WHERE student_id = ?1")
-        .bind(&[JsValue::from_str(student_id)])
+        .bind(&[JsValue::from_str(student_id.as_str())])
         .map_err(|e| ApiError::Internal(format!("Failed to bind meta query: {e:?}")))?
         .first(None)
         .await
@@ -797,7 +802,7 @@ pub async fn run_synthesis(env: &Env, student_id: &str) -> Result<SynthesisResul
              ORDER BY created_at ASC",
         )
         .bind(&[
-            JsValue::from_str(student_id),
+            JsValue::from_str(student_id.as_str()),
             JsValue::from_str(last_synthesis),
         ])
         .map_err(|e| ApiError::Internal(format!("Failed to bind obs query: {e:?}")))?
@@ -826,7 +831,7 @@ pub async fn run_synthesis(env: &Env, student_id: &str) -> Result<SynthesisResul
              WHERE student_id = ?1 AND created_at > ?2",
         )
         .bind(&[
-            JsValue::from_str(student_id),
+            JsValue::from_str(student_id.as_str()),
             JsValue::from_str(last_synthesis),
         ])
         .map_err(|e| ApiError::Internal(format!("Failed to bind ta query: {e:?}")))?
@@ -845,7 +850,7 @@ pub async fn run_synthesis(env: &Env, student_id: &str) -> Result<SynthesisResul
              baseline_articulation, baseline_phrasing, baseline_interpretation \
              FROM students WHERE student_id = ?1",
         )
-        .bind(&[JsValue::from_str(student_id)])
+        .bind(&[JsValue::from_str(student_id.as_str())])
         .map_err(|e| ApiError::Internal(format!("Failed to bind baselines query: {e:?}")))?
         .first(None)
         .await
@@ -896,7 +901,7 @@ pub async fn run_synthesis(env: &Env, student_id: &str) -> Result<SynthesisResul
                         JsValue::from_str(invalid_at),
                         JsValue::from_str(&now),
                         JsValue::from_str(fact_id),
-                        JsValue::from_str(student_id),
+                        JsValue::from_str(student_id.as_str()),
                     ])
                     .map_err(|e| ApiError::Internal(format!("Failed to bind invalidation: {e:?}")))?
                     .run()
@@ -943,7 +948,7 @@ pub async fn run_synthesis(env: &Env, student_id: &str) -> Result<SynthesisResul
                 )
                 .bind(&[
                     JsValue::from_str(&fact_id),
-                    JsValue::from_str(student_id),
+                    JsValue::from_str(student_id.as_str()),
                     JsValue::from_str(fact_text),
                     JsValue::from_str(fact_type),
                     match dimension {
@@ -977,7 +982,7 @@ pub async fn run_synthesis(env: &Env, student_id: &str) -> Result<SynthesisResul
             "SELECT COUNT(*) as cnt FROM synthesized_facts \
              WHERE student_id = ?1 AND invalid_at IS NULL AND expired_at IS NULL",
         )
-        .bind(&[JsValue::from_str(student_id)])
+        .bind(&[JsValue::from_str(student_id.as_str())])
         .map_err(|e| ApiError::Internal(format!("Failed to bind fact count: {e:?}")))?
         .first(None)
         .await
@@ -995,7 +1000,7 @@ pub async fn run_synthesis(env: &Env, student_id: &str) -> Result<SynthesisResul
          ON CONFLICT(student_id) DO UPDATE SET last_synthesis_at = ?2, total_facts = ?3",
     )
     .bind(&[
-        JsValue::from_str(student_id),
+        JsValue::from_str(student_id.as_str()),
         JsValue::from_str(&now),
         JsValue::from_f64(total_facts as f64),
     ])
@@ -1108,7 +1113,7 @@ pub struct ExistingFactInput {
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct StoreFactsRequest {
-    pub student_id: String,
+    pub student_id: StudentId,
     pub facts: Vec<StoredFactInput>,
 }
 
@@ -1160,7 +1165,7 @@ pub async fn handle_store_facts(
             )
             .bind(&[
                 JsValue::from_str(&fact_id),
-                JsValue::from_str(&request.student_id),
+                JsValue::from_str(request.student_id.as_str()),
                 JsValue::from_str(&fact.fact_text),
                 JsValue::from_str("student_reported"),
                 JsValue::from_str(&fact.category),
@@ -1197,7 +1202,7 @@ pub async fn handle_store_facts(
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct SearchFactsRequest {
     pub query: String,
-    pub student_id: String,
+    pub student_id: StudentId,
     #[serde(default = "default_max_facts")]
     pub max_facts: usize,
 }
@@ -1310,7 +1315,7 @@ Query: ";
 /// When `active_only` is true, only non-invalidated/non-expired facts are searched.
 pub async fn search_relevant_facts(
     env: &Env,
-    student_id: &str,
+    student_id: &StudentId,
     query: &str,
     max_facts: usize,
     active_only: bool,
@@ -1335,7 +1340,7 @@ pub async fn search_relevant_facts(
 
     let all_facts: Vec<serde_json::Value> = db
         .prepare(sql)
-        .bind(&[JsValue::from_str(student_id)])
+        .bind(&[JsValue::from_str(student_id.as_str())])
         .map_err(|e| ApiError::Internal(format!("bind failed: {e:?}")))?
         .all()
         .await
@@ -1617,7 +1622,7 @@ fn keyword_hit_count(keywords: &[String], fact_text: &str) -> usize {
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ClearBenchmarkRequest {
-    pub student_id: String,
+    pub student_id: StudentId,
 }
 
 /// POST /api/memory/clear-benchmark -- remove all benchmark-sourced facts for a student.
@@ -1633,7 +1638,7 @@ pub async fn handle_clear_benchmark(
         .prepare(
             "DELETE FROM synthesized_facts WHERE student_id = ?1 AND source_type = 'benchmark'",
         )
-        .bind(&[JsValue::from_str(&request.student_id)]);
+        .bind(&[JsValue::from_str(request.student_id.as_str())]);
 
     match result {
         Ok(stmt) => {
@@ -1656,7 +1661,7 @@ pub async fn handle_clear_benchmark(
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct SynthesizeRequest {
-    pub student_id: String,
+    pub student_id: StudentId,
 }
 
 /// POST /api/memory/synthesize -- manually trigger synthesis.
@@ -1695,7 +1700,7 @@ pub async fn handle_synthesize(
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct SeedObservationsRequest {
-    pub student_id: String,
+    pub student_id: StudentId,
     pub observations: Vec<SeedObservation>,
 }
 
@@ -1757,7 +1762,7 @@ pub async fn handle_seed_observations(
             )
             .bind(&[
                 JsValue::from_str(&obs_id),
-                JsValue::from_str(&request.student_id),
+                JsValue::from_str(request.student_id.as_str()),
                 JsValue::from_str(&session_id),
                 JsValue::from_str(&obs.dimension),
                 JsValue::from_str(&obs.observation_text),

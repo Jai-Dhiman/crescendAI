@@ -5,6 +5,7 @@ use worker::{console_error, console_log, D1Database};
 use crate::auth::AuthUser;
 use crate::error::{ApiError, Result};
 use crate::state::AppState;
+use crate::types::StudentId;
 
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -100,7 +101,7 @@ pub async fn handle_sync(
     auth: AuthUser,
     Json(request): Json<SyncRequest>,
 ) -> Result<Json<SyncResponse>> {
-    let student_id = auth.student_id.as_str().to_string();
+    let student_id = auth.student_id;
     let db = state.db.d1()?;
 
     // Upsert student baselines
@@ -156,7 +157,7 @@ pub async fn handle_sync(
 
 async fn upsert_student_baselines(
     db: &D1Database,
-    student_id: &str,
+    student_id: &StudentId,
     delta: &StudentDelta,
 ) -> std::result::Result<(), String> {
     let now = js_sys::Date::new_0()
@@ -189,7 +190,7 @@ async fn upsert_student_baselines(
         opt_i32(delta.baseline_session_count),
         opt_str(delta.explicit_goals.as_deref()),
         JsValue::from_str(&now),
-        JsValue::from_str(student_id),
+        JsValue::from_str(student_id.as_str()),
     ])
     .map_err(|e| format!("Failed to bind update: {e:?}"))?
     .run()
@@ -201,7 +202,7 @@ async fn upsert_student_baselines(
 
 async fn insert_session(
     db: &D1Database,
-    student_id: &str,
+    student_id: &StudentId,
     session: &SessionDelta,
 ) -> std::result::Result<(), String> {
     db.prepare(
@@ -212,7 +213,7 @@ async fn insert_session(
     )
     .bind(&[
         JsValue::from_str(&session.id),
-        JsValue::from_str(student_id),
+        JsValue::from_str(student_id.as_str()),
         JsValue::from_str(&session.started_at),
         opt_str(session.ended_at.as_deref()),
         opt_f64(session.avg_dynamics),

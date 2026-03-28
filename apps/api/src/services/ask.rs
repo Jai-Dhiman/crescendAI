@@ -11,6 +11,7 @@ use crate::auth::AuthUser;
 use crate::error::{ApiError, Result};
 use crate::services::{llm, prompts};
 use crate::state::AppState;
+use crate::types::{SessionId, StudentId};
 
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -49,8 +50,8 @@ pub struct ElaborateResponse {
 /// Input for the core LLM pipeline (used by both HTTP handler and DO).
 pub struct AskInnerRequest {
     pub teaching_moment: serde_json::Value,
-    pub student_id: String,
-    pub session_id: String,
+    pub student_id: StudentId,
+    pub session_id: SessionId,
     pub piece_context: Option<serde_json::Value>,
 }
 
@@ -256,7 +257,7 @@ pub async fn handle_ask(
     auth: AuthUser,
     Json(request): Json<AskRequest>,
 ) -> Result<Json<AskResponse>> {
-    let student_id = auth.student_id.as_str().to_string();
+    let student_id = auth.student_id;
     let env = state.db.env();
 
     let dimension_score = request
@@ -281,12 +282,14 @@ pub async fn handle_ask(
     let inner_req = AskInnerRequest {
         teaching_moment: request.teaching_moment.clone(),
         student_id: student_id.clone(),
-        session_id: request
-            .session
-            .get("id")
-            .and_then(|v| v.as_str())
-            .unwrap_or("")
-            .to_string(),
+        session_id: SessionId::from(
+            request
+                .session
+                .get("id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
+        ),
         piece_context: request.piece_context.clone(),
     };
 
@@ -379,7 +382,7 @@ pub async fn handle_elaborate(
     auth: AuthUser,
     Json(request): Json<ElaborateRequest>,
 ) -> Result<Json<ElaborateResponse>> {
-    let student_id = auth.student_id.as_str().to_string();
+    let student_id = auth.student_id;
     let env = state.db.env();
 
     // Fetch observation from D1
@@ -434,7 +437,7 @@ pub async fn handle_elaborate(
 async fn store_observation(
     env: &Env,
     id: &str,
-    student_id: &str,
+    student_id: &StudentId,
     session_id: &str,
     chunk_index: Option<i64>,
     dimension: &str,
@@ -462,7 +465,7 @@ async fn store_observation(
     )
     .bind(&[
         JsValue::from_str(id),
-        JsValue::from_str(student_id),
+        JsValue::from_str(student_id.as_str()),
         JsValue::from_str(session_id),
         match chunk_index {
             Some(i) => JsValue::from_f64(i as f64),

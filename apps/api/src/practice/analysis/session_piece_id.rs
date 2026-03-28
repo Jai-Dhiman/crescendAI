@@ -195,7 +195,7 @@ impl PracticeSession {
             let _ = ws.send_with_str(msg.to_string());
 
             // Log to piece_requests for demand tracking
-            let student_id = self.inner.borrow().student_id.clone();
+            let student_id = crate::types::StudentId::from(self.inner.borrow().student_id.clone());
             super::score_context::log_fingerprint_piece_request(
                 &self.env,
                 &student_id,

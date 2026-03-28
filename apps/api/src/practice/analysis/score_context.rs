@@ -6,6 +6,7 @@ use worker::{console_error, Env};
 
 use super::piece_identify::{NgramIndex, RerankFeatures};
 use super::piece_match::{match_piece, CatalogPiece, MatchResult};
+use crate::types::StudentId;
 
 #[derive(Debug, Clone, serde::Deserialize)]
 pub struct ScoreNote {
@@ -218,7 +219,7 @@ pub async fn load_reference(env: &Env, piece_id: &str) -> Option<ReferenceProfil
 pub async fn log_piece_request(
     env: &Env,
     query: &str,
-    student_id: &str,
+    student_id: &StudentId,
     match_result: Option<&MatchResult>,
 ) {
     let db = match env.d1("DB") {
@@ -250,7 +251,7 @@ pub async fn log_piece_request(
 
     let Ok(bound) = stmt.bind(&[
         JsValue::from_str(&id),
-        JsValue::from_str(student_id),
+        JsValue::from_str(student_id.as_str()),
         JsValue::from_str(query),
         matched_piece_id,
         confidence,
@@ -266,7 +267,7 @@ pub async fn log_piece_request(
 ///
 /// Returns None if no match is found above the confidence threshold or if the
 /// score data cannot be loaded from R2.
-pub async fn resolve_piece(env: &Env, query: &str, student_id: &str) -> Option<ScoreContext> {
+pub async fn resolve_piece(env: &Env, query: &str, student_id: &StudentId) -> Option<ScoreContext> {
     let catalog = load_catalog(env).await;
 
     let match_result = match_piece(query, &catalog);
@@ -350,7 +351,7 @@ pub async fn load_rerank_features(env: &Env) -> Result<RerankFeatures, String> {
 /// Log a fingerprint-based piece identification to D1 for demand tracking.
 pub async fn log_fingerprint_piece_request(
     env: &Env,
-    student_id: &str,
+    student_id: &StudentId,
     piece_id: &str,
     confidence: f64,
     method: &str,
@@ -380,7 +381,7 @@ pub async fn log_fingerprint_piece_request(
 
     let Ok(bound) = stmt.bind(&[
         JsValue::from_str(&id),
-        JsValue::from_str(student_id),
+        JsValue::from_str(student_id.as_str()),
         JsValue::from_str(&query),
         JsValue::from_str(piece_id),
         JsValue::from_f64(confidence),

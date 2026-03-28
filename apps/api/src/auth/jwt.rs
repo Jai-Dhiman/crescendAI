@@ -3,6 +3,7 @@ use hmac::{Hmac, Mac};
 use sha2::Sha256;
 
 use crate::error::{ApiError, Result};
+use crate::types::StudentId;
 
 type HmacSha256 = Hmac<Sha256>;
 
@@ -67,11 +68,11 @@ pub fn verify(token: &str, secret: &[u8]) -> Result<Claims> {
 }
 
 /// Sign a JWT for a student with 30-day expiry.
-pub fn sign_for_student(student_id: &str, secret: &[u8]) -> Result<String> {
+pub fn sign_for_student(student_id: &StudentId, secret: &[u8]) -> Result<String> {
     #[allow(clippy::cast_sign_loss, clippy::cast_possible_truncation)]
     let now = (js_sys::Date::now() / 1000.0) as u64;
     let claims = Claims {
-        sub: student_id.to_string(),
+        sub: student_id.as_str().to_string(),
         iat: now,
         exp: now + 30 * 24 * 60 * 60, // 30 days
     };

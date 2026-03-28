@@ -9,12 +9,13 @@ use crate::error::{ApiError, Result as ApiResult};
 use crate::services::prompts::SESSION_SYNTHESIS_SYSTEM;
 use crate::services::teaching_moments::StudentBaselines;
 use crate::state::AppState;
+use crate::types::{ConversationId, SessionId, StudentId};
 
 /// Input context for synthesis: identifiers + optional enrichment signals.
 pub struct SynthesisContext {
-    pub session_id: String,
-    pub student_id: String,
-    pub conversation_id: String,
+    pub session_id: SessionId,
+    pub student_id: StudentId,
+    pub conversation_id: ConversationId,
     pub baselines: Option<StudentBaselines>,
     pub piece_context: Option<serde_json::Value>,
     pub student_memory: Option<String>,
@@ -314,8 +315,8 @@ pub async fn call_synthesis_llm(env: &Env, prompt_context: &serde_json::Value) -
 /// Returns the new message id.
 pub async fn persist_synthesis_message(
     env: &Env,
-    conversation_id: &str,
-    session_id: &str,
+    conversation_id: &ConversationId,
+    session_id: &SessionId,
     synthesis_text: &str,
 ) -> Result<String, PracticeError> {
     let db = env
@@ -334,11 +335,11 @@ pub async fn persist_synthesis_message(
     )
     .bind(&[
         JsValue::from_str(&msg_id),
-        JsValue::from_str(conversation_id),
+        JsValue::from_str(conversation_id.as_str()),
         JsValue::from_str("assistant"),
         JsValue::from_str(synthesis_text),
         JsValue::from_str("synthesis"),
-        JsValue::from_str(session_id),
+        JsValue::from_str(session_id.as_str()),
         JsValue::from_str(&now),
     ])
     .map_err(|e| PracticeError::Storage(format!("bind INSERT message: {e:?}")))?
@@ -354,8 +355,8 @@ pub async fn persist_synthesis_message(
 /// Uses INSERT OR IGNORE to avoid duplicate rows if called more than once.
 pub async fn persist_accumulated_moments(
     env: &Env,
-    student_id: &str,
-    session_id: &str,
+    student_id: &StudentId,
+    session_id: &SessionId,
     moments: &[AccumulatedMoment],
 ) -> Result<(), PracticeError> {
     let db = env
@@ -388,8 +389,8 @@ pub async fn persist_accumulated_moments(
         )
         .bind(&[
             JsValue::from_str(&obs_id),
-            JsValue::from_str(student_id),
-            JsValue::from_str(session_id),
+            JsValue::from_str(student_id.as_str()),
+            JsValue::from_str(session_id.as_str()),
             JsValue::from_str(&m.dimension),
             JsValue::from_str(&m.reasoning),
             JsValue::from_str(&reasoning_trace),
@@ -413,7 +414,7 @@ pub async fn persist_accumulated_moments(
 /// Falls back to `SCALER_MEAN` defaults for any dimension with no data.
 pub async fn load_baselines_from_d1(
     env: &Env,
-    student_id: &str,
+    student_id: &StudentId,
 ) -> Result<crate::services::teaching_moments::StudentBaselines, PracticeError> {
     let defaults = crate::services::stop::SCALER_MEAN;
 
@@ -428,7 +429,7 @@ pub async fn load_baselines_from_d1(
              AND created_at > datetime('now', '-30 days') \
              GROUP BY dimension",
         )
-        .bind(&[JsValue::from_str(student_id)])
+        .bind(&[JsValue::from_str(student_id.as_str())])
         .map_err(|e| PracticeError::Storage(format!("baselines bind: {e:?}")))?;
 
     let rows = stmt
@@ -461,13 +462,13 @@ pub async fn load_baselines_from_d1(
 }
 
 /// Clear the `needs_synthesis` flag for a session after successful synthesis.
-pub async fn clear_needs_synthesis(env: &Env, session_id: &str) -> Result<(), PracticeError> {
+pub async fn clear_needs_synthesis(env: &Env, session_id: &SessionId) -> Result<(), PracticeError> {
     let db = env
         .d1("DB")
         .map_err(|e| PracticeError::Storage(format!("D1 binding: {e:?}")))?;
 
     db.prepare("UPDATE sessions SET needs_synthesis = 0 WHERE id = ?1")
-        .bind(&[JsValue::from_str(session_id)])
+        .bind(&[JsValue::from_str(session_id.as_str())])
         .map_err(|e| PracticeError::Storage(format!("clear_needs_synthesis bind: {e:?}")))?
         .run()
         .await
@@ -564,12 +565,13 @@ pub async fn handle_deferred_synthesis(
     auth: AuthUser,
     Json(body): Json<DeferredSynthesisRequest>,
 ) -> ApiResult<Json<DeferredSynthesisResponse>> {
-    let student_id = auth.student_id.to_string();
+    let student_id_str = auth.student_id.to_string();
 
     if body.session_id.is_empty() {
         return Err(ApiError::BadRequest("session_id is required".into()));
     }
     let session_id = body.session_id;
+    let session_id_typed = SessionId::from(session_id.clone());
 
     let db = state.db.d1()?;
     let env = state.practice.env();
@@ -596,7 +598,7 @@ pub async fn handle_deferred_synthesis(
 
     // Verify ownership
     let row_student_id = row.get("student_id").and_then(|v| v.as_str()).unwrap_or("");
-    if row_student_id != student_id {
+    if row_student_id != student_id_str {
         return Err(ApiError::Forbidden);
     }
 
@@ -626,7 +628,7 @@ pub async fn handle_deferred_synthesis(
                 session_id
             );
             // Clear flag to avoid repeated attempts
-            if let Err(e) = clear_needs_synthesis(env, &session_id).await {
+            if let Err(e) = clear_needs_synthesis(env, &session_id_typed).await {
                 console_error!("[synthesis] Failed to clear needs_synthesis: {}", e);
             }
             return Err(ApiError::BadRequest(
@@ -646,7 +648,7 @@ pub async fn handle_deferred_synthesis(
                 e
             );
             // Clear flag -- schema mismatch, can't recover
-            if let Err(ce) = clear_needs_synthesis(env, &session_id).await {
+            if let Err(ce) = clear_needs_synthesis(env, &session_id_typed).await {
                 console_error!("[synthesis] Failed to clear needs_synthesis: {}", ce);
             }
             return Err(ApiError::Internal(
@@ -654,6 +656,10 @@ pub async fn handle_deferred_synthesis(
             ));
         }
     };
+
+    // Wrap string IDs into newtypes for SynthesisContext
+    let student_id = StudentId::from(student_id_str);
+    let conversation_id_typed = ConversationId::from(conversation_id.clone());
 
     // Load baselines
     let baselines = match load_baselines_from_d1(env, &student_id).await {
@@ -668,9 +674,9 @@ pub async fn handle_deferred_synthesis(
     let session_duration_ms = acc.timeline.last().map_or(0, |e| e.timestamp_ms + 15_000);
 
     let ctx = SynthesisContext {
-        session_id: session_id.clone(),
+        session_id: session_id_typed.clone(),
         student_id: student_id.clone(),
-        conversation_id: conversation_id.clone(),
+        conversation_id: conversation_id_typed.clone(),
         baselines,
         piece_context: None,
         student_memory: None,
@@ -682,7 +688,7 @@ pub async fn handle_deferred_synthesis(
     let result = call_synthesis_llm(env, &prompt_context).await;
 
     // Persist synthesis message
-    persist_synthesis_message(env, &conversation_id, &session_id, &result.text)
+    persist_synthesis_message(env, &conversation_id_typed, &session_id_typed, &result.text)
         .await
         .map_err(|e| {
             console_error!("[synthesis] Failed to persist synthesis message: {}", e);
@@ -691,13 +697,14 @@ pub async fn handle_deferred_synthesis(
 
     // Persist accumulated moments
     let moments: Vec<AccumulatedMoment> = acc.top_moments(None).into_iter().cloned().collect();
-    if let Err(e) = persist_accumulated_moments(env, &student_id, &session_id, &moments).await {
+    if let Err(e) = persist_accumulated_moments(env, &student_id, &session_id_typed, &moments).await
+    {
         console_error!("[synthesis] Failed to persist accumulated moments: {}", e);
         // Non-fatal -- synthesis message already saved
     }
 
     // Clear the deferred flag
-    if let Err(e) = clear_needs_synthesis(env, &session_id).await {
+    if let Err(e) = clear_needs_synthesis(env, &session_id_typed).await {
         console_error!("[synthesis] Failed to clear needs_synthesis flag: {}", e);
         // Non-fatal -- synthesis already persisted
     }

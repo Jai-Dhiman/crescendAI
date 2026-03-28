@@ -48,7 +48,7 @@ pub struct GoogleAuthRequest {
 #[derive(Debug, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AuthResponse {
-    pub student_id: String,
+    pub student_id: StudentId,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub email: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -268,11 +268,10 @@ pub async fn handle_me(
     auth: AuthUser,
 ) -> Result<Json<AuthResponse>> {
     let db = state.db.d1()?;
-    let student_id = auth.student_id.as_str().to_string();
 
     let row = db
         .prepare("SELECT student_id, email, display_name FROM students WHERE student_id = ?1")
-        .bind(&[JsValue::from_str(&student_id)])
+        .bind(&[JsValue::from_str(auth.student_id.as_str())])
         .map_err(|e| ApiError::Internal(format!("bind query: {e:?}")))?
         .first::<serde_json::Value>(None)
         .await
@@ -280,10 +279,7 @@ pub async fn handle_me(
         .ok_or(ApiError::Unauthorized)?;
 
     let response = AuthResponse {
-        student_id: row
-            .get("student_id")
-            .and_then(|v| v.as_str().map(std::string::ToString::to_string))
-            .unwrap_or_default(),
+        student_id: auth.student_id,
         email: row
             .get("email")
             .and_then(|v| v.as_str().map(std::string::ToString::to_string)),
@@ -370,12 +366,12 @@ pub async fn handle_debug(State(state): State<AppState>) -> Result<impl IntoResp
 // =========================================================================
 
 /// Legacy: extract and verify JWT from cookie or Authorization header.
-/// Returns the `student_id` (subject claim) on success.
+/// Returns the `StudentId` (subject claim) on success.
 #[allow(clippy::expect_used)] // Response::builder() with valid status/headers is infallible
 pub fn verify_auth(
     headers: &http::HeaderMap,
     env: &Env,
-) -> std::result::Result<String, http::Response<axum::body::Body>> {
+) -> std::result::Result<StudentId, http::Response<axum::body::Body>> {
     use axum::body::Body;
     use http::{Response, StatusCode};
 
@@ -412,14 +408,14 @@ pub fn verify_auth(
             .expect("response builder")
     })?;
 
-    Ok(claims.sub)
+    Ok(StudentId::from(claims.sub))
 }
 
 /// Legacy alias for backward compatibility.
 pub fn verify_auth_header(
     headers: &http::HeaderMap,
     env: &Env,
-) -> std::result::Result<String, http::Response<axum::body::Body>> {
+) -> std::result::Result<StudentId, http::Response<axum::body::Body>> {
     verify_auth(headers, env)
 }
 
@@ -524,7 +520,7 @@ pub async fn handle_apple_auth_legacy(env: &Env, body: &[u8]) -> http::Response<
     #[allow(clippy::cast_sign_loss, clippy::cast_possible_truncation)]
     let now_epoch = (js_sys::Date::now() / 1000.0) as u64;
     let claims = jwt::Claims {
-        sub: student_id.clone(),
+        sub: student_id.to_string(),
         iat: now_epoch,
         exp: now_epoch + JWT_EXPIRY_SECONDS,
     };
@@ -747,7 +743,7 @@ pub async fn handle_google_auth_legacy(env: &Env, body: &[u8]) -> http::Response
     #[allow(clippy::cast_sign_loss, clippy::cast_possible_truncation)]
     let now_epoch = (js_sys::Date::now() / 1000.0) as u64;
     let jwt_claims = jwt::Claims {
-        sub: student_id.clone(),
+        sub: student_id.to_string(),
         iat: now_epoch,
         exp: now_epoch + JWT_EXPIRY_SECONDS,
     };
@@ -813,7 +809,7 @@ pub async fn handle_auth_me_legacy(
 
     let row = match db
         .prepare("SELECT student_id, email, display_name FROM students WHERE student_id = ?1")
-        .bind(&[JsValue::from_str(&student_id)])
+        .bind(&[JsValue::from_str(student_id.as_str())])
         .map_err(|e| format!("{e:?}"))
     {
         Ok(stmt) => match stmt.first::<serde_json::Value>(None).await {
@@ -845,10 +841,7 @@ pub async fn handle_auth_me_legacy(
     };
 
     let response = AuthResponse {
-        student_id: row
-            .get("student_id")
-            .and_then(|v| v.as_str().map(std::string::ToString::to_string))
-            .unwrap_or_default(),
+        student_id,
         email: row
             .get("email")
             .and_then(|v| v.as_str().map(std::string::ToString::to_string)),
@@ -938,7 +931,7 @@ pub async fn handle_debug_auth_legacy(env: &Env) -> http::Response<axum::body::B
     #[allow(clippy::cast_sign_loss, clippy::cast_possible_truncation)]
     let now_epoch = (js_sys::Date::now() / 1000.0) as u64;
     let claims = jwt::Claims {
-        sub: student_id.clone(),
+        sub: student_id.to_string(),
         iat: now_epoch,
         exp: now_epoch + JWT_EXPIRY_SECONDS,
     };
@@ -1073,7 +1066,7 @@ async fn find_or_create_student(
     email: Option<&str>,
     display_name: Option<&str>,
     now: &str,
-) -> Result<(String, Option<String>, bool)> {
+) -> Result<(StudentId, Option<String>, bool)> {
     // Check auth_identities for existing mapping
     let existing = db
         .prepare(
@@ -1124,7 +1117,7 @@ async fn find_or_create_student(
                 .and_then(|v| v.as_str().map(std::string::ToString::to_string))
         });
 
-        Ok((student_id, existing_display_name, false))
+        Ok((StudentId::from(student_id), existing_display_name, false))
     } else {
         // Check if a student with the same email already exists (account linking)
         if let Some(email) = email {
@@ -1162,12 +1155,12 @@ async fn find_or_create_student(
                 .await
                 .map_err(|e| ApiError::Internal(format!("link identity: {e:?}")))?;
 
-                return Ok((student_id, existing_display_name, false));
+                return Ok((StudentId::from(student_id), existing_display_name, false));
             }
         }
 
         // New user -- generate UUID and insert atomically
-        let student_id = StudentId::new().to_string();
+        let student_id = StudentId::new();
 
         let student_stmt = db
             .prepare(
@@ -1175,7 +1168,7 @@ async fn find_or_create_student(
                  VALUES (?1, ?2, ?3, 0, ?4, ?5)",
             )
             .bind(&[
-                JsValue::from_str(&student_id),
+                JsValue::from_str(student_id.as_str()),
                 match email {
                     Some(e) => JsValue::from_str(e),
                     None => JsValue::NULL,
@@ -1195,7 +1188,7 @@ async fn find_or_create_student(
                  VALUES (?1, ?2, ?3, ?4)",
             )
             .bind(&[
-                JsValue::from_str(&student_id),
+                JsValue::from_str(student_id.as_str()),
                 JsValue::from_str(provider),
                 JsValue::from_str(provider_user_id),
                 JsValue::from_str(now),

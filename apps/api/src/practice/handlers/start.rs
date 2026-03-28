@@ -5,6 +5,7 @@ use worker::Env;
 use crate::auth::extractor::AuthUser;
 use crate::error::{ApiError, Result};
 use crate::state::AppState;
+use crate::types::{ConversationId, SessionId};
 
 /// Request body for POST /api/practice/start.
 #[derive(serde::Deserialize)]
@@ -18,8 +19,8 @@ pub struct StartRequest {
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StartResponse {
-    pub session_id: String,
-    pub conversation_id: String,
+    pub session_id: SessionId,
+    pub conversation_id: ConversationId,
 }
 
 #[worker::send]
@@ -28,13 +29,13 @@ pub async fn handle_start(
     auth: AuthUser,
     body: axum::body::Bytes,
 ) -> Result<Json<StartResponse>> {
-    let student_id = auth.student_id.to_string();
+    let student_id = auth.student_id;
     let env = state.practice.env();
 
     // Pre-warm HF inference endpoint (fire-and-forget)
     prewarm_hf_endpoint(env);
 
-    let session_id = crate::services::ask::generate_uuid();
+    let session_id = SessionId::new();
     let now = js_sys::Date::new_0()
         .to_iso_string()
         .as_string()
@@ -53,14 +54,14 @@ pub async fn handle_start(
     let db = state.db.d1()?;
 
     // If no conversation_id provided, create a new conversation
-    let conversation_id = if let Some(id) = conversation_id {
-        id
+    let conversation_id: ConversationId = if let Some(id) = conversation_id {
+        ConversationId::from(id)
     } else {
-        let new_id = crate::services::ask::generate_uuid();
+        let new_id = ConversationId::new();
         db.prepare("INSERT INTO conversations (id, student_id, created_at, updated_at) VALUES (?1, ?2, ?3, ?4)")
             .bind(&[
-                JsValue::from_str(&new_id),
-                JsValue::from_str(&student_id),
+                JsValue::from_str(new_id.as_str()),
+                JsValue::from_str(student_id.as_str()),
                 JsValue::from_str(&now),
                 JsValue::from_str(&now),
             ])
@@ -80,10 +81,10 @@ pub async fn handle_start(
     // Insert session row linked to conversation
     db.prepare("INSERT INTO sessions (id, student_id, started_at, conversation_id) VALUES (?1, ?2, ?3, ?4)")
         .bind(&[
-            JsValue::from_str(&session_id),
-            JsValue::from_str(&student_id),
+            JsValue::from_str(session_id.as_str()),
+            JsValue::from_str(student_id.as_str()),
             JsValue::from_str(&now),
-            JsValue::from_str(&conversation_id),
+            JsValue::from_str(conversation_id.as_str()),
         ])
         .map_err(|e| {
             worker::console_error!("Failed to bind session insert: {:?}", e);
@@ -102,12 +103,12 @@ pub async fn handle_start(
         .prepare("INSERT INTO messages (id, conversation_id, role, content, created_at, message_type, session_id) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)")
         .bind(&[
             JsValue::from_str(&msg_id),
-            JsValue::from_str(&conversation_id),
+            JsValue::from_str(conversation_id.as_str()),
             JsValue::from_str("assistant"),
             JsValue::from_str("Practice session started"),
             JsValue::from_str(&now),
             JsValue::from_str("session_start"),
-            JsValue::from_str(&session_id),
+            JsValue::from_str(session_id.as_str()),
         ]);
     match msg_result {
         Ok(stmt) => {

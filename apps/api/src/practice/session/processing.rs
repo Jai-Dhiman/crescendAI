@@ -128,7 +128,8 @@ impl PracticeSession {
         {
             let needs_load = !self.inner.borrow().baselines_loaded;
             if needs_load {
-                let student_id = self.inner.borrow().student_id.clone();
+                let student_id =
+                    crate::types::StudentId::from(self.inner.borrow().student_id.clone());
                 let baselines = self.load_baselines(&student_id).await;
                 let mut s = self.inner.borrow_mut();
                 s.baselines = Some(baselines);
@@ -147,7 +148,7 @@ impl PracticeSession {
                     let s = self.inner.borrow();
                     (
                         s.piece_query.clone().unwrap_or_default(),
-                        s.student_id.clone(),
+                        crate::types::StudentId::from(s.student_id.clone()),
                     )
                 };
                 let ctx = crate::practice::analysis::score_context::resolve_piece(
@@ -527,7 +528,8 @@ impl PracticeSession {
         {
             let needs_load = !self.inner.borrow().baselines_loaded;
             if needs_load {
-                let student_id = self.inner.borrow().student_id.clone();
+                let student_id =
+                    crate::types::StudentId::from(self.inner.borrow().student_id.clone());
                 let baselines = self.load_baselines(&student_id).await;
                 let mut s = self.inner.borrow_mut();
                 s.baselines = Some(baselines);
@@ -546,7 +548,7 @@ impl PracticeSession {
                     let s = self.inner.borrow();
                     (
                         s.piece_query.clone().unwrap_or_default(),
-                        s.student_id.clone(),
+                        crate::types::StudentId::from(s.student_id.clone()),
                     )
                 };
                 let ctx = crate::practice::analysis::score_context::resolve_piece(

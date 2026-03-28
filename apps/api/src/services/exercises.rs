@@ -6,6 +6,7 @@ use worker::console_error;
 use crate::auth::AuthUser;
 use crate::error::{ApiError, Result};
 use crate::state::AppState;
+use crate::types::StudentId;
 
 // Response types
 
@@ -28,7 +29,7 @@ pub struct Exercise {
 #[serde(rename_all = "camelCase")]
 pub struct StudentExercise {
     pub id: String,
-    pub student_id: String,
+    pub student_id: StudentId,
     pub exercise_id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_id: Option<String>,
@@ -99,7 +100,7 @@ pub async fn handle_exercises(
     auth: AuthUser,
     Query(params): Query<ExerciseQueryParams>,
 ) -> Result<Json<serde_json::Value>> {
-    let student_id = auth.student_id.as_str().to_string();
+    let student_id = auth.student_id;
     let db = state.db.d1()?;
 
     // Build dynamic SQL with optional filters.
@@ -110,7 +111,7 @@ pub async fn handle_exercises(
     let mut param_idx = 1usize;
 
     // Always bind student_id for the LEFT JOIN exclusion subquery
-    bind_values.push(student_id);
+    bind_values.push(student_id.as_str().to_string());
     param_idx += 1;
 
     if let Some(ref dim) = params.dimension {
@@ -253,7 +254,7 @@ pub async fn handle_assign_exercise(
     auth: AuthUser,
     Json(request): Json<AssignRequest>,
 ) -> Result<(StatusCode, Json<StudentExercise>)> {
-    let student_id = auth.student_id.as_str().to_string();
+    let student_id = auth.student_id;
     let db = state.db.d1()?;
 
     // Query MAX(times_assigned) for this (student, exercise) pair
@@ -264,7 +265,7 @@ pub async fn handle_assign_exercise(
              WHERE student_id = ?1 AND exercise_id = ?2",
         )
         .bind(&[
-            JsValue::from_str(&student_id),
+            JsValue::from_str(student_id.as_str()),
             JsValue::from_str(&request.exercise_id),
         ])
         .map_err(|e| {
@@ -303,7 +304,7 @@ pub async fn handle_assign_exercise(
     )
     .bind(&[
         JsValue::from_str(&id),
-        JsValue::from_str(&student_id),
+        JsValue::from_str(student_id.as_str()),
         JsValue::from_str(&request.exercise_id),
         session_id_js,
         JsValue::from_str(&now),
@@ -342,7 +343,7 @@ pub async fn handle_complete_exercise(
     auth: AuthUser,
     Json(request): Json<CompleteRequest>,
 ) -> Result<Json<StudentExercise>> {
-    let student_id = auth.student_id.as_str().to_string();
+    let student_id = auth.student_id;
     let db = state.db.d1()?;
 
     // Verify the record exists and belongs to this student
@@ -374,7 +375,7 @@ pub async fn handle_complete_exercise(
         .and_then(|v| v.as_str().map(std::string::ToString::to_string))
         .unwrap_or_default();
 
-    if record_student_id != student_id {
+    if record_student_id != student_id.as_str() {
         return Err(ApiError::Forbidden);
     }
 

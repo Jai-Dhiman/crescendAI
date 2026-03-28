@@ -9,7 +9,10 @@ use crate::services::teaching_moments::StudentBaselines;
 impl PracticeSession {
     // --- Baselines ---
 
-    pub(crate) async fn load_baselines(&self, student_id: &str) -> StudentBaselines {
+    pub(crate) async fn load_baselines(
+        &self,
+        student_id: &crate::types::StudentId,
+    ) -> StudentBaselines {
         let defaults = SCALER_MEAN;
 
         let db = match self.env.d1("DB") {
@@ -27,7 +30,7 @@ impl PracticeSession {
                  AND created_at > datetime('now', '-30 days') \
                  GROUP BY dimension",
             )
-            .bind(&[JsValue::from_str(student_id)])
+            .bind(&[JsValue::from_str(student_id.as_str())])
         {
             Ok(s) => s,
             Err(e) => {
@@ -113,9 +116,11 @@ impl PracticeSession {
                 .saturating_sub(s.accumulator.timeline.first().map_or(0, |t| t.timestamp_ms));
 
             let ctx = super::synthesis::SynthesisContext {
-                session_id: s.session_id.clone(),
-                student_id: s.student_id.clone(),
-                conversation_id: s.conversation_id.clone().unwrap_or_default(),
+                session_id: crate::types::SessionId::from(s.session_id.clone()),
+                student_id: crate::types::StudentId::from(s.student_id.clone()),
+                conversation_id: crate::types::ConversationId::from(
+                    s.conversation_id.clone().unwrap_or_default(),
+                ),
                 baselines: s.baselines.clone(),
                 piece_context: s.score_context.as_ref().map(|sc| {
                     serde_json::json!({
@@ -131,7 +136,7 @@ impl PracticeSession {
             (s.accumulator.clone(), ctx)
         };
 
-        if ctx.conversation_id.is_empty() {
+        if ctx.conversation_id.as_str().is_empty() {
             console_error!("No conversation_id at synthesis time -- cannot persist");
             return;
         }
@@ -232,7 +237,7 @@ impl PracticeSession {
                 (
                     s.accumulator.teaching_moments.len(),
                     s.session_id.clone(),
-                    s.student_id.clone(),
+                    crate::types::StudentId::from(s.student_id.clone()),
                 )
             };
 
