@@ -2,36 +2,30 @@
 //!
 //! These are public endpoints (no auth required) serving the score catalog.
 
+use axum::extract::{Json, Path, Query, State};
+use axum::response::{IntoResponse, Response};
+use http::StatusCode;
 use wasm_bindgen::JsValue;
-use worker::{console_error, Env};
+use worker::console_error;
 
-/// Build a JSON error response.
-fn json_error(status: http::StatusCode, message: &str) -> http::Response<axum::body::Body> {
-    let body = serde_json::json!({ "error": message });
-    http::Response::builder()
-        .status(status)
-        .header("Content-Type", "application/json")
-        .body(axum::body::Body::from(serde_json::to_string(&body).unwrap()))
-        .unwrap()
+use crate::error::{ApiError, Result};
+use crate::state::AppState;
+
+/// Query params for GET /api/scores
+#[derive(serde::Deserialize)]
+pub struct ListPiecesParams {
+    pub composer: Option<String>,
 }
 
 /// GET /api/scores/:piece_id -- lookup a single piece from D1.
+#[worker::send]
 pub async fn handle_get_piece(
-    env: &Env,
-    piece_id: &str,
-) -> http::Response<axum::body::Body> {
-    let db = match env.d1("DB") {
-        Ok(db) => db,
-        Err(e) => {
-            console_error!("D1 binding failed: {:?}", e);
-            return json_error(
-                http::StatusCode::INTERNAL_SERVER_ERROR,
-                "Database unavailable",
-            );
-        }
-    };
+    State(state): State<AppState>,
+    Path(piece_id): Path<String>,
+) -> Result<Json<serde_json::Value>> {
+    let db = state.db.d1()?;
 
-    let results = match db
+    let results = db
         .prepare(
             "SELECT piece_id, composer, title, key_signature, time_signature, \
              tempo_bpm, bar_count, duration_seconds, note_count, \
@@ -39,197 +33,136 @@ pub async fn handle_get_piece(
              has_tempo_changes, source, created_at \
              FROM pieces WHERE piece_id = ?1",
         )
-        .bind(&[JsValue::from_str(piece_id)])
-    {
-        Ok(stmt) => match stmt.all().await {
-            Ok(r) => r,
-            Err(e) => {
-                console_error!("D1 query failed for piece {}: {:?}", piece_id, e);
-                return json_error(
-                    http::StatusCode::INTERNAL_SERVER_ERROR,
-                    "Query failed",
-                );
-            }
-        },
-        Err(e) => {
+        .bind(&[JsValue::from_str(&piece_id)])
+        .map_err(|e| {
             console_error!("D1 bind failed for piece {}: {:?}", piece_id, e);
-            return json_error(
-                http::StatusCode::INTERNAL_SERVER_ERROR,
-                "Query failed",
-            );
-        }
-    };
+            ApiError::Internal("Query failed".into())
+        })?
+        .all()
+        .await
+        .map_err(|e| {
+            console_error!("D1 query failed for piece {}: {:?}", piece_id, e);
+            ApiError::Internal("Query failed".into())
+        })?;
 
-    let rows: Vec<serde_json::Value> = match results.results() {
-        Ok(r) => r,
-        Err(e) => {
-            console_error!("D1 results parse failed: {:?}", e);
-            return json_error(
-                http::StatusCode::INTERNAL_SERVER_ERROR,
-                "Failed to parse results",
-            );
-        }
-    };
+    let rows: Vec<serde_json::Value> = results.results().map_err(|e| {
+        console_error!("D1 results parse failed: {:?}", e);
+        ApiError::Internal("Failed to parse results".into())
+    })?;
 
     if rows.is_empty() {
-        return json_error(http::StatusCode::NOT_FOUND, "Piece not found");
+        return Err(ApiError::NotFound("Piece not found".into()));
     }
 
-    http::Response::builder()
-        .status(http::StatusCode::OK)
-        .header("Content-Type", "application/json")
-        .body(axum::body::Body::from(
-            serde_json::to_string(&rows[0]).unwrap(),
-        ))
-        .unwrap()
+    Ok(Json(rows[0].clone()))
 }
 
 /// GET /api/scores/:piece_id/data -- fetch pre-built score JSON from R2.
+///
+/// Returns raw bytes with long-lived cache headers, so we use `impl IntoResponse`
+/// instead of `Result<Json<...>>`.
+#[worker::send]
 pub async fn handle_get_piece_data(
-    env: &Env,
-    piece_id: &str,
-) -> http::Response<axum::body::Body> {
-    let bucket = match env.bucket("SCORES") {
-        Ok(b) => b,
-        Err(e) => {
-            console_error!("Failed to get SCORES R2 bucket: {:?}", e);
-            return json_error(
-                http::StatusCode::INTERNAL_SERVER_ERROR,
-                "Storage unavailable",
-            );
-        }
-    };
+    State(state): State<AppState>,
+    Path(piece_id): Path<String>,
+) -> std::result::Result<Response, ApiError> {
+    let bucket = state.practice.scores_bucket()?;
 
     let key = format!("scores/v1/{}.json", piece_id);
 
     match bucket.get(&key).execute().await {
         Ok(Some(obj)) => {
-            let bytes = match obj.body().unwrap().bytes().await {
-                Ok(b) => b,
-                Err(e) => {
+            let bytes = obj
+                .body()
+                .ok_or_else(|| ApiError::Internal("R2 object has no body".into()))?
+                .bytes()
+                .await
+                .map_err(|e| {
                     console_error!("R2 body read failed for {}: {:?}", key, e);
-                    return json_error(
-                        http::StatusCode::INTERNAL_SERVER_ERROR,
-                        "Failed to read score data",
-                    );
-                }
-            };
+                    ApiError::Internal("Failed to read score data".into())
+                })?;
 
-            http::Response::builder()
-                .status(http::StatusCode::OK)
-                .header("Content-Type", "application/json")
-                .header("Cache-Control", "public, max-age=31536000, immutable")
-                .body(axum::body::Body::from(bytes))
-                .unwrap()
+            Ok((
+                StatusCode::OK,
+                [
+                    ("content-type", "application/json"),
+                    ("cache-control", "public, max-age=31536000, immutable"),
+                ],
+                bytes,
+            )
+                .into_response())
         }
-        Ok(None) => json_error(http::StatusCode::NOT_FOUND, "Score data not found"),
+        Ok(None) => Err(ApiError::NotFound("Score data not found".into())),
         Err(e) => {
             console_error!("R2 get failed for {}: {:?}", key, e);
-            http::Response::builder()
-                .status(http::StatusCode::SERVICE_UNAVAILABLE)
-                .header("Content-Type", "application/json")
-                .header("Retry-After", "5")
-                .body(axum::body::Body::from(
-                    serde_json::to_string(&serde_json::json!({
-                        "error": "Score storage temporarily unavailable"
-                    }))
-                    .unwrap(),
-                ))
-                .unwrap()
+            Ok((
+                StatusCode::SERVICE_UNAVAILABLE,
+                [
+                    ("content-type", "application/json"),
+                    ("retry-after", "5"),
+                ],
+                serde_json::json!({"error": "Score storage temporarily unavailable"}).to_string(),
+            )
+                .into_response())
         }
     }
 }
 
 /// GET /api/scores?composer=X -- list pieces, optionally filtered by composer.
+#[worker::send]
 pub async fn handle_list_pieces(
-    env: &Env,
-    composer: Option<&str>,
-) -> http::Response<axum::body::Body> {
-    let db = match env.d1("DB") {
-        Ok(db) => db,
-        Err(e) => {
-            console_error!("D1 binding failed: {:?}", e);
-            return json_error(
-                http::StatusCode::INTERNAL_SERVER_ERROR,
-                "Database unavailable",
-            );
-        }
-    };
+    State(state): State<AppState>,
+    Query(params): Query<ListPiecesParams>,
+) -> Result<Json<serde_json::Value>> {
+    let db = state.db.d1()?;
 
-    let results = match composer {
+    let results = match params.composer.as_deref() {
         Some(c) => {
-            let stmt = db.prepare(
+            db.prepare(
                 "SELECT piece_id, composer, title, key_signature, time_signature, \
                  tempo_bpm, bar_count, duration_seconds, note_count, \
                  pitch_range_low, pitch_range_high, has_time_sig_changes, \
                  has_tempo_changes, source, created_at \
                  FROM pieces WHERE composer = ?1 ORDER BY title",
-            );
-            match stmt.bind(&[JsValue::from_str(c)]) {
-                Ok(s) => match s.all().await {
-                    Ok(r) => r,
-                    Err(e) => {
-                        console_error!("D1 query failed for composer {}: {:?}", c, e);
-                        return json_error(
-                            http::StatusCode::INTERNAL_SERVER_ERROR,
-                            "Query failed",
-                        );
-                    }
-                },
-                Err(e) => {
-                    console_error!("D1 bind failed: {:?}", e);
-                    return json_error(
-                        http::StatusCode::INTERNAL_SERVER_ERROR,
-                        "Query failed",
-                    );
-                }
-            }
+            )
+            .bind(&[JsValue::from_str(c)])
+            .map_err(|e| {
+                console_error!("D1 bind failed: {:?}", e);
+                ApiError::Internal("Query failed".into())
+            })?
+            .all()
+            .await
+            .map_err(|e| {
+                console_error!("D1 query failed for composer {}: {:?}", c, e);
+                ApiError::Internal("Query failed".into())
+            })?
         }
         None => {
-            let stmt = db.prepare(
+            db.prepare(
                 "SELECT piece_id, composer, title, key_signature, time_signature, \
                  tempo_bpm, bar_count, duration_seconds, note_count, \
                  pitch_range_low, pitch_range_high, has_time_sig_changes, \
                  has_tempo_changes, source, created_at \
                  FROM pieces ORDER BY composer, title",
-            );
-            match stmt.bind(&[]) {
-                Ok(s) => match s.all().await {
-                    Ok(r) => r,
-                    Err(e) => {
-                        console_error!("D1 query failed for list: {:?}", e);
-                        return json_error(
-                            http::StatusCode::INTERNAL_SERVER_ERROR,
-                            "Query failed",
-                        );
-                    }
-                },
-                Err(e) => {
-                    console_error!("D1 bind failed: {:?}", e);
-                    return json_error(
-                        http::StatusCode::INTERNAL_SERVER_ERROR,
-                        "Query failed",
-                    );
-                }
-            }
+            )
+            .bind(&[])
+            .map_err(|e| {
+                console_error!("D1 bind failed: {:?}", e);
+                ApiError::Internal("Query failed".into())
+            })?
+            .all()
+            .await
+            .map_err(|e| {
+                console_error!("D1 query failed for list: {:?}", e);
+                ApiError::Internal("Query failed".into())
+            })?
         }
     };
 
-    let rows: Vec<serde_json::Value> = match results.results() {
-        Ok(r) => r,
-        Err(e) => {
-            console_error!("D1 results parse failed: {:?}", e);
-            return json_error(
-                http::StatusCode::INTERNAL_SERVER_ERROR,
-                "Failed to parse results",
-            );
-        }
-    };
+    let rows: Vec<serde_json::Value> = results.results().map_err(|e| {
+        console_error!("D1 results parse failed: {:?}", e);
+        ApiError::Internal("Failed to parse results".into())
+    })?;
 
-    let body = serde_json::json!({ "pieces": rows });
-    http::Response::builder()
-        .status(http::StatusCode::OK)
-        .header("Content-Type", "application/json")
-        .body(axum::body::Body::from(serde_json::to_string(&body).unwrap()))
-        .unwrap()
+    Ok(Json(serde_json::json!({ "pieces": rows })))
 }

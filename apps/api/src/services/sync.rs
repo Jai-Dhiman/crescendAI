@@ -1,7 +1,13 @@
+use axum::extract::{Json, State};
 use wasm_bindgen::JsValue;
-use worker::{console_error, console_log, D1Database, Env};
+use worker::{console_error, console_log, D1Database};
+
+use crate::auth::AuthUser;
+use crate::error::{ApiError, Result};
+use crate::state::AppState;
 
 #[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct SyncRequest {
     pub student: StudentDelta,
     pub new_sessions: Vec<SessionDelta>,
@@ -9,6 +15,7 @@ pub struct SyncRequest {
 }
 
 #[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct StudentDelta {
     pub inferred_level: Option<String>,
     pub baseline_dynamics: Option<f64>,
@@ -22,6 +29,7 @@ pub struct StudentDelta {
 }
 
 #[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SessionDelta {
     pub id: String,
     pub started_at: String,
@@ -37,6 +45,7 @@ pub struct SessionDelta {
 }
 
 #[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SyncResponse {
     pub sync_timestamp: String,
     pub exercise_updates: Vec<serde_json::Value>,
@@ -66,53 +75,22 @@ fn opt_str(v: Option<&str>) -> JsValue {
     }
 }
 
+#[worker::send]
 pub async fn handle_sync(
-    env: &Env,
-    headers: &http::HeaderMap,
-    body: &[u8],
-) -> http::Response<axum::body::Body> {
-    use axum::body::Body;
-    use http::{Response, StatusCode};
-
-    // Verify auth
-    let student_id = match crate::auth::verify_auth_header(headers, env) {
-        Ok(id) => id,
-        Err(err_response) => return err_response,
-    };
-
-    let request: SyncRequest = match serde_json::from_slice(body) {
-        Ok(r) => r,
-        Err(e) => {
-            console_error!("Failed to parse sync request: {:?}", e);
-            return Response::builder()
-                .status(StatusCode::BAD_REQUEST)
-                .header("Content-Type", "application/json")
-                .body(Body::from(r#"{"error":"Invalid request body"}"#))
-                .unwrap();
-        }
-    };
-
-    let db = match env.d1("DB") {
-        Ok(db) => db,
-        Err(e) => {
-            console_error!("D1 binding failed: {:?}", e);
-            return Response::builder()
-                .status(StatusCode::INTERNAL_SERVER_ERROR)
-                .header("Content-Type", "application/json")
-                .body(Body::from(r#"{"error":"Database connection failed"}"#))
-                .unwrap();
-        }
-    };
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Json(request): Json<SyncRequest>,
+) -> Result<Json<SyncResponse>> {
+    let student_id = auth.student_id.as_str().to_string();
+    let db = state.db.d1()?;
 
     // Upsert student baselines
-    if let Err(e) = upsert_student_baselines(&db, &student_id, &request.student).await {
-        console_error!("Failed to upsert student baselines: {}", e);
-        return Response::builder()
-            .status(StatusCode::INTERNAL_SERVER_ERROR)
-            .header("Content-Type", "application/json")
-            .body(Body::from(r#"{"error":"Failed to update student data"}"#))
-            .unwrap();
-    }
+    upsert_student_baselines(&db, &student_id, &request.student)
+        .await
+        .map_err(|e| {
+            console_error!("Failed to upsert student baselines: {}", e);
+            ApiError::Internal("Failed to update student data".into())
+        })?;
 
     // Insert new sessions
     for session in &request.new_sessions {
@@ -122,6 +100,7 @@ pub async fn handle_sync(
     }
 
     // Memory synthesis: check if we should synthesize facts from accumulated observations
+    let env = state.db.env();
     match crate::services::memory::should_synthesize(env, &student_id).await {
         Ok(true) => {
             console_log!("Triggering memory synthesis for student {}", student_id);
@@ -145,30 +124,22 @@ pub async fn handle_sync(
     // Exercise updates (Slice 7 will populate this)
     let exercise_updates = Vec::new();
 
-    let response = SyncResponse {
-        sync_timestamp,
-        exercise_updates,
-    };
-
-    let json = serde_json::to_string(&response).unwrap_or_else(|_| "{}".to_string());
-
     console_log!(
         "Sync complete for student: {} sessions synced",
         request.new_sessions.len()
     );
 
-    Response::builder()
-        .status(StatusCode::OK)
-        .header("Content-Type", "application/json")
-        .body(Body::from(json))
-        .unwrap()
+    Ok(Json(SyncResponse {
+        sync_timestamp,
+        exercise_updates,
+    }))
 }
 
 async fn upsert_student_baselines(
     db: &D1Database,
     student_id: &str,
     delta: &StudentDelta,
-) -> Result<(), String> {
+) -> std::result::Result<(), String> {
     let now = js_sys::Date::new_0()
         .to_iso_string()
         .as_string()
@@ -213,7 +184,7 @@ async fn insert_session(
     db: &D1Database,
     student_id: &str,
     session: &SessionDelta,
-) -> Result<(), String> {
+) -> std::result::Result<(), String> {
     db.prepare(
         "INSERT OR IGNORE INTO sessions \
          (id, student_id, started_at, ended_at, avg_dynamics, avg_timing, avg_pedaling, \

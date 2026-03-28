@@ -1,8 +1,7 @@
 //! Axum Router definition.
 //!
-//! Auth routes use new Axum-style handlers directly (from Task 4).
-//! Service and practice routes use thin wrappers that delegate to existing
-//! old-style handlers -- these wrappers will be removed in Tasks 7-9.
+//! Auth and service routes use native Axum-style handlers (Tasks 4, 7).
+//! Chat, memory, and practice routes still use thin wrappers -- Tasks 8-9 will migrate.
 
 use axum::extract::{Path, Query, State};
 use axum::response::IntoResponse;
@@ -10,6 +9,8 @@ use axum::routing::{get, post};
 use axum::Router;
 
 use crate::state::AppState;
+
+use crate::services::{exercises, goals, scores, sync, waitlist};
 
 // ---------------------------------------------------------------------------
 // Router
@@ -34,18 +35,31 @@ pub fn router(state: AppState) -> Router {
             "/api/auth/debug",
             post(crate::auth::handlers::handle_debug),
         )
-        // Services (temporary wrappers -- Tasks 7-9 will replace)
-        .route("/api/waitlist", post(wrap_waitlist))
-        .route("/api/extract-goals", post(wrap_extract_goals))
-        .route("/api/sync", post(wrap_sync))
+        // Services -- migrated to native Axum handlers (Task 7)
+        .route("/api/waitlist", post(waitlist::handle_waitlist))
+        .route("/api/extract-goals", post(goals::handle_extract_goals))
+        .route("/api/sync", post(sync::handle_sync))
+        .route("/api/scores", get(scores::handle_list_pieces))
+        .route("/api/scores/{piece_id}", get(scores::handle_get_piece))
+        .route(
+            "/api/scores/{piece_id}/data",
+            get(scores::handle_get_piece_data),
+        )
+        .route("/api/exercises", get(exercises::handle_exercises))
+        .route(
+            "/api/exercises/assign",
+            post(exercises::handle_assign_exercise),
+        )
+        .route(
+            "/api/exercises/complete",
+            post(exercises::handle_complete_exercise),
+        )
+        // Services -- temporary wrappers (Tasks 8-9 will replace)
         .route("/api/conversations", get(wrap_list_conversations))
         .route(
             "/api/conversations/{id}",
             get(wrap_get_conversation).delete(wrap_delete_conversation),
         )
-        .route("/api/exercises", get(wrap_exercises))
-        .route("/api/exercises/assign", post(wrap_assign_exercise))
-        .route("/api/exercises/complete", post(wrap_complete_exercise))
         // Memory
         .route("/api/memory/extract-chat", post(wrap_extract_chat))
         .route("/api/memory/store-facts", post(wrap_store_facts))
@@ -80,37 +94,8 @@ async fn health() -> impl IntoResponse {
 }
 
 // ---------------------------------------------------------------------------
-// Wrapper helpers: service handlers (env, headers, body) pattern
+// Wrapper helpers: remaining old-style handlers (Tasks 8-9 will remove)
 // ---------------------------------------------------------------------------
-
-/// Temporary wrapper -- will be removed when services/waitlist.rs is migrated (Task 7).
-#[worker::send]
-async fn wrap_waitlist(
-    State(state): State<AppState>,
-    body: axum::body::Bytes,
-) -> http::Response<axum::body::Body> {
-    crate::services::waitlist::handle_waitlist(state.db.env(), &body).await
-}
-
-/// Temporary wrapper -- will be removed when services/goals.rs is migrated (Task 7).
-#[worker::send]
-async fn wrap_extract_goals(
-    State(state): State<AppState>,
-    headers: http::HeaderMap,
-    body: axum::body::Bytes,
-) -> http::Response<axum::body::Body> {
-    crate::services::goals::handle_extract_goals(state.db.env(), &headers, &body).await
-}
-
-/// Temporary wrapper -- will be removed when services/sync.rs is migrated (Task 7).
-#[worker::send]
-async fn wrap_sync(
-    State(state): State<AppState>,
-    headers: http::HeaderMap,
-    body: axum::body::Bytes,
-) -> http::Response<axum::body::Body> {
-    crate::services::sync::handle_sync(state.db.env(), &headers, &body).await
-}
 
 /// Temporary wrapper -- will be removed when services/chat.rs is migrated (Task 8).
 #[worker::send]
@@ -139,37 +124,6 @@ async fn wrap_delete_conversation(
     headers: http::HeaderMap,
 ) -> http::Response<axum::body::Body> {
     crate::services::chat::handle_delete_conversation(state.db.env(), &headers, &id).await
-}
-
-/// Temporary wrapper -- will be removed when services/exercises.rs is migrated (Task 7).
-#[worker::send]
-async fn wrap_exercises(
-    State(state): State<AppState>,
-    headers: http::HeaderMap,
-    query: axum::extract::RawQuery,
-) -> http::Response<axum::body::Body> {
-    let qs = query.0.unwrap_or_default();
-    crate::services::exercises::handle_exercises(state.db.env(), &headers, &qs).await
-}
-
-/// Temporary wrapper -- will be removed when services/exercises.rs is migrated (Task 7).
-#[worker::send]
-async fn wrap_assign_exercise(
-    State(state): State<AppState>,
-    headers: http::HeaderMap,
-    body: axum::body::Bytes,
-) -> http::Response<axum::body::Body> {
-    crate::services::exercises::handle_assign_exercise(state.db.env(), &headers, &body).await
-}
-
-/// Temporary wrapper -- will be removed when services/exercises.rs is migrated (Task 7).
-#[worker::send]
-async fn wrap_complete_exercise(
-    State(state): State<AppState>,
-    headers: http::HeaderMap,
-    body: axum::body::Bytes,
-) -> http::Response<axum::body::Body> {
-    crate::services::exercises::handle_complete_exercise(state.db.env(), &headers, &body).await
 }
 
 // ---------------------------------------------------------------------------

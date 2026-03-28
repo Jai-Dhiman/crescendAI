@@ -1,6 +1,10 @@
+use axum::extract::{Json, State};
 use js_sys;
 use wasm_bindgen::JsValue;
-use worker::{console_error, Env};
+use worker::console_error;
+
+use crate::error::{ApiError, Result};
+use crate::state::AppState;
 
 /// Validate email: non-empty local@domain.tld, no whitespace, 3-254 chars.
 fn is_valid_email(email: &str) -> bool {
@@ -26,49 +30,27 @@ fn is_valid_email(email: &str) -> bool {
     }
 }
 
+#[worker::send]
 pub async fn handle_waitlist(
-    env: &Env,
-    body: &[u8],
-) -> http::Response<axum::body::Body> {
-    let parsed: serde_json::Value = match serde_json::from_slice(body) {
-        Ok(v) => v,
-        Err(_) => {
-            return http::Response::builder()
-                .status(http::StatusCode::BAD_REQUEST)
-                .header("Content-Type", "application/json")
-                .body(axum::body::Body::from(r#"{"error":"Invalid JSON"}"#))
-                .unwrap();
-        }
-    };
-
+    State(state): State<AppState>,
+    Json(parsed): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>> {
     // Honeypot: if "name" field is non-empty, silently accept
     if let Some(name) = parsed.get("name").and_then(|v| v.as_str()) {
         if !name.is_empty() {
-            return http::Response::builder()
-                .status(http::StatusCode::OK)
-                .header("Content-Type", "application/json")
-                .body(axum::body::Body::from(r#"{"ok":true}"#))
-                .unwrap();
+            return Ok(Json(serde_json::json!({"ok": true})));
         }
     }
 
-    let email = match parsed.get("email").and_then(|v| v.as_str()) {
-        Some(e) => e.trim().to_lowercase(),
-        None => {
-            return http::Response::builder()
-                .status(http::StatusCode::BAD_REQUEST)
-                .header("Content-Type", "application/json")
-                .body(axum::body::Body::from(r#"{"error":"Invalid email"}"#))
-                .unwrap();
-        }
-    };
+    let email = parsed
+        .get("email")
+        .and_then(|v| v.as_str())
+        .map(|e| e.trim().to_lowercase())
+        .filter(|e| !e.is_empty())
+        .ok_or_else(|| ApiError::BadRequest("Invalid email".into()))?;
 
     if !is_valid_email(&email) {
-        return http::Response::builder()
-            .status(http::StatusCode::BAD_REQUEST)
-            .header("Content-Type", "application/json")
-            .body(axum::body::Body::from(r#"{"error":"Invalid email"}"#))
-            .unwrap();
+        return Err(ApiError::BadRequest("Invalid email".into()));
     }
 
     // Truncate context to 500 chars (char-boundary safe)
@@ -85,56 +67,35 @@ pub async fn handle_waitlist(
         })
         .filter(|s| !s.is_empty());
 
-    let db = match env.d1("DB") {
-        Ok(db) => db,
-        Err(e) => {
-            console_error!("D1 binding failed: {:?}", e);
-            return http::Response::builder()
-                .status(http::StatusCode::INTERNAL_SERVER_ERROR)
-                .header("Content-Type", "application/json")
-                .body(axum::body::Body::from(r#"{"error":"Internal error"}"#))
-                .unwrap();
-        }
-    };
+    let db = state.db.d1()?;
 
-    let now = js_sys::Date::new_0().to_iso_string().as_string().unwrap_or_default();
+    let now = js_sys::Date::new_0()
+        .to_iso_string()
+        .as_string()
+        .unwrap_or_default();
 
     let context_val = match &context {
         Some(c) => JsValue::from_str(c),
         None => JsValue::NULL,
     };
 
-    let stmt = match db
+    let stmt = db
         .prepare("INSERT OR IGNORE INTO waitlist (email, context, source, created_at) VALUES (?1, ?2, ?3, ?4)")
         .bind(&[
             JsValue::from_str(&email),
             context_val,
             JsValue::from_str("web"),
             JsValue::from_str(&now),
-        ]) {
-        Ok(stmt) => stmt,
-        Err(e) => {
+        ])
+        .map_err(|e| {
             console_error!("Waitlist bind failed: {:?}", e);
-            return http::Response::builder()
-                .status(http::StatusCode::INTERNAL_SERVER_ERROR)
-                .header("Content-Type", "application/json")
-                .body(axum::body::Body::from(r#"{"error":"Internal error"}"#))
-                .unwrap();
-        }
-    };
+            ApiError::Internal("Database error".into())
+        })?;
 
-    if let Err(e) = stmt.run().await {
+    stmt.run().await.map_err(|e| {
         console_error!("Waitlist insert failed: {:?}", e);
-        return http::Response::builder()
-            .status(http::StatusCode::INTERNAL_SERVER_ERROR)
-            .header("Content-Type", "application/json")
-            .body(axum::body::Body::from(r#"{"error":"Internal error"}"#))
-            .unwrap();
-    }
+        ApiError::Internal("Database error".into())
+    })?;
 
-    http::Response::builder()
-        .status(http::StatusCode::OK)
-        .header("Content-Type", "application/json")
-        .body(axum::body::Body::from(r#"{"ok":true}"#))
-        .unwrap()
+    Ok(Json(serde_json::json!({"ok": true})))
 }

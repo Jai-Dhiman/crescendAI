@@ -1,9 +1,16 @@
+use axum::extract::{Json, Query, State};
+use http::StatusCode;
 use wasm_bindgen::JsValue;
-use worker::{console_error, Env};
+use worker::console_error;
+
+use crate::auth::AuthUser;
+use crate::error::{ApiError, Result};
+use crate::state::AppState;
 
 // Response types
 
 #[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Exercise {
     pub id: String,
     pub title: String,
@@ -17,6 +24,7 @@ pub struct Exercise {
 }
 
 #[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct StudentExercise {
     pub id: String,
     pub student_id: String,
@@ -31,12 +39,14 @@ pub struct StudentExercise {
 // Request types
 
 #[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct AssignRequest {
     pub exercise_id: String,
     pub session_id: Option<String>,
 }
 
 #[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct CompleteRequest {
     pub student_exercise_id: String,
     pub response: Option<String>,
@@ -45,42 +55,13 @@ pub struct CompleteRequest {
     pub notes: Option<String>,
 }
 
-// Query param parser
+// Query param types
 
+#[derive(serde::Deserialize)]
 pub struct ExerciseQueryParams {
     pub dimension: Option<String>,
     pub level: Option<String>,
     pub repertoire: Option<String>,
-}
-
-pub fn parse_exercise_query_params(query: &str) -> ExerciseQueryParams {
-    let mut dimension = None;
-    let mut level = None;
-    let mut repertoire = None;
-
-    for pair in query.split('&') {
-        if pair.is_empty() {
-            continue;
-        }
-        let mut parts = pair.splitn(2, '=');
-        let key = parts.next().unwrap_or("").trim();
-        let value = parts.next().unwrap_or("").trim();
-        if value.is_empty() {
-            continue;
-        }
-        match key {
-            "dimension" => dimension = Some(value.to_string()),
-            "level" => level = Some(value.to_string()),
-            "repertoire" => repertoire = Some(value.to_string()),
-            _ => {}
-        }
-    }
-
-    ExerciseQueryParams {
-        dimension,
-        level,
-        repertoire,
-    }
 }
 
 fn generate_uuid() -> String {
@@ -98,55 +79,25 @@ fn generate_uuid() -> String {
     )
 }
 
-fn json_error(status: http::StatusCode, message: &str) -> http::Response<axum::body::Body> {
-    let body = serde_json::json!({ "error": message });
-    http::Response::builder()
-        .status(status)
-        .header("Content-Type", "application/json")
-        .body(axum::body::Body::from(
-            serde_json::to_string(&body).unwrap(),
-        ))
-        .unwrap()
-}
-
 /// GET /api/exercises
+#[worker::send]
 pub async fn handle_exercises(
-    env: &Env,
-    headers: &http::HeaderMap,
-    query_string: &str,
-) -> http::Response<axum::body::Body> {
-    use axum::body::Body;
-    use http::Response;
-
-    let student_id = match crate::auth::verify_auth_header(headers, env) {
-        Ok(id) => id,
-        Err(err_response) => return err_response,
-    };
-
-    let params = parse_exercise_query_params(query_string);
-
-    let db = match env.d1("DB") {
-        Ok(db) => db,
-        Err(e) => {
-            console_error!("D1 binding failed: {:?}", e);
-            return json_error(
-                http::StatusCode::INTERNAL_SERVER_ERROR,
-                "Database unavailable",
-            );
-        }
-    };
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Query(params): Query<ExerciseQueryParams>,
+) -> Result<Json<serde_json::Value>> {
+    let student_id = auth.student_id.as_str().to_string();
+    let db = state.db.d1()?;
 
     // Build dynamic SQL with optional filters.
     // Exclude exercises already assigned (not yet completed) to this student.
     // Prefer exercises matching the repertoire tag, then random order.
-    let mut conditions = vec![
-        "se.id IS NULL".to_string(),
-    ];
+    let mut conditions = vec!["se.id IS NULL".to_string()];
     let mut bind_values: Vec<String> = Vec::new();
     let mut param_idx = 1usize;
 
     // Always bind student_id for the LEFT JOIN exclusion subquery
-    bind_values.push(student_id.clone());
+    bind_values.push(student_id);
     param_idx += 1;
 
     if let Some(ref dim) = params.dimension {
@@ -193,39 +144,20 @@ pub async fn handle_exercises(
         .map(|v| JsValue::from_str(v))
         .collect();
 
-    // Ensure the bind array is non-empty (it always has at least ?1 = student_id)
-    let stmt = match db.prepare(&sql).bind(&js_binds) {
-        Ok(s) => s,
-        Err(e) => {
-            console_error!("Failed to bind exercises query: {:?}", e);
-            return json_error(
-                http::StatusCode::INTERNAL_SERVER_ERROR,
-                "Query preparation failed",
-            );
-        }
-    };
+    let stmt = db.prepare(&sql).bind(&js_binds).map_err(|e| {
+        console_error!("Failed to bind exercises query: {:?}", e);
+        ApiError::Internal("Query preparation failed".into())
+    })?;
 
-    let rows = match stmt.all().await {
-        Ok(r) => r,
-        Err(e) => {
-            console_error!("Exercises query failed: {:?}", e);
-            return json_error(
-                http::StatusCode::INTERNAL_SERVER_ERROR,
-                "Query failed",
-            );
-        }
-    };
+    let rows = stmt.all().await.map_err(|e| {
+        console_error!("Exercises query failed: {:?}", e);
+        ApiError::Internal("Query failed".into())
+    })?;
 
-    let exercise_rows: Vec<serde_json::Value> = match rows.results() {
-        Ok(r) => r,
-        Err(e) => {
-            console_error!("Failed to deserialize exercise rows: {:?}", e);
-            return json_error(
-                http::StatusCode::INTERNAL_SERVER_ERROR,
-                "Failed to read results",
-            );
-        }
-    };
+    let exercise_rows: Vec<serde_json::Value> = rows.results().map_err(|e| {
+        console_error!("Failed to deserialize exercise rows: {:?}", e);
+        ApiError::Internal("Failed to read results".into())
+    })?;
 
     let mut exercises: Vec<Exercise> = Vec::new();
 
@@ -262,7 +194,10 @@ pub async fn handle_exercises(
         let dimensions: Vec<String> = match dim_rows.results::<serde_json::Value>() {
             Ok(rows) => rows
                 .into_iter()
-                .filter_map(|r| r.get("dimension").and_then(|v| v.as_str().map(|s| s.to_string())))
+                .filter_map(|r| {
+                    r.get("dimension")
+                        .and_then(|v| v.as_str().map(|s| s.to_string()))
+                })
                 .collect(),
             Err(_) => vec![],
         };
@@ -300,49 +235,21 @@ pub async fn handle_exercises(
         });
     }
 
-    let json = serde_json::json!({ "exercises": exercises });
-    Response::builder()
-        .status(http::StatusCode::OK)
-        .header("Content-Type", "application/json")
-        .body(Body::from(serde_json::to_string(&json).unwrap()))
-        .unwrap()
+    Ok(Json(serde_json::json!({ "exercises": exercises })))
 }
 
 /// POST /api/exercises/assign
+#[worker::send]
 pub async fn handle_assign_exercise(
-    env: &Env,
-    headers: &http::HeaderMap,
-    body: &[u8],
-) -> http::Response<axum::body::Body> {
-    use axum::body::Body;
-    use http::Response;
-
-    let student_id = match crate::auth::verify_auth_header(headers, env) {
-        Ok(id) => id,
-        Err(err_response) => return err_response,
-    };
-
-    let request: AssignRequest = match serde_json::from_slice(body) {
-        Ok(r) => r,
-        Err(e) => {
-            console_error!("Failed to parse assign request: {:?}", e);
-            return json_error(http::StatusCode::BAD_REQUEST, "Invalid request body");
-        }
-    };
-
-    let db = match env.d1("DB") {
-        Ok(db) => db,
-        Err(e) => {
-            console_error!("D1 binding failed: {:?}", e);
-            return json_error(
-                http::StatusCode::INTERNAL_SERVER_ERROR,
-                "Database unavailable",
-            );
-        }
-    };
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Json(request): Json<AssignRequest>,
+) -> Result<(StatusCode, Json<StudentExercise>)> {
+    let student_id = auth.student_id.as_str().to_string();
+    let db = state.db.d1()?;
 
     // Query MAX(times_assigned) for this (student, exercise) pair
-    let max_row = match db
+    let max_row = db
         .prepare(
             "SELECT COALESCE(MAX(times_assigned), 0) as max_times \
              FROM student_exercises \
@@ -351,25 +258,17 @@ pub async fn handle_assign_exercise(
         .bind(&[
             JsValue::from_str(&student_id),
             JsValue::from_str(&request.exercise_id),
-        ]) {
-        Ok(stmt) => match stmt.first::<serde_json::Value>(None).await {
-            Ok(row) => row,
-            Err(e) => {
-                console_error!("Failed to query times_assigned: {:?}", e);
-                return json_error(
-                    http::StatusCode::INTERNAL_SERVER_ERROR,
-                    "Query failed",
-                );
-            }
-        },
-        Err(e) => {
+        ])
+        .map_err(|e| {
             console_error!("Failed to bind times_assigned query: {:?}", e);
-            return json_error(
-                http::StatusCode::INTERNAL_SERVER_ERROR,
-                "Query preparation failed",
-            );
-        }
-    };
+            ApiError::Internal("Query preparation failed".into())
+        })?
+        .first::<serde_json::Value>(None)
+        .await
+        .map_err(|e| {
+            console_error!("Failed to query times_assigned: {:?}", e);
+            ApiError::Internal("Query failed".into())
+        })?;
 
     let times_assigned = max_row
         .as_ref()
@@ -389,128 +288,78 @@ pub async fn handle_assign_exercise(
         None => JsValue::NULL,
     };
 
-    let insert_stmt = match db
-        .prepare(
-            "INSERT INTO student_exercises \
-             (id, student_id, exercise_id, session_id, assigned_at, completed, times_assigned) \
-             VALUES (?1, ?2, ?3, ?4, ?5, 0, ?6)",
-        )
-        .bind(&[
-            JsValue::from_str(&id),
-            JsValue::from_str(&student_id),
-            JsValue::from_str(&request.exercise_id),
-            session_id_js,
-            JsValue::from_str(&now),
-            JsValue::from_f64(times_assigned as f64),
-        ]) {
-        Ok(s) => s,
-        Err(e) => {
-            console_error!("Failed to bind insert statement: {:?}", e);
-            return json_error(
-                http::StatusCode::INTERNAL_SERVER_ERROR,
-                "Insert preparation failed",
-            );
-        }
-    };
-
-    if let Err(e) = insert_stmt.run().await {
+    db.prepare(
+        "INSERT INTO student_exercises \
+         (id, student_id, exercise_id, session_id, assigned_at, completed, times_assigned) \
+         VALUES (?1, ?2, ?3, ?4, ?5, 0, ?6)",
+    )
+    .bind(&[
+        JsValue::from_str(&id),
+        JsValue::from_str(&student_id),
+        JsValue::from_str(&request.exercise_id),
+        session_id_js,
+        JsValue::from_str(&now),
+        JsValue::from_f64(times_assigned as f64),
+    ])
+    .map_err(|e| {
+        console_error!("Failed to bind insert statement: {:?}", e);
+        ApiError::Internal("Insert preparation failed".into())
+    })?
+    .run()
+    .await
+    .map_err(|e| {
         console_error!("Failed to insert student_exercise: {:?}", e);
-        return json_error(
-            http::StatusCode::INTERNAL_SERVER_ERROR,
-            "Failed to assign exercise",
-        );
-    }
+        ApiError::Internal("Failed to assign exercise".into())
+    })?;
 
-    let student_exercise = StudentExercise {
-        id,
-        student_id,
-        exercise_id: request.exercise_id,
-        session_id: request.session_id,
-        assigned_at: now,
-        completed: false,
-        response: None,
-        times_assigned,
-    };
-
-    let json = serde_json::to_string(&student_exercise).unwrap_or_else(|_| "{}".to_string());
-    Response::builder()
-        .status(http::StatusCode::CREATED)
-        .header("Content-Type", "application/json")
-        .body(Body::from(json))
-        .unwrap()
+    Ok((
+        StatusCode::CREATED,
+        Json(StudentExercise {
+            id,
+            student_id,
+            exercise_id: request.exercise_id,
+            session_id: request.session_id,
+            assigned_at: now,
+            completed: false,
+            response: None,
+            times_assigned,
+        }),
+    ))
 }
 
 /// POST /api/exercises/complete
+#[worker::send]
 pub async fn handle_complete_exercise(
-    env: &Env,
-    headers: &http::HeaderMap,
-    body: &[u8],
-) -> http::Response<axum::body::Body> {
-    use axum::body::Body;
-    use http::Response;
-
-    let student_id = match crate::auth::verify_auth_header(headers, env) {
-        Ok(id) => id,
-        Err(err_response) => return err_response,
-    };
-
-    let request: CompleteRequest = match serde_json::from_slice(body) {
-        Ok(r) => r,
-        Err(e) => {
-            console_error!("Failed to parse complete request: {:?}", e);
-            return json_error(http::StatusCode::BAD_REQUEST, "Invalid request body");
-        }
-    };
-
-    let db = match env.d1("DB") {
-        Ok(db) => db,
-        Err(e) => {
-            console_error!("D1 binding failed: {:?}", e);
-            return json_error(
-                http::StatusCode::INTERNAL_SERVER_ERROR,
-                "Database unavailable",
-            );
-        }
-    };
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Json(request): Json<CompleteRequest>,
+) -> Result<Json<StudentExercise>> {
+    let student_id = auth.student_id.as_str().to_string();
+    let db = state.db.d1()?;
 
     // Verify the record exists and belongs to this student
-    let existing = match db
+    let row = db
         .prepare(
             "SELECT id, student_id, exercise_id, session_id, assigned_at, \
              completed, response, times_assigned \
              FROM student_exercises WHERE id = ?1",
         )
         .bind(&[JsValue::from_str(&request.student_exercise_id)])
-    {
-        Ok(stmt) => match stmt.first::<serde_json::Value>(None).await {
-            Ok(row) => row,
-            Err(e) => {
-                console_error!(
-                    "Failed to query student_exercise {}: {:?}",
-                    request.student_exercise_id,
-                    e
-                );
-                return json_error(
-                    http::StatusCode::INTERNAL_SERVER_ERROR,
-                    "Query failed",
-                );
-            }
-        },
-        Err(e) => {
+        .map_err(|e| {
             console_error!("Failed to bind existence query: {:?}", e);
-            return json_error(
-                http::StatusCode::INTERNAL_SERVER_ERROR,
-                "Query preparation failed",
+            ApiError::Internal("Query preparation failed".into())
+        })?
+        .first::<serde_json::Value>(None)
+        .await
+        .map_err(|e| {
+            console_error!(
+                "Failed to query student_exercise {}: {:?}",
+                request.student_exercise_id,
+                e
             );
-        }
-    };
-
-    let row = match existing {
-        Some(r) => r,
-        None => {
-            return json_error(http::StatusCode::NOT_FOUND, "Exercise record not found");
-        }
-    };
+            ApiError::Internal("Query failed".into())
+        })?
+        .ok_or_else(|| ApiError::NotFound("Exercise record not found".into()))?;
 
     let record_student_id = row
         .get("student_id")
@@ -518,7 +367,7 @@ pub async fn handle_complete_exercise(
         .unwrap_or_default();
 
     if record_student_id != student_id {
-        return json_error(http::StatusCode::FORBIDDEN, "Access denied");
+        return Err(ApiError::Forbidden);
     }
 
     let response_js = match &request.response {
@@ -538,48 +387,40 @@ pub async fn handle_complete_exercise(
         None => JsValue::NULL,
     };
 
-    let update_stmt = match db
-        .prepare(
-            "UPDATE student_exercises \
-             SET completed = 1, response = ?1, \
-             dimension_before_json = ?2, dimension_after_json = ?3, notes = ?4 \
-             WHERE id = ?5",
-        )
-        .bind(&[
-            response_js,
-            dim_before_js,
-            dim_after_js,
-            notes_js,
-            JsValue::from_str(&request.student_exercise_id),
-        ]) {
-        Ok(s) => s,
-        Err(e) => {
-            console_error!("Failed to bind update statement: {:?}", e);
-            return json_error(
-                http::StatusCode::INTERNAL_SERVER_ERROR,
-                "Update preparation failed",
-            );
-        }
-    };
-
-    if let Err(e) = update_stmt.run().await {
+    db.prepare(
+        "UPDATE student_exercises \
+         SET completed = 1, response = ?1, \
+         dimension_before_json = ?2, dimension_after_json = ?3, notes = ?4 \
+         WHERE id = ?5",
+    )
+    .bind(&[
+        response_js,
+        dim_before_js,
+        dim_after_js,
+        notes_js,
+        JsValue::from_str(&request.student_exercise_id),
+    ])
+    .map_err(|e| {
+        console_error!("Failed to bind update statement: {:?}", e);
+        ApiError::Internal("Update preparation failed".into())
+    })?
+    .run()
+    .await
+    .map_err(|e| {
         console_error!(
             "Failed to update student_exercise {}: {:?}",
             request.student_exercise_id,
             e
         );
-        return json_error(
-            http::StatusCode::INTERNAL_SERVER_ERROR,
-            "Failed to complete exercise",
-        );
-    }
+        ApiError::Internal("Failed to complete exercise".into())
+    })?;
 
     let times_assigned = row
         .get("times_assigned")
         .and_then(|v| v.as_i64())
         .unwrap_or(1);
 
-    let student_exercise = StudentExercise {
+    Ok(Json(StudentExercise {
         id: request.student_exercise_id,
         student_id,
         exercise_id: row
@@ -596,67 +437,18 @@ pub async fn handle_complete_exercise(
         completed: true,
         response: request.response,
         times_assigned,
-    };
-
-    let json = serde_json::to_string(&student_exercise).unwrap_or_else(|_| "{}".to_string());
-    Response::builder()
-        .status(http::StatusCode::OK)
-        .header("Content-Type", "application/json")
-        .body(Body::from(json))
-        .unwrap()
+    }))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    // --- parse_exercise_query_params tests ---
-
-    #[test]
-    fn test_parse_empty_query() {
-        let params = parse_exercise_query_params("");
-        assert!(params.dimension.is_none());
-        assert!(params.level.is_none());
-        assert!(params.repertoire.is_none());
-    }
-
-    #[test]
-    fn test_parse_dimension_only() {
-        let params = parse_exercise_query_params("dimension=dynamics");
-        assert_eq!(params.dimension.as_deref(), Some("dynamics"));
-        assert!(params.level.is_none());
-        assert!(params.repertoire.is_none());
-    }
-
-    #[test]
-    fn test_parse_all_params() {
-        let params =
-            parse_exercise_query_params("dimension=timing&level=intermediate&repertoire=chopin");
-        assert_eq!(params.dimension.as_deref(), Some("timing"));
-        assert_eq!(params.level.as_deref(), Some("intermediate"));
-        assert_eq!(params.repertoire.as_deref(), Some("chopin"));
-    }
-
-    #[test]
-    fn test_parse_ignores_empty_values() {
-        let params = parse_exercise_query_params("dimension=&level=beginner");
-        assert!(params.dimension.is_none());
-        assert_eq!(params.level.as_deref(), Some("beginner"));
-    }
-
-    #[test]
-    fn test_parse_unknown_keys_ignored() {
-        let params = parse_exercise_query_params("foo=bar&dimension=pedaling");
-        assert_eq!(params.dimension.as_deref(), Some("pedaling"));
-        assert!(params.level.is_none());
-        assert!(params.repertoire.is_none());
-    }
-
     // --- Request deserialization tests ---
 
     #[test]
     fn test_assign_request_full() {
-        let json = r#"{"exercise_id":"ex-123","session_id":"sess-456"}"#;
+        let json = r#"{"exerciseId":"ex-123","sessionId":"sess-456"}"#;
         let req: AssignRequest = serde_json::from_str(json).unwrap();
         assert_eq!(req.exercise_id, "ex-123");
         assert_eq!(req.session_id.as_deref(), Some("sess-456"));
@@ -664,7 +456,7 @@ mod tests {
 
     #[test]
     fn test_assign_request_no_session() {
-        let json = r#"{"exercise_id":"ex-789"}"#;
+        let json = r#"{"exerciseId":"ex-789"}"#;
         let req: AssignRequest = serde_json::from_str(json).unwrap();
         assert_eq!(req.exercise_id, "ex-789");
         assert!(req.session_id.is_none());
@@ -673,10 +465,10 @@ mod tests {
     #[test]
     fn test_complete_request_full() {
         let json = r#"{
-            "student_exercise_id": "se-abc",
+            "studentExerciseId": "se-abc",
             "response": "Done well",
-            "dimension_before_json": "{\"dynamics\":0.6}",
-            "dimension_after_json": "{\"dynamics\":0.8}",
+            "dimensionBeforeJson": "{\"dynamics\":0.6}",
+            "dimensionAfterJson": "{\"dynamics\":0.8}",
             "notes": "Felt much better"
         }"#;
         let req: CompleteRequest = serde_json::from_str(json).unwrap();
@@ -695,7 +487,7 @@ mod tests {
 
     #[test]
     fn test_complete_request_minimal() {
-        let json = r#"{"student_exercise_id":"se-xyz"}"#;
+        let json = r#"{"studentExerciseId":"se-xyz"}"#;
         let req: CompleteRequest = serde_json::from_str(json).unwrap();
         assert_eq!(req.student_exercise_id, "se-xyz");
         assert!(req.response.is_none());

@@ -1,12 +1,19 @@
+use axum::extract::{Json, State};
 use wasm_bindgen::JsValue;
-use worker::{console_log, Env};
+use worker::console_log;
+
+use crate::auth::AuthUser;
+use crate::error::{ApiError, Result};
+use crate::state::AppState;
 
 #[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ExtractGoalsRequest {
     pub message: String,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct ExtractedGoals {
     pub pieces: Vec<String>,
     pub focus_areas: Vec<String>,
@@ -15,73 +22,35 @@ pub struct ExtractedGoals {
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct GoalDeadline {
     pub description: String,
     pub date: Option<String>,
 }
 
-
+#[worker::send]
 pub async fn handle_extract_goals(
-    env: &Env,
-    headers: &http::HeaderMap,
-    body: &[u8],
-) -> http::Response<axum::body::Body> {
-    use axum::body::Body;
-    use http::{Response, StatusCode};
-
-    // Verify auth
-    let student_id = match crate::auth::verify_auth_header(headers, env) {
-        Ok(id) => id,
-        Err(err_response) => return err_response,
-    };
-
-    let request: ExtractGoalsRequest = match serde_json::from_slice(body) {
-        Ok(r) => r,
-        Err(e) => {
-            console_log!("Failed to parse goals request: {:?}", e);
-            return Response::builder()
-                .status(StatusCode::BAD_REQUEST)
-                .header("Content-Type", "application/json")
-                .body(Body::from(r#"{"error":"Invalid request body"}"#))
-                .unwrap();
-        }
-    };
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Json(request): Json<ExtractGoalsRequest>,
+) -> Result<Json<ExtractedGoals>> {
+    let student_id = auth.student_id.as_str().to_string();
 
     // Extract goals via LLM
-    let extracted = match extract_goals_with_llm(env, &request.message).await {
-        Ok(goals) => goals,
-        Err(e) => {
+    let extracted = extract_goals_with_llm(state.db.env(), &request.message)
+        .await
+        .map_err(|e| {
             console_log!("Goal extraction failed: {}", e);
-            let error_json = serde_json::json!({"error": format!("Goal extraction failed: {}", e)});
-            return Response::builder()
-                .status(StatusCode::INTERNAL_SERVER_ERROR)
-                .header("Content-Type", "application/json")
-                .body(Body::from(error_json.to_string()))
-                .unwrap();
-        }
-    };
+            ApiError::Internal(format!("Goal extraction failed: {}", e))
+        })?;
 
     // Merge into student's explicit_goals in D1
-    let db = match env.d1("DB") {
-        Ok(db) => db,
-        Err(e) => {
-            console_log!("D1 binding failed: {:?}", e);
-            return Response::builder()
-                .status(StatusCode::INTERNAL_SERVER_ERROR)
-                .header("Content-Type", "application/json")
-                .body(Body::from(r#"{"error":"Database connection failed"}"#))
-                .unwrap();
-        }
-    };
+    let db = state.db.d1()?;
 
-    if let Err(e) = merge_goals(&db, &student_id, &extracted).await {
+    merge_goals(&db, &student_id, &extracted).await.map_err(|e| {
         console_log!("Failed to merge goals: {}", e);
-        return Response::builder()
-            .status(StatusCode::INTERNAL_SERVER_ERROR)
-            .header("Content-Type", "application/json")
-            .body(Body::from(r#"{"error":"Failed to save goals"}"#))
-            .unwrap();
-    }
+        ApiError::Internal("Failed to save goals".into())
+    })?;
 
     // Store extracted goals as student-reported facts in synthesized_facts
     let now = js_sys::Date::new_0()
@@ -148,16 +117,13 @@ pub async fn handle_extract_goals(
         }
     }
 
-    let json = serde_json::to_string(&extracted).unwrap_or_else(|_| "{}".to_string());
-
-    Response::builder()
-        .status(StatusCode::OK)
-        .header("Content-Type", "application/json")
-        .body(Body::from(json))
-        .unwrap()
+    Ok(Json(extracted))
 }
 
-async fn extract_goals_with_llm(env: &Env, message: &str) -> Result<ExtractedGoals, String> {
+async fn extract_goals_with_llm(
+    env: &worker::Env,
+    message: &str,
+) -> std::result::Result<ExtractedGoals, String> {
     let prompt = format!(
         r#"Extract structured practice goals from this pianist's message. Return ONLY valid JSON with no other text.
 
@@ -198,7 +164,7 @@ async fn merge_goals(
     db: &worker::D1Database,
     student_id: &str,
     new_goals: &ExtractedGoals,
-) -> Result<(), String> {
+) -> std::result::Result<(), String> {
     // Fetch existing goals
     let existing_row = db
         .prepare("SELECT explicit_goals FROM students WHERE student_id = ?1")
@@ -261,6 +227,7 @@ async fn merge_goals(
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
 struct ExplicitGoals {
     pieces: Vec<String>,
     focus_areas: Vec<String>,
