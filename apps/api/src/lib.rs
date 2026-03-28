@@ -1,6 +1,7 @@
 pub mod auth;
 pub mod error;
 pub mod practice;
+pub mod routes;
 pub mod server;
 pub mod services;
 pub mod state;

@@ -1,9 +1,26 @@
-use http_body_util::BodyExt;
-use worker::{event, Context, Env, HttpRequest, Result};
+//! Cloudflare Workers entry point.
+//!
+//! Routes most requests through the Axum Router (see `routes.rs`).
+//! Two carve-outs bypass the router because they need raw `worker::Response`:
+//!   1. WebSocket upgrade -- must preserve the JS `webSocket` property
+//!   2. Streaming chat -- returns a `ReadableStream` for true SSE
 
-/// Convert an http::Response<axum::body::Body> into a worker::Response.
-/// This collects the body into bytes and rebuilds the response for the Workers runtime.
-async fn into_worker_response(resp: http::Response<axum::body::Body>) -> Result<worker::Response> {
+use http_body_util::BodyExt;
+use tower_http::cors::{AllowOrigin, Any, CorsLayer};
+use tower_service::Service;
+use worker::{console_error, event, Context, Env, HttpRequest, Result};
+
+use crate::routes::router;
+use crate::state::AppState;
+
+/// Convert an `http::Response<axum::body::Body>` into a `worker::Response`.
+///
+/// Collects the body into bytes and rebuilds the response for the Workers
+/// runtime. Needed because the Axum router operates on `http` types but the
+/// Workers entry point returns `worker::Response`.
+async fn into_worker_response(
+    resp: http::Response<axum::body::Body>,
+) -> Result<worker::Response> {
     let (parts, body) = resp.into_parts();
     let bytes = body
         .collect()
@@ -27,489 +44,156 @@ async fn into_worker_response(resp: http::Response<axum::body::Body>) -> Result<
     Ok(response.with_status(status).with_headers(headers))
 }
 
-/// Add CORS headers to a response with origin allowlist.
-fn with_cors(response: http::Response<axum::body::Body>, origin: Option<&str>) -> http::Response<axum::body::Body> {
-    let (mut parts, body) = response.into_parts();
-    let allowed_origin = match origin {
-        Some(o) if o == "https://crescend.ai" || o == "http://localhost:3000" => o,
-        _ => "https://crescend.ai",
-    };
-    parts.headers.insert(
-        http::header::ACCESS_CONTROL_ALLOW_ORIGIN,
-        allowed_origin.parse().unwrap(),
-    );
-    parts.headers.insert(
-        http::header::ACCESS_CONTROL_ALLOW_METHODS,
-        "GET, POST, DELETE, OPTIONS".parse().unwrap(),
-    );
-    parts.headers.insert(
-        http::header::ACCESS_CONTROL_ALLOW_HEADERS,
-        "Content-Type, Authorization, Cookie".parse().unwrap(),
-    );
-    parts.headers.insert(
-        http::header::HeaderName::from_static("access-control-allow-credentials"),
-        "true".parse().unwrap(),
-    );
-    http::Response::from_parts(parts, body)
-}
-
 #[event(fetch)]
-async fn fetch(
-    req: HttpRequest,
-    env: Env,
-    _ctx: Context,
-) -> Result<worker::Response> {
+async fn fetch(req: HttpRequest, env: Env, _ctx: Context) -> Result<worker::Response> {
     console_error_panic_hook::set_once();
 
     let path = req.uri().path().to_string();
     let method = req.method().clone();
-    let origin = req
-        .headers()
+
+    // --- Carve-out 1: WebSocket upgrade ---
+    // Returns worker::Response directly to preserve the JS `webSocket` property.
+    if path.starts_with("/api/practice/ws/") && method == http::Method::GET {
+        return handle_ws_upgrade(&path, &env, req).await;
+    }
+
+    // --- Carve-out 2: Streaming chat ---
+    // Returns worker::Response with ReadableStream body for true SSE.
+    if path == "/api/chat" && method == http::Method::POST {
+        return handle_chat_stream(&env, req).await;
+    }
+
+    // --- Everything else through Axum Router ---
+    let allowed_origin = env
+        .var("ALLOWED_ORIGIN")
+        .map(|v| v.to_string())
+        .unwrap_or_else(|_| "http://localhost:3000".to_string());
+
+    let cors = CorsLayer::new()
+        .allow_origin(
+            allowed_origin
+                .parse::<http::HeaderValue>()
+                .map(AllowOrigin::exact)
+                .unwrap_or_else(|_| AllowOrigin::any()),
+        )
+        .allow_methods([
+            http::Method::GET,
+            http::Method::POST,
+            http::Method::OPTIONS,
+            http::Method::DELETE,
+        ])
+        .allow_headers(Any)
+        .allow_credentials(true);
+
+    let state = AppState::from_env(env);
+    let mut app = router(state).layer(cors);
+
+    match app.call(req).await {
+        Ok(resp) => into_worker_response(resp).await,
+        Err(err) => {
+            console_error!("Router error: {err}");
+            let resp = http::Response::builder()
+                .status(500)
+                .header("content-type", "application/json")
+                .body(axum::body::Body::from(r#"{"error":"internal"}"#))
+                .unwrap_or_default();
+            into_worker_response(resp).await
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Carve-out 1: WebSocket upgrade
+// ---------------------------------------------------------------------------
+
+/// Forward WebSocket upgrade to the PRACTICE_SESSION Durable Object.
+///
+/// Must bypass the Axum router because the CF runtime needs the JS-level
+/// `webSocket` property preserved on the `worker::Response` object.
+async fn handle_ws_upgrade(
+    path: &str,
+    env: &Env,
+    req: HttpRequest,
+) -> Result<worker::Response> {
+    let session_id = path.trim_start_matches("/api/practice/ws/");
+    if session_id.is_empty() || session_id.contains('/') {
+        return worker::Response::error("invalid session id", 400);
+    }
+
+    // Validate auth before routing to DO.
+    let student_id = match crate::auth::verify_auth(req.headers(), env) {
+        Ok(id) => id,
+        Err(_) => {
+            return worker::Response::error("Unauthorized", 401);
+        }
+    };
+
+    // Extract conversationId from query params.
+    let conv_id = req
+        .uri()
+        .query()
+        .unwrap_or("")
+        .split('&')
+        .find_map(|pair| {
+            let (k, v) = pair.split_once('=')?;
+            (k == "conversationId").then(|| v.to_string())
+        })
+        .unwrap_or_default();
+
+    let namespace = env.durable_object("PRACTICE_SESSION")?;
+    let stub = namespace.id_from_name(session_id)?.get_stub()?;
+    let url = format!(
+        "https://do.internal/ws/{}?student_id={}&conversation_id={}",
+        session_id, student_id, conv_id
+    );
+    let mut worker_req = worker::Request::new(&url, worker::Method::Get)?;
+    worker_req.headers_mut()?.set("Upgrade", "websocket")?;
+
+    stub.fetch_with_request(worker_req).await
+}
+
+// ---------------------------------------------------------------------------
+// Carve-out 2: Streaming chat
+// ---------------------------------------------------------------------------
+
+/// Delegate to the streaming chat handler and wrap with CORS headers.
+///
+/// `handle_chat_stream` returns a `worker::Response` with a ReadableStream
+/// body for true SSE token-by-token streaming. We add CORS headers and
+/// return it directly.
+async fn handle_chat_stream(env: &Env, req: HttpRequest) -> Result<worker::Response> {
+    let headers = req.headers().clone();
+    let origin = headers
         .get("origin")
         .and_then(|v| v.to_str().ok())
         .map(|s| s.to_string());
+    let body = req
+        .into_body()
+        .collect()
+        .await
+        .map(|b| b.to_bytes().to_vec())
+        .unwrap_or_default();
 
-    // WebSocket upgrade for practice sessions -- forward to Durable Object.
-    // Must return worker::Response directly (not http::Response) to preserve
-    // the webSocket property on the JS Response object.
-    if path.starts_with("/api/practice/ws/") && method == http::Method::GET {
-        let session_id = path.trim_start_matches("/api/practice/ws/");
-        if !session_id.is_empty() && !session_id.contains('/') {
-            // Validate auth before routing to DO
-            let student_id = match crate::auth::verify_auth(req.headers(), &env) {
-                Ok(id) => id,
-                Err(_) => {
-                    return worker::Response::error("Unauthorized", 401);
-                }
-            };
+    let mut resp = crate::services::chat::handle_chat_stream(env, &headers, &body).await;
 
-            // Extract conversationId from query params to forward to DO
-            let conv_id = req.uri().query()
-                .unwrap_or("")
-                .split('&')
-                .find_map(|pair| {
-                    let (k, v) = pair.split_once('=')?;
-                    (k == "conversationId").then(|| v.to_string())
-                })
-                .unwrap_or_default();
+    let allowed_origin = match origin.as_deref() {
+        Some(o) if o == "https://crescend.ai" || o == "http://localhost:3000" => o,
+        _ => "https://crescend.ai",
+    };
+    let _ = resp
+        .headers_mut()
+        .set("Access-Control-Allow-Origin", allowed_origin);
+    let _ = resp.headers_mut().set(
+        "Access-Control-Allow-Methods",
+        "GET, POST, DELETE, OPTIONS",
+    );
+    let _ = resp.headers_mut().set(
+        "Access-Control-Allow-Headers",
+        "Content-Type, Authorization, Cookie",
+    );
+    let _ = resp
+        .headers_mut()
+        .set("Access-Control-Allow-Credentials", "true");
 
-            let namespace = env.durable_object("PRACTICE_SESSION")?;
-            let stub = namespace.id_from_name(session_id)?.get_stub()?;
-            let url = format!(
-                "https://do.internal/ws/{}?student_id={}&conversation_id={}",
-                session_id, student_id, conv_id
-            );
-            let mut worker_req = worker::Request::new(&url, worker::Method::Get)?;
-            worker_req.headers_mut()?.set("Upgrade", "websocket")?;
-            return stub.fetch_with_request(worker_req).await;
-        }
-    }
-
-    // Practice session start (authenticated)
-    if path == "/api/practice/start" && method == http::Method::POST {
-        let headers = req.headers().clone();
-        let body = req
-            .into_body()
-            .collect()
-            .await
-            .map(|b| b.to_bytes().to_vec())
-            .unwrap_or_default();
-        return into_worker_response(with_cors(
-            crate::practice::handlers::start::handle_start(&env, &headers, &body).await,
-            origin.as_deref(),
-        )).await;
-    }
-
-    // Upload audio chunk to R2 (authenticated)
-    if path == "/api/practice/chunk" && method == http::Method::POST {
-        let headers = req.headers().clone();
-        let query_string = req.uri().query().map(|q| q.to_string());
-        let body = req
-            .into_body()
-            .collect()
-            .await
-            .map(|b| b.to_bytes().to_vec())
-            .unwrap_or_default();
-
-        let query = query_string.unwrap_or_default();
-        let params: std::collections::HashMap<String, String> = query
-            .split('&')
-            .filter_map(|pair| {
-                let mut parts = pair.splitn(2, '=');
-                Some((parts.next()?.to_string(), parts.next()?.to_string()))
-            })
-            .collect();
-
-        let session_id = params.get("sessionId").map(|s| s.as_str()).unwrap_or("");
-        let chunk_index = params.get("chunkIndex").map(|s| s.as_str()).unwrap_or("0");
-
-        if session_id.is_empty() {
-            return into_worker_response(with_cors(
-                http::Response::builder()
-                    .status(http::StatusCode::BAD_REQUEST)
-                    .header("Content-Type", "application/json")
-                    .body(axum::body::Body::from(r#"{"error":"Missing sessionId"}"#))
-                    .unwrap(),
-                origin.as_deref(),
-            )).await;
-        }
-
-        return into_worker_response(with_cors(
-            crate::practice::handlers::upload::handle_upload_chunk(&env, &headers, body, session_id, chunk_index).await,
-            origin.as_deref(),
-        )).await;
-    }
-
-    // Handle CORS preflight
-    if method == http::Method::OPTIONS {
-        return into_worker_response(with_cors(
-            http::Response::builder()
-                .status(http::StatusCode::NO_CONTENT)
-                .body(axum::body::Body::empty())
-                .unwrap(),
-            origin.as_deref(),
-        )).await;
-    }
-
-    // Apple auth endpoint
-    if path == "/api/auth/apple" && method == http::Method::POST {
-        let body = req
-            .into_body()
-            .collect()
-            .await
-            .map(|b| b.to_bytes().to_vec())
-            .unwrap_or_default();
-        return into_worker_response(with_cors(
-            crate::auth::handle_apple_auth(&env, &body).await,
-            origin.as_deref(),
-        )).await;
-    }
-
-    // Google auth endpoint
-    if path == "/api/auth/google" && method == http::Method::POST {
-        let body = req
-            .into_body()
-            .collect()
-            .await
-            .map(|b| b.to_bytes().to_vec())
-            .unwrap_or_default();
-        return into_worker_response(with_cors(
-            crate::auth::handle_google_auth(&env, &body).await,
-            origin.as_deref(),
-        )).await;
-    }
-
-    // Auth me endpoint (authenticated)
-    if path == "/api/auth/me" && method == http::Method::GET {
-        let headers = req.headers().clone();
-        return into_worker_response(with_cors(
-            crate::auth::handle_auth_me(&env, &headers).await,
-            origin.as_deref(),
-        )).await;
-    }
-
-    // Debug auth endpoint (dev only -- returns 404 in production)
-    if path == "/api/auth/debug" && method == http::Method::POST {
-        return into_worker_response(with_cors(
-            crate::auth::handle_debug_auth(&env).await,
-            origin.as_deref(),
-        )).await;
-    }
-
-    // Auth signout endpoint
-    if path == "/api/auth/signout" && method == http::Method::POST {
-        return into_worker_response(with_cors(
-            crate::auth::handle_signout(&env),
-            origin.as_deref(),
-        )).await;
-    }
-
-    // Goal extraction endpoint (authenticated)
-    if path == "/api/extract-goals" && method == http::Method::POST {
-        let headers = req.headers().clone();
-        let body = req
-            .into_body()
-            .collect()
-            .await
-            .map(|b| b.to_bytes().to_vec())
-            .unwrap_or_default();
-        return into_worker_response(with_cors(
-            crate::services::goals::handle_extract_goals(&env, &headers, &body).await,
-            origin.as_deref(),
-        )).await;
-    }
-
-    // Sync endpoint (authenticated)
-    if path == "/api/sync" && method == http::Method::POST {
-        let headers = req.headers().clone();
-        let body = req
-            .into_body()
-            .collect()
-            .await
-            .map(|b| b.to_bytes().to_vec())
-            .unwrap_or_default();
-        return into_worker_response(with_cors(
-            crate::services::sync::handle_sync(&env, &headers, &body).await,
-            origin.as_deref(),
-        )).await;
-    }
-
-    // NOTE: /api/ask and /api/ask/elaborate removed -- the Durable Object calls
-    // handle_ask_inner() directly via Rust. No external callers need HTTP routes.
-
-    // List conversations (authenticated)
-    if path == "/api/conversations" && method == http::Method::GET {
-        let headers = req.headers().clone();
-        return into_worker_response(with_cors(
-            crate::services::chat::handle_list_conversations(&env, &headers).await,
-            origin.as_deref(),
-        )).await;
-    }
-
-    // Get single conversation with messages (authenticated)
-    if path.starts_with("/api/conversations/") && method == http::Method::GET {
-        let conversation_id = path.trim_start_matches("/api/conversations/");
-        if !conversation_id.is_empty() && !conversation_id.contains('/') {
-            let headers = req.headers().clone();
-            return into_worker_response(with_cors(
-                crate::services::chat::handle_get_conversation(&env, &headers, conversation_id).await,
-                origin.as_deref(),
-            )).await;
-        }
-    }
-
-    // Delete conversation (authenticated)
-    if path.starts_with("/api/conversations/") && method == http::Method::DELETE {
-        let conversation_id = path.trim_start_matches("/api/conversations/");
-        if !conversation_id.is_empty() && !conversation_id.contains('/') {
-            let headers = req.headers().clone();
-            return into_worker_response(with_cors(
-                crate::services::chat::handle_delete_conversation(&env, &headers, conversation_id).await,
-                origin.as_deref(),
-            )).await;
-        }
-    }
-
-    // Check for sessions needing deferred synthesis (authenticated)
-    if path == "/api/practice/needs-synthesis" && method == http::Method::GET {
-        let headers = req.headers().clone();
-        let query_string = req.uri().query().map(|q| q.to_string()).unwrap_or_default();
-        let conv_id = query_string.split('&')
-            .find_map(|pair| pair.strip_prefix("conversation_id="))
-            .unwrap_or("")
-            .to_string();
-        return into_worker_response(with_cors(
-            crate::practice::session::synthesis::handle_check_needs_synthesis(&env, &headers, &conv_id).await,
-            origin.as_deref(),
-        )).await;
-    }
-
-    // Trigger deferred synthesis for a session (authenticated)
-    if path == "/api/practice/synthesize" && method == http::Method::POST {
-        let headers = req.headers().clone();
-        let body = req
-            .into_body()
-            .collect()
-            .await
-            .map(|b| b.to_bytes().to_vec())
-            .unwrap_or_default();
-        let body_json: serde_json::Value = serde_json::from_slice(&body).unwrap_or_default();
-        return into_worker_response(with_cors(
-            crate::practice::session::synthesis::handle_deferred_synthesis(&env, &headers, &body_json).await,
-            origin.as_deref(),
-        )).await;
-    }
-
-    // Memory extraction eval endpoint (authenticated)
-    if path == "/api/memory/extract-chat" && method == http::Method::POST {
-        let headers = req.headers().clone();
-        let body = req
-            .into_body()
-            .collect()
-            .await
-            .map(|b| b.to_bytes().to_vec())
-            .unwrap_or_default();
-        return into_worker_response(with_cors(
-            crate::services::memory::handle_extract_chat(&env, &headers, &body).await,
-            origin.as_deref(),
-        )).await;
-    }
-
-    // Memory store-facts endpoint (authenticated, benchmark/eval)
-    if path == "/api/memory/store-facts" && method == http::Method::POST {
-        let headers = req.headers().clone();
-        let body = req
-            .into_body()
-            .collect()
-            .await
-            .map(|b| b.to_bytes().to_vec())
-            .unwrap_or_default();
-        return into_worker_response(with_cors(
-            crate::services::memory::handle_store_facts(&env, &headers, &body).await,
-            origin.as_deref(),
-        )).await;
-    }
-
-    // Memory search endpoint (authenticated, hybrid retrieval)
-    if path == "/api/memory/search" && method == http::Method::POST {
-        let headers = req.headers().clone();
-        let body = req
-            .into_body()
-            .collect()
-            .await
-            .map(|b| b.to_bytes().to_vec())
-            .unwrap_or_default();
-        return into_worker_response(with_cors(
-            crate::services::memory::handle_search_facts(&env, &headers, &body).await,
-            origin.as_deref(),
-        )).await;
-    }
-
-    // Memory clear-benchmark endpoint (authenticated, cleanup)
-    if path == "/api/memory/clear-benchmark" && method == http::Method::POST {
-        let headers = req.headers().clone();
-        let body = req
-            .into_body()
-            .collect()
-            .await
-            .map(|b| b.to_bytes().to_vec())
-            .unwrap_or_default();
-        return into_worker_response(with_cors(
-            crate::services::memory::handle_clear_benchmark(&env, &headers, &body).await,
-            origin.as_deref(),
-        )).await;
-    }
-
-    // Memory synthesis endpoint (authenticated)
-    if path == "/api/memory/synthesize" && method == http::Method::POST {
-        let headers = req.headers().clone();
-        let body = req
-            .into_body()
-            .collect()
-            .await
-            .map(|b| b.to_bytes().to_vec())
-            .unwrap_or_default();
-        return into_worker_response(with_cors(
-            crate::services::memory::handle_synthesize(&env, &headers, &body).await,
-            origin.as_deref(),
-        )).await;
-    }
-
-    // Memory seed-observations endpoint (dev-only, for testing)
-    if path == "/api/memory/seed-observations" && method == http::Method::POST {
-        let headers = req.headers().clone();
-        let body = req
-            .into_body()
-            .collect()
-            .await
-            .map(|b| b.to_bytes().to_vec())
-            .unwrap_or_default();
-        return into_worker_response(with_cors(
-            crate::services::memory::handle_seed_observations(&env, &headers, &body).await,
-            origin.as_deref(),
-        )).await;
-    }
-
-    // NOTE: /api/practice/teaching-moment removed -- the DO calls
-    // select_teaching_moment() directly via Rust.
-
-    // Chat endpoint -- streaming teacher conversation (authenticated)
-    // Returns worker::Response directly (not axum) to enable true token-by-token streaming.
-    if path == "/api/chat" && method == http::Method::POST {
-        let headers = req.headers().clone();
-        let body = req
-            .into_body()
-            .collect()
-            .await
-            .map(|b| b.to_bytes().to_vec())
-            .unwrap_or_default();
-        let mut resp = crate::services::chat::handle_chat_stream(&env, &headers, &body).await;
-        let allowed_origin = match origin.as_deref() {
-            Some(o) if o == "https://crescend.ai" || o == "http://localhost:3000" => o,
-            _ => "https://crescend.ai",
-        };
-        let _ = resp.headers_mut().set("Access-Control-Allow-Origin", allowed_origin);
-        let _ = resp.headers_mut().set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
-        let _ = resp.headers_mut().set("Access-Control-Allow-Headers", "Content-Type, Authorization, Cookie");
-        let _ = resp.headers_mut().set("Access-Control-Allow-Credentials", "true");
-        return Ok(resp);
-    }
-
-    // NOTE: /api/scores/* routes removed -- the DO loads scores directly from R2
-    // via score_context::load_score(). No external callers need HTTP routes.
-
-    // Exercise catalog (authenticated)
-    if path == "/api/exercises" && method == http::Method::GET {
-        let headers = req.headers().clone();
-        let query_string = req.uri().query().unwrap_or_default().to_string();
-        return into_worker_response(with_cors(
-            crate::services::exercises::handle_exercises(&env, &headers, &query_string).await,
-            origin.as_deref(),
-        )).await;
-    }
-
-    // Assign exercise to student (authenticated)
-    if path == "/api/exercises/assign" && method == http::Method::POST {
-        let headers = req.headers().clone();
-        let body = req
-            .into_body()
-            .collect()
-            .await
-            .map(|b| b.to_bytes().to_vec())
-            .unwrap_or_default();
-        return into_worker_response(with_cors(
-            crate::services::exercises::handle_assign_exercise(&env, &headers, &body).await,
-            origin.as_deref(),
-        )).await;
-    }
-
-    // Complete exercise (authenticated)
-    if path == "/api/exercises/complete" && method == http::Method::POST {
-        let headers = req.headers().clone();
-        let body = req
-            .into_body()
-            .collect()
-            .await
-            .map(|b| b.to_bytes().to_vec())
-            .unwrap_or_default();
-        return into_worker_response(with_cors(
-            crate::services::exercises::handle_complete_exercise(&env, &headers, &body).await,
-            origin.as_deref(),
-        )).await;
-    }
-
-    // Waitlist signup (unauthenticated)
-    if path == "/api/waitlist" && method == http::Method::POST {
-        let body = req
-            .into_body()
-            .collect()
-            .await
-            .map(|b| b.to_bytes().to_vec())
-            .unwrap_or_default();
-        return into_worker_response(with_cors(
-            crate::services::waitlist::handle_waitlist(&env, &body).await,
-            origin.as_deref(),
-        )).await;
-    }
-
-    // Health check
-    if path == "/health" {
-        return into_worker_response(with_cors(
-            http::Response::builder()
-                .status(http::StatusCode::OK)
-                .body(axum::body::Body::from("OK"))
-                .unwrap(),
-            origin.as_deref(),
-        )).await;
-    }
-
-    // All other routes return 404
-    into_worker_response(with_cors(
-        http::Response::builder()
-            .status(http::StatusCode::NOT_FOUND)
-            .header("Content-Type", "application/json")
-            .body(axum::body::Body::from(r#"{"error":"Not found"}"#))
-            .unwrap(),
-        origin.as_deref(),
-    )).await
+    Ok(resp)
 }
