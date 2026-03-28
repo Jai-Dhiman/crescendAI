@@ -84,28 +84,35 @@ fn fallback_observation(dimension: &str) -> String {
 }
 
 /// Core two-stage LLM pipeline. No D1 persistence, no HTTP.
-/// Called by both the HTTP handler (handle_ask) and the DO (PracticeSession).
-pub async fn handle_ask_inner(
-    env: &Env,
-    req: &AskInnerRequest,
-) -> AskInnerResponse {
-    let dimension = req.teaching_moment
+/// Called by both the HTTP handler (`handle_ask`) and the DO (`PracticeSession`).
+pub async fn handle_ask_inner(env: &Env, req: &AskInnerRequest) -> AskInnerResponse {
+    let dimension = req
+        .teaching_moment
         .get("dimension")
         .and_then(|v| v.as_str())
         .unwrap_or("unknown")
         .to_string();
 
     // Build memory context
-    let piece_title = req.piece_context
+    let piece_title = req
+        .piece_context
         .as_ref()
         .and_then(|pc| pc.get("title"))
         .and_then(|v| v.as_str());
 
-    let now = js_sys::Date::new_0().to_iso_string().as_string().unwrap_or_default();
+    let now = js_sys::Date::new_0()
+        .to_iso_string()
+        .as_string()
+        .unwrap_or_default();
     let today = &now[..10.min(now.len())];
     let memory_ctx = crate::services::memory::build_memory_context(
-        env, &req.student_id, piece_title, today, piece_title,
-    ).await;
+        env,
+        &req.student_id,
+        piece_title,
+        today,
+        piece_title,
+    )
+    .await;
     let memory_text = crate::services::memory::format_memory_context(&memory_ctx);
 
     let recent_observations: Vec<prompts::ObservationRow> = memory_ctx
@@ -144,7 +151,8 @@ pub async fn handle_ask_inner(
         &subagent_user_prompt,
         0.3,
         800,
-    ).await;
+    )
+    .await;
 
     let (subagent_output, framing) = match subagent_result {
         Ok(output) => {
@@ -170,12 +178,7 @@ pub async fn handle_ask_inner(
     let catalog = lookup_catalog_exercises(env, &dimension).await;
 
     let teacher_user_prompt = if catalog.is_empty() {
-        prompts::build_teacher_user_prompt(
-            &subagent_json,
-            &subagent_narrative,
-            "intermediate",
-            "",
-        )
+        prompts::build_teacher_user_prompt(&subagent_json, &subagent_narrative, "intermediate", "")
     } else {
         prompts::build_teacher_user_prompt_with_catalog(
             &subagent_json,
@@ -194,7 +197,8 @@ pub async fn handle_ask_inner(
         &teacher_user_prompt,
         500,
         Some(tools),
-    ).await;
+    )
+    .await;
 
     let (observation_text, is_fallback, components_json) = match teacher_result {
         Ok(result) => {
@@ -227,7 +231,8 @@ pub async fn handle_ask_inner(
 
     let reasoning_trace = serde_json::json!({
         "subagent_output": subagent_output,
-    }).to_string();
+    })
+    .to_string();
 
     AskInnerResponse {
         observation_text,
@@ -252,7 +257,7 @@ pub async fn handle_ask(
     let dimension_score = request
         .teaching_moment
         .get("dimension_score")
-        .and_then(|v| v.as_f64());
+        .and_then(serde_json::Value::as_f64);
 
     let dimension = request
         .teaching_moment
@@ -265,13 +270,15 @@ pub async fn handle_ask(
         .student
         .get("baselines")
         .and_then(|b| b.get(&dimension))
-        .and_then(|v| v.as_f64());
+        .and_then(serde_json::Value::as_f64);
 
     // Call the core LLM pipeline
     let inner_req = AskInnerRequest {
         teaching_moment: request.teaching_moment.clone(),
         student_id: student_id.clone(),
-        session_id: request.session.get("id")
+        session_id: request
+            .session
+            .get("id")
             .and_then(|v| v.as_str())
             .unwrap_or("")
             .to_string(),
@@ -283,8 +290,7 @@ pub async fn handle_ask(
     let observation_text = inner_resp.observation_text;
     let framing = inner_resp.framing;
     let is_fallback = inner_resp.is_fallback;
-    let _components_json = inner_resp.components_json;
-    // HTTP path does not use components yet (observations go through DO WebSocket)
+    // inner_resp.components_json unused: HTTP path does not use components yet (observations go through DO WebSocket)
 
     // Generate observation ID
     let observation_id = generate_uuid();
@@ -303,7 +309,7 @@ pub async fn handle_ask(
     let chunk_index = request
         .teaching_moment
         .get("chunk_index")
-        .and_then(|v| v.as_i64());
+        .and_then(serde_json::Value::as_i64);
     let piece_context_str = request
         .piece_context
         .as_ref()
@@ -332,7 +338,7 @@ pub async fn handle_ask(
 
     // Store teaching approach record
     let approach_id = generate_uuid();
-    let approach_summary = format!("{} on {}", framing, dimension);
+    let approach_summary = format!("{framing} on {dimension}");
     if let Err(e) = crate::services::memory::store_teaching_approach(
         env,
         &approach_id,
@@ -341,7 +347,9 @@ pub async fn handle_ask(
         &dimension,
         &framing,
         &approach_summary,
-    ).await {
+    )
+    .await
+    {
         console_error!("Failed to store teaching approach: {}", e);
     }
 
@@ -370,32 +378,32 @@ pub async fn handle_elaborate(
     let env = state.db.env();
 
     // Fetch observation from D1
-    let (observation_text, reasoning_trace) =
-        fetch_observation(env, &request.observation_id).await
-            .map_err(|e| ApiError::NotFound(format!("Observation not found: {}", e)))?;
+    let (observation_text, reasoning_trace) = fetch_observation(env, &request.observation_id)
+        .await
+        .map_err(|e| ApiError::NotFound(format!("Observation not found: {e}")))?;
 
     // Fetch memory context for richer elaboration
-    let elab_now = js_sys::Date::new_0().to_iso_string().as_string().unwrap_or_default();
+    let elab_now = js_sys::Date::new_0()
+        .to_iso_string()
+        .as_string()
+        .unwrap_or_default();
     let elab_today = &elab_now[..10.min(elab_now.len())];
-    let memory_ctx = crate::services::memory::build_memory_context(env, &student_id, None, elab_today, None).await;
+    let memory_ctx =
+        crate::services::memory::build_memory_context(env, &student_id, None, elab_today, None)
+            .await;
     let memory_text = crate::services::memory::format_chat_memory_patterns(&memory_ctx);
 
     // Call teacher LLM for elaboration
     let elaboration_prompt =
         prompts::build_elaboration_prompt(&observation_text, &reasoning_trace, &memory_text);
 
-    let elaboration = llm::call_anthropic(
-        env,
-        prompts::TEACHER_SYSTEM,
-        &elaboration_prompt,
-        500,
-    )
-    .await
-    .map(|text| post_process_observation(&text))
-    .map_err(|e| {
-        console_error!("Elaboration LLM failed: {}", e);
-        ApiError::ExternalService("Unable to generate elaboration".into())
-    })?;
+    let elaboration = llm::call_anthropic(env, prompts::TEACHER_SYSTEM, &elaboration_prompt, 500)
+        .await
+        .map(|text| post_process_observation(&text))
+        .map_err(|e| {
+            console_error!("Elaboration LLM failed: {}", e);
+            ApiError::ExternalService("Unable to generate elaboration".into())
+        })?;
 
     // Store elaboration
     if let Err(e) = store_elaboration(env, &request.observation_id, &elaboration).await {
@@ -403,7 +411,9 @@ pub async fn handle_elaborate(
     }
 
     // Mark teaching approach as engaged
-    if let Err(e) = crate::services::memory::mark_approach_engaged(env, &request.observation_id).await {
+    if let Err(e) =
+        crate::services::memory::mark_approach_engaged(env, &request.observation_id).await
+    {
         console_error!("Failed to mark approach engaged: {}", e);
     }
 
@@ -431,7 +441,9 @@ async fn store_observation(
     piece_context: Option<&str>,
     is_fallback: bool,
 ) -> Result<()> {
-    let db = env.d1("DB").map_err(|e| ApiError::Internal(format!("D1 binding failed: {:?}", e)))?;
+    let db = env
+        .d1("DB")
+        .map_err(|e| ApiError::Internal(format!("D1 binding failed: {e:?}")))?;
     let now = js_sys::Date::new_0()
         .to_iso_string()
         .as_string()
@@ -470,47 +482,44 @@ async fn store_observation(
         JsValue::from_bool(is_fallback),
         JsValue::from_str(&now),
     ])
-    .map_err(|e| ApiError::Internal(format!("Failed to bind insert: {:?}", e)))?
+    .map_err(|e| ApiError::Internal(format!("Failed to bind insert: {e:?}")))?
     .run()
     .await
-    .map_err(|e| ApiError::Internal(format!("Failed to insert observation: {:?}", e)))?;
+    .map_err(|e| ApiError::Internal(format!("Failed to insert observation: {e:?}")))?;
 
     Ok(())
 }
 
-async fn store_elaboration(
-    env: &Env,
-    observation_id: &str,
-    elaboration: &str,
-) -> Result<()> {
-    let db = env.d1("DB").map_err(|e| ApiError::Internal(format!("D1 binding failed: {:?}", e)))?;
+async fn store_elaboration(env: &Env, observation_id: &str, elaboration: &str) -> Result<()> {
+    let db = env
+        .d1("DB")
+        .map_err(|e| ApiError::Internal(format!("D1 binding failed: {e:?}")))?;
 
     db.prepare("UPDATE observations SET elaboration_text = ?1 WHERE id = ?2")
         .bind(&[
             JsValue::from_str(elaboration),
             JsValue::from_str(observation_id),
         ])
-        .map_err(|e| ApiError::Internal(format!("Failed to bind update: {:?}", e)))?
+        .map_err(|e| ApiError::Internal(format!("Failed to bind update: {e:?}")))?
         .run()
         .await
-        .map_err(|e| ApiError::Internal(format!("Failed to update elaboration: {:?}", e)))?;
+        .map_err(|e| ApiError::Internal(format!("Failed to update elaboration: {e:?}")))?;
 
     Ok(())
 }
 
-async fn fetch_observation(
-    env: &Env,
-    observation_id: &str,
-) -> Result<(String, String)> {
-    let db = env.d1("DB").map_err(|e| ApiError::Internal(format!("D1 binding failed: {:?}", e)))?;
+async fn fetch_observation(env: &Env, observation_id: &str) -> Result<(String, String)> {
+    let db = env
+        .d1("DB")
+        .map_err(|e| ApiError::Internal(format!("D1 binding failed: {e:?}")))?;
 
     let row: Option<serde_json::Value> = db
         .prepare("SELECT observation_text, reasoning_trace FROM observations WHERE id = ?1")
         .bind(&[JsValue::from_str(observation_id)])
-        .map_err(|e| ApiError::Internal(format!("Failed to bind query: {:?}", e)))?
+        .map_err(|e| ApiError::Internal(format!("Failed to bind query: {e:?}")))?
         .first(None)
         .await
-        .map_err(|e| ApiError::Internal(format!("Failed to query observation: {:?}", e)))?;
+        .map_err(|e| ApiError::Internal(format!("Failed to query observation: {e:?}")))?;
 
     match row {
         Some(r) => {
@@ -537,7 +546,7 @@ fn extract_framing(subagent_output: &str) -> Option<String> {
     parsed
         .get("framing")
         .and_then(|v| v.as_str())
-        .map(|s| s.to_string())
+        .map(std::string::ToString::to_string)
 }
 
 /// Split subagent output into JSON block and narrative.
@@ -548,8 +557,7 @@ fn split_subagent_output(output: &str) -> (String, String) {
         // Also skip past ``` if present
         let narrative_start = output[json_end..]
             .find(|c: char| c.is_alphabetic())
-            .map(|i| json_end + i)
-            .unwrap_or(json_end);
+            .map_or(json_end, |i| json_end + i);
         let narrative = output[narrative_start..].trim().to_string();
         (json_str, narrative)
     } else {
@@ -607,9 +615,10 @@ fn post_process_observation(text: &str) -> String {
 }
 
 /// Generate a UUID v4 (same pattern as auth module).
+#[allow(clippy::expect_used)] // getrandom on WASM (js feature) is infallible
 pub fn generate_uuid() -> String {
     let mut bytes = [0u8; 16];
-    getrandom::getrandom(&mut bytes).expect("Failed to generate random bytes");
+    getrandom::getrandom(&mut bytes).expect("getrandom");
     bytes[6] = (bytes[6] & 0x0f) | 0x40;
     bytes[8] = (bytes[8] & 0x3f) | 0x80;
     format!(
@@ -672,7 +681,7 @@ async fn lookup_catalog_exercises(
     }
 }
 
-/// Persist a teacher-generated exercise to D1 and return the exercise_id.
+/// Persist a teacher-generated exercise to D1 and return the `exercise_id`.
 async fn persist_generated_exercise(
     env: &Env,
     title: &str,
@@ -681,9 +690,14 @@ async fn persist_generated_exercise(
     source_passage: &str,
     target_skill: &str,
 ) -> Result<String> {
-    let db = env.d1("DB").map_err(|e| ApiError::Internal(format!("D1 binding failed: {:?}", e)))?;
+    let db = env
+        .d1("DB")
+        .map_err(|e| ApiError::Internal(format!("D1 binding failed: {e:?}")))?;
     let exercise_id = generate_uuid();
-    let now = js_sys::Date::new_0().to_iso_string().as_string().unwrap_or_default();
+    let now = js_sys::Date::new_0()
+        .to_iso_string()
+        .as_string()
+        .unwrap_or_default();
 
     db.prepare(
         "INSERT INTO exercises (id, title, description, instructions, difficulty, category, source, created_at) \
@@ -692,14 +706,14 @@ async fn persist_generated_exercise(
     .bind(&[
         JsValue::from_str(&exercise_id),
         JsValue::from_str(title),
-        JsValue::from_str(&format!("{} -- {}", target_skill, source_passage)),
+        JsValue::from_str(&format!("{target_skill} -- {source_passage}")),
         JsValue::from_str(instruction),
         JsValue::from_str(&now),
     ])
-    .map_err(|e| ApiError::Internal(format!("Failed to bind exercise insert: {:?}", e)))?
+    .map_err(|e| ApiError::Internal(format!("Failed to bind exercise insert: {e:?}")))?
     .run()
     .await
-    .map_err(|e| ApiError::Internal(format!("Failed to insert exercise: {:?}", e)))?;
+    .map_err(|e| ApiError::Internal(format!("Failed to insert exercise: {e:?}")))?;
 
     // Link to dimension
     let _ = db
@@ -708,37 +722,54 @@ async fn persist_generated_exercise(
             JsValue::from_str(&exercise_id),
             JsValue::from_str(focus_dimension),
         ])
-        .map_err(|e| ApiError::Internal(format!("Failed to bind dimension insert: {:?}", e)))?
+        .map_err(|e| ApiError::Internal(format!("Failed to bind dimension insert: {e:?}")))?
         .run()
         .await;
 
     Ok(exercise_id)
 }
 
-/// Process a create_exercise tool call: validate, persist each exercise, return components JSON.
-async fn process_exercise_tool_call(
-    env: &Env,
-    input: &serde_json::Value,
-) -> Result<String> {
-    let source_passage = input.get("source_passage")
+/// Process a `create_exercise` tool call: validate, persist each exercise, return components JSON.
+async fn process_exercise_tool_call(env: &Env, input: &serde_json::Value) -> Result<String> {
+    const VALID_DIMS: &[&str] = &[
+        "dynamics",
+        "timing",
+        "pedaling",
+        "articulation",
+        "phrasing",
+        "interpretation",
+    ];
+
+    let source_passage = input
+        .get("source_passage")
         .and_then(|v| v.as_str())
         .ok_or_else(|| ApiError::BadRequest("Missing source_passage".into()))?;
-    let target_skill = input.get("target_skill")
+    let target_skill = input
+        .get("target_skill")
         .and_then(|v| v.as_str())
         .ok_or_else(|| ApiError::BadRequest("Missing target_skill".into()))?;
-    let exercises = input.get("exercises")
+    let exercises = input
+        .get("exercises")
         .and_then(|v| v.as_array())
         .ok_or_else(|| ApiError::BadRequest("Missing exercises array".into()))?;
 
     let mut processed_exercises = Vec::new();
 
-    const VALID_DIMS: &[&str] = &["dynamics", "timing", "pedaling", "articulation", "phrasing", "interpretation"];
-
     for ex in exercises {
-        let title = ex.get("title").and_then(|v| v.as_str()).unwrap_or("Practice Drill");
+        let title = ex
+            .get("title")
+            .and_then(|v| v.as_str())
+            .unwrap_or("Practice Drill");
         let instruction = ex.get("instruction").and_then(|v| v.as_str()).unwrap_or("");
-        let raw_dim = ex.get("focus_dimension").and_then(|v| v.as_str()).unwrap_or("dynamics");
-        let focus_dim = if VALID_DIMS.contains(&raw_dim) { raw_dim } else { "dynamics" };
+        let raw_dim = ex
+            .get("focus_dimension")
+            .and_then(|v| v.as_str())
+            .unwrap_or("dynamics");
+        let focus_dim = if VALID_DIMS.contains(&raw_dim) {
+            raw_dim
+        } else {
+            "dynamics"
+        };
         let hands = ex.get("hands").and_then(|v| v.as_str());
 
         // Check if this references a catalog exercise by ID
@@ -746,7 +777,15 @@ async fn process_exercise_tool_call(
             id.to_string()
         } else {
             // Generate and persist new exercise
-            persist_generated_exercise(env, title, instruction, focus_dim, source_passage, target_skill).await?
+            persist_generated_exercise(
+                env,
+                title,
+                instruction,
+                focus_dim,
+                source_passage,
+                target_skill,
+            )
+            .await?
         };
 
         let mut ex_json = serde_json::json!({
@@ -771,5 +810,5 @@ async fn process_exercise_tool_call(
     }]);
 
     serde_json::to_string(&component)
-        .map_err(|e| ApiError::Internal(format!("Failed to serialize components: {:?}", e)))
+        .map_err(|e| ApiError::Internal(format!("Failed to serialize components: {e:?}")))
 }

@@ -17,7 +17,7 @@ pub struct ListPiecesParams {
     pub composer: Option<String>,
 }
 
-/// GET /api/scores/:piece_id -- lookup a single piece from D1.
+/// GET /`api/scores/:piece_id` -- lookup a single piece from D1.
 #[worker::send]
 pub async fn handle_get_piece(
     State(state): State<AppState>,
@@ -57,7 +57,7 @@ pub async fn handle_get_piece(
     Ok(Json(rows[0].clone()))
 }
 
-/// GET /api/scores/:piece_id/data -- fetch pre-built score JSON from R2.
+/// GET /`api/scores/:piece_id/data` -- fetch pre-built score JSON from R2.
 ///
 /// Returns raw bytes with long-lived cache headers, so we use `impl IntoResponse`
 /// instead of `Result<Json<...>>`.
@@ -68,7 +68,7 @@ pub async fn handle_get_piece_data(
 ) -> std::result::Result<Response, ApiError> {
     let bucket = state.practice.scores_bucket()?;
 
-    let key = format!("scores/v1/{}.json", piece_id);
+    let key = format!("scores/v1/{piece_id}.json");
 
     match bucket.get(&key).execute().await {
         Ok(Some(obj)) => {
@@ -97,10 +97,7 @@ pub async fn handle_get_piece_data(
             console_error!("R2 get failed for {}: {:?}", key, e);
             Ok((
                 StatusCode::SERVICE_UNAVAILABLE,
-                [
-                    ("content-type", "application/json"),
-                    ("retry-after", "5"),
-                ],
+                [("content-type", "application/json"), ("retry-after", "5")],
                 serde_json::json!({"error": "Score storage temporarily unavailable"}).to_string(),
             )
                 .into_response())
@@ -117,8 +114,8 @@ pub async fn handle_list_pieces(
     let db = state.db.d1()?;
 
     let results = match params.composer.as_deref() {
-        Some(c) => {
-            db.prepare(
+        Some(c) => db
+            .prepare(
                 "SELECT piece_id, composer, title, key_signature, time_signature, \
                  tempo_bpm, bar_count, duration_seconds, note_count, \
                  pitch_range_low, pitch_range_high, has_time_sig_changes, \
@@ -135,10 +132,9 @@ pub async fn handle_list_pieces(
             .map_err(|e| {
                 console_error!("D1 query failed for composer {}: {:?}", c, e);
                 ApiError::Internal("Query failed".into())
-            })?
-        }
-        None => {
-            db.prepare(
+            })?,
+        None => db
+            .prepare(
                 "SELECT piece_id, composer, title, key_signature, time_signature, \
                  tempo_bpm, bar_count, duration_seconds, note_count, \
                  pitch_range_low, pitch_range_high, has_time_sig_changes, \
@@ -155,8 +151,7 @@ pub async fn handle_list_pieces(
             .map_err(|e| {
                 console_error!("D1 query failed for list: {:?}", e);
                 ApiError::Internal("Query failed".into())
-            })?
-        }
+            })?,
     };
 
     let rows: Vec<serde_json::Value> = results.results().map_err(|e| {

@@ -1,6 +1,6 @@
 //! HTTP clients for Groq and Anthropic LLM APIs.
 //!
-//! Uses worker::Fetch for WASM-compatible HTTP requests.
+//! Uses `worker::Fetch` for WASM-compatible HTTP requests.
 
 use js_sys;
 use serde::{Deserialize, Serialize};
@@ -49,20 +49,22 @@ impl AiGateway {
         })
     }
 
-    /// Read and validate CF_ACCOUNT_ID from environment.
+    /// Read and validate `CF_ACCOUNT_ID` from environment.
     fn read_account_id(env: &Env) -> Result<String> {
         let account_id = env
             .var("CF_ACCOUNT_ID")
             .map_err(|_| ApiError::ExternalService("CF_ACCOUNT_ID not configured".to_string()))?
             .to_string();
         if account_id.is_empty() {
-            return Err(ApiError::ExternalService("CF_ACCOUNT_ID is empty -- set it via wrangler secret or CF dashboard".to_string()));
+            return Err(ApiError::ExternalService(
+                "CF_ACCOUNT_ID is empty -- set it via wrangler secret or CF dashboard".to_string(),
+            ));
         }
         Ok(account_id)
     }
 
     /// Build a provider-specific gateway URL.
-    /// Example: https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}/anthropic/v1/messages
+    /// Example: <https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}/anthropic/v1/messages>
     fn provider_url(&self, provider: &str, path: &str) -> Result<Url> {
         let url_str = format!(
             "https://gateway.ai.cloudflare.com/v1/{}/{}/{}/{}",
@@ -70,14 +72,17 @@ impl AiGateway {
         );
         url_str
             .parse()
-            .map_err(|e| ApiError::ExternalService(format!("Invalid gateway URL: {:?}", e)))
+            .map_err(|e| ApiError::ExternalService(format!("Invalid gateway URL: {e:?}")))
     }
 
     /// Attach gateway-specific headers (caching) to an existing Headers object.
+    #[allow(clippy::unused_self)] // method for consistency; may use self for per-route config later
     fn attach_headers(&self, headers: &Headers) -> Result<()> {
         headers
             .set("cf-aig-cache-ttl", &GATEWAY_CACHE_TTL.to_string())
-            .map_err(|e| ApiError::ExternalService(format!("Failed to set cache TTL header: {:?}", e)))?;
+            .map_err(|e| {
+                ApiError::ExternalService(format!("Failed to set cache TTL header: {e:?}"))
+            })?;
         Ok(())
     }
 
@@ -106,13 +111,12 @@ impl AiGateway {
 }
 
 /// Check if shadow benchmarking should fire for this request.
-/// Returns true with probability = SHADOW_BENCHMARK_PCT / 100.
+/// Returns true with probability = `SHADOW_BENCHMARK_PCT` / 100.
 fn should_shadow_benchmark(env: &Env) -> bool {
     let enabled = env
         .var("SHADOW_BENCHMARK_ENABLED")
         .ok()
-        .map(|v| v.to_string() == "true")
-        .unwrap_or(false);
+        .is_some_and(|v| v.to_string() == "true");
     if !enabled {
         return false;
     }
@@ -125,7 +129,7 @@ fn should_shadow_benchmark(env: &Env) -> bool {
     if getrandom::getrandom(&mut buf).is_err() {
         return false;
     }
-    let roll = (buf[0] as u32 * 100) / 256;
+    let roll = (u32::from(buf[0]) * 100) / 256;
     roll < pct
 }
 
@@ -186,16 +190,17 @@ pub async fn call_groq(
         max_tokens,
     };
 
-    let body_json = serde_json::to_string(&request_body)
-        .map_err(|e| ApiError::ExternalService(format!("Failed to serialize Groq request: {:?}", e)))?;
+    let body_json = serde_json::to_string(&request_body).map_err(|e| {
+        ApiError::ExternalService(format!("Failed to serialize Groq request: {e:?}"))
+    })?;
 
     let headers = Headers::new();
     headers
-        .set("Authorization", &format!("Bearer {}", api_key))
-        .map_err(|e| ApiError::ExternalService(format!("Failed to set auth header: {:?}", e)))?;
+        .set("Authorization", &format!("Bearer {api_key}"))
+        .map_err(|e| ApiError::ExternalService(format!("Failed to set auth header: {e:?}")))?;
     headers
         .set("Content-Type", "application/json")
-        .map_err(|e| ApiError::ExternalService(format!("Failed to set content-type: {:?}", e)))?;
+        .map_err(|e| ApiError::ExternalService(format!("Failed to set content-type: {e:?}")))?;
     gateway.attach_headers(&headers)?;
 
     let url = gateway.provider_url("groq", "openai/v1/chat/completions")?;
@@ -206,13 +211,13 @@ pub async fn call_groq(
     init.with_body(Some(body_json.into()));
 
     let request = Request::new_with_init(url.as_str(), &init)
-        .map_err(|e| ApiError::ExternalService(format!("Failed to create Groq request: {:?}", e)))?;
+        .map_err(|e| ApiError::ExternalService(format!("Failed to create Groq request: {e:?}")))?;
 
     let groq_start = js_sys::Date::now();
     let mut response = Fetch::Request(request)
         .send()
         .await
-        .map_err(|e| ApiError::ExternalService(format!("Groq request failed: {:?}", e)))?;
+        .map_err(|e| ApiError::ExternalService(format!("Groq request failed: {e:?}")))?;
     let groq_latency = js_sys::Date::now() - groq_start;
     gateway.log_response_metadata(&response, "groq");
 
@@ -220,19 +225,17 @@ pub async fn call_groq(
     let response_text = response
         .text()
         .await
-        .map_err(|e| ApiError::ExternalService(format!("Failed to read Groq response: {:?}", e)))?;
+        .map_err(|e| ApiError::ExternalService(format!("Failed to read Groq response: {e:?}")))?;
 
     if status != 200 {
         return Err(ApiError::ExternalService(format!(
-            "Groq returned status {}: {}",
-            status, response_text
+            "Groq returned status {status}: {response_text}"
         )));
     }
 
     let groq_response: GroqResponse = serde_json::from_str(&response_text).map_err(|e| {
         ApiError::ExternalService(format!(
-            "Failed to parse Groq response: {:?} - body: {}",
-            e, response_text
+            "Failed to parse Groq response: {e:?} - body: {response_text}"
         ))
     })?;
 
@@ -307,19 +310,20 @@ pub async fn call_anthropic(
         }],
     };
 
-    let body_json = serde_json::to_string(&request_body)
-        .map_err(|e| ApiError::ExternalService(format!("Failed to serialize Anthropic request: {:?}", e)))?;
+    let body_json = serde_json::to_string(&request_body).map_err(|e| {
+        ApiError::ExternalService(format!("Failed to serialize Anthropic request: {e:?}"))
+    })?;
 
     let headers = Headers::new();
     headers
         .set("x-api-key", &api_key)
-        .map_err(|e| ApiError::ExternalService(format!("Failed to set api-key header: {:?}", e)))?;
+        .map_err(|e| ApiError::ExternalService(format!("Failed to set api-key header: {e:?}")))?;
     headers
         .set("anthropic-version", "2023-06-01")
-        .map_err(|e| ApiError::ExternalService(format!("Failed to set version header: {:?}", e)))?;
+        .map_err(|e| ApiError::ExternalService(format!("Failed to set version header: {e:?}")))?;
     headers
         .set("Content-Type", "application/json")
-        .map_err(|e| ApiError::ExternalService(format!("Failed to set content-type: {:?}", e)))?;
+        .map_err(|e| ApiError::ExternalService(format!("Failed to set content-type: {e:?}")))?;
     gateway.attach_headers(&headers)?;
 
     let url = gateway.provider_url("anthropic", "v1/messages")?;
@@ -329,33 +333,31 @@ pub async fn call_anthropic(
     init.with_headers(headers);
     init.with_body(Some(body_json.into()));
 
-    let request = Request::new_with_init(url.as_str(), &init)
-        .map_err(|e| ApiError::ExternalService(format!("Failed to create Anthropic request: {:?}", e)))?;
+    let request = Request::new_with_init(url.as_str(), &init).map_err(|e| {
+        ApiError::ExternalService(format!("Failed to create Anthropic request: {e:?}"))
+    })?;
 
     let mut response = Fetch::Request(request)
         .send()
         .await
-        .map_err(|e| ApiError::ExternalService(format!("Anthropic request failed: {:?}", e)))?;
+        .map_err(|e| ApiError::ExternalService(format!("Anthropic request failed: {e:?}")))?;
     gateway.log_response_metadata(&response, "anthropic");
 
     let status = response.status_code();
-    let response_text = response
-        .text()
-        .await
-        .map_err(|e| ApiError::ExternalService(format!("Failed to read Anthropic response: {:?}", e)))?;
+    let response_text = response.text().await.map_err(|e| {
+        ApiError::ExternalService(format!("Failed to read Anthropic response: {e:?}"))
+    })?;
 
     if status != 200 {
         return Err(ApiError::ExternalService(format!(
-            "Anthropic returned status {}: {}",
-            status, response_text
+            "Anthropic returned status {status}: {response_text}"
         )));
     }
 
     let anthropic_response: AnthropicResponse =
         serde_json::from_str(&response_text).map_err(|e| {
             ApiError::ExternalService(format!(
-                "Failed to parse Anthropic response: {:?} - body: {}",
-                e, response_text
+                "Failed to parse Anthropic response: {e:?} - body: {response_text}"
             ))
         })?;
 
@@ -445,19 +447,20 @@ pub async fn call_anthropic_with_tools(
         tool_choice,
     };
 
-    let body_json = serde_json::to_string(&request_body)
-        .map_err(|e| ApiError::ExternalService(format!("Failed to serialize Anthropic tool request: {:?}", e)))?;
+    let body_json = serde_json::to_string(&request_body).map_err(|e| {
+        ApiError::ExternalService(format!("Failed to serialize Anthropic tool request: {e:?}"))
+    })?;
 
     let headers = Headers::new();
     headers
         .set("x-api-key", &api_key)
-        .map_err(|e| ApiError::ExternalService(format!("Failed to set api-key header: {:?}", e)))?;
+        .map_err(|e| ApiError::ExternalService(format!("Failed to set api-key header: {e:?}")))?;
     headers
         .set("anthropic-version", "2023-06-01")
-        .map_err(|e| ApiError::ExternalService(format!("Failed to set version header: {:?}", e)))?;
+        .map_err(|e| ApiError::ExternalService(format!("Failed to set version header: {e:?}")))?;
     headers
         .set("Content-Type", "application/json")
-        .map_err(|e| ApiError::ExternalService(format!("Failed to set content-type: {:?}", e)))?;
+        .map_err(|e| ApiError::ExternalService(format!("Failed to set content-type: {e:?}")))?;
     gateway.attach_headers(&headers)?;
 
     let url = gateway.provider_url("anthropic", "v1/messages")?;
@@ -467,32 +470,30 @@ pub async fn call_anthropic_with_tools(
     init.with_headers(headers);
     init.with_body(Some(body_json.into()));
 
-    let request = Request::new_with_init(url.as_str(), &init)
-        .map_err(|e| ApiError::ExternalService(format!("Failed to create Anthropic tool request: {:?}", e)))?;
+    let request = Request::new_with_init(url.as_str(), &init).map_err(|e| {
+        ApiError::ExternalService(format!("Failed to create Anthropic tool request: {e:?}"))
+    })?;
 
     let mut response = Fetch::Request(request)
         .send()
         .await
-        .map_err(|e| ApiError::ExternalService(format!("Anthropic tool request failed: {:?}", e)))?;
+        .map_err(|e| ApiError::ExternalService(format!("Anthropic tool request failed: {e:?}")))?;
     gateway.log_response_metadata(&response, "anthropic-tools");
 
     let status = response.status_code();
-    let response_text = response
-        .text()
-        .await
-        .map_err(|e| ApiError::ExternalService(format!("Failed to read Anthropic tool response: {:?}", e)))?;
+    let response_text = response.text().await.map_err(|e| {
+        ApiError::ExternalService(format!("Failed to read Anthropic tool response: {e:?}"))
+    })?;
 
     if status != 200 {
         return Err(ApiError::ExternalService(format!(
-            "Anthropic returned status {}: {}",
-            status, response_text
+            "Anthropic returned status {status}: {response_text}"
         )));
     }
 
     let parsed: AnthropicToolResponse = serde_json::from_str(&response_text).map_err(|e| {
         ApiError::ExternalService(format!(
-            "Failed to parse Anthropic tool response: {:?} - body: {}",
-            e, response_text
+            "Failed to parse Anthropic tool response: {e:?} - body: {response_text}"
         ))
     })?;
 
@@ -546,13 +547,14 @@ pub async fn call_workers_ai(
         max_tokens,
     };
 
-    let body_json = serde_json::to_string(&request_body)
-        .map_err(|e| ApiError::ExternalService(format!("Failed to serialize Workers AI request: {:?}", e)))?;
+    let body_json = serde_json::to_string(&request_body).map_err(|e| {
+        ApiError::ExternalService(format!("Failed to serialize Workers AI request: {e:?}"))
+    })?;
 
     let headers = Headers::new();
     headers
         .set("Content-Type", "application/json")
-        .map_err(|e| ApiError::ExternalService(format!("Failed to set content-type: {:?}", e)))?;
+        .map_err(|e| ApiError::ExternalService(format!("Failed to set content-type: {e:?}")))?;
     gateway.attach_headers(&headers)?;
 
     let url = gateway.provider_url("workers-ai", "v1/chat/completions")?;
@@ -562,34 +564,32 @@ pub async fn call_workers_ai(
     init.with_headers(headers);
     init.with_body(Some(body_json.into()));
 
-    let request = Request::new_with_init(url.as_str(), &init)
-        .map_err(|e| ApiError::ExternalService(format!("Failed to create Workers AI request: {:?}", e)))?;
+    let request = Request::new_with_init(url.as_str(), &init).map_err(|e| {
+        ApiError::ExternalService(format!("Failed to create Workers AI request: {e:?}"))
+    })?;
 
     let mut response = Fetch::Request(request)
         .send()
         .await
-        .map_err(|e| ApiError::ExternalService(format!("Workers AI request failed: {:?}", e)))?;
+        .map_err(|e| ApiError::ExternalService(format!("Workers AI request failed: {e:?}")))?;
 
     gateway.log_response_metadata(&response, "workers-ai");
 
     let status = response.status_code();
-    let response_text = response
-        .text()
-        .await
-        .map_err(|e| ApiError::ExternalService(format!("Failed to read Workers AI response: {:?}", e)))?;
+    let response_text = response.text().await.map_err(|e| {
+        ApiError::ExternalService(format!("Failed to read Workers AI response: {e:?}"))
+    })?;
 
     if status != 200 {
         return Err(ApiError::ExternalService(format!(
-            "Workers AI returned status {}: {}",
-            status, response_text
+            "Workers AI returned status {status}: {response_text}"
         )));
     }
 
     // Workers AI through the gateway returns OpenAI-compatible format
     let parsed: GroqResponse = serde_json::from_str(&response_text).map_err(|e| {
         ApiError::ExternalService(format!(
-            "Failed to parse Workers AI response: {:?} - body: {}",
-            e, response_text
+            "Failed to parse Workers AI response: {e:?} - body: {response_text}"
         ))
     })?;
 
@@ -634,7 +634,7 @@ pub struct CacheControl {
     pub control_type: String,
 }
 
-/// Make a streaming request to Anthropic. Returns the raw worker::Response
+/// Make a streaming request to Anthropic. Returns the raw `worker::Response`
 /// so the caller can process the SSE stream.
 pub async fn call_anthropic_stream(
     env: &Env,
@@ -662,19 +662,22 @@ pub async fn call_anthropic_stream(
         stream: true,
     };
 
-    let body_json = serde_json::to_string(&request_body)
-        .map_err(|e| ApiError::ExternalService(format!("Failed to serialize Anthropic stream request: {:?}", e)))?;
+    let body_json = serde_json::to_string(&request_body).map_err(|e| {
+        ApiError::ExternalService(format!(
+            "Failed to serialize Anthropic stream request: {e:?}"
+        ))
+    })?;
 
     let headers = Headers::new();
     headers
         .set("x-api-key", &api_key)
-        .map_err(|e| ApiError::ExternalService(format!("Failed to set api-key header: {:?}", e)))?;
+        .map_err(|e| ApiError::ExternalService(format!("Failed to set api-key header: {e:?}")))?;
     headers
         .set("anthropic-version", "2023-06-01")
-        .map_err(|e| ApiError::ExternalService(format!("Failed to set version header: {:?}", e)))?;
+        .map_err(|e| ApiError::ExternalService(format!("Failed to set version header: {e:?}")))?;
     headers
         .set("Content-Type", "application/json")
-        .map_err(|e| ApiError::ExternalService(format!("Failed to set content-type: {:?}", e)))?;
+        .map_err(|e| ApiError::ExternalService(format!("Failed to set content-type: {e:?}")))?;
     // Skip cache headers for streaming -- cached SSE replay may not behave correctly
 
     let url = gateway.provider_url("anthropic", "v1/messages")?;
@@ -684,18 +687,20 @@ pub async fn call_anthropic_stream(
     init.with_headers(headers);
     init.with_body(Some(body_json.into()));
 
-    let request = Request::new_with_init(url.as_str(), &init)
-        .map_err(|e| ApiError::ExternalService(format!("Failed to create Anthropic stream request: {:?}", e)))?;
+    let request = Request::new_with_init(url.as_str(), &init).map_err(|e| {
+        ApiError::ExternalService(format!("Failed to create Anthropic stream request: {e:?}"))
+    })?;
 
-    let response = Fetch::Request(request)
-        .send()
-        .await
-        .map_err(|e| ApiError::ExternalService(format!("Anthropic stream request failed: {:?}", e)))?;
+    let response = Fetch::Request(request).send().await.map_err(|e| {
+        ApiError::ExternalService(format!("Anthropic stream request failed: {e:?}"))
+    })?;
     gateway.log_response_metadata(&response, "anthropic-stream");
 
     let status = response.status_code();
     if status != 200 {
-        return Err(ApiError::ExternalService(format!("Anthropic streaming returned status {}", status)));
+        return Err(ApiError::ExternalService(format!(
+            "Anthropic streaming returned status {status}"
+        )));
     }
 
     Ok(response)

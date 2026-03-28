@@ -86,9 +86,19 @@ impl SessionAccumulator {
     /// 1. For each dimension, select the moment with the highest |deviation| (top-1 per dim).
     /// 2. For each dimension, also select the top-1 positive moment if it differs from step 1.
     /// 3. Cap total at 8 moments.
-    /// 4. Sort the final set by chunk_index ascending.
-    pub fn top_moments(&self, dimension_weights: Option<&HashMap<String, f64>>) -> Vec<&AccumulatedMoment> {
-        let dimensions = ["dynamics", "timing", "pedaling", "articulation", "phrasing", "interpretation"];
+    /// 4. Sort the final set by `chunk_index` ascending.
+    pub fn top_moments(
+        &self,
+        dimension_weights: Option<&HashMap<String, f64>>,
+    ) -> Vec<&AccumulatedMoment> {
+        let dimensions = [
+            "dynamics",
+            "timing",
+            "pedaling",
+            "articulation",
+            "phrasing",
+            "interpretation",
+        ];
         let mut selected: Vec<&AccumulatedMoment> = Vec::new();
 
         for dim in &dimensions {
@@ -103,15 +113,12 @@ impl SessionAccumulator {
             }
 
             // Top-1 per dimension by |deviation|
-            let top_by_deviation = dim_moments
-                .iter()
-                .copied()
-                .max_by(|a, b| {
-                    a.deviation
-                        .abs()
-                        .partial_cmp(&b.deviation.abs())
-                        .unwrap_or(std::cmp::Ordering::Equal)
-                });
+            let top_by_deviation = dim_moments.iter().copied().max_by(|a, b| {
+                a.deviation
+                    .abs()
+                    .partial_cmp(&b.deviation.abs())
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            });
 
             if let Some(top) = top_by_deviation {
                 // Use chunk_index as identity to avoid duplicate ptr checks
@@ -144,8 +151,16 @@ impl SessionAccumulator {
         // are prioritized when more than 8 candidates exist.
         if let Some(weights) = dimension_weights {
             selected.sort_by(|a, b| {
-                let ad = if a.deviation.is_nan() { 0.0 } else { a.deviation.abs() };
-                let bd = if b.deviation.is_nan() { 0.0 } else { b.deviation.abs() };
+                let ad = if a.deviation.is_nan() {
+                    0.0
+                } else {
+                    a.deviation.abs()
+                };
+                let bd = if b.deviation.is_nan() {
+                    0.0
+                } else {
+                    b.deviation.abs()
+                };
                 let aw = ad * weights.get(&a.dimension).copied().unwrap_or(1.0);
                 let bw = bd * weights.get(&b.dimension).copied().unwrap_or(1.0);
                 bw.partial_cmp(&aw).unwrap_or(std::cmp::Ordering::Equal)
@@ -210,7 +225,14 @@ mod tests {
     #[test]
     fn test_top_moments_cap_at_8() {
         let mut acc = SessionAccumulator::default();
-        let dims = ["dynamics", "timing", "pedaling", "articulation", "phrasing", "interpretation"];
+        let dims = [
+            "dynamics",
+            "timing",
+            "pedaling",
+            "articulation",
+            "phrasing",
+            "interpretation",
+        ];
         // 2 moments per dimension (one negative, one positive) = 12 candidates -> capped at 8
         for (i, dim) in dims.iter().enumerate() {
             acc.accumulate_moment(make_moment(i * 2, dim, -0.4, false));
@@ -233,7 +255,10 @@ mod tests {
         let indices: Vec<usize> = top.iter().map(|m| m.chunk_index).collect();
         let mut sorted = indices.clone();
         sorted.sort();
-        assert_eq!(indices, sorted, "top_moments should be sorted by chunk_index");
+        assert_eq!(
+            indices, sorted,
+            "top_moments should be sorted by chunk_index"
+        );
     }
 
     #[test]
@@ -294,7 +319,8 @@ mod tests {
         });
 
         let json = serde_json::to_string(&acc).expect("serialization failed");
-        let restored: SessionAccumulator = serde_json::from_str(&json).expect("deserialization failed");
+        let restored: SessionAccumulator =
+            serde_json::from_str(&json).expect("deserialization failed");
 
         assert_eq!(restored.teaching_moments.len(), acc.teaching_moments.len());
         assert_eq!(restored.mode_transitions.len(), acc.mode_transitions.len());

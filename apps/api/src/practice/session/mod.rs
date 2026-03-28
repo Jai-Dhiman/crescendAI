@@ -9,7 +9,10 @@ pub mod synthesis;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use wasm_bindgen::JsValue;
-use worker::*;
+use worker::{
+    console_log, durable_object, js_sys, wasm_bindgen, wasm_bindgen_futures, DurableObject, Env,
+    Request, Response, Result, State, WebSocket, WebSocketIncomingMessage, WebSocketPair,
+};
 
 use self::accumulator::SessionAccumulator;
 use self::practice_mode::ModeDetector;
@@ -53,7 +56,8 @@ pub(crate) fn base64_encode(bytes: &[u8]) -> String {
     STANDARD.encode(bytes)
 }
 
-/// JS setTimeout-based sleep for Cloudflare Workers WASM
+/// JS `setTimeout`-based sleep for Cloudflare Workers WASM
+#[allow(clippy::expect_used)] // setTimeout is always available in Workers runtime
 pub(crate) async fn sleep_ms(ms: u64) {
     let promise = js_sys::Promise::new(&mut |resolve, _| {
         let global = js_sys::global();
@@ -69,6 +73,8 @@ pub(crate) const ALARM_DURATION_MS: i64 = 30 * 60 * 1000; // 30 minutes
 pub(crate) const HF_RETRY_DELAYS_MS: &[u64] = &[10_000, 20_000, 40_000]; // retry 503s with backoff (70s total)
 pub(crate) const HF_RETRY_DELAYS_ENDING_MS: &[u64] = &[3_000, 5_000]; // shorter retries when session is ending
 
+#[derive(Default)]
+#[allow(clippy::struct_excessive_bools)] // session state naturally has multiple boolean flags
 pub(crate) struct SessionState {
     pub(crate) session_id: String,
     pub(crate) student_id: String,
@@ -89,7 +95,7 @@ pub(crate) struct SessionState {
     pub(crate) conversation_id: Option<String>,
     /// Whether this session is an eval session (export accumulator state in synthesis).
     pub(crate) is_eval: bool,
-    /// Encoded WebM bytes from previous chunk (NOT persisted to durable storage).
+    /// Encoded `WebM` bytes from previous chunk (NOT persisted to durable storage).
     /// Used to provide 30s context window for Aria-AMT.
     pub(crate) previous_chunk_audio: Option<Vec<u8>>,
     /// Accumulated AMT notes across chunks for piece fingerprinting.
@@ -104,38 +110,6 @@ pub(crate) struct SessionState {
     pub(crate) ngram_index: Option<NgramIndex>,
     /// Cached rerank features from R2 (lazy-loaded on first identification attempt).
     pub(crate) rerank_features: Option<RerankFeatures>,
-}
-
-impl Default for SessionState {
-    fn default() -> Self {
-        Self {
-            session_id: String::new(),
-            student_id: String::new(),
-            baselines: None,
-            baselines_loaded: false,
-            scored_chunks: Vec::new(),
-            accumulator: SessionAccumulator::default(),
-            inference_failures: 0,
-            chunks_in_flight: 0,
-            session_ending: false,
-            synthesis_completed: false,
-            dim_stats: DimStats::default(),
-            piece_query: None,
-            score_context: None,
-            score_context_loaded: false,
-            follower_state: FollowerState::default(),
-            mode_detector: ModeDetector::new(),
-            conversation_id: None,
-            is_eval: false,
-            previous_chunk_audio: None,
-            accumulated_notes: Vec::new(),
-            piece_identification: None,
-            piece_locked: false,
-            identification_note_count: 0,
-            ngram_index: None,
-            rerank_features: None,
-        }
-    }
 }
 
 #[durable_object]
@@ -175,8 +149,7 @@ impl DurableObject for PracticeSession {
         let is_eval = url
             .query_pairs()
             .find(|(k, _)| k == "eval")
-            .map(|(_, v)| v == "true")
-            .unwrap_or(false);
+            .is_some_and(|(_, v)| v == "true");
 
         console_log!(
             "DO fetch: session_id={}, student_id={}, conversation_id={:?}",
@@ -189,19 +162,20 @@ impl DurableObject for PracticeSession {
         {
             let mut s = self.inner.borrow_mut();
             if s.session_id.is_empty() {
-                s.session_id = session_id.clone();
+                session_id.clone_into(&mut s.session_id);
+                conversation_id.clone_into(&mut s.conversation_id);
                 s.student_id = student_id;
-                s.conversation_id = conversation_id.clone();
                 s.is_eval = is_eval;
             }
         }
 
+        // Clone student_id before async to avoid holding RefCell borrow across await
+        let stored_student_id = self.inner.borrow().student_id.clone();
+
         // Persist identity to durable storage (survives DO eviction during long async ops)
         let storage = self.state.storage();
         let _ = storage.put("session_id", &session_id).await;
-        let _ = storage
-            .put("student_id", &self.inner.borrow().student_id)
-            .await;
+        let _ = storage.put("student_id", &stored_student_id).await;
         if let Some(ref conv_id) = conversation_id {
             let _ = storage.put("conversation_id", conv_id).await;
         }
@@ -231,7 +205,7 @@ impl DurableObject for PracticeSession {
             "type": "connected",
             "sessionId": session_id,
         });
-        server.send_with_str(&welcome.to_string())?;
+        server.send_with_str(welcome.to_string())?;
 
         Response::from_websocket(pair.client)
     }
@@ -255,7 +229,10 @@ impl DurableObject for PracticeSession {
                 if self.inner.borrow().session_ending {
                     return Ok(());
                 }
-                let index = parsed.get("index").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
+                let index = parsed
+                    .get("index")
+                    .and_then(serde_json::Value::as_u64)
+                    .unwrap_or(0) as usize;
                 let r2_key = parsed.get("r2Key").and_then(|v| v.as_str()).unwrap_or("");
 
                 // Track in-flight for deferred finalization
@@ -287,10 +264,7 @@ impl DurableObject for PracticeSession {
                     // Schedule immediate alarm for synthesis + finalization
                     let _ = self.state.storage().set_alarm(1).await;
                 } else {
-                    console_log!(
-                        "end_session: waiting for {} in-flight chunks",
-                        in_flight
-                    );
+                    console_log!("end_session: waiting for {} in-flight chunks", in_flight);
                     // Last completing chunk will set the alarm
                 }
             }
@@ -306,7 +280,7 @@ impl DurableObject for PracticeSession {
 
                 let chunk_index = parsed
                     .get("chunk_index")
-                    .and_then(|v| v.as_u64())
+                    .and_then(serde_json::Value::as_u64)
                     .unwrap_or(0) as usize;
 
                 // Build HF-response-shaped JSON from the eval payload
@@ -337,7 +311,7 @@ impl DurableObject for PracticeSession {
                     s.accumulated_notes.clear();
                 }
                 let ack = serde_json::json!({"type": "piece_set", "query": query});
-                let _ = ws.send_with_str(&ack.to_string());
+                let _ = ws.send_with_str(ack.to_string());
             }
             _ => {}
         }

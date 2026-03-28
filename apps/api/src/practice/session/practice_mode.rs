@@ -84,16 +84,16 @@ pub(crate) fn bigram_dice(a: &[(u8, u8)], b: &[(u8, u8)]) -> f64 {
     2.0 * intersection as f64 / (set_a.len() + set_b.len()) as f64
 }
 
-/// Bar range overlap fraction (min of overlap/span_a, overlap/span_b).
+/// Bar range overlap fraction (min of `overlap/span_a`, `overlap/span_b`).
 pub(crate) fn bar_overlap_fraction(a: (u32, u32), b: (u32, u32)) -> f64 {
     let overlap_start = a.0.max(b.0);
     let overlap_end = a.1.min(b.1);
     if overlap_start > overlap_end {
         return 0.0;
     }
-    let overlap = (overlap_end - overlap_start + 1) as f64;
-    let span_a = (a.1 - a.0 + 1) as f64;
-    let span_b = (b.1 - b.0 + 1) as f64;
+    let overlap = f64::from(overlap_end - overlap_start + 1);
+    let span_a = f64::from(a.1 - a.0 + 1);
+    let span_b = f64::from(b.1 - b.0 + 1);
     (overlap / span_a).min(overlap / span_b)
 }
 
@@ -166,6 +166,12 @@ pub(crate) fn bars_progressing(signals: &VecDeque<ChunkSignal>) -> bool {
 }
 
 // --- ModeDetector implementation ---
+
+impl Default for ModeDetector {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl ModeDetector {
     pub fn new() -> Self {
@@ -260,7 +266,7 @@ impl ModeDetector {
         match self.mode {
             PracticeMode::Warming => ObservationPolicy {
                 suppress: false,
-                min_interval_ms: 30_000,  // Allow observations after 30s, sparse during warm-up
+                min_interval_ms: 30_000, // Allow observations after 30s, sparse during warm-up
                 comparative: false,
             },
             PracticeMode::Drilling => ObservationPolicy {
@@ -296,19 +302,23 @@ impl ModeDetector {
         }
     }
 
-    /// If drilling mode was active, take the DrillingPassage and convert it to a
-    /// DrillingRecord with final_scores from the current chunk.
-    pub fn take_completed_drilling(&mut self, current_scores: [f64; 6], current_chunk: usize) -> Option<super::accumulator::DrillingRecord> {
-        self.drilling_passage.take().map(|dp| {
-            super::accumulator::DrillingRecord {
+    /// If drilling mode was active, take the `DrillingPassage` and convert it to a
+    /// `DrillingRecord` with `final_scores` from the current chunk.
+    pub fn take_completed_drilling(
+        &mut self,
+        current_scores: [f64; 6],
+        current_chunk: usize,
+    ) -> Option<super::accumulator::DrillingRecord> {
+        self.drilling_passage
+            .take()
+            .map(|dp| super::accumulator::DrillingRecord {
                 bar_range: dp.bar_range,
                 repetition_count: dp.repetition_count,
                 first_scores: dp.first_scores,
                 final_scores: current_scores,
                 started_at_chunk: current_chunk.saturating_sub(dp.repetition_count * 15),
                 ended_at_chunk: current_chunk,
-            }
-        })
+            })
     }
 
     fn evaluate_transitions(&self, signal: &ChunkSignal) -> Option<PracticeMode> {
@@ -330,7 +340,10 @@ impl ModeDetector {
         // Transition to Drilling: repetition detected across at least 3 signals
         // with a substantive passage (>= 3 bigrams per chunk) to avoid false triggers
         // on trivial single-bigram patterns.
-        if self.recent_signals.len() >= 3 && self.passage_has_substance() && detect_repetition(&self.recent_signals) {
+        if self.recent_signals.len() >= 3
+            && self.passage_has_substance()
+            && detect_repetition(&self.recent_signals)
+        {
             return Some(PracticeMode::Drilling);
         }
 
@@ -409,6 +422,7 @@ impl ModeDetector {
         None
     }
 
+    #[allow(clippy::unnecessary_wraps, clippy::unused_self)] // matches other eval_from_* signatures
     fn eval_from_winding(&self, signal: &ChunkSignal) -> Option<PracticeMode> {
         // Resume: piece match -> Running, else -> Regular
         if signal.has_piece_match {
@@ -588,7 +602,13 @@ mod tests {
     fn warming_to_regular_after_4_ambiguous_chunks() {
         let mut det = make_detector();
         for i in 0..4 {
-            det.update(&signal_at(i, (i as u64) * 15000 + 1000, vec![(60, 62)], None, false));
+            det.update(&signal_at(
+                i,
+                (i as u64) * 15000 + 1000,
+                vec![(60, 62)],
+                None,
+                false,
+            ));
         }
         assert_eq!(det.mode, PracticeMode::Regular);
     }
@@ -630,7 +650,13 @@ mod tests {
 
         let new_bg = vec![(72, 74), (74, 76), (76, 77)];
         det.update(&signal_at(3, 65000, new_bg.clone(), Some((15, 18)), true));
-        det.update(&signal_at(4, 80000, vec![(77, 79), (79, 81)], Some((19, 22)), true));
+        det.update(&signal_at(
+            4,
+            80000,
+            vec![(77, 79), (79, 81)],
+            Some((19, 22)),
+            true,
+        ));
         assert_eq!(det.mode, PracticeMode::Running);
     }
 
@@ -717,7 +743,13 @@ mod tests {
     fn regular_180s() {
         let mut det = make_detector();
         for i in 0..4 {
-            det.update(&signal_at(i, (i as u64) * 15000 + 1000, vec![(60, 62)], None, false));
+            det.update(&signal_at(
+                i,
+                (i as u64) * 15000 + 1000,
+                vec![(60, 62)],
+                None,
+                false,
+            ));
         }
         let policy = det.observation_policy();
         assert_eq!(policy.min_interval_ms, 180_000);

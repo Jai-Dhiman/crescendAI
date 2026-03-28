@@ -86,7 +86,7 @@ Recognition (substantive, references specific improvement):
 Example of a BAD observation (vague, lists multiple issues):
 "Your dynamics need work and the pedaling could be cleaner. Also watch the tempo in the second section. Overall good effort though!""#;
 
-/// Tool definition for teacher exercise creation (Anthropic tool_use).
+/// Tool definition for teacher exercise creation (Anthropic `tool_use`).
 pub fn exercise_tool_definition() -> llm::AnthropicTool {
     llm::AnthropicTool {
         name: "create_exercise".to_string(),
@@ -154,21 +154,43 @@ pub fn build_subagent_user_prompt(
     prompt.push_str("<teaching_moment>\n");
     prompt.push_str(&format!(
         "Chunk {} at {}s into session.\n",
-        teaching_moment.get("chunk_index").and_then(|v| v.as_i64()).unwrap_or(0),
-        teaching_moment.get("start_offset_sec").and_then(|v| v.as_f64()).unwrap_or(0.0),
+        teaching_moment
+            .get("chunk_index")
+            .and_then(serde_json::Value::as_i64)
+            .unwrap_or(0),
+        teaching_moment
+            .get("start_offset_sec")
+            .and_then(serde_json::Value::as_f64)
+            .unwrap_or(0.0),
     ));
     prompt.push_str(&format!(
         "Dimension flagged: {} (score: {:.2}, stop probability: {:.2})\n",
-        teaching_moment.get("dimension").and_then(|v| v.as_str()).unwrap_or("unknown"),
-        teaching_moment.get("dimension_score").and_then(|v| v.as_f64()).unwrap_or(0.0),
-        teaching_moment.get("stop_probability").and_then(|v| v.as_f64()).unwrap_or(0.0),
+        teaching_moment
+            .get("dimension")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown"),
+        teaching_moment
+            .get("dimension_score")
+            .and_then(serde_json::Value::as_f64)
+            .unwrap_or(0.0),
+        teaching_moment
+            .get("stop_probability")
+            .and_then(serde_json::Value::as_f64)
+            .unwrap_or(0.0),
     ));
 
     if let Some(scores) = teaching_moment.get("all_scores") {
         prompt.push_str("All 6 dimension scores for this chunk:\n");
-        for dim in &["dynamics", "timing", "pedaling", "articulation", "phrasing", "interpretation"] {
-            if let Some(score) = scores.get(*dim).and_then(|v| v.as_f64()) {
-                prompt.push_str(&format!("- {}: {:.2}\n", dim, score));
+        for dim in &[
+            "dynamics",
+            "timing",
+            "pedaling",
+            "articulation",
+            "phrasing",
+            "interpretation",
+        ] {
+            if let Some(score) = scores.get(*dim).and_then(serde_json::Value::as_f64) {
+                prompt.push_str(&format!("- {dim}: {score:.2}\n"));
             }
         }
     }
@@ -178,16 +200,21 @@ pub fn build_subagent_user_prompt(
     if let Some(piece) = piece_context {
         prompt.push_str("<piece_context>\n");
         if let Some(composer) = piece.get("composer").and_then(|v| v.as_str()) {
-            prompt.push_str(&format!("Composer: {}\n", composer));
+            prompt.push_str(&format!("Composer: {composer}\n"));
         }
         if let Some(title) = piece.get("title").and_then(|v| v.as_str()) {
-            prompt.push_str(&format!("Title: {}\n", title));
+            prompt.push_str(&format!("Title: {title}\n"));
         }
         if let Some(bar_range) = piece.get("bar_range").and_then(|v| v.as_str()) {
-            prompt.push_str(&format!("Bar range: {}\n", bar_range));
+            prompt.push_str(&format!("Bar range: {bar_range}\n"));
         }
-        if let Some(tier) = piece.get("analysis_tier").and_then(|v| v.as_u64()) {
-            prompt.push_str(&format!("Analysis tier: {} (1=full score context, 2=absolute, 3=scores only)\n", tier));
+        if let Some(tier) = piece
+            .get("analysis_tier")
+            .and_then(serde_json::Value::as_u64)
+        {
+            prompt.push_str(&format!(
+                "Analysis tier: {tier} (1=full score context, 2=absolute, 3=scores only)\n"
+            ));
         }
 
         // Per-dimension musical analysis
@@ -195,17 +222,20 @@ pub fn build_subagent_user_prompt(
             prompt.push_str("\n<musical_analysis>\n");
             for dim_analysis in analysis {
                 if let Some(dim) = dim_analysis.get("dimension").and_then(|v| v.as_str()) {
-                    prompt.push_str(&format!("<{}>\n", dim));
+                    prompt.push_str(&format!("<{dim}>\n"));
                     if let Some(a) = dim_analysis.get("analysis").and_then(|v| v.as_str()) {
-                        prompt.push_str(&format!("  {}\n", a));
+                        prompt.push_str(&format!("  {a}\n"));
                     }
                     if let Some(sm) = dim_analysis.get("score_marking").and_then(|v| v.as_str()) {
-                        prompt.push_str(&format!("  Score marking: {}\n", sm));
+                        prompt.push_str(&format!("  Score marking: {sm}\n"));
                     }
-                    if let Some(rc) = dim_analysis.get("reference_comparison").and_then(|v| v.as_str()) {
-                        prompt.push_str(&format!("  Reference: {}\n", rc));
+                    if let Some(rc) = dim_analysis
+                        .get("reference_comparison")
+                        .and_then(|v| v.as_str())
+                    {
+                        prompt.push_str(&format!("  Reference: {rc}\n"));
                     }
-                    prompt.push_str(&format!("</{}>\n", dim));
+                    prompt.push_str(&format!("</{dim}>\n"));
                 }
             }
             prompt.push_str("</musical_analysis>\n");
@@ -217,34 +247,53 @@ pub fn build_subagent_user_prompt(
     prompt.push_str("<session_context>\n");
     prompt.push_str(&format!(
         "Duration: {} minutes, {} chunks analyzed, {} teaching moments found.\n",
-        session.get("duration_min").and_then(|v| v.as_i64()).unwrap_or(0),
-        session.get("total_chunks").and_then(|v| v.as_i64()).unwrap_or(0),
-        session.get("chunks_above_threshold").and_then(|v| v.as_i64()).unwrap_or(0),
+        session
+            .get("duration_min")
+            .and_then(serde_json::Value::as_i64)
+            .unwrap_or(0),
+        session
+            .get("total_chunks")
+            .and_then(serde_json::Value::as_i64)
+            .unwrap_or(0),
+        session
+            .get("chunks_above_threshold")
+            .and_then(serde_json::Value::as_i64)
+            .unwrap_or(0),
     ));
     prompt.push_str("</session_context>\n\n");
 
     // Student context
     prompt.push_str("<student_context>\n");
-    let session_count = student.get("session_count").and_then(|v| v.as_i64()).unwrap_or(0);
+    let session_count = student
+        .get("session_count")
+        .and_then(serde_json::Value::as_i64)
+        .unwrap_or(0);
     if session_count <= 1 {
         prompt.push_str("This is a new student. No history yet.\n");
         if let Some(level) = student.get("level").and_then(|v| v.as_str()) {
-            prompt.push_str(&format!("Repertoire suggests {} level.\n", level));
+            prompt.push_str(&format!("Repertoire suggests {level} level.\n"));
         }
     } else {
         if let Some(level) = student.get("level").and_then(|v| v.as_str()) {
-            prompt.push_str(&format!("Level: {}\n", level));
+            prompt.push_str(&format!("Level: {level}\n"));
         }
         if let Some(goals) = student.get("goals").and_then(|v| v.as_str()) {
             if !goals.is_empty() {
-                prompt.push_str(&format!("Goals: {}\n", goals));
+                prompt.push_str(&format!("Goals: {goals}\n"));
             }
         }
         if let Some(baselines) = student.get("baselines") {
-            prompt.push_str(&format!("Baselines (over {} sessions):\n", session_count));
-            for dim in &["dynamics", "timing", "pedaling", "articulation", "phrasing", "interpretation"] {
-                if let Some(val) = baselines.get(*dim).and_then(|v| v.as_f64()) {
-                    prompt.push_str(&format!("- {}: {:.2}\n", dim, val));
+            prompt.push_str(&format!("Baselines (over {session_count} sessions):\n"));
+            for dim in &[
+                "dynamics",
+                "timing",
+                "pedaling",
+                "articulation",
+                "phrasing",
+                "interpretation",
+            ] {
+                if let Some(val) = baselines.get(*dim).and_then(serde_json::Value::as_f64) {
+                    prompt.push_str(&format!("- {dim}: {val:.2}\n"));
                 }
             }
         }
@@ -291,9 +340,9 @@ pub fn build_teacher_user_prompt(
     prompt.push_str("\n</analysis>\n\n");
 
     prompt.push_str("<student>\n");
-    prompt.push_str(&format!("Level: {}\n", student_level));
+    prompt.push_str(&format!("Level: {student_level}\n"));
     if !student_goals.is_empty() {
-        prompt.push_str(&format!("Goals: {}\n", student_goals));
+        prompt.push_str(&format!("Goals: {student_goals}\n"));
     }
     prompt.push_str("</student>\n\n");
 
@@ -309,9 +358,14 @@ pub fn build_teacher_user_prompt_with_catalog(
     subagent_narrative: &str,
     student_level: &str,
     student_goals: &str,
-    catalog_exercises: &[(String, String, String, String)],  // (id, title, description, difficulty)
+    catalog_exercises: &[(String, String, String, String)], // (id, title, description, difficulty)
 ) -> String {
-    let mut prompt = build_teacher_user_prompt(subagent_json, subagent_narrative, student_level, student_goals);
+    let mut prompt = build_teacher_user_prompt(
+        subagent_json,
+        subagent_narrative,
+        student_level,
+        student_goals,
+    );
 
     if !catalog_exercises.is_empty() {
         // Insert catalog context before the <task> tag
@@ -320,7 +374,8 @@ pub fn build_teacher_user_prompt_with_catalog(
             let mut catalog_section = String::from("\n<available_exercises>\n");
             catalog_section.push_str("These curated exercises are available. If one fits, you can reference it by ID in your exercise tool call.\n");
             for (id, title, description, difficulty) in catalog_exercises {
-                catalog_section.push_str(&format!("- [{}] {} ({}): {}\n", id, title, difficulty, description));
+                catalog_section
+                    .push_str(&format!("- [{id}] {title} ({difficulty}): {description}\n"));
             }
             catalog_section.push_str("</available_exercises>\n\n");
             prompt.insert_str(pos, &catalog_section);
@@ -344,7 +399,7 @@ pub fn build_elaboration_prompt(
     let mut prompt = String::with_capacity(1500);
 
     prompt.push_str("<observation>\n");
-    prompt.push_str(&format!("The student just read this observation and tapped \"Tell me more\":\n\n\"{}\"\n", original_observation));
+    prompt.push_str(&format!("The student just read this observation and tapped \"Tell me more\":\n\n\"{original_observation}\"\n"));
     prompt.push_str("</observation>\n\n");
 
     prompt.push_str("<analysis>\n");
@@ -452,12 +507,12 @@ pub fn build_chat_student_context(
     let mut ctx = String::with_capacity(2000);
     ctx.push_str("<student_context>\n");
     if let Some(level) = level {
-        ctx.push_str(&format!("<level>{}</level>\n", level));
+        ctx.push_str(&format!("<level>{level}</level>\n"));
     }
 
     if let Some(goals) = student.get("explicit_goals").and_then(|v| v.as_str()) {
         if !goals.is_empty() {
-            ctx.push_str(&format!("<goals>{}</goals>\n", goals));
+            ctx.push_str(&format!("<goals>{goals}</goals>\n"));
         }
     }
 
@@ -467,16 +522,26 @@ pub fn build_chat_student_context(
         ctx.push_str("</about_student>\n");
     }
 
-    let dims = ["dynamics", "timing", "pedaling", "articulation", "phrasing", "interpretation"];
+    let dims = [
+        "dynamics",
+        "timing",
+        "pedaling",
+        "articulation",
+        "phrasing",
+        "interpretation",
+    ];
     let mut baselines = Vec::new();
     for dim in &dims {
-        let key = format!("baseline_{}", dim);
-        if let Some(val) = student.get(&key).and_then(|v| v.as_f64()) {
-            baselines.push(format!("{}: {:.2}", dim, val));
+        let key = format!("baseline_{dim}");
+        if let Some(val) = student.get(&key).and_then(serde_json::Value::as_f64) {
+            baselines.push(format!("{dim}: {val:.2}"));
         }
     }
     if !baselines.is_empty() {
-        ctx.push_str(&format!("<baselines>{}</baselines>\n", baselines.join(", ")));
+        ctx.push_str(&format!(
+            "<baselines>{}</baselines>\n",
+            baselines.join(", ")
+        ));
     }
 
     if !memory_patterns.is_empty() {
@@ -498,8 +563,7 @@ pub fn build_chat_student_context(
 /// Build the title generation prompt from first exchange.
 pub fn build_title_prompt(user_message: &str, assistant_response: &str) -> String {
     format!(
-        "Generate a 4-6 word title for this conversation. Return ONLY the title, nothing else.\n\nStudent: {}\nTeacher: {}",
-        user_message, assistant_response
+        "Generate a 4-6 word title for this conversation. Return ONLY the title, nothing else.\n\nStudent: {user_message}\nTeacher: {assistant_response}"
     )
 }
 
@@ -633,26 +697,34 @@ pub fn build_chat_extraction_prompt(
 ) -> String {
     let mut prompt = String::with_capacity(1500);
 
-    prompt.push_str(&format!("Today's date: {}\n\n", today));
+    prompt.push_str(&format!("Today's date: {today}\n\n"));
 
     prompt.push_str("## Existing known facts about this student\n\n");
     if existing_facts.is_empty() {
         prompt.push_str("No facts yet (new student).\n\n");
     } else {
         // Group facts by category for easier comparison during UPDATE detection
-        let categories = ["identity", "background", "goals", "preferences", "repertoire", "events", "relationships", "activities", "opinions", "context"];
+        let categories = [
+            "identity",
+            "background",
+            "goals",
+            "preferences",
+            "repertoire",
+            "events",
+            "relationships",
+            "activities",
+            "opinions",
+            "context",
+        ];
         for cat in &categories {
             let cat_facts: Vec<_> = existing_facts
                 .iter()
                 .filter(|f| f.dimension.as_deref().unwrap_or("general") == *cat)
                 .collect();
             if !cat_facts.is_empty() {
-                prompt.push_str(&format!("### {}\n", cat));
+                prompt.push_str(&format!("### {cat}\n"));
                 for fact in cat_facts {
-                    prompt.push_str(&format!(
-                        "- [id: {}] {}\n",
-                        fact.id, fact.fact_text
-                    ));
+                    prompt.push_str(&format!("- [id: {}] {}\n", fact.id, fact.fact_text));
                 }
             }
         }
@@ -678,10 +750,12 @@ pub fn build_chat_extraction_prompt(
     }
 
     prompt.push_str("## Chat exchange\n\n");
-    prompt.push_str(&format!("Student: {}\n\n", user_message));
-    prompt.push_str(&format!("Teacher: {}\n\n", assistant_response));
+    prompt.push_str(&format!("Student: {user_message}\n\n"));
+    prompt.push_str(&format!("Teacher: {assistant_response}\n\n"));
 
-    prompt.push_str("## Task\n\nExtract any new or updated facts from this exchange. Return JSON only.");
+    prompt.push_str(
+        "## Task\n\nExtract any new or updated facts from this exchange. Return JSON only.",
+    );
 
     prompt
 }
@@ -717,20 +791,37 @@ pub fn build_synthesis_prompt(
         for obs in new_observations {
             let id = obs.get("id").and_then(|v| v.as_str()).unwrap_or("");
             let dim = obs.get("dimension").and_then(|v| v.as_str()).unwrap_or("");
-            let text = obs.get("observation_text").and_then(|v| v.as_str()).unwrap_or("");
+            let text = obs
+                .get("observation_text")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
             let framing = obs.get("framing").and_then(|v| v.as_str()).unwrap_or("");
-            let score = obs.get("dimension_score").and_then(|v| v.as_f64());
-            let baseline = obs.get("student_baseline").and_then(|v| v.as_f64());
+            let score = obs
+                .get("dimension_score")
+                .and_then(serde_json::Value::as_f64);
+            let baseline = obs
+                .get("student_baseline")
+                .and_then(serde_json::Value::as_f64);
             let created = obs.get("created_at").and_then(|v| v.as_str()).unwrap_or("");
-            let trace = obs.get("reasoning_trace").and_then(|v| v.as_str()).unwrap_or("");
+            let trace = obs
+                .get("reasoning_trace")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
 
-            prompt.push_str(&format!("- [id: {}, dim: {}, framing: {}, date: {}]\n", id, dim, framing, created));
-            prompt.push_str(&format!("  Text: \"{}\"\n", text));
+            prompt.push_str(&format!(
+                "- [id: {id}, dim: {dim}, framing: {framing}, date: {created}]\n"
+            ));
+            prompt.push_str(&format!("  Text: \"{text}\"\n"));
             if let (Some(s), Some(b)) = (score, baseline) {
-                prompt.push_str(&format!("  Score: {:.2} (baseline: {:.2}, delta: {:+.2})\n", s, b, s - b));
+                prompt.push_str(&format!(
+                    "  Score: {:.2} (baseline: {:.2}, delta: {:+.2})\n",
+                    s,
+                    b,
+                    s - b
+                ));
             }
             if !trace.is_empty() && trace != "{}" {
-                prompt.push_str(&format!("  Reasoning: {}\n", trace));
+                prompt.push_str(&format!("  Reasoning: {trace}\n"));
             }
         }
         prompt.push('\n');
@@ -740,20 +831,39 @@ pub fn build_synthesis_prompt(
         prompt.push_str("## Teaching Approaches\n\n");
         for ta in teaching_approaches {
             let dim = ta.get("dimension").and_then(|v| v.as_str()).unwrap_or("");
-            let summary = ta.get("approach_summary").and_then(|v| v.as_str()).unwrap_or("");
-            let engaged = ta.get("engaged").and_then(|v| v.as_i64()).unwrap_or(0) == 1;
+            let summary = ta
+                .get("approach_summary")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            let engaged = ta
+                .get("engaged")
+                .and_then(serde_json::Value::as_i64)
+                .unwrap_or(0)
+                == 1;
             prompt.push_str(&format!(
                 "- {}: {} (engaged: {})\n",
-                dim, summary, if engaged { "yes" } else { "no" }
+                dim,
+                summary,
+                if engaged { "yes" } else { "no" }
             ));
         }
         prompt.push('\n');
     }
 
     prompt.push_str("## Student Baselines\n\n");
-    for dim in &["dynamics", "timing", "pedaling", "articulation", "phrasing", "interpretation"] {
-        if let Some(val) = baselines.get(format!("baseline_{}", dim)).and_then(|v| v.as_f64()) {
-            prompt.push_str(&format!("- {}: {:.2}\n", dim, val));
+    for dim in &[
+        "dynamics",
+        "timing",
+        "pedaling",
+        "articulation",
+        "phrasing",
+        "interpretation",
+    ] {
+        if let Some(val) = baselines
+            .get(format!("baseline_{dim}"))
+            .and_then(serde_json::Value::as_f64)
+        {
+            prompt.push_str(&format!("- {dim}: {val:.2}\n"));
         }
     }
     prompt.push('\n');
@@ -765,7 +875,7 @@ pub fn build_synthesis_prompt(
 
 /// Session synthesis system prompt -- single call after session ends.
 /// The structured JSON context IS the analysis; the teacher narrates.
-pub const SESSION_SYNTHESIS_SYSTEM: &str = r#"You are a warm, perceptive piano teacher reviewing a practice session. You watched the entire session and now give your student one cohesive, encouraging response.
+pub const SESSION_SYNTHESIS_SYSTEM: &str = r"You are a warm, perceptive piano teacher reviewing a practice session. You watched the entire session and now give your student one cohesive, encouraging response.
 
 ## What you receive
 
@@ -784,4 +894,4 @@ A JSON object with the full session context: duration, practice pattern (modes a
 
 ## Calibration
 
-The MuQ audio model has R2~0.5 and 80% pairwise accuracy. Scores are directional signals, not precise measurements. A deviation of 0.1 is noise; 0.2+ is meaningful. Use deviations to identify patterns, not to make absolute claims."#;
+The MuQ audio model has R2~0.5 and 80% pairwise accuracy. Scores are directional signals, not precise measurements. A deviation of 0.1 is noise; 0.2+ is meaningful. Use deviations to identify patterns, not to make absolute claims.";

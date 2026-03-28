@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use wasm_bindgen::JsValue;
-use worker::*;
+use worker::{console_error, console_log, js_sys, wasm_bindgen, WebSocket};
 
 use super::PracticeSession;
 use crate::services::stop::SCALER_MEAN;
@@ -49,7 +49,7 @@ impl PracticeSession {
         for row in &results {
             if let (Some(dim), Some(avg)) = (
                 row.get("dimension").and_then(|v| v.as_str()),
-                row.get("avg_score").and_then(|v| v.as_f64()),
+                row.get("avg_score").and_then(serde_json::Value::as_f64),
             ) {
                 dim_map.insert(dim.to_string(), avg);
             }
@@ -109,15 +109,8 @@ impl PracticeSession {
                 .accumulator
                 .timeline
                 .last()
-                .map(|t| t.timestamp_ms)
-                .unwrap_or(0)
-                .saturating_sub(
-                    s.accumulator
-                        .timeline
-                        .first()
-                        .map(|t| t.timestamp_ms)
-                        .unwrap_or(0),
-                );
+                .map_or(0, |t| t.timestamp_ms)
+                .saturating_sub(s.accumulator.timeline.first().map_or(0, |t| t.timestamp_ms));
 
             let ctx = super::synthesis::SynthesisContext {
                 session_id: s.session_id.clone(),
@@ -185,7 +178,7 @@ impl PracticeSession {
         }
 
         if let Some(ws) = ws {
-            let _ = ws.send_with_str(&synthesis_event.to_string());
+            let _ = ws.send_with_str(synthesis_event.to_string());
         }
 
         // Persist synthesis message to D1
@@ -266,7 +259,7 @@ impl PracticeSession {
                                 result.unchanged
                             ),
                             Err(e) => {
-                                console_error!("Memory synthesis failed for {}: {}", student_id, e)
+                                console_error!("Memory synthesis failed for {}: {}", student_id, e);
                             }
                         }
                     }
@@ -287,11 +280,10 @@ impl PracticeSession {
                         s.conversation_id.clone(),
                     )
                 };
-                if needs_deferred {
-                    if conv.is_some() {
-                        let acc_json = serde_json::to_string(&acc).unwrap_or_default();
-                        if let Ok(db) = self.env.d1("DB") {
-                            if let Ok(stmt) = db.prepare(
+                if needs_deferred && conv.is_some() {
+                    let acc_json = serde_json::to_string(&acc).unwrap_or_default();
+                    if let Ok(db) = self.env.d1("DB") {
+                        if let Ok(stmt) = db.prepare(
                                 "UPDATE sessions SET accumulator_json = ?1, needs_synthesis = 1 WHERE id = ?2"
                             ).bind(&[
                                 JsValue::from_str(&acc_json),
@@ -303,7 +295,6 @@ impl PracticeSession {
                                     console_log!("Accumulator persisted for deferred synthesis: session={}", sid);
                                 }
                             }
-                        }
                     }
                 }
             }
@@ -312,7 +303,7 @@ impl PracticeSession {
             let conv_id = self.inner.borrow().conversation_id.clone();
             if let Some(ref conv_id) = conv_id {
                 if let Ok(db) = self.env.d1("DB") {
-                    let end_msg_id = format!("session_end_{}", session_id);
+                    let end_msg_id = format!("session_end_{session_id}");
                     let now = js_sys::Date::new_0()
                         .to_iso_string()
                         .as_string()
@@ -339,5 +330,4 @@ impl PracticeSession {
             let _ = ws.close(Some(1000), Some(String::from("Session ended")));
         }
     }
-
 }

@@ -41,16 +41,18 @@ pub async fn handle_extract_goals(
         .await
         .map_err(|e| {
             console_log!("Goal extraction failed: {}", e);
-            ApiError::Internal(format!("Goal extraction failed: {}", e))
+            ApiError::Internal(format!("Goal extraction failed: {e}"))
         })?;
 
     // Merge into student's explicit_goals in D1
     let db = state.db.d1()?;
 
-    merge_goals(&db, &student_id, &extracted).await.map_err(|e| {
-        console_log!("Failed to merge goals: {}", e);
-        ApiError::Internal("Failed to save goals".into())
-    })?;
+    merge_goals(&db, &student_id, &extracted)
+        .await
+        .map_err(|e| {
+            console_log!("Failed to merge goals: {}", e);
+            ApiError::Internal("Failed to save goals".into())
+        })?;
 
     // Store extracted goals as student-reported facts in synthesized_facts
     let now = js_sys::Date::new_0()
@@ -62,7 +64,7 @@ pub async fn handle_extract_goals(
     for piece in &extracted.pieces {
         let fact_id = crate::services::memory::generate_fact_id();
         let piece_ctx = serde_json::json!({"title": piece}).to_string();
-        let fact_text = format!("Working on {}", piece);
+        let fact_text = format!("Working on {piece}");
         if let Ok(stmt) = db
             .prepare(
                 "INSERT OR IGNORE INTO synthesized_facts \
@@ -127,7 +129,7 @@ async fn extract_goals_with_llm(
     let prompt = format!(
         r#"Extract structured practice goals from this pianist's message. Return ONLY valid JSON with no other text.
 
-Message: "{}"
+Message: "{message}"
 
 Return this exact JSON structure:
 {{
@@ -137,8 +139,7 @@ Return this exact JSON structure:
   "raw_text": "the original message"
 }}
 
-If a field has no matches, use an empty array. Always include raw_text."#,
-        message
+If a field has no matches, use an empty array. Always include raw_text."#
     );
 
     let response = crate::services::llm::call_workers_ai(
@@ -155,7 +156,7 @@ If a field has no matches, use an empty array. Always include raw_text."#,
     // Parse the LLM's JSON response
     let extracted: ExtractedGoals = serde_json::from_str(&response).map_err(|e| {
         console_log!("LLM returned invalid JSON: {}", response);
-        format!("Failed to parse extracted goals: {}", e)
+        format!("Failed to parse extracted goals: {e}")
     })?;
 
     Ok(extracted)
@@ -170,15 +171,15 @@ async fn merge_goals(
     let existing_row = db
         .prepare("SELECT explicit_goals FROM students WHERE student_id = ?1")
         .bind(&[JsValue::from_str(student_id)])
-        .map_err(|e| format!("Failed to bind query: {:?}", e))?
+        .map_err(|e| format!("Failed to bind query: {e:?}"))?
         .first::<serde_json::Value>(None)
         .await
-        .map_err(|e| format!("Failed to query student: {:?}", e))?;
+        .map_err(|e| format!("Failed to query student: {e:?}"))?;
 
     let mut merged = if let Some(row) = existing_row {
         let goals_str = row
             .get("explicit_goals")
-            .and_then(|v| v.as_str().map(|s| s.to_string()))
+            .and_then(|v| v.as_str().map(std::string::ToString::to_string))
             .unwrap_or_default();
 
         if goals_str.is_empty() {
@@ -206,7 +207,7 @@ async fn merge_goals(
     }
 
     let merged_json = serde_json::to_string(&merged)
-        .map_err(|e| format!("Failed to serialize merged goals: {}", e))?;
+        .map_err(|e| format!("Failed to serialize merged goals: {e}"))?;
 
     let now = js_sys::Date::new_0()
         .to_iso_string()
@@ -219,10 +220,10 @@ async fn merge_goals(
             JsValue::from_str(&now),
             JsValue::from_str(student_id),
         ])
-        .map_err(|e| format!("Failed to bind update: {:?}", e))?
+        .map_err(|e| format!("Failed to bind update: {e:?}"))?
         .run()
         .await
-        .map_err(|e| format!("Failed to update goals: {:?}", e))?;
+        .map_err(|e| format!("Failed to update goals: {e:?}"))?;
 
     Ok(())
 }

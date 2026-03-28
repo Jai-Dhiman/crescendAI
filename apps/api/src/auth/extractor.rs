@@ -1,4 +1,4 @@
-//! AuthUser extractor for Axum handlers.
+//! `AuthUser` extractor for Axum handlers.
 
 use axum::extract::FromRequestParts;
 use http::request::Parts;
@@ -39,9 +39,11 @@ fn extract_token_from_cookie(headers: &http::HeaderMap) -> Option<String> {
         .get("cookie")
         .and_then(|v| v.to_str().ok())
         .and_then(|cookies| {
-            cookies
-                .split(';')
-                .find_map(|c| c.trim().strip_prefix("token=").map(|t| t.to_string()))
+            cookies.split(';').find_map(|c| {
+                c.trim()
+                    .strip_prefix("token=")
+                    .map(std::string::ToString::to_string)
+            })
         })
 }
 
@@ -49,5 +51,8 @@ fn extract_token_from_bearer(headers: &http::HeaderMap) -> Option<String> {
     headers
         .get("authorization")
         .and_then(|v| v.to_str().ok())
-        .and_then(|auth| auth.strip_prefix("Bearer ").map(|t| t.to_string()))
+        .and_then(|auth| {
+            auth.strip_prefix("Bearer ")
+                .map(std::string::ToString::to_string)
+        })
 }

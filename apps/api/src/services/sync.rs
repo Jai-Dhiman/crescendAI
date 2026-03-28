@@ -51,7 +51,7 @@ pub struct SyncResponse {
     pub exercise_updates: Vec<serde_json::Value>,
 }
 
-/// Convert an Option<f64> to a JsValue (f64 or null).
+/// Convert an Option<f64> to a `JsValue` (f64 or null).
 fn opt_f64(v: Option<f64>) -> JsValue {
     match v {
         Some(f) => JsValue::from_f64(f),
@@ -59,7 +59,7 @@ fn opt_f64(v: Option<f64>) -> JsValue {
     }
 }
 
-/// Convert an Option<i32> to a JsValue (i32 or null).
+/// Convert an Option<i32> to a `JsValue` (i32 or null).
 fn opt_i32(v: Option<i32>) -> JsValue {
     match v {
         Some(i) => JsValue::from(i),
@@ -67,7 +67,7 @@ fn opt_i32(v: Option<i32>) -> JsValue {
     }
 }
 
-/// Convert an Option<&str> to a JsValue (string or null).
+/// Convert an Option<&str> to a `JsValue` (string or null).
 fn opt_str(v: Option<&str>) -> JsValue {
     match v {
         Some(s) => JsValue::from_str(s),
@@ -172,10 +172,10 @@ async fn upsert_student_baselines(
         JsValue::from_str(&now),
         JsValue::from_str(student_id),
     ])
-    .map_err(|e| format!("Failed to bind update: {:?}", e))?
+    .map_err(|e| format!("Failed to bind update: {e:?}"))?
     .run()
     .await
-    .map_err(|e| format!("Failed to update student: {:?}", e))?;
+    .map_err(|e| format!("Failed to update student: {e:?}"))?;
 
     Ok(())
 }
@@ -205,10 +205,10 @@ async fn insert_session(
         opt_str(session.observations_json.as_deref()),
         opt_str(session.chunks_summary_json.as_deref()),
     ])
-    .map_err(|e| format!("Failed to bind insert: {:?}", e))?
+    .map_err(|e| format!("Failed to bind insert: {e:?}"))?
     .run()
     .await
-    .map_err(|e| format!("Failed to insert session: {:?}", e))?;
+    .map_err(|e| format!("Failed to insert session: {e:?}"))?;
 
     Ok(())
 }

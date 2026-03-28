@@ -31,7 +31,8 @@ pub async fn handle_upload_chunk(
     Query(params): Query<ChunkParams>,
     body: axum::body::Bytes,
 ) -> Result<Json<ChunkResponse>> {
-    let _student_id = auth.student_id;
+    // auth.student_id available for future use (access control)
+    drop(auth);
 
     let session_id = params
         .session_id
@@ -44,7 +45,7 @@ pub async fn handle_upload_chunk(
         return Err(ApiError::BadRequest("Empty body".into()));
     }
 
-    let r2_key = format!("sessions/{}/chunks/{}.webm", session_id, chunk_index);
+    let r2_key = format!("sessions/{session_id}/chunks/{chunk_index}.webm");
 
     let bucket = state.practice.chunks_bucket()?;
 

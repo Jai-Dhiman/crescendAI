@@ -8,7 +8,9 @@ use axum::Router;
 
 use crate::state::AppState;
 
-use crate::services::{ask, chat, exercises, goals, memory, scores, sync, teaching_moment_handler, waitlist};
+use crate::services::{
+    ask, chat, exercises, goals, memory, scores, sync, teaching_moment_handler, waitlist,
+};
 
 // ---------------------------------------------------------------------------
 // Router
@@ -29,10 +31,7 @@ pub fn router(state: AppState) -> Router {
             "/api/auth/signout",
             post(crate::auth::handlers::handle_signout),
         )
-        .route(
-            "/api/auth/debug",
-            post(crate::auth::handlers::handle_debug),
-        )
+        .route("/api/auth/debug", post(crate::auth::handlers::handle_debug))
         // Services (Task 7)
         .route("/api/waitlist", post(waitlist::handle_waitlist))
         .route("/api/extract-goals", post(goals::handle_extract_goals))
@@ -67,10 +66,16 @@ pub fn router(state: AppState) -> Router {
             get(chat::handle_get_conversation).delete(chat::handle_delete_conversation),
         )
         // Memory (Task 8)
-        .route("/api/memory/extract-chat", post(memory::handle_extract_chat))
+        .route(
+            "/api/memory/extract-chat",
+            post(memory::handle_extract_chat),
+        )
         .route("/api/memory/store-facts", post(memory::handle_store_facts))
         .route("/api/memory/search", post(memory::handle_search_facts))
-        .route("/api/memory/clear-benchmark", post(memory::handle_clear_benchmark))
+        .route(
+            "/api/memory/clear-benchmark",
+            post(memory::handle_clear_benchmark),
+        )
         .route("/api/memory/synthesize", post(memory::handle_synthesize))
         .route(
             "/api/memory/seed-observations",

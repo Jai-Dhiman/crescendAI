@@ -18,9 +18,7 @@ use crate::state::AppState;
 /// Collects the body into bytes and rebuilds the response for the Workers
 /// runtime. Needed because the Axum router operates on `http` types but the
 /// Workers entry point returns `worker::Response`.
-async fn into_worker_response(
-    resp: http::Response<axum::body::Body>,
-) -> Result<worker::Response> {
+async fn into_worker_response(resp: http::Response<axum::body::Body>) -> Result<worker::Response> {
     let (parts, body) = resp.into_parts();
     let bytes = body
         .collect()
@@ -29,7 +27,7 @@ async fn into_worker_response(
         .unwrap_or_default();
 
     let headers = worker::Headers::new();
-    for (name, value) in parts.headers.iter() {
+    for (name, value) in &parts.headers {
         if let Ok(v) = value.to_str() {
             let _ = headers.set(name.as_str(), v);
         }
@@ -66,15 +64,13 @@ async fn fetch(req: HttpRequest, env: Env, _ctx: Context) -> Result<worker::Resp
     // --- Everything else through Axum Router ---
     let allowed_origin = env
         .var("ALLOWED_ORIGIN")
-        .map(|v| v.to_string())
-        .unwrap_or_else(|_| "http://localhost:3000".to_string());
+        .map_or_else(|_| "http://localhost:3000".to_string(), |v| v.to_string());
 
     let cors = CorsLayer::new()
         .allow_origin(
             allowed_origin
                 .parse::<http::HeaderValue>()
-                .map(AllowOrigin::exact)
-                .unwrap_or_else(|_| AllowOrigin::any()),
+                .map_or_else(|_| AllowOrigin::any(), AllowOrigin::exact),
         )
         .allow_methods([
             http::Method::GET,
@@ -106,26 +102,19 @@ async fn fetch(req: HttpRequest, env: Env, _ctx: Context) -> Result<worker::Resp
 // Carve-out 1: WebSocket upgrade
 // ---------------------------------------------------------------------------
 
-/// Forward WebSocket upgrade to the PRACTICE_SESSION Durable Object.
+/// Forward WebSocket upgrade to the `PRACTICE_SESSION` Durable Object.
 ///
 /// Must bypass the Axum router because the CF runtime needs the JS-level
 /// `webSocket` property preserved on the `worker::Response` object.
-async fn handle_ws_upgrade(
-    path: &str,
-    env: &Env,
-    req: HttpRequest,
-) -> Result<worker::Response> {
+async fn handle_ws_upgrade(path: &str, env: &Env, req: HttpRequest) -> Result<worker::Response> {
     let session_id = path.trim_start_matches("/api/practice/ws/");
     if session_id.is_empty() || session_id.contains('/') {
         return worker::Response::error("invalid session id", 400);
     }
 
     // Validate auth before routing to DO.
-    let student_id = match crate::auth::verify_auth(req.headers(), env) {
-        Ok(id) => id,
-        Err(_) => {
-            return worker::Response::error("Unauthorized", 401);
-        }
+    let Ok(student_id) = crate::auth::verify_auth(req.headers(), env) else {
+        return worker::Response::error("Unauthorized", 401);
     };
 
     // Extract conversationId from query params.
@@ -143,8 +132,7 @@ async fn handle_ws_upgrade(
     let namespace = env.durable_object("PRACTICE_SESSION")?;
     let stub = namespace.id_from_name(session_id)?.get_stub()?;
     let url = format!(
-        "https://do.internal/ws/{}?student_id={}&conversation_id={}",
-        session_id, student_id, conv_id
+        "https://do.internal/ws/{session_id}?student_id={student_id}&conversation_id={conv_id}"
     );
     let mut worker_req = worker::Request::new(&url, worker::Method::Get)?;
     worker_req.headers_mut()?.set("Upgrade", "websocket")?;
@@ -158,7 +146,7 @@ async fn handle_ws_upgrade(
 
 /// Delegate to the streaming chat handler and wrap with CORS headers.
 ///
-/// `handle_chat_stream` returns a `worker::Response` with a ReadableStream
+/// `handle_chat_stream` returns a `worker::Response` with a `ReadableStream`
 /// body for true SSE token-by-token streaming. We add CORS headers and
 /// return it directly.
 async fn handle_chat_stream(env: &Env, req: HttpRequest) -> Result<worker::Response> {
@@ -166,7 +154,7 @@ async fn handle_chat_stream(env: &Env, req: HttpRequest) -> Result<worker::Respo
     let origin = headers
         .get("origin")
         .and_then(|v| v.to_str().ok())
-        .map(|s| s.to_string());
+        .map(std::string::ToString::to_string);
     let body = req
         .into_body()
         .collect()
@@ -183,10 +171,9 @@ async fn handle_chat_stream(env: &Env, req: HttpRequest) -> Result<worker::Respo
     let _ = resp
         .headers_mut()
         .set("Access-Control-Allow-Origin", allowed_origin);
-    let _ = resp.headers_mut().set(
-        "Access-Control-Allow-Methods",
-        "GET, POST, DELETE, OPTIONS",
-    );
+    let _ = resp
+        .headers_mut()
+        .set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
     let _ = resp.headers_mut().set(
         "Access-Control-Allow-Headers",
         "Content-Type, Authorization, Cookie",

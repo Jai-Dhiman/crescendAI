@@ -1,4 +1,4 @@
-use worker::*;
+use worker::{console_error, console_log, WebSocket};
 
 use super::piece_identify::DTW_CONFIRM_THRESHOLD;
 use super::score_context::ScoreContext;
@@ -12,9 +12,9 @@ impl PracticeSession {
     /// Distinctive openings match on small windows; ambiguous passages need larger ones.
     /// Runs N-gram recall + rerank (Stage 1+2), then DTW confirmation (Stage 3)
     /// against the top candidate's score data. If confirmed, locks in the piece and
-    /// loads the full ScoreContext for subsequent score following.
+    /// loads the full `ScoreContext` for subsequent score following.
+    #[allow(clippy::items_after_statements)] // consts are logically scoped to this function
     pub(crate) async fn try_identify_piece(&self, ws: &WebSocket) {
-        /// Window sizes for identification attempts (smallest first).
         const ID_WINDOW_SIZES: &[usize] = &[60, 120, 200];
         /// Sanity cap on total notes -- stops attempts but does NOT lock (manual naming still works).
         const ID_MAX_TOTAL_NOTES: usize = 600;
@@ -79,14 +79,17 @@ impl PracticeSession {
             }
         }
 
-        // Clone what we need (no borrows across await)
+        // Clone what we need (no borrows across await).
+        // ngram_index and rerank_features are guaranteed Some by the loading blocks above.
         let (all_notes, ngram_index, rerank_features) = {
             let s = self.inner.borrow();
-            (
-                s.accumulated_notes.clone(),
-                s.ngram_index.clone().unwrap(),
-                s.rerank_features.clone().unwrap(),
-            )
+            let Some(idx) = s.ngram_index.clone() else {
+                return;
+            };
+            let Some(feat) = s.rerank_features.clone() else {
+                return;
+            };
+            (s.accumulated_notes.clone(), idx, feat)
         };
 
         // Try each window size, smallest first (distinctive fragments win early)
@@ -97,15 +100,11 @@ impl PracticeSession {
             let window = &all_notes[all_notes.len() - window_size..];
 
             // Stage 1+2: N-gram recall + rerank on this window
-            let identification = super::piece_identify::identify_piece(
-                window,
-                &ngram_index,
-                &rerank_features,
-            );
+            let identification =
+                super::piece_identify::identify_piece(window, &ngram_index, &rerank_features);
 
-            let candidate = match identification {
-                Some(id) => id,
-                None => continue, // try next (larger) window
+            let Some(candidate) = identification else {
+                continue; // try next (larger) window
             };
 
             console_log!(
@@ -119,9 +118,7 @@ impl PracticeSession {
 
             // Stage 3: DTW confirmation -- load the candidate's score and align
             let score_data =
-                match super::score_context::load_score(&self.env, &candidate.piece_id)
-                    .await
-                {
+                match super::score_context::load_score(&self.env, &candidate.piece_id).await {
                     Ok(s) => s,
                     Err(e) => {
                         console_error!(
@@ -134,16 +131,11 @@ impl PracticeSession {
                 };
 
             let mut dtw_state = FollowerState::default();
-            let bar_map = super::score_follower::align_chunk(
-                0,
-                0.0,
-                window,
-                &score_data,
-                &mut dtw_state,
-            );
+            let bar_map =
+                super::score_follower::align_chunk(0, 0.0, window, &score_data, &mut dtw_state);
 
             let dtw_cost = bar_map.as_ref().map(|bm| 1.0 / bm.confidence - 1.0);
-            let dtw_confirmed = dtw_cost.map(|c| c < DTW_CONFIRM_THRESHOLD).unwrap_or(false);
+            let dtw_confirmed = dtw_cost.is_some_and(|c| c < DTW_CONFIRM_THRESHOLD);
 
             console_log!(
                 "piece_id_dtw: piece={} window={} cost={:.3} threshold={:.3} confirmed={}",
@@ -160,8 +152,7 @@ impl PracticeSession {
 
             // DTW confirmed -- lock in piece and load full ScoreContext
             let reference =
-                super::score_context::load_reference(&self.env, &candidate.piece_id)
-                    .await;
+                super::score_context::load_reference(&self.env, &candidate.piece_id).await;
 
             let composer = score_data.composer.clone();
             let title = score_data.title.clone();
@@ -201,7 +192,7 @@ impl PracticeSession {
                 "confidence": candidate.confidence,
                 "method": candidate.method,
             });
-            let _ = ws.send_with_str(&msg.to_string());
+            let _ = ws.send_with_str(msg.to_string());
 
             // Log to piece_requests for demand tracking
             let student_id = self.inner.borrow().student_id.clone();

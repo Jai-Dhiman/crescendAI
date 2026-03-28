@@ -98,8 +98,7 @@ pub async fn handle_apple(
     // Build allowed audiences from env vars
     let bundle_id = env
         .var("APPLE_BUNDLE_ID")
-        .map(|v| v.to_string())
-        .unwrap_or_else(|_| "ai.crescend.ios".to_string());
+        .map_or_else(|_| "ai.crescend.ios".to_string(), |v| v.to_string());
 
     let mut allowed_audiences = vec![bundle_id];
     if let Ok(web_services_id) = env.var("APPLE_WEB_SERVICES_ID") {
@@ -220,11 +219,7 @@ pub async fn handle_google(
         return Err(ApiError::Unauthorized);
     }
 
-    let google_user_id = claims
-        .sub
-        .as_ref()
-        .ok_or(ApiError::Unauthorized)?
-        .clone();
+    let google_user_id = claims.sub.as_ref().ok_or(ApiError::Unauthorized)?.clone();
 
     let db = state.db.d1()?;
 
@@ -282,19 +277,19 @@ pub async fn handle_me(
         .first::<serde_json::Value>(None)
         .await
         .map_err(|e| ApiError::Internal(format!("query student: {e:?}")))?
-        .ok_or_else(|| ApiError::Unauthorized)?;
+        .ok_or(ApiError::Unauthorized)?;
 
     let response = AuthResponse {
         student_id: row
             .get("student_id")
-            .and_then(|v| v.as_str().map(|s| s.to_string()))
+            .and_then(|v| v.as_str().map(std::string::ToString::to_string))
             .unwrap_or_default(),
         email: row
             .get("email")
-            .and_then(|v| v.as_str().map(|s| s.to_string())),
+            .and_then(|v| v.as_str().map(std::string::ToString::to_string)),
         display_name: row
             .get("display_name")
-            .and_then(|v| v.as_str().map(|s| s.to_string())),
+            .and_then(|v| v.as_str().map(std::string::ToString::to_string)),
         is_new_user: false,
     };
 
@@ -316,9 +311,7 @@ pub async fn handle_signout(State(state): State<AppState>) -> impl IntoResponse 
 /// POST /api/auth/debug -- dev-only login bypassing Apple Sign In.
 /// Returns 404 in production.
 #[worker::send]
-pub async fn handle_debug(
-    State(state): State<AppState>,
-) -> Result<impl IntoResponse> {
+pub async fn handle_debug(State(state): State<AppState>) -> Result<impl IntoResponse> {
     let env = state.auth.env();
 
     let environment = env
@@ -356,10 +349,8 @@ pub async fn handle_debug(
         "token": token,
     });
 
-    let cookie = format!(
-        "token={}; HttpOnly; SameSite=Lax; Path=/; Max-Age={}",
-        token, JWT_EXPIRY_SECONDS
-    );
+    let cookie =
+        format!("token={token}; HttpOnly; SameSite=Lax; Path=/; Max-Age={JWT_EXPIRY_SECONDS}");
 
     console_log!("Debug auth: student_id={}, new={}", student_id, is_new_user);
 
@@ -379,7 +370,8 @@ pub async fn handle_debug(
 // =========================================================================
 
 /// Legacy: extract and verify JWT from cookie or Authorization header.
-/// Returns the student_id (subject claim) on success.
+/// Returns the `student_id` (subject claim) on success.
+#[allow(clippy::expect_used)] // Response::builder() with valid status/headers is infallible
 pub fn verify_auth(
     headers: &http::HeaderMap,
     env: &Env,
@@ -432,10 +424,8 @@ pub fn verify_auth_header(
 }
 
 /// Legacy: POST /api/auth/apple
-pub async fn handle_apple_auth_legacy(
-    env: &Env,
-    body: &[u8],
-) -> http::Response<axum::body::Body> {
+#[allow(clippy::expect_used, clippy::too_many_lines)] // Response::builder() is infallible; legacy code
+pub async fn handle_apple_auth_legacy(env: &Env, body: &[u8]) -> http::Response<axum::body::Body> {
     use axum::body::Body;
     use http::{Response, StatusCode};
 
@@ -453,8 +443,7 @@ pub async fn handle_apple_auth_legacy(
 
     let bundle_id = env
         .var("APPLE_BUNDLE_ID")
-        .map(|v| v.to_string())
-        .unwrap_or_else(|_| "ai.crescend.ios".to_string());
+        .map_or_else(|_| "ai.crescend.ios".to_string(), |v| v.to_string());
 
     let mut allowed_audiences = vec![bundle_id];
     if let Ok(web_services_id) = env.var("APPLE_WEB_SERVICES_ID") {
@@ -574,10 +563,8 @@ pub async fn handle_apple_auth_legacy(
 }
 
 /// Legacy: POST /api/auth/google
-pub async fn handle_google_auth_legacy(
-    env: &Env,
-    body: &[u8],
-) -> http::Response<axum::body::Body> {
+#[allow(clippy::expect_used, clippy::too_many_lines)] // Response::builder() is infallible; legacy code
+pub async fn handle_google_auth_legacy(env: &Env, body: &[u8]) -> http::Response<axum::body::Body> {
     use axum::body::Body;
     use http::{Response, StatusCode};
 
@@ -593,27 +580,24 @@ pub async fn handle_google_auth_legacy(
         }
     };
 
-    let expected_client_id = match env.var("GOOGLE_CLIENT_ID") {
-        Ok(v) => {
-            let id = v.to_string();
-            if id.is_empty() {
-                console_error!("GOOGLE_CLIENT_ID is empty");
-                return Response::builder()
-                    .status(StatusCode::INTERNAL_SERVER_ERROR)
-                    .header("Content-Type", "application/json")
-                    .body(Body::from(r#"{"error":"Server configuration error"}"#))
-                    .expect("response builder");
-            }
-            id
-        }
-        Err(_) => {
-            console_error!("GOOGLE_CLIENT_ID not configured");
+    let expected_client_id = if let Ok(v) = env.var("GOOGLE_CLIENT_ID") {
+        let id = v.to_string();
+        if id.is_empty() {
+            console_error!("GOOGLE_CLIENT_ID is empty");
             return Response::builder()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
                 .header("Content-Type", "application/json")
                 .body(Body::from(r#"{"error":"Server configuration error"}"#))
                 .expect("response builder");
         }
+        id
+    } else {
+        console_error!("GOOGLE_CLIENT_ID not configured");
+        return Response::builder()
+            .status(StatusCode::INTERNAL_SERVER_ERROR)
+            .header("Content-Type", "application/json")
+            .body(Body::from(r#"{"error":"Server configuration error"}"#))
+            .expect("response builder");
     };
 
     let tokeninfo_url = format!(
@@ -802,6 +786,7 @@ pub async fn handle_google_auth_legacy(
 }
 
 /// Legacy: GET /api/auth/me
+#[allow(clippy::expect_used)] // Response::builder() is infallible
 pub async fn handle_auth_me_legacy(
     env: &Env,
     headers: &http::HeaderMap,
@@ -862,14 +847,14 @@ pub async fn handle_auth_me_legacy(
     let response = AuthResponse {
         student_id: row
             .get("student_id")
-            .and_then(|v| v.as_str().map(|s| s.to_string()))
+            .and_then(|v| v.as_str().map(std::string::ToString::to_string))
             .unwrap_or_default(),
         email: row
             .get("email")
-            .and_then(|v| v.as_str().map(|s| s.to_string())),
+            .and_then(|v| v.as_str().map(std::string::ToString::to_string)),
         display_name: row
             .get("display_name")
-            .and_then(|v| v.as_str().map(|s| s.to_string())),
+            .and_then(|v| v.as_str().map(std::string::ToString::to_string)),
         is_new_user: false,
     };
 
@@ -883,9 +868,8 @@ pub async fn handle_auth_me_legacy(
 }
 
 /// Legacy: POST /api/auth/debug
-pub async fn handle_debug_auth_legacy(
-    env: &Env,
-) -> http::Response<axum::body::Body> {
+#[allow(clippy::expect_used, clippy::too_many_lines)] // Response::builder() is infallible; legacy code
+pub async fn handle_debug_auth_legacy(env: &Env) -> http::Response<axum::body::Body> {
     use axum::body::Body;
     use http::{Response, StatusCode};
 
@@ -979,10 +963,8 @@ pub async fn handle_debug_auth_legacy(
         "token": token,
     });
 
-    let cookie = format!(
-        "token={}; HttpOnly; SameSite=Lax; Path=/; Max-Age={}",
-        token, JWT_EXPIRY_SECONDS
-    );
+    let cookie =
+        format!("token={token}; HttpOnly; SameSite=Lax; Path=/; Max-Age={JWT_EXPIRY_SECONDS}");
 
     console_log!("Debug auth: student_id={}, new={}", student_id, is_new_user);
 
@@ -995,6 +977,7 @@ pub async fn handle_debug_auth_legacy(
 }
 
 /// Legacy: POST /api/auth/signout
+#[allow(clippy::expect_used)] // Response::builder() is infallible
 pub fn handle_signout_legacy(env: &Env) -> http::Response<axum::body::Body> {
     use axum::body::Body;
     use http::{Response, StatusCode};
@@ -1075,15 +1058,14 @@ fn validate_apple_claims(
     let now = (js_sys::Date::now() / 1000.0) as u64;
     match claims.exp {
         Some(exp) if exp > now => {}
-        Some(_) => return Err(ApiError::Unauthorized),
-        None => return Err(ApiError::Unauthorized),
+        Some(_) | None => return Err(ApiError::Unauthorized),
     }
 
     Ok(())
 }
 
 /// Look up a student by provider identity, or create a new one.
-/// Returns (student_id, display_name, is_new_user).
+/// Returns (`student_id`, `display_name`, `is_new_user`).
 async fn find_or_create_student(
     db: &worker::D1Database,
     provider: &str,
@@ -1109,7 +1091,7 @@ async fn find_or_create_student(
     if let Some(row) = existing {
         let student_id = row
             .get("student_id")
-            .and_then(|v| v.as_str().map(|s| s.to_string()))
+            .and_then(|v| v.as_str().map(std::string::ToString::to_string))
             .ok_or_else(|| {
                 ApiError::Internal("Missing student_id in auth_identities row".into())
             })?;
@@ -1137,8 +1119,10 @@ async fn find_or_create_student(
             .await
             .map_err(|e| ApiError::Internal(format!("query student: {e:?}")))?;
 
-        let existing_display_name = student_row
-            .and_then(|r| r.get("display_name").and_then(|v| v.as_str().map(|s| s.to_string())));
+        let existing_display_name = student_row.and_then(|r| {
+            r.get("display_name")
+                .and_then(|v| v.as_str().map(std::string::ToString::to_string))
+        });
 
         Ok((student_id, existing_display_name, false))
     } else {
@@ -1155,13 +1139,13 @@ async fn find_or_create_student(
             if let Some(row) = existing_by_email {
                 let student_id = row
                     .get("student_id")
-                    .and_then(|v| v.as_str().map(|s| s.to_string()))
+                    .and_then(|v| v.as_str().map(std::string::ToString::to_string))
                     .ok_or_else(|| {
                         ApiError::Internal("Missing student_id in email lookup".into())
                     })?;
                 let existing_display_name = row
                     .get("display_name")
-                    .and_then(|v| v.as_str().map(|s| s.to_string()));
+                    .and_then(|v| v.as_str().map(std::string::ToString::to_string));
 
                 // Link this provider identity to the existing student
                 db.prepare(
@@ -1223,7 +1207,11 @@ async fn find_or_create_student(
             .await
             .map_err(|e| ApiError::Internal(format!("create student: {e:?}")))?;
 
-        Ok((student_id, display_name.map(|s| s.to_string()), true))
+        Ok((
+            student_id,
+            display_name.map(std::string::ToString::to_string),
+            true,
+        ))
     }
 }
 
@@ -1235,12 +1223,10 @@ fn build_auth_cookie(token: &str, max_age: u64, env: &Env) -> String {
         .filter(|v| !v.is_empty());
     match cookie_domain {
         Some(domain) => format!(
-            "token={}; HttpOnly; Secure; SameSite=None; Path=/; Max-Age={}; Domain={}",
-            token, max_age, domain
+            "token={token}; HttpOnly; Secure; SameSite=None; Path=/; Max-Age={max_age}; Domain={domain}"
         ),
         None => format!(
-            "token={}; HttpOnly; SameSite=Lax; Path=/; Max-Age={}",
-            token, max_age
+            "token={token}; HttpOnly; SameSite=Lax; Path=/; Max-Age={max_age}"
         ),
     }
 }
@@ -1252,10 +1238,9 @@ fn build_clear_cookie(env: &Env) -> String {
         .map(|v| v.to_string())
         .filter(|v| !v.is_empty());
     match cookie_domain {
-        Some(domain) => format!(
-            "token=; HttpOnly; Secure; SameSite=None; Path=/; Max-Age=0; Domain={}",
-            domain
-        ),
+        Some(domain) => {
+            format!("token=; HttpOnly; Secure; SameSite=None; Path=/; Max-Age=0; Domain={domain}")
+        }
         None => "token=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0".to_string(),
     }
 }
@@ -1265,9 +1250,11 @@ fn legacy_extract_token_from_cookie(headers: &http::HeaderMap) -> Option<String>
         .get("cookie")
         .and_then(|v| v.to_str().ok())
         .and_then(|cookies| {
-            cookies
-                .split(';')
-                .find_map(|c| c.trim().strip_prefix("token=").map(|t| t.to_string()))
+            cookies.split(';').find_map(|c| {
+                c.trim()
+                    .strip_prefix("token=")
+                    .map(std::string::ToString::to_string)
+            })
         })
 }
 
@@ -1275,5 +1262,8 @@ fn legacy_extract_token_from_bearer(headers: &http::HeaderMap) -> Option<String>
     headers
         .get("authorization")
         .and_then(|v| v.to_str().ok())
-        .and_then(|auth| auth.strip_prefix("Bearer ").map(|t| t.to_string()))
+        .and_then(|auth| {
+            auth.strip_prefix("Bearer ")
+                .map(std::string::ToString::to_string)
+        })
 }

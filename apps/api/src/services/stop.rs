@@ -3,16 +3,16 @@
 //! Implements Option B from the pipeline design (02-pipeline.md):
 //! logistic regression on 6-dim composite scores, running in the cloud worker (Rust/WASM). LOVO CV AUC = 0.649 (balanced).
 //!
-//! Weights extracted from sklearn LogisticRegression trained on 1,699 labeled masterclass segments with class_weight='balanced'.
+//! Weights extracted from sklearn `LogisticRegression` trained on 1,699 labeled masterclass segments with `class_weight`='balanced'.
 //! Coefficient sign consistency = 1.0 across all 60 LOVO folds.
 //!
-//! The StandardScaler parameters (mean, std) are required because the logistic regression was trained on standardized features.
+//! The `StandardScaler` parameters (mean, std) are required because the logistic regression was trained on standardized features.
 
 use crate::practice::dims::DIMS_6;
 
-/// NOTE: These constants are also defined in config/stop_config.json (single source of truth).
+/// NOTE: These constants are also defined in `config/stop_config.json` (single source of truth).
 /// The Rust side reads from hardcoded values because WASM builds cannot read filesystem at compile time.
-/// If you update these values, update config/stop_config.json as well.
+/// If you update these values, update `config/stop_config.json` as well.
 ///
 /// Dimension order must match the training pipeline.
 /// [dynamics, timing, pedaling, articulation, phrasing, interpretation]
@@ -39,7 +39,7 @@ pub struct StopResult {
 }
 
 /// Compute STOP probability for a single chunk's 6-dim scores.
-/// Applies StandardScaler normalization, then logistic regression.
+/// Applies `StandardScaler` normalization, then logistic regression.
 /// Input order: [dynamics, timing, pedaling, articulation, phrasing, interpretation]
 pub fn stop_probability(scores: &[f64; 6]) -> f64 {
     let logit: f64 = scores

@@ -115,7 +115,7 @@ pub fn build_synthesis_prompt(
     obj
 }
 
-/// Build the practice_pattern array from mode transitions.
+/// Build the `practice_pattern` array from mode transitions.
 fn build_practice_pattern(acc: &SessionAccumulator, session_duration_ms: u64) -> serde_json::Value {
     if acc.mode_transitions.is_empty() {
         return serde_json::Value::Array(vec![]);
@@ -160,7 +160,7 @@ fn build_practice_pattern(acc: &SessionAccumulator, session_duration_ms: u64) ->
     serde_json::Value::Array(entries)
 }
 
-/// Serialize a single AccumulatedMoment to JSON for the synthesis prompt.
+/// Serialize a single `AccumulatedMoment` to JSON for the synthesis prompt.
 fn moment_to_json(m: &AccumulatedMoment) -> serde_json::Value {
     let deviation_rounded = (m.deviation * 1000.0).round() / 1000.0;
     let mut obj = serde_json::json!({
@@ -177,11 +177,9 @@ fn moment_to_json(m: &AccumulatedMoment) -> serde_json::Value {
 
 /// Call the Anthropic API to synthesize a session summary.
 ///
-/// On any error, returns a fallback message with is_fallback=true.
-pub async fn call_synthesis_llm(
-    env: &Env,
-    prompt_context: &serde_json::Value,
-) -> SynthesisResult {
+/// On any error, returns a fallback message with `is_fallback=true`.
+#[allow(clippy::items_after_statements)] // response structs are scoped near their usage
+pub async fn call_synthesis_llm(env: &Env, prompt_context: &serde_json::Value) -> SynthesisResult {
     let fallback = SynthesisResult {
         text: "I had trouble preparing your feedback. Try playing again and I'll have more to say next time.".to_string(),
         is_fallback: true,
@@ -195,10 +193,10 @@ pub async fn call_synthesis_llm(
         }
     };
 
-    let model = env
-        .var("ANTHROPIC_MODEL")
-        .map(|v| v.to_string())
-        .unwrap_or_else(|_| "claude-sonnet-4-20250514".to_string());
+    let model = env.var("ANTHROPIC_MODEL").map_or_else(
+        |_| "claude-sonnet-4-20250514".to_string(),
+        |v| v.to_string(),
+    );
 
     let user_content = match serde_json::to_string_pretty(prompt_context) {
         Ok(s) => s,
@@ -237,16 +235,14 @@ pub async fn call_synthesis_llm(
     init.with_headers(headers);
     init.with_body(Some(body_str.into()));
 
-    let request = match worker::Request::new_with_init(
-        "https://api.anthropic.com/v1/messages",
-        &init,
-    ) {
-        Ok(r) => r,
-        Err(e) => {
-            console_error!("[synthesis] Failed to create request: {:?}", e);
-            return fallback;
-        }
-    };
+    let request =
+        match worker::Request::new_with_init("https://api.anthropic.com/v1/messages", &init) {
+            Ok(r) => r,
+            Err(e) => {
+                console_error!("[synthesis] Failed to create request: {:?}", e);
+                return fallback;
+            }
+        };
 
     let t0 = js_sys::Date::now();
     let mut response = match worker::Fetch::Request(request).send().await {
@@ -293,12 +289,11 @@ pub async fn call_synthesis_llm(
         }
     };
 
-    let text = match parsed.content.into_iter().next() {
-        Some(c) => c.text,
-        None => {
-            console_error!("[synthesis] No content in Anthropic response");
-            return fallback;
-        }
+    let text = if let Some(c) = parsed.content.into_iter().next() {
+        c.text
+    } else {
+        console_error!("[synthesis] No content in Anthropic response");
+        return fallback;
     };
 
     console_log!(
@@ -315,7 +310,7 @@ pub async fn call_synthesis_llm(
 
 /// Persist the synthesis message to D1.
 ///
-/// Inserts into messages with role='assistant', message_type='synthesis'.
+/// Inserts into messages with role='assistant', `message_type`='synthesis'.
 /// Returns the new message id.
 pub async fn persist_synthesis_message(
     env: &Env,
@@ -325,7 +320,7 @@ pub async fn persist_synthesis_message(
 ) -> Result<String, PracticeError> {
     let db = env
         .d1("DB")
-        .map_err(|e| PracticeError::Storage(format!("D1 binding: {:?}", e)))?;
+        .map_err(|e| PracticeError::Storage(format!("D1 binding: {e:?}")))?;
 
     let msg_id = crate::services::ask::generate_uuid();
     let now = js_sys::Date::new_0()
@@ -346,10 +341,10 @@ pub async fn persist_synthesis_message(
         JsValue::from_str(session_id),
         JsValue::from_str(&now),
     ])
-    .map_err(|e| PracticeError::Storage(format!("bind INSERT message: {:?}", e)))?
+    .map_err(|e| PracticeError::Storage(format!("bind INSERT message: {e:?}")))?
     .run()
     .await
-    .map_err(|e| PracticeError::Storage(format!("INSERT message: {:?}", e)))?;
+    .map_err(|e| PracticeError::Storage(format!("INSERT message: {e:?}")))?;
 
     Ok(msg_id)
 }
@@ -365,7 +360,7 @@ pub async fn persist_accumulated_moments(
 ) -> Result<(), PracticeError> {
     let db = env
         .d1("DB")
-        .map_err(|e| PracticeError::Storage(format!("D1 binding: {:?}", e)))?;
+        .map_err(|e| PracticeError::Storage(format!("D1 binding: {e:?}")))?;
 
     for m in moments {
         let obs_id = crate::services::ask::generate_uuid();
@@ -404,10 +399,10 @@ pub async fn persist_accumulated_moments(
             JsValue::from_f64(0.0),
             JsValue::from_str(&now),
         ])
-        .map_err(|e| PracticeError::Storage(format!("bind INSERT observation: {:?}", e)))?
+        .map_err(|e| PracticeError::Storage(format!("bind INSERT observation: {e:?}")))?
         .run()
         .await
-        .map_err(|e| PracticeError::Storage(format!("INSERT observation: {:?}", e)))?;
+        .map_err(|e| PracticeError::Storage(format!("INSERT observation: {e:?}")))?;
     }
 
     Ok(())
@@ -415,7 +410,7 @@ pub async fn persist_accumulated_moments(
 
 /// Load student baselines from D1 observations table.
 ///
-/// Falls back to SCALER_MEAN defaults for any dimension with no data.
+/// Falls back to `SCALER_MEAN` defaults for any dimension with no data.
 pub async fn load_baselines_from_d1(
     env: &Env,
     student_id: &str,
@@ -424,7 +419,7 @@ pub async fn load_baselines_from_d1(
 
     let db = env
         .d1("DB")
-        .map_err(|e| PracticeError::Storage(format!("D1 binding: {:?}", e)))?;
+        .map_err(|e| PracticeError::Storage(format!("D1 binding: {e:?}")))?;
 
     let stmt = db
         .prepare(
@@ -434,19 +429,19 @@ pub async fn load_baselines_from_d1(
              GROUP BY dimension",
         )
         .bind(&[JsValue::from_str(student_id)])
-        .map_err(|e| PracticeError::Storage(format!("baselines bind: {:?}", e)))?;
+        .map_err(|e| PracticeError::Storage(format!("baselines bind: {e:?}")))?;
 
     let rows = stmt
         .all()
         .await
-        .map_err(|e| PracticeError::Storage(format!("baselines query: {:?}", e)))?;
+        .map_err(|e| PracticeError::Storage(format!("baselines query: {e:?}")))?;
 
     let results: Vec<serde_json::Value> = rows.results().unwrap_or_default();
     let mut dim_map: std::collections::HashMap<String, f64> = std::collections::HashMap::new();
     for row in &results {
         if let (Some(dim), Some(avg)) = (
             row.get("dimension").and_then(|v| v.as_str()),
-            row.get("avg_score").and_then(|v| v.as_f64()),
+            row.get("avg_score").and_then(serde_json::Value::as_f64),
         ) {
             dim_map.insert(dim.to_string(), avg);
         }
@@ -458,22 +453,25 @@ pub async fn load_baselines_from_d1(
         pedaling: dim_map.get("pedaling").copied().unwrap_or(defaults[2]),
         articulation: dim_map.get("articulation").copied().unwrap_or(defaults[3]),
         phrasing: dim_map.get("phrasing").copied().unwrap_or(defaults[4]),
-        interpretation: dim_map.get("interpretation").copied().unwrap_or(defaults[5]),
+        interpretation: dim_map
+            .get("interpretation")
+            .copied()
+            .unwrap_or(defaults[5]),
     })
 }
 
-/// Clear the needs_synthesis flag for a session after successful synthesis.
+/// Clear the `needs_synthesis` flag for a session after successful synthesis.
 pub async fn clear_needs_synthesis(env: &Env, session_id: &str) -> Result<(), PracticeError> {
     let db = env
         .d1("DB")
-        .map_err(|e| PracticeError::Storage(format!("D1 binding: {:?}", e)))?;
+        .map_err(|e| PracticeError::Storage(format!("D1 binding: {e:?}")))?;
 
     db.prepare("UPDATE sessions SET needs_synthesis = 0 WHERE id = ?1")
         .bind(&[JsValue::from_str(session_id)])
-        .map_err(|e| PracticeError::Storage(format!("clear_needs_synthesis bind: {:?}", e)))?
+        .map_err(|e| PracticeError::Storage(format!("clear_needs_synthesis bind: {e:?}")))?
         .run()
         .await
-        .map_err(|e| PracticeError::Storage(format!("clear_needs_synthesis UPDATE: {:?}", e)))?;
+        .map_err(|e| PracticeError::Storage(format!("clear_needs_synthesis UPDATE: {e:?}")))?;
 
     Ok(())
 }
@@ -493,7 +491,7 @@ pub struct NeedsSynthesisResponse {
 
 /// GET /api/practice/needs-synthesis?conversation_id=...
 ///
-/// Returns session IDs for a conversation that have needs_synthesis=1.
+/// Returns session IDs for a conversation that have `needs_synthesis=1`.
 #[worker::send]
 pub async fn handle_check_needs_synthesis(
     State(state): State<AppState>,
@@ -529,7 +527,11 @@ pub async fn handle_check_needs_synthesis(
     let rows: Vec<serde_json::Value> = results.results().unwrap_or_default();
     let session_ids: Vec<String> = rows
         .iter()
-        .filter_map(|row| row.get("id").and_then(|v| v.as_str()).map(|s| s.to_string()))
+        .filter_map(|row| {
+            row.get("id")
+                .and_then(|v| v.as_str())
+                .map(std::string::ToString::to_string)
+        })
         .collect();
 
     Ok(Json(NeedsSynthesisResponse { session_ids }))
@@ -553,7 +555,7 @@ pub struct DeferredSynthesisResponse {
 
 /// POST /api/practice/synthesize
 ///
-/// Performs deferred synthesis for a session that has needs_synthesis=1.
+/// Performs deferred synthesis for a session that has `needs_synthesis=1`.
 #[worker::send]
 pub async fn handle_deferred_synthesis(
     State(state): State<AppState>,
@@ -591,17 +593,14 @@ pub async fn handle_deferred_synthesis(
         .ok_or_else(|| ApiError::NotFound("Session not found".into()))?;
 
     // Verify ownership
-    let row_student_id = row
-        .get("student_id")
-        .and_then(|v| v.as_str())
-        .unwrap_or("");
+    let row_student_id = row.get("student_id").and_then(|v| v.as_str()).unwrap_or("");
     if row_student_id != student_id {
         return Err(ApiError::Forbidden);
     }
 
     let needs = row
         .get("needs_synthesis")
-        .and_then(|v| v.as_i64())
+        .and_then(serde_json::Value::as_i64)
         .unwrap_or(0);
     if needs != 1 {
         return Ok(Json(DeferredSynthesisResponse {
@@ -620,7 +619,10 @@ pub async fn handle_deferred_synthesis(
     let accumulator_json = match row.get("accumulator_json").and_then(|v| v.as_str()) {
         Some(j) if !j.is_empty() => j.to_string(),
         _ => {
-            console_error!("[synthesis] accumulator_json is null for session {}", session_id);
+            console_error!(
+                "[synthesis] accumulator_json is null for session {}",
+                session_id
+            );
             // Clear flag to avoid repeated attempts
             if let Err(e) = clear_needs_synthesis(env, &session_id).await {
                 console_error!("[synthesis] Failed to clear needs_synthesis: {}", e);
@@ -661,11 +663,7 @@ pub async fn handle_deferred_synthesis(
     };
 
     let total_chunks = acc.timeline.len();
-    let session_duration_ms = acc
-        .timeline
-        .last()
-        .map(|e| e.timestamp_ms + 15_000)
-        .unwrap_or(0);
+    let session_duration_ms = acc.timeline.last().map_or(0, |e| e.timestamp_ms + 15_000);
 
     let ctx = SynthesisContext {
         session_id: session_id.clone(),
@@ -711,18 +709,11 @@ pub async fn handle_deferred_synthesis(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use super::accumulator::{
-        DrillingRecord, ModeTransitionRecord, SessionAccumulator,
-    };
+    use super::accumulator::{DrillingRecord, ModeTransitionRecord, SessionAccumulator};
     use super::practice_mode::PracticeMode;
+    use super::*;
 
-    fn make_moment(
-        chunk: usize,
-        dim: &str,
-        deviation: f64,
-        positive: bool,
-    ) -> AccumulatedMoment {
+    fn make_moment(chunk: usize, dim: &str, deviation: f64, positive: bool) -> AccumulatedMoment {
         AccumulatedMoment {
             chunk_index: chunk,
             dimension: dim.to_string(),
@@ -767,10 +758,7 @@ mod tests {
             prompt.get("practice_pattern").is_some(),
             "must have practice_pattern"
         );
-        assert!(
-            prompt.get("top_moments").is_some(),
-            "must have top_moments"
-        );
+        assert!(prompt.get("top_moments").is_some(), "must have top_moments");
         assert_eq!(
             prompt["baselines"],
             serde_json::Value::Null,
@@ -786,12 +774,22 @@ mod tests {
         );
 
         // top_moments should be an empty array
-        let moments = prompt["top_moments"].as_array().expect("top_moments must be array");
-        assert!(moments.is_empty(), "top_moments should be empty for empty accumulator");
+        let moments = prompt["top_moments"]
+            .as_array()
+            .expect("top_moments must be array");
+        assert!(
+            moments.is_empty(),
+            "top_moments should be empty for empty accumulator"
+        );
 
         // practice_pattern should be an empty array
-        let pattern = prompt["practice_pattern"].as_array().expect("practice_pattern must be array");
-        assert!(pattern.is_empty(), "practice_pattern should be empty for empty accumulator");
+        let pattern = prompt["practice_pattern"]
+            .as_array()
+            .expect("practice_pattern must be array");
+        assert!(
+            pattern.is_empty(),
+            "practice_pattern should be empty for empty accumulator"
+        );
     }
 
     #[test]
@@ -850,8 +848,14 @@ mod tests {
         let prompt = build_synthesis_prompt(&acc, &ctx);
 
         // Duration should be 2.5 minutes
-        let duration = prompt["session_duration_minutes"].as_f64().expect("duration must be f64");
-        assert!((duration - 2.5).abs() < 0.01, "duration should be 2.5 minutes, got {}", duration);
+        let duration = prompt["session_duration_minutes"]
+            .as_f64()
+            .expect("duration must be f64");
+        assert!(
+            (duration - 2.5).abs() < 0.01,
+            "duration should be 2.5 minutes, got {}",
+            duration
+        );
 
         // chunks_processed should be 10
         assert_eq!(prompt["chunks_processed"], 10);
@@ -872,7 +876,9 @@ mod tests {
         );
 
         // top_moments should be non-empty
-        let moments = prompt["top_moments"].as_array().expect("top_moments must be array");
+        let moments = prompt["top_moments"]
+            .as_array()
+            .expect("top_moments must be array");
         assert!(!moments.is_empty(), "top_moments should not be empty");
 
         // Each moment must have required fields
@@ -884,13 +890,22 @@ mod tests {
         }
 
         // drilling_progress should be present
-        let drilling = prompt.get("drilling_progress").expect("drilling_progress should be present");
-        let drilling_arr = drilling.as_array().expect("drilling_progress must be array");
-        assert!(!drilling_arr.is_empty(), "drilling_progress should not be empty");
+        let drilling = prompt
+            .get("drilling_progress")
+            .expect("drilling_progress should be present");
+        let drilling_arr = drilling
+            .as_array()
+            .expect("drilling_progress must be array");
+        assert!(
+            !drilling_arr.is_empty(),
+            "drilling_progress should not be empty"
+        );
         assert_eq!(drilling_arr[0]["repetitions"], 4);
 
         // practice_pattern should have the transition we added
-        let pattern = prompt["practice_pattern"].as_array().expect("practice_pattern must be array");
+        let pattern = prompt["practice_pattern"]
+            .as_array()
+            .expect("practice_pattern must be array");
         assert!(!pattern.is_empty(), "practice_pattern should not be empty");
         assert_eq!(pattern[0]["mode"].as_str().unwrap(), "running");
     }

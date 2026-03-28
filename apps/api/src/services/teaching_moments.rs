@@ -6,11 +6,11 @@
 //! 2. For passing chunks, compute deviation from student baseline per dimension
 //! 3. Rank by max deviation (blind-spot detection: "normally fine but bad today")
 //! 4. De-duplicate against recent observations (skip if same dimension in last 3)
-//! 5. Return top-1 TeachingMoment
+//! 5. Return top-1 `TeachingMoment`
 //!
 //! No-candidates fallback (positive teaching moment):
 //! - Find highest-scoring dimension or largest positive deviation from baseline
-//! - Return positive moment with is_positive: true
+//! - Return positive moment with `is_positive`: true
 //! - If fewer than 2 chunks, return None ("need more to listen to")
 
 use crate::practice::dims::DIMS_6;
@@ -70,7 +70,7 @@ const DEDUP_WINDOW: usize = 3;
 
 /// Select the top-1 teaching moment from a session's scored chunks.
 ///
-/// Returns None only when fewer than MIN_CHUNKS are provided (the caller
+/// Returns None only when fewer than `MIN_CHUNKS` are provided (the caller
 /// should respond with "I need a bit more to listen to").
 ///
 /// When no chunks pass the STOP threshold, returns a positive teaching
@@ -129,13 +129,13 @@ pub fn select_teaching_moment(
         if recent_dims.contains(&dim_name) {
             continue;
         }
-        return Some(candidate.into_teaching_moment(false));
+        return Some(candidate.to_teaching_moment(false));
     }
 
     // If all candidates were deduped, return the top one anyway
     // (better to repeat a dimension than say nothing when STOP fired).
     if let Some(candidate) = candidates.first() {
-        return Some(candidate.into_teaching_moment(false));
+        return Some(candidate.to_teaching_moment(false));
     }
 
     // No chunks passed STOP threshold -> positive teaching moment fallback.
@@ -143,6 +143,7 @@ pub fn select_teaching_moment(
 }
 
 /// Positive teaching moment: find what the student did best.
+#[allow(clippy::needless_range_loop)] // i indexes both scores[i] and baselines[i] in parallel
 fn select_positive_moment(chunks: &[ScoredChunk], baselines: &[f64; 6]) -> TeachingMoment {
     // Strategy: find the dimension with the largest positive deviation from baseline.
     // If no baseline deviations are positive, fall back to highest absolute score.
@@ -194,7 +195,7 @@ fn select_positive_moment(chunks: &[ScoredChunk], baselines: &[f64; 6]) -> Teach
 }
 
 /// Find the dimension with the largest negative deviation from baseline.
-/// Returns (dimension_index, deviation). Deviation is negative when below baseline.
+/// Returns (`dimension_index`, deviation). Deviation is negative when below baseline.
 fn max_negative_deviation(scores: &[f64; 6], baselines: &[f64; 6]) -> (usize, f64) {
     let mut worst_idx = 0;
     let mut worst_dev = f64::MAX;
@@ -220,7 +221,7 @@ struct Candidate {
 }
 
 impl Candidate {
-    fn into_teaching_moment(&self, is_positive: bool) -> TeachingMoment {
+    fn to_teaching_moment(&self, is_positive: bool) -> TeachingMoment {
         let dim_name = DIMS_6[self.dim_idx];
         let reasoning = format!(
             "{} scored {:.2} vs baseline {:.2} (deviation {:.2}). STOP probability: {:.2}.",
@@ -274,7 +275,10 @@ mod tests {
 
         let result = select_teaching_moment(&chunks, &default_baselines(), &[]);
         let moment = result.expect("should return a teaching moment");
-        assert_eq!(moment.chunk_index, 1, "should pick chunk with worst pedaling");
+        assert_eq!(
+            moment.chunk_index, 1,
+            "should pick chunk with worst pedaling"
+        );
         assert_eq!(moment.dimension, "pedaling");
         assert!(!moment.is_positive);
         assert!(moment.deviation < -0.2);
@@ -373,9 +377,15 @@ mod tests {
         ];
 
         let recent = vec![
-            RecentObservation { dimension: "pedaling".to_string() },
-            RecentObservation { dimension: "dynamics".to_string() },
-            RecentObservation { dimension: "timing".to_string() },
+            RecentObservation {
+                dimension: "pedaling".to_string(),
+            },
+            RecentObservation {
+                dimension: "dynamics".to_string(),
+            },
+            RecentObservation {
+                dimension: "timing".to_string(),
+            },
         ];
 
         let result = select_teaching_moment(&chunks, &default_baselines(), &recent);

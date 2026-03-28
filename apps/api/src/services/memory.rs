@@ -41,11 +41,10 @@ pub struct StudentMemoryContext {
 }
 
 /// Query active synthesized facts for a student.
-pub async fn query_active_facts(
-    env: &Env,
-    student_id: &str,
-) -> Result<Vec<SynthesizedFact>> {
-    let db = env.d1("DB").map_err(|e| ApiError::Internal(format!("D1 binding failed: {:?}", e)))?;
+pub async fn query_active_facts(env: &Env, student_id: &str) -> Result<Vec<SynthesizedFact>> {
+    let db = env
+        .d1("DB")
+        .map_err(|e| ApiError::Internal(format!("D1 binding failed: {e:?}")))?;
 
     let results = db
         .prepare(
@@ -58,19 +57,16 @@ pub async fn query_active_facts(
              LIMIT 12",
         )
         .bind(&[JsValue::from_str(student_id)])
-        .map_err(|e| ApiError::Internal(format!("Failed to bind query: {:?}", e)))?
+        .map_err(|e| ApiError::Internal(format!("Failed to bind query: {e:?}")))?
         .all()
         .await
-        .map_err(|e| ApiError::Internal(format!("Failed to query facts: {:?}", e)))?;
+        .map_err(|e| ApiError::Internal(format!("Failed to query facts: {e:?}")))?;
 
     let rows: Vec<serde_json::Value> = results
         .results()
-        .map_err(|e| ApiError::Internal(format!("Failed to get results: {:?}", e)))?;
+        .map_err(|e| ApiError::Internal(format!("Failed to get results: {e:?}")))?;
 
-    Ok(rows
-        .iter()
-        .map(|row| parse_synthesized_fact(row))
-        .collect())
+    Ok(rows.iter().map(parse_synthesized_fact).collect())
 }
 
 /// Query student-reported facts (chat-derived personal info).
@@ -79,7 +75,9 @@ pub async fn query_student_reported_facts(
     student_id: &str,
     today: &str,
 ) -> Result<Vec<SynthesizedFact>> {
-    let db = env.d1("DB").map_err(|e| ApiError::Internal(format!("D1 binding failed: {:?}", e)))?;
+    let db = env
+        .d1("DB")
+        .map_err(|e| ApiError::Internal(format!("D1 binding failed: {e:?}")))?;
 
     let results = db
         .prepare(
@@ -94,27 +92,28 @@ pub async fn query_student_reported_facts(
              LIMIT 10",
         )
         .bind(&[JsValue::from_str(student_id), JsValue::from_str(today)])
-        .map_err(|e| ApiError::Internal(format!("Failed to bind query: {:?}", e)))?
+        .map_err(|e| ApiError::Internal(format!("Failed to bind query: {e:?}")))?
         .all()
         .await
-        .map_err(|e| ApiError::Internal(format!("Failed to query student reported facts: {:?}", e)))?;
+        .map_err(|e| {
+            ApiError::Internal(format!("Failed to query student reported facts: {e:?}"))
+        })?;
 
     let rows: Vec<serde_json::Value> = results
         .results()
-        .map_err(|e| ApiError::Internal(format!("Failed to get results: {:?}", e)))?;
+        .map_err(|e| ApiError::Internal(format!("Failed to get results: {e:?}")))?;
 
-    Ok(rows
-        .iter()
-        .map(|row| parse_synthesized_fact(row))
-        .collect())
+    Ok(rows.iter().map(parse_synthesized_fact).collect())
 }
 
-/// Query recent observations with engagement data from teaching_approaches.
+/// Query recent observations with engagement data from `teaching_approaches`.
 pub async fn query_recent_observations_with_engagement(
     env: &Env,
     student_id: &str,
 ) -> Result<Vec<RecentObservationWithEngagement>> {
-    let db = env.d1("DB").map_err(|e| ApiError::Internal(format!("D1 binding failed: {:?}", e)))?;
+    let db = env
+        .d1("DB")
+        .map_err(|e| ApiError::Internal(format!("D1 binding failed: {e:?}")))?;
 
     let results = db
         .prepare(
@@ -127,23 +126,43 @@ pub async fn query_recent_observations_with_engagement(
              LIMIT 5",
         )
         .bind(&[JsValue::from_str(student_id)])
-        .map_err(|e| ApiError::Internal(format!("Failed to bind query: {:?}", e)))?
+        .map_err(|e| ApiError::Internal(format!("Failed to bind query: {e:?}")))?
         .all()
         .await
-        .map_err(|e| ApiError::Internal(format!("Failed to query observations: {:?}", e)))?;
+        .map_err(|e| ApiError::Internal(format!("Failed to query observations: {e:?}")))?;
 
     let rows: Vec<serde_json::Value> = results
         .results()
-        .map_err(|e| ApiError::Internal(format!("Failed to get results: {:?}", e)))?;
+        .map_err(|e| ApiError::Internal(format!("Failed to get results: {e:?}")))?;
 
     Ok(rows
         .iter()
         .map(|row| RecentObservationWithEngagement {
-            dimension: row.get("dimension").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-            observation_text: row.get("observation_text").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-            framing: row.get("framing").and_then(|v| v.as_str()).unwrap_or("correction").to_string(),
-            created_at: row.get("created_at").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-            engaged: row.get("engaged").and_then(|v| v.as_i64()).unwrap_or(0) == 1,
+            dimension: row
+                .get("dimension")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
+            observation_text: row
+                .get("observation_text")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
+            framing: row
+                .get("framing")
+                .and_then(|v| v.as_str())
+                .unwrap_or("correction")
+                .to_string(),
+            created_at: row
+                .get("created_at")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
+            engaged: row
+                .get("engaged")
+                .and_then(serde_json::Value::as_i64)
+                .unwrap_or(0)
+                == 1,
         })
         .collect())
 }
@@ -154,7 +173,9 @@ pub async fn query_piece_facts(
     student_id: &str,
     piece_title: &str,
 ) -> Result<Vec<SynthesizedFact>> {
-    let db = env.d1("DB").map_err(|e| ApiError::Internal(format!("D1 binding failed: {:?}", e)))?;
+    let db = env
+        .d1("DB")
+        .map_err(|e| ApiError::Internal(format!("D1 binding failed: {e:?}")))?;
 
     let results = db
         .prepare(
@@ -170,19 +191,16 @@ pub async fn query_piece_facts(
             JsValue::from_str(student_id),
             JsValue::from_str(piece_title),
         ])
-        .map_err(|e| ApiError::Internal(format!("Failed to bind query: {:?}", e)))?
+        .map_err(|e| ApiError::Internal(format!("Failed to bind query: {e:?}")))?
         .all()
         .await
-        .map_err(|e| ApiError::Internal(format!("Failed to query piece facts: {:?}", e)))?;
+        .map_err(|e| ApiError::Internal(format!("Failed to query piece facts: {e:?}")))?;
 
     let rows: Vec<serde_json::Value> = results
         .results()
-        .map_err(|e| ApiError::Internal(format!("Failed to get results: {:?}", e)))?;
+        .map_err(|e| ApiError::Internal(format!("Failed to get results: {e:?}")))?;
 
-    Ok(rows
-        .iter()
-        .map(|row| parse_synthesized_fact(row))
-        .collect())
+    Ok(rows.iter().map(parse_synthesized_fact).collect())
 }
 
 /// Build the full memory context for the subagent.
@@ -205,7 +223,8 @@ pub async fn build_memory_context(
         }
     };
 
-    let recent_observations = match query_recent_observations_with_engagement(env, student_id).await {
+    let recent_observations = match query_recent_observations_with_engagement(env, student_id).await
+    {
         Ok(obs) => obs,
         Err(e) => {
             console_log!("Failed to query recent observations: {}", e);
@@ -236,20 +255,26 @@ pub async fn build_memory_context(
     let student_facts = if let Some(q) = query {
         // Use hybrid search to find relevant student-reported facts
         match search_relevant_facts(env, student_id, q, 15, true).await {
-            Ok(result) => result.facts.into_iter().map(|f| SynthesizedFact {
-                id: f.id,
-                fact_text: f.fact_text,
-                fact_type: "student_reported".to_string(),
-                dimension: Some(f.category),
-                piece_context: None,
-                valid_at: f.date,
-                trend: None,
-                confidence: "high".to_string(),
-                source_type: "student_reported".to_string(),
-            }).collect(),
+            Ok(result) => result
+                .facts
+                .into_iter()
+                .map(|f| SynthesizedFact {
+                    id: f.id,
+                    fact_text: f.fact_text,
+                    fact_type: "student_reported".to_string(),
+                    dimension: Some(f.category),
+                    piece_context: None,
+                    valid_at: f.date,
+                    trend: None,
+                    confidence: "high".to_string(),
+                    source_type: "student_reported".to_string(),
+                })
+                .collect(),
             Err(e) => {
                 console_log!("Search failed, falling back to generic query: {}", e);
-                query_student_reported_facts(env, student_id, today).await.unwrap_or_default()
+                query_student_reported_facts(env, student_id, today)
+                    .await
+                    .unwrap_or_default()
             }
         }
     } else {
@@ -284,17 +309,21 @@ pub fn format_memory_context(ctx: &StudentMemoryContext) -> String {
             let dim_label = fact
                 .dimension
                 .as_deref()
-                .map(|d| format!("{}/", d))
+                .map(|d| format!("{d}/"))
                 .unwrap_or_default();
             let trend_label = fact
                 .trend
                 .as_deref()
-                .map(|t| format!(", {}", t))
+                .map(|t| format!(", {t}"))
                 .unwrap_or_default();
             out.push_str(&format!(
                 "- [{}{}{}, {} confidence] {} (since {})\n",
-                fact.fact_type, dim_label, trend_label, fact.confidence,
-                fact.fact_text, fact.valid_at,
+                fact.fact_type,
+                dim_label,
+                trend_label,
+                fact.confidence,
+                fact.fact_text,
+                fact.valid_at,
             ));
         }
         out.push('\n');
@@ -303,7 +332,11 @@ pub fn format_memory_context(ctx: &StudentMemoryContext) -> String {
     if !ctx.recent_observations.is_empty() {
         out.push_str("Recent feedback:\n");
         for obs in &ctx.recent_observations {
-            let engaged_label = if obs.engaged { ", student asked for elaboration" } else { "" };
+            let engaged_label = if obs.engaged {
+                ", student asked for elaboration"
+            } else {
+                ""
+            };
             out.push_str(&format!(
                 "- [{}] {}: \"{}\" (framing: {}{})\n",
                 obs.created_at, obs.dimension, obs.observation_text, obs.framing, engaged_label,
@@ -407,13 +440,18 @@ pub async fn extract_and_store_chat_facts(
     // 4. Parse JSON
     let extraction_json = extract_synthesis_json(&output)?;
 
-    let db = env.d1("DB").map_err(|e| ApiError::Internal(format!("D1 binding failed: {:?}", e)))?;
+    let db = env
+        .d1("DB")
+        .map_err(|e| ApiError::Internal(format!("D1 binding failed: {e:?}")))?;
 
     // 5. Process ADD operations
     if let Some(adds) = extraction_json.get("add").and_then(|v| v.as_array()) {
         for fact in adds {
             let fact_text = fact.get("fact_text").and_then(|v| v.as_str()).unwrap_or("");
-            let category = fact.get("category").and_then(|v| v.as_str()).unwrap_or("general");
+            let category = fact
+                .get("category")
+                .and_then(|v| v.as_str())
+                .unwrap_or("general");
             let invalid_at = fact.get("invalid_at").and_then(|v| v.as_str());
 
             if fact_text.is_empty() {
@@ -444,7 +482,7 @@ pub async fn extract_and_store_chat_facts(
                     JsValue::from_str("student_reported"),
                     JsValue::from_str(&now),
                 ])
-                .map_err(|e| ApiError::Internal(format!("Failed to bind fact insert: {:?}", e)))?
+                .map_err(|e| ApiError::Internal(format!("Failed to bind fact insert: {e:?}")))?
                 .run()
                 .await;
         }
@@ -453,9 +491,18 @@ pub async fn extract_and_store_chat_facts(
     // 6. Process UPDATE operations (invalidate old, insert new)
     if let Some(updates) = extraction_json.get("update").and_then(|v| v.as_array()) {
         for update in updates {
-            let existing_id = update.get("existing_fact_id").and_then(|v| v.as_str()).unwrap_or("");
-            let new_text = update.get("new_fact_text").and_then(|v| v.as_str()).unwrap_or("");
-            let category = update.get("category").and_then(|v| v.as_str()).unwrap_or("general");
+            let existing_id = update
+                .get("existing_fact_id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            let new_text = update
+                .get("new_fact_text")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            let category = update
+                .get("category")
+                .and_then(|v| v.as_str())
+                .unwrap_or("general");
             let invalid_at = update.get("invalid_at").and_then(|v| v.as_str());
 
             if existing_id.is_empty() || new_text.is_empty() {
@@ -474,7 +521,7 @@ pub async fn extract_and_store_chat_facts(
                     JsValue::from_str(existing_id),
                     JsValue::from_str(student_id),
                 ])
-                .map_err(|e| ApiError::Internal(format!("Failed to bind invalidation: {:?}", e)))?
+                .map_err(|e| ApiError::Internal(format!("Failed to bind invalidation: {e:?}")))?
                 .run()
                 .await;
 
@@ -503,18 +550,28 @@ pub async fn extract_and_store_chat_facts(
                     JsValue::from_str("student_reported"),
                     JsValue::from_str(&now),
                 ])
-                .map_err(|e| ApiError::Internal(format!("Failed to bind replacement insert: {:?}", e)))?
+                .map_err(|e| {
+                    ApiError::Internal(format!("Failed to bind replacement insert: {e:?}"))
+                })?
                 .run()
                 .await;
         }
     }
 
-    let add_count = extraction_json.get("add").and_then(|v| v.as_array()).map(|a| a.len()).unwrap_or(0);
-    let update_count = extraction_json.get("update").and_then(|v| v.as_array()).map(|a| a.len()).unwrap_or(0);
+    let add_count = extraction_json
+        .get("add")
+        .and_then(|v| v.as_array())
+        .map_or(0, std::vec::Vec::len);
+    let update_count = extraction_json
+        .get("update")
+        .and_then(|v| v.as_array())
+        .map_or(0, std::vec::Vec::len);
     if add_count > 0 || update_count > 0 {
         console_log!(
             "Chat memory extraction for student {}: {} added, {} updated",
-            student_id, add_count, update_count
+            student_id,
+            add_count,
+            update_count
         );
     }
 
@@ -531,7 +588,9 @@ pub async fn store_teaching_approach(
     framing: &str,
     approach_summary: &str,
 ) -> Result<()> {
-    let db = env.d1("DB").map_err(|e| ApiError::Internal(format!("D1 binding failed: {:?}", e)))?;
+    let db = env
+        .d1("DB")
+        .map_err(|e| ApiError::Internal(format!("D1 binding failed: {e:?}")))?;
     let now = js_sys::Date::new_0()
         .to_iso_string()
         .as_string()
@@ -551,47 +610,45 @@ pub async fn store_teaching_approach(
         JsValue::from_str(approach_summary),
         JsValue::from_str(&now),
     ])
-    .map_err(|e| ApiError::Internal(format!("Failed to bind insert: {:?}", e)))?
+    .map_err(|e| ApiError::Internal(format!("Failed to bind insert: {e:?}")))?
     .run()
     .await
-    .map_err(|e| ApiError::Internal(format!("Failed to insert teaching approach: {:?}", e)))?;
+    .map_err(|e| ApiError::Internal(format!("Failed to insert teaching approach: {e:?}")))?;
 
     Ok(())
 }
 
 /// Mark a teaching approach as engaged (student tapped "tell me more").
-pub async fn mark_approach_engaged(
-    env: &Env,
-    observation_id: &str,
-) -> Result<()> {
-    let db = env.d1("DB").map_err(|e| ApiError::Internal(format!("D1 binding failed: {:?}", e)))?;
+pub async fn mark_approach_engaged(env: &Env, observation_id: &str) -> Result<()> {
+    let db = env
+        .d1("DB")
+        .map_err(|e| ApiError::Internal(format!("D1 binding failed: {e:?}")))?;
 
     db.prepare("UPDATE teaching_approaches SET engaged = 1 WHERE observation_id = ?1")
         .bind(&[JsValue::from_str(observation_id)])
-        .map_err(|e| ApiError::Internal(format!("Failed to bind update: {:?}", e)))?
+        .map_err(|e| ApiError::Internal(format!("Failed to bind update: {e:?}")))?
         .run()
         .await
-        .map_err(|e| ApiError::Internal(format!("Failed to update engagement: {:?}", e)))?;
+        .map_err(|e| ApiError::Internal(format!("Failed to update engagement: {e:?}")))?;
 
     Ok(())
 }
 
-/// Increment total_observations in student_memory_meta.
-pub async fn increment_observation_count(
-    env: &Env,
-    student_id: &str,
-) -> Result<()> {
-    let db = env.d1("DB").map_err(|e| ApiError::Internal(format!("D1 binding failed: {:?}", e)))?;
+/// Increment `total_observations` in `student_memory_meta`.
+pub async fn increment_observation_count(env: &Env, student_id: &str) -> Result<()> {
+    let db = env
+        .d1("DB")
+        .map_err(|e| ApiError::Internal(format!("D1 binding failed: {e:?}")))?;
 
     db.prepare(
         "INSERT INTO student_memory_meta (student_id, total_observations) VALUES (?1, 1) \
          ON CONFLICT(student_id) DO UPDATE SET total_observations = total_observations + 1",
     )
     .bind(&[JsValue::from_str(student_id)])
-    .map_err(|e| ApiError::Internal(format!("Failed to bind upsert: {:?}", e)))?
+    .map_err(|e| ApiError::Internal(format!("Failed to bind upsert: {e:?}")))?
     .run()
     .await
-    .map_err(|e| ApiError::Internal(format!("Failed to update observation count: {:?}", e)))?;
+    .map_err(|e| ApiError::Internal(format!("Failed to update observation count: {e:?}")))?;
 
     Ok(())
 }
@@ -605,7 +662,9 @@ pub async fn increment_observation_count_by(
     if count == 0 {
         return Ok(());
     }
-    let db = env.d1("DB").map_err(|e| ApiError::Internal(format!("D1 binding failed: {:?}", e)))?;
+    let db = env
+        .d1("DB")
+        .map_err(|e| ApiError::Internal(format!("D1 binding failed: {e:?}")))?;
 
     db.prepare(
         "INSERT INTO student_memory_meta (student_id, total_observations) VALUES (?1, ?2) \
@@ -615,10 +674,10 @@ pub async fn increment_observation_count_by(
         JsValue::from_str(student_id),
         JsValue::from_f64(count as f64),
     ])
-    .map_err(|e| ApiError::Internal(format!("Failed to bind upsert: {:?}", e)))?
+    .map_err(|e| ApiError::Internal(format!("Failed to bind upsert: {e:?}")))?
     .run()
     .await
-    .map_err(|e| ApiError::Internal(format!("Failed to update observation count: {:?}", e)))?;
+    .map_err(|e| ApiError::Internal(format!("Failed to update observation count: {e:?}")))?;
 
     Ok(())
 }
@@ -626,19 +685,18 @@ pub async fn increment_observation_count_by(
 /// Check if synthesis should run for this student.
 /// Returns true if >= 3 new observations since last synthesis,
 /// or any new observations and last synthesis was > 7 days ago.
-pub async fn should_synthesize(
-    env: &Env,
-    student_id: &str,
-) -> Result<bool> {
-    let db = env.d1("DB").map_err(|e| ApiError::Internal(format!("D1 binding failed: {:?}", e)))?;
+pub async fn should_synthesize(env: &Env, student_id: &str) -> Result<bool> {
+    let db = env
+        .d1("DB")
+        .map_err(|e| ApiError::Internal(format!("D1 binding failed: {e:?}")))?;
 
     let meta: Option<serde_json::Value> = db
         .prepare("SELECT last_synthesis_at, total_observations FROM student_memory_meta WHERE student_id = ?1")
         .bind(&[JsValue::from_str(student_id)])
-        .map_err(|e| ApiError::Internal(format!("Failed to bind query: {:?}", e)))?
+        .map_err(|e| ApiError::Internal(format!("Failed to bind query: {e:?}")))?
         .first(None)
         .await
-        .map_err(|e| ApiError::Internal(format!("Failed to query meta: {:?}", e)))?;
+        .map_err(|e| ApiError::Internal(format!("Failed to query meta: {e:?}")))?;
 
     let last_synthesis = meta
         .as_ref()
@@ -651,7 +709,7 @@ pub async fn should_synthesize(
         let total = meta
             .as_ref()
             .and_then(|m| m.get("total_observations"))
-            .and_then(|v| v.as_i64())
+            .and_then(serde_json::Value::as_i64)
             .unwrap_or(0);
         return Ok(total >= 3);
     }
@@ -666,15 +724,15 @@ pub async fn should_synthesize(
             JsValue::from_str(student_id),
             JsValue::from_str(last_synthesis),
         ])
-        .map_err(|e| ApiError::Internal(format!("Failed to bind count query: {:?}", e)))?
+        .map_err(|e| ApiError::Internal(format!("Failed to bind count query: {e:?}")))?
         .first(None)
         .await
-        .map_err(|e| ApiError::Internal(format!("Failed to count observations: {:?}", e)))?;
+        .map_err(|e| ApiError::Internal(format!("Failed to count observations: {e:?}")))?;
 
     let new_count = count_result
         .as_ref()
         .and_then(|r| r.get("cnt"))
-        .and_then(|v| v.as_i64())
+        .and_then(serde_json::Value::as_i64)
         .unwrap_or(0);
 
     if new_count >= 3 {
@@ -703,14 +761,13 @@ pub struct SynthesisResult {
 }
 
 /// Run the synthesis pipeline for a student.
-pub async fn run_synthesis(
-    env: &Env,
-    student_id: &str,
-) -> Result<SynthesisResult> {
+pub async fn run_synthesis(env: &Env, student_id: &str) -> Result<SynthesisResult> {
     use crate::services::llm;
     use crate::services::prompts;
 
-    let db = env.d1("DB").map_err(|e| ApiError::Internal(format!("D1 binding failed: {:?}", e)))?;
+    let db = env
+        .d1("DB")
+        .map_err(|e| ApiError::Internal(format!("D1 binding failed: {e:?}")))?;
 
     // 1. Get current active facts
     let active_facts = query_active_facts(env, student_id).await?;
@@ -719,10 +776,10 @@ pub async fn run_synthesis(
     let meta: Option<serde_json::Value> = db
         .prepare("SELECT last_synthesis_at FROM student_memory_meta WHERE student_id = ?1")
         .bind(&[JsValue::from_str(student_id)])
-        .map_err(|e| ApiError::Internal(format!("Failed to bind meta query: {:?}", e)))?
+        .map_err(|e| ApiError::Internal(format!("Failed to bind meta query: {e:?}")))?
         .first(None)
         .await
-        .map_err(|e| ApiError::Internal(format!("Failed to query meta: {:?}", e)))?;
+        .map_err(|e| ApiError::Internal(format!("Failed to query meta: {e:?}")))?;
 
     let last_synthesis = meta
         .as_ref()
@@ -743,14 +800,14 @@ pub async fn run_synthesis(
             JsValue::from_str(student_id),
             JsValue::from_str(last_synthesis),
         ])
-        .map_err(|e| ApiError::Internal(format!("Failed to bind obs query: {:?}", e)))?
+        .map_err(|e| ApiError::Internal(format!("Failed to bind obs query: {e:?}")))?
         .all()
         .await
-        .map_err(|e| ApiError::Internal(format!("Failed to query new observations: {:?}", e)))?;
+        .map_err(|e| ApiError::Internal(format!("Failed to query new observations: {e:?}")))?;
 
     let new_observations: Vec<serde_json::Value> = obs_results
         .results()
-        .map_err(|e| ApiError::Internal(format!("Failed to get obs results: {:?}", e)))?;
+        .map_err(|e| ApiError::Internal(format!("Failed to get obs results: {e:?}")))?;
 
     if new_observations.is_empty() {
         return Ok(SynthesisResult {
@@ -772,14 +829,14 @@ pub async fn run_synthesis(
             JsValue::from_str(student_id),
             JsValue::from_str(last_synthesis),
         ])
-        .map_err(|e| ApiError::Internal(format!("Failed to bind ta query: {:?}", e)))?
+        .map_err(|e| ApiError::Internal(format!("Failed to bind ta query: {e:?}")))?
         .all()
         .await
-        .map_err(|e| ApiError::Internal(format!("Failed to query teaching approaches: {:?}", e)))?;
+        .map_err(|e| ApiError::Internal(format!("Failed to query teaching approaches: {e:?}")))?;
 
     let teaching_approaches: Vec<serde_json::Value> = ta_results
         .results()
-        .map_err(|e| ApiError::Internal(format!("Failed to get ta results: {:?}", e)))?;
+        .map_err(|e| ApiError::Internal(format!("Failed to get ta results: {e:?}")))?;
 
     // 5. Get student baselines
     let baselines: serde_json::Value = db
@@ -789,10 +846,10 @@ pub async fn run_synthesis(
              FROM students WHERE student_id = ?1",
         )
         .bind(&[JsValue::from_str(student_id)])
-        .map_err(|e| ApiError::Internal(format!("Failed to bind baselines query: {:?}", e)))?
+        .map_err(|e| ApiError::Internal(format!("Failed to bind baselines query: {e:?}")))?
         .first(None)
         .await
-        .map_err(|e| ApiError::Internal(format!("Failed to query baselines: {:?}", e)))?
+        .map_err(|e| ApiError::Internal(format!("Failed to query baselines: {e:?}")))?
         .unwrap_or(serde_json::json!({}));
 
     // 6. Build synthesis prompt and call Groq
@@ -803,14 +860,8 @@ pub async fn run_synthesis(
         &baselines,
     );
 
-    let synthesis_output = llm::call_groq(
-        env,
-        prompts::SYNTHESIS_SYSTEM,
-        &user_prompt,
-        0.1,
-        800,
-    )
-    .await?;
+    let synthesis_output =
+        llm::call_groq(env, prompts::SYNTHESIS_SYSTEM, &user_prompt, 0.1, 800).await?;
 
     // 7. Parse synthesis output
     let synthesis_json = extract_synthesis_json(&synthesis_output)?;
@@ -825,10 +876,16 @@ pub async fn run_synthesis(
 
     let mut invalidated_count = 0usize;
     // 8. Apply invalidations
-    if let Some(invalidated) = synthesis_json.get("invalidated_facts").and_then(|v| v.as_array()) {
+    if let Some(invalidated) = synthesis_json
+        .get("invalidated_facts")
+        .and_then(|v| v.as_array())
+    {
         for inv in invalidated {
             let fact_id = inv.get("fact_id").and_then(|v| v.as_str()).unwrap_or("");
-            let invalid_at = inv.get("invalid_at").and_then(|v| v.as_str()).unwrap_or(today);
+            let invalid_at = inv
+                .get("invalid_at")
+                .and_then(|v| v.as_str())
+                .unwrap_or(today);
             if !fact_id.is_empty() {
                 let _ = db
                     .prepare(
@@ -841,7 +898,7 @@ pub async fn run_synthesis(
                         JsValue::from_str(fact_id),
                         JsValue::from_str(student_id),
                     ])
-                    .map_err(|e| ApiError::Internal(format!("Failed to bind invalidation: {:?}", e)))?
+                    .map_err(|e| ApiError::Internal(format!("Failed to bind invalidation: {e:?}")))?
                     .run()
                     .await;
                 invalidated_count += 1;
@@ -855,12 +912,22 @@ pub async fn run_synthesis(
         for fact in new_facts {
             let fact_id = generate_uuid();
             let fact_text = fact.get("fact_text").and_then(|v| v.as_str()).unwrap_or("");
-            let fact_type = fact.get("fact_type").and_then(|v| v.as_str()).unwrap_or("dimension");
+            let fact_type = fact
+                .get("fact_type")
+                .and_then(|v| v.as_str())
+                .unwrap_or("dimension");
             let dimension = fact.get("dimension").and_then(|v| v.as_str());
-            let piece_ctx = fact.get("piece_context").map(|v| v.to_string());
+            let piece_ctx = fact
+                .get("piece_context")
+                .map(std::string::ToString::to_string);
             let trend = fact.get("trend").and_then(|v| v.as_str());
-            let confidence = fact.get("confidence").and_then(|v| v.as_str()).unwrap_or("medium");
-            let evidence = fact.get("evidence").map(|v| v.to_string()).unwrap_or_else(|| "[]".to_string());
+            let confidence = fact
+                .get("confidence")
+                .and_then(|v| v.as_str())
+                .unwrap_or("medium");
+            let evidence = fact
+                .get("evidence")
+                .map_or_else(|| "[]".to_string(), std::string::ToString::to_string);
             let valid_at = today;
 
             if fact_text.is_empty() {
@@ -897,7 +964,7 @@ pub async fn run_synthesis(
                     JsValue::from_str("synthesized"),
                     JsValue::from_str(&now),
                 ])
-                .map_err(|e| ApiError::Internal(format!("Failed to bind fact insert: {:?}", e)))?
+                .map_err(|e| ApiError::Internal(format!("Failed to bind fact insert: {e:?}")))?
                 .run()
                 .await;
             new_facts_count += 1;
@@ -911,15 +978,15 @@ pub async fn run_synthesis(
              WHERE student_id = ?1 AND invalid_at IS NULL AND expired_at IS NULL",
         )
         .bind(&[JsValue::from_str(student_id)])
-        .map_err(|e| ApiError::Internal(format!("Failed to bind fact count: {:?}", e)))?
+        .map_err(|e| ApiError::Internal(format!("Failed to bind fact count: {e:?}")))?
         .first(None)
         .await
-        .map_err(|e| ApiError::Internal(format!("Failed to count facts: {:?}", e)))?;
+        .map_err(|e| ApiError::Internal(format!("Failed to count facts: {e:?}")))?;
 
     let total_facts = fact_count_result
         .as_ref()
         .and_then(|r| r.get("cnt"))
-        .and_then(|v| v.as_i64())
+        .and_then(serde_json::Value::as_i64)
         .unwrap_or(0);
 
     db.prepare(
@@ -932,14 +999,17 @@ pub async fn run_synthesis(
         JsValue::from_str(&now),
         JsValue::from_f64(total_facts as f64),
     ])
-    .map_err(|e| ApiError::Internal(format!("Failed to bind meta update: {:?}", e)))?
+    .map_err(|e| ApiError::Internal(format!("Failed to bind meta update: {e:?}")))?
     .run()
     .await
-    .map_err(|e| ApiError::Internal(format!("Failed to update meta: {:?}", e)))?;
+    .map_err(|e| ApiError::Internal(format!("Failed to update meta: {e:?}")))?;
 
     console_log!(
         "Synthesis complete for student {}: {} new, {} invalidated, {} observations",
-        student_id, new_facts_count, invalidated_count, observations_count
+        student_id,
+        new_facts_count,
+        invalidated_count,
+        observations_count
     );
 
     Ok(SynthesisResult {
@@ -1002,7 +1072,7 @@ pub async fn handle_extract_chat(
     .await
     .map_err(|e| {
         console_log!("Workers AI call failed for extract-chat: {}", e);
-        ApiError::ExternalService(format!("LLM call failed: {}", e))
+        ApiError::ExternalService(format!("LLM call failed: {e}"))
     })?;
 
     // Parse JSON from LLM output
@@ -1069,8 +1139,13 @@ pub async fn handle_store_facts(
             continue;
         }
         let fact_id = generate_uuid();
-        let valid_at = if fact.date.is_empty() { &now[..10.min(now.len())] } else { &fact.date };
-        let entities_json = serde_json::to_string(&fact.entities).unwrap_or_else(|_| "[]".to_string());
+        let valid_at = if fact.date.is_empty() {
+            &now[..10.min(now.len())]
+        } else {
+            &fact.date
+        };
+        let entities_json =
+            serde_json::to_string(&fact.entities).unwrap_or_else(|_| "[]".to_string());
 
         let result = db
             .prepare(
@@ -1122,7 +1197,9 @@ pub struct SearchFactsRequest {
     pub max_facts: usize,
 }
 
-fn default_max_facts() -> usize { 50 }
+fn default_max_facts() -> usize {
+    50
+}
 
 #[derive(serde::Serialize)]
 pub struct SearchFactResult {
@@ -1146,11 +1223,28 @@ pub struct SearchResult {
 /// Detect if query is temporal (asks about when, time, duration).
 fn is_temporal_query(query_lower: &str) -> bool {
     let temporal_keywords = [
-        "when", "how long", "how many years", "how many months",
-        "how many days", "how many weeks", "since when", "last time",
-        "first time", "recently", "ago", "before", "after",
-        "date", "year", "month", "started", "began", "ended",
-        "how old", "birthday", "anniversary",
+        "when",
+        "how long",
+        "how many years",
+        "how many months",
+        "how many days",
+        "how many weeks",
+        "since when",
+        "last time",
+        "first time",
+        "recently",
+        "ago",
+        "before",
+        "after",
+        "date",
+        "year",
+        "month",
+        "started",
+        "began",
+        "ended",
+        "how old",
+        "birthday",
+        "anniversary",
     ];
     temporal_keywords.iter().any(|kw| query_lower.contains(kw))
 }
@@ -1158,12 +1252,17 @@ fn is_temporal_query(query_lower: &str) -> bool {
 /// Detect if query is adversarial/unanswerable (asks about non-existent info).
 fn is_likely_adversarial(query_lower: &str) -> bool {
     let adversarial_patterns = [
-        "never mentioned", "not mentioned", "didn't say", "didn't mention",
-        "did not say", "did not mention", "never said", "never told",
+        "never mentioned",
+        "not mentioned",
+        "didn't say",
+        "didn't mention",
+        "did not say",
+        "did not mention",
+        "never said",
+        "never told",
     ];
     adversarial_patterns.iter().any(|p| query_lower.contains(p))
 }
-
 
 const ENTITY_EXTRACTION_PROMPT: &str = "\
 Extract ALL named entities and key topics from this query. Include:
@@ -1210,7 +1309,9 @@ pub async fn search_relevant_facts(
     max_facts: usize,
     active_only: bool,
 ) -> Result<SearchResult> {
-    let db = env.d1("DB").map_err(|e| ApiError::Internal(format!("D1 binding failed: {:?}", e)))?;
+    let db = env
+        .d1("DB")
+        .map_err(|e| ApiError::Internal(format!("D1 binding failed: {e:?}")))?;
 
     let sql = if active_only {
         "SELECT id, fact_text, fact_type, dimension, valid_at, invalid_at, \
@@ -1229,10 +1330,10 @@ pub async fn search_relevant_facts(
     let all_facts: Vec<serde_json::Value> = db
         .prepare(sql)
         .bind(&[JsValue::from_str(student_id)])
-        .map_err(|e| ApiError::Internal(format!("bind failed: {:?}", e)))?
+        .map_err(|e| ApiError::Internal(format!("bind failed: {e:?}")))?
         .all()
         .await
-        .map_err(|e| ApiError::Internal(format!("query failed: {:?}", e)))?
+        .map_err(|e| ApiError::Internal(format!("query failed: {e:?}")))?
         .results()
         .unwrap_or_default();
 
@@ -1262,19 +1363,22 @@ pub async fn search_relevant_facts(
             let fact_lower = fact_text.to_lowercase();
 
             // 1. Entity match score (2.0 per matching entity)
-            let entity_score = if !query_entities.is_empty() {
-                let matches = query_entities.iter().filter(|qe| {
-                    let qe_lower = qe.to_lowercase();
-                    fact_entities.iter().any(|fe| {
-                        let fe_lower = fe.to_lowercase();
-                        fe_lower == qe_lower
-                            || fe_lower.contains(&qe_lower)
-                            || qe_lower.contains(&fe_lower)
-                    }) || fact_lower.contains(&qe_lower)
-                }).count();
-                (matches as f64) * 2.0
-            } else {
+            let entity_score = if query_entities.is_empty() {
                 0.0
+            } else {
+                let matches = query_entities
+                    .iter()
+                    .filter(|qe| {
+                        let qe_lower = qe.to_lowercase();
+                        fact_entities.iter().any(|fe| {
+                            let fe_lower = fe.to_lowercase();
+                            fe_lower == qe_lower
+                                || fe_lower.contains(&qe_lower)
+                                || qe_lower.contains(&fe_lower)
+                        }) || fact_lower.contains(&qe_lower)
+                    })
+                    .count();
+                (matches as f64) * 2.0
             };
 
             // 2. Keyword score (1.0 per hit, not normalized by length)
@@ -1296,13 +1400,23 @@ pub async fn search_relevant_facts(
             // 6. Temporal boost
             let temporal_score = if temporal && !valid_at.is_empty() {
                 let has_date_in_text = fact_lower.contains("202")
-                    || fact_lower.contains("january") || fact_lower.contains("february")
-                    || fact_lower.contains("march") || fact_lower.contains("april")
-                    || fact_lower.contains("may") || fact_lower.contains("june")
-                    || fact_lower.contains("july") || fact_lower.contains("august")
-                    || fact_lower.contains("september") || fact_lower.contains("october")
-                    || fact_lower.contains("november") || fact_lower.contains("december");
-                if has_date_in_text { 1.5 } else { 0.5 }
+                    || fact_lower.contains("january")
+                    || fact_lower.contains("february")
+                    || fact_lower.contains("march")
+                    || fact_lower.contains("april")
+                    || fact_lower.contains("may")
+                    || fact_lower.contains("june")
+                    || fact_lower.contains("july")
+                    || fact_lower.contains("august")
+                    || fact_lower.contains("september")
+                    || fact_lower.contains("october")
+                    || fact_lower.contains("november")
+                    || fact_lower.contains("december");
+                if has_date_in_text {
+                    1.5
+                } else {
+                    0.5
+                }
             } else {
                 0.0
             };
@@ -1311,8 +1425,13 @@ pub async fn search_relevant_facts(
             let word_count = fact_text.split_whitespace().count();
             let length_bonus = if word_count > 10 { 0.3 } else { 0.0 };
 
-            let total = entity_score + keyword_score + multi_kw_bonus + dimension_score
-                + active_bonus + temporal_score + length_bonus;
+            let total = entity_score
+                + keyword_score
+                + multi_kw_bonus
+                + dimension_score
+                + active_bonus
+                + temporal_score
+                + length_bonus;
             (total, row)
         })
         .collect();
@@ -1327,10 +1446,26 @@ pub async fn search_relevant_facts(
             let entities_str = row.get("entities").and_then(|v| v.as_str()).unwrap_or("[]");
             let entities: Vec<String> = serde_json::from_str(entities_str).unwrap_or_default();
             SearchFactResult {
-                id: row.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-                fact_text: row.get("fact_text").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-                category: row.get("dimension").and_then(|v| v.as_str()).unwrap_or("general").to_string(),
-                date: row.get("valid_at").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                id: row
+                    .get("id")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string(),
+                fact_text: row
+                    .get("fact_text")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string(),
+                category: row
+                    .get("dimension")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("general")
+                    .to_string(),
+                date: row
+                    .get("valid_at")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string(),
                 entities,
                 score: *score,
             }
@@ -1357,10 +1492,15 @@ pub async fn handle_search_facts(
 
     // Delegate to reusable search (active_only=false for benchmark compatibility)
     let search = search_relevant_facts(
-        env, &request.student_id, &request.query, request.max_facts, false,
-    ).await?;
+        env,
+        &request.student_id,
+        &request.query,
+        request.max_facts,
+        false,
+    )
+    .await?;
 
-    let max_score = search.facts.first().map(|r| r.score).unwrap_or(0.0);
+    let max_score = search.facts.first().map_or(0.0, |r| r.score);
     let avg_score = if search.facts.is_empty() {
         0.0
     } else {
@@ -1380,7 +1520,7 @@ pub async fn handle_search_facts(
 
 /// Extract entities from a query using Workers AI (cheap, background).
 async fn extract_query_entities(env: &Env, query: &str) -> Vec<String> {
-    let prompt = format!("{}\"{}\"\n", ENTITY_EXTRACTION_PROMPT, query);
+    let prompt = format!("{ENTITY_EXTRACTION_PROMPT}\"{query}\"\n");
 
     let output = match crate::services::llm::call_workers_ai(
         env,
@@ -1417,17 +1557,19 @@ async fn extract_query_entities(env: &Env, query: &str) -> Vec<String> {
 /// Extract keywords from a query (lowercase, stopwords removed).
 fn extract_keywords(query_lower: &str) -> Vec<String> {
     let stopwords: std::collections::HashSet<&str> = [
-        "a", "an", "the", "is", "was", "were", "are", "do", "does", "did",
-        "what", "when", "where", "who", "how", "which", "that", "this",
-        "to", "of", "in", "for", "on", "with", "at", "by", "from", "and",
-        "or", "not", "but", "if", "about", "has", "had", "have", "be", "been",
-        "it", "its", "they", "their", "them", "she", "her", "he", "his",
-    ].iter().copied().collect();
+        "a", "an", "the", "is", "was", "were", "are", "do", "does", "did", "what", "when", "where",
+        "who", "how", "which", "that", "this", "to", "of", "in", "for", "on", "with", "at", "by",
+        "from", "and", "or", "not", "but", "if", "about", "has", "had", "have", "be", "been", "it",
+        "its", "they", "their", "them", "she", "her", "he", "his",
+    ]
+    .iter()
+    .copied()
+    .collect();
 
     query_lower
         .split(|c: char| !c.is_alphanumeric())
         .filter(|w| !w.is_empty() && w.len() > 1 && !stopwords.contains(w))
-        .map(|w| w.to_string())
+        .map(std::string::ToString::to_string)
         .collect()
 }
 
@@ -1444,7 +1586,7 @@ fn detect_dimension(query_lower: &str) -> Option<String> {
     ];
     for (keyword, dim) in &dims {
         if query_lower.contains(keyword) {
-            return Some(dim.to_string());
+            return Some((*dim).to_string());
         }
     }
     None
@@ -1456,7 +1598,10 @@ fn keyword_hit_count(keywords: &[String], fact_text: &str) -> usize {
         return 0;
     }
     let fact_lower = fact_text.to_lowercase();
-    keywords.iter().filter(|kw| fact_lower.contains(kw.as_str())).count()
+    keywords
+        .iter()
+        .filter(|kw| fact_lower.contains(kw.as_str()))
+        .count()
 }
 
 // ---------------------------------------------------------------------------
@@ -1478,7 +1623,9 @@ pub async fn handle_clear_benchmark(
     let db = state.db.d1()?;
 
     let result = db
-        .prepare("DELETE FROM synthesized_facts WHERE student_id = ?1 AND source_type = 'benchmark'")
+        .prepare(
+            "DELETE FROM synthesized_facts WHERE student_id = ?1 AND source_type = 'benchmark'",
+        )
         .bind(&[JsValue::from_str(&request.student_id)]);
 
     match result {
@@ -1517,7 +1664,9 @@ pub async fn handle_synthesize(
     let should = should_synthesize(env, &request.student_id).await?;
 
     if !should {
-        return Ok(Json(serde_json::json!({"skipped": true, "reason": "Not enough new observations"})));
+        return Ok(Json(
+            serde_json::json!({"skipped": true, "reason": "Not enough new observations"}),
+        ));
     }
 
     // Run synthesis
@@ -1626,7 +1775,9 @@ pub async fn handle_seed_observations(
 
     // Update meta counter so should_synthesize() works correctly
     if seeded > 0 {
-        if let Err(e) = increment_observation_count_by(env, &request.student_id, seeded as usize).await {
+        if let Err(e) =
+            increment_observation_count_by(env, &request.student_id, seeded as usize).await
+        {
             console_log!("Failed to update observation count after seeding: {}", e);
         }
     }
@@ -1638,18 +1789,51 @@ pub async fn handle_seed_observations(
 // Internal helpers
 // ===========================================================================
 
-/// Parse a SynthesizedFact from a D1 row.
+/// Parse a `SynthesizedFact` from a D1 row.
 fn parse_synthesized_fact(row: &serde_json::Value) -> SynthesizedFact {
     SynthesizedFact {
-        id: row.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-        fact_text: row.get("fact_text").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-        fact_type: row.get("fact_type").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-        dimension: row.get("dimension").and_then(|v| v.as_str()).map(|s| s.to_string()),
-        piece_context: row.get("piece_context").and_then(|v| v.as_str()).map(|s| s.to_string()),
-        valid_at: row.get("valid_at").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-        trend: row.get("trend").and_then(|v| v.as_str()).map(|s| s.to_string()),
-        confidence: row.get("confidence").and_then(|v| v.as_str()).unwrap_or("medium").to_string(),
-        source_type: row.get("source_type").and_then(|v| v.as_str()).unwrap_or("synthesized").to_string(),
+        id: row
+            .get("id")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string(),
+        fact_text: row
+            .get("fact_text")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string(),
+        fact_type: row
+            .get("fact_type")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string(),
+        dimension: row
+            .get("dimension")
+            .and_then(|v| v.as_str())
+            .map(std::string::ToString::to_string),
+        piece_context: row
+            .get("piece_context")
+            .and_then(|v| v.as_str())
+            .map(std::string::ToString::to_string),
+        valid_at: row
+            .get("valid_at")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string(),
+        trend: row
+            .get("trend")
+            .and_then(|v| v.as_str())
+            .map(std::string::ToString::to_string),
+        confidence: row
+            .get("confidence")
+            .and_then(|v| v.as_str())
+            .unwrap_or("medium")
+            .to_string(),
+        source_type: row
+            .get("source_type")
+            .and_then(|v| v.as_str())
+            .unwrap_or("synthesized")
+            .to_string(),
     }
 }
 
@@ -1685,11 +1869,13 @@ fn extract_synthesis_json(output: &str) -> Result<serde_json::Value> {
         output.trim()
     };
 
-    serde_json::from_str(json_str)
-        .map_err(|e| ApiError::Internal(format!(
+    serde_json::from_str(json_str).map_err(|e| {
+        ApiError::Internal(format!(
             "Failed to parse synthesis JSON: {:?} - raw: {}",
-            e, &json_str[..200.min(json_str.len())]
-        )))
+            e,
+            &json_str[..200.min(json_str.len())]
+        ))
+    })
 }
 
 /// Public wrapper for UUID generation (used by goals.rs).
@@ -1698,9 +1884,10 @@ pub fn generate_fact_id() -> String {
 }
 
 /// Generate a UUID v4.
+#[allow(clippy::expect_used)] // getrandom on WASM (js feature) is infallible
 fn generate_uuid() -> String {
     let mut bytes = [0u8; 16];
-    getrandom::getrandom(&mut bytes).expect("Failed to generate random bytes");
+    getrandom::getrandom(&mut bytes).expect("getrandom");
     bytes[6] = (bytes[6] & 0x0f) | 0x40;
     bytes[8] = (bytes[8] & 0x3f) | 0x80;
     format!(

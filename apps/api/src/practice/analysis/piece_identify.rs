@@ -20,13 +20,13 @@ const MIN_NOTES: usize = 10;
 // Data structures
 // ---------------------------------------------------------------------------
 
-/// Inverted index: trigram key ("p1,p2,p3") -> Vec<(piece_id, bar_number)>.
-/// Deserialized from ngram_index.json.
+/// Inverted index: trigram key ("p1,p2,p3") -> Vec<(`piece_id`, `bar_number`)>.
+/// Deserialized from `ngram_index.json`.
 #[derive(Debug, Clone, Deserialize)]
 pub struct NgramIndex(pub HashMap<String, Vec<(String, u32)>>);
 
 /// Pre-computed 128-dim feature vectors per piece.
-/// Deserialized from rerank_features.json.
+/// Deserialized from `rerank_features.json`.
 #[derive(Debug, Clone, Deserialize)]
 pub struct RerankFeatures(pub HashMap<String, Vec<f64>>);
 
@@ -52,7 +52,10 @@ pub fn ngram_recall(notes: &[PerfNote], index: &NgramIndex) -> Vec<(String, usiz
     let mut hits: HashMap<String, usize> = HashMap::new();
 
     for window in notes.windows(3) {
-        let key = format!("{},{},{}", window[0].pitch, window[1].pitch, window[2].pitch);
+        let key = format!(
+            "{},{},{}",
+            window[0].pitch, window[1].pitch, window[2].pitch
+        );
         if let Some(entries) = index.0.get(&key) {
             for (piece_id, _bar) in entries {
                 *hits.entry(piece_id.clone()).or_insert(0) += 1;
@@ -93,7 +96,7 @@ pub fn compute_rerank_features(notes: &[PerfNote]) -> Vec<f64> {
         let mut interval_hist = [0.0_f64; 25];
         let interval_count = n - 1;
         for i in 1..n {
-            let interval = notes[i].pitch as i32 - notes[i - 1].pitch as i32;
+            let interval = i32::from(notes[i].pitch) - i32::from(notes[i - 1].pitch);
             let clamped = interval.clamp(-12, 12);
             let bin = (clamped + 12) as usize; // -12 -> 0, 0 -> 12, +12 -> 24
             interval_hist[bin] += 1.0;
@@ -105,9 +108,9 @@ pub fn compute_rerank_features(notes: &[PerfNote]) -> Vec<f64> {
 
     // [37:41] pitch stats: min/127, max/127, mean/127, std/127
     {
-        let pitches: Vec<f64> = notes.iter().map(|n| n.pitch as f64).collect();
-        let min_p = pitches.iter().cloned().fold(f64::INFINITY, f64::min);
-        let max_p = pitches.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+        let pitches: Vec<f64> = notes.iter().map(|n| f64::from(n.pitch)).collect();
+        let min_p = pitches.iter().copied().fold(f64::INFINITY, f64::min);
+        let max_p = pitches.iter().copied().fold(f64::NEG_INFINITY, f64::max);
         let mean_p = pitches.iter().sum::<f64>() / n as f64;
         let var_p = pitches.iter().map(|p| (p - mean_p).powi(2)).sum::<f64>() / n as f64;
         let std_p = var_p.sqrt();
@@ -147,9 +150,9 @@ pub fn compute_rerank_features(notes: &[PerfNote]) -> Vec<f64> {
 
     // [78:82] velocity stats: min/127, max/127, mean/127, std/127
     {
-        let vels: Vec<f64> = notes.iter().map(|n| n.velocity as f64).collect();
-        let min_v = vels.iter().cloned().fold(f64::INFINITY, f64::min);
-        let max_v = vels.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+        let vels: Vec<f64> = notes.iter().map(|n| f64::from(n.velocity)).collect();
+        let min_v = vels.iter().copied().fold(f64::INFINITY, f64::min);
+        let max_v = vels.iter().copied().fold(f64::NEG_INFINITY, f64::max);
         let mean_v = vels.iter().sum::<f64>() / n as f64;
         let var_v = vels.iter().map(|v| (v - mean_v).powi(2)).sum::<f64>() / n as f64;
         let std_v = var_v.sqrt();
@@ -328,7 +331,11 @@ mod tests {
             make_note(72, 1.5, 85),
         ];
         let features = compute_rerank_features(&notes);
-        assert_eq!(features.len(), 128, "Feature vector must be exactly 128 elements");
+        assert_eq!(
+            features.len(),
+            128,
+            "Feature vector must be exactly 128 elements"
+        );
     }
 
     #[test]
@@ -336,7 +343,9 @@ mod tests {
         let index = make_small_index();
         let features = RerankFeatures(HashMap::new());
         // Only 5 notes, below MIN_NOTES (10)
-        let notes: Vec<PerfNote> = (0..5).map(|i| make_note(60 + i as u8, i as f64 * 0.5, 80)).collect();
+        let notes: Vec<PerfNote> = (0..5)
+            .map(|i| make_note(60 + i as u8, i as f64 * 0.5, 80))
+            .collect();
         let result = identify_piece(&notes, &index, &features);
         assert!(result.is_none(), "Expected None for < 10 notes");
     }
@@ -346,7 +355,10 @@ mod tests {
         // All C4 notes -> pitch class 0 should be 1.0, rest 0.0
         let notes: Vec<PerfNote> = (0..4).map(|i| make_note(60, i as f64 * 0.5, 80)).collect();
         let features = compute_rerank_features(&notes);
-        assert!((features[0] - 1.0).abs() < 1e-10, "pitch class 0 should be 1.0");
+        assert!(
+            (features[0] - 1.0).abs() < 1e-10,
+            "pitch class 0 should be 1.0"
+        );
         for i in 1..12 {
             assert!(features[i].abs() < 1e-10, "pitch class {} should be 0.0", i);
         }
@@ -366,6 +378,10 @@ mod tests {
         let a = vec![1.0, 2.0, 3.0];
         let b = vec![0.0, 0.0, 0.0];
         let sim = cosine_similarity(&a, &b);
-        assert!(sim.abs() < 1e-10, "Expected 0.0 for zero vector, got {}", sim);
+        assert!(
+            sim.abs() < 1e-10,
+            "Expected 0.0 for zero vector, got {}",
+            sim
+        );
     }
 }

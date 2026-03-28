@@ -73,10 +73,10 @@ pub async fn handle_list_conversations(
     let results = db
         .prepare("SELECT id, title, updated_at FROM conversations WHERE student_id = ?1 ORDER BY updated_at DESC")
         .bind(&[JsValue::from_str(student_id)])
-        .map_err(|e| ApiError::Internal(format!("Failed to bind list query: {:?}", e)))?
+        .map_err(|e| ApiError::Internal(format!("Failed to bind list query: {e:?}")))?
         .all()
         .await
-        .map_err(|e| ApiError::Internal(format!("Failed to query conversations: {:?}", e)))?;
+        .map_err(|e| ApiError::Internal(format!("Failed to query conversations: {e:?}")))?;
 
     let rows: Vec<serde_json::Value> = results.results().unwrap_or_default();
     let conversations: Vec<ConversationSummary> = rows
@@ -84,7 +84,10 @@ pub async fn handle_list_conversations(
         .filter_map(|row| {
             Some(ConversationSummary {
                 id: row.get("id")?.as_str()?.to_string(),
-                title: row.get("title").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                title: row
+                    .get("title")
+                    .and_then(|v| v.as_str())
+                    .map(std::string::ToString::to_string),
                 updated_at: row.get("updated_at")?.as_str()?.to_string(),
             })
         })
@@ -105,29 +108,45 @@ pub async fn handle_get_conversation(
 
     // Fetch conversation (verify ownership)
     let conv_row: Option<serde_json::Value> = db
-        .prepare("SELECT id, title, created_at FROM conversations WHERE id = ?1 AND student_id = ?2")
-        .bind(&[JsValue::from_str(&conversation_id), JsValue::from_str(student_id)])
-        .map_err(|e| ApiError::Internal(format!("Failed to bind conversation query: {:?}", e)))?
+        .prepare(
+            "SELECT id, title, created_at FROM conversations WHERE id = ?1 AND student_id = ?2",
+        )
+        .bind(&[
+            JsValue::from_str(&conversation_id),
+            JsValue::from_str(student_id),
+        ])
+        .map_err(|e| ApiError::Internal(format!("Failed to bind conversation query: {e:?}")))?
         .first(None)
         .await
-        .map_err(|e| ApiError::Internal(format!("Failed to query conversation: {:?}", e)))?;
+        .map_err(|e| ApiError::Internal(format!("Failed to query conversation: {e:?}")))?;
 
     let conv_row = conv_row.ok_or_else(|| ApiError::NotFound("Conversation not found".into()))?;
 
     let conversation = ConversationDetail {
-        id: conv_row.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-        title: conv_row.get("title").and_then(|v| v.as_str()).map(|s| s.to_string()),
-        created_at: conv_row.get("created_at").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+        id: conv_row
+            .get("id")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string(),
+        title: conv_row
+            .get("title")
+            .and_then(|v| v.as_str())
+            .map(std::string::ToString::to_string),
+        created_at: conv_row
+            .get("created_at")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string(),
     };
 
     // Fetch messages
     let msg_results = db
         .prepare("SELECT id, role, content, created_at, message_type, dimension, framing, components_json, session_id FROM messages WHERE conversation_id = ?1 ORDER BY created_at ASC")
         .bind(&[JsValue::from_str(&conversation_id)])
-        .map_err(|e| ApiError::Internal(format!("Failed to bind messages query: {:?}", e)))?
+        .map_err(|e| ApiError::Internal(format!("Failed to bind messages query: {e:?}")))?
         .all()
         .await
-        .map_err(|e| ApiError::Internal(format!("Failed to query messages: {:?}", e)))?;
+        .map_err(|e| ApiError::Internal(format!("Failed to query messages: {e:?}")))?;
 
     let msg_rows: Vec<serde_json::Value> = msg_results.results().unwrap_or_default();
     let messages: Vec<MessageRow> = msg_rows
@@ -138,16 +157,34 @@ pub async fn handle_get_conversation(
                 role: row.get("role")?.as_str()?.to_string(),
                 content: row.get("content")?.as_str()?.to_string(),
                 created_at: row.get("created_at")?.as_str()?.to_string(),
-                message_type: row.get("message_type").and_then(|v| v.as_str()).map(|s| s.to_string()),
-                dimension: row.get("dimension").and_then(|v| v.as_str()).map(|s| s.to_string()),
-                framing: row.get("framing").and_then(|v| v.as_str()).map(|s| s.to_string()),
-                components_json: row.get("components_json").and_then(|v| v.as_str()).map(|s| s.to_string()),
-                session_id: row.get("session_id").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                message_type: row
+                    .get("message_type")
+                    .and_then(|v| v.as_str())
+                    .map(std::string::ToString::to_string),
+                dimension: row
+                    .get("dimension")
+                    .and_then(|v| v.as_str())
+                    .map(std::string::ToString::to_string),
+                framing: row
+                    .get("framing")
+                    .and_then(|v| v.as_str())
+                    .map(std::string::ToString::to_string),
+                components_json: row
+                    .get("components_json")
+                    .and_then(|v| v.as_str())
+                    .map(std::string::ToString::to_string),
+                session_id: row
+                    .get("session_id")
+                    .and_then(|v| v.as_str())
+                    .map(std::string::ToString::to_string),
             })
         })
         .collect();
 
-    Ok(Json(ConversationWithMessages { conversation, messages }))
+    Ok(Json(ConversationWithMessages {
+        conversation,
+        messages,
+    }))
 }
 
 /// DELETE /api/conversations/:id -- delete conversation and its messages
@@ -170,7 +207,10 @@ pub async fn handle_delete_conversation(
 
     if let Ok(stmt) = db
         .prepare("DELETE FROM conversations WHERE id = ?1 AND student_id = ?2")
-        .bind(&[JsValue::from_str(&conversation_id), JsValue::from_str(student_id)])
+        .bind(&[
+            JsValue::from_str(&conversation_id),
+            JsValue::from_str(student_id),
+        ])
     {
         let _ = stmt.run().await;
     }
@@ -185,11 +225,12 @@ use crate::services::prompts;
 use futures_util::StreamExt;
 
 fn format_sse(data: &serde_json::Value) -> Vec<u8> {
-    format!("event: message\ndata: {}\n\n", data).into_bytes()
+    format!("event: message\ndata: {data}\n\n").into_bytes()
 }
 
+#[allow(clippy::unwrap_used)] // from_bytes with valid UTF-8 bytes is infallible
 fn error_worker_response(status: u16, msg: &str) -> worker::Response {
-    let body = format!(r#"{{"error":"{}"}}"#, msg);
+    let body = format!(r#"{{"error":"{msg}"}}"#);
     let mut resp = worker::Response::from_bytes(body.into_bytes()).unwrap();
     resp = resp.with_status(status);
     let _ = resp.headers_mut().set("Content-Type", "application/json");
@@ -229,44 +270,62 @@ pub async fn handle_chat_stream(
         }
     };
 
-    let now = js_sys::Date::new_0().to_iso_string().as_string().unwrap_or_default();
+    let now = js_sys::Date::new_0()
+        .to_iso_string()
+        .as_string()
+        .unwrap_or_default();
 
     // Create or validate conversation
-    let conversation_id = match &request.conversation_id {
-        Some(id) => {
-            let exists = verify_conversation_ownership(&db, id, &student_id).await;
-            if !exists {
-                return error_worker_response(404, "Conversation not found");
-            }
-            if let Ok(stmt) = db
-                .prepare("UPDATE conversations SET updated_at = ?1 WHERE id = ?2")
-                .bind(&[JsValue::from_str(&now), JsValue::from_str(id)])
-            {
-                let _ = stmt.run().await;
-            }
-            id.clone()
+    let conversation_id = if let Some(id) = &request.conversation_id {
+        let exists = verify_conversation_ownership(&db, id, &student_id).await;
+        if !exists {
+            return error_worker_response(404, "Conversation not found");
         }
-        None => {
-            let id = crate::services::ask::generate_uuid();
-            if let Err(e) = create_conversation(&db, &id, &student_id, &now).await {
-                console_log!("Failed to create conversation: {}", e);
-                return error_worker_response(500, "Failed to create conversation");
-            }
-            id
+        if let Ok(stmt) = db
+            .prepare("UPDATE conversations SET updated_at = ?1 WHERE id = ?2")
+            .bind(&[JsValue::from_str(&now), JsValue::from_str(id)])
+        {
+            let _ = stmt.run().await;
         }
+        id.clone()
+    } else {
+        let id = crate::services::ask::generate_uuid();
+        if let Err(e) = create_conversation(&db, &id, &student_id, &now).await {
+            console_log!("Failed to create conversation: {}", e);
+            return error_worker_response(500, "Failed to create conversation");
+        }
+        id
     };
 
     // Store user message
     let user_msg_id = crate::services::ask::generate_uuid();
-    if let Err(e) = store_message(&db, &user_msg_id, &conversation_id, "user", &request.message, &now).await {
+    if let Err(e) = store_message(
+        &db,
+        &user_msg_id,
+        &conversation_id,
+        "user",
+        &request.message,
+        &now,
+    )
+    .await
+    {
         console_log!("Failed to store user message: {}", e);
     }
 
     // Fetch conversation history, student context, and memory
-    let history = fetch_messages(&db, &conversation_id).await.unwrap_or_default();
+    let history = fetch_messages(&db, &conversation_id)
+        .await
+        .unwrap_or_default();
     let student_row = fetch_student_row(&db, &student_id).await;
     let today = &now[..10.min(now.len())];
-    let memory_ctx = crate::services::memory::build_memory_context(env, &student_id, None, today, Some(&request.message)).await;
+    let memory_ctx = crate::services::memory::build_memory_context(
+        env,
+        &student_id,
+        None,
+        today,
+        Some(&request.message),
+    )
+    .await;
     let memory_patterns = crate::services::memory::format_chat_memory_patterns(&memory_ctx);
     let recent_obs = crate::services::memory::format_chat_recent_observations(&memory_ctx);
     let student_facts = crate::services::memory::format_student_reported_context(&memory_ctx);
@@ -294,11 +353,10 @@ pub async fn handle_chat_stream(
                 let dim = msg.dimension.as_deref().unwrap_or("unknown");
                 format!("[Practice observation on {}]: {}", dim, msg.content)
             }
-            Some("session_start") | Some("session_end") => {
+            Some("session_start" | "session_end") => {
                 format!("[{}]", msg.content)
             }
-            Some("summary") | Some("chat") | None => msg.content.clone(),
-            Some(_) => msg.content.clone(),
+            Some("summary" | "chat" | _) | None => msg.content.clone(),
         };
         llm_messages.push(llm::LlmMessage {
             role: msg.role.clone(),
@@ -320,13 +378,26 @@ pub async fn handle_chat_stream(
             console_log!("Anthropic stream call failed: {}", e);
             let assistant_msg_id = crate::services::ask::generate_uuid();
             let fallback = "I'm having trouble responding right now. Could you try again?";
-            let _ = store_message(&db, &assistant_msg_id, &conversation_id, "assistant", fallback, &now).await;
+            let _ = store_message(
+                &db,
+                &assistant_msg_id,
+                &conversation_id,
+                "assistant",
+                fallback,
+                &now,
+            )
+            .await;
 
             let mut sse = Vec::new();
             sse.extend_from_slice(&format_sse(&serde_json::json!({"type": "start", "conversation_id": conversation_id, "message_id": assistant_msg_id})));
-            sse.extend_from_slice(&format_sse(&serde_json::json!({"type": "delta", "text": fallback})));
-            sse.extend_from_slice(&format_sse(&serde_json::json!({"type": "done", "message_id": assistant_msg_id})));
+            sse.extend_from_slice(&format_sse(
+                &serde_json::json!({"type": "delta", "text": fallback}),
+            ));
+            sse.extend_from_slice(&format_sse(
+                &serde_json::json!({"type": "done", "message_id": assistant_msg_id}),
+            ));
 
+            #[allow(clippy::unwrap_used)] // from_bytes with valid SSE bytes is infallible
             let mut resp = worker::Response::from_bytes(sse).unwrap();
             resp = resp.with_status(200);
             let _ = resp.headers_mut().set("Content-Type", "text/event-stream");
@@ -345,7 +416,8 @@ pub async fn handle_chat_stream(
     };
 
     // Set up a channel to feed our SSE events to the response stream
-    let (tx, rx) = futures_channel::mpsc::unbounded::<std::result::Result<Vec<u8>, worker::Error>>();
+    let (tx, rx) =
+        futures_channel::mpsc::unbounded::<std::result::Result<Vec<u8>, worker::Error>>();
 
     let assistant_msg_id = crate::services::ask::generate_uuid();
     let is_first_exchange = history.len() <= 1;
@@ -389,7 +461,8 @@ pub async fn handle_chat_stream(
                         continue;
                     }
                     if let Ok(event) = serde_json::from_str::<serde_json::Value>(data) {
-                        if event.get("type").and_then(|t| t.as_str()) == Some("content_block_delta") {
+                        if event.get("type").and_then(|t| t.as_str()) == Some("content_block_delta")
+                        {
                             if let Some(delta_text) = event
                                 .get("delta")
                                 .and_then(|d| d.get("text"))
@@ -420,8 +493,20 @@ pub async fn handle_chat_stream(
 
         // Store assistant message in D1 (before closing stream -- Workers
         // runtime may terminate outbound fetches after the response ends)
-        let assistant_now = js_sys::Date::new_0().to_iso_string().as_string().unwrap_or_default();
-        if let Err(e) = store_message(&db, &assistant_msg_id, &conversation_id, "assistant", &full_text, &assistant_now).await {
+        let assistant_now = js_sys::Date::new_0()
+            .to_iso_string()
+            .as_string()
+            .unwrap_or_default();
+        if let Err(e) = store_message(
+            &db,
+            &assistant_msg_id,
+            &conversation_id,
+            "assistant",
+            &full_text,
+            &assistant_now,
+        )
+        .await
+        {
             console_log!("Failed to store assistant message: {}", e);
         }
 
@@ -432,8 +517,13 @@ pub async fn handle_chat_stream(
 
         // Extract and store chat memory facts
         if let Err(e) = crate::services::memory::extract_and_store_chat_facts(
-            &env_clone, &student_id_clone, &user_message_clone, &full_text,
-        ).await {
+            &env_clone,
+            &student_id_clone,
+            &user_message_clone,
+            &full_text,
+        )
+        .await
+        {
             console_log!("Chat memory extraction failed (non-fatal): {}", e);
         }
 
@@ -443,6 +533,7 @@ pub async fn handle_chat_stream(
     });
 
     // Return streaming response immediately
+    #[allow(clippy::unwrap_used)] // from_stream with valid ReadableStream is infallible
     let mut resp = worker::Response::from_stream(rx).unwrap();
     resp = resp.with_status(200);
     let _ = resp.headers_mut().set("Content-Type", "text/event-stream");
@@ -452,15 +543,16 @@ pub async fn handle_chat_stream(
 
 // --- Helper functions ---
 
-async fn verify_conversation_ownership(db: &worker::D1Database, id: &str, student_id: &str) -> bool {
+async fn verify_conversation_ownership(
+    db: &worker::D1Database,
+    id: &str,
+    student_id: &str,
+) -> bool {
     match db
         .prepare("SELECT id FROM conversations WHERE id = ?1 AND student_id = ?2")
         .bind(&[JsValue::from_str(id), JsValue::from_str(student_id)])
     {
-        Ok(stmt) => match stmt.first::<serde_json::Value>(None).await {
-            Ok(Some(_)) => true,
-            _ => false,
-        },
+        Ok(stmt) => matches!(stmt.first::<serde_json::Value>(None).await, Ok(Some(_))),
         Err(_) => false,
     }
 }
@@ -478,10 +570,10 @@ async fn create_conversation(
             JsValue::from_str(now),
             JsValue::from_str(now),
         ])
-        .map_err(|e| format!("Failed to bind create conversation: {:?}", e))?
+        .map_err(|e| format!("Failed to bind create conversation: {e:?}"))?
         .run()
         .await
-        .map_err(|e| format!("Failed to insert conversation: {:?}", e))?;
+        .map_err(|e| format!("Failed to insert conversation: {e:?}"))?;
     Ok(())
 }
 
@@ -501,20 +593,26 @@ async fn store_message(
             JsValue::from_str(content),
             JsValue::from_str(now),
         ])
-        .map_err(|e| format!("Failed to bind insert message: {:?}", e))?
+        .map_err(|e| format!("Failed to bind insert message: {e:?}"))?
         .run()
         .await
-        .map_err(|e| format!("Failed to insert message: {:?}", e))?;
+        .map_err(|e| format!("Failed to insert message: {e:?}"))?;
     Ok(())
 }
 
-async fn fetch_messages(db: &worker::D1Database, conversation_id: &str) -> std::result::Result<Vec<MessageRow>, String> {
+async fn fetch_messages(
+    db: &worker::D1Database,
+    conversation_id: &str,
+) -> std::result::Result<Vec<MessageRow>, String> {
     let stmt = db
         .prepare("SELECT id, role, content, created_at, message_type, dimension, framing, components_json, session_id FROM messages WHERE conversation_id = ?1 ORDER BY created_at ASC")
         .bind(&[JsValue::from_str(conversation_id)])
-        .map_err(|e| format!("Failed to bind fetch messages: {:?}", e))?;
+        .map_err(|e| format!("Failed to bind fetch messages: {e:?}"))?;
 
-    let results = stmt.all().await.map_err(|e| format!("Failed to query messages: {:?}", e))?;
+    let results = stmt
+        .all()
+        .await
+        .map_err(|e| format!("Failed to query messages: {e:?}"))?;
     let rows: Vec<serde_json::Value> = results.results().unwrap_or_default();
 
     Ok(rows
@@ -525,11 +623,26 @@ async fn fetch_messages(db: &worker::D1Database, conversation_id: &str) -> std::
                 role: row.get("role")?.as_str()?.to_string(),
                 content: row.get("content")?.as_str()?.to_string(),
                 created_at: row.get("created_at")?.as_str()?.to_string(),
-                message_type: row.get("message_type").and_then(|v| v.as_str()).map(|s| s.to_string()),
-                dimension: row.get("dimension").and_then(|v| v.as_str()).map(|s| s.to_string()),
-                framing: row.get("framing").and_then(|v| v.as_str()).map(|s| s.to_string()),
-                components_json: row.get("components_json").and_then(|v| v.as_str()).map(|s| s.to_string()),
-                session_id: row.get("session_id").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                message_type: row
+                    .get("message_type")
+                    .and_then(|v| v.as_str())
+                    .map(std::string::ToString::to_string),
+                dimension: row
+                    .get("dimension")
+                    .and_then(|v| v.as_str())
+                    .map(std::string::ToString::to_string),
+                framing: row
+                    .get("framing")
+                    .and_then(|v| v.as_str())
+                    .map(std::string::ToString::to_string),
+                components_json: row
+                    .get("components_json")
+                    .and_then(|v| v.as_str())
+                    .map(std::string::ToString::to_string),
+                session_id: row
+                    .get("session_id")
+                    .and_then(|v| v.as_str())
+                    .map(std::string::ToString::to_string),
             })
         })
         .collect())
@@ -544,14 +657,32 @@ async fn fetch_student_row(db: &worker::D1Database, student_id: &str) -> Option<
         .ok()?
 }
 
-async fn generate_title(env: &Env, db: &worker::D1Database, conversation_id: &str, user_msg: &str, assistant_msg: &str) {
+async fn generate_title(
+    env: &Env,
+    db: &worker::D1Database,
+    conversation_id: &str,
+    user_msg: &str,
+    assistant_msg: &str,
+) {
     let prompt = prompts::build_title_prompt(user_msg, assistant_msg);
-    match llm::call_workers_ai(env, llm::WORKERS_AI_CHEAP_MODEL, "Generate a short title.", &prompt, 0.3, 30).await {
+    match llm::call_workers_ai(
+        env,
+        llm::WORKERS_AI_CHEAP_MODEL,
+        "Generate a short title.",
+        &prompt,
+        0.3,
+        30,
+    )
+    .await
+    {
         Ok(title) => {
             let title = title.trim().trim_matches('"').to_string();
             if let Ok(stmt) = db
                 .prepare("UPDATE conversations SET title = ?1 WHERE id = ?2")
-                .bind(&[JsValue::from_str(&title), JsValue::from_str(conversation_id)])
+                .bind(&[
+                    JsValue::from_str(&title),
+                    JsValue::from_str(conversation_id),
+                ])
             {
                 let _ = stmt.run().await;
             }

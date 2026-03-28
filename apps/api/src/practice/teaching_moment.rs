@@ -20,7 +20,7 @@ impl DimStats {
             let m2 = self.m2s.entry(dim.clone()).or_insert(0.0);
 
             let delta = value - *mean;
-            *mean += delta / n as f64;
+            *mean += delta / f64::from(n);
             let delta2 = value - *mean;
             *m2 += delta * delta2;
         }
@@ -28,9 +28,11 @@ impl DimStats {
 
     fn stddev(&self, dim: &str) -> f64 {
         let count = self.counts.get(dim).copied().unwrap_or(0);
-        if count < 2 { return f64::MAX }
+        if count < 2 {
+            return f64::MAX;
+        }
         let m2 = self.m2s.get(dim).copied().unwrap_or(0.0);
-        (m2 / (count - 1) as f64).sqrt()
+        (m2 / f64::from(count - 1)).sqrt()
     }
 
     fn mean(&self, dim: &str) -> f64 {
@@ -50,10 +52,14 @@ impl DimStats {
 
         for (dim, &value) in scores {
             let count = self.counts.get(dim.as_str()).copied().unwrap_or(0);
-            if count < min_chunks { continue; }
+            if count < min_chunks {
+                continue;
+            }
 
             let std = self.stddev(dim);
-            if std == 0.0 || std == f64::MAX { continue; }
+            if std == 0.0 || std == f64::MAX {
+                continue;
+            }
 
             let z = (value - self.mean(dim)).abs() / std;
             if z > threshold {

@@ -1,6 +1,6 @@
 //! Subsequence DTW score follower: maps AMT performance notes from a 15s chunk
 //! to bar numbers in the score using onset+pitch alignment. Maintains cross-chunk
-//! continuity via FollowerState.
+//! continuity via `FollowerState`.
 
 use super::score_context::{ScoreBar, ScoreData};
 
@@ -54,8 +54,8 @@ pub struct FollowerState {
     pub last_known_bar: Option<u32>,
 }
 
-/// Flatten score bars into (onset_seconds, pitch, bar_number, beat) tuples.
-/// Uses index-based bar duration: bars[i+1].start_seconds - bars[i].start_seconds.
+/// Flatten score bars into (`onset_seconds`, pitch, `bar_number`, beat) tuples.
+/// Uses index-based bar duration: bars[i+1].`start_seconds` - bars[i].`start_seconds`.
 fn flatten_score_notes(bars: &[ScoreBar]) -> Vec<(f64, u8, u32, f64)> {
     let mut result = Vec::new();
     for (i, bar) in bars.iter().enumerate() {
@@ -63,7 +63,11 @@ fn flatten_score_notes(bars: &[ScoreBar]) -> Vec<(f64, u8, u32, f64)> {
             bars[i + 1].start_seconds - bar.start_seconds
         } else {
             // Last bar: estimate from note durations or use a default
-            let max_note_end = bar.notes.iter().map(|n| n.onset_seconds + n.duration_seconds).fold(0.0_f64, f64::max);
+            let max_note_end = bar
+                .notes
+                .iter()
+                .map(|n| n.onset_seconds + n.duration_seconds)
+                .fold(0.0_f64, f64::max);
             if max_note_end > bar.start_seconds {
                 max_note_end - bar.start_seconds
             } else {
@@ -89,7 +93,7 @@ fn pitch_penalty(p1: u8, p2: u8) -> f64 {
     if p1 == p2 {
         0.0
     } else {
-        let diff = (p1 as i16 - p2 as i16).unsigned_abs();
+        let diff = (i16::from(p1) - i16::from(p2)).unsigned_abs();
         if diff == 1 {
             0.125
         } else if diff == 12 {
@@ -102,12 +106,10 @@ fn pitch_penalty(p1: u8, p2: u8) -> f64 {
 
 /// Subsequence DTW alignment of perf notes against score notes.
 ///
-/// Returns (path, normalized_cost) where path is Vec<(perf_idx, score_idx)>.
+/// Returns (path, `normalized_cost`) where path is Vec<(`perf_idx`, `score_idx`)>.
 /// Subsequence DTW initializes dtw[0][j] = 0 for all j (free start in score).
-fn subsequence_dtw(
-    perf: &[(f64, u8)],
-    score: &[(f64, u8)],
-) -> (Vec<(usize, usize)>, f64) {
+#[allow(clippy::needless_range_loop)] // DTW matrix indexed access is clearer than iterators
+fn subsequence_dtw(perf: &[(f64, u8)], score: &[(f64, u8)]) -> (Vec<(usize, usize)>, f64) {
     if perf.is_empty() || score.is_empty() {
         return (vec![], f64::MAX);
     }
@@ -143,11 +145,19 @@ fn subsequence_dtw(
 
     // Find best endpoint in last row (minimum cost end in score)
     let best_j = (0..m)
-        .min_by(|&a, &b| dtw[n - 1][a].partial_cmp(&dtw[n - 1][b]).unwrap_or(std::cmp::Ordering::Equal))
+        .min_by(|&a, &b| {
+            dtw[n - 1][a]
+                .partial_cmp(&dtw[n - 1][b])
+                .unwrap_or(std::cmp::Ordering::Equal)
+        })
         .unwrap_or(0);
 
     let total_cost = dtw[n - 1][best_j];
-    let normalized_cost = if n > 0 { total_cost / n as f64 } else { f64::MAX };
+    let normalized_cost = if n > 0 {
+        total_cost / n as f64
+    } else {
+        f64::MAX
+    };
 
     // Backtrace path
     let path = backtrace(&dtw, n - 1, best_j);
@@ -183,7 +193,7 @@ fn backtrace(dtw: &[Vec<f64>], mut i: usize, mut j: usize) -> Vec<(usize, usize)
     path
 }
 
-/// Run DTW over a score window and return (path, cost, window_start_idx).
+/// Run DTW over a score window and return (path, cost, `window_start_idx`).
 fn run_dtw_on_window(
     perf_seq: &[(f64, u8)],
     score_notes: &[(f64, u8, u32, f64)],
@@ -202,7 +212,7 @@ fn run_dtw_on_window(
     subsequence_dtw(perf_seq, &window)
 }
 
-/// Build a BarMap from the DTW alignment path.
+/// Build a `BarMap` from the DTW alignment path.
 fn build_bar_map(
     chunk_index: usize,
     perf_notes: &[PerfNote],
@@ -233,8 +243,8 @@ fn build_bar_map(
         let mut sorted = onset_offsets.clone();
         sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
         let mid = sorted.len() / 2;
-        if sorted.len() % 2 == 0 {
-            (sorted[mid - 1] + sorted[mid]) / 2.0
+        if sorted.len().is_multiple_of(2) {
+            f64::midpoint(sorted[mid - 1], sorted[mid])
         } else {
             sorted[mid]
         }
@@ -244,7 +254,8 @@ fn build_bar_map(
     let mut bars_seen = std::collections::BTreeSet::new();
 
     // Deduplicate: take the last path entry for each perf note index
-    let mut best_per_perf: std::collections::BTreeMap<usize, usize> = std::collections::BTreeMap::new();
+    let mut best_per_perf: std::collections::BTreeMap<usize, usize> =
+        std::collections::BTreeMap::new();
     for &(pi, si) in path {
         best_per_perf.insert(pi, si);
     }
@@ -276,7 +287,11 @@ fn build_bar_map(
         });
     }
 
-    alignments.sort_by(|a, b| a.perf_onset.partial_cmp(&b.perf_onset).unwrap_or(std::cmp::Ordering::Equal));
+    alignments.sort_by(|a, b| {
+        a.perf_onset
+            .partial_cmp(&b.perf_onset)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
 
     let bar_start = bars_seen.iter().next().copied().unwrap_or(1);
     let bar_end = bars_seen.iter().next_back().copied().unwrap_or(bar_start);
@@ -291,21 +306,27 @@ fn build_bar_map(
     }
 }
 
-/// Find the index range in score_notes that corresponds to bars [bar_min, bar_max].
+/// Find the index range in `score_notes` that corresponds to bars [`bar_min`, `bar_max`].
 fn find_bar_index_range(
     score_notes: &[(f64, u8, u32, f64)],
     bar_min: u32,
     bar_max: u32,
 ) -> (usize, usize) {
-    let start = score_notes.iter().position(|&(_, _, bar, _)| bar >= bar_min).unwrap_or(0);
-    let end = score_notes.iter().rposition(|&(_, _, bar, _)| bar <= bar_max).map(|i| i + 1).unwrap_or(score_notes.len());
+    let start = score_notes
+        .iter()
+        .position(|&(_, _, bar, _)| bar >= bar_min)
+        .unwrap_or(0);
+    let end = score_notes
+        .iter()
+        .rposition(|&(_, _, bar, _)| bar <= bar_max)
+        .map_or(score_notes.len(), |i| i + 1);
     (start, end.max(start))
 }
 
 /// Main entry point: align a chunk of performance notes to the score.
 ///
-/// Uses last_known_bar to restrict the search window. If the narrow-window cost
-/// exceeds REANCHOR_COST_THRESHOLD, re-scans the full score.
+/// Uses `last_known_bar` to restrict the search window. If the narrow-window cost
+/// exceeds `REANCHOR_COST_THRESHOLD`, re-scans the full score.
 pub fn align_chunk(
     chunk_index: usize,
     _chunk_offset_seconds: f64,
@@ -332,25 +353,27 @@ pub fn align_chunk(
     let max_bar = score.bars.iter().map(|b| b.bar_number).max().unwrap_or(1);
 
     // Determine search window
-    let (window_start_idx, window_end_idx, is_reanchored) = if let Some(last_bar) = state.last_known_bar {
-        let bar_min = last_bar.saturating_sub(5);
-        let bar_max = (last_bar + SEARCH_WINDOW_BARS).min(max_bar);
-        let (start_idx, end_idx) = find_bar_index_range(&score_notes, bar_min, bar_max);
+    let (window_start_idx, window_end_idx, is_reanchored) =
+        if let Some(last_bar) = state.last_known_bar {
+            let bar_min = last_bar.saturating_sub(5);
+            let bar_max = (last_bar + SEARCH_WINDOW_BARS).min(max_bar);
+            let (start_idx, end_idx) = find_bar_index_range(&score_notes, bar_min, bar_max);
 
-        // Normalize score window relative to its start onset
-        let (path, cost) = run_dtw_on_window(&perf_seq, &score_notes, start_idx, end_idx);
+            // Normalize score window relative to its start onset
+            let (path, cost) = run_dtw_on_window(&perf_seq, &score_notes, start_idx, end_idx);
 
-        if cost <= REANCHOR_COST_THRESHOLD || path.is_empty() {
-            (start_idx, end_idx, false)
+            if cost <= REANCHOR_COST_THRESHOLD || path.is_empty() {
+                (start_idx, end_idx, false)
+            } else {
+                // Cost too high in narrow window -- re-scan full score
+                let (full_path, _full_cost) =
+                    run_dtw_on_window(&perf_seq, &score_notes, 0, score_notes.len());
+                let _ = full_path; // path returned from final call below
+                (0, score_notes.len(), true)
+            }
         } else {
-            // Cost too high in narrow window -- re-scan full score
-            let (full_path, _full_cost) = run_dtw_on_window(&perf_seq, &score_notes, 0, score_notes.len());
-            let _ = full_path; // path returned from final call below
-            (0, score_notes.len(), true)
-        }
-    } else {
-        (0, score_notes.len(), false)
-    };
+            (0, score_notes.len(), false)
+        };
 
     if window_start_idx >= window_end_idx {
         return None;
@@ -380,8 +403,8 @@ pub fn align_chunk(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::score_context::{ScoreBar, ScoreData, ScoreNote};
+    use super::*;
 
     fn make_score_note(pitch: u8, onset_seconds: f64) -> ScoreNote {
         ScoreNote {
@@ -402,7 +425,10 @@ mod tests {
             start_tick: (start_sec * 480.0) as u32,
             start_seconds: start_sec,
             time_signature: "4/4".to_string(),
-            notes: notes.into_iter().map(|(pitch, onset)| make_score_note(pitch, onset)).collect(),
+            notes: notes
+                .into_iter()
+                .map(|(pitch, onset)| make_score_note(pitch, onset))
+                .collect(),
             pedal_events: vec![],
             note_count: 0, // will be set correctly by the struct but not validated here
             pitch_range: vec![],
@@ -437,12 +463,7 @@ mod tests {
     #[test]
     fn aligns_simple_ascending_scale() {
         // C4=60, D4=62, E4=64, F4=65
-        let bar1 = make_score_bar(1, 0.0, vec![
-            (60, 0.0),
-            (62, 0.5),
-            (64, 1.0),
-            (65, 1.5),
-        ]);
+        let bar1 = make_score_bar(1, 0.0, vec![(60, 0.0), (62, 0.5), (64, 1.0), (65, 1.5)]);
         let score = make_score(vec![bar1]);
 
         // Performance slightly shifted by +0.1s
@@ -475,18 +496,9 @@ mod tests {
     // Test 2: notes spanning bars 1-3
     #[test]
     fn aligns_across_bars() {
-        let bar1 = make_score_bar(1, 0.0, vec![
-            (60, 0.0),
-            (62, 0.5),
-        ]);
-        let bar2 = make_score_bar(2, 1.0, vec![
-            (64, 1.0),
-            (65, 1.5),
-        ]);
-        let bar3 = make_score_bar(3, 2.0, vec![
-            (67, 2.0),
-            (69, 2.5),
-        ]);
+        let bar1 = make_score_bar(1, 0.0, vec![(60, 0.0), (62, 0.5)]);
+        let bar2 = make_score_bar(2, 1.0, vec![(64, 1.0), (65, 1.5)]);
+        let bar3 = make_score_bar(3, 2.0, vec![(67, 2.0), (69, 2.5)]);
         let score = make_score(vec![bar1, bar2, bar3]);
 
         // Performance closely matches score
@@ -504,26 +516,25 @@ mod tests {
 
         assert!(result.is_some(), "Expected alignment result");
         let bar_map = result.unwrap();
-        assert!(bar_map.bar_start >= 1 && bar_map.bar_end <= 3, "Bars should be within range 1-3");
-        assert!(bar_map.bar_end >= bar_map.bar_start, "bar_end should be >= bar_start");
+        assert!(
+            bar_map.bar_start >= 1 && bar_map.bar_end <= 3,
+            "Bars should be within range 1-3"
+        );
+        assert!(
+            bar_map.bar_end >= bar_map.bar_start,
+            "bar_end should be >= bar_start"
+        );
         assert_eq!(state.last_known_bar, Some(bar_map.bar_end));
     }
 
     // Test 3: too few notes returns None
     #[test]
     fn too_few_notes_returns_none() {
-        let bar1 = make_score_bar(1, 0.0, vec![
-            (60, 0.0),
-            (62, 0.5),
-            (64, 1.0),
-        ]);
+        let bar1 = make_score_bar(1, 0.0, vec![(60, 0.0), (62, 0.5), (64, 1.0)]);
         let score = make_score(vec![bar1]);
 
         // Only 2 notes -- below MIN_PERF_NOTES (3)
-        let perf_notes = vec![
-            make_perf_note(60, 0.0),
-            make_perf_note(62, 0.5),
-        ];
+        let perf_notes = vec![make_perf_note(60, 0.0), make_perf_note(62, 0.5)];
 
         let mut state = FollowerState::default();
         let result = align_chunk(0, 0.0, &perf_notes, &score, &mut state);
@@ -534,21 +545,9 @@ mod tests {
     // Test 4: cross-chunk continuity -- second chunk starts from last_known_bar
     #[test]
     fn continuity_across_chunks() {
-        let bar1 = make_score_bar(1, 0.0, vec![
-            (60, 0.0),
-            (62, 0.5),
-            (64, 1.0),
-        ]);
-        let bar2 = make_score_bar(2, 2.0, vec![
-            (65, 2.0),
-            (67, 2.5),
-            (69, 3.0),
-        ]);
-        let bar3 = make_score_bar(3, 4.0, vec![
-            (71, 4.0),
-            (72, 4.5),
-            (74, 5.0),
-        ]);
+        let bar1 = make_score_bar(1, 0.0, vec![(60, 0.0), (62, 0.5), (64, 1.0)]);
+        let bar2 = make_score_bar(2, 2.0, vec![(65, 2.0), (67, 2.5), (69, 3.0)]);
+        let bar3 = make_score_bar(3, 4.0, vec![(71, 4.0), (72, 4.5), (74, 5.0)]);
         let score = make_score(vec![bar1, bar2, bar3]);
 
         // First chunk: bar 1 notes
@@ -561,7 +560,10 @@ mod tests {
         let mut state = FollowerState::default();
         let result1 = align_chunk(0, 0.0, &chunk1_notes, &score, &mut state);
         assert!(result1.is_some(), "Chunk 1 should align");
-        assert!(state.last_known_bar.is_some(), "State should be updated after chunk 1");
+        assert!(
+            state.last_known_bar.is_some(),
+            "State should be updated after chunk 1"
+        );
 
         let last_bar_after_chunk1 = state.last_known_bar.unwrap();
 
@@ -577,28 +579,34 @@ mod tests {
 
         let bar_map2 = result2.unwrap();
         // Second chunk should align to bar 2 or 3, not restart from bar 1
-        assert!(bar_map2.bar_start >= last_bar_after_chunk1.saturating_sub(5),
-                "Second chunk should not regress far back from last known bar");
+        assert!(
+            bar_map2.bar_start >= last_bar_after_chunk1.saturating_sub(5),
+            "Second chunk should not regress far back from last known bar"
+        );
         assert_eq!(state.last_known_bar, Some(bar_map2.bar_end));
     }
 
     // Test 5: octave error -- C5 (72) instead of C4 (60) from AMT
     #[test]
     fn handles_octave_error() {
-        let bar1 = make_score_bar(1, 0.0, vec![
-            (60, 0.0),  // C4
-            (62, 0.5),  // D4
-            (64, 1.0),  // E4
-            (65, 1.5),  // F4
-        ]);
+        let bar1 = make_score_bar(
+            1,
+            0.0,
+            vec![
+                (60, 0.0), // C4
+                (62, 0.5), // D4
+                (64, 1.0), // E4
+                (65, 1.5), // F4
+            ],
+        );
         let score = make_score(vec![bar1]);
 
         // AMT outputs C5 (72) instead of C4 (60) for the first note
         let perf_notes = vec![
-            make_perf_note(72, 0.0),  // octave error
-            make_perf_note(62, 0.5),  // correct
-            make_perf_note(64, 1.0),  // correct
-            make_perf_note(65, 1.5),  // correct
+            make_perf_note(72, 0.0), // octave error
+            make_perf_note(62, 0.5), // correct
+            make_perf_note(64, 1.0), // correct
+            make_perf_note(65, 1.5), // correct
         ];
 
         let mut state = FollowerState::default();
@@ -612,7 +620,10 @@ mod tests {
         // The octave-errored note should align to score pitch 60 with octave penalty
         let first_alignment = bar_map.alignments.iter().find(|a| a.perf_pitch == 72);
         if let Some(alignment) = first_alignment {
-            assert_eq!(alignment.score_pitch, 60, "Octave note should align to C4 in score");
+            assert_eq!(
+                alignment.score_pitch, 60,
+                "Octave note should align to C4 in score"
+            );
         }
     }
 }

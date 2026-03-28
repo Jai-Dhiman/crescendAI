@@ -5,7 +5,7 @@ use wasm_bindgen::JsValue;
 use worker::{console_error, Env};
 
 use super::piece_identify::{NgramIndex, RerankFeatures};
-use super::piece_match::{CatalogPiece, MatchResult, match_piece};
+use super::piece_match::{match_piece, CatalogPiece, MatchResult};
 
 #[derive(Debug, Clone, serde::Deserialize)]
 pub struct ScoreNote {
@@ -82,7 +82,7 @@ pub struct ScoreContext {
     pub match_confidence: f64,
 }
 
-/// Load the piece catalog from D1 (piece_id, composer, title only).
+/// Load the piece catalog from D1 (`piece_id`, composer, title only).
 pub async fn load_catalog(env: &Env) -> Vec<CatalogPiece> {
     let db = match env.d1("DB") {
         Ok(db) => db,
@@ -116,10 +116,23 @@ pub async fn load_catalog(env: &Env) -> Vec<CatalogPiece> {
     results
         .into_iter()
         .filter_map(|row| {
-            let piece_id = row.get("piece_id").and_then(|v| v.as_str()).map(String::from)?;
-            let composer = row.get("composer").and_then(|v| v.as_str()).map(String::from)?;
-            let title = row.get("title").and_then(|v| v.as_str()).map(String::from)?;
-            Some(CatalogPiece { piece_id, composer, title })
+            let piece_id = row
+                .get("piece_id")
+                .and_then(|v| v.as_str())
+                .map(String::from)?;
+            let composer = row
+                .get("composer")
+                .and_then(|v| v.as_str())
+                .map(String::from)?;
+            let title = row
+                .get("title")
+                .and_then(|v| v.as_str())
+                .map(String::from)?;
+            Some(CatalogPiece {
+                piece_id,
+                composer,
+                title,
+            })
         })
         .collect()
 }
@@ -128,26 +141,26 @@ pub async fn load_catalog(env: &Env) -> Vec<CatalogPiece> {
 pub async fn load_score(env: &Env, piece_id: &str) -> Result<ScoreData, String> {
     let bucket = env
         .bucket("SCORES")
-        .map_err(|e| format!("SCORES R2 binding failed: {:?}", e))?;
+        .map_err(|e| format!("SCORES R2 binding failed: {e:?}"))?;
 
-    let key = format!("scores/v1/{}.json", piece_id);
+    let key = format!("scores/v1/{piece_id}.json");
 
     let object = bucket
         .get(&key)
         .execute()
         .await
-        .map_err(|e| format!("R2 get failed for {}: {:?}", key, e))?
-        .ok_or_else(|| format!("Score not found in R2: {}", key))?;
+        .map_err(|e| format!("R2 get failed for {key}: {e:?}"))?
+        .ok_or_else(|| format!("Score not found in R2: {key}"))?;
 
     let bytes = object
         .body()
-        .ok_or_else(|| format!("R2 object {} has no body", key))?
+        .ok_or_else(|| format!("R2 object {key} has no body"))?
         .bytes()
         .await
-        .map_err(|e| format!("R2 body read failed for {}: {:?}", key, e))?;
+        .map_err(|e| format!("R2 body read failed for {key}: {e:?}"))?;
 
     serde_json::from_slice::<ScoreData>(&bytes)
-        .map_err(|e| format!("Score JSON parse failed for {}: {:?}", piece_id, e))
+        .map_err(|e| format!("Score JSON parse failed for {piece_id}: {e:?}"))
 }
 
 /// Fetch and deserialize reference profile from R2 at `references/v1/{piece_id}.json`.
@@ -156,12 +169,16 @@ pub async fn load_reference(env: &Env, piece_id: &str) -> Option<ReferenceProfil
     let bucket = match env.bucket("SCORES") {
         Ok(b) => b,
         Err(e) => {
-            console_error!("SCORES R2 binding failed for reference {}: {:?}", piece_id, e);
+            console_error!(
+                "SCORES R2 binding failed for reference {}: {:?}",
+                piece_id,
+                e
+            );
             return None;
         }
     };
 
-    let key = format!("references/v1/{}.json", piece_id);
+    let key = format!("references/v1/{piece_id}.json");
 
     let object = match bucket.get(&key).execute().await {
         Ok(Some(obj)) => obj,
@@ -172,18 +189,17 @@ pub async fn load_reference(env: &Env, piece_id: &str) -> Option<ReferenceProfil
         }
     };
 
-    let bytes = match object.body() {
-        Some(body) => match body.bytes().await {
+    let bytes = if let Some(body) = object.body() {
+        match body.bytes().await {
             Ok(b) => b,
             Err(e) => {
                 console_error!("R2 body read failed for reference {}: {:?}", key, e);
                 return None;
             }
-        },
-        None => {
-            console_error!("R2 reference object {} has no body", key);
-            return None;
         }
+    } else {
+        console_error!("R2 reference object {} has no body", key);
+        return None;
     };
 
     match serde_json::from_slice::<ReferenceProfile>(&bytes) {
@@ -213,7 +229,10 @@ pub async fn log_piece_request(
         }
     };
 
-    let now = js_sys::Date::new_0().to_iso_string().as_string().unwrap_or_default();
+    let now = js_sys::Date::new_0()
+        .to_iso_string()
+        .as_string()
+        .unwrap_or_default();
     let id = crate::services::ask::generate_uuid();
 
     let (matched_piece_id, confidence) = match match_result {
@@ -229,16 +248,15 @@ pub async fn log_piece_request(
          VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
     );
 
-    let bound = match stmt.bind(&[
+    let Ok(bound) = stmt.bind(&[
         JsValue::from_str(&id),
         JsValue::from_str(student_id),
         JsValue::from_str(query),
         matched_piece_id,
         confidence,
         JsValue::from_str(&now),
-    ]) {
-        Ok(s) => s,
-        Err(_) => return,
+    ]) else {
+        return;
     };
 
     let _ = bound.run().await;
@@ -248,11 +266,7 @@ pub async fn log_piece_request(
 ///
 /// Returns None if no match is found above the confidence threshold or if the
 /// score data cannot be loaded from R2.
-pub async fn resolve_piece(
-    env: &Env,
-    query: &str,
-    student_id: &str,
-) -> Option<ScoreContext> {
+pub async fn resolve_piece(env: &Env, query: &str, student_id: &str) -> Option<ScoreContext> {
     let catalog = load_catalog(env).await;
 
     let match_result = match_piece(query, &catalog);
@@ -285,7 +299,7 @@ pub async fn resolve_piece(
 pub async fn load_ngram_index(env: &Env) -> Result<NgramIndex, String> {
     let bucket = env
         .bucket("SCORES")
-        .map_err(|e| format!("SCORES R2 binding failed: {:?}", e))?;
+        .map_err(|e| format!("SCORES R2 binding failed: {e:?}"))?;
 
     let key = "fingerprints/v1/ngram_index.json";
 
@@ -293,25 +307,25 @@ pub async fn load_ngram_index(env: &Env) -> Result<NgramIndex, String> {
         .get(key)
         .execute()
         .await
-        .map_err(|e| format!("R2 get failed for {}: {:?}", key, e))?
-        .ok_or_else(|| format!("N-gram index not found in R2: {}", key))?;
+        .map_err(|e| format!("R2 get failed for {key}: {e:?}"))?
+        .ok_or_else(|| format!("N-gram index not found in R2: {key}"))?;
 
     let bytes = object
         .body()
-        .ok_or_else(|| format!("R2 object {} has no body", key))?
+        .ok_or_else(|| format!("R2 object {key} has no body"))?
         .bytes()
         .await
-        .map_err(|e| format!("R2 body read failed for {}: {:?}", key, e))?;
+        .map_err(|e| format!("R2 body read failed for {key}: {e:?}"))?;
 
     serde_json::from_slice::<NgramIndex>(&bytes)
-        .map_err(|e| format!("N-gram index JSON parse failed: {:?}", e))
+        .map_err(|e| format!("N-gram index JSON parse failed: {e:?}"))
 }
 
 /// Load rerank feature vectors from R2 at `fingerprints/v1/rerank_features.json`.
 pub async fn load_rerank_features(env: &Env) -> Result<RerankFeatures, String> {
     let bucket = env
         .bucket("SCORES")
-        .map_err(|e| format!("SCORES R2 binding failed: {:?}", e))?;
+        .map_err(|e| format!("SCORES R2 binding failed: {e:?}"))?;
 
     let key = "fingerprints/v1/rerank_features.json";
 
@@ -319,18 +333,18 @@ pub async fn load_rerank_features(env: &Env) -> Result<RerankFeatures, String> {
         .get(key)
         .execute()
         .await
-        .map_err(|e| format!("R2 get failed for {}: {:?}", key, e))?
-        .ok_or_else(|| format!("Rerank features not found in R2: {}", key))?;
+        .map_err(|e| format!("R2 get failed for {key}: {e:?}"))?
+        .ok_or_else(|| format!("Rerank features not found in R2: {key}"))?;
 
     let bytes = object
         .body()
-        .ok_or_else(|| format!("R2 object {} has no body", key))?
+        .ok_or_else(|| format!("R2 object {key} has no body"))?
         .bytes()
         .await
-        .map_err(|e| format!("R2 body read failed for {}: {:?}", key, e))?;
+        .map_err(|e| format!("R2 body read failed for {key}: {e:?}"))?;
 
     serde_json::from_slice::<RerankFeatures>(&bytes)
-        .map_err(|e| format!("Rerank features JSON parse failed: {:?}", e))
+        .map_err(|e| format!("Rerank features JSON parse failed: {e:?}"))
 }
 
 /// Log a fingerprint-based piece identification to D1 for demand tracking.
@@ -344,30 +358,35 @@ pub async fn log_fingerprint_piece_request(
     let db = match env.d1("DB") {
         Ok(db) => db,
         Err(e) => {
-            console_error!("D1 binding failed for fingerprint piece_requests log: {:?}", e);
+            console_error!(
+                "D1 binding failed for fingerprint piece_requests log: {:?}",
+                e
+            );
             return;
         }
     };
 
-    let now = js_sys::Date::new_0().to_iso_string().as_string().unwrap_or_default();
+    let now = js_sys::Date::new_0()
+        .to_iso_string()
+        .as_string()
+        .unwrap_or_default();
     let id = crate::services::ask::generate_uuid();
-    let query = format!("[fingerprint:{}]", method);
+    let query = format!("[fingerprint:{method}]");
 
     let stmt = db.prepare(
         "INSERT INTO piece_requests (id, student_id, query, matched_piece_id, match_confidence, created_at) \
          VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
     );
 
-    let bound = match stmt.bind(&[
+    let Ok(bound) = stmt.bind(&[
         JsValue::from_str(&id),
         JsValue::from_str(student_id),
         JsValue::from_str(&query),
         JsValue::from_str(piece_id),
         JsValue::from_f64(confidence),
         JsValue::from_str(&now),
-    ]) {
-        Ok(s) => s,
-        Err(_) => return,
+    ]) else {
+        return;
     };
 
     let _ = bound.run().await;

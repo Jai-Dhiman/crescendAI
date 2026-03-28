@@ -64,9 +64,10 @@ pub struct ExerciseQueryParams {
     pub repertoire: Option<String>,
 }
 
+#[allow(clippy::expect_used)] // getrandom on WASM (js feature) is infallible
 fn generate_uuid() -> String {
     let mut bytes = [0u8; 16];
-    getrandom::getrandom(&mut bytes).expect("Failed to generate random bytes");
+    getrandom::getrandom(&mut bytes).expect("getrandom");
     bytes[6] = (bytes[6] & 0x0f) | 0x40;
     bytes[8] = (bytes[8] & 0x3f) | 0x80;
     format!(
@@ -101,25 +102,22 @@ pub async fn handle_exercises(
     param_idx += 1;
 
     if let Some(ref dim) = params.dimension {
-        conditions.push(format!("ed.dimension = ?{}", param_idx));
+        conditions.push(format!("ed.dimension = ?{param_idx}"));
         bind_values.push(dim.clone());
         param_idx += 1;
     }
 
     if let Some(ref lvl) = params.level {
-        conditions.push(format!("e.difficulty = ?{}", param_idx));
+        conditions.push(format!("e.difficulty = ?{param_idx}"));
         bind_values.push(lvl.clone());
         param_idx += 1;
     }
 
     let order_clause = if let Some(ref rep) = params.repertoire {
-        let rep_pattern = format!("%{}%", rep);
-        let score_expr = format!(
-            "CASE WHEN e.repertoire_tags LIKE ?{} THEN 0 ELSE 1 END",
-            param_idx
-        );
+        let rep_pattern = format!("%{rep}%");
+        let score_expr = format!("CASE WHEN e.repertoire_tags LIKE ?{param_idx} THEN 0 ELSE 1 END");
         bind_values.push(rep_pattern);
-        format!("{}, RANDOM()", score_expr)
+        format!("{score_expr}, RANDOM()")
     } else {
         "RANDOM()".to_string()
     };
@@ -133,16 +131,12 @@ pub async fn handle_exercises(
          JOIN exercise_dimensions ed ON ed.exercise_id = e.id \
          LEFT JOIN student_exercises se ON se.exercise_id = e.id \
              AND se.student_id = ?1 AND se.completed = 0 \
-         WHERE {} \
-         ORDER BY {} \
-         LIMIT 3",
-        where_clause, order_clause
+         WHERE {where_clause} \
+         ORDER BY {order_clause} \
+         LIMIT 3"
     );
 
-    let js_binds: Vec<JsValue> = bind_values
-        .iter()
-        .map(|v| JsValue::from_str(v))
-        .collect();
+    let js_binds: Vec<JsValue> = bind_values.iter().map(|v| JsValue::from_str(v)).collect();
 
     let stmt = db.prepare(&sql).bind(&js_binds).map_err(|e| {
         console_error!("Failed to bind exercises query: {:?}", e);
@@ -162,9 +156,11 @@ pub async fn handle_exercises(
     let mut exercises: Vec<Exercise> = Vec::new();
 
     for row in exercise_rows {
-        let exercise_id = match row.get("id").and_then(|v| v.as_str().map(|s| s.to_string())) {
-            Some(id) => id,
-            None => continue,
+        let Some(exercise_id) = row
+            .get("id")
+            .and_then(|v| v.as_str().map(std::string::ToString::to_string))
+        else {
+            continue;
         };
 
         // Fetch dimensions for this exercise
@@ -196,7 +192,7 @@ pub async fn handle_exercises(
                 .into_iter()
                 .filter_map(|r| {
                     r.get("dimension")
-                        .and_then(|v| v.as_str().map(|s| s.to_string()))
+                        .and_then(|v| v.as_str().map(std::string::ToString::to_string))
                 })
                 .collect(),
             Err(_) => vec![],
@@ -206,30 +202,30 @@ pub async fn handle_exercises(
             id: exercise_id,
             title: row
                 .get("title")
-                .and_then(|v| v.as_str().map(|s| s.to_string()))
+                .and_then(|v| v.as_str().map(std::string::ToString::to_string))
                 .unwrap_or_default(),
             description: row
                 .get("description")
-                .and_then(|v| v.as_str().map(|s| s.to_string()))
+                .and_then(|v| v.as_str().map(std::string::ToString::to_string))
                 .unwrap_or_default(),
             instructions: row
                 .get("instructions")
-                .and_then(|v| v.as_str().map(|s| s.to_string()))
+                .and_then(|v| v.as_str().map(std::string::ToString::to_string))
                 .unwrap_or_default(),
             difficulty: row
                 .get("difficulty")
-                .and_then(|v| v.as_str().map(|s| s.to_string()))
+                .and_then(|v| v.as_str().map(std::string::ToString::to_string))
                 .unwrap_or_default(),
             category: row
                 .get("category")
-                .and_then(|v| v.as_str().map(|s| s.to_string()))
+                .and_then(|v| v.as_str().map(std::string::ToString::to_string))
                 .unwrap_or_default(),
             repertoire_tags: row
                 .get("repertoire_tags")
-                .and_then(|v| v.as_str().map(|s| s.to_string())),
+                .and_then(|v| v.as_str().map(std::string::ToString::to_string)),
             source: row
                 .get("source")
-                .and_then(|v| v.as_str().map(|s| s.to_string()))
+                .and_then(|v| v.as_str().map(std::string::ToString::to_string))
                 .unwrap_or_default(),
             dimensions,
         });
@@ -273,7 +269,7 @@ pub async fn handle_assign_exercise(
     let times_assigned = max_row
         .as_ref()
         .and_then(|r| r.get("max_times"))
-        .and_then(|v| v.as_i64())
+        .and_then(serde_json::Value::as_i64)
         .unwrap_or(0)
         + 1;
 
@@ -363,7 +359,7 @@ pub async fn handle_complete_exercise(
 
     let record_student_id = row
         .get("student_id")
-        .and_then(|v| v.as_str().map(|s| s.to_string()))
+        .and_then(|v| v.as_str().map(std::string::ToString::to_string))
         .unwrap_or_default();
 
     if record_student_id != student_id {
@@ -417,7 +413,7 @@ pub async fn handle_complete_exercise(
 
     let times_assigned = row
         .get("times_assigned")
-        .and_then(|v| v.as_i64())
+        .and_then(serde_json::Value::as_i64)
         .unwrap_or(1);
 
     Ok(Json(StudentExercise {
@@ -425,14 +421,14 @@ pub async fn handle_complete_exercise(
         student_id,
         exercise_id: row
             .get("exercise_id")
-            .and_then(|v| v.as_str().map(|s| s.to_string()))
+            .and_then(|v| v.as_str().map(std::string::ToString::to_string))
             .unwrap_or_default(),
         session_id: row
             .get("session_id")
-            .and_then(|v| v.as_str().map(|s| s.to_string())),
+            .and_then(|v| v.as_str().map(std::string::ToString::to_string)),
         assigned_at: row
             .get("assigned_at")
-            .and_then(|v| v.as_str().map(|s| s.to_string()))
+            .and_then(|v| v.as_str().map(std::string::ToString::to_string))
             .unwrap_or_default(),
         completed: true,
         response: request.response,

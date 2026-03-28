@@ -73,24 +73,19 @@ pub fn extract_composer<'a>(query: &str, catalog: &'a [CatalogPiece]) -> Option<
     composers.retain(|c| seen.insert(*c));
 
     // Prefer longer matches to avoid partial matches on short names
-    composers.sort_by(|a, b| b.len().cmp(&a.len()));
+    composers.sort_by_key(|c| std::cmp::Reverse(c.len()));
 
-    for composer in composers {
-        if query_lower.contains(&composer.to_ascii_lowercase()) {
-            return Some(composer);
-        }
-    }
-    None
+    composers
+        .into_iter()
+        .find(|&composer| query_lower.contains(&composer.to_ascii_lowercase()))
+        .map(|v| v as _)
 }
 
 pub fn strip_composer(query: &str, composer: &str) -> String {
     let query_lower = query.to_ascii_lowercase();
     let composer_lower = composer.to_ascii_lowercase();
     let stripped = query_lower.replacen(&composer_lower, "", 1);
-    stripped
-        .split_whitespace()
-        .collect::<Vec<&str>>()
-        .join(" ")
+    stripped.split_whitespace().collect::<Vec<&str>>().join(" ")
 }
 
 pub fn match_piece(query: &str, catalog: &[CatalogPiece]) -> Option<MatchResult> {
@@ -107,7 +102,7 @@ pub fn match_piece(query: &str, catalog: &[CatalogPiece]) -> Option<MatchResult>
     let candidates: Vec<&CatalogPiece> = if let Some(c) = composer {
         catalog
             .iter()
-            .filter(|p| p.composer.to_ascii_lowercase() == c.to_ascii_lowercase())
+            .filter(|p| p.composer.eq_ignore_ascii_case(c))
             .collect()
     } else {
         catalog.iter().collect()
@@ -128,7 +123,7 @@ pub fn match_piece(query: &str, catalog: &[CatalogPiece]) -> Option<MatchResult>
             let score = dice_similarity(&norm_title_query, &norm_title);
             (piece, score)
         })
-        .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
+        .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
 
     if let Some((piece, confidence)) = best {
         if confidence >= CONFIDENCE_THRESHOLD {
@@ -184,25 +179,43 @@ mod tests {
         let result = match_piece("chopin ballade 1", &catalog);
         assert!(result.is_some(), "Expected a match for 'chopin ballade 1'");
         let r = result.unwrap();
-        assert_eq!(r.piece_id, "chopin.ballades.1", "piece_id mismatch: got {}", r.piece_id);
+        assert_eq!(
+            r.piece_id, "chopin.ballades.1",
+            "piece_id mismatch: got {}",
+            r.piece_id
+        );
     }
 
     #[test]
     fn matches_chopin_ballade_number_only() {
         let catalog = test_catalog();
         let result = match_piece("chopin ballade no 1", &catalog);
-        assert!(result.is_some(), "Expected a match for 'chopin ballade no 1'");
+        assert!(
+            result.is_some(),
+            "Expected a match for 'chopin ballade no 1'"
+        );
         let r = result.unwrap();
-        assert_eq!(r.piece_id, "chopin.ballades.1", "piece_id mismatch: got {}", r.piece_id);
+        assert_eq!(
+            r.piece_id, "chopin.ballades.1",
+            "piece_id mismatch: got {}",
+            r.piece_id
+        );
     }
 
     #[test]
     fn matches_bach_prelude() {
         let catalog = test_catalog();
         let result = match_piece("bach prelude bwv 846", &catalog);
-        assert!(result.is_some(), "Expected a match for 'bach prelude bwv 846'");
+        assert!(
+            result.is_some(),
+            "Expected a match for 'bach prelude bwv 846'"
+        );
         let r = result.unwrap();
-        assert_eq!(r.piece_id, "bach.prelude.bwv_846", "piece_id mismatch: got {}", r.piece_id);
+        assert_eq!(
+            r.piece_id, "bach.prelude.bwv_846",
+            "piece_id mismatch: got {}",
+            r.piece_id
+        );
     }
 
     #[test]
@@ -260,12 +273,20 @@ mod tests {
     #[test]
     fn dice_identical_strings() {
         let score = dice_similarity("hello world", "hello world");
-        assert!(score > 0.99, "Expected ~1.0 for identical strings, got {}", score);
+        assert!(
+            score > 0.99,
+            "Expected ~1.0 for identical strings, got {}",
+            score
+        );
     }
 
     #[test]
     fn dice_completely_different() {
         let score = dice_similarity("abcdef", "xyz123");
-        assert!(score < 0.1, "Expected < 0.1 for completely different strings, got {}", score);
+        assert!(
+            score < 0.1,
+            "Expected < 0.1 for completely different strings, got {}",
+            score
+        );
     }
 }

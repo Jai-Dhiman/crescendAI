@@ -27,7 +27,7 @@ pub fn sign(claims: &Claims, secret: &[u8]) -> Result<String> {
         .map_err(|e| ApiError::Internal(format!("HMAC key: {e}")))?;
     mac.update(signing_input.as_bytes());
     let signature = mac.finalize().into_bytes();
-    let sig_b64 = URL_SAFE_NO_PAD.encode(&signature);
+    let sig_b64 = URL_SAFE_NO_PAD.encode(signature);
 
     Ok(format!("{signing_input}.{sig_b64}"))
 }
@@ -40,8 +40,7 @@ pub fn verify(token: &str, secret: &[u8]) -> Result<Claims> {
 
     let signing_input = format!("{}.{}", parts[0], parts[1]);
 
-    let mut mac = HmacSha256::new_from_slice(secret)
-        .map_err(|_| ApiError::Unauthorized)?;
+    let mut mac = HmacSha256::new_from_slice(secret).map_err(|_| ApiError::Unauthorized)?;
     mac.update(signing_input.as_bytes());
 
     let expected_sig = URL_SAFE_NO_PAD
@@ -55,8 +54,8 @@ pub fn verify(token: &str, secret: &[u8]) -> Result<Claims> {
         .decode(parts[1])
         .map_err(|_| ApiError::Unauthorized)?;
 
-    let claims: Claims = serde_json::from_slice(&claims_json)
-        .map_err(|_| ApiError::Unauthorized)?;
+    let claims: Claims =
+        serde_json::from_slice(&claims_json).map_err(|_| ApiError::Unauthorized)?;
 
     #[allow(clippy::cast_sign_loss, clippy::cast_possible_truncation)]
     let now = (js_sys::Date::now() / 1000.0) as u64;

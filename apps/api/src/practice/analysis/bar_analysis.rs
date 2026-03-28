@@ -7,7 +7,7 @@
 
 use serde::Serialize;
 
-use super::score_context::{ScoreContext, ScoreBar};
+use super::score_context::{ScoreBar, ScoreContext};
 use super::score_follower::{BarMap, NoteAlignment, PerfNote, PerfPedalEvent};
 
 // Dimension index constants (matching model output order)
@@ -50,7 +50,7 @@ fn mean_u8(vals: &[u8]) -> f64 {
     if vals.is_empty() {
         return 0.0;
     }
-    vals.iter().map(|&v| v as f64).sum::<f64>() / vals.len() as f64
+    vals.iter().map(|&v| f64::from(v)).sum::<f64>() / vals.len() as f64
 }
 
 fn mean_f64(vals: &[f64]) -> f64 {
@@ -90,8 +90,16 @@ fn analyze_dynamics_tier1(
 
     // Detect crescendo/diminuendo by comparing first-half vs second-half velocity means
     let half = perf_velocities.len() / 2;
-    let first_half_mean = if half > 0 { mean_u8(&perf_velocities[..half]) } else { perf_mean };
-    let second_half_mean = if half > 0 { mean_u8(&perf_velocities[half..]) } else { perf_mean };
+    let first_half_mean = if half > 0 {
+        mean_u8(&perf_velocities[..half])
+    } else {
+        perf_mean
+    };
+    let second_half_mean = if half > 0 {
+        mean_u8(&perf_velocities[half..])
+    } else {
+        perf_mean
+    };
     let shape_delta = second_half_mean - first_half_mean;
 
     let shape_desc = if shape_delta > 8.0 {
@@ -103,10 +111,7 @@ fn analyze_dynamics_tier1(
     };
 
     let analysis = if score_velocities.is_empty() {
-        format!(
-            "Mean velocity {:.0}/127{shape_desc}. Model score: {:.2}.",
-            perf_mean, model_score
-        )
+        format!("Mean velocity {perf_mean:.0}/127{shape_desc}. Model score: {model_score:.2}.")
     } else {
         let diff = perf_mean - score_mean;
         let comparison = if diff > 15.0 {
@@ -117,8 +122,7 @@ fn analyze_dynamics_tier1(
             "close to notated dynamic"
         };
         format!(
-            "Mean velocity {:.0}/127 ({comparison}){shape_desc}. Score mean: {:.0}. Model score: {:.2}.",
-            perf_mean, score_mean, model_score
+            "Mean velocity {perf_mean:.0}/127 ({comparison}){shape_desc}. Score mean: {score_mean:.0}. Model score: {model_score:.2}."
         )
     };
 
@@ -128,7 +132,7 @@ fn analyze_dynamics_tier1(
         .tempo_markings
         .first()
         .and_then(|v| v.as_str())
-        .map(|s| s.to_string());
+        .map(std::string::ToString::to_string);
 
     // Reference comparison
     let reference_comparison = score_ctx.reference.as_ref().and_then(|ref_profile| {
@@ -147,8 +151,7 @@ fn analyze_dynamics_tier1(
         let deviation = perf_mean - ref_mean;
         let within = if deviation.abs() <= ref_std { "within" } else { "outside" };
         Some(format!(
-            "Reference performers average {:.0} (std {:.1}); student is {within} reference range.",
-            ref_mean, ref_std
+            "Reference performers average {ref_mean:.0} (std {ref_std:.1}); student is {within} reference range."
         ))
     });
 
@@ -179,8 +182,7 @@ fn analyze_timing_tier1(
     };
 
     let analysis = format!(
-        "Mean onset deviation {:.1}ms (std {:.1}ms): {timing_class}. Model score: {:.2}.",
-        mean_dev, std_dev, model_score
+        "Mean onset deviation {mean_dev:.1}ms (std {std_dev:.1}ms): {timing_class}. Model score: {model_score:.2}."
     );
 
     let reference_comparison = score_ctx.reference.as_ref().and_then(|ref_profile| {
@@ -197,8 +199,7 @@ fn analyze_timing_tier1(
         let ref_mean = mean_f64(&ref_dev_means);
         let ref_std = mean_f64(&ref_dev_stds);
         Some(format!(
-            "Reference performers: mean deviation {:.1}ms (std {:.1}ms).",
-            ref_mean, ref_std
+            "Reference performers: mean deviation {ref_mean:.1}ms (std {ref_std:.1}ms)."
         ))
     });
 
@@ -236,7 +237,11 @@ fn analyze_pedaling_tier1(
             .zip(pedal_offs.iter())
             .map(|(on, off)| (off - on).max(0.0))
             .collect();
-        if pairs.is_empty() { None } else { Some(mean_f64(&pairs)) }
+        if pairs.is_empty() {
+            None
+        } else {
+            Some(mean_f64(&pairs))
+        }
     } else {
         None
     };
@@ -250,18 +255,15 @@ fn analyze_pedaling_tier1(
 
     let analysis = if score_pedal_count > 0 && event_count == 0 {
         format!(
-            "No pedal detected in performance, but score has {} pedal marking(s). Model score: {:.2}.",
-            score_pedal_count, model_score
+            "No pedal detected in performance, but score has {score_pedal_count} pedal marking(s). Model score: {model_score:.2}."
         )
     } else if let Some(dur) = avg_duration {
         format!(
-            "{} pedal event(s) detected, average duration {:.2}s. Score has {} marking(s). Model score: {:.2}.",
-            event_count, dur, score_pedal_count, model_score
+            "{event_count} pedal event(s) detected, average duration {dur:.2}s. Score has {score_pedal_count} marking(s). Model score: {model_score:.2}."
         )
     } else {
         format!(
-            "{} pedal event(s) detected. Score has {} marking(s). Model score: {:.2}.",
-            event_count, score_pedal_count, model_score
+            "{event_count} pedal event(s) detected. Score has {score_pedal_count} marking(s). Model score: {model_score:.2}."
         )
     };
 
@@ -276,15 +278,14 @@ fn analyze_pedaling_tier1(
         }
         let ref_pedal_counts: Vec<f64> = ref_bars
             .iter()
-            .filter_map(|b| b.pedal_changes.map(|c| c as f64))
+            .filter_map(|b| b.pedal_changes.map(f64::from))
             .collect();
         if ref_pedal_counts.is_empty() {
             return None;
         }
         let ref_count = mean_f64(&ref_pedal_counts);
         Some(format!(
-            "Reference performers average {:.1} pedal changes per bar.",
-            ref_count
+            "Reference performers average {ref_count:.1} pedal changes per bar."
         ))
     });
 
@@ -339,14 +340,10 @@ fn analyze_articulation_tier1(
 
     let analysis = if mean_score_dur > 0.0 {
         format!(
-            "Mean note duration {:.3}s vs score {:.3}s (ratio {:.2}x): {style}. Model score: {:.2}.",
-            mean_perf_dur, mean_score_dur, ratio, model_score
+            "Mean note duration {mean_perf_dur:.3}s vs score {mean_score_dur:.3}s (ratio {ratio:.2}x): {style}. Model score: {model_score:.2}."
         )
     } else {
-        format!(
-            "Mean note duration {:.3}s: {style}. Model score: {:.2}.",
-            mean_perf_dur, model_score
-        )
+        format!("Mean note duration {mean_perf_dur:.3}s: {style}. Model score: {model_score:.2}.")
     };
 
     let reference_comparison = score_ctx.reference.as_ref().and_then(|ref_profile| {
@@ -358,11 +355,13 @@ fn analyze_articulation_tier1(
         if ref_bars.is_empty() {
             return None;
         }
-        let ref_ratios: Vec<f64> = ref_bars.iter().map(|b| b.note_duration_ratio_mean).collect();
+        let ref_ratios: Vec<f64> = ref_bars
+            .iter()
+            .map(|b| b.note_duration_ratio_mean)
+            .collect();
         let ref_ratio = mean_f64(&ref_ratios);
         Some(format!(
-            "Reference performer note duration ratio: {:.2}x.",
-            ref_ratio
+            "Reference performer note duration ratio: {ref_ratio:.2}x."
         ))
     });
 
@@ -390,22 +389,22 @@ fn analyze_phrasing_tier1(
         let shift = last_third_mean - first_third_mean;
 
         if shift.abs() > 50.0 {
-            let direction = if shift > 0.0 { "pulling back" } else { "pressing forward" };
+            let direction = if shift > 0.0 {
+                "pulling back"
+            } else {
+                "pressing forward"
+            };
             format!(
                 "Timing shape shows a {:.0}ms shift from start to end of passage ({direction}). Model score: {:.2}.",
                 shift.abs(), model_score
             )
         } else {
             format!(
-                "Consistent timing shape across the passage (shift {:.0}ms). Model score: {:.2}.",
-                shift, model_score
+                "Consistent timing shape across the passage (shift {shift:.0}ms). Model score: {model_score:.2}."
             )
         }
     } else {
-        format!(
-            "Too few notes to assess phrasing shape. Model score: {:.2}.",
-            model_score
-        )
+        format!("Too few notes to assess phrasing shape. Model score: {model_score:.2}.")
     };
 
     let reference_comparison = score_ctx.reference.as_ref().and_then(|ref_profile| {
@@ -420,8 +419,7 @@ fn analyze_phrasing_tier1(
         let ref_stds: Vec<f64> = ref_bars.iter().map(|b| b.onset_deviation_std_ms).collect();
         let ref_std = mean_f64(&ref_stds);
         Some(format!(
-            "Reference timing spread: {:.1}ms std across passage.",
-            ref_std
+            "Reference timing spread: {ref_std:.1}ms std across passage."
         ))
     });
 
@@ -444,8 +442,7 @@ fn analyze_interpretation_tier1(
     let mean_abs_dev = mean_f64(&abs_deviations);
 
     let analysis = format!(
-        "Average absolute onset deviation from score: {:.1}ms. Model score: {:.2}.",
-        mean_abs_dev, model_score
+        "Average absolute onset deviation from score: {mean_abs_dev:.1}ms. Model score: {model_score:.2}."
     );
 
     DimensionAnalysis {
@@ -466,8 +463,7 @@ fn analyze_dynamics_tier2(perf_notes: &[PerfNote], model_score: f64) -> Dimensio
     let dynamic_range = vel_max.saturating_sub(vel_min);
 
     let analysis = format!(
-        "Velocity range {}-{} (mean {:.0}, range {}). Model score: {:.2}.",
-        vel_min, vel_max, vel_mean, dynamic_range, model_score
+        "Velocity range {vel_min}-{vel_max} (mean {vel_mean:.0}, range {dynamic_range}). Model score: {model_score:.2}."
     );
 
     DimensionAnalysis {
@@ -496,8 +492,7 @@ fn analyze_timing_tier2(perf_notes: &[PerfNote], model_score: f64) -> DimensionA
     };
 
     let analysis = format!(
-        "Inter-onset interval mean {:.3}s, std {:.3}s ({regularity} timing). Model score: {:.2}.",
-        ioi_mean, ioi_std, model_score
+        "Inter-onset interval mean {ioi_mean:.3}s, std {ioi_std:.3}s ({regularity} timing). Model score: {model_score:.2}."
     );
 
     DimensionAnalysis {
@@ -511,10 +506,7 @@ fn analyze_timing_tier2(perf_notes: &[PerfNote], model_score: f64) -> DimensionA
 fn analyze_pedaling_tier2(perf_pedal: &[PerfPedalEvent], model_score: f64) -> DimensionAnalysis {
     let event_count = perf_pedal.len();
 
-    let analysis = format!(
-        "{} pedal event(s) detected. Model score: {:.2}.",
-        event_count, model_score
-    );
+    let analysis = format!("{event_count} pedal event(s) detected. Model score: {model_score:.2}.");
 
     DimensionAnalysis {
         dimension: DIMENSION_NAMES[DIM_PEDALING].to_string(),
@@ -532,10 +524,7 @@ fn analyze_articulation_tier2(perf_notes: &[PerfNote], model_score: f64) -> Dime
         .collect();
     let mean_dur = mean_f64(&durations);
 
-    let analysis = format!(
-        "Mean note duration {:.3}s. Model score: {:.2}.",
-        mean_dur, model_score
-    );
+    let analysis = format!("Mean note duration {mean_dur:.3}s. Model score: {model_score:.2}.");
 
     DimensionAnalysis {
         dimension: DIMENSION_NAMES[DIM_ARTICULATION].to_string(),
@@ -548,10 +537,7 @@ fn analyze_articulation_tier2(perf_notes: &[PerfNote], model_score: f64) -> Dime
 fn analyze_phrasing_tier2(perf_notes: &[PerfNote], model_score: f64) -> DimensionAnalysis {
     let note_count = perf_notes.len();
 
-    let analysis = format!(
-        "{} notes in passage. Model score: {:.2}.",
-        note_count, model_score
-    );
+    let analysis = format!("{note_count} notes in passage. Model score: {model_score:.2}.");
 
     DimensionAnalysis {
         dimension: DIMENSION_NAMES[DIM_PHRASING].to_string(),
@@ -562,7 +548,7 @@ fn analyze_phrasing_tier2(perf_notes: &[PerfNote], model_score: f64) -> Dimensio
 }
 
 fn analyze_interpretation_tier2(model_score: f64) -> DimensionAnalysis {
-    let analysis = format!("Model score: {:.2}.", model_score);
+    let analysis = format!("Model score: {model_score:.2}.");
 
     DimensionAnalysis {
         dimension: DIMENSION_NAMES[DIM_INTERPRETATION].to_string(),
@@ -576,8 +562,8 @@ fn analyze_interpretation_tier2(model_score: f64) -> DimensionAnalysis {
 
 /// Full bar-aligned analysis with score and reference comparison (Tier 1).
 ///
-/// Requires a BarMap from the score follower and a ScoreContext. Produces
-/// one DimensionAnalysis per dimension with score markings and reference
+/// Requires a `BarMap` from the score follower and a `ScoreContext`. Produces
+/// one `DimensionAnalysis` per dimension with score markings and reference
 /// comparisons where available.
 pub fn analyze_tier1(
     bar_map: &BarMap,
@@ -597,10 +583,29 @@ pub fn analyze_tier1(
     let alignments = &bar_map.alignments;
 
     let dimensions = vec![
-        analyze_dynamics_tier1(alignments, score_bars, score_ctx, bar_range, scores[DIM_DYNAMICS]),
+        analyze_dynamics_tier1(
+            alignments,
+            score_bars,
+            score_ctx,
+            bar_range,
+            scores[DIM_DYNAMICS],
+        ),
         analyze_timing_tier1(alignments, score_ctx, bar_range, scores[DIM_TIMING]),
-        analyze_pedaling_tier1(perf_pedal, score_bars, score_ctx, bar_range, scores[DIM_PEDALING]),
-        analyze_articulation_tier1(alignments, perf_notes, score_bars, score_ctx, bar_range, scores[DIM_ARTICULATION]),
+        analyze_pedaling_tier1(
+            perf_pedal,
+            score_bars,
+            score_ctx,
+            bar_range,
+            scores[DIM_PEDALING],
+        ),
+        analyze_articulation_tier1(
+            alignments,
+            perf_notes,
+            score_bars,
+            score_ctx,
+            bar_range,
+            scores[DIM_ARTICULATION],
+        ),
         analyze_phrasing_tier1(alignments, score_ctx, bar_range, scores[DIM_PHRASING]),
         analyze_interpretation_tier1(alignments, scores[DIM_INTERPRETATION]),
     ];
@@ -615,7 +620,7 @@ pub fn analyze_tier1(
 /// Absolute MIDI analysis without score context (Tier 2).
 ///
 /// Used when no piece is identified or score alignment fails. Produces one
-/// DimensionAnalysis per dimension based on raw MIDI statistics.
+/// `DimensionAnalysis` per dimension based on raw MIDI statistics.
 pub fn analyze_tier2(
     perf_notes: &[PerfNote],
     perf_pedal: &[PerfPedalEvent],
@@ -639,11 +644,16 @@ pub fn analyze_tier2(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::score_follower::{BarMap, NoteAlignment, PerfNote, PerfPedalEvent};
+    use super::*;
 
     fn make_perf_note(pitch: u8, onset: f64, offset: f64, velocity: u8) -> PerfNote {
-        PerfNote { pitch, onset, offset, velocity }
+        PerfNote {
+            pitch,
+            onset,
+            offset,
+            velocity,
+        }
     }
 
     fn make_alignment(perf_velocity: u8, onset_deviation_ms: f64) -> NoteAlignment {
@@ -689,7 +699,11 @@ mod tests {
         assert!(result.bar_range.is_none());
         assert_eq!(result.dimensions.len(), 6);
 
-        let dim_names: Vec<&str> = result.dimensions.iter().map(|d| d.dimension.as_str()).collect();
+        let dim_names: Vec<&str> = result
+            .dimensions
+            .iter()
+            .map(|d| d.dimension.as_str())
+            .collect();
         assert!(dim_names.contains(&"dynamics"));
         assert!(dim_names.contains(&"timing"));
         assert!(dim_names.contains(&"pedaling"));
@@ -740,9 +754,17 @@ mod tests {
 
         // Use Tier 2 timing analyzer directly with known deviations to verify
         // the tier1 timing classification by computing the mean manually
-        let deviations: Vec<f64> = bar_map.alignments.iter().map(|a| a.onset_deviation_ms).collect();
+        let deviations: Vec<f64> = bar_map
+            .alignments
+            .iter()
+            .map(|a| a.onset_deviation_ms)
+            .collect();
         let mean_dev = mean_f64(&deviations);
-        assert!(mean_dev < -30.0, "Expected mean deviation < -30ms for rushing, got {}", mean_dev);
+        assert!(
+            mean_dev < -30.0,
+            "Expected mean deviation < -30ms for rushing, got {}",
+            mean_dev
+        );
 
         // Also verify tier2 does not crash and returns 6 dims
         let result = analyze_tier2(&notes, &pedal, &scores);

@@ -56,10 +56,10 @@ pub struct RecentObservationInput {
 #[derive(serde::Serialize)]
 pub struct TeachingMomentResponse {
     pub teaching_moment: Option<TeachingMoment>,
-    /// "need_more" when too few chunks, "positive" when no issues found,
+    /// "`need_more`" when too few chunks, "positive" when no issues found,
     /// "corrective" when a teaching moment was identified, "none" should not occur.
     pub result_type: String,
-    /// Human-readable message for the "need_more" case.
+    /// Human-readable message for the "`need_more`" case.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub message: Option<String>,
 }
@@ -106,9 +106,8 @@ pub async fn handle_teaching_moment(
         .collect();
 
     // Run selection
-    let result = crate::services::teaching_moments::select_teaching_moment(
-        &chunks, &baselines, &recent,
-    );
+    let result =
+        crate::services::teaching_moments::select_teaching_moment(&chunks, &baselines, &recent);
 
     let response = match result {
         None => TeachingMomentResponse {

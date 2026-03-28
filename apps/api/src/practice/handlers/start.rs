@@ -34,7 +34,10 @@ pub async fn handle_start(
     prewarm_hf_endpoint(env);
 
     let session_id = crate::services::ask::generate_uuid();
-    let now = js_sys::Date::new_0().to_iso_string().as_string().unwrap_or_default();
+    let now = js_sys::Date::new_0()
+        .to_iso_string()
+        .as_string()
+        .unwrap_or_default();
 
     // Parse optional conversation_id from request body
     let conversation_id = if body.is_empty() {
@@ -49,29 +52,28 @@ pub async fn handle_start(
     let db = state.db.d1()?;
 
     // If no conversation_id provided, create a new conversation
-    let conversation_id = match conversation_id {
-        Some(id) => id,
-        None => {
-            let new_id = crate::services::ask::generate_uuid();
-            db.prepare("INSERT INTO conversations (id, student_id, created_at, updated_at) VALUES (?1, ?2, ?3, ?4)")
-                .bind(&[
-                    JsValue::from_str(&new_id),
-                    JsValue::from_str(&student_id),
-                    JsValue::from_str(&now),
-                    JsValue::from_str(&now),
-                ])
-                .map_err(|e| {
-                    worker::console_error!("Failed to bind conversation insert: {:?}", e);
-                    ApiError::Internal("Failed to create conversation".into())
-                })?
-                .run()
-                .await
-                .map_err(|e| {
-                    worker::console_error!("Failed to insert conversation: {:?}", e);
-                    ApiError::Internal("Failed to create conversation".into())
-                })?;
-            new_id
-        }
+    let conversation_id = if let Some(id) = conversation_id {
+        id
+    } else {
+        let new_id = crate::services::ask::generate_uuid();
+        db.prepare("INSERT INTO conversations (id, student_id, created_at, updated_at) VALUES (?1, ?2, ?3, ?4)")
+            .bind(&[
+                JsValue::from_str(&new_id),
+                JsValue::from_str(&student_id),
+                JsValue::from_str(&now),
+                JsValue::from_str(&now),
+            ])
+            .map_err(|e| {
+                worker::console_error!("Failed to bind conversation insert: {:?}", e);
+                ApiError::Internal("Failed to create conversation".into())
+            })?
+            .run()
+            .await
+            .map_err(|e| {
+                worker::console_error!("Failed to insert conversation: {:?}", e);
+                ApiError::Internal("Failed to create conversation".into())
+            })?;
+        new_id
     };
 
     // Insert session row linked to conversation
@@ -139,7 +141,7 @@ fn prewarm_hf_endpoint(env: &Env) {
     // Spawn a non-awaited fetch -- we don't care about the response
     wasm_bindgen_futures::spawn_local(async move {
         let headers = worker::Headers::new();
-        let _ = headers.set("Authorization", &format!("Bearer {}", token));
+        let _ = headers.set("Authorization", &format!("Bearer {token}"));
         let _ = headers.set("Content-Type", "application/json");
 
         let mut init = worker::RequestInit::new();
@@ -148,9 +150,8 @@ fn prewarm_hf_endpoint(env: &Env) {
         // Minimal JSON body -- will get 400 but triggers the scale-up
         init.with_body(Some(JsValue::from_str("{}")));
 
-        let req = match worker::Request::new_with_init(&endpoint, &init) {
-            Ok(r) => r,
-            Err(_) => return,
+        let Ok(req) = worker::Request::new_with_init(&endpoint, &init) else {
+            return;
         };
         let result = worker::Fetch::Request(req).send().await;
         match result {
