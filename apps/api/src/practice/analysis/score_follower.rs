@@ -403,7 +403,7 @@ pub fn align_chunk(
 
 #[cfg(test)]
 mod tests {
-    use super::score_context::{ScoreBar, ScoreData, ScoreNote};
+    use crate::practice::analysis::score_context::{ScoreBar, ScoreData, ScoreNote};
     use super::*;
 
     fn make_score_note(pitch: u8, onset_seconds: f64) -> ScoreNote {

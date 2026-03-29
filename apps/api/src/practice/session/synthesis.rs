@@ -718,8 +718,10 @@ pub async fn handle_deferred_synthesis(
 
 #[cfg(test)]
 mod tests {
-    use super::accumulator::{DrillingRecord, ModeTransitionRecord, SessionAccumulator};
-    use super::practice_mode::PracticeMode;
+    use crate::practice::session::accumulator::{
+        DrillingRecord, ModeTransitionRecord, SessionAccumulator,
+    };
+    use crate::practice::session::practice_mode::PracticeMode;
     use super::*;
 
     fn make_moment(chunk: usize, dim: &str, deviation: f64, positive: bool) -> AccumulatedMoment {
@@ -742,9 +744,9 @@ mod tests {
     fn test_build_synthesis_prompt_minimal() {
         let acc = SessionAccumulator::default();
         let ctx = SynthesisContext {
-            session_id: "sess-1".to_string(),
-            student_id: "student-1".to_string(),
-            conversation_id: "conv-1".to_string(),
+            session_id: "sess-1".to_string().into(),
+            student_id: "student-1".to_string().into(),
+            conversation_id: "conv-1".to_string().into(),
             baselines: None,
             piece_context: None,
             student_memory: None,
@@ -844,9 +846,9 @@ mod tests {
         });
 
         let ctx = SynthesisContext {
-            session_id: "sess-2".to_string(),
-            student_id: "student-2".to_string(),
-            conversation_id: "conv-2".to_string(),
+            session_id: "sess-2".to_string().into(),
+            student_id: "student-2".to_string().into(),
+            conversation_id: "conv-2".to_string().into(),
             baselines: Some(baselines),
             piece_context: Some(piece_context),
             student_memory: Some("Student has been working on dynamics control.".to_string()),

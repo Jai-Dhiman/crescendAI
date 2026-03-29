@@ -21,8 +21,8 @@ Quality scoring only (6 dimensions). No transcription.
 Mirrors the production MuQ-only HF endpoint (handler.py).
 
 Usage:
-    cd apps/inference && uv run python muq/muq_local_server.py
-    cd apps/inference && uv run python muq/muq_local_server.py --port 8000
+    cd apps/inference && uv run muq/muq_local_server.py
+    cd apps/inference && uv run muq/muq_local_server.py --port 8000
 """
 
 from __future__ import annotations
@@ -47,7 +47,7 @@ from models.loader import ModelCache, get_model_cache
 from preprocessing.audio import preprocess_audio_from_bytes
 
 DEFAULT_CHECKPOINT_DIR = str(
-    Path(__file__).parents[1].parent
+    Path(__file__).resolve().parents[3]
     / "model"
     / "data"
     / "checkpoints"

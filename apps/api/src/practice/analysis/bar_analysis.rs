@@ -644,7 +644,9 @@ pub fn analyze_tier2(
 
 #[cfg(test)]
 mod tests {
-    use super::score_follower::{BarMap, NoteAlignment, PerfNote, PerfPedalEvent};
+    use crate::practice::analysis::score_follower::{
+        BarMap, NoteAlignment, PerfNote, PerfPedalEvent,
+    };
     use super::*;
 
     fn make_perf_note(pitch: u8, onset: f64, offset: f64, velocity: u8) -> PerfNote {
@@ -775,11 +777,11 @@ mod tests {
             &bar_map.alignments,
             // Construct a minimal ScoreContext-like struct by using a dummy score_ctx
             // We test with the internal function directly
-            &super::score_context::ScoreContext {
+            &crate::practice::analysis::score_context::ScoreContext {
                 piece_id: "test".to_string(),
                 composer: "Test".to_string(),
                 title: "Test".to_string(),
-                score: super::score_context::ScoreData {
+                score: crate::practice::analysis::score_context::ScoreData {
                     piece_id: "test".to_string(),
                     composer: "Test".to_string(),
                     title: "Test".to_string(),
@@ -805,7 +807,7 @@ mod tests {
 
     #[test]
     fn pedaling_detects_no_pedal_vs_score() {
-        use super::score_context::{ScoreBar, ScoreData, ScorePedalEvent};
+        use crate::practice::analysis::score_context::{ScoreBar, ScoreData, ScorePedalEvent};
 
         // Score has pedal events; performance has none
         let score_bar_with_pedal = ScoreBar {
@@ -831,7 +833,7 @@ mod tests {
             mean_velocity: 80,
         };
 
-        let score_ctx = super::score_context::ScoreContext {
+        let score_ctx = crate::practice::analysis::score_context::ScoreContext {
             piece_id: "test".to_string(),
             composer: "Test".to_string(),
             title: "Test".to_string(),

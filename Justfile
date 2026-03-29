@@ -28,11 +28,11 @@ dev:
 # Start MuQ inference server (quality scoring, port 8000)
 # Note: uv run (without python) triggers PEP 723 inline dependency resolution
 muq:
-    cd apps/inference && uv run muq_local_server.py
+    cd apps/inference && uv run muq/muq_local_server.py
 
 # Start Aria-AMT inference server (transcription, port 8001)
 amt:
-    cd apps/inference && uv run amt_local_server.py --port 8001
+    cd apps/inference && uv run amt/amt_local_server.py --port 8001
 
 # Start API worker (Cloudflare Workers, port 8787)
 api:

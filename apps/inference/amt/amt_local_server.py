@@ -20,8 +20,8 @@ Accepts JSON with base64-encoded audio fields:
   - context_audio (optional): previous chunk for 30s overlap
 
 Usage:
-    cd apps/inference && uv run python amt_local_server.py
-    cd apps/inference && uv run python amt_local_server.py --port 8001
+    cd apps/inference && uv run amt/amt_local_server.py
+    cd apps/inference && uv run amt/amt_local_server.py --port 8001
 """
 
 from __future__ import annotations
@@ -50,7 +50,7 @@ def _init_model(checkpoint_dir: str) -> None:
     global _handler
 
     print("[AMT] Loading Aria-AMT model...")
-    from amt_handler import EndpointHandler
+    from transcription import EndpointHandler
 
     _handler = EndpointHandler(path=checkpoint_dir)
     print("[AMT] Model loaded. Ready.")
@@ -127,7 +127,7 @@ if __name__ == "__main__":
 
     # Default: look for aria-amt checkpoint in model weights
     default_checkpoint = str(
-        Path(__file__).parents[1].parent / "model" / "data" / "weights" / "aria-amt"
+        Path(__file__).resolve().parents[3] / "model" / "data" / "weights" / "aria-amt"
     )
 
     parser = argparse.ArgumentParser(description="Local Aria-AMT inference server (transcription)")
