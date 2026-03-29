@@ -89,7 +89,7 @@ def run_auth_flow():
         print("  [SKIP] Debug auth not available (production mode)")
         return results
 
-    passed = status == 200 and "student_id" in body
+    passed = status == 200 and ("studentId" in body or "student_id" in body)
     results.append({"test": "debug_login", "status": status, "passed": passed})
     print(f"  [{'PASS' if passed else 'FAIL'}] POST /api/auth/debug -> {status}")
     if not passed:
