@@ -45,7 +45,8 @@ lto = true
 opt-level = 'z'
 codegen-units = 1
 strip = true            # add if not present
-panic = "abort"         # add -- reduces panic infrastructure
+# NOTE: panic = "abort" is NOT compatible with wasm-bindgen / worker-build.
+# wasm-bindgen requires standard panic infrastructure for __wbindgen_start.
 ```
 
 Additional rules:

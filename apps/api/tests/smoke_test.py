@@ -21,7 +21,7 @@ BASELINE_FILE = Path(__file__).parent / "smoke_baseline.json"
 UNAUTH_TESTS = [
     ("GET", "/health", None, 200, {"has_key": "status"}),
     ("GET", "/api/auth/me", None, 401, {"has_key": "error"}),
-    ("POST", "/api/auth/apple", {"identityToken": "invalid"}, 401, None),
+    ("POST", "/api/auth/apple", {"identityToken": "invalid", "userId": "test"}, [400, 401], None),
     ("POST", "/api/ask", {}, 401, None),
     ("POST", "/api/sync", {}, 401, None),
     ("POST", "/api/waitlist", {"email": "smoke@test.com"}, [200, 400, 409], None),

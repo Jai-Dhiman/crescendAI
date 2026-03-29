@@ -1,0 +1,72 @@
+{
+  "unauth": [
+    {
+      "method": "GET",
+      "path": "/health",
+      "status": 200,
+      "expected": [
+        200
+      ],
+      "passed": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/auth/me",
+      "status": 401,
+      "expected": [
+        401
+      ],
+      "passed": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/apple",
+      "status": 400,
+      "expected": [
+        400,
+        401
+      ],
+      "passed": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/ask",
+      "status": 401,
+      "expected": [
+        401
+      ],
+      "passed": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/sync",
+      "status": 401,
+      "expected": [
+        401
+      ],
+      "passed": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/waitlist",
+      "status": 200,
+      "expected": [
+        200,
+        400,
+        409
+      ],
+      "passed": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/nonexistent",
+      "status": 404,
+      "expected": [
+        404,
+        405
+      ],
+      "passed": true
+    }
+  ],
+  "auth": []
+}
