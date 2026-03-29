@@ -1,5 +1,8 @@
+# Hybrid server: ONNX encoder + PyTorch decoder
+# NOTE: torch is installed separately from the CPU wheel index in the Dockerfile
 onnxruntime>=1.17.0
 numpy>=1.24.0
 fastapi>=0.110.0
 uvicorn[standard]>=0.27.0
-ariautils>=0.1.0
+safetensors>=0.4.0
+aria-amt @ git+https://github.com/EleutherAI/aria-amt.git
