@@ -7,12 +7,15 @@ dynamics, timing, pedaling, articulation, phrasing, interpretation.
 Compatible with HuggingFace Inference Endpoints custom handler pattern.
 """
 
+import sys
 import base64
 import os
 import time
 import traceback
 from pathlib import Path
 from typing import Any, Dict, Union
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import numpy as np
 from constants import MODEL_INFO, PERCEPIANO_DIMENSIONS

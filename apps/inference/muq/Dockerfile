@@ -27,7 +27,8 @@ ENV PATH="/root/.local/bin:$PATH"
 WORKDIR /app
 
 # Install Python dependencies with uv
-COPY requirements.txt .
+# Build context is apps/inference/ -- Dockerfile lives at muq/Dockerfile
+COPY muq/requirements.txt .
 RUN uv pip install --system --no-cache -r requirements.txt
 
 # Pre-download HuggingFace models (cached in image)
@@ -39,18 +40,10 @@ MuQ.from_pretrained('OpenMuQ/MuQ-large-msd-iter'); \
 print('Done!'); \
 "
 
-# Pre-download ByteDance AMT model weights (REQUIRED for cold start performance)
-# device='cpu' is correct -- no GPU during Docker build. Constructor downloads weights only.
-RUN python3 -c "\
-print('Downloading ByteDance piano transcription model...'); \
-from piano_transcription_inference import PianoTranscription; \
-PianoTranscription(device='cpu'); \
-print('Done!'); \
-"
-
 # Copy application code
+# Shared modules from inference root, handler from muq/
 COPY constants.py .
-COPY handler.py .
+COPY muq/handler.py handler.py
 COPY models/ ./models/
 COPY preprocessing/ ./preprocessing/
 

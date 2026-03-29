@@ -40,8 +40,6 @@ impl PracticeSession {
         &self,
         audio_bytes: &[u8],
     ) -> std::result::Result<MuqResponse, PracticeError> {
-        // MuQ endpoint uses the same transport as the existing HF inference endpoint:
-        // POST raw audio bytes with Content-Type: audio/webm;codecs=opus
         let endpoint = self
             .env
             .var("HF_INFERENCE_ENDPOINT")
@@ -155,35 +153,19 @@ impl PracticeSession {
         Err(PracticeError::Inference(last_err))
     }
 
-    /// Call the Aria-AMT endpoint. Sends JSON with base64-encoded audio fields.
-    /// Returns transcribed MIDI notes and pedal events.
+    /// Call the AMT container via service binding (production) or direct HTTP (local dev).
+    /// Sends JSON with base64-encoded audio, returns transcribed MIDI notes and pedal events.
     pub(crate) async fn call_amt_endpoint(
         &self,
         context_audio: Option<&[u8]>,
         chunk_audio: &[u8],
     ) -> std::result::Result<AmtResponse, PracticeError> {
-        let endpoint = self
-            .env
-            .var("HF_AMT_ENDPOINT")
-            .map_err(|e| PracticeError::Inference(format!("HF_AMT_ENDPOINT not set: {e:?}")))?
-            .to_string();
-
-        if endpoint.is_empty() {
-            return Err(PracticeError::Inference(
-                "HF_AMT_ENDPOINT is empty (not yet deployed)".into(),
-            ));
-        }
-
-        let token = self
-            .env
-            .secret("HF_TOKEN")
-            .map_err(|e| PracticeError::Inference(format!("HF_TOKEN not set: {e:?}")))?
-            .to_string();
+        // In local dev, AMT_LOCAL_URL points to a local AMT server
+        let local_url = self.env.var("AMT_LOCAL_URL").ok().map(|v| v.to_string());
 
         // Build JSON payload with base64-encoded audio
         let chunk_b64 = base64_encode(chunk_audio);
         let context_b64 = context_audio.map(base64_encode);
-
         let payload = serde_json::json!({
             "chunk_audio": chunk_b64,
             "context_audio": context_b64,
@@ -198,84 +180,110 @@ impl PracticeSession {
         };
 
         for attempt in 0..=delays.len() {
-            let headers = worker::Headers::new();
-            headers
-                .set("Content-Type", "application/json")
-                .map_err(|e| PracticeError::Inference(format!("{e:?}")))?;
-            headers
-                .set("Authorization", &format!("Bearer {token}"))
-                .map_err(|e| PracticeError::Inference(format!("{e:?}")))?;
+            // Fetch returns (status_code, body_text) or an error.
+            let fetch_result: std::result::Result<(u16, String), PracticeError> =
+                if let Some(ref url_base) = local_url {
+                    // Local dev: direct HTTP to local AMT server
+                    let headers = worker::Headers::new();
+                    headers
+                        .set("Content-Type", "application/json")
+                        .map_err(|e| PracticeError::Inference(format!("{e:?}")))?;
+                    let mut init = worker::RequestInit::new();
+                    init.with_method(worker::Method::Post);
+                    init.with_headers(headers);
+                    init.with_body(Some(JsValue::from_str(&payload_str)));
+                    let url = format!("{url_base}/transcribe");
+                    let request = worker::Request::new_with_init(&url, &init)
+                        .map_err(|e| PracticeError::Inference(format!("AMT request: {e:?}")))?;
+                    match worker::Fetch::Request(request).send().await {
+                        Ok(mut r) => {
+                            let status = r.status_code();
+                            let body = r.text().await.unwrap_or_default();
+                            Ok((status, body))
+                        }
+                        Err(e) => Err(PracticeError::Inference(format!("AMT fetch: {e:?}"))),
+                    }
+                } else {
+                    // Production: CF service binding to AMT container
+                    let fetcher = self
+                        .env
+                        .service("AMT_SERVICE")
+                        .map_err(|e| PracticeError::Inference(format!("AMT_SERVICE binding: {e:?}")))?;
+                    let headers = worker::Headers::new();
+                    headers
+                        .set("Content-Type", "application/json")
+                        .map_err(|e| PracticeError::Inference(format!("{e:?}")))?;
+                    let mut init = worker::RequestInit::new();
+                    init.with_method(worker::Method::Post);
+                    init.with_headers(headers);
+                    init.with_body(Some(JsValue::from_str(&payload_str)));
+                    let request = worker::Request::new_with_init(
+                        "https://amt-service/transcribe",
+                        &init,
+                    )
+                    .map_err(|e| PracticeError::Inference(format!("AMT request: {e:?}")))?;
+                    match fetcher.fetch_request(request).await {
+                        Ok(r) => {
+                            let status = r.status().as_u16();
+                            let body = match http_body_util::BodyExt::collect(r.into_body()).await {
+                                Ok(collected) => {
+                                    String::from_utf8_lossy(&collected.to_bytes()).into_owned()
+                                }
+                                Err(_) => String::new(),
+                            };
+                            Ok((status, body))
+                        }
+                        Err(e) => Err(PracticeError::Inference(format!("AMT fetch: {e:?}"))),
+                    }
+                };
 
-            let mut init = worker::RequestInit::new();
-            init.with_method(worker::Method::Post);
-            init.with_headers(headers);
-            init.with_body(Some(JsValue::from_str(&payload_str)));
-
-            let request = worker::Request::new_with_init(&endpoint, &init)
-                .map_err(|e| PracticeError::Inference(format!("AMT request creation: {e:?}")))?;
-
-            let mut response = match worker::Fetch::Request(request).send().await {
-                Ok(r) => r,
+            match fetch_result {
                 Err(e) => {
-                    last_err = format!("AMT fetch failed: {e:?}");
+                    last_err = e.to_string();
                     if attempt < delays.len() {
-                        let delay = delays[attempt];
-                        console_log!(
-                            "AMT fetch failed (attempt {}), retrying in {}s: {}",
-                            attempt + 1,
-                            delay / 1000,
-                            last_err
-                        );
-                        sleep_ms(delay).await;
+                        sleep_ms(delays[attempt]).await;
                         continue;
                     }
                     return Err(PracticeError::Inference(last_err));
                 }
-            };
+                Ok((status, body)) => {
+                    if status == 503 || status == 429 {
+                        last_err = format!("AMT returned {status}: {body}");
+                        if attempt < delays.len() {
+                            let delay = delays[attempt];
+                            console_log!(
+                                "AMT {} (attempt {}), retrying in {}s",
+                                status,
+                                attempt + 1,
+                                delay / 1000
+                            );
+                            sleep_ms(delay).await;
+                            continue;
+                        }
+                        return Err(PracticeError::Inference(last_err));
+                    }
 
-            let status = response.status_code();
-            if status == 503 || status == 429 {
-                let body = response.text().await.unwrap_or_default();
-                last_err = format!("AMT returned {status}: {body}");
-                if attempt < delays.len() {
-                    let delay = delays[attempt];
-                    console_log!(
-                        "AMT {} (attempt {}), retrying in {}s",
-                        status,
-                        attempt + 1,
-                        delay / 1000
-                    );
-                    sleep_ms(delay).await;
-                    continue;
+                    if status != 200 {
+                        return Err(PracticeError::Inference(format!(
+                            "AMT returned {status}: {body}"
+                        )));
+                    }
+
+                    let amt: AmtResponse = serde_json::from_str(&body).map_err(|e| {
+                        PracticeError::Inference(format!(
+                            "AMT response parse: {:?} - body: {}",
+                            e,
+                            crate::truncate_str(&body, 200)
+                        ))
+                    })?;
+
+                    if attempt > 0 {
+                        console_log!("AMT inference succeeded after {} retries", attempt);
+                    }
+
+                    return Ok(amt);
                 }
-                return Err(PracticeError::Inference(last_err));
             }
-
-            if status != 200 {
-                let body = response.text().await.unwrap_or_default();
-                return Err(PracticeError::Inference(format!(
-                    "AMT returned {status}: {body}"
-                )));
-            }
-
-            let body_text = response
-                .text()
-                .await
-                .map_err(|e| PracticeError::Inference(format!("AMT response read: {e:?}")))?;
-
-            let amt: AmtResponse = serde_json::from_str(&body_text).map_err(|e| {
-                PracticeError::Inference(format!(
-                    "AMT response parse: {:?} - body: {}",
-                    e,
-                    crate::truncate_str(&body_text, 200)
-                ))
-            })?;
-
-            if attempt > 0 {
-                console_log!("AMT inference succeeded after {} retries", attempt);
-            }
-
-            return Ok(amt);
         }
 
         Err(PracticeError::Inference(last_err))

@@ -1,0 +1,12 @@
+name = "crescendai-amt"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+
+[containers]
+image = "./Dockerfile"
+max_instances = 5
+
+[vars]
+POOL_SIZE = "2"
+INSTANCE_TYPE = "standard-4"
+SLEEP_AFTER_S = "300"
