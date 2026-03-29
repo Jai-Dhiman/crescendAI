@@ -40,7 +40,7 @@ Notes accumulate across chunks. Identification can trigger as early as chunk 2 (
 
 ### Current State
 
-Code complete on `feat/zero-config-piece-id`, pending deploy. Never evaluated at scale against real student recordings. The 242-piece library covers ASAP dataset; coverage of common student repertoire (Fur Elise, Clair de Lune, Bach Inventions) is good, but long-tail pieces will miss.
+Code complete and merged to main (2026-03-22). N-gram index + rerank features committed to `model/data/fingerprints/`. Pending AMT container deployment to Cloudflare (AMT_SERVICE binding temporarily disabled in wrangler.toml). Never evaluated at scale against real student recordings. The 242-piece library covers ASAP dataset; coverage of common student repertoire (Fur Elise, Clair de Lune, Bach Inventions) is good, but long-tail pieces will miss.
 
 ### Key Files
 
@@ -272,7 +272,7 @@ When invoked:
 
 ### Current State
 
-Tool defined in prompts.rs. Catalog has schema but sparse seed data (target: 20-30 curated exercises, current count unverified). Exercise assignment/completion endpoints implemented. Focus mode (multi-exercise guided sequences) deferred to Phase 3. Tool invocation frequency and quality never tested.
+Tool defined in prompts.rs. Catalog seeded with 25 curated exercises in migration `0004_exercises.sql` (6 beginner, 10 intermediate, 9 advanced; all 6 dimensions covered). Exercise assignment/completion endpoints implemented and tested (18 tests). Focus mode (multi-exercise guided sequences) deferred to Phase 3. Tool invocation frequency and quality never tested.
 
 ### Key Files
 

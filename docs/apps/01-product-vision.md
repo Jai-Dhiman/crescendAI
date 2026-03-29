@@ -134,12 +134,15 @@ Three stages, one principle: the system does significant work to produce minimal
 | Audio capture (iOS) | COMPLETE | AVAudioEngine + ring buffer + chunking |
 | Audio capture (web) | COMPLETE | MediaRecorder + WebSocket streaming |
 | Cloud inference (MuQ) | DEPLOYED | A1-Max 4-fold ensemble, HF endpoint |
-| STOP classifier | DESIGNED | Cloud worker, not yet deployed |
-| Teaching moment selection | DESIGNED | Rules-based first, learned model later |
-| Two-stage subagent | IMPLEMENTED | Groq/Llama analysis + Anthropic/Sonnet teacher |
-| Student model | PARTIAL | SwiftData models built, synthesis not yet live |
+| STOP classifier | COMPLETE | Cloud worker, 6-weight logistic regression, AUC 0.845 |
+| Teaching moment selection | COMPLETE | STOP + blind-spot + positive moments + dedup |
+| Two-stage subagent | COMPLETE | Groq/Llama analysis + Anthropic/Sonnet teacher, AI Gateway |
+| Session synthesis | COMPLETE | Alarm-triggered, all exit paths, deferred recovery |
+| Zero-config piece ID | COMPLETE | N-gram + rerank + DTW (pending AMT container deploy) |
+| Artifact system | COMPLETE | Unified container, Anthropic tool_use (exercise type) |
+| Student model | PARTIAL | SwiftData models built, synthesized facts COMPLETE |
 | Chat interface (iOS) | PARTIAL | Basic session screen |
-| Chat interface (web) | IN PROGRESS | Chat + recording + real-time observations |
+| Chat interface (web) | COMPLETE | Chat + recording + real-time observations + synthesis |
 
 ---
 

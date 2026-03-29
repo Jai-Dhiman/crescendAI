@@ -1,6 +1,6 @@
 # Apps & Delivery System Status
 
-> **Status (2026-03-19):** Two-stage LLM pipeline IMPLEMENTED with bar-aligned musical analysis (subagent + teacher, Groq + Anthropic). HF inference endpoint DEPLOYED (A1-Max 4-fold ensemble + AMT + pedal CC64). STOP classifier IMPLEMENTED. Teaching moment selection IMPLEMENTED. Score following (DTW) IMPLEMENTED. Bar-aligned analysis engine IMPLEMENTED (all 6 dims, Tier 1/2/3). Durable Object practice sessions IMPLEMENTED. Web practice companion IN PROGRESS. Exercise system IMPLEMENTED. iOS audio capture COMPLETE. Auth + sync COMPLETE. Web Beta roadmap defined (CEO review). Platform strategy: web-first. Session brain (DO state machine), unified artifact container, zero-config first session, tiered monetization (Free/$5/$20/$50) decided.
+> **Status (2026-03-28):** Two-stage LLM pipeline IMPLEMENTED with bar-aligned musical analysis (subagent + teacher, Groq + Anthropic). HF inference endpoint DEPLOYED (A1-Max 4-fold ensemble + AMT + pedal CC64). STOP classifier IMPLEMENTED. Teaching moment selection IMPLEMENTED. Score following (DTW) IMPLEMENTED. Bar-aligned analysis engine IMPLEMENTED (all 6 dims, Tier 1/2/3). Durable Object practice sessions IMPLEMENTED with state persistence (survives DO eviction). Web practice companion IMPLEMENTED (chat, recording, WebSocket observations, session synthesis, landing page). Exercise system IMPLEMENTED (25 curated exercises seeded). iOS audio capture COMPLETE. Auth COMPLETE (Apple + Google on both API and web). AI Gateway COMPLETE (Anthropic + Groq + Workers AI). Zero-config piece ID CODE COMPLETE (merged, pending AMT container deploy). Session synthesis COMPLETE (alarm-triggered, all exit paths, deferred recovery). Unified artifact container COMPLETE. Platform strategy: web-first. Tiered monetization (Free/$5/$20/$50) decided, not yet enforced.
 
 *Core loop: student plays, cloud inference scores 6 dimensions, STOP classifier identifies teaching moments, two-stage subagent pipeline reasons about what matters, teacher LLM delivers one specific observation.*
 
@@ -8,7 +8,7 @@ Target user: Sarah -- intermediate self-learner, no teacher, wants to know the o
 
 ---
 
-## Current Implementation Status (2026-03-14)
+## Current Implementation Status (2026-03-28)
 
 ### iOS App
 
@@ -31,8 +31,11 @@ Target user: Sarah -- intermediate self-learner, no teacher, wants to know the o
 | Chat interface | COMPLETE | `apps/web/` | TanStack Start + React, streaming LLM responses |
 | Audio recording | COMPLETE | `apps/web/` | MediaRecorder, Opus/WebM, 15s chunks, waveform visualizer |
 | WebSocket observations | COMPLETE | `apps/web/` | Real-time observation push during recording |
+| Session synthesis | COMPLETE | `apps/web/` | Alarm-triggered on all exit paths, deferred recovery, WebSocket delivery |
 | Sign in with Apple (web) | COMPLETE | `apps/web/` | JS SDK popup flow |
-| Durable Object sessions | COMPLETE | `apps/api/` | Practice session state management |
+| Google Sign In (web) | COMPLETE | `apps/web/` | GSI client, custom-styled button, API token verification |
+| Landing page | COMPLETE | `apps/web/src/routes/index.tsx` | Hero, feature cards, device mockups, CTAs |
+| Durable Object sessions | COMPLETE | `apps/api/` | Practice session state management with DO storage persistence (survives eviction) |
 | On-demand UI components | COMPLETE | -- | Artifact container system COMPLETE (unified inline-to-expanded pattern). Teacher LLM declares artifacts via Anthropic tool_use (tool_choice: auto). Hybrid catalog lookup + generated fallback. Exercise artifact type for beta. |
 
 Stack: TanStack Start, Tailwind CSS v4, Web Audio API, MediaRecorder, WebSocket.
@@ -42,6 +45,7 @@ Stack: TanStack Start, Tailwind CSS v4, Web Audio API, MediaRecorder, WebSocket.
 | Endpoint / Service | Status | Key Files | Notes |
 |---|---|---|---|
 | `POST /api/auth/apple` | COMPLETE | `apps/api/src/` | Validates Apple ID token, issues session JWT |
+| `POST /api/auth/google` | COMPLETE | `apps/api/src/auth/mod.rs` | Validates Google ID token via tokeninfo endpoint, issues session JWT |
 | `POST /api/sync` | COMPLETE | `apps/api/src/` | Receives student model delta from iOS, upserts to D1 |
 | `POST /api/extract-goals` | COMPLETE | `apps/api/src/` | Extracts student goals from conversation |
 | `POST /api/ask` | IMPLEMENTED | `apps/api/src/services/ask.rs` | Two-stage pipeline (subagent + teacher), provider routing |
@@ -51,7 +55,7 @@ Stack: TanStack Start, Tailwind CSS v4, Web Audio API, MediaRecorder, WebSocket.
 | `POST /api/chat/send` | COMPLETE | `apps/api/src/` | Streaming teacher chat (web path) |
 | D1 schema (students, sessions) | COMPLETE | `apps/api/` | Students, sessions, observations tables |
 | D1 schema (observations) | COMPLETE | `apps/api/` | Observations table ships with /api/ask pipeline |
-| D1 schema (exercises) | DEFINED | `apps/api/` | Tables defined in architecture, not migrated |
+| D1 schema (exercises) | COMPLETE | `apps/api/migrations/0004_exercises.sql` | Tables migrated, 25 curated exercises seeded |
 | STOP classifier | IMPLEMENTED | `apps/api/src/services/stop.rs` | 6-weight logistic regression, AUC 0.845 |
 | Teaching moment selection | IMPLEMENTED | `apps/api/src/services/teaching_moments.rs` | STOP filter + blind-spot detection + positive moments + dedup |
 | Score following (DTW) | IMPLEMENTED | `apps/api/src/practice/score_follower.rs` | Onset+pitch subsequence DTW, cross-chunk continuity, re-anchoring |
@@ -60,18 +64,24 @@ Stack: TanStack Start, Tailwind CSS v4, Web Audio API, MediaRecorder, WebSocket.
 | Score context loading | IMPLEMENTED | `apps/api/src/practice/score_context.rs` | R2 score + reference fetch, D1 catalog, piece request logging |
 | D1 schema (piece_requests) | COMPLETE | `apps/api/migrations/0005_piece_requests.sql` | Demand tracking for catalog expansion |
 | Synthesized facts | COMPLETE | `apps/api/src/services/memory.rs` | Background synthesis trigger (DO finalization + HTTP endpoint), observation counting fix, `SynthesisResult` observability |
-| Exercise endpoints | IMPLEMENTED | `apps/api/src/services/exercises.rs` | `GET /api/exercises`, exercise tracking |
+| Exercise endpoints | IMPLEMENTED | `apps/api/src/services/exercises.rs` | `GET /api/exercises`, assign, complete; 18 tests |
+| Zero-config piece ID | COMPLETE | `apps/api/src/practice/piece_identify.rs` | N-gram + rerank + DTW, merged to main (pending AMT container deploy) |
+| Session synthesis | COMPLETE | `apps/api/src/practice/synthesis.rs` | Alarm-triggered, all exit paths, deferred recovery, 963 lines |
+| DO state persistence | COMPLETE | `apps/api/src/practice/session.rs` | Persists to state.storage(), reloads on eviction at all async boundaries |
+| AI Gateway | COMPLETE | `apps/api/src/services/ai_gateway.rs` | Anthropic + Groq + Workers AI routed through CF AI Gateway |
+| Practice mode detection | COMPLETE | `apps/api/src/practice/session.rs` | 4-state machine (warming/drilling/running/winding) |
 
-Bindings: D1 (students, sessions, exercises), KV (JWTs, rate limits), R2 (audio chunks), DO (practice sessions).
+Bindings: D1 (students, sessions, exercises), KV (JWTs, rate limits), R2 (audio chunks, fingerprints), DO (practice sessions).
 
 ### HF Inference Endpoint
 
 | Component | Status | Notes |
 |---|---|---|
-| A1-Max 4-fold ensemble | DEPLOYED | 80.8% pairwise accuracy, R2=0.50, 6 dimensions |
-| ByteDance AMT transcription | DEPLOYED | Notes + pedal CC64 events, sequential after MuQ |
-| Inference latency | ~1-2s | HF endpoint round-trip (MuQ + AMT sequential) |
-| Handler | DEPLOYED | `apps/inference/handler.py` (returns predictions + midi_notes + pedal_events) |
+| A1-Max 4-fold ensemble | DEPLOYED | 79.85% pairwise accuracy (clean folds), R2=0.336, 6 dimensions |
+| Aria-AMT transcription | DEPLOYED | Replaces ByteDance. Notes + pedal CC64 events. MAESTRO F1 0.86. |
+| Inference latency | ~1-2s | HF endpoint round-trip (MuQ + AMT parallel via DO) |
+| MuQ Handler | DEPLOYED | `apps/inference/muq/handler.py` (returns predictions + midi_notes + pedal_events) |
+| AMT Container | CODE COMPLETE | `apps/inference/amt/` -- ONNX + PyTorch server, pending CF Container deploy |
 | MAESTRO calibration | COMPLETE | `model/data/maestro_cache/calibration_stats.json` |
 
 ---
@@ -90,7 +100,7 @@ The core feedback loop is now wired end-to-end on the web platform. The pipeline
 
 **What works today:** A student can record on the web, chunks are scored by MuQ + transcribed by AMT, the DO runs STOP classification and teaching moment selection, score following maps to bar numbers (if piece is identified), the analysis engine produces per-dimension musical facts, and the enriched subagent prompt generates a bar-specific teacher observation delivered via WebSocket. Three-tier degradation: Tier 1 (full bar-aligned with score+reference), Tier 2 (absolute MIDI for unknown pieces), Tier 3 (scores only if AMT fails).
 
-**Remaining gaps:** Session brain state machine (DO practice mode detection), artifact container system, first-session zero-config flow, session arc (opening/closing), free tier gating, landing page.
+**Remaining gaps:** Free tier gating, AMT container deployment (enables zero-config piece ID + bar-aligned analysis in production), observation pacing tuning, eval validation (STOP on consumer audio, synthesis quality).
 
 ---
 
@@ -133,17 +143,17 @@ For system architecture, see `docs/architecture.md`.
 
 | Task | Depends On | Effort | Priority |
 |---|---|---|---|
-| Session brain state machine in DO | Existing DO session code | 1 week | P0 |
-| Observation pacing (mode-aware throttle) | Session brain | 3 days | P0 |
-| First-session zero-config flow (AMT piece ID) | Existing AMT + fuzzy match | 1 week | P0 |
-| Artifact container component (inline/expanded) | -- | 1 week | P0 |
-| Exercise artifact renderer | Artifact container | 3 days | P0 |
+| Session brain state machine in DO | Existing DO session code | 1 week | P0 | COMPLETE -- practice mode detection + DO state persistence (commit 312a1db) |
+| Observation pacing (mode-aware throttle) | Session brain | 3 days | P0 | Implemented, thresholds need tuning with real sessions |
+| First-session zero-config flow (AMT piece ID) | Existing AMT + fuzzy match | 1 week | P0 | CODE COMPLETE (merged 2026-03-22) -- pending AMT container deploy |
+| Artifact container component (inline/expanded) | -- | 1 week | P0 | COMPLETE -- unified artifact system with tool_use |
+| Exercise artifact renderer | Artifact container | 3 days | P0 | COMPLETE -- 25 curated exercises seeded |
 | ~~Session opening context (memory retrieval)~~ | ~~Existing memory system~~ | ~~3 days~~ | ~~P0~~ (NOT NEEDED -- memory already flows into every request via build_memory_context) |
-| Session closing synthesis | Session brain | 3 days | P0 |
-| Memory retrieval wired E2E | Existing D1 queries | 3 days | P0 |
-| Free tier cap (hardcoded session limit) | -- | 1 day | P1 |
-| Landing page with value prop | -- | 3 days | P1 |
-| Google Sign In on web | Existing API endpoint | 1 day | P1 |
+| Session closing synthesis | Session brain | 3 days | P0 | COMPLETE -- alarm-triggered synthesis, all exit paths, deferred recovery (synthesis.rs, 963 lines) |
+| Memory retrieval wired E2E | Existing D1 queries | 3 days | P0 | COMPLETE -- flows into chat and practice session paths |
+| Free tier cap (hardcoded session limit) | -- | 1 day | P1 | NOT STARTED |
+| Landing page with value prop | -- | 3 days | P1 | COMPLETE -- hero, feature cards, device mockups, CTAs |
+| Google Sign In on web | Existing API endpoint | 1 day | P1 | COMPLETE -- GSI client, API endpoint, env vars configured (commit 2047caa) |
 
 ### Phase 3: iOS + Payment + Rich Artifacts
 
@@ -201,7 +211,7 @@ For system architecture, see `docs/architecture.md`.
 ### Exercises
 
 6. **Notation rendering library.** VexFlow (lightweight) vs. OpenSheetMusicDisplay (most capable, heaviest) vs. native Swift renderer. WebView adds latency but notation rendering is hard. See `05-ui-system.md`.
-7. **Curated exercise count for V1.** 20-30 is the target. When does the LLM-generated path become more important than expanding the curated set?
+7. ~~**Curated exercise count for V1.**~~ RESOLVED -- 25 curated exercises seeded in migration `0004_exercises.sql`, covering all 6 dimensions and 3 difficulty levels. LLM-generated path deferred to post-beta.
 
 ### Architecture
 

@@ -2,10 +2,9 @@
 
 The complete path from microphone to teaching observation. This is the technical heart of the system -- how audio becomes actionable feedback.
 
-> **Status (2026-03-19):**
-> - IMPLEMENTED: Two-stage LLM pipeline (subagent + teacher), HF inference endpoint (A1-Max 4-fold ensemble + AMT + pedal CC64), STOP classifier, teaching moment selection, blind-spot detection, score following (DTW), bar-aligned analysis, synthesized facts, exercise endpoints
-> - NEW (CEO review 2026-03-19): Session brain state machine in DO, observation pacing (mode-aware), zero-config first session (AMT piece fingerprint), artifact declaration via tool use (pattern TBD)
-> - NOT STARTED: Session brain implementation, artifact tool use integration, passage repetition detection
+> **Status (2026-03-28):**
+> - IMPLEMENTED: Two-stage LLM pipeline (subagent + teacher), HF inference endpoint (A1-Max 4-fold ensemble + AMT + pedal CC64), STOP classifier, teaching moment selection, blind-spot detection, score following (DTW), bar-aligned analysis, synthesized facts, exercise endpoints (25 curated), session brain state machine (DO practice mode detection + state persistence), observation pacing (mode-aware), zero-config piece ID (N-gram + rerank + DTW, merged, pending AMT container deploy), artifact declaration via Anthropic tool_use (tool_choice: auto), session synthesis (alarm-triggered, all exit paths, deferred recovery), AI Gateway (Anthropic + Groq + Workers AI)
+> - NOT STARTED: Passage repetition detection
 > - **Code:** `apps/api/src/services/ask.rs` (pipeline), `apps/api/src/services/prompts.rs` (teacher persona), `apps/api/src/practice/session.rs` (DO session)
 > - **Model details:** `model/03-encoders.md`
 > - **Student context:** `03-memory-system.md`
