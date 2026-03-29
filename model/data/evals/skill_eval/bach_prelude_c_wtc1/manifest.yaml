@@ -8,7 +8,7 @@ recordings:
   duration_seconds: 126
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: HgIe-3NVDSc
   title: J.S. Bach - Prelude in C Major BWV 846 (19 months piano progress)
@@ -16,7 +16,7 @@ recordings:
   duration_seconds: 134
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: 7Ka4_kjmo0A
   title: Bach Prelude in C Major BWV 846 - Piano Progress - 4 Months
@@ -24,7 +24,7 @@ recordings:
   duration_seconds: 122
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: xg1iaMDMn_Y
   title: 'Prelude #1 in C major, JS Bach''s WTC book 1- progress video recorded on
@@ -33,7 +33,7 @@ recordings:
   duration_seconds: 123
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: A1O7LaDR3bM
   title: '92: Prelude in C Major - J.S. Bach'
@@ -41,7 +41,7 @@ recordings:
   duration_seconds: 153
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: LdXNtRyoMiE
   title: Day 410 learning piano progress, Bach's Prelude in C Major BWV 846
@@ -49,7 +49,7 @@ recordings:
   duration_seconds: 154
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: OOL50wQb9mA
   title: Bach Prelude in C Major
@@ -57,7 +57,7 @@ recordings:
   duration_seconds: 139
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: eEVXBNDgWJQ
   title: 'Practice: J.S Bach - Prelude in c major'
@@ -65,7 +65,7 @@ recordings:
   duration_seconds: 182
   skill_bucket: 1
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: ZedZs61sdiY
   title: '54: Prelude in C Major - Alfred''s Piano (Progress 2)'
@@ -73,7 +73,7 @@ recordings:
   duration_seconds: 204
   skill_bucket: 1
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: Hy2tnBwx-Ow
   title: 'Bach: Prelude in C Major'
@@ -81,7 +81,7 @@ recordings:
   duration_seconds: 130
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: CYdF4rUq-2U
   title: Prelude In C Major - J.S. Bach (Progress on Day 441 At 500 Hours)
@@ -89,7 +89,7 @@ recordings:
   duration_seconds: 170
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: Cq3sIgHrwOs
   title: Prelude in C Major by Johann Sebastian Bach Alfred's Basic Adult Piano Course
@@ -98,7 +98,7 @@ recordings:
   duration_seconds: 146
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: WvaTdhjwNj4
   title: Prelude in C Major - J.S. Bach - Alfred's Basic - Piano Course - Level 5
@@ -107,7 +107,7 @@ recordings:
   duration_seconds: 104
   skill_bucket: 1
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: GAvqLxBdfeI
   title: 'Adult Beginner Piano Repertoire Favorites: Bach Prelude in C Major'
@@ -116,14 +116,14 @@ recordings:
   skill_bucket: 3
   label_rationale: human curation
   downloaded: false
-  download_error: null
+  download_error: output file not found
 - video_id: u3SVX_CL-BM
   title: Bach Prelude in C Major, BWV 846, from the Well-Tempered Clavier, Book 1
   channel: Beth Tomlin Piano
   duration_seconds: 135
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: qZKtPgTPYr4
   title: 'My Progress on Bach: Prelude in C major (adult beginner)'
@@ -131,7 +131,7 @@ recordings:
   duration_seconds: 132
   skill_bucket: 1
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: 48zb057ubKs
   title: Cydnee playing Bach’s “Prelude in C Major” at Keiko Studios Recital, June
@@ -141,7 +141,7 @@ recordings:
   skill_bucket: 2
   label_rationale: human curation
   downloaded: false
-  download_error: null
+  download_error: output file not found
 - video_id: wqDdy8EbYYA
   title: 'Student Recital 2023: Christian Tan (Down Syndrome), Prelude in C Major
     by J.S. Bach'
@@ -149,7 +149,7 @@ recordings:
   duration_seconds: 266
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: 20q0gUQux6g
   title: Student Jasper (李佳思) 9 yo. plays Bach Prelude in C Major
@@ -157,7 +157,7 @@ recordings:
   duration_seconds: 163
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: maEhIf5NMPk
   title: Prelude in C| J S Bach | Jeevan M R | The Piano Room
@@ -165,7 +165,7 @@ recordings:
   duration_seconds: 210
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: gVah1cr3pU0
   title: 'Lang Lang – Bach: The Well-Tempered Clavier: Book 1, 1.Prelude C Major,
@@ -174,7 +174,7 @@ recordings:
   duration_seconds: 169
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: goXlojwR5uw
   title: '2023 Student Recital: Noelle Lim Performing "Prelude No.1 in C Major" by
@@ -183,7 +183,7 @@ recordings:
   duration_seconds: 136
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: s_9mbXmPU7c
   title: Alex Marsh - Bach Prelude in C Major
@@ -191,7 +191,7 @@ recordings:
   duration_seconds: 141
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: RqTNGXqRnmA
   title: Bach, Prelude in C major, BWV 846  | Tom & Students Recital 2023
@@ -200,7 +200,7 @@ recordings:
   skill_bucket: 1
   label_rationale: human curation
   downloaded: false
-  download_error: null
+  download_error: output file not found
 - video_id: pxU7ryTDEhc
   title: Prelude in C major, Bach
   channel: Live Love Piano by Kristina Lee
@@ -208,7 +208,7 @@ recordings:
   skill_bucket: 3
   label_rationale: human curation
   downloaded: false
-  download_error: null
+  download_error: output file not found
 - video_id: pX5_wzXmAME
   title: Prelude in C Major, Bach - Adhrit Pandey - Fingersmith's Garage Student Recital
     2022
@@ -216,7 +216,7 @@ recordings:
   duration_seconds: 136
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: 3YNy0KHgE8M
   title: Sakura plays Bach Prelude in C (Well-Tempered Clavier)
@@ -224,7 +224,7 @@ recordings:
   duration_seconds: 166
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: 3b1NbiGVWQw
   title: 'Virtual Student Recital | "PRELUDE in C Major" | Song by: J.S. Bach | Pianist
@@ -233,7 +233,7 @@ recordings:
   duration_seconds: 172
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: BS_axZdWIyU
   title: Bach Prelude in C - Val Italo Piano Recital
@@ -241,7 +241,7 @@ recordings:
   duration_seconds: 103
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: T03JSQTEiWE
   title: 2023 Spring Recital - "Prelude No.  1 in C Major" by J.S. Bach - Emmanuel
@@ -250,7 +250,7 @@ recordings:
   duration_seconds: 177
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: ytf5YYBuUpI
   title: 'Prelude and Fugue #1 in C Major by J S Bach I Amateur Performance'
@@ -258,7 +258,7 @@ recordings:
   duration_seconds: 155
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: 0bk6gPoncoA
   title: 'J.S. Bach: Prelude in C Major BWV 846 from The Well Tempered Clavier - Shaghajegh
@@ -267,7 +267,7 @@ recordings:
   duration_seconds: 116
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: lpSNTl6MLl4
   title: Bach - Prelude in C Major (Amateur | Age 22)
@@ -275,7 +275,7 @@ recordings:
   duration_seconds: 161
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: lOXsYKvRwiw
   title: J. S. Bach - Prelude in C Major
@@ -283,7 +283,7 @@ recordings:
   duration_seconds: 185
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: CeDaFBZxPIY
   title: Bach- Prelude in C Major from WTC book I
@@ -291,7 +291,7 @@ recordings:
   duration_seconds: 118
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: Ss7Fv-dqbGY
   title: Amateur plays Bach - Prelude in C Major (WTC 1)
@@ -299,7 +299,7 @@ recordings:
   duration_seconds: 152
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: kGXyPK50-Tw
   title: Bach Prelude in C Major BWV 846 - Expressive Piano Performance | Advanced
@@ -308,7 +308,7 @@ recordings:
   duration_seconds: 157
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: iTQEsCgV22o
   title: Prelude in C Major  / J.S. Bach (piano)
@@ -316,7 +316,7 @@ recordings:
   duration_seconds: 153
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: Bu2b5LYPpxg
   title: JS Bach, Prelude in C Major, The Well-Tempered Clavier
@@ -324,7 +324,7 @@ recordings:
   duration_seconds: 140
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: oIgm5o5uqUE
   title: Bach - prelude in C major
@@ -332,7 +332,7 @@ recordings:
   duration_seconds: 144
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: yOc6yeXXB2M
   title: Bach's Prelude in C Major
@@ -340,7 +340,7 @@ recordings:
   duration_seconds: 146
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: TqsqZJtzhcg
   title: Prelude in C Major, WTC Book 1, BWV 846
@@ -348,7 +348,7 @@ recordings:
   duration_seconds: 130
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: F8zNvuXCWxo
   title: J  S  Bach Prelude in C Major from The Well Tempered Clavier Vol  1
@@ -356,7 +356,7 @@ recordings:
   duration_seconds: 145
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: vsS-TVbr0xI
   title: 'Bach: 1. Prelude in C Major, BWV 846'
@@ -365,7 +365,7 @@ recordings:
   skill_bucket: 3
   label_rationale: human curation
   downloaded: false
-  download_error: null
+  download_error: output file not found
 - video_id: 0mSP7etrqHE
   title: 'Prelude #1 in C major, JS Bach''s WTC book 1 - progress video recorded on
     Dec 20, 2021'
@@ -373,7 +373,7 @@ recordings:
   duration_seconds: 128
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: 0JtMpj9Rp2A
   title: 'Prelude in C major - (BWV -846- The Well Tempered Clavier -Book 1) J.S.
@@ -382,7 +382,7 @@ recordings:
   duration_seconds: 164
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: MH1rd8av810
   title: Prelude No. 1 by J. S. Bach | Piano Pieces for Children | Piano Demo
@@ -390,7 +390,7 @@ recordings:
   duration_seconds: 132
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: RQS2l5vNc-Q
   title: Bach Prelude No. 1 in C Major from WTC Book 1
@@ -398,7 +398,7 @@ recordings:
   duration_seconds: 130
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: yoolHEWVFNM
   title: Bach Prelude No. 1 in C Major from WTC I, BWV 846
@@ -406,7 +406,7 @@ recordings:
   duration_seconds: 130
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: YB_4_rtvULU
   title: Bach Prelude No. 1 in C Major (Work in Progress - Seeking Feedback - Ver.
@@ -415,7 +415,7 @@ recordings:
   duration_seconds: 123
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: xEPoQNbHLK8
   title: Bach - Prelude 1 in C Major - Preludes and fugues - WTC1
@@ -423,7 +423,7 @@ recordings:
   duration_seconds: 153
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: u_wN7UvUelE
   title: 'J. S. Bach: WTC I No.1 Prelude in C Major, BWV 846'
@@ -431,7 +431,7 @@ recordings:
   duration_seconds: 135
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: QvbLXUhTNd0
   title: Prelude 1 in C Major - BWV 846 - The Well Tempered Clavier Book 1 - Johann
@@ -440,7 +440,7 @@ recordings:
   duration_seconds: 168
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: gU2iO1g0t3U
   title: J. S. Bach | Prelude No. 1 in C Major | BWV 846 | Piano
@@ -448,7 +448,7 @@ recordings:
   duration_seconds: 149
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: NrIwVDqhtkA
   title: Prelude in C BWV846 /J.S.Bach - Adult Beginner Piano - Month7 - 2023/1/29
@@ -456,7 +456,7 @@ recordings:
   duration_seconds: 148
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: t2rfsOQmW3Y
   title: Prelude in C Major, from "the well-Tempered Clavier", Vol.I , Bach
@@ -464,7 +464,7 @@ recordings:
   duration_seconds: 112
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: YoyjFs0uSj0
   title: Prelude in C Major by J S Bach, WTC no 1
@@ -473,14 +473,14 @@ recordings:
   skill_bucket: 3
   label_rationale: human curation
   downloaded: false
-  download_error: null
+  download_error: output file not found
 - video_id: DB_I08BfemI
   title: Bach Prelude No 1 in C Major
   channel: Orlando Music Institute
   duration_seconds: 121
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: 1ak8Be4DhrQ
   title: Bach ,Prelude in C from WTC vol 1, Jiaming Zhao(student), Elza Ritter(teacher)
@@ -488,7 +488,7 @@ recordings:
   duration_seconds: 119
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: nTBDhdO-tmo
   title: Prelude in C Major by J.S. Bach (BWV 846)
@@ -496,7 +496,7 @@ recordings:
   duration_seconds: 145
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: i3gWVawbdTM
   title: Prelude in C  ( WTC Bk. 1, Bach)
@@ -504,7 +504,7 @@ recordings:
   duration_seconds: 158
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: eK1rAgDc1-U
   title: Yichen - The Well Tempered Clavier Book 1, Prelude 1 in C Major by J.S. Bach
@@ -512,7 +512,7 @@ recordings:
   duration_seconds: 152
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: t-E8bbgA8K4
   title: Bach prelude in C major the well tempered clavier volume 1
@@ -520,7 +520,7 @@ recordings:
   duration_seconds: 156
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: 1MNnIjztkCM
   title: Harrison School Of Music - Piano - Bach Prelude in C
@@ -528,7 +528,7 @@ recordings:
   duration_seconds: 169
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: -ko8hETs1uk
   title: Cole Martin - Bach Prelude No. 1 - Piano Solo
@@ -536,7 +536,7 @@ recordings:
   duration_seconds: 154
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: rUKjU567X2w
   title: Prelude in C Major No.1 - Bach, Jazzin' Around - Mier (Layla Carver)
@@ -544,7 +544,7 @@ recordings:
   duration_seconds: 263
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: P8wxewJEzA8
   title: Conner Klein plays J.S. Bach's "Prelude 1 in C Major" at NNU 12/12/2015
@@ -552,7 +552,7 @@ recordings:
   duration_seconds: 173
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: D5W3QAUbjOg
   title: J.S. Bach WTC Book 1 Prelude No.1
@@ -560,7 +560,7 @@ recordings:
   duration_seconds: 165
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: e2QOcSsGJXM
   title: Prelude I in C major, BWV 846 - Well Tempered Clavier (1st Book) - J. S.
@@ -569,7 +569,7 @@ recordings:
   duration_seconds: 154
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: un2W7MuGVIg
   title: 许粲昊 Thomas Canhao Xu - Bach Well-Tempered Clavier Book 1 Prelude No. 1
@@ -577,7 +577,7 @@ recordings:
   duration_seconds: 120
   skill_bucket: 1
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: IktlmV3zHjw
   title: 'J.S. Bach: das Wohltemperierte Klavier 1st part, 1. Prelude'
@@ -585,7 +585,7 @@ recordings:
   duration_seconds: 151
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: aCmldStNg0I
   title: J.S.Bach Prelude No.1 C Major BWV 846-1 Yumiko Onda(Piano)
@@ -593,7 +593,7 @@ recordings:
   duration_seconds: 158
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: 6OyXXfRJVwM
   title: 80 days piano progress - Bach, Prelude in C major, BWV 846
@@ -601,7 +601,7 @@ recordings:
   duration_seconds: 155
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: c1P00KEzLj4
   title: J.S. Bach - Prelude no. 1 in C major  [BWV 846]
@@ -609,7 +609,7 @@ recordings:
   duration_seconds: 162
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: SvaGNUvVFPc
   title: J.S.Bach, Prelude in C major, WTC Book I. Adult beginner, 6 months progress
@@ -618,7 +618,7 @@ recordings:
   duration_seconds: 144
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: ib7dHVO_IZI
   title: 'Prelude in C major (BWV 846, WTC Book 1) by J. S. Bach: Trinity Grade 5
@@ -627,7 +627,7 @@ recordings:
   duration_seconds: 136
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: 8VW3eFuSDSQ
   title: J. S. Bach - Prelude in C Major, BWV 846 (Falling Notes Visualization) |
@@ -636,7 +636,7 @@ recordings:
   duration_seconds: 154
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: PPe9G8ivMfM
   title: Bach Prelude in C Major BWV 846 (No.1) Well-Tempered Clavier Book 1 - Dirk
@@ -645,7 +645,7 @@ recordings:
   duration_seconds: 147
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: _-smhag-Q0E
   title: Bach — Prelude in C Major BWV 846 (adult beginner, WIP)
@@ -653,7 +653,7 @@ recordings:
   duration_seconds: 167
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: GL_slqOHxQI
   title: Prelude in C Major BWV 846. Bach. Adult piano beginner. ( Kawai CN39)
@@ -661,7 +661,7 @@ recordings:
   duration_seconds: 132
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: x_85Nqs2Wl0
   title: Prelude in C Major, BWV 846 by J.S. Bach
@@ -669,7 +669,7 @@ recordings:
   duration_seconds: 127
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: cDuuoboYXks
   title: Cecelia Y. | Prelude BWV 846 - J.S. Bach
@@ -678,14 +678,14 @@ recordings:
   skill_bucket: 3
   label_rationale: human curation
   downloaded: false
-  download_error: null
+  download_error: output file not found
 - video_id: Ti0m5DPeWjw
   title: J.S. Bach, Prelude in C, Played by My Piano Student, Age 6
   channel: Debbie Center Music & Art
   duration_seconds: 146
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: ol7guHuxlrU
   title: Cecilia plays Bach's Prelude BWV 846
@@ -694,14 +694,14 @@ recordings:
   skill_bucket: 3
   label_rationale: human curation
   downloaded: false
-  download_error: null
+  download_error: output file not found
 - video_id: JXTAmxZczEQ
   title: J.S. Bach - Prelude C Major, BWV 846, The Well-Tempered Clavier - Alina Shaw
   channel: K&M Music School
   duration_seconds: 167
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: xTyinjNRbtU
   title: Prelude in C major, BWV 846 by J.S. Bach - Manu Chourasia
@@ -709,7 +709,7 @@ recordings:
   duration_seconds: 133
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: gxcIVdRwDPM
   title: Bach WTC Prelude No  1 Book I SPV Pilot version
@@ -717,7 +717,7 @@ recordings:
   duration_seconds: 208
   skill_bucket: 1
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: Aj_LP6Nh5M4
   title: 10:6 Frank Bai OLFP060 Amateur Junior Division D Prelude C Major， BWV846
@@ -725,7 +725,7 @@ recordings:
   duration_seconds: 166
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: T-eNi_bukT4
   title: Bach BWV 846 prelude and fugue in c major
@@ -733,7 +733,7 @@ recordings:
   duration_seconds: 179
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: Ft0714E1WOM
   title: Bach's prelude to WTC
@@ -741,7 +741,7 @@ recordings:
   duration_seconds: 113
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: RAgDyejXths
   title: Bach - Prelude No.1 in C (5 month piano progress)
@@ -749,7 +749,7 @@ recordings:
   duration_seconds: 163
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: qw_gZTwrF4g
   title: Bach, Prelude C Major - My Learning Progress Playing Piano Keyboard - 2025
@@ -758,7 +758,7 @@ recordings:
   duration_seconds: 218
   skill_bucket: 1
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: MCdTpEuVsx4
   title: '57: Prelude in C Major - Alfred''s Piano (Progress 3?)'
@@ -766,7 +766,7 @@ recordings:
   duration_seconds: 162
   skill_bucket: 1
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: 8GuX2J30Z80
   title: JS Bach - Prelude 1 in C Major after 1 year of practicing piano.
@@ -774,7 +774,7 @@ recordings:
   duration_seconds: 163
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: vJVbwXLT7X4
   title: Everyone Can Play Bach Community Challenge - Prelude In C Major!
@@ -782,7 +782,7 @@ recordings:
   duration_seconds: 156
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: 20yVnyNEJZ8
   title: Prelude in C Major 18 months progress
@@ -790,7 +790,7 @@ recordings:
   duration_seconds: 112
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: 2nhN_P2PBuU
   title: adult beginner piano progress | DAY 3 learning PRELUDE IN C MAJOR BACH NEWBIE
@@ -799,7 +799,7 @@ recordings:
   duration_seconds: 255
   skill_bucket: 1
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: bcBoXOyRXX0
   title: 14. Prelude in C Major, Bach - 10 months progress
@@ -807,7 +807,7 @@ recordings:
   duration_seconds: 147
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: 1tWH2cqRm3A
   title: Bach, Prelude 1 C Major (Right Hand Only) - My Learning Progress Playing
@@ -816,7 +816,7 @@ recordings:
   duration_seconds: 167
   skill_bucket: 1
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: LpUxkKw6O6c
   title: Bach 'Prelude in C' - Lucy | Classic FM
@@ -824,7 +824,7 @@ recordings:
   duration_seconds: 152
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: -rdIeLO7Gu0
   title: Prelude in C major (BWV 846) -  J.S. Bach - Played by Danica Scofield
@@ -832,7 +832,7 @@ recordings:
   duration_seconds: 149
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: -hWO36pyyNw
   title: Pianist age 11 plays Prelude in C major by J. S. Bach
@@ -840,7 +840,7 @@ recordings:
   duration_seconds: 97
   skill_bucket: 1
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: 4MYAfXyuI9g
   title: Bach Prelude C Major from Prelude and Fuge WTK
@@ -848,7 +848,7 @@ recordings:
   duration_seconds: 122
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: dFSU8awFtMo
   title: J.S Bach Prelude in C Major No.1, BWV846
@@ -856,7 +856,7 @@ recordings:
   duration_seconds: 139
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: 5rhksuX89Go
   title: Dashiell (age 9) plays J.S. Bach's Prelude No 1 in C Major, BWV 846.
@@ -864,7 +864,7 @@ recordings:
   duration_seconds: 107
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: jb_oYW-1TFU
   title: J.S.Bach prelude n.1 in C major  BTW 846
@@ -872,7 +872,7 @@ recordings:
   duration_seconds: 145
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: 9F19T9qDdo8
   title: 2018/10/13 Leo Chen recital Bach Prelude C major
@@ -880,7 +880,7 @@ recordings:
   duration_seconds: 115
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: NeJFgIeUtkk
   title: Prelude in C Major by Bach - Genevieve
@@ -888,7 +888,7 @@ recordings:
   duration_seconds: 189
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: VNO9SnHdDEY
   title: Ciaran O'Flynn - Prelude No. 1 in C Major(Bach)
@@ -896,7 +896,7 @@ recordings:
   duration_seconds: 116
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: PXMVkQ70I88
   title: 'Tzvi Erez plays Bach: Prelude 1 in C Major BWV 846 from the Well-Tempered
@@ -905,7 +905,7 @@ recordings:
   duration_seconds: 135
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: FXe_31NBO0k
   title: Terry Plays Prelude in C Major - J.S. Bach
@@ -913,7 +913,7 @@ recordings:
   duration_seconds: 130
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: nE1U9iqA8Vo
   title: 'BACH, Johann Sebastian :  Prelude & Fugue in C Major ... C. Denise Young,
@@ -922,7 +922,7 @@ recordings:
   duration_seconds: 194
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: Qj6nQ09c2sU
   title: First Piano Recital - Prelude and Fugue in C major, BWV 846
@@ -931,14 +931,14 @@ recordings:
   skill_bucket: 3
   label_rationale: human curation
   downloaded: false
-  download_error: null
+  download_error: output file not found
 - video_id: 55kqFYhqJng
   title: Johann Sebastian Bach - Prelude in C Major BWV 846
   channel: Sam Thomas
   duration_seconds: 138
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: L96aveDSIxY
   title: Prelude in C Major, J.S Bach
@@ -946,7 +946,7 @@ recordings:
   duration_seconds: 159
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: 0CHclYkSlbs
   title: Prelude in C Major, WTC I, BWV 846 ~ J.S. Bach
@@ -954,7 +954,7 @@ recordings:
   duration_seconds: 199
   skill_bucket: 1
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: X2ln1aDLrjA
   title: My Piano Recital - PRELUDE IN C MAJOR (J.S.Bach)
@@ -962,7 +962,7 @@ recordings:
   duration_seconds: 201
   skill_bucket: 1
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: frxT2qB1POQ
   title: J.S. Bach - Prelude in C Major
@@ -970,7 +970,7 @@ recordings:
   duration_seconds: 165
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: _3qnL9ddHuw
   title: Bach Prelude and Fugue No.1 Well Tempered Clavier, Book 1 with Harmonic Pedal
@@ -978,7 +978,7 @@ recordings:
   duration_seconds: 268
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: z70uj1bD6wQ
   title: Bach - Prelude in C | Grade 4 | Piano Pieces for Children || ABRSM | Trinity
@@ -987,7 +987,7 @@ recordings:
   duration_seconds: 102
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: E8H_Chfw8fc
   title: 'The Well-Tempered Keyboard, Book 1, Prelude and Fugue No. 1 in C Major,
@@ -996,7 +996,7 @@ recordings:
   duration_seconds: 131
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: iWoI8vmE8bI
   title: 'Alexandre Tharaud – J.S. Bach: Prelude No. 1, BWV 846 (Das Wohltemperierte
@@ -1005,7 +1005,7 @@ recordings:
   duration_seconds: 139
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: ToWj_4xvVZA
   title: Bach, Prelude in C major, BWV 846
@@ -1013,7 +1013,7 @@ recordings:
   duration_seconds: 133
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: NIluiHEJqS0
   title: Johann Sebastian Bach Prelude C majeur
@@ -1021,7 +1021,7 @@ recordings:
   duration_seconds: 145
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: wU46NZ9SsKA
   title: Johann Sebastian Bach ~ Prelude in C Major
@@ -1029,7 +1029,7 @@ recordings:
   duration_seconds: 132
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: veF-yf1qYHc
   title: Bach Prelude No.1 in C Major, BWV 846
@@ -1037,7 +1037,7 @@ recordings:
   duration_seconds: 152
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: rPZOpnjFG5o
   title: J. S. BACH - Prelude in C Major, BWV 846
@@ -1045,7 +1045,7 @@ recordings:
   duration_seconds: 153
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: eujpw5VUuB0
   title: Hélène Grimaud - Prelude in C Major - Bach - WTC Book 1
@@ -1053,7 +1053,7 @@ recordings:
   duration_seconds: 171
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: 7ZNXBpO-uEo
   title: 'Lang Lang – Bach: The Well-Tempered Clavier: Book 1, 1.Prelude in C Major,
@@ -1062,7 +1062,7 @@ recordings:
   duration_seconds: 141
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: kNDy_CngesU
   title: 'J.S. Bach: The Well-Tempered Clavier, Book 1: Prelude No. 1 in C Major,
@@ -1071,7 +1071,7 @@ recordings:
   duration_seconds: 113
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: 1CVlBSgj0bk
   title: 'The Well-Tempered Clavier, Book 1: Prelude No. 1 in C Major, BWV 846'
@@ -1079,7 +1079,7 @@ recordings:
   duration_seconds: 145
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: ChdQ3xmTh8s
   title: 'J.S. Bach: The Well-Tempered Clavier I, Prelude & Fugue No. 1 in C Major,
@@ -1088,7 +1088,7 @@ recordings:
   duration_seconds: 140
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: 6Dnz4P-0IpA
   title: 'Alice Sara Ott - Bach: Prelude in C Major, BWV 846, I. Prelude, Upright
@@ -1097,7 +1097,7 @@ recordings:
   duration_seconds: 118
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: PIpTAgpabmo
   title: 'Prelude and Fugue No. 1 in C Major, BWV 846: Prelude'
@@ -1105,7 +1105,7 @@ recordings:
   duration_seconds: 142
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: pLB64p4J8FQ
   title: James Rhodes Plays Bach's Prelude No. 1 in C Major
@@ -1113,7 +1113,7 @@ recordings:
   duration_seconds: 246
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null
 - video_id: J9Z9WWUJj5I
   title: J.S.Bach Prelude in C Major from the Well-Tempered Clavier
@@ -1121,5 +1121,5 @@ recordings:
   duration_seconds: 136
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: false
+  downloaded: true
   download_error: null

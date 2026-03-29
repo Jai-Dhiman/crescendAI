@@ -1,0 +1,36 @@
+piece: fantaisie_impromptu
+title: Chopin Fantaisie-Impromptu
+composer: Chopin
+recordings:
+- video_id: H4v4Ipl_UJI
+  title: Dmitry Shishkin – Fantasy-impromptu in C sharp minor Op. 66 (third stage)
+  channel: Chopin Institute
+  duration_seconds: 317
+  skill_bucket: 5
+  label_rationale: human curation
+  downloaded: true
+  download_error: null
+- video_id: twIQYQgPzaE
+  title: Arthur Rubinstein - Chopin Fantaisie Impromptu in C sharp Minor, Op. 66 Posth
+  channel: ArRubMusic
+  duration_seconds: 321
+  skill_bucket: 5
+  label_rationale: human curation
+  downloaded: true
+  download_error: null
+- video_id: uJfNkEth-9Y
+  title: Kissin plays chopin Fantasie- Impromptu op.66 verbier festival.wmv
+  channel: ekissin99
+  duration_seconds: 351
+  skill_bucket: 5
+  label_rationale: human curation
+  downloaded: true
+  download_error: null
+- video_id: tvm2ZsRv3C8
+  title: Yundi Li - Chopin "Fantasie" Impromptu, Op. 66
+  channel: thepolonaise
+  duration_seconds: 319
+  skill_bucket: 5
+  label_rationale: human curation
+  downloaded: true
+  download_error: null

@@ -1,0 +1,20 @@
+piece: debussy_arabesque_1
+title: Debussy Arabesque No. 1
+composer: Debussy
+recordings:
+- video_id: qNoq240t54I
+  title: 'Debussy: Arabesque No. 1 in E major (Alain Lefèvre)'
+  channel: Warner Classics
+  duration_seconds: 271
+  skill_bucket: 5
+  label_rationale: human curation
+  downloaded: true
+  download_error: null
+- video_id: uuDuIenxY1I
+  title: 'Yuja Wang: Debussy Arabesque No 1 in E major'
+  channel: Peter 2.0
+  duration_seconds: 251
+  skill_bucket: 5
+  label_rationale: human curation
+  downloaded: true
+  download_error: null

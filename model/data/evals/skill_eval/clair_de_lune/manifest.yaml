@@ -1,0 +1,360 @@
+piece: clair_de_lune
+title: Debussy Clair de Lune
+composer: Debussy
+recordings:
+- video_id: AUr3kazFBLo
+  title: 11 Months of Piano - Clair de lune by Debussy (complete)
+  channel: Daniel Piano Progress
+  duration_seconds: 337
+  skill_bucket: 3
+  label_rationale: human curation
+  downloaded: true
+  download_error: null
+- video_id: JWFcWdCEYWE
+  title: Clair de Lune - Beginner progress after one year
+  channel: Sentinel Knights
+  duration_seconds: 316
+  skill_bucket: 2
+  label_rationale: human curation
+  downloaded: true
+  download_error: null
+- video_id: QGo9XfGVpKk
+  title: 8 Months of Piano - Clair de lune by Debussy
+  channel: Daniel Piano Progress
+  duration_seconds: 113
+  skill_bucket: 3
+  label_rationale: human curation
+  downloaded: true
+  download_error: null
+- video_id: 4fHEBus_KdA
+  title: Clair de Lune - Piano Progress 1 Year and 4 Months
+  channel: Sarino Pianoforte
+  duration_seconds: 187
+  skill_bucket: 1
+  label_rationale: human curation
+  downloaded: true
+  download_error: null
+- video_id: 4-6JVJ1oXRM
+  title: Clair de Lune - Claude Debussy
+  channel: Vinheteiro
+  duration_seconds: 328
+  skill_bucket: 4
+  label_rationale: human curation
+  downloaded: true
+  download_error: null
+- video_id: 4VM1tec1RSI
+  title: 1 year piano progress  Clair de lune - Claude Debussy
+  channel: Bikutā
+  duration_seconds: 327
+  skill_bucket: 2
+  label_rationale: human curation
+  downloaded: true
+  download_error: null
+- video_id: HTGGJBYtfNg
+  title: Clair de Lune Debussy (13 Month Piano Progress)
+  channel: Kohler Wood
+  duration_seconds: 326
+  skill_bucket: 3
+  label_rationale: human curation
+  downloaded: true
+  download_error: null
+- video_id: 5pPFfcbmEXs
+  title: Learning to play Clair de Lune on Piano - Progress!
+  channel: Steve Lee
+  duration_seconds: 133
+  skill_bucket: 1
+  label_rationale: human curation
+  downloaded: true
+  download_error: null
+- video_id: QrqjPohK94c
+  title: Debussy - Clair de Lune - Ricker Choi
+  channel: Ricker Choi
+  duration_seconds: 295
+  skill_bucket: 4
+  label_rationale: human curation
+  downloaded: true
+  download_error: null
+- video_id: OjP_asnAXt4
+  title: clair de lune but it's 3am
+  channel: Birru
+  duration_seconds: 358
+  skill_bucket: 4
+  label_rationale: human curation
+  downloaded: true
+  download_error: null
+- video_id: CF0rqYNJ180
+  title: clair de lune, 3 years piano progress
+  channel: Lévi
+  duration_seconds: 331
+  skill_bucket: 2
+  label_rationale: human curation
+  downloaded: true
+  download_error: null
+- video_id: IDJSST9M0bQ
+  title: Learning Clair de Lune by Claude Debussy - one year progress
+  channel: Kat H
+  duration_seconds: 301
+  skill_bucket: 1
+  label_rationale: human curation
+  downloaded: false
+  download_error: output file not found
+- video_id: IFx0_UTUyjU
+  title: Clair De Lune (Day 1... Piano Progress)
+  channel: Matt Southam
+  duration_seconds: 185
+  skill_bucket: 2
+  label_rationale: human curation
+  downloaded: true
+  download_error: null
+- video_id: -hktd764MGA
+  title: Clair de Lune Progress Week 4 | Key of Madison
+  channel: Key of Madison
+  duration_seconds: 220
+  skill_bucket: 2
+  label_rationale: human curation
+  downloaded: true
+  download_error: null
+- video_id: D9gkI64UA3o
+  title: Clair de Lune by Debussy  |  Adult Piano Adventures Classics book 2
+  channel: Piano with Beth
+  duration_seconds: 175
+  skill_bucket: 3
+  label_rationale: human curation
+  downloaded: true
+  download_error: null
+- video_id: nAnnYgUyRGI
+  title: Clair de Lune by Claude Debussy - Adult Beginner Piano
+  channel: Paideia
+  duration_seconds: 105
+  skill_bucket: 1
+  label_rationale: human curation
+  downloaded: true
+  download_error: null
+- video_id: qXgPCeUqXzs
+  title: Clair de lune (from Suite Bergamasque) by Debussy - Alfred Famous & Fun Classics
+    Book 5 P.18-20
+  channel: Joyous Pianoforte
+  duration_seconds: 98
+  skill_bucket: 2
+  label_rationale: human curation
+  downloaded: true
+  download_error: null
+- video_id: i1qQOGCyRbY
+  title: Debussy "Clair de Lune" on Piano for 80 Year Old Elephant
+  channel: Paul Barton
+  duration_seconds: 203
+  skill_bucket: 4
+  label_rationale: human curation
+  downloaded: true
+  download_error: null
+- video_id: VTVLt90MWH8
+  title: Clair de Lune - Adult Piano beginner (1 year)
+  channel: MPiano Journey
+  duration_seconds: 156
+  skill_bucket: 2
+  label_rationale: human curation
+  downloaded: true
+  download_error: null
+- video_id: uR4P58SyzIE
+  title: Clair de lune (from Suite bergamasque) - Debussy (page 74, Adult Piano Adventures
+    Classics Book 2)
+  channel: Piano Adventures
+  duration_seconds: 151
+  skill_bucket: 3
+  label_rationale: human curation
+  downloaded: true
+  download_error: null
+- video_id: 8O-1wkQ-6T0
+  title: Tiffany Poon - Debussy Clair de Lune
+  channel: Tiffany Poon
+  duration_seconds: 361
+  skill_bucket: 4
+  label_rationale: human curation
+  downloaded: true
+  download_error: null
+- video_id: 2lTRAzAYzUQ
+  title: Student recital - Claude Debussy "Clair de Lune"
+  channel: The European Academy of Arts
+  duration_seconds: 279
+  skill_bucket: 3
+  label_rationale: human curation
+  downloaded: false
+  download_error: output file not found
+- video_id: RJu-JPVURgQ
+  title: Clair de Lune by Claude Debussy
+  channel: Cary School of Music
+  duration_seconds: 292
+  skill_bucket: 3
+  label_rationale: human curation
+  downloaded: true
+  download_error: null
+- video_id: pAhXX252Esk
+  title: “Clair de lune by Claude Debussy”  - Phoebe’s recital
+  channel: Aleihs M.
+  duration_seconds: 324
+  skill_bucket: 3
+  label_rationale: human curation
+  downloaded: false
+  download_error: output file not found
+- video_id: w5BbXcFGisA
+  title: Clair de Lune by Claude Debussy
+  channel: Piano Performance Arts Academy, LLC.
+  duration_seconds: 285
+  skill_bucket: 3
+  label_rationale: human curation
+  downloaded: true
+  download_error: null
+- video_id: J8xfM054ohk
+  title: 2017 November • Aidan C. "Claire de Lune" by Claude Debussy
+  channel: Pastime's For A Lifetime, Inc.
+  duration_seconds: 374
+  skill_bucket: 3
+  label_rationale: human curation
+  downloaded: true
+  download_error: null
+- video_id: OHvjn4dnqsU
+  title: Debussy — Clair de Lune (Wilkins Studio Recital)
+  channel: Kayce Greene
+  duration_seconds: 285
+  skill_bucket: 3
+  label_rationale: human curation
+  downloaded: false
+  download_error: output file not found
+- video_id: g1_7WDR6mmE
+  title: 2023 CMS Faculty-Student Recital - Clair de Lune by C. Debussy - Ceiran Magee,
+    piano
+  channel: Community Music School Lehigh Valley & Berks
+  duration_seconds: 363
+  skill_bucket: 2
+  label_rationale: human curation
+  downloaded: true
+  download_error: null
+- video_id: nuGeOhMORVo
+  title: The Piano Room | Student Recital 2023 | Roshan | Clair De Lune | Debussy
+  channel: The Piano Room
+  duration_seconds: 408
+  skill_bucket: 3
+  label_rationale: human curation
+  downloaded: true
+  download_error: null
+- video_id: dbgIWzM_A5o
+  title: 'Debussy''s "Clair de Lune" — Rebecca: Spring 2013 Piano Recital'
+  channel: mnmadeuffdayoubetcha
+  duration_seconds: 270
+  skill_bucket: 2
+  label_rationale: human curation
+  downloaded: true
+  download_error: null
+- video_id: Vaxm8x8yKa4
+  title: 'Emily Yuan: Clair de lune by Debussy at American Protege Winner Recital'
+  channel: Joe Yuan
+  duration_seconds: 334
+  skill_bucket: 3
+  label_rationale: human curation
+  downloaded: false
+  download_error: output file not found
+- video_id: u8gur3NPVYw
+  title: CLAIR DE LUNE by Debussy (14-year-old student)
+  channel: BachScholar
+  duration_seconds: 255
+  skill_bucket: 3
+  label_rationale: human curation
+  downloaded: true
+  download_error: null
+- video_id: 09_kC_aYt6w
+  title: Clair de Lune | Julie Lovison | Piano Teacher Chicago
+  channel: LakeShoreMusicStudio
+  duration_seconds: 316
+  skill_bucket: 4
+  label_rationale: human curation
+  downloaded: true
+  download_error: null
+- video_id: 5cZuPRpAQMw
+  title: 'Clair de Lune: Teacher Performance'
+  channel: JwuPiano
+  duration_seconds: 276
+  skill_bucket: 3
+  label_rationale: human curation
+  downloaded: true
+  download_error: null
+- video_id: 91PxLEDIAsM
+  title: Clair De Lune - Sam Bloechle - Stony Brook University Recital 2014
+  channel: Classic Rock History Roadshow
+  duration_seconds: 315
+  skill_bucket: 3
+  label_rationale: human curation
+  downloaded: true
+  download_error: null
+- video_id: sLO1R1QHsXw
+  title: Clair De Lune (2022 Student Music Showcase)
+  channel: Brooklyn Tech Performing Arts
+  duration_seconds: 353
+  skill_bucket: 3
+  label_rationale: human curation
+  downloaded: true
+  download_error: null
+- video_id: xFFz1Et2QCo
+  title: Debussy Clair de lune - Josh Wright
+  channel: Josh Wright
+  duration_seconds: 296
+  skill_bucket: 4
+  label_rationale: human curation
+  downloaded: true
+  download_error: null
+- video_id: OE-u2ORtIJY
+  title: '"Claire de Lune" from Suite Bergamasque by Claude Debussy performed by Nicholas
+    Wyatt'
+  channel: Phil O'Neal | Maestro Music Group
+  duration_seconds: 430
+  skill_bucket: 3
+  label_rationale: human curation
+  downloaded: true
+  download_error: null
+- video_id: dq_fM8GrxM4
+  title: Clair de lune by Claude Debussy
+  channel: MCC Student Music
+  duration_seconds: 350
+  skill_bucket: 4
+  label_rationale: human curation
+  downloaded: true
+  download_error: null
+- video_id: t1TW23Zyf2w
+  title: Clair de Lune recital performance
+  channel: Alex Britton
+  duration_seconds: 385
+  skill_bucket: 3
+  label_rationale: human curation
+  downloaded: true
+  download_error: null
+- video_id: fZrm9h3JRGs
+  title: 'Lang Lang – Debussy: Suite bergamasque, L.75: III. Clair de lune'
+  channel: Deutsche Grammophon - DG
+  duration_seconds: 406
+  skill_bucket: 5
+  label_rationale: human curation
+  downloaded: true
+  download_error: null
+- video_id: Ch2mrPm1JnM
+  title: C.Debussy - Clair de Lune, Maria João Pires live at Jardin Musical
+  channel: Jardin Musical
+  duration_seconds: 322
+  skill_bucket: 5
+  label_rationale: human curation
+  downloaded: true
+  download_error: null
+- video_id: _5h4Y66HnG0
+  title: Evgeny Kissin - Clair de Lune
+  channel: Chicken Man
+  duration_seconds: 355
+  skill_bucket: 5
+  label_rationale: human curation
+  downloaded: true
+  download_error: null
+- video_id: U3u4pQ4WKOk
+  title: 'Seong-Jin Cho – Debussy: Suite bergamasque, L.75: III. Clair de lune'
+  channel: Deutsche Grammophon - DG
+  duration_seconds: 334
+  skill_bucket: 5
+  label_rationale: human curation
+  downloaded: true
+  download_error: null

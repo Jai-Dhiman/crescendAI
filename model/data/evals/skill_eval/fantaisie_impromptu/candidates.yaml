@@ -1,7 +1,7 @@
 piece: fantaisie_impromptu
 title: Chopin Fantaisie-Impromptu
 composer: Chopin
-status: uncurated
+status: partial
 target_per_bucket: 6
 recordings:
 - video_id: 3GiKLt1GbQM
@@ -46,7 +46,7 @@ recordings:
   duration_seconds: 102
   view_count: 635665
   skill_bucket: null
-  label_rationale: null
+  label_rationale: skip
   downloaded: false
   download_error: null
 - video_id: DQeC5i9c09M
@@ -83,7 +83,7 @@ recordings:
   duration_seconds: 624
   view_count: 694921
   skill_bucket: null
-  label_rationale: null
+  label_rationale: skip
   downloaded: false
   download_error: null
 - video_id: q-01hdutfv4
@@ -101,7 +101,7 @@ recordings:
   duration_seconds: 749
   view_count: 35242
   skill_bucket: null
-  label_rationale: null
+  label_rationale: skip
   downloaded: false
   download_error: null
 - video_id: Gus4dnQuiGk
@@ -119,7 +119,7 @@ recordings:
   duration_seconds: 739
   view_count: 217276
   skill_bucket: null
-  label_rationale: null
+  label_rationale: skip
   downloaded: false
   download_error: null
 - video_id: hxeEu-tCeB4
@@ -156,7 +156,7 @@ recordings:
   duration_seconds: 64
   view_count: 1182
   skill_bucket: null
-  label_rationale: null
+  label_rationale: skip
   downloaded: false
   download_error: null
 - video_id: hm1I5kgruyk
@@ -193,7 +193,7 @@ recordings:
   duration_seconds: 374
   view_count: 1381
   skill_bucket: null
-  label_rationale: null
+  label_rationale: skip
   downloaded: false
   download_error: null
 - video_id: 3MBGsvmKhOs
@@ -240,7 +240,7 @@ recordings:
   duration_seconds: 642
   view_count: 1537
   skill_bucket: null
-  label_rationale: null
+  label_rationale: skip
   downloaded: false
   download_error: null
 - video_id: 4i3FfV8taQM
@@ -358,7 +358,7 @@ recordings:
   duration_seconds: 328
   view_count: 1723
   skill_bucket: null
-  label_rationale: null
+  label_rationale: skip
   downloaded: false
   download_error: null
 - video_id: sQFoaowHJyQ
@@ -421,7 +421,7 @@ recordings:
   duration_seconds: 386
   view_count: 3107
   skill_bucket: null
-  label_rationale: null
+  label_rationale: skip
   downloaded: false
   download_error: null
 - video_id: qX9jvECo7V8
@@ -484,8 +484,8 @@ recordings:
   channel: Chopin Institute
   duration_seconds: 317
   view_count: 3525161
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 5
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: 3X463MQcInk
@@ -1251,8 +1251,8 @@ recordings:
   channel: ArRubMusic
   duration_seconds: 321
   view_count: 462808
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 5
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: nP1b3pYK3QQ
@@ -1269,8 +1269,8 @@ recordings:
   channel: ekissin99
   duration_seconds: 351
   view_count: 777404
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 5
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: tvm2ZsRv3C8
@@ -1278,8 +1278,8 @@ recordings:
   channel: thepolonaise
   duration_seconds: 319
   view_count: 9880304
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 5
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: KhB-ArRRzZM
@@ -1445,7 +1445,7 @@ recordings:
   duration_seconds: 302
   view_count: 54800
   skill_bucket: null
-  label_rationale: null
+  label_rationale: skip
   downloaded: false
   download_error: null
 - video_id: qdqC4ZPlwA8

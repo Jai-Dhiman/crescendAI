@@ -1,7 +1,7 @@
 piece: debussy_arabesque_1
 title: Debussy Arabesque No. 1
 composer: Debussy
-status: uncurated
+status: partial
 target_per_bucket: 6
 recordings:
 - video_id: lU2AekptxG0
@@ -119,7 +119,7 @@ recordings:
   duration_seconds: 116
   view_count: 66
   skill_bucket: null
-  label_rationale: null
+  label_rationale: skip
   downloaded: false
   download_error: null
 - video_id: T9JtbljzfWs
@@ -146,7 +146,7 @@ recordings:
   duration_seconds: 237
   view_count: 41116
   skill_bucket: null
-  label_rationale: null
+  label_rationale: skip
   downloaded: false
   download_error: null
 - video_id: IiIOkDkTdjc
@@ -255,7 +255,7 @@ recordings:
   duration_seconds: 179
   view_count: 225
   skill_bucket: null
-  label_rationale: null
+  label_rationale: skip
   downloaded: false
   download_error: null
 - video_id: AOb5HqNWbFY
@@ -510,7 +510,7 @@ recordings:
   duration_seconds: 295
   view_count: 200
   skill_bucket: null
-  label_rationale: null
+  label_rationale: skip
   downloaded: false
   download_error: null
 - video_id: EXL9cY5cbls
@@ -682,7 +682,7 @@ recordings:
   duration_seconds: 264
   view_count: 105
   skill_bucket: null
-  label_rationale: null
+  label_rationale: skip
   downloaded: false
   download_error: null
 - video_id: hG0_WYpWBdc
@@ -709,7 +709,7 @@ recordings:
   duration_seconds: 747
   view_count: 28758
   skill_bucket: null
-  label_rationale: null
+  label_rationale: skip
   downloaded: false
   download_error: null
 - video_id: xSavPatri5k
@@ -973,7 +973,7 @@ recordings:
   duration_seconds: 373
   view_count: 22552
   skill_bucket: null
-  label_rationale: null
+  label_rationale: skip
   downloaded: false
   download_error: null
 - video_id: YpQdxN3U2Xc
@@ -1464,7 +1464,7 @@ recordings:
   duration_seconds: 470
   view_count: 29352175
   skill_bucket: null
-  label_rationale: null
+  label_rationale: skip
   downloaded: false
   download_error: null
 - video_id: A6s49OKp6aE
@@ -1599,7 +1599,7 @@ recordings:
   duration_seconds: 341
   view_count: 13318
   skill_bucket: null
-  label_rationale: null
+  label_rationale: skip
   downloaded: false
   download_error: null
 - video_id: uLw3mNjkZDY
@@ -1616,8 +1616,8 @@ recordings:
   channel: Warner Classics
   duration_seconds: 271
   view_count: 438528
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 5
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: blcrde0zPaU
@@ -1634,8 +1634,8 @@ recordings:
   channel: Peter 2.0
   duration_seconds: 251
   view_count: 750894
-  skill_bucket: null
-  label_rationale: null
+  skill_bucket: 5
+  label_rationale: human curation
   downloaded: false
   download_error: null
 - video_id: sP2n42LraVs

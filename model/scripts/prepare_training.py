@@ -23,18 +23,23 @@ import argparse
 import json
 from pathlib import Path
 
-from src.paths import Evals, Splits, Embeddings
-
-from src.model_improvement.data_integrity import load_all_t5_manifests, check_integrity
+from src.model_improvement.data_integrity import check_integrity, load_all_t5_manifests
 from src.model_improvement.splits import generate_t5_splits
+from src.paths import Embeddings, Evals, Splits
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Prepare training data from T5 manifests")
-    parser.add_argument("--check-audio", action="store_true",
-                        help="Also check that audio files exist")
-    parser.add_argument("--check-embeddings", action="store_true",
-                        help="Also check that embedding files exist")
+    parser = argparse.ArgumentParser(
+        description="Prepare training data from T5 manifests"
+    )
+    parser.add_argument(
+        "--check-audio", action="store_true", help="Also check that audio files exist"
+    )
+    parser.add_argument(
+        "--check-embeddings",
+        action="store_true",
+        help="Also check that embedding files exist",
+    )
     parser.add_argument("--seed", type=int, default=42)
     args = parser.parse_args()
 
@@ -43,7 +48,9 @@ def main():
     recordings = load_all_t5_manifests(skill_eval_dir)
     # Filter to downloaded only
     recordings = [r for r in recordings if r.get("downloaded", False)]
-    print(f"  {len(recordings)} downloaded recordings across {len({r['piece'] for r in recordings})} pieces")
+    print(
+        f"  {len(recordings)} downloaded recordings across {len({r['piece'] for r in recordings})} pieces"
+    )
 
     # Data integrity checks
     print("\nRunning integrity checks...")
@@ -60,15 +67,23 @@ def main():
 
     # Generate splits
     print(f"\nGenerating T5 splits (seed={args.seed})...")
-    t5_splits = generate_t5_splits(recordings, train=0.8, val=0.1, test=0.1, seed=args.seed)
-    print(f"  train={len(t5_splits['train'])}, val={len(t5_splits['val'])}, test={len(t5_splits['test'])}")
+    t5_splits = generate_t5_splits(
+        recordings, train=0.8, val=0.1, test=0.1, seed=args.seed
+    )
+    print(
+        f"  train={len(t5_splits['train'])}, val={len(t5_splits['val'])}, test={len(t5_splits['test'])}"
+    )
 
     # Save splits
     Splits.root.mkdir(parents=True, exist_ok=True)
     splits_path = Splits.root / "t5_splits.json"
     serializable = {
         split_name: [
-            {"video_id": r["video_id"], "piece": r["piece"], "skill_bucket": r["skill_bucket"]}
+            {
+                "video_id": r["video_id"],
+                "piece": r["piece"],
+                "skill_bucket": r["skill_bucket"],
+            }
             for r in recs
         ]
         for split_name, recs in t5_splits.items()
@@ -91,7 +106,9 @@ def main():
     print("Next steps:")
     print("  1. Extract MuQ embeddings: uv run python scripts/extract_t5_muq.py")
     print("  2. Extract Aria embeddings: uv run python scripts/extract_t5_aria.py")
-    print("  3. Upload to HF Bucket: hf buckets sync model/data/embeddings/ hf://buckets/crescendai/training-data/embeddings/")
+    print(
+        "  3. Upload to HF Bucket: hf buckets sync model/data/embeddings/ hf://buckets/crescendai/training-data/embeddings/"
+    )
 
 
 if __name__ == "__main__":
