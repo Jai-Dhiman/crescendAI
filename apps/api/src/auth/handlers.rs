@@ -214,6 +214,16 @@ pub async fn handle_google(
         return Err(ApiError::Unauthorized);
     }
 
+    // Validate token expiry (Google returns exp as string)
+    if let Some(exp_str) = &claims.exp {
+        if let Ok(exp) = exp_str.parse::<u64>() {
+            let now = (js_sys::Date::now() / 1000.0) as u64;
+            if exp < now {
+                return Err(ApiError::Unauthorized);
+            }
+        }
+    }
+
     let google_user_id = claims.sub.as_ref().ok_or(ApiError::Unauthorized)?.clone();
 
     let db = state.db.d1()?;
@@ -309,7 +319,9 @@ pub async fn handle_debug(State(state): State<AppState>) -> Result<impl IntoResp
         .var("ENVIRONMENT")
         .map(|v| v.to_string())
         .unwrap_or_default();
-    if environment == "production" {
+    // Block unless explicitly in development. Defaults to blocked if
+    // ENVIRONMENT is unset or misconfigured (safe-by-default).
+    if environment != "development" {
         return Err(ApiError::NotFound("Not found".into()));
     }
 
