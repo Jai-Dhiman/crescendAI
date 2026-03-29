@@ -37,6 +37,9 @@ pub struct ConversationDetail {
     pub created_at: String,
 }
 
+// TODO: MessageRow is deserialized from D1 (snake_case columns) AND serialized to the client.
+// Adding #[serde(rename_all = "camelCase")] would break D1 deserialization.
+// Split into separate D1 row type and API response DTO when addressing this.
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct MessageRow {
     pub id: String,

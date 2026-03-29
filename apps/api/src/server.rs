@@ -86,10 +86,10 @@ async fn fetch(
 /// Must bypass the Axum router because the CF runtime needs the JS-level
 /// `webSocket` property preserved on the `worker::Response` object.
 async fn handle_ws_upgrade(path: &str, env: &Env, req: HttpRequest) -> Result<worker::Response> {
-    let session_id = path.trim_start_matches("/api/practice/ws/");
-    if session_id.is_empty() || session_id.contains('/') {
-        return worker::Response::error("invalid session id", 400);
-    }
+    let session_id = match path.strip_prefix("/api/practice/ws/") {
+        Some(id) if !id.is_empty() && !id.contains('/') => id,
+        _ => return worker::Response::error("invalid session id", 400),
+    };
 
     // Extract token from cookie or Bearer header and verify JWT.
     let token = req
@@ -135,6 +135,7 @@ async fn handle_ws_upgrade(path: &str, env: &Env, req: HttpRequest) -> Result<wo
 
     let namespace = env.durable_object("PRACTICE_SESSION")?;
     let stub = namespace.id_from_name(session_id)?.get_stub()?;
+    // student_id and conv_id are UUIDs -- no URL encoding needed
     let url = format!(
         "https://do.internal/ws/{session_id}?student_id={student_id}&conversation_id={conv_id}"
     );
@@ -168,9 +169,12 @@ async fn handle_chat_stream(env: &Env, req: HttpRequest) -> Result<worker::Respo
 
     let mut resp = crate::services::chat::handle_chat_stream(env, &headers, &body).await;
 
+    let env_origin = env
+        .var("ALLOWED_ORIGIN")
+        .map_or_else(|_| "http://localhost:3000".to_string(), |v| v.to_string());
     let allowed_origin = match origin.as_deref() {
-        Some(o) if o == "https://crescend.ai" || o == "http://localhost:3000" => o,
-        _ => "https://crescend.ai",
+        Some(o) if o == env_origin || o == "http://localhost:3000" => o,
+        _ => &env_origin,
     };
     let _ = resp
         .headers_mut()

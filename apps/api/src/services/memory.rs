@@ -413,6 +413,19 @@ pub async fn extract_and_store_chat_facts(
 ) -> Result<()> {
     use crate::services::{llm, prompts};
 
+    const VALID_CATEGORIES: &[&str] = &[
+        "general",
+        "preference",
+        "goal",
+        "repertoire",
+        "experience",
+        "schedule",
+        "equipment",
+        "technique",
+    ];
+    const MAX_ADDS: usize = 10;
+    const MAX_FACT_LEN: usize = 500;
+
     let now = js_sys::Date::new_0()
         .to_iso_string()
         .as_string()
@@ -450,12 +463,18 @@ pub async fn extract_and_store_chat_facts(
 
     // 5. Process ADD operations
     if let Some(adds) = extraction_json.get("add").and_then(|v| v.as_array()) {
-        for fact in adds {
-            let fact_text = fact.get("fact_text").and_then(|v| v.as_str()).unwrap_or("");
-            let category = fact
+        for fact in adds.iter().take(MAX_ADDS) {
+            let raw_text = fact.get("fact_text").and_then(|v| v.as_str()).unwrap_or("");
+            let fact_text = crate::truncate_str(raw_text, MAX_FACT_LEN);
+            let raw_category = fact
                 .get("category")
                 .and_then(|v| v.as_str())
                 .unwrap_or("general");
+            let category = if VALID_CATEGORIES.contains(&raw_category) {
+                raw_category
+            } else {
+                "general"
+            };
             let invalid_at = fact.get("invalid_at").and_then(|v| v.as_str());
 
             if fact_text.is_empty() {
@@ -623,17 +642,27 @@ pub async fn store_teaching_approach(
 }
 
 /// Mark a teaching approach as engaged (student tapped "tell me more").
-pub async fn mark_approach_engaged(env: &Env, observation_id: &str) -> Result<()> {
+pub async fn mark_approach_engaged(
+    env: &Env,
+    observation_id: &str,
+    student_id: &StudentId,
+) -> Result<()> {
     let db = env
         .d1("DB")
         .map_err(|e| ApiError::Internal(format!("D1 binding failed: {e:?}")))?;
 
-    db.prepare("UPDATE teaching_approaches SET engaged = 1 WHERE observation_id = ?1")
-        .bind(&[JsValue::from_str(observation_id)])
-        .map_err(|e| ApiError::Internal(format!("Failed to bind update: {e:?}")))?
-        .run()
-        .await
-        .map_err(|e| ApiError::Internal(format!("Failed to update engagement: {e:?}")))?;
+    db.prepare(
+        "UPDATE teaching_approaches SET engaged = 1 \
+         WHERE observation_id = ?1 AND student_id = ?2",
+    )
+    .bind(&[
+        JsValue::from_str(observation_id),
+        JsValue::from_str(student_id.as_str()),
+    ])
+    .map_err(|e| ApiError::Internal(format!("Failed to bind update: {e:?}")))?
+    .run()
+    .await
+    .map_err(|e| ApiError::Internal(format!("Failed to update engagement: {e:?}")))?;
 
     Ok(())
 }

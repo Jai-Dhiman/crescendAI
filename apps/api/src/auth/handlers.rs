@@ -512,9 +512,11 @@ async fn find_or_create_student(
                     .get("display_name")
                     .and_then(|v| v.as_str().map(std::string::ToString::to_string));
 
-                // Link this provider identity to the existing student
+                // Link this provider identity to the existing student.
+                // INSERT OR IGNORE handles the race where a concurrent request
+                // already inserted this (provider, provider_user_id) pair.
                 db.prepare(
-                    "INSERT INTO auth_identities (student_id, provider, provider_user_id, created_at) VALUES (?1, ?2, ?3, ?4)",
+                    "INSERT OR IGNORE INTO auth_identities (student_id, provider, provider_user_id, created_at) VALUES (?1, ?2, ?3, ?4)",
                 )
                 .bind(&[
                     JsValue::from_str(&student_id),

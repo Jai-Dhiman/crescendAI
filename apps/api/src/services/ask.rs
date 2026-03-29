@@ -385,10 +385,11 @@ pub async fn handle_elaborate(
     let student_id = auth.student_id;
     let env = state.db.env();
 
-    // Fetch observation from D1
-    let (observation_text, reasoning_trace) = fetch_observation(env, &request.observation_id)
-        .await
-        .map_err(|e| ApiError::NotFound(format!("Observation not found: {e}")))?;
+    // Fetch observation from D1 (verify student ownership)
+    let (observation_text, reasoning_trace) =
+        fetch_observation(env, &request.observation_id, &student_id)
+            .await
+            .map_err(|e| ApiError::NotFound(format!("Observation not found: {e}")))?;
 
     // Fetch memory context for richer elaboration
     let elab_now = js_sys::Date::new_0()
@@ -413,14 +414,16 @@ pub async fn handle_elaborate(
             ApiError::ExternalService("Unable to generate elaboration".into())
         })?;
 
-    // Store elaboration
-    if let Err(e) = store_elaboration(env, &request.observation_id, &elaboration).await {
+    // Store elaboration (verify student ownership)
+    if let Err(e) = store_elaboration(env, &request.observation_id, &student_id, &elaboration).await
+    {
         console_error!("Failed to store elaboration: {}", e);
     }
 
-    // Mark teaching approach as engaged
+    // Mark teaching approach as engaged (verify student ownership)
     if let Err(e) =
-        crate::services::memory::mark_approach_engaged(env, &request.observation_id).await
+        crate::services::memory::mark_approach_engaged(env, &request.observation_id, &student_id)
+            .await
     {
         console_error!("Failed to mark approach engaged: {}", e);
     }
@@ -498,32 +501,50 @@ async fn store_observation(
     Ok(())
 }
 
-async fn store_elaboration(env: &Env, observation_id: &str, elaboration: &str) -> Result<()> {
+async fn store_elaboration(
+    env: &Env,
+    observation_id: &str,
+    student_id: &StudentId,
+    elaboration: &str,
+) -> Result<()> {
     let db = env
         .d1("DB")
         .map_err(|e| ApiError::Internal(format!("D1 binding failed: {e:?}")))?;
 
-    db.prepare("UPDATE observations SET elaboration_text = ?1 WHERE id = ?2")
-        .bind(&[
-            JsValue::from_str(elaboration),
-            JsValue::from_str(observation_id),
-        ])
-        .map_err(|e| ApiError::Internal(format!("Failed to bind update: {e:?}")))?
-        .run()
-        .await
-        .map_err(|e| ApiError::Internal(format!("Failed to update elaboration: {e:?}")))?;
+    db.prepare(
+        "UPDATE observations SET elaboration_text = ?1 WHERE id = ?2 AND student_id = ?3",
+    )
+    .bind(&[
+        JsValue::from_str(elaboration),
+        JsValue::from_str(observation_id),
+        JsValue::from_str(student_id.as_str()),
+    ])
+    .map_err(|e| ApiError::Internal(format!("Failed to bind update: {e:?}")))?
+    .run()
+    .await
+    .map_err(|e| ApiError::Internal(format!("Failed to update elaboration: {e:?}")))?;
 
     Ok(())
 }
 
-async fn fetch_observation(env: &Env, observation_id: &str) -> Result<(String, String)> {
+async fn fetch_observation(
+    env: &Env,
+    observation_id: &str,
+    student_id: &StudentId,
+) -> Result<(String, String)> {
     let db = env
         .d1("DB")
         .map_err(|e| ApiError::Internal(format!("D1 binding failed: {e:?}")))?;
 
     let row: Option<serde_json::Value> = db
-        .prepare("SELECT observation_text, reasoning_trace FROM observations WHERE id = ?1")
-        .bind(&[JsValue::from_str(observation_id)])
+        .prepare(
+            "SELECT observation_text, reasoning_trace FROM observations \
+             WHERE id = ?1 AND student_id = ?2",
+        )
+        .bind(&[
+            JsValue::from_str(observation_id),
+            JsValue::from_str(student_id.as_str()),
+        ])
         .map_err(|e| ApiError::Internal(format!("Failed to bind query: {e:?}")))?
         .first(None)
         .await
