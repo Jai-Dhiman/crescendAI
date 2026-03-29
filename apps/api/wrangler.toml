@@ -29,9 +29,10 @@ SHADOW_BENCHMARK_PCT = "10"
 binding = "AI"
 remote = true
 
-[[services]]
-binding = "AMT_SERVICE"
-service = "crescendai-amt"
+# Uncomment after deploying crescendai-amt container
+# [[services]]
+# binding = "AMT_SERVICE"
+# service = "crescendai-amt"
 
 [[r2_buckets]]
 binding = "CHUNKS"
