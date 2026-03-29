@@ -1,16 +1,19 @@
-"""ONNX Runtime inference server for Aria-AMT piano transcription.
+"""Hybrid inference server for Aria-AMT piano transcription.
 
+ONNX Runtime encoder (80% of compute) + PyTorch decoder (autoregressive).
 Runs inside a Cloudflare Container (linux/amd64, 4 vCPU, 12 GiB RAM).
-No PyTorch -- uses ONNX Runtime for CPU inference.
 
-Accepts JSON with base64-encoded WebM/Opus audio, returns MIDI notes and pedal
-events matching the Rust AmtResponse struct exactly.
+The encoder is exported to ONNX for graph-optimized CPU inference.
+The decoder stays in PyTorch because its KV cache uses in-place ops
+that prevent clean ONNX export (PyTorch tracer bakes reshape
+dimensions as constants, breaking dynamic sequence lengths).
 
 Environment variables:
-    MODEL_DIR: path to ONNX models and export_manifest.json (default: /app/models)
+    MODEL_DIR: path to ONNX encoder + export_manifest.json (default: /app/models)
+    CHECKPOINT_PATH: path to .safetensors checkpoint for PyTorch decoder
     PORT: server port (default: 8080)
-    ONNX_INTER_THREADS: inter-op parallelism (default: 2)
-    ONNX_INTRA_THREADS: intra-op parallelism (default: 4)
+    ONNX_INTER_THREADS: inter-op parallelism for encoder (default: 2)
+    ONNX_INTRA_THREADS: intra-op parallelism for encoder (default: 4)
 """
 
 from __future__ import annotations
@@ -30,13 +33,11 @@ from contextlib import asynccontextmanager
 
 import numpy as np
 import onnxruntime as ort
+import torch
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
-# aria-amt tokenizer (pure Python, no PyTorch dependency)
-#
-# When both aria-amt and aria packages are installed, ariautils can overwrite
-# aria-amt's config. Patch load_config before importing the tokenizer.
+# -- Patch amt.config before any amt imports --
 import amt.config as _amt_config
 
 _AMT_CONFIG = {
@@ -70,7 +71,12 @@ def _patched_load_config():
 
 _amt_config.load_config = _patched_load_config
 
+from amt.config import load_model_config
+from amt.inference.model import AmtEncoderDecoder, ModelConfig, KVCache
 from amt.tokenizer import AmtTokenizer
+from amt.audio import AudioTransform
+
+from transcription import _load_weight
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("amt-server")
@@ -82,53 +88,106 @@ FFMPEG_DECODE_TIMEOUT_S = 60
 
 # --- Globals set at startup ---
 
-_encoder_session: ort.InferenceSession | None = None
-_decoder_sessions: dict[str, ort.InferenceSession] = {}
+_encoder_onnx: ort.InferenceSession | None = None
+_decoder: torch.nn.Module | None = None
+_audio_transform: AudioTransform | None = None
 _tokenizer: AmtTokenizer | None = None
-_export_manifest: dict[str, Any] = {}
 _inference_count: int = 0
 _start_time: float = 0.0
 
-@asynccontextmanager
-async def lifespan(application: FastAPI):
-    """Load ONNX models and tokenizer at server startup."""
-    global _encoder_session, _decoder_sessions, _tokenizer, _export_manifest, _start_time
 
-    _start_time = time.time()
+# ---------------------------------------------------------------------------
+# Model loading
+# ---------------------------------------------------------------------------
+
+
+def _setup_kv_cache_for_decoder(decoder: torch.nn.Module) -> None:
+    """Reset KV caches and causal mask for a new sequence (CPU only)."""
+    decoder.causal_mask = torch.tril(
+        torch.ones(MAX_BLOCK_LEN, MAX_BLOCK_LEN, dtype=torch.bool, device="cpu")
+    )
+    for b in decoder.blocks:
+        head_dim = decoder.n_state // decoder.n_head
+        b.attn.kv_cache = KVCache(
+            max_batch_size=1,
+            max_seq_length=MAX_BLOCK_LEN,
+            n_heads=decoder.n_head,
+            head_dim=head_dim,
+            dtype=torch.float32,
+        ).to("cpu")
+        b.cross_attn.kv_cache = KVCache(
+            max_batch_size=1,
+            max_seq_length=1500,
+            n_heads=decoder.n_head,
+            head_dim=head_dim,
+            dtype=torch.float32,
+        ).to("cpu")
+
+
+def load_models() -> None:
+    """Load ONNX encoder and PyTorch decoder at startup."""
+    global _encoder_onnx, _decoder, _audio_transform, _tokenizer
 
     model_dir = os.environ.get("MODEL_DIR", "/app/models")
-    logger.info("Loading models from %s", model_dir)
+    checkpoint_path = os.environ.get("CHECKPOINT_PATH", "/app/checkpoint.safetensors")
+    config_name = os.environ.get("AMT_MODEL_CONFIG", "medium-double")
 
-    _encoder_session, _decoder_sessions, _export_manifest = load_models(model_dir)
-    _tokenizer = AmtTokenizer()
+    # Load ONNX encoder
+    manifest_path = Path(model_dir) / "export_manifest.json"
+    if manifest_path.exists():
+        with open(manifest_path) as f:
+            manifest = json.load(f)
+        encoder_filename = manifest["files"]["encoder"]["filename"]
+    else:
+        encoder_filename = "encoder.onnx"
 
-    logger.info(
-        "Server ready (strategy=%s, encoder=%s, decoders=%s)",
-        _export_manifest["strategy"],
-        "loaded",
-        list(_decoder_sessions.keys()) or "none (strategy C)",
+    encoder_path = Path(model_dir) / encoder_filename
+    if not encoder_path.exists():
+        raise FileNotFoundError(f"ONNX encoder not found: {encoder_path}")
+
+    sess_options = ort.SessionOptions()
+    sess_options.inter_op_num_threads = int(os.environ.get("ONNX_INTER_THREADS", "2"))
+    sess_options.intra_op_num_threads = int(os.environ.get("ONNX_INTRA_THREADS", "4"))
+    sess_options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
+
+    _encoder_onnx = ort.InferenceSession(
+        str(encoder_path), sess_options, providers=["CPUExecutionProvider"]
     )
+    logger.info("ONNX encoder loaded: %s", encoder_path.name)
 
-    yield
+    # Load full PyTorch model (decoder weights + architecture)
+    logger.info("Loading PyTorch decoder (config: %s)", config_name)
+    model_config = ModelConfig(**load_model_config(config_name))
+    _tokenizer = AmtTokenizer()
+    model_config.set_vocab_size(_tokenizer.vocab_size)
 
+    model = AmtEncoderDecoder(model_config)
+    state_dict = _load_weight(checkpoint_path)
+    model.load_state_dict(state_dict)
+    model.to("cpu")
+    model.eval()
 
-app = FastAPI(lifespan=lifespan)
+    # Keep only the decoder; encoder is replaced by ONNX
+    _decoder = model.decoder
+    _setup_kv_cache_for_decoder(_decoder)
+
+    # Audio transform for log-mel spectrogram (PyTorch, lightweight)
+    _audio_transform = AudioTransform().to("cpu")
+
+    eos_id = _tokenizer.tok_to_id.get(_tokenizer.eos_tok)
+    if eos_id is None:
+        raise RuntimeError("EOS token not found in tokenizer vocabulary")
+
+    logger.info("Hybrid server ready: ONNX encoder + PyTorch decoder")
 
 
 # ---------------------------------------------------------------------------
-# Audio decoding (ffmpeg subprocess, identical to transcription.py)
+# Audio decoding
 # ---------------------------------------------------------------------------
 
 
 def decode_webm_to_pcm(audio_bytes: bytes) -> np.ndarray:
-    """Decode WebM/Opus encoded audio bytes to 16kHz mono PCM float32.
-
-    Uses ffmpeg subprocess for robust decoding of WebM containers with
-    independent EBML headers (each chunk from MediaRecorder has its own).
-
-    Raises:
-        RuntimeError: If ffmpeg decoding fails or produces empty output.
-    """
+    """Decode WebM/Opus encoded audio bytes to 16kHz mono PCM float32."""
     with tempfile.NamedTemporaryFile(suffix=".webm", delete=True) as tmp_in:
         tmp_in.write(audio_bytes)
         tmp_in.flush()
@@ -163,18 +222,14 @@ def decode_webm_to_pcm(audio_bytes: bytes) -> np.ndarray:
 
 
 # ---------------------------------------------------------------------------
-# Post-processing (pure Python, copied from transcription.py)
+# Post-processing (pure Python, from transcription.py)
 # ---------------------------------------------------------------------------
 
 
 def midi_dict_to_notes_and_pedals(
     midi_dict: Any,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    """Convert ariautils MidiDict to note and pedal event lists.
-
-    Returns:
-        Tuple of (notes, pedal_events) in PerfNote/PerfPedalEvent format.
-    """
+    """Convert ariautils MidiDict to note and pedal event lists."""
     notes = []
     for msg in midi_dict.note_msgs:
         data = msg["data"]
@@ -190,8 +245,6 @@ def midi_dict_to_notes_and_pedals(
     pedal_events = []
     for msg in midi_dict.pedal_msgs:
         tick_ms = midi_dict.tick_to_ms(msg["tick"])
-        # MidiDict pedal data: 0 = off, 1 = on
-        # PerfPedalEvent value: 0 = off, 127 = on (CC64 convention)
         value = 127 if msg["data"] == 1 else 0
         pedal_events.append({
             "time": round(tick_ms / 1000.0, 4),
@@ -209,414 +262,116 @@ def deduplicate_notes(
     pedal_events: list[dict[str, Any]],
     context_duration_s: float,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    """Filter notes/pedals to only those in the current chunk, adjust timestamps.
-
-    Notes with onset >= context_duration are from the current chunk.
-    Timestamps are adjusted to be relative to the chunk start.
-    """
+    """Filter to current chunk notes only, adjust timestamps."""
     if context_duration_s <= 0:
         return notes, pedal_events
 
-    filtered_notes = []
-    for note in notes:
-        if note["onset"] >= context_duration_s:
-            filtered_notes.append({
-                "pitch": note["pitch"],
-                "onset": round(note["onset"] - context_duration_s, 4),
-                "offset": round(note["offset"] - context_duration_s, 4),
-                "velocity": note["velocity"],
-            })
+    filtered_notes = [
+        {
+            "pitch": n["pitch"],
+            "onset": round(n["onset"] - context_duration_s, 4),
+            "offset": round(n["offset"] - context_duration_s, 4),
+            "velocity": n["velocity"],
+        }
+        for n in notes
+        if n["onset"] >= context_duration_s
+    ]
 
-    filtered_pedals = []
-    for pedal in pedal_events:
-        if pedal["time"] >= context_duration_s:
-            filtered_pedals.append({
-                "time": round(pedal["time"] - context_duration_s, 4),
-                "value": pedal["value"],
-            })
+    filtered_pedals = [
+        {
+            "time": round(p["time"] - context_duration_s, 4),
+            "value": p["value"],
+        }
+        for p in pedal_events
+        if p["time"] >= context_duration_s
+    ]
 
     return filtered_notes, filtered_pedals
 
 
 # ---------------------------------------------------------------------------
-# Log-mel spectrogram (NumPy reimplementation of amt.audio.AudioTransform)
+# Hybrid transcription: ONNX encoder + PyTorch decoder
 # ---------------------------------------------------------------------------
 
 
-def _build_mel_filterbank(
-    sr: int, n_fft: int, n_mels: int,
-) -> np.ndarray:
-    """Build a Mel filterbank matrix (n_mels x (n_fft//2 + 1)).
+@torch.inference_mode()
+def transcribe(combined_pcm: np.ndarray) -> tuple[list[dict], list[dict]]:
+    """Transcribe audio using ONNX encoder + PyTorch decoder.
 
-    Reimplements librosa.filters.mel using HTK formula to avoid the
-    librosa dependency.
+    1. AudioTransform: PCM -> log-mel spectrogram (PyTorch, lightweight)
+    2. ONNX encoder: log-mel -> audio features (graph-optimized, ~80% of compute)
+    3. PyTorch decoder: autoregressive token generation with KV cache
+    4. Detokenize -> MIDI notes + pedal events
     """
-    fmin = 0.0
-    fmax = sr / 2.0
+    # Pad or truncate to 30s
+    chunk_samples = CHUNK_LEN_S * SAMPLE_RATE
+    audio_tensor = torch.from_numpy(combined_pcm).float()
+    if len(audio_tensor) < chunk_samples:
+        audio_tensor = torch.cat([audio_tensor, torch.zeros(chunk_samples - len(audio_tensor))])
+    elif len(audio_tensor) > chunk_samples:
+        audio_tensor = audio_tensor[:chunk_samples]
 
-    # HTK mel scale
-    def hz_to_mel(f: float) -> float:
-        return 2595.0 * np.log10(1.0 + f / 700.0)
+    audio_len_samples = len(audio_tensor)
 
-    def mel_to_hz(m: float) -> float:
-        return 700.0 * (10.0 ** (m / 2595.0) - 1.0)
+    # Step 1: Log-mel spectrogram via PyTorch AudioTransform (guaranteed correct)
+    log_mels = _audio_transform.log_mel(audio_tensor.unsqueeze(0))  # (1, 512, 3000)
 
-    mel_min = hz_to_mel(fmin)
-    mel_max = hz_to_mel(fmax)
-    mels = np.linspace(mel_min, mel_max, n_mels + 2)
-    freqs = np.array([mel_to_hz(m) for m in mels])
+    # Step 2: ONNX encoder (graph-optimized CPU inference)
+    log_mels_np = log_mels.numpy()
+    encoder_output = _encoder_onnx.run(None, {"log_mels": log_mels_np})
+    audio_features_np = encoder_output[0]  # (1, 1500, 768)
 
-    n_bins = n_fft // 2 + 1
-    fft_freqs = np.linspace(0, sr / 2.0, n_bins)
+    # Convert back to torch for PyTorch decoder
+    audio_features = torch.from_numpy(audio_features_np)
 
-    weights = np.zeros((n_mels, n_bins), dtype=np.float32)
-    for i in range(n_mels):
-        lower = freqs[i]
-        center = freqs[i + 1]
-        upper = freqs[i + 2]
-        for j in range(n_bins):
-            f = fft_freqs[j]
-            if lower <= f <= center and center > lower:
-                weights[i, j] = (f - lower) / (center - lower)
-            elif center < f <= upper and upper > center:
-                weights[i, j] = (upper - f) / (upper - center)
+    # Step 3: PyTorch decoder with KV cache
+    tokenizer = _tokenizer
+    decoder = _decoder
 
-    # Slaney normalization
-    enorm = 2.0 / (freqs[2 : n_mels + 2] - freqs[:n_mels])
-    weights *= enorm[:, np.newaxis]
+    prefix = [tokenizer.bos_tok]
+    seq = torch.tensor([tokenizer.encode(prefix)], dtype=torch.long)
 
-    return weights
+    # Reset KV cache
+    _setup_kv_cache_for_decoder(decoder)
 
+    generated_ids = list(seq[0].tolist())
+    idx = seq.shape[1]
+    xa_len = audio_features.shape[1]
 
-def _stft_magnitude(audio: np.ndarray, n_fft: int, hop_len: int) -> np.ndarray:
-    """Compute STFT magnitude spectrogram using NumPy.
-
-    Returns shape (n_fft//2 + 1, n_frames).
-    """
-    # Hann window
-    window = np.hanning(n_fft + 1)[:-1].astype(np.float32)
-
-    # Pad audio so we get the same number of frames as torch.stft with center=True
-    pad_len = n_fft // 2
-    audio_padded = np.pad(audio, (pad_len, pad_len), mode="reflect")
-
-    n_frames = 1 + (len(audio_padded) - n_fft) // hop_len
-    frames = np.lib.stride_tricks.as_strided(
-        audio_padded,
-        shape=(n_frames, n_fft),
-        strides=(audio_padded.strides[0] * hop_len, audio_padded.strides[0]),
-    ).copy()
-
-    frames *= window
-    spectrum = np.fft.rfft(frames, n=n_fft, axis=1)
-    return np.abs(spectrum).T  # (n_fft//2 + 1, n_frames)
-
-
-def compute_log_mel(audio: np.ndarray) -> np.ndarray:
-    """Compute 3-scale log-mel spectrogram matching AudioTransform.log_mel().
-
-    Concatenates large (384 mels), medium (256 mels), and small (128 mels)
-    mel spectrograms along the mel axis. Output shape: (1, 768, n_frames).
-    """
-    hop_len = 160
-
-    configs = [
-        (2048, 384),  # large
-        (2048, 256),  # medium
-        (800, 128),   # small
-    ]
-
-    mel_parts = []
-    target_frames = None
-
-    for n_fft, n_mels in configs:
-        mag = _stft_magnitude(audio, n_fft, hop_len)
-        mel_fb = _build_mel_filterbank(SAMPLE_RATE, n_fft, n_mels)
-        mel_spec = mel_fb @ mag  # (n_mels, n_frames)
-
-        if target_frames is None:
-            target_frames = mel_spec.shape[1]
-        elif mel_spec.shape[1] != target_frames:
-            # Pad or truncate to match the first spectrogram's frame count
-            if mel_spec.shape[1] < target_frames:
-                pad_width = target_frames - mel_spec.shape[1]
-                mel_spec = np.pad(mel_spec, ((0, 0), (0, pad_width)))
-            else:
-                mel_spec = mel_spec[:, :target_frames]
-
-        mel_parts.append(mel_spec)
-
-    # Concatenate along mel axis: (768, n_frames)
-    combined = np.concatenate(mel_parts, axis=0)
-
-    # Log scale with clamp (matches torch.clamp(min=1e-5).log())
-    combined = np.log(np.maximum(combined, 1e-5))
-
-    # Add batch dimension: (1, 768, n_frames)
-    return combined[np.newaxis, :, :].astype(np.float32)
-
-
-# ---------------------------------------------------------------------------
-# ONNX model loading
-# ---------------------------------------------------------------------------
-
-
-def _create_session_options() -> ort.SessionOptions:
-    """Create ONNX Runtime session options from environment variables."""
-    sess_options = ort.SessionOptions()
-    sess_options.inter_op_num_threads = int(os.environ.get("ONNX_INTER_THREADS", "2"))
-    sess_options.intra_op_num_threads = int(os.environ.get("ONNX_INTRA_THREADS", "4"))
-    sess_options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
-    return sess_options
-
-
-def load_models(model_dir: str) -> tuple[
-    ort.InferenceSession,
-    dict[str, ort.InferenceSession],
-    dict[str, Any],
-]:
-    """Load ONNX models based on export_manifest.json.
-
-    Returns:
-        Tuple of (encoder_session, decoder_sessions_dict, manifest).
-
-    Raises:
-        FileNotFoundError: If manifest or model files are missing.
-        ValueError: If strategy is unsupported.
-    """
-    model_path = Path(model_dir)
-    manifest_path = model_path / "export_manifest.json"
-
-    if not manifest_path.exists():
-        raise FileNotFoundError(
-            f"export_manifest.json not found in {model_dir}. "
-            f"Run the ONNX export script first."
-        )
-
-    with open(manifest_path) as f:
-        manifest = json.load(f)
-
-    strategy = manifest["strategy"]
-    files = manifest["files"]
-    sess_options = _create_session_options()
-
-    logger.info("Loading ONNX models (strategy %s) from %s", strategy, model_dir)
-
-    # Encoder is always present
-    encoder_path = model_path / files["encoder"]["filename"]
-    if not encoder_path.exists():
-        raise FileNotFoundError(f"Encoder model not found: {encoder_path}")
-
-    encoder_session = ort.InferenceSession(
-        str(encoder_path), sess_options, providers=["CPUExecutionProvider"]
-    )
-    logger.info("Encoder loaded: %s", encoder_path.name)
-
-    decoder_sessions: dict[str, ort.InferenceSession] = {}
-
-    if strategy == "A":
-        # KV cache strategy: prefill + step sessions
-        for key in ("decoder_prefill", "decoder_step"):
-            path = model_path / files[key]["filename"]
-            if not path.exists():
-                raise FileNotFoundError(f"Decoder model not found: {path}")
-            decoder_sessions[key] = ort.InferenceSession(
-                str(path), sess_options, providers=["CPUExecutionProvider"]
-            )
-            logger.info("Decoder loaded: %s", path.name)
-
-    elif strategy == "B":
-        # Stateless decoder: re-processes all tokens each step
-        path = model_path / files["decoder_stateless"]["filename"]
-        if not path.exists():
-            raise FileNotFoundError(f"Decoder model not found: {path}")
-        decoder_sessions["decoder_stateless"] = ort.InferenceSession(
-            str(path), sess_options, providers=["CPUExecutionProvider"]
-        )
-        logger.info("Decoder loaded: %s", path.name)
-
-    elif strategy == "C":
-        # Encoder-only ONNX; decoder requires PyTorch.
-        # NOTE: This strategy requires torch in the container. The server will
-        # raise an error at transcription time if torch is not available.
-        logger.warning(
-            "Strategy C: encoder-only ONNX. Decoder requires PyTorch in the container."
-        )
-
-    else:
-        raise ValueError(f"Unknown export strategy: {strategy}")
-
-    return encoder_session, decoder_sessions, manifest
-
-
-# ---------------------------------------------------------------------------
-# Autoregressive decoding (ONNX)
-# ---------------------------------------------------------------------------
-
-
-def _transcribe_strategy_a(
-    audio_features: np.ndarray,
-    tokenizer: AmtTokenizer,
-    decoder_sessions: dict[str, ort.InferenceSession],
-    manifest: dict[str, Any],
-    audio_len_samples: int,
-) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    """Autoregressive decoding with KV cache (Strategy A).
-
-    The prefill session takes the first token and audio features, producing
-    initial logits and KV cache state. The step session takes one token at a
-    time with the cache as both input and output.
-    """
-    prefill_session = decoder_sessions["decoder_prefill"]
-    step_session = decoder_sessions["decoder_step"]
-
-    n_layers = manifest["n_layers"]
-    n_heads = manifest["n_heads"]
-    head_dim = manifest["head_dim"]
-
-    bos_id = tokenizer.tok_to_id[tokenizer.bos_tok]
     eos_id = tokenizer.tok_to_id[tokenizer.eos_tok]
     pedal_off_id = tokenizer.tok_to_id.get(("pedal", 0))
 
-    # Prefill with BOS token
-    input_ids = np.array([[bos_id]], dtype=np.int64)
-    x_input_pos = np.array([0], dtype=np.int64)
-    xa_input_pos = np.arange(audio_features.shape[1], dtype=np.int64)
+    # Prefill with initial tokens
+    logits = decoder(
+        x=seq,
+        xa=audio_features,
+        x_input_pos=torch.arange(0, idx),
+        xa_input_pos=torch.arange(0, xa_len),
+    )
 
-    prefill_inputs = {
-        "x": input_ids,
-        "xa": audio_features,
-        "x_input_pos": x_input_pos,
-        "xa_input_pos": xa_input_pos,
-    }
+    for _ in range(MAX_BLOCK_LEN - len(generated_ids)):
+        next_token_logits = logits[:, -1, :]
 
-    # Add empty KV cache tensors as prefill inputs
-    max_audio_len = manifest.get("max_audio_len", 1500)
-    for i in range(n_layers):
-        prefill_inputs[f"self_attn_k_cache_{i}"] = np.zeros(
-            (1, n_heads, MAX_BLOCK_LEN, head_dim), dtype=np.float32
-        )
-        prefill_inputs[f"self_attn_v_cache_{i}"] = np.zeros(
-            (1, n_heads, MAX_BLOCK_LEN, head_dim), dtype=np.float32
-        )
-        prefill_inputs[f"cross_attn_k_cache_{i}"] = np.zeros(
-            (1, n_heads, max_audio_len, head_dim), dtype=np.float32
-        )
-        prefill_inputs[f"cross_attn_v_cache_{i}"] = np.zeros(
-            (1, n_heads, max_audio_len, head_dim), dtype=np.float32
-        )
-
-    prefill_outputs = prefill_session.run(None, prefill_inputs)
-    logits = prefill_outputs[0]
-
-    # Extract KV cache arrays from prefill output.
-    # Output order is per-layer interleaved (matches export_onnx.py):
-    #   self_attn_k_cache_0_out, self_attn_v_cache_0_out,
-    #   cross_attn_k_cache_0_out, cross_attn_v_cache_0_out,
-    #   self_attn_k_cache_1_out, ...
-    self_kv = {}
-    cross_kv = {}
-    for i in range(n_layers):
-        base = 1 + i * 4
-        self_kv[f"self_attn_k_cache_{i}"] = prefill_outputs[base]
-        self_kv[f"self_attn_v_cache_{i}"] = prefill_outputs[base + 1]
-        cross_kv[f"cross_attn_k_cache_{i}"] = prefill_outputs[base + 2]
-        cross_kv[f"cross_attn_v_cache_{i}"] = prefill_outputs[base + 3]
-
-    generated_ids = [bos_id]
-    idx = 1
-
-    for _step in range(MAX_BLOCK_LEN - 1):
-        next_token_logits = logits[0, -1, :]  # (vocab_size,)
-
-        # Boost pedal-off probability
         if pedal_off_id is not None:
-            next_token_logits[pedal_off_id] *= 1.05
+            next_token_logits[:, pedal_off_id] *= 1.05
 
-        next_token_id = int(np.argmax(next_token_logits))
+        next_token_id = torch.argmax(next_token_logits, dim=-1).item()
         generated_ids.append(next_token_id)
-
-        if next_token_id == eos_id:
-            break
-
-        # Step with KV cache
-        step_inputs = {
-            "x": np.array([[next_token_id]], dtype=np.int64),
-            "xa": audio_features,
-            "x_input_pos": np.array([idx], dtype=np.int64),
-        }
-        # Add KV cache inputs
-        step_inputs.update(self_kv)
-        step_inputs.update(cross_kv)
-
-        step_outputs = step_session.run(None, step_inputs)
-        logits = step_outputs[0]
-
-        # Update self-attention KV cache from step outputs.
-        # Per-layer interleaved: [self_k, self_v, cross_k, cross_v] per layer.
-        # Cross-attention cache does not change after prefill, but the ONNX
-        # graph still outputs them so we must index past them.
-        for i in range(n_layers):
-            base = 1 + i * 4
-            self_kv[f"self_attn_k_cache_{i}"] = step_outputs[base]
-            self_kv[f"self_attn_v_cache_{i}"] = step_outputs[base + 1]
-
         idx += 1
 
-    return _detokenize(tokenizer, generated_ids, audio_len_samples)
-
-
-def _transcribe_strategy_b(
-    audio_features: np.ndarray,
-    tokenizer: AmtTokenizer,
-    decoder_sessions: dict[str, ort.InferenceSession],
-    audio_len_samples: int,
-) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    """Autoregressive decoding without KV cache (Strategy B).
-
-    Each step passes ALL generated tokens so far. Simpler but slower
-    (quadratic in sequence length).
-    """
-    session = decoder_sessions["decoder_stateless"]
-
-    bos_id = tokenizer.tok_to_id[tokenizer.bos_tok]
-    eos_id = tokenizer.tok_to_id[tokenizer.eos_tok]
-    pedal_off_id = tokenizer.tok_to_id.get(("pedal", 0))
-
-    generated_ids = [bos_id]
-
-    for _step in range(MAX_BLOCK_LEN - 1):
-        input_ids = np.array([generated_ids], dtype=np.int64)
-
-        outputs = session.run(None, {
-            "x": input_ids,
-            "xa": audio_features,
-        })
-        logits = outputs[0]
-        next_token_logits = logits[0, -1, :]
-
-        # Boost pedal-off probability
-        if pedal_off_id is not None:
-            next_token_logits[pedal_off_id] *= 1.05
-
-        next_token_id = int(np.argmax(next_token_logits))
-        generated_ids.append(next_token_id)
-
         if next_token_id == eos_id:
             break
 
-    return _detokenize(tokenizer, generated_ids, audio_len_samples)
+        next_input = torch.tensor([[next_token_id]], dtype=torch.long)
+        logits = decoder(
+            x=next_input,
+            xa=audio_features,
+            x_input_pos=torch.tensor([idx - 1], dtype=torch.int),
+            xa_input_pos=torch.tensor([], dtype=torch.int),
+        )
 
-
-def _detokenize(
-    tokenizer: AmtTokenizer,
-    generated_ids: list[int],
-    audio_len_samples: int,
-) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    """Convert token IDs to notes and pedal events via MidiDict."""
+    # Step 4: Detokenize to MIDI
     decoded_seq = tokenizer.decode(generated_ids)
-
-    # Find last onset time for len_ms parameter
     last_onset_ms = 0
     for tok in decoded_seq:
         if isinstance(tok, tuple) and tok[0] == "onset":
@@ -632,73 +387,25 @@ def _detokenize(
 
 
 # ---------------------------------------------------------------------------
-# Main transcription entry point
+# FastAPI app
 # ---------------------------------------------------------------------------
 
 
-def transcribe(
-    combined_pcm: np.ndarray,
-) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    """Run ONNX transcription on combined (context + chunk) PCM audio.
-
-    Raises:
-        RuntimeError: If models are not loaded or strategy is unsupported.
-    """
-    if _encoder_session is None or _tokenizer is None:
-        raise RuntimeError("Models not loaded")
-
-    strategy = _export_manifest["strategy"]
-
-    # Pad or truncate to 30s
-    chunk_samples = CHUNK_LEN_S * SAMPLE_RATE
-    if len(combined_pcm) < chunk_samples:
-        combined_pcm = np.pad(combined_pcm, (0, chunk_samples - len(combined_pcm)))
-    elif len(combined_pcm) > chunk_samples:
-        combined_pcm = combined_pcm[:chunk_samples]
-
-    audio_len_samples = len(combined_pcm)
-
-    # Compute log-mel spectrogram: (1, 768, n_frames)
-    log_mels = compute_log_mel(combined_pcm)
-
-    # Encode audio
-    encoder_outputs = _encoder_session.run(None, {"log_mels": log_mels})
-    audio_features = encoder_outputs[0]  # (1, seq_len, d_model)
-
-    if strategy == "A":
-        return _transcribe_strategy_a(
-            audio_features, _tokenizer, _decoder_sessions, _export_manifest,
-            audio_len_samples,
-        )
-    elif strategy == "B":
-        return _transcribe_strategy_b(
-            audio_features, _tokenizer, _decoder_sessions,
-            audio_len_samples,
-        )
-    elif strategy == "C":
-        raise RuntimeError(
-            "Strategy C requires PyTorch for the decoder. "
-            "Install torch in the container or use Strategy A/B."
-        )
-    else:
-        raise RuntimeError(f"Unknown export strategy: {strategy}")
+@asynccontextmanager
+async def lifespan(application: FastAPI):
+    """Load models at startup."""
+    global _start_time
+    _start_time = time.time()
+    load_models()
+    yield
 
 
-# ---------------------------------------------------------------------------
-# FastAPI endpoints
-# ---------------------------------------------------------------------------
+app = FastAPI(lifespan=lifespan)
 
 
 @app.post("/transcribe")
 async def handle_transcribe(request: Request) -> JSONResponse:
-    """Transcribe audio to MIDI notes and pedal events.
-
-    Request body (JSON):
-        chunk_audio: base64-encoded WebM/Opus (required)
-        context_audio: base64-encoded WebM/Opus or null (optional)
-
-    Response matches the Rust AmtResponse struct.
-    """
+    """Transcribe audio to MIDI notes and pedal events."""
     global _inference_count
 
     start_time = time.time()
@@ -718,12 +425,10 @@ async def handle_transcribe(request: Request) -> JSONResponse:
                 status_code=400,
             )
 
-        # Decode chunk audio
         chunk_audio_bytes = base64.b64decode(chunk_audio_b64)
         chunk_pcm = decode_webm_to_pcm(chunk_audio_bytes)
         chunk_duration_s = len(chunk_pcm) / SAMPLE_RATE
 
-        # Decode context audio (optional)
         context_audio_b64 = body.get("context_audio")
         context_duration_s = 0.0
 
@@ -740,10 +445,8 @@ async def handle_transcribe(request: Request) -> JSONResponse:
             context_duration_s, chunk_duration_s, len(combined_pcm) / SAMPLE_RATE,
         )
 
-        # Transcribe
         midi_notes, pedal_events = transcribe(combined_pcm)
 
-        # Deduplicate: only return notes from the current chunk
         midi_notes, pedal_events = deduplicate_notes(
             midi_notes, pedal_events, context_duration_s
         )
@@ -791,7 +494,7 @@ async def health():
     """Health check endpoint."""
     return JSONResponse(content={
         "status": "healthy",
-        "model_loaded": _encoder_session is not None,
+        "model_loaded": _encoder_onnx is not None and _decoder is not None,
         "inference_count": _inference_count,
         "uptime_s": round(time.time() - _start_time, 1),
     })

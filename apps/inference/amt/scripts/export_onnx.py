@@ -579,7 +579,9 @@ def export_decoder_strategy_b(
     # since the underlying decoder code still writes to them.
     setup_kv_cache(model, dtype=torch.float32)
 
-    dummy_x = torch.zeros(1, 1, dtype=torch.long)
+    # Use seq_len > 1 so the tracer generalizes reshape ops for dynamic lengths.
+    # With seq_len=1, the tracer can bake in constant reshapes that break on longer inputs.
+    dummy_x = torch.zeros(1, 3, dtype=torch.long)
     dummy_xa = torch.randn(1, n_audio_ctx, n_state)
 
     print(f"Strategy B: exporting stateless decoder to {decoder_path}")
