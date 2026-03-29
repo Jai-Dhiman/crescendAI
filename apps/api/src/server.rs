@@ -121,23 +121,22 @@ async fn handle_ws_upgrade(path: &str, env: &Env, req: HttpRequest) -> Result<wo
         None => return worker::Response::error("Unauthorized", 401),
     };
 
-    // Extract conversationId from query params.
-    let conv_id = req
-        .uri()
-        .query()
-        .unwrap_or("")
+    // Extract query params: conversationId, eval flag.
+    let query = req.uri().query().unwrap_or("");
+    let conv_id = query
         .split('&')
         .find_map(|pair| {
             let (k, v) = pair.split_once('=')?;
             (k == "conversationId").then(|| v.to_string())
         })
         .unwrap_or_default();
+    let is_eval = query.split('&').any(|pair| pair == "eval=true");
 
     let namespace = env.durable_object("PRACTICE_SESSION")?;
     let stub = namespace.id_from_name(session_id)?.get_stub()?;
     // student_id and conv_id are UUIDs -- no URL encoding needed
     let url = format!(
-        "https://do.internal/ws/{session_id}?student_id={student_id}&conversation_id={conv_id}"
+        "https://do.internal/ws/{session_id}?student_id={student_id}&conversation_id={conv_id}&eval={is_eval}"
     );
     let mut worker_req = worker::Request::new(&url, worker::Method::Get)?;
     worker_req.headers_mut()?.set("Upgrade", "websocket")?;
