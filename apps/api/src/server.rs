@@ -6,59 +6,36 @@
 //!   2. Streaming chat -- returns a `ReadableStream` for true SSE
 
 use http_body_util::BodyExt;
-use tower_http::cors::{AllowOrigin, Any, CorsLayer};
+use tower_http::cors::{AllowOrigin, CorsLayer};
 use tower_service::Service;
 use worker::{console_error, event, Context, Env, HttpRequest, Result};
 
 use crate::routes::router;
 use crate::state::AppState;
 
-/// Convert an `http::Response<axum::body::Body>` into a `worker::Response`.
-///
-/// Collects the body into bytes and rebuilds the response for the Workers
-/// runtime. Needed because the Axum router operates on `http` types but the
-/// Workers entry point returns `worker::Response`.
-async fn into_worker_response(resp: http::Response<axum::body::Body>) -> Result<worker::Response> {
-    let (parts, body) = resp.into_parts();
-    let bytes = body
-        .collect()
-        .await
-        .map(|b| b.to_bytes().to_vec())
-        .unwrap_or_default();
-
-    let headers = worker::Headers::new();
-    for (name, value) in &parts.headers {
-        if let Ok(v) = value.to_str() {
-            let _ = headers.set(name.as_str(), v);
-        }
-    }
-
-    let status = parts.status.as_u16();
-    let response = if status == 204 || status == 304 {
-        worker::Response::empty()?
-    } else {
-        worker::Response::from_bytes(bytes)?
-    };
-    Ok(response.with_status(status).with_headers(headers))
-}
-
 #[event(fetch)]
-async fn fetch(req: HttpRequest, env: Env, _ctx: Context) -> Result<worker::Response> {
+async fn fetch(
+    req: HttpRequest,
+    env: Env,
+    _ctx: Context,
+) -> Result<http::Response<axum::body::Body>> {
     console_error_panic_hook::set_once();
 
     let path = req.uri().path().to_string();
     let method = req.method().clone();
 
     // --- Carve-out 1: WebSocket upgrade ---
-    // Returns worker::Response directly to preserve the JS `webSocket` property.
+    // Returns worker::Response converted to http::Response via the "axum" feature.
     if path.starts_with("/api/practice/ws/") && method == http::Method::GET {
-        return handle_ws_upgrade(&path, &env, req).await;
+        let worker_resp = handle_ws_upgrade(&path, &env, req).await?;
+        return Ok(worker_resp.into());
     }
 
     // --- Carve-out 2: Streaming chat ---
     // Returns worker::Response with ReadableStream body for true SSE.
     if path == "/api/chat" && method == http::Method::POST {
-        return handle_chat_stream(&env, req).await;
+        let worker_resp = handle_chat_stream(&env, req).await?;
+        return Ok(worker_resp.into());
     }
 
     // --- Everything else through Axum Router ---
@@ -66,6 +43,8 @@ async fn fetch(req: HttpRequest, env: Env, _ctx: Context) -> Result<worker::Resp
         .var("ALLOWED_ORIGIN")
         .map_or_else(|_| "http://localhost:3000".to_string(), |v| v.to_string());
 
+    // NOTE: allow_credentials(true) cannot be combined with wildcard (Any)
+    // allow_headers or allow_origin. Must list explicit headers.
     let cors = CorsLayer::new()
         .allow_origin(
             allowed_origin
@@ -78,24 +57,24 @@ async fn fetch(req: HttpRequest, env: Env, _ctx: Context) -> Result<worker::Resp
             http::Method::OPTIONS,
             http::Method::DELETE,
         ])
-        .allow_headers(Any)
+        .allow_headers([
+            http::header::CONTENT_TYPE,
+            http::header::AUTHORIZATION,
+            http::header::COOKIE,
+        ])
         .allow_credentials(true);
 
     let state = AppState::from_env(env);
     let mut app = router(state).layer(cors);
 
-    match app.call(req).await {
-        Ok(resp) => into_worker_response(resp).await,
-        Err(err) => {
-            console_error!("Router error: {err}");
-            let resp = http::Response::builder()
-                .status(500)
-                .header("content-type", "application/json")
-                .body(axum::body::Body::from(r#"{"error":"internal"}"#))
-                .unwrap_or_default();
-            into_worker_response(resp).await
-        }
-    }
+    Ok(app.call(req).await.unwrap_or_else(|err| {
+        console_error!("Router error: {err}");
+        http::Response::builder()
+            .status(500)
+            .header("content-type", "application/json")
+            .body(axum::body::Body::from(r#"{"error":"internal"}"#))
+            .unwrap_or_default()
+    }))
 }
 
 // ---------------------------------------------------------------------------
@@ -112,9 +91,34 @@ async fn handle_ws_upgrade(path: &str, env: &Env, req: HttpRequest) -> Result<wo
         return worker::Response::error("invalid session id", 400);
     }
 
-    // Validate auth before routing to DO.
-    let Ok(student_id) = crate::auth::verify_auth(req.headers(), env) else {
-        return worker::Response::error("Unauthorized", 401);
+    // Extract token from cookie or Bearer header and verify JWT.
+    let token = req
+        .headers()
+        .get("cookie")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|c| {
+            c.split(';')
+                .find_map(|p| p.trim().strip_prefix("token=").map(String::from))
+        })
+        .or_else(|| {
+            req.headers()
+                .get("authorization")
+                .and_then(|v| v.to_str().ok())
+                .and_then(|a| a.strip_prefix("Bearer ").map(String::from))
+        });
+
+    let student_id = match token {
+        Some(t) => {
+            let secret = env
+                .secret("JWT_SECRET")
+                .map(|s| s.to_string().into_bytes())
+                .map_err(|e| worker::Error::RustError(format!("JWT_SECRET: {e}")))?;
+            match crate::auth::jwt::verify(&t, &secret) {
+                Ok(claims) => claims.sub,
+                Err(_) => return worker::Response::error("Unauthorized", 401),
+            }
+        }
+        None => return worker::Response::error("Unauthorized", 401),
     };
 
     // Extract conversationId from query params.

@@ -255,12 +255,33 @@ pub async fn handle_chat_stream(
     headers: &http::HeaderMap,
     body: &[u8],
 ) -> worker::Response {
-    let student_id = match crate::auth::verify_auth_header(headers, env) {
-        Ok(id) => id,
-        Err(err_response) => {
-            let status = err_response.status().as_u16();
-            return error_worker_response(status, "Authentication failed");
+    // Extract token from cookie or Bearer header and verify JWT.
+    let token = headers
+        .get("cookie")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|c| {
+            c.split(';')
+                .find_map(|p| p.trim().strip_prefix("token=").map(String::from))
+        })
+        .or_else(|| {
+            headers
+                .get("authorization")
+                .and_then(|v| v.to_str().ok())
+                .and_then(|a| a.strip_prefix("Bearer ").map(String::from))
+        });
+
+    let student_id = match token {
+        Some(t) => {
+            let secret = match env.secret("JWT_SECRET") {
+                Ok(s) => s.to_string().into_bytes(),
+                Err(_) => return error_worker_response(500, "Server configuration error"),
+            };
+            match crate::auth::jwt::verify(&t, &secret) {
+                Ok(claims) => crate::types::StudentId::from(claims.sub),
+                Err(_) => return error_worker_response(401, "Authentication failed"),
+            }
         }
+        None => return error_worker_response(401, "Authentication failed"),
     };
 
     let request: ChatRequest = match serde_json::from_slice(body) {

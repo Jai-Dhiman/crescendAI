@@ -107,5 +107,5 @@ pub fn router(state: AppState) -> Router {
 
 #[allow(clippy::unused_async)]
 async fn health() -> impl IntoResponse {
-    "OK"
+    axum::Json(serde_json::json!({"status": "ok"}))
 }

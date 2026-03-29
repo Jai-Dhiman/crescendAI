@@ -78,13 +78,3 @@ pub fn sign_for_student(student_id: &StudentId, secret: &[u8]) -> Result<String>
     };
     sign(&claims, secret)
 }
-
-/// Legacy compatibility -- will be removed in Task 4 when auth/mod.rs is rewritten.
-pub fn sign_compat(claims: &Claims, secret: &[u8]) -> std::result::Result<String, String> {
-    sign(claims, secret).map_err(|e| e.to_string())
-}
-
-/// Legacy compatibility -- will be removed in Task 4 when auth/mod.rs is rewritten.
-pub fn verify_compat(token: &str, secret: &[u8]) -> std::result::Result<Claims, String> {
-    verify(token, secret).map_err(|e| e.to_string())
-}
