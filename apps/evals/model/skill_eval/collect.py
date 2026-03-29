@@ -6,9 +6,14 @@ skill labels.
 
 Usage:
     cd apps/evals/
+
+    # Original: search + download for a defined piece
     uv run python -m model.skill_eval.collect --piece fur_elise
-    uv run python -m model.skill_eval.collect --piece nocturne_op9no2
     uv run python -m model.skill_eval.collect --piece fur_elise --search-only
+
+    # Download from existing manifest + upload to R2 + delete local
+    uv run --extra model python -m model.skill_eval.collect --manifest chopin_ballade_1 --r2
+    uv run --extra model python -m model.skill_eval.collect --manifest all --r2
 """
 
 from __future__ import annotations
@@ -278,15 +283,179 @@ def save_manifest(piece_id: str, recordings: list[dict]) -> Path:
     return manifest_path
 
 
+def download_and_upload_r2(piece_id: str, batch_size: int = 20):
+    """Download audio from manifest, upload to R2, delete local.
+
+    Processes in batches to limit disk usage. Each batch:
+    1. Download up to batch_size recordings
+    2. Upload all to R2
+    3. Delete local WAV files
+    4. Save manifest progress
+    """
+    from model.skill_eval.r2_sync import BUCKET, R2_PREFIX, get_s3_client
+
+    manifest_path = DATA_DIR / piece_id / "manifest.yaml"
+    if not manifest_path.exists():
+        raise FileNotFoundError(f"No manifest for {piece_id}")
+
+    with open(manifest_path) as f:
+        data = yaml.safe_load(f)
+
+    recordings = data.get("recordings", [])
+    to_download = [r for r in recordings if not r.get("downloaded")]
+
+    if not to_download:
+        print(f"  {piece_id}: all {len(recordings)} recordings already downloaded")
+        return
+
+    print(f"  {piece_id}: {len(to_download)} to download ({len(recordings)} total)")
+
+    audio_dir = DATA_DIR / piece_id / "audio"
+    audio_dir.mkdir(parents=True, exist_ok=True)
+    s3 = get_s3_client()
+
+    total_uploaded = 0
+    total_errors = 0
+
+    for batch_start in range(0, len(to_download), batch_size):
+        batch = to_download[batch_start:batch_start + batch_size]
+        batch_num = batch_start // batch_size + 1
+        total_batches = (len(to_download) + batch_size - 1) // batch_size
+        print(f"\n  Batch {batch_num}/{total_batches} ({len(batch)} recordings)")
+
+        # Download batch
+        local_files = []
+        for i, rec in enumerate(batch):
+            video_id = rec["video_id"]
+            output_path = audio_dir / f"{video_id}.wav"
+            idx = batch_start + i + 1
+            total = len(to_download)
+
+            print(f"    [{idx}/{total}] {video_id} -- downloading...")
+
+            cmd = [
+                "yt-dlp",
+                f"https://youtube.com/watch?v={video_id}",
+                "-x", "--audio-format", "wav",
+                "--postprocessor-args", "ffmpeg:-ar 24000 -ac 1",
+                "-o", str(output_path),
+                "--no-playlist",
+                "--quiet",
+            ]
+
+            try:
+                subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+                if output_path.exists():
+                    local_files.append((rec, output_path))
+                else:
+                    wav_files = list(audio_dir.glob(f"{video_id}*"))
+                    if wav_files:
+                        wav_files[0].rename(output_path)
+                        local_files.append((rec, output_path))
+                    else:
+                        rec["download_error"] = "output file not found"
+                        total_errors += 1
+            except subprocess.TimeoutExpired:
+                rec["download_error"] = "download timed out"
+                total_errors += 1
+            except Exception as e:
+                rec["download_error"] = str(e)
+                total_errors += 1
+
+            time.sleep(2)
+
+        # Upload batch to R2
+        if local_files:
+            uploaded_paths = []
+            print(f"    Uploading up to {len(local_files)} files to R2...")
+            for rec, wav_path in local_files:
+                if not wav_path.exists():
+                    rec["download_error"] = "file disappeared before upload"
+                    total_errors += 1
+                    continue
+                try:
+                    key = f"{R2_PREFIX}/{piece_id}/{wav_path.name}"
+                    s3.upload_file(
+                        str(wav_path), BUCKET, key,
+                        ExtraArgs={"ContentType": "audio/wav"},
+                    )
+                    rec["downloaded"] = True
+                    uploaded_paths.append(wav_path)
+                    total_uploaded += 1
+                except Exception as e:
+                    rec["download_error"] = f"R2 upload failed: {e}"
+                    total_errors += 1
+
+            # Delete successfully uploaded local files
+            for wav_path in uploaded_paths:
+                if wav_path.exists():
+                    wav_path.unlink()
+
+            print(f"    Uploaded {len(uploaded_paths)}/{len(local_files)} files")
+
+        # Save manifest progress after each batch
+        with open(manifest_path, "w") as f:
+            yaml.dump(data, f, default_flow_style=False, sort_keys=False, allow_unicode=True)
+
+    print(f"\n  Done: {total_uploaded} uploaded to R2, {total_errors} errors")
+
+
+def get_manifest_pieces() -> list[str]:
+    """List piece IDs that have manifest.yaml files with recordings to download."""
+    pieces = []
+    for d in sorted(DATA_DIR.iterdir()):
+        if not d.is_dir():
+            continue
+        manifest = d / "manifest.yaml"
+        if not manifest.exists():
+            continue
+        with open(manifest) as f:
+            data = yaml.safe_load(f)
+        recordings = data.get("recordings", [])
+        remaining = sum(1 for r in recordings if not r.get("downloaded"))
+        if remaining > 0:
+            pieces.append(d.name)
+    return pieces
+
+
 def main():
     parser = argparse.ArgumentParser(description="Collect YouTube recordings for skill eval")
-    parser.add_argument("--piece", required=True, choices=list(PIECES.keys()))
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument("--piece", choices=list(PIECES.keys()), help="Search + download a defined piece")
+    group.add_argument("--manifest", type=str, help="Download from existing manifest (piece_id or 'all')")
     parser.add_argument("--search-only", action="store_true", help="Build manifest without downloading")
+    parser.add_argument("--r2", action="store_true", help="Upload to R2 and delete local after download")
+    parser.add_argument("--batch-size", type=int, default=20, help="Files per R2 upload batch (default: 20)")
     args = parser.parse_args()
 
+    if args.manifest:
+        # Manifest mode: download existing manifests + optionally upload to R2
+        if args.manifest == "all":
+            pieces = get_manifest_pieces()
+            if not pieces:
+                print("No pieces with remaining downloads.")
+                return
+            print(f"=== Processing {len(pieces)} pieces ===")
+        else:
+            pieces = [args.manifest]
+
+        for piece_id in pieces:
+            print(f"\n=== {piece_id} ===")
+            if args.r2:
+                download_and_upload_r2(piece_id, batch_size=args.batch_size)
+            else:
+                manifest_path = DATA_DIR / piece_id / "manifest.yaml"
+                with open(manifest_path) as f:
+                    data = yaml.safe_load(f)
+                recordings = download_audio(piece_id, data.get("recordings", []))
+                data["recordings"] = recordings
+                with open(manifest_path, "w") as f:
+                    yaml.dump(data, f, default_flow_style=False, sort_keys=False, allow_unicode=True)
+        return
+
+    # Original search + download mode
     print(f"=== Collecting: {PIECES[args.piece]['title']} ===")
 
-    # Check for existing manifest
     manifest_path = DATA_DIR / args.piece / "manifest.yaml"
     if manifest_path.exists():
         with open(manifest_path) as f:

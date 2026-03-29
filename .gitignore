@@ -169,4 +169,5 @@ model/data/eval/youtube_amt/*.opus
 
 # Eval reports (regenerated)
 apps/api/evals/reports/
+2026-03-27-103258-eval-planning.txt
 

@@ -1,0 +1,22 @@
+{
+  "eval_name": "synthesis_eval",
+  "eval_version": "1.0",
+  "dataset": "practice_8",
+  "metrics": {},
+  "worst_cases": [],
+  "cost": {
+    "judge_calls": 16,
+    "estimated_usd": 0.05
+  },
+  "metadata": {
+    "git_sha": "3514e72b90ecf53eacac9bf463a4527bf4b2d0ee",
+    "git_dirty": true,
+    "total_recordings": 8,
+    "capabilities_judged": [
+      "stop"
+    ],
+    "inference_cache_fingerprints": [
+      "auto-t5_http"
+    ]
+  }
+}

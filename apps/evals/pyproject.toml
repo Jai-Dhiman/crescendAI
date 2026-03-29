@@ -17,6 +17,7 @@ model = [
     "scipy>=1.10.0",
     "matplotlib>=3.7.0",
     "pyyaml>=6.0",
+    "boto3>=1.28.0",
 ]
 inference = [
     "torch>=2.0.0",
