@@ -906,6 +906,7 @@ export default function AppChat() {
 					pieceContext={pieceContext}
 					sessionNotes={sessionNotes}
 					onNotesChange={setSessionNotes}
+					analyserNode={practice.analyserNode}
 					observations={practice.observations.map((o, i) => ({
 						text: o.text,
 						dimension: o.dimension,

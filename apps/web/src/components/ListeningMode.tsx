@@ -11,7 +11,7 @@ import { useKeyboardOffset } from "../hooks/useDom";
 import { useMountEffect } from "../hooks/useFoundation";
 import { useMetronome } from "../hooks/useMetronome";
 import type { PracticeState, WsStatus } from "../hooks/usePracticeSession";
-import { ResonanceRipples } from "./ResonanceRipples";
+import { AudioWaveformRing } from "./AudioWaveformRing";
 
 interface ListeningModeProps {
 	state: PracticeState;
@@ -26,6 +26,7 @@ interface ListeningModeProps {
 	sessionNotes?: string;
 	onNotesChange?: (notes: string) => void;
 	observations: Array<{ text: string; dimension: string; id: string }>;
+	analyserNode: AnalyserNode | null;
 }
 
 type TransitionPhase = "collapsed" | "expanding" | "open" | "collapsing";
@@ -44,6 +45,7 @@ export function ListeningMode({
 	sessionNotes,
 	onNotesChange,
 	observations: _observations,
+	analyserNode,
 }: ListeningModeProps) {
 	const [phase, setPhase] = useState<TransitionPhase>("collapsed");
 	const [contentVis, setContentVis] = useState<ContentVisibility>("hidden");
@@ -299,8 +301,12 @@ export function ListeningMode({
 							</div>
 						)}
 						{/* Waveform */}
-						<div className="w-full max-w-3xl h-32 sm:h-40 md:h-48">
-							<ResonanceRipples energy={energy} isPlaying={isPlaying} active={isRecording} />
+						<div className="w-full max-w-md aspect-square">
+							<AudioWaveformRing
+								analyserNode={analyserNode}
+								isPlaying={isPlaying}
+								active={isRecording}
+							/>
 						</div>
 					</div>
 
