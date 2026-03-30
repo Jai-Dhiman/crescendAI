@@ -11,7 +11,6 @@ import { useKeyboardOffset } from "../hooks/useDom";
 import { useMountEffect } from "../hooks/useFoundation";
 import { useMetronome } from "../hooks/useMetronome";
 import type { PracticeState, WsStatus } from "../hooks/usePracticeSession";
-import { ObservationToast } from "./ObservationToast";
 import { ResonanceRipples } from "./ResonanceRipples";
 
 interface ListeningModeProps {
@@ -43,11 +42,9 @@ export function ListeningMode({
 	pieceContext,
 	sessionNotes,
 	onNotesChange,
-	observations,
+	observations: _observations,
 }: ListeningModeProps) {
 	const [phase, setPhase] = useState<TransitionPhase>("collapsed");
-	const [dismissedObs, setDismissedObs] = useState<Set<string>>(new Set());
-	const activeObs = observations.filter((o) => !dismissedObs.has(o.id));
 	const [contentVisible, setContentVisible] = useState(false);
 	const overlayRef = useRef<HTMLDivElement>(null);
 	const notes = sessionNotes ?? "";
@@ -269,20 +266,6 @@ export function ListeningMode({
 						<div className="w-full max-w-3xl h-32 sm:h-40 md:h-48">
 							<ResonanceRipples energy={energy} isPlaying={isPlaying} active={isRecording} />
 						</div>
-
-						{/* Observation toasts */}
-						{activeObs.length > 0 && (
-							<div className="absolute top-4 right-4 flex flex-col gap-2 z-10">
-								{activeObs.slice(-3).map((obs) => (
-									<ObservationToast
-										key={obs.id}
-										text={obs.text}
-										dimension={obs.dimension}
-										onDismiss={() => setDismissedObs((prev) => new Set(prev).add(obs.id))}
-									/>
-								))}
-							</div>
-						)}
 					</div>
 
 					{/* Bottom bar: notes + stop */}
