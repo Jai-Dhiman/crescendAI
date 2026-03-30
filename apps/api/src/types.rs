@@ -4,9 +4,10 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 
 /// Generate a v4 UUID using getrandom.
-fn generate_uuid_v4() -> String {
+#[allow(clippy::expect_used)] // getrandom on WASM (js feature) is infallible
+pub(crate) fn generate_uuid_v4() -> String {
     let mut bytes = [0u8; 16];
-    getrandom::getrandom(&mut bytes).unwrap_or_default();
+    getrandom::getrandom(&mut bytes).expect("getrandom");
     bytes[6] = (bytes[6] & 0x0f) | 0x40; // version 4
     bytes[8] = (bytes[8] & 0x3f) | 0x80; // variant 1
     format!(
@@ -65,3 +66,12 @@ define_id_type!(StudentId);
 define_id_type!(SessionId);
 define_id_type!(ConversationId);
 define_id_type!(PieceId);
+
+/// Current UTC timestamp as ISO-8601 string.
+#[allow(clippy::expect_used)] // js_sys::Date on Workers always returns a valid string
+pub(crate) fn now_iso() -> String {
+    js_sys::Date::new_0()
+        .to_iso_string()
+        .as_string()
+        .expect("Date.toISOString returned non-string")
+}

@@ -12,6 +12,7 @@ use crate::state::AppState;
 use crate::types::{ConversationId, SessionId, StudentId};
 
 /// Input context for synthesis: identifiers + optional enrichment signals.
+#[derive(Debug)]
 pub struct SynthesisContext {
     pub session_id: SessionId,
     pub student_id: StudentId,
@@ -24,6 +25,7 @@ pub struct SynthesisContext {
 }
 
 /// Output of the synthesis LLM call.
+#[derive(Debug)]
 pub struct SynthesisResult {
     pub text: String,
     pub is_fallback: bool,
@@ -323,11 +325,8 @@ pub async fn persist_synthesis_message(
         .d1("DB")
         .map_err(|e| PracticeError::Storage(format!("D1 binding: {e:?}")))?;
 
-    let msg_id = crate::services::ask::generate_uuid();
-    let now = js_sys::Date::new_0()
-        .to_iso_string()
-        .as_string()
-        .unwrap_or_default();
+    let msg_id = crate::types::generate_uuid_v4();
+    let now = crate::types::now_iso();
 
     db.prepare(
         "INSERT INTO messages (id, conversation_id, role, content, message_type, session_id, created_at) \
@@ -364,16 +363,13 @@ pub async fn persist_accumulated_moments(
         .map_err(|e| PracticeError::Storage(format!("D1 binding: {e:?}")))?;
 
     for m in moments {
-        let obs_id = crate::services::ask::generate_uuid();
+        let obs_id = crate::types::generate_uuid_v4();
         let framing = if m.is_positive {
             "recognition"
         } else {
             "correction"
         };
-        let now = js_sys::Date::new_0()
-            .to_iso_string()
-            .as_string()
-            .unwrap_or_default();
+        let now = crate::types::now_iso();
 
         // reasoning is stored as observation_text; llm_analysis as reasoning_trace if present
         let reasoning_trace = m

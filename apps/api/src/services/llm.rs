@@ -25,6 +25,7 @@ const WORKERS_AI_GROQ_FALLBACK_MODEL: &str = "@cf/meta/llama-3.3-70b-instruct-fp
 
 /// Thin client for routing LLM calls through Cloudflare AI Gateway.
 /// Constructs gateway URLs, attaches caching headers, logs response metadata.
+#[derive(Debug)]
 struct AiGateway {
     account_id: String,
     gateway_id: &'static str,
@@ -135,7 +136,7 @@ fn should_shadow_benchmark(env: &Env) -> bool {
 
 // --- Groq (Stage 1: Subagent) ---
 
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 struct GroqRequest {
     model: String,
     messages: Vec<LlmMessage>,
@@ -143,17 +144,17 @@ struct GroqRequest {
     max_tokens: u32,
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 struct GroqResponse {
     choices: Vec<GroqChoice>,
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 struct GroqChoice {
     message: GroqMessage,
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 struct GroqMessage {
     content: String,
 }
@@ -268,7 +269,7 @@ pub async fn call_groq(
 
 // --- Anthropic (Stage 2: Teacher) ---
 
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 struct AnthropicRequest {
     model: String,
     max_tokens: u32,
@@ -276,12 +277,12 @@ struct AnthropicRequest {
     messages: Vec<LlmMessage>,
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 struct AnthropicResponse {
     content: Vec<AnthropicContent>,
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 struct AnthropicContent {
     text: String,
 }
@@ -370,14 +371,14 @@ pub async fn call_anthropic(
 
 // --- Anthropic Tool Use ---
 
-#[derive(Serialize, Clone)]
+#[derive(Debug, Serialize, Clone)]
 pub struct AnthropicTool {
     pub name: String,
     pub description: String,
     pub input_schema: serde_json::Value,
 }
 
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 struct AnthropicToolRequest {
     model: String,
     max_tokens: u32,
@@ -409,11 +410,13 @@ pub enum AnthropicContentBlock {
 }
 
 /// Parsed result from a tool-enabled Anthropic call.
+#[derive(Debug)]
 pub struct AnthropicToolResult {
     pub text: String,
     pub tool_calls: Vec<ToolCall>,
 }
 
+#[derive(Debug)]
 pub struct ToolCall {
     pub id: String,
     pub name: String,
@@ -602,7 +605,7 @@ pub async fn call_workers_ai(
 
 // --- Shared ---
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct LlmMessage {
     pub role: String,
     pub content: String,
@@ -610,7 +613,7 @@ pub struct LlmMessage {
 
 // --- Anthropic Streaming ---
 
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 pub struct AnthropicStreamRequest {
     pub model: String,
     pub max_tokens: u32,
@@ -619,7 +622,7 @@ pub struct AnthropicStreamRequest {
     pub stream: bool,
 }
 
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 pub struct AnthropicSystemBlock {
     #[serde(rename = "type")]
     pub block_type: String,
@@ -628,7 +631,7 @@ pub struct AnthropicSystemBlock {
     pub cache_control: Option<CacheControl>,
 }
 
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 pub struct CacheControl {
     #[serde(rename = "type")]
     pub control_type: String,

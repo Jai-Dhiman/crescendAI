@@ -36,10 +36,7 @@ pub async fn handle_start(
     prewarm_hf_endpoint(env);
 
     let session_id = SessionId::new();
-    let now = js_sys::Date::new_0()
-        .to_iso_string()
-        .as_string()
-        .unwrap_or_default();
+    let now = crate::types::now_iso();
 
     // Parse optional conversation_id from request body
     let conversation_id = if body.is_empty() {
@@ -98,7 +95,7 @@ pub async fn handle_start(
         })?;
 
     // Insert a session_start message into the conversation
-    let msg_id = crate::services::ask::generate_uuid();
+    let msg_id = crate::types::generate_uuid_v4();
     let msg_result = db
         .prepare("INSERT INTO messages (id, conversation_id, role, content, created_at, message_type, session_id) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)")
         .bind(&[
@@ -166,7 +163,7 @@ fn prewarm_hf_endpoint(env: &Env) {
                 }
             }
             Err(e) => {
-                worker::console_log!("HF pre-warm failed: {:?}", e);
+                worker::console_error!("HF pre-warm failed: {:?}", e);
             }
         }
     });

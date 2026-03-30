@@ -2,7 +2,7 @@
 
 use axum::extract::{Json, Path, State};
 use wasm_bindgen::JsValue;
-use worker::{console_log, Env};
+use worker::{console_error, Env};
 
 use crate::auth::AuthUser;
 use crate::error::{ApiError, Result};
@@ -37,32 +37,66 @@ pub struct ConversationDetail {
     pub created_at: String,
 }
 
-// TODO: MessageRow is deserialized from D1 (snake_case columns) AND serialized to the client.
-// Adding #[serde(rename_all = "camelCase")] would break D1 deserialization.
-// Split into separate D1 row type and API response DTO when addressing this.
-#[derive(serde::Serialize, serde::Deserialize)]
-pub struct MessageRow {
+/// D1 row shape (snake_case columns). Deserialize only.
+#[derive(Debug, serde::Deserialize)]
+struct MessageDbRow {
+    id: String,
+    role: String,
+    content: String,
+    created_at: String,
+    #[serde(default)]
+    message_type: Option<String>,
+    #[serde(default)]
+    dimension: Option<String>,
+    #[serde(default)]
+    framing: Option<String>,
+    #[serde(default)]
+    components_json: Option<String>,
+    #[serde(default)]
+    session_id: Option<String>,
+}
+
+/// API response shape (camelCase). Serialize only.
+#[derive(Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MessageResponse {
     pub id: String,
     pub role: String,
     pub content: String,
     pub created_at: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub message_type: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub dimension: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub framing: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub components_json: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub session_id: Option<String>,
+}
+
+impl From<MessageDbRow> for MessageResponse {
+    fn from(row: MessageDbRow) -> Self {
+        Self {
+            id: row.id,
+            role: row.role,
+            content: row.content,
+            created_at: row.created_at,
+            message_type: row.message_type,
+            dimension: row.dimension,
+            framing: row.framing,
+            components_json: row.components_json,
+            session_id: row.session_id,
+        }
+    }
 }
 
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ConversationWithMessages {
     pub conversation: ConversationDetail,
-    pub messages: Vec<MessageRow>,
+    pub messages: Vec<MessageResponse>,
 }
 
 #[derive(serde::Serialize)]
@@ -161,10 +195,10 @@ pub async fn handle_get_conversation(
         .map_err(|e| ApiError::Internal(format!("Failed to query messages: {e:?}")))?;
 
     let msg_rows: Vec<serde_json::Value> = msg_results.results().unwrap_or_default();
-    let messages: Vec<MessageRow> = msg_rows
+    let messages: Vec<MessageResponse> = msg_rows
         .iter()
         .filter_map(|row| {
-            Some(MessageRow {
+            Some(MessageResponse {
                 id: row.get("id")?.as_str()?.to_string(),
                 role: row.get("role")?.as_str()?.to_string(),
                 content: row.get("content")?.as_str()?.to_string(),
@@ -290,7 +324,7 @@ pub async fn handle_chat_stream(
     let request: ChatRequest = match serde_json::from_slice(body) {
         Ok(r) => r,
         Err(e) => {
-            console_log!("Failed to parse chat request: {:?}", e);
+            console_error!("Failed to parse chat request: {:?}", e);
             return error_worker_response(400, "Invalid request body");
         }
     };
@@ -298,15 +332,12 @@ pub async fn handle_chat_stream(
     let db = match env.d1("DB") {
         Ok(db) => db,
         Err(e) => {
-            console_log!("D1 binding failed: {:?}", e);
+            console_error!("D1 binding failed: {:?}", e);
             return error_worker_response(500, "Database connection failed");
         }
     };
 
-    let now = js_sys::Date::new_0()
-        .to_iso_string()
-        .as_string()
-        .unwrap_or_default();
+    let now = crate::types::now_iso();
 
     // Create or validate conversation
     let conversation_id = if let Some(id) = &request.conversation_id {
@@ -322,16 +353,16 @@ pub async fn handle_chat_stream(
         }
         id.clone()
     } else {
-        let id = crate::services::ask::generate_uuid();
+        let id = crate::types::generate_uuid_v4();
         if let Err(e) = create_conversation(&db, &id, &student_id, &now).await {
-            console_log!("Failed to create conversation: {}", e);
+            console_error!("Failed to create conversation: {}", e);
             return error_worker_response(500, "Failed to create conversation");
         }
         id
     };
 
     // Store user message
-    let user_msg_id = crate::services::ask::generate_uuid();
+    let user_msg_id = crate::types::generate_uuid_v4();
     if let Err(e) = store_message(
         &db,
         &user_msg_id,
@@ -342,7 +373,7 @@ pub async fn handle_chat_stream(
     )
     .await
     {
-        console_log!("Failed to store user message: {}", e);
+        console_error!("Failed to store user message: {}", e);
     }
 
     // Fetch conversation history, student context, and memory
@@ -408,8 +439,8 @@ pub async fn handle_chat_stream(
     {
         Ok(r) => r,
         Err(e) => {
-            console_log!("Anthropic stream call failed: {}", e);
-            let assistant_msg_id = crate::services::ask::generate_uuid();
+            console_error!("Anthropic stream call failed: {}", e);
+            let assistant_msg_id = crate::types::generate_uuid_v4();
             let fallback = "I'm having trouble responding right now. Could you try again?";
             let _ = store_message(
                 &db,
@@ -443,7 +474,7 @@ pub async fn handle_chat_stream(
     let byte_stream = match anthropic_response.stream() {
         Ok(s) => s,
         Err(e) => {
-            console_log!("Failed to get Anthropic stream: {:?}", e);
+            console_error!("Failed to get Anthropic stream: {:?}", e);
             return error_worker_response(500, "Stream read failed");
         }
     };
@@ -452,7 +483,7 @@ pub async fn handle_chat_stream(
     let (tx, rx) =
         futures_channel::mpsc::unbounded::<std::result::Result<Vec<u8>, worker::Error>>();
 
-    let assistant_msg_id = crate::services::ask::generate_uuid();
+    let assistant_msg_id = crate::types::generate_uuid_v4();
     let is_first_exchange = history.len() <= 1;
     let user_message = request.message.clone();
 
@@ -476,7 +507,7 @@ pub async fn handle_chat_stream(
             let chunk = match chunk_result {
                 Ok(c) => c,
                 Err(e) => {
-                    console_log!("Stream chunk error: {:?}", e);
+                    console_error!("Stream chunk error: {:?}", e);
                     break;
                 }
             };
@@ -526,10 +557,7 @@ pub async fn handle_chat_stream(
 
         // Store assistant message in D1 (before closing stream -- Workers
         // runtime may terminate outbound fetches after the response ends)
-        let assistant_now = js_sys::Date::new_0()
-            .to_iso_string()
-            .as_string()
-            .unwrap_or_default();
+        let assistant_now = crate::types::now_iso();
         if let Err(e) = store_message(
             &db,
             &assistant_msg_id,
@@ -540,7 +568,7 @@ pub async fn handle_chat_stream(
         )
         .await
         {
-            console_log!("Failed to store assistant message: {}", e);
+            console_error!("Failed to store assistant message: {}", e);
         }
 
         // Generate title if first exchange
@@ -557,7 +585,7 @@ pub async fn handle_chat_stream(
         )
         .await
         {
-            console_log!("Chat memory extraction failed (non-fatal): {}", e);
+            console_error!("Chat memory extraction failed (non-fatal): {}", e);
         }
 
         // Close the channel last -- Workers runtime may kill outbound
@@ -597,7 +625,7 @@ async fn create_conversation(
     id: &str,
     student_id: &StudentId,
     now: &str,
-) -> std::result::Result<(), String> {
+) -> crate::error::Result<()> {
     db.prepare("INSERT INTO conversations (id, student_id, created_at, updated_at) VALUES (?1, ?2, ?3, ?4)")
         .bind(&[
             JsValue::from_str(id),
@@ -605,10 +633,10 @@ async fn create_conversation(
             JsValue::from_str(now),
             JsValue::from_str(now),
         ])
-        .map_err(|e| format!("Failed to bind create conversation: {e:?}"))?
+        .map_err(|e| ApiError::Internal(format!("Failed to bind create conversation: {e:?}")))?
         .run()
         .await
-        .map_err(|e| format!("Failed to insert conversation: {e:?}"))?;
+        .map_err(|e| ApiError::Internal(format!("Failed to insert conversation: {e:?}")))?;
     Ok(())
 }
 
@@ -619,7 +647,7 @@ async fn store_message(
     role: &str,
     content: &str,
     now: &str,
-) -> std::result::Result<(), String> {
+) -> crate::error::Result<()> {
     db.prepare("INSERT INTO messages (id, conversation_id, role, content, created_at) VALUES (?1, ?2, ?3, ?4, ?5)")
         .bind(&[
             JsValue::from_str(id),
@@ -628,32 +656,32 @@ async fn store_message(
             JsValue::from_str(content),
             JsValue::from_str(now),
         ])
-        .map_err(|e| format!("Failed to bind insert message: {e:?}"))?
+        .map_err(|e| ApiError::Internal(format!("Failed to bind insert message: {e:?}")))?
         .run()
         .await
-        .map_err(|e| format!("Failed to insert message: {e:?}"))?;
+        .map_err(|e| ApiError::Internal(format!("Failed to insert message: {e:?}")))?;
     Ok(())
 }
 
 async fn fetch_messages(
     db: &worker::D1Database,
     conversation_id: &str,
-) -> std::result::Result<Vec<MessageRow>, String> {
+) -> crate::error::Result<Vec<MessageResponse>> {
     let stmt = db
         .prepare("SELECT id, role, content, created_at, message_type, dimension, framing, components_json, session_id FROM messages WHERE conversation_id = ?1 ORDER BY created_at ASC")
         .bind(&[JsValue::from_str(conversation_id)])
-        .map_err(|e| format!("Failed to bind fetch messages: {e:?}"))?;
+        .map_err(|e| ApiError::Internal(format!("Failed to bind fetch messages: {e:?}")))?;
 
     let results = stmt
         .all()
         .await
-        .map_err(|e| format!("Failed to query messages: {e:?}"))?;
+        .map_err(|e| ApiError::Internal(format!("Failed to query messages: {e:?}")))?;
     let rows: Vec<serde_json::Value> = results.results().unwrap_or_default();
 
     Ok(rows
         .iter()
         .filter_map(|row| {
-            Some(MessageRow {
+            Some(MessageResponse {
                 id: row.get("id")?.as_str()?.to_string(),
                 role: row.get("role")?.as_str()?.to_string(),
                 content: row.get("content")?.as_str()?.to_string(),
@@ -726,7 +754,7 @@ async fn generate_title(
             }
         }
         Err(e) => {
-            console_log!("Title generation failed: {}", e);
+            console_error!("Title generation failed: {}", e);
         }
     }
 }

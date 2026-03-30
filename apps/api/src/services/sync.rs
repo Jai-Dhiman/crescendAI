@@ -64,11 +64,16 @@ pub struct SessionDelta {
     pub chunks_summary_json: Option<String>,
 }
 
-#[derive(serde::Serialize)]
+/// Placeholder for exercise catalog updates (populated when exercise sync ships).
+#[derive(Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExerciseUpdate {}
+
+#[derive(Debug, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SyncResponse {
     pub sync_timestamp: String,
-    pub exercise_updates: Vec<serde_json::Value>,
+    pub exercise_updates: Vec<ExerciseUpdate>,
 }
 
 /// Convert an Option<f64> to a `JsValue` (f64 or null).
@@ -105,12 +110,7 @@ pub async fn handle_sync(
     let db = state.db.d1()?;
 
     // Upsert student baselines
-    upsert_student_baselines(&db, &student_id, &request.student)
-        .await
-        .map_err(|e| {
-            console_error!("Failed to upsert student baselines: {}", e);
-            ApiError::Internal("Failed to update student data".into())
-        })?;
+    upsert_student_baselines(&db, &student_id, &request.student).await?;
 
     // Insert new sessions
     for session in &request.new_sessions {
@@ -136,10 +136,7 @@ pub async fn handle_sync(
         }
     }
 
-    let sync_timestamp = js_sys::Date::new_0()
-        .to_iso_string()
-        .as_string()
-        .unwrap_or_default();
+    let sync_timestamp = crate::types::now_iso();
 
     // Exercise updates (Slice 7 will populate this)
     let exercise_updates = Vec::new();
@@ -159,11 +156,8 @@ async fn upsert_student_baselines(
     db: &D1Database,
     student_id: &StudentId,
     delta: &StudentDelta,
-) -> std::result::Result<(), String> {
-    let now = js_sys::Date::new_0()
-        .to_iso_string()
-        .as_string()
-        .unwrap_or_default();
+) -> crate::error::Result<()> {
+    let now = crate::types::now_iso();
 
     db.prepare(
         "UPDATE students SET \
@@ -192,10 +186,10 @@ async fn upsert_student_baselines(
         JsValue::from_str(&now),
         JsValue::from_str(student_id.as_str()),
     ])
-    .map_err(|e| format!("Failed to bind update: {e:?}"))?
+    .map_err(|e| ApiError::Internal(format!("Failed to bind update: {e:?}")))?
     .run()
     .await
-    .map_err(|e| format!("Failed to update student: {e:?}"))?;
+    .map_err(|e| ApiError::Internal(format!("Failed to update student: {e:?}")))?;
 
     Ok(())
 }
@@ -204,7 +198,7 @@ async fn insert_session(
     db: &D1Database,
     student_id: &StudentId,
     session: &SessionDelta,
-) -> std::result::Result<(), String> {
+) -> crate::error::Result<()> {
     db.prepare(
         "INSERT OR IGNORE INTO sessions \
          (id, student_id, started_at, ended_at, avg_dynamics, avg_timing, avg_pedaling, \
@@ -225,10 +219,10 @@ async fn insert_session(
         opt_str(session.observations_json.as_deref()),
         opt_str(session.chunks_summary_json.as_deref()),
     ])
-    .map_err(|e| format!("Failed to bind insert: {e:?}"))?
+    .map_err(|e| ApiError::Internal(format!("Failed to bind insert: {e:?}")))?
     .run()
     .await
-    .map_err(|e| format!("Failed to insert session: {e:?}"))?;
+    .map_err(|e| ApiError::Internal(format!("Failed to insert session: {e:?}")))?;
 
     Ok(())
 }

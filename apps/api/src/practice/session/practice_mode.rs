@@ -12,7 +12,7 @@ pub enum PracticeMode {
     Regular,
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct ChunkSignal {
     pub chunk_index: usize,
     pub timestamp_ms: u64,
@@ -22,12 +22,14 @@ pub struct ChunkSignal {
     pub scores: [f64; 6],
 }
 
+#[derive(Debug)]
 pub struct ObservationPolicy {
     pub suppress: bool,
     pub min_interval_ms: u64,
     pub comparative: bool,
 }
 
+#[derive(Debug)]
 pub struct ModeContext {
     pub mode: PracticeMode,
     pub comparative: bool,
@@ -35,17 +37,20 @@ pub struct ModeContext {
     pub chunk_count: usize,
 }
 
+#[derive(Debug)]
 pub struct DrillingPassage {
     pub bar_range: Option<(u32, u32)>,
     pub repetition_count: usize,
     pub first_scores: [f64; 6],
 }
 
+#[derive(Debug)]
 pub struct ModeTransition {
     pub mode: PracticeMode,
     pub chunk_index: usize,
 }
 
+#[derive(Debug)]
 pub struct ModeDetector {
     pub mode: PracticeMode,
     entered_at_ms: u64,

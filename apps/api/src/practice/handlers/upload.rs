@@ -1,5 +1,5 @@
 use axum::extract::{Json, Query, State};
-use worker::console_log;
+use worker::console_error;
 
 use crate::auth::extractor::AuthUser;
 use crate::error::{ApiError, Result};
@@ -56,7 +56,7 @@ pub async fn handle_upload_chunk(
         .execute()
         .await
         .map_err(|e| {
-            console_log!("R2 put failed: {:?}", e);
+            console_error!("R2 put failed: {:?}", e);
             ApiError::Internal("Failed to store chunk".into())
         })?;
 

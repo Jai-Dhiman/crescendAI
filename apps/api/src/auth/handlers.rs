@@ -55,8 +55,7 @@ pub struct AuthResponse {
 // Internal types
 // ---------------------------------------------------------------------------
 
-#[derive(serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, serde::Deserialize)]
 struct GoogleTokenClaims {
     #[allow(dead_code)]
     iss: Option<String>,
@@ -106,10 +105,7 @@ pub async fn handle_apple(
 
     let db = state.db.d1()?;
 
-    let now = js_sys::Date::new_0()
-        .to_iso_string()
-        .as_string()
-        .unwrap_or_default();
+    let now = crate::types::now_iso();
 
     let (student_id, display_name, is_new_user) = find_or_create_student(
         &db,
@@ -228,10 +224,7 @@ pub async fn handle_google(
 
     let db = state.db.d1()?;
 
-    let now_iso = js_sys::Date::new_0()
-        .to_iso_string()
-        .as_string()
-        .unwrap_or_default();
+    let now_iso = crate::types::now_iso();
 
     let (student_id, display_name, is_new_user) = find_or_create_student(
         &db,
@@ -327,10 +320,7 @@ pub async fn handle_debug(State(state): State<AppState>) -> Result<impl IntoResp
 
     let db = state.db.d1()?;
 
-    let now = js_sys::Date::new_0()
-        .to_iso_string()
-        .as_string()
-        .unwrap_or_default();
+    let now = crate::types::now_iso();
 
     let (student_id, display_name, is_new_user) = find_or_create_student(
         &db,
@@ -373,20 +363,20 @@ pub async fn handle_debug(State(state): State<AppState>) -> Result<impl IntoResp
 
 fn parse_apple_token_claims(token: &str) -> Result<AppleTokenClaims> {
     let parts: Vec<&str> = token.split('.').collect();
-    if parts.len() != 3 {
+    let [_header, payload_b64, _sig] = parts.as_slice() else {
         return Err(ApiError::BadRequest(
             "Invalid Apple identity token format".into(),
         ));
-    }
+    };
 
     let payload = URL_SAFE_NO_PAD
-        .decode(parts[1])
+        .decode(payload_b64)
         .or_else(|_| {
             // Try with standard base64 padding
-            let padded = match parts[1].len() % 4 {
-                2 => format!("{}==", parts[1]),
-                3 => format!("{}=", parts[1]),
-                _ => parts[1].to_string(),
+            let padded = match payload_b64.len() % 4 {
+                2 => format!("{payload_b64}=="),
+                3 => format!("{payload_b64}="),
+                _ => payload_b64.to_string(),
             };
             URL_SAFE_NO_PAD.decode(&padded)
         })

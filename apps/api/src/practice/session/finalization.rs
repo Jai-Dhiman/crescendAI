@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use wasm_bindgen::JsValue;
-use worker::{console_error, console_log, js_sys, wasm_bindgen, WebSocket};
+use worker::{console_error, console_log, wasm_bindgen, WebSocket};
 
 use super::PracticeSession;
 use crate::services::stop::SCALER_MEAN;
@@ -309,10 +309,7 @@ impl PracticeSession {
             if let Some(ref conv_id) = conv_id {
                 if let Ok(db) = self.env.d1("DB") {
                     let end_msg_id = format!("session_end_{session_id}");
-                    let now = js_sys::Date::new_0()
-                        .to_iso_string()
-                        .as_string()
-                        .unwrap_or_default();
+                    let now = crate::types::now_iso();
                     if let Ok(q) = db.prepare(
                         "INSERT OR IGNORE INTO messages (id, conversation_id, role, content, message_type, session_id, created_at) \
                          VALUES (?1, ?2, 'assistant', 'Recording ended', 'session_end', ?3, ?4)"

@@ -48,6 +48,7 @@ pub struct ElaborateResponse {
 }
 
 /// Input for the core LLM pipeline (used by both HTTP handler and DO).
+#[derive(Debug)]
 pub struct AskInnerRequest {
     pub teaching_moment: serde_json::Value,
     pub student_id: StudentId,
@@ -56,6 +57,7 @@ pub struct AskInnerRequest {
 }
 
 /// Output from the core LLM pipeline (no D1 side effects).
+#[derive(Debug)]
 pub struct AskInnerResponse {
     pub observation_text: String,
     pub dimension: String,
@@ -106,10 +108,7 @@ pub async fn handle_ask_inner(env: &Env, req: &AskInnerRequest) -> AskInnerRespo
         .and_then(|pc| pc.get("title"))
         .and_then(|v| v.as_str());
 
-    let now = js_sys::Date::new_0()
-        .to_iso_string()
-        .as_string()
-        .unwrap_or_default();
+    let now = crate::types::now_iso();
     let today = &now[..10.min(now.len())];
     let memory_ctx = crate::services::memory::build_memory_context(
         env,
@@ -301,7 +300,7 @@ pub async fn handle_ask(
     // inner_resp.components_json unused: HTTP path does not use components yet (observations go through DO WebSocket)
 
     // Generate observation ID
-    let observation_id = generate_uuid();
+    let observation_id = crate::types::generate_uuid_v4();
 
     // Build reasoning trace
     let reasoning_trace = serde_json::json!({
@@ -345,7 +344,7 @@ pub async fn handle_ask(
     }
 
     // Store teaching approach record
-    let approach_id = generate_uuid();
+    let approach_id = crate::types::generate_uuid_v4();
     let approach_summary = format!("{framing} on {dimension}");
     if let Err(e) = crate::services::memory::store_teaching_approach(
         env,
@@ -392,10 +391,7 @@ pub async fn handle_elaborate(
             .map_err(|e| ApiError::NotFound(format!("Observation not found: {e}")))?;
 
     // Fetch memory context for richer elaboration
-    let elab_now = js_sys::Date::new_0()
-        .to_iso_string()
-        .as_string()
-        .unwrap_or_default();
+    let elab_now = crate::types::now_iso();
     let elab_today = &elab_now[..10.min(elab_now.len())];
     let memory_ctx =
         crate::services::memory::build_memory_context(env, &student_id, None, elab_today, None)
@@ -455,10 +451,7 @@ async fn store_observation(
     let db = env
         .d1("DB")
         .map_err(|e| ApiError::Internal(format!("D1 binding failed: {e:?}")))?;
-    let now = js_sys::Date::new_0()
-        .to_iso_string()
-        .as_string()
-        .unwrap_or_default();
+    let now = crate::types::now_iso();
 
     db.prepare(
         "INSERT INTO observations (id, student_id, session_id, chunk_index, dimension, \
@@ -643,21 +636,6 @@ fn post_process_observation(text: &str) -> String {
     cleaned
 }
 
-/// Generate a UUID v4 (same pattern as auth module).
-#[allow(clippy::expect_used)] // getrandom on WASM (js feature) is infallible
-pub fn generate_uuid() -> String {
-    let mut bytes = [0u8; 16];
-    getrandom::getrandom(&mut bytes).expect("getrandom");
-    bytes[6] = (bytes[6] & 0x0f) | 0x40;
-    bytes[8] = (bytes[8] & 0x3f) | 0x80;
-    format!(
-        "{:02x}{:02x}{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}",
-        bytes[0], bytes[1], bytes[2], bytes[3],
-        bytes[4], bytes[5], bytes[6], bytes[7],
-        bytes[8], bytes[9], bytes[10], bytes[11],
-        bytes[12], bytes[13], bytes[14], bytes[15]
-    )
-}
 
 /// Look up catalog exercises matching a dimension.
 /// Returns up to 5 matching exercises as (id, title, description, difficulty).
@@ -722,11 +700,8 @@ async fn persist_generated_exercise(
     let db = env
         .d1("DB")
         .map_err(|e| ApiError::Internal(format!("D1 binding failed: {e:?}")))?;
-    let exercise_id = generate_uuid();
-    let now = js_sys::Date::new_0()
-        .to_iso_string()
-        .as_string()
-        .unwrap_or_default();
+    let exercise_id = crate::types::generate_uuid_v4();
+    let now = crate::types::now_iso();
 
     db.prepare(
         "INSERT INTO exercises (id, title, description, instructions, difficulty, category, source, created_at) \

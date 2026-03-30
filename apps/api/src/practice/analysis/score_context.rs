@@ -6,6 +6,7 @@ use worker::{console_error, Env};
 
 use super::piece_identify::{NgramIndex, RerankFeatures};
 use super::piece_match::{match_piece, CatalogPiece, MatchResult};
+use crate::error::ApiError;
 use crate::types::StudentId;
 
 #[derive(Debug, Clone, serde::Deserialize)]
@@ -139,10 +140,10 @@ pub async fn load_catalog(env: &Env) -> Vec<CatalogPiece> {
 }
 
 /// Fetch and deserialize score JSON from R2 at `scores/v1/{piece_id}.json`.
-pub async fn load_score(env: &Env, piece_id: &str) -> Result<ScoreData, String> {
+pub async fn load_score(env: &Env, piece_id: &str) -> crate::error::Result<ScoreData> {
     let bucket = env
         .bucket("SCORES")
-        .map_err(|e| format!("SCORES R2 binding failed: {e:?}"))?;
+        .map_err(|e| ApiError::Internal(format!("SCORES R2 binding failed: {e:?}")))?;
 
     let key = format!("scores/v1/{piece_id}.json");
 
@@ -150,18 +151,18 @@ pub async fn load_score(env: &Env, piece_id: &str) -> Result<ScoreData, String> 
         .get(&key)
         .execute()
         .await
-        .map_err(|e| format!("R2 get failed for {key}: {e:?}"))?
-        .ok_or_else(|| format!("Score not found in R2: {key}"))?;
+        .map_err(|e| ApiError::Internal(format!("R2 get failed for {key}: {e:?}")))?
+        .ok_or_else(|| ApiError::NotFound(format!("Score not found in R2: {key}")))?;
 
     let bytes = object
         .body()
-        .ok_or_else(|| format!("R2 object {key} has no body"))?
+        .ok_or_else(|| ApiError::Internal(format!("R2 object {key} has no body")))?
         .bytes()
         .await
-        .map_err(|e| format!("R2 body read failed for {key}: {e:?}"))?;
+        .map_err(|e| ApiError::Internal(format!("R2 body read failed for {key}: {e:?}")))?;
 
     serde_json::from_slice::<ScoreData>(&bytes)
-        .map_err(|e| format!("Score JSON parse failed for {piece_id}: {e:?}"))
+        .map_err(|e| ApiError::Internal(format!("Score JSON parse failed for {piece_id}: {e:?}")))
 }
 
 /// Fetch and deserialize reference profile from R2 at `references/v1/{piece_id}.json`.
@@ -230,11 +231,8 @@ pub async fn log_piece_request(
         }
     };
 
-    let now = js_sys::Date::new_0()
-        .to_iso_string()
-        .as_string()
-        .unwrap_or_default();
-    let id = crate::services::ask::generate_uuid();
+    let now = crate::types::now_iso();
+    let id = crate::types::generate_uuid_v4();
 
     let (matched_piece_id, confidence) = match match_result {
         Some(m) => (
@@ -297,10 +295,10 @@ pub async fn resolve_piece(env: &Env, query: &str, student_id: &StudentId) -> Op
 }
 
 /// Load the N-gram inverted index from R2 at `fingerprints/v1/ngram_index.json`.
-pub async fn load_ngram_index(env: &Env) -> Result<NgramIndex, String> {
+pub async fn load_ngram_index(env: &Env) -> crate::error::Result<NgramIndex> {
     let bucket = env
         .bucket("SCORES")
-        .map_err(|e| format!("SCORES R2 binding failed: {e:?}"))?;
+        .map_err(|e| ApiError::Internal(format!("SCORES R2 binding failed: {e:?}")))?;
 
     let key = "fingerprints/v1/ngram_index.json";
 
@@ -308,25 +306,25 @@ pub async fn load_ngram_index(env: &Env) -> Result<NgramIndex, String> {
         .get(key)
         .execute()
         .await
-        .map_err(|e| format!("R2 get failed for {key}: {e:?}"))?
-        .ok_or_else(|| format!("N-gram index not found in R2: {key}"))?;
+        .map_err(|e| ApiError::Internal(format!("R2 get failed for {key}: {e:?}")))?
+        .ok_or_else(|| ApiError::NotFound(format!("N-gram index not found in R2: {key}")))?;
 
     let bytes = object
         .body()
-        .ok_or_else(|| format!("R2 object {key} has no body"))?
+        .ok_or_else(|| ApiError::Internal(format!("R2 object {key} has no body")))?
         .bytes()
         .await
-        .map_err(|e| format!("R2 body read failed for {key}: {e:?}"))?;
+        .map_err(|e| ApiError::Internal(format!("R2 body read failed for {key}: {e:?}")))?;
 
     serde_json::from_slice::<NgramIndex>(&bytes)
-        .map_err(|e| format!("N-gram index JSON parse failed: {e:?}"))
+        .map_err(|e| ApiError::Internal(format!("N-gram index JSON parse failed: {e:?}")))
 }
 
 /// Load rerank feature vectors from R2 at `fingerprints/v1/rerank_features.json`.
-pub async fn load_rerank_features(env: &Env) -> Result<RerankFeatures, String> {
+pub async fn load_rerank_features(env: &Env) -> crate::error::Result<RerankFeatures> {
     let bucket = env
         .bucket("SCORES")
-        .map_err(|e| format!("SCORES R2 binding failed: {e:?}"))?;
+        .map_err(|e| ApiError::Internal(format!("SCORES R2 binding failed: {e:?}")))?;
 
     let key = "fingerprints/v1/rerank_features.json";
 
@@ -334,18 +332,18 @@ pub async fn load_rerank_features(env: &Env) -> Result<RerankFeatures, String> {
         .get(key)
         .execute()
         .await
-        .map_err(|e| format!("R2 get failed for {key}: {e:?}"))?
-        .ok_or_else(|| format!("Rerank features not found in R2: {key}"))?;
+        .map_err(|e| ApiError::Internal(format!("R2 get failed for {key}: {e:?}")))?
+        .ok_or_else(|| ApiError::NotFound(format!("Rerank features not found in R2: {key}")))?;
 
     let bytes = object
         .body()
-        .ok_or_else(|| format!("R2 object {key} has no body"))?
+        .ok_or_else(|| ApiError::Internal(format!("R2 object {key} has no body")))?
         .bytes()
         .await
-        .map_err(|e| format!("R2 body read failed for {key}: {e:?}"))?;
+        .map_err(|e| ApiError::Internal(format!("R2 body read failed for {key}: {e:?}")))?;
 
     serde_json::from_slice::<RerankFeatures>(&bytes)
-        .map_err(|e| format!("Rerank features JSON parse failed: {e:?}"))
+        .map_err(|e| ApiError::Internal(format!("Rerank features JSON parse failed: {e:?}")))
 }
 
 /// Log a fingerprint-based piece identification to D1 for demand tracking.
@@ -367,11 +365,8 @@ pub async fn log_fingerprint_piece_request(
         }
     };
 
-    let now = js_sys::Date::new_0()
-        .to_iso_string()
-        .as_string()
-        .unwrap_or_default();
-    let id = crate::services::ask::generate_uuid();
+    let now = crate::types::now_iso();
+    let id = crate::types::generate_uuid_v4();
     let query = format!("[fingerprint:{method}]");
 
     let stmt = db.prepare(

@@ -149,3 +149,34 @@ impl PracticeService {
             .map_err(|e| ApiError::Internal(format!("R2 SCORES: {e}")))
     }
 }
+
+// Manual Debug impls — Env does not implement Debug.
+impl std::fmt::Debug for AppState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AppState").finish_non_exhaustive()
+    }
+}
+
+impl std::fmt::Debug for AuthService {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AuthService").finish_non_exhaustive()
+    }
+}
+
+impl std::fmt::Debug for DbService {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DbService").finish_non_exhaustive()
+    }
+}
+
+impl std::fmt::Debug for InferenceService {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("InferenceService").finish_non_exhaustive()
+    }
+}
+
+impl std::fmt::Debug for PracticeService {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PracticeService").finish_non_exhaustive()
+    }
+}

@@ -1,6 +1,6 @@
 use axum::extract::{Json, State};
 use wasm_bindgen::JsValue;
-use worker::console_log;
+use worker::console_error;
 
 use crate::auth::AuthUser;
 use crate::error::{ApiError, Result};
@@ -39,32 +39,19 @@ pub async fn handle_extract_goals(
     let student_id = auth.student_id;
 
     // Extract goals via LLM
-    let extracted = extract_goals_with_llm(state.db.env(), &request.message)
-        .await
-        .map_err(|e| {
-            console_log!("Goal extraction failed: {}", e);
-            ApiError::Internal(format!("Goal extraction failed: {e}"))
-        })?;
+    let extracted = extract_goals_with_llm(state.db.env(), &request.message).await?;
 
     // Merge into student's explicit_goals in D1
     let db = state.db.d1()?;
 
-    merge_goals(&db, &student_id, &extracted)
-        .await
-        .map_err(|e| {
-            console_log!("Failed to merge goals: {}", e);
-            ApiError::Internal("Failed to save goals".into())
-        })?;
+    merge_goals(&db, &student_id, &extracted).await?;
 
     // Store extracted goals as student-reported facts in synthesized_facts
-    let now = js_sys::Date::new_0()
-        .to_iso_string()
-        .as_string()
-        .unwrap_or_default();
+    let now = crate::types::now_iso();
     let today = &now[..10.min(now.len())];
 
     for piece in &extracted.pieces {
-        let fact_id = crate::services::memory::generate_fact_id();
+        let fact_id = crate::types::generate_uuid_v4();
         let piece_ctx = serde_json::json!({"title": piece}).to_string();
         let fact_text = format!("Working on {piece}");
         if let Ok(stmt) = db
@@ -92,7 +79,7 @@ pub async fn handle_extract_goals(
     }
 
     for deadline in &extracted.deadlines {
-        let fact_id = crate::services::memory::generate_fact_id();
+        let fact_id = crate::types::generate_uuid_v4();
         let invalid_at = deadline.date.as_deref();
         if let Ok(stmt) = db
             .prepare(
@@ -127,7 +114,7 @@ pub async fn handle_extract_goals(
 async fn extract_goals_with_llm(
     env: &worker::Env,
     message: &str,
-) -> std::result::Result<ExtractedGoals, String> {
+) -> crate::error::Result<ExtractedGoals> {
     let prompt = format!(
         r#"Extract structured practice goals from this pianist's message. Return ONLY valid JSON with no other text.
 
@@ -152,13 +139,12 @@ If a field has no matches, use an empty array. Always include raw_text."#
         0.1,
         500,
     )
-    .await
-    .map_err(|e| e.to_string())?;
+    .await?;
 
     // Parse the LLM's JSON response
     let extracted: ExtractedGoals = serde_json::from_str(&response).map_err(|e| {
-        console_log!("LLM returned invalid JSON: {}", response);
-        format!("Failed to parse extracted goals: {e}")
+        console_error!("LLM returned invalid JSON: {}", response);
+        ApiError::Internal(format!("Failed to parse extracted goals: {e}"))
     })?;
 
     Ok(extracted)
@@ -168,15 +154,15 @@ async fn merge_goals(
     db: &worker::D1Database,
     student_id: &StudentId,
     new_goals: &ExtractedGoals,
-) -> std::result::Result<(), String> {
+) -> crate::error::Result<()> {
     // Fetch existing goals
     let existing_row = db
         .prepare("SELECT explicit_goals FROM students WHERE student_id = ?1")
         .bind(&[JsValue::from_str(student_id.as_str())])
-        .map_err(|e| format!("Failed to bind query: {e:?}"))?
+        .map_err(|e| ApiError::Internal(format!("Failed to bind query: {e:?}")))?
         .first::<serde_json::Value>(None)
         .await
-        .map_err(|e| format!("Failed to query student: {e:?}"))?;
+        .map_err(|e| ApiError::Internal(format!("Failed to query student: {e:?}")))?;
 
     let mut merged = if let Some(row) = existing_row {
         let goals_str = row
@@ -209,12 +195,9 @@ async fn merge_goals(
     }
 
     let merged_json = serde_json::to_string(&merged)
-        .map_err(|e| format!("Failed to serialize merged goals: {e}"))?;
+        .map_err(|e| ApiError::Internal(format!("Failed to serialize merged goals: {e}")))?;
 
-    let now = js_sys::Date::new_0()
-        .to_iso_string()
-        .as_string()
-        .unwrap_or_default();
+    let now = crate::types::now_iso();
 
     db.prepare("UPDATE students SET explicit_goals = ?1, updated_at = ?2 WHERE student_id = ?3")
         .bind(&[
@@ -222,10 +205,10 @@ async fn merge_goals(
             JsValue::from_str(&now),
             JsValue::from_str(student_id.as_str()),
         ])
-        .map_err(|e| format!("Failed to bind update: {e:?}"))?
+        .map_err(|e| ApiError::Internal(format!("Failed to bind update: {e:?}")))?
         .run()
         .await
-        .map_err(|e| format!("Failed to update goals: {e:?}"))?;
+        .map_err(|e| ApiError::Internal(format!("Failed to update goals: {e:?}")))?;
 
     Ok(())
 }

@@ -77,21 +77,6 @@ pub struct ExerciseQueryParams {
     pub repertoire: Option<String>,
 }
 
-#[allow(clippy::expect_used)] // getrandom on WASM (js feature) is infallible
-fn generate_uuid() -> String {
-    let mut bytes = [0u8; 16];
-    getrandom::getrandom(&mut bytes).expect("getrandom");
-    bytes[6] = (bytes[6] & 0x0f) | 0x40;
-    bytes[8] = (bytes[8] & 0x3f) | 0x80;
-    format!(
-        "{:02x}{:02x}{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}",
-        bytes[0], bytes[1], bytes[2], bytes[3],
-        bytes[4], bytes[5],
-        bytes[6], bytes[7],
-        bytes[8], bytes[9],
-        bytes[10], bytes[11], bytes[12], bytes[13], bytes[14], bytes[15]
-    )
-}
 
 /// GET /api/exercises
 #[worker::send]
@@ -286,11 +271,8 @@ pub async fn handle_assign_exercise(
         .unwrap_or(0)
         + 1;
 
-    let id = format!("se-{}", generate_uuid());
-    let now = js_sys::Date::new_0()
-        .to_iso_string()
-        .as_string()
-        .unwrap_or_default();
+    let id = format!("se-{}", crate::types::generate_uuid_v4());
+    let now = crate::types::now_iso();
 
     let session_id_js = match &request.session_id {
         Some(sid) => JsValue::from_str(sid),

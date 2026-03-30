@@ -1,5 +1,4 @@
 use axum::extract::{Json, State};
-use js_sys;
 use wasm_bindgen::JsValue;
 use worker::console_error;
 
@@ -12,11 +11,9 @@ fn is_valid_email(email: &str) -> bool {
         return false;
     }
     let parts: Vec<&str> = email.splitn(2, '@').collect();
-    if parts.len() != 2 {
+    let [local, domain] = parts.as_slice() else {
         return false;
-    }
-    let local = parts[0];
-    let domain = parts[1];
+    };
     if local.is_empty() || domain.is_empty() {
         return false;
     }
@@ -30,33 +27,42 @@ fn is_valid_email(email: &str) -> bool {
     }
 }
 
+#[derive(Debug, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct WaitlistRequest {
+    pub email: String,
+    #[serde(default)]
+    pub name: Option<String>,
+    #[serde(default)]
+    pub context: Option<String>,
+}
+
+#[derive(Debug, serde::Serialize)]
+pub struct WaitlistResponse {
+    pub ok: bool,
+}
+
 #[worker::send]
 pub async fn handle_waitlist(
     State(state): State<AppState>,
-    Json(parsed): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>> {
+    Json(request): Json<WaitlistRequest>,
+) -> Result<Json<WaitlistResponse>> {
     // Honeypot: if "name" field is non-empty, silently accept
-    if let Some(name) = parsed.get("name").and_then(|v| v.as_str()) {
+    if let Some(ref name) = request.name {
         if !name.is_empty() {
-            return Ok(Json(serde_json::json!({"ok": true})));
+            return Ok(Json(WaitlistResponse { ok: true }));
         }
     }
 
-    let email = parsed
-        .get("email")
-        .and_then(|v| v.as_str())
-        .map(|e| e.trim().to_lowercase())
-        .filter(|e| !e.is_empty())
-        .ok_or_else(|| ApiError::BadRequest("Invalid email".into()))?;
-
-    if !is_valid_email(&email) {
+    let email = request.email.trim().to_lowercase();
+    if email.is_empty() || !is_valid_email(&email) {
         return Err(ApiError::BadRequest("Invalid email".into()));
     }
 
     // Truncate context to 500 chars (char-boundary safe)
-    let context: Option<String> = parsed
-        .get("context")
-        .and_then(|v| v.as_str())
+    let context: Option<String> = request
+        .context
+        .as_deref()
         .map(|s| {
             let trimmed = s.trim();
             if trimmed.chars().count() > 500 {
@@ -69,10 +75,7 @@ pub async fn handle_waitlist(
 
     let db = state.db.d1()?;
 
-    let now = js_sys::Date::new_0()
-        .to_iso_string()
-        .as_string()
-        .unwrap_or_default();
+    let now = crate::types::now_iso();
 
     let context_val = match &context {
         Some(c) => JsValue::from_str(c),
@@ -97,5 +100,5 @@ pub async fn handle_waitlist(
         ApiError::Internal("Database error".into())
     })?;
 
-    Ok(Json(serde_json::json!({"ok": true})))
+    Ok(Json(WaitlistResponse { ok: true }))
 }

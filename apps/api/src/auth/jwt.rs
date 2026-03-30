@@ -35,24 +35,24 @@ pub fn sign(claims: &Claims, secret: &[u8]) -> Result<String> {
 
 pub fn verify(token: &str, secret: &[u8]) -> Result<Claims> {
     let parts: Vec<&str> = token.split('.').collect();
-    if parts.len() != 3 {
+    let [header, payload, signature] = parts.as_slice() else {
         return Err(ApiError::Unauthorized);
-    }
+    };
 
-    let signing_input = format!("{}.{}", parts[0], parts[1]);
+    let signing_input = format!("{header}.{payload}");
 
     let mut mac = HmacSha256::new_from_slice(secret).map_err(|_| ApiError::Unauthorized)?;
     mac.update(signing_input.as_bytes());
 
     let expected_sig = URL_SAFE_NO_PAD
-        .decode(parts[2])
+        .decode(signature)
         .map_err(|_| ApiError::Unauthorized)?;
 
     mac.verify_slice(&expected_sig)
         .map_err(|_| ApiError::Unauthorized)?;
 
     let claims_json = URL_SAFE_NO_PAD
-        .decode(parts[1])
+        .decode(payload)
         .map_err(|_| ApiError::Unauthorized)?;
 
     let claims: Claims =

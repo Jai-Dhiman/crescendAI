@@ -52,11 +52,11 @@ pub async fn handle_get_piece(
         ApiError::Internal("Failed to parse results".into())
     })?;
 
-    if rows.is_empty() {
-        return Err(ApiError::NotFound("Piece not found".into()));
-    }
-
-    Ok(Json(rows[0].clone()))
+    let row = rows
+        .first()
+        .cloned()
+        .ok_or_else(|| ApiError::NotFound("Piece not found".into()))?;
+    Ok(Json(row))
 }
 
 /// GET /`api/scores/:piece_id/data` -- fetch pre-built score JSON from R2.

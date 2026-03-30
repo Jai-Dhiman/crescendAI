@@ -4,7 +4,7 @@
 
 use axum::extract::{Json, State};
 use wasm_bindgen::JsValue;
-use worker::{console_log, Env};
+use worker::{console_error, console_log, Env};
 
 use crate::auth::AuthUser;
 use crate::error::{ApiError, Result};
@@ -12,6 +12,7 @@ use crate::state::AppState;
 use crate::types::StudentId;
 
 /// A synthesized fact from the event clock.
+#[derive(Debug)]
 pub struct SynthesizedFact {
     pub id: String,
     pub fact_text: String,
@@ -25,6 +26,7 @@ pub struct SynthesizedFact {
 }
 
 /// A recent observation with engagement data.
+#[derive(Debug)]
 pub struct RecentObservationWithEngagement {
     pub dimension: String,
     pub observation_text: String,
@@ -34,6 +36,7 @@ pub struct RecentObservationWithEngagement {
 }
 
 /// The assembled context map for the subagent.
+#[derive(Debug)]
 pub struct StudentMemoryContext {
     pub active_facts: Vec<SynthesizedFact>,
     pub recent_observations: Vec<RecentObservationWithEngagement>,
@@ -222,7 +225,7 @@ pub async fn build_memory_context(
     let active_facts = match query_active_facts(env, student_id).await {
         Ok(facts) => facts,
         Err(e) => {
-            console_log!("Failed to query active facts: {}", e);
+            console_error!("Failed to query active facts: {}", e);
             vec![]
         }
     };
@@ -231,7 +234,7 @@ pub async fn build_memory_context(
     {
         Ok(obs) => obs,
         Err(e) => {
-            console_log!("Failed to query recent observations: {}", e);
+            console_error!("Failed to query recent observations: {}", e);
             vec![]
         }
     };
@@ -248,7 +251,7 @@ pub async fn build_memory_context(
                     .collect()
             }
             Err(e) => {
-                console_log!("Failed to query piece facts: {}", e);
+                console_error!("Failed to query piece facts: {}", e);
                 vec![]
             }
         }
@@ -275,7 +278,7 @@ pub async fn build_memory_context(
                 })
                 .collect(),
             Err(e) => {
-                console_log!("Search failed, falling back to generic query: {}", e);
+                console_error!("Search failed, falling back to generic query: {}", e);
                 query_student_reported_facts(env, student_id, today)
                     .await
                     .unwrap_or_default()
@@ -285,7 +288,7 @@ pub async fn build_memory_context(
         match query_student_reported_facts(env, student_id, today).await {
             Ok(facts) => facts,
             Err(e) => {
-                console_log!("Failed to query student reported facts: {}", e);
+                console_error!("Failed to query student reported facts: {}", e);
                 vec![]
             }
         }
@@ -426,10 +429,7 @@ pub async fn extract_and_store_chat_facts(
     const MAX_ADDS: usize = 10;
     const MAX_FACT_LEN: usize = 500;
 
-    let now = js_sys::Date::new_0()
-        .to_iso_string()
-        .as_string()
-        .unwrap_or_default();
+    let now = crate::types::now_iso();
     let today = &now[..10.min(now.len())];
 
     // 1. Query existing student_reported facts
@@ -481,7 +481,7 @@ pub async fn extract_and_store_chat_facts(
                 continue;
             }
 
-            let fact_id = generate_fact_id();
+            let fact_id = crate::types::generate_uuid_v4();
             let _ = db
                 .prepare(
                     "INSERT OR IGNORE INTO synthesized_facts \
@@ -549,7 +549,7 @@ pub async fn extract_and_store_chat_facts(
                 .await;
 
             // Insert replacement fact
-            let fact_id = generate_fact_id();
+            let fact_id = crate::types::generate_uuid_v4();
             let _ = db
                 .prepare(
                     "INSERT OR IGNORE INTO synthesized_facts \
@@ -614,10 +614,7 @@ pub async fn store_teaching_approach(
     let db = env
         .d1("DB")
         .map_err(|e| ApiError::Internal(format!("D1 binding failed: {e:?}")))?;
-    let now = js_sys::Date::new_0()
-        .to_iso_string()
-        .as_string()
-        .unwrap_or_default();
+    let now = crate::types::now_iso();
 
     db.prepare(
         "INSERT INTO teaching_approaches \
@@ -900,10 +897,7 @@ pub async fn run_synthesis(env: &Env, student_id: &StudentId) -> Result<Synthesi
     // 7. Parse synthesis output
     let synthesis_json = extract_synthesis_json(&synthesis_output)?;
 
-    let now = js_sys::Date::new_0()
-        .to_iso_string()
-        .as_string()
-        .unwrap_or_default();
+    let now = crate::types::now_iso();
     let today = &now[..10.min(now.len())];
     let active_facts_count = active_facts.len();
     let observations_count = new_observations.len();
@@ -944,7 +938,7 @@ pub async fn run_synthesis(env: &Env, student_id: &StudentId) -> Result<Synthesi
     // 9. Insert new facts
     if let Some(new_facts) = synthesis_json.get("new_facts").and_then(|v| v.as_array()) {
         for fact in new_facts {
-            let fact_id = generate_uuid();
+            let fact_id = crate::types::generate_uuid_v4();
             let fact_text = fact.get("fact_text").and_then(|v| v.as_str()).unwrap_or("");
             let fact_type = fact
                 .get("fact_type")
@@ -1105,13 +1099,13 @@ pub async fn handle_extract_chat(
     )
     .await
     .map_err(|e| {
-        console_log!("Workers AI call failed for extract-chat: {}", e);
+        console_error!("Workers AI call failed for extract-chat: {}", e);
         ApiError::ExternalService(format!("LLM call failed: {e}"))
     })?;
 
     // Parse JSON from LLM output
     let extraction_json = extract_synthesis_json(&output).map_err(|e| {
-        console_log!("Failed to parse extraction JSON: {}", e);
+        console_error!("Failed to parse extraction JSON: {}", e);
         e
     })?;
 
@@ -1166,17 +1160,14 @@ pub async fn handle_store_facts(
 ) -> Result<Json<serde_json::Value>> {
     let db = state.db.d1()?;
 
-    let now = js_sys::Date::new_0()
-        .to_iso_string()
-        .as_string()
-        .unwrap_or_default();
+    let now = crate::types::now_iso();
 
     let mut stored = 0u32;
     for fact in &request.facts {
         if fact.fact_text.is_empty() {
             continue;
         }
-        let fact_id = generate_uuid();
+        let fact_id = crate::types::generate_uuid_v4();
         let valid_at = if fact.date.is_empty() {
             &now[..10.min(now.len())]
         } else {
@@ -1209,13 +1200,13 @@ pub async fn handle_store_facts(
         match result {
             Ok(stmt) => {
                 if let Err(e) = stmt.run().await {
-                    console_log!("Failed to insert fact: {:?}", e);
+                    console_error!("Failed to insert fact: {:?}", e);
                 } else {
                     stored += 1;
                 }
             }
             Err(e) => {
-                console_log!("Failed to bind fact insert: {:?}", e);
+                console_error!("Failed to bind fact insert: {:?}", e);
             }
         }
     }
@@ -1574,7 +1565,7 @@ async fn extract_query_entities(env: &Env, query: &str) -> Vec<String> {
     {
         Ok(o) => o,
         Err(e) => {
-            console_log!("Entity extraction failed: {}", e);
+            console_error!("Entity extraction failed: {}", e);
             return vec![];
         }
     };
@@ -1672,11 +1663,11 @@ pub async fn handle_clear_benchmark(
     match result {
         Ok(stmt) => {
             if let Err(e) = stmt.run().await {
-                console_log!("Failed to clear benchmark facts: {:?}", e);
+                console_error!("Failed to clear benchmark facts: {:?}", e);
             }
         }
         Err(e) => {
-            console_log!("Failed to bind delete: {:?}", e);
+            console_error!("Failed to bind delete: {:?}", e);
         }
     }
 
@@ -1766,16 +1757,13 @@ pub async fn handle_seed_observations(
 
     let db = state.db.d1()?;
 
-    let now = js_sys::Date::new_0()
-        .to_iso_string()
-        .as_string()
-        .unwrap_or_default();
+    let now = crate::types::now_iso();
 
     let mut seeded = 0u32;
-    let session_id = format!("seed-{}", &generate_uuid()[..8]);
+    let session_id = format!("seed-{}", &crate::types::generate_uuid_v4()[..8]);
 
     for obs in &request.observations {
-        let obs_id = generate_uuid();
+        let obs_id = crate::types::generate_uuid_v4();
         let trace = if obs.reasoning_trace.is_empty() {
             "{}".to_string()
         } else {
@@ -1806,13 +1794,13 @@ pub async fn handle_seed_observations(
         match result {
             Ok(stmt) => {
                 if let Err(e) = stmt.run().await {
-                    console_log!("Failed to insert seeded observation: {:?}", e);
+                    console_error!("Failed to insert seeded observation: {:?}", e);
                 } else {
                     seeded += 1;
                 }
             }
             Err(e) => {
-                console_log!("Failed to bind seeded observation: {:?}", e);
+                console_error!("Failed to bind seeded observation: {:?}", e);
             }
         }
     }
@@ -1822,7 +1810,7 @@ pub async fn handle_seed_observations(
         if let Err(e) =
             increment_observation_count_by(env, &request.student_id, seeded as usize).await
         {
-            console_log!("Failed to update observation count after seeding: {}", e);
+            console_error!("Failed to update observation count after seeding: {}", e);
         }
     }
 
@@ -1922,23 +1910,3 @@ fn extract_synthesis_json(output: &str) -> Result<serde_json::Value> {
     })
 }
 
-/// Public wrapper for UUID generation (used by goals.rs).
-pub fn generate_fact_id() -> String {
-    generate_uuid()
-}
-
-/// Generate a UUID v4.
-#[allow(clippy::expect_used)] // getrandom on WASM (js feature) is infallible
-fn generate_uuid() -> String {
-    let mut bytes = [0u8; 16];
-    getrandom::getrandom(&mut bytes).expect("getrandom");
-    bytes[6] = (bytes[6] & 0x0f) | 0x40;
-    bytes[8] = (bytes[8] & 0x3f) | 0x80;
-    format!(
-        "{:02x}{:02x}{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}",
-        bytes[0], bytes[1], bytes[2], bytes[3],
-        bytes[4], bytes[5], bytes[6], bytes[7],
-        bytes[8], bytes[9], bytes[10], bytes[11],
-        bytes[12], bytes[13], bytes[14], bytes[15]
-    )
-}
