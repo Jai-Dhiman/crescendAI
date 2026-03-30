@@ -29,6 +29,7 @@ interface ListeningModeProps {
 }
 
 type TransitionPhase = "collapsed" | "expanding" | "open" | "collapsing";
+type ContentVisibility = "hidden" | "visible" | "fading";
 
 export function ListeningMode({
 	state,
@@ -45,8 +46,13 @@ export function ListeningMode({
 	observations: _observations,
 }: ListeningModeProps) {
 	const [phase, setPhase] = useState<TransitionPhase>("collapsed");
-	const [contentVisible, setContentVisible] = useState(false);
+	const [contentVis, setContentVis] = useState<ContentVisibility>("hidden");
 	const overlayRef = useRef<HTMLDivElement>(null);
+	const expandTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const collapseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const fadeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const exitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const [ringPhase, setRingPhase] = useState<"collapsed" | "active" | "expanding">("collapsed");
 	const notes = sessionNotes ?? "";
 	const setNotes = onNotesChange ?? (() => {});
 	const [showNotepad, setShowNotepad] = useState(false);
@@ -76,31 +82,43 @@ export function ListeningMode({
 
 	// Open transition sequence
 	useMountEffect(() => {
-		// Start collapsed, then expand on next frame
 		requestAnimationFrame(() => {
 			setPhase("expanding");
+			setRingPhase("active");
 		});
 
-		const expandTimer = setTimeout(() => {
-			setPhase("open");
-			setContentVisible(true);
-		}, 650); // slightly after 600ms transition
+		const ringTimer = setTimeout(() => setRingPhase("expanding"), 400);
 
-		return () => clearTimeout(expandTimer);
+		expandTimerRef.current = setTimeout(() => {
+			setPhase("open");
+			setContentVis("visible");
+			setRingPhase("collapsed");
+		}, 800);
+
+		return () => {
+			clearTimeout(ringTimer);
+			if (expandTimerRef.current) clearTimeout(expandTimerRef.current);
+		};
 	});
 
 	// Close transition sequence -- defined before the useEffect that references it
 	const handleClose = useCallback(() => {
-		setContentVisible(false);
-		setPhase("collapsing");
+		setContentVis("fading");
+		setRingPhase("active");
 
-		setTimeout(() => {
-			setPhase("collapsed");
-			setTimeout(() => {
-				onStop();
-				onExit();
-			}, 50);
-		}, 600);
+		fadeTimerRef.current = setTimeout(() => {
+			setContentVis("hidden");
+			setPhase("collapsing");
+
+			collapseTimerRef.current = setTimeout(() => {
+				setPhase("collapsed");
+				setRingPhase("collapsed");
+				exitTimerRef.current = setTimeout(() => {
+					onStop();
+					onExit();
+				}, 50);
+			}, 550);
+		}, 100);
 	}, [onStop, onExit]);
 
 	// Exit on error or WebSocket disconnect
@@ -113,14 +131,29 @@ export function ListeningMode({
 	// Stop recording then animate out
 	const handleStop = useCallback(() => {
 		onStop();
-		setContentVisible(false);
-		setPhase("collapsing");
+		setContentVis("fading");
+		setRingPhase("active");
 
-		setTimeout(() => {
-			setPhase("collapsed");
-			setTimeout(onExit, 50);
-		}, 600);
+		fadeTimerRef.current = setTimeout(() => {
+			setContentVis("hidden");
+			setPhase("collapsing");
+
+			collapseTimerRef.current = setTimeout(() => {
+				setPhase("collapsed");
+				setRingPhase("collapsed");
+				exitTimerRef.current = setTimeout(onExit, 50);
+			}, 550);
+		}, 100);
 	}, [onStop, onExit]);
+
+	useEffect(() => {
+		return () => {
+			if (expandTimerRef.current) clearTimeout(expandTimerRef.current);
+			if (collapseTimerRef.current) clearTimeout(collapseTimerRef.current);
+			if (fadeTimerRef.current) clearTimeout(fadeTimerRef.current);
+			if (exitTimerRef.current) clearTimeout(exitTimerRef.current);
+		};
+	}, []);
 
 	const isRecording = state === "recording";
 
@@ -158,6 +191,7 @@ export function ListeningMode({
 				: phase;
 
 	return createPortal(
+		<>
 		<div
 			ref={overlayRef}
 			className="listening-overlay"
@@ -169,8 +203,10 @@ export function ListeningMode({
 				} as React.CSSProperties
 			}
 		>
-			{contentVisible && (
-				<div className="h-dvh flex flex-col animate-listening-content-in">
+			{contentVis !== "hidden" && (
+				<div className={`h-dvh flex flex-col ${
+					contentVis === "fading" ? "listening-content-fading" : "animate-listening-content-in"
+				}`}>
 					{/* Top bar: piece info */}
 					<div className="shrink-0 flex items-center justify-between px-6 py-4 border-b border-border">
 						<div className="flex items-center gap-3">
@@ -304,7 +340,16 @@ export function ListeningMode({
 					)}
 				</div>
 			)}
-		</div>,
+		</div>
+		<div
+			className="listening-edge-ring"
+			data-transition={ringPhase}
+			style={{
+				left: `${originX}%`,
+				top: `${originY}%`,
+			}}
+		/>
+		</>,
 		document.body,
 	);
 }

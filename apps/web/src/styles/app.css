@@ -279,6 +279,11 @@ html[data-theme="light"] {
 	animation: listening-content-in 300ms ease-out both;
 }
 
+.listening-content-fading {
+	opacity: 0;
+	transition: opacity 150ms ease-in;
+}
+
 .listening-overlay {
 	position: fixed;
 	inset: 0;
@@ -289,16 +294,53 @@ html[data-theme="light"] {
 /* Radial clip-path transition (GPU-accelerated, no layout thrashing) */
 .listening-overlay[data-transition="expanding"] {
 	clip-path: circle(150vmax at var(--origin-x, 50%) var(--origin-y, 50%));
-	transition: clip-path 600ms cubic-bezier(0.4, 0, 0.2, 1);
+	transition: clip-path 750ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .listening-overlay[data-transition="collapsed"] {
 	clip-path: circle(0% at var(--origin-x, 50%) var(--origin-y, 50%));
-	transition: clip-path 600ms cubic-bezier(0.4, 0, 0.2, 1);
+	transition: clip-path 500ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .listening-overlay[data-transition="open"] {
-	clip-path: none;
+	clip-path: circle(150vmax at var(--origin-x, 50%) var(--origin-y, 50%));
+}
+
+/* Edge ring: sibling div outside clip-path overlay */
+.listening-edge-ring {
+	position: fixed;
+	z-index: 49;
+	pointer-events: none;
+	border-radius: 50%;
+	border: 1.5px solid rgba(122, 154, 130, 0.6);
+	box-shadow: 0 0 12px rgba(122, 154, 130, 0.3);
+	transform: translate(-50%, -50%);
+	opacity: 0;
+}
+
+.listening-edge-ring[data-transition="expanding"] {
+	width: 300vmax;
+	height: 300vmax;
+	opacity: 0;
+	transition:
+		width 750ms cubic-bezier(0.16, 1, 0.3, 1),
+		height 750ms cubic-bezier(0.16, 1, 0.3, 1),
+		opacity 400ms ease-out;
+}
+
+.listening-edge-ring[data-transition="collapsed"] {
+	width: 0;
+	height: 0;
+	opacity: 0;
+	transition:
+		width 500ms cubic-bezier(0.16, 1, 0.3, 1),
+		height 500ms cubic-bezier(0.16, 1, 0.3, 1),
+		opacity 300ms ease-in;
+}
+
+.listening-edge-ring[data-transition="active"] {
+	opacity: 1;
+	transition: opacity 200ms ease-out;
 }
 
 /* Dim scores pulse on update */
