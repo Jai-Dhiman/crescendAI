@@ -715,7 +715,6 @@ export default function AppChat() {
 								<span className="text-body-sm text-cream truncate">
 									{user?.displayName ?? user?.email ?? "User"}
 								</span>
-								<span className="text-body-xs text-text-tertiary">Pianist</span>
 							</div>
 						)}
 					</button>
