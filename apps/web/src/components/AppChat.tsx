@@ -114,6 +114,9 @@ export default function AppChat() {
 	} | null>(null);
 	const sidebarOpen = useUIStore((s) => s.sidebarOpen);
 	const setSidebarOpen = useUIStore((s) => s.setSidebarOpen);
+	const [searchOpen, setSearchOpen] = useState(false);
+	const [searchQuery, setSearchQuery] = useState("");
+	const searchInputRef = useRef<HTMLInputElement>(null);
 	const theme = useThemeStore((s) => s.theme);
 	const toggleTheme = useThemeStore((s) => s.toggleTheme);
 	const profileRef = useRef<HTMLDivElement>(null);
@@ -122,6 +125,21 @@ export default function AppChat() {
 	const scorePanelToggle = useScorePanelStore((s) => s.toggle);
 	const scorePanelIsOpen = useScorePanelStore((s) => s.isOpen);
 	const scorePanelSessionData = useScorePanelStore((s) => s.sessionData);
+
+	useEffect(() => {
+		const handler = (e: KeyboardEvent) => {
+			if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+				e.preventDefault();
+				if (!sidebarOpen) setSidebarOpen(true);
+				setSearchOpen(true);
+				requestAnimationFrame(() => {
+					searchInputRef.current?.focus();
+				});
+			}
+		};
+		document.addEventListener("keydown", handler);
+		return () => document.removeEventListener("keydown", handler);
+	}, [sidebarOpen, setSidebarOpen]);
 
 	const recordButtonRef = useRef<HTMLButtonElement>(null);
 	const [showListeningMode, setShowListeningMode] = useState(false);
@@ -542,6 +560,14 @@ export default function AppChat() {
 		[],
 	);
 
+	const filteredConversations = useMemo(() => {
+		if (!searchOpen || !searchQuery.trim()) return null;
+		const q = searchQuery.toLowerCase();
+		return conversations.filter((c) =>
+			(c.title ?? "New conversation").toLowerCase().includes(q),
+		);
+	}, [searchOpen, searchQuery, conversations]);
+
 	if (isLoading) {
 		return <FullPageSkeleton />;
 	}
@@ -621,12 +647,51 @@ export default function AppChat() {
 						/>
 					</div>
 					<div className="w-full">
-						<SidebarButton
-							icon={<MagnifyingGlass size={20} />}
-							label="Search"
-							expanded={sidebarOpen}
-							onClick={() => {}}
-						/>
+						{searchOpen && sidebarOpen ? (
+							<div className="flex items-center gap-1 px-2 py-1">
+								<MagnifyingGlass size={16} className="shrink-0 text-text-tertiary" />
+								<input
+									ref={searchInputRef}
+									type="text"
+									value={searchQuery}
+									onChange={(e) => setSearchQuery(e.target.value)}
+									onKeyDown={(e) => {
+										if (e.key === "Escape") {
+											setSearchOpen(false);
+											setSearchQuery("");
+										}
+									}}
+									placeholder="Search conversations..."
+									className="flex-1 bg-transparent text-body-sm text-cream placeholder:text-text-tertiary outline-none min-w-0"
+									// biome-ignore lint/a11y/noAutofocus: intentional UX for search activation
+									autoFocus
+								/>
+								<button
+									type="button"
+									onClick={() => {
+										setSearchOpen(false);
+										setSearchQuery("");
+									}}
+									className="shrink-0 w-6 h-6 flex items-center justify-center text-text-tertiary hover:text-cream transition"
+									aria-label="Close search"
+								>
+									<X size={14} />
+								</button>
+							</div>
+						) : (
+							<SidebarButton
+								icon={<MagnifyingGlass size={20} />}
+								label="Search"
+								expanded={sidebarOpen}
+								onClick={() => {
+									if (!sidebarOpen) setSidebarOpen(true);
+									setSearchOpen(true);
+									requestAnimationFrame(() => {
+										searchInputRef.current?.focus();
+									});
+								}}
+							/>
+						)}
 					</div>
 				</div>
 
@@ -640,7 +705,7 @@ export default function AppChat() {
 							<ConversationSkeleton />
 						) : (
 							<>
-								{conversations.slice(0, 8).map((conv) => (
+								{(filteredConversations ?? conversations.slice(0, 8)).map((conv) => (
 									<div
 										role="button"
 										tabIndex={0}
@@ -650,11 +715,17 @@ export default function AppChat() {
 												? "bg-surface text-cream"
 												: "text-text-secondary hover:text-cream hover:bg-surface"
 										}`}
-										onClick={() => loadConversation(conv.id)}
+										onClick={() => {
+											loadConversation(conv.id);
+											setSearchOpen(false);
+											setSearchQuery("");
+										}}
 										onKeyDown={(e) => {
 											if (e.key === "Enter" || e.key === " ") {
 												e.preventDefault();
 												loadConversation(conv.id);
+												setSearchOpen(false);
+												setSearchQuery("");
 											}
 										}}
 									>
@@ -662,20 +733,29 @@ export default function AppChat() {
 										<span className="flex-1 truncate">
 											{conv.title ?? "New conversation"}
 										</span>
-										<button
-											type="button"
-											onClick={(e) => {
-												e.stopPropagation();
-												handleDeleteConversation(conv.id);
-											}}
-											className="opacity-0 group-hover:opacity-100 shrink-0 w-7 h-7 flex items-center justify-center text-text-tertiary hover:text-cream transition"
-											aria-label="Delete conversation"
-										>
-											<Trash size={14} />
-										</button>
+										{!searchOpen && (
+											<button
+												type="button"
+												onClick={(e) => {
+													e.stopPropagation();
+													handleDeleteConversation(conv.id);
+												}}
+												className="opacity-0 group-hover:opacity-100 shrink-0 w-7 h-7 flex items-center justify-center text-text-tertiary hover:text-cream transition"
+												aria-label="Delete conversation"
+											>
+												<Trash size={14} />
+											</button>
+										)}
 									</div>
 								))}
-								{conversations.length > 8 && (
+								{filteredConversations !== null && filteredConversations.length === 0 && (
+									<div className="px-3 py-6 text-center">
+										<span className="text-body-xs text-text-tertiary">
+											No conversations matching &lsquo;{searchQuery}&rsquo;
+										</span>
+									</div>
+								)}
+								{!searchOpen && conversations.length > 8 && (
 									<button
 										type="button"
 										className="w-full mt-1 px-3 py-2 text-body-xs text-text-tertiary hover:text-cream transition text-left"
