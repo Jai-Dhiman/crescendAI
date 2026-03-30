@@ -10,9 +10,9 @@
 
 use crate::practice::dims::DIMS_6;
 
-/// NOTE: These constants are also defined in `config/stop_config.json` (single source of truth).
+/// NOTE: These constants are also defined in `apps/config/stop_config.json` (single source of truth).
 /// The Rust side reads from hardcoded values because WASM builds cannot read filesystem at compile time.
-/// If you update these values, update `config/stop_config.json` as well.
+/// If you update these values, update `apps/config/stop_config.json` as well.
 ///
 /// Dimension order must match the training pipeline.
 /// [dynamics, timing, pedaling, articulation, phrasing, interpretation]

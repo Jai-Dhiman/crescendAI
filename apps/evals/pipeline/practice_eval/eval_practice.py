@@ -41,11 +41,11 @@ REPORTS_DIR = Path(__file__).parents[2] / "reports"
 INFERENCE_CACHE_BASE = MODEL_DATA / "eval" / "inference_cache"
 
 # STOP classifier constants loaded from shared config
-_STOP_CONFIG_PATH = Path(__file__).resolve().parents[4] / "config" / "stop_config.json"
+_STOP_CONFIG_PATH = Path(__file__).resolve().parents[4] / "apps" / "config" / "stop_config.json"
 if not _STOP_CONFIG_PATH.exists():
     raise FileNotFoundError(
         f"STOP config not found at {_STOP_CONFIG_PATH}. "
-        "Run from the project root or check config/stop_config.json exists."
+        "Run from the project root or check apps/config/stop_config.json exists."
     )
 with open(_STOP_CONFIG_PATH) as _f:
     _STOP_CONFIG = json.load(_f)
