@@ -50,6 +50,7 @@ export interface UsePracticeSessionReturn {
 	isOnline: boolean;
 	isPlaying: boolean;
 	energy: number;
+	analyserNode: AnalyserNode | null;
 	practiceMode: PracticeMode | null;
 	start: (conversationId?: string) => Promise<void>;
 	stop: () => void;
@@ -96,6 +97,7 @@ export function usePracticeSession(
 	const isOnlineRef = useSyncRef(isOnline);
 	const offlineQueueRef = useRef<Array<{ index: number; blob: Blob }>>([]);
 	const analyserRef = useRef<AnalyserNode | null>(null);
+	const [analyserNode, setAnalyserNode] = useState<AnalyserNode | null>(null);
 	const chunkGateRef = useRef<ChunkGateState>("waiting");
 	const chunkTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -187,6 +189,7 @@ export function usePracticeSession(
 		}
 		chunkGateRef.current = "waiting";
 		analyserRef.current = null;
+		setAnalyserNode(null);
 	}, []);
 
 	const handleWsMessage = useCallback(
@@ -365,6 +368,7 @@ export function usePracticeSession(
 		analyser.fftSize = 256;
 		source.connect(analyser);
 		analyserRef.current = analyser;
+		setAnalyserNode(analyser);
 
 		// 3. Start session on server
 		setState("connecting");
@@ -558,6 +562,7 @@ export function usePracticeSession(
 
 		// Release mic, audio analysis, and timer immediately
 		analyserRef.current = null; // Stop useAudioActivity rAF from reading
+		setAnalyserNode(null);
 		if (chunkTimerRef.current) {
 			clearInterval(chunkTimerRef.current);
 			chunkTimerRef.current = null;
@@ -640,6 +645,7 @@ export function usePracticeSession(
 		isOnline,
 		isPlaying,
 		energy,
+		analyserNode,
 		practiceMode,
 		start,
 		stop,
