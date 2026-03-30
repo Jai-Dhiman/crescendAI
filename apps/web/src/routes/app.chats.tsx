@@ -235,7 +235,7 @@ function AllChats() {
 									{conv.title ?? "New conversation"}
 								</span>
 								<span className="shrink-0 text-body-xs text-text-tertiary">
-									{formatDate(conv.updated_at)}
+									{formatDate(conv.updatedAt)}
 								</span>
 							</div>
 						))}

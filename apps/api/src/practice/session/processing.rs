@@ -89,7 +89,7 @@ impl PracticeSession {
                 }
             };
 
-        // 4. Process AMT result (graceful degradation if AMT fails)
+        // 4. Process AMT result (MuQ scores stand regardless of AMT outcome)
         let (perf_notes, perf_pedal) = match amt_result {
             Ok(amt) => {
                 console_log!(
@@ -101,11 +101,8 @@ impl PracticeSession {
                 (amt.midi_notes, amt.pedal_events)
             }
             Err(e) => {
-                console_error!(
-                    "AMT inference failed for chunk {} (proceeding with Tier 3): {}",
-                    index,
-                    e
-                );
+                console_error!("AMT inference failed for chunk {}: {}", index, e);
+                self.inner.borrow_mut().inference_failures += 1;
                 (Vec::new(), Vec::new())
             }
         };

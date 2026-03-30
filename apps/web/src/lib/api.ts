@@ -45,16 +45,16 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 }
 
 export interface AuthUser {
-	student_id: string;
+	studentId: string;
 	email: string | null;
-	display_name: string | null;
+	displayName: string | null;
 }
 
 export interface AuthResult {
-	student_id: string;
+	studentId: string;
 	email: string | null;
-	display_name: string | null;
-	is_new_user: boolean;
+	displayName: string | null;
+	isNewUser: boolean;
 }
 
 // --- Chat types ---
@@ -62,34 +62,34 @@ export interface AuthResult {
 export interface ConversationSummary {
 	id: string;
 	title: string | null;
-	updated_at: string;
+	updatedAt: string;
 }
 
 export interface MessageRow {
 	id: string;
 	role: "user" | "assistant";
 	content: string;
-	created_at: string;
-	message_type?: string;
+	createdAt: string;
+	messageType?: string;
 	dimension?: string;
 	framing?: string;
-	components_json?: string;
-	session_id?: string;
+	componentsJson?: string;
+	sessionId?: string;
 }
 
 export interface ConversationWithMessages {
 	conversation: {
 		id: string;
 		title: string | null;
-		created_at: string;
+		createdAt: string;
 	};
 	messages: MessageRow[];
 }
 
 export interface ChatStreamEvent {
 	type: "start" | "delta" | "done";
-	conversation_id?: string;
-	message_id?: string;
+	conversationId?: string;
+	messageId?: string;
 	text?: string;
 }
 
@@ -109,13 +109,13 @@ export interface Exercise {
 
 export interface StudentExercise {
 	id: string;
-	student_id: string;
-	exercise_id: string;
-	session_id: string | null;
-	assigned_at: string;
+	studentId: string;
+	exerciseId: string;
+	sessionId: string | null;
+	assignedAt: string;
 	completed: boolean;
 	response: string | null;
-	times_assigned: number;
+	timesAssigned: number;
 }
 
 export const api = {
@@ -129,10 +129,10 @@ export const api = {
 			return request("/api/auth/apple", {
 				method: "POST",
 				body: JSON.stringify({
-					identity_token: identityToken,
-					user_id: userId,
+					identityToken,
+					userId,
 					email,
-					display_name: displayName,
+					displayName,
 				}),
 			});
 		},
@@ -170,7 +170,7 @@ export const api = {
 				credentials: "include",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({
-					conversation_id: conversationId,
+					conversationId,
 					message,
 				}),
 			});
@@ -272,8 +272,8 @@ export const api = {
 		},
 
 		assign(body: {
-			exercise_id: string;
-			session_id?: string;
+			exerciseId: string;
+			sessionId?: string;
 		}): Promise<StudentExercise> {
 			return request("/api/exercises/assign", {
 				method: "POST",
@@ -282,10 +282,10 @@ export const api = {
 		},
 
 		complete(body: {
-			student_exercise_id: string;
+			studentExerciseId: string;
 			response?: string;
-			dimension_before_json?: string;
-			dimension_after_json?: string;
+			dimensionBeforeJson?: string;
+			dimensionAfterJson?: string;
 			notes?: string;
 		}): Promise<StudentExercise> {
 			return request("/api/exercises/complete", {
@@ -312,23 +312,23 @@ export const api = {
 /** Check if any sessions in this conversation need deferred synthesis. */
 export async function checkNeedsSynthesis(conversationId: string): Promise<string[]> {
 	try {
-		const data = await request<{ session_ids: string[] }>(
-			`/api/practice/needs-synthesis?conversation_id=${encodeURIComponent(conversationId)}`
+		const data = await request<{ sessionIds: string[] }>(
+			`/api/practice/needs-synthesis?conversationId=${encodeURIComponent(conversationId)}`
 		);
-		return data.session_ids ?? [];
+		return data.sessionIds ?? [];
 	} catch {
 		return [];
 	}
 }
 
 /** Trigger deferred synthesis for a specific session. */
-export async function triggerDeferredSynthesis(sessionId: string): Promise<{ status: string; is_fallback?: boolean } | null> {
+export async function triggerDeferredSynthesis(sessionId: string): Promise<{ status: string; isFallback?: boolean } | null> {
 	try {
-		return await request<{ status: string; is_fallback?: boolean }>(
+		return await request<{ status: string; isFallback?: boolean }>(
 			'/api/practice/synthesize',
 			{
 				method: 'POST',
-				body: JSON.stringify({ session_id: sessionId }),
+				body: JSON.stringify({ sessionId }),
 			}
 		);
 	} catch {

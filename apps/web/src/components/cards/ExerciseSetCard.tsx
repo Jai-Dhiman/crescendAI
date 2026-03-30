@@ -24,8 +24,8 @@ function ExerciseItem({ exercise, isExpanded, onToggle, artifactId }: ExerciseIt
 	const [localState, setLocalState] = useState<LocalAssignState>("idle");
 
 	const exerciseState = useArtifactStore((s) => {
-		if (!artifactId || !exercise.exercise_id) return undefined;
-		return s.states[artifactId]?.exerciseStates?.[exercise.exercise_id];
+		if (!artifactId || !exercise.exerciseId) return undefined;
+		return s.states[artifactId]?.exerciseStates?.[exercise.exerciseId];
 	});
 
 	const setExerciseStatus = useArtifactStore((s) => s.setExerciseStatus);
@@ -34,20 +34,20 @@ function ExerciseItem({ exercise, isExpanded, onToggle, artifactId }: ExerciseIt
 	const status = useStore ? (exerciseState?.status ?? "idle") : localState;
 
 	async function handleAssign() {
-		if (!exercise.exercise_id) return;
+		if (!exercise.exerciseId) return;
 
 		if (useStore && artifactId) {
-			setExerciseStatus(artifactId, exercise.exercise_id, "loading");
+			setExerciseStatus(artifactId, exercise.exerciseId, "loading");
 			try {
-				await api.exercises.assign({ exercise_id: exercise.exercise_id });
-				setExerciseStatus(artifactId, exercise.exercise_id, "assigned");
+				await api.exercises.assign({ exerciseId: exercise.exerciseId! });
+				setExerciseStatus(artifactId, exercise.exerciseId, "assigned");
 			} catch (err) {
-				setExerciseStatus(artifactId, exercise.exercise_id, "error");
+				setExerciseStatus(artifactId, exercise.exerciseId, "error");
 			}
 		} else {
 			setLocalState("loading");
 			try {
-				await api.exercises.assign({ exercise_id: exercise.exercise_id });
+				await api.exercises.assign({ exerciseId: exercise.exerciseId! });
 				setLocalState("assigned");
 			} catch (err) {
 				setLocalState("error");
@@ -72,7 +72,7 @@ function ExerciseItem({ exercise, isExpanded, onToggle, artifactId }: ExerciseIt
 						</span>
 					)}
 					<span className="text-body-xs text-text-tertiary">
-						{exercise.focus_dimension}
+						{exercise.focusDimension}
 					</span>
 				</div>
 			</button>
@@ -81,7 +81,7 @@ function ExerciseItem({ exercise, isExpanded, onToggle, artifactId }: ExerciseIt
 					<p className="text-body-sm text-text-secondary mb-3">
 						{exercise.instruction}
 					</p>
-					{exercise.exercise_id && (
+					{exercise.exerciseId && (
 						<button
 							type="button"
 							onClick={handleAssign}
@@ -122,7 +122,7 @@ export function ExerciseSetCard({ config, onExpand, artifactId }: ExerciseSetCar
 		<div className="bg-surface-card border border-border rounded-xl p-4 mt-3">
 			<div className="flex items-center justify-between mb-1">
 				<h4 className="text-body-sm font-medium text-accent">
-					{config.target_skill}
+					{config.targetSkill}
 				</h4>
 				{onExpand && (
 					<button
@@ -136,7 +136,7 @@ export function ExerciseSetCard({ config, onExpand, artifactId }: ExerciseSetCar
 				)}
 			</div>
 			<p className="text-body-xs text-text-secondary mb-3">
-				{config.source_passage}
+				{config.sourcePassage}
 			</p>
 			<div className="space-y-2">
 				{config.exercises.map((exercise, i) => (

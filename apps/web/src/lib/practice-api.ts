@@ -75,14 +75,14 @@ export type PracticeWsEvent =
 	| {
 			type: "synthesis";
 			text: string;
-			is_fallback: boolean;
+			isFallback: boolean;
 	  }
 	| {
 			type: "session_summary";
 			observations: ObservationEvent[];
 			summary: string;
-			inference_failures?: number;
-			total_chunks?: number;
+			inferenceFailures?: number;
+			totalChunks?: number;
 	  }
 	| { type: "piece_set"; query: string }
 	| ModeChangeEvent
@@ -94,7 +94,7 @@ export const practiceApi = {
 			method: "POST",
 			credentials: "include",
 			headers: conversationId ? { "Content-Type": "application/json" } : undefined,
-			body: conversationId ? JSON.stringify({ conversation_id: conversationId }) : undefined,
+			body: conversationId ? JSON.stringify({ conversationId }) : undefined,
 		});
 		if (!res.ok) throw new Error(`Failed to start session: ${res.status}`);
 		return res.json();

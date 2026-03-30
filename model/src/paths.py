@@ -12,13 +12,9 @@ DATA_ROOT = Path(__file__).resolve().parents[1] / "data"
 # --- Raw datasets (downloaded, gitignored) ---
 class Raw:
     root = DATA_ROOT / "raw"
-    maestro = root / "maestro"
-    asap = root / "asap"
-    atepp = root / "atepp"
-    giantmidi = root / "giantmidi"
+    competition = root / "competition"
     masterclass = root / "masterclass"
     youtube = root / "youtube"
-    competition = root / "competition"
 
 
 # --- Embeddings (extracted, gitignored) ---
@@ -39,7 +35,8 @@ class Midi:
     amt = root / "amt"
 
 
-# --- Pretraining corpus (gitignored) ---
+# --- LEGACY: Pretraining corpus (S2 GNN, replaced by Aria) ---
+# Kept for import compatibility with old scripts. Data deleted.
 class Pretraining:
     root = DATA_ROOT / "pretraining"
     tokens = root / "tokens"

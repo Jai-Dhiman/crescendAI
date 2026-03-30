@@ -5,14 +5,14 @@ import type { InlineComponent } from "../lib/types";
 const sampleComponent: InlineComponent = {
 	type: "exercise_set",
 	config: {
-		source_passage: "mm. 1-4",
-		target_skill: "legato",
+		sourcePassage: "mm. 1-4",
+		targetSkill: "legato",
 		exercises: [
 			{
 				title: "Slow legato",
 				instruction: "Play mm. 1-4 slowly with legato touch",
-				focus_dimension: "articulation",
-				exercise_id: "ex-1",
+				focusDimension: "articulation",
+				exerciseId: "ex-1",
 			},
 		],
 	},

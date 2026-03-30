@@ -795,8 +795,8 @@ async fn process_exercise_tool_call(env: &Env, input: &serde_json::Value) -> Res
         let mut ex_json = serde_json::json!({
             "title": title,
             "instruction": instruction,
-            "focus_dimension": focus_dim,
-            "exercise_id": exercise_id,
+            "focusDimension": focus_dim,
+            "exerciseId": exercise_id,
         });
         if let Some(h) = hands {
             ex_json["hands"] = serde_json::json!(h);
@@ -807,8 +807,8 @@ async fn process_exercise_tool_call(env: &Env, input: &serde_json::Value) -> Res
     let component = serde_json::json!([{
         "type": "exercise_set",
         "config": {
-            "source_passage": source_passage,
-            "target_skill": target_skill,
+            "sourcePassage": source_passage,
+            "targetSkill": target_skill,
             "exercises": processed_exercises,
         }
     }]);

@@ -453,12 +453,12 @@ pub async fn handle_chat_stream(
             .await;
 
             let mut sse = Vec::new();
-            sse.extend_from_slice(&format_sse(&serde_json::json!({"type": "start", "conversation_id": conversation_id, "message_id": assistant_msg_id})));
+            sse.extend_from_slice(&format_sse(&serde_json::json!({"type": "start", "conversationId": conversation_id, "messageId": assistant_msg_id})));
             sse.extend_from_slice(&format_sse(
                 &serde_json::json!({"type": "delta", "text": fallback}),
             ));
             sse.extend_from_slice(&format_sse(
-                &serde_json::json!({"type": "done", "message_id": assistant_msg_id}),
+                &serde_json::json!({"type": "done", "messageId": assistant_msg_id}),
             ));
 
             #[allow(clippy::unwrap_used)] // from_bytes with valid SSE bytes is infallible
@@ -490,8 +490,8 @@ pub async fn handle_chat_stream(
     // Send the start event immediately
     let _ = tx.unbounded_send(Ok(format_sse(&serde_json::json!({
         "type": "start",
-        "conversation_id": conversation_id,
-        "message_id": assistant_msg_id
+        "conversationId": conversation_id,
+        "messageId": assistant_msg_id
     }))));
 
     // Spawn background task to consume Anthropic stream and forward deltas
@@ -552,7 +552,7 @@ pub async fn handle_chat_stream(
 
         // Send done event
         let _ = tx.unbounded_send(Ok(format_sse(
-            &serde_json::json!({"type": "done", "message_id": assistant_msg_id}),
+            &serde_json::json!({"type": "done", "messageId": assistant_msg_id}),
         )));
 
         // Store assistant message in D1 (before closing stream -- Workers

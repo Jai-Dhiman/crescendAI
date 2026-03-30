@@ -57,7 +57,7 @@ interface ExpandedExerciseItemProps {
 
 function ExpandedExerciseItem({ exercise, artifactId }: ExpandedExerciseItemProps) {
 	const exerciseState = useArtifactStore(
-		(s) => s.states[artifactId]?.exerciseStates?.[exercise.exercise_id ?? ""],
+		(s) => s.states[artifactId]?.exerciseStates?.[exercise.exerciseId ?? ""],
 	);
 	const setExerciseStatus = useArtifactStore((s) => s.setExerciseStatus);
 
@@ -65,24 +65,24 @@ function ExpandedExerciseItem({ exercise, artifactId }: ExpandedExerciseItemProp
 	const studentExerciseId = exerciseState?.studentExerciseId;
 
 	async function handleStart() {
-		if (!exercise.exercise_id) return;
-		setExerciseStatus(artifactId, exercise.exercise_id, "loading");
+		if (!exercise.exerciseId) return;
+		setExerciseStatus(artifactId, exercise.exerciseId, "loading");
 		try {
-			const result = await api.exercises.assign({ exercise_id: exercise.exercise_id });
-			setExerciseStatus(artifactId, exercise.exercise_id, "assigned", result.id);
+			const result = await api.exercises.assign({ exerciseId: exercise.exerciseId! });
+			setExerciseStatus(artifactId, exercise.exerciseId, "assigned", result.id);
 		} catch {
-			setExerciseStatus(artifactId, exercise.exercise_id, "error");
+			setExerciseStatus(artifactId, exercise.exerciseId, "error");
 		}
 	}
 
 	async function handleComplete() {
-		if (!exercise.exercise_id || !studentExerciseId) return;
-		setExerciseStatus(artifactId, exercise.exercise_id, "completing", studentExerciseId);
+		if (!exercise.exerciseId || !studentExerciseId) return;
+		setExerciseStatus(artifactId, exercise.exerciseId, "completing", studentExerciseId);
 		try {
-			await api.exercises.complete({ student_exercise_id: studentExerciseId });
-			setExerciseStatus(artifactId, exercise.exercise_id, "completed", studentExerciseId);
+			await api.exercises.complete({ studentExerciseId });
+			setExerciseStatus(artifactId, exercise.exerciseId, "completed", studentExerciseId);
 		} catch {
-			setExerciseStatus(artifactId, exercise.exercise_id, "error", studentExerciseId);
+			setExerciseStatus(artifactId, exercise.exerciseId, "error", studentExerciseId);
 		}
 	}
 
@@ -96,7 +96,7 @@ function ExpandedExerciseItem({ exercise, artifactId }: ExpandedExerciseItemProp
 
 	const btn = buttonProps(
 		status,
-		!!exercise.exercise_id,
+		!!exercise.exerciseId,
 		studentExerciseId,
 		handleStart,
 		handleComplete,
@@ -114,7 +114,7 @@ function ExpandedExerciseItem({ exercise, artifactId }: ExpandedExerciseItemProp
 								{handsLabel(exercise.hands)}
 							</span>
 						)}
-						<span className="text-body-sm text-text-tertiary">{exercise.focus_dimension}</span>
+						<span className="text-body-sm text-text-tertiary">{exercise.focusDimension}</span>
 					</div>
 				</div>
 				<button
@@ -139,9 +139,9 @@ interface ExerciseSetExpandedProps {
 export function ExerciseSetExpanded({ config, artifactId }: ExerciseSetExpandedProps) {
 	const exerciseStates = useArtifactStore((s) => s.states[artifactId]?.exerciseStates);
 
-	const savedExercises = config.exercises.filter((e) => !!e.exercise_id);
+	const savedExercises = config.exercises.filter((e) => !!e.exerciseId);
 	const completedCount = savedExercises.filter(
-		(e) => exerciseStates?.[e.exercise_id!]?.status === "completed",
+		(e) => exerciseStates?.[e.exerciseId!]?.status === "completed",
 	).length;
 	const totalCount = savedExercises.length;
 
@@ -150,14 +150,14 @@ export function ExerciseSetExpanded({ config, artifactId }: ExerciseSetExpandedP
 	return (
 		<div className="flex flex-col gap-4">
 			<div className="flex flex-col gap-1">
-				<span className="text-body-lg font-semibold text-text-primary">{config.target_skill}</span>
-				<span className="text-body-sm text-text-secondary">{config.source_passage}</span>
+				<span className="text-body-lg font-semibold text-text-primary">{config.targetSkill}</span>
+				<span className="text-body-sm text-text-secondary">{config.sourcePassage}</span>
 			</div>
 
 			<div className="flex flex-col gap-3">
 				{config.exercises.map((exercise, index) => (
 					<ExpandedExerciseItem
-						key={exercise.exercise_id ?? index}
+						key={exercise.exerciseId ?? index}
 						exercise={exercise}
 						artifactId={artifactId}
 					/>

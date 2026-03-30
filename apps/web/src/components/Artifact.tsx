@@ -18,8 +18,8 @@ function getCollapsedProps(component: InlineComponent): {
 	if (component.type === "exercise_set") {
 		const count = component.config.exercises.length;
 		return {
-			title: component.config.target_skill,
-			subtitle: component.config.source_passage,
+			title: component.config.targetSkill,
+			subtitle: component.config.sourcePassage,
 			badge: `${count} exercise${count === 1 ? "" : "s"}`,
 		};
 	}

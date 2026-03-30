@@ -4,12 +4,12 @@ export interface RichMessage {
 	id: string;
 	role: "user" | "assistant";
 	content: string;
-	created_at: string;
+	createdAt: string;
 	streaming?: boolean;
 	components?: InlineComponent[];
 	dimension?: string;
-	message_type?: "chat" | "observation" | "session_start" | "session_end" | "summary" | "synthesis";
-	session_id?: string;
+	messageType?: "chat" | "observation" | "session_start" | "session_end" | "summary" | "synthesis";
+	sessionId?: string;
 	framing?: string;
 }
 
@@ -20,14 +20,14 @@ export type InlineComponent =
 	| { type: "reference_browser"; config: ReferenceBrowserConfig };
 
 export interface ExerciseSetConfig {
-	source_passage: string;
-	target_skill: string;
+	sourcePassage: string;
+	targetSkill: string;
 	exercises: Array<{
 		title: string;
 		instruction: string;
-		focus_dimension: string;
+		focusDimension: string;
 		hands?: "left" | "right" | "both";
-		exercise_id?: string;
+		exerciseId?: string;
 	}>;
 }
 

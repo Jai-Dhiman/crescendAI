@@ -216,11 +216,11 @@ export function usePracticeSession(
 					break;
 				}
 				case "synthesis": {
-					console.log(`[Practice] Session synthesis received (fallback=${data.is_fallback})`);
+					console.log(`[Practice] Session synthesis received (fallback=${data.isFallback})`);
 					setSummary(data.text);
 					setState("idle");
 					cleanup();
-					options?.onSynthesis?.(data.text, data.is_fallback, conversationIdRef.current);
+					options?.onSynthesis?.(data.text, data.isFallback, conversationIdRef.current);
 					options?.onSummary?.(data.text, conversationIdRef.current);
 					break;
 				}
@@ -239,8 +239,8 @@ export function usePracticeSession(
 					// Build summary string
 					const obsLines = allObs.map((o) => `- ${o.text}`).join("\n");
 					const chunksCount = chunkIndexRef.current;
-					const inferenceFailures = data.inference_failures;
-					const totalChunks = data.total_chunks;
+					const inferenceFailures = data.inferenceFailures;
+					const totalChunks = data.totalChunks;
 
 					let builtSummary: string;
 					if (inferenceFailures && totalChunks && inferenceFailures === totalChunks) {
@@ -620,8 +620,8 @@ export function usePracticeSession(
 		id: `obs-${sessionIdRef.current}-${i}`,
 		role: "assistant" as const,
 		content: obs.text,
-		created_at: (obs as any).arrived_at || new Date().toISOString(),
-		message_type: "observation" as const,
+		createdAt: (obs as any).arrived_at || new Date().toISOString(),
+		messageType: "observation" as const,
 		dimension: obs.dimension,
 		framing: obs.framing,
 		components: obs.components,

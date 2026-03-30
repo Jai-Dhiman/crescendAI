@@ -6,9 +6,9 @@ import type { RichMessage } from "../lib/types";
 
 function mapMessageRow(row: MessageRow): RichMessage {
 	let components: InlineComponent[] | undefined;
-	if (row.components_json) {
+	if (row.componentsJson) {
 		try {
-			components = JSON.parse(row.components_json);
+			components = JSON.parse(row.componentsJson);
 		} catch {
 			/* ignore malformed JSON */
 		}
@@ -17,11 +17,11 @@ function mapMessageRow(row: MessageRow): RichMessage {
 		id: row.id,
 		role: row.role,
 		content: row.content,
-		created_at: row.created_at,
-		message_type: row.message_type as RichMessage["message_type"],
+		createdAt: row.createdAt,
+		messageType: row.messageType as RichMessage["messageType"],
 		dimension: row.dimension,
 		framing: row.framing,
-		session_id: row.session_id,
+		sessionId: row.sessionId,
 		components,
 	};
 }

@@ -62,11 +62,11 @@ struct GoogleTokenClaims {
     sub: Option<String>,
     aud: Option<String>,
     email: Option<String>,
-    /// Google's tokeninfo returns this as a string "true"/"false".
-    email_verified: Option<String>,
+    /// Google returns this as string "true" (tokeninfo) or bool (other endpoints).
+    email_verified: Option<serde_json::Value>,
     name: Option<String>,
-    #[allow(dead_code)]
-    exp: Option<String>,
+    /// Google returns exp as string (tokeninfo) or number (JWT decode).
+    exp: Option<serde_json::Value>,
 }
 
 #[derive(serde::Deserialize)]
@@ -187,7 +187,11 @@ pub async fn handle_google(
         .map_err(|e| ApiError::ExternalService(format!("Google tokeninfo body: {e}")))?;
 
     let claims: GoogleTokenClaims = serde_json::from_str(&text).map_err(|e| {
-        console_error!("Failed to parse Google tokeninfo response: {:?}", e);
+        console_error!(
+            "Failed to parse Google tokeninfo response: {:?}\nRaw body: {}",
+            e,
+            &text[..text.len().min(500)]
+        );
         ApiError::Unauthorized
     })?;
 
@@ -202,25 +206,41 @@ pub async fn handle_google(
             );
             return Err(ApiError::Unauthorized);
         }
-        None => return Err(ApiError::Unauthorized),
-    }
-
-    // Validate email is verified
-    if claims.email_verified.as_deref() != Some("true") {
-        return Err(ApiError::Unauthorized);
-    }
-
-    // Validate token expiry (Google returns exp as string)
-    if let Some(exp_str) = &claims.exp {
-        if let Ok(exp) = exp_str.parse::<u64>() {
-            let now = (js_sys::Date::now() / 1000.0) as u64;
-            if exp < now {
-                return Err(ApiError::Unauthorized);
-            }
+        None => {
+            console_error!("Google token missing audience claim");
+            return Err(ApiError::Unauthorized);
         }
     }
 
-    let google_user_id = claims.sub.as_ref().ok_or(ApiError::Unauthorized)?.clone();
+    // Validate email is verified (handle both string "true" and bool true)
+    let email_verified = match &claims.email_verified {
+        Some(serde_json::Value::String(s)) => s == "true",
+        Some(serde_json::Value::Bool(b)) => *b,
+        _ => false,
+    };
+    if !email_verified {
+        console_error!("Google token email not verified: {:?}", claims.email_verified);
+        return Err(ApiError::Unauthorized);
+    }
+
+    // Validate token expiry (handle both string and number)
+    let exp_val: Option<u64> = match &claims.exp {
+        Some(serde_json::Value::String(s)) => s.parse().ok(),
+        Some(serde_json::Value::Number(n)) => n.as_u64(),
+        _ => None,
+    };
+    if let Some(exp) = exp_val {
+        let now = (js_sys::Date::now() / 1000.0) as u64;
+        if exp < now {
+            console_error!("Google token expired: exp={} now={}", exp, now);
+            return Err(ApiError::Unauthorized);
+        }
+    }
+
+    let google_user_id = claims.sub.as_ref().ok_or_else(|| {
+        console_error!("Google token missing sub claim");
+        ApiError::Unauthorized
+    })?.clone();
 
     let db = state.db.d1()?;
 

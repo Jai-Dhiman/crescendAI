@@ -184,9 +184,9 @@ function SignInPage() {
 			try {
 				const result = await api.auth.google(response.credential);
 				setUser({
-					student_id: result.student_id,
+					studentId: result.studentId,
 					email: result.email ?? null,
-					display_name: result.display_name ?? null,
+					displayName: result.displayName ?? null,
 				});
 				navigate({ to: "/app" });
 			} catch (err) {
@@ -294,9 +294,9 @@ function SignInPage() {
 			const result = await api.auth.apple(idToken, userId, email, displayName);
 
 			setUser({
-				student_id: result.student_id,
+				studentId: result.studentId,
 				email: result.email,
-				display_name: result.display_name,
+				displayName: result.displayName,
 			});
 
 			navigate({ to: "/app" });
@@ -393,9 +393,9 @@ function SignInPage() {
 								try {
 									const result = await api.auth.debug();
 									setUser({
-										student_id: result.student_id,
+										studentId: result.studentId,
 										email: result.email,
-										display_name: result.display_name,
+										displayName: result.displayName,
 									});
 									navigate({ to: "/app" });
 								} catch (err) {

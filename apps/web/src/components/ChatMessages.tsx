@@ -103,12 +103,12 @@ const MessageBubble = memo(function MessageBubble({
 	const [tryState, setTryState] = useState<"idle" | "loading" | "error">("idle");
 
 	// Session lifecycle dividers
-	if (message.message_type === "session_start" || message.message_type === "session_end") {
+	if (message.messageType === "session_start" || message.messageType === "session_end") {
 		return (
 			<div className="flex items-center gap-3 py-3">
 				<div className="flex-1 border-t border-border" />
 				<span className="text-xs text-text-tertiary whitespace-nowrap">
-					{message.message_type === "session_start" ? "Recording started" : "Recording ended"}
+					{message.messageType === "session_start" ? "Recording started" : "Recording ended"}
 				</span>
 				<div className="flex-1 border-t border-border" />
 			</div>
@@ -144,7 +144,7 @@ const MessageBubble = memo(function MessageBubble({
 	return (
 		<div className="flex justify-start animate-fade-in">
 			<div className="max-w-[80%]">
-				{message.message_type === "observation" && message.dimension && (
+				{message.messageType === "observation" && message.dimension && (
 					<span className="inline-block text-xs px-2 py-0.5 rounded-full bg-surface-2 text-text-secondary mb-1">
 						{message.dimension}
 					</span>

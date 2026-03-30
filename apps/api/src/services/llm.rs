@@ -554,7 +554,15 @@ pub async fn call_workers_ai(
         ApiError::ExternalService(format!("Failed to serialize Workers AI request: {e:?}"))
     })?;
 
+    let cf_api_token = env
+        .secret("CF_API_TOKEN")
+        .map_err(|_| ApiError::ExternalService("CF_API_TOKEN not configured".to_string()))?
+        .to_string();
+
     let headers = Headers::new();
+    headers
+        .set("Authorization", &format!("Bearer {cf_api_token}"))
+        .map_err(|e| ApiError::ExternalService(format!("Failed to set auth header: {e:?}")))?;
     headers
         .set("Content-Type", "application/json")
         .map_err(|e| ApiError::ExternalService(format!("Failed to set content-type: {e:?}")))?;

@@ -155,7 +155,7 @@ impl PracticeSession {
         let mut synthesis_event = serde_json::json!({
             "type": "synthesis",
             "text": result.text,
-            "is_fallback": result.is_fallback,
+            "isFallback": result.is_fallback,
         });
 
         // In dev mode, include accumulator snapshot for eval analysis

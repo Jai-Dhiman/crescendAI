@@ -231,7 +231,7 @@ export default function AppChat() {
 						id: "summarizing-placeholder",
 						role: "assistant" as const,
 						content: "Reviewing your practice session...",
-						created_at: new Date().toISOString(),
+						createdAt: new Date().toISOString(),
 						streaming: true,
 					},
 				];
@@ -333,7 +333,7 @@ export default function AppChat() {
 		// Deduplicate: don't show observations that are already in messages (from D1 reload)
 		const existingObsIds = new Set(
 			messages
-				.filter((m) => m.message_type === "observation")
+				.filter((m) => m.messageType === "observation")
 				.map((m) => m.content),
 		);
 		const newObs = practice.observationMessages.filter(
@@ -391,7 +391,7 @@ export default function AppChat() {
 			id: `temp-${Date.now()}`,
 			role: "user",
 			content: message,
-			created_at: new Date().toISOString(),
+			createdAt: new Date().toISOString(),
 		};
 		setTransientMessages((prev) => [...prev, tempUserMsg]);
 		setIsStreaming(true);
@@ -405,8 +405,8 @@ export default function AppChat() {
 				(event: ChatStreamEvent) => {
 					switch (event.type) {
 						case "start": {
-							if (event.conversation_id && !activeConversationId) {
-								newConversationId = event.conversation_id;
+							if (event.conversationId && !activeConversationId) {
+								newConversationId = event.conversationId;
 								// Don't setConversationOverride here — it would trigger
 								// useConversation to fetch persisted messages while transient
 								// messages are still showing, causing duplicates. The navigate
@@ -421,7 +421,7 @@ export default function AppChat() {
 										id: `streaming-${Date.now()}`,
 										role: "assistant" as const,
 										content: "",
-										created_at: new Date().toISOString(),
+										createdAt: new Date().toISOString(),
 										streaming: true,
 									},
 								];
@@ -514,18 +514,18 @@ export default function AppChat() {
 				id: `exercises-${Date.now()}`,
 				role: "assistant",
 				content: `Here are some exercises to work on your ${dimension}:`,
-				created_at: new Date().toISOString(),
+				createdAt: new Date().toISOString(),
 				components: [
 					{
 						type: "exercise_set" as const,
 						config: {
-							source_passage: "Based on your recent practice",
-							target_skill: `${dimension} improvement`,
+							sourcePassage: "Based on your recent practice",
+							targetSkill: `${dimension} improvement`,
 							exercises: exercises.map((e) => ({
 								title: e.title,
 								instruction: e.instructions,
-								focus_dimension: e.dimensions[0] ?? dimension,
-								exercise_id: e.id,
+								focusDimension: e.dimensions[0] ?? dimension,
+								exerciseId: e.id,
 							})),
 						},
 					},
@@ -550,7 +550,7 @@ export default function AppChat() {
 	const showConversationSkeleton =
 		activeConversationId && isConversationLoading && messages.length === 0;
 	const userInitial =
-		user?.display_name?.charAt(0).toUpperCase() ??
+		user?.displayName?.charAt(0).toUpperCase() ??
 		user?.email?.charAt(0).toUpperCase() ??
 		"?";
 
@@ -713,7 +713,7 @@ export default function AppChat() {
 						{sidebarOpen && (
 							<div className="flex flex-col items-start min-w-0">
 								<span className="text-body-sm text-cream truncate">
-									{user?.display_name ?? user?.email ?? "User"}
+									{user?.displayName ?? user?.email ?? "User"}
 								</span>
 								<span className="text-body-xs text-text-tertiary">Pianist</span>
 							</div>
