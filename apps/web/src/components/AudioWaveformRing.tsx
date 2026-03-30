@@ -52,7 +52,7 @@ export function AudioWaveformRing({
 	const lastFrameRef = useRef(0);
 	const rotationRef = useRef(0);
 	const displacementsRef = useRef<Float32Array | null>(null);
-	const dataArrayRef = useRef<Uint8Array | null>(null);
+	const dataArrayRef = useRef<Uint8Array<ArrayBuffer> | null>(null);
 	const logBinMapRef = useRef<number[] | null>(null);
 	const crossfadeRef = useRef(0); // 0 = full breathing, 1 = full frequency
 	const isPlayingRef = useRef(isPlaying);
@@ -76,7 +76,7 @@ export function AudioWaveformRing({
 		if (analyserNode && !logBinMapRef.current) {
 			const binCount = analyserNode.frequencyBinCount;
 			logBinMapRef.current = buildLogBinMap(binCount);
-			dataArrayRef.current = new Uint8Array(binCount);
+			dataArrayRef.current = new Uint8Array(binCount) as Uint8Array<ArrayBuffer>;
 		}
 
 		// ResizeObserver for canvas sizing
@@ -91,7 +91,7 @@ export function AudioWaveformRing({
 		});
 		observer.observe(canvas);
 
-		const ctx = canvas.getContext("2d");
+		const ctx = canvas.getContext("2d")!;
 		if (!ctx) return;
 
 		function draw(timestamp: number) {

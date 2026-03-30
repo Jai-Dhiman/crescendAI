@@ -34,7 +34,7 @@ type ContentVisibility = "hidden" | "visible" | "fading";
 
 export function ListeningMode({
 	state,
-	energy,
+	energy: _energy,
 	isPlaying,
 	error: _error,
 	wsStatus,
