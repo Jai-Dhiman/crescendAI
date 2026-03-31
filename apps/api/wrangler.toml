@@ -22,8 +22,7 @@ SENTRY_DSN = ""
 
 [[hyperdrive]]
 binding = "HYPERDRIVE"
-id = "PLACEHOLDER_HYPERDRIVE_ID"
-localConnectionString = "postgresql://postgres:postgres@localhost:5432/crescendai"
+id = "ddbbe5fd7b6f4c249fc30f2cd7cb96d8"
 
 [[r2_buckets]]
 binding = "CHUNKS"
@@ -32,12 +31,3 @@ bucket_name = "crescendai-bucket"
 [[r2_buckets]]
 binding = "SCORES"
 bucket_name = "crescendai-bucket"
-
-# Secrets (set via `wrangler secret put`):
-# AUTH_SECRET
-# APPLE_CLIENT_SECRET
-# GOOGLE_CLIENT_SECRET
-# SENTRY_DSN
-# HF_INFERENCE_ENDPOINT
-# GROQ_API_KEY
-# ANTHROPIC_API_KEY
