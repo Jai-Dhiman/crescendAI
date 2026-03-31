@@ -6,7 +6,8 @@
     "test": "vitest",
     "typecheck": "tsc --noEmit",
     "generate": "drizzle-kit generate",
-    "migrate": "drizzle-kit migrate"
+    "migrate": "drizzle-kit migrate",
+    "migrate-d1": "bun run scripts/migrate-d1.ts"
   },
   "dependencies": {
     "hono": "^4",
