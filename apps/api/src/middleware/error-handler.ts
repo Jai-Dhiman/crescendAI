@@ -4,6 +4,7 @@ import {
 	NotFoundError,
 	AuthenticationError,
 	ValidationError,
+	ConflictError,
 } from "../lib/errors";
 
 export const errorHandler: ErrorHandler = (err, c) => {
@@ -21,6 +22,10 @@ export const errorHandler: ErrorHandler = (err, c) => {
 
 	if (err instanceof ValidationError) {
 		return c.json({ error: err.message }, 400);
+	}
+
+	if (err instanceof ConflictError) {
+		return c.json({ error: err.message }, 409);
 	}
 
 	console.error(
