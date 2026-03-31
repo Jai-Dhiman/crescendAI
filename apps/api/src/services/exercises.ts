@@ -1,4 +1,4 @@
-import { eq, and, sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import type { ServiceContext } from "../lib/types";
 import { NotFoundError } from "../lib/errors";
 import {

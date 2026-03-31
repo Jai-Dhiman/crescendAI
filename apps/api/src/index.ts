@@ -51,7 +51,7 @@ export type AppType = typeof routes;
 export { app };
 
 export default Sentry.withSentry(
-	(env) => ({
+	(env: Bindings) => ({
 		dsn: env.SENTRY_DSN,
 		tracesSampleRate: 1.0,
 	}),
