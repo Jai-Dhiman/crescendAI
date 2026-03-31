@@ -314,7 +314,7 @@ def main() -> None:
     if not args.no_filter:
         print("Loading relevance classifier...")
         classifier = PedagogyRelevanceClassifier()
-        print(f"Classifier ready (threshold={classifier._threshold:.3f})")
+        print(f"Classifier ready (threshold={classifier._threshold:.3f})")  # type: ignore[union-attr]
 
     results: list[dict] = []
 
