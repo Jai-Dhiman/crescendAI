@@ -48,11 +48,8 @@ export type PracticeMode =
 	| "winding"
 	| "regular";
 
-// ModeChangeContext is discriminated by the parent ModeChangeEvent.mode field
-export type ModeChangeContext =
-	| { bars?: [number, number]; repetition: number }
-	| { piece?: string }
-	| Record<string, never>;
+// ModeChangeContext: the DO sends a string description (e.g. "warming -> drilling after 30s")
+export type ModeChangeContext = string | Record<string, never>;
 
 export interface ModeChangeEvent {
 	type: "mode_change";
@@ -84,6 +81,7 @@ export type PracticeWsEvent =
 			inferenceFailures?: number;
 			totalChunks?: number;
 	  }
+	| { type: "piece_identified"; pieceId: string; composer: string; title: string; confidence: number; method: string }
 	| { type: "piece_set"; query: string }
 	| ModeChangeEvent
 	| { type: "error"; message: string };
