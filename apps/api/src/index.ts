@@ -34,6 +34,7 @@ const routes = app
 app.notFound((c) => c.json({ error: "Not found" }, 404));
 
 export type AppType = typeof routes;
+export { app };
 
 export default Sentry.withSentry(
 	(env) => ({

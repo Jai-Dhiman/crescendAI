@@ -18,10 +18,12 @@ APPLE_BUNDLE_ID = "ai.crescend.ios"
 APPLE_WEB_SERVICES_ID = "ai.crescend.web"
 GOOGLE_CLIENT_ID = "726399246264-lkq6jl4khal8gagn65j9t2a8bg52i7ie.apps.googleusercontent.com"
 BETTER_AUTH_URL = "http://localhost:8787"
+SENTRY_DSN = ""
 
 [[hyperdrive]]
 binding = "HYPERDRIVE"
 id = "PLACEHOLDER_HYPERDRIVE_ID"
+localConnectionString = "postgresql://postgres:postgres@localhost:5432/crescendai"
 
 [[r2_buckets]]
 binding = "CHUNKS"
