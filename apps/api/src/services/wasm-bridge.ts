@@ -265,7 +265,7 @@ function requirePieceIdentify(): PieceIdentifyMod {
  * @param threshold probability threshold for triggering (default 0.5)
  */
 export function classifyStop(scores: number[], threshold = 0.5): StopResult {
-  return requireScoreAnalysis().classify_stop(scores, threshold) as StopResult;
+  return requireScoreAnalysis().classify_stop(new Float64Array(scores), threshold) as StopResult;
 }
 
 /**
@@ -326,7 +326,7 @@ export function analyzeTier1(
     barMap,
     perfNotes,
     perfPedal,
-    scores,
+    new Float64Array(scores),
     scoreContext,
   ) as ChunkAnalysis;
 }
@@ -346,7 +346,7 @@ export function analyzeTier2(
   return requireScoreAnalysis().analyze_tier2(
     perfNotes,
     perfPedal,
-    scores,
+    new Float64Array(scores),
   ) as ChunkAnalysis;
 }
 
@@ -368,7 +368,7 @@ export function ngramRecall(notes: PerfNote[], index: NgramIndex): NgramCandidat
  * Returns a Float64Array (128 elements).
  */
 export function computeRerankFeatures(notes: PerfNote[]): number[] {
-  return requirePieceIdentify().compute_rerank_features(notes) as number[];
+  return Array.from(requirePieceIdentify().compute_rerank_features(notes));
 }
 
 /**
