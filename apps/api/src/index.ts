@@ -1,0 +1,44 @@
+import { Hono } from "hono";
+import { cors } from "hono/cors";
+import * as Sentry from "@sentry/cloudflare";
+import type { Bindings, Variables } from "./lib/types";
+import { dbMiddleware } from "./middleware/db";
+import { structuredLogger } from "./middleware/logger";
+import { sentryMiddleware } from "./middleware/sentry";
+import { errorHandler } from "./middleware/error-handler";
+import { authRoutes } from "./routes/auth";
+import { healthRoutes } from "./routes/health";
+
+const app = new Hono<{ Bindings: Bindings; Variables: Variables }>();
+
+app.onError(errorHandler);
+
+app.use("*", async (c, next) => {
+	const origin = c.env.ALLOWED_ORIGIN || "http://localhost:3000";
+	return cors({
+		origin,
+		allowMethods: ["GET", "POST", "OPTIONS", "DELETE"],
+		allowHeaders: ["Content-Type", "Authorization", "Cookie"],
+		credentials: true,
+	})(c, next);
+});
+
+app.use("*", structuredLogger);
+app.use("*", sentryMiddleware);
+app.use("/api/*", dbMiddleware);
+
+const routes = app
+	.route("/health", healthRoutes)
+	.route("/api/auth", authRoutes);
+
+app.notFound((c) => c.json({ error: "Not found" }, 404));
+
+export type AppType = typeof routes;
+
+export default Sentry.withSentry(
+	(env) => ({
+		dsn: env.SENTRY_DSN,
+		tracesSampleRate: 1.0,
+	}),
+	app,
+);
