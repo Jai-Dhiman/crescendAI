@@ -15,6 +15,7 @@ import { exercisesRoutes } from "./routes/exercises";
 import { conversationsRoutes } from "./routes/conversations";
 import { syncRoutes } from "./routes/sync";
 import { chatRoutes } from "./routes/chat";
+import { practiceRoutes } from "./routes/practice";
 
 const app = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
@@ -43,12 +44,14 @@ const routes = app
 	.route("/api/exercises", exercisesRoutes)
 	.route("/api/conversations", conversationsRoutes)
 	.route("/api/sync", syncRoutes)
-	.route("/api/chat", chatRoutes);
+	.route("/api/chat", chatRoutes)
+	.route("/api/practice", practiceRoutes);
 
 app.notFound((c) => c.json({ error: "Not found" }, 404));
 
 export type AppType = typeof routes;
 export { app };
+export { SessionBrain } from "./do/session-brain";
 
 export default Sentry.withSentry(
 	(env: Bindings) => ({
