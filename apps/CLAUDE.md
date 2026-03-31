@@ -26,45 +26,55 @@ See `ios/CLAUDE.md` for iOS-specific conventions.
 
 ## API Worker (`api/`)
 
-Rust API backend deployed to Cloudflare Workers at `api.crescend.ai`.
+TypeScript API backend deployed to Cloudflare Workers at `api.crescend.ai`.
 
-**Rust Style Guide:** See `api/RUST_STYLE.md` for all Rust coding standards, patterns, and conventions.
+**TypeScript Style Guide:** See `api/TS_STYLE.md` for all coding standards, patterns, and conventions.
 Always follow that guide when editing files under `api/src/`.
 
 ### Stack
 
-- Runtime: Cloudflare Workers (Rust compiled to WASM)
-- Routing: Axum (path matching in `#[event(fetch)]` handler)
-- Storage: D1 (SQLite)
-- Auth: Sign in with Apple (JWT via HMAC-SHA256, HttpOnly cookies for web, Bearer header for iOS)
-- Schema: Provider-agnostic (student_id UUID + auth_identities table)
-- Sync: D1 student/session delta sync
-- LLM: Groq (subagent), Anthropic (teacher) via HTTP
+- Runtime: Cloudflare Workers (Hono + TypeScript)
+- Routing: Hono (chained `.route()` for RPC type inference)
+- Database: PlanetScale Postgres via Cloudflare Hyperdrive, Drizzle ORM
+- Auth: better-auth (Apple + Google social providers, cookie sessions)
+- WASM: Rust modules for compute-heavy algorithms (DTW, N-gram, STOP classifier)
+- Real-time: Durable Object `SessionBrain` with WebSocket Hibernation API
+- LLM: Groq (subagent) + Anthropic (teacher) via CF AI Gateway
 - Config: `wrangler.toml` defines all bindings
-- Observability: Cloudflare Workers OTLP drain to Sentry, `console_error!` for error paths
+- Observability: `@sentry/cloudflare` SDK, structured JSON logging
 
-### API Endpoints (current)
+### API Endpoints
 
-- `POST /api/auth/apple` - Validate Apple identity token, issue JWT (HttpOnly cookie + response body)
-- `POST /api/auth/google` - Validate Google ID token via tokeninfo, issue JWT (HttpOnly cookie + response body)
-- `GET /api/auth/me` - Validate JWT (cookie or Bearer), return user profile
-- `POST /api/auth/signout` - Clear auth cookie
-- `POST /api/sync` - Receive student/session deltas from iOS, return exercise updates
-- `POST /api/extract-goals` - Extract goals from student message (Workers AI)
-- `POST /api/ask` - Two-stage teacher pipeline: send teaching moment context, receive LLM observation (Groq subagent + Anthropic teacher)
-- `POST /api/ask/elaborate` - "Tell me more" follow-up for a previous observation
-- `POST /api/auth/debug` - Dev-only login bypassing Apple Sign In (returns 404 in production)
 - `GET /health` - Health check
-
-### API Endpoints (planned -- not yet implemented)
-
-- `GET /api/exercises` - Fetch exercise catalog
+- `POST /api/auth/*` - better-auth handles all auth routes (Apple, Google, session, signout)
+- `GET /api/scores` - List piece catalog
+- `GET /api/scores/:pieceId` - Get piece metadata
+- `GET /api/scores/:pieceId/data` - Get score MIDI data from R2
+- `GET /api/exercises` - List exercises (auth required)
+- `POST /api/exercises/assign` - Assign exercise to student
+- `POST /api/exercises/complete` - Mark exercise complete
+- `GET /api/conversations` - List conversations
+- `GET /api/conversations/:id` - Get conversation with messages
+- `DELETE /api/conversations/:id` - Delete conversation
+- `POST /api/chat` - SSE streaming chat with Anthropic
+- `POST /api/sync` - iOS delta sync (student baselines + sessions)
+- `POST /api/waitlist` - Email waitlist signup
+- `POST /api/extract-goals` - Extract goals from message (Groq)
+- `POST /api/practice/start` - Start practice session
+- `POST /api/practice/chunk` - Upload audio chunk to R2
+- `GET /api/practice/ws/:sessionId` - WebSocket upgrade to SessionBrain DO
+- `GET /api/practice/needs-synthesis` - Check deferred synthesis
+- `POST /api/practice/synthesize` - Run deferred synthesis
 
 ### Key Directories
 
-- `api/src/server.rs` - Entry point and route handling
-- `api/src/auth/` - Apple Sign in auth, JWT generation/verification
-- `api/src/services/` - Business logic (ask, chat, goals, llm, memory, sync)
+- `api/src/index.ts` - App composition + route mounting
+- `api/src/routes/` - Hono route modules
+- `api/src/services/` - Business logic (chat, ask, synthesis, llm, memory, inference, goals)
+- `api/src/do/` - Durable Object (SessionBrain)
+- `api/src/db/schema/` - Drizzle table definitions
+- `api/src/middleware/` - Auth session, DB, error handler, logger, sentry
+- `api/src/wasm/` - Rust WASM crates (score-analysis, piece-identify)
 
 ## Web App (`web/`)
 

@@ -35,7 +35,7 @@ Uses `just` (justfile) for dev commands. Install: `brew install just`.
 | `just fingerprint` | Generate N-gram index + rerank features from score library |
 | `just test-model` / `just test-api` / `just check-api` | Tests and checks |
 | `just deploy-api` | Deploy API worker to production |
-| `just migrate-local` / `just migrate-prod` | Apply D1 migrations |
+| `just migrate-generate` / `just migrate-prod` | Drizzle migrations (generate SQL / apply to prod) |
 
 ## Package Managers
 
@@ -55,7 +55,7 @@ Uses `just` (justfile) for dev commands. Install: `brew install just`.
 - **Error tracking:** Sentry across all surfaces (iOS, web, API)
   - iOS: `sentry-cocoa` SPM -- crash reporting, error capture, breadcrumbs
   - Web: `@sentry/react` -- client-side errors, API errors, WebSocket errors
-  - API (Rust/WASM): Cloudflare Workers Observability OTLP drain to Sentry (no SDK)
+  - API: `@sentry/cloudflare` SDK -- traces, breadcrumbs, error capture
 - Sentry org: `crescendai` with projects: `crescendai-api`, `crescendai-web`, `crescendai-ios`
 - Error logging: `console_error!` (Rust), `Sentry.captureException` (web), `SentrySDK.capture(error:)` (iOS)
 
