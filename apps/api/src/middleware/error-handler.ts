@@ -23,12 +23,14 @@ export const errorHandler: ErrorHandler = (err, c) => {
 		return c.json({ error: err.message }, 400);
 	}
 
-	console.error(JSON.stringify({
-		level: "error",
-		message: err.message,
-		stack: err.stack,
-		name: err.name,
-	}));
+	console.error(
+		JSON.stringify({
+			level: "error",
+			message: err.message,
+			stack: err.stack,
+			name: err.name,
+		}),
+	);
 
 	return c.json({ error: "Internal server error" }, 500);
 };
