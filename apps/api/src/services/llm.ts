@@ -111,5 +111,7 @@ export async function callGroq(
     choices: Array<{ message: { content: string } }>;
   };
 
-  return data.choices[0].message.content;
+  const content = data.choices[0]?.message?.content;
+  if (!content) throw new InferenceError("Groq response missing content");
+  return content;
 }

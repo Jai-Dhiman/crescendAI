@@ -4,7 +4,7 @@ import { eq, and } from "drizzle-orm";
 import type { Bindings, Variables } from "../lib/types";
 import { validate } from "../lib/validate";
 import { requireAuth } from "../middleware/auth-session";
-import { NotFoundError } from "../lib/errors";
+import { NotFoundError, ForbiddenError } from "../lib/errors";
 import { sessions } from "../db/schema/sessions";
 import { conversations, messages } from "../db/schema/conversations";
 import { SessionAccumulator } from "../services/accumulator";
@@ -44,6 +44,12 @@ const app = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 		let conversationId: string;
 
 		if (body.conversationId) {
+			// Verify ownership before attaching session to existing conversation
+			const existing = await db.query.conversations.findFirst({
+				where: (conv, { eq: e, and: a }) =>
+					a(e(conv.id, body.conversationId!), e(conv.studentId, studentId)),
+			});
+			if (!existing) throw new NotFoundError("conversation", body.conversationId);
 			conversationId = body.conversationId;
 		} else {
 			const [conv] = await db
@@ -71,8 +77,15 @@ const app = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 	.post("/chunk", validate("query", chunkQuerySchema), async (c) => {
 		requireAuth(c.var.studentId);
 		const { sessionId, chunkIndex } = c.req.valid("query");
-		const body = await c.req.arrayBuffer();
 
+		// Verify ownership
+		const session = await c.var.db.query.sessions.findFirst({
+			where: (s, { eq: e, and: a }) =>
+				a(e(s.id, sessionId), e(s.studentId, c.var.studentId!)),
+		});
+		if (!session) throw new NotFoundError("session", sessionId);
+
+		const body = await c.req.arrayBuffer();
 		const r2Key = `sessions/${sessionId}/chunks/${chunkIndex}.webm`;
 		await c.env.CHUNKS.put(r2Key, body);
 
@@ -90,10 +103,10 @@ const app = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 		const stub = c.env.SESSION_BRAIN.get(id);
 
 		const url = new URL(c.req.url);
-		url.searchParams.set("student_id", c.var.studentId);
+		url.searchParams.set("studentId", c.var.studentId);
 		const conversationId = c.req.query("conversationId");
 		if (conversationId) {
-			url.searchParams.set("conversation_id", conversationId);
+			url.searchParams.set("conversationId", conversationId);
 		}
 
 		return stub.fetch(new Request(url.toString(), c.req.raw));
@@ -137,8 +150,7 @@ const app = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 		}
 
 		if (session.studentId !== studentId) {
-			const { HTTPException } = await import("hono/http-exception");
-			throw new HTTPException(403, { message: "Forbidden" });
+			throw new ForbiddenError();
 		}
 
 		const acc = SessionAccumulator.fromJSON(session.accumulatorJson);

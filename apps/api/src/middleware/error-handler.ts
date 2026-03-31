@@ -5,6 +5,7 @@ import {
 	AuthenticationError,
 	ValidationError,
 	ConflictError,
+	ForbiddenError,
 } from "../lib/errors";
 
 export const errorHandler: ErrorHandler = (err, c) => {
@@ -26,6 +27,10 @@ export const errorHandler: ErrorHandler = (err, c) => {
 
 	if (err instanceof ConflictError) {
 		return c.json({ error: err.message }, 409);
+	}
+
+	if (err instanceof ForbiddenError) {
+		return c.json({ error: err.message }, 403);
 	}
 
 	console.error(

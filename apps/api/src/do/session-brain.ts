@@ -222,12 +222,16 @@ export class SessionBrain extends DurableObject<Bindings> {
 		r2Key: string,
 	): Promise<void> {
 		// 1. Read state, snapshot version
+		// Note: chunksInFlight is tracked separately from the version counter
+		// to avoid false positives when concurrent chunks both increment it.
+		// The version counter only tracks semantically significant mutations
+		// (accumulator, modeDetector, piece identification, session ending).
 		const state = await this.readState();
 		const stateVersion = state.version;
 
-		// Increment chunks in flight
+		// Increment chunks in flight (does NOT bump version)
 		state.chunksInFlight++;
-		await this.writeState(state);
+		await this.ctx.storage.put("state", state);
 
 		// 2. Fetch audio from R2
 		let audioBytes: ArrayBuffer;
@@ -767,8 +771,13 @@ export class SessionBrain extends DurableObject<Bindings> {
 	// ─── Synthesis & Finalization ────────────────────────────────────────────
 
 	private async runSynthesisAndPersist(_ws?: WebSocket): Promise<void> {
+		// Claim synthesis slot atomically before the LLM call.
+		// This prevents duplicate synthesis if two alarm firings race.
 		const state = await this.readState();
 		if (state.synthesisCompleted) return; // idempotent
+		state.synthesisCompleted = true; // tentative claim
+		state.version++;
+		await this.writeState(state);
 
 		const acc = SessionAccumulator.fromJSON(state.accumulator);
 		const sessionDurationMs =
@@ -843,11 +852,7 @@ export class SessionBrain extends DurableObject<Bindings> {
 			}
 		}
 
-		// Mark synthesis completed
-		const latestState = await this.readState();
-		latestState.synthesisCompleted = true;
-		latestState.version++;
-		await this.writeState(latestState);
+		// synthesisCompleted already set at method entry (claim-before-await pattern)
 	}
 
 	private async finalizeSession(): Promise<void> {

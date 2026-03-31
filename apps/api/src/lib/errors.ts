@@ -34,3 +34,9 @@ export class ConflictError extends DomainError {
 		super(message);
 	}
 }
+
+export class ForbiddenError extends DomainError {
+	constructor(message = "Forbidden") {
+		super(message);
+	}
+}
