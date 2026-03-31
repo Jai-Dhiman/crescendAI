@@ -1,0 +1,1302 @@
+[
+  {
+    "id": "dk_001",
+    "question": "According to Tobias Matthay, what is the primary mechanism for producing a singing tone?",
+    "choices": {
+      "A": "Striking the key with maximum finger speed",
+      "B": "Controlled arm weight transferred through relaxed fingers",
+      "C": "Pressing the key slowly after initial contact",
+      "D": "Using only finger muscles isolated from the arm"
+    },
+    "correct": "B",
+    "source": "Matthay, The Act of Touch (1903)",
+    "topic": "technique"
+  },
+  {
+    "id": "dk_002",
+    "question": "In the Matthay approach, 'rotary movement' refers to which physical action?",
+    "choices": {
+      "A": "Rotating the wrist upward during octave passages",
+      "B": "A forearm rotation that assists lateral finger movements",
+      "C": "Circular arm swings used in arpeggio patterns",
+      "D": "Turning the whole arm outward during thumb-under technique"
+    },
+    "correct": "B",
+    "source": "Matthay, Musical Interpretation (1913)",
+    "topic": "technique"
+  },
+  {
+    "id": "dk_003",
+    "question": "The Leschetizky method is most associated with which core principle?",
+    "choices": {
+      "A": "Weight transfer from large muscle groups to the fingertips",
+      "B": "Independent finger technique with a rounded hand position and curved fingers",
+      "C": "Flat finger technique for maximum key contact surface",
+      "D": "Total arm relaxation with gravity-driven keystrokes"
+    },
+    "correct": "B",
+    "source": "Breithaupt, Natural Piano Technic (1905); Leschetizky students' accounts",
+    "topic": "technique"
+  },
+  {
+    "id": "dk_004",
+    "question": "Heinrich Neuhaus described 'the image of sound' (zvukovoy obraz) primarily as:",
+    "choices": {
+      "A": "A mental picture of the keyboard topography to prevent mistakes",
+      "B": "An inner auditory conception of the desired sound that guides physical execution",
+      "C": "A visual score-reading technique for orchestral reductions",
+      "D": "The acoustic reflection pattern in the ideal concert hall"
+    },
+    "correct": "B",
+    "source": "Neuhaus, The Art of Piano Playing (1958)",
+    "topic": "technique"
+  },
+  {
+    "id": "dk_005",
+    "question": "Czerny's Op. 299 (School of Velocity) is primarily intended to develop:",
+    "choices": {
+      "A": "Polyphonic voice independence and counterpoint clarity",
+      "B": "Rapid finger action at even dynamic levels and high tempo",
+      "C": "Legato cantabile playing and phrasing in lyrical passages",
+      "D": "Pedaling technique and harmonic awareness"
+    },
+    "correct": "B",
+    "source": "Czerny, Op. 299 preface; standard conservatory reference",
+    "topic": "technique"
+  },
+  {
+    "id": "dk_006",
+    "question": "Which Czerny collection specifically targets the development of left-hand equality and independence?",
+    "choices": {
+      "A": "Op. 740 (The Art of Finger Dexterity)",
+      "B": "Op. 261 (School for the Left Hand)",
+      "C": "Op. 500 (Complete Theoretical and Practical Piano Forte School)",
+      "D": "Op. 599 (Practical Method for Beginners)"
+    },
+    "correct": "B",
+    "source": "Czerny catalog",
+    "topic": "technique"
+  },
+  {
+    "id": "dk_007",
+    "question": "In Chopin fingering philosophy, which principle most distinguishes his approach from earlier schools?",
+    "choices": {
+      "A": "Avoiding the thumb on black keys at all costs",
+      "B": "Using the thumb on black keys and passing the long fingers over the thumb",
+      "C": "Strict adherence to Czerny's five-finger position at all times",
+      "D": "Keeping all five fingers equidistant from the key surface"
+    },
+    "correct": "B",
+    "source": "Eigeldinger, Chopin: Pianist and Teacher (1986)",
+    "topic": "technique"
+  },
+  {
+    "id": "dk_008",
+    "question": "Abby Whiteside's central argument about rhythm in piano playing was that:",
+    "choices": {
+      "A": "Metronomic accuracy is essential for all practice",
+      "B": "Whole-body coordination driven by a master rhythm controls technique, not isolated fingers",
+      "C": "Finger independence must be developed before rhythmic coordination",
+      "D": "Rhythm should always be subordinate to melodic expressiveness"
+    },
+    "correct": "B",
+    "source": "Whiteside, Indispensables of Piano Playing (1955)",
+    "topic": "technique"
+  },
+  {
+    "id": "dk_009",
+    "question": "The technique of 'arm staccato' (as distinguished from finger staccato) is most appropriate for:",
+    "choices": {
+      "A": "Very fast repeated notes in Baroque ornaments",
+      "B": "Heavy, accented staccato chords at moderate to slow tempo",
+      "C": "Soft staccato in inner voices of polyphonic textures",
+      "D": "Thumb staccato in scale passages"
+    },
+    "correct": "B",
+    "source": "Standard piano pedagogy literature; Faber/ABRSM technique guides",
+    "topic": "technique"
+  },
+  {
+    "id": "dk_010",
+    "question": "What does 'double weighting' (or 'over-legato') mean in legato pedaling technique?",
+    "choices": {
+      "A": "Depressing the sustain pedal twice per measure",
+      "B": "Holding the previous note with the finger while the next note is played before releasing",
+      "C": "Using both the sustain and sostenuto pedals simultaneously",
+      "D": "Applying heavier arm weight at the moment of pedal change"
+    },
+    "correct": "B",
+    "source": "Standard conservatory pedagogy; Fink, Mastering Piano Technique",
+    "topic": "technique"
+  },
+  {
+    "id": "dk_011",
+    "question": "What is the Hanon exercise collection (The Virtuoso Pianist) primarily criticized for by modern pedagogues?",
+    "choices": {
+      "A": "The exercises are too musically complex for technical isolation",
+      "B": "Promoting muscular tension and overuse injuries by drilling unnatural finger positions",
+      "C": "Using outdated key signatures that confuse students",
+      "D": "The tempo markings exceed safe practice speeds for beginners"
+    },
+    "correct": "B",
+    "source": "Fink, Mastering Piano Technique (1992); Taubman Institute literature",
+    "topic": "technique"
+  },
+  {
+    "id": "dk_012",
+    "question": "Liszt's technical innovation of 'piano orchestration' primarily refers to:",
+    "choices": {
+      "A": "Playing piano reductions of orchestral scores at sight",
+      "B": "Using the full range of the keyboard and varied touch to evoke orchestral timbres on a single instrument",
+      "C": "A method of alternating hands in rapid passages to simulate orchestral doublings",
+      "D": "Writing piano music that strictly follows orchestral voice leading"
+    },
+    "correct": "B",
+    "source": "Walker, Franz Liszt (1983); Hamilton, After the Golden Age (2008)",
+    "topic": "technique"
+  },
+  {
+    "id": "dk_013",
+    "question": "In traditional thumb-under technique for scale playing, what is the key coordination principle?",
+    "choices": {
+      "A": "The thumb passes under the moment the previous finger lifts",
+      "B": "The thumb travels under the bridge of the hand before the pivoting finger plays, arriving silently",
+      "C": "The elbow leads the thumb across as the wrist remains fixed",
+      "D": "The wrist rises to give the thumb clearance over the black keys"
+    },
+    "correct": "B",
+    "source": "Standard ABRSM/RCM technical syllabus",
+    "topic": "technique"
+  },
+  {
+    "id": "dk_014",
+    "question": "What characterizes the 'arm weight' approach to touch as opposed to 'finger pressure'?",
+    "choices": {
+      "A": "Using faster finger movements to increase key velocity",
+      "B": "Transferring the weight of the relaxed arm and shoulder into the key rather than actively pushing with the finger muscle",
+      "C": "Keeping the arm completely still and driving tone only from the finger tip",
+      "D": "Pressing deeper into the key bed after the tone has begun"
+    },
+    "correct": "B",
+    "source": "Matthay, The Act of Touch (1903); Breithaupt, Natural Piano Technic (1905)",
+    "topic": "technique"
+  },
+  {
+    "id": "dk_015",
+    "question": "Dorothy Taubman's pedagogical approach emphasizes which underlying principle?",
+    "choices": {
+      "A": "Maximum finger independence through intensive isolation exercises",
+      "B": "Coordinated forearm rotation and shaping to prevent repetitive strain injuries",
+      "C": "Metronomic subdivision as the foundation of all technique",
+      "D": "Curved finger position derived from the Leschetizky school"
+    },
+    "correct": "B",
+    "source": "Golandsky Institute; Taubman Technique reference",
+    "topic": "technique"
+  },
+  {
+    "id": "dk_016",
+    "question": "In Baroque keyboard performance, trills in J.S. Bach's era typically begin:",
+    "choices": {
+      "A": "On the main note",
+      "B": "On the upper auxiliary note",
+      "C": "One octave below the written note",
+      "D": "With a lower mordent prefix"
+    },
+    "correct": "B",
+    "source": "Bach, Clavier-Buchlein vor Wilhelm Friedemann Bach ornament table; Neumann, Ornamentation in Baroque and Post-Baroque Music",
+    "topic": "repertoire"
+  },
+  {
+    "id": "dk_017",
+    "question": "Chopin's use of rubato, as described by his students and contemporaries, is best characterized as:",
+    "choices": {
+      "A": "The entire texture slowing down and speeding up together",
+      "B": "The right hand singing with expressive freedom while the left hand maintains a steady pulse",
+      "C": "Random tempo flexibility applied uniformly to both hands",
+      "D": "Strict tempo in the melody with arrhythmic accompaniment"
+    },
+    "correct": "B",
+    "source": "Eigeldinger, Chopin: Pianist and Teacher (1986); Mikuli accounts",
+    "topic": "repertoire"
+  },
+  {
+    "id": "dk_018",
+    "question": "Chopin's marking 'una corda' in the Nocturne in B-flat minor Op. 9 No. 1 specifically requires:",
+    "choices": {
+      "A": "Playing with the right hand only",
+      "B": "Depressing the left (soft) pedal to shift the hammers so they strike fewer strings",
+      "C": "Using only the index finger for the melody line",
+      "D": "Reducing dynamics to pp by finger control without any pedal"
+    },
+    "correct": "B",
+    "source": "Standard pedal terminology; Chopin score markings",
+    "topic": "repertoire"
+  },
+  {
+    "id": "dk_019",
+    "question": "Beethoven's 'subito piano' markings (sudden piano after forte) serve what expressive function most consistently?",
+    "choices": {
+      "A": "Indicating a return to the opening theme",
+      "B": "Creating dramatic surprise and large-scale dynamic architecture, often at structural boundaries",
+      "C": "Correcting a copyist error to soften passages that were originally too loud",
+      "D": "Matching the dynamics of a second piano in concertos"
+    },
+    "correct": "B",
+    "source": "Rosen, The Classical Style (1971); standard Beethoven interpretation literature",
+    "topic": "repertoire"
+  },
+  {
+    "id": "dk_020",
+    "question": "Debussy's instruction 'sans rigueur' (without strictness) in his piano works primarily refers to:",
+    "choices": {
+      "A": "Playing without a metronome in practice",
+      "B": "A fluid, flexible approach to rhythm and meter that avoids mechanical regularity",
+      "C": "Omitting ornaments that are too difficult",
+      "D": "Reducing the number of voiced notes in dense chords"
+    },
+    "correct": "B",
+    "source": "Howat, Debussy in Proportion (1983); Cortot edition notes",
+    "topic": "repertoire"
+  },
+  {
+    "id": "dk_021",
+    "question": "Debussy's piano tone ideal, described as 'hammers without hammers,' sought what quality?",
+    "choices": {
+      "A": "Extremely percussive attack to imitate the harpsichord",
+      "B": "A veiled, resonant, almost string-like sonority that avoids percussive attack",
+      "C": "A dry, detached touch with minimal pedal",
+      "D": "Dynamic uniformity across registers"
+    },
+    "correct": "B",
+    "source": "Schmitz, The Piano Works of Claude Debussy (1950); Marguerite Long accounts",
+    "topic": "repertoire"
+  },
+  {
+    "id": "dk_022",
+    "question": "Liszt's 'transcendental etudes' were so named because they:",
+    "choices": {
+      "A": "Were intended only for students who had transcended basic technique",
+      "B": "Required transcendent, almost superhuman technical ability beyond the reach of most pianists",
+      "C": "Were based on transcriptions of Paganini violin caprices",
+      "D": "Were composed in the key of F-sharp major to represent spiritual transcendence"
+    },
+    "correct": "B",
+    "source": "Walker, Franz Liszt: The Virtuoso Years (1983)",
+    "topic": "repertoire"
+  },
+  {
+    "id": "dk_023",
+    "question": "Mozart's piano sonatas predominantly require which pedaling approach in historically informed performance?",
+    "choices": {
+      "A": "Rich legato pedaling throughout to create a full orchestral sound",
+      "B": "Minimal or no sustain pedal, relying on finger legato for connection",
+      "C": "Half-pedaling at every harmonic change",
+      "D": "Flutter pedaling for all melodic passages"
+    },
+    "correct": "B",
+    "source": "Levin, Mozart's Piano Sonatas (HIP literature); Badura-Skoda, Interpreting Mozart",
+    "topic": "repertoire"
+  },
+  {
+    "id": "dk_024",
+    "question": "Brahms's piano texture is characterized by what technique that requires special voicing attention?",
+    "choices": {
+      "A": "Melody in the soprano with minimal inner voices",
+      "B": "Inner voice melodies and tenor voicing within chordal textures, requiring independent finger weight distribution",
+      "C": "Bass octaves dominating all other voices at all times",
+      "D": "Thin two-voice counterpoint with no inner chords"
+    },
+    "correct": "B",
+    "source": "Musgrave and Sherman, Performing Brahms (2003)",
+    "topic": "repertoire"
+  },
+  {
+    "id": "dk_025",
+    "question": "Rachmaninoff's piano writing often demands hand spans exceeding a tenth. The pedagogical solution for students with smaller hands is:",
+    "choices": {
+      "A": "Transposing the work to a more hand-friendly key",
+      "B": "Rolling (arpeggiation) of wide chords, with the bass note landing slightly before the beat",
+      "C": "Omitting the lowest note of stretched intervals entirely",
+      "D": "Playing all wide intervals as broken octaves in strict alternation"
+    },
+    "correct": "B",
+    "source": "Standard Rachmaninoff performance practice; teacher edition notes",
+    "topic": "repertoire"
+  },
+  {
+    "id": "dk_026",
+    "question": "In Bach's Well-Tempered Clavier, a 'prelude' and 'fugue' in the same key typically serve what structural relationship?",
+    "choices": {
+      "A": "The prelude is always faster and simpler than the fugue",
+      "B": "The prelude establishes a harmonic and affective context that the fugue then develops contrapuntally",
+      "C": "They are unrelated works compiled together by a later editor",
+      "D": "The fugue always uses the same thematic material as the prelude"
+    },
+    "correct": "B",
+    "source": "Williams, The Well-Tempered Clavier (2009)",
+    "topic": "repertoire"
+  },
+  {
+    "id": "dk_027",
+    "question": "Schubert's Impromptus (Op. 90 and Op. 142) are best described structurally as:",
+    "choices": {
+      "A": "Strict sonata-allegro forms disguised with lyrical character",
+      "B": "Free, quasi-improvisatory pieces with sectional contrasts but no fixed formal label",
+      "C": "Theme-and-variation sets built on Austrian folksongs",
+      "D": "Etudes organized by key, analogous to Chopin's Op. 10"
+    },
+    "correct": "B",
+    "source": "Gibbs, The Cambridge Companion to Schubert (1997)",
+    "topic": "repertoire"
+  },
+  {
+    "id": "dk_028",
+    "question": "What does 'con brio' mean in Beethoven's tempo markings?",
+    "choices": {
+      "A": "With sadness and introspection",
+      "B": "With vigor, spirit, and energy",
+      "C": "With strict adherence to metronomic tempo",
+      "D": "With a singing, cantabile quality"
+    },
+    "correct": "B",
+    "source": "Standard Italian musical terminology",
+    "topic": "repertoire"
+  },
+  {
+    "id": "dk_029",
+    "question": "Chopin's Ballade No. 1 in G minor, Op. 23 is primarily cast in which large-scale form?",
+    "choices": {
+      "A": "Rondo form (ABACADA)",
+      "B": "A modified sonata form with two contrasting themes and a coda",
+      "C": "A strict theme and variations",
+      "D": "ABA ternary form with a central development"
+    },
+    "correct": "B",
+    "source": "Samson, The Music of Chopin (1985); Rosen, The Romantic Generation (1995)",
+    "topic": "repertoire"
+  },
+  {
+    "id": "dk_030",
+    "question": "Schumann's 'Kinderszenen' (Scenes from Childhood) Op. 15 is a set of:",
+    "choices": {
+      "A": "Pedagogical etudes graded for young students",
+      "B": "Character pieces reflecting an adult's nostalgic recollection of childhood",
+      "C": "Teaching pieces written for his daughter Marie",
+      "D": "Programmatic pieces based on German fairy tales"
+    },
+    "correct": "B",
+    "source": "Schumann's letters; standard Romantic piano literature annotation",
+    "topic": "repertoire"
+  },
+  {
+    "id": "dk_031",
+    "question": "Ravel's 'Jeux d'eau' (1901) was groundbreaking primarily because it:",
+    "choices": {
+      "A": "Was the first piano piece to use the sustain pedal throughout",
+      "B": "Pioneered new pianistic textures — broken chord figurations, rapid arpeggios — anticipating Impressionist idiom",
+      "C": "Introduced polytonality to French piano music",
+      "D": "Required the pianist to play directly on the strings inside the piano"
+    },
+    "correct": "B",
+    "source": "Orenstein, Ravel: Man and Musician (1975)",
+    "topic": "repertoire"
+  },
+  {
+    "id": "dk_032",
+    "question": "The Suzuki Method for piano is based on which foundational philosophy?",
+    "choices": {
+      "A": "Reading notation from the very first lesson to build literacy simultaneously with technique",
+      "B": "Learning by ear through listening and repetition, modeled on mother-tongue language acquisition",
+      "C": "Solo performance from memory before any ensemble experience",
+      "D": "Technique drills preceding repertoire until Grade 2 level"
+    },
+    "correct": "B",
+    "source": "Suzuki, Nurtured by Love (1969); Suzuki Association of the Americas",
+    "topic": "pedagogy"
+  },
+  {
+    "id": "dk_033",
+    "question": "The Royal Conservatory of Music (RCM) grading system in Canada spans how many levels (grades plus ARCT)?",
+    "choices": {
+      "A": "8 levels",
+      "B": "10 grades plus ARCT (Associate diploma)",
+      "C": "12 grades plus two diplomas",
+      "D": "6 elementary grades plus 4 advanced levels"
+    },
+    "correct": "B",
+    "source": "Royal Conservatory of Music Certificate Program syllabus",
+    "topic": "pedagogy"
+  },
+  {
+    "id": "dk_034",
+    "question": "The Faber Piano Adventures series (Nancy and Randall Faber) uses which curriculum philosophy?",
+    "choices": {
+      "A": "Strict Suzuki ear-training before note reading",
+      "B": "Multi-key reading from early levels, integrating theory and technique with appealing repertoire",
+      "C": "Exclusively classical repertoire from Bach through Bartok",
+      "D": "A chord-based approach that delays single-note reading"
+    },
+    "correct": "B",
+    "source": "Faber Piano Adventures teacher's edition; publisher description",
+    "topic": "pedagogy"
+  },
+  {
+    "id": "dk_035",
+    "question": "What is the 'chunk practice' technique in piano pedagogy?",
+    "choices": {
+      "A": "Playing the entire piece from beginning to end without stopping",
+      "B": "Breaking a piece into small, manageable sections and mastering each before connecting them",
+      "C": "Practicing in large time blocks (e.g., 3-hour sessions)",
+      "D": "Playing only the rhythmically challenging chords in isolation"
+    },
+    "correct": "B",
+    "source": "Coyle, The Talent Code (2009); standard piano pedagogy",
+    "topic": "pedagogy"
+  },
+  {
+    "id": "dk_036",
+    "question": "In sight-reading pedagogy, which strategy is most recommended for maintaining forward momentum?",
+    "choices": {
+      "A": "Stopping and correcting every wrong note immediately",
+      "B": "Keeping the eyes ahead of the fingers and never stopping for errors",
+      "C": "Playing hands separately first for every new piece",
+      "D": "Practicing with a metronome set 50% below performance tempo"
+    },
+    "correct": "B",
+    "source": "Harris, Improve Your Sight-Reading (ABRSM); Kowalchyk and Lancaster sight-reading guides",
+    "topic": "pedagogy"
+  },
+  {
+    "id": "dk_037",
+    "question": "The ABRSM (Associated Board of the Royal Schools of Music) grading system for piano has how many grades before diploma level?",
+    "choices": {
+      "A": "6",
+      "B": "8",
+      "C": "10",
+      "D": "12"
+    },
+    "correct": "B",
+    "source": "ABRSM syllabus",
+    "topic": "pedagogy"
+  },
+  {
+    "id": "dk_038",
+    "question": "What is the primary purpose of 'slow practice' as an established piano pedagogical tool?",
+    "choices": {
+      "A": "Building endurance by extending practice duration",
+      "B": "Allowing conscious monitoring of technique, fingering, and sound quality without time pressure",
+      "C": "Matching the tempo used by elderly or arthritic players",
+      "D": "Preventing memorization so that score reading is maintained"
+    },
+    "correct": "B",
+    "source": "Chang, Fundamentals of Piano Practice; MTNA pedagogy resources",
+    "topic": "pedagogy"
+  },
+  {
+    "id": "dk_039",
+    "question": "Which pedagogical concept describes teaching a student to identify and correct their own mistakes during practice, without teacher intervention?",
+    "choices": {
+      "A": "Behavioral reinforcement",
+      "B": "Self-regulated learning (SRL) and metacognitive monitoring",
+      "C": "Rote imitation",
+      "D": "Extrinsic motivation scaffolding"
+    },
+    "correct": "B",
+    "source": "McPherson and Renwick, self-regulation research; Barry and Hallam, Practice chapter in MENC Handbook",
+    "topic": "pedagogy"
+  },
+  {
+    "id": "dk_040",
+    "question": "What does 'interleaved practice' (as opposed to 'blocked practice') mean in the context of piano learning?",
+    "choices": {
+      "A": "Practicing with both hands interleaved (alternating) at all times",
+      "B": "Mixing different pieces, passages, or skills within a single practice session rather than drilling one thing exhaustively",
+      "C": "Interleaving slow and fast tempo practice within a single passage",
+      "D": "Practicing right-hand and left-hand parts in strictly alternating sessions"
+    },
+    "correct": "B",
+    "source": "Bjork, interleaving research; Coyle, The Talent Code (2009)",
+    "topic": "pedagogy"
+  },
+  {
+    "id": "dk_041",
+    "question": "In a typical 30-minute piano lesson for a young beginner, what structure is most widely recommended?",
+    "choices": {
+      "A": "The entire lesson on new repertoire, saving scales for home practice",
+      "B": "Warm-up (scales/technique), review of assigned pieces, introduction of new material, and assignment",
+      "C": "Theory worksheets for the first 15 minutes, then keyboard time",
+      "D": "Listening to recordings for 10 minutes before playing"
+    },
+    "correct": "B",
+    "source": "MTNA Teaching Piano: A Comprehensive Guide; RCM teacher resources",
+    "topic": "pedagogy"
+  },
+  {
+    "id": "dk_042",
+    "question": "The Orff-Schulwerk approach, when applied to early keyboard instruction, emphasizes:",
+    "choices": {
+      "A": "Reading traditional notation from the first lesson",
+      "B": "Rhythm, movement, and play as the foundation of musical understanding before formal notation",
+      "C": "Strict voice leading rules derived from species counterpoint",
+      "D": "Memorizing all pieces before touching the keyboard"
+    },
+    "correct": "B",
+    "source": "Orff Institute; Carl Orff, Music for Children",
+    "topic": "pedagogy"
+  },
+  {
+    "id": "dk_043",
+    "question": "What is the purpose of 'mental practice' (away from the instrument) in piano pedagogy?",
+    "choices": {
+      "A": "Resting the hands to prevent overuse injuries only",
+      "B": "Reinforcing motor programs, memory, and musical interpretation through visualization without physical movement",
+      "C": "Replacing physical practice during illness exclusively",
+      "D": "A technique used only for memorization of completed pieces"
+    },
+    "correct": "B",
+    "source": "Pascual-Leone mental practice studies; Hallam practice research",
+    "topic": "pedagogy"
+  },
+  {
+    "id": "dk_044",
+    "question": "The 'Burgmuller' etudes (Op. 100) are commonly placed at which approximate skill level?",
+    "choices": {
+      "A": "Pre-reading / absolute beginner",
+      "B": "Early intermediate (approximately ABRSM Grade 2-3)",
+      "C": "Late intermediate (approximately ABRSM Grade 6-7)",
+      "D": "Advanced (conservatory diploma level)"
+    },
+    "correct": "B",
+    "source": "Faber and standard grading charts; Alfred grading guide",
+    "topic": "pedagogy"
+  },
+  {
+    "id": "dk_045",
+    "question": "What characterizes the 'Bastien Piano Basics' series approach to early reading?",
+    "choices": {
+      "A": "A landmark note system anchored to Middle C only",
+      "B": "A multi-position reading approach starting with C, G, and F positions before moving to full grand staff",
+      "C": "Exclusively solfege-based reading with no letter names",
+      "D": "Black-key pentatonic improvisation before any white-key reading"
+    },
+    "correct": "B",
+    "source": "Bastien Piano Basics teacher's edition",
+    "topic": "pedagogy"
+  },
+  {
+    "id": "dk_046",
+    "question": "What does the research literature (Ericsson et al., 1993) specifically define as 'deliberate practice'?",
+    "choices": {
+      "A": "Any intentional practice that occurs in a scheduled time block",
+      "B": "Highly focused, effortful activity at the edge of current ability, with immediate feedback and explicit goals",
+      "C": "Practice conducted in silence without distractions",
+      "D": "Repeating a piece multiple times in succession until it feels natural"
+    },
+    "correct": "B",
+    "source": "Ericsson, Krampe, and Tesch-Romer, 1993, Psychological Review",
+    "topic": "psychology"
+  },
+  {
+    "id": "dk_047",
+    "question": "Mihaly Csikszentmihalyi's concept of 'flow' in musical performance requires which balance?",
+    "choices": {
+      "A": "The task must be slightly below the performer's skill level to reduce errors",
+      "B": "Challenge and skill must be in balance — task is difficult enough to require full attention but not so hard as to cause anxiety",
+      "C": "The performer must be completely improvising without any pre-learned material",
+      "D": "The audience must be present to trigger flow state"
+    },
+    "correct": "B",
+    "source": "Csikszentmihalyi, Flow: The Psychology of Optimal Experience (1990)",
+    "topic": "psychology"
+  },
+  {
+    "id": "dk_048",
+    "question": "What is 'musical performance anxiety' (MPA) primarily characterized by in clinical literature?",
+    "choices": {
+      "A": "Disliking the composer's music during performance",
+      "B": "Apprehension about performing before others, involving cognitive, affective, somatic, and behavioral symptoms",
+      "C": "Forgetting the music mid-performance due to poor memorization",
+      "D": "Physical pain from overuse injuries that prevents performance"
+    },
+    "correct": "B",
+    "source": "Kenny, The Psychology of Music Performance Anxiety (2011)",
+    "topic": "psychology"
+  },
+  {
+    "id": "dk_049",
+    "question": "Which memorization strategy involves associating each section of a piece with a specific physical or emotional image?",
+    "choices": {
+      "A": "Motor/kinesthetic memory",
+      "B": "Imagery and narrative association (emotional/contextual encoding)",
+      "C": "Harmonic analysis and theoretical mapping",
+      "D": "Aural memory through internal singing"
+    },
+    "correct": "B",
+    "source": "Leimer and Gieseking, Piano Technique (1932); Hughes, Piano Memory",
+    "topic": "psychology"
+  },
+  {
+    "id": "dk_050",
+    "question": "The 'spaced repetition' learning principle applied to piano practice suggests:",
+    "choices": {
+      "A": "Repeating each passage 10 times consecutively before moving on",
+      "B": "Returning to previously learned material at increasing intervals to consolidate long-term retention",
+      "C": "Spacing practice sessions exactly 24 hours apart regardless of difficulty",
+      "D": "Alternating between two pieces every 5 minutes throughout a practice session"
+    },
+    "correct": "B",
+    "source": "Ebbinghaus forgetting curve; Bjork spacing effect research",
+    "topic": "psychology"
+  },
+  {
+    "id": "dk_051",
+    "question": "Carol Dweck's 'growth mindset' research has what specific implication for piano pedagogy?",
+    "choices": {
+      "A": "Students with high innate talent always outperform trained students",
+      "B": "Praising effort and process rather than innate talent leads to greater resilience and achievement",
+      "C": "Students should avoid difficult repertoire until they feel naturally ready",
+      "D": "Competition motivates learning more effectively than intrinsic goals"
+    },
+    "correct": "B",
+    "source": "Dweck, Mindset: The New Psychology of Success (2006)",
+    "topic": "psychology"
+  },
+  {
+    "id": "dk_052",
+    "question": "What does 'motor memory' (kinesthetic memory) in piano playing primarily consist of?",
+    "choices": {
+      "A": "Consciously memorized fingering charts stored verbally",
+      "B": "Automated movement patterns stored in procedural memory through repeated physical practice",
+      "C": "Visual memory of the score layout on the page",
+      "D": "Harmonic memory of chord progressions"
+    },
+    "correct": "B",
+    "source": "Schmidt and Lee, Motor Learning and Performance (2011); Parncutt and McPherson",
+    "topic": "psychology"
+  },
+  {
+    "id": "dk_053",
+    "question": "Research on 'choking under pressure' in piano performance most commonly attributes the cause to:",
+    "choices": {
+      "A": "Physical fatigue from excessive practice before the performance",
+      "B": "Shifting attention to explicit, step-by-step monitoring of automated skills, disrupting procedural memory",
+      "C": "Audience noise interfering with auditory feedback",
+      "D": "Performer forgetting the key signature at the start"
+    },
+    "correct": "B",
+    "source": "Beilock, Choke (2010); Kimble and Perlmuter, 1970, Psychological Review",
+    "topic": "psychology"
+  },
+  {
+    "id": "dk_054",
+    "question": "The Alexander Technique is used by many pianists primarily to address:",
+    "choices": {
+      "A": "Sight-reading deficiencies and score-reading speed",
+      "B": "Habitual postural misuse, tension, and unconscious physical habits that impair playing and cause injury",
+      "C": "Building finger strength through targeted muscular exercises",
+      "D": "Ear training and pitch memory"
+    },
+    "correct": "B",
+    "source": "Alexander, The Use of the Self (1932); STAT teaching resources",
+    "topic": "psychology"
+  },
+  {
+    "id": "dk_055",
+    "question": "In the context of performance preparation, 'simulation practice' means:",
+    "choices": {
+      "A": "Using a piano keyboard app instead of a real piano",
+      "B": "Practicing under conditions that replicate the performance environment — same clothes, standing audience, no stops",
+      "C": "Imagining the performance without physically playing",
+      "D": "Recording oneself and reviewing the audio before performing"
+    },
+    "correct": "B",
+    "source": "Lehmann, Sloboda, and Woody, Psychology for Musicians (2007)",
+    "topic": "psychology"
+  },
+  {
+    "id": "dk_056",
+    "question": "What is 'phrasing' in piano pedagogy defined as?",
+    "choices": {
+      "A": "The verbalization of note names while playing",
+      "B": "Shaping musical sentences with a sense of direction, rise, and resolution — analogous to breathing in speech",
+      "C": "The technique of playing all notes in a scale without pedal",
+      "D": "Matching exact dynamic levels specified in the score"
+    },
+    "correct": "B",
+    "source": "Schoenberg, Fundamentals of Musical Composition; standard piano pedagogy",
+    "topic": "concepts"
+  },
+  {
+    "id": "dk_057",
+    "question": "What does 'fortepiano' mean when used as a dynamic marking (fp)?",
+    "choices": {
+      "A": "A gradual crescendo from soft to loud",
+      "B": "A forte attack immediately followed by a subito piano",
+      "C": "A sustained forte throughout the passage",
+      "D": "A dynamic level between mezzo-forte and forte"
+    },
+    "correct": "B",
+    "source": "Standard musical notation",
+    "topic": "concepts"
+  },
+  {
+    "id": "dk_058",
+    "question": "What distinguishes 'legato pedaling' from 'rhythmic pedaling'?",
+    "choices": {
+      "A": "Legato pedaling uses both feet; rhythmic pedaling uses only the right foot",
+      "B": "Legato pedaling changes after the next harmony sounds (syncopated); rhythmic pedaling changes on the beat with the harmony",
+      "C": "Legato pedaling is used only in slow pieces; rhythmic pedaling in fast pieces",
+      "D": "Rhythmic pedaling requires the sostenuto pedal; legato pedaling uses the sustain pedal"
+    },
+    "correct": "B",
+    "source": "Banowetz, The Pianist's Guide to Pedaling (1985)",
+    "topic": "concepts"
+  },
+  {
+    "id": "dk_059",
+    "question": "What is 'half pedaling' (also called 'flutter pedaling') used for?",
+    "choices": {
+      "A": "Holding the pedal down exactly halfway to the floor to reduce resonance",
+      "B": "Rapidly depressing and releasing the pedal in small increments to clear harmonic blur while maintaining overall resonance",
+      "C": "Using only the right half of the sustain pedal mechanism",
+      "D": "A technique where the foot alternates between sustain and sostenuto"
+    },
+    "correct": "B",
+    "source": "Banowetz, The Pianist's Guide to Pedaling (1985)",
+    "topic": "concepts"
+  },
+  {
+    "id": "dk_060",
+    "question": "What is the sostenuto pedal (middle pedal on most grand pianos) designed to do?",
+    "choices": {
+      "A": "Sustain only the notes played after it is depressed",
+      "B": "Sustain only the notes that are already being held at the moment the pedal is depressed, while subsequent notes remain unaffected",
+      "C": "Soften the tone like the una corda pedal",
+      "D": "Activate the bass dampers only, below middle C"
+    },
+    "correct": "B",
+    "source": "Standard piano mechanics; Banowetz, The Pianist's Guide to Pedaling (1985)",
+    "topic": "concepts"
+  },
+  {
+    "id": "dk_061",
+    "question": "What does the Italian term 'tenuto' (ten.) indicate as an articulation marking?",
+    "choices": {
+      "A": "A short, detached note with an accent",
+      "B": "Hold the note for its full value (or slightly longer), with a gentle emphasis, without separating it from surrounding notes",
+      "C": "Gradually slow down through the marked passage",
+      "D": "A firm, accented staccato"
+    },
+    "correct": "B",
+    "source": "Standard musical notation; Gould, Behind Bars (2011)",
+    "topic": "concepts"
+  },
+  {
+    "id": "dk_062",
+    "question": "In sonata form, the 'development section' serves what primary function?",
+    "choices": {
+      "A": "Presenting a new theme not heard in the exposition",
+      "B": "Fragmenting, transforming, and harmonically destabilizing themes from the exposition through modulation",
+      "C": "Returning all themes in the original tonic key",
+      "D": "Introducing the slow movement's main theme in preparation for the recapitulation"
+    },
+    "correct": "B",
+    "source": "Rosen, Sonata Forms (1980)",
+    "topic": "concepts"
+  },
+  {
+    "id": "dk_063",
+    "question": "What is the difference between 'staccato' and 'staccatissimo' articulation?",
+    "choices": {
+      "A": "Staccato is for strings; staccatissimo is exclusively for piano",
+      "B": "Staccatissimo indicates an even shorter and more detached note than standard staccato",
+      "C": "Staccato means slightly detached; staccatissimo means play the note without pedal",
+      "D": "They are identical; the terms are interchangeable in standard notation"
+    },
+    "correct": "B",
+    "source": "Gould, Behind Bars (2011); standard notation guides",
+    "topic": "concepts"
+  },
+  {
+    "id": "dk_064",
+    "question": "What is 'voicing' in piano technique?",
+    "choices": {
+      "A": "Adjusting the piano action with felt needles to change the hammer hardness",
+      "B": "Bringing out one voice (melody, inner line, or bass) over other simultaneously sounding notes through differentiated touch",
+      "C": "Assigning voices to different hands in polyphonic textures",
+      "D": "The process of tuning the piano to concert pitch"
+    },
+    "correct": "B",
+    "source": "Fink, Mastering Piano Technique (1992); standard conservatory terminology",
+    "topic": "concepts"
+  },
+  {
+    "id": "dk_065",
+    "question": "A 'deceptive cadence' (interrupted cadence) in tonal harmony moves from:",
+    "choices": {
+      "A": "IV to I",
+      "B": "V to vi (or any chord other than the expected tonic)",
+      "C": "I to IV",
+      "D": "V7 to IV"
+    },
+    "correct": "B",
+    "source": "Aldwell and Schachter, Harmony and Voice Leading (4th ed.)",
+    "topic": "concepts"
+  },
+  {
+    "id": "dk_066",
+    "question": "In piano articulation, what does 'portato' (or 'portamento') indicate?",
+    "choices": {
+      "A": "Carrying the melody from one octave to another with a glissando",
+      "B": "Notes that are slightly detached but more connected than staccato — often notated as slur with dots",
+      "C": "A sliding smear between two pitches on a fretted instrument; not applicable to piano",
+      "D": "A long glissando sweeping across the keyboard"
+    },
+    "correct": "B",
+    "source": "Gould, Behind Bars (2011); ABRSM notation guide",
+    "topic": "concepts"
+  },
+  {
+    "id": "dk_067",
+    "question": "What is a 'pedal point' in harmonic analysis?",
+    "choices": {
+      "A": "A marking indicating where to change the sustain pedal",
+      "B": "A sustained or repeated note (usually in the bass) over which the harmony changes",
+      "C": "The point in a phrase where the climax is reached",
+      "D": "A technique of holding the final chord with the sustain pedal"
+    },
+    "correct": "B",
+    "source": "Aldwell and Schachter, Harmony and Voice Leading; standard theory terminology",
+    "topic": "concepts"
+  },
+  {
+    "id": "dk_068",
+    "question": "What distinguishes a 'Neapolitan chord' (bII6) from a standard supertonic chord?",
+    "choices": {
+      "A": "It is always played in second inversion",
+      "B": "It is built on the lowered second scale degree and most often appears in first inversion as a pre-dominant harmony",
+      "C": "It contains an augmented fifth",
+      "D": "It can only appear in minor keys"
+    },
+    "correct": "B",
+    "source": "Aldwell and Schachter, Harmony and Voice Leading; Kostka and Payne, Tonal Harmony",
+    "topic": "concepts"
+  },
+  {
+    "id": "dk_069",
+    "question": "In analysis of piano music, what is a 'Schenker graph' designed to show?",
+    "choices": {
+      "A": "The exact fingering recommended by Heinrich Schenker for each piece",
+      "B": "The hierarchical background structure of a tonal piece — the fundamental melodic line and harmonic progression underlying the surface",
+      "C": "A graphical timeline of practice sessions and progress",
+      "D": "An emotional arc from the composer's diary entries"
+    },
+    "correct": "B",
+    "source": "Schenker, Free Composition (1935); Forte and Gilbert, Introduction to Schenkerian Analysis",
+    "topic": "concepts"
+  },
+  {
+    "id": "dk_070",
+    "question": "What does 'agogic accent' mean in musical expression?",
+    "choices": {
+      "A": "An accent created by placing a dynamic stress mark (>) on a note",
+      "B": "An accent achieved by lengthening the duration of a note rather than increasing its loudness",
+      "C": "An accent that occurs on the second beat of a measure",
+      "D": "A harmonic accent created by an unexpected chord change"
+    },
+    "correct": "B",
+    "source": "Riemann, Musikalische Dynamik und Agogik (1884); standard interpretation terminology",
+    "topic": "concepts"
+  },
+  {
+    "id": "dk_071",
+    "question": "What is the primary reason pianists practice scales and arpeggios daily beyond finger independence?",
+    "choices": {
+      "A": "To memorize all 24 key signatures by repetition",
+      "B": "To internalize the geography and fingering patterns of all keys, building fluency that transfers directly to repertoire",
+      "C": "To build hand strength by using maximum force on every note",
+      "D": "Because conservatories require scale examinations annually"
+    },
+    "correct": "B",
+    "source": "ABRSM technical syllabus rationale; standard piano pedagogy",
+    "topic": "concepts"
+  },
+  {
+    "id": "dk_072",
+    "question": "What is 'cantabile' touch and how is it typically achieved on the piano?",
+    "choices": {
+      "A": "Playing as loudly as possible to project sound like a singer",
+      "B": "A singing, lyrical quality achieved by slow key depression with arm weight support and careful dynamic shaping",
+      "C": "Pressing the key to the bottom of the key bed and holding it for the full written value",
+      "D": "Using the soft pedal throughout to create a hushed singing tone"
+    },
+    "correct": "B",
+    "source": "Neuhaus, The Art of Piano Playing (1958); Matthay, Musical Interpretation (1913)",
+    "topic": "concepts"
+  },
+  {
+    "id": "dk_073",
+    "question": "What is the standard definition of 'contrary motion' in two-voice writing?",
+    "choices": {
+      "A": "Both voices move in the same direction and by the same interval",
+      "B": "The voices move in opposite directions (one ascending, one descending)",
+      "C": "One voice stays stationary while the other moves",
+      "D": "Both voices move chromatically in half steps"
+    },
+    "correct": "B",
+    "source": "Aldwell and Schachter; standard counterpoint terminology",
+    "topic": "concepts"
+  },
+  {
+    "id": "dk_074",
+    "question": "In rhythmic notation, what does a 'fermata' (pause sign) indicate?",
+    "choices": {
+      "A": "A rest of exactly one full measure regardless of time signature",
+      "B": "Hold the note or rest for an indeterminate duration longer than its written value, at the performer's or conductor's discretion",
+      "C": "A gradual ritardando until the note is held",
+      "D": "Resume tempo exactly after the fermata without any prolongation"
+    },
+    "correct": "B",
+    "source": "Standard musical notation; Gould, Behind Bars (2011)",
+    "topic": "concepts"
+  },
+  {
+    "id": "dk_075",
+    "question": "Which of the following best describes the structural role of a 'bridge' in a Classical piano sonata exposition?",
+    "choices": {
+      "A": "A short codetta after the second theme group",
+      "B": "A transitional passage that modulates from the tonic key to the dominant (or relative major in minor keys)",
+      "C": "A lyrical third theme that appears between the two main theme groups",
+      "D": "A return of the opening theme in the subdominant key"
+    },
+    "correct": "B",
+    "source": "Rosen, Sonata Forms (1980); Caplin, Classical Form (1998)",
+    "topic": "concepts"
+  },
+  {
+    "id": "dk_076",
+    "question": "According to Tobias Matthay, 'muscular sympathy' in ensemble playing refers to:",
+    "choices": {
+      "A": "Feeling physical pain when a colleague makes a mistake",
+      "B": "Unconsciously mirroring a partner's physical gestures to achieve rhythmic coordination",
+      "C": "Using identical fingering to your partner for unison passages",
+      "D": "Applying extra arm weight whenever the partner plays loudly"
+    },
+    "correct": "B",
+    "source": "Matthay, Musical Interpretation (1913)",
+    "topic": "technique"
+  },
+  {
+    "id": "dk_077",
+    "question": "In the context of piano technique, 'lateral motion of the wrist' is particularly important for:",
+    "choices": {
+      "A": "Controlling the sustain pedal with the right foot",
+      "B": "Facilitating smooth thumb crossings and distributing weight across wide intervals without arm movement",
+      "C": "Producing fast repeated-note passages",
+      "D": "Adjusting bench height during a performance"
+    },
+    "correct": "B",
+    "source": "Fink, Mastering Piano Technique (1992); Taubman Institute",
+    "topic": "technique"
+  },
+  {
+    "id": "dk_078",
+    "question": "What is the Feldenkrais Method's primary application for pianists?",
+    "choices": {
+      "A": "A diet and exercise program to improve stage presence",
+      "B": "Awareness through movement lessons that reorganize habitual patterns, reducing tension and improving coordination",
+      "C": "A system of daily stretching exercises before practice",
+      "D": "A breathing technique adapted from yoga for performance anxiety"
+    },
+    "correct": "B",
+    "source": "Feldenkrais, Awareness Through Movement (1972); pianist applications in Tubiana and Amadio",
+    "topic": "technique"
+  },
+  {
+    "id": "dk_079",
+    "question": "Which historical figure is credited with establishing the étude as a concert genre — pieces technically demanding yet also musically significant?",
+    "choices": {
+      "A": "Carl Czerny",
+      "B": "Frédéric Chopin",
+      "C": "Johann Baptist Cramer",
+      "D": "Muzio Clementi"
+    },
+    "correct": "B",
+    "source": "Eigeldinger, Chopin: Pianist and Teacher (1986); concert etude history",
+    "topic": "repertoire"
+  },
+  {
+    "id": "dk_080",
+    "question": "Chopin's Étude Op. 10, No. 1 ('Waterfall') is primarily a study in:",
+    "choices": {
+      "A": "Left-hand chromatic octaves",
+      "B": "Right-hand wide-span arpeggios requiring arm rotation and hand stretching",
+      "C": "Double thirds in both hands simultaneously",
+      "D": "Rapid staccato finger independence"
+    },
+    "correct": "B",
+    "source": "Eigeldinger; standard Chopin etude analysis",
+    "topic": "repertoire"
+  },
+  {
+    "id": "dk_081",
+    "question": "What technical challenge specifically defines Chopin's Étude Op. 25, No. 6?",
+    "choices": {
+      "A": "Rapid chromatic scales in octaves",
+      "B": "Parallel thirds in both hands at high speed",
+      "C": "Large arm-weight leaps in the left hand",
+      "D": "Single-note trills sustained over harmonic changes"
+    },
+    "correct": "B",
+    "source": "Eigeldinger; Samson, The Music of Chopin (1985)",
+    "topic": "repertoire"
+  },
+  {
+    "id": "dk_082",
+    "question": "Bartók's 'Mikrokosmos' is arranged in how many volumes of progressive difficulty?",
+    "choices": {
+      "A": "3",
+      "B": "6",
+      "C": "8",
+      "D": "10"
+    },
+    "correct": "B",
+    "source": "Bartók, Mikrokosmos (Boosey & Hawkes edition)",
+    "topic": "repertoire"
+  },
+  {
+    "id": "dk_083",
+    "question": "Bartók's 'Mikrokosmos' is pedagogically significant because it:",
+    "choices": {
+      "A": "Was the first graded piano method to include jazz harmony",
+      "B": "Introduces 20th-century techniques (polytonality, folk modes, irregular meters) systematically from beginner level",
+      "C": "Replaces all traditional scales with Bartók's own pentatonic system",
+      "D": "Was designed as a technical drill supplement to the Czerny etudes"
+    },
+    "correct": "B",
+    "source": "Gillies, The Cambridge Companion to Bartók (2001)",
+    "topic": "repertoire"
+  },
+  {
+    "id": "dk_084",
+    "question": "The Baroque 'French Overture' style is characterized by what rhythmic feature in keyboard performance?",
+    "choices": {
+      "A": "Strict metronomic evenness in all voices at all times",
+      "B": "Dotted rhythms that are often over-dotted (notes inégales and over-dotting conventions) for grandeur",
+      "C": "Swing interpretation applied to all eighth notes",
+      "D": "Rubato-like tempo flexibility throughout"
+    },
+    "correct": "B",
+    "source": "Donington, The Interpretation of Early Music (1963); Neumann, Ornamentation",
+    "topic": "repertoire"
+  },
+  {
+    "id": "dk_085",
+    "question": "What is the standard interpretation of a Bach 'mordent' (short trill symbol without a line through it) in keyboard music?",
+    "choices": {
+      "A": "A trill beginning on the upper auxiliary",
+      "B": "A rapid alternation: main note — lower auxiliary — main note",
+      "C": "A turn figure: main — upper — main — lower — main",
+      "D": "A single lower appoggiatura resolving to the main note"
+    },
+    "correct": "B",
+    "source": "Bach ornament table, Clavier-Buchlein vor Wilhelm Friedemann Bach; Neumann",
+    "topic": "repertoire"
+  },
+  {
+    "id": "dk_086",
+    "question": "Schumann's 'Carnaval' Op. 9 is unified by a musical cipher based on:",
+    "choices": {
+      "A": "A 12-tone row derived from BACH motif",
+      "B": "Four notes (A-S-C-H or S-C-H-A) spelling the name of a town and Schumann's own name in German note nomenclature",
+      "C": "A recurring waltz theme that appears in every movement",
+      "D": "The initials of the women Schumann admired, encoded as intervals"
+    },
+    "correct": "B",
+    "source": "Daverio, Robert Schumann (1997)",
+    "topic": "repertoire"
+  },
+  {
+    "id": "dk_087",
+    "question": "In what key is Beethoven's 'Moonlight' Sonata Op. 27 No. 2 written, and what is its designation?",
+    "choices": {
+      "A": "F-sharp major, 'Quasi una fantasia'",
+      "B": "C-sharp minor, 'Quasi una fantasia'",
+      "C": "D minor, 'Pathétique'",
+      "D": "B-flat major, 'Waldstein'"
+    },
+    "correct": "B",
+    "source": "Standard Beethoven catalog",
+    "topic": "repertoire"
+  },
+  {
+    "id": "dk_088",
+    "question": "What pedagogical challenge do Scarlatti keyboard sonatas primarily pose for the modern pianist?",
+    "choices": {
+      "A": "Extremely dense polyphonic textures requiring independent voice control",
+      "B": "Hand crossings, rapid ornamentation, and stylistically appropriate articulation suited to harpsichord idiom",
+      "C": "Unusually large dynamic range requiring extreme pp to fff",
+      "D": "Complex pedaling patterns for the sustain pedal"
+    },
+    "correct": "B",
+    "source": "Kirkpatrick, Domenico Scarlatti (1953)",
+    "topic": "repertoire"
+  },
+  {
+    "id": "dk_089",
+    "question": "Which term describes the practice of placing the melody slightly before the accompaniment in Romantic piano performance (especially Chopin)?",
+    "choices": {
+      "A": "Agogic emphasis",
+      "B": "Melody lead (or 'agogic displacement' / dislocation of melody from bass)",
+      "C": "Tenuto sustain",
+      "D": "Legato overlap"
+    },
+    "correct": "B",
+    "source": "Eigeldinger; Philip, Early Recordings and Musical Style (1992)",
+    "topic": "repertoire"
+  },
+  {
+    "id": "dk_090",
+    "question": "What is the primary function of the 'Aria' in Bach's Goldberg Variations?",
+    "choices": {
+      "A": "Introducing the contrapuntal theme used in all 30 variations",
+      "B": "Stating the harmonic bass line and chord structure that all 30 variations are built upon, returning unchanged at the end",
+      "C": "Providing a lyrical contrast to the technical difficulty of the variations",
+      "D": "Establishing the character pieces (dance forms) used in the variation sequence"
+    },
+    "correct": "B",
+    "source": "Wolff, Johann Sebastian Bach: The Learned Musician (2000); Williams, The Keyboard Music of J.S. Bach",
+    "topic": "repertoire"
+  },
+  {
+    "id": "dk_091",
+    "question": "What does the Guildhall School of Music and Drama's Piano Syllabus emphasize differently compared to ABRSM?",
+    "choices": {
+      "A": "It requires orchestral reductions at all grade levels",
+      "B": "It places greater emphasis on contemporary music and improvisation skills alongside classical repertoire",
+      "C": "It assesses only Baroque and Classical periods before Grade 7",
+      "D": "It replaces technical exercises with yoga-based movement training"
+    },
+    "correct": "B",
+    "source": "Guildhall School and Trinity College London comparative syllabi",
+    "topic": "pedagogy"
+  },
+  {
+    "id": "dk_092",
+    "question": "When teaching a student to practice 'hands separately,' what is the primary pedagogical justification?",
+    "choices": {
+      "A": "To allow each hand to rest while the other plays",
+      "B": "To allow focused attention on each hand's technical challenges, fingering, and voicing without cognitive overload from coordination",
+      "C": "Because composers always intended pieces to be learned hands separately first",
+      "D": "To prevent memory formation until both hands are perfected"
+    },
+    "correct": "B",
+    "source": "Standard conservatory pedagogy; Chang, Fundamentals of Piano Practice",
+    "topic": "pedagogy"
+  },
+  {
+    "id": "dk_093",
+    "question": "The 'Kodaly method,' when applied to piano pedagogy, emphasizes which foundational musical skill first?",
+    "choices": {
+      "A": "Reading treble clef notation before any ear training",
+      "B": "Tonal and rhythmic literacy through singing, solfege, and rhythm syllables before instrument-specific notation",
+      "C": "Ensemble playing before solo technique",
+      "D": "Sight-reading graded repertoire at the start of every lesson"
+    },
+    "correct": "B",
+    "source": "Kodaly principles; Houlahan and Tacka, Sound Thinking (2008)",
+    "topic": "pedagogy"
+  },
+  {
+    "id": "dk_094",
+    "question": "What is 'blocked practice' (also called 'massed practice') and why do cognitive scientists caution against over-reliance on it?",
+    "choices": {
+      "A": "Practicing with a keyboard cover over the keys; discouraged because it prevents note visibility",
+      "B": "Repeating the same material continuously in a single session; appears effective short-term but produces less durable long-term retention than interleaved practice",
+      "C": "Using a metronome at a fixed tempo for entire sessions; causes rhythmic rigidity",
+      "D": "Drilling only technically difficult passages and ignoring easier ones"
+    },
+    "correct": "B",
+    "source": "Bjork, 1994; Schmidt and Bjork, 1992, Psychological Science",
+    "topic": "pedagogy"
+  },
+  {
+    "id": "dk_095",
+    "question": "In the Alfred Basic Piano Library, what distinguishes 'All-In-One' course books from the separate level books?",
+    "choices": {
+      "A": "The All-In-One books include audio backing tracks on CD",
+      "B": "The All-In-One books integrate lesson, theory, and solo repertoire into a single volume per level",
+      "C": "The All-In-One books are designed exclusively for adult beginners",
+      "D": "The All-In-One books provide only classical repertoire without popular arrangements"
+    },
+    "correct": "B",
+    "source": "Alfred Publishing catalog description",
+    "topic": "pedagogy"
+  },
+  {
+    "id": "dk_096",
+    "question": "What distinguishes 'execution memory' from 'structural memory' in piano memorization?",
+    "choices": {
+      "A": "Execution memory requires looking at the score; structural memory is entirely internalized",
+      "B": "Execution memory is kinesthetic/motor automation of performance; structural memory is conscious knowledge of form, harmony, and phrase structure",
+      "C": "They are synonymous terms used by different authors for the same concept",
+      "D": "Execution memory is developed first; structural memory replaces it at advanced levels"
+    },
+    "correct": "B",
+    "source": "Aiello and Williamon, Music and Memory chapter in MENC Handbook",
+    "topic": "psychology"
+  },
+  {
+    "id": "dk_097",
+    "question": "Research by Gary McPherson and colleagues on practice quality in young musicians found that which factor most predicted musical achievement?",
+    "choices": {
+      "A": "Total hours of practice regardless of quality",
+      "B": "The intentionality and engagement quality of practice, not merely the duration",
+      "C": "Starting instrument lessons before age 5",
+      "D": "Parental musical background and ability"
+    },
+    "correct": "B",
+    "source": "McPherson, The Child as Musician (2006); McPherson and Renwick SMPC papers",
+    "topic": "psychology"
+  },
+  {
+    "id": "dk_098",
+    "question": "What is the 'Hebbian plasticity' principle's implication for piano practice scheduling?",
+    "choices": {
+      "A": "Neural connections formed during practice are permanent and never need reinforcing",
+      "B": "Neurons that fire together wire together — so consistent, focused practice strengthens specific neural pathways, and spaced review prevents decay",
+      "C": "Practice should occur only when the student feels motivated, as forced practice weakens neural connections",
+      "D": "Short high-intensity bursts are always superior to distributed practice"
+    },
+    "correct": "B",
+    "source": "Hebb, The Organization of Behavior (1949); neuroscience of practice literature",
+    "topic": "psychology"
+  },
+  {
+    "id": "dk_099",
+    "question": "What does Noa Kageyama (Bulletproof Musician) recommend as the single most effective strategy for managing performance anxiety?",
+    "choices": {
+      "A": "Beta-blockers taken 30 minutes before every performance",
+      "B": "Systematic exposure to performance conditions through frequent low-stakes performances and simulation practice",
+      "C": "Deep breathing exercises immediately before walking onstage",
+      "D": "Avoiding all performances until technical mastery is achieved"
+    },
+    "correct": "B",
+    "source": "Kageyama, Bulletproof Musician blog and resources",
+    "topic": "psychology"
+  },
+  {
+    "id": "dk_100",
+    "question": "In Baroque keyboard practice, what is the convention for realizing a 'Trillo' (trill) as described in C.P.E. Bach's 'Essay on the True Art of Playing Keyboard Instruments'?",
+    "choices": {
+      "A": "Begin on the main note and end with a turn",
+      "B": "Begin on the upper auxiliary, alternate rapidly, and often end with a turn or closing notes",
+      "C": "Always begin on the lower auxiliary for melodic smoothness",
+      "D": "Omit the trill in slow movements and replace it with a simple appoggiatura"
+    },
+    "correct": "B",
+    "source": "C.P.E. Bach, Essay on the True Art of Playing Keyboard Instruments (1753)",
+    "topic": "repertoire"
+  }
+]
