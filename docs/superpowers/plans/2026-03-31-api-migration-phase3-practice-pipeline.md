@@ -2,15 +2,21 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Port the complete real-time practice pipeline from Rust to TypeScript — the Durable Object session brain, WebSocket communication, parallel inference dispatch, score following, piece identification, teaching moment selection, practice mode state machine, and session synthesis.
+**Goal:** Build the real-time practice pipeline on the new Hono stack — the Durable Object session brain, WebSocket communication, parallel inference dispatch, and session synthesis. Compute-heavy algorithms (DTW score following, piece identification, STOP classifier, bar analysis) are extracted from the existing Rust codebase as standalone WASM modules.
 
-**Architecture:** A single `SessionBrain` Durable Object manages each practice session's lifecycle. It receives chunk-ready notifications via WebSocket, dispatches parallel MuQ + AMT inference, runs DTW score following, accumulates teaching moments, and triggers synthesis via alarm. Pure algorithm services (STOP classifier, mode detector, score follower, piece ID) are stateless TypeScript modules. The DO orchestrates them via its per-chunk pipeline.
+**Architecture:** A single `SessionBrain` Durable Object manages each practice session's lifecycle. It receives chunk-ready notifications via WebSocket, dispatches parallel MuQ + AMT inference, calls into WASM modules for score following and piece identification, accumulates teaching moments, and triggers synthesis via alarm. The TypeScript layer handles orchestration, I/O, state management, and LLM calls. The Rust WASM layer handles all numerical computation.
 
-**Tech Stack:** Hono, CF Durable Objects (Hibernation API), CF Workflows (synthesis), Drizzle ORM, Zod, R2 buckets, AI Gateway
+**Tech Stack:** Hono, CF Durable Objects (Hibernation API), Drizzle ORM, Zod, R2 buckets, AI Gateway, Rust WASM (`wasm-pack --target bundler`, `serde-wasm-bindgen`)
 
-**Style Guide:** ALL code must follow `apps/api/TS_STYLE.md`. Critical DO rules: `this.ctx.acceptWebSocket()` (not `server.accept()`), alarms (not setTimeout), clone-before-await + compare-and-swap for state versioning, Zod validation on every storage read.
+**Style Guide:** ALL TypeScript code must follow `apps/api/TS_STYLE.md`. Critical DO rules: `this.ctx.acceptWebSocket()` (not `server.accept()`), alarms (not setTimeout), clone-before-await + compare-and-swap for state versioning, Zod validation on every storage read.
 
-**Decision: TS-first for algorithms.** The spec mentions WASM extraction for DTW and N-gram. Given pre-beta data sizes (max 600 notes, 242 pieces), we'll implement all algorithms in TypeScript first. WASM extraction can be a follow-up optimization if profiling shows a need. This avoids wasm-pack build tooling, serde-wasm-bindgen complexity, and bundle size overhead during rapid iteration.
+**Decision: WASM for compute, TS for orchestration.** The existing Rust algorithms are proven, tested, and performant. Rewriting them in TypeScript would introduce bugs for zero gain. We extract them as standalone WASM crates compiled via `wasm-pack --target bundler` to `wasm32-unknown-unknown`. Data crosses the boundary via `serde-wasm-bindgen` (Rust structs <-> JS objects). The DO and all I/O/LLM orchestration stays in TypeScript. WASM modules count toward the 10MB Worker bundle limit but these algorithms are small (~100-200KB compiled).
+
+**WASM crate structure:** Two crates under `apps/api/src/wasm/`:
+- `score-analysis/` — STOP classifier, bar analysis, score follower (DTW), teaching moment selection
+- `piece-identify/` — N-gram recall, rerank features, DTW confirmation
+
+Each crate exposes a clean JS API via `#[wasm_bindgen]` with `serde-wasm-bindgen` for complex types.
 
 ---
 
@@ -18,18 +24,35 @@
 
 ```
 apps/api/src/
+  wasm/
+    score-analysis/            -- RUST CRATE: STOP, DTW, bar analysis, teaching moments
+      Cargo.toml
+      src/
+        lib.rs                 -- wasm_bindgen entry points
+        stop.rs                -- extracted from api-rust/src/services/stop.rs
+        score_follower.rs      -- extracted from api-rust/src/practice/analysis/score_follower.rs
+        bar_analysis.rs        -- extracted from api-rust/src/practice/analysis/bar_analysis.rs
+        teaching_moments.rs    -- extracted from api-rust/src/services/teaching_moments.rs
+        dims.rs                -- extracted from api-rust/src/practice/dims.rs
+        types.rs               -- shared types (ScoredChunk, StudentBaselines, etc.)
+      pkg/                     -- wasm-pack output (git-tracked)
+    piece-identify/            -- RUST CRATE: N-gram recall, rerank, DTW confirm
+      Cargo.toml
+      src/
+        lib.rs                 -- wasm_bindgen entry points
+        ngram.rs               -- extracted from api-rust/src/practice/analysis/piece_identify.rs
+        rerank.rs              -- feature computation + cosine similarity
+        dtw_confirm.rs         -- DTW confirmation stage
+        types.rs               -- NgramIndex, RerankFeatures, PieceIdentification
+      pkg/                     -- wasm-pack output (git-tracked)
   services/
-    stop-classifier.ts        -- CREATE: logistic regression STOP model
-    teaching-moments.ts        -- CREATE: teaching moment selection algorithm
-    practice-mode.ts           -- CREATE: ModeDetector state machine
-    accumulator.ts             -- CREATE: SessionAccumulator + types
-    score-follower.ts          -- CREATE: subsequence DTW + bar alignment
-    piece-identify.ts          -- CREATE: N-gram recall + rerank + DTW confirm
-    bar-analysis.ts            -- CREATE: Tier 1/2/3 per-dimension analysis
+    practice-mode.ts           -- CREATE: ModeDetector state machine (TS — pure state logic, no math)
+    accumulator.ts             -- CREATE: SessionAccumulator + types (TS — data structures)
     inference.ts               -- CREATE: MuQ + AMT endpoint callers with retry
     synthesis.ts               -- CREATE: synthesis prompt + LLM call + persistence
     ask.ts                     -- CREATE: two-stage teaching pipeline (subagent + teacher)
     prompts.ts                 -- MODIFY: add subagent, teacher, synthesis prompts
+    wasm-bridge.ts             -- CREATE: TS wrappers that import + call WASM modules
   do/
     session-brain.ts           -- CREATE: Durable Object class
     session-brain.schema.ts    -- CREATE: Zod schemas for DO state
@@ -38,340 +61,178 @@ apps/api/src/
     practice.test.ts           -- CREATE: route tests
   lib/
     types.ts                   -- MODIFY: add DO namespace, AMT binding to Bindings
-    dims.ts                    -- CREATE: dimension constants and mapping
+    dims.ts                    -- CREATE: dimension constants and mapping (mirrors Rust dims)
   index.ts                     -- MODIFY: mount practice routes, export DO
 wrangler.toml                  -- MODIFY: add DO binding
 ```
 
 ---
 
-### Task 1: STOP Classifier + Teaching Moment Selection
+### Task 1: WASM Crate — score-analysis
 
-Two tightly coupled pure algorithms. The STOP classifier is a logistic regression model with hardcoded weights. Teaching moment selection runs STOP on scored chunks, finds max negative deviation, and deduplicates against recent observations.
+Extract STOP classifier, score follower (DTW), bar analysis, and teaching moment selection from the existing Rust codebase into a standalone WASM crate. These algorithms are proven and tested — we extract, not rewrite.
+
+**Source files (copy from `apps/api-rust/src/`):**
+- `services/stop.rs` → `wasm/score-analysis/src/stop.rs`
+- `practice/analysis/score_follower.rs` → `wasm/score-analysis/src/score_follower.rs`
+- `practice/analysis/bar_analysis.rs` → `wasm/score-analysis/src/bar_analysis.rs`
+- `services/teaching_moments.rs` → `wasm/score-analysis/src/teaching_moments.rs`
+- `practice/dims.rs` → `wasm/score-analysis/src/dims.rs`
 
 **Files:**
-- Create: `apps/api/src/lib/dims.ts`
-- Create: `apps/api/src/services/stop-classifier.ts`
-- Create: `apps/api/src/services/teaching-moments.ts`
+- Create: `apps/api/src/wasm/score-analysis/Cargo.toml`
+- Create: `apps/api/src/wasm/score-analysis/src/lib.rs` (wasm_bindgen entry points)
+- Create: `apps/api/src/wasm/score-analysis/src/*.rs` (extracted algorithm files)
+- Create: `apps/api/src/lib/dims.ts` (TS mirror of dimension constants)
 
-- [ ] **Step 1: Create dimension constants**
+- [ ] **Step 1: Create Cargo.toml for the WASM crate**
+
+```toml
+# apps/api/src/wasm/score-analysis/Cargo.toml
+[package]
+name = "score-analysis"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+wasm-bindgen = "0.2"
+serde = { version = "1", features = ["derive"] }
+serde-wasm-bindgen = "0.6"
+serde_json = "1"
+
+[profile.release]
+opt-level = "s"     # optimize for size (10MB Worker bundle limit)
+lto = true
+```
+
+- [ ] **Step 2: Extract Rust source files**
+
+Copy the algorithm files from `apps/api-rust/src/` into the new crate. Strip all D1/CF Worker dependencies — these modules must be pure computation with no I/O. Remove any `worker::*` imports, `Env` parameters, or database calls. The functions should take typed inputs and return typed outputs.
+
+Key adaptations:
+- Remove `use worker::*` and any CF-specific imports
+- Replace `JsValue` returns with `serde-wasm-bindgen` serialization
+- Remove any `console_log!` / `console_error!` (use return values for errors)
+- Keep all constants, algorithms, and type definitions intact
+
+- [ ] **Step 3: Create wasm_bindgen entry points in lib.rs**
+
+```rust
+// apps/api/src/wasm/score-analysis/src/lib.rs
+use wasm_bindgen::prelude::*;
+use serde_wasm_bindgen::{from_value, to_value};
+
+mod stop;
+mod score_follower;
+mod bar_analysis;
+mod teaching_moments;
+mod dims;
+mod types;
+
+#[wasm_bindgen]
+pub fn classify_stop(scores: Vec<f64>, threshold: f64) -> JsValue {
+    let result = stop::classify(&scores, threshold);
+    to_value(&result).unwrap()
+}
+
+#[wasm_bindgen]
+pub fn select_teaching_moment(
+    chunks_js: JsValue,
+    baselines_js: JsValue,
+    recent_observations_js: JsValue,
+) -> JsValue {
+    let chunks = from_value(chunks_js).unwrap();
+    let baselines = from_value(baselines_js).unwrap();
+    let recent = from_value(recent_observations_js).unwrap();
+    let result = teaching_moments::select_teaching_moment(&chunks, &baselines, &recent);
+    to_value(&result).unwrap()
+}
+
+#[wasm_bindgen]
+pub fn align_chunk(
+    perf_notes_js: JsValue,
+    score_notes_js: JsValue,
+    follower_state_js: JsValue,
+) -> JsValue {
+    let perf_notes = from_value(perf_notes_js).unwrap();
+    let score_notes = from_value(score_notes_js).unwrap();
+    let state = from_value(follower_state_js).unwrap();
+    let result = score_follower::align_chunk(&perf_notes, &score_notes, &state);
+    to_value(&result).unwrap()
+}
+
+#[wasm_bindgen]
+pub fn analyze_chunk(
+    bar_map_js: JsValue,
+    score_context_js: JsValue,
+    perf_notes_js: JsValue,
+    pedal_events_js: JsValue,
+    scores: Vec<f64>,
+) -> JsValue {
+    // Dispatches to tier1 or tier2 based on available data
+    let bar_map = from_value(bar_map_js).ok();
+    let score_ctx = from_value(score_context_js).ok();
+    let perf_notes = from_value(perf_notes_js).unwrap();
+    let pedal = from_value(pedal_events_js).unwrap();
+    let result = bar_analysis::analyze(&bar_map, &score_ctx, &perf_notes, &pedal, &scores);
+    to_value(&result).unwrap()
+}
+```
+
+- [ ] **Step 4: Build WASM with wasm-pack**
+
+```bash
+cd apps/api/src/wasm/score-analysis && wasm-pack build --target bundler --out-dir pkg
+```
+
+Verify `pkg/` contains: `score_analysis_bg.wasm`, `score_analysis.js`, `score_analysis.d.ts`
+
+- [ ] **Step 5: Create TS dimension constants (mirrors Rust dims)**
 
 ```typescript
 // apps/api/src/lib/dims.ts
 export const DIMS_6 = [
-  "dynamics",
-  "timing",
-  "pedaling",
-  "articulation",
-  "phrasing",
-  "interpretation",
+  "dynamics", "timing", "pedaling",
+  "articulation", "phrasing", "interpretation",
 ] as const;
 
 export type Dimension = (typeof DIMS_6)[number];
 
 export const DIM_INDEX: Record<Dimension, number> = {
-  dynamics: 0,
-  timing: 1,
-  pedaling: 2,
-  articulation: 3,
-  phrasing: 4,
-  interpretation: 5,
+  dynamics: 0, timing: 1, pedaling: 2,
+  articulation: 3, phrasing: 4, interpretation: 5,
 };
 ```
 
-- [ ] **Step 2: Write STOP classifier tests**
+- [ ] **Step 6: Write WASM integration tests**
 
 ```typescript
-// apps/api/src/services/stop-classifier.test.ts
+// apps/api/src/services/score-analysis.test.ts
 import { describe, it, expect } from "vitest";
-import { classify, stopProbability } from "./stop-classifier";
+import { classify_stop } from "../wasm/score-analysis/pkg/score_analysis";
 
-describe("STOP classifier", () => {
-  it("returns probability between 0 and 1", () => {
-    const prob = stopProbability([0.5, 0.5, 0.5, 0.5, 0.5, 0.5]);
-    expect(prob).toBeGreaterThanOrEqual(0);
-    expect(prob).toBeLessThanOrEqual(1);
+describe("WASM score-analysis", () => {
+  it("STOP classifier returns probability between 0 and 1", () => {
+    const result = classify_stop([0.5, 0.5, 0.5, 0.5, 0.5, 0.5], 0.5);
+    expect(result.probability).toBeGreaterThanOrEqual(0);
+    expect(result.probability).toBeLessThanOrEqual(1);
   });
 
-  it("triggers on low dynamics + pedaling (negative weights)", () => {
-    // Very low dynamics and pedaling, high timing — should trigger STOP
-    const result = classify([0.3, 0.55, 0.2, 0.54, 0.52, 0.35]);
-    expect(result.probability).toBeGreaterThan(0.5);
+  it("STOP triggers on low dynamics + pedaling", () => {
+    const result = classify_stop([0.3, 0.55, 0.2, 0.54, 0.52, 0.35], 0.5);
     expect(result.triggered).toBe(true);
   });
-
-  it("does not trigger on average scores", () => {
-    // Scores near scaler mean should be close to sigmoid(bias)
-    const result = classify([0.545, 0.485, 0.459, 0.537, 0.519, 0.506]);
-    expect(result.probability).toBeCloseTo(0.5286, 2); // sigmoid(0.1147)
-  });
-
-  it("identifies top contributing dimension", () => {
-    const result = classify([0.3, 0.5, 0.2, 0.54, 0.52, 0.5]);
-    expect(result.topDimension).toBeDefined();
-    expect(typeof result.topDeviation).toBe("number");
-  });
 });
 ```
 
-- [ ] **Step 3: Run test to verify it fails**
-
-Run: `cd apps/api && bun run test -- --run src/services/stop-classifier.test.ts`
-
-- [ ] **Step 4: Implement STOP classifier**
-
-```typescript
-// apps/api/src/services/stop-classifier.ts
-import type { Dimension } from "../lib/dims";
-import { DIMS_6 } from "../lib/dims";
-
-// Trained on 1,699 labeled masterclass segments, balanced logistic regression, LOVO CV AUC = 0.649
-// Dimension order: [dynamics, timing, pedaling, articulation, phrasing, interpretation]
-export const SCALER_MEAN = [0.545, 0.4848, 0.4594, 0.5369, 0.5188, 0.5064];
-const SCALER_STD = [0.0689, 0.0388, 0.0791, 0.0154, 0.0186, 0.0555];
-const WEIGHTS = [-0.5266, 0.3681, -0.5483, 0.4884, 0.2427, -0.1541];
-const BIAS = 0.1147;
-const DEFAULT_THRESHOLD = 0.5;
-
-export interface StopResult {
-  probability: number;
-  triggered: boolean;
-  topDimension: Dimension;
-  topDeviation: number;
-}
-
-export function stopProbability(scores: number[]): number {
-  let logit = BIAS;
-  for (let i = 0; i < 6; i++) {
-    const scaled = (scores[i] - SCALER_MEAN[i]) / SCALER_STD[i];
-    logit += scaled * WEIGHTS[i];
-  }
-  return 1 / (1 + Math.exp(-logit));
-}
-
-export function classify(scores: number[], threshold = DEFAULT_THRESHOLD): StopResult {
-  const probability = stopProbability(scores);
-
-  // Find top contributing dimension by |scaled * weight|
-  let maxContribution = 0;
-  let topIdx = 0;
-  for (let i = 0; i < 6; i++) {
-    const scaled = (scores[i] - SCALER_MEAN[i]) / SCALER_STD[i];
-    const contribution = Math.abs(scaled * WEIGHTS[i]);
-    if (contribution > maxContribution) {
-      maxContribution = contribution;
-      topIdx = i;
-    }
-  }
-
-  return {
-    probability,
-    triggered: probability >= threshold,
-    topDimension: DIMS_6[topIdx],
-    topDeviation: (scores[topIdx] - SCALER_MEAN[topIdx]) / SCALER_STD[topIdx],
-  };
-}
-```
-
-- [ ] **Step 5: Run tests, verify pass**
-
-- [ ] **Step 6: Write teaching moment selection tests**
-
-```typescript
-// apps/api/src/services/teaching-moments.test.ts
-import { describe, it, expect } from "vitest";
-import { selectTeachingMoment } from "./teaching-moments";
-import type { ScoredChunk, StudentBaselines } from "./teaching-moments";
-
-const baselines: StudentBaselines = {
-  dynamics: 0.55, timing: 0.48, pedaling: 0.46,
-  articulation: 0.54, phrasing: 0.52, interpretation: 0.51,
-};
-
-describe("selectTeachingMoment", () => {
-  it("returns null with fewer than 2 chunks", () => {
-    const result = selectTeachingMoment(
-      [{ chunkIndex: 0, scores: [0.5, 0.5, 0.5, 0.5, 0.5, 0.5] }],
-      baselines,
-      [],
-    );
-    expect(result).toBeNull();
-  });
-
-  it("selects moment with negative deviation when STOP triggers", () => {
-    const chunks: ScoredChunk[] = [
-      { chunkIndex: 0, scores: [0.3, 0.55, 0.2, 0.54, 0.52, 0.35] },
-      { chunkIndex: 1, scores: [0.3, 0.55, 0.2, 0.54, 0.52, 0.35] },
-    ];
-    const result = selectTeachingMoment(chunks, baselines, []);
-    expect(result).not.toBeNull();
-    expect(result!.dimension).toBeDefined();
-  });
-
-  it("deduplicates against recent observations", () => {
-    const chunks: ScoredChunk[] = [
-      { chunkIndex: 0, scores: [0.3, 0.55, 0.2, 0.54, 0.52, 0.35] },
-      { chunkIndex: 1, scores: [0.3, 0.55, 0.2, 0.54, 0.52, 0.35] },
-    ];
-    // If the top dimension was already observed, it should try to find another
-    const result = selectTeachingMoment(chunks, baselines, [
-      { dimension: "pedaling" },
-      { dimension: "dynamics" },
-      { dimension: "interpretation" },
-    ]);
-    expect(result).not.toBeNull();
-  });
-});
-```
-
-- [ ] **Step 7: Implement teaching moment selection**
-
-```typescript
-// apps/api/src/services/teaching-moments.ts
-import { DIMS_6, type Dimension } from "../lib/dims";
-import { classify } from "./stop-classifier";
-import { SCALER_MEAN } from "./stop-classifier";
-
-export interface ScoredChunk {
-  chunkIndex: number;
-  scores: number[]; // [dynamics, timing, pedaling, articulation, phrasing, interpretation]
-}
-
-export type StudentBaselines = Record<Dimension, number>;
-
-export interface RecentObservation {
-  dimension: string;
-}
-
-export interface TeachingMoment {
-  chunkIndex: number;
-  dimension: Dimension;
-  score: number;
-  baseline: number;
-  deviation: number;
-  isPositive: boolean;
-  reasoning: string;
-}
-
-const MIN_CHUNKS = 2;
-const DEDUP_WINDOW = 3;
-
-function maxNegativeDeviation(
-  scores: number[],
-  baselines: StudentBaselines,
-): { dimIdx: number; deviation: number } {
-  let minDev = Infinity;
-  let minIdx = 0;
-  for (let i = 0; i < 6; i++) {
-    const dev = scores[i] - baselines[DIMS_6[i]];
-    if (dev < minDev) {
-      minDev = dev;
-      minIdx = i;
-    }
-  }
-  return { dimIdx: minIdx, deviation: minDev };
-}
-
-function selectPositiveMoment(
-  chunks: ScoredChunk[],
-  baselines: StudentBaselines,
-): TeachingMoment | null {
-  let maxDev = -Infinity;
-  let bestChunk: ScoredChunk | null = null;
-  let bestDimIdx = 0;
-
-  for (const chunk of chunks) {
-    for (let i = 0; i < 6; i++) {
-      const dev = chunk.scores[i] - baselines[DIMS_6[i]];
-      if (dev > maxDev) {
-        maxDev = dev;
-        bestChunk = chunk;
-        bestDimIdx = i;
-      }
-    }
-  }
-
-  if (!bestChunk) return null;
-
-  const dim = DIMS_6[bestDimIdx];
-  return {
-    chunkIndex: bestChunk.chunkIndex,
-    dimension: dim,
-    score: bestChunk.scores[bestDimIdx],
-    baseline: baselines[dim],
-    deviation: maxDev,
-    isPositive: true,
-    reasoning: `Positive recognition: ${dim} above baseline`,
-  };
-}
-
-export function selectTeachingMoment(
-  chunks: ScoredChunk[],
-  baselines: StudentBaselines,
-  recentObservations: RecentObservation[],
-): TeachingMoment | null {
-  if (chunks.length < MIN_CHUNKS) return null;
-
-  // Find STOP-triggered candidates with max negative deviation
-  const candidates: TeachingMoment[] = [];
-
-  for (const chunk of chunks) {
-    const stopResult = classify(chunk.scores);
-    if (!stopResult.triggered) continue;
-
-    const { dimIdx, deviation } = maxNegativeDeviation(chunk.scores, baselines);
-    const dim = DIMS_6[dimIdx];
-
-    candidates.push({
-      chunkIndex: chunk.chunkIndex,
-      dimension: dim,
-      score: chunk.scores[dimIdx],
-      baseline: baselines[dim],
-      deviation,
-      isPositive: false,
-      reasoning: `STOP triggered (p=${stopResult.probability.toFixed(3)}), ${dim} deviation: ${deviation.toFixed(3)}`,
-    });
-  }
-
-  if (candidates.length === 0) {
-    return selectPositiveMoment(chunks, baselines);
-  }
-
-  // Sort by deviation ascending (most negative first)
-  candidates.sort((a, b) => a.deviation - b.deviation);
-
-  // Dedup against recent observations
-  const recentDims = new Set(
-    recentObservations.slice(0, DEDUP_WINDOW).map((o) => o.dimension),
-  );
-
-  for (const candidate of candidates) {
-    if (!recentDims.has(candidate.dimension)) {
-      return candidate;
-    }
-  }
-
-  // All deduped — return top candidate anyway
-  return candidates[0];
-}
-
-/** Default baselines from STOP model scaler means */
-export function defaultBaselines(): StudentBaselines {
-  const b: Record<string, number> = {};
-  for (let i = 0; i < 6; i++) {
-    b[DIMS_6[i]] = SCALER_MEAN[i];
-  }
-  return b as StudentBaselines;
-}
-```
-
-- [ ] **Step 8: Run tests, verify pass**
-
-- [ ] **Step 9: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
-git add apps/api/src/lib/dims.ts apps/api/src/services/stop-classifier.ts apps/api/src/services/stop-classifier.test.ts apps/api/src/services/teaching-moments.ts apps/api/src/services/teaching-moments.test.ts
-git commit -m "feat(api): add STOP classifier and teaching moment selection"
+git add apps/api/src/wasm/score-analysis/ apps/api/src/lib/dims.ts apps/api/src/services/score-analysis.test.ts
+git commit -m "feat(api): extract score-analysis WASM crate (STOP, DTW, bar analysis)"
 ```
 
 ---
@@ -878,111 +739,157 @@ git commit -m "feat(api): add MuQ + AMT inference client with retry"
 
 ---
 
-### Task 5: Score Follower (DTW Alignment)
+### Task 5: WASM Crate — piece-identify
 
-Subsequence DTW for aligning performance notes to score. Produces a BarMap with per-note alignments and onset deviations.
+Extract piece identification algorithms (N-gram recall, rerank features, DTW confirmation) from the existing Rust codebase into a standalone WASM crate.
+
+**Source files (copy from `apps/api-rust/src/practice/analysis/`):**
+- `piece_identify.rs` → `wasm/piece-identify/src/ngram.rs` + `rerank.rs`
+- `session_piece_id.rs` → `wasm/piece-identify/src/dtw_confirm.rs`
+- `piece_match.rs` → `wasm/piece-identify/src/text_match.rs`
 
 **Files:**
-- Create: `apps/api/src/services/score-follower.ts`
-- Create: `apps/api/src/services/score-follower.test.ts`
+- Create: `apps/api/src/wasm/piece-identify/Cargo.toml`
+- Create: `apps/api/src/wasm/piece-identify/src/lib.rs` (wasm_bindgen entry points)
+- Create: `apps/api/src/wasm/piece-identify/src/*.rs` (extracted algorithm files)
 
-- [ ] **Step 1: Write tests**
+- [ ] **Step 1: Create Cargo.toml**
 
-Test the DTW alignment on a simple synthetic case: 3 matching notes should align with high confidence.
+Same structure as score-analysis crate. Also depends on the score-analysis crate for DTW functions used in DTW confirmation stage.
 
-- [ ] **Step 2: Implement score follower**
+```toml
+[package]
+name = "piece-identify"
+version = "0.1.0"
+edition = "2021"
 
-Port from `practice/analysis/score_follower.rs`. Key elements:
-- `subsequenceDtw(perfSeq, scoreSeq)` — free start, backtrace, pitch penalty (same=0, semitone=0.125, octave=0.25, other=0.5)
-- `alignChunk(perfNotes, scoreNotes, followerState, scoreContext)` — restrict search to `[lastBar-5, lastBar+30]`, reanchor if cost > 0.3
-- `buildBarMap(path, perfNotes, scoreNotes)` — median offset correction, per-note NoteAlignment with `onsetDeviationMs`
-- `NoteAlignment`, `BarMap`, `FollowerState` types
-- Constants: `MIN_PERF_NOTES = 3`, `REANCHOR_COST_THRESHOLD = 0.3`, `PITCH_MISMATCH_PENALTY = 0.5`
+[lib]
+crate-type = ["cdylib", "rlib"]
 
-- [ ] **Step 3: Run tests, verify pass**
+[dependencies]
+wasm-bindgen = "0.2"
+serde = { version = "1", features = ["derive"] }
+serde-wasm-bindgen = "0.6"
+serde_json = "1"
 
-- [ ] **Step 4: Commit**
+[profile.release]
+opt-level = "s"
+lto = true
+```
+
+- [ ] **Step 2: Extract and adapt Rust source files**
+
+Strip all D1/CF/R2 dependencies. The N-gram index and rerank features are passed in as arguments (loaded by the TS layer from R2). Key adaptations:
+- `ngram_recall(notes, index)` — takes pre-loaded NgramIndex, returns top-10 candidates
+- `compute_rerank_features(notes)` — returns 128-dim feature vector
+- `rerank_candidates(notes, candidates, features)` — cosine similarity, top 2
+- `dtw_confirm(perf_notes, score_notes, threshold)` — runs DTW, returns confidence + cost
+- `match_piece_text(query, catalog)` — Dice similarity text matching
+
+- [ ] **Step 3: Create wasm_bindgen entry points**
+
+```rust
+#[wasm_bindgen]
+pub fn ngram_recall(notes_js: JsValue, index_js: JsValue) -> JsValue { ... }
+
+#[wasm_bindgen]
+pub fn compute_rerank_features(notes_js: JsValue) -> Vec<f64> { ... }
+
+#[wasm_bindgen]
+pub fn rerank_candidates(notes_js: JsValue, candidates_js: JsValue, features_js: JsValue) -> JsValue { ... }
+
+#[wasm_bindgen]
+pub fn dtw_confirm(perf_notes_js: JsValue, score_notes_js: JsValue, threshold: f64) -> JsValue { ... }
+```
+
+- [ ] **Step 4: Build WASM**
 
 ```bash
-git add apps/api/src/services/score-follower.ts apps/api/src/services/score-follower.test.ts
-git commit -m "feat(api): add DTW score follower with bar alignment"
+cd apps/api/src/wasm/piece-identify && wasm-pack build --target bundler --out-dir pkg
+```
+
+- [ ] **Step 5: Write WASM integration tests**
+
+Test N-gram recall with a synthetic index, rerank feature vector dimensions, and DTW confirmation threshold.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add apps/api/src/wasm/piece-identify/
+git commit -m "feat(api): extract piece-identify WASM crate (N-gram, rerank, DTW confirm)"
 ```
 
 ---
 
-### Task 6: Piece Identification (N-gram + Rerank + DTW)
+### Task 6: WASM Bridge — TypeScript Wrappers
 
-Three-stage piece identification: N-gram recall, statistical rerank, DTW confirmation.
+TypeScript module that imports both WASM packages and provides typed async wrappers for the DO to call. Handles WASM module initialization and provides clean interfaces that hide the `JsValue` serialization boundary.
 
 **Files:**
-- Create: `apps/api/src/services/piece-identify.ts`
-- Create: `apps/api/src/services/piece-identify.test.ts`
+- Create: `apps/api/src/services/wasm-bridge.ts`
 
-- [ ] **Step 1: Write tests**
+- [ ] **Step 1: Create the WASM bridge**
 
-Test N-gram recall with a synthetic index, rerank feature computation, and cosine similarity.
+```typescript
+// apps/api/src/services/wasm-bridge.ts
+import * as scoreAnalysis from "../wasm/score-analysis/pkg/score_analysis";
+import * as pieceIdentify from "../wasm/piece-identify/pkg/piece_identify";
+import type { Dimension } from "../lib/dims";
 
-- [ ] **Step 2: Implement piece identification**
+// Re-export clean typed interfaces for the DO to call
 
-Port from `practice/analysis/piece_identify.rs` and `session_piece_id.rs`. Key elements:
-- `NgramIndex`: `Map<string, Array<{ pieceId: string; bar: number }>>` — loaded from R2
-- `RerankFeatures`: `Map<string, number[]>` — 128-dim per piece, loaded from R2
-- `ngramRecall(notes, index)` — extract pitch trigrams, count hits per piece, top 10
-- `computeRerankFeatures(notes)` — 128-dim vector (pitch class, interval, IOI, velocity histograms + stats)
-- `rerankCandidates(notes, candidates, features)` — cosine similarity, top 2
-- `tryIdentifyPiece(notes, index, features, scoreLoader, followerState)` — window sizes [60, 120, 200], DTW confirmation threshold 0.3
-- Constants: `MIN_NOTES = 10`, `ID_WINDOW_SIZES = [60, 120, 200]`, `ID_MAX_TOTAL_NOTES = 600`, `ID_MIN_NEW_NOTES = 30`, `DTW_CONFIRM_THRESHOLD = 0.3`
+export interface StopResult {
+  probability: number;
+  triggered: boolean;
+  topDimension: Dimension;
+  topDeviation: number;
+}
 
-- [ ] **Step 3: Run tests, verify pass**
+export function classifyStop(scores: number[], threshold = 0.5): StopResult {
+  return scoreAnalysis.classify_stop(scores, threshold);
+}
 
-- [ ] **Step 4: Commit**
+export function selectTeachingMoment(chunks, baselines, recentObs) {
+  return scoreAnalysis.select_teaching_moment(chunks, baselines, recentObs);
+}
+
+export function alignChunk(perfNotes, scoreNotes, followerState) {
+  return scoreAnalysis.align_chunk(perfNotes, scoreNotes, followerState);
+}
+
+export function analyzeChunk(barMap, scoreContext, perfNotes, pedalEvents, scores) {
+  return scoreAnalysis.analyze_chunk(barMap, scoreContext, perfNotes, pedalEvents, scores);
+}
+
+export function ngramRecall(notes, index) {
+  return pieceIdentify.ngram_recall(notes, index);
+}
+
+export function computeRerankFeatures(notes): number[] {
+  return pieceIdentify.compute_rerank_features(notes);
+}
+
+export function rerankCandidates(notes, candidates, features) {
+  return pieceIdentify.rerank_candidates(notes, candidates, features);
+}
+
+export function dtwConfirm(perfNotes, scoreNotes, threshold = 0.3) {
+  return pieceIdentify.dtw_confirm(perfNotes, scoreNotes, threshold);
+}
+```
+
+Full type signatures will match the Rust `serde` output types. The bridge is the ONLY file that imports from `../wasm/*/pkg/` — all other TS code imports from the bridge.
+
+- [ ] **Step 2: Commit**
 
 ```bash
-git add apps/api/src/services/piece-identify.ts apps/api/src/services/piece-identify.test.ts
-git commit -m "feat(api): add N-gram + rerank + DTW piece identification"
+git add apps/api/src/services/wasm-bridge.ts
+git commit -m "feat(api): add WASM bridge with typed wrappers for score analysis + piece ID"
 ```
 
 ---
 
-### Task 7: Bar Analysis (Tier 1/2/3)
-
-Per-dimension analysis of a chunk's MuQ scores + AMT MIDI data against score context.
-
-**Files:**
-- Create: `apps/api/src/services/bar-analysis.ts`
-- Create: `apps/api/src/services/bar-analysis.test.ts`
-
-- [ ] **Step 1: Write tests**
-
-Test Tier 2 analysis (no score context) with synthetic MIDI notes — should produce analysis strings for each dimension.
-
-- [ ] **Step 2: Implement bar analysis**
-
-Port from `practice/analysis/bar_analysis.rs`. Key elements:
-- `ChunkAnalysis`: `{ tier: number, barRange: [number, number] | null, dimensions: DimensionAnalysis[] }`
-- `DimensionAnalysis`: `{ dimension, analysis, scoreMarking?, referenceComparison? }`
-- `analyzeTier1(barMap, scoreContext, scores)` — full bar-aligned with reference comparison:
-  - dynamics: perf velocity vs score velocity, crescendo/diminuendo detection
-  - timing: mean/std onset deviation, rushing/dragging/close classification
-  - pedaling: event count, duration, vs score markings
-  - articulation: note duration ratio → legato/staccato/normal
-  - phrasing: first-third vs last-third onset shift
-  - interpretation: mean absolute onset deviation
-- `analyzeTier2(perfNotes, pedalEvents, scores)` — absolute MIDI stats, no reference
-- Tier selection: no notes → tier 3 (scores only), score+barMap → tier 1, else → tier 2
-
-- [ ] **Step 3: Run tests, verify pass**
-
-- [ ] **Step 4: Commit**
-
-```bash
-git add apps/api/src/services/bar-analysis.ts apps/api/src/services/bar-analysis.test.ts
-git commit -m "feat(api): add Tier 1/2/3 bar-aligned analysis"
-```
-
----
-
-### Task 8: Synthesis Service
+### Task 7: Synthesis Service
 
 Builds the synthesis prompt from accumulated session data and calls Anthropic for a session summary.
 
@@ -1043,7 +950,7 @@ git commit -m "feat(api): add session synthesis service with prompts"
 
 ---
 
-### Task 9: Teaching Pipeline (Ask)
+### Task 8: Teaching Pipeline (Ask)
 
 Two-stage LLM pipeline: Groq subagent analyzes → Anthropic teacher generates observation with optional exercise tool_use.
 
@@ -1076,7 +983,7 @@ git commit -m "feat(api): add two-stage teaching pipeline (subagent + teacher)"
 
 ---
 
-### Task 10: Practice Session Durable Object
+### Task 9: Practice Session Durable Object
 
 The core orchestrator. Handles WebSocket lifecycle, dispatches parallel inference, runs the 10-step per-chunk pipeline, and triggers synthesis via alarm.
 
@@ -1148,7 +1055,7 @@ git commit -m "feat(api): add SessionBrain Durable Object with WebSocket hiberna
 
 ---
 
-### Task 11: Practice HTTP Handlers + Route Mounting
+### Task 10: Practice HTTP Handlers + Route Mounting
 
 HTTP routes for session start, chunk upload, WebSocket upgrade to DO, and deferred synthesis.
 
@@ -1236,13 +1143,15 @@ git commit -m "feat(api): add practice routes with WS upgrade, chunk upload, def
 
 After all tasks complete:
 
-1. **All tests pass:** `cd apps/api && bun run test -- --run` (including STOP, mode detector, score follower, piece ID, bar analysis, practice routes)
-2. **Type check passes:** `cd apps/api && bun run typecheck`
-3. **wrangler dev smoke test:**
+1. **WASM crates build cleanly:** `wasm-pack build --target bundler` succeeds for both crates
+2. **WASM integration tests pass:** STOP classifier, DTW alignment, and piece ID produce correct outputs from TS test harness
+3. **All TS tests pass:** `cd apps/api && bun run test -- --run` (mode detector, accumulator, practice routes)
+4. **Type check passes:** `cd apps/api && bun run typecheck`
+5. **wrangler dev smoke test:**
    - Health + all Phase 2 endpoints still work
    - `POST /api/practice/start` returns sessionId + conversationId
    - `POST /api/practice/chunk` uploads to R2
    - WebSocket upgrade reaches DO
-4. **State machine transitions match Rust behavior:** Unit tests cover all 5 modes and key transitions
-5. **STOP classifier matches Rust output:** Unit tests verify probability calculations against known inputs
-6. **DTW score follower aligns correctly:** Unit tests with synthetic note sequences
+6. **State machine transitions match Rust behavior:** Unit tests cover all 5 modes and key transitions
+7. **WASM regression:** Run known inputs through extracted WASM modules and compare outputs against the original Rust monolith (same constants, same results)
+8. **Bundle size check:** Combined WASM modules < 1MB (leaving headroom in 10MB Worker limit)
