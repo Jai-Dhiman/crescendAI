@@ -3,6 +3,7 @@ import { cors } from "hono/cors";
 import * as Sentry from "@sentry/cloudflare";
 import type { Bindings, Variables } from "./lib/types";
 import { dbMiddleware } from "./middleware/db";
+import { authSessionMiddleware } from "./middleware/auth-session";
 import { structuredLogger } from "./middleware/logger";
 import { sentryMiddleware } from "./middleware/sentry";
 import { errorHandler } from "./middleware/error-handler";
@@ -26,6 +27,7 @@ app.use("*", async (c, next) => {
 app.use("*", structuredLogger);
 app.use("*", sentryMiddleware);
 app.use("/api/*", dbMiddleware);
+app.use("/api/*", authSessionMiddleware);
 
 const routes = app
 	.route("/health", healthRoutes)
