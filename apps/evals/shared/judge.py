@@ -78,10 +78,10 @@ class JudgeResultV2:
 
     @property
     def mean_score(self) -> float:
-        scored = [d for d in self.dimensions if d.score is not None]
-        if not scored:
+        scores = [d.score for d in self.dimensions if d.score is not None]
+        if not scores:
             return 0.0
-        return sum(d.score for d in scored) / len(scored)
+        return sum(scores) / len(scores)
 
     @property
     def scored_dimension_count(self) -> int:
