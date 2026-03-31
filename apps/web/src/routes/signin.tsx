@@ -192,7 +192,7 @@ function SignInPage() {
 				if (error) {
 					throw new Error(error.message);
 				}
-				if (data?.user) {
+				if (data && "user" in data && data.user) {
 					setUser({
 						studentId: data.user.id,
 						email: data.user.email ?? null,
@@ -296,7 +296,7 @@ function SignInPage() {
 			if (error) {
 				throw new Error(error.message);
 			}
-			if (data?.user) {
+			if (data && "user" in data && data.user) {
 				setUser({
 					studentId: data.user.id,
 					email: data.user.email ?? null,

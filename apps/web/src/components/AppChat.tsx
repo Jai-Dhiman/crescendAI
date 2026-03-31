@@ -22,6 +22,7 @@ import { useClickOutside } from "../hooks/useDom";
 import { usePracticeSession } from "../hooks/usePracticeSession";
 import type { ChatStreamEvent } from "../lib/api";
 import { api, checkNeedsSynthesis, triggerDeferredSynthesis } from "../lib/api";
+import { client } from "../lib/api-client";
 import { useAuth } from "../lib/auth";
 import type { RichMessage } from "../lib/types";
 import { useScorePanelStore } from "../stores/score-panel";
@@ -282,30 +283,24 @@ export default function AppChat() {
 	async function extractPieceContext(msgs: RichMessage[]) {
 		if (msgs.length === 0) return;
 		try {
-			const apiBase = import.meta.env.PROD
-				? "https://api.crescend.ai"
-				: "http://localhost:8787";
 			const conversationText = msgs
 				.slice(-10)
 				.map((m) => `${m.role}: ${m.content}`)
 				.join("\n");
 
-			const res = await fetch(`${apiBase}/api/extract-goals`, {
-				method: "POST",
-				credentials: "include",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({
-					message: `Extract the piece name, composer, and section/bars being discussed from this conversation. Return JSON: {"piece": "Composer - Title", "section": "bars X-Y"} or null if no piece is mentioned.\n\n${conversationText}`,
-				}),
-			});
+			const res = await client.api["extract-goals"].$post({
+				json: {
+					message: `Extract the piece name and composer from this conversation. Focus on any piano pieces mentioned.\n\n${conversationText}`,
+				},
+			} as never);
 
 			if (res.ok) {
 				const data = (await res.json()) as {
-					piece?: string;
-					section?: string;
-				} | null;
-				if (data?.piece) {
-					setPieceContext({ piece: data.piece, section: data.section });
+					goals?: { pieces?: string[] };
+				};
+				const piece = data?.goals?.pieces?.[0];
+				if (piece) {
+					setPieceContext({ piece });
 				}
 			}
 		} catch (e) {
