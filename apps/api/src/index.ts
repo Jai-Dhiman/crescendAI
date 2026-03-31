@@ -16,6 +16,7 @@ import { conversationsRoutes } from "./routes/conversations";
 import { syncRoutes } from "./routes/sync";
 import { chatRoutes } from "./routes/chat";
 import { practiceRoutes } from "./routes/practice";
+import { goalsRoutes } from "./routes/goals";
 
 const app = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
@@ -45,7 +46,8 @@ const routes = app
 	.route("/api/conversations", conversationsRoutes)
 	.route("/api/sync", syncRoutes)
 	.route("/api/chat", chatRoutes)
-	.route("/api/practice", practiceRoutes);
+	.route("/api/practice", practiceRoutes)
+	.route("/api/extract-goals", goalsRoutes);
 
 app.notFound((c) => c.json({ error: "Not found" }, 404));
 
