@@ -34,9 +34,9 @@ muq:
 amt:
     cd apps/inference && uv run amt/amt_local_server.py --port 8001
 
-# Start API worker (Cloudflare Workers, port 8787)
+# Start API worker (Rust, Cloudflare Workers, port 8787)
 api:
-    cd apps/api && npx wrangler dev
+    cd apps/api-rust && npx wrangler dev
 
 # Start web dev server (TanStack Start, port 3000)
 web:
@@ -82,21 +82,33 @@ fingerprint:
 test-model:
     cd model && uv run python -m pytest tests/ -v
 
-# Run API cargo check
+# Run API cargo check (Rust)
 check-api:
-    cd apps/api && cargo check
+    cd apps/api-rust && cargo check
 
-# Run API tests
+# Run API tests (Rust)
 test-api:
-    cd apps/api && cargo test
+    cd apps/api-rust && cargo test
+
+# Start Hono API worker (TypeScript, port 8787)
+api-new:
+    cd apps/api && npx wrangler dev --local
+
+# Run Hono API tests
+test-api-new:
+    cd apps/api && bun run test -- --run
+
+# Type-check Hono API
+check-api-new:
+    cd apps/api && bun run typecheck
 
 # Run web type check
 check-web:
     cd apps/web && bun run typecheck
 
-# Deploy API worker to production
+# Deploy API worker to production (Rust)
 deploy-api:
-    cd apps/api && npx wrangler deploy
+    cd apps/api-rust && npx wrangler deploy
 
 # --- AMT Container ---
 
@@ -118,13 +130,13 @@ amt-container-build:
 amt-container-health:
     cd apps/inference/amt && wrangler containers ssh amt-0 -- curl -s http://localhost:8080/health
 
-# Apply D1 migrations (local)
+# Apply D1 migrations (local, Rust API)
 migrate-local:
-    cd apps/api && npx wrangler d1 migrations apply DB --local
+    cd apps/api-rust && npx wrangler d1 migrations apply DB --local
 
-# Apply D1 migrations (production)
+# Apply D1 migrations (production, Rust API)
 migrate-prod:
-    cd apps/api && npx wrangler d1 migrations apply DB --remote
+    cd apps/api-rust && npx wrangler d1 migrations apply DB --remote
 
 # --- E2E Pipeline Eval ---
 

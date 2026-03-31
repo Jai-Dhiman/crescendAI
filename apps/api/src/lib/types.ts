@@ -1,0 +1,33 @@
+import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
+import type * as schema from "../db/schema/index";
+
+export type Db = PostgresJsDatabase<typeof schema>;
+
+export interface Bindings {
+	HYPERDRIVE: Hyperdrive;
+	CHUNKS: R2Bucket;
+	SCORES: R2Bucket;
+	ENVIRONMENT: string;
+	ALLOWED_ORIGIN: string;
+	APPLE_BUNDLE_ID: string;
+	APPLE_WEB_SERVICES_ID: string;
+	GOOGLE_CLIENT_ID: string;
+	BETTER_AUTH_URL: string;
+	AUTH_SECRET: string;
+	APPLE_CLIENT_SECRET: string;
+	GOOGLE_CLIENT_SECRET: string;
+	SENTRY_DSN: string;
+	HF_INFERENCE_ENDPOINT: string;
+	GROQ_API_KEY: string;
+	ANTHROPIC_API_KEY: string;
+}
+
+export interface Variables {
+	db: Db;
+	studentId: string | null;
+}
+
+export interface ServiceContext {
+	db: Db;
+	env: Bindings;
+}

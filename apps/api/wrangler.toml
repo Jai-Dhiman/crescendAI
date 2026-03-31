@@ -1,38 +1,27 @@
-name = "crescendai-api"
-main = "build/worker/shim.mjs"
-compatibility_date = "2025-01-01"
+name = "crescendai-api-v2"
+main = "src/index.ts"
+compatibility_date = "2025-09-15"
+compatibility_flags = ["nodejs_compat"]
 
-[build]
-command = "cargo install -q worker-build && worker-build --release"
+[observability]
+enabled = true
 
-# No [assets] section -- API-only, no static files
-
-[[d1_databases]]
-binding = "DB"
-database_name = "crescendai-db"
-database_id = "659755a8-4e9e-4581-a2bd-d34b6f912c3a"
-
-[[routes]]
-pattern = "api.crescend.ai"
-custom_domain = true
+[observability.logs]
+enabled = true
+invocation_logs = true
+head_sampling_rate = 1
 
 [vars]
+ENVIRONMENT = "development"
+ALLOWED_ORIGIN = "http://localhost:3000"
+APPLE_BUNDLE_ID = "ai.crescend.ios"
 APPLE_WEB_SERVICES_ID = "ai.crescend.web"
-ENVIRONMENT = "production"
 GOOGLE_CLIENT_ID = "726399246264-lkq6jl4khal8gagn65j9t2a8bg52i7ie.apps.googleusercontent.com"
-HF_INFERENCE_ENDPOINT = "https://mxcyiqltad84v9w1.us-east4.gcp.endpoints.huggingface.cloud"
-CF_ACCOUNT_ID = "5df63f40beeab277db407f1ecbd6e1ec"
-SHADOW_BENCHMARK_ENABLED = "true"
-SHADOW_BENCHMARK_PCT = "10"
+BETTER_AUTH_URL = "http://localhost:8787"
 
-[ai]
-binding = "AI"
-remote = true
-
-# Uncomment after deploying crescendai-amt container
-# [[services]]
-# binding = "AMT_SERVICE"
-# service = "crescendai-amt"
+[[hyperdrive]]
+binding = "HYPERDRIVE"
+id = "PLACEHOLDER_HYPERDRIVE_ID"
 
 [[r2_buckets]]
 binding = "CHUNKS"
@@ -42,17 +31,11 @@ bucket_name = "crescendai-bucket"
 binding = "SCORES"
 bucket_name = "crescendai-bucket"
 
-[durable_objects]
-bindings = [{ name = "PRACTICE_SESSION", class_name = "PracticeSession" }]
-
-[[migrations]]
-tag = "v1"
-new_classes = ["PracticeSession"]
-
-[observability]
-enabled = true
-
-[observability.logs]
-enabled = true
-invocation_logs = true
-head_sampling_rate = 1.0
+# Secrets (set via `wrangler secret put`):
+# AUTH_SECRET
+# APPLE_CLIENT_SECRET
+# GOOGLE_CLIENT_SECRET
+# SENTRY_DSN
+# HF_INFERENCE_ENDPOINT
+# GROQ_API_KEY
+# ANTHROPIC_API_KEY
