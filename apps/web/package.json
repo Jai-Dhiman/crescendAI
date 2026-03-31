@@ -31,6 +31,7 @@
 		"@tanstack/react-router-ssr-query": "^1.131.7",
 		"@tanstack/react-start": "^1.132.0",
 		"@tanstack/router-plugin": "^1.132.0",
+		"hono": "^4.12.9",
 		"motion": "^12.38.0",
 		"opensheetmusicdisplay": "^1.9.7",
 		"react": "^19.2.0",
