@@ -1,8 +1,8 @@
 # Teacher Model Finetuning Design
 
 **Date:** 2026-03-30
-**Status:** Design approved, pending implementation plan
-**Timeline:** 6 months (parallel track alongside web beta)
+**Status:** Reviewed (/autoplan). Pending implementation plan.
+**Timeline:** 6 months, gated (data collection immediate, training gated on 4 conditions)
 **Approach:** "The Prodigy" -- CPT + SFT + GRPO + DPO
 
 ## Motivation
@@ -15,6 +15,33 @@ Voice ownership. The teacher personality should live in model weights, not a ren
 4. Cost savings at scale (10x cheaper past 2K DAU)
 
 Claude continues to serve production until the finetuned model clears a hard quality gate on the 7-dimension teaching rubric.
+
+## Strategic Gates (from /autoplan CEO review)
+
+Data collection starts immediately. Training is gated on these 4 conditions:
+
+1. **PMF Signal:** Web beta has 200+ active users with 2+ sessions each and a measurable 30-day retention curve
+2. **Voice A/B Test:** Blind test confirms users can distinguish finetuned voice quality from Claude-with-current-prompt (if they cannot, the voice moat premise is falsified)
+3. **Rubric Validation:** Judge v2 rubric validated against 50-100 human ratings from piano students/teachers with Pearson r >= 0.7 per dimension
+4. **CPT Probe:** Continual pretraining on Qwen3.5-7B with 20M tokens confirms knowledge injection (>= 60% on domain knowledge probe). Cost: ~$15, 2 hours.
+
+Gates 1-2 require beta launch. Gates 3-4 can run during data collection phase. If any gate fails, reassess before committing $700 to the 27B CPT run.
+
+## Must-Fix Before Implementation (from /autoplan Eng review)
+
+These 3 items must be resolved before any training code is written:
+
+1. **Qwen tool format translation:** Write a spec of Qwen's tool calling format in ChatML. Build a serializer that translates `create_exercise` from Anthropic schema to Qwen/OpenAI format. Test round-trip with 50 examples. Wrong format in SFT corrupts the entire downstream pipeline.
+2. **Judge v2 scoring rule fix:** Change "absent dimension = 2" to "absent dimension = N/A (excluded from mean)" in `apps/evals/shared/prompts/synthesis_quality_judge_v2.txt`. Current rule lets GRPO game the average by hyper-optimizing 2-3 dimensions and omitting the rest.
+3. **Relevance classifier specification:** Define architecture (e.g., sentence-transformers cosine similarity), curate 200-400 negative examples from same source domains, hold out 20% for validation, publish precision/recall curve before building the 100M token corpus.
+
+## Competitive Risk
+
+The durable moat is audio-based evaluation (Model v2: MuQ + Aria), not teacher voice. Voice ownership is valuable but not the primary differentiator. Competitors (Tonebase, Simply Piano/JoyTunes) could run a similar CPT pipeline with their own data. The proprietary session data flywheel from real students is a second-order moat that only compounds with scale.
+
+## Legal Prerequisite
+
+Before the data pipeline starts: $300-500 IP attorney consultation on YouTube ToS implications for model training, the specific scraping targets listed in the corpus table, and whether "research" characterization applies to a commercial product. YouTube "Free" is an access mechanism, not a legal status.
 
 ## Base Model
 
@@ -110,7 +137,11 @@ Source -> Extract (Cohere Transcribe / PDF parse / HTTP scrape)
        -> Tag (source type, topic, difficulty level)
 ```
 
-Relevance classifier: Binary classifier trained on the 379 teaching moments as positive examples. Scores each passage 0-1 for pedagogical relevance. Discard below 0.3. This ensures CPT corpus is concentrated on actual piano teaching, not tangential content.
+Relevance classifier: Binary classifier (e.g., sentence-transformers/all-MiniLM-L6-v2 cosine similarity against centroid) trained on 379 positive examples + 200-400 curated negatives from same source domains. Hold out 20% for validation. Publish precision/recall curve with chosen operating point. Threshold ~0.3 (adjust per validation results). Ensures CPT corpus is concentrated on actual piano teaching, not tangential content.
+
+Corpus provenance: Every document tracked in a provenance manifest (`corpus_provenance.jsonl`): `{url, title, channel_or_publisher, download_timestamp, license_claimed, word_count, inclusion_threshold_score}`. Required for legal/compliance audits.
+
+Transcription validation: Before full 3,000-hour pipeline, validate on 10-video sample per source channel: (a) Cohere Transcribe WER on 1-hour masterclass sample (target < 15%), (b) Pyannote diarization accuracy on piano masterclass audio (target < 20% speaker confusion). If thresholds not met, evaluate domain-adapted alternatives.
 
 ## Training Pipeline
 
@@ -121,11 +152,15 @@ Relevance classifier: Binary classifier trained on the 379 teaching moments as p
 - Standard next-token prediction on the 100-200M token corpus
 - Full-parameter training (not LoRA) for maximum knowledge absorption
 - Learning rate: 1e-5 to 2e-5 (10-20x below original pretraining)
-- Data mix: 80% piano pedagogy corpus + 20% general text (SlimPajama subset) to prevent catastrophic forgetting
+- Data mix: 80% piano pedagogy corpus + 20% general text (SlimPajama CommonCrawl + Wikipedia subset, randomly interleaved, not appended). Avoid code domains.
+- Learning rate: Cosine schedule from 2e-5 warmup to 1e-5 final
 - Epochs: 1-2 passes over the full corpus
-- Compute: ~8-16 hours on 4xH100, ~$400-700
+- Checkpointing: Every 10% of training. Run domain knowledge probe at each checkpoint.
+- Compute: ~8-16 hours on 4xH100, ~$400-700. Budget 2-3x for restarts.
 
-**Risk:** Catastrophic forgetting of conversational ability. Mitigated by the 80/20 data mix and conservative learning rate. Validated by running general conversation benchmarks (MT-Bench) before and after CPT.
+**CPT Gate:** Post-CPT perplexity on held-out pedagogy corpus must decrease. Perplexity on 1M-token SlimPajama general slice must not increase by more than 5%. Domain knowledge probe (100 piano pedagogy QA pairs) must score >= 60%. If gate fails: reduce LR to 5e-6 and re-run. If still failing, increase SlimPajama ratio to 30%. If still failing after 2 attempts, re-evaluate base model choice.
+
+**Risk:** Catastrophic forgetting of conversational ability. Mitigated by the 80/20 interleaved data mix and cosine LR schedule.
 
 ### Stage 2: Supervised Fine-Tuning (SFT)
 
@@ -135,7 +170,7 @@ Data (2-5K examples):
 
 | Type | Source | Count |
 |------|--------|-------|
-| Observation responses | Teaching moments -> Claude-generated gold responses grounded in CPT knowledge | ~1,000 |
+| Observation responses | Teaching moments -> Claude Sonnet-generated gold responses + 100-200 human-written anchors from masterclass transcripts | ~1,000 |
 | Chat conversations | Multi-turn dialogues: all 6 dimensions, all skill levels, all repertoire periods | ~1,000 |
 | Tool use (exercises) | Scenarios requiring `create_exercise` tool | ~500 |
 | Elaborations | "Tell me more" follow-ups with musical depth | ~300 |
@@ -143,7 +178,9 @@ Data (2-5K examples):
 
 Format: ChatML / Qwen chat template with system prompt, user context, assistant response. Tool calls in Qwen native format.
 
-Training: QLoRA (rank 32-64) with Unsloth. ~2-4 hours on 1xH100. ~$10-30.
+Training: QLoRA (rank 32-64) with Unsloth. Target all linear projections including MLP (gate_proj, up_proj, down_proj), not just attention. ~2-4 hours on 1xH100. ~$10-30. Tool calls formatted in Qwen native ChatML format (translation layer must be built first, see Must-Fix section).
+
+**SFT Gate:** Tool call reliability must be >= 90% on 100 tool call test scenarios. If < 80%, add 200 more tool examples and re-run SFT only.
 
 The SFT stage bakes in current system prompt rules: 1-3 sentences, no scores, no lists, specific musical references, actionable corrections, no markdown in observations.
 
@@ -157,7 +194,7 @@ How it works:
 3. Judge v2 (7-dimension rubric) scores each response
 4. GRPO updates the model toward higher-scored responses
 
-Reward signal (7 dimensions from `apps/evals/teaching_knowledge/`):
+Reward signal (8 dimensions from `apps/evals/teaching_knowledge/`):
 - Musical Accuracy
 - Pedagogical Appropriateness
 - Specificity & Actionability
@@ -165,6 +202,11 @@ Reward signal (7 dimensions from `apps/evals/teaching_knowledge/`):
 - Style Consistency
 - Observation Pacing
 - Tool Use Appropriateness
+- Tool Invocation Correctness (8th dimension: binary, 0/1 on scenarios where tool call is warranted)
+
+Scoring rule: Absent dimensions scored as N/A (excluded from mean), NOT as 2. This prevents reward hacking via selective omission.
+
+**GRPO Gate:** If any rubric dimension drops > 0.5 points below SFT baseline, revert to SFT checkpoint and adjust GRPO reward weights. Checkpoint tool calling reliability every 100 GRPO steps.
 
 Why GRPO: No critic model needed. Uses group-relative ranking. Proven by DeepSeek R1 for subjective quality optimization. Simpler and cheaper than PPO/RLHF.
 
@@ -178,10 +220,13 @@ Training: 500-1,000 scenarios, 4-8 generations each. ~4-8 hours on 1xH100 with T
 
 Data (500-1K preference pairs):
 - Best vs worst GRPO outputs for each scenario (automated)
+- Pre-GRPO SFT checkpoint outputs as explicit low-quality negatives (larger preference gap for stronger DPO gradient)
 - Hand-curated pairs where human judges warmth/tone (the rubric catches quality, you catch feel)
-- Anti-pattern pairs: generic responses, lecture-y responses, responses with scores/ratings, emoji, markdown in observations
+- Anti-pattern pairs: generic responses, lecture-y responses, responses with scores/ratings, emoji, markdown in observations, tool call schema errors
 
 Training: QLoRA with TRL DPOTrainer. ~2-4 hours on 1xH100. ~$10-30.
+
+**DPO Gate:** If human preference for DPO model < 60% vs SFT+GRPO checkpoint, discard DPO and ship SFT+GRPO only.
 
 ### Compute Budget Summary
 
@@ -237,6 +282,13 @@ The finetuned model replaces Claude **only** when it wins on the 7-dimension tea
 4. No single dimension can regress by more than 0.3 points (on 0-3 scale)
 5. Tool use reliability (exercise creation) must be >= 95%
 
+### Required Eval Infrastructure (build during data collection phase)
+
+1. **Domain Knowledge Probe** (`apps/evals/model/domain_knowledge_probe.py`): 100 factual MCQ questions from the pedagogy literature. Score pre-CPT, post-CPT, post-SFT. CPT model must score >= 60%.
+2. **Tool Calling Regression Tests** (`apps/evals/shared/judge.py` -> `judge_tool_calls()`): 100 scenarios (50 tool-required, 50 tool-not-required). Check: tool call present, name matches, JSON validates against schema.
+3. **Perplexity Proxy** (for CPT gate): Compute perplexity on held-out pedagogy slice (must decrease) and general text slice (must not increase > 5%).
+4. **Latency Benchmark**: P50 TTFT <= 800ms, P95 TTFT <= 2000ms, measured under 10 concurrent requests on Together.ai.
+
 ### Ongoing Evaluation
 
 - A/B test with real students before full cutover
@@ -244,16 +296,30 @@ The finetuned model replaces Claude **only** when it wins on the 7-dimension tea
 - Track tool use failure rate
 - Compare student engagement metrics (session length, return rate) between Claude and finetuned model
 
-## Timeline
+### Data Consent (Tier 4, real session data)
 
-| Month | Data Pipeline | Training | Integration |
-|-------|--------------|----------|-------------|
-| 1 | Build scraping/transcription pipeline. Start YouTube transcription (tonebase, Josh Wright, Nahre Sol). Download public domain books. | -- | -- |
-| 2 | Continue YouTube long tail. Parse PDFs (Piano Pedagogy Forum, PQDT dissertations). Scrape Bulletproof Musician. Build relevance classifier. | -- | -- |
-| 3 | Complete Tier 1-3 collection. Quality filtering + dedup. Assemble final CPT corpus. | Begin CPT on first 100M checkpoint. | -- |
-| 4 | Continue accumulating. Curate SFT dataset (2-5K examples). | CPT complete. Begin SFT. | -- |
-| 5 | Generate GRPO scenarios. Audit judge v2 for bias. Create DPO preference pairs. | SFT complete. GRPO training. DPO polish. | Upload to Together.ai. Integration test with AI Gateway. |
-| 6 | Collect real session data from beta (with consent). | Iterate based on eval results. | Quality gate eval. A/B test. Conditional production switch. |
+Before collecting any real session data for training:
+- Opt-in consent during signup ("your sessions may improve the AI teacher")
+- Automatic PII scrubbing before writing to training corpus
+- Deletion endpoint for consent withdrawal
+- Required for GDPR compliance
+
+### Model Weight Security
+
+- All intermediate checkpoints in private HF repo under crescendai org
+- HF fine-grained tokens: write-only for upload, read-only for inference
+- Together.ai API keys in Cloudflare Workers secrets (same mechanism as ANTHROPIC_API_KEY)
+
+## Timeline (Gated)
+
+| Month | Data Pipeline | Gates & Eval | Training |
+|-------|--------------|-------------|----------|
+| 1 | IP attorney consultation. Build scraping/transcription pipeline. Validate Cohere+Pyannote on 10-video sample. Start YouTube transcription (tonebase, Josh Wright, Nahre Sol). Download public domain books. | Build relevance classifier (with negatives). Build domain knowledge probe. Build tool calling test harness. | Write Qwen tool format spec + translator. Fix judge v2 absent=2 scoring rule. |
+| 2 | Continue YouTube long tail. Parse PDFs (Piano Pedagogy Forum, PQDT dissertations). Scrape Bulletproof Musician. Build provenance manifest. | **Gate 3 (rubric validation):** Run judge v2 on 73 transcripts, validate against human ratings. Get human sign-off on 7-dim rubric. **Gate 4 (CPT probe):** Run 7B CPT on 20M tokens, measure domain knowledge probe. | -- |
+| 3 | Complete Tier 1-3 collection. Quality filtering + dedup. Assemble CPT corpus. | Check **Gate 1 (PMF):** 200+ active beta users? Check **Gate 2 (A/B):** Design blind voice quality test. | If all 4 gates pass: begin 27B CPT. If gates fail: reassess. |
+| 4 | Continue accumulating. Curate SFT dataset (2-5K examples, incl. human anchors). | Run CPT gate (perplexity + domain probe). Per-stage tool calling eval. | CPT complete (if started). Begin SFT. |
+| 5 | Generate GRPO scenarios. Create DPO preference pairs. | GRPO reward monitoring. Per-stage checkpoints. | SFT complete. GRPO training. DPO polish. |
+| 6 | Collect real session data from beta (with consent). | Quality gate eval. Latency benchmark. | Upload to Together.ai. A/B test. Conditional production switch. |
 
 ## Risks & Mitigations
 
@@ -284,3 +350,56 @@ Abandon or defer if:
 - Claude Haiku 4.5 proves good enough at $450/mo for 1K DAU (cost motivation disappears)
 - Anthropic releases a model fine-tuning API that gives you voice ownership without the engineering burden
 - The quality gate is not met after 2 training iterations (signals the 27B model cannot match Claude for this task)
+
+<!-- /autoplan restore point: /Users/jdhiman/.gstack/projects/Jai-Dhiman-crescendAI/main-autoplan-restore-20260331-014113.md -->
+
+## /autoplan Decision Audit Trail
+
+| # | Phase | Decision | Classification | Principle | Rationale |
+|---|-------|----------|---------------|-----------|-----------|
+| 1 | CEO | Restructure with 4 strategic gates | USER DECISION | N/A | User chose gated approach over fixed 6-month timeline |
+| 2 | CEO | Add A/B blind test before training | Mechanical | P1 | Validates core premise at zero cost |
+| 3 | CEO | Add RAG comparison to alternatives | Taste | P3 | RAG vs CPT is a close call; CPT has higher ceiling but RAG is reversible |
+| 4 | CEO | Add rubric validation vs human preference | Mechanical | P1 | Prevents GRPO from optimizing for wrong signal |
+| 5 | CEO | Add 7B CPT probe before 27B run | Mechanical | P3 | $15 experiment saves potential $700 waste |
+| 6 | CEO | Add per-stage tool calling gates | Mechanical | P1 | 85% after CPT, 90% after SFT, 95% final |
+| 7 | CEO | Add IP attorney consultation ($300-500) | Mechanical | P5 | YouTube ToS risk is real, not theoretical |
+| 8 | CEO | Add competitive risk section | Mechanical | P3 | Audio eval is the durable moat, not voice |
+| 9 | Eng | Define relevance classifier architecture | Mechanical | P1 | 379 positives + no negatives = noisy corpus |
+| 10 | Eng | Formalize CPT gate (perplexity proxy) | Mechanical | P5 | MT-Bench requires serving; perplexity is cheaper |
+| 11 | Eng | Add human-written SFT anchors (100-200) | Taste | P1 | Breaks circularity of Claude generating Claude's replacement data |
+| 12 | Eng | Add tool calling as 8th GRPO dimension | Mechanical | P1 | Silent regression path otherwise |
+| 13 | Eng | Specify 80/20 mix interleaving + LR schedule | Mechanical | P5 | Underspecified = non-reproducible |
+| 14 | Eng | Write Qwen tool format translation layer | Mechanical | P5 | Must-fix-first: wrong schema corrupts entire pipeline |
+| 15 | Eng | Fix absent=2 scoring rule in judge v2 | Mechanical | P5 | Must-fix-first: highest-probability reward hack |
+| 16 | Eng | Include explicit low-quality DPO negatives | Mechanical | P3 | GRPO outputs too similar for strong DPO gradient |
+| 17 | Eng | Add rollback decision trees at each stage | Mechanical | P1 | No rollback = no recovery from bad checkpoints |
+| 18 | Eng | Build domain knowledge probe (100 QA pairs) | Mechanical | P1 | Only way to verify CPT worked |
+| 19 | Eng | Add tool calling regression test harness | Mechanical | P1 | 95% threshold needs automated measurement |
+| 20 | Eng | Define latency SLA (P50 <= 800ms, P95 <= 2s) | Mechanical | P5 | Production cutover needs measurable threshold |
+| 21 | Eng | Build corpus provenance manifest | Mechanical | P1 | Legal compliance requires audit trail |
+| 22 | Eng | Specify model weight access control | Mechanical | P5 | Private HF repo + scoped tokens |
+| 23 | Eng | Specify consent + anonymization for Tier 4 | Mechanical | P1 | GDPR requirement before collecting session data |
+| 24 | Eng | Validate Pyannote on 10-video sample first | Mechanical | P3 | Piano masterclasses have unique audio challenges |
+| 25 | Eng | Spot-check Cohere WER on 1hr masterclass | Mechanical | P3 | Benchmark WER != real-world WER |
+| 26 | Eng | Specify LoRA target_modules (include MLP) | Mechanical | P5 | MLP exclusion risks tool calling ability |
+| 27 | Eng | Get human sign-off on 7-dim rubric | Mechanical | P1 | LLM-generated rubric needs domain expert review |
+
+## Cross-Phase Themes
+
+**Theme 1: Rubric reliability** -- flagged in CEO (Finding 4: circular dependency) and Eng (Findings E-3, T-5, H-5). The 7-dimension rubric is simultaneously the GRPO reward signal, the quality gate, and the eval metric. It was LLM-generated from LLM-extracted teaching moments. Three independent concerns converge: it may not correlate with student preference (CEO), it has a gameable scoring rule (Eng), and it needs human validation (Eng). High-confidence signal that rubric hardening is a prerequisite for training.
+
+**Theme 2: Tool calling fragility** -- flagged in CEO (Finding 6) and Eng (Findings A-4, E-2, T-3, H-3). Tool calling must survive 4 training stages, translate between Anthropic and Qwen formats, and maintain 95% reliability. No per-stage gates, no regression tests, no format translation layer. This is the highest-risk integration surface.
+
+**Theme 3: Data quality uncertainty** -- flagged in CEO (Finding 9: legal risk) and Eng (Findings A-1, H-1, H-2, S-1). The corpus assembly pipeline has: an undersized relevance classifier, unvalidated transcription quality on real masterclass audio, unvalidated diarization, no provenance tracking, and legal exposure. All solvable but all must be solved before committing $700 to CPT.
+
+## GSTACK REVIEW REPORT
+
+| Review | Trigger | Why | Runs | Status | Findings |
+|--------|---------|-----|------|--------|----------|
+| CEO Review | `/plan-ceo-review` | Scope & strategy | 1 | issues_open | 9 findings (3 critical, 4 high, 2 medium). Plan restructured with 4 strategic gates. |
+| Eng Review | `/plan-eng-review` | Architecture & tests | 1 | issues_open | 23 findings (2 critical, 10 high, 10 medium, 1 low). 3 must-fix-first items. |
+| Design Review | `/plan-design-review` | UI/UX gaps | 0 | skipped | No UI scope in plan. |
+| Codex Review | `codex` | Independent 2nd opinion | 0 | unavailable | Codex CLI not installed. |
+
+**VERDICT:** REVIEWED with 27 auto-decided issues (25 mechanical, 2 taste). Plan needs restructuring before implementation. See Final Approval Gate below.
