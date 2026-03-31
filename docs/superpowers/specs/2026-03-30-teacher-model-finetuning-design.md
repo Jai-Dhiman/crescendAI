@@ -149,14 +149,18 @@ Transcription validation: Before full 3,000-hour pipeline, validate on 10-video 
 
 **Goal:** Inject piano pedagogy knowledge into model weights.
 
-- Standard next-token prediction on the 100-200M token corpus
+Staged approach (inspired by Cursor Composer 2 CPT design):
+- **Stage 1a - Bulk training:** Full 200M token corpus (80% pedagogy + 20% SlimPajama CommonCrawl/Wikipedia, randomly interleaved). Standard next-token prediction. Builds broad domain knowledge.
+- **Stage 1b - Quality narrowing:** Curated high-quality subset only (30-50M tokens: masterclass transcripts + classic pedagogy texts + PercePiano annotations). Higher signal-to-noise ratio narrows knowledge to the most valuable material.
+- **Stage 1c - Brief SFT alignment:** Small set (~500 examples) of instruction-response pairs to re-stabilize instruction following before full SFT. Prevents CPT from drifting too far from chat format.
+
+Training config:
 - Full-parameter training (not LoRA) for maximum knowledge absorption
-- Learning rate: 1e-5 to 2e-5 (10-20x below original pretraining)
-- Data mix: 80% piano pedagogy corpus + 20% general text (SlimPajama CommonCrawl + Wikipedia subset, randomly interleaved, not appended). Avoid code domains.
 - Learning rate: Cosine schedule from 2e-5 warmup to 1e-5 final
-- Epochs: 1-2 passes over the full corpus
+- Epochs: 1 pass per stage (no data reuse, following Cursor's single-epoch finding)
 - Checkpointing: Every 10% of training. Run domain knowledge probe at each checkpoint.
 - Compute: ~8-16 hours on 4xH100, ~$400-700. Budget 2-3x for restarts.
+- Test staged vs monolithic approach in 7B probe (Gate 4)
 
 **CPT Gate:** Post-CPT perplexity on held-out pedagogy corpus must decrease. Perplexity on 1M-token SlimPajama general slice must not increase by more than 5%. Domain knowledge probe (100 piano pedagogy QA pairs) must score >= 60%. If gate fails: reduce LR to 5e-6 and re-run. If still failing, increase SlimPajama ratio to 30%. If still failing after 2 attempts, re-evaluate base model choice.
 
@@ -184,6 +188,8 @@ Training: QLoRA (rank 32-64) with Unsloth. Target all linear projections includi
 
 The SFT stage bakes in current system prompt rules: 1-3 sentences, no scores, no lists, specific musical references, actionable corrections, no markdown in observations.
 
+**Environment-production parity (Composer 2 lesson):** SFT training data must use the exact production prompt templates serialized from `prompts.rs` (subagent system prompt, teacher system prompt, tool schema) in Qwen ChatML format. Training on approximations of the production prompts causes distribution mismatch at serving time.
+
 ### Stage 3: GRPO (Group Relative Policy Optimization)
 
 **Goal:** Teach pedagogical judgment using the existing eval rubric as reward.
@@ -206,11 +212,28 @@ Reward signal (8 dimensions from `apps/evals/teaching_knowledge/`):
 
 Scoring rule: Absent dimensions scored as N/A (excluded from mean), NOT as 2. This prevents reward hacking via selective omission.
 
+**Verifiable anti-pattern penalties (regex-checkable, no LLM judge needed):**
+- Response contains numeric scores/ratings -> penalty
+- Response contains markdown formatting (headers, bullet lists) -> penalty
+- Response uses emojis -> penalty
+- Response exceeds 500 characters -> graduated nonlinear penalty
+- Tool call created but never referenced in observation text -> penalty
+- Response contains "great job" or equivalent empty praise -> penalty
+
+These complement the LLM-judged rubric dimensions with fast, deterministic signals.
+
+**Nonlinear length penalty (from Cursor Composer 2):** Concave-down curve. On simple teaching scenarios (single-dimension correction), extra tokens are heavily penalized -- the teacher should be brief. On complex scenarios (multi-dimension, exercise creation, elaboration), the model is allowed to generate longer responses without disproportionate penalty. Calibrate the curve using the 1-3 sentence target for observations and the ~500 char max from the current production system.
+
 **GRPO Gate:** If any rubric dimension drops > 0.5 points below SFT baseline, revert to SFT checkpoint and adjust GRPO reward weights. Checkpoint tool calling reliability every 100 GRPO steps.
 
-Why GRPO: No critic model needed. Uses group-relative ranking. Proven by DeepSeek R1 for subjective quality optimization. Simpler and cheaper than PPO/RLHF.
+Why GRPO: No critic model needed. Uses group-relative ranking. Proven by DeepSeek R1 and Cursor Composer 2 for subjective quality optimization. Simpler and cheaper than PPO/RLHF.
 
-Training: 500-1,000 scenarios, 4-8 generations each. ~4-8 hours on 1xH100 with TRL. ~$20-50.
+**GRPO config (Composer 2 lessons applied):**
+- **Single-epoch regime:** Never train on the same prompt twice. Generate 1,500+ unique scenarios to ensure single-pass coverage. Prevents overfitting and maintains response diversity.
+- **No advantage normalization by std:** Cursor found std normalization "massively upweighted tiny behavioral differences in groups where every rollout was equally correct." When our judge v2 scores cluster around 2.0-2.5, small score differences would get amplified. Skip std normalization.
+- **No length standardization:** Rely on the nonlinear length penalty instead. Length standardization introduces bias toward a fixed response length, but our teacher needs variable length (1 sentence for recognition, 3 sentences + exercise for correction).
+
+Training: 1,500 unique scenarios, 4-8 generations each, single epoch. ~4-8 hours on 1xH100 with TRL. ~$20-50.
 
 **Risk:** Judge bias propagation. If the judge systematically favors corrections over encouragement, the model will too. Audit judge v2 for dimension-level bias before GRPO. Current smoke test scored 2.57/3.0.
 
