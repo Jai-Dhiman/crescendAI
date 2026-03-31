@@ -363,7 +363,8 @@ def run_auto_t5(
 
             try:
                 # Chunk the audio file (reuse existing chunker)
-                audio_chunks = chunk_audio_file(str(audio_path))
+                # Eval recordings can be up to ~15 min; production 300s limit doesn't apply here
+                audio_chunks = chunk_audio_file(str(audio_path), max_duration=900)
 
                 import io
                 import soundfile as sf

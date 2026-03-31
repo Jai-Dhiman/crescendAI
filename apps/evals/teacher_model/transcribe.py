@@ -297,7 +297,7 @@ def main(argv: list[str] | None = None) -> None:
     if not args.no_filter:
         logger.info("Loading relevance classifier...")
         classifier = PedagogyRelevanceClassifier()
-        logger.info("Classifier loaded (threshold=%.3f)", classifier._threshold)
+        logger.info("Classifier loaded (threshold=%.3f)", classifier._threshold)  # type: ignore[union-attr]
 
     # Collect URLs
     if args.url:

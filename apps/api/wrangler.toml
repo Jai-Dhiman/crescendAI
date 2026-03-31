@@ -25,20 +25,34 @@ BETTER_AUTH_URL = "https://api.crescend.ai"
 SENTRY_DSN = ""
 AI_GATEWAY_TEACHER = ""
 AI_GATEWAY_BACKGROUND = ""
-MUQ_ENDPOINT = ""
+MUQ_ENDPOINT = "https://mxcyiqltad84v9w1.us-east4.gcp.endpoints.huggingface.cloud"
 AMT_ENDPOINT = ""
+SHADOW_BENCHMARK_ENABLED = "true"
+SHADOW_BENCHMARK_PCT = "10"
 
 [[hyperdrive]]
 binding = "HYPERDRIVE"
 id = "ddbbe5fd7b6f4c249fc30f2cd7cb96d8"
+localConnectionString = "postgresql://jdhiman:postgres@localhost:5432/crescendai_dev"
+
+[ai]
+binding = "AI"
+remote = true
 
 [[durable_objects.bindings]]
 name = "SESSION_BRAIN"
 class_name = "SessionBrain"
 
+# Migration v1 already applied in production (created PracticeSession for Rust DO).
+# v2 deletes the old class and creates the new one.
 [[migrations]]
 tag = "v1"
+new_classes = ["PracticeSession"]
+
+[[migrations]]
+tag = "v2"
 new_classes = ["SessionBrain"]
+deleted_classes = ["PracticeSession"]
 
 [[r2_buckets]]
 binding = "CHUNKS"

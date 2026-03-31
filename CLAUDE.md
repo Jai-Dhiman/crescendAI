@@ -2,7 +2,7 @@
 
 **"A teacher for every pianist."**
 
-Multi-platform (iOS + web) practice companion for pianists. Cloud audio inference via HF endpoint, with a Cloudflare Workers backend for LLM, STOP classification, and data sync.
+Multi-platform (iOS + web) practice companion for pianists.
 
 ## What CrescendAI Does
 
@@ -14,26 +14,13 @@ Multi-platform (iOS + web) practice companion for pianists. Cloud audio inferenc
 ## Architecture
 
 See `docs/architecture.md` for the full system design. Key points:
-
-- **Web (beta-first):** Browser audio capture (MediaRecorder), cloud inference (HF endpoint), real-time observations via WebSocket, chat-first teacher interface with unified artifact system
-- **iOS (follows web beta):** Audio capture (AVAudioEngine), chunk upload to API, SwiftData local-first persistence. Inference client needs cloud wiring.
-- **Cloud backend:** Cloudflare Workers (split inference: MuQ endpoint + Aria-AMT endpoint, parallel dispatch from DO + STOP classifier + teaching moment selection + session brain DO + LLM proxy + D1 data sync), Sign in with Apple + Google auth
-- **Zero-config piece ID:** Multi-signal MIDI-based piece identification (N-gram recall + statistical rerank + DTW confirmation). Student plays, system identifies the piece automatically from 242-score library.
-- **Session intelligence:** Durable Object as session brain with practice mode state machine (warming/drilling/running/winding), mode-aware observation pacing
-- **Artifact system:** Unified container for rich components (exercises, score highlights, references). Lives inline in chat, expands to viewport. Teacher LLM declares via tool use (pattern TBD)
-- **Teacher pipeline:** Two-stage subagent (fast analysis) + teacher LLM (quality voice + artifact tool use). Score-conditioned quality assessment when score MIDI available. Model scores are reasoning inputs, not ground truth. See `docs/apps/02-pipeline.md`
-- **Monetization:** Tiered pricing (Free / $5 Plus / $20 Pro / $50 Max). Free tier with daily/weekly limits as growth engine.
-- **Apps docs:** `docs/apps/00-status.md` through `docs/apps/05-ui-system.md` (each has status header)
-- **Documentation entry point:** `docs/architecture.md` -- system diagram + pointers to model and apps docs
+**Apps docs:** `docs/apps/00-status.md` through `docs/apps/05-ui-system.md` (each has status header)
 
 ## Model Strategy
 
 - **Model v2:** MuQ (audio, pretrained on 160K hrs) + Aria (symbolic, pretrained on 820K MIDIs) with gated fusion
 - **Score conditioning:** delta = z_perf - z_score when score MIDI available
 - **Training:** PercePiano anchor (20%) + ordinal-dominated (80%) with T2 competition + T5 YouTube Skill data
-- **ALL previous pairwise numbers are INVALID** -- fold leak discovered, folds now fixed
-- **S2 GNN is LEGACY** -- Aria replaces all custom symbolic encoders
-- **Phase 3 (Symbolic FM) ELIMINATED** -- Aria IS the symbolic foundation model
 
 ## Development
 
@@ -57,11 +44,11 @@ Uses `just` (justfile) for dev commands. Install: `brew install just`.
 
 ## Coding Standards
 
+- ALWAYS use model: "Sonnet 4.6" when creating and using subagents for search, reivew, or subagent driven development
 - Explicit exception handling over silent fallbacks
 - No backup files when making fixes
 - No emojis unless explicitly requested
-- **Rust (legacy API):** Follow `apps/api/RUST_STYLE.md` for Rust code in `apps/api-rust/`.
-- **TypeScript (new API):** Follow `apps/api/TS_STYLE.md` for all code in `apps/api/`. Key rules: never destructure `c.env`, ServiceContext for DI, domain errors in services (no HTTPException), chain `.route()` for Hono RPC types, Zod validation with JSON error hooks, state versioning in DOs across awaits, `console.log(JSON.stringify({...}))` for logging.
+- **TypeScript (API):** Follow `apps/api/TS_STYLE.md` for all code in `apps/api/`. Key rules: never destructure `c.env`, ServiceContext for DI, domain errors in services (no HTTPException), chain `.route()` for Hono RPC types, Zod validation with JSON error hooks, state versioning in DOs across awaits, `console.log(JSON.stringify({...}))` for logging.
 
 ## Observability
 
@@ -93,19 +80,6 @@ Use the `/browse` skill from gstack for all web browsing. Never use `mcp__claude
 **What:** Analyzes diff against main for SQL safety, LLM trust boundary violations, conditional side effects, and structural issues.
 **When:** Before creating a PR or merging. After implementation is complete and tests pass.
 **How:** Invoke `/review` with your changes staged or committed. It reads the diff and produces a structured review.
-
-### `/ship` -- Full Ship Workflow
-
-**What:** Merge main, run tests, review diff, bump VERSION, update CHANGELOG, commit, push, create PR. One command, full ceremony.
-**When:** When a feature is complete, reviewed, and ready to land.
-**How:** Invoke `/ship`. It handles the entire merge-to-PR workflow.
-
-### Other gstack skills
-
-- `/browse` -- Headless browser for QA testing. Navigate, interact, screenshot, verify. Use for all web browsing.
-- `/qa` -- Systematic QA testing. Four modes: diff-aware, full, quick, regression. Produces report with health score.
-- `/setup-browser-cookies` -- Import cookies from your real browser for authenticated QA testing.
-- `/retro` -- Weekly engineering retrospective from commit history.
 
 ## Superpowers
 
@@ -176,10 +150,6 @@ Use the `/browse` skill from gstack for all web browsing. Never use `mcp__claude
 **What:** Create and manage datasets on HF Hub. Supports streaming row updates and SQL-based querying.
 **When:** When publishing training data, creating evaluation datasets, or querying existing datasets.
 
-### `/hugging-face-evaluation` -- Model Evaluation
-
-**What:** Add and manage evaluation results in model cards. Run custom evaluations with vLLM/lighteval.
-**When:** When benchmarking model performance, comparing encoder variants, publishing results.
 
 ### `/hugging-face-jobs` -- Cloud Compute
 
@@ -264,12 +234,8 @@ The skill has specialized workflows that produce better results than ad-hoc answ
 Key routing rules:
 - Product ideas, "is this worth building", brainstorming -> invoke office-hours
 - Bugs, errors, "why is this broken", 500 errors -> invoke investigate
-- Ship, deploy, push, create PR -> invoke ship
 - QA, test the site, find bugs -> invoke qa
 - Code review, check my diff -> invoke review
 - Update docs after shipping -> invoke document-release
-- Weekly retro -> invoke retro
-- Design system, brand -> invoke design-consultation
-- Visual audit, design polish -> invoke design-review
 - Architecture review -> invoke plan-eng-review
   
