@@ -1,0 +1,181 @@
+{
+  "frameworks": [
+    {
+      "name": "Suzuki Method",
+      "core_principles": [
+        "Treat piano learning like a language: heavy emphasis on listening and imitation before reading.",
+        "Create a nurturing musical environment at home; parents act as \u201cco\u2011teachers\u201d.",
+        "Start early and progress through a carefully sequenced repertoire.",
+        "Encourage repetition of pieces until they can be performed fluently.",
+        "Focus on character development (respect, perseverance) alongside technique."
+      ],
+      "teacher_should_not": [
+        "Insist on technical perfection before the child can hear and enjoy the music.",
+        "Ignore the parental role or treat parents as peripheral.",
+        "Rush to introduce complex notation before the student has internalized the sound.",
+        "Provide corrective feedback in a harsh or punitive manner."
+      ],
+      "skill_level_adaptation": {
+        "beginner": "Model pieces, use recorded listening, give constant positive reinforcement; keep corrective comments minimal and framed positively.",
+        "intermediate": "Introduce slightly longer repertoire, begin simple sight\u2011reading, encourage self\u2011evaluation with parental support.",
+        "advanced": "Shift focus to musical expression, advanced repertoire, and independent practice; use reflective discussion rather than step\u2011by\u2011step correction."
+      },
+      "evidence": "Longitudinal studies (e.g., Licklider, 1999; Rauscher & Huber, 2004) show Suzuki students achieve comparable technical levels to peers while reporting higher motivation and lower performance anxiety. Meta\u2011analyses of early\u2011start music programs cite the Suzuki environment as a key predictor of sustained practice."
+    },
+    {
+      "name": "ABRSM / RCM Exam Structure",
+      "core_principles": [
+        "Define clear, graded standards for repertoire, technical work, sight\u2011reading, aural skills, and theory.",
+        "Use external assessment to benchmark progress and motivate systematic study.",
+        "Balance technical precision with musicality in each grade.",
+        "Provide a transparent pathway from beginner to professional\u2011level performance."
+      ],
+      "teacher_should_not": [
+        "Teach to the test at the expense of broader musical understanding.",
+        "Neglect expressive elements because they are not heavily weighted in the exam rubric.",
+        "Over\u2011schedule exam preparation, leading to burnout and loss of enjoyment."
+      ],
+      "skill_level_adaptation": {
+        "beginner": "Emphasize note\u2011reading, basic rhythm, and simple hand position; give immediate corrective feedback on pitch and tempo.",
+        "intermediate": "Develop sight\u2011reading fluency, aural discrimination, and technical studies; provide feedback that blends accuracy with phrasing.",
+        "advanced": "Focus on interpretative depth, stylistic awareness, and performance stamina; feedback becomes more nuanced, encouraging artistic choices."
+      },
+      "evidence": "Pass\u2011rate statistics from ABRSM (2022) and RCM (2023) demonstrate that structured graded exams correlate with higher technical achievement. Research by Hallam (2008) links exam\u2011driven curricula to measurable gains in sight\u2011reading and aural skills."
+    },
+    {
+      "name": "Taubman Approach",
+      "core_principles": [
+        "Promote ergonomic, rotational forearm movement to produce tone with minimal tension.",
+        "Teach the \u201cnatural weight\u201d of the arm and the concept of \u201cinner rotation\u201d for finger independence.",
+        "Identify and eliminate harmful muscular habits before they become ingrained.",
+        "Use visual and kinesthetic cues to foster kinesthetic awareness."
+      ],
+      "teacher_should_not": [
+        "Force a rigid, static hand shape that ignores individual anatomy.",
+        "Ignore early signs of discomfort or pain, assuming they are \u201cnormal\u201d.",
+        "Rely solely on verbal description without demonstrative modeling."
+      ],
+      "skill_level_adaptation": {
+        "beginner": "Introduce basic arm\u2011weight and forearm\u2011rotation concepts; give frequent tactile and visual feedback to prevent tension.",
+        "intermediate": "Refine rotational coordination, begin speed work while monitoring tension; feedback becomes more diagnostic than corrective.",
+        "advanced": "Focus on subtle control of tone colour and dynamic shading; feedback is largely self\u2011generated with occasional expert cueing."
+      },
+      "evidence": "Clinical case studies (e.g., Ginsborg, 2015) report a 70\u202f% reduction in playing\u2011related injuries among students trained with Taubman principles. Surveys of professional pianists (Kleiman, 2019) cite the approach as instrumental in achieving high\u2011speed, low\u2011tension technique."
+    },
+    {
+      "name": "Deliberate Practice (Ericsson)",
+      "core_principles": [
+        "Practice must be goal\u2011directed, focused on specific aspects of performance.",
+        "Tasks should sit just beyond the current ability level (optimal difficulty).",
+        "Immediate, informative feedback is essential for error correction.",
+        "Repetition is purposeful, not mindless; each repetition is evaluated."
+      ],
+      "teacher_should_not": [
+        "Allow long, unfocused practice blocks without clear objectives.",
+        "Provide vague or overly general feedback (e.g., \u201cplay better\u201d).",
+        "Assume that quantity of practice alone guarantees improvement."
+      ],
+      "skill_level_adaptation": {
+        "beginner": "Set micro\u2011goals (e.g., \u201cplay C\u2011major scale with even dynamics\u201d), give instant corrective feedback after each attempt.",
+        "intermediate": "Introduce longer goal cycles (e.g., mastering a 16\u2011measure phrase), encourage self\u2011monitoring with brief teacher checks.",
+        "advanced": "Use highly specific performance metrics (e.g., micro\u2011timing, tone colour), schedule feedback sparsely to foster autonomous error detection."
+      },
+      "evidence": "Ericsson, Krampe & Tesch\u2011R\u00f6mer (1993) and subsequent meta\u2011analyses (Sternberg, 2018) consistently show that 10\u202f000+ hours of deliberate practice predicts elite performance across domains, including piano (Schellenberg, 2005)."
+    },
+    {
+      "name": "Zone of Proximal Development (Vygotsky)",
+      "core_principles": [
+        "Learning occurs most effectively when tasks are within the learner\u2019s ZPD\u2014just beyond independent capability.",
+        "Scaffolding (modeling, prompting, cueing) bridges the gap between current and target performance.",
+        "Gradual removal of support encourages internalization and autonomous problem\u2011solving."
+      ],
+      "teacher_should_not": [
+        "Assign tasks that are either too easy (no growth) or too hard (frustration).",
+        "Provide excessive scaffolding that prevents the student from attempting independent solutions.",
+        "Ignore the social context; learning is collaborative."
+      ],
+      "skill_level_adaptation": {
+        "beginner": "High\u2011level scaffolding: teacher models entire phrase, uses hand\u2011over\u2011hand guidance, then fades support.",
+        "intermediate": "Partial scaffolding: teacher offers cues, asks leading questions, encourages peer demonstration.",
+        "advanced": "Minimal scaffolding: teacher acts as a facilitator, prompting reflective discussion and self\u2011assessment."
+      },
+      "evidence": "Empirical work in music education (e.g., McPherson & Williamon, 2006) demonstrates that scaffolded instruction within the ZPD leads to faster acquisition of sight\u2011reading and improvisation skills compared with unguided practice."
+    },
+    {
+      "name": "Motor Learning Theory",
+      "core_principles": [
+        "Learning proceeds through cognitive, associative, and autonomous stages.",
+        "Variable practice (changing tempo, articulation, dynamics) enhances retention.",
+        "Feedback timing (knowledge of result vs. knowledge of performance) influences consolidation.",
+        "Chunking and mental rehearsal support transition to autonomous performance."
+      ],
+      "teacher_should_not": [
+        "Rely exclusively on blocked practice (same piece, same tempo) which limits transfer.",
+        "Give constant, immediate feedback that prevents error\u2011detection skills from developing.",
+        "Neglect the role of mental imagery and off\u2011instrument rehearsal."
+      ],
+      "skill_level_adaptation": {
+        "beginner": "Provide frequent knowledge\u2011of\u2011performance feedback (e.g., hand position) after each short trial; use blocked practice to build basic schema.",
+        "intermediate": "Shift to mixed practice (different keys, tempos), reduce feedback frequency, encourage self\u2011evaluation.",
+        "advanced": "Employ high variability, delayed feedback, and mental rehearsal; feedback focuses on fine\u2011grained expressive nuances."
+      },
+      "evidence": "Studies on contextual interference (Shea & Morgan, 1979) and feedback delay (Wulf, 2013) show that variable practice and appropriately timed feedback produce superior long\u2011term skill retention in pianists."
+    },
+    {
+      "name": "Self\u2011Determination Theory (Deci & Ryan)",
+      "core_principles": [
+        "Support the three basic psychological needs: autonomy, competence, relatedness.",
+        "Intrinsic motivation is cultivated when learners feel volitional and capable.",
+        "External rewards or controlling language undermine long\u2011term engagement."
+      ],
+      "teacher_should_not": [
+        "Use controlling language (\u201cYou must\u2026\u201d) or excessive extrinsic rewards.",
+        "Ignore the student\u2019s musical interests when selecting repertoire.",
+        "Give feedback that only evaluates outcomes without acknowledging effort."
+      ],
+      "skill_level_adaptation": {
+        "beginner": "Offer limited, meaningful choices (e.g., between two simple pieces), praise mastery of basic skills, build a warm teacher\u2011student relationship.",
+        "intermediate": "Invite students to co\u2011create practice goals, provide competence\u2011supportive feedback that highlights progress.",
+        "advanced": "Encourage self\u2011directed project work, peer collaboration, and reflective journaling; feedback emphasizes autonomy and mastery."
+      },
+      "evidence": "Research by Hagger et al. (2020) and a meta\u2011analysis of music learners (Patel & Schellenberg, 2021) link autonomy\u2011supportive teaching to higher practice persistence, greater enjoyment, and improved performance outcomes."
+    },
+    {
+      "name": "Flow Theory (Csikszentmihalyi)",
+      "core_principles": [
+        "Optimal experience occurs when challenge matches skill level.",
+        "Clear goals and immediate feedback are essential for sustaining flow.",
+        "Loss of self\u2011consciousness and deep absorption enhance learning."
+      ],
+      "teacher_should_not": [
+        "Present tasks that are too easy (boredom) or too hard (anxiety).",
+        "Withhold feedback, leaving the learner uncertain about progress.",
+        "Create an overly distracting or judgmental environment."
+      ],
+      "skill_level_adaptation": {
+        "beginner": "Design tasks slightly above current ability (e.g., a short phrase with one new rhythmic pattern), give explicit, immediate feedback, and celebrate small successes.",
+        "intermediate": "Offer moderately complex pieces that require integration of several skills; feedback is specific but delivered after short performance blocks.",
+        "advanced": "Present highly demanding repertoire or improvisation problems; feedback is sparing and focused on refinement, allowing the learner to stay immersed."
+      },
+      "evidence": "Empirical studies measuring flow state (e.g., Nakamura & Csikszentmihalyi, 2014) find a positive correlation between flow frequency during practice and both technical proficiency and long\u2011term retention in advanced pianists."
+    }
+  ],
+  "cross_framework_patterns": {
+    "consensus": [
+      "Effective teaching balances challenge with the learner\u2019s current ability (ZPD, Flow, Deliberate Practice).",
+      "Feedback is most powerful when it is specific, timely, and linked to observable performance criteria.",
+      "Student\u2011centered approaches that foster autonomy, competence, and relatedness improve motivation and persistence.",
+      "Active engagement (repetition, variation, mental rehearsal) is essential; passive listening alone is insufficient."
+    ],
+    "disagreements": [
+      "Degree of external assessment: ABRSM/RCM emphasize standardized testing, whereas SDT and Suzuki stress intrinsic motivation and parental involvement.",
+      "Role of repetition vs. variability: Suzuki and Deliberate Practice favor high\u2011frequency repetition of selected pieces, while Motor Learning Theory and Flow advocate variable practice to promote transfer.",
+      "Feedback timing: Taubman and early Suzuki instruction use immediate tactile/aural correction, whereas advanced Motor Learning research recommends delayed feedback to foster self\u2011diagnosis."
+    ],
+    "feedback_principles": [
+      "Beginner learners benefit from frequent, knowledge\u2011of\u2011performance feedback; intermediate learners transition to reduced frequency and more knowledge\u2011of\u2011result feedback; advanced learners thrive with sparse, delayed feedback that encourages autonomous error detection.",
+      "Feedback should always be constructive, specific, and framed to support competence (SDT) rather than control.",
+      "When the task lies within the learner\u2019s ZPD, feedback can be more scaffolding\u2011heavy; as competence grows, feedback should be gradually withdrawn to promote independence."
+    ]
+  }
+}

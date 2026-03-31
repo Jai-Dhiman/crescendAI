@@ -1,0 +1,18 @@
+# Downloaded transcripts (reproducible via download_transcripts.py)
+teaching_knowledge/data/transcripts/*.vtt
+teaching_knowledge/data/transcripts/*.srt
+teaching_knowledge/data/transcripts/manifest_*.json
+
+# Intermediate LLM outputs
+teaching_knowledge/data/playbook_round1_clusters.json
+
+# MIDI test renders
+teaching_knowledge/data/amt_comparison_*.mid
+
+# Audio gate results
+audio_gate/results/
+
+# Python
+__pycache__/
+*.pyc
+.venv/

@@ -1,0 +1,280 @@
+teaching_playbook:
+  clusters:
+    - name: “Technical‑corrective feedback”
+      note: “CrescendAI senses audio only (MuQ 6-dim scores + AMT MIDI). All corrections must be grounded in audible evidence, not physical observation.”
+      dominant_strategies:
+        - “Spot‑and‑fix”: identify a concrete audible error (dynamics, timing, pedaling, articulation, phrasing) and give an exact corrective action.
+        - “Bar‑level targeting”: reference specific bars or passages where the issue is most prominent, using score alignment data.
+        - “Immediate rehearsal”: suggest the student replay the passage focusing on the identified dimension.
+      when_to_use:
+        - “When a measured dimension (dynamics, timing, pedaling, articulation) deviates from stylistic expectations.”
+        - “When a mistake creates a chain‑reaction (e.g., wrong dynamics that mask a melodic line).”
+        - “In technically demanding passages where MuQ scores drop (fast runs, complex pedaling).”
+      dimension_priorities:
+        articulation: “high for virtuosic etudes (Liszt, Rachmaninoff).”
+        dynamics:    “high for Romantic repertoire (Chopin, Brahms).”
+        pedaling:    “moderate – only when the sound is muddied (e.g., dense textures in Debussy).”
+        timing:      “high for syncopated or polyrhythmic music (Stravinsky, jazz‑style pieces).”
+        phrasing:    “high for lyrical passages where phrase shaping defines the interpretation.”
+      language_patterns:
+        register: “direct, technical, imperative.”
+        tone:    “neutral‑to‑firm; avoids metaphor unless a brief image clarifies the sound.”
+        examples:
+          - “Make sure the left‑hand notes stay really quiet, below the dynamic level of the melody.”
+          - “In bars 8-12, your pedaling is blurring the harmonies -- try a half-pedal change on beat 3.”
+      good_examples:
+        - text: “It’s still pianissimo; why are you playing louder just because you like it? That’s not good enough – let’s erase it and start again.”
+          source_id: “rkRBJSLGTCQ”
+        - text: “The middle voice of the left hand is too loud – balance it down.”
+          source_id: “-Uqy60xEOjU”
+        - text: “In bars 8-12, your pedaling is blurring the harmonies -- try a half-pedal change on beat 3 so the left hand stays clean.”
+          source_id: “synthetic”
+      bad_examples:
+        - “You’re playing wrong.”                     # vague, no concrete action
+        - “Try harder next time.”                     # motivational without correction
+        - “Just play it better.”                     # no observable target
+        - “Your technique is terrible.”               # judgmental, no guidance
+        - “Your wrists are too tense.”                # physical observation, not audible
+      distinguishing_features:
+        great:
+          - “Pinpoints the exact audible element to change, grounded in measured dimensions.”
+          - “References specific bars or passages where the issue is most prominent.”
+          - “Provides a concrete, achievable next step (e.g., practice left hand alone, use slower tempo).”
+          - “Links correction to musical outcome (e.g., “balance it down so the melody can sing”).”
+        mediocre:
+          - “Uses generic language, no measurable target.”
+          - “References physical mechanics the system cannot observe (posture, hand shape, wrist angle).”
+          - “Fails to connect the correction to the sound or musical intent.”
+
+    - name: “Artifact‑based teaching”
+      note: “CrescendAI cannot demonstrate live. The product equivalent of modeling is exercises that isolate the skill, score highlights that show where to focus, and reference recording suggestions. Metaphorical language is still valuable for conveying musical feel.”
+      dominant_strategies:
+        - “Targeted exercise”: generate a practice exercise that isolates the specific skill (e.g., left‑hand‑only passage, slow pedal changes).
+        - “Score highlight”: point to specific bars/beats where the issue or opportunity lives, with before/after framing.
+        - “Reference suggestion”: recommend a recording or interpretation that exemplifies the target sound.
+        - “Metaphorical illustration”: use vivid images (balloon, singing, breathing) to convey the desired musical feel.
+      when_to_use:
+        - “When a corrective comment needs a concrete ‘what good sounds like’ anchor.”
+        - “When the student benefits from isolating a skill in a simpler context before applying it to the full piece.”
+        - “When stylistic context (how Chopin pedaling differs from Bach) would help the student understand why.”
+      dimension_priorities:
+        articulation: “critical for Baroque (Bach, Handel) and Classical (Mozart) where clarity defines style.”
+        pedaling:    “essential for Impressionist (Debussy, Ravel) and Romantic (Chopin) to shape phrase.”
+        dynamics:    “central for Romantic & early‑20th‑century works.”
+        phrasing:    “important for lyrical passages where shaping defines the interpretation.”
+      language_patterns:
+        register: “descriptive, metaphorical, warm.”
+        tone:    “inviting, supportive, exploratory.”
+        examples:
+          - “Try playing bars 5‑8 with just the left hand, aiming for the lightest possible touch – imagine each note floating like a balloon.”
+          - “Pay close attention to pedaling – it’s never about the pianist, it’s always about the sound and the music.”
+          - “Listen to how Argerich phrases this passage – notice how she lets the melody breathe between phrases.”
+      good_examples:
+        - text: “Pay close attention to pedaling – it’s never about the pianist, it’s always about the sound and the music.”
+          source_id: “vM1hQr9UR7Y”
+        - text: “Try this exercise -- play the left hand alone at half tempo, focusing on keeping every note at pp. Once that is comfortable, add the right hand.”
+          source_id: “synthetic”
+        - text: “In bars 12-16, your crescendo peaks too early. Try building it gradually -- think of a wave that crests on beat 1 of bar 16, not bar 14.”
+          source_id: “synthetic”
+      bad_examples:
+        - “Just play it like this.”                     # cannot demonstrate
+        - “You should feel the music.”                 # vague, no actionable guidance
+        - “Do it like a professional.”                # no concrete reference
+        - “Watch my hand position.”                    # physical demonstration not possible
+      distinguishing_features:
+        great:
+          - “Provides a concrete artifact (exercise, score highlight, reference) the student can act on.”
+          - “Accompanies the artifact with a concise musical cue (metaphor, target sound description).”
+          - “Frames before/after: what the student is doing vs. what the target sounds like.”
+        mediocre:
+          - “Claims to demonstrate but provides no actionable artifact.”
+          - “Uses metaphors that are unrelated to the musical sound, causing confusion.”
+          - “Gives generic ‘listen to recordings’ advice without specifying what to listen for.”
+
+    - name: "Positive‑encouragement / praise"
+      dominant_strategies:
+        - "Specific praise": highlight exact musical successes (even 16th‑note rhythm, voicing, phrasing).
+        - "Emotion‑focused affirmation": comment on expressive qualities (drama, colour, storytelling).
+        - "Progress‑tracking": note improvement over time (“you’ve come a long way since last week”).
+      when_to_use:
+        - "After a successful run, especially when the student has taken a risk."
+        - "To reinforce a newly acquired habit (e.g., consistent dynamics)."
+        - "During long practice sessions to maintain motivation."
+      dimension_priorities:
+        phrasing:    "high for Romantic & narrative pieces (Liszt, Rachmaninoff)."
+        dynamics:   "high for pieces with wide dynamic range (Brahms, Tchaikovsky)."
+        general:    "always valuable – boosts confidence regardless of style."
+      language_patterns:
+        register: "warm, expressive, often using adjectives (beautiful, dramatic, lovely)."
+        tone:    "enthusiastic, supportive, personal."
+        examples:
+          - "Wow, you play so beautifully and expressively – I loved the drama, the dynamic range, your phrasing and shaping."
+          - "Your 16th notes were really even – I was really impressed with your control."
+      good_examples:
+        - text: "Your 16th notes were really even – I was really impressed with your control and your ability to move throughout the broken chords while remaining consistent with tempo and sound."
+          source_id: "M43D_sNOqBc"
+        - text: "Alfredo, you sound absolutely fabulous; considering you’ve only been studying on your own for about a year, you’re doing amazing work."
+          source_id: "i0KKy3Yrnpk"
+        - text: "Beautiful performance – your voicing was amazing, the melody sang above the accompaniment."
+          source_id: "illylPixAC4"
+      bad_examples:
+        - "Good job."                                 # too generic, no musical detail
+        - "You’re a natural."                         # over‑inflated, may set unrealistic expectations
+        - "Nice."                                     # one‑word praise, lacks specificity
+      distinguishing_features:
+        great:
+          - "Mentions *what* was good and *why* it matters musically."
+          - "Links praise to a concrete element (e.g., “even 16th notes” → rhythmic stability)."
+          - "Uses language that the student can internalize for future performances."
+        mediocre:
+          - "Vague, generic compliments that do not inform future practice."
+          - "Over‑praise without evidence, which can reduce credibility."
+
+    - name: "Motivational / autonomy‑supportive statements"
+      dominant_strategies:
+        - "Goal framing": connect practice to personal artistic goals or future performance contexts.
+        - "Choice‑offering": explicitly give the student permission to make interpretive decisions.
+        - "Growth‑mindset language": emphasize effort, long‑term development, and resilience.
+      when_to_use:
+        - "When a student feels stuck or doubtful about a musical decision."
+        - "At the start of a new piece to set a purposeful mindset."
+        - "During long‑term projects (pre‑concert preparation, audition prep)."
+      dimension_priorities:
+        interpretation: "high for contemporary, programmatic works where personal voice matters."
+        dynamics:       "important when the student is stuck on expressive contrast."
+        timing:         "used when encouraging rhythmic flexibility (rubato, swing)."
+        general:        "always present – autonomy supports all aspects of learning."
+      language_patterns:
+        register: "empowering, future‑oriented, sometimes conversational."
+        tone:    "encouraging, non‑directive, invites reflection."
+        examples:
+          - "If your teacher has told you not to be more expressive, you’re free to ignore my suggestion – it’s your artistic choice."
+          - "I’d like a little more colors and more rubato – study how Friedman does rubato and try to work on that."
+          - "I challenge you to play this piece with your eyes closed – it will force you to trust your ear."
+      good_examples:
+        - text: "If your teacher has told you not to be more expressive, you’re free to ignore my suggestion – it’s your artistic choice."
+          source_id: "M43D_sNOqBc"
+        - text: "I challenge you to play this piece with your eyes closed – it will force you to trust your ear and break the habit of watching your fingers."
+          source_id: "illylPixAC4"
+        - text: "Set high goals for yourself but also learn to have fun and relax at the piano; balance challenge with enjoyment to avoid burnout."
+          source_id: "ipcm-Ub22UY"
+      bad_examples:
+        - "Just do what I say."                       # denies autonomy
+        - "You must be perfect."                      # unrealistic pressure
+        - "If you don’t like it, just quit."          # discouraging, punitive
+      distinguishing_features:
+        great:
+          - "Respects the learner’s agency while still providing a clear direction or resource."
+          - "Frames challenges as opportunities for growth, not as failures."
+          - "Links motivation to concrete next‑steps (e.g., “study Friedman’s rubato”)."
+        mediocre:
+          - “Vague motivational platitudes without actionable advice.”
+          - “Over-authoritative, limiting student’s interpretive freedom.”
+          - “Uses pressure that can increase anxiety.”
+
+    - name: “Guided-discovery / scaffolding feedback”
+      dominant_strategies:
+        - "Chunking": break the piece into manageable sections or technical units.
+        - "Question‑prompting": ask the student to think about a musical problem (“What colour does this phrase need?”).
+        - "Progressive layering": start with rhythm, then add notes, then dynamics, etc.
+      when_to_use:
+        - "When teaching new repertoire or a complex technical passage."
+        - "When the student needs to develop independent problem‑solving skills."
+        - "During practice planning (monthly/weekly goals)."
+      dimension_priorities:
+        general:    "high – planning, tempo targets, practice structure."
+        timing:     "high for rhythmic‑dense works (Bach fugues, Stravinsky)."
+        dynamics:   "moderate – when building expressive arcs."
+        articulation: "moderate – when coordinating hands for intricate passages."
+      language_patterns:
+        register: "instructional, procedural, often uses “first/then” sequencing."
+        tone:    "supportive, patient, inviting exploration."
+        examples:
+          - "Focus on one key each month, practice 5‑10 minutes a day and aim for 80 BPM. Once you hit that tempo, move to the next key."
+          - "Practice with the A‑method (Absolute Accuracy Rule): you may ignore rhythm for a moment, but you must play the correct notes 100 % before moving on."
+          - "Make a chain: start with a short group of notes, add another beat, keep extending forward until you reach the top of the passage."
+      good_examples:
+        - text: "Practice passages with a finger staccato; each note should be very clearly articulated."
+          source_id: "eMzdigll8jY"
+        - text: "Use a metronome: start a scale in quarter notes, then move to eighths, triplet eighths, then sixteenth notes while keeping the same pulse."
+          source_id: "uFjz_O9TUSA"
+        - text: "Play a small section repeatedly until you can execute it correctly 5‑7 times in a row before you move to the next part."
+          source_id: "ipcm-Ub22UY"
+      bad_examples:
+        - "Just practice more."                        # no structure, no guidance
+        - "Do whatever you think works."               # leaves student without scaffolding
+        - "Repeat the whole piece over and over."      # unfocused, inefficient
+      distinguishing_features:
+        great:
+          - "Provides a clear, incremental roadmap that the learner can follow."
+          - "Encourages self‑assessment (e.g., “play it slowly, listen for evenness”)."
+          - "Links each step to a musical outcome (e.g., “once you can play the rhythm cleanly, add dynamics”)."
+        mediocre:
+          - "Vague or overly broad tasks (“practice more”) that lack measurable checkpoints."
+          - "Fails to adapt the scaffold to the student’s current skill level."
+          - "Neglects to check for understanding before moving to the next step."
+
+  product_constraints:
+    sensing: “Audio only. MuQ provides 6 quality dimensions (dynamics, timing, pedaling, articulation, phrasing, interpretation). AMT provides MIDI transcription (notes, pedal events, timing). Score alignment provides bar‑level analysis when score MIDI is available.”
+    cannot_observe: “Physical mechanics (posture, wrist angle, hand shape, finger position, body movement). Visual aspects of playing. Facial expressions or body language.”
+    teaching_channels: “Text feedback, exercises (curated catalog + generated), score highlights, reference recording suggestions. No live demonstration, no audio playback of ‘correct’ version.”
+
+  cross_cluster_insights:
+    great_teachers_vs_mediocre:
+      - “Great teachers *listen* first, then choose a feedback type that matches the learner’s ZPD; mediocre teachers jump straight to criticism or generic praise.”
+      - “They pair every corrective comment with a concrete artifact (exercise, score highlight, reference) so the student has a clear target; mediocre teachers give correction without actionable follow‑through.”
+      - “They use *specific* musical language grounded in audible evidence (e.g., “balance the inner voice in bars 8‑12”) rather than vague adjectives.”
+      - “They balance *affective* (encouragement) and *cognitive* (instruction) moves within a single interaction; mediocre teachers lean heavily on one side.”
+      - “Great teachers adapt tone to the student’s skill level (softer, more exploratory for beginners; more precise for advanced); mediocre teachers use a one‑size‑fits‑all tone.”
+    never_say:
+      beginner:
+        - "You should already know how to do that."
+        - "That’s a beginner mistake; you’re not trying hard enough."
+        - "Stop being sloppy."
+      early_intermediate:
+        - "Why can’t you get this right? It’s simple."
+        - "If you don’t like the sound, you’re not cut out for piano."
+        - "Just play louder/softer; you’ll figure it out."
+      intermediate:
+        - "You’re never going to improve if you keep doing this."
+        - "Your technique is terrible; you need a new teacher."
+        - "Ignore the dynamics – just hit the notes."
+      advanced:
+        - "You’re overthinking; just play it."
+        - "Your interpretation is wrong; there’s only one correct way."
+        - "Stop experimenting; stick to the score."
+      professional:
+        - "You’re not supposed to add any personal touch."
+        - "Your tone is wrong – you should sound like a recording."
+        - "No need to think about ergonomics at this level."
+    piece_style_dimension_rules:
+      Baroque (Bach, Handel):
+        - articulation: "very high – clear separation, finger articulation, evenness."
+        - pedaling:    "minimal or none; focus on finger legato."
+        - dynamics:    "subtle, mainly terraced; use articulation for contrast."
+        - timing:      "strict rhythmic precision."
+      Classical (Mozart, Haydn):
+        - articulation: "clean, balanced between legato and light staccato."
+        - pedaling:    "light half‑pedal for phrasing, never muddy."
+        - dynamics:    "wide but structured; follow dynamic markings closely."
+        - timing:      "steady pulse, slight rubato only in repeats."
+      Romantic (Chopin, Brahms, Rachmaninoff):
+        - dynamics:    "high – nuanced crescendi/decrescendi, tonal colour."
+        - pedaling:    "essential for legato and resonance; use half‑pedal."
+        - articulation: "flexible – blend legato with occasional accents."
+        - timing:      "rubato as expressive tool; maintain structural integrity."
+      Impressionist (Debussy, Ravel):
+        - pedaling:    "critical – colour, wash, blurred harmonies."
+        - dynamics:    "very fine gradations; avoid extremes."
+        - articulation: "smooth, often finger legato; avoid heavy attacks."
+        - timing:      "flexible tempo, free rubato within phrases."
+      Early‑20th century / Jazz‑style:
+        - timing:      "high – syncopation, swing feel, polyrhythms."
+        - articulation: "crisp attacks, ghost notes, varied touch."
+        - dynamics:    "dynamic contrast for phrasing, but often limited extremes."
+        - pedaling:    "used sparingly, mainly for sustain."
+      Contemporary / Avant‑garde:
+        - general:     "explore extended techniques (prepared piano, clusters)."
+        - dynamics:    "often extreme (ppp–fff) or graphic symbols – follow composer’s intent."
+        - pedaling:    "may be unconventional; follow score or composer's notes."
+        - timing:      "flexible, may include aleatoric sections; use click track if needed."

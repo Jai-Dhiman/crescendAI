@@ -12,7 +12,7 @@ import argparse
 import json
 from pathlib import Path
 
-import anthropic
+from teaching_knowledge.llm_client import LLMClient
 
 RUBRIC_PROMPT = """You are designing an evaluation rubric for an AI piano teacher.
 
@@ -55,24 +55,21 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--playbook", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, default=Path("apps/evals/shared/prompts"))
-    parser.add_argument("--model", type=str, default="claude-sonnet-4-6-20250514")
+    parser.add_argument("--provider", type=str, default="workers-ai", choices=["workers-ai", "anthropic"])
+    parser.add_argument("--model", type=str, default=None, help="Override model (default: provider's quality model)")
     args = parser.parse_args()
 
     playbook_text = args.playbook.read_text()
-    client = anthropic.Anthropic()
+    client = LLMClient(provider=args.provider, model=args.model, tier="quality")
 
-    print("Deriving eval rubrics from playbook...")
-    response = client.messages.create(
-        model=args.model,
-        max_tokens=8000,
-        messages=[{"role": "user", "content": RUBRIC_PROMPT.format(playbook=playbook_text[:30000])}],
-    )
+    print(f"Deriving eval rubrics from playbook... [{client}]")
+    text = client.complete_json(RUBRIC_PROMPT.format(playbook=playbook_text[:30000]), max_tokens=8000)
 
     try:
-        rubrics = json.loads(response.content[0].text)
+        rubrics = json.loads(text)
     except json.JSONDecodeError:
         print("ERROR: Could not parse rubrics as JSON")
-        print(response.content[0].text[:2000])
+        print(text[:2000])
         return
 
     # Write judge system prompt

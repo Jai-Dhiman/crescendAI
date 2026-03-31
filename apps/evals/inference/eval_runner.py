@@ -256,15 +256,20 @@ def _health_check_servers(muq_url: str, amt_url: str) -> None:
     import httpx
 
     for name, url in [("MuQ", muq_url), ("AMT", amt_url)]:
-        try:
-            resp = httpx.get(f"{url}/health", timeout=5.0)
-            if resp.status_code != 200:
-                raise RuntimeError(f"{name} server at {url} returned {resp.status_code}")
-        except (httpx.ConnectError, httpx.ReadTimeout):
-            raise RuntimeError(
-                f"{name} server not running at {url}. "
-                f"Start it with: just {'muq' if name == 'MuQ' else 'amt'}"
-            )
+        for attempt in range(3):
+            try:
+                resp = httpx.get(f"{url}/health", timeout=15.0)
+                if resp.status_code == 200:
+                    break
+            except (httpx.ConnectError, httpx.ReadTimeout):
+                if attempt < 2:
+                    import time
+                    time.sleep(2)
+                    continue
+                raise RuntimeError(
+                    f"{name} server not running at {url}. "
+                    f"Start it with: just {'muq' if name == 'MuQ' else 'amt'}"
+                )
 
 
 def _run_http_chunk_inference(
@@ -287,7 +292,7 @@ def _run_http_chunk_inference(
 
     return {
         "predictions": muq_result.get("predictions", {}),
-        "midi_notes": amt_result.get("notes", []),
+        "midi_notes": amt_result.get("midi_notes", []),
         "pedal_events": amt_result.get("pedal_events", []),
         "transcription_info": amt_result.get("transcription_info"),
     }
@@ -297,16 +302,25 @@ def run_auto_t5(
     cache_dir: str,
     muq_url: str = "http://localhost:8000",
     amt_url: str = "http://localhost:8001",
+    piece_filter: str | None = None,
 ) -> None:
     """Scan T5 manifests, generate inference cache for uncached recordings via HTTP."""
     from tqdm import tqdm
 
-    T5_PIECES = [
-        "bach_prelude_c_wtc1",
+    ALL_PIECES = [
         "bach_invention_1",
+        "bach_prelude_c_wtc1",
+        "chopin_ballade_1",
+        "chopin_etude_op10no4",
+        "chopin_waltz_csm",
+        "clair_de_lune",
+        "debussy_arabesque_1",
+        "fantaisie_impromptu",
         "fur_elise",
+        "moonlight_sonata_mvt1",
         "nocturne_op9no2",
     ]
+    T5_PIECES = [piece_filter] if piece_filter else ALL_PIECES
     MANIFEST_BASE = MODEL_DATA / "evals" / "skill_eval"
 
     _health_check_servers(muq_url, amt_url)
@@ -403,9 +417,10 @@ if __name__ == "__main__":
     )
     parser.add_argument("--muq-url", default="http://localhost:8000")
     parser.add_argument("--amt-url", default="http://localhost:8001")
+    parser.add_argument("--piece", default=None, help="Process only this piece (for download-infer-delete loops)")
     args = parser.parse_args()
 
     if args.auto_t5:
-        run_auto_t5(args.cache_dir, args.muq_url, args.amt_url)
+        run_auto_t5(args.cache_dir, args.muq_url, args.amt_url, piece_filter=args.piece)
     else:
         run(args.checkpoint_dir, args.audio_dir, args.cache_dir)

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import re
 import time
@@ -17,6 +18,9 @@ if not os.environ.get("ANTHROPIC_API_KEY"):
                 break
 
 import anthropic
+
+# Import LLMClient for Workers AI support (v2 judge functions)
+from teaching_knowledge.llm_client import LLMClient, strip_json_fences
 
 
 JUDGE_SYSTEM_MESSAGE = (
@@ -41,6 +45,15 @@ class CriterionScore:
 
 
 @dataclass
+class DimensionScore:
+    """Score for a v2 rubric dimension (0-3 scale)."""
+    criterion: str
+    score: int
+    evidence: str
+    reason: str
+
+
+@dataclass
 class JudgeResult:
     scores: list[CriterionScore] = field(default_factory=list)
     model: str = ""
@@ -53,6 +66,25 @@ class JudgeResult:
         if not evaluated:
             return 0.0
         return sum(1 for s in evaluated if s.passed) / len(evaluated)
+
+
+@dataclass
+class JudgeResultV2:
+    """Result from v2 rubric judge (0-3 scale per dimension)."""
+    dimensions: list[DimensionScore] = field(default_factory=list)
+    model: str = ""
+    prompt_version: str = ""
+    latency_ms: float = 0.0
+
+    @property
+    def mean_score(self) -> float:
+        if not self.dimensions:
+            return 0.0
+        return sum(d.score for d in self.dimensions) / len(self.dimensions)
+
+    @property
+    def scores_by_dimension(self) -> dict[str, int]:
+        return {d.criterion: d.score for d in self.dimensions}
 
 
 def load_prompt(prompt_name: str) -> str:
@@ -258,6 +290,72 @@ def judge_differentiation(
         prompt_version=prompt_version,
         latency_ms=latency_ms,
     )
+
+
+def judge_synthesis_v2(
+    synthesis_text: str,
+    context: dict[str, Any],
+    prompt_file: str = "synthesis_quality_judge_v2.txt",
+    provider: str = "workers-ai",
+    model: str | None = None,
+) -> JudgeResultV2:
+    """Judge a synthesis using the v2 rubric (0-3 scale, 7 dimensions).
+
+    Uses Workers AI by default. Pass provider="anthropic" to use Claude.
+    The v2 prompt outputs a JSON array of {criterion, score, evidence, reason}.
+    """
+    template = load_prompt(prompt_file)
+
+    # v2 prompt is self-contained (rubric baked in), just needs the synthesis
+    user_message = (
+        f"{template}\n\n"
+        f"## Context\n"
+        f"Piece: {context.get('piece_name', 'Unknown')} by {context.get('composer', 'Unknown')}\n"
+        f"Student skill level: {context.get('skill_level', 'Unknown')}\n\n"
+        f"## AI Teacher Output to Evaluate\n"
+        f"{synthesis_text}"
+    )
+
+    client = LLMClient(provider=provider, model=model, tier="quality")
+    start = time.monotonic()
+    response_text = client.complete_json(user_message, max_tokens=4000)
+    latency_ms = (time.monotonic() - start) * 1000
+
+    dimensions = _parse_v2_response(response_text)
+    prompt_version = prompt_file.replace(".txt", "")
+
+    return JudgeResultV2(
+        dimensions=dimensions,
+        model=client.model,
+        prompt_version=prompt_version,
+        latency_ms=latency_ms,
+    )
+
+
+def _parse_v2_response(response_text: str) -> list[DimensionScore]:
+    """Parse v2 judge JSON response into DimensionScore list."""
+    try:
+        data = json.loads(response_text)
+        if not isinstance(data, list):
+            data = [data]
+        return [
+            DimensionScore(
+                criterion=entry.get("criterion", "unknown"),
+                score=int(entry.get("score", 0)),
+                evidence=entry.get("evidence", ""),
+                reason=entry.get("reason", ""),
+            )
+            for entry in data
+        ]
+    except (json.JSONDecodeError, TypeError, KeyError) as e:
+        return [
+            DimensionScore(
+                criterion="parse_failure",
+                score=0,
+                evidence=f"Could not parse v2 judge response: {e}",
+                reason=response_text[:200],
+            )
+        ]
 
 
 def _call_with_retry(

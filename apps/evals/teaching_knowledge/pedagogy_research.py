@@ -11,7 +11,7 @@ import argparse
 import json
 from pathlib import Path
 
-import anthropic
+from teaching_knowledge.llm_client import LLMClient, MODELS
 
 DATA_DIR = Path(__file__).parent / "data"
 
@@ -61,23 +61,20 @@ Return a JSON object with this structure:
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", type=Path, default=DATA_DIR / "pedagogy_principles.json")
-    parser.add_argument("--model", type=str, default="claude-sonnet-4-6-20250514")
+    parser.add_argument("--provider", type=str, default="workers-ai", choices=["workers-ai", "anthropic"])
+    parser.add_argument("--model", type=str, default=None, help="Override model (default: provider's quality model)")
     args = parser.parse_args()
 
-    client = anthropic.Anthropic()
-    print("Synthesizing pedagogy literature...")
+    client = LLMClient(provider=args.provider, model=args.model, tier="quality")
+    print(f"Synthesizing pedagogy literature... [{client}]")
 
-    response = client.messages.create(
-        model=args.model,
-        max_tokens=8000,
-        messages=[{"role": "user", "content": RESEARCH_PROMPT}],
-    )
+    text = client.complete_json(RESEARCH_PROMPT, max_tokens=8000)
 
     try:
-        result = json.loads(response.content[0].text)
+        result = json.loads(text)
     except json.JSONDecodeError:
         # Save raw text if JSON parsing fails
-        result = {"raw_response": response.content[0].text}
+        result = {"raw_response": text}
         print("WARNING: Response was not valid JSON. Saving raw text.")
 
     args.output.parent.mkdir(parents=True, exist_ok=True)

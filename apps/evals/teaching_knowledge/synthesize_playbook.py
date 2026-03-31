@@ -15,8 +15,9 @@ import argparse
 import json
 from pathlib import Path
 
-import anthropic
 import yaml
+
+from teaching_knowledge.llm_client import LLMClient
 
 DATA_DIR = Path(__file__).parent / "data"
 
@@ -94,14 +95,16 @@ def main():
     parser.add_argument("--teaching-db", type=Path, default=DATA_DIR / "raw_teaching_db.json")
     parser.add_argument("--pedagogy", type=Path, default=DATA_DIR / "pedagogy_principles.json")
     parser.add_argument("--output", type=Path, default=DATA_DIR / "playbook.yaml")
-    parser.add_argument("--model", type=str, default="claude-sonnet-4-6-20250514")
+    parser.add_argument("--provider", type=str, default="workers-ai", choices=["workers-ai", "anthropic"])
+    parser.add_argument("--model", type=str, default=None, help="Override model (default: provider's quality model)")
     args = parser.parse_args()
 
     moments = json.loads(args.teaching_db.read_text())
     pedagogy = json.loads(args.pedagogy.read_text())
-    client = anthropic.Anthropic()
+    client = LLMClient(provider=args.provider, model=args.model, tier="quality")
 
     print(f"Loaded {len(moments)} teaching moments, {len(pedagogy.get('frameworks', []))} frameworks")
+    print(f"Using: {client}")
 
     # Round 1: Clustering
     print("\n--- Round 1: Clustering ---")
@@ -112,8 +115,7 @@ def main():
         moments_sample=sample_moments(moments),
         pedagogy_summary=json.dumps(pedagogy.get("cross_framework_patterns", {}), indent=2),
     )
-    r1_response = client.messages.create(model=args.model, max_tokens=8000, messages=[{"role": "user", "content": r1_prompt}])
-    clusters = r1_response.content[0].text
+    clusters = client.complete(r1_prompt, max_tokens=8000)
     print(f"Clusters identified. Response length: {len(clusters)} chars")
 
     # Save Round 1 output for review
@@ -129,8 +131,7 @@ def main():
         n_frameworks=len(pedagogy.get("frameworks", [])),
         all_moments=json.dumps(moments, indent=2)[:50000],  # Cap at 50K chars
     )
-    r2_response = client.messages.create(model=args.model, max_tokens=16000, messages=[{"role": "user", "content": r2_prompt}])
-    playbook_text = r2_response.content[0].text
+    playbook_text = client.complete(r2_prompt, max_tokens=16000)
     print(f"Playbook draft generated. Response length: {len(playbook_text)} chars")
 
     # Try to parse as YAML, fall back to saving raw text

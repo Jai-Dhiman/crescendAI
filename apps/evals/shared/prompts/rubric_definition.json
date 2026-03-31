@@ -1,0 +1,160 @@
+{
+  "dimensions": [
+    {
+      "name": "Audible\u2011Specific Corrective Feedback",
+      "description": "How precisely the AI pinpoints an audible problem (dynamics, timing, articulation, pedaling, phrasing) and gives a concrete, measurable corrective action anchored to specific bars or beats.",
+      "scale": {
+        "0": "No audible target or only vague judgment; may reference non\u2011observable physical cues. Example: \u201cYour pedaling is wrong, fix it.\u201d",
+        "1": "Identifies a problem but is vague about location or exact action. Example: \u201cPlay softer in the middle.\u201d",
+        "2": "Names the dimension and a general location, but the corrective action is imprecise or not directly measurable. Example: \u201cIn the left hand, lower the volume a bit.\u201d",
+        "3": "Pins the exact audible element, cites bar/beat numbers, and gives a concrete, testable instruction. Example: \u201cIn bars\u202f8\u201112 your pedaling is blurring the harmonies \u2013 switch to half\u2011pedal on beat\u202f3 of each measure so the left\u2011hand chords stay clean.\u201d"
+      },
+      "good_example": {
+        "context": "Student playing Chopin Nocturne Op.\u202f9 No.\u202f2, MuQ shows excessive pedal overlap in bars\u202f8\u201112.",
+        "synthesis": "In bars\u202f8\u201112 your pedaling is blurring the harmonies \u2013 try a half\u2011pedal change on beat\u202f3 of each measure so the left\u2011hand stays clean and the melody can sing.",
+        "score": 3,
+        "why": "Exact audible issue, bar\u2011level reference, precise corrective action, linked to musical outcome."
+      },
+      "bad_example": {
+        "context": "Student playing the same passage, AI tries to correct pedaling.",
+        "synthesis": "Your pedaling is wrong, you need to fix it.",
+        "score": 0,
+        "why": "No audible evidence, no bar reference, no concrete action; violates the playbook."
+      }
+    },
+    {
+      "name": "Concrete Artifact Provision",
+      "description": "Whether the AI supplies a usable artifact (exercise, score highlight, recording reference) together with a brief musical cue or metaphor that tells the student what \u201cgood\u201d sounds like.",
+      "scale": {
+        "0": "No artifact offered or suggests impossible demonstration. Example: \u201cJust watch my hand.\u201d",
+        "1": "Mentions an artifact but gives no details or cue. Example: \u201cListen to a recording.\u201d",
+        "2": "Provides an artifact with a vague cue. Example: \u201cPlay the left hand alone, try to be softer.\u201d",
+        "3": "Delivers a specific exercise/score highlight, includes a vivid cue, and frames before/after expectations. Example: \u201cPlay bars\u202f5\u20118 left\u2011hand\u2011only at half tempo, aiming for a light, floating touch \u2013 imagine each note as a balloon gently rising.\u201d"
+      },
+      "good_example": {
+        "context": "Student struggling with a rapid left\u2011hand passage in Liszt\u2019s Etude No.\u202f3.",
+        "synthesis": "Try this exercise \u2013 play the left hand alone at 60\u202fBPM, keeping every note at pp. Imagine each note as a tiny droplet of water falling silently. Once comfortable, add the right hand at the same tempo.",
+        "score": 3,
+        "why": "Specific, isolated exercise, clear tempo, vivid metaphor, and a clear progression."
+      },
+      "bad_example": {
+        "context": "Same student, AI attempts to help.",
+        "synthesis": "Just listen to a professional recording and copy what you hear.",
+        "score": 0,
+        "why": "No concrete artifact, no guidance on what to listen for; violates the artifact\u2011based teaching cluster."
+      }
+    },
+    {
+      "name": "Specific Positive Praise",
+      "description": "How well the AI highlights exact musical successes, explains why they matter, and uses warm, expressive language without over\u2011inflating.",
+      "scale": {
+        "0": "Empty or generic praise, e.g., \u201cGood job.\u201d",
+        "1": "Praise mentions a vague area but lacks musical detail. Example: \u201cNice playing.\u201d",
+        "2": "Praise identifies a musical element but gives little explanation of its impact. Example: \u201cYour dynamics were good.\u201d",
+        "3": "Praise pinpoints a concrete musical achievement, explains its musical value, and uses expressive adjectives. Example: \u201cYour 16th\u2011note evenness was superb \u2013 it gave the passage a crystal\u2011clear drive that kept the momentum alive.\u201d"
+      },
+      "good_example": {
+        "context": "Student performed the B\u266d\u202fmajor arpeggio in Mozart\u2019s Sonata K.\u202f331.",
+        "synthesis": "Your voicing was beautiful \u2013 the top melody line sang above the accompaniment, giving the phrase a clear, singing quality.",
+        "score": 3,
+        "why": "Specific element (voicing), why it matters (melody sings), warm language."
+      },
+      "bad_example": {
+        "context": "Same performance.",
+        "synthesis": "Good job.",
+        "score": 0,
+        "why": "Vague, no musical detail."
+      }
+    },
+    {
+      "name": "Autonomy\u2011Supporting Motivation",
+      "description": "Degree to which the AI respects learner agency, offers choice, frames goals, and uses growth\u2011mindset language while still providing a concrete next step.",
+      "scale": {
+        "0": "Authoritarian or discouraging language; no choice offered. Example: \u201cJust do what I say.\u201d",
+        "1": "Motivational statement but vague and without actionable direction. Example: \u201cYou\u2019ll get better if you try harder.\u201d",
+        "2": "Offers a goal or choice but the next step is weak or unrelated. Example: \u201cYou can experiment with rubato, just try it sometime.\u201d",
+        "3": "Clearly frames a personal artistic goal, offers a concrete, optional activity, and ties it to growth. Example: \u201cIf you want a richer climax, study how Friedman shapes rubato in the coda and try applying a subtle stretch on beat\u202f1 of bar\u202f24 \u2013 it\u2019s your decision how far to go.\u201d"
+      },
+      "good_example": {
+        "context": "Student hesitates on interpretive choices in Rachmaninoff\u2019s Prelude Op.\u202f23 No.\u202f5.",
+        "synthesis": "You\u2019re free to decide how much rubato to use in the middle section. Try listening to Rachmaninoff\u2019s own recording, notice the slight slowing before the climax, and experiment with a gentle push\u2011and\u2011pull of the tempo \u2013 it\u2019s your artistic choice.",
+        "score": 3,
+        "why": "Offers autonomy, concrete reference, and a clear exploratory task."
+      },
+      "bad_example": {
+        "context": "Same student.",
+        "synthesis": "Just follow my instructions exactly, there\u2019s no room for personal interpretation.",
+        "score": 0,
+        "why": "Denies autonomy, authoritarian tone."
+      }
+    },
+    {
+      "name": "Scaffolded Guided Discovery",
+      "description": "How effectively the AI breaks a problem into chunks, uses question\u2011prompting or sequencing, and links each step to a musical outcome.",
+      "scale": {
+        "0": "No scaffolding; vague directive like \u201cpractice more.\u201d",
+        "1": "Some chunking but no clear sequence or outcome. Example: \u201cWork on the left hand first.\u201d",
+        "2": "Provides a sequence but lacks clear checkpoints or musical rationale. Example: \u201cPlay slowly then speed up.\u201d",
+        "3": "Delivers a step\u2011by\u2011step roadmap, includes self\u2011assessment prompts, and ties each layer to a musical result. Example: \u201cFirst, clap the rhythm of bars\u202f1\u20114 at 60\u202fBPM until you can count it perfectly. Next, play the right\u2011hand notes on a metronome at the same tempo, focusing on even articulation. Then add dynamics \u2013 start each phrase at mf and fade to pp on the last beat. Finally, combine both hands and listen for a balanced texture.\u201d"
+      },
+      "good_example": {
+        "context": "Student learning the opening of Bach\u2019s Prelude in C major (BWV\u202f846).",
+        "synthesis": "Chunk the passage into four\u2011measure blocks. 1\ufe0f\u20e3 Clap the rhythm of bars\u202f1\u20114 at 70\u202fBPM until you can count it without hesitation. 2\ufe0f\u20e3 Play the right hand alone at that tempo, keeping each note clean and detached. 3\ufe0f\u20e3 Add the left hand, listening for even voice balance. 4\ufe0f\u20e3 Once the block sounds stable, increase the tempo by 5\u202fBPM and repeat. This layered approach builds rhythmic precision before voicing.",
+        "score": 3,
+        "why": "Clear chunking, sequencing, self\u2011assessment, and musical outcome."
+      },
+      "bad_example": {
+        "context": "Same task.",
+        "synthesis": "Just practice the whole piece over and over until it feels right.",
+        "score": 0,
+        "why": "No scaffold, no measurable checkpoints."
+      }
+    },
+    {
+      "name": "Style\u2011Consistent Musical Language",
+      "description": "Alignment of the AI\u2019s recommendations with the piece\u2011style dimension rules (e.g., pedaling, articulation, dynamics) and avoidance of stylistically inappropriate advice.",
+      "scale": {
+        "0": "Advice directly contradicts style rules (e.g., heavy pedal in Baroque).",
+        "1": "Mentions style but gives mixed or ambiguous guidance.",
+        "2": "Generally respects style but misses a key nuance.",
+        "3": "Fully honors the style rules, cites specific dimensions, and explains why the recommendation fits the period/composer."
+      },
+      "good_example": {
+        "context": "Student playing Bach\u2019s Invention No.\u202f1 (Baroque).",
+        "synthesis": "Keep articulation crisp and detached \u2013 use finger legato rather than pedal. Dynamics should be terraced; a slight accent on the downbeat of each measure will highlight the contrapuntal lines without needing volume changes.",
+        "score": 3,
+        "why": "Matches Baroque rules: high articulation, minimal pedal, terraced dynamics."
+      },
+      "bad_example": {
+        "context": "Same piece.",
+        "synthesis": "Add a lot of sustain pedal and use a wide dynamic range to make the line sound richer.",
+        "score": 0,
+        "why": "Contradicts Baroque style; heavy pedal and wide dynamics are inappropriate."
+      }
+    },
+    {
+      "name": "Appropriate Tone & Language (No Forbidden Speech)",
+      "description": "Use of the correct register and tone for each cluster (direct\u2011imperative for corrective, warm for praise, empowering for motivation) and strict avoidance of the \u201cnever\u2011say\u201d statements listed for each skill level.",
+      "scale": {
+        "0": "Contains prohibited phrasing (e.g., \u201cYour technique is terrible\u201d) or tone mismatched to the feedback type.",
+        "1": "Tone is generally okay but includes at least one borderline phrase or unnecessary judgment.",
+        "2": "Tone matches the cluster, but language is bland or overly formal; no prohibited statements.",
+        "3": "Tone perfectly aligned (firm\u2011technical for correction, inviting\u2011metaphorical for artifact, warm\u2011expressive for praise, empowering for motivation) and absolutely no forbidden language."
+      },
+      "good_example": {
+        "context": "Corrective feedback on dynamics for a beginner student.",
+        "synthesis": "Make sure the left\u2011hand notes stay really quiet, below the dynamic level of the melody. This will let the melody sing clearly.",
+        "score": 3,
+        "why": "Direct, technical register; no judgmental language; aligns with \u201cTechnical\u2011corrective\u201d tone."
+      },
+      "bad_example": {
+        "context": "Same situation.",
+        "synthesis": "Your technique is terrible \u2013 you should already know how to do that.",
+        "score": 0,
+        "why": "Contains forbidden language and judgmental tone."
+      }
+    }
+  ],
+  "judge_system_prompt": "You are an expert evaluator of AI\u2011generated piano\u2011teaching feedback. Use the rubric below to score each AI response on a 0\u20113 scale for every dimension. For each dimension, assign the highest score that matches the description, provide a brief evidence quote from the AI output, and explain why it fits (or does not fit) the criteria. Follow these rules while scoring:\n\n1. **Audible\u2011Specific Corrective Feedback** \u2013 look for bar/beat references, a measurable audible target, and a concrete corrective action.\n2. **Concrete Artifact Provision** \u2013 check for a specific exercise, score highlight, or recording suggestion, plus a short musical cue/metaphor.\n3. **Specific Positive Praise** \u2013 require a concrete musical success, why it matters, and warm expressive language.\n4. **Autonomy\u2011Supporting Motivation** \u2013 must respect learner agency, offer a choice or goal, and give a clear next step.\n5. **Scaffolded Guided Discovery** \u2013 evaluate chunking, sequencing, self\u2011assessment prompts, and musical outcome linkage.\n6. **Style\u2011Consistent Musical Language** \u2013 compare the advice to the Piece\u2011Style Dimension Rules in the playbook; advice that contradicts the style gets a 0.\n7. **Appropriate Tone & Language** \u2013 ensure the register matches the feedback type and that no \"never\u2011say\" statements appear.\n\nWhen a dimension is irrelevant (e.g., no praise present), give a score of 2 (acceptable) if the output simply omits it without harming the student; a 0 is reserved for harmful or contradictory content.\n\nOutput your assessment as a JSON array where each element is:\n```json\n{ \"criterion\": \"<Dimension Name>\", \"score\": <0\u20113>, \"evidence\": \"<short excerpt from AI response>\", \"reason\": \"<explanation>\" }\n```.\nProvide the array in the order of the dimensions listed above.",
+  "scoring_format": "[ { \"criterion\": \"Audible\u2011Specific Corrective Feedback\", \"score\": 3, \"evidence\": \"In bars 8\u201112 your pedaling is blurring the harmonies \u2013 try a half\u2011pedal change on beat 3...\", \"reason\": \"Exact audible issue, bar\u2011level reference, concrete corrective action.\" }, { \"criterion\": \"Concrete Artifact Provision\", \"score\": 2, \"evidence\": \"Play the left hand alone at half tempo, aiming for a light touch.\", \"reason\": \"Provides an exercise but lacks vivid cue and before/after framing.\" }, ... ]"
+}

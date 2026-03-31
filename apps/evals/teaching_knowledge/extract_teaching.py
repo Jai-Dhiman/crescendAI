@@ -13,9 +13,8 @@ import argparse
 import json
 from pathlib import Path
 
-import anthropic
-
-from apps.evals.teaching_knowledge.download_transcripts import parse_vtt
+from teaching_knowledge.llm_client import LLMClient
+from teaching_knowledge.download_transcripts import parse_vtt
 
 DATA_DIR = Path(__file__).parent / "data"
 
@@ -58,32 +57,26 @@ TRANSCRIPT:
 """
 
 
-def filter_transcript(client: anthropic.Anthropic, text: str, model: str) -> dict:
+def filter_transcript(client: LLMClient, text: str) -> dict:
     """Pass 1: Classify whether transcript contains teaching moments."""
-    response = client.messages.create(
-        model=model,
-        max_tokens=200,
-        messages=[{"role": "user", "content": FILTER_PROMPT + text[:8000]}],
-    )
     try:
-        return json.loads(response.content[0].text)
-    except (json.JSONDecodeError, IndexError):
-        return {"classification": "GENERAL", "confidence": 0.0, "reason": "Parse error"}
+        response_text = client.complete_json(FILTER_PROMPT + text[:8000], max_tokens=200)
+        return json.loads(response_text)
+    except (json.JSONDecodeError, TypeError, RuntimeError) as e:
+        print(f"[filter error: {e}] ", end="")
+        return {"classification": "GENERAL", "confidence": 0.0, "reason": f"Error: {e}"}
 
 
-def extract_moments(client: anthropic.Anthropic, text: str, model: str) -> list[dict]:
+def extract_moments(client: LLMClient, text: str) -> list[dict]:
     """Pass 2: Extract 4-field teaching moments from confirmed teaching transcript."""
-    response = client.messages.create(
-        model=model,
-        max_tokens=4000,
-        messages=[{"role": "user", "content": EXTRACT_PROMPT + text[:12000]}],
-    )
     try:
-        result = json.loads(response.content[0].text)
+        response_text = client.complete_json(EXTRACT_PROMPT + text[:12000], max_tokens=4000)
+        result = json.loads(response_text)
         if isinstance(result, list):
             return result
         return [result]
-    except (json.JSONDecodeError, IndexError):
+    except (json.JSONDecodeError, TypeError, RuntimeError) as e:
+        print(f"[extract error: {e}] ", end="")
         return []
 
 
@@ -112,8 +105,9 @@ def main():
     parser = argparse.ArgumentParser(description="Extract teaching moments from transcripts")
     parser.add_argument("--manifest", type=Path, required=True, help="Path to transcript manifest JSON")
     parser.add_argument("--output", type=Path, default=DATA_DIR / "raw_teaching_db.json")
-    parser.add_argument("--filter-model", type=str, default="claude-haiku-4-5-20251001", help="Model for Pass 1 filtering")
-    parser.add_argument("--extract-model", type=str, default="claude-sonnet-4-6-20250514", help="Model for Pass 2 extraction")
+    parser.add_argument("--provider", type=str, default="workers-ai", choices=["workers-ai", "anthropic"])
+    parser.add_argument("--filter-model", type=str, default=None, help="Model for Pass 1 filtering (default: provider's cheap model)")
+    parser.add_argument("--extract-model", type=str, default=None, help="Model for Pass 2 extraction (default: provider's quality model)")
     parser.add_argument("--limit", type=int, default=None, help="Limit number of transcripts to process")
     args = parser.parse_args()
 
@@ -121,7 +115,11 @@ def main():
     if args.limit:
         manifest = manifest[:args.limit]
 
-    client = anthropic.Anthropic()
+    filter_client = LLMClient(provider=args.provider, model=args.filter_model, tier="cheap")
+    extract_client = LLMClient(provider=args.provider, model=args.extract_model, tier="quality")
+    print(f"Pass 1: {filter_client}")
+    print(f"Pass 2: {extract_client}")
+
     all_moments = []
     stats = {"total": len(manifest), "teaching": 0, "filtered_out": 0, "moments_extracted": 0, "validation_failed": 0}
 
@@ -137,7 +135,7 @@ def main():
         text = parse_vtt(transcript_path)
 
         # Pass 1: Filter
-        filter_result = filter_transcript(client, text, args.filter_model)
+        filter_result = filter_transcript(filter_client, text)
         if filter_result["classification"] != "TEACHING" or filter_result["confidence"] < 0.6:
             stats["filtered_out"] += 1
             print(f"FILTERED ({filter_result['classification']}, {filter_result['confidence']:.1f})")
@@ -146,7 +144,7 @@ def main():
         stats["teaching"] += 1
 
         # Pass 2: Extract
-        moments = extract_moments(client, text, args.extract_model)
+        moments = extract_moments(extract_client, text)
         valid_moments = []
         for m in moments:
             if validate_moment(m):
