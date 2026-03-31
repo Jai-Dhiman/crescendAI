@@ -1,7 +1,11 @@
-name = "crescendai-api-v2"
+name = "crescendai-api"
 main = "src/index.ts"
 compatibility_date = "2025-09-15"
 compatibility_flags = ["nodejs_compat"]
+
+[[routes]]
+pattern = "api.crescend.ai"
+custom_domain = true
 
 [observability]
 enabled = true
@@ -12,12 +16,12 @@ invocation_logs = true
 head_sampling_rate = 1
 
 [vars]
-ENVIRONMENT = "development"
-ALLOWED_ORIGIN = "http://localhost:3000"
+ENVIRONMENT = "production"
+ALLOWED_ORIGIN = "https://crescend.ai"
 APPLE_BUNDLE_ID = "ai.crescend.ios"
 APPLE_WEB_SERVICES_ID = "ai.crescend.web"
 GOOGLE_CLIENT_ID = "726399246264-lkq6jl4khal8gagn65j9t2a8bg52i7ie.apps.googleusercontent.com"
-BETTER_AUTH_URL = "http://localhost:8787"
+BETTER_AUTH_URL = "https://api.crescend.ai"
 SENTRY_DSN = ""
 AI_GATEWAY_TEACHER = ""
 AI_GATEWAY_BACKGROUND = ""
@@ -27,7 +31,6 @@ AMT_ENDPOINT = ""
 [[hyperdrive]]
 binding = "HYPERDRIVE"
 id = "ddbbe5fd7b6f4c249fc30f2cd7cb96d8"
-localConnectionString = "postgresql://pscale_api_pnsjrg3n6yuz.ki25orbubavs:REPLACE_WITH_YOUR_PSCALE_PASSWORD@us-west-2.pg.psdb.cloud:5432/postgres?sslmode=require"
 
 [[durable_objects.bindings]]
 name = "SESSION_BRAIN"
