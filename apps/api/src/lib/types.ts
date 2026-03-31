@@ -22,6 +22,9 @@ export interface Bindings {
 	ANTHROPIC_API_KEY: string;
 	AI_GATEWAY_TEACHER: string;
 	AI_GATEWAY_BACKGROUND: string;
+	MUQ_ENDPOINT: string;
+	AMT_ENDPOINT: string;
+	SESSION_BRAIN: DurableObjectNamespace;
 }
 
 export interface Variables {

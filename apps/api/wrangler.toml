@@ -21,11 +21,21 @@ BETTER_AUTH_URL = "http://localhost:8787"
 SENTRY_DSN = ""
 AI_GATEWAY_TEACHER = ""
 AI_GATEWAY_BACKGROUND = ""
+MUQ_ENDPOINT = ""
+AMT_ENDPOINT = ""
 
 [[hyperdrive]]
 binding = "HYPERDRIVE"
 id = "ddbbe5fd7b6f4c249fc30f2cd7cb96d8"
 localConnectionString = "postgresql://pscale_api_pnsjrg3n6yuz.ki25orbubavs:REPLACE_WITH_YOUR_PSCALE_PASSWORD@us-west-2.pg.psdb.cloud:5432/postgres?sslmode=require"
+
+[[durable_objects.bindings]]
+name = "SESSION_BRAIN"
+class_name = "SessionBrain"
+
+[[migrations]]
+tag = "v1"
+new_classes = ["SessionBrain"]
 
 [[r2_buckets]]
 binding = "CHUNKS"
