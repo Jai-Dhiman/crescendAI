@@ -59,12 +59,26 @@ Ruled out: Llama 4 (MoE, Meta license), DeepSeek (671B too large), Gemma 3 27B (
 
 ### Transcription Engine
 
-**Cohere Transcribe** (`cohere-transcribe-03-2026`) + **Pyannote speaker-diarization-3.1**
+**Recommended: Cohere Transcribe local** (`cohere-transcribe-03-2026`) on rented A100.
+**Fallback: CF Workers AI Whisper** (`@cf/openai/whisper-large-v3-turbo`), already in stack.
 
-- Cohere: Apache 2.0, 2B params, 5.42% WER (#1 Open ASR Leaderboard), 525x real-time throughput
-- Pyannote: Speaker diarization to separate teacher from student in masterclass audio
-- Pipeline: `yt-dlp (audio) -> Cohere Transcribe -> Pyannote diarization -> merge -> quality filter -> clean`
-- 3,000 hours of masterclasses transcribed in ~6 hours on a consumer GPU
+#### STT Options Compared (for 3,000 hours)
+
+| | Cohere Local (A100) | CF Workers AI Whisper | ElevenLabs Scribe v2 |
+|---|---|---|---|
+| WER | **5.42% (#1)** | 7.75% | 5.83% (#6) |
+| Cost (3,000 hrs) | **~$30-90** | ~$92 | $660-1,200 |
+| Speaker diarization | No (add Pyannote) | No | Yes, native |
+| Word timestamps | No native | Yes, native | Yes, native |
+| Setup | Rent GPU, run pipeline | Zero (already wired) | API key |
+| Processing time | ~20 GPU hrs | ~8 hrs (rate limited) | Hours (managed) |
+| License | Apache 2.0 | N/A (API) | Proprietary |
+
+**Decision:** Cohere local as primary (best accuracy, cheapest). Workers AI Whisper as fallback for spot-checks. Skip ElevenLabs unless Pyannote diarization validation fails on masterclass audio.
+
+**Pipeline:** `yt-dlp (16kHz WAV) -> Cohere Transcribe (local, transformers) -> Pyannote (optional) -> relevance filter -> clean`
+
+**Local run:** 2B params, ~8GB VRAM quantized. `transformers>=5.4.0` or `mlx-audio` on M4 Mac. A100 processes 3,000 hrs in ~20 GPU hours (~$30-90 on RunPod).
 
 ### Corpus (Target: 100M base, 200M+ goal)
 
@@ -373,6 +387,39 @@ Abandon or defer if:
 - Claude Haiku 4.5 proves good enough at $450/mo for 1K DAU (cost motivation disappears)
 - Anthropic releases a model fine-tuning API that gives you voice ownership without the engineering burden
 - The quality gate is not met after 2 training iterations (signals the 27B model cannot match Claude for this task)
+
+## Next Steps (Manual Action Required)
+
+Code infrastructure is complete (`apps/evals/teacher_model/`). These are the human tasks to start data collection:
+
+### Immediate (before any scraping)
+
+- [ ] **IP attorney consultation ($300-500):** YouTube ToS for model training, scraping targets, commercial use. Book a 1-hour call. Without this, do not run the transcription pipeline on YouTube content.
+
+### Transcription Setup
+
+- [ ] **Cohere Transcribe local test:** Download model from HuggingFace (`CohereLabs/cohere-transcribe-03-2026`). Test on M4 via `mlx-audio` or `transformers`. Verify it runs and produces reasonable output on a masterclass clip. If M4 is too slow for bulk work, rent an A100 on RunPod ($1.49/hr).
+- [ ] **10-video validation:** Transcribe 2 videos each from tonebase, Josh Wright, Nahre Sol, Juilliard, and one festival channel. Manually spot-check WER on a 5-minute segment. Target: < 15% WER on masterclass audio with background piano.
+- [ ] **Pyannote diarization test (optional):** Run `pyannote/speaker-diarization-3.1` on the same 10 videos. Check if teacher/student separation works when piano is playing. If error rate > 20%, skip diarization and use full transcripts.
+
+### Corpus Collection (after legal clearance)
+
+- [ ] **Tier 1 YouTube (bulk):** `uv run python -m teacher_model.transcribe --channel "@tonebasePiano"` (603 videos). Then Josh Wright (877), Nahre Sol (350), Juilliard (subset). Run on rented A100 for speed.
+- [ ] **Tier 2 PDFs:** Download Piano Pedagogy Forum volumes (22 PDFs from pianoinspires.com). Download public domain books from Internet Archive (Matthay, Czerny, C.P.E. Bach, Brower, Jonas). Run: `uv run python -m teacher_model.scrape_text --pdf-dir /path/to/pdfs --tier tier2_literature`
+- [ ] **Tier 2 Web:** Create URL list for Bulletproof Musician (600+ articles). Run: `uv run python -m teacher_model.scrape_text --url-list bulletproof_urls.txt --tier tier2_literature`
+- [ ] **Tier 3:** Henle prefaces (scrape henle.de product pages), Yale OHAM transcripts (request PDFs), Chopin Review journal.
+
+### Monitor Progress
+
+- [ ] **Check corpus status:** `uv run python -m teacher_model.corpus_builder status` -- shows token count toward 100M/200M targets.
+- [ ] **Run dedup after bulk collection:** `uv run python -m teacher_model.corpus_builder dedup` (dry run first, then `--remove`).
+
+### Gates (can run in parallel with collection)
+
+- [ ] **Gate 3 (rubric validation):** Rate 30 teaching moments from the 73 transcripts on the 7-dim rubric yourself. Compare to judge v2 scores. Need Pearson r >= 0.7 per dimension.
+- [ ] **Gate 4 (CPT probe):** Run domain knowledge baseline: `uv run python -m teacher_model.domain_knowledge_probe --provider workers-ai`. Then run 7B CPT on 20M tokens of collected corpus and re-run probe. Need >= 60%.
+- [ ] **Gate 1 (PMF):** Tracked by web beta analytics. 200+ users with 2+ sessions.
+- [ ] **Gate 2 (A/B):** Design blind voice quality test once beta has enough users.
 
 <!-- /autoplan restore point: /Users/jdhiman/.gstack/projects/Jai-Dhiman-crescendAI/main-autoplan-restore-20260331-014113.md -->
 
