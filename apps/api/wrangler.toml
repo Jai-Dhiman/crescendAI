@@ -23,6 +23,7 @@ SENTRY_DSN = ""
 [[hyperdrive]]
 binding = "HYPERDRIVE"
 id = "ddbbe5fd7b6f4c249fc30f2cd7cb96d8"
+localConnectionString = "postgresql://pscale_api_pnsjrg3n6yuz.ki25orbubavs:REPLACE_WITH_YOUR_PSCALE_PASSWORD@us-west-2.pg.psdb.cloud:5432/postgres?sslmode=require"
 
 [[r2_buckets]]
 binding = "CHUNKS"
