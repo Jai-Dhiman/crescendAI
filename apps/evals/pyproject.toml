@@ -47,3 +47,8 @@ packages = ["shared", "pipeline", "model", "memory", "inference"]
 
 [tool.pytest.ini_options]
 markers = ["integration: marks integration tests (require live API)"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+]
