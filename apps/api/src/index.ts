@@ -9,6 +9,12 @@ import { sentryMiddleware } from "./middleware/sentry";
 import { errorHandler } from "./middleware/error-handler";
 import { authRoutes } from "./routes/auth";
 import { healthRoutes } from "./routes/health";
+import { waitlistRoutes } from "./routes/waitlist";
+import { scoresRoutes } from "./routes/scores";
+import { exercisesRoutes } from "./routes/exercises";
+import { conversationsRoutes } from "./routes/conversations";
+import { syncRoutes } from "./routes/sync";
+import { chatRoutes } from "./routes/chat";
 
 const app = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
@@ -31,7 +37,13 @@ app.use("/api/*", authSessionMiddleware);
 
 const routes = app
 	.route("/health", healthRoutes)
-	.route("/api/auth", authRoutes);
+	.route("/api/auth", authRoutes)
+	.route("/api/waitlist", waitlistRoutes)
+	.route("/api/scores", scoresRoutes)
+	.route("/api/exercises", exercisesRoutes)
+	.route("/api/conversations", conversationsRoutes)
+	.route("/api/sync", syncRoutes)
+	.route("/api/chat", chatRoutes);
 
 app.notFound((c) => c.json({ error: "Not found" }, 404));
 
