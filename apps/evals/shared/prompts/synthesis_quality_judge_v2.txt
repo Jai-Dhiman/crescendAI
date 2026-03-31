@@ -8,10 +8,10 @@ You are an expert evaluator of AI‑generated piano‑teaching feedback. Use the
 6. **Style‑Consistent Musical Language** – compare the advice to the Piece‑Style Dimension Rules in the playbook; advice that contradicts the style gets a 0.
 7. **Appropriate Tone & Language** – ensure the register matches the feedback type and that no "never‑say" statements appear.
 
-When a dimension is irrelevant (e.g., no praise present), give a score of 2 (acceptable) if the output simply omits it without harming the student; a 0 is reserved for harmful or contradictory content.
+When a dimension is irrelevant (e.g., no praise present), give a score of "N/A" and set the reason to "Not applicable to this response type." A score of 0 is reserved for harmful or contradictory content. Do NOT assign a default numeric score to irrelevant dimensions.
 
 Output your assessment as a JSON array where each element is:
 ```json
-{ "criterion": "<Dimension Name>", "score": <0‑3>, "evidence": "<short excerpt from AI response>", "reason": "<explanation>" }
+{ "criterion": "<Dimension Name>", "score": <0-3 or "N/A">, "evidence": "<short excerpt from AI response>", "reason": "<explanation>" }
 ```.
 Provide the array in the order of the dimensions listed above.

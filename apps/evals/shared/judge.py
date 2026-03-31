@@ -46,9 +46,9 @@ class CriterionScore:
 
 @dataclass
 class DimensionScore:
-    """Score for a v2 rubric dimension (0-3 scale)."""
+    """Score for a v2 rubric dimension (0-3 scale, or None for N/A)."""
     criterion: str
-    score: int
+    score: int | None
     evidence: str
     reason: str
 
@@ -78,12 +78,17 @@ class JudgeResultV2:
 
     @property
     def mean_score(self) -> float:
-        if not self.dimensions:
+        scored = [d for d in self.dimensions if d.score is not None]
+        if not scored:
             return 0.0
-        return sum(d.score for d in self.dimensions) / len(self.dimensions)
+        return sum(d.score for d in scored) / len(scored)
 
     @property
-    def scores_by_dimension(self) -> dict[str, int]:
+    def scored_dimension_count(self) -> int:
+        return sum(1 for d in self.dimensions if d.score is not None)
+
+    @property
+    def scores_by_dimension(self) -> dict[str, int | None]:
         return {d.criterion: d.score for d in self.dimensions}
 
 
@@ -333,20 +338,30 @@ def judge_synthesis_v2(
 
 
 def _parse_v2_response(response_text: str) -> list[DimensionScore]:
-    """Parse v2 judge JSON response into DimensionScore list."""
+    """Parse v2 judge JSON response into DimensionScore list.
+
+    Handles score values of 0-3 (int) or "N/A" (mapped to None).
+    """
     try:
         data = json.loads(response_text)
         if not isinstance(data, list):
             data = [data]
-        return [
-            DimensionScore(
-                criterion=entry.get("criterion", "unknown"),
-                score=int(entry.get("score", 0)),
-                evidence=entry.get("evidence", ""),
-                reason=entry.get("reason", ""),
+        dimensions = []
+        for entry in data:
+            raw_score = entry.get("score")
+            if isinstance(raw_score, str) and raw_score.strip().upper() == "N/A":
+                score: int | None = None
+            else:
+                score = int(raw_score) if raw_score is not None else None
+            dimensions.append(
+                DimensionScore(
+                    criterion=entry.get("criterion", "unknown"),
+                    score=score,
+                    evidence=entry.get("evidence", ""),
+                    reason=entry.get("reason", ""),
+                )
             )
-            for entry in data
-        ]
+        return dimensions
     except (json.JSONDecodeError, TypeError, KeyError) as e:
         return [
             DimensionScore(
