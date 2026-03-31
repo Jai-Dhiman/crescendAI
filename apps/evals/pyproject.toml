@@ -7,6 +7,7 @@ dependencies = [
     "anthropic>=0.40.0",
     "groq>=0.4.0",
     "requests>=2.31.0",
+    "sentence-transformers>=5.3.0",
     "websockets>=12.0",
 ]
 
