@@ -55,7 +55,6 @@ def corpus_stats() -> dict:
 
     manifest = ProvenanceManifest()
     provenance_records = manifest.count()
-    tier_counts = manifest.by_tier()  # tier -> record count
 
     # Scale per-tier token counts proportionally from the total.
     # Provenance word counts give us the ratio; scale to observed token total.
