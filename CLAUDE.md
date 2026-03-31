@@ -60,7 +60,8 @@ Uses `just` (justfile) for dev commands. Install: `brew install just`.
 - Explicit exception handling over silent fallbacks
 - No backup files when making fixes
 - No emojis unless explicitly requested
-- **Rust (API):** Follow `apps/api/RUST_STYLE.md` for all Rust code. Key rules: `thiserror` error enums (not `Result<T, String>`), `#[serde(rename_all = "camelCase")]` on API types, no `.unwrap()` in handlers, `RefCell` not `Mutex`, trait objects over generics in cold paths for binary size.
+- **Rust (legacy API):** Follow `apps/api/RUST_STYLE.md` for Rust code in `apps/api-rust/`.
+- **TypeScript (new API):** Follow `apps/api/TS_STYLE.md` for all code in `apps/api/`. Key rules: never destructure `c.env`, ServiceContext for DI, domain errors in services (no HTTPException), chain `.route()` for Hono RPC types, Zod validation with JSON error hooks, state versioning in DOs across awaits, `console.log(JSON.stringify({...}))` for logging.
 
 ## Observability
 

@@ -784,14 +784,12 @@ import postgres from "postgres";
 import * as schema from "./schema/index";
 
 export function createDb(hyperdrive: Hyperdrive) {
-	const sql = postgres(hyperdrive.connectionString, {
-		prepare: false,
-	});
+	const sql = postgres(hyperdrive.connectionString);
 	return drizzle(sql, { schema });
 }
 ```
 
-Note: `prepare: false` is required when using Hyperdrive because Hyperdrive manages connection pooling and prepared statements are not compatible with connection-level pooling.
+Note: Hyperdrive transparently handles prepared statement multiplexing across pooled connections (since June 2024). Do NOT set `prepare: false` -- it kills query plan caching and adds extra round-trips.
 
 - [ ] **Step 2: Write the database middleware**
 
