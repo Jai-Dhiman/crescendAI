@@ -15,10 +15,6 @@ function makeSignal(overrides?: Partial<ChunkSignal>): ChunkSignal {
 	};
 }
 
-function bigrams(...pairs: [string, string][]): Set<string> {
-	return new Set(pairs.map(([a, b]) => `${a}-${b}`));
-}
-
 const RICH_BIGRAMS = new Set(["60-62", "62-64", "64-65", "65-67", "67-69"]);
 
 describe("ModeDetector", () => {
@@ -104,8 +100,7 @@ describe("ModeDetector", () => {
 		d.update(makeSignal({ chunkIndex: 1, timestampMs: now + 70000 }));
 		// The detector resumed to Regular, but Winding policy should suppress.
 		const windingDetector = new ModeDetector();
-		// @ts-expect-error -- accessing private for test
-		windingDetector.mode = PracticeMode.Winding;
+		(windingDetector as unknown as { mode: PracticeMode }).mode = PracticeMode.Winding;
 		expect(windingDetector.observationPolicy.suppress).toBe(true);
 	});
 

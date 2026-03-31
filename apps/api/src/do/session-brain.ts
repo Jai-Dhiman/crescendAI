@@ -221,8 +221,6 @@ export class SessionBrain extends DurableObject<Bindings> {
 		index: number,
 		r2Key: string,
 	): Promise<void> {
-		const MAX_ACCUMULATED_NOTES = 800;
-
 		// 1. Read state, snapshot version
 		const state = await this.readState();
 		const stateVersion = state.version;
@@ -768,7 +766,7 @@ export class SessionBrain extends DurableObject<Bindings> {
 
 	// ─── Synthesis & Finalization ────────────────────────────────────────────
 
-	private async runSynthesisAndPersist(ws?: WebSocket): Promise<void> {
+	private async runSynthesisAndPersist(_ws?: WebSocket): Promise<void> {
 		const state = await this.readState();
 		if (state.synthesisCompleted) return; // idempotent
 
