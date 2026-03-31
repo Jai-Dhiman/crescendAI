@@ -1,6 +1,7 @@
 import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../lib/api";
+import { authClient } from "../lib/auth-client";
 import { useAuth } from "../lib/auth";
 import { authQueryOptions } from "../hooks/useAuth";
 import { useMountEffect } from "../hooks/useFoundation";
@@ -182,12 +183,22 @@ function SignInPage() {
 			setLoading(true);
 			setError(null);
 			try {
-				const result = await api.auth.google(response.credential);
-				setUser({
-					studentId: result.studentId,
-					email: result.email ?? null,
-					displayName: result.displayName ?? null,
+				const { data, error } = await authClient.signIn.social({
+					provider: "google",
+					idToken: {
+						token: response.credential,
+					},
 				});
+				if (error) {
+					throw new Error(error.message);
+				}
+				if (data?.user) {
+					setUser({
+						studentId: data.user.id,
+						email: data.user.email ?? null,
+						displayName: data.user.name ?? null,
+					});
+				}
 				navigate({ to: "/app" });
 			} catch (err) {
 				console.error("Google sign in failed:", err);
@@ -276,28 +287,22 @@ function SignInPage() {
 			const appleResponse = await window.AppleID.auth.signIn();
 			const idToken = appleResponse.authorization.id_token;
 
-			// Decode the JWT to extract the subject (Apple user ID)
-			const base64 = idToken
-				.split(".")[1]
-				.replace(/-/g, "+")
-				.replace(/_/g, "/");
-			const payload = JSON.parse(atob(base64));
-			const userId = payload.sub;
-
-			const email = appleResponse.user?.email ?? undefined;
-			const firstName = appleResponse.user?.name?.firstName;
-			const lastName = appleResponse.user?.name?.lastName;
-			const displayName = firstName
-				? [firstName, lastName].filter(Boolean).join(" ")
-				: undefined;
-
-			const result = await api.auth.apple(idToken, userId, email, displayName);
-
-			setUser({
-				studentId: result.studentId,
-				email: result.email,
-				displayName: result.displayName,
+			const { data, error } = await authClient.signIn.social({
+				provider: "apple",
+				idToken: {
+					token: idToken,
+				},
 			});
+			if (error) {
+				throw new Error(error.message);
+			}
+			if (data?.user) {
+				setUser({
+					studentId: data.user.id,
+					email: data.user.email ?? null,
+					displayName: data.user.name ?? null,
+				});
+			}
 
 			navigate({ to: "/app" });
 		} catch (err) {

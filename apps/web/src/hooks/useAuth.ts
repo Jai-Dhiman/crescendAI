@@ -1,17 +1,22 @@
 import { queryOptions } from "@tanstack/react-query";
-import { ApiError, api } from "../lib/api";
+import { authClient } from "../lib/auth-client";
+import type { AuthUser } from "../lib/api";
 
 export const authQueryOptions = queryOptions({
 	queryKey: ["auth", "me"] as const,
-	queryFn: async () => {
-		try {
-			return await api.auth.me();
-		} catch (err) {
-			if (err instanceof ApiError && err.status === 401) {
-				return null;
-			}
-			throw err;
+	queryFn: async (): Promise<AuthUser | null> => {
+		const { data, error } = await authClient.getSession();
+		if (error) {
+			throw new Error(error.message);
 		}
+		if (!data) {
+			return null;
+		}
+		return {
+			studentId: data.user.id,
+			email: data.user.email ?? null,
+			displayName: data.user.name ?? null,
+		};
 	},
 	retry: false,
 	staleTime: 5 * 60 * 1000, // 5 minutes

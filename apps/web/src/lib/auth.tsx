@@ -6,7 +6,7 @@ import {
 } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { AuthUser } from "./api";
-import { api } from "./api";
+import { authClient } from "./auth-client";
 import { authQueryOptions } from "../hooks/useAuth";
 
 interface AuthContextValue {
@@ -40,11 +40,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 	);
 
 	const signOut = useCallback(async () => {
-		try {
-			await api.auth.signout();
-		} catch (err) {
-			console.error("Signout API call failed:", err);
-		}
+		await authClient.signOut();
 		queryClient.setQueryData(authQueryOptions.queryKey, null);
 	}, [queryClient]);
 
