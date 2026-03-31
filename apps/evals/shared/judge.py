@@ -54,6 +54,16 @@ class DimensionScore:
 
 
 @dataclass
+class ToolCallResult:
+    scenario_id: str
+    expected_tool_call: bool
+    actual_tool_call: bool
+    tool_name_correct: bool | None  # None if no tool call made
+    schema_valid: bool | None       # None if no tool call made
+    validation_errors: list[str] = field(default_factory=list)
+
+
+@dataclass
 class JudgeResult:
     scores: list[CriterionScore] = field(default_factory=list)
     model: str = ""
@@ -402,6 +412,154 @@ def _call_with_retry(
                 raise
 
     raise RuntimeError("Unreachable: exhausted retries without returning or raising")
+
+
+def judge_tool_calls(model_response: str, scenario: dict) -> ToolCallResult:
+    """Evaluate whether a model response correctly calls the create_exercise tool.
+
+    Extracts a tool call from model_response by:
+    1. Trying to parse the entire response as JSON.
+    2. Searching for embedded JSON objects with a "name" key via regex.
+
+    Checks:
+    - Was a tool call present when expected (and absent when not)?
+    - Does the tool name match "create_exercise"?
+    - Does the payload validate against the create_exercise schema?
+    """
+    from teacher_model.tool_format import validate_exercise_tool_call
+
+    scenario_id: str = scenario.get("id", "unknown")
+    expected: bool = bool(scenario.get("expects_tool_call", False))
+
+    tool_call_dict: dict | None = None
+
+    # Strategy 1: entire response is JSON.
+    stripped = model_response.strip()
+    if stripped.startswith("{"):
+        try:
+            candidate = json.loads(stripped)
+            if isinstance(candidate, dict) and "name" in candidate:
+                tool_call_dict = candidate
+        except json.JSONDecodeError:
+            pass
+
+    # Strategy 2: find embedded JSON object containing a "name" key.
+    if tool_call_dict is None:
+        for match in re.finditer(r"\{[^{}]*\"name\"[^{}]*\}", model_response, re.DOTALL):
+            try:
+                candidate = json.loads(match.group())
+                if isinstance(candidate, dict) and "name" in candidate:
+                    tool_call_dict = candidate
+                    break
+            except json.JSONDecodeError:
+                continue
+
+    # Strategy 3: broader nested-JSON search (handles arguments sub-objects).
+    if tool_call_dict is None:
+        brace_pattern = re.compile(r"\{", re.DOTALL)
+        for start_match in brace_pattern.finditer(model_response):
+            start = start_match.start()
+            depth = 0
+            for i, ch in enumerate(model_response[start:], start=start):
+                if ch == "{":
+                    depth += 1
+                elif ch == "}":
+                    depth -= 1
+                    if depth == 0:
+                        fragment = model_response[start : i + 1]
+                        try:
+                            candidate = json.loads(fragment)
+                            if isinstance(candidate, dict) and "name" in candidate:
+                                tool_call_dict = candidate
+                        except json.JSONDecodeError:
+                            pass
+                        break
+            if tool_call_dict is not None:
+                break
+
+    actual: bool = tool_call_dict is not None
+
+    if not actual:
+        return ToolCallResult(
+            scenario_id=scenario_id,
+            expected_tool_call=expected,
+            actual_tool_call=False,
+            tool_name_correct=None,
+            schema_valid=None,
+            validation_errors=[],
+        )
+
+    tool_name = tool_call_dict.get("name", "")
+    name_correct: bool = tool_name == "create_exercise"
+
+    errors = validate_exercise_tool_call(tool_call_dict)
+    schema_valid: bool = len(errors) == 0
+
+    return ToolCallResult(
+        scenario_id=scenario_id,
+        expected_tool_call=expected,
+        actual_tool_call=True,
+        tool_name_correct=name_correct,
+        schema_valid=schema_valid,
+        validation_errors=errors,
+    )
+
+
+def compute_tool_call_metrics(results: list[ToolCallResult]) -> dict:
+    """Compute aggregate metrics over a list of ToolCallResult.
+
+    Returns:
+        accuracy: proportion of scenarios where presence/absence decision was correct.
+        precision: of tool calls made, proportion that were appropriate (expected).
+        recall: of scenarios needing a tool call, proportion that received one.
+        schema_validity: of actual tool calls, proportion with valid schema.
+        total: total number of scenarios evaluated.
+        true_positives: tool call made and expected.
+        false_positives: tool call made but not expected.
+        false_negatives: no tool call made but expected.
+        true_negatives: no tool call made and not expected.
+    """
+    total = len(results)
+    if total == 0:
+        return {
+            "accuracy": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "schema_validity": 0.0,
+            "total": 0,
+            "true_positives": 0,
+            "false_positives": 0,
+            "false_negatives": 0,
+            "true_negatives": 0,
+        }
+
+    tp = sum(1 for r in results if r.expected_tool_call and r.actual_tool_call)
+    fp = sum(1 for r in results if not r.expected_tool_call and r.actual_tool_call)
+    fn = sum(1 for r in results if r.expected_tool_call and not r.actual_tool_call)
+    tn = sum(1 for r in results if not r.expected_tool_call and not r.actual_tool_call)
+
+    accuracy = (tp + tn) / total
+    precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
+    recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
+
+    actual_calls = [r for r in results if r.actual_tool_call]
+    schema_validity = (
+        sum(1 for r in actual_calls if r.schema_valid) / len(actual_calls)
+        if actual_calls
+        else 0.0
+    )
+
+    return {
+        "accuracy": accuracy,
+        "precision": precision,
+        "recall": recall,
+        "schema_validity": schema_validity,
+        "total": total,
+        "true_positives": tp,
+        "false_positives": fp,
+        "false_negatives": fn,
+        "true_negatives": tn,
+    }
 
 
 def _parse_judge_response(response_text: str) -> list[CriterionScore]:

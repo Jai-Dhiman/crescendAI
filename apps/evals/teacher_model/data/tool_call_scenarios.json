@@ -1,0 +1,1302 @@
+[
+  {
+    "id": "tool_required_001",
+    "student_context": "Intermediate student, 4th session on Chopin Nocturne Op.9 No.2",
+    "teaching_moment": {
+      "dimension": "pedaling",
+      "score": 0.3,
+      "baseline": 0.6,
+      "bar_range": "8-12"
+    },
+    "framing": "correction",
+    "expects_tool_call": true,
+    "rationale": "Significant regression on pedaling in specific bars, structured drill would help"
+  },
+  {
+    "id": "tool_required_002",
+    "student_context": "Beginner student, 2nd session on Bach Minuet in G BWV Anh. 114",
+    "teaching_moment": {
+      "dimension": "articulation",
+      "score": 0.25,
+      "baseline": 0.4,
+      "bar_range": "1-4"
+    },
+    "framing": "correction",
+    "expects_tool_call": true,
+    "rationale": "Beginner struggling with basic articulation, isolated drill on opening bars needed"
+  },
+  {
+    "id": "tool_required_003",
+    "student_context": "Advanced student, 8th session on Beethoven Sonata Op.13 Pathetique, 1st movement",
+    "teaching_moment": {
+      "dimension": "dynamics",
+      "score": 0.2,
+      "baseline": 0.7,
+      "bar_range": "35-51"
+    },
+    "framing": "correction",
+    "expects_tool_call": true,
+    "rationale": "Sharp drop in dynamic contrast in development section, needs targeted exercise"
+  },
+  {
+    "id": "tool_required_004",
+    "student_context": "Intermediate student, 5th session on Mozart Sonata K.331, 1st movement",
+    "teaching_moment": {
+      "dimension": "timing",
+      "score": 0.35,
+      "baseline": 0.65,
+      "bar_range": "17-24"
+    },
+    "framing": "correction",
+    "expects_tool_call": true,
+    "rationale": "Consistent rhythmic rushing in the variation theme, metronome drill recommended"
+  },
+  {
+    "id": "tool_required_005",
+    "student_context": "Beginner student, 3rd session on Bartok Mikrokosmos Book 1 No.5",
+    "teaching_moment": {
+      "dimension": "articulation",
+      "score": 0.2,
+      "baseline": 0.45,
+      "bar_range": "1-8"
+    },
+    "framing": "correction",
+    "expects_tool_call": true,
+    "rationale": "Beginner cannot distinguish staccato from legato, needs isolated hands exercise"
+  },
+  {
+    "id": "tool_required_006",
+    "student_context": "Intermediate student, 6th session on Schubert Impromptu Op.90 No.2",
+    "teaching_moment": {
+      "dimension": "phrasing",
+      "score": 0.28,
+      "baseline": 0.55,
+      "bar_range": "1-16"
+    },
+    "framing": "correction",
+    "expects_tool_call": true,
+    "rationale": "Phrase shapes flat and mechanical in exposition, targeted phrasing drill needed"
+  },
+  {
+    "id": "tool_required_007",
+    "student_context": "Advanced student, 10th session on Chopin Ballade No.1 Op.23",
+    "teaching_moment": {
+      "dimension": "pedaling",
+      "score": 0.25,
+      "baseline": 0.72,
+      "bar_range": "68-94"
+    },
+    "framing": "correction",
+    "expects_tool_call": true,
+    "rationale": "Heavy over-pedaling in climax section muddying harmonies, syncopated pedal drill"
+  },
+  {
+    "id": "tool_required_008",
+    "student_context": "Intermediate student, 7th session on Debussy Arabesque No.1",
+    "teaching_moment": {
+      "dimension": "dynamics",
+      "score": 0.3,
+      "baseline": 0.58,
+      "bar_range": "27-41"
+    },
+    "framing": "correction",
+    "expects_tool_call": true,
+    "rationale": "Failure to achieve pp in middle section, right-hand independence exercise needed"
+  },
+  {
+    "id": "tool_required_009",
+    "student_context": "Beginner student, 4th session on Clementi Sonatina Op.36 No.1",
+    "teaching_moment": {
+      "dimension": "timing",
+      "score": 0.22,
+      "baseline": 0.48,
+      "bar_range": "1-8"
+    },
+    "framing": "correction",
+    "expects_tool_call": true,
+    "rationale": "Beginner losing pulse in dotted rhythms, slow-practice drill with counting"
+  },
+  {
+    "id": "tool_required_010",
+    "student_context": "Intermediate student, 5th session on Brahms Intermezzo Op.118 No.2",
+    "teaching_moment": {
+      "dimension": "interpretation",
+      "score": 0.2,
+      "baseline": 0.5,
+      "bar_range": "1-24"
+    },
+    "framing": "correction",
+    "expects_tool_call": true,
+    "rationale": "Character completely absent in A section, requires slow internalization exercise"
+  },
+  {
+    "id": "tool_required_011",
+    "student_context": "Advanced student, 12th session on Liszt Liebestraum No.3",
+    "teaching_moment": {
+      "dimension": "phrasing",
+      "score": 0.27,
+      "baseline": 0.68,
+      "bar_range": "25-48"
+    },
+    "framing": "correction",
+    "expects_tool_call": true,
+    "rationale": "Climax phrase misshapen, structural arc not being realized, directed exercise needed"
+  },
+  {
+    "id": "tool_required_012",
+    "student_context": "Beginner student, 5th session on John Thompson Easy Piano Grade 1",
+    "teaching_moment": {
+      "dimension": "dynamics",
+      "score": 0.15,
+      "baseline": 0.35,
+      "bar_range": "1-4"
+    },
+    "framing": "correction",
+    "expects_tool_call": true,
+    "rationale": "Cannot produce soft touch, hand weight exercise required"
+  },
+  {
+    "id": "tool_required_013",
+    "student_context": "Intermediate student, 9th session on Beethoven Fur Elise",
+    "teaching_moment": {
+      "dimension": "articulation",
+      "score": 0.28,
+      "baseline": 0.6,
+      "bar_range": "25-40"
+    },
+    "framing": "correction",
+    "expects_tool_call": true,
+    "rationale": "B-section chords overly accented and clunky, voice balancing drill needed"
+  },
+  {
+    "id": "tool_required_014",
+    "student_context": "Advanced student, 7th session on Ravel Pavane pour une infante defunte",
+    "teaching_moment": {
+      "dimension": "pedaling",
+      "score": 0.22,
+      "baseline": 0.65,
+      "bar_range": "1-20"
+    },
+    "framing": "correction",
+    "expects_tool_call": true,
+    "rationale": "Pedaling changes too abrupt in opening, legato pedal technique drill required"
+  },
+  {
+    "id": "tool_required_015",
+    "student_context": "Intermediate student, 6th session on Grieg Lyric Pieces Op.12 No.1",
+    "teaching_moment": {
+      "dimension": "timing",
+      "score": 0.3,
+      "baseline": 0.62,
+      "bar_range": "17-24"
+    },
+    "framing": "correction",
+    "expects_tool_call": true,
+    "rationale": "Ritardando in coda section not controlled, graduated deceleration exercise needed"
+  },
+  {
+    "id": "tool_required_016",
+    "student_context": "Beginner student, 6th session on Bartok Mikrokosmos Book 2 No.40",
+    "teaching_moment": {
+      "dimension": "articulation",
+      "score": 0.18,
+      "baseline": 0.42,
+      "bar_range": "1-12"
+    },
+    "framing": "correction",
+    "expects_tool_call": true,
+    "rationale": "Staccato too long and heavy, wrist bounce drill needed"
+  },
+  {
+    "id": "tool_required_017",
+    "student_context": "Advanced student, 11th session on Chopin Etude Op.10 No.3",
+    "teaching_moment": {
+      "dimension": "dynamics",
+      "score": 0.25,
+      "baseline": 0.7,
+      "bar_range": "21-32"
+    },
+    "framing": "correction",
+    "expects_tool_call": true,
+    "rationale": "Con fuoco section needs ff at climax that never arrives, build exercise needed"
+  },
+  {
+    "id": "tool_required_018",
+    "student_context": "Intermediate student, 8th session on Schumann Kinderszenen Op.15 No.7 Traumerei",
+    "teaching_moment": {
+      "dimension": "phrasing",
+      "score": 0.24,
+      "baseline": 0.56,
+      "bar_range": "1-8"
+    },
+    "framing": "correction",
+    "expects_tool_call": true,
+    "rationale": "Long phrase interrupted by breath at measure 4, connectivity exercise needed"
+  },
+  {
+    "id": "tool_required_019",
+    "student_context": "Beginner student, 7th session on Haydn German Dance Hob.IX:22 No.1",
+    "teaching_moment": {
+      "dimension": "timing",
+      "score": 0.2,
+      "baseline": 0.45,
+      "bar_range": "1-8"
+    },
+    "framing": "correction",
+    "expects_tool_call": true,
+    "rationale": "Upbeat pickup consistently rushed, isolated pickup drill required"
+  },
+  {
+    "id": "tool_required_020",
+    "student_context": "Intermediate student, 10th session on Mendelssohn Song Without Words Op.19 No.1",
+    "teaching_moment": {
+      "dimension": "pedaling",
+      "score": 0.26,
+      "baseline": 0.61,
+      "bar_range": "9-16"
+    },
+    "framing": "correction",
+    "expects_tool_call": true,
+    "rationale": "Pedal not clearing on harmonic changes, harmonic pedal rhythm exercise needed"
+  },
+  {
+    "id": "tool_required_021",
+    "student_context": "Advanced student, 9th session on Prokofiev Visions Fugitives Op.22 No.6",
+    "teaching_moment": {
+      "dimension": "articulation",
+      "score": 0.28,
+      "baseline": 0.66,
+      "bar_range": "1-16"
+    },
+    "framing": "correction",
+    "expects_tool_call": true,
+    "rationale": "Staccatissimo too light, fails to achieve percussive edge, finger-tip pressure drill"
+  },
+  {
+    "id": "tool_required_022",
+    "student_context": "Intermediate student, 7th session on Chopin Prelude Op.28 No.4",
+    "teaching_moment": {
+      "dimension": "interpretation",
+      "score": 0.22,
+      "baseline": 0.54,
+      "bar_range": "1-25"
+    },
+    "framing": "correction",
+    "expects_tool_call": true,
+    "rationale": "Piece played at uniform tempo and dynamic, expressive mapping exercise required"
+  },
+  {
+    "id": "tool_required_023",
+    "student_context": "Beginner student, 4th session on Bastien Piano Basics Level 1",
+    "teaching_moment": {
+      "dimension": "dynamics",
+      "score": 0.18,
+      "baseline": 0.38,
+      "bar_range": "1-8"
+    },
+    "framing": "correction",
+    "expects_tool_call": true,
+    "rationale": "No dynamic differentiation between forte and piano markings, contrast drill"
+  },
+  {
+    "id": "tool_required_024",
+    "student_context": "Advanced student, 14th session on Beethoven Sonata Op.27 No.2 Moonlight, 3rd movement",
+    "teaching_moment": {
+      "dimension": "timing",
+      "score": 0.29,
+      "baseline": 0.72,
+      "bar_range": "1-16"
+    },
+    "framing": "correction",
+    "expects_tool_call": true,
+    "rationale": "Triplet figures not evenly spaced in presto agitato, slow subdivision drill"
+  },
+  {
+    "id": "tool_required_025",
+    "student_context": "Intermediate student, 9th session on Debussy La Fille aux cheveux de lin",
+    "teaching_moment": {
+      "dimension": "pedaling",
+      "score": 0.24,
+      "baseline": 0.6,
+      "bar_range": "1-14"
+    },
+    "framing": "correction",
+    "expects_tool_call": true,
+    "rationale": "Heavy direct pedal obscuring whole-tone color, half-pedal technique exercise"
+  },
+  {
+    "id": "tool_required_026",
+    "student_context": "Beginner student, 8th session on Diabelli Melodious Pieces Op.149 No.1",
+    "teaching_moment": {
+      "dimension": "phrasing",
+      "score": 0.2,
+      "baseline": 0.44,
+      "bar_range": "1-8"
+    },
+    "framing": "correction",
+    "expects_tool_call": true,
+    "rationale": "Each measure phrased as a separate unit, four-bar grouping exercise"
+  },
+  {
+    "id": "tool_required_027",
+    "student_context": "Advanced student, 13th session on Ravel Sonatine, 1st movement",
+    "teaching_moment": {
+      "dimension": "dynamics",
+      "score": 0.26,
+      "baseline": 0.68,
+      "bar_range": "40-60"
+    },
+    "framing": "correction",
+    "expects_tool_call": true,
+    "rationale": "Recapitulation lacks intensity compared to exposition, comparative drill"
+  },
+  {
+    "id": "tool_required_028",
+    "student_context": "Intermediate student, 11th session on Satie Gymnopedies No.1",
+    "teaching_moment": {
+      "dimension": "timing",
+      "score": 0.25,
+      "baseline": 0.58,
+      "bar_range": "1-20"
+    },
+    "framing": "correction",
+    "expects_tool_call": true,
+    "rationale": "Waltz rhythm uneven, second beat consistently late, isolated left-hand drill"
+  },
+  {
+    "id": "tool_required_029",
+    "student_context": "Advanced student, 10th session on Scarlatti Sonata K.141",
+    "teaching_moment": {
+      "dimension": "articulation",
+      "score": 0.23,
+      "baseline": 0.67,
+      "bar_range": "1-28"
+    },
+    "framing": "correction",
+    "expects_tool_call": true,
+    "rationale": "Trills sluggish and unclear, isolated trill practice with finger independence"
+  },
+  {
+    "id": "tool_required_030",
+    "student_context": "Intermediate student, 5th session on Schumann Album for the Young Op.68 No.5",
+    "teaching_moment": {
+      "dimension": "interpretation",
+      "score": 0.22,
+      "baseline": 0.52,
+      "bar_range": "1-16"
+    },
+    "framing": "correction",
+    "expects_tool_call": true,
+    "rationale": "Marching character absent, accent pattern exercise on strong beats"
+  },
+  {
+    "id": "tool_required_031",
+    "student_context": "Beginner student, 5th session on Czerny Etude Op.599 No.1",
+    "teaching_moment": {
+      "dimension": "articulation",
+      "score": 0.15,
+      "baseline": 0.38,
+      "bar_range": "1-8"
+    },
+    "framing": "correction",
+    "expects_tool_call": true,
+    "rationale": "All notes played equally heavy, finger legato exercise at slow tempo"
+  },
+  {
+    "id": "tool_required_032",
+    "student_context": "Advanced student, 15th session on Chopin Nocturne Op.27 No.2",
+    "teaching_moment": {
+      "dimension": "phrasing",
+      "score": 0.22,
+      "baseline": 0.65,
+      "bar_range": "33-56"
+    },
+    "framing": "correction",
+    "expects_tool_call": true,
+    "rationale": "Embellishment ornaments interrupt phrase flow, ornament integration exercise"
+  },
+  {
+    "id": "tool_required_033",
+    "student_context": "Intermediate student, 6th session on Kabalevsky Pieces for Children Op.27 No.1",
+    "teaching_moment": {
+      "dimension": "dynamics",
+      "score": 0.26,
+      "baseline": 0.55,
+      "bar_range": "1-12"
+    },
+    "framing": "correction",
+    "expects_tool_call": true,
+    "rationale": "Staccato chords all forte, dynamic variety exercise for different articulations"
+  },
+  {
+    "id": "tool_required_034",
+    "student_context": "Beginner student, 3rd session on Schaum Piano Course Book A No.8",
+    "teaching_moment": {
+      "dimension": "timing",
+      "score": 0.18,
+      "baseline": 0.4,
+      "bar_range": "1-4"
+    },
+    "framing": "correction",
+    "expects_tool_call": true,
+    "rationale": "Quarter vs half note duration confused, duration contrast clapping drill"
+  },
+  {
+    "id": "tool_required_035",
+    "student_context": "Advanced student, 16th session on Beethoven Sonata Op.57 Appassionata, 1st movement",
+    "teaching_moment": {
+      "dimension": "pedaling",
+      "score": 0.28,
+      "baseline": 0.74,
+      "bar_range": "17-35"
+    },
+    "framing": "correction",
+    "expects_tool_call": true,
+    "rationale": "Beethoven's unusual long-pedal passage needs specific technique, flutter pedal drill"
+  },
+  {
+    "id": "tool_required_036",
+    "student_context": "Intermediate student, 12th session on Tchaikovsky Album for the Young Op.39 No.10",
+    "teaching_moment": {
+      "dimension": "phrasing",
+      "score": 0.27,
+      "baseline": 0.6,
+      "bar_range": "1-16"
+    },
+    "framing": "correction",
+    "expects_tool_call": true,
+    "rationale": "Mazurka phrase endings too abrupt, phrase tail shaping exercise"
+  },
+  {
+    "id": "tool_required_037",
+    "student_context": "Beginner student, 7th session on Alfred Basic Piano Course Level 1B",
+    "teaching_moment": {
+      "dimension": "dynamics",
+      "score": 0.2,
+      "baseline": 0.42,
+      "bar_range": "5-8"
+    },
+    "framing": "correction",
+    "expects_tool_call": true,
+    "rationale": "Sudden loud accents replacing gradual crescendo, crescendo mapping drill"
+  },
+  {
+    "id": "tool_required_038",
+    "student_context": "Advanced student, 11th session on Scriabin Prelude Op.11 No.1",
+    "teaching_moment": {
+      "dimension": "interpretation",
+      "score": 0.24,
+      "baseline": 0.63,
+      "bar_range": "1-24"
+    },
+    "framing": "correction",
+    "expects_tool_call": true,
+    "rationale": "Mystical character replaced by Romantic lushness, color imagination exercise"
+  },
+  {
+    "id": "tool_required_039",
+    "student_context": "Intermediate student, 8th session on Handel Sarabande HWV 437",
+    "teaching_moment": {
+      "dimension": "timing",
+      "score": 0.28,
+      "baseline": 0.62,
+      "bar_range": "1-8"
+    },
+    "framing": "correction",
+    "expects_tool_call": true,
+    "rationale": "Sarabande accent on beat two consistently missing, stress pattern drill"
+  },
+  {
+    "id": "tool_required_040",
+    "student_context": "Beginner student, 6th session on Wilhelm Friedemann Bach Menuet from the Notebook",
+    "teaching_moment": {
+      "dimension": "articulation",
+      "score": 0.2,
+      "baseline": 0.45,
+      "bar_range": "1-8"
+    },
+    "framing": "correction",
+    "expects_tool_call": true,
+    "rationale": "Baroque ornaments played incorrectly, trill resolution exercise from note above"
+  },
+  {
+    "id": "tool_required_041",
+    "student_context": "Advanced student, 13th session on Faure Nocturne Op.33 No.1",
+    "teaching_moment": {
+      "dimension": "pedaling",
+      "score": 0.26,
+      "baseline": 0.7,
+      "bar_range": "1-16"
+    },
+    "framing": "correction",
+    "expects_tool_call": true,
+    "rationale": "Arpeggio texture loses continuity when pedal cleared, sostenuto technique drill"
+  },
+  {
+    "id": "tool_required_042",
+    "student_context": "Intermediate student, 5th session on Chopin Mazurka Op.7 No.1",
+    "teaching_moment": {
+      "dimension": "dynamics",
+      "score": 0.25,
+      "baseline": 0.58,
+      "bar_range": "1-8"
+    },
+    "framing": "correction",
+    "expects_tool_call": true,
+    "rationale": "Mazurka character requires accented beat 3, accent displacement drill"
+  },
+  {
+    "id": "tool_required_043",
+    "student_context": "Beginner student, 9th session on Diabelli Sonatina Op.168 No.1",
+    "teaching_moment": {
+      "dimension": "timing",
+      "score": 0.22,
+      "baseline": 0.48,
+      "bar_range": "17-24"
+    },
+    "framing": "correction",
+    "expects_tool_call": true,
+    "rationale": "Sixteenth-note passage falling behind, chunked practice with hands separate"
+  },
+  {
+    "id": "tool_required_044",
+    "student_context": "Advanced student, 17th session on Rachmaninoff Prelude Op.23 No.5",
+    "teaching_moment": {
+      "dimension": "dynamics",
+      "score": 0.24,
+      "baseline": 0.72,
+      "bar_range": "25-49"
+    },
+    "framing": "correction",
+    "expects_tool_call": true,
+    "rationale": "fff climax never achieved despite multiple attempts, arm weight exercise"
+  },
+  {
+    "id": "tool_required_045",
+    "student_context": "Intermediate student, 7th session on Burgmuller Progress Op.100 No.6",
+    "teaching_moment": {
+      "dimension": "phrasing",
+      "score": 0.26,
+      "baseline": 0.57,
+      "bar_range": "1-16"
+    },
+    "framing": "correction",
+    "expects_tool_call": true,
+    "rationale": "Perpetual motion needs breath at phrase cadences, phrase articulation drill"
+  },
+  {
+    "id": "tool_required_046",
+    "student_context": "Beginner student, 10th session on Glover Real Piano Adventures Level 1",
+    "teaching_moment": {
+      "dimension": "pedaling",
+      "score": 0.15,
+      "baseline": 0.35,
+      "bar_range": "1-8"
+    },
+    "framing": "correction",
+    "expects_tool_call": true,
+    "rationale": "First exposure to pedal, basic damper pedal coordination exercise"
+  },
+  {
+    "id": "tool_required_047",
+    "student_context": "Advanced student, 9th session on Kapustin Concert Etude Op.40 No.1",
+    "teaching_moment": {
+      "dimension": "articulation",
+      "score": 0.27,
+      "baseline": 0.69,
+      "bar_range": "1-24"
+    },
+    "framing": "correction",
+    "expects_tool_call": true,
+    "rationale": "Jazz-influenced staccato lacks swing feel, off-beat accent drill"
+  },
+  {
+    "id": "tool_required_048",
+    "student_context": "Intermediate student, 13th session on Liszt Hungarian Rhapsody No.2 simplified",
+    "teaching_moment": {
+      "dimension": "interpretation",
+      "score": 0.22,
+      "baseline": 0.55,
+      "bar_range": "1-20"
+    },
+    "framing": "correction",
+    "expects_tool_call": true,
+    "rationale": "Lassan section lacks dramatic contrast with friss, section contrast exercise"
+  },
+  {
+    "id": "tool_required_049",
+    "student_context": "Beginner student, 8th session on Faber Piano Adventures Level 1B",
+    "teaching_moment": {
+      "dimension": "phrasing",
+      "score": 0.18,
+      "baseline": 0.4,
+      "bar_range": "1-8"
+    },
+    "framing": "correction",
+    "expects_tool_call": true,
+    "rationale": "No phrase shaping at all, question-answer phrase contrast exercise"
+  },
+  {
+    "id": "tool_required_050",
+    "student_context": "Advanced student, 18th session on Chopin Fantaisie-Impromptu Op.66",
+    "teaching_moment": {
+      "dimension": "timing",
+      "score": 0.26,
+      "baseline": 0.73,
+      "bar_range": "1-14"
+    },
+    "framing": "correction",
+    "expects_tool_call": true,
+    "rationale": "Polyrhythm 4-against-3 not achieved, hands-separate drill with metronome"
+  },
+  {
+    "id": "tool_not_required_001",
+    "student_context": "Intermediate student, 3rd session on Chopin Nocturne Op.9 No.2",
+    "teaching_moment": {
+      "dimension": "pedaling",
+      "score": 0.75,
+      "baseline": 0.65,
+      "bar_range": "1-8"
+    },
+    "framing": "recognition",
+    "expects_tool_call": false,
+    "rationale": "Student improving on pedaling, simple verbal recognition appropriate"
+  },
+  {
+    "id": "tool_not_required_002",
+    "student_context": "Beginner student, 1st session on Bach Minuet in G BWV Anh. 114",
+    "teaching_moment": {
+      "dimension": "dynamics",
+      "score": 0.55,
+      "baseline": 0.5,
+      "bar_range": "1-4"
+    },
+    "framing": "encouragement",
+    "expects_tool_call": false,
+    "rationale": "First session, student making good progress, encouraging observation"
+  },
+  {
+    "id": "tool_not_required_003",
+    "student_context": "Advanced student, 6th session on Beethoven Sonata Op.13 Pathetique, 1st movement",
+    "teaching_moment": {
+      "dimension": "phrasing",
+      "score": 0.85,
+      "baseline": 0.78,
+      "bar_range": "1-16"
+    },
+    "framing": "recognition",
+    "expects_tool_call": false,
+    "rationale": "Excellent phrasing above baseline, celebratory observation warranted"
+  },
+  {
+    "id": "tool_not_required_004",
+    "student_context": "Intermediate student, 2nd session on Mozart Sonata K.331",
+    "teaching_moment": {
+      "dimension": "timing",
+      "score": 0.62,
+      "baseline": 0.6,
+      "bar_range": "1-8"
+    },
+    "framing": "question",
+    "expects_tool_call": false,
+    "rationale": "On-track student, open question to explore musical intention"
+  },
+  {
+    "id": "tool_not_required_005",
+    "student_context": "Beginner student, 2nd session on Bartok Mikrokosmos Book 1 No.5",
+    "teaching_moment": {
+      "dimension": "articulation",
+      "score": 0.5,
+      "baseline": 0.45,
+      "bar_range": "1-4"
+    },
+    "framing": "encouragement",
+    "expects_tool_call": false,
+    "rationale": "Slight improvement in articulation, encouraging word appropriate, not a drill"
+  },
+  {
+    "id": "tool_not_required_006",
+    "student_context": "Intermediate student, 4th session on Schubert Impromptu Op.90 No.2",
+    "teaching_moment": {
+      "dimension": "interpretation",
+      "score": 0.7,
+      "baseline": 0.68,
+      "bar_range": "1-16"
+    },
+    "framing": "recognition",
+    "expects_tool_call": false,
+    "rationale": "Good interpretive character maintained, simple observation noting quality"
+  },
+  {
+    "id": "tool_not_required_007",
+    "student_context": "Advanced student, 5th session on Chopin Ballade No.1 Op.23",
+    "teaching_moment": {
+      "dimension": "dynamics",
+      "score": 0.72,
+      "baseline": 0.7,
+      "bar_range": "1-20"
+    },
+    "framing": "question",
+    "expects_tool_call": false,
+    "rationale": "Performance near baseline, exploratory question about dynamic intentions"
+  },
+  {
+    "id": "tool_not_required_008",
+    "student_context": "Intermediate student, 1st session on Debussy Arabesque No.1",
+    "teaching_moment": {
+      "dimension": "pedaling",
+      "score": 0.58,
+      "baseline": 0.55,
+      "bar_range": "1-8"
+    },
+    "framing": "encouragement",
+    "expects_tool_call": false,
+    "rationale": "First encounter with Impressionist pedaling, encouraging orientation comment"
+  },
+  {
+    "id": "tool_not_required_009",
+    "student_context": "Beginner student, 1st session on Clementi Sonatina Op.36 No.1",
+    "teaching_moment": {
+      "dimension": "timing",
+      "score": 0.55,
+      "baseline": 0.48,
+      "bar_range": "1-4"
+    },
+    "framing": "encouragement",
+    "expects_tool_call": false,
+    "rationale": "Above baseline for beginner, praise and gentle observation, no exercise yet"
+  },
+  {
+    "id": "tool_not_required_010",
+    "student_context": "Intermediate student, 3rd session on Brahms Intermezzo Op.118 No.2",
+    "teaching_moment": {
+      "dimension": "phrasing",
+      "score": 0.65,
+      "baseline": 0.62,
+      "bar_range": "1-12"
+    },
+    "framing": "question",
+    "expects_tool_call": false,
+    "rationale": "Marginal improvement, ask student about their phrase concept before drilling"
+  },
+  {
+    "id": "tool_not_required_011",
+    "student_context": "Advanced student, 3rd session on Liszt Liebestraum No.3",
+    "teaching_moment": {
+      "dimension": "interpretation",
+      "score": 0.8,
+      "baseline": 0.72,
+      "bar_range": "1-16"
+    },
+    "framing": "recognition",
+    "expects_tool_call": false,
+    "rationale": "Beautiful character in opening, specific verbal praise warranted"
+  },
+  {
+    "id": "tool_not_required_012",
+    "student_context": "Beginner student, 2nd session on simple folk song arrangement",
+    "teaching_moment": {
+      "dimension": "dynamics",
+      "score": 0.48,
+      "baseline": 0.45,
+      "bar_range": "1-8"
+    },
+    "framing": "encouragement",
+    "expects_tool_call": false,
+    "rationale": "Minimal session on simple piece, general encouragement and awareness observation"
+  },
+  {
+    "id": "tool_not_required_013",
+    "student_context": "Intermediate student, 5th session on Beethoven Fur Elise",
+    "teaching_moment": {
+      "dimension": "dynamics",
+      "score": 0.68,
+      "baseline": 0.65,
+      "bar_range": "1-24"
+    },
+    "framing": "recognition",
+    "expects_tool_call": false,
+    "rationale": "Slight improvement in dynamics, simple recognition without exercise"
+  },
+  {
+    "id": "tool_not_required_014",
+    "student_context": "Advanced student, 4th session on Ravel Pavane pour une infante defunte",
+    "teaching_moment": {
+      "dimension": "pedaling",
+      "score": 0.76,
+      "baseline": 0.72,
+      "bar_range": "1-12"
+    },
+    "framing": "recognition",
+    "expects_tool_call": false,
+    "rationale": "Good pedal technique demonstrated, acknowledging quality suffices"
+  },
+  {
+    "id": "tool_not_required_015",
+    "student_context": "Intermediate student, 2nd session on Grieg Lyric Pieces Op.12 No.1",
+    "teaching_moment": {
+      "dimension": "timing",
+      "score": 0.6,
+      "baseline": 0.58,
+      "bar_range": "1-8"
+    },
+    "framing": "question",
+    "expects_tool_call": false,
+    "rationale": "On track, exploratory question about lyrical pacing intentions"
+  },
+  {
+    "id": "tool_not_required_016",
+    "student_context": "Beginner student, 3rd session on Bartok Mikrokosmos Book 2 No.38",
+    "teaching_moment": {
+      "dimension": "articulation",
+      "score": 0.52,
+      "baseline": 0.5,
+      "bar_range": "1-8"
+    },
+    "framing": "encouragement",
+    "expects_tool_call": false,
+    "rationale": "Marginal progress, encouraging note about awareness developing"
+  },
+  {
+    "id": "tool_not_required_017",
+    "student_context": "Advanced student, 2nd session on Chopin Etude Op.10 No.3",
+    "teaching_moment": {
+      "dimension": "phrasing",
+      "score": 0.82,
+      "baseline": 0.75,
+      "bar_range": "1-20"
+    },
+    "framing": "recognition",
+    "expects_tool_call": false,
+    "rationale": "Exceptional phrasing in first run, specific praise warranted"
+  },
+  {
+    "id": "tool_not_required_018",
+    "student_context": "Intermediate student, 4th session on Schumann Kinderszenen Op.15 No.7 Traumerei",
+    "teaching_moment": {
+      "dimension": "interpretation",
+      "score": 0.7,
+      "baseline": 0.66,
+      "bar_range": "1-16"
+    },
+    "framing": "question",
+    "expects_tool_call": false,
+    "rationale": "Good character, question to deepen interpretive thinking"
+  },
+  {
+    "id": "tool_not_required_019",
+    "student_context": "Beginner student, 4th session on Haydn German Dance Hob.IX:22 No.1",
+    "teaching_moment": {
+      "dimension": "timing",
+      "score": 0.58,
+      "baseline": 0.55,
+      "bar_range": "1-8"
+    },
+    "framing": "encouragement",
+    "expects_tool_call": false,
+    "rationale": "Small improvement in pulse, encouraging observation"
+  },
+  {
+    "id": "tool_not_required_020",
+    "student_context": "Intermediate student, 6th session on Mendelssohn Song Without Words Op.19 No.1",
+    "teaching_moment": {
+      "dimension": "pedaling",
+      "score": 0.72,
+      "baseline": 0.68,
+      "bar_range": "1-8"
+    },
+    "framing": "recognition",
+    "expects_tool_call": false,
+    "rationale": "Improved pedaling clarity, verbal recognition appropriate"
+  },
+  {
+    "id": "tool_not_required_021",
+    "student_context": "Advanced student, 7th session on Prokofiev Visions Fugitives Op.22 No.6",
+    "teaching_moment": {
+      "dimension": "dynamics",
+      "score": 0.78,
+      "baseline": 0.74,
+      "bar_range": "1-16"
+    },
+    "framing": "recognition",
+    "expects_tool_call": false,
+    "rationale": "Excellent dynamic nuance, specific and praising observation"
+  },
+  {
+    "id": "tool_not_required_022",
+    "student_context": "Intermediate student, 3rd session on Chopin Prelude Op.28 No.4",
+    "teaching_moment": {
+      "dimension": "dynamics",
+      "score": 0.64,
+      "baseline": 0.62,
+      "bar_range": "1-12"
+    },
+    "framing": "question",
+    "expects_tool_call": false,
+    "rationale": "Slight improvement, ask how student is thinking about the harmonic descents"
+  },
+  {
+    "id": "tool_not_required_023",
+    "student_context": "Beginner student, 2nd session on Bastien Piano Basics Level 1",
+    "teaching_moment": {
+      "dimension": "articulation",
+      "score": 0.5,
+      "baseline": 0.48,
+      "bar_range": "1-4"
+    },
+    "framing": "encouragement",
+    "expects_tool_call": false,
+    "rationale": "Very early stage, awareness comment, not a drill scenario"
+  },
+  {
+    "id": "tool_not_required_024",
+    "student_context": "Advanced student, 5th session on Beethoven Sonata Op.27 No.2 Moonlight, 1st movement",
+    "teaching_moment": {
+      "dimension": "pedaling",
+      "score": 0.88,
+      "baseline": 0.8,
+      "bar_range": "1-16"
+    },
+    "framing": "recognition",
+    "expects_tool_call": false,
+    "rationale": "Remarkably good pedaling in opening triplets, very specific praise"
+  },
+  {
+    "id": "tool_not_required_025",
+    "student_context": "Intermediate student, 5th session on Debussy La Fille aux cheveux de lin",
+    "teaching_moment": {
+      "dimension": "phrasing",
+      "score": 0.69,
+      "baseline": 0.66,
+      "bar_range": "1-8"
+    },
+    "framing": "question",
+    "expects_tool_call": false,
+    "rationale": "Good phrasing, question about the folk-song lineage to enrich interpretation"
+  },
+  {
+    "id": "tool_not_required_026",
+    "student_context": "Beginner student, 6th session on Diabelli Melodious Pieces Op.149 No.3",
+    "teaching_moment": {
+      "dimension": "timing",
+      "score": 0.6,
+      "baseline": 0.56,
+      "bar_range": "1-8"
+    },
+    "framing": "encouragement",
+    "expects_tool_call": false,
+    "rationale": "Consistent pulse now, encouraging comment on steadiness"
+  },
+  {
+    "id": "tool_not_required_027",
+    "student_context": "Advanced student, 6th session on Ravel Sonatine, 1st movement",
+    "teaching_moment": {
+      "dimension": "interpretation",
+      "score": 0.79,
+      "baseline": 0.73,
+      "bar_range": "1-20"
+    },
+    "framing": "recognition",
+    "expects_tool_call": false,
+    "rationale": "Good Neo-Classical character, specific observation about restraint"
+  },
+  {
+    "id": "tool_not_required_028",
+    "student_context": "Intermediate student, 7th session on Satie Gymnopedies No.1",
+    "teaching_moment": {
+      "dimension": "dynamics",
+      "score": 0.67,
+      "baseline": 0.65,
+      "bar_range": "1-16"
+    },
+    "framing": "question",
+    "expects_tool_call": false,
+    "rationale": "Steady improvement, question about how student imagines the evening mood"
+  },
+  {
+    "id": "tool_not_required_029",
+    "student_context": "Advanced student, 4th session on Scarlatti Sonata K.141",
+    "teaching_moment": {
+      "dimension": "articulation",
+      "score": 0.76,
+      "baseline": 0.74,
+      "bar_range": "1-16"
+    },
+    "framing": "recognition",
+    "expects_tool_call": false,
+    "rationale": "Clean Baroque ornaments, acknowledgment and style-context comment"
+  },
+  {
+    "id": "tool_not_required_030",
+    "student_context": "Intermediate student, 3rd session on Schumann Album for the Young Op.68 No.5",
+    "teaching_moment": {
+      "dimension": "timing",
+      "score": 0.62,
+      "baseline": 0.6,
+      "bar_range": "1-8"
+    },
+    "framing": "encouragement",
+    "expects_tool_call": false,
+    "rationale": "Stable meter in march, encouraging and suggesting listening to march recordings"
+  },
+  {
+    "id": "tool_not_required_031",
+    "student_context": "Beginner student, 3rd session on Czerny Etude Op.599 No.1",
+    "teaching_moment": {
+      "dimension": "dynamics",
+      "score": 0.52,
+      "baseline": 0.5,
+      "bar_range": "1-8"
+    },
+    "framing": "encouragement",
+    "expects_tool_call": false,
+    "rationale": "Minimal dynamic awareness emerging, encouraging the direction"
+  },
+  {
+    "id": "tool_not_required_032",
+    "student_context": "Advanced student, 7th session on Chopin Nocturne Op.27 No.2",
+    "teaching_moment": {
+      "dimension": "phrasing",
+      "score": 0.84,
+      "baseline": 0.8,
+      "bar_range": "1-16"
+    },
+    "framing": "recognition",
+    "expects_tool_call": false,
+    "rationale": "Long Romantic phrase arching perfectly, specific praise about breath"
+  },
+  {
+    "id": "tool_not_required_033",
+    "student_context": "Intermediate student, 3rd session on Kabalevsky Pieces for Children Op.27 No.1",
+    "teaching_moment": {
+      "dimension": "interpretation",
+      "score": 0.65,
+      "baseline": 0.62,
+      "bar_range": "1-8"
+    },
+    "framing": "question",
+    "expects_tool_call": false,
+    "rationale": "Good character emerging, question about the humor implied by Kabalevsky"
+  },
+  {
+    "id": "tool_not_required_034",
+    "student_context": "Beginner student, 2nd session on Schaum Piano Course Book A No.8",
+    "teaching_moment": {
+      "dimension": "articulation",
+      "score": 0.48,
+      "baseline": 0.44,
+      "bar_range": "1-4"
+    },
+    "framing": "encouragement",
+    "expects_tool_call": false,
+    "rationale": "Early session, marginal improvement in touch, awareness encouragement"
+  },
+  {
+    "id": "tool_not_required_035",
+    "student_context": "Advanced student, 8th session on Beethoven Sonata Op.57 Appassionata, 2nd movement",
+    "teaching_moment": {
+      "dimension": "dynamics",
+      "score": 0.82,
+      "baseline": 0.78,
+      "bar_range": "1-16"
+    },
+    "framing": "recognition",
+    "expects_tool_call": false,
+    "rationale": "Beautifully controlled variations on Andante theme, detailed recognition"
+  },
+  {
+    "id": "tool_not_required_036",
+    "student_context": "Intermediate student, 8th session on Tchaikovsky Album for the Young Op.39 No.10",
+    "teaching_moment": {
+      "dimension": "timing",
+      "score": 0.7,
+      "baseline": 0.66,
+      "bar_range": "1-8"
+    },
+    "framing": "recognition",
+    "expects_tool_call": false,
+    "rationale": "Better mazurka feel than last session, recognizing the improvement"
+  },
+  {
+    "id": "tool_not_required_037",
+    "student_context": "Beginner student, 5th session on Alfred Basic Piano Course Level 1B",
+    "teaching_moment": {
+      "dimension": "phrasing",
+      "score": 0.55,
+      "baseline": 0.52,
+      "bar_range": "1-8"
+    },
+    "framing": "question",
+    "expects_tool_call": false,
+    "rationale": "Emerging phrase awareness, ask student where the phrase goes to"
+  },
+  {
+    "id": "tool_not_required_038",
+    "student_context": "Advanced student, 6th session on Scriabin Prelude Op.11 No.1",
+    "teaching_moment": {
+      "dimension": "pedaling",
+      "score": 0.77,
+      "baseline": 0.73,
+      "bar_range": "1-12"
+    },
+    "framing": "recognition",
+    "expects_tool_call": false,
+    "rationale": "Subtle pedal coloring of harmonies, specific acknowledgment"
+  },
+  {
+    "id": "tool_not_required_039",
+    "student_context": "Intermediate student, 4th session on Handel Sarabande HWV 437",
+    "teaching_moment": {
+      "dimension": "interpretation",
+      "score": 0.68,
+      "baseline": 0.65,
+      "bar_range": "1-8"
+    },
+    "framing": "question",
+    "expects_tool_call": false,
+    "rationale": "Decent Baroque character, question about what emotion student associates with it"
+  },
+  {
+    "id": "tool_not_required_040",
+    "student_context": "Beginner student, 4th session on Wilhelm Friedemann Bach Menuet",
+    "teaching_moment": {
+      "dimension": "dynamics",
+      "score": 0.54,
+      "baseline": 0.5,
+      "bar_range": "1-8"
+    },
+    "framing": "encouragement",
+    "expects_tool_call": false,
+    "rationale": "Small dynamic shaping visible, encouraging the directional sense"
+  },
+  {
+    "id": "tool_not_required_041",
+    "student_context": "Advanced student, 8th session on Faure Nocturne Op.33 No.1",
+    "teaching_moment": {
+      "dimension": "phrasing",
+      "score": 0.81,
+      "baseline": 0.76,
+      "bar_range": "1-12"
+    },
+    "framing": "recognition",
+    "expects_tool_call": false,
+    "rationale": "Long-breathed phrasing demonstrating growth, detailed verbal recognition"
+  },
+  {
+    "id": "tool_not_required_042",
+    "student_context": "Intermediate student, 2nd session on Chopin Mazurka Op.7 No.1",
+    "teaching_moment": {
+      "dimension": "phrasing",
+      "score": 0.62,
+      "baseline": 0.6,
+      "bar_range": "1-8"
+    },
+    "framing": "question",
+    "expects_tool_call": false,
+    "rationale": "Early in piece, question about the dance character before assigning exercises"
+  },
+  {
+    "id": "tool_not_required_043",
+    "student_context": "Beginner student, 5th session on Diabelli Sonatina Op.168 No.1",
+    "teaching_moment": {
+      "dimension": "articulation",
+      "score": 0.55,
+      "baseline": 0.52,
+      "bar_range": "1-8"
+    },
+    "framing": "encouragement",
+    "expects_tool_call": false,
+    "rationale": "Slight touch improvement, encouraging momentum without yet assigning drill"
+  },
+  {
+    "id": "tool_not_required_044",
+    "student_context": "Advanced student, 7th session on Rachmaninoff Prelude Op.23 No.5",
+    "teaching_moment": {
+      "dimension": "interpretation",
+      "score": 0.8,
+      "baseline": 0.74,
+      "bar_range": "1-24"
+    },
+    "framing": "recognition",
+    "expects_tool_call": false,
+    "rationale": "Compelling march character, vivid recognition of the military atmosphere"
+  },
+  {
+    "id": "tool_not_required_045",
+    "student_context": "Intermediate student, 3rd session on Burgmuller Progress Op.100 No.6",
+    "teaching_moment": {
+      "dimension": "timing",
+      "score": 0.64,
+      "baseline": 0.62,
+      "bar_range": "1-16"
+    },
+    "framing": "encouragement",
+    "expects_tool_call": false,
+    "rationale": "Consistent tempo now, encouraging comment noting evenness"
+  },
+  {
+    "id": "tool_not_required_046",
+    "student_context": "Beginner student, 6th session on Glover Real Piano Adventures Level 1",
+    "teaching_moment": {
+      "dimension": "dynamics",
+      "score": 0.58,
+      "baseline": 0.55,
+      "bar_range": "1-8"
+    },
+    "framing": "encouragement",
+    "expects_tool_call": false,
+    "rationale": "Able to soften touch now, verbal praise appropriate at this stage"
+  },
+  {
+    "id": "tool_not_required_047",
+    "student_context": "Advanced student, 5th session on Kapustin Concert Etude Op.40 No.1",
+    "teaching_moment": {
+      "dimension": "timing",
+      "score": 0.76,
+      "baseline": 0.72,
+      "bar_range": "1-16"
+    },
+    "framing": "recognition",
+    "expects_tool_call": false,
+    "rationale": "Groove improving, specific recognition of rhythmic feel achieved"
+  },
+  {
+    "id": "tool_not_required_048",
+    "student_context": "Intermediate student, 8th session on Liszt Hungarian Rhapsody No.2 simplified",
+    "teaching_moment": {
+      "dimension": "dynamics",
+      "score": 0.7,
+      "baseline": 0.67,
+      "bar_range": "1-16"
+    },
+    "framing": "question",
+    "expects_tool_call": false,
+    "rationale": "Reasonable dynamic range, question to explore emotional interpretation of friss"
+  },
+  {
+    "id": "tool_not_required_049",
+    "student_context": "Beginner student, 5th session on Faber Piano Adventures Level 1B",
+    "teaching_moment": {
+      "dimension": "timing",
+      "score": 0.56,
+      "baseline": 0.54,
+      "bar_range": "1-8"
+    },
+    "framing": "encouragement",
+    "expects_tool_call": false,
+    "rationale": "Improved steadiness, encouraging observation about counting out loud"
+  },
+  {
+    "id": "tool_not_required_050",
+    "student_context": "Advanced student, 9th session on Chopin Fantaisie-Impromptu Op.66",
+    "teaching_moment": {
+      "dimension": "interpretation",
+      "score": 0.83,
+      "baseline": 0.78,
+      "bar_range": "25-48"
+    },
+    "framing": "recognition",
+    "expects_tool_call": false,
+    "rationale": "Lyrical middle section contrasting beautifully with outer sections, specific recognition"
+  }
+]
