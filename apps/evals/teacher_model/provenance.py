@@ -30,8 +30,8 @@ class ProvenanceRecord:
     download_timestamp: str          # ISO-8601, e.g. "2026-03-30T12:00:00Z"
     license_claimed: str             # e.g. "CC BY 4.0", "fair use", "unknown"
     word_count: int
-    inclusion_threshold_score: Optional[float]
-    source_tier: str                 # one of the four tier values above
+    inclusion_threshold_score: Optional[float] = None
+    source_tier: str = ""            # one of the four tier values above
 
     def to_json(self) -> str:
         return json.dumps(asdict(self), ensure_ascii=False)
