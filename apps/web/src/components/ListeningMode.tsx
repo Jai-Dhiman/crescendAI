@@ -5,6 +5,7 @@ import {
 	Plus,
 	Stop,
 } from "@phosphor-icons/react";
+import { AnimatePresence, LazyMotion, domAnimation, m } from "motion/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useKeyboardOffset } from "../hooks/useDom";
@@ -29,8 +30,8 @@ interface ListeningModeProps {
 	analyserNode: AnalyserNode | null;
 }
 
-type TransitionPhase = "collapsed" | "expanding" | "open" | "collapsing";
-type ContentVisibility = "hidden" | "visible" | "fading";
+/** Custom easing matching the original cubic-bezier(0.16, 1, 0.3, 1) */
+const EASE_OUT_EXPO = [0.16, 1, 0.3, 1] as const;
 
 export function ListeningMode({
 	state,
@@ -47,14 +48,9 @@ export function ListeningMode({
 	observations: _observations,
 	analyserNode,
 }: ListeningModeProps) {
-	const [phase, setPhase] = useState<TransitionPhase>("collapsed");
-	const [contentVis, setContentVis] = useState<ContentVisibility>("hidden");
+	const [isOpen, setIsOpen] = useState(true);
+	const [contentVisible, setContentVisible] = useState(false);
 	const overlayRef = useRef<HTMLDivElement>(null);
-	const expandTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-	const collapseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-	const fadeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-	const exitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-	const [ringPhase, setRingPhase] = useState<"collapsed" | "active" | "expanding">("collapsed");
 	const notes = sessionNotes ?? "";
 	const setNotes = onNotesChange ?? (() => {});
 	const [showNotepad, setShowNotepad] = useState(false);
@@ -82,80 +78,26 @@ export function ListeningMode({
 		? ((originRect.top + originRect.height / 2) / window.innerHeight) * 100
 		: 90;
 
-	// Open transition sequence
+	const clipOrigin = `${originX}% ${originY}%`;
+
+	// Show content after overlay expansion completes
 	useMountEffect(() => {
-		requestAnimationFrame(() => {
-			setPhase("expanding");
-			setRingPhase("active");
-		});
-
-		const ringTimer = setTimeout(() => setRingPhase("expanding"), 400);
-
-		expandTimerRef.current = setTimeout(() => {
-			setPhase("open");
-			setContentVis("visible");
-			setRingPhase("collapsed");
-		}, 800);
-
-		return () => {
-			clearTimeout(ringTimer);
-			if (expandTimerRef.current) clearTimeout(expandTimerRef.current);
-		};
+		const timer = setTimeout(() => setContentVisible(true), 750);
+		return () => clearTimeout(timer);
 	});
 
-	// Close transition sequence -- defined before the useEffect that references it
-	const handleClose = useCallback(() => {
-		setContentVis("fading");
-		setRingPhase("active");
-
-		fadeTimerRef.current = setTimeout(() => {
-			setContentVis("hidden");
-			setPhase("collapsing");
-
-			collapseTimerRef.current = setTimeout(() => {
-				setPhase("collapsed");
-				setRingPhase("collapsed");
-				exitTimerRef.current = setTimeout(() => {
-					onStop();
-					onExit();
-				}, 50);
-			}, 550);
-		}, 100);
-	}, [onStop, onExit]);
-
-	// Exit on error or WebSocket disconnect
+	// Exit on error
 	useEffect(() => {
 		if (state === "error") {
-			handleClose();
+			setIsOpen(false);
 		}
-	}, [state, handleClose]);
+	}, [state]);
 
 	// Stop recording then animate out
 	const handleStop = useCallback(() => {
 		onStop();
-		setContentVis("fading");
-		setRingPhase("active");
-
-		fadeTimerRef.current = setTimeout(() => {
-			setContentVis("hidden");
-			setPhase("collapsing");
-
-			collapseTimerRef.current = setTimeout(() => {
-				setPhase("collapsed");
-				setRingPhase("collapsed");
-				exitTimerRef.current = setTimeout(onExit, 50);
-			}, 550);
-		}, 100);
-	}, [onStop, onExit]);
-
-	useEffect(() => {
-		return () => {
-			if (expandTimerRef.current) clearTimeout(expandTimerRef.current);
-			if (collapseTimerRef.current) clearTimeout(collapseTimerRef.current);
-			if (fadeTimerRef.current) clearTimeout(fadeTimerRef.current);
-			if (exitTimerRef.current) clearTimeout(exitTimerRef.current);
-		};
-	}, []);
+		setIsOpen(false);
+	}, [onStop]);
 
 	const isRecording = state === "recording";
 
@@ -175,7 +117,7 @@ export function ListeningMode({
 					}
 				}
 			} catch {
-				// Progressive enhancement -- fail silently
+				// Progressive enhancement
 			}
 		})();
 
@@ -185,177 +127,215 @@ export function ListeningMode({
 		};
 	});
 
-	const transitionAttr =
-		phase === "collapsing"
-			? "collapsed"
-			: phase === "expanding"
-				? "expanding"
-				: phase;
-
 	return createPortal(
-		<>
-		<div
-			ref={overlayRef}
-			className="listening-overlay"
-			data-transition={transitionAttr}
-			style={
-				{
-					"--origin-x": `${originX}%`,
-					"--origin-y": `${originY}%`,
-				} as React.CSSProperties
-			}
-		>
-			{contentVis !== "hidden" && (
-				<div className={`h-dvh flex flex-col ${
-					contentVis === "fading" ? "listening-content-fading" : "animate-listening-content-in"
-				}`}>
-					{/* Top bar: piece info */}
-					<div className="shrink-0 flex items-center justify-between px-6 py-4 border-b border-border">
-						<div className="flex items-center gap-3">
-							<div className="relative">
-								<button
-									type="button"
-									onClick={() => setShowMetronome(!showMetronome)}
-									className={`flex items-center gap-2 px-3 py-2 rounded-lg transition ${
-										metronome.isPlaying
-											? "bg-accent/20 text-accent"
-											: "bg-surface text-text-secondary hover:text-cream"
-									}`}
-									aria-label="Toggle metronome"
-								>
-									<MetronomeIcon
-										size={20}
-										weight="fill"
-										className={metronome.isPlaying ? "animate-pulse" : ""}
-									/>
-									{metronome.isPlaying && (
-										<span className="text-body-sm tabular-nums">
-											{metronome.bpm}
-										</span>
-									)}
-								</button>
+		<LazyMotion features={domAnimation}>
+		<AnimatePresence onExitComplete={onExit}>
+			{isOpen && (
+				<>
+					{/* Edge ring -- expands from origin with visible border */}
+					<m.div
+						key="edge-ring"
+						className="fixed z-49 pointer-events-none rounded-full"
+						style={{
+							left: `${originX}%`,
+							top: `${originY}%`,
+							x: "-50%",
+							y: "-50%",
+							border: "2px solid rgba(122, 154, 130, 0.7)",
+							boxShadow: "0 0 20px rgba(122, 154, 130, 0.3), inset 0 0 20px rgba(122, 154, 130, 0.1)",
+						}}
+						initial={{ width: 0, height: 0, opacity: 0 }}
+						animate={{
+							width: "300vmax",
+							height: "300vmax",
+							opacity: [0, 1, 1, 0],
+							transition: {
+								width: { duration: 0.75, ease: EASE_OUT_EXPO },
+								height: { duration: 0.75, ease: EASE_OUT_EXPO },
+								opacity: {
+									duration: 0.75,
+									times: [0, 0.1, 0.7, 1],
+									ease: "easeOut",
+								},
+							},
+						}}
+						exit={{
+							width: 0,
+							height: 0,
+							opacity: 0,
+							transition: { duration: 0.5, ease: EASE_OUT_EXPO },
+						}}
+					/>
 
-								{showMetronome && (
-									<MetronomePanel
-										metronome={metronome}
-										onClose={() => setShowMetronome(false)}
-									/>
-								)}
-							</div>
-						</div>
-						<div className="text-right">
-							{isEditingPiece ? (
-								<div className="flex flex-col gap-1 items-end">
-									<input
-										type="text"
-										value={pieceName}
-										onChange={(e) => setPieceName(e.target.value)}
-										placeholder="Piece name"
-										className="bg-surface border border-border rounded-lg px-3 py-1 text-body-sm text-cream outline-none w-56"
-										// biome-ignore lint/a11y/noAutofocus: intentional UX for inline editor
-										autoFocus
-									/>
-									<input
-										type="text"
-										value={sectionName}
-										onChange={(e) => setSectionName(e.target.value)}
-										placeholder="Section (e.g., bars 1-16)"
-										className="bg-surface border border-border rounded-lg px-3 py-1 text-body-xs text-cream outline-none w-56"
-									/>
-									<button
-										type="button"
-										onClick={() => setIsEditingPiece(false)}
-										className="text-body-xs text-accent hover:text-accent-lighter transition mt-1"
-									>
-										Done
-									</button>
-								</div>
-							) : (
-								<button
-									type="button"
-									onClick={() => setIsEditingPiece(true)}
-									className="text-right group"
+					{/* Main overlay -- clip-path circle expansion */}
+					<m.div
+						key="overlay"
+						ref={overlayRef}
+						className="fixed inset-0 z-50 bg-espresso"
+						initial={{
+							clipPath: `circle(0% at ${clipOrigin})`,
+						}}
+						animate={{
+							clipPath: `circle(150vmax at ${clipOrigin})`,
+							transition: { duration: 0.75, ease: EASE_OUT_EXPO },
+						}}
+						exit={{
+							clipPath: `circle(0% at ${clipOrigin})`,
+							transition: { duration: 0.5, ease: EASE_OUT_EXPO },
+						}}
+					>
+						<AnimatePresence>
+							{contentVisible && (
+								<m.div
+									className="h-dvh flex flex-col"
+									initial={{ opacity: 0 }}
+									animate={{ opacity: 1 }}
+									exit={{ opacity: 0 }}
+									transition={{ duration: 0.2 }}
 								>
-									<span className="text-label-sm text-text-tertiary uppercase tracking-wider block">
-										Now practicing
-									</span>
-									<span className="text-body-sm text-cream group-hover:text-accent transition">
-										{pieceName}
-									</span>
-									{sectionName && (
-										<span className="text-body-xs text-accent ml-2">
-											{sectionName}
-										</span>
+									{/* Top bar: piece info */}
+									<div className="shrink-0 flex items-center justify-between px-6 py-4 border-b border-border">
+										<div className="flex items-center gap-3">
+											<div className="relative">
+												<button
+													type="button"
+													onClick={() => setShowMetronome(!showMetronome)}
+													className={`flex items-center gap-2 px-3 py-2 rounded-lg transition ${
+														metronome.isPlaying
+															? "bg-accent/20 text-accent"
+															: "bg-surface text-text-secondary hover:text-cream"
+													}`}
+													aria-label="Toggle metronome"
+												>
+													<MetronomeIcon
+														size={20}
+														weight="fill"
+														className={metronome.isPlaying ? "animate-pulse" : ""}
+													/>
+													{metronome.isPlaying && (
+														<span className="text-body-sm tabular-nums">
+															{metronome.bpm}
+														</span>
+													)}
+												</button>
+
+												{showMetronome && (
+													<MetronomePanel
+														metronome={metronome}
+														onClose={() => setShowMetronome(false)}
+													/>
+												)}
+											</div>
+										</div>
+										<div className="text-right">
+											{isEditingPiece ? (
+												<div className="flex flex-col gap-1 items-end">
+													<input
+														type="text"
+														value={pieceName}
+														onChange={(e) => setPieceName(e.target.value)}
+														placeholder="Piece name"
+														className="bg-surface border border-border rounded-lg px-3 py-1 text-body-sm text-cream outline-none w-56"
+														// biome-ignore lint/a11y/noAutofocus: intentional UX for inline editor
+														autoFocus
+													/>
+													<input
+														type="text"
+														value={sectionName}
+														onChange={(e) => setSectionName(e.target.value)}
+														placeholder="Section (e.g., bars 1-16)"
+														className="bg-surface border border-border rounded-lg px-3 py-1 text-body-xs text-cream outline-none w-56"
+													/>
+													<button
+														type="button"
+														onClick={() => setIsEditingPiece(false)}
+														className="text-body-xs text-accent hover:text-accent-lighter transition mt-1"
+													>
+														Done
+													</button>
+												</div>
+											) : (
+												<button
+													type="button"
+													onClick={() => setIsEditingPiece(true)}
+													className="text-right group"
+												>
+													<span className="text-label-sm text-text-tertiary uppercase tracking-wider block">
+														Now practicing
+													</span>
+													<span className="text-body-sm text-cream group-hover:text-accent transition">
+														{pieceName}
+													</span>
+													{sectionName && (
+														<span className="text-body-xs text-accent ml-2">
+															{sectionName}
+														</span>
+													)}
+												</button>
+											)}
+										</div>
+									</div>
+
+									{/* Center: waveform */}
+									<div className="flex-1 flex flex-col items-center justify-center px-6 relative">
+										{wsStatus === "reconnecting" && isRecording && (
+											<div className="absolute top-4 left-4 flex items-center gap-2 text-amber-400 z-10">
+												<CircleNotch size={14} className="animate-spin" />
+												<span className="text-body-xs">Reconnecting...</span>
+											</div>
+										)}
+										{/* Waveform */}
+										<div className="w-full max-w-md aspect-square">
+											<AudioWaveformRing
+												analyserNode={analyserNode}
+												isPlaying={isPlaying}
+												active={isRecording}
+											/>
+										</div>
+									</div>
+
+									{/* Bottom bar: notes + stop */}
+									<div className="shrink-0 flex items-center justify-between px-6 py-4 border-t border-border">
+										<div>{/* Spacer */}</div>
+										<div className="flex items-center gap-4">
+											{/* Notepad toggle */}
+											<button
+												type="button"
+												onClick={() => setShowNotepad(!showNotepad)}
+												className="w-10 h-10 rounded-lg bg-surface flex items-center justify-center text-text-secondary hover:text-cream transition"
+												aria-label="Toggle notepad"
+											>
+												<span className="text-body-sm">N</span>
+											</button>
+											{/* Stop button */}
+											<button
+												type="button"
+												onClick={handleStop}
+												disabled={!isRecording}
+												className="w-14 h-14 flex items-center justify-center rounded-full bg-red-600 hover:bg-red-500 text-on-accent transition-colors disabled:opacity-50"
+												aria-label="Stop recording"
+											>
+												<Stop size={22} weight="fill" />
+											</button>
+										</div>
+									</div>
+
+									{/* Notepad drawer */}
+									{showNotepad && (
+										<NotepadDrawer
+											notes={notes}
+											onChange={setNotes}
+											onClose={() => setShowNotepad(false)}
+										/>
 									)}
-								</button>
+								</m.div>
 							)}
-						</div>
-					</div>
-
-					{/* Center: waveform + scores */}
-					<div className="flex-1 flex flex-col items-center justify-center px-6 relative">
-						{wsStatus === "reconnecting" && isRecording && (
-							<div className="absolute top-4 left-4 flex items-center gap-2 text-amber-400 z-10">
-								<CircleNotch size={14} className="animate-spin" />
-								<span className="text-body-xs">Reconnecting...</span>
-							</div>
-						)}
-						{/* Waveform */}
-						<div className="w-full max-w-md aspect-square">
-							<AudioWaveformRing
-								analyserNode={analyserNode}
-								isPlaying={isPlaying}
-								active={isRecording}
-							/>
-						</div>
-					</div>
-
-					{/* Bottom bar: notes + stop */}
-					<div className="shrink-0 flex items-center justify-between px-6 py-4 border-t border-border">
-						<div>{/* Spacer */}</div>
-						<div className="flex items-center gap-4">
-							{/* Notepad toggle */}
-							<button
-								type="button"
-								onClick={() => setShowNotepad(!showNotepad)}
-								className="w-10 h-10 rounded-lg bg-surface flex items-center justify-center text-text-secondary hover:text-cream transition"
-								aria-label="Toggle notepad"
-							>
-								<span className="text-body-sm">N</span>
-							</button>
-							{/* Stop button */}
-							<button
-								type="button"
-								onClick={handleStop}
-								disabled={!isRecording}
-								className="w-14 h-14 flex items-center justify-center rounded-full bg-red-600 hover:bg-red-500 text-on-accent transition-colors disabled:opacity-50"
-								aria-label="Stop recording"
-							>
-								<Stop size={22} weight="fill" />
-							</button>
-						</div>
-					</div>
-
-					{/* Notepad drawer */}
-					{showNotepad && (
-						<NotepadDrawer
-							notes={notes}
-							onChange={setNotes}
-							onClose={() => setShowNotepad(false)}
-						/>
-					)}
-				</div>
+						</AnimatePresence>
+					</m.div>
+				</>
 			)}
-		</div>
-		<div
-			className="listening-edge-ring"
-			data-transition={ringPhase}
-			style={{
-				left: `${originX}%`,
-				top: `${originY}%`,
-			}}
-		/>
-		</>,
+		</AnimatePresence>
+		</LazyMotion>,
 		document.body,
 	);
 }
@@ -388,9 +368,12 @@ function NotepadDrawer({
 				aria-label="Close notepad"
 			/>
 			{/* Drawer */}
-			<div
-				className="fixed bottom-0 left-0 right-0 z-50 bg-espresso border-t border-border rounded-t-2xl max-h-[60vh] sm:max-h-[40vh] flex flex-col animate-overlay-in"
+			<m.div
+				className="fixed bottom-0 left-0 right-0 z-50 bg-espresso border-t border-border rounded-t-2xl max-h-[60vh] sm:max-h-[40vh] flex flex-col"
 				style={{ bottom: bottomOffset }}
+				initial={{ opacity: 0, y: 20, scale: 0.95 }}
+				animate={{ opacity: 1, y: 0, scale: 1 }}
+				transition={{ duration: 0.35, ease: EASE_OUT_EXPO }}
 			>
 				<div className="flex items-center justify-between px-5 py-3 border-b border-border">
 					<span className="text-label-sm text-text-tertiary uppercase tracking-wider">
@@ -413,7 +396,7 @@ function NotepadDrawer({
 						className="w-full h-full min-h-[120px] bg-transparent text-body-sm text-cream placeholder:text-text-tertiary outline-none resize-none"
 					/>
 				</div>
-			</div>
+			</m.div>
 		</>
 	);
 }
@@ -515,13 +498,23 @@ function MetronomePanel({
 				aria-label="Close metronome"
 			/>
 			{/* Desktop dropdown */}
-			<div className="absolute top-full left-0 mt-2 z-50 bg-surface border border-border rounded-xl p-4 min-w-[220px] shadow-card animate-overlay-in hidden md:block">
+			<m.div
+				className="absolute top-full left-0 mt-2 z-50 bg-surface border border-border rounded-xl p-4 min-w-[220px] shadow-card hidden md:block"
+				initial={{ opacity: 0, y: -8, scale: 0.95 }}
+				animate={{ opacity: 1, y: 0, scale: 1 }}
+				transition={{ duration: 0.25, ease: EASE_OUT_EXPO }}
+			>
 				{panelContent}
-			</div>
+			</m.div>
 			{/* Mobile bottom sheet */}
-			<div className="fixed bottom-0 left-0 right-0 z-50 bg-surface border-t border-border rounded-t-2xl p-4 shadow-card animate-overlay-in md:hidden">
+			<m.div
+				className="fixed bottom-0 left-0 right-0 z-50 bg-surface border-t border-border rounded-t-2xl p-4 shadow-card md:hidden"
+				initial={{ opacity: 0, y: 20 }}
+				animate={{ opacity: 1, y: 0 }}
+				transition={{ duration: 0.35, ease: EASE_OUT_EXPO }}
+			>
 				{panelContent}
-			</div>
+			</m.div>
 		</>
 	);
 }

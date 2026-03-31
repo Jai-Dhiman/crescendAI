@@ -29,6 +29,8 @@ export type PracticeState =
 const MAX_RECONNECTS = 5;
 const RECONNECT_BASE_DELAY_MS = 1000;
 const RECONNECT_MAX_DELAY_MS = 30_000;
+/** Max time to wait for session_summary after end_session before force-cleanup */
+const WS_SUMMARY_TIMEOUT_MS = 30_000;
 
 export type WsStatus = "connected" | "reconnecting" | "disconnected";
 type ChunkStatus = "uploading" | "complete" | "failed";
@@ -100,6 +102,7 @@ export function usePracticeSession(
 	const [analyserNode, setAnalyserNode] = useState<AnalyserNode | null>(null);
 	const chunkGateRef = useRef<ChunkGateState>("waiting");
 	const chunkTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+	const summaryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
 	// Audio activity detection (spectral energy + debounced play/silence)
 	const { isPlaying, energy } = useAudioActivity(analyserRef);
@@ -160,37 +163,50 @@ export function usePracticeSession(
 		});
 	}, []);
 
-	const cleanup = useCallback(() => {
-		if (timerRef.current) clearInterval(timerRef.current);
-		if (mediaRecorderRef.current?.state === "recording")
-			mediaRecorderRef.current.stop();
-		if (audioContextRef.current?.state !== "closed")
+	/** Release mic, audio context, analyser, and timers immediately.
+	 *  Safe to call multiple times -- guards against already-released state. */
+	const releaseMic = useCallback(() => {
+		analyserRef.current = null;
+		setAnalyserNode(null);
+		if (chunkTimerRef.current) {
+			clearInterval(chunkTimerRef.current);
+			chunkTimerRef.current = null;
+		}
+		if (timerRef.current) {
+			clearInterval(timerRef.current);
+			timerRef.current = null;
+		}
+		if (audioContextRef.current?.state !== "closed") {
 			audioContextRef.current?.close();
+		}
+		audioContextRef.current = null;
 		streamRef.current?.getTracks().forEach((t) => {
 			t.stop();
 		});
+		streamRef.current = null;
+	}, []);
+
+	const cleanup = useCallback(() => {
+		releaseMic();
+		if (summaryTimeoutRef.current) {
+			clearTimeout(summaryTimeoutRef.current);
+			summaryTimeoutRef.current = null;
+		}
+		if (mediaRecorderRef.current?.state === "recording")
+			mediaRecorderRef.current.stop();
 		wsRef.current?.close();
 
-		timerRef.current = null;
 		mediaRecorderRef.current = null;
-		audioContextRef.current = null;
-		streamRef.current = null;
 		wsRef.current = null;
 		sessionIdRef.current = null;
-		// NOTE: conversationIdRef is NOT reset here — AppChat reads it
+		// NOTE: conversationIdRef is NOT reset here -- AppChat reads it
 		// after cleanup to navigate to the conversation. It's reset in start().
 		chunkIndexRef.current = 0;
 		reconnectAttemptsRef.current = 0;
 		throttleRef.current.reset();
 		offlineQueueRef.current = [];
-		if (chunkTimerRef.current) {
-			clearInterval(chunkTimerRef.current);
-			chunkTimerRef.current = null;
-		}
 		chunkGateRef.current = "waiting";
-		analyserRef.current = null;
-		setAnalyserNode(null);
-	}, []);
+	}, [releaseMic]);
 
 	const handleWsMessage = useCallback(
 		(event: MessageEvent) => {
@@ -220,6 +236,10 @@ export function usePracticeSession(
 				}
 				case "synthesis": {
 					console.log(`[Practice] Session synthesis received (fallback=${data.isFallback})`);
+					if (summaryTimeoutRef.current) {
+						clearTimeout(summaryTimeoutRef.current);
+						summaryTimeoutRef.current = null;
+					}
 					setSummary(data.text);
 					setState("idle");
 					cleanup();
@@ -229,6 +249,10 @@ export function usePracticeSession(
 				}
 				case "session_summary": {
 					console.log(`[Practice] Session summary received: ${data.observations?.length ?? 0} observations`);
+					if (summaryTimeoutRef.current) {
+						clearTimeout(summaryTimeoutRef.current);
+						summaryTimeoutRef.current = null;
+					}
 					// Drain any undelivered queued observations
 					const drained = throttleRef.current.drain();
 					const allObs = [...data.observations];
@@ -506,6 +530,21 @@ export function usePracticeSession(
 		})();
 	}, [isOnline, updateChunkState]);
 
+	/** Start a safety timeout that force-cleans the WS if summary never arrives. */
+	const startSummaryTimeout = useCallback(() => {
+		if (summaryTimeoutRef.current) clearTimeout(summaryTimeoutRef.current);
+		summaryTimeoutRef.current = setTimeout(() => {
+			console.warn("[Practice] Summary timeout -- force cleanup after", WS_SUMMARY_TIMEOUT_MS, "ms");
+			Sentry.captureMessage("Practice session summary timeout", {
+				level: "warning",
+				extra: { sessionId: sessionIdRef.current },
+			});
+			setSummary("Your session was recorded but the summary took too long to generate. It may appear when you return to this conversation.");
+			setState("idle");
+			cleanup();
+		}, WS_SUMMARY_TIMEOUT_MS);
+	}, [cleanup]);
+
 	const stop = useCallback(() => {
 		if (state !== "recording") return;
 
@@ -521,6 +560,8 @@ export function usePracticeSession(
 				const origHandler = recorder.ondataavailable;
 				recorder.ondataavailable = async (event) => {
 					recorder.ondataavailable = origHandler; // restore
+					// Release mic after final flush completes
+					releaseMic();
 					if (event.data.size < MIN_FLUSH_BLOB_SIZE) {
 						// Too small -- likely just silence
 						chunkLog.log(
@@ -544,6 +585,7 @@ export function usePracticeSession(
 						if (wsRef.current?.readyState === WebSocket.OPEN) {
 							wsRef.current.send(JSON.stringify({ type: "end_session" }));
 						}
+						startSummaryTimeout();
 					}
 				};
 				recorder.stop();  // fires ondataavailable with complete WebM
@@ -560,39 +602,23 @@ export function usePracticeSession(
 		setState("summarizing");
 		options?.onSummarizing?.();
 
-		// Release mic, audio analysis, and timer immediately
-		analyserRef.current = null; // Stop useAudioActivity rAF from reading
-		setAnalyserNode(null);
-		if (chunkTimerRef.current) {
-			clearInterval(chunkTimerRef.current);
-			chunkTimerRef.current = null;
-		}
-		if (timerRef.current) {
-			clearInterval(timerRef.current);
-			timerRef.current = null;
-		}
-		if (audioContextRef.current?.state !== "closed") {
-			audioContextRef.current?.close();
-		}
-		audioContextRef.current = null;
-		streamRef.current?.getTracks().forEach((t) => {
-			t.stop();
-		});
-		streamRef.current = null;
-
-		// Stop recording (triggers final ondataavailable)
+		// Stop recording first -- flushes final chunk while stream is still live
 		if (mediaRecorderRef.current?.state === "recording") {
 			mediaRecorderRef.current.stop();
 		}
+		mediaRecorderRef.current = null;
+
+		// Now release mic (stream tracks, audio context, timers)
+		releaseMic();
 
 		// Tell DO to end session
 		if (wsRef.current?.readyState === WebSocket.OPEN) {
 			wsRef.current.send(JSON.stringify({ type: "end_session" }));
 		}
 
-		// WS stays open to receive session_summary
-		mediaRecorderRef.current = null;
-	}, [state, cleanup]);
+		// WS stays open to receive session_summary, with safety timeout
+		startSummaryTimeout();
+	}, [state, cleanup, releaseMic, startSummaryTimeout]);
 
 	const setPiece = useCallback((query: string) => {
 		if (wsRef.current?.readyState === WebSocket.OPEN) {
