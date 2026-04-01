@@ -60,18 +60,19 @@ const dimensionEnum = z.enum(DIMS_6 as unknown as [string, ...string[]]);
 // ---------------------------------------------------------------------------
 
 const createExerciseSchema = z.object({
-  source_passage: z.string().min(1),
-  target_skill: z.string().min(1),
+  source_passage: z.string().min(1).max(500),
+  target_skill: z.string().min(1).max(500),
   exercises: z
     .array(
       z.object({
-        title: z.string(),
-        instruction: z.string(),
+        title: z.string().min(1).max(200),
+        instruction: z.string().min(1).max(4000),
         focus_dimension: dimensionEnum,
-        hands: z.string().optional(),
+        hands: z.enum(["left", "right", "both"]).optional(),
       }),
     )
-    .min(1),
+    .min(1)
+    .max(3),
 });
 
 async function persistGeneratedExercise(
@@ -318,8 +319,6 @@ async function processShowSessionData(
         avgArticulation: sessions.avgArticulation,
         avgPhrasing: sessions.avgPhrasing,
         avgInterpretation: sessions.avgInterpretation,
-        observationsJson: sessions.observationsJson,
-        accumulatorJson: sessions.accumulatorJson,
       })
       .from(sessions)
       .where(whereConditions)

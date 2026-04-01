@@ -49,7 +49,7 @@ const app = new Hono<{ Bindings: Bindings; Variables: Variables }>().post(
 						});
 					} else if (event.type === "tool_result") {
 						await sseStream.writeSSE({
-							data: JSON.stringify({ name: event.name, componentsJson: JSON.stringify(event.componentsJson) }),
+							data: JSON.stringify({ name: event.name, componentsJson: event.componentsJson }),
 							event: "tool_result",
 							id: String(id++),
 						});
@@ -60,7 +60,7 @@ const app = new Hono<{ Bindings: Bindings; Variables: Variables }>().post(
 				}
 			} catch (err) {
 				await sseStream.writeSSE({
-					data: JSON.stringify({ message: err instanceof Error ? err.message : String(err) }),
+					data: JSON.stringify({ message: "I'm having trouble responding right now. Try again in a moment." }),
 					event: "error",
 					id: String(id++),
 				});
