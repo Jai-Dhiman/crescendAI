@@ -53,7 +53,7 @@ interface ToolDefinition {
 // Shared dimension enum
 // ---------------------------------------------------------------------------
 
-const dimensionEnum = z.enum(DIMS_6 as [string, ...string[]]);
+const dimensionEnum = z.enum(DIMS_6 as unknown as [string, ...string[]]);
 
 // ---------------------------------------------------------------------------
 // Tool: create_exercise
