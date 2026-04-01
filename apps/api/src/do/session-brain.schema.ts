@@ -5,7 +5,6 @@ export const sessionStateSchema = z.object({
   sessionId: z.string(),
   studentId: z.string(),
   conversationId: z.string().nullable(),
-  isEval: z.boolean().default(false),
   chunksInFlight: z.number().int().default(0),
   sessionEnding: z.boolean().default(false),
   synthesisCompleted: z.boolean().default(false),
@@ -22,7 +21,6 @@ export const sessionStateSchema = z.object({
       }),
     )
     .default([]),
-  pieceQuery: z.string().nullable().default(null),
   pieceLocked: z.boolean().default(false),
   pieceIdentification: z
     .object({
@@ -75,14 +73,12 @@ export function createInitialState(
   sessionId: string,
   studentId: string,
   conversationId: string | null,
-  isEval: boolean,
 ): SessionState {
   return {
     version: 0,
     sessionId,
     studentId,
     conversationId,
-    isEval,
     chunksInFlight: 0,
     sessionEnding: false,
     synthesisCompleted: false,
@@ -92,7 +88,6 @@ export function createInitialState(
     baselines: null,
     baselinesLoaded: false,
     scoredChunks: [],
-    pieceQuery: null,
     pieceLocked: false,
     pieceIdentification: null,
     followerState: { lastKnownBar: null },
