@@ -5,6 +5,7 @@ import { DIMS_6 } from "../lib/dims";
 import { exercises, exerciseDimensions } from "../db/schema/exercises";
 import { observations } from "../db/schema/observations";
 import { sessions } from "../db/schema/sessions";
+import { pieces } from "../db/schema/catalog";
 import { InferenceError } from "../lib/errors";
 
 // ---------------------------------------------------------------------------
@@ -170,14 +171,30 @@ async function processScoreHighlight(
   let scoreData: unknown = null;
 
   if (input.piece_id) {
-    const key = `scores/${input.piece_id}/score.json`;
-    const obj = await ctx.env.SCORES.get(key);
-    if (obj) {
-      const text = await obj.text();
-      try {
-        scoreData = JSON.parse(text);
-      } catch {
-        scoreData = text;
+    const catalogRow = await ctx.db
+      .select({ pieceId: pieces.pieceId })
+      .from(pieces)
+      .where(eq(pieces.pieceId, input.piece_id))
+      .limit(1);
+
+    if (catalogRow.length === 0) {
+      console.log(
+        JSON.stringify({
+          level: "warn",
+          message: "score_highlight piece_id not found in catalog, skipping R2 lookup",
+          pieceId: input.piece_id,
+        }),
+      );
+    } else {
+      const key = `scores/${input.piece_id}/score.json`;
+      const obj = await ctx.env.SCORES.get(key);
+      if (obj) {
+        const text = await obj.text();
+        try {
+          scoreData = JSON.parse(text);
+        } catch {
+          scoreData = text;
+        }
       }
     }
   }
@@ -351,7 +368,7 @@ const referenceBrowserSchema = z.object({
 });
 
 async function processReferenceBrowser(
-  _ctx: ServiceContext,
+  ctx: ServiceContext,
   _studentId: string,
   rawInput: unknown,
 ): Promise<InlineComponent[]> {
@@ -360,9 +377,27 @@ async function processReferenceBrowser(
   const config: Record<string, unknown> = {
     description: input.description,
   };
+
   if (input.piece_id !== undefined) {
-    config.pieceId = input.piece_id;
+    const catalogRow = await ctx.db
+      .select({ pieceId: pieces.pieceId })
+      .from(pieces)
+      .where(eq(pieces.pieceId, input.piece_id))
+      .limit(1);
+
+    if (catalogRow.length === 0) {
+      console.log(
+        JSON.stringify({
+          level: "warn",
+          message: "reference_browser piece_id not found in catalog, omitting from config",
+          pieceId: input.piece_id,
+        }),
+      );
+    } else {
+      config.pieceId = input.piece_id;
+    }
   }
+
   if (input.passage !== undefined) {
     config.passage = input.passage;
   }
