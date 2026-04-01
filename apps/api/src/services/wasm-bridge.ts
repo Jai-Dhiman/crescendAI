@@ -10,13 +10,6 @@
 
 // --- STOP / teaching moment types ---
 
-export interface StopResult {
-  probability: number;
-  triggered: boolean;
-  top_dimension: string;
-  top_deviation: number;
-}
-
 export interface ScoredChunk {
   chunk_index: number;
   /** Fixed 6-element array: [dynamics, timing, pedaling, articulation, phrasing, interpretation] */
@@ -219,37 +212,16 @@ type PieceIdentifyMod = typeof import("../wasm/piece-identify/pkg/piece_identify
 let scoreAnalysisModule: ScoreAnalysisMod | null = null;
 let pieceIdentifyModule: PieceIdentifyMod | null = null;
 
-/**
- * Initialize WASM modules. Call once during Worker startup.
- * Logs warnings for modules that are not yet built (no pkg/ directory).
- */
-export async function initWasm(): Promise<void> {
-  try {
-    scoreAnalysisModule = await import("../wasm/score-analysis/pkg/score_analysis");
-  } catch {
-    console.log(
-      JSON.stringify({ level: "warn", message: "score-analysis WASM not loaded — pkg/ not built" }),
-    );
-  }
-  try {
-    pieceIdentifyModule = await import("../wasm/piece-identify/pkg/piece_identify");
-  } catch {
-    console.log(
-      JSON.stringify({ level: "warn", message: "piece-identify WASM not loaded — pkg/ not built" }),
-    );
-  }
-}
-
 function requireScoreAnalysis(): ScoreAnalysisMod {
   if (!scoreAnalysisModule) {
-    throw new Error("score-analysis WASM not initialized — call initWasm() at startup");
+    throw new Error("score-analysis WASM not initialized");
   }
   return scoreAnalysisModule;
 }
 
 function requirePieceIdentify(): PieceIdentifyMod {
   if (!pieceIdentifyModule) {
-    throw new Error("piece-identify WASM not initialized — call initWasm() at startup");
+    throw new Error("piece-identify WASM not initialized");
   }
   return pieceIdentifyModule;
 }
@@ -257,16 +229,6 @@ function requirePieceIdentify(): PieceIdentifyMod {
 // ═══════════════════════════════════════════════════
 // Score Analysis wrappers
 // ═══════════════════════════════════════════════════
-
-/**
- * Classify a scored chunk with the STOP logistic regression classifier.
- *
- * @param scores 6-element array [dynamics, timing, pedaling, articulation, phrasing, interpretation]
- * @param threshold probability threshold for triggering (default 0.5)
- */
-export function classifyStop(scores: number[], threshold = 0.5): StopResult {
-  return requireScoreAnalysis().classify_stop(new Float64Array(scores), threshold) as StopResult;
-}
 
 /**
  * Select the top-1 teaching moment from a session's scored chunks.
@@ -364,14 +326,6 @@ export function ngramRecall(notes: PerfNote[], index: NgramIndex): NgramCandidat
 }
 
 /**
- * Stage 2a: Compute 128-dim rerank feature vector from performance notes.
- * Returns a Float64Array (128 elements).
- */
-export function computeRerankFeatures(notes: PerfNote[]): number[] {
-  return Array.from(requirePieceIdentify().compute_rerank_features(notes));
-}
-
-/**
  * Stage 2b: Rerank candidates by cosine similarity.
  * Returns top-2 results in descending similarity order.
  */
@@ -399,10 +353,3 @@ export function dtwConfirm(
   return requirePieceIdentify().dtw_confirm(perfNotes, scoreNotes, threshold) as DtwConfirmResult;
 }
 
-/**
- * Match a free-text query against the piece catalog using Dice similarity on bigrams.
- * Returns null if no match exceeds the confidence threshold.
- */
-export function matchPieceText(query: string, catalog: CatalogEntry[]): TextMatchResult | null {
-  return requirePieceIdentify().match_piece_text(query, catalog) as TextMatchResult | null;
-}

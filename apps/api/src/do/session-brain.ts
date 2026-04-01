@@ -298,8 +298,8 @@ export class SessionBrain extends DurableObject<Bindings> {
 
 		// 3. Parallel inference — this is the major await; state may change during it
 		const [muqResult, amtResult] = await Promise.allSettled([
-			callMuqEndpoint(this.env, audioBytes, false),
-			callAmtEndpoint(this.env, audioBytes, contextAudio, false),
+			callMuqEndpoint(this.env, audioBytes),
+			callAmtEndpoint(this.env, audioBytes, contextAudio),
 		]);
 
 		// 4. Re-read state, check version hasn't changed

@@ -90,36 +90,24 @@ export async function callAnthropicStream(
   return res.body;
 }
 
-export async function callGroq(
+export async function callWorkersAI(
   env: Bindings,
   model: string,
-  messages: LlmMessage[],
-  maxTokens?: number,
+  messages: Array<{ role: string; content: string }>,
+  maxTokens: number = 100,
 ): Promise<string> {
-  const url = `${env.AI_GATEWAY_BACKGROUND}/groq/openai/v1/chat/completions`;
+  const url = `${env.AI_GATEWAY_BACKGROUND}/workers-ai/v1/chat/completions`;
   const res = await fetch(url, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${env.GROQ_API_KEY}`,
-    },
-    body: JSON.stringify({
-      model,
-      messages,
-      max_tokens: maxTokens ?? 1024,
-    }),
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ model, messages, max_tokens: maxTokens }),
   });
-
   if (!res.ok) {
-    const text = await res.text();
-    throw new InferenceError(`Groq request failed: ${res.status} ${text}`);
+    throw new InferenceError(`Workers AI error: ${res.status}`);
   }
-
-  const data = (await res.json()) as {
-    choices: Array<{ message: { content: string } }>;
-  };
-
-  const content = data.choices[0]?.message?.content;
-  if (!content) throw new InferenceError("Groq response missing content");
-  return content;
+  const data = (await res.json()) as { choices: Array<{ message: { content: string } }> };
+  if (!data.choices?.[0]?.message?.content) {
+    throw new InferenceError("Workers AI returned no content");
+  }
+  return data.choices[0].message.content;
 }

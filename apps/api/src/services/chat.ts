@@ -3,7 +3,7 @@ import type { Db, ServiceContext, Bindings } from "../lib/types";
 import { NotFoundError } from "../lib/errors";
 import { conversations, messages } from "../db/schema/conversations";
 import { studentProfiles } from "../db/schema/students";
-import { callGroq } from "./llm";
+import { callWorkersAI } from "./llm";
 import { buildMemoryContext } from "./memory";
 import { buildChatFraming, buildTitlePrompt } from "./prompts";
 import type { InlineComponent } from "./tool-processor";
@@ -121,9 +121,9 @@ export async function saveAssistantMessage(
 	if (isNewConversation) {
 		try {
 			const titlePrompt = buildTitlePrompt(firstUserMessage);
-			const title = await callGroq(
+			const title = await callWorkersAI(
 				env,
-				"llama-3.3-70b-versatile",
+				"@cf/qwen/qwen3-30b-a3b-fp8",
 				[{ role: "user", content: titlePrompt }],
 				30,
 			);

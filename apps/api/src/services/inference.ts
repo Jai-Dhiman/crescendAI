@@ -2,7 +2,6 @@ import { InferenceError } from "../lib/errors";
 import type { Bindings } from "../lib/types";
 
 const RETRY_DELAYS_MS = [10_000, 20_000, 40_000];
-const RETRY_DELAYS_ENDING_MS = [3_000, 5_000];
 
 export interface MuqScores {
   dynamics: number;
@@ -118,10 +117,7 @@ async function fetchWithRetry(
 export async function callMuqEndpoint(
   env: Bindings,
   audioBytes: ArrayBuffer,
-  sessionEnding = false,
 ): Promise<MuqScores> {
-  const retryDelays = sessionEnding ? RETRY_DELAYS_ENDING_MS : RETRY_DELAYS_MS;
-
   const response = await fetchWithRetry(
     env.MUQ_ENDPOINT,
     {
@@ -129,7 +125,7 @@ export async function callMuqEndpoint(
       headers: { "Content-Type": "audio/webm;codecs=opus" },
       body: audioBytes,
     },
-    retryDelays,
+    RETRY_DELAYS_MS,
   );
 
   if (!response.ok) {
@@ -168,10 +164,7 @@ export async function callAmtEndpoint(
   env: Bindings,
   chunkAudio: ArrayBuffer,
   contextAudio: ArrayBuffer | null,
-  sessionEnding = false,
 ): Promise<AmtResult> {
-  const retryDelays = sessionEnding ? RETRY_DELAYS_ENDING_MS : RETRY_DELAYS_MS;
-
   const payload = JSON.stringify({
     chunk_audio: encodeBase64(chunkAudio),
     context_audio: contextAudio !== null ? encodeBase64(contextAudio) : null,
@@ -184,7 +177,7 @@ export async function callAmtEndpoint(
       headers: { "Content-Type": "application/json" },
       body: payload,
     },
-    retryDelays,
+    RETRY_DELAYS_MS,
   );
 
   if (!response.ok) {

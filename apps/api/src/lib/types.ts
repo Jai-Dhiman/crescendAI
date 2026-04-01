@@ -18,7 +18,6 @@ export interface Bindings {
 	GOOGLE_CLIENT_SECRET: string;
 	SENTRY_DSN: string;
 	HF_INFERENCE_ENDPOINT: string;
-	GROQ_API_KEY: string;
 	ANTHROPIC_API_KEY: string;
 	AI_GATEWAY_TEACHER: string;
 	AI_GATEWAY_BACKGROUND: string;
