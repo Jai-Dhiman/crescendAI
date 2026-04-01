@@ -1,0 +1,442 @@
+import { describe, it, expect } from "vitest";
+import {
+  TOOL_REGISTRY,
+  getAnthropicToolSchemas,
+  type ToolResult,
+} from "./tool-processor";
+import { DIMS_6 } from "../lib/dims";
+
+// ---------------------------------------------------------------------------
+// Registry structure tests
+// ---------------------------------------------------------------------------
+
+describe("TOOL_REGISTRY structure", () => {
+  const toolNames = [
+    "create_exercise",
+    "score_highlight",
+    "keyboard_guide",
+    "show_session_data",
+    "reference_browser",
+  ] as const;
+
+  it("has all 5 tools", () => {
+    expect(Object.keys(TOOL_REGISTRY)).toHaveLength(5);
+    for (const name of toolNames) {
+      expect(TOOL_REGISTRY[name]).toBeDefined();
+    }
+  });
+
+  it("each tool has required fields", () => {
+    for (const name of toolNames) {
+      const tool = TOOL_REGISTRY[name];
+      expect(typeof tool.name).toBe("string");
+      expect(tool.schema).toBeDefined();
+      expect(tool.anthropicSchema).toBeDefined();
+      expect(typeof tool.description).toBe("string");
+      expect(typeof tool.concurrencySafe).toBe("boolean");
+      expect(typeof tool.process).toBe("function");
+    }
+  });
+
+  it("create_exercise is not concurrencySafe", () => {
+    expect(TOOL_REGISTRY.create_exercise.concurrencySafe).toBe(false);
+  });
+
+  it("score_highlight, keyboard_guide, show_session_data, reference_browser are concurrencySafe", () => {
+    expect(TOOL_REGISTRY.score_highlight.concurrencySafe).toBe(true);
+    expect(TOOL_REGISTRY.keyboard_guide.concurrencySafe).toBe(true);
+    expect(TOOL_REGISTRY.show_session_data.concurrencySafe).toBe(true);
+    expect(TOOL_REGISTRY.reference_browser.concurrencySafe).toBe(true);
+  });
+
+  it("maxResultChars defined for bounded tools", () => {
+    expect(TOOL_REGISTRY.score_highlight.maxResultChars).toBe(5000);
+    expect(TOOL_REGISTRY.keyboard_guide.maxResultChars).toBe(2000);
+    expect(TOOL_REGISTRY.show_session_data.maxResultChars).toBe(10000);
+    expect(TOOL_REGISTRY.reference_browser.maxResultChars).toBe(2000);
+  });
+
+  it("create_exercise has no maxResultChars", () => {
+    expect(TOOL_REGISTRY.create_exercise.maxResultChars).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getAnthropicToolSchemas
+// ---------------------------------------------------------------------------
+
+describe("getAnthropicToolSchemas", () => {
+  it("returns an array of 5 schemas", () => {
+    const schemas = getAnthropicToolSchemas();
+    expect(schemas).toHaveLength(5);
+  });
+
+  it("each schema has name, description, input_schema", () => {
+    for (const schema of getAnthropicToolSchemas()) {
+      expect(typeof schema.name).toBe("string");
+      expect(typeof schema.description).toBe("string");
+      expect(schema.input_schema).toBeDefined();
+      expect(schema.input_schema.type).toBe("object");
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// create_exercise Zod validation
+// ---------------------------------------------------------------------------
+
+describe("create_exercise schema validation", () => {
+  const schema = TOOL_REGISTRY.create_exercise.schema;
+
+  it("passes valid input", () => {
+    const result = schema.safeParse({
+      source_passage: "bars 1-4",
+      target_skill: "legato phrasing",
+      exercises: [
+        {
+          title: "Slow practice",
+          instruction: "Play slowly with full bow",
+          focus_dimension: "phrasing",
+        },
+      ],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("passes with optional hands field", () => {
+    const result = schema.safeParse({
+      source_passage: "opening",
+      target_skill: "voicing",
+      exercises: [
+        {
+          title: "Thumb drill",
+          instruction: "Isolate thumb",
+          focus_dimension: "dynamics",
+          hands: "right",
+        },
+      ],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects missing source_passage", () => {
+    const result = schema.safeParse({
+      target_skill: "timing",
+      exercises: [{ title: "X", instruction: "Y", focus_dimension: "timing" }],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects empty exercises array", () => {
+    const result = schema.safeParse({
+      source_passage: "bars 1-4",
+      target_skill: "timing",
+      exercises: [],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects invalid focus_dimension", () => {
+    const result = schema.safeParse({
+      source_passage: "bars 1-4",
+      target_skill: "timing",
+      exercises: [
+        { title: "X", instruction: "Y", focus_dimension: "invalid_dim" },
+      ],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("accepts all DIMS_6 values for focus_dimension", () => {
+    for (const dim of DIMS_6) {
+      const result = schema.safeParse({
+        source_passage: "bar 1",
+        target_skill: "test",
+        exercises: [{ title: "T", instruction: "I", focus_dimension: dim }],
+      });
+      expect(result.success).toBe(true);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// score_highlight Zod validation
+// ---------------------------------------------------------------------------
+
+describe("score_highlight schema validation", () => {
+  const schema = TOOL_REGISTRY.score_highlight.schema;
+
+  it("passes valid bare input", () => {
+    const result = schema.safeParse({ bars: "1-4" });
+    expect(result.success).toBe(true);
+  });
+
+  it("passes single bar number", () => {
+    const result = schema.safeParse({ bars: "5" });
+    expect(result.success).toBe(true);
+  });
+
+  it("passes with optional annotations and piece_id", () => {
+    const result = schema.safeParse({
+      bars: "10-20",
+      annotations: ["forte", "legato"],
+      piece_id: "123e4567-e89b-12d3-a456-426614174000",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects invalid bars format", () => {
+    const result = schema.safeParse({ bars: "abc" });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects invalid piece_id (not uuid)", () => {
+    const result = schema.safeParse({ bars: "1-4", piece_id: "not-a-uuid" });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects missing bars", () => {
+    const result = schema.safeParse({});
+    expect(result.success).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// keyboard_guide Zod validation
+// ---------------------------------------------------------------------------
+
+describe("keyboard_guide schema validation", () => {
+  const schema = TOOL_REGISTRY.keyboard_guide.schema;
+
+  it("passes valid input", () => {
+    const result = schema.safeParse({
+      title: "Thumb under",
+      description: "Practice thumb-under technique",
+      hands: "right",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("passes with optional fingering", () => {
+    const result = schema.safeParse({
+      title: "Scale fingering",
+      description: "C major fingering pattern",
+      fingering: "1-2-3-1-2-3-4-5",
+      hands: "both",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects invalid hands value", () => {
+    const result = schema.safeParse({
+      title: "T",
+      description: "D",
+      hands: "one",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects missing title", () => {
+    const result = schema.safeParse({ description: "D", hands: "left" });
+    expect(result.success).toBe(false);
+  });
+
+  it("accepts all hands enum values", () => {
+    for (const hands of ["left", "right", "both"] as const) {
+      const result = schema.safeParse({
+        title: "T",
+        description: "D",
+        hands,
+      });
+      expect(result.success).toBe(true);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// show_session_data Zod validation
+// ---------------------------------------------------------------------------
+
+describe("show_session_data schema validation", () => {
+  const schema = TOOL_REGISTRY.show_session_data.schema;
+
+  it("passes dimension_history query type with dimension", () => {
+    const result = schema.safeParse({
+      query_type: "dimension_history",
+      dimension: "dynamics",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("passes recent_sessions with default limit", () => {
+    const result = schema.safeParse({ query_type: "recent_sessions" });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.limit).toBe(20);
+    }
+  });
+
+  it("passes session_detail with session_id", () => {
+    const result = schema.safeParse({
+      query_type: "session_detail",
+      session_id: "123e4567-e89b-12d3-a456-426614174000",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects limit > 50", () => {
+    const result = schema.safeParse({
+      query_type: "recent_sessions",
+      limit: 51,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects limit < 1", () => {
+    const result = schema.safeParse({
+      query_type: "recent_sessions",
+      limit: 0,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects invalid query_type", () => {
+    const result = schema.safeParse({ query_type: "all_data" });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects invalid dimension", () => {
+    const result = schema.safeParse({
+      query_type: "dimension_history",
+      dimension: "vibrato",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects invalid session_id (not uuid)", () => {
+    const result = schema.safeParse({
+      query_type: "session_detail",
+      session_id: "not-a-uuid",
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// reference_browser Zod validation
+// ---------------------------------------------------------------------------
+
+describe("reference_browser schema validation", () => {
+  const schema = TOOL_REGISTRY.reference_browser.schema;
+
+  it("passes with description only", () => {
+    const result = schema.safeParse({
+      description: "Look up fingering for Chopin nocturne",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("passes with all optional fields", () => {
+    const result = schema.safeParse({
+      piece_id: "123e4567-e89b-12d3-a456-426614174000",
+      passage: "bars 5-8",
+      description: "Check phrasing",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects invalid piece_id (not uuid)", () => {
+    const result = schema.safeParse({
+      description: "test",
+      piece_id: "not-a-uuid",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects missing description", () => {
+    const result = schema.safeParse({ passage: "bars 1-4" });
+    expect(result.success).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// processToolUse (no DB required -- pass-through tools)
+// ---------------------------------------------------------------------------
+
+describe("processToolUse pass-through tools", () => {
+  // We need a minimal ServiceContext mock -- pass-through tools don't hit DB
+  const mockCtx = {
+    db: {} as never,
+    env: {} as never,
+  };
+  const studentId = "student-abc";
+
+  it("keyboard_guide returns ToolResult with correct type", async () => {
+    const { processToolUse } = await import("./tool-processor");
+    const result: ToolResult = await processToolUse(
+      mockCtx,
+      studentId,
+      "keyboard_guide",
+      {
+        title: "Thumb under",
+        description: "Practice thumb-under passing",
+        hands: "right",
+      },
+    );
+    expect(result.isError).toBe(false);
+    expect(result.name).toBe("keyboard_guide");
+    expect(result.componentsJson).toHaveLength(1);
+    expect(result.componentsJson[0].type).toBe("keyboard_guide");
+  });
+
+  it("reference_browser returns ToolResult with correct type", async () => {
+    const { processToolUse } = await import("./tool-processor");
+    const result: ToolResult = await processToolUse(
+      mockCtx,
+      studentId,
+      "reference_browser",
+      {
+        description: "Look up phrasing for bar 10",
+      },
+    );
+    expect(result.isError).toBe(false);
+    expect(result.name).toBe("reference_browser");
+    expect(result.componentsJson).toHaveLength(1);
+    expect(result.componentsJson[0].type).toBe("reference_browser");
+  });
+
+  it("unknown tool name returns isError: true", async () => {
+    const { processToolUse } = await import("./tool-processor");
+    const result: ToolResult = await processToolUse(
+      mockCtx,
+      studentId,
+      "nonexistent_tool",
+      {},
+    );
+    expect(result.isError).toBe(true);
+    expect(result.name).toBe("nonexistent_tool");
+  });
+
+  it("validation failure returns isError: true", async () => {
+    const { processToolUse } = await import("./tool-processor");
+    const result: ToolResult = await processToolUse(
+      mockCtx,
+      studentId,
+      "keyboard_guide",
+      { hands: "right" }, // missing title and description
+    );
+    expect(result.isError).toBe(true);
+  });
+
+  it("score_highlight pass-through (no piece_id) returns ToolResult", async () => {
+    const { processToolUse } = await import("./tool-processor");
+    const result: ToolResult = await processToolUse(
+      mockCtx,
+      studentId,
+      "score_highlight",
+      { bars: "1-8" },
+    );
+    expect(result.isError).toBe(false);
+    expect(result.componentsJson[0].type).toBe("score_highlight");
+  });
+});
