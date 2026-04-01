@@ -1,6 +1,5 @@
 import { DurableObject } from "cloudflare:workers";
 import type { Bindings, ServiceContext } from "../lib/types";
-import { buildMemoryContext } from "../services/memory";
 import {
 	sessionStateSchema,
 	wsIncomingMessageSchema,
@@ -11,14 +10,12 @@ import { SessionAccumulator } from "../services/accumulator";
 import { ModeDetector, type ChunkSignal } from "../services/practice-mode";
 import { callMuqEndpoint, callAmtEndpoint } from "../services/inference";
 import {
-	callSynthesisLlm,
-	buildSynthesisPrompt,
 	persistSynthesisMessage,
 	persistAccumulatedMoments,
 	clearNeedsSynthesis,
 	loadBaselinesFromDb,
-	type SynthesisContext,
 } from "../services/synthesis";
+import { synthesize as teacherSynthesize, type SynthesisInput } from "../services/teacher";
 import { createDb } from "../db/client";
 import type {
 	ScoredChunk,
@@ -56,11 +53,19 @@ export class SessionBrain extends DurableObject<Bindings> {
 	async fetch(request: Request): Promise<Response> {
 		// Parse identity from path + query
 		const url = new URL(request.url);
+
+		// Deferred synthesis endpoint: POST /synthesize
+		if (url.pathname === "/synthesize" && request.method === "POST") {
+			await this.runSynthesisAndPersist();
+			return new Response(JSON.stringify({ ok: true }), {
+				headers: { "Content-Type": "application/json" },
+			});
+		}
+
 		const pathParts = url.pathname.split("/");
 		const sessionId = pathParts[pathParts.length - 1] ?? "";
 		const studentId = url.searchParams.get("studentId") ?? "";
 		const conversationId = url.searchParams.get("conversationId") ?? null;
-		const isEval = url.searchParams.get("isEval") === "true";
 
 		if (!sessionId || !studentId) {
 			return new Response("Missing sessionId or studentId", { status: 400 });
@@ -73,7 +78,6 @@ export class SessionBrain extends DurableObject<Bindings> {
 				sessionId,
 				studentId,
 				conversationId,
-				isEval,
 			);
 			await this.ctx.storage.put("state", initialState);
 
@@ -294,8 +298,8 @@ export class SessionBrain extends DurableObject<Bindings> {
 
 		// 3. Parallel inference — this is the major await; state may change during it
 		const [muqResult, amtResult] = await Promise.allSettled([
-			callMuqEndpoint(this.env, audioBytes, false),
-			callAmtEndpoint(this.env, audioBytes, contextAudio, false),
+			callMuqEndpoint(this.env, audioBytes),
+			callAmtEndpoint(this.env, audioBytes, contextAudio),
 		]);
 
 		// 4. Re-read state, check version hasn't changed
@@ -759,7 +763,6 @@ export class SessionBrain extends DurableObject<Bindings> {
 
 	private async handleSetPiece(ws: WebSocket, query: string): Promise<void> {
 		const state = await this.readState();
-		state.pieceQuery = query;
 		state.pieceLocked = true;
 		state.pieceIdentification = null; // will be resolved on next chunk
 		state.followerState = { lastKnownBar: null };
@@ -771,7 +774,7 @@ export class SessionBrain extends DurableObject<Bindings> {
 
 	// ─── Synthesis & Finalization ────────────────────────────────────────────
 
-	private async runSynthesisAndPersist(_ws?: WebSocket): Promise<void> {
+	private async runSynthesisAndPersist(): Promise<void> {
 		// Claim synthesis slot atomically before the LLM call.
 		// This prevents duplicate synthesis if two alarm firings race.
 		const state = await this.readState();
@@ -792,87 +795,159 @@ export class SessionBrain extends DurableObject<Bindings> {
 				? await this.loadPieceMetadata(state.pieceIdentification.pieceId)
 				: null;
 
-		const baselines =
-			state.baselines !== null
-				? (state.baselines as Record<Dimension, number>)
-				: null;
+		// Build practice pattern JSON for teacher input
+		const practicePattern = JSON.stringify(
+			this.buildPracticePattern(acc, sessionDurationMs),
+		);
 
-		// Load student memory for synthesis context
-		let studentMemory: string | null = null;
+		// Build top moments for teacher input
+		const topMoments = acc.topMoments().map((m) => {
+			const obj: Record<string, unknown> = {
+				dimension: m.dimension,
+				deviation: Math.round(m.deviation * 1000) / 1000,
+				is_positive: m.isPositive,
+				reasoning: m.reasoning,
+			};
+			if (m.barRange) {
+				obj["bar_range"] = m.barRange;
+			}
+			return obj;
+		});
+
+		// Build drilling records for teacher input
+		const drillingRecords = acc.drillingRecords.map((dr) => {
+			const entry: Record<string, unknown> = {
+				repetitions: dr.repetitionCount,
+				first_scores: dr.firstScores,
+				final_scores: dr.finalScores,
+			};
+			if (dr.barRange) {
+				entry["bar_range"] = dr.barRange;
+			}
+			return entry;
+		});
+
+		const synthInput: SynthesisInput = {
+			studentId: state.studentId,
+			conversationId: state.conversationId,
+			sessionDurationMs,
+			practicePattern,
+			topMoments,
+			drillingRecords,
+			pieceMetadata: pieceCtx,
+		};
+
+		const db = createDb(this.env.HYPERDRIVE);
+		const ctx: ServiceContext = { db, env: this.env };
+
+		// teacher.synthesize() throws on failure — try/catch handles it
+		// synthesisCompleted stays true but DB needsSynthesis remains true, enabling deferred retry
 		try {
-			const db = createDb(this.env.HYPERDRIVE);
-			const ctx: ServiceContext = { db, env: this.env };
-			const memResult = await buildMemoryContext(ctx, state.studentId);
-			studentMemory = memResult.length > 0 ? memResult : null;
+			const result = await teacherSynthesize(ctx, synthInput);
+
+			// Send synthesis over WebSocket if connection still open
+			const components = result.toolResults.flatMap((r) => r.componentsJson);
+			const sockets = this.ctx.getWebSockets();
+			for (const sock of sockets) {
+				this.sendWs(sock, {
+					type: "synthesis",
+					text: result.text,
+					components,
+					isFallback: false,
+				});
+			}
+
+			// Persist to DB
+			if (state.conversationId !== null) {
+				try {
+					await persistSynthesisMessage(
+						db,
+						state.conversationId,
+						result.text,
+						state.sessionId,
+						components.length > 0 ? components : undefined,
+					);
+					await persistAccumulatedMoments(
+						db,
+						state.studentId,
+						state.sessionId,
+						state.conversationId,
+						acc.teachingMoments,
+					);
+					await clearNeedsSynthesis(db, state.sessionId);
+				} catch (err) {
+					const error = err as Error;
+					console.error(
+						JSON.stringify({
+							level: "error",
+							message: "synthesis DB persist failed",
+							sessionId: state.sessionId,
+							error: error.message,
+						}),
+					);
+					// Not fatal: accumulator_json persisted in finalizeSession as safety net
+				}
+			}
 		} catch (err) {
 			const error = err as Error;
 			console.error(
 				JSON.stringify({
 					level: "error",
-					message: "buildMemoryContext failed, continuing without memory",
+					message: "teacher.synthesize failed",
 					sessionId: state.sessionId,
 					error: error.message,
 				}),
 			);
-		}
-
-		const context: SynthesisContext = {
-			sessionId: state.sessionId,
-			studentId: state.studentId,
-			conversationId: state.conversationId,
-			baselines,
-			pieceContext: pieceCtx,
-			studentMemory,
-			totalChunks: state.scoredChunks.length,
-			sessionDurationMs,
-		};
-
-		const promptContext = buildSynthesisPrompt(acc, context);
-		const result = await callSynthesisLlm(this.env, promptContext);
-
-		// Send synthesis over WebSocket if connection still open
-		const sockets = this.ctx.getWebSockets();
-		for (const sock of sockets) {
-			this.sendWs(sock, {
-				type: "synthesis",
-				text: result.text,
-				isFallback: result.isFallback,
-			});
-		}
-
-		// Persist to DB
-		if (state.conversationId !== null) {
-			try {
-				const db = createDb(this.env.HYPERDRIVE);
-				await persistSynthesisMessage(
-					db,
-					state.conversationId,
-					result.text,
-					state.sessionId,
-				);
-				await persistAccumulatedMoments(
-					db,
-					state.studentId,
-					state.sessionId,
-					state.conversationId,
-					acc.teachingMoments,
-				);
-				await clearNeedsSynthesis(db, state.sessionId);
-			} catch (err) {
-				const error = err as Error;
-				console.error(
-					JSON.stringify({
-						level: "error",
-						message: "synthesis DB persist failed",
-						sessionId: state.sessionId,
-						error: error.message,
-					}),
-				);
-				// Not fatal: accumulator_json persisted in finalizeSession as safety net
-			}
+			// synthesisCompleted stays true (no duplicate), but needsSynthesis in DB stays true
+			// so the deferred /synthesize endpoint can retry via the DO
 		}
 
 		// synthesisCompleted already set at method entry (claim-before-await pattern)
+	}
+
+	private buildPracticePattern(
+		acc: SessionAccumulator,
+		sessionDurationMs: number,
+	): unknown[] {
+		if (acc.modeTransitions.length === 0) {
+			return [];
+		}
+
+		const entries: unknown[] = [];
+
+		for (let i = 0; i < acc.modeTransitions.length; i++) {
+			const tr = acc.modeTransitions[i];
+			const endTs =
+				i + 1 < acc.modeTransitions.length
+					? acc.modeTransitions[i + 1].timestampMs
+					: sessionDurationMs;
+
+			const durationMin =
+				Math.round(
+					(Math.max(0, endTs - tr.timestampMs) / 60_000) * 10,
+				) / 10;
+
+			const entry: Record<string, unknown> = {
+				mode: tr.to.toLowerCase(),
+				duration_min: durationMin,
+			};
+
+			if (tr.to.toLowerCase() === "drilling") {
+				const dr = acc.drillingRecords.find(
+					(r) => r.startedAtChunk === tr.chunkIndex,
+				);
+				if (dr) {
+					if (dr.barRange) {
+						entry["bar_range"] = dr.barRange;
+					}
+					entry["repetitions"] = dr.repetitionCount;
+				}
+			}
+
+			entries.push(entry);
+		}
+
+		return entries;
 	}
 
 	private async finalizeSession(): Promise<void> {

@@ -64,8 +64,6 @@ export interface UsePracticeSessionReturn {
 export interface PracticeSessionOptions {
 	/** Called from the WS handler when session_summary arrives (eval path). */
 	onSummary?: (summary: string, conversationId: string | null) => void;
-	/** Called from the WS handler when synthesis arrives (production path). */
-	onSynthesis?: (text: string, isFallback: boolean, conversationId: string | null) => void;
 	/** Called from stop() when state transitions to summarizing. */
 	onSummarizing?: () => void;
 }
@@ -243,7 +241,6 @@ export function usePracticeSession(
 					setSummary(data.text);
 					setState("idle");
 					cleanup();
-					options?.onSynthesis?.(data.text, data.isFallback, conversationIdRef.current);
 					options?.onSummary?.(data.text, conversationIdRef.current);
 					break;
 				}
@@ -287,6 +284,9 @@ export function usePracticeSession(
 					options?.onSummary?.(finalSummary, conversationIdRef.current);
 					break;
 				}
+				case "piece_identified":
+					console.log(JSON.stringify({ event: "piece_identified", composer: data.composer, title: data.title }));
+					break;
 				case "piece_set":
 					console.log("Piece context set:", data.query);
 					break;

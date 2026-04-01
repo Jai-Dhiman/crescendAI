@@ -7,15 +7,6 @@ import { requireAuth } from "../middleware/auth-session";
 import { NotFoundError, ForbiddenError } from "../lib/errors";
 import { sessions } from "../db/schema/sessions";
 import { conversations, messages } from "../db/schema/conversations";
-import { SessionAccumulator } from "../services/accumulator";
-import {
-	buildSynthesisPrompt,
-	callSynthesisLlm,
-	persistSynthesisMessage,
-	clearNeedsSynthesis,
-	loadBaselinesFromDb,
-	type SynthesisContext,
-} from "../services/synthesis";
 
 const startBodySchema = z.object({
 	conversationId: z.string().uuid().optional(),
@@ -153,44 +144,13 @@ const app = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 			throw new ForbiddenError();
 		}
 
-		const acc = SessionAccumulator.fromJSON(session.accumulatorJson);
+		// Route through the DO to ensure synthesisCompleted flag is checked atomically
+		// and the alarm/deferred paths don't race
+		const doId = c.env.SESSION_BRAIN.idFromName(sessionId);
+		const stub = c.env.SESSION_BRAIN.get(doId);
+		await stub.fetch(new Request("https://do/synthesize", { method: "POST" }));
 
-		const baselines = await loadBaselinesFromDb(db, studentId);
-
-		const sessionDurationMs = session.endedAt
-			? session.endedAt.getTime() - session.startedAt.getTime()
-			: 0;
-
-		const context: SynthesisContext = {
-			sessionId,
-			studentId,
-			conversationId: session.conversationId,
-			baselines,
-			pieceContext: null,
-			studentMemory: null,
-			totalChunks: acc.timeline.length,
-			sessionDurationMs,
-		};
-
-		const promptContext = buildSynthesisPrompt(acc, context);
-		const result = await callSynthesisLlm(c.env, promptContext);
-
-		if (session.conversationId) {
-			await persistSynthesisMessage(
-				db,
-				session.conversationId,
-				result.text,
-				sessionId,
-			);
-		}
-
-		await clearNeedsSynthesis(db, sessionId);
-
-		return c.json({
-			status: "completed",
-			sessionId,
-			isFallback: result.isFallback,
-		});
+		return c.json({ status: "completed", sessionId });
 	});
 
 export { app as practiceRoutes };

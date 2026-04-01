@@ -69,7 +69,7 @@ export class SessionAccumulator {
    * Per dimension: pick highest |deviation|. Also pick top positive if different.
    * Cap at 8, sort by chunk index (chronological).
    */
-  topMoments(dimensionWeights?: Record<string, number>): AccumulatedMoment[] {
+  topMoments(): AccumulatedMoment[] {
     const selected: AccumulatedMoment[] = [];
 
     for (const dim of DIMS_6) {
@@ -99,15 +99,6 @@ export class SessionAccumulator {
           selected.push(topPositive);
         }
       }
-    }
-
-    // If dimension weights provided, re-sort by weighted |deviation| before capping
-    if (dimensionWeights !== undefined) {
-      selected.sort((a, b) => {
-        const aw = Math.abs(a.deviation) * (dimensionWeights[a.dimension] ?? 1.0);
-        const bw = Math.abs(b.deviation) * (dimensionWeights[b.dimension] ?? 1.0);
-        return bw - aw;
-      });
     }
 
     // Cap at 8

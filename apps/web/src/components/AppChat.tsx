@@ -208,6 +208,11 @@ export default function AppChat() {
 		useConversation(activeConversationId);
 	const deleteConversation = useDeleteConversation();
 
+	function invalidateConversation(conversationId: string) {
+		queryClient.invalidateQueries({ queryKey: ["conversation", conversationId] });
+		queryClient.invalidateQueries({ queryKey: ["conversations"] });
+	}
+
 	// Clear override once URL catches up (navigate completed)
 	if (conversationOverride && conversationOverride === conversationIdFromUrl) {
 		setConversationOverride(null);
@@ -226,7 +231,7 @@ export default function AppChat() {
 				if (result?.status === "synthesized") {
 					console.log(`[Deferred] Synthesis completed for session ${sid}`);
 					// Refresh conversation messages to show the new synthesis
-					queryClient.invalidateQueries({ queryKey: ["conversation", activeConversationId] });
+					invalidateConversation(activeConversationId);
 				}
 			}
 		});
@@ -273,7 +278,7 @@ export default function AppChat() {
 				queryClient
 					.invalidateQueries({ queryKey: ["conversation", convId] })
 					.then(() => setTransientMessages([]));
-				queryClient.invalidateQueries({ queryKey: ["conversations"] });
+				invalidateConversation(convId);
 			} else {
 				setTransientMessages([]);
 			}
@@ -331,10 +336,7 @@ export default function AppChat() {
 				params: { conversationId: practiceConvId },
 				replace: true,
 			});
-			queryClient.invalidateQueries({
-				queryKey: ["conversation", practiceConvId],
-			});
-			queryClient.invalidateQueries({ queryKey: ["conversations"] });
+			invalidateConversation(practiceConvId);
 		}
 	}
 
@@ -442,10 +444,23 @@ export default function AppChat() {
 							break;
 						}
 						case "delta":
-							if (event.text) {
-								appendDelta(event.text);
-							}
+							appendDelta(event.text);
 							break;
+						case "tool_result": {
+							const components = JSON.parse(event.componentsJson);
+							setTransientMessages((prev) => {
+								const updated = [...prev];
+								const last = updated[updated.length - 1];
+								if (last && last.role === "assistant") {
+									updated[updated.length - 1] = {
+										...last,
+										components: [...(last.components ?? []), ...components],
+									};
+								}
+								return updated;
+							});
+							break;
+						}
 						case "done": {
 							// Cancel pending RAF and flush remaining buffer
 							if (rafIdRef.current) {
@@ -469,6 +484,11 @@ export default function AppChat() {
 								}
 								return updated;
 							});
+							setIsStreaming(false);
+							break;
+						}
+						case "error": {
+							addToast({ type: "error", message: event.message });
 							setIsStreaming(false);
 							break;
 						}
@@ -496,7 +516,11 @@ export default function AppChat() {
 				}
 				// Clear transient messages after both query and navigation are done
 				setTransientMessages([]);
-				queryClient.invalidateQueries({ queryKey: ["conversations"] });
+				if (convId) {
+					invalidateConversation(convId);
+				} else {
+					queryClient.invalidateQueries({ queryKey: ["conversations"] });
+				}
 			}, 0);
 		} catch (e) {
 			// Cancel pending RAF and clean up streaming message

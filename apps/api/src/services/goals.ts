@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { ValidationError } from "../lib/errors";
 import type { ServiceContext } from "../lib/types";
-import { callGroq } from "./llm";
+import { callWorkersAI } from "./llm";
 import { studentProfiles } from "../db/schema/students";
 
 interface GoalDeadline {
@@ -53,9 +53,9 @@ Return this exact JSON structure:
 
 If a field has no matches, use an empty array. Always include rawText.`;
 
-  const responseText = await callGroq(
+  const responseText = await callWorkersAI(
     ctx.env,
-    "llama-3.3-70b-versatile",
+    "@cf/qwen/qwen3-30b-a3b-fp8",
     [
       { role: "system", content: systemPrompt },
       { role: "user", content: userPrompt },

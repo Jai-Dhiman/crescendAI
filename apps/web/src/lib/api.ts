@@ -1,9 +1,6 @@
 import { Sentry } from "./sentry";
 import { client } from "./api-client";
-
-const API_BASE = import.meta.env.PROD
-	? "https://api.crescend.ai"
-	: "http://localhost:8787";
+import { API_BASE } from "./config";
 
 export class ApiError extends Error {
 	constructor(
@@ -87,12 +84,12 @@ export interface ConversationWithMessages {
 	messages: MessageRow[];
 }
 
-export interface ChatStreamEvent {
-	type: "start" | "delta" | "done";
-	conversationId?: string;
-	messageId?: string;
-	text?: string;
-}
+export type ChatStreamEvent =
+	| { type: "start"; conversationId: string }
+	| { type: "delta"; text: string }
+	| { type: "tool_result"; name: string; componentsJson: string }
+	| { type: "done" }
+	| { type: "error"; message: string };
 
 // --- Exercise types ---
 

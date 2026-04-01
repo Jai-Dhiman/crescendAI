@@ -23,13 +23,13 @@ const app = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 app.onError(errorHandler);
 
 app.use("*", async (c, next) => {
-	const origin = c.env.ALLOWED_ORIGIN || "http://localhost:3000";
-	return cors({
-		origin,
-		allowMethods: ["GET", "POST", "OPTIONS", "DELETE"],
-		allowHeaders: ["Content-Type", "Authorization", "Cookie"],
-		credentials: true,
-	})(c, next);
+  const origin = c.env.ALLOWED_ORIGIN || "http://localhost:3000";
+  return cors({
+    origin,
+    allowMethods: ["GET", "POST", "OPTIONS", "DELETE"],
+    allowHeaders: ["Content-Type", "Authorization", "Cookie"],
+    credentials: true,
+  })(c, next);
 });
 
 app.use("*", structuredLogger);
@@ -38,16 +38,16 @@ app.use("/api/*", dbMiddleware);
 app.use("/api/*", authSessionMiddleware);
 
 const routes = app
-	.route("/health", healthRoutes)
-	.route("/api/auth", authRoutes)
-	.route("/api/waitlist", waitlistRoutes)
-	.route("/api/scores", scoresRoutes)
-	.route("/api/exercises", exercisesRoutes)
-	.route("/api/conversations", conversationsRoutes)
-	.route("/api/sync", syncRoutes)
-	.route("/api/chat", chatRoutes)
-	.route("/api/practice", practiceRoutes)
-	.route("/api/extract-goals", goalsRoutes);
+  .route("/health", healthRoutes)
+  .route("/api/auth", authRoutes)
+  .route("/api/waitlist", waitlistRoutes)
+  .route("/api/scores", scoresRoutes)
+  .route("/api/exercises", exercisesRoutes)
+  .route("/api/conversations", conversationsRoutes)
+  .route("/api/sync", syncRoutes)
+  .route("/api/chat", chatRoutes)
+  .route("/api/practice", practiceRoutes)
+  .route("/api/extract-goals", goalsRoutes);
 
 app.notFound((c) => c.json({ error: "Not found" }, 404));
 
@@ -56,9 +56,9 @@ export { app };
 export { SessionBrain } from "./do/session-brain";
 
 export default Sentry.withSentry(
-	(env: Bindings) => ({
-		dsn: env.SENTRY_DSN,
-		tracesSampleRate: 1.0,
-	}),
-	app,
+  (env: Bindings) => ({
+    dsn: env.SENTRY_DSN,
+    tracesSampleRate: 1.0,
+  }),
+  app,
 );

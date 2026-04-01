@@ -5,7 +5,6 @@ import type { ObservationEvent } from "./practice-api";
  * the client just queues for reconnection resilience and drains on session end.
  */
 export class ObservationThrottle {
-	private queued: ObservationEvent | null = null;
 	private chunksReceived = 0;
 
 	enqueue(obs: ObservationEvent): ObservationEvent {
@@ -20,16 +19,10 @@ export class ObservationThrottle {
 	}
 
 	drain(): ObservationEvent[] {
-		if (this.queued) {
-			const obs = this.queued;
-			this.queued = null;
-			return [obs];
-		}
 		return [];
 	}
 
 	reset(): void {
-		this.queued = null;
 		this.chunksReceived = 0;
 	}
 
