@@ -259,6 +259,54 @@ describe("parseAnthropicStream - failed tool", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Test: split TCP chunks — SSE boundary falls across two read() calls
+// ---------------------------------------------------------------------------
+
+describe("parseAnthropicStream - split TCP chunks", () => {
+  it("buffers partial SSE messages and produces correct events when boundary is split", async () => {
+    const encoder = new TextEncoder();
+
+    // Build the full SSE sequence as individual event strings
+    const blockStartEvent = `event: content_block_start\ndata: ${JSON.stringify({ type: "content_block_start", index: 0, content_block: { type: "text", text: "" } })}\n\n`;
+    const deltaEvent = `event: content_block_delta\ndata: ${JSON.stringify({ type: "content_block_delta", index: 0, delta: { type: "text_delta", text: "split" } })}\n\n`;
+    const blockStopEvent = `event: content_block_stop\ndata: ${JSON.stringify({ type: "content_block_stop", index: 0 })}\n\n`;
+    const messageStopEvent = `event: message_stop\ndata: ${JSON.stringify({ type: "message_stop" })}\n\n`;
+
+    // Chunk 1: complete block_start + partial delta (cut before closing \n\n)
+    const fullDelta = deltaEvent;
+    const splitPoint = fullDelta.indexOf('", "index"') + 5; // cut mid-data
+    const chunk1 = blockStartEvent + fullDelta.slice(0, splitPoint);
+    const chunk2 = fullDelta.slice(splitPoint) + blockStopEvent + messageStopEvent;
+
+    const stream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(encoder.encode(chunk1));
+        controller.enqueue(encoder.encode(chunk2));
+        controller.close();
+      },
+    });
+
+    const noopProcess = vi.fn().mockResolvedValue({ name: "noop", componentsJson: [], isError: false });
+
+    const events = [];
+    for await (const event of parseAnthropicStream(stream, noopProcess)) {
+      events.push(event);
+    }
+
+    // Should have one delta and one done, even though the delta arrived split across chunks
+    const deltaEvents = events.filter((e) => e.type === "delta");
+    expect(deltaEvents).toHaveLength(1);
+    expect(deltaEvents[0]).toEqual({ type: "delta", text: "split" });
+
+    const doneEvent = events.find((e) => e.type === "done");
+    expect(doneEvent).toBeDefined();
+    if (doneEvent && doneEvent.type === "done") {
+      expect(doneEvent.fullText).toBe("split");
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Test: stripAnalysis
 // ---------------------------------------------------------------------------
 

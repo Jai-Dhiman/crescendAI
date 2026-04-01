@@ -79,6 +79,94 @@ function* parseSSELines(chunk: string): Generator<{ event: string; data: string 
 }
 
 // ---------------------------------------------------------------------------
+// processSSEEvent — shared handler for both the main loop and flush path
+// ---------------------------------------------------------------------------
+
+async function processSSEEvent(
+  event: string,
+  data: string,
+  blocks: Map<number, ContentBlock>,
+  state: { fullText: string; allComponents: InlineComponent[] },
+  processToolFn: ProcessToolFn,
+): Promise<TeacherEvent[]> {
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = JSON.parse(data) as Record<string, unknown>;
+  } catch {
+    console.log(JSON.stringify({
+      level: "warn",
+      message: "Failed to parse SSE data JSON",
+      event,
+      data,
+    }));
+    return [];
+  }
+
+  if (event === "content_block_start") {
+    const index = parsed["index"] as number;
+    const contentBlock = parsed["content_block"] as Record<string, unknown>;
+    const blockType = contentBlock["type"] as string;
+
+    if (blockType === "text") {
+      blocks.set(index, { type: "text", textAccumulator: "" });
+    } else if (blockType === "tool_use") {
+      const name = contentBlock["name"] as string;
+      blocks.set(index, { type: "tool_use", name, jsonAccumulator: "" });
+    }
+    return [];
+  }
+
+  if (event === "content_block_delta") {
+    const index = parsed["index"] as number;
+    const delta = parsed["delta"] as Record<string, unknown>;
+    const deltaType = delta["type"] as string;
+    const block = blocks.get(index);
+
+    if (!block) return [];
+
+    if (deltaType === "text_delta" && block.type === "text") {
+      const text = delta["text"] as string;
+      block.textAccumulator += text;
+      state.fullText += text;
+      return [{ type: "delta", text }];
+    } else if (deltaType === "input_json_delta" && block.type === "tool_use") {
+      block.jsonAccumulator += delta["partial_json"] as string;
+    }
+    return [];
+  }
+
+  if (event === "content_block_stop") {
+    const index = parsed["index"] as number;
+    const block = blocks.get(index);
+
+    if (!block || block.type !== "tool_use") return [];
+
+    let toolInput: unknown;
+    try {
+      toolInput = JSON.parse(block.jsonAccumulator);
+    } catch {
+      console.log(JSON.stringify({
+        level: "error",
+        message: "Failed to parse tool_use JSON accumulator",
+        toolName: block.name,
+        accumulated: block.jsonAccumulator,
+      }));
+      return [];
+    }
+
+    const result = await processToolFn(block.name, toolInput);
+    if (!result.isError) {
+      state.allComponents.push(...result.componentsJson);
+      return [{ type: "tool_result", name: result.name, componentsJson: result.componentsJson }];
+    }
+    return [];
+  }
+
+  // message_start, message_delta, message_stop — no action needed
+  return [];
+}
+
+// ---------------------------------------------------------------------------
 // parseAnthropicStream
 // ---------------------------------------------------------------------------
 
@@ -90,8 +178,7 @@ export async function* parseAnthropicStream(
   const reader = stream.getReader();
 
   const blocks = new Map<number, ContentBlock>();
-  let fullText = "";
-  const allComponents: InlineComponent[] = [];
+  const state = { fullText: "", allComponents: [] as InlineComponent[] };
   let textBuffer = "";
 
   try {
@@ -109,125 +196,23 @@ export async function* parseAnthropicStream(
       textBuffer = textBuffer.slice(lastDoubleNewline + 2);
 
       for (const { event, data } of parseSSELines(toProcess)) {
-        let parsed: Record<string, unknown>;
-        try {
-          parsed = JSON.parse(data) as Record<string, unknown>;
-        } catch {
-          console.log(JSON.stringify({
-            level: "warn",
-            message: "Failed to parse SSE data JSON",
-            event,
-            data,
-          }));
-          continue;
-        }
-
-        if (event === "content_block_start") {
-          const index = parsed["index"] as number;
-          const contentBlock = parsed["content_block"] as Record<string, unknown>;
-          const blockType = contentBlock["type"] as string;
-
-          if (blockType === "text") {
-            blocks.set(index, { type: "text", textAccumulator: "" });
-          } else if (blockType === "tool_use") {
-            const name = contentBlock["name"] as string;
-            blocks.set(index, { type: "tool_use", name, jsonAccumulator: "" });
-          }
-        } else if (event === "content_block_delta") {
-          const index = parsed["index"] as number;
-          const delta = parsed["delta"] as Record<string, unknown>;
-          const deltaType = delta["type"] as string;
-          const block = blocks.get(index);
-
-          if (!block) continue;
-
-          if (deltaType === "text_delta" && block.type === "text") {
-            const text = delta["text"] as string;
-            block.textAccumulator += text;
-            fullText += text;
-            yield { type: "delta", text };
-          } else if (deltaType === "input_json_delta" && block.type === "tool_use") {
-            const partialJson = delta["partial_json"] as string;
-            block.jsonAccumulator += partialJson;
-          }
-        } else if (event === "content_block_stop") {
-          const index = parsed["index"] as number;
-          const block = blocks.get(index);
-
-          if (!block || block.type !== "tool_use") continue;
-
-          let toolInput: unknown;
-          try {
-            toolInput = JSON.parse(block.jsonAccumulator);
-          } catch {
-            console.log(JSON.stringify({
-              level: "error",
-              message: "Failed to parse tool_use JSON accumulator",
-              toolName: block.name,
-              accumulated: block.jsonAccumulator,
-            }));
-            continue;
-          }
-
-          const result = await processToolFn(block.name, toolInput);
-          if (!result.isError) {
-            allComponents.push(...result.componentsJson);
-            yield { type: "tool_result", name: result.name, componentsJson: result.componentsJson };
-          }
-        }
-        // message_start, message_delta, message_stop — no action needed
+        const events = await processSSEEvent(event, data, blocks, state, processToolFn);
+        for (const e of events) yield e;
       }
     }
 
     // Flush any remaining buffer content
     if (textBuffer.trim()) {
       for (const { event, data } of parseSSELines(textBuffer)) {
-        let parsed: Record<string, unknown>;
-        try {
-          parsed = JSON.parse(data) as Record<string, unknown>;
-        } catch {
-          continue;
-        }
-
-        if (event === "content_block_delta") {
-          const index = parsed["index"] as number;
-          const delta = parsed["delta"] as Record<string, unknown>;
-          const deltaType = delta["type"] as string;
-          const block = blocks.get(index);
-
-          if (block && deltaType === "text_delta" && block.type === "text") {
-            const text = delta["text"] as string;
-            block.textAccumulator += text;
-            fullText += text;
-            yield { type: "delta", text };
-          } else if (block && deltaType === "input_json_delta" && block.type === "tool_use") {
-            block.jsonAccumulator += delta["partial_json"] as string;
-          }
-        } else if (event === "content_block_stop") {
-          const index = parsed["index"] as number;
-          const block = blocks.get(index);
-
-          if (block && block.type === "tool_use") {
-            let toolInput: unknown;
-            try {
-              toolInput = JSON.parse(block.jsonAccumulator);
-            } catch {
-              continue;
-            }
-            const result = await processToolFn(block.name, toolInput);
-            if (!result.isError) {
-              allComponents.push(...result.componentsJson);
-              yield { type: "tool_result", name: result.name, componentsJson: result.componentsJson };
-            }
-          }
-        }
+        const events = await processSSEEvent(event, data, blocks, state, processToolFn);
+        for (const e of events) yield e;
       }
     }
   } finally {
     reader.releaseLock();
   }
 
-  yield { type: "done", fullText, allComponents };
+  yield { type: "done", fullText: state.fullText, allComponents: state.allComponents };
 }
 
 // ---------------------------------------------------------------------------
