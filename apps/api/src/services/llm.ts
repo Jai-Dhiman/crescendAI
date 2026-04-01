@@ -6,10 +6,16 @@ interface LlmMessage {
   content: string;
 }
 
+export interface AnthropicSystemBlock {
+  type: "text";
+  text: string;
+  cache_control?: { type: "ephemeral" };
+}
+
 interface AnthropicRequest {
   model: string;
   max_tokens: number;
-  system?: string;
+  system?: string | AnthropicSystemBlock[];
   messages: LlmMessage[];
   stream?: boolean;
   tools?: unknown[];
@@ -39,6 +45,7 @@ export async function callAnthropic(
       "Content-Type": "application/json",
       "x-api-key": env.ANTHROPIC_API_KEY,
       "anthropic-version": "2023-06-01",
+      "anthropic-beta": "prompt-caching-2024-07-31",
     },
     body: JSON.stringify({ ...request, stream: false }),
   });
@@ -64,6 +71,7 @@ export async function callAnthropicStream(
       "Content-Type": "application/json",
       "x-api-key": env.ANTHROPIC_API_KEY,
       "anthropic-version": "2023-06-01",
+      "anthropic-beta": "prompt-caching-2024-07-31",
     },
     body: JSON.stringify({ ...request, stream: true }),
   });

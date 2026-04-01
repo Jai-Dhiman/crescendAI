@@ -13,10 +13,6 @@ dev:
     trap 'kill 0' EXIT
 
     echo "Starting CrescendAI dev environment..."
-    echo "  MuQ:  http://localhost:8000"
-    echo "  AMT:  http://localhost:8001"
-    echo "  API:  http://localhost:8787"
-    echo "  Web:  http://localhost:3000"
     echo ""
 
     just muq &

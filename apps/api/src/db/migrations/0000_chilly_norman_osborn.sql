@@ -1,15 +1,53 @@
-CREATE TABLE "auth_identities" (
-	"provider" text NOT NULL,
-	"provider_user_id" text NOT NULL,
-	"student_id" uuid NOT NULL,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "auth_identities_provider_provider_user_id_pk" PRIMARY KEY("provider","provider_user_id")
+CREATE TABLE "account" (
+	"id" text PRIMARY KEY NOT NULL,
+	"account_id" text NOT NULL,
+	"provider_id" text NOT NULL,
+	"user_id" text NOT NULL,
+	"access_token" text,
+	"refresh_token" text,
+	"id_token" text,
+	"access_token_expires_at" timestamp,
+	"refresh_token_expires_at" timestamp,
+	"scope" text,
+	"password" text,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "students" (
-	"student_id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"email" text,
-	"display_name" text,
+CREATE TABLE "session" (
+	"id" text PRIMARY KEY NOT NULL,
+	"expires_at" timestamp NOT NULL,
+	"token" text NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp NOT NULL,
+	"ip_address" text,
+	"user_agent" text,
+	"user_id" text NOT NULL,
+	CONSTRAINT "session_token_unique" UNIQUE("token")
+);
+--> statement-breakpoint
+CREATE TABLE "user" (
+	"id" text PRIMARY KEY NOT NULL,
+	"name" text NOT NULL,
+	"email" text NOT NULL,
+	"email_verified" boolean DEFAULT false NOT NULL,
+	"image" text,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "user_email_unique" UNIQUE("email")
+);
+--> statement-breakpoint
+CREATE TABLE "verification" (
+	"id" text PRIMARY KEY NOT NULL,
+	"identifier" text NOT NULL,
+	"value" text NOT NULL,
+	"expires_at" timestamp NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "student_profiles" (
+	"student_id" text PRIMARY KEY NOT NULL,
 	"inferred_level" text,
 	"baseline_dynamics" real,
 	"baseline_timing" real,
@@ -25,7 +63,7 @@ CREATE TABLE "students" (
 --> statement-breakpoint
 CREATE TABLE "sessions" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"student_id" uuid NOT NULL,
+	"student_id" text NOT NULL,
 	"started_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"ended_at" timestamp with time zone,
 	"avg_dynamics" real,
@@ -43,7 +81,7 @@ CREATE TABLE "sessions" (
 --> statement-breakpoint
 CREATE TABLE "student_check_ins" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"student_id" uuid NOT NULL,
+	"student_id" text NOT NULL,
 	"session_id" uuid,
 	"question" text NOT NULL,
 	"answer" text,
@@ -52,7 +90,7 @@ CREATE TABLE "student_check_ins" (
 --> statement-breakpoint
 CREATE TABLE "observations" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"student_id" uuid NOT NULL,
+	"student_id" text NOT NULL,
 	"session_id" uuid NOT NULL,
 	"chunk_index" integer,
 	"dimension" text NOT NULL,
@@ -72,7 +110,7 @@ CREATE TABLE "observations" (
 --> statement-breakpoint
 CREATE TABLE "teaching_approaches" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"student_id" uuid NOT NULL,
+	"student_id" text NOT NULL,
 	"observation_id" uuid NOT NULL,
 	"dimension" text NOT NULL,
 	"framing" text NOT NULL,
@@ -83,7 +121,7 @@ CREATE TABLE "teaching_approaches" (
 --> statement-breakpoint
 CREATE TABLE "conversations" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"student_id" uuid NOT NULL,
+	"student_id" text NOT NULL,
 	"title" text,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
@@ -127,7 +165,7 @@ CREATE TABLE "exercises" (
 --> statement-breakpoint
 CREATE TABLE "student_exercises" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"student_id" uuid NOT NULL,
+	"student_id" text NOT NULL,
 	"exercise_id" uuid NOT NULL,
 	"session_id" uuid,
 	"assigned_at" timestamp with time zone DEFAULT now() NOT NULL,
@@ -140,7 +178,7 @@ CREATE TABLE "student_exercises" (
 );
 --> statement-breakpoint
 CREATE TABLE "student_memory_meta" (
-	"student_id" uuid PRIMARY KEY NOT NULL,
+	"student_id" text PRIMARY KEY NOT NULL,
 	"last_synthesis_at" timestamp with time zone,
 	"total_observations" integer DEFAULT 0 NOT NULL,
 	"total_facts" integer DEFAULT 0 NOT NULL
@@ -148,7 +186,7 @@ CREATE TABLE "student_memory_meta" (
 --> statement-breakpoint
 CREATE TABLE "synthesized_facts" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"student_id" uuid NOT NULL,
+	"student_id" text NOT NULL,
 	"fact_text" text NOT NULL,
 	"fact_type" text NOT NULL,
 	"dimension" text,
@@ -167,7 +205,7 @@ CREATE TABLE "synthesized_facts" (
 CREATE TABLE "piece_requests" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"query" text NOT NULL,
-	"student_id" uuid NOT NULL,
+	"student_id" text NOT NULL,
 	"matched_piece_id" text,
 	"match_confidence" real,
 	"match_method" text,
@@ -199,14 +237,14 @@ CREATE TABLE "waitlist" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-ALTER TABLE "auth_identities" ADD CONSTRAINT "auth_identities_student_id_students_student_id_fk" FOREIGN KEY ("student_id") REFERENCES "public"."students"("student_id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "sessions" ADD CONSTRAINT "sessions_student_id_students_student_id_fk" FOREIGN KEY ("student_id") REFERENCES "public"."students"("student_id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "student_check_ins" ADD CONSTRAINT "student_check_ins_student_id_students_student_id_fk" FOREIGN KEY ("student_id") REFERENCES "public"."students"("student_id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "account" ADD CONSTRAINT "account_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "session" ADD CONSTRAINT "session_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "student_check_ins" ADD CONSTRAINT "student_check_ins_session_id_sessions_id_fk" FOREIGN KEY ("session_id") REFERENCES "public"."sessions"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "messages" ADD CONSTRAINT "messages_conversation_id_conversations_id_fk" FOREIGN KEY ("conversation_id") REFERENCES "public"."conversations"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "exercise_dimensions" ADD CONSTRAINT "exercise_dimensions_exercise_id_exercises_id_fk" FOREIGN KEY ("exercise_id") REFERENCES "public"."exercises"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-CREATE UNIQUE INDEX "idx_auth_identities_provider_user" ON "auth_identities" USING btree ("provider","provider_user_id");--> statement-breakpoint
-CREATE INDEX "idx_auth_identities_student" ON "auth_identities" USING btree ("student_id");--> statement-breakpoint
+CREATE INDEX "account_userId_idx" ON "account" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX "session_userId_idx" ON "session" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX "verification_identifier_idx" ON "verification" USING btree ("identifier");--> statement-breakpoint
 CREATE INDEX "idx_sessions_student" ON "sessions" USING btree ("student_id","started_at");--> statement-breakpoint
 CREATE INDEX "idx_sessions_conversation" ON "sessions" USING btree ("conversation_id");--> statement-breakpoint
 CREATE INDEX "idx_checkins_student" ON "student_check_ins" USING btree ("student_id");--> statement-breakpoint

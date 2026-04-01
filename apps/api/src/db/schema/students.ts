@@ -1,19 +1,13 @@
 import {
 	pgTable,
-	uuid,
 	text,
 	real,
 	integer,
 	timestamp,
-	primaryKey,
-	index,
-	uniqueIndex,
 } from "drizzle-orm/pg-core";
 
-export const students = pgTable("students", {
-	studentId: uuid("student_id").defaultRandom().primaryKey(),
-	email: text("email"),
-	displayName: text("display_name"),
+export const studentProfiles = pgTable("student_profiles", {
+	studentId: text("student_id").primaryKey(),
 	inferredLevel: text("inferred_level"),
 	baselineDynamics: real("baseline_dynamics"),
 	baselineTiming: real("baseline_timing"),
@@ -30,25 +24,3 @@ export const students = pgTable("students", {
 		.notNull()
 		.defaultNow(),
 });
-
-export const authIdentities = pgTable(
-	"auth_identities",
-	{
-		provider: text("provider").notNull(),
-		providerUserId: text("provider_user_id").notNull(),
-		studentId: uuid("student_id")
-			.notNull()
-			.references(() => students.studentId, { onDelete: "cascade" }),
-		createdAt: timestamp("created_at", { withTimezone: true })
-			.notNull()
-			.defaultNow(),
-	},
-	(t) => [
-		primaryKey({ columns: [t.provider, t.providerUserId] }),
-		uniqueIndex("idx_auth_identities_provider_user").on(
-			t.provider,
-			t.providerUserId,
-		),
-		index("idx_auth_identities_student").on(t.studentId),
-	],
-);

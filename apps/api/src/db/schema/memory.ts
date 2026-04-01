@@ -12,7 +12,7 @@ export const synthesizedFacts = pgTable(
 	"synthesized_facts",
 	{
 		id: uuid("id").defaultRandom().primaryKey(),
-		studentId: uuid("student_id").notNull(),
+		studentId: text("student_id").notNull(),
 		factText: text("fact_text").notNull(),
 		factType: text("fact_type").notNull(),
 		dimension: text("dimension"),
@@ -42,7 +42,7 @@ export const synthesizedFacts = pgTable(
 );
 
 export const studentMemoryMeta = pgTable("student_memory_meta", {
-	studentId: uuid("student_id").primaryKey(),
+	studentId: text("student_id").primaryKey(),
 	lastSynthesisAt: timestamp("last_synthesis_at", { withTimezone: true }),
 	totalObservations: integer("total_observations").notNull().default(0),
 	totalFacts: integer("total_facts").notNull().default(0),

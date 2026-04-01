@@ -38,7 +38,7 @@ export const pieceRequests = pgTable(
 	{
 		id: uuid("id").defaultRandom().primaryKey(),
 		query: text("query").notNull(),
-		studentId: uuid("student_id").notNull(),
+		studentId: text("student_id").notNull(),
 		matchedPieceId: text("matched_piece_id"),
 		matchConfidence: real("match_confidence"),
 		matchMethod: text("match_method"),

@@ -8,15 +8,12 @@ import {
 	jsonb,
 	index,
 } from "drizzle-orm/pg-core";
-import { students } from "./students";
 
 export const sessions = pgTable(
 	"sessions",
 	{
 		id: uuid("id").defaultRandom().primaryKey(),
-		studentId: uuid("student_id")
-			.notNull()
-			.references(() => students.studentId, { onDelete: "cascade" }),
+		studentId: text("student_id").notNull(),
 		startedAt: timestamp("started_at", { withTimezone: true })
 			.notNull()
 			.defaultNow(),
@@ -43,9 +40,7 @@ export const studentCheckIns = pgTable(
 	"student_check_ins",
 	{
 		id: uuid("id").defaultRandom().primaryKey(),
-		studentId: uuid("student_id")
-			.notNull()
-			.references(() => students.studentId, { onDelete: "cascade" }),
+		studentId: text("student_id").notNull(),
 		sessionId: uuid("session_id").references(() => sessions.id, {
 			onDelete: "set null",
 		}),

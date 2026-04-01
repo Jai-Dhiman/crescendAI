@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import type { ServiceContext } from "../lib/types";
-import { students } from "../db/schema/students";
+import { studentProfiles } from "../db/schema/students";
 import { sessions } from "../db/schema/sessions";
 
 interface SyncRequest {
@@ -63,9 +63,9 @@ export async function handleSync(
 	}
 
 	await ctx.db
-		.update(students)
+		.update(studentProfiles)
 		.set(studentUpdate)
-		.where(eq(students.studentId, studentId));
+		.where(eq(studentProfiles.studentId, studentId));
 
 	for (const session of data.newSessions) {
 		await ctx.db

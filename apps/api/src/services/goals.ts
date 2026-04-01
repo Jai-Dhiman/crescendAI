@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { ValidationError } from "../lib/errors";
 import type { ServiceContext } from "../lib/types";
 import { callGroq } from "./llm";
-import { students } from "../db/schema/students";
+import { studentProfiles } from "../db/schema/students";
 
 interface GoalDeadline {
   description: string;
@@ -85,7 +85,7 @@ async function mergeGoals(
   studentId: string,
   newGoals: ExtractedGoals,
 ): Promise<void> {
-  const student = await ctx.db.query.students.findFirst({
+  const student = await ctx.db.query.studentProfiles.findFirst({
     where: (s, { eq: eqFn }) => eqFn(s.studentId, studentId),
     columns: { explicitGoals: true },
   });
@@ -124,7 +124,7 @@ async function mergeGoals(
   }
 
   await ctx.db
-    .update(students)
+    .update(studentProfiles)
     .set({ explicitGoals: JSON.stringify(merged), updatedAt: new Date() })
-    .where(eq(students.studentId, studentId));
+    .where(eq(studentProfiles.studentId, studentId));
 }

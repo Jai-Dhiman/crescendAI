@@ -51,7 +51,7 @@ export const studentExercises = pgTable(
 	"student_exercises",
 	{
 		id: uuid("id").defaultRandom().primaryKey(),
-		studentId: uuid("student_id").notNull(),
+		studentId: text("student_id").notNull(),
 		exerciseId: uuid("exercise_id").notNull(),
 		sessionId: uuid("session_id"),
 		assignedAt: timestamp("assigned_at", { withTimezone: true })

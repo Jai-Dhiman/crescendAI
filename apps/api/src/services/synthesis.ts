@@ -173,7 +173,13 @@ export async function callSynthesisLlm(
     const response = await callAnthropic(env, {
       model: "claude-sonnet-4-20250514",
       max_tokens: 1024,
-      system: SESSION_SYNTHESIS_SYSTEM,
+      system: [
+        {
+          type: "text",
+          text: SESSION_SYNTHESIS_SYSTEM,
+          cache_control: { type: "ephemeral" },
+        },
+      ],
       messages: [{ role: "user", content: promptContext }],
     });
 

@@ -1,14 +1,19 @@
-import { eq, and } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 import type { ServiceContext, Bindings } from "../lib/types";
 import { callGroq, callAnthropic } from "./llm";
 import { buildMemoryContext } from "./memory";
 import { exercises, exerciseDimensions } from "../db/schema/exercises";
 import { observations, teachingApproaches } from "../db/schema/observations";
+import { studentProfiles } from "../db/schema/students";
 import { DIMS_6 } from "../lib/dims";
 import {
   SUBAGENT_SYSTEM,
   TEACHER_SYSTEM,
   exerciseToolDefinition as sharedExerciseToolDef,
+  buildSubagentUserPrompt,
+  buildTeacherUserPrompt,
+  type CatalogExercise,
+  type ObservationRow,
 } from "./prompts";
 import { InferenceError, ValidationError } from "../lib/errors";
 
@@ -30,13 +35,6 @@ export interface AskResponse {
   reasoningTrace: string;
   isFallback: boolean;
   componentsJson: string | null;
-}
-
-interface CatalogExercise {
-  id: string;
-  title: string;
-  description: string;
-  difficulty: string;
 }
 
 interface SubagentJson {
@@ -186,150 +184,6 @@ export function postProcessObservation(text: string): string {
   }
 
   return cleaned;
-}
-
-// ---------------------------------------------------------------------------
-// Prompt builders (ported from Rust prompts.rs)
-// ---------------------------------------------------------------------------
-
-function buildSubagentUserPrompt(
-  teachingMoment: unknown,
-  memoryContext: string,
-  recentObs: Array<{ dimension: string; observationText: string; framing: string | null }>,
-  pieceContext?: unknown,
-): string {
-  const tm = teachingMoment as Record<string, unknown>;
-  const pc = pieceContext as Record<string, unknown> | undefined;
-
-  const parts: string[] = [];
-
-  // Teaching moment block
-  parts.push("<teaching_moment>");
-  parts.push(
-    `Chunk ${tm?.chunk_index ?? 0} at ${tm?.start_offset_sec ?? 0}s into session.`,
-  );
-  parts.push(
-    `Dimension flagged: ${tm?.dimension ?? "unknown"} (score: ${((tm?.dimension_score as number) ?? 0).toFixed(2)}, stop probability: ${((tm?.stop_probability as number) ?? 0).toFixed(2)})`,
-  );
-
-  const allScores = tm?.all_scores as Record<string, number> | undefined;
-  if (allScores) {
-    parts.push("All 6 dimension scores for this chunk:");
-    for (const dim of DIMS_6) {
-      if (allScores[dim] != null) {
-        parts.push(`- ${dim}: ${(allScores[dim] as number).toFixed(2)}`);
-      }
-    }
-  }
-  parts.push("</teaching_moment>");
-  parts.push("");
-
-  // Piece context block
-  if (pc) {
-    parts.push("<piece_context>");
-    if (pc.composer) parts.push(`Composer: ${pc.composer}`);
-    if (pc.title) parts.push(`Title: ${pc.title}`);
-    if (pc.bar_range) parts.push(`Bar range: ${pc.bar_range}`);
-    if (pc.analysis_tier != null)
-      parts.push(
-        `Analysis tier: ${pc.analysis_tier} (1=full score context, 2=absolute, 3=scores only)`,
-      );
-
-    const musicalAnalysis = pc.musical_analysis as Array<Record<string, string>> | undefined;
-    if (musicalAnalysis?.length) {
-      parts.push("");
-      parts.push("<musical_analysis>");
-      for (const dimAnalysis of musicalAnalysis) {
-        const dim = dimAnalysis.dimension;
-        if (!dim) continue;
-        parts.push(`<${dim}>`);
-        if (dimAnalysis.analysis) parts.push(`  ${dimAnalysis.analysis}`);
-        if (dimAnalysis.score_marking) parts.push(`  Score marking: ${dimAnalysis.score_marking}`);
-        if (dimAnalysis.reference_comparison)
-          parts.push(`  Reference: ${dimAnalysis.reference_comparison}`);
-        parts.push(`</${dim}>`);
-      }
-      parts.push("</musical_analysis>");
-    }
-    parts.push("</piece_context>");
-    parts.push("");
-  }
-
-  // Student context (simplified -- level inferred from context)
-  parts.push("<student_context>");
-  parts.push("Level: intermediate");
-  parts.push("</student_context>");
-  parts.push("");
-
-  // Memory context
-  if (memoryContext) {
-    parts.push("<memory>");
-    parts.push(memoryContext);
-    parts.push("</memory>");
-    parts.push("");
-  }
-
-  // Recent observations
-  if (recentObs.length > 0) {
-    parts.push("<recent_observations>");
-    for (const obs of recentObs) {
-      parts.push(
-        `- [${obs.dimension}] "${obs.observationText}" (framing: ${obs.framing ?? "unknown"})`,
-      );
-    }
-    parts.push("</recent_observations>");
-    parts.push("");
-  }
-
-  parts.push(
-    "<task>\nAnalyze the teaching moment above. Select the best observation to make and decide how to frame it. Output the JSON + narrative as specified.\n</task>",
-  );
-
-  return parts.join("\n");
-}
-
-function buildTeacherUserPrompt(
-  subagentJsonStr: string,
-  narrative: string,
-  catalog: CatalogExercise[],
-): string {
-  const parts: string[] = [];
-
-  parts.push("<analysis>");
-  parts.push(subagentJsonStr);
-  parts.push("");
-  parts.push(narrative);
-  parts.push("</analysis>");
-  parts.push("");
-
-  parts.push("<student>");
-  parts.push("Level: intermediate");
-  parts.push("</student>");
-  parts.push("");
-
-  if (catalog.length > 0) {
-    parts.push("<available_exercises>");
-    parts.push(
-      "These curated exercises are available. If one fits, you can reference it by ID in your exercise tool call.",
-    );
-    for (const ex of catalog) {
-      parts.push(`- [${ex.id}] ${ex.title} (${ex.difficulty}): ${ex.description}`);
-    }
-    parts.push("</available_exercises>");
-    parts.push("");
-  }
-
-  if (catalog.length > 0) {
-    parts.push(
-      "<task>\nBased on the analysis above, give one observation to the student. Be specific about what you heard and what to try. 1-3 sentences, no formatting.\n\nIf the student would benefit from a concrete practice drill, use the create_exercise tool to attach one. Most observations should be text-only -- only create an exercise when structured practice would genuinely help more than verbal guidance.\n</task>",
-    );
-  } else {
-    parts.push(
-      "<task>\nBased on the analysis above, give one observation to the student. Be specific about what you heard and what to try. 1-3 sentences, no formatting.\n</task>",
-    );
-  }
-
-  return parts.join("\n");
 }
 
 // ---------------------------------------------------------------------------
@@ -493,29 +347,66 @@ export async function handleAskInner(
   const dimension =
     typeof tm?.dimension === "string" ? tm.dimension : "unknown";
 
+  // Query student profile for real level/goals
+  const studentRows = await ctx.db
+    .select({
+      inferredLevel: studentProfiles.inferredLevel,
+      explicitGoals: studentProfiles.explicitGoals,
+      baselineSessionCount: studentProfiles.baselineSessionCount,
+    })
+    .from(studentProfiles)
+    .where(eq(studentProfiles.studentId, request.studentId))
+    .limit(1);
+
+  const student = studentRows[0] ?? null;
+  const studentLevel = student?.inferredLevel ?? "intermediate";
+  const studentGoals = student?.explicitGoals ?? "";
+  const sessionCount = student?.baselineSessionCount ?? 0;
+
   // Build memory context
   const memoryContext = await buildMemoryContext(ctx, request.studentId);
 
-  // Pull recent observations from memory context output (already formatted as text)
-  // The memory service returns a formatted string; pass it directly to the subagent prompt.
-  // We also need typed recent observations for the prompt template -- re-query them.
-  const recentObs = await ctx.db
+  // Query typed recent observations for the prompt template
+  const recentObsRows = await ctx.db
     .select({
       dimension: observations.dimension,
       observationText: observations.observationText,
       framing: observations.framing,
+      createdAt: observations.createdAt,
     })
     .from(observations)
     .where(eq(observations.studentId, request.studentId))
-    .orderBy(observations.createdAt)
+    .orderBy(desc(observations.createdAt))
     .limit(5);
 
+  const recentObs: ObservationRow[] = recentObsRows.map((r) => ({
+    dimension: r.dimension,
+    observationText: r.observationText,
+    framing: r.framing ?? "unknown",
+    createdAt:
+      r.createdAt instanceof Date ? r.createdAt.toISOString() : String(r.createdAt ?? ""),
+  }));
+
   // Stage 1: Subagent (Groq)
+  const sessionContext = {
+    duration_min: 0,
+    total_chunks: 0,
+    chunks_above_threshold: 0,
+  };
+  const studentContext = {
+    level: studentLevel,
+    goals: studentGoals,
+    session_count: sessionCount,
+    baselines: undefined,
+  };
+
   const subagentUserPrompt = buildSubagentUserPrompt(
-    request.teachingMoment,
+    tm,
+    (request.pieceContext as Record<string, unknown> | null) ?? null,
+    sessionContext,
+    studentContext,
     memoryContext,
     recentObs,
-    request.pieceContext,
   );
 
   let subagentOutput: string;
@@ -580,6 +471,8 @@ export async function handleAskInner(
   const teacherUserPrompt = buildTeacherUserPrompt(
     JSON.stringify(subagentJson, null, 2),
     subagentNarrative,
+    studentLevel,
+    studentGoals,
     catalog,
   );
 

@@ -13,7 +13,7 @@ export const observations = pgTable(
 	"observations",
 	{
 		id: uuid("id").defaultRandom().primaryKey(),
-		studentId: uuid("student_id").notNull(),
+		studentId: text("student_id").notNull(),
 		sessionId: uuid("session_id").notNull(),
 		chunkIndex: integer("chunk_index"),
 		dimension: text("dimension").notNull(),
@@ -42,7 +42,7 @@ export const teachingApproaches = pgTable(
 	"teaching_approaches",
 	{
 		id: uuid("id").defaultRandom().primaryKey(),
-		studentId: uuid("student_id").notNull(),
+		studentId: text("student_id").notNull(),
 		observationId: uuid("observation_id").notNull(),
 		dimension: text("dimension").notNull(),
 		framing: text("framing").notNull(),

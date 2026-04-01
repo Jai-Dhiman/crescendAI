@@ -2,8 +2,8 @@ import { eq, and, asc } from "drizzle-orm";
 import type { Db, ServiceContext, Bindings } from "../lib/types";
 import { NotFoundError } from "../lib/errors";
 import { conversations, messages } from "../db/schema/conversations";
-import { students } from "../db/schema/students";
-import { callAnthropicStream, callGroq } from "./llm";
+import { studentProfiles } from "../db/schema/students";
+import { callAnthropicStream, callGroq, type AnthropicSystemBlock } from "./llm";
 import { buildMemoryContext } from "./memory";
 import { CHAT_SYSTEM, buildChatUserContext, buildTitlePrompt } from "./prompts";
 
@@ -62,17 +62,17 @@ export async function handleChatStream(
 
 	const studentRows = await ctx.db
 		.select({
-			inferredLevel: students.inferredLevel,
-			explicitGoals: students.explicitGoals,
-			baselineDynamics: students.baselineDynamics,
-			baselineTiming: students.baselineTiming,
-			baselinePedaling: students.baselinePedaling,
-			baselineArticulation: students.baselineArticulation,
-			baselinePhrasing: students.baselinePhrasing,
-			baselineInterpretation: students.baselineInterpretation,
+			inferredLevel: studentProfiles.inferredLevel,
+			explicitGoals: studentProfiles.explicitGoals,
+			baselineDynamics: studentProfiles.baselineDynamics,
+			baselineTiming: studentProfiles.baselineTiming,
+			baselinePedaling: studentProfiles.baselinePedaling,
+			baselineArticulation: studentProfiles.baselineArticulation,
+			baselinePhrasing: studentProfiles.baselinePhrasing,
+			baselineInterpretation: studentProfiles.baselineInterpretation,
 		})
-		.from(students)
-		.where(eq(students.studentId, studentId))
+		.from(studentProfiles)
+		.where(eq(studentProfiles.studentId, studentId))
 		.limit(1);
 
 	const student = studentRows[0] ?? null;
@@ -101,10 +101,16 @@ export async function handleChatStream(
 			})
 		: "";
 
-	const systemParts = [CHAT_SYSTEM, userContext, memoryContext].filter(
-		(p) => p.trim().length > 0,
-	);
-	const systemPrompt = systemParts.join("\n\n");
+	const dynamicContext = [userContext, memoryContext]
+		.filter((p) => p.trim().length > 0)
+		.join("\n\n");
+
+	const systemBlocks: AnthropicSystemBlock[] = [
+		{ type: "text", text: CHAT_SYSTEM, cache_control: { type: "ephemeral" } },
+		...(dynamicContext
+			? [{ type: "text" as const, text: dynamicContext }]
+			: []),
+	];
 
 	const anthropicMessages = recentMessages
 		.filter((m): m is { role: "user" | "assistant"; content: string } =>
@@ -115,7 +121,7 @@ export async function handleChatStream(
 	const stream = await callAnthropicStream(ctx.env, {
 		model: "claude-sonnet-4-20250514",
 		max_tokens: 2048,
-		system: systemPrompt,
+		system: systemBlocks,
 		messages: anthropicMessages,
 	});
 

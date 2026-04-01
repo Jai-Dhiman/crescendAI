@@ -11,7 +11,7 @@ export const conversations = pgTable(
 	"conversations",
 	{
 		id: uuid("id").defaultRandom().primaryKey(),
-		studentId: uuid("student_id").notNull(),
+		studentId: text("student_id").notNull(),
 		title: text("title"),
 		createdAt: timestamp("created_at", { withTimezone: true })
 			.notNull()

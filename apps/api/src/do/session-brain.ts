@@ -1,5 +1,6 @@
 import { DurableObject } from "cloudflare:workers";
-import type { Bindings } from "../lib/types";
+import type { Bindings, ServiceContext } from "../lib/types";
+import { buildMemoryContext } from "../services/memory";
 import {
 	sessionStateSchema,
 	wsIncomingMessageSchema,
@@ -796,13 +797,32 @@ export class SessionBrain extends DurableObject<Bindings> {
 				? (state.baselines as Record<Dimension, number>)
 				: null;
 
+		// Load student memory for synthesis context
+		let studentMemory: string | null = null;
+		try {
+			const db = createDb(this.env.HYPERDRIVE);
+			const ctx: ServiceContext = { db, env: this.env };
+			const memResult = await buildMemoryContext(ctx, state.studentId);
+			studentMemory = memResult.length > 0 ? memResult : null;
+		} catch (err) {
+			const error = err as Error;
+			console.error(
+				JSON.stringify({
+					level: "error",
+					message: "buildMemoryContext failed, continuing without memory",
+					sessionId: state.sessionId,
+					error: error.message,
+				}),
+			);
+		}
+
 		const context: SynthesisContext = {
 			sessionId: state.sessionId,
 			studentId: state.studentId,
 			conversationId: state.conversationId,
 			baselines,
 			pieceContext: pieceCtx,
-			studentMemory: null, // TODO: wire memory service
+			studentMemory,
 			totalChunks: state.scoredChunks.length,
 			sessionDurationMs,
 		};

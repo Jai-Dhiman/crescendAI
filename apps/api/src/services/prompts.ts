@@ -332,11 +332,19 @@ export function buildSubagentUserPrompt(
   return parts.join("\n");
 }
 
+export interface CatalogExercise {
+  id: string;
+  title: string;
+  description: string;
+  difficulty: string;
+}
+
 export function buildTeacherUserPrompt(
   subagentJson: string,
   subagentNarrative: string,
   studentLevel: string,
   studentGoals: string,
+  catalog?: CatalogExercise[],
 ): string {
   const parts: string[] = [];
 
@@ -355,9 +363,27 @@ export function buildTeacherUserPrompt(
   parts.push("</student>");
   parts.push("");
 
-  parts.push(
-    "<task>\nBased on the analysis above, give one observation to the student. Be specific about what you heard and what to try. 1-3 sentences, no formatting.\n</task>",
-  );
+  if (catalog && catalog.length > 0) {
+    parts.push("<available_exercises>");
+    parts.push(
+      "These curated exercises are available. If one fits, you can reference it by ID in your exercise tool call.",
+    );
+    for (const ex of catalog) {
+      parts.push(`- [${ex.id}] ${ex.title} (${ex.difficulty}): ${ex.description}`);
+    }
+    parts.push("</available_exercises>");
+    parts.push("");
+  }
+
+  if (catalog && catalog.length > 0) {
+    parts.push(
+      "<task>\nBased on the analysis above, give one observation to the student. Be specific about what you heard and what to try. 1-3 sentences, no formatting.\n\nIf the student would benefit from a concrete practice drill, use the create_exercise tool to attach one. Most observations should be text-only -- only create an exercise when structured practice would genuinely help more than verbal guidance.\n</task>",
+    );
+  } else {
+    parts.push(
+      "<task>\nBased on the analysis above, give one observation to the student. Be specific about what you heard and what to try. 1-3 sentences, no formatting.\n</task>",
+    );
+  }
 
   return parts.join("\n");
 }
