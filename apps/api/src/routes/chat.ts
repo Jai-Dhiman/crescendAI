@@ -5,6 +5,8 @@ import type { Bindings, Variables } from "../lib/types";
 import { validate } from "../lib/validate";
 import { requireAuth } from "../middleware/auth-session";
 import * as chatService from "../services/chat";
+import * as teacherService from "../services/teacher";
+import type { InlineComponent } from "../services/tool-processor";
 
 const chatSchema = z.object({
 	conversationId: z.string().uuid().optional(),
@@ -16,40 +18,52 @@ const app = new Hono<{ Bindings: Bindings; Variables: Variables }>().post(
 	validate("json", chatSchema),
 	async (c) => {
 		requireAuth(c.var.studentId);
+		const studentId = c.var.studentId;
 		const body = c.req.valid("json");
 		const ctx = { db: c.var.db, env: c.env };
 
-		const { conversationId, isNewConversation, stream } =
-			await chatService.handleChatStream(ctx, c.var.studentId, body);
+		const { conversationId, isNewConversation, messages, dynamicContext } =
+			await chatService.prepareChatContext(ctx, studentId, body);
 
 		c.header("Content-Encoding", "Identity");
 
 		return streamSSE(c, async (sseStream) => {
+			let id = 0;
+
 			await sseStream.writeSSE({
 				data: JSON.stringify({ conversationId }),
 				event: "start",
-				id: "0",
+				id: String(id++),
 			});
 
-			const reader = stream.getReader();
-			const decoder = new TextDecoder();
-			let fullContent = "";
-			let id = 1;
+			let fullText = "";
+			let allComponents: InlineComponent[] = [];
 
 			try {
-				while (true) {
-					const { done, value } = await reader.read();
-					if (done) break;
-					const chunk = decoder.decode(value, { stream: true });
-					fullContent += chunk;
-					await sseStream.writeSSE({
-						data: chunk,
-						event: "delta",
-						id: String(id++),
-					});
+				for await (const event of teacherService.chat(ctx, studentId, messages, dynamicContext)) {
+					if (event.type === "delta") {
+						await sseStream.writeSSE({
+							data: event.text,
+							event: "delta",
+							id: String(id++),
+						});
+					} else if (event.type === "tool_result") {
+						await sseStream.writeSSE({
+							data: JSON.stringify({ name: event.name, componentsJson: JSON.stringify(event.componentsJson) }),
+							event: "tool_result",
+							id: String(id++),
+						});
+					} else if (event.type === "done") {
+						fullText = event.fullText;
+						allComponents = event.allComponents;
+					}
 				}
-			} finally {
-				reader.releaseLock();
+			} catch (err) {
+				await sseStream.writeSSE({
+					data: JSON.stringify({ message: err instanceof Error ? err.message : String(err) }),
+					event: "error",
+					id: String(id++),
+				});
 			}
 
 			await sseStream.writeSSE({
@@ -63,9 +77,10 @@ const app = new Hono<{ Bindings: Bindings; Variables: Variables }>().post(
 					c.var.db,
 					c.env,
 					conversationId,
-					fullContent,
+					fullText,
 					isNewConversation,
 					body.message,
+					allComponents.length > 0 ? allComponents : null,
 				),
 			);
 		});

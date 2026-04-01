@@ -3,26 +3,28 @@ import type { Db, ServiceContext, Bindings } from "../lib/types";
 import { NotFoundError } from "../lib/errors";
 import { conversations, messages } from "../db/schema/conversations";
 import { studentProfiles } from "../db/schema/students";
-import { callAnthropicStream, callGroq, type AnthropicSystemBlock } from "./llm";
+import { callGroq } from "./llm";
 import { buildMemoryContext } from "./memory";
-import { CHAT_SYSTEM, buildChatUserContext, buildTitlePrompt } from "./prompts";
+import { buildChatFraming, buildTitlePrompt } from "./prompts";
+import type { InlineComponent } from "./tool-processor";
 
 interface ChatInput {
 	conversationId?: string;
 	message: string;
 }
 
-interface ChatStreamResult {
+export interface ChatContext {
 	conversationId: string;
 	isNewConversation: boolean;
-	stream: ReadableStream;
+	messages: Array<{ role: "user" | "assistant"; content: string }>;
+	dynamicContext: string;
 }
 
-export async function handleChatStream(
+export async function prepareChatContext(
 	ctx: ServiceContext,
 	studentId: string,
 	input: ChatInput,
-): Promise<ChatStreamResult> {
+): Promise<ChatContext> {
 	let conversationId: string;
 	let isNewConversation: boolean;
 
@@ -64,12 +66,6 @@ export async function handleChatStream(
 		.select({
 			inferredLevel: studentProfiles.inferredLevel,
 			explicitGoals: studentProfiles.explicitGoals,
-			baselineDynamics: studentProfiles.baselineDynamics,
-			baselineTiming: studentProfiles.baselineTiming,
-			baselinePedaling: studentProfiles.baselinePedaling,
-			baselineArticulation: studentProfiles.baselineArticulation,
-			baselinePhrasing: studentProfiles.baselinePhrasing,
-			baselineInterpretation: studentProfiles.baselineInterpretation,
 		})
 		.from(studentProfiles)
 		.where(eq(studentProfiles.studentId, studentId))
@@ -86,46 +82,19 @@ export async function handleChatStream(
 		.orderBy(asc(messages.createdAt))
 		.limit(20);
 
-	const userContext = student
-		? buildChatUserContext({
-				inferredLevel: student.inferredLevel,
-				explicitGoals: student.explicitGoals,
-				baselines: {
-					dynamics: student.baselineDynamics,
-					timing: student.baselineTiming,
-					pedaling: student.baselinePedaling,
-					articulation: student.baselineArticulation,
-					phrasing: student.baselinePhrasing,
-					interpretation: student.baselineInterpretation,
-				},
-			})
-		: "";
+	const dynamicContext = buildChatFraming(
+		student?.inferredLevel ?? "",
+		student?.explicitGoals ?? "",
+		memoryContext,
+	);
 
-	const dynamicContext = [userContext, memoryContext]
-		.filter((p) => p.trim().length > 0)
-		.join("\n\n");
-
-	const systemBlocks: AnthropicSystemBlock[] = [
-		{ type: "text", text: CHAT_SYSTEM, cache_control: { type: "ephemeral" } },
-		...(dynamicContext
-			? [{ type: "text" as const, text: dynamicContext }]
-			: []),
-	];
-
-	const anthropicMessages = recentMessages
+	const filteredMessages = recentMessages
 		.filter((m): m is { role: "user" | "assistant"; content: string } =>
 			m.role === "user" || m.role === "assistant",
 		)
 		.map((m) => ({ role: m.role, content: m.content }));
 
-	const stream = await callAnthropicStream(ctx.env, {
-		model: "claude-sonnet-4-20250514",
-		max_tokens: 2048,
-		system: systemBlocks,
-		messages: anthropicMessages,
-	});
-
-	return { conversationId, isNewConversation, stream };
+	return { conversationId, isNewConversation, messages: filteredMessages, dynamicContext };
 }
 
 export async function saveAssistantMessage(
@@ -135,11 +104,13 @@ export async function saveAssistantMessage(
 	content: string,
 	isNewConversation: boolean,
 	firstUserMessage: string,
+	componentsJson?: InlineComponent[] | null,
 ): Promise<void> {
 	await db.insert(messages).values({
 		conversationId,
 		role: "assistant",
 		content,
+		componentsJson: componentsJson ?? null,
 	});
 
 	await db
