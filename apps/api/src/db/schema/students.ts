@@ -1,10 +1,4 @@
-import {
-	pgTable,
-	text,
-	real,
-	integer,
-	timestamp,
-} from "drizzle-orm/pg-core";
+import { integer, pgTable, real, text, timestamp } from "drizzle-orm/pg-core";
 
 export const studentProfiles = pgTable("student_profiles", {
 	studentId: text("student_id").primaryKey(),

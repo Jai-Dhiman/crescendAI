@@ -144,7 +144,9 @@ export default function AppChat() {
 
 	const recordButtonRef = useRef<HTMLButtonElement>(null);
 	const [showListeningMode, setShowListeningMode] = useState(false);
-	const [recordButtonRect, setRecordButtonRect] = useState<DOMRect | null>(null);
+	const [recordButtonRect, setRecordButtonRect] = useState<DOMRect | null>(
+		null,
+	);
 	const [sessionNotes, setSessionNotes] = useState("");
 	const [pieceContext, setPieceContext] = useState<{
 		piece: string;
@@ -209,7 +211,9 @@ export default function AppChat() {
 	const deleteConversation = useDeleteConversation();
 
 	function invalidateConversation(conversationId: string) {
-		queryClient.invalidateQueries({ queryKey: ["conversation", conversationId] });
+		queryClient.invalidateQueries({
+			queryKey: ["conversation", conversationId],
+		});
 		queryClient.invalidateQueries({ queryKey: ["conversations"] });
 	}
 
@@ -225,7 +229,9 @@ export default function AppChat() {
 		checkNeedsSynthesis(activeConversationId).then(async (sessionIds) => {
 			if (sessionIds.length === 0) return;
 
-			console.log(`[Deferred] Found ${sessionIds.length} sessions needing synthesis`);
+			console.log(
+				`[Deferred] Found ${sessionIds.length} sessions needing synthesis`,
+			);
 			for (const sid of sessionIds) {
 				const result = await triggerDeferredSynthesis(sid);
 				if (result?.status === "synthesized") {
@@ -342,7 +348,10 @@ export default function AppChat() {
 
 	// Merge practice observation messages into the chat thread during recording
 	const displayMessages = useMemo(() => {
-		if (practice.state === "idle" || practice.observationMessages.length === 0) {
+		if (
+			practice.state === "idle" ||
+			practice.observationMessages.length === 0
+		) {
 			return messages;
 		}
 		// Deduplicate: don't show observations that are already in messages (from D1 reload)
@@ -356,7 +365,6 @@ export default function AppChat() {
 		);
 		return [...messages, ...newObs];
 	}, [messages, practice.observationMessages, practice.state]);
-
 
 	// Click outside to close profile dropdown
 	useClickOutside(profileRef, () => setShowProfile(false), showProfile);
@@ -542,37 +550,34 @@ export default function AppChat() {
 		}
 	}
 
-	const handleTryExercises = useCallback(
-		async (dimension: string) => {
-			const { exercises } = await api.exercises.fetch({ dimension });
-			if (exercises.length === 0) return;
+	const handleTryExercises = useCallback(async (dimension: string) => {
+		const { exercises } = await api.exercises.fetch({ dimension });
+		if (exercises.length === 0) return;
 
-			const exerciseMsg: RichMessage = {
-				id: `exercises-${Date.now()}`,
-				role: "assistant",
-				content: `Here are some exercises to work on your ${dimension}:`,
-				createdAt: new Date().toISOString(),
-				components: [
-					{
-						type: "exercise_set" as const,
-						config: {
-							sourcePassage: "Based on your recent practice",
-							targetSkill: `${dimension} improvement`,
-							exercises: exercises.map((e) => ({
-								title: e.title,
-								instruction: e.instructions,
-								focusDimension: e.dimensions[0] ?? dimension,
-								exerciseId: e.id,
-							})),
-						},
+		const exerciseMsg: RichMessage = {
+			id: `exercises-${Date.now()}`,
+			role: "assistant",
+			content: `Here are some exercises to work on your ${dimension}:`,
+			createdAt: new Date().toISOString(),
+			components: [
+				{
+					type: "exercise_set" as const,
+					config: {
+						sourcePassage: "Based on your recent practice",
+						targetSkill: `${dimension} improvement`,
+						exercises: exercises.map((e) => ({
+							title: e.title,
+							instruction: e.instructions,
+							focusDimension: e.dimensions[0] ?? dimension,
+							exerciseId: e.id,
+						})),
 					},
-				],
-			};
+				},
+			],
+		};
 
-			setTransientMessages((prev) => [...prev, exerciseMsg]);
-		},
-		[],
-	);
+		setTransientMessages((prev) => [...prev, exerciseMsg]);
+	}, []);
 
 	const greeting = useMemo(
 		() => GREETINGS[Math.floor(Math.random() * GREETINGS.length)],
@@ -668,7 +673,10 @@ export default function AppChat() {
 					<div className="w-full">
 						{searchOpen && sidebarOpen ? (
 							<div className="flex items-center gap-1 px-2 py-1">
-								<MagnifyingGlass size={16} className="shrink-0 text-text-tertiary" />
+								<MagnifyingGlass
+									size={16}
+									className="shrink-0 text-text-tertiary"
+								/>
 								<input
 									ref={searchInputRef}
 									type="text"
@@ -724,56 +732,59 @@ export default function AppChat() {
 							<ConversationSkeleton />
 						) : (
 							<>
-								{(filteredConversations ?? conversations.slice(0, 8)).map((conv) => (
-									<div
-										role="button"
-										tabIndex={0}
-										key={conv.id}
-										className={`group flex w-full items-center gap-2 rounded-lg px-3 py-1.5 cursor-pointer text-body-sm transition min-h-[36px] text-left ${
-											conv.id === activeConversationId
-												? "bg-surface text-cream"
-												: "text-text-secondary hover:text-cream hover:bg-surface"
-										}`}
-										onClick={() => {
-											loadConversation(conv.id);
-											setSearchOpen(false);
-											setSearchQuery("");
-										}}
-										onKeyDown={(e) => {
-											if (e.key === "Enter" || e.key === " ") {
-												e.preventDefault();
+								{(filteredConversations ?? conversations.slice(0, 8)).map(
+									(conv) => (
+										<div
+											role="button"
+											tabIndex={0}
+											key={conv.id}
+											className={`group flex w-full items-center gap-2 rounded-lg px-3 py-1.5 cursor-pointer text-body-sm transition min-h-[36px] text-left ${
+												conv.id === activeConversationId
+													? "bg-surface text-cream"
+													: "text-text-secondary hover:text-cream hover:bg-surface"
+											}`}
+											onClick={() => {
 												loadConversation(conv.id);
 												setSearchOpen(false);
 												setSearchQuery("");
-											}
-										}}
-									>
-										<ChatCircle size={14} className="shrink-0" />
-										<span className="flex-1 truncate">
-											{conv.title ?? "New conversation"}
-										</span>
-										{!searchOpen && (
-											<button
-												type="button"
-												onClick={(e) => {
-													e.stopPropagation();
-													handleDeleteConversation(conv.id);
-												}}
-												className="opacity-0 group-hover:opacity-100 shrink-0 w-7 h-7 flex items-center justify-center text-text-tertiary hover:text-cream transition"
-												aria-label="Delete conversation"
-											>
-												<Trash size={14} />
-											</button>
-										)}
-									</div>
-								))}
-								{filteredConversations !== null && filteredConversations.length === 0 && (
-									<div className="px-3 py-6 text-center">
-										<span className="text-body-xs text-text-tertiary">
-											No conversations matching &lsquo;{searchQuery}&rsquo;
-										</span>
-									</div>
+											}}
+											onKeyDown={(e) => {
+												if (e.key === "Enter" || e.key === " ") {
+													e.preventDefault();
+													loadConversation(conv.id);
+													setSearchOpen(false);
+													setSearchQuery("");
+												}
+											}}
+										>
+											<ChatCircle size={14} className="shrink-0" />
+											<span className="flex-1 truncate">
+												{conv.title ?? "New conversation"}
+											</span>
+											{!searchOpen && (
+												<button
+													type="button"
+													onClick={(e) => {
+														e.stopPropagation();
+														handleDeleteConversation(conv.id);
+													}}
+													className="opacity-0 group-hover:opacity-100 shrink-0 w-7 h-7 flex items-center justify-center text-text-tertiary hover:text-cream transition"
+													aria-label="Delete conversation"
+												>
+													<Trash size={14} />
+												</button>
+											)}
+										</div>
+									),
 								)}
+								{filteredConversations !== null &&
+									filteredConversations.length === 0 && (
+										<div className="px-3 py-6 text-center">
+											<span className="text-body-xs text-text-tertiary">
+												No conversations matching &lsquo;{searchQuery}&rsquo;
+											</span>
+										</div>
+									)}
 								{!searchOpen && conversations.length > 8 && (
 									<button
 										type="button"
@@ -896,7 +907,10 @@ export default function AppChat() {
 						/>
 					</div>
 				) : (
-					<ChatMessages messages={displayMessages} onTryExercises={handleTryExercises}>
+					<ChatMessages
+						messages={displayMessages}
+						onTryExercises={handleTryExercises}
+					>
 						<div className="sticky bottom-0">
 							<ChatInput
 								onSend={handleSend}

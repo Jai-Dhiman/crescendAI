@@ -8,7 +8,11 @@ interface InlineCardProps {
 	artifactId?: string;
 }
 
-export function InlineCard({ component, onExpand, artifactId }: InlineCardProps) {
+export function InlineCard({
+	component,
+	onExpand,
+	artifactId,
+}: InlineCardProps) {
 	switch (component.type) {
 		case "exercise_set":
 			return (

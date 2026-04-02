@@ -1,7 +1,13 @@
 import { create } from "zustand";
 import type { InlineComponent } from "../lib/types";
 
-export type ExerciseStatus = "idle" | "loading" | "assigned" | "completing" | "completed" | "error";
+export type ExerciseStatus =
+	| "idle"
+	| "loading"
+	| "assigned"
+	| "completing"
+	| "completed"
+	| "error";
 
 export interface ExerciseState {
 	status: ExerciseStatus;

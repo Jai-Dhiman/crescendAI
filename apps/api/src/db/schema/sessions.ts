@@ -1,12 +1,12 @@
 import {
-	pgTable,
-	uuid,
-	text,
-	real,
 	boolean,
-	timestamp,
-	jsonb,
 	index,
+	jsonb,
+	pgTable,
+	real,
+	text,
+	timestamp,
+	uuid,
 } from "drizzle-orm/pg-core";
 
 export const sessions = pgTable(

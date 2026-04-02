@@ -1,6 +1,6 @@
-import { describe, it, expect } from "vitest";
-import { ModeDetector, PracticeMode } from "./practice-mode";
+import { describe, expect, it } from "vitest";
 import type { ChunkSignal } from "./practice-mode";
+import { ModeDetector, PracticeMode } from "./practice-mode";
 
 function makeSignal(overrides?: Partial<ChunkSignal>): ChunkSignal {
 	return {
@@ -53,10 +53,29 @@ describe("ModeDetector", () => {
 	it("Warming -> Drilling on repeated passage with substance", () => {
 		const d = new ModeDetector();
 		const now = Date.now();
-		d.update(makeSignal({ chunkIndex: 0, timestampMs: now, pitchBigrams: RICH_BIGRAMS, barRange: [5, 10] }));
-		d.update(makeSignal({ chunkIndex: 1, timestampMs: now + 15000, pitchBigrams: RICH_BIGRAMS, barRange: [5, 10] }));
+		d.update(
+			makeSignal({
+				chunkIndex: 0,
+				timestampMs: now,
+				pitchBigrams: RICH_BIGRAMS,
+				barRange: [5, 10],
+			}),
+		);
+		d.update(
+			makeSignal({
+				chunkIndex: 1,
+				timestampMs: now + 15000,
+				pitchBigrams: RICH_BIGRAMS,
+				barRange: [5, 10],
+			}),
+		);
 		const transitions = d.update(
-			makeSignal({ chunkIndex: 2, timestampMs: now + 30000, pitchBigrams: RICH_BIGRAMS, barRange: [5, 10] }),
+			makeSignal({
+				chunkIndex: 2,
+				timestampMs: now + 30000,
+				pitchBigrams: RICH_BIGRAMS,
+				barRange: [5, 10],
+			}),
 		);
 		expect(d.mode).toBe(PracticeMode.Drilling);
 		expect(transitions.some((t) => t.to === PracticeMode.Drilling)).toBe(true);
@@ -66,7 +85,9 @@ describe("ModeDetector", () => {
 		const d = new ModeDetector();
 		const now = Date.now();
 		d.update(makeSignal({ chunkIndex: 0, timestampMs: now }));
-		const transitions = d.update(makeSignal({ chunkIndex: 1, timestampMs: now + 70000 }));
+		const transitions = d.update(
+			makeSignal({ chunkIndex: 1, timestampMs: now + 70000 }),
+		);
 		expect(transitions.some((t) => t.to === PracticeMode.Winding)).toBe(true);
 	});
 
@@ -75,7 +96,15 @@ describe("ModeDetector", () => {
 		const now = Date.now();
 		// Get into Running first.
 		d.update(makeSignal({ chunkIndex: 0, timestampMs: now, barRange: [1, 4] }));
-		d.update(makeSignal({ chunkIndex: 1, timestampMs: now + 15000, hasPieceMatch: true, barsProgressing: true, barRange: [5, 8] }));
+		d.update(
+			makeSignal({
+				chunkIndex: 1,
+				timestampMs: now + 15000,
+				hasPieceMatch: true,
+				barsProgressing: true,
+				barRange: [5, 8],
+			}),
+		);
 		expect(d.mode).toBe(PracticeMode.Running);
 
 		const transitions = d.update(
@@ -100,7 +129,8 @@ describe("ModeDetector", () => {
 		d.update(makeSignal({ chunkIndex: 1, timestampMs: now + 70000 }));
 		// The detector resumed to Regular, but Winding policy should suppress.
 		const windingDetector = new ModeDetector();
-		(windingDetector as unknown as { mode: PracticeMode }).mode = PracticeMode.Winding;
+		(windingDetector as unknown as { mode: PracticeMode }).mode =
+			PracticeMode.Winding;
 		expect(windingDetector.observationPolicy.suppress).toBe(true);
 	});
 
@@ -113,13 +143,42 @@ describe("ModeDetector", () => {
 		const d = new ModeDetector();
 		const now = Date.now();
 		d.update(makeSignal({ chunkIndex: 0, timestampMs: now, barRange: [1, 4] }));
-		d.update(makeSignal({ chunkIndex: 1, timestampMs: now + 15000, hasPieceMatch: true, barsProgressing: true, barRange: [5, 8] }));
+		d.update(
+			makeSignal({
+				chunkIndex: 1,
+				timestampMs: now + 15000,
+				hasPieceMatch: true,
+				barsProgressing: true,
+				barRange: [5, 8],
+			}),
+		);
 		expect(d.mode).toBe(PracticeMode.Running);
 
 		// Advance past RUNNING_DWELL_MS (30s) with repeated passage.
-		d.update(makeSignal({ chunkIndex: 2, timestampMs: now + 50000, pitchBigrams: RICH_BIGRAMS, barRange: [10, 14] }));
-		d.update(makeSignal({ chunkIndex: 3, timestampMs: now + 65000, pitchBigrams: RICH_BIGRAMS, barRange: [10, 14] }));
-		d.update(makeSignal({ chunkIndex: 4, timestampMs: now + 80000, pitchBigrams: RICH_BIGRAMS, barRange: [10, 14] }));
+		d.update(
+			makeSignal({
+				chunkIndex: 2,
+				timestampMs: now + 50000,
+				pitchBigrams: RICH_BIGRAMS,
+				barRange: [10, 14],
+			}),
+		);
+		d.update(
+			makeSignal({
+				chunkIndex: 3,
+				timestampMs: now + 65000,
+				pitchBigrams: RICH_BIGRAMS,
+				barRange: [10, 14],
+			}),
+		);
+		d.update(
+			makeSignal({
+				chunkIndex: 4,
+				timestampMs: now + 80000,
+				pitchBigrams: RICH_BIGRAMS,
+				barRange: [10, 14],
+			}),
+		);
 		expect(d.mode).toBe(PracticeMode.Drilling);
 	});
 
@@ -127,15 +186,52 @@ describe("ModeDetector", () => {
 		const d = new ModeDetector();
 		const now = Date.now();
 		// Get into Drilling.
-		d.update(makeSignal({ chunkIndex: 0, timestampMs: now, pitchBigrams: RICH_BIGRAMS, barRange: [10, 14] }));
-		d.update(makeSignal({ chunkIndex: 1, timestampMs: now + 15000, pitchBigrams: RICH_BIGRAMS, barRange: [10, 14] }));
-		d.update(makeSignal({ chunkIndex: 2, timestampMs: now + 30000, pitchBigrams: RICH_BIGRAMS, barRange: [10, 14] }));
+		d.update(
+			makeSignal({
+				chunkIndex: 0,
+				timestampMs: now,
+				pitchBigrams: RICH_BIGRAMS,
+				barRange: [10, 14],
+			}),
+		);
+		d.update(
+			makeSignal({
+				chunkIndex: 1,
+				timestampMs: now + 15000,
+				pitchBigrams: RICH_BIGRAMS,
+				barRange: [10, 14],
+			}),
+		);
+		d.update(
+			makeSignal({
+				chunkIndex: 2,
+				timestampMs: now + 30000,
+				pitchBigrams: RICH_BIGRAMS,
+				barRange: [10, 14],
+			}),
+		);
 		expect(d.mode).toBe(PracticeMode.Drilling);
 
 		// After DRILLING_DWELL_MS, send new material with piece match + progress.
 		const NEW_BIGRAMS = new Set(["72-74", "74-76", "76-77", "77-79"]);
-		d.update(makeSignal({ chunkIndex: 3, timestampMs: now + 65000, pitchBigrams: NEW_BIGRAMS, barRange: [15, 18], hasPieceMatch: true }));
-		d.update(makeSignal({ chunkIndex: 4, timestampMs: now + 80000, pitchBigrams: new Set(["77-79", "79-81", "81-83"]), barRange: [19, 22], hasPieceMatch: true }));
+		d.update(
+			makeSignal({
+				chunkIndex: 3,
+				timestampMs: now + 65000,
+				pitchBigrams: NEW_BIGRAMS,
+				barRange: [15, 18],
+				hasPieceMatch: true,
+			}),
+		);
+		d.update(
+			makeSignal({
+				chunkIndex: 4,
+				timestampMs: now + 80000,
+				pitchBigrams: new Set(["77-79", "79-81", "81-83"]),
+				barRange: [19, 22],
+				hasPieceMatch: true,
+			}),
+		);
 		expect(d.mode).toBe(PracticeMode.Running);
 	});
 
@@ -149,36 +245,100 @@ describe("ModeDetector", () => {
 		expect(d.mode).toBe(PracticeMode.Regular);
 
 		// After REGULAR_DWELL_MS (15s), piece match + progress.
-		d.update(makeSignal({ chunkIndex: 4, timestampMs: now + 16000, barRange: [1, 4] }));
-		d.update(makeSignal({ chunkIndex: 5, timestampMs: now + 31000, hasPieceMatch: true, barRange: [5, 8] }));
+		d.update(
+			makeSignal({ chunkIndex: 4, timestampMs: now + 16000, barRange: [1, 4] }),
+		);
+		d.update(
+			makeSignal({
+				chunkIndex: 5,
+				timestampMs: now + 31000,
+				hasPieceMatch: true,
+				barRange: [5, 8],
+			}),
+		);
 		expect(d.mode).toBe(PracticeMode.Running);
 	});
 
 	it("min dwell prevents early exit from Drilling", () => {
 		const d = new ModeDetector();
 		const now = Date.now();
-		d.update(makeSignal({ chunkIndex: 0, timestampMs: now, pitchBigrams: RICH_BIGRAMS, barRange: [10, 14] }));
-		d.update(makeSignal({ chunkIndex: 1, timestampMs: now + 15000, pitchBigrams: RICH_BIGRAMS, barRange: [10, 14] }));
-		d.update(makeSignal({ chunkIndex: 2, timestampMs: now + 30000, pitchBigrams: RICH_BIGRAMS, barRange: [10, 14] }));
+		d.update(
+			makeSignal({
+				chunkIndex: 0,
+				timestampMs: now,
+				pitchBigrams: RICH_BIGRAMS,
+				barRange: [10, 14],
+			}),
+		);
+		d.update(
+			makeSignal({
+				chunkIndex: 1,
+				timestampMs: now + 15000,
+				pitchBigrams: RICH_BIGRAMS,
+				barRange: [10, 14],
+			}),
+		);
+		d.update(
+			makeSignal({
+				chunkIndex: 2,
+				timestampMs: now + 30000,
+				pitchBigrams: RICH_BIGRAMS,
+				barRange: [10, 14],
+			}),
+		);
 		expect(d.mode).toBe(PracticeMode.Drilling);
 
 		// Only 1s later -- should stay Drilling despite new material.
 		const NEW_BIGRAMS = new Set(["72-74", "74-76"]);
-		d.update(makeSignal({ chunkIndex: 3, timestampMs: now + 31000, pitchBigrams: NEW_BIGRAMS, barRange: [20, 25], hasPieceMatch: true }));
+		d.update(
+			makeSignal({
+				chunkIndex: 3,
+				timestampMs: now + 31000,
+				pitchBigrams: NEW_BIGRAMS,
+				barRange: [20, 25],
+				hasPieceMatch: true,
+			}),
+		);
 		expect(d.mode).toBe(PracticeMode.Drilling);
 	});
 
 	it("drilling increments repetition count without emitting a transition", () => {
 		const d = new ModeDetector();
 		const now = Date.now();
-		d.update(makeSignal({ chunkIndex: 0, timestampMs: now, pitchBigrams: RICH_BIGRAMS, barRange: [10, 14] }));
-		d.update(makeSignal({ chunkIndex: 1, timestampMs: now + 15000, pitchBigrams: RICH_BIGRAMS, barRange: [10, 14] }));
-		d.update(makeSignal({ chunkIndex: 2, timestampMs: now + 30000, pitchBigrams: RICH_BIGRAMS, barRange: [10, 14] }));
+		d.update(
+			makeSignal({
+				chunkIndex: 0,
+				timestampMs: now,
+				pitchBigrams: RICH_BIGRAMS,
+				barRange: [10, 14],
+			}),
+		);
+		d.update(
+			makeSignal({
+				chunkIndex: 1,
+				timestampMs: now + 15000,
+				pitchBigrams: RICH_BIGRAMS,
+				barRange: [10, 14],
+			}),
+		);
+		d.update(
+			makeSignal({
+				chunkIndex: 2,
+				timestampMs: now + 30000,
+				pitchBigrams: RICH_BIGRAMS,
+				barRange: [10, 14],
+			}),
+		);
 		expect(d.mode).toBe(PracticeMode.Drilling);
 
 		// Another repeat within dwell -- no transition emitted.
 		const transitions = d.update(
-			makeSignal({ chunkIndex: 3, timestampMs: now + 32000, pitchBigrams: RICH_BIGRAMS, barRange: [10, 14] }),
+			makeSignal({
+				chunkIndex: 3,
+				timestampMs: now + 32000,
+				pitchBigrams: RICH_BIGRAMS,
+				barRange: [10, 14],
+			}),
 		);
 		expect(transitions).toHaveLength(0);
 		expect(d.mode).toBe(PracticeMode.Drilling);
@@ -188,24 +348,46 @@ describe("ModeDetector", () => {
 		const d = new ModeDetector();
 		const now = Date.now();
 		d.update(makeSignal({ chunkIndex: 0, timestampMs: now, barRange: [1, 4] }));
-		d.update(makeSignal({ chunkIndex: 1, timestampMs: now + 15000, hasPieceMatch: true, barsProgressing: true, barRange: [5, 8] }));
+		d.update(
+			makeSignal({
+				chunkIndex: 1,
+				timestampMs: now + 15000,
+				hasPieceMatch: true,
+				barsProgressing: true,
+				barRange: [5, 8],
+			}),
+		);
 		expect(d.mode).toBe(PracticeMode.Running);
 
 		const json = d.toJSON();
 		const d2 = ModeDetector.fromJSON(json);
 		expect(d2.mode).toBe(d.mode);
-		expect(d2.observationPolicy.minIntervalMs).toBe(d.observationPolicy.minIntervalMs);
+		expect(d2.observationPolicy.minIntervalMs).toBe(
+			d.observationPolicy.minIntervalMs,
+		);
 	});
 
 	it("serializes Set<string> bigrams round-trip", () => {
 		const d = new ModeDetector();
 		const now = Date.now();
-		d.update(makeSignal({ chunkIndex: 0, timestampMs: now, pitchBigrams: RICH_BIGRAMS }));
+		d.update(
+			makeSignal({
+				chunkIndex: 0,
+				timestampMs: now,
+				pitchBigrams: RICH_BIGRAMS,
+			}),
+		);
 
 		const d2 = ModeDetector.fromJSON(d.toJSON());
 		// Further updates should work correctly after deserialization.
 		expect(() => {
-			d2.update(makeSignal({ chunkIndex: 1, timestampMs: now + 15000, pitchBigrams: RICH_BIGRAMS }));
+			d2.update(
+				makeSignal({
+					chunkIndex: 1,
+					timestampMs: now + 15000,
+					pitchBigrams: RICH_BIGRAMS,
+				}),
+			);
 		}).not.toThrow();
 	});
 
@@ -228,9 +410,30 @@ describe("ModeDetector", () => {
 	it("Drilling observation policy: 90s interval, comparative", () => {
 		const d = new ModeDetector();
 		const now = Date.now();
-		d.update(makeSignal({ chunkIndex: 0, timestampMs: now, pitchBigrams: RICH_BIGRAMS, barRange: [10, 14] }));
-		d.update(makeSignal({ chunkIndex: 1, timestampMs: now + 15000, pitchBigrams: RICH_BIGRAMS, barRange: [10, 14] }));
-		d.update(makeSignal({ chunkIndex: 2, timestampMs: now + 30000, pitchBigrams: RICH_BIGRAMS, barRange: [10, 14] }));
+		d.update(
+			makeSignal({
+				chunkIndex: 0,
+				timestampMs: now,
+				pitchBigrams: RICH_BIGRAMS,
+				barRange: [10, 14],
+			}),
+		);
+		d.update(
+			makeSignal({
+				chunkIndex: 1,
+				timestampMs: now + 15000,
+				pitchBigrams: RICH_BIGRAMS,
+				barRange: [10, 14],
+			}),
+		);
+		d.update(
+			makeSignal({
+				chunkIndex: 2,
+				timestampMs: now + 30000,
+				pitchBigrams: RICH_BIGRAMS,
+				barRange: [10, 14],
+			}),
+		);
 		expect(d.mode).toBe(PracticeMode.Drilling);
 		const policy = d.observationPolicy;
 		expect(policy.suppress).toBe(false);
@@ -242,7 +445,15 @@ describe("ModeDetector", () => {
 		const d = new ModeDetector();
 		const now = Date.now();
 		d.update(makeSignal({ chunkIndex: 0, timestampMs: now, barRange: [1, 4] }));
-		d.update(makeSignal({ chunkIndex: 1, timestampMs: now + 15000, hasPieceMatch: true, barsProgressing: true, barRange: [5, 8] }));
+		d.update(
+			makeSignal({
+				chunkIndex: 1,
+				timestampMs: now + 15000,
+				hasPieceMatch: true,
+				barsProgressing: true,
+				barRange: [5, 8],
+			}),
+		);
 		expect(d.mode).toBe(PracticeMode.Running);
 		const policy = d.observationPolicy;
 		expect(policy.minIntervalMs).toBe(150_000);
@@ -268,7 +479,9 @@ describe("ModeDetector", () => {
 		expect(d.mode).toBe(PracticeMode.Regular);
 
 		// Trigger Winding via silence gap, no piece match -> resumes to Regular.
-		const transitions = d.update(makeSignal({ chunkIndex: 4, timestampMs: now + 4000 + 70000 }));
+		const transitions = d.update(
+			makeSignal({ chunkIndex: 4, timestampMs: now + 4000 + 70000 }),
+		);
 		expect(transitions.some((t) => t.to === PracticeMode.Winding)).toBe(true);
 		expect(d.mode).toBe(PracticeMode.Regular);
 	});
@@ -278,7 +491,13 @@ describe("ModeDetector", () => {
 		const now = Date.now();
 		d.update(makeSignal({ chunkIndex: 0, timestampMs: now, barRange: [1, 4] }));
 		const transitions = d.update(
-			makeSignal({ chunkIndex: 1, timestampMs: now + 15000, hasPieceMatch: true, barsProgressing: true, barRange: [5, 8] }),
+			makeSignal({
+				chunkIndex: 1,
+				timestampMs: now + 15000,
+				hasPieceMatch: true,
+				barsProgressing: true,
+				barRange: [5, 8],
+			}),
 		);
 		expect(transitions).toHaveLength(1);
 		const t = transitions[0];

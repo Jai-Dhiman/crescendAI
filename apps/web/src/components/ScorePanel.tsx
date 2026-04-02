@@ -17,7 +17,9 @@ interface AnnotationPosition {
 export function ScorePanel() {
 	const isOpen = useScorePanelStore((s) => s.isOpen);
 	const sessionData = useScorePanelStore((s) => s.sessionData);
-	const activeAnnotationIndex = useScorePanelStore((s) => s.activeAnnotationIndex);
+	const activeAnnotationIndex = useScorePanelStore(
+		(s) => s.activeAnnotationIndex,
+	);
 	const panelWidth = useScorePanelStore((s) => s.panelWidth);
 	const close = useScorePanelStore((s) => s.close);
 	const setActiveAnnotation = useScorePanelStore((s) => s.setActiveAnnotation);
@@ -218,7 +220,9 @@ export function ScorePanel() {
  * turning the init effect into a simple mount effect (Rule 5: reset with key).
  */
 interface ScorePanelScoreProps {
-	sessionData: NonNullable<ReturnType<typeof useScorePanelStore>["sessionData"]>;
+	sessionData: NonNullable<
+		ReturnType<typeof useScorePanelStore>["sessionData"]
+	>;
 	activeAnnotationIndex: number | null;
 	// biome-ignore lint/suspicious/noExplicitAny: OSMD has no exported type
 	osmdRef: React.MutableRefObject<any>;

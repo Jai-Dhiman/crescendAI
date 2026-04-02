@@ -1,5 +1,5 @@
-import type { InlineComponent } from "./types";
 import { API_BASE, WS_BASE } from "./config";
+import type { InlineComponent } from "./types";
 
 export interface PracticeStartResponse {
 	sessionId: string;
@@ -74,7 +74,14 @@ export type PracticeWsEvent =
 			inferenceFailures?: number;
 			totalChunks?: number;
 	  }
-	| { type: "piece_identified"; pieceId: string; composer: string; title: string; confidence: number; method: string }
+	| {
+			type: "piece_identified";
+			pieceId: string;
+			composer: string;
+			title: string;
+			confidence: number;
+			method: string;
+	  }
 	| { type: "piece_set"; query: string }
 	| ModeChangeEvent
 	| { type: "error"; message: string };
@@ -84,7 +91,9 @@ export const practiceApi = {
 		const res = await fetch(`${API_BASE}/api/practice/start`, {
 			method: "POST",
 			credentials: "include",
-			headers: conversationId ? { "Content-Type": "application/json" } : undefined,
+			headers: conversationId
+				? { "Content-Type": "application/json" }
+				: undefined,
 			body: conversationId ? JSON.stringify({ conversationId }) : undefined,
 		});
 		if (!res.ok) throw new Error(`Failed to start session: ${res.status}`);

@@ -48,10 +48,10 @@ function PrivacyPage() {
 							Practice Data
 						</h3>
 						<p className="mb-4">
-							We store practice session metadata, including timestamps, duration,
-							piece information, and AI-generated observations about your
-							playing. This data is used to track your progress and personalize
-							feedback.
+							We store practice session metadata, including timestamps,
+							duration, piece information, and AI-generated observations about
+							your playing. This data is used to track your progress and
+							personalize feedback.
 						</p>
 
 						<h3 className="font-display text-cream text-body-md mb-2">
@@ -75,23 +75,18 @@ function PrivacyPage() {
 								analyze musical expression
 							</li>
 							<li>
-								Maintain your practice history and track your progress over
-								time
+								Maintain your practice history and track your progress over time
 							</li>
 							<li>
 								Communicate with you about the Service, including updates and
 								support
 							</li>
-							<li>
-								Detect and prevent fraud, abuse, or security issues
-							</li>
+							<li>Detect and prevent fraud, abuse, or security issues</li>
 						</ul>
 					</Section>
 
 					<Section title="3. Audio Data Handling">
-						<p>
-							Your audio recordings are handled with particular care:
-						</p>
+						<p>Your audio recordings are handled with particular care:</p>
 						<ul className="list-disc pl-6 mt-3 space-y-2">
 							<li>
 								<strong className="text-cream">iOS:</strong> Audio is processed
@@ -221,9 +216,7 @@ function Section({
 }) {
 	return (
 		<section>
-			<h2 className="font-display text-display-sm text-cream mb-4">
-				{title}
-			</h2>
+			<h2 className="font-display text-display-sm text-cream mb-4">{title}</h2>
 			{children}
 		</section>
 	);

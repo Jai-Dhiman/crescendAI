@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
+import { useArtifactScrollContext } from "../contexts/artifact-scroll";
 import type { InlineComponent } from "../lib/types";
 import { useArtifactStore } from "../stores/artifact";
-import { useArtifactScrollContext } from "../contexts/artifact-scroll";
 import { CollapsedPreview } from "./cards/CollapsedPreview";
 import { InlineCard } from "./InlineCard";
 

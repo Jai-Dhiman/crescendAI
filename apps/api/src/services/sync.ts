@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
-import type { ServiceContext } from "../lib/types";
-import { studentProfiles } from "../db/schema/students";
 import { sessions } from "../db/schema/sessions";
+import { studentProfiles } from "../db/schema/students";
+import type { ServiceContext } from "../lib/types";
 
 interface SyncRequest {
 	student: {
@@ -74,7 +74,8 @@ export async function handleSync(
 				id: session.id,
 				studentId,
 				startedAt: new Date(session.startedAt),
-				endedAt: session.endedAt !== undefined ? new Date(session.endedAt) : null,
+				endedAt:
+					session.endedAt !== undefined ? new Date(session.endedAt) : null,
 				avgDynamics: session.avgDynamics ?? null,
 				avgTiming: session.avgTiming ?? null,
 				avgPedaling: session.avgPedaling ?? null,

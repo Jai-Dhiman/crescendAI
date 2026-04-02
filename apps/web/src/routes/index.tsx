@@ -1,6 +1,6 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { queryClient } from "../lib/query-client";
 import { authQueryOptions } from "../hooks/useAuth";
+import { queryClient } from "../lib/query-client";
 
 export const Route = createFileRoute("/")({
 	beforeLoad: async () => {

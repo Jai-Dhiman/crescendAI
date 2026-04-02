@@ -1,9 +1,9 @@
-import { useState } from "react";
 import { ArrowsOut } from "@phosphor-icons/react";
+import { useState } from "react";
 import { api } from "../../lib/api";
+import { handsLabel } from "../../lib/exercise-utils";
 import type { ExerciseSetConfig } from "../../lib/types";
 import { useArtifactStore } from "../../stores/artifact";
-import { handsLabel } from "../../lib/exercise-utils";
 
 interface ExerciseSetCardProps {
 	config: ExerciseSetConfig;
@@ -20,7 +20,12 @@ interface ExerciseItemProps {
 	artifactId?: string;
 }
 
-function ExerciseItem({ exercise, isExpanded, onToggle, artifactId }: ExerciseItemProps) {
+function ExerciseItem({
+	exercise,
+	isExpanded,
+	onToggle,
+	artifactId,
+}: ExerciseItemProps) {
 	const [localState, setLocalState] = useState<LocalAssignState>("idle");
 
 	const exerciseState = useArtifactStore((s) => {
@@ -115,7 +120,11 @@ function ExerciseItem({ exercise, isExpanded, onToggle, artifactId }: ExerciseIt
 	);
 }
 
-export function ExerciseSetCard({ config, onExpand, artifactId }: ExerciseSetCardProps) {
+export function ExerciseSetCard({
+	config,
+	onExpand,
+	artifactId,
+}: ExerciseSetCardProps) {
 	const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
 
 	return (

@@ -1,8 +1,8 @@
 import { createMiddleware } from "hono/factory";
 import { HTTPException } from "hono/http-exception";
-import type { Bindings, Variables } from "../lib/types";
 import { createDb } from "../db/client";
 import { createAuth } from "../lib/auth";
+import type { Bindings, Variables } from "../lib/types";
 
 export const authSessionMiddleware = createMiddleware<{
 	Bindings: Bindings;
@@ -15,7 +15,9 @@ export const authSessionMiddleware = createMiddleware<{
 	await next();
 });
 
-export function requireAuth(studentId: string | null): asserts studentId is string {
+export function requireAuth(
+	studentId: string | null,
+): asserts studentId is string {
 	if (!studentId) {
 		throw new HTTPException(401, { message: "Authentication required" });
 	}

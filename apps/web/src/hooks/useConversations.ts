@@ -1,8 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ConversationSummary, MessageRow } from "../lib/api";
 import { api } from "../lib/api";
-import type { InlineComponent } from "../lib/types";
-import type { RichMessage } from "../lib/types";
+import type { InlineComponent, RichMessage } from "../lib/types";
 
 function mapMessageRow(row: MessageRow): RichMessage {
 	let components: InlineComponent[] | undefined;

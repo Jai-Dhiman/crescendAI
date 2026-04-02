@@ -5,9 +5,7 @@ import { useEffect, useRef } from "react";
  * Replaces bare useEffect(..., []) -- makes "run once on mount" self-documenting
  * and enables lint rules against raw useEffect usage.
  */
-export function useMountEffect(
-	effect: () => void | (() => void),
-): void {
+export function useMountEffect(effect: () => void | (() => void)): void {
 	// biome-ignore lint/correctness/useExhaustiveDependencies: intentional mount-only effect
 	useEffect(effect, []);
 }

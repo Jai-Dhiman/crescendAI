@@ -1,5 +1,5 @@
-import { createMiddleware } from "hono/factory";
 import * as Sentry from "@sentry/cloudflare";
+import { createMiddleware } from "hono/factory";
 import type { Bindings, Variables } from "../lib/types";
 
 export const sentryMiddleware = createMiddleware<{

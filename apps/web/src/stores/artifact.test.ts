@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { useArtifactStore, getExpandedArtifact } from "./artifact";
 import type { InlineComponent } from "../lib/types";
+import { getExpandedArtifact, useArtifactStore } from "./artifact";
 
 const sampleComponent: InlineComponent = {
 	type: "exercise_set",
@@ -189,7 +189,8 @@ describe("setExerciseStatus", () => {
 		store.register("a1", sampleComponent);
 		useArtifactStore.getState().setExerciseStatus("a1", "ex-1", "loading");
 
-		const exerciseStates = useArtifactStore.getState().states["a1"].exerciseStates;
+		const exerciseStates =
+			useArtifactStore.getState().states["a1"].exerciseStates;
 		expect(exerciseStates).toBeDefined();
 		expect(exerciseStates!["ex-1"]).toEqual({ status: "loading" });
 	});
@@ -197,19 +198,31 @@ describe("setExerciseStatus", () => {
 	it("tracks exercise state with status and studentExerciseId", () => {
 		const store = useArtifactStore.getState();
 		store.register("a1", sampleComponent);
-		useArtifactStore.getState().setExerciseStatus("a1", "ex-1", "assigned", "student-ex-42");
+		useArtifactStore
+			.getState()
+			.setExerciseStatus("a1", "ex-1", "assigned", "student-ex-42");
 
-		const exerciseStates = useArtifactStore.getState().states["a1"].exerciseStates;
-		expect(exerciseStates!["ex-1"]).toEqual({ status: "assigned", studentExerciseId: "student-ex-42" });
+		const exerciseStates =
+			useArtifactStore.getState().states["a1"].exerciseStates;
+		expect(exerciseStates!["ex-1"]).toEqual({
+			status: "assigned",
+			studentExerciseId: "student-ex-42",
+		});
 	});
 
 	it("updates existing exercise state", () => {
 		const store = useArtifactStore.getState();
 		store.register("a1", sampleComponent);
 		useArtifactStore.getState().setExerciseStatus("a1", "ex-1", "loading");
-		useArtifactStore.getState().setExerciseStatus("a1", "ex-1", "completed", "student-ex-42");
+		useArtifactStore
+			.getState()
+			.setExerciseStatus("a1", "ex-1", "completed", "student-ex-42");
 
-		const exerciseStates = useArtifactStore.getState().states["a1"].exerciseStates;
-		expect(exerciseStates!["ex-1"]).toEqual({ status: "completed", studentExerciseId: "student-ex-42" });
+		const exerciseStates =
+			useArtifactStore.getState().states["a1"].exerciseStates;
+		expect(exerciseStates!["ex-1"]).toEqual({
+			status: "completed",
+			studentExerciseId: "student-ex-42",
+		});
 	});
 });

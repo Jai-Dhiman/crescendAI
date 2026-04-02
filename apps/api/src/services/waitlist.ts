@@ -1,5 +1,5 @@
-import type { ServiceContext } from "../lib/types";
 import { waitlist } from "../db/schema/catalog";
+import type { ServiceContext } from "../lib/types";
 
 export async function addToWaitlist(
 	ctx: ServiceContext,

@@ -1,7 +1,7 @@
-import { and, eq, isNull, desc } from "drizzle-orm";
-import type { ServiceContext } from "../lib/types";
+import { and, desc, eq, isNull } from "drizzle-orm";
 import { synthesizedFacts } from "../db/schema/memory";
 import { observations } from "../db/schema/observations";
+import type { ServiceContext } from "../lib/types";
 
 export async function buildMemoryContext(
 	ctx: ServiceContext,

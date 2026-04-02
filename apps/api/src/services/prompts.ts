@@ -20,7 +20,7 @@ A JSON object with the full session context: duration, practice pattern (modes a
 The MuQ audio model has R2~0.5 and 80% pairwise accuracy. Scores are directional signals, not precise measurements. A deviation of 0.1 is noise; 0.2+ is meaningful. Use deviations to identify patterns, not to make absolute claims.`;
 
 export const TEACHER_PROMPT_DYNAMIC_BOUNDARY =
-  "__TEACHER_PROMPT_DYNAMIC_BOUNDARY__";
+	"__TEACHER_PROMPT_DYNAMIC_BOUNDARY__";
 
 export const UNIFIED_TEACHER_SYSTEM = `You are a warm, encouraging piano teacher. You help students improve their playing through thoughtful conversation, grounded in their actual playing data when available.
 
@@ -59,66 +59,66 @@ Most responses should be text-only. Tools are supplements, not defaults.
 - Speak as a teacher talking TO the student, not about them`;
 
 export function buildSynthesisFraming(
-  sessionDurationMs: number,
-  practicePattern: unknown,
-  topMoments: unknown,
-  drillingRecords: unknown,
-  pieceMetadata: unknown,
-  memoryContext: string,
+	sessionDurationMs: number,
+	practicePattern: unknown,
+	topMoments: unknown,
+	drillingRecords: unknown,
+	pieceMetadata: unknown,
+	memoryContext: string,
 ): string {
-  const parts: string[] = [];
+	const parts: string[] = [];
 
-  const sessionData = {
-    duration_minutes: Math.round(sessionDurationMs / 60000),
-    practice_pattern: practicePattern,
-    top_moments: topMoments,
-    drilling_records: drillingRecords,
-    piece: pieceMetadata,
-  };
+	const sessionData = {
+		duration_minutes: Math.round(sessionDurationMs / 60000),
+		practice_pattern: practicePattern,
+		top_moments: topMoments,
+		drilling_records: drillingRecords,
+		piece: pieceMetadata,
+	};
 
-  parts.push("<session_data>");
-  parts.push(JSON.stringify(sessionData, null, 2));
-  parts.push("</session_data>");
+	parts.push("<session_data>");
+	parts.push(JSON.stringify(sessionData, null, 2));
+	parts.push("</session_data>");
 
-  if (memoryContext.length > 0) {
-    parts.push("");
-    parts.push("<student_memory>");
-    parts.push(memoryContext);
-    parts.push("</student_memory>");
-  }
+	if (memoryContext.length > 0) {
+		parts.push("");
+		parts.push("<student_memory>");
+		parts.push(memoryContext);
+		parts.push("</student_memory>");
+	}
 
-  parts.push("");
-  parts.push(
-    "<task>Write <analysis>...</analysis> first as a reasoning scratchpad (this will be stripped before delivery). Then write your teacher response: 3-6 sentences, conversational, warm, specific. Use tools if they would add value. Do not mention scores or numbers. Do not list all dimensions -- focus on what matters most for this session.</task>",
-  );
+	parts.push("");
+	parts.push(
+		"<task>Write <analysis>...</analysis> first as a reasoning scratchpad (this will be stripped before delivery). Then write your teacher response: 3-6 sentences, conversational, warm, specific. Use tools if they would add value. Do not mention scores or numbers. Do not list all dimensions -- focus on what matters most for this session.</task>",
+	);
 
-  return parts.join("\n");
+	return parts.join("\n");
 }
 
 export function buildChatFraming(
-  studentLevel: string,
-  studentGoals: string,
-  memoryContext: string,
+	studentLevel: string,
+	studentGoals: string,
+	memoryContext: string,
 ): string {
-  const parts: string[] = [];
+	const parts: string[] = [];
 
-  parts.push("<student>");
-  if (studentLevel.length > 0) {
-    parts.push(`Level: ${studentLevel}`);
-  }
-  if (studentGoals.length > 0) {
-    parts.push(`Goals: ${studentGoals}`);
-  }
-  parts.push("</student>");
+	parts.push("<student>");
+	if (studentLevel.length > 0) {
+		parts.push(`Level: ${studentLevel}`);
+	}
+	if (studentGoals.length > 0) {
+		parts.push(`Goals: ${studentGoals}`);
+	}
+	parts.push("</student>");
 
-  if (memoryContext.length > 0) {
-    parts.push("");
-    parts.push("<student_memory>");
-    parts.push(memoryContext);
-    parts.push("</student_memory>");
-  }
+	if (memoryContext.length > 0) {
+		parts.push("");
+		parts.push("<student_memory>");
+		parts.push(memoryContext);
+		parts.push("</student_memory>");
+	}
 
-  return parts.join("\n");
+	return parts.join("\n");
 }
 
 export const CHAT_SYSTEM = `You are a warm, encouraging piano teacher. You help students improve their playing through thoughtful conversation. You give specific, actionable advice grounded in the student's actual playing data when available.
@@ -131,27 +131,27 @@ Key principles:
 - Adapt to the student's level and goals`;
 
 export function buildChatUserContext(student: {
-  inferredLevel?: string | null;
-  explicitGoals?: string | null;
-  baselines?: Record<string, number | null>;
+	inferredLevel?: string | null;
+	explicitGoals?: string | null;
+	baselines?: Record<string, number | null>;
 }): string {
-  const parts: string[] = [];
-  if (student.inferredLevel) {
-    parts.push(`Student level: ${student.inferredLevel}`);
-  }
-  if (student.explicitGoals) {
-    parts.push(`Student goals: ${student.explicitGoals}`);
-  }
-  if (student.baselines) {
-    const dims = Object.entries(student.baselines)
-      .filter(([, v]) => v != null)
-      .map(([k, v]) => `${k}: ${(v as number).toFixed(2)}`)
-      .join(", ");
-    if (dims) parts.push(`Current baselines: ${dims}`);
-  }
-  return parts.join("\n");
+	const parts: string[] = [];
+	if (student.inferredLevel) {
+		parts.push(`Student level: ${student.inferredLevel}`);
+	}
+	if (student.explicitGoals) {
+		parts.push(`Student goals: ${student.explicitGoals}`);
+	}
+	if (student.baselines) {
+		const dims = Object.entries(student.baselines)
+			.filter(([, v]) => v != null)
+			.map(([k, v]) => `${k}: ${(v as number).toFixed(2)}`)
+			.join(", ");
+		if (dims) parts.push(`Current baselines: ${dims}`);
+	}
+	return parts.join("\n");
 }
 
 export function buildTitlePrompt(firstMessage: string): string {
-  return `Generate a concise title (3-6 words, no quotes) for a piano lesson conversation that starts with: "${firstMessage}"`;
+	return `Generate a concise title (3-6 words, no quotes) for a piano lesson conversation that starts with: "${firstMessage}"`;
 }

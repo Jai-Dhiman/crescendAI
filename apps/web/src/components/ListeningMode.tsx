@@ -5,7 +5,7 @@ import {
 	Plus,
 	Stop,
 } from "@phosphor-icons/react";
-import { AnimatePresence, LazyMotion, domAnimation, m } from "motion/react";
+import { AnimatePresence, domAnimation, LazyMotion, m } from "motion/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useKeyboardOffset } from "../hooks/useDom";
@@ -129,212 +129,215 @@ export function ListeningMode({
 
 	return createPortal(
 		<LazyMotion features={domAnimation}>
-		<AnimatePresence onExitComplete={onExit}>
-			{isOpen && (
-				<>
-					{/* Edge ring -- expands from origin with visible border */}
-					<m.div
-						key="edge-ring"
-						className="fixed z-49 pointer-events-none rounded-full"
-						style={{
-							left: `${originX}%`,
-							top: `${originY}%`,
-							x: "-50%",
-							y: "-50%",
-							border: "2px solid rgba(122, 154, 130, 0.7)",
-							boxShadow: "0 0 20px rgba(122, 154, 130, 0.3), inset 0 0 20px rgba(122, 154, 130, 0.1)",
-						}}
-						initial={{ width: 0, height: 0, opacity: 0 }}
-						animate={{
-							width: "300vmax",
-							height: "300vmax",
-							opacity: [0, 1, 1, 0],
-							transition: {
-								width: { duration: 0.75, ease: EASE_OUT_EXPO },
-								height: { duration: 0.75, ease: EASE_OUT_EXPO },
-								opacity: {
-									duration: 0.75,
-									times: [0, 0.1, 0.7, 1],
-									ease: "easeOut",
+			<AnimatePresence onExitComplete={onExit}>
+				{isOpen && (
+					<>
+						{/* Edge ring -- expands from origin with visible border */}
+						<m.div
+							key="edge-ring"
+							className="fixed z-49 pointer-events-none rounded-full"
+							style={{
+								left: `${originX}%`,
+								top: `${originY}%`,
+								x: "-50%",
+								y: "-50%",
+								border: "2px solid rgba(122, 154, 130, 0.7)",
+								boxShadow:
+									"0 0 20px rgba(122, 154, 130, 0.3), inset 0 0 20px rgba(122, 154, 130, 0.1)",
+							}}
+							initial={{ width: 0, height: 0, opacity: 0 }}
+							animate={{
+								width: "300vmax",
+								height: "300vmax",
+								opacity: [0, 1, 1, 0],
+								transition: {
+									width: { duration: 0.75, ease: EASE_OUT_EXPO },
+									height: { duration: 0.75, ease: EASE_OUT_EXPO },
+									opacity: {
+										duration: 0.75,
+										times: [0, 0.1, 0.7, 1],
+										ease: "easeOut",
+									},
 								},
-							},
-						}}
-						exit={{
-							width: 0,
-							height: 0,
-							opacity: 0,
-							transition: { duration: 0.5, ease: EASE_OUT_EXPO },
-						}}
-					/>
+							}}
+							exit={{
+								width: 0,
+								height: 0,
+								opacity: 0,
+								transition: { duration: 0.5, ease: EASE_OUT_EXPO },
+							}}
+						/>
 
-					{/* Main overlay -- clip-path circle expansion */}
-					<m.div
-						key="overlay"
-						ref={overlayRef}
-						className="fixed inset-0 z-50 bg-espresso"
-						initial={{
-							clipPath: `circle(0% at ${clipOrigin})`,
-						}}
-						animate={{
-							clipPath: `circle(150vmax at ${clipOrigin})`,
-							transition: { duration: 0.75, ease: EASE_OUT_EXPO },
-						}}
-						exit={{
-							clipPath: `circle(0% at ${clipOrigin})`,
-							transition: { duration: 0.5, ease: EASE_OUT_EXPO },
-						}}
-					>
-						<AnimatePresence>
-							{contentVisible && (
-								<m.div
-									className="h-dvh flex flex-col"
-									initial={{ opacity: 0 }}
-									animate={{ opacity: 1 }}
-									exit={{ opacity: 0 }}
-									transition={{ duration: 0.2 }}
-								>
-									{/* Top bar: piece info */}
-									<div className="shrink-0 flex items-center justify-between px-6 py-4 border-b border-border">
-										<div className="flex items-center gap-3">
-											<div className="relative">
-												<button
-													type="button"
-													onClick={() => setShowMetronome(!showMetronome)}
-													className={`flex items-center gap-2 px-3 py-2 rounded-lg transition ${
-														metronome.isPlaying
-															? "bg-accent/20 text-accent"
-															: "bg-surface text-text-secondary hover:text-cream"
-													}`}
-													aria-label="Toggle metronome"
-												>
-													<MetronomeIcon
-														size={20}
-														weight="fill"
-														className={metronome.isPlaying ? "animate-pulse" : ""}
-													/>
-													{metronome.isPlaying && (
-														<span className="text-body-sm tabular-nums">
-															{metronome.bpm}
-														</span>
+						{/* Main overlay -- clip-path circle expansion */}
+						<m.div
+							key="overlay"
+							ref={overlayRef}
+							className="fixed inset-0 z-50 bg-espresso"
+							initial={{
+								clipPath: `circle(0% at ${clipOrigin})`,
+							}}
+							animate={{
+								clipPath: `circle(150vmax at ${clipOrigin})`,
+								transition: { duration: 0.75, ease: EASE_OUT_EXPO },
+							}}
+							exit={{
+								clipPath: `circle(0% at ${clipOrigin})`,
+								transition: { duration: 0.5, ease: EASE_OUT_EXPO },
+							}}
+						>
+							<AnimatePresence>
+								{contentVisible && (
+									<m.div
+										className="h-dvh flex flex-col"
+										initial={{ opacity: 0 }}
+										animate={{ opacity: 1 }}
+										exit={{ opacity: 0 }}
+										transition={{ duration: 0.2 }}
+									>
+										{/* Top bar: piece info */}
+										<div className="shrink-0 flex items-center justify-between px-6 py-4 border-b border-border">
+											<div className="flex items-center gap-3">
+												<div className="relative">
+													<button
+														type="button"
+														onClick={() => setShowMetronome(!showMetronome)}
+														className={`flex items-center gap-2 px-3 py-2 rounded-lg transition ${
+															metronome.isPlaying
+																? "bg-accent/20 text-accent"
+																: "bg-surface text-text-secondary hover:text-cream"
+														}`}
+														aria-label="Toggle metronome"
+													>
+														<MetronomeIcon
+															size={20}
+															weight="fill"
+															className={
+																metronome.isPlaying ? "animate-pulse" : ""
+															}
+														/>
+														{metronome.isPlaying && (
+															<span className="text-body-sm tabular-nums">
+																{metronome.bpm}
+															</span>
+														)}
+													</button>
+
+													{showMetronome && (
+														<MetronomePanel
+															metronome={metronome}
+															onClose={() => setShowMetronome(false)}
+														/>
 													)}
-												</button>
-
-												{showMetronome && (
-													<MetronomePanel
-														metronome={metronome}
-														onClose={() => setShowMetronome(false)}
-													/>
+												</div>
+											</div>
+											<div className="text-right">
+												{isEditingPiece ? (
+													<div className="flex flex-col gap-1 items-end">
+														<input
+															type="text"
+															value={pieceName}
+															onChange={(e) => setPieceName(e.target.value)}
+															placeholder="Piece name"
+															className="bg-surface border border-border rounded-lg px-3 py-1 text-body-sm text-cream outline-none w-56"
+															// biome-ignore lint/a11y/noAutofocus: intentional UX for inline editor
+															autoFocus
+														/>
+														<input
+															type="text"
+															value={sectionName}
+															onChange={(e) => setSectionName(e.target.value)}
+															placeholder="Section (e.g., bars 1-16)"
+															className="bg-surface border border-border rounded-lg px-3 py-1 text-body-xs text-cream outline-none w-56"
+														/>
+														<button
+															type="button"
+															onClick={() => setIsEditingPiece(false)}
+															className="text-body-xs text-accent hover:text-accent-lighter transition mt-1"
+														>
+															Done
+														</button>
+													</div>
+												) : (
+													<button
+														type="button"
+														onClick={() => setIsEditingPiece(true)}
+														className="text-right group"
+													>
+														<span className="text-label-sm text-text-tertiary uppercase tracking-wider block">
+															Now practicing
+														</span>
+														<span className="text-body-sm text-cream group-hover:text-accent transition">
+															{pieceName}
+														</span>
+														{sectionName && (
+															<span className="text-body-xs text-accent ml-2">
+																{sectionName}
+															</span>
+														)}
+													</button>
 												)}
 											</div>
 										</div>
-										<div className="text-right">
-											{isEditingPiece ? (
-												<div className="flex flex-col gap-1 items-end">
-													<input
-														type="text"
-														value={pieceName}
-														onChange={(e) => setPieceName(e.target.value)}
-														placeholder="Piece name"
-														className="bg-surface border border-border rounded-lg px-3 py-1 text-body-sm text-cream outline-none w-56"
-														// biome-ignore lint/a11y/noAutofocus: intentional UX for inline editor
-														autoFocus
-													/>
-													<input
-														type="text"
-														value={sectionName}
-														onChange={(e) => setSectionName(e.target.value)}
-														placeholder="Section (e.g., bars 1-16)"
-														className="bg-surface border border-border rounded-lg px-3 py-1 text-body-xs text-cream outline-none w-56"
-													/>
-													<button
-														type="button"
-														onClick={() => setIsEditingPiece(false)}
-														className="text-body-xs text-accent hover:text-accent-lighter transition mt-1"
-													>
-														Done
-													</button>
+
+										{/* Center: waveform */}
+										<div className="flex-1 flex flex-col items-center justify-center px-6 relative">
+											{wsStatus === "reconnecting" && isRecording && (
+												<div className="absolute top-4 left-4 flex items-center gap-2 text-amber-400 z-10">
+													<CircleNotch size={14} className="animate-spin" />
+													<span className="text-body-xs">Reconnecting...</span>
 												</div>
-											) : (
+											)}
+											{/* Waveform */}
+											<div className="w-full max-w-md aspect-square">
+												<AudioWaveformRing
+													analyserNode={analyserNode}
+													isPlaying={isPlaying}
+													active={isRecording}
+												/>
+											</div>
+										</div>
+
+										{/* Bottom bar: notes + stop */}
+										<div className="shrink-0 flex items-center justify-between px-6 py-4 border-t border-border">
+											<div>{/* Spacer */}</div>
+											<div className="flex items-center gap-4">
+												{/* Notepad toggle */}
 												<button
 													type="button"
-													onClick={() => setIsEditingPiece(true)}
-													className="text-right group"
+													onClick={() => setShowNotepad(!showNotepad)}
+													className="w-10 h-10 rounded-lg bg-surface flex items-center justify-center text-text-secondary hover:text-cream transition"
+													aria-label="Toggle notepad"
 												>
-													<span className="text-label-sm text-text-tertiary uppercase tracking-wider block">
-														Now practicing
-													</span>
-													<span className="text-body-sm text-cream group-hover:text-accent transition">
-														{pieceName}
-													</span>
-													{sectionName && (
-														<span className="text-body-xs text-accent ml-2">
-															{sectionName}
-														</span>
-													)}
+													<span className="text-body-sm">N</span>
 												</button>
-											)}
-										</div>
-									</div>
-
-									{/* Center: waveform */}
-									<div className="flex-1 flex flex-col items-center justify-center px-6 relative">
-										{wsStatus === "reconnecting" && isRecording && (
-											<div className="absolute top-4 left-4 flex items-center gap-2 text-amber-400 z-10">
-												<CircleNotch size={14} className="animate-spin" />
-												<span className="text-body-xs">Reconnecting...</span>
+												{/* Stop button */}
+												<button
+													type="button"
+													onClick={handleStop}
+													disabled={!isRecording}
+													className="w-14 h-14 flex items-center justify-center rounded-full bg-red-600 hover:bg-red-500 text-on-accent transition-colors disabled:opacity-50"
+													aria-label="Stop recording"
+												>
+													<Stop size={22} weight="fill" />
+												</button>
 											</div>
-										)}
-										{/* Waveform */}
-										<div className="w-full max-w-md aspect-square">
-											<AudioWaveformRing
-												analyserNode={analyserNode}
-												isPlaying={isPlaying}
-												active={isRecording}
+										</div>
+
+										{/* Notepad drawer */}
+										{showNotepad && (
+											<NotepadDrawer
+												notes={notes}
+												onChange={setNotes}
+												onClose={() => setShowNotepad(false)}
 											/>
-										</div>
-									</div>
-
-									{/* Bottom bar: notes + stop */}
-									<div className="shrink-0 flex items-center justify-between px-6 py-4 border-t border-border">
-										<div>{/* Spacer */}</div>
-										<div className="flex items-center gap-4">
-											{/* Notepad toggle */}
-											<button
-												type="button"
-												onClick={() => setShowNotepad(!showNotepad)}
-												className="w-10 h-10 rounded-lg bg-surface flex items-center justify-center text-text-secondary hover:text-cream transition"
-												aria-label="Toggle notepad"
-											>
-												<span className="text-body-sm">N</span>
-											</button>
-											{/* Stop button */}
-											<button
-												type="button"
-												onClick={handleStop}
-												disabled={!isRecording}
-												className="w-14 h-14 flex items-center justify-center rounded-full bg-red-600 hover:bg-red-500 text-on-accent transition-colors disabled:opacity-50"
-												aria-label="Stop recording"
-											>
-												<Stop size={22} weight="fill" />
-											</button>
-										</div>
-									</div>
-
-									{/* Notepad drawer */}
-									{showNotepad && (
-										<NotepadDrawer
-											notes={notes}
-											onChange={setNotes}
-											onClose={() => setShowNotepad(false)}
-										/>
-									)}
-								</m.div>
-							)}
-						</AnimatePresence>
-					</m.div>
-				</>
-			)}
-		</AnimatePresence>
+										)}
+									</m.div>
+								)}
+							</AnimatePresence>
+						</m.div>
+					</>
+				)}
+			</AnimatePresence>
 		</LazyMotion>,
 		document.body,
 	);

@@ -1,14 +1,14 @@
 import {
-	pgTable,
-	uuid,
-	text,
 	boolean,
-	integer,
-	timestamp,
-	jsonb,
-	primaryKey,
 	index,
+	integer,
+	jsonb,
+	pgTable,
+	primaryKey,
+	text,
+	timestamp,
 	uniqueIndex,
+	uuid,
 } from "drizzle-orm/pg-core";
 
 export const exercises = pgTable(

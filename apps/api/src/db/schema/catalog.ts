@@ -1,12 +1,12 @@
 import {
-	pgTable,
-	uuid,
-	text,
-	real,
-	integer,
 	boolean,
-	timestamp,
 	index,
+	integer,
+	pgTable,
+	real,
+	text,
+	timestamp,
+	uuid,
 } from "drizzle-orm/pg-core";
 
 export const pieces = pgTable(

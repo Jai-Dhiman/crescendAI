@@ -4,9 +4,9 @@ import type { Bindings, Variables } from "../lib/types";
 import { validate } from "../lib/validate";
 import { requireAuth } from "../middleware/auth-session";
 import {
-	listExercises,
 	assignExercise,
 	completeExercise,
+	listExercises,
 } from "../services/exercises";
 
 const assignSchema = z.object({

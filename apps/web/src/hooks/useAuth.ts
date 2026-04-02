@@ -1,6 +1,6 @@
 import { queryOptions } from "@tanstack/react-query";
-import { authClient } from "../lib/auth-client";
 import type { AuthUser } from "../lib/api";
+import { authClient } from "../lib/auth-client";
 
 export const authQueryOptions = queryOptions({
 	queryKey: ["auth", "me"] as const,

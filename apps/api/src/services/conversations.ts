@@ -1,7 +1,7 @@
-import { eq, and, desc, asc } from "drizzle-orm";
-import type { ServiceContext } from "../lib/types";
+import { and, asc, desc, eq } from "drizzle-orm";
 import { conversations, messages } from "../db/schema/conversations";
 import { NotFoundError } from "../lib/errors";
+import type { ServiceContext } from "../lib/types";
 
 export async function listConversations(
 	ctx: ServiceContext,

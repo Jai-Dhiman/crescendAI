@@ -11,23 +11,24 @@ interface ChatMessagesProps {
 	onTryExercises?: (dimension: string) => Promise<void>;
 }
 
-export function ChatMessages({ messages, children, onTryExercises }: ChatMessagesProps) {
+export function ChatMessages({
+	messages,
+	children,
+	onTryExercises,
+}: ChatMessagesProps) {
 	const scrollContainerRef = useRef<HTMLDivElement>(null);
 	const isNearBottomRef = useRef(true);
 	const prevMessageCountRef = useRef(0);
 
-	const scrollToBottom = useCallback(
-		(behavior: ScrollBehavior = "instant") => {
-			const container = scrollContainerRef.current;
-			if (!container) return;
-			if (behavior === "smooth") {
-				container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
-			} else {
-				container.scrollTop = container.scrollHeight;
-			}
-		},
-		[],
-	);
+	const scrollToBottom = useCallback((behavior: ScrollBehavior = "instant") => {
+		const container = scrollContainerRef.current;
+		if (!container) return;
+		if (behavior === "smooth") {
+			container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
+		} else {
+			container.scrollTop = container.scrollHeight;
+		}
+	}, []);
 
 	// Track whether user is near the bottom
 	useEffect(() => {
@@ -56,12 +57,11 @@ export function ChatMessages({ messages, children, onTryExercises }: ChatMessage
 		// Instant scroll for streaming-related changes (avoids jerk);
 		// smooth only for new non-streaming message additions
 		const lastMsg = messages[messages.length - 1];
-		const behavior =
-			lastMsg?.streaming
-				? "instant"
-				: isNewMessage
-					? "smooth"
-					: "instant";
+		const behavior = lastMsg?.streaming
+			? "instant"
+			: isNewMessage
+				? "smooth"
+				: "instant";
 		scrollToBottom(behavior);
 	}, [messages, scrollToBottom]);
 
@@ -99,16 +99,26 @@ export function ChatMessages({ messages, children, onTryExercises }: ChatMessage
 const MessageBubble = memo(function MessageBubble({
 	message,
 	onTryExercises,
-}: { message: RichMessage; onTryExercises?: (dimension: string) => Promise<void> }) {
-	const [tryState, setTryState] = useState<"idle" | "loading" | "error">("idle");
+}: {
+	message: RichMessage;
+	onTryExercises?: (dimension: string) => Promise<void>;
+}) {
+	const [tryState, setTryState] = useState<"idle" | "loading" | "error">(
+		"idle",
+	);
 
 	// Session lifecycle dividers
-	if (message.messageType === "session_start" || message.messageType === "session_end") {
+	if (
+		message.messageType === "session_start" ||
+		message.messageType === "session_end"
+	) {
 		return (
 			<div className="flex items-center gap-3 py-3">
 				<div className="flex-1 border-t border-border" />
 				<span className="text-xs text-text-tertiary whitespace-nowrap">
-					{message.messageType === "session_start" ? "Recording started" : "Recording ended"}
+					{message.messageType === "session_start"
+						? "Recording started"
+						: "Recording ended"}
 				</span>
 				<div className="flex-1 border-t border-border" />
 			</div>

@@ -54,11 +54,31 @@ const DICE_THRESHOLD = 0.6;
 // --- Observation policies ---
 
 const MODE_POLICIES: Record<PracticeMode, ObservationPolicy> = {
-	[PracticeMode.Warming]: { minIntervalMs: 30_000, suppress: false, comparative: false },
-	[PracticeMode.Drilling]: { minIntervalMs: 90_000, suppress: false, comparative: true },
-	[PracticeMode.Running]: { minIntervalMs: 150_000, suppress: false, comparative: false },
-	[PracticeMode.Regular]: { minIntervalMs: 180_000, suppress: false, comparative: false },
-	[PracticeMode.Winding]: { minIntervalMs: 0, suppress: true, comparative: false },
+	[PracticeMode.Warming]: {
+		minIntervalMs: 30_000,
+		suppress: false,
+		comparative: false,
+	},
+	[PracticeMode.Drilling]: {
+		minIntervalMs: 90_000,
+		suppress: false,
+		comparative: true,
+	},
+	[PracticeMode.Running]: {
+		minIntervalMs: 150_000,
+		suppress: false,
+		comparative: false,
+	},
+	[PracticeMode.Regular]: {
+		minIntervalMs: 180_000,
+		suppress: false,
+		comparative: false,
+	},
+	[PracticeMode.Winding]: {
+		minIntervalMs: 0,
+		suppress: true,
+		comparative: false,
+	},
 };
 
 // --- Helpers ---
@@ -124,9 +144,7 @@ export class ModeDetector {
 
 		// Two-step silence detection: gap > 60s and not already Winding.
 		const gapMs =
-			this.lastChunkAtMs === 0
-				? 0
-				: signal.timestampMs - this.lastChunkAtMs;
+			this.lastChunkAtMs === 0 ? 0 : signal.timestampMs - this.lastChunkAtMs;
 
 		if (gapMs > SILENCE_GAP_MS && this.mode !== PracticeMode.Winding) {
 			const from = this.mode;
@@ -317,7 +335,9 @@ export class ModeDetector {
 			}
 		}
 
-		if (diceSimilarity(latest.pitchBigrams, prev.pitchBigrams) >= DICE_THRESHOLD) {
+		if (
+			diceSimilarity(latest.pitchBigrams, prev.pitchBigrams) >= DICE_THRESHOLD
+		) {
 			return false;
 		}
 
@@ -329,7 +349,10 @@ export class ModeDetector {
 		const latest = this.recentSignals[this.recentSignals.length - 1];
 		const prev = this.recentSignals[this.recentSignals.length - 2];
 		if (latest.barRange !== null && prev.barRange !== null) {
-			return latest.barRange[0] > prev.barRange[0] || latest.barRange[1] > prev.barRange[1];
+			return (
+				latest.barRange[0] > prev.barRange[0] ||
+				latest.barRange[1] > prev.barRange[1]
+			);
 		}
 		return false;
 	}

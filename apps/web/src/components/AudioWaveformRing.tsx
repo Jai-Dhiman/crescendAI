@@ -36,7 +36,7 @@ function buildLogBinMap(binCount: number): number[] {
 	for (let i = 0; i < NUM_POINTS; i++) {
 		const t = i / NUM_POINTS;
 		// Quadratic mapping concentrates low frequencies
-		const binIndex = Math.floor(Math.pow(t, 2) * (binCount - 1));
+		const binIndex = Math.floor(t ** 2 * (binCount - 1));
 		map.push(Math.min(binIndex, binCount - 1));
 	}
 	return map;
@@ -76,7 +76,9 @@ export function AudioWaveformRing({
 		if (analyserNode && !logBinMapRef.current) {
 			const binCount = analyserNode.frequencyBinCount;
 			logBinMapRef.current = buildLogBinMap(binCount);
-			dataArrayRef.current = new Uint8Array(binCount) as Uint8Array<ArrayBuffer>;
+			dataArrayRef.current = new Uint8Array(
+				binCount,
+			) as Uint8Array<ArrayBuffer>;
 		}
 
 		// ResizeObserver for canvas sizing
@@ -95,7 +97,9 @@ export function AudioWaveformRing({
 		if (!ctx) return;
 
 		function draw(timestamp: number) {
-			const dt = lastFrameRef.current ? timestamp - lastFrameRef.current : 16.67;
+			const dt = lastFrameRef.current
+				? timestamp - lastFrameRef.current
+				: 16.67;
 			lastFrameRef.current = timestamp;
 
 			// Throttle in idle mode
@@ -128,11 +132,12 @@ export function AudioWaveformRing({
 
 			// Update crossfade (0 = breathing, 1 = frequency)
 			const crossfadeTarget = isPlayingRef.current && analyserNode ? 1 : 0;
-			const crossfadeAlpha = 1 - Math.pow(1 - 0.005, dt);
-			crossfadeRef.current += (crossfadeTarget - crossfadeRef.current) * crossfadeAlpha;
+			const crossfadeAlpha = 1 - (1 - 0.005) ** dt;
+			crossfadeRef.current +=
+				(crossfadeTarget - crossfadeRef.current) * crossfadeAlpha;
 
 			// Frame-rate-independent lerp alpha
-			const lerpAlpha = 1 - Math.pow(1 - LERP_BASE, dt / 16.67);
+			const lerpAlpha = 1 - (1 - LERP_BASE) ** (dt / 16.67);
 
 			// Calculate target displacements
 			let totalEnergy = 0;
@@ -155,7 +160,8 @@ export function AudioWaveformRing({
 
 				// Breathing displacement (sinusoidal)
 				const breathPhase = (timestamp % BREATH_PERIOD) / BREATH_PERIOD;
-				const breathTarget = Math.sin(breathPhase * Math.PI * 2) * radius * 0.03;
+				const breathTarget =
+					Math.sin(breathPhase * Math.PI * 2) * radius * 0.03;
 
 				// Blend breathing and frequency based on crossfade
 				const cf = crossfadeRef.current;
@@ -187,7 +193,8 @@ export function AudioWaveformRing({
 				} else {
 					// Smooth curve through points using quadratic bezier
 					const prevIdx = (i - 1) % NUM_POINTS;
-					const prevAngle = (prevIdx / NUM_POINTS) * Math.PI * 2 - Math.PI / 2 + rotRad;
+					const prevAngle =
+						(prevIdx / NUM_POINTS) * Math.PI * 2 - Math.PI / 2 + rotRad;
 					const prevR = radius + displacements[prevIdx];
 					const prevX = cx + Math.cos(prevAngle) * prevR;
 					const prevY = cy + Math.sin(prevAngle) * prevR;
@@ -214,10 +221,6 @@ export function AudioWaveformRing({
 	}, [analyserNode, active]);
 
 	return (
-		<canvas
-			ref={canvasRef}
-			className="w-full h-full"
-			aria-hidden="true"
-		/>
+		<canvas ref={canvasRef} className="w-full h-full" aria-hidden="true" />
 	);
 }

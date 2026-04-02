@@ -1,7 +1,7 @@
-import { useArtifactStore, type ExerciseStatus } from "../../stores/artifact";
-import { handsLabel } from "../../lib/exercise-utils";
 import { api } from "../../lib/api";
+import { handsLabel } from "../../lib/exercise-utils";
 import type { ExerciseSetConfig } from "../../lib/types";
+import { type ExerciseStatus, useArtifactStore } from "../../stores/artifact";
 
 type Exercise = ExerciseSetConfig["exercises"][number];
 
@@ -20,7 +20,8 @@ function buttonProps(
 	onComplete: () => void,
 	onRetry: () => void,
 ): ButtonProps {
-	const base = "text-body-sm px-4 py-2 rounded-lg border transition font-medium";
+	const base =
+		"text-body-sm px-4 py-2 rounded-lg border transition font-medium";
 	const active = `${base} border-accent text-accent hover:bg-accent/10`;
 	const disabled_cls = `${base} border-border text-text-tertiary opacity-50`;
 	const error_cls = `${base} border-red-500 text-red-400 hover:bg-red-500/10`;
@@ -29,17 +30,47 @@ function buttonProps(
 	switch (status) {
 		case "idle":
 			if (!hasExerciseId) {
-				return { label: "Not yet saved", onClick: undefined, disabled: true, className: disabled_cls };
+				return {
+					label: "Not yet saved",
+					onClick: undefined,
+					disabled: true,
+					className: disabled_cls,
+				};
 			}
-			return { label: "Start", onClick: onStart, disabled: false, className: active };
+			return {
+				label: "Start",
+				onClick: onStart,
+				disabled: false,
+				className: active,
+			};
 		case "loading":
-			return { label: "Starting...", onClick: undefined, disabled: true, className: disabled_cls };
+			return {
+				label: "Starting...",
+				onClick: undefined,
+				disabled: true,
+				className: disabled_cls,
+			};
 		case "assigned":
-			return { label: "Complete", onClick: onComplete, disabled: false, className: active };
+			return {
+				label: "Complete",
+				onClick: onComplete,
+				disabled: false,
+				className: active,
+			};
 		case "completing":
-			return { label: "Completing...", onClick: undefined, disabled: true, className: disabled_cls };
+			return {
+				label: "Completing...",
+				onClick: undefined,
+				disabled: true,
+				className: disabled_cls,
+			};
 		case "completed":
-			return { label: "Completed", onClick: undefined, disabled: true, className: completed_cls };
+			return {
+				label: "Completed",
+				onClick: undefined,
+				disabled: true,
+				className: completed_cls,
+			};
 		case "error":
 			return {
 				label: "Try again",
@@ -55,7 +86,10 @@ interface ExpandedExerciseItemProps {
 	artifactId: string;
 }
 
-function ExpandedExerciseItem({ exercise, artifactId }: ExpandedExerciseItemProps) {
+function ExpandedExerciseItem({
+	exercise,
+	artifactId,
+}: ExpandedExerciseItemProps) {
 	const exerciseState = useArtifactStore(
 		(s) => s.states[artifactId]?.exerciseStates?.[exercise.exerciseId ?? ""],
 	);
@@ -68,7 +102,9 @@ function ExpandedExerciseItem({ exercise, artifactId }: ExpandedExerciseItemProp
 		if (!exercise.exerciseId) return;
 		setExerciseStatus(artifactId, exercise.exerciseId, "loading");
 		try {
-			const result = await api.exercises.assign({ exerciseId: exercise.exerciseId! });
+			const result = await api.exercises.assign({
+				exerciseId: exercise.exerciseId!,
+			});
 			setExerciseStatus(artifactId, exercise.exerciseId, "assigned", result.id);
 		} catch {
 			setExerciseStatus(artifactId, exercise.exerciseId, "error");
@@ -77,12 +113,27 @@ function ExpandedExerciseItem({ exercise, artifactId }: ExpandedExerciseItemProp
 
 	async function handleComplete() {
 		if (!exercise.exerciseId || !studentExerciseId) return;
-		setExerciseStatus(artifactId, exercise.exerciseId, "completing", studentExerciseId);
+		setExerciseStatus(
+			artifactId,
+			exercise.exerciseId,
+			"completing",
+			studentExerciseId,
+		);
 		try {
 			await api.exercises.complete({ studentExerciseId });
-			setExerciseStatus(artifactId, exercise.exerciseId, "completed", studentExerciseId);
+			setExerciseStatus(
+				artifactId,
+				exercise.exerciseId,
+				"completed",
+				studentExerciseId,
+			);
 		} catch {
-			setExerciseStatus(artifactId, exercise.exerciseId, "error", studentExerciseId);
+			setExerciseStatus(
+				artifactId,
+				exercise.exerciseId,
+				"error",
+				studentExerciseId,
+			);
 		}
 	}
 
@@ -107,14 +158,18 @@ function ExpandedExerciseItem({ exercise, artifactId }: ExpandedExerciseItemProp
 		<div className="border border-border rounded-xl p-4 flex flex-col gap-3">
 			<div className="flex items-start justify-between gap-3">
 				<div className="flex flex-col gap-1 min-w-0">
-					<span className="text-body-md font-medium text-text-primary">{exercise.title}</span>
+					<span className="text-body-md font-medium text-text-primary">
+						{exercise.title}
+					</span>
 					<div className="flex items-center gap-2 flex-wrap">
 						{exercise.hands && (
 							<span className="text-body-sm text-text-secondary bg-surface-elevated px-2 py-0.5 rounded">
 								{handsLabel(exercise.hands)}
 							</span>
 						)}
-						<span className="text-body-sm text-text-tertiary">{exercise.focusDimension}</span>
+						<span className="text-body-sm text-text-tertiary">
+							{exercise.focusDimension}
+						</span>
 					</div>
 				</div>
 				<button
@@ -136,8 +191,13 @@ interface ExerciseSetExpandedProps {
 	artifactId: string;
 }
 
-export function ExerciseSetExpanded({ config, artifactId }: ExerciseSetExpandedProps) {
-	const exerciseStates = useArtifactStore((s) => s.states[artifactId]?.exerciseStates);
+export function ExerciseSetExpanded({
+	config,
+	artifactId,
+}: ExerciseSetExpandedProps) {
+	const exerciseStates = useArtifactStore(
+		(s) => s.states[artifactId]?.exerciseStates,
+	);
 
 	const savedExercises = config.exercises.filter((e) => !!e.exerciseId);
 	const completedCount = savedExercises.filter(
@@ -145,13 +205,18 @@ export function ExerciseSetExpanded({ config, artifactId }: ExerciseSetExpandedP
 	).length;
 	const totalCount = savedExercises.length;
 
-	const progressPercent = totalCount > 0 ? (completedCount / totalCount) * 100 : 0;
+	const progressPercent =
+		totalCount > 0 ? (completedCount / totalCount) * 100 : 0;
 
 	return (
 		<div className="flex flex-col gap-4">
 			<div className="flex flex-col gap-1">
-				<span className="text-body-lg font-semibold text-text-primary">{config.targetSkill}</span>
-				<span className="text-body-sm text-text-secondary">{config.sourcePassage}</span>
+				<span className="text-body-lg font-semibold text-text-primary">
+					{config.targetSkill}
+				</span>
+				<span className="text-body-sm text-text-secondary">
+					{config.sourcePassage}
+				</span>
 			</div>
 
 			<div className="flex flex-col gap-3">

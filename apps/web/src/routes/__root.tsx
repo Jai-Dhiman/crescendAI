@@ -1,6 +1,5 @@
 import "../lib/sentry";
 import { QueryClientProvider } from "@tanstack/react-query";
-import { queryClient } from "../lib/query-client";
 import {
 	createRootRoute,
 	HeadContent,
@@ -10,13 +9,13 @@ import {
 } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { ErrorBoundary } from "../components/ErrorBoundary";
-import { useMountEffect } from "../hooks/useFoundation";
 import { ToastContainer } from "../components/ToastContainer";
+import { useMountEffect } from "../hooks/useFoundation";
 import { AuthProvider } from "../lib/auth";
+import { queryClient } from "../lib/query-client";
 import { useThemeStore } from "../stores/theme";
 
 import appCss from "../styles/app.css?url";
-
 
 export const Route = createRootRoute({
 	head: () => ({

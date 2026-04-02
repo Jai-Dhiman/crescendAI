@@ -121,7 +121,9 @@ function AllChats() {
 				</div>
 
 				{/* Selection toolbar */}
-				<div className={`flex items-center justify-between mb-3 px-3 py-2 rounded-lg border transition ${selected.size > 0 ? "bg-surface border-border" : "bg-surface/40 border-transparent"}`}>
+				<div
+					className={`flex items-center justify-between mb-3 px-3 py-2 rounded-lg border transition ${selected.size > 0 ? "bg-surface border-border" : "bg-surface/40 border-transparent"}`}
+				>
 					<div className="flex items-center gap-3">
 						<button
 							type="button"
@@ -133,7 +135,9 @@ function AllChats() {
 								? "Deselect All"
 								: "Select All"}
 						</button>
-						<span className={`text-body-xs transition ${selected.size > 0 ? "text-text-tertiary" : "text-text-tertiary/30"}`}>
+						<span
+							className={`text-body-xs transition ${selected.size > 0 ? "text-text-tertiary" : "text-text-tertiary/30"}`}
+						>
 							{selected.size > 0
 								? `${selected.size} selected`
 								: "None selected"}
@@ -163,9 +167,7 @@ function AllChats() {
 				) : filtered.length === 0 ? (
 					<div className="text-center py-16">
 						<p className="text-text-secondary text-body-md mb-4">
-							{search
-								? "No chats match your search"
-								: "No conversations yet"}
+							{search ? "No chats match your search" : "No conversations yet"}
 						</p>
 						{!search && (
 							<button
@@ -209,9 +211,7 @@ function AllChats() {
 										toggleSelect(conv.id);
 									}}
 									className="shrink-0 w-7 h-7 flex items-center justify-center text-text-tertiary hover:text-cream transition"
-									aria-label={
-										selected.has(conv.id) ? "Deselect" : "Select"
-									}
+									aria-label={selected.has(conv.id) ? "Deselect" : "Select"}
 								>
 									{selected.has(conv.id) ? (
 										<CheckSquare
@@ -227,10 +227,7 @@ function AllChats() {
 									)}
 								</button>
 
-								<ChatCircle
-									size={16}
-									className="shrink-0 text-text-tertiary"
-								/>
+								<ChatCircle size={16} className="shrink-0 text-text-tertiary" />
 								<span className="flex-1 truncate text-body-sm">
 									{conv.title ?? "New conversation"}
 								</span>
@@ -244,9 +241,7 @@ function AllChats() {
 						{hasMore && (
 							<button
 								type="button"
-								onClick={() =>
-									setVisibleCount((prev) => prev + PAGE_SIZE)
-								}
+								onClick={() => setVisibleCount((prev) => prev + PAGE_SIZE)}
 								className="w-full mt-2 py-2.5 rounded-lg text-body-sm text-text-secondary hover:text-cream hover:bg-surface transition"
 							>
 								Show More

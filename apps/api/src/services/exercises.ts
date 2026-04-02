@@ -1,11 +1,11 @@
 import { eq, sql } from "drizzle-orm";
-import type { ServiceContext } from "../lib/types";
-import { NotFoundError } from "../lib/errors";
 import {
-	exercises,
 	exerciseDimensions,
+	exercises,
 	studentExercises,
 } from "../db/schema/exercises";
+import { NotFoundError } from "../lib/errors";
+import type { ServiceContext } from "../lib/types";
 
 export async function listExercises(
 	ctx: ServiceContext,
@@ -61,9 +61,7 @@ export async function listExercises(
 			dimension: exerciseDimensions.dimension,
 		})
 		.from(exerciseDimensions)
-		.where(
-			sql`${exerciseDimensions.exerciseId} = ANY(${exerciseIds})`,
-		);
+		.where(sql`${exerciseDimensions.exerciseId} = ANY(${exerciseIds})`);
 
 	const dimsByExercise = new Map<string, string[]>();
 	for (const row of dimensionRows) {

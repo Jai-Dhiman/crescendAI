@@ -1,18 +1,21 @@
+import { X } from "@phosphor-icons/react";
 import { useCallback, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { X } from "@phosphor-icons/react";
-import { useEscapeKey } from "../hooks/useDom";
-import { useArtifactStore, getExpandedArtifact } from "../stores/artifact";
 import { useArtifactScrollContext } from "../contexts/artifact-scroll";
-import { ExerciseSetExpanded } from "./cards/ExerciseSetExpanded";
+import { useEscapeKey } from "../hooks/useDom";
 import type { ArtifactEntry } from "../stores/artifact";
+import { getExpandedArtifact, useArtifactStore } from "../stores/artifact";
+import { ExerciseSetExpanded } from "./cards/ExerciseSetExpanded";
 
 interface ArtifactOverlayContentProps {
 	expandedId: string;
 	entry: ArtifactEntry;
 }
 
-function ArtifactOverlayContent({ expandedId, entry }: ArtifactOverlayContentProps) {
+function ArtifactOverlayContent({
+	expandedId,
+	entry,
+}: ArtifactOverlayContentProps) {
 	const closeOverlay = useArtifactStore((s) => s.closeOverlay);
 	const scrollContainer = useArtifactScrollContext();
 	const isClosingRef = useRef(false);
@@ -22,8 +25,10 @@ function ArtifactOverlayContent({ expandedId, entry }: ArtifactOverlayContentPro
 		if (isClosingRef.current) return;
 		isClosingRef.current = true;
 
-		const backdrop = overlayRef.current?.querySelector<HTMLElement>("[data-backdrop]");
-		const panel = overlayRef.current?.querySelector<HTMLElement>("[data-panel]");
+		const backdrop =
+			overlayRef.current?.querySelector<HTMLElement>("[data-backdrop]");
+		const panel =
+			overlayRef.current?.querySelector<HTMLElement>("[data-panel]");
 
 		if (backdrop) {
 			backdrop.classList.remove("animate-backdrop-in");
@@ -116,5 +121,7 @@ function ArtifactOverlayInner() {
 
 	if (!expanded) return null;
 
-	return <ArtifactOverlayContent expandedId={expanded.id} entry={expanded.entry} />;
+	return (
+		<ArtifactOverlayContent expandedId={expanded.id} entry={expanded.entry} />
+	);
 }

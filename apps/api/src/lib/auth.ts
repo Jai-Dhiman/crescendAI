@@ -2,7 +2,7 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import * as schema from "../db/schema/auth";
 import { studentProfiles } from "../db/schema/students";
-import type { Db, Bindings } from "./types";
+import type { Bindings, Db } from "./types";
 
 export function createAuth(db: Db, env: Bindings) {
 	const isProd = env.ENVIRONMENT === "production";

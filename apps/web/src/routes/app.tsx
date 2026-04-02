@@ -4,9 +4,9 @@ import {
 	redirect,
 	useRouterState,
 } from "@tanstack/react-router";
-import { queryClient } from "../lib/query-client";
-import { authQueryOptions } from "../hooks/useAuth";
 import AppChat from "../components/AppChat";
+import { authQueryOptions } from "../hooks/useAuth";
+import { queryClient } from "../lib/query-client";
 
 export const Route = createFileRoute("/app")({
 	beforeLoad: async () => {

@@ -8,7 +8,13 @@ export interface RichMessage {
 	streaming?: boolean;
 	components?: InlineComponent[];
 	dimension?: string;
-	messageType?: "chat" | "observation" | "session_start" | "session_end" | "summary" | "synthesis";
+	messageType?:
+		| "chat"
+		| "observation"
+		| "session_start"
+		| "session_end"
+		| "summary"
+		| "synthesis";
 	sessionId?: string;
 	framing?: string;
 }

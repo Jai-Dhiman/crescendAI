@@ -1,7 +1,7 @@
 import { Hono } from "hono";
-import type { Bindings, Variables } from "../lib/types";
-import { createAuth } from "../lib/auth";
 import { createDb } from "../db/client";
+import { createAuth } from "../lib/auth";
+import type { Bindings, Variables } from "../lib/types";
 
 const auth = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 

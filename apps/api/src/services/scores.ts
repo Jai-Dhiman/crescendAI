@@ -1,7 +1,7 @@
-import { eq, asc } from "drizzle-orm";
-import type { ServiceContext, Bindings } from "../lib/types";
+import { asc, eq } from "drizzle-orm";
 import { pieces } from "../db/schema/catalog";
 import { NotFoundError } from "../lib/errors";
+import type { Bindings, ServiceContext } from "../lib/types";
 
 export async function listPieces(ctx: ServiceContext, composer?: string) {
 	const rows = await ctx.db

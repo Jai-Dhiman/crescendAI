@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useMountEffect, useSyncRef } from "./useFoundation";
-import { useNetworkStatus } from "./useDom";
+import { createLogger } from "../lib/logger";
 import { ObservationThrottle } from "../lib/observation-throttle";
 import type {
 	DimScores,
@@ -12,7 +11,8 @@ import { practiceApi } from "../lib/practice-api";
 import { Sentry } from "../lib/sentry";
 import type { RichMessage } from "../lib/types";
 import { useAudioActivity } from "./useAudioActivity";
-import { createLogger } from "../lib/logger";
+import { useNetworkStatus } from "./useDom";
+import { useMountEffect, useSyncRef } from "./useFoundation";
 
 const chunkLog = createLogger("ChunkGate");
 
@@ -124,8 +124,8 @@ export function usePracticeSession(
 			chunkLog.log("Chunk timer started (15s)");
 			chunkTimerRef.current = setInterval(() => {
 				if (recorder.state === "recording") {
-					recorder.stop();   // fires ondataavailable with complete WebM
-					recorder.start();  // new chunk with fresh headers
+					recorder.stop(); // fires ondataavailable with complete WebM
+					recorder.start(); // new chunk with fresh headers
 				}
 			}, 15000);
 		} else if (!isPlaying && chunkGateRef.current === "buffering") {
@@ -227,13 +227,17 @@ export function usePracticeSession(
 						components: data.components,
 						arrived_at: new Date().toISOString(),
 					};
-					console.log(`[Practice] Observation received: ${data.dimension} (${data.framing})`);
+					console.log(
+						`[Practice] Observation received: ${data.dimension} (${data.framing})`,
+					);
 					const immediate = throttleRef.current.enqueue(obs);
 					setObservations((prev) => [...prev, immediate]);
 					break;
 				}
 				case "synthesis": {
-					console.log(`[Practice] Session synthesis received (fallback=${data.isFallback})`);
+					console.log(
+						`[Practice] Session synthesis received (fallback=${data.isFallback})`,
+					);
 					if (summaryTimeoutRef.current) {
 						clearTimeout(summaryTimeoutRef.current);
 						summaryTimeoutRef.current = null;
@@ -245,7 +249,9 @@ export function usePracticeSession(
 					break;
 				}
 				case "session_summary": {
-					console.log(`[Practice] Session summary received: ${data.observations?.length ?? 0} observations`);
+					console.log(
+						`[Practice] Session summary received: ${data.observations?.length ?? 0} observations`,
+					);
 					if (summaryTimeoutRef.current) {
 						clearTimeout(summaryTimeoutRef.current);
 						summaryTimeoutRef.current = null;
@@ -267,9 +273,14 @@ export function usePracticeSession(
 					const totalChunks = data.totalChunks;
 
 					let builtSummary: string;
-					if (inferenceFailures && totalChunks && inferenceFailures === totalChunks) {
+					if (
+						inferenceFailures &&
+						totalChunks &&
+						inferenceFailures === totalChunks
+					) {
 						// All inference failed (e.g., HF endpoint cold/down)
-						builtSummary = "I wasn't able to analyze your playing this time -- the analysis service is still warming up. Try again in about a minute.";
+						builtSummary =
+							"I wasn't able to analyze your playing this time -- the analysis service is still warming up. Try again in about a minute.";
 					} else if (inferenceFailures && inferenceFailures > 0 && obsLines) {
 						builtSummary = `I listened to ${chunksCount} sections of your playing (${inferenceFailures} couldn't be analyzed).\n\nDuring the session, I noticed:\n${obsLines}\n\nWant to hear more about any of these?`;
 					} else if (obsLines) {
@@ -285,7 +296,13 @@ export function usePracticeSession(
 					break;
 				}
 				case "piece_identified":
-					console.log(JSON.stringify({ event: "piece_identified", composer: data.composer, title: data.title }));
+					console.log(
+						JSON.stringify({
+							event: "piece_identified",
+							composer: data.composer,
+							title: data.title,
+						}),
+					);
 					break;
 				case "piece_set":
 					console.log("Piece context set:", data.query);
@@ -301,7 +318,10 @@ export function usePracticeSession(
 	const connectWebSocket = useCallback(
 		(sessionId: string): Promise<WebSocket> => {
 			return new Promise((resolve, reject) => {
-				const ws = practiceApi.connectWebSocket(sessionId, conversationIdRef.current ?? undefined);
+				const ws = practiceApi.connectWebSocket(
+					sessionId,
+					conversationIdRef.current ?? undefined,
+				);
 				wsRef.current = ws;
 
 				ws.onmessage = handleWsMessage;
@@ -356,147 +376,155 @@ export function usePracticeSession(
 		[handleWsMessage, cleanup],
 	);
 
-	const start = useCallback(async (conversationId?: string) => {
-		setState("requesting-mic");
-		setElapsedSeconds(0);
-		setObservations([]);
-		setLatestScores(null);
-		setSummary(null);
-		setError(null);
-		setChunksProcessed(0);
-		setChunkStates([]);
-		setWsStatus("disconnected");
-		conversationIdRef.current = conversationId ?? null;
+	const start = useCallback(
+		async (conversationId?: string) => {
+			setState("requesting-mic");
+			setElapsedSeconds(0);
+			setObservations([]);
+			setLatestScores(null);
+			setSummary(null);
+			setError(null);
+			setChunksProcessed(0);
+			setChunkStates([]);
+			setWsStatus("disconnected");
+			conversationIdRef.current = conversationId ?? null;
 
-		// 1. Request mic
-		let stream: MediaStream;
-		try {
-			stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-			streamRef.current = stream;
-		} catch (e) {
-			Sentry.captureException(e, {
-				extra: { context: "microphone-access" },
-			});
-			setState("error");
-			setError(
-				"Microphone access denied. Please allow mic access and try again.",
-			);
-			return;
-		}
-
-		// 2. Set up AudioContext + AnalyserNode for waveform visualization
-		const audioCtx = new AudioContext();
-		audioContextRef.current = audioCtx;
-		const source = audioCtx.createMediaStreamSource(stream);
-		const analyser = audioCtx.createAnalyser();
-		analyser.fftSize = 256;
-		source.connect(analyser);
-		analyserRef.current = analyser;
-		setAnalyserNode(analyser);
-
-		// 3. Start session on server
-		setState("connecting");
-		let sessionId: string;
-		try {
-			const { sessionId: sid, conversationId: convId } = await practiceApi.start(conversationId);
-			sessionId = sid;
-			sessionIdRef.current = sid;
-			conversationIdRef.current = convId;
-		} catch (e) {
-			Sentry.captureException(e, {
-				extra: { context: "session-start" },
-			});
-			cleanup();
-			setState("error");
-			setError("Failed to start practice session. Please try again.");
-			return;
-		}
-
-		// 4. Connect WebSocket
-		try {
-			await connectWebSocket(sessionId);
-		} catch (e) {
-			Sentry.captureException(e, {
-				extra: { context: "websocket-connect", sessionId },
-			});
-			cleanup();
-			setState("error");
-			setError("Failed to connect. Please try again.");
-			return;
-		}
-
-		// 5. Start MediaRecorder with 15s chunks
-		const recorder = new MediaRecorder(stream, {
-			mimeType: "audio/webm;codecs=opus",
-		});
-		mediaRecorderRef.current = recorder;
-		chunkIndexRef.current = 0;
-
-		async function uploadWithRetry(
-			sid: string,
-			idx: number,
-			blob: Blob,
-		): Promise<void> {
-			updateChunkState(idx, "uploading");
-			for (let attempt = 0; attempt < 2; attempt++) {
-				try {
-					const { r2Key } = await practiceApi.uploadChunk(sid, idx, blob);
-					updateChunkState(idx, "complete");
-					chunkLog.log(`Upload complete: chunk #${idx} -> r2Key=${r2Key}`);
-					const ws = wsRef.current;
-					if (ws?.readyState === WebSocket.OPEN) {
-						ws.send(JSON.stringify({ type: "chunk_ready", index: idx, r2Key }));
-						chunkLog.log(`WS sent: chunk_ready #${idx}`);
-					}
-					return;
-				} catch (e) {
-					// Auth expiry: surface immediately, do not retry
-					if (e instanceof Error && e.message.includes("401")) {
-						updateChunkState(idx, "failed");
-						setError("Session expired. Please sign in again.");
-						setState("error");
-						cleanup();
-						return;
-					}
-					if (attempt === 0) {
-						await new Promise((r) => setTimeout(r, 2000));
-					} else {
-						updateChunkState(idx, "failed");
-						Sentry.captureException(e, {
-							extra: { chunkIndex: idx, sessionId: sid },
-						});
-					}
-				}
-			}
-		}
-
-		recorder.ondataavailable = async (event) => {
-			if (event.data.size === 0) return;
-			const idx = chunkIndexRef.current++;
-			chunkLog.log(
-				`Chunk #${idx} cut: ${(event.data.size / 1024).toFixed(1)}KB -- uploading to R2`,
-			);
-
-			if (!isOnlineRef.current) {
-				offlineQueueRef.current.push({ index: idx, blob: event.data });
-				updateChunkState(idx, "uploading");
+			// 1. Request mic
+			let stream: MediaStream;
+			try {
+				stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+				streamRef.current = stream;
+			} catch (e) {
+				Sentry.captureException(e, {
+					extra: { context: "microphone-access" },
+				});
+				setState("error");
+				setError(
+					"Microphone access denied. Please allow mic access and try again.",
+				);
 				return;
 			}
 
-			await uploadWithRetry(sessionId, idx, event.data);
-		};
+			// 2. Set up AudioContext + AnalyserNode for waveform visualization
+			const audioCtx = new AudioContext();
+			audioContextRef.current = audioCtx;
+			const source = audioCtx.createMediaStreamSource(stream);
+			const analyser = audioCtx.createAnalyser();
+			analyser.fftSize = 256;
+			source.connect(analyser);
+			analyserRef.current = analyser;
+			setAnalyserNode(analyser);
 
-		recorder.start(); // Continuous mode -- chunks cut manually via requestData()
-		chunkGateRef.current = "waiting";
-		chunkLog.log("MediaRecorder started in continuous mode (gated by audio activity)");
-		setState("recording");
+			// 3. Start session on server
+			setState("connecting");
+			let sessionId: string;
+			try {
+				const { sessionId: sid, conversationId: convId } =
+					await practiceApi.start(conversationId);
+				sessionId = sid;
+				sessionIdRef.current = sid;
+				conversationIdRef.current = convId;
+			} catch (e) {
+				Sentry.captureException(e, {
+					extra: { context: "session-start" },
+				});
+				cleanup();
+				setState("error");
+				setError("Failed to start practice session. Please try again.");
+				return;
+			}
 
-		// 6. Start elapsed timer
-		const startTime = Date.now();
-		timerRef.current = setInterval(() => {
-			setElapsedSeconds(Math.floor((Date.now() - startTime) / 1000));
-		}, 1000);
-	}, [cleanup, connectWebSocket, updateChunkState]);
+			// 4. Connect WebSocket
+			try {
+				await connectWebSocket(sessionId);
+			} catch (e) {
+				Sentry.captureException(e, {
+					extra: { context: "websocket-connect", sessionId },
+				});
+				cleanup();
+				setState("error");
+				setError("Failed to connect. Please try again.");
+				return;
+			}
+
+			// 5. Start MediaRecorder with 15s chunks
+			const recorder = new MediaRecorder(stream, {
+				mimeType: "audio/webm;codecs=opus",
+			});
+			mediaRecorderRef.current = recorder;
+			chunkIndexRef.current = 0;
+
+			async function uploadWithRetry(
+				sid: string,
+				idx: number,
+				blob: Blob,
+			): Promise<void> {
+				updateChunkState(idx, "uploading");
+				for (let attempt = 0; attempt < 2; attempt++) {
+					try {
+						const { r2Key } = await practiceApi.uploadChunk(sid, idx, blob);
+						updateChunkState(idx, "complete");
+						chunkLog.log(`Upload complete: chunk #${idx} -> r2Key=${r2Key}`);
+						const ws = wsRef.current;
+						if (ws?.readyState === WebSocket.OPEN) {
+							ws.send(
+								JSON.stringify({ type: "chunk_ready", index: idx, r2Key }),
+							);
+							chunkLog.log(`WS sent: chunk_ready #${idx}`);
+						}
+						return;
+					} catch (e) {
+						// Auth expiry: surface immediately, do not retry
+						if (e instanceof Error && e.message.includes("401")) {
+							updateChunkState(idx, "failed");
+							setError("Session expired. Please sign in again.");
+							setState("error");
+							cleanup();
+							return;
+						}
+						if (attempt === 0) {
+							await new Promise((r) => setTimeout(r, 2000));
+						} else {
+							updateChunkState(idx, "failed");
+							Sentry.captureException(e, {
+								extra: { chunkIndex: idx, sessionId: sid },
+							});
+						}
+					}
+				}
+			}
+
+			recorder.ondataavailable = async (event) => {
+				if (event.data.size === 0) return;
+				const idx = chunkIndexRef.current++;
+				chunkLog.log(
+					`Chunk #${idx} cut: ${(event.data.size / 1024).toFixed(1)}KB -- uploading to R2`,
+				);
+
+				if (!isOnlineRef.current) {
+					offlineQueueRef.current.push({ index: idx, blob: event.data });
+					updateChunkState(idx, "uploading");
+					return;
+				}
+
+				await uploadWithRetry(sessionId, idx, event.data);
+			};
+
+			recorder.start(); // Continuous mode -- chunks cut manually via requestData()
+			chunkGateRef.current = "waiting";
+			chunkLog.log(
+				"MediaRecorder started in continuous mode (gated by audio activity)",
+			);
+			setState("recording");
+
+			// 6. Start elapsed timer
+			const startTime = Date.now();
+			timerRef.current = setInterval(() => {
+				setElapsedSeconds(Math.floor((Date.now() - startTime) / 1000));
+			}, 1000);
+		},
+		[cleanup, connectWebSocket, updateChunkState],
+	);
 
 	// Flush offline queue when back online
 	useEffect(() => {
@@ -534,12 +562,18 @@ export function usePracticeSession(
 	const startSummaryTimeout = useCallback(() => {
 		if (summaryTimeoutRef.current) clearTimeout(summaryTimeoutRef.current);
 		summaryTimeoutRef.current = setTimeout(() => {
-			console.warn("[Practice] Summary timeout -- force cleanup after", WS_SUMMARY_TIMEOUT_MS, "ms");
+			console.warn(
+				"[Practice] Summary timeout -- force cleanup after",
+				WS_SUMMARY_TIMEOUT_MS,
+				"ms",
+			);
 			Sentry.captureMessage("Practice session summary timeout", {
 				level: "warning",
 				extra: { sessionId: sessionIdRef.current },
 			});
-			setSummary("Your session was recorded but the summary took too long to generate. It may appear when you return to this conversation.");
+			setSummary(
+				"Your session was recorded but the summary took too long to generate. It may appear when you return to this conversation.",
+			);
 			setState("idle");
 			cleanup();
 		}, WS_SUMMARY_TIMEOUT_MS);
@@ -588,7 +622,7 @@ export function usePracticeSession(
 						startSummaryTimeout();
 					}
 				};
-				recorder.stop();  // fires ondataavailable with complete WebM
+				recorder.stop(); // fires ondataavailable with complete WebM
 			} else {
 				setError(
 					"I couldn't hear any playing. Make sure your microphone is picking up the piano.",
@@ -622,10 +656,12 @@ export function usePracticeSession(
 
 	const setPiece = useCallback((query: string) => {
 		if (wsRef.current?.readyState === WebSocket.OPEN) {
-			wsRef.current.send(JSON.stringify({
-				type: "set_piece",
-				query,
-			}));
+			wsRef.current.send(
+				JSON.stringify({
+					type: "set_piece",
+					query,
+				}),
+			);
 		}
 	}, []);
 

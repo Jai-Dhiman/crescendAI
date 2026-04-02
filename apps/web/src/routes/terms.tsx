@@ -64,9 +64,7 @@ function TermsPage() {
 								Upload content that infringes on the intellectual property
 								rights of others
 							</li>
-							<li>
-								Use the Service to develop competing products or services
-							</li>
+							<li>Use the Service to develop competing products or services</li>
 							<li>
 								Resell, sublicense, or commercially redistribute the Service
 								without written permission
@@ -109,21 +107,21 @@ function TermsPage() {
 							WARRANTIES OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT
 							LIMITED TO WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
 							PURPOSE, AND NON-INFRINGEMENT. {ENTITY_NAME.toUpperCase()} DOES
-							NOT WARRANT THAT THE SERVICE WILL BE UNINTERRUPTED, ERROR-FREE,
-							OR SECURE.
+							NOT WARRANT THAT THE SERVICE WILL BE UNINTERRUPTED, ERROR-FREE, OR
+							SECURE.
 						</p>
 					</Section>
 
 					<Section title="9. Limitation of Liability">
 						<p>
-							TO THE MAXIMUM EXTENT PERMITTED BY LAW, {ENTITY_NAME.toUpperCase()}{" "}
-							SHALL NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL,
-							CONSEQUENTIAL, OR PUNITIVE DAMAGES, OR ANY LOSS OF PROFITS OR
-							REVENUES, WHETHER INCURRED DIRECTLY OR INDIRECTLY, ARISING OUT OF
-							YOUR USE OF THE SERVICE. {ENTITY_NAME.toUpperCase()}'S TOTAL
-							LIABILITY SHALL NOT EXCEED THE AMOUNTS PAID BY YOU TO{" "}
-							{ENTITY_NAME.toUpperCase()} IN THE TWELVE MONTHS PRECEDING THE
-							CLAIM.
+							TO THE MAXIMUM EXTENT PERMITTED BY LAW,{" "}
+							{ENTITY_NAME.toUpperCase()} SHALL NOT BE LIABLE FOR ANY INDIRECT,
+							INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES, OR ANY
+							LOSS OF PROFITS OR REVENUES, WHETHER INCURRED DIRECTLY OR
+							INDIRECTLY, ARISING OUT OF YOUR USE OF THE SERVICE.{" "}
+							{ENTITY_NAME.toUpperCase()}'S TOTAL LIABILITY SHALL NOT EXCEED THE
+							AMOUNTS PAID BY YOU TO {ENTITY_NAME.toUpperCase()} IN THE TWELVE
+							MONTHS PRECEDING THE CLAIM.
 						</p>
 					</Section>
 
@@ -168,9 +166,7 @@ function Section({
 }) {
 	return (
 		<section>
-			<h2 className="font-display text-display-sm text-cream mb-4">
-				{title}
-			</h2>
+			<h2 className="font-display text-display-sm text-cream mb-4">{title}</h2>
 			{children}
 		</section>
 	);

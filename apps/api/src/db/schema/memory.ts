@@ -1,11 +1,11 @@
 import {
-	pgTable,
-	uuid,
-	text,
-	integer,
-	timestamp,
-	jsonb,
 	index,
+	integer,
+	jsonb,
+	pgTable,
+	text,
+	timestamp,
+	uuid,
 } from "drizzle-orm/pg-core";
 
 export const synthesizedFacts = pgTable(

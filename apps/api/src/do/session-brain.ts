@@ -1,39 +1,41 @@
 import { DurableObject } from "cloudflare:workers";
-import type { Bindings, ServiceContext } from "../lib/types";
-import {
-	sessionStateSchema,
-	wsIncomingMessageSchema,
-	createInitialState,
-	type SessionState,
-} from "./session-brain.schema";
-import { SessionAccumulator } from "../services/accumulator";
-import { ModeDetector, type ChunkSignal } from "../services/practice-mode";
-import { callMuqEndpoint, callAmtEndpoint } from "../services/inference";
-import {
-	persistSynthesisMessage,
-	persistAccumulatedMoments,
-	clearNeedsSynthesis,
-	loadBaselinesFromDb,
-} from "../services/synthesis";
-import { synthesize as teacherSynthesize, type SynthesisInput } from "../services/teacher";
-import { createDb } from "../db/client";
-import type {
-	ScoredChunk,
-	StudentBaselines,
-	PerfNote,
-	PerfPedalEvent,
-	ScoreContext,
-	FollowerState,
-	NgramIndex,
-	RerankFeatures,
-} from "../services/wasm-bridge";
 import { eq } from "drizzle-orm";
+import { createDb } from "../db/client";
 import { sessions } from "../db/schema/sessions";
 import type { Dimension } from "../lib/dims";
 import { DIMS_6 } from "../lib/dims";
-
+import type { Bindings, ServiceContext } from "../lib/types";
+import { SessionAccumulator } from "../services/accumulator";
+import { callAmtEndpoint, callMuqEndpoint } from "../services/inference";
+import { type ChunkSignal, ModeDetector } from "../services/practice-mode";
+import {
+	clearNeedsSynthesis,
+	loadBaselinesFromDb,
+	persistAccumulatedMoments,
+	persistSynthesisMessage,
+} from "../services/synthesis";
+import {
+	type SynthesisInput,
+	synthesize as teacherSynthesize,
+} from "../services/teacher";
+import type {
+	FollowerState,
+	NgramIndex,
+	PerfNote,
+	PerfPedalEvent,
+	RerankFeatures,
+	ScoreContext,
+	ScoredChunk,
+	StudentBaselines,
+} from "../services/wasm-bridge";
 // WASM bridge — imported at top level (bridge handles missing pkg gracefully)
 import * as wasm from "../services/wasm-bridge";
+import {
+	createInitialState,
+	type SessionState,
+	sessionStateSchema,
+	wsIncomingMessageSchema,
+} from "./session-brain.schema";
 
 // Per-instance non-persisted state (lost on hibernation/eviction — intentional)
 // Used only for AMT overlap context: previous chunk audio bytes
@@ -923,9 +925,7 @@ export class SessionBrain extends DurableObject<Bindings> {
 					: sessionDurationMs;
 
 			const durationMin =
-				Math.round(
-					(Math.max(0, endTs - tr.timestampMs) / 60_000) * 10,
-				) / 10;
+				Math.round((Math.max(0, endTs - tr.timestampMs) / 60_000) * 10) / 10;
 
 			const entry: Record<string, unknown> = {
 				mode: tr.to.toLowerCase(),

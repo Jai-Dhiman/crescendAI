@@ -1,6 +1,6 @@
-import { Sentry } from "./sentry";
 import { client } from "./api-client";
 import { API_BASE } from "./config";
+import { Sentry } from "./sentry";
 
 export class ApiError extends Error {
 	constructor(
@@ -26,7 +26,10 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 		const body = (await response
 			.json()
 			.catch(() => ({ error: response.statusText }))) as Record<string, string>;
-		const err = new ApiError(response.status, body.error ?? response.statusText);
+		const err = new ApiError(
+			response.status,
+			body.error ?? response.statusText,
+		);
 		Sentry.captureException(err, {
 			extra: { status: response.status, path },
 		});
@@ -144,13 +147,10 @@ export const api = {
 		},
 
 		google: (credential: string) =>
-			request<AuthResult>(
-				"/api/auth/google",
-				{
-					method: "POST",
-					body: JSON.stringify({ credential }),
-				},
-			),
+			request<AuthResult>("/api/auth/google", {
+				method: "POST",
+				body: JSON.stringify({ credential }),
+			}),
 
 		debug(): Promise<AuthResult> {
 			return request("/api/auth/debug", { method: "POST" });
@@ -180,7 +180,10 @@ export const api = {
 					string,
 					string
 				>;
-				const err = new ApiError(response.status, body.error ?? response.statusText);
+				const err = new ApiError(
+					response.status,
+					body.error ?? response.statusText,
+				);
 				Sentry.captureException(err, {
 					extra: { status: response.status, path: "/api/chat" },
 				});
@@ -232,30 +235,49 @@ export const api = {
 		async list(): Promise<{ conversations: ConversationSummary[] }> {
 			const res = await client.api.conversations.$get();
 			if (!res.ok) {
-				const body = (await res.json().catch(() => ({ error: res.statusText }))) as Record<string, string>;
+				const body = (await res
+					.json()
+					.catch(() => ({ error: res.statusText }))) as Record<string, string>;
 				const err = new ApiError(res.status, body.error ?? res.statusText);
-				Sentry.captureException(err, { extra: { status: res.status, path: "/api/conversations" } });
+				Sentry.captureException(err, {
+					extra: { status: res.status, path: "/api/conversations" },
+				});
 				throw err;
 			}
-			return res.json() as unknown as Promise<{ conversations: ConversationSummary[] }>;
+			return res.json() as unknown as Promise<{
+				conversations: ConversationSummary[];
+			}>;
 		},
 
 		async get(conversationId: string): Promise<ConversationWithMessages> {
-			const res = await client.api.conversations[":id"].$get({ param: { id: conversationId } } as never);
+			const res = await client.api.conversations[":id"].$get({
+				param: { id: conversationId },
+			} as never);
 			if (!res.ok) {
-				const body = (await res.json().catch(() => ({ error: res.statusText }))) as Record<string, string>;
+				const body = (await res
+					.json()
+					.catch(() => ({ error: res.statusText }))) as Record<string, string>;
 				const err = new ApiError(res.status, body.error ?? res.statusText);
-				Sentry.captureException(err, { extra: { status: res.status, path: `/api/conversations/${conversationId}` } });
+				Sentry.captureException(err, {
+					extra: {
+						status: res.status,
+						path: `/api/conversations/${conversationId}`,
+					},
+				});
 				throw err;
 			}
 			return res.json() as unknown as Promise<ConversationWithMessages>;
 		},
 
 		async delete(conversationId: string): Promise<void> {
-			const res = await client.api.conversations[":id"].$delete({ param: { id: conversationId } } as never);
+			const res = await client.api.conversations[":id"].$delete({
+				param: { id: conversationId },
+			} as never);
 			if (!res.ok) {
 				const err = new ApiError(res.status, "Failed to delete conversation");
-				Sentry.captureException(err, { extra: { status: res.status, conversationId } });
+				Sentry.captureException(err, {
+					extra: { status: res.status, conversationId },
+				});
 				throw err;
 			}
 		},
@@ -267,15 +289,20 @@ export const api = {
 			level?: string;
 			repertoire?: string;
 		}): Promise<{ exercises: Exercise[] }> {
-			const query: { dimension?: string; level?: string; repertoire?: string } = {};
+			const query: { dimension?: string; level?: string; repertoire?: string } =
+				{};
 			if (params?.dimension) query.dimension = params.dimension;
 			if (params?.level) query.level = params.level;
 			if (params?.repertoire) query.repertoire = params.repertoire;
 			const res = await client.api.exercises.$get({ query } as never);
 			if (!res.ok) {
-				const body = (await res.json().catch(() => ({ error: res.statusText }))) as Record<string, string>;
+				const body = (await res
+					.json()
+					.catch(() => ({ error: res.statusText }))) as Record<string, string>;
 				const err = new ApiError(res.status, body.error ?? res.statusText);
-				Sentry.captureException(err, { extra: { status: res.status, path: "/api/exercises" } });
+				Sentry.captureException(err, {
+					extra: { status: res.status, path: "/api/exercises" },
+				});
 				throw err;
 			}
 			return res.json() as unknown as Promise<{ exercises: Exercise[] }>;
@@ -285,11 +312,17 @@ export const api = {
 			exerciseId: string;
 			sessionId?: string;
 		}): Promise<StudentExercise> {
-			const res = await client.api.exercises.assign.$post({ json: body } as never);
+			const res = await client.api.exercises.assign.$post({
+				json: body,
+			} as never);
 			if (!res.ok) {
-				const errBody = (await res.json().catch(() => ({ error: res.statusText }))) as Record<string, string>;
+				const errBody = (await res
+					.json()
+					.catch(() => ({ error: res.statusText }))) as Record<string, string>;
 				const err = new ApiError(res.status, errBody.error ?? res.statusText);
-				Sentry.captureException(err, { extra: { status: res.status, path: "/api/exercises/assign" } });
+				Sentry.captureException(err, {
+					extra: { status: res.status, path: "/api/exercises/assign" },
+				});
 				throw err;
 			}
 			return res.json() as unknown as Promise<StudentExercise>;
@@ -302,11 +335,17 @@ export const api = {
 			dimensionAfterJson?: string;
 			notes?: string;
 		}): Promise<StudentExercise> {
-			const res = await client.api.exercises.complete.$post({ json: body } as never);
+			const res = await client.api.exercises.complete.$post({
+				json: body,
+			} as never);
 			if (!res.ok) {
-				const errBody = (await res.json().catch(() => ({ error: res.statusText }))) as Record<string, string>;
+				const errBody = (await res
+					.json()
+					.catch(() => ({ error: res.statusText }))) as Record<string, string>;
 				const err = new ApiError(res.status, errBody.error ?? res.statusText);
-				Sentry.captureException(err, { extra: { status: res.status, path: "/api/exercises/complete" } });
+				Sentry.captureException(err, {
+					extra: { status: res.status, path: "/api/exercises/complete" },
+				});
 				throw err;
 			}
 			return res.json() as unknown as Promise<StudentExercise>;
@@ -319,11 +358,17 @@ export const api = {
 			context?: string,
 			_name?: string,
 		): Promise<{ ok: boolean }> {
-			const res = await client.api.waitlist.$post({ json: { email, context } } as never);
+			const res = await client.api.waitlist.$post({
+				json: { email, context },
+			} as never);
 			if (!res.ok) {
-				const body = (await res.json().catch(() => ({ error: res.statusText }))) as Record<string, string>;
+				const body = (await res
+					.json()
+					.catch(() => ({ error: res.statusText }))) as Record<string, string>;
 				const err = new ApiError(res.status, body.error ?? res.statusText);
-				Sentry.captureException(err, { extra: { status: res.status, path: "/api/waitlist" } });
+				Sentry.captureException(err, {
+					extra: { status: res.status, path: "/api/waitlist" },
+				});
 				throw err;
 			}
 			return res.json() as unknown as Promise<{ ok: boolean }>;
@@ -332,13 +377,17 @@ export const api = {
 };
 
 /** Check if any sessions in this conversation need deferred synthesis. */
-export async function checkNeedsSynthesis(conversationId: string): Promise<string[]> {
+export async function checkNeedsSynthesis(
+	conversationId: string,
+): Promise<string[]> {
 	try {
-		const res = await client.api.practice["needs-synthesis"].$get({ query: { conversationId } } as never);
+		const res = await client.api.practice["needs-synthesis"].$get({
+			query: { conversationId },
+		} as never);
 		if (!res.ok) {
 			throw new ApiError(res.status, res.statusText);
 		}
-		const data = await res.json() as unknown as { sessionIds: string[] };
+		const data = (await res.json()) as unknown as { sessionIds: string[] };
 		return data.sessionIds ?? [];
 	} catch {
 		return [];
@@ -346,13 +395,20 @@ export async function checkNeedsSynthesis(conversationId: string): Promise<strin
 }
 
 /** Trigger deferred synthesis for a specific session. */
-export async function triggerDeferredSynthesis(sessionId: string): Promise<{ status: string; isFallback?: boolean } | null> {
+export async function triggerDeferredSynthesis(
+	sessionId: string,
+): Promise<{ status: string; isFallback?: boolean } | null> {
 	try {
-		const res = await client.api.practice.synthesize.$post({ json: { sessionId } } as never);
+		const res = await client.api.practice.synthesize.$post({
+			json: { sessionId },
+		} as never);
 		if (!res.ok) {
 			throw new ApiError(res.status, res.statusText);
 		}
-		return res.json() as unknown as Promise<{ status: string; isFallback?: boolean }>;
+		return res.json() as unknown as Promise<{
+			status: string;
+			isFallback?: boolean;
+		}>;
 	} catch {
 		return null;
 	}

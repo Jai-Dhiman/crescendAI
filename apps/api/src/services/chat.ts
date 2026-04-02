@@ -1,8 +1,8 @@
-import { eq, and, asc } from "drizzle-orm";
-import type { Db, ServiceContext, Bindings } from "../lib/types";
-import { NotFoundError } from "../lib/errors";
+import { and, asc, eq } from "drizzle-orm";
 import { conversations, messages } from "../db/schema/conversations";
 import { studentProfiles } from "../db/schema/students";
+import { NotFoundError } from "../lib/errors";
+import type { Bindings, Db, ServiceContext } from "../lib/types";
 import { callWorkersAI } from "./llm";
 import { buildMemoryContext } from "./memory";
 import { buildChatFraming, buildTitlePrompt } from "./prompts";
@@ -89,12 +89,18 @@ export async function prepareChatContext(
 	);
 
 	const filteredMessages = recentMessages
-		.filter((m): m is { role: "user" | "assistant"; content: string } =>
-			m.role === "user" || m.role === "assistant",
+		.filter(
+			(m): m is { role: "user" | "assistant"; content: string } =>
+				m.role === "user" || m.role === "assistant",
 		)
 		.map((m) => ({ role: m.role, content: m.content }));
 
-	return { conversationId, isNewConversation, messages: filteredMessages, dynamicContext };
+	return {
+		conversationId,
+		isNewConversation,
+		messages: filteredMessages,
+		dynamicContext,
+	};
 }
 
 export async function saveAssistantMessage(

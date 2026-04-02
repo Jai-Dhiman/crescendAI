@@ -41,9 +41,7 @@ export function CollapsedPreview({
 						{badge}
 					</span>
 				</div>
-				<p className="text-body-xs text-text-secondary truncate">
-					{subtitle}
-				</p>
+				<p className="text-body-xs text-text-secondary truncate">{subtitle}</p>
 			</div>
 
 			{/* Expand chevron */}

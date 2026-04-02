@@ -4,16 +4,19 @@ import type { Bindings, Variables } from "../lib/types";
 import { validate } from "../lib/validate";
 import { requireAuth } from "../middleware/auth-session";
 import {
-	listConversations,
-	getConversation,
 	deleteConversation,
+	getConversation,
+	listConversations,
 } from "../services/conversations";
 
 const uuidParamSchema = z.object({
 	id: z.string().uuid(),
 });
 
-const conversationsApp = new Hono<{ Bindings: Bindings; Variables: Variables }>()
+const conversationsApp = new Hono<{
+	Bindings: Bindings;
+	Variables: Variables;
+}>()
 	.get("/", async (c) => {
 		requireAuth(c.var.studentId);
 		const result = await listConversations(
@@ -35,11 +38,7 @@ const conversationsApp = new Hono<{ Bindings: Bindings; Variables: Variables }>(
 	.delete("/:id", validate("param", uuidParamSchema), async (c) => {
 		requireAuth(c.var.studentId);
 		const { id } = c.req.valid("param");
-		await deleteConversation(
-			{ db: c.var.db, env: c.env },
-			id,
-			c.var.studentId,
-		);
+		await deleteConversation({ db: c.var.db, env: c.env }, id, c.var.studentId);
 		return c.json({ success: true });
 	});
 

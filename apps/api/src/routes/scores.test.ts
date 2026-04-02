@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
 import { Hono } from "hono";
+import { describe, expect, it } from "vitest";
 import { scoresRoutes } from "./scores";
 
 // NOTE: These tests verify route structure and validation.

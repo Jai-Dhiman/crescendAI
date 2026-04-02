@@ -1,29 +1,29 @@
 {
-  "name": "crescendai-api",
-  "private": true,
-  "scripts": {
-    "dev": "wrangler dev",
-    "test": "vitest",
-    "typecheck": "tsc --noEmit",
-    "generate": "drizzle-kit generate",
-    "migrate": "drizzle-kit migrate",
-    "migrate-d1": "bun run scripts/migrate-d1.ts"
-  },
-  "dependencies": {
-    "hono": "^4",
-    "@hono/zod-validator": "^0.4",
-    "zod": "^3",
-    "better-auth": "^1",
-    "drizzle-orm": "^0.38",
-    "postgres": "^3",
-    "@sentry/cloudflare": "^9"
-  },
-  "devDependencies": {
-    "wrangler": "^4",
-    "@cloudflare/vitest-pool-workers": "^0.8",
-    "@cloudflare/workers-types": "^4",
-    "vitest": "^3",
-    "drizzle-kit": "^0.30",
-    "typescript": "^5"
-  }
+	"name": "crescendai-api",
+	"private": true,
+	"scripts": {
+		"dev": "wrangler dev",
+		"test": "vitest",
+		"typecheck": "tsc --noEmit",
+		"generate": "drizzle-kit generate",
+		"migrate": "drizzle-kit migrate",
+		"migrate-d1": "bun run scripts/migrate-d1.ts"
+	},
+	"dependencies": {
+		"hono": "^4",
+		"@hono/zod-validator": "^0.4",
+		"zod": "^3",
+		"better-auth": "^1",
+		"drizzle-orm": "^0.38",
+		"postgres": "^3",
+		"@sentry/cloudflare": "^9"
+	},
+	"devDependencies": {
+		"wrangler": "^4",
+		"@cloudflare/vitest-pool-workers": "^0.8",
+		"@cloudflare/workers-types": "^4",
+		"vitest": "^3",
+		"drizzle-kit": "^0.30",
+		"typescript": "^5"
+	}
 }

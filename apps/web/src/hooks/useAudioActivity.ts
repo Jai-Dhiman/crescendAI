@@ -41,14 +41,17 @@ export interface AudioActivityState {
 
 /** Compute spectral flatness from dB-scaled frequency data.
  * Converts dB -> linear magnitude, then computes geometric/arithmetic mean ratio. */
-function computeSpectralFlatness(dbData: Float32Array, binCount: number): number {
+function computeSpectralFlatness(
+	dbData: Float32Array,
+	binCount: number,
+): number {
 	let logSum = 0;
 	let linSum = 0;
 	let count = 0;
 	for (let i = 0; i < binCount; i++) {
 		const db = dbData[i];
 		if (db < -100) continue;
-		const linear = Math.pow(10, db / 20);
+		const linear = 10 ** (db / 20);
 		logSum += Math.log(linear + 1e-20);
 		linSum += linear;
 		count++;
@@ -71,7 +74,7 @@ function computeSpectralCentroid(
 	const nyquist = sampleRate / 2;
 	for (let i = 0; i < binCount; i++) {
 		const db = dbData[i];
-		const linear = Math.pow(10, db / 20);
+		const linear = 10 ** (db / 20);
 		const freq = (i / binCount) * nyquist;
 		weightedSum += freq * linear;
 		totalWeight += linear;
@@ -95,8 +98,12 @@ export function useAudioActivity(
 	const gateRejectRef = useRef(0);
 
 	useEffect(() => {
-		const byteArrayRef: { current: Uint8Array<ArrayBuffer> | null } = { current: null };
-		const floatArrayRef: { current: Float32Array<ArrayBuffer> | null } = { current: null };
+		const byteArrayRef: { current: Uint8Array<ArrayBuffer> | null } = {
+			current: null,
+		};
+		const floatArrayRef: { current: Float32Array<ArrayBuffer> | null } = {
+			current: null,
+		};
 
 		function tick(timestamp: number) {
 			rafRef.current = requestAnimationFrame(tick);
@@ -107,10 +114,14 @@ export function useAudioActivity(
 			const binCount = analyser.frequencyBinCount;
 
 			if (!byteArrayRef.current || byteArrayRef.current.length !== binCount) {
-				byteArrayRef.current = new Uint8Array(binCount) as Uint8Array<ArrayBuffer>;
+				byteArrayRef.current = new Uint8Array(
+					binCount,
+				) as Uint8Array<ArrayBuffer>;
 			}
 			if (!floatArrayRef.current || floatArrayRef.current.length !== binCount) {
-				floatArrayRef.current = new Float32Array(binCount) as Float32Array<ArrayBuffer>;
+				floatArrayRef.current = new Float32Array(
+					binCount,
+				) as Float32Array<ArrayBuffer>;
 			}
 
 			// Compute spectral energy
@@ -127,14 +138,18 @@ export function useAudioActivity(
 			let aboveThreshold: boolean;
 			if (rawEnergy > ENERGY_THRESHOLD) {
 				analyser.getFloatFrequencyData(floatArrayRef.current);
-				const flatness = computeSpectralFlatness(floatArrayRef.current, binCount);
+				const flatness = computeSpectralFlatness(
+					floatArrayRef.current,
+					binCount,
+				);
 				const centroid = computeSpectralCentroid(
 					floatArrayRef.current,
 					binCount,
 					analyser.context.sampleRate,
 				);
 				// OR logic: either low flatness (tonal) or low centroid (piano range) -> pass
-				const isPianoLike = flatness < FLATNESS_MAX || centroid < CENTROID_MAX_HZ;
+				const isPianoLike =
+					flatness < FLATNESS_MAX || centroid < CENTROID_MAX_HZ;
 				aboveThreshold = isPianoLike;
 
 				if (isPianoLike) {

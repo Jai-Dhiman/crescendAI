@@ -1,12 +1,12 @@
+import { and, eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
-import { eq, and } from "drizzle-orm";
+import { conversations, messages } from "../db/schema/conversations";
+import { sessions } from "../db/schema/sessions";
+import { ForbiddenError, NotFoundError } from "../lib/errors";
 import type { Bindings, Variables } from "../lib/types";
 import { validate } from "../lib/validate";
 import { requireAuth } from "../middleware/auth-session";
-import { NotFoundError, ForbiddenError } from "../lib/errors";
-import { sessions } from "../db/schema/sessions";
-import { conversations, messages } from "../db/schema/conversations";
 
 const startBodySchema = z.object({
 	conversationId: z.string().uuid().optional(),
@@ -40,7 +40,8 @@ const app = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 				where: (conv, { eq: e, and: a }) =>
 					a(e(conv.id, body.conversationId!), e(conv.studentId, studentId)),
 			});
-			if (!existing) throw new NotFoundError("conversation", body.conversationId);
+			if (!existing)
+				throw new NotFoundError("conversation", body.conversationId);
 			conversationId = body.conversationId;
 		} else {
 			const [conv] = await db
