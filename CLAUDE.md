@@ -59,183 +59,45 @@ Uses `just` (justfile) for dev commands. Install: `brew install just`.
 - Sentry org: `crescendai` with projects: `crescendai-api`, `crescendai-web`, `crescendai-ios`
 - Error logging: `console_error!` (Rust), `Sentry.captureException` (web), `SentrySDK.capture(error:)` (iOS)
 
-## gstack
 
-Use the `/browse` skill from gstack for all web browsing. Never use `mcp__claude-in-chrome__*` tools.
+### Agents (invoke with /agent-name)
 
-### `/plan-ceo-review` -- Product Vision Review
+- `/brainstorm` — Use at the start of every feature, idea, or build. Explores intent, challenges premises, proposes approaches, produces a spec (`docs/specs/`) and TDD plan (`docs/plans/`). Anti-sycophancy enforced.
+- `/challenge` — Run on a plan file before building. Two-pass review: CEO (premise, scope, 12-month trajectory) then Eng (architecture, data flow, test coverage, failure modes). Returns `VERDICT: PROCEED | PROCEED_WITH_CAUTION | NEEDS_REWORK`.
+- `/build` — Executes a plan. Always creates a git worktree. Dispatches parallel task groups as Sonnet 4.6 subagents (one subagent per independent task). TDD enforced: failing test before any implementation.
+- `/review` — Post-build diff review. Scope drift check, critical security pass, confidence-calibrated findings. Returns `VERDICT: READY | READY_WITH_CONCERNS | NEEDS_WORK`. Includes ship: offer merge locally or PR via `gh`.
+- `/investigate` — Structured debugging. Root cause first, scope lock, 3-strike rule, TDD for the fix. Produces a debug report with `STATUS: DONE | DONE_WITH_CONCERNS | BLOCKED`.
 
-**What:** CEO/founder-mode plan review. Rethinks the problem from first principles, challenges premises, maps the 12-month ideal, finds the 10-star product version. Three modes: SCOPE EXPANSION (dream big), HOLD SCOPE (maximum rigor), SCOPE REDUCTION (strip to essentials).
-**When:** Before starting a major new feature or initiative. When deciding *what* to build, not *how* to build it. When you need to challenge whether the plan is ambitious enough or too ambitious.
-**How:** Describe what you want to build, then invoke `/plan-ceo-review`. Select a mode. Answer one question at a time. The review walks through architecture, error handling, security, edge cases, tests, performance, observability, deployment, and long-term trajectory.
+### Other Skills
 
-### `/plan-eng-review` -- Engineering Execution Review
+- `/autoresearch` — Autonomous improvement loop. Modify one thing, measure, keep or revert, repeat. Requires: Goal, Scope, Metric, Verify command, Guard. Use for optimizing skills, prompts, code performance, or any measurable artifact.
+- `/cso` — Full codebase security audit. OWASP Top 10, STRIDE threat modeling.
+- `/frontend-design` — Production-grade frontend UI. Polished, opinionated.
+- Hugging Face skills: `/hugging-face-cli` (hub ops), `/hugging-face-jobs` (cloud compute), `/hugging-face-model-trainer` (fine-tuning), `/hugging-face-datasets`, `/hugging-face-tool-builder`
 
-**What:** Eng manager-mode plan review. Locks in the execution plan: architecture decisions, data flow diagrams, edge cases, test coverage, performance characteristics. Walks through issues interactively with opinionated recommendations.
-**When:** After you have a plan and before you start coding. When deciding *how* to build something, not *what* to build. Use after `/plan-ceo-review` if you did product visioning first.
-**How:** Share an implementation plan, then invoke `/plan-eng-review`. It stress-tests architecture, identifies ambiguities, and surfaces decisions that need to be made before implementation starts.
-
-### `/review` -- Pre-Landing PR Review
-
-**What:** Analyzes diff against main for SQL safety, LLM trust boundary violations, conditional side effects, and structural issues.
-**When:** Before creating a PR or merging. After implementation is complete and tests pass.
-**How:** Invoke `/review` with your changes staged or committed. It reads the diff and produces a structured review.
-
-## Superpowers
-
-### `/superpowers:brainstorming` -- Creative Exploration
-
-**What:** Explores user intent, requirements, and design before implementation. Prevents jumping straight to code by forcing you to think through what you're actually building.
-**When:** Before any creative work: creating features, building components, adding functionality, modifying behavior. Use before `/superpowers:writing-plans`.
-**How:** Describe what you want to build. The brainstorm explores alternatives, trade-offs, and design options before committing to an approach.
-
-### `/superpowers:dispatching-parallel-agents` -- Fan Out Independent Work
-
-**What:** Launches 2+ parallel subagents for independent tasks that don't share state or have sequential dependencies.
-**When:** When your plan has independent components that can be built simultaneously. Example: building a data model, an API endpoint, and a UI component that don't depend on each other.
-**How:** Describe the independent tasks. Each gets its own agent that works autonomously and reports back.
-
-### `/superpowers:using-git-worktrees` -- Isolated Feature Work
-
-**What:** Creates isolated git worktrees for feature development. Each worktree is a full copy of the repo on its own branch, preventing conflicts when multiple work streams are active.
-**When:** Before starting feature work that needs isolation. Before executing implementation plans with multiple parallel tracks. When you want to experiment without affecting your current working directory.
-**How:** Invoke before starting work. It creates a worktree with smart directory selection and safety verification.
-
-### `/superpowers:test-driven-development` -- TDD Workflow
-
-**What:** Write tests first, then implement. Enforces the red-green-refactor cycle.
-**When:** When implementing any feature or bugfix, before writing implementation code. Especially important for algorithmic work (score following, rubato detection) where correctness is critical.
-**How:** Invoke before writing implementation code. It guides you through writing failing tests first, then implementing to make them pass.
-
-### `/superpowers:verification-before-completion` -- Verify Before Claiming Done
-
-**What:** Requires running verification commands and confirming output before making any success claims. Evidence before assertions.
-**When:** When about to claim work is complete, fixed, or passing. Before committing or creating PRs.
-**How:** Invoke when you think you're done. It forces you to actually run tests, check output, and confirm everything works.
-
-### Other superpowers skills
-
-- `/superpowers:writing-plans` -- Create structured implementation plans from specs/requirements. Use after brainstorming.
-- `/superpowers:executing-plans` -- Execute plans step by step with review checkpoints.
-- `/superpowers:subagent-driven-development` -- Execute plans with independent tasks using subagents.
-- `/superpowers:systematic-debugging` -- Structured debugging before proposing fixes.
-- `/superpowers:requesting-code-review` -- Self-review before merging.
-- `/superpowers:receiving-code-review` -- Handle code review feedback with technical rigor.
-- `/superpowers:finishing-a-development-branch` -- Guide completion: merge, PR, or cleanup.
-
-## Frontend Design
-
-### `/frontend-design` -- Production-Grade UI
-
-**What:** Creates distinctive, production-grade frontend interfaces with high design quality. Generates creative, polished code that avoids generic AI aesthetics.
-**When:** When building web components, pages, or applications. Use for any UI work on the web practice companion.
-**How:** Describe the component or page you need. It produces polished, opinionated code with strong visual design.
-
-### UI Review (`userinterface-wiki` skill)
-
-**What:** 152 rules across 12 categories (animation, timing, exit animations, CSS, audio, UX laws, typography, visual design) for reviewing frontend code quality. Complements `/frontend-design` -- one generates, the other reviews.
-**When:** After building or modifying web UI components. During `/review` of PRs that touch `apps/web/`. When checking animation timing, interaction design, or typography.
-**How:** Reference rules by prefix ID (e.g., `timing-under-300ms`, `ux-doherty-under-400ms`). Full rules with code examples in `~/.claude/skills/userinterface-wiki/rules/`. Compiled reference in `~/.claude/skills/userinterface-wiki/AGENTS.md`.
-**Key rules for CrescendAI:** `ux-doherty-under-400ms` (inference feedback), `ux-progressive-disclosure` (chat interface), `ux-peak-end-finish-strong` (post-session), `spring-for-gestures` (recording UI), `timing-under-300ms` (interactions).
-
-## Hugging Face Skills
-
-### `/hugging-face-cli` -- Hub Operations
-
-**What:** Execute HF Hub operations: download models/datasets, upload files, create repos, manage cache, run compute jobs.
-**When:** When deploying model updates to HF endpoint, managing inference handler, downloading datasets.
-
-### `/hugging-face-datasets` -- Dataset Management
-
-**What:** Create and manage datasets on HF Hub. Supports streaming row updates and SQL-based querying.
-**When:** When publishing training data, creating evaluation datasets, or querying existing datasets.
-
-
-### `/hugging-face-jobs` -- Cloud Compute
-
-**What:** Run workloads on HF Jobs infrastructure. UV scripts, Docker jobs, hardware selection, cost estimation.
-**When:** When running training, batch inference, data processing, or any GPU workload without local setup.
-
-## Autoresearch
-
-### `/autoresearch` -- Autonomous Improvement Loop
-
-**What:** Iteratively improves any artifact (skill, prompt, code, config) against a frozen metric. Modify one thing, measure, keep or revert, repeat. Git-based tracking with full changelog.
-**When:** When optimizing skill prompts, code performance, content quality, or any artifact with a measurable "better." When you want to run 10-30 experiments unattended.
-**How:** Define Goal, Scope (files that can change), Metric (how to measure), Verify (command to run), and Guard (regression check). Then invoke `/autoresearch` and let it loop.
-
-## Recommended Workflow
-
-### Full Feature Cycle
+### Recommended Workflow
 
 ```
- IDEATION
-   /office-hours                             -- new product bets only (e.g., "add sight-reading?")
-   /superpowers:brainstorming                -- every feature (always)
-
- PLANNING
-   /superpowers:writing-plans                -- draft the plan
-   /autoplan                                 -- review gauntlet (CEO + design + eng, auto-decided)
-     OR pick individual reviews:
-       /plan-ceo-review                      -- when scope/ambition is in question
-       /plan-design-review                   -- when UI/UX is involved
-       /plan-eng-review                      -- always (architecture is never optional)
-
- EXECUTION
-   /superpowers:using-git-worktrees          -- isolate the work
-   /superpowers:test-driven-development      -- tests first
-   /superpowers:executing-plans              -- step by step with checkpoints
-   /superpowers:dispatching-parallel-agents  -- when tasks are independent
-   /superpowers:verification-before-completion -- evidence before claims
-
- REVIEW
-   /review                                   -- diff safety (always before PR)
-   /superpowers:requesting-code-review       -- requirements/intent check
-   /design-review                            -- UI work only (live site visual QA + auto-fix)
-   /cso                                      -- security-sensitive work (auth, API, data boundaries)
-
- SHIP & VERIFY
-   /ship                                     -- merge, changelog, PR
-   /qa or /browse                            -- verify in production
-   /retro                                    -- end of sprint
-
- CROSS-CUTTING (as needed)
-   /superpowers:systematic-debugging         -- code bugs
-   /investigate                              -- production incidents, deep root cause
-   /autoresearch                             -- measurable optimization loops (model, prompts, perf)
+START
+  │
+  ▼
+/brainstorm       "I want to build X" → spec + TDD plan written to docs/
+  │
+  ▼
+/challenge        CEO + eng review of plan → VERDICT: PROCEED
+  │
+  ▼
+/build            git worktree + parallel subagents + TDD always
+  │
+  ▼
+/review           diff review → VERDICT → offer merge / PR
+  │
+  ▼
+/investigate      if bugs are reported after ship
 ```
 
-### Shortcuts
-
-- **Small bugfix:** debug -> fix -> `/review` -> `/ship`
-- **UI-only change:** brainstorm -> plan -> `/plan-design-review` -> build -> `/design-review` -> `/ship`
-- **Model/ML work:** brainstorm -> plan -> `/plan-eng-review` -> TDD -> `/autoresearch` -> `/ship`
-- **Security-touching:** add `/cso` before `/ship`
-
-## Project Structure
-
-- `apps/ios/` - Native iOS app (SwiftUI, AVAudioEngine, cloud inference)
-- `apps/api/` - Rust API Worker at api.crescend.ai (Axum on Cloudflare Workers)
-- `apps/web/` - TanStack Start web practice companion at crescend.ai (React, Tailwind CSS v4, chat + recording)
-- `apps/inference/` - HF Inference Endpoint handlers + local dev servers
-  - `handler.py` - MuQ quality scoring endpoint (6-dim scores)
-  - `amt_handler.py` - Aria-AMT transcription endpoint (MIDI notes + pedal)
-  - `muq_local_server.py` - Local MuQ dev server (port 8000)
-  - `amt_local_server.py` - Local AMT dev server (port 8001)
-- `model/` - PyTorch Lightning ML training pipeline
-- `Justfile` - Dev commands (`just dev`, `just test-model`, etc.)
-
-## Skill routing
-
-When the user's request matches an available skill, ALWAYS invoke it using the Skill
-tool as your FIRST action. Do NOT answer directly, do NOT use other tools first.
-The skill has specialized workflows that produce better results than ad-hoc answers.
-
-Key routing rules:
-- Product ideas, "is this worth building", brainstorming -> invoke office-hours
-- Bugs, errors, "why is this broken", 500 errors -> invoke investigate
-- QA, test the site, find bugs -> invoke qa
-- Code review, check my diff -> invoke review
-- Update docs after shipping -> invoke document-release
-- Architecture review -> invoke plan-eng-review
-  
+Shortcuts:
+- Bug fix: `/investigate` → fix → `/review` → merge
+- UI-only change: `/brainstorm` → `/build` → `/review`
+- Optimization loop: `/autoresearch`
+- Security-sensitive: add `/cso` before merge
