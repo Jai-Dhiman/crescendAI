@@ -237,7 +237,11 @@ export const api = {
 				Sentry.captureException(err, { extra: { status: res.status, path: "/api/conversations" } });
 				throw err;
 			}
-			return res.json() as unknown as Promise<{ conversations: ConversationSummary[] }>;
+			const data = await res.json();
+			if (!data || typeof data !== "object" || !("conversations" in data)) {
+				throw new ApiError(res.status, "Invalid response from conversations endpoint");
+			}
+			return data as { conversations: ConversationSummary[] };
 		},
 
 		async get(conversationId: string): Promise<ConversationWithMessages> {
@@ -248,7 +252,11 @@ export const api = {
 				Sentry.captureException(err, { extra: { status: res.status, path: `/api/conversations/${conversationId}` } });
 				throw err;
 			}
-			return res.json() as unknown as Promise<ConversationWithMessages>;
+			const data = await res.json();
+			if (!data || typeof data !== "object") {
+				throw new ApiError(res.status, "Invalid response from conversation endpoint");
+			}
+			return data as ConversationWithMessages;
 		},
 
 		async delete(conversationId: string): Promise<void> {
