@@ -9,7 +9,7 @@ import * as teacherService from "../services/teacher";
 import type { InlineComponent } from "../services/tool-processor";
 
 const chatSchema = z.object({
-	conversationId: z.string().uuid().nullable().optional(),
+	conversationId: z.string().uuid().optional(),
 	message: z.string().min(1).max(10000),
 });
 

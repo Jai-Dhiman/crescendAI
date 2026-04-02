@@ -11,14 +11,6 @@ export function validate<T extends z.ZodSchema>(
 ) {
 	return zValidator(target, schema, (result, c) => {
 		if (!result.success) {
-			console.log(JSON.stringify({
-				level: "warn",
-				message: "Zod validation failed",
-				target,
-				issues: result.error.issues,
-				path: c.req.path,
-				method: c.req.method,
-			}));
 			return c.json(
 				{ error: "Validation failed", issues: result.error.issues },
 				400,

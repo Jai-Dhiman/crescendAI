@@ -7,7 +7,7 @@ export async function listConversations(
 	ctx: ServiceContext,
 	studentId: string,
 ) {
-	const results = await ctx.db
+	return ctx.db
 		.select({
 			id: conversations.id,
 			title: conversations.title,
@@ -16,7 +16,6 @@ export async function listConversations(
 		.from(conversations)
 		.where(eq(conversations.studentId, studentId))
 		.orderBy(desc(conversations.updatedAt));
-	return { conversations: results };
 }
 
 export async function getConversation(
