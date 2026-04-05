@@ -9,7 +9,7 @@ import * as teacherService from "../services/teacher";
 import type { InlineComponent } from "../services/tool-processor";
 
 const chatSchema = z.object({
-	conversationId: z.string().uuid().optional(),
+	conversationId: z.string().uuid().nullable().optional(),
 	message: z.string().min(1).max(10000),
 });
 
@@ -31,7 +31,7 @@ const app = new Hono<{ Bindings: Bindings; Variables: Variables }>().post(
 			let id = 0;
 
 			await sseStream.writeSSE({
-				data: JSON.stringify({ conversationId }),
+				data: JSON.stringify({ type: "start", conversationId }),
 				event: "start",
 				id: String(id++),
 			});
@@ -48,13 +48,14 @@ const app = new Hono<{ Bindings: Bindings; Variables: Variables }>().post(
 				)) {
 					if (event.type === "delta") {
 						await sseStream.writeSSE({
-							data: event.text,
+							data: JSON.stringify({ type: "delta", text: event.text }),
 							event: "delta",
 							id: String(id++),
 						});
 					} else if (event.type === "tool_result") {
 						await sseStream.writeSSE({
 							data: JSON.stringify({
+								type: "tool_result",
 								name: event.name,
 								componentsJson: event.componentsJson,
 							}),
@@ -67,8 +68,17 @@ const app = new Hono<{ Bindings: Bindings; Variables: Variables }>().post(
 					}
 				}
 			} catch (err) {
+				console.error(
+					JSON.stringify({
+						level: "error",
+						message: "Teacher chat stream failed",
+						error: err instanceof Error ? err.message : String(err),
+						stack: err instanceof Error ? err.stack : undefined,
+					}),
+				);
 				await sseStream.writeSSE({
 					data: JSON.stringify({
+						type: "error",
 						message:
 							"I'm having trouble responding right now. Try again in a moment.",
 					}),
@@ -78,7 +88,7 @@ const app = new Hono<{ Bindings: Bindings; Variables: Variables }>().post(
 			}
 
 			await sseStream.writeSSE({
-				data: "[DONE]",
+				data: JSON.stringify({ type: "done" }),
 				event: "done",
 				id: String(id),
 			});

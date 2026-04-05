@@ -1,4 +1,4 @@
-import { type RefObject, useCallback, useEffect, useState } from "react";
+import { type RefObject, useEffect, useState } from "react";
 import { useMountEffect } from "./useFoundation";
 
 /**

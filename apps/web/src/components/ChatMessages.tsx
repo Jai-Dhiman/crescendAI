@@ -30,8 +30,8 @@ export function ChatMessages({
 		}
 	}, []);
 
-	// Track whether user is near the bottom
-	useEffect(() => {
+	// Track whether user is near the bottom of the scroll container.
+	useMountEffect(() => {
 		const container = scrollContainerRef.current;
 		if (!container) return;
 
@@ -45,7 +45,7 @@ export function ChatMessages({
 
 		container.addEventListener("scroll", handleScroll, { passive: true });
 		return () => container.removeEventListener("scroll", handleScroll);
-	}, []);
+	});
 
 	// Auto-scroll on content changes
 	useEffect(() => {
@@ -143,7 +143,7 @@ const MessageBubble = memo(function MessageBubble({
 		try {
 			await onTryExercises(message.dimension);
 			setTryState("idle");
-		} catch (err) {
+		} catch (_err) {
 			setTryState("error");
 		}
 	}

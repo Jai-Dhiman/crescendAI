@@ -1,5 +1,6 @@
-import { useEffect, useRef } from "react";
+import { useRef } from "react";
 import { useArtifactScrollContext } from "../contexts/artifact-scroll";
+import { useMountEffect } from "../hooks/useFoundation";
 import type { InlineComponent } from "../lib/types";
 import { useArtifactStore } from "../stores/artifact";
 import { CollapsedPreview } from "./cards/CollapsedPreview";
@@ -45,8 +46,8 @@ export function Artifact({ artifactId, component }: ArtifactProps) {
 	const collapseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const mountTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-	// Lifecycle: register on mount, unregister on unmount
-	useEffect(() => {
+	// Lifecycle: register on mount, unregister on unmount.
+	useMountEffect(() => {
 		register(artifactId, component);
 
 		mountTimerRef.current = setTimeout(() => {
@@ -61,11 +62,10 @@ export function Artifact({ artifactId, component }: ArtifactProps) {
 			mountedRef.current = false;
 			unregister(artifactId);
 		};
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [artifactId]);
+	});
 
-	// IntersectionObserver: collapse when scrolled out, restore timer when scrolled back
-	useEffect(() => {
+	// IntersectionObserver: collapse when scrolled out, restore timer when scrolled back.
+	useMountEffect(() => {
 		const element = elementRef.current;
 		if (!element) {
 			return;
@@ -108,7 +108,7 @@ export function Artifact({ artifactId, component }: ArtifactProps) {
 				collapseTimerRef.current = null;
 			}
 		};
-	}, [artifactId, collapse, scrollContainerRef]);
+	});
 
 	const artifactState = entry?.state ?? "inline";
 	const collapsedProps = getCollapsedProps(component);

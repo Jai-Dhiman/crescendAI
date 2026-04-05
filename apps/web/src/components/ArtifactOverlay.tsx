@@ -1,8 +1,9 @@
 import { X } from "@phosphor-icons/react";
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useArtifactScrollContext } from "../contexts/artifact-scroll";
 import { useEscapeKey } from "../hooks/useDom";
+import { useMountEffect } from "../hooks/useFoundation";
 import type { ArtifactEntry } from "../stores/artifact";
 import { getExpandedArtifact, useArtifactStore } from "../stores/artifact";
 import { ExerciseSetExpanded } from "./cards/ExerciseSetExpanded";
@@ -46,7 +47,7 @@ function ArtifactOverlayContent({
 
 	useEscapeKey(handleClose, !!expandedId);
 
-	useEffect(() => {
+	useMountEffect(() => {
 		const container = scrollContainer?.current;
 		if (!container) return;
 
@@ -56,7 +57,7 @@ function ArtifactOverlayContent({
 		return () => {
 			container.style.overflow = previous;
 		};
-	}, [scrollContainer]);
+	});
 
 	function renderExpanded() {
 		switch (entry.component.type) {

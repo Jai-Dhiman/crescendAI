@@ -9,7 +9,7 @@ import { buildChatFraming, buildTitlePrompt } from "./prompts";
 import type { InlineComponent } from "./tool-processor";
 
 interface ChatInput {
-	conversationId?: string;
+	conversationId?: string | null;
 	message: string;
 }
 
@@ -124,7 +124,7 @@ export async function saveAssistantMessage(
 		.set({ updatedAt: new Date() })
 		.where(eq(conversations.id, conversationId));
 
-	if (isNewConversation) {
+	if (isNewConversation && env.AI_GATEWAY_BACKGROUND) {
 		try {
 			const titlePrompt = buildTitlePrompt(firstUserMessage);
 			const title = await callWorkersAI(

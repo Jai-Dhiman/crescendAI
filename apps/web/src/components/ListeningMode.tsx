@@ -55,19 +55,20 @@ export function ListeningMode({
 	const setNotes = onNotesChange ?? (() => {});
 	const [showNotepad, setShowNotepad] = useState(false);
 	const [pieceName, setPieceName] = useState(
-		pieceContext?.piece ?? "Unknown piece",
+		() => pieceContext?.piece ?? "Unknown piece",
 	);
-	const [sectionName, setSectionName] = useState(pieceContext?.section ?? "");
+	const [sectionName, setSectionName] = useState(
+		() => pieceContext?.section ?? "",
+	);
 	const [isEditingPiece, setIsEditingPiece] = useState(false);
 	const metronome = useMetronome();
 	const [showMetronome, setShowMetronome] = useState(false);
 
-	// Update piece/section when pieceContext arrives asynchronously
+	// Only sync when pieceContext first appears (not on every reference change).
 	useEffect(() => {
-		if (pieceContext) {
-			setPieceName(pieceContext.piece);
-			if (pieceContext.section) setSectionName(pieceContext.section);
-		}
+		if (!pieceContext) return;
+		setPieceName(pieceContext.piece);
+		if (pieceContext.section) setSectionName(pieceContext.section);
 	}, [pieceContext]);
 
 	// Compute origin point for clip-path (center of record button, or fallback)
@@ -86,7 +87,7 @@ export function ListeningMode({
 		return () => clearTimeout(timer);
 	});
 
-	// Exit on error
+	// Close modal when usePracticeSession internally sets state="error".
 	useEffect(() => {
 		if (state === "error") {
 			setIsOpen(false);

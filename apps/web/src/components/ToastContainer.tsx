@@ -1,13 +1,14 @@
-import { useEffect } from "react";
+import { useMountEffect } from "../hooks/useFoundation";
 import { type Toast, useToastStore } from "../stores/toast";
 
 function ToastItem({ toast }: { toast: Toast }) {
 	const removeToast = useToastStore((s) => s.removeToast);
 
-	useEffect(() => {
+	// Auto-dismiss after duration -- runs once on mount
+	useMountEffect(() => {
 		const timer = setTimeout(() => removeToast(toast.id), toast.duration);
 		return () => clearTimeout(timer);
-	}, [toast.id, toast.duration, removeToast]);
+	});
 
 	const bgColor =
 		toast.type === "error"

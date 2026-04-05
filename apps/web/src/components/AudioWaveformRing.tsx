@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { useSyncRef } from "../hooks/useFoundation";
 
 interface AudioWaveformRingProps {
 	analyserNode: AnalyserNode | null;
@@ -55,14 +56,11 @@ export function AudioWaveformRing({
 	const dataArrayRef = useRef<Uint8Array<ArrayBuffer> | null>(null);
 	const logBinMapRef = useRef<number[] | null>(null);
 	const crossfadeRef = useRef(0); // 0 = full breathing, 1 = full frequency
-	const isPlayingRef = useRef(isPlaying);
+	const isPlayingRef = useSyncRef(isPlaying);
 	const sizeRef = useRef({ w: 0, h: 0 });
 
-	// Keep isPlaying ref in sync
-	useEffect(() => {
-		isPlayingRef.current = isPlaying;
-	}, [isPlaying]);
-
+	// Persistent RAF animation loop -- re-initializes when analyserNode or active changes.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: only re-run when analyserNode/active change
 	useEffect(() => {
 		const canvas = canvasRef.current;
 		if (!canvas) return;
@@ -218,6 +216,7 @@ export function AudioWaveformRing({
 			cancelAnimationFrame(rafRef.current);
 			observer.disconnect();
 		};
+		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [analyserNode, active]);
 
 	return (

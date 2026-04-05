@@ -4,7 +4,7 @@ import {
 	redirect,
 	useNavigate,
 } from "@tanstack/react-router";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { authQueryOptions } from "../hooks/useAuth";
 import { useMountEffect } from "../hooks/useFoundation";
 import { api } from "../lib/api";
@@ -214,7 +214,7 @@ function SignInPage() {
 	const googleCallbackRef = useRef(handleGoogleSignIn);
 	googleCallbackRef.current = handleGoogleSignIn;
 
-	useEffect(() => {
+	useMountEffect(() => {
 		if (!GOOGLE_CLIENT_ID) return;
 
 		function renderButton() {
@@ -261,7 +261,7 @@ function SignInPage() {
 		script.async = true;
 		script.onload = initGsi;
 		document.head.appendChild(script);
-	}, [GOOGLE_CLIENT_ID]);
+	});
 
 	useMountEffect(() => {
 		if (window.AppleID) {

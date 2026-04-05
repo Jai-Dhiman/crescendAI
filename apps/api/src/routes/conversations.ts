@@ -23,7 +23,7 @@ const conversationsApp = new Hono<{
 			{ db: c.var.db, env: c.env },
 			c.var.studentId,
 		);
-		return c.json(result);
+		return c.json({ conversations: result });
 	})
 	.get("/:id", validate("param", uuidParamSchema), async (c) => {
 		requireAuth(c.var.studentId);

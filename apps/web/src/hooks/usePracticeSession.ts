@@ -104,7 +104,6 @@ export function usePracticeSession(
 
 	// Audio activity detection (spectral energy + debounced play/silence)
 	const { isPlaying, energy } = useAudioActivity(analyserRef);
-	const isPlayingRef = useSyncRef(isPlaying);
 
 	// Chunk gating: start/stop uploading based on piano activity
 	useEffect(() => {

@@ -10,7 +10,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { ToastContainer } from "../components/ToastContainer";
-import { useMountEffect } from "../hooks/useFoundation";
+import { useMountEffect, useSyncRef } from "../hooks/useFoundation";
 import { AuthProvider } from "../lib/auth";
 import { queryClient } from "../lib/query-client";
 import { useThemeStore } from "../stores/theme";
@@ -54,16 +54,36 @@ function RootDocument() {
 	const isAppShell = pathname === "/signin" || pathname.startsWith("/app");
 	const theme = useThemeStore((s) => s.theme);
 
+	const pathnameRef = useSyncRef(pathname);
+	const themeRef = useSyncRef(theme);
+
 	useEffect(() => {
-		const isAlwaysDark = pathname === "/" || pathname === "/signin";
-		if (isAlwaysDark) {
-			delete document.documentElement.dataset.theme;
-		} else if (theme === "light") {
-			document.documentElement.dataset.theme = "light";
-		} else {
-			delete document.documentElement.dataset.theme;
+		function applyTheme() {
+			const p = pathnameRef.current;
+			const t = themeRef.current;
+			const isAlwaysDark = p === "/" || p === "/signin";
+			if (isAlwaysDark) {
+				delete document.documentElement.dataset.theme;
+			} else if (t === "light") {
+				document.documentElement.dataset.theme = "light";
+			} else {
+				delete document.documentElement.dataset.theme;
+			}
 		}
-	}, [pathname, theme]);
+
+		applyTheme(); // Apply once on mount
+
+		// Subscribe to store changes as the event-driven update signal (Rule 3)
+		let subscribed = true;
+		const unsubscribe = useThemeStore.subscribe(() => {
+			if (subscribed) applyTheme();
+		});
+
+		return () => {
+			subscribed = false;
+			unsubscribe();
+		};
+	}, []);
 
 	return (
 		<html lang="en">

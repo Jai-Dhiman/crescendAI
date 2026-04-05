@@ -19,6 +19,7 @@ import {
 	useDeleteConversation,
 } from "../hooks/useConversations";
 import { useClickOutside } from "../hooks/useDom";
+import { useMountEffect, useSyncRef } from "../hooks/useFoundation";
 import { usePracticeSession } from "../hooks/usePracticeSession";
 import type { ChatStreamEvent } from "../lib/api";
 import { api, checkNeedsSynthesis, triggerDeferredSynthesis } from "../lib/api";
@@ -115,6 +116,7 @@ export default function AppChat() {
 	} | null>(null);
 	const sidebarOpen = useUIStore((s) => s.sidebarOpen);
 	const setSidebarOpen = useUIStore((s) => s.setSidebarOpen);
+	const sidebarOpenRef = useSyncRef(sidebarOpen);
 	const [searchOpen, setSearchOpen] = useState(false);
 	const [searchQuery, setSearchQuery] = useState("");
 	const searchInputRef = useRef<HTMLInputElement>(null);
@@ -127,11 +129,11 @@ export default function AppChat() {
 	const scorePanelIsOpen = useScorePanelStore((s) => s.isOpen);
 	const scorePanelSessionData = useScorePanelStore((s) => s.sessionData);
 
-	useEffect(() => {
+	useMountEffect(() => {
 		const handler = (e: KeyboardEvent) => {
 			if ((e.metaKey || e.ctrlKey) && e.key === "k") {
 				e.preventDefault();
-				if (!sidebarOpen) setSidebarOpen(true);
+				if (!sidebarOpenRef.current) setSidebarOpen(true);
 				setSearchOpen(true);
 				requestAnimationFrame(() => {
 					searchInputRef.current?.focus();
@@ -140,7 +142,7 @@ export default function AppChat() {
 		};
 		document.addEventListener("keydown", handler);
 		return () => document.removeEventListener("keydown", handler);
-	}, [sidebarOpen, setSidebarOpen]);
+	});
 
 	const recordButtonRef = useRef<HTMLButtonElement>(null);
 	const [showListeningMode, setShowListeningMode] = useState(false);
@@ -222,7 +224,7 @@ export default function AppChat() {
 		setConversationOverride(null);
 	}
 
-	// Check for deferred synthesis when a conversation loads
+	// Check for deferred synthesis when a conversation loads.
 	useEffect(() => {
 		if (!activeConversationId) return;
 

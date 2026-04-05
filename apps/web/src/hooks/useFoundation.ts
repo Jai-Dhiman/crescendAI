@@ -1,11 +1,11 @@
-import { useEffect, useRef } from "react";
+import { type EffectCallback, useEffect, useRef } from "react";
 
 /**
  * Mount-only effect with explicit intent.
  * Replaces bare useEffect(..., []) -- makes "run once on mount" self-documenting
  * and enables lint rules against raw useEffect usage.
  */
-export function useMountEffect(effect: () => void | (() => void)): void {
+export function useMountEffect(effect: EffectCallback): void {
 	// biome-ignore lint/correctness/useExhaustiveDependencies: intentional mount-only effect
 	useEffect(effect, []);
 }
