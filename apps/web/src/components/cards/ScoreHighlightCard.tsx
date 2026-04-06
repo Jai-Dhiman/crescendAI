@@ -53,7 +53,8 @@ export function ScoreHighlightCard({
 				}
 
 				setRenderState("rendered");
-			} catch {
+			} catch (err) {
+				console.error("ScoreHighlightCard: failed to load score", err);
 				if (!cancelled) setRenderState("error");
 			}
 		}

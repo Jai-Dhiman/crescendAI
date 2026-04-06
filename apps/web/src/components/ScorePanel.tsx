@@ -265,6 +265,7 @@ function ScorePanelScore({
 }: ScorePanelScoreProps) {
 	const containerRef = useRef<HTMLDivElement>(null);
 	const [isRendered, setIsRendered] = useState(false);
+	const [isError, setIsError] = useState(false);
 	const [annotationPositions, setAnnotationPositions] = useState<
 		AnnotationPosition[]
 	>([]);
@@ -278,54 +279,30 @@ function ScorePanelScore({
 			if (!osmdContainer || cancelled) return;
 
 			if (!pieceId) {
-				console.error("ScorePanel: no pieceId provided");
+				// No pieceId -- sessionData path shows annotation list without a rendered score
 				return;
 			}
 
 			try {
-				if (pieceId) {
-					// Use OSMD Manager for cached rendering
-					await osmdManager.ensureRendered(pieceId);
-					if (cancelled) return;
-
-					const cached = osmdManager.getOsmdInstance(pieceId);
-					if (cached) {
-						// Move the rendered SVG into our container
-						const sourceSvg = cached.container.querySelector("svg");
-						if (sourceSvg) {
-							const cloned = sourceSvg.cloneNode(true) as SVGElement;
-							osmdContainer.appendChild(cloned);
-						}
-						osmdRef.current = cached.osmd;
-						setIsRendered(true);
-						return;
-					}
-				}
-
-				// Fallback: direct OSMD init (for sessionData without cached instance)
-				const { OpenSheetMusicDisplay } = await import("opensheetmusicdisplay");
-				if (cancelled) return;
-
-				const osmd = new OpenSheetMusicDisplay(osmdContainer, {
-					backend: "svg",
-					drawTitle: false,
-					drawSubtitle: false,
-					drawComposer: false,
-					drawLyricist: false,
-					drawPartNames: false,
-					drawPartAbbreviations: false,
-					drawMeasureNumbers: true,
-					drawCredits: false,
-				});
-
-				osmdRef.current = osmd;
-
+				// Use OSMD Manager for cached rendering
 				await osmdManager.ensureRendered(pieceId);
 				if (cancelled) return;
-				osmd.render();
-				setIsRendered(true);
+
+				const cached = osmdManager.getOsmdInstance(pieceId);
+				if (cached) {
+					// Move the rendered SVG into our container
+					const sourceSvg = cached.container.querySelector("svg");
+					if (sourceSvg) {
+						const cloned = sourceSvg.cloneNode(true) as SVGElement;
+						osmdContainer.appendChild(cloned);
+					}
+					osmdRef.current = cached.osmd;
+					setIsRendered(true);
+					return;
+				}
 			} catch (err) {
 				console.error("OSMD render failed:", err);
+				if (!cancelled) setIsError(true);
 			}
 		}
 
@@ -396,7 +373,12 @@ function ScorePanelScore({
 
 	return (
 		<div className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-4 relative">
-			{!isRendered && (
+			{isError && (
+				<div className="flex items-center justify-center h-32 text-text-tertiary text-body-sm">
+					Score unavailable
+				</div>
+			)}
+			{!isRendered && !isError && pieceId && (
 				<div className="flex items-center justify-center h-32 text-text-tertiary text-body-sm">
 					Loading score...
 				</div>
