@@ -1750,3 +1750,212 @@ Expected: PASS
 ```bash
 cd apps/web && git add src/components/ScorePanel.tsx src/components/ScorePanel.test.ts src/components/cards/ScoreHighlightCard.tsx && git commit -m "feat(web): wire ScorePanel to OSMD Manager and highlight data, remove hardcoded MXL"
 ```
+
+---
+
+## Challenge Review
+
+### CEO Pass
+
+**Premise:** Sound. The `score_highlight` tool already exists end-to-end at the API level but renders as "coming soon" in the frontend. This is the most direct path to making it useful. No alternative framing yields a simpler solution -- the tool exists, the rendering doesn't, this fills the gap.
+
+**Real pain:** Without this, the teacher LLM calls `score_highlight` and the student sees a placeholder. That's a broken promise in the product. The observation path's teaching quality depends on being able to point at specific bars -- text-only "bars 12-16" is meaningfully worse than seeing the notation.
+
+**Scope:** Tight. 12 files changed (4 new, 8 modified), all in the existing artifact/tool pipeline. No new services, no new infrastructure. The hardest problem (OSMD performance) is directly addressed with the shared instance + clipping approach.
+
+[OBS] -- The plan inherits a tactical decision from the brainstorm: keeping the existing `ScorePanel` sidebar and adding inline artifacts. The 12-month ideal is probably a unified score view component, but the dual approach is pragmatic for beta and avoids rewriting the sidebar.
+
+**12-Month Alignment:**
+
+```
+CURRENT STATE                    THIS PLAN                        12-MONTH IDEAL
+score_highlight renders as   ->  Inline SVG snippets + sidebar -> Full score workspace with
+"coming soon" placeholder        driven by teacher tool_use       real-time annotations,
+                                                                  student navigation, and
+                                                                  score-following integration
+```
+
+This plan moves toward the ideal. The OSMD Manager is the right abstraction to build on -- it becomes the single entry point for all score rendering regardless of context.
+
+**Alternatives:** Spec documents 3 rejected alternatives (per-card OSMD, custom fork, server-side images) with concrete reasoning. Good.
+
+### Engineering Pass
+
+#### Architecture
+
+Data flow is clean:
+
+```
+Teacher LLM -> score_highlight tool_use
+  -> tool-processor (Zod validate, catalog check, no R2 fetch)
+  -> SSE { type: "score_highlight", config: { pieceId, highlights[] } }
+  -> Artifact -> InlineCard -> ScoreHighlightCard
+       -> osmdManager.ensureRendered(pieceId) -> fetch MXL from /api/scores/:pieceId/data
+       -> osmdManager.clipBars(start, end) -> cloned SVG fragment
+       -> expand button -> scorePanelStore.openHighlight(config) -> ScorePanel sidebar
+```
+
+No user input flows to SQL, shell, or LLM prompt without validation. The `piece_id` is UUID-validated by Zod before catalog lookup. Bar numbers are integers validated by Zod. Annotations are strings capped at 500 chars.
+
+[BLOCKER] (confidence: 9/10) -- **Task 5: `BASE` variable does not exist in `api.ts`.** The plan uses `${BASE}/api/scores/${pieceId}/data` but the actual codebase uses `API_BASE` imported from `./config`. Additionally, the plan's implementation uses raw `fetch` which is correct (since MXL is binary, not JSON, and the `request()` helper forces `response.json()`), but should import `API_BASE` from `./config` and use `Sentry.captureException` on error for consistency with the existing `api.ts` error patterns. The test mock also uses `expect.stringContaining(...)` which will need to match the `API_BASE` prefix.
+
+[BLOCKER] (confidence: 9/10) -- **Task 7: Race condition in `ensureRendered`.** If two `ScoreHighlightCard` components mount simultaneously for the same `pieceId` (e.g., two highlights in the same message), both call `ensureRendered("piece-1")`. Both pass the `if (cache.has(pieceId)) return` check before either finishes rendering. Both create separate OSMD instances and hidden containers. One overwrites the other in the cache; the other's container leaks in the DOM. Fix: store the in-flight `Promise` in the cache immediately, so concurrent callers await the same render:
+
+```typescript
+const pending = new Map<string, Promise<void>>();
+
+async function ensureRendered(pieceId: string): Promise<void> {
+    if (cache.has(pieceId)) return;
+    if (pending.has(pieceId)) return pending.get(pieceId);
+    
+    const promise = doRender(pieceId);
+    pending.set(pieceId, promise);
+    try { await promise; } finally { pending.delete(pieceId); }
+}
+```
+
+[RISK] (confidence: 8/10) -- **Task 8: `getBoundingClientRect` in jsdom returns all zeros.** jsdom does not perform CSS layout, so `getBoundingClientRect()` returns `{ top: 0, left: 0, width: 0, height: 0, ... }` for all elements. The test for "returns an SVG element for valid bar range" overrides `getBoundingClientRect` on `mockStaveEl` but does NOT override it on the `container` (which `clipBars` also calls). This means `containerRect` will be `{top:0, left:0,...}` which happens to work since the mock stave rect uses absolute coordinates -- but the `sourceSvg = container.querySelector("svg")` will return `null` in jsdom since the mock OSMD doesn't actually create an SVG element inside the container. The test will return `null` and the "returns an SVG element" assertion will fail. The build agent will need to add a mock SVG to the container or adjust the test approach.
+
+[RISK] (confidence: 7/10) -- **Task 9: Tests are smoke-only.** Both tests in `ScoreHighlightCard.test.ts` only verify the module exports a function. They don't test any behavior (loading state, error fallback, expand button interaction). The test description says "calls ensureRendered with pieceId on import" but the test body doesn't assert that. This is effectively a `typeof === "function"` check -- it would pass for any exported function regardless of behavior. Since `@testing-library/react` is available (`package.json` confirms it), these tests should render the component and verify: (a) loading state appears, (b) ensureRendered is called with the correct pieceId, (c) text fallback renders when ensureRendered rejects.
+
+[RISK] (confidence: 8/10) -- **Task 11: Underspecified implementation.** This is the most complex task (ScorePanel refactor + ScoreHighlightCard expand wiring) but has the least precise code. The implementation section contains partial snippets with commentary like "The full approach for ScorePanelScore" followed by bullet points rather than exact code. The build agent will need to make judgment calls about: (a) how to merge the cloned SVG approach with the existing OSMD resize handler, (b) how annotation positions are calculated from highlights vs observations, (c) whether the `useMountEffect` or `useEffect` pattern is used for OSMD init. A subagent without context may struggle here.
+
+[RISK] (confidence: 7/10) -- **Task 1: `mockCtx` change breaks other pass-through tests.** The plan replaces `mockCtx` from `{ db: {}, env: {} }` to a chained mock. This new mock returns `[]` for any `select().from().where().limit()` chain, which works for `score_highlight`. But existing pass-through tests for `keyboard_guide` and `reference_browser` also use `mockCtx` -- those tools don't call DB, so the old empty mock worked fine. The new mock is a superset and should still work, but verify the `as never` cast doesn't cause issues when the DB-free tools try to access `mockCtx.env` for R2 bindings (like `reference_browser`'s `piece_id` path). Verify this actually passes.
+
+[OBS] -- Task 4 is explicitly redundant with Task 1 (the plan acknowledges this). Task 1's `processScoreHighlight` rewrite already omits `scoreData`. Task 4 adds a test verifying the omission. This is fine -- the test has value even if the implementation is already done.
+
+[OBS] -- Task 9's `ScoreHighlightCard.tsx` imports `useCallback` from React but never uses it. Remove the unused import.
+
+#### Module Depth Audit
+
+| Module | Interface | Implementation | Verdict |
+|--------|-----------|----------------|---------|
+| OSMD Manager (`osmd-manager.ts`) | 4 functions: `ensureRendered`, `clipBars`, `getOsmdInstance`, `reset` | ~80 LOC hiding OSMD lifecycle, caching, SVG geometry, DOM manipulation | DEEP |
+| ScoreHighlightCard | 3 props: `config`, `onExpand?`, `artifactId?` | ~100 LOC: async OSMD loading, SVG fragment composition, error states, dimension colors | DEEP |
+| Score API client (`api.scores`) | 1 method: `getData(pieceId)` | ~8 LOC: fetch + error handling | SHALLOW (justified -- matches established `api.*` pattern) |
+| ScorePanel store additions | 1 new action: `openHighlight(data)` | ~5 LOC: set state | SHALLOW (justified -- Zustand actions are intentionally thin) |
+| getCollapsedProps extension | 1 new branch in existing function | ~8 LOC | N/A (part of existing module) |
+
+#### Code Quality
+
+[RISK] (confidence: 6/10) -- **ScoreHighlightCard sets `innerHTML = ""`** then appends DOM nodes in a `useEffect`. This bypasses React's virtual DOM. If the effect re-runs (e.g., config.highlights changes), the previous SVG nodes are cleared via `innerHTML = ""` which is crude but functional. A cleaner approach would be to use React refs and track the SVG nodes, but this works and matches the existing OSMD pattern in `ScorePanel.tsx`. Monitor for stale SVG issues.
+
+[OBS] -- The plan correctly follows the project's coding standards: structured JSON logging (`console.log(JSON.stringify({...}))`), Zod validation, no silent fallbacks (errors are caught and rendered as visible degraded state), `as never` casts for OSMD's untyped APIs.
+
+#### Test Philosophy Audit
+
+Task 1 tests: **Good.** Zod schema validation tests verify behavior (accepts/rejects specific input shapes) through the public `schema.safeParse()` interface. No internal mocking.
+
+Task 2 tests: **Acceptable.** Tests verify TypeScript compilation + runtime config shape through the artifact store's public `register()` API. The `if (component.type === "score_highlight")` narrowing test is a shape test, but it verifies the discriminated union works at runtime, which has value.
+
+Task 3 tests: **Acceptable.** Mocks the R2 boundary (external I/O) to verify the key format. This is a boundary mock, not an internal collaborator mock.
+
+Task 5 tests: **Acceptable.** Mocks `fetch` (external boundary) to verify URL construction and response handling.
+
+Task 6 tests: **Good.** Tests `getCollapsedProps` as a pure function with concrete inputs and expected outputs.
+
+Task 7 tests: **Good.** Tests caching behavior (call twice, second skips render) through the public `ensureRendered` interface. Mocks OSMD and API (external boundaries).
+
+Task 8 tests: **Problematic** (see RISK above about jsdom/getBoundingClientRect).
+
+Task 9 tests: **Weak** (see RISK above about smoke-only tests).
+
+Task 10 tests: **Good.** Tests store behavior through public Zustand actions.
+
+Task 11 tests: **Weak.** The first test duplicates Task 10's store test. The second only verifies the module exports. No behavior verification of the actual ScorePanel rendering changes.
+
+#### Vertical Slice Audit
+
+All 11 tasks follow the one-test, one-impl, one-commit pattern. No horizontal slicing detected.
+
+[OBS] -- Task 4 may produce a passing test immediately (no implementation needed). The plan acknowledges this and says to commit the test anyway. Acceptable -- the test has independent value.
+
+#### Test Coverage Gaps
+
+```
+[+] apps/web/src/lib/osmd-manager.ts
+    |
+    +-- ensureRendered()
+    |   +-- [TESTED]   first call triggers load+render -- Task 7
+    |   +-- [TESTED]   second call skips render (cache hit) -- Task 7
+    |   +-- [TESTED]   different pieceId renders independently -- Task 7
+    |   +-- [TESTED]   OSMD load error propagates -- Task 7
+    |   +-- [GAP]      concurrent calls for same pieceId (race condition) -- no test
+    |   +-- [GAP]      api.scores.getData() network error -- no test
+    |
+    +-- clipBars()
+    |   +-- [TESTED]   unrendered piece returns null -- Task 8
+    |   +-- [TESTED]   out-of-range bars returns null -- Task 8
+    |   +-- [TESTED*]  valid bar range returns SVG -- Task 8 (but see jsdom RISK)
+    |   +-- [GAP]      bars span multiple stave lines -- no test
+    |
+    +-- getOsmdInstance()
+        +-- [GAP]      not directly tested (used in Task 11 impl)
+
+[+] apps/web/src/components/cards/ScoreHighlightCard.tsx
+    |
+    +-- render()
+        +-- [GAP]      loading state -- no behavior test (Task 9 is smoke only)
+        +-- [GAP]      error fallback -- no behavior test
+        +-- [GAP]      expand button calls openHighlight -- no behavior test
+        +-- [GAP]      SVG fragments rendered into container -- no behavior test
+
+[+] apps/web/src/components/ScorePanel.tsx (modified)
+    |
+    +-- highlightData path
+        +-- [GAP]      renders score from OSMD Manager -- no behavior test
+        +-- [GAP]      annotation positions from highlights -- no behavior test
+        +-- [GAP]      backward compat with sessionData path -- no behavior test
+
+[+] apps/api/src/services/tool-processor.ts (modified)
+    |
+    +-- processScoreHighlight()
+        +-- [TESTED]   Zod validation (positive/negative) -- Task 1
+        +-- [TESTED]   pass-through returns correct type -- Task 1
+        +-- [TESTED]   no scoreData in config -- Task 4
+        +-- [GAP]      catalog lookup found (piece exists) -- not tested with real row
+```
+
+#### Failure Modes
+
+**MXL fetch fails (Task 5/7):** `api.scores.getData` throws `ApiError` -> `ensureRendered` throws -> `ScoreHighlightCard` catches, sets `renderState = "error"`, renders text fallback. Logged by Sentry. **Visible, recoverable.** Good.
+
+**OSMD render fails (Task 7):** Error propagated from `.load()` or `.render()` -> same catch path as above. **Visible.** Good.
+
+**clipBars returns null (Task 8):** Individual highlight region shows no SVG snippet, but annotation text still renders. Other regions unaffected. **Graceful degradation.** Good.
+
+**Concurrent render (Task 7):** As noted in BLOCKER -- without the promise-locking fix, two OSMD instances are created, one leaks. **DOM leak, silent.** This is why it's a BLOCKER.
+
+**ScorePanel opened without pieceId (Task 11):** The fallback code logs `console.error("ScorePanel: no pieceId provided")` and returns without rendering. Panel opens but shows nothing. **Visible but confusing** -- consider showing an error message in the panel UI.
+
+### Presumption Inventory
+
+| ASSUMPTION | VERDICT | REASON |
+|------------|---------|--------|
+| OSMD's `.load()` accepts a blob URL for MXL data | VALIDATE | OSMD docs say `.load(url)` accepts URL string. Blob URLs should work, but verify OSMD doesn't reject the `blob:` protocol. The existing code loads from a file path. |
+| `osmd.graphic.measureList` is an array of arrays where `[i][0].stave.SVGElement` is an SVG element | SAFE | Verified -- `ScorePanel.tsx:302-311` uses this exact access pattern in production code. |
+| Cloning an SVG via `cloneNode(true)` and setting a custom `viewBox` produces a correctly cropped visual | VALIDATE | SVG `viewBox` clipping works in theory, but OSMD's generated SVG may have absolute positioning or transforms that make the cropped view look wrong. Manual testing needed. |
+| `API_BASE` is available in test environment (jsdom) | SAFE | It's imported from `./config` which reads `import.meta.env.PROD` -- in test mode this is `false`, so `API_BASE` defaults to the dev value. |
+| The existing R2 bucket has `.mxl` files (not `.json`) | VALIDATE | The plan changes the key from `.json` to `.mxl`. If production R2 only has `.json` files, all score fetches will 404 after deploy. Need a migration step or dual-read. |
+| jsdom supports `URL.createObjectURL` | VALIDATE | jsdom may not implement `URL.createObjectURL`. If not, `ensureRendered` will throw in tests even with mocked OSMD. Verify or add a polyfill in the test setup. |
+
+### Summary
+
+```
+[BLOCKER] count: 2
+[RISK]    count: 5
+[QUESTION] count: 0
+```
+
+**BLOCKERs:**
+1. Task 5 uses non-existent `BASE` variable instead of `API_BASE` from `./config`
+2. Task 7 has a race condition in `ensureRendered` -- concurrent calls for the same pieceId leak DOM nodes
+
+**RISKs:**
+1. Task 8 `getBoundingClientRect`/jsdom interaction may cause test failure
+2. Task 9 tests are smoke-only -- no behavior verification
+3. Task 11 implementation is underspecified for the build agent
+4. Task 1 `mockCtx` change needs verification against existing pass-through tests
+5. ScoreHighlightCard uses `innerHTML` outside React's control
+
+VERDICT: NEEDS_REWORK -- resolve the 2 BLOCKERs (fix `API_BASE` import in Task 5, add promise-locking to Task 7's `ensureRendered`) before executing. The 5 RISKs should be monitored during build but don't require plan changes.
