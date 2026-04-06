@@ -37,9 +37,13 @@ export interface ExerciseSetConfig {
 	}>;
 }
 
-// Stub interfaces -- flesh out when implementing Slice 10
 export interface ScoreHighlightConfig {
-	[key: string]: unknown;
+	pieceId: string;
+	highlights: Array<{
+		bars: [number, number];
+		dimension: string;
+		annotation?: string;
+	}>;
 }
 
 export interface KeyboardGuideConfig {

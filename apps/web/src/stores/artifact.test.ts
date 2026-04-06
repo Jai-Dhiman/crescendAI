@@ -18,9 +18,14 @@ const sampleComponent: InlineComponent = {
 	},
 };
 
-const anotherComponent: InlineComponent = {
+const scoreHighlightComponent: InlineComponent = {
 	type: "score_highlight",
-	config: { measures: [1, 2, 3] },
+	config: {
+		pieceId: "123e4567-e89b-12d3-a456-426614174000",
+		highlights: [
+			{ bars: [1, 4] as [number, number], dimension: "dynamics", annotation: "crescendo" },
+		],
+	},
 };
 
 afterEach(() => {
@@ -41,6 +46,23 @@ describe("register", () => {
 		expect(entry).toBeDefined();
 		expect(entry.state).toBe("inline");
 		expect(entry.component).toEqual(sampleComponent);
+	});
+
+	it("registers a score_highlight component with typed config", () => {
+		const store = useArtifactStore.getState();
+		store.register("sh1", scoreHighlightComponent);
+
+		const entry = useArtifactStore.getState().states["sh1"];
+		expect(entry).toBeDefined();
+		expect(entry.state).toBe("inline");
+		expect(entry.component.type).toBe("score_highlight");
+		if (entry.component.type === "score_highlight") {
+			expect(entry.component.config.pieceId).toBe(
+				"123e4567-e89b-12d3-a456-426614174000",
+			);
+			expect(entry.component.config.highlights).toHaveLength(1);
+			expect(entry.component.config.highlights[0].dimension).toBe("dynamics");
+		}
 	});
 });
 
@@ -93,7 +115,7 @@ describe("expand", () => {
 	it("sets previous expanded artifact back to inline", () => {
 		const store = useArtifactStore.getState();
 		store.register("a1", sampleComponent);
-		store.register("a2", anotherComponent);
+		store.register("a2", scoreHighlightComponent);
 
 		useArtifactStore.getState().expand("a1");
 		expect(useArtifactStore.getState().states["a1"].state).toBe("expanded");
