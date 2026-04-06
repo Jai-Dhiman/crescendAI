@@ -28,7 +28,7 @@ export async function getPiece(ctx: ServiceContext, pieceId: string) {
 }
 
 export async function getPieceData(env: Bindings, pieceId: string) {
-	const object = await env.SCORES.get(`scores/v1/${pieceId}.json`);
+	const object = await env.SCORES.get(`scores/v1/${pieceId}.mxl`);
 
 	if (object === null) {
 		throw new NotFoundError("piece data", pieceId);
