@@ -590,23 +590,30 @@ Expected: FAIL -- `api.scores` is not defined.
 
 - [ ] **Step 3: Implement the minimum to make the test pass**
 
-In `apps/web/src/lib/api.ts`, add to the `api` object:
+In `apps/web/src/lib/api.ts`, add to the `api` object (before the closing `};`):
 
 ```typescript
 scores: {
 	async getData(pieceId: string): Promise<ArrayBuffer> {
-		const res = await fetch(`${BASE}/api/scores/${pieceId}/data`, {
+		const res = await fetch(`${API_BASE}/api/scores/${pieceId}/data`, {
 			credentials: "include",
 		});
 		if (!res.ok) {
-			throw new ApiError(res.status, `Failed to fetch score data for ${pieceId}`);
+			const err = new ApiError(
+				res.status,
+				`Failed to fetch score data for ${pieceId}`,
+			);
+			Sentry.captureException(err, {
+				extra: { status: res.status, path: `/api/scores/${pieceId}/data` },
+			});
+			throw err;
 		}
 		return res.arrayBuffer();
 	},
 },
 ```
 
-Where `BASE` is the existing base URL variable used by other methods in the file (check exact name -- likely empty string or `import.meta.env.VITE_API_URL`).
+Note: `API_BASE` is already imported at the top of `api.ts` from `./config`. `Sentry` is also already imported. The `request()` helper cannot be used here because it calls `response.json()` -- MXL is binary data, so we use raw `fetch` + `res.arrayBuffer()` instead.
 
 - [ ] **Step 4: Run test -- verify it PASSES**
 
@@ -838,6 +845,21 @@ describe("OsmdManager.ensureRendered", () => {
 			"MXL parse failed",
 		);
 	});
+
+	it("concurrent calls for same piece render only once", async () => {
+		const { osmdManager } = await import("./osmd-manager");
+		osmdManager.reset();
+
+		// Fire two concurrent calls for the same piece
+		const [r1, r2] = await Promise.all([
+			osmdManager.ensureRendered("piece-concurrent"),
+			osmdManager.ensureRendered("piece-concurrent"),
+		]);
+
+		// OSMD load+render should only have been called once
+		expect(mockLoad).toHaveBeenCalledTimes(1);
+		expect(mockRender).toHaveBeenCalledTimes(1);
+	});
 });
 ```
 
@@ -861,10 +883,9 @@ interface CachedScore {
 }
 
 const cache = new Map<string, CachedScore>();
+const pending = new Map<string, Promise<void>>();
 
-async function ensureRendered(pieceId: string): Promise<void> {
-	if (cache.has(pieceId)) return;
-
+async function doRender(pieceId: string): Promise<void> {
 	const { OpenSheetMusicDisplay } = await import("opensheetmusicdisplay");
 
 	const container = document.createElement("div");
@@ -896,8 +917,28 @@ async function ensureRendered(pieceId: string): Promise<void> {
 		await osmd.load(url);
 		osmd.render();
 		cache.set(pieceId, { osmd, container });
+	} catch (err) {
+		// Clean up the leaked container on failure
+		container.remove();
+		throw err;
 	} finally {
 		URL.revokeObjectURL(url);
+	}
+}
+
+async function ensureRendered(pieceId: string): Promise<void> {
+	if (cache.has(pieceId)) return;
+
+	// If another call is already rendering this piece, await the same promise
+	const inflight = pending.get(pieceId);
+	if (inflight) return inflight;
+
+	const promise = doRender(pieceId);
+	pending.set(pieceId, promise);
+	try {
+		await promise;
+	} finally {
+		pending.delete(pieceId);
 	}
 }
 
@@ -912,6 +953,7 @@ function reset(): void {
 		entry.container.remove();
 	}
 	cache.clear();
+	pending.clear();
 }
 
 export const osmdManager = {
@@ -1173,7 +1215,7 @@ Expected: FAIL -- module `./ScoreHighlightCard` does not exist.
 ```typescript
 // apps/web/src/components/cards/ScoreHighlightCard.tsx
 import { ArrowsOut } from "@phosphor-icons/react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { DIMENSION_COLORS } from "../../lib/mock-session";
 import { osmdManager } from "../../lib/osmd-manager";
 import type { ScoreHighlightConfig } from "../../lib/types";
