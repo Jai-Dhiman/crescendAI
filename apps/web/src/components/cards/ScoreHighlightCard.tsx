@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { DIMENSION_COLORS } from "../../lib/mock-session";
 import { osmdManager } from "../../lib/osmd-manager";
 import type { ScoreHighlightConfig } from "../../lib/types";
+import { useScorePanelStore } from "../../stores/score-panel";
 
 interface ScoreHighlightCardProps {
 	config: ScoreHighlightConfig;
@@ -18,6 +19,7 @@ export function ScoreHighlightCard({
 }: ScoreHighlightCardProps) {
 	const [renderState, setRenderState] = useState<RenderState>("loading");
 	const svgContainerRef = useRef<HTMLDivElement>(null);
+	const openHighlight = useScorePanelStore((s) => s.openHighlight);
 
 	useEffect(() => {
 		let cancelled = false;
@@ -72,7 +74,10 @@ export function ScoreHighlightCard({
 				{onExpand && (
 					<button
 						type="button"
-						onClick={onExpand}
+						onClick={() => {
+							openHighlight(config);
+							onExpand?.();
+						}}
 						className="w-7 h-7 flex items-center justify-center rounded-lg text-text-secondary hover:text-cream hover:bg-surface transition"
 						aria-label="Expand score highlight"
 					>
