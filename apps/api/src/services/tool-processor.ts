@@ -444,7 +444,10 @@ async function processSearchCatalog(
 		);
 	}
 
-	const whereClause = conditions.length > 1 ? and(...conditions) : conditions[0];
+	if (conditions.length === 0) {
+		throw new Error("search_catalog: no search conditions (should be unreachable after validation)");
+	}
+	const whereClause = and(...conditions);
 
 	const rows = await ctx.db
 		.select({
@@ -682,7 +685,7 @@ const referenceBrowserAnthropicSchema: AnthropicToolSchema = {
 const searchCatalogAnthropicSchema: AnthropicToolSchema = {
 	name: "search_catalog",
 	description:
-		"Search the piece catalog to find a piece's UUID by composer name, title, or free text query. Use this when the student mentions a piece by name and you need the piece_id for other tools like score_highlight. Returns up to 5 matches.",
+		"Search the piece catalog to find a piece's UUID by composer name, title, or free text query. Use this when the student mentions a piece by name and you need the piece_id for other tools like score_highlight. Returns up to 5 matches. Provide at least one of query, composer, or title. If multiple fields are provided, results must match all of them.",
 	input_schema: {
 		type: "object",
 		properties: {
