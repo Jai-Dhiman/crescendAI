@@ -156,9 +156,21 @@ async function processCreateExercise(
 // ---------------------------------------------------------------------------
 
 const scoreHighlightSchema = z.object({
-	bars: z.string().regex(/^\d+(-\d+)?$/),
-	annotations: z.array(z.string()).optional(),
-	piece_id: z.string().uuid().optional(),
+	piece_id: z.string().uuid(),
+	highlights: z
+		.array(
+			z.object({
+				bars: z
+					.tuple([z.number().int().min(1), z.number().int().min(1)])
+					.refine(([start, end]) => start <= end, {
+						message: "bars start must be <= end",
+					}),
+				dimension: dimensionEnum,
+				annotation: z.string().max(500).optional(),
+			}),
+		)
+		.min(1)
+		.max(5),
 });
 
 async function processScoreHighlight(
@@ -168,52 +180,36 @@ async function processScoreHighlight(
 ): Promise<InlineComponent[]> {
 	const input = scoreHighlightSchema.parse(rawInput);
 
-	let scoreData: unknown = null;
+	// Validate piece exists in catalog
+	const catalogRow = await ctx.db
+		.select({ pieceId: pieces.pieceId })
+		.from(pieces)
+		.where(eq(pieces.pieceId, input.piece_id))
+		.limit(1);
 
-	if (input.piece_id) {
-		const catalogRow = await ctx.db
-			.select({ pieceId: pieces.pieceId })
-			.from(pieces)
-			.where(eq(pieces.pieceId, input.piece_id))
-			.limit(1);
-
-		if (catalogRow.length === 0) {
-			console.log(
-				JSON.stringify({
-					level: "warn",
-					message:
-						"score_highlight piece_id not found in catalog, skipping R2 lookup",
-					pieceId: input.piece_id,
-				}),
-			);
-		} else {
-			const key = `scores/${input.piece_id}/score.json`;
-			const obj = await ctx.env.SCORES.get(key);
-			if (obj) {
-				const text = await obj.text();
-				try {
-					scoreData = JSON.parse(text);
-				} catch {
-					scoreData = text;
-				}
-			}
-		}
+	if (catalogRow.length === 0) {
+		console.log(
+			JSON.stringify({
+				level: "warn",
+				message: "score_highlight piece_id not found in catalog",
+				pieceId: input.piece_id,
+			}),
+		);
 	}
 
-	const config: Record<string, unknown> = {
-		bars: input.bars,
-	};
-	if (input.annotations !== undefined) {
-		config.annotations = input.annotations;
-	}
-	if (input.piece_id !== undefined) {
-		config.pieceId = input.piece_id;
-	}
-	if (scoreData !== null) {
-		config.scoreData = scoreData;
-	}
-
-	return [{ type: "score_highlight", config }];
+	return [
+		{
+			type: "score_highlight",
+			config: {
+				pieceId: input.piece_id,
+				highlights: input.highlights.map((h) => ({
+					bars: h.bars,
+					dimension: h.dimension,
+					...(h.annotation !== undefined ? { annotation: h.annotation } : {}),
+				})),
+			},
+		},
+	];
 }
 
 // ---------------------------------------------------------------------------
@@ -465,30 +461,48 @@ const createExerciseAnthropicSchema: AnthropicToolSchema = {
 const scoreHighlightAnthropicSchema: AnthropicToolSchema = {
 	name: "score_highlight",
 	description:
-		"Highlight a range of bars in the score viewer. Optionally adds annotations and loads score data from the piece library.",
+		"Highlight one or more bar ranges in the score viewer with dimension-colored annotations. Use to visually point at specific passages during teaching.",
 	input_schema: {
 		type: "object",
 		properties: {
-			bars: {
-				type: "string",
-				description:
-					"Bar range to highlight. Single bar ('4') or range ('4-8').",
-				pattern: "^\\d+(-\\d+)?$",
-			},
-			annotations: {
-				type: "array",
-				items: { type: "string" },
-				description:
-					"Optional text annotations to display on the highlighted bars.",
-			},
 			piece_id: {
 				type: "string",
 				format: "uuid",
+				description: "UUID of the piece being discussed. Required.",
+			},
+			highlights: {
+				type: "array",
 				description:
-					"Optional UUID of the piece. If provided, loads score data from the library.",
+					"One to five highlight regions. Each targets a bar range with a dimension and optional annotation.",
+				minItems: 1,
+				maxItems: 5,
+				items: {
+					type: "object",
+					properties: {
+						bars: {
+							type: "array",
+							items: { type: "integer", minimum: 1 },
+							minItems: 2,
+							maxItems: 2,
+							description:
+								"Bar range as [start, end]. Use same number for a single bar (e.g. [4, 4]).",
+						},
+						dimension: {
+							type: "string",
+							enum: DIMS_6,
+							description: "Which musical dimension this highlight targets.",
+						},
+						annotation: {
+							type: "string",
+							description:
+								"Optional text annotation to display on the highlighted bars.",
+						},
+					},
+					required: ["bars", "dimension"],
+				},
 			},
 		},
-		required: ["bars"],
+		required: ["piece_id", "highlights"],
 	},
 };
 

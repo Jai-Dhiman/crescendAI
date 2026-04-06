@@ -166,37 +166,80 @@ describe("create_exercise schema validation", () => {
 describe("score_highlight schema validation", () => {
 	const schema = TOOL_REGISTRY.score_highlight.schema;
 
-	it("passes valid bare input", () => {
-		const result = schema.safeParse({ bars: "1-4" });
-		expect(result.success).toBe(true);
-	});
-
-	it("passes single bar number", () => {
-		const result = schema.safeParse({ bars: "5" });
-		expect(result.success).toBe(true);
-	});
-
-	it("passes with optional annotations and piece_id", () => {
+	it("passes valid single highlight", () => {
 		const result = schema.safeParse({
-			bars: "10-20",
-			annotations: ["forte", "legato"],
 			piece_id: "123e4567-e89b-12d3-a456-426614174000",
+			highlights: [
+				{ bars: [1, 4], dimension: "dynamics" },
+			],
 		});
 		expect(result.success).toBe(true);
 	});
 
-	it("rejects invalid bars format", () => {
-		const result = schema.safeParse({ bars: "abc" });
+	it("passes multiple highlights with annotations", () => {
+		const result = schema.safeParse({
+			piece_id: "123e4567-e89b-12d3-a456-426614174000",
+			highlights: [
+				{ bars: [1, 4], dimension: "dynamics", annotation: "crescendo here" },
+				{ bars: [12, 16], dimension: "pedaling", annotation: "sustain bleeds" },
+			],
+		});
+		expect(result.success).toBe(true);
+	});
+
+	it("rejects missing piece_id", () => {
+		const result = schema.safeParse({
+			highlights: [{ bars: [1, 4], dimension: "dynamics" }],
+		});
+		expect(result.success).toBe(false);
+	});
+
+	it("rejects empty highlights array", () => {
+		const result = schema.safeParse({
+			piece_id: "123e4567-e89b-12d3-a456-426614174000",
+			highlights: [],
+		});
+		expect(result.success).toBe(false);
+	});
+
+	it("rejects more than 5 highlights", () => {
+		const highlights = Array.from({ length: 6 }, (_, i) => ({
+			bars: [i + 1, i + 2],
+			dimension: "dynamics",
+		}));
+		const result = schema.safeParse({
+			piece_id: "123e4567-e89b-12d3-a456-426614174000",
+			highlights,
+		});
+		expect(result.success).toBe(false);
+	});
+
+	it("rejects invalid dimension", () => {
+		const result = schema.safeParse({
+			piece_id: "123e4567-e89b-12d3-a456-426614174000",
+			highlights: [{ bars: [1, 4], dimension: "rhythm" }],
+		});
+		expect(result.success).toBe(false);
+	});
+
+	it("rejects bars where start > end", () => {
+		const result = schema.safeParse({
+			piece_id: "123e4567-e89b-12d3-a456-426614174000",
+			highlights: [{ bars: [8, 4], dimension: "dynamics" }],
+		});
 		expect(result.success).toBe(false);
 	});
 
 	it("rejects invalid piece_id (not uuid)", () => {
-		const result = schema.safeParse({ bars: "1-4", piece_id: "not-a-uuid" });
+		const result = schema.safeParse({
+			piece_id: "not-a-uuid",
+			highlights: [{ bars: [1, 4], dimension: "dynamics" }],
+		});
 		expect(result.success).toBe(false);
 	});
 
-	it("rejects missing bars", () => {
-		const result = schema.safeParse({});
+	it("rejects old bars-string format", () => {
+		const result = schema.safeParse({ bars: "1-4" });
 		expect(result.success).toBe(false);
 	});
 });
@@ -366,7 +409,15 @@ describe("reference_browser schema validation", () => {
 describe("processToolUse pass-through tools", () => {
 	// We need a minimal ServiceContext mock -- pass-through tools don't hit DB
 	const mockCtx = {
-		db: {} as never,
+		db: {
+			select: () => ({
+				from: () => ({
+					where: () => ({
+						limit: () => Promise.resolve([]),
+					}),
+				}),
+			}),
+		} as never,
 		env: {} as never,
 	};
 	const studentId = "student-abc";
@@ -428,14 +479,19 @@ describe("processToolUse pass-through tools", () => {
 		expect(result.isError).toBe(true);
 	});
 
-	it("score_highlight pass-through (no piece_id) returns ToolResult", async () => {
+	it("score_highlight pass-through returns ToolResult", async () => {
 		const { processToolUse } = await import("./tool-processor");
 		const result: ToolResult = await processToolUse(
 			mockCtx,
 			studentId,
 			"score_highlight",
-			{ bars: "1-8" },
+			{
+				piece_id: "123e4567-e89b-12d3-a456-426614174000",
+				highlights: [{ bars: [1, 8], dimension: "dynamics" }],
+			},
 		);
+		// Note: will fail catalog lookup with mock ctx, but should not throw
+		// because processScoreHighlight logs a warning and continues
 		expect(result.isError).toBe(false);
 		expect(result.componentsJson[0].type).toBe("score_highlight");
 	});
