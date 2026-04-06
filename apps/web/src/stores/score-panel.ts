@@ -1,12 +1,15 @@
 import { create } from "zustand";
 import type { MockSessionData } from "../lib/mock-session";
+import type { ScoreHighlightConfig } from "../lib/types";
 
 interface ScorePanelState {
 	isOpen: boolean;
 	sessionData: MockSessionData | null;
+	highlightData: ScoreHighlightConfig | null;
 	activeAnnotationIndex: number | null;
 	panelWidth: number;
 	open: (data: MockSessionData) => void;
+	openHighlight: (data: ScoreHighlightConfig) => void;
 	close: () => void;
 	toggle: () => void;
 	setActiveAnnotation: (index: number | null) => void;
@@ -33,11 +36,15 @@ function loadPersistedWidth(): number {
 export const useScorePanelStore = create<ScorePanelState>((set) => ({
 	isOpen: false,
 	sessionData: null,
+	highlightData: null,
 	activeAnnotationIndex: null,
 	panelWidth: loadPersistedWidth(),
 	open: (data) => {
-		if (!import.meta.env.DEV) return;
-		set({ isOpen: true, sessionData: data, activeAnnotationIndex: null });
+		// DEV gate removed -- panel works in all environments
+		set({ isOpen: true, sessionData: data, highlightData: null, activeAnnotationIndex: null });
+	},
+	openHighlight: (data) => {
+		set({ isOpen: true, highlightData: data, sessionData: null, activeAnnotationIndex: null });
 	},
 	close: () => set({ isOpen: false }),
 	toggle: () => set((s) => ({ isOpen: !s.isOpen })),
@@ -51,5 +58,5 @@ export const useScorePanelStore = create<ScorePanelState>((set) => ({
 		set({ panelWidth: width });
 	},
 	clear: () =>
-		set({ isOpen: false, sessionData: null, activeAnnotationIndex: null }),
+		set({ isOpen: false, sessionData: null, highlightData: null, activeAnnotationIndex: null }),
 }));
