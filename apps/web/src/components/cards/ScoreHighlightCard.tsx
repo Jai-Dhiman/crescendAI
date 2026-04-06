@@ -63,7 +63,7 @@ export function ScoreHighlightCard({
 		return () => {
 			cancelled = true;
 		};
-	}, [config.pieceId, config.highlights]);
+	}, [config.pieceId, JSON.stringify(config.highlights)]);
 
 	return (
 		<div className="bg-surface-card border border-border rounded-xl p-4 mt-3">

@@ -280,6 +280,9 @@ function ScorePanelScore({
 
 			if (!pieceId) {
 				// No pieceId -- sessionData path shows annotation list without a rendered score
+				// Still set isRendered so the annotation-position effect can run (positions fall
+				// through to the fallback distributor since osmdRef.current remains null)
+				setIsRendered(true);
 				return;
 			}
 
