@@ -314,6 +314,12 @@ describe("UNIFIED_TEACHER_SYSTEM", () => {
 			"Never ask the student for a piece ID",
 		);
 	});
+
+	it("instructs teacher to disambiguate multiple matches", () => {
+		expect(UNIFIED_TEACHER_SYSTEM).toContain(
+			"If multiple matches are returned",
+		);
+	});
 });
 ```
 
@@ -344,7 +350,7 @@ with:
 ```typescript
 ## Tool Usage
 You have tools available. Use them when they add value:
-- search_catalog: When the student mentions a piece by name and you need its piece_id for other tools. Never ask the student for a piece ID -- use search_catalog to look it up yourself.
+- search_catalog: When the student mentions a piece by name and you need its piece_id for other tools. Never ask the student for a piece ID -- use search_catalog to look it up yourself. If multiple matches are returned, present the options to the student and confirm before using a piece_id.
 - create_exercise: When a concrete drill would help more than verbal guidance. Use sparingly.
 - score_highlight: When discussing a specific passage and visual reference would help. Requires piece_id -- use search_catalog first if you don't have it.
 - keyboard_guide: When fingering or hand position matters.
@@ -463,16 +469,16 @@ it("search_catalog returns empty matches when nothing found", async () => {
 
 Note: The `searchMockCtx` needs a different mock chain than the existing `mockCtx` because `processSearchCatalog` calls `select().from().where().orderBy().limit()` (with `orderBy` in the chain), while `processScoreHighlight` calls `select().from().where().limit()` (without `orderBy`). The existing `mockCtx` doesn't have `orderBy` in the chain, so it can't be reused here.
 
-- [ ] **Step 2: Run test -- verify it FAILS**
+- [ ] **Step 2: Run test -- verify it PASSES**
 
 ```bash
 cd apps/api && npx vitest run src/services/tool-processor.test.ts
 ```
-Expected: FAIL if Task 1 hasn't been merged yet (search_catalog not in registry). If Task 1 is merged, this should PASS immediately since the implementation is already complete. In that case, this task is a verification-only commit confirming the integration behavior is tested.
+Expected: PASS -- Task 1 already implemented the full process function. This task is a verification-only commit adding integration tests that confirm the DB query and result shaping behavior.
 
-- [ ] **Step 3: Implement (if needed)**
+- [ ] **Step 3: Implement (not needed)**
 
-If tests pass immediately because Task 1 already implemented the full process function, proceed to commit. The integration test has independent value.
+No implementation required -- Task 1 already includes the full `processSearchCatalog` function. Proceed to commit.
 
 - [ ] **Step 4: Run test -- verify it PASSES**
 
@@ -488,3 +494,203 @@ cd apps/api && git add src/services/tool-processor.test.ts && git commit -m "tes
 ```
 
 ---
+
+## Challenge Review
+
+### CEO Pass
+
+#### 1. Premise Challenge
+
+**Right problem?** Yes. The concrete failure mode is real and demonstrable: `score_highlight` requires a UUID, students never know UUIDs, and the teacher LLM has no resolution path. This is not a hypothetical UX gap -- it is a blocker for any chat-initiated `score_highlight` call.
+
+**Real pain?** High. Without this, the teacher can call `score_highlight` from the observation path (where `pieceId` is already in DO state), but it fails entirely in the chat path for any piece the student references by name. The tool exists but is unreachable from the primary user-facing surface.
+
+**Direct path?** Yes. Adding a read-only catalog search tool is the minimal correct fix. The alternative (injecting piece context into every chat dynamic context) is deferred as Part B and documented -- this is the right scoping decision.
+
+**Existing coverage?** `GET /api/scores` already exposes catalog data publicly. The plan correctly reuses the `pieces` table and the existing Drizzle query pattern rather than introducing a new service. Pattern match is tight.
+
+#### 2. Scope Check
+
+The plan has cleanly cut Part B (piece context injection into chat framing). This is the correct call -- Part B requires a schema migration (`piece_id` column on `sessions` table) and cross-service wiring (`chat.ts` -> `prompts.ts`) that would expand scope 3x.
+
+One scope note: the spec's `## File Changes` table lists 5 files including `chat.ts` and `prompts.test.ts` (testing `buildChatFraming`). The plan's `## File Structure` table lists only 3 files and defers `chat.ts` entirely. The plan's scope is correct for the stated goal; the spec's table bleeds into Part B scope. No action needed -- the plan is right to cut.
+
+The hardest problem here -- query design -- is actually being solved. ILIKE substring match on a 242-piece catalog is the right call (no pg_trgm, no embedding lookup). This is not being avoided.
+
+#### 3. Twelve-Month Alignment
+
+```
+CURRENT STATE                        THIS PLAN                       12-MONTH IDEAL
+Teacher LLM must ask student     ->  Teacher resolves names to   ->  Teacher always has piece context
+for UUID to use score_highlight      UUIDs autonomously via           injected (Part B), with search
+                                     search_catalog tool              as fallback for cross-references
+```
+
+The plan moves cleanly toward the ideal. No tech debt created. Part B is the natural next step and is already documented.
+
+#### 4. Alternatives Check
+
+The spec documents the alternatives consideration: ILIKE vs full-text/trigram. Rationale is clear (242-piece catalog, LLM reformulates queries, no infra complexity). The single-tool design vs embedding in `score_highlight` is also justified (shared by `reference_browser`, disambiguate before commit, single responsibility). Alternative documentation is adequate.
+
+---
+
+### Engineering Pass
+
+#### 5. Architecture
+
+**Data flow:**
+```
+chat.ts -> processToolUse("search_catalog", { query })
+    -> TOOL_REGISTRY["search_catalog"].schema.safeParse()
+    -> processSearchCatalog(ctx, studentId, input)
+    -> ctx.db.select().from(pieces).where(ILIKE).orderBy().limit(5)
+    -> InlineComponent[]{ type: "search_catalog_result", config: { matches } }
+```
+
+The plan follows the existing pattern exactly: schema constant -> process function -> Anthropic schema constant -> registry entry. This is correct.
+
+**Security:** Read-only query against the `pieces` table (publicly accessible via `GET /api/scores`). Drizzle parameterizes all queries -- no SQL injection risk. The user-supplied `query`/`composer`/`title` strings are interpolated into `sql` template literals with `${"%" + input.query + "%"}` syntax, which Drizzle correctly parameterizes as prepared statement parameters. No issue.
+
+**Import change:** The plan adds `sql` and `asc` to the drizzle-orm import. `sql` is used for `ILIKE` construction. This is the standard Drizzle pattern for raw SQL fragments in typed queries (per TS_STYLE.md section 10).
+
+**`whereClause` edge case:** When all three fields are provided, `conditions` has 3 elements and `and(...conditions)` is used. When exactly one field is provided, `conditions[0]` is used directly. When `conditions.length === 0` (impossible after Zod validation), `conditions[0]` would be `undefined`. This is safe because Zod's `.refine()` and `.min(1)` ensure at least one non-empty field before `processSearchCatalog` is called. SAFE but not obviously so.
+
+**No scaling concern:** 242-piece catalog, limit 5, read-only. No N+1.
+
+#### 6. Module Depth Audit
+
+**`search_catalog` entry in TOOL_REGISTRY (in tool-processor.ts)**
+- Interface size: 1 registry key, same `ToolDefinition` interface as all other tools
+- Implementation size: ~60 LOC (schema + Zod refine + ILIKE query builder + result shaping + empty-result handling)
+- Verdict: DEEP -- hides query construction, ILIKE parameterization, result shaping, and zero-result messaging behind a single `process` fn
+
+**Anthropic schema constant (`searchCatalogAnthropicSchema`)**
+- Interface size: 1 exported constant
+- Implementation size: static JSON (no logic)
+- Verdict: DEEP for purpose -- follows identical pattern to existing 5 schemas
+
+**Prompt update (UNIFIED_TEACHER_SYSTEM)**
+- Interface size: 1 exported string constant
+- Implementation size: ~60 lines of template text
+- Verdict: DEEP -- hides all pedagogical framing behind a single exported constant
+
+No shallow module concerns.
+
+#### 7. Code Quality
+
+**DRY:** The ILIKE construction with `sql` template strings is repeated 3 times (once per field). This is acceptable at this scale -- extracting a helper for 3 occurrences in a single function would be over-engineering. Not a DRY violation.
+
+**Error handling:** `processSearchCatalog` calls `ctx.db.select()...` inside `processToolUse`'s `try/catch` block (lines 704-739 of tool-processor.ts). Any DB error (connection failure, query error) is caught, logged as structured JSON, and returned as `{ isError: true }`. This is correct and matches existing tool error handling.
+
+**Edge cases:**
+- Empty `query`/`composer`/`title` strings: handled by Zod `.min(1)` + `.refine()`.
+- A string like `"   "` (whitespace only) would pass `.min(1)` and result in ILIKE `"% %"`, which matches everything. Minor UX concern, flagged as RISK below.
+- `rows` being null/undefined: Drizzle `.limit()` always returns an array. Safe.
+
+**TS_STYLE.md compliance:**
+- No `any` used -- `rawInput: unknown` narrows via Zod parse. Compliant.
+- Structured logging: errors logged by `processToolUse`'s existing catch block. Compliant.
+- No `HTTPException` imported in service file. Compliant.
+- ServiceContext pattern used. Compliant.
+
+#### 8. Test Philosophy Audit
+
+**Task 1 -- schema validation tests:** All 6 tests exercise `schema.safeParse()` directly. This is the correct interface for schema tests. Tests verify behavior (rejects empty, rejects missing, accepts optional-but-at-least-one). Not shape tests.
+
+Registry structure tests (length=6, concurrencySafe=true, maxResultChars=3000) verify observable properties of the registry, not internal state. Acceptable.
+
+**Task 2 -- prompt content tests:** Two tests verify `UNIFIED_TEACHER_SYSTEM` contains specific substrings. For a prompt-content test, there is no behavior to test other than "the string contains the right guidance." This is the correct test form for this artifact. However:
+
+[RISK] (confidence: 6/10) -- Task 2's test for `"Never ask the student for a piece ID"` is brittle: if the exact phrasing changes during copy editing, the test breaks. Verify this is actually an issue before hardening -- this is acceptable for a prompt test given there is no alternative.
+
+**Task 3 -- integration tests:** Tests call `processToolUse("search_catalog", ...)` through the public interface, asserting on the returned `ToolResult` shape. Correct behavior-through-interface testing.
+
+The mock DB chain couples the test to the specific Drizzle call chain order (`select().from().where().orderBy().limit()`). This is a pre-existing accepted pattern in the test suite (same pattern used for `score_highlight` mock).
+
+[RISK] (confidence: 7/10) -- Task 3's mock DB chain is structurally coupled to the exact Drizzle call order. A chain change (e.g., adding `.innerJoin()`) causes the mock to return `undefined` silently. Pre-existing pattern in the codebase; consistent with existing `mockCtx` usage.
+
+#### 9. Vertical Slice Audit
+
+**Task 1:** One behavior (schema validation) -> one implementation (schema + registry entry) -> one commit. CLEAN.
+
+**Task 2:** One behavior (prompt contains tool guidance) -> one implementation (prompt string update) -> one commit. CLEAN.
+
+**Task 3:**
+
+[BLOCKER] (confidence: 8/10) -- Task 3's integration tests will pass immediately after Task 1 is merged because `processSearchCatalog` is fully implemented in Task 1. The plan acknowledges this at Step 2 ("If Task 1 is merged, this should PASS immediately"). However, Step 2 is labeled "Run test -- verify it FAILS", which is directly contradicted by the note. This creates an ambiguous instruction: the build agent may interpret a passing test at Step 2 as a test failure or may be confused about whether to proceed. **Required fix before execution:** Relabel Task 3's Step 2 to clearly state it is a verification-only step: "Expected: PASS (implementation already shipped in Task 1 -- this task adds integration test coverage, not new behavior)." Alternatively, move the integration test into Task 1's test step, making Task 3 unnecessary.
+
+#### 10. Test Coverage Gaps
+
+```
+[+] apps/api/src/services/tool-processor.ts (search_catalog additions)
+    │
+    ├── searchCatalogSchema (Zod)
+    │   ├── [TESTED ★★★] query-only, composer-only, title-only, all-fields (Task 1)
+    │   ├── [TESTED ★★★] empty object rejects, all-empty-strings rejects (Task 1)
+    │   └── [GAP]     whitespace-only string (e.g., { query: "   " }) -- passes .min(1)
+    │
+    ├── processSearchCatalog()
+    │   ├── [TESTED ★★] happy path with matches (Task 3)
+    │   ├── [TESTED ★★] zero matches -> empty matches + message (Task 3)
+    │   ├── [GAP]     all three fields simultaneously (multi-condition AND) -- tested at schema level only
+    │   └── [GAP]     DB error thrown mid-query -- covered by processToolUse generic catch, not explicitly tested
+    │
+    └── TOOL_REGISTRY["search_catalog"]
+        ├── [TESTED ★★] registry structure (length, concurrencySafe, maxResultChars) (Task 1)
+        └── [TESTED ★★] Anthropic schema count (Task 1)
+
+[+] apps/api/src/services/prompts.ts (UNIFIED_TEACHER_SYSTEM update)
+    └── [TESTED ★★]  contains "search_catalog" and exact phrase (Task 2)
+```
+
+The whitespace-only string gap is minor (242-piece catalog, non-malicious LLM context). Multi-condition AND gap is acceptable.
+
+[RISK] (confidence: 5/10) -- Whitespace-only input strings pass `.min(1)` Zod validation and generate ILIKE `"% %"`, which matches all pieces and returns 5 random results. Low real-world impact given LLM input patterns; worth noting but not blocking.
+
+#### 11. Failure Modes
+
+**Task 1:** DB import failure -> `processSearchCatalog` throws -> caught by `processToolUse` catch block -> logged -> returned as `isError: true` -> teacher LLM degrades gracefully. Not silent.
+
+**Task 2:** Prompt string update is pure data -- no failure mode beyond a TypeScript compile error (impossible for a string literal).
+
+**Task 3:** Tests-only commit. No runtime failure mode.
+
+**Runtime disambiguation gap:**
+
+[RISK] (confidence: 7/10) -- The system prompt update instructs the teacher to "use search_catalog to look it up yourself" but does not specify what to do when multiple matches are returned. When `search_catalog` returns 5 pieces named "waltz", the LLM may silently pick the wrong one. **Recommended fix:** Add to the prompt update: "If search_catalog returns multiple matches, present the options to the student and confirm before using a piece_id."
+
+#### 12. Presumption Inventory
+
+| Assumption | Verdict | Reason |
+|---|---|---|
+| `pieces` table has `composer`, `title`, `barCount`, `pieceId` columns | SAFE | Verified in `catalog.ts` -- all four columns present |
+| `asc` is not yet imported in `tool-processor.ts` | SAFE | Verified -- line 1: `{ and, desc, eq }`, no `asc` |
+| `sql` is not yet imported in `tool-processor.ts` | SAFE | Verified -- line 1 has no `sql` import |
+| Registry currently has 5 tools (tests assert `toHaveLength(5)`) | SAFE | Verified in test file line 23 and tool-processor.ts lines 604-649 |
+| `processToolUse`'s catch block covers DB errors from `processSearchCatalog` | SAFE | Verified -- lines 704-739 wrap all `tool.process()` calls |
+| Mock DB chain `select().from().where().orderBy().limit()` matches actual Drizzle call order | SAFE | Plan's implementation code uses exactly this chain order |
+| ILIKE is supported by PlanetScale Postgres (via Hyperdrive) | SAFE | Standard PostgreSQL operator, no extension required |
+| `pieces.pieceId` is a `text` primary key (not `uuid()` type) | SAFE | Verified in `catalog.ts` -- `text("piece_id").primaryKey()` |
+| Existing `mockCtx` in test file does NOT have `orderBy` in its chain | SAFE | Verified -- `tool-processor.test.ts` lines 411-421: chain is `select().from().where().limit()` without `orderBy`; plan correctly notes this and uses `searchMockCtx` |
+| `UNIFIED_TEACHER_SYSTEM` currently does NOT mention `search_catalog` | SAFE | Verified in `prompts.ts` lines 46-53 |
+| Part B is cleanly deferrable without affecting Part A correctness | SAFE | `search_catalog` is a standalone tool; chat framing injection is independent |
+
+---
+
+### Summary
+
+**[BLOCKER] count: 1**
+**[RISK] count: 4**
+**[QUESTION] count: 0**
+
+**[BLOCKER]** (confidence: 8/10) -- Task 3's Step 2 is labeled "verify it FAILS" but the plan itself says it will PASS immediately if Task 1 is already merged. This contradictory instruction will confuse the build agent. Fix before executing: relabel Task 3 Step 2 as a verification step with "Expected: PASS", or move the integration tests into Task 1's test step and eliminate Task 3 as a separate task.
+
+**[RISK]** (confidence: 7/10) -- System prompt does not guide disambiguation behavior when `search_catalog` returns multiple matches. LLM may silently pick wrong piece. Add one sentence: "If search_catalog returns multiple matches, present the options to the student before using a piece_id."
+
+**[RISK]** (confidence: 7/10) -- Task 3's mock DB chain is structurally coupled to exact Drizzle call ordering. Pre-existing accepted pattern in this test suite; consistent with existing `mockCtx` usage.
+
+**[RISK]** (confidence: 6/10) -- Task 2's prompt test asserts exact substring `"Never ask the student for a piece ID"` -- brittle to copy edits. Acceptable for prompt content tests.
+
+**[RISK]** (confidence: 5/10) -- Whitespace-only input strings pass `.min(1)` Zod validation and generate overly broad ILIKE queries. Low real-world impact.
+
+VERDICT: PROCEED_WITH_CAUTION -- [Fix Task 3 Step 2 label before dispatching build agent; add disambiguation guidance to system prompt update]
