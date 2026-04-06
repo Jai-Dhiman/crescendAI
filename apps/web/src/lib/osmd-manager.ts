@@ -70,6 +70,67 @@ function getOsmdInstance(pieceId: string): CachedScore | null {
 	return cache.get(pieceId) ?? null;
 }
 
+function clipBars(
+	pieceId: string,
+	startBar: number,
+	endBar: number,
+): SVGElement | null {
+	const cached = cache.get(pieceId);
+	if (!cached) return null;
+
+	const { osmd, container } = cached;
+	const measureList = osmd.graphic?.measureList;
+	if (!measureList) return null;
+
+	// Bars are 1-indexed; measureList is 0-indexed
+	const startIdx = startBar - 1;
+	const endIdx = endBar - 1;
+
+	if (startIdx < 0 || endIdx >= measureList.length) return null;
+
+	// Find bounding box spanning all target measures
+	let minX = Infinity;
+	let minY = Infinity;
+	let maxX = -Infinity;
+	let maxY = -Infinity;
+
+	const containerRect = container.getBoundingClientRect();
+
+	for (let i = startIdx; i <= endIdx; i++) {
+		const measure = measureList[i]?.[0];
+		if (!measure?.stave?.SVGElement) continue;
+
+		const svgEl = measure.stave.SVGElement as SVGElement;
+		const rect = svgEl.getBoundingClientRect();
+
+		minX = Math.min(minX, rect.left - containerRect.left);
+		minY = Math.min(minY, rect.top - containerRect.top);
+		maxX = Math.max(maxX, rect.right - containerRect.left);
+		maxY = Math.max(maxY, rect.bottom - containerRect.top);
+	}
+
+	if (minX === Infinity) return null;
+
+	// Add padding
+	const pad = 10;
+	minX = Math.max(0, minX - pad);
+	minY = Math.max(0, minY - pad);
+	maxX += pad;
+	maxY += pad;
+
+	// Clone the container's SVG and set viewBox to the cropped region
+	const sourceSvg = container.querySelector("svg");
+	if (!sourceSvg) return null;
+
+	const cloned = sourceSvg.cloneNode(true) as SVGElement;
+	cloned.setAttribute("viewBox", `${minX} ${minY} ${maxX - minX} ${maxY - minY}`);
+	cloned.setAttribute("width", "100%");
+	cloned.setAttribute("height", "auto");
+	cloned.style.maxHeight = "200px";
+
+	return cloned;
+}
+
 function reset(): void {
 	for (const entry of cache.values()) {
 		entry.container.remove();
@@ -80,6 +141,7 @@ function reset(): void {
 
 export const osmdManager = {
 	ensureRendered,
+	clipBars,
 	getOsmdInstance,
 	reset,
 };

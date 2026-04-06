@@ -98,3 +98,63 @@ describe("OsmdManager.ensureRendered", () => {
 		expect(mockRender).toHaveBeenCalledTimes(1);
 	});
 });
+
+describe("OsmdManager.clipBars", () => {
+	it("returns null for unrendered piece", async () => {
+		const { osmdManager } = await import("./osmd-manager");
+		osmdManager.reset();
+
+		const result = osmdManager.clipBars("nonexistent", 1, 4);
+		expect(result).toBeNull();
+	});
+
+	it("returns null when bar index is out of range", async () => {
+		const { osmdManager } = await import("./osmd-manager");
+		osmdManager.reset();
+
+		// Render with empty measureList
+		await osmdManager.ensureRendered("piece-empty");
+
+		const result = osmdManager.clipBars("piece-empty", 1, 4);
+		expect(result).toBeNull();
+	});
+
+	it("returns an SVG element for valid bar range", async () => {
+		const { osmdManager } = await import("./osmd-manager");
+		osmdManager.reset();
+
+		// Set up measureList with mock stave SVG elements
+		const svgNS = "http://www.w3.org/2000/svg";
+		const mockSvg = document.createElementNS(svgNS, "svg");
+		const mockStaveEl = document.createElementNS(svgNS, "rect");
+		mockSvg.appendChild(mockStaveEl);
+
+		// Override getBoundingClientRect on the mock elements
+		mockStaveEl.getBoundingClientRect = () => ({
+			top: 100, left: 50, bottom: 200, right: 350,
+			width: 300, height: 100, x: 50, y: 100, toJSON: () => {},
+		});
+
+		mockOsmdInstance.graphic = {
+			measureList: [
+				[{ stave: { SVGElement: mockStaveEl } }],  // bar 1
+				[{ stave: { SVGElement: mockStaveEl } }],  // bar 2
+				[{ stave: { SVGElement: mockStaveEl } }],  // bar 3
+				[{ stave: { SVGElement: mockStaveEl } }],  // bar 4
+			],
+		};
+
+		await osmdManager.ensureRendered("piece-with-measures");
+
+		// Add an SVG child to the container so querySelector("svg") finds it
+		const cached = osmdManager.getOsmdInstance("piece-with-measures");
+		if (cached) {
+			const containerSvg = document.createElementNS(svgNS, "svg");
+			cached.container.appendChild(containerSvg);
+		}
+
+		const result = osmdManager.clipBars("piece-with-measures", 1, 4);
+		expect(result).not.toBeNull();
+		expect(result!.tagName.toLowerCase()).toBe("svg");
+	});
+});
