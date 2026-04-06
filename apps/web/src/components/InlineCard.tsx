@@ -22,6 +22,8 @@ export function InlineCard({
 					artifactId={artifactId}
 				/>
 			);
+		case "score_highlight":
+			return <PlaceholderCard type="score_highlight" />;
 		default:
 			return <PlaceholderCard type={component.type} />;
 	}
