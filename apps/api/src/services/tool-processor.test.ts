@@ -17,10 +17,11 @@ describe("TOOL_REGISTRY structure", () => {
 		"keyboard_guide",
 		"show_session_data",
 		"reference_browser",
+		"search_catalog",
 	] as const;
 
-	it("has all 5 tools", () => {
-		expect(Object.keys(TOOL_REGISTRY)).toHaveLength(5);
+	it("has all 6 tools", () => {
+		expect(Object.keys(TOOL_REGISTRY)).toHaveLength(6);
 		for (const name of toolNames) {
 			expect(TOOL_REGISTRY[name]).toBeDefined();
 		}
@@ -47,6 +48,7 @@ describe("TOOL_REGISTRY structure", () => {
 		expect(TOOL_REGISTRY.keyboard_guide.concurrencySafe).toBe(true);
 		expect(TOOL_REGISTRY.show_session_data.concurrencySafe).toBe(true);
 		expect(TOOL_REGISTRY.reference_browser.concurrencySafe).toBe(true);
+		expect(TOOL_REGISTRY.search_catalog.concurrencySafe).toBe(true);
 	});
 
 	it("maxResultChars defined for bounded tools", () => {
@@ -54,6 +56,7 @@ describe("TOOL_REGISTRY structure", () => {
 		expect(TOOL_REGISTRY.keyboard_guide.maxResultChars).toBe(2000);
 		expect(TOOL_REGISTRY.show_session_data.maxResultChars).toBe(10000);
 		expect(TOOL_REGISTRY.reference_browser.maxResultChars).toBe(2000);
+		expect(TOOL_REGISTRY.search_catalog.maxResultChars).toBe(3000);
 	});
 
 	it("create_exercise has no maxResultChars", () => {
@@ -66,9 +69,9 @@ describe("TOOL_REGISTRY structure", () => {
 // ---------------------------------------------------------------------------
 
 describe("getAnthropicToolSchemas", () => {
-	it("returns an array of 5 schemas", () => {
+	it("returns an array of 6 schemas", () => {
 		const schemas = getAnthropicToolSchemas();
-		expect(schemas).toHaveLength(5);
+		expect(schemas).toHaveLength(6);
 	});
 
 	it("each schema has name, description, input_schema", () => {
@@ -398,6 +401,48 @@ describe("reference_browser schema validation", () => {
 
 	it("rejects missing description", () => {
 		const result = schema.safeParse({ passage: "bars 1-4" });
+		expect(result.success).toBe(false);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// search_catalog Zod validation
+// ---------------------------------------------------------------------------
+
+describe("search_catalog schema validation", () => {
+	const schema = TOOL_REGISTRY.search_catalog.schema;
+
+	it("passes with query only", () => {
+		const result = schema.safeParse({ query: "Chopin waltz" });
+		expect(result.success).toBe(true);
+	});
+
+	it("passes with composer only", () => {
+		const result = schema.safeParse({ composer: "Chopin" });
+		expect(result.success).toBe(true);
+	});
+
+	it("passes with title only", () => {
+		const result = schema.safeParse({ title: "Waltz Op. 64" });
+		expect(result.success).toBe(true);
+	});
+
+	it("passes with all fields", () => {
+		const result = schema.safeParse({
+			query: "waltz",
+			composer: "Chopin",
+			title: "Op. 64 No. 2",
+		});
+		expect(result.success).toBe(true);
+	});
+
+	it("rejects empty object", () => {
+		const result = schema.safeParse({});
+		expect(result.success).toBe(false);
+	});
+
+	it("rejects all empty strings", () => {
+		const result = schema.safeParse({ query: "", composer: "", title: "" });
 		expect(result.success).toBe(false);
 	});
 });
