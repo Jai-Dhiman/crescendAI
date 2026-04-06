@@ -11,7 +11,7 @@ interface ArtifactProps {
 	component: InlineComponent;
 }
 
-function getCollapsedProps(component: InlineComponent): {
+export function getCollapsedProps(component: InlineComponent): {
 	title: string;
 	subtitle: string;
 	badge: string;
@@ -22,6 +22,19 @@ function getCollapsedProps(component: InlineComponent): {
 			title: component.config.targetSkill,
 			subtitle: component.config.sourcePassage,
 			badge: `${count} exercise${count === 1 ? "" : "s"}`,
+		};
+	}
+
+	if (component.type === "score_highlight") {
+		const count = component.config.highlights.length;
+		const firstHighlight = component.config.highlights[0];
+		const subtitle = firstHighlight
+			? `bars ${firstHighlight.bars[0]}-${firstHighlight.bars[1]}, ${firstHighlight.dimension}`
+			: "";
+		return {
+			title: "Score Highlight",
+			subtitle,
+			badge: `${count} region${count === 1 ? "" : "s"}`,
 		};
 	}
 

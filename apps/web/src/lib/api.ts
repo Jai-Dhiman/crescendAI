@@ -374,6 +374,25 @@ export const api = {
 			return res.json() as unknown as Promise<{ ok: boolean }>;
 		},
 	},
+
+	scores: {
+		async getData(pieceId: string): Promise<ArrayBuffer> {
+			const res = await fetch(`${API_BASE}/api/scores/${pieceId}/data`, {
+				credentials: "include",
+			});
+			if (!res.ok) {
+				const err = new ApiError(
+					res.status,
+					`Failed to fetch score data for ${pieceId}`,
+				);
+				Sentry.captureException(err, {
+					extra: { status: res.status, path: `/api/scores/${pieceId}/data` },
+				});
+				throw err;
+			}
+			return res.arrayBuffer();
+		},
+	},
 };
 
 /** Check if any sessions in this conversation need deferred synthesis. */
