@@ -495,4 +495,22 @@ describe("processToolUse pass-through tools", () => {
 		expect(result.isError).toBe(false);
 		expect(result.componentsJson[0].type).toBe("score_highlight");
 	});
+
+	it("score_highlight config has no scoreData field", async () => {
+		const { processToolUse } = await import("./tool-processor");
+		const result: ToolResult = await processToolUse(
+			mockCtx,
+			studentId,
+			"score_highlight",
+			{
+				piece_id: "123e4567-e89b-12d3-a456-426614174000",
+				highlights: [{ bars: [1, 8], dimension: "dynamics" }],
+			},
+		);
+		expect(result.isError).toBe(false);
+		const config = result.componentsJson[0].config;
+		expect(config).not.toHaveProperty("scoreData");
+		expect(config).toHaveProperty("pieceId");
+		expect(config).toHaveProperty("highlights");
+	});
 });
