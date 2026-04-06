@@ -558,4 +558,83 @@ describe("processToolUse pass-through tools", () => {
 		expect(config).toHaveProperty("pieceId");
 		expect(config).toHaveProperty("highlights");
 	});
+
+	it("search_catalog returns matches from DB", async () => {
+		// Create a mockCtx that returns catalog results for the search_catalog ILIKE chain
+		// processSearchCatalog calls select().from().where().orderBy().limit()
+		const searchMockCtx = {
+			db: {
+				select: () => ({
+					from: () => ({
+						where: () => ({
+							orderBy: () => ({
+								limit: () =>
+									Promise.resolve([
+										{
+											pieceId: "abc-123",
+											composer: "Chopin",
+											title: "Waltz Op. 64 No. 2",
+											barCount: 138,
+										},
+									]),
+							}),
+						}),
+					}),
+				}),
+			} as never,
+			env: {} as never,
+		};
+
+		const { processToolUse } = await import("./tool-processor");
+		const result: ToolResult = await processToolUse(
+			searchMockCtx,
+			studentId,
+			"search_catalog",
+			{ query: "chopin waltz" },
+		);
+		expect(result.isError).toBe(false);
+		expect(result.name).toBe("search_catalog");
+		expect(result.componentsJson).toHaveLength(1);
+		expect(result.componentsJson[0].type).toBe("search_catalog_result");
+
+		const config = result.componentsJson[0].config as {
+			matches: Array<{ pieceId: string; composer: string; title: string }>;
+		};
+		expect(config.matches).toHaveLength(1);
+		expect(config.matches[0].pieceId).toBe("abc-123");
+		expect(config.matches[0].composer).toBe("Chopin");
+	});
+
+	it("search_catalog returns empty matches when nothing found", async () => {
+		// Mock DB returns empty array
+		const emptyMockCtx = {
+			db: {
+				select: () => ({
+					from: () => ({
+						where: () => ({
+							orderBy: () => ({
+								limit: () => Promise.resolve([]),
+							}),
+						}),
+					}),
+				}),
+			} as never,
+			env: {} as never,
+		};
+
+		const { processToolUse } = await import("./tool-processor");
+		const result: ToolResult = await processToolUse(
+			emptyMockCtx,
+			studentId,
+			"search_catalog",
+			{ composer: "Nonexistent" },
+		);
+		expect(result.isError).toBe(false);
+		const config = result.componentsJson[0].config as {
+			matches: unknown[];
+			message?: string;
+		};
+		expect(config.matches).toHaveLength(0);
+		expect(config.message).toContain("No pieces found");
+	});
 });
