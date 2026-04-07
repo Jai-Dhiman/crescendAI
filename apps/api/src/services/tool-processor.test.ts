@@ -17,10 +17,11 @@ describe("TOOL_REGISTRY structure", () => {
 		"keyboard_guide",
 		"show_session_data",
 		"reference_browser",
+		"search_catalog",
 	] as const;
 
-	it("has all 5 tools", () => {
-		expect(Object.keys(TOOL_REGISTRY)).toHaveLength(5);
+	it("has all 6 tools", () => {
+		expect(Object.keys(TOOL_REGISTRY)).toHaveLength(6);
 		for (const name of toolNames) {
 			expect(TOOL_REGISTRY[name]).toBeDefined();
 		}
@@ -47,6 +48,7 @@ describe("TOOL_REGISTRY structure", () => {
 		expect(TOOL_REGISTRY.keyboard_guide.concurrencySafe).toBe(true);
 		expect(TOOL_REGISTRY.show_session_data.concurrencySafe).toBe(true);
 		expect(TOOL_REGISTRY.reference_browser.concurrencySafe).toBe(true);
+		expect(TOOL_REGISTRY.search_catalog.concurrencySafe).toBe(true);
 	});
 
 	it("maxResultChars defined for bounded tools", () => {
@@ -54,6 +56,7 @@ describe("TOOL_REGISTRY structure", () => {
 		expect(TOOL_REGISTRY.keyboard_guide.maxResultChars).toBe(2000);
 		expect(TOOL_REGISTRY.show_session_data.maxResultChars).toBe(10000);
 		expect(TOOL_REGISTRY.reference_browser.maxResultChars).toBe(2000);
+		expect(TOOL_REGISTRY.search_catalog.maxResultChars).toBe(3000);
 	});
 
 	it("create_exercise has no maxResultChars", () => {
@@ -66,9 +69,9 @@ describe("TOOL_REGISTRY structure", () => {
 // ---------------------------------------------------------------------------
 
 describe("getAnthropicToolSchemas", () => {
-	it("returns an array of 5 schemas", () => {
+	it("returns an array of 6 schemas", () => {
 		const schemas = getAnthropicToolSchemas();
-		expect(schemas).toHaveLength(5);
+		expect(schemas).toHaveLength(6);
 	});
 
 	it("each schema has name, description, input_schema", () => {
@@ -403,6 +406,48 @@ describe("reference_browser schema validation", () => {
 });
 
 // ---------------------------------------------------------------------------
+// search_catalog Zod validation
+// ---------------------------------------------------------------------------
+
+describe("search_catalog schema validation", () => {
+	const schema = TOOL_REGISTRY.search_catalog.schema;
+
+	it("passes with query only", () => {
+		const result = schema.safeParse({ query: "Chopin waltz" });
+		expect(result.success).toBe(true);
+	});
+
+	it("passes with composer only", () => {
+		const result = schema.safeParse({ composer: "Chopin" });
+		expect(result.success).toBe(true);
+	});
+
+	it("passes with title only", () => {
+		const result = schema.safeParse({ title: "Waltz Op. 64" });
+		expect(result.success).toBe(true);
+	});
+
+	it("passes with all fields", () => {
+		const result = schema.safeParse({
+			query: "waltz",
+			composer: "Chopin",
+			title: "Op. 64 No. 2",
+		});
+		expect(result.success).toBe(true);
+	});
+
+	it("rejects empty object", () => {
+		const result = schema.safeParse({});
+		expect(result.success).toBe(false);
+	});
+
+	it("rejects all empty strings", () => {
+		const result = schema.safeParse({ query: "", composer: "", title: "" });
+		expect(result.success).toBe(false);
+	});
+});
+
+// ---------------------------------------------------------------------------
 // processToolUse (no DB required -- pass-through tools)
 // ---------------------------------------------------------------------------
 
@@ -512,5 +557,84 @@ describe("processToolUse pass-through tools", () => {
 		expect(config).not.toHaveProperty("scoreData");
 		expect(config).toHaveProperty("pieceId");
 		expect(config).toHaveProperty("highlights");
+	});
+
+	it("search_catalog returns matches from DB", async () => {
+		// Create a mockCtx that returns catalog results for the search_catalog ILIKE chain
+		// processSearchCatalog calls select().from().where().orderBy().limit()
+		const searchMockCtx = {
+			db: {
+				select: () => ({
+					from: () => ({
+						where: () => ({
+							orderBy: () => ({
+								limit: () =>
+									Promise.resolve([
+										{
+											pieceId: "abc-123",
+											composer: "Chopin",
+											title: "Waltz Op. 64 No. 2",
+											barCount: 138,
+										},
+									]),
+							}),
+						}),
+					}),
+				}),
+			} as never,
+			env: {} as never,
+		};
+
+		const { processToolUse } = await import("./tool-processor");
+		const result: ToolResult = await processToolUse(
+			searchMockCtx,
+			studentId,
+			"search_catalog",
+			{ query: "chopin waltz" },
+		);
+		expect(result.isError).toBe(false);
+		expect(result.name).toBe("search_catalog");
+		expect(result.componentsJson).toHaveLength(1);
+		expect(result.componentsJson[0].type).toBe("search_catalog_result");
+
+		const config = result.componentsJson[0].config as {
+			matches: Array<{ pieceId: string; composer: string; title: string }>;
+		};
+		expect(config.matches).toHaveLength(1);
+		expect(config.matches[0].pieceId).toBe("abc-123");
+		expect(config.matches[0].composer).toBe("Chopin");
+	});
+
+	it("search_catalog returns empty matches when nothing found", async () => {
+		// Mock DB returns empty array
+		const emptyMockCtx = {
+			db: {
+				select: () => ({
+					from: () => ({
+						where: () => ({
+							orderBy: () => ({
+								limit: () => Promise.resolve([]),
+							}),
+						}),
+					}),
+				}),
+			} as never,
+			env: {} as never,
+		};
+
+		const { processToolUse } = await import("./tool-processor");
+		const result: ToolResult = await processToolUse(
+			emptyMockCtx,
+			studentId,
+			"search_catalog",
+			{ composer: "Nonexistent" },
+		);
+		expect(result.isError).toBe(false);
+		const config = result.componentsJson[0].config as {
+			matches: unknown[];
+			message?: string;
+		};
+		expect(config.matches).toHaveLength(0);
+		expect(config.message).toContain("No pieces found");
 	});
 });

@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { pieces } from "../db/schema/catalog";
 import { exerciseDimensions, exercises } from "../db/schema/exercises";
@@ -404,6 +404,91 @@ async function processReferenceBrowser(
 }
 
 // ---------------------------------------------------------------------------
+// Tool: search_catalog
+// ---------------------------------------------------------------------------
+
+const searchCatalogSchema = z
+	.object({
+		query: z.string().min(1).max(200).optional(),
+		composer: z.string().min(1).max(200).optional(),
+		title: z.string().min(1).max(200).optional(),
+	})
+	.refine(
+		(data) =>
+			(data.query !== undefined && data.query.length > 0) ||
+			(data.composer !== undefined && data.composer.length > 0) ||
+			(data.title !== undefined && data.title.length > 0),
+		{ message: "At least one of query, composer, or title is required" },
+	);
+
+async function processSearchCatalog(
+	ctx: ServiceContext,
+	_studentId: string,
+	rawInput: unknown,
+): Promise<InlineComponent[]> {
+	const input = searchCatalogSchema.parse(rawInput);
+
+	const conditions = [];
+
+	if (input.composer) {
+		conditions.push(sql`${pieces.composer} ILIKE ${"%" + input.composer + "%"}`);
+	}
+
+	if (input.title) {
+		conditions.push(sql`${pieces.title} ILIKE ${"%" + input.title + "%"}`);
+	}
+
+	if (input.query) {
+		conditions.push(
+			sql`(${pieces.composer} ILIKE ${"%" + input.query + "%"} OR ${pieces.title} ILIKE ${"%" + input.query + "%"})`,
+		);
+	}
+
+	if (conditions.length === 0) {
+		throw new Error("search_catalog: no search conditions (should be unreachable after validation)");
+	}
+	const whereClause = and(...conditions);
+
+	const rows = await ctx.db
+		.select({
+			pieceId: pieces.pieceId,
+			composer: pieces.composer,
+			title: pieces.title,
+			barCount: pieces.barCount,
+		})
+		.from(pieces)
+		.where(whereClause)
+		.orderBy(asc(pieces.composer), asc(pieces.title))
+		.limit(5);
+
+	if (rows.length === 0) {
+		return [
+			{
+				type: "search_catalog_result",
+				config: {
+					matches: [],
+					message: "No pieces found matching the search criteria.",
+				},
+			},
+		];
+	}
+
+	return [
+		{
+			type: "search_catalog_result",
+			config: {
+				matches: rows.map((r) => ({
+					pieceId: r.pieceId,
+					composer: r.composer,
+					title: r.title,
+					barCount: r.barCount,
+				})),
+			},
+		},
+	];
+}
+
+// ---------------------------------------------------------------------------
 // Anthropic JSON schemas (for API calls)
 // ---------------------------------------------------------------------------
 
@@ -597,6 +682,31 @@ const referenceBrowserAnthropicSchema: AnthropicToolSchema = {
 	},
 };
 
+const searchCatalogAnthropicSchema: AnthropicToolSchema = {
+	name: "search_catalog",
+	description:
+		"Search the piece catalog to find a piece's UUID by composer name, title, or free text query. Use this when the student mentions a piece by name and you need the piece_id for other tools like score_highlight. Returns up to 5 matches. Provide at least one of query, composer, or title. If multiple fields are provided, results must match all of them.",
+	input_schema: {
+		type: "object",
+		properties: {
+			query: {
+				type: "string",
+				description:
+					"Free text search across composer and title fields. Use when the student gives a general reference like 'Chopin waltz'.",
+			},
+			composer: {
+				type: "string",
+				description: "Filter by composer name (case-insensitive substring match).",
+			},
+			title: {
+				type: "string",
+				description:
+					"Filter by piece title (case-insensitive substring match). Include opus numbers if known.",
+			},
+		},
+	},
+};
+
 // ---------------------------------------------------------------------------
 // Registry
 // ---------------------------------------------------------------------------
@@ -645,6 +755,15 @@ export const TOOL_REGISTRY: Record<string, ToolDefinition> = {
 		concurrencySafe: true,
 		maxResultChars: 2000,
 		process: processReferenceBrowser,
+	},
+	search_catalog: {
+		name: "search_catalog",
+		description: searchCatalogAnthropicSchema.description,
+		schema: searchCatalogSchema,
+		anthropicSchema: searchCatalogAnthropicSchema,
+		concurrencySafe: true,
+		maxResultChars: 3000,
+		process: processSearchCatalog,
 	},
 };
 
