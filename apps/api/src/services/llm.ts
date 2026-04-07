@@ -1,9 +1,18 @@
 import { InferenceError } from "../lib/errors";
 import type { Bindings } from "../lib/types";
 
+// ---------------------------------------------------------------------------
+// Content block types for multi-turn tool_use conversations
+// ---------------------------------------------------------------------------
+
+export type AnthropicContentBlock =
+	| { type: "text"; text: string }
+	| { type: "tool_use"; id: string; name: string; input: unknown }
+	| { type: "tool_result"; tool_use_id: string; content: string };
+
 interface LlmMessage {
 	role: "system" | "user" | "assistant";
-	content: string;
+	content: string | AnthropicContentBlock[];
 }
 
 export interface AnthropicSystemBlock {

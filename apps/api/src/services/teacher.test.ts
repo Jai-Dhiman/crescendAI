@@ -360,6 +360,168 @@ describe("parseAnthropicStream - split TCP chunks", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Test: tool continuation — parseAnthropicStream reports tool calls for continuation
+// ---------------------------------------------------------------------------
+
+describe("parseAnthropicStream - tool call continuation info", () => {
+	it("done event includes toolCalls with id, name, input, result when stop_reason is tool_use", async () => {
+		const mockComponents: InlineComponent[] = [
+			{
+				type: "search_catalog_result",
+				config: { matches: [{ pieceId: "abc-123", composer: "Chopin", title: "Waltz Op. 64 No. 2" }] },
+			},
+		];
+		const processToolFn = vi.fn().mockResolvedValue({
+			name: "search_catalog",
+			componentsJson: mockComponents,
+			isError: false,
+		});
+
+		const sse = sseLines(
+			{
+				event: "message_start",
+				data: { type: "message_start", message: { id: "msg_tool" } },
+			},
+			{
+				event: "content_block_start",
+				data: {
+					type: "content_block_start",
+					index: 0,
+					content_block: { type: "text", text: "" },
+				},
+			},
+			{
+				event: "content_block_delta",
+				data: {
+					type: "content_block_delta",
+					index: 0,
+					delta: { type: "text_delta", text: "Let me search for that." },
+				},
+			},
+			{
+				event: "content_block_stop",
+				data: { type: "content_block_stop", index: 0 },
+			},
+			{
+				event: "content_block_start",
+				data: {
+					type: "content_block_start",
+					index: 1,
+					content_block: {
+						type: "tool_use",
+						id: "toolu_abc123",
+						name: "search_catalog",
+					},
+				},
+			},
+			{
+				event: "content_block_delta",
+				data: {
+					type: "content_block_delta",
+					index: 1,
+					delta: {
+						type: "input_json_delta",
+						partial_json: '{"query":"Chopin waltz"}',
+					},
+				},
+			},
+			{
+				event: "content_block_stop",
+				data: { type: "content_block_stop", index: 1 },
+			},
+			{
+				event: "message_delta",
+				data: {
+					type: "message_delta",
+					delta: { stop_reason: "tool_use" },
+				},
+			},
+			{
+				event: "message_stop",
+				data: { type: "message_stop" },
+			},
+		);
+
+		const stream = makeStream(sse);
+		const events = [];
+		for await (const event of parseAnthropicStream(stream, processToolFn)) {
+			events.push(event);
+		}
+
+		const doneEvent = events.find((e) => e.type === "done");
+		expect(doneEvent).toBeDefined();
+		if (doneEvent && doneEvent.type === "done") {
+			// Must report tool calls for continuation
+			expect(doneEvent.toolCalls).toHaveLength(1);
+			expect(doneEvent.toolCalls[0].id).toBe("toolu_abc123");
+			expect(doneEvent.toolCalls[0].name).toBe("search_catalog");
+			expect(doneEvent.toolCalls[0].input).toEqual({ query: "Chopin waltz" });
+			expect(doneEvent.toolCalls[0].result.componentsJson).toEqual(mockComponents);
+
+			// Must report stop_reason so caller knows to continue
+			expect(doneEvent.stopReason).toBe("tool_use");
+		}
+	});
+
+	it("done event has empty toolCalls and stopReason end_turn for text-only responses", async () => {
+		const sse = sseLines(
+			{
+				event: "message_start",
+				data: { type: "message_start", message: { id: "msg_text" } },
+			},
+			{
+				event: "content_block_start",
+				data: {
+					type: "content_block_start",
+					index: 0,
+					content_block: { type: "text", text: "" },
+				},
+			},
+			{
+				event: "content_block_delta",
+				data: {
+					type: "content_block_delta",
+					index: 0,
+					delta: { type: "text_delta", text: "Just text" },
+				},
+			},
+			{
+				event: "content_block_stop",
+				data: { type: "content_block_stop", index: 0 },
+			},
+			{
+				event: "message_delta",
+				data: {
+					type: "message_delta",
+					delta: { stop_reason: "end_turn" },
+				},
+			},
+			{
+				event: "message_stop",
+				data: { type: "message_stop" },
+			},
+		);
+
+		const stream = makeStream(sse);
+		const noopProcess = vi
+			.fn()
+			.mockResolvedValue({ name: "noop", componentsJson: [], isError: false });
+
+		const events = [];
+		for await (const event of parseAnthropicStream(stream, noopProcess)) {
+			events.push(event);
+		}
+
+		const doneEvent = events.find((e) => e.type === "done");
+		expect(doneEvent).toBeDefined();
+		if (doneEvent && doneEvent.type === "done") {
+			expect(doneEvent.toolCalls).toHaveLength(0);
+			expect(doneEvent.stopReason).toBe("end_turn");
+		}
+	});
+});
+
+// ---------------------------------------------------------------------------
 // Test: stripAnalysis
 // ---------------------------------------------------------------------------
 

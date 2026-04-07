@@ -1,6 +1,7 @@
 import { InferenceError } from "../lib/errors";
 import type { ServiceContext } from "../lib/types";
 import {
+	type AnthropicContentBlock,
 	type AnthropicSystemBlock,
 	callAnthropic,
 	callAnthropicStream,
@@ -18,10 +19,23 @@ import {
 // Types
 // ---------------------------------------------------------------------------
 
+export interface ToolCallRecord {
+	id: string;
+	name: string;
+	input: unknown;
+	result: ToolResult;
+}
+
 export type TeacherEvent =
 	| { type: "delta"; text: string }
 	| { type: "tool_result"; name: string; componentsJson: InlineComponent[] }
-	| { type: "done"; fullText: string; allComponents: InlineComponent[] };
+	| {
+			type: "done";
+			fullText: string;
+			allComponents: InlineComponent[];
+			toolCalls: ToolCallRecord[];
+			stopReason: string;
+	  };
 
 export interface TeacherResponse {
 	text: string;
@@ -51,6 +65,7 @@ interface TextBlock {
 
 interface ToolUseBlock {
 	type: "tool_use";
+	id: string;
 	name: string;
 	jsonAccumulator: string;
 }
@@ -92,7 +107,12 @@ async function processSSEEvent(
 	event: string,
 	data: string,
 	blocks: Map<number, ContentBlock>,
-	state: { fullText: string; allComponents: InlineComponent[] },
+	state: {
+		fullText: string;
+		allComponents: InlineComponent[];
+		toolCalls: ToolCallRecord[];
+		stopReason: string;
+	},
 	processToolFn: ProcessToolFn,
 ): Promise<TeacherEvent[]> {
 	let parsed: Record<string, unknown>;
@@ -118,8 +138,9 @@ async function processSSEEvent(
 		if (blockType === "text") {
 			blocks.set(index, { type: "text", textAccumulator: "" });
 		} else if (blockType === "tool_use") {
+			const id = contentBlock["id"] as string;
 			const name = contentBlock["name"] as string;
-			blocks.set(index, { type: "tool_use", name, jsonAccumulator: "" });
+			blocks.set(index, { type: "tool_use", id, name, jsonAccumulator: "" });
 		}
 		return [];
 	}
@@ -165,6 +186,7 @@ async function processSSEEvent(
 		}
 
 		const result = await processToolFn(block.name, toolInput);
+		state.toolCalls.push({ id: block.id, name: block.name, input: toolInput, result });
 		if (!result.isError) {
 			state.allComponents.push(...result.componentsJson);
 			return [
@@ -178,7 +200,15 @@ async function processSSEEvent(
 		return [];
 	}
 
-	// message_start, message_delta, message_stop — no action needed
+	if (event === "message_delta") {
+		const delta = parsed["delta"] as Record<string, unknown> | undefined;
+		if (delta && typeof delta["stop_reason"] === "string") {
+			state.stopReason = delta["stop_reason"];
+		}
+		return [];
+	}
+
+	// message_start, message_stop — no action needed
 	return [];
 }
 
@@ -194,7 +224,12 @@ export async function* parseAnthropicStream(
 	const reader = stream.getReader();
 
 	const blocks = new Map<number, ContentBlock>();
-	const state = { fullText: "", allComponents: [] as InlineComponent[] };
+	const state = {
+		fullText: "",
+		allComponents: [] as InlineComponent[],
+		toolCalls: [] as ToolCallRecord[],
+		stopReason: "end_turn",
+	};
 	let textBuffer = "";
 
 	try {
@@ -244,6 +279,8 @@ export async function* parseAnthropicStream(
 		type: "done",
 		fullText: state.fullText,
 		allComponents: state.allComponents,
+		toolCalls: state.toolCalls,
+		stopReason: state.stopReason,
 	};
 }
 
@@ -259,10 +296,12 @@ export function stripAnalysis(text: string): string {
 // chat
 // ---------------------------------------------------------------------------
 
+const MAX_TOOL_TURNS = 3;
+
 export async function* chat(
 	ctx: ServiceContext,
 	studentId: string,
-	messages: Array<{ role: "user" | "assistant"; content: string }>,
+	messages: Array<{ role: "user" | "assistant"; content: string | AnthropicContentBlock[] }>,
 	dynamicContext: string,
 ): AsyncGenerator<TeacherEvent> {
 	const systemBlocks: AnthropicSystemBlock[] = [
@@ -276,20 +315,98 @@ export async function* chat(
 			: []),
 	];
 
-	const stream = await callAnthropicStream(ctx.env, {
-		model: "claude-sonnet-4-20250514",
-		max_tokens: 2048,
-		system: systemBlocks,
-		messages,
-		tools: getAnthropicToolSchemas(),
-		tool_choice: { type: "auto" },
-	});
-
 	const processToolFn: ProcessToolFn = async (name, input) => {
 		return processToolUse(ctx, studentId, name, input);
 	};
 
-	yield* parseAnthropicStream(stream, processToolFn);
+	let currentMessages = messages as Array<{ role: "user" | "assistant"; content: string | AnthropicContentBlock[] }>;
+	let accumulatedText = "";
+	let accumulatedComponents: InlineComponent[] = [];
+
+	for (let turn = 0; turn < MAX_TOOL_TURNS; turn++) {
+		const stream = await callAnthropicStream(ctx.env, {
+			model: "claude-sonnet-4-20250514",
+			max_tokens: 2048,
+			system: systemBlocks,
+			messages: currentMessages,
+			tools: getAnthropicToolSchemas(),
+			tool_choice: { type: "auto" },
+		});
+
+		let doneEvent: TeacherEvent | null = null;
+
+		for await (const event of parseAnthropicStream(stream, processToolFn)) {
+			if (event.type === "done") {
+				doneEvent = event;
+			} else {
+				yield event;
+			}
+		}
+
+		if (!doneEvent || doneEvent.type !== "done") break;
+
+		accumulatedText += doneEvent.fullText;
+		accumulatedComponents.push(...doneEvent.allComponents);
+
+		// If no tool calls or stop_reason is not tool_use, we're done
+		if (doneEvent.toolCalls.length === 0 || doneEvent.stopReason !== "tool_use") {
+			yield {
+				type: "done",
+				fullText: accumulatedText,
+				allComponents: accumulatedComponents,
+				toolCalls: doneEvent.toolCalls,
+				stopReason: doneEvent.stopReason,
+			};
+			return;
+		}
+
+		// Build continuation messages: assistant response + tool results
+		const assistantContent: AnthropicContentBlock[] = [];
+		if (doneEvent.fullText) {
+			assistantContent.push({ type: "text", text: doneEvent.fullText });
+		}
+		for (const tc of doneEvent.toolCalls) {
+			assistantContent.push({
+				type: "tool_use",
+				id: tc.id,
+				name: tc.name,
+				input: tc.input,
+			});
+		}
+
+		const toolResultContent: AnthropicContentBlock[] = doneEvent.toolCalls.map(
+			(tc) => ({
+				type: "tool_result" as const,
+				tool_use_id: tc.id,
+				content: JSON.stringify(tc.result.componentsJson),
+			}),
+		);
+
+		currentMessages = [
+			...currentMessages,
+			{ role: "assistant", content: assistantContent },
+			{ role: "user", content: toolResultContent },
+		];
+
+		console.log(
+			JSON.stringify({
+				level: "info",
+				message: "chat tool continuation",
+				turn: turn + 1,
+				toolCount: doneEvent.toolCalls.length,
+				toolNames: doneEvent.toolCalls.map((tc) => tc.name),
+			}),
+		);
+	}
+
+	// If we exhausted MAX_TOOL_TURNS, yield accumulated state
+	yield {
+		type: "done",
+		fullText: accumulatedText,
+		allComponents: accumulatedComponents,
+		toolCalls: [],
+		stopReason: "max_tool_turns",
+	};
 }
 
 // ---------------------------------------------------------------------------
