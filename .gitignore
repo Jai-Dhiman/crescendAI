@@ -170,3 +170,7 @@ model/data/eval/youtube_amt/*.opus
 
 # Eval reports (regenerated)
 apps/api/evals/reports/
+.gitnexus
+
+# codedb MCP index snapshot
+codedb.snapshot

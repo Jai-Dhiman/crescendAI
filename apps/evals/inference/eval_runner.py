@@ -7,6 +7,9 @@ Usage:
     cd apps/evals/
     CRESCEND_DEVICE=mps uv run python -m inference.eval_runner
     CRESCEND_DEVICE=cpu uv run python -m inference.eval_runner --audio-dir /path/to/audio
+
+    # Full pipeline: check cache -> R2/YouTube audio -> inference -> upload R2 -> cleanup
+    CRESCEND_DEVICE=mps uv run python -m inference.eval_runner --auto-t5
 """
 
 from __future__ import annotations
@@ -298,13 +301,114 @@ def _run_http_chunk_inference(
     }
 
 
+def _get_r2_client():
+    """Create S3 client for R2. Returns None if credentials missing."""
+    try:
+        # Reuse r2_sync's env-loading logic
+        env_file = Path(__file__).resolve().parents[1] / ".env"
+        if env_file.exists():
+            for line in env_file.read_text().splitlines():
+                line = line.strip()
+                if line and not line.startswith("#") and "=" in line:
+                    key, _, value = line.partition("=")
+                    os.environ.setdefault(key.strip(), value.strip())
+
+        import boto3
+
+        account_id = os.environ["R2_ACCOUNT_ID"]
+        return boto3.client(
+            "s3",
+            endpoint_url=f"https://{account_id}.r2.cloudflarestorage.com",
+            aws_access_key_id=os.environ["R2_ACCESS_KEY_ID"],
+            aws_secret_access_key=os.environ["R2_SECRET_ACCESS_KEY"],
+            region_name="auto",
+        )
+    except (KeyError, ImportError) as e:
+        print(f"  R2 unavailable ({e}), will use YouTube-only fallback")
+        return None
+
+
+R2_BUCKET = "crescendai-bucket"
+R2_PREFIX = "t5-audio"
+
+
+def _r2_index_piece(s3, piece_id: str) -> set[str]:
+    """List video_ids available in R2 for a piece."""
+    if s3 is None:
+        return set()
+    prefix = f"{R2_PREFIX}/{piece_id}/"
+    try:
+        resp = s3.list_objects_v2(Bucket=R2_BUCKET, Prefix=prefix)
+        return {
+            obj["Key"].split("/")[-1].replace(".wav", "")
+            for obj in resp.get("Contents", [])
+        }
+    except Exception:
+        return set()
+
+
+def _download_from_r2(s3, piece_id: str, video_id: str, audio_path: Path) -> bool:
+    """Download a single recording from R2. Returns True on success."""
+    key = f"{R2_PREFIX}/{piece_id}/{video_id}.wav"
+    try:
+        audio_path.parent.mkdir(parents=True, exist_ok=True)
+        s3.download_file(R2_BUCKET, key, str(audio_path))
+        return True
+    except Exception:
+        return False
+
+
+def _download_from_youtube(video_id: str, audio_path: Path) -> bool:
+    """Download a single recording from YouTube via yt-dlp. Returns True on success."""
+    audio_path.parent.mkdir(parents=True, exist_ok=True)
+    cmd = [
+        "yt-dlp",
+        f"https://youtube.com/watch?v={video_id}",
+        "-x", "--audio-format", "wav",
+        "--postprocessor-args", "ffmpeg:-ar 24000 -ac 1",
+        "-o", str(audio_path),
+        "--no-playlist",
+        "--quiet",
+    ]
+    try:
+        subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+        return audio_path.exists()
+    except Exception:
+        return False
+
+
+def _upload_to_r2(s3, piece_id: str, video_id: str, audio_path: Path) -> bool:
+    """Upload a single WAV to R2. Returns True on success."""
+    if s3 is None:
+        return False
+    key = f"{R2_PREFIX}/{piece_id}/{video_id}.wav"
+    try:
+        s3.upload_file(
+            str(audio_path), R2_BUCKET, key,
+            ExtraArgs={"ContentType": "audio/wav"},
+        )
+        return True
+    except Exception as e:
+        print(f"\n    {video_id}: R2 upload failed: {e}")
+        return False
+
+
 def run_auto_t5(
     cache_dir: str,
     muq_url: str = "http://localhost:8000",
     amt_url: str = "http://localhost:8001",
     piece_filter: str | None = None,
 ) -> None:
-    """Scan T5 manifests, generate inference cache for uncached recordings via HTTP."""
+    """Scan T5 manifests, generate inference cache for uncached recordings.
+
+    Per-recording pipeline:
+      1. Skip if inference cache JSON already exists
+      2. If audio not local: try R2, then fall back to YouTube (yt-dlp)
+      3. Run MuQ + AMT inference via local HTTP servers
+      4. Write cache JSON
+      5. Upload audio to R2 (if not already there)
+      6. Delete local WAV
+    """
     from tqdm import tqdm
 
     ALL_PIECES = [
@@ -326,6 +430,8 @@ def run_auto_t5(
     _health_check_servers(muq_url, amt_url)
     print("Both servers healthy.")
 
+    s3 = _get_r2_client()
+
     fingerprint = "auto-t5_http"
     cache_path = Path(cache_dir) / fingerprint
     cache_path.mkdir(parents=True, exist_ok=True)
@@ -333,6 +439,9 @@ def run_auto_t5(
     existing = {p.stem for p in cache_path.glob("*.json")}
     total_cached = 0
     total_skipped = 0
+    total_r2_downloads = 0
+    total_yt_downloads = 0
+    total_r2_uploads = 0
 
     for piece_id in T5_PIECES:
         manifest_path = MANIFEST_BASE / piece_id / "manifest.yaml"
@@ -353,17 +462,38 @@ def run_auto_t5(
         print(f"\n  {piece_id}: {len(uncached)} uncached of {len(all_recs)} downloaded")
         audio_dir = MANIFEST_BASE / piece_id / "audio"
 
+        # Pre-fetch R2 index for this piece to avoid per-file HEAD requests
+        r2_available = _r2_index_piece(s3, piece_id)
+        if r2_available:
+            print(f"    R2 has {len(r2_available)} files for this piece")
+
         for rec in tqdm(uncached, desc=f"  {piece_id}"):
             video_id = rec["video_id"]
             audio_path = audio_dir / f"{video_id}.wav"
+            fetched_locally = False
+            from_r2 = False
 
+            # Step 1: Ensure audio is local
             if not audio_path.exists():
-                total_skipped += 1
-                continue
+                # Try R2 first
+                if video_id in r2_available:
+                    if _download_from_r2(s3, piece_id, video_id, audio_path):
+                        fetched_locally = True
+                        from_r2 = True
+                        total_r2_downloads += 1
 
+                # Fall back to YouTube
+                if not audio_path.exists():
+                    if _download_from_youtube(video_id, audio_path):
+                        fetched_locally = True
+                        total_yt_downloads += 1
+                    else:
+                        tqdm.write(f"    {video_id}: audio unavailable (R2 + YouTube both failed)")
+                        total_skipped += 1
+                        continue
+
+            # Step 2: Run inference
             try:
-                # Chunk the audio file (reuse existing chunker)
-                # Eval recordings can be up to ~15 min; production 300s limit doesn't apply here
                 audio_chunks = chunk_audio_file(str(audio_path), max_duration=900)
 
                 import io
@@ -371,7 +501,6 @@ def run_auto_t5(
 
                 chunks = []
                 for i, chunk_audio in enumerate(audio_chunks):
-                    # Convert numpy array to WAV bytes for HTTP
                     buf = io.BytesIO()
                     sf.write(buf, chunk_audio, 24000, format="WAV")
                     wav_bytes = buf.getvalue()
@@ -381,7 +510,7 @@ def run_auto_t5(
                     result["audio_duration_seconds"] = len(chunk_audio) / 24000.0
                     chunks.append(result)
 
-                # Write cache file
+                # Step 3: Write cache file
                 git_sha, _ = get_git_sha()
                 cache_entry = {
                     "recording_id": video_id,
@@ -399,11 +528,26 @@ def run_auto_t5(
                 out_path.write_text(json.dumps(cache_entry, indent=2) + "\n")
                 total_cached += 1
 
+                # Step 4: Upload to R2 if not already there
+                if not from_r2 and s3 is not None:
+                    if _upload_to_r2(s3, piece_id, video_id, audio_path):
+                        total_r2_uploads += 1
+
+                # Step 5: Delete local audio
+                if audio_path.exists():
+                    audio_path.unlink()
+
             except Exception as e:
-                print(f"\n    {video_id}: inference failed: {e}")
+                tqdm.write(f"    {video_id}: inference failed: {e}")
                 total_skipped += 1
+                # Still clean up audio on failure to avoid disk bloat
+                if fetched_locally and audio_path.exists():
+                    audio_path.unlink()
 
     print(f"\nDone. Cached: {total_cached}, Skipped: {total_skipped}")
+    print(f"  Audio sourced: {total_r2_downloads} from R2, {total_yt_downloads} from YouTube")
+    if total_r2_uploads:
+        print(f"  Uploaded to R2: {total_r2_uploads}")
 
 
 if __name__ == "__main__":

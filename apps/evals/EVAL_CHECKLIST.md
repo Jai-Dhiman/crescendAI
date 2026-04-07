@@ -18,19 +18,35 @@ Key files:
 - Eval runner: `apps/evals/inference/eval_runner.py` (fixed MIDI key bug on 2026-03-30)
 - Inference cache: `model/data/eval/inference_cache/auto-t5_http/` (JSON per recording)
 
-## Step 1: Wait for inference cache to complete
+## Step 1: Build inference cache
 
-The cache is rebuilding via `bash /tmp/cache_t5_loop.sh` (run from `apps/evals/`).
-It processes 991 T5 recordings across 11 pieces (~2 min each, ~33 hours total).
-Requires MuQ (port 8000) + AMT (port 8001) servers running (`just dev`).
+Run the full pipeline (check cache -> source audio from R2/YouTube -> inference -> upload R2 -> cleanup):
+
+```bash
+cd apps/evals/
+# Terminal 1: start local inference servers
+just dev
+
+# Terminal 2: run the cache pipeline
+CRESCEND_DEVICE=mps uv run python -m inference.eval_runner --auto-t5
+```
+
+Per-recording pipeline:
+1. Skip if inference cache JSON already exists
+2. If audio not local: download from R2, fall back to YouTube (yt-dlp)
+3. Run MuQ + AMT inference via local HTTP servers
+4. Write cache JSON
+5. Upload audio to R2 (if not already there)
+6. Delete local WAV to save disk
 
 Check progress:
 ```bash
 ls model/data/eval/inference_cache/auto-t5_http/*.json | wc -l
-# Target: ~991 (some may fail due to audio length limits)
+# Target: ~896 (some may fail due to unavailable videos)
 ```
 
 Each cache entry is a JSON file with MuQ scores (6 dimensions) + AMT MIDI notes + pedal events per 15s chunk.
+Requires R2 credentials in `apps/evals/.env` (R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY). Falls back to YouTube-only if missing.
 
 ## Step 2: Write eval orchestrator script
 
