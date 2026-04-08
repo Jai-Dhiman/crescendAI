@@ -56,6 +56,7 @@ Stack: TanStack Start, Tailwind CSS v4, Web Audio API, MediaRecorder, WebSocket.
 | D1 schema (students, sessions) | COMPLETE | `apps/api/` | Students, sessions, observations tables |
 | D1 schema (observations) | COMPLETE | `apps/api/` | Observations table ships with /api/ask pipeline |
 | D1 schema (exercises) | COMPLETE | `apps/api/migrations/0004_exercises.sql` | Tables migrated, 25 curated exercises seeded |
+| `search_catalog` structured retrieval | COMPLETE | `apps/api/src/services/tool-processor.ts`, `apps/api/src/services/catalog-parse.ts` | Exact integer match on `opus_number`/`piece_number` — disambiguates "Op. 64 No. 2" vs "No. 3". Pieces table has `opus_number`, `piece_number`, `catalogue_type` columns. Backfill: 159/242 pieces. |
 | STOP classifier | IMPLEMENTED | `apps/api/src/services/stop.rs` | 6-weight logistic regression, AUC 0.845 |
 | Teaching moment selection | IMPLEMENTED | `apps/api/src/services/teaching_moments.rs` | STOP filter + blind-spot detection + positive moments + dedup |
 | Score following (DTW) | IMPLEMENTED | `apps/api/src/practice/score_follower.rs` | Onset+pitch subsequence DTW, cross-chunk continuity, re-anchoring |
