@@ -412,7 +412,7 @@ const searchCatalogSchema = z
 		composer: z.string().min(1).max(200).optional(),
 		opus_number: z.number().int().min(1).max(9999).optional(),
 		piece_number: z.number().int().min(1).max(9999).optional(),
-		title_keywords: z.string().min(1).max(200).optional(),
+		title_keywords: z.string().min(2).max(200).optional(),
 		query: z.string().min(1).max(300).optional(),
 	})
 	.refine(
@@ -434,7 +434,7 @@ async function processSearchCatalog(
 
 	const conditions = [];
 
-	if (input.composer) {
+	if (input.composer !== undefined) {
 		conditions.push(sql`${pieces.composer} ILIKE ${"%" + input.composer + "%"}`);
 	}
 	if (input.opus_number !== undefined) {
