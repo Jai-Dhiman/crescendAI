@@ -412,7 +412,15 @@ const searchCatalogSchema = z
 		composer: z.string().min(1).max(200).optional(),
 		opus_number: z.number().int().min(1).max(9999).optional(),
 		piece_number: z.number().int().min(1).max(9999).optional(),
-		title_keywords: z.string().min(3).max(200).optional(),
+		title_keywords: z
+			.string()
+			.min(3)
+			.max(200)
+			.refine(
+				(s) => s.trim().split(/\s+/).some((t) => t.length >= 2),
+				{ message: "title_keywords must contain at least one token of 2+ characters" },
+			)
+			.optional(),
 		query: z.string().min(1).max(300).optional(),
 	})
 	.refine(

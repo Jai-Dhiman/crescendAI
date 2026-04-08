@@ -465,6 +465,16 @@ describe("search_catalog schema validation", () => {
 		const result = schema.safeParse({ opus_number: 64.5 });
 		expect(result.success).toBe(false);
 	});
+
+	it("rejects title_keywords with only single-char tokens", () => {
+		const result = schema.safeParse({ title_keywords: "a b" });
+		expect(result.success).toBe(false);
+	});
+
+	it("passes title_keywords with at least one 2-char token", () => {
+		const result = schema.safeParse({ title_keywords: "Waltz" });
+		expect(result.success).toBe(true);
+	});
 });
 
 // ---------------------------------------------------------------------------
