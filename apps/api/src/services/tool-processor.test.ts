@@ -412,26 +412,36 @@ describe("reference_browser schema validation", () => {
 describe("search_catalog schema validation", () => {
 	const schema = TOOL_REGISTRY.search_catalog.schema;
 
-	it("passes with query only", () => {
-		const result = schema.safeParse({ query: "Chopin waltz" });
-		expect(result.success).toBe(true);
-	});
-
 	it("passes with composer only", () => {
 		const result = schema.safeParse({ composer: "Chopin" });
 		expect(result.success).toBe(true);
 	});
 
-	it("passes with title only", () => {
-		const result = schema.safeParse({ title: "Waltz Op. 64" });
+	it("passes with opus_number only", () => {
+		const result = schema.safeParse({ opus_number: 64 });
 		expect(result.success).toBe(true);
 	});
 
-	it("passes with all fields", () => {
+	it("passes with piece_number only", () => {
+		const result = schema.safeParse({ piece_number: 2 });
+		expect(result.success).toBe(true);
+	});
+
+	it("passes with title_keywords only", () => {
+		const result = schema.safeParse({ title_keywords: "Waltz" });
+		expect(result.success).toBe(true);
+	});
+
+	it("passes with query only", () => {
+		const result = schema.safeParse({ query: "Chopin waltz" });
+		expect(result.success).toBe(true);
+	});
+
+	it("passes with composer + opus_number + piece_number (primary use case)", () => {
 		const result = schema.safeParse({
-			query: "waltz",
 			composer: "Chopin",
-			title: "Op. 64 No. 2",
+			opus_number: 64,
+			piece_number: 2,
 		});
 		expect(result.success).toBe(true);
 	});
@@ -441,8 +451,18 @@ describe("search_catalog schema validation", () => {
 		expect(result.success).toBe(false);
 	});
 
-	it("rejects all empty strings", () => {
-		const result = schema.safeParse({ query: "", composer: "", title: "" });
+	it("rejects opus_number below 1", () => {
+		const result = schema.safeParse({ opus_number: 0 });
+		expect(result.success).toBe(false);
+	});
+
+	it("rejects opus_number above 9999", () => {
+		const result = schema.safeParse({ opus_number: 10000 });
+		expect(result.success).toBe(false);
+	});
+
+	it("rejects non-integer opus_number", () => {
+		const result = schema.safeParse({ opus_number: 64.5 });
 		expect(result.success).toBe(false);
 	});
 });

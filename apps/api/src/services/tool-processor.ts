@@ -409,16 +409,20 @@ async function processReferenceBrowser(
 
 const searchCatalogSchema = z
 	.object({
-		query: z.string().min(1).max(200).optional(),
 		composer: z.string().min(1).max(200).optional(),
-		title: z.string().min(1).max(200).optional(),
+		opus_number: z.number().int().min(1).max(9999).optional(),
+		piece_number: z.number().int().min(1).max(9999).optional(),
+		title_keywords: z.string().min(1).max(200).optional(),
+		query: z.string().min(1).max(300).optional(),
 	})
 	.refine(
 		(data) =>
-			(data.query !== undefined && data.query.length > 0) ||
-			(data.composer !== undefined && data.composer.length > 0) ||
-			(data.title !== undefined && data.title.length > 0),
-		{ message: "At least one of query, composer, or title is required" },
+			data.composer !== undefined ||
+			data.opus_number !== undefined ||
+			data.piece_number !== undefined ||
+			data.title_keywords !== undefined ||
+			data.query !== undefined,
+		{ message: "At least one search field is required" },
 	);
 
 async function processSearchCatalog(
@@ -685,23 +689,34 @@ const referenceBrowserAnthropicSchema: AnthropicToolSchema = {
 const searchCatalogAnthropicSchema: AnthropicToolSchema = {
 	name: "search_catalog",
 	description:
-		"Search the piece catalog to find a piece's UUID by composer name, title, or free text query. Use this when the student mentions a piece by name and you need the piece_id for other tools like score_highlight. Returns up to 5 matches. Provide at least one of query, composer, or title. If multiple fields are provided, results must match all of them.",
+		"Search the piece catalog to find a piece's UUID. PREFER structured fields: use composer, opus_number, and piece_number when you can extract them from the student's words — { composer: 'Chopin', opus_number: 64, piece_number: 2 } is exact and unambiguous. Use title_keywords for genre words when opus/number are unknown. Only use query as a last resort.",
 	input_schema: {
 		type: "object",
 		properties: {
+			composer: {
+				type: "string",
+				description:
+					"Composer last name. 'Chopin', 'Bach', 'Beethoven'. Case-insensitive substring match.",
+			},
+			opus_number: {
+				type: "integer",
+				description:
+					"Opus number as integer. 'Op. 64' → 64. Exact match — most important for disambiguation.",
+			},
+			piece_number: {
+				type: "integer",
+				description:
+					"Piece number within the opus as integer. 'No. 2' → 2. Exact match — critical to distinguish pieces within an opus.",
+			},
+			title_keywords: {
+				type: "string",
+				description:
+					"Genre or title keywords when opus/number are unknown. 'Waltz', 'Nocturne', 'Ballade'. Token-split substring match.",
+			},
 			query: {
 				type: "string",
 				description:
-					"Free text search across composer and title fields. Use when the student gives a general reference like 'Chopin waltz'.",
-			},
-			composer: {
-				type: "string",
-				description: "Filter by composer name (case-insensitive substring match).",
-			},
-			title: {
-				type: "string",
-				description:
-					"Filter by piece title (case-insensitive substring match). Include opus numbers if known.",
+					"Free-form fallback only. Use when you cannot identify composer or structured numbers — e.g., 'that slow Bach prelude'.",
 			},
 		},
 	},
