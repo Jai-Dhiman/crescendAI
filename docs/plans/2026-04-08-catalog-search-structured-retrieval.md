@@ -808,3 +808,115 @@ DATABASE_URL=<production-connection-string> bun src/scripts/backfill-piece-field
 ```
 
 Verify the backfill log shows `updated` > 0 and the backfill completes without errors.
+
+---
+
+## Challenge Review
+
+### CEO Pass
+
+**Premise — Right problem, right framing.**
+The failure modes are concrete and verified against actual DB column layout (`composer` and `title` are separate columns — a cross-column ILIKE on "Chopin Ballade" was never going to work). The hard-negative problem for "No. 2 vs No. 3" is real and well-reasoned: both pieces have near-identical cosine similarity in any embedding space because the discriminating signal (the integer "2" vs "3") carries zero semantic weight. The spec documents why vector search and pg_trgm both fail. The alternative approaches section is present in the spec. Premise is solid.
+
+**Scope — Tight and correct.**
+242 ASAP pieces with a regular naming convention is the exact scope. The plan touches exactly 7 source files. No new services, no new HTTP routes, no external dependencies beyond `postgres` (already in the project for the backfill script) and Drizzle (already present). Nothing in scope that isn't needed to make the tool work.
+
+**12-Month Alignment:**
+
+```
+CURRENT STATE                    THIS PLAN                      12-MONTH IDEAL
+search_catalog uses ILIKE,   ->  structured integer match   ->  teacher reliably resolves
+fails for "Chopin Ballade"       on opus/piece numbers;         any piece the student
+and cannot disambiguate          LLM extracts slots before      names, including edge
+Op. 64 No. 2 from No. 3         calling the tool               cases (nicknames, foreign
+                                                                 titles, partial refs)
+```
+
+This plan moves directly toward the 12-month ideal. The LLM-before-retrieval architecture scales: when the catalog expands beyond ASAP, the same schema columns apply. No tech debt introduced.
+
+**Alternatives — Documented in spec.**
+The spec explicitly addresses vector search (hard-negative problem) and pg_trgm (trigram similarity for "No. 2" vs "No. 3" is ~87%, insufficient). The chosen approach is the most direct path. No open alternatives were left undocumented.
+
+---
+
+### Engineering Pass
+
+**Architecture — Sound, `eq` already imported.**
+
+The critical Drizzle `eq()` import is already present in `tool-processor.ts` line 1: `import { and, asc, desc, eq, sql } from "drizzle-orm"`. No new imports needed in the core module. The condition-building logic (integer `eq` vs `sql\`ILIKE\``) follows existing patterns in `tool-processor.ts`. Data flow is clean:
+
+```
+tool call input (Zod-validated)
+  → condition array (eq for integers, sql ILIKE for text)
+  → Drizzle .where(and(...conditions))
+  → result rows → formatted string → tool_result content block
+```
+
+Drizzle's parameterized queries prevent SQL injection — user-controlled values are passed as bind parameters via `sql` template literals, not concatenated strings.
+
+**Module Depth — Verified DEEP.**
+
+- `catalog-parse.ts`: One exported function `parseTitleFields(title): TitleFields`. Hides all regex, parseInt, WTC/BWV/Op branch logic. Interface is ~3 types + 1 function; implementation is ~25 LOC of branching regex logic. DEEP.
+- `tool-processor.ts` `search_catalog` handler: Registry interface unchanged. New condition builder hides multi-branch integer/text/fallback logic. DEEP.
+- Backfill script: One-time infrastructure. Correctly marked SHALLOW by design in the spec.
+
+**Code Quality — One issue with ILIKE parameterization style.**
+
+The plan uses `sql\`${pieces.composer} ILIKE ${"%" + input.composer + "%"}\`` — passing the column reference via interpolation. This is idiomatic Drizzle `sql` tag usage where column references are interpolated as Drizzle SQL fragments (not as bind values). The string `"%" + input.composer + "%"` is passed as a bind parameter (the `${}` in the sql tag interpolates typed values as `$1`, `$2` bind params). This is safe. Confirmed by existing ILIKE usage in `tool-processor.ts`.
+
+**Test Philosophy — One inaccuracy in Task 2 expected failure message.**
+
+Task 2 tests the Drizzle schema column additions. The plan states:
+
+> `Expected: FAIL — TypeScript error: Property 'opusNumber' does not exist on typeof pieces`
+
+This is inaccurate. The test runner uses `@cloudflare/vitest-pool-workers` with esbuild (confirmed in `vitest.config.ts`). esbuild transpiles TypeScript WITHOUT type checking — TypeScript errors do not cause test failures. The actual failure will be a Vitest assertion failure: `"expected undefined to be defined"` (since `pieces.opusNumber` will be `undefined` before the schema column is added). The test still fails correctly before implementation; only the failure reason description is wrong. No behavioral impact.
+
+**Vertical Slice Audit — Task 5 has a bundled-test issue.**
+
+Task 5 Step 1 writes three distinct assertions in one test block before any implementation:
+
+1. `expect(config.message).toContain("opus_number")` — tests the empty-result message (GENUINELY FAILS before implementation; old message does not contain "opus_number")
+2. `expect(results).toHaveLength(1)` with `composer + opus_number` query — PASSES before Task 5 implementation because old `processSearchCatalog` still handles `composer` via ILIKE and can return a row. The test does not verify that `opus_number` actually did the exact-match filtering.
+3. `expect(results).toHaveLength(1)` with `query` fallback — PASSES before implementation because old code already handles `query` ILIKE.
+
+Only test #1 genuinely fails before implementation. Tests #2 and #3 pass with the old code. This is a TDD discipline issue: tests 2 and 3 do not demonstrate the new behavior — they would pass even if the schema columns were added but `processSearchCatalog` was never updated to use `eq()`.
+
+**[RISK] (confidence: 9/10)** — Task 5 tests 2 and 3 ("returns matches for structured query" and "returns matches for query fallback") PASS before Task 5's implementation because the existing ILIKE logic satisfies them. They test shape (result count) but not behavior (that `opus_number` triggered exact integer match). Watch-it-fail discipline will be violated silently. During build: after writing the Step 1 tests, run `bun test tool-processor.test.ts` to check — if tests 2 and 3 pass, rewrite them to assert the new schema columns are being used (e.g., mock the DB to return only when `opusNumber` is passed exactly, or use a title that differs only in opus number to confirm ILIKE would fail without `eq`).
+
+**[RISK] (confidence: 7/10)** — Task 2's expected failure reason is incorrect (esbuild, not TypeScript compiler). This doesn't break TDD — the test still fails before implementation — but a build agent following the plan literally may be confused when the error is `"expected undefined to be defined"` instead of the documented TypeScript error. Mitigation: the Step 2 instruction says "verify it FAILS" — the agent just needs to see FAIL regardless of message.
+
+**[RISK] (confidence: 6/10)** — Backfill idempotency: the spec says "skip any piece where `opus_number IS NOT NULL OR piece_number IS NOT NULL`" (skip if any field is already set). The plan's WHERE clause uses `or(isNull(pieces.opusNumber), isNull(pieces.pieceNumber), isNull(pieces.catalogueType))` — this fetches rows where ANY field is still null, including partially-filled rows. For deterministic `parseTitleFields`, this is functionally correct (re-running parse on a partially-filled row produces the same result). But it means rows where `opusNumber` was manually set to a custom value would be overwritten. Not a real risk for ASAP catalog (all values come from the same title strings), but worth noting.
+
+**[OBS]** — The spec states "New pieces inserted in the future should set these fields at insert time." No piece-insert path exists in the current codebase (the ASAP catalog is static), so this is a future concern only. The plan correctly scopes to the backfill for existing rows.
+
+**Failure Modes — Backfill is the only irreversible step.**
+
+The schema migration adds nullable columns — reversible (a DROP COLUMN migration). The backfill script writes new values to those nullable columns — reversible (run UPDATE to set back to NULL). Tool-processor changes are code-only and reversible via revert. No silent failures: the backfill script logs `skipped` / `updated` counts; failed updates will throw (postgres driver throws on constraint violations).
+
+---
+
+### Presumption Inventory
+
+| Assumption | Verdict | Reason |
+|-----------|---------|--------|
+| `eq` is already imported in `tool-processor.ts` | SAFE | Verified at line 1: `import { and, asc, desc, eq, sql } from "drizzle-orm"` |
+| `pieces.opusNumber` column reference works in Drizzle after schema update | SAFE | Standard Drizzle column definition pattern; catalog.ts follows existing `pieces` table conventions |
+| esbuild (vitest-pool-workers) does not type-check — Task 2 test fails via assertion, not TS error | SAFE | Verified in `vitest.config.ts` — `@cloudflare/vitest-pool-workers` uses esbuild pool |
+| `postgres` package is available in `apps/api` for the backfill script | SAFE | Already used in `apps/api/src/db/index.ts` for the Drizzle connection setup |
+| Drizzle `sql` tag parameterizes string values as bind params (not string concatenation) | SAFE | Standard Drizzle behavior; confirmed by existing ILIKE usage in tool-processor.ts |
+| `parseTitleFields` regex handles all 242 ASAP titles without false positives | VALIDATE | The regex patterns are solid for the documented ASAP convention, but a spot-check against actual titles in the DB after backfill is advisable |
+| Old `processSearchCatalog` tests in tool-processor.test.ts are fully replaced (no old tests that would pass with new logic for wrong reasons) | VALIDATE | The plan replaces the describe block at lines 412-448 and 562-639 — verify during Task 5 that no leftover assertions test the old ILIKE-only behavior |
+
+---
+
+### Summary
+
+```
+[RISK]     count: 3
+[OBS]      count: 1
+[BLOCKER]  count: 0
+[QUESTION] count: 0
+```
+
+VERDICT: PROCEED_WITH_CAUTION — Watch for (1) Task 5 tests 2 and 3 passing before implementation — rewrite if they don't fail; (2) Task 2 expected error message mismatch (esbuild, not TS compiler); (3) post-backfill spot-check that `updated` count is plausible (~200+ of 242 pieces have opus or piece numbers).
