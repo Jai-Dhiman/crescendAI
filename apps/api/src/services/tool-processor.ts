@@ -437,21 +437,40 @@ async function processSearchCatalog(
 	if (input.composer) {
 		conditions.push(sql`${pieces.composer} ILIKE ${"%" + input.composer + "%"}`);
 	}
-
-	if (input.title) {
-		conditions.push(sql`${pieces.title} ILIKE ${"%" + input.title + "%"}`);
+	if (input.opus_number !== undefined) {
+		conditions.push(eq(pieces.opusNumber, input.opus_number));
 	}
-
-	if (input.query) {
-		conditions.push(
-			sql`(${pieces.composer} ILIKE ${"%" + input.query + "%"} OR ${pieces.title} ILIKE ${"%" + input.query + "%"})`,
-		);
+	if (input.piece_number !== undefined) {
+		conditions.push(eq(pieces.pieceNumber, input.piece_number));
+	}
+	if (input.title_keywords) {
+		const tokens = input.title_keywords
+			.trim()
+			.split(/\s+/)
+			.filter((t) => t.length >= 2);
+		for (const token of tokens) {
+			conditions.push(sql`${pieces.title} ILIKE ${"%" + token + "%"}`);
+		}
+	}
+	// Free-form fallback: token-split across both fields.
+	// Only applied when no structured fields provided.
+	if (input.query && conditions.length === 0) {
+		const tokens = input.query
+			.trim()
+			.split(/\s+/)
+			.filter((t) => t.length >= 2);
+		for (const token of tokens) {
+			conditions.push(
+				sql`(${pieces.composer} ILIKE ${"%" + token + "%"} OR ${pieces.title} ILIKE ${"%" + token + "%"})`,
+			);
+		}
 	}
 
 	if (conditions.length === 0) {
-		throw new Error("search_catalog: no search conditions (should be unreachable after validation)");
+		throw new Error(
+			"search_catalog: no conditions after parse (unreachable after validation)",
+		);
 	}
-	const whereClause = and(...conditions);
 
 	const rows = await ctx.db
 		.select({
@@ -461,7 +480,7 @@ async function processSearchCatalog(
 			barCount: pieces.barCount,
 		})
 		.from(pieces)
-		.where(whereClause)
+		.where(and(...conditions))
 		.orderBy(asc(pieces.composer), asc(pieces.title))
 		.limit(5);
 
@@ -471,7 +490,8 @@ async function processSearchCatalog(
 				type: "search_catalog_result",
 				config: {
 					matches: [],
-					message: "No pieces found matching the search criteria.",
+					message:
+						"No pieces found. The catalog contains ~242 ASAP pieces. Try fewer fields or use exact opus/piece numbers — e.g., { composer: 'Chopin', opus_number: 64, piece_number: 2 }.",
 				},
 			},
 		];

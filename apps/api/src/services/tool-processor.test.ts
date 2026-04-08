@@ -579,9 +579,7 @@ describe("processToolUse pass-through tools", () => {
 		expect(config).toHaveProperty("highlights");
 	});
 
-	it("search_catalog returns matches from DB", async () => {
-		// Create a mockCtx that returns catalog results for the search_catalog ILIKE chain
-		// processSearchCatalog calls select().from().where().orderBy().limit()
+	it("search_catalog returns matches for structured query", async () => {
 		const searchMockCtx = {
 			db: {
 				select: () => ({
@@ -610,7 +608,7 @@ describe("processToolUse pass-through tools", () => {
 			searchMockCtx,
 			studentId,
 			"search_catalog",
-			{ query: "chopin waltz" },
+			{ composer: "Chopin", opus_number: 64, piece_number: 2 },
 		);
 		expect(result.isError).toBe(false);
 		expect(result.name).toBe("search_catalog");
@@ -625,8 +623,46 @@ describe("processToolUse pass-through tools", () => {
 		expect(config.matches[0].composer).toBe("Chopin");
 	});
 
-	it("search_catalog returns empty matches when nothing found", async () => {
-		// Mock DB returns empty array
+	it("search_catalog returns matches for query fallback", async () => {
+		const fallbackMockCtx = {
+			db: {
+				select: () => ({
+					from: () => ({
+						where: () => ({
+							orderBy: () => ({
+								limit: () =>
+									Promise.resolve([
+										{
+											pieceId: "def-456",
+											composer: "Bach",
+											title: "WTC I - Prelude - 1",
+											barCount: 32,
+										},
+									]),
+							}),
+						}),
+					}),
+				}),
+			} as never,
+			env: {} as never,
+		};
+
+		const { processToolUse } = await import("./tool-processor");
+		const result: ToolResult = await processToolUse(
+			fallbackMockCtx,
+			studentId,
+			"search_catalog",
+			{ query: "Bach WTC prelude" },
+		);
+		expect(result.isError).toBe(false);
+		const config = result.componentsJson[0].config as {
+			matches: Array<{ pieceId: string }>;
+		};
+		expect(config.matches).toHaveLength(1);
+		expect(config.matches[0].pieceId).toBe("def-456");
+	});
+
+	it("search_catalog empty result message references opus_number and piece_number", async () => {
 		const emptyMockCtx = {
 			db: {
 				select: () => ({
@@ -655,6 +691,8 @@ describe("processToolUse pass-through tools", () => {
 			message?: string;
 		};
 		expect(config.matches).toHaveLength(0);
-		expect(config.message).toContain("No pieces found");
+		// New message guides caller toward structured fields
+		expect(config.message).toContain("opus_number");
+		expect(config.message).toContain("piece_number");
 	});
 });
