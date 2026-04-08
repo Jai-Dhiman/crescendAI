@@ -26,6 +26,9 @@ export const pieces = pgTable(
 		hasTimeSigChanges: boolean("has_time_sig_changes").notNull().default(false),
 		hasTempoChanges: boolean("has_tempo_changes").notNull().default(false),
 		source: text("source").notNull().default("asap"),
+		opusNumber: integer("opus_number"),
+		pieceNumber: integer("piece_number"),
+		catalogueType: text("catalogue_type"),
 		createdAt: timestamp("created_at", { withTimezone: true })
 			.notNull()
 			.defaultNow(),
