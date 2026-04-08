@@ -1,9 +1,9 @@
 """Synthesis evaluation: test fact creation against gold-standard expected facts.
 
-Replicates build_synthesis_prompt from prompts.rs in Python. Calls Groq
+Replicates build_synthesis_prompt from prompts.rs in Python. Calls Workers AI
 (or uses cached responses). Compares output against gold-standard expected facts.
 
-Two modes: offline (cached JSONL) and live (Groq API, populates cache).
+Two modes: offline (cached JSONL) and live (Workers AI via CF AI Gateway, populates cache).
 """
 
 from __future__ import annotations
@@ -48,6 +48,9 @@ def _strip_regex(pattern: str) -> str:
     text = re.sub(r"\s+", " ", text).strip()
     return text
 _DEV_VARS_PATH = Path(__file__).parents[3] / "api" / ".dev.vars"
+DEFAULT_CF_ACCOUNT_ID = "5df63f40beeab277db407f1ecbd6e1ec"
+DEFAULT_GATEWAY_ID = "crescendai-background"
+_WORKERS_AI_MODEL = "@cf/google/gemma-4-26b-a4b-it"
 
 # Exact replica of prompts.rs SYNTHESIS_SYSTEM
 SYNTHESIS_SYSTEM = """You are a memory consolidation system for a piano teaching app. You receive:
@@ -157,31 +160,40 @@ def build_synthesis_prompt(
     return prompt
 
 
-def _load_groq_key() -> str:
-    key = os.environ.get("GROQ_API_KEY")
-    if key:
-        return key
+def _load_cf_token() -> str:
+    token = os.environ.get("CF_API_TOKEN")
+    if token:
+        return token
     if _DEV_VARS_PATH.exists():
         for line in _DEV_VARS_PATH.read_text().splitlines():
-            if line.startswith("GROQ_API_KEY="):
+            if line.startswith("CF_API_TOKEN="):
                 return line.split("=", 1)[1].strip()
-    raise RuntimeError("GROQ_API_KEY not found in env or apps/api/.dev.vars")
+    raise RuntimeError("CF_API_TOKEN not found in env or apps/api/.dev.vars")
 
 
-def _call_groq(system: str, user: str, temperature: float = 0.1, max_tokens: int = 800) -> str:
-    """Call Groq API (OpenAI-compatible)."""
-    import groq
-    client = groq.Groq(api_key=_load_groq_key())
-    response = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
-        messages=[
-            {"role": "system", "content": system},
-            {"role": "user", "content": user},
-        ],
-        temperature=temperature,
-        max_tokens=max_tokens,
+def _call_workers_ai(system: str, user: str, temperature: float = 0.1, max_tokens: int = 800) -> str:
+    """Call Workers AI via CF AI Gateway (OpenAI-compatible)."""
+    import requests
+    token = _load_cf_token()
+    account_id = os.environ.get("CF_ACCOUNT_ID", DEFAULT_CF_ACCOUNT_ID)
+    gateway_id = os.environ.get("CF_GATEWAY_ID", DEFAULT_GATEWAY_ID)
+    url = (
+        f"https://gateway.ai.cloudflare.com/v1/"
+        f"{account_id}/{gateway_id}/workers-ai/v1/chat/completions"
     )
-    return response.choices[0].message.content or ""
+    messages = [{"role": "system", "content": system}, {"role": "user", "content": user}]
+    resp = requests.post(
+        url,
+        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+        json={"model": _WORKERS_AI_MODEL, "max_tokens": max_tokens, "messages": messages},
+        timeout=300,
+    )
+    resp.raise_for_status()
+    data = resp.json()
+    content = data["choices"][0]["message"].get("content")
+    if content is None:
+        raise RuntimeError(f"Workers AI returned null content: {json.dumps(data)[:500]}")
+    return content
 
 
 def _extract_json(output: str) -> dict | None:
@@ -405,7 +417,7 @@ def run_synthesis_assessment(
             if cache_key in cache:
                 raw_output = cache[cache_key]["raw_output"]
             elif live:
-                raw_output = _call_groq(SYNTHESIS_SYSTEM, user_prompt)
+                raw_output = _call_workers_ai(SYNTHESIS_SYSTEM, user_prompt)
 
                 # Cache it
                 cache[cache_key] = {

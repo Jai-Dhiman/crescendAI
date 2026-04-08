@@ -5,7 +5,7 @@ multi-session dialogues. We adapt it to test our chat extraction pipeline:
 feed dialogue turns through extract-chat, then answer QA pairs using
 accumulated facts as context.
 
-Two modes: offline (cached JSONL) and live (API + Groq, populates cache).
+Two modes: offline (cached JSONL) and live (API + Workers AI, populates cache).
 """
 
 from __future__ import annotations
@@ -23,7 +23,7 @@ from pathlib import Path
 def _retry_on_rate_limit(fn, max_retries: int = 5, base_delay: float = 5.0):
     """Retry a callable on 429/503 with exponential backoff.
 
-    Handles both requests.HTTPError (API calls) and Groq SDK exceptions (groq.RateLimitError).
+    Handles both requests.HTTPError (API calls) and other transient exceptions.
     """
     for attempt in range(max_retries + 1):
         try:
@@ -44,6 +44,9 @@ def _retry_on_rate_limit(fn, max_retries: int = 5, base_delay: float = 5.0):
 
 DATA_DIR = Path(__file__).parents[1] / "data"
 _DEV_VARS_PATH = Path(__file__).parents[3] / "api" / ".dev.vars"
+DEFAULT_CF_ACCOUNT_ID = "5df63f40beeab277db407f1ecbd6e1ec"
+DEFAULT_GATEWAY_ID = "crescendai-background"
+_WORKERS_AI_MODEL = "@cf/google/gemma-4-26b-a4b-it"
 
 API_BASE = os.environ.get("API_BASE", "http://localhost:8787")
 
@@ -449,36 +452,51 @@ def _call_clear_benchmark(token: str, student_id: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Groq QA answering
+# Workers AI QA answering
 # ---------------------------------------------------------------------------
 
-def _load_groq_key() -> str:
-    key = os.environ.get("GROQ_API_KEY")
-    if key:
-        return key
+def _load_cf_token() -> str:
+    token = os.environ.get("CF_API_TOKEN")
+    if token:
+        return token
     if _DEV_VARS_PATH.exists():
         for line in _DEV_VARS_PATH.read_text().splitlines():
-            if line.startswith("GROQ_API_KEY="):
+            if line.startswith("CF_API_TOKEN="):
                 return line.split("=", 1)[1].strip()
-    raise RuntimeError("GROQ_API_KEY not found in env or apps/api/.dev.vars")
+    raise RuntimeError("CF_API_TOKEN not found in env or apps/api/.dev.vars")
 
 
-def _answer_question(question: str, context: str, groq_client) -> str:
-    """Answer a question given memory context, with rate-limit retry."""
-    def _do_call():
-        response = groq_client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[
-                {
-                    "role": "system",
-                    "content": QA_SYSTEM_PROMPT,
-                },
-                {"role": "user", "content": f"Context:\n{context}\n\nQuestion: {question}\n\nAnswer:"},
-            ],
-            temperature=0.0,
-            max_tokens=150,
+def _answer_question(question: str, context: str) -> str:
+    """Answer a question given memory context via Workers AI, with rate-limit retry."""
+    import requests
+
+    token = _load_cf_token()
+    account_id = os.environ.get("CF_ACCOUNT_ID", DEFAULT_CF_ACCOUNT_ID)
+    gateway_id = os.environ.get("CF_GATEWAY_ID", DEFAULT_GATEWAY_ID)
+    url = (
+        f"https://gateway.ai.cloudflare.com/v1/"
+        f"{account_id}/{gateway_id}/workers-ai/v1/chat/completions"
+    )
+    user_content = f"Context:\n{context}\n\nQuestion: {question}\n\nAnswer:"
+
+    def _do_call() -> str:
+        resp = requests.post(
+            url,
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+            json={
+                "model": _WORKERS_AI_MODEL,
+                "max_tokens": 150,
+                "messages": [
+                    {"role": "system", "content": QA_SYSTEM_PROMPT},
+                    {"role": "user", "content": user_content},
+                ],
+            },
+            timeout=300,
         )
-        return response.choices[0].message.content or ""
+        resp.raise_for_status()
+        data = resp.json()
+        content = data["choices"][0]["message"].get("content") or ""
+        return content
 
     try:
         return _retry_on_rate_limit(_do_call)
@@ -570,12 +588,10 @@ def run_locomo_assessment(
     extraction_cache = _load_cache(extraction_cache_path)
     qa_cache = _load_cache(qa_cache_path)
 
-    # Get groq client if live (auth token fetched lazily on first extraction miss)
+    # Auth token for API-routed retrieval (fetched lazily on first extraction miss)
     token = None
-    groq_client = None
     if live:
-        import groq
-        groq_client = groq.Groq(api_key=_load_groq_key())
+        _load_cf_token()  # validate token exists early
 
     # Get debug student_id for API-routed retrieval
     _debug_student_id = None
@@ -845,10 +861,6 @@ def run_locomo_assessment(
             if qa_cache_key in qa_cache:
                 prediction = qa_cache[qa_cache_key].get("prediction", "")
             elif live:
-                if groq_client is None:
-                    import groq
-                    groq_client = groq.Groq(api_key=_load_groq_key())
-
                 q_lower = question.lower()
                 is_synthesis = any(kw in q_lower for kw in [
                     "what does", "what do", "how does", "how do",
@@ -887,7 +899,7 @@ def run_locomo_assessment(
                         "a long explanation. Answer concisely (1-5 words).\n\n" + context
                     )
 
-                prediction = _answer_question(question, context, groq_client)
+                prediction = _answer_question(question, context)
 
                 # Post-process: convert "I don't know" to empty string only when
                 # appropriate. For adversarial questions (cat 5) or when very few

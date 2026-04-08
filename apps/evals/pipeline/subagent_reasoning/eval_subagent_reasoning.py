@@ -1,6 +1,6 @@
 """Subagent reasoning evaluation.
 
-Tests the Groq subagent's ability to select the right dimension,
+Tests the Workers AI subagent's ability to select the right dimension,
 choose appropriate framing, and produce coherent reasoning from
 hand-crafted scenarios.
 """
@@ -16,12 +16,28 @@ from pathlib import Path
 # Add apps/evals/ to path for shared imports
 sys.path.insert(0, str(Path(__file__).parents[2]))
 
-from groq import Groq
+import requests
 
 from shared.judge import judge_subagent
 from shared.reporting import EvalReport, MetricResult
 
 SCENARIOS_PATH = Path(__file__).parent / "scenarios" / "scenarios.json"
+
+_DEV_VARS_PATH = Path(__file__).parents[3] / "api" / ".dev.vars"
+DEFAULT_CF_ACCOUNT_ID = "5df63f40beeab277db407f1ecbd6e1ec"
+DEFAULT_GATEWAY_ID = "crescendai-background"
+_WORKERS_AI_MODEL = "@cf/google/gemma-4-26b-a4b-it"
+
+
+def _load_cf_token() -> str:
+    token = os.environ.get("CF_API_TOKEN")
+    if token:
+        return token
+    if _DEV_VARS_PATH.exists():
+        for line in _DEV_VARS_PATH.read_text().splitlines():
+            if line.startswith("CF_API_TOKEN="):
+                return line.split("=", 1)[1].strip()
+    raise RuntimeError("CF_API_TOKEN not found in env or apps/api/.dev.vars")
 
 
 def load_scenarios() -> list[dict]:
@@ -71,15 +87,30 @@ Respond in this exact JSON format:
 
 
 def call_subagent(prompt: str) -> dict:
-    """Call Groq with the subagent prompt."""
-    client = Groq(api_key=os.environ["GROQ_API_KEY"])
-    response = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0,
-        max_tokens=500,
+    """Call Workers AI subagent with the subagent prompt."""
+    token = _load_cf_token()
+    account_id = os.environ.get("CF_ACCOUNT_ID", DEFAULT_CF_ACCOUNT_ID)
+    gateway_id = os.environ.get("CF_GATEWAY_ID", DEFAULT_GATEWAY_ID)
+    url = (
+        f"https://gateway.ai.cloudflare.com/v1/"
+        f"{account_id}/{gateway_id}/workers-ai/v1/chat/completions"
     )
-    text = response.choices[0].message.content.strip()
+    resp = requests.post(
+        url,
+        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+        json={
+            "model": _WORKERS_AI_MODEL,
+            "max_tokens": 500,
+            "messages": [{"role": "user", "content": prompt}],
+        },
+        timeout=300,
+    )
+    resp.raise_for_status()
+    data = resp.json()
+    content = data["choices"][0]["message"].get("content")
+    if content is None:
+        raise RuntimeError(f"Workers AI returned null content: {json.dumps(data)[:300]}")
+    text = content.strip()
 
     # Parse JSON from response (handle markdown code blocks)
     if "```" in text:

@@ -726,7 +726,6 @@ dependencies = [
     { name = "anthropic" },
     { name = "cohere" },
     { name = "datasketch" },
-    { name = "groq" },
     { name = "requests" },
     { name = "sentence-transformers" },
     { name = "tiktoken" },
@@ -793,7 +792,6 @@ requires-dist = [
     { name = "cohere", specifier = ">=5.21.1" },
     { name = "crescendai-evals", extras = ["model", "memory", "inference"], marker = "extra == 'all'" },
     { name = "datasketch", specifier = ">=1.9.0" },
-    { name = "groq", specifier = ">=0.4.0" },
     { name = "librosa", marker = "extra == 'inference'", specifier = ">=0.10.0" },
     { name = "matplotlib", marker = "extra == 'model'", specifier = ">=3.7.0" },
     { name = "muq", marker = "extra == 'inference'" },
@@ -1185,23 +1183,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/a5/d3/8650919bc3c7c6e90ee3fa7fd618bf373cbbe55dff043bd67353dbb20cd8/ftfy-6.3.1.tar.gz", hash = "sha256:9b3c3d90f84fb267fe64d375a07b7f8912d817cf86009ae134aa03e1819506ec", size = 308927, upload-time = "2024-10-26T00:50:35.149Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/ab/6e/81d47999aebc1b155f81eca4477a616a70f238a2549848c38983f3c22a82/ftfy-6.3.1-py3-none-any.whl", hash = "sha256:7c70eb532015cd2f9adb53f101fb6c7945988d023a085d127d1573dc49dd0083", size = 44821, upload-time = "2024-10-26T00:50:33.425Z" },
-]
-
-[[package]]
-name = "groq"
-version = "1.1.1"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "anyio" },
-    { name = "distro" },
-    { name = "httpx" },
-    { name = "pydantic" },
-    { name = "sniffio" },
-    { name = "typing-extensions" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/9f/bc/7ad1d9967c58b21cdec0c94f26f40fc37b07ba60715d6cbc7c7ef775d927/groq-1.1.1.tar.gz", hash = "sha256:ea971eca72d88e875a78567904bfb46a2f2e43907bfe400fc36a81150a4066d8", size = 150783, upload-time = "2026-03-11T09:11:32.027Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/8f/1d/0749c5f0ed76693f6a3a40e2b0c40201fa23e1ccb00e69d5aa63e3f5b0ff/groq-1.1.1-py3-none-any.whl", hash = "sha256:6b7932c0fd3189ad1842fbc294f57fbf014713e01f72037451cb60a138c4b846", size = 139650, upload-time = "2026-03-11T09:11:29.87Z" },
 ]
 
 [[package]]

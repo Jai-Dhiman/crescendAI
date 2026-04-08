@@ -18,7 +18,7 @@ Outputs to data/realistic_scenarios.jsonl
 Expected facts are EMPTY placeholders -- human annotates later.
 
 Run as:
-    cd apps/evals/memory && GROQ_API_KEY=... uv run python -m src.build_realistic_scenarios
+    cd apps/evals/memory && CF_API_TOKEN=... uv run python -m src.build_realistic_scenarios
 """
 
 from __future__ import annotations
@@ -31,7 +31,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
-from groq import Groq
+import requests
 
 from .scenarios import (
     MemoryEvalScenario,
@@ -43,6 +43,45 @@ from .scenarios import (
 )
 
 DATA_DIR = Path(__file__).parents[1] / "data"
+_DEV_VARS_PATH = Path(__file__).parents[3] / "api" / ".dev.vars"
+DEFAULT_CF_ACCOUNT_ID = "5df63f40beeab277db407f1ecbd6e1ec"
+DEFAULT_GATEWAY_ID = "crescendai-background"
+# GPT-OSS-120B for quality scenario generation (no thinking mode quirks)
+_WORKERS_AI_MODEL = "@cf/openai/gpt-oss-120b"
+
+
+def _load_cf_token() -> str:
+    token = os.environ.get("CF_API_TOKEN")
+    if token:
+        return token
+    if _DEV_VARS_PATH.exists():
+        for line in _DEV_VARS_PATH.read_text().splitlines():
+            if line.startswith("CF_API_TOKEN="):
+                return line.split("=", 1)[1].strip()
+    raise RuntimeError("CF_API_TOKEN not found in env or apps/api/.dev.vars")
+
+
+def _workers_ai_complete(messages: list[dict], max_tokens: int = 4096) -> str:
+    """Call Workers AI via CF AI Gateway with a messages list."""
+    token = _load_cf_token()
+    account_id = os.environ.get("CF_ACCOUNT_ID", DEFAULT_CF_ACCOUNT_ID)
+    gateway_id = os.environ.get("CF_GATEWAY_ID", DEFAULT_GATEWAY_ID)
+    url = (
+        f"https://gateway.ai.cloudflare.com/v1/"
+        f"{account_id}/{gateway_id}/workers-ai/v1/chat/completions"
+    )
+    resp = requests.post(
+        url,
+        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+        json={"model": _WORKERS_AI_MODEL, "max_tokens": max_tokens, "messages": messages},
+        timeout=300,
+    )
+    resp.raise_for_status()
+    data = resp.json()
+    content = data["choices"][0]["message"].get("content")
+    if content is None:
+        raise RuntimeError(f"Workers AI returned null content: {json.dumps(data)[:500]}")
+    return content
 
 DIMENSIONS = ["dynamics", "timing", "pedaling", "articulation", "phrasing", "interpretation"]
 
@@ -379,16 +418,10 @@ Observation text should sound like a real piano teacher talking to a student -- 
 Do NOT add any explanation. Return ONLY the JSON array."""
 
 
-def _generate_observations(client: Groq, spec: ScenarioSpec) -> list[dict[str, Any]]:
+def _generate_observations(spec: ScenarioSpec) -> list[dict[str, Any]]:
     prompt = _build_obs_prompt(spec)
 
-    response = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.7,
-        max_tokens=4096,
-    )
-    raw = response.choices[0].message.content
+    raw = _workers_ai_complete([{"role": "user", "content": prompt}], max_tokens=4096)
     cleaned = _strip_code_fences(raw)
 
     try:
@@ -399,17 +432,11 @@ def _generate_observations(client: Groq, spec: ScenarioSpec) -> list[dict[str, A
             f"The following text is supposed to be a JSON array but has a syntax error. "
             f"Return ONLY valid JSON, no explanation:\n\n{cleaned}"
         )
-        retry_response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[
-                {"role": "user", "content": prompt},
-                {"role": "assistant", "content": raw},
-                {"role": "user", "content": repair_prompt},
-            ],
-            temperature=0.0,
-            max_tokens=4096,
-        )
-        retry_raw = retry_response.choices[0].message.content
+        retry_raw = _workers_ai_complete([
+            {"role": "user", "content": prompt},
+            {"role": "assistant", "content": raw},
+            {"role": "user", "content": repair_prompt},
+        ], max_tokens=4096)
         retry_cleaned = _strip_code_fences(retry_raw)
         try:
             observations = json.loads(retry_cleaned)
@@ -603,11 +630,7 @@ def _build_scenario(spec: ScenarioSpec, raw_obs: list[dict[str, Any]]) -> Memory
 
 
 def generate_all_scenarios() -> list[MemoryEvalScenario]:
-    api_key = os.environ.get("GROQ_API_KEY")
-    if not api_key:
-        raise EnvironmentError("GROQ_API_KEY environment variable is not set")
-
-    client = Groq(api_key=api_key)
+    _load_cf_token()  # validate token exists before generating
     specs = _build_specs()
 
     print(f"Generating {len(specs)} scenarios...")
@@ -615,7 +638,7 @@ def generate_all_scenarios() -> list[MemoryEvalScenario]:
 
     for i, spec in enumerate(specs):
         print(f"  [{i+1}/{len(specs)}] {spec.id}: {spec.name[:60]}...", flush=True)
-        raw_obs = _generate_observations(client, spec)
+        raw_obs = _generate_observations(spec)
         scenario = _build_scenario(spec, raw_obs)
         scenarios.append(scenario)
         print(f"         -> {len(scenario.observations)} observations generated")

@@ -30,14 +30,15 @@ DEFAULT_GATEWAY_ID = "crescendai-background"
 # Model defaults per task type
 MODELS = {
     "workers-ai": {
-        "cheap": "@cf/qwen/qwen3-30b-a3b-fp8",
+        "cheap": "@cf/google/gemma-4-26b-a4b-it",
         "quality": "@cf/openai/gpt-oss-120b",
+        "judge": "@cf/google/gemma-4-26b-a4b-it",
         "default": "@cf/openai/gpt-oss-120b",
     },
     "anthropic": {
         "cheap": "claude-haiku-4-5-20251001",
-        "quality": "claude-sonnet-4-6-20250514",
-        "default": "claude-sonnet-4-6-20250514",
+        "quality": "claude-sonnet-4-6",
+        "default": "claude-sonnet-4-6",
     },
 }
 
@@ -103,21 +104,12 @@ class LLMClient:
         else:
             raise ValueError(f"Unknown provider: {self.provider}")
 
-    # Thinking models put reasoning in a separate field and may return
-    # content=null if max_tokens is consumed by reasoning.  Append /no_think
-    # to disable chain-of-thought for structured extraction tasks.
-    _THINKING_MODELS = {"@cf/qwen/qwen3-30b-a3b-fp8"}
-
     def _workers_ai_complete(
         self, system: str, user: str, max_tokens: int
     ) -> str:
         messages = []
         if system:
             messages.append({"role": "system", "content": system})
-
-        # Disable thinking for structured extraction (avoids content=null)
-        if self.model in self._THINKING_MODELS:
-            user = user.rstrip() + " /no_think"
 
         messages.append({"role": "user", "content": user})
 
@@ -147,13 +139,7 @@ class LLMClient:
         if not choices:
             raise RuntimeError(f"No choices in Workers AI response: {json.dumps(data)[:500]}")
 
-        msg = choices[0]["message"]
-        content = msg.get("content")
-
-        # Fallback: some thinking models may still return content=null
-        # with reasoning in a separate field
-        if content is None:
-            content = msg.get("reasoning_content")
+        content = choices[0]["message"].get("content")
         if content is None:
             raise RuntimeError(
                 f"Workers AI returned null content: {json.dumps(data)[:500]}"

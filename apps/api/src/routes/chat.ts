@@ -52,6 +52,12 @@ const app = new Hono<{ Bindings: Bindings; Variables: Variables }>().post(
 							event: "delta",
 							id: String(id++),
 						});
+					} else if (event.type === "tool_start") {
+						await sseStream.writeSSE({
+							data: JSON.stringify({ type: "tool_start", name: event.name }),
+							event: "tool_start",
+							id: String(id++),
+						});
 					} else if (event.type === "tool_result") {
 						await sseStream.writeSSE({
 							data: JSON.stringify({

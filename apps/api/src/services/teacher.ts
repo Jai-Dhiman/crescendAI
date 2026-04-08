@@ -28,6 +28,7 @@ export interface ToolCallRecord {
 
 export type TeacherEvent =
 	| { type: "delta"; text: string }
+	| { type: "tool_start"; name: string }
 	| { type: "tool_result"; name: string; componentsJson: InlineComponent[] }
 	| {
 			type: "done";
@@ -141,6 +142,7 @@ async function processSSEEvent(
 			const id = contentBlock["id"] as string;
 			const name = contentBlock["name"] as string;
 			blocks.set(index, { type: "tool_use", id, name, jsonAccumulator: "" });
+			return [{ type: "tool_start", name }];
 		}
 		return [];
 	}
@@ -320,7 +322,6 @@ export async function* chat(
 	};
 
 	let currentMessages = messages as Array<{ role: "user" | "assistant"; content: string | AnthropicContentBlock[] }>;
-	let accumulatedText = "";
 	let accumulatedComponents: InlineComponent[] = [];
 
 	for (let turn = 0; turn < MAX_TOOL_TURNS; turn++) {
@@ -345,14 +346,15 @@ export async function* chat(
 
 		if (!doneEvent || doneEvent.type !== "done") break;
 
-		accumulatedText += doneEvent.fullText;
 		accumulatedComponents.push(...doneEvent.allComponents);
 
-		// If no tool calls or stop_reason is not tool_use, we're done
+		// If no tool calls or stop_reason is not tool_use, this is the final turn.
+		// Only the final turn's text is persisted — intermediate tool-calling turns
+		// emit deltas for streaming UX but their narration is cleared by the frontend.
 		if (doneEvent.toolCalls.length === 0 || doneEvent.stopReason !== "tool_use") {
 			yield {
 				type: "done",
-				fullText: accumulatedText,
+				fullText: doneEvent.fullText,
 				allComponents: accumulatedComponents,
 				toolCalls: doneEvent.toolCalls,
 				stopReason: doneEvent.stopReason,
@@ -399,10 +401,10 @@ export async function* chat(
 		);
 	}
 
-	// If we exhausted MAX_TOOL_TURNS, yield accumulated state
+	// If we exhausted MAX_TOOL_TURNS, yield accumulated state with no final text
 	yield {
 		type: "done",
-		fullText: accumulatedText,
+		fullText: "",
 		allComponents: accumulatedComponents,
 		toolCalls: [],
 		stopReason: "max_tool_turns",

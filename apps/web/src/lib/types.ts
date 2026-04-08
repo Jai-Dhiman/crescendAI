@@ -1,5 +1,11 @@
 // Rich message type system for inline UI cards (Slice 10)
 
+export type ToolCallStatus =
+	| { name: string; status: "pending" }
+	| { name: string; status: "found"; label: string }
+	| { name: string; status: "not_found" }
+	| { name: string; status: "done" };
+
 export interface RichMessage {
 	id: string;
 	role: "user" | "assistant";
@@ -7,6 +13,7 @@ export interface RichMessage {
 	createdAt: string;
 	streaming?: boolean;
 	components?: InlineComponent[];
+	toolCalls?: ToolCallStatus[];
 	dimension?: string;
 	messageType?:
 		| "chat"

@@ -7,7 +7,6 @@ dependencies = [
     "anthropic>=0.40.0",
     "cohere>=5.21.1",
     "datasketch>=1.9.0",
-    "groq>=0.4.0",
     "requests>=2.31.0",
     "sentence-transformers>=5.3.0",
     "tiktoken>=0.12.0",

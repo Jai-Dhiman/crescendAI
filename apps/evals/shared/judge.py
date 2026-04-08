@@ -331,7 +331,7 @@ def judge_synthesis_v2(
         f"{synthesis_text}"
     )
 
-    client = LLMClient(provider=provider, model=model, tier="quality")
+    client = LLMClient(provider=provider, model=model, tier="judge")
     start = time.monotonic()
     response_text = client.complete_json(user_message, max_tokens=4000)
     latency_ms = (time.monotonic() - start) * 1000

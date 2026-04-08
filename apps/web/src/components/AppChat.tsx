@@ -456,15 +456,78 @@ export default function AppChat() {
 						case "delta":
 							appendDelta(event.text);
 							break;
-						case "tool_result": {
-							const components = JSON.parse(event.componentsJson);
+						case "tool_start": {
+							// Discard any buffered pre-tool narration ("Let me search...")
+							deltaBufferRef.current = "";
 							setTransientMessages((prev) => {
 								const updated = [...prev];
 								const last = updated[updated.length - 1];
 								if (last && last.role === "assistant") {
 									updated[updated.length - 1] = {
 										...last,
-										components: [...(last.components ?? []), ...components],
+										content: "",
+										toolCalls: [
+											...(last.toolCalls ?? []),
+											{ name: event.name, status: "pending" as const },
+										],
+									};
+								}
+								return updated;
+							});
+							break;
+						}
+						case "tool_result": {
+							const components = JSON.parse(event.componentsJson) as Array<{
+								type: string;
+								config: Record<string, unknown>;
+							}>;
+							const searchResult = components.find(
+								(c) => c.type === "search_catalog_result",
+							);
+							const renderableComponents = components.filter(
+								(c) => c.type !== "search_catalog_result",
+							) as import("../lib/types").InlineComponent[];
+
+							setTransientMessages((prev) => {
+								const updated = [...prev];
+								const last = updated[updated.length - 1];
+								if (last && last.role === "assistant") {
+									const toolCalls = [...(last.toolCalls ?? [])];
+									let pendingIdx = -1;
+									for (let i = toolCalls.length - 1; i >= 0; i--) {
+										if (toolCalls[i].status === "pending") {
+											pendingIdx = i;
+											break;
+										}
+									}
+									if (pendingIdx >= 0) {
+										const pending = toolCalls[pendingIdx];
+										if (searchResult) {
+											const matches = searchResult.config.matches as Array<{
+												title: string;
+											}>;
+											toolCalls[pendingIdx] =
+												matches.length > 0
+													? {
+															name: pending.name,
+															status: "found",
+															label: `Found: ${matches[0].title}`,
+														}
+													: { name: pending.name, status: "not_found" };
+										} else {
+											toolCalls[pendingIdx] = {
+												name: pending.name,
+												status: "done",
+											};
+										}
+									}
+									updated[updated.length - 1] = {
+										...last,
+										toolCalls,
+										components: [
+											...(last.components ?? []),
+											...renderableComponents,
+										],
 									};
 								}
 								return updated;

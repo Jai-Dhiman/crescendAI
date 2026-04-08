@@ -18,7 +18,7 @@ import re
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
-from .eval_synthesis import SYNTHESIS_SYSTEM, _call_groq, _extract_json, build_synthesis_prompt
+from .eval_synthesis import SYNTHESIS_SYSTEM, _call_workers_ai, _extract_json, build_synthesis_prompt
 from .memory_db import MemoryDB
 from .scenarios import MemoryEvalScenario, load_all_scenarios
 
@@ -145,7 +145,7 @@ def run_temporal_assessment(
             if cache_key in cache:
                 raw_output = cache[cache_key]["raw_output"]
             elif live:
-                raw_output = _call_groq(SYNTHESIS_SYSTEM, user_prompt)
+                raw_output = _call_workers_ai(SYNTHESIS_SYSTEM, user_prompt)
                 cache[cache_key] = {
                     "key": cache_key,
                     "scenario_id": scenario.id,

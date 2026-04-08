@@ -1,9 +1,10 @@
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { ArtifactScrollContext } from "../contexts/artifact-scroll";
 import { useMountEffect } from "../hooks/useFoundation";
-import type { RichMessage } from "../lib/types";
+import type { RichMessage, ToolCallStatus } from "../lib/types";
 import { Artifact } from "./Artifact";
 import { MessageContent } from "./MessageContent";
+import { ToolCallBar } from "./ToolCallBar";
 
 interface ChatMessagesProps {
 	messages: RichMessage[];
@@ -151,6 +152,37 @@ const MessageBubble = memo(function MessageBubble({
 	const showTryButton =
 		message.dimension && !message.streaming && onTryExercises;
 
+	// For persisted messages, derive bar states from stored search_catalog_result components.
+	// Streaming messages use message.toolCalls directly (set by the tool_start/tool_result handlers).
+	const persistedBars: ToolCallStatus[] =
+		!message.toolCalls && !message.streaming
+			? (message.components ?? [])
+					.filter(
+						(c) => (c as { type: string }).type === "search_catalog_result",
+					)
+					.map((c) => {
+						const matches = (
+							(c as { type: string; config: { matches?: Array<{ title: string }> } })
+								.config.matches ?? []
+						);
+						return matches.length > 0
+							? ({
+									name: "search_catalog",
+									status: "found",
+									label: `Found: ${matches[0].title}`,
+								} as ToolCallStatus)
+							: ({ name: "search_catalog", status: "not_found" } as ToolCallStatus);
+					})
+			: [];
+
+	const displayToolCalls =
+		message.toolCalls ?? (persistedBars.length > 0 ? persistedBars : undefined);
+
+	// Don't pass search_catalog_result through to Artifact — it has no renderer
+	const renderableComponents = (message.components ?? []).filter(
+		(c) => (c as { type: string }).type !== "search_catalog_result",
+	);
+
 	return (
 		<div className="flex justify-start animate-fade-in">
 			<div className="max-w-[80%]">
@@ -159,9 +191,17 @@ const MessageBubble = memo(function MessageBubble({
 						{message.dimension}
 					</span>
 				)}
+				{displayToolCalls && displayToolCalls.length > 0 && (
+					<div className="mb-2 space-y-1">
+						{displayToolCalls.map((tc, i) => (
+							// biome-ignore lint/suspicious/noArrayIndexKey: tool calls are positionally stable within a message
+							<ToolCallBar key={i} toolCall={tc} />
+						))}
+					</div>
+				)}
 				<MessageContent content={message.content} />
 				{!message.streaming &&
-					message.components?.map((component, i) => (
+					renderableComponents.map((component, i) => (
 						<Artifact
 							// biome-ignore lint/suspicious/noArrayIndexKey: components have no stable id
 							key={`${message.id}-artifact-${i}`}

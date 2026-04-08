@@ -90,6 +90,7 @@ export interface ConversationWithMessages {
 export type ChatStreamEvent =
 	| { type: "start"; conversationId: string }
 	| { type: "delta"; text: string }
+	| { type: "tool_start"; name: string }
 	| { type: "tool_result"; name: string; componentsJson: string }
 	| { type: "done" }
 	| { type: "error"; message: string };

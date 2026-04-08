@@ -106,7 +106,10 @@ export async function callWorkersAI(
 	const url = `${env.AI_GATEWAY_BACKGROUND}/workers-ai/v1/chat/completions`;
 	const res = await fetch(url, {
 		method: "POST",
-		headers: { "Content-Type": "application/json" },
+		headers: {
+			"Content-Type": "application/json",
+			Authorization: `Bearer ${env.CLOUDFLARE_API_TOKEN}`,
+		},
 		body: JSON.stringify({ model, messages, max_tokens: maxTokens }),
 	});
 	if (!res.ok) {

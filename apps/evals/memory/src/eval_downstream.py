@@ -4,7 +4,7 @@ For each scenario's final observation, generates subagent output in two variants
 - no_memory: Teaching moment + student baselines + recent observations only
 - with_memory: Same + formatted Student Memory section
 
-Calls Groq subagent for both, then evaluates with LLM-as-Judge (Claude Sonnet).
+Calls Workers AI subagent for both, then evaluates with LLM-as-Judge (Claude Sonnet).
 """
 
 from __future__ import annotations
@@ -15,7 +15,7 @@ import random
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
-from .eval_synthesis import _load_groq_key
+from .eval_synthesis import _call_workers_ai
 from .memory_db import MemoryDB
 from .scenarios import MemoryEvalScenario, load_scenarios
 
@@ -91,19 +91,8 @@ def _build_downstream_prompt(
     return prompt
 
 
-def _call_groq_downstream(system: str, user: str) -> str:
-    import groq
-    client = groq.Groq(api_key=_load_groq_key())
-    response = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
-        messages=[
-            {"role": "system", "content": system},
-            {"role": "user", "content": user},
-        ],
-        temperature=0.3,
-        max_tokens=400,
-    )
-    return response.choices[0].message.content or ""
+def _call_subagent(system: str, user: str) -> str:
+    return _call_workers_ai(system, user, max_tokens=400)
 
 
 def _load_anthropic_key() -> str:
@@ -259,8 +248,8 @@ def run_downstream_assessment(
             prompt_no = _build_downstream_prompt(scenario, memory_context="")
             prompt_with = _build_downstream_prompt(scenario, memory_context=memory_text)
 
-            no_memory_response = _call_groq_downstream(SUBAGENT_SYSTEM, prompt_no)
-            with_memory_response = _call_groq_downstream(SUBAGENT_SYSTEM, prompt_with)
+            no_memory_response = _call_subagent(SUBAGENT_SYSTEM, prompt_no)
+            with_memory_response = _call_subagent(SUBAGENT_SYSTEM, prompt_with)
 
             response_cache[cache_key_no] = {"key": cache_key_no, "response": no_memory_response}
             response_cache[cache_key_with] = {"key": cache_key_with, "response": with_memory_response}
