@@ -561,6 +561,18 @@ export default function AppChat() {
 							break;
 						}
 						case "error": {
+							if (rafIdRef.current) {
+								cancelAnimationFrame(rafIdRef.current);
+								rafIdRef.current = 0;
+							}
+							deltaBufferRef.current = "";
+							const idx = streamingIndexRef.current;
+							streamingIndexRef.current = -1;
+							if (idx >= 0) {
+								setTransientMessages((prev) =>
+									prev.filter((_, i) => i !== idx),
+								);
+							}
 							addToast({ type: "error", message: event.message });
 							setIsStreaming(false);
 							break;
