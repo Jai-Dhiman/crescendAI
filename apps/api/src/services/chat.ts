@@ -129,7 +129,7 @@ export async function saveAssistantMessage(
 			const titlePrompt = buildTitlePrompt(firstUserMessage);
 			const title = await callWorkersAI(
 				env,
-				"@cf/google/gemma-4-26b-a4b-it",
+				"@cf/meta/llama-3.2-3b-instruct",
 				[{ role: "user", content: titlePrompt }],
 				30,
 			);

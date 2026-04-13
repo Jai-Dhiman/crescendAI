@@ -55,7 +55,7 @@ If a field has no matches, use an empty array. Always include rawText.`;
 
 	const responseText = await callWorkersAI(
 		ctx.env,
-		"@cf/google/gemma-4-26b-a4b-it",
+		"@cf/meta/llama-3.2-3b-instruct",
 		[
 			{ role: "system", content: systemPrompt },
 			{ role: "user", content: userPrompt },

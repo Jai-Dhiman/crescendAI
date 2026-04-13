@@ -24,7 +24,7 @@ describe("callWorkersAI", () => {
 
 		const result = await callWorkersAI(
 			mockEnv,
-			"@cf/google/gemma-4-26b-a4b-it",
+			"@cf/meta/llama-3.2-3b-instruct",
 			[{ role: "user", content: "Generate a title" }],
 			30,
 		);
