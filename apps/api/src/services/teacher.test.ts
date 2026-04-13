@@ -190,19 +190,19 @@ describe("parseAnthropicStream - text + tool_use", () => {
 			events.push(event);
 		}
 
-		// delta(text) + tool_start + tool_result + done
-		expect(events).toHaveLength(4);
-		expect(events[0]).toEqual({ type: "delta", text: "Try this:" });
-		expect(events[1]).toEqual({ type: "tool_start", name: "keyboard_guide" });
+		// tool_start + tool_result + done — intermediate narration ("Try this:") is discarded
+		// because it appeared before a tool_use block in the same turn (Fix C).
+		expect(events).toHaveLength(3);
+		expect(events[0]).toEqual({ type: "tool_start", name: "keyboard_guide" });
 
-		const toolEvent = events[2];
+		const toolEvent = events[1];
 		expect(toolEvent.type).toBe("tool_result");
 		if (toolEvent.type === "tool_result") {
 			expect(toolEvent.name).toBe("keyboard_guide");
 			expect(toolEvent.componentsJson).toEqual(mockComponents);
 		}
 
-		const doneEvent = events[3];
+		const doneEvent = events[2];
 		expect(doneEvent.type).toBe("done");
 		if (doneEvent.type === "done") {
 			expect(doneEvent.fullText).toBe("Try this:");
@@ -296,16 +296,18 @@ describe("parseAnthropicStream - failed tool", () => {
 			events.push(event);
 		}
 
-		// delta + tool_start + done -- no tool_result because isError: true
-		expect(events).toHaveLength(3);
-		expect(events[0]).toEqual({ type: "delta", text: "Some text" });
-		expect(events[1]).toEqual({ type: "tool_start", name: "create_exercise" });
-		expect(events[2].type).toBe("done");
+		// tool_start + done -- intermediate narration ("Some text") discarded (Fix C),
+		// no tool_result because isError: true
+		expect(events).toHaveLength(2);
+		expect(events[0]).toEqual({ type: "tool_start", name: "create_exercise" });
+		expect(events[1].type).toBe("done");
 
-		const doneEvent = events[2];
+		const doneEvent = events[1];
 		if (doneEvent.type === "done") {
 			// allComponents should be empty since the tool failed
 			expect(doneEvent.allComponents).toEqual([]);
+			// fullText is still tracked internally even though the delta was not emitted
+			expect(doneEvent.fullText).toBe("Some text");
 		}
 	});
 });

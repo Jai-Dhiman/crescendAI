@@ -113,6 +113,8 @@ async function processSSEEvent(
 		allComponents: InlineComponent[];
 		toolCalls: ToolCallRecord[];
 		stopReason: string;
+		pendingTextDeltas: string[];
+		hasToolUseThisTurn: boolean;
 	},
 	processToolFn: ProcessToolFn,
 ): Promise<TeacherEvent[]> {
@@ -142,6 +144,9 @@ async function processSSEEvent(
 			const id = contentBlock["id"] as string;
 			const name = contentBlock["name"] as string;
 			blocks.set(index, { type: "tool_use", id, name, jsonAccumulator: "" });
+			// Discard any text buffered in this turn — it was intermediate narration.
+			state.pendingTextDeltas = [];
+			state.hasToolUseThisTurn = true;
 			return [{ type: "tool_start", name }];
 		}
 		return [];
@@ -159,7 +164,8 @@ async function processSSEEvent(
 			const text = delta["text"] as string;
 			block.textAccumulator += text;
 			state.fullText += text;
-			return [{ type: "delta", text }];
+			state.pendingTextDeltas.push(text);
+			return [];
 		} else if (deltaType === "input_json_delta" && block.type === "tool_use") {
 			block.jsonAccumulator += delta["partial_json"] as string;
 		}
@@ -207,10 +213,28 @@ async function processSSEEvent(
 		if (delta && typeof delta["stop_reason"] === "string") {
 			state.stopReason = delta["stop_reason"];
 		}
+		// Flush buffered text deltas only for final (non-tool-use) turns.
+		if (state.stopReason !== "tool_use" && state.pendingTextDeltas.length > 0) {
+			const flushed = state.pendingTextDeltas.map((text) => ({ type: "delta" as const, text }));
+			state.pendingTextDeltas = [];
+			return flushed;
+		}
+		state.pendingTextDeltas = [];
 		return [];
 	}
 
-	// message_start, message_stop — no action needed
+	// message_stop: flush any remaining buffered deltas (covers streams with no message_delta)
+	if (event === "message_stop") {
+		if (!state.hasToolUseThisTurn && state.pendingTextDeltas.length > 0) {
+			const flushed = state.pendingTextDeltas.map((text) => ({ type: "delta" as const, text }));
+			state.pendingTextDeltas = [];
+			return flushed;
+		}
+		state.pendingTextDeltas = [];
+		return [];
+	}
+
+	// message_start — no action needed
 	return [];
 }
 
@@ -231,6 +255,8 @@ export async function* parseAnthropicStream(
 		allComponents: [] as InlineComponent[],
 		toolCalls: [] as ToolCallRecord[],
 		stopReason: "end_turn",
+		pendingTextDeltas: [] as string[],
+		hasToolUseThisTurn: false,
 	};
 	let textBuffer = "";
 
@@ -298,7 +324,7 @@ export function stripAnalysis(text: string): string {
 // chat
 // ---------------------------------------------------------------------------
 
-const MAX_TOOL_TURNS = 3;
+const MAX_TOOL_TURNS = 5;
 
 export async function* chat(
 	ctx: ServiceContext,
@@ -376,12 +402,25 @@ export async function* chat(
 			});
 		}
 
+		const GENERIC_TOOL_ERROR =
+			"Tool call failed validation. Check that required fields like piece_id are valid UUIDs returned from a prior search_catalog result, not titles or invented values.";
+
 		const toolResultContent: AnthropicContentBlock[] = doneEvent.toolCalls.map(
-			(tc) => ({
-				type: "tool_result" as const,
-				tool_use_id: tc.id,
-				content: JSON.stringify(tc.result.componentsJson),
-			}),
+			(tc) => {
+				if (tc.result.isError) {
+					return {
+						type: "tool_result" as const,
+						tool_use_id: tc.id,
+						is_error: true,
+						content: tc.result.errorMessage ?? GENERIC_TOOL_ERROR,
+					};
+				}
+				return {
+					type: "tool_result" as const,
+					tool_use_id: tc.id,
+					content: JSON.stringify(tc.result.componentsJson),
+				};
+			},
 		);
 
 		currentMessages = [
@@ -401,10 +440,51 @@ export async function* chat(
 		);
 	}
 
-	// If we exhausted MAX_TOOL_TURNS, yield accumulated state with no final text
+	// All tool turns exhausted — force one more call with tool_choice: none so the
+	// model synthesizes a text response from the accumulated tool results.
+	try {
+		const forcedStream = await callAnthropicStream(ctx.env, {
+			model: "claude-sonnet-4-20250514",
+			max_tokens: 2048,
+			system: systemBlocks,
+			messages: currentMessages,
+			tools: getAnthropicToolSchemas(),
+			tool_choice: { type: "none" },
+		});
+
+		let forcedDone: TeacherEvent | null = null;
+
+		for await (const event of parseAnthropicStream(forcedStream, processToolFn)) {
+			if (event.type === "done") {
+				forcedDone = event;
+			} else {
+				yield event;
+			}
+		}
+
+		if (forcedDone && forcedDone.type === "done" && forcedDone.fullText) {
+			yield {
+				type: "done",
+				fullText: forcedDone.fullText,
+				allComponents: accumulatedComponents,
+				toolCalls: [],
+				stopReason: "forced_text_after_max_turns",
+			};
+			return;
+		}
+	} catch (err) {
+		console.log(
+			JSON.stringify({
+				level: "error",
+				message: "forced final call failed after max tool turns",
+				error: err instanceof Error ? err.message : String(err),
+			}),
+		);
+	}
+
 	yield {
 		type: "done",
-		fullText: "",
+		fullText: "I had trouble putting that together — could you ask again?",
 		allComponents: accumulatedComponents,
 		toolCalls: [],
 		stopReason: "max_tool_turns",

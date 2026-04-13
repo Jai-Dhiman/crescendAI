@@ -21,6 +21,7 @@ export interface ToolResult {
 	name: string;
 	componentsJson: InlineComponent[];
 	isError: boolean;
+	errorMessage?: string;
 }
 
 interface AnthropicToolSchema {
@@ -851,6 +852,7 @@ export async function processToolUse(
 
 	const validation = tool.schema.safeParse(toolInput);
 	if (!validation.success) {
+		const errorMessage = validation.error.message;
 		console.error(
 			JSON.stringify({
 				level: "error",
@@ -860,7 +862,7 @@ export async function processToolUse(
 				issues: validation.error.issues,
 			}),
 		);
-		return { name: toolName, componentsJson: [], isError: true };
+		return { name: toolName, componentsJson: [], isError: true, errorMessage };
 	}
 
 	try {
@@ -887,16 +889,17 @@ export async function processToolUse(
 
 		return { name: toolName, componentsJson, isError: false };
 	} catch (err) {
+		const errorMessage = err instanceof Error ? err.message : String(err);
 		console.error(
 			JSON.stringify({
 				level: "error",
 				message: "Tool process function threw",
 				toolName,
 				studentId,
-				error: err instanceof Error ? err.message : String(err),
+				error: errorMessage,
 				stack: err instanceof Error ? err.stack : undefined,
 			}),
 		);
-		return { name: toolName, componentsJson: [], isError: true };
+		return { name: toolName, componentsJson: [], isError: true, errorMessage };
 	}
 }
