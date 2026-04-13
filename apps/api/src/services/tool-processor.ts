@@ -156,8 +156,17 @@ async function processCreateExercise(
 // Tool: score_highlight
 // ---------------------------------------------------------------------------
 
+const pieceSlugSchema = z
+	.string()
+	.min(1)
+	.max(200)
+	.regex(/^[a-z0-9._-]+$/, {
+		message:
+			"piece_id must be a catalog slug like 'chopin.ballades.1' (returned by search_catalog)",
+	});
+
 const scoreHighlightSchema = z.object({
-	piece_id: z.string().uuid(),
+	piece_id: pieceSlugSchema,
 	highlights: z
 		.array(
 			z.object({
@@ -360,7 +369,7 @@ async function processShowSessionData(
 // ---------------------------------------------------------------------------
 
 const referenceBrowserSchema = z.object({
-	piece_id: z.string().uuid().optional(),
+	piece_id: pieceSlugSchema.optional(),
 	passage: z.string().optional(),
 	description: z.string(),
 });
@@ -579,14 +588,14 @@ const createExerciseAnthropicSchema: AnthropicToolSchema = {
 const scoreHighlightAnthropicSchema: AnthropicToolSchema = {
 	name: "score_highlight",
 	description:
-		"Highlight one or more bar ranges in the score viewer with dimension-colored annotations. Use to visually point at specific passages during teaching.",
+		"Display specific bars from the score as rendered notation, with optional dimension-colored highlights and annotations. Use whenever the student asks to see, print, look at, or work on a specific passage — this is how you show printed music in the chat. Also use to point at a passage during teaching.",
 	input_schema: {
 		type: "object",
 		properties: {
 			piece_id: {
 				type: "string",
-				format: "uuid",
-				description: "UUID of the piece being discussed. Required.",
+				description:
+					"Piece slug returned by search_catalog (e.g. 'chopin.ballades.1'). Pass through verbatim — do not transform or fabricate.",
 			},
 			highlights: {
 				type: "array",
@@ -699,8 +708,8 @@ const referenceBrowserAnthropicSchema: AnthropicToolSchema = {
 		properties: {
 			piece_id: {
 				type: "string",
-				format: "uuid",
-				description: "Optional UUID of the piece to look up.",
+				description:
+					"Optional piece slug returned by search_catalog (e.g. 'chopin.ballades.1'). Pass through verbatim.",
 			},
 			passage: {
 				type: "string",
@@ -847,7 +856,12 @@ export async function processToolUse(
 				studentId,
 			}),
 		);
-		return { name: toolName, componentsJson: [], isError: true };
+		return {
+			name: toolName,
+			componentsJson: [],
+			isError: true,
+			errorMessage: `Unknown tool '${toolName}'. This tool is not registered.`,
+		};
 	}
 
 	const validation = tool.schema.safeParse(toolInput);

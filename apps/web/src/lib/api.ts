@@ -74,7 +74,7 @@ export interface MessageRow {
 	messageType?: string;
 	dimension?: string;
 	framing?: string;
-	componentsJson?: string;
+	componentsJson?: StreamedToolComponent[] | null;
 	sessionId?: string;
 }
 
@@ -87,11 +87,21 @@ export interface ConversationWithMessages {
 	messages: MessageRow[];
 }
 
+export interface StreamedToolComponent {
+	type: string;
+	config: Record<string, unknown>;
+}
+
 export type ChatStreamEvent =
 	| { type: "start"; conversationId: string }
 	| { type: "delta"; text: string }
 	| { type: "tool_start"; name: string }
-	| { type: "tool_result"; name: string; componentsJson: string }
+	| {
+			type: "tool_result";
+			name: string;
+			componentsJson: StreamedToolComponent[];
+	  }
+	| { type: "tool_error"; name: string; message: string }
 	| { type: "done" }
 	| { type: "error"; message: string };
 

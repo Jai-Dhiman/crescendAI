@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/cloudflare";
 import { and, asc, eq } from "drizzle-orm";
 import { conversations, messages } from "../db/schema/conversations";
 import { studentProfiles } from "../db/schema/students";
@@ -139,14 +140,18 @@ export async function saveAssistantMessage(
 				.set({ title: title.trim() })
 				.where(eq(conversations.id, conversationId));
 		} catch (err) {
-			console.warn(
+			console.error(
 				JSON.stringify({
-					level: "warn",
+					level: "error",
 					message: "Title generation failed",
 					conversationId,
 					error: err instanceof Error ? err.message : String(err),
 				}),
 			);
+			Sentry.captureException(err, {
+				tags: { service: "chat", operation: "title_generation" },
+				extra: { conversationId },
+			});
 		}
 	}
 }

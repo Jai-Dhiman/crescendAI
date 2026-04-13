@@ -34,9 +34,13 @@ def _retry_on_rate_limit(fn, max_retries: int = 5, base_delay: float = 5.0):
             if status == 0:
                 status = getattr(exc, "status_code", 0)
             if status in (429, 503) and attempt < max_retries:
-                retry_after = getattr(getattr(exc, "response", None), "headers", {}).get("retry-after")
-                delay = float(retry_after) if retry_after else base_delay * (2 ** attempt)
-                print(f"    Rate limited ({status}), retrying in {delay:.1f}s (attempt {attempt + 1}/{max_retries})...")
+                retry_after = getattr(
+                    getattr(exc, "response", None), "headers", {}
+                ).get("retry-after")
+                delay = float(retry_after) if retry_after else base_delay * (2**attempt)
+                print(
+                    f"    Rate limited ({status}), retrying in {delay:.1f}s (attempt {attempt + 1}/{max_retries})..."
+                )
                 time.sleep(delay)
                 continue
             raise
@@ -118,10 +122,19 @@ def _group_facts_for_context(facts: list[dict], current_date: str = "") -> str:
     if current_date:
         lines.append(f"Current date: {current_date}")
         lines.append("")
-    for heading in ["Identity", "Background", "Goals & Plans", "Preferences & Habits",
-                     "Repertoire", "Events & Milestones", "Relationships & People",
-                     "Activities & Projects", "Opinions & Views", "Context & Circumstances",
-                     "Other"]:
+    for heading in [
+        "Identity",
+        "Background",
+        "Goals & Plans",
+        "Preferences & Habits",
+        "Repertoire",
+        "Events & Milestones",
+        "Relationships & People",
+        "Activities & Projects",
+        "Opinions & Views",
+        "Context & Circumstances",
+        "Other",
+    ]:
         if heading in groups:
             lines.append(f"## {heading}")
             for text in groups[heading]:
@@ -138,6 +151,7 @@ def _get_sentence_model():
     global _sentence_model
     if _sentence_model is None:
         from sentence_transformers import SentenceTransformer
+
         _sentence_model = SentenceTransformer("all-MiniLM-L6-v2")
     return _sentence_model
 
@@ -157,10 +171,46 @@ def _filter_relevant_facts(
     # Stage 1: keyword pre-filter
     q_lower = question.lower()
     q_words = set(re.sub(r"[^\w\s]", "", q_lower).split())
-    stopwords = {"a", "an", "the", "is", "was", "were", "are", "do", "does", "did",
-                 "what", "when", "where", "who", "how", "which", "that", "this",
-                 "to", "of", "in", "for", "on", "with", "at", "by", "from", "and",
-                 "or", "not", "but", "if", "about", "has", "had", "have", "be", "been"}
+    stopwords = {
+        "a",
+        "an",
+        "the",
+        "is",
+        "was",
+        "were",
+        "are",
+        "do",
+        "does",
+        "did",
+        "what",
+        "when",
+        "where",
+        "who",
+        "how",
+        "which",
+        "that",
+        "this",
+        "to",
+        "of",
+        "in",
+        "for",
+        "on",
+        "with",
+        "at",
+        "by",
+        "from",
+        "and",
+        "or",
+        "not",
+        "but",
+        "if",
+        "about",
+        "has",
+        "had",
+        "have",
+        "be",
+        "been",
+    }
     q_keywords = q_words - stopwords
 
     scored: list[tuple[int, dict]] = []
@@ -192,6 +242,7 @@ def _filter_relevant_facts(
         reverse=True,
     )
     return [fact for fact, _ in ranked[:max_facts]]
+
 
 def _entity_hop_retrieval(
     question: str,
@@ -266,7 +317,9 @@ def _entity_hop_retrieval(
 
     # If entity hop found very few, supplement with keyword matches
     if len(result) < 5:
-        keyword_results = _filter_relevant_facts(question, facts, max_facts=max_facts - len(result))
+        keyword_results = _filter_relevant_facts(
+            question, facts, max_facts=max_facts - len(result)
+        )
         seen_ids = {f.get("id") for f in result}
         for f in keyword_results:
             if f.get("id") not in seen_ids:
@@ -282,22 +335,49 @@ def _entity_hop_retrieval(
 # ---------------------------------------------------------------------------
 
 _MONTH_NAMES = {
-    "january": "01", "february": "02", "march": "03", "april": "04",
-    "may": "05", "june": "06", "july": "07", "august": "08",
-    "september": "09", "october": "10", "november": "11", "december": "12",
-    "jan": "01", "feb": "02", "mar": "03", "apr": "04",
-    "jun": "06", "jul": "07", "aug": "08", "sep": "09",
-    "oct": "10", "nov": "11", "dec": "12",
+    "january": "01",
+    "february": "02",
+    "march": "03",
+    "april": "04",
+    "may": "05",
+    "june": "06",
+    "july": "07",
+    "august": "08",
+    "september": "09",
+    "october": "10",
+    "november": "11",
+    "december": "12",
+    "jan": "01",
+    "feb": "02",
+    "mar": "03",
+    "apr": "04",
+    "jun": "06",
+    "jul": "07",
+    "aug": "08",
+    "sep": "09",
+    "oct": "10",
+    "nov": "11",
+    "dec": "12",
 }
 _MONTH_TO_NAME = {
-    "01": "january", "02": "february", "03": "march", "04": "april",
-    "05": "may", "06": "june", "07": "july", "08": "august",
-    "09": "september", "10": "october", "11": "november", "12": "december",
+    "01": "january",
+    "02": "february",
+    "03": "march",
+    "04": "april",
+    "05": "may",
+    "06": "june",
+    "07": "july",
+    "08": "august",
+    "09": "september",
+    "10": "october",
+    "11": "november",
+    "12": "december",
 }
 
 
 def _normalize_dates(text: str) -> str:
     """Convert ISO dates (2023-05-08) to natural language (8 may 2023) for token matching."""
+
     def _iso_to_natural(m: re.Match) -> str:
         y, mo, d = m.group(1), m.group(2), m.group(3)
         month_name = _MONTH_TO_NAME.get(mo, mo)
@@ -344,6 +424,7 @@ def token_f1(prediction: str, gold: str) -> float:
 # ---------------------------------------------------------------------------
 # API helpers
 # ---------------------------------------------------------------------------
+
 
 def _get_auth_token() -> str:
     import requests
@@ -455,15 +536,16 @@ def _call_clear_benchmark(token: str, student_id: str) -> None:
 # Workers AI QA answering
 # ---------------------------------------------------------------------------
 
+
 def _load_cf_token() -> str:
-    token = os.environ.get("CF_API_TOKEN")
+    token = os.environ.get("CLOUDFLARE_API_TOKEN")
     if token:
         return token
     if _DEV_VARS_PATH.exists():
         for line in _DEV_VARS_PATH.read_text().splitlines():
-            if line.startswith("CF_API_TOKEN="):
+            if line.startswith("CLOUDFLARE_API_TOKEN="):
                 return line.split("=", 1)[1].strip()
-    raise RuntimeError("CF_API_TOKEN not found in env or apps/api/.dev.vars")
+    raise RuntimeError("CLOUDFLARE_API_TOKEN not found in env or apps/api/.dev.vars")
 
 
 def _answer_question(question: str, context: str) -> str:
@@ -482,7 +564,10 @@ def _answer_question(question: str, context: str) -> str:
     def _do_call() -> str:
         resp = requests.post(
             url,
-            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json",
+            },
             json={
                 "model": _WORKERS_AI_MODEL,
                 "max_tokens": 150,
@@ -509,6 +594,7 @@ def _answer_question(question: str, context: str) -> str:
 # Cache helpers
 # ---------------------------------------------------------------------------
 
+
 def _load_cache(path: Path) -> dict[str, dict]:
     cache: dict[str, dict] = {}
     if path.exists():
@@ -529,6 +615,7 @@ def _save_cache_entry(path: Path, entry: dict) -> None:
 # Result dataclass
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class LoCoMoResult:
     conversation_id: str
@@ -543,9 +630,11 @@ class LoCoMoResult:
 # Date parsing helper
 # ---------------------------------------------------------------------------
 
+
 def _parse_locomo_date(date_str: str) -> str:
     """Parse LoCoMo date format '1:56 pm on 8 May, 2023' to 'YYYY-MM-DD'."""
     from datetime import datetime
+
     try:
         date_part = date_str.split(" on ", 1)[1] if " on " in date_str else date_str
         dt = datetime.strptime(date_part.strip(), "%d %B, %Y")
@@ -557,6 +646,7 @@ def _parse_locomo_date(date_str: str) -> str:
 # ---------------------------------------------------------------------------
 # Main assessment flow
 # ---------------------------------------------------------------------------
+
 
 def run_locomo_assessment(
     data_path: Path,
@@ -608,7 +698,11 @@ def run_locomo_assessment(
                 token = _get_auth_token()
             if _debug_student_id is None:
                 import requests as _req
-                me_resp = _req.get(f"{API_BASE}/api/auth/me", headers={"Authorization": f"Bearer {token}"})
+
+                me_resp = _req.get(
+                    f"{API_BASE}/api/auth/me",
+                    headers={"Authorization": f"Bearer {token}"},
+                )
                 if me_resp.ok:
                     _debug_student_id = me_resp.json().get("student_id", "")
             # Clear benchmark facts from prior runs
@@ -625,23 +719,37 @@ def run_locomo_assessment(
 
         def _replace_speaker_labels(text: str, user_name: str, asst_name: str) -> str:
             """Replace generic 'Student'/'Teacher' labels with actual speaker names."""
-            text = re.sub(r"\bStudent(?:'s)?\b", lambda m: f"{user_name}'s" if "'s" in m.group() else user_name, text)
-            text = re.sub(r"\bTeacher(?:'s)?\b", lambda m: f"{asst_name}'s" if "'s" in m.group() else asst_name, text)
+            text = re.sub(
+                r"\bStudent(?:'s)?\b",
+                lambda m: f"{user_name}'s" if "'s" in m.group() else user_name,
+                text,
+            )
+            text = re.sub(
+                r"\bTeacher(?:'s)?\b",
+                lambda m: f"{asst_name}'s" if "'s" in m.group() else asst_name,
+                text,
+            )
             return text
 
         def _fixup_fact_text(fact: dict, user_name: str, asst_name: str) -> dict:
             """Replace Student/Teacher with actual names in fact text and entities."""
             fact = dict(fact)
-            fact["fact_text"] = _replace_speaker_labels(fact.get("fact_text", ""), user_name, asst_name)
+            fact["fact_text"] = _replace_speaker_labels(
+                fact.get("fact_text", ""), user_name, asst_name
+            )
             fact["entities"] = [
                 user_name if e == "Student" else (asst_name if e == "Teacher" else e)
                 for e in fact.get("entities", [])
             ]
             fact["relations"] = [
                 {
-                    "s": user_name if r.get("s") == "Student" else (asst_name if r.get("s") == "Teacher" else r.get("s", "")),
+                    "s": user_name
+                    if r.get("s") == "Student"
+                    else (asst_name if r.get("s") == "Teacher" else r.get("s", "")),
                     "r": r.get("r", ""),
-                    "o": user_name if r.get("o") == "Student" else (asst_name if r.get("o") == "Teacher" else r.get("o", "")),
+                    "o": user_name
+                    if r.get("o") == "Student"
+                    else (asst_name if r.get("o") == "Teacher" else r.get("o", "")),
                 }
                 for r in fact.get("relations", [])
             ]
@@ -706,37 +814,47 @@ def run_locomo_assessment(
                 for fact in extract_result.get("add", []):
                     fixed = _fixup_fact_text(fact, speaker_a, speaker_b)
                     fact_id = f"fact_{conv_id}_{turn_idx}_{len(accumulated_facts)}"
-                    accumulated_facts.append({
-                        "id": fact_id,
-                        "fact_text": fixed["fact_text"],
-                        "category": fixed.get("category", ""),
-                        "permanent": fixed.get("permanent", True),
-                        "entities": fixed.get("entities", []),
-                        "relations": fixed.get("relations", []),
-                        "date": today,
-                    })
+                    accumulated_facts.append(
+                        {
+                            "id": fact_id,
+                            "fact_text": fixed["fact_text"],
+                            "category": fixed.get("category", ""),
+                            "permanent": fixed.get("permanent", True),
+                            "entities": fixed.get("entities", []),
+                            "relations": fixed.get("relations", []),
+                            "date": today,
+                        }
+                    )
                 for fact in extract_result.get("update", []):
                     old_id = fact.get("existing_fact_id", "")
                     accumulated_facts = [
                         f for f in accumulated_facts if f.get("id") != old_id
                     ]
-                    fact_text = fact.get("new_fact_text", "") or fact.get("fact_text", "")
-                    fixed = _fixup_fact_text({**fact, "fact_text": fact_text}, speaker_a, speaker_b)
+                    fact_text = fact.get("new_fact_text", "") or fact.get(
+                        "fact_text", ""
+                    )
+                    fixed = _fixup_fact_text(
+                        {**fact, "fact_text": fact_text}, speaker_a, speaker_b
+                    )
                     fact_id = f"fact_{conv_id}_{turn_idx}_{len(accumulated_facts)}"
-                    accumulated_facts.append({
-                        "id": fact_id,
-                        "fact_text": fixed["fact_text"],
-                        "category": fixed.get("category", ""),
-                        "permanent": fixed.get("permanent", True),
-                        "entities": fixed.get("entities", []),
-                        "relations": fixed.get("relations", []),
-                        "date": today,
-                    })
+                    accumulated_facts.append(
+                        {
+                            "id": fact_id,
+                            "fact_text": fixed["fact_text"],
+                            "category": fixed.get("category", ""),
+                            "permanent": fixed.get("permanent", True),
+                            "entities": fixed.get("entities", []),
+                            "relations": fixed.get("relations", []),
+                            "date": today,
+                        }
+                    )
 
                 # Direction 2: speaker_b as user, speaker_a as assistant (swap)
                 cache_key_rev = f"{conv_id}_turn_{turn_idx}_rev"
                 if cache_key_rev in extraction_cache:
-                    extract_result_rev = extraction_cache[cache_key_rev].get("result", {})
+                    extract_result_rev = extraction_cache[cache_key_rev].get(
+                        "result", {}
+                    )
                 elif live:
                     if token is None:
                         token = _get_auth_token()
@@ -760,32 +878,40 @@ def run_locomo_assessment(
                 for fact in extract_result_rev.get("add", []):
                     fixed = _fixup_fact_text(fact, speaker_b, speaker_a)
                     fact_id = f"fact_{conv_id}_{turn_idx}_r_{len(accumulated_facts)}"
-                    accumulated_facts.append({
-                        "id": fact_id,
-                        "fact_text": fixed["fact_text"],
-                        "category": fixed.get("category", ""),
-                        "permanent": fixed.get("permanent", True),
-                        "entities": fixed.get("entities", []),
-                        "relations": fixed.get("relations", []),
-                        "date": today,
-                    })
+                    accumulated_facts.append(
+                        {
+                            "id": fact_id,
+                            "fact_text": fixed["fact_text"],
+                            "category": fixed.get("category", ""),
+                            "permanent": fixed.get("permanent", True),
+                            "entities": fixed.get("entities", []),
+                            "relations": fixed.get("relations", []),
+                            "date": today,
+                        }
+                    )
                 for fact in extract_result_rev.get("update", []):
                     old_id = fact.get("existing_fact_id", "")
                     accumulated_facts = [
                         f for f in accumulated_facts if f.get("id") != old_id
                     ]
-                    fact_text = fact.get("new_fact_text", "") or fact.get("fact_text", "")
-                    fixed = _fixup_fact_text({**fact, "fact_text": fact_text}, speaker_b, speaker_a)
+                    fact_text = fact.get("new_fact_text", "") or fact.get(
+                        "fact_text", ""
+                    )
+                    fixed = _fixup_fact_text(
+                        {**fact, "fact_text": fact_text}, speaker_b, speaker_a
+                    )
                     fact_id = f"fact_{conv_id}_{turn_idx}_r_{len(accumulated_facts)}"
-                    accumulated_facts.append({
-                        "id": fact_id,
-                        "fact_text": fixed["fact_text"],
-                        "category": fixed.get("category", ""),
-                        "permanent": fixed.get("permanent", True),
-                        "entities": fixed.get("entities", []),
-                        "relations": fixed.get("relations", []),
-                        "date": today,
-                    })
+                    accumulated_facts.append(
+                        {
+                            "id": fact_id,
+                            "fact_text": fixed["fact_text"],
+                            "category": fixed.get("category", ""),
+                            "permanent": fixed.get("permanent", True),
+                            "entities": fixed.get("entities", []),
+                            "relations": fixed.get("relations", []),
+                            "date": today,
+                        }
+                    )
 
                 turn_idx += 1
                 i += 2
@@ -807,6 +933,7 @@ def run_locomo_assessment(
         # Stage 2: semantic dedup (cosine > 0.90 = near-duplicate)
         if len(deduped_facts) > 50:
             import numpy as np
+
             model = _get_sentence_model()
             texts = [f["fact_text"] for f in deduped_facts]
             embeddings = model.encode(texts, normalize_embeddings=True)
@@ -831,7 +958,7 @@ def run_locomo_assessment(
             print(f"  Storing {len(accumulated_facts)} facts in D1 via API...")
             batch_size = 100
             for i in range(0, len(accumulated_facts), batch_size):
-                batch = accumulated_facts[i:i + batch_size]
+                batch = accumulated_facts[i : i + batch_size]
                 _call_store_facts(token, _debug_student_id, batch)
 
         # Phase 2: Answer QA pairs using accumulated facts as context
@@ -862,32 +989,56 @@ def run_locomo_assessment(
                 prediction = qa_cache[qa_cache_key].get("prediction", "")
             elif live:
                 q_lower = question.lower()
-                is_synthesis = any(kw in q_lower for kw in [
-                    "what does", "what do", "how does", "how do",
-                    "what kind", "what type", "describe", "tell me about",
-                    "what are", "what is", "opinion", "think about",
-                    "feel about", "hobbies", "interests",
-                ])
+                is_synthesis = any(
+                    kw in q_lower
+                    for kw in [
+                        "what does",
+                        "what do",
+                        "how does",
+                        "how do",
+                        "what kind",
+                        "what type",
+                        "describe",
+                        "tell me about",
+                        "what are",
+                        "what is",
+                        "opinion",
+                        "think about",
+                        "feel about",
+                        "hobbies",
+                        "interests",
+                    ]
+                )
                 # Cap at 30 for non-synthesis to reduce noise-induced IDK
                 limit = 200 if is_synthesis else 30
 
                 if use_api_search:
-                    search_result = _call_search_facts(token, _debug_student_id, question, max_facts=limit)
+                    search_result = _call_search_facts(
+                        token, _debug_student_id, question, max_facts=limit
+                    )
                     api_facts = search_result.get("facts", [])
                     max_score = search_result.get("max_score", 0.0)
                     is_adversarial = search_result.get("is_adversarial", False)
                     is_temporal = search_result.get("is_temporal", False)
                     relevant_facts = [
-                        {"fact_text": f["fact_text"], "category": f.get("category", ""), "date": f.get("date", "")}
+                        {
+                            "fact_text": f["fact_text"],
+                            "category": f.get("category", ""),
+                            "date": f.get("date", ""),
+                        }
                         for f in api_facts
                     ]
                 else:
                     max_score = 999.0
                     is_adversarial = False
                     is_temporal = False
-                    relevant_facts = _entity_hop_retrieval(question, accumulated_facts, max_facts=limit)
+                    relevant_facts = _entity_hop_retrieval(
+                        question, accumulated_facts, max_facts=limit
+                    )
 
-                context = _group_facts_for_context(relevant_facts, current_date=last_date)
+                context = _group_facts_for_context(
+                    relevant_facts, current_date=last_date
+                )
 
                 # Adversarial abstention: only when genuinely no relevant facts
                 if len(relevant_facts) == 0:
@@ -896,7 +1047,8 @@ def run_locomo_assessment(
                     context = (
                         "This is a temporal question. Pay close attention to the [date] "
                         "prefixes on facts. Give a specific date or time period, not "
-                        "a long explanation. Answer concisely (1-5 words).\n\n" + context
+                        "a long explanation. Answer concisely (1-5 words).\n\n"
+                        + context
                     )
 
                 prediction = _answer_question(question, context)
@@ -908,8 +1060,12 @@ def run_locomo_assessment(
                 # conservative -- keep the prediction as-is.
                 pred_lower = prediction.lower().strip()
                 is_idk = pred_lower in (
-                    "i don't know", "i don't know.", "i do not know", "i do not know.",
-                    "i don't know.", "i don't know",
+                    "i don't know",
+                    "i don't know.",
+                    "i do not know",
+                    "i do not know.",
+                    "i don't know.",
+                    "i don't know",
                 )
                 if is_idk:
                     if category == 5 or len(relevant_facts) < 3:
@@ -942,20 +1098,24 @@ def run_locomo_assessment(
                 category_scores[category] = []
             category_scores[category].append(f1)
 
-            result.qa_results.append({
-                "qa_idx": qa_idx,
-                "question": question,
-                "gold_answer": gold_answer,
-                "prediction": prediction,
-                "category": category,
-                "f1": f1,
-            })
+            result.qa_results.append(
+                {
+                    "qa_idx": qa_idx,
+                    "question": question,
+                    "gold_answer": gold_answer,
+                    "prediction": prediction,
+                    "category": category,
+                    "f1": f1,
+                }
+            )
 
         result.total_qa = len(all_scores)
         result.overall_f1 = sum(all_scores) / len(all_scores) if all_scores else 0.0
 
         for cat_id, scores in category_scores.items():
-            result.per_category_f1[cat_id] = sum(scores) / len(scores) if scores else 0.0
+            result.per_category_f1[cat_id] = (
+                sum(scores) / len(scores) if scores else 0.0
+            )
 
         results.append(result)
 
@@ -965,6 +1125,7 @@ def run_locomo_assessment(
 # ---------------------------------------------------------------------------
 # Print results
 # ---------------------------------------------------------------------------
+
 
 def print_results(results: list[LoCoMoResult]) -> None:
     print("\n=== LoCoMo Benchmark Assessment ===\n")
@@ -1013,6 +1174,7 @@ def print_results(results: list[LoCoMoResult]) -> None:
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
+
 
 def main() -> None:
     live = "--live" in sys.argv

@@ -27,6 +27,7 @@ def _get_sentence_model():
     global _SENTENCE_MODEL
     if _SENTENCE_MODEL is None:
         from sentence_transformers import SentenceTransformer
+
         _SENTENCE_MODEL = SentenceTransformer("all-MiniLM-L6-v2")
     return _SENTENCE_MODEL
 
@@ -47,6 +48,8 @@ def _strip_regex(pattern: str) -> str:
     # Collapse whitespace
     text = re.sub(r"\s+", " ", text).strip()
     return text
+
+
 _DEV_VARS_PATH = Path(__file__).parents[3] / "api" / ".dev.vars"
 DEFAULT_CF_ACCOUNT_ID = "5df63f40beeab277db407f1ecbd6e1ec"
 DEFAULT_GATEWAY_ID = "crescendai-background"
@@ -130,7 +133,9 @@ def build_synthesis_prompt(
             created = obs.get("created_at", "")
             trace = obs.get("reasoning_trace", "")
 
-            prompt += f"- [id: {obs_id}, dim: {dim}, framing: {framing}, date: {created}]\n"
+            prompt += (
+                f"- [id: {obs_id}, dim: {dim}, framing: {framing}, date: {created}]\n"
+            )
             prompt += f'  Text: "{text}"\n'
             if score is not None and baseline is not None:
                 delta = score - baseline
@@ -149,7 +154,14 @@ def build_synthesis_prompt(
         prompt += "\n"
 
     prompt += "## Student Baselines\n\n"
-    for dim in ["dynamics", "timing", "pedaling", "articulation", "phrasing", "interpretation"]:
+    for dim in [
+        "dynamics",
+        "timing",
+        "pedaling",
+        "articulation",
+        "phrasing",
+        "interpretation",
+    ]:
         val = baselines.get(f"baseline_{dim}")
         if val is not None:
             prompt += f"- {dim}: {val:.2f}\n"
@@ -161,19 +173,22 @@ def build_synthesis_prompt(
 
 
 def _load_cf_token() -> str:
-    token = os.environ.get("CF_API_TOKEN")
+    token = os.environ.get("CLOUDFLARE_API_TOKEN")
     if token:
         return token
     if _DEV_VARS_PATH.exists():
         for line in _DEV_VARS_PATH.read_text().splitlines():
-            if line.startswith("CF_API_TOKEN="):
+            if line.startswith("CLOUDFLARE_API_TOKEN="):
                 return line.split("=", 1)[1].strip()
-    raise RuntimeError("CF_API_TOKEN not found in env or apps/api/.dev.vars")
+    raise RuntimeError("CLOUDFLARE_API_TOKEN not found in env or apps/api/.dev.vars")
 
 
-def _call_workers_ai(system: str, user: str, temperature: float = 0.1, max_tokens: int = 800) -> str:
+def _call_workers_ai(
+    system: str, user: str, temperature: float = 0.1, max_tokens: int = 800
+) -> str:
     """Call Workers AI via CF AI Gateway (OpenAI-compatible)."""
     import requests
+
     token = _load_cf_token()
     account_id = os.environ.get("CF_ACCOUNT_ID", DEFAULT_CF_ACCOUNT_ID)
     gateway_id = os.environ.get("CF_GATEWAY_ID", DEFAULT_GATEWAY_ID)
@@ -181,18 +196,30 @@ def _call_workers_ai(system: str, user: str, temperature: float = 0.1, max_token
         f"https://gateway.ai.cloudflare.com/v1/"
         f"{account_id}/{gateway_id}/workers-ai/v1/chat/completions"
     )
-    messages = [{"role": "system", "content": system}, {"role": "user", "content": user}]
+    messages = [
+        {"role": "system", "content": system},
+        {"role": "user", "content": user},
+    ]
     resp = requests.post(
         url,
-        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
-        json={"model": _WORKERS_AI_MODEL, "max_tokens": max_tokens, "messages": messages},
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+        },
+        json={
+            "model": _WORKERS_AI_MODEL,
+            "max_tokens": max_tokens,
+            "messages": messages,
+        },
         timeout=300,
     )
     resp.raise_for_status()
     data = resp.json()
     content = data["choices"][0]["message"].get("content")
     if content is None:
-        raise RuntimeError(f"Workers AI returned null content: {json.dumps(data)[:500]}")
+        raise RuntimeError(
+            f"Workers AI returned null content: {json.dumps(data)[:500]}"
+        )
     return content
 
 
@@ -209,7 +236,7 @@ def _extract_json(output: str) -> dict | None:
         start = output.find("{")
         end = output.rfind("}")
         if end > start:
-            raw = output[start:end + 1]
+            raw = output[start : end + 1]
         else:
             raw = output.strip()
     else:
@@ -282,9 +309,13 @@ def _match_facts_batch(
     remaining_efs = [ef for ef in expected_facts if ef.id not in matched_ef_ids]
     if unmatched_produced_indices and remaining_efs:
         model = _get_sentence_model()
-        produced_texts = [produced_facts[i].get("fact_text", "") for i in unmatched_produced_indices]
+        produced_texts = [
+            produced_facts[i].get("fact_text", "") for i in unmatched_produced_indices
+        ]
         ref_texts = [
-            ef.gold_fact_text if ef.gold_fact_text else _strip_regex(ef.fact_text_pattern)
+            ef.gold_fact_text
+            if ef.gold_fact_text
+            else _strip_regex(ef.fact_text_pattern)
             for ef in remaining_efs
         ]
 
@@ -292,6 +323,7 @@ def _match_facts_batch(
         ref_embeddings = model.encode(ref_texts)
 
         from sentence_transformers import util
+
         sim_matrix = util.cos_sim(produced_embeddings, ref_embeddings)
 
         # Greedy best-first 1:1 assignment
@@ -302,7 +334,9 @@ def _match_facts_batch(
         pairs = []
         for pi_local in range(len(unmatched_produced_indices)):
             for ei_local in range(len(remaining_efs)):
-                pairs.append((float(sim_matrix[pi_local][ei_local]), pi_local, ei_local))
+                pairs.append(
+                    (float(sim_matrix[pi_local][ei_local]), pi_local, ei_local)
+                )
         pairs.sort(key=lambda x: x[0], reverse=True)
 
         for score, pi_local, ei_local in pairs:
@@ -364,7 +398,7 @@ def run_synthesis_assessment(
 
         for cp_idx, checkpoint in enumerate(scenario.checkpoints):
             # Insert observations up to this checkpoint
-            for obs in scenario.observations[:checkpoint.after_observation_index]:
+            for obs in scenario.observations[: checkpoint.after_observation_index]:
                 if obs.id not in observation_ids:
                     db.insert_observation(
                         id=obs.id,
@@ -406,11 +440,17 @@ def run_synthesis_assessment(
 
             # Build prompt
             active_facts = db.query_active_facts(scenario.student_id)
-            new_obs = db.get_new_observations_since(scenario.student_id, "1970-01-01T00:00:00Z")
-            teaching_approaches = db.get_teaching_approaches_since(scenario.student_id, "1970-01-01T00:00:00Z")
+            new_obs = db.get_new_observations_since(
+                scenario.student_id, "1970-01-01T00:00:00Z"
+            )
+            teaching_approaches = db.get_teaching_approaches_since(
+                scenario.student_id, "1970-01-01T00:00:00Z"
+            )
             baselines = db.get_baselines(scenario.student_id)
 
-            user_prompt = build_synthesis_prompt(active_facts, new_obs, teaching_approaches, baselines)
+            user_prompt = build_synthesis_prompt(
+                active_facts, new_obs, teaching_approaches, baselines
+            )
 
             cache_key = f"{scenario.id}_cp{cp_idx}"
 
@@ -432,22 +472,26 @@ def run_synthesis_assessment(
                     f.write(json.dumps(cache[cache_key], ensure_ascii=False) + "\n")
             else:
                 # Skip if not in cache and not live
-                results.append(SynthesisResult(
-                    scenario_id=scenario.id,
-                    checkpoint_index=cp_idx,
-                    raw_output="[NOT CACHED]",
-                ))
+                results.append(
+                    SynthesisResult(
+                        scenario_id=scenario.id,
+                        checkpoint_index=cp_idx,
+                        raw_output="[NOT CACHED]",
+                    )
+                )
                 continue
 
             # Parse JSON
             parsed = _extract_json(raw_output)
             if parsed is None:
-                results.append(SynthesisResult(
-                    scenario_id=scenario.id,
-                    checkpoint_index=cp_idx,
-                    json_parsed=False,
-                    raw_output=raw_output,
-                ))
+                results.append(
+                    SynthesisResult(
+                        scenario_id=scenario.id,
+                        checkpoint_index=cp_idx,
+                        json_parsed=False,
+                        raw_output=raw_output,
+                    )
+                )
                 continue
 
             # Analyze results
@@ -456,7 +500,9 @@ def run_synthesis_assessment(
 
             # Get expected facts for this checkpoint
             expected_fact_ids = set(checkpoint.expected_new_facts)
-            expected_facts = [ef for ef in scenario.expected_facts if ef.id in expected_fact_ids]
+            expected_facts = [
+                ef for ef in scenario.expected_facts if ef.id in expected_fact_ids
+            ]
             expected_invalidation_ids = set(checkpoint.expected_invalidations)
 
             # Match produced facts against expected (batch with optimal assignment)
@@ -498,59 +544,88 @@ def run_synthesis_assessment(
 
             new_fact_recall = len(matched) / n_expected if n_expected > 0 else 1.0
             new_fact_precision = total_matched / n_produced if n_produced > 0 else 1.0
-            hallucination_rate = len(hallucinated) / n_produced if n_produced > 0 else 0.0
+            hallucination_rate = (
+                len(hallucinated) / n_produced if n_produced > 0 else 0.0
+            )
 
-            fact_type_acc = type_correct_count / total_matched if total_matched > 0 else 1.0
-            trend_acc = trend_correct_count / total_matched if total_matched > 0 else 1.0
+            fact_type_acc = (
+                type_correct_count / total_matched if total_matched > 0 else 1.0
+            )
+            trend_acc = (
+                trend_correct_count / total_matched if total_matched > 0 else 1.0
+            )
 
             # Invalidation metrics
             produced_invalidation_ids = {inv.get("fact_id", "") for inv in invalidated}
             inv_tp = expected_invalidation_ids & produced_invalidation_ids
-            inv_recall = len(inv_tp) / len(expected_invalidation_ids) if expected_invalidation_ids else 1.0
-            inv_precision = len(inv_tp) / len(produced_invalidation_ids) if produced_invalidation_ids else 1.0
+            inv_recall = (
+                len(inv_tp) / len(expected_invalidation_ids)
+                if expected_invalidation_ids
+                else 1.0
+            )
+            inv_precision = (
+                len(inv_tp) / len(produced_invalidation_ids)
+                if produced_invalidation_ids
+                else 1.0
+            )
 
             # Apply invalidations to DB for next checkpoint
             for inv in invalidated:
                 fact_id = inv.get("fact_id", "")
                 invalid_at = inv.get("invalid_at", "2026-03-01")
                 if fact_id:
-                    db.invalidate_fact(fact_id, scenario.student_id, invalid_at, invalid_at)
+                    db.invalidate_fact(
+                        fact_id, scenario.student_id, invalid_at, invalid_at
+                    )
 
             # Insert new facts into DB for next checkpoint
             for pf in produced_facts:
                 import uuid
+
                 db.insert_fact(
                     id=str(uuid.uuid4()),
                     student_id=scenario.student_id,
                     fact_text=pf.get("fact_text", ""),
                     fact_type=pf.get("fact_type", "dimension"),
                     dimension=pf.get("dimension"),
-                    piece_context=json.dumps(pf["piece_context"]) if pf.get("piece_context") else None,
-                    valid_at=scenario.observations[checkpoint.after_observation_index - 1].session_date[:10] if scenario.observations else "2026-02-01",
+                    piece_context=json.dumps(pf["piece_context"])
+                    if pf.get("piece_context")
+                    else None,
+                    valid_at=scenario.observations[
+                        checkpoint.after_observation_index - 1
+                    ].session_date[:10]
+                    if scenario.observations
+                    else "2026-02-01",
                     trend=pf.get("trend"),
                     confidence=pf.get("confidence", "medium"),
                     evidence=json.dumps(pf.get("evidence", [])),
-                    created_at=scenario.observations[checkpoint.after_observation_index - 1].session_date if scenario.observations else "2026-02-01",
+                    created_at=scenario.observations[
+                        checkpoint.after_observation_index - 1
+                    ].session_date
+                    if scenario.observations
+                    else "2026-02-01",
                 )
 
-            results.append(SynthesisResult(
-                scenario_id=scenario.id,
-                checkpoint_index=cp_idx,
-                json_parsed=True,
-                raw_output=raw_output,
-                new_fact_recall=new_fact_recall,
-                new_fact_precision=new_fact_precision,
-                hallucination_rate=hallucination_rate,
-                invalidation_recall=inv_recall,
-                invalidation_precision=inv_precision,
-                fact_type_accuracy=fact_type_acc,
-                trend_accuracy=trend_acc,
-                evidence_grounded=all_grounded,
-                produced_facts=produced_facts,
-                matched_expected=matched,
-                unmatched_expected=unmatched_expected,
-                hallucinated=hallucinated,
-            ))
+            results.append(
+                SynthesisResult(
+                    scenario_id=scenario.id,
+                    checkpoint_index=cp_idx,
+                    json_parsed=True,
+                    raw_output=raw_output,
+                    new_fact_recall=new_fact_recall,
+                    new_fact_precision=new_fact_precision,
+                    hallucination_rate=hallucination_rate,
+                    invalidation_recall=inv_recall,
+                    invalidation_precision=inv_precision,
+                    fact_type_accuracy=fact_type_acc,
+                    trend_accuracy=trend_acc,
+                    evidence_grounded=all_grounded,
+                    produced_facts=produced_facts,
+                    matched_expected=matched,
+                    unmatched_expected=unmatched_expected,
+                    hallucinated=hallucinated,
+                )
+            )
 
     return results
 
@@ -570,12 +645,16 @@ def print_results(results: list[SynthesisResult]) -> None:
 
     for r in results:
         if r.raw_output == "[NOT CACHED]":
-            print(f"  [SKIP] {r.scenario_id}/cp{r.checkpoint_index} (not cached, run with --live)")
+            print(
+                f"  [SKIP] {r.scenario_id}/cp{r.checkpoint_index} (not cached, run with --live)"
+            )
             continue
 
         status = "PASS" if r.json_parsed and r.new_fact_recall >= 0.8 else "FAIL"
         print(f"  [{status}] {r.scenario_id}/cp{r.checkpoint_index}")
-        print(f"    parsed={r.json_parsed} recall={r.new_fact_recall:.2f} prec={r.new_fact_precision:.2f} hall={r.hallucination_rate:.2f}")
+        print(
+            f"    parsed={r.json_parsed} recall={r.new_fact_recall:.2f} prec={r.new_fact_precision:.2f} hall={r.hallucination_rate:.2f}"
+        )
         if r.unmatched_expected:
             print(f"    Missing expected: {r.unmatched_expected}")
         if r.hallucinated:
@@ -600,19 +679,22 @@ def print_results(results: list[SynthesisResult]) -> None:
         return
 
     print(f"\n--- Aggregate (n={n}) ---")
-    print(f"  JSON parse rate:      {json_parse_count}/{n} ({json_parse_count/n:.2f})")
-    print(f"  New fact recall:      {sum(all_recall)/n:.3f}")
-    print(f"  New fact precision:   {sum(all_precision)/n:.3f}")
-    print(f"  Hallucination rate:   {sum(all_hallucination)/n:.3f}")
-    print(f"  Invalidation recall:  {sum(all_inv_recall)/n:.3f}")
-    print(f"  Invalidation prec:    {sum(all_inv_precision)/n:.3f}")
-    print(f"  Fact type accuracy:   {sum(all_type_acc)/n:.3f}")
-    print(f"  Trend accuracy:       {sum(all_trend_acc)/n:.3f}")
+    print(
+        f"  JSON parse rate:      {json_parse_count}/{n} ({json_parse_count / n:.2f})"
+    )
+    print(f"  New fact recall:      {sum(all_recall) / n:.3f}")
+    print(f"  New fact precision:   {sum(all_precision) / n:.3f}")
+    print(f"  Hallucination rate:   {sum(all_hallucination) / n:.3f}")
+    print(f"  Invalidation recall:  {sum(all_inv_recall) / n:.3f}")
+    print(f"  Invalidation prec:    {sum(all_inv_precision) / n:.3f}")
+    print(f"  Fact type accuracy:   {sum(all_type_acc) / n:.3f}")
+    print(f"  Trend accuracy:       {sum(all_trend_acc) / n:.3f}")
     print(f"  Evidence grounded:    {all_grounded}/{n}")
 
 
 def main() -> None:
     import sys
+
     live = "--live" in sys.argv
     scenarios = load_all_scenarios(include_temporal=False)
 

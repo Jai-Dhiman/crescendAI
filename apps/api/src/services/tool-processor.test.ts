@@ -171,7 +171,7 @@ describe("score_highlight schema validation", () => {
 
 	it("passes valid single highlight", () => {
 		const result = schema.safeParse({
-			piece_id: "123e4567-e89b-12d3-a456-426614174000",
+			piece_id: "chopin.ballades.1",
 			highlights: [
 				{ bars: [1, 4], dimension: "dynamics" },
 			],
@@ -181,7 +181,7 @@ describe("score_highlight schema validation", () => {
 
 	it("passes multiple highlights with annotations", () => {
 		const result = schema.safeParse({
-			piece_id: "123e4567-e89b-12d3-a456-426614174000",
+			piece_id: "chopin.ballades.1",
 			highlights: [
 				{ bars: [1, 4], dimension: "dynamics", annotation: "crescendo here" },
 				{ bars: [12, 16], dimension: "pedaling", annotation: "sustain bleeds" },
@@ -199,7 +199,7 @@ describe("score_highlight schema validation", () => {
 
 	it("rejects empty highlights array", () => {
 		const result = schema.safeParse({
-			piece_id: "123e4567-e89b-12d3-a456-426614174000",
+			piece_id: "chopin.ballades.1",
 			highlights: [],
 		});
 		expect(result.success).toBe(false);
@@ -211,7 +211,7 @@ describe("score_highlight schema validation", () => {
 			dimension: "dynamics",
 		}));
 		const result = schema.safeParse({
-			piece_id: "123e4567-e89b-12d3-a456-426614174000",
+			piece_id: "chopin.ballades.1",
 			highlights,
 		});
 		expect(result.success).toBe(false);
@@ -219,7 +219,7 @@ describe("score_highlight schema validation", () => {
 
 	it("rejects invalid dimension", () => {
 		const result = schema.safeParse({
-			piece_id: "123e4567-e89b-12d3-a456-426614174000",
+			piece_id: "chopin.ballades.1",
 			highlights: [{ bars: [1, 4], dimension: "rhythm" }],
 		});
 		expect(result.success).toBe(false);
@@ -227,15 +227,31 @@ describe("score_highlight schema validation", () => {
 
 	it("rejects bars where start > end", () => {
 		const result = schema.safeParse({
-			piece_id: "123e4567-e89b-12d3-a456-426614174000",
+			piece_id: "chopin.ballades.1",
 			highlights: [{ bars: [8, 4], dimension: "dynamics" }],
 		});
 		expect(result.success).toBe(false);
 	});
 
-	it("rejects invalid piece_id (not uuid)", () => {
+	it("accepts catalog slug piece_id", () => {
 		const result = schema.safeParse({
-			piece_id: "not-a-uuid",
+			piece_id: "chopin.ballades.1",
+			highlights: [{ bars: [1, 4], dimension: "dynamics" }],
+		});
+		expect(result.success).toBe(true);
+	});
+
+	it("rejects piece_id with invalid characters", () => {
+		const result = schema.safeParse({
+			piece_id: "Chopin Ballade #1",
+			highlights: [{ bars: [1, 4], dimension: "dynamics" }],
+		});
+		expect(result.success).toBe(false);
+	});
+
+	it("rejects empty piece_id", () => {
+		const result = schema.safeParse({
+			piece_id: "",
 			highlights: [{ bars: [1, 4], dimension: "dynamics" }],
 		});
 		expect(result.success).toBe(false);
@@ -384,17 +400,17 @@ describe("reference_browser schema validation", () => {
 
 	it("passes with all optional fields", () => {
 		const result = schema.safeParse({
-			piece_id: "123e4567-e89b-12d3-a456-426614174000",
+			piece_id: "chopin.ballades.1",
 			passage: "bars 5-8",
 			description: "Check phrasing",
 		});
 		expect(result.success).toBe(true);
 	});
 
-	it("rejects invalid piece_id (not uuid)", () => {
+	it("rejects piece_id with invalid characters", () => {
 		const result = schema.safeParse({
 			description: "test",
-			piece_id: "not-a-uuid",
+			piece_id: "Chopin Ballade #1",
 		});
 		expect(result.success).toBe(false);
 	});
@@ -561,7 +577,7 @@ describe("processToolUse pass-through tools", () => {
 			studentId,
 			"score_highlight",
 			{
-				piece_id: "123e4567-e89b-12d3-a456-426614174000",
+				piece_id: "chopin.ballades.1",
 				highlights: [{ bars: [1, 8], dimension: "dynamics" }],
 			},
 		);
@@ -578,7 +594,7 @@ describe("processToolUse pass-through tools", () => {
 			studentId,
 			"score_highlight",
 			{
-				piece_id: "123e4567-e89b-12d3-a456-426614174000",
+				piece_id: "chopin.ballades.1",
 				highlights: [{ bars: [1, 8], dimension: "dynamics" }],
 			},
 		);

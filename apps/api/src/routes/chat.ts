@@ -68,6 +68,16 @@ const app = new Hono<{ Bindings: Bindings; Variables: Variables }>().post(
 							event: "tool_result",
 							id: String(id++),
 						});
+					} else if (event.type === "tool_error") {
+						await sseStream.writeSSE({
+							data: JSON.stringify({
+								type: "tool_error",
+								name: event.name,
+								message: event.message,
+							}),
+							event: "tool_error",
+							id: String(id++),
+						});
 					} else if (event.type === "done") {
 						fullText = event.fullText;
 						allComponents = event.allComponents;

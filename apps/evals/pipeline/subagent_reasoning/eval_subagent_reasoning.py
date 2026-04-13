@@ -30,14 +30,14 @@ _WORKERS_AI_MODEL = "@cf/google/gemma-4-26b-a4b-it"
 
 
 def _load_cf_token() -> str:
-    token = os.environ.get("CF_API_TOKEN")
+    token = os.environ.get("CLOUDFLARE_API_TOKEN")
     if token:
         return token
     if _DEV_VARS_PATH.exists():
         for line in _DEV_VARS_PATH.read_text().splitlines():
-            if line.startswith("CF_API_TOKEN="):
+            if line.startswith("CLOUDFLARE_API_TOKEN="):
                 return line.split("=", 1)[1].strip()
-    raise RuntimeError("CF_API_TOKEN not found in env or apps/api/.dev.vars")
+    raise RuntimeError("CLOUDFLARE_API_TOKEN not found in env or apps/api/.dev.vars")
 
 
 def load_scenarios() -> list[dict]:
@@ -97,7 +97,10 @@ def call_subagent(prompt: str) -> dict:
     )
     resp = requests.post(
         url,
-        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+        },
         json={
             "model": _WORKERS_AI_MODEL,
             "max_tokens": 500,
@@ -109,7 +112,9 @@ def call_subagent(prompt: str) -> dict:
     data = resp.json()
     content = data["choices"][0]["message"].get("content")
     if content is None:
-        raise RuntimeError(f"Workers AI returned null content: {json.dumps(data)[:300]}")
+        raise RuntimeError(
+            f"Workers AI returned null content: {json.dumps(data)[:300]}"
+        )
     text = content.strip()
 
     # Parse JSON from response (handle markdown code blocks)
@@ -133,7 +138,7 @@ def main(reports_dir: Path) -> EvalReport:
     total_judge_calls = 0
 
     for i, scenario in enumerate(scenarios):
-        print(f"  [{i+1}/{len(scenarios)}] {scenario['id']}...", end=" ", flush=True)
+        print(f"  [{i + 1}/{len(scenarios)}] {scenario['id']}...", end=" ", flush=True)
 
         prompt = build_subagent_prompt(scenario)
         try:
@@ -159,12 +164,16 @@ def main(reports_dir: Path) -> EvalReport:
         judge_result = judge_subagent(output, scenario)
         total_judge_calls += 1
 
-        coherence_scores = [s for s in judge_result.scores if "coherence" in s.criterion.lower()]
+        coherence_scores = [
+            s for s in judge_result.scores if "coherence" in s.criterion.lower()
+        ]
         if coherence_scores and coherence_scores[0].passed is not None:
             reasoning_coherent.append(coherence_scores[0].passed)
 
         status = "PASS" if (expected_dim is None or dim_match) else "FAIL"
-        print(f"{status} (picked: {output.get('dimension')}, framing: {output.get('framing')})")
+        print(
+            f"{status} (picked: {output.get('dimension')}, framing: {output.get('framing')})"
+        )
 
     report = EvalReport(
         eval_name="subagent_reasoning",
@@ -176,7 +185,9 @@ def main(reports_dir: Path) -> EvalReport:
     if dimension_correct:
         report.metrics["dimension_selection"] = MetricResult(
             mean=sum(dimension_correct) / len(dimension_correct),
-            std=statistics.stdev(dimension_correct) if len(dimension_correct) > 1 else 0.0,
+            std=statistics.stdev(dimension_correct)
+            if len(dimension_correct) > 1
+            else 0.0,
             n=len(dimension_correct),
             pass_threshold=0.80,
         )
@@ -190,12 +201,17 @@ def main(reports_dir: Path) -> EvalReport:
     if reasoning_coherent:
         report.metrics["reasoning_coherence"] = MetricResult(
             mean=sum(reasoning_coherent) / len(reasoning_coherent),
-            std=statistics.stdev(reasoning_coherent) if len(reasoning_coherent) > 1 else 0.0,
+            std=statistics.stdev(reasoning_coherent)
+            if len(reasoning_coherent) > 1
+            else 0.0,
             n=len(reasoning_coherent),
             pass_threshold=0.70,
         )
 
-    report.cost = {"judge_calls": total_judge_calls, "estimated_usd": total_judge_calls * 0.003}
+    report.cost = {
+        "judge_calls": total_judge_calls,
+        "estimated_usd": total_judge_calls * 0.003,
+    }
 
     reports_dir.mkdir(parents=True, exist_ok=True)
     report.save(reports_dir / "subagent_reasoning.json")

@@ -18,7 +18,7 @@ Outputs to data/realistic_scenarios.jsonl
 Expected facts are EMPTY placeholders -- human annotates later.
 
 Run as:
-    cd apps/evals/memory && CF_API_TOKEN=... uv run python -m src.build_realistic_scenarios
+    cd apps/evals/memory && CLOUDFLARE_API_TOKEN=... uv run python -m src.build_realistic_scenarios
 """
 
 from __future__ import annotations
@@ -51,14 +51,14 @@ _WORKERS_AI_MODEL = "@cf/openai/gpt-oss-120b"
 
 
 def _load_cf_token() -> str:
-    token = os.environ.get("CF_API_TOKEN")
+    token = os.environ.get("CLOUDFLARE_API_TOKEN")
     if token:
         return token
     if _DEV_VARS_PATH.exists():
         for line in _DEV_VARS_PATH.read_text().splitlines():
-            if line.startswith("CF_API_TOKEN="):
+            if line.startswith("CLOUDFLARE_API_TOKEN="):
                 return line.split("=", 1)[1].strip()
-    raise RuntimeError("CF_API_TOKEN not found in env or apps/api/.dev.vars")
+    raise RuntimeError("CLOUDFLARE_API_TOKEN not found in env or apps/api/.dev.vars")
 
 
 def _workers_ai_complete(messages: list[dict], max_tokens: int = 4096) -> str:
@@ -72,18 +72,35 @@ def _workers_ai_complete(messages: list[dict], max_tokens: int = 4096) -> str:
     )
     resp = requests.post(
         url,
-        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
-        json={"model": _WORKERS_AI_MODEL, "max_tokens": max_tokens, "messages": messages},
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+        },
+        json={
+            "model": _WORKERS_AI_MODEL,
+            "max_tokens": max_tokens,
+            "messages": messages,
+        },
         timeout=300,
     )
     resp.raise_for_status()
     data = resp.json()
     content = data["choices"][0]["message"].get("content")
     if content is None:
-        raise RuntimeError(f"Workers AI returned null content: {json.dumps(data)[:500]}")
+        raise RuntimeError(
+            f"Workers AI returned null content: {json.dumps(data)[:500]}"
+        )
     return content
 
-DIMENSIONS = ["dynamics", "timing", "pedaling", "articulation", "phrasing", "interpretation"]
+
+DIMENSIONS = [
+    "dynamics",
+    "timing",
+    "pedaling",
+    "articulation",
+    "phrasing",
+    "interpretation",
+]
 
 PIECES = [
     {"composer": "Bach", "title": "Prelude in C Major, WTC I"},
@@ -103,13 +120,41 @@ PIECES = [
 ]
 
 PERSONAS = [
-    {"name": "adult beginner", "level": "beginner", "style": "cautious, asks many questions"},
-    {"name": "teenage student", "level": "intermediate", "style": "easily distracted, rushes through"},
-    {"name": "retired professional", "level": "advanced beginner", "style": "methodical, self-critical"},
-    {"name": "college student", "level": "intermediate", "style": "sporadic practice, bursts of effort"},
-    {"name": "motivated hobbyist", "level": "intermediate-advanced", "style": "dedicated but overambitious"},
-    {"name": "young child with parent", "level": "beginner", "style": "short attention span, needs encouragement"},
-    {"name": "returning pianist", "level": "intermediate", "style": "frustrated by regression, impatient"},
+    {
+        "name": "adult beginner",
+        "level": "beginner",
+        "style": "cautious, asks many questions",
+    },
+    {
+        "name": "teenage student",
+        "level": "intermediate",
+        "style": "easily distracted, rushes through",
+    },
+    {
+        "name": "retired professional",
+        "level": "advanced beginner",
+        "style": "methodical, self-critical",
+    },
+    {
+        "name": "college student",
+        "level": "intermediate",
+        "style": "sporadic practice, bursts of effort",
+    },
+    {
+        "name": "motivated hobbyist",
+        "level": "intermediate-advanced",
+        "style": "dedicated but overambitious",
+    },
+    {
+        "name": "young child with parent",
+        "level": "beginner",
+        "style": "short attention span, needs encouragement",
+    },
+    {
+        "name": "returning pianist",
+        "level": "intermediate",
+        "style": "frustrated by regression, impatient",
+    },
 ]
 
 
@@ -139,50 +184,54 @@ def _build_specs() -> list[ScenarioSpec]:
     for i in range(3):
         persona = PERSONAS[i % len(PERSONAS)]
         piece = PIECES[i % len(PIECES)]
-        specs.append(ScenarioSpec(
-            id=f"rs-incomplete-{i+1:02d}",
-            name=f"Incomplete practice: {persona['name']} stops after {2 + i % 2} chunks",
-            subtype="incomplete",
-            category="synthesis",
-            persona=persona,
-            piece=piece,
-            second_piece=None,
-            num_sessions=1,
-            date_start=_iso(base + timedelta(days=i * 3)),
-            description=(
-                f"A {persona['name']} ({persona['style']}) plays {piece['composer']} {piece['title']}. "
-                f"Generate {2 + i % 2} teacher observations within a single session. "
-                f"The session ends abruptly -- the student stops. "
-                f"Observations should be varied across dimensions but not conclusive enough to form a definitive fact. "
-                f"Mix framings: some corrections, one encouragement. Include dimension scores (1-5). "
-                f"The student is NOT particularly engaged (engaged: false)."
-            ),
-        ))
+        specs.append(
+            ScenarioSpec(
+                id=f"rs-incomplete-{i + 1:02d}",
+                name=f"Incomplete practice: {persona['name']} stops after {2 + i % 2} chunks",
+                subtype="incomplete",
+                category="synthesis",
+                persona=persona,
+                piece=piece,
+                second_piece=None,
+                num_sessions=1,
+                date_start=_iso(base + timedelta(days=i * 3)),
+                description=(
+                    f"A {persona['name']} ({persona['style']}) plays {piece['composer']} {piece['title']}. "
+                    f"Generate {2 + i % 2} teacher observations within a single session. "
+                    f"The session ends abruptly -- the student stops. "
+                    f"Observations should be varied across dimensions but not conclusive enough to form a definitive fact. "
+                    f"Mix framings: some corrections, one encouragement. Include dimension scores (1-5). "
+                    f"The student is NOT particularly engaged (engaged: false)."
+                ),
+            )
+        )
 
     # --- Synthesis: piece_switch (3) ---
     for i in range(3):
         persona = PERSONAS[(i + 2) % len(PERSONAS)]
         piece = PIECES[(i + 2) % len(PIECES)]
         second_piece = PIECES[(i + 5) % len(PIECES)]
-        specs.append(ScenarioSpec(
-            id=f"rs-piece-switch-{i+1:02d}",
-            name=f"Piece switch: {persona['name']} moves from {piece['title']} to {second_piece['title']}",
-            subtype="piece_switch",
-            category="synthesis",
-            persona=persona,
-            piece=piece,
-            second_piece=second_piece,
-            num_sessions=2,
-            date_start=_iso(base + timedelta(days=10 + i * 4)),
-            description=(
-                f"A {persona['name']} ({persona['style']}) starts with {piece['composer']} {piece['title']}, "
-                f"gets 2-3 observations, then abruptly switches to {second_piece['composer']} {second_piece['title']} "
-                f"for 2-3 more observations. "
-                f"The observations for the two pieces should be about different dimensions or show different patterns. "
-                f"Include piece_context JSON for each observation. "
-                f"Make the switch feel organic (student says something like 'let me try something else')."
-            ),
-        ))
+        specs.append(
+            ScenarioSpec(
+                id=f"rs-piece-switch-{i + 1:02d}",
+                name=f"Piece switch: {persona['name']} moves from {piece['title']} to {second_piece['title']}",
+                subtype="piece_switch",
+                category="synthesis",
+                persona=persona,
+                piece=piece,
+                second_piece=second_piece,
+                num_sessions=2,
+                date_start=_iso(base + timedelta(days=10 + i * 4)),
+                description=(
+                    f"A {persona['name']} ({persona['style']}) starts with {piece['composer']} {piece['title']}, "
+                    f"gets 2-3 observations, then abruptly switches to {second_piece['composer']} {second_piece['title']} "
+                    f"for 2-3 more observations. "
+                    f"The observations for the two pieces should be about different dimensions or show different patterns. "
+                    f"Include piece_context JSON for each observation. "
+                    f"Make the switch feel organic (student says something like 'let me try something else')."
+                ),
+            )
+        )
 
     # --- Synthesis: multi_session_arc (4) ---
     arcs = [
@@ -194,175 +243,189 @@ def _build_specs() -> list[ScenarioSpec]:
     for i, (arc_desc, primary_dim) in enumerate(arcs):
         persona = PERSONAS[(i + 1) % len(PERSONAS)]
         piece = PIECES[(i + 7) % len(PIECES)]
-        specs.append(ScenarioSpec(
-            id=f"rs-arc-{i+1:02d}",
-            name=f"Multi-session arc: {arc_desc} ({primary_dim})",
-            subtype="multi_session_arc",
-            category="synthesis",
-            persona=persona,
-            piece=piece,
-            second_piece=None,
-            num_sessions=3,
-            date_start=_iso(base + timedelta(days=25 + i * 7)),
-            description=(
-                f"A {persona['name']} ({persona['style']}) practices {piece['composer']} {piece['title']} "
-                f"across 3 sessions (each 1 week apart). The arc is: {arc_desc}. "
-                f"Primary dimension: {primary_dim}. Generate 3-4 observations per session (9-12 total). "
-                f"Session 1: student struggling. Session 2: showing some improvement. "
-                f"Session 3: {arc_desc.split('->')[-1].strip()}. "
-                f"Include realistic dimension scores that reflect the arc. "
-                f"Mix framings naturally. Student is engaged (engaged: true) in sessions 2 and 3."
-            ),
-        ))
+        specs.append(
+            ScenarioSpec(
+                id=f"rs-arc-{i + 1:02d}",
+                name=f"Multi-session arc: {arc_desc} ({primary_dim})",
+                subtype="multi_session_arc",
+                category="synthesis",
+                persona=persona,
+                piece=piece,
+                second_piece=None,
+                num_sessions=3,
+                date_start=_iso(base + timedelta(days=25 + i * 7)),
+                description=(
+                    f"A {persona['name']} ({persona['style']}) practices {piece['composer']} {piece['title']} "
+                    f"across 3 sessions (each 1 week apart). The arc is: {arc_desc}. "
+                    f"Primary dimension: {primary_dim}. Generate 3-4 observations per session (9-12 total). "
+                    f"Session 1: student struggling. Session 2: showing some improvement. "
+                    f"Session 3: {arc_desc.split('->')[-1].strip()}. "
+                    f"Include realistic dimension scores that reflect the arc. "
+                    f"Mix framings naturally. Student is engaged (engaged: true) in sessions 2 and 3."
+                ),
+            )
+        )
 
     # --- Synthesis: vague_engagement (2) ---
     for i in range(2):
         persona = PERSONAS[(i + 4) % len(PERSONAS)]
         piece = PIECES[(i + 3) % len(PIECES)]
-        specs.append(ScenarioSpec(
-            id=f"rs-vague-{i+1:02d}",
-            name=f"Vague engagement: student gives minimal responses",
-            subtype="vague_engagement",
-            category="synthesis",
-            persona=persona,
-            piece=piece,
-            second_piece=None,
-            num_sessions=2,
-            date_start=_iso(base + timedelta(days=55 + i * 5)),
-            description=(
-                f"A {persona['name']} ({persona['style']}) plays {piece['composer']} {piece['title']}. "
-                f"Generate 4-5 observations across 2 sessions. "
-                f"The student's responses are vague and non-committal -- they say things like 'ok', 'thanks', "
-                f"'I'll try'. The teacher's observations are specific but the student doesn't engage deeply. "
-                f"Include some observations where engaged=false mixed with engaged=true to show inconsistency. "
-                f"Avoid strong positive or negative patterns -- keep it ambiguous."
-            ),
-        ))
+        specs.append(
+            ScenarioSpec(
+                id=f"rs-vague-{i + 1:02d}",
+                name=f"Vague engagement: student gives minimal responses",
+                subtype="vague_engagement",
+                category="synthesis",
+                persona=persona,
+                piece=piece,
+                second_piece=None,
+                num_sessions=2,
+                date_start=_iso(base + timedelta(days=55 + i * 5)),
+                description=(
+                    f"A {persona['name']} ({persona['style']}) plays {piece['composer']} {piece['title']}. "
+                    f"Generate 4-5 observations across 2 sessions. "
+                    f"The student's responses are vague and non-committal -- they say things like 'ok', 'thanks', "
+                    f"'I'll try'. The teacher's observations are specific but the student doesn't engage deeply. "
+                    f"Include some observations where engaged=false mixed with engaged=true to show inconsistency. "
+                    f"Avoid strong positive or negative patterns -- keep it ambiguous."
+                ),
+            )
+        )
 
     # --- Synthesis: contradictory (3) ---
     for i in range(3):
         persona = PERSONAS[(i + 3) % len(PERSONAS)]
         piece = PIECES[(i + 9) % len(PIECES)]
         primary_dim = DIMENSIONS[i % len(DIMENSIONS)]
-        specs.append(ScenarioSpec(
-            id=f"rs-contradictory-{i+1:02d}",
-            name=f"Contradictory observations: {primary_dim} across sessions",
-            subtype="contradictory",
-            category="synthesis",
-            persona=persona,
-            piece=piece,
-            second_piece=None,
-            num_sessions=3,
-            date_start=_iso(base + timedelta(days=70 + i * 6)),
-            description=(
-                f"A {persona['name']} ({persona['style']}) plays {piece['composer']} {piece['title']}. "
-                f"Generate 2-3 observations per session (6-9 total) across 3 sessions. "
-                f"The observations are contradictory -- {primary_dim} seems good in session 1, "
-                f"poor in session 2, good again in session 3. "
-                f"This could reflect inconsistent practice, performance anxiety, or day-to-day variation. "
-                f"Scores should zig-zag: e.g. 3.8 -> 2.1 -> 3.5 for {primary_dim}. "
-                f"The contradiction should make it hard for the memory system to synthesize a clear fact."
-            ),
-        ))
+        specs.append(
+            ScenarioSpec(
+                id=f"rs-contradictory-{i + 1:02d}",
+                name=f"Contradictory observations: {primary_dim} across sessions",
+                subtype="contradictory",
+                category="synthesis",
+                persona=persona,
+                piece=piece,
+                second_piece=None,
+                num_sessions=3,
+                date_start=_iso(base + timedelta(days=70 + i * 6)),
+                description=(
+                    f"A {persona['name']} ({persona['style']}) plays {piece['composer']} {piece['title']}. "
+                    f"Generate 2-3 observations per session (6-9 total) across 3 sessions. "
+                    f"The observations are contradictory -- {primary_dim} seems good in session 1, "
+                    f"poor in session 2, good again in session 3. "
+                    f"This could reflect inconsistent practice, performance anxiety, or day-to-day variation. "
+                    f"Scores should zig-zag: e.g. 3.8 -> 2.1 -> 3.5 for {primary_dim}. "
+                    f"The contradiction should make it hard for the memory system to synthesize a clear fact."
+                ),
+            )
+        )
 
     # --- Synthesis: sparse (2) ---
     for i in range(2):
         persona = PERSONAS[(i + 6) % len(PERSONAS)]
         piece = PIECES[(i + 1) % len(PIECES)]
-        specs.append(ScenarioSpec(
-            id=f"rs-sparse-{i+1:02d}",
-            name=f"Sparse data: only {1 + i} observation(s)",
-            subtype="sparse",
-            category="synthesis",
-            persona=persona,
-            piece=piece,
-            second_piece=None,
-            num_sessions=1,
-            date_start=_iso(base + timedelta(days=90 + i * 3)),
-            description=(
-                f"A {persona['name']} ({persona['style']}) plays {piece['composer']} {piece['title']}. "
-                f"Generate only {1 + i} observation(s) -- a single brief session. "
-                f"The observation(s) should be generic and not specific enough to form a fact. "
-                f"Include a dimension score but no student baseline. "
-                f"This tests whether the system correctly abstains from fact synthesis with insufficient data."
-            ),
-        ))
+        specs.append(
+            ScenarioSpec(
+                id=f"rs-sparse-{i + 1:02d}",
+                name=f"Sparse data: only {1 + i} observation(s)",
+                subtype="sparse",
+                category="synthesis",
+                persona=persona,
+                piece=piece,
+                second_piece=None,
+                num_sessions=1,
+                date_start=_iso(base + timedelta(days=90 + i * 3)),
+                description=(
+                    f"A {persona['name']} ({persona['style']}) plays {piece['composer']} {piece['title']}. "
+                    f"Generate only {1 + i} observation(s) -- a single brief session. "
+                    f"The observation(s) should be generic and not specific enough to form a fact. "
+                    f"Include a dimension score but no student baseline. "
+                    f"This tests whether the system correctly abstains from fact synthesis with insufficient data."
+                ),
+            )
+        )
 
     # --- Temporal: delayed_creation (2) ---
     for i in range(2):
         persona = PERSONAS[i % len(PERSONAS)]
         piece = PIECES[(i + 4) % len(PIECES)]
         primary_dim = DIMENSIONS[(i + 1) % len(DIMENSIONS)]
-        specs.append(ScenarioSpec(
-            id=f"rs-delayed-{i+1:02d}",
-            name=f"Delayed fact creation: {primary_dim} pattern emerges by session 3",
-            subtype="delayed_creation",
-            category="temporal",
-            persona=persona,
-            piece=piece,
-            second_piece=None,
-            num_sessions=3,
-            date_start=_iso(base + timedelta(days=100 + i * 14)),
-            description=(
-                f"A {persona['name']} ({persona['style']}) plays {piece['composer']} {piece['title']} "
-                f"across 3 sessions (2 weeks apart). "
-                f"Sessions 1-2: only 1-2 observations about {primary_dim}, inconclusive. "
-                f"Session 3: 3-4 clear observations about {primary_dim} that confirm a pattern. "
-                f"The fact should NOT be creatable from sessions 1-2 alone but SHOULD be clear after session 3. "
-                f"Include consistent dimension scores in session 3 (e.g., all below 2.5 or all above 4.0)."
-            ),
-        ))
+        specs.append(
+            ScenarioSpec(
+                id=f"rs-delayed-{i + 1:02d}",
+                name=f"Delayed fact creation: {primary_dim} pattern emerges by session 3",
+                subtype="delayed_creation",
+                category="temporal",
+                persona=persona,
+                piece=piece,
+                second_piece=None,
+                num_sessions=3,
+                date_start=_iso(base + timedelta(days=100 + i * 14)),
+                description=(
+                    f"A {persona['name']} ({persona['style']}) plays {piece['composer']} {piece['title']} "
+                    f"across 3 sessions (2 weeks apart). "
+                    f"Sessions 1-2: only 1-2 observations about {primary_dim}, inconclusive. "
+                    f"Session 3: 3-4 clear observations about {primary_dim} that confirm a pattern. "
+                    f"The fact should NOT be creatable from sessions 1-2 alone but SHOULD be clear after session 3. "
+                    f"Include consistent dimension scores in session 3 (e.g., all below 2.5 or all above 4.0)."
+                ),
+            )
+        )
 
     # --- Temporal: cross_session_invalidation (3) ---
     for i in range(3):
         persona = PERSONAS[(i + 2) % len(PERSONAS)]
         piece = PIECES[(i + 6) % len(PIECES)]
         primary_dim = DIMENSIONS[(i + 2) % len(DIMENSIONS)]
-        specs.append(ScenarioSpec(
-            id=f"rs-invalidation-{i+1:02d}",
-            name=f"Cross-session invalidation: {primary_dim} improves significantly",
-            subtype="cross_session_invalidation",
-            category="temporal",
-            persona=persona,
-            piece=piece,
-            second_piece=None,
-            num_sessions=4,
-            date_start=_iso(base + timedelta(days=130 + i * 21)),
-            description=(
-                f"A {persona['name']} ({persona['style']}) plays {piece['composer']} {piece['title']}. "
-                f"Sessions 1-2 (close together): 3-4 observations show a clear weakness in {primary_dim}. "
-                f"Gap of 2+ weeks. "
-                f"Sessions 3-4: 3-4 observations clearly show {primary_dim} has improved significantly "
-                f"(student practiced, took a workshop, or just had a breakthrough). "
-                f"The earlier 'weakness' fact should now be invalidated. "
-                f"Scores: sessions 1-2 around 2.0-2.5, sessions 3-4 around 3.8-4.5 for {primary_dim}."
-            ),
-        ))
+        specs.append(
+            ScenarioSpec(
+                id=f"rs-invalidation-{i + 1:02d}",
+                name=f"Cross-session invalidation: {primary_dim} improves significantly",
+                subtype="cross_session_invalidation",
+                category="temporal",
+                persona=persona,
+                piece=piece,
+                second_piece=None,
+                num_sessions=4,
+                date_start=_iso(base + timedelta(days=130 + i * 21)),
+                description=(
+                    f"A {persona['name']} ({persona['style']}) plays {piece['composer']} {piece['title']}. "
+                    f"Sessions 1-2 (close together): 3-4 observations show a clear weakness in {primary_dim}. "
+                    f"Gap of 2+ weeks. "
+                    f"Sessions 3-4: 3-4 observations clearly show {primary_dim} has improved significantly "
+                    f"(student practiced, took a workshop, or just had a breakthrough). "
+                    f"The earlier 'weakness' fact should now be invalidated. "
+                    f"Scores: sessions 1-2 around 2.0-2.5, sessions 3-4 around 3.8-4.5 for {primary_dim}."
+                ),
+            )
+        )
 
     # --- Temporal: abstention (3) ---
     for i in range(3):
         persona = PERSONAS[(i + 4) % len(PERSONAS)]
         piece = PIECES[(i + 11) % len(PIECES)]
-        specs.append(ScenarioSpec(
-            id=f"rs-abstention-{i+1:02d}",
-            name=f"Abstention: insufficient evidence to create a fact",
-            subtype="abstention",
-            category="temporal",
-            persona=persona,
-            piece=piece,
-            second_piece=None,
-            num_sessions=2,
-            date_start=_iso(base + timedelta(days=190 + i * 7)),
-            description=(
-                f"A {persona['name']} ({persona['style']}) plays {piece['composer']} {piece['title']}. "
-                f"Generate 3-4 observations across 2 sessions. "
-                f"The observations are mixed signals -- some dimensions look ok, others look problematic, "
-                f"but no single pattern is strong enough or repeated enough to warrant a fact. "
-                f"Some observations lack dimension scores. Some sessions have only one observation. "
-                f"The system should correctly abstain from creating any fact. "
-                f"This is a true negative test -- the expected_facts list will remain empty."
-            ),
-        ))
+        specs.append(
+            ScenarioSpec(
+                id=f"rs-abstention-{i + 1:02d}",
+                name=f"Abstention: insufficient evidence to create a fact",
+                subtype="abstention",
+                category="temporal",
+                persona=persona,
+                piece=piece,
+                second_piece=None,
+                num_sessions=2,
+                date_start=_iso(base + timedelta(days=190 + i * 7)),
+                description=(
+                    f"A {persona['name']} ({persona['style']}) plays {piece['composer']} {piece['title']}. "
+                    f"Generate 3-4 observations across 2 sessions. "
+                    f"The observations are mixed signals -- some dimensions look ok, others look problematic, "
+                    f"but no single pattern is strong enough or repeated enough to warrant a fact. "
+                    f"Some observations lack dimension scores. Some sessions have only one observation. "
+                    f"The system should correctly abstain from creating any fact. "
+                    f"This is a true negative test -- the expected_facts list will remain empty."
+                ),
+            )
+        )
 
     return specs
 
@@ -378,7 +441,9 @@ def _build_obs_prompt(spec: ScenarioSpec) -> str:
     session_dates = []
     base_dt = datetime.fromisoformat(spec.date_start.replace("Z", "+00:00"))
     for s in range(spec.num_sessions):
-        session_dates.append(_iso(base_dt + timedelta(weeks=s * 2 if spec.num_sessions > 1 else 0)))
+        session_dates.append(
+            _iso(base_dt + timedelta(weeks=s * 2 if spec.num_sessions > 1 else 0))
+        )
 
     piece_context = json.dumps(spec.piece)
     second_piece_ctx = json.dumps(spec.second_piece) if spec.second_piece else "null"
@@ -386,8 +451,8 @@ def _build_obs_prompt(spec: ScenarioSpec) -> str:
     return f"""You are generating realistic piano teacher observation sequences for an evaluation dataset.
 
 Scenario: {spec.name}
-Student persona: {spec.persona['name']} -- {spec.persona['style']}
-Primary piece: {spec.piece['composer']} -- {spec.piece['title']}
+Student persona: {spec.persona["name"]} -- {spec.persona["style"]}
+Primary piece: {spec.piece["composer"]} -- {spec.piece["title"]}
 Second piece (if applicable): {second_piece_ctx}
 Sessions: {spec.num_sessions}
 Session dates: {json.dumps(session_dates)}
@@ -432,11 +497,14 @@ def _generate_observations(spec: ScenarioSpec) -> list[dict[str, Any]]:
             f"The following text is supposed to be a JSON array but has a syntax error. "
             f"Return ONLY valid JSON, no explanation:\n\n{cleaned}"
         )
-        retry_raw = _workers_ai_complete([
-            {"role": "user", "content": prompt},
-            {"role": "assistant", "content": raw},
-            {"role": "user", "content": repair_prompt},
-        ], max_tokens=4096)
+        retry_raw = _workers_ai_complete(
+            [
+                {"role": "user", "content": prompt},
+                {"role": "assistant", "content": raw},
+                {"role": "user", "content": repair_prompt},
+            ],
+            max_tokens=4096,
+        )
         retry_cleaned = _strip_code_fences(retry_raw)
         try:
             observations = json.loads(retry_cleaned)
@@ -458,7 +526,9 @@ def _generate_observations(spec: ScenarioSpec) -> list[dict[str, Any]]:
 def _build_checkpoints(spec: ScenarioSpec, num_obs: int) -> list[SynthesisCheckpoint]:
     """Build appropriate checkpoints based on scenario subtype."""
     if spec.subtype == "incomplete":
-        return [SynthesisCheckpoint(after_observation_index=num_obs, expected_new_facts=[])]
+        return [
+            SynthesisCheckpoint(after_observation_index=num_obs, expected_new_facts=[])
+        ]
 
     if spec.subtype == "piece_switch":
         mid = max(2, num_obs // 2)
@@ -470,24 +540,36 @@ def _build_checkpoints(spec: ScenarioSpec, num_obs: int) -> list[SynthesisCheckp
     if spec.subtype == "multi_session_arc":
         per_session = max(1, num_obs // 3)
         return [
-            SynthesisCheckpoint(after_observation_index=per_session, expected_new_facts=[]),
-            SynthesisCheckpoint(after_observation_index=per_session * 2, expected_new_facts=[]),
+            SynthesisCheckpoint(
+                after_observation_index=per_session, expected_new_facts=[]
+            ),
+            SynthesisCheckpoint(
+                after_observation_index=per_session * 2, expected_new_facts=[]
+            ),
             SynthesisCheckpoint(after_observation_index=num_obs, expected_new_facts=[]),
         ]
 
     if spec.subtype == "vague_engagement":
-        return [SynthesisCheckpoint(after_observation_index=num_obs, expected_new_facts=[])]
+        return [
+            SynthesisCheckpoint(after_observation_index=num_obs, expected_new_facts=[])
+        ]
 
     if spec.subtype == "contradictory":
         per_session = max(1, num_obs // 3)
         return [
-            SynthesisCheckpoint(after_observation_index=per_session, expected_new_facts=[]),
-            SynthesisCheckpoint(after_observation_index=per_session * 2, expected_new_facts=[]),
+            SynthesisCheckpoint(
+                after_observation_index=per_session, expected_new_facts=[]
+            ),
+            SynthesisCheckpoint(
+                after_observation_index=per_session * 2, expected_new_facts=[]
+            ),
             SynthesisCheckpoint(after_observation_index=num_obs, expected_new_facts=[]),
         ]
 
     if spec.subtype == "sparse":
-        return [SynthesisCheckpoint(after_observation_index=num_obs, expected_new_facts=[])]
+        return [
+            SynthesisCheckpoint(after_observation_index=num_obs, expected_new_facts=[])
+        ]
 
     if spec.subtype == "delayed_creation":
         per_session = max(1, num_obs // 3)
@@ -521,13 +603,17 @@ def _build_checkpoints(spec: ScenarioSpec, num_obs: int) -> list[SynthesisCheckp
         ]
 
     if spec.subtype == "abstention":
-        return [SynthesisCheckpoint(after_observation_index=num_obs, expected_new_facts=[])]
+        return [
+            SynthesisCheckpoint(after_observation_index=num_obs, expected_new_facts=[])
+        ]
 
     # Fallback
     return [SynthesisCheckpoint(after_observation_index=num_obs, expected_new_facts=[])]
 
 
-def _build_temporal_assertions(spec: ScenarioSpec, session_dates: list[str]) -> list[TemporalAssertion]:
+def _build_temporal_assertions(
+    spec: ScenarioSpec, session_dates: list[str]
+) -> list[TemporalAssertion]:
     """Build temporal assertions appropriate to the scenario subtype."""
     if spec.subtype == "delayed_creation":
         if len(session_dates) >= 3:
@@ -577,25 +663,29 @@ def _build_temporal_assertions(spec: ScenarioSpec, session_dates: list[str]) -> 
     return []
 
 
-def _build_scenario(spec: ScenarioSpec, raw_obs: list[dict[str, Any]]) -> MemoryEvalScenario:
+def _build_scenario(
+    spec: ScenarioSpec, raw_obs: list[dict[str, Any]]
+) -> MemoryEvalScenario:
     observations: list[Observation] = []
     for o in raw_obs:
         piece_ctx = o.get("piece_context")
         if piece_ctx is not None and not isinstance(piece_ctx, str):
             piece_ctx = json.dumps(piece_ctx)
 
-        observations.append(Observation(
-            id=o.get("id", f"obs-{spec.id}-{len(observations)+1:03d}"),
-            dimension=o.get("dimension", "dynamics"),
-            observation_text=o.get("observation_text", ""),
-            framing=o.get("framing", "correction"),
-            dimension_score=o.get("dimension_score"),
-            student_baseline=o.get("student_baseline"),
-            piece_context=piece_ctx,
-            session_id=o.get("session_id", f"sess-{spec.id}-01"),
-            session_date=o.get("session_date", spec.date_start),
-            engaged=bool(o.get("engaged", False)),
-        ))
+        observations.append(
+            Observation(
+                id=o.get("id", f"obs-{spec.id}-{len(observations) + 1:03d}"),
+                dimension=o.get("dimension", "dynamics"),
+                observation_text=o.get("observation_text", ""),
+                framing=o.get("framing", "correction"),
+                dimension_score=o.get("dimension_score"),
+                student_baseline=o.get("student_baseline"),
+                piece_context=piece_ctx,
+                session_id=o.get("session_id", f"sess-{spec.id}-01"),
+                session_date=o.get("session_date", spec.date_start),
+                engaged=bool(o.get("engaged", False)),
+            )
+        )
 
     num_obs = len(observations)
 
@@ -637,7 +727,7 @@ def generate_all_scenarios() -> list[MemoryEvalScenario]:
     scenarios: list[MemoryEvalScenario] = []
 
     for i, spec in enumerate(specs):
-        print(f"  [{i+1}/{len(specs)}] {spec.id}: {spec.name[:60]}...", flush=True)
+        print(f"  [{i + 1}/{len(specs)}] {spec.id}: {spec.name[:60]}...", flush=True)
         raw_obs = _generate_observations(spec)
         scenario = _build_scenario(spec, raw_obs)
         scenarios.append(scenario)
@@ -653,7 +743,13 @@ def main() -> None:
     save_scenarios(scenarios, out_path)
     print(f"\nSaved {len(scenarios)} scenarios to {out_path}")
 
-    temporal_count = sum(1 for s in scenarios if "delayed" in s.category or "invalidation" in s.category or "abstention" in s.category)
+    temporal_count = sum(
+        1
+        for s in scenarios
+        if "delayed" in s.category
+        or "invalidation" in s.category
+        or "abstention" in s.category
+    )
     print(f"Synthesis scenarios: {len(scenarios) - temporal_count}")
     print(f"Temporal scenarios:  {temporal_count}")
 

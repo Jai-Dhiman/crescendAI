@@ -4,7 +4,8 @@ export type ToolCallStatus =
 	| { name: string; status: "pending" }
 	| { name: string; status: "found"; label: string }
 	| { name: string; status: "not_found" }
-	| { name: string; status: "done" };
+	| { name: string; status: "done" }
+	| { name: string; status: "error"; message: string };
 
 export interface RichMessage {
 	id: string;

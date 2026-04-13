@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/cloudflare";
 import { InferenceError } from "../lib/errors";
 import type { ServiceContext } from "../lib/types";
 import {
@@ -30,6 +31,7 @@ export type TeacherEvent =
 	| { type: "delta"; text: string }
 	| { type: "tool_start"; name: string }
 	| { type: "tool_result"; name: string; componentsJson: InlineComponent[] }
+	| { type: "tool_error"; name: string; message: string }
 	| {
 			type: "done";
 			fullText: string;
@@ -121,15 +123,20 @@ async function processSSEEvent(
 	let parsed: Record<string, unknown>;
 	try {
 		parsed = JSON.parse(data) as Record<string, unknown>;
-	} catch {
-		console.log(
+	} catch (err) {
+		console.error(
 			JSON.stringify({
-				level: "warn",
+				level: "error",
 				message: "Failed to parse SSE data JSON",
 				event,
 				data,
+				error: err instanceof Error ? err.message : String(err),
 			}),
 		);
+		Sentry.captureException(err, {
+			tags: { service: "teacher", operation: "sse_parse" },
+			extra: { sseEvent: event, rawData: data },
+		});
 		return [];
 	}
 
@@ -181,16 +188,24 @@ async function processSSEEvent(
 		let toolInput: unknown;
 		try {
 			toolInput = JSON.parse(block.jsonAccumulator);
-		} catch {
-			console.log(
+		} catch (err) {
+			const parseMsg = err instanceof Error ? err.message : String(err);
+			console.error(
 				JSON.stringify({
 					level: "error",
 					message: "Failed to parse tool_use JSON accumulator",
 					toolName: block.name,
 					accumulated: block.jsonAccumulator,
+					error: parseMsg,
 				}),
 			);
-			return [];
+			return [
+				{
+					type: "tool_error",
+					name: block.name,
+					message: `The model sent malformed input for ${block.name}: ${parseMsg}`,
+				},
+			];
 		}
 
 		const result = await processToolFn(block.name, toolInput);
@@ -205,7 +220,13 @@ async function processSSEEvent(
 				},
 			];
 		}
-		return [];
+		return [
+			{
+				type: "tool_error",
+				name: result.name,
+				message: result.errorMessage ?? "Tool call failed.",
+			},
+		];
 	}
 
 	if (event === "message_delta") {
@@ -378,6 +399,17 @@ export async function* chat(
 		// Only the final turn's text is persisted — intermediate tool-calling turns
 		// emit deltas for streaming UX but their narration is cleared by the frontend.
 		if (doneEvent.toolCalls.length === 0 || doneEvent.stopReason !== "tool_use") {
+			console.log(
+				JSON.stringify({
+					level: "info",
+					message: "chat stream complete",
+					turn: turn + 1,
+					toolCallsThisTurn: doneEvent.toolCalls.length,
+					totalComponents: accumulatedComponents.length,
+					stopReason: doneEvent.stopReason,
+					fullTextLength: doneEvent.fullText.length,
+				}),
+			);
 			yield {
 				type: "done",
 				fullText: doneEvent.fullText,
@@ -403,7 +435,7 @@ export async function* chat(
 		}
 
 		const GENERIC_TOOL_ERROR =
-			"Tool call failed validation. Check that required fields like piece_id are valid UUIDs returned from a prior search_catalog result, not titles or invented values.";
+			"Tool call failed validation. For piece_id, pass through the exact slug returned by search_catalog (e.g. 'chopin.ballades.1'); do not transform or invent it. Check all required fields and try again.";
 
 		const toolResultContent: AnthropicContentBlock[] = doneEvent.toolCalls.map(
 			(tc) => {
@@ -473,13 +505,17 @@ export async function* chat(
 			return;
 		}
 	} catch (err) {
-		console.log(
+		console.error(
 			JSON.stringify({
 				level: "error",
 				message: "forced final call failed after max tool turns",
 				error: err instanceof Error ? err.message : String(err),
+				stack: err instanceof Error ? err.stack : undefined,
 			}),
 		);
+		Sentry.captureException(err, {
+			tags: { service: "teacher", operation: "forced_final_call" },
+		});
 	}
 
 	yield {

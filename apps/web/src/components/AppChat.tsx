@@ -477,10 +477,7 @@ export default function AppChat() {
 							break;
 						}
 						case "tool_result": {
-							const components = JSON.parse(event.componentsJson) as Array<{
-								type: string;
-								config: Record<string, unknown>;
-							}>;
+							const components = event.componentsJson;
 							const searchResult = components.find(
 								(c) => c.type === "search_catalog_result",
 							);
@@ -529,6 +526,38 @@ export default function AppChat() {
 											...renderableComponents,
 										],
 									};
+								}
+								return updated;
+							});
+							break;
+						}
+						case "tool_error": {
+							setTransientMessages((prev) => {
+								const updated = [...prev];
+								const last = updated[updated.length - 1];
+								if (last && last.role === "assistant") {
+									const toolCalls = [...(last.toolCalls ?? [])];
+									let pendingIdx = -1;
+									for (let i = toolCalls.length - 1; i >= 0; i--) {
+										if (toolCalls[i].status === "pending") {
+											pendingIdx = i;
+											break;
+										}
+									}
+									if (pendingIdx >= 0) {
+										toolCalls[pendingIdx] = {
+											name: event.name,
+											status: "error",
+											message: event.message,
+										};
+									} else {
+										toolCalls.push({
+											name: event.name,
+											status: "error",
+											message: event.message,
+										});
+									}
+									updated[updated.length - 1] = { ...last, toolCalls };
 								}
 								return updated;
 							});

@@ -4,14 +4,11 @@ import { api } from "../lib/api";
 import type { InlineComponent, RichMessage } from "../lib/types";
 
 function mapMessageRow(row: MessageRow): RichMessage {
-	let components: InlineComponent[] | undefined;
-	if (row.componentsJson) {
-		try {
-			components = JSON.parse(row.componentsJson);
-		} catch {
-			/* ignore malformed JSON */
-		}
-	}
+	// componentsJson arrives pre-parsed: Postgres jsonb -> Drizzle -> Hono c.json
+	// -> fetch().json() leaves it as an InlineComponent[] already. Never JSON.parse it.
+	const components = (row.componentsJson ?? undefined) as
+		| InlineComponent[]
+		| undefined;
 	return {
 		id: row.id,
 		role: row.role,

@@ -13,7 +13,7 @@ Key files:
 - Playbook: `apps/evals/teaching_knowledge/data/playbook.yaml`
 - Judge prompt: `apps/evals/shared/prompts/synthesis_quality_judge_v2.txt`
 - Rubric: `apps/evals/shared/prompts/rubric_definition.json`
-- LLM client: `apps/evals/teaching_knowledge/llm_client.py` (reads CF_API_TOKEN from `apps/api/.dev.vars`)
+- LLM client: `apps/evals/teaching_knowledge/llm_client.py` (reads CLOUDFLARE_API_TOKEN from `apps/api/.dev.vars`)
 - Judge v2 function: `apps/evals/shared/judge.py` -> `judge_synthesis_v2()`
 - Eval runner: `apps/evals/inference/eval_runner.py` (fixed MIDI key bug on 2026-03-30)
 - Inference cache: `model/data/eval/inference_cache/auto-t5_http/` (JSON per recording)

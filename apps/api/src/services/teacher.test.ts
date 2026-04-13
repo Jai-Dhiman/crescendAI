@@ -224,11 +224,12 @@ describe("parseAnthropicStream - text + tool_use", () => {
 // ---------------------------------------------------------------------------
 
 describe("parseAnthropicStream - failed tool", () => {
-	it("does NOT yield tool_result when processToolFn returns isError: true", async () => {
+	it("yields tool_error (not tool_result) when processToolFn returns isError: true", async () => {
 		const processToolFn = vi.fn().mockResolvedValue({
 			name: "create_exercise",
 			componentsJson: [],
 			isError: true,
+			errorMessage: "Exercises array must not be empty.",
 		});
 
 		const sse = sseLines(
@@ -296,13 +297,18 @@ describe("parseAnthropicStream - failed tool", () => {
 			events.push(event);
 		}
 
-		// tool_start + done -- intermediate narration ("Some text") discarded (Fix C),
-		// no tool_result because isError: true
-		expect(events).toHaveLength(2);
+		// tool_start + tool_error + done -- intermediate narration discarded (Fix C),
+		// tool_error replaces tool_result because isError: true
+		expect(events).toHaveLength(3);
 		expect(events[0]).toEqual({ type: "tool_start", name: "create_exercise" });
-		expect(events[1].type).toBe("done");
+		expect(events[1]).toEqual({
+			type: "tool_error",
+			name: "create_exercise",
+			message: "Exercises array must not be empty.",
+		});
+		expect(events[2].type).toBe("done");
 
-		const doneEvent = events[1];
+		const doneEvent = events[2];
 		if (doneEvent.type === "done") {
 			// allComponents should be empty since the tool failed
 			expect(doneEvent.allComponents).toEqual([]);
