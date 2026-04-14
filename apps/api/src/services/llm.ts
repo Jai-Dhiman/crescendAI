@@ -102,15 +102,24 @@ export async function callWorkersAI(
 	model: string,
 	messages: Array<{ role: string; content: string }>,
 	maxTokens: number = 100,
+	chatTemplateKwargs?: { enable_thinking?: boolean; clear_thinking?: boolean },
 ): Promise<string> {
 	const url = `${env.AI_GATEWAY_BACKGROUND}/workers-ai/v1/chat/completions`;
+	const body: Record<string, unknown> = {
+		model,
+		messages,
+		max_tokens: maxTokens,
+	};
+	if (chatTemplateKwargs) {
+		body.chat_template_kwargs = chatTemplateKwargs;
+	}
 	const res = await fetch(url, {
 		method: "POST",
 		headers: {
 			"Content-Type": "application/json",
 			Authorization: `Bearer ${env.CLOUDFLARE_API_TOKEN}`,
 		},
-		body: JSON.stringify({ model, messages, max_tokens: maxTokens }),
+		body: JSON.stringify(body),
 	});
 	if (!res.ok) {
 		throw new InferenceError(`Workers AI error: ${res.status}`);
@@ -119,7 +128,9 @@ export async function callWorkersAI(
 		choices: Array<{ message: { content: string } }>;
 	};
 	if (!data.choices?.[0]?.message?.content) {
-		throw new InferenceError("Workers AI returned no content");
+		throw new InferenceError(
+			`Workers AI returned no content. model=${model} body=${JSON.stringify(data).slice(0, 500)}`,
+		);
 	}
 	return data.choices[0].message.content;
 }

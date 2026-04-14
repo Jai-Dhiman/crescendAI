@@ -132,7 +132,8 @@ export async function saveAssistantMessage(
 				env,
 				"@cf/google/gemma-4-26b-a4b-it",
 				[{ role: "user", content: titlePrompt }],
-				30,
+				50,
+				{ enable_thinking: false },
 			);
 
 			await db

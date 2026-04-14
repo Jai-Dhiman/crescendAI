@@ -60,7 +60,7 @@ If a field has no matches, use an empty array. Always include rawText.`;
 			{ role: "system", content: systemPrompt },
 			{ role: "user", content: userPrompt },
 		],
-		500,
+		3000,
 	);
 
 	let extracted: ExtractedGoals;
