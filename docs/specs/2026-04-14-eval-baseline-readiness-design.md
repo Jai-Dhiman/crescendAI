@@ -80,8 +80,8 @@ The style guidance for a recording depends on its composer — it varies per cal
 **3. `bootstrap_ci` moves to `shared/stats.py`.**
 A working `bootstrap_ci` already exists at `pipeline/practice_eval/analyze_e2e.py` with tests at `tests/test_analyze_e2e.py`. We extract it (plus `cohens_d`) to `shared/stats.py`, leave a re-export in `analyze_e2e.py` so existing tests keep passing, and let `teaching_knowledge/scripts/aggregate.py` import directly from `shared/stats`. Zero behavior change to the existing pipeline eval.
 
-**4. GPT-5.4-mini as a new `provider="openai"` on the existing `LLMClient`.**
-Rather than a parallel client, we extend `teaching_knowledge/llm_client.py` to support a third provider. The public interface of `LLMClient.complete()` does not change. The `MODELS` table gets an `"openai"` entry. A new private method `_openai_complete()` mirrors `_workers_ai_complete()`. HTTP uses the existing `requests` dep (no new packages).
+**4. GPT-5.4-mini as a new `provider="openrouter"` on the existing `LLMClient`.**
+Rather than a parallel client, we extend `teaching_knowledge/llm_client.py` to support a third provider via OpenRouter (`https://openrouter.ai/api/v1/chat/completions`). The public interface of `LLMClient.complete()` does not change. The `MODELS` table gets an `"openrouter"` entry with `openai/gpt-5.4-mini` as the model slug (OpenRouter's `vendor/model` naming convention). A new private method `_openrouter_complete()` mirrors `_workers_ai_complete()`. HTTP uses the existing `requests` dep. Benefit: one API key unlocks the full OpenRouter model catalog — swapping to Sonnet-as-judge in Phase 2 is a model-string change, not a new client. Auth env var is `OPENROUTER_API_KEY` (read from env or `apps/api/.dev.vars`). Family detection still treats `openai/gpt-*` as the `openai` family for the judge-compatibility check.
 
 **5. Process/outcome split ships as a schema extension, not a replacement.**
 `DimensionScore` in `shared/judge.py` gains two new fields (`process: int | None`, `outcome: int | None`). The existing `score: int | None` field remains for backwards compatibility with existing dry-run JSONL. The judge prompt (`synthesis_quality_judge_v2.txt`) is updated to request both `process` and `outcome` in its output. `_parse_v2_response` handles both legacy (single-score) and new (process+outcome) response shapes — legacy responses map `score` → both `process=score, outcome=score` for seamless transition. After the first run on the new schema, the aggregator treats them as independent signals.
@@ -173,9 +173,9 @@ def assert_judge_compatible(teacher_model: str, judge_model: str) -> None
     # Raises ValueError("judge family {f} matches teacher family — forbidden") if same family
 ```
 
-**Hides:** The model-name-prefix → family mapping table, the matching logic (substring, exact, prefix rules for `@cf/` models), the error message format.
+**Hides:** The model-name-prefix → family mapping table (handling Anthropic-native names like `claude-*`, Workers AI `@cf/<vendor>/*` slugs, and OpenRouter `<vendor>/<model>` slugs like `openai/gpt-5.4-mini` or `anthropic/claude-sonnet-4-6`), the matching logic, the error message format.
 
-**Tested through:** Public `assert_judge_compatible`. Tests cover: same-family raise (`claude-sonnet-4-6` + `claude-sonnet-4-6`), cross-family pass (`claude-sonnet-4-6` + `@cf/google/gemma-4-26b-a4b-it`), unknown model raise (bonus safety), Workers AI prefix resolution (`@cf/openai/gpt-oss-120b` resolves to openai family).
+**Tested through:** Public `assert_judge_compatible`. Tests cover: same-family raise (`claude-sonnet-4-6` + `anthropic/claude-sonnet-4-6` — tests that OpenRouter slug resolves to the same anthropic family as the native name), cross-family pass (`claude-sonnet-4-6` + `@cf/google/gemma-4-26b-a4b-it`), cross-family pass via OpenRouter (`claude-sonnet-4-6` + `openai/gpt-5.4-mini`), unknown model raise (bonus safety), Workers AI prefix resolution (`@cf/openai/gpt-oss-120b` resolves to openai family).
 
 ### 7. `apps/evals/teaching_knowledge/scripts/tag_dataset.py` — **NEW, DEEP**
 
@@ -344,7 +344,7 @@ Two edits, different surfaces of the same file — cannot parallelize:
 
 ### 16. Modified: `apps/evals/teaching_knowledge/llm_client.py`
 
-- **T14:** `MODELS` gains an `"openai"` entry with `"quality": "gpt-5.4-mini"`, `"cheap": "gpt-5.4-mini"`, `"judge": "gpt-5.4-mini"`. New private method `_openai_complete()` mirrors `_workers_ai_complete()` but hits `https://api.openai.com/v1/chat/completions`. New helper `_build_openai_payload()` is a pure function extracted from `_openai_complete` for testability. `_load_openai_token()` reads `OPENAI_API_KEY` from env or `apps/api/.dev.vars`.
+- **T14:** `MODELS` gains an `"openrouter"` entry with `"quality": "openai/gpt-5.4-mini"`, `"cheap": "openai/gpt-5.4-mini"`, `"judge": "openai/gpt-5.4-mini"`. New private method `_openrouter_complete()` mirrors `_workers_ai_complete()` but hits `https://openrouter.ai/api/v1/chat/completions` with `Authorization: Bearer $OPENROUTER_API_KEY`. New helper `_build_openrouter_payload()` is a pure function extracted from `_openrouter_complete` for testability (accepts model slug, messages, temperature; returns the dict body that is JSON-serialized onto the wire). `_load_openrouter_token()` reads `OPENROUTER_API_KEY` from env or `apps/api/.dev.vars`. Optional `HTTP-Referer` and `X-Title` headers are set to `https://crescend.ai` and `CrescendAI Evals` respectively (OpenRouter uses these for leaderboard attribution; harmless to include).
 
 ### 17. Modified: `apps/api/src/services/prompts.ts`
 
@@ -385,7 +385,7 @@ Two edits, different surfaces of the same file — cannot parallelize:
 | `apps/evals/tests/test_judge_prompt_schema.py` | prompt contains process+outcome | New |
 | `apps/evals/tests/test_aggregate.py` | aggregate_run on fixture | New |
 | `apps/evals/tests/test_regression_check.py` | check_regression on fixtures | New |
-| `apps/evals/tests/test_llm_client_openai.py` | _build_openai_payload | New |
+| `apps/evals/tests/test_llm_client_openrouter.py` | _build_openrouter_payload | New |
 | `apps/evals/tests/test_dual_judge.py` | compute_agreement on fixtures | New |
 | `apps/evals/tests/test_eval_ab.py` | run_ab verdict on fixtures | New |
 | `apps/evals/tests/test_prompts_ts_style_rules.py` | prompts.ts contains era guidance + hash-match with evals JSON | New |
@@ -411,8 +411,8 @@ Two edits, different surfaces of the same file — cannot parallelize:
 - **Q: What if `git` is unavailable when `make_run_provenance` is called?**
   Default: fall back to `git_sha="unknown"`, `git_dirty=True`, log a warning to stderr. The run still produces a provenance-stamped artifact (with a visibly-degraded stamp). Tested via monkeypatch.
 
-- **Q: Should the GPT provider use the OpenAI Python SDK or raw HTTP?**
-  Default: raw HTTP via `requests`. Rationale: zero new dependencies, mirrors the existing Workers AI client pattern, and the only thing we need is `/v1/chat/completions`. If we later want streaming, function calling, or tool use with GPT we can revisit.
+- **Q: Why OpenRouter instead of the OpenAI SDK directly?**
+  Default: OpenRouter. One API key unlocks GPT-5.4-mini, Sonnet (for Phase 2), Gemini, and the full OpenRouter catalog — swapping judges becomes a model-string change instead of a new-client engineering task. The thin-proxy cost (~20–50ms added latency, small markup) is negligible for judge calls which are not user-facing. Raw HTTP via `requests` mirrors the existing Workers AI client, so zero new dependencies.
 
 - **Q: Should `assert_judge_compatible` be a hard raise or a warning?**
   Default: hard raise (`ValueError`). Rationale: the invariant is a correctness property, not a suggestion. If a user genuinely wants to run same-family judging for research purposes, they can bypass with a `--allow-same-family` flag, which we deliberately do NOT add in this spec — it stays hidden until there is a real use case.
