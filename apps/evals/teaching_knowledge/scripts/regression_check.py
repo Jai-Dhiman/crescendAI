@@ -23,9 +23,9 @@ from teaching_knowledge.scripts.aggregate import AggregateResult, DimensionAggre
 @dataclass
 class DimensionRegression:
     name: str
-    baseline_mean: float
-    candidate_mean: float
-    delta: float
+    baseline_mean: float | None
+    candidate_mean: float | None
+    delta: float | None
     significant: bool
     direction: str  # "regressed" | "improved" | "null"
 
@@ -52,12 +52,12 @@ def _compare(
     baseline: DimensionAggregate,
     candidate: DimensionAggregate,
 ) -> DimensionRegression:
-    b_mean = baseline.mean_process or 0.0
-    c_mean = candidate.mean_process or 0.0
-    delta = c_mean - b_mean
+    b_mean = baseline.mean_process
+    c_mean = candidate.mean_process
+    delta = (c_mean - b_mean) if (b_mean is not None and c_mean is not None) else None
     overlaps = _ci_overlap(baseline.ci_process, candidate.ci_process)
     significant = not overlaps
-    if not significant:
+    if not significant or delta is None:
         direction = "null"
     elif delta < 0:
         direction = "regressed"
@@ -114,8 +114,9 @@ def format_report(report: RegressionReport) -> str:
     lines.append(f"{'Dimension':<45} {'delta':>8} {'direction':>12}")
     lines.append("-" * 68)
     for dim in report.dimensions:
+        delta_str = f"{dim.delta:+8.3f}" if dim.delta is not None else "    n/a"
         lines.append(
-            f"{dim.name[:45]:<45} {dim.delta:+8.3f} {dim.direction:>12}"
+            f"{dim.name[:45]:<45} {delta_str} {dim.direction:>12}"
             + ("  *" if dim.significant else "")
         )
     lines.append("")

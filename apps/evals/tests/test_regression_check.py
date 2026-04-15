@@ -3,8 +3,6 @@ from __future__ import annotations
 
 from teaching_knowledge.scripts.aggregate import AggregateResult, DimensionAggregate
 from teaching_knowledge.scripts.regression_check import (
-    DimensionRegression,
-    RegressionReport,
     check_regression,
     format_report,
 )
@@ -81,3 +79,35 @@ def test_format_report_contains_dimension_names() -> None:
     assert "Alpha" in text
     assert "Beta" in text
     assert "improved" in text.lower() or "regressed" in text.lower()
+
+
+def test_none_mean_propagates_as_null_without_fabricating_delta() -> None:
+    """When a dim has None mean_process on either side, delta must be None
+    (not a fabricated 0.0-based number), baseline_mean/candidate_mean must
+    preserve None, and direction must be "null"."""
+    baseline = AggregateResult(
+        dimensions=[
+            DimensionAggregate(
+                name="Gap",
+                mean_process=None,
+                ci_process=None,
+                mean_outcome=None,
+                ci_outcome=None,
+                n=0,
+            )
+        ],
+        composite_mean=0.0,
+        composite_ci=None,
+        by_era={},
+        by_skill={},
+        total_rows=0,
+        run_id="baseline",
+    )
+    candidate = _agg({"Gap": (2.5, (2.3, 2.7))})
+    report = check_regression(baseline, candidate)
+    gap = next(d for d in report.dimensions if d.name == "Gap")
+    assert gap.baseline_mean is None
+    assert gap.candidate_mean == 2.5
+    assert gap.delta is None
+    assert gap.direction == "null"
+    assert gap.significant is False
