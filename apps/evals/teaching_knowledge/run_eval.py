@@ -27,6 +27,7 @@ from typing import Any
 import yaml
 
 from shared.style_rules import get_style_guidance
+from shared.provenance import RunProvenance, make_run_provenance
 
 # Root paths
 EVALS_ROOT = Path(__file__).resolve().parents[1]
@@ -209,6 +210,38 @@ def _filter_cache_files_by_split(
     return [f for f in cache_files if f.stem in allowed]
 
 
+def _build_row(
+    recording_id: str,
+    meta: dict,
+    muq_means: dict[str, float],
+    synthesis_text: str,
+    synthesis_latency_ms: int,
+    judge_dimensions: list[dict],
+    judge_model: str,
+    judge_latency_ms: int,
+    error: str,
+    provenance: RunProvenance,
+) -> dict:
+    """Build a single output-JSONL row with provenance stamped in."""
+    return {
+        "recording_id": recording_id,
+        "run_id": provenance.run_id,
+        "git_sha": provenance.git_sha,
+        "git_dirty": provenance.git_dirty,
+        "piece_slug": meta["piece_slug"],
+        "title": meta["title"],
+        "composer": meta["composer"],
+        "skill_bucket": meta["skill_bucket"],
+        "muq_means": muq_means,
+        "synthesis_text": synthesis_text,
+        "synthesis_latency_ms": synthesis_latency_ms,
+        "judge_dimensions": judge_dimensions,
+        "judge_model": judge_model,
+        "judge_latency_ms": judge_latency_ms,
+        "error": error,
+    }
+
+
 def run(
     limit: int | None = None,
     out_path: Path | None = None,
@@ -248,6 +281,10 @@ def run(
     print(f"Synthesis: {synthesis_client.model}")
     if not dry_run:
         print("Judge:     @cf/google/gemma-4-26b-a4b-it (workers-ai)")
+
+    provenance = make_run_provenance()
+    print(f"run_id: {provenance.run_id}")
+    print(f"git_sha: {provenance.git_sha}{' (dirty)' if provenance.git_dirty else ''}")
 
     processed = 0
     skipped_no_manifest = 0
@@ -290,20 +327,18 @@ def run(
                 synthesis_text = extract_teacher_response(raw)
 
                 if dry_run:
-                    result = {
-                        "recording_id": recording_id,
-                        "piece_slug": meta["piece_slug"],
-                        "title": meta["title"],
-                        "composer": meta["composer"],
-                        "skill_bucket": meta["skill_bucket"],
-                        "muq_means": muq_means,
-                        "synthesis_text": synthesis_text,
-                        "synthesis_latency_ms": round(synthesis_latency_ms),
-                        "judge_dimensions": [],
-                        "judge_model": "dry_run",
-                        "judge_latency_ms": 0,
-                        "error": "",
-                    }
+                    result = _build_row(
+                        recording_id=recording_id,
+                        meta=meta,
+                        muq_means=muq_means,
+                        synthesis_text=synthesis_text,
+                        synthesis_latency_ms=round(synthesis_latency_ms),
+                        judge_dimensions=[],
+                        judge_model="dry_run",
+                        judge_latency_ms=0,
+                        error="",
+                        provenance=provenance,
+                    )
                 else:
                     judge_context = {
                         "piece_name": meta["title"],
@@ -315,45 +350,43 @@ def run(
                         context=judge_context,
                         provider="workers-ai",
                     )
-                    result = {
-                        "recording_id": recording_id,
-                        "piece_slug": meta["piece_slug"],
-                        "title": meta["title"],
-                        "composer": meta["composer"],
-                        "skill_bucket": meta["skill_bucket"],
-                        "muq_means": muq_means,
-                        "synthesis_text": synthesis_text,
-                        "synthesis_latency_ms": round(synthesis_latency_ms),
-                        "judge_dimensions": [
+                    result = _build_row(
+                        recording_id=recording_id,
+                        meta=meta,
+                        muq_means=muq_means,
+                        synthesis_text=synthesis_text,
+                        synthesis_latency_ms=round(synthesis_latency_ms),
+                        judge_dimensions=[
                             {
                                 "criterion": d.criterion,
+                                "process": d.process,
+                                "outcome": d.outcome,
                                 "score": d.score,
                                 "evidence": d.evidence,
                                 "reason": d.reason,
                             }
                             for d in judge_result.dimensions
                         ],
-                        "judge_model": judge_result.model,
-                        "judge_latency_ms": round(judge_result.latency_ms),
-                        "error": "",
-                    }
+                        judge_model=judge_result.model,
+                        judge_latency_ms=round(judge_result.latency_ms),
+                        error="",
+                        provenance=provenance,
+                    )
 
             except Exception as exc:
                 errors += 1
-                result = {
-                    "recording_id": recording_id,
-                    "piece_slug": meta["piece_slug"],
-                    "title": meta["title"],
-                    "composer": meta["composer"],
-                    "skill_bucket": meta["skill_bucket"],
-                    "muq_means": muq_means,
-                    "synthesis_text": "",
-                    "synthesis_latency_ms": 0,
-                    "judge_dimensions": [],
-                    "judge_model": "",
-                    "judge_latency_ms": 0,
-                    "error": str(exc),
-                }
+                result = _build_row(
+                    recording_id=recording_id,
+                    meta=meta,
+                    muq_means=muq_means,
+                    synthesis_text="",
+                    synthesis_latency_ms=0,
+                    judge_dimensions=[],
+                    judge_model="",
+                    judge_latency_ms=0,
+                    error=str(exc),
+                    provenance=provenance,
+                )
 
             fout.write(json.dumps(result) + "\n")
             fout.flush()
