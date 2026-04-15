@@ -151,6 +151,9 @@ model/data/maestro-v3.0.0.csv
 model/data/score_library/*.json
 !model/data/score_library/titles.json
 
+# Score library MXL source (uploaded to R2 via score_library.cli upload-mxl)
+model/scores/
+
 *.ckpt.worktrees/
 .playwright-mcp/
 
