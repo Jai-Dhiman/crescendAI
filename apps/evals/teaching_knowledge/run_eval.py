@@ -26,6 +26,8 @@ from typing import Any
 
 import yaml
 
+from shared.style_rules import get_style_guidance
+
 # Root paths
 EVALS_ROOT = Path(__file__).resolve().parents[1]
 REPO_ROOT = EVALS_ROOT.parents[1]
@@ -142,15 +144,24 @@ def build_synthesis_user_msg(
         },
     }
 
-    return "\n".join([
+    guidance = get_style_guidance(meta.get("composer", ""))
+
+    parts: list[str] = [
         "<session_data>",
         json.dumps(session_data, indent=2),
         "</session_data>",
-        "",
-        "<task>Write <analysis>...</analysis> first as a reasoning scratchpad (this will be stripped). "
-        "Then write your teacher response: 3-6 sentences, conversational, warm, specific. "
-        "Do not mention scores or numbers. Focus on what matters most for this session.</task>",
-    ])
+    ]
+    if guidance:
+        parts.append("")
+        parts.append(guidance)
+    parts.append("")
+    parts.append(
+        "<task>Write <analysis>...</analysis> first as a reasoning scratchpad "
+        "(this will be stripped). Then write your teacher response: 3-6 sentences, "
+        "conversational, warm, specific. Do not mention scores or numbers. Focus on "
+        "what matters most for this session.</task>"
+    )
+    return "\n".join(parts)
 
 
 def extract_teacher_response(raw: str) -> str:
