@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytest
 
 from teaching_knowledge.run_eval import _assert_models_compatible
