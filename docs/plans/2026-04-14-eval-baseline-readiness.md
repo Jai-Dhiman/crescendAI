@@ -3905,3 +3905,196 @@ Not part of this plan — tracked in `docs/plans/2026-04-14-eval-improvements.md
 5. Aggregate: `uv run python -m teaching_knowledge.scripts.aggregate results/baseline_...jsonl`
 6. Freeze the aggregate + JSONL as the "beat this" artifact
 7. Begin hill-climbing the teacher prompt against the train split; use `regression_check.py` before unlocking holdout
+
+---
+
+## Challenge Review
+
+Reviewed against the committed plan, the linked spec `docs/specs/2026-04-14-eval-baseline-readiness-design.md`, and every source file named in the File Structure table (`run_eval.py`, `shared/judge.py`, `synthesis_quality_judge_v2.txt`, `playbook.yaml`, `analyze_e2e.py`, `prompts.ts`, `teacher.ts`, `test_analyze_e2e.py`, plus grep sweeps for `bootstrap_ci` and `buildSynthesisFraming`).
+
+### CEO Pass
+
+**Premise.** Right problem, right time. Model v2 training is currently consuming the MuQ-critical path; landing every eval-harness improvement that does *not* depend on valid MuQ scores parallelizes the wait. Alternative framings (skip harness work, wait for scores, do it serially after retraining) were considered in the spec and rejected on ~2 weeks of wall time. [OBS]
+
+**Scope.** 19 tasks, tightly bounded. Nothing in the plan runs an LLM call for real, and nothing depends on live inference — all code paths are verified via unit tests against fake payloads, fixture JSONL, or in-memory data structures. I tried to find something to cut:
+- T19 (`eval_ab.py` scaffold) is the only task whose *consumer* is explicitly Phase 2. It sits behind a feature gate and does not execute at P0. Cuttable, but the marginal cost is low (one file, one test) and landing it now removes a future blocker. Keep. [OBS]
+- T13 (`regression_check.py`) is pre-built tooling for the hill-climbing loop in P2 and has no pre-baseline consumer. Same reasoning: low marginal cost, shrinks a future plan. Keep. [OBS]
+
+No scope drift vs spec goals. No unnecessary abstractions. [OBS]
+
+**12-month alignment.**
+```
+CURRENT STATE                   THIS PLAN                       12-MONTH IDEAL
+style-agnostic prompt    →   style guidance injected      →   per-era hill-climbed prompt
+no provenance            →   run_id + git_sha stamped     →   full experiment ledger
+single-sample scores     →   bootstrap CIs               →   stable dim-level reports
+same-family judging      →   cross-family guard         →   dual-judge calibration
+no holdout discipline    →   stratified 80/20 split     →   train/holdout + phantom audit
+one judge + one schema   →   process/outcome split      →   calibrated 7-dim rubric
+```
+Every task in this plan moves toward the ideal, not away. No tech debt. [OBS]
+
+**Alternatives.** The spec documents 8 design decisions with alternatives considered (Decisions #1–#8). That's above-bar for a plan at this stage. [OBS]
+
+### Engineering Pass
+
+**Architecture.** New modules are structured as deep units:
+- `shared/stats.py` — 2 public functions (`bootstrap_ci`, `cohens_d`), hides numpy RNG seeding + ddof + quantile math
+- `shared/style_rules.py` — 2 public functions (`composer_to_era`, `get_style_guidance`), hides JSON load, substring matching, XML formatting
+- `shared/run_provenance.py` — 1 public factory (`make_run_provenance`), hides subprocess git capture + dirty-tree detection
+- `shared/judge_compatibility.py` — 1 public function (`assert_judge_compatible`), hides a model-prefix → family lookup table
+
+All four are DEEP by Ousterhout's definition. None are shallow. [OBS]
+
+`run_eval.py` is extended in place rather than rewritten — the plan treats Group F (T14→T15→T16→T17) as four sequential edits to the same file in a strict order. I traced the data flow and all four edits touch non-overlapping regions (style injection is in `build_synthesis_user_msg`, split is in `run()` signature + load step, provenance is in `_build_row()` extraction, compat is in `run()` prologue). Serial ordering is correct; no merge-conflict landmines. [OBS]
+
+**Module Depth Audit.**
+| Module | Interface size | Impl | Verdict |
+|---|---|---|---|
+| `shared/stats.py` | 2 funcs | ~40 LOC numpy | DEEP |
+| `shared/style_rules.py` | 2 funcs | ~60 LOC + JSON | DEEP |
+| `shared/run_provenance.py` | 1 factory | ~30 LOC subprocess | DEEP |
+| `shared/judge_compatibility.py` | 1 func | ~50 LOC + table | DEEP |
+| `shared/llm_client_openrouter.py` | class extension in LLMClient | ~60 LOC | DEEP |
+| `teaching_knowledge/scripts/tag_dataset.py` | 1 script entry | ~150 LOC | DEEP |
+| `teaching_knowledge/scripts/split.py` | 2 funcs | ~80 LOC | DEEP |
+| `teaching_knowledge/scripts/aggregate.py` | 1 CLI + 2 helpers | ~120 LOC | DEEP |
+| `teaching_knowledge/scripts/dual_judge.py` | 1 script + Spearman | ~120 LOC | DEEP |
+| `teaching_knowledge/scripts/regression_check.py` | 1 CLI | ~60 LOC | DEEP |
+| `teaching_knowledge/scripts/eval_ab.py` | 1 CLI | ~80 LOC | DEEP |
+
+No shallow modules. [OBS]
+
+**Code Quality.**
+
+`[OBS]` — **T6 plan prose contradicts its own code.** The Behavior line at plan:875 says "derive the composite `score` as their mean (floor)" but the implementation at plan:1039 returns `min(process, outcome)` and the test assertion at plan:940 (`process=3, outcome=1 → score==1`) confirms `min()` is the intended semantic. The code is correct — `min()` is a more conservative composite than mean for a process+outcome gate, and the test pins it. But the description should be updated to say "composite = `min(process, outcome)` (the conservative signal)". Cosmetic plan-doc bug, not a functional defect.
+
+`[OBS]` — **T6 `parse_failure` semantics are inconsistent.** When the parser fails, it returns `DimensionScore(score=0, process=None, outcome=None)`. This breaks the otherwise-clean invariant that legacy rows have `process == outcome == score`. A parse failure now contributes `score=0` to dim means but `None` to process/outcome means, creating a discrepancy that downstream `aggregate.py` must handle. Two fixes possible: (a) set `score=None` for parse failures and teach aggregate to skip None-score rows, or (b) set `process = outcome = 0` and accept the score floor. Flag for T12 execution — the aggregate test does not currently exercise a parse_failure input row. Verify this is actually an issue when T12 is built.
+
+`[RISK] (confidence: 7/10)` — **T17 provider autodetect silently misroutes native Anthropic judge names.** At plan:3299:
+```python
+judge_provider = "openrouter" if "/" in judge_model and not judge_model.startswith("@cf/") else "workers-ai"
+```
+Truth table:
+| judge_model | routed to | correct? |
+|---|---|---|
+| `@cf/google/gemma-4-26b-a4b-it` | workers-ai | ✓ |
+| `openai/gpt-5.4-mini` | openrouter | ✓ |
+| `anthropic/claude-sonnet-4-6` | openrouter | ✓ |
+| `claude-sonnet-4-6` (native) | **workers-ai** | ✗ silent misroute |
+| `claude-haiku-4-5-20251001` | **workers-ai** | ✗ silent misroute |
+
+The T17 test file exercises rows 1-3 but not rows 4-5. Failure mode: operator passes `--judge-model claude-sonnet-4-6` thinking it'll hit Anthropic (the native SDK name), the autodetect routes it to Workers AI which doesn't serve `claude-*` models, and the LLMClient fails with a confusing downstream error from the Workers AI endpoint. This is explicitly Phase 2 territory (Phase 1 uses Gemma-4 + GPT-5.4-mini, both of which route correctly), so it's not a P0 blocker — but T19's `eval_ab.py` scaffold is what first introduces a risk of passing `claude-*` as judge. **Mitigation options:**
+  1. Document the convention: "Anthropic judges must use the `anthropic/` OpenRouter slug; bare `claude-*` names are rejected".
+  2. Defensively raise `ValueError` in `_assert_models_compatible` when `judge_model` starts with `claude-` without an `anthropic/` prefix.
+  3. Make `assert_judge_compatible` return the intended provider alongside the family so the autodetect is derived from the table rather than from slash-parsing.
+Option (3) is cleanest and couples the two pieces of knowledge that must stay in sync. Recommend raising this at T17 execution time as a defensive hardening — not a blocker, since Phase 1 doesn't hit the failure case.
+
+`[OBS]` — **T17 hardcodes teacher provider to `"anthropic"` at plan:3283.** `synthesis_client = LLMClient(provider="anthropic", model=teacher_model)`. A `--teacher-model @cf/qwen/...` invocation (Phase 2) would still route through the Anthropic SDK and fail. Phase 2 is explicitly out of this plan's scope (spec confirms) and `eval_ab.py` T19 is the explicit Phase 2 entry point, so this is intentional. No action needed, but flag in the T17 code comment so future readers don't miss the invariant.
+
+`[OBS]` — **T9's drift guard is pytest-only, not a pre-commit hook.** The Python/TS style-rules mirror is enforced by `test_style_rules_mirror.py` — which runs only when someone runs the eval test suite. A PR that edits `apps/api/src/lib/style-rules.json` in isolation (a frontend-only PR) won't trip the guard on CI unless the eval tests are part of the TypeScript CI pipeline. Consider: (a) mark this test as part of `apps/api`'s CI lane, or (b) add a bun-side integrity check that imports the JSON and asserts a known SHA. Not a blocker — drift is recoverable by regenerating from the Python source, and the error message tells you exactly what to run. But enforcement is fragile.
+
+`[OBS]` — **T1 spec decision #3 is factually wrong.** The spec at Decision #3 claims "A working `bootstrap_ci` already exists at `pipeline/practice_eval/analyze_e2e.py`". It does not — grep across the file returns zero matches. What *does* exist is `test_analyze_e2e.py` (verified at :26, :35) importing `bootstrap_ci` from that exact path, so the test file is currently broken against head. T1's implementation step (write `bootstrap_ci` fresh in `shared/stats.py` + re-export through `analyze_e2e.py`) fortuitously repairs the pre-existing broken import — T1 Step 4 runs both `test_stats.py` AND `test_analyze_e2e.py`, so the repair is verified. Net effect: plan is correct, spec decision is misdescribed. Update the spec after /challenge or carry as a known minor inaccuracy.
+
+**Test Philosophy Audit.** I walked every task's test code:
+- No test mocks an internal collaborator of the module under test.
+- No test calls a private method directly (underscored functions like `_assert_models_compatible`, `_build_row`, `_parse_v2_response`, `_composite` are called — but each is an intentionally module-level pure helper promoted for testability, not a private method of an object being probed through a side channel).
+- No test asserts on internal state without going through a public surface.
+- Tests exercise observable behavior: dataclass fields, function return values, file contents, JSONL row structure.
+
+One borderline case worth flagging: **T11 tests `prompts.ts` via `bun test` but `teacher.ts` gets no dedicated behavior test** — it relies on the TypeScript compiler to enforce the new required `composer: string` parameter in `buildSynthesisFraming`. Acceptable for a strongly-typed language (compile errors *are* test failures in TS), but a bun-side smoke test that the synthesis prompt changes shape when a known composer is passed would tighten coverage. Not a blocker. [OBS]
+
+**Vertical Slice Audit.**
+19 tasks × 5 steps each. I spot-checked Groups A, B, C, D, F (the groups with the most interdependent tasks). Each task is one test → one implementation → one commit. No task bundles multiple tests before any implementation. No task writes scaffolding tests for later tasks. No task defers implementation. Clean. [OBS]
+
+**Test Coverage Gaps.**
+
+```
+[+] shared/stats.py
+    ├── bootstrap_ci() — happy path [★★], determinism [★★], small sample [★★★]
+    └── cohens_d()    — zero case, positive case, degenerate [★★★]
+
+[+] shared/style_rules.py
+    ├── composer_to_era()   — 4 eras + unknown [★★★]
+    └── get_style_guidance()— 2 eras + unknown + XML shape [★★★]
+
+[+] shared/run_provenance.py
+    └── make_run_provenance() — returns dataclass with git_sha [★★]
+        ├── [GAP] what happens when CWD is not a git repo?
+        ├── [GAP] what happens when git is not on PATH?
+
+[+] shared/judge_compatibility.py
+    └── assert_judge_compatible() — same-family raises, cross-family passes [★★★]
+
+[+] LLMClient.complete (OpenRouter provider)
+    └── _build_openrouter_payload() — pure helper test only [★★]
+        ├── [GAP] no test for HTTP error path (500, 429, timeout)
+        ├── [GAP] no test for missing OPENROUTER_API_KEY env var
+
+[+] shared/judge._parse_v2_response
+    ├── legacy single-score row [★★★]
+    ├── new process/outcome row [★★★]
+    ├── N/A process + N/A outcome [★★★]
+    ├── N/A process + numeric outcome [★★★]
+    └── parse failure [★★]
+        └── [OBS] parse_failure returns score=0 with process/outcome=None — verify at T12
+
+[+] teaching_knowledge.run_eval._assert_models_compatible
+    ├── claude vs claude rejected [★★★]
+    ├── claude vs anthropic/claude-slug rejected [★★★]
+    ├── claude vs @cf/google/gemma accepted [★★★]
+    ├── claude vs openai/gpt accepted [★★★]
+    └── [GAP] claude-sonnet-4-6 (bare) vs bare claude — see RISK above
+```
+
+`[RISK] (confidence: 6/10)` — **`make_run_provenance()` has no defensive test for non-git or missing-git environments.** If someone runs the eval runner from a tarball extraction or in a CI job without `.git`, the subprocess call will fail. T3's implementation needs to decide: fail loudly, or emit `git_sha="unknown"` with a warning? Either is defensible; both need a test. Verify this is actually an issue — the plan may already handle it and I missed it during my T3 scan.
+
+`[OBS]` — **OpenRouter HTTP failure paths are untested.** T5's payload-builder test is pure but there's no test for what happens on a 500/429/connection-error response. `LLMClient._workers_ai_complete` at the existing code has a shape check (`response.status_code != 200`); T5 should inherit the same pattern — if it does, coverage is fine. Check during T5 execution.
+
+**Failure Modes.**
+
+For each task, I asked "what happens if this fails mid-execution?":
+- T1 fails mid-way: `shared/stats.py` exists but `analyze_e2e.py` re-export is partial → `test_analyze_e2e.py` is broken in a new way. Recovery: finish the edit. Not a corrupt state.
+- T8 (`tag_dataset.py`) fails mid-way: partial JSONL on disk. Script is idempotent per video_id, re-run covers the gap. OK.
+- T10 (split.py) fails mid-way: no split file written, or partial JSON written. `json.dump` is atomic-enough for small files; re-run resolves. OK.
+- T11 (TS edit) fails mid-way: `prompts.ts` edited but `teacher.ts` still passes 6 args → TS compile error blocks deploy. Loud failure, no silent state. OK.
+- T17 misroute: **silent downstream error** — see RISK above.
+
+No silent failures found anywhere else. [OBS]
+
+### Presumption Inventory
+
+| Assumption | Verdict | Reason |
+|---|---|---|
+| `bootstrap_ci` exists at `pipeline/practice_eval/analyze_e2e.py` (spec #3) | **FALSE → repaired** | Does not exist today; T1 writes it and fortuitously fixes a broken pre-existing import in `test_analyze_e2e.py` |
+| `shared/` is importable as a top-level Python package | SAFE | T2 creates `shared/__init__.py` if missing; existing `shared/judge.py` and `shared/llm_client_gpt.py` already use this layout |
+| `numpy` is available in the `apps/evals` uv env | SAFE | `pipeline/practice_eval/analyze_e2e.py` already imports numpy at :23 |
+| `cd apps/evals && uv run pytest tests/...` discovers tests correctly | SAFE | Existing `test_analyze_e2e.py` and `test_judge.py` already live under this layout |
+| `pieceMetadata` in `buildSynthesisFraming` caller has a `.composer` field | VALIDATE | Typed `unknown` in `teacher.ts`; T11 does a defensive `as { composer?: string }` cast with `?? ""` fallback — safe, but the caller at `teacher.ts:546` is the only callsite and the metadata shape is set upstream in `synthesize()` — trace end-to-end during T11 |
+| OpenRouter serves `openai/gpt-5.4-mini` and `anthropic/claude-sonnet-4-6` slugs | VALIDATE | Standard catalog slugs, but nothing in the plan verifies they're current at execution time. Smoke-test with a 1-token call before landing T5 |
+| `git rev-parse HEAD` works in the execution environment for T3 | VALIDATE | Local dev + CI are fine; tarball extractions or sandboxed containers may fail. See GAP above |
+| `test_style_rules_mirror.py` runs on every change that could drift it | RISKY | T9 only enforces via pytest; a TS-only PR editing the mirror file won't trip it unless eval tests are in the TS CI lane |
+| Workers AI at `@cf/google/gemma-4-26b-a4b-it` remains stable for Phase 1 | SAFE | Prod is already on this model (see MEMORY notes: "disabling reasoning on gemma-4") |
+| Anthropic `claude-sonnet-4-6` is the current prod teacher name | SAFE | Confirmed in `teacher.ts:565` (`callAnthropic(..., { model: "claude-sonnet-4-20250514", ... })`) — wait. |
+
+**One more issue surfaces from the presumption check:** `teacher.ts:565` calls `callAnthropic` with model `"claude-sonnet-4-20250514"` but the plan and memory both speak of `"claude-sonnet-4-6"` as the prod teacher name. These are not obviously the same model. Either (a) `claude-sonnet-4-6` is the eval alias and `claude-sonnet-4-20250514` is the API model ID, or (b) there's genuine drift between prod and eval.
+
+`[QUESTION]` — **What is the canonical model string for the prod Sonnet teacher?** `teacher.ts:565` says `claude-sonnet-4-20250514`, the plan's `--teacher-model` default is `claude-sonnet-4-6`, and memory says "Claude Sonnet 4.6". If these map to the same deployed model at Anthropic, document the mapping in a comment at the T17 `--teacher-model` default. If they're different models, the eval baseline isn't actually testing prod and P0 needs a fix.
+
+### Summary
+
+- `[BLOCKER]` count: **0**
+- `[RISK]` count: **2** (T17 provider autodetect silent misroute; make_run_provenance non-git environment handling)
+- `[QUESTION]` count: **2** (teacher model string canonical form; spec decision #3 correction policy)
+- `[OBS]` count: **11**
+
+---
+
+**VERDICT: PROCEED_WITH_CAUTION** — risks to monitor during execution:
+1. At T17, harden the judge-provider autodetect so bare `claude-*` names either route correctly or raise a loud ValueError instead of silently misrouting to Workers AI. Recommended: have `assert_judge_compatible` return `(family, provider)` so T17's autodetect comes from the compatibility table, not slash-parsing.
+2. At T3, add a test for `make_run_provenance` running in a non-git CWD — decide whether to fail loudly or stamp `git_sha="unknown"`, and pin the chosen behavior.
+3. Before executing T11, verify the canonical prod teacher model string (`claude-sonnet-4-6` vs `claude-sonnet-4-20250514`) and pin the default in `run_eval.py` to the same string Anthropic actually accepts.
+4. After landing T9, decide whether to include `test_style_rules_mirror.py` in the `apps/api` CI lane or accept the pytest-only drift guard.
+5. At T6, verify `parse_failure` row semantics interact correctly with T12's aggregate null-handling before freezing the baseline.
+
+None of these rise to BLOCKER. Every issue has a defined mitigation that fits in the existing task shape. Plan is ready to execute once these are acknowledged.
