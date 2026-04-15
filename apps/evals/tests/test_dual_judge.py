@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from teaching_knowledge.scripts.dual_judge import (
-    DimensionAgreement,
     _spearman,
     compute_agreement,
 )

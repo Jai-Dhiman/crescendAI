@@ -28,11 +28,6 @@ class DimensionAgreement:
     n: int
 
 
-@dataclass
-class DualJudgeReport:
-    dimensions: list[DimensionAgreement]
-    n_compared: int
-
 
 def _rank(values: list[float]) -> list[float]:
     """Dense rank with average-tie-breaking."""
@@ -85,6 +80,8 @@ def _index_by_recording(rows: list[dict]) -> dict[str, dict[str, float]]:
             score = dim.get("score")
             if score is not None:
                 crit_scores[dim["criterion"]] = float(score)
+        if rid in out:
+            raise ValueError(f"duplicate recording_id: {rid}")
         out[rid] = crit_scores
     return out
 
