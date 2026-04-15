@@ -25,10 +25,13 @@ export const Route = createFileRoute("/app")({
 });
 
 function AppLayout() {
-	const isChatsRoute = useRouterState({
-		select: (s) => s.matches.some((m) => m.routeId === "/app/chats"),
+	const hasChildRoute = useRouterState({
+		select: (s) =>
+			s.matches.some(
+				(m) => m.routeId === "/app/chats" || m.routeId === "/app/sandbox",
+			),
 	});
 
-	if (isChatsRoute) return <Outlet />;
+	if (hasChildRoute) return <Outlet />;
 	return <AppChat />;
 }

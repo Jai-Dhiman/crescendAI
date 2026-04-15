@@ -953,6 +953,16 @@ export default function AppChat() {
 							</button>
 							<button
 								type="button"
+								onClick={() => {
+									setShowProfile(false);
+									navigate({ to: "/app/sandbox" });
+								}}
+								className="w-full text-left px-4 py-2 text-body-sm text-text-secondary hover:text-cream hover:bg-surface-2 transition rounded-lg flex items-center gap-2"
+							>
+								<span>Artifact Sandbox</span>
+							</button>
+							<button
+								type="button"
 								onClick={handleSignOut}
 								className="w-full text-left px-4 py-2 text-body-sm text-text-secondary hover:text-cream hover:bg-surface-2 transition rounded-lg flex items-center gap-2"
 							>

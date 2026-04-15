@@ -123,30 +123,25 @@ describe("OsmdManager.clipBars", () => {
 		const { osmdManager } = await import("./osmd-manager");
 		osmdManager.reset();
 
-		// Set up measureList with mock stave SVG elements
-		const svgNS = "http://www.w3.org/2000/svg";
-		const mockSvg = document.createElementNS(svgNS, "svg");
-		const mockStaveEl = document.createElementNS(svgNS, "rect");
-		mockSvg.appendChild(mockStaveEl);
-
-		// Override getBoundingClientRect on the mock elements
-		mockStaveEl.getBoundingClientRect = () => ({
-			top: 100, left: 50, bottom: 200, right: 350,
-			width: 300, height: 100, x: 50, y: 100, toJSON: () => {},
+		// Set up measureList with mock OSMD BoundingBox data
+		const mockBoundingBox = (x: number, y: number, w: number, h: number) => ({
+			absolutePosition: { x, y },
+			size: { width: w, height: h },
 		});
 
 		mockOsmdInstance.graphic = {
 			measureList: [
-				[{ stave: { SVGElement: mockStaveEl } }],  // bar 1
-				[{ stave: { SVGElement: mockStaveEl } }],  // bar 2
-				[{ stave: { SVGElement: mockStaveEl } }],  // bar 3
-				[{ stave: { SVGElement: mockStaveEl } }],  // bar 4
+				[{ boundingBox: mockBoundingBox(5, 10, 30, 20) }], // bar 1
+				[{ boundingBox: mockBoundingBox(40, 10, 30, 20) }], // bar 2
+				[{ boundingBox: mockBoundingBox(75, 10, 30, 20) }], // bar 3
+				[{ boundingBox: mockBoundingBox(110, 10, 30, 20) }], // bar 4
 			],
 		};
 
 		await osmdManager.ensureRendered("piece-with-measures");
 
 		// Add an SVG child to the container so querySelector("svg") finds it
+		const svgNS = "http://www.w3.org/2000/svg";
 		const cached = osmdManager.getOsmdInstance("piece-with-measures");
 		if (cached) {
 			const containerSvg = document.createElementNS(svgNS, "svg");
@@ -156,5 +151,6 @@ describe("OsmdManager.clipBars", () => {
 		const result = osmdManager.clipBars("piece-with-measures", 1, 4);
 		expect(result).not.toBeNull();
 		expect(result!.tagName.toLowerCase()).toBe("svg");
+		expect(result!.getAttribute("viewBox")).not.toBeNull();
 	});
 });

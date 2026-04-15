@@ -15,6 +15,7 @@ import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as AppRouteImport } from './routes/app'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppIndexRouteImport } from './routes/app.index'
+import { Route as AppSandboxRouteImport } from './routes/app.sandbox'
 import { Route as AppChatsRouteImport } from './routes/app.chats'
 import { Route as AppCConversationIdRouteImport } from './routes/app.c.$conversationId'
 
@@ -48,6 +49,11 @@ const AppIndexRoute = AppIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AppRoute,
 } as any)
+const AppSandboxRoute = AppSandboxRouteImport.update({
+  id: '/sandbox',
+  path: '/sandbox',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppChatsRoute = AppChatsRouteImport.update({
   id: '/chats',
   path: '/chats',
@@ -66,6 +72,7 @@ export interface FileRoutesByFullPath {
   '/signin': typeof SigninRoute
   '/terms': typeof TermsRoute
   '/app/chats': typeof AppChatsRoute
+  '/app/sandbox': typeof AppSandboxRoute
   '/app/': typeof AppIndexRoute
   '/app/c/$conversationId': typeof AppCConversationIdRoute
 }
@@ -75,6 +82,7 @@ export interface FileRoutesByTo {
   '/signin': typeof SigninRoute
   '/terms': typeof TermsRoute
   '/app/chats': typeof AppChatsRoute
+  '/app/sandbox': typeof AppSandboxRoute
   '/app': typeof AppIndexRoute
   '/app/c/$conversationId': typeof AppCConversationIdRoute
 }
@@ -86,6 +94,7 @@ export interface FileRoutesById {
   '/signin': typeof SigninRoute
   '/terms': typeof TermsRoute
   '/app/chats': typeof AppChatsRoute
+  '/app/sandbox': typeof AppSandboxRoute
   '/app/': typeof AppIndexRoute
   '/app/c/$conversationId': typeof AppCConversationIdRoute
 }
@@ -98,6 +107,7 @@ export interface FileRouteTypes {
     | '/signin'
     | '/terms'
     | '/app/chats'
+    | '/app/sandbox'
     | '/app/'
     | '/app/c/$conversationId'
   fileRoutesByTo: FileRoutesByTo
@@ -107,6 +117,7 @@ export interface FileRouteTypes {
     | '/signin'
     | '/terms'
     | '/app/chats'
+    | '/app/sandbox'
     | '/app'
     | '/app/c/$conversationId'
   id:
@@ -117,6 +128,7 @@ export interface FileRouteTypes {
     | '/signin'
     | '/terms'
     | '/app/chats'
+    | '/app/sandbox'
     | '/app/'
     | '/app/c/$conversationId'
   fileRoutesById: FileRoutesById
@@ -173,6 +185,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppIndexRouteImport
       parentRoute: typeof AppRoute
     }
+    '/app/sandbox': {
+      id: '/app/sandbox'
+      path: '/sandbox'
+      fullPath: '/app/sandbox'
+      preLoaderRoute: typeof AppSandboxRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/app/chats': {
       id: '/app/chats'
       path: '/chats'
@@ -192,12 +211,14 @@ declare module '@tanstack/react-router' {
 
 interface AppRouteChildren {
   AppChatsRoute: typeof AppChatsRoute
+  AppSandboxRoute: typeof AppSandboxRoute
   AppIndexRoute: typeof AppIndexRoute
   AppCConversationIdRoute: typeof AppCConversationIdRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
   AppChatsRoute: AppChatsRoute,
+  AppSandboxRoute: AppSandboxRoute,
   AppIndexRoute: AppIndexRoute,
   AppCConversationIdRoute: AppCConversationIdRoute,
 }

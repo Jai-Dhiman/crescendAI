@@ -5,7 +5,11 @@ import { useArtifactScrollContext } from "../contexts/artifact-scroll";
 import { useEscapeKey } from "../hooks/useDom";
 import { useMountEffect } from "../hooks/useFoundation";
 import type { ArtifactEntry } from "../stores/artifact";
-import { getExpandedArtifact, useArtifactStore } from "../stores/artifact";
+import {
+	getExpandedArtifact,
+	selectExpandedId,
+	useArtifactStore,
+} from "../stores/artifact";
 import { ExerciseSetExpanded } from "./cards/ExerciseSetExpanded";
 
 interface ArtifactOverlayContentProps {
@@ -118,11 +122,12 @@ export function ArtifactOverlay() {
 }
 
 function ArtifactOverlayInner() {
-	const expanded = useArtifactStore((s) => getExpandedArtifact(s));
-
-	if (!expanded) return null;
-
-	return (
-		<ArtifactOverlayContent expandedId={expanded.id} entry={expanded.entry} />
+	const expandedId = useArtifactStore(selectExpandedId);
+	const entry = useArtifactStore((s) =>
+		expandedId ? s.states[expandedId] : null,
 	);
+
+	if (!expandedId || !entry) return null;
+
+	return <ArtifactOverlayContent expandedId={expandedId} entry={entry} />;
 }

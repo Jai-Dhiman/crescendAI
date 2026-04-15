@@ -84,49 +84,56 @@ function clipBars(
 
 	// Bars are 1-indexed; measureList is 0-indexed
 	const startIdx = startBar - 1;
-	const endIdx = endBar - 1;
+	const endIdx = Math.min(endBar - 1, measureList.length - 1);
 
-	if (startIdx < 0 || endIdx >= measureList.length) return null;
+	if (startIdx < 0 || startIdx > endIdx) return null;
 
-	// Find bounding box spanning all target measures
+	// Use OSMD's BoundingBox system: absolutePosition is in abstract OSMD units.
+	// Multiplying by unitInPixels gives SVG pixel coordinates, which map directly
+	// to the viewBox coordinate space.
 	let minX = Infinity;
 	let minY = Infinity;
 	let maxX = -Infinity;
 	let maxY = -Infinity;
 
-	const containerRect = container.getBoundingClientRect();
-
 	for (let i = startIdx; i <= endIdx; i++) {
 		const measure = measureList[i]?.[0];
-		if (!measure?.stave?.SVGElement) continue;
+		if (!measure?.boundingBox) continue;
 
-		const svgEl = measure.stave.SVGElement as SVGElement;
-		const rect = svgEl.getBoundingClientRect();
+		const pos = measure.boundingBox.absolutePosition;
+		const size = measure.boundingBox.size;
+		if (!pos || !size) continue;
 
-		minX = Math.min(minX, rect.left - containerRect.left);
-		minY = Math.min(minY, rect.top - containerRect.top);
-		maxX = Math.max(maxX, rect.right - containerRect.left);
-		maxY = Math.max(maxY, rect.bottom - containerRect.top);
+		minX = Math.min(minX, pos.x);
+		minY = Math.min(minY, pos.y);
+		maxX = Math.max(maxX, pos.x + size.width);
+		maxY = Math.max(maxY, pos.y + size.height);
 	}
 
 	if (minX === Infinity) return null;
 
-	// Add padding
-	const pad = 10;
-	minX = Math.max(0, minX - pad);
-	minY = Math.max(0, minY - pad);
-	maxX += pad;
-	maxY += pad;
-
-	// Clone the container's SVG and set viewBox to the cropped region
 	const sourceSvg = container.querySelector("svg");
 	if (!sourceSvg) return null;
 
+	// Convert OSMD abstract units → SVG pixel coordinates
+	const unitInPixels: number =
+		// biome-ignore lint/suspicious/noExplicitAny: OSMD has no exported type
+		(osmd.EngravingRules as any)?.unitInPixels ??
+		// biome-ignore lint/suspicious/noExplicitAny: OSMD has no exported type
+		(osmd.rules as any)?.unitInPixels ??
+		10;
+
+	const pad = unitInPixels * 1.5;
+	const vbX = Math.max(0, minX * unitInPixels - pad);
+	const vbY = Math.max(0, minY * unitInPixels - pad);
+	const vbW = (maxX - minX) * unitInPixels + pad * 2;
+	const vbH = (maxY - minY) * unitInPixels + pad * 2;
+
 	const cloned = sourceSvg.cloneNode(true) as SVGElement;
-	cloned.setAttribute("viewBox", `${minX} ${minY} ${maxX - minX} ${maxY - minY}`);
+	cloned.setAttribute("viewBox", `${vbX} ${vbY} ${vbW} ${vbH}`);
 	cloned.setAttribute("width", "100%");
-	cloned.setAttribute("height", "auto");
-	cloned.style.maxHeight = "200px";
+	cloned.removeAttribute("height");
+	cloned.style.maxHeight = "180px";
 
 	return cloned;
 }

@@ -141,15 +141,8 @@ export function Artifact({ artifactId, component }: ArtifactProps) {
 	}
 
 	if (artifactState === "expanded") {
-		return (
-			<div ref={elementRef}>
-				<InlineCard
-					component={component}
-					onExpand={() => {}}
-					artifactId={artifactId}
-				/>
-			</div>
-		);
+		// The ArtifactOverlay portal handles rendering; nothing needed inline.
+		return <div ref={elementRef} />;
 	}
 
 	// inline (default)

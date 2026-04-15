@@ -45,6 +45,16 @@ export function getExpandedArtifact(
 	return expanded ? { id: expanded[0], entry: expanded[1] } : null;
 }
 
+// Returns a stable primitive suitable for useSyncExternalStore-based selectors.
+export function selectExpandedId(
+	state: Pick<ArtifactStore, "states">,
+): string | null {
+	const entry = Object.entries(state.states).find(
+		([_, e]) => e.state === "expanded",
+	);
+	return entry ? entry[0] : null;
+}
+
 export const useArtifactStore = create<ArtifactStore>((set) => ({
 	states: {},
 

@@ -1,4 +1,4 @@
-import { ArrowsOut } from "@phosphor-icons/react";
+import { ArrowsOut, CaretDown } from "@phosphor-icons/react";
 import { useState } from "react";
 import { api } from "../../lib/api";
 import { handsLabel } from "../../lib/exercise-utils";
@@ -18,6 +18,7 @@ interface ExerciseItemProps {
 	isExpanded: boolean;
 	onToggle: () => void;
 	artifactId?: string;
+	isFirst: boolean;
 }
 
 function ExerciseItem({
@@ -25,6 +26,7 @@ function ExerciseItem({
 	isExpanded,
 	onToggle,
 	artifactId,
+	isFirst,
 }: ExerciseItemProps) {
 	const [localState, setLocalState] = useState<LocalAssignState>("idle");
 
@@ -44,76 +46,90 @@ function ExerciseItem({
 		if (useStore && artifactId) {
 			setExerciseStatus(artifactId, exercise.exerciseId, "loading");
 			try {
-				await api.exercises.assign({ exerciseId: exercise.exerciseId! });
+				await api.exercises.assign({ exerciseId: exercise.exerciseId });
 				setExerciseStatus(artifactId, exercise.exerciseId, "assigned");
-			} catch (err) {
+			} catch {
 				setExerciseStatus(artifactId, exercise.exerciseId, "error");
 			}
 		} else {
 			setLocalState("loading");
 			try {
-				await api.exercises.assign({ exerciseId: exercise.exerciseId! });
+				await api.exercises.assign({ exerciseId: exercise.exerciseId });
 				setLocalState("assigned");
-			} catch (err) {
+			} catch {
 				setLocalState("error");
 			}
 		}
 	}
 
+	const actionLabel =
+		status === "loading"
+			? "Saving..."
+			: status === "assigned"
+				? "Saved"
+				: status === "completed"
+					? "Completed"
+					: status === "error"
+						? "Try again"
+						: "Add to practice";
+
+	const actionClass =
+		status === "assigned" || status === "completed"
+			? "border-accent/60 text-accent cursor-default"
+			: "border-border text-text-secondary hover:border-accent hover:text-cream";
+
 	return (
-		<div className="border border-border rounded-lg overflow-hidden">
+		<div>
+			{!isFirst && <div className="border-t border-border/50 mx-4" />}
 			<button
 				type="button"
 				onClick={onToggle}
-				className="w-full flex items-center justify-between px-3 py-2 text-left hover:bg-surface transition"
+				className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-surface/30 transition-colors group"
 			>
-				<span className="text-body-sm text-cream font-medium">
+				<span className="text-body-sm text-text-primary group-hover:text-cream transition-colors">
 					{exercise.title}
 				</span>
-				<div className="flex items-center gap-1.5 ml-2 shrink-0">
-					{exercise.hands && (
-						<span className="text-body-xs text-text-tertiary bg-surface px-1.5 py-0.5 rounded">
-							{handsLabel(exercise.hands)}
-						</span>
-					)}
-					<span className="text-body-xs text-text-tertiary">
-						{exercise.focusDimension}
-					</span>
-				</div>
+				<CaretDown
+					size={12}
+					weight="bold"
+					className={`text-text-tertiary shrink-0 transition-transform duration-200 ${
+						isExpanded ? "-rotate-180" : ""
+					}`}
+				/>
 			</button>
 			{isExpanded && (
-				<div className="px-3 pb-3 pt-1 border-t border-border">
-					<p className="text-body-sm text-text-secondary mb-3">
+				<div className="px-4 pb-4 flex flex-col gap-3">
+					<p className="text-body-sm text-text-secondary leading-relaxed">
 						{exercise.instruction}
 					</p>
-					{exercise.exerciseId && (
-						<button
-							type="button"
-							onClick={handleAssign}
-							disabled={
-								status === "loading" ||
-								status === "assigned" ||
-								status === "completed"
-							}
-							className={`text-body-xs px-3 py-1.5 rounded-lg border transition ${
-								status === "assigned" || status === "completed"
-									? "border-accent text-accent cursor-default"
-									: status === "error"
-										? "border-red-500 text-red-400 hover:bg-red-500/10"
-										: "border-border text-text-secondary hover:text-cream hover:border-accent hover:bg-surface disabled:opacity-50"
-							}`}
-						>
-							{status === "loading"
-								? "Assigning..."
-								: status === "assigned"
-									? "Added to practice"
-									: status === "completed"
-										? "Completed"
-										: status === "error"
-											? "Try again"
-											: "Try this"}
-						</button>
-					)}
+					<div className="flex items-center justify-between gap-4">
+						<div className="flex items-center gap-3 min-w-0">
+							{exercise.hands && (
+								<span className="text-label-sm text-text-tertiary uppercase tracking-wider">
+									{handsLabel(exercise.hands)}
+								</span>
+							)}
+							{exercise.focusDimension && (
+								<span className="text-label-sm text-text-tertiary">
+									{exercise.focusDimension}
+								</span>
+							)}
+						</div>
+						{exercise.exerciseId && (
+							<button
+								type="button"
+								onClick={handleAssign}
+								disabled={
+									status === "loading" ||
+									status === "assigned" ||
+									status === "completed"
+								}
+								className={`shrink-0 text-body-xs px-3 py-1.5 rounded-lg border transition-colors disabled:opacity-60 ${actionClass}`}
+							>
+								{actionLabel}
+							</button>
+						)}
+					</div>
 				</div>
 			)}
 		</div>
@@ -128,26 +144,34 @@ export function ExerciseSetCard({
 	const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
 
 	return (
-		<div className="bg-surface-card border border-border rounded-xl p-4 mt-3">
-			<div className="flex items-center justify-between mb-1">
-				<h4 className="text-body-sm font-medium text-accent">
-					{config.targetSkill}
-				</h4>
+		<div className="bg-surface-card border border-border rounded-xl overflow-hidden mt-3">
+			{/* Header */}
+			<div className="px-4 pt-4 pb-3 flex items-start justify-between gap-3">
+				<div className="min-w-0">
+					<h4 className="font-display text-body-md text-text-primary leading-snug">
+						{config.targetSkill}
+					</h4>
+					<p className="text-body-xs text-text-tertiary mt-0.5 truncate">
+						{config.sourcePassage}
+					</p>
+				</div>
 				{onExpand && (
 					<button
 						type="button"
 						onClick={onExpand}
-						className="text-text-tertiary hover:text-cream transition p-0.5 -mr-0.5"
+						className="shrink-0 text-text-tertiary hover:text-cream transition-colors pt-0.5"
 						aria-label="Expand exercise set"
 					>
 						<ArrowsOut size={14} />
 					</button>
 				)}
 			</div>
-			<p className="text-body-xs text-text-secondary mb-3">
-				{config.sourcePassage}
-			</p>
-			<div className="space-y-2">
+
+			{/* Divider */}
+			<div className="border-t border-border/60" />
+
+			{/* Exercise rows */}
+			<div>
 				{config.exercises.map((exercise, i) => (
 					<ExerciseItem
 						key={exercise.title}
@@ -155,6 +179,7 @@ export function ExerciseSetCard({
 						isExpanded={expandedIndex === i}
 						onToggle={() => setExpandedIndex(expandedIndex === i ? null : i)}
 						artifactId={artifactId}
+						isFirst={i === 0}
 					/>
 				))}
 			</div>
