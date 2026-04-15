@@ -421,6 +421,11 @@ def main() -> None:
     split_path = args.split_file
     if split_path is None and args.split != "all" and default_split_file.exists():
         split_path = default_split_file
+    if args.split != "all" and split_path is None:
+        raise FileNotFoundError(
+            f"--split {args.split} requires a splits.json file. "
+            f"Expected at {default_split_file}, or pass --split-file explicitly."
+        )
     run(
         limit=args.limit,
         out_path=args.out,

@@ -53,3 +53,21 @@ def test_filter_rejects_invalid_which(tmp_path: Path) -> None:
     splits.write_text(json.dumps({"train": [], "holdout": []}))
     with pytest.raises(ValueError):
         _filter_cache_files_by_split([], splits, which="nonsense")
+
+
+def test_main_raises_when_split_requested_but_no_splits_file(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """--split train must FAIL LOUDLY when no splits.json exists -- otherwise
+    the holdout protection the flag exists to provide is silently defeated."""
+    import sys
+
+    from teaching_knowledge import run_eval
+
+    # Redirect EVALS_ROOT to a tmp directory with no teaching_knowledge/data/splits.json
+    monkeypatch.setattr(run_eval, "EVALS_ROOT", tmp_path)
+    monkeypatch.setattr(sys, "argv", ["run_eval", "--split", "train"])
+
+    with pytest.raises(FileNotFoundError, match="splits.json"):
+        run_eval.main()
