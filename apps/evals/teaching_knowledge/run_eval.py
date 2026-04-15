@@ -191,10 +191,30 @@ def load_completed_ids(out_path: Path) -> set[str]:
     return completed
 
 
+def _filter_cache_files_by_split(
+    cache_files: list[Path],
+    split_path: Path | None,
+    which: str,
+) -> list[Path]:
+    """Filter cache files by split membership.
+
+    When split_path is None, returns the full list unchanged.
+    When which == "all", returns only files whose stem is in (train + holdout).
+    """
+    if split_path is None:
+        return cache_files
+    from teaching_knowledge.scripts.split import load_split
+
+    allowed = load_split(split_path, which=which)
+    return [f for f in cache_files if f.stem in allowed]
+
+
 def run(
     limit: int | None = None,
     out_path: Path | None = None,
     dry_run: bool = False,
+    split: str = "all",
+    split_path: Path | None = None,
 ) -> None:
     from teaching_knowledge.llm_client import LLMClient
     from shared.judge import judge_synthesis_v2
@@ -217,6 +237,8 @@ def run(
         if f.name != "_fingerprint.json"
     ]
     print(f"Cache files: {len(cache_files)}")
+    cache_files = _filter_cache_files_by_split(cache_files, split_path, which=split)
+    print(f"After split filter ({split}): {len(cache_files)}")
 
     completed_ids = load_completed_ids(out_path)
     if completed_ids:
@@ -382,8 +404,30 @@ def main() -> None:
         action="store_true",
         help="Synthesis only, skip judge (faster for prompt tuning checks)",
     )
+    parser.add_argument(
+        "--split",
+        choices=["train", "holdout", "all"],
+        default="all",
+        help="Filter recordings by split membership (default: all)",
+    )
+    parser.add_argument(
+        "--split-file",
+        type=Path,
+        default=None,
+        help="Path to splits.json (default: data/splits.json if present)",
+    )
     args = parser.parse_args()
-    run(limit=args.limit, out_path=args.out, dry_run=args.dry_run)
+    default_split_file = EVALS_ROOT / "teaching_knowledge" / "data" / "splits.json"
+    split_path = args.split_file
+    if split_path is None and args.split != "all" and default_split_file.exists():
+        split_path = default_split_file
+    run(
+        limit=args.limit,
+        out_path=args.out,
+        dry_run=args.dry_run,
+        split=args.split,
+        split_path=split_path,
+    )
 
 
 if __name__ == "__main__":
