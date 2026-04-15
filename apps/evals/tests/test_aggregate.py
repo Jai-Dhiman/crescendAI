@@ -6,7 +6,6 @@ from pathlib import Path
 
 from teaching_knowledge.scripts.aggregate import (
     AggregateResult,
-    DimensionAggregate,
     aggregate_run,
 )
 
@@ -113,6 +112,11 @@ def test_aggregate_run_computes_stratified_breakdowns(tmp_path: Path) -> None:
     assert abs(baroque_ppraise - 3.0) < 0.001  # (3+3)/2
     # (1+1+2)/3 = 1.333
     assert abs(romantic_ppraise - (4 / 3)) < 0.001
+
+    # by_skill must use string keys (matches dict[str, ...] type + JSON output)
+    assert "3" in result.by_skill
+    assert "5" in result.by_skill
+    assert abs(result.by_skill["3"]["Specific Positive Praise"] - 3.0) < 0.001
 
 
 def test_aggregate_skips_error_rows(tmp_path: Path) -> None:

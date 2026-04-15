@@ -35,7 +35,7 @@ class AggregateResult:
     composite_mean: float
     composite_ci: tuple[float, float] | None
     by_era: dict[str, dict[str, float]] = field(default_factory=dict)
-    by_skill: dict[int, dict[str, float]] = field(default_factory=dict)
+    by_skill: dict[str, dict[str, float]] = field(default_factory=dict)
     total_rows: int = 0
     run_id: str = ""
 
@@ -71,7 +71,7 @@ def aggregate_run(jsonl_path: Path, dataset_index_path: Path) -> AggregateResult
     all_composite: list[float] = []
 
     by_era: dict[str, dict[str, list[float]]] = defaultdict(lambda: defaultdict(list))
-    by_skill: dict[int, dict[str, list[float]]] = defaultdict(lambda: defaultdict(list))
+    by_skill: dict[str, dict[str, list[float]]] = defaultdict(lambda: defaultdict(list))
 
     total_rows = 0
     run_id = ""
@@ -107,7 +107,7 @@ def aggregate_run(jsonl_path: Path, dataset_index_path: Path) -> AggregateResult
                 row_scores.append(float(dim["score"]))
                 if tags:
                     by_era[tags["composer_era"]][crit].append(float(dim["score"]))
-                    by_skill[int(tags["skill_bucket"])][crit].append(float(dim["score"]))
+                    by_skill[str(int(tags["skill_bucket"]))][crit].append(float(dim["score"]))
 
         if row_scores:
             all_composite.append(sum(row_scores) / len(row_scores))
@@ -135,7 +135,7 @@ def aggregate_run(jsonl_path: Path, dataset_index_path: Path) -> AggregateResult
         era: {crit: sum(vals) / len(vals) for crit, vals in crits.items() if vals}
         for era, crits in by_era.items()
     }
-    by_skill_final: dict[int, dict[str, float]] = {
+    by_skill_final: dict[str, dict[str, float]] = {
         skill: {crit: sum(vals) / len(vals) for crit, vals in crits.items() if vals}
         for skill, crits in by_skill.items()
     }
