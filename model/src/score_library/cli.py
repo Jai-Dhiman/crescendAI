@@ -113,6 +113,13 @@ def cmd_build(args):
     cmd_upload(args)
 
 
+def cmd_upload_mxl(args):
+    from score_library.upload import upload_mxl_to_r2
+
+    asap_dir = Path(args.asap_dir)
+    upload_mxl_to_r2(asap_dir, version=args.version, dry_run=args.dry_run)
+
+
 def cmd_fingerprint(args):
     from score_library.fingerprint import build_ngram_index, build_rerank_features
 
@@ -168,6 +175,14 @@ def main():
     p_build.add_argument("--seed-output")
     p_build.add_argument("--skip-r2", action="store_true")
 
+    p_upload_mxl = sub.add_parser(
+        "upload-mxl",
+        help="Upload score.musicxml files from the ASAP dataset to R2 for OSMD rendering",
+    )
+    p_upload_mxl.add_argument("--asap-dir", required=True, help="Root of the cloned ASAP dataset (e.g. data/raw/asap)")
+    p_upload_mxl.add_argument("--version", default="v1", help="R2 key version prefix (default: v1)")
+    p_upload_mxl.add_argument("--dry-run", action="store_true", help="Print what would be uploaded without uploading")
+
     p_fingerprint = sub.add_parser("fingerprint", help="Build N-gram index and rerank features")
     p_fingerprint.add_argument("--scores-dir", required=True, help="Directory containing score JSON files")
     p_fingerprint.add_argument("--output-dir", required=True, help="Output directory for fingerprint artifacts")
@@ -180,7 +195,14 @@ def main():
 
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
-    {"parse": cmd_parse, "stats": cmd_stats, "upload": cmd_upload, "build": cmd_build, "fingerprint": cmd_fingerprint}[args.command](args)
+    {
+        "parse": cmd_parse,
+        "stats": cmd_stats,
+        "upload": cmd_upload,
+        "build": cmd_build,
+        "upload-mxl": cmd_upload_mxl,
+        "fingerprint": cmd_fingerprint,
+    }[args.command](args)
 
 
 if __name__ == "__main__":

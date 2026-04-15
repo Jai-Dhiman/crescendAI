@@ -5,6 +5,8 @@ import json
 import os
 from pathlib import Path
 
+from score_library.discover import derive_piece_id
+
 
 def generate_d1_seed(source_dir: Path, output_path: Path | None = None) -> Path:
     """Generate INSERT SQL from parsed score JSON files.
@@ -145,3 +147,90 @@ def upload_to_r2(source_dir: Path, version: str = "v1") -> None:
         raise RuntimeError(f"Upload count mismatch: uploaded {uploaded}, expected {len(json_files)}")
 
     print(f"Uploaded {uploaded} scores to R2 (bucket={bucket}, prefix=scores/{version}/)")
+
+
+def upload_mxl_to_r2(asap_dir: Path, version: str = "v1", dry_run: bool = False) -> None:
+    """Upload MusicXML score files from the ASAP dataset to Cloudflare R2.
+
+    Walks the ASAP directory tree looking for ``score.musicxml`` files
+    (one per piece directory). Derives the canonical piece_id using the
+    same logic as ``discover_pieces``, then uploads each file to R2 at
+    ``scores/{version}/{piece_id}.mxl``.
+
+    The API route ``GET /api/scores/:pieceId/data`` fetches these objects
+    and returns them to the web client for OSMD sheet-music rendering.
+
+    Args:
+        asap_dir: Root of the cloned ASAP dataset (e.g. ``data/raw/asap``).
+        version: R2 key version prefix (default: ``v1``).
+        dry_run: If True, print what would be uploaded without doing it.
+
+    Requires environment variables (when not dry_run):
+        R2_ACCOUNT_ID
+        R2_ACCESS_KEY_ID
+        R2_SECRET_ACCESS_KEY
+    """
+    if not asap_dir.exists():
+        raise FileNotFoundError(f"ASAP directory not found: {asap_dir}")
+
+    # Collect all xml_score.musicxml files, one per piece directory.
+    # The ASAP structure has exactly one musicxml per piece dir alongside midi_score.mid.
+    musicxml_files: list[tuple[str, Path]] = []
+    for mxl_path in sorted(asap_dir.rglob("xml_score.musicxml")):
+        piece_dir = mxl_path.parent
+        piece_id = derive_piece_id(piece_dir, asap_dir)
+        musicxml_files.append((piece_id, mxl_path))
+
+    if not musicxml_files:
+        raise FileNotFoundError(
+            f"No xml_score.musicxml files found in {asap_dir}. "
+            "Check that the ASAP dataset is checked out with: "
+            "git sparse-checkout set '**/xml_score.musicxml'"
+        )
+
+    print(f"Found {len(musicxml_files)} score.musicxml files")
+
+    if dry_run:
+        for piece_id, path in musicxml_files[:10]:
+            print(f"  [dry] scores/{version}/{piece_id}.mxl <- {path.relative_to(asap_dir)}")
+        if len(musicxml_files) > 10:
+            print(f"  ... and {len(musicxml_files) - 10} more")
+        return
+
+    import boto3
+
+    account_id = os.environ["R2_ACCOUNT_ID"]
+    access_key = os.environ["R2_ACCESS_KEY_ID"]
+    secret_key = os.environ["R2_SECRET_ACCESS_KEY"]
+
+    s3 = boto3.client(
+        "s3",
+        endpoint_url=f"https://{account_id}.r2.cloudflarestorage.com",
+        aws_access_key_id=access_key,
+        aws_secret_access_key=secret_key,
+        region_name="auto",
+    )
+
+    bucket = "crescendai-bucket"
+    uploaded = 0
+    skipped = 0
+
+    for piece_id, mxl_path in musicxml_files:
+        key = f"scores/{version}/{piece_id}.mxl"
+        try:
+            s3.upload_file(
+                str(mxl_path),
+                bucket,
+                key,
+                ExtraArgs={"ContentType": "application/vnd.recordare.musicxml+xml"},
+            )
+            uploaded += 1
+            if uploaded % 50 == 0:
+                print(f"  Uploaded {uploaded}/{len(musicxml_files)}...")
+        except Exception as e:
+            print(f"  SKIP {piece_id}: {e}")
+            skipped += 1
+
+    print(f"\nDone. Uploaded {uploaded} MXL files to R2 (bucket={bucket}, prefix=scores/{version}/)")
+    if skipped:
+        print(f"Skipped {skipped} files due to errors")
