@@ -28,6 +28,7 @@ import yaml
 
 from shared.style_rules import get_style_guidance
 from shared.provenance import RunProvenance, make_run_provenance
+from shared.judge_compatibility import assert_judge_compatible
 
 # Root paths
 EVALS_ROOT = Path(__file__).resolve().parents[1]
@@ -68,6 +69,10 @@ A JSON object with the full session context: duration, practice pattern (modes a
 ## Calibration
 
 The MuQ audio model has R2~0.5 and 80% pairwise accuracy. Scores are directional signals, not precise measurements. A deviation of 0.1 is noise; 0.2+ is meaningful. Use deviations to identify patterns, not to make absolute claims."""
+
+
+def _assert_models_compatible(teacher_model: str, judge_model: str) -> None:
+    assert_judge_compatible(teacher_model, judge_model)
 
 
 def load_manifests() -> dict[str, dict[str, Any]]:
@@ -248,9 +253,14 @@ def run(
     dry_run: bool = False,
     split: str = "all",
     split_path: Path | None = None,
+    teacher_model: str = "claude-sonnet-4-6",
+    judge_model: str = "@cf/google/gemma-4-26b-a4b-it",
 ) -> None:
     from teaching_knowledge.llm_client import LLMClient
     from shared.judge import judge_synthesis_v2
+
+    if not dry_run:
+        _assert_models_compatible(teacher_model, judge_model)
 
     if out_path is None:
         RESULTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -277,10 +287,10 @@ def run(
     if completed_ids:
         print(f"Resuming -- {len(completed_ids)} already completed")
 
-    synthesis_client = LLMClient(provider="anthropic", tier="quality")
+    synthesis_client = LLMClient(provider="anthropic", model=teacher_model)
     print(f"Synthesis: {synthesis_client.model}")
     if not dry_run:
-        print("Judge:     @cf/google/gemma-4-26b-a4b-it (workers-ai)")
+        print(f"Judge:     {judge_model}")
 
     provenance = make_run_provenance()
     print(f"run_id: {provenance.run_id}")
@@ -345,10 +355,13 @@ def run(
                         "composer": meta["composer"],
                         "skill_level": meta["skill_bucket"],
                     }
+                    # Autodetect: @cf/* = workers-ai, vendor/model = openrouter (bare names unreachable here — family guard blocks them).
+                    judge_provider = "openrouter" if "/" in judge_model and not judge_model.startswith("@cf/") else "workers-ai"
                     judge_result = judge_synthesis_v2(
                         synthesis_text=synthesis_text,
                         context=judge_context,
-                        provider="workers-ai",
+                        provider=judge_provider,
+                        model=judge_model,
                     )
                     result = _build_row(
                         recording_id=recording_id,
@@ -449,6 +462,16 @@ def main() -> None:
         default=None,
         help="Path to splits.json (default: data/splits.json if present)",
     )
+    parser.add_argument(
+        "--teacher-model",
+        default="claude-sonnet-4-6",
+        help="Teacher model name (default: claude-sonnet-4-6)",
+    )
+    parser.add_argument(
+        "--judge-model",
+        default="@cf/google/gemma-4-26b-a4b-it",
+        help="Judge model name (default: @cf/google/gemma-4-26b-a4b-it)",
+    )
     args = parser.parse_args()
     default_split_file = EVALS_ROOT / "teaching_knowledge" / "data" / "splits.json"
     split_path = args.split_file
@@ -465,6 +488,8 @@ def main() -> None:
         dry_run=args.dry_run,
         split=args.split,
         split_path=split_path,
+        teacher_model=args.teacher_model,
+        judge_model=args.judge_model,
     )
 
 
