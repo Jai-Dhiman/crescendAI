@@ -9,12 +9,11 @@
 ## Context
 
 - **Track A (research) COMPLETE.** 73 transcripts, 379 teaching moments, 5-cluster playbook, 7-dim rubric, judge v2.
-- **Track B (infra) MOSTLY COMPLETE.** Inference cache at 890 recordings in `model/data/eval/inference_cache/auto-t5_http/` (MIDI key bug fixed, `midi_notes` vs `notes`). `teaching_knowledge/run_eval.py` exists as a 379-line resume-safe orchestrator.
-- **What's missing as of 2026-04-14:**
-  - `apps/evals/teaching_knowledge/results/` is empty — baseline has never been scored end-to-end.
-  - `run_eval.py` never loads `data/playbook.yaml` or injects composer-era style rules into the synthesis prompt (composer passes through as passive metadata only).
-  - `apps/api/src/services/prompts.ts` teacher prompt is style-agnostic (single generic "style" mention on line 41) — prod and eval both lack style guidance.
-  - No train/test split. No per-dimension aggregation with CIs. No dual-judge. No human calibration. No regression harness. No A/B scaffold for finetuned teacher.
+- **Track B (infra) COMPLETE as of 2026-04-15.** `feat/eval-baseline-readiness` shipped all infra that does NOT depend on valid MuQ scores: stratified tag/split, style injection (run_eval + prompts.ts), judge process/outcome schema, provenance (run_id + git_sha), cross-family judge guard, dual-judge Spearman calibration, aggregate with bootstrap CIs, regression check, A/B harness. Inference cache at 890 recordings.
+- **What's still blocking the locked baseline:**
+  - `apps/evals/teaching_knowledge/results/` is empty — the one-command baseline run (`run_eval.py --split train --teacher-model claude-sonnet-4-6 --judge-model @cf/google/gemma-4-26b-a4b-it`) still needs to be executed once the cache is refreshed with Model v2 inference.
+  - Judge prompt + rubric are not yet git-tagged `judge-v2.0-locked`. P0.8 freeze step still open.
+  - Phantom-criteria audit (P1.1) and human calibration (P1.8) not yet run.
 
 ## Eval Strategy (locked)
 
@@ -69,14 +68,14 @@
 
 **Exit criterion:** A locked Sonnet 4.6 baseline exists on disk with run_id, git_sha, per-dim scores, and a holdout set that has never been touched.
 
-- [ ] **P0.1** Write `scripts/tag_dataset.py`. Enrich each of the 890 cache entries with `composer_era` (Baroque/Classical/Romantic/Modern), `estimated_skill` (beginner/intermediate/advanced, inferred from piece difficulty), `duration_bucket` (<30s / 30-60s / 60s+). Persist to `data/dataset_index.jsonl`.
-- [ ] **P0.2** Write `scripts/split.py`. 80/20 stratified split keyed on (composer_era, estimated_skill). Persist to `data/splits.json`. Print stratification table. Document in a header comment: "holdout is sacred — never iterate prompts against it."
-- [ ] **P0.3** Extend `run_eval.py` to accept `--split {train,holdout,all}` and filter recordings by split membership. Default to `train`.
-- [ ] **P0.4** Extend `run_eval.py` to load `data/playbook.yaml`, resolve the synthesis recording's composer to an era, and inject era-specific dimension rules into `build_synthesis_user_msg()`. Style injection must be deterministic and logged.
-- [ ] **P0.5** Edit `apps/api/src/services/prompts.ts` teacher system prompt to add the same composer-era guidance. Run `gitnexus_impact` on `TEACHER_SYSTEM` (or whatever symbol holds the prompt) before editing.
-- [ ] **P0.6** Add `run_id` (git short SHA + UTC timestamp) and `git_sha` fields to `run_eval.py` output JSONL. Every judgment row carries its provenance.
-- [ ] **P0.7** Run the locked baseline: `run_eval.py --split train --teacher-model sonnet-4-6 --judge-model gemma-4 --no-dry-run`. Write to `results/baseline_sonnet46_judge-gemma4_2026-04-14.jsonl`. Estimate: ~$5 (Workers AI judge) + ~$15 (Sonnet synthesis) = ~$20, ~1 hour.
-- [ ] **P0.8** Freeze `synthesis_quality_judge_v2.txt` and `rubric_definition.json`. Git-tag as `judge-v2.0-locked`. Document in `EVAL_CHECKLIST.md` that any future judge edits require re-scoring all historical runs.
+- [x] **P0.1** Write `scripts/tag_dataset.py`. Enrich each of the 890 cache entries with `composer_era` (Baroque/Classical/Romantic/Modern), `estimated_skill` (beginner/intermediate/advanced, inferred from piece difficulty), `duration_bucket` (<30s / 30-60s / 60s+). Persist to `data/dataset_index.jsonl`.
+- [x] **P0.2** Write `scripts/split.py`. 80/20 stratified split keyed on (composer_era, estimated_skill). Persist to `data/splits.json`. Print stratification table. Document in a header comment: "holdout is sacred — never iterate prompts against it."
+- [x] **P0.3** Extend `run_eval.py` to accept `--split {train,holdout,all}` and filter recordings by split membership. Default to `train`.
+- [x] **P0.4** Extend `run_eval.py` to load `data/playbook.yaml`, resolve the synthesis recording's composer to an era, and inject era-specific dimension rules into `build_synthesis_user_msg()`. Style injection must be deterministic and logged.
+- [x] **P0.5** Edit `apps/api/src/services/prompts.ts` teacher system prompt to add the same composer-era guidance. Prod and eval now share `shared/data/style_rules.json` (mirrored from `apps/api/src/lib/style-rules.json`) so drift is impossible.
+- [x] **P0.6** Add `run_id` (git short SHA + UTC timestamp) and `git_sha` fields to `run_eval.py` output JSONL. Every judgment row carries its provenance.
+- [ ] **P0.7** Run the locked baseline: `run_eval.py --split train --teacher-model claude-sonnet-4-6 --judge-model @cf/google/gemma-4-26b-a4b-it --no-dry-run`. Write to `results/baseline_sonnet46_judge-gemma4_YYYYMMDD.jsonl`. **Blocked:** waiting for refreshed MuQ inference cache (Model v2 training output). Estimate: ~$5 (Workers AI judge) + ~$15 (Sonnet synthesis) = ~$20, ~1 hour.
+- [ ] **P0.8** Freeze `synthesis_quality_judge_v2.txt` and `rubric_definition.json`. Git-tag as `judge-v2.0-locked`. Document in `apps/evals/EVAL_CHECKLIST.md` that any future judge edits require re-scoring all historical runs.
 
 ## Phase P1 — Rubric rigor and dual-judge (3–4 days)
 
@@ -84,10 +83,10 @@
 
 - [ ] **P1.1** Phantom-criteria audit. Write `scripts/phantom_audit.py` — present each of the 7 dims with its definition, its 0/3 level descriptions, and 3 random example judgments from the P0.7 baseline. Decide per-dim: keep / merge / kill. Suspect candidates: "Autonomy-Supporting Motivation" and "Scaffolded Guided Discovery" (both LLM-extracted from `derive_rubrics.py`). Output: `data/rubric_audit_2026-04-14.md` with decisions and rationale.
 - [ ] **P1.2** If any dims are killed or merged, version-bump the rubric to v2.1, re-lock, re-score baseline. If all 7 dims survive, document the audit and move on.
-- [ ] **P1.3** Split process vs outcome in the judge output schema. Every dim now returns `{process: 0-3, outcome: 0-3}`. Process = "did the teacher notice / attempt the behavior." Outcome = "was the observation/advice correct given the performance." Update `judge_synthesis_v2()` accordingly.
-- [ ] **P1.4** Re-run baseline with the process/outcome schema on a 100-recording sample. Verify the two signals actually decorrelate (Pearson < 0.7). If they're tightly coupled, the split isn't buying anything and can be reverted.
-- [ ] **P1.5** Add GPT-5.4-mini as a second judge. Write `apps/evals/shared/llm_client_gpt.py` using the OpenAI SDK, add `--judge-model gpt-5.4-mini` support to `run_eval.py`.
-- [ ] **P1.6** Write `scripts/dual_judge.py`. Runs Gemma-4 and GPT-5.4-mini judges on the same 100-recording sample. Computes per-dim Spearman rank correlation and Cohen's kappa. Output: `results/dual_judge_calibration_YYYYMMDD.md`.
+- [x] **P1.3** Split process vs outcome in the judge output schema. Every dim now returns `{process: 0-3, outcome: 0-3}`. Process = "did the teacher notice / attempt the behavior." Outcome = "was the observation/advice correct given the performance." `judge_synthesis_v2()` + `DimensionScore` + `aggregate.py` all propagate the split.
+- [ ] **P1.4** Re-run baseline with the process/outcome schema on a 100-recording sample. Verify the two signals actually decorrelate (Pearson < 0.7). If they're tightly coupled, the split isn't buying anything and can be reverted. **Blocked on P0.7.**
+- [x] **P1.5** Add GPT-5.4-mini as a second judge. Routed via OpenRouter (not OpenAI SDK — `LLMClient(provider="openrouter")` with `openai/gpt-5.4-mini`). `run_eval.py --judge-model` autodetects provider from the model id; cross-family guard in `shared/judge_compatibility.py` blocks same-family teacher/judge pairings.
+- [x] **P1.6** Write `scripts/dual_judge.py`. Runs two judges side-by-side, computes per-dim Spearman rank correlation with trust-level classification (high / uncertain / low). Output: `results/dual_judge_agreement_YYYYMMDD.json`. Cohen's kappa deferred — Spearman alone is the current gate.
 - [ ] **P1.7** Classify dimensions by judge agreement: **high-trust** (Spearman > 0.7) — trust the cheap judge going forward; **uncertain** (0.4–0.7) — require dual-judge mean; **low-trust** (< 0.4) — route to human calibration in P1.8 before trusting any automated number on these dims.
 - [ ] **P1.8** Human calibration, minimum 20 syntheses, scoped to low-trust dims only. Sit down with the rubric, score blind, compute Spearman vs each judge per dim. This replaces the originally-planned "50 expert syntheses" step by scoping human effort to dims where judges disagree.
 
@@ -95,8 +94,8 @@
 
 **Exit criterion:** A repeatable harness iteration loop that takes a proposed prompt change, validates it against the optimization (train) set, checks non-regression on holdout, and runs a human review gate.
 
-- [ ] **P2.1** Write `scripts/aggregate.py`. Reads a run's JSONL, outputs `results/<run_id>_aggregate.json` with per-dim mean, stddev, bootstrap CI (n=1000), composite, and stratified breakdowns by composer_era and skill. ~120 lines numpy/scipy.
-- [ ] **P2.2** Write `scripts/regression_check.py`. Given two run ids, prints a per-dim delta with significance (CIs overlapping = null, non-overlapping = signal). Flag any dim regressed by >1 CI.
+- [x] **P2.1** Write `scripts/aggregate.py`. Reads a run's JSONL, outputs `results/<run_id>_aggregate.json` with per-dim mean, bootstrap CI, composite, and stratified breakdowns by composer_era and skill. Pure-Python bootstrap in `shared/stats.py` (no scipy dep).
+- [x] **P2.2** Write `scripts/regression_check.py`. Given two run ids, prints a per-dim delta with significance (CIs overlapping = null, non-overlapping = signal). Flag any dim regressed by >1 CI.
 - [ ] **P2.3** Wire `/autoresearch` skill to run `run_eval.py --split train` as the metric function, with composite as the optimized quantity. Guard: holdout split must not be touched during autoresearch.
 - [ ] **P2.4** Run first prompt hill-climb experiment: one targeted change to teacher prompt (candidate: Style-Consistent dim, since it scored 0/3 in the old smoke test). Measure train-set delta, verify non-regression on other dims, then unlock holdout and verify the gain generalizes.
 - [ ] **P2.5** Production trace flywheel. Sample ~5% of web-beta session syntheses into `data/production_trace_queue.jsonl`. Weekly human review promotes interesting failures into the eval as new cases, tagged with composer_era + skill + failure mode. This is the wiki's "dogfood → eval" flywheel and keeps the eval from going stale as the product evolves.
@@ -106,7 +105,7 @@
 
 **Exit criterion:** A one-command A/B harness that compares finetuned Qwen vs best-prompt Sonnet on train + holdout, with per-dim deltas and bootstrap CIs.
 
-- [ ] **P3.1** Write `teacher_model/eval_ab.py`. Thin wrapper: runs `run_eval.py` twice (baseline Sonnet + finetuned Qwen), diffs aggregates, prints a per-dim delta table with significance flags. ~80 lines on top of `aggregate.py`.
+- [x] **P3.1** Write `teacher_model/eval_ab.py`. Thin wrapper: composes `aggregate_run()` + `check_regression()` + efficiency delta (synthesis/judge latency) + verdict logic. Verdict: `CANDIDATE_WINS` / `CANDIDATE_LOSES` / `EQUIVALENT`. Dry-runnable on two Sonnet baselines to prove the A/B machinery works before introducing a finetuned teacher.
 - [ ] **P3.2** Swap the judge lineup for Phase 2 — Sonnet 4.6 now permitted as judge (teacher is no longer Sonnet). Dual-judge: GPT-5.4-mini + Sonnet 4.6. Re-run dual-judge calibration (P1.6) under the new lineup to confirm agreement holds on the new teacher's outputs.
 - [ ] **P3.3** Gate the finetune against correctness first, efficiency second. Correctness: composite delta > 0 on holdout, no dim regressed. Efficiency: track cost/token/latency per synthesis — a finetune that matches Sonnet on composite but costs 10x less is a win; a finetune that scores +0.05 but takes 3x longer is not.
 - [ ] **P3.4** If the finetune beats Sonnet under the gate, promote it to prod. Otherwise: either iterate finetune training data (return to `project_teacher_model_finetuning.md` pipeline) or revert the decision and continue with prompt-engineered Sonnet.
