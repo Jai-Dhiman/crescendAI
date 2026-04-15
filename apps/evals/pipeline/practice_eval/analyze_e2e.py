@@ -22,6 +22,8 @@ from pathlib import Path
 
 import numpy as np
 
+from shared.stats import bootstrap_ci, cohens_d  # re-export for existing callers
+
 REPORTS_DIR = Path(__file__).parents[2] / "reports"
 
 CAPABILITIES = [
@@ -33,22 +35,6 @@ CAPABILITIES = [
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-def cohens_d(group1: list[float], group2: list[float]) -> float:
-    """Compute Cohen's d effect size between two groups."""
-    if len(group1) < 2 or len(group2) < 2:
-        return 0.0
-    m1, m2 = float(np.mean(group1)), float(np.mean(group2))
-    s1, s2 = float(np.std(group1, ddof=1)), float(np.std(group2, ddof=1))
-    n1, n2 = len(group1), len(group2)
-    denom = n1 + n2 - 2
-    if denom <= 0:
-        return 0.0
-    pooled = math.sqrt(((n1 - 1) * s1**2 + (n2 - 1) * s2**2) / denom)
-    if pooled == 0:
-        return 0.0
-    return float((m1 - m2) / pooled)
-
 
 def _effect_label(d: float) -> str:
     ad = abs(d)
