@@ -46,11 +46,19 @@ class CriterionScore:
 
 @dataclass
 class DimensionScore:
-    """Score for a v2 rubric dimension (0-3 scale, or None for N/A)."""
+    """Score for a v2 rubric dimension (0-3 scale, or None for N/A).
+
+    process: did the teacher notice / attempt the behavior?
+    outcome: was the advice correct given the actual performance?
+    score: composite of process + outcome (min when both present).
+    Legacy single-score responses set process == outcome == score.
+    """
     criterion: str
     score: int | None
     evidence: str
     reason: str
+    process: int | None = None
+    outcome: int | None = None
 
 
 @dataclass
@@ -350,35 +358,64 @@ def judge_synthesis_v2(
 def _parse_v2_response(response_text: str) -> list[DimensionScore]:
     """Parse v2 judge JSON response into DimensionScore list.
 
-    Handles score values of 0-3 (int) or "N/A" (mapped to None).
+    Handles both legacy single-score rows and new process/outcome rows:
+    - Legacy: {criterion, score, evidence, reason}
+      -> process = outcome = score (back-compat for existing fixtures)
+    - New:    {criterion, process, outcome, evidence, reason}
+      -> composite score = min(process, outcome) when both numeric,
+         or the non-None side when one is N/A, or None when both N/A
+    Score values of "N/A" (case-insensitive) map to None.
     """
+    def _coerce(raw: object) -> int | None:
+        if raw is None:
+            return None
+        if isinstance(raw, str) and raw.strip().upper() == "N/A":
+            return None
+        return int(raw)
+
+    def _composite(process: int | None, outcome: int | None) -> int | None:
+        if process is None and outcome is None:
+            return None
+        if process is None:
+            return outcome
+        if outcome is None:
+            return process
+        return min(process, outcome)
+
     try:
         data = json.loads(response_text)
         if not isinstance(data, list):
             data = [data]
-        dimensions = []
+        dimensions: list[DimensionScore] = []
         for entry in data:
-            raw_score = entry.get("score")
-            if isinstance(raw_score, str) and raw_score.strip().upper() == "N/A":
-                score: int | None = None
+            if "process" in entry or "outcome" in entry:
+                process = _coerce(entry.get("process"))
+                outcome = _coerce(entry.get("outcome"))
+                score = _composite(process, outcome)
             else:
-                score = int(raw_score) if raw_score is not None else None
+                score = _coerce(entry.get("score"))
+                process = score
+                outcome = score
             dimensions.append(
                 DimensionScore(
                     criterion=entry.get("criterion", "unknown"),
                     score=score,
                     evidence=entry.get("evidence", ""),
                     reason=entry.get("reason", ""),
+                    process=process,
+                    outcome=outcome,
                 )
             )
         return dimensions
-    except (json.JSONDecodeError, TypeError, KeyError) as e:
+    except (json.JSONDecodeError, TypeError, KeyError, ValueError) as e:
         return [
             DimensionScore(
                 criterion="parse_failure",
                 score=0,
                 evidence=f"Could not parse v2 judge response: {e}",
                 reason=response_text[:200],
+                process=None,
+                outcome=None,
             )
         ]
 
