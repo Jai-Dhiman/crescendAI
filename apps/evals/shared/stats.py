@@ -18,10 +18,14 @@ def bootstrap_ci(
     Returns None when N < 5 (not enough samples to produce a meaningful CI).
     Deterministic for a given seed.
     """
+    if n_bootstrap <= 0:
+        raise ValueError(f"bootstrap_ci: n_bootstrap must be positive, got {n_bootstrap}")
     if len(values) < 5:
         return None
-    rng = np.random.default_rng(seed)
     arr = np.asarray(values, dtype=float)
+    if not np.all(np.isfinite(arr)):
+        raise ValueError("bootstrap_ci: input contains non-finite values (NaN/inf)")
+    rng = np.random.default_rng(seed)
     boot_means = np.empty(n_bootstrap, dtype=float)
     n = len(arr)
     for i in range(n_bootstrap):

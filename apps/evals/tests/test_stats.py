@@ -42,3 +42,20 @@ def test_cohens_d_positive_when_group1_has_higher_mean() -> None:
 
 def test_cohens_d_returns_zero_for_single_element_groups() -> None:
     assert cohens_d([0.5], [0.6]) == 0.0
+
+
+def test_bootstrap_ci_raises_on_nan_input() -> None:
+    import math
+    with pytest.raises(ValueError, match="non-finite"):
+        bootstrap_ci([0.1, 0.2, math.nan, 0.4, 0.5, 0.6], n_bootstrap=100, seed=42)
+
+
+def test_bootstrap_ci_raises_on_inf_input() -> None:
+    import math
+    with pytest.raises(ValueError, match="non-finite"):
+        bootstrap_ci([0.1, 0.2, 0.3, math.inf, 0.5, 0.6], n_bootstrap=100, seed=42)
+
+
+def test_bootstrap_ci_raises_on_zero_bootstrap() -> None:
+    with pytest.raises(ValueError, match="n_bootstrap must be positive"):
+        bootstrap_ci([0.1, 0.2, 0.3, 0.4, 0.5, 0.6], n_bootstrap=0, seed=42)
