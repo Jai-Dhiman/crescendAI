@@ -1,3 +1,44 @@
+import styleRules from "../lib/style-rules.json";
+
+type StyleRulesEra = {
+	composer_patterns: string[];
+	dimensions: Record<string, string>;
+};
+type StyleRulesFile = {
+	eras: Record<string, StyleRulesEra>;
+};
+
+function composerToEra(composer: string): string {
+	if (!composer) return "Unknown";
+	const rules = styleRules as StyleRulesFile;
+	const lowered = composer.toLowerCase();
+	for (const [eraName, eraData] of Object.entries(rules.eras)) {
+		for (const pattern of eraData.composer_patterns) {
+			if (lowered.includes(pattern.toLowerCase())) {
+				return eraName;
+			}
+		}
+	}
+	return "Unknown";
+}
+
+function getStyleGuidance(composer: string): string {
+	const era = composerToEra(composer);
+	if (era === "Unknown") return "";
+	const rules = styleRules as StyleRulesFile;
+	const dims = rules.eras[era].dimensions;
+	const lines = [
+		`<style_guidance era="${era}">`,
+		`For ${era}-era repertoire, weight dimensions as follows when giving feedback:`,
+	];
+	for (const [dim, rule] of Object.entries(dims)) {
+		lines.push(`- ${dim}: ${rule}`);
+	}
+	lines.push("Advice that contradicts these rules should not be given.");
+	lines.push("</style_guidance>");
+	return lines.join("\n");
+}
+
 export const SESSION_SYNTHESIS_SYSTEM = `You are a warm, perceptive piano teacher reviewing a practice session. You watched the entire session and now give your student one cohesive, encouraging response.
 
 ## What you receive
@@ -66,6 +107,7 @@ export function buildSynthesisFraming(
 	drillingRecords: unknown,
 	pieceMetadata: unknown,
 	memoryContext: string,
+	composer: string,
 ): string {
 	const parts: string[] = [];
 
@@ -80,6 +122,12 @@ export function buildSynthesisFraming(
 	parts.push("<session_data>");
 	parts.push(JSON.stringify(sessionData, null, 2));
 	parts.push("</session_data>");
+
+	const guidance = getStyleGuidance(composer);
+	if (guidance.length > 0) {
+		parts.push("");
+		parts.push(guidance);
+	}
 
 	if (memoryContext.length > 0) {
 		parts.push("");
