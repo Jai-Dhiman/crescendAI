@@ -26,6 +26,10 @@ from typing import Any
 
 import yaml
 
+from shared.style_rules import get_style_guidance
+from shared.provenance import RunProvenance, make_run_provenance
+from shared.judge_compatibility import assert_judge_compatible
+
 # Root paths
 EVALS_ROOT = Path(__file__).resolve().parents[1]
 REPO_ROOT = EVALS_ROOT.parents[1]
@@ -65,6 +69,10 @@ A JSON object with the full session context: duration, practice pattern (modes a
 ## Calibration
 
 The MuQ audio model has R2~0.5 and 80% pairwise accuracy. Scores are directional signals, not precise measurements. A deviation of 0.1 is noise; 0.2+ is meaningful. Use deviations to identify patterns, not to make absolute claims."""
+
+
+def _assert_models_compatible(teacher_model: str, judge_model: str) -> None:
+    assert_judge_compatible(teacher_model, judge_model)
 
 
 def load_manifests() -> dict[str, dict[str, Any]]:
@@ -142,15 +150,24 @@ def build_synthesis_user_msg(
         },
     }
 
-    return "\n".join([
+    guidance = get_style_guidance(meta.get("composer", ""))
+
+    parts: list[str] = [
         "<session_data>",
         json.dumps(session_data, indent=2),
         "</session_data>",
-        "",
-        "<task>Write <analysis>...</analysis> first as a reasoning scratchpad (this will be stripped). "
-        "Then write your teacher response: 3-6 sentences, conversational, warm, specific. "
-        "Do not mention scores or numbers. Focus on what matters most for this session.</task>",
-    ])
+    ]
+    if guidance:
+        parts.append("")
+        parts.append(guidance)
+    parts.append("")
+    parts.append(
+        "<task>Write <analysis>...</analysis> first as a reasoning scratchpad "
+        "(this will be stripped). Then write your teacher response: 3-6 sentences, "
+        "conversational, warm, specific. Do not mention scores or numbers. Focus on "
+        "what matters most for this session.</task>"
+    )
+    return "\n".join(parts)
 
 
 def extract_teacher_response(raw: str) -> str:
@@ -180,13 +197,70 @@ def load_completed_ids(out_path: Path) -> set[str]:
     return completed
 
 
+def _filter_cache_files_by_split(
+    cache_files: list[Path],
+    split_path: Path | None,
+    which: str,
+) -> list[Path]:
+    """Filter cache files by split membership.
+
+    When split_path is None, returns the full list unchanged.
+    When which == "all", returns only files whose stem is in (train + holdout).
+    """
+    if split_path is None:
+        return cache_files
+    from teaching_knowledge.scripts.split import load_split
+
+    allowed = load_split(split_path, which=which)
+    return [f for f in cache_files if f.stem in allowed]
+
+
+def _build_row(
+    recording_id: str,
+    meta: dict,
+    muq_means: dict[str, float],
+    synthesis_text: str,
+    synthesis_latency_ms: int,
+    judge_dimensions: list[dict],
+    judge_model: str,
+    judge_latency_ms: int,
+    error: str,
+    provenance: RunProvenance,
+) -> dict:
+    """Build a single output-JSONL row with provenance stamped in."""
+    return {
+        "recording_id": recording_id,
+        "run_id": provenance.run_id,
+        "git_sha": provenance.git_sha,
+        "git_dirty": provenance.git_dirty,
+        "piece_slug": meta["piece_slug"],
+        "title": meta["title"],
+        "composer": meta["composer"],
+        "skill_bucket": meta["skill_bucket"],
+        "muq_means": muq_means,
+        "synthesis_text": synthesis_text,
+        "synthesis_latency_ms": synthesis_latency_ms,
+        "judge_dimensions": judge_dimensions,
+        "judge_model": judge_model,
+        "judge_latency_ms": judge_latency_ms,
+        "error": error,
+    }
+
+
 def run(
     limit: int | None = None,
     out_path: Path | None = None,
     dry_run: bool = False,
+    split: str = "all",
+    split_path: Path | None = None,
+    teacher_model: str = "claude-sonnet-4-6",
+    judge_model: str = "@cf/google/gemma-4-26b-a4b-it",
 ) -> None:
     from teaching_knowledge.llm_client import LLMClient
     from shared.judge import judge_synthesis_v2
+
+    if not dry_run:
+        _assert_models_compatible(teacher_model, judge_model)
 
     if out_path is None:
         RESULTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -206,15 +280,21 @@ def run(
         if f.name != "_fingerprint.json"
     ]
     print(f"Cache files: {len(cache_files)}")
+    cache_files = _filter_cache_files_by_split(cache_files, split_path, which=split)
+    print(f"After split filter ({split}): {len(cache_files)}")
 
     completed_ids = load_completed_ids(out_path)
     if completed_ids:
         print(f"Resuming -- {len(completed_ids)} already completed")
 
-    synthesis_client = LLMClient(provider="anthropic", tier="quality")
+    synthesis_client = LLMClient(provider="anthropic", model=teacher_model)
     print(f"Synthesis: {synthesis_client.model}")
     if not dry_run:
-        print("Judge:     @cf/google/gemma-4-26b-a4b-it (workers-ai)")
+        print(f"Judge:     {judge_model}")
+
+    provenance = make_run_provenance()
+    print(f"run_id: {provenance.run_id}")
+    print(f"git_sha: {provenance.git_sha}{' (dirty)' if provenance.git_dirty else ''}")
 
     processed = 0
     skipped_no_manifest = 0
@@ -257,70 +337,69 @@ def run(
                 synthesis_text = extract_teacher_response(raw)
 
                 if dry_run:
-                    result = {
-                        "recording_id": recording_id,
-                        "piece_slug": meta["piece_slug"],
-                        "title": meta["title"],
-                        "composer": meta["composer"],
-                        "skill_bucket": meta["skill_bucket"],
-                        "muq_means": muq_means,
-                        "synthesis_text": synthesis_text,
-                        "synthesis_latency_ms": round(synthesis_latency_ms),
-                        "judge_dimensions": [],
-                        "judge_model": "dry_run",
-                        "judge_latency_ms": 0,
-                        "error": "",
-                    }
+                    result = _build_row(
+                        recording_id=recording_id,
+                        meta=meta,
+                        muq_means=muq_means,
+                        synthesis_text=synthesis_text,
+                        synthesis_latency_ms=round(synthesis_latency_ms),
+                        judge_dimensions=[],
+                        judge_model="dry_run",
+                        judge_latency_ms=0,
+                        error="",
+                        provenance=provenance,
+                    )
                 else:
                     judge_context = {
                         "piece_name": meta["title"],
                         "composer": meta["composer"],
                         "skill_level": meta["skill_bucket"],
                     }
+                    # Autodetect: @cf/* = workers-ai, vendor/model = openrouter (bare names unreachable here — family guard blocks them).
+                    judge_provider = "openrouter" if "/" in judge_model and not judge_model.startswith("@cf/") else "workers-ai"
                     judge_result = judge_synthesis_v2(
                         synthesis_text=synthesis_text,
                         context=judge_context,
-                        provider="workers-ai",
+                        provider=judge_provider,
+                        model=judge_model,
                     )
-                    result = {
-                        "recording_id": recording_id,
-                        "piece_slug": meta["piece_slug"],
-                        "title": meta["title"],
-                        "composer": meta["composer"],
-                        "skill_bucket": meta["skill_bucket"],
-                        "muq_means": muq_means,
-                        "synthesis_text": synthesis_text,
-                        "synthesis_latency_ms": round(synthesis_latency_ms),
-                        "judge_dimensions": [
+                    result = _build_row(
+                        recording_id=recording_id,
+                        meta=meta,
+                        muq_means=muq_means,
+                        synthesis_text=synthesis_text,
+                        synthesis_latency_ms=round(synthesis_latency_ms),
+                        judge_dimensions=[
                             {
                                 "criterion": d.criterion,
+                                "process": d.process,
+                                "outcome": d.outcome,
                                 "score": d.score,
                                 "evidence": d.evidence,
                                 "reason": d.reason,
                             }
                             for d in judge_result.dimensions
                         ],
-                        "judge_model": judge_result.model,
-                        "judge_latency_ms": round(judge_result.latency_ms),
-                        "error": "",
-                    }
+                        judge_model=judge_result.model,
+                        judge_latency_ms=round(judge_result.latency_ms),
+                        error="",
+                        provenance=provenance,
+                    )
 
             except Exception as exc:
                 errors += 1
-                result = {
-                    "recording_id": recording_id,
-                    "piece_slug": meta["piece_slug"],
-                    "title": meta["title"],
-                    "composer": meta["composer"],
-                    "skill_bucket": meta["skill_bucket"],
-                    "muq_means": muq_means,
-                    "synthesis_text": "",
-                    "synthesis_latency_ms": 0,
-                    "judge_dimensions": [],
-                    "judge_model": "",
-                    "judge_latency_ms": 0,
-                    "error": str(exc),
-                }
+                result = _build_row(
+                    recording_id=recording_id,
+                    meta=meta,
+                    muq_means=muq_means,
+                    synthesis_text="",
+                    synthesis_latency_ms=0,
+                    judge_dimensions=[],
+                    judge_model="",
+                    judge_latency_ms=0,
+                    error=str(exc),
+                    provenance=provenance,
+                )
 
             fout.write(json.dumps(result) + "\n")
             fout.flush()
@@ -371,8 +450,47 @@ def main() -> None:
         action="store_true",
         help="Synthesis only, skip judge (faster for prompt tuning checks)",
     )
+    parser.add_argument(
+        "--split",
+        choices=["train", "holdout", "all"],
+        default="all",
+        help="Filter recordings by split membership (default: all)",
+    )
+    parser.add_argument(
+        "--split-file",
+        type=Path,
+        default=None,
+        help="Path to splits.json (default: data/splits.json if present)",
+    )
+    parser.add_argument(
+        "--teacher-model",
+        default="claude-sonnet-4-6",
+        help="Teacher model name (default: claude-sonnet-4-6)",
+    )
+    parser.add_argument(
+        "--judge-model",
+        default="@cf/google/gemma-4-26b-a4b-it",
+        help="Judge model name (default: @cf/google/gemma-4-26b-a4b-it)",
+    )
     args = parser.parse_args()
-    run(limit=args.limit, out_path=args.out, dry_run=args.dry_run)
+    default_split_file = EVALS_ROOT / "teaching_knowledge" / "data" / "splits.json"
+    split_path = args.split_file
+    if split_path is None and args.split != "all" and default_split_file.exists():
+        split_path = default_split_file
+    if args.split != "all" and split_path is None:
+        raise FileNotFoundError(
+            f"--split {args.split} requires a splits.json file. "
+            f"Expected at {default_split_file}, or pass --split-file explicitly."
+        )
+    run(
+        limit=args.limit,
+        out_path=args.out,
+        dry_run=args.dry_run,
+        split=args.split,
+        split_path=split_path,
+        teacher_model=args.teacher_model,
+        judge_model=args.judge_model,
+    )
 
 
 if __name__ == "__main__":

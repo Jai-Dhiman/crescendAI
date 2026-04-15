@@ -543,6 +543,8 @@ export async function synthesize(
 	try {
 		const memoryContext = await buildMemoryContext(ctx, input.studentId);
 
+		const composer =
+			(input.pieceMetadata as { composer?: string } | null | undefined)?.composer ?? "";
 		const synthesisFraming = buildSynthesisFraming(
 			input.sessionDurationMs,
 			input.practicePattern,
@@ -550,6 +552,7 @@ export async function synthesize(
 			input.drillingRecords,
 			input.pieceMetadata,
 			memoryContext,
+			composer,
 		);
 
 		const systemBlocks: AnthropicSystemBlock[] = [
