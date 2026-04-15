@@ -60,61 +60,6 @@ Uses `just` (justfile) for dev commands. Install: `brew install just`.
 - Error logging: `console_error!` (Rust), `Sentry.captureException` (web), `SentrySDK.capture(error:)` (iOS)
 
 
-## Development Workflow
-
-Full feature lifecycle:
-
-```
-brainstorm → plan → challenge → build → review → [investigate if bugs]
-```
-
-### Skills (invoke with /skill-name)
-
-- `/brainstorm` — Use at the start of every feature. Relentless one-question-at-a-time interrogation: explores intent, pressure-tests assumptions, proposes 2-3 approaches, presents design. Anti-sycophancy enforced. Hands off an approved design to `/plan`. Writes no files.
-- `/plan` — Takes an approved design and writes the spec (`docs/specs/`) + TDD implementation plan (`docs/plans/`). Enforces deep modules (Ousterhout) and vertical-slice TDD (one test → one impl → one commit per task, never horizontal slicing). Commits both artifacts.
-- `/challenge` — Run on the plan file before building. Two-pass review: CEO (premise, scope, 12-month trajectory, alternatives) + Eng (architecture, module depth, test philosophy, vertical-slice audit, failure modes, presumptions). Returns `VERDICT: PROCEED | PROCEED_WITH_CAUTION | NEEDS_REWORK`.
-- `/build` — Executes a plan via subagent-driven development. Creates an isolated git worktree, dispatches fresh Sonnet 4.6 subagents per task (parallel within groups, sequential between groups), two-stage review per task (spec compliance → code quality), strict TDD with watch-it-fail discipline. Hands off to `/review`.
-- `/review` — Pre-merge diff review. Scope drift, critical security pass, test philosophy audit, confidence-calibrated findings. Returns `VERDICT: READY | READY_WITH_CONCERNS | NEEDS_WORK`. Offers local merge if READY.
-- `/investigate` — Structured debugging. Iron Law (no fixes without root cause), scope lock, 3-strike rule, vertical-slice TDD for the regression test (behavior through public interface, never internal state).
-
-### Other Skills
-
-- `/autoresearch` — Autonomous improvement loop. Modify one thing, measure, keep or revert, repeat. Requires: Goal, Scope, Metric, Verify command, Guard. Use for optimizing skills, prompts, code performance, or any measurable artifact.
-- `/cso` — Full codebase security audit. OWASP Top 10, STRIDE threat modeling.
-- `/frontend-design` — Production-grade frontend UI. Polished, opinionated.
-- Hugging Face skills: `/hugging-face-cli` (hub ops), `/hugging-face-jobs` (cloud compute), `/hugging-face-model-trainer` (fine-tuning), `/hugging-face-datasets`, `/hugging-face-tool-builder`
-
-### Recommended Workflow
-
-```
-START
-  │
-  ▼
-/brainstorm       "I want to build X" → grill-style design → approved design
-  │
-  ▼
-/plan             design → spec + TDD plan committed to docs/
-  │
-  ▼
-/challenge        CEO + eng adversarial review → VERDICT: PROCEED
-  │
-  ▼
-/build            worktree + subagent-per-task + two-stage review + TDD
-  │
-  ▼
-/review           diff review → VERDICT → offer merge
-  │
-  ▼
-/investigate      if bugs are reported after ship
-```
-
-Shortcuts:
-- Bug fix: `/investigate` → fix → `/review` → merge
-- Small UI-only change: `/brainstorm` → `/plan` → `/build` → `/review`
-- Exploratory design (no build yet): stop after `/brainstorm`
-- Optimization loop: `/autoresearch`
-- Security-sensitive: add `/cso` before merge
-
 # Code Intelligence Stack — Tool Routing
 
 Three code-intelligence tools, each at a different layer. **Understanding first, then token efficiency, then speed.** Always pick the tool that matches the *question*, not the one you're most familiar with.
@@ -182,19 +127,6 @@ This project is indexed by GitNexus as **crescendai** (8821 symbols, 19903 relat
 - When exploring unfamiliar code, use `gitnexus_query({query: "concept"})` to find execution flows instead of grepping. It returns process-grouped results ranked by relevance.
 - When you need full context on a specific symbol — callers, callees, which execution flows it participates in — use `gitnexus_context({name: "symbolName"})`.
 
-## When Debugging
-
-1. `gitnexus_query({query: "<error or symptom>"})` — find execution flows related to the issue
-2. `gitnexus_context({name: "<suspect function>"})` — see all callers, callees, and process participation
-3. `READ gitnexus://repo/crescendai/process/{processName}` — trace the full execution flow step by step
-4. For regressions: `gitnexus_detect_changes({scope: "compare", base_ref: "main"})` — see what your branch changed
-
-## When Refactoring
-
-- **Renaming**: MUST use `gitnexus_rename({symbol_name: "old", new_name: "new", dry_run: true})` first. Review the preview — graph edits are safe, text_search edits need manual review. Then run with `dry_run: false`.
-- **Extracting/Splitting**: MUST run `gitnexus_context({name: "target"})` to see all incoming/outgoing refs, then `gitnexus_impact({target: "target", direction: "upstream"})` to find all external callers before moving code.
-- After any refactor: run `gitnexus_detect_changes({scope: "all"})` to verify only expected files changed.
-
 ## Never Do
 
 - NEVER edit a function, class, or method without first running `gitnexus_impact` on it.
@@ -255,16 +187,5 @@ npx gitnexus analyze --embeddings
 To check whether embeddings exist, inspect `.gitnexus/meta.json` — the `stats.embeddings` field shows the count (0 means no embeddings). **Running analyze without `--embeddings` will delete any previously generated embeddings.**
 
 > Claude Code users: A PostToolUse hook handles this automatically after `git commit` and `git merge`.
-
-## CLI
-
-| Task | Read this skill file |
-|------|---------------------|
-| Understand architecture / "How does X work?" | `.claude/skills/gitnexus/gitnexus-exploring/SKILL.md` |
-| Blast radius / "What breaks if I change X?" | `.claude/skills/gitnexus/gitnexus-impact-analysis/SKILL.md` |
-| Trace bugs / "Why is X failing?" | `.claude/skills/gitnexus/gitnexus-debugging/SKILL.md` |
-| Rename / extract / split / refactor | `.claude/skills/gitnexus/gitnexus-refactoring/SKILL.md` |
-| Tools, resources, schema reference | `.claude/skills/gitnexus/gitnexus-guide/SKILL.md` |
-| Index, status, clean, wiki CLI commands | `.claude/skills/gitnexus/gitnexus-cli/SKILL.md` |
 
 <!-- gitnexus:end -->
