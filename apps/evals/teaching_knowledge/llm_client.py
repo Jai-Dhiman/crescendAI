@@ -1,13 +1,14 @@
-"""Unified LLM client for Workers AI (via CF AI Gateway) and Anthropic.
+"""Unified LLM client for Workers AI (via CF AI Gateway), Anthropic, and OpenRouter.
 
 Workers AI models are accessed through the Cloudflare AI Gateway using
 OpenAI-compatible chat completions format. This avoids adding the openai
 SDK as a dependency -- we use requests (already available).
 
 Environment variables:
-  CLOUDFLARE_API_TOKEN     -- Cloudflare API token (read from env or apps/api/.dev.vars)
-  CF_ACCOUNT_ID    -- Cloudflare account ID (defaults to wrangler.toml value)
-  ANTHROPIC_API_KEY -- Anthropic API key (only needed for --provider anthropic)
+  CLOUDFLARE_API_TOKEN -- Cloudflare API token (read from env or apps/api/.dev.vars)
+  CF_ACCOUNT_ID        -- Cloudflare account ID (defaults to wrangler.toml value)
+  ANTHROPIC_API_KEY    -- Anthropic API key (only needed for --provider anthropic)
+  OPENROUTER_API_KEY   -- OpenRouter API key (only needed for --provider openrouter)
 
 Usage:
   client = LLMClient(provider="workers-ai")
@@ -40,31 +41,85 @@ MODELS = {
         "quality": "claude-sonnet-4-6",
         "default": "claude-sonnet-4-6",
     },
+    "openrouter": {
+        "cheap": "openai/gpt-5.4-mini",
+        "quality": "openai/gpt-5.4-mini",
+        "judge": "openai/gpt-5.4-mini",
+        "default": "openai/gpt-5.4-mini",
+    },
 }
+
+
+def _load_dev_vars_key(var_name: str) -> str | None:
+    """Load a key from apps/api/.dev.vars by variable name. Returns None if not found."""
+    dev_vars = Path(__file__).resolve().parents[2] / "api" / ".dev.vars"
+    if dev_vars.exists():
+        prefix = f"{var_name}="
+        for line in dev_vars.read_text().splitlines():
+            line = line.strip()
+            if line.startswith(prefix):
+                value = line.split("=", 1)[1].strip().strip('"').strip("'")
+                os.environ[var_name] = value
+                return value
+    return None
 
 
 def _load_cf_token() -> str:
     """Load CLOUDFLARE_API_TOKEN from env or apps/api/.dev.vars."""
-    token = os.environ.get("CLOUDFLARE_API_TOKEN")
+    token = os.environ.get("CLOUDFLARE_API_TOKEN") or _load_dev_vars_key("CLOUDFLARE_API_TOKEN")
     if token:
         return token
-
-    dev_vars = Path(__file__).resolve().parents[2] / "api" / ".dev.vars"
-    if dev_vars.exists():
-        for line in dev_vars.read_text().splitlines():
-            line = line.strip()
-            if line.startswith("CLOUDFLARE_API_TOKEN="):
-                token = line.split("=", 1)[1].strip().strip('"').strip("'")
-                os.environ["CLOUDFLARE_API_TOKEN"] = token
-                return token
-
     raise RuntimeError(
         "CLOUDFLARE_API_TOKEN not found. Set it in env or apps/api/.dev.vars"
     )
 
 
+def _load_anthropic_key() -> None:
+    """Load ANTHROPIC_API_KEY from env or apps/api/.dev.vars."""
+    if os.environ.get("ANTHROPIC_API_KEY"):
+        return
+    if not _load_dev_vars_key("ANTHROPIC_API_KEY"):
+        raise RuntimeError(
+            "ANTHROPIC_API_KEY not found. Set it in env or apps/api/.dev.vars"
+        )
+
+
+def _load_openrouter_key() -> str:
+    """Load OPENROUTER_API_KEY from env or apps/api/.dev.vars."""
+    key = os.environ.get("OPENROUTER_API_KEY") or _load_dev_vars_key("OPENROUTER_API_KEY")
+    if key:
+        return key
+    raise RuntimeError(
+        "OPENROUTER_API_KEY not found. Set it in env or apps/api/.dev.vars"
+    )
+
+
+OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1/chat/completions"
+
+
+def _build_openrouter_payload(
+    model: str,
+    system: str,
+    user: str,
+    max_tokens: int,
+) -> dict:
+    """Pure function that builds the OpenRouter chat-completions request body.
+
+    Extracted from _openrouter_complete for unit testing without network I/O.
+    """
+    messages: list[dict[str, str]] = []
+    if system:
+        messages.append({"role": "system", "content": system})
+    messages.append({"role": "user", "content": user})
+    return {
+        "model": model,
+        "max_tokens": max_tokens,
+        "messages": messages,
+    }
+
+
 class LLMClient:
-    """Unified client for Workers AI and Anthropic."""
+    """Unified client for Workers AI, Anthropic, and OpenRouter."""
 
     def __init__(
         self,
@@ -89,7 +144,10 @@ class LLMClient:
         elif provider == "anthropic":
             import anthropic
 
+            _load_anthropic_key()
             self._anthropic = anthropic.Anthropic()
+        elif provider == "openrouter":
+            self._openrouter_key = _load_openrouter_key()
 
     def complete(
         self,
@@ -102,6 +160,8 @@ class LLMClient:
             return self._workers_ai_complete(system, user, max_tokens)
         elif self.provider == "anthropic":
             return self._anthropic_complete(system, user, max_tokens)
+        elif self.provider == "openrouter":
+            return self._openrouter_complete(system, user, max_tokens)
         else:
             raise ValueError(f"Unknown provider: {self.provider}")
 
@@ -158,6 +218,36 @@ class LLMClient:
             kwargs["system"] = system
         response = self._anthropic.messages.create(**kwargs)
         return response.content[0].text
+
+    def _openrouter_complete(self, system: str, user: str, max_tokens: int) -> str:
+        payload = _build_openrouter_payload(self.model, system, user, max_tokens)
+        response = requests.post(
+            OPENROUTER_BASE_URL,
+            headers={
+                "Authorization": f"Bearer {self._openrouter_key}",
+                "Content-Type": "application/json",
+                "HTTP-Referer": "https://crescend.ai",
+                "X-Title": "CrescendAI Evals",
+            },
+            json=payload,
+            timeout=300,
+        )
+        if response.status_code != 200:
+            raise RuntimeError(
+                f"OpenRouter returned {response.status_code}: {response.text[:500]}"
+            )
+        data = response.json()
+        choices = data.get("choices", [])
+        if not choices:
+            raise RuntimeError(
+                f"No choices in OpenRouter response: {json.dumps(data)[:500]}"
+            )
+        content = choices[0]["message"].get("content")
+        if content is None:
+            raise RuntimeError(
+                f"OpenRouter returned null content: {json.dumps(data)[:500]}"
+            )
+        return content
 
     def complete_json(
         self,
