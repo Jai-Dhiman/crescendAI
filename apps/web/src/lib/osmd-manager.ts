@@ -33,7 +33,7 @@ async function doRender(pieceId: string): Promise<void> {
 
 	const data = await api.scores.getData(pieceId);
 	const blob = new Blob([data], {
-		type: "application/vnd.recordare.musicxml",
+		type: "application/vnd.recordare.musicxml+zip",
 	});
 	const url = URL.createObjectURL(blob);
 

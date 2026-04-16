@@ -1,8 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Artifact } from "../components/Artifact";
 import { ArtifactOverlay } from "../components/ArtifactOverlay";
 import { ArtifactScrollContext } from "../contexts/artifact-scroll";
+import { API_BASE } from "../lib/config";
+import { osmdManager } from "../lib/osmd-manager";
 import type {
 	ExerciseSetConfig,
 	KeyboardGuideConfig,
@@ -10,6 +12,117 @@ import type {
 	ScoreHighlightConfig,
 } from "../lib/types";
 import { useArtifactStore } from "../stores/artifact";
+
+// --- Score debug loader ---
+
+type DebugPhase =
+	| { status: "idle" }
+	| { status: "fetching" }
+	| { status: "fetch_ok"; bytes: number }
+	| { status: "rendering" }
+	| { status: "clipping" }
+	| { status: "done"; svgWidth: number; svgHeight: number }
+	| { status: "error"; phase: string; message: string };
+
+function ScoreDebugLoader() {
+	const [phase, setPhase] = useState<DebugPhase>({ status: "idle" });
+	const svgRef = useRef<HTMLDivElement>(null);
+
+	async function run() {
+		const pieceId = "chopin.ballades.1";
+		setPhase({ status: "fetching" });
+
+		// Step 1: raw fetch — confirm bytes arrive and check content-type
+		let bytes: ArrayBuffer;
+		try {
+			const res = await fetch(`${API_BASE}/api/scores/${pieceId}/data`, {
+				credentials: "include",
+			});
+			const ct = res.headers.get("content-type") ?? "(none)";
+			if (!res.ok) {
+				setPhase({ status: "error", phase: "fetch", message: `HTTP ${res.status} — content-type: ${ct}` });
+				return;
+			}
+			bytes = await res.arrayBuffer();
+			setPhase({ status: "fetch_ok", bytes: bytes.byteLength });
+			console.log("[score-debug] fetch ok", { bytes: bytes.byteLength, contentType: ct });
+		} catch (err) {
+			setPhase({ status: "error", phase: "fetch", message: String(err) });
+			return;
+		}
+
+		// Step 2: hand to osmdManager
+		setPhase({ status: "rendering" });
+		try {
+			await osmdManager.ensureRendered(pieceId);
+			console.log("[score-debug] osmd render complete");
+		} catch (err) {
+			setPhase({ status: "error", phase: "osmd.render", message: String(err) });
+			return;
+		}
+
+		// Step 3: clip bars 1-4
+		setPhase({ status: "clipping" });
+		const svg = osmdManager.clipBars(pieceId, 1, 4);
+		if (!svg) {
+			setPhase({ status: "error", phase: "clipBars", message: "clipBars returned null — measureList may be empty or bounding boxes missing" });
+			return;
+		}
+
+		// Step 4: inject into DOM
+		if (svgRef.current) {
+			while (svgRef.current.firstChild) svgRef.current.removeChild(svgRef.current.firstChild);
+			svgRef.current.appendChild(svg);
+		}
+		setPhase({ status: "done", svgWidth: svg.getBoundingClientRect().width, svgHeight: svg.getBoundingClientRect().height });
+		console.log("[score-debug] done", svg);
+	}
+
+	// Auto-run on mount
+	// biome-ignore lint/correctness/useExhaustiveDependencies: run once on mount
+	useEffect(() => { run(); }, []);
+
+	return (
+		<div className="border border-border rounded-xl bg-surface-card p-5 flex flex-col gap-4">
+			<div className="flex items-center justify-between">
+				<h2 className="font-display text-display-xs text-cream">Score Debug Loader</h2>
+				<button
+					type="button"
+					onClick={() => { osmdManager.reset(); run(); }}
+					className="px-3 py-1.5 rounded-lg bg-surface border border-border text-body-sm text-text-secondary hover:text-cream hover:border-accent transition"
+				>
+					Retry
+				</button>
+			</div>
+
+			{/* Phase badge */}
+			<div className="flex items-center gap-2">
+				<span className={`text-label-sm px-2 py-0.5 rounded ${
+					phase.status === "error" ? "bg-red-900/40 text-red-300" :
+					phase.status === "done" ? "bg-green-900/40 text-green-300" :
+					"bg-surface text-text-tertiary"
+				}`}>
+					{phase.status}
+				</span>
+				{phase.status === "fetch_ok" && (
+					<span className="text-body-xs text-text-tertiary">{(phase.bytes / 1024).toFixed(0)} KB received</span>
+				)}
+				{phase.status === "done" && (
+					<span className="text-body-xs text-text-tertiary">bars 1–4 rendered</span>
+				)}
+				{phase.status === "error" && (
+					<span className="text-body-xs text-red-300">phase: {phase.phase} — {phase.message}</span>
+				)}
+			</div>
+
+			{/* SVG output */}
+			<div
+				ref={svgRef}
+				className="bg-white rounded-md min-h-[40px] [&>svg]:block [&>svg]:w-full"
+			/>
+		</div>
+	);
+}
 
 // --- Fixtures ---
 
@@ -145,6 +258,9 @@ function ArtifactSandbox() {
 							Dev-only. Test each artifact type in isolation.
 						</p>
 					</div>
+
+					{/* Score Debug Loader — raw OSMD render, no artifact machinery */}
+					<ScoreDebugLoader />
 
 					{/* ExerciseSet — with exerciseId (Start/Complete buttons) */}
 					<SandboxSection

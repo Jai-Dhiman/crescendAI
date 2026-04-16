@@ -27,7 +27,7 @@ const app = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 			const object = await getPieceData(c.env, pieceId);
 			return new Response(object.body, {
 				headers: {
-					"Content-Type": "application/vnd.recordare.musicxml",
+					"Content-Type": "application/vnd.recordare.musicxml+zip",
 					"Cache-Control": "public, max-age=31536000, immutable",
 				},
 			});
