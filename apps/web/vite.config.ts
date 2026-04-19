@@ -14,7 +14,8 @@ const config = defineConfig({
 	build: { sourcemap: true },
 	test: {
 		environment: "jsdom",
-		include: ["src/**/*.test.ts"],
+		setupFiles: ["src/test-setup.ts"],
+		include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
 	},
 	plugins: [
 		tailwindcss(),

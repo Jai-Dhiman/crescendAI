@@ -1,7 +1,7 @@
 import { ArrowsOut } from "@phosphor-icons/react";
 import { useEffect, useRef, useState } from "react";
 import { DIMENSION_COLORS } from "../../lib/mock-session";
-import { osmdManager } from "../../lib/osmd-manager";
+import { scoreRenderer } from "../../lib/score-renderer";
 import type { ScoreHighlightConfig } from "../../lib/types";
 import { useScorePanelStore } from "../../stores/score-panel";
 
@@ -12,12 +12,6 @@ interface ScoreHighlightCardProps {
 }
 
 type RenderState = "loading" | "rendered" | "error";
-
-function clearChildren(el: HTMLDivElement) {
-	while (el.firstChild) {
-		el.removeChild(el.firstChild);
-	}
-}
 
 export function ScoreHighlightCard({
 	config,
@@ -34,33 +28,39 @@ export function ScoreHighlightCard({
 
 		async function loadScore() {
 			try {
-				await osmdManager.ensureRendered(config.pieceId);
+				const svgResults: string[] = [];
+				for (const highlight of config.highlights) {
+					const svg = await scoreRenderer.getClip(
+						config.pieceId,
+						highlight.bars[0],
+						highlight.bars[1],
+					);
+					svgResults.push(svg);
+				}
 				if (cancelled) return;
 
-				let clipsAdded = 0;
 				if (svgContainerRef.current) {
-					clearChildren(svgContainerRef.current);
-					for (const highlight of config.highlights) {
-						const svg = osmdManager.clipBars(
-							config.pieceId,
-							highlight.bars[0],
-							highlight.bars[1],
-						);
-						if (svg) {
-							const color =
-								DIMENSION_COLORS[
-									highlight.dimension as keyof typeof DIMENSION_COLORS
-								] ?? "#7a9a82";
-							svg.style.borderRadius = "6px";
-							svg.style.border = `1.5px solid ${color}40`;
-							svgContainerRef.current.appendChild(svg);
-							clipsAdded++;
+					svgContainerRef.current.textContent = "";
+					for (let i = 0; i < svgResults.length; i++) {
+						const highlight = config.highlights[i];
+						const color =
+							DIMENSION_COLORS[highlight.dimension as keyof typeof DIMENSION_COLORS] ??
+							"#7a9a82";
+						const wrapper = document.createElement("div");
+						wrapper.style.borderRadius = "6px";
+						wrapper.style.border = `1.5px solid ${color}40`;
+						wrapper.insertAdjacentHTML("beforeend", svgResults[i]);
+						const innerSvg = wrapper.querySelector("svg");
+						if (innerSvg) {
+							innerSvg.setAttribute("width", "100%");
+							innerSvg.style.display = "block";
 						}
+						svgContainerRef.current.appendChild(wrapper);
 					}
 				}
 
 				if (!cancelled) {
-					setHasClips(clipsAdded > 0);
+					setHasClips(svgResults.length > 0);
 					setRenderState("rendered");
 				}
 			} catch (err) {
