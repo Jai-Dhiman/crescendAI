@@ -176,6 +176,13 @@ function ResizeVariantPanel({
 }) {
 	const [width, setWidth] = useState(300);
 	const panelRef = useRef<HTMLDivElement>(null);
+	const cleanupDragRef = useRef<(() => void) | null>(null);
+
+	useEffect(() => {
+		return () => {
+			cleanupDragRef.current?.();
+		};
+	}, []);
 
 	function handleDragStart(e: React.MouseEvent) {
 		e.preventDefault();
@@ -187,18 +194,24 @@ function ResizeVariantPanel({
 			if (panelRef.current) panelRef.current.style.width = `${newWidth}px`;
 		}
 
+		function cleanup() {
+			document.removeEventListener("mousemove", onMove);
+			document.removeEventListener("mouseup", onUp);
+			document.body.style.cursor = "";
+			cleanupDragRef.current = null;
+		}
+
 		function onUp(ev: MouseEvent) {
 			const newWidth = Math.max(160, Math.min(520, startWidth + (ev.clientX - startX)));
 			setWidth(newWidth);
 			onResize(newWidth);
-			document.removeEventListener("mousemove", onMove);
-			document.removeEventListener("mouseup", onUp);
-			document.body.style.cursor = "";
+			cleanup();
 		}
 
 		document.addEventListener("mousemove", onMove);
 		document.addEventListener("mouseup", onUp);
 		document.body.style.cursor = "col-resize";
+		cleanupDragRef.current = cleanup;
 	}
 
 	return (
@@ -228,6 +241,12 @@ function ResizeSandbox() {
 
 	const [variantBSvg, setVariantBSvg] = useState(PLACEHOLDER_SVG);
 	const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+	useEffect(() => {
+		return () => {
+			if (debounceRef.current) clearTimeout(debounceRef.current);
+		};
+	}, []);
 
 	function handleVariantAResize(newWidth: number) {
 		const updatedSvg = PLACEHOLDER_SVG.replace('width="600"', `width="${newWidth * 2}"`);
