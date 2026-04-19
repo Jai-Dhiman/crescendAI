@@ -24,18 +24,22 @@ type WorkerInMsg =
     }
   | { type: "render_full"; requestId: string; pieceId: string; bytes?: ArrayBuffer };
 
-// Worker message handler — only registers when loaded as a Web Worker (Window is undefined)
-if (typeof Window === "undefined") {
+// Worker message handler — only registers when loaded as a Web Worker (window is undefined)
+if (typeof window === "undefined") {
   // biome-ignore lint/suspicious/noExplicitAny: dynamic Verovio module
   const toolkitCache = new Map<string, any>();
   // biome-ignore lint/suspicious/noExplicitAny: dynamic WASM module
   let verovioModule: any = null;
+  // biome-ignore lint/suspicious/noExplicitAny: dynamic Verovio ESM class
+  let VerovioToolkitClass: new (mod: unknown) => VerovioTk = null as any;
 
   const ready = (async () => {
-    const createModule = (
-      (await import("verovio/wasm")) as { default: () => Promise<unknown> }
-    ).default;
-    verovioModule = await createModule();
+    const [wasm, esm] = await Promise.all([
+      import("verovio/wasm") as Promise<{ default: () => Promise<unknown> }>,
+      import("verovio/esm") as Promise<{ VerovioToolkit: new (mod: unknown) => VerovioTk }>,
+    ]);
+    verovioModule = await wasm.default();
+    VerovioToolkitClass = esm.VerovioToolkit;
   })();
 
   (self as unknown as Worker).onmessage = async (event: MessageEvent<WorkerInMsg>) => {
@@ -51,10 +55,7 @@ if (typeof Window === "undefined") {
           });
           return;
         }
-        const { VerovioToolkit } = (await import("verovio/esm")) as {
-          VerovioToolkit: new (mod: unknown) => VerovioTk;
-        };
-        const tk = new VerovioToolkit(verovioModule);
+        const tk = new VerovioToolkitClass(verovioModule);
         tk.setOptions({
           pageWidth: 1800,
           adjustPageHeight: true,
