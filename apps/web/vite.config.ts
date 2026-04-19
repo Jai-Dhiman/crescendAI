@@ -12,6 +12,9 @@ const isTest = process.env.VITEST === "true";
 
 const config = defineConfig({
 	build: { sourcemap: true },
+	optimizeDeps: {
+		exclude: ["verovio/wasm", "verovio/esm"],
+	},
 	test: {
 		environment: "jsdom",
 		setupFiles: ["src/test-setup.ts"],

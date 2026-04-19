@@ -63,7 +63,14 @@ if (typeof window === "undefined") {
           footer: "none",
           header: "none",
         });
-        tk.loadZipDataBuffer(msg.bytes);
+        const loaded = tk.loadZipDataBuffer(msg.bytes);
+        if (!loaded) {
+          (self as unknown as Worker).postMessage({
+            requestId: msg.requestId,
+            error: "Verovio could not parse MXL data — file may be corrupt or not a valid MusicXML ZIP",
+          });
+          return;
+        }
         toolkitCache.set(msg.pieceId, tk);
       }
 
@@ -75,9 +82,13 @@ if (typeof window === "undefined") {
 
       (self as unknown as Worker).postMessage({ requestId: msg.requestId, svg });
     } catch (err) {
+      const errorMsg =
+        typeof WebAssembly !== "undefined" && err instanceof WebAssembly.Exception
+          ? `Verovio WASM exception (${msg.type} for ${msg.pieceId}) — MXL data may be corrupt or incompatible`
+          : String(err);
       (self as unknown as Worker).postMessage({
         requestId: msg.requestId,
-        error: String(err),
+        error: errorMsg,
       });
     }
   };

@@ -5,7 +5,7 @@ class ScoreRenderer {
   private worker: Worker | null = null;
   private pendingRequests = new Map<
     string,
-    { resolve: (svg: string) => void; reject: (err: Error) => void }
+    { resolve: (svg: string) => void; reject: (err: Error) => void; pieceId: string }
   >();
   // bytesCache entries are never evicted by design: sentPieceIds correctness
   // depends on bytesCache remaining populated after a successful fetch.
@@ -30,6 +30,7 @@ class ScoreRenderer {
         if (!pending) return;
         this.pendingRequests.delete(requestId);
         if (error !== undefined) {
+          this.sentPieceIds.delete(pending.pieceId);
           pending.reject(new Error(error));
         } else if (svg !== undefined) {
           pending.resolve(svg);
@@ -39,7 +40,8 @@ class ScoreRenderer {
       };
       this.worker.onerror = (e: ErrorEvent) => {
         const err = new Error(`Score worker crashed: ${e.message}`);
-        for (const { reject } of this.pendingRequests.values()) {
+        for (const { reject, pieceId } of this.pendingRequests.values()) {
+          this.sentPieceIds.delete(pieceId);
           reject(err);
         }
         this.pendingRequests.clear();
@@ -73,7 +75,7 @@ class ScoreRenderer {
     const worker = this.ensureWorker();
     return new Promise((resolve, reject) => {
       const requestId = `req-${++this.requestCounter}`;
-      this.pendingRequests.set(requestId, { resolve, reject });
+      this.pendingRequests.set(requestId, { resolve, reject, pieceId });
       const needsBytes = !this.sentPieceIds.has(pieceId);
       const bytes = needsBytes ? this.bytesCache.get(pieceId) : undefined;
       if (needsBytes && bytes === undefined) {
@@ -91,7 +93,7 @@ class ScoreRenderer {
     const worker = this.ensureWorker();
     return new Promise((resolve, reject) => {
       const requestId = `req-${++this.requestCounter}`;
-      this.pendingRequests.set(requestId, { resolve, reject });
+      this.pendingRequests.set(requestId, { resolve, reject, pieceId });
       const needsBytes = !this.sentPieceIds.has(pieceId);
       const bytes = needsBytes ? this.bytesCache.get(pieceId) : undefined;
       if (needsBytes && bytes === undefined) {
@@ -99,7 +101,7 @@ class ScoreRenderer {
         reject(new Error(`Score bytes missing after fetch for pieceId: ${pieceId}`));
         return;
       }
-      if (!this.sentPieceIds.has(pieceId)) this.sentPieceIds.add(pieceId);
+      if (needsBytes) this.sentPieceIds.add(pieceId);
       worker.postMessage({
         type: "render_clip",
         requestId,
