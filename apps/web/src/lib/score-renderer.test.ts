@@ -74,3 +74,12 @@ describe("scoreRenderer.getClip error paths", () => {
     await expect(scoreRenderer.getClip("chopin.ballades.1", 1, 4)).rejects.toThrow("network error");
   });
 });
+
+describe("scoreRenderer.getFull", () => {
+  it("resolves with the SVG string returned by the Worker", async () => {
+    const { scoreRenderer } = await import("./score-renderer");
+    const svg = await scoreRenderer.getFull("chopin.ballades.1");
+    expect(svg).toBe("<svg>mock</svg>");
+    expect(mockGetData).toHaveBeenCalledWith("chopin.ballades.1");
+  });
+});
