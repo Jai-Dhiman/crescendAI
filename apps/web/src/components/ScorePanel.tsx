@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useIsMobile } from "../hooks/useDom";
 import { useMountEffect } from "../hooks/useFoundation";
 import { DIMENSION_COLORS } from "../lib/mock-session";
-import { osmdManager } from "../lib/osmd-manager";
+import { scoreRenderer } from "../lib/score-renderer";
 import { useScorePanelStore } from "../stores/score-panel";
 import { ScoreAnnotation } from "./ScoreAnnotation";
 
@@ -29,12 +29,10 @@ export function ScorePanel() {
 	const isMobile = useIsMobile();
 	const isDraggingRef = useRef(false);
 	const dragWidthRef = useRef(panelWidth);
+	const [scoreRenderKey, setScoreRenderKey] = useState(0);
 
 	// Drag handle for resizing
 	const asideRef = useRef<HTMLDivElement>(null);
-	// Shared ref for OSMD instance -- ScorePanelScore sets it, drag handler reads it
-	// biome-ignore lint/suspicious/noExplicitAny: OSMD has no exported type for the instance
-	const osmdRef = useRef<any>(null);
 
 	const handleDragStart = useCallback(
 		(e: React.MouseEvent) => {
@@ -67,14 +65,7 @@ export function ScorePanel() {
 				document.body.style.cursor = "";
 				document.body.style.userSelect = "";
 				setPanelWidth(dragWidthRef.current);
-				// Re-render OSMD at new width
-				if (osmdRef.current) {
-					try {
-						osmdRef.current.render();
-					} catch {
-						// OSMD re-render failed silently
-					}
-				}
+				setScoreRenderKey((k) => k + 1);
 			}
 
 			document.addEventListener("mousemove", onMouseMove);
@@ -185,12 +176,11 @@ export function ScorePanel() {
 
 			{/* Score rendering -- keyed to remount cleanly when session data changes */}
 			<ScorePanelScore
-				key={`${pieceId}-${title}-${observations.length}`}
+				key={`${pieceId}-${title}-${observations.length}-${scoreRenderKey}`}
 				pieceId={pieceId}
 				sessionData={sessionData}
 				observations={observations}
 				activeAnnotationIndex={activeAnnotationIndex}
-				osmdRef={osmdRef}
 				onAnnotationClick={handleAnnotationClick}
 			/>
 		</>
@@ -236,7 +226,7 @@ export function ScorePanel() {
 }
 
 /**
- * Inner component that initializes OSMD and calculates annotation positions.
+ * Inner component that loads score SVG via scoreRenderer and calculates annotation positions.
  * Keyed by session data so React unmounts/remounts cleanly when the session changes,
  * turning the init effect into a simple mount effect (Rule 5: reset with key).
  */
@@ -250,8 +240,6 @@ interface ScorePanelScoreProps {
 		framing?: string;
 	}>;
 	activeAnnotationIndex: number | null;
-	// biome-ignore lint/suspicious/noExplicitAny: OSMD has no exported type
-	osmdRef: React.MutableRefObject<any>;
 	onAnnotationClick: (index: number) => void;
 }
 
@@ -260,7 +248,6 @@ function ScorePanelScore({
 	sessionData,
 	observations,
 	activeAnnotationIndex,
-	osmdRef,
 	onAnnotationClick,
 }: ScorePanelScoreProps) {
 	const containerRef = useRef<HTMLDivElement>(null);
@@ -270,59 +257,46 @@ function ScorePanelScore({
 		AnnotationPosition[]
 	>([]);
 
-	// Initialize OSMD on mount (component is keyed, so this runs once per session)
+	// Load score SVG on mount (component is keyed, so this runs once per session)
 	useMountEffect(() => {
 		let cancelled = false;
 
-		async function initOSMD() {
-			const osmdContainer = containerRef.current;
-			if (!osmdContainer || cancelled) return;
+		async function loadScore() {
+			const container = containerRef.current;
+			if (!container || cancelled) return;
 
 			if (!pieceId) {
-				// No pieceId -- sessionData path shows annotation list without a rendered score
-				// Still set isRendered so the annotation-position effect can run (positions fall
-				// through to the fallback distributor since osmdRef.current remains null)
 				setIsRendered(true);
 				return;
 			}
 
 			try {
-				// Use OSMD Manager for cached rendering
-				await osmdManager.ensureRendered(pieceId);
+				const svg = await scoreRenderer.getFull(pieceId);
 				if (cancelled) return;
-
-				const cached = osmdManager.getOsmdInstance(pieceId);
-				if (cached) {
-					// Move the rendered SVG into our container
-					const sourceSvg = cached.container.querySelector("svg");
-					if (sourceSvg) {
-						const cloned = sourceSvg.cloneNode(true) as SVGElement;
-						osmdContainer.appendChild(cloned);
-					}
-					osmdRef.current = cached.osmd;
-					setIsRendered(true);
-					return;
-				}
+				container.textContent = "";
+				container.insertAdjacentHTML("beforeend", svg);
+				setIsRendered(true);
 			} catch (err) {
-				console.error("OSMD render failed:", err);
+				console.error("ScorePanel: score render failed", err);
 				if (!cancelled) setIsError(true);
 			}
 		}
 
-		initOSMD();
+		loadScore();
 
 		return () => {
 			cancelled = true;
-			osmdRef.current = null;
 		};
 	});
 
-	// Calculate annotation positions after OSMD renders
+	// Calculate annotation positions after score renders
 	useEffect(() => {
-		if (!isRendered || !osmdRef.current || !containerRef.current) return;
+		if (!isRendered || !containerRef.current) return;
 
-		const osmd = osmdRef.current;
 		const containerRect = containerRef.current.getBoundingClientRect();
+		const measureEls = Array.from(
+			containerRef.current.querySelectorAll<Element>(".measure"),
+		);
 		const positions: AnnotationPosition[] = [];
 
 		for (const obs of observations) {
@@ -330,49 +304,21 @@ function ScorePanelScore({
 				positions.push({ top: 0, left: 0 });
 				continue;
 			}
-
-			const measureIndex = obs.barRange[0] - 1; // 0-indexed
-			try {
-				const measureList = osmd.graphic?.measureList;
-				if (
-					measureList &&
-					measureIndex >= 0 &&
-					measureIndex < measureList.length
-				) {
-					const measure = measureList[measureIndex]?.[0];
-					if (measure?.stave?.SVGElement) {
-						const svgEl = measure.stave.SVGElement as SVGElement;
-						const bbox = svgEl.getBoundingClientRect();
-						positions.push({
-							top: bbox.top - containerRect.top - 28,
-							left: bbox.left - containerRect.left,
-						});
-						continue;
-					}
-					// Fallback: use bounding box from the measure
-					if (measure?.boundingBox) {
-						const absPos = measure.boundingBox.absolutePosition;
-						if (absPos) {
-							// OSMD units are ~10x pixels
-							positions.push({
-								top: absPos.y * 10 - 28,
-								left: absPos.x * 10,
-							});
-							continue;
-						}
-					}
-				}
-			} catch {
-				// Fallback positioning
+			const measureIdx = obs.barRange[0] - 1;
+			const el = measureEls[measureIdx];
+			if (el) {
+				const rect = el.getBoundingClientRect();
+				positions.push({
+					top: rect.top - containerRect.top - 28,
+					left: rect.left - containerRect.left,
+				});
+			} else {
+				positions.push({ top: 60 + positions.length * 80, left: 20 });
 			}
-
-			// Last resort: distribute evenly
-			const fallbackTop = 60 + positions.length * 80;
-			positions.push({ top: fallbackTop, left: 20 });
 		}
 
 		setAnnotationPositions(positions);
-	}, [isRendered, observations, osmdRef]);
+	}, [isRendered, observations]);
 
 	return (
 		<div className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-4 relative">
