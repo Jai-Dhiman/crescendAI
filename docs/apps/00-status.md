@@ -165,7 +165,7 @@ For system architecture, see `docs/architecture.md`.
 | iOS cloud inference wiring (stub to real API) | Phase 2 API stability | 1-2 weeks | P1 |
 | Stripe integration (subscription management) | -- | 1-2 weeks | P1 |
 | Usage tracking + tier enforcement | Stripe | 1 week | P1 |
-| Score highlight artifact renderer | Artifact container, score rendering lib | 2 weeks | P2 |
+| Score highlight artifact renderer | Artifact container | 2 weeks | P2 |
 | Reference browser artifact renderer | Artifact container | 1 week | P2 |
 | Session review artifact | Artifact container | 1 week | P2 |
 | Passage repetition comparison | Session brain DTW | 2 weeks | P2 |
@@ -211,7 +211,7 @@ For system architecture, see `docs/architecture.md`.
 
 ### Exercises
 
-6. **Notation rendering library.** VexFlow (lightweight) vs. OpenSheetMusicDisplay (most capable, heaviest) vs. native Swift renderer. WebView adds latency but notation rendering is hard. See `05-ui-system.md`.
+6. ~~**Notation rendering library.**~~ RESOLVED — Verovio WASM in a Web Worker. Replaces OSMD. ScorePanel and ScoreHighlightCard use a singleton `scoreRenderer` with lazy Worker init, fetch deduplication, and SSR safety. See `05-ui-system.md`.
 7. ~~**Curated exercise count for V1.**~~ RESOLVED -- 25 curated exercises seeded in migration `0004_exercises.sql`, covering all 6 dimensions and 3 difficulty levels. LLM-generated path deferred to post-beta.
 
 ### Architecture
