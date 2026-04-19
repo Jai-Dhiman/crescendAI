@@ -11,17 +11,8 @@ vi.mock("../../lib/score-renderer", () => ({
   },
 }));
 
-vi.mock("../../lib/osmd-manager", () => ({
-  osmdManager: {
-    ensureRendered: vi.fn().mockResolvedValue(undefined),
-    clipBars: vi.fn().mockReturnValue(null),
-    reset: vi.fn(),
-  },
-}));
-
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.resetModules();
 });
 
 describe("ScoreHighlightCard", () => {
@@ -42,7 +33,7 @@ describe("ScoreHighlightCard", () => {
     render(React.createElement(ScoreHighlightCard, { config }));
     await waitFor(() => {
       expect(screen.getByText("dynamics")).toBeInTheDocument();
-      expect(screen.getAllByText(/1/).length).toBeGreaterThan(0);
+      expect(screen.getByText(/bars 1/)).toBeInTheDocument();
       expect(screen.getByText("hushed opening")).toBeInTheDocument();
       expect(mockGetClip).toHaveBeenCalledWith("chopin.ballades.1", 1, 4);
     });

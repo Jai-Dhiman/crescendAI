@@ -77,24 +77,20 @@ export function ScoreHighlightCard({
 
 	return (
 		<div className="bg-surface-card border border-border rounded-xl overflow-hidden mt-3">
-			{/* Score clips — only shown when OSMD successfully clips bars */}
 			{renderState === "loading" && (
 				<div className="h-10 flex items-center justify-center">
 					<div className="w-3.5 h-3.5 rounded-full border-2 border-text-tertiary/50 border-t-transparent animate-spin" />
 				</div>
 			)}
 
-			{renderState !== "loading" && hasClips && (
-				<div
-					ref={svgContainerRef}
-					className="px-3 pt-3 pb-0 flex flex-col gap-2 [&>svg]:block [&>svg]:w-full [&>svg]:bg-white [&>svg]:rounded-md"
-				/>
-			)}
-
-			{/* Invisible ref container when no clips produced */}
-			{renderState !== "loading" && !hasClips && (
-				<div ref={svgContainerRef} className="sr-only" />
-			)}
+			<div
+				ref={svgContainerRef}
+				className={
+					hasClips && renderState !== "loading"
+						? "px-3 pt-3 pb-0 flex flex-col gap-2"
+						: "sr-only"
+				}
+			/>
 
 			{/* Annotations */}
 			<div
