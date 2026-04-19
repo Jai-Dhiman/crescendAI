@@ -10,6 +10,7 @@ class ScoreRenderer {
   private bytesCache = new Map<string, ArrayBuffer>();
   private sentPieceIds = new Set<string>();
   private requestCounter = 0;
+  private pendingFetches = new Map<string, Promise<void>>();
 
   private ensureWorker(): Worker {
     if (!this.worker) {
@@ -40,8 +41,21 @@ class ScoreRenderer {
 
   private async ensureBytes(pieceId: string): Promise<void> {
     if (this.sentPieceIds.has(pieceId) || this.bytesCache.has(pieceId)) return;
-    const bytes = await api.scores.getData(pieceId);
-    this.bytesCache.set(pieceId, bytes);
+
+    const inflight = this.pendingFetches.get(pieceId);
+    if (inflight) return inflight;
+
+    const fetchPromise = (async () => {
+      const bytes = await api.scores.getData(pieceId);
+      this.bytesCache.set(pieceId, bytes);
+    })();
+
+    this.pendingFetches.set(pieceId, fetchPromise);
+    try {
+      await fetchPromise;
+    } finally {
+      this.pendingFetches.delete(pieceId);
+    }
   }
 
   async getClip(pieceId: string, startBar: number, endBar: number): Promise<string> {

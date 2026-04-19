@@ -36,6 +36,17 @@ describe("scoreRenderer.getClip", () => {
     expect(svg).toBe("<svg>mock</svg>");
     expect(mockGetData).toHaveBeenCalledWith("chopin.ballades.1");
   });
+
+  it("concurrent calls for the same pieceId trigger exactly one getData fetch", async () => {
+    const { scoreRenderer } = await import("./score-renderer");
+    const [svg1, svg2] = await Promise.all([
+      scoreRenderer.getClip("chopin.ballades.1", 1, 4),
+      scoreRenderer.getClip("chopin.ballades.1", 5, 8),
+    ]);
+    expect(mockGetData).toHaveBeenCalledTimes(1);
+    expect(svg1).toBe("<svg>mock</svg>");
+    expect(svg2).toBe("<svg>mock</svg>");
+  });
 });
 
 describe("scoreRenderer.getClip error paths", () => {
