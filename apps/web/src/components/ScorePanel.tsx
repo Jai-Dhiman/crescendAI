@@ -333,7 +333,7 @@ function ScorePanelScore({
 				</div>
 			)}
 			<div className="relative">
-				<div ref={containerRef} className="osmd-container" />
+				<div ref={containerRef} className="score-container" />
 				{/* Annotation markers */}
 				{isRendered &&
 					observations.map((obs, i) => {

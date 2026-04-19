@@ -5,12 +5,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { useScorePanelStore } from "../stores/score-panel";
 
 const mockGetFull = vi.fn().mockResolvedValue("<svg><g class='measure'/></svg>");
-const mockGetClip = vi.fn().mockResolvedValue("<svg/>");
 
 vi.mock("../lib/score-renderer", () => ({
   scoreRenderer: {
     getFull: (...args: unknown[]) => mockGetFull(...args),
-    getClip: (...args: unknown[]) => mockGetClip(...args),
   },
 }));
 
