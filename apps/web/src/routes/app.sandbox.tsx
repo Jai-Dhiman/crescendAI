@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Artifact } from "../components/Artifact";
 import { ArtifactOverlay } from "../components/ArtifactOverlay";
 import { ArtifactScrollContext } from "../contexts/artifact-scroll";
@@ -135,6 +135,145 @@ function SandboxSection({ title, artifactId, children }: SandboxSectionProps) {
 	);
 }
 
+// --- Resize behavior sandbox ---
+
+const PLACEHOLDER_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="120" viewBox="0 0 600 120">
+  <rect width="600" height="120" fill="#fff"/>
+  <line x1="0" y1="60" x2="600" y2="60" stroke="#333" stroke-width="1"/>
+  <text x="10" y="20" font-size="11" fill="#666">Placeholder score — resize panel to compare variants</text>
+  <rect x="20" y="40" width="40" height="40" rx="2" fill="none" stroke="#444" stroke-width="1"/>
+  <rect x="80" y="40" width="40" height="40" rx="2" fill="none" stroke="#444" stroke-width="1"/>
+  <rect x="140" y="40" width="40" height="40" rx="2" fill="none" stroke="#444" stroke-width="1"/>
+  <rect x="200" y="40" width="40" height="40" rx="2" fill="none" stroke="#444" stroke-width="1"/>
+</svg>`;
+
+function SvgPanel({ svgMarkup }: { svgMarkup: string }) {
+	const ref = useRef<HTMLDivElement>(null);
+	useEffect(() => {
+		if (!ref.current) return;
+		ref.current.textContent = "";
+		ref.current.insertAdjacentHTML("afterbegin", svgMarkup);
+	}, [svgMarkup]);
+	return (
+		<div
+			ref={ref}
+			// biome-ignore lint/security/noDomManipulation: controlled SVG from Verovio, not user input
+			className="[&>svg]:w-full [&>svg]:block"
+		/>
+	);
+}
+
+function ResizeVariantPanel({
+	label,
+	description,
+	svgMarkup,
+	onResize,
+}: {
+	label: string;
+	description: string;
+	svgMarkup: string;
+	onResize: (newWidth: number) => void;
+}) {
+	const [width, setWidth] = useState(300);
+	const panelRef = useRef<HTMLDivElement>(null);
+
+	function handleDragStart(e: React.MouseEvent) {
+		e.preventDefault();
+		const startX = e.clientX;
+		const startWidth = width;
+
+		function onMove(ev: MouseEvent) {
+			const newWidth = Math.max(160, Math.min(520, startWidth + (ev.clientX - startX)));
+			if (panelRef.current) panelRef.current.style.width = `${newWidth}px`;
+		}
+
+		function onUp(ev: MouseEvent) {
+			const newWidth = Math.max(160, Math.min(520, startWidth + (ev.clientX - startX)));
+			setWidth(newWidth);
+			onResize(newWidth);
+			document.removeEventListener("mousemove", onMove);
+			document.removeEventListener("mouseup", onUp);
+			document.body.style.cursor = "";
+		}
+
+		document.addEventListener("mousemove", onMove);
+		document.addEventListener("mouseup", onUp);
+		document.body.style.cursor = "col-resize";
+	}
+
+	return (
+		<div className="flex flex-col gap-2">
+			<div className="flex items-center gap-2">
+				<span className="text-label-sm text-accent font-mono">{label}</span>
+				<span className="text-body-xs text-text-tertiary">{description}</span>
+			</div>
+			<div
+				ref={panelRef}
+				className="relative border border-border rounded-lg overflow-hidden bg-white"
+				style={{ width }}
+			>
+				<SvgPanel svgMarkup={svgMarkup} />
+				<div
+					onMouseDown={handleDragStart}
+					className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize bg-border hover:bg-accent transition-colors"
+				/>
+			</div>
+			<span className="text-body-xs text-text-tertiary">Width: {width}px</span>
+		</div>
+	);
+}
+
+function ResizeSandbox() {
+	const [variantASvg, setVariantASvg] = useState(PLACEHOLDER_SVG);
+
+	const [variantBSvg, setVariantBSvg] = useState(PLACEHOLDER_SVG);
+	const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+	function handleVariantAResize(newWidth: number) {
+		const updatedSvg = PLACEHOLDER_SVG.replace('width="600"', `width="${newWidth * 2}"`);
+		setVariantASvg(updatedSvg);
+	}
+
+	function handleVariantBResize(newWidth: number) {
+		if (debounceRef.current) clearTimeout(debounceRef.current);
+		debounceRef.current = setTimeout(() => {
+			const updatedSvg = PLACEHOLDER_SVG.replace('width="600"', `width="${newWidth * 2}"`);
+			setVariantBSvg(updatedSvg);
+		}, 200);
+	}
+
+	return (
+		<div className="border border-border rounded-xl bg-surface-card p-5 flex flex-col gap-6">
+			<div>
+				<h2 className="font-display text-display-xs text-cream">Panel Resize Behavior</h2>
+				<p className="text-body-sm text-text-secondary mt-1">
+					Drag the right edge of each panel. Pick the behavior that feels right.
+				</p>
+			</div>
+			<div className="flex flex-col gap-6">
+				<ResizeVariantPanel
+					label="A: Reflow on drag-end"
+					description="Score re-renders once after you release the handle"
+					svgMarkup={variantASvg}
+					onResize={handleVariantAResize}
+				/>
+				<ResizeVariantPanel
+					label="B: Debounced 200ms"
+					description="Score re-renders 200ms after drag stops moving"
+					svgMarkup={variantBSvg}
+					onResize={handleVariantBResize}
+				/>
+				<ResizeVariantPanel
+					label="C: Fixed-width CSS scale"
+					description="Score rendered once at fixed width; container scales via CSS"
+					svgMarkup={PLACEHOLDER_SVG}
+					onResize={() => {}}
+				/>
+			</div>
+		</div>
+	);
+}
+
 // --- Page ---
 
 function ArtifactSandbox() {
@@ -156,6 +295,9 @@ function ArtifactSandbox() {
 							Dev-only. Test each artifact type in isolation.
 						</p>
 					</div>
+
+					{/* Resize behavior sandbox — pick A, B, or C before Task 8 executes */}
+					<ResizeSandbox />
 
 					{/* ExerciseSet — with exerciseId (Start/Complete buttons) */}
 					<SandboxSection
