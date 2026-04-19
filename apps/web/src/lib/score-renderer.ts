@@ -7,6 +7,8 @@ class ScoreRenderer {
     string,
     { resolve: (svg: string) => void; reject: (err: Error) => void }
   >();
+  // bytesCache entries are never evicted by design: sentPieceIds correctness
+  // depends on bytesCache remaining populated after a successful fetch.
   private bytesCache = new Map<string, ArrayBuffer>();
   private sentPieceIds = new Set<string>();
   private requestCounter = 0;
@@ -34,6 +36,14 @@ class ScoreRenderer {
         } else {
           pending.reject(new Error("Worker returned no svg and no error"));
         }
+      };
+      this.worker.onerror = (e: ErrorEvent) => {
+        const err = new Error(`Score worker crashed: ${e.message}`);
+        for (const { reject } of this.pendingRequests.values()) {
+          reject(err);
+        }
+        this.pendingRequests.clear();
+        this.worker = null;
       };
     }
     return this.worker;
