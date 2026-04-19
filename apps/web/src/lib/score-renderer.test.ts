@@ -14,8 +14,6 @@ class MockWorker {
   terminate = vi.fn();
 }
 
-vi.stubGlobal("Worker", MockWorker);
-
 const mockGetData = vi.fn().mockResolvedValue(new ArrayBuffer(8));
 vi.mock("./api", () => ({
   api: {
@@ -27,6 +25,7 @@ vi.mock("./api", () => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.stubGlobal("Worker", MockWorker);
   vi.resetModules();
 });
 
@@ -36,5 +35,31 @@ describe("scoreRenderer.getClip", () => {
     const svg = await scoreRenderer.getClip("chopin.ballades.1", 1, 4);
     expect(svg).toBe("<svg>mock</svg>");
     expect(mockGetData).toHaveBeenCalledWith("chopin.ballades.1");
+  });
+});
+
+describe("scoreRenderer.getClip error paths", () => {
+  it("rejects when the Worker returns an error response", async () => {
+    const ErrorWorker = class {
+      onmessage: ((e: MessageEvent) => void) | null = null;
+      postMessage = vi.fn((msg: { requestId: string }) => {
+        const handler = this.onmessage;
+        Promise.resolve().then(() => {
+          handler?.({
+            data: { requestId: msg.requestId, error: "render failed" },
+          } as MessageEvent);
+        });
+      });
+      terminate = vi.fn();
+    };
+    vi.stubGlobal("Worker", ErrorWorker);
+    const { scoreRenderer } = await import("./score-renderer");
+    await expect(scoreRenderer.getClip("chopin.ballades.1", 1, 4)).rejects.toThrow("render failed");
+  });
+
+  it("rejects when api.scores.getData fails", async () => {
+    mockGetData.mockRejectedValueOnce(new Error("network error"));
+    const { scoreRenderer } = await import("./score-renderer");
+    await expect(scoreRenderer.getClip("chopin.ballades.1", 1, 4)).rejects.toThrow("network error");
   });
 });

@@ -28,8 +28,10 @@ class ScoreRenderer {
         this.pendingRequests.delete(requestId);
         if (error !== undefined) {
           pending.reject(new Error(error));
+        } else if (svg !== undefined) {
+          pending.resolve(svg);
         } else {
-          pending.resolve(svg ?? "");
+          pending.reject(new Error("Worker returned no svg and no error"));
         }
       };
     }
@@ -48,9 +50,13 @@ class ScoreRenderer {
     return new Promise((resolve, reject) => {
       const requestId = `req-${++this.requestCounter}`;
       this.pendingRequests.set(requestId, { resolve, reject });
-      const bytes = !this.sentPieceIds.has(pieceId)
-        ? this.bytesCache.get(pieceId)
-        : undefined;
+      const needsBytes = !this.sentPieceIds.has(pieceId);
+      const bytes = needsBytes ? this.bytesCache.get(pieceId) : undefined;
+      if (needsBytes && bytes === undefined) {
+        this.pendingRequests.delete(requestId);
+        reject(new Error(`Score bytes missing after fetch for pieceId: ${pieceId}`));
+        return;
+      }
       if (!this.sentPieceIds.has(pieceId)) this.sentPieceIds.add(pieceId);
       worker.postMessage({
         type: "render_clip",
