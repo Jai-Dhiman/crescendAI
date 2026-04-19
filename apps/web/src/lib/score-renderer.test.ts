@@ -83,3 +83,21 @@ describe("scoreRenderer.getFull", () => {
     expect(mockGetData).toHaveBeenCalledWith("chopin.ballades.1");
   });
 });
+
+describe("scoreRenderer error retry", () => {
+  it("allows a fresh fetch after the previous fetch for the same pieceId failed", async () => {
+    mockGetData.mockRejectedValueOnce(new Error("network error"));
+    const { scoreRenderer } = await import("./score-renderer");
+
+    // First call fails
+    await expect(
+      scoreRenderer.getClip("piece-retry", 1, 4),
+    ).rejects.toThrow("network error");
+
+    // Second call should trigger a NEW fetch (pendingFetches cleared on error)
+    mockGetData.mockResolvedValueOnce(new ArrayBuffer(16));
+    const svg = await scoreRenderer.getClip("piece-retry", 5, 8);
+    expect(svg).toBe("<svg>mock</svg>");
+    expect(mockGetData).toHaveBeenCalledTimes(2);
+  });
+});
