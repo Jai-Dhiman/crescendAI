@@ -274,6 +274,7 @@ function ScorePanelScore({
 				const svg = await scoreRenderer.getFull(pieceId);
 				if (cancelled) return;
 				container.textContent = "";
+				// biome-ignore lint/security/noDomManipulation: controlled SVG from Verovio WASM, not user input
 				container.insertAdjacentHTML("beforeend", svg);
 				setIsRendered(true);
 			} catch (err) {

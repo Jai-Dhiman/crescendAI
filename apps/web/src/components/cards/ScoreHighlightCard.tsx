@@ -49,6 +49,7 @@ export function ScoreHighlightCard({
 						const wrapper = document.createElement("div");
 						wrapper.style.borderRadius = "6px";
 						wrapper.style.border = `1.5px solid ${color}40`;
+						// biome-ignore lint/security/noDomManipulation: controlled SVG from Verovio WASM, not user input
 						wrapper.insertAdjacentHTML("beforeend", svgResults[i]);
 						const innerSvg = wrapper.querySelector("svg");
 						if (innerSvg) {
