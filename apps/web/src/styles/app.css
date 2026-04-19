@@ -292,13 +292,13 @@ html[data-theme="light"] {
 	--dim-interpretation: #9a917a;
 }
 
-/* OSMD container styling */
-.osmd-container svg {
+/* Score container styling (Verovio SVG output) */
+.score-container svg {
 	width: 100% !important;
 	height: auto !important;
 }
 
-.osmd-container {
+.score-container {
 	min-height: 200px;
 	background: white;
 	border-radius: 0.5rem;
