@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { Artifact } from "../components/Artifact";
 import { ArtifactOverlay } from "../components/ArtifactOverlay";
 import { ArtifactScrollContext } from "../contexts/artifact-scroll";
+import { scoreRenderer } from "../lib/score-renderer";
 import type {
 	ExerciseSetConfig,
 	KeyboardGuideConfig,
@@ -237,27 +238,39 @@ function ResizeVariantPanel({
 }
 
 function ResizeSandbox() {
+	const [baseSvg, setBaseSvg] = useState<string | null>(null);
+	const [loadError, setLoadError] = useState<string | null>(null);
 	const [variantASvg, setVariantASvg] = useState(PLACEHOLDER_SVG);
-
 	const [variantBSvg, setVariantBSvg] = useState(PLACEHOLDER_SVG);
 	const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
 	useEffect(() => {
+		let cancelled = false;
+		scoreRenderer.getFull("chopin.ballades.1").then((svg) => {
+			if (cancelled) return;
+			setBaseSvg(svg);
+			setVariantASvg(svg);
+			setVariantBSvg(svg);
+		}).catch((err) => {
+			if (cancelled) return;
+			setLoadError(String(err));
+		});
 		return () => {
+			cancelled = true;
 			if (debounceRef.current) clearTimeout(debounceRef.current);
 		};
 	}, []);
 
 	function handleVariantAResize(newWidth: number) {
-		const updatedSvg = PLACEHOLDER_SVG.replace('width="600"', `width="${newWidth * 2}"`);
-		setVariantASvg(updatedSvg);
+		const src = baseSvg ?? PLACEHOLDER_SVG;
+		setVariantASvg(src.replace(/(<svg[^>]*\s)width="[^"]*"/, `$1width="${newWidth * 2}"`));
 	}
 
 	function handleVariantBResize(newWidth: number) {
 		if (debounceRef.current) clearTimeout(debounceRef.current);
 		debounceRef.current = setTimeout(() => {
-			const updatedSvg = PLACEHOLDER_SVG.replace('width="600"', `width="${newWidth * 2}"`);
-			setVariantBSvg(updatedSvg);
+			const src = baseSvg ?? PLACEHOLDER_SVG;
+			setVariantBSvg(src.replace(/(<svg[^>]*\s)width="[^"]*"/, `$1width="${newWidth * 2}"`));
 		}, 200);
 	}
 
@@ -268,6 +281,12 @@ function ResizeSandbox() {
 				<p className="text-body-sm text-text-secondary mt-1">
 					Drag the right edge of each panel. Pick the behavior that feels right.
 				</p>
+				{loadError && (
+					<p className="text-body-xs text-red-400 mt-1">Score load error: {loadError}</p>
+				)}
+				{!baseSvg && !loadError && (
+					<p className="text-body-xs text-text-tertiary mt-1">Loading score…</p>
+				)}
 			</div>
 			<div className="flex flex-col gap-6">
 				<ResizeVariantPanel
@@ -285,7 +304,7 @@ function ResizeSandbox() {
 				<ResizeVariantPanel
 					label="C: Fixed-width CSS scale"
 					description="Score rendered once at fixed width; container scales via CSS"
-					svgMarkup={PLACEHOLDER_SVG}
+					svgMarkup={baseSvg ?? PLACEHOLDER_SVG}
 					onResize={() => {}}
 				/>
 			</div>

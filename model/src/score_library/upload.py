@@ -1,11 +1,60 @@
 """Upload score library to R2 and generate D1 seed SQL."""
 from __future__ import annotations
 
+import io
 import json
 import os
+import subprocess
+import zipfile
 from pathlib import Path
 
 from score_library.discover import derive_piece_id
+
+_ZIP_MAGIC = b"PK\x03\x04"
+
+
+def _strip_doctype(xml_bytes: bytes) -> bytes:
+    """Remove DOCTYPE declarations from XML bytes.
+
+    Verovio's WASM XML parser may throw on external DTD references
+    (e.g. the MusicXML 1.1 DTD at musicxml.org) in sandboxed environments.
+    Stripping DOCTYPE is safe: Verovio does not use DTD validation.
+    """
+    import re
+    text = xml_bytes.decode("utf-8", errors="replace")
+    cleaned = re.sub(r"<!DOCTYPE\s[^>[]*(\[[^\]]*\])?\s*>", "", text)
+    return cleaned.encode("utf-8")
+
+
+def wrap_as_mxl_zip(xml_bytes: bytes, piece_id: str) -> bytes:
+    """Wrap plain MusicXML bytes in a standard MXL ZIP container.
+
+    The MXL format (MusicXML 3.0+) is a ZIP archive with:
+      META-INF/container.xml  — declares the root MusicXML file
+      {piece_id}.xml          — the MusicXML content
+
+    If xml_bytes already starts with the ZIP magic bytes it is returned
+    unchanged, so this function is safe to call on any input.
+    """
+    if xml_bytes[:4] == _ZIP_MAGIC:
+        return xml_bytes
+
+    xml_bytes = _strip_doctype(xml_bytes)
+
+    container_xml = (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        "<container>\n"
+        "  <rootfiles>\n"
+        f'    <rootfile full-path="{piece_id}.xml"'
+        ' media-type="application/vnd.recordare.musicxml+xml"/>\n'
+        "  </rootfiles>\n"
+        "</container>\n"
+    )
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("META-INF/container.xml", container_xml)
+        zf.writestr(f"{piece_id}.xml", xml_bytes)
+    return buf.getvalue()
 
 
 def generate_d1_seed(source_dir: Path, output_path: Path | None = None) -> Path:
@@ -152,13 +201,13 @@ def upload_to_r2(source_dir: Path, version: str = "v1") -> None:
 def upload_mxl_to_r2(asap_dir: Path, version: str = "v1", dry_run: bool = False) -> None:
     """Upload MusicXML score files from the ASAP dataset to Cloudflare R2.
 
-    Walks the ASAP directory tree looking for ``score.musicxml`` files
-    (one per piece directory). Derives the canonical piece_id using the
-    same logic as ``discover_pieces``, then uploads each file to R2 at
-    ``scores/{version}/{piece_id}.mxl``.
+    Walks the ASAP directory tree looking for ``xml_score.musicxml`` files
+    (one per piece directory). Each file is wrapped into a standard MXL ZIP
+    container before upload (see ``wrap_as_mxl_zip``), so all objects stored
+    in R2 are proper ``.mxl`` ZIP files regardless of source format.
 
-    The API route ``GET /api/scores/:pieceId/data`` fetches these objects
-    and returns them to the web client for OSMD sheet-music rendering.
+    R2 key: ``scores/{version}/{piece_id}.mxl``
+    Content-Type: ``application/vnd.recordare.musicxml+zip``
 
     Args:
         asap_dir: Root of the cloned ASAP dataset (e.g. ``data/raw/asap``).
@@ -173,8 +222,6 @@ def upload_mxl_to_r2(asap_dir: Path, version: str = "v1", dry_run: bool = False)
     if not asap_dir.exists():
         raise FileNotFoundError(f"ASAP directory not found: {asap_dir}")
 
-    # Collect all xml_score.musicxml files, one per piece directory.
-    # The ASAP structure has exactly one musicxml per piece dir alongside midi_score.mid.
     musicxml_files: list[tuple[str, Path]] = []
     for mxl_path in sorted(asap_dir.rglob("xml_score.musicxml")):
         piece_dir = mxl_path.parent
@@ -188,7 +235,7 @@ def upload_mxl_to_r2(asap_dir: Path, version: str = "v1", dry_run: bool = False)
             "git sparse-checkout set '**/xml_score.musicxml'"
         )
 
-    print(f"Found {len(musicxml_files)} score.musicxml files")
+    print(f"Found {len(musicxml_files)} xml_score.musicxml files (will wrap each as MXL ZIP)")
 
     if dry_run:
         for piece_id, path in musicxml_files[:10]:
@@ -197,33 +244,26 @@ def upload_mxl_to_r2(asap_dir: Path, version: str = "v1", dry_run: bool = False)
             print(f"  ... and {len(musicxml_files) - 10} more")
         return
 
-    import boto3
-
-    account_id = os.environ["R2_ACCOUNT_ID"]
-    access_key = os.environ["R2_ACCESS_KEY_ID"]
-    secret_key = os.environ["R2_SECRET_ACCESS_KEY"]
-
-    s3 = boto3.client(
-        "s3",
-        endpoint_url=f"https://{account_id}.r2.cloudflarestorage.com",
-        aws_access_key_id=access_key,
-        aws_secret_access_key=secret_key,
-        region_name="auto",
-    )
-
     bucket = "crescendai-bucket"
     uploaded = 0
     skipped = 0
 
     for piece_id, mxl_path in musicxml_files:
-        key = f"scores/{version}/{piece_id}.mxl"
+        object_path = f"{bucket}/scores/{version}/{piece_id}.mxl"
         try:
-            s3.upload_file(
-                str(mxl_path),
-                bucket,
-                key,
-                ExtraArgs={"ContentType": "application/vnd.recordare.musicxml+xml"},
+            xml_bytes = mxl_path.read_bytes()
+            mxl_bytes = wrap_as_mxl_zip(xml_bytes, piece_id)
+            result = subprocess.run(
+                [
+                    "wrangler", "r2", "object", "put", object_path,
+                    "--pipe", "--remote",
+                    "--content-type", "application/vnd.recordare.musicxml+zip",
+                ],
+                input=mxl_bytes,
+                capture_output=True,
             )
+            if result.returncode != 0:
+                raise RuntimeError(result.stderr.decode().strip())
             uploaded += 1
             if uploaded % 50 == 0:
                 print(f"  Uploaded {uploaded}/{len(musicxml_files)}...")
@@ -231,6 +271,6 @@ def upload_mxl_to_r2(asap_dir: Path, version: str = "v1", dry_run: bool = False)
             print(f"  SKIP {piece_id}: {e}")
             skipped += 1
 
-    print(f"\nDone. Uploaded {uploaded} MXL files to R2 (bucket={bucket}, prefix=scores/{version}/)")
+    print(f"\nDone. Uploaded {uploaded} MXL ZIP files to R2 (bucket={bucket}, prefix=scores/{version}/)")
     if skipped:
         print(f"Skipped {skipped} files due to errors")
