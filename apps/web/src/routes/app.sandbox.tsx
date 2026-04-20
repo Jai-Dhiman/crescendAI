@@ -2,7 +2,9 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { Artifact } from "../components/Artifact";
 import { ArtifactOverlay } from "../components/ArtifactOverlay";
+import { SvgClip } from "../components/SvgClip";
 import { ArtifactScrollContext } from "../contexts/artifact-scroll";
+import type { ClipResult } from "../lib/score-renderer";
 import { scoreRenderer } from "../lib/score-renderer";
 import type {
 	ExerciseSetConfig,
@@ -60,7 +62,9 @@ const exerciseSetNoId: ExerciseSetConfig = {
 	],
 };
 
-const scoreHighlight: ScoreHighlightConfig = {
+// Score highlight fixtures — spread across the piece to test clip rendering at
+// different measure index positions (opening, mid, climax, near-end).
+const scoreHighlightOpening: ScoreHighlightConfig = {
 	pieceId: "chopin.ballades.1",
 	highlights: [
 		{ bars: [1, 4], dimension: "dynamics", annotation: "Establish hushed, questioning p throughout" },
@@ -68,13 +72,28 @@ const scoreHighlight: ScoreHighlightConfig = {
 	],
 };
 
-// Tests full score rendering — wide bar range to exercise scroll/pagination and measure layout at scale.
-const scoreHighlightFull: ScoreHighlightConfig = {
+const scoreHighlightWide: ScoreHighlightConfig = {
 	pieceId: "chopin.ballades.1",
 	highlights: [
 		{ bars: [1, 8], dimension: "dynamics", annotation: "Opening statement — hushed and questioning" },
 		{ bars: [9, 16], dimension: "phrasing", annotation: "Secondary theme entry — shape the long arc" },
 		{ bars: [17, 24], dimension: "timing", annotation: "Subtle rubato — breathe at bar 20" },
+	],
+};
+
+const scoreHighlightMid: ScoreHighlightConfig = {
+	pieceId: "chopin.ballades.1",
+	highlights: [
+		{ bars: [94, 97], dimension: "timing", annotation: "First climax — push through to the peak" },
+		{ bars: [106, 112], dimension: "dynamics", annotation: "Sudden ff — commit to the outburst" },
+	],
+};
+
+const scoreHighlightLate: ScoreHighlightConfig = {
+	pieceId: "chopin.ballades.1",
+	highlights: [
+		{ bars: [200, 207], dimension: "phrasing", annotation: "Coda approach — broaden the phrase" },
+		{ bars: [250, 264], dimension: "interpretation", annotation: "Presto coda — controlled abandon" },
 	],
 };
 
@@ -86,8 +105,10 @@ const referenceBrowser: ReferenceBrowserConfig = {};
 const SANDBOX_IDS = {
 	exerciseWithId: "sandbox-exercise-set-1",
 	exerciseNoId: "sandbox-exercise-set-2",
-	scoreHighlightFull: "sandbox-score-highlight-full",
-	scoreHighlight: "sandbox-score-highlight-1",
+	scoreHighlightOpening: "sandbox-score-highlight-opening",
+	scoreHighlightWide: "sandbox-score-highlight-wide",
+	scoreHighlightMid: "sandbox-score-highlight-mid",
+	scoreHighlightLate: "sandbox-score-highlight-late",
 	keyboardGuide: "sandbox-keyboard-guide-1",
 	referenceBrowser: "sandbox-reference-browser-1",
 } as const;
@@ -136,17 +157,7 @@ function SandboxSection({ title, artifactId, children }: SandboxSectionProps) {
 	);
 }
 
-// --- Resize behavior sandbox ---
-
-const PLACEHOLDER_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="120" viewBox="0 0 600 120">
-  <rect width="600" height="120" fill="#fff"/>
-  <line x1="0" y1="60" x2="600" y2="60" stroke="#333" stroke-width="1"/>
-  <text x="10" y="20" font-size="11" fill="#666">Placeholder score — resize panel to compare variants</text>
-  <rect x="20" y="40" width="40" height="40" rx="2" fill="none" stroke="#444" stroke-width="1"/>
-  <rect x="80" y="40" width="40" height="40" rx="2" fill="none" stroke="#444" stroke-width="1"/>
-  <rect x="140" y="40" width="40" height="40" rx="2" fill="none" stroke="#444" stroke-width="1"/>
-  <rect x="200" y="40" width="40" height="40" rx="2" fill="none" stroke="#444" stroke-width="1"/>
-</svg>`;
+// --- Score renderer primitives ---
 
 function SvgPanel({ svgMarkup }: { svgMarkup: string }) {
 	const ref = useRef<HTMLDivElement>(null);
@@ -164,26 +175,25 @@ function SvgPanel({ svgMarkup }: { svgMarkup: string }) {
 	);
 }
 
-function ResizeVariantPanel({
-	label,
-	description,
-	svgMarkup,
-	onResize,
-}: {
-	label: string;
-	description: string;
-	svgMarkup: string;
-	onResize: (newWidth: number) => void;
-}) {
-	const [width, setWidth] = useState(300);
+// Full-score panel with drag-to-resize. Bars reflow on drag-end (approach A).
+function ScoreResizePanel({ pieceId }: { pieceId: string }) {
+	const [svg, setSvg] = useState<string | null>(null);
+	const [error, setError] = useState<string | null>(null);
+	const [width, setWidth] = useState(480);
 	const panelRef = useRef<HTMLDivElement>(null);
-	const cleanupDragRef = useRef<(() => void) | null>(null);
+	const cleanupRef = useRef<(() => void) | null>(null);
 
 	useEffect(() => {
+		let cancelled = false;
+		scoreRenderer
+			.getFull(pieceId)
+			.then((s) => { if (!cancelled) setSvg(s); })
+			.catch((e) => { if (!cancelled) setError(String(e)); });
 		return () => {
-			cleanupDragRef.current?.();
+			cancelled = true;
+			cleanupRef.current?.();
 		};
-	}, []);
+	}, [pieceId]);
 
 	function handleDragStart(e: React.MouseEvent) {
 		e.preventDefault();
@@ -191,126 +201,100 @@ function ResizeVariantPanel({
 		const startWidth = width;
 
 		function onMove(ev: MouseEvent) {
-			const newWidth = Math.max(160, Math.min(520, startWidth + (ev.clientX - startX)));
-			if (panelRef.current) panelRef.current.style.width = `${newWidth}px`;
+			const w = Math.max(200, Math.min(700, startWidth + (ev.clientX - startX)));
+			if (panelRef.current) panelRef.current.style.width = `${w}px`;
 		}
 
 		function cleanup() {
 			document.removeEventListener("mousemove", onMove);
 			document.removeEventListener("mouseup", onUp);
 			document.body.style.cursor = "";
-			cleanupDragRef.current = null;
+			cleanupRef.current = null;
 		}
 
 		function onUp(ev: MouseEvent) {
-			const newWidth = Math.max(160, Math.min(520, startWidth + (ev.clientX - startX)));
-			setWidth(newWidth);
-			onResize(newWidth);
+			const w = Math.max(200, Math.min(700, startWidth + (ev.clientX - startX)));
+			setWidth(w);
+			scoreRenderer.getFull(pieceId, Math.round(w / 0.4)).then(setSvg).catch(() => {});
 			cleanup();
 		}
 
 		document.addEventListener("mousemove", onMove);
 		document.addEventListener("mouseup", onUp);
 		document.body.style.cursor = "col-resize";
-		cleanupDragRef.current = cleanup;
+		cleanupRef.current = cleanup;
 	}
 
 	return (
 		<div className="flex flex-col gap-2">
-			<div className="flex items-center gap-2">
-				<span className="text-label-sm text-accent font-mono">{label}</span>
-				<span className="text-body-xs text-text-tertiary">{description}</span>
-			</div>
 			<div
 				ref={panelRef}
 				className="relative border border-border rounded-lg overflow-hidden bg-white"
 				style={{ width }}
 			>
-				<SvgPanel svgMarkup={svgMarkup} />
+				{error && <p className="text-body-xs text-red-400 p-2">{error}</p>}
+				{!svg && !error && <p className="text-body-xs text-text-tertiary p-2">Loading…</p>}
+				{svg && <SvgPanel svgMarkup={svg} />}
 				<div
 					onMouseDown={handleDragStart}
 					className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize bg-border hover:bg-accent transition-colors"
 				/>
 			</div>
-			<span className="text-body-xs text-text-tertiary">Width: {width}px</span>
+			<span className="text-body-xs text-text-tertiary">
+				Width: {width}px — drag right edge to reflow bars
+			</span>
 		</div>
 	);
 }
 
-function ResizeSandbox() {
-	const [baseSvg, setBaseSvg] = useState<string | null>(null);
-	const [loadError, setLoadError] = useState<string | null>(null);
-	const [variantASvg, setVariantASvg] = useState(PLACEHOLDER_SVG);
-	const [variantBSvg, setVariantBSvg] = useState(PLACEHOLDER_SVG);
-	const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+interface ClipTest {
+	label: string;
+	startBar: number;
+	endBar: number;
+}
+
+function ScoreClipPanel({ label, pieceId, startBar, endBar }: ClipTest & { pieceId: string }) {
+	const [clip, setClip] = useState<ClipResult | null>(null);
+	const [error, setError] = useState<string | null>(null);
 
 	useEffect(() => {
 		let cancelled = false;
-		scoreRenderer.getFull("chopin.ballades.1").then((svg) => {
-			if (cancelled) return;
-			setBaseSvg(svg);
-			setVariantASvg(svg);
-			setVariantBSvg(svg);
-		}).catch((err) => {
-			if (cancelled) return;
-			setLoadError(String(err));
-		});
-		return () => {
-			cancelled = true;
-			if (debounceRef.current) clearTimeout(debounceRef.current);
-		};
-	}, []);
-
-	function handleVariantAResize(newWidth: number) {
-		const src = baseSvg ?? PLACEHOLDER_SVG;
-		setVariantASvg(src.replace(/(<svg[^>]*\s)width="[^"]*"/, `$1width="${newWidth * 2}"`));
-	}
-
-	function handleVariantBResize(newWidth: number) {
-		if (debounceRef.current) clearTimeout(debounceRef.current);
-		debounceRef.current = setTimeout(() => {
-			const src = baseSvg ?? PLACEHOLDER_SVG;
-			setVariantBSvg(src.replace(/(<svg[^>]*\s)width="[^"]*"/, `$1width="${newWidth * 2}"`));
-		}, 200);
-	}
+		scoreRenderer
+			.getClip(pieceId, startBar, endBar)
+			.then((r) => { if (!cancelled) setClip(r); })
+			.catch((e) => { if (!cancelled) setError(String(e)); });
+		return () => { cancelled = true; };
+	}, [pieceId, startBar, endBar]);
 
 	return (
-		<div className="border border-border rounded-xl bg-surface-card p-5 flex flex-col gap-6">
-			<div>
-				<h2 className="font-display text-display-xs text-cream">Panel Resize Behavior</h2>
-				<p className="text-body-sm text-text-secondary mt-1">
-					Drag the right edge of each panel. Pick the behavior that feels right.
-				</p>
-				{loadError && (
-					<p className="text-body-xs text-red-400 mt-1">Score load error: {loadError}</p>
+		<div className="flex flex-col gap-1">
+			<span className="text-label-sm text-accent font-mono">{label}</span>
+			<div className="border border-border rounded-lg overflow-hidden bg-white">
+				{error && <p className="text-body-xs text-red-400 p-2">{error}</p>}
+				{!clip && !error && <p className="text-body-xs text-text-tertiary p-2">Loading…</p>}
+				{clip && (
+					<SvgClip
+						svgMarkup={clip.svg}
+						startMeasureId={clip.startMeasureId}
+						endMeasureId={clip.endMeasureId}
+					/>
 				)}
-				{!baseSvg && !loadError && (
-					<p className="text-body-xs text-text-tertiary mt-1">Loading score…</p>
-				)}
-			</div>
-			<div className="flex flex-col gap-6">
-				<ResizeVariantPanel
-					label="A: Reflow on drag-end"
-					description="Score re-renders once after you release the handle"
-					svgMarkup={variantASvg}
-					onResize={handleVariantAResize}
-				/>
-				<ResizeVariantPanel
-					label="B: Debounced 200ms"
-					description="Score re-renders 200ms after drag stops moving"
-					svgMarkup={variantBSvg}
-					onResize={handleVariantBResize}
-				/>
-				<ResizeVariantPanel
-					label="C: Fixed-width CSS scale"
-					description="Score rendered once at fixed width; container scales via CSS"
-					svgMarkup={baseSvg ?? PLACEHOLDER_SVG}
-					onResize={() => {}}
-				/>
 			</div>
 		</div>
 	);
 }
+
+// Chopin Ballade No. 1 is ~264 bars. Tests span: opening, single-bar isolation,
+// first theme, likely page-boundary zone, climax, and final bars.
+const CLIP_TESTS: ClipTest[] = [
+	{ label: "Bars 1-4 — opening (sparse, start of measure index)", startBar: 1, endBar: 4 },
+	{ label: "Bar 8 — single bar isolation", startBar: 8, endBar: 8 },
+	{ label: "Bars 36-43 — first theme (denser notation)", startBar: 36, endBar: 43 },
+	{ label: "Bars 68-80 — transition (likely page boundary at scale 40%)", startBar: 68, endBar: 80 },
+	{ label: "Bars 166-173 — climax region", startBar: 166, endBar: 173 },
+	{ label: "Bars 250-260 — near end (high measure index)", startBar: 250, endBar: 260 },
+	{ label: "Bars 261-264 — final bars (end-of-piece edge case)", startBar: 261, endBar: 264 },
+];
 
 // --- Page ---
 
@@ -334,8 +318,78 @@ function ArtifactSandbox() {
 						</p>
 					</div>
 
-					{/* Resize behavior sandbox — pick A, B, or C before Task 8 executes */}
-					<ResizeSandbox />
+					{/* Full score — resizable, bars reflow on drag-end */}
+					<section className="border border-border rounded-xl bg-surface-card p-5 flex flex-col gap-4">
+						<div>
+							<h2 className="font-display text-display-xs text-cream">Full Score — Resizable</h2>
+							<p className="text-body-sm text-text-secondary mt-1">
+								Page 1, Verovio re-renders on drag-end. Drag right edge wide and narrow to see bar reflow.
+							</p>
+						</div>
+						<ScoreResizePanel pieceId="chopin.ballades.1" />
+					</section>
+
+					{/* Clip grid — static renders at various positions in the piece */}
+					<section className="border border-border rounded-xl bg-surface-card p-5 flex flex-col gap-4">
+						<div>
+							<h2 className="font-display text-display-xs text-cream">Score Clips</h2>
+							<p className="text-body-sm text-text-secondary mt-1">
+								Each clip renders the page containing startBar, then crops the viewBox to show only
+								the requested bar range. Tests measure index accuracy, page boundaries, single-bar,
+								and end-of-piece edge cases.
+							</p>
+						</div>
+						<div className="flex flex-col gap-5">
+							{CLIP_TESTS.map((t) => (
+								<ScoreClipPanel
+									key={`${t.startBar}-${t.endBar}`}
+									pieceId="chopin.ballades.1"
+									{...t}
+								/>
+							))}
+						</div>
+					</section>
+
+					{/* ScoreHighlight artifacts — tests the full artifact rendering pipeline */}
+					<SandboxSection
+						title="ScoreHighlight — Opening (bars 1-8)"
+						artifactId={SANDBOX_IDS.scoreHighlightOpening}
+					>
+						<Artifact
+							artifactId={SANDBOX_IDS.scoreHighlightOpening}
+							component={{ type: "score_highlight", config: scoreHighlightOpening }}
+						/>
+					</SandboxSection>
+
+					<SandboxSection
+						title="ScoreHighlight — Wide opening (bars 1-24, 3 highlights)"
+						artifactId={SANDBOX_IDS.scoreHighlightWide}
+					>
+						<Artifact
+							artifactId={SANDBOX_IDS.scoreHighlightWide}
+							component={{ type: "score_highlight", config: scoreHighlightWide }}
+						/>
+					</SandboxSection>
+
+					<SandboxSection
+						title="ScoreHighlight — Mid-piece (bars 94-112)"
+						artifactId={SANDBOX_IDS.scoreHighlightMid}
+					>
+						<Artifact
+							artifactId={SANDBOX_IDS.scoreHighlightMid}
+							component={{ type: "score_highlight", config: scoreHighlightMid }}
+						/>
+					</SandboxSection>
+
+					<SandboxSection
+						title="ScoreHighlight — Late piece / final bars (bars 200-264)"
+						artifactId={SANDBOX_IDS.scoreHighlightLate}
+					>
+						<Artifact
+							artifactId={SANDBOX_IDS.scoreHighlightLate}
+							component={{ type: "score_highlight", config: scoreHighlightLate }}
+						/>
+					</SandboxSection>
 
 					{/* ExerciseSet — with exerciseId (Start/Complete buttons) */}
 					<SandboxSection
@@ -356,28 +410,6 @@ function ArtifactSandbox() {
 						<Artifact
 							artifactId={SANDBOX_IDS.exerciseNoId}
 							component={{ type: "exercise_set", config: exerciseSetNoId }}
-						/>
-					</SandboxSection>
-
-					{/* ScoreHighlight — Full Score: tests rendering across a large bar range (bars 1–24) */}
-					<SandboxSection
-						title="ScoreHighlight — Full Score"
-						artifactId={SANDBOX_IDS.scoreHighlightFull}
-					>
-						<Artifact
-							artifactId={SANDBOX_IDS.scoreHighlightFull}
-							component={{ type: "score_highlight", config: scoreHighlightFull }}
-						/>
-					</SandboxSection>
-
-					{/* ScoreHighlight */}
-					<SandboxSection
-						title="ScoreHighlight"
-						artifactId={SANDBOX_IDS.scoreHighlight}
-					>
-						<Artifact
-							artifactId={SANDBOX_IDS.scoreHighlight}
-							component={{ type: "score_highlight", config: scoreHighlight }}
 						/>
 					</SandboxSection>
 

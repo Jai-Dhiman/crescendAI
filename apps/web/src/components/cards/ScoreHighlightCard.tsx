@@ -1,9 +1,11 @@
 import { ArrowsOut } from "@phosphor-icons/react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { DIMENSION_COLORS } from "../../lib/mock-session";
+import type { ClipResult } from "../../lib/score-renderer";
 import { scoreRenderer } from "../../lib/score-renderer";
 import type { ScoreHighlightConfig } from "../../lib/types";
 import { useScorePanelStore } from "../../stores/score-panel";
+import { SvgClip } from "../SvgClip";
 
 interface ScoreHighlightCardProps {
 	config: ScoreHighlightConfig;
@@ -13,55 +15,42 @@ interface ScoreHighlightCardProps {
 
 type RenderState = "loading" | "rendered" | "error";
 
+interface LoadedClip extends ClipResult {
+	dimension: string;
+	bars: [number, number];
+	annotation?: string;
+}
+
 export function ScoreHighlightCard({
 	config,
 	onExpand,
 }: ScoreHighlightCardProps) {
 	const [renderState, setRenderState] = useState<RenderState>("loading");
-	const [hasClips, setHasClips] = useState(false);
-	const svgContainerRef = useRef<HTMLDivElement>(null);
+	const [clips, setClips] = useState<LoadedClip[]>([]);
 	const openHighlight = useScorePanelStore((s) => s.openHighlight);
 
 	// biome-ignore lint/correctness/useExhaustiveDependencies: highlights array identity is not stable; JSON.stringify produces a stable change signal
 	useEffect(() => {
 		let cancelled = false;
 
-		async function loadScore() {
+		async function loadClips() {
 			try {
-				const svgResults: string[] = [];
+				const results: LoadedClip[] = [];
 				for (const highlight of config.highlights) {
-					const svg = await scoreRenderer.getClip(
+					const clip = await scoreRenderer.getClip(
 						config.pieceId,
 						highlight.bars[0],
 						highlight.bars[1],
 					);
-					svgResults.push(svg);
+					results.push({
+						...clip,
+						dimension: highlight.dimension,
+						bars: highlight.bars,
+						annotation: highlight.annotation,
+					});
 				}
-				if (cancelled) return;
-
-				if (svgContainerRef.current) {
-					svgContainerRef.current.textContent = "";
-					for (let i = 0; i < svgResults.length; i++) {
-						const highlight = config.highlights[i];
-						const color =
-							DIMENSION_COLORS[highlight.dimension as keyof typeof DIMENSION_COLORS] ??
-							"#7a9a82";
-						const wrapper = document.createElement("div");
-						wrapper.style.borderRadius = "6px";
-						wrapper.style.border = `1.5px solid ${color}40`;
-						// biome-ignore lint/security/noDomManipulation: controlled SVG from Verovio WASM, not user input
-						wrapper.insertAdjacentHTML("beforeend", svgResults[i]);
-						const innerSvg = wrapper.querySelector("svg");
-						if (innerSvg) {
-							innerSvg.setAttribute("width", "100%");
-							innerSvg.style.display = "block";
-						}
-						svgContainerRef.current.appendChild(wrapper);
-					}
-				}
-
 				if (!cancelled) {
-					setHasClips(svgResults.length > 0);
+					setClips(results);
 					setRenderState("rendered");
 				}
 			} catch (err) {
@@ -70,7 +59,7 @@ export function ScoreHighlightCard({
 			}
 		}
 
-		loadScore();
+		loadClips();
 		return () => {
 			cancelled = true;
 		};
@@ -84,19 +73,47 @@ export function ScoreHighlightCard({
 				</div>
 			)}
 
-			<div
-				ref={svgContainerRef}
-				className={
-					hasClips && renderState !== "loading"
-						? "px-3 pt-3 pb-0 flex flex-col gap-2"
-						: "sr-only"
-				}
-			/>
+			{renderState === "rendered" && clips.length > 0 && (
+				<div className="px-3 pt-3 pb-0 flex flex-col gap-2">
+					{clips.map((clip) => {
+						const color =
+							DIMENSION_COLORS[clip.dimension as keyof typeof DIMENSION_COLORS] ??
+							"#7a9a82";
+						return (
+							<div
+								key={`${clip.dimension}-${clip.bars[0]}-${clip.bars[1]}`}
+								style={{
+									position: "relative",
+									borderRadius: "6px",
+									border: `1.5px solid ${color}40`,
+									backgroundColor: "white",
+									overflow: "hidden",
+								}}
+							>
+								<SvgClip
+									svgMarkup={clip.svg}
+									startMeasureId={clip.startMeasureId}
+									endMeasureId={clip.endMeasureId}
+								/>
+								<div
+									style={{
+										position: "absolute",
+										inset: 0,
+										backgroundColor: `${color}22`,
+										borderRadius: "5px",
+										pointerEvents: "none",
+									}}
+								/>
+							</div>
+						);
+					})}
+				</div>
+			)}
 
 			{/* Annotations */}
 			<div
 				className={`p-4 flex flex-col gap-3.5 ${
-					hasClips ? "border-t border-border/40" : ""
+					renderState === "rendered" && clips.length > 0 ? "border-t border-border/40" : ""
 				}`}
 			>
 				<div className="flex items-center justify-between">

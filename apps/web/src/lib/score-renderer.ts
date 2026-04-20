@@ -1,12 +1,19 @@
 // apps/web/src/lib/score-renderer.ts
 import { api } from "./api";
 
+export interface ClipResult {
+  svg: string;
+  startMeasureId: string | null;
+  endMeasureId: string | null;
+}
+
+type PendingFull = { kind: "full"; resolve: (svg: string) => void; reject: (err: Error) => void; pieceId: string };
+type PendingClip = { kind: "clip"; resolve: (r: ClipResult) => void; reject: (err: Error) => void; pieceId: string };
+type PendingRequest = PendingFull | PendingClip;
+
 class ScoreRenderer {
   private worker: Worker | null = null;
-  private pendingRequests = new Map<
-    string,
-    { resolve: (svg: string) => void; reject: (err: Error) => void; pieceId: string }
-  >();
+  private pendingRequests = new Map<string, PendingRequest>();
   // bytesCache entries are never evicted by design: sentPieceIds correctness
   // depends on bytesCache remaining populated after a successful fetch.
   private bytesCache = new Map<string, ArrayBuffer>();
@@ -23,9 +30,9 @@ class ScoreRenderer {
         type: "module",
       });
       this.worker.onmessage = (
-        e: MessageEvent<{ requestId: string; svg?: string; error?: string }>,
+        e: MessageEvent<{ requestId: string; svg?: string; startMeasureId?: string; endMeasureId?: string; error?: string }>,
       ) => {
-        const { requestId, svg, error } = e.data;
+        const { requestId, svg, startMeasureId, endMeasureId, error } = e.data;
         const pending = this.pendingRequests.get(requestId);
         if (!pending) return;
         this.pendingRequests.delete(requestId);
@@ -33,7 +40,11 @@ class ScoreRenderer {
           this.sentPieceIds.delete(pending.pieceId);
           pending.reject(new Error(error));
         } else if (svg !== undefined) {
-          pending.resolve(svg);
+          if (pending.kind === "clip") {
+            pending.resolve({ svg, startMeasureId: startMeasureId ?? null, endMeasureId: endMeasureId ?? null });
+          } else {
+            pending.resolve(svg);
+          }
         } else {
           pending.reject(new Error("Worker returned no svg and no error"));
         }
@@ -70,12 +81,12 @@ class ScoreRenderer {
     }
   }
 
-  async getFull(pieceId: string): Promise<string> {
+  async getFull(pieceId: string, pageWidth?: number): Promise<string> {
     await this.ensureBytes(pieceId);
     const worker = this.ensureWorker();
     return new Promise((resolve, reject) => {
       const requestId = `req-${++this.requestCounter}`;
-      this.pendingRequests.set(requestId, { resolve, reject, pieceId });
+      this.pendingRequests.set(requestId, { kind: "full", resolve, reject, pieceId });
       const needsBytes = !this.sentPieceIds.has(pieceId);
       const bytes = needsBytes ? this.bytesCache.get(pieceId) : undefined;
       if (needsBytes && bytes === undefined) {
@@ -84,16 +95,16 @@ class ScoreRenderer {
         return;
       }
       if (needsBytes) this.sentPieceIds.add(pieceId);
-      worker.postMessage({ type: "render_full", requestId, pieceId, bytes });
+      worker.postMessage({ type: "render_full", requestId, pieceId, bytes, pageWidth });
     });
   }
 
-  async getClip(pieceId: string, startBar: number, endBar: number): Promise<string> {
+  async getClip(pieceId: string, startBar: number, endBar: number): Promise<ClipResult> {
     await this.ensureBytes(pieceId);
     const worker = this.ensureWorker();
     return new Promise((resolve, reject) => {
       const requestId = `req-${++this.requestCounter}`;
-      this.pendingRequests.set(requestId, { resolve, reject, pieceId });
+      this.pendingRequests.set(requestId, { kind: "clip", resolve, reject, pieceId });
       const needsBytes = !this.sentPieceIds.has(pieceId);
       const bytes = needsBytes ? this.bytesCache.get(pieceId) : undefined;
       if (needsBytes && bytes === undefined) {

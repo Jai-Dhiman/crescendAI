@@ -13,6 +13,12 @@ interface CacheEntry {
   measures: MeasureEntry[];
 }
 
+export interface ClipSvgResult {
+  svg: string;
+  startMeasureId: string | null;
+  endMeasureId: string | null;
+}
+
 type LoadResult = CacheEntry | "failed";
 
 // Build a deduplicated, qstamp-sorted measure index from the timemap.
@@ -40,9 +46,16 @@ function getPageForBar(tk: VerovioTk, measures: MeasureEntry[], barNumber: numbe
   return page > 0 ? page : 1;
 }
 
-export function renderClipSvg(tk: VerovioTk, measures: MeasureEntry[], startBar: number): string {
+export function renderClipSvg(tk: VerovioTk, measures: MeasureEntry[], startBar: number, endBar: number): ClipSvgResult {
+  const startEntry = measures[startBar - 1];
+  const endEntry = measures[endBar - 1];
   const page = getPageForBar(tk, measures, startBar);
-  return tk.renderToSVG(page) as string;
+  const svg = tk.renderToSVG(page) as string;
+  return {
+    svg,
+    startMeasureId: startEntry?.measureOn ?? null,
+    endMeasureId: endEntry?.measureOn ?? null,
+  };
 }
 
 export function renderFullSvg(tk: VerovioTk): string {
@@ -126,7 +139,7 @@ type WorkerInMsg =
       endBar: number;
       bytes?: ArrayBuffer;
     }
-  | { type: "render_full"; requestId: string; pieceId: string; bytes?: ArrayBuffer };
+  | { type: "render_full"; requestId: string; pieceId: string; bytes?: ArrayBuffer; pageWidth?: number };
 
 // Worker message handler — only registers when loaded as a Web Worker (window is undefined)
 if (typeof window === "undefined") {
@@ -265,12 +278,25 @@ if (typeof window === "undefined") {
       }
 
       const { tk, measures } = result;
-      const svg =
-        msg.type === "render_clip"
-          ? renderClipSvg(tk, measures, msg.startBar)
-          : renderFullSvg(tk);
-
-      (self as unknown as Worker).postMessage({ requestId: msg.requestId, svg });
+      if (msg.type === "render_clip") {
+        const clip = renderClipSvg(tk, measures, msg.startBar, msg.endBar);
+        (self as unknown as Worker).postMessage({
+          requestId: msg.requestId,
+          svg: clip.svg,
+          startMeasureId: clip.startMeasureId ?? undefined,
+          endMeasureId: clip.endMeasureId ?? undefined,
+        });
+      } else {
+        let svg: string;
+        if (msg.pageWidth !== undefined) {
+          tk.setOptions({ pageWidth: msg.pageWidth });
+          svg = renderFullSvg(tk);
+          tk.setOptions({ pageWidth: VEROVIO_OPTS.pageWidth });
+        } else {
+          svg = renderFullSvg(tk);
+        }
+        (self as unknown as Worker).postMessage({ requestId: msg.requestId, svg });
+      }
     } catch (err) {
       const errorMsg =
         typeof WebAssembly !== "undefined" && err instanceof WebAssembly.Exception
