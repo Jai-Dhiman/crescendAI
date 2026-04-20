@@ -49,6 +49,16 @@ export function renderFullSvg(tk: VerovioTk): string {
   return tk.renderToSVG(1) as string;
 }
 
+// Expected R2 object format (scores/v1/{pieceId}.mxl):
+//   ZIP archive (PK\x03\x04 magic), two entries in order:
+//     META-INF/container.xml  — rootfiles declaration
+//     {pieceId}.xml           — DOCTYPE-stripped MusicXML content
+//   Both entries use DEFLATE (method 8). Local file headers carry the
+//   correct compressedSize at offset 18 with flag bit 3 = 0 (no data
+//   descriptor), because Python's zipfile.writestr() compresses in memory
+//   before writing the header. This parser depends on that invariant.
+//   See model/src/score_library/upload.py: wrap_as_mxl_zip().
+
 // Extract the main XML file from an MXL ZIP using the browser's native
 // DecompressionStream API, so we can fall back to loadData() if
 // loadZipDataBuffer() throws a WASM exception on a particular file.

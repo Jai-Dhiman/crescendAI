@@ -29,9 +29,16 @@ def _strip_doctype(xml_bytes: bytes) -> bytes:
 def wrap_as_mxl_zip(xml_bytes: bytes, piece_id: str) -> bytes:
     """Wrap plain MusicXML bytes in a standard MXL ZIP container.
 
-    The MXL format (MusicXML 3.0+) is a ZIP archive with:
-      META-INF/container.xml  — declares the root MusicXML file
-      {piece_id}.xml          — the MusicXML content
+    R2 object format (scores/v1/{piece_id}.mxl):
+      - ZIP archive (starts with PK\\x03\\x04 magic)
+      - Two entries, written in this order:
+          META-INF/container.xml  — rootfiles declaration per MusicXML 3.0+ spec
+          {piece_id}.xml          — DOCTYPE-stripped MusicXML content
+      - Both entries use DEFLATE compression (method 8)
+      - Local file headers carry correct compressedSize (no data descriptor / flag bit 3)
+        because writestr() compresses in memory before writing the header.
+        The web worker's extractXmlFromMxl() relies on this invariant to slice
+        compressed bytes without reading the central directory.
 
     If xml_bytes already starts with the ZIP magic bytes it is returned
     unchanged, so this function is safe to call on any input.
@@ -196,6 +203,125 @@ def upload_to_r2(source_dir: Path, version: str = "v1") -> None:
         raise RuntimeError(f"Upload count mismatch: uploaded {uploaded}, expected {len(json_files)}")
 
     print(f"Uploaded {uploaded} scores to R2 (bucket={bucket}, prefix=scores/{version}/)")
+
+
+def _zip_xml_entry(zip_bytes: bytes) -> bytes | None:
+    """Return the raw XML bytes of the MusicXML entry inside an MXL ZIP.
+
+    Returns None if no matching entry is found or the ZIP is invalid.
+    """
+    try:
+        with zipfile.ZipFile(io.BytesIO(zip_bytes)) as zf:
+            for name in zf.namelist():
+                if not name.startswith("META-INF") and name.endswith(".xml"):
+                    return zf.read(name)
+    except zipfile.BadZipFile:
+        pass
+    return None
+
+
+def reupload_plain_xml_in_r2(version: str = "v1", dry_run: bool = False) -> None:
+    """Re-wrap .mxl objects in R2 that are plain XML or contain a DOCTYPE declaration.
+
+    R2 objects at ``scores/{version}/*.mxl`` must be proper MXL ZIP archives
+    with DOCTYPE stripped from the inner XML entry. This function:
+      1. Downloads each object and checks the ZIP magic bytes.
+      2. For plain-XML files: wraps as MXL ZIP (strips DOCTYPE in the process).
+      3. For existing ZIPs: extracts the XML entry and checks for DOCTYPE.
+         If found, re-wraps the extracted XML (stripping DOCTYPE).
+
+    Idempotent: objects that are already correct ZIPs with no DOCTYPE are skipped.
+
+    Args:
+        version: R2 key version prefix (default: ``v1``).
+        dry_run: If True, print what would be re-uploaded without doing it.
+
+    Requires environment variables:
+        R2_ACCOUNT_ID
+        R2_ACCESS_KEY_ID
+        R2_SECRET_ACCESS_KEY
+    """
+    import boto3
+
+    account_id = os.environ["R2_ACCOUNT_ID"]
+    access_key = os.environ["R2_ACCESS_KEY_ID"]
+    secret_key = os.environ["R2_SECRET_ACCESS_KEY"]
+
+    s3 = boto3.client(
+        "s3",
+        endpoint_url=f"https://{account_id}.r2.cloudflarestorage.com",
+        aws_access_key_id=access_key,
+        aws_secret_access_key=secret_key,
+        region_name="auto",
+    )
+
+    bucket = "crescendai-bucket"
+    prefix = f"scores/{version}/"
+
+    paginator = s3.get_paginator("list_objects_v2")
+    pages = paginator.paginate(Bucket=bucket, Prefix=prefix)
+
+    # Map key -> raw downloaded bytes for files that need re-wrapping.
+    # Value is the bytes to pass to wrap_as_mxl_zip (XML bytes, not the ZIP itself).
+    needs_rewrap: dict[str, bytes] = {}
+    clean: int = 0
+
+    for page in pages:
+        for obj in page.get("Contents", []):
+            key = obj["Key"]
+            if not key.endswith(".mxl"):
+                continue
+            response = s3.get_object(Bucket=bucket, Key=key)
+            data = response["Body"].read()
+
+            if data[:4] != _ZIP_MAGIC:
+                # Plain XML — pass directly, wrap_as_mxl_zip will strip DOCTYPE.
+                needs_rewrap[key] = data
+            else:
+                xml_bytes = _zip_xml_entry(data)
+                if xml_bytes is None or b"<!DOCTYPE" in xml_bytes:
+                    # ZIP with missing/bad XML entry or DOCTYPE present — re-wrap.
+                    needs_rewrap[key] = xml_bytes if xml_bytes is not None else data
+                else:
+                    clean += 1
+
+    total = clean + len(needs_rewrap)
+    print(f"Scanned {total} .mxl objects in R2")
+    print(f"  Clean (ZIP, no DOCTYPE): {clean}")
+    print(f"  Needs re-wrap:           {len(needs_rewrap)}")
+
+    if not needs_rewrap:
+        print("Nothing to do.")
+        return
+
+    if dry_run:
+        print("\nDry-run — would re-upload:")
+        for key in needs_rewrap:
+            print(f"  [dry] {key}")
+        return
+
+    reuploaded = 0
+    errors = 0
+    for key, xml_bytes in needs_rewrap.items():
+        piece_id = key.removeprefix(prefix).removesuffix(".mxl")
+        try:
+            mxl_bytes = wrap_as_mxl_zip(xml_bytes, piece_id)
+            s3.put_object(
+                Bucket=bucket,
+                Key=key,
+                Body=mxl_bytes,
+                ContentType="application/vnd.recordare.musicxml+zip",
+            )
+            reuploaded += 1
+            if reuploaded % 10 == 0:
+                print(f"  Re-uploaded {reuploaded}/{len(needs_rewrap)}...")
+        except Exception as e:
+            print(f"  ERROR {key}: {e}")
+            errors += 1
+
+    print(f"\nDone. Re-uploaded {reuploaded} files.")
+    if errors:
+        print(f"Errors: {errors}")
 
 
 def upload_mxl_to_r2(asap_dir: Path, version: str = "v1", dry_run: bool = False) -> None:
