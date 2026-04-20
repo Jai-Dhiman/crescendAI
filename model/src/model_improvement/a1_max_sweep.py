@@ -189,6 +189,12 @@ def run_sweep(
 
         pw_values = [m.get("pairwise", 0) for m in fold_metrics]
         r2_values = [m.get("r2", 0) for m in fold_metrics]
+        collapse_values = [
+            m.get("dimension_collapse_score") for m in fold_metrics
+            if m.get("dimension_collapse_score") is not None
+            and not (isinstance(m.get("dimension_collapse_score"), float)
+                     and m.get("dimension_collapse_score") != m.get("dimension_collapse_score"))
+        ]
         results[config_name] = {
             "config": {
                 "lora_rank": lora_rank,
@@ -199,6 +205,25 @@ def run_sweep(
             "pairwise_per_fold": pw_values,
             "r2_mean": sum(r2_values) / len(r2_values),
             "r2_per_fold": r2_values,
+            # Chunk A diagnostics: dimension collapse and per-dim independence.
+            # Matrices kept per-fold (shape-stable JSON); scalar collapse
+            # averaged across folds so the leaderboard can show it.
+            "dimension_collapse_mean": (
+                sum(collapse_values) / len(collapse_values)
+                if collapse_values else None
+            ),
+            "dimension_collapse_per_fold": [
+                m.get("dimension_collapse_score") for m in fold_metrics
+            ],
+            "per_dimension_correlation_per_fold": [
+                m.get("per_dimension_correlation") for m in fold_metrics
+            ],
+            "conditional_independence_per_fold": [
+                m.get("conditional_independence") for m in fold_metrics
+            ],
+            "skill_discrimination_per_fold": [
+                m.get("skill_discrimination") for m in fold_metrics
+            ],
         }
 
         with open(results_path, "w") as f:
@@ -213,10 +238,15 @@ def run_sweep(
     sorted_configs = sorted(
         results.items(), key=lambda x: x[1]["pairwise_mean"], reverse=True
     )
-    print(f"{'Config':<40} {'Pairwise':>10} {'R2':>10}")
-    print("-" * 60)
+    print(f"{'Config':<40} {'Pairwise':>10} {'R2':>10} {'Collapse':>10}")
+    print("-" * 72)
     for name, metrics in sorted_configs:
-        print(f"{name:<40} {metrics['pairwise_mean']:>10.4f} {metrics['r2_mean']:>10.4f}")
+        collapse = metrics.get("dimension_collapse_mean")
+        collapse_str = f"{collapse:>10.4f}" if collapse is not None else f"{'n/a':>10}"
+        print(
+            f"{name:<40} {metrics['pairwise_mean']:>10.4f} "
+            f"{metrics['r2_mean']:>10.4f} {collapse_str}"
+        )
 
     best_name, best_metrics = sorted_configs[0]
     delta = best_metrics["pairwise_mean"] - 0.7393

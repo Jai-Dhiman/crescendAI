@@ -871,6 +871,18 @@ def run_single_fold(
     suite = MetricsSuite()
     probe_r2 = suite.regression_r2(val_preds, probe_val_labels)
 
+    # Chunk A diagnostics: dimension independence on the probe's per-sample
+    # predictions. Same tensor shape as a1_max_sweep, so we get a like-for-like
+    # collapse score across pretraining vs supervised sweeps.
+    from model_improvement.evaluation import (
+        dimension_collapse_score as _dim_collapse,
+        per_dimension_correlation as _per_dim_corr,
+        conditional_independence as _cond_indep,
+    )
+    probe_collapse = _dim_collapse(val_preds)
+    probe_per_dim_corr = _per_dim_corr(val_preds).tolist()
+    probe_cond_indep = _cond_indep(val_preds, probe_val_labels).tolist()
+
     elapsed = time.time() - start_time
 
     # Cleanup
@@ -884,6 +896,12 @@ def run_single_fold(
         "ordinal_loss": round(ordinal_loss_val, 6),
         "probe_pairwise": round(probe_pairwise, 6),
         "probe_r2": round(probe_r2, 6),
+        "probe_dimension_collapse": (
+            round(probe_collapse, 6)
+            if probe_collapse == probe_collapse else None
+        ),
+        "probe_per_dimension_correlation": probe_per_dim_corr,
+        "probe_conditional_independence": probe_cond_indep,
         "elapsed_seconds": round(elapsed, 1),
     }
 
@@ -932,6 +950,8 @@ def main():
     print(f"ordinal_loss={result['ordinal_loss']:.6f}")
     print(f"probe_pairwise={result['probe_pairwise']:.6f}")
     print(f"probe_r2={result['probe_r2']:.6f}")
+    collapse = result.get("probe_dimension_collapse")
+    print(f"probe_dimension_collapse={collapse if collapse is not None else 'n/a'}")
     print(f"elapsed={result['elapsed_seconds']}s")
     print(f"{'='*60}")
 

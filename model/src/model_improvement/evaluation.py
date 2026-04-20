@@ -15,9 +15,168 @@ from model_improvement.metrics import (
     compute_robustness_metrics,
     competition_spearman,
 )
-from model_improvement.taxonomy import NUM_DIMS
+from model_improvement.taxonomy import DIMENSIONS, NUM_DIMS
 
 ROBUSTNESS_VETO_THRESHOLD = 15.0
+DIMENSION_COLLAPSE_WARN_THRESHOLD = 0.9
+
+
+def per_dimension_correlation(predictions: torch.Tensor) -> np.ndarray:
+    """6x6 Pearson correlation of predicted dims across held-out samples.
+
+    Args:
+        predictions: [N, NUM_DIMS] model outputs.
+
+    Returns:
+        [NUM_DIMS, NUM_DIMS] correlation matrix. NaN-filled if N < 3 or
+        a column is constant.
+    """
+    preds_np = predictions.detach().cpu().numpy()
+    if preds_np.ndim != 2 or preds_np.shape[0] < 3:
+        return np.full((NUM_DIMS, NUM_DIMS), np.nan)
+    with np.errstate(invalid="ignore"):
+        return np.corrcoef(preds_np, rowvar=False)
+
+
+def conditional_independence(
+    predictions: torch.Tensor,
+    labels: torch.Tensor,
+) -> np.ndarray:
+    """Partial-correlation matrix of predicted dims conditioning on overall quality.
+
+    Because composite labels are derived from a single ordinal, the per-dim
+    mean label is used as the overall-quality anchor. Each prediction column is
+    residualized on that anchor via OLS, then residuals are correlated. A
+    near-zero matrix means dims carry independent info beyond overall quality;
+    near-identity means they're all restatements of the same scalar.
+
+    Args:
+        predictions: [N, NUM_DIMS].
+        labels: [N, NUM_DIMS] composite labels.
+
+    Returns:
+        [NUM_DIMS, NUM_DIMS] residualized correlation matrix.
+    """
+    preds_np = predictions.detach().cpu().numpy()
+    labels_np = labels.detach().cpu().numpy()
+    if preds_np.ndim != 2 or preds_np.shape[0] < 3:
+        return np.full((NUM_DIMS, NUM_DIMS), np.nan)
+
+    anchor = labels_np.mean(axis=1)
+    if np.std(anchor) == 0.0:
+        return per_dimension_correlation(predictions)
+
+    residuals = np.zeros_like(preds_np)
+    for d in range(preds_np.shape[1]):
+        slope, intercept = np.polyfit(anchor, preds_np[:, d], 1)
+        residuals[:, d] = preds_np[:, d] - (slope * anchor + intercept)
+
+    with np.errstate(invalid="ignore"):
+        return np.corrcoef(residuals, rowvar=False)
+
+
+def dimension_collapse_score(predictions: torch.Tensor) -> float:
+    """Scalar collapse indicator: mean absolute off-diagonal pairwise correlation.
+
+    Values near 1.0 mean the 6-vector is effectively a scalar replicated 6x.
+    Values near 0.0 mean the dims are genuinely independent. The harness uses
+    this to decide whether to surface per-dim feedback or collapse to a single
+    quality observation.
+    """
+    corr = per_dimension_correlation(predictions)
+    if np.all(np.isnan(corr)):
+        return float("nan")
+    n = corr.shape[0]
+    mask = ~np.eye(n, dtype=bool)
+    off_diag = corr[mask]
+    return float(np.nanmean(np.abs(off_diag)))
+
+
+def skill_discrimination_report(
+    predictions: torch.Tensor,
+    skill_tier_labels: np.ndarray | list | None,
+) -> dict:
+    """Per-dim and overall Cohen's d between adjacent T5 skill tiers.
+
+    Args:
+        predictions: [N, NUM_DIMS].
+        skill_tier_labels: Integer tier per sample (e.g. T5's 1-5 scale) or None.
+
+    Returns:
+        Dict with "per_tier_pair" mapping "{t_lo}->{t_hi}" to {per_dimension,
+        overall, n_lo, n_hi}. Empty if fewer than 2 tiers present. Returns
+        {"skipped": "no_tier_labels"} if labels are None so that upstream JSON
+        always has a consistent shape.
+    """
+    if skill_tier_labels is None:
+        return {"skipped": "no_tier_labels"}
+
+    preds_np = predictions.detach().cpu().numpy()
+    tiers = np.asarray(skill_tier_labels)
+    unique_tiers = sorted(t for t in np.unique(tiers).tolist() if not np.isnan(t) if isinstance(t, float) or True)
+    if len(unique_tiers) < 2:
+        return {"per_tier_pair": {}, "note": "insufficient_tier_diversity"}
+
+    per_tier_pair: dict = {}
+    for t_lo, t_hi in zip(unique_tiers[:-1], unique_tiers[1:]):
+        mask_lo = tiers == t_lo
+        mask_hi = tiers == t_hi
+        if mask_lo.sum() < 2 or mask_hi.sum() < 2:
+            continue
+
+        per_dim = {}
+        for d in range(preds_np.shape[1]):
+            lo = preds_np[mask_lo, d]
+            hi = preds_np[mask_hi, d]
+            pooled_std = float(np.sqrt((np.var(lo, ddof=1) + np.var(hi, ddof=1)) / 2))
+            name = DIMENSIONS[d] if d < len(DIMENSIONS) else f"dim_{d}"
+            per_dim[name] = float((hi.mean() - lo.mean()) / pooled_std) if pooled_std > 0 else 0.0
+
+        lo_mean = preds_np[mask_lo].mean(axis=1)
+        hi_mean = preds_np[mask_hi].mean(axis=1)
+        pooled = float(np.sqrt((np.var(lo_mean, ddof=1) + np.var(hi_mean, ddof=1)) / 2))
+        overall_d = float((hi_mean.mean() - lo_mean.mean()) / pooled) if pooled > 0 else 0.0
+
+        per_tier_pair[f"{t_lo}->{t_hi}"] = {
+            "per_dimension": per_dim,
+            "overall": overall_d,
+            "n_lo": int(mask_lo.sum()),
+            "n_hi": int(mask_hi.sum()),
+        }
+
+    return {"per_tier_pair": per_tier_pair}
+
+
+def gate_value_stats(gate_tensors: torch.Tensor | None) -> dict | None:
+    """Mean/std/histogram of fusion gate activations per dimension.
+
+    Returns None if the model has no gates (non-fusion models). Called
+    separately from evaluate_model() because gate tensors are model-specific;
+    see docs/model/08-uncertainty-and-diagnostics.md for when the harness
+    should consume these.
+
+    Args:
+        gate_tensors: [N, NUM_DIMS] gate values, typically post-sigmoid in [0, 1].
+
+    Returns:
+        Per-dimension stats dict, or None if gate_tensors is None.
+    """
+    if gate_tensors is None:
+        return None
+    g = gate_tensors.detach().cpu().numpy()
+    if g.ndim != 2:
+        return None
+
+    result: dict = {"per_dimension": {}}
+    for d in range(g.shape[1]):
+        name = DIMENSIONS[d] if d < len(DIMENSIONS) else f"dim_{d}"
+        hist, _ = np.histogram(g[:, d], bins=10, range=(0.0, 1.0))
+        result["per_dimension"][name] = {
+            "mean": float(g[:, d].mean()),
+            "std": float(g[:, d].std()),
+            "histogram_10bins": hist.tolist(),
+        }
+    return result
 
 
 def evaluate_model(
@@ -29,6 +188,7 @@ def evaluate_model(
     compare_fn: Callable,
     predict_fn: Callable,
     num_dims: int = NUM_DIMS,
+    skill_tiers: dict[str, int | float] | None = None,
 ) -> dict:
     """Assess a model on one fold's validation keys.
 
@@ -41,9 +201,14 @@ def evaluate_model(
         compare_fn: (model, z_a, z_b) -> ranking logits [1, num_dims].
         predict_fn: (model, input, mask) -> scores [1, num_dims].
         num_dims: Number of label dimensions.
+        skill_tiers: Optional map segment_key -> integer skill tier (T5 1-5).
+            When given, Cohen's d between adjacent tiers is reported.
 
     Returns:
-        Dict with "pairwise", "pairwise_detail", "r2" keys.
+        Dict with keys: pairwise, pairwise_detail, r2,
+        per_dimension_correlation (6x6 list), conditional_independence
+        (6x6 list), dimension_collapse_score (float),
+        skill_discrimination (dict).
     """
     suite = MetricsSuite(ambiguous_threshold=0.05)
     results = {}
@@ -128,9 +293,34 @@ def evaluate_model(
                 continue
 
         if all_preds:
-            results["r2"] = suite.regression_r2(
-                torch.cat(all_preds), torch.cat(all_targets)
-            )
+            preds_cat = torch.cat(all_preds)
+            targets_cat = torch.cat(all_targets)
+            results["r2"] = suite.regression_r2(preds_cat, targets_cat)
+
+            # Per-dimension independence + collapse diagnostics (Chunk A).
+            # Computed from the same pre-encoded predictions so they add O(1)
+            # overhead on top of the R2 pass.
+            corr = per_dimension_correlation(preds_cat)
+            cond_corr = conditional_independence(preds_cat, targets_cat)
+            results["per_dimension_correlation"] = corr.tolist()
+            results["conditional_independence"] = cond_corr.tolist()
+            results["dimension_collapse_score"] = dimension_collapse_score(preds_cat)
+
+            if skill_tiers is not None:
+                tier_vec = [skill_tiers.get(k) for k in valid_keys if k in z_cache]
+                tier_vec = [t for t in tier_vec if t is not None]
+                if len(tier_vec) == preds_cat.shape[0]:
+                    results["skill_discrimination"] = skill_discrimination_report(
+                        preds_cat, tier_vec
+                    )
+                else:
+                    results["skill_discrimination"] = {
+                        "skipped": "tier_key_mismatch",
+                        "n_preds": preds_cat.shape[0],
+                        "n_tiers": len(tier_vec),
+                    }
+            else:
+                results["skill_discrimination"] = {"skipped": "no_tier_labels"}
 
     return results
 
