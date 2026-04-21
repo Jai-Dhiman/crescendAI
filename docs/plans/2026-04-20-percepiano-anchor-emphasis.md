@@ -99,3 +99,17 @@ interpretation -0.474    0.589    0.642    0.223    0.655    1.000
   that's the prerequisite for measuring the win.
 - None of the other three week-scale plans depend on this one, but they all
   produce cleaner numbers when run *after* this has landed.
+
+## Execution Timing
+
+**Infrastructure:** merged (MixWeightedSampler, `apply_to_tiers`, sweep grid).
+
+**Experimental runs (the 216-config sweep) are gated on T5 labeling completion.**
+The mix-ratio sweep reweights T2/T5 tiers; running it before T5 labels stabilize
+would just measure label noise, not the mix effect. Kick off the sweep once the
+T5 single-ordinal pass is complete (tracked in `model/data/labels/t5/label_log.jsonl`)
+and `kappa_report` rolling κ ≥ 0.6.
+
+Until then, only the baseline diagnostics block above is populated — all other
+mix ratios pending. See `docs/plans/2026-04-20-model-year-roadmap.md` for the
+Q2-ships-code / Q3-runs-experiments split.

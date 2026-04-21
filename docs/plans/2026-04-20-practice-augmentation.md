@@ -91,6 +91,25 @@ interpretation -0.474    0.589    0.642    0.223    0.655    1.000
 - All corruption primitives have unit tests.
 - IR bank is versioned (filename includes hash) so reruns are deterministic.
 
+## Execution Timing
+
+**Infrastructure:** merged (`practice_synthesis.py`, `render_corrupted_audio.py`,
+`PracticeAugmentedDataset`, unit tests, `corrupt_prob` sweep dimension).
+
+**Experimental runs are gated on T5 labeling completion AND IR curation.** Two
+gates, not one:
+
+1. The `data/raw/room_irs/` bank is empty — 8–20 real practice-room IRs must be
+   curated before `render_corrupted_audio.py` produces usable output. This can
+   start in parallel with T5 labeling since it's a data-collection task, not a
+   model-training task.
+2. The `corrupt_prob ∈ {0.0, 0.25, 0.5}` sweep and OOD gap measurement happen
+   at training time, after T5 labeling completes and the PercePiano mix
+   winning ratio is locked (see `2026-04-20-percepiano-anchor-emphasis.md`).
+
+The OOD harness baseline (no augmentation) should be captured first — that
+number is the reference point for the ≥5pp gap-reduction exit criterion.
+
 ## Risks
 
 - **IR curation is slow and manual.** Mitigation: start with 8 IRs, expand to

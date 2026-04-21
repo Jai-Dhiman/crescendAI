@@ -122,6 +122,15 @@ This doesn't *fix* drift — it *makes it visible*. If rolling κ drops below
 known scores, (b) flag the drifted window in `calibration_log.jsonl`, (c)
 optionally re-weight or drop that window from the training mix.
 
+**T5 labeling gates the Q3 training runs.** All four Wave 1 code changes
+(PercePiano mix, SemiSupCon, Practice Augmentation, Heteroscedastic heads) are
+merged as infrastructure, but their experimental runs — the sweeps, the
+contrastive pretraining, the calibration passes — wait until T5 labeling is
+complete with rolling κ ≥ 0.6. Running those experiments on a partial or
+drifted T5 pool would measure label noise, not the interventions. See the
+"Execution Timing" section in each plan and the Q2/Q3 split in
+`docs/plans/2026-04-20-model-year-roadmap.md`.
+
 ### Fix #3 — Dimension collapse diagnostics
 
 Chunk A of the 2026-04-20 plan: `evaluation.py:dimension_collapse_score` and

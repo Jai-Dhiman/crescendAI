@@ -94,6 +94,21 @@ interpretation -0.474    0.589    0.642    0.223    0.655    1.000
 - Unit tests cover positive-mask edge cases (no labeled positives in batch,
   all samples same tier).
 
+## Execution Timing
+
+**Infrastructure:** merged (`semi_sup_con_loss`, `SemiSupConBatchSampler`,
+`--lambda-semi-sup` flag on `autoresearch_contrastive.py`).
+
+**Pretraining runs are gated on T5 labeling completion.** SemiSupCon's labeled
+positives come from same-tier T2/T5 pairs; without a substantial T5 label pool,
+the positive mask is too sparse to shape the InfoNCE matrix meaningfully, and
+the λ sweep just measures variance. Kick off pretraining once T5 labeling is
+complete and `kappa_report` rolling κ ≥ 0.6.
+
+Probe runs against the existing T3-only piece-based checkpoint can still be
+used for smoke-testing the loss path, but the headline `probe_pairwise` number
+in Exit Criteria is a training-time measurement.
+
 ## Risks
 
 - **Label leakage from T2 placements.** Same-placement from *different

@@ -94,6 +94,29 @@ interpretation -0.474    0.589    0.642    0.223    0.655    1.000
 - Harness-side: a stubbed high-σ input never reaches the teacher's per-dim
   summary.
 
+## Execution Timing
+
+**Infrastructure:** not yet merged. This plan is ready to implement — nothing
+in the Wave 1 code changes (PercePiano mix, SemiSupCon, Practice Augmentation)
+blocks the head/loss swap. The `apply_to_tiers` gate already merged in
+`losses.py` composes cleanly with Gaussian NLL.
+
+**Experimental runs (ECE sweeps, per-dim calibration reports) are gated on T5
+labeling completion.** Calibration quality depends on the label distribution;
+running ECE on a partial T5 pool would give a miscalibrated σ baseline that
+Wave 1's reweighting then invalidates. Order of operations at training time:
+
+1. T5 labeling complete + κ ≥ 0.6
+2. PercePiano mix sweep locks winning ratio
+3. SemiSupCon pretraining produces the encoder checkpoint
+4. Practice-augmentation corrupted audio rendered
+5. **Then** Heteroscedastic heads fine-tune on the Wave-1-locked configuration,
+   and ECE is measured against both clean and OOD practice sets.
+
+Harness wiring (`confidence_gate.ts`, `synthesis.ts`) can land independently
+once σ shape is confirmed, but threshold values are frozen only after
+calibration runs complete.
+
 ## Risks
 
 - **σ collapses to ε.** Gaussian NLL has a known exploit: shrink σ and eat the

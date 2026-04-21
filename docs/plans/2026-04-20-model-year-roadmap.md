@@ -12,28 +12,34 @@
 
 ---
 
-## Q2 (now → Jul 2026)
+## Q2 (now → Jul 2026) — **Infrastructure ships; experiments wait for T5**
 
-### Ships
+**Important split:** Q2 ships *code infrastructure*. The actual experimental
+runs (sweeps, pretraining, calibration) are gated on T5 labeling completion
+and execute in Q3. This is a deliberate choice — running experiments on a
+partial T5 pool would measure label noise, not the intervention.
 
-1. **Chunk A / B / C diagnostics** — `docs/plans/2026-04-20-*` today's chunks.
-   Landed 2026-04-20. Every sweep from today forward emits collapse score,
-   per-dim correlation, skill discrimination.
+### Code ships (Q2)
+
+1. **Chunk A / B / C diagnostics** — landed 2026-04-20. Every sweep from
+   today forward emits collapse score, per-dim correlation, skill
+   discrimination.
 2. **PercePiano anchor reweight** — `2026-04-20-percepiano-anchor-emphasis.md`.
-   Cheapest of the four week-scale plans. Unblocks clean per-dim measurement
-   by removing T5's synthetic per-dim signal from regression.
-3. **Heteroscedastic heads** — `2026-04-20-heteroscedastic-heads.md`. Highest
-   harness-leverage. σ becomes the signal the confidence gate consumes.
-4. **SemiSupCon loss** — `2026-04-20-semi-sup-con-loss.md`. Makes T5's tier
-   labels useful without requiring per-dim relabeling.
-5. **Practice augmentation** — `2026-04-20-practice-augmentation.md`. First
-   solo-executable attempt at closing the distribution gap.
+   Infrastructure merged (MixWeightedSampler, `apply_to_tiers` gate, sweep grid).
+3. **SemiSupCon loss** — `2026-04-20-semi-sup-con-loss.md`. Infrastructure
+   merged (`semi_sup_con_loss`, `SemiSupConBatchSampler`, CLI flag).
+4. **Practice augmentation** — `2026-04-20-practice-augmentation.md`.
+   Infrastructure merged (`practice_synthesis.py`, `render_corrupted_audio.py`,
+   `PracticeAugmentedDataset`). IR bank curation + corrupted-audio rendering
+   happen in parallel with T5 labeling.
+5. **Heteroscedastic heads** — `2026-04-20-heteroscedastic-heads.md`. Next
+   code ship. No dependency on Wave 1 code.
 
-### Order
+### T5 labeling (Q2, parallel track)
 
-PercePiano reweight first (it's measurement-unblocking), then heteroscedastic
-heads (highest harness-leverage), then SemiSupCon (pretraining changes),
-then practice augmentation (builds on the stabilized encoder).
+Single-ordinal (1–5) labeling continues per `model/scripts/t5_label_consistency.py`.
+Rolling Cohen's κ must reach ≥ 0.6 before the Q3 training runs start. Progress
+tracked in `model/data/labels/t5/label_log.jsonl`.
 
 ### Concept docs
 
@@ -42,23 +48,32 @@ then practice augmentation (builds on the stabilized encoder).
 
 ---
 
-## Q3 (Aug–Oct 2026)
+## Q3 (Aug–Oct 2026) — **Experiments execute**
 
 ### Goal
 
 Model v2 release candidate: fused MuQ+Aria with practice-distribution
 training, heteroscedastic heads, SemiSupCon pretraining.
 
-### Phases
+### Entry condition
 
-- **Phase B** — Contrastive pretraining. Apply SemiSupCon to MuQ and Aria
-  separately. Emit pretrained encoder checkpoints.
-- **Phase C** — Fine-tuning on labeled data. Practice-augmented MAESTRO in
-  the training mix. PercePiano at 30–35%. Heteroscedastic heads.
-- **Phase D** — Fusion. Per-dim gates. Measure error correlation between
-  the two encoders *after* independent contrastive pretraining (the
-  prediction from `docs/model/00-research-timeline.md` is that
-  error-correlation drops vs the leaked-fold baseline of r=0.738).
+T5 labeling complete, rolling κ ≥ 0.6. All four Q2 code ships merged.
+
+### Experimental runs (in order)
+
+1. **PercePiano mix sweep** — 216 configs across `PERCEPIANO_MIX_RATIOS`.
+   Locks the winning ratio into `BASE_CONFIG`.
+2. **SemiSupCon pretraining** — Phase B. Apply SemiSupCon to MuQ and Aria
+   separately using the locked mix. Emit pretrained encoder checkpoints.
+3. **Practice augmentation sweep** — `corrupt_prob ∈ {0.0, 0.25, 0.5}` over
+   the pretrained encoder. Requires IR bank curated + corrupted audio rendered
+   (done in parallel during Q2).
+4. **Heteroscedastic fine-tune** — Phase C. Gaussian NLL head on the
+   Wave-1-locked configuration. ECE measured on clean + OOD practice sets.
+5. **Fusion** — Phase D. Per-dim gates. Measure error correlation between
+   the two encoders *after* independent contrastive pretraining (prediction
+   from `docs/model/00-research-timeline.md` is error-correlation drops vs
+   the leaked-fold baseline of r=0.738).
 
 ### Gates to move from RC → production
 
