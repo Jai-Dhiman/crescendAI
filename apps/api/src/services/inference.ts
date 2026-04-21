@@ -12,6 +12,20 @@ export interface MuqScores {
 	interpretation: number;
 }
 
+export interface MuqConfidences {
+	dynamics: number;
+	timing: number;
+	pedaling: number;
+	articulation: number;
+	phrasing: number;
+	interpretation: number;
+}
+
+export interface MuqResult {
+	scores: MuqScores;
+	confidences: MuqConfidences | null;
+}
+
 export interface PerfNote {
 	pitch: number;
 	onset: number;
@@ -31,6 +45,7 @@ export interface AmtResult {
 
 interface MuqResponseRaw {
 	predictions: Record<string, number>;
+	confidences?: Record<string, number>;
 }
 
 interface AmtResponseRaw {
@@ -117,7 +132,7 @@ async function fetchWithRetry(
 export async function callMuqEndpoint(
 	env: Bindings,
 	audioBytes: ArrayBuffer,
-): Promise<MuqScores> {
+): Promise<MuqResult> {
 	const response = await fetchWithRetry(
 		env.MUQ_ENDPOINT,
 		{
@@ -146,7 +161,7 @@ export async function callMuqEndpoint(
 		);
 	}
 
-	return {
+	const scores: MuqScores = {
 		dynamics: raw.predictions.dynamics,
 		timing: raw.predictions.timing,
 		pedaling: raw.predictions.pedaling,
@@ -154,6 +169,19 @@ export async function callMuqEndpoint(
 		phrasing: raw.predictions.phrasing,
 		interpretation: raw.predictions.interpretation,
 	};
+
+	const confidences: MuqConfidences | null = raw.confidences
+		? {
+				dynamics: raw.confidences.dynamics ?? 1.0,
+				timing: raw.confidences.timing ?? 1.0,
+				pedaling: raw.confidences.pedaling ?? 1.0,
+				articulation: raw.confidences.articulation ?? 1.0,
+				phrasing: raw.confidences.phrasing ?? 1.0,
+				interpretation: raw.confidences.interpretation ?? 1.0,
+			}
+		: null;
+
+	return { scores, confidences };
 }
 
 function encodeBase64(buffer: ArrayBuffer): string {

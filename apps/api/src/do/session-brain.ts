@@ -6,6 +6,7 @@ import type { Dimension } from "../lib/dims";
 import { DIMS_6 } from "../lib/dims";
 import type { Bindings, ServiceContext } from "../lib/types";
 import { SessionAccumulator } from "../services/accumulator";
+import { applyConfidenceGate } from "../services/confidence_gate";
 import { callAmtEndpoint, callMuqEndpoint } from "../services/inference";
 import { type ChunkSignal, ModeDetector } from "../services/practice-mode";
 import {
@@ -356,7 +357,8 @@ export class SessionBrain extends DurableObject<Bindings> {
 			return;
 		}
 
-		const muqScores = muqResult.value;
+		const { scores: muqScores, confidences: muqConfidences } =
+			muqResult.value;
 		const scoresArray: [number, number, number, number, number, number] = [
 			muqScores.dynamics,
 			muqScores.timing,
@@ -695,9 +697,20 @@ export class SessionBrain extends DurableObject<Bindings> {
 				);
 
 				if (moment !== null) {
+					const momentDim = moment.dimension as Dimension;
+
+					// Suppress high-uncertainty dims: if the gaussian head provided
+					// confidences and this dim's sigma exceeds threshold, skip it.
+					const gated =
+						muqConfidences !== null
+							? applyConfidenceGate(muqScores, muqConfidences)
+							: null;
+					const dimSuppressed =
+						gated !== null && gated.suppressed.includes(momentDim);
+
 					const accMoment = {
 						chunkIndex: moment.chunk_index,
-						dimension: moment.dimension as Dimension,
+						dimension: momentDim,
 						score: moment.score,
 						baseline: moment.baseline,
 						deviation: moment.deviation,
@@ -709,21 +722,23 @@ export class SessionBrain extends DurableObject<Bindings> {
 						llmAnalysis: null,
 					};
 
-					acc.accumulateMoment(accMoment);
+					if (!dimSuppressed) {
+						acc.accumulateMoment(accMoment);
 
-					// Send lightweight observation to client
-					const obsText = moment.is_positive
-						? `Nice work on your ${moment.dimension}.`
-						: `I'm noticing something in your ${moment.dimension} -- let's talk after.`;
+						// Send lightweight observation to client
+						const obsText = moment.is_positive
+							? `Nice work on your ${moment.dimension}.`
+							: `I'm noticing something in your ${moment.dimension} -- let's talk after.`;
 
-					const framing = moment.is_positive ? "recognition" : "correction";
+						const framing = moment.is_positive ? "recognition" : "correction";
 
-					this.sendWs(ws, {
-						type: "observation",
-						text: obsText,
-						dimension: moment.dimension,
-						framing,
-					});
+						this.sendWs(ws, {
+							type: "observation",
+							text: obsText,
+							dimension: moment.dimension,
+							framing,
+						});
+					}
 				}
 			} catch (err) {
 				const error = err as Error;

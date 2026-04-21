@@ -53,9 +53,26 @@ modeling-and-calibration change.
 | `apps/inference/muq/handler.py` | Return σ alongside μ in the MuQ HF inference response. Update the Pydantic response schema. |
 | `apps/api/src/practice/synthesis.ts` | Before passing scores to the teacher prompt, run the confidence gate. Dims below threshold are omitted from the summary payload. |
 
+## Implementation Status
+
+**P0 COMPLETE — 2026-04-20.** All code shipped. Deviations from original spec:
+
+- Head returns `(mu, sigma)` tuple (not `(B, 2, num_dims)` tensor — cleaner for callers).
+- `gaussian_nll_loss(mu, sigma, target)` takes `sigma` not `log_var` (wraps `F.gaussian_nll_loss` which takes variance internally).
+- Inference server required two additional files beyond `handler.py`:
+  `apps/inference/models/loader.py` (new `A1MaxInferenceHeadGaussian`, checkpoint key mapping)
+  and `apps/inference/models/inference.py` (updated `predict_with_ensemble` return type).
+- Gate fires in `session-brain.ts` at teaching moment accumulation, not `synthesis.ts`.
+  `synthesis.ts` only does DB persistence; the gate needs to be upstream of `SessionAccumulator`.
+- `apps/inference/models/loader.py` fixed a pre-existing `weights_only=False` → `weights_only=True`.
+
+**Remaining before ECE numbers are meaningful:** T5 labeling complete + training run with
+`use_gaussian_head=True`. Gate thresholds (currently 0.15 default) should be frozen after
+calibration against PercePiano validation ECE.
+
 ## Phases
 
-### P0 — Head + loss (1 day)
+### P0 — Head + loss (complete)
 
         <!-- BASELINE_DIAGNOSTICS -->
         #### A1-Max baseline diagnostics (config: `A1max_r32_L7-12_ls0.1`, 4-fold CV)

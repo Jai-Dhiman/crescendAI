@@ -4,7 +4,7 @@ import numpy as np
 import torch
 from constants import MODEL_CONFIG
 
-from models.loader import ModelCache
+from models.loader import A1MaxInferenceHeadGaussian, ModelCache
 
 
 @torch.no_grad()
@@ -54,26 +54,30 @@ def extract_muq_embeddings(
 def predict_with_ensemble(
     embeddings: torch.Tensor,
     cache: ModelCache,
-) -> np.ndarray:
+) -> np.ndarray | tuple[np.ndarray, np.ndarray]:
     """Get predictions from 4-fold ensemble of A1-Max heads.
 
-    Each head uses attention pooling on frame-level embeddings,
-    then encoder + regression head to predict 6-dim scores.
-
     Args:
-        embeddings: Frame embeddings [T, D] from MuQ
-        cache: Model cache with loaded heads
+        embeddings: Frame embeddings [T, D] from MuQ.
+        cache: Model cache with loaded heads.
 
     Returns:
-        Averaged predictions [6] across all folds
+        Scalar heads: averaged predictions [6] across all folds.
+        Gaussian heads: (mu [6], sigma [6]) averaged across all folds.
     """
     if not cache.muq_heads:
         raise RuntimeError("No A1-Max heads loaded in cache")
 
-    # Get predictions from each fold head
+    if isinstance(cache.muq_heads[0], A1MaxInferenceHeadGaussian):
+        all_mu, all_sigma = [], []
+        for head in cache.muq_heads:
+            mu, sigma = head(embeddings)
+            all_mu.append(mu.cpu().numpy())
+            all_sigma.append(sigma.cpu().numpy())
+        return np.mean(all_mu, axis=0), np.mean(all_sigma, axis=0)
+
     predictions = []
     for head in cache.muq_heads:
         pred = head(embeddings).cpu().numpy()
         predictions.append(pred)
-
     return np.mean(predictions, axis=0)

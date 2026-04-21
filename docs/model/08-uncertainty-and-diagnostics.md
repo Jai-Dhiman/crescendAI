@@ -1,6 +1,6 @@
 # Uncertainty and Diagnostics
 
-> Last updated: 2026-04-20
+> Last updated: 2026-04-20 — heteroscedastic heads shipped (P0 complete)
 
 This doc explains how the model reports what it doesn't know, how the harness
 consumes those signals, and how the Chunk A diagnostics let us see dimension
@@ -31,13 +31,33 @@ or is effectively a scalar replicated 6x?"**
 
 ### Signal 1 — Per-dim σ (heteroscedastic output head)
 
-Every dim outputs a `(μ, σ)` pair. Plan:
-`docs/plans/2026-04-20-heteroscedastic-heads.md`.
+**Implemented 2026-04-20.** Every dim outputs a `(μ, σ)` pair.
+See `docs/plans/2026-04-20-heteroscedastic-heads.md`.
 
 - Low σ on a dim → model is confident; surface the per-dim feedback.
 - High σ on a dim → model is uncertain; suppress or soften.
-- Thresholds are per-dim (some dims are intrinsically noisier) and derived
-  from PercePiano validation (75th percentile σ on clean distribution).
+- Thresholds are per-dim (some dims are intrinsically noisier). Current
+  default is σ ≥ 0.15 → suppress, configurable in `confidence_gate.ts`.
+  Production thresholds should be frozen after PercePiano calibration runs
+  (ECE target ≤ 0.05 per dim).
+
+**Implementation notes:**
+- Training: `use_gaussian_head=True` flag on `MuQLoRAModel`/`MuQLoRAMaxModel`.
+  Head is `HeteroscedasticHead` in `model/src/model_improvement/heads.py`.
+  Loss becomes `gaussian_nll_loss` (wraps `F.gaussian_nll_loss`).
+- Inference server: `A1MaxInferenceHeadGaussian` in `apps/inference/models/loader.py`
+  auto-detected from checkpoint `hyper_parameters["use_gaussian_head"]`.
+  `predict_with_ensemble` returns `(mu [6], sigma [6])` for gaussian heads.
+  Handler response includes `"confidences"` dict alongside `"predictions"`.
+- API: `callMuqEndpoint` returns `MuqResult { scores, confidences }`.
+  Gate fires in `session-brain.ts` at teaching moment accumulation time —
+  high-σ dims are not entered into the `SessionAccumulator` at all, so they
+  cannot reach the teacher prompt via `topMoments()`.
+- Calibration: `per_dim_calibration_report` in `calibration.py` emits ECE
+  per dim (Kuleshov 2018 regression calibration). Available from
+  `evaluate_model` when `predict_fn` returns `(mu, sigma)`.
+- Robustness check: `run_robustness_check` now verifies `sigma_monotone`
+  (σ must increase under Gaussian input noise) as a sanity test before deploy.
 
 ### Signal 2 — Session-level collapse indicator
 
@@ -99,6 +119,21 @@ stuck-at-1 gates indicate the fusion didn't learn anything per-dim-specific.
 ---
 
 ## Harness interpretation rules
+
+### Implemented (2026-04-20) — per-chunk gate
+
+The current implementation gates at **teaching moment accumulation time** in
+`session-brain.ts`. When a chunk arrives with gaussian confidences:
+
+- For each dim d in the WASM-selected teaching moment:
+  - If `confidences[d] >= 0.15` (default threshold): the moment is not pushed
+    to `SessionAccumulator` and no WS observation is sent for that dim.
+  - Else: moment is accumulated and observation is sent normally.
+
+This is stronger than synthesis-time filtering: high-σ dims never accumulate
+into `topMoments()`, so they cannot reach the teacher prompt at session end.
+
+### Planned (not yet implemented) — session-level collapse proxy
 
 When `inference` returns `{scores, sigmas, collapse_proxy}` for a session:
 

@@ -272,7 +272,7 @@ def evaluate_model(
 
         # R2 regression using predict_fn (also benefits from being O(n))
         _r2_warned = False
-        all_preds, all_targets = [], []
+        all_preds, all_sigmas, all_targets = [], [], []
         for idx, key in enumerate(valid_keys):
             if idx % 100 == 0 and idx > 0:
                 print(f"  r2: {idx}/{len(valid_keys)} keys", flush=True)
@@ -280,11 +280,16 @@ def evaluate_model(
                 inp, mask = get_input_fn(key)
                 inp = inp.to(device) if inp is not None else inp
                 mask = mask.to(device) if mask is not None else mask
-                pred = predict_fn(model, inp, mask)
+                pred_out = predict_fn(model, inp, mask)
                 target = torch.tensor(
                     labels[key][:num_dims], dtype=torch.float32
                 ).unsqueeze(0)
-                all_preds.append(pred)
+                if isinstance(pred_out, tuple):
+                    mu, sigma = pred_out
+                    all_preds.append(mu)
+                    all_sigmas.append(sigma)
+                else:
+                    all_preds.append(pred_out)
                 all_targets.append(target)
             except Exception as exc:
                 if not _r2_warned:
@@ -305,6 +310,13 @@ def evaluate_model(
             results["per_dimension_correlation"] = corr.tolist()
             results["conditional_independence"] = cond_corr.tolist()
             results["dimension_collapse_score"] = dimension_collapse_score(preds_cat)
+
+            if all_sigmas:
+                sigmas_cat = torch.cat(all_sigmas)
+                from model_improvement.calibration import per_dim_calibration_report
+                results["calibration"] = per_dim_calibration_report(
+                    preds_cat, sigmas_cat, targets_cat
+                )
 
             if skill_tiers is not None:
                 tier_vec = [skill_tiers.get(k) for k in valid_keys if k in z_cache]
@@ -366,6 +378,7 @@ def run_robustness_check(
     is unavailable.
     """
     clean_scores, aug_scores = [], []
+    clean_sigmas, aug_sigmas = [], []
     model.eval()
     _rob_warned = False
 
@@ -377,12 +390,20 @@ def run_robustness_check(
                 inp, mask = get_input_fn(key)
                 inp = inp.to(device) if inp is not None else inp
                 mask = mask.to(device) if mask is not None else mask
-                pred_clean = predict_fn(model, inp, mask)
-                clean_scores.append(pred_clean)
+                clean_out = predict_fn(model, inp, mask)
+                if isinstance(clean_out, tuple):
+                    clean_scores.append(clean_out[0])
+                    clean_sigmas.append(clean_out[1])
+                else:
+                    clean_scores.append(clean_out)
 
                 inp_aug = inp + torch.randn_like(inp) * noise_std
-                pred_aug = predict_fn(model, inp_aug, mask)
-                aug_scores.append(pred_aug)
+                aug_out = predict_fn(model, inp_aug, mask)
+                if isinstance(aug_out, tuple):
+                    aug_scores.append(aug_out[0])
+                    aug_sigmas.append(aug_out[1])
+                else:
+                    aug_scores.append(aug_out)
             except Exception as exc:
                 if not _rob_warned:
                     logger.warning("run_robustness_check: %s (suppressing further)", exc)
@@ -392,9 +413,18 @@ def run_robustness_check(
     if not clean_scores:
         return {"pearson_r": 0.0, "score_drop_pct": 100.0}
 
-    return compute_robustness_metrics(
+    results = compute_robustness_metrics(
         torch.cat(clean_scores), torch.cat(aug_scores)
     )
+
+    if clean_sigmas and aug_sigmas:
+        sigma_clean_mean = torch.cat(clean_sigmas).mean().item()
+        sigma_aug_mean = torch.cat(aug_sigmas).mean().item()
+        results["sigma_clean_mean"] = sigma_clean_mean
+        results["sigma_aug_mean"] = sigma_aug_mean
+        results["sigma_monotone"] = sigma_aug_mean > sigma_clean_mean
+
+    return results
 
 
 def select_winner(

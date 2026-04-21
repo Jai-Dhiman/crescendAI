@@ -136,23 +136,41 @@ class EndpointHandler:
 
             # Get ensemble predictions (4-fold A1-Max)
             print("Running A1-Max ensemble inference...")
-            predictions = predict_with_ensemble(embeddings, self._cache)
+            ensemble_out = predict_with_ensemble(embeddings, self._cache)
 
             # Build response
             processing_time_ms = int((time.time() - start_time) * 1000)
 
-            result = {
-                "predictions": self._predictions_to_dict(predictions),
-                "model_info": {
-                    "name": MODEL_INFO["name"],
-                    "type": MODEL_INFO["type"],
-                    "pairwise": MODEL_INFO["pairwise"],
-                    "architecture": MODEL_INFO["architecture"],
-                    "ensemble_folds": len(self._cache.muq_heads),
-                },
-                "audio_duration_seconds": duration,
-                "processing_time_ms": processing_time_ms,
-            }
+            if isinstance(ensemble_out, tuple):
+                mu_pred, sigma_pred = ensemble_out
+                result = {
+                    "predictions": self._predictions_to_dict(mu_pred),
+                    "confidences": self._predictions_to_dict(sigma_pred),
+                    "model_info": {
+                        "name": MODEL_INFO["name"],
+                        "type": MODEL_INFO["type"],
+                        "pairwise": MODEL_INFO["pairwise"],
+                        "architecture": MODEL_INFO["architecture"],
+                        "ensemble_folds": len(self._cache.muq_heads),
+                        "head": "gaussian",
+                    },
+                    "audio_duration_seconds": duration,
+                    "processing_time_ms": processing_time_ms,
+                }
+            else:
+                result = {
+                    "predictions": self._predictions_to_dict(ensemble_out),
+                    "model_info": {
+                        "name": MODEL_INFO["name"],
+                        "type": MODEL_INFO["type"],
+                        "pairwise": MODEL_INFO["pairwise"],
+                        "architecture": MODEL_INFO["architecture"],
+                        "ensemble_folds": len(self._cache.muq_heads),
+                        "head": "scalar",
+                    },
+                    "audio_duration_seconds": duration,
+                    "processing_time_ms": processing_time_ms,
+                }
 
             print(f"Inference complete in {processing_time_ms}ms")
             return result

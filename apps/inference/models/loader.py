@@ -6,6 +6,7 @@ from typing import List, Optional
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from constants import MODEL_CONFIG, N_FOLDS
 
 
@@ -111,6 +112,76 @@ class A1MaxInferenceHead(nn.Module):
         return result.squeeze(0) if squeeze_output else result
 
 
+class A1MaxInferenceHeadGaussian(nn.Module):
+    """Inference-only gaussian head outputting (mu, sigma) per dimension.
+
+    Mirrors A1MaxInferenceHead architecture but replaces the sigmoid regression
+    head with two independent linear branches: mu and log_sigma. Softplus +
+    sigma_floor keeps sigma strictly positive.
+
+    Checkpoint key mapping (Lightning -> inference):
+        head.mu_head.weight  -> mu_head.weight
+        head.log_sigma_head.weight -> log_sigma_head.weight
+    """
+
+    SIGMA_FLOOR = 1e-4
+
+    def __init__(
+        self,
+        input_dim: int = 1024,
+        hidden_dim: int = 512,
+        num_labels: int = 6,
+        dropout: float = 0.2,
+    ):
+        super().__init__()
+        self.num_labels = num_labels
+
+        self.attn = nn.Sequential(
+            nn.Linear(input_dim, 256), nn.Tanh(), nn.Linear(256, 1)
+        )
+        self.encoder = nn.Sequential(
+            nn.Linear(input_dim, hidden_dim),
+            nn.LayerNorm(hidden_dim),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.LayerNorm(hidden_dim),
+            nn.GELU(),
+            nn.Dropout(dropout),
+        )
+        self.mu_head = nn.Linear(hidden_dim, num_labels)
+        self.log_sigma_head = nn.Linear(hidden_dim, num_labels)
+
+    def forward(
+        self, embeddings: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Predict (mu, sigma) from frame embeddings.
+
+        Args:
+            embeddings: [B, T, D] or [T, D].
+
+        Returns:
+            mu: [B, num_labels] or [num_labels].
+            sigma: [B, num_labels] or [num_labels], strictly positive.
+        """
+        squeeze_output = False
+        if embeddings.dim() == 2:
+            embeddings = embeddings.unsqueeze(0)
+            squeeze_output = True
+
+        scores = self.attn(embeddings).squeeze(-1)
+        w = torch.softmax(scores, dim=-1).unsqueeze(-1)
+        pooled = (embeddings * w).sum(1)
+
+        z = self.encoder(pooled)
+        mu = self.mu_head(z)
+        sigma = F.softplus(self.log_sigma_head(z)) + self.SIGMA_FLOOR
+
+        if squeeze_output:
+            return mu.squeeze(0), sigma.squeeze(0)
+        return mu, sigma
+
+
 class ModelCache:
     """Singleton cache for loaded models."""
 
@@ -176,32 +247,48 @@ class ModelCache:
 
         print(f"Initialization complete. {len(self.muq_heads)} heads loaded.")
 
-    def _load_a1max_head(self, ckpt_path: Path) -> A1MaxInferenceHead:
-        """Load an A1MaxInferenceHead from PyTorch Lightning checkpoint."""
-        checkpoint = torch.load(ckpt_path, map_location=self.device, weights_only=False)
+    def _load_a1max_head(
+        self, ckpt_path: Path
+    ) -> A1MaxInferenceHead | A1MaxInferenceHeadGaussian:
+        """Load an inference head from a PyTorch Lightning checkpoint.
+
+        Detects whether the checkpoint was trained with use_gaussian_head=True
+        and returns the appropriate head type.
+        """
+        checkpoint = torch.load(ckpt_path, map_location=self.device, weights_only=True)  # nosemgrep
 
         hparams = checkpoint.get("hyper_parameters", {})
+        use_gaussian_head = hparams.get("use_gaussian_head", False)
 
-        head = A1MaxInferenceHead(
+        common_kwargs = dict(
             input_dim=hparams.get("input_dim", MODEL_CONFIG["input_dim"]),
             hidden_dim=hparams.get("hidden_dim", MODEL_CONFIG["hidden_dim"]),
             num_labels=hparams.get("num_labels", MODEL_CONFIG["num_labels"]),
             dropout=hparams.get("dropout", MODEL_CONFIG["dropout"]),
         )
 
-        # Load state dict from Lightning checkpoint
         state_dict = checkpoint["state_dict"]
 
-        # Map Lightning keys to inference head keys
-        # Lightning saves as: attn.0.weight, encoder.0.weight, regression_head.0.weight, etc.
-        head_state = {}
-        for key, value in state_dict.items():
-            if (
-                key.startswith("attn.")
-                or key.startswith("encoder.")
-                or key.startswith("regression_head.")
-            ):
-                head_state[key] = value
+        if use_gaussian_head:
+            head: A1MaxInferenceHead | A1MaxInferenceHeadGaussian = (
+                A1MaxInferenceHeadGaussian(**common_kwargs)
+            )
+            head_state = {}
+            for key, value in state_dict.items():
+                if key.startswith("attn.") or key.startswith("encoder."):
+                    head_state[key] = value
+                elif key.startswith("head."):
+                    head_state[key[len("head."):]] = value
+        else:
+            head = A1MaxInferenceHead(**common_kwargs)
+            head_state = {}
+            for key, value in state_dict.items():
+                if (
+                    key.startswith("attn.")
+                    or key.startswith("encoder.")
+                    or key.startswith("regression_head.")
+                ):
+                    head_state[key] = value
 
         head.load_state_dict(head_state, strict=True)
 

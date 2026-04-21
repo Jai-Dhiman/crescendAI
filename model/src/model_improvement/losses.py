@@ -321,6 +321,24 @@ def semi_sup_con_loss(
     return loss
 
 
+def gaussian_nll_loss(
+    mu: torch.Tensor,
+    sigma: torch.Tensor,
+    target: torch.Tensor,
+) -> torch.Tensor:
+    """Gaussian negative log-likelihood loss.
+
+    Args:
+        mu: Predicted means, any shape.
+        sigma: Predicted stds (positive), same shape as mu.
+        target: Ground-truth values, same shape as mu.
+
+    Returns:
+        Scalar mean NLL.
+    """
+    return F.gaussian_nll_loss(mu, target, sigma ** 2, eps=1e-6)
+
+
 class DimensionWiseRankingLoss(nn.Module):
     """Per-dimension binary cross-entropy ranking loss with ambiguity filtering.
 

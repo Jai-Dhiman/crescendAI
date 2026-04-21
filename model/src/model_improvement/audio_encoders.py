@@ -5,7 +5,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from model_improvement.losses import DimensionWiseRankingLoss, piece_based_infonce_loss
+from model_improvement.heads import HeteroscedasticHead
+from model_improvement.losses import DimensionWiseRankingLoss, gaussian_nll_loss, piece_based_infonce_loss
 from model_improvement.taxonomy import NUM_DIMS
 
 
@@ -46,6 +47,7 @@ class MuQLoRAModel(pl.LightningModule):
         use_pretrained_muq: bool = False,
         lora_rank: int = 16,
         lora_target_layers: tuple[int, ...] = (9, 10, 11, 12),
+        use_gaussian_head: bool = False,
     ):
         super().__init__()
         self.save_hyperparameters()
@@ -58,6 +60,7 @@ class MuQLoRAModel(pl.LightningModule):
         self.max_epochs = max_epochs
         self.warmup_epochs = warmup_epochs
         self.num_labels = num_labels
+        self.use_gaussian_head = use_gaussian_head
 
         # Optional MuQ backbone with LoRA
         self.backbone = None
@@ -111,14 +114,17 @@ class MuQLoRAModel(pl.LightningModule):
             nn.Linear(hidden_dim // 2, 1) for _ in range(num_labels)
         ])
 
-        # Regression head for absolute quality prediction
-        self.regression_head = nn.Sequential(
-            nn.Linear(hidden_dim, hidden_dim // 2),
-            nn.GELU(),
-            nn.Dropout(dropout),
-            nn.Linear(hidden_dim // 2, num_labels),
-            nn.Sigmoid(),
-        )
+        # Regression head — scalar sigmoid or Gaussian (mu, sigma) depending on flag
+        if use_gaussian_head:
+            self.head = HeteroscedasticHead(hidden_dim, num_labels)
+        else:
+            self.regression_head = nn.Sequential(
+                nn.Linear(hidden_dim, hidden_dim // 2),
+                nn.GELU(),
+                nn.Dropout(dropout),
+                nn.Linear(hidden_dim // 2, num_labels),
+                nn.Sigmoid(),
+            )
 
         # Losses
         self.ranking_loss = DimensionWiseRankingLoss(
@@ -180,17 +186,20 @@ class MuQLoRAModel(pl.LightningModule):
 
     def predict_scores(
         self, x: torch.Tensor, mask: torch.Tensor | None = None
-    ) -> torch.Tensor:
-        """Predict absolute quality scores in [0, 1] via the regression head.
+    ) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor]:
+        """Predict quality scores via the regression head.
 
         Args:
             x: Frame embeddings [B, T, D].
             mask: Attention mask [B, T].
 
         Returns:
-            Predicted scores [B, num_labels] in [0, 1].
+            Scalar head: scores [B, num_labels] in [0, 1].
+            Gaussian head: (mu [B, num_labels], sigma [B, num_labels]).
         """
         z = self.encode(x, mask)
+        if self.use_gaussian_head:
+            return self.head(z)
         return self.regression_head(z)
 
     def training_step(self, batch: dict, idx: int) -> torch.Tensor:
@@ -215,13 +224,21 @@ class MuQLoRAModel(pl.LightningModule):
             all_proj, all_pieces, temperature=self.temperature
         )
 
-        # Regression loss (predict absolute scores for both A and B)
-        scores_a = self.regression_head(outputs["z_a"])
-        scores_b = self.regression_head(outputs["z_b"])
-        l_reg = (
-            F.mse_loss(scores_a, batch["labels_a"])
-            + F.mse_loss(scores_b, batch["labels_b"])
-        ) / 2.0
+        # Regression loss
+        if self.use_gaussian_head:
+            mu_a, sigma_a = self.head(outputs["z_a"])
+            mu_b, sigma_b = self.head(outputs["z_b"])
+            l_reg = (
+                gaussian_nll_loss(mu_a, sigma_a, batch["labels_a"])
+                + gaussian_nll_loss(mu_b, sigma_b, batch["labels_b"])
+            ) / 2.0
+        else:
+            scores_a = self.regression_head(outputs["z_a"])
+            scores_b = self.regression_head(outputs["z_b"])
+            l_reg = (
+                F.mse_loss(scores_a, batch["labels_a"])
+                + F.mse_loss(scores_b, batch["labels_b"])
+            ) / 2.0
 
         # Augmentation invariance loss (if augmented embeddings present)
         l_inv = torch.tensor(0.0, device=self.device)
@@ -324,6 +341,7 @@ class MuQLoRAMaxModel(MuQLoRAModel):
         lambda_contrastive: float = 0.3,
         lambda_regression: float = 0.3,
         lambda_invariance: float = 0.1,
+        use_gaussian_head: bool = False,
         **kwargs,
     ):
         # NOTE: Do NOT call self.save_hyperparameters() here -- parent
@@ -332,6 +350,7 @@ class MuQLoRAMaxModel(MuQLoRAModel):
             lambda_contrastive=lambda_contrastive,
             lambda_regression=lambda_regression,
             lambda_invariance=lambda_invariance,
+            use_gaussian_head=use_gaussian_head,
             **kwargs,
         )
         # Manually store extra hparams that parent doesn't know about
@@ -339,6 +358,7 @@ class MuQLoRAMaxModel(MuQLoRAModel):
             "lambda_listmle": lambda_listmle,
             "use_ccc": use_ccc,
             "mixup_alpha": mixup_alpha,
+            "use_gaussian_head": use_gaussian_head,
         })
         self.lambda_listmle = lambda_listmle
         self.use_ccc = use_ccc
@@ -377,19 +397,28 @@ class MuQLoRAMaxModel(MuQLoRAModel):
             all_proj, all_pieces, temperature=self.temperature
         )
 
-        # 3. Regression loss (CCC or MSE)
-        scores_a = self.regression_head(outputs["z_a"])
-        scores_b = self.regression_head(outputs["z_b"])
-        if self.use_ccc:
+        # 3. Regression loss (Gaussian NLL, CCC, or MSE)
+        if self.use_gaussian_head:
+            mu_a, sigma_a = self.head(outputs["z_a"])
+            mu_b, sigma_b = self.head(outputs["z_b"])
             l_reg = (
-                self._ccc_loss_fn(scores_a, labels_a)
-                + self._ccc_loss_fn(scores_b, labels_b)
+                gaussian_nll_loss(mu_a, sigma_a, labels_a)
+                + gaussian_nll_loss(mu_b, sigma_b, labels_b)
             ) / 2.0
+            scores_a, scores_b = mu_a.detach(), mu_b.detach()
         else:
-            l_reg = (
-                F.mse_loss(scores_a, labels_a)
-                + F.mse_loss(scores_b, labels_b)
-            ) / 2.0
+            scores_a = self.regression_head(outputs["z_a"])
+            scores_b = self.regression_head(outputs["z_b"])
+            if self.use_ccc:
+                l_reg = (
+                    self._ccc_loss_fn(scores_a, labels_a)
+                    + self._ccc_loss_fn(scores_b, labels_b)
+                ) / 2.0
+            else:
+                l_reg = (
+                    F.mse_loss(scores_a, labels_a)
+                    + F.mse_loss(scores_b, labels_b)
+                ) / 2.0
 
         # 4. ListMLE on regression scores grouped by piece
         l_listmle = torch.tensor(0.0, device=self.device)
