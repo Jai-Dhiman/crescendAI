@@ -123,6 +123,38 @@ class ScoreRenderer {
       });
     });
   }
+
+  // Approaches C/D/E: worker returns a pre-cropped SVG with no client manipulation needed.
+  async getClipMethod(
+    pieceId: string,
+    startBar: number,
+    endBar: number,
+    method: "select" | "mei" | "mxl",
+  ): Promise<string> {
+    await this.ensureBytes(pieceId);
+    const worker = this.ensureWorker();
+    return new Promise((resolve, reject) => {
+      const requestId = `req-${++this.requestCounter}`;
+      this.pendingRequests.set(requestId, { kind: "full", resolve, reject, pieceId });
+      const needsBytes = !this.sentPieceIds.has(pieceId);
+      const bytes = needsBytes ? this.bytesCache.get(pieceId) : undefined;
+      if (needsBytes && bytes === undefined) {
+        this.pendingRequests.delete(requestId);
+        reject(new Error(`Score bytes missing after fetch for pieceId: ${pieceId}`));
+        return;
+      }
+      if (needsBytes) this.sentPieceIds.add(pieceId);
+      worker.postMessage({
+        type: "render_clip",
+        requestId,
+        pieceId,
+        startBar,
+        endBar,
+        method,
+        bytes,
+      });
+    });
+  }
 }
 
 export const scoreRenderer = new ScoreRenderer();

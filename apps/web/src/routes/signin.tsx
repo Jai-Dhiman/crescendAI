@@ -12,7 +12,7 @@ import { useAuth } from "../lib/auth";
 import { authClient } from "../lib/auth-client";
 import { queryClient } from "../lib/query-client";
 
-const isWaitlistMode = import.meta.env.VITE_AUTH_MODE !== "live";
+const isWaitlistMode = import.meta.env.VITE_AUTH_MODE === "waitlist";
 
 export const Route = createFileRoute("/signin")({
 	beforeLoad: async () => {
