@@ -15,6 +15,9 @@ class Raw:
     competition = root / "competition"
     masterclass = root / "masterclass"
     youtube = root / "youtube"
+    maestro = root / "maestro"
+    maestro_corrupted = root / "maestro_corrupted"
+    room_irs = root / "room_irs"
 
 
 # --- Embeddings (extracted, gitignored) ---
@@ -26,6 +29,7 @@ class Embeddings:
     competition = root / "competition"
     t5_muq = root / "t5_muq"
     t5_aria = root / "t5_aria"
+    practice_corrupted = root / "practice_corrupted"
 
 
 # --- MIDI (gitignored, regenerable) ---
@@ -79,6 +83,7 @@ class Evals:
     traces = root / "traces"
     youtube_amt = root / "youtube_amt"
     intermediate = root / "intermediate"
+    ood_practice = root / "ood_practice"
 
 
 # --- Train/val/test splits (tracked) ---

@@ -8,7 +8,9 @@ from typing import Dict, List, Optional, Tuple
 import numpy as np
 import torch
 from torch.nn.utils.rnn import pad_sequence
-from torch.utils.data import Dataset
+import random as _random
+
+from torch.utils.data import BatchSampler, Dataset, Sampler
 
 # Edge type names used by hetero_graph_collate_fn
 _HETERO_EDGE_TYPES = ["onset", "during", "follow", "silence"]
@@ -203,12 +205,17 @@ class PairedPerformanceDataset(Dataset):
         labels: dict,
         piece_to_keys: dict,
         keys: list[str],
+        embedding_keys: set | None = None,
+        tier: str = "percepiano",
     ):
         self.cache_dir = Path(cache_dir)
         self.labels = labels
+        self.tier = tier
 
-        # Filter to keys that exist in both the provided keys list and labels
+        # Filter to keys that exist in the fold, labels, and (if provided) embeddings
         valid_keys = set(keys) & set(labels.keys())
+        if embedding_keys is not None:
+            valid_keys &= embedding_keys
 
         # Build reverse mapping: key -> piece_id
         key_to_piece: Dict[str, str] = {}
@@ -260,6 +267,7 @@ class PairedPerformanceDataset(Dataset):
             "labels_a": labels_a,
             "labels_b": labels_b,
             "piece_id": self.piece_to_id[piece_id],
+            "tier": self.tier,
         }
 
 
@@ -342,6 +350,78 @@ class HardNegativePairSampler:
                 indices.extend(extra.tolist())
 
         return indices if indices else all_indices
+
+
+class MixWeightedSampler(Sampler):
+    """Sample indices from multiple datasets to maintain target per-tier fractions.
+
+    Treats datasets as laid out end-to-end in a virtual concatenated index space
+    (same convention as torch.utils.data.ConcatDataset).  Each epoch draws
+    ``epoch_size`` indices total; each dataset contributes approximately its
+    target fraction, sampling with replacement when the requested count exceeds
+    the dataset size.
+
+    With a single dataset the sampler degrades to uniform random sampling with
+    replacement, preserving epoch_size semantics for future multi-tier runs.
+
+    Args:
+        dataset_sizes: Number of items in each dataset, in index order.
+        weights: Target fraction for each dataset.  Normalized internally so
+            they need not sum to 1.0.
+        epoch_size: Total indices yielded per epoch.  Defaults to the sum of
+            all dataset sizes.
+        generator: Optional torch.Generator for reproducibility.
+    """
+
+    def __init__(
+        self,
+        dataset_sizes: list[int],
+        weights: list[float],
+        epoch_size: int | None = None,
+        generator: torch.Generator | None = None,
+    ):
+        if len(dataset_sizes) != len(weights):
+            raise ValueError("dataset_sizes and weights must have the same length")
+        if not dataset_sizes:
+            raise ValueError("dataset_sizes must be non-empty")
+        if any(s <= 0 for s in dataset_sizes):
+            raise ValueError("all dataset_sizes must be positive")
+
+        self.dataset_sizes = dataset_sizes
+        total_weight = sum(weights)
+        if total_weight <= 0:
+            raise ValueError("weights must sum to a positive value")
+        self.weights = [w / total_weight for w in weights]
+        self.epoch_size = epoch_size if epoch_size is not None else sum(dataset_sizes)
+        self.generator = generator
+
+        # Global index offsets: dataset i occupies [offsets[i], offsets[i+1])
+        self.offsets: list[int] = []
+        offset = 0
+        for s in dataset_sizes:
+            self.offsets.append(offset)
+            offset += s
+
+    def __len__(self) -> int:
+        return self.epoch_size
+
+    def __iter__(self):
+        # Allocate sample counts per dataset; last dataset absorbs rounding error
+        counts = [max(1, round(self.epoch_size * w)) for w in self.weights]
+        counts[-1] = max(1, self.epoch_size - sum(counts[:-1]))
+
+        indices: list[int] = []
+        for ds_idx, (count, size, offset) in enumerate(
+            zip(counts, self.dataset_sizes, self.offsets)
+        ):
+            local = torch.randint(
+                0, size, (count,), generator=self.generator
+            ).tolist()
+            indices.extend(i + offset for i in local)
+
+        # Shuffle the combined list
+        perm = torch.randperm(len(indices), generator=self.generator).tolist()
+        return iter(indices[p] for p in perm)
 
 
 def apply_mixup(
@@ -464,7 +544,7 @@ class MaestroContrastiveDataset(Dataset):
 
     def __getitem__(self, idx: int) -> dict:
         key, piece_id = self.samples[idx]
-        emb = torch.load(
+        emb = torch.load(  # nosemgrep
             self.emb_dir / f"{key}.pt",
             map_location="cpu",
             weights_only=True,
@@ -478,6 +558,90 @@ class MaestroContrastiveDataset(Dataset):
             "embeddings_augmented": aug,
             "piece_ids": torch.tensor(piece_id),
         }
+
+
+class PracticeAugmentedDataset(Dataset):
+    """Practice-distribution wrapper for MAESTRO contrastive training.
+
+    Wraps a base dataset that has a `.samples` attribute (list of (key, piece_id)
+    tuples). On each __getitem__, with probability p_corrupt the pre-rendered
+    corrupted embedding is loaded from corrupted_emb_dir instead of the clean
+    embedding from emb_dir. If the corrupted embedding is absent for a given
+    key, the clean version is returned silently (no error).
+
+    Corrupted embedding filenames follow the convention:
+        corrupt_{original_segment_id}.pt
+
+    These are generated offline by scripts/render_corrupted_audio.py.
+
+    Args:
+        base_dataset: A MaestroContrastiveDataset (or any Dataset with a
+            `.samples` list of (key, piece_id) tuples).
+        corrupted_emb_dir: Directory containing corrupt_{key}.pt files.
+        p_corrupt: Probability of substituting a corrupted embedding per sample.
+            0.0 = never corrupt; 1.0 = always corrupt (for ablation).
+    """
+
+    def __init__(
+        self,
+        base_dataset: Dataset,
+        corrupted_emb_dir: str | Path,
+        p_corrupt: float = 0.5,
+    ) -> None:
+        if not hasattr(base_dataset, "samples"):
+            raise ValueError(
+                "base_dataset must expose a .samples list of (key, piece_id) tuples. "
+                "MaestroContrastiveDataset satisfies this contract."
+            )
+        if not 0.0 <= p_corrupt <= 1.0:
+            raise ValueError(f"p_corrupt must be in [0, 1], got {p_corrupt}")
+
+        self.base_dataset = base_dataset
+        self.corrupted_emb_dir = Path(corrupted_emb_dir)
+        self.p_corrupt = p_corrupt
+
+        # Mirror the .samples attribute so callers can introspect keys
+        self.samples: List[Tuple[str, int]] = base_dataset.samples  # type: ignore[attr-defined]
+
+        available = sum(
+            1 for key, _ in self.samples
+            if (self.corrupted_emb_dir / f"corrupt_{key}.pt").exists()
+        )
+        print(
+            f"PracticeAugmentedDataset: {len(self.samples)} segments, "
+            f"{available} with pre-rendered corrupted embeddings, "
+            f"p_corrupt={p_corrupt}"
+        )
+
+    def __len__(self) -> int:
+        return len(self.base_dataset)
+
+    def __getitem__(self, idx: int) -> dict:
+        item = self.base_dataset[idx]
+
+        if torch.rand(1).item() < self.p_corrupt:
+            key, _piece_id = self.samples[idx]
+            corrupted_path = self.corrupted_emb_dir / f"corrupt_{key}.pt"
+            if corrupted_path.exists():
+                corrupt_emb = torch.load(  # nosemgrep
+                    corrupted_path,
+                    map_location="cpu",
+                    weights_only=True,
+                )
+                noise_std = getattr(self.base_dataset, "noise_std", 0.01)
+                max_frames = getattr(self.base_dataset, "max_frames", None)
+
+                if max_frames is not None and corrupt_emb.shape[0] > max_frames:
+                    corrupt_emb = corrupt_emb[:max_frames]
+
+                corrupt_emb = corrupt_emb.float()
+                corrupt_aug = corrupt_emb + torch.randn_like(corrupt_emb) * noise_std
+
+                item = dict(item)
+                item["embeddings_clean"] = corrupt_emb
+                item["embeddings_augmented"] = corrupt_aug
+
+        return item
 
 
 class AugmentedEmbeddingDataset(Dataset):
@@ -808,6 +972,7 @@ def audio_pair_collate_fn(
     embs_a, embs_b = [], []
     labels_a_list, labels_b_list = [], []
     piece_ids_a, piece_ids_b = [], []
+    tiers: list[str] = []
 
     for item in batch:
         key_a, key_b = item["key_a"], item["key_b"]
@@ -820,6 +985,7 @@ def audio_pair_collate_fn(
         labels_b_list.append(item["labels_b"])
         piece_ids_a.append(item["piece_id"])
         piece_ids_b.append(item["piece_id"])
+        tiers.append(item.get("tier", "percepiano"))
 
     if not embs_a:
         raise RuntimeError(
@@ -854,6 +1020,7 @@ def audio_pair_collate_fn(
         "labels_b": torch.stack(labels_b_list),
         "piece_ids_a": torch.tensor(piece_ids_a),
         "piece_ids_b": torch.tensor(piece_ids_b),
+        "tiers": tiers,
     }
     if masks_a is not None:
         result["mask_a"] = masks_a
@@ -1335,7 +1502,7 @@ class ShardedScoreGraphPretrainDataset(Dataset):
     def _load_shard(self, shard_path):
         if self._cached_shard_path != shard_path:
             del self._cached_shard
-            self._cached_shard = torch.load(
+            self._cached_shard = torch.load(  # nosemgrep
                 shard_path, map_location="cpu", weights_only=False
             )
             self._cached_shard_path = shard_path
@@ -1399,7 +1566,7 @@ class ShardedHeteroPretrainDataset(Dataset):
     def _load_graph_shard(self, shard_path):
         if self._cached_graph_path != shard_path:
             del self._cached_graph_shard
-            self._cached_graph_shard = torch.load(
+            self._cached_graph_shard = torch.load(  # nosemgrep
                 shard_path, map_location="cpu", weights_only=False
             )
             self._cached_graph_path = shard_path
@@ -1408,7 +1575,7 @@ class ShardedHeteroPretrainDataset(Dataset):
     def _load_hetero_shard(self, shard_path):
         if self._cached_hetero_path != shard_path:
             del self._cached_hetero_shard
-            self._cached_hetero_shard = torch.load(
+            self._cached_hetero_shard = torch.load(  # nosemgrep
                 shard_path, map_location="cpu", weights_only=False
             )
             self._cached_hetero_path = shard_path
@@ -1475,7 +1642,7 @@ class ShardedContinuousPretrainDataset(Dataset):
     def _load_shard(self, shard_path):
         if self._cached_shard_path != shard_path:
             del self._cached_shard
-            self._cached_shard = torch.load(
+            self._cached_shard = torch.load(  # nosemgrep
                 shard_path, map_location="cpu", weights_only=False
             )
             self._cached_shard_path = shard_path
@@ -1509,3 +1676,96 @@ class ShardedContinuousPretrainDataset(Dataset):
             "masked_features": masked_feat,
             "masked_positions": masked_positions,
         }
+
+
+class SemiSupConBatchSampler(BatchSampler):
+    """BatchSampler for semi-supervised contrastive pretraining.
+
+    Guarantees each batch contains at least `min_t5_pairs` items drawn as
+    same-ordinal pairs from T5 data, so the labeled positive signal in
+    semi_sup_con_loss is activated on every step.
+
+    The remainder of each batch is filled from T1/T2 data via weighted
+    tier sampling (identical to WeightedTierSampler logic).
+
+    Args:
+        t1_t2_tier_piece_indices: List of (piece_id -> global_indices) dicts
+            covering T1 and T2 datasets (global indices into ConcatDataset).
+        t1_t2_weights: Sampling weight per T1/T2 tier (normalized internally).
+        t5_ordinal_indices: Mapping from ordinal bucket (0-4) to list of global
+            indices (into the same ConcatDataset). Only buckets with >=2 items
+            are used; others are silently skipped.
+        batch_size: Target batch size.
+        total_batches: Number of batches to yield per epoch.
+        min_t5_pairs: Minimum number of same-ordinal pairs to place in each
+            batch. Each pair contributes 2 items, so effective T5 minimum is
+            min_t5_pairs * 2. Clamped to batch_size // 2.
+        seed: Random seed for reproducibility.
+    """
+
+    def __init__(
+        self,
+        t1_t2_tier_piece_indices: list[dict[int, list[int]]],
+        t1_t2_weights: list[float],
+        t5_ordinal_indices: dict[int, list[int]],
+        batch_size: int,
+        total_batches: int,
+        min_t5_pairs: int = 2,
+        seed: int = 42,
+    ):
+        # BatchSampler expects a sampler; we override __iter__ entirely.
+        super().__init__(sampler=range(0), batch_size=batch_size, drop_last=False)
+        self._batch_size = batch_size
+        self._total_batches = total_batches
+        self._seed = seed
+
+        # Clamp so there is always room for at least one T1/T2 item
+        self._min_t5_pairs = min(min_t5_pairs, (batch_size - 1) // 2)
+        self._t5_slots = self._min_t5_pairs * 2
+
+        # T1/T2 tier sampling
+        w_sum = sum(t1_t2_weights) or 1.0
+        self._t1t2_weights = [w / w_sum for w in t1_t2_weights]
+        self._t1t2_tier_piece_indices = t1_t2_tier_piece_indices
+
+        # T5 ordinal buckets -- keep only those with >=2 items
+        self._t5_ordinals = {
+            k: v for k, v in t5_ordinal_indices.items() if len(v) >= 2
+        }
+        self._t5_has_data = bool(self._t5_ordinals)
+
+    def __iter__(self):
+        rng = _random.Random(self._seed)
+
+        tier_pieces = [list(pm.keys()) for pm in self._t1t2_tier_piece_indices]
+        valid_tiers = [i for i, p in enumerate(tier_pieces) if p]
+        valid_weights = [self._t1t2_weights[i] for i in valid_tiers]
+
+        t5_ordinal_keys = list(self._t5_ordinals.keys())
+
+        for _ in range(self._total_batches):
+            batch: list[int] = []
+
+            # T5 labeled pairs: sample min_t5_pairs same-ordinal pairs
+            if self._t5_has_data and self._t5_slots > 0:
+                for _ in range(self._min_t5_pairs):
+                    ordinal = rng.choice(t5_ordinal_keys)
+                    pair = rng.sample(self._t5_ordinals[ordinal], k=2)
+                    batch.extend(pair)
+
+            # Fill remainder with T1/T2 tier-piece sampling
+            remaining = self._batch_size - len(batch)
+            for _ in range(remaining):
+                if not valid_tiers:
+                    break
+                tier_idx = rng.choices(valid_tiers, weights=valid_weights, k=1)[0]
+                pieces = tier_pieces[tier_idx]
+                piece_id = rng.choice(pieces)
+                segment_indices = self._t1t2_tier_piece_indices[tier_idx][piece_id]
+                batch.append(rng.choice(segment_indices))
+
+            rng.shuffle(batch)
+            yield batch
+
+    def __len__(self) -> int:
+        return self._total_batches

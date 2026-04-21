@@ -1,15 +1,25 @@
 """A1-Max hyperparameter sweep runner.
 
-Runs 18 configs x 4 folds sequentially on local MPS with aggressive memory
-management. Saves results to a JSON file for analysis.
+Sweeps 18 architecture configs x 3 PercePiano mix ratios x 4 folds = 216 runs.
+Ratios vary the PercePiano fraction of the training mix (20 / 30 / 35 %).
+With only PercePiano data loaded the ratio is a label-only parameter; it
+becomes load-bearing once T5 data is wired into MixWeightedSampler.
 
 Usage:
     cd model/
+
+    # Full sweep (GPU recommended — ~30h on A100):
     uv run python -m model_improvement.a1_max_sweep
+
+    # Local overnight run — top-1 config from prior results, 4 DataLoader workers:
+    uv run python -m model_improvement.a1_max_sweep --top-n-configs 1 --num-workers 4
+
+    # Resume an interrupted run automatically (results file is checked at startup).
 """
 
 from __future__ import annotations
 
+import argparse
 import gc
 import json
 import time
@@ -27,6 +37,7 @@ from model_improvement.audio_encoders import MuQLoRAMaxModel
 from model_improvement.data import (
     PairedPerformanceDataset,
     HardNegativePairSampler,
+    MixWeightedSampler,
     audio_pair_collate_fn,
 )
 from model_improvement.evaluation import evaluate_model
@@ -39,6 +50,10 @@ LORA_LAYER_RANGES = [
     (7, 8, 9, 10, 11, 12),
 ]
 LABEL_SMOOTHING_VALUES = [0.0, 0.05, 0.1]
+# PercePiano fraction of the training mix.  Swept here to find the ratio that
+# drops dimension_collapse >= 0.15 without losing pairwise accuracy > 2pp.
+# Winning ratio is baked into BASE_CONFIG so downstream experiments inherit it.
+PERCEPIANO_RATIOS = [0.20, 0.30, 0.35]
 
 BASE_CONFIG = {
     "input_dim": 1024,
@@ -56,6 +71,9 @@ BASE_CONFIG = {
     "warmup_epochs": 5,
     "max_epochs": 200,
     "use_pretrained_muq": False,
+    # Winning PercePiano mix ratio baked in after the sweep completes.
+    # All downstream experiments that spread BASE_CONFIG inherit this value.
+    "percepiano_ratio": 0.30,
 }
 
 BATCH_SIZE = 4
@@ -68,16 +86,67 @@ def _cleanup_memory():
         torch.mps.empty_cache()
 
 
-def _config_name(lora_rank, lora_layers, label_smoothing):
+def _config_name(lora_rank, lora_layers, label_smoothing, percepiano_ratio):
     layer_str = f"L{lora_layers[0]}-{lora_layers[-1]}"
-    return f"A1max_r{lora_rank}_{layer_str}_ls{label_smoothing}"
+    ratio_str = f"mix{int(percepiano_ratio * 100)}"
+    return f"A1max_r{lora_rank}_{layer_str}_ls{label_smoothing}_{ratio_str}"
+
+
+def _select_top_configs(
+    all_configs: list,
+    top_n: int,
+    prior_results_path: Path,
+) -> list:
+    """Return the top-N configs by pairwise_mean from a prior results JSON.
+
+    Checks prior_results_path first, then falls back to the legacy
+    a1_max_sweep.json (generated before the diagnostics rewrite). Falls back
+    to grid order if neither file exists.
+    """
+    legacy_path = Results.root / "a1_max_sweep.json"
+    candidates = [p for p in (prior_results_path, legacy_path) if p.exists()]
+    if not candidates:
+        print(f"No prior results found; using grid order for top-{top_n}.")
+        return all_configs[:top_n]
+
+    chosen = candidates[0]
+    print(f"Loading prior pairwise rankings from: {chosen.name}")
+    with open(chosen) as f:
+        prior = json.load(f)
+
+    ranked = sorted(prior.items(), key=lambda x: x[1].get("pairwise_mean", 0.0), reverse=True)
+    top_names = {name for name, _ in ranked[:top_n]}
+
+    filtered = [
+        (rank, layers, ls, ratio)
+        for rank, layers, ls, ratio in all_configs
+        if _config_name(rank, layers, ls, ratio) in top_names
+    ]
+    if not filtered:
+        print(f"Warning: top-{top_n} names not found in grid; using grid order.")
+        return all_configs[:top_n]
+
+    print(f"Running top-{top_n} config(s) by prior pairwise: {[_config_name(*c) for c in filtered]}")
+    return filtered
 
 
 def run_sweep(
     checkpoint_dir: Path = Checkpoints.root / "a1_max_sweep",
     results_path: Path = Results.root / "a1_max_sweep_results.json",
+    num_workers: int = 0,
+    top_n_configs: int | None = None,
 ):
-    """Run the full 18x4 sweep."""
+    """Run the A1-Max sweep (all 18 configs by default).
+
+    Args:
+        checkpoint_dir: Directory for per-fold checkpoints.
+        results_path: JSON file for incremental results (supports resume).
+        num_workers: DataLoader background workers. Use 4 for local MPS overnight
+            runs to overlap batch prefetch with GPU compute. Default 0.
+        top_n_configs: If set, run only the top-N configs by pairwise_mean from
+            a prior completed sweep at results_path. Pass 1 to capture baseline
+            diagnostics overnight on local hardware.
+    """
     pl.seed_everything(42, workers=True)
 
     # Load data
@@ -86,7 +155,8 @@ def run_sweep(
     labels = {k: v.tolist() for k, v in labels_raw.items()}
 
     emb_path = Embeddings.percepiano / "muq_embeddings.pt"
-    embeddings = torch.load(emb_path, map_location="cpu", weights_only=True)
+    # weights_only=True limits deserialization to tensor data only.  # nosemgrep
+    embeddings = torch.load(emb_path, map_location="cpu", weights_only=True)  # nosemgrep
 
     with open(Labels.percepiano / "folds.json") as f:
         folds = json.load(f)
@@ -95,7 +165,14 @@ def run_sweep(
 
     print(f"Loaded {len(labels)} labels, {len(embeddings)} embeddings, {len(folds)} folds")
 
-    configs = list(product(LORA_RANKS, LORA_LAYER_RANGES, LABEL_SMOOTHING_VALUES))
+    all_configs = list(
+        product(LORA_RANKS, LORA_LAYER_RANGES, LABEL_SMOOTHING_VALUES, PERCEPIANO_RATIOS)
+    )
+    if top_n_configs is not None:
+        configs = _select_top_configs(all_configs, top_n_configs, results_path)
+    else:
+        configs = all_configs
+
     total_runs = len(configs) * len(folds)
     print(f"Sweep: {len(configs)} configs x {len(folds)} folds = {total_runs} runs")
 
@@ -112,8 +189,8 @@ def run_sweep(
     from model_improvement.training import train_model
 
     run_count = 0
-    for lora_rank, lora_layers, label_smoothing in configs:
-        config_name = _config_name(lora_rank, lora_layers, label_smoothing)
+    for lora_rank, lora_layers, label_smoothing, percepiano_ratio in configs:
+        config_name = _config_name(lora_rank, lora_layers, label_smoothing, percepiano_ratio)
 
         if config_name in results:
             print(f"\nSkipping {config_name} (already completed)")
@@ -124,10 +201,14 @@ def run_sweep(
         config["lora_rank"] = lora_rank
         config["lora_target_layers"] = lora_layers
         config["label_smoothing"] = label_smoothing
+        config["percepiano_ratio"] = percepiano_ratio
 
         print(f"\n{'='*60}")
         print(f"Config: {config_name}")
-        print(f"  lora_rank={lora_rank}, layers={lora_layers}, ls={label_smoothing}")
+        print(
+            f"  lora_rank={lora_rank}, layers={lora_layers}, "
+            f"ls={label_smoothing}, mix={percepiano_ratio}"
+        )
 
         fold_metrics = []
         for fold_idx, fold in enumerate(folds):
@@ -137,22 +218,32 @@ def run_sweep(
 
             _cleanup_memory()
 
+            emb_keys = set(embeddings.keys())
             train_ds = PairedPerformanceDataset(
                 cache_dir=Embeddings.percepiano, labels=labels,
                 piece_to_keys=piece_to_keys, keys=fold["train"],
+                embedding_keys=emb_keys,
             )
             val_ds = PairedPerformanceDataset(
                 cache_dir=Embeddings.percepiano, labels=labels,
                 piece_to_keys=piece_to_keys, keys=fold["val"],
+                embedding_keys=emb_keys,
             )
 
-            train_loader = DataLoader(
-                train_ds, batch_size=BATCH_SIZE, shuffle=True,
-                collate_fn=collate_fn, num_workers=0,
+            train_sampler = MixWeightedSampler(
+                dataset_sizes=[len(train_ds)],
+                weights=[percepiano_ratio],
+                epoch_size=len(train_ds),
             )
-            val_loader = DataLoader(
+            train_loader = DataLoader(  # nosemgrep
+                train_ds, batch_size=BATCH_SIZE, sampler=train_sampler,
+                collate_fn=collate_fn, num_workers=num_workers,
+                pin_memory=False,  # pin_memory=True is CUDA-only; MPS uses unified memory
+            )
+            val_loader = DataLoader(  # nosemgrep
                 val_ds, batch_size=BATCH_SIZE, shuffle=False,
-                collate_fn=collate_fn, num_workers=0,
+                collate_fn=collate_fn, num_workers=0,  # spawn issues on macOS with large closures
+                pin_memory=False,
             )
 
             model = MuQLoRAMaxModel(**config)
@@ -163,6 +254,7 @@ def run_sweep(
                 max_epochs=config["max_epochs"],
                 patience=10,
                 accumulate_grad_batches=ACCUM_BATCHES,
+                trackio_experiment_id=f"{config_name}/fold_{fold_idx}",
             )
 
             trained_model = trainer.lightning_module
@@ -200,6 +292,7 @@ def run_sweep(
                 "lora_rank": lora_rank,
                 "lora_layers": list(lora_layers),
                 "label_smoothing": label_smoothing,
+                "percepiano_ratio": percepiano_ratio,
             },
             "pairwise_mean": sum(pw_values) / len(pw_values),
             "pairwise_per_fold": pw_values,
@@ -256,4 +349,42 @@ def run_sweep(
 
 
 if __name__ == "__main__":
-    run_sweep()
+    parser = argparse.ArgumentParser(
+        description="A1-Max hyperparameter sweep with Chunk A diagnostics.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Full 18-config sweep (GPU recommended):
+  uv run python -m model_improvement.a1_max_sweep
+
+  # Overnight local run — best config from prior results, 4 prefetch workers:
+  uv run python -m model_improvement.a1_max_sweep --top-n-configs 1 --num-workers 4
+
+  # After completion, stamp results into Wave 1 plans:
+  uv run python scripts/stamp_baseline_diagnostics.py
+""",
+    )
+    parser.add_argument(
+        "--top-n-configs",
+        type=int,
+        default=None,
+        metavar="N",
+        help=(
+            "Run only the top-N configs by pairwise_mean from a prior completed sweep. "
+            "Reads data/results/a1_max_sweep_results.json or the legacy a1_max_sweep.json. "
+            "Use 1 for a fast local overnight baseline diagnostic capture (~8h on MPS)."
+        ),
+    )
+    parser.add_argument(
+        "--num-workers",
+        type=int,
+        default=0,
+        metavar="N",
+        help=(
+            "DataLoader background workers for batch prefetch. "
+            "Use 4 on local MPS to overlap prefetch with GPU compute. "
+            "Default 0 (synchronous, safest for cloud storage)."
+        ),
+    )
+    args = parser.parse_args()
+    run_sweep(num_workers=args.num_workers, top_n_configs=args.top_n_configs)

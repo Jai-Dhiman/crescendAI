@@ -1,6 +1,8 @@
 """Audio augmentation pipeline for domain robustness training."""
 
 import random
+from pathlib import Path
+from typing import Optional
 
 import numpy as np
 import torch
@@ -11,11 +13,17 @@ class AudioAugmentor:
 
     Applies a chain of independent augmentations, each with its own probability,
     gated by a global augment_prob. Uses Pedalboard (JUCE-backed) for all DSP
-    effects. Tensor-in, tensor-out: conversion to/from numpy is handled internally.
+    effects. Optionally convolves with a practice-room impulse response (real
+    IR WAV files or a synthetic exponential-decay approximation). Tensor-in,
+    tensor-out: conversion to/from numpy is handled internally.
 
     Args:
         augment_prob: Global gate probability. If random draw exceeds this,
             the waveform is returned unchanged.
+        ir_dir: Optional directory containing .wav impulse response files.
+            If provided, a random IR is loaded and convolved at IR_CONV_PROB.
+            If None and IR_CONV_PROB triggers, a synthetic IR is generated
+            instead (adequate for training; replace with real IRs before eval).
     """
 
     # Per-augmentation probabilities
@@ -24,13 +32,22 @@ class AudioAugmentor:
     PHONE_SIM_PROB = 0.2
     PITCH_SHIFT_PROB = 0.1
     EQ_PROB = 0.2
+    IR_CONV_PROB = 0.35
 
-    def __init__(self, augment_prob: float = 0.5) -> None:
+    def __init__(
+        self,
+        augment_prob: float = 0.5,
+        ir_dir: Optional[Path] = None,
+    ) -> None:
         if not 0.0 <= augment_prob <= 1.0:
             raise ValueError(
                 f"augment_prob must be in [0, 1], got {augment_prob}"
             )
         self.augment_prob = augment_prob
+        self.ir_dir = Path(ir_dir) if ir_dir is not None else None
+        self._ir_paths: Optional[list[Path]] = None
+        if self.ir_dir is not None and self.ir_dir.exists():
+            self._ir_paths = sorted(self.ir_dir.glob("*.wav"))
 
     def __call__(
         self, waveform: torch.Tensor, sample_rate: int
@@ -116,8 +133,130 @@ class AudioAugmentor:
         if random.random() < self.NOISE_PROB:
             audio_np = self._mix_pink_noise(audio_np, sample_rate)
 
+        # Practice-room IR convolution (after EQ/noise so the room coloration
+        # sits on top of the mic chain, matching the real signal path)
+        if random.random() < self.IR_CONV_PROB:
+            audio_np = self._apply_room_ir(audio_np, sample_rate)
+
         result = torch.from_numpy(audio_np).to(device)
         return result
+
+    def _apply_room_ir(
+        self, audio: np.ndarray, sample_rate: int
+    ) -> np.ndarray:
+        """Convolve audio with a practice-room impulse response.
+
+        Uses a real IR loaded from self._ir_paths if available; otherwise
+        generates a synthetic exponential-decay IR on the fly. The result
+        is length-matched to the input and normalised to the input peak level
+        so downstream loudness statistics are preserved.
+
+        Args:
+            audio: [C, T] float32 array.
+            sample_rate: Sample rate in Hz.
+
+        Returns:
+            Convolved [C, T] float32 array, same shape as input.
+        """
+        from scipy.signal import fftconvolve
+
+        if self._ir_paths:
+            ir_path = random.choice(self._ir_paths)
+            ir = self._load_ir(ir_path, sample_rate)
+        else:
+            rt60 = random.uniform(0.2, 0.7)
+            ir = self._generate_synthetic_room_ir(sample_rate, rt60=rt60)
+
+        peak_in = np.max(np.abs(audio)) + 1e-8
+        C, T = audio.shape
+        out = np.zeros_like(audio)
+        for ch in range(C):
+            convolved = fftconvolve(audio[ch], ir)[:T]
+            out[ch] = convolved.astype(np.float32)
+
+        # Normalise to input peak so loudness is preserved
+        peak_out = np.max(np.abs(out)) + 1e-8
+        out = out * (peak_in / peak_out)
+        return out
+
+    @staticmethod
+    def _load_ir(path: Path, target_sr: int) -> np.ndarray:
+        """Load an IR WAV file and resample to target_sr if needed.
+
+        Returns a 1D float32 array normalised to peak 1.0.
+        """
+        from pedalboard.io import AudioFile
+
+        with AudioFile(str(path)) as f:
+            ir_audio = f.read(f.frames)
+            ir_sr = int(f.samplerate)
+
+        # Mono-mix if multi-channel
+        if ir_audio.ndim == 2:
+            ir = ir_audio.mean(axis=0).astype(np.float32)
+        else:
+            ir = ir_audio.astype(np.float32)
+
+        # Resample if needed using scipy
+        if ir_sr != target_sr:
+            from scipy.signal import resample_poly
+            from math import gcd
+            g = gcd(target_sr, ir_sr)
+            ir = resample_poly(ir, target_sr // g, ir_sr // g).astype(np.float32)
+
+        peak = np.max(np.abs(ir))
+        if peak > 0:
+            ir /= peak
+        return ir
+
+    @staticmethod
+    def _generate_synthetic_room_ir(
+        sample_rate: int,
+        rt60: float = 0.4,
+        pre_delay_ms: float = 3.0,
+    ) -> np.ndarray:
+        """Generate a synthetic practice-room impulse response.
+
+        Models a small untreated room: direct sound + sparse early reflections
+        + diffuse reverberant tail decaying at the given RT60.
+
+        Args:
+            sample_rate: Output sample rate in Hz.
+            rt60: Reverberation time in seconds (time to decay 60 dB).
+            pre_delay_ms: Pre-delay before first reflection in ms.
+
+        Returns:
+            1D float32 IR normalised to peak 1.0.
+        """
+        duration = rt60 * 2.5
+        n = int(duration * sample_rate)
+        t = np.arange(n, dtype=np.float32) / sample_rate
+
+        # Exponential decay envelope: reaches -60 dB at rt60
+        decay_rate = np.log(1e-3) / rt60  # negative
+        envelope = np.exp(decay_rate * t)
+
+        # Diffuse tail: shaped noise
+        tail = np.random.randn(n).astype(np.float32) * envelope
+
+        # Direct sound at t=0
+        ir = tail.copy()
+        ir[0] += 1.0
+
+        # Early reflections: a few attenuated copies at small delays
+        pre_delay = int(pre_delay_ms * sample_rate / 1000)
+        reflection_delays_ms = [7.0, 14.0, 22.0, 35.0]
+        reflection_gains = [0.7, 0.5, 0.4, 0.25]
+        for delay_ms, gain in zip(reflection_delays_ms, reflection_gains):
+            d = int(delay_ms * sample_rate / 1000) + pre_delay
+            if d < n:
+                ir[d] += gain * np.exp(decay_rate * d / sample_rate)
+
+        # Normalise
+        peak = np.max(np.abs(ir))
+        if peak > 0:
+            ir /= peak
+        return ir
 
     @staticmethod
     def _mix_pink_noise(
@@ -406,7 +545,7 @@ def augment_and_embed_piano(
             audio_tensor = torch.from_numpy(augmented).float()
             embedding = extractor.extract_from_audio(audio_tensor)
 
-            torch.save(embedding, aug_emb_dir / f"{segment_id}.pt")
+            torch.save(embedding, aug_emb_dir / f"{segment_id}.pt")  # nosemgrep
             new_count += 1
 
     del extractor

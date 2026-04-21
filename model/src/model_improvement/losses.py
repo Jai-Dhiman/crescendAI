@@ -233,11 +233,105 @@ def ordinal_margin_loss(
     return loss
 
 
+def semi_sup_con_loss(
+    embeddings: torch.Tensor,
+    piece_ids: torch.Tensor,
+    ordinal_group_ids: torch.Tensor | None = None,
+    temperature: float = 0.07,
+    eps: float = 1e-8,
+) -> torch.Tensor:
+    """Semi-supervised InfoNCE with labeled positive groups.
+
+    Extends piece_based_infonce_loss with additional labeled positives from
+    T5 skill-level annotations. Positive pairs are the union of:
+      - Same piece_id (existing MAESTRO / T2 round signal)
+      - Same ordinal_group_id where ordinal_group_id >= 0 (T5 skill bucket)
+
+    T1/T2 items should pass ordinal_group_ids=-1 (or omit the tensor).
+    T5 items set ordinal_group_id to their skill bucket (0–4 after zero-indexing).
+
+    Args:
+        embeddings: L2-normalized projected embeddings [B, D].
+        piece_ids: Piece membership per segment [B].
+        ordinal_group_ids: T5 skill ordinal bucket per segment [B], or None.
+            Use -1 for items without an ordinal label.
+        temperature: InfoNCE softmax temperature.
+        eps: Small constant for numerical stability.
+
+    Returns:
+        Scalar InfoNCE loss (0 if no anchor has any positive in its row).
+    """
+    batch_size = embeddings.size(0)
+
+    if batch_size < 2:
+        return torch.tensor(0.0, device=embeddings.device, requires_grad=True)
+
+    embeddings = F.normalize(embeddings, dim=-1, eps=eps)
+    sim = torch.matmul(embeddings, embeddings.T) / temperature
+
+    eye = torch.eye(batch_size, device=embeddings.device, dtype=torch.bool)
+
+    # Piece-based positives (T1 / T2 / MAESTRO)
+    piece_mask = piece_ids.unsqueeze(0) == piece_ids.unsqueeze(1)
+    positive_mask = piece_mask & ~eye
+
+    # Labeled positives from T5 ordinal buckets
+    if ordinal_group_ids is not None:
+        valid = ordinal_group_ids >= 0  # [B]
+        # Same ordinal bucket, both items have a valid label, not self
+        ordinal_same = ordinal_group_ids.unsqueeze(0) == ordinal_group_ids.unsqueeze(1)
+        both_valid = valid.unsqueeze(0) & valid.unsqueeze(1)
+        ordinal_positive = ordinal_same & both_valid & ~eye
+        positive_mask = positive_mask | ordinal_positive
+
+    has_positives = positive_mask.any(dim=1)
+
+    if not has_positives.any():
+        return torch.tensor(0.0, device=embeddings.device, requires_grad=True)
+
+    sim_max = sim.max(dim=-1, keepdim=True)[0].detach()
+    sim = sim - sim_max
+
+    loss = torch.tensor(0.0, device=embeddings.device)
+    count = 0
+
+    for i in range(batch_size):
+        if not has_positives[i]:
+            continue
+
+        pos_mask = positive_mask[i]
+        # Negatives: anything that is not a positive and not self
+        neg_mask = ~positive_mask[i] & ~eye[i]
+
+        if not pos_mask.any() or not neg_mask.any():
+            continue
+
+        pos_sims = sim[i][pos_mask]
+        neg_sims = sim[i][neg_mask]
+
+        for pos_sim in pos_sims:
+            all_sims = torch.cat([pos_sim.unsqueeze(0), neg_sims])
+            log_sum_exp = torch.logsumexp(all_sims, dim=0)
+            loss = loss - (pos_sim - log_sum_exp)
+            count += 1
+
+    if count > 0:
+        loss = loss / count
+
+    return loss
+
+
 class DimensionWiseRankingLoss(nn.Module):
     """Per-dimension binary cross-entropy ranking loss with ambiguity filtering.
 
     For each quality dimension, predicts which of two performances is better.
     Pairs where the label difference is below ambiguous_threshold are excluded.
+
+    When apply_to_tiers is set, only samples whose tier appears in that list
+    contribute to the loss.  Pass tiers=batch["tiers"] in forward() to activate
+    the filter.  Tier filtering happens before the ambiguity mask so T5 samples
+    are fully excluded from the per-dim regression head while still contributing
+    to ListMLE / SemiSupCon ranking losses.
     """
 
     def __init__(
@@ -245,18 +339,34 @@ class DimensionWiseRankingLoss(nn.Module):
         margin: float = 0.3,
         ambiguous_threshold: float = 0.05,
         label_smoothing: float = 0.0,
+        apply_to_tiers: list[str] | None = None,
     ):
         super().__init__()
         self.margin = margin
         self.ambiguous_threshold = ambiguous_threshold
         self.label_smoothing = label_smoothing
+        self.apply_to_tiers = apply_to_tiers
 
     def forward(
         self,
         logits: torch.Tensor,
         labels_a: torch.Tensor,
         labels_b: torch.Tensor,
+        tiers: list[str] | None = None,
     ) -> torch.Tensor:
+        # Filter to allowed tiers before any other computation
+        if self.apply_to_tiers is not None and tiers is not None:
+            keep = torch.tensor(
+                [t in self.apply_to_tiers for t in tiers],
+                dtype=torch.bool,
+                device=logits.device,
+            )
+            if not keep.any():
+                return torch.tensor(0.0, device=logits.device, requires_grad=True)
+            logits = logits[keep]
+            labels_a = labels_a[keep]
+            labels_b = labels_b[keep]
+
         # Compute true ranking direction
         label_diff = labels_a - labels_b  # [B, D]
 
