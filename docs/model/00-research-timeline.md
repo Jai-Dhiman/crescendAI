@@ -6,7 +6,7 @@
 > canonical record of completed work and current state; the roadmap doc is
 > the forward-looking companion.
 
-> **Status (2026-03-19):** Clean-fold baseline established and optimized. **A1-Max optimized: 79.85% pairwise, R2=0.336** (4-fold mean, clean folds). Loss weight autoresearch (8 iterations) found contrastive=0.6, regression=0.8. Combined with best-checkpoint loading fix, this recovers most of the leaked-fold performance (was 80.8% on leaked folds, now 79.9% on clean folds). **Aria validation complete (Phase A):** Frozen Aria 59.6% pairwise, frozen MuQ 62.2%. Error correlation phi=0.043. Next: Phase B (contrastive pretraining) + Phase C (LoRA fine-tuning).
+> **Status (2026-04-21):** Clean-fold baseline established and optimized. **A1-Max optimized: 79.85% pairwise, R2=0.336** (4-fold mean, clean folds). **Aria Phase C pipeline validated:** `AriaLoRAModel` (LoRA rank-32 on layers 8-15 of 16, PEFT) smoke-tested on MPS — all assertions pass (LoRA grads non-zero, base frozen, no NaN, loss trending down). Cloud convergence run blocked on T5 labeling. See `model/src/model_improvement/aria_encoder.py` and `model/scripts/smoke_test_aria.py`.
 
 > **FOLD LEAK WARNING:** All pairwise accuracy numbers in the Legacy Results section below were computed with leaked folds (segments from the same piece appearing in both train and val splits). These numbers are INVALID for model comparison. Clean piece-stratified folds are now in place. All future results use piece-stratified CV only.
 

@@ -342,7 +342,7 @@ These are hypotheses. The learned gates will discover the actual optimal routing
 
 1. **Phase A -- Frozen linear probe (COMPLETE 2026-03-19):** Validated Aria captures quality signal (59.6% pairwise from frozen embeddings). Error correlation phi=0.043 (near-zero) confirms fusion viability. See "Aria vs MuQ: Frozen Linear Probe Comparison" above.
 2. **Phase B -- Contrastive pretraining:** Quality-aware contrastive training for both MuQ and Aria on T2 competition + T5 YouTube Skill data. Teaches quality ordering before fine-tuning.
-3. **Phase C -- Independent fine-tuning:** LoRA fine-tune MuQ and Aria separately on all tiers. Establish independent baselines on clean folds.
+3. **Phase C -- Independent fine-tuning (PIPELINE VALIDATED 2026-04-21):** LoRA fine-tune MuQ and Aria separately on all tiers. Establish independent baselines on clean folds. `AriaLoRAModel` implemented in `model/src/model_improvement/aria_encoder.py`; smoke test on MPS passed all assertions (LoRA grads non-zero, base frozen, no NaN, loss trending down). Cloud convergence run blocked on T5 labeling completion.
 4. **Phase D -- Gated fusion training:** Freeze both encoders, train only fusion gates + quality MLPs. PercePiano as anchor (20% of training), ordinal competition data (80%).
 5. **Phase E -- End-to-end fine-tuning (optional):** Unfreeze top layers of both encoders with very low LR (1e-6) for joint optimization.
 
