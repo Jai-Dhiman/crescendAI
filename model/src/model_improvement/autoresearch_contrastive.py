@@ -32,7 +32,12 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import ConcatDataset, DataLoader, Dataset, Sampler
 
-from model_improvement.losses import ordinal_margin_loss, piece_based_infonce_loss
+from model_improvement.losses import (
+    ordinal_margin_loss,
+    piece_based_infonce_loss,
+    semi_sup_con_loss,
+)
+from model_improvement.data import SemiSupConBatchSampler
 from model_improvement.taxonomy import load_composite_labels, NUM_DIMS
 from model_improvement.training import train_model
 from model_improvement.aria_linear_probe import (
@@ -249,6 +254,82 @@ class ContrastiveSegmentDataset(Dataset):
         return cls(items)
 
     @classmethod
+    def from_t5(
+        cls,
+        embeddings_dir: Path,
+        label_log_path: Path,
+        piece_id_offset: int = 0,
+    ) -> "ContrastiveSegmentDataset":
+        """Build dataset from T5 (YouTube Skill Corpus) data.
+
+        Each item carries an `ordinal_group_id` equal to the skill bucket (0–4,
+        zero-indexed from the 1–5 human labels). Items with the same ordinal are
+        treated as labeled positives in semi_sup_con_loss.
+
+        Piece IDs are assigned per unique recording_id (not per ordinal), so
+        the existing piece-based InfoNCE signal treats each video as its own
+        piece -- only the ordinal signal links videos across different recordings.
+
+        Args:
+            embeddings_dir: Directory containing {recording_id}_seg*.pt files.
+            label_log_path: Path to label_log.jsonl with {recording_id, ordinal} records.
+            piece_id_offset: Offset for piece IDs (for multi-tier uniqueness).
+
+        Returns:
+            ContrastiveSegmentDataset with ordinal_group_id populated.
+
+        Raises:
+            FileNotFoundError: If embeddings_dir or label_log_path do not exist.
+        """
+        import json as _json
+
+        embeddings_dir = Path(embeddings_dir)
+        label_log_path = Path(label_log_path)
+
+        if not embeddings_dir.exists():
+            raise FileNotFoundError(
+                f"T5 embeddings not found at {embeddings_dir}. "
+                "Extract embeddings first."
+            )
+        if not label_log_path.exists():
+            raise FileNotFoundError(
+                f"T5 label log not found at {label_log_path}."
+            )
+
+        # Load ordinal labels: recording_id -> ordinal (1-5)
+        ordinals: dict[str, int] = {}
+        with open(label_log_path) as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                entry = _json.loads(line)
+                # Deduplicate: last entry wins (matches record_label_if_new behavior)
+                ordinals[entry["recording_id"]] = entry["ordinal"]
+
+        items = []
+        for pid, (recording_id, ordinal) in enumerate(sorted(ordinals.items())):
+            seg_files = sorted(embeddings_dir.glob(f"{recording_id}_seg*.pt"))
+            # Fall back to a single file named {recording_id}.pt
+            if not seg_files:
+                single = embeddings_dir / f"{recording_id}.pt"
+                if single.exists():
+                    seg_files = [single]
+
+            for seg_file in seg_files:
+                embedding = torch.load(  # nosemgrep
+                    seg_file, map_location="cpu", weights_only=True
+                )
+                items.append({
+                    "embedding": embedding,
+                    "piece_id": pid + piece_id_offset,
+                    "quality_score": (ordinal - 1) / 4.0,  # normalize to [0, 1]
+                    "ordinal_group_id": ordinal - 1,  # zero-indexed bucket 0-4
+                })
+
+        return cls(items)
+
+    @classmethod
     def from_t2(
         cls,
         embeddings_dir: Path,
@@ -354,12 +435,16 @@ def contrastive_collate_muq(batch: list[dict]) -> dict[str, torch.Tensor]:
     quality_scores = torch.tensor(
         [item["quality_score"] for item in batch], dtype=torch.float
     )
+    ordinal_group_ids = torch.tensor(
+        [item.get("ordinal_group_id", -1) for item in batch], dtype=torch.long
+    )
 
     return {
         "embeddings": embeddings,
         "mask": mask,
         "piece_ids": piece_ids,
         "quality_scores": quality_scores,
+        "ordinal_group_ids": ordinal_group_ids,
     }
 
 
@@ -382,11 +467,15 @@ def contrastive_collate_aria(batch: list[dict]) -> dict[str, torch.Tensor]:
     quality_scores = torch.tensor(
         [item["quality_score"] for item in batch], dtype=torch.float
     )
+    ordinal_group_ids = torch.tensor(
+        [item.get("ordinal_group_id", -1) for item in batch], dtype=torch.long
+    )
 
     return {
         "embeddings": embeddings,
         "piece_ids": piece_ids,
         "quality_scores": quality_scores,
+        "ordinal_group_ids": ordinal_group_ids,
     }
 
 
@@ -491,6 +580,7 @@ class ContrastivePretrainModel(pl.LightningModule):
         encoder: nn.Module,
         lambda_infonce: float = 1.0,
         lambda_ordinal: float = 0.5,
+        lambda_semi_sup: float = 0.0,
         temperature: float = 0.07,
         margin_scale: float = 0.1,
         learning_rate: float = 1e-4,
@@ -503,6 +593,7 @@ class ContrastivePretrainModel(pl.LightningModule):
         self.encoder = encoder
         self.lambda_infonce = lambda_infonce
         self.lambda_ordinal = lambda_ordinal
+        self.lambda_semi_sup = lambda_semi_sup
         self.temperature = temperature
         self.margin_scale = margin_scale
         self.lr = learning_rate
@@ -523,13 +614,30 @@ class ContrastivePretrainModel(pl.LightningModule):
         )
 
         loss = self.lambda_infonce * l_infonce + self.lambda_ordinal * l_ordinal
-        return {"loss": loss, "infonce": l_infonce, "ordinal": l_ordinal}
+
+        l_semi_sup = torch.tensor(0.0, device=proj.device)
+        if self.lambda_semi_sup > 0.0:
+            ordinal_group_ids = batch.get("ordinal_group_ids")
+            l_semi_sup = semi_sup_con_loss(
+                proj, batch["piece_ids"],
+                ordinal_group_ids=ordinal_group_ids,
+                temperature=self.temperature,
+            )
+            loss = loss + self.lambda_semi_sup * l_semi_sup
+
+        return {
+            "loss": loss,
+            "infonce": l_infonce,
+            "ordinal": l_ordinal,
+            "semi_sup": l_semi_sup,
+        }
 
     def training_step(self, batch: dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:
         out = self._shared_step(batch)
         self.log("train_loss", out["loss"], prog_bar=True)
         self.log("train_infonce", out["infonce"])
         self.log("train_ordinal", out["ordinal"])
+        self.log("train_semi_sup", out["semi_sup"])
         return out["loss"]
 
     def validation_step(self, batch: dict[str, torch.Tensor], batch_idx: int) -> None:
@@ -537,6 +645,7 @@ class ContrastivePretrainModel(pl.LightningModule):
         self.log("val_loss", out["loss"], prog_bar=True)
         self.log("val_infonce", out["infonce"])
         self.log("val_ordinal", out["ordinal"])
+        self.log("val_semi_sup", out["semi_sup"])
 
     def configure_optimizers(self) -> dict:
         opt = torch.optim.AdamW(
@@ -624,6 +733,7 @@ def run_single_fold(
     encoder_type: str,
     lambda_infonce: float = 1.0,
     lambda_ordinal: float = 0.5,
+    lambda_semi_sup: float = 0.0,
     temperature: float = 0.07,
     ordinal_margin: float = 0.1,
     t1_weight: float = 0.2,
@@ -638,6 +748,10 @@ def run_single_fold(
         encoder_type: "muq" or "aria".
         lambda_infonce: Weight for InfoNCE loss.
         lambda_ordinal: Weight for ordinal margin loss.
+        lambda_semi_sup: Weight for semi-supervised InfoNCE loss (T5 ordinal
+            positives). Set to 0.0 to disable (default). Requires T5 embeddings
+            at Embeddings.t5_muq / Embeddings.t5_aria and
+            Labels.root / "t5" / "label_log.jsonl".
         temperature: InfoNCE temperature.
         ordinal_margin: Margin scale for ordinal loss.
         t1_weight: Sampling weight for T1 (PercePiano).
@@ -647,8 +761,8 @@ def run_single_fold(
         max_epochs: Maximum training epochs.
 
     Returns:
-        Dict with: contrastive_loss, ordinal_loss, probe_pairwise, probe_r2,
-        elapsed_seconds.
+        Dict with: contrastive_loss, ordinal_loss, semi_sup_loss, probe_pairwise,
+        probe_r2, elapsed_seconds.
 
     Raises:
         ValueError: If encoder_type is not "muq" or "aria".
@@ -710,37 +824,143 @@ def run_single_fold(
         comp_emb_dir, t2_val_ns, piece_id_offset=t2_piece_offset + 10000,
     )
 
+    # ---- Optional T5 data (semi-supervised ordinal positives) ----
+    t5_train_ds: ContrastiveSegmentDataset | None = None
+    t5_val_ds: ContrastiveSegmentDataset | None = None
+
+    if lambda_semi_sup > 0.0:
+        if encoder_type == "muq":
+            t5_emb_dir = Embeddings.t5_muq
+        else:
+            t5_emb_dir = Embeddings.t5_aria
+        t5_label_log = Labels.root / "t5" / "label_log.jsonl"
+
+        t5_piece_offset = t2_piece_offset + 20000
+        t5_train_ds = ContrastiveSegmentDataset.from_t5(
+            t5_emb_dir, t5_label_log, piece_id_offset=t5_piece_offset,
+        )
+        # Use the same T5 items for val (no separate split -- T5 is ordinal
+        # signal only; downstream eval still uses T1 linear probe)
+        t5_val_ds = t5_train_ds
+
     # Combined datasets for DataLoader (ConcatDataset)
-    train_ds = ConcatDataset([t1_train_ds, t2_train_ds])
-    val_ds = ConcatDataset([t1_val_ds, t2_val_ds])
+    train_parts = [t1_train_ds, t2_train_ds]
+    val_parts = [t1_val_ds, t2_val_ds]
+    if t5_train_ds is not None:
+        train_parts.append(t5_train_ds)
+    if t5_val_ds is not None:
+        val_parts.append(t5_val_ds)
+
+    train_ds = ConcatDataset(train_parts)
+    val_ds = ConcatDataset(val_parts)
 
     # ---- Samplers ----
-    total_train = max(len(t1_train_ds) + len(t2_train_ds), BATCH_SIZE * 10)
-    total_val = max(len(t1_val_ds) + len(t2_val_ds), BATCH_SIZE * 4)
+    total_train = max(sum(len(d) for d in train_parts), BATCH_SIZE * 10)
+    total_val = max(sum(len(d) for d in val_parts), BATCH_SIZE * 4)
 
-    train_sampler = WeightedTierSampler(
-        [t1_train_ds, t2_train_ds], [t1_weight, t2_weight],
-        total_samples=total_train, seed=42,
-    )
-    val_sampler = WeightedTierSampler(
-        [t1_val_ds, t2_val_ds], [t1_weight, t2_weight],
-        total_samples=total_val, seed=123,
-    )
+    if lambda_semi_sup > 0.0 and t5_train_ds is not None:
+        # Build per-tier piece index maps for T1/T2 (global indices into ConcatDataset)
+        t1_t2_offset = 0
+        t1t2_tier_piece_indices: list[dict[int, list[int]]] = []
+        for ds in [t1_train_ds, t2_train_ds]:
+            piece_map: dict[int, list[int]] = {}
+            for local_idx in range(len(ds)):
+                pid = ds[local_idx]["piece_id"]
+                piece_map.setdefault(pid, []).append(t1_t2_offset + local_idx)
+            t1t2_tier_piece_indices.append(piece_map)
+            t1_t2_offset += len(ds)
 
-    # ---- DataLoaders ----
-    if encoder_type == "muq":
-        collate_fn = contrastive_collate_muq
+        # Build T5 ordinal index map (offset by T1+T2 lengths)
+        t5_global_offset = len(t1_train_ds) + len(t2_train_ds)
+        t5_ordinal_indices: dict[int, list[int]] = {}
+        for local_idx in range(len(t5_train_ds)):
+            item = t5_train_ds[local_idx]
+            og = item.get("ordinal_group_id", -1)
+            if og >= 0:
+                t5_ordinal_indices.setdefault(og, []).append(
+                    t5_global_offset + local_idx
+                )
+
+        total_train_batches = total_train // BATCH_SIZE
+        total_val_batches = total_val // BATCH_SIZE
+
+        train_batch_sampler = SemiSupConBatchSampler(
+            t1_t2_tier_piece_indices=t1t2_tier_piece_indices,
+            t1_t2_weights=[t1_weight, t2_weight],
+            t5_ordinal_indices=t5_ordinal_indices,
+            batch_size=BATCH_SIZE,
+            total_batches=total_train_batches,
+            min_t5_pairs=2,
+            seed=42,
+        )
+
+        # Replicate for val (same T5 data, different seed)
+        val_t5_global_offset = len(t1_val_ds) + len(t2_val_ds)
+        val_t5_ordinal_indices: dict[int, list[int]] = {}
+        for local_idx in range(len(t5_val_ds)):
+            item = t5_val_ds[local_idx]
+            og = item.get("ordinal_group_id", -1)
+            if og >= 0:
+                val_t5_ordinal_indices.setdefault(og, []).append(
+                    val_t5_global_offset + local_idx
+                )
+
+        val_t1t2_tier_piece_indices: list[dict[int, list[int]]] = []
+        val_t1t2_offset = 0
+        for ds in [t1_val_ds, t2_val_ds]:
+            piece_map = {}
+            for local_idx in range(len(ds)):
+                pid = ds[local_idx]["piece_id"]
+                piece_map.setdefault(pid, []).append(val_t1t2_offset + local_idx)
+            val_t1t2_tier_piece_indices.append(piece_map)
+            val_t1t2_offset += len(ds)
+
+        val_batch_sampler = SemiSupConBatchSampler(
+            t1_t2_tier_piece_indices=val_t1t2_tier_piece_indices,
+            t1_t2_weights=[t1_weight, t2_weight],
+            t5_ordinal_indices=val_t5_ordinal_indices,
+            batch_size=BATCH_SIZE,
+            total_batches=total_val_batches,
+            min_t5_pairs=2,
+            seed=123,
+        )
+
+        if encoder_type == "muq":
+            collate_fn = contrastive_collate_muq
+        else:
+            collate_fn = contrastive_collate_aria
+
+        train_loader = DataLoader(  # nosemgrep
+            train_ds, batch_sampler=train_batch_sampler,
+            collate_fn=collate_fn, num_workers=0, pin_memory=False,
+        )
+        val_loader = DataLoader(  # nosemgrep
+            val_ds, batch_sampler=val_batch_sampler,
+            collate_fn=collate_fn, num_workers=0, pin_memory=False,
+        )
     else:
-        collate_fn = contrastive_collate_aria
+        train_sampler = WeightedTierSampler(
+            [t1_train_ds, t2_train_ds], [t1_weight, t2_weight],
+            total_samples=total_train, seed=42,
+        )
+        val_sampler = WeightedTierSampler(
+            [t1_val_ds, t2_val_ds], [t1_weight, t2_weight],
+            total_samples=total_val, seed=123,
+        )
 
-    train_loader = DataLoader(  # nosemgrep
-        train_ds, batch_size=BATCH_SIZE, sampler=train_sampler,
-        collate_fn=collate_fn, num_workers=0, pin_memory=False,
-    )
-    val_loader = DataLoader(  # nosemgrep
-        val_ds, batch_size=BATCH_SIZE, sampler=val_sampler,
-        collate_fn=collate_fn, num_workers=0, pin_memory=False,
-    )
+        if encoder_type == "muq":
+            collate_fn = contrastive_collate_muq
+        else:
+            collate_fn = contrastive_collate_aria
+
+        train_loader = DataLoader(  # nosemgrep
+            train_ds, batch_size=BATCH_SIZE, sampler=train_sampler,
+            collate_fn=collate_fn, num_workers=0, pin_memory=False,
+        )
+        val_loader = DataLoader(  # nosemgrep
+            val_ds, batch_size=BATCH_SIZE, sampler=val_sampler,
+            collate_fn=collate_fn, num_workers=0, pin_memory=False,
+        )
 
     # ---- Build encoder and model ----
     if encoder_type == "muq":
@@ -752,6 +972,7 @@ def run_single_fold(
         encoder=encoder,
         lambda_infonce=lambda_infonce,
         lambda_ordinal=lambda_ordinal,
+        lambda_semi_sup=lambda_semi_sup,
         temperature=temperature,
         margin_scale=ordinal_margin,
         learning_rate=learning_rate,
@@ -801,6 +1022,7 @@ def run_single_fold(
     metrics = trainer.callback_metrics
     contrastive_loss = float(metrics.get("val_infonce", float("nan")))
     ordinal_loss_val = float(metrics.get("val_ordinal", float("nan")))
+    semi_sup_loss_val = float(metrics.get("val_semi_sup", float("nan")))
 
     # ---- Linear probe on T1 PercePiano ----
     # Use encode() output (hidden_dim), NOT project() output
@@ -894,6 +1116,7 @@ def run_single_fold(
     return {
         "contrastive_loss": round(contrastive_loss, 6),
         "ordinal_loss": round(ordinal_loss_val, 6),
+        "semi_sup_loss": round(semi_sup_loss_val, 6),
         "probe_pairwise": round(probe_pairwise, 6),
         "probe_r2": round(probe_r2, 6),
         "probe_dimension_collapse": (
@@ -921,6 +1144,11 @@ def main():
     )
     parser.add_argument("--lambda-infonce", type=float, default=1.0)
     parser.add_argument("--lambda-ordinal", type=float, default=0.5)
+    parser.add_argument(
+        "--lambda-semi-sup", type=float, default=0.0,
+        help="Weight for semi-supervised InfoNCE loss (T5 ordinal positives). "
+             "0.0 disables T5 loading entirely.",
+    )
     parser.add_argument("--temperature", type=float, default=0.07)
     parser.add_argument("--ordinal-margin", type=float, default=0.1)
     parser.add_argument("--t1-weight", type=float, default=0.2)
@@ -934,6 +1162,7 @@ def main():
         encoder_type=args.encoder,
         lambda_infonce=args.lambda_infonce,
         lambda_ordinal=args.lambda_ordinal,
+        lambda_semi_sup=args.lambda_semi_sup,
         temperature=args.temperature,
         ordinal_margin=args.ordinal_margin,
         t1_weight=args.t1_weight,
@@ -948,6 +1177,7 @@ def main():
     print("AUTORESEARCH_RESULT")
     print(f"contrastive_loss={result['contrastive_loss']:.6f}")
     print(f"ordinal_loss={result['ordinal_loss']:.6f}")
+    print(f"semi_sup_loss={result['semi_sup_loss']:.6f}")
     print(f"probe_pairwise={result['probe_pairwise']:.6f}")
     print(f"probe_r2={result['probe_r2']:.6f}")
     collapse = result.get("probe_dimension_collapse")
