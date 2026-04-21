@@ -78,6 +78,18 @@ fingerprint:
 test-model:
     cd model && uv run python -m pytest tests/ -v
 
+# Run full A1-Max sweep with Chunk A diagnostics (GPU recommended: ~10h on A100)
+train-sweep:
+    cd model && uv run python -m model_improvement.a1_max_sweep
+
+# Local overnight baseline diagnostic run (best config only, 4 prefetch workers, ~8h on MPS)
+train-sweep-local:
+    cd model && uv run python -m model_improvement.a1_max_sweep --top-n-configs 1 --num-workers 4
+
+# Stamp A1-Max baseline diagnostics into all Wave 1 plan files (run after either sweep)
+stamp-baseline:
+    cd model && uv run python scripts/stamp_baseline_diagnostics.py
+
 # Run API type check
 check-api:
     cd apps/api && bun run typecheck

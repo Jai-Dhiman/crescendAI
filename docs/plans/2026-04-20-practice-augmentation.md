@@ -56,53 +56,33 @@ roadmap item. This plan only builds *synthetic* practice distribution.
 
 ### P0 — MIDI corruption primitives (1.5 days)
 
-- [ ] Implement the five corruption functions in `practice_synthesis.py`.
-  Parameters chosen to match observed practice-distribution statistics:
-  - `drop_notes`: rate 2–8% (occasional missed notes)
-  - `substitute_wrong_notes`: rate 5–15% (pick a neighbor key, preserve timing)
-  - `jitter_tempo`: std 3–8% of local tempo (unsteady pulse)
-  - `compress_velocity`: factor 0.6–0.85 (dynamic flattening on cheap mics)
-  - `insert_pauses`: rate 1 per 20s, duration 0.5–2s (stop-and-restart)
-- [ ] Unit tests on a fixture MIDI: each corruption produces the expected
-  number of changes.
+        <!-- BASELINE_DIAGNOSTICS -->
+        #### A1-Max baseline diagnostics (config: `A1max_r32_L7-12_ls0.1`, 4-fold CV)
 
-### P1 — IR curation + rendering pipeline (2 days)
+        | Metric | Value |
+        |--------|-------|
+        | `dimension_collapse_mean` | **0.3546** |
+        | `dimension_collapse_per_fold` | 0.3127, 0.3572, 0.3100, 0.4387 |
+        | Pairwise accuracy (4-fold mean) | 0.8027 |
+        | R² (4-fold mean) | -0.1905 |
+        | Skill discrimination Cohen's d | `skipped` — no_tier_labels
+  Requires `data/evals/ood_practice/labels.json` populated with T5 tier labels. |
 
-- [ ] Curate 15–20 real IRs. Phone-captured ones from user's own practice room,
-  church-reverb ones from freesound.org (CC-licensed), a few deliberately bad
-  phone-mic IRs (clipped, noisy).
-- [ ] Write `render_corrupted_audio.py`. Pipeline: MIDI → corruptions →
-  FluidSynth render → IR convolve → output WAV. Should process 1 MAESTRO clip
-  per ~5s on M4.
-- [ ] Render a seeded subset: 500 MAESTRO clips × 3 random corruption profiles
-  = 1500 synthetic practice clips. Cache to `data/raw/maestro_corrupted/`.
-- [ ] Extract MuQ embeddings on the corrupted clips and cache to
-  `data/embeddings/maestro_corrupted/`. Uses existing `extract_muq_embeddings.py`.
+        **Per-dimension prediction correlation matrix (element-wise mean across folds):**
 
-### P2 — Dataset wrapper + training integration (1 day)
+        ```
+                      dynamic   timing  pedalin  articul  phrasin  interpr
+dynamics        1.000   -0.071   -0.248   -0.004   -0.334   -0.474
+timing         -0.071    1.000    0.313    0.272    0.351    0.589
+pedaling       -0.248    0.313    1.000    0.224    0.238    0.642
+articulation   -0.004    0.272    0.224    1.000    0.578    0.223
+phrasing       -0.334    0.351    0.238    0.578    1.000    0.655
+interpretation -0.474    0.589    0.642    0.223    0.655    1.000
+        ```
 
-- [ ] Write `PracticeAugmentedDataset`. Takes a base dataset and a
-  corruption probability. On `__getitem__`, with probability `p` returns the
-  corrupted version instead.
-- [ ] Wire into `a1_max_sweep.py`: wrap the T3 MAESTRO dataset only — we do
-  *not* want to corrupt PercePiano or T5 because they are already valid signal.
+        > Numbers captured from `data/results/a1_max_sweep_results.json`.
+        > Re-run `model/scripts/stamp_baseline_diagnostics.py` to refresh after the sweep completes.
 
-### P3 — Sweep and OOD measurement (1.5 days)
-
-- [ ] Run mix sweep with `corrupt_prob ∈ {0, 0.25, 0.5}`. Report:
-  - fold pairwise (should hold or modestly improve with `p=0.25`)
-  - OOD pairwise against Chunk B's real practice clips (expected to jump)
-  - collapse (should not regress)
-- [ ] `p=0.5` is a test of the "too much corruption → model learns practice-
-  only" failure mode. Expect fold pairwise to drop here; it's the regression
-  signal for the ablation.
-
-### P4 — Document the corruption distribution (0.5 day)
-
-- [ ] Write `docs/model/07-distribution-shift.md` (this plan feeds into that
-  concept doc).
-- [ ] Log the final corruption-parameter distribution used for the winning
-  config into `data/manifests/practice_synthesis_v1.json`.
 
 ## Exit Criteria
 

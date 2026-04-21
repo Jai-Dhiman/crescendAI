@@ -57,36 +57,33 @@ on top of the new mix ratios.
 
 ### P0 — Instrument the existing baseline (0.5 day)
 
-- [ ] Run the current A1-Max config (20% PercePiano) through the Chunk A
-  diagnostics and record the baseline `dimension_collapse_mean`. This is the
-  "before" number we have to beat.
-- [ ] Add a `tier` field to every batch item in `data.py` so the loss function
-  can identify which tier the sample came from.
+        <!-- BASELINE_DIAGNOSTICS -->
+        #### A1-Max baseline diagnostics (config: `A1max_r32_L7-12_ls0.1`, 4-fold CV)
 
-### P1 — Plumb the tier gate through the loss (1 day)
+        | Metric | Value |
+        |--------|-------|
+        | `dimension_collapse_mean` | **0.3546** |
+        | `dimension_collapse_per_fold` | 0.3127, 0.3572, 0.3100, 0.4387 |
+        | Pairwise accuracy (4-fold mean) | 0.8027 |
+        | R² (4-fold mean) | -0.1905 |
+        | Skill discrimination Cohen's d | `skipped` — no_tier_labels
+  Requires `data/evals/ood_practice/labels.json` populated with T5 tier labels. |
 
-- [ ] Extend `DimensionWiseRankingLoss.forward()` to skip the BCE term for
-  non-PercePiano tiers. Unit-test: feeding a T5-only batch produces zero
-  per-dim BCE gradient.
-- [ ] Update `training.py` so the LightningModule reads `batch["tier"]` and
-  passes it to the loss. No architecture changes.
+        **Per-dimension prediction correlation matrix (element-wise mean across folds):**
 
-### P2 — Mix-ratio sweep (2 days MPS, measured)
+        ```
+                      dynamic   timing  pedalin  articul  phrasin  interpr
+dynamics        1.000   -0.071   -0.248   -0.004   -0.334   -0.474
+timing         -0.071    1.000    0.313    0.272    0.351    0.589
+pedaling       -0.248    0.313    1.000    0.224    0.238    0.642
+articulation   -0.004    0.272    0.224    1.000    0.578    0.223
+phrasing       -0.334    0.351    0.238    0.578    1.000    0.655
+interpretation -0.474    0.589    0.642    0.223    0.655    1.000
+        ```
 
-- [ ] Run the 3-point mix sweep × 4 folds × 3 LoRA configs from the existing
-  grid. That's 36 runs at ~0.5h each on M4 = ~18h, so split across two days.
-- [ ] After each fold completes, verify the new `dimension_collapse_per_fold`
-  field lands in the results JSON.
-- [ ] Gate-keep the jump to 35% on per-piece pairwise — if one piece's pairwise
-  drops >3pp from baseline, flag piece overfit.
+        > Numbers captured from `data/results/a1_max_sweep_results.json`.
+        > Re-run `model/scripts/stamp_baseline_diagnostics.py` to refresh after the sweep completes.
 
-### P3 — Pick the winner and lock the mix (0.5 day)
-
-- [ ] Run `mix_analysis.py` to produce the collapse-vs-pairwise plot.
-- [ ] Update `BASE_CONFIG` in `a1_max_sweep.py` and
-  `autoresearch_contrastive.py` to use the winning ratio.
-- [ ] Commit a short report to `data/results/percepiano_mix_sweep.md`:
-  baseline collapse, winning-config collapse, Δ, per-piece pairwise deltas.
 
 ## Exit Criteria
 

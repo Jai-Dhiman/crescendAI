@@ -57,46 +57,33 @@ modeling-and-calibration change.
 
 ### P0 — Head + loss (1 day)
 
-- [ ] Write `HeteroscedasticHead`. Softplus floor on σ prevents collapse.
-- [ ] Write `gaussian_nll_loss`. Standard formulation:
-  `0.5 * (log(2πσ²) + (y - μ)² / σ²)`.
-- [ ] Unit tests: zero-grad at target, gradient sign matches residual sign,
-  σ→0 is prevented by the floor.
+        <!-- BASELINE_DIAGNOSTICS -->
+        #### A1-Max baseline diagnostics (config: `A1max_r32_L7-12_ls0.1`, 4-fold CV)
 
-### P1 — Wire into training + swap loss (1 day)
+        | Metric | Value |
+        |--------|-------|
+        | `dimension_collapse_mean` | **0.3546** |
+        | `dimension_collapse_per_fold` | 0.3127, 0.3572, 0.3100, 0.4387 |
+        | Pairwise accuracy (4-fold mean) | 0.8027 |
+        | R² (4-fold mean) | -0.1905 |
+        | Skill discrimination Cohen's d | `skipped` — no_tier_labels
+  Requires `data/evals/ood_practice/labels.json` populated with T5 tier labels. |
 
-- [ ] Add `use_gaussian_head` flag to the LightningModule config. When true:
-  head is `HeteroscedasticHead`, regression loss is Gaussian NLL, per-dim BCE
-  is disabled.
-- [ ] Re-run A1-Max on the current best mix ratio with the new head. Verify
-  training converges — the NLL can destabilize if σ explodes early.
+        **Per-dimension prediction correlation matrix (element-wise mean across folds):**
 
-### P2 — Calibration metrics (1 day)
+        ```
+                      dynamic   timing  pedalin  articul  phrasin  interpr
+dynamics        1.000   -0.071   -0.248   -0.004   -0.334   -0.474
+timing         -0.071    1.000    0.313    0.272    0.351    0.589
+pedaling       -0.248    0.313    1.000    0.224    0.238    0.642
+articulation   -0.004    0.272    0.224    1.000    0.578    0.223
+phrasing       -0.334    0.351    0.238    0.578    1.000    0.655
+interpretation -0.474    0.589    0.642    0.223    0.655    1.000
+        ```
 
-- [ ] Implement ECE: bin predictions by σ, compute `|mean(residual) - mean(σ)|`
-  per bin, weighted-average.
-- [ ] Reliability diagram: scatter of predicted σ vs empirical residual std,
-  per dim. If the line is y=x, σ is calibrated.
-- [ ] Wire both into `evaluate_model` so they emit in the same JSON blob as
-  Chunk A diagnostics.
+        > Numbers captured from `data/results/a1_max_sweep_results.json`.
+        > Re-run `model/scripts/stamp_baseline_diagnostics.py` to refresh after the sweep completes.
 
-### P3 — Harness consumption (1.5 days)
-
-- [ ] Derive per-dim σ thresholds from validation: the 75th percentile σ on
-  PercePiano val becomes the "surface / suppress" threshold. Persist in
-  checkpoint metadata under `confidence_thresholds`.
-- [ ] Implement `confidence_gate.ts`. Test: given a stub (μ, σ) payload, verify
-  low-σ dims pass through and high-σ dims are suppressed.
-- [ ] Integrate with `synthesis.ts`: dims suppressed by the gate are removed
-  from the teacher payload, *and* the teacher is informed in the system prompt
-  that some dims were suppressed. The teacher must not pretend to have info it
-  doesn't.
-
-### P4 — OOD calibration test (0.5 day)
-
-- [ ] Run `ood_harness.run_ood_test` on the first OOD practice clips (once
-  Chunk B has data). ECE on OOD vs PercePiano tells you whether σ generalizes
-  or whether the model is overconfident on practice audio.
 
 ## Exit Criteria
 

@@ -9,6 +9,8 @@ import pytorch_lightning as pl
 import torch
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 
+from model_improvement.trackio_callback import TrackioCallback
+
 
 def _log_msg(msg: str, log_file: str | None = None) -> None:
     """Print to stdout and optionally append to a log file."""
@@ -128,6 +130,7 @@ def train_model(
     accumulate_grad_batches: int = 1,
     log_file: str | None = None,
     accelerator: str | None = None,
+    trackio_experiment_id: str | None = None,
 ) -> pl.Trainer:
     """Train a model with standard callbacks.
 
@@ -181,6 +184,8 @@ def train_model(
         PrintEpochCallback(log_file=log_file),
         BatchProgressCallback(log_every=50, log_file=log_file),
     ]
+    if trackio_experiment_id is not None:
+        callbacks.append(TrackioCallback(experiment_id=trackio_experiment_id))
 
     trainer = pl.Trainer(
         max_epochs=max_epochs,

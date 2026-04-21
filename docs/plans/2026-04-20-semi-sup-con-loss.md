@@ -58,46 +58,33 @@ encoder weights as frozen features for the linear probe.
 
 ### P0 — Spec update + positive-mask construction (0.5 day)
 
-- [ ] Update the contrastive-pretraining design spec with the positive-mask
-  rules:
-  - same piece → positive (piece-based InfoNCE)
-  - same T2 placement (exact) → positive (SemiSupCon labeled)
-  - same T5 ordinal bucket → positive (SemiSupCon labeled)
-  - different piece + different tier label → negative
-  - different piece + same tier label → positive (labeled signal wins)
-- [ ] Unit test: on a synthetic batch of 8 samples with known tiers, the mask
-  matches the expected layout.
+        <!-- BASELINE_DIAGNOSTICS -->
+        #### A1-Max baseline diagnostics (config: `A1max_r32_L7-12_ls0.1`, 4-fold CV)
 
-### P1 — Loss implementation (1 day)
+        | Metric | Value |
+        |--------|-------|
+        | `dimension_collapse_mean` | **0.3546** |
+        | `dimension_collapse_per_fold` | 0.3127, 0.3572, 0.3100, 0.4387 |
+        | Pairwise accuracy (4-fold mean) | 0.8027 |
+        | R² (4-fold mean) | -0.1905 |
+        | Skill discrimination Cohen's d | `skipped` — no_tier_labels
+  Requires `data/evals/ood_practice/labels.json` populated with T5 tier labels. |
 
-- [ ] Write `semi_sup_con_loss()`. Standard SemiSupCon: numerator is sum over
-  labeled positives, denominator is sum over all non-self, temperature-scaled.
-- [ ] Make sure the loss is well-defined when no labeled positives exist in a
-  batch (graceful: fall back to piece-based InfoNCE for that batch).
-- [ ] Unit test: two identical samples → loss → 0. Two anti-correlated batches
-  → loss > InfoNCE baseline.
+        **Per-dimension prediction correlation matrix (element-wise mean across folds):**
 
-### P2 — Batch sampler (1 day)
+        ```
+                      dynamic   timing  pedalin  articul  phrasin  interpr
+dynamics        1.000   -0.071   -0.248   -0.004   -0.334   -0.474
+timing         -0.071    1.000    0.313    0.272    0.351    0.589
+pedaling       -0.248    0.313    1.000    0.224    0.238    0.642
+articulation   -0.004    0.272    0.224    1.000    0.578    0.223
+phrasing       -0.334    0.351    0.238    0.578    1.000    0.655
+interpretation -0.474    0.589    0.642    0.223    0.655    1.000
+        ```
 
-- [ ] Write `SemiSupConBatchSampler`. Guarantees ≥2 T2 samples, ≥2 T5 samples,
-  ≥2 T3 piece-pair samples per batch. Sizes: bottleneck is T2 since it has
-  fewer recordings — sampler falls back to T3 if T2 is exhausted.
-- [ ] Verify on MPS: batch assembly time <50ms so we don't starve the GPU.
+        > Numbers captured from `data/results/a1_max_sweep_results.json`.
+        > Re-run `model/scripts/stamp_baseline_diagnostics.py` to refresh after the sweep completes.
 
-### P3 — Autoresearch sweep (1.5 days)
-
-- [ ] Grid: `lambda_semisupcon ∈ [0.0, 0.3, 0.5, 1.0]`, temperature ∈
-  `[0.05, 0.1, 0.2]`. 12 configs × 2 encoders (MuQ, Aria).
-- [ ] Track `probe_pairwise`, `probe_r2`, `probe_dimension_collapse` per run.
-- [ ] Winner selection: highest `probe_pairwise` subject to
-  `probe_dimension_collapse ≤ baseline + 0.05`.
-
-### P4 — Freeze and hand off to Phase C (0.5 day)
-
-- [ ] Export winning encoder checkpoint to
-  `data/checkpoints/semisupcon_{encoder}_v1.ckpt`.
-- [ ] Update `docs/model/04-north-star.md` with the new probe numbers (pre-
-  and post-SemiSupCon).
 
 ## Exit Criteria
 

@@ -67,6 +67,7 @@ dependencies = [
     "dtw-python>=1.7.4",
     "aria",
     "safetensors>=0.6.2",
+    "trackio>=0.1.0",
 ]
 
 [project.optional-dependencies]
