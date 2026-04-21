@@ -32,15 +32,16 @@ partial T5 pool would measure label noise, not the intervention.
    Infrastructure merged (`practice_synthesis.py`, `render_corrupted_audio.py`,
    `PracticeAugmentedDataset`). IR bank curation + corrupted-audio rendering
    happen in parallel with T5 labeling.
-5. **Heteroscedastic heads** — `2026-04-20-heteroscedastic-heads.md`. Next
-   code ship. No dependency on Wave 1 code.
+5. **Heteroscedastic heads** — `2026-04-20-heteroscedastic-heads.md`.
+   Infrastructure merged (Gaussian NLL head, softplus σ floor, calibration.py,
+   confidence_gate.ts). No dependency on Wave 1 code.
 
 ### T5 labeling (Q2, parallel track)
 
 Single-ordinal (1–5) labeling continues per `model/scripts/t5_label_consistency.py`.
 Rolling Cohen's κ must reach ≥ 0.6 before the Q3 training runs start. Progress
 tracked in `model/data/labels/t5/label_log.jsonl`.
-
+ 
 ### Concept docs
 
 `docs/model/06-label-quality.md`, `07-distribution-shift.md`,

@@ -20,14 +20,7 @@ North star: Give Sarah one piece of useful feedback on one passage she's working
 
 ## Aria Discovery (2026-03-18)
 
-**Aria** is a 650M-parameter LLaMA-architecture model pretrained by EleutherAI on 820K piano MIDI performances (60K hours). Apache 2.0 license. SOTA on 6 MIR benchmarks.
-
-**Why this changes everything:**
-
-- Phase 3 (Symbolic FM, 6-12 months, HIGH risk) planned to pretrain a Transformer on 370K+ MIDI performances. Aria already did this at 2x scale with better data curation.
-- S2 GNN (71.3% pairwise on leaked folds) was our best symbolic encoder, trained on 24,220 graphs. Aria's pretrained representations should dominate.
-- The ISMIR paper's fusion failure (error correlation r=0.738) was partly because S2 lacked pretrained inductive bias. Aria closes this gap.
-- Same architecture encodes both performance MIDI and score MIDI -- score conditioning is native, not bolted on.
+See `docs/model/03-encoders.md` for Aria rationale and benchmarks.
 
 **Decision:** Replace ALL custom symbolic encoders (S2 GNN, S2H, S3, S1) with Aria. Eliminate Phase 3 entirely. Integrate Aria into model v2 from day one.
 
@@ -41,9 +34,9 @@ All MuQ inference runs on the HuggingFace inference endpoint. No on-device ML / 
 
 ### Fusion Strategy: Separate-Then-Fuse (decided 2026-03-18)
 
-Train MuQ (audio) and Aria (symbolic) independently. Measure error correlation on clean folds. Fuse with per-dimension learned gates.
+See `docs/model/03-encoders.md` for gated fusion architecture and training protocol.
 
-Previous attempt (ISMIR paper): fusion R2=0.524 < audio-only R2=0.537 (on leaked folds). Error correlation r=0.738. Root cause was S2 lacking pretrained inductive bias -- both encoders derived from identical MIDI source data without distinct learned representations. Aria's 820K-MIDI pretraining should break this correlation.
+Train MuQ (audio) and Aria (symbolic) independently. Measure error correlation on clean folds. Fuse with per-dimension learned gates. Previous attempt (ISMIR paper): fusion R2=0.524 < audio-only R2=0.537 (on leaked folds). Error correlation r=0.738. Aria's 820K-MIDI pretraining should break this correlation.
 
 ### Aria Validation Complete -- Phase A (2026-03-19)
 
@@ -100,7 +93,7 @@ The YouTube AMT validation (79.9% agreement on 50 mediocre recordings) serves as
 
 **Symbolic path (Aria):** Aria 650M frozen or LoRA-adapted. Takes performance MIDI + score MIDI as dual input. Outputs z_perf, z_score, and delta = z_perf - z_score. Contrastive pretrain on T2+T5 (using AMT MIDI), then fine-tune.
 
-**Fusion:** Per-dimension learned gates. `quality_d = gate_d * f_audio(z_muq) + (1 - gate_d) * f_symbolic(z_perf, z_score, delta_d)`. Train gates on T1 (PercePiano) with both encoders frozen.
+**Fusion:** See `docs/model/03-encoders.md` for gated fusion architecture and training protocol.
 
 ### Evaluation Framework
 

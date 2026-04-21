@@ -188,3 +188,33 @@ When `inference` returns `{scores, sigmas, collapse_proxy}` for a session:
   signal (variance of dim predictions + σ pattern). It's noisier.
 
 Track these limitations explicitly in `docs/model/04-north-star.md`.
+
+---
+
+## Baseline snapshot (pre-Wave 1)
+
+#### A1-Max baseline diagnostics (config: `A1max_r32_L7-12_ls0.1`, 4-fold CV)
+
+| Metric | Value |
+|--------|-------|
+| `dimension_collapse_mean` | **0.3546** |
+| `dimension_collapse_per_fold` | 0.3127, 0.3572, 0.3100, 0.4387 |
+| Pairwise accuracy (4-fold mean) | 0.8027 |
+| R² (4-fold mean) | -0.1905 |
+| Skill discrimination Cohen's d | `skipped` — no_tier_labels
+  Requires `data/evals/ood_practice/labels.json` populated with T5 tier labels. |
+
+**Per-dimension prediction correlation matrix (element-wise mean across folds):**
+
+```
+              dynamic   timing  pedalin  articul  phrasin  interpr
+dynamics        1.000   -0.071   -0.248   -0.004   -0.334   -0.474
+timing         -0.071    1.000    0.313    0.272    0.351    0.589
+pedaling       -0.248    0.313    1.000    0.224    0.238    0.642
+articulation   -0.004    0.272    0.224    1.000    0.578    0.223
+phrasing       -0.334    0.351    0.238    0.578    1.000    0.655
+interpretation -0.474    0.589    0.642    0.223    0.655    1.000
+```
+
+> Numbers captured from `data/results/a1_max_sweep_results.json`.
+> Re-run `model/scripts/stamp_baseline_diagnostics.py` to refresh after the sweep completes.

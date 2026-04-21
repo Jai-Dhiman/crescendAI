@@ -63,6 +63,16 @@ Key improvements over A1 baseline: ListMLE ranking loss (Plackett-Luce likelihoo
 
 The ~3.3pp drop from leaked 80.8% to clean 77.5% confirms the fold leak was real and inflated results. Ranking losses (ListMLE) are essential -- removing them drops pairwise by 4-8pp. Frozen probe (regression-only, no LoRA) gets the best absolute R2 (0.46) but terrible ranking (53.4%).
 
+#### Loss ablation (pre-clean-fold, relative ordering)
+
+From pre-fix (fold-leaked) runs archived in `docs/model/archive/05-ismir-paper-status.md`. Absolute numbers are inflated; relative ordering is expected to hold on clean folds since the pattern reflects loss dynamics, not data leakage.
+
+- BCE-only: 73.0% pairwise
+- BCE + ListMLE (no regression anchor): 69.7% -- ListMLE alone degrades pairwise, likely due to degenerate ranking solutions without an absolute reference
+- BCE + ListMLE + CCC: 75.4% -- CCC regression loss anchors ListMLE and recovers above BCE-only
+
+**Takeaway:** ranking losses require a regression anchor (CCC) to avoid destabilization. Do not add ListMLE without CCC.
+
 #### Optimized Loss Weights (4-fold validated)
 
 Loss weight autoresearch (8 iterations, single-fold search, then 4-fold validation): found that contrastive=0.6, regression=0.8 (vs original 0.3, 0.3) dramatically improves both metrics.

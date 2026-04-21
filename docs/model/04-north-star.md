@@ -102,26 +102,7 @@ The model v2 system targets 8 perceptual capabilities, from immediate inference 
 
 ## Aria + MuQ Gated Fusion (Stage 2 Detail)
 
-### Architecture
-
-```
-AUDIO -> [MuQ + LoRA] -> z_audio [512]
-
-PERF MIDI  -> [Aria] -> z_perf [512]
-SCORE MIDI -> [Aria] -> z_score [512]
-                         delta = z_perf - z_score
-
-                    GATED FUSION (per-dimension)
-
-  For each dimension d:
-    gate_d = sigmoid(W_d * [z_audio; z_perf; delta])
-    fused_d = gate_d * z_audio + (1 - gate_d) * z_perf
-    quality_d = MLP_d(fused_d, delta)
-
-  Output: 6 scores (0-1) relative to score
-```
-
-The `delta = z_perf - z_score` vector directly encodes "what's different between what was played and what was written." The quality head learns which deltas are good (rubato, dynamic shading) and which are bad (wrong notes, missed dynamics).
+See `docs/model/03-encoders.md` for gated fusion architecture and training protocol.
 
 ### What Score Conditioning Fixes
 
@@ -131,24 +112,6 @@ The `delta = z_perf - z_score` vector directly encodes "what's different between
 | Rubato confusion | Any timing deviation = "timing issues" | Deviation + compensatory return = intentional |
 | Difficulty blindness | Same standards for easy and hard passages | Calibrated expectations per passage |
 | Open-ended pieces | Works for any audio | Requires score MIDI (degrades to absolute for unknown pieces) |
-
-### Training Data: Reference-Anchored
-
-Instead of expensive expert annotation, use professional recordings as implicit quality anchors:
-
-- MAESTRO has 204 pieces with 2+ performers and paired score MIDIs
-- Multiple recordings of the same piece = relative quality ordering
-- Training triple: (performance_audio, performance_midi, score_midi) with relative ranking label
-- Loss: ListMLE ranking (same as A1-Max), conditioned on score
-- Data mix: PercePiano as anchor (20%), ordinal competition data (80%)
-
-### Separate-Then-Fuse Protocol
-
-1. **Independent training:** Fine-tune MuQ and Aria separately on PercePiano with clean folds
-2. **Quality-aware contrastive pretraining:** Symmetric contrastive training for both encoders (MuQ: NT-Xent on quality pairs; Aria: SimCSE already done, extend with quality pairs)
-3. **Error correlation measurement:** Both models on validation sets, per-dimension error correlation. Target: r < 0.5
-4. **Gated fusion training:** Freeze encoders, train fusion gates + quality MLPs
-5. **End-to-end fine-tuning (optional):** Unfreeze top layers, very low LR (1e-6)
 
 ---
 
