@@ -17,6 +17,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import datetime as dt
 import http.server
 import json
 import socketserver
@@ -26,6 +27,7 @@ from pathlib import Path
 import yaml
 
 SKILL_EVAL_DIR = Path(__file__).resolve().parents[2] / "data" / "evals" / "skill_eval"
+T5_LABEL_LOG = Path(__file__).resolve().parents[2] / "data" / "labels" / "t5" / "label_log.jsonl"
 
 SKILL_LABELS = {
     1: "Beginner",
@@ -34,6 +36,40 @@ SKILL_LABELS = {
     4: "Advanced",
     5: "Professional",
 }
+
+
+# ---------------------------------------------------------------------------
+# Drift logging
+# ---------------------------------------------------------------------------
+
+
+def record_label_if_new(recording_id: str, ordinal: int) -> bool:
+    """Append to label_log.jsonl only if this recording_id has never been logged.
+
+    Returns True if a new entry was written, False if already present.
+    """
+    T5_LABEL_LOG.parent.mkdir(parents=True, exist_ok=True)
+    if T5_LABEL_LOG.exists():
+        with open(T5_LABEL_LOG) as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    entry = json.loads(line)
+                    if entry.get("recording_id") == recording_id:
+                        return False
+                except json.JSONDecodeError:
+                    continue
+
+    entry = {
+        "ts": dt.datetime.now(dt.timezone.utc).isoformat(),
+        "recording_id": recording_id,
+        "ordinal": ordinal,
+    }
+    with open(T5_LABEL_LOG, "a") as f:
+        f.write(json.dumps(entry) + "\n")
+    return True
 
 
 # ---------------------------------------------------------------------------
@@ -419,9 +455,17 @@ function setBucket(slug, idx, bucket) {{
         rec.skill_bucket = null;
         rec.label_rationale = null;
     }} else {{
+        const wasUnlabeled = rec.skill_bucket === null;
         rec.skill_bucket = bucket;
         rec.label_rationale = 'human curation';
-        // Un-skip if was skipped
+        // Log drift entry only on first label assignment (not relabels within session)
+        if (wasUnlabeled) {{
+            fetch('/label', {{
+                method: 'POST',
+                headers: {{ 'Content-Type': 'application/json' }},
+                body: JSON.stringify({{ recording_id: rec.video_id, ordinal: bucket }}),
+            }}).catch(() => {{}});
+        }}
     }}
     updateCardUI(slug, idx);
     updateProgress();
@@ -644,7 +688,26 @@ class ReviewHandler(http.server.BaseHTTPRequestHandler):
             self.end_headers()
 
     def do_POST(self):
-        if self.path == "/save":
+        if self.path == "/label":
+            content_len = int(self.headers.get("Content-Length", 0))
+            body = self.rfile.read(content_len)
+            try:
+                payload = json.loads(body)
+                recording_id = payload["recording_id"]
+                ordinal = int(payload["ordinal"])
+                if ordinal < 1 or ordinal > 5:
+                    raise ValueError(f"ordinal must be 1-5, got {ordinal}")
+                is_new = record_label_if_new(recording_id, ordinal)
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"logged": is_new}).encode())
+            except Exception as e:
+                self.send_response(400)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": str(e)}).encode())
+        elif self.path == "/save":
             content_len = int(self.headers.get("Content-Length", 0))
             body = self.rfile.read(content_len)
             try:
