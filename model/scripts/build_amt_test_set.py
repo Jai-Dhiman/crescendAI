@@ -25,7 +25,6 @@ import numpy as np
 import torch
 
 from model_improvement.layer1_validation import (
-    amt_degradation_comparison,
     select_maestro_subset,
 )
 from src.paths import Embeddings, Checkpoints
@@ -352,148 +351,10 @@ def step3_transcribe(recording_ids: list[str]) -> None:
     logger.info("Step 3 complete.")
 
 
-# ---------------------------------------------------------------------------
-# Step 4 + 5: Comparison and report
-# ---------------------------------------------------------------------------
-
-def _build_pairwise_results(
-    recording_ids: list[str],
-    s2_model: torch.nn.Module,
-) -> dict[str, dict]:
-    """Run S2 pairwise accuracy for ground truth and each transcription system.
-
-    Args:
-        recording_ids: List of recording IDs in the test set.
-        s2_model: Trained S2 GNN model with predict_pair(g1, g2) -> float.
-
-    Returns:
-        {source_name: {overall: float, per_dimension: {int: float}}}
-    """
-    import pretty_midi
-    from model_improvement.graph import parsed_midi_to_graph
-
-    systems = {
-        "ground_truth": GT_MIDI_DIR,
-        "bytedance": TRANSCRIBED_DIR / "bytedance",
-        "yourmt3": TRANSCRIBED_DIR / "yourmt3",
-    }
-
-    results: dict[str, dict] = {}
-
-    for source_name, midi_dir in systems.items():
-        if not midi_dir.exists():
-            logger.warning("MIDI dir not found for %s: %s", source_name, midi_dir)
-            continue
-
-        pair_correct: list[bool] = []
-
-        for i in range(len(recording_ids)):
-            for j in range(i + 1, len(recording_ids)):
-                id1 = recording_ids[i]
-                id2 = recording_ids[j]
-                mid1 = midi_dir / f"{id1}.mid"
-                mid2 = midi_dir / f"{id2}.mid"
-
-                if not mid1.exists() or not mid2.exists():
-                    continue
-
-                try:
-                    g1 = parsed_midi_to_graph(pretty_midi.PrettyMIDI(str(mid1)))
-                    g2 = parsed_midi_to_graph(pretty_midi.PrettyMIDI(str(mid2)))
-                except Exception as e:
-                    logger.warning("Graph error for pair (%s, %s): %s", id1, id2, e)
-                    continue
-
-                try:
-                    # S2 pairwise prediction: positive = g1 better than g2
-                    pred = s2_model.predict_pair(g1, g2)
-                    pair_correct.append(pred > 0.5)
-                except Exception as e:
-                    logger.warning("Predict pair error (%s, %s): %s", id1, id2, e)
-                    continue
-
-        if not pair_correct:
-            logger.warning("No valid pairs for %s", source_name)
-            continue
-
-        overall_acc = float(np.mean(pair_correct))
-        # Per-dimension: placeholder (real implementation requires per-dim S2 head)
-        per_dimension = {d: overall_acc for d in range(6)}
-
-        results[source_name] = {
-            "overall": overall_acc,
-            "per_dimension": per_dimension,
-            "n_pairs": len(pair_correct),
-        }
-        logger.info(
-            "%s: overall accuracy = %.3f (%d pairs)",
-            source_name, overall_acc, len(pair_correct),
-        )
-
-    return results
-
-
-def step4_and_5_compare_and_report(
-    recording_ids: list[str],
-    s2_checkpoint_path: str | Path,
-) -> dict:
-    """Compare S2 pairwise accuracy across transcription systems and write report.
-
-    Args:
-        recording_ids: List of recording IDs in the test set.
-        s2_checkpoint_path: Path to S2 Lightning checkpoint.
-
-    Returns:
-        Report dict (also written to REPORT_PATH).
-
-    Raises:
-        FileNotFoundError: If S2 checkpoint does not exist.
-    """
-    s2_checkpoint_path = Path(s2_checkpoint_path)
-    if not s2_checkpoint_path.exists():
-        raise FileNotFoundError(f"S2 checkpoint not found: {s2_checkpoint_path}")
-
-    logger.info("Loading S2 checkpoint from %s", s2_checkpoint_path)
-    from model_improvement.symbolic_encoders import GNNEncoder  # type: ignore[import]
-    s2_model = GNNEncoder.load_from_checkpoint(str(s2_checkpoint_path), map_location="cpu")
-    s2_model.train(False)
-
-    pairwise_results = _build_pairwise_results(recording_ids, s2_model)
-
-    if "ground_truth" not in pairwise_results:
-        raise RuntimeError(
-            "Ground truth pairwise results missing. "
-            "Ensure GT MIDI files are present in: " + str(GT_MIDI_DIR)
-        )
-
-    degradation = amt_degradation_comparison(pairwise_results, baseline="ground_truth")
-
-    # Gate check
-    gate_passed = True
-    for source, result in degradation.items():
-        for dim_name, drop in result["per_dimension_drop_pct"].items():
-            if drop > MAX_DIMENSION_DROP_PCT:
-                logger.warning(
-                    "FAIL: %s dimension %s dropped %.1f%% (> %.1f%% gate)",
-                    source, dim_name, drop, MAX_DIMENSION_DROP_PCT,
-                )
-                gate_passed = False
-
-    report = {
-        "pairwise_results": pairwise_results,
-        "degradation": degradation,
-        "gate_passed": gate_passed,
-        "gate_threshold_pct": MAX_DIMENSION_DROP_PCT,
-        "n_recordings": len(recording_ids),
-    }
-
-    REPORT_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with open(REPORT_PATH, "w") as f:
-        json.dump(report, f, indent=2)
-
-    logger.info("Report written to %s", REPORT_PATH)
-    logger.info("Gate: %s", "PASSED" if gate_passed else "FAILED")
-    return report
+# Steps 4+5 (S2 GNN pairwise comparison) were removed when Aria replaced
+# the custom symbolic encoders. If you need AMT-quality evaluation against
+# a performance-scoring model, wire this up against an Aria-based pairwise
+# head instead.
 
 
 # ---------------------------------------------------------------------------
@@ -503,15 +364,11 @@ def step4_and_5_compare_and_report(
 def main() -> None:
     logger.info("=== AMT Validation Test Set Builder ===")
 
-    # Locate A1 and S2 checkpoints (override via environment variables)
+    # Locate A1 checkpoint (override via environment variable)
     import os
     a1_checkpoint = os.environ.get(
         "A1_CHECKPOINT",
         str(Checkpoints.root / "a1_best.ckpt"),
-    )
-    s2_checkpoint = os.environ.get(
-        "S2_CHECKPOINT",
-        str(Checkpoints.root / "s2_best.ckpt"),
     )
 
     # Step 1: Piece selection (can run locally)
@@ -556,22 +413,13 @@ def main() -> None:
     logger.info("NOTE: Step 3 requires CUDA GPU.  # TODO(thunder): requires GPU")
     step3_transcribe(recording_ids)
 
-    # Steps 4 + 5: Comparison and report
-    logger.info("\n--- Steps 4+5: Comparison and report ---")
-    report = step4_and_5_compare_and_report(
-        recording_ids=recording_ids,
-        s2_checkpoint_path=s2_checkpoint,
-    )
-
     logger.info("\n=== Summary ===")
-    for source, result in report.get("degradation", {}).items():
-        logger.info(
-            "%s: overall drop = %.1f%%, viable = %s",
-            source,
-            result["overall_drop_pct"],
-            result["viable"],
-        )
-    logger.info("Gate: %s", "PASSED" if report.get("gate_passed") else "FAILED")
+    logger.info(
+        "Test set built: %d recordings, dual transcription complete. "
+        "S2 pairwise comparison step was removed post-Aria; rewire against an "
+        "Aria-based pairwise head if AMT quality scoring is needed.",
+        len(recording_ids),
+    )
 
 
 if __name__ == "__main__":

@@ -1,28 +1,10 @@
-"""Model classes for audio experiments."""
+"""Audio experiments models.
 
-from .base import BaseMERTModel, ccc_loss
-from .probes import LinearProbeModel, StatsMLPModel
-from .mel_cnn import MelCNNModel
-from .cross_attention import (
-    CrossAttentionFusion,
-    FusionMLPModel,
-    MultiHeadCrossAttention,
-    train_fusion_mlp_cv,
-)
-from .phase3 import (
-    StatsPoolingModel,
-    UncertaintyWeightedModel,
-    DimensionSpecificModel,
-    TransformerPoolingModel,
-    MultiScalePoolingModel,
-    MultiLayerMERTModel,
-)
-from .fusion_models import (
-    ModalityDropoutFusion,
-    OrthogonalityFusion,
-    ResidualFusion,
-    DimensionWeightedFusion,
-)
+Only MuQ model classes are retained; masterclass_experiments.features imports
+MuQStatsModel to load baseline MuQ checkpoints. Other Model v1 classes
+(MERT, Mel CNN, Fusion, Contrastive, Phase3, Probes) are archived.
+"""
+
 from .muq_models import (
     MuQBaseModel,
     MuQStatsModel,
@@ -30,51 +12,11 @@ from .muq_models import (
     MERTMuQConcatModel,
     AsymmetricGatedFusion,
 )
-from .contrastive import (
-    ContrastiveAuxiliaryModel,
-    ContrastiveWarmupModel,
-)
-from .losses import (
-    contrastive_auxiliary_loss,
-    supervised_contrastive_loss,
-    ranking_contrastive_loss,
-)
 
 __all__ = [
-    # Base models
-    "BaseMERTModel",
-    "ccc_loss",
-    "LinearProbeModel",
-    "StatsMLPModel",
-    "MelCNNModel",
-    # Fusion models
-    "CrossAttentionFusion",
-    "FusionMLPModel",
-    "MultiHeadCrossAttention",
-    "train_fusion_mlp_cv",
-    # Phase 3 models
-    "StatsPoolingModel",
-    "UncertaintyWeightedModel",
-    "DimensionSpecificModel",
-    "TransformerPoolingModel",
-    "MultiScalePoolingModel",
-    "MultiLayerMERTModel",
-    # Learned fusion models
-    "ModalityDropoutFusion",
-    "OrthogonalityFusion",
-    "ResidualFusion",
-    "DimensionWeightedFusion",
-    # MuQ models
     "MuQBaseModel",
     "MuQStatsModel",
     "MERTMuQEnsemble",
     "MERTMuQConcatModel",
     "AsymmetricGatedFusion",
-    # Contrastive models
-    "ContrastiveAuxiliaryModel",
-    "ContrastiveWarmupModel",
-    # Loss functions
-    "contrastive_auxiliary_loss",
-    "supervised_contrastive_loss",
-    "ranking_contrastive_loss",
 ]

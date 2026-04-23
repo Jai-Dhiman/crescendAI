@@ -1,0 +1,48 @@
+{
+  "$comment": "Maps local data paths offloaded to R2. Consumed by paths.ensure_local(). Update when adding or removing cold-stored paths.",
+  "bucket": "crescendai-bucket",
+  "remote_name": "r2",
+  "entries": {
+    "data/checkpoints/ablation": {
+      "r2_prefix": "checkpoints/archive/ablation",
+      "reason": "Legacy ablation sweep outputs (archived 2026-04-22)"
+    },
+    "data/checkpoints/B2_cross_soundfont": {
+      "r2_prefix": "checkpoints/archive/B2_cross_soundfont",
+      "reason": "Legacy cross-soundfont experiment (archived 2026-04-22)"
+    },
+    "data/checkpoints/autoresearch_loss": {
+      "r2_prefix": "checkpoints/archive/autoresearch_loss",
+      "reason": "Legacy autoresearch sweep outputs (archived 2026-04-22)"
+    },
+    "data/checkpoints/model_improvement": {
+      "r2_prefix": "checkpoints/archive/model_improvement",
+      "reason": "Legacy A3/S3/S3_pretrain encoders superseded by Aria (archived 2026-04-22)"
+    },
+    "data/evals/youtube_amt": {
+      "r2_prefix": "evals/youtube_amt",
+      "reason": "AMT validation set, rehydrate on demand for harness runs"
+    },
+    "data/raw/competition": {
+      "r2_prefix": "raw/competition",
+      "reason": "T2 competition origin audio; non-reproducible, remote extraction only"
+    },
+    "data/raw/asap": {
+      "regen_command": "git clone https://github.com/CPJKU/asap-dataset.git data/raw/asap",
+      "reason": "Public ASAP dataset; re-fetchable from GitHub"
+    },
+    "data/embeddings/maestro": {
+      "regen_command": "hf download google/MAESTRO-v3 --repo-type dataset && uv run python scripts/extract_muq_embeddings.py --source maestro",
+      "reason": "MuQ embeddings over MAESTRO; 34GB regenerable on HF Job (~1h L4). Uploading local is 80h at observed 200KiB/s."
+    },
+    "data/embeddings/competition": {
+      "regen_command": "rclone copy r2:crescendai-bucket/raw/competition data/raw/competition && uv run python scripts/extract_muq_embeddings.py --source competition",
+      "reason": "MuQ embeddings over T2 audio; 23GB regenerable on HF Job after raw/competition is rehydrated."
+    }
+  },
+  "mirrors": {
+    "$comment": "Durability mirrors — local is primary, R2 is backup. ensure_local() does not rehydrate these.",
+    "data/checkpoints/a1_max_sweep": "checkpoints/deployed/a1_max_sweep",
+    "data/checkpoints/contrastive_pretrain": "checkpoints/deployed/contrastive_pretrain"
+  }
+}

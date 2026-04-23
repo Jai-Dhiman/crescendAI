@@ -375,32 +375,9 @@ Retained for relative comparison only. All models used the same leaked folds.
 
 ## LEGACY: Custom Symbolic Encoders (Superseded by Aria)
 
-Retained for reference and ISMIR paper context. These architectures are no longer in active development.
+Custom symbolic encoders (S1 Transformer on REMI, S2 GNN on score graph, S2H heterogeneous GNN, S3 CNN+Transformer on continuous features) were superseded by Aria on 2026-03-18 and archived on 2026-04-21. All were trained from scratch on ~24K sequences, creating a pretraining-scale asymmetry with MuQ (160K hours) that made fusion fail (error correlation r=0.738). Aria's 820K MIDI pretraining closes that gap.
 
-### S2 (GNN on Score Graph)
-
-Notes as nodes with features (pitch, velocity, onset, duration, pedal, voice). Edges encode temporal adjacency, harmonic intervals, and voice membership. GATConv message-passing layers. Pretrained on 14,821-sequence corpus (ASAP + MAESTRO + ATEPP + PercePiano) via link prediction, then finetuned on PercePiano.
-
-```
-MIDI -> Score graph (notes as nodes, structural edges)
-  -> GATConv layers (message passing)
-  -> Attention pooling -> z_symbolic [512]
-  -> Per-dimension ranking heads (6 dims)
-  -> Regression head (6 dims)
-```
-
-#### Results (INVALID -- fold leak)
-
-| Model | Strategy | Pairwise Acc (INVALID) | R2 (INVALID) |
-|-------|----------|------------------------|--------------|
-| **S2** | **GNN on homogeneous score graph** | **71.3%** | **0.32** |
-| S2H | Heterogeneous GNN (4 edge types) | 70.2% | 0.36 |
-| S3 | CNN + Transformer on continuous features | 70.0% | 0.37 |
-| S1 | Transformer on REMI tokens | 68.4% | 0.33 |
-
-### Why These Were Replaced
-
-The fundamental problem was pretraining scale. All custom symbolic encoders were trained from scratch or with limited pretraining (~24K sequences). This created an asymmetry with MuQ (160K hours of pretraining) that made fusion impossible -- both modalities failed on the same samples (error correlation r=0.738). Aria solves this with 820K MIDI pretraining on a proven LLaMA architecture, achieving SOTA across all benchmarks.
+Best leaked-fold results for context only: S2 71.3% / S2H 70.2% / S3 70.0% / S1 68.4% pairwise. Code lives at `model/archive/model_improvement/{graph.py,symbolic_encoders.py}` and archived S2 GNN dataset/collate code under `model/archive/` (see `model/archive/README.md`). Not imported by any active pipeline.
 
 ---
 

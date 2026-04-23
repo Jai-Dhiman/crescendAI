@@ -138,14 +138,17 @@ Replaced by T5 (YouTube Skill Corpus). Original T4 purpose (augmentation invaria
 
 | Dataset | Est. Piano MIDIs | Source | License | Status |
 |---|---|---|---|---|
+| GigaMIDI (expressive piano subset) | ~990,000 tracks | HuggingFace | CC BY-NC-SA 4.0 | Available, NOMML-filtered subset |
 | ADL Piano MIDI | ~11,000 | Academic dataset | Research | Available, not downloaded |
 | Lakh MIDI (piano filtered) | ~50,000 | Lakh MIDI Dataset | Research | Available, requires filtering |
 
 These are available for continued Aria pretraining or contrastive training if needed. Lower priority than task-specific fine-tuning data (T2 expansion, T5 curation).
 
+**GigaMIDI notes** (arxiv.org/abs/2502.17726): Largest open symbolic music dataset (1.4M MIDIs, 1.8B note events; piano = 60.2% of note events). Ships with per-track expressivity classification via the **NOMML** heuristic (Note Onset Median Metric Level) — compares onset timing against dual duple/triplet grids to separate hand-played performances from quantized/sequenced MIDI. The curated "fully expressive" piano subset is ~990K tracks. NOMML is also usable as a standalone filter for any MIDI source (T2 AMT transcripts, masterclass transcriptions, future practice data) to gate out mechanically-quantized MIDI before training. Integrates with Symusic + MidiTok (same tooling as Aria).
+
 ### LEGACY: Symbolic Pretraining Corpus (Replaced by Aria)
 
-> **LEGACY:** This graph pretraining corpus was built for CrescendAI's custom GNN symbolic encoders (S1, S2, S2H, S3). These encoders are replaced by Aria (650M params, pretrained on 820K MIDIs). The graph data is no longer needed for CrescendAI's own pretraining. Kept on disk for reference.
+> **LEGACY:** This graph pretraining corpus was built for CrescendAI's custom GNN symbolic encoders (S1, S2, S2H, S3). These encoders are replaced by Aria (650M params, pretrained on 820K MIDIs). The graph data is no longer needed for CrescendAI's own pretraining. Kept on disk for reference; training code archived under `model/archive/model_improvement/`.
 
 | Item | Path | Size |
 |---|---|---|
@@ -155,7 +158,7 @@ These are available for continued Aria pretraining or contrastive training if ne
 | Continuous features | `pretraining/features/all_features.pt` | 8.3GB |
 
 - **Sources:** 24,220 graphs from ASAP (1,066) + ATEPP (11,697) + MAESTRO score (824) + MAESTRO recording (1,123) + PercePiano (1,202) + GIANTMIDI (8,278)
-- **Training classes:** `MIDIPretrainingDataset`, `ScoreGraphPretrainingDataset`, `ShardedScoreGraphPretrainDataset`, `ContinuousPretrainDataset`, `HeteroPretrainDataset`
+- **Training classes (ARCHIVED 2026-04-21):** `ScoreGraphPretrainingDataset`, `ShardedScoreGraphPretrainDataset`, `HeteroPretrainDataset`, `ShardedHeteroPretrainDataset`, plus `graph_pretrain_collate_fn` / `graph_pair_collate_fn` / `hetero_graph_collate_fn` / `hetero_pretrain_collate_fn` — all removed from `data.py`. S1 (`MIDIPretrainingDataset` + `symbolic_collate_fn`) and S3 (`ContinuousPretrainDataset` + `continuous_collate_fn`) remain in `data.py` but are unused by the active pipeline. GNN encoders live in `model/archive/model_improvement/{graph.py,symbolic_encoders.py}`.
 - **Candidate for cleanup:** 38 GB of disk. Can be deleted once Aria integration is validated.
 
 ### Composite Labels

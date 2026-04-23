@@ -18,7 +18,7 @@ import argparse
 import json
 import shutil
 from src.paths import Labels
-from disentanglement.data.pairwise_dataset import create_piece_stratified_folds
+from model_improvement.splits import create_piece_stratified_folds
 
 
 FOLDS_PATH = Labels.percepiano / "folds.json"

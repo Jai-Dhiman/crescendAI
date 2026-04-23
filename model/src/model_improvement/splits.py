@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import random
 from collections import defaultdict
-from typing import Any
+from typing import Any, Dict, List
 
 
 def generate_t5_splits(
@@ -143,3 +143,51 @@ def generate_t2_splits(
             splits["train"].extend(recs)
 
     return splits
+
+
+def create_piece_stratified_folds(
+    multi_performer_pieces: Dict[str, List[str]],
+    n_folds: int = 4,
+    seed: int = 42,
+) -> Dict[str, List[str]]:
+    """Create stratified folds ensuring no piece leakage.
+
+    All recordings of a piece go into the same fold. Pieces are greedily
+    assigned to the smallest current fold (by total recording count) to
+    balance fold sizes.
+
+    Args:
+        multi_performer_pieces: Dict mapping piece_id to recording keys.
+        n_folds: Number of folds.
+        seed: Random seed for reproducibility.
+
+    Returns:
+        Dict with fold_0, fold_1, etc. containing recording keys.
+    """
+    import numpy as np
+
+    np.random.seed(seed)
+
+    piece_ids = list(multi_performer_pieces.keys())
+    np.random.shuffle(piece_ids)
+
+    fold_sizes = [0] * n_folds
+    fold_pieces: List[List[str]] = [[] for _ in range(n_folds)]
+
+    sorted_pieces = sorted(
+        piece_ids, key=lambda p: len(multi_performer_pieces[p]), reverse=True
+    )
+
+    for pid in sorted_pieces:
+        smallest_fold = min(range(n_folds), key=lambda i: fold_sizes[i])
+        fold_pieces[smallest_fold].append(pid)
+        fold_sizes[smallest_fold] += len(multi_performer_pieces[pid])
+
+    fold_assignments = {}
+    for i, pieces in enumerate(fold_pieces):
+        keys = []
+        for pid in pieces:
+            keys.extend(multi_performer_pieces[pid])
+        fold_assignments[f"fold_{i}"] = keys
+
+    return fold_assignments

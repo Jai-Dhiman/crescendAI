@@ -4,9 +4,56 @@ All scripts should import paths from here instead of constructing them inline.
 Paths resolve to directories (not files) unless noted otherwise.
 """
 
+from __future__ import annotations
+
+import json
 from pathlib import Path
 
 DATA_ROOT = Path(__file__).resolve().parents[1] / "data"
+REPO_ROOT = DATA_ROOT.parent
+
+
+def ensure_local(path: Path | str) -> Path:
+    """Assert that a data path exists locally, raising a rehydrate hint if not.
+
+    If the path is listed in data/manifests/r2_offload.json as offloaded and
+    missing locally, raises FileNotFoundError with the exact rclone command
+    to pull it back. Silent auto-download is deliberately not implemented so
+    that stale-cache bugs surface immediately.
+    """
+    p = Path(path)
+    if p.exists():
+        return p
+
+    manifest_path = DATA_ROOT / "manifests" / "r2_offload.json"
+    if not manifest_path.exists():
+        raise FileNotFoundError(f"{p} missing and no r2_offload manifest found")
+
+    with manifest_path.open() as f:
+        manifest = json.load(f)
+
+    try:
+        rel = str(p.relative_to(REPO_ROOT))
+    except ValueError:
+        rel = str(p)
+
+    entry = manifest.get("entries", {}).get(rel)
+    if entry is None:
+        raise FileNotFoundError(f"{p} missing and not registered in r2_offload.json")
+
+    bucket = manifest["bucket"]
+    remote = manifest["remote_name"]
+    reason = entry.get("reason", "")
+    if "r2_prefix" in entry:
+        cmd = f"rclone copy {remote}:{bucket}/{entry['r2_prefix']} {rel}"
+    elif "regen_command" in entry:
+        cmd = entry["regen_command"]
+    else:
+        raise FileNotFoundError(f"{p} registered but lacks r2_prefix or regen_command")
+
+    raise FileNotFoundError(
+        f"{p} is offloaded ({reason}). Rehydrate with:\n    {cmd}"
+    )
 
 
 # --- Raw datasets (downloaded, gitignored) ---
