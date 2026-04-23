@@ -74,6 +74,77 @@ The complete path from microphone to teaching observation. This is the technical
 
 **Interaction models differ by platform.** On iOS, the student plays and then taps "How was that?" to request an observation on-demand. On web, the pipeline runs continuously during recording: each chunk is scored as it arrives, and observations are pushed back via WebSocket as real-time toasts in the chat interface. Both paths share the same backend stages.
 
+The stages below describe the **current implementation**. The target end-state is an agent loop rather than a linear pipeline -- see "Target: Agent Loop" below.
+
+---
+
+## Target: Agent Loop
+
+The linear pipeline above accurately describes what is shipping. The harness target -- see `docs/harness.md` -- is an agent loop that reuses the same signal layer (Stages 1-3) but replaces Stages 4a/4b with a loop that loads skills on demand, calls tools, and produces artifacts.
+
+### Shape
+
+```
+ENTRY CONDITION (hook)
+  OnStop | OnPieceDetected | OnBarRegression | OnSessionEnd | OnWeeklyReview
+        |
+        v
+  LOAD RELEVANT SKILLS (deferred, signal-triggered)
+  Only skills whose YAML triggers match current signals enter context.
+  Reference: wiki "Agent Harnesses" -- thin harness + ToolSearch primitive.
+        |
+        v
+  AGENT LOOP
+  |- read tools: get_bar_analysis, fetch_similar_past_issue, ...
+  |- action tools: assign_segment_loop, render_annotation, schedule_followup_interrupt, ...
+  |- produce artifacts (NLAH durable outputs, addressable by later skills)
+  |- loop terminates when post-conditions on the triggering hook are met
+        |
+        v
+  ARTIFACTS PERSISTED
+  Exercises, annotations, observations, synthesized facts -- all carry
+  evidence chains back to Signals (see docs/apps/03-memory-system.md Layer 3).
+```
+
+### How This Differs From the Current Pipeline
+
+- **Skills replace the monolithic teacher prompt.** 8-12 markdown files in `docs/harness/skills/` each represent one atomic pedagogical move (voicing diagnosis, pedal triage, etc.). See `docs/harness/skills/README.md`. Wiki reference: *Skill Design* (atomic RL + concrete testable steps).
+- **Chat and session-exit use the same loop.** The current chat path has no tool_use; the observation path has tool_use for exercises only. In the target, both enter the same loop with different hook conditions.
+- **Action tools are first-class.** The loop can call `assign_segment_loop(bars=12-16, required_correct=3)` to restructure the student's next practice block, not just describe what they did. This is the answer to the Score Following wiki's empirical finding that 90% of home practice is start-to-finish playthrough -- a passive report is insufficient.
+- **Contracts are inspectable.** Each skill declares pre/post-conditions in its markdown. The harness detects silent degradation when a post-condition fails, rather than shipping unnoticed bad output.
+
+### What This Does Not Change
+
+- Stages 1-3 (audio capture, cloud inference, STOP classification) are unchanged. The agent loop consumes the same signals.
+- The DO-held session accumulator is unchanged (V3 adds sawtooth compaction later).
+- The AI Gateway routing and provider mix (Groq subagent + Sonnet teacher) is unchanged; the loop is provider-agnostic, so swapping Sonnet -> Qwen finetune is a runtime decision.
+
+### Writes Stay Single-Threaded
+
+From the Mahler wiki's *Multi-Agents: What's Actually Working*: multi-agent systems work when additional agents contribute intelligence, not actions. The current Groq (analysis) + Sonnet (delivery) split already respects this: Groq does reasoning, Sonnet writes. As V5 skills come online, the constraint tightens: a compound may dispatch many molecules for analysis in parallel, but the compound writes **one** teacher-facing artifact. Skills do not parallel-speak to the student.
+
+### Event Hooks vs Middleware Hooks
+
+Hooks split into two kinds, a distinction from *The runtime behind production deep agents*:
+
+- **Event hooks** fire on external practice signals (`OnStop`, `OnPieceDetected`, `OnBarRegression`, `OnSessionEnd`, `OnWeeklyReview`). Each event hook maps to one compound in `docs/harness/skills/compounds/`.
+- **Middleware hooks** wrap every model invocation: `before_model`, `wrap_model_call`, `wrap_tool_call`, `after_model`. These are runtime primitives, not skill logic. They handle:
+  - PII redaction (`before_model`)
+  - Tool-call limits and permission gating for action tools (`wrap_tool_call`)
+  - Model retries (`wrap_model_call`)
+  - Human-in-the-loop gates (`wrap_tool_call`)
+  - Online eval / review-agent scoring (`after_model`) -- see V4 production review agent
+
+The production review agent is a specific `after_model` middleware: given only the synthesis output + student baselines + rubric (no raw signals, no session accumulator), it rates coherence and flags drift. From *Multi-Agents: What's Actually Working*: the review agent performs better **without** shared context -- forced to reason from the implementation backward, shorter context yields higher attention quality (Context Rot).
+
+### Capability-Router Across Providers
+
+From *Multi-Agents: What's Actually Working*: the Groq + Sonnet (+ eventually Qwen) mix is a capability router, not a difficulty escalator. Each model handles the sub-task it is best at. This frames the future Sonnet -> Qwen swap: Qwen handles teacher-voice molecules where the finetune pays off; Sonnet or Groq handle analytical atoms where Qwen underperforms. The article also acknowledges that a meaningfully weaker primary calling out to a stronger model remains an open training problem; relevant to the Qwen 27B gating criteria in `docs/plans/` (strong model for core reasoning; router for sub-tasks).
+
+### Sequencing
+
+See `docs/harness.md` priority stack. Skills decomposition (V5) lands before the loop architecture (V6), because the loop's deferred-loading primitive has nothing to load without skill files. The three-tier skill structure (atoms / molecules / compounds) also defines what event hooks dispatch to: one compound per event hook.
+
 ---
 
 ## Stage 1: Audio Capture and Chunking

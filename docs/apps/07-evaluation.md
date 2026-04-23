@@ -76,6 +76,73 @@ The current eval creates fresh sessions via `POST /api/practice/start`. Each ses
 
 ---
 
+## 0. Signal Ablation (White-Noise Test)
+
+Eval #0 because it answers a load-bearing question that invalidates everything below if it fails: **are MuQ and AMT signals actually load-bearing in synthesis, or is the teacher LLM producing defensible-sounding output from language priors alone?**
+
+### Motivation
+
+From the Mahler wiki's Music AI Systems page: the MuChoMusic benchmark exposed that most audio-language models answered music questions by relying on language priors rather than processing audio. Replacing the audio clip with white noise produced no statistically significant drop in accuracy for most models tested. For CrescendAI this translates to a direct risk: the two-stage pipeline may be producing teaching observations that are internally-consistent narratives about the piece, the student baseline, and the session arc, without the MuQ 6-dim scores or AMT midi_notes actually conditioning the output.
+
+If that is happening, every downstream eval measures the wrong thing and every hour of Phase B/C model work is miscalibrated.
+
+### Design
+
+- **Corpus:** 20 T5 sessions (same scenarios as the other evals).
+- **Pass A (real):** Run current synthesis path with real cached signals.
+- **Pass B (ablated):** Run synthesis path with signals substituted. Two substitution strategies, each as a separate pass:
+  - **B1 (shuffled):** MuQ 6-dim vectors + AMT midi_notes from a different random session in the corpus, preserving marginal distribution but breaking within-session consistency.
+  - **B2 (marginal):** MuQ 6-dim vectors sampled IID from the empirical marginal distribution per dimension; AMT midi_notes replaced with a plausible-but-random note stream matching the real tempo.
+- **Judges:** Dual-judge pipeline (Gemma-4 + GPT-5.4-mini per Phase 1 plan). Two metrics:
+  - Semantic similarity between Pass A and Pass B outputs (if > 0.85, signals are not load-bearing).
+  - Judge-detected difference rate ("which output reflects the provided signals more accurately?"). Near-50% means signals are decorative.
+
+### Kill Criteria
+
+- If A vs B1 similarity > 0.85 OR judge difference rate < 60%, pause Model v2 Phase B/C investment until signals are wired into synthesis in a load-bearing way.
+- If A vs B2 similarity > 0.90 OR judge difference rate < 55%, same.
+
+### Status
+
+NOT STARTED. Standalone eval -- does not require playbook.yaml wiring or Phase 2 infrastructure. Can run in a day against the existing cached corpus.
+
+---
+
+## Per-Tier Reliability Evals (V5 Pre-Work)
+
+Per-capability evals below measure whole-system behavior. A complementary layer -- added as V5 skills land -- evaluates each **tier** of the three-tier skill catalog (atoms / molecules / compounds) independently. From the Mahler wiki's *Skill Graphs 2*: reliability at every tier is non-trivial; every atom must be solid, every molecule must chain dependably, every compound must stay under its reliability ceiling. Testing the stack as a whole hides which tier failed.
+
+### Atom Reliability
+
+Atoms are near-deterministic. Reliability evals are close to unit tests: given a canonical input signal, does the atom return the expected output within tolerance? Most atoms are computational (velocity curves, onset drift, IOI correlation); a few are retrieval (similar past observation). Autoresearch-style automated eval is a good fit here -- every atom has a precise input/output spec.
+
+### Molecule Reliability
+
+Molecules are the pedagogical moves. Each gets a narrow 5-criterion rubric scored by the Phase 1 dual-judge (Gemma-4 + GPT-5.4-mini). Criteria should be specific and testable, not "quality" or "helpfulness." Rubrics live alongside the molecule file (e.g., `docs/harness/skills/molecules/voicing-diagnosis.md` embeds its rubric).
+
+Rationale: Skill Design wiki argues that composite task evals conflate failure modes and produce diffuse feedback. A molecule with pre/post contracts and a narrow rubric lets judges give discriminating signal. Without this layer, judges rate "was the synthesis good," which degrades into style scoring.
+
+### Compound Reliability
+
+Compounds orchestrate molecules under a hook. Compound evals measure end-to-end scenario outcomes: given a T5 session, did `session-synthesis` select the right molecules, dispatch them correctly, and produce a coherent artifact? This is closest to the current whole-system eval but targeted at one compound at a time.
+
+### Production Review Agent (Middleware)
+
+A runtime-level `after_model` middleware that re-scores compound outputs in production using the Phase 1 judge rubric. From *Multi-Agents: What's Actually Working*: the review agent performs better **without** shared context -- it receives only the synthesis artifact + student baselines + rubric, not the raw signals or accumulator. Forced to reason backward from the output, it catches drift that in-context scoring cannot. Runs on 10% of production synthesis traffic. See `docs/apps/02-pipeline.md` Middleware Hooks section.
+
+### Sequencing
+
+1. Signal Ablation (this doc, eval #0) -- runs independently, no dependencies.
+2. Playbook.yaml wiring in `run_eval.py` and `apps/api/src/services/prompts.*`.
+3. Atom reliability harness -- runs against the V5 atoms/ directory as each is drafted.
+4. Molecule rubrics drafted alongside V5 molecule decomposition.
+5. Phase 1 dual-judge locked baseline.
+6. Compound reliability evals (end-to-end per-compound scenarios).
+7. Production review agent wired as `after_model` middleware.
+8. Per-capability evals below.
+
+---
+
 ## 1. Piece Identification Eval
 
 ### Ideal Eval

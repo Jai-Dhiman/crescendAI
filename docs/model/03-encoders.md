@@ -41,6 +41,18 @@ Autoresearch (8 iterations) found that the original weights drastically underwei
 
 Key improvements over A1 baseline: ListMLE ranking loss (Plackett-Luce likelihood), CCC regression loss, embedding mixup, hard negative mining with curriculum, wider LoRA adaptation (layers 7-12 vs 9-12), label smoothing (0.1).
 
+### Positive-Mining Discipline (SemiSupCon)
+
+From the Mahler wiki's Music Representation Learning page: in audio SSL, the **positive-mining strategy inside the contrastive loss matters more than the overall labeled-to-unlabeled ratio**. Two adjacent 2.7-second segments from the same track are a weak positive pair -- they share style (same piece, same performer, same recording conditions) but can differ in expressive quality. Naive SSL conflates style-similarity with quality-similarity; the encoder learns a style-aware metric dressed up as a quality metric.
+
+SemiSupCon's fix, which we adopt, is threefold:
+
+1. **Label-derived positives.** Pairs known to share a quality-relevant label (PercePiano segments rated near-identical on the target dimension, or T2 competition placements within the same round) are forced into the positive set.
+2. **Hard negatives from labels.** Labeled samples with *different* quality levels serve as hard negatives even when their style features overlap (same piece, same performer, different takes).
+3. **Quality-orthogonal augmentation.** Augmentations that preserve style but perturb quality (or vice versa) are deliberately included to prevent the encoder from collapsing the two axes.
+
+This discipline applies across the 20%/80% PercePiano-anchor / ordinal mix (`docs/plans/2026-04-20-percepiano-anchor-emphasis.md`) and the SemiSupCon loss plan (`docs/plans/2026-04-20-semi-sup-con-loss.md`). Audit during Phase B training: verify that positive pairs carry quality-label agreement, not just piece-identity agreement, and that hard negatives include style-similar / quality-different pairs.
+
 ### Deployed Configuration
 
 - **Endpoint:** HuggingFace inference endpoint (cloud-only)

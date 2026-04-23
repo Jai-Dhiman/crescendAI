@@ -46,6 +46,46 @@ Without the event clock, the subagent rediscovers patterns from scratch each ses
 
 ---
 
+## Three Layers (Content / Entity / Fact)
+
+The two clocks describe *what* memory stores. The three-layer architecture describes *how* it is structured so agents can reason over it without re-fighting identity resolution in tokens and latency. From the Mahler wiki's Context Graphs page: every problem-directed agent trajectory through a well-layered graph is cheap; every trajectory through an un-resolved graph pays the identity-resolution cost again.
+
+### Layer 1: Content (Enrichment Cache, Immutable)
+
+The canonical evidence trail, structured as an **enrichment cache with prompt-aware keys**. From the Mahler wiki's *How to grep video*: raw audio (like raw video) is a binary container, not grep-able. The cache is what makes it so. Each audio chunk has multiple coexisting cache entries, one per extraction schema:
+
+- **MuQ-quality extraction** -- 6-dim scores per 15s chunk.
+- **AMT-transcription extraction** -- midi_notes frames, pedal events, velocity curves.
+- **STOP-moment extraction** -- teaching-moment probabilities + blind-spot dimension.
+- **Score-following extraction** -- bar alignments, onset deviations.
+- **(Future) skill-scoped extractions** -- when a new molecule or atom needs a derived representation that is reused across sessions (e.g., pedal-overlap density, voicing-balance curves), it can add its own extraction schema. The new entry coexists with the existing entries on the same chunks.
+
+**Prompt-aware keys** means the same chunk can carry multiple extraction entries, each queried independently. **Cross-modal queries** combine entries -- "MuQ timing high AND AMT onset drift > 20ms" is the highest-signal diagnostic class and does not exist in any single extraction alone.
+
+MuQ 6-dim emissions, AMT midi_notes frames, STOP probabilities, score-following alignments, raw audio pointers (R2 keys). Append-only. Signals never change after emission; if the model improves, new signals supersede but do not overwrite old ones. This is what every downstream claim in the harness must be traceable to.
+
+### Layer 2: Entity (Resolved Identity)
+
+Canonical typed entities with identity resolution rules. Student, Piece, Movement, Bar, Session, Exercise, Signal. Two references to "Chopin Op. 25 No. 1" -- one from piece ID, one from a user typing it in chat -- must collapse to the same `Piece` row before any agent reasons about them. `apps/api/src/practice/piece_identify.rs` is already doing this for pieces; the V2 work is extending the discipline to the other entity types.
+
+### Layer 3: Fact (Temporal Assertions with Evidence)
+
+Temporal assertions carrying `validAt`, `invalidAt`, `entity_mentions[]`, and `evidence[]` pointing back to Layer 1 Signals or to Observations. Current-state queries filter `invalidAt IS NULL`; historical queries filter by validity periods.
+
+Synthesized facts -- "student recurrently over-pedals in slow movements" -- carry evidence chains back to the specific Observations and underlying Signals that support them. This makes claims audit-able and makes stale facts expire cleanly when contradicted by new signals.
+
+### Mapping to Existing Tables
+
+| Layer | Current Tables | Status |
+|---|---|---|
+| Content | `chunks`, `chunk_results`, signal emissions from HF | Exists but evidence linkage is implicit |
+| Entity | `students`, `pieces`, `sessions`, `exercises` | Exists for students/pieces/sessions; `bars`, `movements` not yet first-class |
+| Fact | `observations` (episode capture), `synthesized_facts` (pattern capture) | Exists; evidence chains stored in `reasoning_trace` JSON but not indexed |
+
+The V2 harness work formalizes the evidence chain as a queryable column, not a blob, and adds `bars` / `movements` as first-class entities. See `docs/harness/entities.md` (V2 deliverable).
+
+---
+
 ## Data Model
 
 ### Observations Table

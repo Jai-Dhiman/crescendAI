@@ -53,17 +53,31 @@ Both platforms upload 15-second audio chunks to the shared API worker. The worke
 
 ---
 
-## Two Systems
+## Four Systems
+
+From *The runtime behind production deep agents* (Mahler wiki): "building a good agent requires both a good harness and a good runtime -- the harness shapes model behavior through prompts, tools, and skills; the runtime handles the machinery underneath." Naming these separately prevents doc drift.
 
 ### Model System (`docs/model/`)
 
-The audio intelligence layer. A finetuned MuQ foundation model (A1-Max) outputs 6 teacher-grounded dimensions: dynamics, timing, pedaling, articulation, phrasing, interpretation. Deployed as a 4-fold ensemble on HuggingFace Inference Endpoints (80.8% pairwise accuracy). The model taxonomy, encoder architecture, training pipeline, and research roadmap live here.
+The audio intelligence layer. A finetuned MuQ foundation model (A1-Max) outputs 6 teacher-grounded dimensions: dynamics, timing, pedaling, articulation, phrasing, interpretation. Deployed as a 4-fold ensemble on HuggingFace Inference Endpoints (80.8% pairwise accuracy). Populates the enrichment cache (Layer 1 of the context graph) with prompt-aware extraction keys. The model taxonomy, encoder architecture, training pipeline, and research roadmap live here.
 
 Entry point: [`docs/model/00-research-timeline.md`](model/00-research-timeline.md)
 
+### Harness System (`docs/harness.md`)
+
+The behavior-shaping layer, markdown-first. Context graph (content/entity/fact), three-tier skill catalog (atoms / molecules / compounds), agent loop, student memory, eval harness. Skills, contracts, artifacts, and hook definitions are inspectable and diffable markdown. Provider-agnostic: the same skill files run under Sonnet today and under the Qwen finetune tomorrow.
+
+Entry point: [`docs/harness.md`](harness.md) | Skills: [`docs/harness/skills/`](harness/skills/)
+
+### Runtime System
+
+The machinery layer, invisible to skill authors. Cloudflare Workers (API request handling) + Durable Objects (per-session state + checkpointing) + D1 (relational storage) + R2 (audio blobs) + AI Gateway (provider routing + shadow eval) + Sentry (observability). Handles durable execution, checkpointing across evictions, multi-tenancy, middleware hooks (`before_model`, `wrap_model_call`, `wrap_tool_call`, `after_model`), and online eval. Middleware hooks live here because they wrap every model call uniformly across every interaction mode.
+
+Entry point: platform docs in `apps/api/TS_STYLE.md`, runtime-level patterns documented inline in the harness doc.
+
 ### Apps System (`docs/apps/`)
 
-Everything from microphone to student-facing observation. Audio capture, the cloud inference pipeline, STOP classification, teaching moment selection, the two-stage subagent architecture, student memory, exercises, and UI components. Each implementation slice has a status header tracking what is built vs. planned.
+Implementation detail for what the student touches and what currently runs in the API worker: audio capture, the current cloud inference pipeline, STOP classification, teaching moment selection, the two-stage subagent architecture, student memory data model, exercises, and UI components. Each implementation slice has a status header tracking what is built vs. planned. The harness and runtime systems above describe the *target* architecture this layer is being refactored toward.
 
 Entry point: [`docs/apps/00-status.md`](apps/00-status.md) | Pipeline: [`docs/apps/02-pipeline.md`](apps/02-pipeline.md) | Product vision: [`docs/apps/01-product-vision.md`](apps/01-product-vision.md) | Capabilities: [`docs/apps/06-capabilities.md`](apps/06-capabilities.md) | Evaluation: [`docs/apps/07-evaluation.md`](apps/07-evaluation.md)
 

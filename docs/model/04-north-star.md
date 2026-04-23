@@ -10,7 +10,9 @@ Vision document for the ideal piano performance evaluation system, from recordin
 
 The current system evaluates performance quality in absolute terms. The perfect system evaluates quality *relative to what the score asks for.* This single shift fixes the dynamics inversion (rho=-0.917 in competition -- the model captures "amount" not "appropriateness"), enables rubato detection, and transforms feedback from "dynamics score 0.35" to "the crescendo in bars 12-16 doesn't reach the forte Chopin marked."
 
-80% of the user-facing improvement comes from giving the LLM better context (bar-aligned musical facts, reference comparisons), not from changing the model itself. The remaining 20% comes from Aria + MuQ gated fusion with score conditioning that evaluates relative to the score at the architecture level.
+80% of the user-facing improvement comes from the harness giving the LLM better context (bar-aligned musical facts, reference comparisons, resolved entities, evidence chains from signals to facts), not from changing the model itself. The remaining 20% comes from Aria + MuQ gated fusion with score conditioning that evaluates relative to the score at the architecture level.
+
+The "better context" phrase is load-bearing: it does not mean larger prompts. It means a harness that resolves identity before reasoning, carries evidence chains from signals to claims, and loads atomic pedagogical skills on demand rather than running a monolithic teacher prompt. See `docs/harness.md` for the layer where that 80% is built.
 
 ---
 
