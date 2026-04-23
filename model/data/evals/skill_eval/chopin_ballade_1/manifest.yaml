@@ -8,7 +8,7 @@ recordings:
   duration_seconds: 420
   skill_bucket: 1
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 7HhIiJcpFFk
   title: Chopin Ballade No.1 - Work in Progress
@@ -16,7 +16,7 @@ recordings:
   duration_seconds: 608
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: e0E0K-qbbg8
   title: Chopin - Ballade no 1 (piano progress 3 months)
@@ -24,7 +24,7 @@ recordings:
   duration_seconds: 389
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: jLwNzgpkFWo
   title: Chopin Ballade no. 1 Progress (2 years, self taught)
@@ -32,7 +32,7 @@ recordings:
   duration_seconds: 204
   skill_bucket: 1
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: _eU62wWUQSk
   title: 1 Month Progress - Chopin Ballade no. 1 in G minor
@@ -40,7 +40,7 @@ recordings:
   duration_seconds: 199
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: vTHPidr0JYQ
   title: Self-taught beginner challenges Chopin Ballade No.1 in G minor Op. 23(6 months,
@@ -49,7 +49,7 @@ recordings:
   duration_seconds: 695
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 8ewtaeNwS7E
   title: Chopin Ballade No.1
@@ -57,7 +57,7 @@ recordings:
   duration_seconds: 578
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: zX7ABACcsi8
   title: '1 year piano progress: Chopin - Ballade No. 1 in G Minor (absolute amateur)'
@@ -65,7 +65,7 @@ recordings:
   duration_seconds: 714
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: cXriWeGt3O8
   title: To All Broken Hearts… Chopin Ballade No.1
@@ -73,7 +73,7 @@ recordings:
   duration_seconds: 647
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: I3-Eh1KN6QQ
   title: '1st week piano progress: Chopin - Ballade No. 1 in G Minor'
@@ -81,7 +81,7 @@ recordings:
   duration_seconds: 250
   skill_bucket: 1
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: Oozrq55Eg2I
   title: 'Frédéric Chopin: Ballade No. 1 in G minor, Op. 23 — [Fortepiano Érard 1910]
@@ -90,7 +90,7 @@ recordings:
   duration_seconds: 567
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: CFxq-VKdrv4
   title: Chopin Ballade No.1 op.23 [2 years progress]
@@ -98,7 +98,7 @@ recordings:
   duration_seconds: 620
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 2FCpmYwx6zA
   title: 'Piano Progress: Chopin Ballade No. 1'
@@ -106,7 +106,7 @@ recordings:
   duration_seconds: 889
   skill_bucket: 1
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: heTa6Ke8Aa0
   title: Chopin ballade no.1 coda, progress vid?
@@ -114,7 +114,7 @@ recordings:
   duration_seconds: 116
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: CAe9HaSJwGA
   title: Ballade no 1 in G Minor op 23 by Chopin  |  Adult Piano Adventures Classics
@@ -123,7 +123,7 @@ recordings:
   duration_seconds: 82
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 78u4GqFyMHY
   title: Chopin ballade no.1 on g minor(climax)
@@ -131,7 +131,7 @@ recordings:
   duration_seconds: 68
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 34nFqhE1ud0
   title: Ballade No.1 in G minor, Op. 23 - Chopin
@@ -139,7 +139,7 @@ recordings:
   duration_seconds: 87
   skill_bucket: 1
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 2k1kDlFN_ps
   title: Chopin Ballade No.1 in G minor Op.23 - Josh Wright
@@ -147,7 +147,7 @@ recordings:
   duration_seconds: 562
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: WK6HebBep5M
   title: Ballade no 1 in G minor, Op. 23 - Chopin (Short & Easy)
@@ -155,7 +155,7 @@ recordings:
   duration_seconds: 163
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: Akx9qSZIMNQ
   title: Sean Rooney, self taught pianist plays most difficult Chopin piece by ear.
@@ -163,7 +163,7 @@ recordings:
   duration_seconds: 64
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 6olbStsaCjc
   title: 'Brandon learning Ballade #1 in G minor Op.23 by Chopin'
@@ -171,7 +171,7 @@ recordings:
   duration_seconds: 545
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: f4SzWt2E-kQ
   title: Chopin Ballade no. 1 in g minor op. 23 [3 years piano experience]
@@ -179,7 +179,7 @@ recordings:
   duration_seconds: 637
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: g8C1f6Kzzo0
   title: 'Frédéric Chopin - Ballade no. 1 in G minor, Op. 23: First Draft for Alan
@@ -188,7 +188,7 @@ recordings:
   duration_seconds: 559
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: cmJ5iTUJO24
   title: Learning Ballade no 1 in G minor - Chopin - Week 2
@@ -196,7 +196,7 @@ recordings:
   duration_seconds: 288
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: SnIRSf9Jrx8
   title: '2months practicing Chopin: Ballade No.1 In G Minor, op.23  piano progress(as
@@ -205,7 +205,7 @@ recordings:
   duration_seconds: 313
   skill_bucket: 1
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 7Jrq2rL7M8A
   title: Adult Selftaught Pianist 4 Yrs Piano Progress Chopin Ballade G minor No.1
@@ -213,7 +213,7 @@ recordings:
   duration_seconds: 686
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 2WovOS2_SmI
   title: Learning Chopin Ballade 1
@@ -221,7 +221,7 @@ recordings:
   duration_seconds: 273
   skill_bucket: 1
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: lx9MlxMhk-4
   title: 'Kevin C, age 15, plays Chopin: Ballade No. 1 in G Minor, Op. 23'
@@ -229,7 +229,7 @@ recordings:
   duration_seconds: 589
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: RWTVaTHiTzE
   title: 'PIPC 2023 - AUDREY CUI (13) - Chopin: Ballade no. 1 in G Minor, op. 23'
@@ -237,7 +237,7 @@ recordings:
   duration_seconds: 593
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: H02nnC6l2Ok
   title: Chopin Gm Ballade, Student Recital 12-03-2016
@@ -245,7 +245,7 @@ recordings:
   duration_seconds: 589
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: BqwqAirghtg
   title: 'Lyons, age 11, plays Chopin: Ballade No. 1 in G Minor, Op. 23'
@@ -253,7 +253,7 @@ recordings:
   duration_seconds: 555
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: tx9dECRrQHo
   title: Joshua Jung- Chopin Ballade in G Minor op. 23 - Aleksander/Cyba School of
@@ -262,7 +262,7 @@ recordings:
   duration_seconds: 565
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: yRufOtg0cNE
   title: Frédéric Chopin - Ballade No. 1 Op. 23 g-minor (Olga Scheps live)
@@ -270,7 +270,7 @@ recordings:
   duration_seconds: 602
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 9n10-rkO8f8
   title: Kate Liu performs Chopin Ballade No. 1
@@ -278,7 +278,7 @@ recordings:
   duration_seconds: 766
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: NA36cdTmG0k
   title: '2022 Students’ Recital: Ballade No. 1  in G Minor Op. 23 by Chopin'
@@ -286,7 +286,7 @@ recordings:
   duration_seconds: 665
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: covZLW2LssU
   title: Pianist Brian Lewin Nelson Plays Frederic Chopin's Ballade No. 1 in G minor,
@@ -295,7 +295,7 @@ recordings:
   duration_seconds: 596
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: _jEYrfb9yw8
   title: 'Rebekah Buss Piano Studio: student playing Chopin Ballade Op. 23 No. 1'
@@ -303,7 +303,7 @@ recordings:
   duration_seconds: 546
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: fY5oueTBfLY
   title: 'Chopin: Ballade No. 1 in G minor, Op. 23 (BMC Piano Competition 2022 Finals)
@@ -312,7 +312,7 @@ recordings:
   duration_seconds: 594
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: q9KC30L11CU
   title: Chopin Ballade No. 1 in G Minor, Op 23, Senior Recital
@@ -320,7 +320,7 @@ recordings:
   duration_seconds: 614
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 3ba_utCVqy8
   title: Chopin Ballade No. 1 in G Major, Op. 23
@@ -328,7 +328,7 @@ recordings:
   duration_seconds: 556
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: w84ARG12NUw
   title: 'Sarah Yuan Plays Chopin: Ballade No. 1 in G Minor, Op. 23 - 2021 Ross McKee
@@ -337,7 +337,7 @@ recordings:
   duration_seconds: 602
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: UYMrX5tAMJw
   title: Millie Shi- Ballade No. 1 in G minor Op. 23 by F. Chopin
@@ -345,7 +345,7 @@ recordings:
   duration_seconds: 584
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: gXblmnNx5Dg
   title: Ballade No. 1 in G Minor, Op. 23, by Frédéric Chopin
@@ -353,7 +353,7 @@ recordings:
   duration_seconds: 585
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: MDNe0BXDz3k
   title: Chopin Ballade No. 1 in G minor Op. 23
@@ -361,7 +361,7 @@ recordings:
   duration_seconds: 601
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: KshW2D03oDs
   title: Klavier Festival, F. Chopin Ballade in G Minor, Op. 23
@@ -369,7 +369,7 @@ recordings:
   duration_seconds: 656
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: FbPabNqpN3k
   title: 'Senior Recital: Ballade No. 1 (Chopin)'
@@ -377,7 +377,7 @@ recordings:
   duration_seconds: 662
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: BdqrNRqb9R0
   title: Chopin Ballade No. 1
@@ -385,7 +385,7 @@ recordings:
   duration_seconds: 649
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: fjBiR7m9-MY
   title: Kem's piano recital Spring 2023 - Chopin's Ballade No 1 in G minor, Op 23
@@ -394,14 +394,14 @@ recordings:
   skill_bucket: 3
   label_rationale: human curation
   downloaded: false
-  download_error: output file not found
+  download_error: null
 - video_id: y9oQFw8QMLo
   title: UNCSA Piano Student Shauna Bierly performs Chopin Ballade No. 1
   channel: UNCSAPiano
   duration_seconds: 547
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: rYLUqqQBfeE
   title: Chopin Ballade in G Minor No. 1 Op 23
@@ -409,7 +409,7 @@ recordings:
   duration_seconds: 522
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: Zidt_DcHvG0
   title: Chopin Ballade No. 1 from a pianist perspective
@@ -417,7 +417,7 @@ recordings:
   duration_seconds: 591
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: YD5mbtBJYu8
   title: Chopin Ballade No.1 in G minor Op. 23 / ショパン　バラード第1番
@@ -425,7 +425,7 @@ recordings:
   duration_seconds: 582
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: HP1Fp75ECew
   title: (Amateur) Jonathan Lechtman performs Chopin's Ballade no.1 Op.23
@@ -433,7 +433,7 @@ recordings:
   duration_seconds: 654
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: NLkc7uLSKKs
   title: Chopin Ballade I, Op.23, by memory after 10 years
@@ -441,7 +441,7 @@ recordings:
   duration_seconds: 596
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: FVR5mL4ROTU
   title: Chopin Ballade No. 1 in g minor | SF Botanical Garden, Flower Piano 2024
@@ -449,7 +449,7 @@ recordings:
   duration_seconds: 628
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 3EckEUektu8
   title: Outrageously sloppy amateur attempt at Chopin Ballade 1 from 2016
@@ -457,7 +457,7 @@ recordings:
   duration_seconds: 598
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: JbXkJOhvkMc
   title: Amateur pianist plays Chopin’s Ballade No 1
@@ -465,7 +465,7 @@ recordings:
   duration_seconds: 553
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: MQZYe6LYF7M
   title: Chopin -  Ballade no. 1 (Op. 23) on Yamaha C7, C3 and CFIII (Madrid se llena
@@ -474,7 +474,7 @@ recordings:
   duration_seconds: 584
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: FnwDQ9BwhS0
   title: Chopin Ballade no.1 in G minor, op.23 (Coda)
@@ -482,7 +482,7 @@ recordings:
   duration_seconds: 85
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: RoIGMYYcgpo
   title: Chopin ballade no.1 coda
@@ -490,7 +490,7 @@ recordings:
   duration_seconds: 83
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: Jq3NrJuTV8A
   title: 'amateur practice : Chopin Ballade No. 1 in G minor, Op. 23'
@@ -498,7 +498,7 @@ recordings:
   duration_seconds: 562
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 4XkbG0jxsYE
   title: Chopin Ballade No. 1 Opus 23 G minor
@@ -506,7 +506,7 @@ recordings:
   duration_seconds: 543
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 8VK5mREtVW8
   title: Frédéric Chopin - Ballade No. 1 in G Minor Op. 23 [Amateur]
@@ -514,7 +514,7 @@ recordings:
   duration_seconds: 603
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: ykgs5oI1Fuo
   title: 'Chopin: Ballade no.1 G-moll Op.23'
@@ -522,7 +522,7 @@ recordings:
   duration_seconds: 547
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: aY2X4sbybSU
   title: Chopin | Ballade No. 1 in G minor - Op. 23 | Nicolas Terzani | After "only"
@@ -531,7 +531,7 @@ recordings:
   duration_seconds: 687
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: WUUnAbS2zCM
   title: Chopin Ballade no. 1 in G minor, Op. 23 - Frank Levy
@@ -539,7 +539,7 @@ recordings:
   duration_seconds: 616
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: QQyqKpwqd3Y
   title: Chopin Ballade No 1 - Clyde Piano
@@ -547,7 +547,7 @@ recordings:
   duration_seconds: 486
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: wMxi20POdq0
   title: Chopin Ballade No.1 in G minor, Op.23 - Josh Wright
@@ -555,7 +555,7 @@ recordings:
   duration_seconds: 554
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: lpDrUhVXyNk
   title: Ballade No. 1 in G Minor Op. 23 progress week 4
@@ -563,7 +563,7 @@ recordings:
   duration_seconds: 112
   skill_bucket: 1
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: QMBGdKEWV1w
   title: 'Chopin Ballade no. 1 in G Minor - Monthly Progress #2'
@@ -571,7 +571,7 @@ recordings:
   duration_seconds: 354
   skill_bucket: 1
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 2QoE8RvvW_A
   title: Noah Teaney, Chopin Ballade n 1 in g minor (work in progress)
@@ -579,7 +579,7 @@ recordings:
   duration_seconds: 557
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: iw6ZIqBStAY
   title: Chopin - Ballade No.1 In G Minor (3rd month progress)
@@ -587,7 +587,7 @@ recordings:
   duration_seconds: 586
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: kqjX25EUXCw
   title: '4.5 YEARS PIANO PROGRESS last day of #100DayChallenge Chopin Ballade Gminor
@@ -596,7 +596,7 @@ recordings:
   duration_seconds: 643
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: wweHx5z2VH4
   title: Chopin Ballade No 1 in G Minor
@@ -605,14 +605,14 @@ recordings:
   skill_bucket: 1
   label_rationale: human curation
   downloaded: false
-  download_error: output file not found
+  download_error: null
 - video_id: Vpk8o0_6mes
   title: Chopin Ballade No. 1 in G Minor performed by Hye Young Kim 피아니스트 김혜영
   channel: hypianist
   duration_seconds: 656
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: XtjKXXyZ5sU
   title: 'Chopin: Ballade #1 in g minor, op. 23'
@@ -620,7 +620,7 @@ recordings:
   duration_seconds: 531
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 296yPoNSF8g
   title: Ballade in G minor, Op. 23 - F. Chopin
@@ -628,7 +628,7 @@ recordings:
   duration_seconds: 511
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: Rzjvu5XvUrw
   title: Chopin Ballade no. 1 in g minor, Op. 23
@@ -636,7 +636,7 @@ recordings:
   duration_seconds: 453
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: Am2QcYugDjA
   title: Chopin Ballade 1 in G Minor | Yuja Wang
@@ -644,7 +644,7 @@ recordings:
   duration_seconds: 580
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: REsmd1TK7oc
   title: Jonathan Shi MDML Recital - Frédéric Chopin Ballade No  1 in G Minor Op 23
@@ -652,7 +652,7 @@ recordings:
   duration_seconds: 618
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: dn1PQ-rBnxA
   title: Live from the Tanglewood, Boston, Chopin Ballade No. 1 in G Minor, Op. 23
@@ -660,7 +660,7 @@ recordings:
   duration_seconds: 547
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: lGkhED-2ZF4
   title: Chopin Ballade No.1 in g minor, op. 23
@@ -668,7 +668,7 @@ recordings:
   duration_seconds: 594
   skill_bucket: 1
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 0H3N8VAuGfs
   title: 'Richard Uttley plays Chopin: Ballade no 1 in G minor Op 23'
@@ -676,7 +676,7 @@ recordings:
   duration_seconds: 606
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: xAyeApPjN5k
   title: F. Chopin - Ballade No. 1 in g minor Op.23 (live performance by Shaun Choo)
@@ -684,7 +684,7 @@ recordings:
   duration_seconds: 590
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: ACQ2mVzTs6U
   title: Gil Jetley plays Chopin - Ballade No 1 in G minor, op  23
@@ -692,7 +692,7 @@ recordings:
   duration_seconds: 604
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: zGGMG9RkTU0
   title: Ballade No. 1 in G Minor - Chopin - 6 Months Progress
@@ -700,7 +700,7 @@ recordings:
   duration_seconds: 556
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 2GUZV4yv9Hw
   title: Chopin Ballade 1 in G minor - 6 month progression - self learned/cant read
@@ -709,7 +709,7 @@ recordings:
   duration_seconds: 96
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: YGfJ1f-Glcc
   title: 2 Month Progress - Chopin Ballade no. 1 in G minor (November)
@@ -717,7 +717,7 @@ recordings:
   duration_seconds: 362
   skill_bucket: 1
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: alzOCoX5QbM
   title: Chopin Ballade No. 1 - One Month Progress
@@ -725,7 +725,7 @@ recordings:
   duration_seconds: 361
   skill_bucket: 1
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: VTfnn457D1U
   title: 'Progress Video 1: Relearning Chopin''s 1st Ballade (tried 6 yrs ago, gave
@@ -734,7 +734,7 @@ recordings:
   duration_seconds: 636
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: VN3Ph8z2VI4
   title: Piano PROGRESS Chopin Ballade no.1  3 yr 10 mo
@@ -742,7 +742,7 @@ recordings:
   duration_seconds: 642
   skill_bucket: 1
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: A6Im8sEv4-I
   title: Chopin | Ballade No.1 - Progress
@@ -750,7 +750,7 @@ recordings:
   duration_seconds: 208
   skill_bucket: 1
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 3F70U2QAkZw
   title: Self taught pianist's attempt at Ballade no.1 in g minor
@@ -758,7 +758,7 @@ recordings:
   duration_seconds: 306
   skill_bucket: 1
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: Qo2RDFBb_ic
   title: Ballade Op.23 No.1 / Street Piano
@@ -766,7 +766,7 @@ recordings:
   duration_seconds: 445
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: a7kWJ6tDTPs
   title: SELF TAUGHT PIANIST CHOPIN BALLADE STREET PIANO IN DUBLIN,IRELAND
@@ -774,7 +774,7 @@ recordings:
   duration_seconds: 544
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: tb2jInV7TRw
   title: 9 yo piano prodigy Shuan Hern Lee plays Chopin Ballade No.1
@@ -782,7 +782,7 @@ recordings:
   duration_seconds: 572
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: UKskGigdEhA
   title: I play Ballade no. 1 by Chopin for school talent show
@@ -790,7 +790,7 @@ recordings:
   duration_seconds: 583
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: JyO65fHarKI
   title: Harmony Zhu (age 10) - Chopin Ballade No. 1 in G minor, Op. 23
@@ -798,7 +798,7 @@ recordings:
   duration_seconds: 664
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: XMNxllJWez8
   title: Chopin, Ballade No. 1 in G minor, Op. 23
@@ -806,7 +806,7 @@ recordings:
   duration_seconds: 625
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: zttiJVZl2UY
   title: Piano Recital Ming-Yen Hsieh 2018 , Chopin Ballade No.1 in g minor , Op.23
@@ -814,7 +814,7 @@ recordings:
   duration_seconds: 568
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: KlYdXTWE3jg
   title: 'Chopin : Ballade No.1 Op.23'
@@ -822,7 +822,7 @@ recordings:
   duration_seconds: 567
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: Uk3yU_mM6b0
   title: Chopin Ballade No.1 in G Minor, Op.23
@@ -830,7 +830,7 @@ recordings:
   duration_seconds: 572
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: lN9TC1ne4XM
   title: 10 year old piano prodigy Shuan Hern Lee plays Chopin Ballade no.1 at the
@@ -839,7 +839,7 @@ recordings:
   duration_seconds: 598
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 3MgPQ1kh4GE
   title: Garrick Ohlson Ballade n.1 in G Minor Op.23 Chopin And His Europe
@@ -847,7 +847,7 @@ recordings:
   duration_seconds: 649
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: XQdFiP35iNk
   title: Amy Yu  plays Chopin Ballade no. 1
@@ -855,7 +855,7 @@ recordings:
   duration_seconds: 554
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: ePe3oJBWCm4
   title: Trung Nguyen - Chopin Ballade n. 1 op. 23
@@ -863,7 +863,7 @@ recordings:
   duration_seconds: 594
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 4xhVDdxTtu4
   title: '"Chopin Ballade No.1 Op.23" @alponsinalee'
@@ -871,7 +871,7 @@ recordings:
   duration_seconds: 617
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: taY5oHleS4I
   title: 'Seong-Jin Cho - Chopin: Ballade No.1 In G Minor, Op.23 | Yellow Lounge'
@@ -879,7 +879,7 @@ recordings:
   duration_seconds: 628
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: O6_9WtYAV_c
   title: F. Chopin, Ballade No. 1 in G Minor, Op. 23 - August Baik
@@ -887,7 +887,7 @@ recordings:
   duration_seconds: 570
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: OmN_uWRaxuQ
   title: Aimi Kobayashi – Ballade in G minor, Op. 23 (second stage)
@@ -895,7 +895,7 @@ recordings:
   duration_seconds: 555
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: BvZbv3-UW4A
   title: Ballade in G Minor, Op. 23, No. 1
@@ -903,7 +903,7 @@ recordings:
   duration_seconds: 577
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: QNjGpUiuVRA
   title: Chopin Ballade No.1 in G Minor Op.23
@@ -911,7 +911,7 @@ recordings:
   duration_seconds: 512
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: iwfTt46OqkE
   title: 'Niu Niu, Chopin Ballade #1 in G Minor Op. 23 | Committee of 100 25th Anniversary'
@@ -919,7 +919,7 @@ recordings:
   duration_seconds: 588
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: BSFNl4roGlI
   title: Chopin - Ballade No.1 in G minor, Op.23 (Krystian Zimerman)
@@ -927,7 +927,7 @@ recordings:
   duration_seconds: 552
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: W5375yTVoao
   title: Ballade No 1 in G Minor, Op, 23
@@ -935,7 +935,7 @@ recordings:
   duration_seconds: 629
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: T1LwB2Ts3wY
   title: Sophia Liu plays Chopin - Ballade No. 1 in G minor, Op. 23
@@ -943,7 +943,7 @@ recordings:
   duration_seconds: 567
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: Icg_v7Xq8e0
   title: '8th grade piano recital: The Ballade No. 1 in G minor, Op. 23  (Frédéric
@@ -953,14 +953,14 @@ recordings:
   skill_bucket: 3
   label_rationale: human curation
   downloaded: false
-  download_error: output file not found
+  download_error: null
 - video_id: kJ58Tun6WDw
   title: Hansel Ang, 14 years old, played Chopin Ballade No. 1 in g minor, Op. 23
   channel: Henry Ang
   duration_seconds: 558
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: M-35Bq88sPo
   title: Juliette Richards (11 years old) plays Chopin's Ballade No. 1
@@ -968,7 +968,7 @@ recordings:
   duration_seconds: 595
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: wnfhlN1bOPA
   title: Chopin Ballade No1 Op23 2
@@ -976,7 +976,7 @@ recordings:
   duration_seconds: 560
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: eOp33s0awwo
   title: CHOPIN, Ballade No 1 in G minor- (Group D) Michelle Qiu
@@ -984,7 +984,7 @@ recordings:
   duration_seconds: 527
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: qH3cA2q5aPA
   title: Chopin Ballade No1 Op 23
@@ -992,7 +992,7 @@ recordings:
   duration_seconds: 518
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: NwofSa-xBDY
   title: Ballade No. 1 in G minor, Op. 23 by Frederic Chopin
@@ -1000,7 +1000,7 @@ recordings:
   duration_seconds: 590
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 8jrsdSzN6mg
   title: Selena Yang age 14 Ballade in G minor Op23 No1 by Chopin
@@ -1008,7 +1008,7 @@ recordings:
   duration_seconds: 551
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: F88SmgQYEyI
   title: Jonathan performing Chopin's Ballade No 1 in G Minor
@@ -1016,7 +1016,7 @@ recordings:
   duration_seconds: 598
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: O96Oszc3JnM
   title: CHOPIN Ballade No. 1 G Minor -- Kirill Nazarov, A BOY WHO PLAYS THE PIANO
@@ -1024,7 +1024,7 @@ recordings:
   duration_seconds: 548
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 6Eu7FEabAUQ
   title: Chopin Ballade no. 1 in G - Shenzhen Concert Hall - Steinway Garden Concert
@@ -1032,7 +1032,7 @@ recordings:
   duration_seconds: 512
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: G2l2Ii-0yyA
   title: Schwinn plays "Ballade No.1 in G minor" by Frederic Chopin
@@ -1040,7 +1040,7 @@ recordings:
   duration_seconds: 642
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: Wu_2NNP9lMQ
   title: Chris Chen - Chopin Ballad No. 1
@@ -1048,7 +1048,7 @@ recordings:
   duration_seconds: 605
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: Q1BJrTTVlEY
   title: Clay Dubberly performs Chopin's Ballade No. 1 in G Minor
@@ -1056,7 +1056,7 @@ recordings:
   duration_seconds: 536
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 7RPDjFkgR3w
   title: Ryan Wang  (11 years old) Chopin Ballade 1 in G Minor Op  23@CCF Charity
@@ -1065,7 +1065,7 @@ recordings:
   duration_seconds: 596
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: fttXPqegoVI
   title: Chopin - Ballade No.1 in G minor, Op.23 (live performance)
@@ -1073,7 +1073,7 @@ recordings:
   duration_seconds: 674
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: Fn2-YG2LeII
   title: Ballade No. 1 in G Minor by Frederic Chopin
@@ -1081,7 +1081,7 @@ recordings:
   duration_seconds: 537
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: pi7lxaLlYUA
   title: Chopin - Ballade No.1 in G minor, Op.23
@@ -1089,7 +1089,7 @@ recordings:
   duration_seconds: 601
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: OSlzPPPWojg
   title: Chopin Ballade No. 1 G minor Op.23
@@ -1097,7 +1097,7 @@ recordings:
   duration_seconds: 537
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: _TLyAacn0Gc
   title: Chopin - Ballade No. 1, Op. 23
@@ -1105,7 +1105,7 @@ recordings:
   duration_seconds: 541
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: wr40xyqx3oc
   title: Kate Liu plays Chopin • Ballade No. 1 Op. 23
@@ -1113,7 +1113,7 @@ recordings:
   duration_seconds: 766
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: Zj_psrTUW_w
   title: Chopin - Ballade No. 1 in G Minor (1M special)
@@ -1121,7 +1121,7 @@ recordings:
   duration_seconds: 586
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 2q0lVTwJbqs
   title: Chopin - Ballade No. 1 in G minor Op. 23
@@ -1129,7 +1129,7 @@ recordings:
   duration_seconds: 565
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: Jj06KNWAtyY
   title: 'Chopin: Ballade No. 1 in G minor, Op. 23 — Rūta Kuzmickas'
@@ -1137,7 +1137,7 @@ recordings:
   duration_seconds: 586
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 06-puNWFuMQ
   title: 'Chopin: Ballade No. 1 in G Minor, Op. 23'
@@ -1145,7 +1145,7 @@ recordings:
   duration_seconds: 517
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 3Ag-a76PQFg
   title: Vladimir horowitz plays Chopin Ballade no.1 op.23 in G minor in 1982
@@ -1153,7 +1153,7 @@ recordings:
   duration_seconds: 584
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: IZpF7u5iYuo
   title: The Pianist - Chopin Ballade No.1
@@ -1161,7 +1161,7 @@ recordings:
   duration_seconds: 573
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: bvtdjIIcgWQ
   title: Chopin Ballade No.1, Op.23 G Minor Valentina Lisitsa
@@ -1169,7 +1169,7 @@ recordings:
   duration_seconds: 611
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: VmFmAvwO1pE
   title: Chopin Ballade No.1 in G minor, Op. 23 / Krystian Zimerman (with Score)
@@ -1177,7 +1177,7 @@ recordings:
   duration_seconds: 552
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 2uvAewYkEFU
   title: Chopin Ballade no.1 op.23
@@ -1185,7 +1185,7 @@ recordings:
   duration_seconds: 557
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: hyCPiRmDMmE
   title: Yundi Li - Live At Carnegie Hall - Chopin Ballade No.1 in G minor  Op.23  MARCH
@@ -1194,7 +1194,7 @@ recordings:
   duration_seconds: 578
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: F63MSrdYx5w
   title: Chopin Ballade No.1 in G minor, Opus 23 by Tzvi Erez HQ
@@ -1202,7 +1202,7 @@ recordings:
   duration_seconds: 575
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: ecC7fjnFiuk
   title: Frédéric Chopin, Ballade no. 1 g-minor op. 23 (Olga Scheps live)
@@ -1210,7 +1210,7 @@ recordings:
   duration_seconds: 584
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: G_uLCAZVh5Y
   title: Ballade No. 1 in G Minor, Op. 23
@@ -1218,7 +1218,7 @@ recordings:
   duration_seconds: 533
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: ERnCo-2DP8o
   title: Jan Lisiecki Plays Chopin Ballade no.1 in G minor, op.23
@@ -1226,7 +1226,7 @@ recordings:
   duration_seconds: 544
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 74uZ0tHfTjE
   title: Chopin Ballade No.1 with SCORE - P. Barton, FEURICH piano
@@ -1234,7 +1234,7 @@ recordings:
   duration_seconds: 691
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: payc4PKtzQo
   title: 'Chopin: Ballade No. 1 In G Minor, Op. 23'
@@ -1242,7 +1242,7 @@ recordings:
   duration_seconds: 510
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: iNB01Jc4CQc
   title: Frédéric Chopin Ballade No. 1 Op. 23 Olga Scheps live
@@ -1250,7 +1250,7 @@ recordings:
   duration_seconds: 608
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: Oju-e6sPvDw
   title: Chopin Ballade No 1 in G Minor, Op  23    - Lang Lang
@@ -1258,7 +1258,7 @@ recordings:
   duration_seconds: 577
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: HlHBUxlcWfk
   title: 'Kevin Chen: Chopin, Ballade n. 1 in G minor, op.23'
@@ -1266,7 +1266,7 @@ recordings:
   duration_seconds: 625
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: AhDKYJmfIVw
   title: F. Chopin - Ballade no. 1 Op. 23 - Grzegorz (Greg) Niemczuk live in Warsaw,
@@ -1275,7 +1275,7 @@ recordings:
   duration_seconds: 656
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: xxCTtGiITK4
   title: 'F. Chopin: ballade in g minor (Adam Gyorgy, Live in Budapest)'
@@ -1283,7 +1283,7 @@ recordings:
   duration_seconds: 562
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: xi_VQJ2Lj1M
   title: Leif Ove Andsnes - Ballade in G Minor, Op. 23, No.1 Official Video
@@ -1291,7 +1291,7 @@ recordings:
   duration_seconds: 536
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 3L6ASlLTuks
   title: 'Yuja Wang: Chopin Ballade No. 1 in G minor Op. 23'
@@ -1299,7 +1299,7 @@ recordings:
   duration_seconds: 551
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: BjZsTeSvwe4
   title: MARTÍN GARCÍA GARCÍA – Ballade in G minor, Op. 23 (18th Chopin Competition,
@@ -1308,7 +1308,7 @@ recordings:
   duration_seconds: 572
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: XzqE6FaLziU
   title: CHOPIN Ballade no.1 opus 23 | Wibi Soerjadi live at The Royal Concertgebouw
@@ -1317,5 +1317,5 @@ recordings:
   duration_seconds: 711
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null

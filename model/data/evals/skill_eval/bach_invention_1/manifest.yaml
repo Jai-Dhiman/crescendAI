@@ -8,7 +8,7 @@ recordings:
   duration_seconds: 217
   skill_bucket: 1
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: AI8O7sGzdFw
   title: Bach - Invention No. 1 (Harpsichord) | Piano Progress Week 57
@@ -16,7 +16,7 @@ recordings:
   duration_seconds: 98
   skill_bucket: 1
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: cVj-WIe_dmI
   title: '141: Bach - Invention 1 in C Major (Progress 3)'
@@ -24,7 +24,7 @@ recordings:
   duration_seconds: 82
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: kcChnkECgJI
   title: 'Piano Progress 100 hours: Bach invention 1'
@@ -32,7 +32,7 @@ recordings:
   duration_seconds: 96
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: XJFNb9hHrNA
   title: Bach - Invention No. 1 (ABRSM Grade 4 2015-2016 A4) | Piano Progress Week
@@ -41,7 +41,7 @@ recordings:
   duration_seconds: 85
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: ie_zY7vcU7k
   title: Bach - Invention 1 (fast version) BWV 772 | Piano Progress Adult
@@ -49,7 +49,7 @@ recordings:
   duration_seconds: 103
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: F5Mf9k6hITU
   title: Bach Invention no. 1 in C Major. Learning The Complete Bach Inventions.
@@ -57,7 +57,7 @@ recordings:
   duration_seconds: 69
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: yks23eLPl7E
   title: Day 493 learning piano progress, Bach's Invention No. 1 in C Major BWV 772
@@ -65,7 +65,7 @@ recordings:
   duration_seconds: 97
   skill_bucket: 1
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: QARjKofFUUM
   title: Invention no. 1 in C - ABRSM grade 4 | PIANO PROGRESS DAY 547
@@ -73,7 +73,7 @@ recordings:
   duration_seconds: 96
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: sWjEEeLtlgk
   title: Bach Invention No. 1 work in progress
@@ -81,7 +81,7 @@ recordings:
   duration_seconds: 96
   skill_bucket: 1
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: KPFAJqv-cnU
   title: Johann Sebastian Bach - Invention 1 in C major BWV 772 (ABRSM Piano 2015-2016
@@ -90,7 +90,7 @@ recordings:
   duration_seconds: 79
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: Lh-3bkEZCwc
   title: Bach - Invention 1 in C major BWV 772 | Petrisor Hontaru | Adult Beginner
@@ -99,7 +99,7 @@ recordings:
   duration_seconds: 97
   skill_bucket: 1
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: XbB95Sx4Ttg
   title: Bach - Invention 1 in C major BWV 772
@@ -107,7 +107,7 @@ recordings:
   duration_seconds: 91
   skill_bucket: 1
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 6g8nkZy_lY0
   title: J.S. Bach - Invention 1 - Digital Piano - 1 year adult beginner
@@ -115,7 +115,7 @@ recordings:
   duration_seconds: 88
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: _gnFNHng7p4
   title: Piano Invention no 1 - J S  Bach (1 year)
@@ -123,7 +123,7 @@ recordings:
   duration_seconds: 77
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: kvgDWHn01pY
   title: Bach Inventio no 1 in C major. Adult piano learning month 42.
@@ -131,7 +131,7 @@ recordings:
   duration_seconds: 86
   skill_bucket: 1
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: eJWd9di5ovI
   title: J.S.Bach Invention No.1 in C Major BWV 772
@@ -139,7 +139,7 @@ recordings:
   duration_seconds: 90
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: XxTn51cnDu8
   title: 'J. S. Bach, Invention #1 in C Major, BWV 772'
@@ -147,7 +147,7 @@ recordings:
   duration_seconds: 82
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: MvoMZQVao0k
   title: '[#49 Adult Piano Learner] Invention No  1 in C Major (Bach), 4 months progress'
@@ -155,7 +155,7 @@ recordings:
   duration_seconds: 86
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: nBCMMWaT6FA
   title: Bach Invention no. 1, BWV 772.wmv
@@ -163,7 +163,7 @@ recordings:
   duration_seconds: 88
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: VNFVyBt9hkU
   title: 'Edward Chang plays Bach: "Invention No.1" 2010 Spring Recital, New York
@@ -172,7 +172,7 @@ recordings:
   duration_seconds: 73
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: dQkv_WmibqU
   title: Bach - Invention No. 1 in C-major BWV 772
@@ -180,7 +180,7 @@ recordings:
   duration_seconds: 82
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: yOboor7zz5U
   title: Johann Sebastian Bach, Invention No 1 in C major
@@ -188,7 +188,7 @@ recordings:
   duration_seconds: 86
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: EJvv1BP0wjE
   title: J.S. Bach Invention 1 by Audrey Huang ( 7 years old)
@@ -196,7 +196,7 @@ recordings:
   duration_seconds: 95
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: VpuCRJ2q1rc
   title: 'Bach. Invention # 1'
@@ -204,7 +204,7 @@ recordings:
   duration_seconds: 74
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: jPbvGT-xqHg
   title: 'Suchir, age 12, plays Bach: 2-Part Invention No. 1 in C Major'
@@ -212,7 +212,7 @@ recordings:
   duration_seconds: 102
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: yLfz7k63mTI
   title: Suzuki Piano Book 5 - Invention No. 1, BWV 772, Bach
@@ -220,7 +220,7 @@ recordings:
   duration_seconds: 121
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: HEoq7PPUMyc
   title: Invention No. 1 (J. S. Bach)
@@ -228,7 +228,7 @@ recordings:
   duration_seconds: 74
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: moPTDQEcSek
   title: J.S Bach - 15 Invention No. 1, BWV 772 - Talia
@@ -236,7 +236,7 @@ recordings:
   duration_seconds: 98
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: zbIx63yHxJ4
   title: Charles Siegler, Mannes Prep Piano Recital, 1/24/2015; JS Bach, two Part
@@ -245,7 +245,7 @@ recordings:
   duration_seconds: 97
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: XuCtfZlNARM
   title: '8 Yr. old Joe Mark performs Bach Invention #1 @Gallivan Recital'
@@ -253,7 +253,7 @@ recordings:
   duration_seconds: 102
   skill_bucket: 1
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 1RGE8tlDN7Q
   title: 'Jongju Park: Two Part Invention No.1 - J.S. Bach'
@@ -261,7 +261,7 @@ recordings:
   duration_seconds: 84
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: kqnlHaNOlBc
   title: 12. Two-Part Invention No.1…J.S. Bach - Sarah (13, 6y4m)
@@ -269,7 +269,7 @@ recordings:
   duration_seconds: 118
   skill_bucket: 1
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: ehJWxeIt22o
   title: 'Bach''s Invention #1'
@@ -277,7 +277,7 @@ recordings:
   duration_seconds: 82
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: G9oxXGd2a_8
   title: 'Invention #1 in C by Bach'
@@ -285,7 +285,7 @@ recordings:
   duration_seconds: 113
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: T5SNv0SVVOo
   title: J.S.Bach Invention No.1 playing by Hailey Kim
@@ -293,7 +293,7 @@ recordings:
   duration_seconds: 88
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: Fk4HnOyXl4A
   title: 'Bach. Invention # 1 in C major'
@@ -301,7 +301,7 @@ recordings:
   duration_seconds: 80
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: Jl391khN5Es
   title: Invention No 1 by J.S Bach - Honor Recital
@@ -309,7 +309,7 @@ recordings:
   duration_seconds: 74
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 3Pllid4KqLo
   title: J. S. Bach Invention No.1 BWV 772
@@ -317,7 +317,7 @@ recordings:
   duration_seconds: 123
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: yBKWaJAHqJs
   title: Bach 바흐 - Invention No. 1
@@ -325,7 +325,7 @@ recordings:
   duration_seconds: 85
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: SQ2ULpmkSXg
   title: Bach - Invention No.1 in C Major (Amateur | Age 22)
@@ -333,7 +333,7 @@ recordings:
   duration_seconds: 83
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: WitcAsa4Cxk
   title: Invention no.1 in C major (BWV 772) by J. S. Bach
@@ -341,7 +341,7 @@ recordings:
   duration_seconds: 106
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: viBvF_LUTEI
   title: Invention No. 1 in C Major, BWV 772, Bach
@@ -349,7 +349,7 @@ recordings:
   duration_seconds: 85
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: Msr1YO7ebIY
   title: Bach - Invention No.1 in C Major BWV 772
@@ -357,7 +357,7 @@ recordings:
   duration_seconds: 76
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: h9dhuKqTtgw
   title: 'J.S. Bach: Two-part Invention No. 1 in C Major BWV 772'
@@ -365,7 +365,7 @@ recordings:
   duration_seconds: 128
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: Lb33S5Q4eBo
   title: Invention 1 in C major, BWV 772
@@ -373,7 +373,7 @@ recordings:
   duration_seconds: 85
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: y19hvm248gM
   title: Invention no  1 in C major, BWV 722, from 15 Two   part Inventions by Johann
@@ -382,7 +382,7 @@ recordings:
   duration_seconds: 84
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: RTdvYRp4pA0
   title: J.S. Bach - Invention № 1 C-Dur
@@ -390,7 +390,7 @@ recordings:
   duration_seconds: 84
   skill_bucket: 1
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: qHmhsRzprwM
   title: Two parts Inventions Number 1 by J.S. Bach
@@ -398,7 +398,7 @@ recordings:
   duration_seconds: 65
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: VTljk4u8iyo
   title: Invention in C Major - Bach
@@ -406,7 +406,7 @@ recordings:
   duration_seconds: 71
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: bDU2v34CH7w
   title: Vivian Hu played Bach Invention No. 1
@@ -414,7 +414,7 @@ recordings:
   duration_seconds: 83
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 1X69nSZVhbE
   title: Bach - Invention no.1 in C major - BWV 772
@@ -422,7 +422,7 @@ recordings:
   duration_seconds: 102
   skill_bucket: 1
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: uTU25JPEKBs
   title: 'Christopher Palmer 2016 Piano Recital: Bach''s Invention in C Major (Invention
@@ -431,7 +431,7 @@ recordings:
   duration_seconds: 70
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: dZm_jY0Bgfs
   title: '136: Bach - Invention 1 in C Major (Progress 2)'
@@ -439,7 +439,7 @@ recordings:
   duration_seconds: 76
   skill_bucket: 1
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: ihyaUZdJ9SY
   title: 'JS Bach: Invention 1 in C major (BWV 772)'
@@ -447,7 +447,7 @@ recordings:
   duration_seconds: 75
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 22gThwfcKWc
   title: Bach 2 Part Inventions No.1 Paul Barton, piano
@@ -455,7 +455,7 @@ recordings:
   duration_seconds: 98
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: bOa0Y_7k-XI
   title: Invention 1 BWV 772 in C major - Alberto Firrincieli, piano
@@ -463,7 +463,7 @@ recordings:
   duration_seconds: 99
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: NGMDQM7hdIk
   title: J.S. Bach - Invention no.1 BWV 772 C Major, piano
@@ -471,7 +471,7 @@ recordings:
   duration_seconds: 79
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 5dMIbsb8j7U
   title: Bach Invention 1 in C, hands alone practice
@@ -479,7 +479,7 @@ recordings:
   duration_seconds: 201
   skill_bucket: 1
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 7dF_tnpNZd0
   title: Bach - Invention no. 1 in C Major, BWV 772 (W/ Sheets)
@@ -487,7 +487,7 @@ recordings:
   duration_seconds: 83
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: Pt55MOkOPgw
   title: Bach Invention 1 C major BWV 772
@@ -495,7 +495,7 @@ recordings:
   duration_seconds: 86
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: ygbKyz57ZIE
   title: 'Alison Horton Piano: Bach Two-Part Invention no. 1 BWV 772'
@@ -503,7 +503,7 @@ recordings:
   duration_seconds: 99
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: Wy2zyCq5WYY
   title: 'Iris plays two part invention #1 in C major by J.S. Bach'
@@ -511,7 +511,7 @@ recordings:
   duration_seconds: 108
   skill_bucket: 1
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: cCSQ9M7Bcvw
   title: 4 year old plays RCM Grade 7 piano Bach Invention No. 1 in C Major BWV 772
@@ -519,7 +519,7 @@ recordings:
   duration_seconds: 233
   skill_bucket: 1
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: OidmHo8k8Vg
   title: Bach- Invention 1 in C major --by Gavin Ye, Age of 8
@@ -527,7 +527,7 @@ recordings:
   duration_seconds: 101
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: aUgL0uYYglE
   title: Violet performing Invention no. 1 in C major, BWV 772, Johann Sebastian Bach.
@@ -536,14 +536,14 @@ recordings:
   skill_bucket: 2
   label_rationale: human curation
   downloaded: false
-  download_error: output file not found
+  download_error: null
 - video_id: Xl7HF2EmVEk
   title: Invention No. 1 in C major by J.S. Bach
   channel: Manling Kwok Piano Studio
   duration_seconds: 86
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: g3_nZwNw0yg
   title: 'Bach 2 Part Invention #1 in C Major'
@@ -551,7 +551,7 @@ recordings:
   duration_seconds: 107
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: ioiuy_MW9Ho
   title: J  S  Bach, Invention No 1 in C Major, BWV 772
@@ -559,7 +559,7 @@ recordings:
   duration_seconds: 84
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: nNWwPYiZQV0
   title: Invention in C Major BWV 722 of J.S. Bach (Amateur performance)
@@ -567,7 +567,7 @@ recordings:
   duration_seconds: 151
   skill_bucket: 1
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 8iFI7brcUnI
   title: Bach Invention No.1 in C Major, BWV 722
@@ -575,7 +575,7 @@ recordings:
   duration_seconds: 120
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: U-5he80Z7_g
   title: Invention No.1 in C Major by Johann Sebastian Bach
@@ -583,7 +583,7 @@ recordings:
   duration_seconds: 66
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: VaUTKZSfZW4
   title: 'Bach 2 part Invention #1 in C major'
@@ -591,7 +591,7 @@ recordings:
   duration_seconds: 71
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: WjyuxQHa0Uc
   title: 'JS Bach: Two-Part Invention in C-Major BWV 772'
@@ -599,7 +599,7 @@ recordings:
   duration_seconds: 92
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: M6Wp6jpX-Qo
   title: 'Practicing: Bach 2-part Invention no. 1'
@@ -607,7 +607,7 @@ recordings:
   duration_seconds: 81
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: YgfYguf-5lI
   title: '[#41] Invention No  1 in C Major (Bach), 2 months progress'
@@ -615,7 +615,7 @@ recordings:
   duration_seconds: 101
   skill_bucket: 1
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: x7EW0OeFnfI
   title: 'J.S. Bach: Two-Part Invention No. 1'
@@ -623,7 +623,7 @@ recordings:
   duration_seconds: 119
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: hd9kWeA974U
   title: J. S. Bach - C major two part invention No.1
@@ -631,7 +631,7 @@ recordings:
   duration_seconds: 69
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: DCupOPGFKfg
   title: Raditya (7) plays Bach Invention C Major BWV 772 DEMTA Honors Recital
@@ -639,7 +639,7 @@ recordings:
   duration_seconds: 66
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: ZriRdOQlsxw
   title: 'Bach :  Two-part Invention No.1'
@@ -647,7 +647,7 @@ recordings:
   duration_seconds: 109
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: CbSLQWVZamM
   title: Elli Ray plays Bach's Invention No 1 in C major, BWV 772
@@ -655,7 +655,7 @@ recordings:
   duration_seconds: 86
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: qmGgS1MUY1k
   title: J.S. Bach - 2-part invention nr. 1
@@ -663,15 +663,15 @@ recordings:
   duration_seconds: 80
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
-  download_error: output file not found
+  downloaded: false
+  download_error: null
 - video_id: R6rxByR7h40
   title: BACH Invention n°1 BWV 772
   channel: Philippe Perret Musique
   duration_seconds: 134
   skill_bucket: 1
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: qlNatH28c8c
   title: '[#40] Invention No  1 in C Major (Bach), One month progress'
@@ -679,7 +679,7 @@ recordings:
   duration_seconds: 172
   skill_bucket: 1
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: -Ni4Utqyc4Y
   title: 'She transforms simple melodies into a masterpiece: Nikolayeva plays Bach
@@ -688,7 +688,7 @@ recordings:
   duration_seconds: 64
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: qD_Q1cjc0lY
   title: Emma Xia (6 years old) performs J.S. Bach's Invention No. 1, BWV 772
@@ -696,7 +696,7 @@ recordings:
   duration_seconds: 95
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: kKHjurQe5H4
   title: 7 Year Old Pianist Plays Bach's Invention No. 1
@@ -704,7 +704,7 @@ recordings:
   duration_seconds: 89
   skill_bucket: 1
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 4tRjC0gzatY
   title: Michael Spring recital Bach Invention 1 in C major
@@ -712,7 +712,7 @@ recordings:
   duration_seconds: 95
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: nEUgVAP8mr4
   title: 7 year old plays Bach's Invention No. 1
@@ -720,7 +720,7 @@ recordings:
   duration_seconds: 75
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: WgNhacSY_SM
   title: 'Aaron W. performs "Invention #1" by J.S.Bach'
@@ -728,7 +728,7 @@ recordings:
   duration_seconds: 85
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: ARUMvPuxo-A
   title: 'Bach - the invention #1 in  C major bwv 772 by Abby L. 2023 mini recital
@@ -738,14 +738,14 @@ recordings:
   skill_bucket: 3
   label_rationale: human curation
   downloaded: false
-  download_error: output file not found
+  download_error: null
 - video_id: dk-llNZ-9r4
   title: 'Julian Raheb Bach Invention #1'
   channel: J Raheb
   duration_seconds: 60
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: gK4eEWyYrpM
   title: 'Invention #1 by Bach'
@@ -753,7 +753,7 @@ recordings:
   duration_seconds: 75
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: dDqLij7VSis
   title: Bach invention no  1
@@ -761,7 +761,7 @@ recordings:
   duration_seconds: 60
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 2HxT2Bl8ecU
   title: Bach Invention 1
@@ -769,7 +769,7 @@ recordings:
   duration_seconds: 75
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: ff5gsVzVC_U
   title: Invention No  1 - Bach - Jacey
@@ -778,14 +778,14 @@ recordings:
   skill_bucket: 3
   label_rationale: human curation
   downloaded: false
-  download_error: output file not found
+  download_error: null
 - video_id: Ptrv21aMNSU
   title: Bach - Invention 1 by Pam Kampanya (11 years old)
   channel: Pam n Pete
   duration_seconds: 76
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: Zi9sCDQ48l4
   title: 'Invention #1 in C Major (Bach)'
@@ -793,7 +793,7 @@ recordings:
   duration_seconds: 74
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: mwSS_8TIt4Q
   title: Bach Invention 1
@@ -801,7 +801,7 @@ recordings:
   duration_seconds: 62
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: x2o_pNu42Wk
   title: 'Bach. Invention # 1'
@@ -809,7 +809,7 @@ recordings:
   duration_seconds: 89
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: rsONkGtJqKw
   title: Eight year old plays Bach on church piano | J. S. Bach - Invention I No.
@@ -819,14 +819,14 @@ recordings:
   skill_bucket: 3
   label_rationale: human curation
   downloaded: false
-  download_error: output file not found
+  download_error: null
 - video_id: 8f27za8J5Y0
   title: 'Bach: Invention no 1'
   channel: Zhaotong Tang
   duration_seconds: 79
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: s-LlCsGQPbg
   title: Keilani plays Bach Invention 1 - BWV 772
@@ -835,14 +835,14 @@ recordings:
   skill_bucket: 3
   label_rationale: human curation
   downloaded: false
-  download_error: output file not found
+  download_error: null
 - video_id: DNmBC31n4UE
   title: Meenakshi | Bach Invention No 1
   channel: Meenakshi Easwar
   duration_seconds: 122
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: tiNGOF0J9Mo
   title: J. S. Bach - Invention No.1 in C Major (BWV 772)
@@ -850,7 +850,7 @@ recordings:
   duration_seconds: 121
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: E1M_jEHJtrE
   title: 'Bach: Invention 1 in C Major, BWV 772 (Urtext Edition)'
@@ -858,7 +858,7 @@ recordings:
   duration_seconds: 85
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: sQIVQ3ZirPA
   title: Bach 2 Part Invention No.1 - P. Barton, FEURICH Harmonic Pedal piano
@@ -866,7 +866,7 @@ recordings:
   duration_seconds: 87
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: tt0-ZhgqMC8
   title: 'Bach: Invention 1 in C major (newer version) | Cory Hall, pianist-composer'
@@ -874,7 +874,7 @@ recordings:
   duration_seconds: 73
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: wem_mJA7iks
   title: 'J.S. Bach: Invention No. 1 in C major, BWV 772 (Anna Nadiryan)'
@@ -882,7 +882,7 @@ recordings:
   duration_seconds: 64
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: GKvqNvK4xlU
   title: 'J.S.Bach: Two-Part Invention No.1, in C major BWV 772'
@@ -890,7 +890,7 @@ recordings:
   duration_seconds: 82
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: xzU7xQmmXGE
   title: Invention 1 Bach by Glenn Gould
@@ -898,7 +898,7 @@ recordings:
   duration_seconds: 92
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: fgv76VwrnIQ
   title: J. S. Bach - Invention No. 1 in C Major, BWV 772 | Cathleen Kwok
@@ -906,7 +906,7 @@ recordings:
   duration_seconds: 88
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: jE4oU2QbirM
   title: Bach - Invention No. 1 in C Major, BWV 772 | Pf. Misato Takeda
@@ -914,7 +914,7 @@ recordings:
   duration_seconds: 81
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: qhRYNDpln2o
   title: 'J.S. BACH: Invention No. 1 (BWV 772) | Cory Hall, pianist'
@@ -922,7 +922,7 @@ recordings:
   duration_seconds: 80
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: E8EvUmq0Zao
   title: Invention No. 1 in C Major, BWV 772
@@ -930,7 +930,7 @@ recordings:
   duration_seconds: 89
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: Xyv_omOahRA
   title: Invention No. 1 in C Major, BWV 772 by Johann Sebastian Bach - Magdalena
@@ -939,7 +939,7 @@ recordings:
   duration_seconds: 70
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: AC9TcrYE0BE
   title: 'J.S. BACH: Invention No. 1 in C Major | Cory Hall, pianist'
@@ -947,7 +947,7 @@ recordings:
   duration_seconds: 86
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: bqqQdg73TII
   title: 'Bach: Invention 1 in C Major, BWV 772 (Student Edition)'
@@ -955,7 +955,7 @@ recordings:
   duration_seconds: 85
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: zMwecKu4mR0
   title: Bach, 15 Inventions, Invention in C major, BWV 772, Piano
@@ -963,7 +963,7 @@ recordings:
   duration_seconds: 73
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: pMIfeumqlOg
   title: Nikolas Suloti performs Invention No. 1 in C Major by Bach
@@ -972,12 +972,12 @@ recordings:
   skill_bucket: 3
   label_rationale: human curation
   downloaded: false
-  download_error: output file not found
+  download_error: null
 - video_id: PumHWfIbpO8
   title: 'J.S. Bach: Invention No. 1 in C Major, BWV 772a'
   channel: András Schiff - Topic
   duration_seconds: 92
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null

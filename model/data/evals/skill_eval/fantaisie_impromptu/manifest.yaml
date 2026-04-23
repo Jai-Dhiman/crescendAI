@@ -8,7 +8,7 @@ recordings:
   duration_seconds: 317
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: twIQYQgPzaE
   title: Arthur Rubinstein - Chopin Fantaisie Impromptu in C sharp Minor, Op. 66 Posth
@@ -16,7 +16,7 @@ recordings:
   duration_seconds: 321
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: uJfNkEth-9Y
   title: Kissin plays chopin Fantasie- Impromptu op.66 verbier festival.wmv
@@ -24,7 +24,7 @@ recordings:
   duration_seconds: 351
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: tvm2ZsRv3C8
   title: Yundi Li - Chopin "Fantasie" Impromptu, Op. 66
@@ -32,5 +32,5 @@ recordings:
   duration_seconds: 319
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null

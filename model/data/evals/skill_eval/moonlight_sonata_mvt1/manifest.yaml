@@ -8,7 +8,7 @@ recordings:
   duration_seconds: 72
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: VdzRlGYOacM
   title: Beethoven Moonlight Sonata 1st Movement - Piano Progress - Month 8
@@ -16,7 +16,7 @@ recordings:
   duration_seconds: 337
   skill_bucket: 1
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: qByRPqPdZ2g
   title: Beethoven - Moonlight Sonata  (1st Movement) progress - [2023-06-06]
@@ -24,7 +24,7 @@ recordings:
   duration_seconds: 216
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: veJHGQleVVc
   title: Moonlight Sonata (1st Movement) – D-minor Version | 9 Months of Piano Progress
@@ -32,7 +32,7 @@ recordings:
   duration_seconds: 201
   skill_bucket: 1
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: CmPOKVomWTw
   title: Beethoven — 'Moonlight' Sonata No. 14 — 1st movement (adult beginner...ish)
@@ -40,7 +40,7 @@ recordings:
   duration_seconds: 372
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: FYSQ0HdbHh8
   title: Ludwig Van Beethoven - Moonlight Sonata 1st Movement (61 Key Trial Version)
@@ -48,7 +48,7 @@ recordings:
   duration_seconds: 334
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: oFXGdcF1D-4
   title: Moonlight Sonata - 1st Movement (7 months progress)
@@ -56,7 +56,7 @@ recordings:
   duration_seconds: 228
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: Q2h1UmJGXNg
   title: Beethoven - Moonlight sonata 1st movement (in progress, uncompleted)
@@ -64,7 +64,7 @@ recordings:
   duration_seconds: 72
   skill_bucket: 1
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 4sj33rGdGwQ
   title: 'My Piano Progress: Day 1 - Moonlight Sonata, 1st Movement, Beethoven'
@@ -72,7 +72,7 @@ recordings:
   duration_seconds: 108
   skill_bucket: 1
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: JXWD5xXiM64
   title: '93: Moonlight Sonata - 1st Movement (Progress 3)'
@@ -80,7 +80,7 @@ recordings:
   duration_seconds: 233
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: hyX_lXi5yEg
   title: Moonlight Sonata 1st movement progress
@@ -88,7 +88,7 @@ recordings:
   duration_seconds: 119
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: B9n3KgPiUJk
   title: '101: Moonlight Sonata - 1st Movement (Progress 6)'
@@ -96,7 +96,7 @@ recordings:
   duration_seconds: 344
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 359RrCEhUrk
   title: Moonlight Sonata - First Movement - Ludwig Van Beethoven - My progress so
@@ -105,7 +105,7 @@ recordings:
   duration_seconds: 166
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: DYeQsEYlbr8
   title: Moonlight Sonata 1st  Movement - Piano progress 2.5 months
@@ -113,7 +113,7 @@ recordings:
   duration_seconds: 295
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 0q_cIdSA9_8
   title: Moonlight Sonata 1st Movement by Adriel (Progress @ 11th month playing piano)
@@ -121,7 +121,7 @@ recordings:
   duration_seconds: 425
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: NMdFW1RrXJs
   title: '94: Moonlight Sonata - 1st Movement (Progress 4)'
@@ -129,7 +129,7 @@ recordings:
   duration_seconds: 203
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 1V3xRx1uZ1g
   title: Moonlight Sonata First Movement
@@ -137,7 +137,7 @@ recordings:
   duration_seconds: 299
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: iAw1vbsfeaY
   title: Moonlight Sonata by Beethoven  |  Adult Piano Adventures Classics book 2
@@ -145,7 +145,7 @@ recordings:
   duration_seconds: 121
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: CuKGPrqQdtc
   title: Beethoven - Moonlight Sonata (Op. 27 No.2) 1st Movement (Adult Beginner)
@@ -153,7 +153,7 @@ recordings:
   duration_seconds: 310
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: QP-o9UPr-Ok
   title: Moonlight Sonata - measure 32-42 - Beethoven - Alfred's Basic - Adult Piano
@@ -162,7 +162,7 @@ recordings:
   duration_seconds: 112
   skill_bucket: 1
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 9Idy4ujVFbo
   title: Beethoven - Moonlight Sonata (1st movement)
@@ -170,7 +170,7 @@ recordings:
   duration_seconds: 293
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: KxdWnNy26uo
   title: Moonlight sonata 1st movement by an adult beginner (4 weeks playing the piano)
@@ -178,7 +178,7 @@ recordings:
   duration_seconds: 557
   skill_bucket: 1
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: L6r5BhVvL5M
   title: Moonlight Sonata, Beethoven (Late-Intermediate Piano Solo) Alfred's Adult
@@ -187,7 +187,7 @@ recordings:
   duration_seconds: 342
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: QfqRg1C-Qqg
   title: '@3 months adult piano beginner''s rendition of Moonlight Sonata 1st Movement'
@@ -195,7 +195,7 @@ recordings:
   duration_seconds: 325
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: Vr1cpUYUY28
   title: Student recital - Beethoven Sonata Op. 27 No. 2, first movement
@@ -204,14 +204,14 @@ recordings:
   skill_bucket: 3
   label_rationale: human curation
   downloaded: false
-  download_error: output file not found
+  download_error: null
 - video_id: 9GFwd9emDnY
   title: Beethoven Moonlight Sonata First Movement Ellen MacLeay
   channel: Donald MacLeay
   duration_seconds: 392
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: UT6633MYseU
   title: Zeyn Shweyk is playing Moonlight Sonata 1st Movement by Beethoven
@@ -219,7 +219,7 @@ recordings:
   duration_seconds: 431
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 1ZLBxYs0qIs
   title: Piano Recital 2023, Moonlight Sonata (1st movement)
@@ -227,7 +227,7 @@ recordings:
   duration_seconds: 407
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 90nWGgMsB-4
   title: The Piano Room | Student Recital 2023 | Preeta | Moonlight Sonata 1st Mov
@@ -236,7 +236,7 @@ recordings:
   duration_seconds: 444
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: mBg4wV7GMHM
   title: Beethoven - Moonlight Sonata 1st movement, Op. 27 No. 2 in C-sharp minor
@@ -245,14 +245,14 @@ recordings:
   skill_bucket: 3
   label_rationale: human curation
   downloaded: false
-  download_error: output file not found
+  download_error: null
 - video_id: EDO5Aey698k
   title: Moonlight Sonata (Piano Sonata no. 14 First Movement) - Beethoven
   channel: Sonya Yu
   duration_seconds: 273
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: brMkXh02qIQ
   title: 'Moonlight Sonata: First Movement'
@@ -260,7 +260,7 @@ recordings:
   duration_seconds: 353
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: vau_fcwX-a0
   title: 'Piano Recital - Moonlight Sonata Op. 27, No. 2: I. Adagio sostenuto'
@@ -268,7 +268,7 @@ recordings:
   duration_seconds: 355
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: PvJiP4w9M-c
   title: Elsa plays Beethoven's "Moonlight Sonata" first movement
@@ -277,14 +277,14 @@ recordings:
   skill_bucket: 3
   label_rationale: human curation
   downloaded: false
-  download_error: output file not found
+  download_error: null
 - video_id: A4QgK-IXias
   title: Moonlight Sonata, 1st Movement by Beethoven
   channel: Mei Yin Piano Studio in San Diego
   duration_seconds: 374
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 4g0MrFhetGA
   title: Beethoven -Moonlight Sonata, 1st mov.
@@ -292,7 +292,7 @@ recordings:
   duration_seconds: 334
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: hjHKu4vwiiE
   title: '"Moonlight Sonata" (First Movement) Beethoven'
@@ -300,7 +300,7 @@ recordings:
   duration_seconds: 292
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 2Y8sStDRdBI
   title: '10-yr-old''s 2015 Piano Recital | Piece #1: Sonata 1st Movement, Op. 27,
@@ -309,7 +309,7 @@ recordings:
   duration_seconds: 325
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: WDzRXcoDu-o
   title: Piano recital 2017 moonlight sonata 1st movement
@@ -317,7 +317,7 @@ recordings:
   duration_seconds: 168
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 281FsFlHLJY
   title: '"Moonlight Sonata" (1st movement) Spring Piano Recital 2023'
@@ -325,7 +325,7 @@ recordings:
   duration_seconds: 297
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: OsF9pz7ixrc
   title: Piano Recital Beethoven's Moonlight Sonata
@@ -333,7 +333,7 @@ recordings:
   duration_seconds: 292
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: wIa5B8MTJOw
   title: Beethoven's Moonlight Sonata (1st Movement) - Karim Khaled
@@ -341,7 +341,7 @@ recordings:
   duration_seconds: 449
   skill_bucket: 1
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: Lg7ifkLaFcU
   title: Beethoven Moonlight Sonata First Movement
@@ -349,7 +349,7 @@ recordings:
   duration_seconds: 398
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 62uexIRM-7U
   title: Beethoven - Moonlight Sonata 1st Movement (Amateur | Age 19)
@@ -357,7 +357,7 @@ recordings:
   duration_seconds: 444
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: eQB1qq5ZCY4
   title: Moonlight Sonata 1st Movement, Beethoven, played by amateur John(me)
@@ -365,7 +365,7 @@ recordings:
   duration_seconds: 192
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: yTUvd9-cTik
   title: Piano Sonata No. 14/Moonlight Sonata (Beethoven)-Amateur Beginner
@@ -373,7 +373,7 @@ recordings:
   duration_seconds: 285
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: lRVx-8XyeD0
   title: Amateur performance of 1st movement of Beethoven Moonlight sonata
@@ -381,7 +381,7 @@ recordings:
   duration_seconds: 297
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: jG_-OCk8jqQ
   title: '(L. Finn) Beethoven: Moonlight Sonata, First Movement'
@@ -389,7 +389,7 @@ recordings:
   duration_seconds: 327
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: kUnMsi38_W0
   title: Amateur Moonlight Sonata Movement 1
@@ -397,7 +397,7 @@ recordings:
   duration_seconds: 348
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: sBK0CkY7VbI
   title: 'Me practising L. Beethoven: Moonlight Sonata 1st Movement'
@@ -405,7 +405,7 @@ recordings:
   duration_seconds: 353
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: FYwDG_5m9JE
   title: Ludwig van Beethoven - Moonlight Sonata - first movement
@@ -413,7 +413,7 @@ recordings:
   duration_seconds: 344
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: i_LJpbLyQdQ
   title: Bethoveen - "Moonlight Sonata" 1st Movement Digital Piano Attempt
@@ -421,7 +421,7 @@ recordings:
   duration_seconds: 167
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 0CY8le2M6aA
   title: Beethoven's Moonlight Sonata First Movement
@@ -429,7 +429,7 @@ recordings:
   duration_seconds: 343
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: JxITFCjoYXc
   title: Moonlight Sonata 1st Movement
@@ -437,7 +437,7 @@ recordings:
   duration_seconds: 341
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: kAqWq633q7w
   title: Moonlight Sonata (1st Movement)
@@ -445,7 +445,7 @@ recordings:
   duration_seconds: 139
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: QzzFtaHKqcM
   title: Moonlight Sonata - Beethoven (performed by an amateur)
@@ -453,7 +453,7 @@ recordings:
   duration_seconds: 352
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: E2kg-TtIO28
   title: Beethoven Moonlight Sonata 1st Movement
@@ -461,7 +461,7 @@ recordings:
   duration_seconds: 279
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: g66h6Uj_zIU
   title: Moonlight Sonata 1st Movement (Beethoven) - Piano by Echen (12 yrs)
@@ -469,7 +469,7 @@ recordings:
   duration_seconds: 430
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: JNa220viKnQ
   title: Clay plays Moonlight Sonata, first movement
@@ -477,7 +477,7 @@ recordings:
   duration_seconds: 373
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: vflsRoA3eFU
   title: Moonlight Sonata 1st Movement
@@ -485,7 +485,7 @@ recordings:
   duration_seconds: 429
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: Qv8FPbsspU8
   title: 'REVISED Practice Video:  Beethoven''s Moonlight Sonata, 1st Mvt'
@@ -493,7 +493,7 @@ recordings:
   duration_seconds: 434
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: -TGPY24ukWg
   title: Beethoven Moonlight Sonata 1st movement
@@ -501,7 +501,7 @@ recordings:
   duration_seconds: 361
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 8a731aH5Im4
   title: Beethoven - Moonlight Sonata mvt 1 (1 Year Self Taught Piano Progress)
@@ -509,7 +509,7 @@ recordings:
   duration_seconds: 334
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: eoyZvkIhzIM
   title: Moonlight Sonata, p138 from ch. 8 Bastien Piano for Adults Book 2
@@ -517,7 +517,7 @@ recordings:
   duration_seconds: 90
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: RfFvMwgKqcI
   title: One of our talented year 11 students playing Beethoven’s Moonlight Sonata.
@@ -525,7 +525,7 @@ recordings:
   duration_seconds: 125
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: jeykcW3a3es
   title: Student Feature | Sophia P. Plays Moonlight Sonata, Sonata Op. 27, No. 2,
@@ -534,7 +534,7 @@ recordings:
   duration_seconds: 328
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: iT-M9SJcuTg
   title: '"Moonlight sonata" L.Beethoven'
@@ -542,7 +542,7 @@ recordings:
   duration_seconds: 306
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 6uz6p7KXmUw
   title: Moonlight Sonata Spring Recital 2010.wmv
@@ -550,7 +550,7 @@ recordings:
   duration_seconds: 270
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: xdbeR4SOu6Y
   title: David plays Moonlight Sonata by Beethoven on Piano at Bethel Music Center's
@@ -559,7 +559,7 @@ recordings:
   duration_seconds: 303
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 0-y5dRpiir0
   title: 'Recital Piece: Moonlight Sonata'
@@ -567,7 +567,7 @@ recordings:
   duration_seconds: 324
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 60qQfstauBU
   title: Practicing "Moonlight Sonata" mvmnt. 1 at Cal Poly
@@ -575,7 +575,7 @@ recordings:
   duration_seconds: 358
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 1BspDv0UhLY
   title: Beethoven, Moonlight sonata, a modest performance
@@ -583,7 +583,7 @@ recordings:
   duration_seconds: 437
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 9G6jhyrligU
   title: Beethoven - Sonata No.14 in C# minor, Op. 27 No. 2 "Moonlight" - Movement
@@ -592,7 +592,7 @@ recordings:
   duration_seconds: 440
   skill_bucket: 1
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: KjYVGdID1kk
   title: Beethoven - "Moonlight" Piano Sonata No. 14, I. Adagio Sostenuto, Op. 27,
@@ -601,7 +601,7 @@ recordings:
   duration_seconds: 346
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: sNb05f7Pb7U
   title: '91: Moonlight Sonata - 1st Movement (Progress 2)'
@@ -609,7 +609,7 @@ recordings:
   duration_seconds: 81
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 9uQEvYIkxYI
   title: Moonlight Sonata (Beethoven) — Piano Performance | Sonata No. 14, Mov. I
@@ -617,7 +617,7 @@ recordings:
   duration_seconds: 301
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: TbYUYWB1g7o
   title: Moonlight Sonata - measure 9 - 15 - Beethoven - Alfred's Basic - Adult Piano
@@ -626,7 +626,7 @@ recordings:
   duration_seconds: 71
   skill_bucket: 1
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: Zh7FWKKbz8M
   title: Beethoven Piano Sonata No.14 “Moonlight” LIVE Ritta Bardakjian
@@ -634,7 +634,7 @@ recordings:
   duration_seconds: 875
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 3f5pJlRFoDg
   title: Beethoven's Sonata No. 14 "Moonlight" Op. 27, No. 2 played by Sharlene Morta
@@ -643,7 +643,7 @@ recordings:
   skill_bucket: 3
   label_rationale: human curation
   downloaded: false
-  download_error: output file not found
+  download_error: null
 - video_id: Inyri1M-Bas
   title: Christy Wisuthseriwong's student Katelyn Nguyen - Moonlight Sonata -Beethoven
   channel: MusicAcademyofNC
@@ -651,14 +651,14 @@ recordings:
   skill_bucket: 3
   label_rationale: human curation
   downloaded: false
-  download_error: output file not found
+  download_error: null
 - video_id: ukN15nqfdR0
   title: Beethoven's Moonlight Sonata played by a young student
   channel: Grace Note Music School
   duration_seconds: 289
   skill_bucket: 1
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: HNU9erptpis
   title: Moonlight Sonata Beethoven (1st movement)
@@ -666,7 +666,7 @@ recordings:
   duration_seconds: 336
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 6N_-McmZkFQ
   title: Beethoven's- Moonlight Sonata- movt 1 played by Varsha Sonavane
@@ -674,7 +674,7 @@ recordings:
   duration_seconds: 295
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: Uyy4iDzEXaM
   title: Moonlight Sonata, First Movement - Rebecca Holt
@@ -682,7 +682,7 @@ recordings:
   duration_seconds: 345
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: H6U_3aJ0Gek
   title: beethoven piano sonata no.14 "Moon Light" practice
@@ -690,7 +690,7 @@ recordings:
   duration_seconds: 422
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: I8mQm8UOanw
   title: Moonlight Sonata - First Movement - Day 59
@@ -698,7 +698,7 @@ recordings:
   duration_seconds: 396
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: ZAC3kpRtikU
   title: Moonlight Sonata (1st Movement) – Beethoven | Beginner Piano Progress (5
@@ -707,7 +707,7 @@ recordings:
   duration_seconds: 241
   skill_bucket: 1
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: GccmEH7_AvM
   title: Moonlight Sonata 1st movement - 12 month progress 280 hours
@@ -715,7 +715,7 @@ recordings:
   duration_seconds: 111
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: Z1KK6RfWb7k
   title: Moonlight Sonata I movement (3 months of piano progress, self-taught)
@@ -723,7 +723,7 @@ recordings:
   duration_seconds: 398
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: v1pO6XHUXfA
   title: 3 Months Piano Progress - Moonlight Sonata 🌙 (Adult Beginner)
@@ -731,7 +731,7 @@ recordings:
   duration_seconds: 246
   skill_bucket: 1
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: sZi1JS8u_aY
   title: '88: Moonlight Sonata - 1st Movement (Progress 1)'
@@ -739,7 +739,7 @@ recordings:
   duration_seconds: 102
   skill_bucket: 1
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 89mxqGFtRtc
   title: 'My Piano Progress: Day 2 - Moonlight Sonata, 1st Movement, Beethoven. Part
@@ -748,7 +748,7 @@ recordings:
   duration_seconds: 102
   skill_bucket: 1
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: h_FZsenbchc
   title: '96: Moonlight Sonata - 1st Movement (Progress 5)'
@@ -756,7 +756,7 @@ recordings:
   duration_seconds: 394
   skill_bucket: 1
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 2un-3zJo1M0
   title: '"Beethoven, Moonlight Sonata" (1st Movement), self-taught piano'
@@ -764,7 +764,7 @@ recordings:
   duration_seconds: 260
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: TJ-wO2tdzaM
   title: Beethoven - Moonlight Sonata (1st Movement) - Self Taught
@@ -772,7 +772,7 @@ recordings:
   duration_seconds: 302
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: I1rDkPJ9qDA
   title: Beethoven Moonlight Sonata 1st mvt in C Sharp Minor. Piano Self-Taught At
@@ -781,7 +781,7 @@ recordings:
   duration_seconds: 378
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: M64xEgDS0YI
   title: '"Moonlight Sonata - 1st Movement" by Beethoven | 9 Days Progress | Self
@@ -790,7 +790,7 @@ recordings:
   duration_seconds: 155
   skill_bucket: 1
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: AJ8GNh7a7d4
   title: Music Speaks - Beethoven's Moonlight Sonata, 1st Movement
@@ -798,7 +798,7 @@ recordings:
   duration_seconds: 399
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: Ey4n8vqlX_o
   title: Tiffany Poon plays Beethoven Moonlight Sonata
@@ -806,7 +806,7 @@ recordings:
   duration_seconds: 896
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 6E7ECQ5G2lY
   title: Kid plays “Moonlight Sonata 1st Movement” at Bowie Fine Arts Academy👍
@@ -814,7 +814,7 @@ recordings:
   duration_seconds: 312
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: FsOu8sRdqUQ
   title: Kid plays “Moonlight Sonata 1st Movement”
@@ -822,7 +822,7 @@ recordings:
   duration_seconds: 282
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: jPXxxx32Ack
   title: Camden's First Piano Recital Playing "Moonlight Sonata"
@@ -830,7 +830,7 @@ recordings:
   duration_seconds: 329
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: A55w1SpJ3KE
   title: Beethoven - Moonlight Sonata (First Movement)
@@ -838,7 +838,7 @@ recordings:
   duration_seconds: 338
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: wtZEVCQetxk
   title: Beethoven Moonlight Sonata 1st movement
@@ -846,7 +846,7 @@ recordings:
   duration_seconds: 229
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: OcXdRtKPYrY
   title: Moonlight Sonata (First Movement)
@@ -854,7 +854,7 @@ recordings:
   duration_seconds: 295
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: CXf5EdritPE
   title: Moonlight Sonata 1st Movement | Virtual Recital by 10 year old Manny
@@ -862,7 +862,7 @@ recordings:
   duration_seconds: 302
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: kfSnDd5mTsQ
   title: Beethoven - Moonlight Sonata, 1st Mvt. (Marnie Laird - Brooklyn Classical)
@@ -870,7 +870,7 @@ recordings:
   duration_seconds: 419
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: CGiU-4acUO0
   title: '@7 months, Spring Recital, Moonlight Sonata 1st movement, 40 year old learning
@@ -879,7 +879,7 @@ recordings:
   duration_seconds: 318
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: UG8oInZsYBc
   title: Joachim Lena Playing Moonlight Sonata 1st Movement by Beethoven on the Piano
@@ -888,7 +888,7 @@ recordings:
   duration_seconds: 285
   skill_bucket: 1
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 0dIBKMy6L5A
   title: 94 year old Philip Springer plays Moonlight Sonata
@@ -896,7 +896,7 @@ recordings:
   duration_seconds: 307
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: ACwgJ3jGcvE
   title: Moonlight Sonata (1st Movement) - Ludwig van Beethoven
@@ -905,14 +905,14 @@ recordings:
   skill_bucket: 3
   label_rationale: human curation
   downloaded: false
-  download_error: output file not found
+  download_error: null
 - video_id: 4bdcfcfBST0
   title: Piano Recital | Moonlight Sonata
   channel: Rina Newhouse
   duration_seconds: 331
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: bDFzd1elgRE
   title: Moonlight Sonata, Mvt 1 - Beethoven - Val Italo Piano Recital
@@ -920,7 +920,7 @@ recordings:
   duration_seconds: 316
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: -qIe21GOxTw
   title: George (11 years old) plays Beethoven Moonlight Sonata First Movement (George
@@ -929,7 +929,7 @@ recordings:
   duration_seconds: 378
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: llh9IE9x8AE
   title: 13-Year Old Russian Prodigy Daria Korotkova Plays 1st Movement of Beethoven's
@@ -938,7 +938,7 @@ recordings:
   duration_seconds: 378
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: RPcT2yaAdNA
   title: 'Andrea playing Beethoven: Moonlight Sonata, Movt. 1 arr.'
@@ -946,7 +946,7 @@ recordings:
   duration_seconds: 145
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: vD3gzLkCCBE
   title: 9 year old plays moonlight sonata 1st movement on piano
@@ -954,7 +954,7 @@ recordings:
   duration_seconds: 330
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: lNeM_7FTmiI
   title: Caleb | Moonlight Sonata Op. 27 No 1. Mvmt. 1 (Beethoven)
@@ -963,14 +963,14 @@ recordings:
   skill_bucket: 3
   label_rationale: human curation
   downloaded: false
-  download_error: output file not found
+  download_error: null
 - video_id: Pu3hGQCra18
   title: Beethoven “Moonlight Sonata” 1st mov. Paul Barton, FEURICH piano
   channel: Paul Barton
   duration_seconds: 410
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: sbTVZMJ9Z2I
   title: Beethoven - Moonlight Sonata (1st Movement)
@@ -978,7 +978,7 @@ recordings:
   duration_seconds: 445
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: oqnKwesvSGQ
   title: Beethoven "Moonlight Sonata" (1 mvt.) by Claudio Arrau
@@ -986,7 +986,7 @@ recordings:
   duration_seconds: 411
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 1aH8Rf6ULzU
   title: Beethoven, Moonlight Sonata
@@ -994,7 +994,7 @@ recordings:
   duration_seconds: 415
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 5GOE3w2ZUrQ
   title: Beethoven - Moonlight Sonata 1st Movement
@@ -1002,7 +1002,7 @@ recordings:
   duration_seconds: 357
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: Q2LOkiArCQs
   title: Beethoven - Moonlight Sonata (classical music)
@@ -1010,7 +1010,7 @@ recordings:
   duration_seconds: 343
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: S4L9uS0XHeQ
   title: Beethoven - Moonlight Sonata 1st Movement
@@ -1018,7 +1018,7 @@ recordings:
   duration_seconds: 373
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 9EGdL_P2iXE
   title: 'Igor Levit - Beethoven: Piano Sonata No. 14, Op. 27 No. 2, "Moonlight" (Opus
@@ -1027,7 +1027,7 @@ recordings:
   duration_seconds: 317
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: ZTGqvShhyIE
   title: Beethoven - Moonlight Sonata (Piano Sonata No. 14, Op. 27 No. 2, 1st Movement)
@@ -1035,7 +1035,7 @@ recordings:
   duration_seconds: 355
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: MTTdpaLomq0
   title: Moonlight Sonata performed live at the Royal Albert Hall (BBC Proms 2020)
@@ -1043,7 +1043,7 @@ recordings:
   duration_seconds: 370
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: RbLqW7A3nks
   title: Wilhelm Kempff plays Beethoven's Moonlight Sonata mvt 1
@@ -1051,7 +1051,7 @@ recordings:
   duration_seconds: 345
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 524VlYD0PVw
   title: Immortal Beloved Moonlight Sonata Scene
@@ -1059,7 +1059,7 @@ recordings:
   duration_seconds: 249
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: kVARN4_GcS4
   title: Beethoven - Moonlight Sonata (1st movement)
@@ -1067,7 +1067,7 @@ recordings:
   duration_seconds: 314
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: nhEey0Zeyic
   title: Ottavia Maria Maceratini, Beethoven, Moonlight Sonata, 1st Movement
@@ -1075,7 +1075,7 @@ recordings:
   duration_seconds: 390
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: Z4ZJOEgCU1s
   title: 'Piano Sonata No. 14 in C-sharp Minor, Op. 27, No. 2 "Moonlight Sonata":
@@ -1084,7 +1084,7 @@ recordings:
   duration_seconds: 369
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: nT7_IZPHHb0
   title: Beethoven-Moonlight Sonata (Mvt. 1)
@@ -1092,7 +1092,7 @@ recordings:
   duration_seconds: 368
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: irkraA_KkcQ
   title: 'Arthur Rubinstein: Beethoven, ''Moonlight Sonata'' 1st Movement'
@@ -1100,7 +1100,7 @@ recordings:
   duration_seconds: 371
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: M4b-PHPuwiM
   title: ALFRED BRENDEL - Moonlight Sonata (1st mvt)
@@ -1108,7 +1108,7 @@ recordings:
   duration_seconds: 363
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: JsuhXr2KCaM
   title: Moonlight Sonata  1st Movement
@@ -1116,7 +1116,7 @@ recordings:
   duration_seconds: 364
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: B5rpg5XdQ2Q
   title: 'Fazıl Say – Beethoven: Piano Sonata No. 14, "Moonlight" (Quasi una fantasia):
@@ -1125,5 +1125,5 @@ recordings:
   duration_seconds: 436
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null

@@ -8,7 +8,7 @@ recordings:
   duration_seconds: 125
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 4OYW4lpRv5g
   title: Chopin Etude Op.10 no.4 "Torrent" - 4 Years Piano Progress
@@ -16,7 +16,7 @@ recordings:
   duration_seconds: 129
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: m5AC0oPtQTs
   title: Chopin Etude Op.10 No.4 (Torrent) 30-hour progress
@@ -24,7 +24,7 @@ recordings:
   duration_seconds: 142
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: DKCz7yhiPnQ
   title: Chopin - Etude Op. 10 No. 4  - 4 months progress
@@ -32,7 +32,7 @@ recordings:
   duration_seconds: 157
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: oOOFxDbq3RE
   title: BRUCE (XIAOYU) LIU – Etude in C sharp minor, Op. 10 No. 4 (18th Chopin Competition,
@@ -41,7 +41,7 @@ recordings:
   duration_seconds: 125
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: qUsGZxCVMzI
   title: Mediocre pianist plays Chopin 10-4 after a month of focused effort
@@ -49,7 +49,7 @@ recordings:
   duration_seconds: 151
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: HUnsxa-dBfY
   title: Chopin Etude No. 4 Op. 10 Progress Report 1 (1/2)
@@ -57,7 +57,7 @@ recordings:
   duration_seconds: 600
   skill_bucket: 1
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: aPSkn_STaFo
   title: Chopin, 'Torrent' Etude Op.10 No.4
@@ -65,7 +65,7 @@ recordings:
   duration_seconds: 143
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: dKdSLFZmqcY
   title: Chopin Etude op. 10 no. 4 (Torrent)  |  Marco Vitaliti
@@ -73,7 +73,7 @@ recordings:
   duration_seconds: 114
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: R5v1T714zgY
   title: Chopin - Etude Op. 10 No. 4 "Torrent'
@@ -81,7 +81,7 @@ recordings:
   duration_seconds: 135
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 3FWunMmPvjY
   title: Chopin Etude 4 Op 10 Progress Report 1 (part 2/2)
@@ -89,7 +89,7 @@ recordings:
   duration_seconds: 600
   skill_bucket: 1
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: be432AqaOCk
   title: Etude Op 10 No 4 progress
@@ -97,7 +97,7 @@ recordings:
   duration_seconds: 153
   skill_bucket: 1
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: WLw9iSWjtYs
   title: Chopin Etude no. 4 op. 10 in progress
@@ -105,7 +105,7 @@ recordings:
   duration_seconds: 162
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: YF1jzqfEt0g
   title: Chopin Etude Op.10 No.4 "Torrent" | Annique Göttler
@@ -113,7 +113,7 @@ recordings:
   duration_seconds: 125
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: _GtZmhIz3w4
   title: Chopin etude N.4 Op.10 Natia Beraia
@@ -121,7 +121,7 @@ recordings:
   duration_seconds: 126
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: tFQ5GgmPQEU
   title: 'Chopin: 12 Études, Op. 10: No. 4 in C-Sharp Minor'
@@ -129,7 +129,7 @@ recordings:
   duration_seconds: 132
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: pa3ZpuYthG4
   title: Piano performance Chopin Op 10. No. 4
@@ -137,7 +137,7 @@ recordings:
   duration_seconds: 127
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: VdFRiOQ-fXs
   title: Chopin Etude No.4 Opus 10
@@ -145,7 +145,7 @@ recordings:
   duration_seconds: 136
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 9kGulRHFyGo
   title: Chopin, Etude in C Sharp Minor, Op 10, No. 4
@@ -153,7 +153,7 @@ recordings:
   duration_seconds: 148
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: AnGHgPIiOjU
   title: Chopin etude op 10 no 4
@@ -161,7 +161,7 @@ recordings:
   duration_seconds: 126
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: c20LhMOVs1M
   title: Performing Chopin Etude Op. 10 No. 4
@@ -169,7 +169,7 @@ recordings:
   duration_seconds: 132
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: BKTfrncOLF0
   title: Chopin Etude Op 10 No  4
@@ -177,7 +177,7 @@ recordings:
   duration_seconds: 147
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: Lk7KYWtvup8
   title: Chopin Étude Op. 10, No. 4 in C♯ minor
@@ -185,7 +185,7 @@ recordings:
   duration_seconds: 146
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: XBWlYQHYbGc
   title: F. Chopin - Etude Op. 10 No. 4 (Marcin Tjernbäck)
@@ -193,7 +193,7 @@ recordings:
   duration_seconds: 143
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: CxHjjVYzY4Y
   title: Chopin Torrent Etude - self taught pianist
@@ -201,7 +201,7 @@ recordings:
   duration_seconds: 124
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 2chA6tHiSP4
   title: Chopin Etude no 4
@@ -209,7 +209,7 @@ recordings:
   duration_seconds: 132
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 0t-K0zJv_WY
   title: RMA Student Eric Yang Plays Etude, Op 10, No 4 By Chopin
@@ -217,7 +217,7 @@ recordings:
   duration_seconds: 136
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: -wyCOEoOBC4
   title: RMA Student Eric Yang Plays Etude Op 10 No 4 By Chopin
@@ -225,7 +225,7 @@ recordings:
   duration_seconds: 138
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: dn0M-vhbJXA
   title: Piano Student Performs Chopin Etude Op.10 No.4 | Allegro Music & Dance Recital
@@ -233,7 +233,7 @@ recordings:
   duration_seconds: 170
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: teV7eA5qNVo
   title: Hyeonuk Park plays Chopin Op. 10 No. 4
@@ -241,7 +241,7 @@ recordings:
   duration_seconds: 130
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: FoA5IxecDL4
   title: Valentina Lisitsa - Chopin - Etude Op. 10 No. 4 (live)
@@ -249,7 +249,7 @@ recordings:
   duration_seconds: 105
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: d-jlvJdEZQo
   title: LEONORA ARMELLINI – Etude in C sharp minor, Op. 10 No. 4 (18th Chopin Competition,
@@ -258,7 +258,7 @@ recordings:
   duration_seconds: 115
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: wI5JYKgvFLo
   title: Umi Garrett, 12 yr. - Chopin Etude Op.10 No.4
@@ -266,7 +266,7 @@ recordings:
   duration_seconds: 161
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: _CF4I7CKOxE
   title: 2025 Solo Recital - Ryan playing Etude Op.10 No.4 by F. Chopin
@@ -274,7 +274,7 @@ recordings:
   duration_seconds: 204
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: m9J_EhUFZtA
   title: Chopin Etude Op. 10, No. 4
@@ -282,7 +282,7 @@ recordings:
   duration_seconds: 120
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: Mx940cMW_sY
   title: Julian Raheb age 16 Chopin Etude Op 10 no 4 'Torrent' Jan 15 2022 MSM
@@ -290,7 +290,7 @@ recordings:
   duration_seconds: 132
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: -VGNCs-1748
   title: Chopin - Etude Op. 10 No. 4 (Torrent) - George Harliono (piano)
@@ -298,7 +298,7 @@ recordings:
   duration_seconds: 145
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: n5S3NbibTlQ
   title: Chopin Etude Op. 10 No. 4
@@ -306,7 +306,7 @@ recordings:
   duration_seconds: 136
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: w5YWWvcHb5E
   title: Chopin Etude Op. 10 No. 4 in C# minor
@@ -314,7 +314,7 @@ recordings:
   duration_seconds: 119
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: sJest5G9RvQ
   title: NLMF 2014 Opening NIght Concert - Chopin Op  10 No  4
@@ -322,7 +322,7 @@ recordings:
   duration_seconds: 167
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: ixuhe1nZnbU
   title: CHOPIN. Etude op. 10 No. 4 in C-sharp Minor
@@ -330,7 +330,7 @@ recordings:
   duration_seconds: 129
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 1Z_C5zWySmM
   title: CHOPIN ETUDE OP 10 NO 4
@@ -338,7 +338,7 @@ recordings:
   duration_seconds: 139
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: JL8eS7WFnPU
   title: Howard B. Richman Performs Chopin Etude Op 10, No 4 in C#m
@@ -346,7 +346,7 @@ recordings:
   duration_seconds: 137
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: EyWMbpM_pdc
   title: Lauren Guan plays Chopin Etude Op 10, No. 4
@@ -354,7 +354,7 @@ recordings:
   duration_seconds: 143
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: j8IpYUI8MD0
   title: Gabrielle Kim - 2017 CDCYM Chopin Piano Competition Master Runner-Up - Etude,
@@ -363,7 +363,7 @@ recordings:
   duration_seconds: 144
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 7ZUwjrA2FAM
   title: 'Chopin Etude Opus 10 No.4 : Purcell School Concert'
@@ -371,7 +371,7 @@ recordings:
   duration_seconds: 149
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: lS8leFqmP-g
   title: Sophia's Holy Cow! Etude Op. 10, No. 4 in C-Sharp Minor by Chopin
@@ -379,7 +379,7 @@ recordings:
   duration_seconds: 176
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: CRLcw6Honak
   title: Amateur pianist tries to play Chopin op 10 no 4 on an old piano
@@ -387,7 +387,7 @@ recordings:
   duration_seconds: 87
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: SE8NfOjtze8
   title: '#1 Chopin - Etude opus 10 no. 4 in C-sharp minor performed by Wibi Soerjadi'
@@ -395,7 +395,7 @@ recordings:
   duration_seconds: 143
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: RijsPhrkl0I
   title: Chopin - Etude Op. 10 No. 4 in C-Sharp Minor
@@ -403,7 +403,7 @@ recordings:
   duration_seconds: 131
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: FMtV5T0H_kM
   title: Ihang Lin performs  Frederic Chopin's Etude in C sharp minor, Op  10, No  4
@@ -411,7 +411,7 @@ recordings:
   duration_seconds: 153
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: xtmr3fzBmYg
   title: George Hua - Chopin Etude Op.10 No.4
@@ -419,7 +419,7 @@ recordings:
   duration_seconds: 125
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: SODpe1vssxk
   title: 'Chopin: Etude in C# Minor, Op. 10, #4'
@@ -427,7 +427,7 @@ recordings:
   duration_seconds: 165
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: HutdTsPsqzQ
   title: Chopin Etude Opus 10 No 4 Steven Billinger
@@ -435,7 +435,7 @@ recordings:
   duration_seconds: 136
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 1F5iY5Z67to
   title: Chopin Etude in C Sharp Minor Op.10 No.4- Piano Competition (Hannah Williams)
@@ -443,7 +443,7 @@ recordings:
   duration_seconds: 133
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: IRR5IlB-F0I
   title: 'Chopin: Etude in C# minor, op. 10 no. 4 (Michael Klein, Piano)'
@@ -451,7 +451,7 @@ recordings:
   duration_seconds: 141
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: bFmpEyE1s-E
   title: Chopin etude op. 10 no. 4 (Agustin Anievas)(1966) (sheet)
@@ -459,7 +459,7 @@ recordings:
   duration_seconds: 111
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: l_RnCSi1Gg0
   title: 'Daniel Whiteley Chopin Etude Op 10 #4'
@@ -468,14 +468,14 @@ recordings:
   skill_bucket: 4
   label_rationale: human curation
   downloaded: false
-  download_error: output file not found
+  download_error: null
 - video_id: TSwgszoLQUg
   title: Svyatoslav Levin plays Chopin - Etude in C-Sharp Minor, Op. 10,  No. 4
   channel: Svyatoslav Levin
   duration_seconds: 128
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: be8mf4v55BU
   title: Chopin Étude Op.10 No.4 | Practice Log – Day 9
@@ -483,7 +483,7 @@ recordings:
   duration_seconds: 205
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: VJ7lTvynG6Y
   title: 15 years Eva Mao play Chopin Etude No.4
@@ -491,7 +491,7 @@ recordings:
   duration_seconds: 156
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: w5NDr3AmZLk
   title: Chopin torrent etude op. 10 no. 4 - 2 months practice
@@ -499,7 +499,7 @@ recordings:
   duration_seconds: 180
   skill_bucket: 1
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 8EeU7zNPhr0
   title: Chopin Etude Op. 10 No. 4 "Torrent" 7 Months  Progress
@@ -507,7 +507,7 @@ recordings:
   duration_seconds: 300
   skill_bucket: 1
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: spvxiKm8Jmk
   title: Kevin Chen, Chopin Études Op. 10  No. 4
@@ -515,7 +515,7 @@ recordings:
   duration_seconds: 111
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: tb_KkRMXpbA
   title: Etude op. 10 No. 4 by Chopin (progress part 3)
@@ -523,7 +523,7 @@ recordings:
   duration_seconds: 136
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: dTwOfPPQJMI
   title: Chopin - Etude, Op.10 no.4
@@ -531,7 +531,7 @@ recordings:
   duration_seconds: 165
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: oHiU-u2ddJ4
   title: Chopin - Etude Op. 10 No. 4 (Torrent)
@@ -539,7 +539,7 @@ recordings:
   duration_seconds: 140
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: w4uxeX1Rnp8
   title: The fastest Chopin Etude Op. 10 no. 4 that I have ever heard | Sviatoslav
@@ -548,7 +548,7 @@ recordings:
   duration_seconds: 102
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: tH7550AF_Io
   title: It is one of the most difficult etudes, agree? Richter plays Chopin Etude
@@ -557,7 +557,7 @@ recordings:
   duration_seconds: 128
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: K7O7kdwkmOE
   title: She plays like a pro at such a young age | Yuja Wang (12) plays Chopin's
@@ -566,7 +566,7 @@ recordings:
   duration_seconds: 146
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 1h--wkIk1Nc
   title: Chopin Etude Op. 10 No. 4
@@ -574,7 +574,7 @@ recordings:
   duration_seconds: 155
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 1aB8JawkJBM
   title: Chopin Etude Op.10, No.4
@@ -582,7 +582,7 @@ recordings:
   duration_seconds: 131
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: Rq6hnt8sbeE
   title: Chopin etude Op.10 No.4
@@ -590,7 +590,7 @@ recordings:
   duration_seconds: 119
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: txDD0cWU2rw
   title: Self-taught PIANO, Chopin, Etude op.10-4 "Torrent", 2 years 6 months piano
@@ -599,7 +599,7 @@ recordings:
   duration_seconds: 123
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: GeH3Gvn1-TY
   title: Chopin - Etude Op. 10 No. 4 in C♯ minor "Torrent"
@@ -607,7 +607,7 @@ recordings:
   duration_seconds: 130
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: _J4A1w8HiGs
   title: F. Chopin Etude Op.10 No.4
@@ -615,7 +615,7 @@ recordings:
   duration_seconds: 137
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: orhKVBkiB2c
   title: Umi Garrett, 11yr. - Chopin Etude Op 10 No 4 (Latvia)
@@ -623,7 +623,7 @@ recordings:
   duration_seconds: 137
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: wWRCzX6wEbs
   title: Shuan Hern Lee(12) plays Chopin Etude Op.10 No.4
@@ -631,7 +631,7 @@ recordings:
   duration_seconds: 128
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: Jjxq6IFNLVM
   title: Tiffany Poon - Chopin Etude Op.10 No.4
@@ -639,7 +639,7 @@ recordings:
   duration_seconds: 123
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: _HuhVfue5wo
   title: Wang Yuja plays Chopin Etude op 10 no 4
@@ -647,7 +647,7 @@ recordings:
   duration_seconds: 141
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 6i1aiGCG3Ow
   title: Chopin etude op 10 no 4
@@ -655,7 +655,7 @@ recordings:
   duration_seconds: 120
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: Tj2z4By22F4
   title: Chopin Etude Op 10 No.4 Michael Andreas Haeringer
@@ -663,7 +663,7 @@ recordings:
   duration_seconds: 132
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 42QU3yj0kGU
   title: F. Chopin - Studio op.10 n.4 | Ergi Cane
@@ -671,7 +671,7 @@ recordings:
   duration_seconds: 133
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 0TZy4Va97xQ
   title: Chopin - Etude Op. 10 No. 4 - Evgeny Kissin.
@@ -679,7 +679,7 @@ recordings:
   duration_seconds: 109
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 5qFPQOOy4lU
   title: Son Duong (11) - Chopin Etude Op 10 no 4
@@ -687,7 +687,7 @@ recordings:
   duration_seconds: 132
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: XZom1OvBNn4
   title: Chopin Etude No  4 Op 10
@@ -695,7 +695,7 @@ recordings:
   duration_seconds: 136
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: O8TaAW8UmyA
   title: Max 11 years old playing Chopin Etude Op 10 No.4
@@ -703,7 +703,7 @@ recordings:
   duration_seconds: 125
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: r-5-iQIOq_A
   title: CHOPIN ÉTUDE No 4 Op. 10 GIOVANNI ALVINO pianist
@@ -711,7 +711,7 @@ recordings:
   duration_seconds: 169
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 3Mfo_0ZY6Dg
   title: Chopin - etude op.10 no.4
@@ -719,7 +719,7 @@ recordings:
   duration_seconds: 136
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 7kx89nOA1p8
   title: Ryan Leung – Chopin Etude Op. 10 No. 4 in C# minor
@@ -727,7 +727,7 @@ recordings:
   duration_seconds: 122
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: VuhOYGxleIE
   title: Chopin Etude Op. 10, no. 4 - Evan Lee
@@ -735,7 +735,7 @@ recordings:
   duration_seconds: 126
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 9MPxUVlXEOQ
   title: Carnegie Hall - Chopin Etude Op.10 No.4
@@ -743,7 +743,7 @@ recordings:
   duration_seconds: 158
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 3yB1SEEFsPs
   title: Chopin Etude op.10 No.12,Chopin Etude Op.10 No.4
@@ -751,7 +751,7 @@ recordings:
   duration_seconds: 288
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: JxO5Foxnmuw
   title: Emily Mullerman (LaG '21), Chopin Etude No 4 Op 10
@@ -759,7 +759,7 @@ recordings:
   duration_seconds: 136
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: YXJpGQwsbOY
   title: Chopin Étude Op. 10, No. 4 - Hannah Jean Baker
@@ -767,7 +767,7 @@ recordings:
   duration_seconds: 156
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 9fvlCSwpXd8
   title: F. Chopin Etude Op. 10 No. 4
@@ -775,7 +775,7 @@ recordings:
   duration_seconds: 118
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: YcXIQyEEfvE
   title: Aldric Gozon playing Chopin's Etude Op.10 No.4 - BLINDFOLDED!
@@ -783,7 +783,7 @@ recordings:
   duration_seconds: 127
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 0S7ieht-SLk
   title: Jessie Lo plays Chopin Etude Op. 10 No. 4
@@ -791,7 +791,7 @@ recordings:
   duration_seconds: 139
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 3Z7OK5Zry-c
   title: Chopin Etude No 4 Op 10 by 12 Years Old Boy
@@ -799,7 +799,7 @@ recordings:
   duration_seconds: 131
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: UElZ2rWxU68
   title: Little Bear - Chopin Etude Op.10-4 - piano - 14 years old
@@ -808,14 +808,14 @@ recordings:
   skill_bucket: 2
   label_rationale: human curation
   downloaded: false
-  download_error: output file not found
+  download_error: null
 - video_id: U34-QTnuq9Y
   title: Chopin's Torrent Étude performed by 13-Year-Old Olivia Ajero! | Daily Joy
   channel: From the Top
   duration_seconds: 198
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 1VDtl4aOzs0
   title: Chopin Etudes Op.10 No.4 (Torrent) in “Piano Friendship Lecture and Concert
@@ -824,7 +824,7 @@ recordings:
   duration_seconds: 143
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: O_1zZOYWnvU
   title: Chopin Etude Op. 10, Number 4 in c sharp played by 14 year old Nathaniel
@@ -832,7 +832,7 @@ recordings:
   duration_seconds: 145
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: V0vChM4cwno
   title: Jonathan's H.S. Senior Recital - Etude in C Sharp Minor, Op. 10 No.4 by Frederic
@@ -841,7 +841,7 @@ recordings:
   duration_seconds: 135
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: TTBUA3gzGAg
   title: Étude Op. 10, No. 4 in C♯ minor (Frédéric Chopin)
@@ -850,14 +850,14 @@ recordings:
   skill_bucket: 3
   label_rationale: human curation
   downloaded: false
-  download_error: output file not found
+  download_error: null
 - video_id: W3vLpEP_5og
   title: Etude Op  10 No  4 - Frederic Chopin (performed by Denise See)
   channel: triq
   duration_seconds: 139
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 5iVC7euriWY
   title: Chopin Etude op.10 no.4 - First Recording :P
@@ -865,7 +865,7 @@ recordings:
   duration_seconds: 127
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: eZ1tUnKGmqg
   title: Chopin Etude Op 10 No 4 (color coded by technical difficulty)
@@ -873,7 +873,7 @@ recordings:
   duration_seconds: 125
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: bjZp-4WSKgE
   title: chopin Etudes Op.10 No.4 (Highschool 1th grade. January)
@@ -881,7 +881,7 @@ recordings:
   duration_seconds: 130
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: FnSk2jRHmd8
   title: Chopin Etude Op.10 No.4
@@ -889,7 +889,7 @@ recordings:
   duration_seconds: 156
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: _un0-9yzVKE
   title: Chopin "Torrent" Etude Op. 10, No. 4 (performed by Amy Comparetto)
@@ -897,7 +897,7 @@ recordings:
   duration_seconds: 171
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: SBM-o12dmkM
   title: Chopin, Etude C#Minor, opus 10 nr.4 in Chopin's Original Tempo
@@ -905,7 +905,7 @@ recordings:
   duration_seconds: 281
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: xXCyGxn1cRg
   title: 'Chopin: Etude in C sharp minor Op. 10 No. 4 - Bolesław Woytowicz, 1959 -
@@ -914,7 +914,7 @@ recordings:
   duration_seconds: 144
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: ODpgvtnaRk4
   title: Chopin Etude op 10. no. 4 | Harvey ( Eton College Scholar, Harvard University,
@@ -923,7 +923,7 @@ recordings:
   duration_seconds: 123
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: E5UyNLujuVQ
   title: Chopin - Etude op. 10 n° 4
@@ -931,7 +931,7 @@ recordings:
   duration_seconds: 127
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: mUVCGsWhwHU
   title: Chopin Etude Op 10 No.4 Valentina Lisitsa
@@ -939,7 +939,7 @@ recordings:
   duration_seconds: 107
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: XIKdCTmcTLs
   title: Pollini plays Chopin Etude Op.10 No.4
@@ -947,7 +947,7 @@ recordings:
   duration_seconds: 123
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: oy0IgI_qewg
   title: Murray Perahia - Chopin, Etude op. 10 n°4
@@ -955,7 +955,7 @@ recordings:
   duration_seconds: 122
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: dkPkuv1M1K4
   title: Dmitry Shishkin plays Chopin Etude op. 10 no. 4 cis moll
@@ -963,7 +963,7 @@ recordings:
   duration_seconds: 123
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: iHC5G_vG5qw
   title: Tiffany Poon – Etude in C sharp minor Op. 10 No. 4 (first stage)
@@ -971,7 +971,7 @@ recordings:
   duration_seconds: 124
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: GQ-NAgDpRVs
   title: Chopin - Etude Op. 10, No. 4.avi - Sviatoslav Richter
@@ -979,7 +979,7 @@ recordings:
   duration_seconds: 97
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: wLo8peOJ70Y
   title: Chopin - Etude Op. 10 No. 4 “Torrent”
@@ -987,7 +987,7 @@ recordings:
   duration_seconds: 116
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: tTAl_6gw0h8
   title: 'Chopin: 12 Études, Op. 10: No. 4 in C-Sharp Minor "Torrent"'
@@ -995,7 +995,7 @@ recordings:
   duration_seconds: 122
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: v6UPMLnIGG0
   title: Chopin - Etude Op. 10, No. 4 [Yunchan Lim]
@@ -1003,7 +1003,7 @@ recordings:
   duration_seconds: 114
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: PZud7trKbL0
   title: Aimi Kobayashi – Etude in C sharp minor Op. 10 No. 4 (first stage)
@@ -1011,7 +1011,7 @@ recordings:
   duration_seconds: 120
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: ZIAZ6_jbau4
   title: Chopin - Etude Op.10 No.4  - 4K - piano - CANACANA
@@ -1019,7 +1019,7 @@ recordings:
   duration_seconds: 147
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 9JtIQzHqvcc
   title: F. Chopin - Etude Op. 10 No. 4 "Torrent"
@@ -1027,7 +1027,7 @@ recordings:
   duration_seconds: 124
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: rkWvdLE8Nfc
   title: Chopin - Etude Op. 10, No. 4 [Kevin Chen]
@@ -1035,7 +1035,7 @@ recordings:
   duration_seconds: 106
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: CRMOwaIkYSY
   title: Chopin - Etude Op.10 No.4 "Torrent"
@@ -1043,7 +1043,7 @@ recordings:
   duration_seconds: 131
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: dzwQz4z8O2I
   title: 'Chopin: Étude Op. 10 No. 4 [Horowitz 1973]'
@@ -1051,7 +1051,7 @@ recordings:
   duration_seconds: 128
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: Rkffm_6b3RE
   title: MARTÍN GARCÍA GARCÍA – Etude in C sharp minor, Op. 10 No. 4 (18th Chopin
@@ -1060,7 +1060,7 @@ recordings:
   duration_seconds: 136
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: kd0zgkvMNgk
   title: Murray Perahia - Chopin - Etude No 4 in C-sharp minor, Op 10
@@ -1068,7 +1068,7 @@ recordings:
   duration_seconds: 127
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: J8-36thdVEU
   title: Chopin Etude Op. 10 No. 4 "Torrent" - Nathan Schaumann
@@ -1076,7 +1076,7 @@ recordings:
   duration_seconds: 127
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: y_lfwU1DfZ8
   title: Cziffra - Chopin etude no.4 op.10
@@ -1084,7 +1084,7 @@ recordings:
   duration_seconds: 109
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: pEeFgBn3w_I
   title: 'Rubinstein plays Chopin: Étude op. 10 no. 4 (live, correct pitch, HQ)'
@@ -1092,7 +1092,7 @@ recordings:
   duration_seconds: 159
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: R-rtqkd-5Og
   title: 'Jan Lisiecki - Chopin: Étude No.4 in C sharp Minor (Official Video)'
@@ -1100,7 +1100,7 @@ recordings:
   duration_seconds: 142
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: sRvNbAPZSOY
   title: Richter plays Chopin - Étude Op. 10, No. 4  in C-sharp minor (1989 - live)
@@ -1108,7 +1108,7 @@ recordings:
   duration_seconds: 132
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: Y-_O2JUULxg
   title: Vladimir ASHKENAZY - Chopin Etude no.4 op.10 (1963)
@@ -1116,7 +1116,7 @@ recordings:
   duration_seconds: 126
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: HUoW-1cHUk8
   title: Argerich plays Chopin Etude Op.10 Nº4, live 1967 in Brescia
@@ -1124,7 +1124,7 @@ recordings:
   duration_seconds: 106
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: -yauT_uaKZo
   title: 77-year-old Barenboim plays Chopin Etude Op.10 No.4
@@ -1132,5 +1132,5 @@ recordings:
   duration_seconds: 107
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null

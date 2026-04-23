@@ -8,7 +8,7 @@ recordings:
   duration_seconds: 152
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: UfsPElJzZ8E
   title: Chopin Waltz Op. 64 No 2. C sharp minor ( 1 year piano progress)
@@ -16,7 +16,7 @@ recordings:
   duration_seconds: 235
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: b_E51SV0Zus
   title: 'Yuja Wang plays Chopin : Waltz in C sharp minor, Opus 64 No. 2'
@@ -24,7 +24,7 @@ recordings:
   duration_seconds: 261
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: wKHW9B6Wf1I
   title: F. Chopin - Waltz in C# minor (7.5 months piano progress)
@@ -32,7 +32,7 @@ recordings:
   duration_seconds: 243
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 3ZGG1nsfbnY
   title: Chopin - Waltz in C sharp minor (Piano Progress - First week)
@@ -40,7 +40,7 @@ recordings:
   duration_seconds: 62
   skill_bucket: 1
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: xAMQ2o5xjgQ
   title: 'Chopin - Waltz Op. 64 No.2 : 4 months piano progress'
@@ -48,7 +48,7 @@ recordings:
   duration_seconds: 243
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: h3-6DUmcnEY
   title: Chopin Waltz op.64 no.2 - Work in progress.
@@ -56,7 +56,7 @@ recordings:
   duration_seconds: 78
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: u12P3SZoi6Q
   title: Chopin Waltz in C-sharp minor Op 64 No 2 Vid 1
@@ -64,7 +64,7 @@ recordings:
   duration_seconds: 251
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: oaAuIBPkf60
   title: '60 days of practice: day 58 | Chopin Waltz op.64 no.2 | Two Month Piano
@@ -73,7 +73,7 @@ recordings:
   duration_seconds: 99
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: Vw7Yn0PZ-qU
   title: Day 29 Chopin Waltz op.64 no.2 C Sharp Minor | One Month Progress
@@ -81,7 +81,7 @@ recordings:
   duration_seconds: 75
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: v4q-dfjZclQ
   title: Chopin waltz h-flat minor op. 64 no. 2 (two years piano progress)
@@ -89,7 +89,7 @@ recordings:
   duration_seconds: 219
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: jJ77ofEbXQQ
   title: Waltz in C sharp minor - Chopin (18 months practice)
@@ -97,7 +97,7 @@ recordings:
   duration_seconds: 240
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: Fbg54sbSK1w
   title: chopin waltz in c sharp minor progress so far
@@ -105,7 +105,7 @@ recordings:
   duration_seconds: 84
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 0AA8dywQ6DA
   title: CHOPIN - Waltz no. 7 in C sharp minor, Op. 64 no. 2
@@ -113,7 +113,7 @@ recordings:
   duration_seconds: 250
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: jyfFr6lQZMo
   title: Chopin Waltz Op.  64 No.  2, Practice Session!
@@ -121,7 +121,7 @@ recordings:
   duration_seconds: 71
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: y2iTGdyYUPU
   title: Chopin Waltz in C sharp minor with Subtitles Richard Mathisen
@@ -129,7 +129,7 @@ recordings:
   duration_seconds: 257
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: dnQBgOqh0xU
   title: Chopin | Waltz Op. 64 No. 2 (C-sharp minor)
@@ -137,7 +137,7 @@ recordings:
   duration_seconds: 271
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: jsWHK1LiDAE
   title: Waltz in C Sharp Minor (Op. 64 No. 2) - Chopin
@@ -145,7 +145,7 @@ recordings:
   duration_seconds: 231
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 39dKUU8z95A
   title: Spring Recital (1/2) - Valse Opus 64, No. 2 in C sharp minor by Frédéric
@@ -154,7 +154,7 @@ recordings:
   duration_seconds: 301
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: UUnmlJIYYO0
   title: Student recital, December 2020 -  Chopin Waltz Op. 64 No. 2 in c# minor
@@ -163,14 +163,14 @@ recordings:
   skill_bucket: 3
   label_rationale: human curation
   downloaded: false
-  download_error: output file not found
+  download_error: null
 - video_id: 4oeiBYNrpR4
   title: 'Katie Z, age 10, plays Chopin: Waltz in C-sharp Minor, Op. 64 No. 2'
   channel: Lawrence Schubert
   duration_seconds: 245
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: M8PuKQHAF3s
   title: Alina Piano Recital 2025 — Waltz in C# Minor — Chopin — Paul Nazzaro Music
@@ -179,7 +179,7 @@ recordings:
   duration_seconds: 277
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: vB7_l8wSpz8
   title: Yuja Wang - Chopin - Walzer in C-sharp minor Op. 64 No. 2
@@ -187,7 +187,7 @@ recordings:
   duration_seconds: 238
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 4QyhPF2USpA
   title: Adrian Piano Recital 2022 - Waltz in C# Minor, Op 64 No 2 - Chopin - Paul
@@ -196,7 +196,7 @@ recordings:
   duration_seconds: 287
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 35pXpeKfSaI
   title: Mia Gulley | Final Piano Recital | Chopin's "Waltz in C# Minor Op. 64, No.
@@ -205,7 +205,7 @@ recordings:
   duration_seconds: 375
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: AitNVdv8W4c
   title: LIVE RECITAL PERFORMANCE - Joseph plays Chopin Waltz in C sharp minor, op.
@@ -214,7 +214,7 @@ recordings:
   duration_seconds: 217
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: Ko7M8xWvON8
   title: Chopin Valse Op 64. No 2. Waltz in C sharp minor - piano Karin Abu-Haya
@@ -222,7 +222,7 @@ recordings:
   duration_seconds: 231
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: Df0qzn1Vbb4
   title: Waltz in C-Sharp Minor - Frédéric Chopin, Op. 64, no. 2
@@ -230,7 +230,7 @@ recordings:
   duration_seconds: 253
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 61p6jtUYZLY
   title: Amanda 2022 Piano Recital (Chopin Waltz Opus 64, No. 2 in C♯ Minor)
@@ -239,14 +239,14 @@ recordings:
   skill_bucket: 2
   label_rationale: human curation
   downloaded: false
-  download_error: output file not found
+  download_error: null
 - video_id: MI9esEFUVtM
   title: Jasmine performs Chopin Waltz in C sharp minor Op. 64 No.2
   channel: The Peery Piano Method
   duration_seconds: 216
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: ONMemtVlocc
   title: Dr Michael Mitchell MRCP FFAEM - Piano Recital - Chopin Waltz in C sharp
@@ -255,7 +255,7 @@ recordings:
   duration_seconds: 284
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: WVsGf1ag6Us
   title: EVGENY KISSIN plays CHOPIN Waltz Op.64 n.2
@@ -263,7 +263,7 @@ recordings:
   duration_seconds: 274
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 3bPFdSj3H60
   title: 'Athena Li-Wu: Waltz in C-sharp Minor, Op. 64, No. 2 by Frédéric Chopin'
@@ -271,7 +271,7 @@ recordings:
   duration_seconds: 282
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: oUpqn0c0ZH8
   title: 'Chopin | Waltz in C- sharp minor, Op. 64, No. 2 | Piano Waltz | [ # 7 ]'
@@ -279,7 +279,7 @@ recordings:
   duration_seconds: 289
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: CpIpqkSybN8
   title: Waltz Op.64 no.2 in C-Sharp Minor by Chopin
@@ -287,7 +287,7 @@ recordings:
   duration_seconds: 267
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: m6R40gix0uc
   title: Chopin Waltz in C-Sharp Minor, Op. 64, No. 2
@@ -295,7 +295,7 @@ recordings:
   duration_seconds: 231
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: djRMZgA35cY
   title: Frédéric Chopin Op 64 No 2 Valse in C# minor
@@ -303,7 +303,7 @@ recordings:
   duration_seconds: 218
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 2LMlMlCneYk
   title: Chopin Waltz Op.64 No.2 (C-Sharp Minor) by Amateur
@@ -311,7 +311,7 @@ recordings:
   duration_seconds: 80
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: oMmkdt6e1aM
   title: Chopin Waltz Op. 64 No. 2 in C-sharp minor- Eric Lu (Live 2024)
@@ -319,7 +319,7 @@ recordings:
   duration_seconds: 293
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: jh6TpC0MHYE
   title: Chopin Opus 64 no 2 piano (amateur) cover
@@ -327,7 +327,7 @@ recordings:
   duration_seconds: 269
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: ehSKhRburRQ
   title: Artur Rubinstein - Chopin, Waltz Op. 64, No. 2
@@ -335,7 +335,7 @@ recordings:
   duration_seconds: 227
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: qDk09G_Xzjc
   title: Waltz in C Sharp Minor - Chopin | Amateur Pianist on 1878 Emerson Upright
@@ -343,7 +343,7 @@ recordings:
   duration_seconds: 236
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: J64g6GGj9Cs
   title: Chopin - Waltz in C sharp minor, Op. 64 No. 2 (Daqquin, amateur)
@@ -351,7 +351,7 @@ recordings:
   duration_seconds: 220
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: xM4v3xaSU6s
   title: Jan Lisiecki - F. Chopin - Waltz Op. 64 No. 2
@@ -359,7 +359,7 @@ recordings:
   duration_seconds: 266
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: D1TogQq7J_8
   title: Chopin Waltz in C-sharp Minor Opus 64 No 2 (Ethan)
@@ -367,7 +367,7 @@ recordings:
   duration_seconds: 260
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: hljk-Pd3oe0
   title: waltz Op. 64 n 2 Chopin (amateur performance)
@@ -375,7 +375,7 @@ recordings:
   duration_seconds: 254
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: MsrdAq4tvjo
   title: Valse in C# minor - Op.64, no. 2  (Chopin, Frédéric) | Melvin Zamora Jr -
@@ -384,7 +384,7 @@ recordings:
   duration_seconds: 293
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: mfzRSO0bVTg
   title: Chopin in Concert - Waltz in c-sharp minor Op. 64 No. 2
@@ -392,7 +392,7 @@ recordings:
   duration_seconds: 247
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 2oRd4uiGA20
   title: Chris Hess, pianist. Chopin Waltz in C#-minor.
@@ -400,7 +400,7 @@ recordings:
   duration_seconds: 312
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 3tXBGN3_FFw
   title: Chopin waltz in C# minor Op 64 No 2
@@ -408,7 +408,7 @@ recordings:
   duration_seconds: 234
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: Fdo33OHD1gQ
   title: Harry Clymer - Chopin Waltz in C Sharp Minor
@@ -416,7 +416,7 @@ recordings:
   duration_seconds: 223
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: aThOXGMyZjQ
   title: Chopin Waltz in C-sharp minor Op 64 No 2 Vid 2
@@ -424,7 +424,7 @@ recordings:
   duration_seconds: 237
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: EousHjFtaEI
   title: Chopin Valse Opus 64 No. 2 Intermediate Progress - (Complete) 4
@@ -432,7 +432,7 @@ recordings:
   duration_seconds: 193
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 2HVMf_nBtYQ
   title: Chopin Valse Opus 64 No. 2 Intermediate Progress - (Complete) 3
@@ -440,7 +440,7 @@ recordings:
   duration_seconds: 203
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: T_Y8HB_KwJ4
   title: Chopin Waltz Op.64 No.2
@@ -448,7 +448,7 @@ recordings:
   duration_seconds: 243
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: N3MnbU_mwrs
   title: 3 months piece progress - Chopin Waltz Op 64 no 2
@@ -457,14 +457,14 @@ recordings:
   skill_bucket: 3
   label_rationale: human curation
   downloaded: false
-  download_error: output file not found
+  download_error: null
 - video_id: 8ww0V00TsF0
   title: Chopin Valse Opus 64 No. 2 Early Progress - (First Part + Second Part) 2
   channel: Jeroen De Maeijer
   duration_seconds: 106
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: gYr7ZoT33_M
   title: Waltz Op. 64 No. 2 (Chopin)
@@ -472,7 +472,7 @@ recordings:
   duration_seconds: 225
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: IOMujhVVAJk
   title: Chopin waltz op64 no2 --My first ever piano concert after 10 months of piano
@@ -480,7 +480,7 @@ recordings:
   duration_seconds: 510
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: hCpcXwcmNSA
   title: Chopin Waltz Op.64, No.2 [Piano]
@@ -488,7 +488,7 @@ recordings:
   duration_seconds: 289
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 2j3d9-BpNHM
   title: Chopin - Waltz Op. 64 No. 2 (intermediate)
@@ -496,7 +496,7 @@ recordings:
   duration_seconds: 243
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: vN5MTsED2AA
   title: Chopin - waltz in C-sharp Minor, Opus 64 No 2
@@ -504,7 +504,7 @@ recordings:
   duration_seconds: 104
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: dft8Om0E0dw
   title: Harmony Zhu (age 7) - Chopin Waltz in C sharp Minor, Op.64, No.2
@@ -512,7 +512,7 @@ recordings:
   duration_seconds: 290
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: FsRLlv_sK6g
   title: Waltz Op. 64 No. 2 --- Garrett Xu
@@ -520,7 +520,7 @@ recordings:
   duration_seconds: 240
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 9FaS8tdT3KM
   title: Recital Chopin's Waltz Op.64 No. 2 (reupload)
@@ -528,7 +528,7 @@ recordings:
   duration_seconds: 317
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: TMvu0ebYj3w
   title: Piano Recital Chopin Waltz Op. 64 No 2
@@ -536,7 +536,7 @@ recordings:
   duration_seconds: 242
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: rSuCAHlQBZg
   title: Elena Weng(Age 8) in Recital - Waltz Op.64 No.2 in in C# minor By F. Chopin
@@ -544,7 +544,7 @@ recordings:
   duration_seconds: 284
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: bgfCkvHcj-I
   title: Chopin Waltz Op 64. No. 2 Cab Calloway School of the Arts
@@ -552,7 +552,7 @@ recordings:
   duration_seconds: 238
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: hlaT0s6xPLA
   title: Grace's Piano recital - Playing Chopin - Valse op 64 no 2
@@ -560,7 +560,7 @@ recordings:
   duration_seconds: 279
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: Dq1McrjC4ug
   title: Frederic Chopin, Waltz in C-sharp minor, Op. 64, No. 2
@@ -568,7 +568,7 @@ recordings:
   duration_seconds: 250
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 0oyjDvxTsFM
   title: Erica Hooshi plays Chopin Waltz op 64 no2 (age 12)
@@ -576,7 +576,7 @@ recordings:
   duration_seconds: 218
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: yXr6ujaRDw8
   title: Sunny's Students House Recital 2018 - Brandon Song - CHOPIN Valse Op.64 No.2
@@ -584,7 +584,7 @@ recordings:
   duration_seconds: 249
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: tfkUjWHC8Yg
   title: 'Helena Lu: Waltz in C# Minor, Op. 64, No. 2 by Frederic Chopin'
@@ -592,7 +592,7 @@ recordings:
   duration_seconds: 232
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: jjPLkUZB6h0
   title: Chopin Waltz Op.64 No.2
@@ -600,7 +600,7 @@ recordings:
   duration_seconds: 282
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 6qaIrt_jSy0
   title: Waltz in C-Sharp Minor, Op. 64 No. 2 by Frederick Chopin
@@ -608,7 +608,7 @@ recordings:
   duration_seconds: 253
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 019fDlYfEYk
   title: Chopin - Waltz Op 64 N°2 Piano amateur
@@ -616,7 +616,7 @@ recordings:
   duration_seconds: 306
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: vUUyYwaojK0
   title: Valse Chopin Op. 64 no.2
@@ -624,7 +624,7 @@ recordings:
   duration_seconds: 246
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: RB762om7jO4
   title: Chopin - Waltz in C-sharp minor, Op.64, No.2
@@ -632,7 +632,7 @@ recordings:
   duration_seconds: 268
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: _x4H0sSMWnM
   title: '[PIANO AMATEUR CONTEST 2016] - Chopin - Valse No. 7, No. 2, Op. 64, cismoll
@@ -641,7 +641,7 @@ recordings:
   duration_seconds: 280
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 2mvG0xh0vAE
   title: Yuja Wang plays "Waltz n.2 in C-sharp minor, Op.64" by Chopin
@@ -649,7 +649,7 @@ recordings:
   duration_seconds: 229
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 0_hFQjIgmiA
   title: Practicing Chopin-Valse Op. 64, N° 2
@@ -657,7 +657,7 @@ recordings:
   duration_seconds: 209
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: fOkjE4Qw4to
   title: Nathaniel Dyrkton ~ [Chopin Waltz Op. 64 No.2]
@@ -665,7 +665,7 @@ recordings:
   duration_seconds: 226
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: d1mTnaEy8L8
   title: Chopin Waltz in C-sharp minor Op 64. No.2
@@ -673,7 +673,7 @@ recordings:
   duration_seconds: 241
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: nQkqUqy7e_k
   title: '60 days of practice: day 6 Chopin Waltz C Sharp Minor The Most Beautiful
@@ -682,7 +682,7 @@ recordings:
   duration_seconds: 68
   skill_bucket: 1
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: VUIH1xGIRbk
   title: Piano waltz c# minor op 64 no 2 Chopin.
@@ -690,7 +690,7 @@ recordings:
   duration_seconds: 294
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: RP8whG2d6FE
   title: Progress video | Chopin Waltz Op 64 no 2
@@ -698,7 +698,7 @@ recordings:
   duration_seconds: 162
   skill_bucket: 1
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: NeI8B2v_w9I
   title: Yuja Wang (Age 12) plays Chopin's Waltz Op. 64 no. 2 in C sharp minor | Video
@@ -707,7 +707,7 @@ recordings:
   duration_seconds: 209
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: SFgYb-kb98U
   title: Chopin - Waltz in C Sharp Minor (Op. 64 No. 2)
@@ -715,7 +715,7 @@ recordings:
   duration_seconds: 307
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: IRhKVZCPjsM
   title: Chopin - Waltz in C Sharp Minor, Op. 64 No.2
@@ -723,7 +723,7 @@ recordings:
   duration_seconds: 226
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: fV83JRNIEWE
   title: Chopin - Waltz Op. 64 No. 2 in C-sharp minor
@@ -731,7 +731,7 @@ recordings:
   duration_seconds: 246
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: VjYpJCBiV6U
   title: Waltz in C sharp minor op. 64 by Frédéric Chopin, played by Sean (7 years
@@ -740,7 +740,7 @@ recordings:
   duration_seconds: 242
   skill_bucket: 2
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: bGhbABeT4Ic
   title: Chopin, Waltz in C sharp minor, played by Ben Butler-Kwa
@@ -748,7 +748,7 @@ recordings:
   duration_seconds: 220
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: rb69n-bN9YE
   title: Chopin - Waltz in C-sharp minor Op64 No 2 Kids (2018 Dec)
@@ -757,7 +757,7 @@ recordings:
   skill_bucket: 3
   label_rationale: human curation
   downloaded: false
-  download_error: output file not found
+  download_error: null
 - video_id: YblMpI_9GaI
   title: Chopin - Waltz in C-sharp minor Op64 No 2 Kids (June 2019)
   channel: Yi Wang
@@ -765,7 +765,7 @@ recordings:
   skill_bucket: 3
   label_rationale: human curation
   downloaded: false
-  download_error: output file not found
+  download_error: null
 - video_id: QziXs1L1hG8
   title: Harmony Zhu (age 7) - CMC National 1st Place, Chopin Waltz in C sharp Minor
     Op.64 No.2, 2nd Round
@@ -773,7 +773,7 @@ recordings:
   duration_seconds: 229
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: BdY72m7wEOk
   title: My son plays Chopin.  He's been playing for only 2 years.
@@ -781,7 +781,7 @@ recordings:
   duration_seconds: 250
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: nSpmF_v_m8Y
   title: 'Senior recital: Chopin Waltz in C-sharp minor'
@@ -789,7 +789,7 @@ recordings:
   duration_seconds: 276
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: ho6DtfaSqwU
   title: Chopin - Waltz in C sharp minor, Op.64 No.2
@@ -797,7 +797,7 @@ recordings:
   duration_seconds: 300
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: s9mmYJXQ7gc
   title: Kana Li(9 years old), Waltz in c# minor Op.64 no.2, Chopin
@@ -805,7 +805,7 @@ recordings:
   duration_seconds: 238
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: -DPrw9qRxl8
   title: Chopin Waltz in C sharp minor, Op.64 No. 2 by Charlotte 9 year old
@@ -813,7 +813,7 @@ recordings:
   duration_seconds: 200
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: FlasiBlCVc0
   title: Christmas Recital 2013 - Chopin Waltz in C-sharp minor Op. 64 No. 2
@@ -821,7 +821,7 @@ recordings:
   duration_seconds: 247
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: ax6vhy5Ja-4
   title: Chopin Waltz in C-sharp Minor Op 64 No. 2 - Daniel 12
@@ -829,7 +829,7 @@ recordings:
   duration_seconds: 266
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: z8QVySBOU5Q
   title: Hayk Melikyan plays Chopin Waltz op.64, N2 in C-sharp Minor
@@ -837,7 +837,7 @@ recordings:
   duration_seconds: 216
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: WUl2KnpXlDg
   title: Waltz - Op. 64 no. 2 in C-Sharp Minor - Frédéric Chopin
@@ -845,7 +845,7 @@ recordings:
   duration_seconds: 273
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: VR6Q-sOqXaA
   title: Chopin Waltz in C Sharp Minor, Op. 64 No. 2 - Marissa Liu (Age 8)
@@ -853,7 +853,7 @@ recordings:
   duration_seconds: 235
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 1TjNljZfj6Q
   title: 11-Year-Old Davin Ghazavi Performs Chopin's Waltz Op. 64
@@ -861,7 +861,7 @@ recordings:
   duration_seconds: 417
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: hJ1U2j4b7LM
   title: World Record! Youngest! Arthur Zhou (AGE 6) Waltz in C Sharp Minor, Op. 64
@@ -870,7 +870,7 @@ recordings:
   duration_seconds: 266
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: v9TBRyHbRpw
   title: Waltz In C# Minor, Op.64 No.2 Chopin By Tom Michael 10 Years Old
@@ -878,7 +878,7 @@ recordings:
   duration_seconds: 222
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: Hi_bQlsg_D8
   title: Isabella Liu (age 8) - 1st Place Winner - Waltz in C sharp minor, Op 64 No.
@@ -887,7 +887,7 @@ recordings:
   duration_seconds: 259
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 9d-b_2JXmJg
   title: Amy plays Chopin Waltz in C Sharp Minor
@@ -895,7 +895,7 @@ recordings:
   duration_seconds: 171
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: SUT_0c2QVzo
   title: Chopin - Waltz in C Sharp Minor (Op. 64 No. 2)
@@ -903,7 +903,7 @@ recordings:
   duration_seconds: 271
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: nvIzusRcdzw
   title: Chopin "Waltz Op.64 No.2" P. Barton FEURICH 133 piano
@@ -911,7 +911,7 @@ recordings:
   duration_seconds: 280
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: hOcryGEw1NY
   title: Chopin - Waltz Op. 64 No. 2 (Rubinstein)
@@ -919,7 +919,7 @@ recordings:
   duration_seconds: 225
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: WRMI5VsbI64
   title: 'Rafał Blechacz - Chopin: Waltz No. 7 in C-Sharp Minor, Op. 64 No. 2'
@@ -927,7 +927,7 @@ recordings:
   duration_seconds: 217
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 1Z8BuDAEzVU
   title: 'Finger Tips: Waltz in C# Minor by Frédéric Chopin'
@@ -935,7 +935,7 @@ recordings:
   duration_seconds: 214
   skill_bucket: 3
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: VyBxps3BgYc
   title: Arthur Rubinstein - Chopin Waltz Op. 64 No. 2 in C Sharp Minor
@@ -943,7 +943,7 @@ recordings:
   duration_seconds: 225
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: wTSu1jjKpgI
   title: 'Chopin Valse Op 64. No 2. Waltz in c sharp minor #7 Valentina Lisitsa'
@@ -951,7 +951,7 @@ recordings:
   duration_seconds: 204
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: fSG6u4xNfqQ
   title: Ben Laude performs Chopin Waltz in C-sharp minor, Op. 64 No. 2
@@ -959,7 +959,7 @@ recordings:
   duration_seconds: 223
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 99N86wz78xo
   title: 'Waltz in C-Sharp Minor, Op. 64, No. 2: Tempo giusto - Khatia Buniatishvili'
@@ -967,7 +967,7 @@ recordings:
   duration_seconds: 201
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: SkdRNBfBqjo
   title: Chopin – Waltz Op. 64 No. 2
@@ -975,7 +975,7 @@ recordings:
   duration_seconds: 242
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: DLQwYDWMt3k
   title: Waltz in C-sharp minor, Op. 64 No. 2
@@ -983,7 +983,7 @@ recordings:
   duration_seconds: 200
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: LtQ4Beym11o
   title: Lugansky - Chopin, Waltz in C sharp minor, Op. 64, No. 2
@@ -991,7 +991,7 @@ recordings:
   duration_seconds: 279
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 4miyv7agvNQ
   title: Lola -  Waltz in C Sharp Minor (Op. 64 No.2)
@@ -999,7 +999,7 @@ recordings:
   duration_seconds: 243
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: n3WmS_Yj0jU
   title: Waltz No. 7 in c sharp minor, Op. 64,2
@@ -1007,7 +1007,7 @@ recordings:
   duration_seconds: 211
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: Z2jdhmJKXg4
   title: '[4K] Pf. Eric Lu | 에릭 루 :: F. Chopin, Waltz, Op.64 No.2'
@@ -1015,7 +1015,7 @@ recordings:
   duration_seconds: 279
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: KiGFBcfMZss
   title: Krystian Zimerman - Chopin Waltz Op 64 No 2 - Live At Tokyo - 1978
@@ -1023,7 +1023,7 @@ recordings:
   duration_seconds: 248
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: TXS5JdpLLM0
   title: Chopin - Waltz in C-sharp minor, Op.64 No.2 - pianomaedaful
@@ -1031,7 +1031,7 @@ recordings:
   duration_seconds: 241
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: slmcN7dEk-Q
   title: Alexandra Dovgan, Frédèric Chopin, Waltz cis-moll op.64 no2, Podium Klassiek
@@ -1039,7 +1039,7 @@ recordings:
   duration_seconds: 205
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: QK_0VotoftY
   title: Frédéric Chopin - Waltz in C sharp Minor, Op. 64, No. 2
@@ -1047,7 +1047,7 @@ recordings:
   duration_seconds: 214
   skill_bucket: 4
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: _d3tMxKiaZg
   title: Chopin - Waltz No 7 in c sharp minor, Op. 64 No 2 (Yuja Wang)
@@ -1055,7 +1055,7 @@ recordings:
   duration_seconds: 241
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: 3v21x-DApYg
   title: KHATIA BUNIATISHVILI plays Chopin - Waltz (Valse) Op.64 No 2 in C-Sharp minor
@@ -1064,7 +1064,7 @@ recordings:
   duration_seconds: 223
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: ilEiXi1amB0
   title: Chopin - Waltz in C-sharp minor, Op. 64, No. 2 - Garrick Ohlsson
@@ -1072,7 +1072,7 @@ recordings:
   duration_seconds: 342
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: jupBC7ScUoQ
   title: Alexei Sultanov Chopin Waltz in C sharp Minor, Op. 64 № 2 - 1999
@@ -1080,5 +1080,5 @@ recordings:
   duration_seconds: 226
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null

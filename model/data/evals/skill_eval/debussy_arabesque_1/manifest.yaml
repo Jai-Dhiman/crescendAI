@@ -8,7 +8,7 @@ recordings:
   duration_seconds: 271
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
 - video_id: uuDuIenxY1I
   title: 'Yuja Wang: Debussy Arabesque No 1 in E major'
@@ -16,5 +16,5 @@ recordings:
   duration_seconds: 251
   skill_bucket: 5
   label_rationale: human curation
-  downloaded: true
+  downloaded: false
   download_error: null
