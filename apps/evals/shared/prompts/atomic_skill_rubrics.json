@@ -1,0 +1,90 @@
+[
+  {
+    "move_id": "voicing_diagnosis",
+    "applies_when": "synthesis addresses balance between voices or hands",
+    "criteria": [
+      {"id": "names_voice", "text": "Names a specific voice or hand (melody / inner / bass / LH / RH)."},
+      {"id": "specific_locus", "text": "References a specific bar number or time range (e.g., 'bars 3-6')."},
+      {"id": "concrete_target", "text": "Prescribes a concrete dynamic or touch target (e.g., 'below mp', 'lighter')."},
+      {"id": "avoids_vague", "text": "Avoids vague balance language without specifics ('better balance', 'more musical')."},
+      {"id": "one_strategy", "text": "Names exactly one actionable practice strategy (e.g., 'play LH alone')."}
+    ]
+  },
+  {
+    "move_id": "pedal_triage",
+    "applies_when": "synthesis addresses pedaling",
+    "criteria": [
+      {"id": "names_phenomenon", "text": "Names which pedal phenomenon (over-pedaling, late change, blurred harmony, dry, flutter)."},
+      {"id": "specific_locus", "text": "References a specific bar / harmony change / beat where the issue lives."},
+      {"id": "concrete_action", "text": "Prescribes a concrete pedal action (half-pedal, change on beat 3, release before next chord)."},
+      {"id": "audible_outcome", "text": "Connects pedaling to an audible musical outcome (clarity, resonance, color)."},
+      {"id": "practice_strategy", "text": "Includes a practice strategy (no-pedal first, listen-only pass, mark the pedal in score)."}
+    ]
+  },
+  {
+    "move_id": "rubato_coaching",
+    "applies_when": "synthesis addresses tempo flexibility or rubato",
+    "criteria": [
+      {"id": "rubato_vs_drift", "text": "Distinguishes expressive rubato from unintentional drift."},
+      {"id": "phrase_locus", "text": "Names where in the phrase the rubato lives (peak, approach, recovery)."},
+      {"id": "style_grounding", "text": "References style or composer expectation for rubato use."},
+      {"id": "avoids_vague", "text": "Avoids generic 'play with feeling' framing; prescribes a measurable shape."},
+      {"id": "practice_strategy", "text": "Includes a practice strategy (metronome to freed, conduct the breath, sing the line)."}
+    ]
+  },
+  {
+    "move_id": "phrasing_arc_analysis",
+    "applies_when": "synthesis addresses musical sentence shape or phrase",
+    "criteria": [
+      {"id": "names_arc_parts", "text": "Names at least 2 of {start, peak, resolution} of the phrase explicitly."},
+      {"id": "specific_locus", "text": "References a specific bar or beat where the peak / breath sits."},
+      {"id": "shape_to_decision", "text": "Connects phrase shape to a dynamic, agogic, or tonal-color decision."},
+      {"id": "line_as_unit", "text": "Addresses the line as a unit (does not isolate individual notes)."},
+      {"id": "practice_strategy", "text": "Includes a practice strategy (sing the line, slur in groups, breathe at phrase end)."}
+    ]
+  },
+  {
+    "move_id": "tempo_stability_triage",
+    "applies_when": "synthesis addresses pulse, timing instability, or tempo evenness",
+    "criteria": [
+      {"id": "drift_vs_rush", "text": "Distinguishes drift (gradual) from rushing (acute) from dragging (acute) - not just 'uneven'."},
+      {"id": "specific_locus", "text": "Names where in the piece the instability appears (specific bars or transition)."},
+      {"id": "names_cause", "text": "Identifies a likely cause (technical demand, hand-coordination, breath, performance anxiety)."},
+      {"id": "tempo_target", "text": "Prescribes a tempo target or a stable reference (metronome BPM, internal subdivision)."},
+      {"id": "practice_strategy", "text": "Includes a practice strategy (subdivision, slow-fast-slow, hands-separately at tempo)."}
+    ]
+  },
+  {
+    "move_id": "dynamic_range_audit",
+    "applies_when": "synthesis addresses dynamics or volume",
+    "criteria": [
+      {"id": "names_range", "text": "Names the actual range observed (compressed, narrow, mostly mf, lacks pp, lacks ff)."},
+      {"id": "specific_locus", "text": "References specific bars where the issue is sharpest."},
+      {"id": "expressive_function", "text": "Connects range to expressive function (rising arc, climax, surprise contrast)."},
+      {"id": "avoids_vague", "text": "Avoids 'play louder/softer' without target dynamic level or context."},
+      {"id": "practice_strategy", "text": "Includes a practice strategy (extreme contrasts as exercise, listen for ceiling/floor)."}
+    ]
+  },
+  {
+    "move_id": "articulation_clarity_check",
+    "applies_when": "synthesis addresses note attack, release, or articulation",
+    "criteria": [
+      {"id": "names_articulation_type", "text": "Names the articulation type at issue (legato break, staccato length, accent placement, slur shape)."},
+      {"id": "specific_locus", "text": "References specific bars or a specific figure (e.g., 'the 16th-note runs')."},
+      {"id": "style_grounding", "text": "Connects articulation to era/style expectation (Baroque clarity, Romantic blend)."},
+      {"id": "avoids_vague", "text": "Avoids vague 'clearer' framing; prescribes a touch or finger-level technique."},
+      {"id": "practice_strategy", "text": "Includes a practice strategy (slow detached, dotted rhythms, hands separately listening)."}
+    ]
+  },
+  {
+    "move_id": "exercise_proposal",
+    "applies_when": "synthesis proposes a concrete drill or practice exercise",
+    "criteria": [
+      {"id": "names_skill", "text": "Names the specific skill the exercise targets (one dim or a specific gesture)."},
+      {"id": "passage_scope", "text": "Specifies passage scope (exact bars / hands / tempo)."},
+      {"id": "progression", "text": "Specifies progression (start tempo / target tempo, or simple to complex chain)."},
+      {"id": "stop_criterion", "text": "Specifies a stop criterion (% accuracy, comfort, 'until even')."},
+      {"id": "avoids_vague", "text": "Avoids generic 'practice slowly' framing without measurable terms."}
+    ]
+  }
+]
