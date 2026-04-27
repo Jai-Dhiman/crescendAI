@@ -31,3 +31,26 @@ def test_compute_deltas_returns_per_condition_delta(tmp_path: Path):
     assert abs(deltas["flip"] - 1.0) < 1e-6
     assert abs(deltas["shuffle"] - 0.5) < 1e-6
     assert abs(deltas["marginal"] - 0.5) < 1e-6
+
+
+from teaching_knowledge.ablation.analyze import decide_verdict
+
+
+def test_verdict_true_when_all_thresholds_met():
+    v = decide_verdict(deltas={"flip": 0.4, "shuffle": 0.2, "marginal": 0.18}, mean_sim_flip=0.7)
+    assert v == "true"
+
+
+def test_verdict_false_when_flip_delta_low():
+    v = decide_verdict(deltas={"flip": 0.1, "shuffle": 0.2, "marginal": 0.18}, mean_sim_flip=0.7)
+    assert v == "false"
+
+
+def test_verdict_false_when_high_similarity():
+    v = decide_verdict(deltas={"flip": 0.4, "shuffle": 0.2, "marginal": 0.18}, mean_sim_flip=0.95)
+    assert v == "false"
+
+
+def test_verdict_equivocal_in_gap():
+    v = decide_verdict(deltas={"flip": 0.2, "shuffle": 0.1, "marginal": 0.1}, mean_sim_flip=0.88)
+    assert v == "equivocal"
