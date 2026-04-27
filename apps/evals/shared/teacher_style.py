@@ -154,3 +154,87 @@ def _factor(tok, sig):
         tok.take()
         return v
     raise ValueError(f"unexpected token: {nxt}")
+
+
+from dataclasses import dataclass
+from functools import lru_cache
+from pathlib import Path
+import yaml
+
+PLAYBOOK_PATH = Path(__file__).resolve().parents[3] / "shared" / "teacher-style" / "playbook.yaml"
+
+PRIORITY_ORDER = [
+    "Technical-corrective", "Positive-encouragement", "Artifact-based",
+    "Guided-discovery", "Motivational",
+]
+FALLBACK_PRIMARY_KEY = "Technical-corrective"
+FALLBACK_SECONDARY_KEY = "Positive-encouragement"
+CONFIDENCE_FLOOR = 0.3
+
+
+@dataclass(frozen=True)
+class ClusterRef:
+    name: str
+    score: float
+    raw: dict
+
+
+@dataclass(frozen=True)
+class ClusterSelection:
+    primary: ClusterRef
+    secondary: ClusterRef
+
+
+@lru_cache(maxsize=1)
+def _load_playbook():
+    return yaml.safe_load(PLAYBOOK_PATH.read_text())["teaching_playbook"]["clusters"]
+
+
+def _priority_index(name: str) -> int:
+    for i, key in enumerate(PRIORITY_ORDER):
+        if key.lower() in name.lower():
+            return i
+    return len(PRIORITY_ORDER)
+
+
+_QUOTE_CHARS = '"\'' + chr(0x201C) + chr(0x201D) + chr(0x2018) + chr(0x2019)
+
+
+def _cluster_name(cluster: dict) -> str:
+    return cluster["name"].strip(_QUOTE_CHARS)
+
+
+def _normalize_name(s: str) -> str:
+    return s.lower().replace("-", "").replace("‑", "")
+
+
+def _find_cluster(substring: str) -> dict:
+    sub_norm = _normalize_name(substring)
+    for cluster in _load_playbook():
+        name_norm = _normalize_name(_cluster_name(cluster))
+        if sub_norm in name_norm:
+            return cluster
+    raise ValueError(f"no cluster matching {substring!r}")
+
+
+def _formula(cluster: dict) -> str:
+    raw = cluster["triggers"]["score"]
+    if not isinstance(raw, str):
+        return str(raw)
+    # Strip ASCII and Unicode curly quotes that YAML may preserve
+    return raw.strip(_QUOTE_CHARS)
+
+
+def select_clusters(signals: dict[str, Any]) -> ClusterSelection:
+    scored = [
+        ClusterRef(name=_cluster_name(c), score=evaluate(_formula(c), signals), raw=c)
+        for c in _load_playbook()
+    ]
+    scored.sort(key=lambda c: (-c.score, _priority_index(c.name)))
+    primary, secondary = scored[0], scored[1]
+    if primary.score < CONFIDENCE_FLOOR and secondary.score < CONFIDENCE_FLOOR:
+        fp = _find_cluster(FALLBACK_PRIMARY_KEY)
+        fs = _find_cluster(FALLBACK_SECONDARY_KEY)
+        primary = ClusterRef(name=_cluster_name(fp), score=0.0, raw=fp)
+        secondary = ClusterRef(name=_cluster_name(fs), score=0.0, raw=fs)
+    return ClusterSelection(primary=primary, secondary=secondary)
