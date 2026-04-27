@@ -27,6 +27,7 @@ from typing import Any
 import yaml
 
 from shared.style_rules import get_style_guidance
+from shared.teacher_style import format_teacher_voice_blocks, select_clusters
 from shared.provenance import RunProvenance, make_run_provenance
 from shared.judge_compatibility import assert_judge_compatible
 
@@ -152,6 +153,21 @@ def build_synthesis_user_msg(
 
     guidance = get_style_guidance(meta.get("composer", ""))
 
+    devs = [float(m["deviation_from_mean"]) for m in top_moments]
+    negs = [-d for d in devs if d < 0]
+    poss = [d for d in devs if d > 0]
+    signals = {
+        "max_neg_dev": max(negs) if negs else 0.0,
+        "max_pos_dev": max(poss) if poss else 0.0,
+        "n_significant": sum(1 for d in devs if abs(d) >= 0.1),
+        "drilling_present": False,
+        "drilling_improved": False,
+        "duration_min": duration_seconds / 60,
+        "mode_count": 1,
+        "has_piece": bool(meta.get("title")) and meta.get("title") != "Unknown",
+    }
+    voice_blocks = format_teacher_voice_blocks(select_clusters(signals))
+
     parts: list[str] = [
         "<session_data>",
         json.dumps(session_data, indent=2),
@@ -160,6 +176,9 @@ def build_synthesis_user_msg(
     if guidance:
         parts.append("")
         parts.append(guidance)
+    if voice_blocks:
+        parts.append("")
+        parts.append(voice_blocks)
     parts.append("")
     parts.append(
         "<task>Write <analysis>...</analysis> first as a reasoning scratchpad "
