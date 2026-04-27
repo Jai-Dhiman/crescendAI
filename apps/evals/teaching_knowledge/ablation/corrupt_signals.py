@@ -1,9 +1,18 @@
 """Three deterministic corruption functions for the white-noise ablation eval."""
 from __future__ import annotations
 import random
-from typing import Any
+from typing import Any, Literal
 
-Mode = str  # "shuffle" | "marginal" | "flip"
+Mode = Literal["shuffle", "marginal", "flip"]
+
+SCALER_MEAN: dict[str, float] = {
+    "dynamics": 0.545,
+    "timing": 0.4848,
+    "pedaling": 0.4594,
+    "articulation": 0.5369,
+    "phrasing": 0.5188,
+    "interpretation": 0.5064,
+}
 
 
 def corrupt(
@@ -43,7 +52,7 @@ def _marginal(src, seed, corpus):
         out.append({
             "dimension": dim,
             "score": new_score,
-            "deviation_from_mean": round(new_score - 0.5, 3),
+            "deviation_from_mean": round(new_score - SCALER_MEAN.get(dim, 0.5), 3),
             "direction": "above_average" if new_score > 0.5 else "below_average",
         })
     return out
@@ -56,7 +65,7 @@ def _flip(src):
         out.append({
             "dimension": moment["dimension"],
             "score": new_score,
-            "deviation_from_mean": round(new_score - 0.5, 3),
+            "deviation_from_mean": round(new_score - SCALER_MEAN.get(moment["dimension"], 0.5), 3),
             "direction": "above_average" if new_score > 0.5 else "below_average",
         })
     return out

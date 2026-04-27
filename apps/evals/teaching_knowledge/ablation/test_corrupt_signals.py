@@ -59,7 +59,7 @@ def test_flip_inverts_scores():
     assert out[1]["direction"] == "above_average"
 
 
-def test_flip_deterministic():
+def test_flip_seed_agnostic():
     src = [{"dimension": "dynamics", "score": 0.8, "deviation_from_mean": 0.25, "direction": "above_average"}]
     a = corrupt(src, mode="flip", seed=0, all_top_moments=[src])
     b = corrupt(src, mode="flip", seed=999, all_top_moments=[src])
