@@ -1,6 +1,6 @@
 // apps/api/src/services/teacher_style.test.ts
 import { describe, expect, it } from "vitest";
-import { evaluate, selectClusters } from "./teacher_style";
+import { evaluate, selectClusters, formatTeacherVoiceBlocks } from "./teacher_style";
 import fixtures from "../../../../shared/teacher-style/test_fixtures.json";
 
 const SIGNALS = {
@@ -67,3 +67,23 @@ describe("teacher_style.selectClusters parity fixtures", () => {
   });
 });
 
+describe("teacher_style.formatTeacherVoiceBlocks", () => {
+  const sig = {
+    max_neg_dev: 0.25, max_pos_dev: 0, n_significant: 3,
+    drilling_present: false, drilling_improved: false,
+    duration_min: 15, mode_count: 1, has_piece: true,
+  };
+
+  it("emits both teacher_voice and also_consider blocks", () => {
+    const out = formatTeacherVoiceBlocks(selectClusters(sig));
+    expect(out).toContain("<teacher_voice");
+    expect(out).toContain("<also_consider");
+    expect(out).toContain("Register:");
+    expect(out).toContain("Tone:");
+  });
+
+  it("includes a normalized cluster id in the attribute", () => {
+    const out = formatTeacherVoiceBlocks(selectClusters(sig));
+    expect(out).toMatch(/cluster="[a-z][a-z0-9-]+"/);
+  });
+});

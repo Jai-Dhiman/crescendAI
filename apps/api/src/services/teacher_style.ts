@@ -204,3 +204,48 @@ export function selectClusters(signals: Signals): ClusterSelection {
   }
   return { primary, secondary };
 }
+
+// ---- Task 14: formatTeacherVoiceBlocks ----
+
+function normalizeClusterId(name: string): string {
+  return name.toLowerCase()
+    .replace(/[‑–—]/g, "-")
+    .replace(/[“”‘’]/g, "")
+    .replace(/ \/ /g, "-")
+    .replace(/ /g, "-")
+    .replace(/['"]/g, "")
+    .trim();
+}
+
+function firstExemplar(cluster: Cluster): string {
+  for (const ex of cluster.good_examples ?? []) {
+    if (ex?.text) return cleanFormula(ex.text);
+  }
+  return "";
+}
+
+export function formatTeacherVoiceBlocks(selection: ClusterSelection): string {
+  const lines: string[] = [];
+  const p = selection.primary;
+  const s = selection.secondary;
+
+  const pId = normalizeClusterId(p.name);
+  const pReg = p.raw.language_patterns?.register ? cleanFormula(p.raw.language_patterns.register) : "";
+  const pTone = p.raw.language_patterns?.tone ? cleanFormula(p.raw.language_patterns.tone) : "";
+  const pEx = firstExemplar(p.raw);
+  lines.push(`<teacher_voice cluster="${pId}">`);
+  lines.push(`Register: ${pReg}`);
+  lines.push(`Tone: ${pTone}`);
+  if (pEx) lines.push(`Exemplar: ${pEx}`);
+  lines.push("</teacher_voice>");
+
+  const sId = normalizeClusterId(s.name);
+  const sWhen = (s.raw.when_to_use ?? []).map((w) => cleanFormula(w)).join("; ");
+  const sEx = firstExemplar(s.raw);
+  lines.push("");
+  lines.push(`<also_consider cluster="${sId}">`);
+  if (sWhen) lines.push(`Apply when: ${sWhen}`);
+  if (sEx) lines.push(`Exemplar: ${sEx}`);
+  lines.push("</also_consider>");
+  return lines.join("\n");
+}
