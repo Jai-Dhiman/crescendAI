@@ -102,3 +102,24 @@ def test_format_includes_cluster_attribute():
            "duration_min": 15.0, "mode_count": 1, "has_piece": True}
     out = format_teacher_voice_blocks(select_clusters(sig))
     assert 'cluster="' in out
+
+
+import json as _json
+from pathlib import Path as _Path
+
+_FIXTURES = _Path(__file__).resolve().parents[3] / "shared" / "teacher-style" / "test_fixtures.json"
+
+
+def test_parity_fixtures_match_expected_primary():
+    fixtures = _json.loads(_FIXTURES.read_text())
+    assert len(fixtures) >= 4
+    for f in fixtures:
+        sel = select_clusters(f["signals"])
+        assert f["expected_primary_substring"].lower() in sel.primary.name.lower(), (
+            f"fixture {f['name']}: expected primary contains "
+            f"{f['expected_primary_substring']!r}, got {sel.primary.name!r}"
+        )
+        assert f["expected_secondary_substring"].lower() in sel.secondary.name.lower(), (
+            f"fixture {f['name']}: expected secondary contains "
+            f"{f['expected_secondary_substring']!r}, got {sel.secondary.name!r}"
+        )
