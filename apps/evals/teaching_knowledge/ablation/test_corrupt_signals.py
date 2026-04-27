@@ -45,3 +45,22 @@ def test_marginal_scores_come_from_corpus():
     for moment in out:
         observed = [m["score"] for tm in CORPUS for m in tm if m["dimension"] == moment["dimension"]]
         assert moment["score"] in observed
+
+
+def test_flip_inverts_scores():
+    src = [
+        {"dimension": "dynamics", "score": 0.8, "deviation_from_mean": 0.25, "direction": "above_average"},
+        {"dimension": "timing", "score": 0.3, "deviation_from_mean": -0.18, "direction": "below_average"},
+    ]
+    out = corrupt(src, mode="flip", seed=0, all_top_moments=[src])
+    assert out[0]["score"] == pytest.approx(0.2)
+    assert out[1]["score"] == pytest.approx(0.7)
+    assert out[0]["direction"] == "below_average"
+    assert out[1]["direction"] == "above_average"
+
+
+def test_flip_deterministic():
+    src = [{"dimension": "dynamics", "score": 0.8, "deviation_from_mean": 0.25, "direction": "above_average"}]
+    a = corrupt(src, mode="flip", seed=0, all_top_moments=[src])
+    b = corrupt(src, mode="flip", seed=999, all_top_moments=[src])
+    assert a == b
