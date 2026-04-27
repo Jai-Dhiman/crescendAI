@@ -30,6 +30,7 @@ from shared.style_rules import get_style_guidance
 from shared.teacher_style import format_teacher_voice_blocks, select_clusters
 from shared.provenance import RunProvenance, make_run_provenance
 from shared.judge_compatibility import assert_judge_compatible
+from shared.judge_atomic import judge_atomic_matrix
 
 # Root paths
 EVALS_ROOT = Path(__file__).resolve().parents[1]
@@ -80,8 +81,6 @@ def _maybe_atomic_judge(
     *, synthesis_text: str, context: dict, judge_dimensions: list[dict],
     threshold: float, client,
 ) -> dict | None:
-    from shared.judge_atomic import judge_atomic_matrix
-
     scores = [
         float(d["score"]) for d in judge_dimensions
         if isinstance(d.get("score"), (int, float))
@@ -532,8 +531,7 @@ def main() -> None:
         "--atomic-threshold",
         type=float,
         default=2.0,
-        help="Run atomic-matrix judge when mean judge score is below this. "
-             "Set to 0.0 to never fire, 4.0 to always fire.",
+        help="Run atomic-matrix judge when mean judge score is below this threshold (default: %(default)s).",
     )
     args = parser.parse_args()
     default_split_file = EVALS_ROOT / "teaching_knowledge" / "data" / "splits.json"
