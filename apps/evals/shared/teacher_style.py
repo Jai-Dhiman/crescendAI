@@ -238,3 +238,50 @@ def select_clusters(signals: dict[str, Any]) -> ClusterSelection:
         primary = ClusterRef(name=_cluster_name(fp), score=0.0, raw=fp)
         secondary = ClusterRef(name=_cluster_name(fs), score=0.0, raw=fs)
     return ClusterSelection(primary=primary, secondary=secondary)
+
+
+def _normalize_cluster_id(name: str) -> str:
+    return (name.lower()
+            .replace(chr(0x2011), "-").replace(chr(0x2013), "-").replace(chr(0x2014), "-")
+            .replace(chr(0x201C), "").replace(chr(0x201D), "")
+            .replace(chr(0x2018), "").replace(chr(0x2019), "")
+            .replace(" / ", "-").replace(" ", "-").strip())
+
+
+def _first_exemplar(cluster: dict) -> str:
+    for ex in cluster.get("good_examples") or []:
+        text = ex.get("text") if isinstance(ex, dict) else None
+        if text:
+            return str(text).strip(_QUOTE_CHARS)
+    return ""
+
+
+def format_teacher_voice_blocks(selection: ClusterSelection) -> str:
+    lines: list[str] = []
+    p, s = selection.primary, selection.secondary
+
+    p_id = _normalize_cluster_id(p.name)
+    p_lp = p.raw.get("language_patterns", {})
+    p_register = str(p_lp.get("register", "")).strip(_QUOTE_CHARS)
+    p_tone = str(p_lp.get("tone", "")).strip(_QUOTE_CHARS)
+    p_ex = _first_exemplar(p.raw)
+    lines.append('<teacher_voice cluster="' + p_id + '">')
+    lines.append("Register: " + p_register)
+    lines.append("Tone: " + p_tone)
+    if p_ex:
+        lines.append("Exemplar: " + p_ex)
+    lines.append("</teacher_voice>")
+
+    s_id = _normalize_cluster_id(s.name)
+    s_when = "; ".join(
+        str(w).strip(_QUOTE_CHARS) for w in (s.raw.get("when_to_use") or [])
+    )
+    s_ex = _first_exemplar(s.raw)
+    lines.append("")
+    lines.append('<also_consider cluster="' + s_id + '">')
+    if s_when:
+        lines.append("Apply when: " + s_when)
+    if s_ex:
+        lines.append("Exemplar: " + s_ex)
+    lines.append("</also_consider>")
+    return "\n".join(lines)

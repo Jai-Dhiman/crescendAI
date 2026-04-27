@@ -79,3 +79,26 @@ def test_select_clusters_fallback_when_all_low():
     sel = select_clusters(sig)
     assert "Technical" in sel.primary.name
     assert "Positive" in sel.secondary.name or "praise" in sel.secondary.name.lower()
+
+
+from shared.teacher_style import format_teacher_voice_blocks
+
+
+def test_format_emits_both_blocks():
+    sig = {"max_neg_dev": 0.25, "max_pos_dev": 0.0, "n_significant": 3,
+           "drilling_present": False, "drilling_improved": False,
+           "duration_min": 15.0, "mode_count": 1, "has_piece": True}
+    out = format_teacher_voice_blocks(select_clusters(sig))
+    assert "<teacher_voice" in out
+    assert "<also_consider" in out
+    assert "Register:" in out
+    assert "Tone:" in out
+    assert "Exemplar:" in out
+
+
+def test_format_includes_cluster_attribute():
+    sig = {"max_neg_dev": 0.25, "max_pos_dev": 0.0, "n_significant": 3,
+           "drilling_present": False, "drilling_improved": False,
+           "duration_min": 15.0, "mode_count": 1, "has_piece": True}
+    out = format_teacher_voice_blocks(select_clusters(sig))
+    assert 'cluster="' in out
