@@ -35,12 +35,9 @@ describe('validateSkill', () => {
 })
 
 describe('validateCatalog', () => {
-  test('returns valid when fixtures directory contains only well-formed files referencing each other correctly', async () => {
-    // Run on the live catalog; expect this to be empty before any skill files exist
-    // and to remain valid (or report only missing-files errors) until catalog is populated.
+  test('returns no errors for the live catalog', async () => {
     const r = await validateCatalog('docs/harness/skills')
-    // The validator must always return a structured result, never throw.
-    expect(Array.isArray(r.errors)).toBe(true)
-    expect(typeof r.valid).toBe('boolean')
+    expect(r.errors).toEqual([])
+    expect(r.valid).toBe(true)
   })
 })
