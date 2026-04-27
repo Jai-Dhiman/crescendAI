@@ -45,6 +45,8 @@ teaching_playbook:
           - “Uses generic language, no measurable target.”
           - “References physical mechanics the system cannot observe (posture, hand shape, wrist angle).”
           - “Fails to connect the correction to the sound or musical intent.”
+      triggers:
+        score: “1.5 * max_neg_dev + 0.3 * n_significant - 0.5 * (1 if drilling_improved else 0)”
 
     - name: “Artifact‑based teaching”
       note: “CrescendAI cannot demonstrate live. The product equivalent of modeling is exercises that isolate the skill, score highlights that show where to focus, and reference recording suggestions. Metaphorical language is still valuable for conveying musical feel.”
@@ -90,8 +92,10 @@ teaching_playbook:
           - “Claims to demonstrate but provides no actionable artifact.”
           - “Uses metaphors that are unrelated to the musical sound, causing confusion.”
           - “Gives generic ‘listen to recordings’ advice without specifying what to listen for.”
+      triggers:
+        score: “(1.0 * max_neg_dev if max_neg_dev >= 0.15 else 0) + 0.5 * (1 if duration_min < 20 else 0) + 0.5 * (1 if has_piece else 0)”
 
-    - name: "Positive‑encouragement / praise"
+    - name: “Positive‑encouragement / praise”
       dominant_strategies:
         - "Specific praise": highlight exact musical successes (even 16th‑note rhythm, voicing, phrasing).
         - "Emotion‑focused affirmation": comment on expressive qualities (drama, colour, storytelling).
@@ -129,6 +133,8 @@ teaching_playbook:
         mediocre:
           - "Vague, generic compliments that do not inform future practice."
           - "Over‑praise without evidence, which can reduce credibility."
+      triggers:
+        score: "1.5 * max_pos_dev + 1.5 * (1 if drilling_improved else 0) + 0.5 * (1 if max_neg_dev < 0.1 else 0)"
 
     - name: "Motivational / autonomy‑supportive statements"
       dominant_strategies:
@@ -171,6 +177,8 @@ teaching_playbook:
           - “Vague motivational platitudes without actionable advice.”
           - “Over-authoritative, limiting student’s interpretive freedom.”
           - “Uses pressure that can increase anxiety.”
+      triggers:
+        score: “0.5 * (1 if duration_min < 10 else 0) + 0.5 * (1 if max_neg_dev < 0.1 and max_pos_dev < 0.1 else 0)”
 
     - name: “Guided-discovery / scaffolding feedback”
       dominant_strategies:
@@ -210,9 +218,11 @@ teaching_playbook:
           - "Encourages self‑assessment (e.g., “play it slowly, listen for evenness”)."
           - "Links each step to a musical outcome (e.g., “once you can play the rhythm cleanly, add dynamics”)."
         mediocre:
-          - "Vague or overly broad tasks (“practice more”) that lack measurable checkpoints."
-          - "Fails to adapt the scaffold to the student’s current skill level."
-          - "Neglects to check for understanding before moving to the next step."
+          - “Vague or overly broad tasks (“practice more”) that lack measurable checkpoints.”
+          - “Fails to adapt the scaffold to the student’s current skill level.”
+          - “Neglects to check for understanding before moving to the next step.”
+      triggers:
+        score: “0.5 * (1 if duration_min > 30 else 0) + 0.5 * (1 if mode_count >= 3 else 0) + 1.0 * (1 if drilling_present and not drilling_improved else 0)”
 
   product_constraints:
     sensing: “Audio only. MuQ provides 6 quality dimensions (dynamics, timing, pedaling, articulation, phrasing, interpretation). AMT provides MIDI transcription (notes, pedal events, timing). Score alignment provides bar‑level analysis when score MIDI is available.”
