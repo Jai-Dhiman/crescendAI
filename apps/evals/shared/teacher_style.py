@@ -57,7 +57,58 @@ def evaluate(formula: str, signals: dict[str, Any]) -> float:
 
 
 def _expr(tok, sig):
-    return _arith(tok, sig)
+    value = _arith(tok, sig)
+    nxt = tok.peek()
+    if nxt and nxt[0] == "ident" and nxt[1] == "if":
+        tok.take()
+        cond = _bool_expr(tok, sig)
+        kw = tok.peek()
+        if not kw or kw[1] != "else":
+            raise ValueError("expected 'else' in conditional")
+        tok.take()
+        else_value = _arith(tok, sig)
+        return value if cond else else_value
+    return value
+
+
+def _bool_expr(tok, sig):
+    left = _bool_and(tok, sig)
+    while tok.peek() and tok.peek()[0] == "ident" and tok.peek()[1] == "or":
+        tok.take()
+        right = _bool_and(tok, sig)
+        left = left or right
+    return left
+
+
+def _bool_and(tok, sig):
+    left = _bool_not(tok, sig)
+    while tok.peek() and tok.peek()[0] == "ident" and tok.peek()[1] == "and":
+        tok.take()
+        right = _bool_not(tok, sig)
+        left = left and right
+    return left
+
+
+def _bool_not(tok, sig):
+    nxt = tok.peek()
+    if nxt and nxt[0] == "ident" and nxt[1] == "not":
+        tok.take()
+        return not _cmp(tok, sig)
+    return _cmp(tok, sig)
+
+
+def _cmp(tok, sig):
+    left = _arith(tok, sig)
+    nxt = tok.peek()
+    if nxt and nxt[1] in ("<", "<=", ">", ">=", "==", "!="):
+        op = tok.take()[1]
+        right = _arith(tok, sig)
+        return {
+            "<": left < right, "<=": left <= right,
+            ">": left > right, ">=": left >= right,
+            "==": left == right, "!=": left != right,
+        }[op]
+    return bool(left)
 
 
 def _arith(tok, sig):
@@ -87,6 +138,9 @@ def _factor(tok, sig):
         tok.take()
         return float(text)
     if kind == "ident":
+        _KEYWORDS = {"if", "else", "and", "or", "not"}
+        if text in _KEYWORDS:
+            raise ValueError(f"unexpected keyword in arithmetic position: {text!r}")
         if text not in ALLOWED_SIGNALS:
             raise ValueError(f"unknown signal: {text}")
         tok.take()
