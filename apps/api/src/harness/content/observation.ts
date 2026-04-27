@@ -31,7 +31,7 @@ export const ObservationSchema = z.object({
 	pieceContext: z.string().nullable().optional(),
 	learningArc: z.string().nullable().optional(),
 	isFallback: z.boolean(),
-	createdAt: z.string(),
+	createdAt: z.string().datetime(),
 	messageId: z.string().nullable().optional(),
 	conversationId: z.string().nullable().optional(),
 });

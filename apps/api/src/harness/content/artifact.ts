@@ -5,7 +5,7 @@ export const ArtifactRowSchema = z.object({
 	schema_name: z.string().min(1),
 	schema_version: z.number().int().positive(),
 	producer: z.string().min(1),
-	created_at: z.string(),
+	created_at: z.string().datetime(),
 	payload: z.unknown(),
 });
 

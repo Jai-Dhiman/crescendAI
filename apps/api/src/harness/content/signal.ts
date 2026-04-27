@@ -23,7 +23,7 @@ const headers = z.object({
 	chunk_id: z.string().min(1),
 	producer: z.string().min(1),
 	producer_version: z.string().min(1),
-	created_at: z.string(),
+	created_at: z.string().datetime(),
 });
 
 const muqPayload = z.object({
