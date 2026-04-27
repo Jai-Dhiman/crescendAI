@@ -65,6 +65,27 @@ def test_run_ablation_resume_safe(tmp_path: Path):
     n_first = len(client.calls)
     run_ablation(sessions=[SESSION], out_path=out, synthesis_client=client, seed=42, skip_judge=True)
     assert len(client.calls) == n_first
+
+
+def test_run_ablation_judge_called_per_condition(tmp_path: Path):
+    out = tmp_path / "ablation.jsonl"
+
+    class FakeJudge:
+        def __init__(self) -> None:
+            self.calls = 0
+        def complete(self, *, user: str, system: str, max_tokens: int) -> str:
+            self.calls += 1
+            return '[{"criterion": "specificity", "process": 2, "outcome": 2, "score": 2, "evidence": "ok", "reason": "ok"}]'
+
+    client = FakeClient()
+    judge = FakeJudge()
+    run_ablation(sessions=[SESSION], out_path=out, synthesis_client=client, judge_client=judge, seed=42)
+    rows = [json.loads(line) for line in out.read_text().splitlines() if line.strip()]
+    assert len(rows) == 4
+    assert judge.calls == 4
+    for r in rows:
+        assert "judge_dimensions" in r
+        assert isinstance(r["judge_dimensions"], list)
 ```
 
 - [ ] **Step 2: Run test — verify it FAILS**
@@ -72,7 +93,7 @@ def test_run_ablation_resume_safe(tmp_path: Path):
 ```
 cd apps/evals && uv run pytest teaching_knowledge/ablation/test_run_ablation.py -v
 ```
-Expected: FAIL — `ModuleNotFoundError: No module named 'teaching_knowledge.ablation.run_ablation'`.
+Expected: FAIL — `ModuleNotFoundError: No module named 'teaching_knowledge.ablation.run_ablation'` (first two tests). After the module exists, the third test will also fail with `TypeError: run_ablation() got an unexpected keyword argument 'judge_client'`.
 
 - [ ] **Step 3: Implement the minimum to make the test pass**
 
@@ -93,8 +114,14 @@ SCALER_MEAN = {
     "articulation": 0.5369, "phrasing": 0.5188, "interpretation": 0.5064,
 }
 
+JUDGE_SYSTEM = "You are a careful evaluator. Score the teacher synthesis on 7 pedagogical dimensions. Output a JSON array."
+
 
 class SynthesisClient(Protocol):
+    def complete(self, *, user: str, system: str, max_tokens: int) -> str: ...
+
+
+class JudgeClient(Protocol):
     def complete(self, *, user: str, system: str, max_tokens: int) -> str: ...
 
 
@@ -129,6 +156,29 @@ def _build_user_msg(top_moments, duration_seconds, meta) -> str:
     return f"<session_data>\n{json.dumps(payload, indent=2)}\n</session_data>\n<task>Write 3-6 sentences.</task>"
 
 
+def _call_judge(judge_client: JudgeClient, synthesis_text: str, meta: dict) -> list[dict]:
+    """Call the judge and return parsed dimension list. Raises on parse failure."""
+    user = (
+        f"Piece: {meta['title']} by {meta['composer']}\n"
+        f"Student skill level: {meta['skill_bucket']}\n\n"
+        f"## AI Teacher Output to Evaluate\n{synthesis_text}"
+    )
+    raw = judge_client.complete(user=user, system=JUDGE_SYSTEM, max_tokens=4000)
+    text = raw.strip()
+    if text.startswith("```"):
+        text = text.split("```", 2)[1]
+        if text.startswith("json"):
+            text = text[4:]
+        text = text.strip().rstrip("`").strip()
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"judge returned non-JSON: {exc}; raw={raw[:200]!r}") from exc
+    if not isinstance(data, list):
+        raise ValueError(f"judge response is not a list: raw={raw[:200]!r}")
+    return data
+
+
 def _load_completed(out_path: Path) -> set[tuple[str, str]]:
     if not out_path.exists():
         return set()
@@ -142,7 +192,15 @@ def _load_completed(out_path: Path) -> set[tuple[str, str]]:
     return done
 
 
-def run_ablation(*, sessions, out_path, synthesis_client, seed=42, skip_judge=False):
+def run_ablation(
+    *,
+    sessions: list[dict],
+    out_path: Path,
+    synthesis_client: SynthesisClient,
+    judge_client: JudgeClient | None = None,
+    seed: int = 42,
+    skip_judge: bool = False,
+) -> None:
     out_path.parent.mkdir(parents=True, exist_ok=True)
     completed = _load_completed(out_path)
     all_real_top_moments = [_muq_to_top_moments(s["muq_means"]) for s in sessions]
@@ -163,13 +221,19 @@ def run_ablation(*, sessions, out_path, synthesis_client, seed=42, skip_judge=Fa
                 t0 = time.monotonic()
                 synth = synthesis_client.complete(user=user_msg, system=SYNTHESIS_SYSTEM, max_tokens=1024)
                 lat = round((time.monotonic() - t0) * 1000)
+
+                judge_dimensions: list[dict] = []
+                if not skip_judge and judge_client is not None:
+                    judge_dimensions = _call_judge(judge_client, synth, session["meta"])
+
                 row = {
                     "recording_id": session["recording_id"],
                     "condition": condition,
                     "top_moments_used": used_tm,
                     "synthesis_text": synth,
                     "synthesis_latency_ms": lat,
-                    "judge_skipped": skip_judge,
+                    "judge_dimensions": judge_dimensions,
+                    "judge_skipped": skip_judge or judge_client is None,
                 }
                 fout.write(json.dumps(row) + "\n")
                 fout.flush()
@@ -180,7 +244,7 @@ def run_ablation(*, sessions, out_path, synthesis_client, seed=42, skip_judge=Fa
 ```
 cd apps/evals && uv run pytest teaching_knowledge/ablation/test_run_ablation.py -v
 ```
-Expected: PASS (2 tests).
+Expected: PASS (3 tests).
 
 - [ ] **Step 5: Commit**
 
@@ -220,6 +284,23 @@ def test_orthogonal_strings_cosine_lower():
         "Discrete logarithm cryptography over elliptic curves.",
     )
     assert sim < 0.7
+
+
+def test_compute_deltas_returns_per_condition_delta(tmp_path: Path):
+    import json as _json
+    jsonl = tmp_path / "ablation.jsonl"
+    rows = [
+        {"recording_id": "r1", "condition": "real",     "judge_dimensions": [{"score": 2.5}]},
+        {"recording_id": "r1", "condition": "flip",     "judge_dimensions": [{"score": 1.5}]},
+        {"recording_id": "r1", "condition": "shuffle",  "judge_dimensions": [{"score": 2.0}]},
+        {"recording_id": "r1", "condition": "marginal", "judge_dimensions": [{"score": 2.0}]},
+    ]
+    jsonl.write_text("\n".join(_json.dumps(r) for r in rows))
+    from teaching_knowledge.ablation.analyze import compute_deltas
+    deltas = compute_deltas(jsonl)
+    assert abs(deltas["flip"] - 1.0) < 1e-6       # 2.5 - 1.5
+    assert abs(deltas["shuffle"] - 0.5) < 1e-6    # 2.5 - 2.0
+    assert abs(deltas["marginal"] - 0.5) < 1e-6   # 2.5 - 2.0
 ```
 
 - [ ] **Step 2: Run test — verify it FAILS**
@@ -227,7 +308,7 @@ def test_orthogonal_strings_cosine_lower():
 ```
 cd apps/evals && uv run --with sentence-transformers pytest teaching_knowledge/ablation/test_analyze.py -v
 ```
-Expected: FAIL — `ModuleNotFoundError: No module named 'teaching_knowledge.ablation.analyze'`.
+Expected: FAIL — `ModuleNotFoundError: No module named 'teaching_knowledge.ablation.analyze'` (first two tests). After the module exists, the third test will also fail with `ImportError: cannot import name 'compute_deltas'`.
 
 - [ ] **Step 3: Implement the minimum to make the test pass**
 
@@ -249,6 +330,49 @@ def _model() -> SentenceTransformer:
 def cosine_similarity(a: str, b: str) -> float:
     embeddings = _model().encode([a, b], convert_to_numpy=True, normalize_embeddings=True)
     return float(np.dot(embeddings[0], embeddings[1]))
+
+
+def compute_deltas(jsonl_path: Path) -> dict[str, float]:
+    """Compute Δ_score per condition: mean(real_composite) - mean(condition_composite).
+
+    Reads all rows from the JSONL. For each (recording_id, condition) pair,
+    computes the mean judge score across dimensions. Then computes the mean
+    of those per-session means across all sessions, per condition. Returns
+    deltas relative to the "real" condition.
+    """
+    rows = [
+        json.loads(line)
+        for line in jsonl_path.read_text().splitlines()
+        if line.strip()
+    ]
+
+    # session_id -> condition -> mean_composite_score
+    session_scores: dict[str, dict[str, float]] = {}
+    for row in rows:
+        rid = row["recording_id"]
+        cond = row["condition"]
+        dims = row.get("judge_dimensions") or []
+        scores = [float(d["score"]) for d in dims if isinstance(d.get("score"), (int, float))]
+        if not scores:
+            continue
+        session_scores.setdefault(rid, {})[cond] = sum(scores) / len(scores)
+
+    # For each condition, compute mean across sessions that have both real + condition scores
+    conditions = ("flip", "shuffle", "marginal")
+    deltas: dict[str, float] = {}
+    for cond in conditions:
+        pairs = [
+            (session_scores[sid]["real"], session_scores[sid][cond])
+            for sid in session_scores
+            if "real" in session_scores[sid] and cond in session_scores[sid]
+        ]
+        if not pairs:
+            deltas[cond] = 0.0
+            continue
+        mean_real = sum(r for r, _ in pairs) / len(pairs)
+        mean_cond = sum(c for _, c in pairs) / len(pairs)
+        deltas[cond] = round(mean_real - mean_cond, 6)
+    return deltas
 ```
 
 - [ ] **Step 4: Run test — verify it PASSES**
@@ -256,7 +380,7 @@ def cosine_similarity(a: str, b: str) -> float:
 ```
 cd apps/evals && uv run --with sentence-transformers pytest teaching_knowledge/ablation/test_analyze.py -v
 ```
-Expected: PASS (2 tests).
+Expected: PASS (3 tests).
 
 - [ ] **Step 5: Commit**
 
