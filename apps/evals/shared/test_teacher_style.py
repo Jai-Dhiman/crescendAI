@@ -37,6 +37,11 @@ def test_evaluate_compound_with_and():
     assert evaluate("1 if max_neg_dev < 0.1 and max_pos_dev < 0.1 else 0", sig) == pytest.approx(1.0)
 
 
+def test_evaluate_unary_minus():
+    assert evaluate("-1.0", {}) == pytest.approx(-1.0)
+    assert evaluate("max_neg_dev - -0.5", {"max_neg_dev": 1.0}) == pytest.approx(1.5)
+
+
 def test_evaluate_real_formula_technical_corrective():
     sig = {**SIGNALS, "max_neg_dev": 0.2, "n_significant": 2, "drilling_improved": False}
     formula = "1.5 * max_neg_dev + 0.3 * n_significant - 0.5 * (1 if drilling_improved else 0)"

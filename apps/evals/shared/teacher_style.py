@@ -6,7 +6,11 @@ the same DSL formulas against the same signals.
 """
 from __future__ import annotations
 import re
+from dataclasses import dataclass
+from functools import lru_cache
+from pathlib import Path
 from typing import Any
+import yaml
 
 ALLOWED_SIGNALS = {
     "max_neg_dev", "max_pos_dev", "n_significant",
@@ -153,13 +157,11 @@ def _factor(tok, sig):
             raise ValueError("missing close paren")
         tok.take()
         return v
+    if kind == "op" and text == "-":
+        tok.take()
+        return -_factor(tok, sig)
     raise ValueError(f"unexpected token: {nxt}")
 
-
-from dataclasses import dataclass
-from functools import lru_cache
-from pathlib import Path
-import yaml
 
 PLAYBOOK_PATH = Path(__file__).resolve().parents[3] / "shared" / "teacher-style" / "playbook.yaml"
 
