@@ -345,7 +345,7 @@ from functools import lru_cache
 from pathlib import Path
 import yaml
 
-PLAYBOOK_PATH = Path(__file__).resolve().parents[2] / "shared" / "teacher-style" / "playbook.yaml"
+PLAYBOOK_PATH = Path(__file__).resolve().parents[3] / "shared" / "teacher-style" / "playbook.yaml"
 
 PRIORITY_ORDER = [
     "Technical-corrective", "Positive-encouragement", "Artifact-based",
@@ -583,7 +583,7 @@ Expected: FAIL — `FileNotFoundError: shared/teacher-style/test_fixtures.json`.
       "duration_min": 25.0, "mode_count": 2, "has_piece": true
     },
     "expected_primary_substring": "Positive",
-    "expected_secondary_substring": "Technical"
+    "expected_secondary_substring": "Artifact"
   },
   {
     "name": "long_multi_mode_session",
@@ -598,9 +598,9 @@ Expected: FAIL — `FileNotFoundError: shared/teacher-style/test_fixtures.json`.
   {
     "name": "all_signals_low_fallback",
     "signals": {
-      "max_neg_dev": 0.0, "max_pos_dev": 0.0, "n_significant": 0,
+      "max_neg_dev": 0.12, "max_pos_dev": 0.0, "n_significant": 0,
       "drilling_present": false, "drilling_improved": false,
-      "duration_min": 15.0, "mode_count": 1, "has_piece": false
+      "duration_min": 25.0, "mode_count": 1, "has_piece": false
     },
     "expected_primary_substring": "Technical",
     "expected_secondary_substring": "Positive"
