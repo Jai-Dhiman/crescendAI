@@ -34,7 +34,64 @@ export function evaluate(formula: string, signals: Signals): number {
   return v;
 }
 
-function expr(c: Cursor, s: Signals): number { return arith(c, s); }
+function expr(c: Cursor, s: Signals): number {
+  const value = arith(c, s);
+  const nxt = c.peek();
+  if (nxt && nxt.kind === "ident" && nxt.text === "if") {
+    c.take();
+    const cond = boolExpr(c, s);
+    const kw = c.peek();
+    if (!kw || kw.text !== "else") throw new Error("expected 'else' in conditional");
+    c.take();
+    const elseValue = arith(c, s);
+    return cond ? value : elseValue;
+  }
+  return value;
+}
+
+function boolExpr(c: Cursor, s: Signals): boolean {
+  let left = boolAnd(c, s);
+  while (c.peek() && c.peek()!.kind === "ident" && c.peek()!.text === "or") {
+    c.take();
+    const right = boolAnd(c, s);
+    left = left || right;
+  }
+  return left;
+}
+
+function boolAnd(c: Cursor, s: Signals): boolean {
+  let left = boolNot(c, s);
+  while (c.peek() && c.peek()!.kind === "ident" && c.peek()!.text === "and") {
+    c.take();
+    const right = boolNot(c, s);
+    left = left && right;
+  }
+  return left;
+}
+
+function boolNot(c: Cursor, s: Signals): boolean {
+  const nxt = c.peek();
+  if (nxt && nxt.kind === "ident" && nxt.text === "not") { c.take(); return !cmp(c, s); }
+  return cmp(c, s);
+}
+
+function cmp(c: Cursor, s: Signals): boolean {
+  const left = arith(c, s);
+  const nxt = c.peek();
+  if (nxt && ["<", "<=", ">", ">=", "==", "!="].includes(nxt.text)) {
+    const op = c.take().text;
+    const right = arith(c, s);
+    switch (op) {
+      case "<":  return left < right;
+      case "<=": return left <= right;
+      case ">":  return left > right;
+      case ">=": return left >= right;
+      case "==": return left === right;
+      case "!=": return left !== right;
+    }
+  }
+  return Boolean(left);
+}
 
 function arith(c: Cursor, s: Signals): number {
   let left = term(c, s);
