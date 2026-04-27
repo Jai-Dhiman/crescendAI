@@ -52,8 +52,8 @@ MuQ (audio encoder), Aria (symbolic encoder), AMT (transcription), STOP classifi
 **Tier:** NEXT (Phase B/C in flight).
 
 ### V2 -- Context Graph (Content / Entity / Fact)
-Three-layer store: enrichment cache (immutable signals), resolved entities, temporal facts with evidence chains. Doc home: `docs/harness/entities.md` (to be written), `docs/apps/03-memory-system.md`.
-**Tier:** NOW. Substrate for everything above.
+Three-layer store: enrichment cache (immutable signals), resolved entities, temporal facts with evidence chains. Doc home: `docs/harness/entities.md`, `docs/apps/03-memory-system.md`.
+**Tier:** DONE. Six entity schemas, EvidenceRef + EntityRef discriminated unions, bi-temporal Fact schema. Shipped 2026-04-26.
 
 ### V3 -- Accumulation & Compaction
 Session-scoped DO state plus sawtooth compaction (Memento-style) for long sessions and longitudinal history. Doc home: `docs/apps/02-pipeline.md`, `docs/apps/03-memory-system.md`.
@@ -132,7 +132,9 @@ Drawn from external sources (Mahler wiki: Agent Harnesses, Natural Language Harn
 
 ## Priority Stack (2026-04-23)
 
-**NOW** -- V2 (entity schema), V4 (eval harness: playbook wiring, signal ablation, atomic-skill rubrics, per-tier reliability), V5 (three-tier skill decomposition: atoms / molecules / compounds).
+**DONE** -- V2 (entity schema). Shipped 2026-04-26.
+
+**NOW** -- V4 (eval harness: playbook wiring, signal ablation, atomic-skill rubrics, per-tier reliability), V5 (three-tier skill decomposition: atoms / molecules / compounds).
 
 **NEXT** -- V1 continued (Phase B/C with tightened SemiSupCon positive-mining + musically-informed AMT eval), V3 (compaction policy), V6 (agent loop + event hooks + middleware hooks), V8a (direct-action tools + chat tool_use).
 
