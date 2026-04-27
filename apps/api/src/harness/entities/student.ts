@@ -11,8 +11,8 @@ export const StudentSchema = z.object({
 	baselineInterpretation: z.number().nullable().optional(),
 	baselineSessionCount: z.number().int().nonnegative(),
 	explicitGoals: z.string().nullable().optional(),
-	createdAt: z.string(),
-	updatedAt: z.string(),
+	createdAt: z.string().datetime(),
+	updatedAt: z.string().datetime(),
 });
 
 export type Student = z.infer<typeof StudentSchema>;

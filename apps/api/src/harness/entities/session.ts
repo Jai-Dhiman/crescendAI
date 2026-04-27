@@ -4,8 +4,8 @@ export const SessionSchema = z
 	.object({
 		id: z.string().uuid(),
 		studentId: z.string().min(1),
-		startedAt: z.string(),
-		endedAt: z.string().nullable(),
+		startedAt: z.string().datetime(),
+		endedAt: z.string().datetime().nullable(),
 		avgDynamics: z.number().nullable().optional(),
 		avgTiming: z.number().nullable().optional(),
 		avgPedaling: z.number().nullable().optional(),

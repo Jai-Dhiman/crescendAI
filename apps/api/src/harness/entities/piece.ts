@@ -7,9 +7,9 @@ export const PieceSchema = z.object({
 	keySignature: z.string().nullable().optional(),
 	timeSignature: z.string().nullable().optional(),
 	tempoBpm: z.number().int().nullable().optional(),
-	barCount: z.number().int().nonnegative(),
+	barCount: z.number().int().positive(),
 	durationSeconds: z.number().nullable().optional(),
-	noteCount: z.number().int().nonnegative(),
+	noteCount: z.number().int().positive(),
 	pitchRangeLow: z.number().int().nullable().optional(),
 	pitchRangeHigh: z.number().int().nullable().optional(),
 	hasTimeSigChanges: z.boolean(),
@@ -18,7 +18,7 @@ export const PieceSchema = z.object({
 	opusNumber: z.number().int().nullable().optional(),
 	pieceNumber: z.number().int().nullable().optional(),
 	catalogueType: z.string().nullable().optional(),
-	createdAt: z.string(),
+	createdAt: z.string().datetime(),
 });
 
 export type Piece = z.infer<typeof PieceSchema>;

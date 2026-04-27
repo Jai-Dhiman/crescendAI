@@ -13,7 +13,7 @@ export const ExerciseSchema = z.object({
 	midiContent: z.string().nullable().optional(),
 	source: z.string().min(1),
 	variantsJson: z.unknown().nullable().optional(),
-	createdAt: z.string(),
+	createdAt: z.string().datetime(),
 });
 
 export type Exercise = z.infer<typeof ExerciseSchema>;
