@@ -1,4 +1,6 @@
 // apps/api/src/services/teacher_style.ts
+import playbookRaw from "../lib/playbook.json";
+
 const ALLOWED_SIGNALS = new Set([
   "max_neg_dev", "max_pos_dev", "n_significant",
   "drilling_present", "drilling_improved",
@@ -134,8 +136,6 @@ function factor(c: Cursor, s: Signals): number {
 }
 
 // ---- Task 13: selectClusters ----
-
-import playbookRaw from "../lib/playbook.json";
 
 const PRIORITY_ORDER = [
   "Technical-corrective", "Positive-encouragement", "Artifact-based",

@@ -121,4 +121,14 @@ describe("teacher_style.deriveSignals", () => {
     expect(sig.drilling_present).toBe(true);
     expect(sig.drilling_improved).toBe(true);
   });
+
+  it("deriveSignals drilling_improved with multiple records", () => {
+    const moments = [{ score: 0.7, dimension: "dynamics" }];
+    const drillingRecords = [
+      { first_score: 0.4, final_score: 0.5 },
+      { first_score: 0.5, final_score: 0.75 },
+    ];
+    const sig = deriveSignals(moments, drillingRecords, 1800000, null, "drilling");
+    expect(sig.drilling_improved).toBe(true);
+  });
 });
