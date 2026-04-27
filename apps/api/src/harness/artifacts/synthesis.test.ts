@@ -98,4 +98,14 @@ describe('SynthesisArtifactSchema', () => {
     const invalid = { ...baseValid, next_session_focus: 'x'.repeat(201) }
     expect(SynthesisArtifactSchema.safeParse(invalid).success).toBe(false)
   })
+
+  test('accepts next_session_focus as null', () => {
+    const valid = { ...baseValid, next_session_focus: null }
+    expect(() => SynthesisArtifactSchema.parse(valid)).not.toThrow()
+  })
+
+  test('accepts empty strengths array', () => {
+    const valid = { ...baseValid, strengths: [] }
+    expect(() => SynthesisArtifactSchema.parse(valid)).not.toThrow()
+  })
 })

@@ -65,4 +65,9 @@ describe('ExerciseArtifactSchema', () => {
     const valid = { ...baseValid, exercise_subtype: 'half-pedal-only' }
     expect(() => ExerciseArtifactSchema.parse(valid)).not.toThrow()
   })
+
+  test('rejects when bar_range is null (exercises always require a specific bar range)', () => {
+    const invalid = { ...baseValid, bar_range: null }
+    expect(ExerciseArtifactSchema.safeParse(invalid).success).toBe(false)
+  })
 })
