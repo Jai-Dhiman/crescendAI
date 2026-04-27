@@ -154,3 +154,11 @@ eval-analyze:
 # Generate T5 scenario files from manifests
 eval-scenarios:
     cd apps/evals && uv run python -m pipeline.practice_eval.generate_t5_scenarios
+
+# Compile shared/teacher-style/playbook.yaml -> apps/api/src/lib/playbook.json
+compile-playbook:
+    uv run --with pyyaml python scripts/compile_playbook.py
+
+# CI sync check: fail if compiled JSON is stale
+check-playbook-sync:
+    uv run --with pyyaml python scripts/compile_playbook.py --check
