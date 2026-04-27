@@ -249,3 +249,44 @@ export function formatTeacherVoiceBlocks(selection: ClusterSelection): string {
   lines.push("</also_consider>");
   return lines.join("\n");
 }
+
+// ---- Task 15: deriveSignals ----
+
+type TopMoment = { dimension?: string; deviation_from_mean?: number };
+type DrillingRecord = { first_score?: number; final_score?: number };
+
+export function deriveSignals(
+  topMoments: TopMoment[] | unknown,
+  drillingRecords: DrillingRecord[] | unknown,
+  sessionDurationMs: number,
+  pieceMetadata: { title?: string } | unknown,
+  practicePattern: unknown,
+): Signals {
+  const moments = Array.isArray(topMoments) ? (topMoments as TopMoment[]) : [];
+  const drilling = Array.isArray(drillingRecords) ? (drillingRecords as DrillingRecord[]) : [];
+
+  const devs = moments.map((m) => Number(m.deviation_from_mean)).filter((v) => Number.isFinite(v));
+  const negs = devs.filter((v) => v < 0).map((v) => -v);
+  const poss = devs.filter((v) => v > 0);
+  const max_neg_dev = negs.length ? Math.max(...negs) : 0;
+  const max_pos_dev = poss.length ? Math.max(...poss) : 0;
+  const n_significant = devs.filter((v) => Math.abs(v) >= 0.1).length;
+
+  const drilling_present = drilling.length > 0;
+  const drilling_improved = drilling_present
+    && Number(drilling[drilling.length - 1].final_score) > Number(drilling[0].first_score) + 0.15;
+
+  const duration_min = sessionDurationMs / 60_000;
+
+  let mode_count = 1;
+  if (Array.isArray(practicePattern)) mode_count = new Set(practicePattern).size;
+  else if (practicePattern && typeof practicePattern === "object") {
+    const modes = (practicePattern as { modes?: unknown }).modes;
+    if (Array.isArray(modes)) mode_count = new Set(modes).size;
+  }
+
+  const piece = pieceMetadata as { title?: string } | undefined;
+  const has_piece = !!piece?.title && piece.title !== "Unknown";
+
+  return { max_neg_dev, max_pos_dev, n_significant, drilling_present, drilling_improved, duration_min, mode_count, has_piece };
+}

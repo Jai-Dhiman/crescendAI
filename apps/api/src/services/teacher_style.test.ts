@@ -1,6 +1,6 @@
 // apps/api/src/services/teacher_style.test.ts
 import { describe, expect, it } from "vitest";
-import { evaluate, selectClusters, formatTeacherVoiceBlocks } from "./teacher_style";
+import { evaluate, selectClusters, formatTeacherVoiceBlocks, deriveSignals } from "./teacher_style";
 import fixtures from "../../../../shared/teacher-style/test_fixtures.json";
 
 const SIGNALS = {
@@ -85,5 +85,40 @@ describe("teacher_style.formatTeacherVoiceBlocks", () => {
   it("includes a normalized cluster id in the attribute", () => {
     const out = formatTeacherVoiceBlocks(selectClusters(sig));
     expect(out).toMatch(/cluster="[a-z][a-z0-9-]+"/);
+  });
+});
+
+describe("teacher_style.deriveSignals", () => {
+  it("produces the documented signal vector", () => {
+    const sig = deriveSignals(
+      [
+        { dimension: "dynamics", score: 0.8, deviation_from_mean: 0.25, direction: "above_average" },
+        { dimension: "timing", score: 0.3, deviation_from_mean: -0.18, direction: "below_average" },
+      ],
+      [],
+      900_000,
+      { title: "Prelude", composer: "Bach", skill_level: 3 },
+      "continuous_play",
+    );
+    expect(sig.max_neg_dev).toBeCloseTo(0.18, 3);
+    expect(sig.max_pos_dev).toBeCloseTo(0.25, 3);
+    expect(sig.n_significant).toBe(2);
+    expect(sig.drilling_present).toBe(false);
+    expect(sig.drilling_improved).toBe(false);
+    expect(sig.duration_min).toBeCloseTo(15, 1);
+    expect(sig.mode_count).toBe(1);
+    expect(sig.has_piece).toBe(true);
+  });
+
+  it("derives drilling_improved from first vs final score", () => {
+    const sig = deriveSignals(
+      [],
+      [{ first_score: 0.5, final_score: 0.8 }],
+      600_000,
+      { title: "X", composer: "Bach", skill_level: 1 },
+      "continuous_play",
+    );
+    expect(sig.drilling_present).toBe(true);
+    expect(sig.drilling_improved).toBe(true);
   });
 });
