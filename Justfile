@@ -155,6 +155,10 @@ eval-analyze:
 eval-scenarios:
     cd apps/evals && uv run python -m pipeline.practice_eval.generate_t5_scenarios
 
+# Test playbook YAML shape (shared/teacher-style/)
+test-playbook-shape:
+    cd shared/teacher-style && uv run --with pyyaml --with pytest pytest test_playbook_shape.py -v
+
 # Compile shared/teacher-style/playbook.yaml -> apps/api/src/lib/playbook.json
 compile-playbook:
     uv run --with pyyaml python scripts/compile_playbook.py

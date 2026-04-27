@@ -53,7 +53,7 @@ def _marginal(src, seed, corpus):
             "dimension": dim,
             "score": new_score,
             "deviation_from_mean": round(new_score - SCALER_MEAN.get(dim, 0.5), 3),
-            "direction": "above_average" if new_score > 0.5 else "below_average",
+            "direction": "above_average" if new_score > SCALER_MEAN.get(dim, 0.5) else "below_average",
         })
     return out
 
@@ -62,10 +62,11 @@ def _flip(src):
     out = []
     for moment in src:
         new_score = round(1.0 - float(moment["score"]), 4)
+        dim = moment["dimension"]
         out.append({
-            "dimension": moment["dimension"],
+            "dimension": dim,
             "score": new_score,
-            "deviation_from_mean": round(new_score - SCALER_MEAN.get(moment["dimension"], 0.5), 3),
-            "direction": "above_average" if new_score > 0.5 else "below_average",
+            "deviation_from_mean": round(new_score - SCALER_MEAN.get(dim, 0.5), 3),
+            "direction": "above_average" if new_score > SCALER_MEAN.get(dim, 0.5) else "below_average",
         })
     return out

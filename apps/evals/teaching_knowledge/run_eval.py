@@ -184,10 +184,10 @@ def build_synthesis_user_msg(
         "max_neg_dev": max(negs) if negs else 0.0,
         "max_pos_dev": max(poss) if poss else 0.0,
         "n_significant": sum(1 for d in devs if abs(d) >= 0.1),
-        "drilling_present": False,
-        "drilling_improved": False,
+        "drilling_present": False,   # live session state unavailable from recordings
+        "drilling_improved": False,  # live session state unavailable from recordings
         "duration_min": duration_seconds / 60,
-        "mode_count": 1,
+        "mode_count": 1,             # live session state unavailable from recordings
         "has_piece": bool(meta.get("title")) and meta.get("title") != "Unknown",
     }
     voice_blocks = format_teacher_voice_blocks(select_clusters(signals))
