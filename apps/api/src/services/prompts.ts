@@ -1,4 +1,9 @@
 import styleRules from "../lib/style-rules.json";
+import {
+	deriveSignals,
+	formatTeacherVoiceBlocks,
+	selectClusters,
+} from "./teacher_style";
 
 type StyleRulesEra = {
 	composer_patterns: string[];
@@ -127,6 +132,19 @@ export function buildSynthesisFraming(
 	if (guidance.length > 0) {
 		parts.push("");
 		parts.push(guidance);
+	}
+
+	const signals = deriveSignals(
+		topMoments,
+		drillingRecords,
+		sessionDurationMs,
+		pieceMetadata,
+		practicePattern,
+	);
+	const voiceBlocks = formatTeacherVoiceBlocks(selectClusters(signals));
+	if (voiceBlocks.length > 0) {
+		parts.push("");
+		parts.push(voiceBlocks);
 	}
 
 	if (memoryContext.length > 0) {
