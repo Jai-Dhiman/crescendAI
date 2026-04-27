@@ -2,7 +2,7 @@
 
 Anchor doc for CrescendAI's middle system -- everything between the model outputs and the student's screen. Parallel to `docs/architecture.md` (system-level view) and `docs/model/00-research-timeline.md` (model-level view).
 
-> **Status (2026-04-23):** Naming doc. Most components described here already exist in code but have not been named as a coherent layer. This doc formalizes the vocabulary; `docs/apps/` contains implementation detail; `docs/harness/skills/` contains the three-tier skill catalog (atoms / molecules / compounds, populated by V5 work).
+> **Status (2026-04-26):** V5 SHIPPED. Three-tier skill catalog is fully implemented: 15 atoms, 9 molecules, 4 compounds live in `docs/harness/skills/`. Typed Zod artifact contracts (`DiagnosisArtifact`, `ExerciseArtifact`, `SynthesisArtifact`) and a catalog validator with cross-file dependency checks live in `apps/api/src/harness/`. Naming doc otherwise unchanged — `docs/apps/` contains implementation detail.
 
 ---
 
@@ -64,8 +64,8 @@ Same code runs prod and eval. Playbook.yaml style injection wired everywhere. Si
 **Tier:** NOW. P0 beta blocker.
 
 ### V5 -- Skills (Atoms / Molecules / Compounds)
-Three-tier skill catalog. ~10-15 atoms, 8-12 molecules, 3-5 compounds. Each with YAML triggers, pre/post contracts, artifact specs. Training target for the Qwen finetune. Doc home: `docs/harness/skills/`.
-**Tier:** NOW. Gates Qwen data collection and Phase 1 judge design.
+Three-tier skill catalog. 15 atoms, 9 molecules, 4 compounds. Each with YAML frontmatter (tier, dimensions, reads, writes, depends_on), 5 required body sections (When-to-fire, When-NOT-to-fire, Procedure, Concrete example, Post-conditions), and a typed artifact output contract. Three Zod artifact schemas (`DiagnosisArtifact`, `ExerciseArtifact`, `SynthesisArtifact`) in `apps/api/src/harness/artifacts/`. Skill catalog validator (`validator.ts`) enforces frontmatter schema, body sections, and cross-file `depends_on` resolution. Training target for the Qwen finetune. Doc home: `docs/harness/skills/`.
+**Tier:** SHIPPED (2026-04-26). Gates Qwen data collection and Phase 1 judge design.
 
 ### V6 -- Agent Loop & Orchestration
 Teacher loop with deferred tool loading, NLAH contracts, event hooks + middleware hooks. Writes stay single-threaded: skills contribute intelligence, one teacher path writes. Capability-router across providers (Groq / Sonnet / eventually Qwen). Doc home: `docs/apps/02-pipeline.md` (Target section).
