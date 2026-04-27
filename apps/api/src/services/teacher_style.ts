@@ -132,3 +132,75 @@ function factor(c: Cursor, s: Signals): number {
   }
   throw new Error(`unexpected token: ${JSON.stringify(nxt)}`);
 }
+
+// ---- Task 13: selectClusters ----
+
+import playbookRaw from "../lib/playbook.json";
+
+const PRIORITY_ORDER = [
+  "Technical-corrective", "Positive-encouragement", "Artifact-based",
+  "Guided-discovery", "Motivational",
+] as const;
+const FALLBACK_PRIMARY_KEY = "Technical-corrective";
+const FALLBACK_SECONDARY_KEY = "Positive-encouragement";
+const CONFIDENCE_FLOOR = 0.3;
+
+type Cluster = {
+  name: string;
+  language_patterns?: { register?: string; tone?: string };
+  good_examples?: Array<{ text?: string; source_id?: string } | undefined>;
+  when_to_use?: string[];
+  triggers: { score: string };
+};
+type Playbook = { teaching_playbook: { clusters: Cluster[] } };
+
+export type ClusterRef = { name: string; score: number; raw: Cluster };
+export type ClusterSelection = { primary: ClusterRef; secondary: ClusterRef };
+
+const CURLY_QUOTE_RE = /^[“”‘’„‟«»]+|[“”‘’„‟«»]+$/g;
+
+function cleanFormula(s: string): string {
+  return s.replace(CURLY_QUOTE_RE, "").trim();
+}
+
+function priorityIndex(name: string): number {
+  const nameNorm = normalizeForMatch(name);
+  for (let i = 0; i < PRIORITY_ORDER.length; i += 1) {
+    if (nameNorm.includes(normalizeForMatch(PRIORITY_ORDER[i]))) return i;
+  }
+  return PRIORITY_ORDER.length;
+}
+
+function normalizeForMatch(s: string): string {
+  return s.toLowerCase().replace(/-/g, "").replace(/‑/g, "");
+}
+
+function findCluster(substring: string): Cluster {
+  const clusters = (playbookRaw as unknown as Playbook).teaching_playbook.clusters;
+  const subNorm = normalizeForMatch(substring);
+  const found = clusters.find((c) => normalizeForMatch(cleanFormula(c.name)).includes(subNorm));
+  if (!found) throw new Error(`no cluster matching ${substring}`);
+  return found;
+}
+
+export function selectClusters(signals: Signals): ClusterSelection {
+  const clusters = (playbookRaw as unknown as Playbook).teaching_playbook.clusters;
+  const scored: ClusterRef[] = clusters.map((c) => ({
+    name: cleanFormula(c.name),
+    score: evaluate(cleanFormula(c.triggers.score), signals),
+    raw: c,
+  }));
+  scored.sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    return priorityIndex(a.name) - priorityIndex(b.name);
+  });
+  let primary = scored[0];
+  let secondary = scored[1];
+  if (primary.score < CONFIDENCE_FLOOR && secondary.score < CONFIDENCE_FLOOR) {
+    const fp = findCluster(FALLBACK_PRIMARY_KEY);
+    const fs = findCluster(FALLBACK_SECONDARY_KEY);
+    primary = { name: cleanFormula(fp.name), score: 0, raw: fp };
+    secondary = { name: cleanFormula(fs.name), score: 0, raw: fs };
+  }
+  return { primary, secondary };
+}

@@ -1,6 +1,7 @@
 // apps/api/src/services/teacher_style.test.ts
 import { describe, expect, it } from "vitest";
-import { evaluate } from "./teacher_style";
+import { evaluate, selectClusters } from "./teacher_style";
+import fixtures from "../../../../shared/teacher-style/test_fixtures.json";
 
 const SIGNALS = {
   max_neg_dev: 0.2, max_pos_dev: 0.0, n_significant: 2,
@@ -44,3 +45,25 @@ describe("teacher_style.evaluate conditionals", () => {
     expect(evaluate("1 if max_neg_dev < 0.1 and max_pos_dev < 0.1 else 0", sig)).toBeCloseTo(1, 6);
   });
 });
+
+describe("teacher_style.selectClusters parity fixtures", () => {
+  for (const f of fixtures) {
+    it(`fixture ${f.name}: primary contains ${f.expected_primary_substring}`, () => {
+      const sel = selectClusters(f.signals);
+      expect(sel.primary.name.toLowerCase()).toContain(f.expected_primary_substring.toLowerCase());
+      expect(sel.secondary.name.toLowerCase()).toContain(f.expected_secondary_substring.toLowerCase());
+    });
+  }
+
+  it("fallback when all scores low", () => {
+    // duration_min=25 avoids duration_min<20 bonus on Artifact, all deviation signals below meaningful threshold
+    const sel = selectClusters({
+      max_neg_dev: 0.12, max_pos_dev: 0, n_significant: 0,
+      drilling_present: false, drilling_improved: false,
+      duration_min: 25, mode_count: 1, has_piece: false,
+    });
+    expect(sel.primary.name.toLowerCase()).toContain("technical");
+    expect(sel.secondary.name.toLowerCase()).toMatch(/(positive|praise)/);
+  });
+});
+
