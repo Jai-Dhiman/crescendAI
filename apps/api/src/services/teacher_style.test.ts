@@ -44,6 +44,11 @@ describe("teacher_style.evaluate conditionals", () => {
     const sig = { ...SIGNALS, max_neg_dev: 0.05, max_pos_dev: 0.05 };
     expect(evaluate("1 if max_neg_dev < 0.1 and max_pos_dev < 0.1 else 0", sig)).toBeCloseTo(1, 6);
   });
+
+  it("evaluate handles unary minus", () => {
+    expect(evaluate("-1.0", SIGNALS)).toBeCloseTo(-1.0);
+    expect(evaluate("max_neg_dev - -0.5", { ...SIGNALS, max_neg_dev: 1.0 })).toBeCloseTo(1.5);
+  });
 });
 
 describe("teacher_style.selectClusters parity fixtures", () => {

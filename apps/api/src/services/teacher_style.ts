@@ -132,6 +132,10 @@ function factor(c: Cursor, s: Signals): number {
     c.take();
     return v;
   }
+  if (nxt.kind === "op" && nxt.text === "-") {
+    c.take();
+    return -factor(c, s);
+  }
   throw new Error(`unexpected token: ${JSON.stringify(nxt)}`);
 }
 
