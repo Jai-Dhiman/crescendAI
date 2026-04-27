@@ -76,6 +76,31 @@ def _assert_models_compatible(teacher_model: str, judge_model: str) -> None:
     assert_judge_compatible(teacher_model, judge_model)
 
 
+def _maybe_atomic_judge(
+    *, synthesis_text: str, context: dict, judge_dimensions: list[dict],
+    threshold: float, client,
+) -> dict | None:
+    from shared.judge_atomic import judge_atomic_matrix
+
+    scores = [
+        float(d["score"]) for d in judge_dimensions
+        if isinstance(d.get("score"), (int, float))
+    ]
+    if not scores:
+        return None
+    mean_score = sum(scores) / len(scores)
+    if mean_score >= threshold:
+        return None
+    result = judge_atomic_matrix(synthesis_text=synthesis_text, context=context, client=client)
+    return {
+        "moves": [
+            {"move_id": m.move_id, "attempted": m.attempted, "criteria": m.criteria}
+            for m in result.moves
+        ],
+        "threshold": threshold,
+    }
+
+
 def load_manifests() -> dict[str, dict[str, Any]]:
     """Build a video_id -> metadata lookup from all skill_eval manifests."""
     lookup: dict[str, dict[str, Any]] = {}
@@ -274,6 +299,7 @@ def run(
     split_path: Path | None = None,
     teacher_model: str = "claude-sonnet-4-6",
     judge_model: str = "@cf/google/gemma-4-26b-a4b-it",
+    atomic_threshold: float | None = 2.0,
 ) -> None:
     from teaching_knowledge.llm_client import LLMClient
     from shared.judge import judge_synthesis_v2
@@ -404,6 +430,17 @@ def run(
                         error="",
                         provenance=provenance,
                     )
+                    if atomic_threshold is not None:
+                        atomic_client = LLMClient(provider=judge_provider, model=judge_model)
+                        atomic = _maybe_atomic_judge(
+                            synthesis_text=synthesis_text,
+                            context=judge_context,
+                            judge_dimensions=result["judge_dimensions"],
+                            threshold=atomic_threshold,
+                            client=atomic_client,
+                        )
+                        if atomic is not None:
+                            result["atomic_matrix"] = atomic
 
             except Exception as exc:
                 errors += 1
@@ -491,6 +528,13 @@ def main() -> None:
         default="@cf/google/gemma-4-26b-a4b-it",
         help="Judge model name (default: @cf/google/gemma-4-26b-a4b-it)",
     )
+    parser.add_argument(
+        "--atomic-threshold",
+        type=float,
+        default=2.0,
+        help="Run atomic-matrix judge when mean judge score is below this. "
+             "Set to 0.0 to never fire, 4.0 to always fire.",
+    )
     args = parser.parse_args()
     default_split_file = EVALS_ROOT / "teaching_knowledge" / "data" / "splits.json"
     split_path = args.split_file
@@ -509,6 +553,7 @@ def main() -> None:
         split_path=split_path,
         teacher_model=args.teacher_model,
         judge_model=args.judge_model,
+        atomic_threshold=args.atomic_threshold,
     )
 
 
