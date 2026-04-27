@@ -76,13 +76,7 @@ Synthesized facts -- "student recurrently over-pedals in slow movements" -- carr
 
 ### Mapping to Existing Tables
 
-| Layer | Current Tables | Status |
-|---|---|---|
-| Content | `chunks`, `chunk_results`, signal emissions from HF | Exists but evidence linkage is implicit |
-| Entity | `students`, `pieces`, `sessions`, `exercises` | Exists for students/pieces/sessions; `bars`, `movements` not yet first-class |
-| Fact | `observations` (episode capture), `synthesized_facts` (pattern capture) | Exists; evidence chains stored in `reasoning_trace` JSON but not indexed |
-
-The V2 harness work formalizes the evidence chain as a queryable column, not a blob, and adds `bars` / `movements` as first-class entities. See `docs/harness/entities.md` (V2 deliverable).
+See [`docs/harness/entities.md`](../harness/entities.md) for the full layer mapping, six canonical entity Zod schemas, identity-resolution rules, the `EvidenceRef` discriminated union, the `Fact` Layer-3 schema with bi-temporal refinements, and the named additive migrations for `fact_entity_mentions`, `fact_evidence`, and a future unified `signals` table.
 
 ---
 
