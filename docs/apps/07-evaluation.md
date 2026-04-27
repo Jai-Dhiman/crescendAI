@@ -1,6 +1,6 @@
 # Evaluation Framework
 
-> Status: 2026-03-26 -- Comprehensive eval design for all seven capabilities. Two tiers per capability: ideal eval (with perfect data) and practical eval (with T5 YouTube Skill corpus).
+> Status: 2026-04-27 -- Eval harness v4 shipped: cluster-based teacher voice injection wired into both prod synthesis (`prompts.ts`) and eval (`run_eval.py`) via `shared/teacher-style/playbook.yaml` single source of truth; 4-condition signal ablation harness implemented (`apps/evals/teaching_knowledge/ablation/`); 8x5 atomic-skill rubric matrix implemented (`apps/evals/shared/judge_atomic.py`). Original seven-capability eval design unchanged.
 
 This document defines how to evaluate each of the seven capabilities described in `06-capabilities.md`. For each capability, we describe:
 
@@ -104,7 +104,12 @@ If that is happening, every downstream eval measures the wrong thing and every h
 
 ### Status
 
-NOT STARTED. Standalone eval -- does not require playbook.yaml wiring or Phase 2 infrastructure. Can run in a day against the existing cached corpus.
+IMPLEMENTED (2026-04-27). `apps/evals/teaching_knowledge/ablation/` contains:
+- `corrupt_signals.py` -- three corruption modes: shuffle, marginal (per-dim SCALER_MEAN), flip
+- `run_ablation.py` -- 4-condition orchestrator with resume-safety, synthesis + judge invocation
+- `analyze.py` -- `compute_deltas()` (judge-score deltas per condition) + `decide_verdict()` (pre-registered decision rule)
+
+Run: `cd apps/evals && uv run python -m teaching_knowledge.ablation.run_ablation --help`
 
 ---
 
