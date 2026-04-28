@@ -1,6 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { parseAnthropicStream, stripAnalysis } from "./teacher";
+import { parseAnthropicStream, stripAnalysis, synthesizeV6 } from "./teacher";
 import type { InlineComponent } from "./tool-processor";
+import type { SynthesisInput } from "./teacher";
+import type { ServiceContext } from "../lib/types";
+import type { HookEvent } from "../harness/loop/types";
+import type { SynthesisArtifact } from "../harness/artifacts/synthesis";
 
 // ---------------------------------------------------------------------------
 // Helpers for building fake SSE streams
@@ -575,12 +579,6 @@ describe("stripAnalysis", () => {
 // Test: synthesizeV6 adapter
 // ---------------------------------------------------------------------------
 
-import { synthesizeV6 } from "./teacher";
-import type { SynthesisInput } from "./teacher";
-import type { ServiceContext } from "../lib/types";
-import type { HookEvent } from "../harness/loop/types";
-import type { SynthesisArtifact } from "../harness/artifacts/synthesis";
-
 const V6_VALID_ARTIFACT: SynthesisArtifact = {
 	session_id: "sess_42",
 	synthesis_scope: "session",
@@ -660,5 +658,6 @@ describe("synthesizeV6 adapter", () => {
 
 		const types = events.map((e) => e.type);
 		expect(types).toEqual(["phase1_done", "phase2_started", "artifact"]);
+		expect((events[2] as { type: "artifact"; value: SynthesisArtifact }).value).toEqual(V6_VALID_ARTIFACT);
 	});
 });
