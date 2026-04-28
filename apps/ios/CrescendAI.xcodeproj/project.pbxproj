@@ -65,6 +65,11 @@
 		A700000001 /* ArtifactConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = B700000001 /* ArtifactConfig.swift */; };
 		A700000002 /* ArtifactRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B700000002 /* ArtifactRenderer.swift */; };
 		A200000003 /* ArtifactConfigTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B200000003 /* ArtifactConfigTests.swift */; };
+		A800000001 /* PracticeSessionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B800000001 /* PracticeSessionService.swift */; };
+		A800000002 /* ConversationRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = B800000002 /* ConversationRecord.swift */; };
+		A200000004 /* PracticeSessionServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B200000004 /* PracticeSessionServiceTests.swift */; };
+		A900000001 /* ChatService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B900000001 /* ChatService.swift */; };
+		A200000005 /* ChatServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B200000005 /* ChatServiceTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -101,6 +106,11 @@
 		B200000001 /* RingBufferTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RingBufferTests.swift; sourceTree = "<group>"; };
 		B200000002 /* AuthServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthServiceTests.swift; sourceTree = "<group>"; };
 		B200000003 /* ArtifactConfigTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtifactConfigTests.swift; sourceTree = "<group>"; };
+		B200000004 /* PracticeSessionServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PracticeSessionServiceTests.swift; sourceTree = "<group>"; };
+		B800000001 /* PracticeSessionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PracticeSessionService.swift; sourceTree = "<group>"; };
+		B800000002 /* ConversationRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationRecord.swift; sourceTree = "<group>"; };
+		B900000001 /* ChatService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatService.swift; sourceTree = "<group>"; };
+		B200000005 /* ChatServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatServiceTests.swift; sourceTree = "<group>"; };
 		B700000001 /* ArtifactConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtifactConfig.swift; sourceTree = "<group>"; };
 		B700000002 /* ArtifactRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtifactRenderer.swift; sourceTree = "<group>"; };
 		B300000001 /* PracticeSessionRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PracticeSessionRecord.swift; sourceTree = "<group>"; };
@@ -287,11 +297,29 @@
 				E400000007 /* Auth */,
 				E100000024 /* AudioEngine */,
 				E100000025 /* Inference */,
+				E800000001 /* Practice */,
+				E100000027 /* Chat */,
 				B400000010 /* StudentModelService.swift */,
 				B400000011 /* CheckInService.swift */,
 				B400000012 /* GoalExtractionService.swift */,
 			);
 			path = Services;
+			sourceTree = "<group>";
+		};
+		E100000027 /* Chat */ = {
+			isa = PBXGroup;
+			children = (
+				B900000001 /* ChatService.swift */,
+			);
+			path = Chat;
+			sourceTree = "<group>";
+		};
+		E800000001 /* Practice */ = {
+			isa = PBXGroup;
+			children = (
+				B800000001 /* PracticeSessionService.swift */,
+			);
+			path = Practice;
 			sourceTree = "<group>";
 		};
 		E100000024 /* AudioEngine */ = {
@@ -327,6 +355,7 @@
 				B400000008 /* ObservationRecord.swift */,
 				B400000009 /* CheckInRecord.swift */,
 				B700000001 /* ArtifactConfig.swift */,
+				B800000002 /* ConversationRecord.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -337,6 +366,8 @@
 				B200000001 /* RingBufferTests.swift */,
 				B200000002 /* AuthServiceTests.swift */,
 				B200000003 /* ArtifactConfigTests.swift */,
+				B200000004 /* PracticeSessionServiceTests.swift */,
+				B200000005 /* ChatServiceTests.swift */,
 			);
 			path = CrescendAITests;
 			sourceTree = "<group>";
@@ -567,6 +598,9 @@
 				A400000027 /* ExerciseSetCard.swift in Sources */,
 				A700000001 /* ArtifactConfig.swift in Sources */,
 				A700000002 /* ArtifactRenderer.swift in Sources */,
+				A800000001 /* PracticeSessionService.swift in Sources */,
+				A800000002 /* ConversationRecord.swift in Sources */,
+				A900000001 /* ChatService.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -577,6 +611,8 @@
 				A200000001 /* RingBufferTests.swift in Sources */,
 				A200000002 /* AuthServiceTests.swift in Sources */,
 				A200000003 /* ArtifactConfigTests.swift in Sources */,
+				A200000004 /* PracticeSessionServiceTests.swift in Sources */,
+				A200000005 /* ChatServiceTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
