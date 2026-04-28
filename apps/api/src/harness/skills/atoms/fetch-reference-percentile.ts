@@ -45,6 +45,6 @@ export const fetchReferencePercentile: ToolDefinition = {
         return lo.p + fraction * (hi.p - lo.p)
       }
     }
-    return 50
+    throw new Error('fetch-reference-percentile: interpolation invariant violated — cohort_table may contain NaN or unsorted values')
   },
 }
