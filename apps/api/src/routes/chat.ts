@@ -40,7 +40,12 @@ const app = new Hono<{ Bindings: Bindings; Variables: Variables }>().post(
 			let allComponents: InlineComponent[] = [];
 
 			try {
-				for await (const event of teacherService.chat(
+				const teacherFn =
+					c.env.HARNESS_V6_CHAT_ENABLED === "true"
+						? teacherService.chatV6
+						: teacherService.chat;
+
+				for await (const event of teacherFn(
 					ctx,
 					studentId,
 					messages,

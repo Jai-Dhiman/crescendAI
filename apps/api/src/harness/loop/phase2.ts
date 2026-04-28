@@ -2,7 +2,7 @@ import { zodToJsonSchema } from "zod-to-json-schema";
 import { InferenceError } from "../../lib/errors";
 import { withRetries } from "./middleware";
 import { routeModel } from "./route-model";
-import type { CompoundBinding, HookEvent, PhaseContext } from "./types";
+import type { Phase2Binding, HookEvent, PhaseContext } from "./types";
 
 interface AnthropicMessageResponse {
 	content: Array<
@@ -39,7 +39,7 @@ async function callAnthropicMessage(
 
 export async function* runPhase2(
 	ctx: PhaseContext,
-	binding: CompoundBinding,
+	binding: Phase2Binding,
 	diagnoses: unknown[],
 ): AsyncGenerator<HookEvent<unknown>> {
 	yield { type: "phase2_started" };
@@ -94,6 +94,6 @@ export async function* runPhase2(
 	yield { type: "artifact", value: parsed.data };
 }
 
-function artifactInputSchema(schema: CompoundBinding["artifactSchema"]): Record<string, unknown> {
+function artifactInputSchema(schema: Phase2Binding["artifactSchema"]): Record<string, unknown> {
 	return zodToJsonSchema(schema, { target: "openApi3" }) as Record<string, unknown>;
 }

@@ -13,6 +13,8 @@ const BINDING: CompoundBinding = {
 	compoundName: "session-synthesis",
 	procedurePrompt: "test",
 	tools: [],
+	mode: "buffered",
+	phases: 2,
 	artifactSchema: SynthesisArtifactSchema,
 	artifactToolName: "write_synthesis_artifact",
 };

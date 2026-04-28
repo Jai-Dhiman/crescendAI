@@ -19,9 +19,16 @@ export interface CompoundBinding {
 	compoundName: string;
 	procedurePrompt: string;
 	tools: ToolDefinition[];
+	mode: "streaming" | "buffered";
+	phases: 1 | 2;
+	artifactSchema?: ZodTypeAny;
+	artifactToolName?: string;
+}
+
+export type Phase2Binding = CompoundBinding & {
 	artifactSchema: ZodTypeAny;
 	artifactToolName: string;
-}
+};
 
 export type Phase1Event =
 	| { type: "phase1_tool_call"; id: string; tool: string; input: unknown }
