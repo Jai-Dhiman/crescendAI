@@ -47,7 +47,6 @@ export const computeIoiCorrelation: ToolDefinition = {
       perfIOIs.push(aligned[i + 1].onset_ms - aligned[i].onset_ms)
       scoreIOIs.push(aligned[i + 1].expected_onset_ms! - aligned[i].expected_onset_ms!)
     }
-    if (perfIOIs.length < 3) return null
     return pearsonR(perfIOIs, scoreIOIs)
   },
 }

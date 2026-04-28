@@ -70,7 +70,7 @@ export const extractBarRangeSignals: ToolDefinition = {
         muq_scores.push(chunk.muq_scores)
         pedal_cc.push(...chunk.pedal_cc)
       }
-      midi_notes.push(...chunk.midi_notes.filter((n) => n.bar === undefined || (n.bar >= bar_range[0] && n.bar <= bar_range[1])))
+      midi_notes.push(...chunk.midi_notes.filter((n) => n.bar !== undefined && n.bar >= bar_range[0] && n.bar <= bar_range[1]))
       alignment.push(...chunk.alignment.filter((a) => a.bar >= bar_range[0] && a.bar <= bar_range[1]))
     }
     return { muq_scores, midi_notes, pedal_cc, alignment }
