@@ -1,6 +1,6 @@
 # Apps & Delivery System Status
 
-> **Status (2026-04-28):** Two-stage LLM pipeline IMPLEMENTED with bar-aligned musical analysis (subagent + teacher, Groq + Anthropic). HF inference endpoint DEPLOYED (A1-Max 4-fold ensemble + AMT + pedal CC64). STOP classifier IMPLEMENTED. Teaching moment selection IMPLEMENTED. Score following (DTW) IMPLEMENTED. Bar-aligned analysis engine IMPLEMENTED (all 6 dims, Tier 1/2/3). Durable Object practice sessions IMPLEMENTED with state persistence (survives DO eviction). Web practice companion IMPLEMENTED (chat, recording, WebSocket observations, session synthesis, landing page). Exercise system IMPLEMENTED (25 curated exercises seeded). iOS audio capture COMPLETE. Auth COMPLETE (Apple + Google on both API and web). AI Gateway COMPLETE (Anthropic + Groq + Workers AI). Zero-config piece ID CODE COMPLETE (merged, pending AMT container deploy). Session synthesis COMPLETE (alarm-triggered, all exit paths, deferred recovery). Unified artifact container COMPLETE. **V6 harness loop SHIPPED** (hook-driven two-phase compound loop, flag-gated via HARNESS_V6_ENABLED). **V6 chat streaming SHIPPED** (chatV6 routes POST /api/chat through harness binding system, flag-gated via HARNESS_V6_CHAT_ENABLED). **iOS live practice pipeline SHIPPED** (cookie auth, PracticeSessionService WebSocket+chunk upload, ChatService SSE, ChatViewModel wired, ConversationRecord SwiftData, ArtifactRenderer). Platform strategy: web-first. Tiered monetization (Free/$5/$20/$50) decided, not yet enforced.
+> **Status (2026-04-27):** Two-stage LLM pipeline IMPLEMENTED with bar-aligned musical analysis (subagent + teacher, Groq + Anthropic). HF inference endpoint DEPLOYED (A1-Max 4-fold ensemble + AMT + pedal CC64). STOP classifier IMPLEMENTED. Teaching moment selection IMPLEMENTED. Score following (DTW) IMPLEMENTED. Bar-aligned analysis engine IMPLEMENTED (all 6 dims, Tier 1/2/3). Durable Object practice sessions IMPLEMENTED with state persistence (survives DO eviction). Web practice companion IMPLEMENTED (chat, recording, WebSocket observations, session synthesis, landing page). Exercise system IMPLEMENTED (25 curated exercises seeded). iOS audio capture COMPLETE. Auth COMPLETE (Apple + Google on both API and web). AI Gateway COMPLETE (Anthropic + Groq + Workers AI). Zero-config piece ID CODE COMPLETE (merged, pending AMT container deploy). Session synthesis COMPLETE (alarm-triggered, all exit paths, deferred recovery). Unified artifact container COMPLETE. **V6 harness loop SHIPPED** (hook-driven two-phase compound loop, flag-gated via HARNESS_V6_ENABLED). Platform strategy: web-first. Tiered monetization (Free/$5/$20/$50) decided, not yet enforced.
 
 *Core loop: student plays, cloud inference scores 6 dimensions, STOP classifier identifies teaching moments, two-stage subagent pipeline reasons about what matters, teacher LLM delivers one specific observation.*
 
@@ -15,16 +15,13 @@ Target user: Sarah -- intermediate self-learner, no teacher, wants to know the o
 | Component | Status | Key Files | Notes |
 |---|---|---|---|
 | Audio capture (AVAudioEngine) | COMPLETE | `apps/ios/` | 24kHz mono, ring buffer, 15s chunking, background mode |
-| Cloud inference client | COMPLETE | `apps/ios/CrescendAI/Services/Practice/PracticeSessionService.swift` | POST /api/practice/start + chunk upload, WebSocket observations |
-| SwiftData models | COMPLETE | `apps/ios/` | Student, PracticeSession, ChunkResult, Observation, ConversationRecord |
-| Sign in with Apple | COMPLETE | `apps/ios/` | Native one-tap, cookie-based better-auth session (migrated from Keychain JWT) |
+| Cloud inference client | STUB | `apps/ios/` | Code ready, needs API integration |
+| SwiftData models | COMPLETE | `apps/ios/` | Student, PracticeSession, ChunkResult, Observation |
+| Sign in with Apple | COMPLETE | `apps/ios/` | Native one-tap, JWT stored in Keychain |
 | D1 sync service | COMPLETE | `apps/ios/` | Background push after session, conflict-free (phone authoritative) |
 | Student model service | COMPLETE | `apps/ios/` | Baselines, level inference, goal extraction |
-| Chat interface | COMPLETE | `apps/ios/CrescendAI/Features/Chat/` | ChatView + ChatViewModel wired to ChatService SSE + PracticeSessionService events |
-| ChatService (SSE) | COMPLETE | `apps/ios/CrescendAI/Services/Chat/ChatService.swift` | SSEParser, streams delta/toolResult/done events from /api/chat |
-| ArtifactRenderer | COMPLETE | `apps/ios/CrescendAI/Features/Chat/ArtifactRenderer.swift` | Renders exerciseSet, keyboardGuide, scoreHighlight from teacher tool_use |
-| Conversation history | COMPLETE | `apps/ios/CrescendAI/App/SidebarView.swift` | @Query on ConversationRecord, displayTitle, sorted by startedAt |
-| PracticeView | PARTIAL | `apps/ios/` | Basic session screen; PracticeSessionService wired via ChatViewModel |
+| PracticeView | PARTIAL | `apps/ios/` | Basic session screen, not fully wired to pipeline |
+| Chat interface | NOT STARTED | -- | Planned SwiftUI chat view with inline cards |
 | Focus mode | NOT STARTED | -- | Depends on exercise DB and teaching moment detection |
 
 ### Web App (crescend.ai)
@@ -71,8 +68,7 @@ Stack: TanStack Start, Tailwind CSS v4, Web Audio API, MediaRecorder, WebSocket.
 | Exercise endpoints | IMPLEMENTED | `apps/api/src/services/exercises.rs` | `GET /api/exercises`, assign, complete; 18 tests |
 | Zero-config piece ID | COMPLETE | `apps/api/src/practice/piece_identify.rs` | N-gram + rerank + DTW, merged to main (pending AMT container deploy) |
 | Session synthesis | COMPLETE | `apps/api/src/practice/synthesis.rs` | Alarm-triggered, all exit paths, deferred recovery, 963 lines |
-| V6 harness loop | COMPLETE (flag-gated) | `apps/api/src/harness/loop/` | Hook-driven two-phase compound execution loop. Phase 1 dispatches tools as Anthropic tools; Phase 2 forced-writes a Zod-validated SynthesisArtifact. `HARNESS_V6_ENABLED=false` in prod. Atoms registry reset (v6-atoms plan pending). |
-| V6 chat streaming | COMPLETE (flag-gated) | `apps/api/src/services/teacher.ts`, `apps/api/src/routes/chat.ts` | `chatV6` routes POST /api/chat through the harness binding system via `runPhase1Streaming` — multi-turn tool-continuation loop with forced-call turn-cap safety valve. Zero SSE wire protocol change. `HARNESS_V6_CHAT_ENABLED=false` in prod. |
+| V6 harness loop | COMPLETE (flag-gated) | `apps/api/src/harness/loop/` | Hook-driven two-phase compound execution loop. Phase 1 dispatches molecule atoms as Anthropic tools; Phase 2 forced-writes a Zod-validated SynthesisArtifact. Registry empty in V6 (atoms ship in Plan 2). `HARNESS_V6_ENABLED=false` in prod. The flag-gated `chatV6` path (`buildChatBinding`, `runPhase1Streaming`, `HARNESS_V6_CHAT_ENABLED`) was removed; chat now always uses `teacherService.chat` — the harness loop (`runHook`) replaces streaming for V6. |
 | DO state persistence | COMPLETE | `apps/api/src/practice/session.rs` | Persists to state.storage(), reloads on eviction at all async boundaries |
 | AI Gateway | COMPLETE | `apps/api/src/services/ai_gateway.rs` | Anthropic + Groq + Workers AI routed through CF AI Gateway |
 | Practice mode detection | COMPLETE | `apps/api/src/practice/session.rs` | 4-state machine (warming/drilling/running/winding) |
@@ -141,7 +137,7 @@ For system architecture, see `docs/architecture.md`.
 | Reference cache script (Phase 1e) | COMPLETE | `reference_cache.py`, data generation pending |
 | Fuzzy piece matching + demand tracking | COMPLETE | `piece_match.rs`, `score_context.rs`, `piece_requests` table |
 | Enrich subagent prompt with musical analysis | COMPLETE | `prompts.rs`, `<musical_analysis>` per-dimension facts |
-| Wire iOS cloud inference client | COMPLETE | PracticeSessionService + ChatService + ChatViewModel shipped 2026-04-28 |
+| Wire iOS cloud inference client | NOT STARTED | HF endpoint deployed, iOS code needs API integration |
 
 ### Phase 2: Web Beta -- Core Loop + First Session Magic (~4 weeks)
 
@@ -167,7 +163,7 @@ For system architecture, see `docs/architecture.md`.
 
 | Task | Depends On | Effort | Priority |
 |---|---|---|---|
-| iOS cloud inference wiring (stub to real API) | Phase 2 API stability | 1-2 weeks | P1 | COMPLETE — PracticeSessionService, ChatService, ChatViewModel, ConversationRecord, ArtifactRenderer shipped (2026-04-28) |
+| iOS cloud inference wiring (stub to real API) | Phase 2 API stability | 1-2 weeks | P1 |
 | Stripe integration (subscription management) | -- | 1-2 weeks | P1 |
 | Usage tracking + tier enforcement | Stripe | 1 week | P1 |
 | Score highlight artifact renderer | Artifact container | 2 weeks | P2 |

@@ -1,147 +1,77 @@
 import XCTest
+import SwiftData
 @testable import CrescendAI
 
 @MainActor
 final class AuthServiceTests: XCTestCase {
 
-    func test_signIn_callsSocialEndpointAndSetsAuthenticated() async throws {
-        // Arrange: stub URLSession that returns a 200 with Set-Cookie header
-        let config = URLSessionConfiguration.ephemeral
-        config.protocolClasses = [MockURLProtocol.self]
-        let session = URLSession(configuration: config)
-
-        MockURLProtocol.requestHandler = { request in
-            XCTAssertEqual(request.url?.path, "/api/auth/sign-in/social")
-            XCTAssertEqual(request.httpMethod, "POST")
-            let body = try JSONDecoder().decode([String: AnyCodable].self, from: request.httpBody!)
-            XCTAssertEqual(body["provider"]?.value as? String, "apple")
-
-            let response = HTTPURLResponse(
-                url: request.url!,
-                statusCode: 200,
-                httpVersion: nil,
-                headerFields: ["Set-Cookie": "better-auth.session_token=abc123; Path=/; HttpOnly"]
-            )!
-            return (response, Data("{}".utf8))
-        }
-
-        let service = AuthService(session: session)
-
-        // Act
-        try await service.signIn(identityToken: "fake.jwt.token", userId: "user123", email: "test@test.com")
-
-        // Assert
-        XCTAssertTrue(service.isAuthenticated)
-        XCTAssertEqual(service.appleUserId, "user123")
-        XCTAssertEqual(UserDefaults.standard.string(forKey: "crescendai.appleUserId"), "user123")
-        // Clean up
-        UserDefaults.standard.removeObject(forKey: "crescendai.appleUserId")
+    override func setUp() {
+        super.setUp()
+        try? KeychainService.deleteAll()
     }
 
-    func test_signIn_throwsServerAuthFailedOn401() async throws {
-        let config = URLSessionConfiguration.ephemeral
-        config.protocolClasses = [MockURLProtocol.self]
-        let session = URLSession(configuration: config)
-
-        MockURLProtocol.requestHandler = { request in
-            let response = HTTPURLResponse(
-                url: request.url!,
-                statusCode: 401,
-                httpVersion: nil,
-                headerFields: nil
-            )!
-            return (response, Data(#"{"error":"invalid token"}"#.utf8))
-        }
-
-        let service = AuthService(session: session)
-
-        do {
-            try await service.signIn(identityToken: "bad.token", userId: "u", email: nil)
-            XCTFail("Expected throw")
-        } catch AuthError.serverAuthFailed(let msg) {
-            XCTAssertEqual(msg, "invalid token")
-        }
-        XCTAssertFalse(service.isAuthenticated)
+    override func tearDown() {
+        try? KeychainService.deleteAll()
+        super.tearDown()
     }
 
-    func test_signOut_clearsAuthState() throws {
-        // Seed a session cookie so loadStoredCredentials sets isAuthenticated
-        let cookie = HTTPCookie(properties: [
-            .name: "better-auth.session_token",
-            .value: "test-session-value",
-            .domain: "api.crescend.ai",
-            .path: "/",
-            .expires: Date.distantFuture,
-        ])!
-        HTTPCookieStorage.shared.setCookie(cookie)
+    // MARK: - loadStoredCredentials (via init)
 
-        // Also store appleUserId as would happen after a real sign-in
-        UserDefaults.standard.set("u1", forKey: "crescendai.appleUserId")
+    func testInitWithStoredCredentialsSetsAuthenticated() throws {
+        try KeychainService.save("test.jwt.token", for: .sessionJWT)
+        try KeychainService.save("apple.user.123", for: .appleUserId)
 
-        let service = AuthService(session: .shared)
+        let service = AuthService()
+
         XCTAssertTrue(service.isAuthenticated)
-        XCTAssertEqual(service.appleUserId, "u1")
+        XCTAssertEqual(service.jwt, "test.jwt.token")
+        XCTAssertEqual(service.appleUserId, "apple.user.123")
+    }
 
-        service.signOut()
+    func testInitWithEmptyKeychainIsNotAuthenticated() {
+        let service = AuthService()
 
         XCTAssertFalse(service.isAuthenticated)
+        XCTAssertNil(service.jwt)
+        XCTAssertNil(service.appleUserId)
+    }
+
+    // MARK: - signOut
+
+    func testSignOutClearsStateAndKeychain() throws {
+        try KeychainService.save("test.jwt.token", for: .sessionJWT)
+        try KeychainService.save("apple.user.123", for: .appleUserId)
+
+        let service = AuthService()
+        XCTAssertTrue(service.isAuthenticated)
+
+        try service.signOut()
+
+        XCTAssertFalse(service.isAuthenticated)
+        XCTAssertNil(service.jwt)
         XCTAssertNil(service.appleUserId)
 
-        // Verify the cookie was actually deleted
-        let remaining = HTTPCookieStorage.shared.cookies?.filter {
-            $0.name == "better-auth.session_token"
-        } ?? []
-        XCTAssertTrue(remaining.isEmpty)
-
-        // Clean up UserDefaults
-        UserDefaults.standard.removeObject(forKey: "crescendai.appleUserId")
+        let storedJWT = try KeychainService.read(.sessionJWT)
+        let storedUserId = try KeychainService.read(.appleUserId)
+        XCTAssertNil(storedJWT)
+        XCTAssertNil(storedUserId)
     }
-}
 
-// Minimal AnyCodable for decoding body in tests
-struct AnyCodable: Decodable {
-    let value: Any
-    init(from decoder: Decoder) throws {
-        let c = try decoder.singleValueContainer()
-        if let s = try? c.decode(String.self) { value = s }
-        else if let i = try? c.decode(Int.self) { value = i }
-        else if let b = try? c.decode(Bool.self) { value = b }
-        else { value = "" }
-    }
-}
+    // MARK: - ensureOrCreateStudent
 
-final class MockURLProtocol: URLProtocol {
-    nonisolated(unsafe) static var requestHandler: ((URLRequest) throws -> (HTTPURLResponse, Data))?
+    func testEnsureOrCreateStudentThrowsWhenNotAuthenticated() throws {
+        let service = AuthService()
+        XCTAssertNil(service.appleUserId)
 
-    override class func canInit(with request: URLRequest) -> Bool { true }
-    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: Student.self, configurations: config)
+        let context = ModelContext(container)
 
-    override func startLoading() {
-        guard let handler = MockURLProtocol.requestHandler else {
-            client?.urlProtocol(self, didFailWithError: URLError(.unknown))
-            return
-        }
-        do {
-            var mutableRequest = request
-            if let body = request.httpBodyStream {
-                body.open()
-                var data = Data()
-                let buffer = UnsafeMutablePointer<UInt8>.allocate(capacity: 1024)
-                defer { buffer.deallocate() }
-                while body.hasBytesAvailable {
-                    let n = body.read(buffer, maxLength: 1024)
-                    data.append(buffer, count: n)
-                }
-                mutableRequest.httpBody = data
+        XCTAssertThrowsError(try service.ensureOrCreateStudent(in: context)) { error in
+            guard let authError = error as? AuthError, case .notAuthenticated = authError else {
+                XCTFail("Expected AuthError.notAuthenticated, got \(error)")
+                return
             }
-            let (response, data) = try handler(mutableRequest)
-            client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
-            client?.urlProtocol(self, didLoad: data)
-            client?.urlProtocolDidFinishLoading(self)
-        } catch {
-            client?.urlProtocol(self, didFailWithError: error)
         }
     }
-
-    override func stopLoading() {}
 }

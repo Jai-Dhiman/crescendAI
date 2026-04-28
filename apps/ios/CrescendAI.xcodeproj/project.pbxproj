@@ -62,16 +62,6 @@
 		A500000002 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B500000002 /* Assets.xcassets */; };
 		A500000003 /* Figtree-VariableFont_wght.ttf in Resources */ = {isa = PBXBuildFile; fileRef = B500000003 /* Figtree-VariableFont_wght.ttf */; };
 		SA000000001 /* Sentry in Frameworks */ = {isa = PBXBuildFile; productRef = SP000000001 /* Sentry */; };
-		A700000001 /* ArtifactConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = B700000001 /* ArtifactConfig.swift */; };
-		A700000002 /* ArtifactRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B700000002 /* ArtifactRenderer.swift */; };
-		A200000003 /* ArtifactConfigTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B200000003 /* ArtifactConfigTests.swift */; };
-		A800000001 /* PracticeSessionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B800000001 /* PracticeSessionService.swift */; };
-		A800000002 /* ConversationRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = B800000002 /* ConversationRecord.swift */; };
-		A200000004 /* PracticeSessionServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B200000004 /* PracticeSessionServiceTests.swift */; };
-		A900000001 /* ChatService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B900000001 /* ChatService.swift */; };
-		A200000005 /* ChatServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B200000005 /* ChatServiceTests.swift */; };
-		A200000006 /* ChatViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B200000006 /* ChatViewModelTests.swift */; };
-		A200000007 /* ConversationRecordTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B200000007 /* ConversationRecordTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -107,16 +97,6 @@
 		B100000041 /* AudioChunk.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioChunk.swift; sourceTree = "<group>"; };
 		B200000001 /* RingBufferTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RingBufferTests.swift; sourceTree = "<group>"; };
 		B200000002 /* AuthServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthServiceTests.swift; sourceTree = "<group>"; };
-		B200000003 /* ArtifactConfigTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtifactConfigTests.swift; sourceTree = "<group>"; };
-		B200000004 /* PracticeSessionServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PracticeSessionServiceTests.swift; sourceTree = "<group>"; };
-		B800000001 /* PracticeSessionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PracticeSessionService.swift; sourceTree = "<group>"; };
-		B800000002 /* ConversationRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationRecord.swift; sourceTree = "<group>"; };
-		B900000001 /* ChatService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatService.swift; sourceTree = "<group>"; };
-		B200000005 /* ChatServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatServiceTests.swift; sourceTree = "<group>"; };
-		B200000006 /* ChatViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatViewModelTests.swift; sourceTree = "<group>"; };
-		B200000007 /* ConversationRecordTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationRecordTests.swift; sourceTree = "<group>"; };
-		B700000001 /* ArtifactConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtifactConfig.swift; sourceTree = "<group>"; };
-		B700000002 /* ArtifactRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtifactRenderer.swift; sourceTree = "<group>"; };
 		B300000001 /* PracticeSessionRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PracticeSessionRecord.swift; sourceTree = "<group>"; };
 		B300000002 /* ChunkResultRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChunkResultRecord.swift; sourceTree = "<group>"; };
 		B300000003 /* CoreMLInferenceProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreMLInferenceProvider.swift; sourceTree = "<group>"; };
@@ -301,29 +281,11 @@
 				E400000007 /* Auth */,
 				E100000024 /* AudioEngine */,
 				E100000025 /* Inference */,
-				E800000001 /* Practice */,
-				E100000027 /* Chat */,
 				B400000010 /* StudentModelService.swift */,
 				B400000011 /* CheckInService.swift */,
 				B400000012 /* GoalExtractionService.swift */,
 			);
 			path = Services;
-			sourceTree = "<group>";
-		};
-		E100000027 /* Chat */ = {
-			isa = PBXGroup;
-			children = (
-				B900000001 /* ChatService.swift */,
-			);
-			path = Chat;
-			sourceTree = "<group>";
-		};
-		E800000001 /* Practice */ = {
-			isa = PBXGroup;
-			children = (
-				B800000001 /* PracticeSessionService.swift */,
-			);
-			path = Practice;
 			sourceTree = "<group>";
 		};
 		E100000024 /* AudioEngine */ = {
@@ -358,8 +320,6 @@
 				B300000002 /* ChunkResultRecord.swift */,
 				B400000008 /* ObservationRecord.swift */,
 				B400000009 /* CheckInRecord.swift */,
-				B700000001 /* ArtifactConfig.swift */,
-				B800000002 /* ConversationRecord.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -369,11 +329,6 @@
 			children = (
 				B200000001 /* RingBufferTests.swift */,
 				B200000002 /* AuthServiceTests.swift */,
-				B200000003 /* ArtifactConfigTests.swift */,
-				B200000004 /* PracticeSessionServiceTests.swift */,
-				B200000005 /* ChatServiceTests.swift */,
-				B200000006 /* ChatViewModelTests.swift */,
-				B200000007 /* ConversationRecordTests.swift */,
 			);
 			path = CrescendAITests;
 			sourceTree = "<group>";
@@ -403,7 +358,6 @@
 				B400000016 /* MessageBubble.swift */,
 				B400000017 /* ObservationCard.swift */,
 				B400000018 /* DimensionPill.swift */,
-				B700000002 /* ArtifactRenderer.swift */,
 				E400000003 /* ComponentCards */,
 			);
 			path = Chat;
@@ -602,11 +556,6 @@
 				A400000025 /* ScoreHighlightCard.swift in Sources */,
 				A400000026 /* KeyboardGuideCard.swift in Sources */,
 				A400000027 /* ExerciseSetCard.swift in Sources */,
-				A700000001 /* ArtifactConfig.swift in Sources */,
-				A700000002 /* ArtifactRenderer.swift in Sources */,
-				A800000001 /* PracticeSessionService.swift in Sources */,
-				A800000002 /* ConversationRecord.swift in Sources */,
-				A900000001 /* ChatService.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -616,11 +565,6 @@
 			files = (
 				A200000001 /* RingBufferTests.swift in Sources */,
 				A200000002 /* AuthServiceTests.swift in Sources */,
-				A200000003 /* ArtifactConfigTests.swift in Sources */,
-				A200000004 /* PracticeSessionServiceTests.swift in Sources */,
-				A200000005 /* ChatServiceTests.swift in Sources */,
-				A200000006 /* ChatViewModelTests.swift in Sources */,
-				A200000007 /* ConversationRecordTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
