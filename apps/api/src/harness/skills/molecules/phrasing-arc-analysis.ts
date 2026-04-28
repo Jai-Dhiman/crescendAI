@@ -6,7 +6,6 @@ import type { VelocityCurve } from '../atoms/compute-velocity-curve'
 import { computeOnsetDrift } from '../atoms/compute-onset-drift'
 import type { OnsetDrift } from '../atoms/compute-onset-drift'
 import { computeDimensionDelta } from '../atoms/compute-dimension-delta'
-import { fetchReferencePercentile } from '../atoms/fetch-reference-percentile'
 
 const DIM = { dynamics: 0, timing: 1, pedaling: 2, articulation: 3, phrasing: 4, interpretation: 5 } as const
 
@@ -49,7 +48,6 @@ export const phrasingArcAnalysis: ToolDefinition = {
     const p84 = i.cohort_table_phrasing.find(e => e.p === 84)?.value ?? 0.60
     const cohortBaseline = { mean: p50, stddev: Math.max(0.01, p84 - p50) }
     const z = await computeDimensionDelta.invoke({ dimension: 'phrasing', current: i.muq_scores[DIM.phrasing], baseline: cohortBaseline }) as number
-    await fetchReferencePercentile.invoke({ dimension: 'phrasing', score: i.muq_scores[DIM.phrasing], cohort_table: i.cohort_table_phrasing })
     const neutral = DiagnosisArtifactSchema.parse({
       primary_dimension: 'phrasing', dimensions: ['phrasing', 'dynamics'],
       severity: 'minor', scope: i.scope, bar_range: i.bar_range,
@@ -79,7 +77,12 @@ export const phrasingArcAnalysis: ToolDefinition = {
       })
     }
     const peakBar = curve[peakIndex]?.bar ?? i.bar_range[0]
-    const finding = `The phrase peaks at bar ${peakBar} instead of the expected middle; the climax of the line is arriving too early.`
+    let finding: string
+    if (peakIndex === curve.length - 1) {
+      finding = `The phrase peaks at bar ${peakBar} at the very end; the climax arrives too late, leaving no room for the line to resolve.`
+    } else {
+      finding = `The phrase peaks at bar ${peakBar} instead of the expected middle; the climax of the line is arriving too early.`
+    }
     return DiagnosisArtifactSchema.parse({
       primary_dimension: 'phrasing', dimensions: ['phrasing', 'dynamics'],
       severity: severityFromZ(z), scope: i.scope, bar_range: i.bar_range,
