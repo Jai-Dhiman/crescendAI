@@ -3,7 +3,6 @@ import { DiagnosisArtifactSchema } from '../../artifacts/diagnosis'
 import type { DiagnosisArtifact } from '../../artifacts/diagnosis'
 import { computeKeyOverlapRatio } from '../atoms/compute-key-overlap-ratio'
 import { computeDimensionDelta } from '../atoms/compute-dimension-delta'
-import { fetchReferencePercentile } from '../atoms/fetch-reference-percentile'
 
 const DIM = { dynamics: 0, timing: 1, pedaling: 2, articulation: 3, phrasing: 4, interpretation: 5 } as const
 
@@ -45,7 +44,6 @@ export const articulationClarityCheck: ToolDefinition = {
     const p84 = i.cohort_table_articulation.find(e => e.p === 84)?.value ?? 0.60
     const cohortBaseline = { mean: p50, stddev: Math.max(0.01, p84 - p50) }
     const z = await computeDimensionDelta.invoke({ dimension: 'articulation', current: i.muq_scores[DIM.articulation], baseline: cohortBaseline }) as number
-    await fetchReferencePercentile.invoke({ dimension: 'articulation', score: i.muq_scores[DIM.articulation], cohort_table: i.cohort_table_articulation })
     const neutral = DiagnosisArtifactSchema.parse({
       primary_dimension: 'articulation', dimensions: ['articulation'],
       severity: 'minor', scope: i.scope, bar_range: i.bar_range,
@@ -55,20 +53,23 @@ export const articulationClarityCheck: ToolDefinition = {
     })
     if (z > -0.8) return neutral
     const articMap = new Map(i.score_articulation_per_bar.map(a => [a.bar, a.articulation]))
-    let mismatchCount = 0; let totalBars = 0
-    let dominantMismatch: 'legato_as_staccato' | 'staccato_as_legato' = 'staccato_as_legato'
+    let staccatoAsMiscount = 0
+    let legatoAsMiscount = 0
+    let totalBars = 0
+
     for (const barData of i.mono_notes_per_bar) {
       if (barData.notes.length < 3) continue
       totalBars++
       const ratio = await computeKeyOverlapRatio.invoke({ notes: barData.notes }) as number
       const scoreArt = articMap.get(barData.bar) ?? 'detache'
-      const isMismatch = (scoreArt === 'staccato' && ratio >= 0) || (scoreArt === 'slur' && ratio <= 0)
-      if (isMismatch) {
-        mismatchCount++
-        dominantMismatch = scoreArt === 'staccato' ? 'staccato_as_legato' : 'legato_as_staccato'
-      }
+      if (scoreArt === 'staccato' && ratio > 0) staccatoAsMiscount++
+      else if (scoreArt === 'slur' && ratio < 0) legatoAsMiscount++
     }
+
+    const mismatchCount = staccatoAsMiscount + legatoAsMiscount
     if (totalBars === 0 || mismatchCount / totalBars < 0.5) return neutral
+    const dominantMismatch: 'legato_as_staccato' | 'staccato_as_legato' =
+      legatoAsMiscount > staccatoAsMiscount ? 'legato_as_staccato' : 'staccato_as_legato'
     const finding = dominantMismatch === 'staccato_as_legato'
       ? `The staccato bars ${i.bar_range[0]}-${i.bar_range[1]} are sustaining into each other; the notes are blurring rather than separating.`
       : `The slurred bars ${i.bar_range[0]}-${i.bar_range[1]} are detaching between notes; the legato line is breaking up.`
