@@ -1,6 +1,1 @@
-# Ignore everything except arxiv/main.pdf
 *
-!.gitignore
-!arxiv/
-arxiv/*
-!arxiv/main.pdf
