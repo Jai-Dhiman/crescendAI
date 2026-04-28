@@ -16,3 +16,23 @@ describe("parseCatalog atoms", () => {
 		}
 	});
 });
+
+describe("parseCatalog molecules", () => {
+	it("returns 9 molecules with non-empty name and description", () => {
+		const catalog = parseCatalog(SKILLS_DIR);
+		expect(catalog.molecules).toHaveLength(9);
+		for (const m of catalog.molecules) {
+			expect(typeof m.name).toBe("string");
+			expect(m.name.length).toBeGreaterThan(0);
+			expect(typeof m.description).toBe("string");
+			expect(m.description.length).toBeGreaterThan(0);
+		}
+	});
+
+	it("includes pedal-triage with description starting with 'Distinguishes'", () => {
+		const catalog = parseCatalog(SKILLS_DIR);
+		const pedal = catalog.molecules.find((m) => m.name === "pedal-triage");
+		expect(pedal).toBeDefined();
+		expect(pedal?.description.startsWith("Distinguishes")).toBe(true);
+	});
+});

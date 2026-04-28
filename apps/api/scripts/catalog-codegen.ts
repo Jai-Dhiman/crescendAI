@@ -45,7 +45,7 @@ function readTier(dir: string): SkillEntry[] {
 export function parseCatalog(skillsDir: string): SkillCatalog {
 	return {
 		atoms: readTier(join(skillsDir, "atoms")),
-		molecules: [],
+		molecules: readTier(join(skillsDir, "molecules")),
 		compounds: [],
 	};
 }
