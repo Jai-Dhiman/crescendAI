@@ -97,4 +97,47 @@ describe("runHook OnSessionEnd", () => {
 		expect(events).toHaveLength(1);
 		expect(events[0]?.type).toBe("phase_error");
 	});
+
+	it("phase2 fires unconditionally: phase2_started emitted even when phase1 calls no tools", async () => {
+		// Phase 1: end_turn with no tool calls (collectedDiagnoses stays empty)
+		fetchSpy.mockResolvedValueOnce(
+			new Response(
+				JSON.stringify({
+					content: [{ type: "text", text: "nothing to diagnose" }],
+					stop_reason: "end_turn",
+				}),
+				{ status: 200 },
+			),
+		);
+		// Phase 2: forced write with a valid artifact
+		fetchSpy.mockResolvedValueOnce(
+			new Response(
+				JSON.stringify({
+					content: [
+						{
+							type: "tool_use",
+							id: "tu_2",
+							name: "write_synthesis_artifact",
+							input: VALID_ARTIFACT,
+						},
+					],
+					stop_reason: "tool_use",
+				}),
+				{ status: 200 },
+			),
+		);
+
+		const events: HookEvent<SynthesisArtifact>[] = [];
+		for await (const ev of runHook("OnSessionEnd", HOOK_CTX)) {
+			events.push(ev);
+		}
+
+		// Regardless of phase1 tool call count, phase2_started must always appear.
+		// This confirms the removal of the old isPhase2Binding guard.
+		const types = events.map((e) => e.type);
+		expect(types).toContain("phase2_started");
+		const phase2Idx = types.indexOf("phase2_started");
+		const phase1DoneIdx = types.indexOf("phase1_done");
+		expect(phase1DoneIdx).toBeLessThan(phase2Idx);
+	});
 });
