@@ -47,7 +47,12 @@ export const tempoStabilityTriage: ToolDefinition = {
     if (i.midi_notes.length !== i.alignment.length) {
       throw new Error(`tempo-stability-triage: midi_notes length (${i.midi_notes.length}) does not match alignment length (${i.alignment.length})`)
     }
-    const correlationNotes = i.midi_notes.map((n, idx) => ({ onset_ms: n.onset_ms, expected_onset_ms: i.alignment[idx]?.expected_onset_ms ?? null }))
+    // Use perf_index from alignment to look up note onset_ms — avoids array-position assumption
+    const perfNoteMap = new Map(i.midi_notes.map((n, perfIdx) => [perfIdx, n.onset_ms]))
+    const correlationNotes = i.alignment.map(a => ({
+      onset_ms: perfNoteMap.get(a.perf_index) ?? a.expected_onset_ms,
+      expected_onset_ms: a.expected_onset_ms,
+    }))
     const r = await computeIoiCorrelation.invoke({ notes: correlationNotes }) as number | null
     const baseline = await fetchStudentBaseline.invoke({ dimension: 'timing', session_means: i.session_means_timing }) as Baseline | null
     if (!baseline) throw new Error('tempo-stability-triage: insufficient session history for timing baseline (need >= 3 sessions)')
@@ -60,12 +65,11 @@ export const tempoStabilityTriage: ToolDefinition = {
       confidence: 'low', finding_type: 'neutral',
     })
     if (z > -1.0 || (r !== null && r >= 0.4)) return neutral
-    // Use perf_index from alignment to look up note onset_ms — avoids array-position assumption
-    const perfNoteMap = new Map(i.midi_notes.map((n, idx) => [idx, n.onset_ms]))
-    const driftNotes = i.alignment.map(a => ({
-      onset_ms: perfNoteMap.get(a.perf_index) ?? a.expected_onset_ms,
-      expected_onset_ms: a.expected_onset_ms,
-    }))
+    const driftNotes = i.alignment.map(a => {
+      const onset = perfNoteMap.get(a.perf_index)
+      if (onset === undefined) throw new Error(`tempo-stability-triage: no note found for perf_index ${a.perf_index}`)
+      return { onset_ms: onset, expected_onset_ms: a.expected_onset_ms }
+    })
     const drift = await computeOnsetDrift.invoke({ notes: driftNotes }) as OnsetDrift[]
     if (drift.length === 0) return neutral
     const positiveCount = drift.filter(d => d.signed > 0).length
