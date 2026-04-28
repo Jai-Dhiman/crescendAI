@@ -29,3 +29,17 @@ describe("wrapToolCall", () => {
 		).rejects.toThrow("boom");
 	});
 });
+
+import { withRetries } from "./middleware";
+
+describe("withRetries happy path", () => {
+	it("invokes fn once and returns its value when fn succeeds", async () => {
+		let calls = 0;
+		const result = await withRetries(async () => {
+			calls++;
+			return "ok";
+		});
+		expect(result).toBe("ok");
+		expect(calls).toBe(1);
+	});
+});
