@@ -2,7 +2,7 @@ import * as Sentry from "@sentry/cloudflare";
 import { InferenceError } from "../lib/errors";
 import type { ServiceContext } from "../lib/types";
 import { runHook } from "../harness/loop/runHook";
-import type { HookContext, HookEvent } from "../harness/loop/types";
+import type { CompoundBinding, HookContext, HookEvent } from "../harness/loop/types";
 import type { SynthesisArtifact } from "../harness/artifacts/synthesis";
 import {
 	type AnthropicContentBlock,
@@ -16,6 +16,7 @@ import {
 	getAnthropicToolSchemas,
 	type InlineComponent,
 	processToolUse,
+	TOOL_REGISTRY,
 	type ToolResult,
 } from "./tool-processor";
 
@@ -342,6 +343,28 @@ export async function* parseAnthropicStream(
 
 export function stripAnalysis(text: string): string {
 	return text.replace(/<analysis>[\s\S]*?<\/analysis>/g, "").trim();
+}
+
+// ---------------------------------------------------------------------------
+// buildChatBinding
+// ---------------------------------------------------------------------------
+
+export function buildChatBinding(ctx: ServiceContext, studentId: string): CompoundBinding {
+  return {
+    compoundName: "chat-response",
+    procedurePrompt: "",
+    mode: "streaming",
+    phases: 1,
+    tools: Object.values(TOOL_REGISTRY).map((t) => ({
+      name: t.name,
+      description: t.description,
+      // input_schema cast: AnthropicToolSchema.input_schema is an object subset of Record<string, unknown>
+      input_schema: t.anthropicSchema.input_schema as Record<string, unknown>,
+      // invoke satisfies the binding contract; the streaming path uses processToolFn instead
+      // to preserve the ToolResult.componentsJson shape required for SSE rendering.
+      invoke: async (input: unknown) => processToolUse(ctx, studentId, t.name, input),
+    })),
+  };
 }
 
 // ---------------------------------------------------------------------------
