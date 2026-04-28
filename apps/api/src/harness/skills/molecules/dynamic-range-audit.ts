@@ -6,7 +6,6 @@ import type { VelocityCurve } from '../atoms/compute-velocity-curve'
 import { computeDimensionDelta } from '../atoms/compute-dimension-delta'
 import { fetchStudentBaseline } from '../atoms/fetch-student-baseline'
 import type { Baseline } from '../atoms/fetch-student-baseline'
-import { fetchReferencePercentile } from '../atoms/fetch-reference-percentile'
 
 const DIM = { dynamics: 0, timing: 1, pedaling: 2, articulation: 3, phrasing: 4, interpretation: 5 } as const
 
@@ -57,11 +56,10 @@ export const dynamicRangeAudit: ToolDefinition = {
       confidence: 'low', finding_type: 'neutral',
     })
     if (z > -0.8 || i.score_marking_type === 'none') return neutral
-    const maxP90 = Math.max(...curve.map(c => c.p90_velocity))
+    const maxMean = Math.max(...curve.map(c => c.mean_velocity))
     const minMean = Math.min(...curve.map(c => c.mean_velocity))
-    const observedRange = maxP90 - minMean
+    const observedRange = maxMean - minMean
     if (observedRange >= 30) return neutral
-    await fetchReferencePercentile.invoke({ dimension: 'dynamics', score: i.muq_scores[DIM.dynamics], cohort_table: i.cohort_table_dynamics })
     const finding = `The dynamic range across bars ${i.bar_range[0]}-${i.bar_range[1]} is only ${Math.round(observedRange)} velocity points; the score asks for much more contrast here.`
     return DiagnosisArtifactSchema.parse({
       primary_dimension: 'dynamics', dimensions: ['dynamics'],
