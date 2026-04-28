@@ -1,5 +1,26 @@
 # V8a — Direct-Action Tools (anchor: `assign_segment_loop`) + Chat Tool-Use Parity
 
+> **Status amendment (2026-04-27, post-spec):** Two findings during the `/plan` attempt invalidate parts of this spec. Do not treat as authoritative until updated through the predecessor specs below.
+>
+> 1. **Chat path already has tool_use.** The brainstorm assumption that `apps/api/src/services/chat.ts` was plain SSE text streaming was based on a stale memory snapshot (2026-03-30). As of today, `services/teacher.ts:chat()` runs a 5-turn agent loop with `tool_choice:auto`, dispatches via `processToolUse` (search_catalog, create_exercise_artifact), and streams `tool_start` / `tool_result` / `tool_error` / `delta` events to the client. **Q7's resolution ("non-streamed JSON for tool turns") is therefore wrong** — adopting it would be a UX regression. Q7 must be re-resolved against the actual chat surface, not the assumed one.
+> 2. **V6 is partially shipped.** Only V6 plan 1 of 4 (loop infrastructure) shipped. Plans 2 (atoms), 3 (molecules), and 4 (integration) are unshipped — `apps/api/src/harness/atoms/` and `apps/api/src/harness/molecules/` do not exist; the `OnSessionEnd` binding has `tools: []`; `HARNESS_V6_ENABLED=true` produces a hollow synthesis output. V8a's modules section assumes a fully built V6 substrate, which does not exist.
+>
+> **Required predecessor work, in order, before V8a's `/plan`:**
+> 1. **V6 completion** — atoms (Plan 2), molecules (Plan 3), integration (Plan 4). After this, `HARNESS_V6_ENABLED=true` produces real diagnoses.
+> 2. **Spec X — "Harness streaming + OnChatMessage migration"** (to be brainstormed). Migrates the legacy chat agent loop onto the V6 harness without losing streaming UX. Defines the streaming variant of `runPhase1`, the `mode: 'streaming' | 'buffered'` field on `CompoundBinding`, the `phases: 1 | 2` field, the `OnChatMessage` binding, and an SSE translator preserving the existing chat wire protocol. **No new tools, no new artifacts** — pure infrastructure migration with an equivalence-oracle test against legacy chat.
+>
+> **Effect on this spec when V8a's plan is finally written:**
+> - **Q7 resolution dropped.** Spec X delivers harness streaming; chat tool turns stream the same way they always have. The "non-streamed JSON" path and `kind: 'tool_turn'` discriminator are removed from the design.
+> - **Chat-path file changes simplify.** `services/chat.ts` and `routes/chat.ts` modifications mostly disappear (Spec X owns the rewiring). V8a's chat-side cost reduces to one tool registration in the `OnChatMessage` binding's tool list.
+> - **Single registration site.** The earlier-considered "two callsite" workaround (atom registered in both V6 and `processToolUse`) is unnecessary — Spec X delivers one chat agent loop, V8a registers one tool in it.
+> - **`CompoundBinding` extensions are Spec X's, not V8a's.** `phases`, `mode`, and any streaming event variants ship in Spec X. V8a inherits them.
+> - **`HookContext` extensions** (`pieceId`, `trigger`) remain V8a's.
+> - **Everything else stays.** The atom, the service + Drizzle schema + migration, the lifecycle state machine, the strict-isolation `passage-loop-detector`, the DO hydration, the `SegmentLoopArtifact` Zod schema, the synthesis `assigned_loops` extension, the accept/decline/dismiss routes, and the web `SegmentLoopArtifact` card all stay as designed.
+>
+> When `/plan` is re-run on this spec post-V6-completion-and-Spec-X-ship, treat the body below as the source of truth for everything except the Q7-derived chat-protocol decisions and the V6-substrate file references, both of which are reshaped by the predecessor specs.
+
+---
+
 **Goal:** Replace observation-only feedback with a durable, behavior-changing artifact (`assign_segment_loop`) that can be produced by the synthesis path *and* the chat path, gated per trigger context, and verified across sessions via a strict-isolation loop-attempt detector — so the system can actually break the 90%-playthrough practice habit instead of describing it.
 
 **Not in scope:**
