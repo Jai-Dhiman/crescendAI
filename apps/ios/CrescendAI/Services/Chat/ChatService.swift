@@ -14,13 +14,14 @@ struct SSEParser {
         case start(conversationId: String)
         case delta(text: String)
         case toolStart(toolName: String)
-        case toolResult(componentsJson: String?)
+        case toolResult(artifacts: [ArtifactConfig])
         case done
         case error(message: String)
         case unknown
 
         private enum CodingKeys: String, CodingKey {
-            case type, text, conversationId, componentsJson, toolName, message
+            case type, text, conversationId, componentsJson, message
+            case toolName = "name"
         }
 
         init(from decoder: Decoder) throws {
@@ -34,7 +35,7 @@ struct SSEParser {
             case "tool_start":
                 self = .toolStart(toolName: (try? c.decode(String.self, forKey: .toolName)) ?? "")
             case "tool_result":
-                self = .toolResult(componentsJson: try? c.decode(String.self, forKey: .componentsJson))
+                self = .toolResult(artifacts: (try? c.decode([ArtifactConfig].self, forKey: .componentsJson)) ?? [])
             case "done":
                 self = .done
             case "error":
@@ -60,12 +61,7 @@ struct SSEParser {
         case .start(let cid): return .start(conversationId: cid)
         case .delta(let text): return .delta(text)
         case .toolStart(let name): return .toolStart(toolName: name)
-        case .toolResult(let json):
-            guard let json,
-                  let data = json.data(using: .utf8),
-                  let artifacts = try? JSONDecoder().decode([ArtifactConfig].self, from: data) else {
-                return .toolResult(artifacts: [])
-            }
+        case .toolResult(let artifacts):
             return .toolResult(artifacts: artifacts)
         case .done: return .done
         case .error(let msg): return .error(msg)

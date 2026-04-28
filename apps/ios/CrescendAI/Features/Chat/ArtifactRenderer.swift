@@ -73,3 +73,39 @@ private struct ArtifactKeyboardGuideCard: View {
         .cornerRadius(8)
     }
 }
+
+#Preview("ExerciseSet") {
+    ArtifactRenderer(config: .exerciseSet(ExerciseSetConfig(
+        sourcePassage: "Chopin Op.9 mm.1-4",
+        targetSkill: "legato phrasing",
+        exercises: [
+            ExerciseItem(title: "Slow practice", instruction: "Play mm.1-4 at 60bpm", focusDimension: "phrasing", exerciseId: "ex-001", hands: nil),
+            ExerciseItem(title: "Phrase shaping", instruction: "Build the phrase peak at beat 3", focusDimension: "phrasing", exerciseId: "ex-002", hands: nil),
+        ]
+    )))
+    .padding()
+    .background(CrescendColor.background)
+    .crescendTheme()
+}
+
+#Preview("KeyboardGuide") {
+    ArtifactRenderer(config: .keyboardGuide(KeyboardGuideConfig(
+        title: "Hand positioning",
+        description: "Keep your wrist level with the keys and let arm weight do the work.",
+        hands: "both",
+        fingering: nil
+    )))
+    .padding()
+    .background(CrescendColor.background)
+    .crescendTheme()
+}
+
+#Preview("ScoreHighlight") {
+    ArtifactRenderer(config: .scoreHighlight(ScoreHighlightConfig(
+        pieceId: "chopin-op9-no2",
+        highlights: [ScoreHighlight(bars: [1, 4], dimension: "dynamics", annotation: "Build to forte here")]
+    )))
+    .padding()
+    .background(CrescendColor.background)
+    .crescendTheme()
+}

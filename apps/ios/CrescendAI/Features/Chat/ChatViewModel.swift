@@ -53,6 +53,10 @@ final class ChatViewModel {
     private var modelContext: ModelContext?
     private var practiceEventTask: Task<Void, Never>?
 
+    deinit {
+        practiceEventTask?.cancel()
+    }
+
     var currentLevel: Float { practiceService?.currentLevel ?? 0 }
     var sessionDuration: TimeInterval { practiceService?.elapsedSeconds ?? 0 }
 
@@ -84,10 +88,10 @@ final class ChatViewModel {
     }
 
     func startPractice() async {
-        addSystemMessage("Session started. Play when you're ready.")
         do {
             try await practiceService?.start()
             practiceState = .recording
+            addSystemMessage("Session started. Play when you're ready.")
         } catch {
             addSystemMessage("Could not start session: \(error.localizedDescription)")
         }

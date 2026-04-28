@@ -141,7 +141,11 @@ final class PracticeSessionService: PracticeSessionServiceProtocol {
         if hadAudioCapture && !synthesisReceived {
             let deadline = Date().addingTimeInterval(30)
             while !synthesisReceived && Date() < deadline {
-                try? await Task.sleep(for: .milliseconds(200))
+                do {
+                    try await Task.sleep(for: .milliseconds(200))
+                } catch {
+                    break
+                }
             }
         }
 

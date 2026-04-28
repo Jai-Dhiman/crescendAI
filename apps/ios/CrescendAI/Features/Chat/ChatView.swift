@@ -295,7 +295,7 @@ struct ChatView: View {
     }
     .crescendTheme()
     .modelContainer(
-        for: [Student.self, PracticeSessionRecord.self, ChunkResultRecord.self, ObservationRecord.self],
+        for: [Student.self, PracticeSessionRecord.self, ChunkResultRecord.self, ObservationRecord.self, ConversationRecord.self],
         inMemory: true
     )
 }

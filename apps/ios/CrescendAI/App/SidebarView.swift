@@ -149,4 +149,5 @@ struct SidebarView: View {
         )
     }
     .crescendTheme()
+    .modelContainer(for: [ConversationRecord.self], inMemory: true)
 }

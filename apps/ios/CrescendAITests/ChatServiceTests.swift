@@ -40,9 +40,7 @@ final class ChatServiceTests: XCTestCase {
     }
 
     func test_sseParser_parsesToolResultWithComponents() throws {
-        let componentsJson = #"[{"type":"keyboard_guide","config":{"title":"t","description":"d","hands":"both"}}]"#
-        let escaped = componentsJson.replacingOccurrences(of: "\"", with: "\\\"")
-        let line = #"data: {"type":"tool_result","componentsJson":"\#(escaped)"}"#
+        let line = #"data: {"type":"tool_result","componentsJson":[{"type":"keyboard_guide","config":{"title":"t","description":"d","hands":"both"}}]}"#
         let event = SSEParser.parse(line: line)
         guard case .toolResult(let artifacts) = event else {
             XCTFail("Expected .toolResult, got \(String(describing: event))")

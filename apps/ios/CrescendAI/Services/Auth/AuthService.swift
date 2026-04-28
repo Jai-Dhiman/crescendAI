@@ -121,11 +121,12 @@ final class AuthService {
         return student
     }
 
-    // For testing only
+    #if DEBUG
     func _setAuthenticatedForTesting(userId: String) {
         self.appleUserId = userId
         self.isAuthenticated = true
     }
+    #endif
 
     private func loadStoredCredentials() {
         let hasCookie = HTTPCookieStorage.shared.cookies?.contains {
