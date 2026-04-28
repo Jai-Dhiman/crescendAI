@@ -1,8 +1,6 @@
 import type { ToolDefinition } from '../../loop/types'
 import { DiagnosisArtifactSchema } from '../../artifacts/diagnosis'
 import type { DiagnosisArtifact } from '../../artifacts/diagnosis'
-import { computeVelocityCurve } from '../atoms/compute-velocity-curve'
-import type { VelocityCurve } from '../atoms/compute-velocity-curve'
 import { computeDimensionDelta } from '../atoms/compute-dimension-delta'
 import { fetchStudentBaseline } from '../atoms/fetch-student-baseline'
 import type { Baseline } from '../atoms/fetch-student-baseline'
