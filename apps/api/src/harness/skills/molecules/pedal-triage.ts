@@ -21,7 +21,6 @@ type PedalInput = {
   midi_notes: { pitch: number; onset_ms: number; duration_ms: number; velocity: number; bar: number }[]
   pedal_cc: { time_ms: number; value: number }[]
   alignment: { perf_index: number; score_index: number; expected_onset_ms: number | null; bar: number }[]
-  harmony_changes: { bar: number; time_ms: number }[]
   session_means_pedaling: number[]
   past_diagnoses: { artifact_id: string; session_id: string; created_at: number; primary_dimension: string; bar_range: [number,number]|null; piece_id: string }[]
   piece_id: string; now_ms: number
@@ -40,13 +39,12 @@ export const pedalTriage: ToolDefinition = {
       midi_notes: { type: 'array', items: { type: 'object' } },
       pedal_cc: { type: 'array', items: { type: 'object' } },
       alignment: { type: 'array', items: { type: 'object' } },
-      harmony_changes: { type: 'array', items: { type: 'object' } },
       session_means_pedaling: { type: 'array', items: { type: 'number' } },
       past_diagnoses: { type: 'array', items: { type: 'object' } },
       piece_id: { type: 'string' },
       now_ms: { type: 'number' },
     },
-    required: ['bar_range', 'scope', 'evidence_refs', 'muq_scores', 'midi_notes', 'pedal_cc', 'alignment', 'harmony_changes', 'session_means_pedaling', 'past_diagnoses', 'piece_id', 'now_ms'],
+    required: ['bar_range', 'scope', 'evidence_refs', 'muq_scores', 'midi_notes', 'pedal_cc', 'alignment', 'session_means_pedaling', 'past_diagnoses', 'piece_id', 'now_ms'],
   },
   invoke: async (input: unknown): Promise<DiagnosisArtifact> => {
     const i = input as PedalInput
