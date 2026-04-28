@@ -25,6 +25,7 @@ export interface Bindings {
 	MUQ_ENDPOINT: string;
 	AMT_ENDPOINT: string;
 	SESSION_BRAIN: DurableObjectNamespace;
+	HARNESS_V6_ENABLED: string;
 }
 
 export interface Variables {
