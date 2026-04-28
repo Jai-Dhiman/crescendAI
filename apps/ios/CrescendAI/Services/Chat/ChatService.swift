@@ -117,24 +117,19 @@ final class ChatService: ChatServiceProtocol {
         }
         request.httpBody = try JSONEncoder().encode(ChatBody(message: message, conversationId: conversationId))
 
-        let (data, response) = try await session.data(for: request)
+        let (bytes, response) = try await session.bytes(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse,
               (200..<300).contains(httpResponse.statusCode) else {
             throw APIError.invalidResponse((response as? HTTPURLResponse)?.statusCode ?? 0)
         }
 
-        let body = String(decoding: data, as: UTF8.self)
-        let blocks = body.components(separatedBy: "\n\n")
-        for block in blocks {
-            let lines = block.components(separatedBy: "\n")
-            for line in lines {
-                if let event = SSEParser.parse(line: line) {
-                    continuation.yield(event)
-                    if case .done = event {
-                        continuation.finish()
-                        return
-                    }
+        for try await line in bytes.lines {
+            if let event = SSEParser.parse(line: line) {
+                continuation.yield(event)
+                if case .done = event {
+                    continuation.finish()
+                    return
                 }
             }
         }

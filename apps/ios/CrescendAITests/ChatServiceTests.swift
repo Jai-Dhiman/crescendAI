@@ -4,6 +4,11 @@ import XCTest
 @MainActor
 final class ChatServiceTests: XCTestCase {
 
+    override func tearDown() {
+        MockURLProtocol.requestHandler = nil
+        super.tearDown()
+    }
+
     // MARK: - SSEParser unit tests
 
     func test_sseParser_parsesStartEvent() throws {
@@ -89,5 +94,33 @@ final class ChatServiceTests: XCTestCase {
             return false
         }))
         XCTAssertTrue(events.contains(where: { if case .done = $0 { return true }; return false }))
+    }
+
+    func test_send_emitsErrorEventOn4xx() async throws {
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [MockURLProtocol.self]
+        let session = URLSession(configuration: config)
+
+        MockURLProtocol.requestHandler = { request in
+            let response = HTTPURLResponse(
+                url: request.url!,
+                statusCode: 401,
+                httpVersion: nil,
+                headerFields: nil
+            )!
+            return (response, Data())
+        }
+
+        let service = ChatService(session: session)
+        var events: [ChatEvent] = []
+
+        for await event in service.send(message: "test", conversationId: nil) {
+            events.append(event)
+        }
+
+        XCTAssertTrue(events.contains(where: {
+            if case .error = $0 { return true }
+            return false
+        }))
     }
 }
