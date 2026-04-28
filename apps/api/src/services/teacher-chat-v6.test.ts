@@ -1,7 +1,7 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import type { Bindings, Db, ServiceContext } from "../lib/types";
 import type { TeacherEvent } from "./teacher";
-import { buildChatBinding, runPhase1Streaming } from "./teacher";
+import { buildChatBinding, chat, chatV6, runPhase1Streaming } from "./teacher";
 import { TOOL_REGISTRY } from "./tool-processor";
 
 const MOCK_ENV = {
@@ -235,6 +235,46 @@ describe("runPhase1Streaming — turn cap exhaustion", () => {
     if (done && done.type === "done") {
       expect(done.stopReason).toBe("forced_text_after_max_turns");
       expect(done.fullText).toBe("Hello world");
+    }
+  });
+});
+
+describe("chatV6 equivalence oracle", () => {
+  const fetchSpy = vi.fn();
+
+  beforeEach(() => {
+    fetchSpy.mockReset();
+    vi.stubGlobal("fetch", fetchSpy);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("produces the same TeacherEvent sequence as chat() for a text-only turn", async () => {
+    // Each call needs its own Response — ReadableStream bodies are consumed once.
+    // makeSseResponse creates a fresh Uint8Array-backed body each time.
+    fetchSpy
+      .mockImplementationOnce(() => Promise.resolve(makeSseResponse(TEXT_ONLY_SSE)))
+      .mockImplementationOnce(() => Promise.resolve(makeSseResponse(TEXT_ONLY_SSE)));
+
+    const studentId = "stu_1";
+    const messages = [{ role: "user" as const, content: "What should I practice?" }];
+    const dynamicContext = "Student level: beginner.";
+
+    const legacyEvents: TeacherEvent[] = [];
+    for await (const ev of chat(MOCK_CTX, studentId, messages, dynamicContext)) {
+      legacyEvents.push(ev);
+    }
+
+    const harnessEvents: TeacherEvent[] = [];
+    for await (const ev of chatV6(MOCK_CTX, studentId, messages, dynamicContext)) {
+      harnessEvents.push(ev);
+    }
+
+    expect(harnessEvents).toHaveLength(legacyEvents.length);
+    for (let i = 0; i < legacyEvents.length; i++) {
+      expect(harnessEvents[i]).toEqual(legacyEvents[i]);
     }
   });
 });

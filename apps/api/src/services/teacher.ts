@@ -520,6 +520,40 @@ export async function* runPhase1Streaming(
 
 const MAX_TOOL_TURNS = 5;
 
+export async function* chatV6(
+	ctx: ServiceContext,
+	studentId: string,
+	messages: Array<{ role: "user" | "assistant"; content: string | AnthropicContentBlock[] }>,
+	dynamicContext: string,
+): AsyncGenerator<TeacherEvent> {
+	const systemBlocks: AnthropicSystemBlock[] = [
+		{
+			type: "text",
+			text: UNIFIED_TEACHER_SYSTEM,
+			cache_control: { type: "ephemeral" },
+		},
+		...(dynamicContext.trim()
+			? [{ type: "text" as const, text: dynamicContext }]
+			: []),
+	];
+
+	const processToolFn: ProcessToolFn = async (name, input) =>
+		processToolUse(ctx, studentId, name, input);
+
+	const binding = buildChatBinding(ctx, studentId);
+	const phaseCtx: PhaseContext = {
+		env: ctx.env,
+		studentId,
+		sessionId: "",
+		conversationId: null,
+		digest: {},
+		waitUntil: (_p: Promise<unknown>) => {},
+		turnCap: MAX_TOOL_TURNS,
+	};
+
+	yield* runPhase1Streaming(phaseCtx, binding, systemBlocks, messages, processToolFn);
+}
+
 export async function* chat(
 	ctx: ServiceContext,
 	studentId: string,
