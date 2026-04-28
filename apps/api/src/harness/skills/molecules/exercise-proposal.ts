@@ -96,6 +96,9 @@ export const exerciseProposal: ToolDefinition = {
     if (d.bar_range === null) {
       throw new Error('exercise-proposal: diagnosis bar_range must not be null')
     }
+    if (d.severity === 'minor') {
+      throw new Error(`exercise-proposal: severity must be "moderate" or "significant", got "minor"`)
+    }
 
     const prior = await fetchSimilarPastObservation.invoke({
       dimension: d.primary_dimension,
@@ -109,7 +112,8 @@ export const exerciseProposal: ToolDefinition = {
       throw new Error(`exercise-proposal: diagnosis already addressed by exercise ${prior.artifact_id} ${prior.days_ago} day(s) ago`)
     }
 
-    const mapping = EXERCISE_MAP[d.primary_dimension]?.[d.severity] ?? { type: 'slow_practice', subtype: null }
+    const mapping = EXERCISE_MAP[d.primary_dimension]?.[d.severity]
+    if (!mapping) throw new Error(`exercise-proposal: no mapping for dimension "${d.primary_dimension}" severity "${d.severity}"`)
     const estimatedMinutes = MINUTES_MAP[d.severity] ?? 5
 
     const actionTool = ACTION_BINDING_TOOLS[mapping.type]
