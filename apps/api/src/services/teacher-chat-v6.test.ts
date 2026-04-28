@@ -1,6 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import type { Bindings, Db, ServiceContext } from "../lib/types";
-import { buildChatBinding } from "./teacher";
+import type { TeacherEvent } from "./teacher";
+import { buildChatBinding, runPhase1Streaming } from "./teacher";
 import { TOOL_REGISTRY } from "./tool-processor";
 
 const MOCK_ENV = {
@@ -11,6 +12,28 @@ const MOCK_ENV = {
 const MOCK_CTX: ServiceContext = {
   db: {} as Db,
   env: MOCK_ENV,
+};
+
+function makeSseResponse(sseText: string): Response {
+  return new Response(new TextEncoder().encode(sseText), { status: 200 });
+}
+
+const TEXT_ONLY_SSE = [
+  'event: message_start\ndata: {"type":"message_start"}\n\n',
+  'event: content_block_start\ndata: {"index":0,"content_block":{"type":"text"}}\n\n',
+  'event: content_block_delta\ndata: {"index":0,"delta":{"type":"text_delta","text":"Hello world"}}\n\n',
+  'event: message_delta\ndata: {"delta":{"stop_reason":"end_turn"}}\n\n',
+  'event: message_stop\ndata: {}\n\n',
+].join("");
+
+const PHASE_CTX = {
+  env: MOCK_ENV,
+  studentId: "stu_1",
+  sessionId: "",
+  conversationId: null as null,
+  digest: {} as Record<string, unknown>,
+  waitUntil: (_p: Promise<unknown>) => {},
+  turnCap: 5,
 };
 
 describe("buildChatBinding", () => {
@@ -33,5 +56,55 @@ describe("buildChatBinding", () => {
       expect(typeof tool.input_schema).toBe("object");
       expect(typeof tool.invoke).toBe("function");
     }
+  });
+});
+
+describe("runPhase1Streaming — text-only turn", () => {
+  const fetchSpy = vi.fn();
+
+  beforeEach(() => {
+    fetchSpy.mockReset();
+    vi.stubGlobal("fetch", fetchSpy);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("yields delta events and done with fullText for a text-only response", async () => {
+    fetchSpy.mockImplementationOnce(() =>
+      Promise.resolve(makeSseResponse(TEXT_ONLY_SSE)),
+    );
+
+    const binding = buildChatBinding(MOCK_CTX, "stu_1");
+    const systemBlocks = [{ type: "text" as const, text: "You are a teacher." }];
+    const messages = [{ role: "user" as const, content: "What should I practice?" }];
+    const processToolFn = vi.fn();
+
+    const events: TeacherEvent[] = [];
+    for await (const ev of runPhase1Streaming(
+      PHASE_CTX,
+      binding,
+      systemBlocks,
+      messages,
+      processToolFn,
+    )) {
+      events.push(ev);
+    }
+
+    const deltas = events.filter((e) => e.type === "delta");
+    expect(deltas).toHaveLength(1);
+    expect((deltas[0] as { type: "delta"; text: string }).text).toBe("Hello world");
+
+    const done = events.find((e) => e.type === "done");
+    expect(done).toBeDefined();
+    if (done && done.type === "done") {
+      expect(done.fullText).toBe("Hello world");
+      expect(done.stopReason).toBe("end_turn");
+      expect(done.allComponents).toEqual([]);
+    }
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(processToolFn).not.toHaveBeenCalled();
   });
 });

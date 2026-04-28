@@ -2,7 +2,8 @@ import * as Sentry from "@sentry/cloudflare";
 import { InferenceError } from "../lib/errors";
 import type { ServiceContext } from "../lib/types";
 import { runHook } from "../harness/loop/runHook";
-import type { CompoundBinding, HookContext, HookEvent } from "../harness/loop/types";
+import type { CompoundBinding, HookContext, HookEvent, PhaseContext } from "../harness/loop/types";
+import { routeModel } from "../harness/loop/route-model";
 import type { SynthesisArtifact } from "../harness/artifacts/synthesis";
 import {
 	type AnthropicContentBlock,
@@ -365,6 +366,47 @@ export function buildChatBinding(ctx: ServiceContext, studentId: string): Compou
       invoke: async (input: unknown) => processToolUse(ctx, studentId, t.name, input),
     })),
   };
+}
+
+// ---------------------------------------------------------------------------
+// runPhase1Streaming
+// ---------------------------------------------------------------------------
+
+export async function* runPhase1Streaming(
+	ctx: PhaseContext,
+	binding: CompoundBinding,
+	systemBlocks: AnthropicSystemBlock[],
+	initialMessages: Array<{ role: "user" | "assistant"; content: string | AnthropicContentBlock[] }>,
+	processToolFn: ProcessToolFn,
+): AsyncGenerator<TeacherEvent> {
+	const client = routeModel("phase1_analysis");
+	const toolSchemas = binding.tools.map((t) => ({
+		name: t.name,
+		description: t.description,
+		input_schema: t.input_schema,
+	}));
+
+	const stream = await callAnthropicStream(ctx.env, {
+		model: client.model,
+		max_tokens: 2048,
+		system: systemBlocks,
+		messages: initialMessages,
+		tools: toolSchemas,
+		tool_choice: { type: "auto" },
+	});
+
+	let doneEvent: TeacherEvent | null = null;
+	for await (const event of parseAnthropicStream(stream, processToolFn)) {
+		if (event.type === "done") {
+			doneEvent = event;
+		} else {
+			yield event;
+		}
+	}
+
+	if (doneEvent && doneEvent.type === "done") {
+		yield doneEvent;
+	}
 }
 
 // ---------------------------------------------------------------------------
