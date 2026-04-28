@@ -100,7 +100,7 @@ export const crossModalContradictionCheck: ToolDefinition = {
 
     // dynamics pair: z >= +0.5 AND velocity range < 25
     const dynamicsZ = await dimZ('dynamics')
-    if (dynamicsZ >= 0.5 && i.midi_notes.length > 0) {
+    if (dynamicsZ >= 0.5 && i.midi_notes.length >= 2) {
       const vels = i.midi_notes.map(n => n.velocity)
       const velRange = Math.max(...vels) - Math.min(...vels)
       if (velRange < 25) {
@@ -109,8 +109,10 @@ export const crossModalContradictionCheck: ToolDefinition = {
     }
 
     if (contradictions.length === 0) {
+      const neutralDimension = (Object.keys(i.cohort_baselines)[0] ?? 'dynamics') as string
       return DiagnosisArtifactSchema.parse({
-        primary_dimension: 'dynamics', dimensions: ['dynamics'],
+        primary_dimension: neutralDimension,
+        dimensions: [neutralDimension],
         severity: 'minor', scope: i.scope, bar_range: i.bar_range,
         evidence_refs: i.evidence_refs,
         one_sentence_finding: 'No cross-modal contradictions detected.',
