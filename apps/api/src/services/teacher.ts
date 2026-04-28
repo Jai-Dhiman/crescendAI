@@ -3,7 +3,6 @@ import { InferenceError } from "../lib/errors";
 import type { ServiceContext } from "../lib/types";
 import { runHook } from "../harness/loop/runHook";
 import type { CompoundBinding, HookContext, HookEvent, PhaseContext } from "../harness/loop/types";
-import { routeModel } from "../harness/loop/route-model";
 import type { SynthesisArtifact } from "../harness/artifacts/synthesis";
 import {
 	type AnthropicContentBlock,
@@ -351,21 +350,21 @@ export function stripAnalysis(text: string): string {
 // ---------------------------------------------------------------------------
 
 export function buildChatBinding(ctx: ServiceContext, studentId: string): CompoundBinding {
-  return {
-    compoundName: "chat-response",
-    procedurePrompt: "",
-    mode: "streaming",
-    phases: 1,
-    tools: Object.values(TOOL_REGISTRY).map((t) => ({
-      name: t.name,
-      description: t.description,
-      // input_schema cast: AnthropicToolSchema.input_schema is an object subset of Record<string, unknown>
-      input_schema: t.anthropicSchema.input_schema as Record<string, unknown>,
-      // invoke satisfies the binding contract; the streaming path uses processToolFn instead
-      // to preserve the ToolResult.componentsJson shape required for SSE rendering.
-      invoke: async (input: unknown) => processToolUse(ctx, studentId, t.name, input),
-    })),
-  };
+	return {
+		compoundName: "chat-response",
+		procedurePrompt: "",
+		mode: "streaming",
+		phases: 1,
+		tools: Object.values(TOOL_REGISTRY).map((t) => ({
+			name: t.name,
+			description: t.description,
+			// input_schema cast: AnthropicToolSchema.input_schema is an object subset of Record<string, unknown>
+			input_schema: t.anthropicSchema.input_schema as Record<string, unknown>,
+			// invoke satisfies the binding contract; the streaming path uses processToolFn instead
+			// to preserve the ToolResult.componentsJson shape required for SSE rendering.
+			invoke: async (input: unknown) => processToolUse(ctx, studentId, t.name, input),
+		})),
+	};
 }
 
 // ---------------------------------------------------------------------------
@@ -379,7 +378,6 @@ export async function* runPhase1Streaming(
 	initialMessages: Array<{ role: "user" | "assistant"; content: string | AnthropicContentBlock[] }>,
 	processToolFn: ProcessToolFn,
 ): AsyncGenerator<TeacherEvent> {
-	const client = routeModel("phase1_analysis");
 	const toolSchemas = binding.tools.map((t) => ({
 		name: t.name,
 		description: t.description,
@@ -391,7 +389,7 @@ export async function* runPhase1Streaming(
 
 	for (let turn = 0; turn < ctx.turnCap; turn++) {
 		const stream = await callAnthropicStream(ctx.env, {
-			model: client.model,
+			model: "claude-sonnet-4-20250514",
 			max_tokens: 2048,
 			system: systemBlocks,
 			messages: currentMessages,
@@ -408,7 +406,16 @@ export async function* runPhase1Streaming(
 			}
 		}
 
-		if (!doneEvent || doneEvent.type !== "done") break;
+		if (!doneEvent || doneEvent.type !== "done") {
+			console.error(
+				JSON.stringify({
+					level: "error",
+					message: "runPhase1Streaming: parseAnthropicStream did not yield done event",
+					turn,
+				}),
+			);
+			break;
+		}
 
 		accumulatedComponents.push(...doneEvent.allComponents);
 
@@ -464,7 +471,7 @@ export async function* runPhase1Streaming(
 	// Turn cap exhausted — force a text response with tool_choice: none
 	try {
 		const forcedStream = await callAnthropicStream(ctx.env, {
-			model: client.model,
+			model: "claude-sonnet-4-20250514",
 			max_tokens: 2048,
 			system: systemBlocks,
 			messages: currentMessages,

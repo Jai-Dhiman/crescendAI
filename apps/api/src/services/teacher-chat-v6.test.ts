@@ -288,4 +288,32 @@ describe("chatV6 equivalence oracle", () => {
       expect(harnessEvents[i]).toEqual(legacyEvents[i]);
     }
   });
+
+  it("produces the same TeacherEvent sequence as chat() for a tool-use-then-text turn", async () => {
+    // 4 fetch calls: tool turn for chat(), text turn for chat(), tool turn for chatV6(), text turn for chatV6()
+    fetchSpy
+      .mockImplementationOnce(() => Promise.resolve(makeSseResponse(TOOL_USE_SSE)))
+      .mockImplementationOnce(() => Promise.resolve(makeSseResponse(TEXT_ONLY_SSE)))
+      .mockImplementationOnce(() => Promise.resolve(makeSseResponse(TOOL_USE_SSE)))
+      .mockImplementationOnce(() => Promise.resolve(makeSseResponse(TEXT_ONLY_SSE)));
+
+    const studentId = "stu_1";
+    const messages = [{ role: "user" as const, content: "Find me some Chopin." }];
+    const dynamicContext = "Student level: beginner.";
+
+    const legacyEvents: TeacherEvent[] = [];
+    for await (const ev of chat(MOCK_CTX, studentId, messages, dynamicContext)) {
+      legacyEvents.push(ev);
+    }
+
+    const harnessEvents: TeacherEvent[] = [];
+    for await (const ev of chatV6(MOCK_CTX, studentId, messages, dynamicContext)) {
+      harnessEvents.push(ev);
+    }
+
+    expect(harnessEvents).toHaveLength(legacyEvents.length);
+    for (let i = 0; i < legacyEvents.length; i++) {
+      expect(harnessEvents[i]).toEqual(legacyEvents[i]);
+    }
+  });
 });
