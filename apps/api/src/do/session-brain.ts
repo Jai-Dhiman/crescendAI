@@ -16,9 +16,14 @@ import {
 	persistSynthesisMessage,
 } from "../services/synthesis";
 import {
+	type InlineComponent,
+} from "../services/tool-processor";
+import {
 	type SynthesisInput,
 	synthesize as teacherSynthesize,
+	synthesizeV6,
 } from "../services/teacher";
+import type { SynthesisArtifact } from "../harness/artifacts/synthesis";
 import type {
 	FollowerState,
 	NgramIndex,
@@ -37,6 +42,24 @@ import {
 	sessionStateSchema,
 	wsIncomingMessageSchema,
 } from "./session-brain.schema";
+
+/**
+ * Pure mapping from a validated SynthesisArtifact to the DO's WebSocket payload shape.
+ * Exported for unit testing. `components` is always [] in V6; Plan 4 wires real exercise components.
+ */
+export function buildV6WsPayload(artifact: SynthesisArtifact): {
+	type: "synthesis";
+	text: string;
+	components: InlineComponent[];
+	isFallback: false;
+} {
+	return {
+		type: "synthesis",
+		text: artifact.headline,
+		components: [],
+		isFallback: false,
+	};
+}
 
 // Per-instance non-persisted state (lost on hibernation/eviction — intentional)
 // Used only for AMT overlap context: previous chunk audio bytes
@@ -860,6 +883,90 @@ export class SessionBrain extends DurableObject<Bindings> {
 		// teacher.synthesize() throws on failure — try/catch handles it
 		// synthesisCompleted stays true but DB needsSynthesis remains true, enabling deferred retry
 		try {
+			if (this.env.HARNESS_V6_ENABLED === "true") {
+				let artifact: SynthesisArtifact | null = null;
+				let validationError: string | null = null;
+
+				for await (const ev of synthesizeV6(ctx, synthInput, state.sessionId, (p) => this.ctx.waitUntil(p))) {
+					if (ev.type === "artifact") {
+						artifact = ev.value;
+					} else if (ev.type === "validation_error") {
+						validationError = ev.zodError;
+					} else if (ev.type === "phase_error") {
+						console.error(
+							JSON.stringify({
+								level: "error",
+								message: "v6 phase_error",
+								phase: ev.phase,
+								error: ev.error,
+								sessionId: state.sessionId,
+							}),
+						);
+					}
+				}
+
+				if (validationError !== null) {
+					console.error(
+						JSON.stringify({
+							level: "error",
+							message: "v6 validation_error",
+							error: validationError,
+							sessionId: state.sessionId,
+						}),
+					);
+					return; // leave needsSynthesis=true for retry
+				}
+
+				if (artifact === null) {
+					console.error(
+						JSON.stringify({
+							level: "error",
+							message: "v6 produced no artifact",
+							sessionId: state.sessionId,
+						}),
+					);
+					return;
+				}
+
+				const wsPayload = buildV6WsPayload(artifact);
+				const sockets = this.ctx.getWebSockets();
+				for (const sock of sockets) {
+					this.sendWs(sock, wsPayload);
+				}
+
+				if (state.conversationId !== null) {
+					try {
+						await persistSynthesisMessage(
+							db,
+							state.conversationId,
+							wsPayload.text,
+							state.sessionId,
+							wsPayload.components.length > 0 ? wsPayload.components : undefined,
+						);
+						await persistAccumulatedMoments(
+							db,
+							state.studentId,
+							state.sessionId,
+							state.conversationId,
+							acc.teachingMoments,
+						);
+						await clearNeedsSynthesis(db, state.sessionId);
+					} catch (err) {
+						const error = err as Error;
+						console.error(
+							JSON.stringify({
+								level: "error",
+								message: "v6 synthesis DB persist failed",
+								sessionId: state.sessionId,
+								error: error.message,
+							}),
+						);
+					}
+				}
+				return;
+			}
+
+			// Legacy path (HARNESS_V6_ENABLED !== "true"):
 			const result = await teacherSynthesize(ctx, synthInput);
 
 			// Send synthesis over WebSocket if connection still open

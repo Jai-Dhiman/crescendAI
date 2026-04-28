@@ -51,7 +51,7 @@ function parseFrontmatter(source: string): { data: unknown; body: string } | nul
   return { data, body: match[2] }
 }
 
-function parseYaml(yamlText: string): unknown {
+export function parseYaml(yamlText: string): unknown {
   const lines = yamlText.split('\n')
   const root: Record<string, unknown> = {}
   let i = 0

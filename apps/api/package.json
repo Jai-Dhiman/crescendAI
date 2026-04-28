@@ -9,16 +9,21 @@
 		"lint:fix": "biome check --write src/",
 		"generate": "drizzle-kit generate",
 		"migrate": "drizzle-kit migrate",
-		"migrate-d1": "bun run scripts/migrate-d1.ts"
+		"migrate-d1": "bun run scripts/migrate-d1.ts",
+		"codegen:catalog": "bun scripts/catalog-codegen.ts",
+		"test:scripts": "vitest --config vitest.node.config.ts",
+		"prebuild": "bun run codegen:catalog",
+		"predeploy": "bun run codegen:catalog"
 	},
 	"dependencies": {
-		"hono": "^4",
 		"@hono/zod-validator": "^0.4",
-		"zod": "^3",
+		"@sentry/cloudflare": "^9",
 		"better-auth": "^1",
 		"drizzle-orm": "^0.38",
+		"hono": "^4",
 		"postgres": "^3",
-		"@sentry/cloudflare": "^9"
+		"zod": "^3",
+		"zod-to-json-schema": "^3.25.2"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.4.6",
