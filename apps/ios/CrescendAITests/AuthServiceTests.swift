@@ -33,6 +33,9 @@ final class AuthServiceTests: XCTestCase {
         // Assert
         XCTAssertTrue(service.isAuthenticated)
         XCTAssertEqual(service.appleUserId, "user123")
+        XCTAssertEqual(UserDefaults.standard.string(forKey: "crescendai.appleUserId"), "user123")
+        // Clean up
+        UserDefaults.standard.removeObject(forKey: "crescendai.appleUserId")
     }
 
     func test_signIn_throwsServerAuthFailedOn401() async throws {
@@ -61,16 +64,37 @@ final class AuthServiceTests: XCTestCase {
         XCTAssertFalse(service.isAuthenticated)
     }
 
-    func test_signOut_clearsAuthState() {
+    func test_signOut_clearsAuthState() throws {
+        // Seed a session cookie so loadStoredCredentials sets isAuthenticated
+        let cookie = HTTPCookie(properties: [
+            .name: "better-auth.session_token",
+            .value: "test-session-value",
+            .domain: "api.crescend.ai",
+            .path: "/",
+            .expires: Date.distantFuture,
+        ])!
+        HTTPCookieStorage.shared.setCookie(cookie)
+
+        // Also store appleUserId as would happen after a real sign-in
+        UserDefaults.standard.set("u1", forKey: "crescendai.appleUserId")
+
         let service = AuthService(session: .shared)
-        // Manually put it in authenticated state
-        service._setAuthenticatedForTesting(userId: "u1")
         XCTAssertTrue(service.isAuthenticated)
+        XCTAssertEqual(service.appleUserId, "u1")
 
         service.signOut()
 
         XCTAssertFalse(service.isAuthenticated)
         XCTAssertNil(service.appleUserId)
+
+        // Verify the cookie was actually deleted
+        let remaining = HTTPCookieStorage.shared.cookies?.filter {
+            $0.name == "better-auth.session_token"
+        } ?? []
+        XCTAssertTrue(remaining.isEmpty)
+
+        // Clean up UserDefaults
+        UserDefaults.standard.removeObject(forKey: "crescendai.appleUserId")
     }
 }
 

@@ -26,6 +26,7 @@ final class AuthService {
     private(set) var appleUserId: String?
 
     private let session: URLSession
+    private let appleUserIdKey = "crescendai.appleUserId"
 
     init(session: URLSession = .shared) {
         self.session = session
@@ -66,6 +67,7 @@ final class AuthService {
 
         self.appleUserId = userId
         self.isAuthenticated = true
+        UserDefaults.standard.set(userId, forKey: appleUserIdKey)
 
         let sentryUser = Sentry.User()
         sentryUser.userId = userId
@@ -100,6 +102,7 @@ final class AuthService {
         }
         self.appleUserId = nil
         self.isAuthenticated = false
+        UserDefaults.standard.removeObject(forKey: appleUserIdKey)
         SentrySDK.setUser(nil)
     }
 
@@ -131,6 +134,7 @@ final class AuthService {
 
         if hasCookie {
             self.isAuthenticated = true
+            self.appleUserId = UserDefaults.standard.string(forKey: appleUserIdKey)
         }
     }
 }
