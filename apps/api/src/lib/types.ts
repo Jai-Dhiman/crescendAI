@@ -26,6 +26,7 @@ export interface Bindings {
 	AMT_ENDPOINT: string;
 	SESSION_BRAIN: DurableObjectNamespace;
 	HARNESS_V6_ENABLED: string;
+	HARNESS_V6_CHAT_ENABLED: string;
 }
 
 export interface Variables {
