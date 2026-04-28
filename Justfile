@@ -155,14 +155,22 @@ eval-analyze:
 eval-scenarios:
     cd apps/evals && uv run python -m pipeline.practice_eval.generate_t5_scenarios
 
-# Test playbook YAML shape (shared/teacher-style/)
+# Test playbook YAML shape (apps/shared/teacher-style/)
 test-playbook-shape:
-    cd shared/teacher-style && uv run --with pyyaml --with pytest pytest test_playbook_shape.py -v
+    cd apps/shared/teacher-style && uv run --with pyyaml --with pytest pytest test_playbook_shape.py -v
 
-# Compile shared/teacher-style/playbook.yaml -> apps/api/src/lib/playbook.json
+# Compile apps/shared/teacher-style/playbook.yaml -> apps/api/src/lib/playbook.json
 compile-playbook:
-    uv run --with pyyaml python scripts/compile_playbook.py
+    uv run --with pyyaml python apps/shared/scripts/compile_playbook.py
 
 # CI sync check: fail if compiled JSON is stale
 check-playbook-sync:
-    uv run --with pyyaml python scripts/compile_playbook.py --check
+    uv run --with pyyaml python apps/shared/scripts/compile_playbook.py --check
+
+# Lint API (biome)
+lint-api:
+    cd apps/api && bun run lint
+
+# Lint web (biome)
+lint-web:
+    cd apps/web && bun run lint

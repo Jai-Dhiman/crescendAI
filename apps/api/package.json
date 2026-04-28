@@ -5,6 +5,8 @@
 		"dev": "wrangler dev",
 		"test": "vitest",
 		"typecheck": "tsc --noEmit",
+		"lint": "biome check src/",
+		"lint:fix": "biome check --write src/",
 		"generate": "drizzle-kit generate",
 		"migrate": "drizzle-kit migrate",
 		"migrate-d1": "bun run scripts/migrate-d1.ts"
@@ -19,6 +21,7 @@
 		"@sentry/cloudflare": "^9"
 	},
 	"devDependencies": {
+		"@biomejs/biome": "^2.4.6",
 		"wrangler": "^4",
 		"@cloudflare/vitest-pool-workers": "^0.8",
 		"@cloudflare/workers-types": "^4",

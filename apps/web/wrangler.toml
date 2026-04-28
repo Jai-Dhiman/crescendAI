@@ -1,0 +1,12 @@
+name = "crescendai-web"
+compatibility_date = "2026-03-02"
+compatibility_flags = ["nodejs_compat"]
+main = "@tanstack/react-start/server-entry"
+
+[[routes]]
+pattern = "crescend.ai"
+custom_domain = true
+
+[observability.logs]
+enabled = true
+invocation_logs = true

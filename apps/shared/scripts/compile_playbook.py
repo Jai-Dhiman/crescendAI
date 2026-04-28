@@ -1,5 +1,5 @@
-# scripts/compile_playbook.py
-"""Compile shared/teacher-style/playbook.yaml -> apps/api/src/lib/playbook.json."""
+# apps/shared/scripts/compile_playbook.py
+"""Compile apps/shared/teacher-style/playbook.yaml -> apps/api/src/lib/playbook.json."""
 from __future__ import annotations
 import argparse
 import json
@@ -8,8 +8,8 @@ from pathlib import Path
 
 import yaml
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
-SRC = REPO_ROOT / "shared" / "teacher-style" / "playbook.yaml"
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent  # scripts -> shared -> apps -> repo root
+SRC = REPO_ROOT / "apps" / "shared" / "teacher-style" / "playbook.yaml"
 DST = REPO_ROOT / "apps" / "api" / "src" / "lib" / "playbook.json"
 
 
@@ -25,7 +25,7 @@ def main() -> int:
     text = _serialize()
     if args.check:
         if not DST.exists() or DST.read_text() != text:
-            print(f"DRIFT: {DST} stale. Run: python scripts/compile_playbook.py", file=sys.stderr)
+            print(f"DRIFT: {DST} stale. Run: just compile-playbook", file=sys.stderr)
             return 1
         return 0
     DST.parent.mkdir(parents=True, exist_ok=True)

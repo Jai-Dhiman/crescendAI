@@ -1,7 +1,7 @@
 // apps/api/src/services/teacher_style.test.ts
 import { describe, expect, it } from "vitest";
 import { evaluate, selectClusters, formatTeacherVoiceBlocks, deriveSignals } from "./teacher_style";
-import fixtures from "../../../../shared/teacher-style/test_fixtures.json";
+import fixtures from "../../../shared/teacher-style/test_fixtures.json";
 
 const SIGNALS = {
   max_neg_dev: 0.2, max_pos_dev: 0.0, n_significant: 2,
