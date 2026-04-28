@@ -68,7 +68,7 @@ Stack: TanStack Start, Tailwind CSS v4, Web Audio API, MediaRecorder, WebSocket.
 | Exercise endpoints | IMPLEMENTED | `apps/api/src/services/exercises.rs` | `GET /api/exercises`, assign, complete; 18 tests |
 | Zero-config piece ID | COMPLETE | `apps/api/src/practice/piece_identify.rs` | N-gram + rerank + DTW, merged to main (pending AMT container deploy) |
 | Session synthesis | COMPLETE | `apps/api/src/practice/synthesis.rs` | Alarm-triggered, all exit paths, deferred recovery, 963 lines |
-| V6 harness loop | COMPLETE (flag-gated) | `apps/api/src/harness/loop/` | Hook-driven two-phase compound execution loop. Phase 1 dispatches molecule atoms as Anthropic tools; Phase 2 forced-writes a Zod-validated SynthesisArtifact. Registry empty in V6 (atoms ship in Plan 2). `HARNESS_V6_ENABLED=false` in prod. |
+| V6 harness loop | COMPLETE (flag-gated) | `apps/api/src/harness/loop/` | Hook-driven two-phase compound execution loop. Phase 1 dispatches molecule atoms as Anthropic tools; Phase 2 forced-writes a Zod-validated SynthesisArtifact. Registry empty in V6 (atoms ship in Plan 2). `HARNESS_V6_ENABLED=false` in prod. The flag-gated `chatV6` path (`buildChatBinding`, `runPhase1Streaming`, `HARNESS_V6_CHAT_ENABLED`) was removed; chat now always uses `teacherService.chat` — the harness loop (`runHook`) replaces streaming for V6. |
 | DO state persistence | COMPLETE | `apps/api/src/practice/session.rs` | Persists to state.storage(), reloads on eviction at all async boundaries |
 | AI Gateway | COMPLETE | `apps/api/src/services/ai_gateway.rs` | Anthropic + Groq + Workers AI routed through CF AI Gateway |
 | Practice mode detection | COMPLETE | `apps/api/src/practice/session.rs` | 4-state machine (warming/drilling/running/winding) |
