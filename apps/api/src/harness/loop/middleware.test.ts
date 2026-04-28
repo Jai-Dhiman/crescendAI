@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { redactPii, reviewArtifact, withRetries, wrapToolCall } from "./middleware";
+import { InferenceError } from "../../lib/errors";
 
 describe("redactPii", () => {
 	it("returns the input unchanged", () => {
@@ -39,6 +40,41 @@ describe("withRetries happy path", () => {
 		});
 		expect(result).toBe("ok");
 		expect(calls).toBe(1);
+	});
+});
+
+describe("withRetries retry behavior", () => {
+	it("retries once on InferenceError and returns the second-call value", async () => {
+		let calls = 0;
+		const result = await withRetries(async () => {
+			calls++;
+			if (calls === 1) throw new InferenceError("boom");
+			return "recovered";
+		});
+		expect(result).toBe("recovered");
+		expect(calls).toBe(2);
+	});
+
+	it("does not retry on non-InferenceError exceptions", async () => {
+		let calls = 0;
+		await expect(
+			withRetries(async () => {
+				calls++;
+				throw new Error("permanent");
+			}),
+		).rejects.toThrow("permanent");
+		expect(calls).toBe(1);
+	});
+
+	it("propagates InferenceError if both attempts fail", async () => {
+		let calls = 0;
+		await expect(
+			withRetries(async () => {
+				calls++;
+				throw new InferenceError("still down");
+			}),
+		).rejects.toThrow(InferenceError);
+		expect(calls).toBe(2);
 	});
 });
 
