@@ -14,13 +14,14 @@
 		"predeploy": "bun run codegen:catalog"
 	},
 	"dependencies": {
-		"hono": "^4",
 		"@hono/zod-validator": "^0.4",
-		"zod": "^3",
+		"@sentry/cloudflare": "^9",
 		"better-auth": "^1",
 		"drizzle-orm": "^0.38",
+		"hono": "^4",
 		"postgres": "^3",
-		"@sentry/cloudflare": "^9"
+		"zod": "^3",
+		"zod-to-json-schema": "^3.25.2"
 	},
 	"devDependencies": {
 		"wrangler": "^4",

@@ -1,3 +1,4 @@
+import { zodToJsonSchema } from "zod-to-json-schema";
 import { InferenceError } from "../../lib/errors";
 import { withRetries } from "./middleware";
 import { routeModel } from "./route-model";
@@ -47,7 +48,7 @@ export async function* runPhase2(
 		name: binding.artifactToolName,
 		description:
 			"Write the final compound artifact. Call this exactly once with the structured fields.",
-		input_schema: zodToJsonSchemaShim(binding.artifactSchema),
+		input_schema: artifactInputSchema(binding.artifactSchema),
 	};
 
 	const userPrompt =
@@ -93,13 +94,6 @@ export async function* runPhase2(
 	yield { type: "artifact", value: parsed.data };
 }
 
-/**
- * Minimal shim: Anthropic accepts relaxed JSON Schema. We pass a permissive
- * object schema and rely on Zod for strict post-validation. Real codegen is V7.
- */
-function zodToJsonSchemaShim(_schema: unknown): Record<string, unknown> {
-	return {
-		type: "object",
-		additionalProperties: true,
-	};
+function artifactInputSchema(schema: CompoundBinding["artifactSchema"]): Record<string, unknown> {
+	return zodToJsonSchema(schema, { target: "openApi3" }) as Record<string, unknown>;
 }

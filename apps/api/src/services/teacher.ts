@@ -635,6 +635,7 @@ export async function* synthesizeV6(
 	ctx: ServiceContext,
 	input: SynthesisInput,
 	sessionId: string,
+	waitUntil?: (p: Promise<unknown>) => void,
 ): AsyncGenerator<HookEvent<SynthesisArtifact>> {
 	const digest: Record<string, unknown> = {
 		sessionDurationMs: input.sessionDurationMs,
@@ -650,10 +651,7 @@ export async function* synthesizeV6(
 		sessionId,
 		conversationId: input.conversationId,
 		digest,
-		waitUntil: (_p: Promise<unknown>) => {
-			// DO-side waitUntil is provided per-request via DurableObjectState;
-			// adapter receives a no-op default. DO supplies a real one in Task 16.
-		},
+		waitUntil: waitUntil ?? ((_p: Promise<unknown>) => {}),
 	};
 
 	for await (const ev of runHook("OnSessionEnd", hookCtx)) {

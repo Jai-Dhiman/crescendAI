@@ -887,7 +887,7 @@ export class SessionBrain extends DurableObject<Bindings> {
 				let artifact: SynthesisArtifact | null = null;
 				let validationError: string | null = null;
 
-				for await (const ev of synthesizeV6(ctx, synthInput, state.sessionId)) {
+				for await (const ev of synthesizeV6(ctx, synthInput, state.sessionId, (p) => this.ctx.waitUntil(p))) {
 					if (ev.type === "artifact") {
 						artifact = ev.value;
 					} else if (ev.type === "validation_error") {
