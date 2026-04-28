@@ -94,7 +94,7 @@ final class SyncService {
     // MARK: - Private
 
     private func performSync(student: Student, newSessions: [PracticeSessionRecord]) async throws {
-        guard let jwt = authService.jwt else {
+        guard authService.isAuthenticated else {
             throw SyncError.notAuthenticated
         }
 
@@ -102,7 +102,6 @@ final class SyncService {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(jwt)", forHTTPHeaderField: "Authorization")
 
         let body = SyncRequestBody(
             student: StudentDelta(

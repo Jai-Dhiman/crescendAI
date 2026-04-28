@@ -11,23 +11,12 @@ enum AuthError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .appleSignInFailed(let error):
-            "Apple sign-in failed: \(error.localizedDescription)"
-        case .missingCredential:
-            "Missing Apple credential data"
-        case .serverAuthFailed(let message):
-            "Authentication failed: \(message)"
-        case .notAuthenticated:
-            "Not signed in"
+        case .appleSignInFailed(let error): "Apple sign-in failed: \(error.localizedDescription)"
+        case .missingCredential: "Missing Apple credential data"
+        case .serverAuthFailed(let message): "Authentication failed: \(message)"
+        case .notAuthenticated: "Not signed in"
         }
     }
-}
-
-struct AuthResponse: Codable {
-    let jwt: String
-    let apple_user_id: String
-    let email: String?
-    let is_new_user: Bool
 }
 
 @MainActor
@@ -35,122 +24,34 @@ struct AuthResponse: Codable {
 final class AuthService {
     private(set) var isAuthenticated = false
     private(set) var appleUserId: String?
-    private(set) var jwt: String?
 
-    init() {
+    private let session: URLSession
+    private let appleUserIdKey = "crescendai.appleUserId"
+
+    init(session: URLSession = .shared) {
+        self.session = session
         loadStoredCredentials()
     }
 
-    var authorizationHeader: String? {
-        guard let jwt else { return nil }
-        return "Bearer \(jwt)"
-    }
-
-    // MARK: - Sign In with Apple
-
-    func handleAuthorization(result: Result<ASAuthorization, Error>) async throws {
-        let authorization: ASAuthorization
-        switch result {
-        case .success(let auth):
-            authorization = auth
-        case .failure(let error):
-            throw AuthError.appleSignInFailed(error)
-        }
-
-        guard let credential = authorization.credential as? ASAuthorizationAppleIDCredential,
-              let identityTokenData = credential.identityToken,
-              let identityToken = String(data: identityTokenData, encoding: .utf8) else {
-            throw AuthError.missingCredential
-        }
-
-        let email = credential.email
-        let userId = credential.user
-
-        let response = try await sendTokenToServer(
-            identityToken: identityToken,
-            userId: userId,
-            email: email
-        )
-
-        try KeychainService.save(response.jwt, for: .sessionJWT)
-        try KeychainService.save(response.apple_user_id, for: .appleUserId)
-
-        self.jwt = response.jwt
-        self.appleUserId = response.apple_user_id
-        self.isAuthenticated = true
-
-        let sentryUser = Sentry.User()
-        sentryUser.userId = response.apple_user_id
-        SentrySDK.setUser(sentryUser)
-    }
-
-    func signOut() throws {
-        try KeychainService.deleteAll()
-        self.jwt = nil
-        self.appleUserId = nil
-        self.isAuthenticated = false
-        SentrySDK.setUser(nil)
-    }
-
-    func ensureOrCreateStudent(in modelContext: ModelContext) throws -> Student {
-        guard let appleUserId else {
-            throw AuthError.notAuthenticated
-        }
-
-        let predicate = #Predicate<Student> { $0.appleUserId == appleUserId }
-        let descriptor = FetchDescriptor<Student>(predicate: predicate)
-        let existing = try modelContext.fetch(descriptor)
-
-        if let student = existing.first {
-            return student
-        }
-
-        let student = Student(appleUserId: appleUserId)
-        modelContext.insert(student)
-        try modelContext.save()
-        return student
-    }
-
-    // MARK: - Private
-
-    private func loadStoredCredentials() {
-        do {
-            if let storedJWT = try KeychainService.read(.sessionJWT),
-               let storedUserId = try KeychainService.read(.appleUserId) {
-                self.jwt = storedJWT
-                self.appleUserId = storedUserId
-                self.isAuthenticated = true
-            }
-        } catch {
-            print("[AuthService] Failed to load stored credentials: \(error)")
-        }
-    }
-
-    private func sendTokenToServer(
-        identityToken: String,
-        userId: String,
-        email: String?
-    ) async throws -> AuthResponse {
-        let url = APIEndpoints.authApple()
-
+    func signIn(identityToken: String, userId: String, email: String?) async throws {
+        let url = APIEndpoints.signInSocial()
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
-        struct AuthRequest: Encodable {
-            let identity_token: String
-            let user_id: String
-            let email: String?
+        struct SocialSignInBody: Encodable {
+            let provider: String
+            let idToken: IdToken
+            struct IdToken: Encodable {
+                let token: String
+            }
         }
 
-        let body = AuthRequest(
-            identity_token: identityToken,
-            user_id: userId,
-            email: email
+        request.httpBody = try JSONEncoder().encode(
+            SocialSignInBody(provider: "apple", idToken: .init(token: identityToken))
         )
-        request.httpBody = try JSONEncoder().encode(body)
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await session.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw AuthError.serverAuthFailed("Invalid response")
@@ -164,6 +65,77 @@ final class AuthService {
             throw AuthError.serverAuthFailed("Server returned \(httpResponse.statusCode)")
         }
 
-        return try JSONDecoder().decode(AuthResponse.self, from: data)
+        self.appleUserId = userId
+        self.isAuthenticated = true
+        UserDefaults.standard.set(userId, forKey: appleUserIdKey)
+
+        let sentryUser = Sentry.User()
+        sentryUser.userId = userId
+        SentrySDK.setUser(sentryUser)
+    }
+
+    func handleAuthorization(result: Result<ASAuthorization, Error>) async throws {
+        let authorization: ASAuthorization
+        switch result {
+        case .success(let auth): authorization = auth
+        case .failure(let error): throw AuthError.appleSignInFailed(error)
+        }
+
+        guard let credential = authorization.credential as? ASAuthorizationAppleIDCredential,
+              let identityTokenData = credential.identityToken,
+              let identityToken = String(data: identityTokenData, encoding: .utf8) else {
+            throw AuthError.missingCredential
+        }
+
+        try await signIn(
+            identityToken: identityToken,
+            userId: credential.user,
+            email: credential.email
+        )
+    }
+
+    func signOut() {
+        HTTPCookieStorage.shared.cookies?.forEach { cookie in
+            if cookie.name == "better-auth.session_token" {
+                HTTPCookieStorage.shared.deleteCookie(cookie)
+            }
+        }
+        self.appleUserId = nil
+        self.isAuthenticated = false
+        UserDefaults.standard.removeObject(forKey: appleUserIdKey)
+        SentrySDK.setUser(nil)
+    }
+
+    func ensureOrCreateStudent(in modelContext: ModelContext) throws -> Student {
+        guard let appleUserId else { throw AuthError.notAuthenticated }
+
+        let predicate = #Predicate<Student> { $0.appleUserId == appleUserId }
+        let descriptor = FetchDescriptor<Student>(predicate: predicate)
+        let existing = try modelContext.fetch(descriptor)
+
+        if let student = existing.first { return student }
+
+        let student = Student(appleUserId: appleUserId)
+        modelContext.insert(student)
+        try modelContext.save()
+        return student
+    }
+
+    #if DEBUG
+    func _setAuthenticatedForTesting(userId: String) {
+        self.appleUserId = userId
+        self.isAuthenticated = true
+    }
+    #endif
+
+    private func loadStoredCredentials() {
+        let hasCookie = HTTPCookieStorage.shared.cookies?.contains {
+            $0.name == "better-auth.session_token" && ($0.expiresDate ?? .distantFuture) > .now
+        } ?? false
+
+        if hasCookie {
+            self.isAuthenticated = true
+            self.appleUserId = UserDefaults.standard.string(forKey: appleUserIdKey)
+        }
     }
 }

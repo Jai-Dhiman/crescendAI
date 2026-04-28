@@ -94,13 +94,35 @@ struct ChatView: View {
         case .system:
             MessageBubble(text: message.text, isUser: false)
         case .observation:
-            ObservationCard(
-                text: message.text,
-                dimension: message.dimension ?? "dynamics",
-                timestamp: message.timestamp,
-                elaboration: message.elaboration,
-                onTellMeMore: { viewModel.requestElaboration(for: message.id) }
-            )
+            VStack(alignment: .leading, spacing: 0) {
+                ObservationCard(
+                    text: message.text,
+                    dimension: message.dimension ?? "dynamics",
+                    timestamp: message.timestamp,
+                    elaboration: message.elaboration,
+                    onTellMeMore: { viewModel.requestElaboration(for: message.id) }
+                )
+                if !message.artifacts.isEmpty {
+                    VStack(spacing: CrescendSpacing.space2) {
+                        ForEach(message.artifacts.indices, id: \.self) { i in
+                            ArtifactRenderer(config: message.artifacts[i])
+                        }
+                    }
+                    .padding(.top, CrescendSpacing.space2)
+                }
+            }
+        case .teacher:
+            VStack(alignment: .leading, spacing: 0) {
+                MessageBubble(text: message.text, isUser: false)
+                if !message.artifacts.isEmpty {
+                    VStack(spacing: CrescendSpacing.space2) {
+                        ForEach(message.artifacts.indices, id: \.self) { i in
+                            ArtifactRenderer(config: message.artifacts[i])
+                        }
+                    }
+                    .padding(.top, CrescendSpacing.space2)
+                }
+            }
         }
     }
 
@@ -141,7 +163,7 @@ struct ChatView: View {
                     .disabled(viewModel.practiceState == .recording)
                     .onSubmit {
                         if !viewModel.inputText.isEmpty {
-                            viewModel.sendMessage()
+                            Task { await viewModel.sendMessage() }
                         }
                     }
 
@@ -151,7 +173,7 @@ struct ChatView: View {
 
                     // Send button (only when there's text)
                     if !viewModel.inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        Button(action: { viewModel.sendMessage() }) {
+                        Button(action: { Task { await viewModel.sendMessage() } }) {
                             Image(systemName: "arrow.up")
                                 .font(.system(size: 16, weight: .semibold))
                                 .foregroundStyle(CrescendColor.background)
@@ -236,7 +258,7 @@ struct ChatView: View {
                 Spacer()
                 
                 // Ask for feedback button
-                Button(action: { viewModel.askForFeedback() }) {
+                Button(action: { Task { await viewModel.askForFeedback() } }) {
                     HStack(spacing: CrescendSpacing.space2) {
                         Image(systemName: "sparkles")
                             .font(.system(size: 14, weight: .medium))
@@ -273,7 +295,7 @@ struct ChatView: View {
     }
     .crescendTheme()
     .modelContainer(
-        for: [Student.self, PracticeSessionRecord.self, ChunkResultRecord.self, ObservationRecord.self],
+        for: [Student.self, PracticeSessionRecord.self, ChunkResultRecord.self, ObservationRecord.self, ConversationRecord.self],
         inMemory: true
     )
 }

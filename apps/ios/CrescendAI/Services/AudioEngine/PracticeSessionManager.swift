@@ -26,6 +26,10 @@ final class PracticeSessionManager {
     private let ringBuffer = RingBuffer(capacity: 24_000 * 300) // 5 minutes at 24kHz
     @ObservationIgnored private lazy var captureEngine = AudioCaptureEngine(ringBuffer: ringBuffer)
     private var chunkProducer: ChunkProducer?
+
+    var chunkStream: AsyncStream<AudioChunk>? {
+        chunkProducer?.chunkStream
+    }
     private var interruptionTask: Task<Void, Never>?
     private var chunkObservationTask: Task<Void, Never>?
 
@@ -64,7 +68,9 @@ final class PracticeSessionManager {
 
         state = .recording
 
-        SentrySDK.addBreadcrumb(Breadcrumb(level: .info, category: "practice", message: "Session started: \(session.id)"))
+        let startCrumb = Breadcrumb(level: .info, category: "practice")
+        startCrumb.message = "Session started: \(session.id)"
+        SentrySDK.addBreadcrumb(startCrumb)
 
         observeInterruptions()
         observeChunks()
@@ -94,7 +100,9 @@ final class PracticeSessionManager {
 
         state = .ended
 
-        SentrySDK.addBreadcrumb(Breadcrumb(level: .info, category: "practice", message: "Session ended"))
+        let endCrumb = Breadcrumb(level: .info, category: "practice")
+        endCrumb.message = "Session ended"
+        SentrySDK.addBreadcrumb(endCrumb)
     }
 
     // MARK: - Interruption Handling
