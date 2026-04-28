@@ -88,3 +88,54 @@ describe("runPhase2 happy path", () => {
 		});
 	});
 });
+
+describe("runPhase2 validation failure", () => {
+	const fetchSpy = vi.fn();
+
+	beforeEach(() => {
+		fetchSpy.mockReset();
+		vi.stubGlobal("fetch", fetchSpy);
+	});
+
+	afterEach(() => {
+		vi.unstubAllGlobals();
+	});
+
+	it("yields validation_error and not artifact when input fails Zod", async () => {
+		const malformed = {
+			session_id: "",
+			synthesis_scope: "session",
+			strengths: [],
+			focus_areas: [],
+			proposed_exercises: [],
+			dominant_dimension: "phrasing",
+			recurring_pattern: null,
+			next_session_focus: null,
+			diagnosis_refs: [],
+			headline: "too short",
+		};
+		const anthropicResp = {
+			content: [
+				{
+					type: "tool_use",
+					id: "tu_1",
+					name: "write_synthesis_artifact",
+					input: malformed,
+				},
+			],
+			stop_reason: "tool_use",
+		};
+		fetchSpy.mockResolvedValueOnce(
+			new Response(JSON.stringify(anthropicResp), { status: 200 }),
+		);
+
+		const events: HookEvent<unknown>[] = [];
+		for await (const ev of runPhase2(PHASE_CTX, BINDING, [])) {
+			events.push(ev);
+		}
+
+		expect(events[0]).toEqual({ type: "phase2_started" });
+		expect(events[1]?.type).toBe("validation_error");
+		expect(events.find((e) => e.type === "artifact")).toBeUndefined();
+	});
+});
