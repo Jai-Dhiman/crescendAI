@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { redactPii } from "./middleware";
+import { redactPii, wrapToolCall } from "./middleware";
 
 describe("redactPii", () => {
 	it("returns the input unchanged", () => {
@@ -12,5 +12,20 @@ describe("redactPii", () => {
 		const input = { a: { b: [1, 2, 3] } };
 		const out = redactPii(input);
 		expect(out).toEqual(input);
+	});
+});
+
+describe("wrapToolCall", () => {
+	it("returns the inner invocation result unchanged", async () => {
+		const result = await wrapToolCall(async () => ({ ok: true, value: 42 }));
+		expect(result).toEqual({ ok: true, value: 42 });
+	});
+
+	it("propagates inner errors", async () => {
+		await expect(
+			wrapToolCall(async () => {
+				throw new Error("boom");
+			}),
+		).rejects.toThrow("boom");
 	});
 });
