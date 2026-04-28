@@ -386,27 +386,89 @@ export async function* runPhase1Streaming(
 		input_schema: t.input_schema,
 	}));
 
-	const stream = await callAnthropicStream(ctx.env, {
-		model: client.model,
-		max_tokens: 2048,
-		system: systemBlocks,
-		messages: initialMessages,
-		tools: toolSchemas,
-		tool_choice: { type: "auto" },
-	});
+	let currentMessages = initialMessages;
+	const accumulatedComponents: InlineComponent[] = [];
 
-	let doneEvent: TeacherEvent | null = null;
-	for await (const event of parseAnthropicStream(stream, processToolFn)) {
-		if (event.type === "done") {
-			doneEvent = event;
-		} else {
-			yield event;
+	for (let turn = 0; turn < ctx.turnCap; turn++) {
+		const stream = await callAnthropicStream(ctx.env, {
+			model: client.model,
+			max_tokens: 2048,
+			system: systemBlocks,
+			messages: currentMessages,
+			tools: toolSchemas,
+			tool_choice: { type: "auto" },
+		});
+
+		let doneEvent: TeacherEvent | null = null;
+		for await (const event of parseAnthropicStream(stream, processToolFn)) {
+			if (event.type === "done") {
+				doneEvent = event;
+			} else {
+				yield event;
+			}
 		}
+
+		if (!doneEvent || doneEvent.type !== "done") break;
+
+		accumulatedComponents.push(...doneEvent.allComponents);
+
+		if (doneEvent.toolCalls.length === 0 || doneEvent.stopReason !== "tool_use") {
+			yield { ...doneEvent, allComponents: accumulatedComponents };
+			return;
+		}
+
+		const assistantContent: AnthropicContentBlock[] = [];
+		if (doneEvent.fullText) {
+			assistantContent.push({ type: "text", text: doneEvent.fullText });
+		}
+		for (const tc of doneEvent.toolCalls) {
+			assistantContent.push({ type: "tool_use", id: tc.id, name: tc.name, input: tc.input });
+		}
+
+		const GENERIC_TOOL_ERROR =
+			"Tool call failed validation. For piece_id, pass through the exact slug returned by search_catalog (e.g. 'chopin.ballades.1'); do not transform or invent it. Check all required fields and try again.";
+
+		const toolResultContent: AnthropicContentBlock[] = doneEvent.toolCalls.map((tc) => {
+			if (tc.result.isError) {
+				return {
+					type: "tool_result" as const,
+					tool_use_id: tc.id,
+					is_error: true,
+					content: tc.result.errorMessage ?? GENERIC_TOOL_ERROR,
+				};
+			}
+			return {
+				type: "tool_result" as const,
+				tool_use_id: tc.id,
+				content: JSON.stringify(tc.result.componentsJson),
+			};
+		});
+
+		currentMessages = [
+			...currentMessages,
+			{ role: "assistant" as const, content: assistantContent },
+			{ role: "user" as const, content: toolResultContent },
+		];
+
+		console.log(
+			JSON.stringify({
+				level: "info",
+				message: "streaming chat tool continuation",
+				turn: turn + 1,
+				toolCount: doneEvent.toolCalls.length,
+				toolNames: doneEvent.toolCalls.map((tc) => tc.name),
+			}),
+		);
 	}
 
-	if (doneEvent && doneEvent.type === "done") {
-		yield doneEvent;
-	}
+	// Turn cap exhausted — placeholder yield; replaced in Task 5 with forced call
+	yield {
+		type: "done",
+		fullText: "I had trouble putting that together — could you ask again?",
+		allComponents: accumulatedComponents,
+		toolCalls: [],
+		stopReason: "max_tool_turns",
+	};
 }
 
 // ---------------------------------------------------------------------------

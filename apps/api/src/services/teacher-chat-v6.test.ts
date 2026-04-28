@@ -18,6 +18,15 @@ function makeSseResponse(sseText: string): Response {
   return new Response(new TextEncoder().encode(sseText), { status: 200 });
 }
 
+const TOOL_USE_SSE = [
+  'event: message_start\ndata: {"type":"message_start"}\n\n',
+  'event: content_block_start\ndata: {"index":0,"content_block":{"type":"tool_use","id":"tu_1","name":"search_catalog"}}\n\n',
+  'event: content_block_delta\ndata: {"index":0,"delta":{"type":"input_json_delta","partial_json":"{\\"composer\\":\\"Chopin\\"}"}}\n\n',
+  'event: content_block_stop\ndata: {"index":0}\n\n',
+  'event: message_delta\ndata: {"delta":{"stop_reason":"tool_use"}}\n\n',
+  'event: message_stop\ndata: {}\n\n',
+].join("");
+
 const TEXT_ONLY_SSE = [
   'event: message_start\ndata: {"type":"message_start"}\n\n',
   'event: content_block_start\ndata: {"index":0,"content_block":{"type":"text"}}\n\n',
@@ -106,5 +115,66 @@ describe("runPhase1Streaming — text-only turn", () => {
 
     expect(fetchSpy).toHaveBeenCalledTimes(1);
     expect(processToolFn).not.toHaveBeenCalled();
+  });
+});
+
+describe("runPhase1Streaming — tool continuation", () => {
+  const fetchSpy = vi.fn();
+
+  beforeEach(() => {
+    fetchSpy.mockReset();
+    vi.stubGlobal("fetch", fetchSpy);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("dispatches tool call and continues to a second text turn, accumulating components", async () => {
+    fetchSpy
+      .mockImplementationOnce(() => Promise.resolve(makeSseResponse(TOOL_USE_SSE)))
+      .mockImplementationOnce(() => Promise.resolve(makeSseResponse(TEXT_ONLY_SSE)));
+
+    const mockResult = {
+      name: "search_catalog",
+      componentsJson: [{ type: "search_catalog_result", config: { matches: [] } }],
+      isError: false,
+    };
+    const processToolFn = vi.fn().mockResolvedValue(mockResult);
+
+    const binding = buildChatBinding(MOCK_CTX, "stu_1");
+    const systemBlocks = [{ type: "text" as const, text: "You are a teacher." }];
+    const messages = [{ role: "user" as const, content: "Find me some Chopin." }];
+
+    const events: TeacherEvent[] = [];
+    for await (const ev of runPhase1Streaming(
+      PHASE_CTX,
+      binding,
+      systemBlocks,
+      messages,
+      processToolFn,
+    )) {
+      events.push(ev);
+    }
+
+    const toolStart = events.find((e) => e.type === "tool_start");
+    expect(toolStart).toBeDefined();
+    if (toolStart && toolStart.type === "tool_start") {
+      expect(toolStart.name).toBe("search_catalog");
+    }
+
+    const deltas = events.filter((e) => e.type === "delta");
+    expect(deltas.length).toBeGreaterThan(0);
+
+    const done = events.findLast((e) => e.type === "done");
+    expect(done).toBeDefined();
+    if (done && done.type === "done") {
+      expect(done.fullText).toBe("Hello world");
+      expect(done.allComponents).toEqual(mockResult.componentsJson);
+    }
+
+    expect(processToolFn).toHaveBeenCalledTimes(1);
+    expect(processToolFn).toHaveBeenCalledWith("search_catalog", { composer: "Chopin" });
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
   });
 });
