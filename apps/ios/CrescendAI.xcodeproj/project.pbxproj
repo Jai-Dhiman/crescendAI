@@ -27,6 +27,7 @@
 		A100000039 /* PracticeSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000040 /* PracticeSession.swift */; };
 		A100000040 /* AudioChunk.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000041 /* AudioChunk.swift */; };
 		A200000001 /* RingBufferTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B200000001 /* RingBufferTests.swift */; };
+		A200000002 /* AuthServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B200000002 /* AuthServiceTests.swift */; };
 		A300000001 /* PracticeSessionRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = B300000001 /* PracticeSessionRecord.swift */; };
 		A300000002 /* ChunkResultRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = B300000002 /* ChunkResultRecord.swift */; };
 		A300000003 /* CoreMLInferenceProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = B300000003 /* CoreMLInferenceProvider.swift */; };
@@ -95,6 +96,7 @@
 		B100000040 /* PracticeSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PracticeSession.swift; sourceTree = "<group>"; };
 		B100000041 /* AudioChunk.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioChunk.swift; sourceTree = "<group>"; };
 		B200000001 /* RingBufferTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RingBufferTests.swift; sourceTree = "<group>"; };
+		B200000002 /* AuthServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthServiceTests.swift; sourceTree = "<group>"; };
 		B300000001 /* PracticeSessionRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PracticeSessionRecord.swift; sourceTree = "<group>"; };
 		B300000002 /* ChunkResultRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChunkResultRecord.swift; sourceTree = "<group>"; };
 		B300000003 /* CoreMLInferenceProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreMLInferenceProvider.swift; sourceTree = "<group>"; };
@@ -326,6 +328,7 @@
 			isa = PBXGroup;
 			children = (
 				B200000001 /* RingBufferTests.swift */,
+				B200000002 /* AuthServiceTests.swift */,
 			);
 			path = CrescendAITests;
 			sourceTree = "<group>";
@@ -561,6 +564,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A200000001 /* RingBufferTests.swift in Sources */,
+				A200000002 /* AuthServiceTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
