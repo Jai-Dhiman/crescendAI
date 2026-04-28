@@ -60,6 +60,7 @@
 		A500000001 /* Lora-VariableFont_wght.ttf in Resources */ = {isa = PBXBuildFile; fileRef = B500000001 /* Lora-VariableFont_wght.ttf */; };
 		A500000002 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B500000002 /* Assets.xcassets */; };
 		A500000003 /* Figtree-VariableFont_wght.ttf in Resources */ = {isa = PBXBuildFile; fileRef = B500000003 /* Figtree-VariableFont_wght.ttf */; };
+		SA000000001 /* Sentry in Frameworks */ = {isa = PBXBuildFile; productRef = SP000000001 /* Sentry */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -136,6 +137,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				SA000000001 /* Sentry in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -419,6 +421,9 @@
 			dependencies = (
 			);
 			name = CrescendAI;
+			packageProductDependencies = (
+				SP000000001 /* Sentry */,
+			);
 			productName = CrescendAI;
 			productReference = C100000001 /* CrescendAI.app */;
 			productType = "com.apple.product-type.application";
@@ -468,6 +473,9 @@
 				Base,
 			);
 			mainGroup = E100000001;
+			packageReferences = (
+				SR000000001 /* XCRemoteSwiftPackageReference "sentry-cocoa" */,
+			);
 			productRefGroup = E100000020 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -819,6 +827,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		SR000000001 /* XCRemoteSwiftPackageReference "sentry-cocoa" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/getsentry/sentry-cocoa.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 8.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		SP000000001 /* Sentry */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = SR000000001 /* XCRemoteSwiftPackageReference "sentry-cocoa" */;
+			productName = Sentry;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = F100000010 /* Project object */;
 }
