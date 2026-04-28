@@ -2190,3 +2190,245 @@ xcodebuild test -project apps/ios/CrescendAI.xcodeproj -scheme CrescendAI -desti
 ```
 
 Expected: All test suites PASS, zero build errors.
+
+---
+
+## Challenge Review
+
+### CEO Pass
+
+#### 1. Premise Challenge
+
+**Right problem?** Yes — confirmed in code. `AuthService` has no `signIn(identityToken:userId:email:)` method; `APIEndpoints` has `/api/upload` and `/api/analyze` which don't exist on the backend (`APPS.md` documents `POST /api/practice/start`, `POST /api/practice/chunk`, `GET /api/practice/ws/:sessionId`). `SyncService.performSync` reads `authService.jwt` at line 97 and injects `Bearer` header at line 105. The live backend uses better-auth cookie sessions. Auth is genuinely broken end-to-end.
+
+**Direct path?** Yes. The plan wires exactly the endpoints documented in `APPS.md`.
+
+**Existing coverage?** `PracticeSessionManager.startSession()` already accepts `inferenceProvider: nil`, `ChunkProducer` already has `chunkStream: AsyncStream<AudioChunk>`, and `ChatViewModel` already has the message-list architecture. The plan extends these rather than replacing them.
+
+#### 2. Scope Check
+
+One deferred item is warranted: Task 7 adds `ArtifactRenderer` to `chatRow()` but defers `.teacher` role rendering to a bare `@ViewBuilder case`. The `.teacher` case must also be added to `chatRow()`'s `switch` — without it the build is non-exhaustive (BLOCKER below). This is not scope creep; it is a missing statement in Task 7.
+
+Task count is 7, file touch count is 16. The two tasks in Group D (Task 6 and 7) are separable and parallel — clean.
+
+#### 3. Twelve-Month Alignment
+
+```
+CURRENT STATE                        THIS PLAN                     12-MONTH IDEAL
+iOS is a UI prototype;           Wire auth, WebSocket,         Fully live app: teacher voice,
+auth broken, all backend         SSE chat, chunk upload,       artifacts, exercises, session
+calls are mocked Task.sleep      session history sidebar       history, score rendering
+```
+
+This plan is the prerequisite for everything else. No tech debt introduced.
+
+#### 4. Alternatives Check
+
+The spec documents one auth fallback (custom `/api/auth/apple` if better-auth social provider rejects native tokens). No alternatives are documented for: (a) SSE vs polling for `/api/chat`, (b) WebSocket reconnect strategy (exponential backoff vs linear), (c) 30-second synthesis wait strategy. These are acceptable design choices but the reasoning is implicit. The spec's open questions section handles the material unknowns.
+
+---
+
+### Engineering Pass
+
+#### 5. Architecture
+
+Data flow after all tasks complete:
+
+```
+User taps record
+  → ChatViewModel.startPractice()
+  → PracticeSessionService.start()
+      ├── POST /api/practice/start  → (sessionId, conversationId)
+      ├── PracticeSessionManager.startSession(inferenceProvider: nil)  → audio capture
+      ├── connectWebSocket(sessionId, conversationId)  → wss://.../ws/:sessionId
+      └── startChunkUploader(sessionId)  → POST /api/practice/chunk per 15s AAC chunk
+                                                     ↓
+                                     WebSocket receives "observation" | "synthesis"
+                                                     ↓
+                              PracticeEvent.observation / .synthesis yielded
+                                                     ↓
+                          ChatViewModel.handlePracticeEvent() → messages.append(...)
+                                                     ↓
+                                          ChatView renders chatRow()
+
+User sends message
+  → ChatViewModel.sendMessage()
+  → ChatService.send(message:conversationId:)
+      → POST /api/chat (SSE) → AsyncStream<ChatEvent>
+      → delta events → messages[idx].text appended
+      → toolResult events → artifacts accumulated
+```
+
+Security: No new user input flows to SQL or shell. LLM prompt injection risk is pre-existing (messages passed to `/api/chat`). No new surface introduced.
+
+#### 6. Module Depth Audit
+
+| Module | Interface | Implementation | Verdict |
+|---|---|---|---|
+| `PracticeSessionService` | 4 methods + 4 properties | ~200 LOC: WebSocket reconnect, chunk upload loop, timer, SwiftData insert | DEEP |
+| `ChatService` | 1 method | SSE byte accumulation, line parser, artifact JSON decode | DEEP |
+| `SSEParser` | 1 static method | JSON dispatch over 6 event types | DEEP enough |
+| `ArtifactConfig` | 1 enum (4 cases) | Custom Codable init dispatching on `"type"` key | DEEP enough |
+| `ArtifactRenderer` | 1 init + body | Routing switch, no logic | SHALLOW — justified per spec |
+| `ConversationRecord` | 5 stored props | SwiftData persistence | SHALLOW — data container, correct |
+
+#### 7. Code Quality
+
+**`try?` silent failure in `handleWebSocketData`:**  
+```swift
+try? mc.save()  // PracticeSessionService.swift, synthesis branch
+```
+This silently swallows `ModelContext.save()` failures. Per CLAUDE.md, silent fallbacks are forbidden. Synthesis persistence failure should propagate to `_continuation.yield(.error(...))`.
+
+**`try!` in `start()`:**  
+```swift
+let mc = modelContext ?? ModelContext(try! ModelContainer(for: Schema([])))
+```
+Violates CLAUDE.md "explicit exception handling over silent fallbacks." If `modelContext` is nil, `start()` should throw — not create a throwaway container that will crash when `ConversationRecord` is inserted into it (since `Schema([])` has no models).
+
+**Vague `SyncService` edit instruction:**  
+Task 1, Step 3 says "Find and delete these lines" with a pseudo-code snippet. The actual code at `SyncService.swift:97–105` contains the exact lines. But after the new `AuthService` removes the `jwt: String?` property entirely, the `guard let jwt = authService.jwt` on line 97 will fail to compile. The plan must replace it with a no-op guard or delete it and the header line together.
+
+#### 8. Test Philosophy Audit
+
+All tests use MockURLProtocol (URLProtocol subclass) to intercept real URLSession calls at the transport layer. This is the correct pattern — it tests through the public interface without mocking internal collaborators.
+
+`test_signOut_clearsAuthState` calls `service._setAuthenticatedForTesting(userId:)` to set up state — this is a testing backdoor method on the production class. Acceptable for the iOS style (`ios/CLAUDE.md` doesn't prohibit it), but worth noting.
+
+`test_observationEventAppendsObservationMessage` and `test_sendMessageAppendsDeltaAsTeacherMessage` use `Task.sleep(for: .milliseconds(50))` to wait for async event delivery. These are timing-sensitive and could flake on a slow CI machine. They are acceptable given no other synchronization primitive is available for `AsyncStream` consumption in XCTest.
+
+All tests verify user-observable behavior (message list contents, authentication state) — not internal method calls. Test philosophy is sound.
+
+#### 9. Vertical Slice Audit
+
+Each task is one test → one implementation → one commit. Groups A and B are correctly parallel. Group C waits on B. Group D waits on C. No horizontal slicing detected.
+
+One structural issue: Task 2 adds `.teacher` to `ChatMessageRole` in `ChatViewModel.swift`. Task 5 then fully replaces `ChatViewModel.swift`. This means `ChatMessage.artifacts` and `.teacher` are defined twice (once by Task 2, once by Task 5's full replacement). The build agent must delete Task 2's additions when applying Task 5's full replacement — or Task 5's instructions to "replace the entire body of `ChatViewModel.swift`" implicitly removes the Task 2 changes. This is fine as long as the build agent understands "replace entire body" means the file content in Task 5 is the final state.
+
+#### 10. Test Coverage Gaps
+
+```
+[+] PracticeSessionService.swift
+    │
+    ├── start()
+    │   ├── [TESTED]  happy path — Task 3 test (★★)
+    │   ├── [TESTED]  network error — Task 3 test (★★)
+    │   └── [GAP]     server 4xx response — no test
+    │
+    ├── handleWebSocketData()
+    │   ├── [GAP]     observation event → _continuation.yield — not tested
+    │   ├── [GAP]     synthesis event → ConversationRecord insert — not tested
+    │   └── [GAP]     error event — not tested
+    │
+    ├── startChunkUploader()
+    │   └── [GAP]     upload failure (try? swallows error) — not tested
+    │
+    └── stop()
+        └── [GAP]     30-second blocking behavior — not tested
+
+[+] ChatService.swift
+    │
+    ├── send() / streamSSE()
+    │   ├── [TESTED]  happy path SSE → delta → done — Task 4 test (★★)
+    │   ├── [GAP]     toolResult event handling — not tested end-to-end
+    │   └── [GAP]     server 4xx → APIError — not tested
+    │
+    └── SSEParser.parse()
+        ├── [TESTED]  start, delta, done, toolResult, keep-alive — Task 4 tests (★★★)
+        └── [GAP]     malformed JSON (returns nil) — not tested
+
+[+] ChatViewModel.swift (Task 5)
+    │
+    ├── sendMessage()
+    │   ├── [TESTED]  delta appends teacher message — Task 5 test (★★)
+    │   ├── [TESTED]  empty input guard — not tested (low risk)
+    │   └── [GAP]     toolResult artifacts attached to teacher message — not tested
+    │
+    ├── handlePracticeEvent()
+    │   ├── [TESTED]  observation → message appended (★★)
+    │   ├── [TESTED]  synthesis → teacher message appended (★★)
+    │   └── [GAP]     reconnecting → system message — not tested
+    │
+    └── startPractice() / stopPractice()
+        └── [GAP]     start throws → system message — not tested
+```
+
+Coverage gaps are RISK-level except where noted. The `handleWebSocketData` synthesis branch is on the critical path for session history persistence — missing test is a RISK.
+
+#### 11. Failure Modes
+
+| Task | Failure | Visible? | Recovery? |
+|---|---|---|---|
+| Task 1: auth 401 | `AuthError.serverAuthFailed` thrown, caught in `handleAuthorization` caller | Depends on call site | Sign in again |
+| Task 3: `POST /api/practice/start` fails | `APIError` thrown, caller in `ChatViewModel.startPractice()` catches it and calls `addSystemMessage` | Yes — system message in chat | User taps record again |
+| Task 3: chunk upload fails | `try? await session.data(for: req)` — **silent** | No | Lost chunk, never retried |
+| Task 3: WebSocket dies | Reconnect loop, max 5 attempts, then `_continuation.yield(.error(...))` | Yes — error event | Auto-reconnect |
+| Task 3: synthesis `mc.save()` fails | `try?` — **silent** | No | ConversationRecord lost |
+| Task 3: `stop()` synthesis never arrives | Always waits 30s → then proceeds | UI frozen for 30s | Times out |
+| Task 6: `ConversationRecord.self` missing from schema | Runtime crash on first synthesis insert (schema mismatch) | App crash | —  |
+
+---
+
+### Presumption Inventory
+
+| Assumption | Verdict | Reason |
+|---|---|---|
+| `PracticeSessionManager.startSession(inferenceProvider: nil)` is a valid call | SAFE | Confirmed: parameter has default `= nil` at `PracticeSessionManager.swift:36` |
+| `ChunkProducer.chunkStream` is accessible from `PracticeSessionService` via `PracticeSessionManager` | VALIDATE | `chunkProducer` is `private var` at `PracticeSessionManager.swift:28`; the plan's new computed property `var chunkStream` in the manager accesses `chunkProducer?.chunkStream` which is valid only within the same class |
+| `AudioChunk` has a `fileURL` property | RISKY | **WRONG** — `AudioChunk.swift` defines `localFileURL: URL?` not `fileURL`. Plan's `startChunkUploader` uses `chunk.fileURL` which will not compile |
+| `sendMessage()` in `ChatView.swift` can stay synchronous after Task 5 | RISKY | **WRONG** — Task 5 makes `sendMessage()` `async`; two call sites in `ChatView.swift` (lines 144, 154) are not wrapped in `Task { }`. Build will fail |
+| `askForFeedback()` in `ChatView.swift` can stay synchronous after Task 5 | RISKY | **WRONG** — same issue; `ChatView.swift:239` calls `viewModel.askForFeedback()` which becomes `async` after Task 5 |
+| `ChatView.chatRow()` switch is exhaustive after `.teacher` is added | RISKY | **WRONG** — `ChatView.swift:91-104` is a non-exhaustive `switch message.role` with 3 cases; adding `.teacher` to `ChatMessageRole` in Task 2 will cause compile failure before Task 7 runs |
+| `ConversationRecord` is defined before `PracticeSessionService` is compiled | RISKY | **WRONG** — Task 3 (Group B) creates `PracticeSessionService.swift` which references `ConversationRecord`, but `ConversationRecord.swift` is only created in Task 6 (Group D). Compile error on Task 3's `xcodebuild test` |
+| `stop()` synthesis wait behaves as "up to 30 seconds" | RISKY | Implementation is an unconditional 30-second sleep — always waits the full duration regardless of synthesis arrival |
+| `SidebarView` call site uses `UUID` type for `onSelectSession` | SAFE | Confirmed: `MainView.swift:21` is `onSelectSession: { _ in }` — a no-op lambda. Type change from `(UUID)` to `(String)` compiles fine since the lambda ignores the argument. Low risk. |
+| `MockURLProtocol` defined in Task 1 is accessible in Task 3/4 test files | SAFE | All test files are in the same `CrescendAITests` target; Swift test target members share visibility |
+| `try! ModelContainer(for: Schema([]))` fallback is safe | RISKY | An empty schema container cannot store `ConversationRecord`; any synthesis event with a nil `modelContext` will crash |
+
+---
+
+### Summary
+
+```
+[BLOCKER] (confidence: 10/10) — Task 3: PracticeSessionService.startChunkUploader() references `chunk.fileURL` but AudioChunk.swift defines `localFileURL: URL?`. This is a compile error. Change `chunk.fileURL` to `chunk.localFileURL` in the uploader guard.
+
+[BLOCKER] (confidence: 10/10) — Task 3 (Group B) creates PracticeSessionService.swift which references `ConversationRecord` at compile time, but `ConversationRecord.swift` is only created in Task 6 (Group D). The build agent will hit a compile error on Task 3's xcodebuild test step. Fix: move `ConversationRecord.swift` creation to Task 3 (or extract it to a new Task in Group A/B), or forward-declare it as an empty @Model placeholder in Task 3 that Task 6 fills in.
+
+[BLOCKER] (confidence: 10/10) — Task 2 adds `.teacher` to `ChatMessageRole`. ChatView.swift:91-104 has a non-exhaustive `switch message.role` with only `.user`, `.system`, `.observation` cases. After Task 2 commits, the build fails. Task 7 does not add a `.teacher` case to `chatRow()`. Fix: Task 7 must add a `.teacher` case that renders `MessageBubble(text: message.text, isUser: false)` (or equivalent) in addition to the ArtifactRenderer block.
+
+[BLOCKER] (confidence: 10/10) — Task 5 makes `sendMessage()` and `askForFeedback()` both `async`. ChatView.swift:144 (`onSubmit`), :154 (send `Button`), and :239 (`askForFeedback` Button) call these synchronously without `Task { }`. After Task 5 commits, the build fails. Fix: Task 7 must wrap these call sites: `Task { await viewModel.sendMessage() }` and `Task { await viewModel.askForFeedback() }`.
+
+[BLOCKER] (confidence: 9/10) — PracticeSessionService.stop() unconditionally waits 30 seconds (`await synthesisTimeout.value`). The spec says "waits up to 30s for synthesis WebSocket event" implying early exit on synthesis arrival. The implementation has no early-exit path — every session stop takes exactly 30 seconds. Fix: introduce a `synthesisReceived: Bool` flag set in `handleWebSocketData` when `.synthesis` arrives, and use `withTaskGroup` or a cancellable task to break early.
+
+[BLOCKER] (confidence: 9/10) — PracticeSessionService.start() uses `try! ModelContainer(for: Schema([]))` as a nil-modelContext fallback. This (a) violates the CLAUDE.md "explicit exception handling" rule and (b) creates an empty schema that cannot store `ConversationRecord`, guaranteeing a crash on first synthesis. Fix: add a guard at the top of `start()` throwing an explicit error if `modelContext` is nil, and require callers to call `configure(modelContext:)` first.
+```
+
+**[RISK] count: 5**
+
+```
+[RISK] (confidence: 9/10) — handleWebSocketData() synthesis branch uses `try? mc.save()` (silent failure). A SwiftData save failure silently loses the ConversationRecord. Per CLAUDE.md, silent fallbacks are forbidden. Change to explicit error handling: capture the error via SentrySDK and yield a `.error` event.
+
+[RISK] (confidence: 8/10) — startChunkUploader() uses `try? await session.data(for: req)` for chunk upload. Upload failures are silently dropped — the chunk index advances without the server receiving the chunk, breaking the server-side chunk sequence. At minimum, log the failure via SentrySDK and retry or emit a `.error` event.
+
+[RISK] (confidence: 8/10) — connectWebSocket() recursive reconnect does not cancel the previous wsTask before creating a new one. On reconnect, two concurrent wsTask Tasks run simultaneously until the old one exits (or doesn't). Add `wsTask?.cancel()` before reassigning `wsTask` at the top of connectWebSocket.
+
+[RISK] (confidence: 7/10) — SyncService still reads `authService.jwt` (line 97) after Task 1 removes the `jwt` property from AuthService. The plan's edit instruction is vague ("Find and delete these lines"). The exact lines to delete are 97 (`guard let jwt = authService.jwt`) and 105 (`request.setValue("Bearer \(jwt)", ...)`). After deletion the sync endpoint still needs auth — confirm `/api/sync` accepts cookie-based auth (it should, since all API routes go through `authSessionMiddleware`).
+
+[RISK] (confidence: 6/10) — ChatView.swift's `#Preview` at line 272 instantiates the model container without `ConversationRecord.self` in the schema. After Task 6 adds ConversationRecord to the app schema, this preview may show a schema mismatch warning or fail. Low severity (preview-only), but the build agent should add ConversationRecord.self to the preview model container.
+```
+
+**[QUESTION] count: 2**
+
+```
+[QUESTION] — Task 7 verifies "in the simulator" but has no failing test. The ArtifactRenderer integration is the only task without a red-green cycle. This is noted as intentional in the spec (SwiftUI view layout cannot be unit-tested without third-party libraries). Acceptable, but the simulator verification step requires a backend that sends components — which won't happen in a test session. Consider adding a ChatViewModel test that asserts messages[idx].artifacts is non-empty after a .toolResult ChatEvent, verifying the VM plumbs artifacts through even if the view layer isn't tested.
+
+[QUESTION] — Does `URLSessionWebSocketTask` transmit `HTTPCookieStorage` cookies for `wss://` upgrades on iOS? Already documented as an open question in the spec with a fallback plan (manual Cookie header injection). This should be the first thing verified during Task 3's manual session test — before assuming auth works over WebSocket.
+```
+
+---
+
+**[BLOCKER] count: 6**  
+**[RISK]    count: 5**  
+**[QUESTION] count: 2**
+
+VERDICT: NEEDS_REWORK — resolve the 6 blockers before executing. The three compile errors (fileURL name, ConversationRecord forward reference, non-exhaustive switch + async call sites in ChatView) will prevent Task 3–5 from building at all. The stop() timing bug and try! crash are correctness issues that will break the golden path on first live session attempt.
