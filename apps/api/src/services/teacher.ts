@@ -1,6 +1,9 @@
 import * as Sentry from "@sentry/cloudflare";
 import { InferenceError } from "../lib/errors";
 import type { ServiceContext } from "../lib/types";
+import { runHook } from "../harness/loop/runHook";
+import type { HookContext, HookEvent } from "../harness/loop/types";
+import type { SynthesisArtifact } from "../harness/artifacts/synthesis";
 import {
 	type AnthropicContentBlock,
 	type AnthropicSystemBlock,
@@ -613,5 +616,47 @@ export async function synthesize(
 		throw err;
 	} finally {
 		clearTimeout(timeoutId);
+	}
+}
+
+// ---------------------------------------------------------------------------
+// synthesizeV6
+// ---------------------------------------------------------------------------
+
+/**
+ * V6 adapter. Translates the legacy SynthesisInput shape into a HookContext
+ * and yields the harness loop's event stream. Caller (DO) consumes events and
+ * maps the final artifact to the existing WebSocket/persist pipeline.
+ *
+ * `sessionId` is passed alongside `input` because SynthesisInput does not carry
+ * it today (legacy quirk: sessionId lives on the DO state, not in input).
+ */
+export async function* synthesizeV6(
+	ctx: ServiceContext,
+	input: SynthesisInput,
+	sessionId: string,
+): AsyncGenerator<HookEvent<SynthesisArtifact>> {
+	const digest: Record<string, unknown> = {
+		sessionDurationMs: input.sessionDurationMs,
+		practicePattern: input.practicePattern,
+		topMoments: input.topMoments,
+		drillingRecords: input.drillingRecords,
+		pieceMetadata: input.pieceMetadata,
+	};
+
+	const hookCtx: HookContext = {
+		env: ctx.env,
+		studentId: input.studentId,
+		sessionId,
+		conversationId: input.conversationId,
+		digest,
+		waitUntil: (_p: Promise<unknown>) => {
+			// DO-side waitUntil is provided per-request via DurableObjectState;
+			// adapter receives a no-op default. DO supplies a real one in Task 16.
+		},
+	};
+
+	for await (const ev of runHook("OnSessionEnd", hookCtx)) {
+		yield ev;
 	}
 }

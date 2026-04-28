@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { parseAnthropicStream, stripAnalysis } from "./teacher";
 import type { InlineComponent } from "./tool-processor";
 
@@ -568,5 +568,97 @@ describe("stripAnalysis", () => {
 	it("trims surrounding whitespace", () => {
 		const input = "  <analysis>reasoning</analysis>  response  ";
 		expect(stripAnalysis(input)).toBe("response");
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Test: synthesizeV6 adapter
+// ---------------------------------------------------------------------------
+
+import { synthesizeV6 } from "./teacher";
+import type { SynthesisInput } from "./teacher";
+import type { ServiceContext } from "../lib/types";
+import type { HookEvent } from "../harness/loop/types";
+import type { SynthesisArtifact } from "../harness/artifacts/synthesis";
+
+const V6_VALID_ARTIFACT: SynthesisArtifact = {
+	session_id: "sess_42",
+	synthesis_scope: "session",
+	strengths: [],
+	focus_areas: [],
+	proposed_exercises: [],
+	dominant_dimension: "phrasing",
+	recurring_pattern: null,
+	next_session_focus: null,
+	diagnosis_refs: [],
+	headline:
+		"You showed up and put in real work today. The session was short but focused, and we'll keep building from here. There is plenty to dig into next time, and I'll be ready when you are. Keep listening for the shape of each phrase as you play. " +
+		"Tomorrow we'll come at it fresh with one specific thing to chase down.",
+};
+
+describe("synthesizeV6 adapter", () => {
+	const fetchSpy = vi.fn();
+
+	beforeEach(() => {
+		fetchSpy.mockReset();
+		vi.stubGlobal("fetch", fetchSpy);
+	});
+
+	afterEach(() => {
+		vi.unstubAllGlobals();
+	});
+
+	it("yields phase1_done, phase2_started, artifact for an empty session", async () => {
+		fetchSpy.mockResolvedValueOnce(
+			new Response(
+				JSON.stringify({
+					content: [{ type: "text", text: "" }],
+					stop_reason: "end_turn",
+				}),
+				{ status: 200 },
+			),
+		);
+		fetchSpy.mockResolvedValueOnce(
+			new Response(
+				JSON.stringify({
+					content: [
+						{
+							type: "tool_use",
+							id: "tu_1",
+							name: "write_synthesis_artifact",
+							input: V6_VALID_ARTIFACT,
+						},
+					],
+					stop_reason: "tool_use",
+				}),
+				{ status: 200 },
+			),
+		);
+
+		const ctx = {
+			db: {} as ServiceContext["db"],
+			env: {
+				AI_GATEWAY_TEACHER: "https://gw.example",
+				ANTHROPIC_API_KEY: "k",
+			} as ServiceContext["env"],
+		};
+
+		const input: SynthesisInput = {
+			studentId: "stu_1",
+			conversationId: "conv_1",
+			sessionDurationMs: 60_000,
+			practicePattern: "[]",
+			topMoments: [],
+			drillingRecords: [],
+			pieceMetadata: null,
+		};
+
+		const events: HookEvent<SynthesisArtifact>[] = [];
+		for await (const ev of synthesizeV6(ctx, input, "sess_42")) {
+			events.push(ev);
+		}
+
+		const types = events.map((e) => e.type);
+		expect(types).toEqual(["phase1_done", "phase2_started", "artifact"]);
 	});
 });
