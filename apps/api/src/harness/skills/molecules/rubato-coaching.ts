@@ -47,8 +47,12 @@ export const rubatoCoaching: ToolDefinition = {
   },
   invoke: async (input: unknown): Promise<DiagnosisArtifact> => {
     const i = input as RubatoInput
+    const perfNoteMap = new Map(i.midi_notes.map((n, idx) => [idx, n.onset_ms]))
     const alignMap = new Map(i.alignment.map(a => [a.perf_index, a.expected_onset_ms]))
-    const correlationNotes = i.midi_notes.map((n, idx) => ({ onset_ms: n.onset_ms, expected_onset_ms: alignMap.get(idx) ?? null }))
+    const correlationNotes = i.alignment.map(a => ({
+      onset_ms: perfNoteMap.get(a.perf_index) ?? a.expected_onset_ms ?? 0,
+      expected_onset_ms: a.expected_onset_ms,
+    }))
     const r = await computeIoiCorrelation.invoke({ notes: correlationNotes }) as number | null
     const baseline = await fetchStudentBaseline.invoke({ dimension: 'timing', session_means: i.session_means_timing }) as Baseline | null
     if (!baseline) throw new Error('rubato-coaching: insufficient session history for timing baseline (need >= 3 sessions)')
@@ -60,7 +64,8 @@ export const rubatoCoaching: ToolDefinition = {
       one_sentence_finding: 'Timing is within baseline or rubato resolves cleanly.',
       confidence: 'low', finding_type: 'neutral',
     })
-    if (z > -0.8 || (r !== null && r >= 0.3)) return neutral
+    if (r === null) return neutral
+    if (z > -0.8 || r >= 0.3) return neutral
     const alignedNotes = i.midi_notes
       .map((n, idx) => ({ onset_ms: n.onset_ms, expected_onset_ms: alignMap.get(idx) }))
       .filter((n): n is { onset_ms: number; expected_onset_ms: number } => n.expected_onset_ms !== null)
