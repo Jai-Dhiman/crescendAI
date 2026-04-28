@@ -3,6 +3,7 @@ import type { ToolDefinition } from '../../loop/types'
 export type VelocityCurve = { bar: number; mean_velocity: number; p90_velocity: number }
 
 function p90(values: number[]): number {
+  if (values.length === 0) return 0
   const sorted = [...values].sort((a, b) => a - b)
   const idx = 0.9 * (sorted.length - 1)
   const lo = Math.floor(idx), hi = Math.ceil(idx)
