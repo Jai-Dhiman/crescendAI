@@ -96,10 +96,16 @@ final class PracticeSessionService: PracticeSessionServiceProtocol {
         self.sessionId = startResp.sessionId
         self.conversationId = startResp.conversationId
 
-        // 2. Start audio capture (no local inference — cloud replaces it)
+        // 2. Start audio capture (non-fatal if audio session unavailable)
         let manager = PracticeSessionManager(modelContext: mc)
         self.sessionManager = manager
-        try await manager.startSession(inferenceProvider: nil)
+        do {
+            try await manager.startSession(inferenceProvider: nil)
+        } catch {
+            // Audio capture unavailable (e.g. simulator without mic access)
+            // Continue with WebSocket/upload path; no chunks will be produced
+            self.sessionManager = nil
+        }
 
         // 3. Connect WebSocket
         connectWebSocket(sessionId: startResp.sessionId, conversationId: startResp.conversationId)
