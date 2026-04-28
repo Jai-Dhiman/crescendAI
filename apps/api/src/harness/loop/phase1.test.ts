@@ -13,6 +13,8 @@ const EMPTY_BINDING: CompoundBinding = {
 	compoundName: "session-synthesis",
 	procedurePrompt: "test",
 	tools: [],
+	mode: "buffered",
+	phases: 2,
 	artifactSchema: SynthesisArtifactSchema,
 	artifactToolName: "write_synthesis_artifact",
 };
@@ -70,6 +72,8 @@ describe("runPhase1 turn cap exhaustion", () => {
 					invoke: async () => ({ ok: true }),
 				},
 			],
+			mode: "buffered",
+			phases: 2,
 			artifactSchema: SynthesisArtifactSchema,
 			artifactToolName: "write_synthesis_artifact",
 		};
@@ -130,5 +134,26 @@ describe("runPhase1 empty registry", () => {
 			(e) => e.type === "phase1_tool_result",
 		).length;
 		expect(toolResultCount).toBe(0);
+	});
+
+	it("accepts a CompoundBinding with explicit mode and phases fields", async () => {
+		const binding: CompoundBinding = {
+			compoundName: "session-synthesis",
+			procedurePrompt: "test",
+			tools: [],
+			mode: "buffered",
+			phases: 2,
+			artifactSchema: SynthesisArtifactSchema,
+			artifactToolName: "write_synthesis_artifact",
+		};
+		fetchSpy.mockResolvedValueOnce(
+			new Response(JSON.stringify(ANTHROPIC_END_TURN), { status: 200 }),
+		);
+		const events: Phase1Event[] = [];
+		for await (const ev of runPhase1(PHASE_CTX, binding)) {
+			events.push(ev);
+		}
+		expect(events).toHaveLength(1);
+		expect(events[0]).toEqual({ type: "phase1_done", toolCallCount: 0, turnCount: 1 });
 	});
 });
