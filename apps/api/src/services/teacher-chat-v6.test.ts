@@ -178,3 +178,63 @@ describe("runPhase1Streaming — tool continuation", () => {
     expect(fetchSpy).toHaveBeenCalledTimes(2);
   });
 });
+
+describe("runPhase1Streaming — turn cap exhaustion", () => {
+  const fetchSpy = vi.fn();
+
+  beforeEach(() => {
+    fetchSpy.mockReset();
+    vi.stubGlobal("fetch", fetchSpy);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("issues a forced tool_choice:none call after turnCap and yields forced_text_after_max_turns", async () => {
+    const capCtx = { ...PHASE_CTX, turnCap: 2 };
+    const processToolFn = vi.fn().mockResolvedValue({
+      name: "search_catalog",
+      componentsJson: [],
+      isError: false,
+    });
+
+    // Two tool_use turns exhaust the cap; the third call is the forced text call
+    fetchSpy
+      .mockImplementationOnce(() => Promise.resolve(makeSseResponse(TOOL_USE_SSE)))
+      .mockImplementationOnce(() => Promise.resolve(makeSseResponse(TOOL_USE_SSE)))
+      .mockImplementationOnce(() => Promise.resolve(makeSseResponse(TEXT_ONLY_SSE)));
+
+    const binding = buildChatBinding(MOCK_CTX, "stu_1");
+    const systemBlocks = [{ type: "text" as const, text: "You are a teacher." }];
+    const messages = [{ role: "user" as const, content: "Find me some Chopin." }];
+
+    const events: TeacherEvent[] = [];
+    for await (const ev of runPhase1Streaming(
+      capCtx,
+      binding,
+      systemBlocks,
+      messages,
+      processToolFn,
+    )) {
+      events.push(ev);
+    }
+
+    // Three fetch calls: turnCap tool turns + 1 forced call
+    expect(fetchSpy).toHaveBeenCalledTimes(3);
+
+    // The forced call sends tool_choice: none
+    const forcedCallBody = JSON.parse(
+      fetchSpy.mock.calls[2][1].body as string,
+    ) as { tool_choice: { type: string } };
+    expect(forcedCallBody.tool_choice).toEqual({ type: "none" });
+
+    // Final done event carries the forced stopReason
+    const done = events.findLast((e) => e.type === "done");
+    expect(done).toBeDefined();
+    if (done && done.type === "done") {
+      expect(done.stopReason).toBe("forced_text_after_max_turns");
+      expect(done.fullText).toBe("Hello world");
+    }
+  });
+});

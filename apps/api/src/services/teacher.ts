@@ -461,7 +461,50 @@ export async function* runPhase1Streaming(
 		);
 	}
 
-	// Turn cap exhausted — placeholder yield; replaced in Task 5 with forced call
+	// Turn cap exhausted — force a text response with tool_choice: none
+	try {
+		const forcedStream = await callAnthropicStream(ctx.env, {
+			model: client.model,
+			max_tokens: 2048,
+			system: systemBlocks,
+			messages: currentMessages,
+			tools: toolSchemas,
+			tool_choice: { type: "none" },
+		});
+
+		let forcedDone: TeacherEvent | null = null;
+		for await (const event of parseAnthropicStream(forcedStream, processToolFn)) {
+			if (event.type === "done") {
+				forcedDone = event;
+			} else {
+				yield event;
+			}
+		}
+
+		if (forcedDone && forcedDone.type === "done" && forcedDone.fullText) {
+			yield {
+				type: "done",
+				fullText: forcedDone.fullText,
+				allComponents: accumulatedComponents,
+				toolCalls: [],
+				stopReason: "forced_text_after_max_turns",
+			};
+			return;
+		}
+	} catch (err) {
+		console.error(
+			JSON.stringify({
+				level: "error",
+				message: "forced final call failed after max tool turns",
+				error: err instanceof Error ? err.message : String(err),
+				stack: err instanceof Error ? err.stack : undefined,
+			}),
+		);
+		Sentry.captureException(err, {
+			tags: { service: "teacher", operation: "streaming_forced_final_call" },
+		});
+	}
+
 	yield {
 		type: "done",
 		fullText: "I had trouble putting that together — could you ask again?",
