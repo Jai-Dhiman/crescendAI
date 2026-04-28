@@ -1685,3 +1685,103 @@ Expected: PASS
 ```bash
 git add apps/api/src/harness/skills/molecules/index.ts apps/api/src/harness/skills/molecules/index.test.ts && git commit -m "feat(harness): add ALL_MOLECULES barrel"
 ```
+
+---
+
+## Challenge Review
+
+### CEO Pass
+
+**Premise:** The problem is real. `compound-registry.ts` has `tools: []` in the `OnSessionEnd` binding — without molecules, the compound dispatches nothing in Phase 1 and must hallucinate pedagogical reasoning inline. This is the correct next step after Plan 2 (atoms).
+
+**Direct path:** Yes. Each molecule is a pure deterministic transform from a signal bundle to a validated artifact. The plan scope exactly matches the spec (9 molecules + 1 barrel = 10 tasks). No scope drift identified.
+
+**Existing coverage:** The `__catalog__` tests at `apps/api/src/harness/skills/__catalog__/molecule-*.test.ts` already exist and validate the 9 markdown spec files in `docs/harness/skills/molecules/`. These tests are NOT broken by this plan (they validate specs, not TS implementations) and should already pass today.
+
+**12-Month alignment:**
+```
+CURRENT STATE                     THIS PLAN                        12-MONTH IDEAL
+compound-registry has tools:[]  → 9 molecules as ToolDefinitions → Qwen finetune data collection
+LLM must reason over raw atoms  → compound dispatches molecules   → per-skill RL signal per molecule
+no structured DiagnosisArtifact → validated artifacts in Phase 1  → trainable, reproducible scoring
+```
+Plan moves squarely toward the ideal.
+
+**Alternatives:** The spec documents the flat-signal-bundle vs session-ID decision explicitly. No alternatives gap.
+
+---
+
+### Engineering Pass
+
+#### Architecture
+
+Molecules follow the flat-signal-bundle contract established in the molecules spec: callers materialize all data from `HookContext.digest` before invoking. Atoms accept pre-loaded data directly (confirmed by checking `2026-04-27-v6-atoms.md`). No network, DB, or LLM calls inside molecules. Data flow is:
+
+```
+compound (Phase 1)
+  → extract signals from digest
+  → molecule.invoke({ flat bundle })
+      → atom1.invoke(...)  → scalar
+      → atom2.invoke(...)  → scalar
+      → branch logic
+      → DiagnosisArtifactSchema.parse(...)
+  ← DiagnosisArtifact
+```
+
+No security concerns (no user input flows to LLM/SQL/storage — all inputs are already-validated MuQ scores and AMT MIDI arrays).
+
+#### Module Depth Audit
+
+All 9 diagnosis/action molecules expose 1 exported symbol (`invoke`) and hide 50–100 LOC of branching logic, atom chaining, and Zod validation. Each is DEEP by Ousterhout's definition.
+
+The index barrel (Task 10) is SHALLOW (9 re-exports, ~15 LOC). Acknowledged as intentional in the spec: "same pattern as atoms/index.ts".
+
+#### Findings
+
+[BLOCKER] (confidence: 10/10) — **Atoms directory is empty.** `apps/api/src/harness/skills/atoms/` contains zero TypeScript files. Every molecule imports from atoms (e.g., `import { computeVelocityCurve } from '../atoms/compute-velocity-curve'`). When the build agent writes each molecule test file (Step 1) and runs it (Step 2), the test will fail with `Cannot find module '../atoms/compute-velocity-curve'` — NOT the expected `Cannot find module './voicing-diagnosis'`. The TDD watch-it-fail discipline breaks because the atom import error fires before the molecule-not-found error. The atoms plan (`docs/plans/2026-04-27-v6-atoms.md`) covers this but has not been executed. **Required change: execute the v6-atoms plan (Task Groups A + B) to completion before dispatching any molecule task. Add a prerequisite note at the top of this plan.**
+
+[RISK] (confidence: 9/10) — **`DIM` constant and `severityFromZ` duplicated across all 9 molecule files.** The plan's shared-conventions section acknowledges this but keeps them inline. A single `_shared.ts` in the molecules directory (or a reexport from the atoms barrel) would eliminate the 9-copy duplication. If severity thresholds change, 9 files require edits. Fallback: add a comment in each file pointing to the shared convention so future editors know it's intentional. Not a correctness bug today, but will compound as molecules grow.
+
+[RISK] (confidence: 8/10) — **Task 5 (tempo-stability-triage): silent out-of-bounds in drift computation.** Line:
+```typescript
+const driftNotes = i.alignment.map((a, idx) => ({ onset_ms: i.midi_notes[idx]?.onset_ms ?? a.expected_onset_ms, ... }))
+```
+If `i.alignment.length > i.midi_notes.length`, the missing notes fall back to `expected_onset_ms`, producing zero drift for those alignment entries. The test guards against this (14 notes, 14 alignments), but production inputs may diverge. Fallback: add an explicit `if (i.alignment.length !== i.midi_notes.length) throw new Error(...)` guard before this line.
+
+[RISK] (confidence: 7/10) — **Task 4 (phrasing-arc-analysis): empty velocity curve crashes silently with wrong result.** If `computeVelocityCurve` returns `[]` (empty notes), `Math.max(...[])` = `-Infinity`, `findIndex` returns `-1`, and `-1 === curve.length - 1` evaluates to `-1 === -1` = `true`, setting `flatOrMulti = true` and producing a spurious issue finding. The atom spec guarantees a non-empty curve for valid bar ranges, but an explicit guard (`if (curve.length === 0) return neutral`) is defensive and cheap. Fallback: add the guard before the peak detection block.
+
+[RISK] (confidence: 7/10) — **Task 2 (pedal-triage): dead code in timing subtype branch.** In the `else` branch:
+```typescript
+subtype = lateReleases.length > 0 ? 'timing' : 'timing'
+```
+Both ternary arms assign `'timing'`. The `lateReleases` computation is wasted, and the subtype logic for distinguishing timing subtypes is not differentiated. Fallback: simplify to `subtype = 'timing'`. If finer subtype logic is intended, it needs to be implemented here.
+
+[OBS] — The `__catalog__` molecule tests (`apps/api/src/harness/skills/__catalog__/molecule-*.test.ts`) validate the 9 markdown spec files at `docs/harness/skills/molecules/*.md`. These files already exist and appear well-formed. The catalog tests should pass today without any changes from this plan. The build agent does not need to create or modify any `docs/harness/skills/molecules/*.md` files.
+
+[OBS] — All 9 molecule tests use `scope: 'session'`. The `DiagnosisArtifactSchema` refinement `scope === 'session' || bar_range !== null` allows `bar_range` to be null only for session scope. The non-session paths (stop_moment, passage with non-null bar_range) are untested. These are valid paths per the schema but no test verifies them. Not a blocker for this plan's scope.
+
+[OBS] — `crossModalContradictionCheck` hardcodes `primary_dimension: 'dynamics'` in the neutral path (no contradictions detected). This is semantically odd since a neutral finding has no natural primary dimension, but Zod requires one. The neutral finding_type means consumers should ignore the content anyway. Acceptable as-is.
+
+---
+
+### Presumption Inventory
+
+| Assumption | Verdict | Reason |
+|---|---|---|
+| Atoms have TS implementations at `../atoms/*` | **RISKY** | atoms directory is empty; v6-atoms plan not yet executed |
+| `fetch-student-baseline` takes `{ dimension, session_means }` | SAFE | confirmed in `2026-04-27-v6-atoms.md` Task 14 |
+| `fetch-similar-past-observation` takes `{ dimension, piece_id, bar_range, past_diagnoses, now_ms }` | SAFE | confirmed in `2026-04-27-v6-atoms.md` Task 13 |
+| `DiagnosisArtifact.evidence_refs` allows any non-empty string array | SAFE | schema validates `z.array(z.string().min(1)).min(1)` |
+| `computeVelocityCurve` returns non-empty array for valid input | VALIDATE | atom spec guarantees this but no TS implementation to verify |
+| `ExerciseArtifactSchema` accepts `action_binding = null` when `exercise_type` is not in ACTION_REQUIRED_TYPES | SAFE | schema refine confirms `!ACTION_REQUIRED_TYPES.includes(...) || binding !== null` |
+| `catalog/__catalog__` tests don't test molecule TS implementations | SAFE | verified: all catalog tests call `validateSkill` on markdown files only |
+
+---
+
+### Summary
+
+[BLOCKER] count: 1
+[RISK]    count: 4
+[QUESTION] count: 0
+
+VERDICT: NEEDS_REWORK — atoms plan (`docs/plans/2026-04-27-v6-atoms.md`) must complete first. Add an explicit prerequisite note at the plan header stating this. Once atoms are in place, the 4 risks are manageable: the critical one (Task 5 out-of-bounds) and two defensive guards (Task 4 empty-curve, Task 2 dead code) should be fixed before committing. The DRY risk is acceptable to defer.

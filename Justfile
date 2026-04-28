@@ -96,7 +96,7 @@ check-api:
 
 # Run API tests
 test-api:
-    cd apps/api && bun run test -- --run
+    cd apps/api && bun run test -- --run && bunx vitest run --config vitest.node.config.ts
 
 # Run web type check
 check-web:
