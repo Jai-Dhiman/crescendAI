@@ -71,6 +71,7 @@
 		A900000001 /* ChatService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B900000001 /* ChatService.swift */; };
 		A200000005 /* ChatServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B200000005 /* ChatServiceTests.swift */; };
 		A200000006 /* ChatViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B200000006 /* ChatViewModelTests.swift */; };
+		A200000007 /* ConversationRecordTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B200000007 /* ConversationRecordTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -113,6 +114,7 @@
 		B900000001 /* ChatService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatService.swift; sourceTree = "<group>"; };
 		B200000005 /* ChatServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatServiceTests.swift; sourceTree = "<group>"; };
 		B200000006 /* ChatViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatViewModelTests.swift; sourceTree = "<group>"; };
+		B200000007 /* ConversationRecordTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationRecordTests.swift; sourceTree = "<group>"; };
 		B700000001 /* ArtifactConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtifactConfig.swift; sourceTree = "<group>"; };
 		B700000002 /* ArtifactRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtifactRenderer.swift; sourceTree = "<group>"; };
 		B300000001 /* PracticeSessionRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PracticeSessionRecord.swift; sourceTree = "<group>"; };
@@ -371,6 +373,7 @@
 				B200000004 /* PracticeSessionServiceTests.swift */,
 				B200000005 /* ChatServiceTests.swift */,
 				B200000006 /* ChatViewModelTests.swift */,
+				B200000007 /* ConversationRecordTests.swift */,
 			);
 			path = CrescendAITests;
 			sourceTree = "<group>";
@@ -617,6 +620,7 @@
 				A200000004 /* PracticeSessionServiceTests.swift in Sources */,
 				A200000005 /* ChatServiceTests.swift in Sources */,
 				A200000006 /* ChatViewModelTests.swift in Sources */,
+				A200000007 /* ConversationRecordTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

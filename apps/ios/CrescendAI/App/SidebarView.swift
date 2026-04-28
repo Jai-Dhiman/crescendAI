@@ -1,17 +1,13 @@
+import SwiftData
 import SwiftUI
 
 struct SidebarView: View {
     @Binding var isOpen: Bool
     let onNewSession: () -> Void
-    let onSelectSession: (UUID) -> Void
+    let onSelectSession: (String) -> Void
     let onShowProfile: () -> Void
 
-    // Placeholder session data (will connect to SwiftData later)
-    private let sessions: [(id: UUID, title: String, date: String)] = [
-        (UUID(), "Chopin Nocturne Op.9 No.2", "Today"),
-        (UUID(), "Bach Prelude in C", "Yesterday"),
-        (UUID(), "Debussy Clair de Lune", "Mar 5"),
-    ]
+    @Query(sort: \ConversationRecord.startedAt, order: .reverse) private var sessions: [ConversationRecord]
 
     var body: some View {
         ZStack(alignment: .leading) {
@@ -76,18 +72,18 @@ struct SidebarView: View {
                         .padding(.horizontal, CrescendSpacing.space4)
                         .padding(.bottom, CrescendSpacing.space2)
 
-                    ForEach(sessions, id: \.id) { session in
+                    ForEach(sessions) { session in
                         Button {
-                            onSelectSession(session.id)
+                            onSelectSession(session.conversationId)
                             closeSidebar()
                         } label: {
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(session.title)
+                                Text(session.displayTitle)
                                     .font(CrescendFont.bodyMD())
                                     .foregroundStyle(CrescendColor.foreground)
                                     .lineLimit(1)
 
-                                Text(session.date)
+                                Text(session.startedAt, style: .relative)
                                     .font(CrescendFont.labelSM())
                                     .foregroundStyle(CrescendColor.tertiaryText)
                             }

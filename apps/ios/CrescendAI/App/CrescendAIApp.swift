@@ -29,6 +29,7 @@ struct CrescendAIApp: App {
                 ChunkResultRecord.self,
                 ObservationRecord.self,
                 CheckInRecord.self,
+                ConversationRecord.self,
             ])
             let config = ModelConfiguration(schema: schema)
             modelContainer = try ModelContainer(for: schema, configurations: [config])
