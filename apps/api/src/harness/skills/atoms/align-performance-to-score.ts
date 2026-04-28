@@ -90,14 +90,13 @@ export const alignPerformanceToScore: ToolDefinition = {
       }
     }
 
-    // Traceback (monotonic)
+    // Traceback (monotonic): only record entry when i decreases
     const path: [number, number][] = []
     let i = P, j = S
     while (i > 0 && j > 0) {
-      path.unshift([i - 1, j - 1])
       const diag = dp[i - 1][j - 1], up = dp[i - 1][j], left = dp[i][j - 1]
-      if (diag <= up && diag <= left) { i--; j-- }
-      else if (up <= left) { i-- }
+      if (diag <= up && diag <= left) { path.unshift([i - 1, j - 1]); i--; j-- }
+      else if (up <= left) { path.unshift([i - 1, -1]); i-- }
       else { j-- }
     }
     while (i > 0) { path.unshift([i - 1, -1]); i-- }
