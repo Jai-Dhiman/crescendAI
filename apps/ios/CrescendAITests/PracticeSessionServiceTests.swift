@@ -4,6 +4,11 @@ import XCTest
 @MainActor
 final class PracticeSessionServiceTests: XCTestCase {
 
+    override func tearDown() async throws {
+        MockURLProtocol.requestHandler = nil
+        try await super.tearDown()
+    }
+
     // MARK: - RMS silence gate (static method, no network)
 
     func test_rms_silentSignalReturnsZero() {

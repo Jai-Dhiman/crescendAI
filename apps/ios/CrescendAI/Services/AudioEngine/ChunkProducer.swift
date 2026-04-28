@@ -33,6 +33,12 @@ final class ChunkProducer {
         self._continuation = continuation
     }
 
+    static func rms(samples: [Float]) -> Float {
+        guard !samples.isEmpty else { return 0 }
+        let sumOfSquares = samples.reduce(0) { $0 + $1 * $1 }
+        return sqrt(sumOfSquares / Float(samples.count))
+    }
+
     func start(sessionId: UUID, startDate: Date) {
         guard !isProducing else { return }
 
@@ -62,6 +68,7 @@ final class ChunkProducer {
 
         // Skip if too few samples (less than 1 second)
         guard samples.count >= sampleRate else { return }
+        guard Self.rms(samples: samples) >= 0.01 else { return }
 
         let startOffset = TimeInterval(chunkIndex * chunkDurationSeconds)
         let actualDuration = TimeInterval(samples.count) / TimeInterval(sampleRate)

@@ -26,6 +26,10 @@ final class PracticeSessionManager {
     private let ringBuffer = RingBuffer(capacity: 24_000 * 300) // 5 minutes at 24kHz
     @ObservationIgnored private lazy var captureEngine = AudioCaptureEngine(ringBuffer: ringBuffer)
     private var chunkProducer: ChunkProducer?
+
+    var chunkStream: AsyncStream<AudioChunk>? {
+        chunkProducer?.chunkStream
+    }
     private var interruptionTask: Task<Void, Never>?
     private var chunkObservationTask: Task<Void, Never>?
 
