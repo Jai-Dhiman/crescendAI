@@ -83,22 +83,8 @@ final class ChatViewModel {
     func stopPractice() async {
         practiceState = .processing
         addSystemMessage("Ending session and analyzing your practice...")
-        
         await manager?.endSession()
-        
-        // Simulate getting observations (will be replaced by real API call)
-        Task {
-            try? await Task.sleep(for: .seconds(1.5))
-            addObservation(
-                text: "Nice work! Your rhythm was steady throughout the session.",
-                dimension: "rhythm"
-            )
-            addObservation(
-                text: "Your dynamics showed good contrast. Try increasing the dynamic range even more.",
-                dimension: "dynamics"
-            )
-            practiceState = .idle
-        }
+        practiceState = .idle
     }
 
     func pausePractice() {
