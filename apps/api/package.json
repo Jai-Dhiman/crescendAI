@@ -11,8 +11,7 @@
 		"codegen:catalog": "bun scripts/catalog-codegen.ts",
 		"test:scripts": "vitest --config vitest.node.config.ts",
 		"prebuild": "bun run codegen:catalog",
-		"predeploy": "bun run codegen:catalog",
-		"prepare": "bun run codegen:catalog"
+		"predeploy": "bun run codegen:catalog"
 	},
 	"dependencies": {
 		"hono": "^4",
