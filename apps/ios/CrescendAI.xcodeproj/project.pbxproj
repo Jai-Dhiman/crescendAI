@@ -27,6 +27,7 @@
 		A100000039 /* PracticeSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000040 /* PracticeSession.swift */; };
 		A100000040 /* AudioChunk.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000041 /* AudioChunk.swift */; };
 		A200000001 /* RingBufferTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B200000001 /* RingBufferTests.swift */; };
+		A200000002 /* AuthServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B200000002 /* AuthServiceTests.swift */; };
 		A300000001 /* PracticeSessionRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = B300000001 /* PracticeSessionRecord.swift */; };
 		A300000002 /* ChunkResultRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = B300000002 /* ChunkResultRecord.swift */; };
 		A300000003 /* CoreMLInferenceProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = B300000003 /* CoreMLInferenceProvider.swift */; };
@@ -60,6 +61,10 @@
 		A500000001 /* Lora-VariableFont_wght.ttf in Resources */ = {isa = PBXBuildFile; fileRef = B500000001 /* Lora-VariableFont_wght.ttf */; };
 		A500000002 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B500000002 /* Assets.xcassets */; };
 		A500000003 /* Figtree-VariableFont_wght.ttf in Resources */ = {isa = PBXBuildFile; fileRef = B500000003 /* Figtree-VariableFont_wght.ttf */; };
+		SA000000001 /* Sentry in Frameworks */ = {isa = PBXBuildFile; productRef = SP000000001 /* Sentry */; };
+		A700000001 /* ArtifactConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = B700000001 /* ArtifactConfig.swift */; };
+		A700000002 /* ArtifactRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B700000002 /* ArtifactRenderer.swift */; };
+		A200000003 /* ArtifactConfigTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B200000003 /* ArtifactConfigTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -94,6 +99,10 @@
 		B100000040 /* PracticeSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PracticeSession.swift; sourceTree = "<group>"; };
 		B100000041 /* AudioChunk.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioChunk.swift; sourceTree = "<group>"; };
 		B200000001 /* RingBufferTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RingBufferTests.swift; sourceTree = "<group>"; };
+		B200000002 /* AuthServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthServiceTests.swift; sourceTree = "<group>"; };
+		B200000003 /* ArtifactConfigTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtifactConfigTests.swift; sourceTree = "<group>"; };
+		B700000001 /* ArtifactConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtifactConfig.swift; sourceTree = "<group>"; };
+		B700000002 /* ArtifactRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtifactRenderer.swift; sourceTree = "<group>"; };
 		B300000001 /* PracticeSessionRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PracticeSessionRecord.swift; sourceTree = "<group>"; };
 		B300000002 /* ChunkResultRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChunkResultRecord.swift; sourceTree = "<group>"; };
 		B300000003 /* CoreMLInferenceProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreMLInferenceProvider.swift; sourceTree = "<group>"; };
@@ -136,6 +145,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				SA000000001 /* Sentry in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -316,6 +326,7 @@
 				B300000002 /* ChunkResultRecord.swift */,
 				B400000008 /* ObservationRecord.swift */,
 				B400000009 /* CheckInRecord.swift */,
+				B700000001 /* ArtifactConfig.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -324,6 +335,8 @@
 			isa = PBXGroup;
 			children = (
 				B200000001 /* RingBufferTests.swift */,
+				B200000002 /* AuthServiceTests.swift */,
+				B200000003 /* ArtifactConfigTests.swift */,
 			);
 			path = CrescendAITests;
 			sourceTree = "<group>";
@@ -353,6 +366,7 @@
 				B400000016 /* MessageBubble.swift */,
 				B400000017 /* ObservationCard.swift */,
 				B400000018 /* DimensionPill.swift */,
+				B700000002 /* ArtifactRenderer.swift */,
 				E400000003 /* ComponentCards */,
 			);
 			path = Chat;
@@ -419,6 +433,9 @@
 			dependencies = (
 			);
 			name = CrescendAI;
+			packageProductDependencies = (
+				SP000000001 /* Sentry */,
+			);
 			productName = CrescendAI;
 			productReference = C100000001 /* CrescendAI.app */;
 			productType = "com.apple.product-type.application";
@@ -468,6 +485,9 @@
 				Base,
 			);
 			mainGroup = E100000001;
+			packageReferences = (
+				SR000000001 /* XCRemoteSwiftPackageReference "sentry-cocoa" */,
+			);
 			productRefGroup = E100000020 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -545,6 +565,8 @@
 				A400000025 /* ScoreHighlightCard.swift in Sources */,
 				A400000026 /* KeyboardGuideCard.swift in Sources */,
 				A400000027 /* ExerciseSetCard.swift in Sources */,
+				A700000001 /* ArtifactConfig.swift in Sources */,
+				A700000002 /* ArtifactRenderer.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -553,6 +575,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				A200000001 /* RingBufferTests.swift in Sources */,
+				A200000002 /* AuthServiceTests.swift in Sources */,
+				A200000003 /* ArtifactConfigTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -819,6 +843,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		SR000000001 /* XCRemoteSwiftPackageReference "sentry-cocoa" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/getsentry/sentry-cocoa.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 8.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		SP000000001 /* Sentry */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = SR000000001 /* XCRemoteSwiftPackageReference "sentry-cocoa" */;
+			productName = Sentry;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = F100000010 /* Project object */;
 }

@@ -2,10 +2,11 @@ import Foundation
 import SwiftData
 import SwiftUI
 
-enum ChatMessageRole {
+enum ChatMessageRole: Equatable {
     case user
     case system
     case observation
+    case teacher
 }
 
 struct ChatMessage: Identifiable {
@@ -15,13 +16,22 @@ struct ChatMessage: Identifiable {
     let dimension: String?
     let timestamp: Date
     var elaboration: String?
+    var artifacts: [ArtifactConfig]
 
-    init(role: ChatMessageRole, text: String, dimension: String? = nil, timestamp: Date = .now, elaboration: String? = nil) {
+    init(
+        role: ChatMessageRole,
+        text: String,
+        dimension: String? = nil,
+        timestamp: Date = .now,
+        elaboration: String? = nil,
+        artifacts: [ArtifactConfig] = []
+    ) {
         self.role = role
         self.text = text
         self.dimension = dimension
         self.timestamp = timestamp
         self.elaboration = elaboration
+        self.artifacts = artifacts
     }
 }
 

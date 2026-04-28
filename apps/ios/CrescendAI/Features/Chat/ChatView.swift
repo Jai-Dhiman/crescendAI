@@ -101,6 +101,8 @@ struct ChatView: View {
                 elaboration: message.elaboration,
                 onTellMeMore: { viewModel.requestElaboration(for: message.id) }
             )
+        case .teacher:
+            MessageBubble(text: message.text, isUser: false)
         }
     }
 

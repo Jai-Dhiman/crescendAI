@@ -1,6 +1,6 @@
 import SwiftUI
 
-struct ExerciseItem: Identifiable {
+struct ExerciseCardItem: Identifiable {
     let id = UUID()
     let title: String
     let description: String
@@ -8,7 +8,7 @@ struct ExerciseItem: Identifiable {
 
 struct ExerciseSetCard: View {
     let dimension: String
-    let exercises: [ExerciseItem]
+    let exercises: [ExerciseCardItem]
     let onStart: () -> Void
 
     var body: some View {
@@ -69,9 +69,9 @@ struct ExerciseSetCard: View {
     ExerciseSetCard(
         dimension: "dynamics",
         exercises: [
-            ExerciseItem(title: "Dynamic Range", description: "Play bars 1-4 building from p to f"),
-            ExerciseItem(title: "Sudden Contrast", description: "Forte passage then immediate pianissimo"),
-            ExerciseItem(title: "Gradual Decay", description: "Sustain a chord and let it diminuendo naturally"),
+            ExerciseCardItem(title: "Dynamic Range", description: "Play bars 1-4 building from p to f"),
+            ExerciseCardItem(title: "Sudden Contrast", description: "Forte passage then immediate pianissimo"),
+            ExerciseCardItem(title: "Gradual Decay", description: "Sustain a chord and let it diminuendo naturally"),
         ],
         onStart: {}
     )
