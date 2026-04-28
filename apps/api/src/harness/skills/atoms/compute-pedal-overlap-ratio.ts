@@ -11,18 +11,18 @@ function pedaledDuration(
   const sorted = [...pedalCc].sort((a, b) => a.time_ms - b.time_ms)
   let pedaled = 0
   let isPedaled = false
-  let segStart = 0
+  let segStart = noteOnset
   for (const ev of sorted) {
     const t = Math.max(noteOnset, Math.min(noteEnd, ev.time_ms))
     if (isPedaled) {
-      pedaled += Math.max(0, t - Math.max(noteOnset, segStart))
+      pedaled += Math.max(0, t - segStart)
     }
     isPedaled = ev.value >= 64
-    segStart = ev.time_ms
+    segStart = Math.max(noteOnset, ev.time_ms)
   }
   // Close last segment if pedal still down at note end
   if (isPedaled && segStart < noteEnd) {
-    pedaled += Math.max(0, noteEnd - Math.max(noteOnset, segStart))
+    pedaled += Math.max(0, noteEnd - segStart)
   }
   return pedaled
 }
