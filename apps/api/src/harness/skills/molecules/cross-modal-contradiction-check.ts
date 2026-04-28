@@ -50,7 +50,7 @@ export const crossModalContradictionCheck: ToolDefinition = {
     async function dimZ(dimName: string): Promise<number> {
       if (!(dimName in DIM)) return 0
       const bl = i.cohort_baselines[dimName]
-      if (!bl) return 0
+      if (!bl) throw new Error(`cross-modal-contradiction-check: missing cohort_baseline for dimension "${dimName}"`)
       return await computeDimensionDelta.invoke({ dimension: dimName, current: i.muq_scores[DIM[dimName as keyof typeof DIM]], baseline: bl }) as number
     }
 
@@ -109,10 +109,9 @@ export const crossModalContradictionCheck: ToolDefinition = {
     }
 
     if (contradictions.length === 0) {
-      const neutralDimension = (Object.keys(i.cohort_baselines)[0] ?? 'dynamics') as string
       return DiagnosisArtifactSchema.parse({
-        primary_dimension: neutralDimension,
-        dimensions: [neutralDimension],
+        primary_dimension: 'dynamics',
+        dimensions: ['dynamics'],
         severity: 'minor', scope: i.scope, bar_range: i.bar_range,
         evidence_refs: i.evidence_refs,
         one_sentence_finding: 'No cross-modal contradictions detected.',
