@@ -19,3 +19,25 @@ export async function wrapToolCall<T>(invoke: () => Promise<T>): Promise<T> {
 export async function withRetries<T>(fn: () => Promise<T>): Promise<T> {
 	return fn();
 }
+
+/**
+ * V8+ replaces with a real reviewer agent. V6: log a breadcrumb on 10% sample.
+ * `sample` is injectable so tests are deterministic.
+ */
+export function reviewArtifact(
+	artifact: unknown,
+	sample: () => boolean,
+): void {
+	if (!sample()) return;
+	console.log(
+		JSON.stringify({
+			level: "info",
+			fn: "reviewArtifact",
+			message: "sampled",
+			artifactPreview:
+				typeof artifact === "object" && artifact !== null
+					? Object.keys(artifact as Record<string, unknown>)
+					: String(artifact),
+		}),
+	);
+}

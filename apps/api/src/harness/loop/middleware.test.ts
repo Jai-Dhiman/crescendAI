@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { redactPii, wrapToolCall } from "./middleware";
+import { redactPii, reviewArtifact, withRetries, wrapToolCall } from "./middleware";
 
 describe("redactPii", () => {
 	it("returns the input unchanged", () => {
@@ -30,8 +30,6 @@ describe("wrapToolCall", () => {
 	});
 });
 
-import { withRetries } from "./middleware";
-
 describe("withRetries happy path", () => {
 	it("invokes fn once and returns its value when fn succeeds", async () => {
 		let calls = 0;
@@ -41,5 +39,31 @@ describe("withRetries happy path", () => {
 		});
 		expect(result).toBe("ok");
 		expect(calls).toBe(1);
+	});
+});
+
+describe("reviewArtifact stub", () => {
+	it("does not throw when sample returns true", () => {
+		expect(() =>
+			reviewArtifact({ session_id: "s1" }, () => true),
+		).not.toThrow();
+	});
+
+	it("does not throw when sample returns false", () => {
+		expect(() =>
+			reviewArtifact({ session_id: "s1" }, () => false),
+		).not.toThrow();
+	});
+
+	it("logs a structured breadcrumb when sampled", () => {
+		const logs: string[] = [];
+		const original = console.log;
+		console.log = (msg: string) => logs.push(msg);
+		try {
+			reviewArtifact({ session_id: "s1" }, () => true);
+		} finally {
+			console.log = original;
+		}
+		expect(logs.some((l) => l.includes("\"reviewArtifact\""))).toBe(true);
 	});
 });
