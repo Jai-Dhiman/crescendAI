@@ -80,6 +80,9 @@ final class PracticeSessionService: PracticeSessionServiceProtocol {
     }
 
     func start() async throws {
+        guard let mc = modelContext else {
+            throw PracticeSessionError.notConfigured
+        }
         state = .connecting
 
         // 1. Create server session
@@ -94,11 +97,9 @@ final class PracticeSessionService: PracticeSessionServiceProtocol {
         self.conversationId = startResp.conversationId
 
         // 2. Start audio capture (no local inference — cloud replaces it)
-        if let mc = modelContext {
-            let manager = PracticeSessionManager(modelContext: mc)
-            self.sessionManager = manager
-            try await manager.startSession(inferenceProvider: nil)
-        }
+        let manager = PracticeSessionManager(modelContext: mc)
+        self.sessionManager = manager
+        try await manager.startSession(inferenceProvider: nil)
 
         // 3. Connect WebSocket
         connectWebSocket(sessionId: startResp.sessionId, conversationId: startResp.conversationId)
@@ -253,8 +254,11 @@ final class PracticeSessionService: PracticeSessionServiceProtocol {
                 req.setValue("audio/aac", forHTTPHeaderField: "Content-Type")
                 req.httpBody = audioData
 
-                _ = try? await session.data(for: req)
-                _continuation.yield(.chunkUploaded(index: localIndex))
+                if let (_, response) = try? await session.data(for: req),
+                   let httpResponse = response as? HTTPURLResponse,
+                   (200..<300).contains(httpResponse.statusCode) {
+                    _continuation.yield(.chunkUploaded(index: localIndex))
+                }
                 localIndex += 1
             }
         }
