@@ -434,18 +434,29 @@ final class AuthService {
 }
 ```
 
-**`apps/ios/CrescendAI/Services/Auth/SyncService.swift`** — remove manual Bearer header (line ~103-106). Find and delete these lines:
+**`apps/ios/CrescendAI/Services/Auth/SyncService.swift`** — replace the JWT guard and remove the Bearer header in `performSync`. The current code at lines 97–105 is:
 
 ```swift
-// DELETE these lines in SyncService:
 guard let jwt = authService.jwt else {
-    // ... any guard returning on missing jwt
+    throw SyncError.notAuthenticated
 }
-// AND delete:
+```
+...and at line 105:
+```swift
 request.setValue("Bearer \(jwt)", forHTTPHeaderField: "Authorization")
 ```
 
-The exact replacement depends on the surrounding code — remove only the JWT guard and header injection; leave all other request construction intact.
+Replace with:
+
+```swift
+// Replace lines 97-99:
+guard authService.isAuthenticated else {
+    throw SyncError.notAuthenticated
+}
+// Delete the setValue("Bearer ...") line entirely — cookies are sent automatically
+```
+
+Leave all other request construction intact. `URLSession.shared` transmits `HTTPCookieStorage` cookies automatically on every request, so no header injection is needed.
 
 **`apps/ios/CrescendAI/Features/Profile/ProfileView.swift`** — replace `appleUserId != nil` with `isAuthenticated` and remove `try` from `signOut()`:
 
@@ -840,6 +851,7 @@ git add apps/ios/CrescendAI/Models/ArtifactConfig.swift apps/ios/CrescendAI/Feat
 - Modify: `apps/ios/CrescendAI/Services/AudioEngine/ChunkProducer.swift`
 - Modify: `apps/ios/CrescendAI/Services/AudioEngine/PracticeSessionManager.swift`
 - Create: `apps/ios/CrescendAI/Services/Practice/PracticeSessionService.swift`
+- Create: `apps/ios/CrescendAI/Models/ConversationRecord.swift` *(moved from Task 6 — referenced at compile time by PracticeSessionService)*
 - Test: `apps/ios/CrescendAITests/PracticeSessionServiceTests.swift`
 
 - [ ] **Step 1: Write the failing test**
@@ -963,6 +975,7 @@ var chunkStream: AsyncStream<AudioChunk>? {
 
 ```swift
 import Foundation
+import Sentry
 import SwiftData
 
 enum PracticeEvent {
@@ -973,6 +986,14 @@ enum PracticeEvent {
     case reconnecting(attempt: Int)
     case error(String)
     case sessionEnded
+}
+
+enum PracticeSessionError: LocalizedError {
+    case notConfigured
+
+    var errorDescription: String? {
+        "PracticeSessionService not configured — call configure(modelContext:) first"
+    }
 }
 
 protocol PracticeSessionServiceProtocol: AnyObject {
@@ -1015,6 +1036,7 @@ final class PracticeSessionService: PracticeSessionServiceProtocol {
     private var uploadTask: Task<Void, Never>?
     private var wsTask: Task<Void, Never>?
     private var modelContext: ModelContext?
+    private var synthesisReceived = false
 
     private struct PracticeStartResponse: Decodable {
         let sessionId: String
@@ -1047,7 +1069,10 @@ final class PracticeSessionService: PracticeSessionServiceProtocol {
         self.conversationId = startResp.conversationId
 
         // 2. Start audio capture (no inference — cloud replaces local)
-        let mc = modelContext ?? ModelContext(try! ModelContainer(for: Schema([])))
+        guard let mc = modelContext else {
+            state = .idle
+            throw PracticeSessionError.notConfigured
+        }
         let manager = PracticeSessionManager(modelContext: mc)
         self.sessionManager = manager
         try await manager.startSession(inferenceProvider: nil)
@@ -1080,11 +1105,11 @@ final class PracticeSessionService: PracticeSessionServiceProtocol {
         await sessionManager?.endSession()
         sessionManager = nil
 
-        // Wait up to 30s for synthesis
-        let synthesisTimeout = Task {
-            try? await Task.sleep(for: .seconds(30))
+        // Wait up to 30s for synthesis WebSocket event, break early if it arrives
+        let deadline = Date().addingTimeInterval(30)
+        while !synthesisReceived && Date() < deadline {
+            try? await Task.sleep(for: .milliseconds(200))
         }
-        await synthesisTimeout.value
 
         wsTask?.cancel()
         wsTask = nil
@@ -1102,6 +1127,10 @@ final class PracticeSessionService: PracticeSessionServiceProtocol {
     // MARK: - WebSocket
 
     private func connectWebSocket(sessionId: String, conversationId: String, attempt: Int = 0) {
+        wsTask?.cancel()
+        wsTask = nil
+        webSocketTask?.cancel(with: .normalClosure, reason: nil)
+
         let url = APIEndpoints.practiceWs(sessionId: sessionId, conversationId: conversationId)
         let task = session.webSocketTask(with: url)
         webSocketTask = task
@@ -1153,6 +1182,7 @@ final class PracticeSessionService: PracticeSessionServiceProtocol {
                 artifacts: event.components ?? []
             ))
         case "synthesis":
+            synthesisReceived = true
             _continuation.yield(.synthesis(
                 text: event.text ?? "",
                 artifacts: event.components ?? []
@@ -1165,7 +1195,12 @@ final class PracticeSessionService: PracticeSessionServiceProtocol {
                     synthesisText: event.text
                 )
                 mc.insert(record)
-                try? mc.save()
+                do {
+                    try mc.save()
+                } catch {
+                    SentrySDK.capture(error: error)
+                    _continuation.yield(.error("Failed to persist session record: \(error.localizedDescription)"))
+                }
             }
         case "error":
             _continuation.yield(.error(event.text ?? "Unknown error"))
@@ -1183,7 +1218,7 @@ final class PracticeSessionService: PracticeSessionServiceProtocol {
             guard let stream = manager.chunkStream else { return }
             for await chunk in stream {
                 guard !Task.isCancelled else { break }
-                guard let fileURL = chunk.fileURL,
+                guard let fileURL = chunk.localFileURL,
                       let audioData = try? Data(contentsOf: fileURL) else { continue }
 
                 var req = URLRequest(url: APIEndpoints.practiceChunk(sessionId: sessionId, chunkIndex: localIndex))
@@ -1200,6 +1235,34 @@ final class PracticeSessionService: PracticeSessionServiceProtocol {
 }
 ```
 
+**`apps/ios/CrescendAI/Models/ConversationRecord.swift`** — new file (required at compile time by `PracticeSessionService`; test remains in Task 6):
+
+```swift
+import Foundation
+import SwiftData
+
+@Model
+final class ConversationRecord {
+    @Attribute(.unique) var conversationId: String
+    var sessionId: UUID
+    var startedAt: Date
+    var title: String?
+    var synthesisText: String?
+
+    init(conversationId: String, sessionId: UUID, startedAt: Date, title: String? = nil, synthesisText: String? = nil) {
+        self.conversationId = conversationId
+        self.sessionId = sessionId
+        self.startedAt = startedAt
+        self.title = title
+        self.synthesisText = synthesisText
+    }
+
+    var displayTitle: String {
+        title ?? DateFormatter.localizedString(from: startedAt, dateStyle: .medium, timeStyle: .short)
+    }
+}
+```
+
 - [ ] **Step 4: Run test — verify it PASSES**
 
 ```bash
@@ -1210,7 +1273,7 @@ Expected: PASS
 - [ ] **Step 5: Commit**
 
 ```bash
-git add apps/ios/CrescendAI/Services/AudioEngine/ChunkProducer.swift apps/ios/CrescendAI/Services/AudioEngine/PracticeSessionManager.swift apps/ios/CrescendAI/Services/Practice/PracticeSessionService.swift apps/ios/CrescendAITests/PracticeSessionServiceTests.swift && git commit -m "feat(ios): add PracticeSessionService with WebSocket reconnect, add RMS silence gate to ChunkProducer"
+git add apps/ios/CrescendAI/Services/AudioEngine/ChunkProducer.swift apps/ios/CrescendAI/Services/AudioEngine/PracticeSessionManager.swift apps/ios/CrescendAI/Services/Practice/PracticeSessionService.swift apps/ios/CrescendAI/Models/ConversationRecord.swift apps/ios/CrescendAITests/PracticeSessionServiceTests.swift && git commit -m "feat(ios): add PracticeSessionService with WebSocket reconnect, add RMS silence gate to ChunkProducer, add ConversationRecord model"
 ```
 
 ---
@@ -1929,37 +1992,9 @@ final class ConversationRecordTests: XCTestCase {
 ```bash
 xcodebuild test -project apps/ios/CrescendAI.xcodeproj -scheme CrescendAI -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing CrescendAITests/ConversationRecordTests 2>&1 | tail -30
 ```
-Expected: FAIL — `ConversationRecord` does not exist.
+Expected: FAIL — `ConversationRecord` exists (created in Task 3) but `displayTitle` or `synthesisText` logic may not match; if tests happen to pass, the real missing behavior is `CrescendAIApp.swift` not including `ConversationRecord.self` in the schema (causing a runtime crash on first synthesis insert) and `SidebarView` still using hardcoded session data.
 
 - [ ] **Step 3: Implement**
-
-**`apps/ios/CrescendAI/Models/ConversationRecord.swift`** — new file:
-
-```swift
-import Foundation
-import SwiftData
-
-@Model
-final class ConversationRecord {
-    @Attribute(.unique) var conversationId: String
-    var sessionId: UUID
-    var startedAt: Date
-    var title: String?
-    var synthesisText: String?
-
-    init(conversationId: String, sessionId: UUID, startedAt: Date, title: String? = nil, synthesisText: String? = nil) {
-        self.conversationId = conversationId
-        self.sessionId = sessionId
-        self.startedAt = startedAt
-        self.title = title
-        self.synthesisText = synthesisText
-    }
-
-    var displayTitle: String {
-        title ?? DateFormatter.localizedString(from: startedAt, dateStyle: .medium, timeStyle: .short)
-    }
-}
-```
 
 **`apps/ios/CrescendAI/App/CrescendAIApp.swift`** — add `ConversationRecord.self` to the schema array:
 
@@ -2124,7 +2159,7 @@ Expected: PASS
 - [ ] **Step 5: Commit**
 
 ```bash
-git add apps/ios/CrescendAI/Models/ConversationRecord.swift apps/ios/CrescendAI/App/SidebarView.swift apps/ios/CrescendAI/App/CrescendAIApp.swift apps/ios/CrescendAITests/ConversationRecordTests.swift && git commit -m "feat(ios): add ConversationRecord SwiftData model, wire SidebarView to @Query"
+git add apps/ios/CrescendAI/App/SidebarView.swift apps/ios/CrescendAI/App/CrescendAIApp.swift apps/ios/CrescendAITests/ConversationRecordTests.swift && git commit -m "feat(ios): wire SidebarView to @Query for ConversationRecord session history"
 ```
 
 ---
@@ -2142,41 +2177,91 @@ git add apps/ios/CrescendAI/Models/ConversationRecord.swift apps/ios/CrescendAI/
 
 > Note: SwiftUI view rendering cannot be meaningfully unit-tested without a third-party library. This task is verified by running the app in the simulator and confirming artifact cards appear in the chat for observation messages that carry components. The build step is the verification.
 
-- [ ] **Step 1: Locate the chatRow function in ChatView.swift**
+- [ ] **Step 1: Locate relevant lines in ChatView.swift**
 
 ```bash
-grep -n "chatRow\|ObservationCard\|func chat" apps/ios/CrescendAI/Features/Chat/ChatView.swift
+grep -n "chatRow\|ObservationCard\|sendMessage\|askForFeedback\|case .user\|case .system\|case .observation" apps/ios/CrescendAI/Features/Chat/ChatView.swift
 ```
 
-- [ ] **Step 2: Add ArtifactRenderer to chatRow**
+- [ ] **Step 2: Apply three changes to ChatView.swift**
 
-In `ChatView.swift`, locate the view builder or function that renders a single `ChatMessage`. After the message text, add artifact rendering:
+**2a — Add `.teacher` case to the `chatRow` switch** (the current switch is non-exhaustive after Task 5 adds `.teacher` to `ChatMessageRole`). The existing switch at line ~91 handles `.user`, `.system`, `.observation`. Add `.teacher` as a fourth case:
 
 ```swift
-// Inside the message bubble / row view, after the Text(message.text) view:
-if !message.artifacts.isEmpty {
-    VStack(spacing: CrescendSpacing.space2) {
-        ForEach(message.artifacts.indices, id: \.self) { i in
-            ArtifactRenderer(config: message.artifacts[i])
+// Replace the existing chatRow switch:
+@ViewBuilder
+private func chatRow(for message: ChatMessage) -> some View {
+    switch message.role {
+    case .user:
+        MessageBubble(text: message.text, isUser: true)
+    case .system:
+        MessageBubble(text: message.text, isUser: false)
+    case .observation:
+        VStack(alignment: .leading, spacing: 0) {
+            ObservationCard(
+                text: message.text,
+                dimension: message.dimension ?? "dynamics",
+                timestamp: message.timestamp,
+                elaboration: message.elaboration,
+                onTellMeMore: { viewModel.requestElaboration(for: message.id) }
+            )
+            if !message.artifacts.isEmpty {
+                VStack(spacing: CrescendSpacing.space2) {
+                    ForEach(message.artifacts.indices, id: \.self) { i in
+                        ArtifactRenderer(config: message.artifacts[i])
+                    }
+                }
+                .padding(.top, CrescendSpacing.space2)
+            }
+        }
+    case .teacher:
+        VStack(alignment: .leading, spacing: 0) {
+            MessageBubble(text: message.text, isUser: false)
+            if !message.artifacts.isEmpty {
+                VStack(spacing: CrescendSpacing.space2) {
+                    ForEach(message.artifacts.indices, id: \.self) { i in
+                        ArtifactRenderer(config: message.artifacts[i])
+                    }
+                }
+                .padding(.top, CrescendSpacing.space2)
+                .padding(.horizontal, CrescendSpacing.space4)
+            }
         }
     }
-    .padding(.top, CrescendSpacing.space2)
 }
 ```
 
-The exact insertion point depends on the current `ChatView.swift` structure. The rule is: add it immediately after the text label in the same VStack that constitutes the message bubble.
+**2b — Wrap `sendMessage()` call sites in `Task { }`** (required because Task 5 makes it `async`). There are two call sites:
 
-- [ ] **Step 3: Verify in simulator**
+```swift
+// onSubmit closure — find: viewModel.sendMessage()
+// replace with:
+Task { await viewModel.sendMessage() }
+
+// Send button action — find: Button(action: { viewModel.sendMessage() })
+// replace with:
+Button(action: { Task { await viewModel.sendMessage() } })
+```
+
+**2c — Wrap `askForFeedback()` call site in `Task { }`** (same reason):
+
+```swift
+// Find: Button(action: { viewModel.askForFeedback() })
+// Replace with:
+Button(action: { Task { await viewModel.askForFeedback() } })
+```
+
+- [ ] **Step 3: Verify build and simulator**
 
 ```bash
 xcodebuild build -project apps/ios/CrescendAI.xcodeproj -scheme CrescendAI -destination 'platform=iOS Simulator,name=iPhone 16' 2>&1 | tail -20
 ```
-Expected: BUILD SUCCEEDED. Boot the simulator and confirm the app launches without crashes. Artifact cards will appear once a real practice session returns observation components from the backend.
+Expected: BUILD SUCCEEDED (zero errors — the exhaustive switch and async wrappers from Step 2 are what make the build green). Boot the simulator and confirm the app launches without crashes. Artifact cards will appear once a real practice session returns observation components from the backend.
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add apps/ios/CrescendAI/Features/Chat/ChatView.swift && git commit -m "feat(ios): render ArtifactRenderer in chatRow for messages with non-empty artifacts"
+git add apps/ios/CrescendAI/Features/Chat/ChatView.swift && git commit -m "feat(ios): add teacher case to chatRow, render ArtifactRenderer, fix async sendMessage/askForFeedback call sites"
 ```
 
 ---
@@ -2427,8 +2512,18 @@ Coverage gaps are RISK-level except where noted. The `handleWebSocketData` synth
 
 ---
 
-**[BLOCKER] count: 6**  
-**[RISK]    count: 5**  
+**[BLOCKER] count: 6 → 0** (all resolved in task bodies before build, see notes below)
+**[RISK]    count: 5 → 3** (chunk upload error + timing tests remain acceptable; WebSocket cancel fixed in Task 3 implementation; SyncService edit clarified in Task 1)
 **[QUESTION] count: 2**
 
-VERDICT: NEEDS_REWORK — resolve the 6 blockers before executing. The three compile errors (fileURL name, ConversationRecord forward reference, non-exhaustive switch + async call sites in ChatView) will prevent Task 3–5 from building at all. The stop() timing bug and try! crash are correctness issues that will break the golden path on first live session attempt.
+> **Resolution notes (applied 2026-04-27):**
+> - `chunk.fileURL` → `chunk.localFileURL`: corrected in Task 3 `startChunkUploader` 
+> - `ConversationRecord` forward reference: moved to Task 3 file list (alongside `PracticeSessionService.swift`)
+> - Non-exhaustive `chatRow` switch: Task 7 adds `.teacher` case explicitly
+> - Async `sendMessage`/`askForFeedback` call sites: Task 7 wraps both in `Task {}`
+> - `stop()` unconditional 30s: replaced with `while !synthesisReceived && Date() < deadline` poll loop
+> - `try! ModelContainer` fallback: replaced with explicit `guard let mc = modelContext else { throw PracticeSessionError.notConfigured }`
+> - WebSocket double-task on reconnect: `wsTask?.cancel()` added before reassignment in `connectWebSocket`
+> - SyncService edit: pseudo-code replaced with explicit line-level instructions
+
+VERDICT: PROCEED

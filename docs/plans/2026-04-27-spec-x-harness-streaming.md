@@ -1164,3 +1164,190 @@ git add apps/api/src/lib/types.ts \
         apps/api/src/services/teacher-chat-v6.test.ts && \
 git commit -m "feat(chat): add HARNESS_V6_CHAT_ENABLED flag; route dispatches to chatV6 when enabled"
 ```
+
+---
+
+## Challenge Review
+
+### CEO Pass
+
+#### 1. Premise Challenge
+
+- **Right problem?** Yes. The divergence is concrete and verified: `teacher.ts:chat()` line 378 calls `getAnthropicToolSchemas()` (reads `TOOL_REGISTRY`), while `compound-registry.ts:14` has `tools: []`. V8a's `assign_segment_loop` would force a third registration site. The plan closes this before V8a lands.
+- **Real pain?** Yes — concrete divergence exists today that will compound with each new tool. Not speculative.
+- **Direct path?** Yes. The plan adds the minimum: type extension, a factory, a streaming loop, an adapter, and a flag. No new services, no new infrastructure.
+- **Existing coverage?** `parseAnthropicStream` (teacher.ts) and `processToolUse` (tool-processor.ts) already handle the hard parts. This plan reuses both without modification.
+
+#### 2. Scope Check
+
+Plan matches spec exactly. 10 files touched, no new services, no new classes. The hardest problem (multi-turn streaming loop with turn cap exhaustion) is directly solved, not avoided. No scope drift detected.
+
+#### 3. Twelve-Month Alignment
+
+```
+CURRENT STATE                     THIS PLAN                         12-MONTH IDEAL
+Two parallel loops:                Adds streaming binding             Single harness registration
+chat() (services, 6 tools)    →    factory + runPhase1Streaming  →   surface: V8a adds tools once,
+synthesizeV6() (harness,           in services layer, reusing         both chat and synthesis
+tools: [])                         parseAnthropicStream               bindings receive them
+```
+
+This plan moves toward the ideal. The only long-term tension: `runPhase1Streaming` lives in `services/teacher.ts`, not in `harness/loop/`, so a hypothetical future streaming compound would need a new spec. The spec documents this trade-off explicitly and it is the correct call given the harness→services import inversion it avoids.
+
+#### 4. Alternatives Check
+
+The spec documents all four trade-offs (streaming loop in services not harness, `processToolFn` injection over `binding.invoke`, binary flag not shadow mode, per-request factory not static registry) with explicit rationale. No missing alternatives.
+
+---
+
+### Engineering Pass
+
+#### 5. Architecture
+
+Data flow verified against source:
+
+```
+POST /api/chat → routes/chat.ts
+  → HARNESS_V6_CHAT_ENABLED flag check
+  → chatV6(ctx, studentId, messages, dynamicContext)
+      → buildChatBinding(ctx, studentId) → CompoundBinding{mode:'streaming', phases:1}
+      → PhaseContext{turnCap: MAX_TOOL_TURNS=5}
+      → runPhase1Streaming(phaseCtx, binding, systemBlocks, messages, processToolFn)
+          → callAnthropicStream(env, {model:"claude-sonnet-4-20250514", tools, ...})
+          → parseAnthropicStream(stream, processToolFn)
+          ↓ yields TeacherEvent (delta, tool_start, tool_result, tool_error)
+          → if tool_use: build continuation messages, loop
+          → if cap exhausted: forced call with tool_choice:none
+          → yield done{fullText, allComponents, toolCalls, stopReason}
+  → SSE translation layer (unchanged)
+  → saveAssistantMessage (unchanged)
+```
+
+`routeModel("phase1_analysis")` returns `{model: "claude-sonnet-4-20250514"}` (verified in `route-model.ts:9`), identical to the hardcoded model in `chat()`. No model divergence between the two paths.
+
+`callAnthropicStream` is hardcoded to `env.AI_GATEWAY_TEACHER` in `llm.ts:73` — same gateway as `chat()`. No routing difference.
+
+The `teacherFn` reference in Task 7 (`teacherService.chatV6` vs `teacherService.chatV6`) is a module namespace reference to a function, not a class method. No `this` binding issue.
+
+No security issues: user input flows through the existing `chatService.prepareChatContext` (unchanged), then to Anthropic via the same gateway. No new input→LLM paths without existing sanitization.
+
+#### 6. Module Depth Audit
+
+| Module | Interface | Implementation | Verdict |
+|--------|-----------|----------------|---------|
+| `harness/loop/types.ts — CompoundBinding` | 1 interface, 7 fields after change | Discriminated type contract hiding phase-2 validation semantics | DEEP |
+| `services/teacher.ts — buildChatBinding` | `(ctx, studentId) → CompoundBinding` | ~10 lines mapping TOOL_REGISTRY to harness shape | SHALLOW (spec-acknowledged) |
+| `services/teacher.ts — runPhase1Streaming` | `(ctx, binding, systemBlocks, messages, processToolFn) → AsyncGenerator<TeacherEvent>` | ~80-line multi-turn state machine with continuation, forced call, component accumulation | DEEP |
+| `services/teacher.ts — chatV6` | identical to `chat()` | ~20 lines: system block construction, binding/phaseCtx construction, delegation | SHALLOW (spec-acknowledged) |
+
+Both shallow modules are explicitly justified in the spec as thin seams. Acceptable.
+
+#### 7. Code Quality
+
+`buildChatBinding` casts `t.anthropicSchema.input_schema as Record<string, unknown>`. This is valid: `AnthropicToolSchema.input_schema` is `{type: "object"; properties: ...; required?: ...}`, which is structurally assignable to `Record<string, unknown>`. No unsafe widening.
+
+`ProcessToolFn` is already defined at `teacher.ts:61` and is accessible to the new functions in the same file.
+
+`routeModel` import is added in Task 2 (Step 3) before it is first used (Task 3). This leaves one commit where the import is unused. TypeScript will not error on unused type imports, and bun test will not fail. Minor but harmless.
+
+`chatV6` does not emit a "chat stream complete" log equivalent to `chat()`'s structured log at line 406. Minor observability gap — the streaming continuation log exists but the final-turn log is absent.
+
+[OBS] — `binding.tools[].invoke` closures defined in `buildChatBinding` are never called by the streaming path (`processToolFn` is used instead). The spec documents this; the plan includes a code comment explaining it. No action needed.
+
+#### 8. Test Philosophy Audit
+
+All tests exercise behavior through public interfaces with mocked external boundaries (fetch). No internal mocking of collaborators within the same module. No private method access.
+
+Task 2's three tests verify shape of the return value (`mode`, `phases`, tool names, `input_schema`, `invoke` presence). The `invoke` test is a smoke test (★) — it checks the function exists but does not call it. This is acceptable for a thin factory; calling invoke would require a real ServiceContext with a DB.
+
+Task 7's Bindings type test is a compile-time assertion only (★). It does not test that the route dispatch actually selects `chatV6` at runtime. Flagged below as [RISK].
+
+All other tests are ★★ or ★★★ — they verify actual generator output, call counts, and accumulation behavior. ✓
+
+#### 9. Vertical Slice Audit
+
+Every task follows one test → one implementation → one commit. Tasks 3, 4, 5 build a function iteratively (single-turn stub → multi-turn loop → forced-call path). Task 3's test still passes after Task 4's replacement (text-only behavior is preserved), and Task 4's test still passes after Task 5's tail replacement. No horizontal slicing detected.
+
+#### 10. Test Coverage Gaps
+
+```
+[+] harness/loop/types.ts
+    ├── [TESTED]  mode/phases fields accepted by runPhase1 — Task 1 ★★
+    └── [GAP]     isPhase2Binding false-negative (phases:2, artifactSchema undefined) — no direct test
+                  (low severity: guard is 2 lines, correct by inspection)
+
+[+] services/teacher.ts — buildChatBinding
+    ├── [TESTED]  mode, phases, tool names, schema object, invoke function — Task 2 ★/★★
+    └── [GAP]     invoke closure actually calls processToolUse — no test
+                  (acceptable: invoke is dead code for streaming path per spec)
+
+[+] services/teacher.ts — runPhase1Streaming
+    ├── [TESTED]  text-only turn — Task 3 ★★★
+    ├── [TESTED]  tool continuation (2 turns, component accumulation) — Task 4 ★★★
+    ├── [TESTED]  turn cap exhaustion (forced call + stopReason) — Task 5 ★★★
+    ├── [GAP]     forced final call throws (Sentry capture, fallback done) — no test
+    └── [GAP]     processToolFn rejects (propagates as uncaught exception) — no test
+                  (mitigated: processToolUse never throws by design)
+
+[+] services/teacher.ts — chatV6
+    ├── [TESTED]  text-only equivalence with chat() — Task 6 oracle ★★
+    └── [GAP]     tool-continuation equivalence with chat() — spec specifies this, plan omits it
+                  (spec: "one text-only turn + one tool-use turn with continuation")
+
+[+] routes/chat.ts — flag dispatch
+    ├── [TESTED]  HARNESS_V6_CHAT_ENABLED exists in Bindings type — Task 7 compile check ★
+    ├── [GAP]     flag='true' calls chatV6 — no runtime test
+    └── [GAP]     flag='false' calls chat — no runtime test
+```
+
+[RISK] (confidence: 8/10) — The equivalence oracle in Task 6 only exercises a text-only turn. The spec explicitly specifies "one text-only turn + one tool-use turn with continuation." Any divergence between `chat()` and `chatV6()` in the tool-continuation path (e.g., different `allComponents` accumulation, different `toolCalls` on the final done event) would not be caught before the flag is enabled. Mitigation: the multi-turn loop in `runPhase1Streaming` is a direct structural copy of `chat()`, making silent divergence unlikely. But the oracle's guarantee is weakened without the tool-use arm.
+
+[RISK] (confidence: 6/10) — Flag dispatch in `routes/chat.ts` is tested only at compile time (Bindings type). There is no runtime test that verifies `chatV6` is called when `HARNESS_V6_CHAT_ENABLED === 'true'`. Mitigation: the logic is 3 trivial lines, and the route handler is unchanged. Verify this is actually an issue before acting.
+
+#### 11. Failure Modes
+
+- `callAnthropicStream` throws: propagates to the route's outer try/catch at `chat.ts:86`. SSE error event sent to client. ✓
+- `parseAnthropicStream` SSE parse error: JSON parse failures are caught internally and reported to Sentry; the generator continues. ✓
+- Turn cap forced call throws: caught by the explicit try/catch in `runPhase1Streaming`; Sentry capture; fallback `done` event yielded. ✓
+- `HARNESS_V6_CHAT_ENABLED` absent from `wrangler.toml`: runtime value is `undefined`, which !== `'true'`, so falls back to `chat()`. Safe default. ✓
+- Partial deploy (code deployed, flag still false): no impact. Flag gates the new path. ✓
+
+No silent failure modes detected.
+
+#### 12. Presumption Inventory
+
+| Assumption | Verdict | Reason |
+|-----------|---------|--------|
+| `routeModel("phase1_analysis").model` === `"claude-sonnet-4-20250514"` | SAFE | Verified: `route-model.ts:9` hardcodes `SONNET_TEACHER` for all tasks |
+| `parseAnthropicStream` is stable and reusable | SAFE | Already powers `chat()` in production |
+| `TOOL_REGISTRY` `anthropicSchema.input_schema` is assignable to `Record<string, unknown>` | SAFE | Verified: `AnthropicToolSchema.input_schema` is a struct subset of `Record<string, unknown>` |
+| `callAnthropicStream` uses `AI_GATEWAY_TEACHER` (same as `chat()`) | SAFE | Verified: `llm.ts:73` hardcodes this gateway |
+| `chatV6` signature is identical to `chat()` | SAFE | Both plan and spec specify identical 4-parameter signature |
+| `runHook` guard (`isPhase2Binding`) doesn't change `OnSessionEnd` behavior | SAFE | `OnSessionEnd` binding has `phases: 2` + both artifact fields; guard passes |
+| `phase2.ts` non-null assumptions satisfied by `Phase2Binding` narrowing | SAFE | `Phase2Binding` makes `artifactSchema`/`artifactToolName` required; `phase2.ts` accesses both without checks |
+| Text-only equivalence oracle is sufficient pre-production validation | RISKY | Spec specifies tool-continuation arm; plan omits it; divergence in multi-turn path would be undetected |
+| `processToolUse` never throws (so propagation from `parseAnthropicStream` is not a real risk) | SAFE | `processToolUse` has a top-level try/catch returning `{isError: true}` |
+| `routeModel` import path `"../harness/loop/route-model"` from `services/teacher.ts` is correct | SAFE | Verified: file exists at the expected relative path |
+
+---
+
+### Summary
+
+```
+[BLOCKER]  count: 0
+[RISK]     count: 2
+[QUESTION] count: 0
+[OBS]      count: 2
+```
+
+**[RISK] (confidence: 8/10)** — Equivalence oracle (Task 6) only covers the text-only case. Spec specifies a tool-continuation arm ("one text-only turn + one tool-use turn with continuation"). Without it, divergence in multi-turn component accumulation or toolCalls shape between `chat()` and `chatV6()` would not be caught before the flag is enabled in production. Fallback: add a second `it()` to the Task 6 describe that replays `TOOL_USE_SSE → TEXT_ONLY_SSE` through both functions.
+
+**[RISK] (confidence: 6/10)** — Flag dispatch logic in `routes/chat.ts` is tested only as a compile-time type check. No runtime assertion that `chatV6` is actually invoked when the flag is `'true'`. Mitigated by the 3-line simplicity of the branch. Fallback: add a second `it()` to the Task 7 describe that mocks the flag value and asserts the correct function was called.
+
+**[OBS]** — `binding.tools[].invoke` closures in `buildChatBinding` are dead code for the streaming path. The plan includes a code comment explaining this; the spec documents the trade-off. No action needed.
+
+**[OBS]** — `chatV6` / `runPhase1Streaming` do not emit a "chat stream complete" structured log (equivalent of `chat()`'s line 406 log). Minor observability gap. Easy to add after the flag is proven stable.
+
+```
+VERDICT: PROCEED_WITH_CAUTION — [RISK-1: extend Task 6 oracle to cover tool-continuation arm; RISK-2: optionally add runtime dispatch assertion to Task 7]
+```
