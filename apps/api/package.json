@@ -7,7 +7,12 @@
 		"typecheck": "tsc --noEmit",
 		"generate": "drizzle-kit generate",
 		"migrate": "drizzle-kit migrate",
-		"migrate-d1": "bun run scripts/migrate-d1.ts"
+		"migrate-d1": "bun run scripts/migrate-d1.ts",
+		"codegen:catalog": "bun scripts/catalog-codegen.ts",
+		"test:scripts": "vitest --config vitest.node.config.ts",
+		"prebuild": "bun run codegen:catalog",
+		"predeploy": "bun run codegen:catalog",
+		"prepare": "bun run codegen:catalog"
 	},
 	"dependencies": {
 		"hono": "^4",
