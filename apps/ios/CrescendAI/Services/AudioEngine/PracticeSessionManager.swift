@@ -64,7 +64,9 @@ final class PracticeSessionManager {
 
         state = .recording
 
-        SentrySDK.addBreadcrumb(Breadcrumb(level: .info, category: "practice", message: "Session started: \(session.id)"))
+        let startCrumb = Breadcrumb(level: .info, category: "practice")
+        startCrumb.message = "Session started: \(session.id)"
+        SentrySDK.addBreadcrumb(startCrumb)
 
         observeInterruptions()
         observeChunks()
@@ -94,7 +96,9 @@ final class PracticeSessionManager {
 
         state = .ended
 
-        SentrySDK.addBreadcrumb(Breadcrumb(level: .info, category: "practice", message: "Session ended"))
+        let endCrumb = Breadcrumb(level: .info, category: "practice")
+        endCrumb.message = "Session ended"
+        SentrySDK.addBreadcrumb(endCrumb)
     }
 
     // MARK: - Interruption Handling

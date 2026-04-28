@@ -35,14 +35,14 @@ final class GoalExtractionService {
 
     /// Extract goals from a student message and merge into their record.
     func extractAndStore(message: String, student: Student, in modelContext: ModelContext) async throws {
-        guard let jwt = authService.jwt else {
+        guard authService.isAuthenticated else {
             throw AuthError.notAuthenticated
         }
 
         isExtracting = true
         defer { isExtracting = false }
 
-        let extracted = try await callExtractGoals(message: message, jwt: jwt)
+        let extracted = try await callExtractGoals(message: message)
 
         // Merge into local student record
         var existing = parseStoredGoals(student.explicitGoals)
@@ -63,13 +63,12 @@ final class GoalExtractionService {
 
     // MARK: - Private
 
-    private func callExtractGoals(message: String, jwt: String) async throws -> ExtractedGoals {
+    private func callExtractGoals(message: String) async throws -> ExtractedGoals {
         let url = APIEndpoints.extractGoals()
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(jwt)", forHTTPHeaderField: "Authorization")
 
         struct GoalRequest: Encodable { let message: String }
         request.httpBody = try JSONEncoder().encode(GoalRequest(message: message))

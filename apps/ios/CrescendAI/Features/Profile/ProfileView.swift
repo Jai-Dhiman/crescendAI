@@ -3,7 +3,6 @@ import SwiftUI
 struct ProfileView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(AuthService.self) private var authService
-    @State private var signOutError: String?
 
     private let dimensions = [
         ("Dynamics", CrescendColor.dimDynamics, [0.4, 0.5, 0.45, 0.6, 0.55, 0.7]),
@@ -20,11 +19,11 @@ struct ProfileView: View {
                 VStack(alignment: .leading, spacing: CrescendSpacing.space6) {
                     // User info
                     VStack(alignment: .leading, spacing: CrescendSpacing.space1) {
-                        Text(authService.appleUserId != nil ? "Pianist" : "Guest")
+                        Text(authService.isAuthenticated ? "Pianist" : "Guest")
                             .font(CrescendFont.headingLG())
                             .foregroundStyle(CrescendColor.foreground)
 
-                        if authService.appleUserId != nil {
+                        if authService.isAuthenticated {
                             Text("Signed in with Apple")
                                 .font(CrescendFont.bodySM())
                                 .foregroundStyle(CrescendColor.secondaryText)
@@ -70,21 +69,10 @@ struct ProfileView: View {
                     }
                     .padding(.horizontal, CrescendSpacing.space4)
 
-                    if let signOutError {
-                        Text(signOutError)
-                            .font(CrescendFont.bodySM())
-                            .foregroundStyle(.red.opacity(0.8))
-                            .padding(.horizontal, CrescendSpacing.space4)
-                    }
-
                     // Sign out
                     Button {
-                        do {
-                            try authService.signOut()
-                            dismiss()
-                        } catch {
-                            signOutError = error.localizedDescription
-                        }
+                        authService.signOut()
+                        dismiss()
                     } label: {
                         Text("Sign Out")
                             .font(CrescendFont.labelLG())

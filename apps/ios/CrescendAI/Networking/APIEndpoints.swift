@@ -7,24 +7,41 @@ enum APIEndpoints {
     static let baseURL = URL(string: "https://api.crescend.ai")!
     #endif
 
-    static func upload() -> URL {
-        baseURL.appendingPathComponent("/api/upload")
+    static func signInSocial() -> URL {
+        baseURL.appendingPathComponent("/api/auth/sign-in/social")
     }
 
-    static func analyze(performanceId: String) -> URL {
-        baseURL.appendingPathComponent("/api/analyze/\(performanceId)")
+    static func practiceStart() -> URL {
+        baseURL.appendingPathComponent("/api/practice/start")
     }
 
-    static func performances() -> URL {
-        baseURL.appendingPathComponent("/api/performances")
+    static func practiceChunk(sessionId: String, chunkIndex: Int) -> URL {
+        var components = URLComponents(url: baseURL.appendingPathComponent("/api/practice/chunk"), resolvingAgainstBaseURL: false)!
+        components.queryItems = [
+            URLQueryItem(name: "sessionId", value: sessionId),
+            URLQueryItem(name: "chunkIndex", value: String(chunkIndex)),
+        ]
+        return components.url!
     }
 
-    static func performance(id: String) -> URL {
-        baseURL.appendingPathComponent("/api/performances/\(id)")
+    static func practiceWs(sessionId: String, conversationId: String) -> URL {
+        var components = URLComponents(url: baseURL.appendingPathComponent("/api/practice/ws/\(sessionId)"), resolvingAgainstBaseURL: false)!
+        let scheme = components.scheme == "https" ? "wss" : "ws"
+        components.scheme = scheme
+        components.queryItems = [URLQueryItem(name: "conversationId", value: conversationId)]
+        return components.url!
     }
 
-    static func authApple() -> URL {
-        baseURL.appendingPathComponent("/api/auth/apple")
+    static func chat() -> URL {
+        baseURL.appendingPathComponent("/api/chat")
+    }
+
+    static func conversation(id: String) -> URL {
+        baseURL.appendingPathComponent("/api/conversations/\(id)")
+    }
+
+    static func conversations() -> URL {
+        baseURL.appendingPathComponent("/api/conversations")
     }
 
     static func sync() -> URL {

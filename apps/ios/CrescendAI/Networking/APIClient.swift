@@ -8,14 +8,10 @@ enum APIError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .invalidResponse(let code):
-            "Server returned status \(code)"
-        case .decodingFailed(let error):
-            "Failed to decode response: \(error.localizedDescription)"
-        case .networkError(let error):
-            "Network error: \(error.localizedDescription)"
-        case .serverError(let message):
-            message
+        case .invalidResponse(let code): "Server returned status \(code)"
+        case .decodingFailed(let error): "Failed to decode response: \(error.localizedDescription)"
+        case .networkError(let error): "Network error: \(error.localizedDescription)"
+        case .serverError(let message): message
         }
     }
 }
@@ -31,58 +27,7 @@ actor APIClient {
         self.decoder = JSONDecoder()
     }
 
-    private func attachAuth(_ request: inout URLRequest) {
-        do {
-            if let jwt = try KeychainService.read(.sessionJWT) {
-                request.setValue("Bearer \(jwt)", forHTTPHeaderField: "Authorization")
-            }
-        } catch {
-            print("[APIClient] Failed to read JWT from Keychain: \(error)")
-        }
-    }
-
-    /// Upload an audio recording. Returns the upload metadata.
-    func upload(audioData: Data, title: String) async throws -> UploadedPerformance {
-        let url = APIEndpoints.upload()
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-
-        let boundary = UUID().uuidString
-        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
-
-        var body = Data()
-
-        // Title field
-        body.append("--\(boundary)\r\n".data(using: .utf8)!)
-        body.append("Content-Disposition: form-data; name=\"title\"\r\n\r\n".data(using: .utf8)!)
-        body.append("\(title)\r\n".data(using: .utf8)!)
-
-        // Audio file field
-        body.append("--\(boundary)\r\n".data(using: .utf8)!)
-        body.append("Content-Disposition: form-data; name=\"file\"; filename=\"recording.m4a\"\r\n".data(using: .utf8)!)
-        body.append("Content-Type: audio/mp4\r\n\r\n".data(using: .utf8)!)
-        body.append(audioData)
-        body.append("\r\n".data(using: .utf8)!)
-
-        // Close boundary
-        body.append("--\(boundary)--\r\n".data(using: .utf8)!)
-
-        request.httpBody = body
-
-        return try await perform(request)
-    }
-
-    /// Trigger analysis for an uploaded performance.
-    func analyze(performanceId: String) async throws -> AnalysisResult {
-        let url = APIEndpoints.analyze(performanceId: performanceId)
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-
-        return try await perform(request)
-    }
-
-    private func perform<T: Decodable>(_ request: URLRequest) async throws -> T {
+    func perform<T: Decodable>(_ request: URLRequest) async throws -> T {
         let data: Data
         let response: URLResponse
         do {
@@ -96,7 +41,6 @@ actor APIClient {
         }
 
         guard (200..<300).contains(httpResponse.statusCode) else {
-            // Try to extract server error message
             if let errorBody = try? JSONDecoder().decode([String: String].self, from: data),
                let message = errorBody["error"] {
                 throw APIError.serverError(message)
