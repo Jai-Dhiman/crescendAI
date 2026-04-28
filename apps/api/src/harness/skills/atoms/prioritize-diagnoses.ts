@@ -25,6 +25,7 @@ export const prioritizeDiagnoses: ToolDefinition = {
   },
   invoke: async (input: unknown): Promise<DiagnosisArtifact[]> => {
     const { diagnoses } = input as { diagnoses: unknown[] }
+    // parse() validates and returns new objects; extra fields not in schema are stripped
     const parsed = z.array(DiagnosisArtifactSchema).parse(diagnoses)
     return [...parsed].sort((a, b) => {
       const aStrength = a.finding_type === 'strength' ? 1 : 0
