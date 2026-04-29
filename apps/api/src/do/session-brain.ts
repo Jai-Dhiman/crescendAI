@@ -71,12 +71,22 @@ const MIN_NOTES_FOR_IDENTIFICATION = 30;
 const TEACHING_MOMENT_INTERVAL = 2;
 
 export interface EnrichedChunk {
-	chunkIndex: number
-	muq_scores: number[]
-	midi_notes: { pitch: number; onset_ms: number; duration_ms: number; velocity: number }[]
-	pedal_cc: { time_ms: number; value: number }[]
-	alignment: { perf_index: number; score_index: number; expected_onset_ms: number; bar: number }[]
-	bar_coverage: [number, number] | null
+	chunkIndex: number;
+	muq_scores: number[];
+	midi_notes: {
+		pitch: number;
+		onset_ms: number;
+		duration_ms: number;
+		velocity: number;
+	}[];
+	pedal_cc: { time_ms: number; value: number }[];
+	alignment: {
+		perf_index: number;
+		score_index: number;
+		expected_onset_ms: number;
+		bar: number;
+	}[];
+	bar_coverage: [number, number] | null;
 }
 
 export function toEnrichedChunk(
@@ -92,21 +102,28 @@ export function toEnrichedChunk(
 		onset_ms: Math.round(n.onset * 1000),
 		duration_ms: Math.round((n.offset - n.onset) * 1000),
 		velocity: n.velocity,
-	}))
+	}));
 
 	const pedal_cc = perfPedal.map((p) => ({
 		time_ms: Math.round(p.time * 1000),
 		value: p.value,
-	}))
+	}));
 
 	const alignment = alignments.map((a, i) => ({
 		perf_index: i,
 		score_index: i,
 		expected_onset_ms: Math.round(a.perf_onset * 1000 - a.onset_deviation_ms),
 		bar: a.score_bar,
-	}))
+	}));
 
-	return { chunkIndex, muq_scores: muqScores, midi_notes, pedal_cc, alignment, bar_coverage: barCoverage }
+	return {
+		chunkIndex,
+		muq_scores: muqScores,
+		midi_notes,
+		pedal_cc,
+		alignment,
+		bar_coverage: barCoverage,
+	};
 }
 
 export class SessionBrain extends DurableObject<Bindings> {
