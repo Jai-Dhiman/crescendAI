@@ -15,9 +15,17 @@ describe("compound-registry", () => {
 		expect(new Set(names).size).toBe(names.length);
 	});
 
-	it("returns undefined for OnChatMessage in V6 (declared, unbound)", () => {
+	it("returns a streaming binding for OnChatMessage with 6 tools", () => {
 		const binding = getCompoundBinding("OnChatMessage");
-		expect(binding).toBeUndefined();
+		expect(binding).toBeDefined();
+		expect(binding?.compoundName).toBe("chat-response");
+		expect(binding?.mode).toBe("streaming");
+		expect(binding?.phases).toBe(1);
+		expect(binding?.tools).toHaveLength(6);
+		const names = binding!.tools.map((t) => t.name);
+		expect(new Set(names).size).toBe(names.length);
+		expect(names).toContain("create_exercise");
+		expect(names).toContain("search_catalog");
 	});
 
 	it("returns undefined for OnStop, OnPieceDetected, OnBarRegression, OnWeeklyReview in V6", () => {
