@@ -1,5 +1,6 @@
 import { ConfigError } from "../../lib/errors";
 import { getCompoundBinding } from "./compound-registry";
+import { runPhase1Streaming } from "../../services/teacher";
 import type { HookKind, HookContext, PhaseContext } from "./types";
 import type { ToolResult } from "../../services/tool-processor";
 import type { AnthropicContentBlock, AnthropicSystemBlock } from "../../services/llm";
@@ -12,9 +13,9 @@ const DEFAULT_TURN_CAP = 5;
 export async function* runStreamingHook(
 	hook: HookKind,
 	hookCtx: HookContext,
-	_processToolFn: ProcessToolFn,
-	_systemBlocks: AnthropicSystemBlock[],
-	_initialMessages: Array<{
+	processToolFn: ProcessToolFn,
+	systemBlocks: AnthropicSystemBlock[],
+	initialMessages: Array<{
 		role: "user" | "assistant";
 		content: string | AnthropicContentBlock[];
 	}>,
@@ -30,9 +31,15 @@ export async function* runStreamingHook(
 			`runStreamingHook: binding for "${hook}" has mode "${binding.mode}", expected "streaming"`,
 		);
 	}
-	// Happy path delegation added in Task 4.
-	const _phaseCtx: PhaseContext = {
+	const phaseCtx: PhaseContext = {
 		...hookCtx,
 		turnCap: DEFAULT_TURN_CAP,
 	};
+	yield* runPhase1Streaming(
+		phaseCtx,
+		binding,
+		systemBlocks,
+		initialMessages,
+		processToolFn,
+	);
 }
