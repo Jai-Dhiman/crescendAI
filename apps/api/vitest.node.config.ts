@@ -9,6 +9,7 @@ export default defineConfig({
 			"src/harness/skills/validator.test.ts",
 			"src/lib/**/*.test.ts",
 			"src/harness/loop/**/*.test.ts",
+			"src/services/**/*.test.ts",
 		],
 		globalSetup: ["./scripts/test-setup-node.ts"],
 	},

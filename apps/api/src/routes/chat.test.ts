@@ -151,7 +151,7 @@ describe("POST /api/chat", () => {
 
 	it("SSE error event includes type field when teacher service throws", async () => {
 		const teacherService = await import("../services/teacher");
-		(teacherService.chat as Mock).mockImplementationOnce(async function* () {
+		(teacherService.chatV6 as Mock).mockImplementationOnce(async function* () {
 			throw new Error("LLM unavailable");
 		});
 
@@ -175,7 +175,7 @@ describe("POST /api/chat", () => {
 
 	it("SSE tool_result event includes type field", async () => {
 		const teacherService = await import("../services/teacher");
-		(teacherService.chat as Mock).mockImplementationOnce(async function* () {
+		(teacherService.chatV6 as Mock).mockImplementationOnce(async function* () {
 			yield { type: "delta", text: "Try this: " };
 			yield {
 				type: "tool_result",

@@ -2,6 +2,7 @@ import * as Sentry from "@sentry/cloudflare";
 import { InferenceError } from "../lib/errors";
 import type { ServiceContext } from "../lib/types";
 import { runHook } from "../harness/loop/runHook";
+import { runStreamingHook } from "../harness/loop/runStreamingHook";
 import type {
 	CompoundBinding,
 	HookContext,
@@ -21,7 +22,6 @@ import {
 	getAnthropicToolSchemas,
 	type InlineComponent,
 	processToolUse,
-	TOOL_REGISTRY,
 	type ToolResult,
 } from "./tool-processor";
 
@@ -385,31 +385,6 @@ export function stripAnalysis(text: string): string {
 	return text.replace(/<analysis>[\s\S]*?<\/analysis>/g, "").trim();
 }
 
-// ---------------------------------------------------------------------------
-// buildChatBinding
-// ---------------------------------------------------------------------------
-
-export function buildChatBinding(
-	ctx: ServiceContext,
-	studentId: string,
-): CompoundBinding {
-	return {
-		compoundName: "chat-response",
-		procedurePrompt: "",
-		mode: "streaming",
-		phases: 1,
-		tools: Object.values(TOOL_REGISTRY).map((t) => ({
-			name: t.name,
-			description: t.description,
-			// input_schema cast: AnthropicToolSchema.input_schema is an object subset of Record<string, unknown>
-			input_schema: t.anthropicSchema.input_schema as Record<string, unknown>,
-			// invoke satisfies the binding contract; the streaming path uses processToolFn instead
-			// to preserve the ToolResult.componentsJson shape required for SSE rendering.
-			invoke: async (input: unknown) =>
-				processToolUse(ctx, studentId, t.name, input),
-		})),
-	};
-}
 
 // ---------------------------------------------------------------------------
 // runPhase1Streaming
@@ -583,10 +558,8 @@ export async function* runPhase1Streaming(
 }
 
 // ---------------------------------------------------------------------------
-// chat
+// chatV6
 // ---------------------------------------------------------------------------
-
-const MAX_TOOL_TURNS = 5;
 
 export async function* chatV6(
 	ctx: ServiceContext,
@@ -611,216 +584,22 @@ export async function* chatV6(
 	const processToolFn: ProcessToolFn = async (name, input) =>
 		processToolUse(ctx, studentId, name, input);
 
-	const binding = buildChatBinding(ctx, studentId);
-	const phaseCtx: PhaseContext = {
+	const hookCtx: HookContext = {
 		env: ctx.env,
 		studentId,
 		sessionId: "",
 		conversationId: null,
 		digest: {},
 		waitUntil: (_p: Promise<unknown>) => {},
-		turnCap: MAX_TOOL_TURNS,
 	};
 
-	yield* runPhase1Streaming(
-		phaseCtx,
-		binding,
+	yield* runStreamingHook(
+		"OnChatMessage",
+		hookCtx,
+		processToolFn,
 		systemBlocks,
 		messages,
-		processToolFn,
 	);
-}
-
-export async function* chat(
-	ctx: ServiceContext,
-	studentId: string,
-	messages: Array<{
-		role: "user" | "assistant";
-		content: string | AnthropicContentBlock[];
-	}>,
-	dynamicContext: string,
-): AsyncGenerator<TeacherEvent> {
-	const systemBlocks: AnthropicSystemBlock[] = [
-		{
-			type: "text",
-			text: UNIFIED_TEACHER_SYSTEM,
-			cache_control: { type: "ephemeral" },
-		},
-		...(dynamicContext.trim()
-			? [{ type: "text" as const, text: dynamicContext }]
-			: []),
-	];
-
-	const processToolFn: ProcessToolFn = async (name, input) => {
-		return processToolUse(ctx, studentId, name, input);
-	};
-
-	let currentMessages = messages as Array<{
-		role: "user" | "assistant";
-		content: string | AnthropicContentBlock[];
-	}>;
-	const accumulatedComponents: InlineComponent[] = [];
-
-	for (let turn = 0; turn < MAX_TOOL_TURNS; turn++) {
-		const stream = await callAnthropicStream(ctx.env, {
-			model: "claude-sonnet-4-20250514",
-			max_tokens: 2048,
-			system: systemBlocks,
-			messages: currentMessages,
-			tools: getAnthropicToolSchemas(),
-			tool_choice: { type: "auto" },
-		});
-
-		let doneEvent: TeacherEvent | null = null;
-
-		for await (const event of parseAnthropicStream(stream, processToolFn)) {
-			if (event.type === "done") {
-				doneEvent = event;
-			} else {
-				yield event;
-			}
-		}
-
-		if (!doneEvent || doneEvent.type !== "done") break;
-
-		accumulatedComponents.push(...doneEvent.allComponents);
-
-		// If no tool calls or stop_reason is not tool_use, this is the final turn.
-		// Only the final turn's text is persisted — intermediate tool-calling turns
-		// emit deltas for streaming UX but their narration is cleared by the frontend.
-		if (
-			doneEvent.toolCalls.length === 0 ||
-			doneEvent.stopReason !== "tool_use"
-		) {
-			console.log(
-				JSON.stringify({
-					level: "info",
-					message: "chat stream complete",
-					turn: turn + 1,
-					toolCallsThisTurn: doneEvent.toolCalls.length,
-					totalComponents: accumulatedComponents.length,
-					stopReason: doneEvent.stopReason,
-					fullTextLength: doneEvent.fullText.length,
-				}),
-			);
-			yield {
-				type: "done",
-				fullText: doneEvent.fullText,
-				allComponents: accumulatedComponents,
-				toolCalls: doneEvent.toolCalls,
-				stopReason: doneEvent.stopReason,
-			};
-			return;
-		}
-
-		// Build continuation messages: assistant response + tool results
-		const assistantContent: AnthropicContentBlock[] = [];
-		if (doneEvent.fullText) {
-			assistantContent.push({ type: "text", text: doneEvent.fullText });
-		}
-		for (const tc of doneEvent.toolCalls) {
-			assistantContent.push({
-				type: "tool_use",
-				id: tc.id,
-				name: tc.name,
-				input: tc.input,
-			});
-		}
-
-		const GENERIC_TOOL_ERROR =
-			"Tool call failed validation. For piece_id, pass through the exact slug returned by search_catalog (e.g. 'chopin.ballades.1'); do not transform or invent it. Check all required fields and try again.";
-
-		const toolResultContent: AnthropicContentBlock[] = doneEvent.toolCalls.map(
-			(tc) => {
-				if (tc.result.isError) {
-					return {
-						type: "tool_result" as const,
-						tool_use_id: tc.id,
-						is_error: true,
-						content: tc.result.errorMessage ?? GENERIC_TOOL_ERROR,
-					};
-				}
-				return {
-					type: "tool_result" as const,
-					tool_use_id: tc.id,
-					content: JSON.stringify(tc.result.componentsJson),
-				};
-			},
-		);
-
-		currentMessages = [
-			...currentMessages,
-			{ role: "assistant", content: assistantContent },
-			{ role: "user", content: toolResultContent },
-		];
-
-		console.log(
-			JSON.stringify({
-				level: "info",
-				message: "chat tool continuation",
-				turn: turn + 1,
-				toolCount: doneEvent.toolCalls.length,
-				toolNames: doneEvent.toolCalls.map((tc) => tc.name),
-			}),
-		);
-	}
-
-	// All tool turns exhausted — force one more call with tool_choice: none so the
-	// model synthesizes a text response from the accumulated tool results.
-	try {
-		const forcedStream = await callAnthropicStream(ctx.env, {
-			model: "claude-sonnet-4-20250514",
-			max_tokens: 2048,
-			system: systemBlocks,
-			messages: currentMessages,
-			tools: getAnthropicToolSchemas(),
-			tool_choice: { type: "none" },
-		});
-
-		let forcedDone: TeacherEvent | null = null;
-
-		for await (const event of parseAnthropicStream(
-			forcedStream,
-			processToolFn,
-		)) {
-			if (event.type === "done") {
-				forcedDone = event;
-			} else {
-				yield event;
-			}
-		}
-
-		if (forcedDone && forcedDone.type === "done" && forcedDone.fullText) {
-			yield {
-				type: "done",
-				fullText: forcedDone.fullText,
-				allComponents: accumulatedComponents,
-				toolCalls: [],
-				stopReason: "forced_text_after_max_turns",
-			};
-			return;
-		}
-	} catch (err) {
-		console.error(
-			JSON.stringify({
-				level: "error",
-				message: "forced final call failed after max tool turns",
-				error: err instanceof Error ? err.message : String(err),
-				stack: err instanceof Error ? err.stack : undefined,
-			}),
-		);
-		Sentry.captureException(err, {
-			tags: { service: "teacher", operation: "forced_final_call" },
-		});
-	}
-
-	yield {
-		type: "done",
-		fullText: "I had trouble putting that together — could you ask again?",
-		allComponents: accumulatedComponents,
-		toolCalls: [],
-		stopReason: "max_tool_turns",
-	};
 }
 
 // ---------------------------------------------------------------------------

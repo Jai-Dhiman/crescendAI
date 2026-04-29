@@ -1,18 +1,14 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import type { Bindings, Db, ServiceContext } from "../lib/types";
+import type { Bindings } from "../lib/types";
 import type { TeacherEvent } from "./teacher";
-import { buildChatBinding, chat, chatV6, runPhase1Streaming } from "./teacher";
-import { TOOL_REGISTRY } from "./tool-processor";
+import { runPhase1Streaming } from "./teacher";
+import { getCompoundBinding } from "../harness/loop/compound-registry";
 
 const MOCK_ENV = {
 	AI_GATEWAY_TEACHER: "https://gw.example",
 	ANTHROPIC_API_KEY: "test-key",
 } as unknown as Bindings;
 
-const MOCK_CTX: ServiceContext = {
-	db: {} as Db,
-	env: MOCK_ENV,
-};
 
 function makeSseResponse(sseText: string): Response {
 	return new Response(new TextEncoder().encode(sseText), { status: 200 });
@@ -45,28 +41,6 @@ const PHASE_CTX = {
 	turnCap: 5,
 };
 
-describe("buildChatBinding", () => {
-	it("returns mode:'streaming' and phases:1", () => {
-		const binding = buildChatBinding(MOCK_CTX, "stu_1");
-		expect(binding.mode).toBe("streaming");
-		expect(binding.phases).toBe(1);
-	});
-
-	it("includes all TOOL_REGISTRY tools by name", () => {
-		const binding = buildChatBinding(MOCK_CTX, "stu_1");
-		const expected = Object.keys(TOOL_REGISTRY).sort();
-		const actual = binding.tools.map((t) => t.name).sort();
-		expect(actual).toEqual(expected);
-	});
-
-	it("each tool has an object input_schema and an invoke function", () => {
-		const binding = buildChatBinding(MOCK_CTX, "stu_1");
-		for (const tool of binding.tools) {
-			expect(typeof tool.input_schema).toBe("object");
-			expect(typeof tool.invoke).toBe("function");
-		}
-	});
-});
 
 describe("runPhase1Streaming — text-only turn", () => {
 	const fetchSpy = vi.fn();
@@ -85,7 +59,7 @@ describe("runPhase1Streaming — text-only turn", () => {
 			Promise.resolve(makeSseResponse(TEXT_ONLY_SSE)),
 		);
 
-		const binding = buildChatBinding(MOCK_CTX, "stu_1");
+		const binding = getCompoundBinding("OnChatMessage")!;
 		const systemBlocks = [
 			{ type: "text" as const, text: "You are a teacher." },
 		];
@@ -154,7 +128,7 @@ describe("runPhase1Streaming — tool continuation", () => {
 		};
 		const processToolFn = vi.fn().mockResolvedValue(mockResult);
 
-		const binding = buildChatBinding(MOCK_CTX, "stu_1");
+		const binding = getCompoundBinding("OnChatMessage")!;
 		const systemBlocks = [
 			{ type: "text" as const, text: "You are a teacher." },
 		];
@@ -229,7 +203,7 @@ describe("runPhase1Streaming — turn cap exhaustion", () => {
 				Promise.resolve(makeSseResponse(TEXT_ONLY_SSE)),
 			);
 
-		const binding = buildChatBinding(MOCK_CTX, "stu_1");
+		const binding = getCompoundBinding("OnChatMessage")!;
 		const systemBlocks = [
 			{ type: "text" as const, text: "You are a teacher." },
 		];
@@ -278,106 +252,3 @@ describe("HARNESS_V6_CHAT_ENABLED Bindings type", () => {
 	});
 });
 
-describe("chatV6 equivalence oracle", () => {
-	const fetchSpy = vi.fn();
-
-	beforeEach(() => {
-		fetchSpy.mockReset();
-		vi.stubGlobal("fetch", fetchSpy);
-	});
-
-	afterEach(() => {
-		vi.unstubAllGlobals();
-	});
-
-	it("produces the same TeacherEvent sequence as chat() for a text-only turn", async () => {
-		// Each call needs its own Response — ReadableStream bodies are consumed once.
-		// makeSseResponse creates a fresh Uint8Array-backed body each time.
-		fetchSpy
-			.mockImplementationOnce(() =>
-				Promise.resolve(makeSseResponse(TEXT_ONLY_SSE)),
-			)
-			.mockImplementationOnce(() =>
-				Promise.resolve(makeSseResponse(TEXT_ONLY_SSE)),
-			);
-
-		const studentId = "stu_1";
-		const messages = [
-			{ role: "user" as const, content: "What should I practice?" },
-		];
-		const dynamicContext = "Student level: beginner.";
-
-		const legacyEvents: TeacherEvent[] = [];
-		for await (const ev of chat(
-			MOCK_CTX,
-			studentId,
-			messages,
-			dynamicContext,
-		)) {
-			legacyEvents.push(ev);
-		}
-
-		const harnessEvents: TeacherEvent[] = [];
-		for await (const ev of chatV6(
-			MOCK_CTX,
-			studentId,
-			messages,
-			dynamicContext,
-		)) {
-			harnessEvents.push(ev);
-		}
-
-		expect(harnessEvents).toHaveLength(legacyEvents.length);
-		for (let i = 0; i < legacyEvents.length; i++) {
-			expect(harnessEvents[i]).toEqual(legacyEvents[i]);
-		}
-	});
-
-	it("produces the same TeacherEvent sequence as chat() for a tool-use-then-text turn", async () => {
-		// 4 fetch calls: tool turn for chat(), text turn for chat(), tool turn for chatV6(), text turn for chatV6()
-		fetchSpy
-			.mockImplementationOnce(() =>
-				Promise.resolve(makeSseResponse(TOOL_USE_SSE)),
-			)
-			.mockImplementationOnce(() =>
-				Promise.resolve(makeSseResponse(TEXT_ONLY_SSE)),
-			)
-			.mockImplementationOnce(() =>
-				Promise.resolve(makeSseResponse(TOOL_USE_SSE)),
-			)
-			.mockImplementationOnce(() =>
-				Promise.resolve(makeSseResponse(TEXT_ONLY_SSE)),
-			);
-
-		const studentId = "stu_1";
-		const messages = [
-			{ role: "user" as const, content: "Find me some Chopin." },
-		];
-		const dynamicContext = "Student level: beginner.";
-
-		const legacyEvents: TeacherEvent[] = [];
-		for await (const ev of chat(
-			MOCK_CTX,
-			studentId,
-			messages,
-			dynamicContext,
-		)) {
-			legacyEvents.push(ev);
-		}
-
-		const harnessEvents: TeacherEvent[] = [];
-		for await (const ev of chatV6(
-			MOCK_CTX,
-			studentId,
-			messages,
-			dynamicContext,
-		)) {
-			harnessEvents.push(ev);
-		}
-
-		expect(harnessEvents).toHaveLength(legacyEvents.length);
-		for (let i = 0; i < legacyEvents.length; i++) {
-			expect(harnessEvents[i]).toEqual(legacyEvents[i]);
-		}
-	});
-});
