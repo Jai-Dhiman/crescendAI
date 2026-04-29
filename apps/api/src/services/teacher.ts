@@ -54,6 +54,26 @@ export interface TeacherResponse {
 	toolResults: ToolResult[];
 }
 
+// Re-export EnrichedChunk from session-brain to avoid interface duplication.
+// If toEnrichedChunk gains a new field, SynthesisInput automatically reflects it.
+export type { EnrichedChunk as EnrichedChunkDigest } from '../do/session-brain'
+import type { EnrichedChunk } from '../do/session-brain'
+
+export interface SessionHistoryRecord {
+	sessionId: string
+	startedAt: string
+	synthesis: string | null
+}
+
+export interface PastDiagnosisRecord {
+	sessionId: string
+	primaryDimension: string
+	barRangeStart: number | null
+	barRangeEnd: number | null
+	artifactJson: unknown
+	createdAt: string
+}
+
 export interface SynthesisInput {
 	studentId: string;
 	conversationId: string | null;
@@ -62,6 +82,10 @@ export interface SynthesisInput {
 	topMoments: unknown[];
 	drillingRecords: unknown[];
 	pieceMetadata: { composer?: string; title?: string } | null;
+	enrichedChunks: EnrichedChunk[];
+	baselines: Record<string, number> | null;
+	sessionHistory: SessionHistoryRecord[];
+	pastDiagnoses: PastDiagnosisRecord[];
 }
 
 type ProcessToolFn = (name: string, input: unknown) => Promise<ToolResult>;
@@ -893,6 +917,15 @@ export async function synthesize(
 // synthesizeV6
 // ---------------------------------------------------------------------------
 
+const COHORT_TABLES: Record<string, { p: number; value: number }[]> = {
+	dynamics:        [{ p: 25, value: 0.38 }, { p: 50, value: 0.55 }, { p: 75, value: 0.70 }, { p: 90, value: 0.82 }],
+	timing:          [{ p: 25, value: 0.34 }, { p: 50, value: 0.48 }, { p: 75, value: 0.63 }, { p: 90, value: 0.77 }],
+	pedaling:        [{ p: 25, value: 0.32 }, { p: 50, value: 0.46 }, { p: 75, value: 0.61 }, { p: 90, value: 0.75 }],
+	articulation:    [{ p: 25, value: 0.37 }, { p: 50, value: 0.54 }, { p: 75, value: 0.68 }, { p: 90, value: 0.80 }],
+	phrasing:        [{ p: 25, value: 0.36 }, { p: 50, value: 0.52 }, { p: 75, value: 0.66 }, { p: 90, value: 0.79 }],
+	interpretation:  [{ p: 25, value: 0.35 }, { p: 50, value: 0.51 }, { p: 75, value: 0.65 }, { p: 90, value: 0.78 }],
+}
+
 /**
  * V6 adapter. Translates the legacy SynthesisInput shape into a HookContext
  * and yields the harness loop's event stream. Caller (DO) consumes events and
@@ -913,6 +946,11 @@ export async function* synthesizeV6(
 		topMoments: input.topMoments,
 		drillingRecords: input.drillingRecords,
 		pieceMetadata: input.pieceMetadata,
+		chunks: input.enrichedChunks,
+		baselines: input.baselines,
+		cohort_tables: COHORT_TABLES,
+		session_history: input.sessionHistory,
+		past_diagnoses: input.pastDiagnoses,
 	};
 
 	const hookCtx: HookContext = {

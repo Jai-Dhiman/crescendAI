@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { getCompoundBinding } from "./compound-registry";
 import { SynthesisArtifactSchema } from "../artifacts/synthesis";
+import { ALL_ATOMS } from "../skills/atoms";
 
 describe("compound-registry", () => {
 	it("returns a binding for OnSessionEnd pointing at session-synthesis", () => {
@@ -9,7 +10,9 @@ describe("compound-registry", () => {
 		expect(binding?.compoundName).toBe("session-synthesis");
 		expect(binding?.artifactSchema).toBe(SynthesisArtifactSchema);
 		expect(binding?.artifactToolName).toBe("write_synthesis_artifact");
-		expect(binding?.tools).toEqual([]);
+		expect(binding?.tools).toHaveLength(ALL_ATOMS.length);
+		const names = binding!.tools.map((t) => t.name);
+		expect(new Set(names).size).toBe(names.length);
 	});
 
 	it("returns undefined for OnChatMessage in V6 (declared, unbound)", () => {

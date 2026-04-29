@@ -1,7 +1,11 @@
 import { DurableObject } from "cloudflare:workers";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { createDb } from "../db/client";
 import { sessions } from "../db/schema/sessions";
+import { diagnosisArtifacts } from "../db/schema/diagnosis-artifacts";
+import { messages } from "../db/schema/conversations";
+import { persistDiagnosisArtifacts } from "../services/synthesis";
+import type { SessionHistoryRecord, PastDiagnosisRecord } from "../services/teacher";
 import type { Dimension } from "../lib/dims";
 import { DIMS_6 } from "../lib/dims";
 import type { Bindings, ServiceContext } from "../lib/types";
@@ -25,6 +29,7 @@ import type { SynthesisArtifact } from "../harness/artifacts/synthesis";
 import type {
 	FollowerState,
 	NgramIndex,
+	NoteAlignment,
 	PerfNote,
 	PerfPedalEvent,
 	RerankFeatures,
@@ -68,6 +73,62 @@ const MIN_NOTES_FOR_IDENTIFICATION = 30;
 
 // How often to attempt teaching moment selection (every N chunks)
 const TEACHING_MOMENT_INTERVAL = 2;
+
+export interface EnrichedChunk {
+	chunkIndex: number;
+	muq_scores: number[];
+	midi_notes: {
+		pitch: number;
+		onset_ms: number;
+		duration_ms: number;
+		velocity: number;
+	}[];
+	pedal_cc: { time_ms: number; value: number }[];
+	alignment: {
+		perf_index: number;
+		score_index: number;
+		expected_onset_ms: number;
+		bar: number;
+	}[];
+	bar_coverage: [number, number] | null;
+}
+
+export function toEnrichedChunk(
+	chunkIndex: number,
+	muqScores: number[],
+	perfNotes: PerfNote[],
+	perfPedal: PerfPedalEvent[],
+	alignments: NoteAlignment[],
+	barCoverage: [number, number] | null,
+): EnrichedChunk {
+	const midi_notes = perfNotes.map((n) => ({
+		pitch: n.pitch,
+		onset_ms: Math.round(n.onset * 1000),
+		duration_ms: Math.round((n.offset - n.onset) * 1000),
+		velocity: n.velocity,
+	}));
+
+	const pedal_cc = perfPedal.map((p) => ({
+		time_ms: Math.round(p.time * 1000),
+		value: p.value,
+	}));
+
+	const alignment = alignments.map((a, i) => ({
+		perf_index: i,
+		score_index: i,
+		expected_onset_ms: Math.round(a.perf_onset * 1000 - a.onset_deviation_ms),
+		bar: a.score_bar,
+	}));
+
+	return {
+		chunkIndex,
+		muq_scores: muqScores,
+		midi_notes,
+		pedal_cc,
+		alignment,
+		bar_coverage: barCoverage,
+	};
+}
 
 export class SessionBrain extends DurableObject<Bindings> {
 	private readonly ALARM_DURATION_MS = 30 * 60 * 1000; // 30 minutes
@@ -428,6 +489,7 @@ export class SessionBrain extends DurableObject<Bindings> {
 		// 6b. Bar analysis: align chunk + analyze (WASM; skip gracefully if not built)
 		let chunkAnalysisTier = 3;
 		let chunkBarRange: [number, number] | null = null;
+		let barMapAlignments: import("../services/wasm-bridge").NoteAlignment[] = [];
 
 		if (perfNotes.length > 0) {
 			try {
@@ -454,6 +516,7 @@ export class SessionBrain extends DurableObject<Bindings> {
 						alignResult.state.last_known_bar;
 
 					if (alignResult.bar_map !== null) {
+						barMapAlignments = alignResult.bar_map.alignments;
 						const analysis = wasm.analyzeTier1(
 							alignResult.bar_map,
 							perfNotes,
@@ -521,6 +584,29 @@ export class SessionBrain extends DurableObject<Bindings> {
 				);
 				// Tier 3: scores only — chunkAnalysisTier stays 3
 			}
+		}
+
+		// Store enriched chunk in sibling DO storage key (non-fatal if it fails)
+		try {
+			const enriched = toEnrichedChunk(
+				index,
+				scoresArray as unknown as number[],
+				perfNotes,
+				perfPedal,
+				barMapAlignments,
+				chunkBarRange,
+			);
+			await this.ctx.storage.put(`chunk_enriched:${index}`, enriched);
+		} catch (err) {
+			const error = err as Error;
+			console.log(
+				JSON.stringify({
+					level: "warn",
+					message: "enriched chunk write failed",
+					index,
+					error: error.message,
+				}),
+			);
 		}
 
 		// 7. Try piece identification (if not locked and notes available)
@@ -864,6 +950,73 @@ export class SessionBrain extends DurableObject<Bindings> {
 			return entry;
 		});
 
+		// Bulk-read enriched chunks from DO storage
+		const enrichedChunkCount = state.scoredChunks.length;
+		const enrichedKeys = Array.from({ length: enrichedChunkCount }, (_, i) => `chunk_enriched:${i}`);
+		let enrichedChunks: EnrichedChunk[] = [];
+		if (enrichedKeys.length > 0) {
+			try {
+				const enrichedMap = await this.ctx.storage.get<EnrichedChunk>(enrichedKeys);
+				enrichedChunks = enrichedKeys
+					.map((k) => enrichedMap.get(k))
+					.filter((v): v is EnrichedChunk => v !== undefined);
+			} catch (err) {
+				const error = err as Error;
+				console.log(
+					JSON.stringify({ level: "warn", message: "enriched chunk bulk read failed", error: error.message }),
+				);
+			}
+		}
+
+		const db = createDb(this.env.HYPERDRIVE);
+		const ctx: ServiceContext = { db, env: this.env };
+
+		// Query session history (last 5 sessions for this student)
+		let sessionHistory: SessionHistoryRecord[] = [];
+		try {
+			const historyRows = await db
+				.select({
+					sessionId: sessions.id,
+					startedAt: sessions.startedAt,
+					synthesis: messages.content,
+				})
+				.from(sessions)
+				.leftJoin(messages, sql`${messages.sessionId} = ${sessions.id} AND ${messages.messageType} = 'synthesis'`)
+				.where(sql`${sessions.studentId} = ${state.studentId} AND ${sessions.id} != ${state.sessionId}`)
+				.orderBy(sql`${sessions.startedAt} DESC`)
+				.limit(5);
+			sessionHistory = historyRows.map((r) => ({
+				sessionId: r.sessionId,
+				startedAt: r.startedAt.toISOString(),
+				synthesis: r.synthesis ?? null,
+			}));
+		} catch (err) {
+			const error = err as Error;
+			console.log(JSON.stringify({ level: "warn", message: "session history query failed", error: error.message }));
+		}
+
+		// Query past diagnoses (last 20 for this student)
+		let pastDiagnoses: PastDiagnosisRecord[] = [];
+		try {
+			const diagRows = await db
+				.select()
+				.from(diagnosisArtifacts)
+				.where(sql`${diagnosisArtifacts.studentId} = ${state.studentId}`)
+				.orderBy(sql`${diagnosisArtifacts.createdAt} DESC`)
+				.limit(20);
+			pastDiagnoses = diagRows.map((r) => ({
+				sessionId: r.sessionId,
+				primaryDimension: r.primaryDimension,
+				barRangeStart: r.barRangeStart ?? null,
+				barRangeEnd: r.barRangeEnd ?? null,
+				artifactJson: r.artifactJson,
+				createdAt: r.createdAt.toISOString(),
+			}));
+		} catch (err) {
+			const error = err as Error;
+			console.log(JSON.stringify({ level: "warn", message: "past diagnoses query failed", error: error.message }));
+		}
+
 		const synthInput: SynthesisInput = {
 			studentId: state.studentId,
 			conversationId: state.conversationId,
@@ -872,10 +1025,11 @@ export class SessionBrain extends DurableObject<Bindings> {
 			topMoments,
 			drillingRecords,
 			pieceMetadata: pieceCtx,
+			enrichedChunks,
+			baselines: state.baselines as Record<string, number> | null,
+			sessionHistory,
+			pastDiagnoses,
 		};
-
-		const db = createDb(this.env.HYPERDRIVE);
-		const ctx: ServiceContext = { db, env: this.env };
 
 		// teacher.synthesize() throws on failure — try/catch handles it
 		// synthesisCompleted stays true but DB needsSynthesis remains true, enabling deferred retry
@@ -883,6 +1037,7 @@ export class SessionBrain extends DurableObject<Bindings> {
 			if (this.env.HARNESS_V6_ENABLED === "true") {
 				let artifact: SynthesisArtifact | null = null;
 				let validationError: string | null = null;
+				const phase1Results: Array<{ tool: string; output: unknown }> = [];
 
 				for await (const ev of synthesizeV6(
 					ctx,
@@ -904,7 +1059,20 @@ export class SessionBrain extends DurableObject<Bindings> {
 								sessionId: state.sessionId,
 							}),
 						);
+					} else if (ev.type === "phase1_tool_result" && ev.ok) {
+						phase1Results.push({ tool: ev.tool, output: ev.output });
 					}
+				}
+
+				// Persist diagnosis artifacts (non-fatal)
+				if (phase1Results.length > 0) {
+					await persistDiagnosisArtifacts(
+						db,
+						phase1Results,
+						state.sessionId,
+						state.studentId,
+						state.pieceIdentification?.pieceId ?? null,
+					);
 				}
 
 				if (validationError !== null) {
@@ -1129,6 +1297,20 @@ export class SessionBrain extends DurableObject<Bindings> {
 		latestState.finalized = true;
 		latestState.version++;
 		await this.writeState(latestState);
+
+		// Delete enriched chunk storage keys
+		const enrichedKeyCount = latestState.scoredChunks.length;
+		if (enrichedKeyCount > 0) {
+			const keysToDelete = Array.from({ length: enrichedKeyCount }, (_, i) => `chunk_enriched:${i}`);
+			try {
+				await this.ctx.storage.delete(keysToDelete);
+			} catch (err) {
+				const error = err as Error;
+				console.log(
+					JSON.stringify({ level: "warn", message: "enriched chunk cleanup failed", error: error.message }),
+				);
+			}
+		}
 
 		// Close all WebSockets
 		const sockets = this.ctx.getWebSockets();

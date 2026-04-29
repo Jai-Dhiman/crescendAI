@@ -1,5 +1,6 @@
 import { SynthesisArtifactSchema } from "../artifacts/synthesis";
 import type { CompoundBinding, HookKind } from "./types";
+import { ALL_ATOMS } from "../skills/atoms";
 
 const SESSION_SYNTHESIS_PROCEDURE = `You are running the session-synthesis compound.
 Phase 1 (this call): analyze the session digest and dispatch any registered diagnosis tools across plausible bar ranges. When you have enough material, end your turn without calling tools.
@@ -11,7 +12,7 @@ const REGISTRY: Map<HookKind, CompoundBinding> = new Map([
 		{
 			compoundName: "session-synthesis",
 			procedurePrompt: SESSION_SYNTHESIS_PROCEDURE,
-			tools: [],
+			tools: [...ALL_ATOMS],
 			mode: "buffered" as const,
 			phases: 2 as const,
 			artifactSchema: SynthesisArtifactSchema,
