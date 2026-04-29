@@ -22,11 +22,12 @@ describe("compound-registry", () => {
 		expect(binding?.compoundName).toBe("chat-response");
 		expect(binding?.mode).toBe("streaming");
 		expect(binding?.phases).toBe(1);
-		expect(binding?.tools).toHaveLength(Object.values(TOOL_REGISTRY).length);
+		expect(binding?.tools).toHaveLength(Object.values(TOOL_REGISTRY).length + 1);
 		const names = binding!.tools.map((t) => t.name);
 		expect(new Set(names).size).toBe(names.length);
 		expect(names).toContain("create_exercise");
 		expect(names).toContain("search_catalog");
+		expect(names).toContain("assign_segment_loop");
 	});
 
 	it("returns undefined for OnStop, OnPieceDetected, OnBarRegression, OnWeeklyReview in V6", () => {
