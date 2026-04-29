@@ -73,4 +73,11 @@ describe("assignSegmentLoopAtom", () => {
   test("ASSIGN_SEGMENT_LOOP_TOOL has correct name", () => {
     expect(ASSIGN_SEGMENT_LOOP_TOOL.name).toBe("assign_segment_loop");
   });
+
+  test("missing trigger on ctx throws ToolPreconditionError", async () => {
+    const noTriggerCtx = { ...BASE_CTX, trigger: undefined } as unknown as PhaseContext;
+    await expect(
+      assignSegmentLoopAtom(noTriggerCtx, VALID_INPUT),
+    ).rejects.toBeInstanceOf(ToolPreconditionError);
+  });
 });

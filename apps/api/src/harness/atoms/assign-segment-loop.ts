@@ -85,7 +85,7 @@ export const ASSIGN_SEGMENT_LOOP_TOOL: ToolDefinition = {
         description: "Optional: which musical dimension this loop targets.",
       },
     },
-    required: ["piece_id", "bars_start", "bars_end"],
+    required: ["bars_start", "bars_end"],
   },
   invoke: async (input: unknown, ctx?: PhaseContext): Promise<unknown> => {
     if (!ctx) throw new ToolPreconditionError("assign_segment_loop requires PhaseContext");
