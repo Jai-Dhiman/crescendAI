@@ -665,6 +665,10 @@ describe("synthesizeV6 adapter", () => {
 			topMoments: [],
 			drillingRecords: [],
 			pieceMetadata: null,
+			enrichedChunks: [],
+			baselines: null,
+			sessionHistory: [],
+			pastDiagnoses: [],
 		};
 
 		const events: HookEvent<SynthesisArtifact>[] = [];
