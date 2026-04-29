@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { getCompoundBinding } from "./compound-registry";
 import { SynthesisArtifactSchema } from "../artifacts/synthesis";
-import { ALL_ATOMS } from "../skills/atoms";
+import { ALL_MOLECULES } from "../skills/molecules";
 
 describe("compound-registry", () => {
 	it("returns a binding for OnSessionEnd pointing at session-synthesis", () => {
@@ -10,7 +10,7 @@ describe("compound-registry", () => {
 		expect(binding?.compoundName).toBe("session-synthesis");
 		expect(binding?.artifactSchema).toBe(SynthesisArtifactSchema);
 		expect(binding?.artifactToolName).toBe("write_synthesis_artifact");
-		expect(binding?.tools).toHaveLength(ALL_ATOMS.length);
+		expect(binding?.tools).toHaveLength(ALL_MOLECULES.length);
 		const names = binding!.tools.map((t) => t.name);
 		expect(new Set(names).size).toBe(names.length);
 	});

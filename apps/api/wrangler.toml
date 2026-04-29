@@ -25,7 +25,7 @@ BETTER_AUTH_URL = "https://api.crescend.ai"
 SENTRY_DSN = "https://13e64989bc4d83f5299ee06e5c4c7bf2@o4511017227321344.ingest.us.sentry.io/4511180915933184"
 MUQ_ENDPOINT = "https://mxcyiqltad84v9w1.us-east4.gcp.endpoints.huggingface.cloud"
 AMT_ENDPOINT = ""
-HARNESS_V6_ENABLED = "false"
+HARNESS_V6_ENABLED = "true"
 HARNESS_V6_CHAT_ENABLED = "false"
 
 [[hyperdrive]]
