@@ -40,3 +40,9 @@ export class ForbiddenError extends DomainError {
 		super(message);
 	}
 }
+
+export class ConfigError extends DomainError {
+	constructor(message: string) {
+		super(message);
+	}
+}

@@ -7,6 +7,7 @@ export default defineConfig({
 			"scripts/**/*.test.ts",
 			"src/harness/skills/__catalog__/**/*.test.ts",
 			"src/harness/skills/validator.test.ts",
+			"src/lib/**/*.test.ts",
 		],
 		globalSetup: ["./scripts/test-setup-node.ts"],
 	},
