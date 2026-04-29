@@ -1,13 +1,14 @@
-import { vi, describe, expect, it, beforeEach } from "vitest";
+import { vi, describe, expect, it } from "vitest";
 import { ConfigError } from "../../lib/errors";
 import { runStreamingHook } from "./runStreamingHook";
 import type { HookContext } from "./types";
 
-vi.mock("./compound-registry", () => ({
-  getCompoundBinding: vi.fn(),
-}));
+vi.mock("../../services/llm", async (importOriginal) => {
+  const actual = await importOriginal() as Record<string, unknown>;
+  return { ...actual, callAnthropicStream: vi.fn() };
+});
 
-import { getCompoundBinding } from "./compound-registry";
+import { callAnthropicStream } from "../../services/llm";
 
 const stubHookCtx: HookContext = {
   env: {} as never,
@@ -17,17 +18,6 @@ const stubHookCtx: HookContext = {
   digest: {},
   waitUntil: () => {},
 };
-
-// ---------------------------------------------------------------------------
-// Happy path — uses real compound-registry binding, mocks Anthropic HTTP
-// ---------------------------------------------------------------------------
-
-vi.mock("../../services/llm", async (importOriginal) => {
-  const actual = await importOriginal() as Record<string, unknown>;
-  return { ...actual, callAnthropicStream: vi.fn() };
-});
-
-import { callAnthropicStream } from "../../services/llm";
 
 function makeSSEStream(text: string): ReadableStream {
   const encoder = new TextEncoder();
@@ -46,15 +36,20 @@ function makeSSEStream(text: string): ReadableStream {
   });
 }
 
-describe("runStreamingHook happy path", () => {
-  beforeEach(() => {
-    vi.mocked(getCompoundBinding).mockRestore?.();
+describe("runStreamingHook error paths", () => {
+  it("throws ConfigError when hook has no registered binding", async () => {
+    const gen = runStreamingHook("OnStop", stubHookCtx, async () => ({} as never), [], []);
+    await expect(gen.next()).rejects.toBeInstanceOf(ConfigError);
   });
 
+  it("throws ConfigError when binding mode is not streaming", async () => {
+    const gen = runStreamingHook("OnSessionEnd", stubHookCtx, async () => ({} as never), [], []);
+    await expect(gen.next()).rejects.toBeInstanceOf(ConfigError);
+  });
+});
+
+describe("runStreamingHook happy path", () => {
   it("yields delta and done events for OnChatMessage with a streaming response", async () => {
-    // Use the REAL compound-registry binding (OnChatMessage, mode: streaming)
-    const { getCompoundBinding: real } = await vi.importActual<typeof import("./compound-registry")>("./compound-registry");
-    vi.mocked(getCompoundBinding).mockImplementation(real);
     vi.mocked(callAnthropicStream).mockResolvedValue(makeSSEStream("Hello"));
 
     const events: import("../../services/teacher").TeacherEvent[] = [];
@@ -70,27 +65,5 @@ describe("runStreamingHook happy path", () => {
 
     expect(events.some((e) => e.type === "delta" && e.text === "Hello")).toBe(true);
     expect(events.at(-1)?.type).toBe("done");
-  });
-});
-
-describe("runStreamingHook error paths", () => {
-  it("throws ConfigError when hook has no registered binding", async () => {
-    vi.mocked(getCompoundBinding).mockReturnValue(undefined);
-    const gen = runStreamingHook("OnStop", stubHookCtx, async () => ({} as never), [], []);
-    await expect(gen.next()).rejects.toBeInstanceOf(ConfigError);
-  });
-
-  it("throws ConfigError when binding mode is not streaming", async () => {
-    vi.mocked(getCompoundBinding).mockReturnValue({
-      compoundName: "x",
-      procedurePrompt: "",
-      tools: [],
-      mode: "buffered",
-      phases: 2,
-      artifactSchema: undefined,
-      artifactToolName: undefined,
-    } as never);
-    const gen = runStreamingHook("OnSessionEnd", stubHookCtx, async () => ({} as never), [], []);
-    await expect(gen.next()).rejects.toBeInstanceOf(ConfigError);
   });
 });

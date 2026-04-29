@@ -241,14 +241,3 @@ describe("runPhase1Streaming — turn cap exhaustion", () => {
 	});
 });
 
-describe("HARNESS_V6_CHAT_ENABLED Bindings type", () => {
-	it("Bindings type includes HARNESS_V6_CHAT_ENABLED as a string field", () => {
-		// Pick<Bindings, 'HARNESS_V6_CHAT_ENABLED'> fails to compile if the field is absent.
-		const flag = { HARNESS_V6_CHAT_ENABLED: "false" } as Pick<
-			Bindings,
-			"HARNESS_V6_CHAT_ENABLED"
-		>;
-		expect(flag.HARNESS_V6_CHAT_ENABLED).toBe("false");
-	});
-});
-

@@ -26,7 +26,6 @@ SENTRY_DSN = "https://13e64989bc4d83f5299ee06e5c4c7bf2@o4511017227321344.ingest.
 MUQ_ENDPOINT = "https://mxcyiqltad84v9w1.us-east4.gcp.endpoints.huggingface.cloud"
 AMT_ENDPOINT = ""
 HARNESS_V6_ENABLED = "true"
-HARNESS_V6_CHAT_ENABLED = "true"
 
 [[hyperdrive]]
 binding = "HYPERDRIVE"
