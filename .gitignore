@@ -133,10 +133,7 @@ tmp/
 temp/
 
 # Claude
-CLAUDE.md
-AGENTS.md
 .claude/
-.forge/
 
 # Git worktrees
 .worktrees/
