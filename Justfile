@@ -163,6 +163,26 @@ test-playbook-shape:
 compile-playbook:
     uv run --with pyyaml python apps/shared/scripts/compile_playbook.py
 
+# Check that all Swift files under apps/ios/ are registered in project.pbxproj
+check-ios:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    pbxproj="apps/ios/CrescendAI.xcodeproj/project.pbxproj"
+    missing=()
+    while IFS= read -r f; do
+        name=$(basename "$f")
+        if ! grep -qF "/* $name */" "$pbxproj"; then
+            missing+=("$f")
+        fi
+    done < <(find apps/ios/CrescendAI apps/ios/CrescendAITests -name "*.swift")
+    if [ ${#missing[@]} -eq 0 ]; then
+        echo "OK: all Swift files are registered in project.pbxproj"
+    else
+        echo "ERROR: the following Swift files are on disk but not in project.pbxproj:"
+        for f in "${missing[@]}"; do echo "  $f"; done
+        exit 1
+    fi
+
 # CI sync check: fail if compiled JSON is stale
 check-playbook-sync:
     uv run --with pyyaml python apps/shared/scripts/compile_playbook.py --check

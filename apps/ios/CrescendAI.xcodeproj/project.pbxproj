@@ -58,6 +58,17 @@
 		A400000025 /* ScoreHighlightCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000025 /* ScoreHighlightCard.swift */; };
 		A400000026 /* KeyboardGuideCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000026 /* KeyboardGuideCard.swift */; };
 		A400000027 /* ExerciseSetCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000027 /* ExerciseSetCard.swift */; };
+		A400000028 /* ConversationRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000028 /* ConversationRecord.swift */; };
+		A400000029 /* ArtifactConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000029 /* ArtifactConfig.swift */; };
+		A400000030 /* ArtifactRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000030 /* ArtifactRenderer.swift */; };
+		A400000031 /* ChatService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000031 /* ChatService.swift */; };
+		A400000032 /* PracticeSessionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B400000032 /* PracticeSessionService.swift */; };
+		A200000003 /* ConversationRecordTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B200000003 /* ConversationRecordTests.swift */; };
+		A200000004 /* ArtifactConfigTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B200000004 /* ArtifactConfigTests.swift */; };
+		A200000005 /* ChatServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B200000005 /* ChatServiceTests.swift */; };
+		A200000006 /* ChatViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B200000006 /* ChatViewModelTests.swift */; };
+		A200000007 /* PracticeSessionServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B200000007 /* PracticeSessionServiceTests.swift */; };
+		A200000008 /* MockURLProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = B200000008 /* MockURLProtocol.swift */; };
 		A500000001 /* Lora-VariableFont_wght.ttf in Resources */ = {isa = PBXBuildFile; fileRef = B500000001 /* Lora-VariableFont_wght.ttf */; };
 		A500000002 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B500000002 /* Assets.xcassets */; };
 		A500000003 /* Figtree-VariableFont_wght.ttf in Resources */ = {isa = PBXBuildFile; fileRef = B500000003 /* Figtree-VariableFont_wght.ttf */; };
@@ -97,6 +108,12 @@
 		B100000041 /* AudioChunk.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioChunk.swift; sourceTree = "<group>"; };
 		B200000001 /* RingBufferTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RingBufferTests.swift; sourceTree = "<group>"; };
 		B200000002 /* AuthServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthServiceTests.swift; sourceTree = "<group>"; };
+		B200000003 /* ConversationRecordTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationRecordTests.swift; sourceTree = "<group>"; };
+		B200000004 /* ArtifactConfigTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtifactConfigTests.swift; sourceTree = "<group>"; };
+		B200000005 /* ChatServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatServiceTests.swift; sourceTree = "<group>"; };
+		B200000006 /* ChatViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatViewModelTests.swift; sourceTree = "<group>"; };
+		B200000007 /* PracticeSessionServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PracticeSessionServiceTests.swift; sourceTree = "<group>"; };
+		B200000008 /* MockURLProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockURLProtocol.swift; sourceTree = "<group>"; };
 		B300000001 /* PracticeSessionRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PracticeSessionRecord.swift; sourceTree = "<group>"; };
 		B300000002 /* ChunkResultRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChunkResultRecord.swift; sourceTree = "<group>"; };
 		B300000003 /* CoreMLInferenceProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreMLInferenceProvider.swift; sourceTree = "<group>"; };
@@ -127,6 +144,11 @@
 		B400000025 /* ScoreHighlightCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScoreHighlightCard.swift; sourceTree = "<group>"; };
 		B400000026 /* KeyboardGuideCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardGuideCard.swift; sourceTree = "<group>"; };
 		B400000027 /* ExerciseSetCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExerciseSetCard.swift; sourceTree = "<group>"; };
+		B400000028 /* ConversationRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationRecord.swift; sourceTree = "<group>"; };
+		B400000029 /* ArtifactConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtifactConfig.swift; sourceTree = "<group>"; };
+		B400000030 /* ArtifactRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtifactRenderer.swift; sourceTree = "<group>"; };
+		B400000031 /* ChatService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatService.swift; sourceTree = "<group>"; };
+		B400000032 /* PracticeSessionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PracticeSessionService.swift; sourceTree = "<group>"; };
 		B500000001 /* Lora-VariableFont_wght.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Lora-VariableFont_wght.ttf"; sourceTree = "<group>"; };
 		B500000002 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		B500000003 /* Figtree-VariableFont_wght.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Figtree-VariableFont_wght.ttf"; sourceTree = "<group>"; };
@@ -281,6 +303,8 @@
 				E400000007 /* Auth */,
 				E100000024 /* AudioEngine */,
 				E100000025 /* Inference */,
+				E400000008 /* Chat */,
+				E400000009 /* Practice */,
 				B400000010 /* StudentModelService.swift */,
 				B400000011 /* CheckInService.swift */,
 				B400000012 /* GoalExtractionService.swift */,
@@ -320,6 +344,8 @@
 				B300000002 /* ChunkResultRecord.swift */,
 				B400000008 /* ObservationRecord.swift */,
 				B400000009 /* CheckInRecord.swift */,
+				B400000028 /* ConversationRecord.swift */,
+				B400000029 /* ArtifactConfig.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -329,6 +355,12 @@
 			children = (
 				B200000001 /* RingBufferTests.swift */,
 				B200000002 /* AuthServiceTests.swift */,
+				B200000003 /* ConversationRecordTests.swift */,
+				B200000004 /* ArtifactConfigTests.swift */,
+				B200000005 /* ChatServiceTests.swift */,
+				B200000006 /* ChatViewModelTests.swift */,
+				B200000007 /* PracticeSessionServiceTests.swift */,
+				B200000008 /* MockURLProtocol.swift */,
 			);
 			path = CrescendAITests;
 			sourceTree = "<group>";
@@ -358,6 +390,7 @@
 				B400000016 /* MessageBubble.swift */,
 				B400000017 /* ObservationCard.swift */,
 				B400000018 /* DimensionPill.swift */,
+				B400000030 /* ArtifactRenderer.swift */,
 				E400000003 /* ComponentCards */,
 			);
 			path = Chat;
@@ -406,6 +439,22 @@
 				B400000006 /* SyncService.swift */,
 			);
 			path = Auth;
+			sourceTree = "<group>";
+		};
+		E400000008 /* Chat */ = {
+			isa = PBXGroup;
+			children = (
+				B400000031 /* ChatService.swift */,
+			);
+			path = Chat;
+			sourceTree = "<group>";
+		};
+		E400000009 /* Practice */ = {
+			isa = PBXGroup;
+			children = (
+				B400000032 /* PracticeSessionService.swift */,
+			);
+			path = Practice;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -556,6 +605,11 @@
 				A400000025 /* ScoreHighlightCard.swift in Sources */,
 				A400000026 /* KeyboardGuideCard.swift in Sources */,
 				A400000027 /* ExerciseSetCard.swift in Sources */,
+				A400000028 /* ConversationRecord.swift in Sources */,
+				A400000029 /* ArtifactConfig.swift in Sources */,
+				A400000030 /* ArtifactRenderer.swift in Sources */,
+				A400000031 /* ChatService.swift in Sources */,
+				A400000032 /* PracticeSessionService.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -565,6 +619,12 @@
 			files = (
 				A200000001 /* RingBufferTests.swift in Sources */,
 				A200000002 /* AuthServiceTests.swift in Sources */,
+				A200000003 /* ConversationRecordTests.swift in Sources */,
+				A200000004 /* ArtifactConfigTests.swift in Sources */,
+				A200000005 /* ChatServiceTests.swift in Sources */,
+				A200000006 /* ChatViewModelTests.swift in Sources */,
+				A200000007 /* PracticeSessionServiceTests.swift in Sources */,
+				A200000008 /* MockURLProtocol.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

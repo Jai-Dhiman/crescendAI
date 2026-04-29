@@ -74,6 +74,23 @@ CrescendAI/
 - `POST /api/sync` - Push student/session deltas, receive exercise updates
 - `GET /api/exercises` - Fetch exercise catalog
 
+## Adding New Swift Files (REQUIRED)
+
+Xcode compiles only files listed in `CrescendAI.xcodeproj/project.pbxproj` — files on disk that aren't registered are silently ignored. Since development happens via Claude Code (not Xcode GUI), every new `.swift` file MUST be manually registered.
+
+**Every new file needs entries in 4 places in `project.pbxproj`:**
+
+1. **PBXBuildFile** — `AxxxxxxX /* Foo.swift in Sources */ = {isa = PBXBuildFile; fileRef = BxxxxxxX /* Foo.swift */; };`
+2. **PBXFileReference** — `BxxxxxxX /* Foo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Foo.swift; sourceTree = "<group>"; };`
+3. **PBXGroup** — add `BxxxxxxX /* Foo.swift */,` under the correct group (Models, Chat, Services/Chat, etc.)
+4. **PBXSourcesBuildPhase** — add `AxxxxxxX /* Foo.swift in Sources */,` in the correct target's Sources list (app target = `F100000002`, test target = `F300000002`)
+
+**ID conventions used in this project:**
+- App source IDs: `A400000028`+ / `B400000028`+ (increment from last used)
+- Test source IDs: `A200000003`+ / `B200000003`+
+
+**Verify with:** `just check-ios` — prints any `.swift` files on disk not in the project manifest.
+
 ## Notes
 
 - Core ML model is downloaded on first launch (too large for App Store binary)
