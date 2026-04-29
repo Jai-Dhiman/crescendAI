@@ -25,6 +25,9 @@ _POSITIVES_PATH = (
 _NEGATIVES_PATH = (
     Path(__file__).parent / "data" / "negatives" / "curated_negatives.jsonl"
 )
+_CURATED_POSITIVES_PATH = (
+    Path(__file__).parent / "data" / "curated_positives.jsonl"
+)
 
 
 @dataclass
@@ -46,7 +49,8 @@ def _load_positives(path: Path) -> list[str]:
     return texts
 
 
-def _load_negatives(path: Path) -> list[str]:
+def _load_jsonl_texts(path: Path) -> list[str]:
+    """Load text strings from a JSONL file with a 'text' key per record."""
     texts = []
     with open(path, "r", encoding="utf-8") as f:
         for line in f:
@@ -57,6 +61,11 @@ def _load_negatives(path: Path) -> list[str]:
             text = record.get("text", "")
             if text:
                 texts.append(text)
+    return texts
+
+
+def _load_negatives(path: Path) -> list[str]:
+    texts = _load_jsonl_texts(path)
     if not texts:
         raise ValueError(f"No negative examples found in {path}")
     return texts
@@ -66,10 +75,10 @@ class PedagogyRelevanceClassifier:
     """
     Cosine similarity classifier for piano pedagogy relevance.
 
-    Computes the centroid embedding of 379 known positive teaching moments
-    and scores new text by cosine similarity to that centroid. Optimal
-    classification threshold is found by maximizing F1 on the full labeled
-    dataset (positives + negatives).
+    Computes the centroid embedding of positive examples (masterclass teaching
+    moments + curated explanatory-style positives) and scores new text by
+    cosine similarity to that centroid. Optimal classification threshold is
+    found by maximizing F1 on the full labeled dataset (positives + negatives).
     """
 
     def __init__(
@@ -79,7 +88,13 @@ class PedagogyRelevanceClassifier:
     ) -> None:
         self._model = SentenceTransformer(model_name)
 
-        self._positive_texts = _load_positives(_POSITIVES_PATH)
+        masterclass_positives = _load_positives(_POSITIVES_PATH)
+        extra_positives = (
+            _load_jsonl_texts(_CURATED_POSITIVES_PATH)
+            if _CURATED_POSITIVES_PATH.exists()
+            else []
+        )
+        self._positive_texts = masterclass_positives + extra_positives
         self._negative_texts = _load_negatives(_NEGATIVES_PATH)
 
         # Compute centroid over positive embeddings

@@ -113,7 +113,7 @@ def test_classifier_validation_metrics(
     assert 0.0 <= metrics.recall <= 1.0, f"Recall out of range: {metrics.recall}"
     assert 0.0 <= metrics.f1 <= 1.0, f"F1 out of range: {metrics.f1}"
     assert 0.0 <= metrics.threshold <= 1.0, f"Threshold out of range: {metrics.threshold}"
-    assert metrics.n_positives == 379, f"Expected 379 positives, got {metrics.n_positives}"
+    assert metrics.n_positives >= 379, f"Expected >= 379 positives, got {metrics.n_positives}"
     assert metrics.n_negatives >= 200, f"Expected >= 200 negatives, got {metrics.n_negatives}"
 
     # Classifier must be non-trivial: F1 should be meaningfully above 0

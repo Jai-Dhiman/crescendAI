@@ -76,12 +76,16 @@ def aggregate_run(jsonl_path: Path, dataset_index_path: Path) -> AggregateResult
     total_rows = 0
     run_id = ""
 
+    seen_ids: set[str] = set()
     for row in _iter_rows(jsonl_path):
         if row.get("error"):
             continue
         if not run_id:
             run_id = row.get("run_id", "")
         rec_id = row["recording_id"]
+        if rec_id in seen_ids:
+            continue
+        seen_ids.add(rec_id)
         tags = index.get(rec_id)
 
         dims = row.get("judge_dimensions", [])

@@ -233,7 +233,7 @@ def load_completed_ids(out_path: Path) -> set[str]:
         try:
             row = json.loads(line)
             rid = row.get("recording_id")
-            if rid:
+            if rid and not row.get("error") and row.get("synthesis_text"):
                 completed.add(rid)
         except json.JSONDecodeError:
             pass

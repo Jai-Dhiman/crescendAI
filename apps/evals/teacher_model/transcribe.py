@@ -195,6 +195,7 @@ def download_audio(
     url: str,
     output_dir: Path,
     cookies_from_browser: Optional[str] = None,
+    cookies_file: Optional[str] = None,
 ) -> tuple[Path, dict]:
     """
     Download YouTube audio as WAV 16kHz mono via yt-dlp.
@@ -204,19 +205,28 @@ def download_audio(
         output_dir: Directory to write the WAV file.
         cookies_from_browser: Browser name to pull cookies from (e.g. "chrome",
             "safari", "firefox"). Pass when YouTube requires authentication.
+        cookies_file: Path to a Netscape-format cookies.txt file. Preferred over
+            cookies_from_browser when running multiple concurrent processes (avoids
+            SQLite lock contention on the browser's live cookie database).
 
     Returns (audio_path, metadata_dict).
     Raises subprocess.CalledProcessError on yt-dlp failure.
     """
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    cookie_args = ["--cookies-from-browser", cookies_from_browser] if cookies_from_browser else []
+    if cookies_file:
+        cookie_args = ["--cookies", cookies_file]
+    elif cookies_from_browser:
+        cookie_args = ["--cookies-from-browser", cookies_from_browser]
+    else:
+        cookie_args = []
 
     info_cmd = [
         "yt-dlp",
         "--skip-download",
         "--print-json",
         "--no-playlist",
+        "--remote-components", "ejs:github",
         *cookie_args,
         url,
     ]
@@ -238,6 +248,7 @@ def download_audio(
         "--postprocessor-args", "ffmpeg:-ar 16000 -ac 1",
         "--sleep-interval", "5",
         "--max-sleep-interval", "15",
+        "--remote-components", "ejs:github",
         "--output", str(audio_path.with_suffix("")),
         *cookie_args,
         url,
@@ -273,6 +284,7 @@ def process_video(
     source_tier: str = "tier1_youtube",
     provider: str = "assemblyai",
     cookies_from_browser: Optional[str] = None,
+    cookies_file: Optional[str] = None,
 ) -> dict:
     """
     Full pipeline: download -> transcribe -> (diarize) -> score relevance -> save -> provenance.
@@ -297,7 +309,7 @@ def process_video(
         tmp_path = Path(tmpdir)
 
         logger.info("Downloading audio: %s", url)
-        audio_path, metadata = download_audio(url, tmp_path, cookies_from_browser=cookies_from_browser)
+        audio_path, metadata = download_audio(url, tmp_path, cookies_from_browser=cookies_from_browser, cookies_file=cookies_file)
 
         video_id = metadata["id"]
         title = metadata.get("title", "")
@@ -331,8 +343,9 @@ def process_video(
     if classifier is not None:
         relevance_score = classifier.score(corpus_text[:4000])
 
+    threshold = classifier._threshold if classifier is not None else RELEVANCE_THRESHOLD
     saved = False
-    if classifier is None or (relevance_score is not None and relevance_score >= RELEVANCE_THRESHOLD):
+    if classifier is None or (relevance_score is not None and relevance_score >= threshold):
         out_path = CORPUS_DIR / f"{video_id}.txt"
         out_path.write_text(corpus_text, encoding="utf-8")
         saved = True
@@ -364,7 +377,7 @@ def process_video(
             "Skipped %s (relevance=%.3f < %.3f threshold)",
             video_id,
             relevance_score,
-            RELEVANCE_THRESHOLD,
+            threshold,
         )
 
     return {
@@ -383,6 +396,7 @@ def get_playlist_urls(
     playlist_url: str,
     limit: Optional[int] = None,
     cookies_from_browser: Optional[str] = None,
+    cookies_file: Optional[str] = None,
 ) -> list[str]:
     """
     Extract video URLs from a YouTube playlist or channel using yt-dlp --flat-playlist.
@@ -391,6 +405,7 @@ def get_playlist_urls(
         playlist_url: YouTube playlist or channel URL.
         limit: Maximum number of URLs to return. None = all.
         cookies_from_browser: Browser name for cookie auth (e.g. "chrome", "safari").
+        cookies_file: Path to Netscape-format cookies.txt file (preferred for concurrent use).
 
     Returns:
         List of full YouTube video URLs.
@@ -404,8 +419,11 @@ def get_playlist_urls(
         "--flat-playlist",
         "--print", "%(id)s",
         "--no-warnings",
+        "--remote-components", "ejs:github",
     ]
-    if cookies_from_browser:
+    if cookies_file:
+        cmd += ["--cookies", cookies_file]
+    elif cookies_from_browser:
         cmd += ["--cookies-from-browser", cookies_from_browser]
     if limit is not None:
         cmd += ["--playlist-end", str(limit)]
@@ -475,6 +493,14 @@ def _build_parser() -> argparse.ArgumentParser:
              "Required when YouTube returns bot-detection errors.",
     )
     parser.add_argument(
+        "--cookies",
+        dest="cookies_file",
+        default=None,
+        metavar="FILE",
+        help="Path to Netscape-format cookies.txt file for yt-dlp. "
+             "Preferred over --cookies-from-browser when running multiple concurrent processes.",
+    )
+    parser.add_argument(
         "--verbose",
         action="store_true",
         help="Enable verbose logging",
@@ -506,6 +532,7 @@ def main(argv: list[str] | None = None) -> None:
             args.playlist,
             limit=args.limit,
             cookies_from_browser=args.cookies_from_browser,
+            cookies_file=args.cookies_file,
         )
     else:
         channel_url = args.channel
@@ -515,15 +542,24 @@ def main(argv: list[str] | None = None) -> None:
             channel_url,
             limit=args.limit,
             cookies_from_browser=args.cookies_from_browser,
+            cookies_file=args.cookies_file,
         )
 
     logger.info("Processing %d video(s) via %s...", len(urls), args.provider)
 
     saved_count = 0
     skipped_count = 0
+    already_done = 0
     failed: list[tuple[str, str]] = []
 
     for i, url in enumerate(urls, 1):
+        # Skip videos already saved to corpus (idempotent re-runs)
+        video_id = url.split("v=")[-1].split("&")[0]
+        if (CORPUS_DIR / f"{video_id}.txt").exists():
+            logger.info("[%d/%d] Already in corpus, skipping: %s", i, len(urls), video_id)
+            already_done += 1
+            continue
+
         logger.info("[%d/%d] %s", i, len(urls), url)
         try:
             result = process_video(
@@ -533,6 +569,7 @@ def main(argv: list[str] | None = None) -> None:
                 source_tier=args.tier,
                 provider=args.provider,
                 cookies_from_browser=args.cookies_from_browser,
+                cookies_file=args.cookies_file,
             )
             if result["saved"]:
                 saved_count += 1
@@ -542,7 +579,7 @@ def main(argv: list[str] | None = None) -> None:
             logger.error("Failed to process %s: %s", url, exc)
             failed.append((url, str(exc)))
 
-    print(f"\nDone. saved={saved_count} skipped={skipped_count} failed={len(failed)}")
+    print(f"\nDone. saved={saved_count} skipped={skipped_count} already_done={already_done} failed={len(failed)}")
     if failed:
         print("Failed URLs:")
         for url, err in failed:

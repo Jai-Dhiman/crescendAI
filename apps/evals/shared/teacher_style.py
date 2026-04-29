@@ -163,7 +163,7 @@ def _factor(tok, sig):
     raise ValueError(f"unexpected token: {nxt}")
 
 
-PLAYBOOK_PATH = Path(__file__).resolve().parents[3] / "shared" / "teacher-style" / "playbook.yaml"
+PLAYBOOK_PATH = Path(__file__).resolve().parents[2] / "shared" / "teacher-style" / "playbook.yaml"
 
 PRIORITY_ORDER = [
     "Technical-corrective", "Positive-encouragement", "Artifact-based",

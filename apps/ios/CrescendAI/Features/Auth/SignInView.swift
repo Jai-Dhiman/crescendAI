@@ -6,6 +6,7 @@ struct SignInView: View {
     @State private var error: String?
     @State private var isLoading = false
     @State private var cardOpacity = 0.0
+    @State private var cardOffset: CGFloat = 20
 
     var body: some View {
         ZStack {
@@ -17,28 +18,29 @@ struct SignInView: View {
                 .clipped()
                 .ignoresSafeArea()
 
-            // Centered sign-in card
-            VStack(spacing: 0) {
-                // App logo
-                Image("AppLogo")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 56, height: 56)
-                    .clipShape(RoundedRectangle(cornerRadius: 14))
+            // Radial gradient overlay (matches web: rgba(45,41,38,0.4) -> rgba(45,41,38,0.85))
+            RadialGradient(
+                colors: [
+                    CrescendColor.background.opacity(0.4),
+                    CrescendColor.background.opacity(0.85),
+                ],
+                center: .center,
+                startRadius: 0,
+                endRadius: 420
+            )
+            .ignoresSafeArea()
 
-                // Title
+            // Sign-in card
+            VStack(spacing: 0) {
                 Text("crescend")
                     .font(CrescendFont.displayXL())
                     .foregroundStyle(CrescendColor.foreground)
-                    .padding(.top, CrescendSpacing.space4)
 
-                // Tagline
                 Text("A teacher for every pianist.")
                     .font(CrescendFont.bodyLG())
                     .foregroundStyle(CrescendColor.secondaryText)
                     .padding(.top, CrescendSpacing.space2)
 
-                // Error
                 if let error {
                     Text(error)
                         .font(CrescendFont.bodySM())
@@ -47,7 +49,6 @@ struct SignInView: View {
                         .padding(.top, CrescendSpacing.space4)
                 }
 
-                // Sign in with Apple button (cream-styled)
                 SignInWithAppleButton(.signIn) { request in
                     request.requestedScopes = [.email]
                 } onCompletion: { result in
@@ -63,9 +64,8 @@ struct SignInView: View {
                     }
                 }
                 .signInWithAppleButtonStyle(.white)
-                .frame(maxWidth: 260, minHeight: 50, maxHeight: 50)
+                .frame(maxWidth: .infinity, minHeight: 50, maxHeight: 50)
                 .clipShape(RoundedRectangle(cornerRadius: 10))
-                .tint(CrescendColor.foreground)
                 .disabled(isLoading)
                 .padding(.top, CrescendSpacing.space8)
 
@@ -75,21 +75,35 @@ struct SignInView: View {
                         .padding(.top, CrescendSpacing.space3)
                 }
 
-                // Terms disclaimer
                 Text("By signing in, you agree to our Terms of Service")
                     .font(CrescendFont.labelSM())
                     .foregroundStyle(CrescendColor.tertiaryText)
                     .padding(.top, CrescendSpacing.space6)
             }
+            .multilineTextAlignment(.center)
             .padding(.horizontal, CrescendSpacing.space8)
-            .padding(.vertical, 48)
-            .frame(maxWidth: 340)
-            .background(Color.clear)
+            .padding(.vertical, 56)
+            .frame(maxWidth: 360)
+            .background {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(.ultraThinMaterial)
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(CrescendColor.surface.opacity(0.7))
+                }
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(CrescendColor.border, lineWidth: 1)
+            }
+            .padding(.horizontal, CrescendSpacing.space6)
             .opacity(cardOpacity)
+            .offset(y: cardOffset)
         }
         .onAppear {
             withAnimation(.easeOut(duration: 0.6).delay(0.2)) {
                 cardOpacity = 1.0
+                cardOffset = 0
             }
         }
     }

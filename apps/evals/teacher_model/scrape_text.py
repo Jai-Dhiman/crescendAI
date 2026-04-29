@@ -206,11 +206,45 @@ def process_url(
     source_tier: str = "tier2_literature",
 ) -> dict:
     """
-    Fetch, clean, optionally filter, and save a web page to the corpus.
+    Fetch, clean, optionally filter, and save a URL to the corpus.
+
+    If the URL ends with .pdf, downloads to a tempfile and dispatches to
+    process_pdf. Otherwise scrapes as a web page.
 
     Returns a result dict with keys: url, filename, title, word_count, score,
     included, corpus_path.
     """
+    url_path = url.lower().split("?")[0]
+    is_pdf_url = url_path.endswith(".pdf")
+
+    if not is_pdf_url:
+        # Sniff content-type for URLs that serve PDF without .pdf extension
+        head = requests.head(url, headers={"User-Agent": _USER_AGENT}, timeout=15, allow_redirects=True)
+        if "application/pdf" in head.headers.get("Content-Type", ""):
+            is_pdf_url = True
+
+    if is_pdf_url:
+        import tempfile
+        response = requests.get(url, headers={"User-Agent": _USER_AGENT}, timeout=60, allow_redirects=True)
+        response.raise_for_status()
+        with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+            tmp.write(response.content)
+            tmp_path = Path(tmp.name)
+        try:
+            result = process_pdf(
+                tmp_path,
+                manifest,
+                classifier=classifier,
+                source_tier=source_tier,
+                publisher=url,
+            )
+        finally:
+            tmp_path.unlink(missing_ok=True)
+        # normalise to the same shape process_url returns
+        result["url"] = url
+        result.setdefault("title", Path(url).stem)
+        return result
+
     raw, title = extract_web_text(url)
     text = clean_text(raw)
 
@@ -317,6 +351,7 @@ def main() -> None:
         print(f"Classifier ready (threshold={classifier._threshold:.3f})")  # type: ignore[union-attr]
 
     results: list[dict] = []
+    failed_urls: list[tuple[str, str]] = []
 
     if args.pdf:
         result = process_pdf(
@@ -367,13 +402,17 @@ def main() -> None:
         print(f"Found {len(urls)} URL(s) in {args.url_list}")
         for url in urls:
             print(f"  Fetching {url}...")
-            result = process_url(
-                url,
-                manifest,
-                classifier=classifier,
-                source_tier=args.tier,
-            )
-            results.append(result)
+            try:
+                result = process_url(
+                    url,
+                    manifest,
+                    classifier=classifier,
+                    source_tier=args.tier,
+                )
+                results.append(result)
+            except Exception as exc:
+                print(f"  ERROR {url}: {exc}", file=sys.stderr)
+                failed_urls.append((url, str(exc)))
 
     # Summary
     included = [r for r in results if r["included"]]
@@ -393,6 +432,10 @@ def main() -> None:
             key = r.get("path") or r.get("url", "?")
             score_str = f"  score={r['score']:.3f}" if r["score"] is not None else ""
             print(f"  {key}{score_str}")
+    if failed_urls:
+        print(f"Failed ({len(failed_urls)} errors):")
+        for url, err in failed_urls:
+            print(f"  {url}: {err}")
 
 
 if __name__ == "__main__":
