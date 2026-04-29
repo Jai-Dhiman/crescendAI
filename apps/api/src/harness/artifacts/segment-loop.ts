@@ -20,7 +20,7 @@ export const SegmentLoopArtifactSchema = z
 		requiredCorrect: z.number().int().min(1).max(10),
 		attemptsCompleted: z.number().int().min(0),
 		status: z.enum(SEGMENT_LOOP_STATUSES),
-		dimension: z.enum(DIMS_6 as unknown as [string, ...string[]]).nullable(),
+		dimension: z.enum([...DIMS_6]).nullable(),
 	})
 	.refine((v) => v.barsEnd >= v.barsStart, {
 		message: "barsEnd must be >= barsStart",

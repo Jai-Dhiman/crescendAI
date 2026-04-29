@@ -1,3 +1,4 @@
+-- status and trigger are validated at the application layer (Zod); no CHECK constraint per codebase convention
 CREATE TABLE IF NOT EXISTS segment_loops (
   id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
   student_id TEXT NOT NULL,
