@@ -12,9 +12,9 @@ const DEFAULT_TURN_CAP = 5;
 export async function* runStreamingHook(
 	hook: HookKind,
 	hookCtx: HookContext,
-	processToolFn: ProcessToolFn,
-	systemBlocks: AnthropicSystemBlock[],
-	initialMessages: Array<{
+	_processToolFn: ProcessToolFn,
+	_systemBlocks: AnthropicSystemBlock[],
+	_initialMessages: Array<{
 		role: "user" | "assistant";
 		content: string | AnthropicContentBlock[];
 	}>,
