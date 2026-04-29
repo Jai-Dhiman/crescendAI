@@ -1,4 +1,5 @@
 import { InferenceError } from "../../lib/errors";
+import type { PhaseContext } from "./types";
 
 /**
  * V6 stub: pass-through. Future versions redact student names from voice prompts.
@@ -8,9 +9,13 @@ export function redactPii<T>(req: T): T {
 }
 
 /**
- * V6 stub: pass-through. V8a fills in action-tool permission gating.
+ * V8a: accepts tool name and context for future permission gating. Currently pass-through.
  */
-export async function wrapToolCall<T>(invoke: () => Promise<T>): Promise<T> {
+export async function wrapToolCall(
+	_toolName: string,
+	_ctx: PhaseContext,
+	invoke: () => Promise<unknown>,
+): Promise<unknown> {
 	return invoke();
 }
 
