@@ -6,3 +6,4 @@ export * from "./memory";
 export * from "./observations";
 export * from "./sessions";
 export * from "./students";
+export * from "./diagnosis-artifacts";

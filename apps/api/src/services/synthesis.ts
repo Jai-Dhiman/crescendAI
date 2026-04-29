@@ -1,10 +1,12 @@
 import { eq, sql } from "drizzle-orm";
+import { diagnosisArtifacts } from "../db/schema/diagnosis-artifacts";
 import { messages } from "../db/schema/conversations";
 import { observations } from "../db/schema/observations";
 import { sessions } from "../db/schema/sessions";
 import type { Dimension } from "../lib/dims";
 import { DIMS_6 } from "../lib/dims";
 import type { Db } from "../lib/types";
+import { DiagnosisArtifactSchema } from "../harness/artifacts/diagnosis";
 import type { SessionAccumulator } from "./accumulator";
 import type { InlineComponent } from "./tool-processor";
 
@@ -111,4 +113,36 @@ export async function loadBaselinesFromDb(
 	}
 
 	return result;
+}
+
+export async function persistDiagnosisArtifacts(
+	db: Db,
+	phase1Results: Array<{ tool: string; output: unknown }>,
+	sessionId: string,
+	studentId: string,
+	pieceId: string | null,
+): Promise<void> {
+	for (const { output } of phase1Results) {
+		const parsed = DiagnosisArtifactSchema.safeParse(output)
+		if (!parsed.success) continue
+
+		const artifact = parsed.data
+		try {
+			await db
+				.insert(diagnosisArtifacts)
+				.values({
+					sessionId,
+					studentId,
+					pieceId,
+					barRangeStart: artifact.bar_range?.[0] ?? null,
+					barRangeEnd: artifact.bar_range?.[1] ?? null,
+					primaryDimension: artifact.primary_dimension,
+					artifactJson: artifact,
+				})
+				.onConflictDoNothing()
+		} catch (err) {
+			const error = err as Error
+			console.log(JSON.stringify({ level: 'error', message: 'persistDiagnosisArtifacts insert failed', sessionId, error: error.message }))
+		}
+	}
 }
