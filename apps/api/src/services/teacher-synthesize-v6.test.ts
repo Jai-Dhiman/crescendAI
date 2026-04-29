@@ -91,6 +91,8 @@ describe('synthesizeV6 digest shape', () => {
     expect(digestText).toContain('chunks')
     expect(digestText).toContain('baselines')
     expect(digestText).toContain('cohort_tables')
+    expect(digestText).toContain('session_history')
+    expect(digestText).toContain('past_diagnoses')
   })
 
   it('passes null baselines through to digest when baselines is null', async () => {

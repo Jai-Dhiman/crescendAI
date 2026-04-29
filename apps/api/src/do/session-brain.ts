@@ -929,6 +929,7 @@ export class SessionBrain extends DurableObject<Bindings> {
 			topMoments,
 			drillingRecords,
 			pieceMetadata: pieceCtx,
+			// Task 5 wires enrichedChunks, baselines, sessionHistory, pastDiagnoses from DO storage + DB
 			enrichedChunks: [],
 			baselines: null,
 			sessionHistory: [],
