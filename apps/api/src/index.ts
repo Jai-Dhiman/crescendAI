@@ -15,6 +15,7 @@ import { goalsRoutes } from "./routes/goals";
 import { healthRoutes } from "./routes/health";
 import { practiceRoutes } from "./routes/practice";
 import { scoresRoutes } from "./routes/scores";
+import { segmentLoopsRoutes } from "./routes/segment-loops";
 import { syncRoutes } from "./routes/sync";
 import { waitlistRoutes } from "./routes/waitlist";
 
@@ -44,6 +45,7 @@ const routes = app
 	.route("/api/scores", scoresRoutes)
 	.route("/api/exercises", exercisesRoutes)
 	.route("/api/conversations", conversationsRoutes)
+	.route("/api/segment-loops", segmentLoopsRoutes)
 	.route("/api/sync", syncRoutes)
 	.route("/api/chat", chatRoutes)
 	.route("/api/practice", practiceRoutes)
