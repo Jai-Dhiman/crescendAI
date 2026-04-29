@@ -8,7 +8,6 @@ import { computeKeyOverlapRatio } from '../atoms/compute-key-overlap-ratio'
 import { computeDimensionDelta } from '../atoms/compute-dimension-delta'
 
 const DIM = { dynamics: 0, timing: 1, pedaling: 2, articulation: 3, phrasing: 4, interpretation: 5 } as const
-const DIM_NAMES = ['dynamics', 'timing', 'pedaling', 'articulation', 'phrasing', 'interpretation'] as const
 
 type CrossModalInput = {
   bar_range: [number, number]; scope: 'stop_moment' | 'passage' | 'session'
@@ -120,7 +119,7 @@ export const crossModalContradictionCheck: ToolDefinition = {
     }
 
     const winner = contradictions.reduce((best, c) => c.delta > best.delta ? c : best)
-    const dims = contradictions.map(c => c.dimension) as typeof DIM_NAMES[number][]
+    const dims = contradictions.map(c => c.dimension) as (keyof typeof DIM)[]
     return DiagnosisArtifactSchema.parse({
       primary_dimension: winner.dimension,
       dimensions: [...new Set(dims)],

@@ -35,3 +35,28 @@ test('exerciseProposal: pedaling+significant with no prior exercise returns peda
   expect(result.estimated_minutes).toBe(8)
   expect(result.diagnosis_summary).toBe('Over-pedaled through bars 12-16; harmonies blurring.')
 })
+
+test('exerciseProposal: dynamics+significant returns dynamic_exaggeration/extreme-contrast', async () => {
+  const diagnosis = DiagnosisArtifactSchema.parse({
+    primary_dimension: 'dynamics',
+    dimensions: ['dynamics'],
+    severity: 'significant',
+    scope: 'session',
+    bar_range: [4, 8],
+    evidence_refs: ['cache:muq:s1:c2'],
+    one_sentence_finding: 'Dynamic range too compressed across bars 4-8.',
+    confidence: 'high',
+    finding_type: 'issue',
+  })
+  const result = await exerciseProposal.invoke({
+    diagnosis,
+    diagnosis_ref: 'diag:def456',
+    midi_notes: [{ pitch: 60, onset_ms: 0, duration_ms: 500, velocity: 70, bar: 4 }],
+    past_diagnoses: [],
+    piece_id: 'test-piece',
+    now_ms: 1000,
+  }) as ExerciseArtifact
+  expect(result.exercise_type).toBe('dynamic_exaggeration')
+  expect(result.exercise_subtype).toBe('extreme-contrast')
+  expect(result.target_dimension).toBe('dynamics')
+})

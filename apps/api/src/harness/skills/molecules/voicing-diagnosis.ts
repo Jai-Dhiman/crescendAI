@@ -4,7 +4,6 @@ import type { DiagnosisArtifact } from '../../artifacts/diagnosis'
 import { computeDimensionDelta } from '../atoms/compute-dimension-delta'
 import { fetchStudentBaseline } from '../atoms/fetch-student-baseline'
 import type { Baseline } from '../atoms/fetch-student-baseline'
-import { fetchReferencePercentile } from '../atoms/fetch-reference-percentile'
 import { fetchSimilarPastObservation } from '../atoms/fetch-similar-past-observation'
 import type { PastObservation } from '../atoms/fetch-similar-past-observation'
 
@@ -74,7 +73,6 @@ export const voicingDiagnosis: ToolDefinition = {
       if (p && Math.abs(p.topMean - p.bassMean) < 5) flatCount++
     }
     if (bars.length === 0 || flatCount / bars.length < 0.6) return neutral
-    await fetchReferencePercentile.invoke({ dimension: 'dynamics', score: i.muq_scores[DIM.dynamics], cohort_table: i.cohort_table_dynamics })
     const past = await fetchSimilarPastObservation.invoke({ dimension: 'dynamics', piece_id: i.piece_id, bar_range: i.bar_range, past_diagnoses: i.past_diagnoses, now_ms: i.now_ms }) as PastObservation | null
     return DiagnosisArtifactSchema.parse({
       primary_dimension: 'dynamics', dimensions: ['dynamics', 'phrasing'],

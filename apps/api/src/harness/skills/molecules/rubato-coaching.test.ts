@@ -41,3 +41,42 @@ test('rubatoCoaching: constant score IOIs vs stretching perf IOIs with large dri
   expect(result.dimensions).toContain('phrasing')
   expect(result.dimensions).toContain('interpretation')
 })
+
+test('rubatoCoaching: fewer than 4 aligned notes returns neutral (IOI correlation unavailable)', async () => {
+  const input = {
+    bar_range: [40, 42] as [number, number],
+    scope: 'session' as const,
+    evidence_refs: ['cache:muq:s1:c14'],
+    muq_scores: [0.54, 0.38, 0.46, 0.54, 0.52, 0.51],
+    midi_notes: [
+      { pitch: 60, onset_ms: 0,    duration_ms: 400, velocity: 70, bar: 40 },
+      { pitch: 62, onset_ms: 500,  duration_ms: 400, velocity: 70, bar: 41 },
+      { pitch: 64, onset_ms: 1000, duration_ms: 400, velocity: 70, bar: 42 },
+    ],
+    alignment: [
+      { perf_index: 0, score_index: 0, expected_onset_ms: 0,    bar: 40 },
+      { perf_index: 1, score_index: 1, expected_onset_ms: 500,  bar: 41 },
+      { perf_index: 2, score_index: 2, expected_onset_ms: 1000, bar: 42 },
+    ],
+    session_means_timing: [0.48, 0.54, 0.60],
+    piece_id: 'test-piece',
+    now_ms: 1000,
+  }
+  const result = await rubatoCoaching.invoke(input) as DiagnosisArtifact
+  expect(result.finding_type).toBe('neutral')
+})
+
+test('rubatoCoaching: insufficient session history throws', async () => {
+  const input = {
+    bar_range: [40, 48] as [number, number],
+    scope: 'session' as const,
+    evidence_refs: ['cache:muq:s1:c14'],
+    muq_scores: [0.54, 0.38, 0.46, 0.54, 0.52, 0.51],
+    midi_notes: [{ pitch: 60, onset_ms: 0, duration_ms: 400, velocity: 70, bar: 40 }],
+    alignment: [{ perf_index: 0, score_index: 0, expected_onset_ms: 0, bar: 40 }],
+    session_means_timing: [0.48, 0.54],
+    piece_id: 'test-piece',
+    now_ms: 1000,
+  }
+  await expect(rubatoCoaching.invoke(input)).rejects.toThrow('insufficient session history')
+})

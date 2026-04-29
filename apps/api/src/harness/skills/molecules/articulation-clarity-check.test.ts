@@ -27,3 +27,19 @@ test('articulationClarityCheck: staccato score with legato execution (mismatch=8
   expect(result.finding_type).toBe('issue')
   expect(result.severity).toBe('moderate')
 })
+
+test('articulationClarityCheck: z above neutral threshold returns neutral', async () => {
+  const input = {
+    bar_range: [5, 12] as [number, number],
+    scope: 'session' as const,
+    evidence_refs: ['cache:muq:s1:c2'],
+    muq_scores: [0.54, 0.48, 0.46, 0.52, 0.52, 0.51],
+    mono_notes_per_bar: [],
+    score_articulation_per_bar: [],
+    cohort_table_articulation: [{ p: 50, value: 0.52 }, { p: 84, value: 0.60 }],
+    piece_id: 'test-piece',
+    now_ms: 1000,
+  }
+  const result = await articulationClarityCheck.invoke(input) as DiagnosisArtifact
+  expect(result.finding_type).toBe('neutral')
+})

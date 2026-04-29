@@ -35,3 +35,38 @@ test('pedalTriage: pedal held throughout (ratio>0.85) with z=-3.0 returns issue/
   expect(result.severity).toBe('significant')
   expect(result.evidence_refs.length).toBeGreaterThan(0)
 })
+
+test('pedalTriage: z above neutral threshold returns neutral', async () => {
+  const input = {
+    bar_range: [12, 16] as [number, number],
+    scope: 'session' as const,
+    evidence_refs: ['cache:muq:s1:c5'],
+    muq_scores: [0.54, 0.48, 0.46, 0.54, 0.52, 0.51],
+    midi_notes: [{ pitch: 60, onset_ms: 0, duration_ms: 1000, velocity: 70, bar: 12 }],
+    pedal_cc: [],
+    alignment: [{ perf_index: 0, score_index: 0, expected_onset_ms: 0, bar: 12 }],
+    session_means_pedaling: [0.46, 0.46, 0.46],
+    past_diagnoses: [],
+    piece_id: 'test-piece',
+    now_ms: 1000,
+  }
+  const result = await pedalTriage.invoke(input) as DiagnosisArtifact
+  expect(result.finding_type).toBe('neutral')
+})
+
+test('pedalTriage: insufficient session history throws', async () => {
+  const input = {
+    bar_range: [12, 16] as [number, number],
+    scope: 'session' as const,
+    evidence_refs: ['cache:muq:s1:c5'],
+    muq_scores: [0.54, 0.48, 0.35, 0.54, 0.52, 0.51],
+    midi_notes: [{ pitch: 60, onset_ms: 0, duration_ms: 1000, velocity: 70, bar: 12 }],
+    pedal_cc: [],
+    alignment: [{ perf_index: 0, score_index: 0, expected_onset_ms: 0, bar: 12 }],
+    session_means_pedaling: [0.50, 0.60],
+    past_diagnoses: [],
+    piece_id: 'test-piece',
+    now_ms: 1000,
+  }
+  await expect(pedalTriage.invoke(input)).rejects.toThrow('insufficient session history')
+})

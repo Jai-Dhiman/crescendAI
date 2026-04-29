@@ -37,3 +37,33 @@ test('crossModalContradictionCheck: MuQ pedaling high (z=+3.3) but overlap ratio
   expect(result.finding_type).toBe('issue')
   expect(result.severity).toBe('significant')
 })
+
+test('crossModalContradictionCheck: no contradictions detected returns neutral', async () => {
+  const input = {
+    bar_range: [1, 4] as [number, number],
+    scope: 'session' as const,
+    evidence_refs: ['cache:muq:s1:c1'],
+    muq_scores: [0.40, 0.40, 0.40, 0.40, 0.52, 0.51],
+    midi_notes: [
+      { pitch: 60, onset_ms: 0,   duration_ms: 500, velocity: 70, bar: 1 },
+      { pitch: 62, onset_ms: 500, duration_ms: 500, velocity: 75, bar: 2 },
+    ],
+    pedal_cc: [],
+    alignment: [
+      { perf_index: 0, score_index: 0, expected_onset_ms: 0,   bar: 1 },
+      { perf_index: 1, score_index: 1, expected_onset_ms: 500, bar: 2 },
+    ],
+    mono_notes_per_bar: [],
+    score_articulation_per_bar: [],
+    cohort_baselines: {
+      dynamics:     { mean: 0.54, stddev: 0.07 },
+      timing:       { mean: 0.48, stddev: 0.04 },
+      pedaling:     { mean: 0.46, stddev: 0.08 },
+      articulation: { mean: 0.54, stddev: 0.02 },
+    },
+    piece_id: 'test-piece',
+    now_ms: 1000,
+  }
+  const result = await crossModalContradictionCheck.invoke(input) as DiagnosisArtifact
+  expect(result.finding_type).toBe('neutral')
+})
