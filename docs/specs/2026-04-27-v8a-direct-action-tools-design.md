@@ -1,26 +1,5 @@
 # V8a — Direct-Action Tools (anchor: `assign_segment_loop`) + Chat Tool-Use Parity
 
-> **Status amendment (2026-04-27, post-spec):** Two findings during the `/plan` attempt invalidate parts of this spec. Do not treat as authoritative until updated through the predecessor specs below.
->
-> 1. **Chat path already has tool_use.** The brainstorm assumption that `apps/api/src/services/chat.ts` was plain SSE text streaming was based on a stale memory snapshot (2026-03-30). As of today, `services/teacher.ts:chat()` runs a 5-turn agent loop with `tool_choice:auto`, dispatches via `processToolUse` (search_catalog, create_exercise_artifact), and streams `tool_start` / `tool_result` / `tool_error` / `delta` events to the client. **Q7's resolution ("non-streamed JSON for tool turns") is therefore wrong** — adopting it would be a UX regression. Q7 must be re-resolved against the actual chat surface, not the assumed one.
-> 2. **V6 is partially shipped.** Only V6 plan 1 of 4 (loop infrastructure) shipped. Plans 2 (atoms), 3 (molecules), and 4 (integration) are unshipped — `apps/api/src/harness/atoms/` and `apps/api/src/harness/molecules/` do not exist; the `OnSessionEnd` binding has `tools: []`; `HARNESS_V6_ENABLED=true` produces a hollow synthesis output. V8a's modules section assumes a fully built V6 substrate, which does not exist.
->
-> **Required predecessor work, in order, before V8a's `/plan`:**
-> 1. **V6 completion** — atoms (Plan 2), molecules (Plan 3), integration (Plan 4). After this, `HARNESS_V6_ENABLED=true` produces real diagnoses.
-> 2. **Spec X — "Harness streaming + OnChatMessage migration"** (to be brainstormed). Migrates the legacy chat agent loop onto the V6 harness without losing streaming UX. Defines the streaming variant of `runPhase1`, the `mode: 'streaming' | 'buffered'` field on `CompoundBinding`, the `phases: 1 | 2` field, the `OnChatMessage` binding, and an SSE translator preserving the existing chat wire protocol. **No new tools, no new artifacts** — pure infrastructure migration with an equivalence-oracle test against legacy chat.
->
-> **Effect on this spec when V8a's plan is finally written:**
-> - **Q7 resolution dropped.** Spec X delivers harness streaming; chat tool turns stream the same way they always have. The "non-streamed JSON" path and `kind: 'tool_turn'` discriminator are removed from the design.
-> - **Chat-path file changes simplify.** `services/chat.ts` and `routes/chat.ts` modifications mostly disappear (Spec X owns the rewiring). V8a's chat-side cost reduces to one tool registration in the `OnChatMessage` binding's tool list.
-> - **Single registration site.** The earlier-considered "two callsite" workaround (atom registered in both V6 and `processToolUse`) is unnecessary — Spec X delivers one chat agent loop, V8a registers one tool in it.
-> - **`CompoundBinding` extensions are Spec X's, not V8a's.** `phases`, `mode`, and any streaming event variants ship in Spec X. V8a inherits them.
-> - **`HookContext` extensions** (`pieceId`, `trigger`) remain V8a's.
-> - **Everything else stays.** The atom, the service + Drizzle schema + migration, the lifecycle state machine, the strict-isolation `passage-loop-detector`, the DO hydration, the `SegmentLoopArtifact` Zod schema, the synthesis `assigned_loops` extension, the accept/decline/dismiss routes, and the web `SegmentLoopArtifact` card all stay as designed.
->
-> When `/plan` is re-run on this spec post-V6-completion-and-Spec-X-ship, treat the body below as the source of truth for everything except the Q7-derived chat-protocol decisions and the V6-substrate file references, both of which are reshaped by the predecessor specs.
-
----
-
 **Goal:** Replace observation-only feedback with a durable, behavior-changing artifact (`assign_segment_loop`) that can be produced by the synthesis path *and* the chat path, gated per trigger context, and verified across sessions via a strict-isolation loop-attempt detector — so the system can actually break the 90%-playthrough practice habit instead of describing it.
 
 **Not in scope:**
@@ -28,7 +7,7 @@
 - Quality-gated completion (per-attempt dimension scoring against baseline). V8a counts repetitions only; quality gating is V8a.1+.
 - Cross-session expiry policy (timed decay, max-backlog). The single-active-loop invariant collapses the policy surface; expiry is a future iteration.
 - Soft-anchor assignments for unidentified pieces (text-only passage descriptors). Pre-condition failure flows back to the LLM as a tool error; the LLM falls back to text.
-- Mid-stream tool-use SSE events for chat. Text-only chat turns stream as today; tool-bearing chat turns return a single non-streamed JSON payload.
+- New wire-protocol changes for chat tool turns. The streaming chat path (delivered by Spec X) uses `runStreamingHook` → `runPhase1Streaming` and emits `TeacherEvent` SSE events unchanged. `assign_segment_loop` plugs into the existing streaming pipeline; no new discriminators or payload shapes.
 - Verovio rendering inside the segment-loop card. The card has a flagged-off score-snippet slot; rendering itself ships in V8b.
 - iOS surfaces. V8a is web-only.
 - Production rollout gating. Reuses the V6 launch flag — no separate V8a flag.
@@ -75,7 +54,7 @@ V8a is purely additive to V6. Every load-bearing seam is a named V6 extension po
 
 **Chat is a one-phase compound.** V6's two-phase pattern (Phase 1 auto-dispatch → Phase 2 forced single artifact write) exists because synthesis must produce exactly one durable `SynthesisArtifact`. Chat has no such constraint — a chat turn may be text-only, text + one assignment, or text + multiple artifacts. V8a generalizes V6's `runHook` by adding a `phases: 1 | 2` field to `CompoundBinding` (default 2 for `OnSessionEnd` back-compat). The `OnChatMessage` binding declares `phases: 1` and a tool allowlist; Phase 1 runs to terminal-text-turn and the loop ends.
 
-**Chat parity is dispatch + tool-allowlist parity, not protocol parity.** Text-only turns continue to stream over SSE exactly as today. Tool-bearing turns are buffered server-side and returned as a single JSON payload `{ kind: 'tool_turn', text, artifacts }`. The web client adds a `kind` discriminator on the response shape and renders artifact cards for the tool-turn path. Mid-stream tool-use SSE events are a future spec; they are not load-bearing for V8a's pedagogical claim.
+**Chat parity is dispatch + tool-allowlist parity.** The streaming chat path (delivered by Spec X) uses `runStreamingHook` → `runPhase1Streaming` and emits `TeacherEvent` SSE events to the client unchanged. V8a registers `assign_segment_loop` in the `OnChatMessage` binding's tool list (so Anthropic sees the schema) and intercepts it in `chatV6`'s `processToolFn` closure (so the correct `trigger:'chat'` default status and DB call go through `services/segment-loops`). A `SegmentLoopArtifact` component arrives as a standard `tool_result` SSE event, rendered by the existing artifact pipeline extended in Task 12.
 
 **The lifecycle is a state machine with one non-monotonic edge.** `pending → active → completed/dismissed` is the monotone path. The non-monotonic edge — `superseded` from any non-terminal state — implements the single-active invariant explicitly. A partial unique index on `(student_id, piece_id) WHERE status = 'active'` enforces it at the storage layer; `services/segment-loops.ts` enforces it at the service layer with a supersede-then-insert transaction.
 
@@ -112,11 +91,9 @@ type HookEvent<TArtifact> =
   | { type: 'artifact';           value: TArtifact }
   | { type: 'validation_error';   raw: unknown; zodError: string }
   | { type: 'phase_error';        phase: 1 | 2; error: string }
-  // V8a addition:
-  | { type: 'text_response';      content: string }   // emitted by phase 1 of one-phase compounds (chat) on terminal text turn
 ```
 
-`OnSessionEnd` continues to emit `artifact` (Phase 2 forced write); `OnChatMessage` emits `text_response` plus zero-or-more `phase1_tool_call`/`phase1_tool_result` pairs and never `phase2_*`.
+`OnSessionEnd` continues to emit `artifact` (Phase 2 forced write) via `runHook`. `OnChatMessage` uses `runStreamingHook` and yields `TeacherEvent` directly — no `HookEvent` wrapper on the chat path. V8a adds no new event types.
 
 ### Lifecycle state machine
 
@@ -296,13 +273,10 @@ Time passes... Session N+1 opens for same piece
 - **Tested through:** `synthesizeV6` integration tests extended: a fixture session where Phase 1 calls `assign_segment_loop` produces a `SynthesisArtifact` with non-empty `assigned_loops`. Voice fixture asserts `headline` mentions the assignment.
 - **Depth verdict:** DEEP (existing).
 
-#### `apps/api/src/services/chat.ts` (modified)
-- **Change:** When `HARNESS_V6_ENABLED=true`, replace the direct streaming call with `runHook('OnChatMessage', hookCtx)`. Consume the event stream:
-  - Zero `phase1_tool_call` events → SSE-stream the `text_response` content tokens to the client.
-  - One or more `phase1_tool_call` events → buffer the entire stream, return single JSON `{kind:'tool_turn', text, artifacts}`.
-  - Persist the assistant message with `componentsJson` populated when artifacts present.
-- **Tested through:** Adapter integration tests against a stub Anthropic gateway. Behaviors: text-only response yields SSE stream; tool-bearing response yields a single JSON payload; precondition failure yields SSE text path with no artifacts; flag off yields legacy path unchanged.
-- **Depth verdict:** DEEP.
+#### `apps/api/src/services/teacher.ts` — `chatV6` (modified)
+- **Change:** The `chatV6` function already routes through `runStreamingHook('OnChatMessage', ...)`. V8a's changes: (1) populate `pieceId` and `trigger: 'chat'` in the `HookContext` passed to `runStreamingHook`; (2) in the `processToolFn` closure, intercept calls where `name === 'assign_segment_loop'` and dispatch to `services/segment-loops.processAssignSegmentLoopTool(ctx, studentId, input)` returning a `ToolResult` with `componentsJson: [{ type: 'segment_loop', config }]`. All other tool calls continue through `processToolUse` unchanged.
+- **Tested through:** `teacher-chat-v6.test.ts` extended: fixture where Anthropic stub returns `assign_segment_loop` tool_use — verify `tool_result` SSE event is emitted with `type:'segment_loop'` component; precondition failure fixture returns `tool_error` SSE event.
+- **Depth verdict:** DEEP (existing).
 
 #### `apps/api/src/do/session-brain.ts` (modified)
 - **Change:** On session start, call `findActiveForPiece(studentId, pieceId)`; if a loop exists, hydrate `passage-loop-detector` and broadcast `segment_loop_status` over WebSocket. On each chunk: feed score-following position track to the detector; on `LoopAttempt{in_bounds:true}`, call `incrementAttempts` and broadcast `loop_attempt`. On WebSocket reconnect message `request_segment_loop_status`, reply with current state. On session end, ensure all in-flight increments persist before invoking synthesis.
@@ -357,7 +331,7 @@ Time passes... Session N+1 opens for same piece
 | `apps/api/src/harness/skills/atoms/assign-segment-loop.md` | Skill markdown with `kind: action` frontmatter | New |
 | `apps/api/scripts/catalog-codegen.ts` (V6 codegen) | Extend frontmatter parser to read optional `kind: 'read' | 'action'` field; default `read` | Modify |
 | `apps/api/src/harness/skills/__catalog__/index.gen.ts` (V6 generated) | Build-time-emitted; gains `kind` field per atom | Generated |
-| `apps/api/src/harness/loop/types.ts` (V6) | Add `text_response` event variant; add `phases: 1 \| 2` to `CompoundBinding`; add `SegmentLoopArtifact` to `ArtifactFor` map | Modify |
+| `apps/api/src/harness/loop/types.ts` (V6) | Add `pieceId?: string` and `trigger: 'chat' \| 'synthesis'` to `HookContext`; add `SegmentLoopRef` type; extend `ToolDefinition.invoke` to accept optional `PhaseContext` second arg | Modify |
 | `apps/api/src/harness/loop/runHook.ts` (V6) | Branch on `binding.phases`; for `phases:1`, terminate after Phase 1 terminal text turn emitting `text_response` | Modify |
 | `apps/api/src/harness/loop/compound-registry.ts` (V6) | Add `OnChatMessage → chat-response` binding | Modify |
 | `apps/api/src/harness/loop/phase1.ts` (V6) | Tool-set builder reads atom `kind`; routes `kind:'action'` atoms through `wrap_tool_call`; emit `text_response` event on terminal text turn for one-phase compounds | Modify |
@@ -366,8 +340,8 @@ Time passes... Session N+1 opens for same piece
 | `apps/api/src/services/segment-loops.ts` | Lifecycle service + tests | New |
 | `apps/api/src/services/teacher.ts` | Phase 2 input shape extended; voice prompt updated | Modify |
 | `apps/api/src/harness/artifacts/synthesis.ts` | `SynthesisArtifactSchema` gains `assigned_loops: SegmentLoopRef[]`; refinement validating every ref points at a loop Phase 1 created | Modify |
-| `apps/api/src/services/chat.ts` | Route through `runHook('OnChatMessage')` when flag on; consume event stream; SSE for text-only, JSON for tool-bearing | Modify |
-| `apps/api/src/routes/chat.ts` | Adapt to handle `kind:'tool_turn'` JSON response shape | Modify |
+| `apps/api/src/services/teacher.ts` | `chatV6`: add `pieceId` and `trigger:'chat'` to `HookContext`; intercept `assign_segment_loop` in `processToolFn`; `synthesizeV6`: add `pieceId` and `trigger:'synthesis'` to `HookContext` | Modify |
+| `apps/api/src/routes/chat.ts` | Fix flag: `HARNESS_V6_CHAT_ENABLED` → `HARNESS_V6_ENABLED` | Modify |
 | `apps/api/src/routes/segment-loops.ts` | Three routes: accept/decline/dismiss | New |
 | `apps/api/src/index.ts` | Mount `segmentLoopsRoutes` at `/api/segment-loops` via Hono `.route()` chain | Modify |
 | `apps/api/src/do/passage-loop-detector.ts` | Strict-isolation detector + tests | New |
@@ -375,7 +349,7 @@ Time passes... Session N+1 opens for same piece
 | `apps/api/src/lib/types.ts` | Add `SegmentLoopRef` type; ensure `HookContext` carries `pieceId?: string` and `trigger: 'chat' \| 'synthesis'` (V6 introduces these; V8a confirms presence) | Modify |
 | `apps/web/src/components/cards/SegmentLoopArtifact.tsx` | React card with state-driven render + WS subscription | New |
 | `apps/web/src/components/Artifact.tsx` | Register `segment_loop` discriminator and route to `cards/SegmentLoopArtifact.tsx` | Modify |
-| `apps/web/src/components/AppChat.tsx` | Read `kind` field on response; render artifacts inline for `tool_turn` path | Modify |
+| `apps/web/src/components/AppChat.tsx` | No change needed — `segment_loop` artifacts arrive via existing `tool_result` SSE event | — |
 | `apps/web/src/lib/api.ts` | Add typed methods for accept/decline/dismiss endpoints | Modify |
 
 ---
