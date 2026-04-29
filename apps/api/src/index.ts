@@ -53,7 +53,14 @@ app.notFound((c) => c.json({ error: "Not found" }, 404));
 
 export type AppType = typeof routes;
 export { app };
-export { SessionBrain } from "./do/session-brain";
+import { SessionBrain as _SessionBrain } from "./do/session-brain";
+export const SessionBrain = Sentry.instrumentDurableObjectWithSentry(
+	(env: Bindings) => ({
+		dsn: env.SENTRY_DSN,
+		tracesSampleRate: 1.0,
+	}),
+	_SessionBrain,
+);
 
 export default Sentry.withSentry(
 	(env: Bindings) => ({
