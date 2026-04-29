@@ -2,6 +2,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { segmentLoops } from "../db/schema/segment-loops";
 import type { SEGMENT_LOOP_STATUSES } from "../db/schema/segment-loops";
 import { ConflictError, NotFoundError, ValidationError } from "../lib/errors";
+import { DIMS_6 } from "../lib/dims";
 import type { Db } from "../lib/types";
 import type { SegmentLoopArtifact } from "../harness/artifacts/segment-loop";
 import type { InlineComponent } from "./tool-processor";
@@ -11,6 +12,12 @@ type SegmentLoopStatus = (typeof SEGMENT_LOOP_STATUSES)[number];
 const TERMINAL_STATUSES: SegmentLoopStatus[] = ["completed", "dismissed", "superseded"];
 
 function rowToArtifact(row: typeof segmentLoops.$inferSelect): SegmentLoopArtifact {
+  if (!SEGMENT_LOOP_STATUSES.includes(row.status as SegmentLoopStatus)) {
+    throw new ValidationError(`invalid segment_loop status in DB: '${row.status}'`);
+  }
+  if (row.dimension !== null && !(DIMS_6 as readonly string[]).includes(row.dimension)) {
+    throw new ValidationError(`invalid segment_loop dimension in DB: '${row.dimension}'`);
+  }
   return {
     kind: "segment_loop",
     id: row.id,
