@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { getCompoundBinding } from "./compound-registry";
 import { SynthesisArtifactSchema } from "../artifacts/synthesis";
 import { ALL_MOLECULES } from "../skills/molecules";
+import { TOOL_REGISTRY } from "../../services/tool-processor";
 
 describe("compound-registry", () => {
 	it("returns a binding for OnSessionEnd pointing at session-synthesis", () => {
@@ -21,7 +22,7 @@ describe("compound-registry", () => {
 		expect(binding?.compoundName).toBe("chat-response");
 		expect(binding?.mode).toBe("streaming");
 		expect(binding?.phases).toBe(1);
-		expect(binding?.tools).toHaveLength(6);
+		expect(binding?.tools).toHaveLength(Object.values(TOOL_REGISTRY).length);
 		const names = binding!.tools.map((t) => t.name);
 		expect(new Set(names).size).toBe(names.length);
 		expect(names).toContain("create_exercise");
