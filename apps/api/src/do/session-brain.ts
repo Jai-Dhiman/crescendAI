@@ -912,6 +912,10 @@ export class SessionBrain extends DurableObject<Bindings> {
 			topMoments,
 			drillingRecords,
 			pieceMetadata: pieceCtx,
+			enrichedChunks: [],
+			baselines: null,
+			sessionHistory: [],
+			pastDiagnoses: [],
 		};
 
 		const db = createDb(this.env.HYPERDRIVE);
