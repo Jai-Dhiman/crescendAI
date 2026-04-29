@@ -26,7 +26,9 @@ try {
 			),
 		);
 
-	console.log(JSON.stringify({ message: "backfill starting", total: rows.length }));
+	console.log(
+		JSON.stringify({ message: "backfill starting", total: rows.length }),
+	);
 
 	let updated = 0;
 	let skipped = 0;
@@ -64,7 +66,9 @@ try {
 		);
 	}
 
-	console.log(JSON.stringify({ message: "backfill complete", updated, skipped }));
+	console.log(
+		JSON.stringify({ message: "backfill complete", updated, skipped }),
+	);
 } finally {
 	await sql.end();
 }

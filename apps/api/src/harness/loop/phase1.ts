@@ -98,7 +98,9 @@ export async function* runPhase1(
 		);
 
 		const toolUses = response.content.filter(
-			(b): b is { type: "tool_use"; id: string; name: string; input: unknown } =>
+			(
+				b,
+			): b is { type: "tool_use"; id: string; name: string; input: unknown } =>
 				b.type === "tool_use",
 		);
 
@@ -117,11 +119,22 @@ export async function* runPhase1(
 
 		for (const tu of toolUses) {
 			toolCallCount++;
-			yield { type: "phase1_tool_call", id: tu.id, tool: tu.name, input: tu.input };
+			yield {
+				type: "phase1_tool_call",
+				id: tu.id,
+				tool: tu.name,
+				input: tu.input,
+			};
 			const def = toolMap.get(tu.name);
 			if (!def) {
 				const error = `unknown tool: ${tu.name}`;
-				yield { type: "phase1_tool_result", id: tu.id, tool: tu.name, ok: false, error };
+				yield {
+					type: "phase1_tool_result",
+					id: tu.id,
+					tool: tu.name,
+					ok: false,
+					error,
+				};
 				toolResults.push({
 					type: "tool_result",
 					tool_use_id: tu.id,
@@ -132,7 +145,13 @@ export async function* runPhase1(
 			}
 			try {
 				const output = await wrapToolCall(() => def.invoke(tu.input));
-				yield { type: "phase1_tool_result", id: tu.id, tool: tu.name, ok: true, output };
+				yield {
+					type: "phase1_tool_result",
+					id: tu.id,
+					tool: tu.name,
+					ok: true,
+					output,
+				};
 				toolResults.push({
 					type: "tool_result",
 					tool_use_id: tu.id,
@@ -140,7 +159,13 @@ export async function* runPhase1(
 				});
 			} catch (err) {
 				const message = err instanceof Error ? err.message : String(err);
-				yield { type: "phase1_tool_result", id: tu.id, tool: tu.name, ok: false, error: message };
+				yield {
+					type: "phase1_tool_result",
+					id: tu.id,
+					tool: tu.name,
+					ok: false,
+					error: message,
+				};
 				toolResults.push({
 					type: "tool_result",
 					tool_use_id: tu.id,

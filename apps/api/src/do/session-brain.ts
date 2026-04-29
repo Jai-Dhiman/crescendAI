@@ -15,9 +15,7 @@ import {
 	persistAccumulatedMoments,
 	persistSynthesisMessage,
 } from "../services/synthesis";
-import {
-	type InlineComponent,
-} from "../services/tool-processor";
+import type { InlineComponent } from "../services/tool-processor";
 import {
 	type SynthesisInput,
 	synthesize as teacherSynthesize,
@@ -380,8 +378,7 @@ export class SessionBrain extends DurableObject<Bindings> {
 			return;
 		}
 
-		const { scores: muqScores, confidences: muqConfidences } =
-			muqResult.value;
+		const { scores: muqScores, confidences: muqConfidences } = muqResult.value;
 		const scoresArray: [number, number, number, number, number, number] = [
 			muqScores.dynamics,
 			muqScores.timing,
@@ -887,7 +884,12 @@ export class SessionBrain extends DurableObject<Bindings> {
 				let artifact: SynthesisArtifact | null = null;
 				let validationError: string | null = null;
 
-				for await (const ev of synthesizeV6(ctx, synthInput, state.sessionId, (p) => this.ctx.waitUntil(p))) {
+				for await (const ev of synthesizeV6(
+					ctx,
+					synthInput,
+					state.sessionId,
+					(p) => this.ctx.waitUntil(p),
+				)) {
 					if (ev.type === "artifact") {
 						artifact = ev.value;
 					} else if (ev.type === "validation_error") {
@@ -941,7 +943,9 @@ export class SessionBrain extends DurableObject<Bindings> {
 							state.conversationId,
 							wsPayload.text,
 							state.sessionId,
-							wsPayload.components.length > 0 ? wsPayload.components : undefined,
+							wsPayload.components.length > 0
+								? wsPayload.components
+								: undefined,
 						);
 						await persistAccumulatedMoments(
 							db,

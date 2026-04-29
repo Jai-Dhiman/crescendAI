@@ -382,7 +382,15 @@ describe("parseAnthropicStream - tool call continuation info", () => {
 		const mockComponents: InlineComponent[] = [
 			{
 				type: "search_catalog_result",
-				config: { matches: [{ pieceId: "abc-123", composer: "Chopin", title: "Waltz Op. 64 No. 2" }] },
+				config: {
+					matches: [
+						{
+							pieceId: "abc-123",
+							composer: "Chopin",
+							title: "Waltz Op. 64 No. 2",
+						},
+					],
+				},
 			},
 		];
 		const processToolFn = vi.fn().mockResolvedValue({
@@ -470,7 +478,9 @@ describe("parseAnthropicStream - tool call continuation info", () => {
 			expect(doneEvent.toolCalls[0].id).toBe("toolu_abc123");
 			expect(doneEvent.toolCalls[0].name).toBe("search_catalog");
 			expect(doneEvent.toolCalls[0].input).toEqual({ query: "Chopin waltz" });
-			expect(doneEvent.toolCalls[0].result.componentsJson).toEqual(mockComponents);
+			expect(doneEvent.toolCalls[0].result.componentsJson).toEqual(
+				mockComponents,
+			);
 
 			// Must report stop_reason so caller knows to continue
 			expect(doneEvent.stopReason).toBe("tool_use");
@@ -658,6 +668,8 @@ describe("synthesizeV6 adapter", () => {
 
 		const types = events.map((e) => e.type);
 		expect(types).toEqual(["phase1_done", "phase2_started", "artifact"]);
-		expect((events[2] as { type: "artifact"; value: SynthesisArtifact }).value).toEqual(V6_VALID_ARTIFACT);
+		expect(
+			(events[2] as { type: "artifact"; value: SynthesisArtifact }).value,
+		).toEqual(V6_VALID_ARTIFACT);
 	});
 });

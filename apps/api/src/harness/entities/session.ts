@@ -19,7 +19,8 @@ export const SessionSchema = z
 		needsSynthesis: z.boolean(),
 	})
 	.refine(
-		(s) => s.endedAt === null || Date.parse(s.endedAt) >= Date.parse(s.startedAt),
+		(s) =>
+			s.endedAt === null || Date.parse(s.endedAt) >= Date.parse(s.startedAt),
 		{ message: "endedAt must be >= startedAt" },
 	);
 

@@ -21,7 +21,8 @@ function cropSvgToMeasureRange(
 	if (!startSystem) return;
 
 	const endMeasure = svgEl.querySelector(`[id="${endMeasureId}"]`);
-	const endSystem = (endMeasure?.closest(".system") as SVGGElement | null) ?? startSystem;
+	const endSystem =
+		(endMeasure?.closest(".system") as SVGGElement | null) ?? startSystem;
 
 	const svgRect = svgEl.getBoundingClientRect();
 	if (svgRect.width === 0 || svgRect.height === 0) return;
@@ -37,15 +38,25 @@ function cropSvgToMeasureRange(
 	// 12px of visual padding converted to viewBox units
 	const padVb = 12 * scaleY;
 
-	const minY = Math.max(vb.y, (startRect.top - svgRect.top) * scaleY + vb.y - padVb);
-	const maxY = Math.min(vb.y + vb.height, (endRect.bottom - svgRect.top) * scaleY + vb.y + padVb);
+	const minY = Math.max(
+		vb.y,
+		(startRect.top - svgRect.top) * scaleY + vb.y - padVb,
+	);
+	const maxY = Math.min(
+		vb.y + vb.height,
+		(endRect.bottom - svgRect.top) * scaleY + vb.y + padVb,
+	);
 
 	if (maxY <= minY) return;
 
 	svgEl.setAttribute("viewBox", `${vb.x} ${minY} ${vb.width} ${maxY - minY}`);
 }
 
-export function SvgClip({ svgMarkup, startMeasureId, endMeasureId }: SvgClipProps) {
+export function SvgClip({
+	svgMarkup,
+	startMeasureId,
+	endMeasureId,
+}: SvgClipProps) {
 	const ref = useRef<HTMLDivElement>(null);
 
 	useLayoutEffect(() => {

@@ -103,17 +103,34 @@ describe("buildSynthesisFraming", () => {
 });
 
 describe("buildSynthesisFraming + teacher_voice", () => {
-	const pieceMetadata = { title: "Prelude", composer: "Chopin", skill_level: 3 };
+	const pieceMetadata = {
+		title: "Prelude",
+		composer: "Chopin",
+		skill_level: 3,
+	};
 
 	it("includes <teacher_voice> block after <style_guidance>", () => {
 		const out = buildSynthesisFraming(
-			900_000, "continuous_play",
+			900_000,
+			"continuous_play",
 			[
-				{ dimension: "dynamics", score: 0.8, deviation_from_mean: 0.25, direction: "above_average" },
-				{ dimension: "timing", score: 0.3, deviation_from_mean: -0.18, direction: "below_average" },
+				{
+					dimension: "dynamics",
+					score: 0.8,
+					deviation_from_mean: 0.25,
+					direction: "above_average",
+				},
+				{
+					dimension: "timing",
+					score: 0.3,
+					deviation_from_mean: -0.18,
+					direction: "below_average",
+				},
 			],
 			[],
-			pieceMetadata, "", "Chopin",
+			pieceMetadata,
+			"",
+			"Chopin",
 		);
 		const styleIdx = out.indexOf("<style_guidance");
 		const voiceIdx = out.indexOf("<teacher_voice");
@@ -125,10 +142,20 @@ describe("buildSynthesisFraming + teacher_voice", () => {
 
 	it("includes <also_consider> block", () => {
 		const out = buildSynthesisFraming(
-			900_000, "continuous_play",
-			[{ dimension: "dynamics", score: 0.8, deviation_from_mean: 0.25, direction: "above_average" }],
+			900_000,
+			"continuous_play",
+			[
+				{
+					dimension: "dynamics",
+					score: 0.8,
+					deviation_from_mean: 0.25,
+					direction: "above_average",
+				},
+			],
 			[],
-			pieceMetadata, "", "Chopin",
+			pieceMetadata,
+			"",
+			"Chopin",
 		);
 		expect(out).toContain("<also_consider");
 	});

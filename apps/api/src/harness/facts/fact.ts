@@ -43,8 +43,7 @@ export const factSchema = z
 	})
 	.refine(
 		(f) =>
-			f.invalidAt === null ||
-			Date.parse(f.invalidAt) >= Date.parse(f.validAt),
+			f.invalidAt === null || Date.parse(f.invalidAt) >= Date.parse(f.validAt),
 		{ message: "invalidAt must be >= validAt", path: ["invalidAt"] },
 	)
 	.refine(

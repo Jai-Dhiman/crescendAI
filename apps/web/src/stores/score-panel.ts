@@ -41,10 +41,20 @@ export const useScorePanelStore = create<ScorePanelState>((set) => ({
 	panelWidth: loadPersistedWidth(),
 	open: (data) => {
 		// DEV gate removed -- panel works in all environments
-		set({ isOpen: true, sessionData: data, highlightData: null, activeAnnotationIndex: null });
+		set({
+			isOpen: true,
+			sessionData: data,
+			highlightData: null,
+			activeAnnotationIndex: null,
+		});
 	},
 	openHighlight: (data) => {
-		set({ isOpen: true, highlightData: data, sessionData: null, activeAnnotationIndex: null });
+		set({
+			isOpen: true,
+			highlightData: data,
+			sessionData: null,
+			activeAnnotationIndex: null,
+		});
 	},
 	close: () => set({ isOpen: false }),
 	toggle: () => set((s) => ({ isOpen: !s.isOpen })),
@@ -58,5 +68,10 @@ export const useScorePanelStore = create<ScorePanelState>((set) => ({
 		set({ panelWidth: width });
 	},
 	clear: () =>
-		set({ isOpen: false, sessionData: null, highlightData: null, activeAnnotationIndex: null }),
+		set({
+			isOpen: false,
+			sessionData: null,
+			highlightData: null,
+			activeAnnotationIndex: null,
+		}),
 }));

@@ -11,7 +11,11 @@ describe("openHighlight", () => {
 		store.openHighlight({
 			pieceId: "piece-abc",
 			highlights: [
-				{ bars: [4, 8] as [number, number], dimension: "dynamics", annotation: "test" },
+				{
+					bars: [4, 8] as [number, number],
+					dimension: "dynamics",
+					annotation: "test",
+				},
 			],
 		});
 
@@ -26,9 +30,7 @@ describe("openHighlight", () => {
 		const store = useScorePanelStore.getState();
 		store.openHighlight({
 			pieceId: "piece-abc",
-			highlights: [
-				{ bars: [1, 4] as [number, number], dimension: "timing" },
-			],
+			highlights: [{ bars: [1, 4] as [number, number], dimension: "timing" }],
 		});
 		useScorePanelStore.getState().close();
 

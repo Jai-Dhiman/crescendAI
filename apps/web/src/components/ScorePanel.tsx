@@ -232,7 +232,9 @@ export function ScorePanel() {
  */
 interface ScorePanelScoreProps {
 	pieceId: string;
-	sessionData: NonNullable<ReturnType<typeof useScorePanelStore>["sessionData"]> | null;
+	sessionData: NonNullable<
+		ReturnType<typeof useScorePanelStore>["sessionData"]
+	> | null;
 	observations: Array<{
 		dimension: string;
 		barRange?: [number, number];

@@ -1,58 +1,88 @@
 {
-  "eras": {
-    "Baroque": {
-      "composer_patterns": ["Bach", "Handel", "Scarlatti", "Couperin", "Rameau", "Vivaldi"],
-      "dimensions": {
-        "articulation": "very high -- clear separation, finger articulation, evenness.",
-        "pedaling": "minimal or none; focus on finger legato.",
-        "dynamics": "subtle, mainly terraced; use articulation for contrast.",
-        "timing": "strict rhythmic precision."
-      }
-    },
-    "Classical": {
-      "composer_patterns": ["Mozart", "Haydn", "Clementi", "Beethoven"],
-      "dimensions": {
-        "articulation": "clean, balanced between legato and light staccato.",
-        "pedaling": "light half-pedal for phrasing, never muddy.",
-        "dynamics": "wide but structured; follow dynamic markings closely.",
-        "timing": "steady pulse, slight rubato only in repeats."
-      }
-    },
-    "Romantic": {
-      "composer_patterns": ["Chopin", "Brahms", "Rachmaninoff", "Liszt", "Schumann", "Schubert", "Mendelssohn", "Tchaikovsky", "Grieg"],
-      "dimensions": {
-        "dynamics": "high -- nuanced crescendi/decrescendi, tonal colour.",
-        "pedaling": "essential for legato and resonance; use half-pedal.",
-        "articulation": "flexible -- blend legato with occasional accents.",
-        "timing": "rubato as expressive tool; maintain structural integrity."
-      }
-    },
-    "Impressionist": {
-      "composer_patterns": ["Debussy", "Ravel", "Faure", "Satie"],
-      "dimensions": {
-        "pedaling": "critical -- colour, wash, blurred harmonies.",
-        "dynamics": "very fine gradations; avoid extremes.",
-        "articulation": "smooth, often finger legato; avoid heavy attacks.",
-        "timing": "flexible tempo, free rubato within phrases."
-      }
-    },
-    "Early20th": {
-      "composer_patterns": ["Stravinsky", "Prokofiev", "Bartok", "Shostakovich", "Gershwin"],
-      "dimensions": {
-        "timing": "high -- syncopation, swing feel, polyrhythms.",
-        "articulation": "crisp attacks, ghost notes, varied touch.",
-        "dynamics": "dynamic contrast for phrasing, but often limited extremes.",
-        "pedaling": "used sparingly, mainly for sustain."
-      }
-    },
-    "Contemporary": {
-      "composer_patterns": ["Ligeti", "Messiaen", "Cage", "Crumb", "Reich", "Glass"],
-      "dimensions": {
-        "dynamics": "often extreme (ppp-fff) or graphic symbols -- follow composer's intent.",
-        "pedaling": "may be unconventional; follow score or composer's notes.",
-        "articulation": "explore extended techniques as written.",
-        "timing": "follow composer's notation strictly even when unusual."
-      }
-    }
-  }
+	"eras": {
+		"Baroque": {
+			"composer_patterns": [
+				"Bach",
+				"Handel",
+				"Scarlatti",
+				"Couperin",
+				"Rameau",
+				"Vivaldi"
+			],
+			"dimensions": {
+				"articulation": "very high -- clear separation, finger articulation, evenness.",
+				"pedaling": "minimal or none; focus on finger legato.",
+				"dynamics": "subtle, mainly terraced; use articulation for contrast.",
+				"timing": "strict rhythmic precision."
+			}
+		},
+		"Classical": {
+			"composer_patterns": ["Mozart", "Haydn", "Clementi", "Beethoven"],
+			"dimensions": {
+				"articulation": "clean, balanced between legato and light staccato.",
+				"pedaling": "light half-pedal for phrasing, never muddy.",
+				"dynamics": "wide but structured; follow dynamic markings closely.",
+				"timing": "steady pulse, slight rubato only in repeats."
+			}
+		},
+		"Romantic": {
+			"composer_patterns": [
+				"Chopin",
+				"Brahms",
+				"Rachmaninoff",
+				"Liszt",
+				"Schumann",
+				"Schubert",
+				"Mendelssohn",
+				"Tchaikovsky",
+				"Grieg"
+			],
+			"dimensions": {
+				"dynamics": "high -- nuanced crescendi/decrescendi, tonal colour.",
+				"pedaling": "essential for legato and resonance; use half-pedal.",
+				"articulation": "flexible -- blend legato with occasional accents.",
+				"timing": "rubato as expressive tool; maintain structural integrity."
+			}
+		},
+		"Impressionist": {
+			"composer_patterns": ["Debussy", "Ravel", "Faure", "Satie"],
+			"dimensions": {
+				"pedaling": "critical -- colour, wash, blurred harmonies.",
+				"dynamics": "very fine gradations; avoid extremes.",
+				"articulation": "smooth, often finger legato; avoid heavy attacks.",
+				"timing": "flexible tempo, free rubato within phrases."
+			}
+		},
+		"Early20th": {
+			"composer_patterns": [
+				"Stravinsky",
+				"Prokofiev",
+				"Bartok",
+				"Shostakovich",
+				"Gershwin"
+			],
+			"dimensions": {
+				"timing": "high -- syncopation, swing feel, polyrhythms.",
+				"articulation": "crisp attacks, ghost notes, varied touch.",
+				"dynamics": "dynamic contrast for phrasing, but often limited extremes.",
+				"pedaling": "used sparingly, mainly for sustain."
+			}
+		},
+		"Contemporary": {
+			"composer_patterns": [
+				"Ligeti",
+				"Messiaen",
+				"Cage",
+				"Crumb",
+				"Reich",
+				"Glass"
+			],
+			"dimensions": {
+				"dynamics": "often extreme (ppp-fff) or graphic symbols -- follow composer's intent.",
+				"pedaling": "may be unconventional; follow score or composer's notes.",
+				"articulation": "explore extended techniques as written.",
+				"timing": "follow composer's notation strictly even when unusual."
+			}
+		}
+	}
 }

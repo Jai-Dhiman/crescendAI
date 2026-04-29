@@ -23,7 +23,11 @@ const scoreHighlightComponent: InlineComponent = {
 	config: {
 		pieceId: "123e4567-e89b-12d3-a456-426614174000",
 		highlights: [
-			{ bars: [1, 4] as [number, number], dimension: "dynamics", annotation: "crescendo" },
+			{
+				bars: [1, 4] as [number, number],
+				dimension: "dynamics",
+				annotation: "crescendo",
+			},
 		],
 	},
 };

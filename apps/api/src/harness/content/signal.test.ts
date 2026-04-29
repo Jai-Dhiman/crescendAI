@@ -45,9 +45,7 @@ describe("SignalSchema", () => {
 			...baseHeaders,
 			schema_name: "AMTTranscription",
 			payload: {
-				midi_notes: [
-					{ pitch: 60, onset_ms: 0, offset_ms: 500, velocity: 80 },
-				],
+				midi_notes: [{ pitch: 60, onset_ms: 0, offset_ms: 500, velocity: 80 }],
 				pedals: [{ onset_ms: 0, offset_ms: 1200, type: "sustain" }],
 			},
 		});

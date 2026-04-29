@@ -52,13 +52,17 @@ describe("runPhase1 turn cap exhaustion", () => {
 
 	it("terminates after turnCap turns and yields phase1_done with turnCount === turnCap", async () => {
 		const TOOL_USE_RESPONSE = {
-			content: [{ type: "tool_use", id: "tu_1", name: "dummy_tool", input: {} }],
+			content: [
+				{ type: "tool_use", id: "tu_1", name: "dummy_tool", input: {} },
+			],
 			stop_reason: "tool_use",
 		};
 		// Use mockImplementation (not mockResolvedValue) so each fetch call gets a
 		// fresh Response — a Response body can only be consumed once.
 		fetchSpy.mockImplementation(() =>
-			Promise.resolve(new Response(JSON.stringify(TOOL_USE_RESPONSE), { status: 200 })),
+			Promise.resolve(
+				new Response(JSON.stringify(TOOL_USE_RESPONSE), { status: 200 }),
+			),
 		);
 
 		const capBinding: CompoundBinding = {
@@ -85,7 +89,11 @@ describe("runPhase1 turn cap exhaustion", () => {
 		}
 
 		const done = events.find((e) => e.type === "phase1_done");
-		expect(done).toEqual({ type: "phase1_done", toolCallCount: 2, turnCount: 2 });
+		expect(done).toEqual({
+			type: "phase1_done",
+			toolCallCount: 2,
+			turnCount: 2,
+		});
 		expect(fetchSpy).toHaveBeenCalledTimes(2);
 	});
 });
@@ -154,6 +162,10 @@ describe("runPhase1 empty registry", () => {
 			events.push(ev);
 		}
 		expect(events).toHaveLength(1);
-		expect(events[0]).toEqual({ type: "phase1_done", toolCallCount: 0, turnCount: 1 });
+		expect(events[0]).toEqual({
+			type: "phase1_done",
+			toolCallCount: 0,
+			turnCount: 1,
+		});
 	});
 });

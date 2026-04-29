@@ -37,14 +37,22 @@ function cropSvgToMeasureRangeBBox(
 	startMeasureId: string,
 	endMeasureId: string,
 ): void {
-	const startMeasure = svgEl.querySelector(`[id="${startMeasureId}"]`) as SVGGraphicsElement | null;
+	const startMeasure = svgEl.querySelector(
+		`[id="${startMeasureId}"]`,
+	) as SVGGraphicsElement | null;
 	if (!startMeasure) return;
 
-	const startSystem = startMeasure.closest(".system") as SVGGraphicsElement | null;
+	const startSystem = startMeasure.closest(
+		".system",
+	) as SVGGraphicsElement | null;
 	if (!startSystem) return;
 
-	const endMeasure = svgEl.querySelector(`[id="${endMeasureId}"]`) as SVGGraphicsElement | null;
-	const endSystem = (endMeasure?.closest(".system") as SVGGraphicsElement | null) ?? startSystem;
+	const endMeasure = svgEl.querySelector(
+		`[id="${endMeasureId}"]`,
+	) as SVGGraphicsElement | null;
+	const endSystem =
+		(endMeasure?.closest(".system") as SVGGraphicsElement | null) ??
+		startSystem;
 
 	const vb = svgEl.viewBox.baseVal;
 	if (!vb || vb.width === 0 || vb.height === 0) return;
@@ -63,7 +71,11 @@ function cropSvgToMeasureRangeBBox(
 	svgEl.setAttribute("viewBox", `${vb.x} ${minY} ${vb.width} ${maxY - minY}`);
 }
 
-export function SvgClipBBox({ svgMarkup, startMeasureId, endMeasureId }: SvgClipBBoxProps) {
+export function SvgClipBBox({
+	svgMarkup,
+	startMeasureId,
+	endMeasureId,
+}: SvgClipBBoxProps) {
 	const ref = useRef<HTMLDivElement>(null);
 
 	useLayoutEffect(() => {

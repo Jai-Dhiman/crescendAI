@@ -2,7 +2,14 @@ import type { SynthesisArtifact } from "../artifacts/synthesis";
 import { getCompoundBinding } from "./compound-registry";
 import { runPhase1 } from "./phase1";
 import { runPhase2 } from "./phase2";
-import type { CompoundBinding, HookContext, HookEvent, HookKind, Phase2Binding, PhaseContext } from "./types";
+import type {
+	CompoundBinding,
+	HookContext,
+	HookEvent,
+	HookKind,
+	Phase2Binding,
+	PhaseContext,
+} from "./types";
 
 export type ArtifactFor<H extends HookKind> = H extends "OnSessionEnd"
 	? SynthesisArtifact
@@ -11,7 +18,11 @@ export type ArtifactFor<H extends HookKind> = H extends "OnSessionEnd"
 const DEFAULT_TURN_CAP = 8;
 
 function isPhase2Binding(b: CompoundBinding): b is Phase2Binding {
-	return b.phases === 2 && b.artifactSchema !== undefined && b.artifactToolName !== undefined;
+	return (
+		b.phases === 2 &&
+		b.artifactSchema !== undefined &&
+		b.artifactToolName !== undefined
+	);
 }
 
 export async function* runHook<H extends HookKind>(

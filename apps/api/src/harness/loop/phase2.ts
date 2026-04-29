@@ -94,6 +94,11 @@ export async function* runPhase2(
 	yield { type: "artifact", value: parsed.data };
 }
 
-function artifactInputSchema(schema: Phase2Binding["artifactSchema"]): Record<string, unknown> {
-	return zodToJsonSchema(schema, { target: "openApi3" }) as Record<string, unknown>;
+function artifactInputSchema(
+	schema: Phase2Binding["artifactSchema"],
+): Record<string, unknown> {
+	return zodToJsonSchema(schema, { target: "openApi3" }) as Record<
+		string,
+		unknown
+	>;
 }

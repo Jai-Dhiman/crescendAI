@@ -60,7 +60,7 @@ describe("emitCatalog CLI", () => {
 		emitCatalog(SKILLS_DIR, out);
 		const content = readFileSync(out, "utf-8");
 		expect(content).toContain("export const catalog");
-		expect(content).toContain("\"session-synthesis\"");
+		expect(content).toContain('"session-synthesis"');
 		expect(content).toContain("AUTO-GENERATED");
 		rmSync(tmp, { recursive: true });
 	});

@@ -1,8 +1,10 @@
-import { test, expect } from 'vitest'
-import { validateSkill } from '../validator'
+import { test, expect } from "vitest";
+import { validateSkill } from "../validator";
 
-test('atom: detect-passage-repetition conforms to spec', async () => {
-  const r = await validateSkill('docs/harness/skills/atoms/detect-passage-repetition.md')
-  expect(r.errors).toEqual([])
-  expect(r.valid).toBe(true)
-})
+test("atom: detect-passage-repetition conforms to spec", async () => {
+	const r = await validateSkill(
+		"docs/harness/skills/atoms/detect-passage-repetition.md",
+	);
+	expect(r.errors).toEqual([]);
+	expect(r.valid).toBe(true);
+});

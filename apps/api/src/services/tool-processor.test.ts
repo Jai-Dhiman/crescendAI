@@ -172,9 +172,7 @@ describe("score_highlight schema validation", () => {
 	it("passes valid single highlight", () => {
 		const result = schema.safeParse({
 			piece_id: "chopin.ballades.1",
-			highlights: [
-				{ bars: [1, 4], dimension: "dynamics" },
-			],
+			highlights: [{ bars: [1, 4], dimension: "dynamics" }],
 		});
 		expect(result.success).toBe(true);
 	});

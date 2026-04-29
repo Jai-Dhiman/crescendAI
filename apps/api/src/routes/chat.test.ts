@@ -40,7 +40,9 @@ function createTestApp() {
 }
 
 /** Parse raw SSE text into an array of {event, data, id} objects */
-function parseSSE(raw: string): Array<{ event?: string; data?: string; id?: string }> {
+function parseSSE(
+	raw: string,
+): Array<{ event?: string; data?: string; id?: string }> {
 	const events: Array<{ event?: string; data?: string; id?: string }> = [];
 	// SSE events are separated by blank lines
 	const blocks = raw.split(/\n\n+/).filter((b) => b.trim());
@@ -116,7 +118,13 @@ describe("POST /api/chat", () => {
 		expect(sseEvents.length).toBeGreaterThanOrEqual(4);
 
 		// Every SSE data payload must be valid JSON with a `type` field
-		const validTypes = new Set(["start", "delta", "tool_result", "done", "error"]);
+		const validTypes = new Set([
+			"start",
+			"delta",
+			"tool_result",
+			"done",
+			"error",
+		]);
 		const parsedEvents: Array<{ type: string; [key: string]: unknown }> = [];
 
 		for (const sse of sseEvents) {

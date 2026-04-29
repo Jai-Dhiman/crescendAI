@@ -427,8 +427,15 @@ const searchCatalogSchema = z
 			.min(3)
 			.max(200)
 			.refine(
-				(s) => s.trim().split(/\s+/).some((t) => t.length >= 2),
-				{ message: "title_keywords must contain at least one token of 2+ characters" },
+				(s) =>
+					s
+						.trim()
+						.split(/\s+/)
+						.some((t) => t.length >= 2),
+				{
+					message:
+						"title_keywords must contain at least one token of 2+ characters",
+				},
 			)
 			.optional(),
 		query: z.string().min(1).max(300).optional(),
@@ -453,7 +460,9 @@ async function processSearchCatalog(
 	const conditions = [];
 
 	if (input.composer !== undefined) {
-		conditions.push(sql`${pieces.composer} ILIKE ${"%" + input.composer + "%"}`);
+		conditions.push(
+			sql`${pieces.composer} ILIKE ${"%" + input.composer + "%"}`,
+		);
 	}
 	if (input.opus_number !== undefined) {
 		conditions.push(eq(pieces.opusNumber, input.opus_number));

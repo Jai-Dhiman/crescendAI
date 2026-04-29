@@ -77,8 +77,9 @@ export function ScoreHighlightCard({
 				<div className="px-3 pt-3 pb-0 flex flex-col gap-2">
 					{clips.map((clip) => {
 						const color =
-							DIMENSION_COLORS[clip.dimension as keyof typeof DIMENSION_COLORS] ??
-							"#7a9a82";
+							DIMENSION_COLORS[
+								clip.dimension as keyof typeof DIMENSION_COLORS
+							] ?? "#7a9a82";
 						return (
 							<div
 								key={`${clip.dimension}-${clip.bars[0]}-${clip.bars[1]}`}
@@ -113,7 +114,9 @@ export function ScoreHighlightCard({
 			{/* Annotations */}
 			<div
 				className={`p-4 flex flex-col gap-3.5 ${
-					renderState === "rendered" && clips.length > 0 ? "border-t border-border/40" : ""
+					renderState === "rendered" && clips.length > 0
+						? "border-t border-border/40"
+						: ""
 				}`}
 			>
 				<div className="flex items-center justify-between">

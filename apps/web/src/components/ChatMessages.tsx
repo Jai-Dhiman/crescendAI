@@ -161,17 +161,23 @@ const MessageBubble = memo(function MessageBubble({
 						(c) => (c as { type: string }).type === "search_catalog_result",
 					)
 					.map((c) => {
-						const matches = (
-							(c as { type: string; config: { matches?: Array<{ title: string }> } })
-								.config.matches ?? []
-						);
+						const matches =
+							(
+								c as {
+									type: string;
+									config: { matches?: Array<{ title: string }> };
+								}
+							).config.matches ?? [];
 						return matches.length > 0
 							? ({
 									name: "search_catalog",
 									status: "found",
 									label: `Found: ${matches[0].title}`,
 								} as ToolCallStatus)
-							: ({ name: "search_catalog", status: "not_found" } as ToolCallStatus);
+							: ({
+									name: "search_catalog",
+									status: "not_found",
+								} as ToolCallStatus);
 					})
 			: [];
 

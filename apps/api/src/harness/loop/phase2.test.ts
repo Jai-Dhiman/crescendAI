@@ -1,7 +1,10 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import type { CompoundBinding, PhaseContext, HookEvent } from "./types";
 import type { Bindings } from "../../lib/types";
-import { SynthesisArtifactSchema, type SynthesisArtifact } from "../artifacts/synthesis";
+import {
+	SynthesisArtifactSchema,
+	type SynthesisArtifact,
+} from "../artifacts/synthesis";
 import { runPhase2 } from "./phase2";
 
 const MOCK_BINDINGS = {

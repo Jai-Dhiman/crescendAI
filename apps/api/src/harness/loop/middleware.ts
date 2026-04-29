@@ -34,10 +34,7 @@ export async function withRetries<T>(fn: () => Promise<T>): Promise<T> {
  * V8+ replaces with a real reviewer agent. V6: log a breadcrumb on 10% sample.
  * `sample` is injectable so tests are deterministic.
  */
-export function reviewArtifact(
-	artifact: unknown,
-	sample: () => boolean,
-): void {
+export function reviewArtifact(artifact: unknown, sample: () => boolean): void {
 	if (!sample()) return;
 	console.log(
 		JSON.stringify({

@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { redactPii, reviewArtifact, withRetries, wrapToolCall } from "./middleware";
+import {
+	redactPii,
+	reviewArtifact,
+	withRetries,
+	wrapToolCall,
+} from "./middleware";
 import { InferenceError } from "../../lib/errors";
 
 describe("redactPii", () => {
@@ -100,6 +105,6 @@ describe("reviewArtifact stub", () => {
 		} finally {
 			console.log = original;
 		}
-		expect(logs.some((l) => l.includes("\"reviewArtifact\""))).toBe(true);
+		expect(logs.some((l) => l.includes('"reviewArtifact"'))).toBe(true);
 	});
 });

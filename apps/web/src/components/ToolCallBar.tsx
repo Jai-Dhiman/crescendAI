@@ -1,4 +1,9 @@
-import { Check, CircleNotch, Minus, WarningCircle } from "@phosphor-icons/react";
+import {
+	Check,
+	CircleNotch,
+	Minus,
+	WarningCircle,
+} from "@phosphor-icons/react";
 import type { ToolCallStatus } from "../lib/types";
 
 const TOOL_LOADING_LABELS: Record<string, string> = {

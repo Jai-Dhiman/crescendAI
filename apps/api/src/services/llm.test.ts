@@ -51,7 +51,9 @@ describe("callWorkersAI", () => {
 		} as unknown as Bindings;
 
 		await expect(
-			callWorkersAI(mockEnv, "@cf/test-model", [{ role: "user", content: "hi" }]),
+			callWorkersAI(mockEnv, "@cf/test-model", [
+				{ role: "user", content: "hi" },
+			]),
 		).rejects.toThrow("Workers AI error: 401");
 	});
 });
