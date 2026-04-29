@@ -142,7 +142,7 @@ export async function persistDiagnosisArtifacts(
 				.onConflictDoNothing();
 		} catch (err) {
 			const error = err as Error;
-			console.log(
+			console.error(
 				JSON.stringify({
 					level: "error",
 					message: "persistDiagnosisArtifacts insert failed",
