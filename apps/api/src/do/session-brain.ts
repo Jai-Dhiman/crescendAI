@@ -75,6 +75,8 @@ const previousChunkAudio = new WeakMap<SessionBrain, ArrayBuffer | null>();
 // Minimum notes before attempting piece identification
 const MIN_NOTES_FOR_IDENTIFICATION = 30;
 
+const DEFAULT_LOOP_REQUIRED_CORRECT = 5;
+
 // How often to attempt teaching moment selection (every N chunks)
 const TEACHING_MOMENT_INTERVAL = 2;
 
@@ -1103,7 +1105,7 @@ export class SessionBrain extends DurableObject<Bindings> {
 					return;
 				}
 
-				const loopComponents = (artifact.assigned_loops ?? []).map((ref) =>
+				const loopComponents = artifact.assigned_loops.map((ref) =>
 					toLoopComponent({
 						kind: "segment_loop",
 						id: ref.id,
@@ -1111,7 +1113,7 @@ export class SessionBrain extends DurableObject<Bindings> {
 						pieceId: ref.pieceId,
 						barsStart: ref.barsStart,
 						barsEnd: ref.barsEnd,
-						requiredCorrect: 5,
+						requiredCorrect: DEFAULT_LOOP_REQUIRED_CORRECT,
 						attemptsCompleted: 0,
 						status: "active",
 						dimension: null,

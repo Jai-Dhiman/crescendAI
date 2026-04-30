@@ -40,6 +40,9 @@ export const SynthesisArtifactSchema = z
 				pieceId: z.string().min(1),
 				barsStart: z.number().int().positive(),
 				barsEnd: z.number().int().positive(),
+			}).refine((v) => v.barsEnd >= v.barsStart, {
+				message: "barsEnd must be >= barsStart",
+				path: ["barsEnd"],
 			})
 		).default([]),
 	})

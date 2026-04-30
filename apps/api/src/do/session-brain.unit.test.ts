@@ -20,6 +20,13 @@ const ARTIFACT: SynthesisArtifact = {
 	assigned_loops: [],
 };
 
+const ARTIFACT_WITH_LOOP: SynthesisArtifact = {
+	...ARTIFACT,
+	assigned_loops: [
+		{ id: "loop-1", pieceId: "piece-abc", barsStart: 1, barsEnd: 4 },
+	],
+};
+
 describe("buildV6WsPayload", () => {
 	it("maps artifact.headline to WebSocket text field", () => {
 		const payload = buildV6WsPayload(ARTIFACT);
@@ -37,11 +44,18 @@ describe("buildV6WsPayload", () => {
 		expect(payload.text).not.toBe(""); // guard: never produces empty text
 	});
 
-	it("always returns empty components array in V6", () => {
+	it("always returns empty components array in V6 when no loopComponents passed", () => {
 		const payload = buildV6WsPayload({
 			...ARTIFACT,
 			proposed_exercises: ["ex1", "ex2"],
 		});
 		expect(payload.components).toEqual([]); // Plan 4 fills in real exercise component construction
+	});
+
+	it("buildV6WsPayload with loop components returns them in components array", () => {
+		const loopComp = { type: "segment_loop", config: { id: "loop-1" } };
+		const payload = buildV6WsPayload(ARTIFACT_WITH_LOOP, [loopComp]);
+		expect(payload.components).toHaveLength(1);
+		expect(payload.components[0]?.type).toBe("segment_loop");
 	});
 });
