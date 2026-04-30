@@ -34,6 +34,14 @@ export const SynthesisArtifactSchema = z
 		next_session_focus: z.string().min(1).max(200).nullable(),
 		diagnosis_refs: z.array(z.string().min(1)),
 		headline: z.string().min(300).max(500),
+		assigned_loops: z.array(
+			z.object({
+				id: z.string().min(1),
+				pieceId: z.string().min(1),
+				barsStart: z.number().int().positive(),
+				barsEnd: z.number().int().positive(),
+			})
+		).default([]),
 	})
 	.refine(
 		(s) => s.synthesis_scope !== "weekly" || s.recurring_pattern !== null,

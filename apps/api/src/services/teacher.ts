@@ -86,6 +86,7 @@ export interface SynthesisInput {
 	baselines: Record<string, number> | null;
 	sessionHistory: SessionHistoryRecord[];
 	pastDiagnoses: PastDiagnosisRecord[];
+	pieceId?: string | null;
 }
 
 type ProcessToolFn = (name: string, input: unknown) => Promise<ToolResult>;
@@ -739,6 +740,8 @@ export async function* synthesizeV6(
 		conversationId: input.conversationId,
 		digest,
 		waitUntil: waitUntil ?? ((_p: Promise<unknown>) => {}),
+		pieceId: input.pieceId ?? undefined,
+		trigger: "synthesis",
 	};
 
 	for await (const ev of runHook("OnSessionEnd", hookCtx)) {

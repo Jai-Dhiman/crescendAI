@@ -20,6 +20,7 @@ const VALID_ARTIFACT: SynthesisArtifact = {
   next_session_focus: null,
   diagnosis_refs: [],
   headline: 'Today you played with intention across the full piece. The phrasing held up well in the opening section, and the dynamics showed real contrast. Pedaling is the area to focus on next — a few spots had overlapping notes that muddied the texture. Keep your foot ready to clear between phrases. We will zero in on bars three through five next time.',
+  assigned_loops: [],
 }
 
 const ENRICHED_CHUNK = {

@@ -14,7 +14,7 @@ const REGISTRY: Map<HookKind, CompoundBinding> = new Map([
 		{
 			compoundName: "session-synthesis",
 			procedurePrompt: SESSION_SYNTHESIS_PROCEDURE,
-			tools: [...ALL_MOLECULES],
+			tools: [...ALL_MOLECULES, ASSIGN_SEGMENT_LOOP_TOOL],
 			mode: "buffered" as const,
 			phases: 2 as const,
 			artifactSchema: SynthesisArtifactSchema,

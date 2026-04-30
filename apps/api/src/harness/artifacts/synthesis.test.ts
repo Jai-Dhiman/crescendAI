@@ -26,6 +26,7 @@ const baseValid: SynthesisArtifact = {
 		"You played with real shape in the second theme today. The thing pulling the picture out of focus is the pedal in the slow passages — let's spend tomorrow on releasing it cleanly between phrases. " +
 		"Your hands know what they want to do; the foot just needs to catch up. " +
 		"Keep that musical instinct going into the next session and we will lock this down together.",
+	assigned_loops: [],
 };
 
 describe("SynthesisArtifactSchema", () => {
@@ -159,4 +160,41 @@ describe("SynthesisArtifactSchema", () => {
 		const valid = { ...baseValid, strengths: [] };
 		expect(() => SynthesisArtifactSchema.parse(valid)).not.toThrow();
 	});
+});
+
+// ---------------------------------------------------------------------------
+// assigned_loops field tests
+// ---------------------------------------------------------------------------
+
+const BASE_VALID = {
+	session_id: "sess_1",
+	synthesis_scope: "session" as const,
+	strengths: [],
+	focus_areas: [],
+	proposed_exercises: [],
+	dominant_dimension: "phrasing" as const,
+	recurring_pattern: null,
+	next_session_focus: null,
+	diagnosis_refs: [],
+	headline: "A".repeat(300),
+	assigned_loops: [],
+};
+
+test("SynthesisArtifact with empty assigned_loops passes", () => {
+	expect(SynthesisArtifactSchema.safeParse(BASE_VALID).success).toBe(true);
+});
+
+test("SynthesisArtifact with assigned_loops entry passes", () => {
+	const r = SynthesisArtifactSchema.safeParse({
+		...BASE_VALID,
+		assigned_loops: [{ id: "loop-1", pieceId: "chopin.ballades.1", barsStart: 12, barsEnd: 16 }],
+	});
+	expect(r.success).toBe(true);
+});
+
+test("SynthesisArtifact without assigned_loops field defaults to empty array", () => {
+	const { assigned_loops: _, ...without } = BASE_VALID;
+	const r = SynthesisArtifactSchema.safeParse(without);
+	expect(r.success).toBe(true);
+	if (r.success) expect(r.data.assigned_loops).toEqual([]);
 });

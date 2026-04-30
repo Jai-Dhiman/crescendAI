@@ -17,6 +17,7 @@ const ARTIFACT: SynthesisArtifact = {
 	next_session_focus: null,
 	diagnosis_refs: [],
 	headline: HEADLINE,
+	assigned_loops: [],
 };
 
 describe("buildV6WsPayload", () => {

@@ -20,6 +20,7 @@ import {
 	persistSynthesisMessage,
 } from "../services/synthesis";
 import type { InlineComponent } from "../services/tool-processor";
+import { toLoopComponent } from "../services/segment-loops";
 import {
 	type SynthesisInput,
 	synthesize as teacherSynthesize,
@@ -50,7 +51,10 @@ import {
  * Pure mapping from a validated SynthesisArtifact to the DO's WebSocket payload shape.
  * Exported for unit testing. `components` is always [] in V6; Plan 4 wires real exercise components.
  */
-export function buildV6WsPayload(artifact: SynthesisArtifact): {
+export function buildV6WsPayload(
+	artifact: SynthesisArtifact,
+	loopComponents?: InlineComponent[],
+): {
 	type: "synthesis";
 	text: string;
 	components: InlineComponent[];
@@ -59,7 +63,7 @@ export function buildV6WsPayload(artifact: SynthesisArtifact): {
 	return {
 		type: "synthesis",
 		text: artifact.headline,
-		components: [],
+		components: loopComponents ?? [],
 		isFallback: false,
 	};
 }
@@ -1029,6 +1033,7 @@ export class SessionBrain extends DurableObject<Bindings> {
 			baselines: state.baselines as Record<string, number> | null,
 			sessionHistory,
 			pastDiagnoses,
+			pieceId: state.pieceIdentification?.pieceId ?? null,
 		};
 
 		// teacher.synthesize() throws on failure — try/catch handles it
@@ -1098,7 +1103,21 @@ export class SessionBrain extends DurableObject<Bindings> {
 					return;
 				}
 
-				const wsPayload = buildV6WsPayload(artifact);
+				const loopComponents = (artifact.assigned_loops ?? []).map((ref) =>
+					toLoopComponent({
+						kind: "segment_loop",
+						id: ref.id,
+						studentId: state.studentId,
+						pieceId: ref.pieceId,
+						barsStart: ref.barsStart,
+						barsEnd: ref.barsEnd,
+						requiredCorrect: 5,
+						attemptsCompleted: 0,
+						status: "active",
+						dimension: null,
+					}),
+				);
+				const wsPayload = buildV6WsPayload(artifact, loopComponents);
 				const sockets = this.ctx.getWebSockets();
 				for (const sock of sockets) {
 					this.sendWs(sock, wsPayload);
