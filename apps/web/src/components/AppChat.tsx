@@ -906,7 +906,7 @@ export default function AppChat() {
 				)}
 
 				{/* Profile at sidebar bottom */}
-				<div ref={profileRef} className="mt-auto pt-2 px-2 relative">
+				<div ref={profileRef} className="mt-auto pt-2 relative">
 					<button
 						type="button"
 						onClick={() => {
@@ -919,8 +919,10 @@ export default function AppChat() {
 							}
 							setShowProfile(!showProfile);
 						}}
-						className={`flex items-center gap-3 min-h-[44px] rounded-lg transition hover:bg-surface ${
-							sidebarOpen ? "w-full px-2" : "justify-center mx-auto"
+						className={`flex items-center gap-3 min-h-[44px] transition hover:bg-surface ${
+							sidebarOpen
+								? "w-[calc(100%-16px)] mx-2 px-3 rounded-lg"
+								: "w-full justify-center rounded-none"
 						}`}
 					>
 						<span className="shrink-0 w-8 h-8 bg-surface border border-border rounded-full flex items-center justify-center text-body-sm text-cream font-medium">
