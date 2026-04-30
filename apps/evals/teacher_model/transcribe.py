@@ -522,6 +522,15 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Skip relevance filtering -- save all transcripts",
     )
     parser.add_argument(
+        "--threshold",
+        type=float,
+        default=None,
+        metavar="FLOAT",
+        help="Override classifier relevance threshold (0.0-1.0). "
+             "Default is the F1-optimal threshold (~0.295). "
+             "Use ~0.15 to capture broad piano discourse (history, composers, etc.).",
+    )
+    parser.add_argument(
         "--tier",
         default="tier1_youtube",
         choices=["tier1_youtube", "tier2_literature", "tier3_musicology", "tier4_own"],
@@ -572,6 +581,8 @@ def main(argv: list[str] | None = None) -> None:
     if not args.no_filter:
         logger.info("Loading relevance classifier...")
         classifier = PedagogyRelevanceClassifier()
+        if args.threshold is not None:
+            classifier._threshold = args.threshold
         logger.info("Classifier loaded (threshold=%.3f)", classifier._threshold)  # type: ignore[union-attr]
 
     if args.url:

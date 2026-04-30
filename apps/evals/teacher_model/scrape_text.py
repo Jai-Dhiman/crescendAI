@@ -330,6 +330,15 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Skip relevance filtering; include all documents",
     )
     parser.add_argument(
+        "--threshold",
+        type=float,
+        default=None,
+        metavar="FLOAT",
+        help="Override classifier relevance threshold (0.0-1.0). "
+             "Default is the F1-optimal threshold (~0.295). "
+             "Use ~0.15 to capture broad piano discourse (history, composers, etc.).",
+    )
+    parser.add_argument(
         "--manifest",
         metavar="PATH",
         help="Path to provenance manifest JSONL (default: teacher_model/data/provenance.jsonl)",
@@ -348,6 +357,8 @@ def main() -> None:
     if not args.no_filter:
         print("Loading relevance classifier...")
         classifier = PedagogyRelevanceClassifier()
+        if args.threshold is not None:
+            classifier._threshold = args.threshold
         print(f"Classifier ready (threshold={classifier._threshold:.3f})")  # type: ignore[union-attr]
 
     results: list[dict] = []
