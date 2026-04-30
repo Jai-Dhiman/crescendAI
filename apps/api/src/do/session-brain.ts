@@ -1241,6 +1241,36 @@ export class SessionBrain extends DurableObject<Bindings> {
 						);
 					}
 				}
+
+				// Eval flywheel: sample ~5% of prod sessions into R2 eval queue
+				if (Math.random() < 0.05) {
+					this.ctx.waitUntil(
+						this.env.CHUNKS.put(
+							`eval-queue/${state.sessionId}.json`,
+							JSON.stringify({
+								session_id: state.sessionId,
+								student_id: state.studentId,
+								piece_id: state.pieceIdentification?.pieceId ?? null,
+								synthesis_text: wsPayload.text,
+								top_moments: topMoments,
+								drilling_records: drillingRecords,
+								session_duration_ms: sessionDurationMs,
+								sampled_at: new Date().toISOString(),
+							}),
+							{ httpMetadata: { contentType: "application/json" } },
+						).catch((err: Error) => {
+							console.log(
+								JSON.stringify({
+									level: "warn",
+									message: "eval flywheel write failed",
+									sessionId: state.sessionId,
+									error: err.message,
+								}),
+							);
+						}),
+					);
+				}
+
 				return;
 			}
 

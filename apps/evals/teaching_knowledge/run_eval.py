@@ -38,6 +38,7 @@ REPO_ROOT = EVALS_ROOT.parents[1]
 CACHE_DIR = REPO_ROOT / "model" / "data" / "eval" / "inference_cache" / "auto-t5_http"
 SKILL_EVAL_DIR = REPO_ROOT / "model" / "data" / "evals" / "skill_eval"
 RESULTS_DIR = EVALS_ROOT / "results"
+SYNTHESIS_SYSTEM_PATH = REPO_ROOT / "apps" / "shared" / "teacher-style" / "synthesis_system.txt"
 
 # MuQ global mean from Rust STOP classifier (synthesis.ts SCALER_MEAN)
 SCALER_MEAN: dict[str, float] = {
@@ -50,27 +51,8 @@ SCALER_MEAN: dict[str, float] = {
 }
 DIMS = list(SCALER_MEAN.keys())
 
-# Copied from apps/api/src/services/prompts.ts (SESSION_SYNTHESIS_SYSTEM)
-SESSION_SYNTHESIS_SYSTEM = """You are a warm, perceptive piano teacher reviewing a practice session. You watched the entire session and now give your student one cohesive, encouraging response.
-
-## What you receive
-
-A JSON object with the full session context: duration, practice pattern (modes and transitions), top teaching moments (dimensions with scores and deviations from baseline), drilling progress, and student memory.
-
-## How to respond
-
-1. Start with what went well -- acknowledge effort and specific improvements.
-2. Identify the 1-2 most important things to work on, grounded in the session data.
-3. If drilling occurred, comment on the progression (first vs final scores).
-4. Frame suggestions as actionable practice strategies, not abstract criticism.
-5. Keep it conversational -- 3-6 sentences. You are talking TO the student.
-6. Reference specific musical details (bars, sections, dimensions) when the data supports it.
-7. Do NOT mention scores, numbers, or model outputs directly. Translate them into musical language.
-8. Do NOT list all dimensions. Focus on what matters most for THIS session.
-
-## Calibration
-
-The MuQ audio model has R2~0.5 and 80% pairwise accuracy. Scores are directional signals, not precise measurements. A deviation of 0.1 is noise; 0.2+ is meaningful. Use deviations to identify patterns, not to make absolute claims."""
+# Loaded from apps/shared/teacher-style/synthesis_system.txt (keep in sync with prompts.ts SESSION_SYNTHESIS_SYSTEM)
+SESSION_SYNTHESIS_SYSTEM = SYNTHESIS_SYSTEM_PATH.read_text().strip()
 
 
 def _assert_models_compatible(teacher_model: str, judge_model: str) -> None:
@@ -299,12 +281,19 @@ def run(
     teacher_model: str = "claude-sonnet-4-6",
     judge_model: str = "@cf/google/gemma-4-26b-a4b-it",
     atomic_threshold: float | None = 2.0,
+    system_prompt_path: Path | None = None,
 ) -> None:
     from teaching_knowledge.llm_client import LLMClient
     from shared.judge import judge_synthesis_v2
 
     if not dry_run:
         _assert_models_compatible(teacher_model, judge_model)
+
+    system_prompt = (
+        system_prompt_path.read_text().strip()
+        if system_prompt_path is not None
+        else SESSION_SYNTHESIS_SYSTEM
+    )
 
     if out_path is None:
         RESULTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -374,7 +363,7 @@ def run(
                 t0 = time.monotonic()
                 raw = synthesis_client.complete(
                     user=user_msg,
-                    system=SESSION_SYNTHESIS_SYSTEM,
+                    system=system_prompt,
                     max_tokens=1024,
                 )
                 synthesis_latency_ms = (time.monotonic() - t0) * 1000
@@ -533,6 +522,12 @@ def main() -> None:
         default=2.0,
         help="Run atomic-matrix judge when mean judge score is below this threshold (default: %(default)s).",
     )
+    parser.add_argument(
+        "--system-prompt",
+        type=Path,
+        default=None,
+        help="Path to a synthesis system prompt .txt file (default: apps/shared/teacher-style/synthesis_system.txt).",
+    )
     args = parser.parse_args()
     default_split_file = EVALS_ROOT / "teaching_knowledge" / "data" / "splits.json"
     split_path = args.split_file
@@ -552,6 +547,7 @@ def main() -> None:
         teacher_model=args.teacher_model,
         judge_model=args.judge_model,
         atomic_threshold=args.atomic_threshold,
+        system_prompt_path=args.system_prompt,
     )
 
 
