@@ -9,7 +9,7 @@ import type {
 } from "../lib/practice-api";
 import { practiceApi } from "../lib/practice-api";
 import { Sentry } from "../lib/sentry";
-import type { RichMessage } from "../lib/types";
+import type { RichMessage, SegmentLoopConfig } from "../lib/types";
 import { useAudioActivity } from "./useAudioActivity";
 import { useNetworkStatus } from "./useDom";
 import { useMountEffect, useSyncRef } from "./useFoundation";
@@ -59,6 +59,7 @@ export interface UsePracticeSessionReturn {
 	setPiece: (query: string) => void;
 	observationMessages: RichMessage[];
 	conversationId: string | null;
+	activeLoop: SegmentLoopConfig | null;
 }
 
 export interface PracticeSessionOptions {
@@ -81,6 +82,7 @@ export function usePracticeSession(
 	const [chunkStates, setChunkStates] = useState<ChunkState[]>([]);
 	const [wsStatus, setWsStatus] = useState<WsStatus>("disconnected");
 	const [practiceMode, setPracticeMode] = useState<PracticeMode | null>(null);
+	const [activeLoop, setActiveLoop] = useState<SegmentLoopConfig | null>(null);
 	const isOnline = useNetworkStatus();
 
 	const sessionIdRef = useRef<string | null>(null);
@@ -306,6 +308,34 @@ export function usePracticeSession(
 				case "piece_set":
 					console.log("Piece context set:", data.query);
 					break;
+				case "segment_loop_status": {
+					if (data.assignment === null) {
+						setActiveLoop(null);
+					} else {
+						setActiveLoop({
+							id: data.assignment.id,
+							pieceId: data.assignment.pieceId,
+							barsStart: data.assignment.barsStart,
+							barsEnd: data.assignment.barsEnd,
+							requiredCorrect: data.assignment.requiredCorrect,
+							attemptsCompleted: data.assignment.attemptsCompleted,
+							status: "active",
+							dimension: data.assignment.dimension,
+						});
+					}
+					break;
+				}
+				case "loop_attempt": {
+					setActiveLoop((prev) => {
+						if (prev === null || prev.id !== data.assignment_id) return prev;
+						return {
+							...prev,
+							attemptsCompleted: data.attempts_completed,
+							status: data.completed_now ? "completed" : prev.status,
+						};
+					});
+					break;
+				}
 				case "error":
 					setError(data.message);
 					break;
@@ -713,5 +743,6 @@ export function usePracticeSession(
 		setPiece,
 		observationMessages,
 		conversationId: conversationIdRef.current,
+		activeLoop,
 	};
 }

@@ -171,6 +171,93 @@ describe("runPhase1Streaming — tool continuation", () => {
 	});
 });
 
+const ASSIGN_LOOP_SSE = [
+	'event: message_start\ndata: {"type":"message_start"}\n\n',
+	'event: content_block_start\ndata: {"index":0,"content_block":{"type":"tool_use","id":"tu_loop","name":"assign_segment_loop"}}\n\n',
+	'event: content_block_delta\ndata: {"index":0,"delta":{"type":"input_json_delta","partial_json":"{\\"piece_id\\":\\"chopin.ballades.1\\",\\"bars_start\\":12,\\"bars_end\\":16,\\"required_correct\\":5}"}}\n\n',
+	'event: content_block_stop\ndata: {"index":0}\n\n',
+	'event: message_delta\ndata: {"delta":{"stop_reason":"tool_use"}}\n\n',
+	"event: message_stop\ndata: {}\n\n",
+].join("");
+
+// Known gap: processToolFn is mocked here so this suite tests that runPhase1Streaming
+// correctly routes assign_segment_loop through the processToolFn hook. The actual
+// chatV6 intercept (assignSegmentLoopAtom) is not exercised — no test DB available.
+// assignSegmentLoopAtom validation is covered by assign-segment-loop.test.ts.
+describe("runPhase1Streaming — assign_segment_loop intercept", () => {
+	const fetchSpy = vi.fn();
+
+	beforeEach(() => {
+		fetchSpy.mockReset();
+		vi.stubGlobal("fetch", fetchSpy);
+	});
+
+	afterEach(() => {
+		vi.unstubAllGlobals();
+	});
+
+	it("tool_result event carries segment_loop component when processToolFn intercepts assign_segment_loop", async () => {
+		// Two fetch calls: tool_use turn + forced text continuation
+		fetchSpy
+			.mockImplementationOnce(() => Promise.resolve(makeSseResponse(ASSIGN_LOOP_SSE)))
+			.mockImplementationOnce(() => Promise.resolve(makeSseResponse(TEXT_ONLY_SSE)));
+
+		const mockComponent = {
+			type: "segment_loop",
+			config: { id: "loop-test-1", pieceId: "chopin.ballades.1", status: "pending" },
+		};
+
+		// processToolFn mirrors the intercept logic chatV6 installs
+		const processToolFn = vi.fn().mockImplementation(
+			async (name: string, _input: unknown) => {
+				if (name === "assign_segment_loop") {
+					return { name, componentsJson: [mockComponent], isError: false };
+				}
+				return { name, componentsJson: [], isError: false };
+			},
+		);
+
+		const binding = getCompoundBinding("OnChatMessage")!;
+		const systemBlocks = [{ type: "text" as const, text: "You are a teacher." }];
+		const messages = [{ role: "user" as const, content: "Practice bars 12-16." }];
+
+		const events: TeacherEvent[] = [];
+		for await (const ev of runPhase1Streaming(
+			PHASE_CTX,
+			binding,
+			systemBlocks,
+			messages,
+			processToolFn,
+		)) {
+			events.push(ev);
+		}
+
+		// processToolFn called with the parsed tool input
+		expect(processToolFn).toHaveBeenCalledWith("assign_segment_loop", {
+			piece_id: "chopin.ballades.1",
+			bars_start: 12,
+			bars_end: 16,
+			required_correct: 5,
+		});
+
+		// tool_result event is emitted with the segment_loop component
+		const toolResult = events.find(
+			(e): e is Extract<TeacherEvent, { type: "tool_result" }> =>
+				e.type === "tool_result" && (e as Extract<TeacherEvent, { type: "tool_result" }>).name === "assign_segment_loop",
+		);
+		expect(toolResult).toBeDefined();
+		expect(toolResult?.componentsJson).toHaveLength(1);
+		expect(toolResult?.componentsJson[0]?.type).toBe("segment_loop");
+
+		// component accumulates into the final done event
+		const done = events.findLast((e) => e.type === "done");
+		expect(done?.type).toBe("done");
+		if (done?.type === "done") {
+			expect(done.allComponents[0]?.type).toBe("segment_loop");
+		}
+	});
+});
+
 describe("runPhase1Streaming — turn cap exhaustion", () => {
 	const fetchSpy = vi.fn();
 

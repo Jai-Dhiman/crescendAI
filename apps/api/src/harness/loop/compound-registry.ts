@@ -2,6 +2,7 @@ import { SynthesisArtifactSchema } from "../artifacts/synthesis";
 import type { CompoundBinding, HookKind } from "./types";
 import { ALL_MOLECULES } from "../skills/molecules";
 import { TOOL_REGISTRY } from "../../services/tool-processor";
+import { ASSIGN_SEGMENT_LOOP_TOOL } from "../atoms/assign-segment-loop";
 
 const SESSION_SYNTHESIS_PROCEDURE = `You are running the session-synthesis compound.
 Phase 1 (this call): analyze the session digest and dispatch any registered diagnosis molecules across plausible bar ranges. Each molecule chains the necessary atoms deterministically — you only need to pick the right molecule and supply the bar range and signal data from the digest. When you have enough diagnoses, end your turn without calling tools.
@@ -13,7 +14,7 @@ const REGISTRY: Map<HookKind, CompoundBinding> = new Map([
 		{
 			compoundName: "session-synthesis",
 			procedurePrompt: SESSION_SYNTHESIS_PROCEDURE,
-			tools: [...ALL_MOLECULES],
+			tools: [...ALL_MOLECULES, ASSIGN_SEGMENT_LOOP_TOOL],
 			mode: "buffered" as const,
 			phases: 2 as const,
 			artifactSchema: SynthesisArtifactSchema,
@@ -25,12 +26,15 @@ const REGISTRY: Map<HookKind, CompoundBinding> = new Map([
 		{
 			compoundName: "chat-response",
 			procedurePrompt: "",
-			tools: Object.values(TOOL_REGISTRY).map((t) => ({
-				name: t.name,
-				description: t.description,
-				input_schema: t.anthropicSchema.input_schema as Record<string, unknown>,
-				invoke: async (_input: unknown): Promise<unknown> => ({}),
-			})),
+			tools: [
+				...Object.values(TOOL_REGISTRY).map((t) => ({
+					name: t.name,
+					description: t.description,
+					input_schema: t.anthropicSchema.input_schema as Record<string, unknown>,
+					invoke: async (_input: unknown): Promise<unknown> => ({}),
+				})),
+				ASSIGN_SEGMENT_LOOP_TOOL,
+			],
 			mode: "streaming" as const,
 			phases: 1 as const,
 		},

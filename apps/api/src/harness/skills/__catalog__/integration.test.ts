@@ -94,6 +94,7 @@ const VALID_SYNTHESIS_ARTIFACT: SynthesisArtifact = {
 	next_session_focus: null,
 	diagnosis_refs: ['tu_1'],
 	headline: "Today's session showed solid commitment to the phrase shapes throughout the piece. The dynamics held steady and your timing in the opening section was notably clean. The one area to refine is the pedaling at bars three and four, where the sustain was held a beat longer than the harmony called for. This muddied the transition slightly. Next time, try lifting the pedal on beat three and listen for how the texture clears. Small adjustment, big difference in the overall color.",
+	assigned_loops: [],
 }
 
 // Phase 2: write_synthesis_artifact

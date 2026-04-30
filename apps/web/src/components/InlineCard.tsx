@@ -2,6 +2,7 @@ import type { InlineComponent } from "../lib/types";
 import { ExerciseSetCard } from "./cards/ExerciseSetCard";
 import { PlaceholderCard } from "./cards/PlaceholderCard";
 import { ScoreHighlightCard } from "./cards/ScoreHighlightCard";
+import { SegmentLoopArtifactCard } from "./cards/SegmentLoopArtifact";
 
 interface InlineCardProps {
 	component: InlineComponent;
@@ -31,6 +32,8 @@ export function InlineCard({
 					artifactId={artifactId}
 				/>
 			);
+		case "segment_loop":
+			return <SegmentLoopArtifactCard config={component.config} />;
 		default:
 			return <PlaceholderCard type={component.type} />;
 	}

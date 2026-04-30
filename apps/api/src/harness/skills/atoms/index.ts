@@ -25,6 +25,8 @@ export type { Baseline } from "./fetch-student-baseline";
 export type { SessionHistory } from "./fetch-session-history";
 export type { PastObservation } from "./fetch-similar-past-observation";
 
+export { ASSIGN_SEGMENT_LOOP_TOOL } from "../../atoms/assign-segment-loop";
+
 export const ALL_ATOMS: ToolDefinition[] = [
 	alignPerformanceToScore,
 	classifyStopMoment,

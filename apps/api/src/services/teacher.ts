@@ -18,12 +18,14 @@ import {
 } from "./llm";
 import { buildMemoryContext } from "./memory";
 import { buildSynthesisFraming, UNIFIED_TEACHER_SYSTEM } from "./prompts";
+import * as segmentLoopsService from "./segment-loops";
 import {
 	getAnthropicToolSchemas,
 	type InlineComponent,
 	processToolUse,
 	type ToolResult,
 } from "./tool-processor";
+import { assignSegmentLoopAtom } from "../harness/atoms/assign-segment-loop";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -86,6 +88,7 @@ export interface SynthesisInput {
 	baselines: Record<string, number> | null;
 	sessionHistory: SessionHistoryRecord[];
 	pastDiagnoses: PastDiagnosisRecord[];
+	pieceId?: string | null;
 }
 
 type ProcessToolFn = (name: string, input: unknown) => Promise<ToolResult>;
@@ -569,6 +572,7 @@ export async function* chatV6(
 		content: string | AnthropicContentBlock[];
 	}>,
 	dynamicContext: string,
+	pieceId?: string,
 ): AsyncGenerator<TeacherEvent> {
 	const systemBlocks: AnthropicSystemBlock[] = [
 		{
@@ -581,8 +585,30 @@ export async function* chatV6(
 			: []),
 	];
 
-	const processToolFn: ProcessToolFn = async (name, input) =>
-		processToolUse(ctx, studentId, name, input);
+	const processToolFn: ProcessToolFn = async (name, input) => {
+		if (name === "assign_segment_loop") {
+			try {
+				const atomCtx: PhaseContext = {
+					env: ctx.env,
+					studentId,
+					sessionId: "",
+					conversationId: null,
+					digest: {},
+					waitUntil: () => {},
+					pieceId,
+					trigger: "chat",
+					turnCap: 5,
+				};
+				const artifact = await assignSegmentLoopAtom(atomCtx, input);
+				const component = segmentLoopsService.toLoopComponent(artifact);
+				return { name, componentsJson: [component], isError: false };
+			} catch (err) {
+				const message = err instanceof Error ? err.message : String(err);
+				return { name, componentsJson: [], isError: true, errorMessage: message };
+			}
+		}
+		return processToolUse(ctx, studentId, name, input);
+	};
 
 	const hookCtx: HookContext = {
 		env: ctx.env,
@@ -591,6 +617,8 @@ export async function* chatV6(
 		conversationId: null,
 		digest: {},
 		waitUntil: (_p: Promise<unknown>) => {},
+		pieceId,
+		trigger: "chat",
 	};
 
 	yield* runStreamingHook(
@@ -739,6 +767,8 @@ export async function* synthesizeV6(
 		conversationId: input.conversationId,
 		digest,
 		waitUntil: waitUntil ?? ((_p: Promise<unknown>) => {}),
+		pieceId: input.pieceId ?? undefined,
+		trigger: "synthesis",
 	};
 
 	for await (const ev of runHook("OnSessionEnd", hookCtx)) {

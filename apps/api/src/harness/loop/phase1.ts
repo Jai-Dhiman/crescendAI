@@ -144,7 +144,7 @@ export async function* runPhase1(
 				continue;
 			}
 			try {
-				const output = await wrapToolCall(() => def.invoke(tu.input));
+				const output = await wrapToolCall(tu.name, ctx, () => def.invoke(tu.input, ctx));
 				yield {
 					type: "phase1_tool_result",
 					id: tu.id,

@@ -46,3 +46,9 @@ export class ConfigError extends DomainError {
 		super(message);
 	}
 }
+
+export class ToolPreconditionError extends DomainError {
+	constructor(reason: string) {
+		super(`tool precondition failed: ${reason}`);
+	}
+}

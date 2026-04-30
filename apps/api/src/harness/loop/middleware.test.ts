@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, test } from "vitest";
 import {
 	redactPii,
 	reviewArtifact,
@@ -6,6 +6,18 @@ import {
 	wrapToolCall,
 } from "./middleware";
 import { InferenceError } from "../../lib/errors";
+import type { PhaseContext } from "./types";
+
+const MOCK_CTX = {
+	env: {} as PhaseContext["env"],
+	studentId: "stu-1",
+	sessionId: "sess-1",
+	conversationId: null,
+	digest: {},
+	waitUntil: () => {},
+	turnCap: 5,
+	trigger: "chat" as const,
+} satisfies PhaseContext;
 
 describe("redactPii", () => {
 	it("returns the input unchanged", () => {
@@ -23,13 +35,13 @@ describe("redactPii", () => {
 
 describe("wrapToolCall", () => {
 	it("returns the inner invocation result unchanged", async () => {
-		const result = await wrapToolCall(async () => ({ ok: true, value: 42 }));
+		const result = await wrapToolCall("some_tool", MOCK_CTX, async () => ({ ok: true, value: 42 }));
 		expect(result).toEqual({ ok: true, value: 42 });
 	});
 
 	it("propagates inner errors", async () => {
 		await expect(
-			wrapToolCall(async () => {
+			wrapToolCall("some_tool", MOCK_CTX, async () => {
 				throw new Error("boom");
 			}),
 		).rejects.toThrow("boom");
@@ -107,4 +119,14 @@ describe("reviewArtifact stub", () => {
 		}
 		expect(logs.some((l) => l.includes('"reviewArtifact"'))).toBe(true);
 	});
+});
+
+test("wrapToolCall passes through non-action tools unchanged", async () => {
+	const result = await wrapToolCall("search_catalog", MOCK_CTX, async () => "result");
+	expect(result).toBe("result");
+});
+
+test("wrapToolCall passes through assign_segment_loop (gating is in atom)", async () => {
+	const result = await wrapToolCall("assign_segment_loop", MOCK_CTX, async () => ({ status: "pending" }));
+	expect(result).toEqual({ status: "pending" });
 });

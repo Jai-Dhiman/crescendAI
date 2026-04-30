@@ -12,7 +12,7 @@ export interface ToolDefinition {
 	name: string;
 	description: string;
 	input_schema: Record<string, unknown>;
-	invoke: (input: unknown) => Promise<unknown>;
+	invoke: (input: unknown, ctx?: PhaseContext) => Promise<unknown>;
 }
 
 export interface CompoundBinding {
@@ -62,6 +62,8 @@ export interface HookContext {
 	conversationId: string | null;
 	digest: Record<string, unknown>;
 	waitUntil: (p: Promise<unknown>) => void;
+	pieceId?: string;
+	trigger?: "chat" | "synthesis";
 }
 
 export interface PhaseContext extends HookContext {

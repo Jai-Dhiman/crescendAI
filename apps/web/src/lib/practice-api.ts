@@ -84,7 +84,25 @@ export type PracticeWsEvent =
 	  }
 	| { type: "piece_set"; query: string }
 	| ModeChangeEvent
-	| { type: "error"; message: string };
+	| { type: "error"; message: string }
+	| {
+			type: "segment_loop_status";
+			assignment: {
+				id: string;
+				pieceId: string;
+				barsStart: number;
+				barsEnd: number;
+				requiredCorrect: number;
+				attemptsCompleted: number;
+				dimension: string | null;
+			} | null;
+	  }
+	| {
+			type: "loop_attempt";
+			assignment_id: string;
+			attempts_completed: number;
+			completed_now: boolean;
+	  };
 
 export const practiceApi = {
 	async start(conversationId?: string): Promise<PracticeStartResponse> {

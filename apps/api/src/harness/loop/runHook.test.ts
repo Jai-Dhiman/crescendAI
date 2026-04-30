@@ -22,6 +22,7 @@ const VALID_ARTIFACT: SynthesisArtifact = {
 	headline:
 		"You showed up and put in real work today. The session was short but focused, and we'll keep building from here. There is plenty to dig into next time, and I'll be ready when you are. Keep listening for the shape of each phrase as you play. " +
 		"Tomorrow we'll come at it fresh with one specific thing to chase down.",
+	assigned_loops: [],
 };
 
 const HOOK_CTX: HookContext = {
