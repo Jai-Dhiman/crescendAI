@@ -660,6 +660,7 @@ export class SessionBrain extends DurableObject<Bindings> {
 							}),
 						);
 						currentState.activeAssignment = null;
+						await this.writeState(currentState);
 						return;
 					}
 					throw err;
