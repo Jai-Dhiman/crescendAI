@@ -15,7 +15,7 @@ export const Route = createFileRoute("/")({
 
 function LandingPage() {
 	return (
-		<div>
+		<div data-landing="">
 			<HeroSection />
 			<FeatureCardsSection />
 			<CascadingQuoteSection />

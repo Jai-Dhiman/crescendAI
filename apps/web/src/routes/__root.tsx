@@ -60,7 +60,7 @@ function RootDocument() {
 	useEffect(() => {
 		function applyTheme() {
 			const p = pathnameRef.current;
-			const t = themeRef.current;
+			const t = useThemeStore.getState().theme;
 			const isAlwaysDark = p === "/" || p === "/signin";
 			if (isAlwaysDark) {
 				delete document.documentElement.dataset.theme;
@@ -71,9 +71,8 @@ function RootDocument() {
 			}
 		}
 
-		applyTheme(); // Apply once on mount
+		applyTheme();
 
-		// Subscribe to store changes as the event-driven update signal (Rule 3)
 		let subscribed = true;
 		const unsubscribe = useThemeStore.subscribe(() => {
 			if (subscribed) applyTheme();

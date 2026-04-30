@@ -2,16 +2,16 @@
 
 @theme {
 	/* Espresso/Cream palette */
-	--color-espresso: #2d2926;
+	--color-espresso: #3a3633;
 	--color-cream: #fdf8f0;
 
 	/* Dark surface scale (landing page) */
-	--color-surface: #3a3633;
-	--color-surface-2: #454140;
-	--color-border: #504b48;
+	--color-surface: #474340;
+	--color-surface-2: #524e4d;
+	--color-border: #5d5855;
 
 	/* Floating card */
-	--color-surface-card: #3e3a37;
+	--color-surface-card: #4b4744;
 	--shadow-card: 0 2px 8px rgba(0, 0, 0, 0.2);
 
 	/* Brand accent (muted sage) */
@@ -126,13 +126,22 @@
 	}
 }
 
+[data-landing] {
+	--color-espresso: #2d2926;
+	--color-surface: #3a3633;
+	--color-surface-2: #454140;
+	--color-border: #504b48;
+	--color-surface-card: #3e3a37;
+	background-color: #2d2926;
+}
+
 html[data-theme="light"] {
-	--color-espresso: #fdf8f0;
+	--color-espresso: #ffffff;
 	--color-cream: #2d2926;
-	--color-surface: #ffffff;
-	--color-surface-2: #f5f0e8;
-	--color-border: #e0d8cd;
-	--color-surface-card: #ffffff;
+	--color-surface: #fefaf4;
+	--color-surface-2: #f9f3ea;
+	--color-border: #ede5d8;
+	--color-surface-card: #fefaf4;
 	--color-accent: #5f7d66;
 	--color-accent-lighter: #7a9a82;
 	--color-accent-darker: #4a6650;
