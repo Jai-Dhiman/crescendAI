@@ -37,6 +37,17 @@ export const sessionStateSchema = z.object({
 		.default({ lastKnownBar: null }),
 	modeDetector: z.unknown().default(null),
 	identificationNoteCount: z.number().int().default(0),
+	activeAssignment: z
+		.object({
+			id: z.string(),
+			pieceId: z.string(),
+			barsStart: z.number().int(),
+			barsEnd: z.number().int(),
+			requiredCorrect: z.number().int(),
+			attemptsCompleted: z.number().int(),
+		})
+		.nullable()
+		.default(null),
 });
 
 export type SessionState = z.infer<typeof sessionStateSchema>;
@@ -93,5 +104,6 @@ export function createInitialState(
 		followerState: { lastKnownBar: null },
 		modeDetector: null,
 		identificationNoteCount: 0,
+		activeAssignment: null,
 	};
 }

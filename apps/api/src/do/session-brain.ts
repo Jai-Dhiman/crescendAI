@@ -20,7 +20,8 @@ import {
 	persistSynthesisMessage,
 } from "../services/synthesis";
 import type { InlineComponent } from "../services/tool-processor";
-import { toLoopComponent } from "../services/segment-loops";
+import { toLoopComponent, findActiveForPiece, incrementAttempts } from "../services/segment-loops";
+import { PassageLoopDetector } from "./passage-loop-detector";
 import {
 	type SynthesisInput,
 	synthesize as teacherSynthesize,
@@ -71,6 +72,9 @@ export function buildV6WsPayload(
 // Per-instance non-persisted state (lost on hibernation/eviction — intentional)
 // Used only for AMT overlap context: previous chunk audio bytes
 const previousChunkAudio = new WeakMap<SessionBrain, ArrayBuffer | null>();
+
+// Per-instance PassageLoopDetector (non-persisted — recreated on hibernation restore)
+const detectorMap = new WeakMap<SessionBrain, PassageLoopDetector>();
 
 // Minimum notes before attempting piece identification
 const MIN_NOTES_FOR_IDENTIFICATION = 30;
@@ -222,6 +226,32 @@ export class SessionBrain extends DurableObject<Bindings> {
 
 		// Welcome message
 		this.sendWs(server, { type: "connected", sessionId });
+
+		// Load active loop assignment and broadcast to client
+		const currentState = await this.ctx.storage.get<SessionState>("state");
+		if (currentState?.pieceIdentification) {
+			const db = createDb(this.env.HYPERDRIVE);
+			const activeLoop = await findActiveForPiece(
+				db,
+				currentState.studentId,
+				currentState.pieceIdentification.pieceId,
+			);
+			if (activeLoop) {
+				currentState.activeAssignment = {
+					id: activeLoop.id,
+					pieceId: activeLoop.pieceId,
+					barsStart: activeLoop.barsStart,
+					barsEnd: activeLoop.barsEnd,
+					requiredCorrect: activeLoop.requiredCorrect,
+					attemptsCompleted: activeLoop.attemptsCompleted,
+				};
+				await this.ctx.storage.put("state", currentState);
+				this.sendWs(server, {
+					type: "segment_loop_status",
+					assignment: currentState.activeAssignment,
+				});
+			}
+		}
 
 		return new Response(null, { status: 101, webSocket: client });
 	}
@@ -589,6 +619,38 @@ export class SessionBrain extends DurableObject<Bindings> {
 					}),
 				);
 				// Tier 3: scores only — chunkAnalysisTier stays 3
+			}
+		}
+
+		// Passage-loop detection: if an active assignment is set, check if this chunk is in bounds
+		if (currentState.activeAssignment && chunkBarRange) {
+			const detector = detectorMap.get(this) ?? new PassageLoopDetector();
+			detectorMap.set(this, detector);
+			const attempt = detector.processPosition(
+				{ startBar: chunkBarRange[0], endBar: chunkBarRange[1], durationMs: 15000 },
+				{
+					kind: "segment_loop",
+					...currentState.activeAssignment,
+					studentId: currentState.studentId,
+					status: "active",
+					dimension: null,
+				},
+			);
+			if (attempt?.inBounds) {
+				const db = createDb(this.env.HYPERDRIVE);
+				const { attemptsCompleted, completedNow } = await incrementAttempts(
+					db,
+					currentState.activeAssignment.id,
+					currentState.studentId,
+				);
+				currentState.activeAssignment.attemptsCompleted = attemptsCompleted;
+				if (completedNow) currentState.activeAssignment = null;
+				this.sendWs(ws, {
+					type: "loop_attempt",
+					assignment_id: currentState.activeAssignment?.id,
+					attempts_completed: attemptsCompleted,
+					completed_now: completedNow,
+				});
 			}
 		}
 
