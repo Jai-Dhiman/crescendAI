@@ -18,12 +18,14 @@ import {
 } from "./llm";
 import { buildMemoryContext } from "./memory";
 import { buildSynthesisFraming, UNIFIED_TEACHER_SYSTEM } from "./prompts";
+import * as segmentLoopsService from "./segment-loops";
 import {
 	getAnthropicToolSchemas,
 	type InlineComponent,
 	processToolUse,
 	type ToolResult,
 } from "./tool-processor";
+import { createDb } from "../db/client";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -570,6 +572,7 @@ export async function* chatV6(
 		content: string | AnthropicContentBlock[];
 	}>,
 	dynamicContext: string,
+	pieceId?: string,
 ): AsyncGenerator<TeacherEvent> {
 	const systemBlocks: AnthropicSystemBlock[] = [
 		{
@@ -582,8 +585,29 @@ export async function* chatV6(
 			: []),
 	];
 
-	const processToolFn: ProcessToolFn = async (name, input) =>
-		processToolUse(ctx, studentId, name, input);
+	const processToolFn: ProcessToolFn = async (name, input) => {
+		if (name === "assign_segment_loop") {
+			try {
+				const db = createDb(ctx.env.HYPERDRIVE);
+				const artifact = await segmentLoopsService.createSegmentLoop(db, {
+					studentId,
+					pieceId: (input as { piece_id?: string }).piece_id ?? "",
+					conversationId: null,
+					barsStart: (input as { bars_start: number }).bars_start,
+					barsEnd: (input as { bars_end: number }).bars_end,
+					requiredCorrect: (input as { required_correct?: number }).required_correct ?? 5,
+					dimension: (input as { dimension?: string }).dimension ?? null,
+					trigger: "chat",
+				});
+				const component = segmentLoopsService.toLoopComponent(artifact);
+				return { name, componentsJson: [component], isError: false };
+			} catch (err) {
+				const message = err instanceof Error ? err.message : String(err);
+				return { name, componentsJson: [], isError: true, errorMessage: message };
+			}
+		}
+		return processToolUse(ctx, studentId, name, input);
+	};
 
 	const hookCtx: HookContext = {
 		env: ctx.env,
@@ -592,6 +616,8 @@ export async function* chatV6(
 		conversationId: null,
 		digest: {},
 		waitUntil: (_p: Promise<unknown>) => {},
+		pieceId,
+		trigger: "chat",
 	};
 
 	yield* runStreamingHook(
