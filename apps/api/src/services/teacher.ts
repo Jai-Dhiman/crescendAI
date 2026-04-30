@@ -588,10 +588,12 @@ export async function* chatV6(
 	const processToolFn: ProcessToolFn = async (name, input) => {
 		if (name === "assign_segment_loop") {
 			try {
+				const pieceId = (input as { piece_id?: string }).piece_id;
+				if (!pieceId) throw new Error("assign_segment_loop: piece_id is required");
 				const db = createDb(ctx.env.HYPERDRIVE);
 				const artifact = await segmentLoopsService.createSegmentLoop(db, {
 					studentId,
-					pieceId: (input as { piece_id?: string }).piece_id ?? "",
+					pieceId: pieceId,
 					conversationId: null,
 					barsStart: (input as { bars_start: number }).bars_start,
 					barsEnd: (input as { bars_end: number }).bars_end,
