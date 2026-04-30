@@ -180,6 +180,10 @@ const ASSIGN_LOOP_SSE = [
 	"event: message_stop\ndata: {}\n\n",
 ].join("");
 
+// Known gap: processToolFn is mocked here so this suite tests that runPhase1Streaming
+// correctly routes assign_segment_loop through the processToolFn hook. The actual
+// chatV6 intercept (assignSegmentLoopAtom) is not exercised — no test DB available.
+// assignSegmentLoopAtom validation is covered by assign-segment-loop.test.ts.
 describe("runPhase1Streaming — assign_segment_loop intercept", () => {
 	const fetchSpy = vi.fn();
 

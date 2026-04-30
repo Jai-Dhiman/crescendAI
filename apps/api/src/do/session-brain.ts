@@ -29,6 +29,7 @@ import {
 	synthesizeV6,
 } from "../services/teacher";
 import type { SynthesisArtifact } from "../harness/artifacts/synthesis";
+import type { SegmentLoopArtifact } from "../harness/artifacts/segment-loop";
 import type {
 	FollowerState,
 	NgramIndex,
@@ -245,6 +246,7 @@ export class SessionBrain extends DurableObject<Bindings> {
 					barsEnd: activeLoop.barsEnd,
 					requiredCorrect: activeLoop.requiredCorrect,
 					attemptsCompleted: activeLoop.attemptsCompleted,
+					dimension: activeLoop.dimension,
 				};
 				await this.ctx.storage.put("state", currentState);
 				this.sendWs(server, {
@@ -632,22 +634,29 @@ export class SessionBrain extends DurableObject<Bindings> {
 				{
 					kind: "segment_loop",
 					...currentState.activeAssignment,
+					// dimension stored as string | null in schema; validated as DIMS_6 on write
+					dimension: currentState.activeAssignment.dimension as SegmentLoopArtifact["dimension"],
 					studentId: currentState.studentId,
 					status: "active",
-					dimension: null,
 				},
 			);
 			if (attempt?.inBounds) {
 				const db = createDb(this.env.HYPERDRIVE);
 				const assignmentId = currentState.activeAssignment.id;
-				let attemptsCompleted: number;
-				let completedNow: boolean;
 				try {
-					({ attemptsCompleted, completedNow } = await incrementAttempts(
+					const { attemptsCompleted, completedNow } = await incrementAttempts(
 						db,
 						assignmentId,
 						currentState.studentId,
-					));
+					);
+					currentState.activeAssignment.attemptsCompleted = attemptsCompleted;
+					if (completedNow) currentState.activeAssignment = null;
+					this.sendWs(ws, {
+						type: "loop_attempt",
+						assignment_id: assignmentId,
+						attempts_completed: attemptsCompleted,
+						completed_now: completedNow,
+					});
 				} catch (err) {
 					if (err instanceof ValidationError) {
 						console.log(
@@ -661,18 +670,10 @@ export class SessionBrain extends DurableObject<Bindings> {
 						);
 						currentState.activeAssignment = null;
 						await this.writeState(currentState);
-						return;
+					} else {
+						throw err;
 					}
-					throw err;
 				}
-				currentState.activeAssignment.attemptsCompleted = attemptsCompleted;
-				if (completedNow) currentState.activeAssignment = null;
-				this.sendWs(ws, {
-					type: "loop_attempt",
-					assignment_id: assignmentId,
-					attempts_completed: attemptsCompleted,
-					completed_now: completedNow,
-				});
 			}
 		}
 

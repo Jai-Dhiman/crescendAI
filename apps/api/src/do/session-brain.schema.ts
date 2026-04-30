@@ -45,6 +45,7 @@ export const sessionStateSchema = z.object({
 			barsEnd: z.number().int(),
 			requiredCorrect: z.number().int(),
 			attemptsCompleted: z.number().int(),
+			dimension: z.string().nullable().default(null),
 		})
 		.nullable()
 		.default(null),

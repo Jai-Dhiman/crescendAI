@@ -320,7 +320,7 @@ export function usePracticeSession(
 							requiredCorrect: data.assignment.requiredCorrect,
 							attemptsCompleted: data.assignment.attemptsCompleted,
 							status: "active",
-							dimension: null,
+							dimension: data.assignment.dimension,
 						});
 					}
 					break;

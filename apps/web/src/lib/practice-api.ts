@@ -94,6 +94,7 @@ export type PracticeWsEvent =
 				barsEnd: number;
 				requiredCorrect: number;
 				attemptsCompleted: number;
+				dimension: string | null;
 			} | null;
 	  }
 	| {

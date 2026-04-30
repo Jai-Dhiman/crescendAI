@@ -25,7 +25,7 @@ import {
 	processToolUse,
 	type ToolResult,
 } from "./tool-processor";
-import { createDb } from "../db/client";
+import { assignSegmentLoopAtom } from "../harness/atoms/assign-segment-loop";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -588,19 +588,18 @@ export async function* chatV6(
 	const processToolFn: ProcessToolFn = async (name, input) => {
 		if (name === "assign_segment_loop") {
 			try {
-				const pieceId = (input as { piece_id?: string }).piece_id;
-				if (!pieceId) throw new Error("assign_segment_loop: piece_id is required");
-				const db = createDb(ctx.env.HYPERDRIVE);
-				const artifact = await segmentLoopsService.createSegmentLoop(db, {
+				const atomCtx: PhaseContext = {
+					env: ctx.env,
 					studentId,
-					pieceId: pieceId,
+					sessionId: "",
 					conversationId: null,
-					barsStart: (input as { bars_start: number }).bars_start,
-					barsEnd: (input as { bars_end: number }).bars_end,
-					requiredCorrect: (input as { required_correct?: number }).required_correct ?? 5,
-					dimension: (input as { dimension?: string }).dimension ?? null,
+					digest: {},
+					waitUntil: () => {},
+					pieceId,
 					trigger: "chat",
-				});
+					turnCap: 5,
+				};
+				const artifact = await assignSegmentLoopAtom(atomCtx, input);
 				const component = segmentLoopsService.toLoopComponent(artifact);
 				return { name, componentsJson: [component], isError: false };
 			} catch (err) {
