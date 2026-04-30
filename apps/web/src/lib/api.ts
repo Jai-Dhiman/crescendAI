@@ -424,6 +424,16 @@ export async function checkNeedsSynthesis(
 	}
 }
 
+export async function acceptSegmentLoop(id: string): Promise<void> {
+	await request(`/api/segment-loops/${id}/accept`, { method: "POST" });
+}
+export async function declineSegmentLoop(id: string): Promise<void> {
+	await request(`/api/segment-loops/${id}/decline`, { method: "POST" });
+}
+export async function dismissSegmentLoop(id: string): Promise<void> {
+	await request(`/api/segment-loops/${id}/dismiss`, { method: "POST" });
+}
+
 /** Trigger deferred synthesis for a specific session. */
 export async function triggerDeferredSynthesis(
 	sessionId: string,
