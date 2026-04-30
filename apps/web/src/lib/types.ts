@@ -31,7 +31,8 @@ export type InlineComponent =
 	| { type: "exercise_set"; config: ExerciseSetConfig }
 	| { type: "score_highlight"; config: ScoreHighlightConfig }
 	| { type: "keyboard_guide"; config: KeyboardGuideConfig }
-	| { type: "reference_browser"; config: ReferenceBrowserConfig };
+	| { type: "reference_browser"; config: ReferenceBrowserConfig }
+	| { type: "segment_loop"; config: SegmentLoopConfig };
 
 export interface ExerciseSetConfig {
 	sourcePassage: string;
@@ -60,4 +61,15 @@ export interface KeyboardGuideConfig {
 
 export interface ReferenceBrowserConfig {
 	[key: string]: unknown;
+}
+
+export interface SegmentLoopConfig {
+	id: string;
+	pieceId: string;
+	barsStart: number;
+	barsEnd: number;
+	requiredCorrect: number;
+	attemptsCompleted: number;
+	status: "pending" | "active" | "completed" | "dismissed" | "superseded";
+	dimension: string | null;
 }

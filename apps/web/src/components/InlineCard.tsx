@@ -33,7 +33,7 @@ export function InlineCard({
 				/>
 			);
 		case "segment_loop":
-			return <SegmentLoopArtifactCard config={component.config as any} />;
+			return <SegmentLoopArtifactCard config={component.config} />;
 		default:
 			return <PlaceholderCard type={component.type} />;
 	}

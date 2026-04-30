@@ -1,16 +1,6 @@
 import { useState } from "react";
 import { acceptSegmentLoop, declineSegmentLoop, dismissSegmentLoop } from "../../lib/api";
-
-interface SegmentLoopConfig {
-  id: string;
-  pieceId: string;
-  barsStart: number;
-  barsEnd: number;
-  requiredCorrect: number;
-  attemptsCompleted: number;
-  status: "pending" | "active" | "completed" | "dismissed" | "superseded";
-  dimension: string | null;
-}
+import type { SegmentLoopConfig } from "../../lib/types";
 
 interface Props {
   config: SegmentLoopConfig;
@@ -19,11 +9,12 @@ interface Props {
 export function SegmentLoopArtifactCard({ config }: Props) {
   const [status, setStatus] = useState(config.status);
   const [attempts] = useState(config.attemptsCompleted);
+  const [error, setError] = useState<string | null>(null);
 
   if (status === "completed") {
     return (
-      <div className="rounded-lg border p-4">
-        <p className="font-medium text-green-700">
+      <div className="bg-surface-card border border-border rounded-xl p-4">
+        <p className="font-medium text-accent">
           Loop complete — bars {config.barsStart}–{config.barsEnd}
         </p>
       </div>
@@ -32,8 +23,8 @@ export function SegmentLoopArtifactCard({ config }: Props) {
 
   if (status === "dismissed" || status === "superseded") {
     return (
-      <div className="rounded-lg border p-4 opacity-50">
-        <p className="text-sm text-gray-500">
+      <div className="bg-surface-card border border-border rounded-xl p-4 opacity-50">
+        <p className="text-body-sm text-text-tertiary">
           Bars {config.barsStart}–{config.barsEnd} — {status}
         </p>
       </div>
@@ -41,28 +32,37 @@ export function SegmentLoopArtifactCard({ config }: Props) {
   }
 
   return (
-    <div className="rounded-lg border p-4 space-y-3">
+    <div className="bg-surface-card border border-border rounded-xl p-4 space-y-3">
       <div>
-        <p className="font-medium">
+        <p className="font-medium text-text-primary">
           Practice loop: bars {config.barsStart}–{config.barsEnd}
         </p>
         {config.dimension && (
-          <p className="text-sm text-gray-600">Focus: {config.dimension}</p>
+          <p className="text-body-sm text-text-secondary">Focus: {config.dimension}</p>
         )}
       </div>
 
+      {error && (
+        <p className="text-body-xs text-red-400">{error}</p>
+      )}
+
       {status === "active" && (
         <div className="flex items-center gap-2">
-          <span className="text-sm">
+          <span className="text-body-sm text-text-primary">
             {attempts} / {config.requiredCorrect} attempts
           </span>
           <button
             type="button"
             onClick={async () => {
-              await dismissSegmentLoop(config.id);
-              setStatus("dismissed");
+              setError(null);
+              try {
+                await dismissSegmentLoop(config.id);
+                setStatus("dismissed");
+              } catch (e) {
+                setError(e instanceof Error ? e.message : "Failed to dismiss loop");
+              }
             }}
-            className="ml-auto text-xs text-gray-500 underline"
+            className="ml-auto text-body-xs text-text-secondary underline"
           >
             Dismiss
           </button>
@@ -74,20 +74,30 @@ export function SegmentLoopArtifactCard({ config }: Props) {
           <button
             type="button"
             onClick={async () => {
-              await acceptSegmentLoop(config.id);
-              setStatus("active");
+              setError(null);
+              try {
+                await acceptSegmentLoop(config.id);
+                setStatus("active");
+              } catch (e) {
+                setError(e instanceof Error ? e.message : "Failed to accept loop");
+              }
             }}
-            className="rounded bg-indigo-600 px-3 py-1 text-sm text-white"
+            className="rounded-lg bg-accent px-3 py-1 text-body-sm text-cream"
           >
             Accept
           </button>
           <button
             type="button"
             onClick={async () => {
-              await declineSegmentLoop(config.id);
-              setStatus("dismissed");
+              setError(null);
+              try {
+                await declineSegmentLoop(config.id);
+                setStatus("dismissed");
+              } catch (e) {
+                setError(e instanceof Error ? e.message : "Failed to decline loop");
+              }
             }}
-            className="rounded border px-3 py-1 text-sm"
+            className="rounded-lg border border-border px-3 py-1 text-body-sm text-text-secondary"
           >
             Skip
           </button>
