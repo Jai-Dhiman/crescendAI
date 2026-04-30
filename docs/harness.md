@@ -77,7 +77,7 @@ Typed per-student memory (baseline, recurring_issue, preference, repertoire, goa
 
 ### V8 -- Action, Artifacts, Client
 Artifacts as NLAH durable outputs. Direct-action tools that interrupt playthrough and restructure practice (the answer to the Score Following wiki's 90%-playthrough finding). iOS + web as thin clients over the same harness. Doc home: `docs/apps/04-exercises.md`, `docs/apps/05-ui-system.md`.
-**Tier:** NEXT for direct-action + chat tool_use; LATER for iOS native loop.
+**Tier:** V8a SHIPPED (2026-04-29). `assign_segment_loop` is live as the first action atom: `segment_loops` DB table, lifecycle service (accept/decline/dismiss/increment), routes at `/api/segment-loops`, `ASSIGN_SEGMENT_LOOP_TOOL` registered in both OnChatMessage and OnSessionEnd bindings, `PassageLoopDetector` in DO for inbound detection, web `SegmentLoopArtifactCard` with pending/active/completed states. `SynthesisArtifact` carries `assigned_loops` refs; synthesis and chat paths both create durable loop rows. LATER: iOS native loop UI; further action atoms (`render_annotation`, `schedule_followup_interrupt`).
 
 ---
 

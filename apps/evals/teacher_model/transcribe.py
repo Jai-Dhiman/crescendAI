@@ -91,14 +91,39 @@ def _transcribe_assemblyai(audio_path: Path) -> tuple[str, list[dict]]:
     return transcript.text or "", utterances
 
 
+_WAI_CHUNK_SECONDS = 180  # 3 min chunks; ~1.5MB MP3 @ 65kbps → ~6MB JSON, well under 10MB limit
+
+
+def _transcribe_chunk_workers_ai(
+    chunk_path: Path,
+    url: str,
+    headers: dict,
+) -> str:
+    """Send a single audio chunk to Workers AI Whisper and return the transcript text."""
+    import httpx
+    import json
+
+    audio_bytes = chunk_path.read_bytes()
+    response = httpx.post(
+        url,
+        headers=headers,
+        content=json.dumps({"audio": list(audio_bytes)}).encode(),
+        timeout=300,
+    )
+    response.raise_for_status()
+    return response.json().get("result", {}).get("text", "")
+
+
 def _transcribe_workers_ai(audio_path: Path) -> tuple[str, list[dict]]:
     """
-    Transcribe with Cloudflare Workers AI Whisper-Large-V3.
+    Transcribe with Cloudflare Workers AI Whisper.
 
     Requires CF_ACCOUNT_ID and CF_API_TOKEN in environment.
-    Raises httpx.HTTPStatusError on API failure.
+    Long files are split into _WAI_CHUNK_SECONDS chunks to stay under the
+    Workers AI 10MB JSON payload limit. Each chunk is transcribed and the
+    results are concatenated.
     """
-    import httpx
+    import tempfile
 
     account_id = os.environ.get("CF_ACCOUNT_ID")
     api_token = os.environ.get("CF_API_TOKEN")
@@ -107,21 +132,45 @@ def _transcribe_workers_ai(audio_path: Path) -> tuple[str, list[dict]]:
 
     url = (
         f"https://api.cloudflare.com/client/v4/accounts/{account_id}"
-        "/ai/run/@cf/openai/whisper-large-v3"
+        "/ai/run/@cf/openai/whisper"
     )
-    with open(audio_path, "rb") as f:
-        audio_bytes = f.read()
+    headers = {"Authorization": f"Bearer {api_token}", "Content-Type": "application/json"}
 
-    response = httpx.post(
-        url,
-        headers={"Authorization": f"Bearer {api_token}"},
-        content=audio_bytes,
-        timeout=300,
-    )
-    response.raise_for_status()
-    result = response.json()
-    text = result.get("result", {}).get("text", "")
-    return text, []
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        tmp = Path(tmp_dir)
+
+        # Convert to low-bitrate MP3 (q:a 9 ≈ 65kbps; Whisper tolerates low quality)
+        mp3_path = tmp / "full.mp3"
+        subprocess.run(
+            ["ffmpeg", "-i", str(audio_path), "-q:a", "9", "-y", str(mp3_path)],
+            capture_output=True, check=True,
+        )
+
+        # Split into fixed-length chunks
+        chunk_pattern = str(tmp / "chunk_%04d.mp3")
+        subprocess.run(
+            [
+                "ffmpeg", "-i", str(mp3_path),
+                "-f", "segment", "-segment_time", str(_WAI_CHUNK_SECONDS),
+                "-c", "copy", "-y", chunk_pattern,
+            ],
+            capture_output=True, check=True,
+        )
+
+        chunk_files = sorted(tmp.glob("chunk_*.mp3"))
+        if not chunk_files:
+            raise RuntimeError(f"ffmpeg produced no chunks from {audio_path}")
+
+        parts: list[str] = []
+        for i, chunk in enumerate(chunk_files):
+            try:
+                text = _transcribe_chunk_workers_ai(chunk, url, headers)
+                if text.strip():
+                    parts.append(text.strip())
+            except Exception as exc:
+                logger.warning("Chunk %d/%d failed (%s), skipping", i + 1, len(chunk_files), exc)
+
+    return " ".join(parts), []
 
 
 def transcribe_audio(audio_path: Path, provider: str = "assemblyai") -> tuple[str, list[dict]]:
