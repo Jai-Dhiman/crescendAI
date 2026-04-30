@@ -11,9 +11,10 @@ describe("compound-registry", () => {
 		expect(binding?.compoundName).toBe("session-synthesis");
 		expect(binding?.artifactSchema).toBe(SynthesisArtifactSchema);
 		expect(binding?.artifactToolName).toBe("write_synthesis_artifact");
-		expect(binding?.tools).toHaveLength(ALL_MOLECULES.length);
+		expect(binding?.tools).toHaveLength(ALL_MOLECULES.length + 1);
 		const names = binding!.tools.map((t) => t.name);
 		expect(new Set(names).size).toBe(names.length);
+		expect(names).toContain("assign_segment_loop");
 	});
 
 	it("returns a streaming binding for OnChatMessage with 6 tools", () => {
