@@ -21,6 +21,7 @@ import {
 } from "../services/synthesis";
 import type { InlineComponent } from "../services/tool-processor";
 import { toLoopComponent, findActiveForPiece, incrementAttempts } from "../services/segment-loops";
+import { ValidationError } from "../lib/errors";
 import { PassageLoopDetector } from "./passage-loop-detector";
 import {
 	type SynthesisInput,
@@ -638,16 +639,36 @@ export class SessionBrain extends DurableObject<Bindings> {
 			);
 			if (attempt?.inBounds) {
 				const db = createDb(this.env.HYPERDRIVE);
-				const { attemptsCompleted, completedNow } = await incrementAttempts(
-					db,
-					currentState.activeAssignment.id,
-					currentState.studentId,
-				);
+				const assignmentId = currentState.activeAssignment.id;
+				let attemptsCompleted: number;
+				let completedNow: boolean;
+				try {
+					({ attemptsCompleted, completedNow } = await incrementAttempts(
+						db,
+						assignmentId,
+						currentState.studentId,
+					));
+				} catch (err) {
+					if (err instanceof ValidationError) {
+						console.log(
+							JSON.stringify({
+								level: "warn",
+								fn: "handleChunkReady",
+								message: "incrementAttempts rejected — assignment already completed",
+								assignmentId,
+								error: (err as Error).message,
+							}),
+						);
+						currentState.activeAssignment = null;
+						return;
+					}
+					throw err;
+				}
 				currentState.activeAssignment.attemptsCompleted = attemptsCompleted;
 				if (completedNow) currentState.activeAssignment = null;
 				this.sendWs(ws, {
 					type: "loop_attempt",
-					assignment_id: currentState.activeAssignment?.id,
+					assignment_id: assignmentId,
 					attempts_completed: attemptsCompleted,
 					completed_now: completedNow,
 				});
