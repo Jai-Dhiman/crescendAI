@@ -117,3 +117,29 @@ def test_3c_respects_threshold_for_19_docs(tmp_path):
     assert len(surviving) == 19
     kept = sum(1 for r in surviving if line in r["text"])
     assert kept == 19, f"line at threshold (19 docs) should be kept, only {kept}/19 retained"
+
+
+def test_normalization_collapses_whitespace_and_case_in_3b(tmp_path):
+    manifest_in = tmp_path / "in.jsonl"
+    out_dir = tmp_path / "out"
+    out_dir.mkdir()
+    text = (
+        "Body content begins here in this section with several distinct words.\n"
+        "This is a Sufficiently Long Disclaimer line that repeats with variations.\n"
+        "Section 1 body with distinct content for the first part.\n"
+        "this is a sufficiently long disclaimer line that repeats with variations.\n"
+        "Section 2 body with distinct content for the second part.\n"
+        "  This  is a   Sufficiently long  disclaimer  line that repeats with variations.  \n"
+        "Section 3 body with distinct content for the third part.\n"
+    )
+    _write_manifest(manifest_in, [
+        {"doc_id": "NORMABCDEFG", "source": "youtube:tonebase", "text": text, "word_count": 60},
+    ])
+
+    manifest_out = run_dedup(manifest_in, out_dir)
+
+    surviving = _read_jsonl(manifest_out)
+    out_text = surviving[0]["text"].lower()
+    occurrences = out_text.count("disclaimer line that repeats with variations")
+    assert occurrences == 1, \
+        f"expected normalization to recognize 3 case/whitespace variants as one line; got {occurrences}"
