@@ -94,3 +94,26 @@ def test_3c_drops_lines_in_more_than_20_docs(tmp_path):
     assert len(surviving) == 25, "no doc-level dups expected; all 25 should survive"
     assert all(boilerplate not in r["text"] for r in surviving), \
         "boilerplate line should be stripped from every doc"
+
+
+def test_3c_respects_threshold_for_19_docs(tmp_path):
+    manifest_in = tmp_path / "in.jsonl"
+    out_dir = tmp_path / "out"
+    out_dir.mkdir()
+    line = "This is a sufficiently long line that appears in exactly 19 distinct docs."
+    rows = []
+    for i in range(19):
+        text = (
+            f"Doc {i} unique body content with distinct words for doc {i}.\n"
+            f"{line}\n"
+            f"More unique words for doc {i} appearing only once.\n"
+        )
+        rows.append({"doc_id": f"E{i:010d}B", "source": "youtube:tonebase", "text": text, "word_count": 25})
+    _write_manifest(manifest_in, rows)
+
+    manifest_out = run_dedup(manifest_in, out_dir)
+
+    surviving = _read_jsonl(manifest_out)
+    assert len(surviving) == 19
+    kept = sum(1 for r in surviving if line in r["text"])
+    assert kept == 19, f"line at threshold (19 docs) should be kept, only {kept}/19 retained"

@@ -79,7 +79,7 @@ def _stage_3a_remove_doc_dups(rows: list[dict]) -> tuple[list[dict], list[tuple[
     with tempfile.TemporaryDirectory() as tmpdir:
         scratch = Path(tmpdir)
         index = _write_corpus_for_3a(rows, scratch)
-        pairs = find_duplicates(scratch, threshold=0.9)
+        pairs = find_duplicates(scratch, threshold=0.93, num_perm=512)
         to_remove: set[str] = set()
         for file1, file2, _sim in pairs:
             id1 = Path(file1).stem
