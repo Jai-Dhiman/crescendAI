@@ -49,3 +49,16 @@ def test_corrupt_file_logged_to_drops(tiny_corpus, fixture_ids, tmp_path):
     assert any(d["doc_id"] == fixture_ids["yt_corrupt"] and d["drop_reason"] == "decode_error" for d in drops)
     # Other docs survived (pipeline continued)
     assert "abcdefghijk" in rows
+
+
+def test_word_count_matches_whitespace_split(tiny_corpus, tmp_path):
+    corpus_dir, provenance_dir = tiny_corpus
+    out_dir = tmp_path / "out"
+    out_dir.mkdir()
+
+    manifest_path = run_ingest(corpus_dir, provenance_dir, out_dir)
+
+    rows = {r["doc_id"]: r for r in _read_jsonl(manifest_path)}
+    row = rows["abcdefghijk"]
+    expected = len(row["text"].split())
+    assert row["word_count"] == expected, f"expected {expected}, got {row['word_count']}"
