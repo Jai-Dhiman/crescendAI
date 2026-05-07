@@ -104,7 +104,7 @@ def tiny_corpus(tmp_path):
         encoding="utf-8",
     )
 
-    # --- Two near-duplicate docs (Jaccard ~0.85) ---
+    # --- Two near-duplicate docs (Jaccard ~0.97 at 5-char shingles, above 0.93 threshold) ---
     yt_id_dup_a = "DUP1234567x"
     yt_id_dup_b = "DUP1234567y"
     dup_text_base = (
@@ -115,7 +115,7 @@ def tiny_corpus(tmp_path):
     )
     (corpus_dir / f"{yt_id_dup_a}.txt").write_text(dup_text_base, encoding="utf-8")
     (corpus_dir / f"{yt_id_dup_b}.txt").write_text(
-        dup_text_base + "Additional minor tail content here.\n", encoding="utf-8"
+        dup_text_base + "Extra.\n", encoding="utf-8"
     )
 
     # --- Doc <100 chars (length-floor drop) ---
