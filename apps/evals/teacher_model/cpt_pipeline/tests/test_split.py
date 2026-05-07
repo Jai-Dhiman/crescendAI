@@ -50,3 +50,21 @@ def test_small_source_skips_validation(tmp_path):
 
     val_rows = _read_jsonl(val_path)
     assert len(val_rows) == 0, f"99-doc source should produce 0 val rows, got {len(val_rows)}"
+
+
+def test_same_seed_produces_identical_output(tmp_path):
+    manifest_in = tmp_path / "in.jsonl"
+    out_dir_a = tmp_path / "a"
+    out_dir_b = tmp_path / "b"
+    out_dir_a.mkdir()
+    out_dir_b.mkdir()
+    rows = []
+    for i in range(200):
+        rows.append({"doc_id": f"D{i:010d}", "source": "youtube:tonebase", "text": "x", "word_count": 1})
+    _write_manifest(manifest_in, rows)
+
+    train_a, val_a = run_split(manifest_in, out_dir_a, seed=42)
+    train_b, val_b = run_split(manifest_in, out_dir_b, seed=42)
+
+    assert train_a.read_bytes() == train_b.read_bytes(), "train output not deterministic with same seed"
+    assert val_a.read_bytes() == val_b.read_bytes(), "validation output not deterministic with same seed"
