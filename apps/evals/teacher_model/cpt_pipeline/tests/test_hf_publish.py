@@ -69,3 +69,31 @@ def test_push_uses_correct_repo_args(tmp_path, monkeypatch):
     assert captured_push["repo_id"] == "Jai-D/test-repo"
     assert captured_push["private"] is True
     assert "Jai-D/test-repo" in url
+
+
+def test_published_schema_is_exactly_three_columns(tmp_path, monkeypatch):
+    train = tmp_path / "train.jsonl"
+    val = tmp_path / "val.jsonl"
+    _write_manifest(train, [
+        {"doc_id": "a", "source": "youtube:tonebase", "text": "Long enough text content here for ingestion.", "word_count": 8, "extra_internal_field": "should_not_appear"},
+    ])
+    _write_manifest(val, [])
+    monkeypatch.setenv("HF_TOKEN", "fake-token")
+
+    captured_dataset = {}
+
+    class FakeHfApi:
+        def create_repo(self, **kwargs): pass
+    def fake_push_to_hub(self, repo_id, private, token):
+        captured_dataset["features"] = {split: ds.features for split, ds in self.items()}
+
+    import teacher_model.cpt_pipeline.hf_publish as mod
+    monkeypatch.setattr(mod, "HfApi", FakeHfApi)
+    from datasets import DatasetDict
+    monkeypatch.setattr(DatasetDict, "push_to_hub", fake_push_to_hub)
+
+    run_publish(train, val, repo_id="Jai-D/test-repo", private=True)
+
+    train_features = captured_dataset["features"]["train"]
+    assert sorted(train_features.keys()) == ["doc_id", "source", "text"], \
+        f"unexpected schema columns: {sorted(train_features.keys())}"

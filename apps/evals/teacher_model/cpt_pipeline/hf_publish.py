@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 
+import pyarrow as pa
 from datasets import Dataset, DatasetDict, Features, Value
 from huggingface_hub import HfApi
 
@@ -28,6 +29,16 @@ def _read_manifest(path: Path) -> list[dict]:
     return rows
 
 
+def _rows_to_dataset(rows: list[dict]) -> Dataset:
+    if rows:
+        return Dataset.from_list(rows, features=_FEATURES)
+    table = pa.table(
+        {"text": [], "source": [], "doc_id": []},
+        schema=_FEATURES.arrow_schema,
+    )
+    return Dataset(table)
+
+
 def run_publish(
     train_manifest: Path,
     val_manifest: Path,
@@ -44,8 +55,8 @@ def run_publish(
 
     train_rows = _read_manifest(train_manifest)
     val_rows = _read_manifest(val_manifest)
-    train_ds = Dataset.from_list(train_rows, features=_FEATURES)
-    val_ds = Dataset.from_list(val_rows, features=_FEATURES)
+    train_ds = _rows_to_dataset(train_rows)
+    val_ds = _rows_to_dataset(val_rows)
     dataset = DatasetDict({"train": train_ds, "validation": val_ds})
 
     api = HfApi()
