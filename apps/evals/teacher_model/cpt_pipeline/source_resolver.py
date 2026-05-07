@@ -43,7 +43,10 @@ def build_provenance_index(provenance_dir: Path) -> dict[str, str]:
                 line = line.strip()
                 if not line:
                     continue
-                row = json.loads(line)
+                try:
+                    row = json.loads(line)
+                except json.JSONDecodeError as exc:
+                    raise ValueError(f"Malformed JSON in {path}: {line!r}") from exc
                 url = row.get("url", "")
                 vid = _extract_youtube_id(url)
                 if vid and YOUTUBE_ID_PATTERN.match(vid):
