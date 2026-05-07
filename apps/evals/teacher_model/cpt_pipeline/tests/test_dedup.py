@@ -70,3 +70,27 @@ def test_3b_strips_within_doc_repeated_lines(tmp_path):
         f"expected exactly 1 occurrence of repeated line, got {out_text.count(repeat_line)}: {out_text!r}"
     assert "Section 1 body content" in out_text and "Conclusion" in out_text, \
         "surrounding text was incorrectly stripped"
+
+
+def test_3c_drops_lines_in_more_than_20_docs(tmp_path):
+    manifest_in = tmp_path / "in.jsonl"
+    out_dir = tmp_path / "out"
+    out_dir.mkdir()
+    boilerplate = "This is a sufficiently long boilerplate disclaimer line for stripping."
+    rows = []
+    for i in range(25):
+        text = (
+            f"Doc {i} unique body content here with distinct words and pedagogy detail. "
+            f"More distinct content for doc {i}.\n"
+            f"{boilerplate}\n"
+            f"Final unique body content for doc {i} with more distinct words.\n"
+        )
+        rows.append({"doc_id": f"D{i:010d}A", "source": "youtube:tonebase", "text": text, "word_count": 30})
+    _write_manifest(manifest_in, rows)
+
+    manifest_out = run_dedup(manifest_in, out_dir)
+
+    surviving = _read_jsonl(manifest_out)
+    assert len(surviving) == 25, "no doc-level dups expected; all 25 should survive"
+    assert all(boilerplate not in r["text"] for r in surviving), \
+        "boilerplate line should be stripped from every doc"
