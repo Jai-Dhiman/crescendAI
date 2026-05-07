@@ -33,3 +33,12 @@ def test_provenance_index_enriches_fine_source(tiny_corpus):
     assert resolve_source(f"pdf_{pdf_h}.txt", index) == "academic_pdf:openalex"
     # Unknown filename gets coarse classification with :unknown fine
     assert resolve_source("ZZZZZZZZZZZ.txt", index) == "youtube:unknown"
+
+
+def test_malformed_filename_returns_unknown_coarse_and_fine():
+    # 5-char stem, doesn't match any pattern
+    assert resolve_source("short.txt", {}) == "unknown:unknown"
+    # 12-char stem (one off from youtube)
+    assert resolve_source("twelvecharsxx.txt", {}) == "unknown:unknown"
+    # pdf_ prefix but wrong hash length
+    assert resolve_source("pdf_short.txt", {}) == "unknown:unknown"
