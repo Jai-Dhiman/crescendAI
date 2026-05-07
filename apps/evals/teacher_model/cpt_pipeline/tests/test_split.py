@@ -1,0 +1,37 @@
+"""Split behavior tests."""
+import json
+from pathlib import Path
+
+from teacher_model.cpt_pipeline.split import run_split
+
+
+def _write_manifest(path: Path, rows: list[dict]) -> None:
+    with path.open("w", encoding="utf-8") as fh:
+        for row in rows:
+            fh.write(json.dumps(row) + "\n")
+
+
+def _read_jsonl(path: Path) -> list[dict]:
+    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+
+
+def test_stratifies_one_per_source_per_100(tmp_path):
+    manifest_in = tmp_path / "in.jsonl"
+    out_dir = tmp_path / "out"
+    out_dir.mkdir()
+    rows = []
+    for i in range(200):
+        rows.append({"doc_id": f"A{i:010d}", "source": "youtube:tonebase", "text": "x", "word_count": 1})
+    for i in range(150):
+        rows.append({"doc_id": f"B{i:010d}", "source": "academic_pdf:openalex", "text": "x", "word_count": 1})
+    _write_manifest(manifest_in, rows)
+
+    train_path, val_path = run_split(manifest_in, out_dir, seed=42)
+
+    train_rows = _read_jsonl(train_path)
+    val_rows = _read_jsonl(val_path)
+    val_yt = [r for r in val_rows if r["source"] == "youtube:tonebase"]
+    val_pdf = [r for r in val_rows if r["source"] == "academic_pdf:openalex"]
+    assert len(val_yt) == 2, f"200 yt docs -> 2 in val, got {len(val_yt)}"
+    assert len(val_pdf) == 1, f"150 pdf docs -> 1 in val, got {len(val_pdf)}"
+    assert len(train_rows) + len(val_rows) == 350
