@@ -125,3 +125,35 @@ def test_dataset_dict_has_train_and_validation_only(tmp_path, monkeypatch):
     run_publish(train, val, repo_id="Jai-D/test-repo", private=True)
 
     assert captured["splits"] == ["train", "validation"], f"unexpected splits: {captured['splits']}"
+
+
+def test_dataset_card_includes_counts_and_per_source(tmp_path, monkeypatch):
+    train = tmp_path / "train.jsonl"
+    val = tmp_path / "val.jsonl"
+    _write_manifest(train, [
+        {"doc_id": "a", "source": "youtube:tonebase", "text": "ten words here ten words here ten words here ten words here", "word_count": 12},
+        {"doc_id": "c", "source": "academic_pdf:openalex", "text": "twenty words here twenty words here twenty words here twenty words here twenty words here", "word_count": 20},
+    ])
+    _write_manifest(val, [
+        {"doc_id": "b", "source": "youtube:tonebase", "text": "five words here ok content for validation set", "word_count": 8},
+    ])
+    monkeypatch.setenv("HF_TOKEN", "fake-token")
+
+    class FakeHfApi:
+        def create_repo(self, **kwargs): pass
+    def fake_push(self, repo_id, private, token): pass
+
+    import teacher_model.cpt_pipeline.hf_publish as mod
+    monkeypatch.setattr(mod, "HfApi", FakeHfApi)
+    from datasets import DatasetDict
+    monkeypatch.setattr(DatasetDict, "push_to_hub", fake_push)
+
+    run_publish(train, val, repo_id="Jai-D/test-repo", private=True, card_out_dir=tmp_path)
+
+    card = (tmp_path / "README.md").read_text(encoding="utf-8")
+    assert "train" in card.lower()
+    assert "validation" in card.lower()
+    assert "youtube:tonebase" in card
+    assert "academic_pdf:openalex" in card
+    # train rows = 2, val rows = 1, total = 3
+    assert "3" in card or "2" in card
