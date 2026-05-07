@@ -55,8 +55,13 @@ def run_filter(manifest_in: Path, out_dir: Path) -> Path:
             line = line.strip()
             if not line:
                 continue
-            row = json.loads(line)
-            text = row.get("text", "")
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError as exc:
+                raise ValueError(f"Malformed JSON in {manifest_in}: {line!r}") from exc
+            if "text" not in row:
+                raise KeyError(f"manifest row missing 'text' key: {row.get('doc_id', '<no doc_id>')}")
+            text = row["text"]
             if len(text) < MIN_CHARS:
                 drops_fh.write(json.dumps({"doc_id": row["doc_id"], "drop_reason": "too_short"}) + "\n")
                 continue
