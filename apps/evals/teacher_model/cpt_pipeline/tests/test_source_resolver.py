@@ -10,3 +10,8 @@ def test_youtube_filename_resolves_to_youtube_coarse():
 def test_pdf_filename_resolves_to_academic_pdf_coarse():
     result = resolve_source("pdf_0123456789ab.txt", {})
     assert result.startswith("academic_pdf:"), f"expected academic_pdf: prefix, got {result!r}"
+
+
+def test_web_filename_resolves_to_web_scrape_coarse():
+    result = resolve_source("web_0123456789ab.txt", {})
+    assert result.startswith("web_scrape:"), f"expected web_scrape: prefix, got {result!r}"
