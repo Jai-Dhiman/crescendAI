@@ -34,3 +34,18 @@ def test_source_field_resolves_coarse_and_fine(tiny_corpus, fixture_ids, tmp_pat
     rows = {r["doc_id"]: r for r in _read_jsonl(manifest_path)}
     assert rows["abcdefghijk"]["source"] == "youtube:tonebase"
     assert rows[f"pdf_{fixture_ids['pdf_h_1']}"]["source"] == "academic_pdf:openalex"
+
+
+def test_corrupt_file_logged_to_drops(tiny_corpus, fixture_ids, tmp_path):
+    corpus_dir, provenance_dir = tiny_corpus
+    out_dir = tmp_path / "out"
+    out_dir.mkdir()
+
+    manifest_path = run_ingest(corpus_dir, provenance_dir, out_dir)
+
+    rows = {r["doc_id"] for r in _read_jsonl(manifest_path)}
+    drops = _read_jsonl(out_dir / "drops.jsonl")
+    assert fixture_ids["yt_corrupt"] not in rows, "corrupt doc should not be in manifest"
+    assert any(d["doc_id"] == fixture_ids["yt_corrupt"] and d["drop_reason"] == "decode_error" for d in drops)
+    # Other docs survived (pipeline continued)
+    assert "abcdefghijk" in rows
