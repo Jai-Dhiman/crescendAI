@@ -12,6 +12,9 @@ DetectorFactory.seed = 0
 
 MIN_CHARS = 100
 MAX_NON_ASCII_RATIO = 0.5
+# Books can be 500K+ words; cap at 100K so dedup stage fits in RAM.
+# CPT training chunks text into 2K-8K token windows anyway.
+MAX_WORDS = 100_000
 
 REFS_PATTERN = re.compile(r"^(References|Bibliography|Works Cited|REFERENCES)\s*$")
 
@@ -74,6 +77,11 @@ def run_filter(manifest_in: Path, out_dir: Path) -> Path:
             source = row.get("source", "")
             if source.startswith("academic_pdf:"):
                 text = _strip_references(text)
+            words = text.split()
+            if len(words) > MAX_WORDS:
+                words = words[:MAX_WORDS]
+                text = " ".join(words)
             row["text"] = text
+            row["word_count"] = len(words)
             out_fh.write(json.dumps(row) + "\n")
     return manifest_out

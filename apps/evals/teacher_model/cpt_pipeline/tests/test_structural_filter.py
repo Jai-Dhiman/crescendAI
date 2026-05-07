@@ -135,3 +135,29 @@ def test_does_not_strip_references_on_youtube_source(tmp_path):
     out_text = surviving[0]["text"]
     assert "Beethoven's Hammerklavier" in out_text, \
         f"refs strip incorrectly fired on youtube source: {out_text!r}"
+
+
+def test_truncates_doc_above_max_words(tmp_path):
+    from teacher_model.cpt_pipeline.structural_filter import MAX_WORDS
+    manifest_in = tmp_path / "in.jsonl"
+    out_dir = tmp_path / "out"
+    out_dir.mkdir()
+    sentence = (
+        "Slow practice is the foundation of all piano technique and musical expression. "
+        "The student should begin each session with careful attention to tone and dynamics. "
+    )
+    long_text = (sentence * ((MAX_WORDS // len(sentence.split()) + 2)))
+    long_text = " ".join(long_text.split()[:MAX_WORDS + 500])
+    _write_manifest(manifest_in, [
+        {"doc_id": "big", "source": "academic_pdf:internet_archive", "text": long_text, "word_count": MAX_WORDS + 500},
+    ])
+
+    manifest_out = run_filter(manifest_in, out_dir)
+
+    surviving = _read_jsonl(manifest_out)
+    assert len(surviving) == 1
+    result = surviving[0]
+    assert result["word_count"] == MAX_WORDS, \
+        f"expected word_count == MAX_WORDS ({MAX_WORDS}), got {result['word_count']}"
+    assert len(result["text"].split()) == MAX_WORDS, \
+        "text was not truncated to MAX_WORDS words"
