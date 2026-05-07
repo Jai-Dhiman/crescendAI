@@ -1,16 +1,19 @@
 """
-Semantic Scholar open-access paper harvester for the CPT corpus.
+OpenAlex open-access academic paper harvester for the CPT corpus.
 
-Searches Semantic Scholar for piano pedagogy papers, downloads available
-open-access PDFs, scores relevance, and saves to corpus with provenance tracking.
+Searches OpenAlex (250M+ works, no daily quota) for piano pedagogy papers,
+downloads available open-access PDFs, scores relevance, and saves to corpus
+with provenance tracking.
 
-Rate limit: 100 requests per 5 minutes (unauthenticated) -> sleep 3.5s between calls.
-PDF downloads go to publisher servers (not counted against SS quota).
+Rate limit: 10 req/sec unauthenticated; polite pool (100k req/day) with mailto param.
+Sleep: 0.15s between API requests.
 
 CLI usage:
-    uv run python -m teacher_model.harvest_semantic_scholar
-    uv run python -m teacher_model.harvest_semantic_scholar --max-pages 50 --dry-run
-    uv run python -m teacher_model.harvest_semantic_scholar --no-filter
+    uv run python -m teacher_model.harvest_openalex
+    uv run python -m teacher_model.harvest_openalex --dry-run
+    uv run python -m teacher_model.harvest_openalex --no-filter
+    nohup uv run python -m teacher_model.harvest_openalex --manifest \\
+        teacher_model/data/provenance_openalex.jsonl > /tmp/harvest_oa.log 2>&1 &
 """
 
 from __future__ import annotations
@@ -40,27 +43,33 @@ from teacher_model.scrape_text import process_pdf
 
 logger = logging.getLogger(__name__)
 
-SS_API_BASE = "https://api.semanticscholar.org/graph/v1"
+OA_API_BASE = "https://api.openalex.org/works"
+OA_MAILTO = "jaidhiman2000@gmail.com"
 CORPUS_DIR = Path(__file__).parent / "data" / "corpus"
 MIN_WORD_COUNT = 200
-API_SLEEP = 20.0
+API_SLEEP = 0.15
 
 SEARCH_QUERIES = [
-    "piano fingering hand position technical exercise",
-    "piano tone production key depression touch",
-    "piano pedaling sustain technique sound",
-    "piano practice blocked variability interleaved",
-    "music performance mental representation practice",
-    "piano sight reading score reading strategy",
-    "piano dynamics control expression",
-    "piano phrasing articulation legato staccato",
-    "deliberate practice music skill acquisition",
-    "music performance feedback quality self-regulation",
-    "piano injury tendinitis overuse prevention",
-    "piano memorization strategy cue mental",
-    "piano student teacher interaction feedback",
-    "music conservatory pedagogy curriculum lesson",
-    "piano masterclass observation learning modeling",
+    "piano pedagogy teaching technique",
+    "piano performance practice",
+    "music performance anxiety",
+    "piano sight reading",
+    "piano memorization practice",
+    "music teacher feedback instruction",
+    "piano technique injury prevention",
+    "musical expression dynamics phrasing",
+    "deliberate practice music",
+    "piano masterclass instruction",
+    "piano voicing tone production",
+    "music performance assessment",
+    "piano practice strategies",
+    "music education instrumental",
+    "piano interpretation style",
+    "piano adult learner beginner",
+    "piano competition performance",
+    "music conservatory teaching",
+    "piano group lesson teaching",
+    "piano fingering hand position",
 ]
 
 
@@ -73,7 +82,7 @@ def _download_pdf(url: str) -> Optional[bytes]:
     try:
         resp = requests.get(
             url,
-            headers={"User-Agent": "CrescendAI-Research/1.0 (piano pedagogy corpus collection)"},
+            headers={"User-Agent": "CrescendAI-Research/1.0 (piano pedagogy corpus; mailto:jaidhiman2000@gmail.com)"},
             timeout=60,
             allow_redirects=True,
         )
@@ -88,14 +97,17 @@ def _download_pdf(url: str) -> Optional[bytes]:
         return None
 
 
-def _ss_search(query: str, offset: int = 0, limit: int = 100) -> dict:
+def _oa_search(query: str, cursor: str = "*", per_page: int = 200) -> dict:
+    """Fetch one page of OpenAlex results. Returns the raw API response dict."""
     resp = requests.get(
-        f"{SS_API_BASE}/paper/search",
+        OA_API_BASE,
         params={
-            "query": query,
-            "fields": "title,openAccessPdf,abstract,year,authors",
-            "limit": limit,
-            "offset": offset,
+            "search": query,
+            "filter": "open_access.is_oa:true",
+            "per-page": per_page,
+            "cursor": cursor,
+            "select": "id,display_name,open_access",
+            "mailto": OA_MAILTO,
         },
         headers={"User-Agent": "CrescendAI-Research/1.0"},
         timeout=30,
@@ -105,14 +117,13 @@ def _ss_search(query: str, offset: int = 0, limit: int = 100) -> dict:
 
 
 def harvest(
-    max_pages: int = 100,
-    limit_per_page: int = 100,
+    max_pages_per_query: int = 50,
     dry_run: bool = False,
     no_filter: bool = False,
     manifest_path: Optional[Path] = None,
 ) -> dict:
     """
-    Harvest piano pedagogy papers from Semantic Scholar.
+    Harvest piano pedagogy papers from OpenAlex.
 
     Returns summary dict: {saved, skipped, already_done, failed, total_checked}.
     """
@@ -130,34 +141,34 @@ def harvest(
 
     for query in SEARCH_QUERIES:
         logger.info("Query: %r", query)
-        offset = 0
+        cursor: Optional[str] = "*"
         pages_this_query = 0
 
-        while pages_this_query < max_pages:
+        while cursor and pages_this_query < max_pages_per_query:
             time.sleep(API_SLEEP)
             try:
-                data = _ss_search(query, offset=offset, limit=limit_per_page)
+                data = _oa_search(query, cursor=cursor)
             except Exception as exc:
-                logger.warning("SS API error (query=%r offset=%d): %s", query, offset, exc)
+                logger.warning("OpenAlex API error (query=%r cursor=%s): %s", query, cursor, exc)
                 break
 
-            papers = data.get("data", [])
-            if not papers:
+            results = data.get("results", [])
+            if not results:
                 break
 
-            for paper in papers:
-                paper_id = paper.get("paperId", "")
-                if paper_id in seen_ids:
+            for work in results:
+                work_id = work.get("id", "")
+                if work_id in seen_ids:
                     continue
-                seen_ids.add(paper_id)
+                seen_ids.add(work_id)
 
                 total_checked += 1
-                title = paper.get("title", "") or ""
-                oa_pdf = paper.get("openAccessPdf") or {}
-                pdf_url = oa_pdf.get("url", "") or ""
+                title = work.get("display_name", "") or ""
+                oa_info = work.get("open_access") or {}
+                pdf_url = oa_info.get("oa_url", "") or ""
 
                 if not pdf_url:
-                    logger.debug("No open-access PDF for: %s", title[:60])
+                    logger.debug("No open-access URL for: %s", title[:60])
                     skipped += 1
                     continue
 
@@ -188,7 +199,7 @@ def harvest(
                         manifest,
                         classifier=classifier,
                         source_tier="tier3_musicology",
-                        publisher="Semantic Scholar",
+                        publisher="OpenAlex",
                     )
                     if result["included"] and result["word_count"] >= MIN_WORD_COUNT:
                         h = hashlib.sha256(pdf_url.encode()).hexdigest()[:12]
@@ -213,12 +224,8 @@ def harvest(
                 finally:
                     tmp_path.unlink(missing_ok=True)
 
-            offset += limit_per_page
+            cursor = data.get("meta", {}).get("next_cursor")
             pages_this_query += 1
-
-            total_results = data.get("total", 0)
-            if offset >= total_results:
-                break
 
     return {
         "saved": saved,
@@ -231,10 +238,10 @@ def harvest(
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Harvest piano pedagogy papers from Semantic Scholar into the CPT corpus."
+        description="Harvest piano pedagogy papers from OpenAlex into the CPT corpus."
     )
-    parser.add_argument("--max-pages", type=int, default=100,
-                        help="Max pages per query (default: 100)")
+    parser.add_argument("--max-pages", type=int, default=50,
+                        help="Max cursor pages per query (default: 50, each page = 200 results)")
     parser.add_argument("--no-filter", action="store_true",
                         help="Skip relevance filtering, save all documents")
     parser.add_argument("--dry-run", action="store_true",
@@ -250,7 +257,7 @@ def main() -> None:
     )
 
     result = harvest(
-        max_pages=args.max_pages,
+        max_pages_per_query=args.max_pages,
         dry_run=args.dry_run,
         no_filter=args.no_filter,
         manifest_path=args.manifest,

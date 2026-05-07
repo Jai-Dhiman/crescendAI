@@ -46,16 +46,16 @@ MIN_WORD_COUNT = 500
 DOWNLOAD_SLEEP = 2.0
 
 SEARCH_QUERIES = [
-    "piano technique instruction",
-    "pianoforte playing method",
-    "piano pedagogy teaching",
-    "piano practice method",
-    "piano interpretation expression",
-    "Matthay piano",
-    "Leschetizky piano",
-    "Czerny piano method",
-    "Kullak piano aesthetics",
-    "Breithaupt piano natural technic",
+    "piano scales arpeggios exercises",
+    "music theory harmony counterpoint",
+    "piano accompaniment lesson teaching",
+    "violin technique bowing instruction",
+    "singing voice pedagogy instruction",
+    "orchestral conducting score study",
+    "music appreciation listening guide",
+    "piano concerto performance guide",
+    "keyboard harmony figured bass",
+    "music ear training solfege",
 ]
 
 
