@@ -35,3 +35,18 @@ def test_stratifies_one_per_source_per_100(tmp_path):
     assert len(val_yt) == 2, f"200 yt docs -> 2 in val, got {len(val_yt)}"
     assert len(val_pdf) == 1, f"150 pdf docs -> 1 in val, got {len(val_pdf)}"
     assert len(train_rows) + len(val_rows) == 350
+
+
+def test_small_source_skips_validation(tmp_path):
+    manifest_in = tmp_path / "in.jsonl"
+    out_dir = tmp_path / "out"
+    out_dir.mkdir()
+    rows = []
+    for i in range(99):
+        rows.append({"doc_id": f"S{i:010d}", "source": "web_scrape:henle", "text": "x", "word_count": 1})
+    _write_manifest(manifest_in, rows)
+
+    _train_path, val_path = run_split(manifest_in, out_dir, seed=42)
+
+    val_rows = _read_jsonl(val_path)
+    assert len(val_rows) == 0, f"99-doc source should produce 0 val rows, got {len(val_rows)}"
