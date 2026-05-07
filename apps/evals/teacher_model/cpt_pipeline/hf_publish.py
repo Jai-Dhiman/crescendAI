@@ -86,11 +86,11 @@ def run_publish(
     train_rows = _read_manifest(train_manifest)
     val_rows = _read_manifest(val_manifest)
 
+    card_text = _build_card(repo_id, train_rows, val_rows)
+
     if card_out_dir is not None:
         Path(card_out_dir).mkdir(parents=True, exist_ok=True)
-        (Path(card_out_dir) / "README.md").write_text(
-            _build_card(repo_id, train_rows, val_rows), encoding="utf-8",
-        )
+        (Path(card_out_dir) / "README.md").write_text(card_text, encoding="utf-8")
 
     train_ds = _rows_to_dataset(train_rows)
     val_ds = _rows_to_dataset(val_rows)
@@ -101,5 +101,13 @@ def run_publish(
         repo_id=repo_id, private=private, repo_type="dataset", exist_ok=True, token=token,
     )
     dataset.push_to_hub(repo_id, private=private, token=token)
+
+    api.upload_file(
+        path_or_fileobj=card_text.encode("utf-8"),
+        path_in_repo="README.md",
+        repo_id=repo_id,
+        repo_type="dataset",
+        token=token,
+    )
 
     return f"https://huggingface.co/datasets/{repo_id}"

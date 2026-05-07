@@ -48,6 +48,7 @@ def test_push_uses_correct_repo_args(tmp_path, monkeypatch):
             class _R:
                 pass
             return _R()
+        def upload_file(self, **kwargs): pass
 
     captured_push = {}
     def fake_push_to_hub(self, repo_id, private, token):
@@ -84,6 +85,7 @@ def test_published_schema_is_exactly_three_columns(tmp_path, monkeypatch):
 
     class FakeHfApi:
         def create_repo(self, **kwargs): pass
+        def upload_file(self, **kwargs): pass
     def fake_push_to_hub(self, repo_id, private, token):
         captured_dataset["features"] = {split: ds.features for split, ds in self.items()}
 
@@ -114,6 +116,7 @@ def test_dataset_dict_has_train_and_validation_only(tmp_path, monkeypatch):
 
     class FakeHfApi:
         def create_repo(self, **kwargs): pass
+        def upload_file(self, **kwargs): pass
     def fake_push(self, repo_id, private, token):
         captured["splits"] = sorted(self.keys())
 
@@ -141,6 +144,7 @@ def test_dataset_card_includes_counts_and_per_source(tmp_path, monkeypatch):
 
     class FakeHfApi:
         def create_repo(self, **kwargs): pass
+        def upload_file(self, **kwargs): pass
     def fake_push(self, repo_id, private, token): pass
 
     import teacher_model.cpt_pipeline.hf_publish as mod
@@ -157,3 +161,34 @@ def test_dataset_card_includes_counts_and_per_source(tmp_path, monkeypatch):
     assert "academic_pdf:openalex" in card
     # train rows = 2, val rows = 1, total = 3
     assert "3" in card or "2" in card
+
+
+def test_dataset_card_pushed_to_hub(tmp_path, monkeypatch):
+    train = tmp_path / "train.jsonl"
+    val = tmp_path / "val.jsonl"
+    _write_manifest(train, [
+        {"doc_id": "a", "source": "youtube:tonebase", "text": "Long enough text content here for ingestion.", "word_count": 8},
+    ])
+    _write_manifest(val, [])
+    monkeypatch.setenv("HF_TOKEN", "fake-token")
+
+    upload_calls = []
+
+    class FakeHfApi:
+        def create_repo(self, **kwargs): pass
+        def upload_file(self, path_or_fileobj, path_in_repo, repo_id, repo_type, token):
+            upload_calls.append({"path_in_repo": path_in_repo, "repo_id": repo_id, "repo_type": repo_type})
+
+    def fake_push(self, repo_id, private, token): pass
+
+    import teacher_model.cpt_pipeline.hf_publish as mod
+    monkeypatch.setattr(mod, "HfApi", FakeHfApi)
+    from datasets import DatasetDict
+    monkeypatch.setattr(DatasetDict, "push_to_hub", fake_push)
+
+    run_publish(train, val, repo_id="Jai-D/test-repo", private=True)
+
+    assert any(
+        c["path_in_repo"] == "README.md" and c["repo_id"] == "Jai-D/test-repo" and c["repo_type"] == "dataset"
+        for c in upload_calls
+    ), f"expected upload_file call for README.md, got {upload_calls}"
