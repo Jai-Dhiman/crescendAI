@@ -1,8 +1,31 @@
 """Stage 5: publish train + validation manifests as a private HF Hub dataset."""
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
+
+from datasets import Dataset, DatasetDict, Features, Value
+from huggingface_hub import HfApi
+
+
+_FEATURES = Features({
+    "text": Value("string"),
+    "source": Value("string"),
+    "doc_id": Value("string"),
+})
+
+
+def _read_manifest(path: Path) -> list[dict]:
+    rows: list[dict] = []
+    with Path(path).open(encoding="utf-8") as fh:
+        for line in fh:
+            line = line.strip()
+            if not line:
+                continue
+            r = json.loads(line)
+            rows.append({"text": r["text"], "source": r["source"], "doc_id": r["doc_id"]})
+    return rows
 
 
 def run_publish(
@@ -11,15 +34,24 @@ def run_publish(
     repo_id: str,
     private: bool = True,
 ) -> str:
-    """Build a HF DatasetDict from the manifests and push to Hub.
-
-    Returns the published Hub URL.
-    Raises RuntimeError if HF_TOKEN env var is missing.
-    """
+    """Build a HF DatasetDict from the manifests and push to Hub."""
     token = os.environ.get("HF_TOKEN")
     if not token:
         raise RuntimeError(
             "HF_TOKEN environment variable is not set. "
             "Set it to a token with 'write' scope before running stage 5."
         )
-    raise NotImplementedError("subsequent tasks add the actual push")
+
+    train_rows = _read_manifest(train_manifest)
+    val_rows = _read_manifest(val_manifest)
+    train_ds = Dataset.from_list(train_rows, features=_FEATURES)
+    val_ds = Dataset.from_list(val_rows, features=_FEATURES)
+    dataset = DatasetDict({"train": train_ds, "validation": val_ds})
+
+    api = HfApi()
+    api.create_repo(
+        repo_id=repo_id, private=private, repo_type="dataset", exist_ok=True, token=token,
+    )
+    dataset.push_to_hub(repo_id, private=private, token=token)
+
+    return f"https://huggingface.co/datasets/{repo_id}"
