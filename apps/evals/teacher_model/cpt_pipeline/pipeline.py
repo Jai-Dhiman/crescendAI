@@ -51,7 +51,7 @@ def run_pipeline(argv: list[str] | None = None) -> int:
         dedup_manifest = run_dedup(filter_manifest, out / "3_dedup")
         print(f"[stage 4/5] split: {dedup_manifest} -> {out}/4_split")
         train_path, val_path = run_split(dedup_manifest, out / "4_split", seed=args.seed)
-    except (OSError, ValueError) as e:
+    except (OSError, ValueError, KeyError) as e:
         print(f"[pipeline] stage failed: {e}", file=sys.stderr)
         return 1
 
