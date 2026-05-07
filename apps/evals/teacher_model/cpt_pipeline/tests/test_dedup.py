@@ -119,6 +119,40 @@ def test_3c_respects_threshold_for_19_docs(tmp_path):
     assert kept == 19, f"line at threshold (19 docs) should be kept, only {kept}/19 retained"
 
 
+def test_3c_boundary_at_exactly_20_docs_not_stripped(tmp_path):
+    # CORPUS_WIDE_LINE_DOC_THRESHOLD = 20 uses strict `>`, so a line in exactly
+    # 20 docs is NOT stripped (21+ docs triggers stripping).
+    # Each doc body is substantively distinct so 3a (MinHash near-dup) doesn't
+    # collapse any, leaving 3c as the only variable under test.
+    manifest_in = tmp_path / "in.jsonl"
+    out_dir = tmp_path / "out"
+    out_dir.mkdir()
+    boilerplate = "This is a sufficiently long line that appears in exactly 20 distinct docs."
+    unique_topics = [
+        "dynamics", "tempo", "articulation", "phrasing", "pedaling",
+        "voicing", "rubato", "legato", "staccato", "ornaments",
+        "fingering", "weight transfer", "agogic accent", "sostenuto", "portamento",
+        "trills", "diminuendo", "crescendo", "cantabile", "score reading",
+    ]
+    rows = []
+    for i, topic in enumerate(unique_topics):
+        text = (
+            f"In-depth pedagogy discussion about {topic} in classical piano performance. "
+            f"Teachers who specialize in {topic} emphasize it as a crucial expressive element. "
+            f"Dedicated study of {topic} over many months yields measurable artistic growth.\n"
+            f"{boilerplate}\n"
+        )
+        rows.append({"doc_id": f"F{i:010d}C", "source": "youtube:tonebase", "text": text, "word_count": 40})
+    _write_manifest(manifest_in, rows)
+
+    manifest_out = run_dedup(manifest_in, out_dir)
+
+    surviving = _read_jsonl(manifest_out)
+    assert len(surviving) == 20, f"expected all 20 docs to survive 3a (distinct content), got {len(surviving)}"
+    kept = sum(1 for r in surviving if boilerplate in r["text"])
+    assert kept == 20, f"line in exactly 20 docs (at threshold, not above) should be kept, only {kept}/20 retained"
+
+
 def test_normalization_collapses_whitespace_and_case_in_3b(tmp_path):
     manifest_in = tmp_path / "in.jsonl"
     out_dir = tmp_path / "out"

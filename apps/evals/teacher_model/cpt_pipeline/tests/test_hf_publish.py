@@ -43,11 +43,6 @@ def test_push_uses_correct_repo_args(tmp_path, monkeypatch):
                 "repo_id": repo_id, "private": private, "repo_type": repo_type,
                 "exist_ok": exist_ok, "token": token,
             }
-        def repo_info(self, repo_id, repo_type, token):
-            captured["info"] = {"repo_id": repo_id, "repo_type": repo_type}
-            class _R:
-                pass
-            return _R()
         def upload_file(self, **kwargs): pass
 
     captured_push = {}
