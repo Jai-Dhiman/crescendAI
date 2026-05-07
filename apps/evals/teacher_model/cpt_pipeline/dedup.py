@@ -2,15 +2,50 @@
 from __future__ import annotations
 
 import json
+import re
 import tempfile
+from collections import Counter
 from pathlib import Path
 
 from teacher_model.dedup import find_duplicates
 
+WITHIN_DOC_REPEAT_THRESHOLD = 3
+MIN_LINE_LEN_FOR_STRIP = 30
+PAGE_NUMBER_RE = re.compile(r"^\s*\d+\s*$")
+
+
+def _normalize_line(line: str) -> str:
+    """Lowercase + collapse internal whitespace + strip leading/trailing whitespace."""
+    return " ".join(line.lower().split())
+
+
+def _is_strippable(normalized: str) -> bool:
+    """Lines short enough to legitimately repeat (e.g., 'C major') are exempt."""
+    return len(normalized) >= MIN_LINE_LEN_FOR_STRIP and not PAGE_NUMBER_RE.match(normalized)
+
+
+def _strip_within_doc(text: str) -> str:
+    """Drop strippable lines that repeat >= WITHIN_DOC_REPEAT_THRESHOLD times within `text`,
+    keeping only the first occurrence."""
+    lines = text.splitlines(keepends=True)
+    counts: Counter[str] = Counter()
+    for line in lines:
+        norm = _normalize_line(line)
+        if _is_strippable(norm):
+            counts[norm] += 1
+    seen: set[str] = set()
+    out_lines: list[str] = []
+    for line in lines:
+        norm = _normalize_line(line)
+        if _is_strippable(norm) and counts[norm] >= WITHIN_DOC_REPEAT_THRESHOLD:
+            if norm in seen:
+                continue
+            seen.add(norm)
+        out_lines.append(line)
+    return "".join(out_lines)
+
 
 def _write_corpus_for_3a(rows: list[dict], scratch: Path) -> dict[str, dict]:
-    """Materialize each row's text to a .txt file under scratch named by doc_id.
-    Returns {doc_id: row} index for downstream lookup."""
     index: dict[str, dict] = {}
     for row in rows:
         doc_id = row["doc_id"]
@@ -20,8 +55,6 @@ def _write_corpus_for_3a(rows: list[dict], scratch: Path) -> dict[str, dict]:
 
 
 def _stage_3a_remove_doc_dups(rows: list[dict]) -> tuple[list[dict], list[tuple[str, str, float]]]:
-    """Run existing teacher_model.dedup.find_duplicates on a temp corpus dir.
-    Returns (surviving_rows, dup_pairs)."""
     with tempfile.TemporaryDirectory() as tmpdir:
         scratch = Path(tmpdir)
         index = _write_corpus_for_3a(rows, scratch)
@@ -38,7 +71,7 @@ def _stage_3a_remove_doc_dups(rows: list[dict]) -> tuple[list[dict], list[tuple[
 
 
 def run_dedup(manifest_in: Path, out_dir: Path) -> Path:
-    """Three-pass dedup. Returns path to output manifest."""
+    """Three-pass dedup."""
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     manifest_out = out_dir / "manifest.jsonl"
@@ -47,6 +80,8 @@ def run_dedup(manifest_in: Path, out_dir: Path) -> Path:
         rows = [json.loads(line) for line in fh if line.strip()]
 
     rows, _pairs = _stage_3a_remove_doc_dups(rows)
+    for row in rows:
+        row["text"] = _strip_within_doc(row["text"])
 
     with manifest_out.open("w", encoding="utf-8") as fh:
         for row in rows:

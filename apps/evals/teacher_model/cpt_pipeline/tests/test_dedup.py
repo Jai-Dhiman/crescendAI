@@ -38,3 +38,35 @@ def test_3a_collapses_doc_level_near_dups(tmp_path):
     assert "DUP1234567x" in surviving_ids, "alphabetically-first dup should survive"
     assert "DUP1234567y" not in surviving_ids, "alphabetically-later dup should be removed"
     assert "OTHER12345A" in surviving_ids, "non-dup unrelated doc must remain"
+
+
+def test_3b_strips_within_doc_repeated_lines(tmp_path):
+    manifest_in = tmp_path / "in.jsonl"
+    out_dir = tmp_path / "out"
+    out_dir.mkdir()
+    repeat_line = "These are some lengthy disclaimer words that repeat across pages."
+    text = (
+        "Real article content begins here in the first paragraph. "
+        "Discussing pedagogy in detail.\n"
+        f"{repeat_line}\n"
+        "Section 1 body content goes here with several distinct sentences.\n"
+        f"{repeat_line}\n"
+        "Section 2 body content with distinct words.\n"
+        f"{repeat_line}\n"
+        "Section 3 body content with distinct words.\n"
+        f"{repeat_line}\n"
+        "Conclusion of the article in this final paragraph.\n"
+    )
+    _write_manifest(manifest_in, [
+        {"doc_id": "REPEATSABCDX", "source": "youtube:tonebase", "text": text, "word_count": 80},
+    ])
+
+    manifest_out = run_dedup(manifest_in, out_dir)
+
+    surviving = _read_jsonl(manifest_out)
+    assert len(surviving) == 1
+    out_text = surviving[0]["text"]
+    assert out_text.count(repeat_line) == 1, \
+        f"expected exactly 1 occurrence of repeated line, got {out_text.count(repeat_line)}: {out_text!r}"
+    assert "Section 1 body content" in out_text and "Conclusion" in out_text, \
+        "surrounding text was incorrectly stripped"
