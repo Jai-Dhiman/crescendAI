@@ -68,3 +68,23 @@ def test_same_seed_produces_identical_output(tmp_path):
 
     assert train_a.read_bytes() == train_b.read_bytes(), "train output not deterministic with same seed"
     assert val_a.read_bytes() == val_b.read_bytes(), "validation output not deterministic with same seed"
+
+
+def test_every_doc_id_in_exactly_one_split(tmp_path):
+    manifest_in = tmp_path / "in.jsonl"
+    out_dir = tmp_path / "out"
+    out_dir.mkdir()
+    rows = []
+    for i in range(250):
+        rows.append({"doc_id": f"X{i:010d}", "source": "youtube:tonebase", "text": "x", "word_count": 1})
+    for i in range(50):
+        rows.append({"doc_id": f"Y{i:010d}", "source": "web_scrape:small", "text": "x", "word_count": 1})
+    _write_manifest(manifest_in, rows)
+
+    train_path, val_path = run_split(manifest_in, out_dir, seed=42)
+
+    train_ids = {r["doc_id"] for r in _read_jsonl(train_path)}
+    val_ids = {r["doc_id"] for r in _read_jsonl(val_path)}
+    all_ids = {r["doc_id"] for r in rows}
+    assert train_ids.isdisjoint(val_ids), "doc_id appears in both splits"
+    assert train_ids | val_ids == all_ids, "some doc_id missing from both splits"
