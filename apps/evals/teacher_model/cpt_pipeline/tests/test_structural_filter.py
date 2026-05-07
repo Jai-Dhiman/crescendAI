@@ -31,3 +31,21 @@ def test_drops_doc_below_min_chars(tmp_path):
     drops = _read_jsonl(out_dir / "drops.jsonl")
     assert any(d["doc_id"] == "short" and d["drop_reason"] == "too_short" for d in drops), \
         f"expected short doc dropped with reason too_short, got {drops}"
+
+
+def test_drops_doc_above_non_ascii_ratio(tmp_path):
+    manifest_in = tmp_path / "in.jsonl"
+    out_dir = tmp_path / "out"
+    out_dir.mkdir()
+    text_high_nonascii = "ascii prefix " + ("中文" * 100)  # heavily Chinese
+    _write_manifest(manifest_in, [
+        {"doc_id": "ok", "source": "youtube:tonebase", "text": "x" * 200, "word_count": 1},
+        {"doc_id": "nonascii", "source": "youtube:tonebase", "text": text_high_nonascii, "word_count": 100},
+    ])
+
+    manifest_out = run_filter(manifest_in, out_dir)
+
+    surviving = _read_jsonl(manifest_out)
+    assert [r["doc_id"] for r in surviving] == ["ok"]
+    drops = _read_jsonl(out_dir / "drops.jsonl")
+    assert any(d["doc_id"] == "nonascii" and d["drop_reason"] == "non_ascii_ratio" for d in drops)
