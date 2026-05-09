@@ -260,7 +260,7 @@ LoRA on 35B-A3B fits on 1-2 nodes. Per-stage rough estimate:
 | **CPT-corpus pipeline** (`apps/evals/teacher_model/data/corpus/`, 16M / 100M words) | Pivots from "CPT-ready dataset" to **"SFT data synthesis source corpus."** Same cleaning/dedup work; downstream consumer changes. Still ships as v1 dataset -- load-bearing infra regardless of training shape. |
 | **Translation layer** (TS-side Anthropic <-> Qwen tool format) | **Likely obsolete after Stage 1.** Stops being needed once tool-format SFT lands. Stopgap for the pre-finetune period only. |
 | **Domain probe** (`domain_knowledge_probe.py`) | **Promoted to Stage 0 anchor.** Probe + free-form synthesis eval on base model becomes the gating step for the rest of the plan. |
-| **Rubric calibration** | **Promoted to highest-priority blocker.** Sits on critical path twice (Stage 2 filter + Stage 4 signal). |
+| **Rubric calibration** | **Phase 1 tooling SHIPPED** (`apps/evals/teacher_model/calibration/`). Stratified sample selection, founder rater CLI, per-sub-score weighted kappa, drift detection, and filter-recipe emission are code-complete with 40 passing tests. Ready to run founder ratings. Phase 2 (expert pianist, 3 outcome dims: ASCF, Scaffolded, Style-Consistent) deferred. Sits on critical path twice (Stage 2 filter + Stage 4 signal). |
 
 ---
 
@@ -290,6 +290,7 @@ LoRA on 35B-A3B fits on 1-2 nodes. Per-stage rough estimate:
 - `model/data/eval/inference_cache/auto-t5_http/` -- 890 real briefings (Stage 2 source).
 - `apps/evals/teaching_knowledge/data/raw_teaching_db.json` -- 379 masterclass moments (Stage 3 source).
 - `apps/evals/shared/prompts/synthesis_quality_judge_v2.txt` -- 8-dim rubric judge (Stage 2 filter, Stage 4 signal).
+- `apps/evals/teacher_model/calibration/` -- Phase 1 calibration protocol (shipped). Entry points: `select_sample.select_sample()`, `rater_cli.capture_synthesis_ratings()`, `analyze_calibration.calibrate()`, `analyze_drift.analyze_drift()`, `emit_recipe.emit()`. Artifact output: `calibration/artifacts/filter_recipe.py`.
 - Memory: `project_teacher_model_finetuning.md`, `project_teaching_knowledge_eval.md`, `project_corpus_pipeline.md`.
 
 ---
