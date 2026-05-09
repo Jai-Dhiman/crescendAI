@@ -1,5 +1,6 @@
 """LLM gateway: single deep adapter for all LLM access (CLI + Workers AI)."""
 from __future__ import annotations
+import subprocess
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any
@@ -42,7 +43,9 @@ class LlmGateway:
     def complete(self, prompt: str, mode: LlmMode, schema: dict[str, Any] | None = None) -> LlmResponse:
         if mode == LlmMode.SELECTOR:
             return self._workers_ai_complete(prompt, schema)
-        raise NotImplementedError(f"mode {mode} not yet supported")
+        if mode in (LlmMode.NARRATOR, LlmMode.CRITIC):
+            return self._cli_complete(prompt)
+        raise LlmGatewayError(f"unsupported mode: {mode}")
 
     def _workers_ai_complete(self, prompt: str, schema: dict[str, Any] | None) -> LlmResponse:
         url = f"{self._cf_url}/workers-ai/v1/chat/completions"
@@ -66,3 +69,14 @@ class LlmGateway:
         body_json = resp.json()
         text = body_json.get("result", {}).get("response", "")
         return LlmResponse(text=text, raw=body_json)
+
+    def _cli_complete(self, prompt: str) -> LlmResponse:
+        result = subprocess.run(
+            [self._claude_bin, "-p", prompt],
+            capture_output=True,
+            text=True,
+            timeout=self._timeout,
+        )
+        if result.returncode != 0:
+            raise LlmGatewayError(f"claude cli exit {result.returncode}: {result.stderr.strip()}")
+        return LlmResponse(text=result.stdout.strip(), raw=None)
