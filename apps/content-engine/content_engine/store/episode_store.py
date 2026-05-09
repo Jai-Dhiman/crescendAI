@@ -56,16 +56,17 @@ class EpisodeStore:
         return self._row_to_episode(row)
 
     def transition(self, episode_id: str, new_state: State) -> Episode:
-        ep = self.get(episode_id)
-        if ep is None:
-            raise KeyError(f"episode not found: {episode_id}")
-        if not is_valid_transition(ep.state, new_state):
-            raise InvalidTransitionError(
-                f"cannot transition {ep.state.value} -> {new_state.value}"
-            )
-        ep.state = new_state
-        ep.updated_at = datetime.now(timezone.utc)
-        self.save(ep)
+        with self._conn:
+            ep = self.get(episode_id)
+            if ep is None:
+                raise KeyError(f"episode not found: {episode_id}")
+            if not is_valid_transition(ep.state, new_state):
+                raise InvalidTransitionError(
+                    f"cannot transition {ep.state.value} -> {new_state.value}"
+                )
+            ep.state = new_state
+            ep.updated_at = datetime.now(timezone.utc)
+            self.save(ep)
         return ep
 
     def list_by_state(self, state: State) -> list[Episode]:

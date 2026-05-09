@@ -27,14 +27,15 @@ class ConfigStore:
         self._conn.executescript(_SCHEMA_PATH.read_text())
 
     def create_version(self, key: str, value: dict[str, Any]) -> int:
-        row = self._conn.execute(
-            "SELECT MAX(version) AS m FROM config_version WHERE key = ?", (key,)
-        ).fetchone()
-        next_v = (row["m"] or 0) + 1
-        self._conn.execute(
-            "INSERT INTO config_version (key, version, value, created_at) VALUES (?, ?, ?, ?)",
-            (key, next_v, json.dumps(value), datetime.now(timezone.utc).isoformat()),
-        )
+        with self._conn:
+            row = self._conn.execute(
+                "SELECT MAX(version) AS m FROM config_version WHERE key = ?", (key,)
+            ).fetchone()
+            next_v = (row["m"] or 0) + 1
+            self._conn.execute(
+                "INSERT INTO config_version (key, version, value, created_at) VALUES (?, ?, ?, ?)",
+                (key, next_v, json.dumps(value), datetime.now(timezone.utc).isoformat()),
+            )
         return next_v
 
     def get(self, key: str, version: int | None = None) -> ConfigRow | None:

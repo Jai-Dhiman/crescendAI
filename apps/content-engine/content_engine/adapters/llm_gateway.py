@@ -88,7 +88,8 @@ class LlmGateway:
                     continue
                 raise last_exc from exc
 
-        assert resp is not None
+        if resp is None:
+            raise LlmGatewayError("no response from Workers AI after retries")
         body_json = resp.json()
         text = body_json.get("result", {}).get("response", "")
 
