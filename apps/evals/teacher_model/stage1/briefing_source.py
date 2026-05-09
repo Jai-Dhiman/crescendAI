@@ -19,6 +19,6 @@ def iter_synthesis_briefings(cache_dir: Path) -> Iterator[Briefing]:
         yield Briefing(
             briefing_id=data["briefing_id"],
             framing_text=data["framing_text"],
-            composer=data.get("composer", ""),
-            skill_bucket=data.get("skill_bucket", ""),
+            composer=data["composer"],
+            skill_bucket=data["skill_bucket"],
         )

@@ -1,6 +1,8 @@
 import json
 from pathlib import Path
 
+import pytest
+
 from teacher_model.stage1.briefing_source import iter_synthesis_briefings
 
 
@@ -25,3 +27,12 @@ def test_iter_synthesis_briefings_yields_one_per_file(tmp_path: Path):
     assert yielded[0].framing_text == briefing_a["framing_text"]
     assert yielded[0].composer == "Chopin"
     assert yielded[1].skill_bucket == "beginner"
+
+
+def test_iter_synthesis_briefings_raises_on_missing_field(tmp_path: Path):
+    (tmp_path / "bad.json").write_text(
+        '{"briefing_id": "rec_bad", "framing_text": "x", "skill_bucket": "beginner"}'
+        # "composer" is missing
+    )
+    with pytest.raises(KeyError):
+        list(iter_synthesis_briefings(tmp_path))
