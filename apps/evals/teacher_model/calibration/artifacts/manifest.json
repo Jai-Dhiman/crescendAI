@@ -1,0 +1,1933 @@
+{
+  "version": 1,
+  "seed": 42,
+  "source_path": "results/baseline_v1.jsonl",
+  "main": [
+    {
+      "synth_id": "chopin_ballade_1__3Ag-a76PQFg__5",
+      "band": "threshold",
+      "era": "Romantic",
+      "skill_bucket": 5,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "moonlight_sonata_mvt1__eQB1qq5ZCY4__2",
+      "band": "threshold",
+      "era": "Classical",
+      "skill_bucket": 2,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "chopin_waltz_csm__4QyhPF2USpA__2",
+      "band": "weak_dim",
+      "era": "Romantic",
+      "skill_bucket": 2,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "moonlight_sonata_mvt1__TJ-wO2tdzaM__3",
+      "band": "high",
+      "era": "Classical",
+      "skill_bucket": 3,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "bach_prelude_c_wtc1__JXTAmxZczEQ__2",
+      "band": "threshold",
+      "era": "Baroque",
+      "skill_bucket": 2,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "chopin_ballade_1__Am2QcYugDjA__5",
+      "band": "threshold",
+      "era": "Romantic",
+      "skill_bucket": 5,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "bach_invention_1__E1M_jEHJtrE__4",
+      "band": "threshold",
+      "era": "Baroque",
+      "skill_bucket": 4,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "bach_invention_1__E8EvUmq0Zao__5",
+      "band": "threshold",
+      "era": "Baroque",
+      "skill_bucket": 5,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "chopin_waltz_csm__AitNVdv8W4c__3",
+      "band": "weak_dim",
+      "era": "Romantic",
+      "skill_bucket": 3,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "chopin_ballade_1__XQdFiP35iNk__5",
+      "band": "weak_dim",
+      "era": "Romantic",
+      "skill_bucket": 5,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "moonlight_sonata_mvt1__CuKGPrqQdtc__3",
+      "band": "high",
+      "era": "Classical",
+      "skill_bucket": 3,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "bach_prelude_c_wtc1__CeDaFBZxPIY__4",
+      "band": "high",
+      "era": "Baroque",
+      "skill_bucket": 4,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "clair_de_lune__4VM1tec1RSI__2",
+      "band": "low",
+      "era": "Impressionist",
+      "skill_bucket": 2,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "moonlight_sonata_mvt1__CmPOKVomWTw__3",
+      "band": "threshold",
+      "era": "Classical",
+      "skill_bucket": 3,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "chopin_waltz_csm__2HVMf_nBtYQ__2",
+      "band": "low",
+      "era": "Romantic",
+      "skill_bucket": 2,
+      "is_anchor_seed": true,
+      "anchor_position": 200
+    },
+    {
+      "synth_id": "clair_de_lune__4fHEBus_KdA__1",
+      "band": "low",
+      "era": "Impressionist",
+      "skill_bucket": 1,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "moonlight_sonata_mvt1__KjYVGdID1kk__3",
+      "band": "threshold",
+      "era": "Classical",
+      "skill_bucket": 3,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "moonlight_sonata_mvt1__M64xEgDS0YI__1",
+      "band": "high",
+      "era": "Classical",
+      "skill_bucket": 1,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "moonlight_sonata_mvt1__1V3xRx1uZ1g__3",
+      "band": "threshold",
+      "era": "Classical",
+      "skill_bucket": 3,
+      "is_anchor_seed": true,
+      "anchor_position": 201
+    },
+    {
+      "synth_id": "bach_prelude_c_wtc1__aCmldStNg0I__3",
+      "band": "low",
+      "era": "Baroque",
+      "skill_bucket": 3,
+      "is_anchor_seed": true,
+      "anchor_position": 202
+    },
+    {
+      "synth_id": "clair_de_lune__-hktd764MGA__2",
+      "band": "low",
+      "era": "Impressionist",
+      "skill_bucket": 2,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "chopin_waltz_csm__FsRLlv_sK6g__4",
+      "band": "threshold",
+      "era": "Romantic",
+      "skill_bucket": 4,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "moonlight_sonata_mvt1__AJ8GNh7a7d4__2",
+      "band": "threshold",
+      "era": "Classical",
+      "skill_bucket": 2,
+      "is_anchor_seed": true,
+      "anchor_position": 203
+    },
+    {
+      "synth_id": "moonlight_sonata_mvt1__0CY8le2M6aA__3",
+      "band": "threshold",
+      "era": "Classical",
+      "skill_bucket": 3,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "moonlight_sonata_mvt1__FYwDG_5m9JE__4",
+      "band": "threshold",
+      "era": "Classical",
+      "skill_bucket": 4,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "clair_de_lune__JWFcWdCEYWE__2",
+      "band": "high",
+      "era": "Impressionist",
+      "skill_bucket": 2,
+      "is_anchor_seed": true,
+      "anchor_position": 214
+    },
+    {
+      "synth_id": "chopin_etude_op10no4__42QU3yj0kGU__3",
+      "band": "weak_dim",
+      "era": "Romantic",
+      "skill_bucket": 3,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "fur_elise__2fcX2dWmR6g__4",
+      "band": "weak_dim",
+      "era": "Classical",
+      "skill_bucket": 4,
+      "is_anchor_seed": true,
+      "anchor_position": 204
+    },
+    {
+      "synth_id": "clair_de_lune__dbgIWzM_A5o__2",
+      "band": "high",
+      "era": "Impressionist",
+      "skill_bucket": 2,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "chopin_waltz_csm__CpIpqkSybN8__3",
+      "band": "low",
+      "era": "Romantic",
+      "skill_bucket": 3,
+      "is_anchor_seed": true,
+      "anchor_position": 205
+    },
+    {
+      "synth_id": "chopin_etude_op10no4__iHC5G_vG5qw__5",
+      "band": "weak_dim",
+      "era": "Romantic",
+      "skill_bucket": 5,
+      "is_anchor_seed": true,
+      "anchor_position": 206
+    },
+    {
+      "synth_id": "bach_prelude_c_wtc1__0JtMpj9Rp2A__2",
+      "band": "low",
+      "era": "Baroque",
+      "skill_bucket": 2,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "bach_prelude_c_wtc1__OOL50wQb9mA__5",
+      "band": "threshold",
+      "era": "Baroque",
+      "skill_bucket": 5,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "bach_prelude_c_wtc1__HgIe-3NVDSc__3",
+      "band": "threshold",
+      "era": "Baroque",
+      "skill_bucket": 3,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "chopin_waltz_csm__D1TogQq7J_8__4",
+      "band": "low",
+      "era": "Romantic",
+      "skill_bucket": 4,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "clair_de_lune__J8xfM054ohk__3",
+      "band": "weak_dim",
+      "era": "Impressionist",
+      "skill_bucket": 3,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "moonlight_sonata_mvt1__HNU9erptpis__2",
+      "band": "threshold",
+      "era": "Classical",
+      "skill_bucket": 2,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "chopin_ballade_1__KlYdXTWE3jg__3",
+      "band": "low",
+      "era": "Romantic",
+      "skill_bucket": 3,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "chopin_etude_op10no4__9MPxUVlXEOQ__3",
+      "band": "threshold",
+      "era": "Romantic",
+      "skill_bucket": 3,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "clair_de_lune__J8xfM054ohk__3",
+      "band": "low",
+      "era": "Impressionist",
+      "skill_bucket": 3,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "chopin_waltz_csm__8ww0V00TsF0__2",
+      "band": "weak_dim",
+      "era": "Romantic",
+      "skill_bucket": 2,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "moonlight_sonata_mvt1__8a731aH5Im4__3",
+      "band": "low",
+      "era": "Classical",
+      "skill_bucket": 3,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "nocturne_op9no2__Nu48Z45ibxQ__5",
+      "band": "threshold",
+      "era": "Romantic",
+      "skill_bucket": 5,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "chopin_ballade_1__7Jrq2rL7M8A__2",
+      "band": "high",
+      "era": "Romantic",
+      "skill_bucket": 2,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "clair_de_lune__CF0rqYNJ180__2",
+      "band": "low",
+      "era": "Impressionist",
+      "skill_bucket": 2,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "moonlight_sonata_mvt1__H6U_3aJ0Gek__3",
+      "band": "threshold",
+      "era": "Classical",
+      "skill_bucket": 3,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "chopin_etude_op10no4__O_1zZOYWnvU__3",
+      "band": "threshold",
+      "era": "Romantic",
+      "skill_bucket": 3,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "bach_prelude_c_wtc1__frxT2qB1POQ__4",
+      "band": "high",
+      "era": "Baroque",
+      "skill_bucket": 4,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "chopin_ballade_1__9n10-rkO8f8__5",
+      "band": "weak_dim",
+      "era": "Romantic",
+      "skill_bucket": 5,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "bach_prelude_c_wtc1__DB_I08BfemI__3",
+      "band": "threshold",
+      "era": "Baroque",
+      "skill_bucket": 3,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "bach_invention_1__R6rxByR7h40__1",
+      "band": "high",
+      "era": "Baroque",
+      "skill_bucket": 1,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "clair_de_lune__HTGGJBYtfNg__3",
+      "band": "threshold",
+      "era": "Impressionist",
+      "skill_bucket": 3,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "bach_prelude_c_wtc1__Bu2b5LYPpxg__3",
+      "band": "high",
+      "era": "Baroque",
+      "skill_bucket": 3,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "clair_de_lune__JWFcWdCEYWE__2",
+      "band": "low",
+      "era": "Impressionist",
+      "skill_bucket": 2,
+      "is_anchor_seed": true,
+      "anchor_position": 214
+    },
+    {
+      "synth_id": "bach_invention_1__F5Mf9k6hITU__3",
+      "band": "high",
+      "era": "Baroque",
+      "skill_bucket": 3,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "chopin_ballade_1__7RPDjFkgR3w__4",
+      "band": "low",
+      "era": "Romantic",
+      "skill_bucket": 4,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "bach_invention_1__AI8O7sGzdFw__1",
+      "band": "low",
+      "era": "Baroque",
+      "skill_bucket": 1,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "chopin_ballade_1__HP1Fp75ECew__3",
+      "band": "threshold",
+      "era": "Romantic",
+      "skill_bucket": 3,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "bach_prelude_c_wtc1__SvaGNUvVFPc__3",
+      "band": "threshold",
+      "era": "Baroque",
+      "skill_bucket": 3,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "bach_prelude_c_wtc1__-ko8hETs1uk__3",
+      "band": "high",
+      "era": "Baroque",
+      "skill_bucket": 3,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "chopin_ballade_1__Zidt_DcHvG0__4",
+      "band": "low",
+      "era": "Romantic",
+      "skill_bucket": 4,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "moonlight_sonata_mvt1__GccmEH7_AvM__3",
+      "band": "weak_dim",
+      "era": "Classical",
+      "skill_bucket": 3,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "chopin_etude_op10no4__3Mfo_0ZY6Dg__4",
+      "band": "high",
+      "era": "Romantic",
+      "skill_bucket": 4,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "moonlight_sonata_mvt1__DYeQsEYlbr8__3",
+      "band": "weak_dim",
+      "era": "Classical",
+      "skill_bucket": 3,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "clair_de_lune__QGo9XfGVpKk__3",
+      "band": "threshold",
+      "era": "Impressionist",
+      "skill_bucket": 3,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "chopin_ballade_1__FVR5mL4ROTU__2",
+      "band": "weak_dim",
+      "era": "Romantic",
+      "skill_bucket": 2,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "chopin_etude_op10no4__XBWlYQHYbGc__3",
+      "band": "weak_dim",
+      "era": "Romantic",
+      "skill_bucket": 3,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "chopin_ballade_1__Oju-e6sPvDw__5",
+      "band": "weak_dim",
+      "era": "Romantic",
+      "skill_bucket": 5,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "chopin_etude_op10no4__ZIAZ6_jbau4__5",
+      "band": "weak_dim",
+      "era": "Romantic",
+      "skill_bucket": 5,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "bach_invention_1__Jl391khN5Es__3",
+      "band": "threshold",
+      "era": "Baroque",
+      "skill_bucket": 3,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "moonlight_sonata_mvt1__MTTdpaLomq0__5",
+      "band": "threshold",
+      "era": "Classical",
+      "skill_bucket": 5,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "bach_invention_1__AI8O7sGzdFw__1",
+      "band": "threshold",
+      "era": "Baroque",
+      "skill_bucket": 1,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "bach_prelude_c_wtc1__20yVnyNEJZ8__2",
+      "band": "low",
+      "era": "Baroque",
+      "skill_bucket": 2,
+      "is_anchor_seed": true,
+      "anchor_position": 207
+    },
+    {
+      "synth_id": "bach_prelude_c_wtc1__MCdTpEuVsx4__1",
+      "band": "high",
+      "era": "Baroque",
+      "skill_bucket": 1,
+      "is_anchor_seed": true,
+      "anchor_position": 208
+    },
+    {
+      "synth_id": "moonlight_sonata_mvt1__I8mQm8UOanw__3",
+      "band": "low",
+      "era": "Classical",
+      "skill_bucket": 3,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "clair_de_lune__J8xfM054ohk__3",
+      "band": "threshold",
+      "era": "Impressionist",
+      "skill_bucket": 3,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "chopin_etude_op10no4__be432AqaOCk__1",
+      "band": "high",
+      "era": "Romantic",
+      "skill_bucket": 1,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "chopin_waltz_csm__hCpcXwcmNSA__2",
+      "band": "threshold",
+      "era": "Romantic",
+      "skill_bucket": 2,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "clair_de_lune__91PxLEDIAsM__3",
+      "band": "low",
+      "era": "Impressionist",
+      "skill_bucket": 3,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "moonlight_sonata_mvt1__CGiU-4acUO0__4",
+      "band": "high",
+      "era": "Classical",
+      "skill_bucket": 4,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "clair_de_lune__g1_7WDR6mmE__2",
+      "band": "weak_dim",
+      "era": "Impressionist",
+      "skill_bucket": 2,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "chopin_etude_op10no4__Mx940cMW_sY__3",
+      "band": "threshold",
+      "era": "Romantic",
+      "skill_bucket": 3,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "moonlight_sonata_mvt1__Z4ZJOEgCU1s__5",
+      "band": "high",
+      "era": "Classical",
+      "skill_bucket": 5,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "chopin_waltz_csm__J64g6GGj9Cs__2",
+      "band": "weak_dim",
+      "era": "Romantic",
+      "skill_bucket": 2,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "chopin_etude_op10no4__J8-36thdVEU__4",
+      "band": "threshold",
+      "era": "Romantic",
+      "skill_bucket": 4,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "chopin_ballade_1__2FCpmYwx6zA__1",
+      "band": "weak_dim",
+      "era": "Romantic",
+      "skill_bucket": 1,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "chopin_waltz_csm__RB762om7jO4__4",
+      "band": "weak_dim",
+      "era": "Romantic",
+      "skill_bucket": 4,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "chopin_ballade_1__JyO65fHarKI__3",
+      "band": "high",
+      "era": "Romantic",
+      "skill_bucket": 3,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "bach_prelude_c_wtc1__L96aveDSIxY__2",
+      "band": "high",
+      "era": "Baroque",
+      "skill_bucket": 2,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "bach_invention_1__4tRjC0gzatY__2",
+      "band": "threshold",
+      "era": "Baroque",
+      "skill_bucket": 2,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "bach_invention_1__Lb33S5Q4eBo__2",
+      "band": "threshold",
+      "era": "Baroque",
+      "skill_bucket": 2,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "chopin_ballade_1__JyO65fHarKI__3",
+      "band": "weak_dim",
+      "era": "Romantic",
+      "skill_bucket": 3,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "nocturne_op9no2__8AlQzmEXcjA__3",
+      "band": "weak_dim",
+      "era": "Romantic",
+      "skill_bucket": 3,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "fur_elise__Xrkq-yBVcQQ__2",
+      "band": "threshold",
+      "era": "Classical",
+      "skill_bucket": 2,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "bach_invention_1__h9dhuKqTtgw__2",
+      "band": "threshold",
+      "era": "Baroque",
+      "skill_bucket": 2,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "chopin_etude_op10no4__-wyCOEoOBC4__3",
+      "band": "weak_dim",
+      "era": "Romantic",
+      "skill_bucket": 3,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "chopin_ballade_1__4xhVDdxTtu4__3",
+      "band": "threshold",
+      "era": "Romantic",
+      "skill_bucket": 3,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "moonlight_sonata_mvt1__H6U_3aJ0Gek__3",
+      "band": "high",
+      "era": "Classical",
+      "skill_bucket": 3,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "bach_prelude_c_wtc1__6Dnz4P-0IpA__5",
+      "band": "high",
+      "era": "Baroque",
+      "skill_bucket": 5,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "moonlight_sonata_mvt1__CGiU-4acUO0__4",
+      "band": "high",
+      "era": "Classical",
+      "skill_bucket": 4,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "chopin_etude_op10no4__JxO5Foxnmuw__3",
+      "band": "threshold",
+      "era": "Romantic",
+      "skill_bucket": 3,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "chopin_ballade_1__a7kWJ6tDTPs__3",
+      "band": "threshold",
+      "era": "Romantic",
+      "skill_bucket": 3,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "clair_de_lune__U3u4pQ4WKOk__5",
+      "band": "weak_dim",
+      "era": "Impressionist",
+      "skill_bucket": 5,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "clair_de_lune__4fHEBus_KdA__1",
+      "band": "threshold",
+      "era": "Impressionist",
+      "skill_bucket": 1,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "chopin_etude_op10no4__Jjxq6IFNLVM__5",
+      "band": "threshold",
+      "era": "Romantic",
+      "skill_bucket": 5,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "chopin_waltz_csm__3bPFdSj3H60__4",
+      "band": "threshold",
+      "era": "Romantic",
+      "skill_bucket": 4,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "chopin_ballade_1__UKskGigdEhA__4",
+      "band": "threshold",
+      "era": "Romantic",
+      "skill_bucket": 4,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "fur_elise__LM6FdrMd6Bo__1",
+      "band": "weak_dim",
+      "era": "Classical",
+      "skill_bucket": 1,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "moonlight_sonata_mvt1__NMdFW1RrXJs__3",
+      "band": "high",
+      "era": "Classical",
+      "skill_bucket": 3,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "chopin_waltz_csm__FlasiBlCVc0__3",
+      "band": "threshold",
+      "era": "Romantic",
+      "skill_bucket": 3,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "chopin_ballade_1__74uZ0tHfTjE__4",
+      "band": "weak_dim",
+      "era": "Romantic",
+      "skill_bucket": 4,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "chopin_ballade_1__REsmd1TK7oc__3",
+      "band": "threshold",
+      "era": "Romantic",
+      "skill_bucket": 3,
+      "is_anchor_seed": true,
+      "anchor_position": 209
+    },
+    {
+      "synth_id": "fur_elise__X0CQgtfnNRE__2",
+      "band": "high",
+      "era": "Classical",
+      "skill_bucket": 2,
+      "is_anchor_seed": true,
+      "anchor_position": 210
+    },
+    {
+      "synth_id": "chopin_etude_op10no4__EyWMbpM_pdc__3",
+      "band": "weak_dim",
+      "era": "Romantic",
+      "skill_bucket": 3,
+      "is_anchor_seed": true,
+      "anchor_position": 211
+    },
+    {
+      "synth_id": "fur_elise__2fcX2dWmR6g__4",
+      "band": "high",
+      "era": "Classical",
+      "skill_bucket": 4,
+      "is_anchor_seed": true,
+      "anchor_position": 204
+    },
+    {
+      "synth_id": "moonlight_sonata_mvt1__Uyy4iDzEXaM__4",
+      "band": "weak_dim",
+      "era": "Classical",
+      "skill_bucket": 4,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "fur_elise__50cvhSjdrPE__4",
+      "band": "weak_dim",
+      "era": "Classical",
+      "skill_bucket": 4,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "chopin_waltz_csm__M8PuKQHAF3s__2",
+      "band": "threshold",
+      "era": "Romantic",
+      "skill_bucket": 2,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "clair_de_lune__dq_fM8GrxM4__4",
+      "band": "weak_dim",
+      "era": "Impressionist",
+      "skill_bucket": 4,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "clair_de_lune__5cZuPRpAQMw__3",
+      "band": "low",
+      "era": "Impressionist",
+      "skill_bucket": 3,
+      "is_anchor_seed": true,
+      "anchor_position": 212
+    },
+    {
+      "synth_id": "clair_de_lune__OE-u2ORtIJY__3",
+      "band": "high",
+      "era": "Impressionist",
+      "skill_bucket": 3,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "chopin_ballade_1__2q0lVTwJbqs__4",
+      "band": "low",
+      "era": "Romantic",
+      "skill_bucket": 4,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "chopin_waltz_csm__0oyjDvxTsFM__3",
+      "band": "threshold",
+      "era": "Romantic",
+      "skill_bucket": 3,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "moonlight_sonata_mvt1__90nWGgMsB-4__2",
+      "band": "weak_dim",
+      "era": "Classical",
+      "skill_bucket": 2,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "bach_prelude_c_wtc1__J9Z9WWUJj5I__3",
+      "band": "threshold",
+      "era": "Baroque",
+      "skill_bucket": 3,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "bach_invention_1__G9oxXGd2a_8__2",
+      "band": "threshold",
+      "era": "Baroque",
+      "skill_bucket": 2,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "chopin_etude_op10no4__VdFRiOQ-fXs__4",
+      "band": "threshold",
+      "era": "Romantic",
+      "skill_bucket": 4,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "chopin_etude_op10no4__bFmpEyE1s-E__5",
+      "band": "high",
+      "era": "Romantic",
+      "skill_bucket": 5,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "bach_prelude_c_wtc1__RAgDyejXths__2",
+      "band": "threshold",
+      "era": "Baroque",
+      "skill_bucket": 2,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "moonlight_sonata_mvt1__JNa220viKnQ__2",
+      "band": "threshold",
+      "era": "Classical",
+      "skill_bucket": 2,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "moonlight_sonata_mvt1__S4L9uS0XHeQ__4",
+      "band": "threshold",
+      "era": "Classical",
+      "skill_bucket": 4,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "moonlight_sonata_mvt1__OsF9pz7ixrc__4",
+      "band": "high",
+      "era": "Classical",
+      "skill_bucket": 4,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "moonlight_sonata_mvt1__9uQEvYIkxYI__3",
+      "band": "high",
+      "era": "Classical",
+      "skill_bucket": 3,
+      "is_anchor_seed": true,
+      "anchor_position": 213
+    },
+    {
+      "synth_id": "chopin_waltz_csm__RP8whG2d6FE__1",
+      "band": "high",
+      "era": "Romantic",
+      "skill_bucket": 1,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "chopin_etude_op10no4__-yauT_uaKZo__5",
+      "band": "weak_dim",
+      "era": "Romantic",
+      "skill_bucket": 5,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "moonlight_sonata_mvt1__H6U_3aJ0Gek__3",
+      "band": "high",
+      "era": "Classical",
+      "skill_bucket": 3,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "moonlight_sonata_mvt1__4bdcfcfBST0__3",
+      "band": "high",
+      "era": "Classical",
+      "skill_bucket": 3,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "chopin_etude_op10no4__dzwQz4z8O2I__5",
+      "band": "weak_dim",
+      "era": "Romantic",
+      "skill_bucket": 5,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "chopin_waltz_csm__Hi_bQlsg_D8__4",
+      "band": "threshold",
+      "era": "Romantic",
+      "skill_bucket": 4,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "bach_prelude_c_wtc1__X2ln1aDLrjA__1",
+      "band": "low",
+      "era": "Baroque",
+      "skill_bucket": 1,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "clair_de_lune__JWFcWdCEYWE__2",
+      "band": "weak_dim",
+      "era": "Impressionist",
+      "skill_bucket": 2,
+      "is_anchor_seed": true,
+      "anchor_position": 214
+    },
+    {
+      "synth_id": "chopin_ballade_1__JbXkJOhvkMc__2",
+      "band": "threshold",
+      "era": "Romantic",
+      "skill_bucket": 2,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "clair_de_lune__QrqjPohK94c__4",
+      "band": "low",
+      "era": "Impressionist",
+      "skill_bucket": 4,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "bach_prelude_c_wtc1__F8zNvuXCWxo__4",
+      "band": "threshold",
+      "era": "Baroque",
+      "skill_bucket": 4,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "chopin_waltz_csm__EousHjFtaEI__3",
+      "band": "weak_dim",
+      "era": "Romantic",
+      "skill_bucket": 3,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "fur_elise__CWLRo1i9nF0__3",
+      "band": "high",
+      "era": "Classical",
+      "skill_bucket": 3,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "chopin_ballade_1__MDNe0BXDz3k__3",
+      "band": "threshold",
+      "era": "Romantic",
+      "skill_bucket": 3,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "clair_de_lune__CF0rqYNJ180__2",
+      "band": "threshold",
+      "era": "Impressionist",
+      "skill_bucket": 2,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "moonlight_sonata_mvt1__5GOE3w2ZUrQ__5",
+      "band": "threshold",
+      "era": "Classical",
+      "skill_bucket": 5,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "chopin_etude_op10no4__K7O7kdwkmOE__4",
+      "band": "weak_dim",
+      "era": "Romantic",
+      "skill_bucket": 4,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "chopin_etude_op10no4__j8IpYUI8MD0__2",
+      "band": "weak_dim",
+      "era": "Romantic",
+      "skill_bucket": 2,
+      "is_anchor_seed": true,
+      "anchor_position": 215
+    },
+    {
+      "synth_id": "moonlight_sonata_mvt1__brMkXh02qIQ__4",
+      "band": "high",
+      "era": "Classical",
+      "skill_bucket": 4,
+      "is_anchor_seed": true,
+      "anchor_position": 216
+    },
+    {
+      "synth_id": "clair_de_lune__09_kC_aYt6w__4",
+      "band": "low",
+      "era": "Impressionist",
+      "skill_bucket": 4,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "chopin_etude_op10no4__1aB8JawkJBM__5",
+      "band": "low",
+      "era": "Romantic",
+      "skill_bucket": 5,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "nocturne_op9no2__QR10Od1cLaM__5",
+      "band": "high",
+      "era": "Romantic",
+      "skill_bucket": 5,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "moonlight_sonata_mvt1__4g0MrFhetGA__3",
+      "band": "weak_dim",
+      "era": "Classical",
+      "skill_bucket": 3,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "chopin_etude_op10no4__Lk7KYWtvup8__4",
+      "band": "threshold",
+      "era": "Romantic",
+      "skill_bucket": 4,
+      "is_anchor_seed": true,
+      "anchor_position": 217
+    },
+    {
+      "synth_id": "bach_prelude_c_wtc1__F8zNvuXCWxo__4",
+      "band": "high",
+      "era": "Baroque",
+      "skill_bucket": 4,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "chopin_ballade_1__3F70U2QAkZw__1",
+      "band": "weak_dim",
+      "era": "Romantic",
+      "skill_bucket": 1,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "clair_de_lune__AUr3kazFBLo__3",
+      "band": "weak_dim",
+      "era": "Impressionist",
+      "skill_bucket": 3,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "chopin_etude_op10no4__O8TaAW8UmyA__4",
+      "band": "threshold",
+      "era": "Romantic",
+      "skill_bucket": 4,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "chopin_etude_op10no4__YXJpGQwsbOY__2",
+      "band": "weak_dim",
+      "era": "Romantic",
+      "skill_bucket": 2,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "bach_prelude_c_wtc1__4MYAfXyuI9g__3",
+      "band": "weak_dim",
+      "era": "Baroque",
+      "skill_bucket": 3,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "clair_de_lune__CF0rqYNJ180__2",
+      "band": "weak_dim",
+      "era": "Impressionist",
+      "skill_bucket": 2,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "bach_invention_1__-Ni4Utqyc4Y__5",
+      "band": "weak_dim",
+      "era": "Baroque",
+      "skill_bucket": 5,
+      "is_anchor_seed": true,
+      "anchor_position": 218
+    },
+    {
+      "synth_id": "bach_invention_1__bDU2v34CH7w__3",
+      "band": "threshold",
+      "era": "Baroque",
+      "skill_bucket": 3,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "chopin_ballade_1__I3-Eh1KN6QQ__1",
+      "band": "weak_dim",
+      "era": "Romantic",
+      "skill_bucket": 1,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "bach_invention_1__1X69nSZVhbE__1",
+      "band": "threshold",
+      "era": "Baroque",
+      "skill_bucket": 1,
+      "is_anchor_seed": true,
+      "anchor_position": 219
+    },
+    {
+      "synth_id": "chopin_etude_op10no4__BKTfrncOLF0__3",
+      "band": "threshold",
+      "era": "Romantic",
+      "skill_bucket": 3,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "chopin_ballade_1__O6_9WtYAV_c__4",
+      "band": "weak_dim",
+      "era": "Romantic",
+      "skill_bucket": 4,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "chopin_etude_op10no4__CxHjjVYzY4Y__2",
+      "band": "threshold",
+      "era": "Romantic",
+      "skill_bucket": 2,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "bach_prelude_c_wtc1__6Dnz4P-0IpA__5",
+      "band": "threshold",
+      "era": "Baroque",
+      "skill_bucket": 5,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "moonlight_sonata_mvt1__EDO5Aey698k__3",
+      "band": "threshold",
+      "era": "Classical",
+      "skill_bucket": 3,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "chopin_ballade_1__34nFqhE1ud0__1",
+      "band": "weak_dim",
+      "era": "Romantic",
+      "skill_bucket": 1,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "chopin_ballade_1__78u4GqFyMHY__2",
+      "band": "threshold",
+      "era": "Romantic",
+      "skill_bucket": 2,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "clair_de_lune__Ch2mrPm1JnM__5",
+      "band": "low",
+      "era": "Impressionist",
+      "skill_bucket": 5,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "clair_de_lune__Ch2mrPm1JnM__5",
+      "band": "threshold",
+      "era": "Impressionist",
+      "skill_bucket": 5,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "chopin_ballade_1__Jt2f6yEGcP4__1",
+      "band": "low",
+      "era": "Romantic",
+      "skill_bucket": 1,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "clair_de_lune__-hktd764MGA__2",
+      "band": "threshold",
+      "era": "Impressionist",
+      "skill_bucket": 2,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "clair_de_lune__5pPFfcbmEXs__1",
+      "band": "high",
+      "era": "Impressionist",
+      "skill_bucket": 1,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "moonlight_sonata_mvt1__281FsFlHLJY__3",
+      "band": "low",
+      "era": "Classical",
+      "skill_bucket": 3,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "bach_invention_1__hd9kWeA974U__3",
+      "band": "threshold",
+      "era": "Baroque",
+      "skill_bucket": 3,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "moonlight_sonata_mvt1__WDzRXcoDu-o__3",
+      "band": "threshold",
+      "era": "Classical",
+      "skill_bucket": 3,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "bach_prelude_c_wtc1__7Ka4_kjmo0A__3",
+      "band": "threshold",
+      "era": "Baroque",
+      "skill_bucket": 3,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "chopin_ballade_1__FnwDQ9BwhS0__3",
+      "band": "weak_dim",
+      "era": "Romantic",
+      "skill_bucket": 3,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "clair_de_lune__4-6JVJ1oXRM__4",
+      "band": "high",
+      "era": "Impressionist",
+      "skill_bucket": 4,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "moonlight_sonata_mvt1__9G6jhyrligU__1",
+      "band": "weak_dim",
+      "era": "Classical",
+      "skill_bucket": 1,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "chopin_etude_op10no4__3Z7OK5Zry-c__3",
+      "band": "weak_dim",
+      "era": "Romantic",
+      "skill_bucket": 3,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "bach_prelude_c_wtc1__1CVlBSgj0bk__5",
+      "band": "threshold",
+      "era": "Baroque",
+      "skill_bucket": 5,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "fur_elise__IDqVP5hNdME__1",
+      "band": "high",
+      "era": "Classical",
+      "skill_bucket": 1,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "bach_prelude_c_wtc1__Ft0714E1WOM__3",
+      "band": "threshold",
+      "era": "Baroque",
+      "skill_bucket": 3,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "bach_prelude_c_wtc1__1MNnIjztkCM__2",
+      "band": "threshold",
+      "era": "Baroque",
+      "skill_bucket": 2,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "bach_invention_1__jPbvGT-xqHg__2",
+      "band": "high",
+      "era": "Baroque",
+      "skill_bucket": 2,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "chopin_etude_op10no4__K7O7kdwkmOE__4",
+      "band": "weak_dim",
+      "era": "Romantic",
+      "skill_bucket": 4,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "chopin_waltz_csm__Df0qzn1Vbb4__4",
+      "band": "low",
+      "era": "Romantic",
+      "skill_bucket": 4,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "bach_prelude_c_wtc1__0bk6gPoncoA__5",
+      "band": "threshold",
+      "era": "Baroque",
+      "skill_bucket": 5,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "clair_de_lune__RJu-JPVURgQ__3",
+      "band": "threshold",
+      "era": "Impressionist",
+      "skill_bucket": 3,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "bach_invention_1__Zi9sCDQ48l4__3",
+      "band": "threshold",
+      "era": "Baroque",
+      "skill_bucket": 3,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "moonlight_sonata_mvt1__OcXdRtKPYrY__2",
+      "band": "low",
+      "era": "Classical",
+      "skill_bucket": 2,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    },
+    {
+      "synth_id": "chopin_ballade_1__NLkc7uLSKKs__2",
+      "band": "threshold",
+      "era": "Romantic",
+      "skill_bucket": 2,
+      "is_anchor_seed": false,
+      "anchor_position": null
+    }
+  ],
+  "anchors": [
+    {
+      "synth_id": "chopin_waltz_csm__2HVMf_nBtYQ__2",
+      "synth_id_displayed": "anchor-d70c8997477de2ab",
+      "display_position": 200,
+      "original_main_index": 14
+    },
+    {
+      "synth_id": "moonlight_sonata_mvt1__1V3xRx1uZ1g__3",
+      "synth_id_displayed": "anchor-9dd41cc292266d39",
+      "display_position": 201,
+      "original_main_index": 18
+    },
+    {
+      "synth_id": "bach_prelude_c_wtc1__aCmldStNg0I__3",
+      "synth_id_displayed": "anchor-fee9a4cb0883f09a",
+      "display_position": 202,
+      "original_main_index": 19
+    },
+    {
+      "synth_id": "moonlight_sonata_mvt1__AJ8GNh7a7d4__2",
+      "synth_id_displayed": "anchor-b99937db14745994",
+      "display_position": 203,
+      "original_main_index": 22
+    },
+    {
+      "synth_id": "fur_elise__2fcX2dWmR6g__4",
+      "synth_id_displayed": "anchor-f243c5f18d6f3f4b",
+      "display_position": 204,
+      "original_main_index": 27
+    },
+    {
+      "synth_id": "chopin_waltz_csm__CpIpqkSybN8__3",
+      "synth_id_displayed": "anchor-edeb8158093c9def",
+      "display_position": 205,
+      "original_main_index": 29
+    },
+    {
+      "synth_id": "chopin_etude_op10no4__iHC5G_vG5qw__5",
+      "synth_id_displayed": "anchor-b89e6ca0b3f1d8b3",
+      "display_position": 206,
+      "original_main_index": 30
+    },
+    {
+      "synth_id": "bach_prelude_c_wtc1__20yVnyNEJZ8__2",
+      "synth_id_displayed": "anchor-e7215add9c186656",
+      "display_position": 207,
+      "original_main_index": 72
+    },
+    {
+      "synth_id": "bach_prelude_c_wtc1__MCdTpEuVsx4__1",
+      "synth_id_displayed": "anchor-1626f5701f1b6e52",
+      "display_position": 208,
+      "original_main_index": 73
+    },
+    {
+      "synth_id": "chopin_ballade_1__REsmd1TK7oc__3",
+      "synth_id_displayed": "anchor-d24343347a5c6fc2",
+      "display_position": 209,
+      "original_main_index": 111
+    },
+    {
+      "synth_id": "fur_elise__X0CQgtfnNRE__2",
+      "synth_id_displayed": "anchor-38035a6612bea814",
+      "display_position": 210,
+      "original_main_index": 112
+    },
+    {
+      "synth_id": "chopin_etude_op10no4__EyWMbpM_pdc__3",
+      "synth_id_displayed": "anchor-21a92bc681c4d9c4",
+      "display_position": 211,
+      "original_main_index": 113
+    },
+    {
+      "synth_id": "clair_de_lune__5cZuPRpAQMw__3",
+      "synth_id_displayed": "anchor-d6072bc05fbb3f27",
+      "display_position": 212,
+      "original_main_index": 119
+    },
+    {
+      "synth_id": "moonlight_sonata_mvt1__9uQEvYIkxYI__3",
+      "synth_id_displayed": "anchor-211febea84c276e1",
+      "display_position": 213,
+      "original_main_index": 132
+    },
+    {
+      "synth_id": "clair_de_lune__JWFcWdCEYWE__2",
+      "synth_id_displayed": "anchor-17b6d6edb11e1672",
+      "display_position": 214,
+      "original_main_index": 140
+    },
+    {
+      "synth_id": "chopin_etude_op10no4__j8IpYUI8MD0__2",
+      "synth_id_displayed": "anchor-fd853c837ec279d6",
+      "display_position": 215,
+      "original_main_index": 150
+    },
+    {
+      "synth_id": "moonlight_sonata_mvt1__brMkXh02qIQ__4",
+      "synth_id_displayed": "anchor-f429ae9e2ce16e15",
+      "display_position": 216,
+      "original_main_index": 151
+    },
+    {
+      "synth_id": "chopin_etude_op10no4__Lk7KYWtvup8__4",
+      "synth_id_displayed": "anchor-294e5e18914162c9",
+      "display_position": 217,
+      "original_main_index": 156
+    },
+    {
+      "synth_id": "bach_invention_1__-Ni4Utqyc4Y__5",
+      "synth_id_displayed": "anchor-0410c534c4dc8a6d",
+      "display_position": 218,
+      "original_main_index": 164
+    },
+    {
+      "synth_id": "bach_invention_1__1X69nSZVhbE__1",
+      "synth_id_displayed": "anchor-e81071a97cacab16",
+      "display_position": 219,
+      "original_main_index": 167
+    }
+  ],
+  "holdout": [
+    {
+      "synth_id": "moonlight_sonata_mvt1__9Idy4ujVFbo__3",
+      "band": "high",
+      "era": "Classical",
+      "skill_bucket": 3
+    },
+    {
+      "synth_id": "chopin_waltz_csm__MI9esEFUVtM__3",
+      "band": "threshold",
+      "era": "Romantic",
+      "skill_bucket": 3
+    },
+    {
+      "synth_id": "bach_prelude_c_wtc1__Hy2tnBwx-Ow__4",
+      "band": "high",
+      "era": "Baroque",
+      "skill_bucket": 4
+    },
+    {
+      "synth_id": "bach_prelude_c_wtc1__5rhksuX89Go__3",
+      "band": "threshold",
+      "era": "Baroque",
+      "skill_bucket": 3
+    },
+    {
+      "synth_id": "chopin_ballade_1__BvZbv3-UW4A__5",
+      "band": "low",
+      "era": "Romantic",
+      "skill_bucket": 5
+    },
+    {
+      "synth_id": "bach_invention_1__KPFAJqv-cnU__2",
+      "band": "threshold",
+      "era": "Baroque",
+      "skill_bucket": 2
+    },
+    {
+      "synth_id": "fur_elise__Mriq2rfgCz0__3",
+      "band": "threshold",
+      "era": "Classical",
+      "skill_bucket": 3
+    },
+    {
+      "synth_id": "moonlight_sonata_mvt1__524VlYD0PVw__5",
+      "band": "high",
+      "era": "Classical",
+      "skill_bucket": 5
+    },
+    {
+      "synth_id": "chopin_waltz_csm__SUT_0c2QVzo__4",
+      "band": "threshold",
+      "era": "Romantic",
+      "skill_bucket": 4
+    },
+    {
+      "synth_id": "moonlight_sonata_mvt1__0-y5dRpiir0__3",
+      "band": "weak_dim",
+      "era": "Classical",
+      "skill_bucket": 3
+    },
+    {
+      "synth_id": "nocturne_op9no2__Tn_4p1K4Aew__4",
+      "band": "weak_dim",
+      "era": "Romantic",
+      "skill_bucket": 4
+    },
+    {
+      "synth_id": "nocturne_op9no2__ZCFsu4kS6fs__1",
+      "band": "weak_dim",
+      "era": "Romantic",
+      "skill_bucket": 1
+    },
+    {
+      "synth_id": "chopin_etude_op10no4__HUoW-1cHUk8__5",
+      "band": "high",
+      "era": "Romantic",
+      "skill_bucket": 5
+    },
+    {
+      "synth_id": "chopin_ballade_1__hyCPiRmDMmE__5",
+      "band": "high",
+      "era": "Romantic",
+      "skill_bucket": 5
+    },
+    {
+      "synth_id": "clair_de_lune__8O-1wkQ-6T0__4",
+      "band": "weak_dim",
+      "era": "Impressionist",
+      "skill_bucket": 4
+    },
+    {
+      "synth_id": "chopin_etude_op10no4__9kGulRHFyGo__2",
+      "band": "low",
+      "era": "Romantic",
+      "skill_bucket": 2
+    },
+    {
+      "synth_id": "bach_invention_1__3Pllid4KqLo__2",
+      "band": "threshold",
+      "era": "Baroque",
+      "skill_bucket": 2
+    },
+    {
+      "synth_id": "bach_prelude_c_wtc1__CYdF4rUq-2U__2",
+      "band": "low",
+      "era": "Baroque",
+      "skill_bucket": 2
+    },
+    {
+      "synth_id": "moonlight_sonata_mvt1__FsOu8sRdqUQ__3",
+      "band": "high",
+      "era": "Classical",
+      "skill_bucket": 3
+    },
+    {
+      "synth_id": "chopin_ballade_1__8jrsdSzN6mg__3",
+      "band": "high",
+      "era": "Romantic",
+      "skill_bucket": 3
+    },
+    {
+      "synth_id": "nocturne_op9no2__DG7ms-t8yqU__1",
+      "band": "threshold",
+      "era": "Romantic",
+      "skill_bucket": 1
+    },
+    {
+      "synth_id": "chopin_etude_op10no4__Rq6hnt8sbeE__4",
+      "band": "threshold",
+      "era": "Romantic",
+      "skill_bucket": 4
+    },
+    {
+      "synth_id": "moonlight_sonata_mvt1__524VlYD0PVw__5",
+      "band": "high",
+      "era": "Classical",
+      "skill_bucket": 5
+    },
+    {
+      "synth_id": "chopin_etude_op10no4__FMtV5T0H_kM__4",
+      "band": "high",
+      "era": "Romantic",
+      "skill_bucket": 4
+    },
+    {
+      "synth_id": "chopin_etude_op10no4__FnSk2jRHmd8__2",
+      "band": "high",
+      "era": "Romantic",
+      "skill_bucket": 2
+    },
+    {
+      "synth_id": "chopin_ballade_1__A6Im8sEv4-I__1",
+      "band": "threshold",
+      "era": "Romantic",
+      "skill_bucket": 1
+    },
+    {
+      "synth_id": "chopin_etude_op10no4__1VDtl4aOzs0__3",
+      "band": "low",
+      "era": "Romantic",
+      "skill_bucket": 3
+    },
+    {
+      "synth_id": "chopin_waltz_csm__ho6DtfaSqwU__3",
+      "band": "threshold",
+      "era": "Romantic",
+      "skill_bucket": 3
+    },
+    {
+      "synth_id": "chopin_etude_op10no4__8EeU7zNPhr0__1",
+      "band": "threshold",
+      "era": "Romantic",
+      "skill_bucket": 1
+    },
+    {
+      "synth_id": "chopin_waltz_csm__TXS5JdpLLM0__4",
+      "band": "threshold",
+      "era": "Romantic",
+      "skill_bucket": 4
+    }
+  ],
+  "stats": {
+    "n_main": 200,
+    "n_anchors_silent_dups": 20,
+    "n_holdout": 30,
+    "band_counts": {
+      "threshold": 80,
+      "weak_dim": 50,
+      "high": 40,
+      "low": 30
+    },
+    "era_counts": {
+      "Romantic": 79,
+      "Classical": 46,
+      "Baroque": 44,
+      "Impressionist": 31
+    },
+    "skill_group_counts": {
+      "advanced": 65,
+      "beginner": 64,
+      "intermediate": 71
+    }
+  }
+}
