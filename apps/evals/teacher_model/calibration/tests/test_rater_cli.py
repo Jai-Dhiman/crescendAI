@@ -3,8 +3,11 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from teacher_model.calibration.rater_cli import (
     PHASE_1_SUB_SCORES,
+    SessionCapExceeded,
     capture_synthesis_ratings,
     redact_for_rater,
 )
@@ -114,3 +117,46 @@ def test_phase_1_sub_scores_has_exactly_eleven():
     assert "ascf_outcome" not in PHASE_1_SUB_SCORES
     assert "scaffolded_outcome" not in PHASE_1_SUB_SCORES
     assert "style_outcome" not in PHASE_1_SUB_SCORES
+
+
+def test_session_cap_blocks_when_remaining_slots_insufficient(tmp_path: Path):
+    # Cap is 15. Start at session_idx_start=10 — only 6 slots remain, but
+    # capturing one synthesis writes 11 rating events, so this must raise
+    # BEFORE writing anything.
+    redacted = {"synth_id": "p__r__3", "synthesis_text": "x"}
+    output = tmp_path / "ratings.jsonl"
+
+    def provider(_, __):
+        return (3, "e", "r")
+
+    with pytest.raises(SessionCapExceeded):
+        capture_synthesis_ratings(
+            redacted_row=redacted,
+            sub_scores=PHASE_1_SUB_SCORES,
+            session_id="S001",
+            session_idx_start=10,
+            output_path=output,
+            input_provider=provider,
+        )
+
+    # Output must be empty or non-existent — no partial writes
+    if output.exists():
+        assert output.read_text() == ""
+
+
+def test_session_cap_allows_when_slots_sufficient(tmp_path: Path):
+    redacted = {"synth_id": "p__r__3", "synthesis_text": "x"}
+    output = tmp_path / "ratings.jsonl"
+
+    def provider(_, __):
+        return (3, "e", "r")
+
+    n = capture_synthesis_ratings(
+        redacted_row=redacted,
+        sub_scores=PHASE_1_SUB_SCORES,
+        session_id="S001",
+        session_idx_start=1,
+        output_path=output,
+        input_provider=provider,
+    )
+    assert n == 11

@@ -48,6 +48,13 @@ PHASE_1_SUB_SCORES: list[str] = [
 ]
 
 
+MAX_RATINGS_PER_SESSION: int = 15
+
+
+class SessionCapExceeded(Exception):
+    """Raised when a synthesis would push a session past 15 rating events."""
+
+
 def capture_synthesis_ratings(
     redacted_row: dict,
     sub_scores: list[str],
@@ -56,6 +63,15 @@ def capture_synthesis_ratings(
     output_path: Path,
     input_provider: Callable[[dict, str], tuple[int, str, str]],
 ) -> int:
+    needed = len(sub_scores)
+    last_idx = session_idx_start + needed - 1
+    if last_idx > MAX_RATINGS_PER_SESSION:
+        raise SessionCapExceeded(
+            f"Session {session_id} would reach idx {last_idx}, "
+            f"exceeding cap of {MAX_RATINGS_PER_SESSION}. "
+            f"Start a new session and continue."
+        )
+
     n_written = 0
     with output_path.open("a") as out:
         for i, sub_score in enumerate(sub_scores):
