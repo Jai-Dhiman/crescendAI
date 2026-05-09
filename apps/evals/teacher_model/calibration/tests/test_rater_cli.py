@@ -106,6 +106,7 @@ def test_capture_writes_one_event_per_sub_score(tmp_path: Path):
     assert all(e["session_id"] == "S001" for e in events)
     assert {e["sub_score"] for e in events} == set(PHASE_1_SUB_SCORES)
     assert events[0]["value"] == 2 and events[0]["evidence"] == "ev_ascf_p"
+    assert [e["session_idx"] for e in events] == list(range(1, 12))
 
 
 def test_phase_1_sub_scores_has_exactly_eleven():
