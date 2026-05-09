@@ -91,7 +91,10 @@ class LlmGateway:
         if resp is None:
             raise LlmGatewayError("no response from Workers AI after retries")
         body_json = resp.json()
-        text = body_json.get("result", {}).get("response", "")
+        try:
+            text = body_json["choices"][0]["message"]["content"]
+        except (KeyError, IndexError, TypeError) as exc:
+            raise LlmGatewayError(f"workers-ai unexpected response shape: {exc}") from exc
 
         parsed: dict[str, Any] | None = None
         if schema is not None:

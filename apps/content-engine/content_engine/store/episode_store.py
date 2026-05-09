@@ -19,7 +19,7 @@ class EpisodeStore:
     def __init__(self, db_path: Path | str):
         self._db_path = Path(db_path)
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
-        self._conn = sqlite3.connect(self._db_path, isolation_level=None)
+        self._conn = sqlite3.connect(self._db_path, isolation_level=None, check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
         self._conn.executescript(_SCHEMA_PATH.read_text())
 

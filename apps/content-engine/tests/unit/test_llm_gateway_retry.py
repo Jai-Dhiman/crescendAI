@@ -13,7 +13,7 @@ def test_retry_once_on_5xx_then_success(monkeypatch):
             return httpx.Response(503, request=httpx.Request("POST", url))
         return httpx.Response(
             200,
-            json={"result": {"response": '{"k":"v"}'}},
+            json={"choices": [{"message": {"content": '{"k":"v"}'}}]},
             request=httpx.Request("POST", url),
         )
 

@@ -13,9 +13,9 @@ def test_selector_mode_posts_to_workers_ai_gateway(monkeypatch):
         return httpx.Response(
             200,
             json={
-                "result": {
-                    "response": '{"dimension":"phrasing","time_range":[5.2,7.1],"plain_english":"rushed peak"}'
-                }
+                "choices": [
+                    {"message": {"content": '{"dimension":"phrasing","time_range":[5.2,7.1],"plain_english":"rushed peak"}'}}
+                ]
             },
             request=httpx.Request("POST", url),
         )

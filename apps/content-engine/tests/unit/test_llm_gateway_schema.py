@@ -19,7 +19,7 @@ def test_valid_response_passes_schema(monkeypatch):
     def fake_post(url, **kwargs):
         return httpx.Response(
             200,
-            json={"result": {"response": '{"dimension":"phrasing","time_range":[5.2,7.1],"plain_english":"rushed"}'}},
+            json={"choices": [{"message": {"content": '{"dimension":"phrasing","time_range":[5.2,7.1],"plain_english":"rushed"}'}}]},
             request=httpx.Request("POST", url),
         )
 
@@ -33,7 +33,7 @@ def test_invalid_response_raises(monkeypatch):
     def fake_post(url, **kwargs):
         return httpx.Response(
             200,
-            json={"result": {"response": '{"dimension":"BOGUS","time_range":[5.2,7.1],"plain_english":"x"}'}},
+            json={"choices": [{"message": {"content": '{"dimension":"BOGUS","time_range":[5.2,7.1],"plain_english":"x"}'}}]},
             request=httpx.Request("POST", url),
         )
 
