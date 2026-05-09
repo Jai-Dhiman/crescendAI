@@ -85,10 +85,14 @@ def _compute_judge_drift(judge_runs_path: Path) -> dict[str, float]:
             synth_id = rec.get("synth_id")
             if run_label is None or synth_id is None:
                 continue
-            by_run_label[run_label][synth_id] = _extract_judge_sub_scores(rec["dimensions"])
+            by_run_label[run_label][synth_id] = _extract_judge_sub_scores(rec.get("dimensions", []))
 
     if len(by_run_label) < 2:
         return {}
+    if len(by_run_label) > 2:
+        raise ValueError(
+            f"Expected exactly 2 run_labels (day1/day30), got: {sorted(by_run_label)}"
+        )
 
     labels = list(by_run_label.keys())
     label_a, label_b = labels[0], labels[1]

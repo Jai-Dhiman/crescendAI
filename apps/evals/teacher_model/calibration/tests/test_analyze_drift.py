@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from teacher_model.calibration.analyze_drift import analyze_drift
 
 
@@ -133,3 +135,17 @@ def test_judge_drift_kappa_drops_below_one_when_runs_disagree(tmp_path: Path):
     drift = report["judge_drift_kappa"]
     assert drift["ascf_process"] < 1.0
     assert drift["ascf_process"] >= -1.0
+
+
+def test_judge_drift_raises_when_more_than_two_run_labels(tmp_path: Path):
+    ratings_path = tmp_path / "ratings.jsonl"
+    ratings_path.write_text("")
+    judge_runs_path = tmp_path / "runs.jsonl"
+
+    records = []
+    for label in ("day1", "day15", "day30"):
+        records.append(_judge_record("A1", label, 2))
+    _write_judge_runs(judge_runs_path, records)
+
+    with pytest.raises(ValueError, match="run_labels"):
+        analyze_drift(ratings_path=ratings_path, judge_runs_path=judge_runs_path)
