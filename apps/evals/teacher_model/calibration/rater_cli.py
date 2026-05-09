@@ -28,3 +28,52 @@ _RATER_VISIBLE_FIELDS: frozenset[str] = frozenset({
 
 def redact_for_rater(row: dict[str, Any]) -> dict[str, Any]:
     return {k: v for k, v in row.items() if k in _RATER_VISIBLE_FIELDS}
+
+
+import json
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Callable
+
+PHASE_1_SUB_SCORES: list[str] = [
+    "ascf_process",
+    "concrete_artifact_process",
+    "praise_process",
+    "autonomy_process",
+    "scaffolded_process",
+    "style_process",
+    "tone_process",
+    "autonomy_outcome",
+    "tone_outcome",
+    "concrete_artifact_outcome",
+    "praise_outcome",
+]
+
+
+def capture_synthesis_ratings(
+    redacted_row: dict,
+    sub_scores: list[str],
+    session_id: str,
+    session_idx_start: int,
+    output_path: Path,
+    input_provider: Callable[[dict, str], tuple[int, str, str]],
+) -> int:
+    n_written = 0
+    with output_path.open("a") as out:
+        for sub_score in sub_scores:
+            value, evidence, reason = input_provider(redacted_row, sub_score)
+            event = {
+                "event_type": "rating",
+                "synth_id": redacted_row["synth_id"],
+                "anchor_origin_id": redacted_row.get("anchor_origin_id"),
+                "sub_score": sub_score,
+                "value": value,
+                "evidence": evidence,
+                "reason": reason,
+                "session_id": session_id,
+                "session_idx": session_idx_start,
+                "ts": datetime.now(timezone.utc).isoformat(),
+            }
+            out.write(json.dumps(event) + "\n")
+            n_written += 1
+    return n_written
