@@ -1,6 +1,7 @@
+import re
 from typing import Annotated, Any, Callable, Literal, Union
 
-from pydantic import BaseModel, Field, StringConstraints, ValidationError
+from pydantic import BaseModel, Field, StringConstraints, ValidationError, field_validator
 
 
 class Stage1TextBlock(BaseModel):
@@ -85,6 +86,41 @@ def _register(name: str, model: type[BaseModel]) -> None:
 
 
 _register("create_exercise", _CreateExerciseInput)
+
+
+_PIECE_SLUG = re.compile(r"^[a-z0-9._-]+$")
+
+
+class _Highlight(BaseModel):
+    bars: tuple[int, int]
+    dimension: Literal[
+        "dynamics", "timing", "pedaling", "articulation", "phrasing", "interpretation"
+    ]
+    annotation: Annotated[str, StringConstraints(max_length=500)] | None = None
+
+    @field_validator("bars")
+    @classmethod
+    def _bars_ordered(cls, v: tuple[int, int]) -> tuple[int, int]:
+        if v[0] < 1 or v[1] < 1:
+            raise ValueError("bars must be >= 1")
+        if v[0] > v[1]:
+            raise ValueError("bars start must be <= end")
+        return v
+
+
+class _ScoreHighlightInput(BaseModel):
+    piece_id: Annotated[str, StringConstraints(min_length=1, max_length=200)]
+    highlights: Annotated[list[_Highlight], Field(min_length=1, max_length=5)]
+
+    @field_validator("piece_id")
+    @classmethod
+    def _slug(cls, v: str) -> str:
+        if not _PIECE_SLUG.match(v):
+            raise ValueError("piece_id must match catalog slug regex")
+        return v
+
+
+_register("score_highlight", _ScoreHighlightInput)
 
 
 def validate_tool_input(name: str, payload: dict[str, Any]) -> list[str]:

@@ -102,3 +102,52 @@ def test_validate_tool_input_create_exercise(tool_input, expected_error_substrin
         assert errors == []
     else:
         assert any(expected_error_substring in e for e in errors), errors
+
+
+@pytest.mark.parametrize(
+    "tool_input,expected_substring",
+    [
+        (
+            {
+                "piece_id": "chopin.ballades.1",
+                "highlights": [
+                    {"bars": [5, 8], "dimension": "phrasing", "annotation": "shape"},
+                ],
+            },
+            None,
+        ),
+        (
+            {
+                "piece_id": "chopin.ballades.1",
+                "highlights": [{"bars": [10, 5], "dimension": "phrasing"}],
+            },
+            "start",  # bars start must be <= end
+        ),
+        (
+            {"highlights": [{"bars": [1, 2], "dimension": "phrasing"}]},
+            "piece_id",
+        ),
+        (
+            {
+                "piece_id": "chopin.ballades.1",
+                "highlights": [
+                    {"bars": [i, i], "dimension": "phrasing"} for i in range(1, 7)
+                ],
+            },
+            "max",  # >5 highlights
+        ),
+        (
+            {
+                "piece_id": "chopin.ballades.1",
+                "highlights": [{"bars": [1, 2], "dimension": "rhythm"}],
+            },
+            "dimension",
+        ),
+    ],
+)
+def test_validate_tool_input_score_highlight(tool_input, expected_substring):
+    errors = validate_tool_input("score_highlight", tool_input)
+    if expected_substring is None:
+        assert errors == []
+    else:
+        assert any(expected_substring in e for e in errors), errors
