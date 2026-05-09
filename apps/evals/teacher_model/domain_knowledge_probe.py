@@ -238,7 +238,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--provider",
-        choices=["workers-ai", "anthropic"],
+        choices=["workers-ai", "anthropic", "openrouter"],
         default="workers-ai",
         help="LLM provider to use (default: workers-ai)",
     )
