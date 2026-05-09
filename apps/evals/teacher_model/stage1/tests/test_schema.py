@@ -251,6 +251,34 @@ def test_validate_tool_input_search_catalog(tool_input, expected_substring):
 
 
 from teacher_model.stage1.schema import Stage1Negative, NEGATIVE_CATEGORIES, MatchedContrastPair
+from teacher_model.stage1.schema import build_anthropic_tool_schemas
+
+
+def test_build_anthropic_tool_schemas_returns_one_per_registered_tool():
+    schemas = build_anthropic_tool_schemas()
+
+    names = {s["name"] for s in schemas}
+    assert names == {
+        "create_exercise",
+        "score_highlight",
+        "keyboard_guide",
+        "show_session_data",
+        "reference_browser",
+        "search_catalog",
+    }
+
+    for schema in schemas:
+        assert isinstance(schema["name"], str) and schema["name"]
+        assert isinstance(schema["description"], str)
+        assert schema["input_schema"]["type"] == "object"
+        assert "properties" in schema["input_schema"]
+
+
+def test_build_anthropic_tool_schemas_create_exercise_required_fields():
+    schemas = build_anthropic_tool_schemas()
+    create = next(s for s in schemas if s["name"] == "create_exercise")
+    required = set(create["input_schema"].get("required", []))
+    assert {"source_passage", "target_skill", "exercises"}.issubset(required)
 
 
 def test_stage1_negative_enforces_category_enum():

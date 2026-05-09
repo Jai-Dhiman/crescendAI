@@ -1,5 +1,5 @@
 import re
-from typing import Annotated, Any, Callable, Literal, Union
+from typing import Annotated, Any, Literal, Union
 from uuid import UUID
 
 from pydantic import BaseModel, Field, StringConstraints, ValidationError, field_validator, model_validator
@@ -72,21 +72,30 @@ def _format_pydantic_errors(exc: ValidationError) -> list[str]:
     return out
 
 
-_VALIDATORS: dict[str, Callable[[dict[str, Any]], list[str]]] = {}
+_REGISTRY: dict[str, tuple[type[BaseModel], str]] = {}
 
 
-def _register(name: str, model: type[BaseModel]) -> None:
-    def validator(payload: dict[str, Any]) -> list[str]:
-        try:
-            model.model_validate(payload)
-            return []
-        except ValidationError as exc:
-            return _format_pydantic_errors(exc)
-
-    _VALIDATORS[name] = validator
+def _register(name: str, model: type[BaseModel], description: str = "") -> None:
+    _REGISTRY[name] = (model, description)
 
 
-_register("create_exercise", _CreateExerciseInput)
+def validate_tool_input(name: str, payload: dict[str, Any]) -> list[str]:
+    entry = _REGISTRY.get(name)
+    if entry is None:
+        return [f"unknown tool: {name}"]
+    model, _ = entry
+    try:
+        model.model_validate(payload)
+        return []
+    except ValidationError as exc:
+        return _format_pydantic_errors(exc)
+
+
+_register(
+    "create_exercise",
+    _CreateExerciseInput,
+    "Create one to three short practice exercises targeting a specific skill in a passage.",
+)
 
 
 _PIECE_SLUG = re.compile(r"^[a-z0-9._-]+$")
@@ -121,7 +130,11 @@ class _ScoreHighlightInput(BaseModel):
         return v
 
 
-_register("score_highlight", _ScoreHighlightInput)
+_register(
+    "score_highlight",
+    _ScoreHighlightInput,
+    "Highlight bar ranges of a known catalog piece with a dimension annotation.",
+)
 
 
 class _KeyboardGuideInput(BaseModel):
@@ -131,7 +144,11 @@ class _KeyboardGuideInput(BaseModel):
     hands: Literal["left", "right", "both"]
 
 
-_register("keyboard_guide", _KeyboardGuideInput)
+_register(
+    "keyboard_guide",
+    _KeyboardGuideInput,
+    "Show a small on-screen keyboard guide with optional fingering for one hand or both.",
+)
 
 
 class _ShowSessionDataInput(BaseModel):
@@ -151,7 +168,11 @@ class _ShowSessionDataInput(BaseModel):
         return v
 
 
-_register("show_session_data", _ShowSessionDataInput)
+_register(
+    "show_session_data",
+    _ShowSessionDataInput,
+    "Surface the student's recent practice data for one of three query shapes.",
+)
 
 
 class _ReferenceBrowserInput(BaseModel):
@@ -169,7 +190,11 @@ class _ReferenceBrowserInput(BaseModel):
         return v
 
 
-_register("reference_browser", _ReferenceBrowserInput)
+_register(
+    "reference_browser",
+    _ReferenceBrowserInput,
+    "Suggest a reference recording or excerpt; piece_id and passage are optional.",
+)
 
 
 class _SearchCatalogInput(BaseModel):
@@ -199,7 +224,11 @@ class _SearchCatalogInput(BaseModel):
         return self
 
 
-_register("search_catalog", _SearchCatalogInput)
+_register(
+    "search_catalog",
+    _SearchCatalogInput,
+    "Search the piece catalog by composer, opus/piece number, title keywords, or free-form query.",
+)
 
 
 NEGATIVE_CATEGORIES = (
@@ -247,8 +276,16 @@ class MatchedContrastPair(BaseModel):
         return self
 
 
-def validate_tool_input(name: str, payload: dict[str, Any]) -> list[str]:
-    validator = _VALIDATORS.get(name)
-    if validator is None:
-        return [f"unknown tool: {name}"]
-    return validator(payload)
+def build_anthropic_tool_schemas() -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for name, (model, description) in _REGISTRY.items():
+        json_schema = model.model_json_schema()
+        json_schema.pop("title", None)
+        out.append(
+            {
+                "name": name,
+                "description": description,
+                "input_schema": json_schema,
+            }
+        )
+    return out
