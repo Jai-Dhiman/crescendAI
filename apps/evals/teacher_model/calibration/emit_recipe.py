@@ -51,7 +51,17 @@ def emit(
             sanity.append(sub)
         # UNTRUSTED: excluded entirely
 
-    bias = {}  # T16 will populate from TRUSTED_WITH_OFFSET buckets
+    bias: dict[str, float] = {}
+    mean_offset: dict[str, float] = calibration_report.get("mean_offset", {})
+    for sub, bucket in buckets.items():
+        if bucket == "TRUSTED_WITH_OFFSET":
+            offset = mean_offset.get(sub)
+            if offset is None:
+                raise ValueError(
+                    f"Sub-score {sub!r} is TRUSTED_WITH_OFFSET but has no "
+                    f"mean_offset in calibration_report."
+                )
+            bias[sub] = float(offset)
 
     body = _HEADER
     body += f"COMPOSITE_PASS_THRESHOLD: float = {COMPOSITE_PASS_THRESHOLD}\n\n"

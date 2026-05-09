@@ -103,3 +103,44 @@ def test_recipe_filters_synthesis_against_threshold(tmp_path: Path):
     low = {s: 1 for s in mod.WEIGHTED_SUB_SCORES}
     assert stage_2_filter(high) is True
     assert stage_2_filter(low) is False
+
+
+def test_emit_records_bias_correction_for_trusted_with_offset(tmp_path: Path):
+    calibration_report = {
+        "buckets": {sub: "TRUSTED" for sub in [
+            "concrete_artifact_process", "praise_process",
+            "autonomy_process", "scaffolded_process", "style_process",
+            "tone_process", "autonomy_outcome", "tone_outcome",
+            "concrete_artifact_outcome", "praise_outcome",
+        ]},
+        "mean_offset": {sub: 0.0 for sub in [
+            "ascf_process", "concrete_artifact_process", "praise_process",
+            "autonomy_process", "scaffolded_process", "style_process",
+            "tone_process", "autonomy_outcome", "tone_outcome",
+            "concrete_artifact_outcome", "praise_outcome",
+        ]},
+        "aggregate_gate_pass": True,
+    }
+    calibration_report["buckets"]["ascf_process"] = "TRUSTED_WITH_OFFSET"
+    calibration_report["mean_offset"]["ascf_process"] = -0.4
+    drift_report = {"intra_rater_kappa": {}, "judge_drift_kappa": {}}
+
+    recipe_path = tmp_path / "filter_recipe_offset.py"
+    emit(calibration_report=calibration_report, drift_report=drift_report,
+         output_path=recipe_path)
+
+    mod = _import_recipe(recipe_path)
+    assert "ascf_process" in mod.BIAS_CORRECTIONS
+    assert abs(mod.BIAS_CORRECTIONS["ascf_process"] - (-0.4)) < 1e-6
+    assert "ascf_process" in mod.WEIGHTED_SUB_SCORES  # still weighted
+
+    # Round-trip: a borderline judge score 2.5 minus 0.4 correction = 2.1 fails;
+    # without correction it would pass.
+    judge_scores = {s: 2.5 for s in mod.WEIGHTED_SUB_SCORES}
+    corrected = {
+        s: judge_scores[s] + mod.BIAS_CORRECTIONS.get(s, 0.0)
+        for s in mod.WEIGHTED_SUB_SCORES
+    }
+    composite = sum(corrected.values()) / len(corrected)
+    # 10 sub-scores at 2.5 + 1 sub-score at 2.1 = (10*2.5 + 2.1)/11 = 27.1/11 ≈ 2.4636
+    assert composite < mod.COMPOSITE_PASS_THRESHOLD
