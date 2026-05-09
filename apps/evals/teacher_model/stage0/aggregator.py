@@ -3,10 +3,9 @@ from __future__ import annotations
 
 import json
 import random
-import statistics
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Iterable
 
 from teacher_model.stage0.tier_classifier import classify_tier
 
@@ -191,7 +190,7 @@ def _build_integration_row(by_dim: dict[str, list[int]], baseline: dict) -> Capa
         "Style-Consistent Musical Language",
         "Appropriate Tone & Language",
     ]
-    composite_mean, composite_series = _avg_dim(by_dim, base_dims)
+    composite_mean, _ = _avg_dim(by_dim, base_dims)
     composite_baseline = baseline.get("composite_mean", float("nan"))
 
     primary_tier = classify_tier(value=cap_mean, baseline=cap_base, mode="relative", ci=cap_ci)
