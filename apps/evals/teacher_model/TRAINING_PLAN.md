@@ -90,13 +90,13 @@ One LoRA adapter, carried through Stages 1-4. Stage 5 is contingent.
 **Status:** harness implemented (`apps/evals/teacher_model/stage0/`). Run via:
 ```
 cd apps/evals
-uv run python -m teacher_model.stage0 pin-tokenizer --model Qwen/Qwen3.6-35B-A3B-Instruct
-uv run python -m teacher_model.stage0 sample --n 100
-uv run python -m teacher_model.stage0 synthesis --model <openrouter-id>
-uv run python -m teacher_model.stage0 tool --model <openrouter-id>
-uv run python -m teacher_model.stage0 continuation --model <openrouter-id>
-uv run python -m teacher_model.stage0 mcq --model <openrouter-id>
-uv run python -m teacher_model.stage0 aggregate
+uv run --extra teacher-model-stage0 python -m teacher_model.stage0 pin-tokenizer --model Qwen/Qwen3.6-35B-A3B-Instruct
+uv run --extra teacher-model-stage0 python -m teacher_model.stage0 sample --n 100
+uv run --extra teacher-model-stage0 python -m teacher_model.stage0 synthesis --model <openrouter-id>
+uv run --extra teacher-model-stage0 python -m teacher_model.stage0 tool --model <openrouter-id>
+uv run --extra teacher-model-stage0 python -m teacher_model.stage0 continuation --model <openrouter-id>
+uv run --extra teacher-model-stage0 python -m teacher_model.stage0 mcq --model <openrouter-id>
+uv run --extra teacher-model-stage0 python -m teacher_model.stage0 aggregate
 ```
 
 **Pipelines:**
