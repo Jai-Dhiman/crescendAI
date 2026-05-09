@@ -1,8 +1,13 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
-from teacher_model.calibration.rater_cli import redact_for_rater
+from teacher_model.calibration.rater_cli import (
+    PHASE_1_SUB_SCORES,
+    capture_synthesis_ratings,
+    redact_for_rater,
+)
 
 
 def test_redacted_view_strips_all_judge_score_fields():
@@ -58,14 +63,6 @@ def test_redacted_view_keeps_what_rater_needs():
     assert redacted["muq_means"] == {"dynamics": 0.5}
 
 
-import json
-from pathlib import Path
-from teacher_model.calibration.rater_cli import (
-    capture_synthesis_ratings,
-    PHASE_1_SUB_SCORES,
-)
-
-
 def test_capture_writes_one_event_per_sub_score(tmp_path: Path):
     redacted = {
         "synth_id": "p__r__3",
@@ -90,7 +87,7 @@ def test_capture_writes_one_event_per_sub_score(tmp_path: Path):
         (2, "ev_pr_o",   "rs_pr_o"),
     ])
 
-    def provider(_redacted: dict, sub_score: str) -> tuple[int, str, str]:
+    def provider(_redacted: dict, _sub_score: str) -> tuple[int, str, str]:
         return next(inputs)
 
     n = capture_synthesis_ratings(
