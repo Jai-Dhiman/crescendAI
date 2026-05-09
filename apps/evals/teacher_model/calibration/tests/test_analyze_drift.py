@@ -74,3 +74,62 @@ def test_intra_rater_kappa_drops_below_one_when_ratings_disagree(tmp_path: Path)
     report = analyze_drift(ratings_path=ratings_path, judge_runs_path=None)
     assert report["intra_rater_kappa"]["ascf_process"] < 1.0
     assert report["intra_rater_kappa"]["ascf_process"] >= -1.0
+
+
+def _write_judge_runs(path: Path, records: list[dict]) -> None:
+    with path.open("w") as f:
+        for r in records:
+            f.write(json.dumps(r) + "\n")
+
+
+def _judge_record(synth_id: str, run_label: str, dim_score: int) -> dict:
+    return {
+        "synth_id": synth_id,
+        "run_label": run_label,
+        "dimensions": [
+            {"criterion": "Audible-Specific Corrective Feedback",
+             "process": dim_score, "outcome": dim_score, "score": dim_score,
+             "evidence": "", "reason": ""},
+            {"criterion": "Appropriate Tone & Language",
+             "process": dim_score, "outcome": dim_score, "score": dim_score,
+             "evidence": "", "reason": ""},
+        ],
+        "ts": "x",
+    }
+
+
+def test_judge_drift_kappa_is_one_when_runs_identical(tmp_path: Path):
+    ratings_path = tmp_path / "ratings.jsonl"
+    ratings_path.write_text("")
+    judge_runs_path = tmp_path / "judge_runs.jsonl"
+
+    records = []
+    for i, sid in enumerate(["A1", "A2", "A3", "A4", "A5"]):
+        v = i % 4
+        records.append(_judge_record(sid, "day1", v))
+        records.append(_judge_record(sid, "day30", v))
+    _write_judge_runs(judge_runs_path, records)
+
+    report = analyze_drift(ratings_path=ratings_path, judge_runs_path=judge_runs_path)
+    drift = report["judge_drift_kappa"]
+    assert drift["ascf_process"] == 1.0
+    assert drift["tone_process"] == 1.0
+
+
+def test_judge_drift_kappa_drops_below_one_when_runs_disagree(tmp_path: Path):
+    ratings_path = tmp_path / "ratings.jsonl"
+    ratings_path.write_text("")
+    judge_runs_path = tmp_path / "judge_runs.jsonl"
+
+    records = []
+    for i, sid in enumerate(["A1", "A2", "A3", "A4", "A5"]):
+        v1 = i % 4
+        v2 = (i + 1) % 4  # always disagree by 1
+        records.append(_judge_record(sid, "day1", v1))
+        records.append(_judge_record(sid, "day30", v2))
+    _write_judge_runs(judge_runs_path, records)
+
+    report = analyze_drift(ratings_path=ratings_path, judge_runs_path=judge_runs_path)
+    drift = report["judge_drift_kappa"]
+    assert drift["ascf_process"] < 1.0
+    assert drift["ascf_process"] >= -1.0

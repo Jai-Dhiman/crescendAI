@@ -49,12 +49,73 @@ def cohens_weighted_kappa(rater_a: list[int], rater_b: list[int], k: int = 4) ->
     return 1.0 - obs / exp
 
 
+_CRITERION_TO_SLUG: dict[str, str] = {
+    "Audible-Specific Corrective Feedback": "ascf",
+    "Concrete Artifact Provision": "concrete_artifact",
+    "Specific Positive Praise": "praise",
+    "Autonomy-Supporting Motivation": "autonomy",
+    "Scaffolded Guided Discovery": "scaffolded",
+    "Style-Consistent Musical Language": "style",
+    "Appropriate Tone & Language": "tone",
+}
+
+
+def _extract_judge_sub_scores(dimensions: list[dict]) -> dict[str, int]:
+    out: dict[str, int] = {}
+    for d in dimensions:
+        slug = _CRITERION_TO_SLUG.get(d.get("criterion", ""))
+        if slug is None:
+            continue
+        for leg in ("process", "outcome"):
+            v = d.get(leg)
+            if v is None:
+                continue
+            out[f"{slug}_{leg}"] = int(v)
+    return out
+
+
+def _compute_judge_drift(judge_runs_path: Path) -> dict[str, float]:
+    by_run_label: dict[str, dict[str, dict[str, int]]] = defaultdict(dict)
+    with judge_runs_path.open() as f:
+        for line in f:
+            if not line.strip():
+                continue
+            rec = json.loads(line)
+            run_label = rec.get("run_label")
+            synth_id = rec.get("synth_id")
+            if run_label is None or synth_id is None:
+                continue
+            by_run_label[run_label][synth_id] = _extract_judge_sub_scores(rec["dimensions"])
+
+    if len(by_run_label) < 2:
+        return {}
+
+    labels = list(by_run_label.keys())
+    label_a, label_b = labels[0], labels[1]
+    common_synth_ids = sorted(set(by_run_label[label_a]) & set(by_run_label[label_b]))
+
+    pairs_by_sub: dict[str, list[tuple[int, int]]] = defaultdict(list)
+    for sid in common_synth_ids:
+        a = by_run_label[label_a][sid]
+        b = by_run_label[label_b][sid]
+        for sub_score in set(a) & set(b):
+            pairs_by_sub[sub_score].append((a[sub_score], b[sub_score]))
+
+    return {
+        sub: cohens_weighted_kappa([x for x, _ in pairs], [y for _, y in pairs])
+        for sub, pairs in pairs_by_sub.items()
+        if pairs
+    }
+
+
 def analyze_drift(ratings_path: Path, judge_runs_path: Path | None) -> dict[str, Any]:
     pairs_by_sub_score: dict[str, list[tuple[int, int]]] = defaultdict(list)
     first_seen: dict[tuple[str, str], int] = {}
 
     with ratings_path.open() as f:
         for line in f:
+            if not line.strip():
+                continue
             rec = json.loads(line)
             if rec.get("event_type") != "rating":
                 continue
@@ -74,8 +135,10 @@ def analyze_drift(ratings_path: Path, judge_runs_path: Path | None) -> dict[str,
         if pairs
     }
 
+    judge_drift = _compute_judge_drift(judge_runs_path) if judge_runs_path is not None else {}
+
     return {
         "intra_rater_kappa": intra_rater,
-        "judge_drift_kappa": {},
+        "judge_drift_kappa": judge_drift,
         "n_anchor_pairs": {sub: len(p) for sub, p in pairs_by_sub_score.items()},
     }
