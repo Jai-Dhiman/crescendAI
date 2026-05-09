@@ -1,178 +1,282 @@
 # Teacher Model Training Plan -- Qwen3.6-35B-A3B
 
-**Status:** design draft (2026-05-05). Supersedes the prior 4-stage plan in `docs/superpowers/specs/2026-03-30-teacher-model-finetuning-design.md`.
-**Origin:** brainstorm session 2026-05-05 during CPT-corpus dataset design; cross-referenced with two parallel brainstorms (translation layer, domain probe).
+**Status:** active plan (2026-05-07). Supersedes the 2026-05-05 draft (which itself superseded the 4-stage CPT/SFT/GRPO/DPO plan from 2026-03-30).
+**Origin:** capability-decomposition session 2026-05-07. Plan is now grounded in the explicit three-layer architecture (ear / harness / teacher) and the production interface contract.
 
 ---
 
-## Context: why the plan is changing
+## 1. The architectural frame
 
-The original plan (CPT + SFT + GRPO + DPO) was designed for **Qwen3.5-27B dense** in March 2026. On 2026-05-05 the target model switched to **Qwen3.6-35B-A3B** (sparse MoE, 35B total / 3B active per token, 256 experts, 248K vocab, 262K native context, multimodal-capable, Apache 2.0, released April 2026).
+CrescendAI's teacher pipeline is three layers. Training only touches the third.
 
-That switch invalidates the canonical 4-stage plan, not because the stages are individually wrong, but because:
-1. A 35B-class MoE has absorbed enormous pedagogy text in base training. CPT's marginal value-add is much smaller than for a 27B dense base.
-2. MoE has training failure modes that don't exist in dense models: **expert collapse**, **load-balance drift**, **routing skew across stages**.
-3. GRPO on MoE is unstable -- KL divergence drifts unpredictably across experts.
-4. The 4-stage plan was over-engineered for the 27B dense world; on 35B-A3B it compounds risk without compounding capability.
+| Layer | Job | Implementation |
+|---|---|---|
+| **Ear** | Convert audio to structured signals | MuQ (quality) + Aria-AMT (transcription) + (planned) tone-color features |
+| **Harness** | State, retrieval, tool execution, artifact rendering | Cloudflare Worker + Durable Object + Postgres + R2 + Rust WASM |
+| **Teacher** | Judgment, taste, integration, voice, vocabulary, tool-calling, adaptation | Finetuned Qwen3.6-35B-A3B |
 
-This document captures the corrected plan: **what the teacher model is trying to be, what the base model already gives us for free, and what training stages are actually needed.**
+The teacher model owns exactly seven capabilities; everything else belongs to the ear or the harness. This decomposition is the basis for every training decision below.
 
----
+### What the teacher MUST own
 
-## What the teacher model must demonstrate (5 capabilities)
+1. **Pedagogical judgment** -- symptom vs root cause; correct vs encourage; what to assign; what NOT to assign; when to drop a piece.
+2. **Musical taste** -- phrasing, rubato, voicing priority, character, style. The territory where two excellent teachers thoughtfully disagree.
+3. **Multi-signal integration** -- fusing ear signals + score-following + student history + piece style + session context into one coherent response.
+4. **Voice and warmth** -- register, tone, encouragement-to-correction ratio, never-say rules, house style.
+5. **Pedagogical vocabulary** -- "brighter", "from deeper in the key", "let the line breathe". Translating measured signals into teacher language.
+6. **Tool-calling protocol** -- deciding to call a tool, constructing arguments correctly, knowing when NOT to call.
+7. **Adaptation logic** -- bespoke modifications a static library can't pre-author ("Czerny op. 299 #14 but only mm. 1-8, hands separate, dotted rhythm").
 
-1. **Pedagogical judgment** -- when to correct vs. encourage, when to challenge vs. support
-2. **Bar-specific corrective feedback** grounded in audio observations (current weakest dim: ASCF outcome 1.387 / 3.0)
-3. **Deep piano-pedagogy knowledge** -- fingering systems, voicing, technique schools, repertoire tradition
-4. **Warmth + consistent voice** across sessions
-5. **Independence from Anthropic** (structural moat)
+### What the teacher MUST NOT own
 
----
-
-## Three layers of "knowledge" -- decomposed
-
-Critical insight for designing training stages on a 35B-A3B base:
-
-### Layer 1 -- General piano knowledge (LATENT in base model)
-
-Almost certainly already present in base 35B-A3B from pretraining:
-- Technique schools (Russian / Leschetizky / Taubman)
-- Repertoire eras and tradition
-- ABRSM / RCM grade structure
-- Hanon / Czerny / Pischna technique exercises
-- Generic "if student struggles with X, try Y" mappings
-- Pedagogy framing (correction/encouragement balance, learning-arc awareness)
-
-**Implication:** no CPT needed for Layer 1 unless Phase 0 baseline proves otherwise.
-
-### Layer 2 -- Pedagogical mapping (PARTIALLY LATENT)
-
-Patterns like "uneven 16ths in m. 12 of Mozart K545 + history of 4th-finger weakness -> recommend slow-practice + Pischna pattern N" require both general knowledge AND grounding in observed signals. Base model can do half of this with strong prompting + few-shot. The gap is bridged by SFT, not CPT.
-
-### Layer 3 -- System-specific knowledge (NOT LATENT, never will be from text)
-
-- Your exercise library schema and IDs
-- Your Verovio MEI snippets
-- Your synthesis pipeline output structures (`AudibleObservation`, score-following bar analysis, 6-dim signals)
-- Your tool palette in `services/tool-processor.ts`
-
-**Implication:** Layer 3 is a *grounding* problem, not a knowledge-injection problem. No amount of pedagogy corpus will teach exercise IDs. This is taught via tool-calling SFT and tool-use protocol.
+1. Authoritative facts (exercise IDs, MEI, opus numbers, fingerings, recording URLs) -- harness via tools.
+2. Session/student state -- harness injects as context.
+3. Acoustic measurement -- ear.
+4. Score arithmetic (alignment, DTW, bar mapping) -- harness/Rust WASM.
+5. Artifact rendering (Verovio, audio playback) -- harness.
 
 ---
 
-## Verovio / structured exercise output -- tool calling, not generation
+## 2. The interface contract (load-bearing)
 
-The model **does not** generate Verovio MEI directly. MEI generation has hard validity constraints (XML well-formed, MEI schema valid, musically sensible, renders correctly). One bad attribute and Verovio throws.
+Every training example matches the production interface exactly. If training shape != inference shape, the model learns artifacts.
 
-Pattern:
-- Model calls `recommend_exercise(exercise_id, rationale, context)` -- *selects* from your library
-- Backend deterministically looks up the exercise's pre-authored MEI and renders it
-- Model never sees or generates MEI
+**Teacher input (briefing):**
+```
+{
+  audio_observations: { 6 dims + bar-level signals + (planned) tone-color features },
+  score_position: { current_bar, piece_id, alignment_confidence },
+  piece_metadata: { composer, era, style, edition_notes },
+  student_state: { skill_bucket, recent_pieces, known_weaknesses, baseline_scores },
+  session_history: { recent_sessions, current_session_arc, top_moments },
+  available_tools: [recommend_exercise, fetch_recording, fetch_fingering, ...]
+}
+```
 
-This means:
-- **No MEI in CPT corpus** -- wasted tokens
-- **No MEI in SFT data** -- same reason
-- **Training signal is "given audio observations + student context, call the right tool with the right arguments"** -- pure tool-use SFT, ~5K-20K examples
+**Teacher output:**
+```
+{
+  prose: string,              // warm, voiced, integrated response
+  tool_calls: ToolCall[]      // zero or more; never invents IDs
+}
+```
 
-Generating *novel* exercises from scratch is a separate, much harder problem and explicitly out of scope for v1. Stick with the curated library + tool selection.
-
----
-
-## The corrected training plan -- 2 stages, 1 contingent
-
-### Phase 0 -- Capability mapping (no training compute, ~1-2 days)
-
-Establish what base 35B-A3B can already do across all 5 capabilities:
-- Run domain probe (Agent 2's existing 50-Q MCQ) against base
-- Run free-form synthesis eval (8-dim rubric) on a held-out set against base
-- Run tool-calling capability test (system prompt + few-shot, can it call 5-tool palette correctly?)
-
-For each capability: at-ceiling, mid-tier, or absent.
-
-**This phase is the gating step.** Phases 2-4 are scoped from these results.
-
-### Phase 1 -- Tool-calling format alignment (universally needed)
-
-Regardless of Phase 0 outcomes, the model must natively emit your tool format. Two options:
-- **Inference-only:** system prompt + few-shot, ~80-90% tool-call success rate
-- **Tool-format SFT:** ~2K examples, ~99% success, removes system-prompt token overhead
-
-**Recommended:** Tool-format SFT. Tiny, cheap, foundation everything else stacks on. **Sidenote:** if this lands well, it eliminates the need for a TS-side translation layer (Agent 1's task A) -- the model speaks Anthropic-compatible tool_use natively.
-
-### Phase 2 -- Capability SFT (do *only* what Phase 0 says is missing)
-
-Build instruction-formatted SFT data targeting specific gaps. Likely candidates:
-- **Bar-specific corrective feedback** (your weakest dim). Format: `(audio_observation_summary, score_position, student_history) -> (bar_specific_critique + tool_call_to_recommend_exercise)`. ~5K-20K examples synthesized from Sonnet + curated YouTube transcripts.
-- **Voice consistency across session length** (warmth + format)
-- **Pedagogical judgment** (correct vs. encourage decisions)
-
-**Critical:** SFT on instruction-formatted pedagogy gives knowledge + format + voice in *one* stage. The 100M-token corpus lives here as **source material from which SFT examples are synthesized**, not as direct training data.
-
-### Phase 3 -- DPO for warmth/judgment polish (NOT GRPO)
-
-Pairwise preferences (~5K-20K pairs), human-collected on chosen vs. rejected responses.
-
-**Skip GRPO entirely.** Reasons:
-- GRPO needs verifiable reward; 8-dim rubric is noisy and rewards subjective judgments -> RL on noisy reward = reward hacking
-- GRPO on MoE is unstable; KL drifts unpredictably across experts
-- DPO is simpler, MoE-stable, gives same outcome (preference alignment) at less risk
-- 2026 production narrow-domain models (medical, legal, financial) almost universally use SFT+DPO, not SFT+RLHF
-
-### Phase 4 -- CPT (contingent only, likely skipped)
-
-Run only if Phase 0 + Phase 2 reveals genuine knowledge gaps. Format as instruction-CPT (completion examples), not raw-text CPT, to keep MoE routing balanced.
-
-**Most likely:** not needed. Base model + capability SFT closes the gaps.
+This is the only shape that ever appears in training.
 
 ---
 
-## What this means for the three current workstreams
+## 3. Capability -> intervention mapping
 
-| Workstream | Status under corrected plan |
+| Capability | Training intervention |
 |---|---|
-| **CPT-corpus pipeline (this brainstorm)** | Pivots from "CPT-ready dataset" to **"SFT data synthesis source corpus."** Same cleaning/dedup work; downstream consumer changes. The 100M-token clean dataset becomes input to a Sonnet-driven SFT-data-generation pipeline. **Still ships as v1 dataset** -- load-bearing infra regardless of training shape. |
-| **Agent 1 (translation layer)** | **Likely obsolete after Phase 1.** Tool-format SFT teaches the model to natively emit Anthropic-compatible tool_use. Layer becomes a stopgap for the pre-finetune period only. |
-| **Agent 2 (domain probe)** | **Promoted to Phase 0 anchor.** Probe + free-form synthesis eval on base model becomes the gating step that determines what Phases 2-4 do. Reframe (delta-gate, regression set, routing telemetry) stays. |
+| Tool-calling protocol | Tool-format LoRA SFT + negative examples (when NOT to call) |
+| Integration (briefing -> response) | Briefing-shaped LoRA SFT |
+| Pedagogical judgment | Capability LoRA SFT + reasoning-trace distillation |
+| Adaptation logic | SFT with reasoning traces |
+| Vocabulary | Falls out of SFT (vocabulary appears in correct contexts) |
+| Voice / warmth / register | DPO on rubric-judged + human-rated pairs |
+| Taste (rubato, phrasing, character) | DPO; never RL on noisy reward |
 
 ---
 
-## MoE-specific training considerations (cross-cutting)
+## 4. The five-stage curriculum
 
-- **Tooling:** Unsloth / Llama-Factory / Swift over bare TRL -- they handle load-balance aux loss and expert-routing telemetry.
-- **LoRA targets:** Unsloth Qwen3.5 default is `q/k/v/o + gate/up/down`. LoRA-ing all 256 experts re-densifies the model; LoRA-ing none misses where domain knowledge lives. The `gate/up/down` targets touch the shared expert + router gates, which is the MoE-aware compromise.
-- **Expert-entropy monitoring:** log per-token expert entropy at every training stage, not just probe. If entropy collapses below threshold mid-training, abort and re-architect.
+One LoRA adapter, carried through Stages 1-4. Stage 5 is contingent.
+
+### Stage 0 -- Capability mapping (no training compute, ~1-2 days)
+
+**Goal:** establish baseline of base 35B-A3B against the seven teacher capabilities.
+
+**Method:**
+- Run `apps/evals/teacher_model/domain_knowledge_probe.py` (50-Q MCQ) against base.
+- Run free-form synthesis eval (8-dim rubric, judge v2) on a held-out set.
+- Test tool-calling capability with system-prompt + few-shot only (no SFT yet).
+- Score each capability: at-ceiling / mid-tier / absent.
+
+**Output:** capability dossier that sets dosage for Stages 2-3 and decides whether Stage 5 is needed.
+
+### Stage 1 -- Tool-format SFT (universally needed)
+
+**Goal:** native emission of the 5-tool palette in Anthropic-compatible `tool_use` format with correct when-to-call discipline.
+
+**Data:** ~2K examples. ~30% **negative examples** (briefings where calling a tool would be wrong -- chitchat, ambiguous moments, low-confidence observations).
+
+**Method:** LoRA SFT. Targets per Unsloth Qwen3.5 default: `q/k/v/o + gate/up/down`. Seq_len 4096. Log per-token expert entropy throughout.
+
+**Why first:** every later stage assumes tool calls work. Also eliminates the TS-side translation layer (Agent 1 task).
+
+**Side effect:** if this lands, the model speaks Anthropic-compatible `tool_use` natively -- no translation shim needed in production.
+
+### Stage 2 -- Briefing-shaped SFT (the integrator)
+
+**Goal:** model accepts the production briefing and produces coherent, integrated responses.
+
+**Data:** ~5-10K examples. Build pipeline:
+1. Pull real briefings from `model/data/eval/inference_cache/auto-t5_http/` (890 files available).
+2. Generate ideal responses via Sonnet/GPT-5 on each briefing.
+3. Filter through 8-dim rubric (judge v2): keep only chosen >= 2.5 composite.
+4. Hand-curate ~500 golden cases for hard scenarios (sparse coverage areas).
+
+**Method:** LoRA SFT on the same adapter as Stage 1.
+
+**Critical:** every example is the exact production interface shape. No briefing-less examples. No raw text. No MEI.
+
+### Stage 3 -- Capability SFT with reasoning traces (targeted hill-climb)
+
+**Goal:** close the specific gaps Stage 0 identifies. Highest-confidence targets:
+- **ASCF (Audible-Specific Corrective Feedback)** -- locked baseline 1.387 / 3.0; weakest dim.
+- Root-cause vs symptom reasoning.
+- Exercise selection logic.
+- "What NOT to assign" calls.
+
+**Data:** ~10-20K examples with reasoning traces.
+
+```
+<briefing>...</briefing>
+<reasoning>
+Signals: rushed in m.12 (timing 0.62), uneven 16ths (articulation 0.71),
+LH dynamics drop (0.55).
+Root cause hypothesis: LH tension -> rushing as compensation.
+Pedagogical move: address tension before rhythm.
+Exercise: slow LH-only practice + Pischna #5.
+</reasoning>
+<response>...warm, integrated teacher prose...</response>
+<tool_call>recommend_exercise(id="pischna_5", rationale="...")</tool_call>
+```
+
+The `<reasoning>` block trains the integration logic. At inference it can be stripped or kept depending on UX.
+
+**Sources:**
+- Track A masterclass extractions (379 teaching moments).
+- Sonnet/GPT-5 distillation through 8-dim rubric.
+- ~500 hand-curated **adversarial briefings** (cases where naive teachers respond wrongly: over-correcting beginners, under-praising advanced, ignoring session arc, recommending too many things).
+
+**Method:** LoRA SFT continuing the same adapter.
+
+### Stage 4 -- DPO for voice, warmth, taste
+
+**Goal:** consistent house voice; correct register for skill level; taste-level interpretation choices; warmth.
+
+**Data:** ~5-15K pairs.
+- ~1K human-rated pairs (top-tier discrimination, drawn from rubric calibration set).
+- ~5-15K synthetic pairs (rubric-judged Sonnet-vs-Sonnet or Sonnet-vs-GPT-5 on same briefing).
+- Hybrid approach: human for top-tier, synthetic for bulk.
+
+**Hard prerequisite:** rubric human calibration r >= 0.7 must complete BEFORE this stage. Without it, DPO is preference noise. This is the most under-attended item on the critical path.
+
+**Method:** DPO on the same LoRA adapter.
+
+**Why DPO not GRPO:**
+- GRPO needs verifiable reward; 8-dim rubric is noisy.
+- GRPO on MoE is unstable; KL drifts unpredictably across experts.
+- DPO is simpler, MoE-stable, equivalent outcome.
+- 2026 production narrow-domain models (medical, legal, financial) almost universally use SFT+DPO.
+
+### Stage 5 -- CPT (contingent only, likely skipped)
+
+Run only if Stage 0 + Stage 3 reveal a real knowledge gap that capability SFT didn't close.
+
+If needed: **instruction-formatted CPT** (Q-A pairs about pedagogy), not raw text. Raw-text CPT on MoE has high routing-collapse risk and the harness fetches facts anyway.
+
+**Most likely outcome:** not needed.
+
+---
+
+## 5. Three creative additions (built into stages above, not separate phases)
+
+1. **Negative tool examples** (Stage 1) -- explicit "I'd just listen here" / "no exercise yet" briefings. Combats over-eager tool use.
+2. **Voice anchors** (Stage 2/4) -- ~50-100 distilled exemplar teacher voices from masterclass transcripts. Train consistent embodiment of *house* voice instead of drift between teaching styles.
+3. **Adversarial briefings** (Stage 3) -- ~500 hand-curated cases where naive teachers fail. Bends the policy where rubric data is sparse.
+
+---
+
+## 6. What we explicitly DO NOT do
+
+- **Don't CPT raw pedagogy text.** The 100M-token clean corpus is *source material* for Stage 2/3 synthesis, not direct training data.
+- **Don't train on MEI / Verovio / exercise IDs / opus numbers.** Facts go through tools. Every training example treats facts as tool outputs.
+- **Don't run multiple LoRA adapters and merge.** Carry one adapter through Stages 1->2->3->4. Reduces compounding routing drift.
+- **Don't run Stage 4 (DPO) before rubric calibration r >= 0.7.** Most common way preference training goes sideways.
+- **Don't full-FT.** Re-densifies a sparse model; LoRA on `q/k/v/o + gate/up/down` is the MoE-aware compromise.
+- **Don't use GRPO/PPO.** MoE instability + noisy reward = reward hacking.
+- **Don't train a vision adapter.** Qwen3.6 is multimodal but our signals are structured, not images.
+
+---
+
+## 7. MoE-specific training discipline (cross-cutting)
+
+- **Tooling:** Unsloth / Llama-Factory / Swift over bare TRL. They handle load-balance aux loss and expert-routing telemetry.
+- **LoRA targets:** `q/k/v/o + gate/up/down` (Unsloth Qwen3.5 default). LoRA-ing all 256 experts re-densifies the model; this default touches the shared expert + router gates -- the MoE-aware compromise.
+- **Expert-entropy monitoring:** log per-token expert entropy at every stage. If entropy collapses below threshold mid-training, abort and re-architect.
 - **Sequence length:** 4096 for SFT/DPO. 262K native context is overkill for pedagogy texts and amplifies routing imbalance.
-- **Same LoRA carried forward:** if multiple stages, carry the same adapter across them rather than full-FT each stage. Reduces compounding routing drift.
+- **Single adapter carry-forward:** same LoRA across Stages 1-4. Reduces compounding routing drift.
+- **Aux loss:** maintain load-balancing aux loss across all training stages.
 
 ---
 
-## Open questions (still to resolve)
+## 8. Strategic gates
 
-1. **CPT-vs-no-CPT definitive answer:** pending Phase 0 baseline. If base 35B-A3B clears 75%+ on existing probe AND scores >2.0 on free-form synthesis eval, CPT is almost certainly not needed.
-2. **Tool-format details for Qwen3.6:** model card mentioned `qwen3_coder` parser; need to verify chat-template format vs. Qwen3.5 before locking Phase 1 SFT data format.
-3. **DPO data source:** human-collected pairwise preferences vs. rubric-judged synthetic pairs vs. hybrid. Hybrid likely best (human for top-tier, synthetic for bulk), but quantity/quality tradeoff needs sizing.
-4. **Rubric lock:** the 8-dim rubric is the training target for both Phase 2 (SFT-data quality filter) and Phase 3 (DPO preference signal). Human calibration must complete before Phase 2 begins. This is the **highest-leverage and lowest-attention item** across the whole plan.
-
----
-
-## Strategic gates (revised)
-
-Original plan had 4 gates: PMF + A/B + rubric + 7B-probe. Updated:
-
-1. **Phase 0 baseline complete** (was: 7B probe pass) -- gates whether CPT phase 4 is even needed
-2. **Rubric human calibration r >= 0.7** (unchanged) -- gates Phase 2 and Phase 3
-3. **Blind A/B voice test vs. Sonnet** (unchanged) -- gates production deployment
-4. **200+ beta users with retention** (unchanged) -- gates serious compute commitment
-
-Compute envelope is dramatically smaller: SFT (~2K + 5K-20K examples) + DPO (~5K-20K pairs) on 35B-A3B fits on 1-2 nodes, not the 4-8 node spread the original 4-stage plan assumed.
+1. **Stage 0 baseline complete** -- gates dosage of Stages 2-3 and whether Stage 5 is needed.
+2. **Rubric human calibration r >= 0.7** -- gates Stage 2 (quality filter) and Stage 4 (preference signal). On critical path twice.
+3. **Tone-color ear features shipped (or scoped out)** -- gates whether vocabulary training in Stage 2/3 includes tone color.
+4. **Blind A/B voice test vs. Sonnet** -- gates production deployment.
+5. **200+ beta users with retention** -- gates serious compute commitment beyond LoRA stages.
 
 ---
 
-## References
+## 9. Compute envelope
 
-- `apps/evals/teacher_model/domain_knowledge_probe.py` -- existing probe (Phase 0 anchor)
-- `apps/evals/teacher_model/data/corpus/` -- 100M-token raw corpus (SFT source)
-- `apps/evals/teacher_model/cpt_pipeline/` -- deterministic preprocessing pipeline (ingest → filter → dedup → split → HF publish); run via `uv run python -m teacher_model.cpt_pipeline.pipeline run --corpus-dir ... --provenance-dir ... --out-dir ... --repo-id Jai-D/Crescendai-piano-pedagogy-cpt-v1`
-- `apps/api/src/services/tool-processor.ts` -- 5-tool palette (Phase 1 target format)
-- `apps/api/src/services/teacher.ts` -- unified teacher service (deployment target)
-- Memory: `project_teacher_model_finetuning.md`, `project_beta_priorities.md`, `project_teaching_knowledge_eval.md`
+LoRA on 35B-A3B fits on 1-2 nodes. Per-stage rough estimate:
+
+| Stage | Examples | Compute | Wall-clock |
+|---|---|---|---|
+| 0 | -- | inference only | 1-2 days |
+| 1 | ~2K | LoRA SFT | 1-2 days train |
+| 2 | ~5-10K | LoRA SFT | 3-5 days train |
+| 3 | ~10-20K | LoRA SFT | 5-7 days train |
+| 4 | ~5-15K pairs | LoRA DPO | 3-5 days train |
+| 5 | (contingent) | LoRA instruct-CPT | 5-10 days |
+
+**Critical path is data, not GPUs.** Data pipelines for Stages 2-4 dominate the timeline (8-13 weeks of data work vs ~3 weeks of training).
+
+---
+
+## 10. Workstream impact
+
+| Workstream | Status under this plan |
+|---|---|
+| **CPT-corpus pipeline** (`apps/evals/teacher_model/data/corpus/`, 16M / 100M words) | Pivots from "CPT-ready dataset" to **"SFT data synthesis source corpus."** Same cleaning/dedup work; downstream consumer changes. Still ships as v1 dataset -- load-bearing infra regardless of training shape. |
+| **Translation layer** (TS-side Anthropic <-> Qwen tool format) | **Likely obsolete after Stage 1.** Stops being needed once tool-format SFT lands. Stopgap for the pre-finetune period only. |
+| **Domain probe** (`domain_knowledge_probe.py`) | **Promoted to Stage 0 anchor.** Probe + free-form synthesis eval on base model becomes the gating step for the rest of the plan. |
+| **Rubric calibration** | **Promoted to highest-priority blocker.** Sits on critical path twice (Stage 2 filter + Stage 4 signal). |
+
+---
+
+## 11. Open questions
+
+1. **Tone-color features:** scoped in or out? If in, ear-side feature engineering (spectral centroid trajectories, attack sharpness, harmonic-to-noise ratio, sustain-decay envelope) is a prerequisite for vocabulary training in Stages 2/3.
+2. **Tool-format details for Qwen3.6:** model card mentioned `qwen3_coder` parser; verify chat-template format vs. Qwen3.5 before locking Stage 1 SFT data format.
+3. **Reasoning-trace UX:** keep `<reasoning>` blocks at inference (transparent teacher) or strip them (clean teacher voice)? Affects Stage 3 data shape.
+4. **Voice anchor sourcing:** which 50-100 teacher voices from masterclass corpus best represent house voice? Hand-curated by founder vs. clustered by judge?
+5. **DPO data sourcing ratio:** human-to-synthetic mix needs sizing once rubric calibration completes.
+
+---
+
+## 12. References
+
+- `apps/evals/teacher_model/domain_knowledge_probe.py` -- Stage 0 anchor (existing).
+- `apps/evals/teacher_model/data/corpus/` -- 100M-token cleaned corpus (Stage 2/3 source material).
+- `apps/api/src/services/tool-processor.ts` -- 5-tool palette (Stage 1 target format).
+- `apps/api/src/services/teacher.ts` -- unified teacher service (deployment target).
+- `apps/shared/teacher-style/synthesis_system.txt` -- canonical synthesis prompt (briefing format anchor).
+- `model/data/eval/inference_cache/auto-t5_http/` -- 890 real briefings (Stage 2 source).
+- `apps/evals/teaching_knowledge/data/raw_teaching_db.json` -- 379 masterclass moments (Stage 3 source).
+- `apps/evals/shared/prompts/synthesis_quality_judge_v2.txt` -- 8-dim rubric judge (Stage 2 filter, Stage 4 signal).
+- Memory: `project_teacher_model_finetuning.md`, `project_teaching_knowledge_eval.md`, `project_corpus_pipeline.md`.
+
+---
+
+## Appendix -- plan history
+
+- **2026-03-30:** original plan, Qwen3.5-27B dense, 4 stages (CPT + SFT + GRPO + DPO).
+- **2026-05-05:** model switched to Qwen3.6-35B-A3B (sparse MoE). 4-stage plan invalidated due to MoE failure modes (expert collapse, GRPO instability). Reduced to 2-stage SFT + DPO with contingent CPT.
+- **2026-05-07 (current):** plan reframed around explicit ear/harness/teacher decomposition and production interface contract. Five stages with one carry-forward LoRA adapter. Critical path identified as rubric calibration. Translation layer marked obsolete after Stage 1.
