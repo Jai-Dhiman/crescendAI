@@ -13,6 +13,10 @@ class PostMetrics:
     link_clicks: int | None
 
 
+class AnalyticsIngestorError(Exception):
+    pass
+
+
 class AnalyticsIngestor:
     def __init__(self, youtube_api_key: str, postiz_url: str, postiz_token: str, timeout_s: float = 30.0):
         self._yt_key = youtube_api_key
@@ -45,8 +49,10 @@ class AnalyticsIngestor:
         )
         resp = httpx.get(url, timeout=self._timeout)
         empty = PostMetrics(platform="youtube", post_id=post_id, views=None, watch_time_sec=None, link_clicks=None)
+        if resp.status_code == 404:
+            return empty  # video deleted or private — expected
         if resp.status_code != 200:
-            return empty
+            raise AnalyticsIngestorError(f"youtube {resp.status_code}: {resp.text[:200]}")
         items = resp.json().get("items") or []
         if not items:
             return empty
@@ -68,8 +74,10 @@ class AnalyticsIngestor:
             headers={"Authorization": f"Bearer {self._postiz_token}"},
             timeout=self._timeout,
         )
-        if resp.status_code != 200:
+        if resp.status_code == 404:
             return PostMetrics(platform=platform, post_id=post_id, views=None, watch_time_sec=None, link_clicks=None)
+        if resp.status_code != 200:
+            raise AnalyticsIngestorError(f"postiz {resp.status_code}: {resp.text[:200]}")
         body = resp.json()
         return PostMetrics(
             platform=platform,

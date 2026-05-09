@@ -85,3 +85,40 @@ def test_record_complete_missing_voiceover_path_returns_400(tmp_path):
 
     assert resp.status_code == 400
     assert store.get("ep4").state is State.CRITIC_PASSED
+
+
+def _seed_killed(store: EpisodeStore, eid: str) -> None:
+    now = datetime(2026, 5, 8, tzinfo=timezone.utc)
+    store.save(Episode(
+        id=eid,
+        candidate_url="https://yt.example/x",
+        source_type="youtube_amateur",
+        state=State.KILLED_TRUTHFULNESS,
+        config_versions={"cta": 1, "source_criteria": 1, "ranking_weights": 1},
+        created_at=now,
+        updated_at=now,
+    ))
+
+
+def test_override_critic_transitions_killed_to_critic_passed(tmp_path):
+    store = EpisodeStore(db_path=tmp_path / "e.sqlite")
+    _seed_killed(store, "ep5")
+    app = build_app(episode_store=store)
+    client = app.test_client()
+
+    resp = client.post("/swipe/ep5/override-critic")
+
+    assert resp.status_code == 200
+    assert store.get("ep5").state is State.CRITIC_PASSED
+
+
+def test_override_critic_on_wrong_state_returns_409(tmp_path):
+    store = EpisodeStore(db_path=tmp_path / "e.sqlite")
+    _seed_candidate(store, "ep6")
+    app = build_app(episode_store=store)
+    client = app.test_client()
+
+    resp = client.post("/swipe/ep6/override-critic")
+
+    assert resp.status_code == 409
+    assert store.get("ep6").state is State.CANDIDATE

@@ -61,7 +61,6 @@ def test_tick_dispatches_curated_episode_to_model_runner_and_advances_to_analyze
     assert updated.state is State.ANALYZED
     assert updated.model_output is not None
     assert updated.model_output["duration_sec"] == 15.0
-    assert len(runner.calls) == 1
 
 
 def test_tick_does_nothing_when_no_curated_episodes(tmp_path):

@@ -1,6 +1,7 @@
 """Verifies AnalyticsIngestor returns per-platform metrics, tolerates missing."""
+import pytest
 import httpx
-from content_engine.adapters.analytics_ingestor import AnalyticsIngestor
+from content_engine.adapters.analytics_ingestor import AnalyticsIngestor, AnalyticsIngestorError
 
 
 def test_pull_returns_metrics_per_platform(monkeypatch):
@@ -77,3 +78,23 @@ def test_pull_tolerates_empty_youtube_items(monkeypatch):
     ing = AnalyticsIngestor(youtube_api_key="k", postiz_url="https://postiz.example/api", postiz_token="t")
     metrics = ing.pull({"youtube": "yt_dead"})
     assert metrics[0].views is None
+
+
+def test_pull_raises_on_youtube_auth_error(monkeypatch):
+    def fake_get(url, **kwargs):
+        return httpx.Response(403, text="forbidden", request=httpx.Request("GET", url))
+
+    monkeypatch.setattr(httpx, "get", fake_get)
+    ing = AnalyticsIngestor(youtube_api_key="bad_key", postiz_url="https://postiz.example/api", postiz_token="t")
+    with pytest.raises(AnalyticsIngestorError, match="youtube 403"):
+        ing.pull({"youtube": "yt_abc"})
+
+
+def test_pull_raises_on_postiz_server_error(monkeypatch):
+    def fake_get(url, **kwargs):
+        return httpx.Response(500, text="internal error", request=httpx.Request("GET", url))
+
+    monkeypatch.setattr(httpx, "get", fake_get)
+    ing = AnalyticsIngestor(youtube_api_key="k", postiz_url="https://postiz.example/api", postiz_token="t")
+    with pytest.raises(AnalyticsIngestorError, match="postiz 500"):
+        ing.pull({"tiktok": "tt_abc"})

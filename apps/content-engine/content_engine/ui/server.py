@@ -26,6 +26,16 @@ def build_app(episode_store: EpisodeStore) -> Flask:
     def reject(episode_id: str):
         return jsonify({"ok": True, "state": "candidate"})
 
+    @app.post("/swipe/<episode_id>/override-critic")
+    def override_critic(episode_id: str):
+        try:
+            episode_store.transition(episode_id, State.CRITIC_PASSED)
+        except KeyError:
+            return jsonify({"ok": False, "error": "episode not found"}), 404
+        except InvalidTransitionError:
+            return jsonify({"ok": False, "error": "invalid transition"}), 409
+        return jsonify({"ok": True, "state": "critic_passed"})
+
     @app.post("/record/<episode_id>/complete")
     def record_complete(episode_id: str):
         body = request.get_json(silent=True) or {}
