@@ -81,3 +81,30 @@ def test_classifies_refusal(tmp_path: Path) -> None:
     rows = [json.loads(l) for l in out.read_text().splitlines()]
     assert rows[0]["category"] == "refusal"
     assert rows[0]["is_degenerate"] is True
+
+
+def test_resume_skips_completed_cases(tmp_path: Path) -> None:
+    """Re-running continuation must not duplicate rows for already-completed cases."""
+    cases = tmp_path / "cases.jsonl"
+    runs = tmp_path / "tool_runs.jsonl"
+    out = tmp_path / "cont.jsonl"
+    _write_cases(cases)
+    _write_tool_runs(runs)
+
+    client = _ScriptedClient({
+        "p_search_01": "Great -- try Chopin's Ballade No. 1 for that singing tone.",
+    })
+    stats1 = run_continuation(
+        tool_runs_path=runs, cases_path=cases,
+        teacher_client=client, out_path=out,
+    )
+    assert stats1.processed == 1 and stats1.skipped == 0
+
+    # Second run with a fresh client; p_search_01 is already done.
+    stats2 = run_continuation(
+        tool_runs_path=runs, cases_path=cases,
+        teacher_client=_ScriptedClient({}), out_path=out,
+    )
+    assert stats2.processed == 0 and stats2.skipped == 1
+    rows = [json.loads(l) for l in out.read_text().splitlines()]
+    assert len(rows) == 1, "must not append a duplicate row"

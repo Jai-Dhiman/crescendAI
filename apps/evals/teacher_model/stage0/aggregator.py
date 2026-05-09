@@ -130,15 +130,21 @@ def _avg_dim(by_dim: dict[str, list[int]], dims: list[str]) -> tuple[float, list
 
 
 def _build_judgment_row(by_dim: dict[str, list[int]], baseline: dict) -> CapabilityRow:
-    ascf_mean = _mean(by_dim.get("Audible-Specific Corrective Feedback", []))
-    sgd_mean = _mean(by_dim.get("Scaffolded Guided Discovery", []))
+    ascf_vals = by_dim.get("Audible-Specific Corrective Feedback", [])
+    sgd_vals = by_dim.get("Scaffolded Guided Discovery", [])
+    ascf_mean = _mean(ascf_vals)
+    sgd_mean = _mean(sgd_vals)
     point = (ascf_mean + sgd_mean) / 2
     ascf_base = _baseline_lookup(baseline, "Audible-Specific Corrective Feedback")
     sgd_base = _baseline_lookup(baseline, "Scaffolded Guided Discovery")
-    deltas = [ascf_base - ascf_mean, sgd_base - sgd_mean]
-    worst = max(deltas)
+    ascf_delta = ascf_base - ascf_mean
+    sgd_delta = sgd_base - sgd_mean
+    worst = max(ascf_delta, sgd_delta)
     baseline_avg = (ascf_base + sgd_base) / 2
-    primary_ci = _bootstrap_ci(_avg_dim(by_dim, ["Audible-Specific Corrective Feedback", "Scaffolded Guided Discovery"])[1])
+    # CI from the worst-performing dim's series, so the uncertainty band
+    # corresponds to the same quantity used for tier classification.
+    worst_series = ascf_vals if ascf_delta >= sgd_delta else sgd_vals
+    primary_ci = _bootstrap_ci([float(v) for v in worst_series])
     tier = classify_tier(value=baseline_avg - worst, baseline=baseline_avg, mode="relative", ci=primary_ci)
     return CapabilityRow(
         name="Judgment",

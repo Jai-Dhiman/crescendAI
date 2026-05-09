@@ -33,10 +33,26 @@ class _Client(Protocol):
 class RunStats:
     processed: int
     errors: int
+    skipped: int = 0
 
 
 def _read_jsonl(path: Path) -> list[dict]:
     return [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
+
+
+def _load_completed(path: Path) -> set[str]:
+    if not path.exists():
+        return set()
+    done: set[str] = set()
+    for line in path.read_text().splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        row = json.loads(line)  # JSONDecodeError propagates; corrupt file is fatal
+        rid = row.get("case_id")
+        if rid:
+            done.add(rid)
+    return done
 
 
 def run(
@@ -48,17 +64,22 @@ def run(
 ) -> RunStats:
     tool_runs = _read_jsonl(tool_runs_path)
     cases = {c.case_id: c for c in load_cases(cases_path)}
+    completed = _load_completed(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
     processed = 0
     errors = 0
+    skipped = 0
 
-    with out_path.open("w") as fout:
+    with out_path.open("a") as fout:
         for tr in tool_runs:
             if not (tr.get("expected_call") and tr.get("called") and tr.get("discipline_correct")):
                 continue
             case = cases.get(tr["case_id"])
             if case is None:
+                continue
+            if tr["case_id"] in completed:
+                skipped += 1
                 continue
             tool_name = tr.get("tool_name") or ""
             try:
@@ -97,4 +118,4 @@ def run(
                 errors += 1
             fout.write(json.dumps(row) + "\n")
 
-    return RunStats(processed=processed, errors=errors)
+    return RunStats(processed=processed, errors=errors, skipped=skipped)

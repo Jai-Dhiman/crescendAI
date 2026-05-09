@@ -1,11 +1,17 @@
 """Verify domain_knowledge_probe CLI accepts the openrouter provider."""
 from __future__ import annotations
 
-from pathlib import Path
+import subprocess
+import sys
 
 
 def test_cli_accepts_openrouter_provider() -> None:
-    """`--provider openrouter` must be listed in the source choices."""
-    repo_root = Path(__file__).resolve().parents[4]
-    src = (repo_root / "apps" / "evals" / "teacher_model" / "domain_knowledge_probe.py").read_text()
-    assert '"openrouter"' in src, "openrouter must be in --provider choices"
+    """`--provider openrouter` must appear in the live argparse --help output."""
+    result = subprocess.run(
+        [sys.executable, "-m", "teacher_model.domain_knowledge_probe", "--help"],
+        capture_output=True,
+        text=True,
+    )
+    assert "openrouter" in result.stdout, (
+        "openrouter must be in --provider choices; not found in --help output"
+    )
