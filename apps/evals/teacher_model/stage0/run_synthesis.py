@@ -60,10 +60,13 @@ def run(
     judge_provider: str = "workers-ai",
     judge_model: str | None = "@cf/google/gemma-4-26b-a4b-it",
     max_tokens: int = 1024,
+    limit: int | None = None,
 ) -> RunStats:
     holdout = [
         json.loads(line) for line in holdout_path.read_text().splitlines() if line.strip()
     ]
+    if limit is not None:
+        holdout = holdout[:limit]
     completed = _load_completed(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
 

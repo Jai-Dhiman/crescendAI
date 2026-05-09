@@ -142,6 +142,7 @@ def main() -> None:
             system_prompt=_SYNTH_SYSTEM.read_text(),
             judge_provider=args.judge_provider,
             judge_model=args.judge_model,
+            limit=args.limit,
         )
         return
 
