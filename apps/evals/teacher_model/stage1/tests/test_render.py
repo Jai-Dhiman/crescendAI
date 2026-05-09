@@ -53,3 +53,78 @@ def test_verify_tokenizer_pin_raises_on_mutation(tmp_path: Path):
     with pytest.raises(TokenizerPinMismatchError) as exc_info:
         verify_tokenizer_pin(tok_dir, pin)
     assert "chat_template.jinja" in str(exc_info.value) or "sha256" in str(exc_info.value)
+
+
+import json
+
+from teacher_model.stage1.render import render
+from teacher_model.stage1.schema import (
+    Stage1AssistantTurn,
+    Stage1Example,
+    Stage1TextBlock,
+    Stage1ToolUseBlock,
+)
+
+
+class _RecordingTokenizer:
+    def __init__(self):
+        self.calls = []
+
+    def apply_chat_template(self, messages, tools=None, add_generation_prompt=False, tokenize=False):
+        self.calls.append(
+            {"messages": messages, "tools": tools, "add_generation_prompt": add_generation_prompt}
+        )
+        return f"<rendered:{len(messages)}msgs:{len(tools or [])}tools>"
+
+
+def test_render_passes_messages_and_tools_to_apply_chat_template():
+    example = Stage1Example(
+        shape="chat",
+        system_blocks=["UNIFIED_TEACHER_SYSTEM"],
+        messages=[
+            {"role": "user", "content": "show me bars 5-8 of chopin.ballades.1"},
+        ],
+        assistant=Stage1AssistantTurn(
+            content=[
+                Stage1TextBlock(text="Here you go."),
+                Stage1ToolUseBlock(
+                    id="t1",
+                    name="score_highlight",
+                    input={
+                        "piece_id": "chopin.ballades.1",
+                        "highlights": [{"bars": [5, 8], "dimension": "phrasing"}],
+                    },
+                ),
+            ]
+        ),
+    )
+    tools = [
+        {
+            "type": "function",
+            "function": {"name": "score_highlight", "description": "stub", "parameters": {}},
+        }
+    ]
+    tok = _RecordingTokenizer()
+
+    out = render(example, tok, tools)
+
+    assert "rendered" in out
+    assert len(tok.calls) == 1
+    call = tok.calls[0]
+    assert call["tools"] == tools
+    assert call["messages"][0]["role"] == "system"
+    assert "UNIFIED_TEACHER_SYSTEM" in call["messages"][0]["content"]
+    assert call["messages"][1]["role"] == "user"
+    assert call["messages"][-1]["role"] == "assistant"
+    assert call["add_generation_prompt"] is False
+
+    assistant_msg = call["messages"][-1]
+    assert "tool_calls" in assistant_msg
+    args_str = assistant_msg["tool_calls"][0]["function"]["arguments"]
+    assert isinstance(args_str, str), (
+        f"arguments must be JSON-encoded string, got {type(args_str).__name__}"
+    )
+    assert json.loads(args_str) == {
+        "piece_id": "chopin.ballades.1",
+        "highlights": [{"bars": [5, 8], "dimension": "phrasing"}],
+    }
