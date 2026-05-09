@@ -6,6 +6,7 @@ import pytest
 from teacher_model.stage1.negatives_loader import (
     NegativeLoadError,
     load_negatives,
+    load_pairs,
 )
 
 
@@ -40,9 +41,6 @@ def test_load_negatives_raises_with_filename_on_invalid(tmp_path: Path):
         load_negatives(tmp_path)
     assert "neg_bad.json" in str(exc_info.value)
     assert "category" in str(exc_info.value)
-
-
-from teacher_model.stage1.negatives_loader import load_pairs
 
 
 def _pair_dict(contrast_id: str, neg_contrast_id: str | None = None) -> dict:
