@@ -5,6 +5,8 @@ import importlib.util
 import sys
 from pathlib import Path
 
+import pytest
+
 from teacher_model.calibration.emit_recipe import emit
 
 
@@ -144,3 +146,19 @@ def test_emit_records_bias_correction_for_trusted_with_offset(tmp_path: Path):
     composite = sum(corrected.values()) / len(corrected)
     # 10 sub-scores at 2.5 + 1 sub-score at 2.1 = (10*2.5 + 2.1)/11 = 27.1/11 ≈ 2.4636
     assert composite < mod.COMPOSITE_PASS_THRESHOLD
+
+
+def test_emit_raises_when_trusted_with_offset_has_no_mean_offset(tmp_path: Path):
+    calibration_report = {
+        "buckets": {"ascf_process": "TRUSTED_WITH_OFFSET"},
+        "mean_offset": {},  # ascf_process key intentionally absent
+        "aggregate_gate_pass": True,
+    }
+    drift_report = {"intra_rater_kappa": {}, "judge_drift_kappa": {}}
+
+    with pytest.raises(ValueError, match="TRUSTED_WITH_OFFSET"):
+        emit(
+            calibration_report=calibration_report,
+            drift_report=drift_report,
+            output_path=tmp_path / "should_not_exist.py",
+        )
