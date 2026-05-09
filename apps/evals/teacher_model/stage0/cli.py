@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import argparse
-import json
 from pathlib import Path
 
 from teacher_model.stage0.aggregator import build_dossier
@@ -18,7 +17,6 @@ _DATA_DIR = _STAGE0_ROOT / "data"
 _RESULTS_DIR = _STAGE0_ROOT / "results"
 _PROMPTS_DIR = _STAGE0_ROOT / "prompts"
 _REPO_ROOT = _STAGE0_ROOT.resolve().parents[4]
-_BRIEFINGS_DIR = _REPO_ROOT / "model" / "data" / "eval" / "inference_cache" / "auto-t5_http"
 _SYNTH_SYSTEM = _REPO_ROOT / "apps" / "shared" / "teacher-style" / "synthesis_system.txt"
 _BASELINE_AGGREGATE = _REPO_ROOT / "apps" / "evals" / "results" / "baseline_v1_aggregate.json"
 
