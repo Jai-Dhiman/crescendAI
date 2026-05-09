@@ -1,0 +1,48 @@
+{
+  "total": 100,
+  "correct": 98,
+  "accuracy": 0.98,
+  "gate_pass": true,
+  "gate_threshold": 0.6,
+  "by_topic": {
+    "concepts": {
+      "total": 20,
+      "correct": 20,
+      "accuracy": 1.0
+    },
+    "pedagogy": {
+      "total": 19,
+      "correct": 19,
+      "accuracy": 1.0
+    },
+    "psychology": {
+      "total": 14,
+      "correct": 14,
+      "accuracy": 1.0
+    },
+    "repertoire": {
+      "total": 29,
+      "correct": 28,
+      "accuracy": 0.9655172413793104
+    },
+    "technique": {
+      "total": 18,
+      "correct": 17,
+      "accuracy": 0.9444444444444444
+    }
+  },
+  "failures": [
+    {
+      "id": "dk_003",
+      "topic": "technique",
+      "expected": "B",
+      "got": "A"
+    },
+    {
+      "id": "dk_085",
+      "topic": "repertoire",
+      "expected": "B",
+      "got": "A"
+    }
+  ]
+}

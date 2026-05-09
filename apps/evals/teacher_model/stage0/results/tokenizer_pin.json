@@ -1,0 +1,12 @@
+{
+  "model_id": "Qwen/Qwen3-30B-A3B-Instruct-2507",
+  "sha256": "99b82826c930e63e85d76f2f4c81bd8e80eaddc936ea5c111b49713309eba8e2",
+  "files": [
+    "merges.txt",
+    "tokenizer.json",
+    "tokenizer_config.json",
+    "vocab.json"
+  ],
+  "cache_dir": "/Users/jdhiman/.cache/huggingface/hub/models--Qwen--Qwen3-30B-A3B-Instruct-2507/snapshots/0d7cf23991f47feeb3a57ecb4c9cee8ea4a17bfe",
+  "chat_template_present": true
+}

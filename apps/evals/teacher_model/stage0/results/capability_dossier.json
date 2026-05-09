@@ -1,0 +1,142 @@
+{
+  "meta": {
+    "model_id": "qwen/qwen3.6-35b-a3b",
+    "n_synthesis": 104,
+    "n_tool": 33,
+    "mcq_total": 100,
+    "routed_providers": []
+  },
+  "capabilities": [
+    {
+      "name": "Judgment",
+      "primary_signal": "avg(ASCF, SGD) outcome",
+      "primary_value": 1.5711224489795919,
+      "primary_ci": [
+        1.4591836734693877,
+        1.7653061224489797
+      ],
+      "corroborating_signal": null,
+      "corroborating_value": null,
+      "tier": "mid_tier_with_ceiling_overlap",
+      "anchor_type": "relative",
+      "sonnet_baseline": 1.791108630952381,
+      "delta_vs_sonnet": -0.21998618197278907,
+      "inconsistency_flag": false,
+      "notes": ""
+    },
+    {
+      "name": "Taste",
+      "primary_signal": "Taste Defensibility (NEW)",
+      "primary_value": 2.98019801980198,
+      "primary_ci": [
+        2.9504950495049505,
+        3.0
+      ],
+      "corroborating_signal": null,
+      "corroborating_value": null,
+      "tier": "at_ceiling",
+      "anchor_type": "absolute",
+      "sonnet_baseline": null,
+      "delta_vs_sonnet": null,
+      "inconsistency_flag": false,
+      "notes": "no baseline anchor"
+    },
+    {
+      "name": "Integration",
+      "primary_signal": "CAP outcome",
+      "primary_value": 1.4141414141414141,
+      "primary_ci": [
+        1.1717171717171717,
+        1.6464646464646464
+      ],
+      "corroborating_signal": "composite mean (7 base dims)",
+      "corroborating_value": 2.2332361516034984,
+      "tier": "absent_with_mid_overlap",
+      "anchor_type": "relative",
+      "sonnet_baseline": 2.164383561643836,
+      "delta_vs_sonnet": -0.7502421475024217,
+      "inconsistency_flag": true,
+      "notes": ""
+    },
+    {
+      "name": "Voice",
+      "primary_signal": "avg(SPP, ATL, ASM) outcome",
+      "primary_value": 2.6996699669966997,
+      "primary_ci": [
+        2.6435643564356437,
+        2.7557755775577557
+      ],
+      "corroborating_signal": null,
+      "corroborating_value": null,
+      "tier": "at_ceiling_with_mid_overlap",
+      "anchor_type": "relative",
+      "sonnet_baseline": 2.89463912240091,
+      "delta_vs_sonnet": -0.19496915540421034,
+      "inconsistency_flag": false,
+      "notes": ""
+    },
+    {
+      "name": "Vocabulary",
+      "primary_signal": "SCML outcome",
+      "primary_value": 3.0,
+      "primary_ci": [
+        3.0,
+        3.0
+      ],
+      "corroborating_signal": "MCQ concepts accuracy",
+      "corroborating_value": 1.0,
+      "tier": "at_ceiling",
+      "anchor_type": "relative",
+      "sonnet_baseline": 3.0,
+      "delta_vs_sonnet": 0.0,
+      "inconsistency_flag": false,
+      "notes": ""
+    },
+    {
+      "name": "Tool-calling",
+      "primary_signal": "discipline accuracy",
+      "primary_value": 0.7575757575757576,
+      "primary_ci": [
+        0.5897505131450971,
+        0.8716843865335271
+      ],
+      "corroborating_signal": "format-conditional schema validity (reported separately)",
+      "corroborating_value": null,
+      "tier": "mid_tier_with_ceiling_overlap",
+      "anchor_type": "absolute",
+      "sonnet_baseline": null,
+      "delta_vs_sonnet": null,
+      "inconsistency_flag": false,
+      "notes": "no baseline anchor"
+    },
+    {
+      "name": "Adaptation",
+      "primary_signal": "Adaptation Specificity (NEW)",
+      "primary_value": 1.65,
+      "primary_ci": [
+        1.45,
+        1.83
+      ],
+      "corroborating_signal": null,
+      "corroborating_value": null,
+      "tier": "mid_tier_with_absent_overlap",
+      "anchor_type": "absolute",
+      "sonnet_baseline": null,
+      "delta_vs_sonnet": null,
+      "inconsistency_flag": false,
+      "notes": "no baseline anchor"
+    }
+  ],
+  "continuation_degeneracy_rate": 0.0,
+  "continuation_by_category": {
+    "clean": 3
+  },
+  "over_call_by_category": {
+    "chitchat": 0.0,
+    "premature": 0.0,
+    "ambiguous": 0.3333333333333333,
+    "already_recommended": 0.0,
+    "out_of_scope": 0.0,
+    "borderline_wrong_tool": 0.0
+  }
+}
