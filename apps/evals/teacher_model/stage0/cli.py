@@ -119,10 +119,17 @@ def main() -> None:
         return
 
     if args.cmd == "sample":
-        raise NotImplementedError(
-            "sample subcommand requires load_manifests from teaching_knowledge.run_eval; "
-            "run sample_main() directly with a pre-loaded manifests dict."
+        from teaching_knowledge.run_eval import load_manifests, CACHE_DIR
+        manifests = load_manifests()
+        sample_main(
+            briefings_dir=CACHE_DIR,
+            manifests=manifests,
+            n=args.n,
+            seed=args.seed,
+            out_path=args.out,
         )
+        print(f"Holdout written to {args.out}")
+        return
 
     if args.cmd == "synthesis":
         from teaching_knowledge.llm_client import LLMClient
