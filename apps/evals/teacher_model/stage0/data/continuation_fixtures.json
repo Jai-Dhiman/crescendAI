@@ -1,0 +1,44 @@
+{
+  "create_exercise": {
+    "exercises": [
+      {
+        "id": "ex_001",
+        "title": "Slow LH practice",
+        "instruction": "Play the LH alone at quarter = 60, focusing on even tone."
+      }
+    ]
+  },
+  "score_highlight": {
+    "highlight_id": "hl_001",
+    "bars": [12, 16],
+    "dimension": "phrasing"
+  },
+  "keyboard_guide": {
+    "guide_id": "kg_001",
+    "label": "RH thumb-under turn"
+  },
+  "show_session_data": {
+    "summary": {
+      "duration_minutes": 12.5,
+      "top_dimensions": ["pedaling", "phrasing"]
+    }
+  },
+  "reference_browser": {
+    "references": [
+      {
+        "performer": "Krystian Zimerman",
+        "url": "https://example.invalid/zimerman-ballade1"
+      }
+    ]
+  },
+  "search_catalog": {
+    "matches": [
+      {
+        "pieceId": "chopin.ballades.1",
+        "composer": "Chopin",
+        "title": "Ballade No. 1 in G minor",
+        "barCount": 264
+      }
+    ]
+  }
+}
