@@ -40,3 +40,61 @@ def test_load_negatives_raises_with_filename_on_invalid(tmp_path: Path):
         load_negatives(tmp_path)
     assert "neg_bad.json" in str(exc_info.value)
     assert "category" in str(exc_info.value)
+
+
+from teacher_model.stage1.negatives_loader import load_pairs
+
+
+def _pair_dict(contrast_id: str, neg_contrast_id: str | None = None) -> dict:
+    neg_id = neg_contrast_id if neg_contrast_id is not None else contrast_id
+    return {
+        "contrast_id": contrast_id,
+        "positive": {
+            "shape": "chat",
+            "system_blocks": [],
+            "messages": [{"role": "user", "content": "show me bars 5-8 of chopin.ballades.1"}],
+            "assistant": {
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "tool_use",
+                        "id": "t1",
+                        "name": "score_highlight",
+                        "input": {
+                            "piece_id": "chopin.ballades.1",
+                            "highlights": [{"bars": [5, 8], "dimension": "phrasing"}],
+                        },
+                    }
+                ],
+            },
+            "metadata": {"contrast_id": contrast_id, "source": "hand"},
+        },
+        "negative": {
+            "shape": "chat",
+            "system_blocks": [],
+            "messages": [{"role": "user", "content": "show me a Chopin piece sometime"}],
+            "assistant": {
+                "role": "assistant",
+                "content": [{"type": "text", "text": "Sure -- which one would you like to start with?"}],
+            },
+            "category": "ambiguous",
+            "metadata": {"contrast_id": neg_id},
+        },
+    }
+
+
+def test_load_pairs_returns_valid(tmp_path: Path):
+    (tmp_path / "pair_001.json").write_text(json.dumps(_pair_dict("cp_001")))
+    pairs = load_pairs(tmp_path)
+    assert len(pairs) == 1
+    assert pairs[0].contrast_id == "cp_001"
+
+
+def test_load_pairs_rejects_mismatched_contrast_id(tmp_path: Path):
+    (tmp_path / "pair_bad.json").write_text(
+        json.dumps(_pair_dict("cp_001", neg_contrast_id="cp_999"))
+    )
+    with pytest.raises(NegativeLoadError) as exc_info:
+        load_pairs(tmp_path)
+    assert "pair_bad.json" in str(exc_info.value)
+    assert "contrast_id" in str(exc_info.value).lower()
