@@ -10,6 +10,8 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
+COMPOSITE_PASS_THRESHOLD: float = 2.5
+
 _CRITERION_TO_SLUG: dict[str, str] = {
     "Audible-Specific Corrective Feedback": "ascf",
     "Concrete Artifact Provision": "concrete_artifact",
@@ -74,9 +76,23 @@ def _build_baseline_index(baseline_path: Path) -> dict[str, dict]:
     return index
 
 
+def _rater_composite(values_by_sub: dict[str, int]) -> float | None:
+    if not values_by_sub:
+        return None
+    return sum(values_by_sub.values()) / len(values_by_sub)
+
+
+def _judge_composite(judge_dimensions: list[dict]) -> float | None:
+    scores = [d["score"] for d in judge_dimensions if d.get("score") is not None]
+    if not scores:
+        return None
+    return sum(scores) / len(scores)
+
+
 def calibrate(ratings_path: Path, baseline_path: Path) -> dict[str, Any]:
     baseline = _build_baseline_index(baseline_path)
     pairs_by_sub: dict[str, list[tuple[int, int]]] = defaultdict(list)
+    rater_vals_per_synth: dict[str, dict[str, int]] = defaultdict(dict)
 
     with ratings_path.open() as f:
         for line in f:
@@ -84,18 +100,46 @@ def calibrate(ratings_path: Path, baseline_path: Path) -> dict[str, Any]:
             if rec.get("event_type") != "rating":
                 continue
             if rec.get("anchor_origin_id") is not None:
-                continue  # anchor duplicates only feed analyze_drift
+                continue
             row = baseline.get(rec["synth_id"])
             if row is None:
                 continue
             jv = _judge_value_for_sub_score(row.get("judge_dimensions", []), rec["sub_score"])
-            if jv is None:
-                continue
-            pairs_by_sub[rec["sub_score"]].append((rec["value"], jv))
+            if jv is not None:
+                pairs_by_sub[rec["sub_score"]].append((rec["value"], jv))
+            rater_vals_per_synth[rec["synth_id"]][rec["sub_score"]] = rec["value"]
 
     per_sub_score_kappa = {
         sub: _cohens_weighted_kappa([a for a, _ in pairs], [b for _, b in pairs])
         for sub, pairs in pairs_by_sub.items()
         if pairs
     }
-    return {"per_sub_score_kappa": per_sub_score_kappa}
+
+    threshold_pairs: list[tuple[int, int]] = []
+    for synth_id, vals in rater_vals_per_synth.items():
+        row = baseline.get(synth_id)
+        if row is None:
+            continue
+        rc = _rater_composite(vals)
+        jc = _judge_composite(row.get("judge_dimensions", []))
+        if rc is None or jc is None:
+            continue
+        rater_pass = 1 if rc >= COMPOSITE_PASS_THRESHOLD else 0
+        judge_pass = 1 if jc >= COMPOSITE_PASS_THRESHOLD else 0
+        threshold_pairs.append((rater_pass, judge_pass))
+
+    if threshold_pairs:
+        agreement = sum(1 for a, b in threshold_pairs if a == b) / len(threshold_pairs)
+        a_vals = [a for a, _ in threshold_pairs]
+        b_vals = [b for _, b in threshold_pairs]
+        kappa_thresh = _cohens_weighted_kappa(a_vals, b_vals, k=2)
+    else:
+        agreement = 0.0
+        kappa_thresh = float("nan")
+
+    return {
+        "per_sub_score_kappa": per_sub_score_kappa,
+        "threshold_decision_agreement": agreement,
+        "threshold_decision_kappa": kappa_thresh,
+        "n_threshold_pairs": len(threshold_pairs),
+    }
