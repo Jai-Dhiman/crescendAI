@@ -1,6 +1,8 @@
 # Stage 0 Capability Probe Design
 
-**Goal:** Produce a defensible capability dossier that scores base Qwen3.6-35B-A3B at-ceiling / mid-tier / absent across the seven teacher capabilities (judgment, taste, integration, voice, vocabulary, tool-calling, adaptation), within a 1-2 day budget, with results that set training dosage for Stages 2-3 and decide whether Stage 5 is needed.
+**Status:** original 2026-05-07; amended 2026-05-08 to add Stage 1 prerequisite probes (tokenizer pinning, chitchat over-call sub-stratum, post-tool-result continuation degeneracy probe). Amendment changes are tagged `(added 2026-05-08)` inline.
+
+**Goal:** Produce a defensible capability dossier that scores base Qwen3.6-35B-A3B at-ceiling / mid-tier / absent across the seven teacher capabilities (judgment, taste, integration, voice, vocabulary, tool-calling, adaptation), within a 1-2 day budget, with results that set training dosage for Stages 2-3 and decide whether Stage 5 is needed. The amendment additionally produces three Stage 1 prerequisite artifacts: a pinned tokenizer hash, a per-category tool-discipline breakdown including chitchat, and a post-tool-result continuation degeneracy rate.
 
 **Not in scope:**
 - Any training compute (Stage 0 is inference + judging only)
@@ -25,10 +27,12 @@ Without a per-capability verdict, Stages 1-3 dosage is guesswork. Stage 1 negati
 Run three commands. Get one dossier:
 
 ```bash
+uv run python -m teacher_model.stage0 pin-tokenizer                                                   # (added 2026-05-08)
 uv run python -m teacher_model.stage0 sample --n 100 --seed 42
-uv run python -m teacher_model.stage0 synthesis --provider openrouter --model qwen/qwen3.6-35b-a3b
-uv run python -m teacher_model.stage0 tool      --provider openrouter --model qwen/qwen3.6-35b-a3b
-uv run python -m teacher_model.stage0 mcq       --provider openrouter --model qwen/qwen3.6-35b-a3b
+uv run python -m teacher_model.stage0 synthesis    --provider openrouter --model qwen/qwen3.6-35b-a3b
+uv run python -m teacher_model.stage0 tool         --provider openrouter --model qwen/qwen3.6-35b-a3b
+uv run python -m teacher_model.stage0 continuation --provider openrouter --model qwen/qwen3.6-35b-a3b # (added 2026-05-08)
+uv run python -m teacher_model.stage0 mcq          --provider openrouter --model qwen/qwen3.6-35b-a3b
 uv run python -m teacher_model.stage0 aggregate
 ```
 
@@ -57,7 +61,9 @@ Three independent probes feeding one aggregator.
 
 1. **Synthesis probe** (Pipeline A) — n=100 stratified-by-era×skill briefings drawn from the 890 in `model/data/eval/inference_cache/auto-t5_http/`. Uses the production synthesis system prompt (`apps/shared/teacher-style/synthesis_system.txt`) and the production briefing-construction logic (`build_synthesis_user_msg` from `teaching_knowledge/run_eval.py`). Each response is judged by an extended judge prompt that scores the 7 existing rubric dimensions plus 2 new dimensions: **Taste defensibility** and **Adaptation specificity**.
 
-2. **Tool probe** (Pipeline B) — 30 hand-curated cases (20 positive, 10 negative) committed to `tool_probe_cases.jsonl`. The model is given the 6-tool palette (mirrored from `apps/api/src/services/tool-processor.ts`) via a Qwen-native system prompt with 3 few-shot examples. The scorer separates two metrics: **discipline accuracy** (call vs. don't-call decision) and **format-conditional schema validity** (when the model called, did args match the schema).
+2. **Tool probe** (Pipeline B) — 40 hand-curated cases (20 positive, 20 negative) committed to `tool_probe_cases.jsonl`. The model is given the 6-tool palette (mirrored from `apps/api/src/services/tool-processor.ts`) via a Qwen-native system prompt with 3 few-shot examples. The scorer separates two metrics: **discipline accuracy** (call vs. don't-call decision) and **format-conditional schema validity** (when the model called, did args match the schema). **(amended 2026-05-08)** Each negative case carries a `category` tag (`chitchat | premature | ambiguous | already_recommended | out_of_scope | borderline_wrong_tool`); the aggregator emits per-category over-call rates so Stage 1 can confirm its Q4 contingency (chitchat-rate >70% triggers organic-narration negatives).
+
+2b. **Continuation probe** (Pipeline B+, added 2026-05-08) — for each of the 20 positive cases on which the model successfully tool-called, construct a synthetic `tool_result` follow-up turn (canned plausible result for that tool) and re-prompt the model. Score the assistant's continuation against four degeneracy categories: **refusal** (explicit "I cannot continue"), **repetition** (re-emits the same tool_call), **format collapse** (output is not valid prose, e.g. raw JSON dump), **empty/truncated** (length below 10 tokens). Aggregator emits `continuation_degeneracy_rate` (any-of-4 / total) and a per-category breakdown. This rate gates the brainstormed Q2 emission-only choice for Stage 1 — degeneracy >30% triggers the contingency primer plan.
 
 3. **MCQ probe** (Pipeline C) — runs the existing `apps/evals/teacher_model/domain_knowledge_probe.py` against OpenRouter with no changes other than adding `openrouter` to its `--provider` choices.
 
@@ -118,6 +124,14 @@ Strata = era (Romantic / Baroque / Classical / Impressionist via `composer_to_er
   - Hides: capability→signal map application, primary/corroborating cross-check + inconsistency flag, bootstrap CI on synthesis means, exact CI on tool discipline, dossier JSON + Markdown rendering, error-rate gate (>5% → refuse to emit)
   - Tested through: synthetic input JSONLs that exercise each tier path, the inconsistency flag, and the error-rate gate
 - **run_synthesis** / **run_tool_probe** (intentionally shallow orchestration glue): retry/backoff, resume from existing JSONL, append-on-flush. Tested via a `--n 5` smoke test against a cheap model in CI.
+- **continuation_probe** (`apps/evals/teacher_model/stage0/continuation_probe.py`, added 2026-05-08)
+  - Interface: `score_continuation(initial_assistant: str, tool_result: dict, follow_up_response: str) -> ContinuationResult`
+  - Hides: 4-category degeneracy classifier (refusal / repetition / format-collapse / empty), tool-result fixture builder per tool name, length thresholds
+  - Tested through: fixture inputs covering each degeneracy category and a clean continuation; assert each is classified correctly
+- **pin_tokenizer** (`apps/evals/teacher_model/stage0/pin_tokenizer.py`, added 2026-05-08)
+  - Interface: `pin_tokenizer(model_id: str, out_path: Path) -> TokenizerPin`
+  - Hides: tokenizer download via `transformers.AutoTokenizer.from_pretrained`, file-set hash computation (sha256 over sorted relative paths + contents of `tokenizer.json`, `tokenizer_config.json`, `chat_template.jinja` if present, and any added vocab files), JSON serialization of the pin record
+  - Tested through: invoke with a small public tokenizer (e.g. `gpt2`), assert hash is stable across two invocations and changes when one source file is mutated
 
 ## File Changes
 
@@ -134,7 +148,13 @@ Strata = era (Romantic / Baroque / Classical / Impressionist via `composer_to_er
 | `apps/evals/teacher_model/stage0/cli.py` | argparse front-end (`sample`/`synthesis`/`tool`/`mcq`/`aggregate` subcommands) | New |
 | `apps/evals/teacher_model/stage0/prompts/judge_v2_extended.txt` | Extended judge prompt (9 dims) | New |
 | `apps/evals/teacher_model/stage0/prompts/tool_probe_system.txt` | Qwen-native tool-use system prompt + 3 few-shot examples | New |
-| `apps/evals/teacher_model/stage0/data/tool_probe_cases.jsonl` | 30 curated cases (drafted by implementer, founder-reviewed) | New |
+| `apps/evals/teacher_model/stage0/data/tool_probe_cases.jsonl` | 40 curated cases (20 positive, 20 negative across 6 categories); drafted by implementer, founder-reviewed | New |
+| `apps/evals/teacher_model/stage0/continuation_probe.py` | Post-tool-result continuation degeneracy classifier (added 2026-05-08) | New |
+| `apps/evals/teacher_model/stage0/pin_tokenizer.py` | Tokenizer download + hash pin (added 2026-05-08) | New |
+| `apps/evals/teacher_model/stage0/run_continuation.py` | Pipeline B+ runner (synthetic tool_result follow-up + score) (added 2026-05-08) | New |
+| `apps/evals/teacher_model/stage0/results/tokenizer_pin.json` | Generated artifact: pinned Qwen3.6-A3B tokenizer hash + file list (consumed by Stage 1) (added 2026-05-08) | New (generated, committed) |
+| `apps/evals/teacher_model/stage0/tests/test_continuation_probe.py` | Degeneracy classification fixtures (added 2026-05-08) | New |
+| `apps/evals/teacher_model/stage0/tests/test_pin_tokenizer.py` | Hash stability + mutation sensitivity (added 2026-05-08) | New |
 | `apps/evals/teacher_model/stage0/data/stage0_holdout.jsonl` | Generated then committed (deterministic, seed 42) | New |
 | `apps/evals/teacher_model/stage0/tests/test_sampler.py` | Stratification + determinism | New |
 | `apps/evals/teacher_model/stage0/tests/test_tier_classifier.py` | Boundary tests | New |
@@ -147,3 +167,5 @@ Strata = era (Romantic / Baroque / Classical / Impressionist via `composer_to_er
 - **Q:** Does OpenRouter ship `qwen/qwen3.6-35b-a3b` as raw base or instruct? **Default:** record whatever OpenRouter labels it (via `/api/v1/models/...`) and tag the dossier `instruct base` if instruct-tuned. Stage 1 LoRA usually starts from instruct anyway, so the comparison stays valid.
 - **Q:** Should the dossier also score Sonnet on the 2 new dimensions (taste, adaptation) to give those rows a baseline anchor? **Default:** no — defer; flagging "no baseline anchor" is honest and adding it costs ~half a day. Revisit post-Stage-1 if those rows end up driving expensive Stage 3 decisions.
 - **Q:** When OpenRouter routes the same model across multiple providers within one Stage 0 run, do we accept the mixed-provider result or pin to one provider? **Default:** record `routed_provider` per row, emit `provider_mix` in dossier meta, and flag "mixed-provider run" if >1 provider served the run. Re-run pinned only if the flag fires AND a capability sits on a tier boundary.
+- **Q (added 2026-05-08):** What constitutes a "plausible" synthetic `tool_result` payload for the continuation probe across the 6 tools? **Default:** for each tool, hand-author one canonical successful payload (e.g. for `search_catalog`, return `{"matches": [{"pieceId": "chopin.ballades.1", "composer": "Chopin", "title": "Ballade No. 1", "barCount": 264}]}`). Commit these to `stage0/data/continuation_fixtures.json`. Re-use the same payload across all positive cases that called that tool — the probe measures continuation behavior, not result-handling sophistication.
+- **Q (added 2026-05-08):** Should `pin-tokenizer` fail loudly if the model card lists no `chat_template.jinja`? **Default:** yes — Stage 1 cannot proceed without an explicit chat template (Q1 brainstorm decision: chat-template-native tool-call slot). The pin step writes the pin file only on success; absence of `chat_template.jinja` raises `MissingChatTemplateError` and the dossier flags `tokenizer_pin: failed`.
