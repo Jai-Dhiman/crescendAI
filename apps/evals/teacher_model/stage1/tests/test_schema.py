@@ -250,7 +250,7 @@ def test_validate_tool_input_search_catalog(tool_input, expected_substring):
         assert any(expected_substring in e.lower() for e in errors), errors
 
 
-from teacher_model.stage1.schema import Stage1Negative, NEGATIVE_CATEGORIES
+from teacher_model.stage1.schema import Stage1Negative, NEGATIVE_CATEGORIES, MatchedContrastPair
 
 
 def test_stage1_negative_enforces_category_enum():
@@ -287,3 +287,60 @@ def test_negative_categories_constant_has_six_values():
         "out_of_scope",
         "borderline_wrong_tool",
     }
+
+
+def _make_positive(contrast_id: str) -> Stage1Example:
+    return Stage1Example(
+        shape="chat",
+        system_blocks=[],
+        messages=[{"role": "user", "content": "show me bars 5-8 of Chopin Op. 23"}],
+        assistant=Stage1AssistantTurn(
+            content=[
+                Stage1ToolUseBlock(
+                    id="t1",
+                    name="search_catalog",
+                    input={"composer": "Chopin", "opus_number": 23},
+                )
+            ]
+        ),
+        metadata={"contrast_id": contrast_id, "source": "hand"},
+    )
+
+
+def _make_negative(contrast_id: str) -> Stage1Negative:
+    return Stage1Negative(
+        shape="chat",
+        system_blocks=[],
+        messages=[{"role": "user", "content": "show me bars 5-8 of chopin.ballades.1"}],
+        assistant=Stage1AssistantTurn(
+            content=[
+                Stage1ToolUseBlock(
+                    id="t1",
+                    name="score_highlight",
+                    input={
+                        "piece_id": "chopin.ballades.1",
+                        "highlights": [{"bars": [5, 8], "dimension": "phrasing"}],
+                    },
+                )
+            ]
+        ),
+        category="borderline_wrong_tool",
+        metadata={"contrast_id": contrast_id},
+    )
+
+
+def test_matched_contrast_pair_requires_same_contrast_id():
+    pair = MatchedContrastPair(
+        contrast_id="cp_001",
+        positive=_make_positive("cp_001"),
+        negative=_make_negative("cp_001"),
+    )
+    assert pair.contrast_id == "cp_001"
+
+    with pytest.raises(Exception) as exc_info:
+        MatchedContrastPair(
+            contrast_id="cp_001",
+            positive=_make_positive("cp_001"),
+            negative=_make_negative("cp_999"),
+        )
+    assert "contrast_id" in str(exc_info.value).lower()

@@ -230,6 +230,23 @@ class Stage1Negative(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
+class MatchedContrastPair(BaseModel):
+    contrast_id: str
+    positive: Stage1Example
+    negative: Stage1Negative
+
+    @model_validator(mode="after")
+    def _ids_match(self) -> "MatchedContrastPair":
+        pos_id = self.positive.metadata.get("contrast_id")
+        neg_id = self.negative.metadata.get("contrast_id")
+        if pos_id != self.contrast_id or neg_id != self.contrast_id:
+            raise ValueError(
+                f"contrast_id mismatch: pair={self.contrast_id} "
+                f"positive={pos_id} negative={neg_id}"
+            )
+        return self
+
+
 def validate_tool_input(name: str, payload: dict[str, Any]) -> list[str]:
     validator = _VALIDATORS.get(name)
     if validator is None:
