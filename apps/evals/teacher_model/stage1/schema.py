@@ -2,7 +2,7 @@ import re
 from typing import Annotated, Any, Callable, Literal, Union
 from uuid import UUID
 
-from pydantic import BaseModel, Field, StringConstraints, ValidationError, field_validator
+from pydantic import BaseModel, Field, StringConstraints, ValidationError, field_validator, model_validator
 
 
 class Stage1TextBlock(BaseModel):
@@ -170,6 +170,36 @@ class _ReferenceBrowserInput(BaseModel):
 
 
 _register("reference_browser", _ReferenceBrowserInput)
+
+
+class _SearchCatalogInput(BaseModel):
+    composer: Annotated[str, StringConstraints(min_length=1, max_length=200)] | None = None
+    opus_number: int | None = Field(default=None, ge=1, le=9999)
+    piece_number: int | None = Field(default=None, ge=1, le=9999)
+    title_keywords: Annotated[str, StringConstraints(min_length=3, max_length=200)] | None = None
+    query: Annotated[str, StringConstraints(min_length=1, max_length=300)] | None = None
+
+    @model_validator(mode="after")
+    def _at_least_one(self) -> "_SearchCatalogInput":
+        provided = [
+            self.composer,
+            self.opus_number,
+            self.piece_number,
+            self.title_keywords,
+            self.query,
+        ]
+        if all(p is None for p in provided):
+            raise ValueError("at least one search field is required")
+        if self.title_keywords is not None:
+            tokens = [t for t in self.title_keywords.strip().split() if len(t) >= 2]
+            if not tokens:
+                raise ValueError(
+                    "title_keywords must contain at least one token of 2+ characters"
+                )
+        return self
+
+
+_register("search_catalog", _SearchCatalogInput)
 
 
 def validate_tool_input(name: str, payload: dict[str, Any]) -> list[str]:

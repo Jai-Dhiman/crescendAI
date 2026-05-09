@@ -229,3 +229,22 @@ def test_validate_tool_input_reference_browser(tool_input, expected_substring):
         assert errors == []
     else:
         assert any(expected_substring in e for e in errors), errors
+
+
+@pytest.mark.parametrize(
+    "tool_input,expected_substring",
+    [
+        ({"composer": "Chopin"}, None),
+        ({"composer": "Chopin", "opus_number": 64, "piece_number": 2}, None),
+        ({"title_keywords": "Nocturne in C"}, None),
+        ({"query": "that slow Bach prelude"}, None),
+        ({}, "at least one"),
+        ({"title_keywords": "a b c"}, "2+ characters"),
+    ],
+)
+def test_validate_tool_input_search_catalog(tool_input, expected_substring):
+    errors = validate_tool_input("search_catalog", tool_input)
+    if expected_substring is None:
+        assert errors == []
+    else:
+        assert any(expected_substring in e.lower() for e in errors), errors
