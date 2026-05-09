@@ -1,5 +1,5 @@
 import re
-from typing import Annotated, Any, Literal, Union
+from typing import Annotated, Any, Literal, Union, get_args
 from uuid import UUID
 
 from pydantic import BaseModel, Field, StringConstraints, ValidationError, field_validator, model_validator
@@ -231,15 +231,6 @@ _register(
 )
 
 
-NEGATIVE_CATEGORIES = (
-    "chitchat",
-    "premature",
-    "ambiguous",
-    "already_recommended",
-    "out_of_scope",
-    "borderline_wrong_tool",
-)
-
 NegativeCategory = Literal[
     "chitchat",
     "premature",
@@ -248,6 +239,8 @@ NegativeCategory = Literal[
     "out_of_scope",
     "borderline_wrong_tool",
 ]
+
+NEGATIVE_CATEGORIES: tuple[str, ...] = get_args(NegativeCategory)
 
 
 class Stage1Negative(BaseModel):

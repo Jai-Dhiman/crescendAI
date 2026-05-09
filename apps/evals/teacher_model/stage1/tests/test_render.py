@@ -55,8 +55,6 @@ def test_verify_tokenizer_pin_raises_on_mutation(tmp_path: Path):
     assert "chat_template.jinja" in str(exc_info.value) or "sha256" in str(exc_info.value)
 
 
-import json
-
 from teacher_model.stage1.render import render
 from teacher_model.stage1.schema import (
     Stage1AssistantTurn,

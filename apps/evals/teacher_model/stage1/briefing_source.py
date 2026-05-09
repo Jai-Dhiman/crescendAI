@@ -35,9 +35,12 @@ def iter_chat_scenarios(template: dict, n: int, seed: int) -> Iterator[Briefing]
 def iter_synthesis_briefings(cache_dir: Path) -> Iterator[Briefing]:
     for path in sorted(cache_dir.glob("*.json")):
         data = json.loads(path.read_text())
-        yield Briefing(
-            briefing_id=data["briefing_id"],
-            framing_text=data["framing_text"],
-            composer=data["composer"],
-            skill_bucket=data["skill_bucket"],
-        )
+        try:
+            yield Briefing(
+                briefing_id=data["briefing_id"],
+                framing_text=data["framing_text"],
+                composer=data["composer"],
+                skill_bucket=data["skill_bucket"],
+            )
+        except KeyError as exc:
+            raise KeyError(f"{exc} missing in {path.name}") from exc
