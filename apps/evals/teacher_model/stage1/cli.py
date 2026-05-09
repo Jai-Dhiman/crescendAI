@@ -1,4 +1,26 @@
 import argparse
+import json
+from pathlib import Path
+
+from teacher_model.stage1.briefing_source import iter_synthesis_briefings
+from teacher_model.stage1.holdout import split_holdout
+
+
+def _cmd_holdout(args) -> int:
+    cache = Path(args.cache_dir)
+    out = Path(args.out)
+    pool = list(iter_synthesis_briefings(cache))
+    _, holdout_ids = split_holdout(
+        briefings=pool,
+        frac=args.frac,
+        strata=["composer"],
+        seed=args.seed,
+    )
+    with out.open("w") as fh:
+        for bid in holdout_ids:
+            fh.write(json.dumps({"briefing_id": bid}) + "\n")
+    print(f"Wrote {len(holdout_ids)} holdout briefing IDs to {out}")
+    return 0
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -32,7 +54,9 @@ def _build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
+    if args.cmd == "holdout":
+        return _cmd_holdout(args)
     raise SystemExit(
         f"Subcommand '{args.cmd}' not yet implemented. "
-        "Help text and arg validation are in place; integration to be filled in subsequent tasks."
+        "Implement in a follow-on plan once tooling is end-to-end exercised."
     )
