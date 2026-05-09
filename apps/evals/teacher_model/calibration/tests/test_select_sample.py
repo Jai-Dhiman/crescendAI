@@ -128,3 +128,25 @@ def test_holdout_is_disjoint_from_main(tmp_path: Path):
     assert len(holdout_ids) == 30
     assert main_ids.isdisjoint(holdout_ids)
     assert manifest["stats"]["n_holdout"] == 30
+
+
+def test_anchors_reference_main_and_have_scrambled_display_ids(tmp_path: Path):
+    source = tmp_path / "baseline.jsonl"
+    _write_synthetic_baseline(source)
+
+    manifest = select_sample(
+        source_path=source, target_n=200, holdout_n=30, anchor_n=20, seed=42,
+    )
+
+    main_ids = {e["synth_id"] for e in manifest["main"]}
+    anchors = manifest["anchors"]
+    assert len(anchors) == 20
+    for a in anchors:
+        assert a["synth_id"] in main_ids
+        # The displayed id must differ from the original to avoid recognition.
+        assert a["synth_id_displayed"] != a["synth_id"]
+        assert a["display_position"] >= len(manifest["main"])
+    # All scrambled display ids must be unique.
+    displayed = [a["synth_id_displayed"] for a in anchors]
+    assert len(set(displayed)) == len(displayed)
+    assert manifest["stats"]["n_anchors_silent_dups"] == 20

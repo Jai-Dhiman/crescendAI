@@ -5,6 +5,7 @@ arrives in T10, anchor injection in T13.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import random
 from collections import Counter
@@ -61,6 +62,11 @@ def _classify_band(row: dict[str, Any]) -> str | None:
     if composite >= 2.3:
         return "threshold"
     return "low"
+
+
+def _make_scrambled_id(synth_id: str, seed: int, position: int) -> str:
+    h = hashlib.sha256(f"{seed}:{position}:{synth_id}".encode()).hexdigest()
+    return f"anchor-{h[:16]}"
 
 
 def _load_valid_rows(source_path: Path) -> list[dict[str, Any]]:
@@ -192,6 +198,24 @@ def select_sample(
     band_counts = Counter(_classify_band(r) for r in main)
     era_counts = Counter(composer_to_era(r["composer"]) for r in main)
 
+    if anchor_n > len(main):
+        raise ValueError(f"anchor_n={anchor_n} exceeds main size {len(main)}")
+    anchor_indices = list(range(len(main)))
+    rng.shuffle(anchor_indices)
+    anchor_indices = sorted(anchor_indices[:anchor_n])
+
+    anchors: list[dict[str, Any]] = []
+    for k, idx in enumerate(anchor_indices):
+        original = main[idx]
+        synth_id = _row_synth_id(original)
+        display_position = len(main) + k
+        anchors.append({
+            "synth_id": synth_id,
+            "synth_id_displayed": _make_scrambled_id(synth_id, seed, display_position),
+            "display_position": display_position,
+            "original_main_index": idx,
+        })
+
     return {
         "version": 1,
         "seed": seed,
@@ -202,12 +226,16 @@ def select_sample(
                 "band": _classify_band(r),
                 "era": composer_to_era(r["composer"]),
                 "skill_bucket": r["skill_bucket"],
-                "is_anchor_seed": False,
-                "anchor_position": None,
+                "is_anchor_seed": _row_synth_id(r) in {a["synth_id"] for a in anchors},
+                "anchor_position": next(
+                    (a["display_position"] for a in anchors
+                     if a["synth_id"] == _row_synth_id(r)),
+                    None,
+                ),
             }
             for r in main
         ],
-        "anchors": [],
+        "anchors": anchors,
         "holdout": [
             {
                 "synth_id": _row_synth_id(r),
@@ -219,7 +247,7 @@ def select_sample(
         ],
         "stats": {
             "n_main": len(main),
-            "n_anchors_silent_dups": 0,
+            "n_anchors_silent_dups": len(anchors),
             "n_holdout": len(holdout_rows),
             "band_counts": dict(band_counts),
             "era_counts": dict(era_counts),
