@@ -84,6 +84,32 @@ Stack: TanStack Start, Tailwind CSS v4, Web Audio API, MediaRecorder, WebSocket.
 
 Bindings: D1 (students, sessions, exercises), KV (JWTs, rate limits), R2 (audio chunks, fingerprints), DO (practice sessions).
 
+### Content Engine (`apps/content-engine/`)
+
+Python pipeline that produces 3 YouTube Shorts/week from piano performance clips, cross-posted to TikTok and Reels. Drives B2C installs from beta rollout.
+
+| Component | Status | Key Files | Notes |
+|---|---|---|---|
+| Episode state machine | SHIPPED | `content_engine/pipeline/states.py` | 17 states, validated transitions, FAILED_* as dead-ends |
+| SQLite episode store | SHIPPED | `content_engine/store/episode_store.py` | Atomic transitions, versioned config store |
+| LLM gateway | SHIPPED | `content_engine/adapters/llm_gateway.py` | Workers AI (selector) + Claude CLI (narrator/critic), retry on 5xx |
+| ClipScout | SHIPPED | `content_engine/agents/clip_scout.py` | YT + TikTok backends, duration filter, source-weight ranking |
+| ObservationSelector | SHIPPED | `content_engine/agents/observation_selector.py` | JSON schema + clip-bounds validation |
+| Narrator | SHIPPED | `content_engine/agents/narrator.py` | ≤45s scripts (120-word cap) via Claude CLI |
+| CriticTruthfulness | SHIPPED | `content_engine/agents/critic_truthfulness.py` | PASS/KILL binary via Claude CLI, human override endpoint |
+| Renderer | SHIPPED | `content_engine/render/renderer.py` | 9:16 mp4, ffmpeg, bitexact flags for determinism |
+| Postiz scheduler | SHIPPED | `content_engine/adapters/scheduler.py` | Cross-posts YT/TikTok/IG |
+| Analytics ingestor | SHIPPED | `content_engine/adapters/analytics_ingestor.py` | YT Data API + Postiz metrics; raises on auth/5xx errors |
+| FeedbackScorer | SHIPPED | `content_engine/feedback/scorer.py` | Updates source-type weights from install conversion |
+| Flask swipe UI | SHIPPED | `content_engine/ui/server.py` | Approve/reject/override-critic/record-complete endpoints |
+| Typer CLI | SHIPPED | `content_engine/cli.py` | `tick`, `scout`, `ui` commands |
+| Sentry observability | SHIPPED | `content_engine/observability.py` | DSN-gated init |
+| Test suite | SHIPPED | `tests/` | 57 unit + property + e2e tests |
+
+Run: `cd apps/content-engine && uv run python -m content_engine.cli tick`
+
+---
+
 ### HF Inference Endpoint
 
 | Component | Status | Notes |
