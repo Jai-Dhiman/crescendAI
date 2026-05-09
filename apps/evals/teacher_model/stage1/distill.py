@@ -1,3 +1,4 @@
+import time
 from dataclasses import dataclass
 from typing import Any, Literal
 
@@ -12,6 +13,37 @@ from teacher_model.stage1.schema import (
 )
 
 Shape = Literal["synthesis", "chat"]
+
+_RETRY_MAX = 3
+_RETRY_BACKOFF_SECONDS = 0.0  # zero in tests; production CLI sets via env
+
+
+def _retryable_excs() -> tuple[type[BaseException], ...]:
+    excs: tuple[type[BaseException], ...] = (ConnectionError,)
+    try:
+        import anthropic  # type: ignore[import-not-found]
+    except ImportError:
+        return excs
+    sdk_excs: list[type[BaseException]] = []
+    for name in ("APIConnectionError", "RateLimitError", "APIStatusError"):
+        cls = getattr(anthropic, name, None)
+        if isinstance(cls, type) and issubclass(cls, BaseException):
+            sdk_excs.append(cls)
+    return excs + tuple(sdk_excs)
+
+
+def _call_with_retry(sonnet, **kwargs):
+    retryable = _retryable_excs()
+    last_exc: BaseException | None = None
+    for attempt in range(_RETRY_MAX):
+        try:
+            return sonnet.messages_create(**kwargs)
+        except retryable as exc:
+            last_exc = exc
+            if attempt < _RETRY_MAX - 1 and _RETRY_BACKOFF_SECONDS > 0:
+                time.sleep(_RETRY_BACKOFF_SECONDS * (2**attempt))
+    assert last_exc is not None
+    raise last_exc
 
 _USER_STUB_SYNTHESIS = "Please provide your session synthesis."
 
@@ -44,7 +76,8 @@ def distill(
         system_blocks = [system_prompt]
         messages = [{"role": "user", "content": briefing.framing_text}]
 
-    response = sonnet.messages_create(
+    response = _call_with_retry(
+        sonnet,
         model="claude-sonnet-4-20250514",
         max_tokens=2048,
         system=[{"type": "text", "text": s} for s in system_blocks],

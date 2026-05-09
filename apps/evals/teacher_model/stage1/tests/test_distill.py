@@ -120,3 +120,44 @@ def test_distill_rejects_invalid_tool_input_with_structured_metadata():
     assert result.rejection.tool_name == "score_highlight"
     assert result.rejection.block_index == 1
     assert any("piece_id" in e for e in result.rejection.errors), result.rejection.errors
+
+
+class _FlakySonnet:
+    def __init__(self, content_blocks: list[dict], fail_n: int, exc_factory=None):
+        self._blocks = content_blocks
+        self._remaining_failures = fail_n
+        self._exc_factory = exc_factory or (lambda: ConnectionError("transient"))
+        self.call_count = 0
+
+    def messages_create(self, **kwargs):
+        self.call_count += 1
+        if self._remaining_failures > 0:
+            self._remaining_failures -= 1
+            raise self._exc_factory()
+        return type("Response", (), {"content": self._blocks})()
+
+
+def test_distill_retries_on_transient_error_then_succeeds():
+    briefing = Briefing(
+        briefing_id="rec_003",
+        framing_text="...",
+        composer="Mozart",
+        skill_bucket="intermediate",
+    )
+    sonnet = _FlakySonnet(
+        content_blocks=[
+            type(
+                "TextBlock",
+                (),
+                {"type": "text", "text": "Some text."},
+            )()
+        ],
+        fail_n=2,
+    )
+
+    result = distill(
+        briefing, "chat", sonnet, "UNIFIED_TEACHER_SYSTEM", tools=_STUB_TOOLS
+    )
+    assert result.example is not None
+    assert result.rejection is None
+    assert sonnet.call_count == 3  # 2 failures + 1 success
