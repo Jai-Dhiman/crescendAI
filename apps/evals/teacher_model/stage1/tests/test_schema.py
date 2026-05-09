@@ -184,3 +184,28 @@ def test_validate_tool_input_keyboard_guide(tool_input, expected_substring):
         assert errors == []
     else:
         assert any(expected_substring in e for e in errors), errors
+
+
+@pytest.mark.parametrize(
+    "tool_input,expected_substring",
+    [
+        ({"query_type": "dimension_history", "dimension": "dynamics"}, None),
+        ({"query_type": "recent_sessions", "limit": 20}, None),
+        (
+            {
+                "query_type": "session_detail",
+                "session_id": "550e8400-e29b-41d4-a716-446655440000",
+            },
+            None,
+        ),
+        ({"query_type": "all_time"}, "query_type"),
+        ({"query_type": "recent_sessions", "limit": 100}, "less than or equal to 50"),
+        ({"query_type": "session_detail", "session_id": "not-a-uuid"}, "uuid"),
+    ],
+)
+def test_validate_tool_input_show_session_data(tool_input, expected_substring):
+    errors = validate_tool_input("show_session_data", tool_input)
+    if expected_substring is None:
+        assert errors == []
+    else:
+        assert any(expected_substring in e.lower() for e in errors), errors

@@ -1,5 +1,6 @@
 import re
 from typing import Annotated, Any, Callable, Literal, Union
+from uuid import UUID
 
 from pydantic import BaseModel, Field, StringConstraints, ValidationError, field_validator
 
@@ -131,6 +132,26 @@ class _KeyboardGuideInput(BaseModel):
 
 
 _register("keyboard_guide", _KeyboardGuideInput)
+
+
+class _ShowSessionDataInput(BaseModel):
+    query_type: Literal["dimension_history", "recent_sessions", "session_detail"]
+    dimension: Literal[
+        "dynamics", "timing", "pedaling", "articulation", "phrasing", "interpretation"
+    ] | None = None
+    session_id: str | None = None
+    limit: int = Field(default=20, ge=1, le=50)
+
+    @field_validator("session_id")
+    @classmethod
+    def _uuid(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        UUID(v)  # raises ValueError if not a valid UUID
+        return v
+
+
+_register("show_session_data", _ShowSessionDataInput)
 
 
 def validate_tool_input(name: str, payload: dict[str, Any]) -> list[str]:
