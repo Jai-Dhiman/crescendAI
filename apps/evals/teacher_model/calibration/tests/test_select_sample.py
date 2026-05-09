@@ -150,3 +150,18 @@ def test_anchors_reference_main_and_have_scrambled_display_ids(tmp_path: Path):
     displayed = [a["synth_id_displayed"] for a in anchors]
     assert len(set(displayed)) == len(displayed)
     assert manifest["stats"]["n_anchors_silent_dups"] == 20
+
+
+def test_skill_group_min_quotas_satisfied(tmp_path: Path):
+    source = tmp_path / "baseline.jsonl"
+    _write_synthetic_baseline(source)
+
+    manifest = select_sample(
+        source_path=source, target_n=200, holdout_n=30, anchor_n=20, seed=42,
+    )
+
+    counts = manifest["stats"]["skill_group_counts"]
+    assert counts["beginner"] >= 50, counts
+    assert counts["intermediate"] >= 50, counts
+    assert counts["advanced"] >= 50, counts
+    assert counts["beginner"] + counts["intermediate"] + counts["advanced"] == 200

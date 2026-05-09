@@ -28,6 +28,20 @@ _ERA_MIN_QUOTAS: dict[str, int] = {
     "Impressionist": 30,
 }
 
+_SKILL_MIN_QUOTAS: dict[str, int] = {
+    "beginner": 50,
+    "intermediate": 50,
+    "advanced": 50,
+}
+
+
+def _skill_group(skill_bucket: int) -> str:
+    if skill_bucket <= 2:
+        return "beginner"
+    if skill_bucket == 3:
+        return "intermediate"
+    return "advanced"
+
 
 def _row_synth_id(row: dict[str, Any]) -> str:
     return f"{row['piece_slug']}__{row['recording_id']}__{row['skill_bucket']}"
@@ -86,51 +100,75 @@ def _select_with_quotas(
     by_band: dict[str, list[dict[str, Any]]],
     band_targets: dict[str, int],
     era_min_quotas: dict[str, int],
+    skill_min_quotas: dict[str, int],
     rng: random.Random,
 ) -> list[dict[str, Any]]:
-    """Two-pass selection:
-    1. Reserve era min-quotas first by drawing era-pure picks across bands.
-    2. Fill remaining band slots from the unreserved pool.
-    Raises ValueError if either constraint cannot be satisfied.
-    """
     chosen: list[dict[str, Any]] = []
     chosen_ids: set[str] = set()
     era_counter: Counter[str] = Counter()
+    skill_counter: Counter[str] = Counter()
     band_counter: Counter[str] = Counter()
+
+    def _take(r: dict[str, Any], band: str) -> None:
+        chosen.append(r)
+        chosen_ids.add(_row_synth_id(r))
+        era_counter[composer_to_era(r["composer"])] += 1
+        skill_counter[_skill_group(r["skill_bucket"])] += 1
+        band_counter[band] += 1
 
     # Pass 1: era reservation
     for era, min_q in era_min_quotas.items():
-        candidates: list[tuple[str, dict[str, Any]]] = []
-        for band, pool in by_band.items():
-            for r in pool:
-                if composer_to_era(r["composer"]) == era and _row_synth_id(r) not in chosen_ids:
-                    candidates.append((band, r))
+        candidates = [
+            (band, r) for band, pool in by_band.items() for r in pool
+            if composer_to_era(r["composer"]) == era and _row_synth_id(r) not in chosen_ids
+        ]
         rng.shuffle(candidates)
         if len(candidates) < min_q:
-            raise ValueError(
-                f"Era '{era}' has only {len(candidates)} candidates but needs {min_q}."
-            )
-        for band, r in candidates[:min_q]:
-            if band_counter[band] >= band_targets[band]:
-                continue
-            chosen.append(r)
-            chosen_ids.add(_row_synth_id(r))
-            era_counter[era] += 1
-            band_counter[band] += 1
+            raise ValueError(f"Era '{era}' has {len(candidates)} candidates but needs {min_q}.")
+        for band, r in candidates:
             if era_counter[era] >= min_q:
                 break
+            if band_counter[band] >= band_targets[band]:
+                continue
+            _take(r, band)
         if era_counter[era] < min_q:
             for band, r in candidates:
                 if _row_synth_id(r) in chosen_ids:
                     continue
-                chosen.append(r)
-                chosen_ids.add(_row_synth_id(r))
-                era_counter[era] += 1
-                band_counter[band] += 1
+                _take(r, band)
                 if era_counter[era] >= min_q:
                     break
 
-    # Pass 2: fill remaining band slots
+    # Pass 2: skill reservation (covers groups under-met by era pass)
+    for group, min_q in skill_min_quotas.items():
+        if skill_counter[group] >= min_q:
+            continue
+        candidates = [
+            (band, r) for band, pool in by_band.items() for r in pool
+            if _skill_group(r["skill_bucket"]) == group and _row_synth_id(r) not in chosen_ids
+        ]
+        rng.shuffle(candidates)
+        needed = min_q - skill_counter[group]
+        if len(candidates) < needed:
+            raise ValueError(
+                f"Skill group '{group}' has {len(candidates)} unreserved candidates "
+                f"but needs {needed} more."
+            )
+        for band, r in candidates:
+            if skill_counter[group] >= min_q:
+                break
+            if band_counter[band] >= band_targets[band]:
+                continue
+            _take(r, band)
+        if skill_counter[group] < min_q:
+            for band, r in candidates:
+                if _row_synth_id(r) in chosen_ids:
+                    continue
+                _take(r, band)
+                if skill_counter[group] >= min_q:
+                    break
+
+    # Pass 3: fill remaining band slots
     for band, target in band_targets.items():
         remaining = target - band_counter[band]
         if remaining <= 0:
@@ -142,10 +180,36 @@ def _select_with_quotas(
                 f"Band '{band}' has only {len(pool)} unreserved rows but needs {remaining} more."
             )
         for r in pool[:remaining]:
-            chosen.append(r)
-            chosen_ids.add(_row_synth_id(r))
-            band_counter[band] += 1
-            era_counter[composer_to_era(r["composer"])] += 1
+            _take(r, band)
+
+    # Pass 4: trim overshoot (quota fills can push past target_n)
+    while len(chosen) > sum(band_targets.values()):
+        for band, target in band_targets.items():
+            if band_counter[band] <= target:
+                continue
+            for i, r in enumerate(chosen):
+                if _classify_band(r) != band:
+                    continue
+                era = composer_to_era(r["composer"])
+                grp = _skill_group(r["skill_bucket"])
+                if era_counter[era] - 1 < era_min_quotas.get(era, 0):
+                    continue
+                if skill_counter[grp] - 1 < skill_min_quotas.get(grp, 0):
+                    continue
+                chosen.pop(i)
+                chosen_ids.discard(_row_synth_id(r))
+                era_counter[era] -= 1
+                skill_counter[grp] -= 1
+                band_counter[band] -= 1
+                break
+            else:
+                continue
+            break
+        else:
+            raise ValueError(
+                "Cannot satisfy all quotas simultaneously: overshoot is locked by "
+                "minima in every band. Loosen a quota or expand source pool."
+            )
 
     return chosen
 
@@ -192,11 +256,12 @@ def select_sample(
         )
     band_targets = dict(_BAND_TARGETS)
 
-    main = _select_with_quotas(by_band, band_targets, _ERA_MIN_QUOTAS, rng)
+    main = _select_with_quotas(by_band, band_targets, _ERA_MIN_QUOTAS, _SKILL_MIN_QUOTAS, rng)
     rng.shuffle(main)
 
     band_counts = Counter(_classify_band(r) for r in main)
     era_counts = Counter(composer_to_era(r["composer"]) for r in main)
+    skill_group_counts = Counter(_skill_group(r["skill_bucket"]) for r in main)
 
     if anchor_n > len(main):
         raise ValueError(f"anchor_n={anchor_n} exceeds main size {len(main)}")
@@ -251,5 +316,6 @@ def select_sample(
             "n_holdout": len(holdout_rows),
             "band_counts": dict(band_counts),
             "era_counts": dict(era_counts),
+            "skill_group_counts": dict(skill_group_counts),
         },
     }
