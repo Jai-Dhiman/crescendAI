@@ -123,6 +123,16 @@ class _ScoreHighlightInput(BaseModel):
 _register("score_highlight", _ScoreHighlightInput)
 
 
+class _KeyboardGuideInput(BaseModel):
+    title: str
+    description: str
+    fingering: str | None = None
+    hands: Literal["left", "right", "both"]
+
+
+_register("keyboard_guide", _KeyboardGuideInput)
+
+
 def validate_tool_input(name: str, payload: dict[str, Any]) -> list[str]:
     validator = _VALIDATORS.get(name)
     if validator is None:

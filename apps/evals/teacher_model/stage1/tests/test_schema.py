@@ -151,3 +151,36 @@ def test_validate_tool_input_score_highlight(tool_input, expected_substring):
         assert errors == []
     else:
         assert any(expected_substring in e for e in errors), errors
+
+
+@pytest.mark.parametrize(
+    "tool_input,expected_substring",
+    [
+        (
+            {"title": "C-major scale", "description": "Right-hand scale.", "hands": "right"},
+            None,
+        ),
+        (
+            {
+                "title": "x",
+                "description": "x",
+                "hands": "right",
+                "fingering": "1-2-3-1-2-3-4-5",
+            },
+            None,
+        ),
+        ({"description": "x", "hands": "right"}, "title"),
+        ({"title": "x", "hands": "right"}, "description"),
+        ({"title": "x", "description": "x"}, "hands"),
+        (
+            {"title": "x", "description": "x", "hands": "third"},
+            "hands",
+        ),
+    ],
+)
+def test_validate_tool_input_keyboard_guide(tool_input, expected_substring):
+    errors = validate_tool_input("keyboard_guide", tool_input)
+    if expected_substring is None:
+        assert errors == []
+    else:
+        assert any(expected_substring in e for e in errors), errors
