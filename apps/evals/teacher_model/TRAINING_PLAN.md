@@ -1,4 +1,4 @@
-# Teacher Model Training Plan -- Qwen3.6-35B-A3B
+# Teacher Model Training Plan -- Qwen3-30B-A3B
 
 **Status:** active plan (2026-05-07). Supersedes the 2026-05-05 draft (which itself superseded the 4-stage CPT/SFT/GRPO/DPO plan from 2026-03-30).
 **Origin:** capability-decomposition session 2026-05-07. Plan is now grounded in the explicit three-layer architecture (ear / harness / teacher) and the production interface contract.
@@ -13,7 +13,7 @@ CrescendAI's teacher pipeline is three layers. Training only touches the third.
 |---|---|---|
 | **Ear** | Convert audio to structured signals | MuQ (quality) + Aria-AMT (transcription) + (planned) tone-color features |
 | **Harness** | State, retrieval, tool execution, artifact rendering | Cloudflare Worker + Durable Object + Postgres + R2 + Rust WASM |
-| **Teacher** | Judgment, taste, integration, voice, vocabulary, tool-calling, adaptation | Finetuned Qwen3.6-35B-A3B |
+| **Teacher** | Judgment, taste, integration, voice, vocabulary, tool-calling, adaptation | Finetuned Qwen3-30B-A3B |
 
 The teacher model owns exactly seven capabilities; everything else belongs to the ear or the harness. This decomposition is the basis for every training decision below.
 
@@ -90,7 +90,7 @@ One LoRA adapter, carried through Stages 1-4. Stage 5 is contingent.
 **Status:** harness implemented (`apps/evals/teacher_model/stage0/`). Run via:
 ```
 cd apps/evals
-uv run --extra teacher-model-stage0 python -m teacher_model.stage0 pin-tokenizer --model Qwen/Qwen3.6-35B-A3B-Instruct
+uv run --extra teacher-model-stage0 python -m teacher_model.stage0 pin-tokenizer --model Qwen/Qwen3-30B-A3B-Instruct-2507
 uv run --extra teacher-model-stage0 python -m teacher_model.stage0 sample --n 100
 uv run --extra teacher-model-stage0 python -m teacher_model.stage0 synthesis --model <openrouter-id>
 uv run --extra teacher-model-stage0 python -m teacher_model.stage0 tool --model <openrouter-id>
@@ -111,6 +111,16 @@ uv run --extra teacher-model-stage0 python -m teacher_model.stage0 aggregate
 ### Stage 1 -- Tool-format SFT (universally needed)
 
 **Goal:** native emission of the 6-tool palette in Anthropic-compatible `tool_use` format with correct when-to-call discipline.
+
+**Status:** data pipeline implemented (`apps/evals/teacher_model/stage1/`). Run via:
+```
+cd apps/evals
+uv run python -m teacher_model.stage1 holdout --cache-dir <briefings-dir> --out holdout.jsonl
+uv run python -m teacher_model.stage1 distill --shape synthesis --n 1000
+uv run python -m teacher_model.stage1 render --out rendered.jsonl
+uv run python -m teacher_model.stage1 harness --endpoint <vllm-url> --holdout holdout.jsonl --tokenizer-pin tokenizer_pin.json
+```
+Pydantic validators for all 6 tools locked against `tool-processor.ts` via SHA256 contract test (`test_schema_contract.py`).
 
 **Data:** ~2K examples. ~30% **negative examples** (briefings where calling a tool would be wrong -- chitchat, ambiguous moments, low-confidence observations).
 
@@ -298,5 +308,5 @@ LoRA on 35B-A3B fits on 1-2 nodes. Per-stage rough estimate:
 ## Appendix -- plan history
 
 - **2026-03-30:** original plan, Qwen3.5-27B dense, 4 stages (CPT + SFT + GRPO + DPO).
-- **2026-05-05:** model switched to Qwen3.6-35B-A3B (sparse MoE). 4-stage plan invalidated due to MoE failure modes (expert collapse, GRPO instability). Reduced to 2-stage SFT + DPO with contingent CPT.
+- **2026-05-05:** model switched to Qwen3-30B-A3B (sparse MoE). 4-stage plan invalidated due to MoE failure modes (expert collapse, GRPO instability). Reduced to 2-stage SFT + DPO with contingent CPT.
 - **2026-05-07 (current):** plan reframed around explicit ear/harness/teacher decomposition and production interface contract. Five stages with one carry-forward LoRA adapter. Critical path identified as rubric calibration. Translation layer marked obsolete after Stage 1.
