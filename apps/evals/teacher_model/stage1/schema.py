@@ -154,6 +154,24 @@ class _ShowSessionDataInput(BaseModel):
 _register("show_session_data", _ShowSessionDataInput)
 
 
+class _ReferenceBrowserInput(BaseModel):
+    piece_id: str | None = None
+    passage: str | None = None
+    description: str
+
+    @field_validator("piece_id")
+    @classmethod
+    def _slug(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        if not _PIECE_SLUG.match(v):
+            raise ValueError("piece_id must match catalog slug regex")
+        return v
+
+
+_register("reference_browser", _ReferenceBrowserInput)
+
+
 def validate_tool_input(name: str, payload: dict[str, Any]) -> list[str]:
     validator = _VALIDATORS.get(name)
     if validator is None:

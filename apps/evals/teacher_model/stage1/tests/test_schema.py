@@ -209,3 +209,23 @@ def test_validate_tool_input_show_session_data(tool_input, expected_substring):
         assert errors == []
     else:
         assert any(expected_substring in e.lower() for e in errors), errors
+
+
+@pytest.mark.parametrize(
+    "tool_input,expected_substring",
+    [
+        ({"description": "Listen to Argerich's recording"}, None),
+        (
+            {"piece_id": "chopin.ballades.1", "description": "x", "passage": "bars 5-8"},
+            None,
+        ),
+        ({}, "description"),
+        ({"description": "x", "piece_id": "Has Capital Letters"}, "piece_id"),
+    ],
+)
+def test_validate_tool_input_reference_browser(tool_input, expected_substring):
+    errors = validate_tool_input("reference_browser", tool_input)
+    if expected_substring is None:
+        assert errors == []
+    else:
+        assert any(expected_substring in e for e in errors), errors
