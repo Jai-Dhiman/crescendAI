@@ -1,8 +1,16 @@
 """
+DEPRECATED (2026-05-08).
+
 Translates the CrescendAI create_exercise tool between Anthropic and Qwen/OpenAI formats.
 
-SFT training data must use Qwen's native tool format, but the current production system
-uses Anthropic's format. This module bridges the two.
+This module was a stopgap during the pre-finetune period when the production teacher
+(Sonnet via Anthropic) emitted Anthropic-format tool_use blocks and any Qwen-side SFT
+data needed to be converted. With Stage 1 (see docs/specs/2026-05-08-stage1-tool-format-sft-design.md)
+the finetuned Qwen3.6-A3B teacher emits chat-template-native tool calls via apply_chat_template,
+and parsing happens in the vLLM/SGLang serving stack via the qwen3_coder parser. The explicit
+anthropic <-> qwen conversion functions here are no longer needed for new work.
+
+Do not extend this module. New tool-format work belongs in apps/evals/teacher_model/stage1/.
 
 Anthropic format:
   {"name": "...", "description": "...", "input_schema": {"type": "object", "properties": {...}}}
