@@ -15,7 +15,7 @@ from teacher_model.stage1.schema import (
 Shape = Literal["synthesis", "chat"]
 
 _RETRY_MAX = 3
-_RETRY_BACKOFF_SECONDS = 0.0  # zero in tests; production CLI sets via env
+_RETRY_BACKOFF_SECONDS = 0.0  # hardcoded zero; set to a positive value to enable exponential backoff
 
 
 def _retryable_excs() -> tuple[type[BaseException], ...]:
@@ -39,6 +39,9 @@ def _call_with_retry(sonnet, **kwargs):
         try:
             return sonnet.messages_create(**kwargs)
         except retryable as exc:
+            status = getattr(exc, "status_code", None)
+            if status is not None and status < 500:
+                raise
             last_exc = exc
             if attempt < _RETRY_MAX - 1 and _RETRY_BACKOFF_SECONDS > 0:
                 time.sleep(_RETRY_BACKOFF_SECONDS * (2**attempt))
