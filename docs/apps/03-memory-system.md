@@ -176,12 +176,12 @@ This separation matters because contradictions are handled by invalidation, not 
 
 **Trigger:** Background process, after a session ends. Triggered by `POST /api/sync` or a dedicated `POST /api/synthesize` endpoint. Never in the `/api/ask` hot path.
 
-**Process:** An LLM call (Groq, Llama 70B) reads the last N observations for a student and the current active facts. It outputs:
+**Process:** An LLM call (Workers AI) reads the last N observations for a student and the current active facts. It outputs:
 - New assertions (facts that were not previously tracked)
 - Invalidated assertions (old facts contradicted by new evidence, with `invalid_at` set)
 - Updated trends (improving/stable/declining)
 
-**Cadence:** Synthesize after every 3-5 new observations, or at minimum once per session if the session produced observations. The synthesis call is approximately 200 tokens of structured output, completing in ~0.3s on Groq.
+**Cadence:** Synthesize after every 3-5 new observations, or at minimum once per session if the session produced observations. The synthesis call is approximately 200 tokens of structured output.
 
 **Contradiction handling:** When a new observation contradicts an active fact, the synthesis LLM sets `invalid_at` on the old fact and creates a new one. Old facts are preserved -- never deleted.
 
@@ -223,7 +223,7 @@ The subagent receives a structured context map. Approximate token counts:
 | Student baselines (6 dimensions) | ~100 | Request payload |
 | Current teaching moment | ~200 | Pipeline output |
 | System prompt + instructions | ~500 | Static |
-| **Total subagent context** | **~1,500** | Well within Groq limits |
+| **Total subagent context** | **~1,500** | Well within context limits |
 
 The teacher LLM (stage 2) receives the subagent's output (~200 tokens) plus the system prompt (~500 tokens). Total context stays small.
 
@@ -273,7 +273,7 @@ Ships with the `/api/ask` pipeline (see `02-pipeline.md`).
 ```
 [x] synthesized_facts table in D1 schema
 [x] Background synthesis trigger (DO session finalization + POST /api/memory/synthesize)
-[x] Synthesis prompt (Groq, Llama 70B)
+[x] Synthesis prompt (Workers AI)
 [x] Active facts integrated into subagent context map
 [x] Contradiction handling (invalidation, not deletion)
 [x] Observation counting fix for DO-originated sessions
@@ -329,7 +329,7 @@ Matching: regex (Pass 1) + sentence-transformer cosine similarity at threshold 0
 
 6 eval layers:
 - **Retrieval** (deterministic): Does the system retrieve the right facts?
-- **Synthesis** (Groq): Does the LLM produce valid structured facts from observations?
+- **Synthesis** (Workers AI): Does the LLM produce valid structured facts from observations?
 - **Temporal** (chronological replay): Does the system handle fact lifecycle (creation, invalidation, abstention)?
 - **Downstream** (A/B + Claude judge): Does memory improve feedback quality?
 - **Chat Extraction** (live API): Does the system extract personal facts from chat?
@@ -370,7 +370,7 @@ External benchmark: long-conversation memory via QA pairs. Tests whether the ext
 
 6. **Single-hop plateau at ~0.33.** Most failures are measurement artifacts (token-F1 on paraphrases), not retrieval failures. Unlikely to improve without metric changes.
 
-7. **Run-to-run variance ~0.02-0.03** on Groq Llama 70B at temperature=0. Makes small improvements hard to distinguish from noise on 1-sample eval.
+7. **Run-to-run variance ~0.02-0.03** on Workers AI at temperature=0. Makes small improvements hard to distinguish from noise on 1-sample eval.
 
 ### Remaining Gaps (target: F1 > 0.65)
 
@@ -387,7 +387,7 @@ External benchmark: long-conversation memory via QA pairs. Tests whether the ext
 | `apps/evals/memory/src/run_all.py` | Orchestrator: `--layer`, `--live`, `--json-output`, composite metric |
 | `apps/evals/memory/src/eval_synthesis.py` | Synthesis eval (regex + cosine matching) |
 | `apps/evals/memory/src/eval_temporal.py` | Temporal eval (chronological replay + assertions) |
-| `apps/evals/memory/src/build_realistic_scenarios.py` | LLM-powered realistic scenario generator (25 types via Groq) |
+| `apps/evals/memory/src/build_realistic_scenarios.py` | LLM-powered realistic scenario generator (25 types via Workers AI) |
 | `apps/evals/memory/src/build_chat_scenarios.py` | 38 chat extraction scenarios |
 | `apps/evals/memory/src/test_infrastructure.py` | Structural tests for eval infrastructure |
 | `apps/evals/memory/src/locomo_adapter.py` | LoCoMo benchmark adapter |

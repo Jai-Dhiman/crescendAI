@@ -29,7 +29,7 @@ def _retry_on_rate_limit(fn, max_retries: int = 5, base_delay: float = 5.0):
         try:
             return fn()
         except Exception as exc:
-            # Extract status code from either requests or Groq SDK exceptions
+            # Extract status code from requests exceptions
             status = getattr(getattr(exc, "response", None), "status_code", 0)
             if status == 0:
                 status = getattr(exc, "status_code", 0)

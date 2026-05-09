@@ -136,7 +136,7 @@ Three stages, one principle: the system does significant work to produce minimal
 | Cloud inference (MuQ) | DEPLOYED | A1-Max 4-fold ensemble, HF endpoint |
 | STOP classifier | COMPLETE | Cloud worker, 6-weight logistic regression, AUC 0.845 |
 | Teaching moment selection | COMPLETE | STOP + blind-spot + positive moments + dedup |
-| Two-stage subagent | COMPLETE | Groq/Llama analysis + Anthropic/Sonnet teacher, AI Gateway |
+| Two-stage subagent | COMPLETE | Workers AI analysis + Anthropic/Sonnet teacher, AI Gateway |
 | Session synthesis | COMPLETE | Alarm-triggered, all exit paths, deferred recovery |
 | Zero-config piece ID | COMPLETE | N-gram + rerank + DTW (pending AMT container deploy) |
 | Artifact system | COMPLETE | Unified container, Anthropic tool_use (exercise type) |

@@ -31,7 +31,7 @@
             |      |      |      |
             v      v      v      v
       +-------+ +-----+ +------+ +----+
-      | HF    | | Groq| | Anth-| | D1 |
+      | HF    | | WkAI| | Anth-| | D1 |
       | Endpt | | API | | ropic| |    |
       | (MuQ  | | sub-| | teach| | KV |
       | A1-Max)| | agent| | er  | | R2 |
@@ -39,7 +39,7 @@
                                   +----+
 ```
 
-Both platforms upload 15-second audio chunks to the shared API worker. The worker orchestrates cloud inference (HF endpoint), STOP classification, teaching moment selection, and a two-stage LLM pipeline (Groq subagent for analysis, Anthropic for teacher delivery). iOS receives observations on-demand ("How was that?"); web pushes them in real time via WebSocket.
+Both platforms upload 15-second audio chunks to the shared API worker. The worker orchestrates cloud inference (HF endpoint), STOP classification, teaching moment selection, and a two-stage LLM pipeline (Workers AI subagent for analysis, Anthropic for teacher delivery). iOS receives observations on-demand ("How was that?"); web pushes them in real time via WebSocket.
 
 ### Platform Strategy (CEO Review 2026-03-19)
 

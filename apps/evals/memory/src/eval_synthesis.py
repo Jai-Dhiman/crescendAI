@@ -373,7 +373,7 @@ def run_synthesis_assessment(
 
     Args:
         scenarios: Scenarios to test.
-        live: If True, call Groq API. If False, use cached responses.
+        live: If True, call Workers AI. If False, use cached responses.
         cache_path: Path to cache JSONL file.
     """
     if cache_path is None:

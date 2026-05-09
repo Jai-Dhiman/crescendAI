@@ -5,7 +5,7 @@ Tests the full cycle: seed observations -> synthesize -> verify facts -> contrad
 Requires a running dev API server (local or remote).
 Run: cd apps/evals/memory && uv run pytest src/test_synthesis.py -v
 
-Marked @integration -- excluded from CI, runs against live Groq API.
+Marked @integration -- excluded from CI, runs against live Workers AI.
 """
 
 import os

@@ -3,7 +3,7 @@
 The complete path from microphone to teaching observation. This is the technical heart of the system -- how audio becomes actionable feedback.
 
 > **Status (2026-04-27):**
-> - IMPLEMENTED: Two-stage LLM pipeline (subagent + teacher), HF inference endpoint (A1-Max 4-fold ensemble + AMT + pedal CC64), STOP classifier, teaching moment selection, blind-spot detection, score following (DTW), bar-aligned analysis, synthesized facts, exercise endpoints (25 curated), session brain state machine (DO practice mode detection + state persistence), observation pacing (mode-aware), zero-config piece ID (N-gram + rerank + DTW, merged, pending AMT container deploy), artifact declaration via Anthropic tool_use (tool_choice: auto), session synthesis (alarm-triggered, all exit paths, deferred recovery), AI Gateway (Anthropic + Groq + Workers AI)
+> - IMPLEMENTED: Two-stage LLM pipeline (subagent + teacher), HF inference endpoint (A1-Max 4-fold ensemble + AMT + pedal CC64), STOP classifier, teaching moment selection, blind-spot detection, score following (DTW), bar-aligned analysis, synthesized facts, exercise endpoints (25 curated), session brain state machine (DO practice mode detection + state persistence), observation pacing (mode-aware), zero-config piece ID (N-gram + rerank + DTW, merged, pending AMT container deploy), artifact declaration via Anthropic tool_use (tool_choice: auto), session synthesis (alarm-triggered, all exit paths, deferred recovery), AI Gateway (Anthropic + Workers AI)
 > - SHIPPED (flag-gated): V6 harness loop — hook-driven two-phase compound execution loop that replaces the linear Stage 4a/4b path on `OnSessionEnd`. Phase 1 dispatches skill-catalog atoms as Anthropic tools; Phase 2 forced-writes a Zod-validated `SynthesisArtifact`. `HARNESS_V6_ENABLED=false` in prod until atom registry is populated (Plan 2).
 > - NOT STARTED: Passage repetition detection
 > - **Code:** `apps/api/src/services/ask.rs` (pipeline), `apps/api/src/services/prompts.rs` (teacher persona), `apps/api/src/practice/session.rs` (DO session)
@@ -54,7 +54,7 @@ The complete path from microphone to teaching observation. This is the technical
                                    v
                    +--------------------------------+
                    |  Stage 4a: Subagent            |
-                   |  Groq / Llama 3.3 70B (~0.3s)  |
+                   |  Workers AI / Gemma 4 26B       |
                    |  5-step reasoning -> JSON      |
                    +---------------+----------------+
                                    |
@@ -118,11 +118,11 @@ ENTRY CONDITION (hook)
 
 - Stages 1-3 (audio capture, cloud inference, STOP classification) are unchanged. The agent loop consumes the same signals.
 - The DO-held session accumulator is unchanged (V3 adds sawtooth compaction later).
-- The AI Gateway routing and provider mix (Groq subagent + Sonnet teacher) is unchanged; the loop is provider-agnostic, so swapping Sonnet -> Qwen finetune is a runtime decision.
+- The AI Gateway routing and provider mix (Workers AI subagent + Sonnet teacher) is unchanged; the loop is provider-agnostic, so swapping Sonnet -> Qwen finetune is a runtime decision.
 
 ### Writes Stay Single-Threaded
 
-From the Mahler wiki's *Multi-Agents: What's Actually Working*: multi-agent systems work when additional agents contribute intelligence, not actions. The current Groq (analysis) + Sonnet (delivery) split already respects this: Groq does reasoning, Sonnet writes. As V5 skills come online, the constraint tightens: a compound may dispatch many molecules for analysis in parallel, but the compound writes **one** teacher-facing artifact. Skills do not parallel-speak to the student.
+From the Mahler wiki's *Multi-Agents: What's Actually Working*: multi-agent systems work when additional agents contribute intelligence, not actions. The current Workers AI (analysis) + Sonnet (delivery) split already respects this: Workers AI does reasoning, Sonnet writes. As V5 skills come online, the constraint tightens: a compound may dispatch many molecules for analysis in parallel, but the compound writes **one** teacher-facing artifact. Skills do not parallel-speak to the student.
 
 ### Event Hooks vs Middleware Hooks
 
@@ -140,7 +140,7 @@ The production review agent is a specific `after_model` middleware: given only t
 
 ### Capability-Router Across Providers
 
-From *Multi-Agents: What's Actually Working*: the Groq + Sonnet (+ eventually Qwen) mix is a capability router, not a difficulty escalator. Each model handles the sub-task it is best at. This frames the future Sonnet -> Qwen swap: Qwen handles teacher-voice molecules where the finetune pays off; Sonnet or Groq handle analytical atoms where Qwen underperforms. The article also acknowledges that a meaningfully weaker primary calling out to a stronger model remains an open training problem; relevant to the Qwen 27B gating criteria in `docs/plans/` (strong model for core reasoning; router for sub-tasks).
+From *Multi-Agents: What's Actually Working*: the Workers AI + Sonnet (+ eventually Qwen) mix is a capability router, not a difficulty escalator. Each model handles the sub-task it is best at. This frames the future Sonnet -> Qwen swap: Qwen handles teacher-voice molecules where the finetune pays off; Sonnet or Workers AI handle analytical atoms where Qwen underperforms. The article also acknowledges that a meaningfully weaker primary calling out to a stronger model remains an open training problem; relevant to the Qwen 27B gating criteria in `docs/plans/` (strong model for core reasoning; router for sub-tasks).
 
 ### Sequencing
 
@@ -392,12 +392,12 @@ The two-stage design separates analysis from delivery:
 
 | Stage | Role | Model | Latency | Cost |
 |-------|------|-------|---------|------|
-| 4a: Subagent | Structured reasoning about what to say | Groq / Llama 3.3 70B | ~0.3s | ~$0.50-0.60/M tokens |
+| 4a: Subagent | Structured reasoning about what to say | Workers AI / Gemma 4 26B | | |
 | 4b: Teacher | Natural, warm delivery of the observation | Anthropic / Sonnet 4.6 | ~1.5s | $3.00 input / $15.00 output per M tokens |
 
 This mirrors how Claude Code handles complex tasks: the main agent delegates analysis to Explore agents via prepared handoff messages, then uses the results. The subagent does the legwork; the teacher provides the voice.
 
-### Stage 4a: Subagent (Groq / Llama 3.3 70B)
+### Stage 4a: Subagent (Workers AI / Gemma 4 26B)
 
 The subagent receives cloud-filtered moments (top 3-5 with STOP > threshold) plus the student's context map (baselines, synthesized facts, learning arc, goals). It reasons through five steps.
 
@@ -679,9 +679,8 @@ The pipeline uses direct provider APIs optimized per stage rather than routing e
 
 ```
                     +----------------+
-                    |  Groq API      |  Stage 4a: Subagent
-                    |  Llama 3.3 70B |  ~450-800 tok/s on LPU
-                    |  ~0.3s         |  Stage 4c: UI subagent (optional)
+                    |  Workers AI    |  Stage 4a: Subagent
+                    |  Gemma 4 26B   |  Stage 4c: UI subagent (optional)
                     +----------------+
 
                     +----------------+
@@ -689,23 +688,12 @@ The pipeline uses direct provider APIs optimized per stage rather than routing e
                     |  Sonnet 4.6    |  Prompt caching (persona prefix)
                     |  ~1.5s         |
                     +----------------+
-
-                    +----------------+
-                    |  OpenRouter    |  Fallback gateway
-                    |  (any model)   |  If either direct provider is down
-                    +----------------+
-
-                    +----------------+
-                    |  Workers AI    |  Emergency fallback
-                    |  Llama 3.1 70B |  Co-located with Workers, free
-                    +----------------+
 ```
 
-**Why multi-provider over OpenRouter-only:**
-- ~0.3-0.5s latency savings (no routing hop)
+**Why multi-provider:**
 - Native prompt caching with Anthropic API
-- Groq's LPU gives 3-5x faster subagent inference vs GPU-based providers
-- OpenRouter remains available as fallback routing layer
+- Workers AI is co-located with the CF Worker (no extra routing hop)
+- Workers AI subagent is included in CF Workers compute costs
 
 ### Latency Budget
 
@@ -713,7 +701,7 @@ The pipeline uses direct provider APIs optimized per stage rather than routing e
 |-------|--------|-------|
 | Audio upload + inference | ~1-2s | HF endpoint round-trip |
 | STOP classification | <1ms | 6-weight logistic regression |
-| Subagent (Groq) | ~0.3s | 450-800 tok/s on LPU |
+| Subagent (Workers AI) | | |
 | Teacher (Anthropic) | ~1.5s | Prompt caching reduces input cost |
 | **Total (Stages 4a+4b)** | **<2s** | Within <3s user-facing target |
 
@@ -748,7 +736,7 @@ Client                           Worker (/api/ask)                   LLM Provide
  |                                    |  2. Build subagent prompt          |
  |                                    |     (system: analyst persona)      |
  |                                    |     (user: moments + context map)  |
- |                                    |  --- Groq (Llama 70B) ----------> |
+ |                                    |  --- Workers AI (Gemma 4 26B) --> |
  |                                    |  <-- analysis (JSON + narrative) - |
  |                                    |                                   |
  |                                    |  3. Build teacher prompt           |
@@ -883,9 +871,9 @@ The backend is a single Cloudflare Workers application (Rust/WASM). Bindings:
 
 7. **Score alignment accuracy.** With student-reported piece and bar range, how accurate can timestamp-to-bar mapping be? Tempo changes, rubato, and pauses introduce error.
 
-8. **Subagent prompt iteration.** The five-step reasoning framework needs testing with synthetic teaching moment data. Llama 70B on Groq needs concise prompts.
+8. **Subagent prompt iteration.** The five-step reasoning framework needs testing with synthetic teaching moment data.
 
-9. **A/B testing within model tiers.** Groq/Llama for subagent and Anthropic/Sonnet for teacher are decided, but A/B testing across alternative models within each tier remains open.
+9. **A/B testing within model tiers.** Workers AI for subagent and Anthropic/Sonnet for teacher are decided, but A/B testing across alternative models within each tier remains open.
 
 ---
 
@@ -935,10 +923,10 @@ The pipeline layer (STOP classification, teaching moment selection, subagent rea
 
 ### Provider Failover Eval
 
-**Goal:** Verify that the fallback chain (Groq -> OpenRouter -> Workers AI) produces acceptable output.
+**Goal:** Verify that provider failover produces acceptable output.
 
 **Approach:**
-- Mock primary provider failure (Groq timeout, Anthropic 429)
+- Mock primary provider failure (Workers AI timeout, Anthropic 429)
 - Verify fallback activates within 2s
 - Verify fallback output passes the same post-processing rules
 - Measure quality degradation: LLM judge comparison of primary vs fallback output on 10 scenarios
@@ -953,7 +941,7 @@ Per-session cost estimates for a 30-minute practice session (120 chunks at 15s i
 |---|---|---|---|
 | HF inference (A1-Max endpoint) | ~$0.003-0.005/call | 96 chunks | $0.29-0.48 |
 | STOP classification | $0 (in-worker computation) | 96 chunks | $0 |
-| Groq subagent (Llama 70B) | ~$0.0004/call (~500 input + 200 output tokens) | 3-5 observations | $0.001-0.002 |
+| Workers AI subagent | | 3-5 observations | |
 | Anthropic teacher (Sonnet 4.6) | ~$0.004/call (~700 input + 100 output tokens) | 3-5 observations | $0.01-0.02 |
 | Durable Object (web path) | ~$0.001-0.005/session | 1 | $0.001-0.005 |
 | D1 reads/writes | ~$0.001/session | ~10 queries | $0.001 |
@@ -978,9 +966,8 @@ These estimates are rough and depend on HF endpoint instance type (GPU-hours pri
 |----------|--------|-----------|
 | Two-stage pipeline | Subagent + Teacher | Separates analysis (fast/cheap) from delivery (quality voice). Different tasks need different models and prompts. |
 | STOP classifier deployment | Option B first (6-dim scores in worker) | Simplest path. 0.845 AUC is sufficient to start. Upgrade to Option A (0.936 AUC, MuQ embeddings) if gap matters. |
-| Subagent provider | Groq (Llama 3.3 70B) | LPU runs Llama 70B at 450-800 tok/s. Subagent completes in ~0.3s. |
+| Subagent provider | Workers AI (Gemma 4 26B) | Co-located with CF Workers; no extra routing hop. |
 | Teacher provider | Anthropic (Sonnet 4.6) | Best at following nuanced persona instructions. Native prompt caching for system prompt. |
-| Fallback chain | OpenRouter, then Workers AI | OpenRouter as routing fallback, Workers AI (Llama 3.1 70B) as zero-dependency emergency fallback. |
 | Score alignment | AMT fingerprint + DTW (automated) | Replaces student-reported. AMT transcribes, fingerprint matches, DTW aligns to score. No student input required. Graceful degradation for unknown pieces. |
 | Framing as subagent output | Explicit framing decision in JSON | Prevents teacher LLM from defaulting to critique mode when only given problems. |
 | Scores as reasoning inputs | Not a report card | Model is ~80% pairwise accurate. Value is in analysis + delivery, not raw scores. |

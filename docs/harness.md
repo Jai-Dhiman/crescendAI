@@ -68,7 +68,7 @@ Three-tier skill catalog. 15 atoms, 9 molecules, 4 compounds. Each with YAML fro
 **Tier:** SHIPPED (2026-04-26). Gates Qwen data collection and Phase 1 judge design.
 
 ### V6 -- Agent Loop & Orchestration
-Teacher loop with deferred tool loading, NLAH contracts, event hooks + middleware hooks. Writes stay single-threaded: skills contribute intelligence, one teacher path writes. Capability-router across providers (Groq / Sonnet / eventually Qwen). Doc home: `docs/apps/02-pipeline.md` (Target section).
+Teacher loop with deferred tool loading, NLAH contracts, event hooks + middleware hooks. Writes stay single-threaded: skills contribute intelligence, one teacher path writes. Capability-router across providers (Workers AI / Sonnet / eventually Qwen). Doc home: `docs/apps/02-pipeline.md` (Target section).
 **Tier:** NEXT.
 
 ### V7 -- Student Memory / Personalization
@@ -118,7 +118,7 @@ Drawn from external sources (Mahler wiki: Agent Harnesses, Natural Language Harn
 
 11. **Harness vs runtime split.** Harness = prompts + skills + tools + contracts (markdown). Runtime = durable execution + checkpointing + memory storage + multi-tenancy + observability + sandbox (CF Workers + DO + D1 + R2 + AI Gateway). Middleware hooks live in the runtime; they wrap every model call with PII redaction, tool-call limits, retries, HITL gates, online eval. See *The runtime behind production deep agents*.
 
-12. **Provider-agnostic skills; capability-router providers.** Skills are markdown; the same file runs under Sonnet today and under the Qwen finetune tomorrow. Provider choice is a runtime decision. The Groq / Anthropic / Qwen mix is a **capability router** (each model handles what it is best at), not a difficulty escalator. See *Multi-Agents: What's Actually Working*.
+12. **Provider-agnostic skills; capability-router providers.** Skills are markdown; the same file runs under Sonnet today and under the Qwen finetune tomorrow. Provider choice is a runtime decision. The Workers AI / Anthropic / Qwen mix is a **capability router** (each model handles what it is best at), not a difficulty escalator. See *Multi-Agents: What's Actually Working*.
 
 13. **Signal ablation is non-negotiable.** Periodically substitute MuQ/AMT signals with plausible fakes. If synthesis outputs are unchanged, the harness is doing text-only reasoning and signals are decorative. See *Music AI Systems* (MuChoMusic finding).
 

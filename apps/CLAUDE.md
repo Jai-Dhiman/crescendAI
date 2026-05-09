@@ -59,7 +59,7 @@ Always follow that guide when editing files under `api/src/`.
 - `POST /api/chat` - SSE streaming chat with Anthropic
 - `POST /api/sync` - iOS delta sync (student baselines + sessions)
 - `POST /api/waitlist` - Email waitlist signup
-- `POST /api/extract-goals` - Extract goals from message (Groq)
+- `POST /api/extract-goals` - Extract goals from message (Workers AI)
 - `POST /api/practice/start` - Start practice session
 - `POST /api/practice/chunk` - Upload audio chunk to R2
 - `GET /api/practice/ws/:sessionId` - WebSocket upgrade to SessionBrain DO
