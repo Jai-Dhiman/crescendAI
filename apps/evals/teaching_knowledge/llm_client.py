@@ -111,6 +111,12 @@ def _build_openrouter_payload(
     if system:
         messages.append({"role": "system", "content": system})
     messages.append({"role": "user", "content": user})
+    # Qwen3 is a reasoning model: thinking tokens count against max_tokens,
+    # exhausting the budget before content is written when max_tokens is low.
+    # Enforce a minimum so thinking can complete and content is still generated.
+    # extract_answer() in domain_knowledge_probe handles verbose responses.
+    if "qwen3" in model.lower():
+        max_tokens = max(max_tokens, 1024)
     return {
         "model": model,
         "max_tokens": max_tokens,
