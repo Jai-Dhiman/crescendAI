@@ -6,6 +6,7 @@ This file grows across T6 (kappa), T9 (threshold agreement), T12 (bucket routing
 from __future__ import annotations
 
 import json
+import math
 from collections import defaultdict
 from pathlib import Path
 from typing import Any
@@ -180,7 +181,7 @@ def calibrate(ratings_path: Path, baseline_path: Path) -> dict[str, Any]:
         jv = _variance(judge_vals)
         offset = sum(a - b for a, b in pairs) / len(pairs)
         kappa = per_sub_score_kappa.get(sub, float("nan"))
-        if kappa != kappa:  # NaN
+        if math.isnan(kappa):
             kappa = -1.0
         buckets[sub] = _route_bucket(kappa, offset, rv, jv)
         mean_offset[sub] = offset

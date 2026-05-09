@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from teacher_model.calibration.judge_rerun import rerun_anchors
 
 
@@ -72,12 +74,27 @@ def test_rerun_anchors_writes_one_jsonl_record_per_anchor(tmp_path: Path):
     assert records[0]["dimensions"][0]["criterion"] == "Audible-Specific Corrective Feedback"
 
 
+def test_rerun_anchors_raises_when_judge_callable_is_none(tmp_path: Path):
+    baseline_path = tmp_path / "baseline.jsonl"
+    output_path = tmp_path / "judge_runs.jsonl"
+    _write_baseline(baseline_path)
+
+    with pytest.raises(ValueError, match="judge_callable must be provided"):
+        rerun_anchors(
+            anchor_synth_ids=["nocturne_op9no2__rec_abc__5"],
+            baseline_path=baseline_path,
+            output_path=output_path,
+            run_label="day1",
+            judge_callable=None,
+        )
+
+
 def test_rerun_anchors_raises_on_unknown_synth_id(tmp_path: Path):
     baseline_path = tmp_path / "baseline.jsonl"
     output_path = tmp_path / "judge_runs.jsonl"
     _write_baseline(baseline_path)
 
-    try:
+    with pytest.raises(KeyError, match="does_not_exist__nope__1"):
         rerun_anchors(
             anchor_synth_ids=["does_not_exist__nope__1"],
             baseline_path=baseline_path,
@@ -85,7 +102,3 @@ def test_rerun_anchors_raises_on_unknown_synth_id(tmp_path: Path):
             run_label="day1",
             judge_callable=_stub_judge,
         )
-    except KeyError as e:
-        assert "does_not_exist__nope__1" in str(e)
-        return
-    raise AssertionError("Expected KeyError for unknown synth_id")
