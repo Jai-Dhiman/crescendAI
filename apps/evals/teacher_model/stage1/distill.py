@@ -25,7 +25,9 @@ def _retryable_excs() -> tuple[type[BaseException], ...]:
     except ImportError:
         return excs
     sdk_excs: list[type[BaseException]] = []
-    for name in ("APIConnectionError", "RateLimitError", "APIStatusError"):
+    # RateLimitError (429) is excluded: the 4xx guard in _call_with_retry re-raises it
+    # immediately. Include only connection and server-error classes here.
+    for name in ("APIConnectionError", "APIStatusError"):
         cls = getattr(anthropic, name, None)
         if isinstance(cls, type) and issubclass(cls, BaseException):
             sdk_excs.append(cls)
@@ -81,7 +83,7 @@ def distill(
 
     response = _call_with_retry(
         sonnet,
-        model="claude-sonnet-4-20250514",
+        model="claude-sonnet-4-6",
         max_tokens=2048,
         system=[{"type": "text", "text": s} for s in system_blocks],
         messages=messages,

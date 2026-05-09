@@ -30,8 +30,8 @@ def _build_parser() -> argparse.ArgumentParser:
     p_holdout = sub.add_parser("holdout", help="Generate held-out briefing manifest")
     p_holdout.add_argument("--frac", type=float, default=0.12)
     p_holdout.add_argument("--seed", type=int, default=42)
-    p_holdout.add_argument("--cache-dir", type=str, required=False)
-    p_holdout.add_argument("--out", type=str, required=False)
+    p_holdout.add_argument("--cache-dir", type=str, required=True)
+    p_holdout.add_argument("--out", type=str, required=True)
 
     p_distill = sub.add_parser("distill", help="Distill examples from Sonnet")
     p_distill.add_argument("--shape", choices=["synthesis", "chat"], required=True)

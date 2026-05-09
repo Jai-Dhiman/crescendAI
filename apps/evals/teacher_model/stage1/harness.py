@@ -39,9 +39,11 @@ def run_harness(endpoint: str, holdout_path: Path, tokenizer_pin: Path) -> Harne
     selection_ok = 0
     pyd_ok = 0
     pyd_total = 0
+    # proxy for pydantic validity until manual semantic annotations exist in holdout
     semantic_ok = 0
     multi_tool_emissions = 0
     neg_correct = 0
+    # populated only when holdout contains rows with kind == "contrast_pair"; zero until then
     pair_correct = 0
     pair_total = 0
 
