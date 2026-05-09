@@ -248,3 +248,42 @@ def test_validate_tool_input_search_catalog(tool_input, expected_substring):
         assert errors == []
     else:
         assert any(expected_substring in e.lower() for e in errors), errors
+
+
+from teacher_model.stage1.schema import Stage1Negative, NEGATIVE_CATEGORIES
+
+
+def test_stage1_negative_enforces_category_enum():
+    valid = Stage1Negative(
+        shape="chat",
+        system_blocks=["UNIFIED_TEACHER_SYSTEM"],
+        messages=[{"role": "user", "content": "thanks!"}],
+        assistant=Stage1AssistantTurn(
+            content=[Stage1TextBlock(text="You're very welcome.")]
+        ),
+        category="chitchat",
+        metadata={"rationale": "social close, no teaching needed"},
+    )
+    parsed = Stage1Negative.model_validate_json(valid.model_dump_json())
+    assert parsed.category == "chitchat"
+
+    with pytest.raises(Exception) as exc_info:
+        Stage1Negative(
+            shape="chat",
+            system_blocks=[],
+            messages=[],
+            assistant=Stage1AssistantTurn(content=[]),
+            category="not_a_real_category",
+        )
+    assert "category" in str(exc_info.value).lower()
+
+
+def test_negative_categories_constant_has_six_values():
+    assert set(NEGATIVE_CATEGORIES) == {
+        "chitchat",
+        "premature",
+        "ambiguous",
+        "already_recommended",
+        "out_of_scope",
+        "borderline_wrong_tool",
+    }

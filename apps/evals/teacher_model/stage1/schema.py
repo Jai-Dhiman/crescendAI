@@ -202,6 +202,34 @@ class _SearchCatalogInput(BaseModel):
 _register("search_catalog", _SearchCatalogInput)
 
 
+NEGATIVE_CATEGORIES = (
+    "chitchat",
+    "premature",
+    "ambiguous",
+    "already_recommended",
+    "out_of_scope",
+    "borderline_wrong_tool",
+)
+
+NegativeCategory = Literal[
+    "chitchat",
+    "premature",
+    "ambiguous",
+    "already_recommended",
+    "out_of_scope",
+    "borderline_wrong_tool",
+]
+
+
+class Stage1Negative(BaseModel):
+    shape: Literal["synthesis", "chat"]
+    system_blocks: list[str]
+    messages: list[Stage1Message]
+    assistant: Stage1AssistantTurn
+    category: NegativeCategory
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
 def validate_tool_input(name: str, payload: dict[str, Any]) -> list[str]:
     validator = _VALIDATORS.get(name)
     if validator is None:
