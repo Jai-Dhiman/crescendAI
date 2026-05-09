@@ -160,3 +160,34 @@ def test_session_cap_allows_when_slots_sufficient(tmp_path: Path):
         input_provider=provider,
     )
     assert n == 11
+
+
+def test_session_cap_exact_boundary(tmp_path: Path):
+    # session_idx_start=5, 11 sub-scores → last_idx = 5+11-1 = 15 = MAX_RATINGS_PER_SESSION.
+    # Exactly at cap must be ALLOWED; one slot over (start=6, last=16) must RAISE.
+    redacted = {"synth_id": "p__r__3", "synthesis_text": "x"}
+
+    def provider(_, __):
+        return (3, "e", "r")
+
+    # At cap (last_idx == 15): allowed
+    n = capture_synthesis_ratings(
+        redacted_row=redacted,
+        sub_scores=PHASE_1_SUB_SCORES,
+        session_id="S001",
+        session_idx_start=5,
+        output_path=tmp_path / "at_cap.jsonl",
+        input_provider=provider,
+    )
+    assert n == 11
+
+    # One over cap (last_idx == 16): must raise
+    with pytest.raises(SessionCapExceeded):
+        capture_synthesis_ratings(
+            redacted_row=redacted,
+            sub_scores=PHASE_1_SUB_SCORES,
+            session_id="S001",
+            session_idx_start=6,
+            output_path=tmp_path / "over_cap.jsonl",
+            input_provider=provider,
+        )

@@ -10,6 +10,8 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
+from teacher_model.calibration.rater_cli import PHASE_1_SUB_SCORES as _PHASE_1_SUB_SCORES
+
 COMPOSITE_PASS_THRESHOLD: float = 2.5
 KAPPA_TRUSTED_THRESHOLD: float = 0.6
 SCORE_VARIANCE_CEILING_THRESHOLD: float = 0.2
@@ -26,12 +28,6 @@ _CRITERION_TO_SLUG: dict[str, str] = {
     "Appropriate Tone & Language": "tone",
 }
 
-_PHASE_1_SUB_SCORES: list[str] = [
-    "ascf_process", "concrete_artifact_process", "praise_process",
-    "autonomy_process", "scaffolded_process", "style_process",
-    "tone_process", "autonomy_outcome", "tone_outcome",
-    "concrete_artifact_outcome", "praise_outcome",
-]
 
 
 def _cohens_weighted_kappa(rater_a: list[int], rater_b: list[int], k: int = 4) -> float:

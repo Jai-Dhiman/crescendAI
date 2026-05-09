@@ -163,11 +163,13 @@ def select_sample(
     if len(valid_with_band) < holdout_n + target_n:
         raise ValueError(
             f"Source has only {len(valid_with_band)} band-classified rows "
-            f"but needs {holdout_n + target_n}."
+            f"but needs at least {holdout_n + target_n} (holdout + main). "
+            f"Band/era feasibility is verified downstream."
         )
 
     # Use a separate RNG for holdout so the main selection RNG state is unaffected.
-    holdout_rng = random.Random(seed ^ 0xDEAD)
+    # Addition (not XOR) ensures no two seeds share the same derived seed.
+    holdout_rng = random.Random(seed + 0xDEAD)
     holdout_pool = list(valid_with_band)
     holdout_rng.shuffle(holdout_pool)
     holdout_synth_ids = {_row_synth_id(r) for r, _ in holdout_pool[:holdout_n]}
