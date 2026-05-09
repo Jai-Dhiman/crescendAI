@@ -96,6 +96,18 @@ def _load_openrouter_key() -> str:
 
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1/chat/completions"
 
+# Reasoning models interleave thinking tokens with content tokens, all counted
+# against the same max_tokens budget. Enforce a floor large enough for thinking
+# chains to complete before content is written.
+_REASONING_MODELS = ("qwen3", "gemma-4")
+_REASONING_MIN_TOKENS = 131072
+
+
+def _floor_for_reasoning_model(model: str, max_tokens: int) -> int:
+    if any(tag in model.lower() for tag in _REASONING_MODELS):
+        return max(max_tokens, _REASONING_MIN_TOKENS)
+    return max_tokens
+
 
 def _build_openrouter_payload(
     model: str,
@@ -111,17 +123,20 @@ def _build_openrouter_payload(
     if system:
         messages.append({"role": "system", "content": system})
     messages.append({"role": "user", "content": user})
-    # Qwen3 is a reasoning model: thinking tokens count against max_tokens,
-    # exhausting the budget before content is written when max_tokens is low.
-    # Enforce a minimum so thinking can complete and content is still generated.
-    # extract_answer() in domain_knowledge_probe handles verbose responses.
-    if "qwen3" in model.lower():
-        max_tokens = max(max_tokens, 32768)
-    return {
+    max_tokens = _floor_for_reasoning_model(model, max_tokens)
+    payload: dict = {
         "model": model,
         "max_tokens": max_tokens,
         "messages": messages,
     }
+    # Cap Qwen3 thinking chain so providers with low token ceilings can still
+    # complete the response. 8K thinking budget + up to 4K content = 12K total.
+    # This overrides the 131K floor for the output allocation, keeping total low
+    # enough for restrictive providers while ensuring content is generated.
+    if "qwen3" in model.lower():
+        payload["max_tokens"] = min(max_tokens, 12000)
+        payload["reasoning"] = {"max_tokens": 8000}
+    return payload
 
 
 class LLMClient:
@@ -180,7 +195,7 @@ class LLMClient:
 
         payload = {
             "model": self.model,
-            "max_tokens": max_tokens,
+            "max_tokens": _floor_for_reasoning_model(self.model, max_tokens),
             "messages": messages,
         }
 
