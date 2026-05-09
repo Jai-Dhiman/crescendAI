@@ -44,6 +44,16 @@ def test_post_swipe_reject_does_not_advance(tmp_path):
     assert store.get("ep2").state is State.CANDIDATE
 
 
+def test_post_swipe_reject_returns_404_for_unknown_episode(tmp_path):
+    store = EpisodeStore(db_path=tmp_path / "e.sqlite")
+    app = build_app(episode_store=store)
+    client = app.test_client()
+
+    resp = client.post("/swipe/nonexistent/reject")
+
+    assert resp.status_code == 404
+
+
 def _seed_critic_passed(store: EpisodeStore, eid: str) -> None:
     now = datetime(2026, 5, 8, tzinfo=timezone.utc)
     store.save(Episode(

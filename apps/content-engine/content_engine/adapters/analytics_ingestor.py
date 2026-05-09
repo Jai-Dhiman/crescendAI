@@ -1,6 +1,7 @@
 """Analytics ingestion: pulls per-post metrics across YT/TikTok/IG."""
 from __future__ import annotations
 from dataclasses import dataclass
+from urllib.parse import quote
 import httpx
 
 
@@ -68,7 +69,7 @@ class AnalyticsIngestor:
         )
 
     def _pull_postiz(self, platform: str, post_id: str) -> PostMetrics:
-        url = f"{self._postiz_url}/posts/{platform}/{post_id}/metrics"
+        url = f"{self._postiz_url}/posts/{quote(platform, safe='')}/{quote(post_id, safe='')}/metrics"
         resp = httpx.get(
             url,
             headers={"Authorization": f"Bearer {self._postiz_token}"},

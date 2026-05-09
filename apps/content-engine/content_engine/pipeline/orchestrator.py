@@ -54,6 +54,9 @@ class Orchestrator:
     def tick(self) -> None:
         # Snapshot all work queues before any handler runs so a transition in
         # one state cannot cause the same episode to be processed twice per tick.
+        # FAILED_* states are intentional dead-ends for MVP: a failed episode
+        # requires manual DB intervention or a future /episode/<id>/retry endpoint.
+        # Transient failures (e.g. InferenceError) will surface via Sentry.
         work = [
             (self._es.list_by_state(State.CURATED), self._handle_curated),
             (self._es.list_by_state(State.ANALYZED), self._handle_analyzed),

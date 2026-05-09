@@ -24,6 +24,8 @@ def build_app(episode_store: EpisodeStore) -> Flask:
 
     @app.post("/swipe/<episode_id>/reject")
     def reject(episode_id: str):
+        if episode_store.get(episode_id) is None:
+            return jsonify({"ok": False, "error": "episode not found"}), 404
         return jsonify({"ok": True, "state": "candidate"})
 
     @app.post("/swipe/<episode_id>/override-critic")
