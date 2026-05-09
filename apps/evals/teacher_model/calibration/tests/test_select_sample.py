@@ -165,3 +165,111 @@ def test_skill_group_min_quotas_satisfied(tmp_path: Path):
     assert counts["intermediate"] >= 50, counts
     assert counts["advanced"] >= 50, counts
     assert counts["beginner"] + counts["intermediate"] + counts["advanced"] == 200
+
+
+def test_skill_quota_forces_minority_group(tmp_path: Path):
+    # Build a skewed source where intermediate (skill_bucket=3) rows are
+    # scarce — only 56 total. The bulk of the pool (600+) is beginner
+    # (bucket 1) and advanced (bucket 4). Without quota enforcement
+    # (Pass 2), a proportional draw would pick ~10 intermediate rows at
+    # most. With quota enforcement, intermediate must reach 50.
+    #
+    # Band classification rules (from select_sample.py):
+    #   weak_dim: ascf_process <= 1
+    #   high:     composite >= 2.7  (all scores 3 => 3.0)
+    #   threshold: 2.3 <= composite < 2.7  (mix of 2s and 3s)
+    #   low:      composite < 2.3  (all scores 2 => 2.0)
+    #
+    # Era quotas (>=30 each) are met by spreading rows across all four
+    # composers: Bach=Baroque, Beethoven=Classical, Chopin=Romantic,
+    # Debussy=Impressionist.
+    criteria = [
+        "Audible-Specific Corrective Feedback",
+        "Concrete Artifact Provision",
+        "Specific Positive Praise",
+        "Autonomy-Supporting Motivation",
+        "Scaffolded Guided Discovery",
+        "Style-Consistent Musical Language",
+        "Appropriate Tone & Language",
+    ]
+
+    def _make_row_with_band(
+        composer: str, recording_id: str, skill_bucket: int, band: str
+    ) -> dict:
+        # Choose score values that produce the requested band classification.
+        # weak_dim: ascf_process=1 (all other scores 2)
+        # high:     all scores 3 (composite=3.0)
+        # threshold: scores [3,3,3,2,2,2,2] (composite=17/7~2.43)
+        # low:      all scores 2 (composite=2.0)
+        if band == "weak_dim":
+            scores = [2, 2, 2, 2, 2, 2, 2]
+            ascf_proc = 1
+        elif band == "high":
+            scores = [3, 3, 3, 3, 3, 3, 3]
+            ascf_proc = 3
+        elif band == "threshold":
+            scores = [3, 3, 3, 2, 2, 2, 2]
+            ascf_proc = 3
+        else:  # low
+            scores = [2, 2, 2, 2, 2, 2, 2]
+            ascf_proc = 2
+        dims = []
+        for i, c in enumerate(criteria):
+            s = scores[i]
+            proc = ascf_proc if i == 0 else s
+            dims.append({
+                "criterion": c,
+                "process": proc,
+                "outcome": s,
+                "score": min(proc, s),
+                "evidence": "",
+                "reason": "",
+            })
+        return {
+            "piece_slug": f"piece_{recording_id}",
+            "recording_id": recording_id,
+            "skill_bucket": skill_bucket,
+            "composer": composer,
+            "title": f"Piece {recording_id}",
+            "synthesis_text": f"Synthesis text for {recording_id}.",
+            "muq_means": {"dynamics": 0.5},
+            "judge_dimensions": dims,
+        }
+
+    # Era mapping: Bach=Baroque, Beethoven=Classical, Chopin=Romantic, Debussy=Impressionist
+    # Each composer gets 150 beginner + 150 advanced rows spread across all bands.
+    # Intermediate rows: 14 per composer = 56 total (scarce minority), distributed
+    # across all bands so band targets can be met.
+    composers = ["Bach", "Beethoven", "Chopin", "Debussy"]
+    bands = ["high", "threshold", "low", "weak_dim"]
+    source = tmp_path / "skewed.jsonl"
+    rows = []
+    for comp in composers:
+        tag = comp[:3].lower()
+        # 150 beginner rows: 37-38 per band
+        for b_idx, band in enumerate(bands):
+            count = 38 if b_idx < 2 else 37
+            for i in range(count):
+                rows.append(_make_row_with_band(comp, f"rec_{tag}_beg_{band[:2]}{i}", 1, band))
+        # 150 advanced rows: 37-38 per band
+        for b_idx, band in enumerate(bands):
+            count = 38 if b_idx < 2 else 37
+            for i in range(count):
+                rows.append(_make_row_with_band(comp, f"rec_{tag}_adv_{band[:2]}{i}", 4, band))
+        # 14 intermediate rows: ~3-4 per band (scarce minority)
+        for b_idx, band in enumerate(bands):
+            count = 4 if b_idx < 2 else 3
+            for i in range(count):
+                rows.append(_make_row_with_band(comp, f"rec_{tag}_int_{band[:2]}{i}", 3, band))
+    # Total: 4 * (150+150+14) = 1256 rows, only 56 intermediate
+
+    with source.open("w") as f:
+        for r in rows:
+            f.write(json.dumps(r) + "\n")
+
+    manifest = select_sample(
+        source_path=source, target_n=200, holdout_n=30, anchor_n=20, seed=99,
+    )
+
+    counts = manifest["stats"]["skill_group_counts"]
+    assert counts["intermediate"] >= 50, counts
