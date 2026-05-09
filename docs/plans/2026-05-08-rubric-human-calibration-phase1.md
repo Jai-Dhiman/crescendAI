@@ -30,7 +30,29 @@ Group D (depends on C; parallel across separate files):
 
 Group E (depends on D):
   T16 emit_recipe.bias_correction (depends T15)
+  T17 select_sample.skill_quotas    (depends T13)
+  T18 analyze_drift.judge_drift     (depends T5; consumes T2 output)
 ```
+
+> **Blocker resolution amendment (2026-05-08):** Validated against real
+> `apps/evals/results/baseline_v1.jsonl` (920 valid rows). Changes:
+>
+> - **Band redefinition.** `low` is now `composite < 2.3` (was `≤ 2.0`).
+>   The (2.0, 2.3) gap that excluded 188 rows is folded into `low`, growing
+>   the low pool from 40 → ~228. Rows in (2.0, 2.3) are still below the
+>   2.5 pass threshold and useful as low-anchor examples; the gap added no
+>   information.
+> - **Band targets rebalanced** to `{threshold:80, high:40, low:30, weak_dim:50}`
+>   (from 80/40/40/40). The 10 slots shifted from `low` to `weak_dim` go to
+>   the band that already covers the baseline's weakest dimension (ASCF,
+>   per project memory) and that has 95 candidates of slack.
+> - **Era quotas unchanged at 30/era**, feasible after band redefinition
+>   (Impressionist 42 total → ~40+ after holdout draw).
+> - **T17 (new) — skill-bucket quotas:** beginner(1-2)≥50, intermediate(3)≥50,
+>   advanced(4-5)≥50. Restores the spec requirement the original plan dropped.
+> - **T18 (new) — judge drift κ:** `analyze_drift` consumes `judge_runs_path`
+>   and emits `judge_drift_kappa` per sub-score. Restores the day-1-vs-day-30
+>   gate the original plan stubbed as `{}`.
 
 **Test runner (used in every task):** `cd /Users/jdhiman/Documents/crescendai/apps/evals && uv run pytest -xvs teacher_model/calibration/tests/<file>::<test_name>`
 
@@ -382,7 +404,7 @@ git add apps/evals/teacher_model/calibration/judge_rerun.py apps/evals/teacher_m
 ## Task 3: select_sample produces correct band proportions
 **Group:** A (parallel with T1, T2, T4, T5, T6; no dependencies)
 
-**Behavior being verified:** Given a `baseline_v1.jsonl`-shaped source, `select_sample` returns a manifest where the main 200 has 40% in the threshold band (composite 2.3–2.7), 20% in high (≥2.7), 20% in low (≤2.0), 20% in weak-dim band (ASCF process ≤ 1.5), each within ±2 entries of target counts.
+**Behavior being verified:** Given a `baseline_v1.jsonl`-shaped source, `select_sample` returns a manifest where the main 200 has 80 in the threshold band (composite 2.3–2.7), 40 in high (≥2.7), 30 in low (composite < 2.3), 50 in weak-dim band (ASCF process ≤ 1), each within ±2 entries of target counts.
 
 **Interface under test:** `select_sample(source_path: Path, target_n: int, holdout_n: int, anchor_n: int, seed: int) -> dict`
 
@@ -486,11 +508,11 @@ def test_select_sample_band_proportions_within_tolerance(tmp_path: Path):
     )
 
     band_counts = manifest["stats"]["band_counts"]
-    # 40/20/20/20 of 200 = 80/40/40/40
+    # Targets: {threshold:80, high:40, low:30, weak_dim:50} = 200
     assert abs(band_counts["threshold"] - 80) <= 2, band_counts
     assert abs(band_counts["high"] - 40) <= 2, band_counts
-    assert abs(band_counts["low"] - 40) <= 2, band_counts
-    assert abs(band_counts["weak_dim"] - 40) <= 2, band_counts
+    assert abs(band_counts["low"] - 30) <= 2, band_counts
+    assert abs(band_counts["weak_dim"] - 50) <= 2, band_counts
     assert sum(band_counts.values()) == 200
 
 
@@ -529,11 +551,11 @@ import random
 from pathlib import Path
 from typing import Any
 
-_BAND_TARGETS_FRAC: dict[str, float] = {
-    "threshold": 0.40,
-    "high": 0.20,
-    "low": 0.20,
-    "weak_dim": 0.20,
+_BAND_TARGETS: dict[str, int] = {
+    "threshold": 80,
+    "high": 40,
+    "low": 30,
+    "weak_dim": 50,
 }
 
 
@@ -559,11 +581,14 @@ def _row_ascf_process(row: dict[str, Any]) -> int | None:
 
 
 def _classify_band(row: dict[str, Any]) -> str | None:
-    """Return the band membership for the row, or None if no band fits.
+    """Return the band membership for the row, or None if it has no judge data.
 
     Order matters: weak_dim takes priority over composite-band when ASCF
-    process <= 1.5 because the protocol explicitly oversamples weak-dim cases
+    process <= 1 because the protocol explicitly oversamples weak-ASCF cases
     regardless of where their composite lands.
+
+    Bands partition the composite range with no gap: high ≥ 2.7,
+    threshold ∈ [2.3, 2.7), low < 2.3.
     """
     ascf_p = _row_ascf_process(row)
     if ascf_p is not None and ascf_p <= 1:
@@ -573,11 +598,9 @@ def _classify_band(row: dict[str, Any]) -> str | None:
         return None
     if composite >= 2.7:
         return "high"
-    if composite <= 2.0:
-        return "low"
-    if 2.3 <= composite <= 2.7:
+    if composite >= 2.3:
         return "threshold"
-    return None
+    return "low"
 
 
 def _load_valid_rows(source_path: Path) -> list[dict[str, Any]]:
@@ -603,17 +626,19 @@ def select_sample(
     rng = random.Random(seed)
     rows = _load_valid_rows(source_path)
 
-    by_band: dict[str, list[dict[str, Any]]] = {b: [] for b in _BAND_TARGETS_FRAC}
+    by_band: dict[str, list[dict[str, Any]]] = {b: [] for b in _BAND_TARGETS}
     for r in rows:
         band = _classify_band(r)
         if band is None:
             continue
         by_band[band].append(r)
 
-    band_targets = {b: round(target_n * frac) for b, frac in _BAND_TARGETS_FRAC.items()}
-    drift = sum(band_targets.values()) - target_n
-    if drift != 0:
-        band_targets["threshold"] -= drift
+    if sum(_BAND_TARGETS.values()) != target_n:
+        raise ValueError(
+            f"Band targets sum to {sum(_BAND_TARGETS.values())} but target_n={target_n}. "
+            f"Update _BAND_TARGETS or pass matching target_n."
+        )
+    band_targets = dict(_BAND_TARGETS)
 
     main: list[dict[str, Any]] = []
     band_counts: dict[str, int] = {}
@@ -1339,11 +1364,11 @@ from typing import Any
 
 from teacher_model.calibration.era_lookup import composer_to_era
 
-_BAND_TARGETS_FRAC: dict[str, float] = {
-    "threshold": 0.40,
-    "high": 0.20,
-    "low": 0.20,
-    "weak_dim": 0.20,
+_BAND_TARGETS: dict[str, int] = {
+    "threshold": 80,
+    "high": 40,
+    "low": 30,
+    "weak_dim": 50,
 }
 
 _ERA_MIN_QUOTAS: dict[str, int] = {
@@ -1384,11 +1409,9 @@ def _classify_band(row: dict[str, Any]) -> str | None:
         return None
     if composite >= 2.7:
         return "high"
-    if composite <= 2.0:
-        return "low"
-    if 2.3 <= composite <= 2.7:
+    if composite >= 2.3:
         return "threshold"
-    return None
+    return "low"
 
 
 def _load_valid_rows(source_path: Path) -> list[dict[str, Any]]:
@@ -1486,17 +1509,18 @@ def select_sample(
     rng = random.Random(seed)
     rows = _load_valid_rows(source_path)
 
-    by_band: dict[str, list[dict[str, Any]]] = {b: [] for b in _BAND_TARGETS_FRAC}
+    by_band: dict[str, list[dict[str, Any]]] = {b: [] for b in _BAND_TARGETS}
     for r in rows:
         band = _classify_band(r)
         if band is None:
             continue
         by_band[band].append(r)
 
-    band_targets = {b: round(target_n * frac) for b, frac in _BAND_TARGETS_FRAC.items()}
-    drift = sum(band_targets.values()) - target_n
-    if drift != 0:
-        band_targets["threshold"] -= drift
+    if sum(_BAND_TARGETS.values()) != target_n:
+        raise ValueError(
+            f"Band targets sum to {sum(_BAND_TARGETS.values())} but target_n={target_n}."
+        )
+    band_targets = dict(_BAND_TARGETS)
 
     main = _select_with_quotas(by_band, band_targets, _ERA_MIN_QUOTAS, rng)
     rng.shuffle(main)
@@ -1985,14 +2009,15 @@ def select_sample(
     holdout_rows = [r for r, _ in valid_with_band[:holdout_n]]
     remaining = valid_with_band[holdout_n:]
 
-    by_band: dict[str, list[dict[str, Any]]] = {b: [] for b in _BAND_TARGETS_FRAC}
+    by_band: dict[str, list[dict[str, Any]]] = {b: [] for b in _BAND_TARGETS}
     for r, band in remaining:
         by_band[band].append(r)
 
-    band_targets = {b: round(target_n * frac) for b, frac in _BAND_TARGETS_FRAC.items()}
-    drift = sum(band_targets.values()) - target_n
-    if drift != 0:
-        band_targets["threshold"] -= drift
+    if sum(_BAND_TARGETS.values()) != target_n:
+        raise ValueError(
+            f"Band targets sum to {sum(_BAND_TARGETS.values())} but target_n={target_n}."
+        )
+    band_targets = dict(_BAND_TARGETS)
 
     main = _select_with_quotas(by_band, band_targets, _ERA_MIN_QUOTAS, rng)
     rng.shuffle(main)
@@ -3101,6 +3126,419 @@ git add apps/evals/teacher_model/calibration/emit_recipe.py apps/evals/teacher_m
 
 ---
 
+## Task 17: select_sample enforces skill-bucket min-quotas
+**Group:** E (depends on T13 — same file `select_sample.py`)
+
+**Behavior being verified:** Every skill-bucket group (beginner=1-2, intermediate=3, advanced=4-5) appears ≥50 times in the manifest's main 200. `manifest["stats"]["skill_group_counts"]` reports the three counts.
+
+**Files:**
+- Modify: `apps/evals/teacher_model/calibration/select_sample.py`
+- Modify: `apps/evals/teacher_model/calibration/tests/test_select_sample.py`
+
+- [ ] **Step 1: Write the failing test**
+
+```python
+# Append to: apps/evals/teacher_model/calibration/tests/test_select_sample.py
+def test_skill_group_min_quotas_satisfied(tmp_path: Path):
+    source = tmp_path / "baseline.jsonl"
+    _write_synthetic_baseline(source)
+
+    manifest = select_sample(
+        source_path=source, target_n=200, holdout_n=30, anchor_n=20, seed=42,
+    )
+
+    counts = manifest["stats"]["skill_group_counts"]
+    assert counts["beginner"] >= 50, counts
+    assert counts["intermediate"] >= 50, counts
+    assert counts["advanced"] >= 50, counts
+    assert counts["beginner"] + counts["intermediate"] + counts["advanced"] == 200
+```
+
+- [ ] **Step 2: Run test — verify it FAILS**
+
+```bash
+cd /Users/jdhiman/Documents/crescendai/apps/evals && uv run pytest -xvs teacher_model/calibration/tests/test_select_sample.py::test_skill_group_min_quotas_satisfied
+```
+Expected: FAIL — `KeyError: 'skill_group_counts'`
+
+- [ ] **Step 3: Implement the minimum to make the test pass**
+
+In `apps/evals/teacher_model/calibration/select_sample.py`, add the skill-group helper, the min-quotas constant, and a third selection pass before band fill. Add near the top with other constants:
+
+```python
+_SKILL_MIN_QUOTAS: dict[str, int] = {
+    "beginner": 50,
+    "intermediate": 50,
+    "advanced": 50,
+}
+
+
+def _skill_group(skill_bucket: int) -> str:
+    if skill_bucket <= 2:
+        return "beginner"
+    if skill_bucket == 3:
+        return "intermediate"
+    return "advanced"
+```
+
+Replace `_select_with_quotas` to take a `skill_min_quotas` arg and add a skill-reservation pass between the era pass and the band fill pass:
+
+```python
+def _select_with_quotas(
+    by_band: dict[str, list[dict[str, Any]]],
+    band_targets: dict[str, int],
+    era_min_quotas: dict[str, int],
+    skill_min_quotas: dict[str, int],
+    rng: random.Random,
+) -> list[dict[str, Any]]:
+    chosen: list[dict[str, Any]] = []
+    chosen_ids: set[str] = set()
+    era_counter: Counter[str] = Counter()
+    skill_counter: Counter[str] = Counter()
+    band_counter: Counter[str] = Counter()
+
+    def _take(r: dict[str, Any], band: str) -> None:
+        chosen.append(r)
+        chosen_ids.add(_row_synth_id(r))
+        era_counter[composer_to_era(r["composer"])] += 1
+        skill_counter[_skill_group(r["skill_bucket"])] += 1
+        band_counter[band] += 1
+
+    # Pass 1: era reservation
+    for era, min_q in era_min_quotas.items():
+        candidates = [
+            (band, r) for band, pool in by_band.items() for r in pool
+            if composer_to_era(r["composer"]) == era and _row_synth_id(r) not in chosen_ids
+        ]
+        rng.shuffle(candidates)
+        if len(candidates) < min_q:
+            raise ValueError(f"Era '{era}' has {len(candidates)} candidates but needs {min_q}.")
+        for band, r in candidates:
+            if era_counter[era] >= min_q:
+                break
+            if band_counter[band] >= band_targets[band]:
+                continue
+            _take(r, band)
+        if era_counter[era] < min_q:
+            for band, r in candidates:
+                if _row_synth_id(r) in chosen_ids:
+                    continue
+                _take(r, band)
+                if era_counter[era] >= min_q:
+                    break
+
+    # Pass 2: skill reservation (covers groups under-met by era pass)
+    for group, min_q in skill_min_quotas.items():
+        if skill_counter[group] >= min_q:
+            continue
+        candidates = [
+            (band, r) for band, pool in by_band.items() for r in pool
+            if _skill_group(r["skill_bucket"]) == group and _row_synth_id(r) not in chosen_ids
+        ]
+        rng.shuffle(candidates)
+        needed = min_q - skill_counter[group]
+        if len(candidates) < needed:
+            raise ValueError(
+                f"Skill group '{group}' has {len(candidates)} unreserved candidates "
+                f"but needs {needed} more."
+            )
+        for band, r in candidates:
+            if skill_counter[group] >= min_q:
+                break
+            if band_counter[band] >= band_targets[band]:
+                continue
+            _take(r, band)
+        if skill_counter[group] < min_q:
+            for band, r in candidates:
+                if _row_synth_id(r) in chosen_ids:
+                    continue
+                _take(r, band)
+                if skill_counter[group] >= min_q:
+                    break
+
+    # Pass 3: fill remaining band slots
+    for band, target in band_targets.items():
+        remaining = target - band_counter[band]
+        if remaining <= 0:
+            continue
+        pool = [r for r in by_band[band] if _row_synth_id(r) not in chosen_ids]
+        rng.shuffle(pool)
+        if len(pool) < remaining:
+            raise ValueError(
+                f"Band '{band}' has only {len(pool)} unreserved rows but needs {remaining} more."
+            )
+        for r in pool[:remaining]:
+            _take(r, band)
+
+    # Pass 4: trim overshoot. Some bands may be over target due to forced
+    # quota fills above; drop excess rows whose removal does not violate any
+    # quota.
+    while len(chosen) > sum(band_targets.values()):
+        for band, target in band_targets.items():
+            if band_counter[band] <= target:
+                continue
+            for i, r in enumerate(chosen):
+                if _classify_band(r) != band:
+                    continue
+                era = composer_to_era(r["composer"])
+                grp = _skill_group(r["skill_bucket"])
+                if era_counter[era] - 1 < era_min_quotas.get(era, 0):
+                    continue
+                if skill_counter[grp] - 1 < skill_min_quotas.get(grp, 0):
+                    continue
+                chosen.pop(i)
+                chosen_ids.discard(_row_synth_id(r))
+                era_counter[era] -= 1
+                skill_counter[grp] -= 1
+                band_counter[band] -= 1
+                break
+            else:
+                continue
+            break
+        else:
+            raise ValueError(
+                "Cannot satisfy all quotas simultaneously: overshoot is locked by "
+                "minima in every band. Loosen a quota or expand source pool."
+            )
+
+    return chosen
+```
+
+Update the call site in `select_sample` to pass `_SKILL_MIN_QUOTAS` and add `skill_group_counts` to stats:
+
+```python
+    main = _select_with_quotas(by_band, band_targets, _ERA_MIN_QUOTAS, _SKILL_MIN_QUOTAS, rng)
+    rng.shuffle(main)
+
+    band_counts = Counter(_classify_band(r) for r in main)
+    era_counts = Counter(composer_to_era(r["composer"]) for r in main)
+    skill_group_counts = Counter(_skill_group(r["skill_bucket"]) for r in main)
+```
+
+And in the returned `stats` dict:
+
+```python
+        "stats": {
+            "n_main": len(main),
+            "n_anchors_silent_dups": len(anchors),
+            "n_holdout": len(holdout_rows),
+            "band_counts": dict(band_counts),
+            "era_counts": dict(era_counts),
+            "skill_group_counts": dict(skill_group_counts),
+        },
+```
+
+- [ ] **Step 4: Run test — verify it PASSES**
+
+```bash
+cd /Users/jdhiman/Documents/crescendai/apps/evals && uv run pytest -xvs teacher_model/calibration/tests/test_select_sample.py
+```
+Expected: PASS (all six select_sample tests)
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add apps/evals/teacher_model/calibration/select_sample.py apps/evals/teacher_model/calibration/tests/test_select_sample.py && git commit -m "feat(calibration): select_sample skill-bucket min-quotas"
+```
+
+---
+
+## Task 18: analyze_drift computes judge-vs-judge κ on day1/day30 re-runs
+**Group:** E (depends on T5 — same file `analyze_drift.py`; consumes T2's output schema)
+
+**Behavior being verified:** Given two judge-run jsonl files written by T2's `rerun_anchors` (day1 and day30), `analyze_drift` returns `judge_drift_kappa` per sub-score (11 Phase-1 entries) where each value is the weighted κ between day1 and day30 ratings on the same anchor synth_ids. Identical re-runs yield κ = 1.0.
+
+**Interface under test:** `analyze_drift(ratings_path, judge_runs_path)` — `judge_runs_path` is now consumed. The file is the concatenation of two T2 outputs (day1 records + day30 records), distinguished by their `run_label` field.
+
+**Files:**
+- Modify: `apps/evals/teacher_model/calibration/analyze_drift.py`
+- Modify: `apps/evals/teacher_model/calibration/tests/test_analyze_drift.py`
+
+- [ ] **Step 1: Write the failing test**
+
+```python
+# Append to: apps/evals/teacher_model/calibration/tests/test_analyze_drift.py
+def _write_judge_runs(path: Path, records: list[dict]) -> None:
+    with path.open("w") as f:
+        for r in records:
+            f.write(json.dumps(r) + "\n")
+
+
+def _judge_record(synth_id: str, run_label: str, dim_score: int) -> dict:
+    return {
+        "synth_id": synth_id,
+        "run_label": run_label,
+        "dimensions": [
+            {"criterion": "Audible-Specific Corrective Feedback",
+             "process": dim_score, "outcome": dim_score, "score": dim_score,
+             "evidence": "", "reason": ""},
+            {"criterion": "Appropriate Tone & Language",
+             "process": dim_score, "outcome": dim_score, "score": dim_score,
+             "evidence": "", "reason": ""},
+        ],
+        "ts": "x",
+    }
+
+
+def test_judge_drift_kappa_is_one_when_runs_identical(tmp_path: Path):
+    ratings_path = tmp_path / "ratings.jsonl"
+    ratings_path.write_text("")
+    judge_runs_path = tmp_path / "judge_runs.jsonl"
+
+    records = []
+    for i, sid in enumerate(["A1", "A2", "A3", "A4", "A5"]):
+        v = i % 4
+        records.append(_judge_record(sid, "day1", v))
+        records.append(_judge_record(sid, "day30", v))
+    _write_judge_runs(judge_runs_path, records)
+
+    report = analyze_drift(ratings_path=ratings_path, judge_runs_path=judge_runs_path)
+    drift = report["judge_drift_kappa"]
+    assert drift["ascf_process"] == 1.0
+    assert drift["tone_process"] == 1.0
+
+
+def test_judge_drift_kappa_drops_below_one_when_runs_disagree(tmp_path: Path):
+    ratings_path = tmp_path / "ratings.jsonl"
+    ratings_path.write_text("")
+    judge_runs_path = tmp_path / "judge_runs.jsonl"
+
+    records = []
+    for i, sid in enumerate(["A1", "A2", "A3", "A4", "A5"]):
+        v1 = i % 4
+        v2 = (i + 1) % 4  # always disagree by 1
+        records.append(_judge_record(sid, "day1", v1))
+        records.append(_judge_record(sid, "day30", v2))
+    _write_judge_runs(judge_runs_path, records)
+
+    report = analyze_drift(ratings_path=ratings_path, judge_runs_path=judge_runs_path)
+    drift = report["judge_drift_kappa"]
+    assert drift["ascf_process"] < 1.0
+    assert drift["ascf_process"] >= -1.0
+```
+
+- [ ] **Step 2: Run test — verify it FAILS**
+
+```bash
+cd /Users/jdhiman/Documents/crescendai/apps/evals && uv run pytest -xvs teacher_model/calibration/tests/test_analyze_drift.py::test_judge_drift_kappa_is_one_when_runs_identical
+```
+Expected: FAIL — `assert {} ["ascf_process"]` raises KeyError (T5 returns `judge_drift_kappa: {}`).
+
+- [ ] **Step 3: Implement the minimum to make the test pass**
+
+Replace `analyze_drift` in `apps/evals/teacher_model/calibration/analyze_drift.py` with:
+
+```python
+_CRITERION_TO_SLUG: dict[str, str] = {
+    "Audible-Specific Corrective Feedback": "ascf",
+    "Concrete Artifact Provision": "concrete_artifact",
+    "Specific Positive Praise": "praise",
+    "Autonomy-Supporting Motivation": "autonomy",
+    "Scaffolded Guided Discovery": "scaffolded",
+    "Style-Consistent Musical Language": "style",
+    "Appropriate Tone & Language": "tone",
+}
+
+
+def _extract_judge_sub_scores(dimensions: list[dict]) -> dict[str, int]:
+    out: dict[str, int] = {}
+    for d in dimensions:
+        slug = _CRITERION_TO_SLUG.get(d.get("criterion", ""))
+        if slug is None:
+            continue
+        for leg in ("process", "outcome"):
+            v = d.get(leg)
+            if v is None:
+                continue
+            out[f"{slug}_{leg}"] = int(v)
+    return out
+
+
+def _compute_judge_drift(judge_runs_path: Path) -> dict[str, float]:
+    by_run_label: dict[str, dict[str, dict[str, int]]] = defaultdict(dict)
+    with judge_runs_path.open() as f:
+        for line in f:
+            if not line.strip():
+                continue
+            rec = json.loads(line)
+            run_label = rec.get("run_label")
+            synth_id = rec.get("synth_id")
+            if run_label is None or synth_id is None:
+                continue
+            by_run_label[run_label][synth_id] = _extract_judge_sub_scores(rec["dimensions"])
+
+    if len(by_run_label) < 2:
+        return {}
+
+    labels = list(by_run_label.keys())
+    label_a, label_b = labels[0], labels[1]
+    common_synth_ids = sorted(set(by_run_label[label_a]) & set(by_run_label[label_b]))
+
+    pairs_by_sub: dict[str, list[tuple[int, int]]] = defaultdict(list)
+    for sid in common_synth_ids:
+        a = by_run_label[label_a][sid]
+        b = by_run_label[label_b][sid]
+        for sub_score in set(a) & set(b):
+            pairs_by_sub[sub_score].append((a[sub_score], b[sub_score]))
+
+    return {
+        sub: cohens_weighted_kappa([x for x, _ in pairs], [y for _, y in pairs])
+        for sub, pairs in pairs_by_sub.items()
+        if pairs
+    }
+
+
+def analyze_drift(ratings_path: Path, judge_runs_path: Path | None) -> dict[str, Any]:
+    pairs_by_sub_score: dict[str, list[tuple[int, int]]] = defaultdict(list)
+    first_seen: dict[tuple[str, str], int] = {}
+
+    with ratings_path.open() as f:
+        for line in f:
+            if not line.strip():
+                continue
+            rec = json.loads(line)
+            if rec.get("event_type") != "rating":
+                continue
+            sub_score = rec["sub_score"]
+            origin = rec.get("anchor_origin_id")
+            if origin is None:
+                first_seen[(rec["synth_id"], sub_score)] = rec["value"]
+            else:
+                first_value = first_seen.get((origin, sub_score))
+                if first_value is None:
+                    continue
+                pairs_by_sub_score[sub_score].append((first_value, rec["value"]))
+
+    intra_rater = {
+        sub: cohens_weighted_kappa([a for a, _ in pairs], [b for _, b in pairs])
+        for sub, pairs in pairs_by_sub_score.items()
+        if pairs
+    }
+
+    judge_drift = _compute_judge_drift(judge_runs_path) if judge_runs_path is not None else {}
+
+    return {
+        "intra_rater_kappa": intra_rater,
+        "judge_drift_kappa": judge_drift,
+        "n_anchor_pairs": {sub: len(p) for sub, p in pairs_by_sub_score.items()},
+    }
+```
+
+- [ ] **Step 4: Run test — verify it PASSES**
+
+```bash
+cd /Users/jdhiman/Documents/crescendai/apps/evals && uv run pytest -xvs teacher_model/calibration/tests/test_analyze_drift.py
+```
+Expected: PASS (all four analyze_drift tests)
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add apps/evals/teacher_model/calibration/analyze_drift.py apps/evals/teacher_model/calibration/tests/test_analyze_drift.py && git commit -m "feat(calibration): judge-vs-judge drift kappa on day1/day30"
+```
+
+---
+
 ## Plan Self-Review
 
 | Check | Result |
@@ -3114,3 +3552,215 @@ git add apps/evals/teacher_model/calibration/emit_recipe.py apps/evals/teacher_m
 | Forbidden-pattern scan | No bulk test scaffolding. No "test all the shapes." No tasks reference each other's code by name without including it. |
 
 **Plan written and committed below. Run `/challenge` on it before executing.**
+
+---
+
+## Challenge Review
+
+### CEO Pass
+
+**Premise.** The protocol is on the right track: the spec's "weighted κ over Pearson r" + 4-bucket routing + Phase-1/Phase-2 partition is a defensible solution to a real, named blocker on the Stage 2/Stage 4 critical path. No reframing needed.
+
+**Scope.** The plan implements 7 modules cleanly via 16 vertical-slice tasks. However, the plan **silently drops three spec-required behaviors** that turn the calibration artifact from a defensible filter into an unverified one (see BLOCKERs below).
+
+**12-Month Alignment.**
+```
+TODAY                 →  THIS PLAN              →  IDEAL (Q3-Q4 2026)
+ad-hoc sonnet-2.483   →  bucketed κ filter      →  re-derivable filter at every model bump
+no defensibility         on 11 sub-scores          + Phase-2 expert layer for 3 expert dims
+```
+Direction is correct. The artifact is a Python module — easily versioned and re-emitted.
+
+**Alternatives.** Spec lists 5 trade-offs with rejected alternatives. Sufficient.
+
+```
+[BLOCKER] (confidence: 10/10) — Sample-selection infeasibility against the real
+  baseline_v1.jsonl. I scanned the actual 920 valid rows. Distribution by band
+  is: threshold=302, high=295, low=40, weak_dim=95, gap=188 (excluded). With
+  band targets {threshold:80, high:40, low:40, weak_dim:40} AND holdout_n=30
+  reserved BEFORE selection (T10's design), the `low` band has 40 candidates,
+  needs 40 main + ~1-2 holdout draws (probabilistic) = INFEASIBLE. T10 will
+  raise ValueError on real data. Either: (a) reduce low-band target to 30 and
+  document, (b) loosen low cutoff to ≤ 2.1, or (c) reserve holdout from a
+  separate stratum. Pick one and freeze in the plan.
+
+[BLOCKER] (confidence: 10/10) — Era min-quota infeasibility for Impressionist.
+  Only 42 Debussy rows exist, of which 31 fall in valid bands (rest land in
+  the 2.0-2.3 gap). Spec demands ≥30 Impressionist in main 200. After holdout
+  draws ~1 Debussy probabilistically, only ~30 remain, with zero slack across
+  the 4 score-bands. Combined with the band-target constraint above, the
+  two-pass `_select_with_quotas` will deterministically fail on real data.
+  Either drop Impressionist quota to 25 OR widen the band gap to fold rows
+  in (2.0,2.3) into low/threshold.
+
+[BLOCKER] (confidence: 10/10) — Skill-bucket min-quotas are in the spec
+  (`docs/specs/2026-05-08-rubric-human-calibration-phase1-design.md` §Sample
+  design: "beginner ≥50, intermediate ≥50, advanced ≥50") but **completely
+  absent from the plan**. No task adds skill_bucket constraint to
+  _select_with_quotas. This is silent spec drift. Add a task in Group B/C
+  parallel to T7 (era quotas) that enforces skill-bucket quotas, or
+  explicitly amend the spec to drop this requirement.
+
+[BLOCKER] (confidence: 9/10) — `analyze_drift.py` never implements
+  judge-vs-judge κ. Spec requires "judge-vs-judge κ ≥ 0.85" gate using
+  day1/day30 re-runs (drift_report.judge_drift_kappa). T5 stubs this as
+  `"judge_drift_kappa": {}` and no subsequent task implements it.
+  judge_rerun.py (T2) writes day1/day30 jsonl that nothing consumes. Without
+  this, the drift gate cannot pass and Open Question #2 in the spec
+  (re: judge-drift escalation) is structurally unanswerable. Add a task to
+  Group B/C that reads judge_runs_path and computes per-sub-score
+  judge-drift κ.
+```
+
+### Engineering Pass
+
+**Architecture.** Module decomposition matches the spec's table (7 deep modules), Hono-style boundaries, no MUC/Aria service coupling. Sub-score ID convention is consistent across all 16 tasks.
+
+**Module depth.**
+- `era_lookup.py` — interface 1 fn / impl ~10 LOC. Borderline shallow but justified by stable contract. **DEEP enough.**
+- `select_sample.py` — 1 fn / hides band classification, era quotas, holdout reservation, anchor injection. **DEEP.**
+- `rater_cli.py` — 4 fns (redact, capture, resume, SessionCapExceeded) / hides blinding allowlist, append-only IO, cap arithmetic. **DEEP.**
+- `analyze_calibration.py` — 1 public `calibrate` / hides weighted κ, threshold agreement, variance, bucket routing. **DEEP.**
+- `emit_recipe.py` — 1 fn / hides bucket→recipe field mapping. **DEEP.**
+
+**Code quality.**
+
+```
+[RISK] (confidence: 8/10) — T7's `_select_with_quotas` can overshoot band
+  targets through the era-quota fallback loop (lines after "If we did not
+  hit min_q because some bands were full"), and Pass 2's `if remaining <= 0:
+  continue` skips overshot bands. Final `len(main)` may exceed `target_n`,
+  which breaks the T3 invariant `sum(band_counts.values()) == 200`. T3's
+  test still runs after T7's edits. Verify this with the actual data
+  distribution; consider a deterministic post-pass that trims overshoot.
+
+[RISK] (confidence: 7/10) — T13 places anchors at `display_position =
+  len(main) + k` — i.e., all 20 anchors come after every main rating. Spec
+  says "silent duplicates within the main 200 (founder must not recognize)."
+  Tail-clustering breaks blinding: rater notices "every synthesis past index
+  200 is a duplicate." Interleave by selecting random positions ≥ N/2 (say,
+  index 100..200) and inserting into the schedule rather than appending.
+
+[RISK] (confidence: 7/10) — Session cap (15) interacts pathologically with
+  11 sub-scores per synthesis: only 1 synthesis per session fits. At 2
+  sessions/day → 2 syntheses/day → 100 days for main 200, vs spec's 4-6
+  weeks. Either raise the cap to 22 (allows 2 per session) or revise the
+  4-6 week estimate.
+
+[RISK] (confidence: 6/10) — emit_recipe.emit() does not check
+  `aggregate_gate_pass`. If <7/11 sub-scores reach TRUSTED status, the
+  recipe is still written and importable. Stage 2 could consume an
+  unvalidated recipe. Add a `raise CalibrationGateFailed` at the top of
+  emit() unless `calibration_report["aggregate_gate_pass"]` is True, or
+  emit a deliberately-empty recipe with a warning constant.
+
+[RISK] (confidence: 6/10) — analyze_drift's intra-rater κ pairing logic
+  (T5) keys `first_seen` by `(synth_id, sub_score)`. The duplicate carries
+  `anchor_origin_id=origin`, but the original carries
+  `anchor_origin_id=None`. If the rater happens to revisit a synth_id in
+  any other context (e.g., partial restart that was logged then re-rated),
+  the second occurrence is silently skipped. Acceptable for the protocol's
+  controlled scope but document the assumption.
+
+[OBS] — Spec calls for "bootstrap CI" on per-sub-score κ. Plan implements
+  point estimate only. Not a blocker — bootstrap CI can be a follow-up task
+  outside this plan's "first defensible artifact" scope. Note the gap
+  explicitly in the spec's accepted trade-offs.
+
+[OBS] — Spec calls for a "30-of-200 pilot flag" for end-of-week-1
+  analysis. Plan's manifest has no pilot_indices field. Add as a stretch
+  task or document deferral.
+```
+
+**Test philosophy.** Tests target public functions (`composer_to_era`,
+`select_sample`, `redact_for_rater`, etc.). The injectable `judge_callable`
+(T2) and `input_provider` (T8) parameters are EXPLICIT public DI points,
+not internal-collaborator mocks. Anchor-pair pairing test (T5) constructs
+real ratings.jsonl and reads via the function's documented file contract.
+**Behavior-based, no shape tests, no internal mocks. Clean.**
+
+**Vertical slice.** Every task has exactly one new test + one new
+implementation + one commit. T7-T16 each extend earlier modules with one
+new behavior. Group ordering is correct: same-file tasks chained, separate
+files parallelized.
+
+**Test coverage.**
+```
+[+] select_sample.py
+    ├── [TESTED]  band proportions (T3) ★★
+    ├── [TESTED]  determinism (T3) ★★
+    ├── [TESTED]  era min-quotas (T7) ★★
+    ├── [TESTED]  holdout disjoint (T10) ★★
+    ├── [TESTED]  anchor injection (T13) ★★
+    ├── [GAP]     **skill-bucket quota** — see BLOCKER
+    ├── [GAP]     era infeasibility error path on tight pool — only happy path tested
+    └── [GAP]     overshoot of `target_n` (RISK above)
+
+[+] analyze_drift.py
+    ├── [TESTED]  intra-rater κ (T5) ★★
+    └── [GAP]     **judge-vs-judge κ** — see BLOCKER
+
+[+] rater_cli.py
+    ├── [TESTED]  redaction allowlist (T4) ★★★ (sentinel test is excellent)
+    ├── [TESTED]  capture loop (T8) ★★
+    ├── [TESTED]  session cap (T11) ★★
+    └── [TESTED]  resume state (T14) ★★
+
+[+] analyze_calibration.py
+    ├── [TESTED]  per-sub-score κ extremes (T6) ★★★
+    ├── [TESTED]  threshold agreement (T9) ★★
+    └── [TESTED]  bucket routing 4 cases (T12) ★★★
+
+[+] emit_recipe.py
+    ├── [TESTED]  TRUSTED → weighted, CEILING → sanity, UNTRUSTED → drop (T15) ★★
+    ├── [TESTED]  bias correction (T16) ★★
+    └── [GAP]     refuses to emit if aggregate_gate_pass=False (RISK above)
+```
+
+**Failure modes.** Append-only ratings.jsonl + resume state (T14) handles
+crash recovery cleanly. Session cap raises BEFORE any partial write (T11).
+No silent failures on the rating path.
+
+```
+[QUESTION] — When _select_with_quotas raises ValueError on infeasible
+  pool, what does the operator do? Plan has no fallback / config-knob
+  pathway. Either pin the pool size constants (target_n, holdout_n) to
+  values that are feasible against real data, or expose them as CLI args
+  with a documented "tightening" procedure.
+
+[QUESTION] — The 11 Phase-1 sub-scores include `concrete_artifact_outcome`
+  and `praise_outcome` (constrained-rubric outcome dims). The spec says
+  these use `muq_means` and `skill_bucket` as ground truth. Where in the
+  rater_cli does the operator see this constraint? T8's `input_provider`
+  takes the redacted row and a sub-score string but no rubric guidance.
+  Is the rater expected to apply this rule from memory, or is there a
+  per-sub-score prompt template missing from the plan?
+```
+
+### Presumption Inventory
+
+| Assumption | Verdict | Reason |
+|---|---|---|
+| baseline_v1.jsonl has ≥40 rows in `low` band (≤2.0) | RISKY | Real data: exactly 40. Holdout reservation breaks this. |
+| baseline_v1.jsonl has ≥30 Debussy/Impressionist in valid bands | RISKY | Real data: ~31 in valid bands. Zero slack. |
+| Skill-bucket constraints are not required | RISKY | Spec requires them; plan silently drops. |
+| `judge_dimensions[i].score` is always 0..3 int | SAFE | Verified — all rows match. |
+| `judge_callable` injection is acceptable as public API | SAFE | Documented in module docstring. |
+| Anchor blinding holds when all anchors appear after main | RISKY | Tail clustering exposes pattern; spec says "within main 200." |
+| 4-6 week rating timeline at 15-rating session cap | RISKY | Math implies ~14 weeks at 2 sessions/day. |
+| Stage 2 SFT consumer signature matches `WEIGHTED_SUB_SCORES`/`BIAS_CORRECTIONS`/`SANITY_FILTERS`/`COMPOSITE_PASS_THRESHOLD` | VALIDATE | No Stage-2 consumer file exists yet to confirm contract. |
+| `aggregate_gate_pass=False` consumer behavior is "don't import" | VALIDATE | emit_recipe writes a fully-loaded recipe regardless. Clarify or guard. |
+| `analyze_drift.judge_drift_kappa={}` is acceptable | RISKY | Spec gate requires this — must be implemented. |
+
+### Summary
+
+- [BLOCKER] count: 4
+- [RISK]    count: 6
+- [QUESTION] count: 2
+- [OBS]     count: 2
+
+VERDICT: NEEDS_REWORK — resolve before /build:
+  1. Sample design feasibility against real `baseline_v1.jsonl` (low band, Impressionist quota, holdout interaction).
+  2. Add skill-bucket min-quotas task (or amend spec to drop them).
+  3. Add task implementing `judge_drift_kappa` in `analyze_drift.py`, consuming T2's day1/day30 jsonl.
+  4. Decide and document whether anchors interleave or tail-cluster, and whether `emit_recipe` refuses to ship when `aggregate_gate_pass=False`.
