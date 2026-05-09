@@ -78,3 +78,45 @@ def test_distill_forwards_tools_and_returns_example():
     assert result.example.metadata["briefing_id"] == "rec_001"
     assert len(sonnet.calls) == 1
     assert sonnet.calls[0]["tools"] == _STUB_TOOLS
+
+
+def test_distill_rejects_invalid_tool_input_with_structured_metadata():
+    briefing = Briefing(
+        briefing_id="rec_002",
+        framing_text="...",
+        composer="Bach",
+        skill_bucket="beginner",
+    )
+    sonnet = _StubSonnet(
+        content_blocks=[
+            type(
+                "TextBlock",
+                (),
+                {"type": "text", "text": "preamble"},
+            )(),  # block_index 0 -- fine
+            type(
+                "ToolUseBlock",
+                (),
+                {
+                    "type": "tool_use",
+                    "id": "toolu_xyz",
+                    "name": "score_highlight",
+                    "input": {
+                        # piece_id missing -- invalid
+                        "highlights": [{"bars": [1, 4], "dimension": "phrasing"}],
+                    },
+                },
+            )(),  # block_index 1 -- the offender
+        ]
+    )
+
+    result = distill(
+        briefing, "chat", sonnet, "UNIFIED_TEACHER_SYSTEM", tools=_STUB_TOOLS
+    )
+
+    assert result.example is None
+    assert result.rejection is not None
+    assert result.rejection.reason == "validation"
+    assert result.rejection.tool_name == "score_highlight"
+    assert result.rejection.block_index == 1
+    assert any("piece_id" in e for e in result.rejection.errors), result.rejection.errors

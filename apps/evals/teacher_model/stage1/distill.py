@@ -8,6 +8,7 @@ from teacher_model.stage1.schema import (
     Stage1Message,
     Stage1TextBlock,
     Stage1ToolUseBlock,
+    validate_tool_input,
 )
 
 Shape = Literal["synthesis", "chat"]
@@ -53,13 +54,27 @@ def distill(
     )
 
     content_blocks: list = []
-    for block in response.content:
+    tool_uses_with_index: list[tuple[int, Stage1ToolUseBlock]] = []
+    for idx, block in enumerate(response.content):
         block_type = getattr(block, "type", None)
         if block_type == "text":
             content_blocks.append(Stage1TextBlock(text=block.text))
         elif block_type == "tool_use":
-            content_blocks.append(
-                Stage1ToolUseBlock(id=block.id, name=block.name, input=block.input)
+            tu = Stage1ToolUseBlock(id=block.id, name=block.name, input=block.input)
+            content_blocks.append(tu)
+            tool_uses_with_index.append((idx, tu))
+
+    for block_index, tu in tool_uses_with_index:
+        errors = validate_tool_input(tu.name, tu.input)
+        if errors:
+            return DistillResult(
+                example=None,
+                rejection=Rejection(
+                    reason="validation",
+                    tool_name=tu.name,
+                    errors=errors,
+                    block_index=block_index,
+                ),
             )
 
     example = Stage1Example(
