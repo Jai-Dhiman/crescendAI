@@ -11,6 +11,10 @@ from pathlib import Path
 from typing import Any
 
 COMPOSITE_PASS_THRESHOLD: float = 2.5
+KAPPA_TRUSTED_THRESHOLD: float = 0.6
+SCORE_VARIANCE_CEILING_THRESHOLD: float = 0.2
+OFFSET_TRUSTED_THRESHOLD: float = 0.3
+AGGREGATE_GATE_MIN_TRUSTED: int = 7
 
 _CRITERION_TO_SLUG: dict[str, str] = {
     "Audible-Specific Corrective Feedback": "ascf",
@@ -21,6 +25,13 @@ _CRITERION_TO_SLUG: dict[str, str] = {
     "Style-Consistent Musical Language": "style",
     "Appropriate Tone & Language": "tone",
 }
+
+_PHASE_1_SUB_SCORES: list[str] = [
+    "ascf_process", "concrete_artifact_process", "praise_process",
+    "autonomy_process", "scaffolded_process", "style_process",
+    "tone_process", "autonomy_outcome", "tone_outcome",
+    "concrete_artifact_outcome", "praise_outcome",
+]
 
 
 def _cohens_weighted_kappa(rater_a: list[int], rater_b: list[int], k: int = 4) -> float:
@@ -89,6 +100,23 @@ def _judge_composite(judge_dimensions: list[dict]) -> float | None:
     return sum(scores) / len(scores)
 
 
+def _variance(values: list[int]) -> float:
+    if len(values) < 2:
+        return 0.0
+    mean = sum(values) / len(values)
+    return sum((v - mean) ** 2 for v in values) / len(values)
+
+
+def _route_bucket(kappa: float, mean_offset: float, rater_var: float, judge_var: float) -> str:
+    if rater_var < SCORE_VARIANCE_CEILING_THRESHOLD or judge_var < SCORE_VARIANCE_CEILING_THRESHOLD:
+        return "CEILING_ARTIFACT"
+    if kappa < KAPPA_TRUSTED_THRESHOLD:
+        return "UNTRUSTED"
+    if abs(mean_offset) >= OFFSET_TRUSTED_THRESHOLD:
+        return "TRUSTED_WITH_OFFSET"
+    return "TRUSTED"
+
+
 def calibrate(ratings_path: Path, baseline_path: Path) -> dict[str, Any]:
     baseline = _build_baseline_index(baseline_path)
     pairs_by_sub: dict[str, list[tuple[int, int]]] = defaultdict(list)
@@ -137,9 +165,47 @@ def calibrate(ratings_path: Path, baseline_path: Path) -> dict[str, Any]:
         agreement = 0.0
         kappa_thresh = float("nan")
 
+    buckets: dict[str, str] = {}
+    mean_offset: dict[str, float] = {}
+    rater_variance: dict[str, float] = {}
+    judge_variance: dict[str, float] = {}
+
+    for sub in _PHASE_1_SUB_SCORES:
+        pairs = pairs_by_sub.get(sub, [])
+        if not pairs:
+            buckets[sub] = "UNTRUSTED"
+            mean_offset[sub] = 0.0
+            rater_variance[sub] = 0.0
+            judge_variance[sub] = 0.0
+            continue
+        rater_vals = [a for a, _ in pairs]
+        judge_vals = [b for _, b in pairs]
+        rv = _variance(rater_vals)
+        jv = _variance(judge_vals)
+        offset = sum(a - b for a, b in pairs) / len(pairs)
+        kappa = per_sub_score_kappa.get(sub, float("nan"))
+        if kappa != kappa:  # NaN
+            kappa = -1.0
+        buckets[sub] = _route_bucket(kappa, offset, rv, jv)
+        mean_offset[sub] = offset
+        rater_variance[sub] = rv
+        judge_variance[sub] = jv
+
+    n_trusted = sum(
+        1 for s in _PHASE_1_SUB_SCORES
+        if buckets[s] in ("TRUSTED", "TRUSTED_WITH_OFFSET")
+    )
+    aggregate_gate_pass = n_trusted >= AGGREGATE_GATE_MIN_TRUSTED
+
     return {
         "per_sub_score_kappa": per_sub_score_kappa,
         "threshold_decision_agreement": agreement,
         "threshold_decision_kappa": kappa_thresh,
         "n_threshold_pairs": len(threshold_pairs),
+        "buckets": buckets,
+        "mean_offset": mean_offset,
+        "rater_variance": rater_variance,
+        "judge_variance": judge_variance,
+        "n_phase_1_trusted": n_trusted,
+        "aggregate_gate_pass": aggregate_gate_pass,
     }
