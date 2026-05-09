@@ -100,7 +100,7 @@ def _baseline_lookup(baseline: dict, dim: str) -> float:
 
 def _check_error_rate(rows: list[dict], pipeline: str) -> None:
     if not rows:
-        return
+        raise DossierEmissionRefused(f"{pipeline}: error rate — no rows found")
     errors = sum(1 for r in rows if r.get("error"))
     rate = errors / len(rows)
     if rate > _ERROR_RATE_GATE:
