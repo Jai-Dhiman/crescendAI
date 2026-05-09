@@ -116,7 +116,7 @@ def _build_openrouter_payload(
     # Enforce a minimum so thinking can complete and content is still generated.
     # extract_answer() in domain_knowledge_probe handles verbose responses.
     if "qwen3" in model.lower():
-        max_tokens = max(max_tokens, 1024)
+        max_tokens = max(max_tokens, 32768)
     return {
         "model": model,
         "max_tokens": max_tokens,
