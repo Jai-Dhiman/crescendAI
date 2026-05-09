@@ -8,7 +8,10 @@ add: T8 rating capture loop, T11 session cap, T14 resume-from-crash.
 """
 from __future__ import annotations
 
-from typing import Any
+import json
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Callable
 
 # Fields from the source row that the rater is allowed to see. Anything not
 # in this allow-list is stripped. Allow-list (not deny-list) is the safer
@@ -29,11 +32,6 @@ _RATER_VISIBLE_FIELDS: frozenset[str] = frozenset({
 def redact_for_rater(row: dict[str, Any]) -> dict[str, Any]:
     return {k: v for k, v in row.items() if k in _RATER_VISIBLE_FIELDS}
 
-
-import json
-from datetime import datetime, timezone
-from pathlib import Path
-from typing import Callable
 
 PHASE_1_SUB_SCORES: list[str] = [
     "ascf_process",
@@ -60,7 +58,7 @@ def capture_synthesis_ratings(
 ) -> int:
     n_written = 0
     with output_path.open("a") as out:
-        for sub_score in sub_scores:
+        for i, sub_score in enumerate(sub_scores):
             value, evidence, reason = input_provider(redacted_row, sub_score)
             event = {
                 "event_type": "rating",
@@ -71,7 +69,7 @@ def capture_synthesis_ratings(
                 "evidence": evidence,
                 "reason": reason,
                 "session_id": session_id,
-                "session_idx": session_idx_start,
+                "session_idx": session_idx_start + i,
                 "ts": datetime.now(timezone.utc).isoformat(),
             }
             out.write(json.dumps(event) + "\n")
