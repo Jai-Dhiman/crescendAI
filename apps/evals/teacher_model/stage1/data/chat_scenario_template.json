@@ -1,0 +1,20 @@
+{
+  "intents": [
+    {"id": "show_bars", "user": "Can you show me bars {bar_start}-{bar_end} of {piece}?"},
+    {"id": "find_piece", "user": "What's that {era} piece by {composer}?"},
+    {"id": "fingering", "user": "How should I finger the run in {piece}?"},
+    {"id": "exercise_request", "user": "Can you give me an exercise for {target_skill}?"},
+    {"id": "history_query", "user": "How have I been doing on {dimension} this month?"},
+    {"id": "chitchat", "user": "Thanks, that helped a lot."},
+    {"id": "vent", "user": "I'm just frustrated today, nothing's working."}
+  ],
+  "fillers": {
+    "bar_start": [1, 5, 9, 12, 17, 25],
+    "bar_end": [4, 8, 16, 20, 28, 32],
+    "piece": ["Chopin Ballade 1", "Bach Prelude in C", "Mozart K.331", "Debussy Arabesque"],
+    "era": ["Romantic", "Baroque", "Classical", "Impressionist"],
+    "composer": ["Chopin", "Bach", "Mozart", "Debussy"],
+    "target_skill": ["voice balance", "even sixteenths", "pedal clarity"],
+    "dimension": ["dynamics", "timing", "pedaling", "phrasing"]
+  }
+}
