@@ -154,12 +154,29 @@ def select_sample(
     rng = random.Random(seed)
     rows = _load_valid_rows(source_path)
 
-    by_band: dict[str, list[dict[str, Any]]] = {b: [] for b in _BAND_TARGETS}
+    valid_with_band: list[tuple[dict[str, Any], str]] = []
     for r in rows:
         band = _classify_band(r)
-        if band is None:
-            continue
-        by_band[band].append(r)
+        if band is not None:
+            valid_with_band.append((r, band))
+
+    if len(valid_with_band) < holdout_n + target_n:
+        raise ValueError(
+            f"Source has only {len(valid_with_band)} band-classified rows "
+            f"but needs {holdout_n + target_n}."
+        )
+
+    # Use a separate RNG for holdout so the main selection RNG state is unaffected.
+    holdout_rng = random.Random(seed ^ 0xDEAD)
+    holdout_pool = list(valid_with_band)
+    holdout_rng.shuffle(holdout_pool)
+    holdout_synth_ids = {_row_synth_id(r) for r, _ in holdout_pool[:holdout_n]}
+    holdout_rows = [r for r, _ in holdout_pool[:holdout_n]]
+
+    by_band: dict[str, list[dict[str, Any]]] = {b: [] for b in _BAND_TARGETS}
+    for r, band in valid_with_band:
+        if _row_synth_id(r) not in holdout_synth_ids:
+            by_band[band].append(r)
 
     if sum(_BAND_TARGETS.values()) != target_n:
         raise ValueError(
@@ -189,11 +206,19 @@ def select_sample(
             for r in main
         ],
         "anchors": [],
-        "holdout": [],
+        "holdout": [
+            {
+                "synth_id": _row_synth_id(r),
+                "band": _classify_band(r),
+                "era": composer_to_era(r["composer"]),
+                "skill_bucket": r["skill_bucket"],
+            }
+            for r in holdout_rows
+        ],
         "stats": {
             "n_main": len(main),
             "n_anchors_silent_dups": 0,
-            "n_holdout": 0,
+            "n_holdout": len(holdout_rows),
             "band_counts": dict(band_counts),
             "era_counts": dict(era_counts),
         },

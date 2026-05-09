@@ -112,3 +112,19 @@ def test_era_min_quotas_satisfied(tmp_path: Path):
         assert era_counts.get(era, 0) >= 30, (era, era_counts)
     # Every main entry has an era field set
     assert all(e["era"] is not None for e in manifest["main"])
+
+
+def test_holdout_is_disjoint_from_main(tmp_path: Path):
+    source = tmp_path / "baseline.jsonl"
+    _write_synthetic_baseline(source)
+
+    manifest = select_sample(
+        source_path=source, target_n=200, holdout_n=30, anchor_n=20, seed=42,
+    )
+
+    main_ids = {e["synth_id"] for e in manifest["main"]}
+    holdout_ids = {e["synth_id"] for e in manifest["holdout"]}
+
+    assert len(holdout_ids) == 30
+    assert main_ids.isdisjoint(holdout_ids)
+    assert manifest["stats"]["n_holdout"] == 30
