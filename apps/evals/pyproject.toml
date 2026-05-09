@@ -45,8 +45,12 @@ memory = [
     "sentence-transformers>=2.0.0",
     "pytest>=7.0.0",
 ]
+teacher-model-stage0 = [
+    "transformers>=4.30.0",
+    "jsonschema>=4.20.0",
+]
 all = [
-    "crescendai-evals[model,memory,inference]",
+    "crescendai-evals[model,memory,inference,teacher-model-stage0]",
 ]
 
 [build-system]
