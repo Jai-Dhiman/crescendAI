@@ -9,6 +9,7 @@ from teacher_model.calibration.rater_cli import (
     PHASE_1_SUB_SCORES,
     SessionCapExceeded,
     capture_synthesis_ratings,
+    compute_resume_state,
     redact_for_rater,
 )
 
@@ -191,3 +192,64 @@ def test_session_cap_exact_boundary(tmp_path: Path):
             output_path=tmp_path / "over_cap.jsonl",
             input_provider=provider,
         )
+
+
+def _ratings_for(synth_id: str, sub_scores: list[str]) -> list[dict]:
+    return [
+        {
+            "event_type": "rating",
+            "synth_id": synth_id,
+            "anchor_origin_id": None,
+            "sub_score": sub,
+            "value": 2,
+            "evidence": "", "reason": "",
+            "session_id": "S001", "session_idx": i + 1,
+            "ts": "x",
+        }
+        for i, sub in enumerate(sub_scores)
+    ]
+
+
+def test_resume_state_picks_next_unstarted_synthesis(tmp_path: Path):
+    manifest = {
+        "main": [
+            {"synth_id": "S0", "band": "high", "era": "Romantic",
+             "skill_bucket": 3, "is_anchor_seed": False, "anchor_position": None},
+            {"synth_id": "S1", "band": "high", "era": "Romantic",
+             "skill_bucket": 3, "is_anchor_seed": False, "anchor_position": None},
+            {"synth_id": "S2", "band": "high", "era": "Romantic",
+             "skill_bucket": 3, "is_anchor_seed": False, "anchor_position": None},
+        ],
+        "anchors": [],
+    }
+
+    ratings_path = tmp_path / "ratings.jsonl"
+    # S0 fully rated; S1 partial (only 5 sub-scores); S2 untouched.
+    full = _ratings_for("S0", PHASE_1_SUB_SCORES)
+    partial = _ratings_for("S1", PHASE_1_SUB_SCORES[:5])
+    with ratings_path.open("w") as f:
+        for r in full + partial:
+            f.write(json.dumps(r) + "\n")
+
+    state = compute_resume_state(manifest=manifest, ratings_path=ratings_path)
+    # Resume index is the first synthesis that is NOT fully rated; S1 is
+    # partial, so we resume there (the partial events get flagged).
+    assert state["next_main_index"] == 1
+    assert state["partially_rated"] == ["S1"]
+    assert state["fully_rated"] == ["S0"]
+
+
+def test_resume_state_returns_zero_when_no_ratings(tmp_path: Path):
+    manifest = {
+        "main": [{"synth_id": "S0", "band": "high", "era": "Romantic",
+                  "skill_bucket": 3, "is_anchor_seed": False,
+                  "anchor_position": None}],
+        "anchors": [],
+    }
+    ratings_path = tmp_path / "ratings.jsonl"
+    ratings_path.write_text("")
+
+    state = compute_resume_state(manifest=manifest, ratings_path=ratings_path)
+    assert state["next_main_index"] == 0
+    assert state["fully_rated"] == []
+    assert state["partially_rated"] == []

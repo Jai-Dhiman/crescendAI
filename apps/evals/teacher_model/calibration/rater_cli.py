@@ -9,6 +9,7 @@ add: T8 rating capture loop, T11 session cap, T14 resume-from-crash.
 from __future__ import annotations
 
 import json
+from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
@@ -91,3 +92,39 @@ def capture_synthesis_ratings(
             out.write(json.dumps(event) + "\n")
             n_written += 1
     return n_written
+
+
+def compute_resume_state(manifest: dict, ratings_path: Path) -> dict:
+    sub_count_per_synth: dict[str, int] = defaultdict(int)
+    if ratings_path.exists():
+        with ratings_path.open() as f:
+            for line in f:
+                if not line.strip():
+                    continue
+                rec = json.loads(line)
+                if rec.get("event_type") != "rating":
+                    continue
+                sub_count_per_synth[rec["synth_id"]] += 1
+
+    fully_rated: list[str] = []
+    partially_rated: list[str] = []
+    next_main_index: int | None = None
+
+    for i, entry in enumerate(manifest["main"]):
+        n = sub_count_per_synth.get(entry["synth_id"], 0)
+        if n >= len(PHASE_1_SUB_SCORES):
+            fully_rated.append(entry["synth_id"])
+            continue
+        if n > 0:
+            partially_rated.append(entry["synth_id"])
+        if next_main_index is None:
+            next_main_index = i
+
+    if next_main_index is None:
+        next_main_index = len(manifest["main"])
+
+    return {
+        "next_main_index": next_main_index,
+        "fully_rated": fully_rated,
+        "partially_rated": partially_rated,
+    }
