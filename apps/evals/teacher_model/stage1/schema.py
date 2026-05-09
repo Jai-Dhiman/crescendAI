@@ -1,6 +1,6 @@
 from typing import Annotated, Any, Callable, Literal, Union
 
-from pydantic import BaseModel, Field, ValidationError, conlist, constr
+from pydantic import BaseModel, Field, StringConstraints, ValidationError
 
 
 class Stage1TextBlock(BaseModel):
@@ -40,8 +40,8 @@ class Stage1Example(BaseModel):
 
 
 class _CreateExerciseExercise(BaseModel):
-    title: constr(min_length=1, max_length=200)
-    instruction: constr(min_length=1, max_length=4000)
+    title: Annotated[str, StringConstraints(min_length=1, max_length=200)]
+    instruction: Annotated[str, StringConstraints(min_length=1, max_length=4000)]
     focus_dimension: Literal[
         "dynamics",
         "timing",
@@ -54,9 +54,9 @@ class _CreateExerciseExercise(BaseModel):
 
 
 class _CreateExerciseInput(BaseModel):
-    source_passage: constr(min_length=1, max_length=500)
-    target_skill: constr(min_length=1, max_length=500)
-    exercises: conlist(_CreateExerciseExercise, min_length=1, max_length=3)
+    source_passage: Annotated[str, StringConstraints(min_length=1, max_length=500)]
+    target_skill: Annotated[str, StringConstraints(min_length=1, max_length=500)]
+    exercises: Annotated[list[_CreateExerciseExercise], Field(min_length=1, max_length=3)]
 
 
 def _format_pydantic_errors(exc: ValidationError) -> list[str]:

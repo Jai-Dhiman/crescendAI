@@ -1,8 +1,11 @@
+import pytest
+
 from teacher_model.stage1.schema import (
     Stage1Example,
     Stage1AssistantTurn,
     Stage1ToolUseBlock,
     Stage1TextBlock,
+    validate_tool_input,
 )
 
 
@@ -39,11 +42,6 @@ def test_stage1_example_roundtrips_json():
     serialized = original.model_dump_json()
     parsed = Stage1Example.model_validate_json(serialized)
     assert parsed == original
-
-
-import pytest
-
-from teacher_model.stage1.schema import validate_tool_input
 
 
 def test_validate_tool_input_unknown_tool_name():
