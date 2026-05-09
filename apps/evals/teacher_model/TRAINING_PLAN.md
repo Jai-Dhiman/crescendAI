@@ -87,17 +87,30 @@ One LoRA adapter, carried through Stages 1-4. Stage 5 is contingent.
 
 **Goal:** establish baseline of base 35B-A3B against the seven teacher capabilities.
 
-**Method:**
-- Run `apps/evals/teacher_model/domain_knowledge_probe.py` (50-Q MCQ) against base.
-- Run free-form synthesis eval (8-dim rubric, judge v2) on a held-out set.
-- Test tool-calling capability with system-prompt + few-shot only (no SFT yet).
-- Score each capability: at-ceiling / mid-tier / absent.
+**Status:** harness implemented (`apps/evals/teacher_model/stage0/`). Run via:
+```
+cd apps/evals
+uv run python -m teacher_model.stage0 pin-tokenizer --model Qwen/Qwen3.6-35B-A3B-Instruct
+uv run python -m teacher_model.stage0 sample --n 100
+uv run python -m teacher_model.stage0 synthesis --model <openrouter-id>
+uv run python -m teacher_model.stage0 tool --model <openrouter-id>
+uv run python -m teacher_model.stage0 continuation --model <openrouter-id>
+uv run python -m teacher_model.stage0 mcq --model <openrouter-id>
+uv run python -m teacher_model.stage0 aggregate
+```
+
+**Pipelines:**
+- **A (synthesis):** n=100 stratified holdout, judge v2-extended (9 dims = 7 base + Taste + Adaptation).
+- **B (tool-probe):** 40 hand-curated cases (20 positive / 20 negative across 6 negative categories).
+- **B+ (continuation):** replays successful tool calls with synthetic `tool_result`, classifies degeneracy.
+- **C (MCQ):** existing 50-Q domain knowledge probe (`domain_knowledge_probe.py`) with openrouter support.
+- **Aggregator:** Sonnet-anchored + absolute tier classification; 5% error-rate gate; emits `capability_dossier.json` + `.md`.
 
 **Output:** capability dossier that sets dosage for Stages 2-3 and decides whether Stage 5 is needed.
 
 ### Stage 1 -- Tool-format SFT (universally needed)
 
-**Goal:** native emission of the 5-tool palette in Anthropic-compatible `tool_use` format with correct when-to-call discipline.
+**Goal:** native emission of the 6-tool palette in Anthropic-compatible `tool_use` format with correct when-to-call discipline.
 
 **Data:** ~2K examples. ~30% **negative examples** (briefings where calling a tool would be wrong -- chitchat, ambiguous moments, low-confidence observations).
 
@@ -162,7 +175,7 @@ The `<reasoning>` block trains the integration logic. At inference it can be str
 - ~5-15K synthetic pairs (rubric-judged Sonnet-vs-Sonnet or Sonnet-vs-GPT-5 on same briefing).
 - Hybrid approach: human for top-tier, synthetic for bulk.
 
-**Hard prerequisite:** rubric human calibration r >= 0.7 must complete BEFORE this stage. Without it, DPO is preference noise. This is the most under-attended item on the critical path.
+**Hard prerequisite:** rubric human calibration Phase 1 (weighted κ ≥ 0.6 on 11/14 sub-scores, founder-rateable dims) must complete BEFORE this stage. Phase 2 (expert pianist rating on 3 remaining outcome dims: ASCF, Scaffolded, Style-Consistent) must also complete before DPO pairs on those dims are included -- without Phase 2, proceed with synthetic-only pairs on expert dims only. Without calibration, DPO is preference noise. This is the most under-attended item on the critical path.
 
 **Method:** DPO on the same LoRA adapter.
 
@@ -216,7 +229,7 @@ If needed: **instruction-formatted CPT** (Q-A pairs about pedagogy), not raw tex
 ## 8. Strategic gates
 
 1. **Stage 0 baseline complete** -- gates dosage of Stages 2-3 and whether Stage 5 is needed.
-2. **Rubric human calibration r >= 0.7** -- gates Stage 2 (quality filter) and Stage 4 (preference signal). On critical path twice.
+2. **Rubric human calibration Phase 1 (weighted κ ≥ 0.6, 11/14 sub-scores)** -- gates Stage 2 quality filter and Stage 4 partial preference signal (founder-rateable dims). Phase 2 (expert pianist, 3 outcome dims: ASCF, Scaffolded, Style-Consistent) gates Stage 4 fully. On critical path twice.
 3. **Tone-color ear features shipped (or scoped out)** -- gates whether vocabulary training in Stage 2/3 includes tone color.
 4. **Blind A/B voice test vs. Sonnet** -- gates production deployment.
 5. **200+ beta users with retention** -- gates serious compute commitment beyond LoRA stages.
@@ -263,7 +276,13 @@ LoRA on 35B-A3B fits on 1-2 nodes. Per-stage rough estimate:
 
 ## 12. References
 
-- `apps/evals/teacher_model/domain_knowledge_probe.py` -- Stage 0 anchor (existing).
+- `apps/evals/teacher_model/stage0/` -- Stage 0 capability probe harness (shipped).
+  - `cli.py` -- entry point (`python -m teacher_model.stage0 <subcommand>`)
+  - `aggregator.py` -- builds `capability_dossier.json` + `.md`
+  - `run_synthesis.py` / `run_tool_probe.py` / `run_continuation.py` -- pipeline runners
+  - `stage0/data/tool_probe_cases.jsonl` -- 40 hand-curated tool-probe cases
+  - `stage0/prompts/judge_v2_extended.txt` -- 9-dim judge prompt
+- `apps/evals/teacher_model/domain_knowledge_probe.py` -- Stage 0 MCQ anchor (openrouter supported).
 - `apps/evals/teacher_model/data/corpus/` -- 100M-token cleaned corpus (Stage 2/3 source material).
 - `apps/api/src/services/tool-processor.ts` -- 5-tool palette (Stage 1 target format).
 - `apps/api/src/services/teacher.ts` -- unified teacher service (deployment target).
