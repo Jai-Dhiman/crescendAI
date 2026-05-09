@@ -97,3 +97,18 @@ def test_select_sample_is_deterministic_for_fixed_seed(tmp_path: Path):
     ids1 = [e["synth_id"] for e in m1["main"]]
     ids2 = [e["synth_id"] for e in m2["main"]]
     assert ids1 == ids2
+
+
+def test_era_min_quotas_satisfied(tmp_path: Path):
+    source = tmp_path / "baseline.jsonl"
+    _write_synthetic_baseline(source)
+
+    manifest = select_sample(
+        source_path=source, target_n=200, holdout_n=30, anchor_n=20, seed=42,
+    )
+
+    era_counts = manifest["stats"]["era_counts"]
+    for era in ("Baroque", "Classical", "Romantic", "Impressionist"):
+        assert era_counts.get(era, 0) >= 30, (era, era_counts)
+    # Every main entry has an era field set
+    assert all(e["era"] is not None for e in manifest["main"])
