@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import re
 
 from teacher_model.calibration.rater_cli import redact_for_rater
 
