@@ -175,3 +175,4 @@ apps/api/evals/reports/
 # codedb MCP index snapshot
 codedb.snapshot
 paper/
+.serena/

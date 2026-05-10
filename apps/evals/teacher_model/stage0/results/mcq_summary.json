@@ -1,7 +1,7 @@
 {
   "total": 100,
-  "correct": 98,
-  "accuracy": 0.98,
+  "correct": 99,
+  "accuracy": 0.99,
   "gate_pass": true,
   "gate_threshold": 0.6,
   "by_topic": {
@@ -22,8 +22,8 @@
     },
     "repertoire": {
       "total": 29,
-      "correct": 28,
-      "accuracy": 0.9655172413793104
+      "correct": 29,
+      "accuracy": 1.0
     },
     "technique": {
       "total": 18,
@@ -36,13 +36,7 @@
       "id": "dk_003",
       "topic": "technique",
       "expected": "B",
-      "got": "A"
-    },
-    {
-      "id": "dk_085",
-      "topic": "repertoire",
-      "expected": "B",
-      "got": "A"
+      "got": "D"
     }
   ]
 }

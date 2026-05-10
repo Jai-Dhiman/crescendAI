@@ -237,6 +237,7 @@ def _write_ratings(
     baseline: dict,
     item: dict,
     collected: list[tuple[int, str, str]],
+    ratings_path: Path,
 ) -> None:
     origin_id = item.get("anchor_origin_id", item["synth_id"])
     row = baseline[origin_id]
@@ -251,7 +252,7 @@ def _write_ratings(
         sub_scores=PHASE_1_SUB_SCORES,
         session_id=str(uuid.uuid4()),
         session_idx_start=1,
-        output_path=_RATINGS_PATH,
+        output_path=ratings_path,
         input_provider=lambda _, __: next(it),
     )
 
@@ -262,6 +263,7 @@ async def _run_ratings(
     rated_counts: dict[str, int],
     system_prompt: str,
     rating_tool: dict,
+    ratings_path: Path,
 ) -> None:
     client = anthropic.AsyncAnthropic()
     semaphore = asyncio.Semaphore(_CONCURRENCY)
@@ -296,14 +298,14 @@ async def _run_ratings(
     order = {item["synth_id"]: i for i, item in enumerate(sequence)}
     results.sort(key=lambda r: order[r[0]["synth_id"]])
     for item, ratings in results:
-        _write_ratings(baseline, item, ratings)
-    print(f"Wrote {len(results)} syntheses ({len(results) * len(PHASE_1_SUB_SCORES)} events) to {_RATINGS_PATH}")
+        _write_ratings(baseline, item, ratings, ratings_path)
+    print(f"Wrote {len(results)} syntheses ({len(results) * len(PHASE_1_SUB_SCORES)} events) to {ratings_path}")
 
 
-def _run_analysis() -> None:
+def _run_analysis(ratings_path: Path, baseline_path: Path) -> None:
     print("\nRunning calibration analysis...")
-    cal_report = calibrate(ratings_path=_RATINGS_PATH, baseline_path=_BASELINE_PATH)
-    drift_report = analyze_drift(ratings_path=_RATINGS_PATH, judge_runs_path=None)
+    cal_report = calibrate(ratings_path=ratings_path, baseline_path=baseline_path)
+    drift_report = analyze_drift(ratings_path=ratings_path, judge_runs_path=None)
     emit(calibration_report=cal_report, drift_report=drift_report, output_path=_RECIPE_PATH)
 
     print(f"\n--- Calibration Report ---")
@@ -320,7 +322,25 @@ def _run_analysis() -> None:
 
 
 def main() -> None:
-    for path, name in [(_MANIFEST_PATH, "manifest.json"), (_BASELINE_PATH, "baseline_v1.jsonl"),
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--baseline",
+        type=Path,
+        default=_BASELINE_PATH,
+        help=f"Path to baseline JSONL (default: {_BASELINE_PATH})",
+    )
+    parser.add_argument(
+        "--ratings",
+        type=Path,
+        default=_RATINGS_PATH,
+        help=f"Path to ratings output JSONL (default: {_RATINGS_PATH})",
+    )
+    args = parser.parse_args()
+    baseline_path = args.baseline
+    ratings_path = args.ratings
+
+    for path, name in [(_MANIFEST_PATH, "manifest.json"), (baseline_path, baseline_path.name),
                        (_RUBRIC_PATH, "rubric_definition.json")]:
         if not path.exists():
             print(f"ERROR: {name} not found at {path}.", file=sys.stderr)
@@ -332,9 +352,9 @@ def main() -> None:
 
     manifest = json.loads(_MANIFEST_PATH.read_text())
     rubric = json.loads(_RUBRIC_PATH.read_text())
-    baseline = _load_baseline(_BASELINE_PATH)
+    baseline = _load_baseline(baseline_path)
     sequence = _build_sequence(manifest)
-    rated_counts = _count_rated(_RATINGS_PATH)
+    rated_counts = _count_rated(ratings_path)
 
     n_done = sum(
         1 for item in sequence
@@ -346,11 +366,11 @@ def main() -> None:
     if n_done < total:
         system_prompt = _build_system_prompt(rubric)
         rating_tool = _build_rating_tool()
-        asyncio.run(_run_ratings(baseline, sequence, rated_counts, system_prompt, rating_tool))
+        asyncio.run(_run_ratings(baseline, sequence, rated_counts, system_prompt, rating_tool, ratings_path))
     else:
         print("All items already rated.")
 
-    _run_analysis()
+    _run_analysis(ratings_path=ratings_path, baseline_path=baseline_path)
 
 
 if __name__ == "__main__":
