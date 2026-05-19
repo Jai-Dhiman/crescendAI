@@ -93,4 +93,24 @@ describe("buildPassageManifest", () => {
 
     expect("error" in result && result.error).toBe("no_alignment");
   });
+
+  it("returns out_of_range when alignment exists but does not cover requested bars", () => {
+    const enrichedChunks: EnrichedChunk[] = [
+      chunk(0, [1, 3], [
+        { bar: 1, expected_onset_ms: 0 },
+        { bar: 2, expected_onset_ms: 5000 },
+        { bar: 3, expected_onset_ms: 10000 },
+      ]),
+    ];
+
+    const result = buildPassageManifest({
+      enrichedChunks,
+      bars: [5, 8],
+      pieceId: "chopin.ballades.1",
+      sessionId: "00000000-0000-0000-0000-0000000000aa",
+      baseUrl,
+    });
+
+    expect("error" in result && result.error).toBe("out_of_range");
+  });
 });
