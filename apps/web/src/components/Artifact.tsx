@@ -38,6 +38,14 @@ export function getCollapsedProps(component: InlineComponent): {
 		};
 	}
 
+	if (component.type === "play_passage") {
+		return {
+			title: "Play Passage",
+			subtitle: `bars ${component.config.bars[0]}-${component.config.bars[1]}, ${component.config.dimension}`,
+			badge: "",
+		};
+	}
+
 	return {
 		title: component.type.replace(/_/g, " "),
 		subtitle: "",
