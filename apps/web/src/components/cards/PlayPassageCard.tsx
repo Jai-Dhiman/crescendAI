@@ -21,6 +21,7 @@ export function PlayPassageCard({ config, onExpand, artifactId: _artifactId }: P
   const [clip, setClip] = useState<ClipResult | null>(null);
   const [manifest, setManifest] = useState<PassageManifest | null>(null);
   const playerRef = useRef<PassagePlayer | null>(null);
+  const ctxRef = useRef<AudioContext | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -31,10 +32,13 @@ export function PlayPassageCard({ config, onExpand, artifactId: _artifactId }: P
         const c = await scoreRenderer.getClip(m.pieceId, config.bars[0], config.bars[1]);
         if (cancelled) return;
         const ctx = new AudioContext();
+        ctxRef.current = ctx;
         const player = new PassagePlayer(m, ctx);
         await player.load();
         if (cancelled) {
           player.destroy();
+          ctx.close();
+          ctxRef.current = null;
           return;
         }
         playerRef.current = player;
@@ -49,6 +53,8 @@ export function PlayPassageCard({ config, onExpand, artifactId: _artifactId }: P
     return () => {
       cancelled = true;
       playerRef.current?.destroy();
+      ctxRef.current?.close();
+      ctxRef.current = null;
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [config.sessionId, config.bars[0], config.bars[1]]);

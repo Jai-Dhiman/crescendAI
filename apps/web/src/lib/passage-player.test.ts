@@ -65,7 +65,7 @@ describe("PassagePlayer", () => {
     expect(player.state).toBe("idle");
     await player.load();
     expect(player.state).toBe("ready");
-    expect(player.duration).toBe(13);
+    expect(player.duration).toBe(12); // endOffsetSec(13) - startOffsetSec(1) = 12s of audio
   });
 
   it("play() schedules source with startOffsetSec and emits monotonic ticks", async () => {

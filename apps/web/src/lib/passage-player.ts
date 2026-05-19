@@ -38,8 +38,14 @@ export class PassagePlayer {
       this.buffers = await Promise.all(
         arrayBuffers.map((ab) => this.ctx.decodeAudioData(ab)),
       );
-      const last = this.manifest.barTimeline[this.manifest.barTimeline.length - 1];
-      this.duration = last !== undefined ? last.tSec + 1.0 : 0;
+      this.duration = this.buffers.reduce((acc, buf, i) => {
+        const offset = i === 0 ? this.manifest.startOffsetSec : 0;
+        const remaining =
+          i === this.buffers.length - 1
+            ? this.manifest.endOffsetSec - offset
+            : buf.duration - offset;
+        return acc + remaining;
+      }, 0);
       this.state = "ready";
     } catch (err) {
       this.state = "error";

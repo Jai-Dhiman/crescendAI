@@ -76,9 +76,8 @@ export function buildPassageManifest(
   );
   const endOffsetSec =
     barMAlignments.length > 0
-      ? (lastCoveringChunk.chunkIndex - firstChunkIndex) * CHUNK_DURATION_SEC +
-        Math.max(...barMAlignments.map((a) => a.expected_onset_ms / 1000))
-      : barTimeline[barTimeline.length - 1].tSec;
+      ? Math.max(...barMAlignments.map((a) => a.expected_onset_ms / 1000))
+      : CHUNK_DURATION_SEC;
 
   for (const entry of barTimeline) {
     entry.tSec -= startOffsetSec;

@@ -120,6 +120,40 @@ describe("buildPassageManifest", () => {
     expect(result.endOffsetSec).toBe(13.0);
   });
 
+  it("endOffsetSec is seconds into the last chunk, not total passage time, for multi-chunk passages", () => {
+    const enrichedChunks: EnrichedChunk[] = [
+      chunk(0, [1, 4], [
+        { bar: 1, expected_onset_ms: 0 },
+        { bar: 2, expected_onset_ms: 4000 },
+        { bar: 3, expected_onset_ms: 8000 },
+        { bar: 4, expected_onset_ms: 12000 },
+      ]),
+      chunk(1, [5, 8], [
+        { bar: 5, expected_onset_ms: 1000 },
+        { bar: 6, expected_onset_ms: 5000 },
+        { bar: 7, expected_onset_ms: 9000 },
+        { bar: 8, expected_onset_ms: 13000 },
+      ]),
+    ];
+
+    const result = buildPassageManifest({
+      enrichedChunks,
+      bars: [1, 8],
+      pieceId: "chopin.ballades.1",
+      sessionId: "00000000-0000-0000-0000-0000000000aa",
+      baseUrl,
+    });
+
+    expect("error" in result).toBe(false);
+    if ("error" in result) return;
+    expect(result.chunks).toHaveLength(2);
+    expect(result.startOffsetSec).toBe(0);
+    // endOffsetSec must be seconds into chunk 1 only (13s), NOT 15+13=28
+    expect(result.endOffsetSec).toBe(13.0);
+    expect(result.barTimeline[0]).toEqual({ bar: 1, tSec: 0 });
+    expect(result.barTimeline[4]).toEqual({ bar: 5, tSec: 16.0 });
+  });
+
   it("returns out_of_range when alignment exists but does not cover requested bars", () => {
     const enrichedChunks: EnrichedChunk[] = [
       chunk(0, [1, 3], [

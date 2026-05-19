@@ -41,7 +41,9 @@ vi.mock("../../lib/passage-player", () => ({
 beforeEach(() => {
   vi.clearAllMocks();
   mockLoad.mockResolvedValue(undefined);
-  globalThis.AudioContext = vi.fn() as unknown as typeof AudioContext;
+  globalThis.AudioContext = vi.fn(function MockAudioContext() {
+    return { close: vi.fn().mockResolvedValue(undefined) };
+  }) as unknown as typeof AudioContext;
 });
 
 afterEach(() => {
