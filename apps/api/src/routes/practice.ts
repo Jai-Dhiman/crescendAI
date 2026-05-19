@@ -83,6 +83,28 @@ const app = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 
 		return c.json({ r2Key, sessionId, chunkIndex });
 	})
+	.get("/chunk", validate("query", chunkQuerySchema), async (c) => {
+		requireAuth(c.var.studentId);
+		const { sessionId, chunkIndex } = c.req.valid("query");
+
+		const session = await c.var.db.query.sessions.findFirst({
+			where: (s, { eq: e, and: a }) =>
+				a(e(s.id, sessionId), e(s.studentId, c.var.studentId!)),
+		});
+		if (!session) throw new NotFoundError("session", sessionId);
+
+		const r2Key = `sessions/${sessionId}/chunks/${chunkIndex}.webm`;
+		const obj = await c.env.CHUNKS.get(r2Key);
+		if (!obj) throw new NotFoundError("chunk", `${sessionId}/${chunkIndex}`);
+
+		return new Response(obj.body, {
+			status: 200,
+			headers: {
+				"Content-Type": "audio/webm",
+				"Cache-Control": "private, max-age=0, no-store",
+			},
+		});
+	})
 	.get("/ws/:sessionId", async (c) => {
 		if (c.req.header("Upgrade") !== "websocket") {
 			return c.text("Expected WebSocket upgrade", 426);

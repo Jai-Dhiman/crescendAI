@@ -48,4 +48,11 @@ describe("practice routes", () => {
 		});
 		expect(res.status).toBe(401);
 	});
+
+	it("GET /api/practice/chunk returns 401 without auth", async () => {
+		const res = await testApp.request(
+			"/api/practice/chunk?sessionId=00000000-0000-0000-0000-000000000001&chunkIndex=0",
+		);
+		expect(res.status).toBe(401);
+	});
 });
