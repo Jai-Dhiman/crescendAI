@@ -414,6 +414,91 @@ async function processReferenceBrowser(
 }
 
 // ---------------------------------------------------------------------------
+// Tool: play_passage
+// ---------------------------------------------------------------------------
+
+const playPassageSchema = z
+	.object({
+		session_id: z.string().uuid(),
+		bars: z
+			.tuple([z.number().int().min(1), z.number().int().min(1)])
+			.refine(([s, e]) => s <= e, { message: "bars start must be <= end" }),
+		focus_bars: z
+			.tuple([z.number().int().min(1), z.number().int().min(1)])
+			.refine(([s, e]) => s <= e, { message: "focus_bars start must be <= end" })
+			.optional(),
+		dimension: dimensionEnum,
+		annotation: z.string().min(1).max(280),
+	})
+	.refine(
+		(d) =>
+			d.focus_bars === undefined ||
+			(d.focus_bars[0] >= d.bars[0] && d.focus_bars[1] <= d.bars[1]),
+		{ message: "focus_bars must be within bars", path: ["focus_bars"] },
+	);
+
+async function processPlayPassage(
+	_ctx: ServiceContext,
+	_studentId: string,
+	rawInput: unknown,
+): Promise<InlineComponent[]> {
+	const input = playPassageSchema.parse(rawInput);
+	const config: Record<string, unknown> = {
+		sessionId: input.session_id,
+		bars: input.bars,
+		dimension: input.dimension,
+		annotation: input.annotation,
+	};
+	if (input.focus_bars !== undefined) {
+		config.focusBars = input.focus_bars;
+	}
+	return [{ type: "play_passage", config }];
+}
+
+const playPassageAnthropicSchema: AnthropicToolSchema = {
+	name: "play_passage",
+	description:
+		"Play back a bar-bounded slice of the student's own recording, with the score visible. Use when you want the student to LISTEN to a specific passage they just played, not just read about it. Only emit when a piece is identified for the current session and score alignment covers the requested bars — otherwise rely on text. The artifact shows the score for `bars` with `focus_bars` tinted in the dimension color.",
+	input_schema: {
+		type: "object",
+		properties: {
+			session_id: {
+				type: "string",
+				format: "uuid",
+				description: "UUID of the practice session whose recording to play.",
+			},
+			bars: {
+				type: "array",
+				items: { type: "integer", minimum: 1 },
+				minItems: 2,
+				maxItems: 2,
+				description:
+					"Outer passage range as [start, end]. The full clip plays from start to end.",
+			},
+			focus_bars: {
+				type: "array",
+				items: { type: "integer", minimum: 1 },
+				minItems: 2,
+				maxItems: 2,
+				description:
+					"Optional tinted sub-range inside `bars`. Use to draw attention to the specific moment within musical context.",
+			},
+			dimension: {
+				type: "string",
+				enum: DIMS_6,
+				description: "The single musical dimension this observation is about.",
+			},
+			annotation: {
+				type: "string",
+				description:
+					"One sentence (<=280 chars) that the student reads next to the playback control.",
+			},
+		},
+		required: ["session_id", "bars", "dimension", "annotation"],
+	},
+};
+
+// ---------------------------------------------------------------------------
 // Tool: search_catalog
 // ---------------------------------------------------------------------------
 
@@ -817,6 +902,15 @@ export const TOOL_REGISTRY: Record<string, ToolDefinition> = {
 		concurrencySafe: true,
 		maxResultChars: 2000,
 		process: processReferenceBrowser,
+	},
+	play_passage: {
+		name: "play_passage",
+		description: playPassageAnthropicSchema.description,
+		schema: playPassageSchema,
+		anthropicSchema: playPassageAnthropicSchema,
+		concurrencySafe: true,
+		maxResultChars: 2000,
+		process: processPlayPassage,
 	},
 	search_catalog: {
 		name: "search_catalog",

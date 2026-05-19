@@ -32,6 +32,7 @@ export type InlineComponent =
 	| { type: "score_highlight"; config: ScoreHighlightConfig }
 	| { type: "keyboard_guide"; config: KeyboardGuideConfig }
 	| { type: "reference_browser"; config: ReferenceBrowserConfig }
+	| { type: "play_passage"; config: PlayPassageConfig }
 	| { type: "segment_loop"; config: SegmentLoopConfig };
 
 export interface ExerciseSetConfig {
@@ -61,6 +62,24 @@ export interface KeyboardGuideConfig {
 
 export interface ReferenceBrowserConfig {
 	[key: string]: unknown;
+}
+
+export interface PlayPassageConfig {
+	sessionId: string;
+	bars: [number, number];
+	focusBars?: [number, number];
+	dimension: string;
+	annotation: string;
+}
+
+export interface PassageManifest {
+	source: { kind: "session"; sessionId: string };
+	pieceId: string;
+	bars: [number, number];
+	chunks: Array<{ url: string; chunkIndex: number; durationSec: number }>;
+	startOffsetSec: number;
+	endOffsetSec: number;
+	barTimeline: Array<{ bar: number; tSec: number }>;
 }
 
 export interface SegmentLoopConfig {

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { DIMS_6 } from "../lib/dims";
 import {
 	getAnthropicToolSchemas,
+	processToolUse,
 	TOOL_REGISTRY,
 	type ToolResult,
 } from "./tool-processor";
@@ -18,10 +19,11 @@ describe("TOOL_REGISTRY structure", () => {
 		"show_session_data",
 		"reference_browser",
 		"search_catalog",
+		"play_passage",
 	] as const;
 
-	it("has all 6 tools", () => {
-		expect(Object.keys(TOOL_REGISTRY)).toHaveLength(6);
+	it("has all 7 tools", () => {
+		expect(Object.keys(TOOL_REGISTRY)).toHaveLength(7);
 		for (const name of toolNames) {
 			expect(TOOL_REGISTRY[name]).toBeDefined();
 		}
@@ -69,9 +71,9 @@ describe("TOOL_REGISTRY structure", () => {
 // ---------------------------------------------------------------------------
 
 describe("getAnthropicToolSchemas", () => {
-	it("returns an array of 6 schemas", () => {
+	it("returns an array of 7 schemas", () => {
 		const schemas = getAnthropicToolSchemas();
-		expect(schemas).toHaveLength(6);
+		expect(schemas).toHaveLength(7);
 	});
 
 	it("each schema has name, description, input_schema", () => {
@@ -718,5 +720,46 @@ describe("processToolUse pass-through tools", () => {
 		// New message guides caller toward structured fields
 		expect(config.message).toContain("opus_number");
 		expect(config.message).toContain("piece_number");
+	});
+});
+
+// ---------------------------------------------------------------------------
+// play_passage tool
+// ---------------------------------------------------------------------------
+
+describe("play_passage tool", () => {
+	it("processToolUse returns a play_passage InlineComponent for valid input", async () => {
+		const ctx = { db: {} as unknown, env: {} as unknown } as Parameters<typeof processToolUse>[0];
+		const result = await processToolUse(ctx, "student-1", "play_passage", {
+			session_id: "00000000-0000-0000-0000-0000000000aa",
+			bars: [5, 8],
+			focus_bars: [6, 7],
+			dimension: "timing",
+			annotation: "you rushed here",
+		});
+		expect(result.isError).toBe(false);
+		expect(result.componentsJson).toHaveLength(1);
+		const c = result.componentsJson[0];
+		expect(c.type).toBe("play_passage");
+		expect(c.config).toMatchObject({
+			sessionId: "00000000-0000-0000-0000-0000000000aa",
+			bars: [5, 8],
+			focusBars: [6, 7],
+			dimension: "timing",
+			annotation: "you rushed here",
+		});
+	});
+
+	it("rejects focus_bars outside bars range", async () => {
+		const ctx = { db: {} as unknown, env: {} as unknown } as Parameters<typeof processToolUse>[0];
+		const result = await processToolUse(ctx, "student-1", "play_passage", {
+			session_id: "00000000-0000-0000-0000-0000000000aa",
+			bars: [5, 8],
+			focus_bars: [9, 12],
+			dimension: "timing",
+			annotation: "out of range",
+		});
+		expect(result.isError).toBe(true);
+		expect(result.errorMessage).toBeDefined();
 	});
 });
