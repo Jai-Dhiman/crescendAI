@@ -87,7 +87,7 @@ When no artifact is warranted:
 |------|-------|---------------|---------------|
 | `exercise` | Yes | Corrective feedback where structured practice helps | None (text-based) |
 | `score_highlight` | Phase 3 | Observation references specific bars with score available | Score rendering lib, score data |
-| `reference_browser` | Phase 3 | Interpretation/phrasing feedback, "what should this sound like?" | Network access |
+| `play_passage` | SHIPPED | Teacher wants student to listen back to a specific passage they just played | Score alignment for session (piece identified + bars covered) |
 | `session_review` | Phase 3 | Session ends, synthesis ready | Session brain data |
 
 ### Latency Budget (Revised)
@@ -230,51 +230,48 @@ Takes the specific passage and skill the teacher identified, generates 2-3 targe
 
 **Graceful degradation:** Exercise sets are text-based and do not require score data. Always available. If score rendering is unavailable, exercises still render with title and instruction text.
 
-### 4. Reference Browser (`reference_browser`) (Phase 3)
+### 4. Play Passage (`play_passage`) (SHIPPED)
 
-Surfaces professional recordings of the same passage so the student can hear different interpretations. YouTube embeds and Apple Music links.
+Plays a bar-bounded slice of the student's own recording with the score visible and a tinted focus sub-range. The teacher says "listen here" and the student hears exactly what the teacher heard, cursor tracking across the notation in real time.
 
-**Triggers when:** The teacher observation involves interpretation, phrasing, or pedaling -- dimensions where *hearing* the target sound is more useful than *describing* it. Also when the student explicitly asks "what should this sound like?"
+**Triggers when:** The teacher observation references a moment the student should *hear* in their own playing — rushed timing, blurred pedaling, dynamic collapse. Only emitted when the current session has a piece identified and score alignment covers the requested bars.
 
 **Configuration schema:**
 
 ```json
 {
-    "type": "reference_browser",
+    "type": "play_passage",
     "config": {
-        "piece": "Chopin Nocturne Op. 9 No. 2",
-        "passage_description": "the crescendo in the second phrase, bars 20-24",
-        "references": [
-            {
-                "artist": "Martha Argerich",
-                "source": "youtube",
-                "search_query": "Chopin Nocturne Op 9 No 2 Argerich",
-                "note": "Builds the crescendo gradually with subtle rubato"
-            },
-            {
-                "artist": "Arthur Rubinstein",
-                "source": "youtube",
-                "search_query": "Chopin Nocturne Op 9 No 2 Rubinstein",
-                "note": "More direct crescendo, arrives suddenly"
-            },
-            {
-                "artist": "Ivo Pogorelich",
-                "source": "apple_music",
-                "search_query": "Chopin Nocturne Op 9 No 2 Pogorelich",
-                "note": "Unconventional dynamics, slower build"
-            }
-        ],
-        "listening_prompt": "Notice how each pianist shapes the crescendo differently. Which approach feels right for how you want to play this?"
+        "sessionId": "uuid-of-current-session",
+        "bars": [5, 8],
+        "focusBars": [6, 7],
+        "dimension": "timing",
+        "annotation": "You rushed through the triplets in bar 6 — try holding each beat a hair longer."
     }
 }
 ```
 
+**How it works:**
+
+1. `PlayPassageCard` fetches a `PassageManifest` from `GET /api/sessions/:id/passage?bars=N-M`
+2. The manifest contains per-chunk R2 URLs, `startOffsetSec`, `endOffsetSec`, and a `barTimeline` array
+3. `PassagePlayer` fetches and decodes chunks in parallel via Web Audio API, sequences `AudioBufferSourceNode` calls with correct trim offsets; a RAF cursor emits ticks for notation overlay
+4. `scoreRenderer.getClip()` renders the score SVG for `bars`; `focusBars` are tinted in the dimension color
+
 **Prerequisites:**
 
-- Network access (YouTube/Apple Music)
-- Search query construction from piece + artist metadata
+- Score alignment: piece identified for the session AND `alignment[].bar` data in DO storage covering `[N, M]`
+- R2 chunks: session audio uploaded (always true during an active session)
 
-**Graceful degradation:** If network is unavailable, `reference_browser` is unavailable. Falls back to `text_only`. If a specific search result is not found, skip that reference and show the remaining ones.
+**Graceful degradation:** If the DO returns 409 (piece unknown or bars not covered), `play_passage` is not emitted — the teacher falls back to text. If a chunk fetch fails after manifest load, the card shows "couldn't load audio" while still rendering the score clip and annotation.
+
+**Key files:**
+- `apps/api/src/services/passage-manifest.ts` — `buildPassageManifest()` pure function
+- `apps/api/src/do/session-brain.ts` — `GET /passage` DO handler
+- `apps/api/src/routes/sessions.ts` — `GET /api/sessions/:id/passage` (auth + ownership gated)
+- `apps/api/src/routes/practice.ts` — `GET /api/practice/chunk` (auth + ownership gated R2 read)
+- `apps/web/src/lib/passage-player.ts` — `PassagePlayer` class (Web Audio scheduling, RAF ticks)
+- `apps/web/src/components/cards/PlayPassageCard.tsx` — card component
 
 ---
 
@@ -300,7 +297,7 @@ Every observation -- text-only or with component -- supports follow-up:
 
 - **"Tell me more"** triggers the existing elaboration flow in the chat
 - **"Try exercises for this"** generates an `exercise_set` component for the same passage
-- **"How should this sound?"** generates a `reference_browser` component
+- **"Listen back"** triggers a `play_passage` artifact for the referenced bars (when score alignment is available)
 
 These actions feed back into the conversation as student messages, and the teacher responds naturally. The chat scroll becomes a timeline of the practice session.
 

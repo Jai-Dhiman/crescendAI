@@ -36,8 +36,9 @@ Target user: Sarah -- intermediate self-learner, no teacher, wants to know the o
 | Google Sign In (web) | COMPLETE | `apps/web/` | GSI client, custom-styled button, API token verification |
 | Landing page | COMPLETE | `apps/web/src/routes/index.tsx` | Hero, feature cards, device mockups, CTAs |
 | Durable Object sessions | COMPLETE | `apps/api/` | Practice session state management with DO storage persistence (survives eviction) |
-| On-demand UI components | COMPLETE | -- | Artifact container system COMPLETE (unified inline-to-expanded pattern). Teacher LLM declares artifacts via Anthropic tool_use (tool_choice: auto). Hybrid catalog lookup + generated fallback. Exercise artifact type for beta. |
+| On-demand UI components | COMPLETE | -- | Artifact container system COMPLETE (unified inline-to-expanded pattern). Teacher LLM declares artifacts via Anthropic tool_use (tool_choice: auto). Hybrid catalog lookup + generated fallback. Exercise artifact type for beta. `play_passage` replaces `reference_browser` stub. |
 | SegmentLoopArtifactCard | COMPLETE | `apps/web/src/components/cards/SegmentLoopArtifact.tsx` | Renders pending (Accept/Skip), active (attempt counter/Dismiss), completed states. Wired into InlineCard switch. api.ts has typed accept/decline/dismiss methods. usePracticeSession handles `segment_loop_status` and `loop_attempt` WS events. |
+| PlayPassageCard | COMPLETE | `apps/web/src/components/cards/PlayPassageCard.tsx` | Plays a bar-bounded slice of the student's recording. Fetches PassageManifest, decodes WebM chunks via Web Audio API, sequences AudioBufferSourceNode with startOffsetSec/endOffsetSec trim, RAF cursor ticks over score SVG clip. AudioContext closed on unmount. |
 
 Stack: TanStack Start, Tailwind CSS v4, Web Audio API, MediaRecorder, WebSocket.
 
@@ -52,6 +53,8 @@ Stack: TanStack Start, Tailwind CSS v4, Web Audio API, MediaRecorder, WebSocket.
 | `POST /api/ask` | IMPLEMENTED | `apps/api/src/services/ask.rs` | Two-stage pipeline (subagent + teacher), provider routing |
 | `POST /api/practice/start` | COMPLETE | `apps/api/src/` | Creates Durable Object session (web path) |
 | `POST /api/practice/chunk` | COMPLETE | `apps/api/src/` | Uploads audio, triggers HF inference |
+| `GET /api/practice/chunk` | COMPLETE | `apps/api/src/routes/practice.ts` | Auth + session-ownership gated R2 read; returns WebM audio for PlayPassageCard. |
+| `GET /api/sessions/:id/passage` | COMPLETE | `apps/api/src/routes/sessions.ts` | Auth + ownership gated. Talks to SessionBrain DO `/passage` handler; returns PassageManifest JSON or 409 if alignment missing. |
 | `WS /api/practice/ws/:sessionId` | COMPLETE | `apps/api/src/` | Real-time observation delivery (web path) |
 | `POST /api/chat/send` | COMPLETE | `apps/api/src/` | Streaming teacher chat (web path) |
 | D1 schema (students, sessions) | COMPLETE | `apps/api/` | Students, sessions, observations tables |
