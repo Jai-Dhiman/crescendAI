@@ -386,6 +386,17 @@ export const api = {
 		},
 	},
 
+	sessions: {
+		async getPassage(
+			sessionId: string,
+			bars: [number, number],
+		): Promise<import("./types").PassageManifest> {
+			return request<import("./types").PassageManifest>(
+				`/api/sessions/${sessionId}/passage?bars=${bars[0]}-${bars[1]}`,
+			);
+		},
+	},
+
 	scores: {
 		async getData(pieceId: string): Promise<ArrayBuffer> {
 			const res = await fetch(`${API_BASE}/api/scores/${pieceId}/data`, {

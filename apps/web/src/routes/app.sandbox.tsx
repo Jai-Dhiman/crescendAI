@@ -7,9 +7,11 @@ import { SvgClipBBox } from "../components/SvgClipBBox";
 import { ArtifactScrollContext } from "../contexts/artifact-scroll";
 import type { ClipResult } from "../lib/score-renderer";
 import { scoreRenderer } from "../lib/score-renderer";
+import { PlayPassageCard } from "../components/cards/PlayPassageCard";
 import type {
 	ExerciseSetConfig,
 	KeyboardGuideConfig,
+	PlayPassageConfig,
 	ScoreHighlightConfig,
 } from "../lib/types";
 import { useArtifactStore } from "../stores/artifact";
@@ -134,6 +136,14 @@ const scoreHighlightLate: ScoreHighlightConfig = {
 };
 
 const keyboardGuide: KeyboardGuideConfig = {};
+
+const playPassageFixture: PlayPassageConfig = {
+	sessionId: "00000000-0000-0000-0000-0000000000ff",
+	bars: [5, 8],
+	focusBars: [6, 7],
+	dimension: "timing",
+	annotation: "You rushed through the triplets in bar 6 — try holding each beat a hair longer to let the phrase breathe.",
+};
 
 // --- Artifact IDs ---
 
@@ -755,7 +765,7 @@ function ArtifactSandbox() {
 						title="PlayPassage"
 						artifactId={SANDBOX_IDS.playPassage}
 					>
-						<div className="p-4 text-body-sm text-text-tertiary">PlayPassageCard (pending Track F)</div>
+						<PlayPassageCard config={playPassageFixture} />
 					</SandboxSection>
 				</div>
 			</div>

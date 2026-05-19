@@ -1,6 +1,7 @@
 import type { InlineComponent } from "../lib/types";
 import { ExerciseSetCard } from "./cards/ExerciseSetCard";
 import { PlaceholderCard } from "./cards/PlaceholderCard";
+import { PlayPassageCard } from "./cards/PlayPassageCard";
 import { ScoreHighlightCard } from "./cards/ScoreHighlightCard";
 import { SegmentLoopArtifactCard } from "./cards/SegmentLoopArtifact";
 
@@ -34,6 +35,14 @@ export function InlineCard({
 			);
 		case "segment_loop":
 			return <SegmentLoopArtifactCard config={component.config} />;
+		case "play_passage":
+			return (
+				<PlayPassageCard
+					config={component.config}
+					onExpand={onExpand}
+					artifactId={artifactId}
+				/>
+			);
 		default:
 			return <PlaceholderCard type={component.type} />;
 	}
