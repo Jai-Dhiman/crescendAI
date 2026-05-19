@@ -35,6 +35,13 @@ export function buildPassageManifest(
       c.bar_coverage[0] <= endBar,
   );
 
+  const anyAlignedChunk = args.enrichedChunks.some(
+    (c) => c.bar_coverage !== null,
+  );
+  if (!anyAlignedChunk) {
+    return { error: "no_alignment" };
+  }
+
   if (covering.length === 0) {
     return { error: "out_of_range" };
   }

@@ -76,4 +76,21 @@ describe("buildPassageManifest", () => {
       { bar: 8, tSec: 12 },
     ]);
   });
+
+  it("returns no_alignment when no chunks have bar_coverage at all", () => {
+    const enrichedChunks: EnrichedChunk[] = [
+      chunk(0, null, []),
+      chunk(1, null, []),
+    ];
+
+    const result = buildPassageManifest({
+      enrichedChunks,
+      bars: [5, 8],
+      pieceId: "chopin.ballades.1",
+      sessionId: "00000000-0000-0000-0000-0000000000aa",
+      baseUrl,
+    });
+
+    expect("error" in result && result.error).toBe("no_alignment");
+  });
 });
