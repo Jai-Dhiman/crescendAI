@@ -151,6 +151,56 @@ export class SessionBrain extends DurableObject<Bindings> {
 		// Parse identity from path + query
 		const url = new URL(request.url);
 
+		// Passage manifest endpoint: GET /passage
+		if (url.pathname === "/passage" && request.method === "GET") {
+			const barsParam = url.searchParams.get("bars") ?? "";
+			const sessionIdParam = url.searchParams.get("sessionId") ?? "";
+			const m = /^(\d+)-(\d+)$/.exec(barsParam);
+			if (!m || !sessionIdParam) {
+				return new Response(JSON.stringify({ error: "bad_request" }), {
+					status: 400,
+					headers: { "Content-Type": "application/json" },
+				});
+			}
+			const bars: [number, number] = [Number(m[1]), Number(m[2])];
+
+			const state = await this.ctx.storage.get<SessionState>("state");
+			const pieceId = state?.pieceIdentification?.pieceId;
+			if (!pieceId) {
+				return new Response(JSON.stringify({ error: "no_piece" }), {
+					status: 409,
+					headers: { "Content-Type": "application/json" },
+				});
+			}
+
+			const enrichedMap = await this.ctx.storage.list<EnrichedChunk>({ prefix: "chunk_enriched:" });
+			const enrichedChunks = Array.from(enrichedMap.values()).sort(
+				(a, b) => a.chunkIndex - b.chunkIndex,
+			);
+
+			const { buildPassageManifest } = await import("../services/passage-manifest");
+			const baseUrl = `https://${request.headers.get("host") ?? "api.crescend.ai"}`;
+			const result = buildPassageManifest({
+				enrichedChunks,
+				bars,
+				pieceId,
+				sessionId: sessionIdParam,
+				baseUrl,
+			});
+
+			if ("error" in result) {
+				return new Response(JSON.stringify({ error: result.error }), {
+					status: 409,
+					headers: { "Content-Type": "application/json" },
+				});
+			}
+
+			return new Response(JSON.stringify(result), {
+				status: 200,
+				headers: { "Content-Type": "application/json" },
+			});
+		}
+
 		// Deferred synthesis endpoint: POST /synthesize
 		if (url.pathname === "/synthesize" && request.method === "POST") {
 			await this.runSynthesisAndPersist();
