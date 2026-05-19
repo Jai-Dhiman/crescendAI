@@ -69,8 +69,17 @@ export function buildPassageManifest(
   }
 
   const startOffsetSec = barTimeline[0].tSec;
-  const lastBarHit = barTimeline[barTimeline.length - 1];
-  const endOffsetSec = lastBarHit.tSec;
+
+  const lastCoveringChunk = covering[covering.length - 1];
+  const barMAlignments = lastCoveringChunk.alignment.filter(
+    (a) => a.bar === endBar,
+  );
+  const endOffsetSec =
+    barMAlignments.length > 0
+      ? (lastCoveringChunk.chunkIndex - firstChunkIndex) * CHUNK_DURATION_SEC +
+        Math.max(...barMAlignments.map((a) => a.expected_onset_ms / 1000))
+      : barTimeline[barTimeline.length - 1].tSec;
+
   for (const entry of barTimeline) {
     entry.tSec -= startOffsetSec;
   }

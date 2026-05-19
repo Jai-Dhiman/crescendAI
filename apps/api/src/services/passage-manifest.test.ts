@@ -94,6 +94,32 @@ describe("buildPassageManifest", () => {
     expect("error" in result && result.error).toBe("no_alignment");
   });
 
+  it("uses max onset_ms for endOffsetSec when bar M has multiple alignment entries", () => {
+    const enrichedChunks: EnrichedChunk[] = [
+      chunk(1, [5, 8], [
+        { bar: 5, expected_onset_ms: 1000 },
+        { bar: 6, expected_onset_ms: 5000 },
+        { bar: 7, expected_onset_ms: 9000 },
+        // bar 8 has two notes; endOffsetSec must be 13.0 (max), not 11.0 (first)
+        { bar: 8, expected_onset_ms: 11000 },
+        { bar: 8, expected_onset_ms: 13000 },
+      ]),
+    ];
+
+    const result = buildPassageManifest({
+      enrichedChunks,
+      bars: [5, 8],
+      pieceId: "chopin.ballades.1",
+      sessionId: "00000000-0000-0000-0000-0000000000aa",
+      baseUrl,
+    });
+
+    expect("error" in result).toBe(false);
+    if ("error" in result) return;
+    expect(result.startOffsetSec).toBe(1.0);
+    expect(result.endOffsetSec).toBe(13.0);
+  });
+
   it("returns out_of_range when alignment exists but does not cover requested bars", () => {
     const enrichedChunks: EnrichedChunk[] = [
       chunk(0, [1, 3], [
