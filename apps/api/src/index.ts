@@ -16,6 +16,7 @@ import { healthRoutes } from "./routes/health";
 import { practiceRoutes } from "./routes/practice";
 import { scoresRoutes } from "./routes/scores";
 import { segmentLoopsRoutes } from "./routes/segment-loops";
+import { sessionsRoutes } from "./routes/sessions";
 import { syncRoutes } from "./routes/sync";
 import { waitlistRoutes } from "./routes/waitlist";
 
@@ -49,7 +50,8 @@ const routes = app
 	.route("/api/sync", syncRoutes)
 	.route("/api/chat", chatRoutes)
 	.route("/api/practice", practiceRoutes)
-	.route("/api/extract-goals", goalsRoutes);
+	.route("/api/extract-goals", goalsRoutes)
+	.route("/api/sessions", sessionsRoutes);
 
 app.notFound((c) => c.json({ error: "Not found" }, 404));
 
