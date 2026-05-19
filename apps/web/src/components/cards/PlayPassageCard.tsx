@@ -16,7 +16,7 @@ interface PlayPassageCardProps {
 
 type LoadState = "loading" | "ready" | "error";
 
-export function PlayPassageCard({ config }: PlayPassageCardProps) {
+export function PlayPassageCard({ config, onExpand, artifactId: _artifactId }: PlayPassageCardProps) {
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [clip, setClip] = useState<ClipResult | null>(null);
   const [manifest, setManifest] = useState<PassageManifest | null>(null);
@@ -57,7 +57,7 @@ export function PlayPassageCard({ config }: PlayPassageCardProps) {
     DIMENSION_COLORS[config.dimension as keyof typeof DIMENSION_COLORS] ?? "#7a9a82";
 
   return (
-    <div className="bg-surface-card border border-border rounded-xl overflow-hidden mt-3">
+    <div className="bg-surface-card border border-border rounded-xl overflow-hidden mt-3" onClick={onExpand}>
       {loadState === "loading" && (
         <div className="h-10 flex items-center justify-center">
           <div className="w-3.5 h-3.5 rounded-full border-2 border-text-tertiary/50 border-t-transparent animate-spin" />
