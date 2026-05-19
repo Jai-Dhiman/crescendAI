@@ -12,7 +12,7 @@ const TOOL_LOADING_LABELS: Record<string, string> = {
 	show_session_data: "Loading session data...",
 	score_highlight: "Looking up score...",
 	keyboard_guide: "Building keyboard guide...",
-	reference_browser: "Loading reference...",
+	play_passage: "Loading passage...",
 };
 
 const TOOL_DISPLAY_NAMES: Record<string, string> = {
@@ -21,7 +21,7 @@ const TOOL_DISPLAY_NAMES: Record<string, string> = {
 	show_session_data: "Session lookup",
 	score_highlight: "Score highlight",
 	keyboard_guide: "Keyboard guide",
-	reference_browser: "Reference browser",
+	play_passage: "Play passage",
 };
 
 function getLoadingLabel(name: string): string {
