@@ -10,7 +10,6 @@ import { scoreRenderer } from "../lib/score-renderer";
 import type {
 	ExerciseSetConfig,
 	KeyboardGuideConfig,
-	ReferenceBrowserConfig,
 	ScoreHighlightConfig,
 } from "../lib/types";
 import { useArtifactStore } from "../stores/artifact";
@@ -135,7 +134,6 @@ const scoreHighlightLate: ScoreHighlightConfig = {
 };
 
 const keyboardGuide: KeyboardGuideConfig = {};
-const referenceBrowser: ReferenceBrowserConfig = {};
 
 // --- Artifact IDs ---
 
@@ -147,7 +145,7 @@ const SANDBOX_IDS = {
 	scoreHighlightMid: "sandbox-score-highlight-mid",
 	scoreHighlightLate: "sandbox-score-highlight-late",
 	keyboardGuide: "sandbox-keyboard-guide-1",
-	referenceBrowser: "sandbox-reference-browser-1",
+	playPassage: "sandbox-play-passage-1",
 } as const;
 
 // --- Section wrapper ---
@@ -752,18 +750,12 @@ function ArtifactSandbox() {
 						/>
 					</SandboxSection>
 
-					{/* ReferenceBrowser */}
+					{/* PlayPassage */}
 					<SandboxSection
-						title="ReferenceBrowser (placeholder)"
-						artifactId={SANDBOX_IDS.referenceBrowser}
+						title="PlayPassage"
+						artifactId={SANDBOX_IDS.playPassage}
 					>
-						<Artifact
-							artifactId={SANDBOX_IDS.referenceBrowser}
-							component={{
-								type: "reference_browser",
-								config: referenceBrowser,
-							}}
-						/>
+						<div className="p-4 text-body-sm text-text-tertiary">PlayPassageCard (pending Track F)</div>
 					</SandboxSection>
 				</div>
 			</div>

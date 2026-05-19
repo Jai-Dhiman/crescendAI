@@ -31,7 +31,6 @@ export type InlineComponent =
 	| { type: "exercise_set"; config: ExerciseSetConfig }
 	| { type: "score_highlight"; config: ScoreHighlightConfig }
 	| { type: "keyboard_guide"; config: KeyboardGuideConfig }
-	| { type: "reference_browser"; config: ReferenceBrowserConfig }
 	| { type: "play_passage"; config: PlayPassageConfig }
 	| { type: "segment_loop"; config: SegmentLoopConfig };
 
@@ -57,10 +56,6 @@ export interface ScoreHighlightConfig {
 }
 
 export interface KeyboardGuideConfig {
-	[key: string]: unknown;
-}
-
-export interface ReferenceBrowserConfig {
 	[key: string]: unknown;
 }
 

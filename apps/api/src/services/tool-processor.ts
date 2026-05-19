@@ -365,55 +365,6 @@ async function processShowSessionData(
 }
 
 // ---------------------------------------------------------------------------
-// Tool: reference_browser
-// ---------------------------------------------------------------------------
-
-const referenceBrowserSchema = z.object({
-	piece_id: pieceSlugSchema.optional(),
-	passage: z.string().optional(),
-	description: z.string(),
-});
-
-async function processReferenceBrowser(
-	ctx: ServiceContext,
-	_studentId: string,
-	rawInput: unknown,
-): Promise<InlineComponent[]> {
-	const input = referenceBrowserSchema.parse(rawInput);
-
-	const config: Record<string, unknown> = {
-		description: input.description,
-	};
-
-	if (input.piece_id !== undefined) {
-		const catalogRow = await ctx.db
-			.select({ pieceId: pieces.pieceId })
-			.from(pieces)
-			.where(eq(pieces.pieceId, input.piece_id))
-			.limit(1);
-
-		if (catalogRow.length === 0) {
-			console.log(
-				JSON.stringify({
-					level: "warn",
-					message:
-						"reference_browser piece_id not found in catalog, omitting from config",
-					pieceId: input.piece_id,
-				}),
-			);
-		} else {
-			config.pieceId = input.piece_id;
-		}
-	}
-
-	if (input.passage !== undefined) {
-		config.passage = input.passage;
-	}
-
-	return [{ type: "reference_browser", config }];
-}
-
-// ---------------------------------------------------------------------------
 // Tool: play_passage
 // ---------------------------------------------------------------------------
 
@@ -793,31 +744,6 @@ const showSessionDataAnthropicSchema: AnthropicToolSchema = {
 	},
 };
 
-const referenceBrowserAnthropicSchema: AnthropicToolSchema = {
-	name: "reference_browser",
-	description:
-		"Display a reference panel with contextual information about a piece or passage.",
-	input_schema: {
-		type: "object",
-		properties: {
-			piece_id: {
-				type: "string",
-				description:
-					"Optional piece slug returned by search_catalog (e.g. 'chopin.ballades.1'). Pass through verbatim.",
-			},
-			passage: {
-				type: "string",
-				description: "Optional passage description (e.g. 'bars 10-15').",
-			},
-			description: {
-				type: "string",
-				description: "What information to surface in the reference panel.",
-			},
-		},
-		required: ["description"],
-	},
-};
-
 const searchCatalogAnthropicSchema: AnthropicToolSchema = {
 	name: "search_catalog",
 	description:
@@ -893,15 +819,6 @@ export const TOOL_REGISTRY: Record<string, ToolDefinition> = {
 		concurrencySafe: true,
 		maxResultChars: 10000,
 		process: processShowSessionData,
-	},
-	reference_browser: {
-		name: "reference_browser",
-		description: referenceBrowserAnthropicSchema.description,
-		schema: referenceBrowserSchema,
-		anthropicSchema: referenceBrowserAnthropicSchema,
-		concurrencySafe: true,
-		maxResultChars: 2000,
-		process: processReferenceBrowser,
 	},
 	play_passage: {
 		name: "play_passage",

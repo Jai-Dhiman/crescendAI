@@ -17,13 +17,12 @@ describe("TOOL_REGISTRY structure", () => {
 		"score_highlight",
 		"keyboard_guide",
 		"show_session_data",
-		"reference_browser",
 		"search_catalog",
 		"play_passage",
 	] as const;
 
-	it("has all 7 tools", () => {
-		expect(Object.keys(TOOL_REGISTRY)).toHaveLength(7);
+	it("has all 6 tools", () => {
+		expect(Object.keys(TOOL_REGISTRY)).toHaveLength(6);
 		for (const name of toolNames) {
 			expect(TOOL_REGISTRY[name]).toBeDefined();
 		}
@@ -45,11 +44,11 @@ describe("TOOL_REGISTRY structure", () => {
 		expect(TOOL_REGISTRY.create_exercise.concurrencySafe).toBe(false);
 	});
 
-	it("score_highlight, keyboard_guide, show_session_data, reference_browser are concurrencySafe", () => {
+	it("score_highlight, keyboard_guide, show_session_data, play_passage are concurrencySafe", () => {
 		expect(TOOL_REGISTRY.score_highlight.concurrencySafe).toBe(true);
 		expect(TOOL_REGISTRY.keyboard_guide.concurrencySafe).toBe(true);
 		expect(TOOL_REGISTRY.show_session_data.concurrencySafe).toBe(true);
-		expect(TOOL_REGISTRY.reference_browser.concurrencySafe).toBe(true);
+		expect(TOOL_REGISTRY.play_passage.concurrencySafe).toBe(true);
 		expect(TOOL_REGISTRY.search_catalog.concurrencySafe).toBe(true);
 	});
 
@@ -57,7 +56,7 @@ describe("TOOL_REGISTRY structure", () => {
 		expect(TOOL_REGISTRY.score_highlight.maxResultChars).toBe(5000);
 		expect(TOOL_REGISTRY.keyboard_guide.maxResultChars).toBe(2000);
 		expect(TOOL_REGISTRY.show_session_data.maxResultChars).toBe(10000);
-		expect(TOOL_REGISTRY.reference_browser.maxResultChars).toBe(2000);
+		expect(TOOL_REGISTRY.play_passage.maxResultChars).toBe(2000);
 		expect(TOOL_REGISTRY.search_catalog.maxResultChars).toBe(3000);
 	});
 
@@ -71,9 +70,9 @@ describe("TOOL_REGISTRY structure", () => {
 // ---------------------------------------------------------------------------
 
 describe("getAnthropicToolSchemas", () => {
-	it("returns an array of 7 schemas", () => {
+	it("returns an array of 6 schemas", () => {
 		const schemas = getAnthropicToolSchemas();
-		expect(schemas).toHaveLength(7);
+		expect(schemas).toHaveLength(6);
 	});
 
 	it("each schema has name, description, input_schema", () => {
@@ -385,43 +384,6 @@ describe("show_session_data schema validation", () => {
 });
 
 // ---------------------------------------------------------------------------
-// reference_browser Zod validation
-// ---------------------------------------------------------------------------
-
-describe("reference_browser schema validation", () => {
-	const schema = TOOL_REGISTRY.reference_browser.schema;
-
-	it("passes with description only", () => {
-		const result = schema.safeParse({
-			description: "Look up fingering for Chopin nocturne",
-		});
-		expect(result.success).toBe(true);
-	});
-
-	it("passes with all optional fields", () => {
-		const result = schema.safeParse({
-			piece_id: "chopin.ballades.1",
-			passage: "bars 5-8",
-			description: "Check phrasing",
-		});
-		expect(result.success).toBe(true);
-	});
-
-	it("rejects piece_id with invalid characters", () => {
-		const result = schema.safeParse({
-			description: "test",
-			piece_id: "Chopin Ballade #1",
-		});
-		expect(result.success).toBe(false);
-	});
-
-	it("rejects missing description", () => {
-		const result = schema.safeParse({ passage: "bars 1-4" });
-		expect(result.success).toBe(false);
-	});
-});
-
-// ---------------------------------------------------------------------------
 // search_catalog Zod validation
 // ---------------------------------------------------------------------------
 
@@ -529,22 +491,6 @@ describe("processToolUse pass-through tools", () => {
 		expect(result.name).toBe("keyboard_guide");
 		expect(result.componentsJson).toHaveLength(1);
 		expect(result.componentsJson[0].type).toBe("keyboard_guide");
-	});
-
-	it("reference_browser returns ToolResult with correct type", async () => {
-		const { processToolUse } = await import("./tool-processor");
-		const result: ToolResult = await processToolUse(
-			mockCtx,
-			studentId,
-			"reference_browser",
-			{
-				description: "Look up phrasing for bar 10",
-			},
-		);
-		expect(result.isError).toBe(false);
-		expect(result.name).toBe("reference_browser");
-		expect(result.componentsJson).toHaveLength(1);
-		expect(result.componentsJson[0].type).toBe("reference_browser");
 	});
 
 	it("unknown tool name returns isError: true", async () => {
@@ -720,6 +666,22 @@ describe("processToolUse pass-through tools", () => {
 		// New message guides caller toward structured fields
 		expect(config.message).toContain("opus_number");
 		expect(config.message).toContain("piece_number");
+	});
+});
+
+// ---------------------------------------------------------------------------
+// reference_browser removal guard
+// ---------------------------------------------------------------------------
+
+describe("reference_browser removal", () => {
+	it("reference_browser is no longer registered", async () => {
+		expect(TOOL_REGISTRY.reference_browser).toBeUndefined();
+		const ctx = { db: {} as unknown, env: {} as unknown } as Parameters<typeof processToolUse>[0];
+		const result = await processToolUse(ctx, "student-1", "reference_browser", {
+			description: "test",
+		});
+		expect(result.isError).toBe(true);
+		expect(result.errorMessage).toContain("Unknown tool");
 	});
 });
 
