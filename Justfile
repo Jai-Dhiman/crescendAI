@@ -70,6 +70,16 @@ dev-muq:
     just web &
     wait
 
+# Seed local R2 with score files from model/scores/v1/ (run once after fresh checkout)
+seed-scores:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    for f in model/scores/v1/*.mxl; do
+        key="scores/v1/$(basename "$f")"
+        echo "Seeding $key"
+        cd apps/api && wrangler r2 object put "crescendai-bucket/$key" --file="../../$f" --local && cd ../..
+    done
+
 # Generate fingerprint index + rerank features from score library
 fingerprint:
     cd model && uv run python -m score_library.cli fingerprint --scores-dir data/scores --output-dir data/fingerprints

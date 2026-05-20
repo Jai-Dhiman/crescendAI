@@ -76,7 +76,7 @@ describe("PassagePlayer", () => {
     const ticks: number[] = [];
     player.onTick((t) => ticks.push(t));
 
-    player.play();
+    await player.play();
     expect(player.state).toBe("playing");
     expect(startCalls).toHaveLength(1);
     expect(startCalls[0].offset).toBe(1.0);
@@ -98,7 +98,7 @@ describe("PassagePlayer", () => {
     const { ctx } = makeStubAudioContext();
     const player = new PassagePlayer(manifest, ctx);
     await player.load();
-    player.play();
+    await player.play();
     expect(player.state).toBe("playing");
 
     player.pause();

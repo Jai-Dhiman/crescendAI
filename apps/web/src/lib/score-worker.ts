@@ -319,14 +319,18 @@ if (typeof window === "undefined") {
 	let VerovioToolkitClass: new (mod: unknown) => VerovioTk = null as any;
 
 	const ready = (async () => {
+		console.log("[score-worker] WASM init start");
+		const t0 = Date.now();
 		const [wasm, esm] = await Promise.all([
 			import("verovio/wasm") as Promise<{ default: () => Promise<unknown> }>,
 			import("verovio/esm") as Promise<{
 				VerovioToolkit: new (mod: unknown) => VerovioTk;
 			}>,
 		]);
+		console.log(`[score-worker] imports resolved in ${Date.now() - t0}ms, creating module`);
 		verovioModule = await wasm.default();
 		VerovioToolkitClass = esm.VerovioToolkit;
+		console.log(`[score-worker] WASM ready in ${Date.now() - t0}ms`);
 	})();
 
 	// Cache maps pieceId -> settled result or a Promise for the in-flight load.
@@ -334,33 +338,41 @@ if (typeof window === "undefined") {
 	// instead of all racing to "bytes required on first request".
 	const toolkitCache = new Map<string, LoadResult | Promise<LoadResult>>();
 
-	async function loadPiece(bytes: ArrayBuffer): Promise<LoadResult> {
+	async function loadPiece(bytes: ArrayBuffer, pieceId?: string): Promise<LoadResult> {
+		console.log(`[score-worker] loadPiece start: ${pieceId ?? "?"} (${bytes.byteLength} bytes)`);
 		const ZIP_MAGIC = 0x04034b50;
 		const isZip =
 			bytes.byteLength >= 4 &&
 			new DataView(bytes).getUint32(0, true) === ZIP_MAGIC;
+		console.log(`[score-worker] isZip=${isZip}`);
 
 		// For ZIP: extract XML first so the buffer is readable before Verovio
 		// corrupts it as WASM scratch space.
 		// For plain XML: decode directly — the file is a .musicxml stored as .mxl.
 		let xmlContent: string | null = null;
 		if (isZip) {
+			console.log("[score-worker] extracting XML from ZIP...");
 			xmlContent = await extractXmlFromMxl(bytes);
+			console.log(`[score-worker] extracted ${xmlContent?.length ?? 0} chars`);
 		} else {
 			try {
 				xmlContent = new TextDecoder().decode(bytes);
+				console.log(`[score-worker] decoded text: ${xmlContent.length} chars`);
 			} catch {
 				// non-text binary — will fail below
 			}
 		}
 
+		console.log("[score-worker] creating VerovioToolkit...");
 		let tk = new VerovioToolkitClass(verovioModule);
 		tk.setOptions(VEROVIO_OPTS);
 		let loaded = false;
 
 		if (isZip) {
 			try {
+				console.log("[score-worker] loadZipDataBuffer...");
 				loaded = tk.loadZipDataBuffer(bytes);
+				console.log(`[score-worker] loadZipDataBuffer result: ${loaded}`);
 			} catch {
 				// WASM exception — toolkit state is corrupt, create a fresh one below.
 			}
@@ -376,14 +388,20 @@ if (typeof window === "undefined") {
 					/<!DOCTYPE\s[^>[]*(\[[^\]]*\])?\s*>/g,
 					"",
 				);
+				console.log(`[score-worker] loadData (${clean.length} chars)...`);
 				loaded = tk.loadData(clean) as boolean;
+				console.log(`[score-worker] loadData result: ${loaded}`);
 			} catch (fallbackErr) {
 				console.error("[score-worker] loadData fallback failed:", fallbackErr);
 			}
 		}
 
-		if (!loaded) return "failed";
+		if (!loaded) {
+			console.error(`[score-worker] loadPiece: failed to load ${pieceId ?? "?"}`);
+			return "failed";
+		}
 
+		console.log("[score-worker] buildMeasureIndex...");
 		const entry: CacheEntry = { tk, measures: [], xmlContent };
 		// renderToTimemap triggers the deprecated WASM 'try' instruction warning.
 		// If it throws, clips fall back to rendering page 1.
@@ -392,6 +410,7 @@ if (typeof window === "undefined") {
 		} catch {
 			// measures stays empty; getPageForBar returns 1 for all bars
 		}
+		console.log(`[score-worker] loadPiece done: ${pieceId ?? "?"}, ${entry.measures.length} measures`);
 		return entry;
 	}
 
@@ -433,7 +452,7 @@ if (typeof window === "undefined") {
 				// Start loading and store the Promise synchronously before any await,
 				// so concurrent handlers that run while we are loading will await the
 				// same Promise instead of hitting "bytes required".
-				const loadPromise = loadPiece(msg.bytes);
+				const loadPromise = loadPiece(msg.bytes, msg.pieceId);
 				toolkitCache.set(msg.pieceId, loadPromise);
 				result = await loadPromise;
 				// Replace the in-flight Promise with the settled result.

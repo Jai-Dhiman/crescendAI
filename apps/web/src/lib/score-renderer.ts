@@ -90,6 +90,7 @@ class ScoreRenderer {
 
 		const fetchPromise = (async () => {
 			const bytes = await api.scores.getData(pieceId);
+			console.log(`[score-renderer] fetched ${bytes.byteLength} bytes for ${pieceId}`);
 			this.bytesCache.set(pieceId, bytes);
 		})();
 
@@ -157,6 +158,7 @@ class ScoreRenderer {
 				return;
 			}
 			if (needsBytes) this.sentPieceIds.add(pieceId);
+			console.log(`[score-renderer] postMessage render_clip, bytes=${bytes?.byteLength ?? "none"}, pieceId=${pieceId}`);
 			worker.postMessage({
 				type: "render_clip",
 				requestId,

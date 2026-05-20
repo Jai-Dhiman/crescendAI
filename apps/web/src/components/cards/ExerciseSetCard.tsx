@@ -1,5 +1,8 @@
 import { ArrowsOut, CaretDown } from "@phosphor-icons/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import type { ClipResult } from "../../lib/score-renderer";
+import { scoreRenderer } from "../../lib/score-renderer";
+import { SvgClip } from "../SvgClip";
 import { api } from "../../lib/api";
 import { handsLabel } from "../../lib/exercise-utils";
 import type { ExerciseSetConfig } from "../../lib/types";
@@ -142,9 +145,31 @@ export function ExerciseSetCard({
 	artifactId,
 }: ExerciseSetCardProps) {
 	const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
+	const [scoreClip, setScoreClip] = useState<ClipResult | null>(null);
+
+	useEffect(() => {
+		if (!config.scoreClip) return;
+		let cancelled = false;
+		scoreRenderer
+			.getClip(config.scoreClip.pieceId, config.scoreClip.bars[0], config.scoreClip.bars[1])
+			.then((r) => { if (!cancelled) setScoreClip(r); })
+			.catch(() => {});
+		return () => { cancelled = true; };
+	}, [config.scoreClip]);
 
 	return (
 		<div className="bg-surface-card border border-border rounded-xl overflow-hidden mt-3">
+			{/* Score clip */}
+			{config.scoreClip && scoreClip && (
+				<div className="border-b border-border/60 bg-white">
+					<SvgClip
+						svgMarkup={scoreClip.svg}
+						startMeasureId={scoreClip.startMeasureId}
+						endMeasureId={scoreClip.endMeasureId}
+					/>
+				</div>
+			)}
+
 			{/* Header */}
 			<div className="px-4 pt-4 pb-3 flex items-start justify-between gap-3">
 				<div className="min-w-0">

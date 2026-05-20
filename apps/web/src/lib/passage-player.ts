@@ -58,8 +58,9 @@ export class PassagePlayer {
     return () => this.tickCallbacks.delete(cb);
   }
 
-  play(): void {
+  async play(): Promise<void> {
     if (this.state !== "ready" && this.state !== "paused") return;
+    await this.ctx.resume();
     this.playStartedAtCtxTime = this.ctx.currentTime;
     const baseWhen = this.ctx.currentTime;
     let cursor = 0;

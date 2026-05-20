@@ -109,12 +109,32 @@ describe("PlayPassageCard", () => {
     expect(mockPlay).toHaveBeenCalled();
   });
 
-  it("shows error state when manifest fetch rejects", async () => {
+  it("shows fetch-error state when manifest fetch rejects", async () => {
     mockGetPassage.mockRejectedValue(new Error("getPassage failed: 409"));
     const { PlayPassageCard } = await import("./PlayPassageCard");
     render(React.createElement(PlayPassageCard, { config }));
     await waitFor(() => {
       expect(screen.getByText("couldn't load audio")).toBeInTheDocument();
+    });
+  });
+
+  it("shows audio_error state — score and annotation render, play button replaced — when player.load() rejects", async () => {
+    mockGetPassage.mockResolvedValue(manifest);
+    mockGetClip.mockResolvedValue({
+      svg: "<svg></svg>",
+      startMeasureId: null,
+      endMeasureId: null,
+    });
+    mockLoad.mockRejectedValue(new Error("fetch chunk failed: 404"));
+
+    const { PlayPassageCard } = await import("./PlayPassageCard");
+    render(React.createElement(PlayPassageCard, { config }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Audio unavailable")).toBeInTheDocument();
+      expect(screen.getByText(config.annotation)).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /play/i })).toBeNull();
+      expect(screen.queryByText("couldn't load audio")).toBeNull();
     });
   });
 });

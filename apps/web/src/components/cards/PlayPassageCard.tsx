@@ -12,11 +12,26 @@ interface PlayPassageCardProps {
   config: PlayPassageConfig;
   onExpand?: () => void;
   artifactId?: string;
+  /** Sandbox only: skip the manifest API fetch and use this directly. */
+  _mockManifest?: PassageManifest;
+  /** Sandbox only: skip scoreRenderer.getClip and use this directly. */
+  _mockClip?: ClipResult;
+  /** Sandbox only: when true with _mockManifest+_mockClip, still runs PassagePlayer (real audio). */
+  _playable?: boolean;
 }
 
-type LoadState = "loading" | "ready" | "error";
+// "audio_error" = manifest+score loaded fine but audio chunks unavailable.
+// Score + annotation still render; only the play button indicates the failure.
+type LoadState = "loading" | "ready" | "audio_error" | "error";
 
-export function PlayPassageCard({ config, onExpand, artifactId: _artifactId }: PlayPassageCardProps) {
+export function PlayPassageCard({
+  config,
+  onExpand,
+  artifactId: _artifactId,
+  _mockManifest,
+  _mockClip,
+  _playable,
+}: PlayPassageCardProps) {
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [clip, setClip] = useState<ClipResult | null>(null);
   const [manifest, setManifest] = useState<PassageManifest | null>(null);
@@ -24,30 +39,51 @@ export function PlayPassageCard({ config, onExpand, artifactId: _artifactId }: P
   const ctxRef = useRef<AudioContext | null>(null);
 
   useEffect(() => {
+    // Sandbox fast-path: both mocks provided and audio not needed → skip all async.
+    // playerRef stays null; play button renders but clicking is a no-op.
+    if (_mockManifest && _mockClip && !_playable) {
+      setManifest(_mockManifest);
+      setClip(_mockClip);
+      setLoadState("ready");
+      return;
+    }
+
     let cancelled = false;
     (async () => {
+      // Phase 1: fetch manifest + score clip (data failure = full error state).
+      // When mocks are provided, use them directly and skip the await.
+      let m: PassageManifest;
+      let c: ClipResult;
       try {
-        const m = await api.sessions.getPassage(config.sessionId, config.bars);
-        if (cancelled) return;
-        const c = await scoreRenderer.getClip(m.pieceId, config.bars[0], config.bars[1]);
-        if (cancelled) return;
+        m = _mockManifest ?? await api.sessions.getPassage(config.sessionId, config.bars);
+        if (!_mockManifest && cancelled) return;
+        c = _mockClip ?? await scoreRenderer.getClip(m.pieceId, config.bars[0], config.bars[1]);
+        if (!_mockClip && cancelled) return;
+      } catch (err) {
+        console.error("PlayPassageCard fetch failed", err);
+        if (!cancelled) setLoadState("error");
+        return;
+      }
+      // Score data is ready — commit it so the card can render even if audio fails.
+      setManifest(m);
+      setClip(c);
+
+      // Phase 2: load audio (failure = audio_error, score still renders)
+      try {
         const ctx = new AudioContext();
         ctxRef.current = ctx;
         const player = new PassagePlayer(m, ctx);
         await player.load();
         if (cancelled) {
           player.destroy();
-          ctx.close();
           ctxRef.current = null;
           return;
         }
         playerRef.current = player;
-        setManifest(m);
-        setClip(c);
         setLoadState("ready");
       } catch (err) {
-        console.error("PlayPassageCard load failed", err);
-        if (!cancelled) setLoadState("error");
+        console.error("PlayPassageCard audio load failed", err);
+        if (!cancelled) setLoadState("audio_error");
       }
     })();
     return () => {
@@ -57,7 +93,7 @@ export function PlayPassageCard({ config, onExpand, artifactId: _artifactId }: P
       ctxRef.current = null;
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [config.sessionId, config.bars[0], config.bars[1]]);
+  }, [config.sessionId, config.bars[0], config.bars[1], _mockManifest, _mockClip, _playable]);
 
   const color =
     DIMENSION_COLORS[config.dimension as keyof typeof DIMENSION_COLORS] ?? "#7a9a82";
@@ -69,7 +105,7 @@ export function PlayPassageCard({ config, onExpand, artifactId: _artifactId }: P
           <div className="w-3.5 h-3.5 rounded-full border-2 border-text-tertiary/50 border-t-transparent animate-spin" />
         </div>
       )}
-      {loadState === "ready" && clip && manifest && (
+      {(loadState === "ready" || loadState === "audio_error") && clip && manifest && (
         <div className="px-3 pt-3">
           <div
             style={{
@@ -86,14 +122,20 @@ export function PlayPassageCard({ config, onExpand, artifactId: _artifactId }: P
               endMeasureId={clip.endMeasureId}
             />
           </div>
-          <button
-            type="button"
-            aria-label="Play passage"
-            onClick={() => playerRef.current?.play()}
-            className="mt-3 px-3 py-1.5 rounded-md border border-border text-body-sm text-text-primary hover:bg-surface transition-colors"
-          >
-            Play
-          </button>
+          {loadState === "ready" ? (
+            <button
+              type="button"
+              aria-label="Play passage"
+              onClick={() => void playerRef.current?.play()}
+              className="mt-3 px-3 py-1.5 rounded-md border border-border text-body-sm text-text-primary hover:bg-surface transition-colors"
+            >
+              Play
+            </button>
+          ) : (
+            <span className="mt-3 inline-block text-body-sm text-text-tertiary">
+              Audio unavailable
+            </span>
+          )}
         </div>
       )}
       {loadState === "error" && (

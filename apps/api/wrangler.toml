@@ -58,4 +58,3 @@ bucket_name = "crescendai-bucket"
 [[r2_buckets]]
 binding = "SCORES"
 bucket_name = "crescendai-bucket"
-remote = true

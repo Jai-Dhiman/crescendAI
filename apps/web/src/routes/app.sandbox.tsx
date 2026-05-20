@@ -2,17 +2,20 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Artifact } from "../components/Artifact";
 import { ArtifactOverlay } from "../components/ArtifactOverlay";
+import { SegmentLoopArtifactCard } from "../components/cards/SegmentLoopArtifact";
 import { SvgClip } from "../components/SvgClip";
 import { SvgClipBBox } from "../components/SvgClipBBox";
+import { PlayPassageCard } from "../components/cards/PlayPassageCard";
 import { ArtifactScrollContext } from "../contexts/artifact-scroll";
 import type { ClipResult } from "../lib/score-renderer";
 import { scoreRenderer } from "../lib/score-renderer";
-import { PlayPassageCard } from "../components/cards/PlayPassageCard";
 import type {
 	ExerciseSetConfig,
 	KeyboardGuideConfig,
+	PassageManifest,
 	PlayPassageConfig,
 	ScoreHighlightConfig,
+	SegmentLoopConfig,
 } from "../lib/types";
 import { useArtifactStore } from "../stores/artifact";
 
@@ -23,6 +26,7 @@ import { useArtifactStore } from "../stores/artifact";
 const exerciseSetWithId: ExerciseSetConfig = {
 	sourcePassage: "Chopin Op. 10 No. 3, bars 1-8",
 	targetSkill: "Cantabile tone production",
+	scoreClip: { pieceId: "chopin.ballades.1", bars: [1, 8] },
 	exercises: [
 		{
 			title: "Slow legato melody",
@@ -46,6 +50,7 @@ const exerciseSetWithId: ExerciseSetConfig = {
 const exerciseSetNoId: ExerciseSetConfig = {
 	sourcePassage: "Beethoven Sonata Op. 13 (Pathetique), bars 5-12",
 	targetSkill: "LH octave evenness",
+	scoreClip: { pieceId: "chopin.ballades.1", bars: [36, 43] },
 	exercises: [
 		{
 			title: "Octave isolation",
@@ -137,7 +142,101 @@ const scoreHighlightLate: ScoreHighlightConfig = {
 
 const keyboardGuide: KeyboardGuideConfig = {};
 
-const playPassageFixture: PlayPassageConfig = {
+// ---------------------------------------------------------------------------
+// PlayPassage sandbox fixtures
+// ---------------------------------------------------------------------------
+
+// Minimal staff SVG — used as the mock score clip so the ready state renders
+// without needing a real score from the API.
+const MOCK_SCORE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 72" width="400" height="72">
+  <line x1="12" y1="16" x2="388" y2="16" stroke="#444" stroke-width="0.8"/>
+  <line x1="12" y1="26" x2="388" y2="26" stroke="#444" stroke-width="0.8"/>
+  <line x1="12" y1="36" x2="388" y2="36" stroke="#444" stroke-width="0.8"/>
+  <line x1="12" y1="46" x2="388" y2="46" stroke="#444" stroke-width="0.8"/>
+  <line x1="12" y1="56" x2="388" y2="56" stroke="#444" stroke-width="0.8"/>
+  <line x1="12"  y1="16" x2="12"  y2="56" stroke="#444" stroke-width="1.2"/>
+  <line x1="200" y1="16" x2="200" y2="56" stroke="#444" stroke-width="0.8"/>
+  <line x1="388" y1="16" x2="388" y2="56" stroke="#444" stroke-width="1.8"/>
+  <line x1="384" y1="16" x2="384" y2="56" stroke="#444" stroke-width="0.8"/>
+  <ellipse cx="55"  cy="31" rx="6.5" ry="4.5" fill="#222" transform="rotate(-18 55 31)"/>
+  <line x1="61"  y1="31" x2="61"  y2="10" stroke="#222" stroke-width="1.2"/>
+  <ellipse cx="95"  cy="41" rx="6.5" ry="4.5" fill="#222" transform="rotate(-18 95 41)"/>
+  <line x1="101" y1="41" x2="101" y2="20" stroke="#222" stroke-width="1.2"/>
+  <ellipse cx="135" cy="26" rx="6.5" ry="4.5" fill="#222" transform="rotate(-18 135 26)"/>
+  <line x1="141" y1="26" x2="141" y2="5"  stroke="#222" stroke-width="1.2"/>
+  <ellipse cx="168" cy="36" rx="6.5" ry="4.5" fill="#222" transform="rotate(-18 168 36)"/>
+  <line x1="174" y1="36" x2="174" y2="15" stroke="#222" stroke-width="1.2"/>
+  <ellipse cx="240" cy="46" rx="6.5" ry="4.5" fill="#222" transform="rotate(-18 240 46)"/>
+  <line x1="246" y1="46" x2="246" y2="25" stroke="#222" stroke-width="1.2"/>
+  <ellipse cx="280" cy="31" rx="6.5" ry="4.5" fill="#222" transform="rotate(-18 280 31)"/>
+  <line x1="286" y1="31" x2="286" y2="10" stroke="#222" stroke-width="1.2"/>
+  <ellipse cx="320" cy="21" rx="6.5" ry="4.5" fill="#222" transform="rotate(-18 320 21)"/>
+  <line x1="326" y1="21" x2="326" y2="0"  stroke="#222" stroke-width="1.2"/>
+  <ellipse cx="358" cy="41" rx="6.5" ry="4.5" fill="#222" transform="rotate(-18 358 41)"/>
+  <line x1="364" y1="41" x2="364" y2="20" stroke="#222" stroke-width="1.2"/>
+</svg>`;
+
+const MOCK_CLIP: ClipResult = {
+	svg: MOCK_SCORE_SVG,
+	startMeasureId: null,
+	endMeasureId: null,
+};
+
+// Fake manifest — chunk URLs will 404, triggering the audio_error state
+// (score + annotation still render; play button shows "Audio unavailable").
+const MOCK_MANIFEST: PassageManifest = {
+	source: { kind: "session", sessionId: "00000000-0000-0000-0000-0000000000ff" },
+	pieceId: "chopin.ballades.1",
+	bars: [5, 8],
+	chunks: [
+		{
+			url: "/api/practice/chunk?sessionId=00000000-0000-0000-0000-0000000000ff&chunkIndex=0",
+			chunkIndex: 0,
+			durationSec: 15,
+		},
+	],
+	startOffsetSec: 1.0,
+	endOffsetSec: 13.0,
+	barTimeline: [
+		{ bar: 5, tSec: 0 },
+		{ bar: 6, tSec: 3 },
+		{ bar: 7, tSec: 6 },
+		{ bar: 8, tSec: 9 },
+	],
+};
+
+const MOCK_MANIFEST_MULTI_CHUNK: PassageManifest = {
+	...MOCK_MANIFEST,
+	bars: [1, 8],
+	chunks: [
+		{
+			url: "/api/practice/chunk?sessionId=00000000-0000-0000-0000-0000000000ff&chunkIndex=0",
+			chunkIndex: 0,
+			durationSec: 15,
+		},
+		{
+			url: "/api/practice/chunk?sessionId=00000000-0000-0000-0000-0000000000ff&chunkIndex=1",
+			chunkIndex: 1,
+			durationSec: 15,
+		},
+	],
+	startOffsetSec: 0,
+	endOffsetSec: 13.0,
+	barTimeline: [
+		{ bar: 1, tSec: 0 },
+		{ bar: 2, tSec: 3 },
+		{ bar: 3, tSec: 6 },
+		{ bar: 4, tSec: 9 },
+		{ bar: 5, tSec: 15 },
+		{ bar: 6, tSec: 18 },
+		{ bar: 7, tSec: 21 },
+		{ bar: 8, tSec: 24 },
+	],
+};
+
+// --- PlayPassage scenario configs ---
+
+const ppTiming: PlayPassageConfig = {
 	sessionId: "00000000-0000-0000-0000-0000000000ff",
 	bars: [5, 8],
 	focusBars: [6, 7],
@@ -145,17 +244,231 @@ const playPassageFixture: PlayPassageConfig = {
 	annotation: "You rushed through the triplets in bar 6 — try holding each beat a hair longer to let the phrase breathe.",
 };
 
+const ppDynamics: PlayPassageConfig = {
+	sessionId: "00000000-0000-0000-0000-0000000000ff",
+	bars: [5, 8],
+	dimension: "dynamics",
+	annotation: "The crescendo in bars 5–8 barely registers. Aim for a two-level jump in arm weight from bar 6 to bar 8.",
+};
+
+const ppPedaling: PlayPassageConfig = {
+	sessionId: "00000000-0000-0000-0000-0000000000ff",
+	bars: [5, 8],
+	focusBars: [5, 6],
+	dimension: "pedaling",
+	annotation: "Harmonic change on beat 3 of bar 5 — the pedal needs to lift and re-engage there, not carry over.",
+};
+
+const ppPhrasing: PlayPassageConfig = {
+	sessionId: "00000000-0000-0000-0000-0000000000ff",
+	bars: [1, 8],
+	focusBars: [5, 8],
+	dimension: "phrasing",
+	annotation: "The phrase peak should land on the downbeat of bar 7, not bar 5. Right now the energy peaks too early and the second half collapses.",
+};
+
+const ppLongAnnotation: PlayPassageConfig = {
+	sessionId: "00000000-0000-0000-0000-0000000000ff",
+	bars: [5, 8],
+	focusBars: [6, 7],
+	dimension: "interpretation",
+	annotation: "There is a subtle but important distinction between rubato as an ornament and rubato as the structural shaping of a phrase. What you are doing in bars 6 and 7 is ornamental — small fluctuations that feel decorative. The phrase wants structural rubato: a broad elastic pull across all four bars where the time stretches through bar 6 and snaps back cleanly at bar 8.",
+};
+
+const ppFetchError: PlayPassageConfig = {
+	sessionId: "00000000-0000-0000-0000-000000000000",
+	bars: [5, 8],
+	focusBars: [6, 7],
+	dimension: "timing",
+	annotation: "This session has no alignment data — card should show the fetch-error state.",
+};
+
+// ---------------------------------------------------------------------------
+// ScoreHighlight edge cases
+// ---------------------------------------------------------------------------
+
+// Error state: invalid pieceId → getClip throws → annotation list renders without score clips
+const scoreHighlightError: ScoreHighlightConfig = {
+	pieceId: "invalid.piece.id",
+	highlights: [
+		{
+			bars: [1, 4],
+			dimension: "dynamics",
+			annotation: "Score failed to load — annotation still renders below (no clip above)",
+		},
+	],
+};
+
+// No annotation: dimension label + bar range only
+const scoreHighlightNoAnnotation: ScoreHighlightConfig = {
+	pieceId: "chopin.ballades.1",
+	highlights: [
+		{ bars: [1, 4], dimension: "dynamics" },
+		{ bars: [5, 8], dimension: "timing" },
+	],
+};
+
+// Single-bar clip (startBar === endBar): edge case for the viewBox crop logic
+const scoreHighlightSingleBar: ScoreHighlightConfig = {
+	pieceId: "chopin.ballades.1",
+	highlights: [
+		{ bars: [8, 8], dimension: "phrasing", annotation: "Isolate bar 8 only — single-measure crop edge case" },
+	],
+};
+
+// Out-of-range bars (piece ends at bar 264): documents actual behavior
+const scoreHighlightOutOfRange: ScoreHighlightConfig = {
+	pieceId: "chopin.ballades.1",
+	highlights: [
+		{ bars: [300, 310], dimension: "interpretation", annotation: "Bars beyond piece end — expect error or empty clip" },
+	],
+};
+
+// ---------------------------------------------------------------------------
+// ExerciseSet edge cases
+// ---------------------------------------------------------------------------
+
+// Single exercise with exerciseId — minimal layout, "Add to practice" button present
+// Clicking will show "Try again" (fake UUID → 404 from API)
+const exerciseSingle: ExerciseSetConfig = {
+	sourcePassage: "Chopin Op. 10 No. 3, bar 1",
+	targetSkill: "Opening phrase shape",
+	exercises: [
+		{
+			title: "Shape the melody peak",
+			instruction:
+				"Play bar 1 five times, crescendo to beat 3, diminuendo to the end. Keep the LH softer.",
+			focusDimension: "dynamics",
+			hands: "right",
+			exerciseId: "00000000-0000-0000-0000-000000000003",
+		},
+	],
+};
+
+// 3 exercises, all with IDs — tests list layout; clicking any button shows "Try again"
+const exerciseThreeWithIds: ExerciseSetConfig = {
+	sourcePassage: "Beethoven Op. 13, bars 1-16",
+	targetSkill: "LH / RH coordination",
+	exercises: [
+		{
+			title: "LH alone, slow",
+			instruction:
+				"LH only at 50 BPM, no pedal. Focus on even weight between fingers 4 and 5.",
+			focusDimension: "articulation",
+			hands: "left",
+			exerciseId: "00000000-0000-0000-0000-000000000004",
+		},
+		{
+			title: "RH alone, shape the line",
+			instruction:
+				"RH melody at 60 BPM. Bring out every phrase peak by lifting into the note.",
+			focusDimension: "phrasing",
+			hands: "right",
+			exerciseId: "00000000-0000-0000-0000-000000000005",
+		},
+		{
+			title: "Hands together, block chords",
+			instruction:
+				"Reduce RH to block chords, align each chord's attack exactly with the LH beat. Then restore the melody.",
+			focusDimension: "timing",
+			hands: "both",
+			exerciseId: "00000000-0000-0000-0000-000000000006",
+		},
+	],
+};
+
+// Mixed: first exercise has no exerciseId (no button); second does (button present)
+const exerciseMixed: ExerciseSetConfig = {
+	sourcePassage: "Schumann Kinderszenen No. 7, bars 1-8",
+	targetSkill: "Singing tone in slow melody",
+	exercises: [
+		{
+			title: "Listen first (no button)",
+			instruction:
+				"Listen to a recording of bars 1-8. Notice where the phrase peaks and breathes.",
+			focusDimension: "interpretation",
+			hands: "both",
+		},
+		{
+			title: "Replicate the shape (has button)",
+			instruction:
+				"Play bars 1-8 aiming to match the phrasing shape you heard. Let the melody lead; keep the LH harmonic support quiet.",
+			focusDimension: "phrasing",
+			hands: "both",
+			exerciseId: "00000000-0000-0000-0000-000000000007",
+		},
+	],
+};
+
+// Long text — tests title truncation and instruction wrapping
+const exerciseLongText: ExerciseSetConfig = {
+	sourcePassage:
+		"Chopin Nocturne Op. 9 No. 2 in E-flat major, bars 1-12 (opening statement through first return)",
+	targetSkill: "Ornamental right-hand phrasing in the Chopin nocturne style",
+	exercises: [
+		{
+			title: "Slow-practice the ornament chain in bar 4",
+			instruction:
+				"The turn-into-trill ornament on beat 3 of bar 4 is the single most common breakdown point for intermediate players. Practice it as: hold the main note for a full beat, then execute the turn at exactly half the intended speed. The trill should feel like a continuation, not a surprise. Do not rush into it. Repeat at least ten times before returning to tempo. The goal is proprioceptive familiarity — your hand should know exactly how far to travel without looking.",
+			focusDimension: "articulation",
+			hands: "right",
+			exerciseId: "00000000-0000-0000-0000-000000000008",
+		},
+	],
+};
+
+// ---------------------------------------------------------------------------
+// SegmentLoop fixtures — one per status value
+// Button clicks call real endpoints with a fake UUID → network/404 → shows error text
+// ---------------------------------------------------------------------------
+
+const slBase: Omit<SegmentLoopConfig, "status" | "attemptsCompleted"> = {
+	id: "00000000-0000-0000-0000-000000000010",
+	pieceId: "chopin.ballades.1",
+	barsStart: 5,
+	barsEnd: 8,
+	requiredCorrect: 3,
+	dimension: "timing",
+};
+
+const slPending: SegmentLoopConfig = { ...slBase, status: "pending", attemptsCompleted: 0 };
+const slActive: SegmentLoopConfig = { ...slBase, status: "active", attemptsCompleted: 1 };
+const slCompleted: SegmentLoopConfig = { ...slBase, status: "completed", attemptsCompleted: 3 };
+const slDismissed: SegmentLoopConfig = { ...slBase, status: "dismissed", attemptsCompleted: 1 };
+const slSuperseded: SegmentLoopConfig = { ...slBase, status: "superseded", attemptsCompleted: 0 };
+
 // --- Artifact IDs ---
 
 const SANDBOX_IDS = {
 	exerciseWithId: "sandbox-exercise-set-1",
 	exerciseNoId: "sandbox-exercise-set-2",
+	exerciseSingle: "sandbox-exercise-single",
+	exerciseThreeWithIds: "sandbox-exercise-three-with-ids",
+	exerciseMixed: "sandbox-exercise-mixed",
+	exerciseLongText: "sandbox-exercise-long-text",
 	scoreHighlightOpening: "sandbox-score-highlight-opening",
 	scoreHighlightWide: "sandbox-score-highlight-wide",
 	scoreHighlightMid: "sandbox-score-highlight-mid",
 	scoreHighlightLate: "sandbox-score-highlight-late",
+	scoreHighlightError: "sandbox-score-highlight-error",
+	scoreHighlightNoAnnotation: "sandbox-score-highlight-no-annotation",
+	scoreHighlightSingleBar: "sandbox-score-highlight-single-bar",
+	scoreHighlightOutOfRange: "sandbox-score-highlight-out-of-range",
 	keyboardGuide: "sandbox-keyboard-guide-1",
-	playPassage: "sandbox-play-passage-1",
+	ppTiming: "sandbox-pp-timing",
+	ppDynamics: "sandbox-pp-dynamics",
+	ppPedaling: "sandbox-pp-pedaling",
+	ppPhrasing: "sandbox-pp-phrasing",
+	ppLongAnnotation: "sandbox-pp-long-annotation",
+	ppMultiChunk: "sandbox-pp-multi-chunk",
+	ppFetchError: "sandbox-pp-fetch-error",
+	ppPlayable: "sandbox-pp-playable",
+	ppAudioError: "sandbox-pp-audio-error",
+	slPending: "sandbox-sl-pending",
+	slActive: "sandbox-sl-active",
+	slCompleted: "sandbox-sl-completed",
+	slDismissed: "sandbox-sl-dismissed",
+	slSuperseded: "sandbox-sl-superseded",
 } as const;
 
 // --- Section wrapper ---
@@ -610,6 +923,86 @@ const CLIP_TESTS: ClipTest[] = [
 	},
 ];
 
+// ---------------------------------------------------------------------------
+// PlayablePassageSection — generates a WAV blob URL on mount so PassagePlayer
+// can actually load and decode audio, making the Play button functional.
+// Must be a component because URL.createObjectURL requires browser context (no SSR).
+// ---------------------------------------------------------------------------
+
+function makeWavBlobUrl(durationSec: number, freqs: number[]): string {
+	const sr = 22050;
+	const n = Math.floor(sr * durationSec);
+	const buf = new ArrayBuffer(44 + n * 2);
+	const view = new DataView(buf);
+	const write4 = (pos: number, val: string) =>
+		[...val].forEach((c, i) => view.setUint8(pos + i, c.charCodeAt(0)));
+	write4(0, "RIFF"); view.setUint32(4, 36 + n * 2, true);
+	write4(8, "WAVE"); write4(12, "fmt ");
+	view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 1, true);
+	view.setUint32(24, sr, true); view.setUint32(28, sr * 2, true);
+	view.setUint16(32, 2, true); view.setUint16(34, 16, true);
+	write4(36, "data"); view.setUint32(40, n * 2, true);
+	for (let i = 0; i < n; i++) {
+		const t = i / sr;
+		const decay = Math.exp(-t * 2.5);
+		const amp = freqs.reduce((s, f) => s + Math.sin(2 * Math.PI * f * t), 0) / freqs.length;
+		view.setInt16(44 + i * 2, Math.round(amp * decay * 28000), true);
+	}
+	return URL.createObjectURL(new Blob([buf], { type: "audio/wav" }));
+}
+
+interface PlayablePassageSectionProps {
+	artifactId: string;
+	title: string;
+	config: PlayPassageConfig;
+	audioError?: boolean;
+}
+
+function PlayablePassageSection({ artifactId, title, config, audioError }: PlayablePassageSectionProps) {
+	const [manifest, setManifest] = useState<PassageManifest | null>(null);
+
+	useEffect(() => {
+		if (audioError) {
+			// Use fake chunk URLs → PassagePlayer will fail to decode → audio_error state
+			setManifest(MOCK_MANIFEST);
+			return;
+		}
+		// C major triad (C4, E4, G4) with exponential decay — ~piano-like chord
+		const url = makeWavBlobUrl(15, [261.63, 329.63, 392.0]);
+		setManifest({
+			source: { kind: "session", sessionId: config.sessionId },
+			pieceId: "chopin.ballades.1",
+			bars: config.bars,
+			chunks: [{ url, chunkIndex: 0, durationSec: 15 }],
+			startOffsetSec: 1.0,
+			endOffsetSec: 13.0,
+			barTimeline: [
+				{ bar: config.bars[0], tSec: 0 },
+				{ bar: config.bars[0] + 1, tSec: 3 },
+				{ bar: config.bars[0] + 2, tSec: 6 },
+				{ bar: config.bars[1], tSec: 9 },
+			],
+		});
+	}, [config.sessionId, config.bars, audioError]);
+
+	return (
+		<SandboxSection title={title} artifactId={artifactId}>
+			{manifest ? (
+				<PlayPassageCard
+					config={config}
+					_mockManifest={manifest}
+					_mockClip={MOCK_CLIP}
+					_playable
+				/>
+			) : (
+				<div className="h-10 flex items-center justify-center">
+					<div className="w-3.5 h-3.5 rounded-full border-2 border-text-tertiary/50 border-t-transparent animate-spin" />
+				</div>
+			)}
+		</SandboxSection>
+	);
+}
+
 // --- Page ---
 
 function ArtifactSandbox() {
@@ -631,6 +1024,9 @@ function ArtifactSandbox() {
 							Dev-only. Test each artifact type in isolation.
 						</p>
 					</div>
+
+					{/* ── SCORE ─────────────────────────────────────────────────── */}
+					<h2 className="font-display text-display-sm text-text-tertiary tracking-wide uppercase text-xs">Score</h2>
 
 					{/* Approaches comparison — 5 ways to render bars 135-136 */}
 					<ApproachesComparison
@@ -727,9 +1123,52 @@ function ArtifactSandbox() {
 						/>
 					</SandboxSection>
 
-					{/* ExerciseSet — with exerciseId (Start/Complete buttons) */}
+					{/* ScoreHighlight edge cases */}
 					<SandboxSection
-						title="ExerciseSet (with exerciseId)"
+						title="ScoreHighlight — error (invalid pieceId, annotation still renders)"
+						artifactId={SANDBOX_IDS.scoreHighlightError}
+					>
+						<Artifact
+							artifactId={SANDBOX_IDS.scoreHighlightError}
+							component={{ type: "score_highlight", config: scoreHighlightError }}
+						/>
+					</SandboxSection>
+
+					<SandboxSection
+						title="ScoreHighlight — no annotation (dimension + bar range only)"
+						artifactId={SANDBOX_IDS.scoreHighlightNoAnnotation}
+					>
+						<Artifact
+							artifactId={SANDBOX_IDS.scoreHighlightNoAnnotation}
+							component={{ type: "score_highlight", config: scoreHighlightNoAnnotation }}
+						/>
+					</SandboxSection>
+
+					<SandboxSection
+						title="ScoreHighlight — single bar (8,8) crop edge case"
+						artifactId={SANDBOX_IDS.scoreHighlightSingleBar}
+					>
+						<Artifact
+							artifactId={SANDBOX_IDS.scoreHighlightSingleBar}
+							component={{ type: "score_highlight", config: scoreHighlightSingleBar }}
+						/>
+					</SandboxSection>
+
+					<SandboxSection
+						title="ScoreHighlight — out-of-range bars (300-310, piece ends at 264)"
+						artifactId={SANDBOX_IDS.scoreHighlightOutOfRange}
+					>
+						<Artifact
+							artifactId={SANDBOX_IDS.scoreHighlightOutOfRange}
+							component={{ type: "score_highlight", config: scoreHighlightOutOfRange }}
+						/>
+					</SandboxSection>
+
+					{/* ── EXERCISES ─────────────────────────────────────────────── */}
+					<h2 className="font-display text-display-sm text-text-tertiary tracking-wide uppercase text-xs">Exercises</h2>
+
+					<SandboxSection
+						title="ExerciseSet — with scoreClip + exerciseId"
 						artifactId={SANDBOX_IDS.exerciseWithId}
 					>
 						<Artifact
@@ -738,9 +1177,8 @@ function ArtifactSandbox() {
 						/>
 					</SandboxSection>
 
-					{/* ExerciseSet — without exerciseId (Not yet saved path) */}
 					<SandboxSection
-						title="ExerciseSet (no exerciseId)"
+						title="ExerciseSet — with scoreClip, no exerciseId"
 						artifactId={SANDBOX_IDS.exerciseNoId}
 					>
 						<Artifact
@@ -749,7 +1187,173 @@ function ArtifactSandbox() {
 						/>
 					</SandboxSection>
 
-					{/* KeyboardGuide */}
+					<SandboxSection
+						title="ExerciseSet — single exercise (with exerciseId)"
+						artifactId={SANDBOX_IDS.exerciseSingle}
+					>
+						<Artifact
+							artifactId={SANDBOX_IDS.exerciseSingle}
+							component={{ type: "exercise_set", config: exerciseSingle }}
+						/>
+					</SandboxSection>
+
+					<SandboxSection
+						title="ExerciseSet — 3 exercises with IDs (click 'Add to practice' → error state)"
+						artifactId={SANDBOX_IDS.exerciseThreeWithIds}
+					>
+						<Artifact
+							artifactId={SANDBOX_IDS.exerciseThreeWithIds}
+							component={{ type: "exercise_set", config: exerciseThreeWithIds }}
+						/>
+					</SandboxSection>
+
+					<SandboxSection
+						title="ExerciseSet — mixed (first: no button, second: has button)"
+						artifactId={SANDBOX_IDS.exerciseMixed}
+					>
+						<Artifact
+							artifactId={SANDBOX_IDS.exerciseMixed}
+							component={{ type: "exercise_set", config: exerciseMixed }}
+						/>
+					</SandboxSection>
+
+					<SandboxSection
+						title="ExerciseSet — long text (title truncation + instruction wrapping)"
+						artifactId={SANDBOX_IDS.exerciseLongText}
+					>
+						<Artifact
+							artifactId={SANDBOX_IDS.exerciseLongText}
+							component={{ type: "exercise_set", config: exerciseLongText }}
+						/>
+					</SandboxSection>
+
+					{/* ── PLAYBACK ──────────────────────────────────────────────── */}
+					<h2 className="font-display text-display-sm text-text-tertiary tracking-wide uppercase text-xs">Playback</h2>
+
+					<SandboxSection
+						title="PlayPassage — timing, focusBars [6,7]"
+						artifactId={SANDBOX_IDS.ppTiming}
+					>
+						<PlayPassageCard
+							config={ppTiming}
+							_mockManifest={MOCK_MANIFEST}
+							_mockClip={MOCK_CLIP}
+						/>
+					</SandboxSection>
+
+					<SandboxSection
+						title="PlayPassage — dynamics, no focusBars"
+						artifactId={SANDBOX_IDS.ppDynamics}
+					>
+						<PlayPassageCard
+							config={ppDynamics}
+							_mockManifest={MOCK_MANIFEST}
+							_mockClip={MOCK_CLIP}
+						/>
+					</SandboxSection>
+
+					<SandboxSection
+						title="PlayPassage — pedaling, focusBars [5,6]"
+						artifactId={SANDBOX_IDS.ppPedaling}
+					>
+						<PlayPassageCard
+							config={ppPedaling}
+							_mockManifest={MOCK_MANIFEST}
+							_mockClip={MOCK_CLIP}
+						/>
+					</SandboxSection>
+
+					<SandboxSection
+						title="PlayPassage — phrasing, wide passage bars 1-8, focusBars [5,8]"
+						artifactId={SANDBOX_IDS.ppPhrasing}
+					>
+						<PlayPassageCard
+							config={ppPhrasing}
+							_mockManifest={MOCK_MANIFEST_MULTI_CHUNK}
+							_mockClip={MOCK_CLIP}
+						/>
+					</SandboxSection>
+
+					<SandboxSection
+						title="PlayPassage — long annotation (overflow edge case)"
+						artifactId={SANDBOX_IDS.ppLongAnnotation}
+					>
+						<PlayPassageCard
+							config={ppLongAnnotation}
+							_mockManifest={MOCK_MANIFEST}
+							_mockClip={MOCK_CLIP}
+						/>
+					</SandboxSection>
+
+					<SandboxSection
+						title="PlayPassage — multi-chunk manifest (bars 1-8, 2 chunks)"
+						artifactId={SANDBOX_IDS.ppMultiChunk}
+					>
+						<PlayPassageCard
+							config={{ ...ppPhrasing, bars: [1, 8] }}
+							_mockManifest={MOCK_MANIFEST_MULTI_CHUNK}
+							_mockClip={MOCK_CLIP}
+						/>
+					</SandboxSection>
+
+					<SandboxSection
+						title="PlayPassage — fetch error state (session has no alignment)"
+						artifactId={SANDBOX_IDS.ppFetchError}
+					>
+						<PlayPassageCard config={ppFetchError} />
+					</SandboxSection>
+
+					<PlayablePassageSection
+						artifactId={SANDBOX_IDS.ppPlayable}
+						title="PlayPassage — playable (real audio, click Play to hear)"
+						config={ppTiming}
+					/>
+
+					<PlayablePassageSection
+						artifactId={SANDBOX_IDS.ppAudioError}
+						title="PlayPassage — audio_error (score renders, 'Audio unavailable')"
+						config={ppDynamics}
+						audioError
+					/>
+
+					<SandboxSection
+						title="SegmentLoop — pending (Accept / Skip buttons; clicking shows API error)"
+						artifactId={SANDBOX_IDS.slPending}
+					>
+						<SegmentLoopArtifactCard config={slPending} />
+					</SandboxSection>
+
+					<SandboxSection
+						title="SegmentLoop — active (1/3 attempts; Dismiss → API error)"
+						artifactId={SANDBOX_IDS.slActive}
+					>
+						<SegmentLoopArtifactCard config={slActive} />
+					</SandboxSection>
+
+					<SandboxSection
+						title="SegmentLoop — completed (green badge, no buttons)"
+						artifactId={SANDBOX_IDS.slCompleted}
+					>
+						<SegmentLoopArtifactCard config={slCompleted} />
+					</SandboxSection>
+
+					<SandboxSection
+						title="SegmentLoop — dismissed (faded, no buttons)"
+						artifactId={SANDBOX_IDS.slDismissed}
+					>
+						<SegmentLoopArtifactCard config={slDismissed} />
+					</SandboxSection>
+
+					<SandboxSection
+						title="SegmentLoop — superseded (faded, no buttons)"
+						artifactId={SANDBOX_IDS.slSuperseded}
+					>
+						<SegmentLoopArtifactCard config={slSuperseded} />
+					</SandboxSection>
+
+					{/* ── KEYBOARD ──────────────────────────────────────────────── */}
+					<h2 className="font-display text-display-sm text-text-tertiary tracking-wide uppercase text-xs">Keyboard</h2>
+
 					<SandboxSection
 						title="KeyboardGuide (placeholder)"
 						artifactId={SANDBOX_IDS.keyboardGuide}
@@ -758,14 +1362,6 @@ function ArtifactSandbox() {
 							artifactId={SANDBOX_IDS.keyboardGuide}
 							component={{ type: "keyboard_guide", config: keyboardGuide }}
 						/>
-					</SandboxSection>
-
-					{/* PlayPassage */}
-					<SandboxSection
-						title="PlayPassage"
-						artifactId={SANDBOX_IDS.playPassage}
-					>
-						<PlayPassageCard config={playPassageFixture} />
 					</SandboxSection>
 				</div>
 			</div>
