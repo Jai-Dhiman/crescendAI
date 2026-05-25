@@ -1,12 +1,6 @@
 // apps/web/src/lib/score-renderer.ts
 import { api } from "./api";
 
-export interface ClipResult {
-	svg: string;
-	startMeasureId: string | null;
-	endMeasureId: string | null;
-}
-
 type PendingFull = {
 	kind: "full";
 	resolve: (svg: string) => void;
@@ -15,7 +9,7 @@ type PendingFull = {
 };
 type PendingClip = {
 	kind: "clip";
-	resolve: (r: ClipResult) => void;
+	resolve: (svg: string) => void;
 	reject: (err: Error) => void;
 	pieceId: string;
 };
@@ -43,12 +37,10 @@ class ScoreRenderer {
 				e: MessageEvent<{
 					requestId: string;
 					svg?: string;
-					startMeasureId?: string;
-					endMeasureId?: string;
 					error?: string;
 				}>,
 			) => {
-				const { requestId, svg, startMeasureId, endMeasureId, error } = e.data;
+				const { requestId, svg, error } = e.data;
 				const pending = this.pendingRequests.get(requestId);
 				if (!pending) return;
 				this.pendingRequests.delete(requestId);
@@ -56,15 +48,7 @@ class ScoreRenderer {
 					this.sentPieceIds.delete(pending.pieceId);
 					pending.reject(new Error(error));
 				} else if (svg !== undefined) {
-					if (pending.kind === "clip") {
-						pending.resolve({
-							svg,
-							startMeasureId: startMeasureId ?? null,
-							endMeasureId: endMeasureId ?? null,
-						});
-					} else {
-						pending.resolve(svg);
-					}
+					pending.resolve(svg);
 				} else {
 					pending.reject(new Error("Worker returned no svg and no error"));
 				}
@@ -137,7 +121,7 @@ class ScoreRenderer {
 		pieceId: string,
 		startBar: number,
 		endBar: number,
-	): Promise<ClipResult> {
+	): Promise<string> {
 		await this.ensureBytes(pieceId);
 		const worker = this.ensureWorker();
 		return new Promise((resolve, reject) => {
@@ -170,44 +154,6 @@ class ScoreRenderer {
 		});
 	}
 
-	// Approaches C/D/E: worker returns a pre-cropped SVG with no client manipulation needed.
-	async getClipMethod(
-		pieceId: string,
-		startBar: number,
-		endBar: number,
-		method: "select" | "mei" | "mxl",
-	): Promise<string> {
-		await this.ensureBytes(pieceId);
-		const worker = this.ensureWorker();
-		return new Promise((resolve, reject) => {
-			const requestId = `req-${++this.requestCounter}`;
-			this.pendingRequests.set(requestId, {
-				kind: "full",
-				resolve,
-				reject,
-				pieceId,
-			});
-			const needsBytes = !this.sentPieceIds.has(pieceId);
-			const bytes = needsBytes ? this.bytesCache.get(pieceId) : undefined;
-			if (needsBytes && bytes === undefined) {
-				this.pendingRequests.delete(requestId);
-				reject(
-					new Error(`Score bytes missing after fetch for pieceId: ${pieceId}`),
-				);
-				return;
-			}
-			if (needsBytes) this.sentPieceIds.add(pieceId);
-			worker.postMessage({
-				type: "render_clip",
-				requestId,
-				pieceId,
-				startBar,
-				endBar,
-				method,
-				bytes,
-			});
-		});
-	}
 }
 
 export const scoreRenderer = new ScoreRenderer();
