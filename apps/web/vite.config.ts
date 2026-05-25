@@ -12,6 +12,7 @@ const isTest = process.env.VITEST === "true";
 
 const config = defineConfig({
 	build: { sourcemap: true },
+	worker: { format: "es" },
 	optimizeDeps: {
 		exclude: ["verovio/wasm", "verovio/esm"],
 	},
