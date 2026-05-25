@@ -37,3 +37,16 @@ Decisions, deviations, and tradeoffs made during build. Read this before running
 - Additional orphan removed beyond plan letter: `SvgDisplay` helper (was sole-use by `ApproachWorkerMethod`); deleted to clear TS6133 unused-var error.
 - Sandbox's local `ClipSvg` uses `useEffect` rather than `useLayoutEffect` (cards use `useLayoutEffect`); sandbox is dev-only so the flash-of-unstyled-SVG concern doesn't apply. Acceptable per reviewer.
 - Full web test suite: 63/63 green. `tsc --noEmit` for web is clean (apps/api drizzle errors are pre-existing and out of scope).
+
+## P2 cleanup + test infra hardening (commits 4f772acc, 18734278, 7d2c2c83, then revert of 18734278)
+Initial P2 cleanup (4f772acc) appeared to introduce flakiness. Investigation showed two pre-existing latent test infra bugs that surfaced under timing pressure:
+- `src/test-setup.ts` was not registering `afterEach(cleanup)`, so testing-library trees accumulated across tests; previously passed by luck of assertion shape.
+- Default 5s `testTimeout` was being tripped by `await import("./Artifact")` and `await import("../routes/app.sandbox")` in some test files under parallel test-file load.
+
+Fix landed in 7d2c2c83 (cleanup hook + testTimeout: 15s). After hardening, P2 was reverted-then-re-applied (commit 18734278 reverted, then a new revert-of-revert) and the suite is stable: 5 consecutive runs at 64/64 green.
+
+## P2 details (re-applied after infra fix)
+- Consolidated four `ClipSvg` copies into shared `apps/web/src/components/ClipSvg.tsx`. Standardized on `useLayoutEffect` (cards' version; sandbox upgraded silently).
+- ExerciseSetCard: now logs clip-load failures via `console.error` and uses a `clipLoadError` state to suppress the clip section on error. New test covers the error path.
+- Unexported `renderClipSvgSelect` from score-worker.ts (only callable via `processRenderClipRequest` now).
+- Updated two stale `score-worker.ts` comments removing references to mei/mxl and Approach C.
