@@ -1,13 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Artifact } from "../components/Artifact";
 import { ArtifactOverlay } from "../components/ArtifactOverlay";
 import { SegmentLoopArtifactCard } from "../components/cards/SegmentLoopArtifact";
-import { SvgClip } from "../components/SvgClip";
-import { SvgClipBBox } from "../components/SvgClipBBox";
 import { PlayPassageCard } from "../components/cards/PlayPassageCard";
 import { ArtifactScrollContext } from "../contexts/artifact-scroll";
-import type { ClipResult } from "../lib/score-renderer";
 import { scoreRenderer } from "../lib/score-renderer";
 import type {
 	ExerciseSetConfig,
@@ -176,11 +173,7 @@ const MOCK_SCORE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400
   <line x1="364" y1="41" x2="364" y2="20" stroke="#222" stroke-width="1.2"/>
 </svg>`;
 
-const MOCK_CLIP: ClipResult = {
-	svg: MOCK_SCORE_SVG,
-	startMeasureId: null,
-	endMeasureId: null,
-};
+const MOCK_CLIP_SVG: string = MOCK_SCORE_SVG;
 
 // Fake manifest — chunk URLs will 404, triggering the audio_error state
 // (score + annotation still render; play button shows "Audio unavailable").
@@ -517,231 +510,6 @@ function SandboxSection({ title, artifactId, children }: SandboxSectionProps) {
 
 // --- Approach comparison (bars 135–136, Chopin Ballade No. 1) ---
 
-// Reusable display component for pre-cropped SVGs (approaches C/D/E).
-// No viewBox manipulation needed — Verovio already sized the output to the selection.
-function SvgDisplay({ svgMarkup }: { svgMarkup: string }) {
-	const ref = useRef<HTMLDivElement>(null);
-	useLayoutEffect(() => {
-		if (!ref.current) return;
-		ref.current.textContent = "";
-		// biome-ignore lint/security/noDomManipulation: controlled SVG from Verovio WASM
-		ref.current.insertAdjacentHTML("afterbegin", svgMarkup);
-		const svgEl = ref.current.querySelector("svg") as SVGSVGElement | null;
-		if (!svgEl) return;
-		svgEl.setAttribute("width", "100%");
-		svgEl.removeAttribute("height");
-		svgEl.style.display = "block";
-	}, [svgMarkup]);
-	return <div ref={ref} className="[&>svg]:w-full [&>svg]:block" />;
-}
-
-interface ApproachRowProps {
-	label: string;
-	description: string;
-	children: React.ReactNode;
-}
-
-function ApproachRow({ label, description, children }: ApproachRowProps) {
-	return (
-		<div className="flex flex-col gap-2">
-			<div>
-				<span className="text-label-sm text-accent font-mono">{label}</span>
-				<span className="text-body-xs text-text-tertiary ml-2">
-					{description}
-				</span>
-			</div>
-			<div className="border border-border rounded-lg overflow-hidden bg-white min-h-[48px]">
-				{children}
-			</div>
-		</div>
-	);
-}
-
-// Approach A: current implementation — full page SVG + getBoundingClientRect crop
-function ApproachA({
-	pieceId,
-	startBar,
-	endBar,
-}: {
-	pieceId: string;
-	startBar: number;
-	endBar: number;
-}) {
-	const [clip, setClip] = useState<ClipResult | null>(null);
-	const [error, setError] = useState<string | null>(null);
-	useEffect(() => {
-		let cancelled = false;
-		scoreRenderer
-			.getClip(pieceId, startBar, endBar)
-			.then((r) => {
-				if (!cancelled) setClip(r);
-			})
-			.catch((e) => {
-				if (!cancelled) setError(String(e));
-			});
-		return () => {
-			cancelled = true;
-		};
-	}, [pieceId, startBar, endBar]);
-	if (error) return <p className="text-body-xs text-red-400 p-2">{error}</p>;
-	if (!clip)
-		return <p className="text-body-xs text-text-tertiary p-2">Loading…</p>;
-	return (
-		<SvgClip
-			svgMarkup={clip.svg}
-			startMeasureId={clip.startMeasureId}
-			endMeasureId={clip.endMeasureId}
-		/>
-	);
-}
-
-// Approach B: same worker output, crop via getBBox() — browser-native SVG coordinates
-function ApproachB({
-	pieceId,
-	startBar,
-	endBar,
-}: {
-	pieceId: string;
-	startBar: number;
-	endBar: number;
-}) {
-	const [clip, setClip] = useState<ClipResult | null>(null);
-	const [error, setError] = useState<string | null>(null);
-	useEffect(() => {
-		let cancelled = false;
-		scoreRenderer
-			.getClip(pieceId, startBar, endBar)
-			.then((r) => {
-				if (!cancelled) setClip(r);
-			})
-			.catch((e) => {
-				if (!cancelled) setError(String(e));
-			});
-		return () => {
-			cancelled = true;
-		};
-	}, [pieceId, startBar, endBar]);
-	if (error) return <p className="text-body-xs text-red-400 p-2">{error}</p>;
-	if (!clip)
-		return <p className="text-body-xs text-text-tertiary p-2">Loading…</p>;
-	return (
-		<SvgClipBBox
-			svgMarkup={clip.svg}
-			startMeasureId={clip.startMeasureId}
-			endMeasureId={clip.endMeasureId}
-		/>
-	);
-}
-
-// Approaches C/D/E: worker returns pre-cropped SVG, client just displays it
-function ApproachWorkerMethod({
-	pieceId,
-	startBar,
-	endBar,
-	method,
-}: {
-	pieceId: string;
-	startBar: number;
-	endBar: number;
-	method: "select" | "mei" | "mxl";
-}) {
-	const [svg, setSvg] = useState<string | null>(null);
-	const [error, setError] = useState<string | null>(null);
-	useEffect(() => {
-		let cancelled = false;
-		scoreRenderer
-			.getClipMethod(pieceId, startBar, endBar, method)
-			.then((s) => {
-				if (!cancelled) setSvg(s);
-			})
-			.catch((e) => {
-				if (!cancelled) setError(String(e));
-			});
-		return () => {
-			cancelled = true;
-		};
-	}, [pieceId, startBar, endBar, method]);
-	if (error) return <p className="text-body-xs text-red-400 p-2">{error}</p>;
-	if (!svg)
-		return <p className="text-body-xs text-text-tertiary p-2">Loading…</p>;
-	return <SvgDisplay svgMarkup={svg} />;
-}
-
-function ApproachesComparison({
-	pieceId,
-	startBar,
-	endBar,
-}: {
-	pieceId: string;
-	startBar: number;
-	endBar: number;
-}) {
-	return (
-		<section className="border border-border rounded-xl bg-surface-card p-5 flex flex-col gap-4">
-			<div>
-				<h2 className="font-display text-display-xs text-cream">
-					Rendering Approaches — Bars {startBar}–{endBar}
-				</h2>
-				<p className="text-body-sm text-text-secondary mt-1">
-					Same bars, five different approaches from Verovio to screen. Compare
-					output quality, layout context, and whitespace.
-				</p>
-			</div>
-			<div className="flex flex-col gap-5">
-				<ApproachRow
-					label="A — Current (getBoundingClientRect)"
-					description="Full page SVG → client measures screen coords → scaleY → viewBox. Broken in Firefox; dead space in Chrome."
-				>
-					<ApproachA pieceId={pieceId} startBar={startBar} endBar={endBar} />
-				</ApproachRow>
-
-				<ApproachRow
-					label="B — getBBox crop"
-					description="Same full page SVG, crop using SVG-native viewBox coords via getBBox(). No screen measurements, no scaleY."
-				>
-					<ApproachB pieceId={pieceId} startBar={startBar} endBar={endBar} />
-				</ApproachRow>
-
-				<ApproachRow
-					label="C — tk.select() (Verovio selection API)"
-					description="Worker calls tk.select({start, end}) before renderToSVG(1). Verovio produces a self-contained SVG for only those bars."
-				>
-					<ApproachWorkerMethod
-						pieceId={pieceId}
-						startBar={startBar}
-						endBar={endBar}
-						method="select"
-					/>
-				</ApproachRow>
-
-				<ApproachRow
-					label="D — MEI round-trip (export → filter → reload)"
-					description="Worker exports full MEI, removes measures outside range, reloads into fresh Verovio toolkit, renders page 1."
-				>
-					<ApproachWorkerMethod
-						pieceId={pieceId}
-						startBar={startBar}
-						endBar={endBar}
-						method="mei"
-					/>
-				</ApproachRow>
-
-				<ApproachRow
-					label="E — MusicXML filter (strip source → reload)"
-					description="Worker parses original MusicXML, keeps only target measures with attributes carry-forward, reloads, renders page 1."
-				>
-					<ApproachWorkerMethod
-						pieceId={pieceId}
-						startBar={startBar}
-						endBar={endBar}
-						method="mxl"
-					/>
-				</ApproachRow>
-			</div>
-		</section>
-	);
-}
-
 // --- Score renderer primitives ---
 
 function SvgPanel({ svgMarkup }: { svgMarkup: string }) {
@@ -847,21 +615,36 @@ interface ClipTest {
 	endBar: number;
 }
 
+function ClipSvg({ svg }: { svg: string }) {
+	const ref = useRef<HTMLDivElement>(null);
+	useEffect(() => {
+		if (!ref.current) return;
+		ref.current.textContent = "";
+		ref.current.insertAdjacentHTML("afterbegin", svg);
+		const svgEl = ref.current.querySelector("svg");
+		if (!svgEl) return;
+		svgEl.setAttribute("width", "100%");
+		svgEl.removeAttribute("height");
+		svgEl.style.display = "block";
+	}, [svg]);
+	return <div ref={ref} className="[&>svg]:w-full [&>svg]:block" />;
+}
+
 function ScoreClipPanel({
 	label,
 	pieceId,
 	startBar,
 	endBar,
 }: ClipTest & { pieceId: string }) {
-	const [clip, setClip] = useState<ClipResult | null>(null);
+	const [svg, setSvg] = useState<string | null>(null);
 	const [error, setError] = useState<string | null>(null);
 
 	useEffect(() => {
 		let cancelled = false;
 		scoreRenderer
 			.getClip(pieceId, startBar, endBar)
-			.then((r) => {
-				if (!cancelled) setClip(r);
+			.then((s) => {
+				if (!cancelled) setSvg(s);
 			})
 			.catch((e) => {
 				if (!cancelled) setError(String(e));
@@ -876,16 +659,10 @@ function ScoreClipPanel({
 			<span className="text-label-sm text-accent font-mono">{label}</span>
 			<div className="border border-border rounded-lg overflow-hidden bg-white">
 				{error && <p className="text-body-xs text-red-400 p-2">{error}</p>}
-				{!clip && !error && (
+				{!svg && !error && (
 					<p className="text-body-xs text-text-tertiary p-2">Loading…</p>
 				)}
-				{clip && (
-					<SvgClip
-						svgMarkup={clip.svg}
-						startMeasureId={clip.startMeasureId}
-						endMeasureId={clip.endMeasureId}
-					/>
-				)}
+				{svg && <ClipSvg svg={svg} />}
 			</div>
 		</div>
 	);
@@ -991,7 +768,7 @@ function PlayablePassageSection({ artifactId, title, config, audioError }: Playa
 				<PlayPassageCard
 					config={config}
 					_mockManifest={manifest}
-					_mockClip={MOCK_CLIP}
+					_mockClip={MOCK_CLIP_SVG}
 					_playable
 				/>
 			) : (
@@ -1027,13 +804,6 @@ function ArtifactSandbox() {
 
 					{/* ── SCORE ─────────────────────────────────────────────────── */}
 					<h2 className="font-display text-display-sm text-text-tertiary tracking-wide uppercase text-xs">Score</h2>
-
-					{/* Approaches comparison — 5 ways to render bars 135-136 */}
-					<ApproachesComparison
-						pieceId="chopin.ballades.1"
-						startBar={135}
-						endBar={136}
-					/>
 
 					{/* Full score — resizable, bars reflow on drag-end */}
 					<section className="border border-border rounded-xl bg-surface-card p-5 flex flex-col gap-4">
@@ -1237,7 +1007,7 @@ function ArtifactSandbox() {
 						<PlayPassageCard
 							config={ppTiming}
 							_mockManifest={MOCK_MANIFEST}
-							_mockClip={MOCK_CLIP}
+							_mockClip={MOCK_CLIP_SVG}
 						/>
 					</SandboxSection>
 
@@ -1248,7 +1018,7 @@ function ArtifactSandbox() {
 						<PlayPassageCard
 							config={ppDynamics}
 							_mockManifest={MOCK_MANIFEST}
-							_mockClip={MOCK_CLIP}
+							_mockClip={MOCK_CLIP_SVG}
 						/>
 					</SandboxSection>
 
@@ -1259,7 +1029,7 @@ function ArtifactSandbox() {
 						<PlayPassageCard
 							config={ppPedaling}
 							_mockManifest={MOCK_MANIFEST}
-							_mockClip={MOCK_CLIP}
+							_mockClip={MOCK_CLIP_SVG}
 						/>
 					</SandboxSection>
 
@@ -1270,7 +1040,7 @@ function ArtifactSandbox() {
 						<PlayPassageCard
 							config={ppPhrasing}
 							_mockManifest={MOCK_MANIFEST_MULTI_CHUNK}
-							_mockClip={MOCK_CLIP}
+							_mockClip={MOCK_CLIP_SVG}
 						/>
 					</SandboxSection>
 
@@ -1281,7 +1051,7 @@ function ArtifactSandbox() {
 						<PlayPassageCard
 							config={ppLongAnnotation}
 							_mockManifest={MOCK_MANIFEST}
-							_mockClip={MOCK_CLIP}
+							_mockClip={MOCK_CLIP_SVG}
 						/>
 					</SandboxSection>
 
@@ -1292,7 +1062,7 @@ function ArtifactSandbox() {
 						<PlayPassageCard
 							config={{ ...ppPhrasing, bars: [1, 8] }}
 							_mockManifest={MOCK_MANIFEST_MULTI_CHUNK}
-							_mockClip={MOCK_CLIP}
+							_mockClip={MOCK_CLIP_SVG}
 						/>
 					</SandboxSection>
 
