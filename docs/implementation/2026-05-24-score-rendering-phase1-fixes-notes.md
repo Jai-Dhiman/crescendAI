@@ -13,3 +13,8 @@ Decisions, deviations, and tradeoffs made during build. Read this before running
 - Cleanup beyond plan letter: also removed orphan `getPageForBar` helper and `ClipSvgResult` interface (no remaining callers after `renderClipSvg` deletion).
 - All catch blocks in `loadPiece` fallback now use `console.error(e)` (continued from Task 1 fix).
 - Minor findings deferred (not blocking): `renderClipSvgSelect` is still exported though only used inside the module; stale "Approach C" / "mei/mxl" comments at lines 27 and 60. Acceptable.
+
+## Task 3: getClip → Promise<string> (commits 61037a42, d19b0ba4)
+- Test file needed no edits — existing assertions already encoded the post-fix behavior.
+- Followup (d19b0ba4): collapsed `PendingFull | PendingClip` into a single `PendingRequest` type. After `getClip` returned `string`, both variants were structurally identical and the `kind` discriminant was never read.
+- Reviewer over-flagged broken consumer imports (`ExerciseSetCard`, `PlayPassageCard`, `ScoreHighlightCard`, `app.sandbox.tsx`) as CRITICAL — those are scope-deferred to Tasks 4/5/5b/6 per plan, and the dispatcher confirmed mid-build red is expected.

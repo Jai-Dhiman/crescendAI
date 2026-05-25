@@ -428,7 +428,7 @@ xmlContent storage on CacheEntry. Removes the 'method' message field."
 - Modify: `apps/web/src/lib/score-renderer.ts`
 - Modify: `apps/web/src/lib/score-renderer.test.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 The existing test at `apps/web/src/lib/score-renderer.test.ts:32-38` already asserts the post-fix behavior:
 
@@ -443,7 +443,7 @@ it("resolves with the SVG string returned by the Worker", async () => {
 
 No new test code needed — this test fails today because `getClip` returns `Promise<ClipResult>` (an object), and `expect(svg).toBe("<svg>mock</svg>")` does strict equality against an object.
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd apps/web && bun run vitest run src/lib/score-renderer.test.ts -t "resolves with the SVG string"
@@ -451,7 +451,7 @@ cd apps/web && bun run vitest run src/lib/score-renderer.test.ts -t "resolves wi
 
 Expected: FAIL — `expected { svg: '<svg>mock</svg>', startMeasureId: null, endMeasureId: null } to be '<svg>mock</svg>'`.
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 In `apps/web/src/lib/score-renderer.ts`:
 
@@ -497,7 +497,7 @@ this.worker.onmessage = (
 
 5. DELETE the entire `getClipMethod` method (lines 173–210).
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd apps/web && bun run vitest run src/lib/score-renderer.test.ts
@@ -505,7 +505,7 @@ cd apps/web && bun run vitest run src/lib/score-renderer.test.ts
 
 Expected: PASS (all renderer tests).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/web/src/lib/score-renderer.ts apps/web/src/lib/score-renderer.test.ts && git commit -m "refactor(web): scoreRenderer.getClip returns SVG string; drop getClipMethod
