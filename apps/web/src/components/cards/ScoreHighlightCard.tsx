@@ -1,11 +1,9 @@
 import { ArrowsOut } from "@phosphor-icons/react";
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { DIMENSION_COLORS } from "../../lib/mock-session";
-import type { ClipResult } from "../../lib/score-renderer";
 import { scoreRenderer } from "../../lib/score-renderer";
 import type { ScoreHighlightConfig } from "../../lib/types";
 import { useScorePanelStore } from "../../stores/score-panel";
-import { SvgClip } from "../SvgClip";
 
 interface ScoreHighlightCardProps {
 	config: ScoreHighlightConfig;
@@ -15,10 +13,28 @@ interface ScoreHighlightCardProps {
 
 type RenderState = "loading" | "rendered" | "error";
 
-interface LoadedClip extends ClipResult {
+interface LoadedClip {
+	svg: string;
 	dimension: string;
 	bars: [number, number];
 	annotation?: string;
+}
+
+function ClipSvg({ svg }: { svg: string }) {
+	const ref = useRef<HTMLDivElement>(null);
+	useLayoutEffect(() => {
+		if (!ref.current) return;
+		ref.current.textContent = "";
+		// biome-ignore lint/security/noDomManipulation: controlled SVG from Verovio WASM, not user input
+		ref.current.insertAdjacentHTML("afterbegin", svg);
+		const svgEl = ref.current.querySelector("svg");
+		if (svgEl) {
+			svgEl.setAttribute("width", "100%");
+			svgEl.removeAttribute("height");
+			(svgEl as SVGElement).style.display = "block";
+		}
+	}, [svg]);
+	return <div ref={ref} className="[&>svg]:w-full [&>svg]:block" />;
 }
 
 export function ScoreHighlightCard({
@@ -33,33 +49,28 @@ export function ScoreHighlightCard({
 	useEffect(() => {
 		let cancelled = false;
 
-		async function loadClips() {
-			try {
-				const results: LoadedClip[] = [];
-				for (const highlight of config.highlights) {
-					const clip = await scoreRenderer.getClip(
-						config.pieceId,
-						highlight.bars[0],
-						highlight.bars[1],
-					);
-					results.push({
-						...clip,
+		Promise.all(
+			config.highlights.map((highlight) =>
+				scoreRenderer
+					.getClip(config.pieceId, highlight.bars[0], highlight.bars[1])
+					.then((svg) => ({
+						svg,
 						dimension: highlight.dimension,
 						bars: highlight.bars,
 						annotation: highlight.annotation,
-					});
-				}
-				if (!cancelled) {
-					setClips(results);
-					setRenderState("rendered");
-				}
-			} catch (err) {
+					})),
+			),
+		)
+			.then((results) => {
+				if (cancelled) return;
+				setClips(results);
+				setRenderState("rendered");
+			})
+			.catch((err) => {
 				console.error("ScoreHighlightCard: failed to load score", err);
 				if (!cancelled) setRenderState("error");
-			}
-		}
+			});
 
-		loadClips();
 		return () => {
 			cancelled = true;
 		};
@@ -91,11 +102,7 @@ export function ScoreHighlightCard({
 									overflow: "hidden",
 								}}
 							>
-								<SvgClip
-									svgMarkup={clip.svg}
-									startMeasureId={clip.startMeasureId}
-									endMeasureId={clip.endMeasureId}
-								/>
+								<ClipSvg svg={clip.svg} />
 								<div
 									style={{
 										position: "absolute",
@@ -111,7 +118,6 @@ export function ScoreHighlightCard({
 				</div>
 			)}
 
-			{/* Annotations */}
 			<div
 				className={`p-4 flex flex-col gap-3.5 ${
 					renderState === "rendered" && clips.length > 0
