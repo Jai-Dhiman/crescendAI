@@ -76,11 +76,7 @@ describe("PlayPassageCard", () => {
 
   it("renders annotation, dimension label, and bar range after manifest loads", async () => {
     mockGetPassage.mockResolvedValue(manifest);
-    mockGetClip.mockResolvedValue({
-      svg: "<svg></svg>",
-      startMeasureId: null,
-      endMeasureId: null,
-    });
+    mockGetClip.mockResolvedValue("<svg></svg>");
 
     const { PlayPassageCard } = await import("./PlayPassageCard");
     render(React.createElement(PlayPassageCard, { config }));
@@ -95,11 +91,7 @@ describe("PlayPassageCard", () => {
 
   it("clicking play invokes PassagePlayer.play()", async () => {
     mockGetPassage.mockResolvedValue(manifest);
-    mockGetClip.mockResolvedValue({
-      svg: "<svg></svg>",
-      startMeasureId: null,
-      endMeasureId: null,
-    });
+    mockGetClip.mockResolvedValue("<svg></svg>");
 
     const { PlayPassageCard } = await import("./PlayPassageCard");
     render(React.createElement(PlayPassageCard, { config }));
@@ -120,11 +112,7 @@ describe("PlayPassageCard", () => {
 
   it("shows audio_error state — score and annotation render, play button replaced — when player.load() rejects", async () => {
     mockGetPassage.mockResolvedValue(manifest);
-    mockGetClip.mockResolvedValue({
-      svg: "<svg></svg>",
-      startMeasureId: null,
-      endMeasureId: null,
-    });
+    mockGetClip.mockResolvedValue("<svg></svg>");
     mockLoad.mockRejectedValue(new Error("fetch chunk failed: 404"));
 
     const { PlayPassageCard } = await import("./PlayPassageCard");
@@ -135,6 +123,38 @@ describe("PlayPassageCard", () => {
       expect(screen.getByText(config.annotation)).toBeInTheDocument();
       expect(screen.queryByRole("button", { name: /play/i })).toBeNull();
       expect(screen.queryByText("couldn't load audio")).toBeNull();
+    });
+  });
+});
+
+describe("PlayPassageCard SVG rendering", () => {
+  it("renders the SVG string passed via _mockClip", async () => {
+    const manifest: PassageManifest = {
+      source: { kind: "session", sessionId: "session-1" },
+      pieceId: "chopin.ballades.1",
+      bars: [5, 8],
+      chunks: [],
+      startOffsetSec: 0,
+      endOffsetSec: 10,
+      barTimeline: [],
+    };
+    const config: PlayPassageConfig = {
+      sessionId: "session-1",
+      bars: [5, 8] as [number, number],
+      dimension: "timing",
+      annotation: "rushing here",
+    };
+    const { PlayPassageCard } = await import("./PlayPassageCard");
+    render(
+      React.createElement(PlayPassageCard, {
+        config,
+        _mockManifest: manifest,
+        _mockClip: "<svg data-test='passage-clip'></svg>",
+      }),
+    );
+
+    await waitFor(() => {
+      expect(document.body.innerHTML).toContain("data-test=\"passage-clip\"");
     });
   });
 });
