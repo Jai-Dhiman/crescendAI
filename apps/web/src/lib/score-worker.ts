@@ -223,6 +223,80 @@ export function renderClipSvgMxl(
 	return newTk.renderToSVG(1) as string;
 }
 
+export interface VerovioBindings {
+	module: unknown;
+	// biome-ignore lint/suspicious/noExplicitAny: dynamic Verovio ESM class
+	ToolkitClass: new (mod: unknown) => any;
+}
+
+export async function loadPiece(
+	bytes: ArrayBuffer,
+	bindings: VerovioBindings,
+	pieceId?: string,
+): Promise<LoadResult> {
+	const { module, ToolkitClass } = bindings;
+	const ZIP_MAGIC = 0x04034b50;
+	const isZip =
+		bytes.byteLength >= 4 &&
+		new DataView(bytes).getUint32(0, true) === ZIP_MAGIC;
+
+	let xmlContent: string | null = null;
+	let tk = new ToolkitClass(module);
+	tk.setOptions(VEROVIO_OPTS);
+	let loaded = false;
+
+	if (isZip) {
+		try {
+			const clone = bytes.slice(0);
+			loaded = tk.loadZipDataBuffer(clone) as boolean;
+		} catch {
+			tk = new ToolkitClass(module);
+			tk.setOptions(VEROVIO_OPTS);
+		}
+	}
+
+	if (!loaded) {
+		if (isZip) {
+			try {
+				xmlContent = await extractXmlFromMxl(bytes);
+			} catch {
+				// extraction failed; loaded stays false
+			}
+		} else {
+			try {
+				xmlContent = new TextDecoder().decode(bytes);
+			} catch {
+				// non-text binary
+			}
+		}
+
+		if (xmlContent !== null) {
+			tk = new ToolkitClass(module);
+			tk.setOptions(VEROVIO_OPTS);
+			try {
+				const clean = xmlContent.replace(
+					/<!DOCTYPE\s[^>[]*(\[[^\]]*\])?\s*>/g,
+					"",
+				);
+				loaded = tk.loadData(clean) as boolean;
+			} catch {
+				// loadData fallback failed
+			}
+		}
+	}
+
+	if (!loaded) return "failed";
+
+	const entry: CacheEntry = { tk, measures: [], xmlContent };
+	try {
+		entry.measures = buildMeasureIndex(tk);
+	} catch (e) {
+		console.error("[score-worker] buildMeasureIndex failed for", pieceId ?? "?", e);
+		return "failed";
+	}
+	return entry;
+}
+
 // Expected R2 object format (scores/v1/{pieceId}.mxl):
 //   ZIP archive (PK\x03\x04 magic), two entries in order:
 //     META-INF/container.xml  — rootfiles declaration
@@ -338,82 +412,6 @@ if (typeof window === "undefined") {
 	// instead of all racing to "bytes required on first request".
 	const toolkitCache = new Map<string, LoadResult | Promise<LoadResult>>();
 
-	async function loadPiece(bytes: ArrayBuffer, pieceId?: string): Promise<LoadResult> {
-		console.log(`[score-worker] loadPiece start: ${pieceId ?? "?"} (${bytes.byteLength} bytes)`);
-		const ZIP_MAGIC = 0x04034b50;
-		const isZip =
-			bytes.byteLength >= 4 &&
-			new DataView(bytes).getUint32(0, true) === ZIP_MAGIC;
-		console.log(`[score-worker] isZip=${isZip}`);
-
-		// For ZIP: extract XML first so the buffer is readable before Verovio
-		// corrupts it as WASM scratch space.
-		// For plain XML: decode directly — the file is a .musicxml stored as .mxl.
-		let xmlContent: string | null = null;
-		if (isZip) {
-			console.log("[score-worker] extracting XML from ZIP...");
-			xmlContent = await extractXmlFromMxl(bytes);
-			console.log(`[score-worker] extracted ${xmlContent?.length ?? 0} chars`);
-		} else {
-			try {
-				xmlContent = new TextDecoder().decode(bytes);
-				console.log(`[score-worker] decoded text: ${xmlContent.length} chars`);
-			} catch {
-				// non-text binary — will fail below
-			}
-		}
-
-		console.log("[score-worker] creating VerovioToolkit...");
-		let tk = new VerovioToolkitClass(verovioModule);
-		tk.setOptions(VEROVIO_OPTS);
-		let loaded = false;
-
-		if (isZip) {
-			try {
-				console.log("[score-worker] loadZipDataBuffer...");
-				loaded = tk.loadZipDataBuffer(bytes);
-				console.log(`[score-worker] loadZipDataBuffer result: ${loaded}`);
-			} catch {
-				// WASM exception — toolkit state is corrupt, create a fresh one below.
-			}
-		}
-
-		// loadZipDataBuffer either threw or returned false, or file was plain XML.
-		// Try loadData with pre-extracted (and DOCTYPE-stripped) XML string.
-		if (!loaded && xmlContent !== null) {
-			tk = new VerovioToolkitClass(verovioModule);
-			tk.setOptions(VEROVIO_OPTS);
-			try {
-				const clean = xmlContent.replace(
-					/<!DOCTYPE\s[^>[]*(\[[^\]]*\])?\s*>/g,
-					"",
-				);
-				console.log(`[score-worker] loadData (${clean.length} chars)...`);
-				loaded = tk.loadData(clean) as boolean;
-				console.log(`[score-worker] loadData result: ${loaded}`);
-			} catch (fallbackErr) {
-				console.error("[score-worker] loadData fallback failed:", fallbackErr);
-			}
-		}
-
-		if (!loaded) {
-			console.error(`[score-worker] loadPiece: failed to load ${pieceId ?? "?"}`);
-			return "failed";
-		}
-
-		console.log("[score-worker] buildMeasureIndex...");
-		const entry: CacheEntry = { tk, measures: [], xmlContent };
-		// renderToTimemap triggers the deprecated WASM 'try' instruction warning.
-		// If it throws, clips fall back to rendering page 1.
-		try {
-			entry.measures = buildMeasureIndex(tk);
-		} catch {
-			// measures stays empty; getPageForBar returns 1 for all bars
-		}
-		console.log(`[score-worker] loadPiece done: ${pieceId ?? "?"}, ${entry.measures.length} measures`);
-		return entry;
-	}
-
 	(self as unknown as Worker).onmessage = async (
 		event: MessageEvent<WorkerInMsg>,
 	) => {
@@ -452,7 +450,11 @@ if (typeof window === "undefined") {
 				// Start loading and store the Promise synchronously before any await,
 				// so concurrent handlers that run while we are loading will await the
 				// same Promise instead of hitting "bytes required".
-				const loadPromise = loadPiece(msg.bytes, msg.pieceId);
+				const loadPromise = loadPiece(
+					msg.bytes,
+					{ module: verovioModule, ToolkitClass: VerovioToolkitClass },
+					msg.pieceId,
+				);
 				toolkitCache.set(msg.pieceId, loadPromise);
 				result = await loadPromise;
 				// Replace the in-flight Promise with the settled result.

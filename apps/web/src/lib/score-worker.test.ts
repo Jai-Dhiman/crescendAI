@@ -82,3 +82,40 @@ describe("renderFullSvg", () => {
 		expect(result).toBe("<svg>full-svg</svg>");
 	});
 });
+
+describe("loadPiece — silent fallback regression", () => {
+	it("returns 'failed' when buildMeasureIndex throws (no silent degradation to page 1)", async () => {
+		const throwingTk = {
+			loadZipDataBuffer: vi.fn().mockReturnValue(true),
+			renderToTimemap: vi.fn(() => {
+				throw new Error("timemap exploded");
+			}),
+			setOptions: vi.fn(),
+			loadData: vi.fn().mockReturnValue(true),
+		};
+		// biome-ignore lint/suspicious/noExplicitAny: test constructor mock
+		function FakeToolkitClass(_mod: unknown): any {
+			return throwingTk;
+		}
+		vi.spyOn({ FakeToolkitClass }, "FakeToolkitClass");
+
+		const { loadPiece } = await import("./score-worker");
+
+		const bytes = new TextEncoder().encode(
+			"<?xml version='1.0'?><score-partwise/>",
+		).buffer;
+
+		const result = await loadPiece(
+			bytes,
+			{
+				// biome-ignore lint/suspicious/noExplicitAny: test bindings
+				module: {} as any,
+				ToolkitClass: FakeToolkitClass,
+			},
+			"test-piece",
+		);
+
+		expect(result).toBe("failed");
+		expect(throwingTk.renderToTimemap).toHaveBeenCalled();
+	});
+});
