@@ -18,3 +18,17 @@ Decisions, deviations, and tradeoffs made during build. Read this before running
 - Test file needed no edits — existing assertions already encoded the post-fix behavior.
 - Followup (d19b0ba4): collapsed `PendingFull | PendingClip` into a single `PendingRequest` type. After `getClip` returned `string`, both variants were structurally identical and the `kind` discriminant was never read.
 - Reviewer over-flagged broken consumer imports (`ExerciseSetCard`, `PlayPassageCard`, `ScoreHighlightCard`, `app.sandbox.tsx`) as CRITICAL — those are scope-deferred to Tasks 4/5/5b/6 per plan, and the dispatcher confirmed mid-build red is expected.
+
+## Task 4: ScoreHighlightCard parallel-load (commit 2f8087ff)
+- jsdom serializes HTML attributes with double quotes; test assertions converted single→double accordingly.
+- Reviewer noted minor: `.catch` branch sets error state without `cancelled` guard. Matches existing codebase pattern; React 18+ noop on unmounted; not blocking.
+
+## Task 5: PlayPassageCard string clip (commit 4f33f36a)
+- `PassageManifest` required more fields than the plan listed (`source`, `startOffsetSec`, `endOffsetSec`, `barTimeline`) — filled with realistic values.
+- All three existing `mockGetClip.mockResolvedValue({svg: ..., ...})` calls updated to plain strings.
+- `clip: ClipResult | null` state renamed to `clipSvg: string | null`.
+
+## Task 5b: ExerciseSetCard string clip (commit bf9b7a38)
+- New test file created.
+- `ExerciseSetConfig.exercises[i].focusDimension` is required (not optional); filled with "dynamics" in test fixtures.
+- Pre-existing `.catch(() => {})` silent swallow on `getClip` left untouched (out of scope for this task — flagged for future cleanup).

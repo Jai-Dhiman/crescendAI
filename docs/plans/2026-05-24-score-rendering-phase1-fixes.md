@@ -529,7 +529,7 @@ getClipMethod public surface (no production callers)."
 - Modify: `apps/web/src/components/cards/ScoreHighlightCard.tsx`
 - Modify: `apps/web/src/components/cards/ScoreHighlightCard.test.tsx`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 REPLACE the contents of `apps/web/src/components/cards/ScoreHighlightCard.test.tsx` with:
 
@@ -616,7 +616,7 @@ describe("ScoreHighlightCard", () => {
 });
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd apps/web && bun run vitest run src/components/cards/ScoreHighlightCard.test.tsx
@@ -624,7 +624,7 @@ cd apps/web && bun run vitest run src/components/cards/ScoreHighlightCard.test.t
 
 Expected: FAIL on the parallel test — current `for…await` calls `mockGetClip` only ONCE before the first promise must resolve. `waitFor` times out at `mockGetClip).toHaveBeenCalledTimes(3)`.
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 REPLACE the contents of `apps/web/src/components/cards/ScoreHighlightCard.tsx` with:
 
@@ -814,7 +814,7 @@ export function ScoreHighlightCard({
 }
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd apps/web && bun run vitest run src/components/cards/ScoreHighlightCard.test.tsx
@@ -822,7 +822,7 @@ cd apps/web && bun run vitest run src/components/cards/ScoreHighlightCard.test.t
 
 Expected: PASS (both tests).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/web/src/components/cards/ScoreHighlightCard.tsx apps/web/src/components/cards/ScoreHighlightCard.test.tsx && git commit -m "feat(web): ScoreHighlightCard parallel-loads clips and renders pre-cropped SVGs
@@ -847,7 +847,7 @@ ClipSvg helper using the codebase's existing insertAdjacentHTML pattern
 - Modify: `apps/web/src/components/cards/PlayPassageCard.tsx`
 - Modify: `apps/web/src/components/cards/PlayPassageCard.test.tsx`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Add to `apps/web/src/components/cards/PlayPassageCard.test.tsx` (keep existing tests; replace any that destructure a `ClipResult` shape from `_mockClip`):
 
@@ -893,7 +893,7 @@ describe("PlayPassageCard SVG rendering", () => {
 
 If `PassageManifest` requires more fields than `pieceId/sessionId/bars/chunks`, look up the type in `apps/web/src/lib/types.ts` and supply realistic values for the remaining fields.
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd apps/web && bun run vitest run src/components/cards/PlayPassageCard.test.tsx -t "renders the SVG string passed via _mockClip"
@@ -901,7 +901,7 @@ cd apps/web && bun run vitest run src/components/cards/PlayPassageCard.test.tsx 
 
 Expected: FAIL — TypeScript reports `_mockClip` must be `ClipResult` (an object), so the test won't compile; OR if it does compile, the `data-test='passage-clip'` attribute never reaches the DOM because the current render path is `<SvgClip svgMarkup={clip.svg} ... />` and `clip.svg` of a string treated as `ClipResult` is `undefined`.
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 REPLACE the contents of `apps/web/src/components/cards/PlayPassageCard.tsx` with:
 
@@ -1087,7 +1087,7 @@ export function PlayPassageCard({
 }
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd apps/web && bun run vitest run src/components/cards/PlayPassageCard.test.tsx
@@ -1095,7 +1095,7 @@ cd apps/web && bun run vitest run src/components/cards/PlayPassageCard.test.tsx
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/web/src/components/cards/PlayPassageCard.tsx apps/web/src/components/cards/PlayPassageCard.test.tsx && git commit -m "feat(web): PlayPassageCard renders pre-cropped clip SVG
@@ -1119,7 +1119,7 @@ convention). The _mockClip prop type changes from ClipResult to string."
 - Modify: `apps/web/src/components/cards/ExerciseSetCard.tsx`
 - Create: `apps/web/src/components/cards/ExerciseSetCard.test.tsx`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `apps/web/src/components/cards/ExerciseSetCard.test.tsx`:
 
@@ -1186,7 +1186,7 @@ describe("ExerciseSetCard", () => {
 
 Look up `ExerciseSetConfig` in `apps/web/src/lib/types.ts`. If the shape requires additional fields beyond what's shown, fill in realistic values (e.g., a `setId` UUID, `exerciseId` on items, `hands` enum). Match the existing shape exactly so TypeScript compilation passes.
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd apps/web && bun run vitest run src/components/cards/ExerciseSetCard.test.tsx
@@ -1194,7 +1194,7 @@ cd apps/web && bun run vitest run src/components/cards/ExerciseSetCard.test.tsx
 
 Expected: FAIL — the existing `ExerciseSetCard` stores `scoreClip` as `ClipResult` and renders via `<SvgClip svgMarkup={...} />`. The test's `data-test='exercise-clip'` attribute never reaches the DOM because `scoreClip.svg` of a `string`-resolved getClip is `undefined` under the existing type assumptions.
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 In `apps/web/src/components/cards/ExerciseSetCard.tsx`:
 
@@ -1245,7 +1245,7 @@ function ClipSvg({ svg }: { svg: string }) {
 )}
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd apps/web && bun run vitest run src/components/cards/ExerciseSetCard.test.tsx
@@ -1253,7 +1253,7 @@ cd apps/web && bun run vitest run src/components/cards/ExerciseSetCard.test.tsx
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/web/src/components/cards/ExerciseSetCard.tsx apps/web/src/components/cards/ExerciseSetCard.test.tsx && git commit -m "feat(web): ExerciseSetCard renders pre-cropped clip SVG
