@@ -259,8 +259,8 @@ export async function loadPiece(
 		if (isZip) {
 			try {
 				xmlContent = await extractXmlFromMxl(bytes);
-			} catch {
-				// extraction failed; loaded stays false
+			} catch (e) {
+				console.error("[score-worker] extractXmlFromMxl failed:", e);
 			}
 		} else {
 			try {
@@ -279,8 +279,8 @@ export async function loadPiece(
 					"",
 				);
 				loaded = tk.loadData(clean) as boolean;
-			} catch {
-				// loadData fallback failed
+			} catch (e) {
+				console.error("[score-worker] loadData fallback failed:", e);
 			}
 		}
 	}

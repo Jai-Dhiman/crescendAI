@@ -97,7 +97,6 @@ describe("loadPiece — silent fallback regression", () => {
 		function FakeToolkitClass(_mod: unknown): any {
 			return throwingTk;
 		}
-		vi.spyOn({ FakeToolkitClass }, "FakeToolkitClass");
 
 		const { loadPiece } = await import("./score-worker");
 
