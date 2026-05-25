@@ -11,13 +11,6 @@ interface MeasureEntry {
 interface CacheEntry {
 	tk: VerovioTk;
 	measures: MeasureEntry[];
-	xmlContent: string | null;
-}
-
-export interface ClipSvgResult {
-	svg: string;
-	startMeasureId: string | null;
-	endMeasureId: string | null;
 }
 
 type LoadResult = CacheEntry | "failed";
@@ -60,36 +53,6 @@ function buildMeasureIndex(tk: VerovioTk): MeasureEntry[] {
 		.map((e) => ({ qstamp: e.qstamp, measureOn: e.measureOn }));
 }
 
-function getPageForBar(
-	tk: VerovioTk,
-	measures: MeasureEntry[],
-	barNumber: number,
-): number {
-	const entry = measures[barNumber - 1];
-	if (!entry) return 1;
-	const page = tk.getPageWithElement(entry.measureOn) as number;
-	return page > 0 ? page : 1;
-}
-
-// Approach A/B (default): render the page containing startBar, return full-page SVG + measure IDs.
-// Client crops client-side (SvgClip.tsx or SvgClipBBox.tsx).
-export function renderClipSvg(
-	tk: VerovioTk,
-	measures: MeasureEntry[],
-	startBar: number,
-	endBar: number,
-): ClipSvgResult {
-	const startEntry = measures[startBar - 1];
-	const endEntry = measures[endBar - 1];
-	const page = getPageForBar(tk, measures, startBar);
-	const svg = tk.renderToSVG(page) as string;
-	return {
-		svg,
-		startMeasureId: startEntry?.measureOn ?? null,
-		endMeasureId: endEntry?.measureOn ?? null,
-	};
-}
-
 export function renderFullSvg(tk: VerovioTk): string {
 	return tk.renderToSVG(1) as string;
 }
@@ -116,111 +79,15 @@ export function renderClipSvgSelect(
 	return svg;
 }
 
-// Approach D: MEI round-trip — export the loaded score as Verovio's native MEI
-// format, reload into a fresh toolkit, then select and render.
-// DOMParser not used — getMEI round-trip demonstrates format translation without DOM.
-export function renderClipSvgMei(
+// Canonical render_clip dispatch. Uses tk.select so Verovio engraves
+// only the requested bars with correct musical context.
+export function processRenderClipRequest(
 	tk: VerovioTk,
-	// biome-ignore lint/suspicious/noExplicitAny: dynamic Verovio ESM class
-	VerovioToolkitClass: new (mod: unknown) => VerovioTk,
-	verovioModule: unknown,
 	measures: MeasureEntry[],
 	startBar: number,
 	endBar: number,
 ): string {
-	const startEntry = measures[startBar - 1];
-	const endEntry = measures[endBar - 1];
-	if (!startEntry) return tk.renderToSVG(1) as string;
-
-	const startId = startEntry.measureOn;
-	const endId = endEntry?.measureOn ?? startEntry.measureOn;
-
-	const mei = tk.getMEI() as string;
-
-	const newTk = new VerovioToolkitClass(verovioModule);
-	newTk.setOptions(CLIP_RENDER_OPTS);
-	const loaded = newTk.loadData(mei) as boolean;
-	if (!loaded) return tk.renderToSVG(1) as string;
-
-	newTk.select({ start: startId, end: endId });
-	const svg = newTk.renderToSVG(1) as string;
-	newTk.select({});
-	return svg;
-}
-
-// Approach E: MusicXML filter — strip measures outside the target range from the
-// original MusicXML source using string operations (no DOMParser required).
-// Carries forward the last <attributes> element so clef/key/time sig are correct.
-export function renderClipSvgMxl(
-	xmlContent: string,
-	// biome-ignore lint/suspicious/noExplicitAny: dynamic Verovio ESM class
-	VerovioToolkitClass: new (mod: unknown) => VerovioTk,
-	verovioModule: unknown,
-	startBar: number,
-	endBar: number,
-): string | null {
-	const partPat = /(<part\b[^>]*>)([\s\S]*?)(<\/part>)/g;
-	let parts = "";
-	let pm: RegExpExecArray | null;
-
-	while (true) {
-		pm = partPat.exec(xmlContent);
-		if (!pm) break;
-		const [, partOpen, partBody, partClose] = pm;
-		let lastAttrs = "";
-		const kept: string[] = [];
-
-		const measurePat = /<measure\b[^>]*>[\s\S]*?<\/measure>/g;
-		let mm: RegExpExecArray | null;
-
-		while (true) {
-			mm = measurePat.exec(partBody);
-			if (!mm) break;
-			const measureXml = mm[0];
-			const numM = /\bnumber="(\d+)"/.exec(measureXml);
-			if (!numM) continue;
-			const num = parseInt(numM[1], 10);
-
-			if (num < startBar) {
-				const a = /<attributes>[\s\S]*?<\/attributes>/.exec(measureXml);
-				if (a) lastAttrs = a[0];
-			} else if (num >= startBar && num <= endBar) {
-				if (
-					num === startBar &&
-					lastAttrs &&
-					!measureXml.includes("<attributes>")
-				) {
-					const insertAt = measureXml.indexOf(">") + 1;
-					kept.push(
-						measureXml.slice(0, insertAt) +
-							lastAttrs +
-							measureXml.slice(insertAt),
-					);
-				} else {
-					kept.push(measureXml);
-				}
-			}
-		}
-
-		parts += partOpen + kept.join("") + partClose;
-	}
-
-	if (!parts) return null;
-
-	const firstPart = xmlContent.indexOf("<part ");
-	if (firstPart === -1) return null;
-	const header = xmlContent.slice(0, firstPart);
-	const clean = (header + parts + "</score-partwise>").replace(
-		/<!DOCTYPE\s[^>[]*(\[[^\]]*\])?\s*>/g,
-		"",
-	);
-
-	const newTk = new VerovioToolkitClass(verovioModule);
-	newTk.setOptions(CLIP_RENDER_OPTS);
-	const loaded = newTk.loadData(clean) as boolean;
-	if (!loaded) return null;
-
-	return newTk.renderToSVG(1) as string;
+	return renderClipSvgSelect(tk, measures, startBar, endBar);
 }
 
 export interface VerovioBindings {
@@ -240,7 +107,6 @@ export async function loadPiece(
 		bytes.byteLength >= 4 &&
 		new DataView(bytes).getUint32(0, true) === ZIP_MAGIC;
 
-	let xmlContent: string | null = null;
 	let tk = new ToolkitClass(module);
 	tk.setOptions(VEROVIO_OPTS);
 	let loaded = false;
@@ -256,25 +122,25 @@ export async function loadPiece(
 	}
 
 	if (!loaded) {
+		let fallbackXml: string | null = null;
 		if (isZip) {
 			try {
-				xmlContent = await extractXmlFromMxl(bytes);
+				fallbackXml = await extractXmlFromMxl(bytes);
 			} catch (e) {
 				console.error("[score-worker] extractXmlFromMxl failed:", e);
 			}
 		} else {
 			try {
-				xmlContent = new TextDecoder().decode(bytes);
-			} catch {
-				// non-text binary
+				fallbackXml = new TextDecoder().decode(bytes);
+			} catch (e) {
+				console.error("[score-worker] TextDecoder failed:", e);
 			}
 		}
-
-		if (xmlContent !== null) {
+		if (fallbackXml !== null) {
 			tk = new ToolkitClass(module);
 			tk.setOptions(VEROVIO_OPTS);
 			try {
-				const clean = xmlContent.replace(
+				const clean = fallbackXml.replace(
 					/<!DOCTYPE\s[^>[]*(\[[^\]]*\])?\s*>/g,
 					"",
 				);
@@ -287,7 +153,7 @@ export async function loadPiece(
 
 	if (!loaded) return "failed";
 
-	const entry: CacheEntry = { tk, measures: [], xmlContent };
+	const entry: CacheEntry = { tk, measures: [] };
 	try {
 		entry.measures = buildMeasureIndex(tk);
 	} catch (e) {
@@ -374,7 +240,6 @@ type WorkerInMsg =
 			pieceId: string;
 			startBar: number;
 			endBar: number;
-			method?: "default" | "select" | "mei" | "mxl";
 			bytes?: ArrayBuffer;
 	  }
 	| {
@@ -471,70 +336,18 @@ if (typeof window === "undefined") {
 				return;
 			}
 
-			const { tk, measures, xmlContent } = result;
+			const { tk, measures } = result;
 			if (msg.type === "render_clip") {
-				const method = msg.method ?? "default";
-
-				if (method === "select") {
-					const svg = renderClipSvgSelect(
-						tk,
-						measures,
-						msg.startBar,
-						msg.endBar,
-					);
-					(self as unknown as Worker).postMessage({
-						requestId: msg.requestId,
-						svg,
-					});
-				} else if (method === "mei") {
-					const svg = renderClipSvgMei(
-						tk,
-						VerovioToolkitClass,
-						verovioModule,
-						measures,
-						msg.startBar,
-						msg.endBar,
-					);
-					(self as unknown as Worker).postMessage({
-						requestId: msg.requestId,
-						svg,
-					});
-				} else if (method === "mxl") {
-					if (!xmlContent) {
-						(self as unknown as Worker).postMessage({
-							requestId: msg.requestId,
-							error: "xmlContent not available for mxl method",
-						});
-						return;
-					}
-					const svg = renderClipSvgMxl(
-						xmlContent,
-						VerovioToolkitClass,
-						verovioModule,
-						msg.startBar,
-						msg.endBar,
-					);
-					if (!svg) {
-						(self as unknown as Worker).postMessage({
-							requestId: msg.requestId,
-							error: "MXL filter render produced no output",
-						});
-						return;
-					}
-					(self as unknown as Worker).postMessage({
-						requestId: msg.requestId,
-						svg,
-					});
-				} else {
-					// default: full page + measure IDs for client-side crop
-					const clip = renderClipSvg(tk, measures, msg.startBar, msg.endBar);
-					(self as unknown as Worker).postMessage({
-						requestId: msg.requestId,
-						svg: clip.svg,
-						startMeasureId: clip.startMeasureId ?? undefined,
-						endMeasureId: clip.endMeasureId ?? undefined,
-					});
-				}
+				const svg = processRenderClipRequest(
+					tk,
+					measures,
+					msg.startBar,
+					msg.endBar,
+				);
+				(self as unknown as Worker).postMessage({
+					requestId: msg.requestId,
+					svg,
+				});
 			} else {
 				let svg: string;
 				if (msg.pageWidth !== undefined) {

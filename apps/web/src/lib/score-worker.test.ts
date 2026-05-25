@@ -28,47 +28,32 @@ beforeEach(() => {
 	mockRenderToSVG.mockReturnValue("<svg>clip-svg</svg>");
 });
 
-describe("renderClipSvg", () => {
-	it("looks up the page for startBar and renders that page", async () => {
-		const { renderClipSvg } = await import("./score-worker");
+describe("processRenderClipRequest", () => {
+	it("calls tk.select with measureOn IDs from the index and renders page 1", async () => {
+		const mockSelect = vi.fn();
+		const tk = {
+			...fakeTk,
+			select: mockSelect,
+		};
+		const { processRenderClipRequest } = await import("./score-worker");
 		// biome-ignore lint/suspicious/noExplicitAny: test mock
-		const result = renderClipSvg(fakeTk as any, fakeMeasures, 3, 4);
-		expect(mockGetPageWithElement).toHaveBeenCalledWith("measure-id-3");
-		expect(mockRenderToSVG).toHaveBeenCalledWith(3);
-		expect(result.svg).toBe("<svg>clip-svg</svg>");
-	});
-
-	it("returns startMeasureId and endMeasureId from the measures array", async () => {
-		const { renderClipSvg } = await import("./score-worker");
-		// biome-ignore lint/suspicious/noExplicitAny: test mock
-		const result = renderClipSvg(fakeTk as any, fakeMeasures, 2, 4);
-		expect(result.startMeasureId).toBe("measure-id-2");
-		expect(result.endMeasureId).toBe("measure-id-4");
-	});
-
-	it("returns null measure IDs when bar numbers exceed the measure index", async () => {
-		const { renderClipSvg } = await import("./score-worker");
-		// biome-ignore lint/suspicious/noExplicitAny: test mock
-		const result = renderClipSvg(fakeTk as any, fakeMeasures, 999, 1000);
-		expect(result.startMeasureId).toBeNull();
-		expect(result.endMeasureId).toBeNull();
+		const svg = processRenderClipRequest(tk as any, fakeMeasures, 2, 4);
+		expect(mockSelect).toHaveBeenCalledWith({
+			start: "measure-id-2",
+			end: "measure-id-4",
+		});
 		expect(mockRenderToSVG).toHaveBeenCalledWith(1);
+		expect(svg).toBe("<svg>clip-svg</svg>");
 	});
 
-	it("falls back to page 1 when bar number exceeds measure index", async () => {
-		const { renderClipSvg } = await import("./score-worker");
+	it("falls back to a full page-1 render when the start bar is out of range", async () => {
+		const tk = { ...fakeTk, select: vi.fn() };
+		const { processRenderClipRequest } = await import("./score-worker");
 		// biome-ignore lint/suspicious/noExplicitAny: test mock
-		renderClipSvg(fakeTk as any, fakeMeasures, 999, 1000);
-		expect(mockGetPageWithElement).not.toHaveBeenCalled();
+		const svg = processRenderClipRequest(tk as any, fakeMeasures, 999, 1000);
+		expect(tk.select).not.toHaveBeenCalled();
 		expect(mockRenderToSVG).toHaveBeenCalledWith(1);
-	});
-
-	it("falls back to page 1 when getPageWithElement returns 0", async () => {
-		mockGetPageWithElement.mockReturnValue(0);
-		const { renderClipSvg } = await import("./score-worker");
-		// biome-ignore lint/suspicious/noExplicitAny: test mock
-		renderClipSvg(fakeTk as any, fakeMeasures, 1, 2);
-		expect(mockRenderToSVG).toHaveBeenCalledWith(1);
+		expect(svg).toBe("<svg>clip-svg</svg>");
 	});
 });
 
