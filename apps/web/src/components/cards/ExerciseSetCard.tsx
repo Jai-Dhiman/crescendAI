@@ -1,27 +1,11 @@
 import { ArrowsOut, CaretDown } from "@phosphor-icons/react";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
+import { ClipSvg } from "../ClipSvg";
 import { scoreRenderer } from "../../lib/score-renderer";
 import { api } from "../../lib/api";
 import { handsLabel } from "../../lib/exercise-utils";
 import type { ExerciseSetConfig } from "../../lib/types";
 import { useArtifactStore } from "../../stores/artifact";
-
-function ClipSvg({ svg }: { svg: string }) {
-	const ref = useRef<HTMLDivElement>(null);
-	useLayoutEffect(() => {
-		if (!ref.current) return;
-		ref.current.textContent = "";
-		// biome-ignore lint/security/noDomManipulation: controlled SVG from Verovio WASM
-		ref.current.insertAdjacentHTML("afterbegin", svg);
-		const svgEl = ref.current.querySelector("svg");
-		if (svgEl) {
-			svgEl.setAttribute("width", "100%");
-			svgEl.removeAttribute("height");
-			(svgEl as SVGElement).style.display = "block";
-		}
-	}, [svg]);
-	return <div ref={ref} className="[&>svg]:w-full [&>svg]:block" />;
-}
 
 interface ExerciseSetCardProps {
 	config: ExerciseSetConfig;
@@ -161,6 +145,7 @@ export function ExerciseSetCard({
 }: ExerciseSetCardProps) {
 	const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
 	const [scoreClip, setScoreClip] = useState<string | null>(null);
+	const [clipLoadError, setClipLoadError] = useState(false);
 
 	useEffect(() => {
 		if (!config.scoreClip) return;
@@ -168,14 +153,17 @@ export function ExerciseSetCard({
 		scoreRenderer
 			.getClip(config.scoreClip.pieceId, config.scoreClip.bars[0], config.scoreClip.bars[1])
 			.then((r) => { if (!cancelled) setScoreClip(r); })
-			.catch(() => {});
+			.catch((err) => {
+				console.error("ExerciseSetCard: failed to load score clip", err);
+				if (!cancelled) setClipLoadError(true);
+			});
 		return () => { cancelled = true; };
 	}, [config.scoreClip]);
 
 	return (
 		<div className="bg-surface-card border border-border rounded-xl overflow-hidden mt-3">
 			{/* Score clip */}
-			{config.scoreClip && scoreClip && (
+			{config.scoreClip && scoreClip && !clipLoadError && (
 				<div className="border-b border-border/60 bg-white">
 					<ClipSvg svg={scoreClip} />
 				</div>

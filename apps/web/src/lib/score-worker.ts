@@ -24,7 +24,7 @@ const VEROVIO_OPTS = {
 	scale: 40,
 } as const;
 
-// Narrower options for clip rendering (select/mei/mxl methods).
+// Narrower options for clip rendering.
 // pageWidth 1600 at scale 40 fits ~2-4 bars of dense piano music cleanly.
 const CLIP_RENDER_OPTS = {
 	pageWidth: 1600,
@@ -57,10 +57,9 @@ export function renderFullSvg(tk: VerovioTk): string {
 	return tk.renderToSVG(1) as string;
 }
 
-// Approach C: Verovio select() API — tells Verovio to render only the target
-// measures as page 1, preserving musical context (clef, key/time sig).
+// Verovio select() API — renders only the target measures with full musical context.
 // Uses CLIP_RENDER_OPTS (narrower pageWidth) so the bars fill the container.
-export function renderClipSvgSelect(
+function renderClipSvgSelect(
 	tk: VerovioTk,
 	measures: MeasureEntry[],
 	startBar: number,
