@@ -32,3 +32,8 @@ Decisions, deviations, and tradeoffs made during build. Read this before running
 - New test file created.
 - `ExerciseSetConfig.exercises[i].focusDimension` is required (not optional); filled with "dynamics" in test fixtures.
 - Pre-existing `.catch(() => {})` silent swallow on `getClip` left untouched (out of scope for this task — flagged for future cleanup).
+
+## Task 6: Delete dead helpers + sandbox cleanup (commit a3976051)
+- Additional orphan removed beyond plan letter: `SvgDisplay` helper (was sole-use by `ApproachWorkerMethod`); deleted to clear TS6133 unused-var error.
+- Sandbox's local `ClipSvg` uses `useEffect` rather than `useLayoutEffect` (cards use `useLayoutEffect`); sandbox is dev-only so the flash-of-unstyled-SVG concern doesn't apply. Acceptable per reviewer.
+- Full web test suite: 63/63 green. `tsc --noEmit` for web is clean (apps/api drizzle errors are pre-existing and out of scope).

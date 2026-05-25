@@ -1278,7 +1278,7 @@ local ClipSvg helper using the codebase's insertAdjacentHTML pattern."
 - Modify: `apps/web/src/routes/app.sandbox.tsx`
 - Create: `apps/web/src/components/svg-clip-deleted.test.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `apps/web/src/components/svg-clip-deleted.test.ts` with:
 
@@ -1302,7 +1302,7 @@ describe("SvgClip deletion", () => {
 });
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd apps/web && bun run vitest run src/components/svg-clip-deleted.test.ts
@@ -1310,7 +1310,7 @@ cd apps/web && bun run vitest run src/components/svg-clip-deleted.test.ts
 
 Expected: FAIL — file-existence assertions fail (`SvgClip.tsx` and `SvgClipBBox.tsx` still exist).
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 1. Delete the two component files:
 
@@ -1350,7 +1350,7 @@ cd apps/web && bun run tsc --noEmit
 
 Expected: zero errors. If any errors surface, address each (most likely candidates: leftover references to `ClipResult`, `SvgClip`, or removed approach functions).
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd apps/web && bun run vitest run src/components/svg-clip-deleted.test.ts && bun run vitest run
@@ -1358,7 +1358,7 @@ cd apps/web && bun run vitest run src/components/svg-clip-deleted.test.ts && bun
 
 Expected: PASS (the deletion test + the full suite).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/web/src/components/svg-clip-deleted.test.ts apps/web/src/routes/app.sandbox.tsx && git rm apps/web/src/components/SvgClip.tsx apps/web/src/components/SvgClipBBox.tsx && git commit -m "chore(web): delete dead SvgClip helpers and sandbox ApproachesComparison
