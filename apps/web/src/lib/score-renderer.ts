@@ -1,19 +1,11 @@
 // apps/web/src/lib/score-renderer.ts
 import { api } from "./api";
 
-type PendingFull = {
-	kind: "full";
+type PendingRequest = {
 	resolve: (svg: string) => void;
 	reject: (err: Error) => void;
 	pieceId: string;
 };
-type PendingClip = {
-	kind: "clip";
-	resolve: (svg: string) => void;
-	reject: (err: Error) => void;
-	pieceId: string;
-};
-type PendingRequest = PendingFull | PendingClip;
 
 class ScoreRenderer {
 	private worker: Worker | null = null;
@@ -92,7 +84,6 @@ class ScoreRenderer {
 		return new Promise((resolve, reject) => {
 			const requestId = `req-${++this.requestCounter}`;
 			this.pendingRequests.set(requestId, {
-				kind: "full",
 				resolve,
 				reject,
 				pieceId,
@@ -127,7 +118,6 @@ class ScoreRenderer {
 		return new Promise((resolve, reject) => {
 			const requestId = `req-${++this.requestCounter}`;
 			this.pendingRequests.set(requestId, {
-				kind: "clip",
 				resolve,
 				reject,
 				pieceId,
