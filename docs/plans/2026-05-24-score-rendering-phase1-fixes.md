@@ -1587,3 +1587,40 @@ PlayPassageCard.tsx
 ---
 
 VERDICT: NEEDS_REWORK — Three blockers must be resolved before execution: (1) add `ExerciseSetCard.tsx` to Task 6 scope with explicit instructions, (2) add `MOCK_CLIP` fixture update and `_mockClip` call-site type change to Task 6 scope, (3) fix the Task 2 branching checkpoint selector from `g.measure` to the actual Verovio measure element selector.
+
+---
+
+## Challenge Review (Re-review, 2026-05-25)
+
+Re-running the challenge pass after commit c038b68d ("docs(plan): address /challenge NEEDS_REWORK findings"). Reviewed each prior blocker against the current plan text.
+
+### Disposition of Prior Blockers
+
+**Prior BLOCKER 1 (ExerciseSetCard out of scope) — RESOLVED.**
+Task 5b (lines 1110-1263) is now a dedicated, properly TDD-shaped task for `ExerciseSetCard.tsx`: writes `ExerciseSetCard.test.tsx` first (mocked `scoreRenderer` and `api`), changes `scoreClip` state from `ClipResult | null` to `string | null`, swaps `<SvgClip ...>` for the local `ClipSvg` helper, and commits separately. Also added to Group D (parallel with Tasks 4 and 5; touches a disjoint file). Spec file-changes table (lines 82-83) now lists `ExerciseSetCard.tsx` + new test. No dangling imports will remain when Task 6 deletes `SvgClip` and `ClipResult`.
+
+**Prior BLOCKER 2 (MOCK_CLIP fixture / six `_mockClip` call sites in sandbox) — RESOLVED.**
+Task 6 Step 3.2 (lines 1331-1333) now explicitly: (a) replaces the `MOCK_CLIP: ClipResult` fixture with `const MOCK_CLIP_SVG: string = "<svg>...</svg>"`, (b) instructs the agent to grep `MOCK_CLIP` first to locate every reference, (c) updates each `_mockClip={MOCK_CLIP}` to `_mockClip={MOCK_CLIP_SVG}`. The rename forces surfacing of every call site (a TS error if missed). The `ScoreClipPanel` refactor inside `app.sandbox.tsx` (line 1341) is also spelled out: state changes from `ClipResult | null` to `string | null`, JSX swaps `<SvgClip svgMarkup={clip.svg} ...>` for `<ClipSvg svg={svg} />`.
+
+**Prior BLOCKER 3 (Task 2 checkpoint selector `g.measure` invalid) — RESOLVED but with a re-review correction.**
+The original challenge claimed Verovio does not emit `<g class="measure">` and the selector would always return 0. **That claim was wrong.** Verified by reading `app.sandbox.tsx:799` (the existing `ScoreGeometryProbe` uses `svgEl.querySelectorAll<SVGGElement>("g.measure")` against real Verovio output, with companion uses at lines 809 and the documentation at line 844). Verovio does emit `<g class="measure">` containers. The real defect was that the prior checkpoint queried the whole page (catching every approach's SVG, plus the full-page render in `SvgPanel`). The current Task 2 checkpoint (lines 227-243) walks up from the `.font-mono` "C — tk.select()" label to the row container and queries only that row's SVG, eliminating the cross-approach contamination risk. The selector is correct; the scoping is now correct. Commit message accurately notes this.
+
+### Spec / Plan Consistency
+
+- Spec line 55 now explicitly states `Promise.all` (not `Promise.allSettled`) and explains the all-or-nothing UX choice. This matches the Task 4 implementation. The earlier inconsistency the original challenge flagged as RISK is gone.
+- Task 4/5/5b DOM assertions now use `document.body.innerHTML.includes("data-...")` rather than `document.querySelector("svg[data-...]")`. This sidesteps jsdom's incomplete SVG attribute querying — the prior RISK 1 mitigation is implemented in the plan text (lines 608-614, 882-887, 1163-1166). The tests will fail pre-implementation (string absent from DOM) and pass post-implementation (string present via `insertAdjacentHTML`), preserving correct TDD direction.
+- Task 5 (lines 891-892) now contains an explicit instruction to update existing `mockGetClip.mockResolvedValue({ svg: ..., startMeasureId: null, endMeasureId: null })` calls to `mockGetClip.mockResolvedValue("<svg>...</svg>")` (plain string) and to update existing `_mockClip` literal-object usages to strings. The prior RISK 2 (agent might miss the existing mock returns) is addressed by direct instruction.
+
+### Residual Risks (unchanged from prior review; still RISK, not BLOCKER)
+
+- **`ClipSvg` duplicated three times** (Tasks 4, 5, 5b, plus inside `app.sandbox.tsx` per Task 6 = four copies). The plan acknowledges this is intentional and Phase 2 will consolidate. At 14 LOC the divergence risk is low. RISK, confidence 6/10.
+- **`xmlContent` two-step removal across Tasks 1 and 2.** Task 1 still writes `xmlContent` into the `CacheEntry`; Task 2 removes the field. The sequential dependency (Group A → B) makes this safe, and Task 2's Step 3.3 explicitly walks the agent through removing the local `xmlContent` variable from `loadPiece`. The `tsc --noEmit` in Task 6 (4 tasks later) is the last-line guard. RISK, confidence 5/10. Watch during execution.
+- **Verovio dependency between Task 1 and Task 2.** If Task 1 lands and Task 2's checkpoint then fails (`tk.select` produces wrong output on real pieces), the plan must fall back to Approach B per Task 2's halt instructions (lines 248-249). This is well-specified. RISK during execution only.
+
+### Summary
+
+[BLOCKER] count: 0
+[RISK]    count: 3 (all carried over, severity acceptable)
+[QUESTION] count: 0
+
+VERDICT: PROCEED_WITH_CAUTION — All three prior blockers are resolved by commit c038b68d. The plan is ready to execute. During build, monitor: (1) the `xmlContent` two-step removal across Tasks 1-2 (verify no leftover variable in `loadPiece` after Task 2 lands), (2) the Task 2 branching checkpoint outcome — be ready to fall back to Approach B if any of the three bar-range cases produces incorrect measure counts or visually broken output, (3) post-Phase-1 cleanup: consolidate the four `ClipSvg` copies into a shared export as the first task of Phase 2.
