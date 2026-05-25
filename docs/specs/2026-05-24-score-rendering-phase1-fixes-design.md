@@ -52,7 +52,7 @@ No visible API or UI changes beyond correctness. The renderer's external surface
 
 - We do not understand *why* `renderToTimemap` triggers the deprecated-WASM-`try`-instruction warning. The fix surfaces the error from `buildMeasureIndex`; if it throws on a real piece, `loadPiece` returns failure and the user sees an error state. We accept this UX in exchange for "no silent fallback" — Phase 2 will revisit the root cause when the IR walk replaces timemap.
 - We delete `SvgClip` and (likely) `SvgClipBBox` rather than fix A. There is no scenario where A is the right approach; preserving it as "another option" is the trap that produced today's mess.
-- `ScoreHighlightCard` parallelization uses `Promise.all`. If one highlight's clip fails, the others still resolve (we `Promise.allSettled` internally), but the current behavior — single rejection sets the card to error — is preserved by checking for any rejection in the resolved array.
+- `ScoreHighlightCard` parallelization uses `Promise.all`. If any clip fails, the entire card flips to error state (matching today's behavior under `for…await`). We deliberately do *not* use `Promise.allSettled` — partial-success rendering ("two clips OK, one missing") is a UX decision that should be made when there's evidence users hit this case; today's contract is all-or-nothing and the parallelization preserves it.
 
 ## Modules
 
@@ -79,6 +79,8 @@ No visible API or UI changes beyond correctness. The renderer's external surface
 | `apps/web/src/components/SvgClipBBox.tsx` | — | **Delete (if C wins)** / Keep (if B wins) |
 | `apps/web/src/components/cards/ScoreHighlightCard.tsx` | Render returned SVG via a new `<SvgPanel>` (or keep `SvgClipBBox` if B wins); replace `for…await` with `Promise.all` | Modify |
 | `apps/web/src/components/cards/PlayPassageCard.tsx` | Same SVG-rendering swap as `ScoreHighlightCard` | Modify |
+| `apps/web/src/components/cards/ExerciseSetCard.tsx` | Same SVG-rendering swap (state holds `string` instead of `ClipResult`) | Modify |
+| `apps/web/src/components/cards/ExerciseSetCard.test.tsx` | New test covering the SVG render and the no-scoreClip path | New |
 | `apps/web/src/routes/app.sandbox.tsx` | Delete `ApproachesComparison`, `ApproachA`, `ApproachB`, `ApproachWorkerMethod`, `ApproachRow`, related imports; keep `ScoreGeometryProbe` (Phase 2 spike) | Modify |
 | `apps/web/src/lib/score-worker.test.ts` | Add regression test: when `buildMeasureIndex` throws, `loadPiece` resolves with `'failed'` (not a degraded `CacheEntry`) and the worker responds with `error:` | Modify |
 | `apps/web/src/lib/score-renderer.test.ts` | Update mock worker responses to match new `getClip` contract; drop any test exercising removed methods | Modify |
