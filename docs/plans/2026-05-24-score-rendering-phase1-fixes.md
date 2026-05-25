@@ -37,7 +37,7 @@ Tasks 4, 5, and 5b touch disjoint files (`ScoreHighlightCard.tsx`, `PlayPassageC
 - Modify: `apps/web/src/lib/score-worker.ts`
 - Modify: `apps/web/src/lib/score-worker.test.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `apps/web/src/lib/score-worker.test.ts` (after the existing `describe("renderFullSvg")` block):
 
@@ -80,7 +80,7 @@ describe("loadPiece — silent fallback regression", () => {
 });
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd apps/web && bun run vitest run src/lib/score-worker.test.ts -t "silent fallback regression"
@@ -88,7 +88,7 @@ cd apps/web && bun run vitest run src/lib/score-worker.test.ts -t "silent fallba
 
 Expected: FAIL — `loadPiece is not exported from "./score-worker"`.
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 In `apps/web/src/lib/score-worker.ts`:
 
@@ -183,7 +183,7 @@ const loadPromise = loadPiece(
 );
 ```
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd apps/web && bun run vitest run src/lib/score-worker.test.ts
@@ -191,7 +191,7 @@ cd apps/web && bun run vitest run src/lib/score-worker.test.ts
 
 Expected: PASS (all worker tests).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/web/src/lib/score-worker.ts apps/web/src/lib/score-worker.test.ts && git commit -m "fix(web): loadPiece returns failed when measure index cannot be built
@@ -250,7 +250,7 @@ Expected for the default sandbox config (`startBar=135, endBar=136`): `measures 
 
 **If all three cases pass:** proceed with Step 1.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 In `apps/web/src/lib/score-worker.test.ts`, REPLACE the existing `describe("renderClipSvg", ...)` block (lines 31-73) with:
 
@@ -285,7 +285,7 @@ describe("processRenderClipRequest", () => {
 });
 ```
 
-- [ ] **Step 2: Run test — verify it FAILS**
+- [x] **Step 2: Run test — verify it FAILS**
 
 ```bash
 cd apps/web && bun run vitest run src/lib/score-worker.test.ts -t "processRenderClipRequest"
@@ -293,7 +293,7 @@ cd apps/web && bun run vitest run src/lib/score-worker.test.ts -t "processRender
 
 Expected: FAIL — `processRenderClipRequest is not exported from "./score-worker"`.
 
-- [ ] **Step 3: Implement the minimum to make the test pass**
+- [x] **Step 3: Implement the minimum to make the test pass**
 
 In `apps/web/src/lib/score-worker.ts`:
 
@@ -394,7 +394,7 @@ if (msg.type === "render_clip") {
 
 The `else` block (render_full handling) is unchanged.
 
-- [ ] **Step 4: Run test — verify it PASSES**
+- [x] **Step 4: Run test — verify it PASSES**
 
 ```bash
 cd apps/web && bun run vitest run src/lib/score-worker.test.ts
@@ -402,7 +402,7 @@ cd apps/web && bun run vitest run src/lib/score-worker.test.ts
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/web/src/lib/score-worker.ts apps/web/src/lib/score-worker.test.ts && git commit -m "refactor(web): worker render_clip uses tk.select; drop dead approaches
