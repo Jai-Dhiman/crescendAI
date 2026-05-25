@@ -1,6 +1,5 @@
 // apps/web/src/components/cards/PlayPassageCard.tsx
-import { useEffect, useRef, useState } from "react";
-import { ClipSvg } from "../ClipSvg";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { api } from "../../lib/api";
 import { DIMENSION_COLORS } from "../../lib/mock-session";
 import { PassagePlayer } from "../../lib/passage-player";
@@ -17,6 +16,23 @@ interface PlayPassageCardProps {
 }
 
 type LoadState = "loading" | "ready" | "audio_error" | "error";
+
+function ClipSvg({ svg }: { svg: string }) {
+	const ref = useRef<HTMLDivElement>(null);
+	useLayoutEffect(() => {
+		if (!ref.current) return;
+		ref.current.textContent = "";
+		// biome-ignore lint/security/noDomManipulation: controlled SVG from Verovio WASM, not user input
+		ref.current.insertAdjacentHTML("afterbegin", svg);
+		const svgEl = ref.current.querySelector("svg");
+		if (svgEl) {
+			svgEl.setAttribute("width", "100%");
+			svgEl.removeAttribute("height");
+			(svgEl as SVGElement).style.display = "block";
+		}
+	}, [svg]);
+	return <div ref={ref} className="[&>svg]:w-full [&>svg]:block" />;
+}
 
 export function PlayPassageCard({
 	config,

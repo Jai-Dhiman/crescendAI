@@ -1,7 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { Artifact } from "../components/Artifact";
-import { ClipSvg } from "../components/ClipSvg";
 import { ArtifactOverlay } from "../components/ArtifactOverlay";
 import { SegmentLoopArtifactCard } from "../components/cards/SegmentLoopArtifact";
 import { PlayPassageCard } from "../components/cards/PlayPassageCard";
@@ -614,6 +613,21 @@ interface ClipTest {
 	label: string;
 	startBar: number;
 	endBar: number;
+}
+
+function ClipSvg({ svg }: { svg: string }) {
+	const ref = useRef<HTMLDivElement>(null);
+	useEffect(() => {
+		if (!ref.current) return;
+		ref.current.textContent = "";
+		ref.current.insertAdjacentHTML("afterbegin", svg);
+		const svgEl = ref.current.querySelector("svg");
+		if (!svgEl) return;
+		svgEl.setAttribute("width", "100%");
+		svgEl.removeAttribute("height");
+		svgEl.style.display = "block";
+	}, [svg]);
+	return <div ref={ref} className="[&>svg]:w-full [&>svg]:block" />;
 }
 
 function ScoreClipPanel({

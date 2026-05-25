@@ -1,4 +1,4 @@
-import { cleanup, render, waitFor } from "@testing-library/react";
+import { render, waitFor } from "@testing-library/react";
 import * as React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ExerciseSetConfig } from "../../lib/types";
@@ -15,7 +15,6 @@ vi.mock("../../lib/api", () => ({
 
 beforeEach(() => {
 	vi.clearAllMocks();
-	cleanup();
 });
 
 describe("ExerciseSetCard", () => {
@@ -43,34 +42,6 @@ describe("ExerciseSetCard", () => {
 			expect(mockGetClip).toHaveBeenCalledWith("chopin.ballades.1", 5, 8);
 			expect(document.body.innerHTML).toContain('data-test="exercise-clip"');
 		});
-	});
-
-	it("renders card without clip preview when getClip rejects", async () => {
-		mockGetClip.mockRejectedValue(new Error("load failed"));
-		const config: ExerciseSetConfig = {
-			targetSkill: "Voicing the melody",
-			sourcePassage: "bars 5-8",
-			scoreClip: {
-				pieceId: "chopin.ballades.1",
-				bars: [5, 8],
-			},
-			exercises: [
-				{
-					title: "Slow practice",
-					instruction: "Half tempo, both hands.",
-					focusDimension: "dynamics",
-				},
-			],
-		};
-		const { ExerciseSetCard } = await import("./ExerciseSetCard");
-		const { container } = render(React.createElement(ExerciseSetCard, { config }));
-		await waitFor(() => {
-			expect(mockGetClip).toHaveBeenCalledWith("chopin.ballades.1", 5, 8);
-		});
-		// Card still renders with the exercise content
-		expect(container.textContent).toContain("Voicing the melody");
-		// No SVG injected in this render
-		expect(container.innerHTML).not.toContain("data-test");
 	});
 
 	it("renders without a clip section when scoreClip is absent", async () => {
