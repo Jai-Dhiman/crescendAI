@@ -1,12 +1,27 @@
 import { ArrowsOut, CaretDown } from "@phosphor-icons/react";
-import { useEffect, useState } from "react";
-import type { ClipResult } from "../../lib/score-renderer";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { scoreRenderer } from "../../lib/score-renderer";
-import { SvgClip } from "../SvgClip";
 import { api } from "../../lib/api";
 import { handsLabel } from "../../lib/exercise-utils";
 import type { ExerciseSetConfig } from "../../lib/types";
 import { useArtifactStore } from "../../stores/artifact";
+
+function ClipSvg({ svg }: { svg: string }) {
+	const ref = useRef<HTMLDivElement>(null);
+	useLayoutEffect(() => {
+		if (!ref.current) return;
+		ref.current.textContent = "";
+		// biome-ignore lint/security/noDomManipulation: controlled SVG from Verovio WASM
+		ref.current.insertAdjacentHTML("afterbegin", svg);
+		const svgEl = ref.current.querySelector("svg");
+		if (svgEl) {
+			svgEl.setAttribute("width", "100%");
+			svgEl.removeAttribute("height");
+			(svgEl as SVGElement).style.display = "block";
+		}
+	}, [svg]);
+	return <div ref={ref} className="[&>svg]:w-full [&>svg]:block" />;
+}
 
 interface ExerciseSetCardProps {
 	config: ExerciseSetConfig;
@@ -145,7 +160,7 @@ export function ExerciseSetCard({
 	artifactId,
 }: ExerciseSetCardProps) {
 	const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
-	const [scoreClip, setScoreClip] = useState<ClipResult | null>(null);
+	const [scoreClip, setScoreClip] = useState<string | null>(null);
 
 	useEffect(() => {
 		if (!config.scoreClip) return;
@@ -162,11 +177,7 @@ export function ExerciseSetCard({
 			{/* Score clip */}
 			{config.scoreClip && scoreClip && (
 				<div className="border-b border-border/60 bg-white">
-					<SvgClip
-						svgMarkup={scoreClip.svg}
-						startMeasureId={scoreClip.startMeasureId}
-						endMeasureId={scoreClip.endMeasureId}
-					/>
+					<ClipSvg svg={scoreClip} />
 				</div>
 			)}
 
