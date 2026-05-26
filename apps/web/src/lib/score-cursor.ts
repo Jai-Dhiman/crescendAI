@@ -25,6 +25,7 @@ export class ScoreCursor {
   }
 
   start(): void {
+    if (this.rafId !== null) return;
     this.mountOverlays();
     this.rafId = requestAnimationFrame(this.tick);
   }

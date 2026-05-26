@@ -126,6 +126,23 @@ describe("ScoreCursor", () => {
     cursor.stop();
   });
 
+  it("start() is idempotent: calling it twice mounts only one overlay and stop() once fully cancels", async () => {
+    const { ScoreCursor } = await import("./score-cursor");
+    const cursor = new ScoreCursor({
+      pieceId: "test",
+      container,
+      ir: FAKE_IR,
+      qstampSource: () => null,
+    });
+    cursor.start();
+    cursor.start(); // second call must be a no-op
+    const overlays = container.querySelectorAll("svg.score-cursor-overlay");
+    expect(overlays.length).toBe(1);
+    cursor.stop();
+    expect(container.querySelector("svg.score-cursor-overlay")).toBeNull();
+    expect(mockCancelAnimationFrame).toHaveBeenCalledTimes(1);
+  });
+
   it("keeps the rAF loop alive and captures exception via Sentry when qstampSource throws", async () => {
     const { Sentry } = await import("./sentry");
     const { ScoreCursor } = await import("./score-cursor");
