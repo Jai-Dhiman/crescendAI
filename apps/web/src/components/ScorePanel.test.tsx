@@ -4,13 +4,15 @@ import * as React from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { useScorePanelStore } from "../stores/score-panel";
 
-const mockGetFull = vi
+const mockLoad = vi.fn().mockResolvedValue({ ir: {}, pageSvgs: [] });
+const mockGetPage = vi
 	.fn()
 	.mockResolvedValue("<svg><g class='measure'/></svg>");
 
 vi.mock("../lib/score-renderer", () => ({
 	scoreRenderer: {
-		getFull: (...args: unknown[]) => mockGetFull(...args),
+		load: (...args: unknown[]) => mockLoad(...args),
+		getPage: (...args: unknown[]) => mockGetPage(...args),
 	},
 }));
 
@@ -40,7 +42,7 @@ describe("ScorePanel", () => {
 		expect(state.sessionData).toBeNull();
 	});
 
-	it("calls scoreRenderer.getFull with pieceId when panel opens with highlight data", async () => {
+	it("calls scoreRenderer.load then getPage with pieceId when panel opens with highlight data", async () => {
 		useScorePanelStore.getState().openHighlight({
 			pieceId: "chopin.ballades.1",
 			highlights: [
@@ -56,7 +58,8 @@ describe("ScorePanel", () => {
 		render(React.createElement(ScorePanel));
 
 		await waitFor(() => {
-			expect(mockGetFull).toHaveBeenCalledWith("chopin.ballades.1");
+			expect(mockLoad).toHaveBeenCalledWith("chopin.ballades.1");
+			expect(mockGetPage).toHaveBeenCalledWith("chopin.ballades.1", 1);
 		});
 	});
 });

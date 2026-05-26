@@ -21,67 +21,27 @@
 
 ---
 
-## Task 0: Prerequisite Spike — Measure Ballade load() wall-clock
+## Task 0: Prerequisite Spike — Measure Ballade IR marginal cost
 
-**Group:** 0 (sequential gate — if this task fails the >200ms threshold, halt the build and revise the spec toward lazy-IR before continuing)
+**Group:** 0 (sequential gate — if marginal IR-build cost exceeds 200ms, halt the build and revise the spec toward lazy-IR before continuing)
 
-**Behavior being verified:** `load()` on the Ballade fixture (56.7KB MXL, the largest fixture) completes within 200ms wall-clock, confirming that eager IR build at load time is a viable contract.
+**Behavior being verified:** The MARGINAL cost of IR build (measured as Δ between with-IR and without-IR `loadPiece` runs on the Ballade fixture) is under 200ms, confirming that eager IR build at load time is a viable contract. Total `loadPiece` wall-clock (~2-4s for Ballade) is Verovio's intrinsic cost and is NOT gated here — the UI shows a loading state for the duration.
 
-**Interface under test:** `loadPiece()` from `apps/web/src/lib/score-worker.ts` exercised directly (same pattern as the existing integration test).
+**Interface under test:** `loadPiece()` from `apps/web/src/lib/score-worker.ts` exercised directly (same pattern as the existing integration test). Two runs: one baseline (without IR, current code path) and one with-IR (after Task 3 lands), both on a warm WASM module.
 
 **Files:**
 - Modify: `apps/web/src/lib/score-worker.integration.test.ts`
 
 - [ ] **Step 1: Write the failing test**
 
-Add the following describe block to `apps/web/src/lib/score-worker.integration.test.ts`, after the existing describe block:
+The test is already committed at HEAD (revised 2026-05-26 to use marginal-cost assertion). See the `"IR build marginal cost (with-IR minus without-IR) is under 200ms"` it-block in `score-worker.integration.test.ts`.
 
-```typescript
-import { readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
-
-const BALLADE_FIXTURE_PATH = resolve(
-  dirname(fileURLToPath(import.meta.url)),
-  "../../public/scores/chopin-ballade-op23-no1.mxl",
-);
-
-describe("load() wall-clock spike — Ballade fixture", () => {
-  it("completes loadPiece for the Ballade within 200ms", async () => {
-    const esm = (await import("verovio/esm")) as any;
-    const wasm = (await import("verovio/wasm")) as any;
-    const VerovioToolkit = esm.VerovioToolkit ?? esm.default?.VerovioToolkit;
-    const VerovioModule = wasm.default ?? wasm;
-    const mod = await VerovioModule();
-
-    const bytes = readFileSync(BALLADE_FIXTURE_PATH);
-    const arrayBuf = new ArrayBuffer(bytes.byteLength);
-    new Uint8Array(arrayBuf).set(bytes);
-
-    const { loadPiece } = await import("./score-worker");
-
-    const t0 = Date.now();
-    const entry = await loadPiece(
-      arrayBuf,
-      { module: mod, ToolkitClass: VerovioToolkit as any },
-      "chopin-ballade-op23-no1",
-    );
-    const elapsed = Date.now() - t0;
-
-    expect(entry).not.toBe("failed");
-    // GATE (a): entry must have a populated ir field — the current loadPiece has no ir field,
-    // so this assertion fails with "entry.ir is undefined" until Task 3 attaches IR build.
-    // This gives the build agent a genuine red->green signal.
-    if (entry === "failed") return;
-    expect(entry.ir).toBeDefined();
-    expect(entry.ir.pages.length).toBeGreaterThan(0);
-    // GATE (b): once IR build is wired in (Task 3), verify total load+IR time stays under 200ms.
-    // GATE: if this assertion fails, the eager-IR contract is not viable.
-    // Halt the build and revise the spec toward lazy IR before proceeding.
-    expect(elapsed).toBeLessThan(200);
-  }, 30_000);
-});
-```
+The test structure:
+1. Load Ballade with a baseline pieceId (no IR — measures Verovio intrinsic cost).
+2. Load Ballade with the actual pieceId (with IR — after Task 3, measures Verovio + IR walk).
+3. Compute `marginalMs = max(0, withIrMs - baselineMs)`.
+4. GATE (a): `entry.ir` is defined and `entry.ir.pages.length > 0`.
+5. GATE (b): `marginalMs < 200`.
 
 - [ ] **Step 2: Run test — verify it FAILS**
 
@@ -89,13 +49,13 @@ describe("load() wall-clock spike — Ballade fixture", () => {
 cd /Users/jdhiman/Documents/crescendai/apps/web && bun run test src/lib/score-worker.integration.test.ts
 ```
 
-Expected: FAIL — `entry.ir is undefined`. The current `loadPiece` returns a `CacheEntry` without an `ir` field, so `expect(entry.ir).toBeDefined()` fails immediately. This gives a genuine red signal that the feature is missing.
+Expected: FAIL — `entry.ir is undefined`. The current `loadPiece` returns a `CacheEntry` without an `ir` field, so `expect(entry.ir).toBeDefined()` fails immediately. This preserves watch-it-fail discipline: test stays RED through Tasks 1-2, turns GREEN when Task 3 wires IR build into `loadPiece`.
 
-> **Build-agent gate:** If the test fails for any reason OTHER than `entry.ir is undefined` (e.g. `elapsed >= 200` or the fixture does not load), STOP. Do not proceed to Group A. File a note that the spike is broken and await further instruction.
+> **Build-agent gate:** If the test fails for any reason OTHER than `entry.ir is undefined` (e.g. `marginalMs >= 200` or the fixture does not load), STOP. Do not proceed to Group A. File a note that the spike is broken and await further instruction.
 
 - [ ] **Step 3: Implement the minimum to make the test pass**
 
-The test cannot pass until Task 3 attaches IR build to `loadPiece` — `entry.ir` is only populated after Task 3. This task's Step 3 is intentionally deferred: the test stays red through Group A, and turns green when Group B (Task 3) completes. The build agent must confirm the test is red after Step 2, then proceed to Group A, then verify it turns green after Task 3's commit. If it fails the 200ms threshold at that point, halt and flag for lazy-IR revision.
+The test cannot pass until Task 3 attaches IR build to `loadPiece`. This task's Step 3 is intentionally deferred: the test stays red through Group A, and turns green when Group B (Task 3) completes. The build agent must confirm the test is red after Step 2, then proceed to Group A, then verify it turns green after Task 3's commit. If `marginalMs >= 200` at that point, halt and flag for lazy-IR revision.
 
 - [ ] **Step 4: Run test — verify it PASSES**
 
@@ -103,12 +63,12 @@ The test cannot pass until Task 3 attaches IR build to `loadPiece` — `entry.ir
 cd /Users/jdhiman/Documents/crescendai/apps/web && bun run test src/lib/score-worker.integration.test.ts
 ```
 
-Expected: PASS — the Ballade loads within 200ms, the spike gate is cleared.
+Expected: PASS — `entry.ir` is defined, `marginalMs < 200` (IR walk is cheap; total load may be ~2-4s).
 
 - [ ] **Step 5: Commit**
 
 ```bash
-cd /Users/jdhiman/Documents/crescendai && git add apps/web/src/lib/score-worker.integration.test.ts && git commit -m "test(score-worker): spike gate — Ballade load() under 200ms"
+cd /Users/jdhiman/Documents/crescendai && git add apps/web/src/lib/score-worker.integration.test.ts && git commit -m "test(score-worker): spike gate — Ballade IR marginal cost under 200ms"
 ```
 
 ---

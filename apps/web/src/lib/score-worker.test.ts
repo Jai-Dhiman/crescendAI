@@ -40,13 +40,16 @@ describe("processRenderClipRequest", () => {
 			select: mockSelect,
 			redoLayout: mockRedoLayout,
 		};
+		// Use a recognizable marker so the .toBe assertion proves the function
+		// returns the renderToSVG output unchanged, not some transformed value.
+		mockRenderToSVG.mockReturnValue('<svg data-cropped="2-4">clip-svg</svg>');
 		const { processRenderClipRequest } = await import("./score-worker");
 		// biome-ignore lint/suspicious/noExplicitAny: test mock
 		const svg = processRenderClipRequest(tk as any, fakeMeasures, 2, 4);
 		expect(mockSelect).toHaveBeenCalledWith({ measureRange: "2-4" });
 		expect(mockRedoLayout).toHaveBeenCalled();
 		expect(mockRenderToSVG).toHaveBeenCalledWith(1);
-		expect(svg).toBe("<svg>clip-svg</svg>");
+		expect(svg).toBe('<svg data-cropped="2-4">clip-svg</svg>');
 	});
 
 	it("falls back to a full page-1 render when the start bar is out of range", async () => {
@@ -60,15 +63,21 @@ describe("processRenderClipRequest", () => {
 	});
 });
 
-describe("renderFullSvg", () => {
-	it("renders page 1 and returns the SVG string", async () => {
-		const { renderFullSvg } = await import("./score-worker");
-		mockRenderToSVG.mockReturnValue("<svg>full-svg</svg>");
-		// biome-ignore lint/suspicious/noExplicitAny: test mock
-		const result = renderFullSvg(fakeTk as any);
-		expect(mockRenderToSVG).toHaveBeenCalledWith(1);
-		expect(result).toBe("<svg>full-svg</svg>");
-	});
+
+describe("processGetPageRequest", () => {
+  it("returns the pre-rendered SVG for the requested page number", async () => {
+    const { processGetPageRequest } = await import("./score-worker");
+    const pageSvgs = ["<svg>page1</svg>", "<svg>page2</svg>", "<svg>page3</svg>"];
+    const result = processGetPageRequest(pageSvgs, 2);
+    expect(result).toBe("<svg>page2</svg>");
+  });
+
+  it("returns 'failed' when the requested page does not exist", async () => {
+    const { processGetPageRequest } = await import("./score-worker");
+    const pageSvgs = ["<svg>page1</svg>"];
+    const result = processGetPageRequest(pageSvgs, 99);
+    expect(result).toBe("failed");
+  });
 });
 
 describe("loadPiece — silent fallback regression", () => {
@@ -104,5 +113,40 @@ describe("loadPiece — silent fallback regression", () => {
 
 		expect(result).toBe("failed");
 		expect(throwingTk.renderToTimemap).toHaveBeenCalled();
+	});
+
+	it("returns 'failed' when getPageCount returns 0", async () => {
+		const zeroPageTk = {
+			loadZipDataBuffer: vi.fn().mockReturnValue(true),
+			renderToTimemap: vi.fn().mockReturnValue([
+				{ qstamp: 0, measureOn: "measure-1" },
+			]),
+			getPageCount: vi.fn().mockReturnValue(0),
+			setOptions: vi.fn(),
+			loadData: vi.fn().mockReturnValue(true),
+		};
+		// biome-ignore lint/suspicious/noExplicitAny: test constructor mock
+		function FakeToolkitClass(_mod: unknown): any {
+			return zeroPageTk;
+		}
+
+		const { loadPiece } = await import("./score-worker");
+
+		const bytes = new TextEncoder().encode(
+			"<?xml version='1.0'?><score-partwise/>",
+		).buffer;
+
+		const result = await loadPiece(
+			bytes,
+			{
+				// biome-ignore lint/suspicious/noExplicitAny: test bindings
+				module: {} as any,
+				ToolkitClass: FakeToolkitClass,
+			},
+			"test-piece",
+		);
+
+		expect(result).toBe("failed");
+		expect(zeroPageTk.getPageCount).toHaveBeenCalled();
 	});
 });

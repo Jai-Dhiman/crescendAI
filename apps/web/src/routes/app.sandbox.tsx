@@ -530,17 +530,29 @@ function ScoreResizePanel({ pieceId }: { pieceId: string }) {
 	const [width, setWidth] = useState(480);
 	const panelRef = useRef<HTMLDivElement>(null);
 	const cleanupRef = useRef<(() => void) | null>(null);
+	// Memoize loaded pieceIds to avoid redundant load() calls on re-render.
+	const loadedPieceRef = useRef<string | null>(null);
 
 	useEffect(() => {
 		let cancelled = false;
-		scoreRenderer
-			.getFull(pieceId)
-			.then((s) => {
+		async function loadAndGetPage() {
+			try {
+				if (loadedPieceRef.current !== pieceId) {
+					const result = await scoreRenderer.load(pieceId);
+					if (cancelled) return;
+					if (result === "failed") {
+						setError("Score failed to load");
+						return;
+					}
+					loadedPieceRef.current = pieceId;
+				}
+				const s = await scoreRenderer.getPage(pieceId, 1);
 				if (!cancelled) setSvg(s);
-			})
-			.catch((e) => {
+			} catch (e) {
 				if (!cancelled) setError(String(e));
-			});
+			}
+		}
+		loadAndGetPage();
 		return () => {
 			cancelled = true;
 			cleanupRef.current?.();
@@ -573,8 +585,9 @@ function ScoreResizePanel({ pieceId }: { pieceId: string }) {
 				Math.min(700, startWidth + (ev.clientX - startX)),
 			);
 			setWidth(w);
+			// load() is already guaranteed by the mount effect; getPage() is safe here.
 			scoreRenderer
-				.getFull(pieceId, Math.round(w / 0.4))
+				.getPage(pieceId, 1, Math.round(w / 0.4))
 				.then(setSvg)
 				.catch(() => {});
 			cleanup();
@@ -624,17 +637,29 @@ function ScoreClipPanel({
 }: ClipTest & { pieceId: string }) {
 	const [svg, setSvg] = useState<string | null>(null);
 	const [error, setError] = useState<string | null>(null);
+	// Memoize loaded pieceIds to avoid redundant load() calls across clip re-renders.
+	const loadedPieceRef = useRef<string | null>(null);
 
 	useEffect(() => {
 		let cancelled = false;
-		scoreRenderer
-			.getClip(pieceId, startBar, endBar)
-			.then((s) => {
+		async function loadAndGetClip() {
+			try {
+				if (loadedPieceRef.current !== pieceId) {
+					const result = await scoreRenderer.load(pieceId);
+					if (cancelled) return;
+					if (result === "failed") {
+						setError("Score failed to load");
+						return;
+					}
+					loadedPieceRef.current = pieceId;
+				}
+				const s = await scoreRenderer.getClip(pieceId, startBar, endBar);
 				if (!cancelled) setSvg(s);
-			})
-			.catch((e) => {
+			} catch (e) {
 				if (!cancelled) setError(String(e));
-			});
+			}
+		}
+		loadAndGetClip();
 		return () => {
 			cancelled = true;
 		};

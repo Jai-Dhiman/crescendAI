@@ -11,6 +11,8 @@ interface MeasureEntry {
 interface CacheEntry {
 	tk: VerovioTk;
 	measures: MeasureEntry[];
+	ir: import("./score-ir").ScoreIR;
+	pageSvgs: string[];
 }
 
 type LoadResult = CacheEntry | "failed";
@@ -53,8 +55,10 @@ function buildMeasureIndex(tk: VerovioTk): MeasureEntry[] {
 		.map((e) => ({ qstamp: e.qstamp, measureOn: e.measureOn }));
 }
 
-export function renderFullSvg(tk: VerovioTk): string {
-	return tk.renderToSVG(1) as string;
+export function processGetPageRequest(pageSvgs: string[], pageN: number): string | "failed" {
+	const svg = pageSvgs[pageN - 1];
+	if (svg === undefined) return "failed";
+	return svg;
 }
 
 // Verovio select() + redoLayout() crops the engraved output to the requested
@@ -155,14 +159,52 @@ export async function loadPiece(
 
 	if (!loaded) return "failed";
 
-	const entry: CacheEntry = { tk, measures: [] };
+	let measures: MeasureEntry[];
 	try {
-		entry.measures = buildMeasureIndex(tk);
+		measures = buildMeasureIndex(tk);
 	} catch (e) {
 		console.error("[score-worker] buildMeasureIndex failed for", pieceId ?? "?", e);
 		return "failed";
 	}
-	return entry;
+
+	// Render all pages eagerly and cache their SVGs.
+	const pageCount = tk.getPageCount() as number;
+	if (pageCount === 0) return "failed";
+
+	const pageSvgs: string[] = [];
+	for (let n = 1; n <= pageCount; n++) {
+		pageSvgs.push(tk.renderToSVG(n) as string);
+	}
+
+	// Build a noteId -> onset qstamp map from the Verovio timemap.
+	// tk.renderToTimemap({ includeMeasures: true }) returns entries like:
+	//   { on: string[], off: string[], qstamp: number, measureOn?: string, ... }
+	// where `on` is an array of note element ids starting at that onset tick.
+	// We reuse the same timemap call that buildMeasureIndex already uses.
+	const noteQstampMap = new Map<string, number>();
+	const timemap2 = tk.renderToTimemap({ includeMeasures: true }) as Array<{
+		qstamp: number;
+		on?: string[];
+	}>;
+	for (const tmEntry of timemap2) {
+		if (Array.isArray(tmEntry.on)) {
+			for (const noteId of tmEntry.on) {
+				noteQstampMap.set(noteId, tmEntry.qstamp);
+			}
+		}
+	}
+
+	const { parseScoreIR } = await import("./score-ir");
+	const ir = parseScoreIR(
+		pieceId ?? "",
+		pageSvgs,
+		measures,
+		noteQstampMap,
+		tk.getVersion() as string,
+		VEROVIO_OPTS.pageWidth,
+	);
+
+	return { tk, measures, ir, pageSvgs };
 }
 
 // Expected R2 object format (scores/v1/{pieceId}.mxl):
@@ -236,21 +278,10 @@ async function extractXmlFromMxl(bytes: ArrayBuffer): Promise<string | null> {
 }
 
 type WorkerInMsg =
-	| {
-			type: "render_clip";
-			requestId: string;
-			pieceId: string;
-			startBar: number;
-			endBar: number;
-			bytes?: ArrayBuffer;
-	  }
-	| {
-			type: "render_full";
-			requestId: string;
-			pieceId: string;
-			bytes?: ArrayBuffer;
-			pageWidth?: number;
-	  };
+	| { type: "load";     requestId: string; pieceId: string; bytes: ArrayBuffer }
+	| { type: "get_page"; requestId: string; pieceId: string; pageN: number; pageWidth?: number }
+	| { type: "get_clip"; requestId: string; pieceId: string; startBar: number; endBar: number }
+	| { type: "get_ir";   requestId: string; pieceId: string };
 
 // Worker message handler — only registers when loaded as a Web Worker (window is undefined)
 if (typeof window === "undefined") {
@@ -301,15 +332,15 @@ if (typeof window === "undefined") {
 
 			if (
 				result === undefined ||
-				(result === "failed" && msg.bytes !== undefined)
+				(result === "failed" && msg.type === "load")
 			) {
-				if (!msg.bytes) {
+				if (msg.type !== "load") {
 					(self as unknown as Worker).postMessage({
 						requestId: msg.requestId,
 						error:
 							result === "failed"
 								? `score previously failed to load for ${msg.pieceId}`
-								: "bytes required on first request",
+								: "bytes required on first request — send a 'load' message first",
 					});
 					return;
 				}
@@ -338,30 +369,43 @@ if (typeof window === "undefined") {
 				return;
 			}
 
-			const { tk, measures } = result;
-			if (msg.type === "render_clip") {
-				const svg = processRenderClipRequest(
-					tk,
-					measures,
-					msg.startBar,
-					msg.endBar,
-				);
-				(self as unknown as Worker).postMessage({
-					requestId: msg.requestId,
-					svg,
-				});
-			} else {
-				let svg: string;
-				if (msg.pageWidth !== undefined) {
+			const { tk, measures, ir, pageSvgs } = result;
+			if (msg.type === "get_clip") {
+				const svg = processRenderClipRequest(tk, measures, msg.startBar, msg.endBar);
+				(self as unknown as Worker).postMessage({ requestId: msg.requestId, payload: svg });
+			} else if (msg.type === "get_page") {
+				// If a custom pageWidth is supplied (e.g. from the sandbox's responsive-width logic),
+				// re-render that page with the adjusted width; otherwise serve from the pre-rendered cache.
+				let svg: string | "failed";
+				if (msg.pageWidth !== undefined && msg.pageWidth !== ir.pageWidth) {
 					tk.setOptions({ pageWidth: msg.pageWidth });
-					svg = renderFullSvg(tk);
-					tk.setOptions({ pageWidth: VEROVIO_OPTS.pageWidth });
+					// redoLayout is required after every layout-changing setOptions call before renderToSVG.
+					// Without it, Verovio renders with the old layout geometry (silently wrong-sized).
+					tk.redoLayout({});
+					const rendered = tk.renderToSVG(msg.pageN) as string;
+					// Restore original pageWidth so future pre-rendered cache reads remain consistent.
+					tk.setOptions({ pageWidth: ir.pageWidth });
+					tk.redoLayout({});
+					svg = rendered || "failed";
 				} else {
-					svg = renderFullSvg(tk);
+					svg = processGetPageRequest(pageSvgs, msg.pageN);
 				}
+				if (svg === "failed") {
+					(self as unknown as Worker).postMessage({
+						requestId: msg.requestId,
+						error: `page ${msg.pageN} not found for ${msg.pieceId}`,
+					});
+				} else {
+					(self as unknown as Worker).postMessage({ requestId: msg.requestId, payload: svg });
+				}
+			} else if (msg.type === "get_ir") {
+				(self as unknown as Worker).postMessage({ requestId: msg.requestId, payload: ir });
+			} else if (msg.type === "load") {
+				// load was already handled above (bytes were used to call loadPiece).
+				// Return the ir and pageSvgs to the renderer.
 				(self as unknown as Worker).postMessage({
 					requestId: msg.requestId,
-					svg,
+					payload: { ir, pageSvgs },
 				});
 			}
 		} catch (err) {

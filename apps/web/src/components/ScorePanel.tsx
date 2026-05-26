@@ -259,6 +259,11 @@ function ScorePanelScore({
 		AnnotationPosition[]
 	>([]);
 
+	// Track which pieceIds have already been loaded so repeated renders don't re-trigger load().
+	// This ref lives at the module level via the singleton scoreRenderer, but we track it here
+	// per-component-instance since each ScorePanel is keyed to a session.
+	const loadedPieceRef = useRef<string | null>(null);
+
 	// Load score SVG on mount (component is keyed, so this runs once per session)
 	useMountEffect(() => {
 		let cancelled = false;
@@ -273,7 +278,19 @@ function ScorePanelScore({
 			}
 
 			try {
-				const svg = await scoreRenderer.getFull(pieceId);
+				// Call load() before getPage() as required by the worker protocol.
+				// Memoize by pieceId so resize-triggered re-renders skip the round-trip.
+				if (loadedPieceRef.current !== pieceId) {
+					const loadResult = await scoreRenderer.load(pieceId);
+					if (cancelled) return;
+					if (loadResult === "failed") {
+						setIsError(true);
+						return;
+					}
+					loadedPieceRef.current = pieceId;
+				}
+
+				const svg = await scoreRenderer.getPage(pieceId, 1);
 				if (cancelled) return;
 				container.textContent = "";
 				// biome-ignore lint/security/noDomManipulation: controlled SVG from Verovio WASM, not user input
