@@ -250,7 +250,7 @@ For system architecture, see `docs/architecture.md`.
 
 ### Exercises
 
-6. ~~**Notation rendering library.**~~ RESOLVED — Verovio WASM in a Web Worker. Replaces OSMD. ScorePanel and ScoreHighlightCard use a singleton `scoreRenderer` with lazy Worker init, fetch deduplication, and SSR safety. See `05-ui-system.md`.
+6. ~~**Notation rendering library.**~~ RESOLVED — Verovio WASM in a Web Worker (Phase 1). Phase 2 SHIPPED: ScoreIR intermediate representation (`score-ir.ts`), ScoreCursor rAF playback cursor (`score-cursor.ts`), and ScoreRenderer worker API with `load/getIR/getPage/getClip` (`score-renderer.ts`, `score-worker.ts`). 85 tests passing. See `05-ui-system.md`.
 7. ~~**Curated exercise count for V1.**~~ RESOLVED -- 25 curated exercises seeded in migration `0004_exercises.sql`, covering all 6 dimensions and 3 difficulty levels. LLM-generated path deferred to post-beta.
 
 ### Architecture

@@ -2,7 +2,7 @@
 
 How observations are presented to the user. Covers the chat-first interface, on-demand rich components, and the three-stage pipeline extension that configures them.
 
-> **Status (2026-03-19):** Unified artifact container system DESIGNED (CEO review 2026-03-19). Replaces the three-stage UI subagent pipeline with a single artifact system. Artifacts live inline in chat and expand to viewport on demand. Beta ships with exercise artifact type only. Web chat interface COMPLETE. Score panel PARTIAL.
+> **Status (2026-05-26):** Unified artifact container system DESIGNED (CEO review 2026-03-19). Replaces the three-stage UI subagent pipeline with a single artifact system. Artifacts live inline in chat and expand to viewport on demand. Beta ships with exercise artifact type only. Web chat interface COMPLETE. Score panel COMPLETE — ScoreIR intermediate representation, ScoreCursor rAF playback cursor, and ScoreRenderer worker API (load/getIR/getPage/getClip) all shipped in Phase 2.
 
 ---
 
@@ -272,6 +272,10 @@ Plays a bar-bounded slice of the student's own recording with the score visible 
 - `apps/api/src/routes/practice.ts` — `GET /api/practice/chunk` (auth + ownership gated R2 read)
 - `apps/web/src/lib/passage-player.ts` — `PassagePlayer` class (Web Audio scheduling, RAF ticks)
 - `apps/web/src/components/cards/PlayPassageCard.tsx` — card component
+- `apps/web/src/lib/score-worker.ts` — Verovio WASM worker: `loadPiece`, `processGetPageRequest`, `processRenderClipRequest`; builds eager ScoreIR on load
+- `apps/web/src/lib/score-renderer.ts` — `ScoreRenderer` proxy: `load()`, `getIR()`, `getPage()`, `getClip()`; singleton with lazy worker init, fetch dedup, SSR safety
+- `apps/web/src/lib/score-ir.ts` — `ScoreIR` intermediate representation; `parseScoreIR()` pure function; note→qstamp lookup with explicit NaN guard
+- `apps/web/src/lib/score-cursor.ts` — `ScoreCursor` class; rAF-based playback cursor; binary search on qstamp timeline; idempotent `start()` (React StrictMode safe)
 
 ---
 
