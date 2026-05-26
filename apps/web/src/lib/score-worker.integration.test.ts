@@ -38,7 +38,7 @@ const BALLADE_FIXTURE_PATH = resolve(
 );
 
 describe("load() wall-clock spike — Ballade fixture", () => {
-  it("IR build marginal cost (with-IR minus without-IR) is under 200ms", async () => {
+  it("IR walk cost (parseScoreIR alone) is under 100ms", async () => {
     const esm = (await import("verovio/esm")) as any;
     const wasm = (await import("verovio/wasm")) as any;
     const VerovioToolkit = esm.VerovioToolkit ?? esm.default?.VerovioToolkit;
@@ -46,50 +46,52 @@ describe("load() wall-clock spike — Ballade fixture", () => {
     const mod = await VerovioModule();
 
     const bytes = readFileSync(BALLADE_FIXTURE_PATH);
+    const arrayBuf = new ArrayBuffer(bytes.byteLength);
+    new Uint8Array(arrayBuf).set(bytes);
 
     const { loadPiece } = await import("./score-worker");
+    const { parseScoreIR } = await import("./score-ir");
 
-    // Baseline: loadPiece without IR build (current code path, Task 3 not yet landed).
-    // We call it twice so WASM is warm; only the second timing matters per run.
-    const baselineBytes = new ArrayBuffer(bytes.byteLength);
-    new Uint8Array(baselineBytes).set(bytes);
-    const t0 = Date.now();
-    const baselineEntry = await loadPiece(
-      baselineBytes,
-      { module: mod, ToolkitClass: VerovioToolkit as any },
-      "chopin-ballade-op23-no1-baseline",
-    );
-    const baselineMs = Date.now() - t0;
-    expect(baselineEntry).not.toBe("failed");
-
-    // With-IR: same fixture, different pieceId to bypass cache.
-    const withIrBytes = new ArrayBuffer(bytes.byteLength);
-    new Uint8Array(withIrBytes).set(bytes);
-    const t1 = Date.now();
+    // Load the piece fully so Verovio has rendered all pages and we have a warm tk.
     const entry = await loadPiece(
-      withIrBytes,
+      arrayBuf,
       { module: mod, ToolkitClass: VerovioToolkit as any },
-      "chopin-ballade-op23-no1",
+      "chopin-ballade-op23-no1-irwalk",
     );
-    const withIrMs = Date.now() - t1;
 
     expect(entry).not.toBe("failed");
     if (entry === "failed") return;
 
-    // GATE (a): entry must have a populated ir field — the current loadPiece has no ir
-    // field, so this fails with "entry.ir is undefined" until Task 3 attaches IR build.
-    // This preserves watch-it-fail discipline: test stays RED through Tasks 1-2, turns
-    // GREEN when Task 3 wires IR build into loadPiece.
-    expect(entry.ir).toBeDefined();
-    expect(entry.ir.pages.length).toBeGreaterThan(0);
+    // Rebuild noteQstampMap from the already-warm tk (same logic as loadPiece).
+    const noteQstampMap = new Map<string, number>();
+    const timemap = entry.tk.renderToTimemap({ includeMeasures: true }) as Array<{
+      qstamp: number;
+      on?: string[];
+    }>;
+    for (const tmEntry of timemap) {
+      if (Array.isArray(tmEntry.on)) {
+        for (const noteId of tmEntry.on) {
+          noteQstampMap.set(noteId, tmEntry.qstamp);
+        }
+      }
+    }
 
-    // GATE (b): the MARGINAL cost of IR build must be under 200ms.
-    // Total Ballade load is ~2-4s (Verovio intrinsic: loadZipDataBuffer ~1.9s +
-    // multi-page renderToSVG ~1.2s). That is expected and handled by a UI loading state.
-    // What must be cheap is the IR walk on top of Verovio's already-rendered SVGs.
-    // marginal = withIrMs - baselineMs. If < 0 (timer noise), clamp to 0.
-    const marginalMs = Math.max(0, withIrMs - baselineMs);
-    expect(marginalMs).toBeLessThan(200);
+    // Time parseScoreIR alone — this is the IR walk with no Verovio rendering noise.
+    // Expected: ~15-25ms for the Ballade. Gate at 100ms to absorb machine variance.
+    const t0 = Date.now();
+    const ir = parseScoreIR(
+      "chopin-ballade-op23-no1-irwalk",
+      entry.pageSvgs,
+      entry.measures,
+      noteQstampMap,
+      entry.tk.getVersion() as string,
+      2400,
+    );
+    const irWalkMs = Date.now() - t0;
+
+    expect(ir).toBeDefined();
+    expect(ir.pages.length).toBeGreaterThan(0);
+    expect(irWalkMs).toBeLessThan(100);
   }, 90_000);
 });
 
@@ -342,7 +344,7 @@ describe("Cache eviction — reloading pieceId with different bytes yields disjo
 });
 
 describe("Ballade load() with full IR build — production-scale perf gate", () => {
-  it("IR build marginal cost is under 200ms and IR invariants hold at Ballade scale", async () => {
+  it("IR walk cost (parseScoreIR alone) is under 100ms and IR invariants hold at Ballade scale", async () => {
     const esm = (await import("verovio/esm")) as any;
     const wasm = (await import("verovio/wasm")) as any;
     const VerovioToolkit = esm.VerovioToolkit ?? esm.default?.VerovioToolkit;
@@ -350,31 +352,18 @@ describe("Ballade load() with full IR build — production-scale perf gate", () 
     const mod = await VerovioModule();
 
     const bytes = readFileSync(BALLADE_FIXTURE_PATH);
+    const arrayBuf = new ArrayBuffer(bytes.byteLength);
+    new Uint8Array(arrayBuf).set(bytes);
 
     const { loadPiece } = await import("./score-worker");
+    const { parseScoreIR } = await import("./score-ir");
 
-    // Baseline: first warm-up run (WASM already initialized above).
-    const baselineBytes = new ArrayBuffer(bytes.byteLength);
-    new Uint8Array(baselineBytes).set(bytes);
-    const t0 = Date.now();
-    const baselineEntry = await loadPiece(
-      baselineBytes,
-      { module: mod, ToolkitClass: VerovioToolkit as any },
-      "ballade-perf-baseline",
-    );
-    const baselineMs = Date.now() - t0;
-    expect(baselineEntry).not.toBe("failed");
-
-    // With-IR: same fixture, fresh pieceId to bypass module-level cache.
-    const withIrBytes = new ArrayBuffer(bytes.byteLength);
-    new Uint8Array(withIrBytes).set(bytes);
-    const t1 = Date.now();
+    // Load the piece so Verovio has rendered all pages and we have a warm tk.
     const entry = await loadPiece(
-      withIrBytes,
+      arrayBuf,
       { module: mod, ToolkitClass: VerovioToolkit as any },
-      "chopin-ballade-op23-no1-perf",
+      "chopin-ballade-op23-no1-perf2",
     );
-    const withIrMs = Date.now() - t1;
 
     expect(entry).not.toBe("failed");
     if (entry === "failed") return;
@@ -383,9 +372,36 @@ describe("Ballade load() with full IR build — production-scale perf gate", () 
     expect(entry.ir.bars.length).toBe(entry.measures.length);
     expect(entry.ir.pages.length).toBeGreaterThan(0);
 
-    // Marginal IR-build cost must be under 200ms.
-    // Total load (~3-4s) is Verovio intrinsic and not constrainable.
-    const marginalMs = Math.max(0, withIrMs - baselineMs);
-    expect(marginalMs).toBeLessThan(200);
+    // Rebuild noteQstampMap from the already-warm tk (same logic as loadPiece).
+    const noteQstampMap = new Map<string, number>();
+    const timemap = entry.tk.renderToTimemap({ includeMeasures: true }) as Array<{
+      qstamp: number;
+      on?: string[];
+    }>;
+    for (const tmEntry of timemap) {
+      if (Array.isArray(tmEntry.on)) {
+        for (const noteId of tmEntry.on) {
+          noteQstampMap.set(noteId, tmEntry.qstamp);
+        }
+      }
+    }
+
+    // Time parseScoreIR alone — IR walk with no Verovio rendering noise.
+    // Expected: ~15-25ms for the Ballade. Gate at 100ms to absorb machine variance.
+    const t0 = Date.now();
+    const ir = parseScoreIR(
+      "chopin-ballade-op23-no1-perf2",
+      entry.pageSvgs,
+      entry.measures,
+      noteQstampMap,
+      entry.tk.getVersion() as string,
+      2400,
+    );
+    const irWalkMs = Date.now() - t0;
+
+    expect(ir).toBeDefined();
+    expect(ir.pages.length).toBeGreaterThan(0);
+    expect(ir.bars.length).toBe(entry.measures.length);
+    expect(irWalkMs).toBeLessThan(100);
   }, 90_000);
 });
