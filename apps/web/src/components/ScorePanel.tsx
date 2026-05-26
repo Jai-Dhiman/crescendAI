@@ -273,7 +273,7 @@ function ScorePanelScore({
 			}
 
 			try {
-				const svg = await scoreRenderer.getFull(pieceId);
+				const svg = await scoreRenderer.getPage(pieceId, 1);
 				if (cancelled) return;
 				container.textContent = "";
 				// biome-ignore lint/security/noDomManipulation: controlled SVG from Verovio WASM, not user input

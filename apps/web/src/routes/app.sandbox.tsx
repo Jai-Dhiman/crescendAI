@@ -534,7 +534,7 @@ function ScoreResizePanel({ pieceId }: { pieceId: string }) {
 	useEffect(() => {
 		let cancelled = false;
 		scoreRenderer
-			.getFull(pieceId)
+			.getPage(pieceId, 1)
 			.then((s) => {
 				if (!cancelled) setSvg(s);
 			})
@@ -574,7 +574,7 @@ function ScoreResizePanel({ pieceId }: { pieceId: string }) {
 			);
 			setWidth(w);
 			scoreRenderer
-				.getFull(pieceId, Math.round(w / 0.4))
+				.getPage(pieceId, 1, Math.round(w / 0.4))
 				.then(setSvg)
 				.catch(() => {});
 			cleanup();

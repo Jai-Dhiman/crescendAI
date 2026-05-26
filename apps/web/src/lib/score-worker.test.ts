@@ -60,16 +60,6 @@ describe("processRenderClipRequest", () => {
 	});
 });
 
-describe("renderFullSvg", () => {
-	it("renders page 1 and returns the SVG string", async () => {
-		const { renderFullSvg } = await import("./score-worker");
-		mockRenderToSVG.mockReturnValue("<svg>full-svg</svg>");
-		// biome-ignore lint/suspicious/noExplicitAny: test mock
-		const result = renderFullSvg(fakeTk as any);
-		expect(mockRenderToSVG).toHaveBeenCalledWith(1);
-		expect(result).toBe("<svg>full-svg</svg>");
-	});
-});
 
 describe("processGetPageRequest", () => {
   it("returns the pre-rendered SVG for the requested page number", async () => {
