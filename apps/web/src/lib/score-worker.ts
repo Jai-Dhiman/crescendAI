@@ -61,10 +61,6 @@ export function processGetPageRequest(pageSvgs: string[], pageN: number): string
 	return svg;
 }
 
-export function renderFullSvg(tk: VerovioTk): string {
-	return tk.renderToSVG(1) as string;
-}
-
 // Verovio select() + redoLayout() crops the engraved output to the requested
 // bar range. Per Verovio docs: "the selection will be applied only when some
 // data is loaded or the layout is redone." Calling select() without
