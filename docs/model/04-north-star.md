@@ -356,7 +356,7 @@ Aria inference runs in parallel with MuQ on the same HF endpoint (or a separate 
 | A1-Max (deployed, numbers invalid) | DEPLOYED (needs retrain) | Audio encoder for gated fusion |
 | MuQ backbone (160K hrs) | DEPLOYED | Pretrained audio foundation |
 | Aria base + embedding | AVAILABLE (HuggingFace) | Symbolic encoder, score encoder |
-| STOP classifier (AUC 0.845) | COMPLETE (needs retrain) | Upgraded with score context |
+| STOP classifier (AUC 0.649) | COMPLETE (needs retrain) | Upgraded with score context |
 | Two-stage subagent | IMPLEMENTED | Same architecture, richer inputs |
 | ByteDance AMT | VALIDATED | Cloud-deployed, production-ready |
 | Score following (DTW) | COMPLETE | Bar alignment for score conditioning |

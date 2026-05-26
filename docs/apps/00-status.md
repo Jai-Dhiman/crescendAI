@@ -65,7 +65,7 @@ Stack: TanStack Start, Tailwind CSS v4, Web Audio API, MediaRecorder, WebSocket.
 | Segment loop routes | COMPLETE | `apps/api/src/routes/segment-loops.ts` | `POST /api/segment-loops/:id/accept\|decline\|dismiss` — all auth-guarded. |
 | `assign_segment_loop` action atom | COMPLETE | `apps/api/src/harness/atoms/assign-segment-loop.ts` | Registered in OnChatMessage (trigger=chat → pending) and OnSessionEnd (trigger=synthesis → active) compound bindings. Zod-validated input, throws ToolPreconditionError if no piece. |
 | PassageLoopDetector (DO) | COMPLETE | `apps/api/src/do/passage-loop-detector.ts` | Strict ±1-bar tolerance, 2s debounce. DO holds per-instance detector in WeakMap; hydrates active assignment on WS connect; broadcasts `segment_loop_status` and `loop_attempt` events. |
-| STOP classifier | IMPLEMENTED | `apps/api/src/services/stop.rs` | 6-weight logistic regression, AUC 0.845 |
+| STOP classifier | IMPLEMENTED | `apps/api/src/services/stop.rs` | 6-weight logistic regression, AUC 0.649 (6-dim balanced logistic regression; 2048-dim MuQ pooled reaches 0.845 but is not deployed) |
 | Teaching moment selection | IMPLEMENTED | `apps/api/src/services/teaching_moments.rs` | STOP filter + blind-spot detection + positive moments + dedup |
 | Score following (DTW) | IMPLEMENTED | `apps/api/src/practice/score_follower.rs` | Onset+pitch subsequence DTW, cross-chunk continuity, re-anchoring |
 | Bar-aligned analysis engine | IMPLEMENTED | `apps/api/src/practice/analysis.rs` | All 6 dims, Tier 1/2/3 degradation, reference comparison |
@@ -132,7 +132,7 @@ The core feedback loop is now wired end-to-end on the web platform. The pipeline
 
 | Gate | Component | Status | Notes |
 |---|---|---|---|
-| 1 | STOP classifier | COMPLETE | 6-weight logistic regression, AUC 0.845 |
+| 1 | STOP classifier | COMPLETE | 6-weight logistic regression, AUC 0.649 |
 | 2 | Teaching moment selection | COMPLETE | STOP + blind-spot + positive moments + dedup |
 | 3 | Web real-time observations | COMPLETE | DO orchestration, WebSocket delivery, bar-aligned analysis |
 | 4 | Score following + analysis | COMPLETE | DTW + Tier 1/2/3 analysis, all 6 dimensions |
@@ -167,7 +167,7 @@ For system architecture, see `docs/architecture.md`.
 
 | Task | Status | Notes |
 |---|---|---|
-| Deploy STOP classifier in cloud worker | COMPLETE | `stop.rs`, 6-weight logistic regression, AUC 0.845 |
+| Deploy STOP classifier in cloud worker | COMPLETE | `stop.rs`, 6-weight logistic regression, AUC 0.649 |
 | Implement teaching moment selection | COMPLETE | `teaching_moments.rs`, STOP + blind-spot + positive + dedup |
 | Complete web recording + WebSocket observation flow | COMPLETE | DO orchestration, chunk upload, WebSocket delivery |
 | Score following (Phase 1c) | COMPLETE | `score_follower.rs`, onset+pitch DTW, cross-chunk continuity |
@@ -223,7 +223,7 @@ For system architecture, see `docs/architecture.md`.
 | Local-first data (iOS) | SwiftData on-device, D1 for backup/sync | Practice works without internet (except LLM call). Phone is authoritative. No conflict resolution needed. |
 | Sign in with Apple | Single auth provider, both platforms | Zero friction, App Store requirement, stable cross-device identity. |
 | Scores as reasoning inputs | Not a report card | Model is ~80% pairwise accurate. Value is in the subagent analysis and teacher delivery, not raw numbers. |
-| STOP classifier Option B first | 6-dim scores in worker (0.845 AUC) | Simplest to deploy. Upgrade to Option A (MuQ embeddings, 0.936 AUC) if accuracy gap matters. |
+| STOP classifier Option B first | 6-dim scores in worker (0.649 AUC; 2048-dim MuQ pooled reaches 0.845 but is not deployed) | Simplest to deploy. Upgrade to Option A (MuQ embeddings, 0.936 AUC) if accuracy gap matters. |
 | Chat-first UI | Text default, components on-demand (~30%) | Mirrors real teaching. Most observations are conversational. Rich components only when visual/interactive aid adds pedagogical value. |
 | Piece identification | AMT fingerprint + graceful unknown | Auto-detect via AMT MIDI fingerprint against 242-piece score library. Unknown pieces get audio-quality feedback without bar numbers. Ask piece identity AFTER first observation, not before. |
 | Memory without vector search | Structured D1 queries, bi-temporal facts | Domain is narrow (6 dimensions, known ontology, low volume). No graph DB, no embeddings needed. |

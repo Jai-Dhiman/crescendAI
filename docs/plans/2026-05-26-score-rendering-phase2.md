@@ -629,6 +629,24 @@ describe("loadPiece — IR and pageSvgs in returned CacheEntry", () => {
 
     // At least some notes must have been found
     expect(Object.keys(entry.ir.notes).length).toBeGreaterThan(0);
+
+    // Responsive-width regression: re-rendering page 1 with a different pageWidth must produce
+    // an SVG whose <svg> width attribute reflects the new width, not the cached pageWidth.
+    // This assertion catches any missing tk.redoLayout({}) between setOptions and renderToSVG.
+    const originalPageWidth = entry.ir.pageWidth;
+    const altWidth = originalPageWidth - 200;
+    entry.tk.setOptions({ pageWidth: altWidth });
+    entry.tk.redoLayout({});
+    const altSvg = entry.tk.renderToSVG(1) as string;
+    entry.tk.setOptions({ pageWidth: originalPageWidth });
+    entry.tk.redoLayout({});
+    const cachedWidth = entry.pageSvgs[0]?.match(/width="(\d+)"/)?.[1];
+    const altSvgWidth = altSvg.match(/width="(\d+)"/)?.[1];
+    expect(altSvgWidth).toBeDefined();
+    expect(cachedWidth).toBeDefined();
+    // The re-rendered SVG's width must differ from the cached page's width.
+    // If redoLayout is missing, Verovio returns stale layout and widths will incorrectly match.
+    expect(altSvgWidth).not.toBe(cachedWidth);
   }, 30_000);
 });
 ```
@@ -706,9 +724,13 @@ if (msg.type === "get_clip") {
   if (msg.pageWidth !== undefined && msg.pageWidth !== result.ir.pageWidth) {
     const tk = result.tk;
     tk.setOptions({ pageWidth: msg.pageWidth });
+    // redoLayout is required after every layout-changing setOptions call before renderToSVG.
+    // Without it, Verovio renders with the old layout geometry (silently wrong-sized).
+    tk.redoLayout({});
     const rendered = tk.renderToSVG(msg.pageN) as string;
     // Restore original pageWidth so future pre-rendered cache reads remain consistent.
     tk.setOptions({ pageWidth: result.ir.pageWidth });
+    tk.redoLayout({});
     svg = rendered || "failed";
   } else {
     svg = processGetPageRequest(result.pageSvgs, msg.pageN);
@@ -2053,3 +2075,138 @@ Tasks 1–9 each follow the one-test → one-impl → one-commit structure with 
 ---
 
 VERDICT: NEEDS_REWORK — Three blockers must be resolved before execution: (1) `app.sandbox.tsx` is an unscoped caller of the removed `getFull` method that will break TypeScript compilation; (2) `NoteIR.qstamp` is always set to `qstampStart` causing cursor interpolation to degenerate on real IR data; (3) Task 0's watch-it-fail discipline is broken — the spike test passes before implementation, giving the build agent no signal about Task 3 behavior.
+
+---
+
+## Challenge Review — Pass 2 (2026-05-26)
+
+> Re-review after three targeted fixes: (1) `app.sandbox.tsx` added to Task 5 with `getPage` migration + optional `pageWidth` arg; (2) `NoteIR.qstamp` now sourced from `tk.renderToTimemap({includeNotes:true})` via `noteQstampMap` passed into `parseScoreIR`; (3) Task 0 now asserts `entry.ir !== undefined` so the test genuinely fails before Task 3.
+> All source files read before forming opinions.
+
+### CEO Pass
+
+#### 1. Premise Challenge
+
+No change from Pass 1. Right problem, real pain, direct path. Fixes address the scope gap and data model correctness issues that were blockers. No new strategic concerns.
+
+#### 2. Scope Check
+
+**`app.sandbox.tsx` is now scoped (Pass 1 BLOCKER resolved):** Task 5 adds `app.sandbox.tsx` to its file list and the commit step stages it. Both `getFull` call sites are migrated: line 537 → `getPage(pieceId, 1)`, line 577 → `getPage(pieceId, 1, Math.round(w / 0.4))`. The optional `pageWidth` argument is wired through `getPage` → `get_page` worker message → Task 3's conditional re-render path. Verified against actual sandbox code at lines 536-577.
+
+**`get_page` handler missing `redoLayout` on pageWidth re-render (NEW BLOCKER):** Task 3's `get_page` handler re-renders with a custom pageWidth via:
+```typescript
+tk.setOptions({ pageWidth: msg.pageWidth });
+const rendered = tk.renderToSVG(msg.pageN) as string;
+tk.setOptions({ pageWidth: result.ir.pageWidth });
+```
+`tk.setOptions()` changes the Verovio options but does **not** trigger a layout reflow. Without `tk.redoLayout({})` after `setOptions`, `renderToSVG` returns the SVG of the previously-computed layout at the old dimensions — the output will be mis-sized. The existing `renderClipSvgSelect` in the current codebase follows the correct sequence: `setOptions` → `redoLayout` → `renderToSVG` → `select({})` → `setOptions(original)` → `redoLayout`. The plan omits `redoLayout` calls in this new path, breaking the sandbox's responsive-width use case which was specifically called out as a reason to preserve the `pageWidth` capability. This is a functional correctness bug in production-visible behavior.
+
+#### 3. Twelve-Month Alignment
+
+No change from Pass 1. The plan still moves toward the 12-month ideal.
+
+#### 4. Alternatives Check
+
+No change from Pass 1.
+
+---
+
+### Engineering Pass
+
+#### 5. Architecture
+
+**`noteQstampMap` fix verified (Pass 1 BLOCKER resolved):** `parseScoreIR` now takes `noteQstampMap: Map<string, number>` as its 4th parameter. Task 3's `loadPiece` builds it from `tk.renderToTimemap({ includeNotes: true })`, iterating entries whose `notes` array carries note element ids and mapping each to `entry.qon`. The Task 1 test uses `SYNTHETIC_NOTE_QSTAMP_MAP` with distinct per-note onsets. The Task 6 regression check verifies at least one bar in each fixture has ≥2 distinct qstamp values. The degenerate-interpolation BLOCKER from Pass 1 is resolved.
+
+**Spec/plan signature mismatch (`parseScoreIR` parameter count):** The spec (line 107) documents `parseScoreIR(pieceId, pageSvgs, measures, tk.getVersion(), VEROVIO_OPTS.pageWidth)` — 5 parameters. The plan implements `parseScoreIR(pieceId, pageSvgs, measures, noteQstampMap, verovioVersion, pageWidth)` — 6 parameters. This is intentional (the fix added `noteQstampMap`) but the spec was not updated to reflect the new signature. The spec's Module section (line 151) still says the interface hides "qstamp-from-measureOn-via-timemap lookup" but the timemap lookup now happens in the *caller* (`loadPiece`) and the result is passed in as a parameter — so the hiding is partial. This is a documentation divergence, not a build-blocking issue, but the spec should be updated so the module description matches the actual interface.
+
+**Task 0 watch-it-fail verified (Pass 1 BLOCKER resolved):** The test now asserts `expect(entry.ir).toBeDefined()` before the timing assertion. Since the current `loadPiece` returns `{ tk, measures }` without an `ir` field, `entry.ir` is `undefined` and Step 2 genuinely produces `FAIL — entry.ir is undefined`. After Task 3's `loadPiece` update, `entry.ir` is populated and the test turns green. The timing assertion (`expect(elapsed).toBeLessThan(200)`) is the correct final gate. Pass 1 BLOCKER is resolved.
+
+#### 6. Module Depth Audit
+
+No change from Pass 1. All four modules remain DEEP.
+
+#### 7. Code Quality
+
+**`ScoreRenderer.load()` bare catch (carry-forward RISK from Pass 1):** The bare `catch { return "failed"; }` in Task 4's `ScoreRenderer.load()` implementation is unchanged. The error is still swallowed without logging. Per CLAUDE.md, explicit exception handling is preferred over silent fallbacks. Sentry capture should be added.
+
+**Duplicate `processGetPageRequest` describe blocks in `score-worker.test.ts` (NEW RISK):** Task 2 writes a `describe("processGetPageRequest")` block with 2 test cases (page=2, page=99). Task 5 also writes a `describe("processGetPageRequest")` block with 2 test cases (page=0, page=5) and says it "replaces the `renderFullSvg` describe block." The plan does not instruct Task 5 to remove Task 2's describe block. After both tasks complete, `score-worker.test.ts` will have two separate `describe("processGetPageRequest")` blocks. Vitest runs both, producing 4 tests under the same describe name — confusing but not a test failure. The build agent should remove Task 2's block when adding Task 5's, or consolidate into one.
+
+**`noteQstampMap.get(id) ?? 0` silent fallback:** In `parseScoreIR`, notes not found in the timemap fall back to `qstamp = 0`. For a note genuinely absent from the timemap, `0` is indistinguishable from a bar-1-beat-1 note onset and will cause cursor misplacement silently. The plan comments this as "should not occur for well-formed Verovio output but is explicit, not silent" — the fallback is `0`, not a thrown exception. Per CLAUDE.md explicit exception handling rule, this deserves at minimum a `console.error` log so the anomaly is visible.
+
+#### 8. Test Philosophy Audit
+
+No new concerns. All tests exercise public interfaces. The Sentry mock in Task 7 correctly targets an external boundary.
+
+#### 9. Vertical Slice Audit
+
+Tasks 1–9 each follow one-test → one-impl → one-commit. Task 0 watch-it-fail is now genuine. No new horizontal slicing detected.
+
+#### 10. Test Coverage Gaps
+
+The coverage gaps from Pass 1 carry forward. New gaps introduced by the fixes:
+
+```
+[+] score-worker.ts — get_page handler (Task 3 new path)
+    │
+    ├── pageWidth === undefined
+    │   └── [TESTED] served from pageSvgs cache — covered by processGetPageRequest tests ★★
+    │
+    └── pageWidth !== undefined (responsive re-render path)
+        ├── [GAP] no test that the re-rendered SVG reflects the new width
+        └── [GAP] no test that options are restored after re-render
+
+[+] score-ir.ts — parseScoreIR
+    └── noteQstampMap absent for a note id
+        └── [GAP] fallback to 0 — no test, no log (silent anomaly)
+```
+
+**[RISK] `getPageCount() === 0` still has no test** (carry-forward from Pass 1).
+
+#### 11. Failure Modes
+
+**`get_page` responsive re-render without `redoLayout` produces wrong-sized SVG:** The in-flight Verovio toolkit has a committed layout at `VEROVIO_OPTS.pageWidth`. Calling `setOptions({ pageWidth: msg.pageWidth })` changes the option value but the layout engine has not re-run. `renderToSVG(n)` will return SVG with the old layout geometry at the new nominal width. The `viewBox` may not match. For the sandbox drag-resize use case, this produces a garbled or unstretched score. This is a behavior regression from the current `getFull` implementation which also skips `redoLayout` — but the current codebase's `render_full` handler likewise omits `redoLayout` after `setOptions({ pageWidth })`, so this is a pre-existing bug that the plan reproduces, not a new regression. Flagged for awareness.
+
+**All other failure mode analysis carries forward from Pass 1.**
+
+#### 12. Presumption Inventory
+
+| Assumption | Verdict | Reason |
+|---|---|---|
+| `app.sandbox.tsx` getFull→getPage migration covers all callers | SAFE | Grep confirms exactly 2 `getFull` calls in sandbox (lines 537, 577); ScorePanel has 1 (line 276); all 3 are in the plan |
+| `tk.renderToTimemap({ includeNotes: true })` returns entries with `notes: string[]` of element ids | VALIDATE | API shape assumed from Verovio docs; not verified against real output in any existing test. Integration test (Task 3) will catch if wrong, but the build agent should verify the timemap shape against actual Verovio 4.x output before writing production code |
+| `tk.renderToSVG(n)` without `redoLayout` after `setOptions` returns a correctly-reflowed SVG | RISKY | Existing codebase evidence (`renderClipSvgSelect`) shows `redoLayout` is required after `setOptions`. Task 3's `get_page` handler omits this call for the responsive-width path |
+| `noteQstampMap.get(id) ?? 0` fallback never triggers on well-formed Verovio output | VALIDATE | No existing test covers the absence case; integration tests will pass only if timemap coverage is complete for all rendered notes |
+| Two `describe("processGetPageRequest")` blocks in one test file don't conflict | SAFE | Vitest runs both; no assertion conflict since they test different page numbers |
+| 200ms Ballade threshold holds on CI | VALIDATE | Carry-forward from Pass 1 — not validated on CI hardware |
+
+---
+
+### Summary
+
+**[BLOCKER] count: 1**
+**[RISK]    count: 7**
+**[QUESTION] count: 0**
+
+---
+
+**[BLOCKER] (confidence: 9/10) — Task 3's `get_page` handler re-renders with a custom `pageWidth` via `tk.setOptions({ pageWidth })` followed immediately by `tk.renderToSVG(n)`, without calling `tk.redoLayout({})` between them. Verovio does not reflow on `setOptions` alone — the layout engine must be triggered explicitly, as the existing `renderClipSvgSelect` function demonstrates (`setOptions` → `redoLayout` → `renderToSVG`). Without `redoLayout`, the SVG returned by `renderToSVG` reflects the previously-computed layout at the original `pageWidth`, not the requested one. The sandbox's drag-to-resize use case (`getPage(pieceId, 1, Math.round(w / 0.4))`) will silently produce wrong-sized SVG. Fix: add `tk.redoLayout({})` after `tk.setOptions({ pageWidth: msg.pageWidth })` and again after restoring the original options, matching the pattern in `renderClipSvgSelect`.**
+
+---
+
+**[RISK] (confidence: 8/10) — Task 2 writes a `describe("processGetPageRequest")` block and Task 5 writes a second one without removing Task 5's. After both tasks, `score-worker.test.ts` has two `describe("processGetPageRequest")` blocks. Vitest runs both without error, but the duplication is confusing and signals a plan ordering issue. The plan should explicitly instruct Task 5's Step 3 to remove Task 2's describe block when replacing `renderFullSvg`.**
+
+**[RISK] (confidence: 9/10) — `ScoreRenderer.load()` has a bare `catch { return "failed"; }` that swallows all errors silently. Per CLAUDE.md: "Explicit exception handling over silent fallbacks." The caught error should at minimum be passed to `Sentry.captureException` before returning `"failed"`. Carry-forward from Pass 1.**
+
+**[RISK] (confidence: 9/10) — Task 6's "Cache eviction" test calls `loadPiece()` directly — a stateless pure function — and never exercises `toolkitCache`. The test title is misleading. The actual worker-cache eviction invariant (stale IR not returned after re-load under the same pieceId) has no test. Carry-forward from Pass 1.**
+
+**[RISK] (confidence: 8/10) — `getPageCount() === 0 → "failed"` is listed in the Spec Coverage Checklist but has no test in any task. Carry-forward from Pass 1.**
+
+**[RISK] (confidence: 8/10) — `ScoreCursor.tick` ghost-loop risk if `stop()` races an in-flight tick. `rafId` can be overwritten after `stop()` sets it to null. Carry-forward from Pass 1.**
+
+**[RISK] (confidence: 8/10) — The 200ms Ballade timing threshold has not been validated on CI hardware. Carry-forward from Pass 1.**
+
+**[RISK] (confidence: 7/10) — `tk.renderToTimemap({ includeNotes: true })` shape (specifically that `notes` is an array of element id strings on each timemap entry) is assumed from Verovio docs but not verified against actual Verovio 4.x WASM output. If the field name or type differs, `noteQstampMap` will be empty and all notes will silently fall back to qstamp=0 — exactly the degenerate behavior the fix was intended to prevent. The Task 3 integration test will catch this if it actually checks per-note qstamp diversity, which it does (the Task 6 regression check). This is a VALIDATE assumption, not a guaranteed risk, but worth explicitly verifying the timemap shape before writing the production code.**
+
+---
+
+VERDICT: NEEDS_REWORK — One new blocker: Task 3's `get_page` responsive-rerender path calls `tk.setOptions({ pageWidth })` without `tk.redoLayout({})`, returning a mis-sized SVG for the sandbox drag-resize use case. Fix requires adding `redoLayout` calls around the re-render (matching the `renderClipSvgSelect` pattern) before execution proceeds.

@@ -84,7 +84,7 @@ Threshold: 0.5 (default). Trained on 1,699 masterclass segments with balanced cl
 
 ### Current State
 
-Deployed. AUC 0.845 on training data (masterclass recordings). Never tested on intermediate students with consumer microphones (the actual target population). The masterclass-to-YouTube domain gap is the biggest unknown.
+Deployed. AUC 0.649 on training data (6-dim balanced logistic regression; 2048-dim MuQ pooled reaches 0.845 but is not deployed). Never tested on intermediate students with consumer microphones (the actual target population). The masterclass-to-YouTube domain gap is the biggest unknown.
 
 ### Key Files
 

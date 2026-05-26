@@ -268,7 +268,7 @@ A logistic regression trained on 1,707 labeled teaching moments from masterclass
 | Option | Where it runs | Accuracy (AUC) | Trade-off |
 |--------|---------------|-----------------|-----------|
 | A: MuQ embeddings | HF endpoint (additional output head) | 0.936 | Highest accuracy; requires modifying inference endpoint |
-| B: 6-dim composite scores | Cloud worker (Rust/WASM) | 0.845 | Simple to deploy; 9% AUC gap |
+| B: 6-dim composite scores | Cloud worker (Rust/WASM) | 0.649 | Simple to deploy; deployed model (2048-dim MuQ pooled reaches 0.845 but is not deployed) |
 
 **Decision: Start with Option B.** The classifier is trivial -- `sigmoid(dot(weights, scores) + bias)` with 6 weights extracted from the trained sklearn model in `model/src/masterclass_experiments/models.py`. Upgrade to Option A if the accuracy gap matters in practice.
 
@@ -965,7 +965,7 @@ These estimates are rough and depend on HF endpoint instance type (GPU-hours pri
 | Decision | Chosen | Rationale |
 |----------|--------|-----------|
 | Two-stage pipeline | Subagent + Teacher | Separates analysis (fast/cheap) from delivery (quality voice). Different tasks need different models and prompts. |
-| STOP classifier deployment | Option B first (6-dim scores in worker) | Simplest path. 0.845 AUC is sufficient to start. Upgrade to Option A (0.936 AUC, MuQ embeddings) if gap matters. |
+| STOP classifier deployment | Option B first (6-dim scores in worker) | Simplest path. 0.649 AUC (6-dim balanced logistic regression; 2048-dim MuQ pooled reaches 0.845 but is not deployed). Upgrade to Option A (0.936 AUC, MuQ embeddings) if gap matters. |
 | Subagent provider | Workers AI (Gemma 4 26B) | Co-located with CF Workers; no extra routing hop. |
 | Teacher provider | Anthropic (Sonnet 4.6) | Best at following nuanced persona instructions. Native prompt caching for system prompt. |
 | Score alignment | AMT fingerprint + DTW (automated) | Replaces student-reported. AMT transcribes, fingerprint matches, DTW aligns to score. No student input required. Graceful degradation for unknown pieces. |

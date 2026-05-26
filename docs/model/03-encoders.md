@@ -397,7 +397,7 @@ Best leaked-fold results for context only: S2 71.3% / S2H 70.2% / S3 70.0% / S1 
 
 ### STOP Classifier / Teaching Moment Selection -- Workable
 
-STOP classifier is a 6-weight logistic regression on dimension scores (AUC: 0.845). With A1-Max ranking chunks within a session, teaching moment selection picks the top chunk -- ranking quality matters more than absolute accuracy. Both run in the cloud worker after HF scores return.
+STOP classifier is a 6-weight logistic regression on dimension scores (AUC: 0.649; 2048-dim MuQ pooled reaches 0.845 but is not deployed). With A1-Max ranking chunks within a session, teaching moment selection picks the top chunk -- ranking quality matters more than absolute accuracy. Both run in the cloud worker after HF scores return.
 
 ### Student Model / Blind Spot Detection -- Workable With Smoothing
 

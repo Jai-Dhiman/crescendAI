@@ -134,7 +134,7 @@ Three stages, one principle: the system does significant work to produce minimal
 | Audio capture (iOS) | COMPLETE | AVAudioEngine + ring buffer + chunking |
 | Audio capture (web) | COMPLETE | MediaRecorder + WebSocket streaming |
 | Cloud inference (MuQ) | DEPLOYED | A1-Max 4-fold ensemble, HF endpoint |
-| STOP classifier | COMPLETE | Cloud worker, 6-weight logistic regression, AUC 0.845 |
+| STOP classifier | COMPLETE | Cloud worker, 6-weight logistic regression, AUC 0.649 |
 | Teaching moment selection | COMPLETE | STOP + blind-spot + positive moments + dedup |
 | Two-stage subagent | COMPLETE | Workers AI analysis + Anthropic/Sonnet teacher, AI Gateway |
 | Session synthesis | COMPLETE | Alarm-triggered, all exit paths, deferred recovery |
