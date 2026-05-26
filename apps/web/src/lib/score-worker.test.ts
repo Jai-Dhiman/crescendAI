@@ -40,13 +40,16 @@ describe("processRenderClipRequest", () => {
 			select: mockSelect,
 			redoLayout: mockRedoLayout,
 		};
+		// Use a recognizable marker so the .toBe assertion proves the function
+		// returns the renderToSVG output unchanged, not some transformed value.
+		mockRenderToSVG.mockReturnValue('<svg data-cropped="2-4">clip-svg</svg>');
 		const { processRenderClipRequest } = await import("./score-worker");
 		// biome-ignore lint/suspicious/noExplicitAny: test mock
 		const svg = processRenderClipRequest(tk as any, fakeMeasures, 2, 4);
 		expect(mockSelect).toHaveBeenCalledWith({ measureRange: "2-4" });
 		expect(mockRedoLayout).toHaveBeenCalled();
 		expect(mockRenderToSVG).toHaveBeenCalledWith(1);
-		expect(svg).toBe("<svg>clip-svg</svg>");
+		expect(svg).toBe('<svg data-cropped="2-4">clip-svg</svg>');
 	});
 
 	it("falls back to a full page-1 render when the start bar is out of range", async () => {
