@@ -114,4 +114,39 @@ describe("loadPiece — silent fallback regression", () => {
 		expect(result).toBe("failed");
 		expect(throwingTk.renderToTimemap).toHaveBeenCalled();
 	});
+
+	it("returns 'failed' when getPageCount returns 0", async () => {
+		const zeroPageTk = {
+			loadZipDataBuffer: vi.fn().mockReturnValue(true),
+			renderToTimemap: vi.fn().mockReturnValue([
+				{ qstamp: 0, measureOn: "measure-1" },
+			]),
+			getPageCount: vi.fn().mockReturnValue(0),
+			setOptions: vi.fn(),
+			loadData: vi.fn().mockReturnValue(true),
+		};
+		// biome-ignore lint/suspicious/noExplicitAny: test constructor mock
+		function FakeToolkitClass(_mod: unknown): any {
+			return zeroPageTk;
+		}
+
+		const { loadPiece } = await import("./score-worker");
+
+		const bytes = new TextEncoder().encode(
+			"<?xml version='1.0'?><score-partwise/>",
+		).buffer;
+
+		const result = await loadPiece(
+			bytes,
+			{
+				// biome-ignore lint/suspicious/noExplicitAny: test bindings
+				module: {} as any,
+				ToolkitClass: FakeToolkitClass,
+			},
+			"test-piece",
+		);
+
+		expect(result).toBe("failed");
+		expect(zeroPageTk.getPageCount).toHaveBeenCalled();
+	});
 });
