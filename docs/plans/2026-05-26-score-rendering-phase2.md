@@ -69,6 +69,13 @@ describe("load() wall-clock spike — Ballade fixture", () => {
     const elapsed = Date.now() - t0;
 
     expect(entry).not.toBe("failed");
+    // GATE (a): entry must have a populated ir field — the current loadPiece has no ir field,
+    // so this assertion fails with "entry.ir is undefined" until Task 3 attaches IR build.
+    // This gives the build agent a genuine red->green signal.
+    if (entry === "failed") return;
+    expect(entry.ir).toBeDefined();
+    expect(entry.ir.pages.length).toBeGreaterThan(0);
+    // GATE (b): once IR build is wired in (Task 3), verify total load+IR time stays under 200ms.
     // GATE: if this assertion fails, the eager-IR contract is not viable.
     // Halt the build and revise the spec toward lazy IR before proceeding.
     expect(elapsed).toBeLessThan(200);
@@ -82,13 +89,13 @@ describe("load() wall-clock spike — Ballade fixture", () => {
 cd /Users/jdhiman/Documents/crescendai/apps/web && bun run test src/lib/score-worker.integration.test.ts
 ```
 
-Expected: FAIL — `loadPiece` currently returns a `CacheEntry` without rendering all pages or building an IR, so the new describe block's test may actually pass the timing assertion but will fail once Task 3 changes `loadPiece` to include IR build. For now, the test must at minimum run and confirm the fixture loads under 200ms with the current implementation.
+Expected: FAIL — `entry.ir is undefined`. The current `loadPiece` returns a `CacheEntry` without an `ir` field, so `expect(entry.ir).toBeDefined()` fails immediately. This gives a genuine red signal that the feature is missing.
 
-> **Build-agent gate:** If the test runs and `elapsed >= 200` is reported, STOP. Do not proceed to Group A. File a note that the spec must be revised toward lazy-IR and await further instruction.
+> **Build-agent gate:** If the test fails for any reason OTHER than `entry.ir is undefined` (e.g. `elapsed >= 200` or the fixture does not load), STOP. Do not proceed to Group A. File a note that the spike is broken and await further instruction.
 
 - [ ] **Step 3: Implement the minimum to make the test pass**
 
-No implementation changes needed for this task — the test exercises the existing `loadPiece`. If the test passes, the timing contract is validated and Group A can begin. If it fails the 200ms threshold, halt.
+The test cannot pass until Task 3 attaches IR build to `loadPiece` — `entry.ir` is only populated after Task 3. This task's Step 3 is intentionally deferred: the test stays red through Group A, and turns green when Group B (Task 3) completes. The build agent must confirm the test is red after Step 2, then proceed to Group A, then verify it turns green after Task 3's commit. If it fails the 200ms threshold at that point, halt and flag for lazy-IR revision.
 
 - [ ] **Step 4: Run test — verify it PASSES**
 
@@ -110,9 +117,9 @@ cd /Users/jdhiman/Documents/crescendai && git add apps/web/src/lib/score-worker.
 
 **Group:** A (parallel with Task 2)
 
-**Behavior being verified:** `parseScoreIR` extracts a structurally valid `ScoreIR` from Verovio-rendered SVG pages: every `NoteIR.bbox.x` and `.y` is a finite number, every `BarIR.noteIds` resolves to a key in `notes`, `qstampStart < qstampEnd` for every bar, and `bars.length` equals the number of supplied measures.
+**Behavior being verified:** `parseScoreIR` extracts a structurally valid `ScoreIR` from Verovio-rendered SVG pages: every `NoteIR.bbox.x` and `.y` is a finite number, every `BarIR.noteIds` resolves to a key in `notes`, `qstampStart < qstampEnd` for every bar, `bars.length` equals the number of supplied measures, and for any bar containing notes at two or more distinct onset positions (i.e. not all notes are a chord at the same tick), the notes carry at least two distinct `qstamp` values.
 
-**Interface under test:** `parseScoreIR(pieceId, pageSvgs, measures, verovioVersion, pageWidth)` from `apps/web/src/lib/score-ir.ts`, exercised with real Verovio SVG fixtures produced inline in the test.
+**Interface under test:** `parseScoreIR(pieceId, pageSvgs, measures, noteQstampMap, verovioVersion, pageWidth)` from `apps/web/src/lib/score-ir.ts`, exercised with real Verovio SVG fixtures produced inline in the test. `noteQstampMap` is a `Map<string, number>` from note element id to its onset qstamp, built by the worker from `tk.renderToTimemap({ includeNotes: true })` before calling `parseScoreIR`.
 
 **Files:**
 - Create: `apps/web/src/lib/score-ir.ts`
@@ -145,6 +152,15 @@ const SYNTHETIC_MEASURES = [
   { qstamp: 4, measureOn: "m2" },
 ];
 
+// noteQstampMap: per-note onset qstamps from the timemap.
+// m1 has two notes at different onsets (0 and 2); m2 has two notes at different onsets (4 and 6).
+const SYNTHETIC_NOTE_QSTAMP_MAP = new Map<string, number>([
+  ["note-1-1", 0],
+  ["note-1-2", 2],
+  ["note-2-1", 4],
+  ["note-2-2", 6],
+]);
+
 describe("parseScoreIR — structural invariants", () => {
   it("returns a ScoreIR whose bars.length equals the supplied measures count", async () => {
     const { parseScoreIR } = await import("./score-ir");
@@ -152,6 +168,7 @@ describe("parseScoreIR — structural invariants", () => {
       "test-piece",
       [SYNTHETIC_PAGE_SVG],
       SYNTHETIC_MEASURES,
+      SYNTHETIC_NOTE_QSTAMP_MAP,
       "4.0.0",
       2400,
     );
@@ -164,6 +181,7 @@ describe("parseScoreIR — structural invariants", () => {
       "test-piece",
       [SYNTHETIC_PAGE_SVG],
       SYNTHETIC_MEASURES,
+      SYNTHETIC_NOTE_QSTAMP_MAP,
       "4.0.0",
       2400,
     );
@@ -181,6 +199,7 @@ describe("parseScoreIR — structural invariants", () => {
       "test-piece",
       [SYNTHETIC_PAGE_SVG],
       SYNTHETIC_MEASURES,
+      SYNTHETIC_NOTE_QSTAMP_MAP,
       "4.0.0",
       2400,
     );
@@ -197,6 +216,7 @@ describe("parseScoreIR — structural invariants", () => {
       "test-piece",
       [SYNTHETIC_PAGE_SVG],
       SYNTHETIC_MEASURES,
+      SYNTHETIC_NOTE_QSTAMP_MAP,
       "4.0.0",
       2400,
     );
@@ -207,12 +227,33 @@ describe("parseScoreIR — structural invariants", () => {
     }
   });
 
+  it("notes with distinct onset positions carry distinct qstamp values (not all qstampStart)", async () => {
+    const { parseScoreIR } = await import("./score-ir");
+    const ir = parseScoreIR(
+      "test-piece",
+      [SYNTHETIC_PAGE_SVG],
+      SYNTHETIC_MEASURES,
+      SYNTHETIC_NOTE_QSTAMP_MAP,
+      "4.0.0",
+      2400,
+    );
+    // m1 has notes at qstamp 0 and 2 — they must be distinct in the IR.
+    const bar1 = ir.bars.find((b) => b.measureOn === "m1");
+    expect(bar1).toBeDefined();
+    if (bar1 && bar1.noteIds.length >= 2) {
+      const qstamps = bar1.noteIds.map((id) => ir.notes[id]?.qstamp ?? -1);
+      const uniqueQstamps = new Set(qstamps);
+      expect(uniqueQstamps.size).toBeGreaterThan(1);
+    }
+  });
+
   it("stores pieceId, verovioVersion, and pageWidth on the IR", async () => {
     const { parseScoreIR } = await import("./score-ir");
     const ir = parseScoreIR(
       "my-piece",
       [SYNTHETIC_PAGE_SVG],
       SYNTHETIC_MEASURES,
+      SYNTHETIC_NOTE_QSTAMP_MAP,
       "4.1.0",
       2400,
     );
@@ -347,6 +388,7 @@ export function parseScoreIR(
   pieceId: string,
   pageSvgs: string[],
   measures: MeasureEntry[],
+  noteQstampMap: Map<string, number>,
   verovioVersion: string,
   pageWidth: number,
 ): ScoreIR {
@@ -376,10 +418,13 @@ export function parseScoreIR(
     for (const [id, { x, y }] of notePositions) {
       // Staff inference: notes with y > page_midpoint are staff 2, else staff 1.
       const midY = height / 2;
+      // Per-note qstamp from the timemap. Fall back to 0 if the note id is absent
+      // (this should not occur for well-formed Verovio output but is explicit, not silent).
+      const qstamp = noteQstampMap.get(id) ?? 0;
       notes[id] = {
         id,
         bbox: { x, y, w: 0, h: 0 },
-        qstamp: 0, // filled in below when we associate notes to bars
+        qstamp,
         staff: y > midY ? 2 : 1,
       };
     }
@@ -395,14 +440,6 @@ export function parseScoreIR(
       // qstampEnd: next measure's qstamp, or qstampStart + 4 for the last measure.
       const nextMeasure = measures[idx + 1];
       const qstampEnd = nextMeasure ? nextMeasure.qstamp : qstampStart + 4;
-
-      // Assign qstamp to each note in this bar using the bar's qstampStart as baseline.
-      // Intra-bar interpolation is done by the cursor; notes all get qstampStart here.
-      for (const noteId of noteIds) {
-        if (notes[noteId]) {
-          notes[noteId].qstamp = qstampStart;
-        }
-      }
 
       // Compute bar bbox from the x-positions of its notes.
       const xs = noteIds.map((id) => notes[id]?.bbox.x ?? 0).filter((x) => x > 0);
@@ -476,6 +513,8 @@ describe("processGetPageRequest", () => {
   });
 });
 ```
+
+Note: `processGetPageRequest` accepts a `pageSvgs` array and a 1-based page number. The worker message handler in Task 3 also handles an optional `pageWidth` parameter for the sandbox's responsive-width use case (see `get_page` handler in Task 3 Step 3).
 
 - [ ] **Step 2: Run test — verify it FAILS**
 
@@ -616,11 +655,29 @@ for (let n = 1; n <= pageCount; n++) {
   pageSvgs.push(tk.renderToSVG(n) as string);
 }
 
+// Build a noteId -> onset qstamp map from the Verovio timemap.
+// tk.renderToTimemap({ includeNotes: true }) returns an array of entries like:
+//   { on: number, off: number, qon: number, qoff: number, notes: string[] }
+// where `notes` is an array of note element ids sharing that onset tick.
+const noteQstampMap = new Map<string, number>();
+const timemap = tk.renderToTimemap({ includeNotes: true }) as Array<{
+  qon: number;
+  notes?: string[];
+}>;
+for (const entry of timemap) {
+  if (Array.isArray(entry.notes)) {
+    for (const noteId of entry.notes) {
+      noteQstampMap.set(noteId, entry.qon);
+    }
+  }
+}
+
 const { parseScoreIR } = await import("./score-ir");
 const ir = parseScoreIR(
   pieceId ?? "",
   pageSvgs,
   entry.measures,
+  noteQstampMap,
   tk.getVersion() as string,
   VEROVIO_OPTS.pageWidth,
 );
@@ -634,7 +691,7 @@ Also add `get_ir` to the worker `onmessage` dispatch (inside the `if (typeof win
 // In the onmessage handler, update the WorkerInMsg union type:
 type WorkerInMsg =
   | { type: "load";     requestId: string; pieceId: string; bytes: ArrayBuffer }
-  | { type: "get_page"; requestId: string; pieceId: string; pageN: number }
+  | { type: "get_page"; requestId: string; pieceId: string; pageN: number; pageWidth?: number }
   | { type: "get_clip"; requestId: string; pieceId: string; startBar: number; endBar: number }
   | { type: "get_ir";   requestId: string; pieceId: string };
 
@@ -643,7 +700,19 @@ if (msg.type === "get_clip") {
   const svg = processRenderClipRequest(tk, measures, msg.startBar, msg.endBar);
   (self as unknown as Worker).postMessage({ requestId: msg.requestId, payload: svg });
 } else if (msg.type === "get_page") {
-  const svg = processGetPageRequest(result.pageSvgs, msg.pageN);
+  // If a custom pageWidth is supplied (e.g. from the sandbox's responsive-width logic),
+  // re-render that page with the adjusted width; otherwise serve from the pre-rendered cache.
+  let svg: string | "failed";
+  if (msg.pageWidth !== undefined && msg.pageWidth !== result.ir.pageWidth) {
+    const tk = result.tk;
+    tk.setOptions({ pageWidth: msg.pageWidth });
+    const rendered = tk.renderToSVG(msg.pageN) as string;
+    // Restore original pageWidth so future pre-rendered cache reads remain consistent.
+    tk.setOptions({ pageWidth: result.ir.pageWidth });
+    svg = rendered || "failed";
+  } else {
+    svg = processGetPageRequest(result.pageSvgs, msg.pageN);
+  }
   if (svg === "failed") {
     (self as unknown as Worker).postMessage({
       requestId: msg.requestId,
@@ -930,7 +999,7 @@ export class ScoreRenderer {
     return this.irCache.get(pieceId) ?? null;
   }
 
-  async getPage(pieceId: string, pageN: number): Promise<string> {
+  async getPage(pieceId: string, pageN: number, pageWidth?: number): Promise<string> {
     const worker = this.ensureWorker();
     return new Promise((resolve, reject) => {
       const requestId = `req-${++this.requestCounter}`;
@@ -939,7 +1008,7 @@ export class ScoreRenderer {
         reject,
         pieceId,
       });
-      worker.postMessage({ type: "get_page", requestId, pieceId, pageN });
+      worker.postMessage({ type: "get_page", requestId, pieceId, pageN, pageWidth });
     });
   }
 
@@ -991,6 +1060,7 @@ cd /Users/jdhiman/Documents/crescendai && git add apps/web/src/lib/score-rendere
 **Files:**
 - Modify: `apps/web/src/components/ScorePanel.tsx` (line 276)
 - Modify: `apps/web/src/lib/score-worker.test.ts`
+- Modify: `apps/web/src/routes/app.sandbox.tsx` (lines 537 and 577)
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1039,6 +1109,36 @@ Expected: FAIL — `renderFullSvg describe block` tests that reference the old `
 
 3. Keep the `processRenderClipRequest` and `loadPiece` describe blocks unchanged.
 
+4. In `apps/web/src/routes/app.sandbox.tsx`, update both `getFull` call sites:
+
+   At line 537 (initial load — no pageWidth), replace:
+   ```typescript
+   scoreRenderer
+     .getFull(pieceId)
+     .then((s) => {
+   ```
+   with:
+   ```typescript
+   scoreRenderer
+     .getPage(pieceId, 1)
+     .then((s) => {
+   ```
+
+   At line 577 (drag-end re-render with responsive width), replace:
+   ```typescript
+   scoreRenderer
+     .getFull(pieceId, Math.round(w / 0.4))
+     .then(setSvg)
+   ```
+   with:
+   ```typescript
+   scoreRenderer
+     .getPage(pieceId, 1, Math.round(w / 0.4))
+     .then(setSvg)
+   ```
+
+   The optional third argument `pageWidth` on `getPage` is supported by the updated `get_page` worker handler (Task 3 Step 3): when `pageWidth` differs from the cached IR's `pageWidth`, the worker re-renders that page with the requested width and restores the original options afterward.
+
 - [ ] **Step 4: Run test — verify it PASSES**
 
 ```bash
@@ -1050,7 +1150,7 @@ Expected: PASS — all unit tests pass.
 - [ ] **Step 5: Commit**
 
 ```bash
-cd /Users/jdhiman/Documents/crescendai && git add apps/web/src/components/ScorePanel.tsx apps/web/src/lib/score-worker.test.ts && git commit -m "fix(score-panel): call getPage(pieceId, 1) replacing removed getFull; update unit tests for new message types"
+cd /Users/jdhiman/Documents/crescendai && git add apps/web/src/components/ScorePanel.tsx apps/web/src/lib/score-worker.test.ts apps/web/src/routes/app.sandbox.tsx && git commit -m "fix(score-panel,sandbox): call getPage replacing removed getFull; sandbox uses optional pageWidth arg; update unit tests"
 ```
 
 ---
@@ -1113,6 +1213,18 @@ describe("IR invariants — all 3 fixtures", () => {
         expect(Number.isFinite(note.bbox.x)).toBe(true);
         expect(Number.isFinite(note.bbox.y)).toBe(true);
       }
+
+      // Per-note qstamp regression: for every bar with >= 2 notes, assert that either
+      // (a) the notes have at least 2 distinct qstamp values (non-chord bar), or
+      // (b) all notes share a single qstamp value (valid chord at one onset position).
+      // What must NOT happen: all notes collapsed to qstampStart regardless of actual onset.
+      // Verify at least one bar in the fixture has >= 2 distinct qstamps (catches the regression).
+      const barsWithMultipleOnsets = entry.ir.bars.filter((bar) => {
+        if (bar.noteIds.length < 2) return false;
+        const qstamps = new Set(bar.noteIds.map((id) => entry.ir.notes[id]?.qstamp ?? -1));
+        return qstamps.size >= 2;
+      });
+      expect(barsWithMultipleOnsets.length).toBeGreaterThan(0);
     }, 60_000);
   }
 });
@@ -1714,6 +1826,8 @@ cd /Users/jdhiman/Documents/crescendai && git add -A && git commit -m "test(scor
 | `ScoreRenderer.getPage(n)` replacing `getFull` | Task 4 |
 | `ScoreRenderer.getClip` signature unchanged | Task 4 |
 | `ScorePanel.tsx:276` getFull → getPage(_, 1) | Task 5 |
+| `app.sandbox.tsx:537` getFull → getPage(_, 1) | Task 5 |
+| `app.sandbox.tsx:577` getFull(_, pageWidth) → getPage(_, 1, pageWidth) | Task 5 |
 | IR invariants × 3 fixtures | Task 6 |
 | IR/clip correlation | Task 6 |
 | Cache eviction disjoint note keys | Task 6 |
@@ -1724,3 +1838,218 @@ cd /Users/jdhiman/Documents/crescendai && git add -A && git commit -m "test(scor
 | `qstampSource` throws → Sentry + loop alive | Task 7 |
 | Ballade load + IR build < 200ms | Task 8 |
 | Full suite type-check | Task 9 |
+
+---
+
+## Challenge Review
+
+### CEO Pass
+
+#### 1. Premise Challenge
+
+**Right problem?** Yes. The current codebase has no addressable note geometry on the main thread — every cursor attempt would require re-parsing SVG per rAF frame. The IR approach is the right abstraction. No simpler alternative achieves a 60fps cursor.
+
+**Real pain?** Confirmed. The spec documents exactly what breaks without this: cursor cannot be drawn, note-level features (highlight, click-to-seek) are blocked, and `getFull` misleadingly renders only page 1 while its name implies multi-page.
+
+**Direct path?** Yes. The plan is tightly scoped to the stated goal. The spike gate (Task 0) is appropriate risk mitigation for the one unvalidated assumption (eager-IR load time at Ballade scale).
+
+**Existing coverage?** `score-worker.ts` already exports `processRenderClipRequest` and `renderFullSvg` as testable pure functions — the plan correctly extends this pattern for `processGetPageRequest`. `score-renderer.ts` already uses the `bytesCache`/`sentPieceIds` deduplication pattern — the plan reuses it correctly.
+
+#### 2. Scope Check
+
+**Missing callers — scope gap (BLOCKER):** The plan updates `ScorePanel.tsx` (1 caller of `getFull`) but `app.sandbox.tsx` calls `scoreRenderer.getFull(pieceId)` at lines 537 and 577. The call at line 577 passes a custom `pageWidth` parameter (`getFull(pieceId, Math.round(w / 0.4))`). The new `ScoreRenderer` plan has no `pageWidth` parameter on `getPage`. After Task 4 removes `getFull`, the sandbox will fail TypeScript compilation. The plan's File Changes table does not list `app.sandbox.tsx`.
+
+**pageWidth capability gap (BLOCKER — related):** The current `render_full` worker message accepts an optional `pageWidth` and applies it via `tk.setOptions({ pageWidth })` before rendering. The new API (`getPage(pieceId, n)`) carries no `pageWidth` parameter. This capability is silently dropped without any migration path for the sandbox's responsive-width use case. If the sandbox is intentionally descoped, the plan must explicitly name it and either (a) add `app.sandbox.tsx` to the file changes table with the updated call, or (b) document the decision to break the sandbox.
+
+**What could be deferred:** `get_ir` as a worker message (in addition to the main-thread cache) is speculative — the spec names it as "a fallback path" for renderer re-instantiation, which is not a concrete use case in the current codebase. Keeping IR only on the main thread (populated from `load()`'s resolved payload) simplifies the protocol by one message type and one round-trip without breaking any current consumer.
+
+#### 3. Twelve-Month Alignment
+
+```
+CURRENT STATE                THIS PLAN                           12-MONTH IDEAL
+SVG-only worker protocol  →  IR + cursor module                 →  Note-level features,
+(render_full, render_clip)   (IR cache, 4-msg protocol,              annotations, playback
+No note geometry             cursor rAF loop)                        overlay, click-to-seek
+```
+
+This plan moves squarely toward the 12-month ideal. No tech debt is introduced that conflicts with the future direction. The `NoteIR.bbox.w/h = 0` limitation is correctly documented as a known constraint (click-to-select deferred to after main-thread `getBBox`).
+
+#### 4. Alternatives Check
+
+The spec explicitly documents the major decision points (eager vs lazy IR, SVG-text parse vs getBBox, cursor DOM ownership, ship strategy) with rationale in the Key Decisions table. No additional question is required here.
+
+---
+
+### Engineering Pass
+
+#### 5. Architecture
+
+Data flow for the new load path:
+```
+api.scores.getData(pieceId) → ArrayBuffer → worker.postMessage({type:'load', bytes})
+  → loadPiece() → [loadZipDataBuffer | extractXmlFromMxl + loadData]
+  → buildMeasureIndex() → renderToSVG(n) × pages → parseScoreIR()
+  → {ir, pageSvgs} → worker.postMessage({requestId, payload: {ir, pageSvgs}})
+  → ScoreRenderer.onmessage → irCache.set(pieceId, ir) → load() resolves
+```
+
+Data flow for rAF cursor tick:
+```
+qstampSource() → q
+  → findBar(q) [binary search ir.bars] → bar
+  → interpolateX(bar, q) [linear interp notes] → x (SVG-local coords)
+  → overlay<line>.setAttribute('x1', x) [direct DOM mutation]
+```
+
+**Protocol breaking change correctly handled:** The worker currently sends `{ requestId, svg }` for render responses. The plan changes this to `{ requestId, payload }` in Task 3 (worker side) and Task 4 (renderer side). These are in consecutive task groups (B then C), so the in-between state has a broken protocol for one commit. This is acceptable in a single-PR build (no deployment between Task 3 and Task 4) but the build agent must be aware that the system is intentionally broken between Group B and Group C commits.
+
+**Security:** SVG is produced entirely by Verovio WASM from controlled MXL files (not user-supplied HTML). The `insertAdjacentHTML` in ScorePanel.tsx already has a biome-ignore for this reason. No new user-input-to-DOM path is introduced.
+
+**Scaling:** IR build is O(notes × pages) at load time. At Ballade scale (~1291 notes, estimated), the spec cites 25ms extrapolated — acceptable. No N+1 or fan-out patterns.
+
+#### 6. Module Depth Audit
+
+- **score-ir.ts** — Interface: 1 exported function + 4 exported types. Implementation: SVG regex extraction, qstamp-from-measureOn lookup, staff inference, bar bbox aggregation, page dimension parsing. **DEEP.**
+- **score-worker.ts** (modified) — Interface: 4-message protocol + 3 exported functions (`loadPiece`, `processRenderClipRequest`, `processGetPageRequest`). Implementation: WASM init, MXL ZIP parsing, multi-page render, IR build, cache/deduplication logic. **DEEP.**
+- **score-renderer.ts** (rewritten) — Interface: 4 public methods. Implementation: worker lifecycle, fetch deduplication, postMessage protocol, request-ID generation, IR main-thread cache. **DEEP.**
+- **score-cursor.ts** — Interface: 2 public methods (`start`, `stop`). Implementation: rAF loop, binary search, interpolation, per-page overlay DOM management, page-cross scroll. **DEEP.**
+
+#### 7. Code Quality
+
+**Catch-all in `ScoreRenderer.load()` (confidence: 9/10):** The plan's Task 4 implementation has:
+```typescript
+} catch {
+  return "failed";
+}
+```
+This is a bare catch-all that silently swallows all errors from the `sendRequest` call — including worker crashes, network failures, and programming errors. Per CLAUDE.md: "Explicit exception handling over silent fallbacks." The caught error should at minimum be logged (or captured to Sentry) before returning `"failed"`.
+
+**`NoteIR.qstamp` is always `qstampStart`, not onset qstamp (confidence: 9/10):** In `parseScoreIR`, every note in a bar is assigned `qstamp = qstampStart` (the bar's start qstamp). The comment says "Intra-bar interpolation is done by the cursor; notes all get qstampStart here." But the test `FAKE_IR` in `score-cursor.test.ts` has notes with *individual* qstamps (`n1: qstamp=0, n2: qstamp=2, n3: qstamp=4, n4: qstamp=6`). The cursor's `interpolateX` sorts notes by `qstamp` and linearly interpolates between them — which works correctly only if notes have distinct onset qstamps. If all notes in a bar get `qstampStart`, then every note in the bar has the same qstamp, the sort is a no-op, and the interpolation degenerates: `prev === next` for all but the first two notes, returning `prev.bbox.x` always. The cursor will snap to the leftmost note's x for the entire bar duration rather than tracking across notes. The test fixture uses hand-crafted distinct qstamps and will pass, but the real IR will have collapsed qstamps and the cursor will exhibit step-function behavior rather than smooth interpolation.
+
+**DRY — `makeBindings()` helper (confidence: 8/10):** The Verovio WASM initialization block (`import verovio/esm`, `import verovio/wasm`, init) appears identically in Task 0, Task 3, Task 6, and Task 8 integration tests. The plan introduces a `makeBindings()` helper in Task 6, but Tasks 0 and 3 don't use it — they inline the same 5 lines. This is a minor inconsistency (3 inlined, 1 extracted) that the build agent should normalize.
+
+#### 8. Test Philosophy Audit
+
+All tests exercise public interfaces (exported functions, class methods). No private methods are directly tested. External boundaries (Worker constructor, `api.scores.getData`) are mocked in unit/integration tests at appropriate levels.
+
+**Task 7 Sentry test mocks `./sentry` (confidence: 7/10):** The test uses `vi.doMock("./sentry", () => ({ Sentry: sentryMock }))` combined with `vi.resetModules()` in `beforeEach`. This is an acceptable pattern for testing error-capture behavior at a boundary. The Sentry module is an external boundary (side-effect: error reporting), not an internal collaborator. No flag raised.
+
+**Task 4 score-renderer.test.ts — mock Worker pattern (confidence: 7/10):** The test stubs `Worker` globally and simulates the worker response by calling `simulateWorkerResponse` manually. This tests the renderer's Promise orchestration against the worker protocol contract without requiring a real worker. The behavior being tested (load resolves with IR, getIR returns synchronously after load) is correctly behavior-level. No flag raised.
+
+#### 9. Vertical Slice Audit
+
+Tasks 1–9 each follow the one-test → one-impl → one-commit structure with two exceptions:
+
+**Task 0 watch-it-fail violation (confidence: 9/10):** Task 0's Step 2 instructs the build agent to "verify it FAILS" but the plan's own text immediately below says "the test may actually pass the timing assertion." The test as written exercises the *current* `loadPiece` which does not build IR — and simply asserts `elapsed < 200ms`. This test can PASS before any implementation exists (current `loadPiece` already runs within 200ms for the Ballade). The "watch it fail first" discipline is broken: the test is a timing gate, not a behavioral assertion that fails because the feature doesn't exist yet. This means the spike gate provides no build-agent signal that "this test fails because the feature is missing" — it only fails if the timing threshold is violated. This is acceptable for a spike (the plan acknowledges it), but the task's Step 2 language should say "verify it RUNS and note elapsed time" rather than "verify it FAILS."
+
+**Task 6 "eviction" test mislabeled (confidence: 9/10):** Task 6's "Cache eviction" describe block calls `loadPiece()` directly — a stateless pure function — not through the worker's `onmessage` handler. `loadPiece()` has no cache. `toolkitCache` lives inside the `if (typeof window === "undefined")` block and is never exercised. This test verifies that two different ArrayBuffers produce different IR note keysets (a trivially true property of the pure function), not that the worker's `toolkitCache` correctly evicts a stale entry when the same `pieceId` is loaded with new bytes. The real eviction invariant (stale IR is not returned from cache after re-load) is untested. The test title is misleading, and the actual worker-cache eviction behavior (which the spec explicitly lists as a design decision) has no test coverage.
+
+#### 10. Test Coverage Gaps
+
+```
+[+] score-ir.ts
+    │
+    ├── parseScoreIR()
+    │   ├── [TESTED]  structural invariants (bars.length, noteIds resolve, qstampStart < qstampEnd) ★★
+    │   ├── [GAP]     multi-page SVG (all tests use single page)
+    │   ├── [GAP]     measure in SVG with no matching entry in measures[] array
+    │   └── [GAP]     SVG with no note elements (empty piece)
+
+[+] score-worker.ts (new paths)
+    │
+    ├── loadPiece() — extended path
+    │   ├── [TESTED]  IR built and pageSvgs present after load ★★
+    │   ├── [TESTED]  getPageCount() === 0 → "failed" (spec requirement, but no explicit test written)
+    │   └── [GAP]     getPageCount() === 0 path has no test in any task
+
+[+] score-cursor.ts
+    │
+    ├── findBar()
+    │   ├── [TESTED]  qstamp within bar range ★★
+    │   ├── [TESTED]  qstamp = null → hidden ★★
+    │   └── [GAP]     qstamp past last bar's qstampEnd (spec says return last bar — no test)
+    │
+    ├── interpolateX()
+    │   ├── [TESTED]  midpoint interpolation within bar 1 ★★
+    │   └── [GAP]     bar with zero notes (returns bar.bbox.x — no test)
+    │
+    ├── mountOverlays() / unmountOverlays()
+    │   ├── [TESTED]  mount/unmount lifecycle ★★
+    │   └── [GAP]     multi-page IR (test fixture has 1 page; plan spec says "one overlay per page")
+
+[+] score-renderer.ts (new paths)
+    │
+    ├── load()
+    │   ├── [TESTED]  happy path resolves with {ir, pageSvgs} ★★
+    │   ├── [GAP]     worker returns error → load() returns "failed" (no test)
+    │   └── [GAP]     api.scores.getData() throws → no test
+
+    ├── getIR()
+    │   ├── [TESTED]  synchronous after load ★★
+    │   └── [TESTED]  null before load ★★
+
+    ├── getPage()
+    │   └── [GAP]     no behavior test (only tested as part of ScorePanel migration)
+
+    └── worker cache eviction via worker protocol
+        └── [GAP]     real toolkitCache eviction untested (Task 6's test bypasses cache)
+```
+
+**[RISK] `getPageCount() === 0` spec requirement has no test:** The spec says "Any failure in any step → resolve with 'failed', no partial cache entry" and specifically: "getPageCount() === 0 → 'failed'." The Spec Coverage Checklist lists this requirement for Task 3, but no test in any task exercises this path.
+
+#### 11. Failure Modes
+
+**Task 3 protocol gap (between Group B and Group C):** After Task 3's commit, the worker sends `{ requestId, payload: svg }` for `get_clip` responses, but `score-renderer.ts` (unchanged until Task 4) still reads `e.data.svg`. Any `getClip` call in this intermediate state returns a rejected promise with "Worker returned no svg and no error." Since this is a single-PR build with no deploy between groups, this is not a user-visible failure, but the build agent must not run integration tests against the live app between Group B and Group C commits.
+
+**Cursor rAF loop after `stop()` (confidence: 8/10):** The `tick` arrow function's catch block calls `this.rafId = requestAnimationFrame(this.tick)` unconditionally at the end of the `try/catch`, AND the normal path also calls `requestAnimationFrame(this.tick)`. If `stop()` is called while a tick is in flight (before `requestAnimationFrame` returns), `rafId` is set to null by `stop()`, then overwritten by the in-flight tick's `requestAnimationFrame` call. This leaves a "ghost" rAF handle that never gets cancelled. The overlay is already unmounted, so `this.hideAll()` on the next tick will try `overlay.querySelector("line")` on a detached node — harmless in most browsers but a source of silent iteration over orphaned elements. The risk is low severity (no crash, no visible artifact) but the loop technically keeps running until garbage collected.
+
+**`parseScoreIR` SVG regex brittle against attribute order (confidence: 6/10):** The `extractNotePositions` regex matches `<g ...class="...note..."... id="...">` and assumes class comes before id in the attribute list. Verovio's SVG output may reorder attributes across versions or platform builds. Verify against actual Verovio 4.x output (the fixture test will catch this if it fails, so this is a RISK not a BLOCKER).
+
+#### 12. Presumption Inventory
+
+| Assumption | Verdict | Reason |
+|---|---|---|
+| `api.scores.getData` returns `ArrayBuffer` | SAFE | Verified in `apps/web/src/lib/api.ts` lines 401–411 |
+| `sentry.ts` exports `{ Sentry }` | SAFE | Verified: `apps/web/src/lib/sentry.ts` exports `{ Sentry }` re-exported from `@sentry/react` |
+| Score fixtures exist at declared paths | SAFE | Verified: all 3 MXL files present in `apps/web/public/scores/` |
+| `scoreRenderer.getFull` is called only in `ScorePanel.tsx` | RISKY | False: also called in `app.sandbox.tsx` at lines 537 and 577, one with `pageWidth` arg |
+| Removing `render_full` / `render_clip` messages breaks no other callers | RISKY | `app.sandbox.tsx` uses `getFull` (which sends `render_full`); not in plan's file changes |
+| All notes in a bar get distinct qstamps from the timemap | RISKY | `parseScoreIR` sets all notes in a bar to `qstampStart`; cursor interpolation requires per-note onset qstamps to produce smooth cursor movement |
+| `processGetPageRequest` export added in Task 2 doesn't require CacheEntry.pageSvgs to exist | SAFE | Task 2 test passes `pageSvgs` directly as a parameter; no CacheEntry dependency |
+| Task 6 "eviction test" exercises the worker's `toolkitCache` | RISKY | It calls `loadPiece()` directly — a stateless function; `toolkitCache` is never touched |
+| `NoteIR.qstamp` will be populated with onset timing from timemap | RISKY | Current `parseScoreIR` sets all notes to `qstampStart`; onset data is not in the timemap's note entries |
+| 200ms Ballade timing threshold holds on CI runners (not just dev machine) | VALIDATE | CI hardware typically slower; spike confirmed on dev machine (extrapolated 25ms IR) but not on actual CI |
+
+---
+
+### Summary
+
+**[BLOCKER] count: 3**
+**[RISK]    count: 6**
+**[QUESTION] count: 0**
+
+---
+
+**[BLOCKER] (confidence: 9/10) — `app.sandbox.tsx` uses `scoreRenderer.getFull` in two places (lines 537 and 577), one with a custom `pageWidth` argument. The plan removes `getFull` but does not list `app.sandbox.tsx` in its File Changes table. After Task 4's rewrite of `score-renderer.ts`, TypeScript compilation will fail and the sandbox route will be broken. The plan must add `app.sandbox.tsx` to the file changes table and either (a) replace `getFull(pieceId)` with `getPage(pieceId, 1)` for the no-pageWidth call and provide a migration for the `pageWidth`-parameterized call, or (b) explicitly document that the sandbox's responsive-width render is being removed.**
+
+**[BLOCKER] (confidence: 9/10) — `NoteIR.qstamp` is set to `qstampStart` for all notes in a bar. `interpolateX()` sorts notes by `qstamp` and interpolates between them — but if all notes share the same qstamp value, the sort is a no-op and the linear interpolation degenerates: `(q - prev.qstamp) / (next.qstamp - prev.qstamp)` produces 0/0 (NaN) whenever the two bracketing notes have equal qstamps. The cursor will either stick at the bar's leftmost note or produce NaN x-coordinates. The test fixture uses hand-crafted distinct per-note qstamps and will pass, masking this defect. Fix: populate `NoteIR.qstamp` with the actual per-note onset qstamp from the timemap (`tk.renderToTimemap({ includeNotes: true })`), or document that qstamp is bar-level only and implement a position-based interpolation (x interpolated purely by playback time fraction through the bar, not by note onset).**
+
+**[BLOCKER] (confidence: 9/10) — Task 0's Step 2 "verify it FAILS" discipline is broken. The spike test asserts `elapsed < 200ms` against the *current* `loadPiece` (which has no IR build). The current `loadPiece` already runs in under 200ms — so the test passes before any implementation exists. This violates TDD watch-it-fail. A spike whose test passes before implementation provides no confidence that the test actually exercises the new behavior added in Task 3. The plan must either (a) change the Task 0 test to assert something that cannot pass without Task 3's changes (e.g., assert `entry.ir !== undefined`), making it a true failing test that becomes a passing test after Task 3, or (b) honestly rename Task 0's Step 2 as "verify it RUNS (not FAILS) and record elapsed time" and remove the watch-it-fail claim. As written, the build agent will skip the watch-it-fail discipline and proceed on a green test that proves nothing about future Task 3 behavior.**
+
+---
+
+**[RISK] (confidence: 9/10) — `ScoreRenderer.load()` has a bare `catch { return "failed"; }` that swallows all errors silently. Per CLAUDE.md: "Explicit exception handling over silent fallbacks." At minimum, the caught error should be passed to `Sentry.captureException` before returning `"failed"`. This is a production observability gap.**
+
+**[RISK] (confidence: 9/10) — Task 6's "Cache eviction" test calls `loadPiece()` directly (a stateless pure function) and never exercises `toolkitCache`. The test title is misleading and the actual eviction invariant — that the worker's in-memory `toolkitCache` correctly drops the stale `CacheEntry` (and its IR) when the same `pieceId` is reloaded with new bytes — has no test coverage. The spec identifies cache eviction as an explicit design decision. A true eviction test should exercise the worker's `onmessage` handler via postMessage with bytes twice for the same pieceId.**
+
+**[RISK] (confidence: 8/10) — `getPageCount() === 0 → "failed"` is listed in the Spec Coverage Checklist as Task 3's responsibility, but no test in any task explicitly exercises this path. The path is critical (zero-page load is indistinguishable from corruption) and irreversible (a `"failed"` result is cached). Add a unit test in Task 3 or Task 6 that supplies a `loadZipDataBuffer` mock returning `true` but a `getPageCount` mock returning `0`, and asserts that `loadPiece` returns `"failed"`.**
+
+**[RISK] (confidence: 8/10) — `ScoreCursor.tick` has a rAF ghost-loop risk: if `stop()` is called while a tick is in-flight (after `qstampSource()` is called but before the final `requestAnimationFrame(this.tick)`), the in-flight tick overwrites `rafId` with a new handle that is never cancelled. The overlays are unmounted so no visual artifact occurs, but the loop burns rAF budget until the `ScoreCursor` object is garbage collected. Fix: check `this.rafId !== null` at the top of `tick` before re-scheduling.**
+
+**[RISK] (confidence: 8/10) — The 200ms Ballade timing threshold (Task 0 gate, Task 8 final verification) was derived from a dev machine spike (25ms IR walk extrapolated). CI runners are typically 2–4x slower. The threshold has not been validated on the actual CI hardware. If CI is significantly slower, Task 8 will be a flaky gate. Consider raising the threshold to 500ms for CI, or measuring on CI before committing to 200ms.**
+
+**[RISK] (confidence: 6/10) — `parseScoreIR`'s SVG regex for note extraction assumes attribute order (`class` before `id`, `x` before `y` on `<use>`). Verovio 4.x has been observed to maintain consistent attribute order, but this assumption is undocumented and could silently produce empty IR if Verovio changes its serialization. The integration tests with real fixtures will catch this; if they pass, the risk is low. Verify once against actual rendered SVG from the Nocturne fixture before closing.**
+
+---
+
+VERDICT: NEEDS_REWORK — Three blockers must be resolved before execution: (1) `app.sandbox.tsx` is an unscoped caller of the removed `getFull` method that will break TypeScript compilation; (2) `NoteIR.qstamp` is always set to `qstampStart` causing cursor interpolation to degenerate on real IR data; (3) Task 0's watch-it-fail discipline is broken — the spike test passes before implementation, giving the build agent no signal about Task 3 behavior.
