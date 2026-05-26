@@ -57,8 +57,11 @@ export function renderFullSvg(tk: VerovioTk): string {
 	return tk.renderToSVG(1) as string;
 }
 
-// Verovio select() API — renders only the target measures with full musical context.
-// Uses CLIP_RENDER_OPTS (narrower pageWidth) so the bars fill the container.
+// Verovio select() + redoLayout() crops the engraved output to the requested
+// bar range. Per Verovio docs: "the selection will be applied only when some
+// data is loaded or the layout is redone." Calling select() without
+// redoLayout() (as Phase 1 originally did) leaves the layout untouched and
+// renderToSVG returns the full piece.
 function renderClipSvgSelect(
 	tk: VerovioTk,
 	measures: MeasureEntry[],
@@ -66,20 +69,20 @@ function renderClipSvgSelect(
 	endBar: number,
 ): string {
 	const startEntry = measures[startBar - 1];
-	const endEntry = measures[endBar - 1];
 	if (!startEntry) return tk.renderToSVG(1) as string;
 
-	const endId = endEntry?.measureOn ?? startEntry.measureOn;
 	tk.setOptions(CLIP_RENDER_OPTS);
-	tk.select({ start: startEntry.measureOn, end: endId });
+	tk.select({ measureRange: `${startBar}-${endBar}` });
+	tk.redoLayout({});
 	const svg = tk.renderToSVG(1) as string;
+	// Restore the full-piece layout for any subsequent render against this toolkit.
 	tk.select({});
 	tk.setOptions(VEROVIO_OPTS);
+	tk.redoLayout({});
 	return svg;
 }
 
-// Canonical render_clip dispatch. Uses tk.select so Verovio engraves
-// only the requested bars with correct musical context.
+// Canonical render_clip dispatch. Restricts engraving to the requested bars.
 export function processRenderClipRequest(
 	tk: VerovioTk,
 	measures: MeasureEntry[],

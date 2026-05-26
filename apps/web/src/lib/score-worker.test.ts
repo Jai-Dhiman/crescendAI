@@ -29,25 +29,28 @@ beforeEach(() => {
 });
 
 describe("processRenderClipRequest", () => {
-	it("calls tk.select with measureOn IDs from the index and renders page 1", async () => {
+	// NOTE: these are dispatch-shape unit tests. Real cropping behaviour against
+	// Verovio is verified in score-worker.integration.test.ts — which is what
+	// actually proves the SVG output is cropped to the requested bar range.
+	it("calls tk.select with measureRange and redoLayout before rendering", async () => {
 		const mockSelect = vi.fn();
+		const mockRedoLayout = vi.fn();
 		const tk = {
 			...fakeTk,
 			select: mockSelect,
+			redoLayout: mockRedoLayout,
 		};
 		const { processRenderClipRequest } = await import("./score-worker");
 		// biome-ignore lint/suspicious/noExplicitAny: test mock
 		const svg = processRenderClipRequest(tk as any, fakeMeasures, 2, 4);
-		expect(mockSelect).toHaveBeenCalledWith({
-			start: "measure-id-2",
-			end: "measure-id-4",
-		});
+		expect(mockSelect).toHaveBeenCalledWith({ measureRange: "2-4" });
+		expect(mockRedoLayout).toHaveBeenCalled();
 		expect(mockRenderToSVG).toHaveBeenCalledWith(1);
 		expect(svg).toBe("<svg>clip-svg</svg>");
 	});
 
 	it("falls back to a full page-1 render when the start bar is out of range", async () => {
-		const tk = { ...fakeTk, select: vi.fn() };
+		const tk = { ...fakeTk, select: vi.fn(), redoLayout: vi.fn() };
 		const { processRenderClipRequest } = await import("./score-worker");
 		// biome-ignore lint/suspicious/noExplicitAny: test mock
 		const svg = processRenderClipRequest(tk as any, fakeMeasures, 999, 1000);
