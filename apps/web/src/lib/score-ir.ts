@@ -43,16 +43,19 @@ interface MeasureEntry {
   measureOn: string;
 }
 
-// Extract x or y from a <use> element's attribute string.
-// These are the only two attributes we need, so we use hardcoded patterns.
-function extractX(attrs: string): number {
-  const m = attrs.match(/\bx="([^"]+)"/);
-  return m ? parseFloat(m[1]) : Number.NaN;
-}
-
-function extractY(attrs: string): number {
-  const m = attrs.match(/\by="([^"]+)"/);
-  return m ? parseFloat(m[1]) : Number.NaN;
+// Extract x and y from a <use> element's attribute string.
+// Verovio uses transform="translate(x, y) scale(...)" — we parse the translate values.
+// Falls back to x="..." y="..." attributes (used in synthetic test fixtures).
+function extractTranslateXY(attrs: string): { x: number; y: number } {
+  const tm = attrs.match(/transform="translate\(\s*([-\d.]+)\s*,\s*([-\d.]+)\s*\)/);
+  if (tm) return { x: parseFloat(tm[1]), y: parseFloat(tm[2]) };
+  // Fallback for plain x/y attributes (synthetic SVGs in tests).
+  const xm = attrs.match(/\bx="([-\d.]+)"/);
+  const ym = attrs.match(/\by="([-\d.]+)"/);
+  return {
+    x: xm ? parseFloat(xm[1]) : Number.NaN,
+    y: ym ? parseFloat(ym[1]) : Number.NaN,
+  };
 }
 
 // Parse the viewBox attribute "minX minY width height" into width and height.
@@ -63,50 +66,87 @@ function parseViewBox(attrs: string): { viewBox: string; width: number; height: 
   return { viewBox, width: parts[2] ?? 0, height: parts[3] ?? 0 };
 }
 
-// Walk SVG text to extract note elements: <g class="note" id="..."><use x="..." y="..."/>
-// Returns a map of note id -> {x, y}.
+// Walk SVG text to extract note positions.
+// For each note <g> tag, find the next <use> tag in the SVG text and parse its position.
+// Uses a linear scan to avoid nested-</g> ambiguity.
 function extractNotePositions(svgText: string): Map<string, { x: number; y: number }> {
   const result = new Map<string, { x: number; y: number }>();
-  // Match <g ...class="...note..."... id="..."> followed (soon after) by <use x="..." y="..."/>
-  const noteBlockRe = /<g\s+([^>]*class="[^"]*\bnote\b[^"]*"[^>]*)>([\s\S]*?)<\/g>/g;
-  for (const blockMatch of svgText.matchAll(noteBlockRe)) {
-    const gAttrs = blockMatch[1];
-    const inner = blockMatch[2];
-    const idMatch = gAttrs.match(/id="([^"]+)"/);
+
+  const gTagRe = /<g\s+([^>]*)>/g;
+  const useTagRe = /<use\s+([^>]*\/?>)/g;
+
+  // Collect note tag positions.
+  type NoteTag = { pos: number; endPos: number; id: string };
+  const noteTags: NoteTag[] = [];
+  for (const m of svgText.matchAll(gTagRe)) {
+    const attrs = m[1];
+    if (!/class="[^"]*\bnote\b/.test(attrs)) continue;
+    const idMatch = attrs.match(/\bid="([^"]+)"/);
     if (!idMatch) continue;
-    const id = idMatch[1];
-    const useMatch = inner.match(/<use\s+([^>]*\/?>)/);
-    if (!useMatch) continue;
-    const useAttrs = useMatch[1];
-    const x = extractX(useAttrs);
-    const y = extractY(useAttrs);
+    noteTags.push({ pos: m.index ?? 0, endPos: (m.index ?? 0) + m[0].length, id: idMatch[1] });
+  }
+
+  // Collect use tag positions.
+  type UseTag = { pos: number; attrs: string };
+  const useTags: UseTag[] = [];
+  for (const m of svgText.matchAll(useTagRe)) {
+    useTags.push({ pos: m.index ?? 0, attrs: m[1] });
+  }
+
+  // For each note tag, find the first use tag that appears after it.
+  let useIdx = 0;
+  for (const note of noteTags) {
+    // Advance useIdx to the first <use> that starts after this note's opening tag.
+    while (useIdx < useTags.length && useTags[useIdx].pos < note.endPos) {
+      useIdx++;
+    }
+    if (useIdx >= useTags.length) break;
+    const { x, y } = extractTranslateXY(useTags[useIdx].attrs);
     if (Number.isFinite(x) && Number.isFinite(y)) {
-      result.set(id, { x, y });
+      result.set(note.id, { x, y });
     }
   }
+
   return result;
 }
 
-// Walk SVG text to extract measure element ids in document order.
-// Returns an array of { measureId, noteIds[] } where noteIds are the note element
-// ids contained within each measure block.
+// Walk SVG text to build a measure -> noteIds mapping.
+// Strategy: scan linearly for measure and note opening tags in document order.
+// When we see a measure tag, we start collecting note ids.
+// When we see the next measure tag, we close the previous one.
+// This avoids nested-</g> regex ambiguity entirely.
 function extractMeasureNoteMap(svgText: string): Array<{ measureId: string; noteIds: string[] }> {
   const result: Array<{ measureId: string; noteIds: string[] }> = [];
-  // Match outer measure blocks (non-greedy; may miss deeply nested — acceptable for v1).
-  const measureRe = /<g\s+([^>]*class="[^"]*\bmeasure\b[^"]*"[^>]*)>([\s\S]*?)<\/g>/g;
-  for (const measureMatch of svgText.matchAll(measureRe)) {
-    const gAttrs = measureMatch[1];
-    const inner = measureMatch[2];
-    const idMatch = gAttrs.match(/id="([^"]+)"/);
+
+  // Collect positions of all measure and note opening tags with their ids.
+  type TagEvent = { pos: number; type: "measure" | "note"; id: string };
+  const events: TagEvent[] = [];
+
+  const gTagRe = /<g\s+([^>]*)>/g;
+  for (const m of svgText.matchAll(gTagRe)) {
+    const attrs = m[1];
+    const idMatch = attrs.match(/\bid="([^"]+)"/);
     if (!idMatch) continue;
-    const measureId = idMatch[1];
-    const noteIds: string[] = [];
-    const noteIdRe = /<g\s+[^>]*class="[^"]*\bnote\b[^"]*"[^>]*\sid="([^"]+)"/g;
-    for (const noteMatch of inner.matchAll(noteIdRe)) {
-      noteIds.push(noteMatch[1]);
+    const id = idMatch[1];
+    if (/class="[^"]*\bmeasure\b/.test(attrs)) {
+      events.push({ pos: m.index ?? 0, type: "measure", id });
+    } else if (/class="[^"]*\bnote\b/.test(attrs)) {
+      events.push({ pos: m.index ?? 0, type: "note", id });
     }
-    result.push({ measureId, noteIds });
   }
+
+  // Group notes to their containing measure by document position.
+  let currentMeasure: { measureId: string; noteIds: string[] } | null = null;
+  for (const ev of events) {
+    if (ev.type === "measure") {
+      if (currentMeasure) result.push(currentMeasure);
+      currentMeasure = { measureId: ev.id, noteIds: [] };
+    } else if (ev.type === "note" && currentMeasure) {
+      currentMeasure.noteIds.push(ev.id);
+    }
+  }
+  if (currentMeasure) result.push(currentMeasure);
+
   return result;
 }
 

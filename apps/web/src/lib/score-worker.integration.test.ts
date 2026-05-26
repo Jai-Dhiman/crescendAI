@@ -73,6 +73,71 @@ describe("load() wall-clock spike — Ballade fixture", () => {
   }, 30_000);
 });
 
+const NOCTURNE_FIXTURE_PATH = resolve(
+	dirname(fileURLToPath(import.meta.url)),
+	"../../public/scores/chopin-nocturne-op9-no2.mxl",
+);
+
+describe("loadPiece — IR and pageSvgs in returned CacheEntry", () => {
+  it("returns a CacheEntry with ir and pageSvgs after loading the Nocturne", async () => {
+    const esm = (await import("verovio/esm")) as any;
+    const wasm = (await import("verovio/wasm")) as any;
+    const VerovioToolkit = esm.VerovioToolkit ?? esm.default?.VerovioToolkit;
+    const VerovioModule = wasm.default ?? wasm;
+    const mod = await VerovioModule();
+
+    const bytes = readFileSync(NOCTURNE_FIXTURE_PATH);
+    const arrayBuf = new ArrayBuffer(bytes.byteLength);
+    new Uint8Array(arrayBuf).set(bytes);
+
+    const { loadPiece } = await import("./score-worker");
+    const entry = await loadPiece(
+      arrayBuf,
+      { module: mod, ToolkitClass: VerovioToolkit as any },
+      "chopin-nocturne-op9-no2",
+    );
+
+    expect(entry).not.toBe("failed");
+    if (entry === "failed") return;
+
+    // pageSvgs must be present and match page count
+    expect(Array.isArray(entry.pageSvgs)).toBe(true);
+    expect(entry.pageSvgs!.length).toBeGreaterThan(0);
+
+    // IR must be built
+    expect(entry.ir).toBeDefined();
+    expect(entry.ir!.bars.length).toBe(entry.measures.length);
+    expect(entry.ir!.pages.length).toBe(entry.pageSvgs!.length);
+
+    // Every note must have finite x/y
+    for (const note of Object.values(entry.ir!.notes)) {
+      expect(Number.isFinite(note.bbox.x)).toBe(true);
+      expect(Number.isFinite(note.bbox.y)).toBe(true);
+    }
+
+    // At least some notes must have been found
+    expect(Object.keys(entry.ir!.notes).length).toBeGreaterThan(0);
+
+    // Responsive-width regression: re-rendering page 1 with a different pageWidth must produce
+    // an SVG whose <svg> width attribute reflects the new width, not the cached pageWidth.
+    // This assertion catches any missing tk.redoLayout({}) between setOptions and renderToSVG.
+    const originalPageWidth = entry.ir!.pageWidth;
+    const altWidth = originalPageWidth - 200;
+    entry.tk.setOptions({ pageWidth: altWidth });
+    entry.tk.redoLayout({});
+    const altSvg = entry.tk.renderToSVG(1) as string;
+    entry.tk.setOptions({ pageWidth: originalPageWidth });
+    entry.tk.redoLayout({});
+    const cachedWidth = entry.pageSvgs![0]?.match(/width="(\d+)"/)?.[1];
+    const altSvgWidth = altSvg.match(/width="(\d+)"/)?.[1];
+    expect(altSvgWidth).toBeDefined();
+    expect(cachedWidth).toBeDefined();
+    // The re-rendered SVG's width must differ from the cached page's width.
+    // If redoLayout is missing, Verovio returns stale layout and widths will incorrectly match.
+    expect(altSvgWidth).not.toBe(cachedWidth);
+  }, 30_000);
+});
+
 describe("processRenderClipRequest — real Verovio integration", () => {
 	it("returns an SVG cropped to the requested bar range, not the full piece", async () => {
 		// biome-ignore lint/suspicious/noExplicitAny: dynamic ESM
