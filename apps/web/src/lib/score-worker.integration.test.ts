@@ -228,3 +228,115 @@ describe("processRenderClipRequest — real Verovio integration", () => {
 		expect(renderedMeasures).toBeLessThan(totalMeasures);
 	}, 30_000);
 });
+
+const CZERNY_FIXTURE_PATH = resolve(
+  dirname(fileURLToPath(import.meta.url)),
+  "../../public/scores/czerny-op299-no1.mxl",
+);
+
+async function makeBindings() {
+  const esm = (await import("verovio/esm")) as any;
+  const wasm = (await import("verovio/wasm")) as any;
+  const VerovioToolkit = esm.VerovioToolkit ?? esm.default?.VerovioToolkit;
+  const VerovioModule = wasm.default ?? wasm;
+  const mod = await VerovioModule();
+  return { module: mod, ToolkitClass: VerovioToolkit as any };
+}
+
+describe("IR invariants — all 3 fixtures", () => {
+  const fixtures = [
+    { name: "czerny-op299-no1", path: CZERNY_FIXTURE_PATH },
+    { name: "chopin-nocturne-op9-no2", path: FIXTURE_PATH },
+    { name: "chopin-ballade-op23-no1", path: BALLADE_FIXTURE_PATH },
+  ];
+
+  for (const { name, path } of fixtures) {
+    it(`${name}: bars.length === measures.length and all notes have finite x/y`, async () => {
+      const bindings = await makeBindings();
+      const bytes = readFileSync(path);
+      const arrayBuf = new ArrayBuffer(bytes.byteLength);
+      new Uint8Array(arrayBuf).set(bytes);
+
+      const { loadPiece } = await import("./score-worker");
+      const entry = await loadPiece(arrayBuf, bindings, name);
+
+      expect(entry).not.toBe("failed");
+      if (entry === "failed") return;
+
+      expect(entry.ir.bars.length).toBe(entry.measures.length);
+      expect(entry.ir.pages.length).toBeGreaterThan(0);
+      expect(entry.ir.pages.length).toBe(entry.pageSvgs.length);
+
+      for (const note of Object.values(entry.ir.notes)) {
+        expect(Number.isFinite(note.bbox.x)).toBe(true);
+        expect(Number.isFinite(note.bbox.y)).toBe(true);
+      }
+
+      // Per-note qstamp regression: verify at least one bar has >= 2 distinct qstamps.
+      // This catches any regression where all notes collapse to qstampStart.
+      const barsWithMultipleOnsets = entry.ir.bars.filter((bar) => {
+        if (bar.noteIds.length < 2) return false;
+        const qstamps = new Set(bar.noteIds.map((id) => entry.ir.notes[id]?.qstamp ?? -1));
+        return qstamps.size >= 2;
+      });
+      expect(barsWithMultipleOnsets.length).toBeGreaterThan(0);
+    }, 60_000);
+  }
+});
+
+describe("IR/Clip correlation", () => {
+  it("getClip first measure id matches ir.bars[startBar-1].measureOn for the Nocturne", async () => {
+    const bindings = await makeBindings();
+    const bytes = readFileSync(FIXTURE_PATH);
+    const arrayBuf = new ArrayBuffer(bytes.byteLength);
+    new Uint8Array(arrayBuf).set(bytes);
+
+    const { loadPiece, processRenderClipRequest } = await import("./score-worker");
+    const entry = await loadPiece(arrayBuf, bindings, "nocturne-correlation");
+
+    expect(entry).not.toBe("failed");
+    if (entry === "failed") return;
+
+    const startBar = 5;
+    const endBar = 10;
+    const svg = processRenderClipRequest(entry.tk, entry.measures, startBar, endBar);
+
+    const expectedMeasureOn = entry.ir.bars[startBar - 1]?.measureOn;
+    expect(expectedMeasureOn).toBeTruthy();
+
+    const actualId = firstMeasureId(svg);
+    expect(actualId).toBe(expectedMeasureOn);
+  }, 30_000);
+});
+
+describe("Cache eviction — reloading pieceId with different bytes yields disjoint note keys", () => {
+  it("a second loadPiece call for the same pieceId produces a different ir.notes keyset", async () => {
+    const bindings = await makeBindings();
+
+    const nocturneBytes = readFileSync(FIXTURE_PATH);
+    const nocturneBuf = new ArrayBuffer(nocturneBytes.byteLength);
+    new Uint8Array(nocturneBuf).set(nocturneBytes);
+
+    const czernyBytes = readFileSync(CZERNY_FIXTURE_PATH);
+    const czernyBuf = new ArrayBuffer(czernyBytes.byteLength);
+    new Uint8Array(czernyBuf).set(czernyBytes);
+
+    const { loadPiece } = await import("./score-worker");
+
+    const entry1 = await loadPiece(nocturneBuf, bindings, "eviction-test");
+    expect(entry1).not.toBe("failed");
+    if (entry1 === "failed") return;
+    const firstKeys = new Set(Object.keys(entry1.ir.notes));
+
+    const entry2 = await loadPiece(czernyBuf, bindings, "eviction-test");
+    expect(entry2).not.toBe("failed");
+    if (entry2 === "failed") return;
+    const secondKeys = new Set(Object.keys(entry2.ir.notes));
+
+    // Verovio randomizes element ids on every loadData call — the two keysets
+    // should be disjoint (different pieces loaded into the same pieceId slot).
+    const intersection = [...firstKeys].filter((k) => secondKeys.has(k));
+    // Allow at most 5% overlap to account for any coincidental id collision.
+    expect(intersection.length).toBeLessThan(firstKeys.size * 0.05);
+  }, 60_000);
+});
