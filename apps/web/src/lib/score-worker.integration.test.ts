@@ -148,8 +148,9 @@ describe("loadPiece — IR and pageSvgs in returned CacheEntry", () => {
     const altSvg = entry.tk.renderToSVG(1) as string;
     entry.tk.setOptions({ pageWidth: originalPageWidth });
     entry.tk.redoLayout({});
-    const cachedWidth = entry.pageSvgs![0]?.match(/width="(\d+)"/)?.[1];
-    const altSvgWidth = altSvg.match(/width="(\d+)"/)?.[1];
+    // Verovio SVG uses width="2400px" format (with px suffix). Match that.
+    const cachedWidth = entry.pageSvgs![0]?.match(/width="(\d+)px"/)?.[1];
+    const altSvgWidth = altSvg.match(/width="(\d+)px"/)?.[1];
     expect(altSvgWidth).toBeDefined();
     expect(cachedWidth).toBeDefined();
     // The re-rendered SVG's width must differ from the cached page's width.
