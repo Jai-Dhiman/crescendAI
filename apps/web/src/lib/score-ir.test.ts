@@ -128,4 +128,29 @@ describe("parseScoreIR — structural invariants", () => {
     expect(ir.verovioVersion).toBe("4.1.0");
     expect(ir.pageWidth).toBe(2400);
   });
+
+  it("note absent from noteQstampMap gets NaN qstamp (not 0)", async () => {
+    const { parseScoreIR } = await import("./score-ir");
+    // Omit note-1-2 from the map so it is absent during parsing.
+    const partialMap = new Map<string, number>([
+      ["note-1-1", 0],
+      // note-1-2 deliberately absent
+      ["note-2-1", 4],
+      ["note-2-2", 6],
+    ]);
+    const ir = parseScoreIR(
+      "test-piece",
+      [SYNTHETIC_PAGE_SVG],
+      SYNTHETIC_MEASURES,
+      partialMap,
+      "4.0.0",
+      2400,
+    );
+    const missedNote = ir.notes["note-1-2"];
+    expect(missedNote).toBeDefined();
+    expect(Number.isNaN(missedNote?.qstamp)).toBe(true);
+    // The present note at the real downbeat (qstamp=0) must NOT be NaN.
+    expect(Number.isNaN(ir.notes["note-1-1"]?.qstamp)).toBe(false);
+    expect(ir.notes["note-1-1"]?.qstamp).toBe(0);
+  });
 });

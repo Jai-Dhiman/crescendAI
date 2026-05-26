@@ -184,16 +184,17 @@ export function parseScoreIR(
     for (const [id, { x, y }] of notePositions) {
       // Staff inference: notes with y > page_midpoint are staff 2, else staff 1.
       const midY = height / 2;
-      // Per-note qstamp from the timemap. Fall back to 0 if the note id is absent
-      // (this should not occur for well-formed Verovio output but is explicit, not silent).
+      // Per-note qstamp from the timemap. Use NaN when the note id is absent so
+      // the miss is structurally distinguishable from a real qstamp=0 downbeat note.
+      // Consumers (ScoreCursor.interpolateX) must filter NaN notes out of interpolation.
       const qstamp = noteQstampMap.get(id);
       if (qstamp === undefined) {
-        console.error(`[score-ir] note id "${id}" absent from noteQstampMap — falling back to 0`);
+        console.error(`[score-ir] note id "${id}" absent from noteQstampMap — recording NaN qstamp`);
       }
       notes[id] = {
         id,
         bbox: { x, y, w: 0, h: 0 },
-        qstamp: qstamp ?? 0,
+        qstamp: qstamp ?? NaN,
         staff: y > midY ? 2 : 1,
       };
     }

@@ -159,7 +159,7 @@ export class ScoreCursor {
   private interpolateX(bar: BarIR, q: number): number {
     const notes = bar.noteIds
       .map((id) => this.ir.notes[id])
-      .filter((n): n is NoteIR => n !== undefined)
+      .filter((n): n is NoteIR => n !== undefined && !Number.isNaN(n.qstamp))
       .sort((a, b) => a.qstamp - b.qstamp);
 
     if (notes.length === 0) return bar.bbox.x;
