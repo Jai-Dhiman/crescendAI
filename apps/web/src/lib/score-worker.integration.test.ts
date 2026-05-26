@@ -32,6 +32,47 @@ function firstMeasureId(svg: string): string | null {
 	return null;
 }
 
+const BALLADE_FIXTURE_PATH = resolve(
+	dirname(fileURLToPath(import.meta.url)),
+	"../../public/scores/chopin-ballade-op23-no1.mxl",
+);
+
+describe("load() wall-clock spike — Ballade fixture", () => {
+  it("completes loadPiece for the Ballade within 200ms", async () => {
+    const esm = (await import("verovio/esm")) as any;
+    const wasm = (await import("verovio/wasm")) as any;
+    const VerovioToolkit = esm.VerovioToolkit ?? esm.default?.VerovioToolkit;
+    const VerovioModule = wasm.default ?? wasm;
+    const mod = await VerovioModule();
+
+    const bytes = readFileSync(BALLADE_FIXTURE_PATH);
+    const arrayBuf = new ArrayBuffer(bytes.byteLength);
+    new Uint8Array(arrayBuf).set(bytes);
+
+    const { loadPiece } = await import("./score-worker");
+
+    const t0 = Date.now();
+    const entry = await loadPiece(
+      arrayBuf,
+      { module: mod, ToolkitClass: VerovioToolkit as any },
+      "chopin-ballade-op23-no1",
+    );
+    const elapsed = Date.now() - t0;
+
+    expect(entry).not.toBe("failed");
+    // GATE (a): entry must have a populated ir field — the current loadPiece has no ir field,
+    // so this assertion fails with "entry.ir is undefined" until Task 3 attaches IR build.
+    // This gives the build agent a genuine red->green signal.
+    if (entry === "failed") return;
+    expect(entry.ir).toBeDefined();
+    expect(entry.ir.pages.length).toBeGreaterThan(0);
+    // GATE (b): once IR build is wired in (Task 3), verify total load+IR time stays under 200ms.
+    // GATE: if this assertion fails, the eager-IR contract is not viable.
+    // Halt the build and revise the spec toward lazy IR before proceeding.
+    expect(elapsed).toBeLessThan(200);
+  }, 30_000);
+});
+
 describe("processRenderClipRequest — real Verovio integration", () => {
 	it("returns an SVG cropped to the requested bar range, not the full piece", async () => {
 		// biome-ignore lint/suspicious/noExplicitAny: dynamic ESM
