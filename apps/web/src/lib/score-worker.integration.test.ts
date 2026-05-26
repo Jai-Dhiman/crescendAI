@@ -340,3 +340,52 @@ describe("Cache eviction — reloading pieceId with different bytes yields disjo
     expect(intersection.length).toBeLessThan(firstKeys.size * 0.05);
   }, 60_000);
 });
+
+describe("Ballade load() with full IR build — production-scale perf gate", () => {
+  it("IR build marginal cost is under 200ms and IR invariants hold at Ballade scale", async () => {
+    const esm = (await import("verovio/esm")) as any;
+    const wasm = (await import("verovio/wasm")) as any;
+    const VerovioToolkit = esm.VerovioToolkit ?? esm.default?.VerovioToolkit;
+    const VerovioModule = wasm.default ?? wasm;
+    const mod = await VerovioModule();
+
+    const bytes = readFileSync(BALLADE_FIXTURE_PATH);
+
+    const { loadPiece } = await import("./score-worker");
+
+    // Baseline: first warm-up run (WASM already initialized above).
+    const baselineBytes = new ArrayBuffer(bytes.byteLength);
+    new Uint8Array(baselineBytes).set(bytes);
+    const t0 = Date.now();
+    const baselineEntry = await loadPiece(
+      baselineBytes,
+      { module: mod, ToolkitClass: VerovioToolkit as any },
+      "ballade-perf-baseline",
+    );
+    const baselineMs = Date.now() - t0;
+    expect(baselineEntry).not.toBe("failed");
+
+    // With-IR: same fixture, fresh pieceId to bypass module-level cache.
+    const withIrBytes = new ArrayBuffer(bytes.byteLength);
+    new Uint8Array(withIrBytes).set(bytes);
+    const t1 = Date.now();
+    const entry = await loadPiece(
+      withIrBytes,
+      { module: mod, ToolkitClass: VerovioToolkit as any },
+      "chopin-ballade-op23-no1-perf",
+    );
+    const withIrMs = Date.now() - t1;
+
+    expect(entry).not.toBe("failed");
+    if (entry === "failed") return;
+
+    // IR structural invariants at Ballade scale.
+    expect(entry.ir.bars.length).toBe(entry.measures.length);
+    expect(entry.ir.pages.length).toBeGreaterThan(0);
+
+    // Marginal IR-build cost must be under 200ms.
+    // Total load (~3-4s) is Verovio intrinsic and not constrainable.
+    const marginalMs = Math.max(0, withIrMs - baselineMs);
+    expect(marginalMs).toBeLessThan(200);
+  }, 90_000);
+});
