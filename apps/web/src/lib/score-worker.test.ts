@@ -71,6 +71,22 @@ describe("renderFullSvg", () => {
 	});
 });
 
+describe("processGetPageRequest", () => {
+  it("returns the pre-rendered SVG for the requested page number", async () => {
+    const { processGetPageRequest } = await import("./score-worker");
+    const pageSvgs = ["<svg>page1</svg>", "<svg>page2</svg>", "<svg>page3</svg>"];
+    const result = processGetPageRequest(pageSvgs, 2);
+    expect(result).toBe("<svg>page2</svg>");
+  });
+
+  it("returns 'failed' when the requested page does not exist", async () => {
+    const { processGetPageRequest } = await import("./score-worker");
+    const pageSvgs = ["<svg>page1</svg>"];
+    const result = processGetPageRequest(pageSvgs, 99);
+    expect(result).toBe("failed");
+  });
+});
+
 describe("loadPiece — silent fallback regression", () => {
 	it("returns 'failed' when buildMeasureIndex throws (no silent degradation to page 1)", async () => {
 		const throwingTk = {

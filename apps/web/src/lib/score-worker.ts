@@ -11,6 +11,8 @@ interface MeasureEntry {
 interface CacheEntry {
 	tk: VerovioTk;
 	measures: MeasureEntry[];
+	ir?: import("./score-ir").ScoreIR;
+	pageSvgs?: string[];
 }
 
 type LoadResult = CacheEntry | "failed";
@@ -51,6 +53,12 @@ function buildMeasureIndex(tk: VerovioTk): MeasureEntry[] {
 		})
 		.sort((a, b) => a.qstamp - b.qstamp)
 		.map((e) => ({ qstamp: e.qstamp, measureOn: e.measureOn }));
+}
+
+export function processGetPageRequest(pageSvgs: string[], pageN: number): string | "failed" {
+	const svg = pageSvgs[pageN - 1];
+	if (svg === undefined) return "failed";
+	return svg;
 }
 
 export function renderFullSvg(tk: VerovioTk): string {
