@@ -104,4 +104,43 @@ describe("ScoreRenderer.load", () => {
     const renderer = new ScoreRenderer();
     expect(renderer.getIR("nonexistent-piece")).toBeNull();
   });
+
+  it("cleans up sentPieceIds on worker error so a retry re-sends bytes", async () => {
+    const { ScoreRenderer } = await import("./score-renderer");
+    const renderer = new ScoreRenderer();
+
+    // First call: simulate worker responding with an error message.
+    const firstLoadPromise = renderer.load("retry-piece");
+    await new Promise((r) => setTimeout(r, 10));
+
+    const firstMsg = mockPostMessage.mock.calls[0]?.[0] as { requestId: string; bytes: unknown };
+    // Verify bytes were sent on the first call.
+    expect(firstMsg.bytes).toBeInstanceOf(ArrayBuffer);
+
+    // Simulate worker error response (triggers onmessage error path, then catch).
+    if (workerInstance?.onmessage) {
+      workerInstance.onmessage(
+        new MessageEvent("message", {
+          data: { requestId: firstMsg.requestId, error: "Verovio load failed" },
+        }),
+      );
+    }
+
+    const firstResult = await firstLoadPromise;
+    expect(firstResult).toBe("failed");
+
+    // Second call: sentPieceIds must have been cleaned up, so bytes are re-sent.
+    mockPostMessage.mockClear();
+    const secondLoadPromise = renderer.load("retry-piece");
+    await new Promise((r) => setTimeout(r, 10));
+
+    const secondMsg = mockPostMessage.mock.calls[0]?.[0] as { requestId: string; bytes: unknown };
+    expect(secondMsg.bytes).toBeInstanceOf(ArrayBuffer);
+
+    // Resolve the second call successfully so the promise settles.
+    const payload = { ir: { ...FAKE_IR, pieceId: "retry-piece" }, pageSvgs: [] };
+    simulateWorkerResponse(secondMsg.requestId, payload);
+    const secondResult = await secondLoadPromise;
+    expect(secondResult).not.toBe("failed");
+  });
 });

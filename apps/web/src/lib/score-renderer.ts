@@ -107,6 +107,7 @@ export class ScoreRenderer {
       this.irCache.set(pieceId, payload.ir);
       return payload;
     } catch (err) {
+      this.sentPieceIds.delete(pieceId);
       Sentry.captureException(err);
       return "failed";
     }
