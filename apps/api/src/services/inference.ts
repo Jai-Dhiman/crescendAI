@@ -24,6 +24,9 @@ export interface MuqConfidences {
 export interface MuqResult {
 	scores: MuqScores;
 	confidences: MuqConfidences | null;
+	chromaBytes: Uint8Array | null;
+	chromaFrames: number;
+	chromaFrameRateHz: number;
 }
 
 export interface PerfNote {
@@ -46,6 +49,9 @@ export interface AmtResult {
 interface MuqResponseRaw {
 	predictions: Record<string, number>;
 	confidences?: Record<string, number>;
+	chroma_b64?: string;
+	chroma_frames?: number;
+	chroma_frame_rate_hz?: number;
 }
 
 interface AmtResponseRaw {
@@ -151,7 +157,15 @@ export async function callMuqEndpoint(
 	}
 
 	const raw = (await response.json()) as MuqResponseRaw;
+	return parseMuqResponse(raw);
+}
 
+function encodeBase64(buffer: ArrayBuffer): string {
+	return btoa(String.fromCharCode(...new Uint8Array(buffer)));
+}
+
+/** Parse a raw MuQ JSON response into a typed MuqResult. Exported for unit testing. */
+export function parseMuqResponse(raw: MuqResponseRaw): MuqResult {
 	const missingDims = MUQ_DIMS.filter(
 		(dim) => typeof raw.predictions[dim] !== "number",
 	);
@@ -181,11 +195,26 @@ export async function callMuqEndpoint(
 			}
 		: null;
 
-	return { scores, confidences };
-}
+	let chromaBytes: Uint8Array | null = null;
+	let chromaFrames = 0;
+	let chromaFrameRateHz = 50.0;
 
-function encodeBase64(buffer: ArrayBuffer): string {
-	return btoa(String.fromCharCode(...new Uint8Array(buffer)));
+	if (
+		raw.chroma_b64 !== undefined &&
+		raw.chroma_frames !== undefined &&
+		raw.chroma_frames > 0
+	) {
+		const binaryStr = atob(raw.chroma_b64);
+		const bytes = new Uint8Array(binaryStr.length);
+		for (let i = 0; i < binaryStr.length; i++) {
+			bytes[i] = binaryStr.charCodeAt(i);
+		}
+		chromaBytes = bytes;
+		chromaFrames = raw.chroma_frames;
+		chromaFrameRateHz = raw.chroma_frame_rate_hz ?? 50.0;
+	}
+
+	return { scores, confidences, chromaBytes, chromaFrames, chromaFrameRateHz };
 }
 
 export async function callAmtEndpoint(
