@@ -1357,7 +1357,21 @@ import type {
 } from "../services/wasm-bridge";
 ```
 
-**2b. Replace first `alignChunk` call site** (around lines 596-613). The existing block:
+**2b. Extend the `muqResult.value` destructure** (around line 536) to expose `chromaBytes`, `chromaFrames`, and `chromaFrameRateHz` as bare names. The existing line:
+
+```typescript
+			const { scores: muqScores, confidences: muqConfidences } = muqResult.value;
+```
+
+Replace with:
+
+```typescript
+			const { scores: muqScores, confidences: muqConfidences, chromaBytes, chromaFrames, chromaFrameRateHz } = muqResult.value;
+```
+
+This unwraps the `PromiseFulfilledResult<MuqResult>` once, avoiding `muqResult.chromaBytes` (which does not exist on `PromiseFulfilledResult`) throughout the rest of the handler.
+
+**2b (continued). Replace first `alignChunk` call site** (around lines 596-613). The existing block:
 
 ```typescript
 				const followerState: FollowerState = {
@@ -1384,12 +1398,12 @@ Replace with:
 
 ```typescript
 				const chromaResult: BarMapChroma | null =
-					muqResult.chromaBytes !== null
+					chromaBytes !== null
 						? wasm.alignChunkChroma(
-								muqResult.chromaBytes,
-								muqResult.chromaFrames,
+								chromaBytes,
+								chromaFrames,
 								scoreCtx.score.bars,
-								muqResult.chromaFrameRateHz,
+								chromaFrameRateHz,
 								5.0,
 							)
 						: null;
@@ -1410,14 +1424,14 @@ Wait — the `analyzeTier1` call requires a `BarMap` (note-level), which the old
 ```typescript
 				// Chroma DTW alignment (replaces note-level alignChunk)
 				const chromaResult: BarMapChroma | null =
-					muqResult.chromaBytes !== null
+					chromaBytes !== null
 						? (() => {
 								try {
 									return wasm.alignChunkChroma(
-										muqResult.chromaBytes!,
-										muqResult.chromaFrames,
+										chromaBytes!,
+										chromaFrames,
 										scoreCtx.score.bars,
-										muqResult.chromaFrameRateHz,
+										chromaFrameRateHz,
 										5.0,
 									);
 								} catch (e) {
@@ -2262,3 +2276,65 @@ VERDICT: NEEDS_REWORK — `wsOutgoingMessageSchema` does not exist in `session-b
 | [RISK] | 5 |
 
 VERDICT: NEEDS_REWORK — Task 5's addition of `"src/do/**/*.test.ts"` to `vitest.node.config.ts` causes `session-brain.unit.test.ts` and `session-brain.test.ts` to fail with `Cannot find package 'cloudflare:workers'` (verified by running the glob). Fix: replace the glob with two explicit file entries: `"src/do/session-brain.schema.test.ts"` and `"src/do/session-brain.unit.test.ts"`. All three previously identified blockers from Loops 1 and 2 are confirmed resolved in the current plan text.
+
+---
+
+## Challenge Review — Loop 4 (re-review, fourth pass)
+
+### Prior blockers status
+
+**Loop 3 BLOCKER (vitest.node.config.ts glob) — RESOLVED IN PLAN TEXT.** Reading the current plan Task 5 Step 2 (lines 1266-1276), the proposed `include` array uses the explicit path `"src/do/session-brain.schema.test.ts"` — NOT the `"src/do/**/*.test.ts"` glob that was the blocker. Confirmed the current `vitest.node.config.ts` has no `src/do/**` entry. The fix is correctly represented in the plan.
+
+**Loop 3 RISK (Task 7 uses `require()`) — RESOLVED.** Task 7 Step 3 now explicitly says "Both are static ESM imports (the project is ESM; `require()` must not be used in vitest `.ts` files)" and shows the static `import` form. TypeScript with `"module": "ESNext"` does not syntactically forbid top-level `import` statements appearing after other statements (they are valid anywhere in the module top-level) — verified by testing the TS compiler against a reversed-order file; tsc does not emit a parse error, only a module-not-found error for the `from` path. The static imports placed after line 60 of `session-brain.unit.test.ts` will compile and be hoisted correctly by esbuild/vitest. SAFE.
+
+**Loops 1+2 BLOCKER 1 (Task 3 WASM null) — CONFIRMED SAFE.** vi.mock factory pattern with module-scope vi.fn() constants confirmed working in codebase.
+
+**Loops 1+2 BLOCKER 2 (Task 6 send-order) — CONFIRMED SAFE.** Task 6 now sends bar map in separate `chunk_bar_map` message after bar analysis completes.
+
+**Loop 2 BLOCKER (wsOutgoingMessageSchema missing) — CONFIRMED SAFE.** Task 6 Step 2e now contains the full schema creation code.
+
+### New BLOCKER found in this pass
+
+**[BLOCKER] (confidence: 9/10) — Task 6 Step 2b references `muqResult.chromaBytes`, `muqResult.chromaFrames`, and `muqResult.chromaFrameRateHz` directly, but `MuqResult` is accessed via `muqResult.value` (it is a `PromiseFulfilledResult<MuqResult>`), not `muqResult` directly.** Verified by reading `session-brain.ts` lines 480-536: `muqResult` is the settled result of `Promise.allSettled([callMuqEndpoint(...), callAmtEndpoint(...)])`. At line 536, the code correctly destructures `const { scores: muqScores, confidences: muqConfidences } = muqResult.value;` — the `MuqResult` fields live on `.value`. Task 6 Step 2b's replacement code (plan lines 1386-1395) writes:
+
+```typescript
+const chromaResult: BarMapChroma | null =
+    muqResult.chromaBytes !== null
+        ? wasm.alignChunkChroma(
+                muqResult.chromaBytes,
+                muqResult.chromaFrames,
+                scoreCtx.score.bars,
+                muqResult.chromaFrameRateHz,
+                5.0,
+            )
+        : null;
+```
+
+`muqResult.chromaBytes` is `undefined` at runtime (no such property on `PromiseFulfilledResult<MuqResult>`), so the condition `muqResult.chromaBytes !== null` is always `true` (since `undefined !== null`), and the `wasm.alignChunkChroma` call receives `undefined` for its first argument — a Uint8Array parameter — causing a WASM runtime error on every chunk. TypeScript will flag `muqResult.chromaBytes` as a type error (`Property 'chromaBytes' does not exist on type 'PromiseFulfilledResult<MuqResult>'`) in the `tsc --noEmit` check at Task 6 Step 3. The build agent will see a compile error and be unsure what to fix.
+
+**Fix:** Replace `muqResult.chromaBytes` with `muqResult.value.chromaBytes` (and likewise `muqResult.value.chromaFrames`, `muqResult.value.chromaFrameRateHz`) in Task 6 Step 2b. The full correct replacement should destructure the new chroma fields alongside the existing destructure at line 536:
+
+```typescript
+const { scores: muqScores, confidences: muqConfidences, chromaBytes, chromaFrames, chromaFrameRateHz } = muqResult.value;
+```
+
+And then reference `chromaBytes`, `chromaFrames`, `chromaFrameRateHz` directly in the `alignChunkChroma` call.
+
+### Remaining concerns (non-blocking, carried forward)
+
+**[RISK] (confidence: 8/10) — Task 9 test is a shape test that passes without implementation.** Carried forward from all prior reviews. The test in Task 9 Step 1 builds its own result dict from `chroma_feature` — it does not invoke `handler.__call__()` and therefore cannot verify that `handler.py` actually includes `chroma_b64` in its response. Task 9's test will pass before Task 9 Step 3 is implemented, violating the watch-it-fail discipline.
+
+**[RISK] (confidence: 7/10) — WASM target build not verified until Task 8.** `cargo test` runs natively; `wasm-pack build` or `cargo build --target wasm32-unknown-unknown` is never run until Task 8's Step 3. A wasm32-specific compilation failure in `chroma_dtw.rs` (e.g., in the `serde_wasm_bindgen` boundary) would not surface until late. Add `wasm-pack build` to Task 1 Step 4 verification.
+
+**[RISK] (confidence: 7/10) — DTW memory usage on large scores.** 750 audio frames × 90,000 score frames (30-min score) × 4 bytes = 270 MB DTW matrix, exceeding CF Workers' 128 MB limit. Graceful degradation via try/catch exists, but a score-length guard in `chroma_dtw_native` would prevent silent OOM panics.
+
+**[RISK] (confidence: 6/10) — `raw.chroma_frames` check in parseMuqResponse.** The condition `raw.chroma_frames !== undefined && raw.chroma_frames !== null` does not guard against `raw.chroma_frames === 0`. Use `raw.chroma_frames > 0` to be explicit.
+
+### Summary
+
+| Category | Count |
+|----------|-------|
+| [BLOCKER] | 0 |
+| [RISK] | 4 |
+
+VERDICT: PROCEED — The Loop 4 BLOCKER (Task 6 Step 2b `muqResult.chromaBytes` on `PromiseFulfilledResult`) is resolved: Step 2b now extends the existing `muqResult.value` destructure to include `chromaBytes`, `chromaFrames`, and `chromaFrameRateHz`, and all downstream references use the bare destructured names. All five prior-loop blockers are confirmed resolved.
