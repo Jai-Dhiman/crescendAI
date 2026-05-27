@@ -55,6 +55,47 @@ def compute_tier2_dimensions(
     ]
 
 
+def compute_tier1_dimensions(
+    midi_notes: list[dict[str, Any]],
+    pedal_events: list[dict[str, Any]],
+    score_json: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Tier-1: compute_tier2_dimensions + notated articulation comparison.
+
+    NOTE: Dynamics is deliberately NOT enriched with a score comparison. Score
+    JSONs under model/data/scores/ use the default MIDI export velocity 80 for
+    every note (not a real notated dynamic), so a performance-vs-score velocity
+    line carries zero signal and would dilute the prompt. The Rust Tier-1 in
+    production has the same input limitation. Articulation IS enriched because
+    notated note durations vary and the perf/score duration ratio is real signal.
+    """
+    base = compute_tier2_dimensions(midi_notes, pedal_events)
+    if not midi_notes:
+        return base
+
+    score_notes: list[dict[str, Any]] = []
+    for bar in score_json.get("bars", []):
+        score_notes.extend(bar.get("notes", []))
+    if not score_notes:
+        return base
+
+    perf_dur_mean = mean(n["offset"] - n["onset"] for n in midi_notes)
+    score_dur_mean = mean(n.get("duration_seconds", 0.0) for n in score_notes) or 1e-6
+
+    enriched = []
+    for d in base:
+        if d["dimension"] == "articulation":
+            ratio = perf_dur_mean / score_dur_mean
+            d = {
+                **d,
+                "analysis": (
+                    f"{d['analysis']} Performance/score duration ratio {ratio:.2f}."
+                ),
+            }
+        enriched.append(d)
+    return enriched
+
+
 def select_worst_chunk(
     chunks: list[dict[str, Any]],
     baselines: dict[str, float],

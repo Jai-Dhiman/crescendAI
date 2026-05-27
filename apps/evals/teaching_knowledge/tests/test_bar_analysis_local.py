@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from teaching_knowledge.bar_analysis_local import (
+    compute_tier1_dimensions,
     compute_tier2_dimensions,
     select_worst_chunk,
 )
@@ -55,3 +56,37 @@ def test_selects_chunk_with_largest_absolute_deviation() -> None:
 
 def test_returns_none_on_empty_chunks() -> None:
     assert select_worst_chunk([], {"timing": 0.5}) is None
+
+
+def test_tier1_articulation_mentions_duration_ratio() -> None:
+    midi_notes = [
+        {"pitch": 60, "onset": 0.0, "offset": 0.5, "velocity": 90},
+        {"pitch": 62, "onset": 0.5, "offset": 1.0, "velocity": 95},
+    ]
+    score_json = {
+        "bars": [
+            {"bar_number": 1, "notes": [
+                {"pitch": 60, "velocity": 80, "duration_seconds": 0.5},
+                {"pitch": 62, "velocity": 80, "duration_seconds": 0.5},
+            ]}
+        ]
+    }
+    result = compute_tier1_dimensions(midi_notes, [], score_json)
+    articulation = next(r for r in result if r["dimension"] == "articulation")
+    text = articulation["analysis"].lower()
+    assert "ratio" in text or "score" in text
+
+
+def test_tier1_dynamics_does_not_mention_notated_score() -> None:
+    # Score JSONs use default MIDI velocity 80 for every note; comparing
+    # performance velocity to that constant is signal-free. The Tier-1 port
+    # deliberately omits a dynamics-vs-notated line. See bar_analysis_local.py.
+    midi_notes = [{"pitch": 60, "onset": 0.0, "offset": 0.5, "velocity": 90}]
+    score_json = {"bars": [{"bar_number": 1, "notes": [
+        {"pitch": 60, "velocity": 80, "duration_seconds": 0.5}
+    ]}]}
+    result = compute_tier1_dimensions(midi_notes, [], score_json)
+    dynamics = next(r for r in result if r["dimension"] == "dynamics")
+    text = dynamics["analysis"].lower()
+    assert "notated" not in text
+    assert "(score)" not in text
