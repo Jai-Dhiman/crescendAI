@@ -1,6 +1,9 @@
 from __future__ import annotations
 
-from teaching_knowledge.bar_analysis_local import compute_tier2_dimensions
+from teaching_knowledge.bar_analysis_local import (
+    compute_tier2_dimensions,
+    select_worst_chunk,
+)
 
 
 def test_returns_six_dimensions_with_analysis_strings() -> None:
@@ -34,3 +37,21 @@ def test_dynamics_string_mentions_velocity() -> None:
     result = compute_tier2_dimensions(midi_notes, [])
     dynamics = next(r for r in result if r["dimension"] == "dynamics")
     assert "velocity" in dynamics["analysis"].lower()
+
+
+def test_selects_chunk_with_largest_absolute_deviation() -> None:
+    baselines = {d: 0.5 for d in ["dynamics", "timing", "pedaling",
+                                  "articulation", "phrasing", "interpretation"]}
+    chunks = [
+        {"chunk_index": 0, "predictions": {"dynamics": 0.55, "timing": 0.45}},
+        {"chunk_index": 1, "predictions": {"dynamics": 0.50, "timing": 0.20}},  # 0.30
+        {"chunk_index": 2, "predictions": {"dynamics": 0.60, "timing": 0.50}},
+    ]
+    result = select_worst_chunk(chunks, baselines)
+    assert result is not None
+    assert result["chunk_index"] == 1
+    assert result["dimension"] == "timing"
+
+
+def test_returns_none_on_empty_chunks() -> None:
+    assert select_worst_chunk([], {"timing": 0.5}) is None

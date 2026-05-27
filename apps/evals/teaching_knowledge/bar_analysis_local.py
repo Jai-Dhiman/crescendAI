@@ -53,3 +53,28 @@ def compute_tier2_dimensions(
         {"dimension": "interpretation",
          "analysis": f"Velocity range {vel_range}, IOI std {ioi_std:.3f}s."},
     ]
+
+
+def select_worst_chunk(
+    chunks: list[dict[str, Any]],
+    baselines: dict[str, float],
+) -> dict[str, Any] | None:
+    """Return {chunk_index, dimension, chunk} for the chunk + dim with max |score-baseline|."""
+    if not chunks:
+        return None
+    best: dict[str, Any] | None = None
+    best_dev = -1.0
+    for chunk in chunks:
+        preds = chunk.get("predictions", {})
+        for dim, score in preds.items():
+            if dim not in baselines:
+                continue
+            dev = abs(float(score) - float(baselines[dim]))
+            if dev > best_dev:
+                best_dev = dev
+                best = {
+                    "chunk_index": chunk.get("chunk_index"),
+                    "dimension": dim,
+                    "chunk": chunk,
+                }
+    return best
