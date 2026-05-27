@@ -6,44 +6,46 @@ import pytest
 
 from chroma import chroma_feature
 
-SR = 22050
-HOP = 441
+TARGET_SR = 24000
+_22K_SR = 22050
 
 
-def make_sine(freq_hz: float, duration_s: float = 1.0) -> np.ndarray:
-    """Generate a mono float32 sine wave at 22050 Hz."""
-    t = np.linspace(0, duration_s, int(SR * duration_s), endpoint=False)
+def make_sine(freq_hz: float, duration_s: float = 1.0, sr: int = TARGET_SR) -> np.ndarray:
+    """Generate a mono float32 sine wave at the given sample rate."""
+    t = np.linspace(0, duration_s, int(sr * duration_s), endpoint=False)
     return np.sin(2 * np.pi * freq_hz * t).astype(np.float32)
 
 
 class TestChromaFeature:
-    def test_output_is_tuple_of_bytes_and_int(self):
+    def test_output_is_tuple_of_three(self):
         y = make_sine(440.0)
-        result = chroma_feature(y, SR)
-        assert isinstance(result, tuple) and len(result) == 2
-        b, n = result
+        result = chroma_feature(y, TARGET_SR)
+        assert isinstance(result, tuple) and len(result) == 3
+        b, n, rate = result
         assert isinstance(b, (bytes, bytearray))
         assert isinstance(n, int)
+        assert isinstance(rate, float)
 
     def test_frame_count_matches_bytes_length(self):
         y = make_sine(440.0)
-        b, n = chroma_feature(y, SR)
+        b, n, _ = chroma_feature(y, TARGET_SR)
         # bytes = 12 rows * n frames * 4 bytes per float32
         assert len(b) == 12 * n * 4
 
     def test_frame_count_matches_librosa_expectation(self):
         duration_s = 1.0
         y = make_sine(440.0, duration_s)
-        _, n = chroma_feature(y, SR)
-        expected_n = int(np.ceil(len(y) / HOP))
+        hop = max(1, round(TARGET_SR / 50))
+        _, n, _ = chroma_feature(y, TARGET_SR)
+        expected_n = int(np.ceil(len(y) / hop))
         # Allow +-1 frame tolerance for rounding
         assert abs(n - expected_n) <= 1
 
     def test_output_is_row_major_float32(self):
         y = make_sine(440.0)
-        b, n = chroma_feature(y, SR)
+        b, n, _ = chroma_feature(y, TARGET_SR)
         floats = struct.unpack(f"<{12 * n}f", b)
-        # All values should be finite and in [0, 1] (L2-normalized columns)
+        # All values should be finite
         arr = np.array(floats, dtype=np.float32).reshape(12, n)
         assert np.all(np.isfinite(arr))
         # Column norms should be ~1.0 (L2-normalized)
@@ -53,10 +55,28 @@ class TestChromaFeature:
     def test_dominant_pitch_class_for_a440(self):
         # A440 = MIDI pitch 69, pitch class 9 (A)
         y = make_sine(440.0, 2.0)
-        b, n = chroma_feature(y, SR)
+        b, n, _ = chroma_feature(y, TARGET_SR)
         arr = np.frombuffer(b, dtype="<f4").reshape(12, n)
         dominant_pc = int(arr.mean(axis=1).argmax())
         assert dominant_pc == 9, f"Expected pitch class 9 (A), got {dominant_pc}"
+
+    def test_frame_rate_at_24khz(self):
+        # At 24000 Hz: hop = round(24000 / 50) = 480, frame_rate = 24000/480 = 50.0
+        y = make_sine(440.0, 1.0, sr=TARGET_SR)
+        _, _, rate = chroma_feature(y, TARGET_SR)
+        hop = max(1, round(TARGET_SR / 50))
+        expected_rate = TARGET_SR / hop
+        assert rate == pytest.approx(expected_rate), (
+            f"Expected frame_rate_hz={expected_rate}, got {rate}"
+        )
+
+    def test_frame_rate_at_22khz(self):
+        # At 22050 Hz: hop = round(22050 / 50) = 441, frame_rate = 22050/441 = 50.0
+        y = make_sine(440.0, 1.0, sr=_22K_SR)
+        _, _, rate = chroma_feature(y, _22K_SR)
+        hop = max(1, round(_22K_SR / 50))
+        expected_rate = _22K_SR / hop
+        assert rate == pytest.approx(expected_rate)
 
 
 class TestHandlerChromaIntegration:
@@ -65,13 +85,14 @@ class TestHandlerChromaIntegration:
     def test_handler_call_returns_chroma_fields(self, monkeypatch):
         """Invoke EndpointHandler().__call__ with a synthetic audio dict and assert
         that the returned response contains chroma_b64 (str), chroma_frames (int > 0),
-        and chroma_frame_rate_hz == 50.0. MuQ model loading is monkeypatched out so
-        the test runs without GPU."""
+        and chroma_frame_rate_hz at the value produced by TARGET_SR=24000.
+        MuQ model loading is monkeypatched out so the test runs without GPU."""
         import base64
         import handler as handler_module
         from handler import EndpointHandler
 
-        y_synth = make_sine(440.0, 1.0)  # 1s at 22050 Hz
+        # Use TARGET_SR (24000 Hz) to match the production audio path
+        y_synth = make_sine(440.0, 1.0, sr=TARGET_SR)
 
         h = EndpointHandler.__new__(EndpointHandler)
 
@@ -119,9 +140,14 @@ class TestHandlerChromaIntegration:
         assert "chroma_frame_rate_hz" in result, "handler response missing chroma_frame_rate_hz"
         assert isinstance(result["chroma_b64"], str), "chroma_b64 must be a str"
         assert result["chroma_frames"] > 0, "chroma_frames must be > 0"
-        assert result["chroma_frame_rate_hz"] == 50.0, (
-            f"chroma_frame_rate_hz must be 50.0, got {result['chroma_frame_rate_hz']}"
+
+        # At 24000 Hz: hop = round(24000/50) = 480, actual frame rate = 24000/480 = 50.0
+        hop = max(1, round(TARGET_SR / 50))
+        expected_rate = TARGET_SR / hop
+        assert result["chroma_frame_rate_hz"] == pytest.approx(expected_rate), (
+            f"chroma_frame_rate_hz expected {expected_rate}, got {result['chroma_frame_rate_hz']}"
         )
+
         n_frames = result["chroma_frames"]
         decoded = base64.b64decode(result["chroma_b64"])
         assert len(decoded) == 12 * n_frames * 4, (

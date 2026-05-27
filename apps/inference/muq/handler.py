@@ -30,7 +30,8 @@ from preprocessing.audio import (
     download_and_preprocess_audio,
     preprocess_audio_from_bytes,
 )
-from chroma import chroma_feature, SR as CHROMA_SR, FRAME_RATE_HZ as CHROMA_FRAME_RATE_HZ
+from chroma import chroma_feature
+from preprocessing.audio import TARGET_SR
 
 
 class EndpointHandler:
@@ -121,10 +122,9 @@ class EndpointHandler:
             audio, duration = self._load_audio(inputs, max_duration)
             print(f"Audio loaded: {duration:.1f}s")
 
-            # Compute chroma features for score following (50 Hz frame rate)
-            chroma_bytes, chroma_n_frames = chroma_feature(audio, sr=CHROMA_SR)
+            # Compute chroma features for score following (~50 Hz frame rate)
+            chroma_bytes, chroma_n_frames, chroma_frame_rate_hz = chroma_feature(audio, sr=TARGET_SR)
             chroma_b64 = base64.b64encode(chroma_bytes).decode("ascii")
-            chroma_frame_rate_hz = CHROMA_FRAME_RATE_HZ
 
             # Verify models are loaded
             if not self._cache.muq_model:
