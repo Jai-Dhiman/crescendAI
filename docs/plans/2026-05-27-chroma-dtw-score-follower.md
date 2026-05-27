@@ -1560,12 +1560,15 @@ git add apps/api/src/do/session-brain.ts apps/api/src/do/session-brain.schema.ts
 **Files:**
 - Modify: `apps/api/src/do/session-brain.unit.test.ts`
 
-Note: The existing test file already covers `buildV6WsPayload`. Add two describe blocks: one for `parseMuqResponse` chroma extraction, one for the `chunk_bar_map` DO message.
+Note: `session-brain.unit.test.ts` runs in the WORKERS pool (`vitest.config.ts`) — it imports from `session-brain.ts` which has `import { DurableObject } from "cloudflare:workers"`. Do NOT add this file to `vitest.node.config.ts`. Task 5 only adds `session-brain.schema.test.ts` (no Cloudflare imports) to the node pool. Step 2 and Step 4 below run against the default workers config.
+
+The existing test file already covers `buildV6WsPayload`. Add two describe blocks: one for `parseMuqResponse` chroma extraction, one for the `chunk_bar_map` DO message.
 
 - [ ] **Step 1: Write the failing tests** (append to existing `session-brain.unit.test.ts` after line 60):
 
 ```typescript
 import { parseMuqResponse } from "../services/inference";
+import { wsOutgoingMessageSchema } from "./session-brain.schema";
 
 describe("parseMuqResponse chroma extraction", () => {
 	it("returns chromaBytes=null when response has no chroma_b64", () => {
@@ -1631,7 +1634,7 @@ describe("chunk_bar_map WebSocket message", () => {
 		// sends after bar analysis completes when chromaResult !== null (Task 6 Step 2e).
 		// We construct the expected message shape and validate it against the schema,
 		// since the DO wiring itself is tested via TypeScript compile (tsc --noEmit in Task 6 Step 3).
-		const { wsOutgoingMessageSchema } = require("./session-brain.schema");
+		// wsOutgoingMessageSchema is imported at the top of the file (static ESM import).
 
 		const barMapMsg = {
 			type: "chunk_bar_map",
@@ -1657,28 +1660,27 @@ describe("chunk_bar_map WebSocket message", () => {
 - [ ] **Step 2: Run test — verify it FAILS**
 
 ```bash
-cd /Users/jdhiman/Documents/crescendai/apps/api && bun run vitest run --config vitest.node.config.ts src/do/session-brain.unit.test.ts 2>&1 | head -30
+cd /Users/jdhiman/Documents/crescendai/apps/api && bun run vitest run src/do/session-brain.unit.test.ts 2>&1 | head -30
 ```
 
-Expected: FAIL — `parseMuqResponse is not a function` (not yet imported) and `wsOutgoingMessageSchema.parse(barMapMsg)` throws because `chunk_bar_map` variant not yet in schema.
+Expected: FAIL — `parseMuqResponse is not a function` (not yet imported) and `wsOutgoingMessageSchema.parse(barMapMsg)` throws because `chunk_bar_map` variant not yet in schema. The file runs in the default workers pool (`vitest.config.ts`) because it imports from `session-brain.ts` which has `import { DurableObject } from "cloudflare:workers"` — it must NOT be run with `--config vitest.node.config.ts`.
 
-- [ ] **Step 3: The `parseMuqResponse` implementation is done in Task 4** and the `chunk_bar_map` schema variant is added in Task 6 Step 2e. Only the test import is needed in `session-brain.unit.test.ts`.
-
-Add to the top of `session-brain.unit.test.ts`:
+- [ ] **Step 3: The `parseMuqResponse` implementation is done in Task 4** and the `chunk_bar_map` schema variant is added in Task 6 Step 2e. The two static imports added to the top of `session-brain.unit.test.ts` in Step 1 are all that is needed here — no further changes to the test file.
 
 ```typescript
 import { parseMuqResponse } from "../services/inference";
+import { wsOutgoingMessageSchema } from "./session-brain.schema";
 ```
 
-The `wsOutgoingMessageSchema` import inside the test uses `require` so it picks up the schema after Task 6 modifies `session-brain.schema.ts` — no top-level import needed.
+Both are static ESM imports (the project is ESM; `require()` must not be used in vitest `.ts` files).
 
 - [ ] **Step 4: Run test — verify it PASSES**
 
 ```bash
-cd /Users/jdhiman/Documents/crescendai/apps/api && bun run vitest run --config vitest.node.config.ts src/do/session-brain.unit.test.ts 2>&1
+cd /Users/jdhiman/Documents/crescendai/apps/api && bun run vitest run src/do/session-brain.unit.test.ts 2>&1
 ```
 
-Expected: PASS — all existing tests plus three `parseMuqResponse` tests and one `chunk_bar_map` schema test pass.
+Expected: PASS — all existing tests plus three `parseMuqResponse` tests and one `chunk_bar_map` schema test pass. Uses the workers pool (default `vitest.config.ts`), not the node pool.
 
 - [ ] **Step 5: Commit**
 
