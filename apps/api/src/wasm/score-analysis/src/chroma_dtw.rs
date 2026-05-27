@@ -202,18 +202,21 @@ pub fn chroma_dtw_native(
 
     // path is (score_frame, audio_frame) pairs; build audio_frame -> score_frame map
     let mut audio_to_score = vec![0usize; n_a];
+    let mut frame_mapped = vec![false; n_a];
     for &(sf, af) in &path {
         if af < n_a {
             audio_to_score[af] = sf;
+            frame_mapped[af] = true;
         }
     }
-    // Fill gaps (path may not cover every audio frame)
+    // Fill gaps (path may not cover every audio frame); use frame_mapped to avoid
+    // treating valid score frame 0 as unmapped.
     let mut last_sf = path.first().map(|&(sf, _)| sf).unwrap_or(0);
     for af in 0..n_a {
-        if audio_to_score[af] == 0 && af > 0 {
-            audio_to_score[af] = last_sf;
-        } else {
+        if frame_mapped[af] {
             last_sf = audio_to_score[af];
+        } else {
+            audio_to_score[af] = last_sf;
         }
     }
 
@@ -302,5 +305,66 @@ mod tests {
         let result = chroma_dtw_native(&[], 0, &score_bars, 10.0, 2.0);
         assert!(result.is_err());
         assert_eq!(result.unwrap_err(), "n_audio is zero");
+    }
+
+    // Regression: gap-fill must not overwrite audio frames that legitimately map to score
+    // frame 0 (sf=0).  The old code used `audio_to_score[af] == 0` as a sentinel for
+    // "unmapped", which silently replaced valid sf=0 mappings with the previous non-zero
+    // score frame.  The fix uses a parallel `frame_mapped` Vec.
+    //
+    // Fixture: single-frame score (one C note at onset 0s), two audio frames both strongly
+    // matching C.  Subsequence DTW assigns both af=0 and af=1 to sf=0.  After gap-fill,
+    // bar_per_frame must reflect bar 1 (the only bar) for every decimated frame — not some
+    // stale non-zero value that would indicate sf=0 was wrongly overwritten.
+    #[test]
+    fn valid_score_frame_zero_not_overwritten_by_gap_fill() {
+        use crate::types::ScoreNote;
+
+        // Build a score bar with a single C4 note at onset 0s, duration 0.2s.
+        // At frame_rate=10 Hz this produces exactly 1 score chroma column (frame 0).
+        let c_note = ScoreNote {
+            pitch: 60, // C4, pitch class 0
+            pitch_name: "C4".to_string(),
+            velocity: 80,
+            onset_tick: 0,
+            onset_seconds: 0.0,
+            duration_ticks: 480,
+            duration_seconds: 0.2,
+            track: 0,
+        };
+        let bar = ScoreBar {
+            bar_number: 1,
+            start_tick: 0,
+            start_seconds: 0.0,
+            time_signature: "4/4".to_string(),
+            notes: vec![c_note],
+            pedal_events: vec![],
+            note_count: 1,
+            pitch_range: vec![60],
+            mean_velocity: 80,
+        };
+
+        // Audio chroma: 2 frames, both strongly C (pitch class 0).
+        // Row-major 12 x 2: pc=0 is row 0; all other rows near zero.
+        // Each column is L2-normalised so we set pc=0 to 1.0 and rest to 0.0.
+        let mut audio_f32 = vec![0.0_f32; 12 * 2];
+        audio_f32[0 * 2 + 0] = 1.0; // pc=0, af=0
+        audio_f32[0 * 2 + 1] = 1.0; // pc=0, af=1
+
+        // frame_rate=10 Hz, decim_hz=10 Hz (1:1 so bar_per_frame has 2 entries).
+        let result = chroma_dtw_native(&audio_f32, 2, &[bar], 10.0, 10.0);
+        assert!(result.is_ok(), "unexpected error: {:?}", result.err());
+        let bar_map = result.unwrap();
+
+        // Both audio frames map to sf=0 which belongs to bar 1.
+        // If the sentinel bug were present, the second frame could be overwritten to bar 0
+        // or an arbitrary stale value; bar 1 is the only valid answer here.
+        for (i, &b) in bar_map.bar_per_frame.iter().enumerate() {
+            assert_eq!(
+                b, 1,
+                "bar_per_frame[{}] = {} but expected 1 (sf=0 belongs to bar 1)",
+                i, b
+            );
+        }
     }
 }
