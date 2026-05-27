@@ -10,6 +10,7 @@ export default defineConfig({
 			"src/lib/**/*.test.ts",
 			"src/harness/loop/**/*.test.ts",
 			"src/services/**/*.test.ts",
+			"src/do/session-brain.schema.test.ts",  // explicit entry; do NOT use src/do/**/*.test.ts glob
 		],
 		globalSetup: ["./scripts/test-setup-node.ts"],
 	},

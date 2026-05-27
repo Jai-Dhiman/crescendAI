@@ -30,11 +30,6 @@ export const sessionStateSchema = z.object({
 		})
 		.nullable()
 		.default(null),
-	followerState: z
-		.object({
-			lastKnownBar: z.number().int().nullable(),
-		})
-		.default({ lastKnownBar: null }),
 	modeDetector: z.unknown().default(null),
 	identificationNoteCount: z.number().int().default(0),
 	activeAssignment: z
@@ -136,7 +131,6 @@ export function createInitialState(
 		scoredChunks: [],
 		pieceLocked: false,
 		pieceIdentification: null,
-		followerState: { lastKnownBar: null },
 		modeDetector: null,
 		identificationNoteCount: 0,
 		activeAssignment: null,
