@@ -625,8 +625,10 @@ export class SessionBrain extends DurableObject<Bindings> {
 					}
 
 					// Tier 2 analysis (note-level; Tier 1 expression analysis deferred until AMT redeploy)
-					const analysis2 = wasm.analyzeTier2(perfNotes, perfPedal, scoresArray);
-					if (chunkAnalysisTier === 3) {
+					// Only invoke when chroma alignment failed; if chroma succeeded, tier is already
+					// promoted to 1 and bar_range is already set from chromaResult.
+					if (chromaResult === null) {
+						const analysis2 = wasm.analyzeTier2(perfNotes, perfPedal, scoresArray);
 						chunkAnalysisTier = analysis2.tier;
 						const barStr = analysis2.bar_range;
 						if (barStr !== null) {
