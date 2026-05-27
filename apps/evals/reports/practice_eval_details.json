@@ -1,11 +1,41 @@
 {
-  "stop_data": [],
   "piece_id_data": [],
   "teaching_moment_data": [],
-  "mode_detection_data": [],
+  "mode_detection_data": [
+    {
+      "transition_count": 0,
+      "drilling_episodes": 0,
+      "total_chunks": 2,
+      "chunks_with_audio": 0,
+      "spurious_transitions": 0,
+      "video_id": "E-MoLWi6aqo"
+    }
+  ],
   "score_following_data": [],
   "synthesis_judge_results": [],
   "exercise_data": [],
-  "pass_a_syntheses": [],
-  "efficiency_data": []
+  "pass_a_syntheses": [
+    {
+      "video_id": "E-MoLWi6aqo",
+      "piece": "bach_invention_1",
+      "skill_level": 1,
+      "is_fallback": false
+    }
+  ],
+  "efficiency_data": [
+    {
+      "video_id": "E-MoLWi6aqo",
+      "pass": "A",
+      "duration_ms": 365,
+      "chunk_send_ms": 46,
+      "synthesis_latency_ms": 28
+    },
+    {
+      "video_id": "E-MoLWi6aqo",
+      "pass": "B",
+      "duration_ms": 112,
+      "chunk_send_ms": 32,
+      "synthesis_latency_ms": 14
+    }
+  ]
 }

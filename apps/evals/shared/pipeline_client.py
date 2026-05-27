@@ -78,7 +78,7 @@ def _get_debug_auth(wrangler_url: str) -> requests.Session:
         session.headers["Authorization"] = f"Bearer {token}"
 
     # Verify the token actually works before returning
-    verify = session.get(f"{wrangler_url}/api/auth/me", timeout=5)
+    verify = session.get(f"{wrangler_url}/api/auth/get-session", timeout=5)
     if verify.status_code != 200:
         raise RuntimeError(f"Auth verification failed: {verify.status_code} {verify.text}")
 
@@ -136,7 +136,7 @@ async def run_recording(
             json={},
             timeout=10,
         )
-    if resp.status_code != 200:
+    if resp.status_code not in (200, 201):
         return SessionResult(
             session_id="",
             recording_id=recording_id,

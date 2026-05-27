@@ -83,7 +83,16 @@ class EvalReport:
     def save(self, path: str | Path) -> None:
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(self.to_json(), indent=2) + "\n")
+
+        def _encode(o: Any) -> Any:
+            # numpy scalars (bool_, int64, float64) expose .item()
+            if hasattr(o, "item"):
+                return o.item()
+            if isinstance(o, (set, tuple)):
+                return list(o)
+            raise TypeError(f"Object of type {type(o).__name__} is not JSON serializable")
+
+        path.write_text(json.dumps(self.to_json(), indent=2, default=_encode) + "\n")
 
     def print_summary(self) -> None:
         header = f"{'Metric':<30} {'Value':>10} {'Gate':>10} {'Status':>8}"

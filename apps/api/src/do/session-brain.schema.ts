@@ -49,6 +49,7 @@ export const sessionStateSchema = z.object({
 		})
 		.nullable()
 		.default(null),
+	isEvalSession: z.boolean().default(false),
 });
 
 export type SessionState = z.infer<typeof sessionStateSchema>;
@@ -69,15 +70,48 @@ export const wsSetPieceSchema = z.object({
 	query: z.string(),
 });
 
+export const wsEvalChunkSchema = z.object({
+	type: z.literal("eval_chunk"),
+	chunk_index: z.number().int(),
+	predictions: z.object({
+		dynamics: z.number(),
+		timing: z.number(),
+		pedaling: z.number(),
+		articulation: z.number(),
+		phrasing: z.number(),
+		interpretation: z.number(),
+	}),
+	midi_notes: z
+		.array(
+			z.object({
+				pitch: z.number().int(),
+				onset: z.number(),
+				offset: z.number(),
+				velocity: z.number(),
+			}),
+		)
+		.default([]),
+	pedal_events: z
+		.array(
+			z.object({
+				time: z.number(),
+				value: z.number(),
+			}),
+		)
+		.default([]),
+});
+
 export const wsIncomingMessageSchema = z.discriminatedUnion("type", [
 	wsChunkReadySchema,
 	wsEndSessionSchema,
 	wsSetPieceSchema,
+	wsEvalChunkSchema,
 ]);
 
 export type WsChunkReady = z.infer<typeof wsChunkReadySchema>;
 export type WsEndSession = z.infer<typeof wsEndSessionSchema>;
 export type WsSetPiece = z.infer<typeof wsSetPieceSchema>;
+export type WsEvalChunk = z.infer<typeof wsEvalChunkSchema>;
 export type WsIncomingMessage = z.infer<typeof wsIncomingMessageSchema>;
 
 /** Helper to create initial state */
@@ -106,5 +140,6 @@ export function createInitialState(
 		modeDetector: null,
 		identificationNoteCount: 0,
 		activeAssignment: null,
+		isEvalSession: false,
 	};
 }

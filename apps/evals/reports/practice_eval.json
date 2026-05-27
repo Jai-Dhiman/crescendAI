@@ -1,20 +1,30 @@
 {
   "eval_name": "synthesis_eval",
   "eval_version": "1.0",
-  "dataset": "practice_8",
+  "dataset": "practice_1",
   "metrics": {},
   "worst_cases": [],
   "cost": {
-    "judge_calls": 16,
-    "estimated_usd": 0.05
+    "judge_calls": 0,
+    "estimated_usd": 0.0
   },
   "metadata": {
-    "git_sha": "3514e72b90ecf53eacac9bf463a4527bf4b2d0ee",
+    "git_sha": "3156b98d3453c6977b9e9a5cd54070e0db97e2e0",
     "git_dirty": true,
-    "total_recordings": 8,
+    "total_recordings": 1,
     "capabilities_judged": [
-      "stop"
+      "teaching_moments"
     ],
+    "mode_detection": {
+      "sessions_with_drilling": 0,
+      "total_sessions": 1,
+      "mean_transitions_per_session": 0.0,
+      "mean_spurious_per_session": 0.0
+    },
+    "efficiency": {
+      "mean_synthesis_latency_ms": 21,
+      "p90_synthesis_latency_ms": 28
+    },
     "inference_cache_fingerprints": [
       "auto-t5_http"
     ]

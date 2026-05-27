@@ -219,6 +219,7 @@ export class SessionBrain extends DurableObject<Bindings> {
 		}
 
 		// Persist identity on first connect (idempotent: only write if not present)
+		const isEvalSession = url.searchParams.get("eval") === "true";
 		const existing = await this.ctx.storage.get<SessionState>("state");
 		if (!existing) {
 			const initialState = createInitialState(
@@ -226,6 +227,7 @@ export class SessionBrain extends DurableObject<Bindings> {
 				studentId,
 				conversationId,
 			);
+			initialState.isEvalSession = isEvalSession;
 			await this.ctx.storage.put("state", initialState);
 
 			// Create session row in DB (marks session as open, sets needsSynthesis=true)
@@ -338,6 +340,9 @@ export class SessionBrain extends DurableObject<Bindings> {
 		switch (msg.type) {
 			case "chunk_ready":
 				await this.handleChunkReady(ws, msg.index, msg.r2Key);
+				break;
+			case "eval_chunk":
+				await this.handleEvalChunk(ws, msg.chunk_index, msg.predictions, msg.midi_notes, msg.pedal_events);
 				break;
 			case "end_session":
 				await this.handleEndSession();
@@ -1009,6 +1014,256 @@ export class SessionBrain extends DurableObject<Bindings> {
 		await this.ctx.storage.setAlarm(Date.now() + this.ALARM_DURATION_MS);
 	}
 
+	// ─── Eval Chunk (bypass HF inference, feed cached results into accumulation path) ───
+
+	private async handleEvalChunk(
+		ws: WebSocket,
+		index: number,
+		predictions: {
+			dynamics: number;
+			timing: number;
+			pedaling: number;
+			articulation: number;
+			phrasing: number;
+			interpretation: number;
+		},
+		midiNotes: PerfNote[],
+		pedalEvents: PerfPedalEvent[],
+	): Promise<void> {
+		const state = await this.readState();
+
+		// Cache format already uses PerfNote/PerfPedalEvent shapes (seconds, onset/offset/time)
+		const muqScores = predictions;
+		const scoresArray: [number, number, number, number, number, number] = [
+			muqScores.dynamics,
+			muqScores.timing,
+			muqScores.pedaling,
+			muqScores.articulation,
+			muqScores.phrasing,
+			muqScores.interpretation,
+		];
+
+		const perfNotes: PerfNote[] = midiNotes;
+		const perfPedal: PerfPedalEvent[] = pedalEvents;
+
+		// Persist score immediately (before sendWs) so handleEndSession sees it
+		// even if wrangler dev processes end_session before writeState completes.
+		state.scoredChunks.push({ chunkIndex: index, scores: scoresArray });
+		await this.ctx.storage.put(`eval_score:${index}`, scoresArray);
+
+		// Send chunk_processed
+		this.sendWs(ws, {
+			type: "chunk_processed",
+			index,
+			scores: muqScores,
+		});
+
+		// Bar analysis (same WASM path as real chunks)
+		let chunkAnalysisTier = 3;
+		let chunkBarRange: [number, number] | null = null;
+		let barMapAlignments: import("../services/wasm-bridge").NoteAlignment[] = [];
+
+		if (perfNotes.length > 0) {
+			try {
+				const scoreCtx = state.pieceIdentification
+					? await this.loadScoreContext(state.pieceIdentification.pieceId)
+					: null;
+
+				if (scoreCtx !== null) {
+					const followerState: FollowerState = {
+						last_known_bar: state.followerState.lastKnownBar,
+					};
+					const alignResult = wasm.alignChunk(index, perfNotes, scoreCtx.score.bars, followerState);
+					state.followerState.lastKnownBar = alignResult.state.last_known_bar;
+
+					if (alignResult.bar_map !== null) {
+						barMapAlignments = alignResult.bar_map.alignments;
+						const analysis = wasm.analyzeTier1(alignResult.bar_map, perfNotes, perfPedal, scoresArray, scoreCtx);
+						chunkAnalysisTier = analysis.tier;
+						const barStr = analysis.bar_range;
+						if (barStr !== null) {
+							const parts = barStr.split("-").map(Number);
+							if (parts.length === 2 && parts[0] !== undefined && parts[1] !== undefined) {
+								chunkBarRange = [parts[0], parts[1]];
+							}
+						}
+					} else {
+						const analysis = wasm.analyzeTier2(perfNotes, perfPedal, scoresArray);
+						chunkAnalysisTier = analysis.tier;
+						const barStr = analysis.bar_range;
+						if (barStr !== null) {
+							const parts = barStr.split("-").map(Number);
+							if (parts.length === 2 && parts[0] !== undefined && parts[1] !== undefined) {
+								chunkBarRange = [parts[0], parts[1]];
+							}
+						}
+					}
+				} else {
+					const analysis = wasm.analyzeTier2(perfNotes, perfPedal, scoresArray);
+					chunkAnalysisTier = analysis.tier;
+					const barStr = analysis.bar_range;
+					if (barStr !== null) {
+						const parts = barStr.split("-").map(Number);
+						if (parts.length === 2 && parts[0] !== undefined && parts[1] !== undefined) {
+							chunkBarRange = [parts[0], parts[1]];
+						}
+					}
+				}
+			} catch {
+				// WASM unavailable — Tier 3 fallback
+			}
+		}
+
+		// Store enriched chunk
+		try {
+			const enriched = toEnrichedChunk(index, scoresArray as unknown as number[], perfNotes, perfPedal, barMapAlignments, chunkBarRange);
+			await this.ctx.storage.put(`chunk_enriched:${index}`, enriched);
+		} catch {
+			// Non-fatal
+		}
+
+		// Load baselines (one-time DB query)
+		if (!state.baselinesLoaded) {
+			try {
+				const db = createDb(this.env.HYPERDRIVE);
+				const loaded = await loadBaselinesFromDb(db, state.studentId);
+				state.baselines =
+					loaded !== null
+						? (Object.fromEntries(DIMS_6.map((d) => [d, (loaded as Record<string, number>)[d] ?? 0])) as Record<string, number>)
+						: null;
+				state.baselinesLoaded = true;
+			} catch {
+				// Not fatal
+			}
+		}
+
+		// Update ModeDetector
+		const acc = SessionAccumulator.fromJSON(state.accumulator);
+		const modeDetector =
+			state.modeDetector !== null ? ModeDetector.fromJSON(state.modeDetector) : new ModeDetector();
+
+		const pitchBigrams = new Set<string>();
+		for (let i = 0; i < perfNotes.length - 1; i++) {
+			const n1 = perfNotes[i];
+			const n2 = perfNotes[i + 1];
+			if (n1 !== undefined && n2 !== undefined) {
+				pitchBigrams.add(`${n1.pitch},${n2.pitch}`);
+			}
+		}
+
+		const chunkSignal: ChunkSignal = {
+			chunkIndex: index,
+			timestampMs: Date.now(),
+			barRange: chunkBarRange,
+			pitchBigrams,
+			hasPieceMatch: state.pieceLocked,
+			barsProgressing: false,
+			scores: scoresArray,
+		};
+
+		const modeTransitions = modeDetector.update(chunkSignal);
+		for (const transition of modeTransitions) {
+			this.sendWs(ws, {
+				type: "mode_change",
+				mode: transition.to,
+				chunkIndex: transition.chunkIndex,
+				context: `${transition.from} -> ${transition.to} after ${Math.round(transition.dwellMs / 1000)}s`,
+			});
+		}
+
+		for (const transition of modeTransitions) {
+			acc.accumulateModeTransition({
+				from: transition.from,
+				to: transition.to,
+				chunkIndex: transition.chunkIndex,
+				timestampMs: transition.timestampMs,
+				dwellMs: transition.dwellMs,
+			});
+
+			if (transition.from === "drilling") {
+				const dp = modeDetector.takeDrillingPassage();
+				if (dp !== null) {
+					acc.accumulateDrillingRecord({
+						barRange: dp.barRange,
+						repetitionCount: dp.repetitionCount,
+						firstScores: dp.firstScores,
+						finalScores: scoresArray,
+						startedAtChunk: dp.startedAtChunk,
+						endedAtChunk: index,
+					});
+				}
+			}
+		}
+
+		acc.accumulateTimelineEvent({
+			chunkIndex: index,
+			timestampMs: Date.now(),
+			hasAudio: perfNotes.length > 0,
+		});
+
+		// Teaching moment selection (every TEACHING_MOMENT_INTERVAL chunks)
+		const chunkCount = state.scoredChunks.length;
+		const shouldAttemptMoment = chunkCount >= 2 && chunkCount % TEACHING_MOMENT_INTERVAL === 0;
+
+		if (shouldAttemptMoment && state.baselines !== null) {
+			try {
+				const baselines: StudentBaselines = {
+					dynamics: (state.baselines as Record<string, number>)["dynamics"] ?? 0,
+					timing: (state.baselines as Record<string, number>)["timing"] ?? 0,
+					pedaling: (state.baselines as Record<string, number>)["pedaling"] ?? 0,
+					articulation: (state.baselines as Record<string, number>)["articulation"] ?? 0,
+					phrasing: (state.baselines as Record<string, number>)["phrasing"] ?? 0,
+					interpretation: (state.baselines as Record<string, number>)["interpretation"] ?? 0,
+				};
+
+				const wasmChunks: ScoredChunk[] = state.scoredChunks.map((c) => ({
+					chunk_index: c.chunkIndex,
+					scores: c.scores as [number, number, number, number, number, number],
+				}));
+
+				const recentObs = acc.teachingMoments.slice(-3).map((m) => ({ dimension: m.dimension }));
+				const moment = wasm.selectTeachingMoment(wasmChunks, baselines, recentObs);
+
+				if (moment !== null) {
+					const momentDim = moment.dimension as Dimension;
+					const accMoment = {
+						chunkIndex: moment.chunk_index,
+						dimension: momentDim,
+						score: moment.score,
+						baseline: moment.baseline,
+						deviation: moment.deviation,
+						isPositive: moment.is_positive,
+						reasoning: moment.reasoning,
+						barRange: chunkBarRange,
+						analysisTier: chunkAnalysisTier,
+						timestampMs: Date.now(),
+						llmAnalysis: null,
+					};
+					acc.accumulateMoment(accMoment);
+
+					const obsText = moment.is_positive
+						? `Nice work on your ${moment.dimension}.`
+						: `I'm noticing something in your ${moment.dimension} -- let's talk after.`;
+
+					this.sendWs(ws, {
+						type: "observation",
+						text: obsText,
+						dimension: moment.dimension,
+						framing: moment.is_positive ? "recognition" : "correction",
+					});
+				}
+			} catch {
+				// WASM unavailable
+			}
+		}
+
+		// Persist updated state
+		state.accumulator = acc.toJSON();
+		state.modeDetector = modeDetector.toJSON();
+		state.version++;
+		await this.writeState(state);
+	}
+
 	// ─── Session End ──────────────────────────────────────────────────────────
 
 	private async handleEndSession(): Promise<void> {
@@ -1017,7 +1272,40 @@ export class SessionBrain extends DurableObject<Bindings> {
 		state.version++;
 		await this.writeState(state);
 
-		// If no chunks currently processing, trigger synthesis immediately
+		// Eval mode: respond immediately with accumulator state, skip LLM synthesis
+		if (state.isEvalSession) {
+			const acc = SessionAccumulator.fromJSON(state.accumulator);
+			// Read scores from per-chunk keys (robust against wrangler dev serialization gaps)
+			const evalScoreMap = await this.ctx.storage.list<number[]>({ prefix: "eval_score:" });
+			const scoredChunks = Array.from(evalScoreMap.entries())
+				.sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }))
+				.map(([, scores]) => ({ scores }));
+			const evalContext = {
+				scored_chunks: scoredChunks.length > 0 ? scoredChunks : state.scoredChunks.map((c) => ({ scores: c.scores })),
+				teaching_moments: acc.teachingMoments,
+				baselines: state.baselines ?? {},
+				mode_transitions: acc.modeTransitions,
+				drilling_records: acc.drillingRecords,
+				timeline: acc.timeline,
+			};
+			const sockets = this.ctx.getWebSockets();
+			for (const sock of sockets) {
+				this.sendWs(sock, {
+					type: "synthesis",
+					text: "",
+					components: [],
+					isFallback: false,
+					eval_context: evalContext,
+				});
+			}
+			// Mark synthesis done so alarm only finalizes (no LLM call)
+			const latestState = await this.readState();
+			latestState.synthesisCompleted = true;
+			latestState.version++;
+			await this.writeState(latestState);
+		}
+
+		// If no chunks currently processing, trigger synthesis/finalize immediately
 		if (state.chunksInFlight === 0) {
 			await this.ctx.storage.setAlarm(Date.now() + 1);
 		}
@@ -1053,6 +1341,29 @@ export class SessionBrain extends DurableObject<Bindings> {
 				? (acc.timeline[acc.timeline.length - 1]?.timestampMs ?? 0) -
 					(acc.timeline[0]?.timestampMs ?? 0)
 				: 0;
+
+		// Eval shortcut: skip LLM entirely; send accumulator state as eval_context
+		if (state.isEvalSession) {
+			const evalContext = {
+				scored_chunks: state.scoredChunks.map((c) => ({ scores: c.scores })),
+				teaching_moments: acc.teachingMoments,
+				baselines: state.baselines ?? {},
+				mode_transitions: acc.modeTransitions,
+				drilling_records: acc.drillingRecords,
+				timeline: acc.timeline,
+			};
+			const sockets = this.ctx.getWebSockets();
+			for (const sock of sockets) {
+				this.sendWs(sock, {
+					type: "synthesis",
+					text: "",
+					components: [],
+					isFallback: false,
+					eval_context: evalContext,
+				});
+			}
+			return;
+		}
 
 		const pieceCtx =
 			state.pieceIdentification !== null
