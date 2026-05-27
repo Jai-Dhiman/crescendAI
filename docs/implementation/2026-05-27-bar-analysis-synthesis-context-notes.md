@@ -51,3 +51,25 @@ Tier-1 (mapped) coverage in the eval cache is therefore ~4/17 piece slugs.
 ## Task 12 — DEFERRED
 
 Per scope override from the operator, Task 12 (the multi-hour full 513-recording eval lift verification) was NOT executed. It is a measurement gate, not an implementation task, and will be handled separately after /review by the operator. Branch is ready for /review independent of Task 12.
+
+## Follow-up: reasoning_trace format audit
+
+The `observations.reasoning_trace` column is now polymorphic:
+- When `AccumulatedMoment.llmAnalysis` is null: free-form prose (existing behavior, e.g. "timing scored 0.42 vs baseline 0.50").
+- When `AccumulatedMoment.llmAnalysis` is non-null: JSON-encoded `BarAnalysisFacts` (new behavior, e.g. `{"selected":{"dimension":"timing",...}}`).
+
+Downstream readers that treat `reasoning_trace` as prose will start seeing serialized JSON for new observations once bar analysis is wired in production.
+
+**Action required before this ships to production users:** Audit downstream consumers of `observations.reasoning_trace`:
+- Chat history rendering (if it surfaces past observations to the student)
+- Analytics dashboards
+- Teacher-finetune data pipeline (`apps/evals/teacher_model/stage1/` and `cpt_pipeline/`)
+- Any export/admin tooling
+
+If any consumer renders the column as prose, choose one:
+- (a) Wrap as a discriminated union: `{ "kind": "facts", ...BarAnalysisFacts } | { "kind": "prose", "text": string }`
+- (b) Move structured facts to a new dedicated column (e.g. `observations.bar_analysis_json`) and keep `reasoning_trace` prose-only.
+
+Option (b) is structurally cleaner but adds a migration. Option (a) preserves the schema at the cost of a JSON sniff at read sites.
+
+Eval harness reads `observations` indirectly (recomputed per run), so this audit is production-deploy-gated, not merge-gated.
