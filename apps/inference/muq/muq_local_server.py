@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import sys
 import argparse
+import base64
 import os
 import time
 import traceback
@@ -44,7 +45,9 @@ from fastapi.responses import JSONResponse
 from constants import MODEL_INFO, PERCEPIANO_DIMENSIONS
 from models.inference import extract_muq_embeddings, predict_with_ensemble
 from models.loader import ModelCache, get_model_cache
-from preprocessing.audio import preprocess_audio_from_bytes
+from preprocessing.audio import TARGET_SR, preprocess_audio_from_bytes
+
+from chroma import chroma_feature
 
 DEFAULT_CHECKPOINT_DIR = str(
     Path(__file__).resolve().parents[3]
@@ -109,6 +112,9 @@ async def inference(request: Request):
         audio, duration = preprocess_audio_from_bytes(audio_bytes, max_duration=300)
         print(f"[MuQ] Audio: {duration:.1f}s")
 
+        chroma_bytes, chroma_n_frames, chroma_frame_rate_hz = chroma_feature(audio, sr=TARGET_SR)
+        chroma_b64 = base64.b64encode(chroma_bytes).decode("ascii")
+
         embeddings = extract_muq_embeddings(audio, _model_cache)
         predictions = predict_with_ensemble(embeddings, _model_cache)
         pred_dict = {
@@ -128,6 +134,9 @@ async def inference(request: Request):
             },
             "audio_duration_seconds": duration,
             "processing_time_ms": processing_time_ms,
+            "chroma_b64": chroma_b64,
+            "chroma_frames": chroma_n_frames,
+            "chroma_frame_rate_hz": chroma_frame_rate_hz,
         }
 
         print(f"[MuQ] Done in {processing_time_ms}ms")
