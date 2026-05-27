@@ -494,21 +494,28 @@ export function ProofCard({ manifest, cardIndex }: ProofCardProps) {
     };
   }, [cardIndex, setCurrentTime]);
 
-  // ScoreCursor — instantiate and start when scoreIR and score container are ready.
-  // qstampSource is baked into the constructor and called each rAF tick by ScoreCursor.
+  // ScoreCursor — instantiate once when scoreIR loads; the rAF loop reads audio
+  // position live on every tick via audioRef.current so currentTime state never
+  // needs to be in the dependency array (adding it would destroy/recreate the
+  // cursor at ~4Hz, cancelling the rAF before it can self-reschedule).
+  const cursorQstampSource = useCallback(() => {
+    const t = audioRef.current?.currentTime ?? 0;
+    return qstampForTime(t) ?? 0;
+  }, [qstampForTime]);
+
   useEffect(() => {
     if (scoreIR === null || scoreContainerRef.current === null) return;
     const cursor = new ScoreCursor({
       pieceId: manifest.pieceId,
       container: scoreContainerRef.current,
       ir: scoreIR,
-      qstampSource: () => qstampForTime(currentTime) ?? 0,
+      qstampSource: cursorQstampSource,
     });
     cursor.start();
     return () => {
       cursor.stop();
     };
-  }, [scoreIR, currentTime, qstampForTime, manifest.pieceId]);
+  }, [scoreIR, manifest.pieceId, cursorQstampSource]);
 
   // Keyboard navigation: Tab cycles bars, Enter opens chip, Escape closes
   const barNumbers = Object.keys(manifest.perBarScores).map(Number).sort((a, b) => a - b);
@@ -1343,6 +1350,25 @@ describe("ProofCard ScoreCursor integration", () => {
     unmount();
     expect(mockStop).toHaveBeenCalled();
   });
+
+  it("does NOT recreate ScoreCursor on audio timeupdate events — constructor called exactly once", async () => {
+    const { ProofCard } = await import("./ProofCard");
+    render(React.createElement(ProofCard, { manifest: FIXTURE_MANIFEST, cardIndex: 0 }));
+
+    // Wait for scoreIR to load and cursor to be instantiated once
+    await waitFor(() => {
+      expect(vi.mocked(ScoreCursor)).toHaveBeenCalledTimes(1);
+    });
+
+    // Simulate two consecutive timeupdate events (fires at ~4Hz during playback)
+    const audioEl = document.querySelector("audio");
+    expect(audioEl).not.toBeNull();
+    audioEl!.dispatchEvent(new Event("timeupdate"));
+    audioEl!.dispatchEvent(new Event("timeupdate"));
+
+    // Constructor must still have been called exactly once — cursor is NOT torn down and recreated
+    expect(vi.mocked(ScoreCursor)).toHaveBeenCalledTimes(1);
+  });
 });
 ```
 
@@ -1358,21 +1384,28 @@ Expected: FAIL — `ScoreCursor` constructor call mismatch until Task 1's ProofC
 The ScoreCursor `useEffect` is already included in the Task 1 ProofCard.tsx implementation snippet (see Task 1, Step 3). Confirm the constructor call uses the options object:
 
 ```typescript
-// In ProofCard.tsx — confirm this useEffect block is present:
+// In ProofCard.tsx — confirm this useCallback + useEffect block is present:
+const cursorQstampSource = useCallback(() => {
+  const t = audioRef.current?.currentTime ?? 0;
+  return qstampForTime(t) ?? 0;
+}, [qstampForTime]);
+
 useEffect(() => {
   if (scoreIR === null || scoreContainerRef.current === null) return;
   const cursor = new ScoreCursor({
     pieceId: manifest.pieceId,
     container: scoreContainerRef.current,
     ir: scoreIR,
-    qstampSource: () => qstampForTime(currentTime) ?? 0,
+    qstampSource: cursorQstampSource,
   });
   cursor.start();
   return () => {
     cursor.stop();
   };
-}, [scoreIR, currentTime, qstampForTime, manifest.pieceId]);
+}, [scoreIR, manifest.pieceId, cursorQstampSource]);
 ```
+
+Note: `currentTime` is intentionally absent from the `useEffect` deps. The cursor reads audio position live from `audioRef.current.currentTime` on every rAF tick via `cursorQstampSource`, so React state updates at ~4Hz do not retrigger the effect. Adding `currentTime` to deps would destroy and recreate the cursor on every `timeupdate` event, which fires the cleanup (`cursor.stop()`) before the single RAF scheduled by `cursor.start()` can run its first tick.
 
 No additional code changes needed if Task 1 is implemented correctly.
 
@@ -2918,3 +2951,77 @@ The file collision is still present: Tasks 2, 3, 4, Task 4.5, and 9 (in Group C)
 [QUESTION] count: 0
 
 VERDICT: NEEDS_REWORK — Five blockers remain: (1) `ScoreCursor` constructor called with wrong positional args — must use options object `{ pieceId, container, ir, qstampSource }`; (2) `qstampForTime` returns bar number not quaternote position — ScoreCursor will position cursor at wrong bar; (3) `React.RefObject` used without import in `useProofCardTimeline.test.ts` line 1551; (4) `vi.mock` inside `beforeEach` in Task 4.5 is silently ignored by Vitest — must be module-level; (5) Group B parallel file collision on `ProofCard.test.tsx` unchanged from Loop 1.
+
+---
+
+## Challenge Review (Loop 3 — 2026-05-27)
+
+> Re-reviewed after plan edits addressing all five Loop 2 blockers. Read all source files before forming opinions.
+
+### Status of Prior Blockers
+
+**Prior Blocker 1 (ScoreCursor constructor signature):** FIXED. `ProofCard.tsx` line 501–507 now calls `new ScoreCursor({ pieceId: manifest.pieceId, container: scoreContainerRef.current, ir: scoreIR, qstampSource: () => qstampForTime(currentTime) ?? 0 })` and `cursor.start()` with no args. Verified against `apps/web/src/lib/score-cursor.ts` lines 5–27.
+
+**Prior Blocker 2 (qstampForTime returns bar number not qstamp):** FIXED. Both the stub (line 681–730) and full implementation (line 1929–1982) now look up `barIR.qstampStart` from `ScoreIR.bars` and return it. When `scoreIR` is null, returns `null`. Test cases in Task 8 verify `qstampForTime(14.0)` returns `12` (the qstampStart of bar 4), not `4`.
+
+**Prior Blocker 3 (React.RefObject in test file):** FIXED. `useProofCardTimeline.test.ts` line 1837 now has `import type { RefObject } from "react"` and all audioRef declarations use `RefObject<HTMLAudioElement | null>`.
+
+**Prior Blocker 4 (vi.mock inside beforeEach):** FIXED. Task 4.5 test file (`ProofCard.cursor.test.tsx`) now has `vi.mock("../lib/score-cursor", ...)` at module top-level (lines 1227–1230) with the comment "vi.mock must be at module top-level so Vitest's hoisting applies". The per-test mock configuration is correctly in `beforeEach` via `vi.mocked(ScoreCursor).mockImplementation(...)`.
+
+**Prior Blocker 5 (Group B parallel file collision):** FIXED. Task group header (line 15–16) now explicitly states "Group B tasks each use their own separate test file — they do NOT append to ProofCard.test.tsx" and "each task owns its own separate test file (no shared file writes)". Verified: Tasks 2, 3, 4, and 4.5 each create their own test file: `ProofCard.autoplay.test.tsx`, `ProofCard.degradation.test.tsx`, `ProofCard.audio-degradation.test.tsx`, `ProofCard.cursor.test.tsx`.
+
+---
+
+### New Finding
+
+**[BLOCKER] (confidence: 10/10)** — ScoreCursor is torn down and recreated on every audio `timeupdate` event (~4Hz), making the cursor effectively non-functional. Verified by reading both the plan's ProofCard.tsx and `apps/web/src/lib/score-cursor.ts`.
+
+Root cause: The ScoreCursor `useEffect` in ProofCard.tsx has `[scoreIR, currentTime, qstampForTime, manifest.pieceId]` as its dependency array (line 511). `currentTime` is React state updated by `audio.ontimeupdate` at ~4Hz. Every state change triggers the effect cleanup (`cursor.stop()` → `unmountOverlays()`) followed by a new effect run (`new ScoreCursor(...)` → `cursor.start()` → `mountOverlays()`). `ScoreCursor.start()` calls `requestAnimationFrame(this.tick)` — but the cleanup fires on the next render (~250ms later) before the RAF tick can run. The cursor's line element is appended and removed from the DOM at 4Hz, never actually advancing.
+
+Additionally, `qstampForTime` is stable (`useCallback` with `[]` deps) and reads current values from `barTimelineRef.current` and `scoreIRRef.current` — it does not need `currentTime` passed as a closure capture. The `qstampSource` lambda should call `qstampForTime` with a live read from the audio element, not from stale React state.
+
+Fix: Change the ScoreCursor `useEffect` in `ProofCard.tsx`:
+1. Remove `currentTime` from the dependency array. The cursor is created once when `scoreIR` loads and runs its own RAF loop — it should not be recreated on time changes.
+2. Change `qstampSource` to read directly from the audio ref: `qstampSource: () => qstampForTime(audioRef.current?.currentTime ?? 0) ?? null`
+3. Corrected effect:
+
+```typescript
+useEffect(() => {
+  if (scoreIR === null || scoreContainerRef.current === null) return;
+  const cursor = new ScoreCursor({
+    pieceId: manifest.pieceId,
+    container: scoreContainerRef.current,
+    ir: scoreIR,
+    qstampSource: () => qstampForTime(audioRef.current?.currentTime ?? 0) ?? null,
+  });
+  cursor.start();
+  return () => {
+    cursor.stop();
+  };
+}, [scoreIR, qstampForTime, manifest.pieceId]);
+```
+
+This creates the cursor once per scoreIR load and lets its internal RAF loop read live time. Note: `qstampSource` returning `null` (when no bar matches) is handled by `ScoreCursor.tick()` — it calls `hideAll()` and continues the RAF loop.
+
+The Task 4.5 test's `qstampSource` assertion ("returns qstampStart=0 (bar 1) at t=0") will still pass because `qstampForTime(0)` is called with the audio ref's `currentTime` (0 at render time).
+
+---
+
+### Presumption Inventory (Loop 3)
+
+| Assumption | Verdict | Reason |
+|---|---|---|
+| All five Loop 2 blockers resolved | VALIDATED | All five confirmed fixed by reading the plan's implementation sections |
+| ScoreCursor runs its own RAF loop and does not need to be recreated on time changes | SAFE | Verified: `score-cursor.ts` tick is a self-rescheduling RAF that reads `qstampSource()` each frame |
+| `qstampSource` can safely read from `audioRef.current?.currentTime` inside the stable closure | SAFE | `audioRef` is a stable React ref; reading `current.currentTime` gives live value without React state |
+| `ScoreCursor.tick()` handles `qstampSource` returning `null` | SAFE | Verified lines 89–93: `if (q === null) { this.hideAll(); this.rafId = requestAnimationFrame(this.tick); return; }` |
+
+---
+
+### Summary (Loop 3)
+
+[BLOCKER] count: 1
+[RISK]    count: 0
+[QUESTION] count: 0
+
+VERDICT: NEEDS_REWORK — One blocker: ScoreCursor `useEffect` dependency array includes `currentTime`, causing the cursor to be torn down and recreated at ~4Hz (every audio timeupdate). The cursor's internal RAF tick never runs. Fix: remove `currentTime` from deps and change `qstampSource` to read from `audioRef.current?.currentTime` directly.
