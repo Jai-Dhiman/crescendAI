@@ -60,6 +60,10 @@ export class ScoreCursor {
       line.setAttribute("y2", String(page.height));
       line.setAttribute("stroke", "#2563eb");
       line.setAttribute("stroke-width", "2");
+      // Keep stroke width in screen pixels regardless of viewBox scaling.
+      // Without this, stroke-width="2" in a 24000-unit-wide viewBox shown in
+      // ~800px renders as ~0.07px — invisible.
+      line.setAttribute("vector-effect", "non-scaling-stroke");
       line.setAttribute("visibility", "hidden");
       overlay.appendChild(line);
 
@@ -103,6 +107,25 @@ export class ScoreCursor {
         return;
       }
 
+      // Compute the vertical range for the current bar's system from the y
+      // values of notes in this bar. bar.bbox.y/h are zero in the IR (the
+      // parser only fills x). Notes' bbox.y is the glyph baseline; pad above
+      // and below to cover stems, beams, and ledger lines.
+      const ys: number[] = [];
+      for (const id of bar.noteIds) {
+        const note = this.ir.notes[id];
+        if (note && Number.isFinite(note.bbox.y) && note.bbox.y > 0) {
+          ys.push(note.bbox.y);
+        }
+      }
+      const SYSTEM_PAD = 400; // viewBox units; ~one staff-line spacing
+      const pageHeight = this.ir.pages[overlayIdx]?.height ?? 0;
+      const y1 = ys.length > 0 ? Math.max(0, Math.min(...ys) - SYSTEM_PAD) : 0;
+      const y2 =
+        ys.length > 0
+          ? Math.min(pageHeight || Number.POSITIVE_INFINITY, Math.max(...ys) + SYSTEM_PAD)
+          : pageHeight;
+
       // Hide all overlays except the current page.
       for (let i = 0; i < this.overlays.length; i++) {
         const line = this.overlays[i].querySelector("line");
@@ -110,6 +133,8 @@ export class ScoreCursor {
         if (i === overlayIdx) {
           line.setAttribute("x1", String(x));
           line.setAttribute("x2", String(x));
+          line.setAttribute("y1", String(y1));
+          line.setAttribute("y2", String(y2));
           line.setAttribute("visibility", "visible");
         } else {
           line.setAttribute("visibility", "hidden");

@@ -771,18 +771,6 @@ function ScoreCursorPanel({ pieceId }: { pieceId: string }) {
 				});
 				cursor.start();
 				cursorRef.current = cursor;
-				// Make the cursor's line bright + thick for the demo so it's
-				// obvious whether it's positioned and visible. Cursor module
-				// hardcodes #2563eb / width 2 — we override after start().
-				for (const overlay of Array.from(
-					containerRef.current.querySelectorAll("svg.score-cursor-overlay"),
-				)) {
-					const line = overlay.querySelector("line");
-					if (line) {
-						line.setAttribute("stroke", "#ef4444");
-						line.setAttribute("stroke-width", "6");
-					}
-				}
 
 				// Sample the cursor state ~10x/sec for a visible debug readout.
 				const debugInterval = window.setInterval(() => {
