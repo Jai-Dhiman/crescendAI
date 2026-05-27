@@ -408,6 +408,7 @@ The Worker builds the subagent's context from three sources:
 **From the client (per request):**
 - Filtered teaching moments (top 3-5 chunks with STOP > threshold)
 - Each chunk: 6 dimension scores, STOP probability, chunk index, start offset
+- Each top moment carries a `bar_analysis` block when WASM bar analysis succeeded (Tier 1/2): the selected dimension's per-bar findings plus correlated dimension findings derived from `ChunkAnalysis`. Built by `buildBarAnalysisFacts` in the DO at accumulation time and attached to each accumulated moment as `llmAnalysis`.
 - Current piece (if student-reported): composer, title, section label, approximate bar range
 - Session metadata: duration, total chunks, chunks above threshold
 
