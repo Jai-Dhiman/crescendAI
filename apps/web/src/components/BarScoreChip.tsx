@@ -71,8 +71,9 @@ export function BarScoreChip({ scores, barNumber, onClose }: BarScoreChipProps) 
       </div>
       <div className="flex justify-between mt-1.5">
         {DIMENSIONS.map((dim) => (
-          <span key={dim} className="text-[9px] text-text-tertiary capitalize">
-            {dim.slice(0, 3)}
+          <span key={dim} className="text-[9px] text-text-tertiary capitalize" aria-label={dim}>
+            <span aria-hidden="true">{dim.slice(0, 3)}</span>
+            <span className="sr-only">{dim}</span>
           </span>
         ))}
       </div>
