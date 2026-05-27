@@ -351,7 +351,7 @@ Create `apps/web/src/components/ProofCard.tsx`:
 
 ```typescript
 // apps/web/src/components/ProofCard.tsx
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
 import type { ProofCardManifest } from "../types/landing";
 import type { ScoreIR } from "../lib/score-ir";
