@@ -36,6 +36,7 @@ export function BarScoreChip({ scores, barNumber, onClose }: BarScoreChipProps) 
       data-testid="bar-score-chip"
       className="bg-espresso border border-border rounded-lg p-3 shadow-lg min-w-[180px]"
       role="dialog"
+      aria-modal="true"
       aria-label={`Quality scores for bar ${barNumber}`}
       tabIndex={-1}
       onKeyDown={handleKeyDown}

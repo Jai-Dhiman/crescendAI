@@ -29,6 +29,20 @@ describe("BarScoreChip", () => {
     }
   });
 
+  it("has aria-modal=true on the dialog element", async () => {
+    const { BarScoreChip } = await import("./BarScoreChip");
+    render(
+      React.createElement(BarScoreChip, {
+        scores: SCORES,
+        barNumber: 4,
+        onClose: vi.fn(),
+      }),
+    );
+    const chip = document.querySelector('[data-testid="bar-score-chip"]');
+    expect(chip).not.toBeNull();
+    expect(chip!.getAttribute("aria-modal")).toBe("true");
+  });
+
   it("calls onClose when Escape key is pressed", async () => {
     const onClose = vi.fn();
     const { BarScoreChip } = await import("./BarScoreChip");
