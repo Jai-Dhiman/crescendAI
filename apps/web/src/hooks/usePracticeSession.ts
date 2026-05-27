@@ -339,6 +339,9 @@ export function usePracticeSession(
 				case "error":
 					setError(data.message);
 					break;
+				case "chunk_bar_map":
+					// No UI behavior wired yet -- cursor-following is out of scope for this plan.
+					break;
 			}
 		},
 		[cleanup],
