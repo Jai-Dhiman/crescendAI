@@ -37,7 +37,7 @@ describe("alignChunkChroma", () => {
 		).toThrow("score-analysis WASM not initialized");
 	});
 
-	it("forwards all 5 arguments to align_chunk_chroma and returns its result unchanged", async () => {
+	it("mock factory accepts 5-arg call shape matching align_chunk_chroma signature (end-to-end forwarding is verified by chroma_dtw_roundtrip Rust cargo test)", async () => {
 		// The WASM module path is mocked above, but scoreAnalysisModule (a module-level
 		// const in wasm-bridge.ts) is set to null at declaration time before any mock
 		// intercepts the import. requireScoreAnalysis() therefore always throws in this
