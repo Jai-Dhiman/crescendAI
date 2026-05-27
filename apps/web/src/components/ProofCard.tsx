@@ -123,7 +123,9 @@ export function ProofCard({ manifest, cardIndex }: ProofCardProps) {
     }
   }, [currentTime]);
 
-  // Audio timeupdate → state
+  // Audio timeupdate, ended, error → state
+  // Using addEventListener (not React onError prop) because React 18 does not
+  // reliably fire synthetic events for HTMLMediaElement in jsdom.
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
@@ -133,11 +135,16 @@ export function ProofCard({ manifest, cardIndex }: ProofCardProps) {
     function onEnded() {
       trackLandingEvent("landing_proof_card_played_to_end", { cardIndex });
     }
+    function onError() {
+      setLoadState("audio-failed");
+    }
     audio.addEventListener("timeupdate", onTimeUpdate);
     audio.addEventListener("ended", onEnded);
+    audio.addEventListener("error", onError);
     return () => {
       audio.removeEventListener("timeupdate", onTimeUpdate);
       audio.removeEventListener("ended", onEnded);
+      audio.removeEventListener("error", onError);
     };
   }, [cardIndex, setCurrentTime]);
 
@@ -292,7 +299,6 @@ export function ProofCard({ manifest, cardIndex }: ProofCardProps) {
             ref={audioRef}
             src={manifest.audioUrl}
             preload={cardIndex === 0 ? "auto" : "none"}
-            onError={() => setLoadState("audio-failed")}
           />
         </div>
 
