@@ -245,7 +245,23 @@ export function ProofCard({ manifest, cardIndex }: ProofCardProps) {
           role="img"
           aria-label={`Score for ${manifest.title}`}
         />
-        {/* Bar tap targets rendered over score */}
+        {/* Bar tap targets rendered over score.
+            INTENTIONAL SIMPLIFICATION: buttons are equal-width strips across the
+            score container (left = idx/total * 100%). This does not correspond to
+            actual bar positions in the rendered SVG — Verovio lays out bars at
+            proportional widths based on note density, not equal widths, and the
+            score may wrap across multiple systems on the same page.
+
+            What would be needed to do this correctly: extract per-bar bounding
+            boxes from the rendered SVG after layout (getBoundingClientRect on
+            each measure <g> element), then map those pixel offsets into container-
+            relative percentages. That requires main-thread DOM access post-render
+            and is out of scope for this static landing demo.
+
+            For this use case (3 prebaked cards, click to reveal a quality chip)
+            the simplification is acceptable: a tap anywhere near bar N will
+            activate bar N's chip, and the focus-bar highlight covers the correct
+            rough region. */}
         <div
           className="absolute inset-0"
           aria-label="Bar score inspection overlay"
