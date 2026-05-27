@@ -183,6 +183,9 @@ pub fn chroma_dtw_native(
     if score_bars.is_empty() {
         return Err("score_bars is empty".to_string());
     }
+    if n_a == 0 {
+        return Err("n_audio is zero".to_string());
+    }
 
     let score_chroma = build_score_chroma(score_bars, frame_rate_hz);
     let n_s = score_chroma.len() / 12;
@@ -271,4 +274,33 @@ pub fn align_chunk_chroma(
         .map_err(|e| JsValue::from_str(&e))?;
 
     serde_wasm_bindgen::to_value(&result).map_err(|e| JsValue::from_str(&e.to_string()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::types::ScoreBar;
+
+    fn make_score_bar() -> ScoreBar {
+        ScoreBar {
+            bar_number: 1,
+            start_tick: 0,
+            start_seconds: 0.0,
+            time_signature: "4/4".to_string(),
+            notes: vec![],
+            pedal_events: vec![],
+            note_count: 0,
+            pitch_range: vec![],
+            mean_velocity: 64,
+        }
+    }
+
+    #[test]
+    fn n_audio_zero_returns_error() {
+        let score_bars = vec![make_score_bar()];
+        // n_audio = 0 => audio_f32 len = 12 * 0 = 0, passes length check, must be caught by guard
+        let result = chroma_dtw_native(&[], 0, &score_bars, 10.0, 2.0);
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), "n_audio is zero");
+    }
 }
