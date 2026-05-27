@@ -47,7 +47,10 @@ export async function persistAccumulatedMoments(
 ): Promise<void> {
 	for (const moment of moments) {
 		const framing = moment.isPositive ? "recognition" : "correction";
-		const reasoningTrace = moment.llmAnalysis ?? moment.reasoning;
+		const reasoningTrace =
+			moment.llmAnalysis !== null
+				? JSON.stringify(moment.llmAnalysis)
+				: moment.reasoning;
 
 		await db
 			.insert(observations)

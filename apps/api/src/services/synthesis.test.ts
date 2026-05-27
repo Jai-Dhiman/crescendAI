@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
-import { persistDiagnosisArtifacts } from './synthesis'
+import { persistAccumulatedMoments, persistDiagnosisArtifacts } from './synthesis'
+import type { AccumulatedMoment } from './accumulator'
+import type { BarAnalysisFacts } from './bar-analysis-facts'
 
 const VALID_RESULT = {
   primary_dimension: 'pedaling' as const,
@@ -70,5 +72,54 @@ describe('persistDiagnosisArtifacts', () => {
     await expect(
       persistDiagnosisArtifacts(mockDb as never, [{ tool: 'x', output: VALID_RESULT }], 's', 's', null)
     ).resolves.not.toThrow()
+  })
+})
+
+describe('persistAccumulatedMoments reasoning_trace', () => {
+  const baseMoment: AccumulatedMoment = {
+    chunkIndex: 0,
+    dimension: 'timing',
+    score: 0.3,
+    baseline: 0.5,
+    deviation: -0.2,
+    isPositive: false,
+    reasoning: 'rushing ahead of beat',
+    barRange: [4, 7],
+    analysisTier: 1,
+    timestampMs: 1,
+    llmAnalysis: null,
+  }
+
+  function makeMockDb() {
+    const insertedValues: Record<string, unknown>[] = []
+    const mockDb = {
+      insert: vi.fn().mockReturnThis(),
+      values: vi.fn().mockImplementation((v: Record<string, unknown>) => {
+        insertedValues.push(v)
+        return { onConflictDoNothing: vi.fn().mockResolvedValue(undefined) }
+      }),
+    }
+    return { mockDb, insertedValues }
+  }
+
+  it('falls back to moment.reasoning when llmAnalysis is null', async () => {
+    const { mockDb, insertedValues } = makeMockDb()
+    await persistAccumulatedMoments(mockDb as never, 'stu-1', 'sess-1', null, [baseMoment])
+    expect(insertedValues[0]?.reasoningTrace).toBe('rushing ahead of beat')
+  })
+
+  it('writes JSON-stringified facts when llmAnalysis is non-null', async () => {
+    const facts: BarAnalysisFacts = {
+      tier: 1,
+      bar_range: '4-7',
+      selected: { dimension: 'timing', analysis: 'rushing 45ms' },
+      correlated: [],
+    }
+    const { mockDb, insertedValues } = makeMockDb()
+    await persistAccumulatedMoments(mockDb as never, 'stu-1', 'sess-1', null, [
+      { ...baseMoment, llmAnalysis: facts },
+    ])
+    const trace = insertedValues[0]?.reasoningTrace as string
+    expect(JSON.parse(trace)).toEqual(facts)
   })
 })

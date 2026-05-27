@@ -121,6 +121,7 @@ def build_synthesis_user_msg(
     muq_means: dict[str, float],
     duration_seconds: float,
     meta: dict[str, Any],
+    chunks: list[dict[str, Any]] | None = None,
 ) -> str:
     """Build the user message for Sonnet, matching prod buildSynthesisFraming()."""
     deviations = {
@@ -144,6 +145,24 @@ def build_synthesis_user_msg(
         key=lambda x: abs(float(x["deviation_from_mean"])),
         reverse=True,
     )[:4]
+
+    # Inject bar_analysis facts onto the matching top moment.
+    # NOTE: eval uses SCALER_MEAN (global) as baselines; production uses
+    # per-student baselines. Documented divergence.
+    if chunks is not None and top_moments:
+        from teaching_knowledge.bar_analysis_local import build_bar_analysis
+        from teaching_knowledge.piece_score_map import get_score_path_for_piece
+
+        score_path = get_score_path_for_piece(meta.get("piece_slug", ""))
+        score_json = json.loads(score_path.read_text()) if score_path is not None else None
+        baselines_for_facts = {dim: SCALER_MEAN[dim] for dim in DIMS}
+        facts = build_bar_analysis(chunks, baselines_for_facts, score_json)
+        if facts is not None:
+            selected_dim_name = facts["selected"]["dimension"]
+            for m in top_moments:
+                if m["dimension"] == selected_dim_name:
+                    m["bar_analysis"] = facts
+                    break
 
     session_data = {
         "duration_minutes": round(duration_seconds / 60, 1),
@@ -358,7 +377,9 @@ def run(
             duration_seconds = data.get("total_duration_seconds", 0.0)
 
             try:
-                user_msg = build_synthesis_user_msg(muq_means, duration_seconds, meta)
+                user_msg = build_synthesis_user_msg(
+                    muq_means, duration_seconds, meta, chunks=chunks
+                )
 
                 t0 = time.monotonic()
                 raw = synthesis_client.complete(

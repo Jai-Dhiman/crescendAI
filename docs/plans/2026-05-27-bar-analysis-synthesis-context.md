@@ -1835,3 +1835,60 @@ The two blockers are both empirical: the Moonlight mapping row in Task 5 is veri
 Additionally, the project memory note that AMT is not deployed (all production sessions are Tier 3) means the production wire of this change produces `llmAnalysis: null` for every real user today; only the eval harness exercises the feature meaningfully. That is not a blocker for shipping the plumbing — but the team should know that "ship" means "ship the plumbing and the eval lift; production lift gated on AMT deploy." Worth a note in the plan's success-criteria section so reviewers don't expect production-side ASCF movement until AMT ships.
 
 VERDICT: NEEDS_REWORK — Fix two blockers before execution: (1) correct the Task 5 mapping table (mark all rows "needs verify" or remove the empirically wrong Moonlight 14-1 row); (2) decide what to do about signal-free notated-velocity comparison in Task 9 (either drop the dynamics-vs-notated line or document and accept). After these two are addressed, the plan can proceed with the noted risks tracked during build.
+
+---
+
+## Challenge Review — Loop 2
+
+Re-review after the two loop-1 blockers were addressed. Scope of this pass: verify the two fixes are sound and complete, check for new blockers introduced by the edits, assess whether previous non-blocker risks are now plan-breaking.
+
+### Blocker 1 — Task 5 mapping table rewritten as procedure
+
+**Verified resolution.** Empirical check: `ls model/data/scores/ | grep -iE "beethoven.*14"` returns only `beethoven.piano_sonatas.14-3.json`; the previously wrong `moonlight_sonata_mvt1 → 14-1.json` row is no longer in the plan. The candidate table at plan lines 718–736 now uses neutral grep patterns (e.g. `beethoven\.piano_sonatas\.14-`) with explicit per-row "needs verify" markers, and the Moonlight row carries an inline carve-out: "only map if a `14-1` mvt-1 file is present; if only `14-3` exists, leave unmapped." The `PIECE_SCORE_MAP` skeleton at plan line 812 ships empty with a build-agent instruction "populate this dict from the Step 1 ls-verification results. Do NOT add any row without confirming the file exists." Five rules at lines 738–743 enforce the verification gate. **The fix is sound and complete; this blocker is resolved.**
+
+### Blocker 2 — Task 9 dropped notated-velocity comparison
+
+**Verified resolution.** Empirical check: sampling `bach.fugue.bwv_846.json` confirms every note has `velocity: 80` (default MIDI export, not a notated dynamic). The plan now removes the dynamics-vs-notated line from `compute_tier1_dimensions`:
+
+- Plan line 1206 says "Dynamics is deliberately NOT enriched in Tier-1 — see Code Quality note below."
+- The Code Quality note at lines 1208 documents the rationale.
+- The implementation at lines 1297–1308 only enriches articulation (perf/score duration ratio); dynamics is left at its Tier-2 string.
+- The docstring at lines 1277–1283 captures the divergence so future readers do not "fix" it back.
+- The new test `test_tier1_dynamics_does_not_mention_notated_score` (lines 1242–1255) locks the absence as intentional behavior, asserting neither "notated" nor "(score)" appears in the dynamics string.
+- The articulation duration ratio (real signal) is retained and tested by `test_tier1_articulation_mentions_duration_ratio`.
+
+**The fix is sound and complete; this blocker is resolved.** The Presumption Inventory rows for these two assumptions were updated to `RESOLVED` with reasons.
+
+### New Blockers Introduced By The Edits
+
+None. The edits are subtractive (remove a wrong table row, remove a signal-free line) or additive in a way that locks intentional absence (a test that asserts a string is NOT present). No new file dependencies, no new types, no new control-flow branches were introduced.
+
+One small consistency check worth noting (not a blocker): Task 9 Step 2's stale shell command at line 1260 still references `test_tier1_dynamics_mentions_notated_score` as the function to run — but the test was renamed to `test_tier1_dynamics_does_not_mention_notated_score` (line 1242). The build agent runs the whole file (`pytest teaching_knowledge/tests/test_bar_analysis_local.py -v`), so the wrong filter just selects nothing and the file's other tests still execute. Cosmetic; flag as `[OBS]`, not `[BLOCKER]`.
+
+### Loop-1 Non-Blocker Risks — Status Check
+
+Walking the prior risks to see if any are now plan-breaking:
+
+| Prior risk | Loop-2 status |
+|---|---|
+| Task 3 call-site count off-by-one ("4+4" vs actual 3+3) | Unchanged; plan still hand-waves "and any I missed; the build agent must locate every call." Acceptable per `/build` discipline. **Ride through.** |
+| `bar_analysis_local.py` tests reach into helpers (UNCLEAR depth) | Unchanged; defensible because formula parity with Rust requires helper-level tests. **Ride through.** |
+| Task 3 production wire has no failing test before edit (typecheck-only) | Unchanged; Task 12 eval is the only behavior check. Risk acknowledged. **Ride through with self-review at commit time.** |
+| Watch-it-fail discipline in 1c/4/6 depends on subagent compliance | Unchanged. **Ride through; `/build` two-stage review catches drift.** |
+| Task 2 bundles synthesis.ts edit with accumulator commit | Unchanged. **Ride through.** |
+| selectedDimension-not-found branch untested | Unchanged. One-line test gap. **Ride through.** |
+| Tier-3 production path (dominant per project memory) has no test | Unchanged; structural — production lift gated on AMT deploy, called out in loop-1 summary. **Ride through; not a build blocker.** |
+| Task 11 uses `SCALER_MEAN` (global) where prod uses per-student baselines | Unchanged. **Ride through; document in PR.** |
+| Task 12 full eval has no documented resume mechanism | Unchanged; calendar risk only. **Ride through.** |
+| Task 11 re-parses score JSON per row (~50 MB throwaway) | Unchanged; negligible at 17 pieces. **Ride through.** |
+
+None of the prior risks were elevated by the edits. None became plan-breaking.
+
+### Updated Summary
+
+[BLOCKER] count: 0 (both loop-1 blockers resolved; no new blockers)
+[RISK]    count: 8 (all carried over from loop-1, all ride-through)
+[QUESTION] count: 1 (carried over: spec does not document rejected alternatives)
+[OBS]      count: 4 (one new: stale test-name reference in Task 9 Step 2 shell command)
+
+VERDICT: PROCEED_WITH_CAUTION — Both loop-1 blockers are empirically and structurally resolved. Carry-over risks are tracked and have named fallbacks; the dominant one (Tier-3 production path means production-side ASCF will not move until AMT deploys) is structural, not a plan defect — surface in the PR description so reviewers calibrate expectations. Build agent should self-review the `session-brain.ts` edit diff before committing Task 3 and observe the watch-it-fail revert step on Tasks 1c, 4, and 6.

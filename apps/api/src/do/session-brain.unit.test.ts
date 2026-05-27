@@ -3,6 +3,9 @@ import { buildV6WsPayload } from "./session-brain";
 import type { SynthesisArtifact } from "../harness/artifacts/synthesis";
 import { parseMuqResponse } from "../services/inference";
 import { wsOutgoingMessageSchema } from "./session-brain.schema";
+import { SessionAccumulator, type AccumulatedMoment } from "../services/accumulator";
+import { buildBarAnalysisFacts } from "../services/bar-analysis-facts";
+import type { ChunkAnalysis } from "../services/wasm-bridge";
 
 const HEADLINE =
 	"You showed up and put in real work today. The session was short but focused, and we'll keep building from here. There is plenty to dig into next time, and I'll be ready when you are. Keep listening for the shape of each phrase as you play. " +
@@ -139,5 +142,46 @@ describe("chunk_bar_map WebSocket message", () => {
 		expect(parsed.bar_min).toBe(5);
 		expect(parsed.bar_max).toBe(9);
 		expect(parsed.bar_per_frame).toEqual([5, 6, 7, 8, 9]);
+	});
+});
+
+describe("session-brain accumulation contract", () => {
+	it("buildBarAnalysisFacts result is the shape session-brain must attach to accMoment.llmAnalysis", () => {
+		const analysis: ChunkAnalysis = {
+			tier: 1,
+			bar_range: "4-7",
+			dimensions: [
+				{ dimension: "timing", analysis: "rushing" },
+				{ dimension: "dynamics", analysis: "soft" },
+			],
+		};
+		const baselines = {
+			dynamics: 0.5, timing: 0.5, pedaling: 0.5,
+			articulation: 0.5, phrasing: 0.5, interpretation: 0.5,
+		};
+		const scores: [number, number, number, number, number, number] = [
+			0.20, 0.30, 0.50, 0.50, 0.50, 0.50,
+		];
+		const facts = buildBarAnalysisFacts(analysis, scores, baselines, "timing");
+
+		const moment: AccumulatedMoment = {
+			chunkIndex: 0,
+			dimension: "timing",
+			score: 0.30,
+			baseline: 0.50,
+			deviation: -0.20,
+			isPositive: false,
+			reasoning: "rushing",
+			barRange: [4, 7],
+			analysisTier: 1,
+			timestampMs: 0,
+			llmAnalysis: facts,
+		};
+		const acc = new SessionAccumulator();
+		acc.accumulateMoment(moment);
+		const top = acc.topMoments();
+		expect(top[0]?.llmAnalysis).not.toBeNull();
+		expect(top[0]?.llmAnalysis?.selected.dimension).toBe("timing");
+		expect(top[0]?.llmAnalysis?.correlated.map((d) => d.dimension)).toContain("dynamics");
 	});
 });

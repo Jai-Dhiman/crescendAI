@@ -1,5 +1,6 @@
 import type { Dimension } from "../lib/dims";
 import { DIMS_6 } from "../lib/dims";
+import type { BarAnalysisFacts } from "./bar-analysis-facts";
 
 export interface AccumulatedMoment {
 	chunkIndex: number;
@@ -12,7 +13,7 @@ export interface AccumulatedMoment {
 	barRange: [number, number] | null;
 	analysisTier: number; // 1=full, 2=absolute, 3=scores only
 	timestampMs: number;
-	llmAnalysis: string | null;
+	llmAnalysis: BarAnalysisFacts | null;
 }
 
 export interface ModeTransitionRecord {
