@@ -52,11 +52,13 @@
 		"@types/react": "^19.2.0",
 		"@types/react-dom": "^19.2.0",
 		"@vitejs/plugin-react": "^5.0.4",
+		"axe-core": "^4.11.4",
 		"jsdom": "^28.1.0",
 		"typescript": "^5.7.2",
 		"vite": "^7.1.7",
 		"vite-tsconfig-paths": "^6.1.1",
 		"vitest": "^4.0.18",
+		"vitest-axe": "^0.1.0",
 		"wrangler": "^4.69.0"
 	}
 }

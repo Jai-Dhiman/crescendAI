@@ -49,7 +49,7 @@ export async function persistAccumulatedMoments(
 		const framing = moment.isPositive ? "recognition" : "correction";
 		const reasoningTrace =
 			moment.llmAnalysis !== null
-				? JSON.stringify(moment.llmAnalysis)
+				? JSON.stringify({ kind: "facts" as const, ...moment.llmAnalysis })
 				: moment.reasoning;
 
 		await db

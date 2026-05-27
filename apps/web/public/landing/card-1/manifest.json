@@ -1,0 +1,28 @@
+{
+  "pieceId": "chopin.nocturnes.9-2",
+  "title": "Nocturne Op. 9 No. 2",
+  "era": "romantic",
+  "audioUrl": "/landing/card-1/recording.opus",
+  "scoreIRUrl": "/landing/card-1/scoreir.json",
+  "scoreSvgUrl": "/landing/card-1/score.svg",
+  "focusBar": 4,
+  "focusBarRange": [3, 5],
+  "diagnosis": "The diminuendo in bar 4 arrives too early — the phrase peak is on beat 2 but your dynamics have already started receding by beat 1. Try holding the swell through beat 2 before releasing.",
+  "exerciseUrl": "/landing/card-1/exercise.json",
+  "barTimeline": [
+    { "bar": 1, "tSec": 0.0 },
+    { "bar": 2, "tSec": 4.2 },
+    { "bar": 3, "tSec": 8.5 },
+    { "bar": 4, "tSec": 12.8 },
+    { "bar": 5, "tSec": 17.1 },
+    { "bar": 6, "tSec": 21.4 }
+  ],
+  "perBarScores": {
+    "1": { "dynamics": 0.72, "timing": 0.81, "pedaling": 0.68, "articulation": 0.75, "phrasing": 0.70, "interpretation": 0.74 },
+    "2": { "dynamics": 0.75, "timing": 0.79, "pedaling": 0.71, "articulation": 0.73, "phrasing": 0.72, "interpretation": 0.76 },
+    "3": { "dynamics": 0.68, "timing": 0.82, "pedaling": 0.65, "articulation": 0.74, "phrasing": 0.67, "interpretation": 0.71 },
+    "4": { "dynamics": 0.52, "timing": 0.78, "pedaling": 0.60, "articulation": 0.71, "phrasing": 0.54, "interpretation": 0.63 },
+    "5": { "dynamics": 0.74, "timing": 0.80, "pedaling": 0.69, "articulation": 0.76, "phrasing": 0.71, "interpretation": 0.75 },
+    "6": { "dynamics": 0.77, "timing": 0.83, "pedaling": 0.72, "articulation": 0.78, "phrasing": 0.73, "interpretation": 0.77 }
+  }
+}

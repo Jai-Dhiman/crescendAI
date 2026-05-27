@@ -197,7 +197,7 @@ export function parseMuqResponse(raw: MuqResponseRaw): MuqResult {
 
 	let chromaBytes: Uint8Array | null = null;
 	let chromaFrames = 0;
-	let chromaFrameRateHz = Number.NaN;
+	let chromaFrameRateHz = 0;
 
 	if (
 		raw.chroma_b64 !== undefined &&

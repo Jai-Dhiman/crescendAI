@@ -1,0 +1,28 @@
+{
+  "pieceId": "satie.gymnopedies.1",
+  "title": "Gymnopédie No. 1",
+  "era": "contemporary",
+  "audioUrl": "/landing/card-3/recording.opus",
+  "scoreIRUrl": "/landing/card-3/scoreir.json",
+  "scoreSvgUrl": "/landing/card-3/score.svg",
+  "focusBar": 5,
+  "focusBarRange": [4, 6],
+  "diagnosis": "The melody note on beat 1 of bar 5 needs more weight relative to the left-hand chord. Your interpretation score reflects that the top voice isn't projecting above the accompaniment — try voicing the right hand with the fifth finger leading.",
+  "exerciseUrl": "/landing/card-3/exercise.json",
+  "barTimeline": [
+    { "bar": 1, "tSec": 0.0 },
+    { "bar": 2, "tSec": 5.0 },
+    { "bar": 3, "tSec": 10.0 },
+    { "bar": 4, "tSec": 15.0 },
+    { "bar": 5, "tSec": 20.0 },
+    { "bar": 6, "tSec": 25.0 }
+  ],
+  "perBarScores": {
+    "1": { "dynamics": 0.70, "timing": 0.76, "pedaling": 0.73, "articulation": 0.68, "phrasing": 0.72, "interpretation": 0.69 },
+    "2": { "dynamics": 0.71, "timing": 0.77, "pedaling": 0.74, "articulation": 0.69, "phrasing": 0.73, "interpretation": 0.70 },
+    "3": { "dynamics": 0.72, "timing": 0.78, "pedaling": 0.75, "articulation": 0.70, "phrasing": 0.74, "interpretation": 0.71 },
+    "4": { "dynamics": 0.69, "timing": 0.75, "pedaling": 0.72, "articulation": 0.67, "phrasing": 0.71, "interpretation": 0.68 },
+    "5": { "dynamics": 0.58, "timing": 0.76, "pedaling": 0.71, "articulation": 0.66, "phrasing": 0.70, "interpretation": 0.53 },
+    "6": { "dynamics": 0.71, "timing": 0.77, "pedaling": 0.74, "articulation": 0.69, "phrasing": 0.73, "interpretation": 0.70 }
+  }
+}
